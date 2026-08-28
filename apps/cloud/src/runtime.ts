@@ -51,7 +51,7 @@ import { RealReadOnlyEventRecorder } from "./realReadOnlyObservabilityPersistenc
 import type { RealReadOnlyEvent, RealReadOnlyObservabilitySnapshot } from "../../../packages/contracts/src/realReadOnlyObservability";
 import { readCloudRuntimeSafety, readPaperAutoLearningReadiness } from "./liveReadinessRuntimeReaders";
 import { paperExecutionObservationId, PaperRealizedPeriodProducer, SqlitePaperRealizedPeriodRepository, type PaperRealizedPeriodCloseInput, type PaperRealizedPeriodOpenInput, type PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
-import type { PaperForwardPeriodEvidence } from "../../../packages/contracts/src/paperForwardEvidence";
+import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 
 export interface CloudRuntimeDashboardHydratorLike { hydrate(provider: CloudDashboardStateProvider, observations?: readonly IntelligenceObservation[]): void; }
 export interface CloudRuntimeMarketDataClientLike { subscribe(markets: readonly string[]): void; start(): void; stop(): void; }
@@ -66,8 +66,8 @@ export interface CloudRuntimeHandle extends CloudDashboardServerHandle {
   readonly recordRealReadOnlyEvent: (event: RealReadOnlyEvent) => RealReadOnlyEvent;
   readonly openPaperRealizedPeriod: (input: PaperRealizedPeriodOpenInput) => PersistedPaperRealizedPeriodPlan;
   readonly observePaperRealizedExecution: (observation: { readonly observationId: string; readonly observedAt: number; readonly status: "FILLED" | "WAIT" | "BLOCKED" | "REJECTED" | "FAILED" | "DUPLICATE" }) => "RECORDED" | "DUPLICATE" | "NO_ACTIVE_PERIOD";
-  readonly closePaperRealizedPeriod: (input: PaperRealizedPeriodCloseInput) => PaperForwardPeriodEvidence;
-  readonly listPaperRealizedPeriods: () => readonly PaperForwardPeriodEvidence[];
+  readonly closePaperRealizedPeriod: (input: PaperRealizedPeriodCloseInput) => PersistedPaperPeriodEnvelope;
+  readonly listPaperRealizedPeriods: () => readonly PersistedPaperPeriodEnvelope[];
 }
 
 function createSnapshotRepository(pathname: string): CloudDashboardSnapshotRepository {
@@ -173,7 +173,16 @@ export function startCloudRuntime(
     durableRepository instanceof SqliteCloudDashboardSnapshotRepository ? { persistencePath: config.cloudStateDbPath } : {}
   );
   const paperRealizedPeriodProducer = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
-    ? new PaperRealizedPeriodProducer(new SqlitePaperRealizedPeriodRepository(durableRepository.database()))
+    ? new PaperRealizedPeriodProducer(new SqlitePaperRealizedPeriodRepository(durableRepository.database()), {
+      onLifecycleEvent: (event) => paperLearningRecorder.record({
+        cycleId: `paper-period:${event.periodId}`,
+        stage: event.type,
+        occurredAt: event.occurredAt,
+        market: "PAPER_PERIOD",
+        status: event.type === "PERIOD_REJECTED" ? "FAIL" : "PASS",
+        ...(event.type === "PERIOD_REJECTED" ? { reason: event.reasonCode } : {}),
+      }),
+    })
     : undefined;
   const effectiveProvider = durableRepository == null ? stateProvider : new DurableCloudDashboardStateProvider(stateProvider, durableRepository, env.NUSA_SOURCE_COMMIT?.trim() || "unknown", env.NUSA_CLOUD_SOURCE_VERSION?.trim() || "unknown");
   const recovered = durableRepository != null && effectiveProvider instanceof DurableCloudDashboardStateProvider && effectiveProvider.recover();
@@ -268,7 +277,7 @@ export function startCloudRuntime(
         // second mutation path for strategy ticks.
         const result = productionPaperBoundary?.processTick(tick);
           if (result != null) {
-          try { paperRealizedPeriodProducer?.observeExecution({ observationId: paperExecutionObservationId(ticker.code, ticker.trade_timestamp, result.status), observedAt: now, status: result.status }); } catch { /* evidence collection must not create a PAPER execution path */ }
+          try { paperRealizedPeriodProducer?.observeExecution({ observationId: paperExecutionObservationId(ticker.code, ticker.trade_timestamp, result.status), observedAt: now, status: result.status }); } catch (error) { heartbeat.lastError = error instanceof Error ? "PAPER_PERIOD_EVIDENCE_REJECTED" : "PAPER_PERIOD_EVIDENCE_REJECTED"; }
           }
         const cycleId = paperLearningCycleId(ticker.code, ticker.trade_timestamp);
         const canonicalDecision = state.decisions.find((decision) => decision.symbol === ticker.code) ?? state.decisions[0];
@@ -336,7 +345,7 @@ export function startCloudRuntime(
     // caller-supplied execution loop must not become an implicit risk-gate bypass.
     const result = productionPaperBoundary?.submitManualOrder(principal.userId, command, context);
     if (result == null) return Object.freeze({ schemaVersion: 1, status: "BLOCKED", reason: "PAPER_RISK_BOUNDARY_UNAVAILABLE", liveAuthority: "NONE", productionMutationAllowed: false });
-    try { paperRealizedPeriodProducer?.observeExecution({ observationId: paperExecutionObservationId(command.market, observedAt, result.status), observedAt: now, status: result.status }); } catch { /* evidence collection must not create a PAPER execution path */ }
+    try { paperRealizedPeriodProducer?.observeExecution({ observationId: paperExecutionObservationId(command.market, observedAt, result.status), observedAt: now, status: result.status }); } catch { /* producer emitted a structured rejection; PAPER execution remains canonical */ }
     if (result.status === "FILLED") projectPaperAccount();
     const snapshot = loadPaperOperations(principal);
     const order = result.orders[0] == null ? undefined : buildReadOnlyOrders(result.state).find((item) => item.id === result.orders[0]!.id);

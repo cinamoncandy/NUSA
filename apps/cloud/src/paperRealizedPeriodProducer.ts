@@ -1,14 +1,18 @@
 import { createHash } from "node:crypto";
-import type { PaperForwardPeriodEvidence, PaperForwardPeriodStatus } from "../../../packages/contracts/src/paperForwardEvidence";
-import type { SqliteDatabase } from "../../../packages/storage/src/index";
+import {
+  PersistedPaperPeriodStoreError,
+  SqlitePersistedPaperPeriodStore,
+  type PersistedPaperCandidateProvenance,
+  type PersistedPaperPeriodEnvelope,
+  type PersistedPaperPendingPeriod,
+} from "../../../packages/storage/src/persistedPaperPeriodStore";
+import type { LeagueCapitalAllocationAdvisory } from "../../../packages/contracts/src/leagueCapitalAllocation";
 
 export interface PaperRealizedPeriodOpenInput {
   readonly periodId: string;
   readonly periodIndex: number;
-  readonly candidateId: string;
-  readonly datasetId: string;
-  readonly datasetContentSha256: string;
-  readonly advisoryGeneratedAt: number;
+  readonly advisory: LeagueCapitalAllocationAdvisory;
+  readonly candidateProvenance: readonly PersistedPaperCandidateProvenance[];
   readonly periodStartAt: number;
 }
 
@@ -20,14 +24,7 @@ export interface PersistedPaperRealizedPeriodPlan extends PaperRealizedPeriodOpe
 }
 
 export interface PaperRealizedPeriodCloseInput {
-  readonly periodId: string;
-  readonly periodEndAt: number;
-  readonly grossReturn: number;
-  readonly turnover: number;
-  readonly feeRate: number;
-  readonly spreadRate: number;
-  readonly slippageRate: number;
-  readonly status: PaperForwardPeriodStatus;
+  readonly envelope: PersistedPaperPeriodEnvelope;
 }
 
 export interface PaperRuntimeObservation {
@@ -36,13 +33,15 @@ export interface PaperRuntimeObservation {
   readonly status: "FILLED" | "WAIT" | "BLOCKED" | "REJECTED" | "FAILED" | "DUPLICATE";
 }
 
-export interface PaperRealizedPeriodRepository {
-  open(plan: PersistedPaperRealizedPeriodPlan): PersistedPaperRealizedPeriodPlan;
-  observe(periodId: string, observation: PaperRuntimeObservation): PersistedPaperRealizedPeriodPlan;
-  realize(evidence: PaperForwardPeriodEvidence): PaperForwardPeriodEvidence;
-  getRealized(periodId: string): PaperForwardPeriodEvidence | undefined;
-  list(): readonly PaperForwardPeriodEvidence[];
-  listOpen(): readonly PersistedPaperRealizedPeriodPlan[];
+export type PaperRealizedPeriodLifecycleEvent =
+  | { readonly type: "PERIOD_OPEN"; readonly periodId: string; readonly occurredAt: number }
+  | { readonly type: "PERIOD_REALIZED_PERSISTED"; readonly periodId: string; readonly occurredAt: number }
+  | { readonly type: "PERIOD_REJECTED"; readonly periodId: string; readonly occurredAt: number; readonly reasonCode: string };
+
+export interface PaperRealizedPeriodProducerOptions {
+  readonly onLifecycleEvent?: (event: PaperRealizedPeriodLifecycleEvent) => void;
+  readonly now?: () => number;
+  readonly maximumPeriods?: number;
 }
 
 export class PaperRealizedPeriodProducerError extends Error {
@@ -52,28 +51,27 @@ export class PaperRealizedPeriodProducerError extends Error {
   }
 }
 
-const TABLE = "paper_realized_periods";
 const SHA256 = /^[a-f0-9]{64}$/;
 const FORBIDDEN_KEY = /(authorization|bearer|token|secret|password|api[_-]?key|access[_-]?key|private[_-]?key|cookie|jwt|nonce|signature|account[_-]?id|order[_-]?id|fill[_-]?id)/i;
 const OBSERVATION_STATUSES = new Set<PaperRuntimeObservation["status"]>(["FILLED", "WAIT", "BLOCKED", "REJECTED", "FAILED", "DUPLICATE"]);
-const PERIOD_STATUSES = new Set<PaperForwardPeriodStatus>(["COMPLETED", "REJECTED", "HALTED"]);
-const DEFAULT_MAXIMUM_PERIODS = 100;
 const MAXIMUM_OBSERVATIONS = 1_024;
+const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 
-const freeze = <T>(value: T): T => Object.freeze(value);
-
-function canonical(value: unknown): string {
+function canonical(value: unknown, seen = new Set<object>()): string {
   if (value === null || typeof value === "string" || typeof value === "boolean") return JSON.stringify(value);
   if (typeof value === "number") {
-    if (!Number.isFinite(value)) throw new PaperRealizedPeriodProducerError("NON_FINITE_VALUE", "period evidence contains a non-finite number");
+    if (!Number.isFinite(value)) throw new PaperRealizedPeriodProducerError("NON_FINITE_VALUE", "PAPER period contains a non-finite number");
     return JSON.stringify(value);
   }
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (Array.isArray(value)) return `[${value.map((item) => canonical(item, seen)).join(",")}]`;
   if (typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>).sort(([left], [right]) => left.localeCompare(right));
-    return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`).join(",")}}`;
+    if (seen.has(value)) throw new PaperRealizedPeriodProducerError("CYCLIC_INPUT", "PAPER period must be acyclic");
+    seen.add(value);
+    const result = `{${Object.entries(value as Record<string, unknown>).sort(([left], [right]) => left.localeCompare(right)).map(([key, item]) => `${JSON.stringify(key)}:${canonical(item, seen)}`).join(",")}}`;
+    seen.delete(value);
+    return result;
   }
-  throw new PaperRealizedPeriodProducerError("UNSUPPORTED_VALUE", "period evidence contains an unsupported value");
+  throw new PaperRealizedPeriodProducerError("UNSUPPORTED_VALUE", "PAPER period contains an unsupported value");
 }
 
 function digest(value: unknown): string { return createHash("sha256").update(canonical(value), "utf8").digest("hex"); }
@@ -90,263 +88,170 @@ function safeTime(value: unknown, field: string): number {
   return Number(value);
 }
 
-function finite(value: unknown, field: string): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) throw new PaperRealizedPeriodProducerError("NON_FINITE_VALUE", `${field} must be finite`);
-  return value;
-}
-
-function rejectForbiddenFields(value: unknown, seen = new Set<object>()): void {
+function rejectForbidden(value: unknown, seen = new Set<object>()): void {
   if (value == null || typeof value !== "object") return;
-  if (seen.has(value)) throw new PaperRealizedPeriodProducerError("CYCLIC_INPUT", "period evidence must be acyclic");
+  if (seen.has(value)) throw new PaperRealizedPeriodProducerError("CYCLIC_INPUT", "PAPER period must be acyclic");
   seen.add(value);
   for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-    if (FORBIDDEN_KEY.test(key)) throw new PaperRealizedPeriodProducerError("FORBIDDEN_FIELD", "period evidence contains a forbidden field");
-    rejectForbiddenFields(child, seen);
+    if (FORBIDDEN_KEY.test(key)) throw new PaperRealizedPeriodProducerError("FORBIDDEN_FIELD", "PAPER period contains a forbidden field");
+    rejectForbidden(child, seen);
   }
   seen.delete(value);
 }
 
+function validateObservation(input: PaperRuntimeObservation): PaperRuntimeObservation {
+  rejectForbidden(input);
+  const observation = freeze({ observationId: safeText(input.observationId, "observationId"), observedAt: safeTime(input.observedAt, "observedAt"), status: input.status });
+  if (!OBSERVATION_STATUSES.has(observation.status)) throw new PaperRealizedPeriodProducerError("INVALID_RUNTIME_OBSERVATION", "PAPER runtime observation status is unsupported");
+  return observation;
+}
+
 function validatePlan(input: PersistedPaperRealizedPeriodPlan): PersistedPaperRealizedPeriodPlan {
-  rejectForbiddenFields(input);
+  rejectForbidden(input);
   if (input.schemaVersion !== 1) throw new PaperRealizedPeriodProducerError("UNSUPPORTED_SCHEMA", "PAPER period schema is unsupported", input.periodId);
+  const periodId = safeText(input.periodId, "periodId");
+  const periodIndex = input.periodIndex;
+  if (!Number.isSafeInteger(periodIndex) || periodIndex < 0) throw new PaperRealizedPeriodProducerError("INVALID_PERIOD_INDEX", "periodIndex must be a non-negative safe integer", periodId);
+  const periodStartAt = safeTime(input.periodStartAt, "periodStartAt");
+  const advisoryGeneratedAt = Date.parse(input.advisory.generatedAt);
+  if (!Number.isFinite(advisoryGeneratedAt) || advisoryGeneratedAt >= periodStartAt) throw new PaperRealizedPeriodProducerError("LOOKAHEAD_ADVISORY", "advisory must predate the PAPER period", periodId);
+  const candidateProvenance = [...input.candidateProvenance].map((item) => freeze({ candidateId: safeText(item.candidateId, "candidateId"), datasetId: safeText(item.datasetId, "datasetId"), datasetContentSha256: safeText(item.datasetContentSha256, "datasetContentSha256") })).sort((left, right) => left.candidateId.localeCompare(right.candidateId));
+  if (candidateProvenance.length === 0 || candidateProvenance.some((item) => !SHA256.test(item.datasetContentSha256))) throw new PaperRealizedPeriodProducerError("INVALID_DATASET_PROVENANCE", "candidate dataset provenance is incomplete", periodId);
+  if (new Set(candidateProvenance.map((item) => item.candidateId)).size !== candidateProvenance.length) throw new PaperRealizedPeriodProducerError("INVALID_CANDIDATE_PROVENANCE", "candidate provenance identity is duplicated", periodId);
   const observationIds = [...input.observationIds].map((id) => safeText(id, "observationId"));
   const observations = [...input.observations].map(validateObservation);
-  if (observations.length !== observationIds.length || observations.some((observation, index) => observation.observationId !== observationIds[index])) {
-    throw new PaperRealizedPeriodProducerError("INVALID_OBSERVATIONS", "period observation identities are inconsistent", input.periodId);
-  }
-  const latestObservedAt = observations.reduce<number | undefined>((latest, observation) => latest === undefined ? observation.observedAt : Math.max(latest, observation.observedAt), undefined);
-  if (input.lastObservedAt !== undefined && latestObservedAt !== undefined && input.lastObservedAt !== latestObservedAt) {
-    throw new PaperRealizedPeriodProducerError("INVALID_OBSERVATION_TIME", "period observation timestamp is inconsistent", input.periodId);
-  }
-  const plan = {
-    schemaVersion: 1 as const,
-    periodId: safeText(input.periodId, "periodId"),
-    periodIndex: input.periodIndex,
-    candidateId: safeText(input.candidateId, "candidateId"),
-    datasetId: safeText(input.datasetId, "datasetId"),
-    datasetContentSha256: safeText(input.datasetContentSha256, "datasetContentSha256"),
-    advisoryGeneratedAt: safeTime(input.advisoryGeneratedAt, "advisoryGeneratedAt"),
-    periodStartAt: safeTime(input.periodStartAt, "periodStartAt"),
-    observationIds,
-    observations,
-    ...(input.lastObservedAt === undefined ? {} : { lastObservedAt: safeTime(input.lastObservedAt, "lastObservedAt") }),
-  } satisfies PersistedPaperRealizedPeriodPlan;
-  if (!Number.isSafeInteger(plan.periodIndex) || plan.periodIndex < 0) throw new PaperRealizedPeriodProducerError("INVALID_PERIOD_INDEX", "periodIndex must be a non-negative safe integer", plan.periodId);
-  if (!SHA256.test(plan.datasetContentSha256)) throw new PaperRealizedPeriodProducerError("INVALID_DATASET_PROVENANCE", "datasetContentSha256 must be a lowercase SHA-256 digest", plan.periodId);
-  if (plan.advisoryGeneratedAt >= plan.periodStartAt) throw new PaperRealizedPeriodProducerError("LOOKAHEAD_ADVISORY", "advisory must predate the PAPER period", plan.periodId);
-  if (new Set(plan.observationIds).size !== plan.observationIds.length || plan.observationIds.length > MAXIMUM_OBSERVATIONS) throw new PaperRealizedPeriodProducerError("INVALID_OBSERVATIONS", "period observations must be unique and bounded", plan.periodId);
-  if (plan.lastObservedAt !== undefined && plan.lastObservedAt < plan.periodStartAt) throw new PaperRealizedPeriodProducerError("INVALID_OBSERVATION_TIME", "runtime observation predates the period start", plan.periodId);
-  return freeze({ ...plan, observationIds: freeze(plan.observationIds), observations: freeze(plan.observations) });
+  if (observationIds.length !== observations.length || observations.some((item, index) => item.observationId !== observationIds[index]) || observationIds.length > MAXIMUM_OBSERVATIONS || new Set(observationIds).size !== observationIds.length) throw new PaperRealizedPeriodProducerError("INVALID_OBSERVATIONS", "period observation identities are inconsistent or unbounded", periodId);
+  const lastObservedAt = input.lastObservedAt === undefined ? undefined : safeTime(input.lastObservedAt, "lastObservedAt");
+  const latestObservedAt = observations.reduce<number | undefined>((latest, item) => latest === undefined ? item.observedAt : Math.max(latest, item.observedAt), undefined);
+  if (lastObservedAt !== undefined && latestObservedAt !== undefined && lastObservedAt !== latestObservedAt) throw new PaperRealizedPeriodProducerError("INVALID_OBSERVATION_TIME", "period observation timestamp is inconsistent", periodId);
+  if (lastObservedAt !== undefined && lastObservedAt < periodStartAt) throw new PaperRealizedPeriodProducerError("INVALID_OBSERVATION_TIME", "runtime observation predates the period start", periodId);
+  const plan = { schemaVersion: 1 as const, periodId, periodIndex, advisory: input.advisory, candidateProvenance, periodStartAt, observationIds, observations, ...(lastObservedAt === undefined ? {} : { lastObservedAt }) } satisfies PersistedPaperRealizedPeriodPlan;
+  return freeze({ ...plan, candidateProvenance: freeze(candidateProvenance), observationIds: freeze(observationIds), observations: freeze(observations) });
 }
 
 function samePlanIdentity(left: PaperRealizedPeriodOpenInput, right: PaperRealizedPeriodOpenInput): boolean {
   return left.periodId === right.periodId
     && left.periodIndex === right.periodIndex
-    && left.candidateId === right.candidateId
-    && left.datasetId === right.datasetId
-    && left.datasetContentSha256 === right.datasetContentSha256
-    && left.advisoryGeneratedAt === right.advisoryGeneratedAt
-    && left.periodStartAt === right.periodStartAt;
+    && left.periodStartAt === right.periodStartAt
+    && digest(left.advisory) === digest(right.advisory)
+    && digest([...left.candidateProvenance].sort((a, b) => a.candidateId.localeCompare(b.candidateId))) === digest([...right.candidateProvenance].sort((a, b) => a.candidateId.localeCompare(b.candidateId)));
 }
 
-function validateEvidence(evidence: PaperForwardPeriodEvidence): PaperForwardPeriodEvidence {
-  rejectForbiddenFields(evidence);
-  const normalized = {
-    periodId: safeText(evidence.periodId, "periodId"),
-    candidateId: safeText(evidence.candidateId, "candidateId"),
-    datasetId: safeText(evidence.datasetId, "datasetId"),
-    datasetContentSha256: safeText(evidence.datasetContentSha256, "datasetContentSha256"),
-    advisoryGeneratedAt: safeTime(evidence.advisoryGeneratedAt, "advisoryGeneratedAt"),
-    periodStartAt: safeTime(evidence.periodStartAt, "periodStartAt"),
-    periodEndAt: safeTime(evidence.periodEndAt, "periodEndAt"),
-    grossReturn: finite(evidence.grossReturn, "grossReturn"),
-    turnover: finite(evidence.turnover, "turnover"),
-    feeRate: finite(evidence.feeRate, "feeRate"),
-    spreadRate: finite(evidence.spreadRate, "spreadRate"),
-    slippageRate: finite(evidence.slippageRate, "slippageRate"),
-    status: evidence.status,
-  } satisfies PaperForwardPeriodEvidence;
-  if (!SHA256.test(normalized.datasetContentSha256)) throw new PaperRealizedPeriodProducerError("INVALID_DATASET_PROVENANCE", "datasetContentSha256 must be a lowercase SHA-256 digest", normalized.periodId);
-  if (!PERIOD_STATUSES.has(normalized.status)) throw new PaperRealizedPeriodProducerError("INVALID_STATUS", "PAPER period status is unsupported", normalized.periodId);
-  if (!(normalized.advisoryGeneratedAt < normalized.periodStartAt && normalized.periodStartAt < normalized.periodEndAt)) throw new PaperRealizedPeriodProducerError("INVALID_PERIOD_BOUNDS", "PAPER period chronology is invalid", normalized.periodId);
-  if (normalized.turnover < 0 || normalized.feeRate < 0 || normalized.spreadRate < 0 || normalized.slippageRate < 0) throw new PaperRealizedPeriodProducerError("INVALID_COST_EVIDENCE", "PAPER period costs must be non-negative", normalized.periodId);
-  return freeze(normalized);
+function validateEnvelope(envelope: PersistedPaperPeriodEnvelope): PersistedPaperPeriodEnvelope {
+  rejectForbidden(envelope);
+  const record = envelope.record;
+  if (record == null || record.recordId == null) throw new PaperRealizedPeriodProducerError("INVALID_RECORD_ID", "PAPER realized record is missing");
+  if (!Number.isSafeInteger(record.periodIndex) || record.periodIndex < 0) throw new PaperRealizedPeriodProducerError("INVALID_PERIOD_INDEX", "PAPER periodIndex is invalid", record.recordId);
+  safeTime(record.periodStartAt, "periodStartAt"); safeTime(record.periodEndAt, "periodEndAt");
+  if (!(Date.parse(record.advisory.generatedAt) < record.periodStartAt && record.periodStartAt < record.periodEndAt)) throw new PaperRealizedPeriodProducerError("INVALID_PERIOD_BOUNDS", "PAPER period chronology is invalid", record.recordId);
+  if (!record.costEvidence || record.costEvidence.source !== "PAPER_EXECUTION_RECEIPT" || !safeText(record.costEvidence.evidenceId, "costEvidence.evidenceId")) throw new PaperRealizedPeriodProducerError("MISSING_COST_PROVENANCE", "PAPER realized period requires an attributable execution cost receipt", record.recordId);
+  safeTime(record.costEvidence.observedAt, "costEvidence.observedAt");
+  if (record.costEvidence.observedAt < record.periodStartAt) throw new PaperRealizedPeriodProducerError("INVALID_COST_EVIDENCE", "cost receipt must be observed during the PAPER period", record.recordId);
+  for (const [field, value] of Object.entries({ benchmarkReturn: record.benchmarkReturn, turnoverCostRate: record.turnoverCostRate, ...record.realizedReturns, feeRate: record.costEvidence.feeRate, spreadRate: record.costEvidence.spreadRate, slippageRate: record.costEvidence.slippageRate })) if (typeof value !== "number" || !Number.isFinite(value)) throw new PaperRealizedPeriodProducerError("NON_FINITE_VALUE", `${field} must be finite`, record.recordId);
+  if (record.turnoverCostRate < 0 || record.costEvidence.feeRate < 0 || record.costEvidence.spreadRate < 0 || record.costEvidence.slippageRate < 0) throw new PaperRealizedPeriodProducerError("INVALID_COST_EVIDENCE", "PAPER period costs must be non-negative", record.recordId);
+  if (!(record.status === "COMPLETED" || record.status === "REJECTED" || record.status === "HALTED")) throw new PaperRealizedPeriodProducerError("INVALID_STATUS", "PAPER period status is unsupported", record.recordId);
+  return freeze({ record: freeze({ ...record, realizedReturns: freeze({ ...record.realizedReturns }), costEvidence: freeze({ ...record.costEvidence }) }), candidateProvenance: freeze([...envelope.candidateProvenance].sort((a, b) => a.candidateId.localeCompare(b.candidateId)).map((item) => freeze({ ...item }))) });
 }
 
-function validateObservation(observation: PaperRuntimeObservation): PaperRuntimeObservation {
-  rejectForbiddenFields(observation);
-  const normalized = freeze({ observationId: safeText(observation.observationId, "observationId"), observedAt: safeTime(observation.observedAt, "observedAt"), status: observation.status });
-  if (!OBSERVATION_STATUSES.has(normalized.status)) throw new PaperRealizedPeriodProducerError("INVALID_RUNTIME_OBSERVATION", "PAPER runtime observation status is unsupported");
-  return normalized;
-}
-
-function decode<T>(row: { period_id?: unknown; payload_json?: unknown; checksum?: unknown }, validator: (value: T) => T, periodId: string): T {
-  const payload = String(row.payload_json ?? "");
+function decodePlan(pending: PersistedPaperPendingPeriod): PersistedPaperRealizedPeriodPlan {
   try {
-    const parsed = JSON.parse(payload) as T;
-    if (digest(parsed) !== String(row.checksum ?? "")) throw new PaperRealizedPeriodProducerError("PERSISTED_CHECKSUM_MISMATCH", "PAPER period checksum mismatch", periodId);
-    const validated = validator(parsed);
-    if (String(row.period_id ?? "") !== periodId || (validated as { readonly periodId?: unknown }).periodId !== periodId) throw new PaperRealizedPeriodProducerError("PERSISTED_ROW_IDENTITY_MISMATCH", "PAPER period row identity mismatch", periodId);
-    return validated;
+    if (digest(JSON.parse(pending.payloadJson)) !== pending.checksum) throw new PaperRealizedPeriodProducerError("PENDING_CHECKSUM_MISMATCH", "pending PAPER period checksum mismatch", pending.periodId);
+    const plan = validatePlan(JSON.parse(pending.payloadJson) as PersistedPaperRealizedPeriodPlan);
+    if (plan.periodId !== pending.periodId || plan.periodIndex !== pending.periodIndex || plan.periodStartAt !== pending.periodStartAt) throw new PaperRealizedPeriodProducerError("PENDING_IDENTITY_CONFLICT", "pending PAPER period identity mismatch", pending.periodId);
+    return plan;
   } catch (error) {
     if (error instanceof PaperRealizedPeriodProducerError) throw error;
-    throw new PaperRealizedPeriodProducerError("MALFORMED_PERSISTED_PERIOD", "PAPER period payload is malformed", periodId);
-  }
-}
-
-export class SqlitePaperRealizedPeriodRepository implements PaperRealizedPeriodRepository {
-  public constructor(private readonly db: SqliteDatabase, private readonly maximumPeriods = DEFAULT_MAXIMUM_PERIODS) {
-    if (!Number.isSafeInteger(maximumPeriods) || maximumPeriods < 1 || maximumPeriods > 1_000) throw new PaperRealizedPeriodProducerError("INVALID_RETENTION", "PAPER period retention must be between 1 and 1000");
-    this.db.connection.exec(`CREATE TABLE IF NOT EXISTS ${TABLE} (period_id TEXT PRIMARY KEY, period_index INTEGER NOT NULL UNIQUE, lifecycle_state TEXT NOT NULL CHECK (lifecycle_state IN ('OPEN','REALIZED')), period_start_at INTEGER NOT NULL, period_end_at INTEGER, payload_json TEXT NOT NULL, checksum TEXT NOT NULL)`);
-  }
-
-  public open(plan: PersistedPaperRealizedPeriodPlan): PersistedPaperRealizedPeriodPlan {
-    const normalized = validatePlan(plan);
-    const payload = canonical(normalized);
-    const checksum = digest(normalized);
-    return this.db.transaction(() => {
-      const existing = this.db.connection.prepare(`SELECT period_id, lifecycle_state, payload_json, checksum FROM ${TABLE} WHERE period_id = ?`).get(normalized.periodId) as { period_id?: string; lifecycle_state?: string; payload_json?: string; checksum?: string } | undefined;
-      if (existing != null) {
-        if (existing.lifecycle_state === "OPEN") {
-          const stored = decode(existing, validatePlan, normalized.periodId);
-          if (!samePlanIdentity(stored, normalized)) throw new PaperRealizedPeriodProducerError("PERIOD_ID_CONFLICT", "PAPER period identity was reused with different open evidence", normalized.periodId);
-          return stored;
-        }
-        if (existing.lifecycle_state !== "REALIZED") throw new PaperRealizedPeriodProducerError("MALFORMED_PERSISTED_PERIOD", "PAPER period lifecycle state is invalid", normalized.periodId);
-        const realized = decode<PaperForwardPeriodEvidence>(existing, validateEvidence, normalized.periodId);
-        if (realized.candidateId !== normalized.candidateId || realized.datasetId !== normalized.datasetId || realized.datasetContentSha256 !== normalized.datasetContentSha256 || realized.advisoryGeneratedAt !== normalized.advisoryGeneratedAt || realized.periodStartAt !== normalized.periodStartAt) throw new PaperRealizedPeriodProducerError("PERIOD_ID_CONFLICT", "PAPER period was already realized with different provenance", normalized.periodId);
-        throw new PaperRealizedPeriodProducerError("PERIOD_ALREADY_REALIZED", "PAPER period has already been realized", normalized.periodId);
-      }
-      const openConflict = this.db.connection.prepare(`SELECT period_id FROM ${TABLE} WHERE lifecycle_state = 'OPEN' LIMIT 1`).get() as { period_id?: string } | undefined;
-      if (openConflict != null) throw new PaperRealizedPeriodProducerError("PERIOD_ALREADY_OPEN", "only one canonical PAPER realized period may be open at a time", normalized.periodId);
-      const indexConflict = this.db.connection.prepare(`SELECT period_id FROM ${TABLE} WHERE period_index >= ? ORDER BY period_index ASC, period_id ASC LIMIT 1`).get(normalized.periodIndex) as { period_id?: string } | undefined;
-      if (indexConflict != null) throw new PaperRealizedPeriodProducerError("PERIOD_INDEX_CONFLICT", "PAPER periodIndex must advance beyond retained history", normalized.periodId);
-      this.db.connection.prepare(`INSERT INTO ${TABLE} (period_id, period_index, lifecycle_state, period_start_at, period_end_at, payload_json, checksum) VALUES (?, ?, 'OPEN', ?, NULL, ?, ?)`).run(normalized.periodId, normalized.periodIndex, normalized.periodStartAt, payload, checksum);
-      return normalized;
-    });
-  }
-
-  public observe(periodId: string, observation: PaperRuntimeObservation): PersistedPaperRealizedPeriodPlan {
-    const id = safeText(periodId, "periodId");
-    const normalizedObservation = validateObservation(observation);
-    return this.db.transaction(() => {
-      const row = this.db.connection.prepare(`SELECT period_id, lifecycle_state, payload_json, checksum FROM ${TABLE} WHERE period_id = ?`).get(id) as { period_id?: string; lifecycle_state?: string; payload_json?: string; checksum?: string } | undefined;
-      if (row == null || row.lifecycle_state !== "OPEN") throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", id);
-      const current = decode(row, validatePlan, id);
-      const existingObservation = current.observations.find((item) => item.observationId === normalizedObservation.observationId);
-      if (existingObservation != null) {
-        if (existingObservation.observedAt !== normalizedObservation.observedAt || existingObservation.status !== normalizedObservation.status) throw new PaperRealizedPeriodProducerError("OBSERVATION_ID_CONFLICT", "PAPER runtime observation identity was reused with different evidence", id);
-        return current;
-      }
-      if (current.observationIds.length >= MAXIMUM_OBSERVATIONS) throw new PaperRealizedPeriodProducerError("OBSERVATION_LIMIT", "PAPER period observation limit reached", id);
-      const next = validatePlan({ ...current, observationIds: [...current.observationIds, normalizedObservation.observationId], observations: [...current.observations, normalizedObservation], lastObservedAt: Math.max(current.lastObservedAt ?? 0, normalizedObservation.observedAt) });
-      this.db.connection.prepare(`UPDATE ${TABLE} SET payload_json = ?, checksum = ? WHERE period_id = ? AND lifecycle_state = 'OPEN'`).run(canonical(next), digest(next), id);
-      return next;
-    });
-  }
-
-  public realize(evidence: PaperForwardPeriodEvidence): PaperForwardPeriodEvidence {
-    const normalized = validateEvidence(evidence);
-    const payload = canonical(normalized);
-    const checksum = digest(normalized);
-    return this.db.transaction(() => {
-      const row = this.db.connection.prepare(`SELECT period_id, lifecycle_state, period_index, period_start_at, period_end_at, payload_json, checksum FROM ${TABLE} WHERE period_id = ?`).get(normalized.periodId) as { period_id?: string; lifecycle_state?: string; period_index?: number; period_start_at?: number; period_end_at?: number | null; payload_json?: string; checksum?: string } | undefined;
-      if (row == null) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period was not opened by the producer", normalized.periodId);
-      if (row.lifecycle_state === "REALIZED") {
-        const existing = decode<PaperForwardPeriodEvidence>(row, validateEvidence, normalized.periodId);
-        if (Number(row.period_start_at) !== existing.periodStartAt || Number(row.period_end_at) !== existing.periodEndAt) throw new PaperRealizedPeriodProducerError("PERSISTED_ROW_IDENTITY_MISMATCH", "PAPER period chronology columns do not match persisted evidence", normalized.periodId);
-        if (canonical(existing) !== payload || String(row.checksum) !== checksum) throw new PaperRealizedPeriodProducerError("PERIOD_ID_CONFLICT", "realized PAPER period was reused with different outcome evidence", normalized.periodId);
-        return existing;
-      }
-      if (row.lifecycle_state !== "OPEN") throw new PaperRealizedPeriodProducerError("MALFORMED_PERSISTED_PERIOD", "PAPER period lifecycle state is invalid", normalized.periodId);
-      const plan = decode<PersistedPaperRealizedPeriodPlan>(row, validatePlan, normalized.periodId);
-      if (plan.observationIds.length === 0) throw new PaperRealizedPeriodProducerError("PERIOD_OUTCOME_NOT_OBSERVED", "PAPER period cannot be realized without a runtime observation", normalized.periodId);
-      if (plan.periodIndex !== Number(row.period_index) || plan.periodStartAt !== Number(row.period_start_at)) throw new PaperRealizedPeriodProducerError("PERSISTED_PLAN_IDENTITY_MISMATCH", "PAPER period plan row identity mismatch", normalized.periodId);
-      if (plan.candidateId !== normalized.candidateId || plan.datasetId !== normalized.datasetId || plan.datasetContentSha256 !== normalized.datasetContentSha256 || plan.advisoryGeneratedAt !== normalized.advisoryGeneratedAt || plan.periodStartAt !== normalized.periodStartAt) throw new PaperRealizedPeriodProducerError("PROVENANCE_CONFLICT", "PAPER realized outcome does not match its open provenance", normalized.periodId);
-      const chronologyConflict = this.db.connection.prepare(`SELECT period_id FROM ${TABLE} WHERE lifecycle_state = 'REALIZED' AND period_id <> ? AND ((period_index < ? AND period_end_at > ?) OR (period_index > ? AND period_start_at < ?)) LIMIT 1`).get(normalized.periodId, plan.periodIndex, plan.periodStartAt, plan.periodIndex, normalized.periodEndAt) as { period_id?: string } | undefined;
-      if (chronologyConflict != null) throw new PaperRealizedPeriodProducerError("PERIOD_CHRONOLOGY_CONFLICT", `PAPER period chronology conflicts with ${String(chronologyConflict.period_id)}`, normalized.periodId);
-      this.db.connection.prepare(`UPDATE ${TABLE} SET lifecycle_state = 'REALIZED', period_end_at = ?, payload_json = ?, checksum = ? WHERE period_id = ? AND lifecycle_state = 'OPEN'`).run(normalized.periodEndAt, payload, checksum, normalized.periodId);
-      this.prune();
-      return normalized;
-    });
-  }
-
-  public getRealized(periodId: string): PaperForwardPeriodEvidence | undefined {
-    const id = safeText(periodId, "periodId");
-    const row = this.db.connection.prepare(`SELECT period_id, lifecycle_state, period_start_at, period_end_at, payload_json, checksum FROM ${TABLE} WHERE period_id = ?`).get(id) as { period_id?: string; lifecycle_state?: string; period_start_at?: number; period_end_at?: number | null; payload_json?: string; checksum?: string } | undefined;
-    if (row == null || row.lifecycle_state !== "REALIZED") return undefined;
-    const evidence = decode<PaperForwardPeriodEvidence>(row, validateEvidence, id);
-    if (Number(row.period_start_at) !== evidence.periodStartAt || Number(row.period_end_at) !== evidence.periodEndAt) throw new PaperRealizedPeriodProducerError("PERSISTED_ROW_IDENTITY_MISMATCH", "PAPER period chronology columns do not match persisted evidence", id);
-    return evidence;
-  }
-
-  public list(): readonly PaperForwardPeriodEvidence[] {
-    const rows = this.db.connection.prepare(`SELECT period_id, lifecycle_state, period_start_at, period_end_at, payload_json, checksum FROM ${TABLE} WHERE lifecycle_state = 'REALIZED' ORDER BY period_index ASC, period_id ASC`).all() as Array<{ period_id?: string; lifecycle_state?: string; period_start_at?: number; period_end_at?: number | null; payload_json?: string; checksum?: string }>;
-    return freeze(rows.map((row) => {
-      const periodId = String(row.period_id ?? "");
-      const evidence = decode<PaperForwardPeriodEvidence>(row, validateEvidence, periodId);
-      if (Number(row.period_start_at) !== evidence.periodStartAt || Number(row.period_end_at) !== evidence.periodEndAt) throw new PaperRealizedPeriodProducerError("PERSISTED_ROW_IDENTITY_MISMATCH", "PAPER period chronology columns do not match persisted evidence", periodId);
-      return evidence;
-    }));
-  }
-
-  public listOpen(): readonly PersistedPaperRealizedPeriodPlan[] {
-    const rows = this.db.connection.prepare(`SELECT period_id, lifecycle_state, payload_json, checksum FROM ${TABLE} WHERE lifecycle_state = 'OPEN' ORDER BY period_index ASC, period_id ASC`).all() as Array<{ period_id?: string; lifecycle_state?: string; payload_json?: string; checksum?: string }>;
-    return freeze(rows.map((row) => decode<PersistedPaperRealizedPeriodPlan>(row, validatePlan, String(row.period_id ?? ""))));
-  }
-
-  private prune(): void {
-    this.db.connection.prepare(`DELETE FROM ${TABLE} WHERE lifecycle_state = 'REALIZED' AND period_id NOT IN (SELECT period_id FROM ${TABLE} WHERE lifecycle_state = 'REALIZED' ORDER BY period_index DESC, period_id DESC LIMIT ?)`).run(this.maximumPeriods);
+    throw new PaperRealizedPeriodProducerError("MALFORMED_PENDING_PERIOD", "pending PAPER period payload is malformed", pending.periodId);
   }
 }
 
 export class PaperRealizedPeriodProducer {
   private readonly openPeriods = new Map<string, PersistedPaperRealizedPeriodPlan>();
 
-  public constructor(private readonly repository: PaperRealizedPeriodRepository) {
-    const plans = repository.listOpen();
-    if (plans.length > 1) throw new PaperRealizedPeriodProducerError("MULTIPLE_OPEN_PERIODS", "multiple open PAPER realized periods are unsafe");
-    for (const plan of plans) this.openPeriods.set(plan.periodId, plan);
+  public constructor(private readonly repository: SqlitePersistedPaperPeriodStore, private readonly options: PaperRealizedPeriodProducerOptions = {}) {
+    if (options.maximumPeriods !== undefined && (!Number.isSafeInteger(options.maximumPeriods) || options.maximumPeriods < 1 || options.maximumPeriods > 1_000)) throw new PaperRealizedPeriodProducerError("INVALID_RETENTION", "PAPER period retention must be between 1 and 1000");
+    const pending = repository.listPending().map(decodePlan);
+    if (pending.length > 1) throw new PaperRealizedPeriodProducerError("MULTIPLE_OPEN_PERIODS", "multiple open PAPER realized periods are unsafe");
+    for (const plan of pending) this.openPeriods.set(plan.periodId, plan);
+    repository.prune(options.maximumPeriods ?? 100);
   }
 
   public openPeriod(input: PaperRealizedPeriodOpenInput): PersistedPaperRealizedPeriodPlan {
-    if ([...this.openPeriods.values()].some((plan) => plan.periodId !== input.periodId)) throw new PaperRealizedPeriodProducerError("PERIOD_ALREADY_OPEN", "only one canonical PAPER realized period may be open at a time", input.periodId);
-    const plan = validatePlan({ ...input, schemaVersion: 1, observationIds: [], observations: [] });
-    const stored = this.repository.open(plan);
-    this.openPeriods.set(stored.periodId, stored);
-    return stored;
+    try {
+      if ([...this.openPeriods.values()].some((plan) => plan.periodId !== input.periodId)) throw new PaperRealizedPeriodProducerError("PERIOD_ALREADY_OPEN", "only one canonical PAPER realized period may be open at a time", input.periodId);
+      const plan = validatePlan({ ...input, schemaVersion: 1, observationIds: [], observations: [] });
+      const pending = { periodId: plan.periodId, periodIndex: plan.periodIndex, periodStartAt: plan.periodStartAt, payloadJson: canonical(plan), checksum: digest(plan) } satisfies PersistedPaperPendingPeriod;
+      this.repository.putPending(pending);
+      this.openPeriods.set(plan.periodId, plan);
+      this.emit({ type: "PERIOD_OPEN", periodId: plan.periodId, occurredAt: plan.periodStartAt });
+      return plan;
+    } catch (error) { throw this.reject(error, input.periodId); }
   }
 
   public observeExecution(observation: PaperRuntimeObservation): "RECORDED" | "DUPLICATE" | "NO_ACTIVE_PERIOD" {
     const normalized = validateObservation(observation);
     if (this.openPeriods.size === 0) return "NO_ACTIVE_PERIOD";
     let duplicate = true;
-    for (const [periodId, current] of this.openPeriods) {
-      if (!current.observationIds.includes(normalized.observationId)) duplicate = false;
-      const next = this.repository.observe(periodId, normalized);
-      this.openPeriods.set(periodId, next);
-    }
-    return duplicate ? "DUPLICATE" : "RECORDED";
+    try {
+      for (const [periodId, current] of this.openPeriods) {
+        if (!current.observationIds.includes(normalized.observationId)) duplicate = false;
+        const pending = this.repository.getPending(periodId);
+        if (pending == null) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", periodId);
+        const stored = decodePlan(pending);
+        if (!samePlanIdentity(stored, current)) throw new PaperRealizedPeriodProducerError("PENDING_IDENTITY_CONFLICT", "pending PAPER period changed during observation", periodId);
+        const existing = current.observations.find((item) => item.observationId === normalized.observationId);
+        if (existing != null) {
+          if (existing.observedAt !== normalized.observedAt || existing.status !== normalized.status) throw new PaperRealizedPeriodProducerError("OBSERVATION_ID_CONFLICT", "PAPER runtime observation identity was reused with different evidence", periodId);
+          continue;
+        }
+        if (current.observationIds.length >= MAXIMUM_OBSERVATIONS) throw new PaperRealizedPeriodProducerError("OBSERVATION_LIMIT", "PAPER period observation limit reached", periodId);
+        const next = validatePlan({ ...current, observationIds: [...current.observationIds, normalized.observationId], observations: [...current.observations, normalized], lastObservedAt: Math.max(current.lastObservedAt ?? 0, normalized.observedAt) });
+        this.repository.updatePending({ ...pending, payloadJson: canonical(next), checksum: digest(next) });
+        this.openPeriods.set(periodId, next);
+      }
+      return duplicate ? "DUPLICATE" : "RECORDED";
+    } catch (error) { throw this.reject(error); }
   }
 
-  public closePeriod(input: PaperRealizedPeriodCloseInput): PaperForwardPeriodEvidence {
-    const current = this.openPeriods.get(input.periodId);
-    if (current == null) {
-      const existing = this.repository.getRealized(input.periodId);
-      if (existing != null && existing.periodEndAt === input.periodEndAt && existing.grossReturn === input.grossReturn && existing.turnover === input.turnover && existing.feeRate === input.feeRate && existing.spreadRate === input.spreadRate && existing.slippageRate === input.slippageRate && existing.status === input.status) return existing;
-      if (existing != null) throw new PaperRealizedPeriodProducerError("PERIOD_ID_CONFLICT", "realized PAPER period was reused with different outcome evidence", input.periodId);
-      throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", input.periodId);
-    }
-    const evidence = validateEvidence({ ...input, candidateId: current.candidateId, datasetId: current.datasetId, datasetContentSha256: current.datasetContentSha256, advisoryGeneratedAt: current.advisoryGeneratedAt, periodStartAt: current.periodStartAt });
-    const stored = this.repository.realize(evidence);
-    this.openPeriods.delete(input.periodId);
-    return stored;
+  public closePeriod(input: PaperRealizedPeriodCloseInput): PersistedPaperPeriodEnvelope {
+    const periodId = input.envelope.record.recordId;
+    try {
+      const envelope = validateEnvelope(input.envelope);
+      const current = this.openPeriods.get(periodId);
+      if (current == null) {
+        const existing = this.repository.list().find((item) => item.record.recordId === periodId);
+        if (existing != null && canonical(existing) === canonical(envelope)) return existing;
+        if (existing != null) throw new PaperRealizedPeriodProducerError("PERIOD_ID_CONFLICT", "realized PAPER period was reused with different evidence", periodId);
+        throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", periodId);
+      }
+      if (current.observationIds.length === 0) throw new PaperRealizedPeriodProducerError("PERIOD_OUTCOME_NOT_OBSERVED", "PAPER period cannot be realized without a runtime observation", periodId);
+      if (!samePlanIdentity(current, { periodId: envelope.record.recordId, periodIndex: envelope.record.periodIndex, advisory: envelope.record.advisory, candidateProvenance: envelope.candidateProvenance, periodStartAt: envelope.record.periodStartAt })) throw new PaperRealizedPeriodProducerError("PROVENANCE_CONFLICT", "realized PAPER outcome does not match its open candidate/advisory provenance", periodId);
+      const pending = this.repository.getPending(periodId);
+      if (pending == null) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", periodId);
+      const stored = this.repository.finalizePending(periodId, pending.checksum, envelope);
+      this.repository.prune(this.options.maximumPeriods ?? 100);
+      this.openPeriods.delete(periodId);
+      this.emit({ type: "PERIOD_REALIZED_PERSISTED", periodId, occurredAt: envelope.record.periodEndAt });
+      return stored;
+    } catch (error) { throw this.reject(error, periodId); }
   }
 
-  public listRealizedPeriods(): readonly PaperForwardPeriodEvidence[] { return this.repository.list(); }
+  public listRealizedPeriods(): readonly PersistedPaperPeriodEnvelope[] {
+    try { return this.repository.list(); }
+    catch (error) { throw this.reject(error); }
+  }
   public listOpenPeriods(): readonly PersistedPaperRealizedPeriodPlan[] { return freeze([...this.openPeriods.values()].sort((left, right) => left.periodIndex - right.periodIndex || left.periodId.localeCompare(right.periodId))); }
   public hasOpenPeriod(): boolean { return this.openPeriods.size > 0; }
+
+  private emit(event: PaperRealizedPeriodLifecycleEvent): void { try { this.options.onLifecycleEvent?.(event); } catch { /* lifecycle telemetry cannot alter PAPER execution */ } }
+  private reject(error: unknown, periodId?: string): PaperRealizedPeriodProducerError {
+    const normalized = error instanceof PaperRealizedPeriodProducerError ? error : error instanceof PersistedPaperPeriodStoreError ? new PaperRealizedPeriodProducerError(error.code, error.message, error.recordId ?? periodId) : new PaperRealizedPeriodProducerError("PAPER_PERIOD_REJECTED", "PAPER realized period evidence was rejected", periodId);
+    this.emit({ type: "PERIOD_REJECTED", periodId: normalized.periodId ?? periodId ?? "unknown", occurredAt: this.options.now?.() ?? Date.now(), reasonCode: normalized.code });
+    return normalized;
+  }
 }
+
+export { SqlitePersistedPaperPeriodStore as SqlitePaperRealizedPeriodRepository };
 
 export function paperExecutionObservationId(market: string, observedAt: number, status: string): string {
   return `paper-runtime:${digest({ market: market.trim().toUpperCase(), observedAt, status }).slice(0, 32)}`;
