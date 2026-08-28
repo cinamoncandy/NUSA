@@ -4,6 +4,7 @@ status: VERIFYING
 owner: nusa
 repository: cinamoncandy/NUSA
 issue: 905
+pull_request: 1032
 base_branch: main
 base_commit: e125e6a39207e6245d257b736d460b22eff6e014
 implementation_branch: codex/issue-905-measured-concurrency-wiring
