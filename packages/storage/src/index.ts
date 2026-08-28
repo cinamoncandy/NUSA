@@ -31,6 +31,8 @@ export { SqliteResearchSessionRepository } from "./researchAutomation";
 export type { ResearchAutomationDatabase } from "./researchAutomation";
 export { SqlitePersistedPaperPeriodStore, PersistedPaperPeriodStoreError } from "./persistedPaperPeriodStore";
 export type { PersistedPaperCandidateProvenance, PersistedPaperPeriodEnvelope, PersistedPaperPeriodRecord, PaperPeriodCostEvidence, PaperPeriodCostEvidenceKind, PaperPeriodLifecycleStatus, PersistedPaperPendingPeriod } from "./persistedPaperPeriodStore";
+export { SqlitePaperMarketObservationRepository, PaperMarketObservationStoreError, normalizePaperPublicMarketObservation } from "./paperMarketObservationRepository";
+export type { PaperPublicMarketObservation, PaperPublicMarketObservationInput } from "./paperMarketObservationRepository";
 
 type SqlRow = Record<string, string | number | bigint | null>;
 type LedgerFilter = Pick<PositionLedgerEntry, "walletId" | "strategyId" | "symbol">;
@@ -424,4 +426,14 @@ CREATE TABLE IF NOT EXISTS paper_realized_periods (
 );
 CREATE INDEX IF NOT EXISTS idx_paper_realized_periods_order
   ON paper_realized_periods (lifecycle_state, period_index ASC, period_id ASC);
-` }, cloudPaperAccountHistoryMigration];
+` }, cloudPaperAccountHistoryMigration, { id: "019_paper_public_market_observations", sql: `
+CREATE TABLE IF NOT EXISTS paper_public_market_observations (
+  observation_id TEXT PRIMARY KEY,
+  market TEXT NOT NULL,
+  observed_at_ms INTEGER NOT NULL,
+  payload_json TEXT NOT NULL,
+  evidence_fingerprint_sha256 TEXT NOT NULL UNIQUE
+);
+CREATE INDEX IF NOT EXISTS idx_paper_public_market_observations_window
+  ON paper_public_market_observations (market, observed_at_ms ASC, observation_id ASC);
+` }];

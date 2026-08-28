@@ -33,6 +33,7 @@ function openInput(): PaperRealizedPeriodOpenInput {
     periodIndex: 0,
     advisory: advisory(BASE - 100),
     candidateProvenance: [{ candidateId: "candidate-a", datasetId: "dataset-a", datasetContentSha256: HASH }],
+    market: "KRW-BTC",
     periodStartAt: BASE,
   };
 }
@@ -127,7 +128,7 @@ describe("canonical PAPER realized-period producer", () => {
     let current = account(BASE, 1_000);
     const options: PaperRealizedPeriodProducerOptions = {
       readCanonicalPaperAccount: () => current,
-      readCanonicalBenchmarkEvidence: (_start, periodEndAt) => ({ evidenceId: "benchmark-canonical", observedAt: periodEndAt, benchmarkReturn: 0.01 }),
+      readCanonicalBenchmarkEvidence: (_start, periodEndAt, market) => ({ evidenceId: "benchmark-canonical", observedAt: periodEndAt, benchmarkReturn: 101 / 100 - 1, market: market ?? "KRW-BTC", source: "UPBIT_PUBLIC_TICKER", startObservedAt: BASE, endObservedAt: periodEndAt, startPrice: 100, endPrice: 101, inputFingerprintSha256: HASH }),
     };
     const first = state(options);
     try {

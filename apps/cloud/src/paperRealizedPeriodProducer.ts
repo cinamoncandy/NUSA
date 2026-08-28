@@ -15,6 +15,8 @@ export interface PaperRealizedPeriodOpenInput {
   readonly periodIndex: number;
   readonly advisory: LeagueCapitalAllocationAdvisory;
   readonly candidateProvenance: readonly PersistedPaperCandidateProvenance[];
+  /** Optional for legacy/manual periods; required by canonical market benchmark admission. */
+  readonly market?: string;
   readonly periodStartAt: number;
 }
 
@@ -41,6 +43,13 @@ export interface PaperCanonicalBenchmarkEvidence {
   readonly evidenceId: string;
   readonly observedAt: number;
   readonly benchmarkReturn: number;
+  readonly market: string;
+  readonly source: "UPBIT_PUBLIC_TICKER";
+  readonly startObservedAt: number;
+  readonly endObservedAt: number;
+  readonly startPrice: number;
+  readonly endPrice: number;
+  readonly inputFingerprintSha256: string;
 }
 
 export interface PaperRealizedPeriodCanonicalCloseInput {
@@ -66,7 +75,7 @@ export interface PaperRealizedPeriodProducerOptions {
   /** Read-only canonical PAPER account source used by the canonical close path. */
   readonly readCanonicalPaperAccount?: () => PaperAccountState;
   /** Read-only benchmark source; absent means canonical period admission remains fail-closed. */
-  readonly readCanonicalBenchmarkEvidence?: (periodStartAt: number, periodEndAt: number) => PaperCanonicalBenchmarkEvidence | undefined;
+  readonly readCanonicalBenchmarkEvidence?: (periodStartAt: number, periodEndAt: number, market?: string) => PaperCanonicalBenchmarkEvidence | undefined;
 }
 
 export class PaperRealizedPeriodProducerError extends Error {
@@ -77,6 +86,7 @@ export class PaperRealizedPeriodProducerError extends Error {
 }
 
 const SHA256 = /^[a-f0-9]{64}$/;
+const MARKET = /^KRW-[A-Z0-9-]+$/;
 const FORBIDDEN_KEY = /(authorization|bearer|token|secret|password|api[_-]?key|access[_-]?key|private[_-]?key|cookie|jwt|nonce|signature|account[_-]?id|order[_-]?id|fill[_-]?id)/i;
 const OBSERVATION_STATUSES = new Set<PaperRuntimeObservation["status"]>(["FILLED", "WAIT", "BLOCKED", "REJECTED", "FAILED", "DUPLICATE"]);
 const MAXIMUM_OBSERVATIONS = 1_024;
@@ -106,6 +116,13 @@ function safeText(value: unknown, field: string): string {
   const normalized = value.trim();
   if (!normalized || normalized.length > 256 || FORBIDDEN_KEY.test(normalized)) throw new PaperRealizedPeriodProducerError("INVALID_IDENTIFIER", `${field} is invalid`);
   return normalized;
+}
+
+function safeMarket(value: unknown, field: string): string {
+  if (typeof value !== "string") throw new PaperRealizedPeriodProducerError("INVALID_MARKET", `${field} must be a market`);
+  const market = value.trim().toUpperCase();
+  if (!MARKET.test(market)) throw new PaperRealizedPeriodProducerError("INVALID_MARKET", `${field} is invalid`);
+  return market;
 }
 
 function safeTime(value: unknown, field: string): number {
@@ -155,13 +172,19 @@ function boundaryFromCanonicalAccount(state: PaperAccountState, expectedAt: numb
 function boundaryAsAccountState(boundary: PaperCanonicalAccountBoundary): PaperAccountState {
   return Object.freeze({ version: 1, initialCapital: boundary.initialCapital, cash: boundary.equity, equity: boundary.equity, realizedPnL: 0, unrealizedPnL: 0, positions: Object.freeze([]), orders: Object.freeze([]), fills: Object.freeze([]), processedIdempotencyKeys: Object.freeze([]), updatedAt: boundary.capturedAt });
 }
-function validateBenchmarkEvidence(input: PaperCanonicalBenchmarkEvidence | undefined, periodStartAt: number, periodEndAt: number, periodId: string): PaperCanonicalBenchmarkEvidence {
+function validateBenchmarkEvidence(input: PaperCanonicalBenchmarkEvidence | undefined, periodStartAt: number, periodEndAt: number, expectedMarket: string, periodId: string): PaperCanonicalBenchmarkEvidence {
   if (input == null) throw new PaperRealizedPeriodProducerError("MISSING_BENCHMARK_EVIDENCE", "canonical PAPER period benchmark evidence is unavailable", periodId);
   const evidenceId = safeText(input.evidenceId, "benchmarkEvidence.evidenceId");
+  const market = safeMarket(input.market, "benchmarkEvidence.market");
   const observedAt = safeTime(input.observedAt, "benchmarkEvidence.observedAt");
-  if (observedAt < periodStartAt || observedAt > periodEndAt) throw new PaperRealizedPeriodProducerError("INVALID_BENCHMARK_EVIDENCE", "benchmark evidence is outside the realized PAPER period", periodId);
-  if (typeof input.benchmarkReturn !== "number" || !Number.isFinite(input.benchmarkReturn)) throw new PaperRealizedPeriodProducerError("NON_FINITE_VALUE", "benchmarkReturn must be finite", periodId);
-  return freeze({ evidenceId, observedAt, benchmarkReturn: input.benchmarkReturn });
+  const startObservedAt = safeTime(input.startObservedAt, "benchmarkEvidence.startObservedAt");
+  const endObservedAt = safeTime(input.endObservedAt, "benchmarkEvidence.endObservedAt");
+  if (market !== expectedMarket || input.source !== "UPBIT_PUBLIC_TICKER") throw new PaperRealizedPeriodProducerError("BENCHMARK_PROVENANCE_CONFLICT", "benchmark evidence source does not match the canonical PAPER market", periodId);
+  if (startObservedAt < periodStartAt || endObservedAt > periodEndAt || startObservedAt >= endObservedAt || observedAt !== endObservedAt) throw new PaperRealizedPeriodProducerError("INVALID_BENCHMARK_EVIDENCE", "benchmark evidence coverage is outside the realized PAPER period", periodId);
+  if (![input.startPrice, input.endPrice].every((value) => typeof value === "number" && Number.isFinite(value) && value > 0)) throw new PaperRealizedPeriodProducerError("NON_FINITE_VALUE", "benchmark prices must be finite and positive", periodId);
+  if (typeof input.benchmarkReturn !== "number" || !Number.isFinite(input.benchmarkReturn) || input.benchmarkReturn !== input.endPrice / input.startPrice - 1) throw new PaperRealizedPeriodProducerError("INVALID_BENCHMARK_EVIDENCE", "benchmark return does not match observed prices", periodId);
+  if (typeof input.inputFingerprintSha256 !== "string" || !SHA256.test(input.inputFingerprintSha256)) throw new PaperRealizedPeriodProducerError("INVALID_BENCHMARK_EVIDENCE", "benchmark input provenance is invalid", periodId);
+  return freeze({ evidenceId, observedAt, benchmarkReturn: input.benchmarkReturn, market, source: "UPBIT_PUBLIC_TICKER", startObservedAt, endObservedAt, startPrice: input.startPrice, endPrice: input.endPrice, inputFingerprintSha256: input.inputFingerprintSha256 });
 }
 function validatePlan(input: PersistedPaperRealizedPeriodPlan): PersistedPaperRealizedPeriodPlan {
   rejectForbidden(input);
@@ -170,6 +193,7 @@ function validatePlan(input: PersistedPaperRealizedPeriodPlan): PersistedPaperRe
   const periodIndex = input.periodIndex;
   if (!Number.isSafeInteger(periodIndex) || periodIndex < 0) throw new PaperRealizedPeriodProducerError("INVALID_PERIOD_INDEX", "periodIndex must be a non-negative safe integer", periodId);
   const periodStartAt = safeTime(input.periodStartAt, "periodStartAt");
+  const market = input.market === undefined ? undefined : safeMarket(input.market, "market");
   const advisoryGeneratedAt = Date.parse(input.advisory.generatedAt);
   if (!Number.isFinite(advisoryGeneratedAt) || advisoryGeneratedAt >= periodStartAt) throw new PaperRealizedPeriodProducerError("LOOKAHEAD_ADVISORY", "advisory must predate the PAPER period", periodId);
   const candidateProvenance = [...input.candidateProvenance].map((item) => freeze({ candidateId: safeText(item.candidateId, "candidateId"), datasetId: safeText(item.datasetId, "datasetId"), datasetContentSha256: safeText(item.datasetContentSha256, "datasetContentSha256") })).sort((left, right) => left.candidateId.localeCompare(right.candidateId));
@@ -183,7 +207,7 @@ function validatePlan(input: PersistedPaperRealizedPeriodPlan): PersistedPaperRe
   if (lastObservedAt !== undefined && latestObservedAt !== undefined && lastObservedAt !== latestObservedAt) throw new PaperRealizedPeriodProducerError("INVALID_OBSERVATION_TIME", "period observation timestamp is inconsistent", periodId);
   if (lastObservedAt !== undefined && lastObservedAt < periodStartAt) throw new PaperRealizedPeriodProducerError("INVALID_OBSERVATION_TIME", "runtime observation predates the period start", periodId);
   const accountBoundary = input.accountBoundary === undefined ? undefined : validateAccountBoundary(input.accountBoundary, periodStartAt, periodId);
-  const plan = { schemaVersion: 1 as const, periodId, periodIndex, advisory: input.advisory, candidateProvenance, periodStartAt, observationIds, observations, ...(lastObservedAt === undefined ? {} : { lastObservedAt }), ...(accountBoundary === undefined ? {} : { accountBoundary }) } satisfies PersistedPaperRealizedPeriodPlan;
+  const plan = { schemaVersion: 1 as const, periodId, periodIndex, advisory: input.advisory, candidateProvenance, ...(market === undefined ? {} : { market }), periodStartAt, observationIds, observations, ...(lastObservedAt === undefined ? {} : { lastObservedAt }), ...(accountBoundary === undefined ? {} : { accountBoundary }) } satisfies PersistedPaperRealizedPeriodPlan;
   return freeze({ ...plan, candidateProvenance: freeze(candidateProvenance), observationIds: freeze(observationIds), observations: freeze(observations) });
 }
 
@@ -191,6 +215,7 @@ function samePlanIdentity(left: PaperRealizedPeriodOpenInput, right: PaperRealiz
   return left.periodId === right.periodId
     && left.periodIndex === right.periodIndex
     && left.periodStartAt === right.periodStartAt
+    && left.market === right.market
     && digest(left.advisory) === digest(right.advisory)
     && digest([...left.candidateProvenance].sort((a, b) => a.candidateId.localeCompare(b.candidateId))) === digest([...right.candidateProvenance].sort((a, b) => a.candidateId.localeCompare(b.candidateId)));
 }
@@ -201,6 +226,7 @@ function validateEnvelope(envelope: PersistedPaperPeriodEnvelope): PersistedPape
   if (record == null || record.recordId == null) throw new PaperRealizedPeriodProducerError("INVALID_RECORD_ID", "PAPER realized record is missing");
   if (!Number.isSafeInteger(record.periodIndex) || record.periodIndex < 0) throw new PaperRealizedPeriodProducerError("INVALID_PERIOD_INDEX", "PAPER periodIndex is invalid", record.recordId);
   safeTime(record.periodStartAt, "periodStartAt"); safeTime(record.periodEndAt, "periodEndAt");
+  if (record.market !== undefined) safeMarket(record.market, "market");
   if (!(Date.parse(record.advisory.generatedAt) < record.periodStartAt && record.periodStartAt < record.periodEndAt)) throw new PaperRealizedPeriodProducerError("INVALID_PERIOD_BOUNDS", "PAPER period chronology is invalid", record.recordId);
   if (!record.costEvidence || record.costEvidence.source !== "PAPER_EXECUTION_RECEIPT" || !safeText(record.costEvidence.evidenceId, "costEvidence.evidenceId")) throw new PaperRealizedPeriodProducerError("MISSING_COST_PROVENANCE", "PAPER realized period requires an attributable execution cost receipt", record.recordId);
   if ((record.costEvidence.evidenceKind !== "OBSERVED" && record.costEvidence.evidenceKind !== "CONSERVATIVE_MODEL") || !SHA256.test(record.costEvidence.evidenceFingerprintSha256)) throw new PaperRealizedPeriodProducerError("INVALID_COST_PROVENANCE", "PAPER realized period cost evidence provenance is invalid", record.recordId);
@@ -331,17 +357,20 @@ export class PaperRealizedPeriodProducer {
       const candidateId = receipt.candidateIds[0]!;
       if (current.candidateProvenance[0]!.candidateId !== candidateId) throw new PaperRealizedPeriodProducerError("PROVENANCE_CONFLICT", "canonical PAPER fill candidate does not match the open period", periodId);
       if (receipt.executionCostEvidenceKind === undefined || receipt.executionCostEvidenceFingerprint === undefined) throw new PaperRealizedPeriodProducerError("MISSING_COST_PROVENANCE", "canonical PAPER execution-cost provenance is unavailable", periodId);
+      const market = current.market;
+      if (market == null) throw new PaperRealizedPeriodProducerError("MISSING_BENCHMARK_MARKET", "canonical PAPER period market identity is unavailable", periodId);
       const benchmarkReader = this.options.readCanonicalBenchmarkEvidence;
       if (benchmarkReader == null) throw new PaperRealizedPeriodProducerError("MISSING_BENCHMARK_EVIDENCE", "canonical PAPER benchmark evidence is unavailable", periodId);
       let benchmark: PaperCanonicalBenchmarkEvidence | undefined;
-      try { benchmark = benchmarkReader(current.periodStartAt, periodEndAt); } catch { throw new PaperRealizedPeriodProducerError("BENCHMARK_EVIDENCE_UNAVAILABLE", "canonical PAPER benchmark evidence could not be read", periodId); }
-      const validatedBenchmark = validateBenchmarkEvidence(benchmark, current.periodStartAt, periodEndAt, periodId);
+      try { benchmark = benchmarkReader(current.periodStartAt, periodEndAt, market); } catch { throw new PaperRealizedPeriodProducerError("BENCHMARK_EVIDENCE_UNAVAILABLE", "canonical PAPER benchmark evidence could not be read", periodId); }
+      const validatedBenchmark = validateBenchmarkEvidence(benchmark, current.periodStartAt, periodEndAt, market, periodId);
       const turnoverCostRate = receipt.feeRate + receipt.spreadRate + receipt.slippageRate;
       if (!Number.isFinite(turnoverCostRate) || turnoverCostRate < 0) throw new PaperRealizedPeriodProducerError("NON_FINITE_VALUE", "canonical PAPER cost rate is invalid", periodId);
       const envelope: PersistedPaperPeriodEnvelope = {
         record: {
           recordId: periodId,
           periodIndex: current.periodIndex,
+          ...(market === undefined ? {} : { market }),
           advisory: current.advisory,
           periodStartAt: current.periodStartAt,
           periodEndAt,
@@ -370,7 +399,7 @@ export class PaperRealizedPeriodProducer {
       throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", periodId);
     }
     if (current.observationIds.length === 0) throw new PaperRealizedPeriodProducerError("PERIOD_OUTCOME_NOT_OBSERVED", "PAPER period cannot be realized without a runtime observation", periodId);
-    if (!samePlanIdentity(current, { periodId: validated.record.recordId, periodIndex: validated.record.periodIndex, advisory: validated.record.advisory, candidateProvenance: validated.candidateProvenance, periodStartAt: validated.record.periodStartAt })) throw new PaperRealizedPeriodProducerError("PROVENANCE_CONFLICT", "realized PAPER outcome does not match its open candidate/advisory provenance", periodId);
+    if (!samePlanIdentity(current, { periodId: validated.record.recordId, periodIndex: validated.record.periodIndex, advisory: validated.record.advisory, candidateProvenance: validated.candidateProvenance, periodStartAt: validated.record.periodStartAt, market: validated.record.market })) throw new PaperRealizedPeriodProducerError("PROVENANCE_CONFLICT", "realized PAPER outcome does not match its open candidate/advisory provenance", periodId);
     const pending = this.repository.getPending(periodId);
     if (pending == null) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", periodId);
     const stored = this.repository.finalizePending(periodId, pending.checksum, validated);
