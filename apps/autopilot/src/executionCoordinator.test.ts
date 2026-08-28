@@ -1,16 +1,17 @@
-import { describe, expect, it } from "vitest";
-import {
-  acquirePersistentExecution,
-  type DurableObjectIdLike,
-  type DurableObjectStubLike,
-  type ExecutionCoordinatorNamespace,
-} from "./executionCoordinator";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import { acquirePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
 function fakeNamespace(status: number, body: object): ExecutionCoordinatorNamespace {
-  const id: DurableObjectIdLike = {};
+  const id = {};
   return {
     idFromName: () => id,
-    get: () => ({ fetch: async () => new Response(JSON.stringify(body), { status }) } as DurableObjectStubLike),
+    get: () => ({
+      fetch: async () => new Response(JSON.stringify(body), {
+        status,
+        headers: { "content-type": "application/json" },
+      }),
+    }),
   };
 }
 
@@ -22,7 +23,7 @@ describe("persistent execution coordination", () => {
       now: 100,
       leaseExpiresAt: 200,
     });
-    expect(result).toEqual({ acquired: true });
+    assert.deepEqual(result, { acquired: true });
   });
 
   it("suppresses a duplicate", async () => {
@@ -32,15 +33,18 @@ describe("persistent execution coordination", () => {
       now: 100,
       leaseExpiresAt: 200,
     });
-    expect(result).toEqual({ acquired: false, reason: "ALREADY_DISPATCHED" });
+    assert.deepEqual(result, { acquired: false, reason: "ALREADY_DISPATCHED" });
   });
 
   it("fails closed on coordinator failure", async () => {
-    await expect(acquirePersistentExecution(fakeNamespace(500, { error: "FAILED" }), {
-      dedupeKey: "ci:1:abc",
-      executionId: "github:delivery-1",
-      now: 100,
-      leaseExpiresAt: 200,
-    })).rejects.toThrow("PERSISTENT_EXECUTION_COORDINATION_FAILED");
+    await assert.rejects(
+      acquirePersistentExecution(fakeNamespace(500, { error: "FAILED" }), {
+        dedupeKey: "ci:1:abc",
+        executionId: "github:delivery-1",
+        now: 100,
+        leaseExpiresAt: 200,
+      }),
+      /PERSISTENT_EXECUTION_COORDINATION_FAILED/,
+    );
   });
 });
