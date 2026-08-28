@@ -1,0 +1,62 @@
+version: 1
+id: WO-ISSUE-881-PAPER-PORTFOLIO-PERFORMANCE
+title: "Issue #881 verified realized PAPER portfolio performance"
+status: VERIFYING
+priority: P1
+owner: codex
+repository: cinamoncandy/NUSA
+issue: 881
+pull_request: 1044
+base_branch: main
+base_commit: 3ae8451363801b4c88c710a227018557636b895a
+implementation_branch: codex/issue-881-paper-portfolio-performance
+implementation_commit: 55d16475c2d5f8ee1f2972de690f2570b2e1f8b5
+objective: "Classify realized PAPER portfolio performance from verified longitudinal evidence while preserving fail-closed advisory validation and zero execution authority."
+architecture_impact:
+  acknowledged: true
+  analysis: "Reuse the existing PAPER evidence contracts and portfolio advisory boundary. The classifier and advisory remain read-only research/PAPER projections with no capital, accounting, broker, Risk, or LIVE mutation."
+  references:
+    - apps/cloud/src/paperPortfolioAdvisory.ts
+    - apps/cloud/src/paperPortfolioPerformanceEvidence.ts
+    - apps/desktop/src/cloud/leagueCapitalAllocation.ts
+scope:
+  - realized_paper_portfolio_performance_classification
+  - provenance_and_chronology_validation
+  - fail_closed_advisory_numeric_validation
+  - benchmark_and_component_comparison
+prohibited:
+  - real_capital_allocation
+  - accounting_mutation
+  - broker_or_order_mutation
+  - risk_policy_mutation
+  - live_activation
+  - credential_persistence
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  brokerMutation: NONE
+  paper_only: true
+acceptance:
+  - realized_performance_requires_verified_longitudinal_evidence
+  - candidate_dataset_and_provenance_identity_is_preserved
+  - duplicate_future_and_chronology_conflicts_fail_closed
+  - after_cost_results_are_compared_without_synthetic_values
+  - malformed_advisory_period_policy_and_derived_numerics_fail_closed
+  - no_execution_risk_or_live_authority_is_exposed
+implementation_status: LOCAL_VALIDATED_PENDING_PUBLICATION
+validation:
+  focused_portfolio: PASS_29_OF_29
+  build: PASS
+  typecheck: PASS
+  lint: PASS
+  preflight: PASS
+  architecture: PASS
+  safety: PASS
+  security: PASS
+  ai_zero_authority: PASS
+  git_diff_check: PASS
+known_limitations:
+  - "Cloudflare Workers Builds external check for the open PR must be green before merge; no repository log is available through the current connector."
+  - "This slice classifies supplied verified PAPER observations; it does not fabricate a missing canonical longitudinal producer."
+next: "Publish the safety-preserving exact head, validate all required checks, and reassess remaining Issue #881 portfolio intelligence gaps from current main."
