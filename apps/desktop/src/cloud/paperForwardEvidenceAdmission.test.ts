@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { admitPaperForwardEvidence, PaperForwardEvidenceAdmissionError, type PaperForwardPeriodEvidence } from "./paperForwardEvidenceAdmission";
+import { admitPaperForwardEvidence, admitPaperForwardEvidenceFromSource, PaperForwardEvidenceAdmissionError, type PaperForwardPeriodEvidence } from "./paperForwardEvidenceAdmission";
 
 const period = (index: number, overrides: Partial<PaperForwardPeriodEvidence> = {}): PaperForwardPeriodEvidence => ({
   periodId: `period-${index}`,
@@ -33,6 +33,12 @@ describe("PAPER forward evidence admission", () => {
     assert.equal(result.strength, "INSUFFICIENT");
     assert.equal(result.periodCount, 2);
     assert.ok(result.reasons.includes("NARROW_LONGITUDINAL_EVIDENCE"));
+  });
+
+  it("consumes the server-owned realized-period source through the existing admission policy", () => {
+    const result = admitPaperForwardEvidenceFromSource({ listPaperRealizedPeriods: () => [period(0)] }, { minimumLongitudinalPeriods: 1 });
+    assert.equal(result.periodCount, 1);
+    assert.equal(result.strength, "VERIFIED");
   });
 
   it("admits 30 completed chronological periods while retaining failed periods", () => {

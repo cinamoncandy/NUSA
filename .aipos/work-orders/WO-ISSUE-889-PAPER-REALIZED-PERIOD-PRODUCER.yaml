@@ -1,0 +1,66 @@
+id: WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER
+title: "Issue #889 canonical PAPER realized-period producer"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+issue: 889
+base_branch: main
+base_commit: 864274b9af824d8fdae1e0629c61596cc81155ea
+implementation_branch: codex/paper-realized-period-producer-v2
+objective: "Connect the canonical Cloud PAPER execution observation path to a durable, server-owned realized-period producer. Persist only explicit candidate/dataset/provenance-bound outcomes after a genuinely realized interval, preserve rejected/halted denominator evidence, and expose a restart-safe read path for the existing research admission/League bridge."
+architecture_impact:
+  acknowledged: true
+  analysis: "Extend the existing Cloud PAPER boundary observation path and SQLite migration/repository conventions. The producer is evidence-only: it does not create an order, broker adapter, accounting engine, RiskAuthority, promotion authority, or LIVE path. Existing desktop #877 persistence and #861 admission remain the research consumers; no second evaluator is created."
+  references:
+    - apps/cloud/src/runtime.ts
+    - apps/cloud/src/cloudPaperExecutionBoundary.ts
+    - apps/cloud/src/paperLearningObservability.ts
+    - apps/desktop/src/cloud/persistedPaperPeriodStore.ts
+    - apps/desktop/src/cloud/paperForwardEvidenceAdmission.ts
+scope:
+  - explicit_paper_period_open_and_realized_close
+  - server_owned_candidate_dataset_and_content_hash_provenance
+  - durable_restart_safe_open_period_recovery
+  - deterministic_idempotent_close_and_conflict_fail_closed
+  - bounded_retention_and_malformed_row_rejection
+  - existing_paper_execution_observation_wiring
+  - research_evidence_read_accessor
+prohibited:
+  - live_execution
+  - real_broker_mutation
+  - withdrawal_or_transfer
+  - automatic_live_activation
+  - candidate_identity_inference_from_account_pnl
+  - synthetic_period_or_cost_outcome
+  - new_league_or_promotion_evaluator
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  brokerMutation: NONE
+  paper_only: true
+acceptance:
+  - period_open_requires_explicit_candidate_dataset_and_advisory_provenance
+  - period_close_requires_realized_paper_runtime_observation
+  - process_restart_preserves_open_period_and_observation_identity
+  - duplicate_close_same_payload_is_idempotent
+  - same_period_identity_with_different_payload_fails_closed
+  - overlapping_or_out_of_order_periods_fail_closed
+  - rejected_and_halted_periods_remain_in_evidence_denominator
+  - malformed_or_secret_bearing_payloads_are_rejected_before_persistence
+  - bounded_deterministic_retention
+  - existing_research_admission_can_consume_read_history
+  - paper_account_and_broker_mutation_counts_unchanged
+validation:
+  focused: PASS_25_OF_25
+  paper_regression: PASS_INCLUDED_IN_FULL_SUITE
+  full_isolated_suite: PASS_676_FILES
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture: PASS
+  safety: PASS
+  security: PASS_SECRETS_0
+  aipos: PASS_CONFORMANCE_DRIFT_PROVENANCE
+implementation_status: IMPLEMENTED_LOCAL_VALIDATION_PENDING_PR
+next: "Publish the validated producer slice, verify exact-head checks, and merge only when all protected gates are green; do not claim full Issue #889 closure if external orchestration evidence remains absent."
