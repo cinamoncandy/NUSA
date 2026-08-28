@@ -7,11 +7,13 @@ import {
   type EvolutionLifecycleInput,
   type EvolutionLifecycleResult,
 } from "./evolveLifecycle";
+import { persistEvolutionLearningRecord, type EvolutionLearningMemoryRepository } from "./evolveLearningMemory";
 import type { EvolutionOpportunity } from "./evolveOpportunity";
 
 export interface EvolutionLevel7Input {
   readonly opportunities: readonly EvolutionOpportunity[];
   readonly lifecycle: Omit<EvolutionLifecycleInput, "opportunity">;
+  readonly learningMemory?: EvolutionLearningMemoryRepository;
 }
 
 export interface EvolutionLevel7Result {
@@ -62,6 +64,10 @@ export function coordinateLevel7Evolution(input: EvolutionLevel7Input): Evolutio
     ...input.lifecycle,
     opportunity: selection.selectedOpportunity,
   });
+
+  if (input.learningMemory != null && lifecycle.learning != null) {
+    persistEvolutionLearningRecord(input.learningMemory, lifecycle.learning);
+  }
 
   return Object.freeze({
     status: "COORDINATED",

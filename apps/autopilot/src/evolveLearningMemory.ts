@@ -14,6 +14,15 @@ export interface EvolutionLearningRecord {
   readonly recordedAt: string;
 }
 
+/**
+ * Persistence is an injected evidence sink. The evolution coordinator does not
+ * select a store, create a database, or gain any execution capability from it.
+ */
+export interface EvolutionLearningMemoryRepository {
+  append(record: EvolutionLearningRecord): void;
+  list(): readonly EvolutionLearningRecord[];
+}
+
 const clean = (value: string, max: number): string => value.trim().slice(0, max);
 
 export function createEvolutionLearningRecord(input: EvolutionLearningRecord): EvolutionLearningRecord {
@@ -39,4 +48,17 @@ export function createEvolutionLearningRecord(input: EvolutionLearningRecord): E
     failureReason: input.failureReason ? clean(input.failureReason, 1000) : null,
     rollbackReference: input.rollbackReference ? clean(input.rollbackReference, 240) : null,
   });
+}
+
+export function persistEvolutionLearningRecord(
+  repository: EvolutionLearningMemoryRepository,
+  record: EvolutionLearningRecord,
+): void {
+  try {
+    repository.append(createEvolutionLearningRecord(record));
+  } catch {
+    // Do not report a successful evolution cycle when its evidence could not
+    // be persisted. The caller receives a stable fail-closed error only.
+    throw new Error("EVOLVE_LEARNING_PERSISTENCE_FAILED");
+  }
 }

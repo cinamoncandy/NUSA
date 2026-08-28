@@ -1,16 +1,16 @@
 version: 1
 project: nusa
-updated_at: "2026-08-29T16:55:00+09:00"
+updated_at: "2026-08-29T08:00:18+09:00"
 current_execution_target:
-  work_order: WO-ISSUE-880-STRATEGY-CONTAINMENT
+  work_order: WO-ISSUE-865-EVOLUTION-LEARNING-LEDGER
   status: VERIFYING
-  branch: codex/issue-880-containment-evidence
-  base_sha: 3aed04373a6732ce98432b5bbfa0ea1bd67a6fb2
-  scope: "Reuse existing rollback policy to emit deterministic, provenance-bound, fail-closed strategy containment advice without lifecycle or execution mutation."
+  branch: codex/issue-865-evolution-learning-ledger
+  base_sha: adc74b132aea172b9d2e15456be82500b9899e17
+  scope: "Persist the existing zero-authority evolution learning record through one bounded, integrity-checked SQLite ledger with restart replay and idempotent conflict rejection."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-phase: repository-validation
-status: verifying
-objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
+phase: implementation
+status: implementing
+objective: "Advance the canonical self-learning loop using verified, durable evolution evidence while holding the production transition at the human/environment boundary."
 latest_research_slice:
   work_order: WO-MARKET-INTELLIGENCE-REGIME-POINT-IN-TIME-001
   status: COMPLETED
@@ -23,7 +23,7 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: codex/issue-880-containment-evidence
+active_branch: codex/issue-865-evolution-learning-ledger
 active_successor_branch: null
 active_pull_request: null
 current_non_live_work_order:
@@ -83,14 +83,14 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-ISSUE-880-STRATEGY-CONTAINMENT
+  work_order: WO-ISSUE-865-EVOLUTION-LEARNING-LEDGER
   status: VERIFYING
-  branch: codex/issue-880-containment-evidence
-  base_commit: 3aed04373a6732ce98432b5bbfa0ea1bd67a6fb2
-  scope: "Reuse existing rollback policy to emit deterministic, provenance-bound, fail-closed strategy containment advice without lifecycle or execution mutation."
+  branch: codex/issue-865-evolution-learning-ledger
+  base_commit: adc74b132aea172b9d2e15456be82500b9899e17
+  scope: "Persist the existing zero-authority evolution learning record through one bounded, integrity-checked SQLite ledger with restart replay and idempotent conflict rejection."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  implementation_commit: b87714f5
-  validation: "Focused containment/governance/rollback tests 25/25 PASS; full isolated suite 732 files PASS; preflight/typecheck/build/lint/architecture/safety/security/Restricted LIVE/Read-only Broker/AIPOS/package/diff checks PASS; PR publication and exact-head CI pending."
+  implementation_commit: ef040d15
+  validation: "Focused evolution/storage tests PASS (30/30 + storage regressions 26/26); full isolated suite PASS (734/734); preflight/typecheck/build/lint/architecture/safety/security/AIPOS/package validation PASS; git diff --check PASS."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -429,6 +429,12 @@ planning_gates:
     serialization: HUMAN_ENVIRONMENT_ONLY
     summary: "Governed longitudinal held-out evaluation remains planning/audit only; point-in-time leakage, economic-usefulness, statistical-validity, regime-degradation, tail-risk, portfolio-dependence/concentration, censoring/selection-validity, and uncertainty/effective-sample contracts are hardened. LIVE and real-money runtime implementation remains prohibited, while PAPER, read-only, mobile-auth, secure-session, UI/UX, and other non-LIVE work may proceed under independent fail-closed contracts."
 completed:
+  - id: WO-ISSUE-881-PAPER-PORTFOLIO-ADVISORY
+    evidence: ".aipos/work-orders/WO-ISSUE-881-PAPER-PORTFOLIO-ADVISORY.yaml"
+    summary: "Evidence-bound PAPER portfolio allocation advisory merged in PR #1040 at head fa2caa624130e98f8ff7eae1eb766be19f6e1c4f and merge adc74b132aea172b9d2e15456be82500b9899e17; required exact-head checks 6/6 passed, with no capital, accounting, broker, or LIVE authority."
+  - id: WO-ISSUE-880-STRATEGY-CONTAINMENT
+    evidence: ".aipos/work-orders/WO-ISSUE-880-STRATEGY-CONTAINMENT.yaml"
+    summary: "Evidence-driven strategy containment advisory merged in PR #1039 at exact head f35bbe38a52900393bfd9ed8e373b51a5469d561 and merge 949b8dd66073baca863a680149c7c62331bbc04c; required exact-head checks passed after stale-run recovery, with no lifecycle or execution mutation."
   - id: WO-ISSUE-889-COST-EVIDENCE-PROVENANCE
     evidence: ".aipos/work-orders/WO-ISSUE-889-COST-EVIDENCE-PROVENANCE.yaml"
     summary: "Issue #889 cost-evidence provenance slice merged in PR #995 at exact head 4137044923c633165fffda8b81fa39d37b7dcb46 as f72dba72dbfc6475ee08d8cc9f429ea5cd579e23; focused 76/76 and repository gates passed, while missing benchmark and incomplete friction remain fail-closed."
@@ -496,9 +502,9 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
-  - id: WO-ISSUE-880-STRATEGY-CONTAINMENT
-    evidence: ".aipos/work-orders/WO-ISSUE-880-STRATEGY-CONTAINMENT.yaml"
-    summary: "Reuse the existing rollback evaluator to emit deterministic, provenance-bound, fail-closed containment advice with retirement threshold evidence and no automatic lifecycle mutation."
+  - id: WO-ISSUE-865-EVOLUTION-LEARNING-LEDGER
+    evidence: ".aipos/work-orders/WO-ISSUE-865-EVOLUTION-LEARNING-LEDGER.yaml"
+    summary: "Persist existing zero-authority EvolutionLearningRecord output in a bounded, canonical SQLite ledger with restart replay, deterministic hash-chain verification, idempotency, and fail-closed identity conflicts."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -525,8 +531,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-ISSUE-880-STRATEGY-CONTAINMENT.yaml
-  reason: "Issue #880 remains open after the restart-safe projection merge; implement the smallest evidence-driven containment advisory using the existing rollback evaluator."
+  work_order: .aipos/work-orders/WO-ISSUE-865-EVOLUTION-LEARNING-LEDGER.yaml
+  reason: "Issue #865 is the next repository-side P1: close the durable replay gap in the existing evolution learning loop without adding a second engine or authority path."
 verification:
   wo_0057:
     parent_pull_request: 552

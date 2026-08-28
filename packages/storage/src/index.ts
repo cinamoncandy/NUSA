@@ -29,6 +29,8 @@ export { SqliteCandidatePromotionRepository } from "./candidatePromotionReposito
 export type { CandidatePromotionDatabase, PromotionAtomicInput } from "./candidatePromotionRepository";
 export { SqliteResearchSessionRepository } from "./researchAutomation";
 export type { ResearchAutomationDatabase } from "./researchAutomation";
+export { SqliteEvolutionLearningLedger, EvolutionLearningLedgerError } from "./evolutionLearningLedger";
+export type { EvolutionLearningLedgerDatabase, EvolutionLearningLedgerReplay } from "./evolutionLearningLedger";
 export { SqlitePersistedPaperPeriodStore, PersistedPaperPeriodStoreError } from "./persistedPaperPeriodStore";
 export type { PersistedPaperCandidateProvenance, PersistedPaperPeriodEnvelope, PersistedPaperPeriodRecord, PaperPeriodCostEvidence, PaperPeriodCostEvidenceKind, PaperPeriodLifecycleStatus, PersistedPaperPendingPeriod } from "./persistedPaperPeriodStore";
 export { SqlitePaperMarketObservationRepository, PaperMarketObservationStoreError, normalizePaperPublicMarketObservation } from "./paperMarketObservationRepository";
@@ -436,4 +438,24 @@ CREATE TABLE IF NOT EXISTS paper_public_market_observations (
 );
 CREATE INDEX IF NOT EXISTS idx_paper_public_market_observations_window
   ON paper_public_market_observations (market, observed_at_ms ASC, observation_id ASC);
+` }, { id: "020_evolution_learning_ledger", sql: `
+CREATE TABLE IF NOT EXISTS evolution_learning_ledger_meta (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  schema_version INTEGER NOT NULL,
+  event_count INTEGER NOT NULL CHECK (event_count >= 0),
+  ledger_hash TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS evolution_learning_ledger_events (
+  sequence INTEGER PRIMARY KEY,
+  opportunity_id TEXT NOT NULL UNIQUE,
+  content_hash TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  recorded_at TEXT NOT NULL,
+  previous_hash TEXT NOT NULL,
+  event_hash TEXT NOT NULL UNIQUE
+);
+CREATE INDEX IF NOT EXISTS idx_evolution_learning_ledger_recorded_at
+  ON evolution_learning_ledger_events (recorded_at ASC, opportunity_id ASC);
+INSERT OR IGNORE INTO evolution_learning_ledger_meta (id, schema_version, event_count, ledger_hash)
+  VALUES (1, 1, 0, '0000000000000000000000000000000000000000000000000000000000000000');
 ` }];
