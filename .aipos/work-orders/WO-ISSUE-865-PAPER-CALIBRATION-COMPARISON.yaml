@@ -1,6 +1,6 @@
 id: WO-ISSUE-865-PAPER-CALIBRATION-COMPARISON
 title: "Issue #865 compare independent PAPER calibration windows"
-status: VERIFYING
+status: COMPLETED
 owner: nusa
 repository: cinamoncandy/NUSA
 issue: 865
@@ -62,7 +62,10 @@ validation:
   git_diff_check: PASS
 implementation_commit: d520f6d5
 validation_head: 37799b45
+implementation_status: MERGED_PR_1036
+merge_commit: c3b94e6b0146301806f647f16121e4680f92656b
+remote_validation: "PR #1036 final exact head 73a7efc1cd6f7b3b5253783ed16d74b2b32e8ab7; required CI, Actual PAPER, Restricted LIVE, and Read-only Broker checks PASS. Non-required Cloudflare Workers Builds check failed externally and did not gate the protected merge."
 known_limitations:
   - "The comparison is a read-only evidence projection; it does not mutate confidence or promote a strategy."
   - "Actual long-running PAPER evidence remains dependent on canonical runtime persistence and external/human gates outside this slice."
-next: "Validate PR #1036 exact head; no second confidence or promotion engine is permitted."
+next: "Continue Issue #865 through a separate evidence-driven lifecycle/replay slice; no second confidence or promotion engine is permitted."
