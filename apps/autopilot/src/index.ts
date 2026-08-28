@@ -10,6 +10,7 @@ export interface Env {
   NUSA_CODING_RUNNER_TOKEN?: string;
   NUSA_AI_CODING_ENDPOINT?: string;
   NUSA_AI_CODING_TOKEN?: string;
+  NUSA_DEPLOYMENT_REVISION?: string;
 }
 
 const DEFAULT_REPOSITORY = "cinamoncandy/NUSA";
@@ -41,7 +42,7 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
-    if (request.method === "GET" && url.pathname === "/health") return json({ service: "nusa-autopilot", status: env.NUSA_WEBHOOK_SECRET ? "WEBHOOK_READY" : "INTERFACE_READY", executionPlanning: "ENABLED", authenticatedExecutor: env.NUSA_GITHUB_TOKEN ? "CONFIGURED" : "INTERFACE_READY", codingRunner: env.NUSA_CODING_RUNNER_TOKEN ? "CONFIGURED" : "INTERFACE_READY", aiCodingEngine: env.NUSA_AI_CODING_ENDPOINT && env.NUSA_AI_CODING_TOKEN ? "CONFIGURED" : "INTERFACE_READY", allowedRepository, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+    if (request.method === "GET" && url.pathname === "/health") return json({ service: "nusa-autopilot", status: env.NUSA_WEBHOOK_SECRET ? "WEBHOOK_READY" : "INTERFACE_READY", deploymentRevision: env.NUSA_DEPLOYMENT_REVISION?.trim() || "UNVERIFIED", executionPlanning: "ENABLED", authenticatedExecutor: env.NUSA_GITHUB_TOKEN ? "CONFIGURED" : "INTERFACE_READY", codingRunner: env.NUSA_CODING_RUNNER_TOKEN ? "CONFIGURED" : "INTERFACE_READY", aiCodingEngine: env.NUSA_AI_CODING_ENDPOINT && env.NUSA_AI_CODING_TOKEN ? "CONFIGURED" : "INTERFACE_READY", allowedRepository, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
 
     if (request.method === "POST" && url.pathname === "/coding/execute") {
       const configured = env.NUSA_CODING_RUNNER_TOKEN?.trim();

@@ -16,6 +16,15 @@ describe("NUSA autopilot GitHub webhook", () => {
     assert.equal(classifyGithubEvent(null), null);
   });
 
+  it("exposes a fail-closed deployment revision health signal", async () => {
+    const unverified = await worker.fetch(new Request("https://example.test/health"), {});
+    assert.equal(unverified.status, 200);
+    assert.equal((await unverified.json() as { deploymentRevision: string }).deploymentRevision, "UNVERIFIED");
+
+    const verified = await worker.fetch(new Request("https://example.test/health"), { NUSA_DEPLOYMENT_REVISION: "a".repeat(40) });
+    assert.equal((await verified.json() as { deploymentRevision: string }).deploymentRevision, "a".repeat(40));
+  });
+
   it("verifies the exact request body with HMAC SHA-256", async () => {
     const signature = await computeGithubWebhookSignature("secret", "{\"ok\":true}");
     assert.equal(await verifyGithubWebhookSignature("secret", "{\"ok\":true}", signature), true);

@@ -1,0 +1,64 @@
+version: 1
+id: WO-ISSUE-880-STRATEGY-LIFECYCLE-FAIL-CLOSED
+title: "Issue #880 strategy lifecycle rollback input hardening"
+status: VERIFYING
+priority: P1
+owner: codex
+repository: cinamoncandy/NUSA
+issue: 880
+base_branch: main
+base_commit: 6e841cb987e544c5cabd3909e27db5546bcdacfa
+implementation_branch: codex/issue-880-strategy-lifecycle-hardening
+objective: "Harden the existing strategy rollback recommendation boundary so malformed, non-finite, or out-of-range evidence cannot be interpreted as a safe HOLD decision."
+architecture_impact:
+  acknowledged: true
+  analysis: "Extend the existing strategy rollback evaluator with runtime evidence validation and regression coverage; no second lifecycle engine or authority boundary is introduced."
+  references:
+    - apps/cloud/src/strategyRollbackEngine.ts
+    - apps/cloud/src/strategyGovernanceLedger.ts
+    - apps/cloud/src/championMonitor.ts
+    - docs/NUSA_INVESTMENT_KNOWLEDGE_PRINCIPLE.md
+scope:
+  - strategy_rollback_input_validation
+  - fail_closed_malformed_evidence
+  - existing_strategy_governance_regression
+prohibited:
+  - new_strategy_lifecycle_engine
+  - automatic_promotion_or_retirement
+  - paper_or_live_execution
+  - broker_or_order_mutation
+  - risk_limit_mutation
+  - live_activation
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  brokerMutation: NONE
+  paper_only: true
+acceptance:
+  - non-finite numeric evidence is rejected before lifecycle action selection
+  - invalid ratio and threshold values are rejected rather than coerced into HOLD or SUSPEND
+  - negative counts and invalid boolean evidence are rejected
+  - valid historical rollback decisions remain unchanged
+  - deterministic reason ordering is preserved
+  - no execution, accounting, risk, broker, or LIVE authority changes
+validation:
+  focused: PASS_15_OF_15
+  relevant_regressions: PASS_74_OF_74
+  full_isolated_suite: PASS_693_FILES
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture_truth: PASS
+  architecture_check: PASS
+  safety: PASS
+  security: PASS
+  restricted_live: PASS
+  read_only_broker: PASS
+  aipos: PASS
+  package_validation: PASS
+  git_diff_check: PASS
+known_limitations:
+  - "This slice hardens the existing rollback recommendation boundary; it does not implement the full #880 lifecycle persistence/quarantine/retirement orchestration."
+next: "Publish only this scoped hardening after validation; keep full strategy lifecycle acceptance open until evidence-driven transitions and durable replay are implemented."
