@@ -20,6 +20,7 @@ export class StrategyRegistry {
     const stored = freeze({ identity: Object.freeze({ ...identity }), lifecycle }); this.values.set(key, stored); this.latestCreatedAt.set(identity.strategyId, identity.createdAt); return freeze(stored);
   }
   getStrategy(strategyId: string, version: string): RegisteredStrategy | undefined { const found = this.values.get(`${strategyId}|${version}`); return found && freeze(found); }
+  updateLifecycle(strategyId: string, version: string, lifecycle: StrategyLifecycle): RegisteredStrategy { const current = this.values.get(`${strategyId}|${version}`); if (!current) throw new StrategyRegistryError("INVALID_IDENTITY"); const updated = freeze({ identity: current.identity, lifecycle }); this.values.set(`${strategyId}|${version}`, updated); return freeze(updated); }
   listStrategyVersions(strategyId: string): readonly RegisteredStrategy[] { return Object.freeze([...this.values.values()].filter((v) => v.identity.strategyId === strategyId).sort((a,b) => compareVersion(a.identity.version,b.identity.version)).map(freeze)); }
   getLatestStrategyVersion(strategyId: string): RegisteredStrategy | undefined { const all=this.listStrategyVersions(strategyId); return all[all.length-1]; }
   restore(entries: readonly RegisteredStrategy[]): void { for (const entry of [...entries].sort((a,b) => a.identity.createdAt-b.identity.createdAt || a.identity.strategyId.localeCompare(b.identity.strategyId) || compareVersion(a.identity.version,b.identity.version))) this.registerStrategy(entry.identity, entry.lifecycle); }

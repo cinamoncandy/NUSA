@@ -1,15 +1,15 @@
 version: 1
 project: nusa
-updated_at: "2026-08-29T06:15:00+09:00"
+updated_at: "2026-08-29T06:32:31+09:00"
 current_execution_target:
-  work_order: WO-ISSUE-865-PAPER-CALIBRATION-COMPARISON
+  work_order: WO-ISSUE-880-STRATEGY-LIFECYCLE-REPLAY
   status: VERIFYING
-  branch: codex/issue-865-paper-calibration-comparison
-  base_sha: 6e90cc3528adba5d3b7e95be5dda31202847a184
-  scope: "Compare provenance-identical, temporally disjoint VERIFIED PAPER calibration windows through the existing confidence guard without adding promotion or execution authority."
+  branch: codex/issue-880-lifecycle-replay
+  base_sha: f283358c52e658c0a8ff59b379356731a0e36ef7
+  scope: "Keep the existing strategy governance ledger and SQLite registry projection consistent across transitions and process restart without adding lifecycle or execution authority."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: repository-validation
-status: in_progress
+status: verifying
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
 latest_research_slice:
   work_order: WO-MARKET-INTELLIGENCE-REGIME-POINT-IN-TIME-001
@@ -23,9 +23,9 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: codex/issue-865-paper-calibration-comparison
+active_branch: codex/issue-880-lifecycle-replay
 active_successor_branch: null
-active_pull_request: 1036
+active_pull_request: 1038
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -83,14 +83,14 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-ISSUE-865-PAPER-CALIBRATION-COMPARISON
+  work_order: WO-ISSUE-880-STRATEGY-LIFECYCLE-REPLAY
   status: VERIFYING
-  branch: codex/issue-865-paper-calibration-comparison
-  base_commit: 6e90cc3528adba5d3b7e95be5dda31202847a184
-  scope: "Compare provenance-identical, temporally disjoint VERIFIED PAPER calibration windows through the existing confidence guard without adding promotion or execution authority."
-  implementation_commit: d520f6d5
+  branch: codex/issue-880-lifecycle-replay
+  base_commit: f283358c52e658c0a8ff59b379356731a0e36ef7
+  scope: "Keep the existing strategy governance ledger and SQLite registry projection consistent across transitions and process restart without adding lifecycle or execution authority."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "Focused calibration comparison 14/14 PASS; full isolated suite 730 files PASS; preflight/typecheck/build/lint/architecture/safety/security/AI/Restricted LIVE/Read-only Broker/AIPOS/diff checks PASS; PR #1036 exact head 37799b45 is published; no confidence, promotion, execution, broker, or LIVE authority is added; remote validation is pending."
+  implementation_commit: 3830ebed21ed42f9c186c551eb93a4d28d8e8cbd
+  validation: "Latest-main merge b27a4bb5 validated: focused 28/28 and full 731-file isolated suite PASS; preflight/typecheck/build/lint/architecture/safety/security/Restricted LIVE/Read-only Broker/AIPOS/package gates PASS; PR #1038 published at 749fa1c3, exact-head validation pending."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -489,13 +489,16 @@ completed:
   - id: WO-0049
     evidence: ".aipos/evidence/WO-0049-completion.json"
     summary: "Added validation-only two-human scale-change governance without applying risk changes."
+  - id: WO-ISSUE-865-PAPER-CALIBRATION-COMPARISON
+    evidence: ".aipos/work-orders/WO-ISSUE-865-PAPER-CALIBRATION-COMPARISON.yaml"
+    summary: "Independent provenance-identical PAPER calibration comparison merged in PR #1036 at c3b94e6b; exact-head protected checks passed and no authority was added."
 in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
-  - id: WO-ISSUE-865-PAPER-CALIBRATION-COMPARISON
-    evidence: ".aipos/work-orders/WO-ISSUE-865-PAPER-CALIBRATION-COMPARISON.yaml"
-    summary: "Compare independent, provenance-identical PAPER calibration windows through the existing confidence guard with deterministic fail-closed semantics."
+  - id: WO-ISSUE-880-STRATEGY-LIFECYCLE-REPLAY
+    evidence: ".aipos/work-orders/WO-ISSUE-880-STRATEGY-LIFECYCLE-REPLAY.yaml"
+    summary: "Keep the existing strategy governance ledger and SQLite registry projection consistent across transitions and process restart without adding lifecycle or execution authority; PR #1038 is published at 749fa1c3 after 731-file local validation, exact-head checks pending."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -522,8 +525,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-ISSUE-865-PAPER-CALIBRATION-COMPARISON.yaml
-  reason: "Complete the independent-window calibration comparison and validate it without creating a second confidence or promotion engine."
+  work_order: .aipos/work-orders/WO-ISSUE-880-STRATEGY-LIFECYCLE-REPLAY.yaml
+  reason: "Exact-head validate PR #1038 for the latest-main concrete restart-safe strategy lifecycle projection gap using the existing governance ledger and SQLite store."
 verification:
   wo_0057:
     parent_pull_request: 552
