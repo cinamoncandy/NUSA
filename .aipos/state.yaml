@@ -88,9 +88,9 @@ claimed_state:
   branch: codex/issue-905-measured-concurrency-wiring
   base_commit: e125e6a39207e6245d257b736d460b22eff6e014
   scope: "Expose one canonical, read-only production composition for the existing Engineering OS evidence engines without inventing measurements or adding execution authority."
-  implementation_commit: null
+  implementation_commit: 93a279728b080e835019a1166891b368313aa4df
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "Focused 8/8 PASS; full isolated 729 files PASS; preflight/typecheck/build/lint/architecture/safety/security/AIPOS/git diff --check PASS; exact-head CI pending."
+  validation: "Implementation 93a279728b080e835019a1166891b368313aa4df; focused 8/8 PASS; full isolated 729 files PASS; preflight/typecheck/build/lint/architecture/safety/security/AIPOS/git diff --check PASS; exact-head CI pending."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
