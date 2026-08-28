@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-28 12:46:34.568+00:00"
+updated_at: "2026-08-28T13:25:00+09:00"
 current_execution_target:
-  work_order: WO-ISSUE-880-STRATEGY-LIFECYCLE-FAIL-CLOSED
+  work_order: WO-ISSUE-979-AI-DECISION-HIERARCHY-CI-RECOVERY
   status: VERIFYING
-  branch: codex/issue-880-strategy-lifecycle-hardening
-  base_sha: 6e841cb987e544c5cabd3909e27db5546bcdacfa
-  scope: "Harden the existing strategy rollback evaluator so malformed, non-finite, or out-of-range evidence cannot be interpreted as a safe HOLD decision."
+  branch: design/979-ai-decision-hierarchy
+  base_sha: de4eb181c0e06addeb3bdc34dadf21c19ef73760
+  scope: "Restore the explicit AI ZERO AUTHORITY safety marker removed by the decision-hierarchy layout change without changing AI, PAPER, LIVE, or production authority."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: constitutional-production-human-environment-gate
 status: in_progress
@@ -23,9 +23,9 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: codex/issue-880-strategy-lifecycle-hardening
+active_branch: design/979-ai-decision-hierarchy
 active_successor_branch: feat/production-mobile-enrollment
-active_pull_request: null
+active_pull_request: 983
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -83,13 +83,13 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-ISSUE-880-STRATEGY-LIFECYCLE-FAIL-CLOSED
+  work_order: WO-ISSUE-979-AI-DECISION-HIERARCHY-CI-RECOVERY
   status: VERIFYING
-  branch: codex/issue-880-strategy-lifecycle-hardening
-  base_commit: 6e841cb987e544c5cabd3909e27db5546bcdacfa
-  scope: "Harden the existing strategy rollback evaluator so malformed, non-finite, or out-of-range evidence cannot be interpreted as a safe HOLD decision."
+  branch: design/979-ai-decision-hierarchy
+  base_commit: de4eb181c0e06addeb3bdc34dadf21c19ef73760
+  scope: "Restore the explicit AI ZERO AUTHORITY safety marker removed by the decision-hierarchy layout change without changing AI, PAPER, LIVE, or production authority."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "Focused 15/15; adjacent strategy regressions 74/74; full isolated suite 693 files; preflight/typecheck/build/lint/architecture/safety/security/Restricted LIVE/Read-only Broker/AIPOS/package validation PASS."
+  validation: "Focused 18/18; full isolated 692 files; preflight/typecheck/build/lint/architecture/safety/security/Restricted LIVE/read-only broker/AIPOS/diff PASS."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -489,9 +489,9 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
-  - id: WO-ISSUE-880-STRATEGY-LIFECYCLE-FAIL-CLOSED
-    evidence: ".aipos/work-orders/WO-ISSUE-880-STRATEGY-LIFECYCLE-FAIL-CLOSED.yaml"
-    summary: "Issue #880 existing strategy rollback boundary is being hardened to reject malformed evidence without adding lifecycle or execution authority."
+  - id: WO-ISSUE-979-AI-DECISION-HIERARCHY-CI-RECOVERY
+    evidence: ".aipos/work-orders/WO-ISSUE-979-AI-DECISION-HIERARCHY-CI-RECOVERY.yaml"
+    summary: "Issue #979 AI decision hierarchy CI recovery preserves the explicit AI ZERO AUTHORITY safety marker and read-only UI semantics."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -518,8 +518,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-ISSUE-880-STRATEGY-LIFECYCLE-FAIL-CLOSED.yaml
-  reason: "Publish the validated #880 fail-closed rollback input hardening; keep full lifecycle persistence/quarantine/retirement orchestration open."
+  work_order: .aipos/work-orders/WO-ISSUE-979-AI-DECISION-HIERARCHY-CI-RECOVERY.yaml
+  reason: "Restore the explicit AI ZERO AUTHORITY safety marker removed by the decision-hierarchy layout change; preserve read-only UI and authority semantics."
 verification:
   wo_0057:
     parent_pull_request: 552

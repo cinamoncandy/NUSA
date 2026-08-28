@@ -1,0 +1,60 @@
+version: 1
+id: WO-ISSUE-979-AI-DECISION-HIERARCHY-CI-RECOVERY
+title: "Issue #979 AI decision hierarchy CI regression recovery"
+status: VERIFYING
+priority: P1
+owner: codex
+repository: cinamoncandy/NUSA
+issue: 979
+pull_request: 983
+base_branch: main
+base_commit: de4eb181c0e06addeb3bdc34dadf21c19ef73760
+implementation_branch: design/979-ai-decision-hierarchy
+implementation_commit: 44af4213
+objective: "Restore the explicit AI ZERO AUTHORITY safety marker removed by the decision-hierarchy layout change, without changing AI, PAPER, LIVE, or production authority."
+architecture_impact:
+  acknowledged: true
+  analysis: "Preserve the existing read-only safety identity in the canonical AI decision surface; no new engine, IPC, authority, or execution path."
+  references:
+    - apps/mobile/src/aiView.tsx
+    - docs/NUSA_USER_EXPERIENCE_PRINCIPLE.md
+scope:
+  - ai_decision_hierarchy_safety_marker
+  - mobile_ui_regression_recovery
+prohibited:
+  - ai_execution_authority
+  - live_activation
+  - paper_or_live_execution
+  - broker_or_order_mutation
+  - credential_access
+  - risk_or_safety_boundary_relaxation
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  brokerMutation: NONE
+  paper_only: true
+acceptance:
+  - explicit AI ZERO AUTHORITY marker remains in the canonical AI risk hierarchy
+  - existing mobile AI calibration and hierarchy regressions pass
+  - no order, cancel, withdrawal, transfer, or LIVE mutation path is introduced
+  - existing Korean decision hierarchy and read-only safety copy remain intact
+validation:
+  focused: PASS_18_OF_18
+  full_isolated_suite: PASS_692_FILES
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture_truth: PASS
+  architecture_check: PASS
+  ai_architecture: PASS
+  safety: PASS
+  security: PASS
+  restricted_live: PASS
+  read_only_broker: PASS
+  aipos: PASS
+  git_diff_check: PASS
+known_limitations:
+  - "Physical-device visual acceptance remains outside CI and is not inferred from this fix."
+next: "Publish and validate the exact PR #983 head; do not merge until required checks are green."
