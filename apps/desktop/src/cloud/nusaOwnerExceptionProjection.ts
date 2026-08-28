@@ -1,4 +1,11 @@
-export type EngineeringWorkOrigin = "AUTO_BACKGROUND" | "USER_TRIGGERED";
+import type {
+  NusaEngineeringExecutionEvidence,
+  NusaEngineeringExecutionOrigin,
+  NusaEngineeringExecutionOriginProjection,
+} from "./nusaEngineeringExecutionOrigin";
+import { projectNusaEngineeringExecutionOrigin } from "./nusaEngineeringExecutionOrigin";
+
+export type EngineeringWorkOrigin = NusaEngineeringExecutionOrigin;
 
 export type OwnerExceptionKind =
   | "HUMAN_ONLY_BLOCKER"
@@ -9,7 +16,7 @@ export type OwnerExceptionKind =
 
 export type OwnerExceptionInput = {
   workId: string;
-  origin: EngineeringWorkOrigin;
+  originEvidence: NusaEngineeringExecutionEvidence | null;
   kind: OwnerExceptionKind;
   summary: string;
   evidenceRefs: readonly string[];
@@ -17,7 +24,8 @@ export type OwnerExceptionInput = {
 
 export type OwnerExceptionProjection = {
   workId: string;
-  origin: EngineeringWorkOrigin;
+  origin: EngineeringWorkOrigin | null;
+  originStatus: NusaEngineeringExecutionOriginProjection["status"];
   visibleToOwner: boolean;
   priority: "EXCEPTION" | "OUTCOME" | "SUPPRESSED";
   summary: string;
@@ -35,6 +43,10 @@ export function projectOwnerException(input: OwnerExceptionInput): OwnerExceptio
   const workId = requireNonEmpty("WORK_ID", input.workId);
   const summary = requireNonEmpty("SUMMARY", input.summary);
   const evidenceRefs = [...new Set(input.evidenceRefs.map((ref) => ref.trim()).filter(Boolean))].sort();
+  const originEvidence = projectNusaEngineeringExecutionOrigin(input.originEvidence);
+  const originStatus = originEvidence.status === "VERIFIED" && originEvidence.origin != null ? "VERIFIED" : "UNKNOWN";
+  const origin = originStatus === "VERIFIED" ? originEvidence.origin : null;
+  const originReasons = originStatus === "VERIFIED" ? [] : ["EXECUTION_ORIGIN_UNKNOWN", ...originEvidence.reasons];
 
   if (input.kind !== "ROUTINE_AUTONOMOUS_PROGRESS" && evidenceRefs.length === 0) {
     throw new Error("OWNER_EXCEPTION_MISSING_EVIDENCE");
@@ -47,35 +59,38 @@ export function projectOwnerException(input: OwnerExceptionInput): OwnerExceptio
   ) {
     return {
       workId,
-      origin: input.origin,
+      origin,
+      originStatus,
       visibleToOwner: true,
       priority: "EXCEPTION",
       summary,
       evidenceRefs,
-      reasons: [input.kind],
+      reasons: [...new Set([input.kind, ...originReasons])].sort(),
     };
   }
 
   if (input.kind === "MEANINGFUL_OUTCOME") {
     return {
       workId,
-      origin: input.origin,
+      origin,
+      originStatus,
       visibleToOwner: true,
       priority: "OUTCOME",
       summary,
       evidenceRefs,
-      reasons: ["MEANINGFUL_OUTCOME_WITH_EVIDENCE"],
+      reasons: [...new Set(["MEANINGFUL_OUTCOME_WITH_EVIDENCE", ...originReasons])].sort(),
     };
   }
 
   return {
     workId,
-    origin: input.origin,
+    origin,
+    originStatus,
     visibleToOwner: false,
     priority: "SUPPRESSED",
     summary,
     evidenceRefs,
-    reasons: ["ROUTINE_AUTONOMOUS_PROGRESS_SUPPRESSED"],
+    reasons: [...new Set(["ROUTINE_AUTONOMOUS_PROGRESS_SUPPRESSED", ...originReasons])].sort(),
   };
 }
 
