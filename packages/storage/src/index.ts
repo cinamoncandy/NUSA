@@ -409,4 +409,16 @@ CREATE TABLE IF NOT EXISTS improvement_candidate_memory (
   updated_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_improvement_candidate_memory_retention ON improvement_candidate_memory (score ASC, last_seen_at DESC, fingerprint DESC);
+` }, { id: "017_paper_realized_periods", sql: `
+CREATE TABLE IF NOT EXISTS paper_realized_periods (
+  period_id TEXT PRIMARY KEY,
+  period_index INTEGER NOT NULL UNIQUE,
+  lifecycle_state TEXT NOT NULL CHECK (lifecycle_state IN ('OPEN','REALIZED')),
+  period_start_at INTEGER NOT NULL,
+  period_end_at INTEGER,
+  payload_json TEXT NOT NULL,
+  checksum TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_paper_realized_periods_order
+  ON paper_realized_periods (lifecycle_state, period_index ASC, period_id ASC);
 ` }];

@@ -1,19 +1,10 @@
+import type { PaperForwardPeriodEvidence } from "../../../../packages/contracts/src/paperForwardEvidence";
+export type { PaperForwardPeriodEvidence } from "../../../../packages/contracts/src/paperForwardEvidence";
+
 export type PaperForwardEvidenceStrength = "INSUFFICIENT" | "VERIFIED";
 
-export interface PaperForwardPeriodEvidence {
-  readonly periodId: string;
-  readonly candidateId: string;
-  readonly datasetId: string;
-  readonly datasetContentSha256: string;
-  readonly advisoryGeneratedAt: number;
-  readonly periodStartAt: number;
-  readonly periodEndAt: number;
-  readonly grossReturn: number;
-  readonly turnover: number;
-  readonly feeRate: number;
-  readonly spreadRate: number;
-  readonly slippageRate: number;
-  readonly status: "COMPLETED" | "REJECTED" | "HALTED";
+export interface PaperForwardEvidenceSource {
+  readonly listPaperRealizedPeriods: () => readonly PaperForwardPeriodEvidence[];
 }
 
 export interface PaperForwardEvidenceAdmission {
@@ -160,4 +151,16 @@ export function admitPaperForwardEvidence(
     cumulativeNetReturn: cumulativeEquity - 1,
     reasons: freeze([...new Set(reasons)].sort()),
   });
+}
+
+/**
+ * The existing admission policy remains the only evaluator. This read adapter lets the
+ * server-owned Cloud PAPER realized-period source feed that policy without duplicating or
+ * reshaping evidence in the renderer/research consumer.
+ */
+export function admitPaperForwardEvidenceFromSource(
+  source: PaperForwardEvidenceSource,
+  policy: PaperForwardEvidenceAdmissionPolicy = DEFAULT_POLICY,
+): PaperForwardEvidenceAdmission {
+  return admitPaperForwardEvidence(source.listPaperRealizedPeriods(), policy);
 }

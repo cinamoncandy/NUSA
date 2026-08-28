@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-28T11:10:00+09:00"
+updated_at: "2026-08-28T12:00:00+09:00"
 current_execution_target:
-  work_order: WO-ISSUE-882-PAPER-CHAOS-RECOVERY
+  work_order: WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER
   status: IN_PROGRESS
-  branch: codex/paper-chaos-recovery
-  base_sha: 65fc2011193ad2e495a5b24826d24a059b17615e
-  scope: "Issue #882 deterministic bounded PAPER chaos/recovery receipts and non-monotonic observation fail-closed guard; existing PAPER execution remains the sole mutation authority."
+  branch: codex/paper-realized-period-producer-v2
+  base_sha: 864274b9af824d8fdae1e0629c61596cc81155ea
+  scope: "Issue #889 canonical PAPER realized-period lifecycle with server-owned provenance, durable restart-safe closure, and fail-closed League evidence handoff; existing PAPER execution remains the sole mutation authority."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: constitutional-production-human-environment-gate
 status: in_progress
@@ -23,7 +23,7 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: codex/paper-chaos-recovery
+active_branch: codex/paper-realized-period-producer-v2
 active_successor_branch: feat/production-mobile-enrollment
 active_pull_request: null
 current_non_live_work_order:
@@ -83,13 +83,13 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-ISSUE-882-PAPER-CHAOS-RECOVERY
+  work_order: WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER
   status: IN_PROGRESS
-  branch: codex/paper-chaos-recovery
-  base_commit: 65fc2011193ad2e495a5b24826d24a059b17615e
-  scope: "Issue #882 deterministic bounded PAPER chaos/recovery receipts and non-monotonic observation fail-closed guard; existing PAPER execution remains the sole mutation authority."
+  branch: codex/paper-realized-period-producer-v2
+  base_commit: 864274b9af824d8fdae1e0629c61596cc81155ea
+  scope: "Issue #889 canonical PAPER realized-period lifecycle with server-owned provenance, durable restart-safe closure, and fail-closed League evidence handoff; existing PAPER execution remains the sole mutation authority."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "focused PAPER chaos/recovery 15/15; PAPER/recovery regression 174/174; full isolated suite 674 files; build/typecheck/lint/preflight/architecture/truth/architecture/safety/security/AIPOS validation PASS."
+  validation: "focused producer/runtime/admission 25/25; full isolated suite 676 files; preflight/typecheck/build/lint/architecture/safety/security/AIPOS/Restricted LIVE/Read-only Broker PASS."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -428,6 +428,9 @@ planning_gates:
     serialization: HUMAN_ENVIRONMENT_ONLY
     summary: "Governed longitudinal held-out evaluation remains planning/audit only; point-in-time leakage, economic-usefulness, statistical-validity, regime-degradation, tail-risk, portfolio-dependence/concentration, censoring/selection-validity, and uncertainty/effective-sample contracts are hardened. LIVE and real-money runtime implementation remains prohibited, while PAPER, read-only, mobile-auth, secure-session, UI/UX, and other non-LIVE work may proceed under independent fail-closed contracts."
 completed:
+  - id: WO-ISSUE-882-PAPER-CHAOS-RECOVERY
+    evidence: ".aipos/work-orders/WO-ISSUE-882-PAPER-CHAOS-RECOVERY.yaml"
+    summary: "Issue #882 deterministic chaos/recovery slice merged in PR #942 as 864274b9; remaining long-duration and physical/runtime acceptance is separately tracked."
   - id: WO-0067
     evidence: ".aipos/evidence/WO-0067-completion.json"
     summary: "Deterministic read-only remediation proposals completed on agent/wo-0067-read-only-remediation-proposals at 892da407ef8fbd6bccb9102e4bd95c802f83ce47; focused 4/4 and full 572 isolated files pass, with explicit evidence/rationale, bounded scope and risk, reversibility/verification plans, fail-closed contradiction/insufficiency handling, and unchanged PAPER-only zero authority."
@@ -486,9 +489,9 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
-  - id: WO-ISSUE-882-PAPER-CHAOS-RECOVERY
-    evidence: ".aipos/work-orders/WO-ISSUE-882-PAPER-CHAOS-RECOVERY.yaml"
-    summary: "Issue #882 extends the canonical PAPER runtime recovery boundary with bounded sanitized chaos receipts and non-monotonic observation fail-closed behavior; no mutation authority is added."
+  - id: WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER
+    evidence: ".aipos/work-orders/WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER.yaml"
+    summary: "Issue #889 canonical server-owned PAPER realized-period producer is in progress; it persists only explicit provenance-bound outcomes and adds no execution authority."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -515,8 +518,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-ISSUE-882-PAPER-CHAOS-RECOVERY.yaml
-  reason: "Complete Issue #882 canonical PAPER chaos/recovery acceptance drills; preserve fail-closed behavior and no LIVE activation, real-money authority, or authority expansion."
+  work_order: .aipos/work-orders/WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER.yaml
+  reason: "Complete Issue #889 canonical PAPER realized-period producer and provenance-bound restart-safe handoff into existing research admission; preserve fail-closed behavior and zero authority expansion."
 verification:
   wo_0057:
     parent_pull_request: 552

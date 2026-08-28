@@ -1,6 +1,6 @@
 id: WO-ISSUE-882-PAPER-CHAOS-RECOVERY
 title: "Issue #882 PAPER chaos and recovery acceptance drills"
-status: IN_PROGRESS
+status: MERGED_SLICE_PENDING_FULL_ISSUE_ACCEPTANCE
 owner: nusa
 repository: cinamoncandy/NUSA
 issue: 882
@@ -63,6 +63,8 @@ validation:
   safety: PASS
   security: PASS_SECRETS_0
   aipos: PASS
-implementation_status: IMPLEMENTED_LOCAL_PENDING_PR
-implementation_head: 5f08cf838f82f3d33fc39ef5c083d0db4587a281
-next: "Push the focused branch, verify exact-head checks, and merge only when all repository gates are green."
+implementation_status: MERGED_PR_SLICE
+implementation_head: 864274b9af824d8fdae1e0629c61596cc81155ea
+pull_request: 942
+merge_sha: 864274b9af824d8fdae1e0629c61596cc81155ea
+next: "Complete the remaining Issue #882 long-duration and runtime acceptance items separately; do not reopen the merged slice or claim full issue closure from the focused merge."
