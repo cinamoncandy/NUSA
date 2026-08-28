@@ -1,4 +1,5 @@
 import { collectGithubProgressEvidence, type GithubCommitEvidenceReceipt, type GithubWorkflowEvidenceReceipt } from "./nusaGithubProgressEvidence";
+import { projectNusaEngineeringExecutionOrigin, type NusaEngineeringExecutionEvidence, type NusaEngineeringExecutionOriginProjection } from "./nusaEngineeringExecutionOrigin";
 import { orchestrateNusaProgress, type NusaProgressOrchestrationResult } from "./nusaProgressOrchestration";
 import { collectActualPaperRuntimeProgressEvidence, type ActualPaperRuntimeArtifactReceipt } from "./nusaProgressRuntimeEvidence";
 import type { NusaProgressItemInput, NusaProgressScorecardPolicy } from "./nusaProgressScorecard";
@@ -8,6 +9,7 @@ export interface NusaOperationalProgressSnapshotInput {
   readonly workflows: readonly GithubWorkflowEvidenceReceipt[];
   readonly requiredWorkflowNames: readonly string[];
   readonly actualPaperArtifact: ActualPaperRuntimeArtifactReceipt;
+  readonly executionEvidence: NusaEngineeringExecutionEvidence | null;
   readonly policy: NusaProgressScorecardPolicy;
 }
 
@@ -15,6 +17,7 @@ export interface NusaOperationalProgressSnapshot extends NusaProgressOrchestrati
   readonly scope: "OPERATIONAL_EVIDENCE_ONLY";
   readonly headSha: string;
   readonly blockers: readonly string[];
+  readonly executionOrigin: NusaEngineeringExecutionOriginProjection;
 }
 
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
@@ -28,6 +31,7 @@ const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 export function buildNusaOperationalProgressSnapshot(input: NusaOperationalProgressSnapshotInput): NusaOperationalProgressSnapshot {
   const github = collectGithubProgressEvidence(input.commit, input.workflows, input.requiredWorkflowNames);
   const actualPaper = collectActualPaperRuntimeProgressEvidence(input.actualPaperArtifact, input.commit.sha);
+  const executionOrigin = projectNusaEngineeringExecutionOrigin(input.executionEvidence);
 
   const items: readonly NusaProgressItemInput[] = freeze([
     freeze({
@@ -50,6 +54,7 @@ export function buildNusaOperationalProgressSnapshot(input: NusaOperationalProgr
   const blockers = freeze(result.scorecard.items
     .filter((item) => item.status !== "PASS")
     .flatMap((item) => item.reasons.map((reason) => `${item.id}:${reason}`))
+    .concat(executionOrigin.status === "VERIFIED" ? [] : executionOrigin.reasons.map((reason) => `execution-origin:${reason}`))
     .sort());
 
   return freeze({
@@ -57,5 +62,6 @@ export function buildNusaOperationalProgressSnapshot(input: NusaOperationalProgr
     scope: "OPERATIONAL_EVIDENCE_ONLY",
     headSha: input.commit.sha,
     blockers,
+    executionOrigin,
   });
 }
