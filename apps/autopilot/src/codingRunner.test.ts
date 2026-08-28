@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { executeCodingRunner, validateCodingRunnerRequest } from "./codingRunner";
 
 const request = {
@@ -15,18 +16,18 @@ const request = {
 
 describe("coding runner", () => {
   it("accepts only the fail-closed repository contract", () => {
-    expect(validateCodingRunnerRequest(request)).toEqual(request);
+    assert.deepEqual(validateCodingRunnerRequest(request), request);
   });
 
   it("rejects production mutation authority", () => {
-    expect(() => validateCodingRunnerRequest({ ...request, productionMutationAllowed: true })).toThrow("CODING_RUNNER_PRODUCTION_MUTATION_FORBIDDEN");
+    assert.throws(() => validateCodingRunnerRequest({ ...request, productionMutationAllowed: true }), /CODING_RUNNER_PRODUCTION_MUTATION_FORBIDDEN/);
   });
 
   it("rejects generic or mismatched repositories", () => {
-    expect(() => validateCodingRunnerRequest({ ...request, repository: "other/repo" })).toThrow("CODING_RUNNER_REPOSITORY_INVALID");
+    assert.throws(() => validateCodingRunnerRequest({ ...request, repository: "other/repo" }), /CODING_RUNNER_REPOSITORY_INVALID/);
   });
 
   it("stays interface-ready until a real AI coding engine is configured", async () => {
-    await expect(executeCodingRunner(request, {})).resolves.toEqual({ status: "INTERFACE_READY", reason: "ai-coding-engine-not-configured" });
+    assert.deepEqual(await executeCodingRunner(request, {}), { status: "INTERFACE_READY", reason: "ai-coding-engine-not-configured" });
   });
 });
