@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-28T21:14:44+09:00"
+updated_at: "2026-08-28T13:25:00+09:00"
 current_execution_target:
-  work_order: WO-ISSUE-889-PAPER-OUTCOME-RECONCILIATION
+  work_order: WO-ISSUE-979-AI-DECISION-HIERARCHY-CI-RECOVERY
   status: VERIFYING
-  branch: codex/issue-889-paper-outcome-reconciliation
-  base_sha: 6b86b29dfd010a3996f64cffdc2ab86a86fee1bc
-  scope: "Close the repository-side gap between canonical PAPER execution outcomes and the existing persisted candidate-bound realized-period contract without fabricating research evidence or creating a parallel execution/accounting engine."
+  branch: design/979-ai-decision-hierarchy
+  base_sha: de4eb181c0e06addeb3bdc34dadf21c19ef73760
+  scope: "Restore the explicit AI ZERO AUTHORITY safety marker removed by the decision-hierarchy layout change without changing AI, PAPER, LIVE, or production authority."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: constitutional-production-human-environment-gate
 status: in_progress
@@ -23,9 +23,9 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: codex/issue-889-paper-outcome-reconciliation
+active_branch: design/979-ai-decision-hierarchy
 active_successor_branch: feat/production-mobile-enrollment
-active_pull_request: null
+active_pull_request: 983
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -83,13 +83,13 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-ISSUE-889-PAPER-OUTCOME-RECONCILIATION
+  work_order: WO-ISSUE-979-AI-DECISION-HIERARCHY-CI-RECOVERY
   status: VERIFYING
-  branch: codex/issue-889-paper-outcome-reconciliation
-  base_commit: 6b86b29dfd010a3996f64cffdc2ab86a86fee1bc
-  scope: "Canonical PAPER outcome reconciliation and restart-safe persistence into the existing candidate-bound realized-period contract; unknown or incomplete attribution remains fail-closed."
+  branch: design/979-ai-decision-hierarchy
+  base_commit: de4eb181c0e06addeb3bdc34dadf21c19ef73760
+  scope: "Restore the explicit AI ZERO AUTHORITY safety marker removed by the decision-hierarchy layout change without changing AI, PAPER, LIVE, or production authority."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "Focused 21/21; adjacent 14/14; full isolated 692 files; preflight/typecheck/build/lint/architecture/safety/security/AIPOS/package/diff PASS."
+  validation: "Focused 18/18; full isolated 692 files; preflight/typecheck/build/lint/architecture/safety/security/Restricted LIVE/read-only broker/AIPOS/diff PASS."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -489,9 +489,9 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
-  - id: WO-ISSUE-889-PAPER-OUTCOME-RECONCILIATION
-    evidence: ".aipos/work-orders/WO-ISSUE-889-PAPER-OUTCOME-RECONCILIATION.yaml"
-    summary: "Issue #889 canonical PAPER outcome reconciliation and restart-safe realized-period persistence locally validated; canonical cost/benchmark gaps remain fail-closed pending publication."
+  - id: WO-ISSUE-979-AI-DECISION-HIERARCHY-CI-RECOVERY
+    evidence: ".aipos/work-orders/WO-ISSUE-979-AI-DECISION-HIERARCHY-CI-RECOVERY.yaml"
+    summary: "Issue #979 AI decision hierarchy CI recovery preserves the explicit AI ZERO AUTHORITY safety marker and read-only UI semantics."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -518,8 +518,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-ISSUE-889-PAPER-OUTCOME-RECONCILIATION.yaml
-  reason: "Trace and close the canonical PAPER execution outcome-to-realized-period persistence gap; preserve fail-closed attribution, chronology, cost, and authority semantics."
+  work_order: .aipos/work-orders/WO-ISSUE-979-AI-DECISION-HIERARCHY-CI-RECOVERY.yaml
+  reason: "Restore the explicit AI ZERO AUTHORITY safety marker removed by the decision-hierarchy layout change; preserve read-only UI and authority semantics."
 verification:
   wo_0057:
     parent_pull_request: 552
