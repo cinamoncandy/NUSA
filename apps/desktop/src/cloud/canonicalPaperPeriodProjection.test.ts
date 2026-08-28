@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import type { PaperPeriodCostEvidence } from "../../../../packages/contracts/src/persistedPaperPeriod";
 import type { LeagueCapitalAllocationAdvisory } from "./leagueCapitalAllocation";
 import { bindPaperCandidateForExecution } from "./paperCandidateExecutionBinding";
 import {
@@ -39,7 +40,16 @@ function input() {
     outcomes: [{ candidateId: "candidate-a", binding: bindPaperCandidateForExecution(value, provenance, "candidate-a", START), grossReturn: 0.01 }],
     benchmarkReturn: 0.002,
     turnoverCostRate: 0.0015,
-    costEvidence: { source: "PAPER_EXECUTION_RECEIPT" as const, observedAt: END, feeRate: 0.0005, spreadRate: 0.0004, slippageRate: 0.0006 },
+    costEvidence: {
+      evidenceId: "paper-cost-evidence-a",
+      source: "PAPER_EXECUTION_RECEIPT" as const,
+      evidenceKind: "OBSERVED" as const,
+      evidenceFingerprintSha256: HASH,
+      observedAt: END,
+      feeRate: 0.0005,
+      spreadRate: 0.0004,
+      slippageRate: 0.0006,
+    },
     status: "COMPLETED" as const,
   };
 }
@@ -77,7 +87,8 @@ describe("canonical PAPER realized-period projection", () => {
 
   it("rejects incomplete or unreconciled execution cost evidence", () => {
     const value = input();
-    assert.equal(codeOf(() => projectCanonicalPaperRealizedPeriod({ ...value, costEvidence: { ...value.costEvidence, source: "CONSERVATIVE_MODEL" } })), "INVALID_COST_PROVENANCE");
+    const invalidSource = { ...value.costEvidence, source: "CONSERVATIVE_MODEL" } as unknown as PaperPeriodCostEvidence;
+    assert.equal(codeOf(() => projectCanonicalPaperRealizedPeriod({ ...value, costEvidence: invalidSource })), "INVALID_COST_PROVENANCE");
     assert.equal(codeOf(() => projectCanonicalPaperRealizedPeriod({ ...value, turnoverCostRate: 0.0014 })), "COST_RECONCILIATION_MISMATCH");
   });
 
