@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-29T05:32:00+09:00"
+updated_at: "2026-08-29T05:41:00+09:00"
 current_execution_target:
   work_order: WO-ISSUE-865-PAPER-CALIBRATION-EVIDENCE
   status: VERIFYING
@@ -88,7 +88,7 @@ claimed_state:
   branch: codex/issue-865-paper-calibration-boundary
   base_commit: 388e67f7e0c9cc7601713e4c0555fe6d624f24fe
   scope: "Bind point-in-time PAPER calibration evidence to candidate/dataset provenance and reject chronology violations without adding promotion or execution authority."
-  implementation_commit: pending-local-commit
+  implementation_commit: d6d31883673f0eb069c56b9edecec0f73b2bd7c5
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
   validation: "PR #1034 root cause is a test fixture ordering error; focused calibration tests 8/8 PASS and full isolated suite 730 files PASS after the minimal fixture correction; latest-main merge is present; preflight/typecheck/build/lint/architecture/safety/security/AI/Restricted LIVE/Read-only Broker/AIPOS/diff checks PASS; exact-head CI is pending."
 previous_claimed_state:
