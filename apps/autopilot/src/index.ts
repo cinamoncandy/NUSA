@@ -2,6 +2,7 @@ import { parseGithubWebhookPayload, planGithubWebhookDispatch, type SupportedGit
 import { planAutopilotExecution } from "./executionPlanner";
 import { executeGithubDispatch } from "./githubExecutor";
 import { executeCodingRunner, validateCodingRunnerRequest } from "./codingRunner";
+import { prepareProductionExecution } from "./productionExecutionSpine";
 
 export interface Env {
   NUSA_WEBHOOK_SECRET?: string;
@@ -42,7 +43,7 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
-    if (request.method === "GET" && url.pathname === "/health") return json({ service: "nusa-autopilot", status: env.NUSA_WEBHOOK_SECRET ? "WEBHOOK_READY" : "INTERFACE_READY", deploymentRevision: env.NUSA_DEPLOYMENT_REVISION?.trim() || "UNVERIFIED", executionPlanning: "ENABLED", authenticatedExecutor: env.NUSA_GITHUB_TOKEN ? "CONFIGURED" : "INTERFACE_READY", codingRunner: env.NUSA_CODING_RUNNER_TOKEN ? "CONFIGURED" : "INTERFACE_READY", aiCodingEngine: env.NUSA_AI_CODING_ENDPOINT && env.NUSA_AI_CODING_TOKEN ? "CONFIGURED" : "INTERFACE_READY", allowedRepository, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+    if (request.method === "GET" && url.pathname === "/health") return json({ service: "nusa-autopilot", status: env.NUSA_WEBHOOK_SECRET ? "WEBHOOK_READY" : "INTERFACE_READY", deploymentRevision: env.NUSA_DEPLOYMENT_REVISION?.trim() || "UNVERIFIED", executionPlanning: "ENABLED", boundedExecutionSpine: "ENABLED", authenticatedExecutor: env.NUSA_GITHUB_TOKEN ? "CONFIGURED" : "INTERFACE_READY", codingRunner: env.NUSA_CODING_RUNNER_TOKEN ? "CONFIGURED" : "INTERFACE_READY", aiCodingEngine: env.NUSA_AI_CODING_ENDPOINT && env.NUSA_AI_CODING_TOKEN ? "CONFIGURED" : "INTERFACE_READY", allowedRepository, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
 
     if (request.method === "POST" && url.pathname === "/coding/execute") {
       const configured = env.NUSA_CODING_RUNNER_TOKEN?.trim();
@@ -69,8 +70,47 @@ export default {
     let dispatch;
     try { dispatch = planGithubWebhookDispatch(event, parseGithubWebhookPayload(body)); }
     catch (error) { return json({ error: error instanceof Error ? error.message : "GITHUB_WEBHOOK_PAYLOAD_INVALID" }, 400); }
-    const execution = planAutopilotExecution(dispatch);
+
+    const planned = planAutopilotExecution(dispatch);
+    let execution = planned;
+    let boundedExecution = null;
+    try {
+      boundedExecution = prepareProductionExecution(dispatch, {
+        deliveryId,
+        origin: "AUTO_BACKGROUND",
+        now: Date.now(),
+        allowedRepository,
+      });
+      if (dispatch.kind === "CI_SUCCEEDED") {
+        if (!boundedExecution) throw new Error("PRODUCTION_EXECUTION_BOUNDARY_REQUIRED");
+        execution = boundedExecution.request;
+      }
+    } catch (error) {
+      return json({ error: error instanceof Error ? error.message : "PRODUCTION_EXECUTION_INVALID", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 409);
+    }
+
     const executor = await executeGithubDispatch(execution, { token: env.NUSA_GITHUB_TOKEN, allowedRepository });
-    return json({ accepted: true, status: execution.kind === "NOOP" ? "NO_ACTION" : executor.status === "DISPATCHED" ? "EXECUTION_DISPATCHED" : "EXECUTION_REQUEST_PLANNED", deliveryId, event, dispatch, execution, executor, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 202);
+    return json({
+      accepted: true,
+      status: execution.kind === "NOOP" ? "NO_ACTION" : executor.status === "DISPATCHED" ? "EXECUTION_DISPATCHED" : "EXECUTION_REQUEST_PLANNED",
+      deliveryId,
+      event,
+      dispatch,
+      execution,
+      executionBoundary: boundedExecution ? {
+        cycleId: boundedExecution.envelope.cycleId,
+        workItemId: boundedExecution.envelope.workItemId,
+        executionId: boundedExecution.envelope.executionId,
+        dedupeKey: boundedExecution.envelope.dedupeKey,
+        origin: boundedExecution.envelope.origin,
+        state: boundedExecution.state.status,
+        leaseExpiresAt: boundedExecution.state.lease?.expiresAt ?? null,
+        evidenceRefs: boundedExecution.envelope.evidenceRefs,
+      } : null,
+      executor,
+      liveAuthority: "NONE",
+      productionMutationAllowed: false,
+      aiAuthority: "ZERO_AUTHORITY",
+    }, 202);
   },
 };
