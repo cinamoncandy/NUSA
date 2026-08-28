@@ -6,7 +6,7 @@ owner: codex
 repository: cinamoncandy/NUSA
 issue: 861
 base_branch: main
-base_commit: 8a582d8e5f08c848de7632b08b730e52d42730c7
+base_commit: aeae72d9ca612b77d0bc5f7c7dda709643eea7c2
 implementation_branch: codex/issue-861-paper-league-bridge
 objective: "Project authoritative persisted PAPER realized periods into the existing candidate-specific admission and shadow-evaluation contracts without inferring attribution or fabricating a PaperPerformanceSummary."
 architecture_impact:

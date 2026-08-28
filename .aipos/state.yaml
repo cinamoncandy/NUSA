@@ -5,7 +5,7 @@ current_execution_target:
   work_order: WO-ISSUE-861-PAPER-FORWARD-EVIDENCE-ADAPTER
   status: VERIFYING
   branch: codex/issue-861-paper-league-bridge
-  base_sha: 8a582d8e5f08c848de7632b08b730e52d42730c7
+  base_sha: aeae72d9ca612b77d0bc5f7c7dda709643eea7c2
   scope: "Candidate-bound persisted PAPER periods are projected through the existing shadow evaluator and admission gate; no synthetic PaperPerformanceSummary is created."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: constitutional-production-human-environment-gate
@@ -25,7 +25,7 @@ latest_research_slice:
 base_branch: main
 active_branch: codex/issue-861-paper-league-bridge
 active_successor_branch: feat/production-mobile-enrollment
-active_pull_request: null
+active_pull_request: 977
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -86,7 +86,7 @@ claimed_state:
   work_order: WO-ISSUE-861-PAPER-FORWARD-EVIDENCE-ADAPTER
   status: VERIFYING
   branch: codex/issue-861-paper-league-bridge
-  base_commit: 8a582d8e5f08c848de7632b08b730e52d42730c7
+  base_commit: aeae72d9ca612b77d0bc5f7c7dda709643eea7c2
   scope: "Candidate-bound persisted PAPER forward-evidence adapter; existing admission and League gate remain fail-closed until a truthful complete PaperPerformanceSummary source exists."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
   validation: "Focused adapter 7/7, producer/storage 25/25, admission 15/15, shadow 11/11, bridge 14/14, full isolated 688 files, preflight/typecheck/build/lint/architecture/safety/security/AIPOS PASS; publication remains pending."
