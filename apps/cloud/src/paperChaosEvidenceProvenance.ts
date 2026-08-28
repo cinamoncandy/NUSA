@@ -55,8 +55,9 @@ export interface PaperChaosTrustedGitHubRunReceipt {
 
 const sha256 = (value: string): string => createHash("sha256").update(value, "utf8").digest("hex");
 
-function canonical(value: Record<string, unknown>): string {
-  return JSON.stringify(Object.fromEntries(Object.keys(value).sort().map((key) => [key, value[key]])));
+function canonical(value: object): string {
+  const record = value as Record<string, unknown>;
+  return JSON.stringify(Object.fromEntries(Object.keys(record).sort().map((key) => [key, record[key]])));
 }
 
 function required(value: string | undefined, name: string): string {
