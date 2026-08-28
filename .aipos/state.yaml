@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-29T08:31:25+09:00"
+updated_at: "2026-08-29T08:34:00+09:00"
 current_execution_target:
   work_order: WO-ISSUE-881-PAPER-PORTFOLIO-PERFORMANCE
   status: VERIFYING
@@ -89,8 +89,8 @@ claimed_state:
   base_commit: 3ae8451363801b4c88c710a227018557636b895a
   scope: "Classify realized PAPER portfolio performance from verified longitudinal evidence while preserving fail-closed advisory validation and zero execution authority."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  implementation_commit: ef040d15
-  validation: "Focused evolution/storage tests PASS (30/30 + storage regressions 26/26); full isolated suite PASS (734/734); preflight/typecheck/build/lint/architecture/safety/security/AIPOS/package validation PASS; git diff --check PASS."
+  implementation_commit: ab38b317f499356637ec8f149fa85f0ca0c04465
+  validation: "Focused portfolio/advisory and capital-allocation tests PASS (29/29); preflight/typecheck/build/lint/architecture/safety/security/AIPOS validation PASS; git diff --check PASS."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
