@@ -3,6 +3,9 @@ import { planAutopilotExecution } from "./executionPlanner";
 import { executeGithubDispatch } from "./githubExecutor";
 import { executeCodingRunner, validateCodingRunnerRequest } from "./codingRunner";
 import { prepareProductionExecution } from "./productionExecutionSpine";
+import { acquirePersistentExecution, markPersistentExecutionDispatched, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+
+export { ExecutionCoordinator } from "./executionCoordinator";
 
 export interface Env {
   NUSA_WEBHOOK_SECRET?: string;
@@ -12,6 +15,7 @@ export interface Env {
   NUSA_AI_CODING_ENDPOINT?: string;
   NUSA_AI_CODING_TOKEN?: string;
   NUSA_DEPLOYMENT_REVISION?: string;
+  NUSA_EXECUTION_COORDINATOR?: ExecutionCoordinatorNamespace;
 }
 
 const DEFAULT_REPOSITORY = "cinamoncandy/NUSA";
@@ -43,7 +47,7 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
-    if (request.method === "GET" && url.pathname === "/health") return json({ service: "nusa-autopilot", status: env.NUSA_WEBHOOK_SECRET ? "WEBHOOK_READY" : "INTERFACE_READY", deploymentRevision: env.NUSA_DEPLOYMENT_REVISION?.trim() || "UNVERIFIED", executionPlanning: "ENABLED", boundedExecutionSpine: "ENABLED", authenticatedExecutor: env.NUSA_GITHUB_TOKEN ? "CONFIGURED" : "INTERFACE_READY", codingRunner: env.NUSA_CODING_RUNNER_TOKEN ? "CONFIGURED" : "INTERFACE_READY", aiCodingEngine: env.NUSA_AI_CODING_ENDPOINT && env.NUSA_AI_CODING_TOKEN ? "CONFIGURED" : "INTERFACE_READY", allowedRepository, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+    if (request.method === "GET" && url.pathname === "/health") return json({ service: "nusa-autopilot", status: env.NUSA_WEBHOOK_SECRET ? "WEBHOOK_READY" : "INTERFACE_READY", deploymentRevision: env.NUSA_DEPLOYMENT_REVISION?.trim() || "UNVERIFIED", executionPlanning: "ENABLED", boundedExecutionSpine: "ENABLED", persistentExecutionCoordination: env.NUSA_EXECUTION_COORDINATOR ? "CONFIGURED" : "INTERFACE_READY", authenticatedExecutor: env.NUSA_GITHUB_TOKEN ? "CONFIGURED" : "INTERFACE_READY", codingRunner: env.NUSA_CODING_RUNNER_TOKEN ? "CONFIGURED" : "INTERFACE_READY", aiCodingEngine: env.NUSA_AI_CODING_ENDPOINT && env.NUSA_AI_CODING_TOKEN ? "CONFIGURED" : "INTERFACE_READY", allowedRepository, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
 
     if (request.method === "POST" && url.pathname === "/coding/execute") {
       const configured = env.NUSA_CODING_RUNNER_TOKEN?.trim();
@@ -83,6 +87,16 @@ export default {
       });
       if (dispatch.kind === "CI_SUCCEEDED") {
         if (!boundedExecution) throw new Error("PRODUCTION_EXECUTION_BOUNDARY_REQUIRED");
+        if (!env.NUSA_EXECUTION_COORDINATOR) throw new Error("PERSISTENT_EXECUTION_COORDINATOR_REQUIRED");
+        const lease = boundedExecution.state.lease;
+        if (!lease) throw new Error("PERSISTENT_EXECUTION_LEASE_REQUIRED");
+        const persistent = await acquirePersistentExecution(env.NUSA_EXECUTION_COORDINATOR, {
+          dedupeKey: boundedExecution.envelope.dedupeKey,
+          executionId: boundedExecution.envelope.executionId,
+          now: Date.now(),
+          leaseExpiresAt: lease.expiresAt,
+        });
+        if (!persistent.acquired) return json({ accepted: true, status: "DUPLICATE_EXECUTION_SUPPRESSED", reason: persistent.reason, deliveryId, event, dispatch, executionBoundary: { dedupeKey: boundedExecution.envelope.dedupeKey, origin: boundedExecution.envelope.origin }, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 202);
         execution = boundedExecution.request;
       }
     } catch (error) {
@@ -90,6 +104,13 @@ export default {
     }
 
     const executor = await executeGithubDispatch(execution, { token: env.NUSA_GITHUB_TOKEN, allowedRepository });
+    if (boundedExecution && executor.status === "DISPATCHED" && env.NUSA_EXECUTION_COORDINATOR) {
+      await markPersistentExecutionDispatched(env.NUSA_EXECUTION_COORDINATOR, {
+        dedupeKey: boundedExecution.envelope.dedupeKey,
+        executionId: boundedExecution.envelope.executionId,
+        now: Date.now(),
+      });
+    }
     return json({
       accepted: true,
       status: execution.kind === "NOOP" ? "NO_ACTION" : executor.status === "DISPATCHED" ? "EXECUTION_DISPATCHED" : "EXECUTION_REQUEST_PLANNED",

@@ -3,5 +3,19 @@
   "name": "nusa-autopilot",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-27",
-  "workers_dev": true
+  "workers_dev": true,
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "NUSA_EXECUTION_COORDINATOR",
+        "class_name": "ExecutionCoordinator"
+      }
+    ]
+  },
+  "exports": {
+    "ExecutionCoordinator": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    }
+  }
 }
