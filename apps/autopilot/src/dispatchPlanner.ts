@@ -75,6 +75,11 @@ export function planGithubWebhookDispatch(event: SupportedGithubEvent, payload: 
   const status = text(run?.status);
   const conclusion = text(run?.conclusion);
   if (action !== "completed" || !run || !workflowRunId || !headSha || status !== "completed") return ignored(payload, "workflow-run-not-completed");
+
+  // repository_dispatch is the output edge of this autopilot. Dispatching again when the
+  // consumer workflow completes would create a self-amplifying workflow_run -> dispatch loop.
+  if (text(run.event) === "repository_dispatch") return ignored(payload, "workflow-run-originated-from-repository-dispatch");
+
   if (conclusion === "success") {
     return freeze({ kind: "CI_SUCCEEDED", repository, headSha, prNumber: null, workflowRunId, reason: "workflow-run-success", mutationAllowed: false });
   }
