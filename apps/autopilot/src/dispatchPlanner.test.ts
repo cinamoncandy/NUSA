@@ -48,6 +48,24 @@ describe("NUSA autopilot dispatch planner", () => {
     assert.equal(failure.kind, "CI_FAILED");
   });
 
+  it("does not redispatch completion of a repository_dispatch consumer workflow", () => {
+    const plan = planGithubWebhookDispatch("workflow_run", {
+      action: "completed",
+      workflow_run: {
+        id: 11,
+        head_sha: "1".repeat(40),
+        status: "completed",
+        conclusion: "success",
+        event: "repository_dispatch",
+        name: "Autopilot Execution Consumer",
+      },
+      repository: { full_name: "cinamoncandy/NUSA" },
+    });
+    assert.equal(plan.kind, "IGNORED");
+    assert.equal(plan.reason, "workflow-run-originated-from-repository-dispatch");
+    assert.equal(plan.mutationAllowed, false);
+  });
+
   it("does not turn incomplete or neutral workflow states into success", () => {
     const incomplete = planGithubWebhookDispatch("workflow_run", {
       action: "requested",
