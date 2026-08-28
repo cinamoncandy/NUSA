@@ -1,15 +1,15 @@
 version: 1
 project: nusa
-updated_at: "2026-08-29T06:32:31+09:00"
+updated_at: "2026-08-29T16:45:00+09:00"
 current_execution_target:
-  work_order: WO-ISSUE-880-STRATEGY-LIFECYCLE-REPLAY
-  status: VERIFYING
-  branch: codex/issue-880-lifecycle-replay
-  base_sha: f283358c52e658c0a8ff59b379356731a0e36ef7
-  scope: "Keep the existing strategy governance ledger and SQLite registry projection consistent across transitions and process restart without adding lifecycle or execution authority."
+  work_order: WO-ISSUE-880-STRATEGY-CONTAINMENT
+  status: IN_PROGRESS
+  branch: codex/issue-880-containment-evidence
+  base_sha: 3aed04373a6732ce98432b5bbfa0ea1bd67a6fb2
+  scope: "Reuse existing rollback policy to emit deterministic, provenance-bound, fail-closed strategy containment advice without lifecycle or execution mutation."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-phase: repository-validation
-status: verifying
+phase: implementation
+status: implementing
 objective: "Hold the production transition at the human/environment boundary until genuine external and human evidence exists; WO-0057 repository work is complete and no LIVE or real-money authority is implied."
 latest_research_slice:
   work_order: WO-MARKET-INTELLIGENCE-REGIME-POINT-IN-TIME-001
@@ -23,9 +23,9 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: codex/issue-880-lifecycle-replay
+active_branch: codex/issue-880-containment-evidence
 active_successor_branch: null
-active_pull_request: 1038
+active_pull_request: null
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -83,14 +83,14 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-ISSUE-880-STRATEGY-LIFECYCLE-REPLAY
-  status: VERIFYING
-  branch: codex/issue-880-lifecycle-replay
-  base_commit: f283358c52e658c0a8ff59b379356731a0e36ef7
-  scope: "Keep the existing strategy governance ledger and SQLite registry projection consistent across transitions and process restart without adding lifecycle or execution authority."
+  work_order: WO-ISSUE-880-STRATEGY-CONTAINMENT
+  status: IN_PROGRESS
+  branch: codex/issue-880-containment-evidence
+  base_commit: 3aed04373a6732ce98432b5bbfa0ea1bd67a6fb2
+  scope: "Reuse existing rollback policy to emit deterministic, provenance-bound, fail-closed strategy containment advice without lifecycle or execution mutation."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  implementation_commit: 3830ebed21ed42f9c186c551eb93a4d28d8e8cbd
-  validation: "Latest-main merge b27a4bb5 validated: focused 28/28 and full 731-file isolated suite PASS; preflight/typecheck/build/lint/architecture/safety/security/Restricted LIVE/Read-only Broker/AIPOS/package gates PASS; PR #1038 published at 749fa1c3, exact-head validation pending."
+  implementation_commit: PENDING
+  validation: PENDING
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -496,9 +496,9 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
-  - id: WO-ISSUE-880-STRATEGY-LIFECYCLE-REPLAY
-    evidence: ".aipos/work-orders/WO-ISSUE-880-STRATEGY-LIFECYCLE-REPLAY.yaml"
-    summary: "Keep the existing strategy governance ledger and SQLite registry projection consistent across transitions and process restart without adding lifecycle or execution authority; PR #1038 is published at 749fa1c3 after 731-file local validation, exact-head checks pending."
+  - id: WO-ISSUE-880-STRATEGY-CONTAINMENT
+    evidence: ".aipos/work-orders/WO-ISSUE-880-STRATEGY-CONTAINMENT.yaml"
+    summary: "Reuse the existing rollback evaluator to emit deterministic, provenance-bound, fail-closed containment advice with retirement threshold evidence and no automatic lifecycle mutation."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -525,8 +525,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-ISSUE-880-STRATEGY-LIFECYCLE-REPLAY.yaml
-  reason: "Exact-head validate PR #1038 for the latest-main concrete restart-safe strategy lifecycle projection gap using the existing governance ledger and SQLite store."
+  work_order: .aipos/work-orders/WO-ISSUE-880-STRATEGY-CONTAINMENT.yaml
+  reason: "Issue #880 remains open after the restart-safe projection merge; implement the smallest evidence-driven containment advisory using the existing rollback evaluator."
 verification:
   wo_0057:
     parent_pull_request: 552
