@@ -6,7 +6,7 @@ owner: nusa
 repository: cinamoncandy/NUSA
 issue: 882
 base_branch: main
-base_commit: 441deaa03e33837952012be2a44ebf9461b8ad7f
+base_commit: 8a582d8e5f08c848de7632b08b730e52d42730c7
 implementation_branch: codex/paper-chaos-trusted-run
 objective: "Add a canonical read-only GitHub Actions run lookup so PAPER chaos evidence can be promoted only from a successful exact repository, workflow, head, event, run, attempt, and branch binding."
 architecture_impact:
@@ -59,7 +59,7 @@ validation:
   security: PASS_SECRETS_0
   aipos: PASS
   diff_check: PASS
-implementation_status: READY_FOR_PR
+implementation_status: PR_975_OPEN_EXACT_HEAD_VALIDATION_PENDING
 implementation_files:
   - apps/cloud/src/paperChaosGitHubRunLookup.ts
   - apps/cloud/src/paperChaosGitHubRunLookup.test.ts

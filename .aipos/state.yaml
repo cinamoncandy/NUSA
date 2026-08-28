@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-28T10:16:03.274Z"
+updated_at: "2026-08-28T10:19:43.952Z"
 current_execution_target:
   work_order: WO-ISSUE-882-TRUSTED-RUN-PROVENANCE
   status: IMPLEMENTING
   branch: codex/paper-chaos-trusted-run
-  base_sha: 441deaa03e33837952012be2a44ebf9461b8ad7f
-  scope: "Issue #882 trusted GitHub workflow provenance adapter is implemented and locally validated; remote publication and exact-head checks remain pending."
+  base_sha: 8a582d8e5f08c848de7632b08b730e52d42730c7
+  scope: "Issue #882 trusted GitHub workflow provenance adapter is implemented; PR #975 is open and exact-head validation is pending."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: constitutional-production-human-environment-gate
 status: in_progress
@@ -86,10 +86,10 @@ claimed_state:
   work_order: WO-ISSUE-882-TRUSTED-RUN-PROVENANCE
   status: IN_PROGRESS
   branch: codex/paper-chaos-trusted-run
-  base_commit: 441deaa03e33837952012be2a44ebf9461b8ad7f
-  scope: "Issue #882 trusted GitHub workflow provenance adapter is implemented and locally validated; remote publication and exact-head checks remain pending."
+  base_commit: 8a582d8e5f08c848de7632b08b730e52d42730c7
+  scope: "Issue #882 trusted GitHub workflow provenance adapter is implemented; PR #975 is open and exact-head validation is pending."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  validation: "focused adapter 3/3; chaos/provenance regression 16/16; full isolated suite 688 files; repository gates PASS."
+  validation: "focused adapter 3/3; chaos/provenance regression 16/16; full isolated suite 688 files; repository gates PASS; PR #975 open at merged-main sync pending exact-head validation."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
