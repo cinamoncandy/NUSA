@@ -9,6 +9,7 @@ import { buildHomeDecisionSurface } from "./homeDecisionSurface";
 import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
 import { buildLocalPortfolio, isLocalPaperActive } from "./localPaperLedger";
 import { useLocalPaperMarkPrice, useLocalPaperSnapshot } from "./localPaperLedgerHooks";
+import { SupervisorProgressPanel } from "./supervisorProgressPanel";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
 export type HomeDestination = "Markets" | "AiSignal" | "Portfolio";
@@ -180,6 +181,8 @@ export function HomeView({
         </Pressable>
       </View>
     </View>
+
+    <SupervisorProgressPanel refreshing={refreshing} />
 
     {cashEnvelope || accountSource === "LOCAL" ? <View style={[styles.commandDeck, { borderColor: theme.colors.borderStrong }]} testID="home-capital-limits">
       <View style={styles.deckHeader}>
