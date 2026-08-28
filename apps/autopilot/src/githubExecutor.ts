@@ -14,6 +14,8 @@ export interface GithubExecutorResult {
 
 const SHA40 = /^[0-9a-f]{40}$/i;
 const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+const EXECUTION_ID = /^[A-Za-z0-9_.:-]{1,160}$/;
+const DEDUPE_KEY = /^[A-Za-z0-9_.:-]{1,256}$/;
 
 function result(status: GithubExecutorResult["status"], reason: string, httpStatus: number | null = null): GithubExecutorResult {
   return Object.freeze({ status, reason, httpStatus });
@@ -31,6 +33,10 @@ export async function executeGithubDispatch(
   if (!request.headSha || !SHA40.test(request.headSha)) return result("REJECTED", "github-executor-head-sha-invalid");
   if (!Number.isSafeInteger(request.workflowRunId) || (request.workflowRunId ?? 0) <= 0) {
     return result("REJECTED", "github-executor-workflow-run-id-required");
+  }
+  if (request.kind === "REPOSITORY_AUTOPILOT") {
+    if (!request.executionId || !EXECUTION_ID.test(request.executionId)) return result("REJECTED", "github-executor-execution-id-required");
+    if (!request.dedupeKey || !DEDUPE_KEY.test(request.dedupeKey)) return result("REJECTED", "github-executor-dedupe-key-required");
   }
 
   const base = (config.apiBaseUrl ?? "https://api.github.com").replace(/\/$/, "");
@@ -51,6 +57,8 @@ export async function executeGithubDispatch(
         head_sha: request.headSha,
         workflow_run_id: request.workflowRunId,
         reason: request.reason,
+        execution_id: request.executionId ?? null,
+        dedupe_key: request.dedupeKey ?? null,
         live_authority: "NONE",
         production_mutation_allowed: false,
         ai_authority: "ZERO_AUTHORITY",
