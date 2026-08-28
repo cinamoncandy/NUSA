@@ -5,7 +5,7 @@ import type {
   PersistedPaperCandidateProvenance,
   PersistedPaperPeriodEnvelope,
 } from "./persistedPaperPeriodStore";
-import type { PaperExecutionCostEvidence } from "../../../../packages/contracts/src/persistedPaperPeriod";
+import type { PaperPeriodCostEvidence } from "../../../../packages/contracts/src/persistedPaperPeriod";
 
 export interface CanonicalPaperCandidateOutcome {
   readonly candidateId: string;
@@ -22,7 +22,7 @@ export interface CanonicalPaperRealizedPeriodInput {
   readonly outcomes: readonly CanonicalPaperCandidateOutcome[];
   readonly benchmarkReturn: number;
   readonly turnoverCostRate: number;
-  readonly costEvidence: PaperExecutionCostEvidence;
+  readonly costEvidence: PaperPeriodCostEvidence;
   readonly status: "COMPLETED" | "REJECTED" | "HALTED";
 }
 
