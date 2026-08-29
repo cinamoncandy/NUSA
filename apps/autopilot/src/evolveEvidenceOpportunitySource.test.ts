@@ -56,3 +56,11 @@ test("rejects malformed evidence", () => {
     observations: [{ ...input.observations[0], headSha: "bad" }],
   }), /EVOLVE_WORKFLOW_EVIDENCE_SHA_INVALID/);
 });
+
+test("rejects unsupported workflow conclusions", () => {
+  const input = base();
+  assert.throws(() => deriveWorkflowFailureOpportunities({
+    ...input,
+    observations: [{ ...input.observations[0], conclusion: "success" as never }],
+  }), /EVOLVE_WORKFLOW_EVIDENCE_CONCLUSION_INVALID/);
+});

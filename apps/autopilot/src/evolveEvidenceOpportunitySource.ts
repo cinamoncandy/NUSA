@@ -18,6 +18,7 @@ export interface WorkflowOpportunitySourceInput {
 
 const SHA = /^[0-9a-f]{40}$/;
 const NAME = /^[A-Za-z0-9_.:/ -]{1,120}$/;
+const CONCLUSIONS = new Set<WorkflowFailureConclusion>(["failure", "cancelled", "timed_out"]);
 
 function normalizedName(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9_.:-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
@@ -27,6 +28,7 @@ function validateObservation(value: WorkflowFailureEvidence): void {
   if (!NAME.test(value.workflowName)) throw new Error("EVOLVE_WORKFLOW_EVIDENCE_NAME_INVALID");
   if (!Number.isSafeInteger(value.runId) || value.runId <= 0) throw new Error("EVOLVE_WORKFLOW_EVIDENCE_RUN_ID_INVALID");
   if (!SHA.test(value.headSha)) throw new Error("EVOLVE_WORKFLOW_EVIDENCE_SHA_INVALID");
+  if (!CONCLUSIONS.has(value.conclusion)) throw new Error("EVOLVE_WORKFLOW_EVIDENCE_CONCLUSION_INVALID");
   if (!Number.isFinite(Date.parse(value.completedAt))) throw new Error("EVOLVE_WORKFLOW_EVIDENCE_COMPLETED_AT_INVALID");
 }
 
