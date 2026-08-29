@@ -127,7 +127,10 @@ jobs:
           const fs = require('fs');
           const { execFileSync } = require('child_process');
           const request = JSON.parse(fs.readFileSync('artifacts/autopilot-execution/coding-runner-request.json', 'utf8'));
-          const match = String(request.reason || '').match(/gha:[^:]+:([0-9a-f]{40}):(failure|cancelled|timed_out)/i);
+          const reason = String(request.reason || '');
+          const ghaIndex = reason.indexOf('gha:');
+          const failureReference = ghaIndex >= 0 ? reason.slice(ghaIndex) : '';
+          const match = failureReference.match(/:([0-9a-f]{40}):(failure|cancelled|timed_out)(?::|$)/i);
           if (!match) throw new Error('EVOLVE_FAILURE_REFERENCE_REQUIRED');
           const failedSha = match[1].toLowerCase();
           const token = process.env.GH_TOKEN;
