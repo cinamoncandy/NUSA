@@ -10,6 +10,9 @@ const {
   buildResearchRunLeague,
   ResearchRunLeagueBridgeError,
 } = require("../dist/apps/desktop/src/cloud/researchRunLeagueBridge.js");
+const {
+  buildResearchHypothesis,
+} = require("../dist/apps/desktop/src/cloud/researchHypothesis.js");
 
 const DATASET_SHA = "a".repeat(64);
 const REQUEST_SHA = "b".repeat(64);
@@ -200,6 +203,27 @@ test("League accepts run-level robustness without inflating candidate evidence b
   assert.ok(withEvidence.reasons.includes("PARAMETER_ROBUSTNESS_EVIDENCE_PRESENT"));
   assert.ok(withEvidence.reasons.includes("COST_STRESS_EVIDENCE_PRESENT"));
   assert.deepEqual(withEvidence.robustnessEvidence, evidence);
+});
+
+test("League preserves a precommitted hypothesis without changing ranking", () => {
+  const hypothesis = buildResearchHypothesis({
+    hypothesisId: "real-run:real-run-dataset:sma-crossover",
+    familyId: "sma-crossover",
+    market: "KRW-BTC",
+    interval: "1d",
+    direction: "LONG",
+    thesis: "A short/long SMA crossover may identify a reproducible directional edge after costs.",
+    sourceDatasetId: "real-run-dataset",
+    sourceObservationAsOf: 0,
+    generatedAt: "2026-01-01T00:00:00.000Z",
+  });
+  const candidates = [candidate("sma-5-20"), candidate("sma-8-20")];
+  const without = buildResearchRunLeague(candidates);
+  const withHypothesis = buildResearchRunLeague(candidates, { hypothesis });
+
+  assert.deepEqual(withHypothesis.standing, without.standing);
+  assert.deepEqual(withHypothesis.hypothesis, hypothesis);
+  assert.ok(withHypothesis.reasons.includes("PRECOMMITTED_HYPOTHESIS_PRESENT"));
 });
 
 test("League rejects robustness evidence when candidate datasets are not one shared run", () => {
