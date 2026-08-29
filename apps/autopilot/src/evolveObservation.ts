@@ -14,6 +14,7 @@ export function createEvolutionObservation(input: {
   errors?: number;
   latencyMs?: number | null;
 }): EvolutionObservation {
+  if (typeof input.health !== "boolean") throw new Error("EVOLVE_OBSERVATION_HEALTH_INVALID");
   const revision = input.revision.trim();
   const errors = input.errors ?? 0;
   const latencyMs = input.latencyMs ?? null;

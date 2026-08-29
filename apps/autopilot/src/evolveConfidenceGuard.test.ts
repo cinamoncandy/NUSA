@@ -74,6 +74,13 @@ test("rejects malformed evidence and preserves zero authority", () => {
     evidence: [evidence({ quality: 1.1 })],
   }), /EVOLVE_CONFIDENCE_EVIDENCE_QUALITY_INVALID/);
 
+  assert.throws(() => guardEvolutionConfidence({
+    currentConfidence: 0.5,
+    requestedConfidence: 0.6,
+    outcome: "VERIFIED_IMPROVEMENT",
+    evidence: [evidence({ independent: "false" as never })],
+  }), /EVOLVE_CONFIDENCE_EVIDENCE_INVALID/);
+
   const result = guardEvolutionConfidence({
     currentConfidence: 0.5,
     requestedConfidence: 0.5,
