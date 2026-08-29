@@ -15,6 +15,7 @@ const { projectExecutionCostStress } = require("./lib/research-cost-stress-proje
 const { runParameterRobustnessRequest } = require("./lib/parameter-robustness-runner.js");
 const { verifyParameterRobustnessResult } = require("./lib/parameter-robustness-verifier.js");
 const { buildResearchRunRobustnessEvidence } = require("../dist/apps/desktop/src/cloud/researchRunRobustnessEvidence.js");
+const { buildResearchHypothesis } = require("../dist/apps/desktop/src/cloud/researchHypothesis.js");
 
 const STRATEGY_FAMILY_ID = "sma-crossover";
 const MARKET = "KRW-BTC";
@@ -219,6 +220,17 @@ async function main() {
   });
   const sourceCommitSha = requiredResearchSourceCommitSha();
   const costModelVersion = requiredResearchCostModelVersion();
+  const hypothesis = buildResearchHypothesis({
+    hypothesisId: `real-run:${manifest.datasetId}:sma-crossover`,
+    familyId: STRATEGY_FAMILY_ID,
+    market: manifest.market,
+    interval: manifest.interval,
+    direction: "LONG",
+    thesis: "A short/long SMA crossover may identify a reproducible directional edge after explicit execution costs.",
+    sourceDatasetId: manifest.datasetId,
+    sourceObservationAsOf: manifest.endCloseTime,
+    generatedAt: new Date(dataAsOf).toISOString()
+  });
 
   const candidates = SMA_PARAMETER_NEIGHBORHOOD.map(({ shortPeriod, longPeriod }) => ({
     id: `sma-${shortPeriod}-${longPeriod}`,
@@ -320,13 +332,15 @@ async function main() {
     {
       generatedAt,
       ...(probabilityBacktestOverfitting == null ? {} : { probabilityBacktestOverfitting }),
-      robustnessEvidence
+      robustnessEvidence,
+      hypothesis
     }
   );
 
   const oos = result.walkForwardResult.combinedOutOfSampleMetrics;
   console.log(JSON.stringify({
     NOTICE: "REAL_MARKET_DATA_RESEARCH_TIER_ONLY -- not operational Paper evidence, does not authorize release",
+    hypothesis: league.hypothesis ?? hypothesis,
     dataset: {
       datasetId: manifest.datasetId,
       market: manifest.market,
