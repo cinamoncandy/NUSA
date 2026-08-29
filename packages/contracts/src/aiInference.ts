@@ -7,9 +7,9 @@ export type AiCalibrationStatus = "UNKNOWN" | "UNVERIFIED" | "INSUFFICIENT_DATA"
 export type AiCalibrationProvenance = "VERIFIED_RUNTIME" | "SYNTHETIC_TEST";
 export type AiLearningProvenance = "AUTO_BACKGROUND" | "USER_TRIGGERED" | "UNKNOWN";
 
-/** Missing or malformed trigger evidence must remain unknown; it is never inferred by a projection. */
+/** Only repository-bound automatic execution is currently trusted. USER_TRIGGERED remains UNKNOWN until a canonical trusted trigger receipt exists. */
 export const normalizeAiLearningProvenance = (value: unknown): AiLearningProvenance =>
-  value === "AUTO_BACKGROUND" || value === "USER_TRIGGERED" ? value : "UNKNOWN";
+  value === "AUTO_BACKGROUND" ? "AUTO_BACKGROUND" : "UNKNOWN";
 
 export interface ModelUsage {
   readonly inputTokens?: number;
@@ -206,4 +206,3 @@ export const canonicalAiJson = (value: unknown): string => {
 export const aiSha256 = (value: unknown): string => createHash("sha256").update(canonicalAiJson(value), "utf8").digest("hex");
 
 export const isAiSha256 = (value: unknown): value is string => typeof value === "string" && /^[a-f0-9]{64}$/i.test(value);
-
