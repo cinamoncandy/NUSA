@@ -199,6 +199,39 @@ function validateRecords(
   return Object.freeze(records);
 }
 
+function parsePersistedValue(stored: unknown): readonly EvolutionLearningRecord[] {
+  assertSafeValue(stored, "memory");
+  if (Array.isArray(stored)) return validateRecords(stored);
+
+  if (
+    typeof stored !== "object"
+    || stored === null
+    || (stored as { schemaVersion?: unknown }).schemaVersion !== SCHEMA_VERSION
+  ) {
+    throw new Error("EVOLVE_DURABLE_MEMORY_INVALID");
+  }
+
+  const envelope = stored as Partial<PersistedEvolutionLearningMemory>;
+  const envelopeKeys = Object.keys(envelope);
+  if (
+    envelopeKeys.some((key) => !ENVELOPE_KEYS.has(key))
+    || envelopeKeys.length !== ENVELOPE_KEYS.size
+    || !Array.isArray(envelope.records)
+    || !Array.isArray(envelope.recordHashes)
+    || typeof envelope.ledgerHash !== "string"
+    || envelope.records.length > MAX_RECORDS
+  ) {
+    throw new Error("EVOLVE_DURABLE_MEMORY_INVALID");
+  }
+  return validateRecords(envelope.records, envelope.recordHashes, envelope.ledgerHash);
+}
+
+/** Validate a coordinator write before it reaches durable storage. */
+export function validatePersistedEvolutionLearningMemory(value: unknown): void {
+  if (value == null) throw new Error("EVOLVE_DURABLE_MEMORY_INVALID");
+  parsePersistedValue(value);
+}
+
 /**
  * Durable, bounded adapter for the existing Level 7 learning-memory contract.
  *
@@ -221,34 +254,7 @@ export class DurableEvolutionLearningMemory implements EvolutionLearningMemoryRe
     const stored = await storage.get<unknown>(MEMORY_KEY);
     if (stored == null) return new DurableEvolutionLearningMemory([]);
 
-    assertSafeValue(stored, "memory");
-    if (Array.isArray(stored)) {
-      const validated = validateRecords(stored);
-      return new DurableEvolutionLearningMemory(validated);
-    }
-
-    if (
-      typeof stored !== "object"
-      || stored === null
-      || (stored as { schemaVersion?: unknown }).schemaVersion !== SCHEMA_VERSION
-    ) {
-      throw new Error("EVOLVE_DURABLE_MEMORY_INVALID");
-    }
-
-    const envelope = stored as Partial<PersistedEvolutionLearningMemory>;
-    const envelopeKeys = Object.keys(envelope);
-    if (
-      envelopeKeys.some((key) => !ENVELOPE_KEYS.has(key))
-      || envelopeKeys.length !== ENVELOPE_KEYS.size
-      || !Array.isArray(envelope.records)
-      || !Array.isArray(envelope.recordHashes)
-      || typeof envelope.ledgerHash !== "string"
-      || envelope.records.length > MAX_RECORDS
-    ) {
-      throw new Error("EVOLVE_DURABLE_MEMORY_INVALID");
-    }
-    const validated = validateRecords(envelope.records, envelope.recordHashes, envelope.ledgerHash);
-    return new DurableEvolutionLearningMemory(validated);
+    return new DurableEvolutionLearningMemory(parsePersistedValue(stored));
   }
 
   append(record: EvolutionLearningRecord): void {
