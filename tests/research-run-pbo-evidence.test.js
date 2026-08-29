@@ -204,6 +204,27 @@ test("DSR fails closed on candidate identity and dataset provenance mismatch", (
   );
 });
 
+test("DSR records canonical abstention in the search denominator without manufacturing evidence", () => {
+  const input = candidates();
+  input[2] = {
+    ...input[2],
+    abstention: {
+      schemaVersion: 1,
+      asOf: 1,
+      decision: "ABSTAIN",
+      netExpectedEdge: -0.001,
+      effectiveMinimumConfidence: 0.6,
+      reasons: ["INSUFFICIENT_CONFIDENCE"],
+      sourceDatasetIds: ["shared-dataset"]
+    }
+  };
+  const result = buildResearchRunDsrEvidence(input);
+  assert.equal(result.evidenceByCandidate.size, 2);
+  assert.equal(result.unavailableReasons.get(input[2].id), "ABSTENTION_DECISION");
+  assert.equal(result.trialLedgerSummary.abstainedCount, 1);
+  assert.equal(result.evidenceByCandidate.get(input[0].id).searchTrialCount, 3);
+});
+
 test("DSR preserves a zero-variance candidate as unavailable without inventing evidence", () => {
   const input = candidates();
   const flat = experiment(input[2].id, 2);
