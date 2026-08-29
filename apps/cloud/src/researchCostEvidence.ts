@@ -1,16 +1,6 @@
-import { researchHardeningHash } from "../../../packages/contracts/src/researchHardening";
+import { researchHardeningHash, type ResearchCostEvidence } from "../../../packages/contracts/src/researchHardening";
 
-export interface ResearchCostEvidence {
-  readonly schemaVersion: 1;
-  readonly feeRate: number;
-  readonly spreadRate: number;
-  readonly slippageRate: number;
-  readonly turnoverRate: number;
-  readonly grossReturn: number;
-  readonly netReturn: number;
-  readonly costModelVersion: string;
-  readonly observedAt: number;
-}
+export type { ResearchCostEvidence } from "../../../packages/contracts/src/researchHardening";
 
 export interface ResearchCostEvidenceDecision {
   readonly status: "VERIFIED" | "REJECTED";
@@ -22,6 +12,7 @@ const finite = (value: unknown): value is number => typeof value === "number" &&
 const nonNegative = (value: unknown): value is number => finite(value) && value >= 0;
 const validTimestamp = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 const validVersion = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
+const validDigest = (value: unknown): value is string => typeof value === "string" && /^[a-f0-9]{64}$/i.test(value);
 
 function canonicalHashNumber(value: unknown): number | string | null {
   if (typeof value !== "number") return null;
@@ -33,6 +24,9 @@ function canonicalHashNumber(value: unknown): number | string | null {
 function costEvidenceHash(evidence: ResearchCostEvidence): string {
   return researchHardeningHash({
     schemaVersion: canonicalHashNumber(evidence.schemaVersion),
+    evaluationId: typeof evidence.evaluationId === "string" ? evidence.evaluationId : null,
+    datasetId: typeof evidence.datasetId === "string" ? evidence.datasetId : null,
+    datasetContentSha256: typeof evidence.datasetContentSha256 === "string" ? evidence.datasetContentSha256 : null,
     feeRate: canonicalHashNumber(evidence.feeRate),
     spreadRate: canonicalHashNumber(evidence.spreadRate),
     slippageRate: canonicalHashNumber(evidence.slippageRate),
@@ -47,6 +41,9 @@ function costEvidenceHash(evidence: ResearchCostEvidence): string {
 export function validateResearchCostEvidence(evidence: ResearchCostEvidence, evaluationTimestamp: number): ResearchCostEvidenceDecision {
   const reasons: string[] = [];
   if (evidence.schemaVersion !== 1) reasons.push("UNSUPPORTED_COST_EVIDENCE_SCHEMA");
+  if (!validVersion(evidence.evaluationId)) reasons.push("MISSING_COST_EVALUATION_ID");
+  if (!validVersion(evidence.datasetId)) reasons.push("MISSING_COST_DATASET_ID");
+  if (!validDigest(evidence.datasetContentSha256)) reasons.push("INVALID_COST_DATASET_HASH");
   if (!nonNegative(evidence.feeRate)) reasons.push("INVALID_FEE_EVIDENCE");
   if (!nonNegative(evidence.spreadRate)) reasons.push("INVALID_SPREAD_EVIDENCE");
   if (!nonNegative(evidence.slippageRate)) reasons.push("INVALID_SLIPPAGE_EVIDENCE");
