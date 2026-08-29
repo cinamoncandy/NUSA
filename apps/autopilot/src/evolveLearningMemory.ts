@@ -25,7 +25,20 @@ export interface EvolutionLearningMemoryRepository {
 
 const clean = (value: string, max: number): string => value.trim().slice(0, max);
 
+const OUTCOMES = new Set<EvolutionOutcome>([
+  "SUCCESS",
+  "PARTIAL_SUCCESS",
+  "UNDERPERFORMED",
+  "FAILED",
+  "REGRESSION",
+  "UNKNOWN",
+]);
+
 export function createEvolutionLearningRecord(input: EvolutionLearningRecord): EvolutionLearningRecord {
+  if (!OUTCOMES.has(input.outcome)) throw new Error("EVOLVE_MEMORY_OUTCOME_INVALID");
+  if (typeof input.reusable !== "boolean") throw new Error("EVOLVE_MEMORY_REUSABLE_INVALID");
+  if (input.failureReason !== null && typeof input.failureReason !== "string") throw new Error("EVOLVE_MEMORY_FAILURE_REASON_INVALID");
+  if (input.rollbackReference !== null && typeof input.rollbackReference !== "string") throw new Error("EVOLVE_MEMORY_ROLLBACK_REFERENCE_INVALID");
   if (!clean(input.opportunityId, 160)) throw new Error("EVOLVE_MEMORY_OPPORTUNITY_REQUIRED");
   if (!clean(input.problem, 2000)) throw new Error("EVOLVE_MEMORY_PROBLEM_REQUIRED");
   if (!input.evidenceReferences.length) throw new Error("EVOLVE_MEMORY_EVIDENCE_REQUIRED");

@@ -36,3 +36,21 @@ test("evolve learning memory fails closed without evidence", () => {
     recordedAt: "2026-08-29T00:00:00.000Z",
   }), /EVOLVE_MEMORY_EVIDENCE_REQUIRED/);
 });
+
+test("evolve learning memory rejects malformed runtime enum and flag values", () => {
+  const valid = {
+    opportunityId: "opp:memory:3",
+    problem: "Malformed runtime input",
+    evidenceReferences: ["ci:456"],
+    hypothesis: "Reject unknown values",
+    changeReference: "pr:1015",
+    validationStatus: "UNKNOWN",
+    outcome: "NOT_A_CANONICAL_OUTCOME" as never,
+    failureReason: null,
+    rollbackReference: null,
+    reusable: true,
+    recordedAt: "2026-08-29T00:00:00.000Z",
+  };
+  assert.throws(() => createEvolutionLearningRecord(valid), /EVOLVE_MEMORY_OUTCOME_INVALID/);
+  assert.throws(() => createEvolutionLearningRecord({ ...valid, outcome: "UNKNOWN", reusable: "true" as never }), /EVOLVE_MEMORY_REUSABLE_INVALID/);
+});
