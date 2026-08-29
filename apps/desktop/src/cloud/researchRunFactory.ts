@@ -165,9 +165,10 @@ export function buildResearchRunProvenancePlan(input: {
 }): ResearchRunProvenancePlan {
   validateManifest(input.manifest);
   validateTimeline(input.timeline);
-  if (!SHA40.test(input.sourceCommitSha)) {
+  if (typeof input.sourceCommitSha !== "string" || !SHA40.test(input.sourceCommitSha)) {
     throw new ResearchRunFactoryError("INVALID_SOURCE_COMMIT_SHA", "research run source commit SHA is invalid");
   }
+  const sourceCommitSha = input.sourceCommitSha.trim().toLowerCase();
   if (!Array.isArray(input.candidates) || input.candidates.length === 0) {
     throw new ResearchRunFactoryError("EMPTY_CANDIDATE_PLAN", "research run requires at least one candidate");
   }
@@ -218,6 +219,12 @@ export function buildResearchRunProvenancePlan(input: {
     const parameters = canonicalParameters(seed.parameters);
     const codeSha = typeof seed.codeSha === "string" ? seed.codeSha.trim().toLowerCase() : "";
     const costModelVersion = typeof seed.costModelVersion === "string" ? seed.costModelVersion.trim() : "";
+    if (codeSha !== sourceCommitSha) {
+      throw new ResearchRunFactoryError(
+        "CANDIDATE_SOURCE_MISMATCH",
+        "candidate " + candidateId + " code SHA does not match the research run source",
+      );
+    }
     const specification: ResearchCandidateSpecification = freeze({
       schemaVersion: 1,
       candidateId,
