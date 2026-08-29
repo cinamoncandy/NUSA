@@ -1,14 +1,14 @@
 id: WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL
 title: "Issue #905 wire the measured Engineering OS read model into production"
-status: VERIFYING
+status: IN_PROGRESS
 owner: nusa
 repository: cinamoncandy/NUSA
 issue: 905
 pull_request: null
 base_branch: main
-base_commit: 8c6f2f71979ef4d624486a58615014747a5c2e78
-implementation_branch: codex/engineering-operations-validation-hardening
-objective: "Expose one canonical, read-only production composition for the existing Engineering OS evidence engines without inventing measurements or adding execution authority, and fail closed before malformed nested snapshots cross the HTTP boundary."
+base_commit: 602ff89c783d3f77397896d4869e212d6149e962
+implementation_branch: codex/issue-905-readmodel-hardening
+objective: "Harden the existing read-only Engineering OS production read-model boundary against malformed nested evidence and credential-shaped fields without inventing measurements or adding execution authority."
 architecture_impact:
   acknowledged: true
   analysis: "Reuse the existing deterministic opportunity ranking, self-optimizer, adaptive concurrency, execution-origin, outcome-feedback, and #903 queue contracts at one production read-model boundary; no second queue, scheduler, merge engine, or mutation path is introduced."
@@ -26,6 +26,7 @@ scope:
   - measured_concurrency_and_optimizer_projection
   - exact_head_outcome_projection
   - production_runtime_accessor_regression
+  - nested_snapshot_validation_and_redaction_boundary
 prohibited:
   - live_execution
   - broker_mutation
