@@ -19,7 +19,8 @@ import type { LiveReadinessObservabilitySnapshot } from "../../../packages/contr
  */
 export type MonitorMode = "PAPER" | "SYSTEM" | "SHADOW" | "REAL" | "LIVE_READY";
 
-const MODES: readonly MonitorMode[] = ["PAPER", "SYSTEM", "SHADOW", "REAL", "LIVE_READY"];
+const BASE_MODES = ["PAPER", "SHADOW", "REAL"] as const;
+const MODES: readonly MonitorMode[] = [BASE_MODES[0], "SYSTEM", BASE_MODES[1], BASE_MODES[2], "LIVE_READY"];
 const modeLabel = (mode: MonitorMode): string => mode === "REAL" ? "REAL_READ_ONLY" : mode === "SYSTEM" ? "SYSTEM LEARNING" : mode;
 
 export function PaperShadowMonitorView({ paper, shadow, shadowReason, real, realReason, live, liveReason, refreshing, onRefresh, onClose }: Readonly<{ paper: PaperLearningScreenState; shadow: ShadowObservabilitySnapshot | null; shadowReason?: string; real?: RealReadOnlyObservabilitySnapshot | null; realReason?: string; live?: LiveReadinessObservabilitySnapshot | null; liveReason?: string; refreshing: boolean; onRefresh: () => void | Promise<void>; onClose: () => void }>) {
