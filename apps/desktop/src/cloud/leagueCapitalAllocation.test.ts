@@ -8,6 +8,7 @@ function entry(id: string, rank: number, leagueScore: number, overrides: Partial
     id,
     familyId: `family-${id}`,
     eligible: true,
+    outcome: "QUALIFIED_FOR_LEAGUE",
     reasons: [],
     evidenceBreadth: 1,
     components: { outOfSamplePerformance: 0.05, benchmarkExcess: 0.02, maximumDrawdown: 0.04 },
@@ -56,7 +57,7 @@ describe("adviseLeagueCapitalAllocation", () => {
     const advisory = adviseLeagueCapitalAllocation(standing([
       entry("a", 1, 120),
       entry("b", 2, 100, { evidenceBreadth: 0.25 }),
-      entry("c", 3, 90, { eligible: false, leagueScore: undefined, rank: undefined }),
+      entry("c", 3, 90, { eligible: false, outcome: "REJECTED", leagueScore: undefined, rank: undefined }),
       entry("d", 4, 80),
     ]), { maximumCandidateWeight: 0.5, minimumEvidenceBreadth: 0.5 });
 
@@ -80,7 +81,7 @@ describe("adviseLeagueCapitalAllocation", () => {
 
   it("fails closed when no candidate has sufficient eligible evidence", () => {
     assert.throws(
-      () => adviseLeagueCapitalAllocation(standing([entry("a", 1, 120, { eligible: false, leagueScore: undefined, rank: undefined })])),
+      () => adviseLeagueCapitalAllocation(standing([entry("a", 1, 120, { eligible: false, outcome: "REJECTED", leagueScore: undefined, rank: undefined })])),
       (error: unknown) => error instanceof LeagueCapitalAllocationError && error.code === "NO_ALLOCATABLE_CANDIDATES",
     );
   });
