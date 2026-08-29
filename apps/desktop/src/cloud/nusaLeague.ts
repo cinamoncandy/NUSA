@@ -315,7 +315,7 @@ function validateCandidate(candidate: LeagueCandidateInput): void {
   }
   if (candidate.trialLedgerSummary != null) {
     const summary = candidate.trialLedgerSummary;
-    const outcomeCounts = [summary.completedCount, summary.failedCount, summary.rejectedCount];
+    const outcomeCounts = [summary.completedCount, summary.failedCount, summary.rejectedCount, summary.abstainedCount];
     if (
       !Number.isSafeInteger(summary.trialCount)
       || summary.trialCount < 0
