@@ -117,11 +117,30 @@ function experiment(id, candidateIndex, overrides = {}) {
 }
 
 function candidates() {
-  return [0, 1, 2].map((index) => ({
-    id: `candidate-${index}`,
-    familyId: `family-${index}`,
-    experiment: experiment(`candidate-${index}`, index)
-  }));
+  return [0, 1, 2].map((index) => {
+    const id = `candidate-${index}`;
+    const familyId = `family-${index}`;
+    const candidateExperiment = experiment(id, index);
+    return {
+      id,
+      familyId,
+      experiment: candidateExperiment,
+      candidateSpecification: {
+        schemaVersion: 1,
+        candidateId: id,
+        familyId,
+        lineageId: `${familyId}-v1`,
+        parameters: {},
+        codeSha: "b".repeat(40),
+        datasetId: candidateExperiment.manifest.datasetId,
+        datasetContentSha256: candidateExperiment.manifest.contentSha256,
+        costModelVersion: "fixture-cost-v1",
+        generatedAt: "2025-12-31T23:00:00.000Z",
+        evaluationStartedAt: "2025-12-31T23:05:00.000Z",
+        evaluationEndedAt: "2025-12-31T23:30:00.000Z"
+      }
+    };
+  });
 }
 
 test("derives CSCV PBO from aligned cost-aware OOS equity returns only", () => {
