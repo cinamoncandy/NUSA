@@ -1,22 +1,39 @@
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "nusa-autopilot",
-  "main": "src/index.ts",
+  "main": "src/worker.ts",
   "compatibility_date": "2026-08-27",
+  "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "triggers": {
     "crons": ["* * * * *"]
   },
+  "containers": [
+    {
+      "class_name": "Sandbox",
+      "image": "./Dockerfile",
+      "instance_type": "lite",
+      "max_instances": 1
+    }
+  ],
   "durable_objects": {
     "bindings": [
       {
         "name": "NUSA_EXECUTION_COORDINATOR",
         "class_name": "ExecutionCoordinator"
+      },
+      {
+        "name": "Sandbox",
+        "class_name": "Sandbox"
       }
     ]
   },
   "exports": {
     "ExecutionCoordinator": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    },
+    "Sandbox": {
       "type": "durable-object",
       "storage": "sqlite"
     }
