@@ -1,16 +1,16 @@
 version: 1
 project: nusa
-updated_at: "2026-08-29T16:48:00+09:00"
+updated_at: "2026-08-29T17:35:00+09:00"
 current_execution_target:
-  work_order: WO-ISSUE-865-LEARNING-PERSISTENCE-BOUNDARY
+  work_order: WO-ISSUE-880-HUMAN-CONTAINMENT-COMMAND
   status: VERIFYING
-  branch: codex/issue-865-learning-attribution
-  base_sha: daa077b4b855e8f6296f5ad96fa7516732a7f982
-  scope: "Require the existing durable learning sink at the Level 7 composition boundary and fail closed before lifecycle coordination when runtime persistence is unavailable."
+  branch: codex/issue-880-lifecycle-boundary
+  base_sha: 0091c870fc8e8f81fbe87c6609991b2a48b9c3e8
+  scope: "Apply existing evidence-bound strategy containment advice only through an explicit human approval command with stale-decision and restart-idempotency guards."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-phase: implementation
-status: implementing
-objective: "Advance the canonical self-learning loop using verified, durable evolution evidence while holding the production transition at the human/environment boundary."
+phase: verification
+status: verifying
+objective: "Advance strategy lifecycle safety using existing evidence and governance primitives while holding all production and LIVE authority at the human/environment boundary."
 latest_research_slice:
   work_order: WO-MARKET-INTELLIGENCE-REGIME-POINT-IN-TIME-001
   status: COMPLETED
@@ -23,9 +23,9 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: codex/issue-865-learning-attribution
+active_branch: codex/issue-880-lifecycle-boundary
 active_successor_branch: null
-active_pull_request: 1047
+active_pull_request: 1049
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -83,14 +83,14 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-ISSUE-865-LEARNING-PERSISTENCE-BOUNDARY
+  work_order: WO-ISSUE-880-HUMAN-CONTAINMENT-COMMAND
   status: VERIFYING
-  branch: codex/issue-865-learning-attribution
-  base_commit: daa077b4b855e8f6296f5ad96fa7516732a7f982
-  scope: "Require the existing durable learning sink at the Level 7 composition boundary and fail closed before lifecycle coordination when runtime persistence is unavailable."
+  branch: codex/issue-880-lifecycle-boundary
+  base_commit: 0091c870fc8e8f81fbe87c6609991b2a48b9c3e8
+  scope: "Apply existing evidence-bound strategy containment advice only through an explicit human approval command with stale-decision and restart-idempotency guards."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  implementation_commit: 5e46a20431a42aef63c6ac0ba06448bfc2bf1ba6
-  validation: "Focused autopilot evolution suite PASS (69/69); preflight/typecheck/build/lint/architecture/safety/security/Restricted LIVE/read-only broker/AIPOS/git diff check PASS; full isolated suite blocked by Windows TEMP mkdtemp EPERM before test execution; PR #1047 exact-head validation pending."
+  implementation_commit: c2638d91edf8a2e3f24d4ed940a37b798f9c3981
+  validation: "Containment approval boundary implemented at c2638d91edf8a2e3f24d4ed940a37b798f9c3981; PR #1049 opened at c288c597141a8f0f8930d5327b90097149e60cdd; focused 13/13 and targeted 38/38 PASS; preflight/typecheck/build/lint/architecture/safety/security/Restricted LIVE/read-only broker/AIPOS/package validation PASS; full local isolated suite remains blocked by Windows TEMP mkdtemp EPERM; exact-head CI pending."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -505,9 +505,9 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
-  - id: WO-ISSUE-865-LEARNING-PERSISTENCE-BOUNDARY
-    evidence: ".aipos/work-orders/WO-ISSUE-865-LEARNING-PERSISTENCE-BOUNDARY.yaml"
-    summary: "Require the existing durable learning repository at the Level 7 composition boundary and reject missing runtime persistence before lifecycle coordination; no new engine or authority."
+  - id: WO-ISSUE-880-HUMAN-CONTAINMENT-COMMAND
+    evidence: ".aipos/work-orders/WO-ISSUE-880-HUMAN-CONTAINMENT-COMMAND.yaml"
+    summary: "Apply existing evidence-bound strategy containment advice only through an explicit human approval command with stale-decision and restart-idempotency guards; no new engine or authority."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -534,8 +534,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-ISSUE-865-LEARNING-PERSISTENCE-BOUNDARY.yaml
-  reason: "Issue #865 is the next repository-side P1: prevent a selected evolution cycle from completing without the existing durable learning sink."
+  work_order: .aipos/work-orders/WO-ISSUE-880-HUMAN-CONTAINMENT-COMMAND.yaml
+  reason: "Issue #880 is the next repository-side P1: bind containment lifecycle changes to an explicit human approval and preserve safe replay semantics."
 verification:
   wo_0057:
     parent_pull_request: 552

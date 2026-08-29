@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { StrategyLifecycle } from "../../../packages/contracts/src/strategyGovernance";
 
 export interface StrategyRollbackInput { readonly now:number; readonly strategyId:string; readonly version:string; readonly previousChampionVersion?:string; readonly maximumDrawdown:number; readonly maximumDrawdownThreshold:number; readonly rollingSharpe:number; readonly minimumRollingSharpe:number; readonly executionQualityScore:number; readonly minimumExecutionQualityScore:number; readonly unresolvedFaultCount:number; readonly partialHedgeRecoveryFailures:number; readonly killSwitchActive:boolean; readonly featureFingerprintMatches:boolean; readonly dataQualityHealthy:boolean; readonly paperAvailabilityRatio:number; readonly minimumAvailabilityRatio:number; readonly strategyDriftDetected:boolean; readonly unresolvedExposure:boolean; }
@@ -59,6 +60,7 @@ export interface StrategyContainmentInput {
 export interface StrategyContainmentDecision {
   readonly action: "HOLD" | "SUSPEND" | "ROLLBACK" | "RETIRE";
   readonly targetLifecycle: StrategyLifecycle;
+  readonly currentLifecycle: StrategyLifecycle;
   readonly strategyId: string;
   readonly version: string;
   readonly reasons: readonly string[];
@@ -84,6 +86,40 @@ const sha256 = /^[a-f0-9]{64}$/;
 
 const orderedReasons = (reasons: readonly string[]): readonly string[] => Object.freeze([...new Set(reasons)].sort());
 
+const containmentDecisionPayload = (decision: StrategyContainmentDecision): Record<string, unknown> => ({
+  action: decision.action,
+  currentLifecycle: decision.currentLifecycle,
+  decidedAt: decision.decidedAt,
+  evidenceFingerprint: decision.evidenceFingerprint,
+  evidenceObservedAt: decision.evidenceObservedAt,
+  evidenceReferences: [...decision.evidenceReferences],
+  evidenceStatus: decision.evidenceStatus,
+  liveAuthority: decision.liveAuthority,
+  productionMutationAllowed: decision.productionMutationAllowed,
+  reasons: [...decision.reasons],
+  strategyId: decision.strategyId,
+  targetLifecycle: decision.targetLifecycle,
+  version: decision.version,
+});
+
+const canonical = (value: unknown): string => {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return JSON.stringify(value);
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new Error("STRATEGY_CONTAINMENT_DECISION_NONFINITE");
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (typeof value === "object") {
+    return `{${Object.entries(value as Record<string, unknown>).sort(([left], [right]) => left.localeCompare(right)).map(([key, child]) => `${JSON.stringify(key)}:${canonical(child)}`).join(",")}}`;
+  }
+  throw new Error("STRATEGY_CONTAINMENT_DECISION_CANONICAL_INVALID");
+};
+
+/** Stable binding for an advisory decision and the evidence it evaluated. */
+export function fingerprintStrategyContainmentDecision(decision: StrategyContainmentDecision): string {
+  return createHash("sha256").update(canonical(containmentDecisionPayload(decision)), "utf8").digest("hex");
+}
+
 function validateContainmentInput(input: StrategyContainmentInput): void {
   if (input == null || typeof input !== "object") throw new Error("STRATEGY_CONTAINMENT_INVALID_INPUT");
   if (!strategyLifecycles.has(input.currentLifecycle)) throw new Error("STRATEGY_CONTAINMENT_INVALID_LIFECYCLE");
@@ -98,6 +134,7 @@ function validateContainmentInput(input: StrategyContainmentInput): void {
 const decision = (input: StrategyContainmentInput, action: StrategyContainmentDecision["action"], targetLifecycle: StrategyLifecycle, reasons: readonly string[]): StrategyContainmentDecision => Object.freeze({
   action,
   targetLifecycle,
+  currentLifecycle: input.currentLifecycle,
   strategyId: input.rollback.strategyId,
   version: input.rollback.version,
   reasons: orderedReasons(reasons),

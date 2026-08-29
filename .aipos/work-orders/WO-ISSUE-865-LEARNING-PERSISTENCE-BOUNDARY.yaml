@@ -1,7 +1,7 @@
 version: 1
 id: WO-ISSUE-865-LEARNING-PERSISTENCE-BOUNDARY
 title: "Issue #865 require durable learning persistence at the Level 7 boundary"
-status: VERIFYING
+status: COMPLETED
 priority: P1
 owner: codex
 repository: cinamoncandy/NUSA
@@ -47,7 +47,7 @@ acceptance:
   - selected_cycles_persist_the_existing_lifecycle_learning_record
   - persistence_failure_never_reports_a_successful_cycle
   - no_execution_risk_promotion_or_live_authority_is_exposed
-implementation_status: IMPLEMENTED_VALIDATED_PENDING_PUBLICATION
+implementation_status: MERGED_PR_1047
 validation:
   focused_autopilot: PASS_69_OF_69
   preflight: PASS
@@ -67,4 +67,4 @@ known_limitations:
   - "External long-running PAPER evidence and human/environment LIVE gates remain outside this slice."
   - "Local pnpm test could not enter the full isolated suite because the Windows runner denied mkdtemp in the system TEMP directory; exact-head CI remains required for the full suite."
 next: "Run focused and repository gates, then publish only this contract hardening if all safety invariants remain unchanged."
-remote_validation: PENDING_PR_1047_EXACT_HEAD_CI
+remote_validation: "PR #1047 exact head 7ddbd6f0dc71216e241b17db63d8cfa075e64de6; required CI, Actual PAPER Runtime Evidence, Restricted LIVE Capability/Activation/Transport, and Read-only Broker checks PASS; squash merge 0091c870fc8e8f81fbe87c6609991b2a48b9c3e8."
