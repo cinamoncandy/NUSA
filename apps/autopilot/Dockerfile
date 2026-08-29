@@ -1,10 +1,12 @@
-FROM docker.io/cloudflare/sandbox:next
+FROM node:24-bookworm-slim
 
-USER root
+COPY --from=docker.io/cloudflare/sandbox:next /container-server/sandbox /sandbox
 
-# NUSA autonomous engineering runtime. Keep this image on the same preview
-# release line as @cloudflare/sandbox@next.
-RUN corepack enable \
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl git jq unzip zip \
+    && rm -rf /var/lib/apt/lists/* \
+    && corepack enable \
     && corepack prepare pnpm@11.7.0 --activate
 
 WORKDIR /workspace
+ENTRYPOINT ["/sandbox"]
