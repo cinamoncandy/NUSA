@@ -1,0 +1,68 @@
+version: 1
+id: WO-ISSUE-905-OUTCOME-EVIDENCE-BOUNDARY
+title: "Issue #905 fail-closed engineering outcome evidence boundary"
+status: VERIFYING
+priority: P1
+owner: codex
+repository: cinamoncandy/NUSA
+issue: 905
+base_branch: main
+base_commit: 69066b89057571d7b09b7f5ac562fdf52ee9cddc
+implementation_branch: codex/issue-905-outcome-evidence-boundary
+objective: "Harden the existing canonical outcome evaluator so malformed runtime identity, confidence, or direction evidence cannot become a verified engineering outcome."
+architecture_impact:
+  acknowledged: true
+  analysis: "Extend the existing outcomeEvaluator only; do not add a second scheduler, outcome engine, queue, execution path, or authority."
+  references:
+    - apps/autopilot/src/outcomeEvaluator.ts
+    - apps/autopilot/src/outcomeEvaluator.test.ts
+    - apps/autopilot/src/outcomeFeedback.ts
+scope:
+  - runtime_outcome_evidence_validation
+  - fail_closed_malformed_enum_and_identity
+  - regression_coverage
+prohibited:
+  - live_activation
+  - broker_or_order_mutation
+  - risk_authority_change
+  - credential_handling
+  - new_scheduler_or_outcome_engine
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  brokerMutation: NONE
+  paper_only: true
+acceptance:
+  - unknown_direction_cannot_be_classified_as_verified
+  - unknown_confidence_cannot_be_classified_as_verified
+  - blank_identity_is_rejected
+  - valid_outcome_classifications_are_unchanged
+  - no_authority_or_mutation_changes
+implementation_status: IMPLEMENTED_LOCAL_VALIDATION_COMPLETE_PENDING_PUBLISH
+implementation_commit: PENDING
+pull_request: PENDING
+published_head: PENDING
+merge_commit: PENDING
+remote_validation: PENDING_EXACT_HEAD_CI
+validation:
+  focused: PASS_9_OF_9
+  relevant_regressions: PASS_18_OF_18
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture_truth: PASS
+  architecture_check: PASS
+  safety: PASS
+  security: PASS
+  restricted_live: PASS
+  read_only_broker: PASS
+  aipos: PASS
+  package_validation: NOT_APPLICABLE_SOURCE_ONLY_LOCAL_BUILD_OUTPUT_MAPS_REPORTED
+  git_diff_check: PASS
+  note: "Standalone package validation was not a relevant gate for this autopilot source-only slice; its no-source-map check observed generated TypeScript maps in dist after the ordinary build."
+known_limitations:
+  - "This slice hardens canonical outcome input validation; it does not complete Issue #905's broader optimizer, telemetry, or owner-exception acceptance criteria."
+next: "Publish this focused validation boundary, confirm exact-head gates, and keep broader #905 outcome telemetry gaps fail-closed."
+

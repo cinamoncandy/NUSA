@@ -28,9 +28,22 @@ export interface OutcomeEvaluation {
 
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 const finite = (value: number | null): value is number => value !== null && Number.isFinite(value);
+const validConfidence = (value: unknown): value is OutcomeConfidence =>
+  value === "VERIFIED" || value === "INSUFFICIENT" || value === "UNKNOWN";
+const validDirection = (value: unknown): value is OutcomeDirection =>
+  value === "HIGHER_IS_BETTER" || value === "LOWER_IS_BETTER";
 
 export function evaluateOutcome(evidence: OutcomeEvidence): OutcomeEvaluation {
   if (
+    typeof evidence.key !== "string" || evidence.key.trim().length === 0 ||
+    typeof evidence.source !== "string" || evidence.source.trim().length === 0
+  ) {
+    throw new Error("OUTCOME_EVIDENCE_IDENTITY_INVALID");
+  }
+
+  if (
+    !validConfidence(evidence.confidence) ||
+    !validDirection(evidence.direction) ||
     evidence.confidence !== "VERIFIED" ||
     !finite(evidence.baseline) ||
     !finite(evidence.current) ||
