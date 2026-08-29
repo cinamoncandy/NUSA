@@ -238,6 +238,7 @@ async function main() {
     },
     league: {
       evidenceMode: league.evidenceMode,
+      evidenceReports: league.evidenceReport,
       reasons: league.reasons,
       probabilityBacktestOverfitting: league.standing.probabilityBacktestOverfitting ?? null,
       trialLedger: deflatedSharpe.trialLedgerSummary,
