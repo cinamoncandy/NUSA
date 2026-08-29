@@ -4,7 +4,7 @@ status: IN_PROGRESS
 owner: nusa
 repository: cinamoncandy/NUSA
 issue: 905
-pull_request: null
+pull_request: 1073
 base_branch: main
 base_commit: bf7e8c0de7614dec959d6c28180d16dfc8ef87f5
 implementation_branch: codex/issue-905-readmodel-hardening
@@ -66,8 +66,8 @@ validation:
   security: PASS
   aipos: PASS
   git_diff_check: PASS
-  origin_branch: LOCAL_COMMIT_READY
-  remote_pr: PENDING_PUBLICATION
+  origin_branch: PUBLISHED
+  remote_pr: 1073_OPEN_EXACT_HEAD_PENDING
 implementation_status: IMPLEMENTED_VERIFYING
 known_limitations:
   - "Production GitHub telemetry, queue persistence, and pre/post optimization observations remain unavailable until their canonical external adapters are connected; the read model must report INSUFFICIENT rather than fabricate values."
