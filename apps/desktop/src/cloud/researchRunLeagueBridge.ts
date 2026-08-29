@@ -25,6 +25,10 @@ import {
   validateResearchCandidateSpecificationBinding,
   type ResearchCandidateSpecification,
 } from "./researchCandidateSpecification";
+import {
+  validateResearchRunRobustnessEvidence,
+  type ResearchRunRobustnessEvidence,
+} from "./researchRunRobustnessEvidence";
 
 /**
  * Minimal adapter joining a real research run to the League pipeline.
@@ -80,6 +84,12 @@ export interface ResearchRunLeagueResult {
   readonly standing: LeagueStanding;
   /** Deterministic human-readable projection of the evidence already present in each entry. */
   readonly evidenceReport: readonly LeagueCandidateEvidenceReport[];
+  /**
+   * Run-level parameter-neighborhood and cost-stress evidence. This is intentionally kept
+   * outside candidate evidence breadth because it describes the shared research run, not
+   * independent evidence for any one candidate.
+   */
+  readonly robustnessEvidence?: ResearchRunRobustnessEvidence;
   readonly allocation?: LeagueCapitalAllocationAdvisory;
   /** Why no allocation advisory could be produced, when that is the case. */
   readonly allocationUnavailableReason?: string;
@@ -111,6 +121,8 @@ export function buildResearchRunLeague(
     readonly leaguePolicy?: LeaguePolicy;
     readonly allocationPolicy?: Partial<LeagueCapitalAllocationPolicy>;
     readonly generatedAt?: string;
+    /** Already-verified run-level sensitivity/stress evidence; never used to grant authority. */
+    readonly robustnessEvidence?: ResearchRunRobustnessEvidence;
   } = {},
 ): ResearchRunLeagueResult {
   if (candidates.length === 0) {
@@ -157,6 +169,35 @@ export function buildResearchRunLeague(
       throw new ResearchRunLeagueBridgeError(
         "INVALID_CANDIDATE_SPECIFICATION",
         `candidate ${candidate.id} has malformed bound specification`,
+      );
+    }
+  }
+
+  if (options.robustnessEvidence != null) {
+    try {
+      validateResearchRunRobustnessEvidence(options.robustnessEvidence);
+    } catch (error) {
+      if (error instanceof ResearchRunLeagueBridgeError) throw error;
+      const message = error instanceof Error ? error.message : "malformed robustness evidence";
+      throw new ResearchRunLeagueBridgeError("INVALID_ROBUSTNESS_EVIDENCE", message);
+    }
+    const firstManifest = candidates[0]!.experiment.manifest;
+    if (candidates.some((candidate) => (
+      candidate.experiment.manifest.datasetId !== firstManifest.datasetId
+      || candidate.experiment.manifest.contentSha256 !== firstManifest.contentSha256
+    ))) {
+      throw new ResearchRunLeagueBridgeError(
+        "ROBUSTNESS_PROVENANCE_MISMATCH",
+        "run-level robustness evidence requires one shared candidate dataset",
+      );
+    }
+    if (
+      options.robustnessEvidence.datasetId !== firstManifest.datasetId
+      || options.robustnessEvidence.datasetContentSha256 !== firstManifest.contentSha256
+    ) {
+      throw new ResearchRunLeagueBridgeError(
+        "ROBUSTNESS_PROVENANCE_MISMATCH",
+        "run-level robustness evidence does not match candidate dataset provenance",
       );
     }
   }
@@ -228,6 +269,9 @@ export function buildResearchRunLeague(
   if (new Set(candidates.map((candidate) => candidate.familyId)).size <= 1) reasons.push("SINGLE_FAMILY_RESEARCH_RUN");
   if (candidates.every((candidate) => candidate.regimeAwareEvaluation != null)) reasons.push("POINT_IN_TIME_REGIME_EVIDENCE_PRESENT");
   if (options.probabilityBacktestOverfitting != null) reasons.push("SEARCH_OVERFITTING_EVIDENCE_PRESENT");
+  if (options.robustnessEvidence != null) {
+    reasons.push("PARAMETER_ROBUSTNESS_EVIDENCE_PRESENT", "COST_STRESS_EVIDENCE_PRESENT");
+  }
 
   const pipelineInput = {
     candidates: leagueCandidates,
@@ -271,6 +315,7 @@ export function buildResearchRunLeague(
     evidenceMode: "RESEARCH_TIER_ONLY",
     standing,
     evidenceReport,
+    ...(options.robustnessEvidence == null ? {} : { robustnessEvidence: options.robustnessEvidence }),
     ...(allocation == null ? {} : { allocation }),
     ...(allocationUnavailableReason == null ? {} : { allocationUnavailableReason }),
     ...(Object.keys(oosObservationEvidence).length === 0 ? {} : { oosObservationEvidence: freeze(oosObservationEvidence) }),
