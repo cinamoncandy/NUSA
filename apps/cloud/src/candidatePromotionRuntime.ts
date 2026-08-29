@@ -3,6 +3,7 @@ import type { ResearchComparisonEvidence, ResearchEvaluationLedger } from "../..
 import type { CandidateLifecycleRecord, PromotionAuditRecord, PromotionCommand, PromotionResult, ResearchCandidateIdentity } from "../../../packages/contracts/src/candidatePromotion";
 import type { StrategyLifecycle } from "../../../packages/contracts/src/strategyGovernance";
 import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
+import { validateResearchCostEvidence } from "./researchCostEvidence";
 import type { SqliteCandidatePromotionRepository } from "../../../packages/storage/src/candidatePromotionRepository";
 
 export interface CandidatePromotionRepository {
@@ -103,6 +104,16 @@ export class CandidatePromotionRuntime {
       if (evidence.challenger == null || evidence.challenger.strategyId !== candidate.identity.strategyId || evidence.challenger.strategyVersion !== candidate.identity.strategyVersion) return { eligible: false, reason: "CANDIDATE_IDENTITY_MISMATCH" };
       if (evidence.evaluationId !== candidate.identity.originatingEvaluationId) return { eligible: false, reason: "ORIGINATING_EVALUATION_MISMATCH" };
       if (evidence.canonicalInputHash !== candidate.identity.originatingInputHash) return { eligible: false, reason: "INPUT_HASH_MISMATCH" };
+      if (evidence.costEvidence == null) return { eligible: false, reason: "COST_EVIDENCE_MISSING" };
+      const costDecision = validateResearchCostEvidence(evidence.costEvidence, evidence.evaluationTimestamp);
+      if (costDecision.status !== "VERIFIED") return { eligible: false, reason: `COST_EVIDENCE_${costDecision.reasons[0] ?? "INVALID"}` };
+      if (evidence.costEvidence.evaluationId !== evidence.evaluationId) return { eligible: false, reason: "COST_EVIDENCE_EVALUATION_MISMATCH" };
+      if (evidence.provenance != null && (
+        evidence.costEvidence.datasetId !== evidence.provenance.datasetId
+        || evidence.costEvidence.datasetContentSha256 !== evidence.provenance.datasetContentSha256
+      )) return { eligible: false, reason: "COST_EVIDENCE_PROVENANCE_MISMATCH" };
+      if (typeof evidence.challenger.metrics.costAdjustedReturn !== "number" || !Number.isFinite(evidence.challenger.metrics.costAdjustedReturn)) return { eligible: false, reason: "COST_ADJUSTED_RETURN_MISSING" };
+      if (Math.abs(evidence.costEvidence.netReturn - evidence.challenger.metrics.costAdjustedReturn) > 1e-12) return { eligible: false, reason: "COST_EVIDENCE_RETURN_MISMATCH" };
       if (!evidence.fillModelVersion || !evidence.feeModelVersion || !evidence.slippageModelVersion) return { eligible: false, reason: "COST_MODEL_MISSING" };
       if (evidence.productionMutationAllowed !== false || evidence.promotionAllowed !== false) return { eligible: false, reason: "AUTHORITY_INVARIANT_FAILED" };
       if (this.now() - evidence.evaluationTimestamp > this.maxEvidenceAgeMs || evidence.evaluationTimestamp > this.now()) return { eligible: false, reason: "STALE_EVIDENCE" };
