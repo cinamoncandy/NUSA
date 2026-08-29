@@ -156,7 +156,10 @@ export function buildResearchRunLeague(
     try {
       oosObservationEvidence[candidate.id] = extractResearchRunOosObservations(candidate.id, candidate.experiment);
     } catch (error) {
-      if (error instanceof ResearchRunOosObservationError && error.code === "INSUFFICIENT_OBSERVATION_EVIDENCE") {
+      if (error instanceof ResearchRunOosObservationError && (
+        error.code === "MISSING_OOS_OBSERVATION_SOURCE" ||
+        error.code === "INSUFFICIENT_OBSERVATION_EVIDENCE"
+      )) {
         reasons.push("INSUFFICIENT_OBSERVATION_EVIDENCE");
         continue;
       }
