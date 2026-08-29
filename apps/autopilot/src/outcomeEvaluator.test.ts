@@ -58,4 +58,30 @@ describe("outcomeEvaluator", () => {
     assert.equal(result.classification, "VERIFIED_IMPROVEMENT");
     assert.equal(result.directionalDelta, 4);
   });
+
+  it("fails closed instead of treating an unknown direction as lower-is-better", () => {
+    const result = evaluateOutcome(verified({ direction: "UNKNOWN" as never }));
+    assert.equal(result.classification, "INSUFFICIENT");
+    assert.equal(result.directionalDelta, null);
+    assert.equal(result.recommendation, "GATHER_EVIDENCE");
+  });
+
+  it("rejects malformed evidence identity before producing an outcome", () => {
+    assert.throws(
+      () => evaluateOutcome(verified({ key: "" })),
+      /OUTCOME_EVIDENCE_IDENTITY_INVALID/,
+    );
+    assert.throws(
+      () => evaluateOutcome(verified({ source: "   " })),
+      /OUTCOME_EVIDENCE_IDENTITY_INVALID/,
+    );
+  });
+
+  it("fails closed on an unknown confidence value", () => {
+    const result = evaluateOutcome(verified({ confidence: "MAYBE" as never }));
+    assert.equal(result.classification, "INSUFFICIENT");
+    assert.equal(result.directionalDelta, null);
+    assert.equal(result.recommendation, "GATHER_EVIDENCE");
+  });
 });
+
