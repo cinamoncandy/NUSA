@@ -14,6 +14,11 @@ const request: AutopilotExecutionRequest = {
   mutationAllowed: false,
 };
 
+const mainResponse = (sha = request.headSha!) => new Response(JSON.stringify({ commit: { sha } }), {
+  status: 200,
+  headers: { "content-type": "application/json" },
+});
+
 describe("executeGithubDispatch", () => {
   it("stays interface-ready when no executor token is configured", async () => {
     const value = await executeGithubDispatch(request, { allowedRepository: "cinamoncandy/NUSA" });
@@ -54,12 +59,29 @@ describe("executeGithubDispatch", () => {
     assert.equal(called, false);
   });
 
+  it("suppresses stale head before repository dispatch is created", async () => {
+    const calls: string[] = [];
+    const fakeFetch = (async (url: string | URL | Request) => {
+      calls.push(String(url));
+      return mainResponse("b".repeat(40));
+    }) as typeof fetch;
+
+    const value = await executeGithubDispatch(request, {
+      token: "secret",
+      allowedRepository: "cinamoncandy/NUSA",
+      apiBaseUrl: "https://api.example.test/",
+    }, fakeFetch);
+
+    assert.equal(value.status, "REJECTED");
+    assert.equal(value.reason, "github-executor-stale-head-suppressed");
+    assert.deepEqual(calls, ["https://api.example.test/repos/cinamoncandy/NUSA/branches/main"]);
+  });
+
   it("sends one bounded repository dispatch with durable lifecycle identity and no authority escalation", async () => {
-    let capturedUrl = "";
-    let capturedInit: RequestInit | undefined;
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
     const fakeFetch = (async (url: string | URL | Request, init?: RequestInit) => {
-      capturedUrl = String(url);
-      capturedInit = init;
+      calls.push({ url: String(url), init });
+      if (String(url).endsWith("/branches/main")) return mainResponse();
       return new Response(null, { status: 204 });
     }) as typeof fetch;
 
@@ -70,9 +92,11 @@ describe("executeGithubDispatch", () => {
     }, fakeFetch);
 
     assert.equal(value.status, "DISPATCHED");
-    assert.equal(capturedUrl, "https://api.example.test/repos/cinamoncandy/NUSA/dispatches");
-    assert.equal(capturedInit?.method, "POST");
-    const payload = JSON.parse(String(capturedInit?.body));
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0]?.url, "https://api.example.test/repos/cinamoncandy/NUSA/branches/main");
+    assert.equal(calls[1]?.url, "https://api.example.test/repos/cinamoncandy/NUSA/dispatches");
+    assert.equal(calls[1]?.init?.method, "POST");
+    const payload = JSON.parse(String(calls[1]?.init?.body));
     assert.equal(payload.event_type, "nusa_autopilot_execution");
     assert.equal(payload.client_payload.kind, "REPOSITORY_AUTOPILOT");
     assert.equal(payload.client_payload.workflow_run_id, 123456789);
@@ -81,6 +105,17 @@ describe("executeGithubDispatch", () => {
     assert.equal(payload.client_payload.production_mutation_allowed, false);
     assert.equal(payload.client_payload.live_authority, "NONE");
     assert.equal(payload.client_payload.ai_authority, "ZERO_AUTHORITY");
+  });
+
+  it("fails closed when current main cannot be verified", async () => {
+    const fakeFetch = (async () => new Response("bad", { status: 503 })) as typeof fetch;
+    const value = await executeGithubDispatch(request, {
+      token: "secret",
+      allowedRepository: "cinamoncandy/NUSA",
+    }, fakeFetch);
+    assert.equal(value.status, "FAILED");
+    assert.equal(value.reason, "github-executor-main-head-http-503");
+    assert.equal(value.httpStatus, 503);
   });
 
   it("classifies auth and scope failures without leaking response bodies", async () => {
