@@ -256,3 +256,26 @@ test("PBO evidence does not manufacture candidate evidence breadth or execution 
     assert.equal(serialized.includes(forbidden), false, forbidden);
   }
 });
+
+test("preserves the DSR search ledger summary and rejected attempts for League projection", () => {
+  const input = candidates();
+  const flat = experiment(input[2].id, 2);
+  for (const window of flat.walkForwardResult.windows) {
+    window.testResult.equityCurve.forEach((point) => { point.equity = 10_000_000; });
+  }
+  input[2] = { ...input[2], experiment: flat };
+
+  const dsr = buildResearchRunDsrEvidence(input);
+  assert.equal(dsr.trialLedgerSummary.trialCount, 3);
+  assert.equal(dsr.trialLedgerSummary.completedCount, 2);
+  assert.equal(dsr.trialLedgerSummary.rejectedCount, 1);
+  assert.equal(dsr.trialLedgerSummary.failedCount, 0);
+
+  const league = buildResearchRunLeague(input.map((candidate) => ({
+    ...candidate,
+    deflatedSharpe: dsr.evidenceByCandidate.get(candidate.id),
+    trialLedgerSummary: dsr.trialLedgerSummary
+  })));
+  const rejectedCandidate = league.standing.entries.find((entry) => entry.id === input[2].id);
+  assert.equal(rejectedCandidate.components.trialFailureRatio, 1 / 3);
+});

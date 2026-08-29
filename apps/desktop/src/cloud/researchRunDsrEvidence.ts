@@ -1,5 +1,5 @@
 import { calculateDeflatedSharpeEvidence, type DeflatedSharpeEvidence } from "./researchSearchAdjustedEvidence";
-import { appendResearchTrial, type ResearchTrialRecord } from "./researchTrialLedger";
+import { appendResearchTrial, summarizeResearchTrialLedger, type ResearchTrialRecord, type ResearchTrialLedgerSummary } from "./researchTrialLedger";
 import { researchRunOosReturns, type ResearchRunPboCandidate } from "./researchRunPboEvidence";
 
 export interface ResearchRunDsrCandidate extends ResearchRunPboCandidate {
@@ -9,6 +9,8 @@ export interface ResearchRunDsrCandidate extends ResearchRunPboCandidate {
 export interface ResearchRunDsrEvidenceResult {
   readonly evidenceByCandidate: ReadonlyMap<string, DeflatedSharpeEvidence>;
   readonly unavailableReasons: ReadonlyMap<string, string>;
+  /** Immutable search ledger summary, including rejected/failed attempts. */
+  readonly trialLedgerSummary: ResearchTrialLedgerSummary;
 }
 
 export class ResearchRunDsrEvidenceError extends Error {
@@ -113,5 +115,5 @@ export function buildResearchRunDsrEvidence(candidates: readonly ResearchRunDsrC
       unavailableReasons.set(entry.candidate.id, code);
     }
   }
-  return freeze({ evidenceByCandidate, unavailableReasons });
+  return freeze({ evidenceByCandidate, unavailableReasons, trialLedgerSummary: summarizeResearchTrialLedger(ledger) });
 }

@@ -313,3 +313,65 @@ test("never introduces execution, broker, capital, or LIVE authority fields", ()
     assert.equal(serialized.includes(forbidden), false, forbidden);
   }
 });
+
+test("projects existing contextual research evidence instead of dropping it at the real-run bridge", () => {
+  const contextual = candidate("contextual", "family-context");
+  const datasetId = contextual.experiment.manifest.datasetId;
+  contextual.abstention = {
+    schemaVersion: 1,
+    asOf: 1_000,
+    decision: "PROCEED_RESEARCH",
+    netExpectedEdge: 0.01,
+    effectiveMinimumConfidence: 0.6,
+    reasons: [],
+    sourceDatasetIds: [datasetId]
+  };
+  contextual.ghostExecution = {
+    schemaVersion: 1,
+    status: "SIMULATED",
+    side: "LONG",
+    entryTime: 1,
+    exitTime: 2,
+    holdingPeriodMs: 1,
+    modeledEntryPrice: 100,
+    modeledExitPrice: 102,
+    grossReturn: 0.02,
+    totalCostRate: 0.002,
+    netReturn: 0.018,
+    reasons: [],
+    sourceDatasetIds: [datasetId]
+  };
+  contextual.counterfactual = {
+    schemaVersion: 1,
+    actualLabel: "ACTUAL_DECISION",
+    actualNetReturn: 0.018,
+    bestAlternativeLabel: "HOLD",
+    bestAlternativeNetReturn: 0,
+    regret: 0,
+    relativeRank: 1,
+    evaluatedOutcomeCount: 2,
+    reasons: ["ACTUAL_WAS_BEST_OR_TIED"],
+    sourceDatasetIds: [datasetId]
+  };
+  contextual.trialLedgerSummary = {
+    trialCount: 4,
+    completedCount: 3,
+    failedCount: 1,
+    rejectedCount: 0,
+    distinctSearchCount: 1,
+    distinctFamilyCount: 1,
+    maximumSearchAttemptOrdinal: 4,
+    terminalRecordHash: "a".repeat(64)
+  };
+
+  const result = buildResearchRunLeague([contextual, candidate("bare", "family-bare")]);
+  const contextualEntry = entryOf(result, "contextual");
+  const bareEntry = entryOf(result, "bare");
+
+  assert.equal(contextualEntry.components.abstentionQuality, 1);
+  assert.equal(contextualEntry.components.costAdjustedGhostReturn, 0.018);
+  assert.equal(contextualEntry.components.counterfactualRegret, 0);
+  assert.equal(contextualEntry.components.trialFailureRatio, 0.25);
+  assert.ok(contextualEntry.evidenceBreadth > bareEntry.evidenceBreadth);
+  assert.equal(bareEntry.components.costAdjustedGhostReturn, undefined);
+});

@@ -119,7 +119,11 @@ async function main() {
     pboUnavailableReason = error.code;
   }
   const league = buildResearchRunLeague(
-    leagueCandidates.map((candidate) => ({ ...candidate, deflatedSharpe: deflatedSharpe.evidenceByCandidate.get(candidate.id) })),
+    leagueCandidates.map((candidate) => ({
+      ...candidate,
+      deflatedSharpe: deflatedSharpe.evidenceByCandidate.get(candidate.id),
+      trialLedgerSummary: deflatedSharpe.trialLedgerSummary
+    })),
     { generatedAt, ...(probabilityBacktestOverfitting == null ? {} : { probabilityBacktestOverfitting }) }
   );
 
@@ -175,6 +179,7 @@ async function main() {
       evidenceMode: league.evidenceMode,
       reasons: league.reasons,
       probabilityBacktestOverfitting: league.standing.probabilityBacktestOverfitting ?? null,
+      trialLedger: deflatedSharpe.trialLedgerSummary,
       allocationUnavailableReason: league.allocationUnavailableReason ?? null,
       standing: league.standing.entries.map((entry) => ({
         id: entry.id,
