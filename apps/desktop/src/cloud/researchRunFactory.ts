@@ -216,13 +216,15 @@ export function buildResearchRunProvenancePlan(input: {
     }
     validateParameters(seed.parameters, candidateId);
     const parameters = canonicalParameters(seed.parameters);
+    const codeSha = typeof seed.codeSha === "string" ? seed.codeSha.trim().toLowerCase() : "";
+    const costModelVersion = typeof seed.costModelVersion === "string" ? seed.costModelVersion.trim() : "";
     const specification: ResearchCandidateSpecification = freeze({
       schemaVersion: 1,
       candidateId,
       familyId,
       lineageId,
       parameters,
-      codeSha: seed.codeSha.trim().toLowerCase(),
+      codeSha,
       datasetId: input.manifest.datasetId,
       datasetContentSha256: input.manifest.contentSha256.trim().toLowerCase(),
       costModelVersion: seed.costModelVersion.trim(),
