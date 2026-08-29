@@ -51,6 +51,12 @@ test("scheduled evolution coding routes fresh evidence through existing reposito
   let posted = false;
   const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
+    if (url.endsWith("/branches/main")) {
+      return new Response(JSON.stringify({ commit: { sha: MAIN_SHA } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
     if (url.endsWith("/dispatches")) {
       posted = true;
       assert.equal(init?.method, "POST");
