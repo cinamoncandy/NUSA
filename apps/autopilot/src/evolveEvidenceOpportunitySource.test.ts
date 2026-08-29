@@ -64,3 +64,22 @@ test("rejects unsupported workflow conclusions", () => {
     observations: [{ ...input.observations[0], conclusion: "success" as never }],
   }), /EVOLVE_WORKFLOW_EVIDENCE_CONCLUSION_INVALID/);
 });
+
+test("rejects malformed source and observation envelopes before property access", () => {
+  assert.throws(() => deriveWorkflowFailureOpportunities(null as never), /EVOLVE_WORKFLOW_SOURCE_INPUT_INVALID/);
+  assert.throws(() => deriveWorkflowFailureOpportunities({
+    observations: null,
+    observedAt: base().observedAt,
+    maxAgeSeconds: 600,
+  } as never), /EVOLVE_WORKFLOW_SOURCE_OBSERVATIONS_INVALID/);
+  assert.throws(() => deriveWorkflowFailureOpportunities({
+    observations: [],
+    observedAt: 123,
+    maxAgeSeconds: 600,
+  } as never), /EVOLVE_WORKFLOW_SOURCE_OBSERVED_AT_INVALID/);
+  assert.throws(() => deriveWorkflowFailureOpportunities({
+    observations: [null],
+    observedAt: base().observedAt,
+    maxAgeSeconds: 600,
+  } as never), /EVOLVE_WORKFLOW_EVIDENCE_INVALID/);
+});
