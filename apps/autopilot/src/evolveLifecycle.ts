@@ -202,7 +202,12 @@ export function coordinateEvolutionLifecycle(input: EvolutionLifecycleInput): Ev
   }
 
   const observation = createEvolutionObservation(input.observation);
-  const outcome = evaluateEvolutionOutcome({ opportunityId: opportunity.id, ...input.outcome });
+  const trustedEvidenceReferences = Object.freeze([
+    ...opportunity.evidence.map((evidence) => evidence.reference),
+    ...input.validation.evidence.map((evidence) => evidence.reference),
+    "health:exact-revision",
+  ]);
+  const outcome = evaluateEvolutionOutcome({ opportunityId: opportunity.id, ...input.outcome, trustedEvidenceReferences });
   const learning = createEvolutionLearningRecord({
     opportunityId: opportunity.id,
     problem: opportunity.problem,
