@@ -78,8 +78,15 @@ export function extractResearchRunOosObservations(
     throw new ResearchRunOosObservationError("CANDIDATE_EXPERIMENT_IDENTITY_MISMATCH", `candidate ${candidateId} must own a single-candidate experiment`);
   }
   const dataset = experiment.manifest;
+  const windows = experiment.walkForwardResult.windows;
+  if (
+    windows.length === 0 ||
+    windows.every((windowResult) => windowResult.window.testPoints.length === 0 && windowResult.testResult.decisions.length === 0)
+  ) {
+    throw new ResearchRunOosObservationError("MISSING_OOS_OBSERVATION_SOURCE", `candidate ${candidateId} has no OOS observation windows`);
+  }
   const observations: OosObservationTrace[] = [];
-  for (const windowResult of experiment.walkForwardResult.windows) {
+  for (const windowResult of windows) {
     const first = windowResult.window.testPoints[0]?.timestamp;
     const last = windowResult.window.testPoints.at(-1)?.timestamp;
     if (first == null || last == null || !Number.isFinite(first) || !Number.isFinite(last) || first > last) {
