@@ -1,0 +1,49 @@
+name: Autopilot Cloudflare Runtime Proof
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/autopilot-cloudflare-runtime-proof.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/autopilot/**'
+      - '.github/workflows/autopilot-cloudflare-runtime-proof.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe deployed Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://nusa.desporin12.workers.dev'
+          health="$(curl --fail --silent --show-error --retry 3 --retry-all-errors --max-time 20 "$base/health")"
+          scheduled="$(curl --fail --silent --show-error --retry 3 --retry-all-errors --max-time 20 "$base/scheduled/status")"
+          echo "HEALTH=$health"
+          echo "SCHEDULED=$scheduled"
+          HEALTH="$health" SCHEDULED="$scheduled" python - <<'PY'
+          import json, os
+          health = json.loads(os.environ['HEALTH'])
+          scheduled = json.loads(os.environ['SCHEDULED'])
+          for name, payload in [('health', health), ('scheduled', scheduled)]:
+              assert payload.get('liveAuthority') == 'NONE', (name, payload)
+              assert payload.get('productionMutationAllowed') is False, (name, payload)
+              assert payload.get('aiAuthority') == 'ZERO_AUTHORITY', (name, payload)
+          assert health.get('deploymentRevision'), health
+          assert scheduled.get('deploymentRevision'), scheduled
+          assert scheduled.get('status') in {'AWAITING_FIRST_SCHEDULED_EVENT', 'OBSERVED'}, scheduled
+          if scheduled.get('status') == 'OBSERVED':
+              receipt = scheduled.get('receipt') or {}
+              assert receipt.get('liveAuthority') == 'NONE', receipt
+              assert receipt.get('productionMutationAllowed') is False, receipt
+              assert receipt.get('aiAuthority') == 'ZERO_AUTHORITY', receipt
+              assert receipt.get('observedAt'), receipt
+          print('RUNTIME_PROOF_OK')
+          PY
