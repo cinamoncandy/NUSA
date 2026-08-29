@@ -156,6 +156,10 @@ test("bridges a real research run through benchmark scorecard, League ranking, a
   ], { generatedAt: "2026-08-26T06:00:00.000Z" });
 
   assert.equal(result.evidenceMode, "RESEARCH_TIER_ONLY");
+  assert.equal(result.evidenceReport.length, 2);
+  assert.ok(result.evidenceReport.every((report) => report.summary.includes("Candidate")));
+  assert.ok(result.evidenceReport.every((report) => report.missingEvidence.includes("PBO_EVIDENCE_MISSING")));
+  assert.equal(result.evidenceReport[0].costSensitivity.status, "AVAILABLE");
   // The League ranking is genuinely produced -- the pipeline is no longer dead code.
   assert.equal(result.standing.entries.length, 2);
   assert.ok(result.standing.entries.every((entry) => entry.leagueScore != null || !entry.eligible));
