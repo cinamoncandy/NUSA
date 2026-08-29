@@ -5,6 +5,9 @@ import { validateResearchCostEvidence, type ResearchCostEvidence } from "./resea
 function validEvidence(overrides: Partial<ResearchCostEvidence> = {}): ResearchCostEvidence {
   return {
     schemaVersion: 1,
+    evaluationId: "evaluation-1",
+    datasetId: "dataset-1",
+    datasetContentSha256: "a".repeat(64),
     feeRate: 0.001,
     spreadRate: 0.0005,
     slippageRate: 0.0005,
@@ -22,6 +25,13 @@ test("explicit research cost evidence verifies only after cost reconciliation", 
   assert.equal(result.status, "VERIFIED");
   assert.deepEqual(result.reasons, []);
   assert.match(result.evidenceHash, /^[a-f0-9]{64}$/);
+});
+
+test("missing cost provenance identity fails closed", () => {
+  const result = validateResearchCostEvidence(validEvidence({ evaluationId: "", datasetContentSha256: "not-a-sha" }), 10);
+  assert.equal(result.status, "REJECTED");
+  assert.ok(result.reasons.includes("MISSING_COST_EVALUATION_ID"));
+  assert.ok(result.reasons.includes("INVALID_COST_DATASET_HASH"));
 });
 
 test("missing fee/spread/slippage/turnover evidence fails closed", () => {
