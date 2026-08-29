@@ -28,15 +28,35 @@ export interface OpportunityCandidate {
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 
 const finite = (value: number | null): value is number => value !== null && Number.isFinite(value);
+const validConfidence = (value: unknown): value is EvidenceConfidence =>
+  value === "VERIFIED" || value === "INSUFFICIENT" || value === "UNKNOWN";
+const validText = (value: unknown, max: number): value is string =>
+  typeof value === "string" && value.trim().length > 0 && value.trim().length <= max;
+
+function invalidEvidenceCandidate(evidence: OpportunityEvidence): OpportunityCandidate {
+  return freeze({
+    key: validText(evidence.key, 160) ? evidence.key.trim() : "unknown",
+    source: validText(evidence.source, 256) ? evidence.source.trim() : "unknown",
+    score: null,
+    confidence: "UNKNOWN",
+    reason: "invalid-evidence-input",
+    mutationAllowed: false,
+  });
+}
 
 export function planOpportunity(
   evidence: OpportunityEvidence,
   existingWork: readonly ExistingWorkIdentity[],
 ): OpportunityCandidate {
-  if (existingWork.some((work) => work.key === evidence.key)) {
+  if (!validText(evidence.key, 160) || !validText(evidence.source, 256) || !validConfidence(evidence.confidence)) {
+    return invalidEvidenceCandidate(evidence);
+  }
+  const key = evidence.key.trim();
+  const source = evidence.source.trim();
+  if (existingWork.some((work) => typeof work.key === "string" && work.key.trim() === key)) {
     return freeze({
-      key: evidence.key,
-      source: evidence.source,
+      key,
+      source,
       score: null,
       confidence: evidence.confidence,
       reason: "deduplicated-existing-canonical-work",
@@ -55,8 +75,8 @@ export function planOpportunity(
 
   if (evidence.confidence !== "VERIFIED" || !components.every(finite)) {
     return freeze({
-      key: evidence.key,
-      source: evidence.source,
+      key,
+      source,
       score: null,
       confidence: evidence.confidence,
       reason: "insufficient-evidence-for-ranking",
@@ -73,8 +93,8 @@ export function planOpportunity(
     evidence.uncertainty!;
 
   return freeze({
-    key: evidence.key,
-    source: evidence.source,
+    key,
+    source,
     score,
     confidence: "VERIFIED",
     reason: "evidence-backed-advisory-ranking",

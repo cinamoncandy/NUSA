@@ -22,6 +22,12 @@ describe("opportunityPlanner", () => {
     assert.equal(result.mutationAllowed, false);
   });
 
+  it("normalizes identity before canonical deduplication", () => {
+    const result = planOpportunity(verified("  issue:903  ", 5), [{ key: "issue:903" }]);
+    assert.equal(result.reason, "deduplicated-existing-canonical-work");
+    assert.equal(result.key, "issue:903");
+    assert.equal(result.source, "github-evidence");
+  });
   it("does not promote UNKNOWN evidence into a ranked candidate", () => {
     const result = planOpportunity({ ...verified("ci:p95", 5), confidence: "UNKNOWN" }, []);
     assert.equal(result.score, null);
@@ -34,6 +40,17 @@ describe("opportunityPlanner", () => {
     assert.equal(result.reason, "insufficient-evidence-for-ranking");
   });
 
+  it("fails closed on malformed identity or confidence", () => {
+    const result = planOpportunity({
+      ...verified("", 5),
+      source: "",
+      confidence: "NOT_A_STATUS" as never,
+    }, []);
+    assert.equal(result.score, null);
+    assert.equal(result.confidence, "UNKNOWN");
+    assert.equal(result.reason, "invalid-evidence-input");
+    assert.equal(result.mutationAllowed, false);
+  });
   it("ranks only evidence-backed advisory candidates deterministically", () => {
     const low = planOpportunity(verified("candidate:b", 3), []);
     const high = planOpportunity(verified("candidate:a", 8), []);
