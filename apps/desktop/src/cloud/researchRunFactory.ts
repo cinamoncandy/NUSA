@@ -75,6 +75,7 @@ function validateParameters(
       "candidate " + candidateId + " parameters must be a scalar record",
     );
   }
+  const names = new Set<string>();
   for (const [name, value] of Object.entries(parameters)) {
     const normalizedName = name.trim();
     if (!normalizedName || FORBIDDEN_PARAMETER_NAME.test(normalizedName)) {
@@ -83,6 +84,13 @@ function validateParameters(
         "candidate " + candidateId + " parameters cannot contain credential-like fields",
       );
     }
+    if (names.has(normalizedName)) {
+      throw new ResearchRunFactoryError(
+        "INVALID_PARAMETERS",
+        "candidate " + candidateId + " parameters contain duplicate names",
+      );
+    }
+    names.add(normalizedName);
     if (!["string", "number", "boolean"].includes(typeof value)) {
       throw new ResearchRunFactoryError(
         "INVALID_PARAMETERS",
@@ -160,8 +168,11 @@ export function buildResearchRunProvenancePlan(input: {
   if (!SHA40.test(input.sourceCommitSha)) {
     throw new ResearchRunFactoryError("INVALID_SOURCE_COMMIT_SHA", "research run source commit SHA is invalid");
   }
-  if (input.candidates.length === 0) {
+  if (!Array.isArray(input.candidates) || input.candidates.length === 0) {
     throw new ResearchRunFactoryError("EMPTY_CANDIDATE_PLAN", "research run requires at least one candidate");
+  }
+  if (input.hypothesis == null || typeof input.hypothesis !== "object") {
+    throw new ResearchRunFactoryError("INVALID_HYPOTHESIS", "research run requires a validated hypothesis");
   }
 
   const hypothesisDecision = validateResearchHypothesisBinding(input.hypothesis, {
@@ -181,9 +192,12 @@ export function buildResearchRunProvenancePlan(input: {
 
   const ids = new Set<string>();
   const candidates = input.candidates.map((seed) => {
-    const candidateId = seed.candidateId.trim();
-    const familyId = seed.familyId.trim();
-    const lineageId = seed.lineageId.trim();
+    if (seed == null || typeof seed !== "object") {
+      throw new ResearchRunFactoryError("INVALID_CANDIDATE_IDENTITY", "candidate seed is required");
+    }
+    const candidateId = typeof seed.candidateId === "string" ? seed.candidateId.trim() : "";
+    const familyId = typeof seed.familyId === "string" ? seed.familyId.trim() : "";
+    const lineageId = typeof seed.lineageId === "string" ? seed.lineageId.trim() : "";
     if (!nonEmpty(candidateId) || !nonEmpty(familyId) || !nonEmpty(lineageId)) {
       throw new ResearchRunFactoryError(
         "INVALID_CANDIDATE_IDENTITY",
