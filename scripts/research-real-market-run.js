@@ -16,6 +16,7 @@ const { runParameterRobustnessRequest } = require("./lib/parameter-robustness-ru
 const { verifyParameterRobustnessResult } = require("./lib/parameter-robustness-verifier.js");
 const { buildResearchRunRobustnessEvidence } = require("../dist/apps/desktop/src/cloud/researchRunRobustnessEvidence.js");
 const { buildResearchHypothesis } = require("../dist/apps/desktop/src/cloud/researchHypothesis.js");
+const { buildResearchRunTimeline } = require("../dist/apps/desktop/src/cloud/researchRunTimeline.js");
 
 const STRATEGY_FAMILY_ID = "sma-crossover";
 const MARKET = "KRW-BTC";
@@ -140,14 +141,9 @@ function requiredResearchCostModelVersion() {
   return value.trim();
 }
 
-function nextWallClockTimestamp(previousMs) {
-  const currentMs = Date.now();
-  return Math.max(currentMs, previousMs + 1);
-}
-
-function runProvenanceBoundExperiment({ id, shortPeriod, longPeriod, candles, manifest, sourceCommitSha, costModelVersion }) {
-  const specificationGeneratedAtMs = Date.now();
-  const evaluationStartedAtMs = nextWallClockTimestamp(specificationGeneratedAtMs);
+function runProvenanceBoundExperiment({ id, shortPeriod, longPeriod, candles, manifest, sourceCommitSha, costModelVersion, timeline }) {
+  const specificationGeneratedAtMs = Date.parse(timeline.specificationGeneratedAt);
+  const evaluationStartedAtMs = Date.parse(timeline.evaluationStartedAt);
   const rawExperiment = runWalkForwardExperiment(
     { candles, manifest },
     [{
@@ -158,7 +154,7 @@ function runProvenanceBoundExperiment({ id, shortPeriod, longPeriod, candles, ma
     WALK_FORWARD_CONFIG,
     { generatedAt: new Date(evaluationStartedAtMs).toISOString() }
   );
-  const evaluationEndedAtMs = nextWallClockTimestamp(evaluationStartedAtMs);
+  const evaluationEndedAtMs = Date.parse(timeline.evaluationEndedAt);
   const experiment = Object.freeze({
     ...rawExperiment,
     generatedAt: new Date(evaluationEndedAtMs).toISOString()
@@ -173,9 +169,9 @@ function runProvenanceBoundExperiment({ id, shortPeriod, longPeriod, candles, ma
     datasetId: manifest.datasetId,
     datasetContentSha256: manifest.contentSha256,
     costModelVersion,
-    generatedAt: new Date(specificationGeneratedAtMs).toISOString(),
-    evaluationStartedAt: new Date(evaluationStartedAtMs).toISOString(),
-    evaluationEndedAt: new Date(evaluationEndedAtMs).toISOString()
+    generatedAt: timeline.specificationGeneratedAt,
+    evaluationStartedAt: timeline.evaluationStartedAt,
+    evaluationEndedAt: timeline.evaluationEndedAt
   });
   return { experiment, candidateSpecification };
 }
@@ -190,6 +186,7 @@ async function fetchDayCandlePage(path) {
 
 async function main() {
   const dataAsOf = Date.now();
+  const timeline = buildResearchRunTimeline(dataAsOf);
   const primaryRaw = await fetchDayCandlePage(REQUEST_PATH);
   const sourceRequests = [`GET ${REQUEST_PATH}`];
   let allRaw = primaryRaw;
@@ -229,7 +226,7 @@ async function main() {
     thesis: "A short/long SMA crossover may identify a reproducible directional edge after explicit execution costs.",
     sourceDatasetId: manifest.datasetId,
     sourceObservationAsOf: manifest.endCloseTime,
-    generatedAt: new Date(dataAsOf).toISOString()
+    generatedAt: timeline.hypothesisGeneratedAt
   });
 
   const candidates = SMA_PARAMETER_NEIGHBORHOOD.map(({ shortPeriod, longPeriod }) => ({
@@ -287,7 +284,7 @@ async function main() {
     costStress: costStressEvidence
   });
 
-  const generatedAt = new Date().toISOString();
+  const generatedAt = timeline.generatedAt;
   const result = runWalkForwardExperiment(
     { candles, manifest },
     candidates,
@@ -304,7 +301,8 @@ async function main() {
       candles,
       manifest,
       sourceCommitSha,
-      costModelVersion
+      costModelVersion,
+      timeline
     });
     const regimeAwareEvaluation = buildResearchRunRegimeEvaluation(
       experiment,
@@ -425,4 +423,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { buildParameterRobustnessRequest };
+module.exports = { buildParameterRobustnessRequest, buildResearchRunTimeline };
