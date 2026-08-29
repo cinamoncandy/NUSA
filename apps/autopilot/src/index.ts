@@ -4,6 +4,7 @@ import { executeGithubDispatch } from "./githubExecutor";
 import { executeCodingRunner, validateCodingRunnerRequest } from "./codingRunner";
 import { prepareProductionExecution } from "./productionExecutionSpine";
 import { acquirePersistentExecution, markPersistentExecutionDispatched, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { runScheduledAutopilot } from "./scheduledRuntime";
 
 export { ExecutionCoordinator } from "./executionCoordinator";
 
@@ -133,5 +134,11 @@ export default {
       productionMutationAllowed: false,
       aiAuthority: "ZERO_AUTHORITY",
     }, 202);
+  },
+
+  async scheduled(controller: { scheduledTime?: number }, env: Env): Promise<void> {
+    const scheduledTime = Number.isFinite(controller?.scheduledTime) ? Number(controller.scheduledTime) : Date.now();
+    const outcome = await runScheduledAutopilot(env, scheduledTime);
+    console.log(JSON.stringify({ event: "NUSA_SCHEDULED_AUTOPILOT", ...outcome }));
   },
 };
