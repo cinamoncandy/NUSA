@@ -23,6 +23,27 @@ const nonNegative = (value: unknown): value is number => finite(value) && value 
 const validTimestamp = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 const validVersion = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
 
+function canonicalHashNumber(value: unknown): number | string | null {
+  if (typeof value !== "number") return null;
+  if (Number.isFinite(value)) return value;
+  if (Number.isNaN(value)) return "NaN";
+  return value === Number.POSITIVE_INFINITY ? "Infinity" : "-Infinity";
+}
+
+function costEvidenceHash(evidence: ResearchCostEvidence): string {
+  return researchHardeningHash({
+    schemaVersion: canonicalHashNumber(evidence.schemaVersion),
+    feeRate: canonicalHashNumber(evidence.feeRate),
+    spreadRate: canonicalHashNumber(evidence.spreadRate),
+    slippageRate: canonicalHashNumber(evidence.slippageRate),
+    turnoverRate: canonicalHashNumber(evidence.turnoverRate),
+    grossReturn: canonicalHashNumber(evidence.grossReturn),
+    netReturn: canonicalHashNumber(evidence.netReturn),
+    costModelVersion: typeof evidence.costModelVersion === "string" ? evidence.costModelVersion : null,
+    observedAt: canonicalHashNumber(evidence.observedAt),
+  });
+}
+
 export function validateResearchCostEvidence(evidence: ResearchCostEvidence, evaluationTimestamp: number): ResearchCostEvidenceDecision {
   const reasons: string[] = [];
   if (evidence.schemaVersion !== 1) reasons.push("UNSUPPORTED_COST_EVIDENCE_SCHEMA");
@@ -49,6 +70,6 @@ export function validateResearchCostEvidence(evidence: ResearchCostEvidence, eva
   return Object.freeze({
     status: normalizedReasons.length === 0 ? "VERIFIED" : "REJECTED",
     reasons: normalizedReasons,
-    evidenceHash: researchHardeningHash(evidence),
+    evidenceHash: costEvidenceHash(evidence),
   });
 }
