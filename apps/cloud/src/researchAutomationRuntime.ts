@@ -6,7 +6,7 @@ import type { ResearchHealth, ResearchSessionMetrics, ResearchSessionRecord, Res
 import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
 import type { ResearchExperimentRecord, ResearchHypothesis, SqliteResearchMemoryRepository } from "../../../packages/storage/src/researchMemory";
 import type { ResearchRuntimeCoordinator } from "./researchRuntimeCoordinator";
-import { ResearchCandidateGate } from "./researchCandidateGate";
+import { deriveResearchCandidateId, ResearchCandidateGate } from "./researchCandidateGate";
 import { ResearchStreamNormalizer } from "./researchStreamNormalizer";
 import { createResearchExperimentManifest, createResearchExperimentResult, researchHardeningHash } from "../../../packages/contracts/src/researchHardening";
 
@@ -175,7 +175,7 @@ export class ResearchAutomationRuntime {
         ...(session.hypothesisId == null ? {} : { hypothesisId: session.hypothesisId })
       });
       if (evidence.result === "CHALLENGER_BETTER" && evidence.challenger != null) {
-        const decision = this.candidateGate.evaluate({ candidateId: `candidate-${hash({ sessionId: session.sessionId, strategyId: evidence.challenger.strategyId, strategyVersion: evidence.challenger.strategyVersion }).slice(0, 48)}`, evidence: this.options.coordinator.ledgerRecords().filter((item) => item.researchRunId === session.sessionId && item.challenger?.strategyId === evidence.challenger?.strategyId && item.challenger?.strategyVersion === evidence.challenger?.strategyVersion), ledgerIntegrity: true });
+        const decision = this.candidateGate.evaluate({ candidateId: deriveResearchCandidateId(session.sessionId, evidence.challenger.strategyId, evidence.challenger.strategyVersion), evidence: this.options.coordinator.ledgerRecords().filter((item) => item.researchRunId === session.sessionId && item.challenger?.strategyId === evidence.challenger?.strategyId && item.challenger?.strategyVersion === evidence.challenger?.strategyVersion), ledgerIntegrity: true });
         if (decision.status === "ELIGIBLE") this.registerCandidate(session, evidence);
       }
       const next: ResearchSessionRecord = freeze({ ...session, experimentCount: session.experimentCount + 1, evaluationIds: freeze([...session.evaluationIds, evidence.evaluationId]), lastEvaluationId: evidence.evaluationId, lastEvidenceAt: evidence.evaluationTimestamp, updatedAt: this.now(), metrics: metric(evidence, session.metrics), state: session.experimentCount + 1 >= session.maxExperiments ? "COMPLETED" : session.state });
