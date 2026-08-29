@@ -25,6 +25,10 @@ const SHA40 = /^[0-9a-f]{40}$/i;
 const SHA256 = /^[0-9a-f]{64}$/i;
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 
+function isParameterRecord(value: unknown): value is Readonly<Record<string, string | number | boolean>> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
 function canonicalParameters(parameters: Readonly<Record<string, string | number | boolean>>): Record<string, string | number | boolean> {
   return Object.fromEntries(Object.entries(parameters).sort(([left], [right]) => left.localeCompare(right)));
 }
@@ -50,8 +54,18 @@ function hashSpecification(specification: ResearchCandidateSpecification): strin
   return createHash("sha256").update(JSON.stringify(canonicalSpecification(specification)), "utf8").digest("hex");
 }
 
-function nonEmpty(value: string): boolean {
+function rejectionHash(reasons: readonly string[]): string {
+  return createHash("sha256")
+    .update(JSON.stringify({ invalidCandidateSpecification: true, reasons }), "utf8")
+    .digest("hex");
+}
+
+function nonEmpty(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function parseTimestamp(value: unknown): number {
+  return typeof value === "string" ? Date.parse(value) : Number.NaN;
 }
 
 export function validateResearchCandidateSpecification(
@@ -63,26 +77,31 @@ export function validateResearchCandidateSpecification(
   if (!nonEmpty(specification.candidateId)) reasons.push("MISSING_CANDIDATE_ID");
   if (!nonEmpty(specification.familyId)) reasons.push("MISSING_FAMILY_ID");
   if (!nonEmpty(specification.lineageId)) reasons.push("MISSING_LINEAGE_ID");
-  if (!SHA40.test(specification.codeSha)) reasons.push("INVALID_CODE_SHA");
+  if (!nonEmpty(specification.codeSha) || !SHA40.test(specification.codeSha)) reasons.push("INVALID_CODE_SHA");
   if (!nonEmpty(specification.datasetId)) reasons.push("MISSING_DATASET_ID");
-  if (!SHA256.test(specification.datasetContentSha256)) reasons.push("INVALID_DATASET_CONTENT_SHA256");
+  if (!nonEmpty(specification.datasetContentSha256) || !SHA256.test(specification.datasetContentSha256)) reasons.push("INVALID_DATASET_CONTENT_SHA256");
   if (!nonEmpty(specification.costModelVersion)) reasons.push("MISSING_COST_MODEL_VERSION");
   if (!Number.isFinite(nowMs) || nowMs < 0) reasons.push("INVALID_CURRENT_TIME");
 
-  for (const [name, value] of Object.entries(specification.parameters)) {
-    if (!name.trim()) reasons.push("INVALID_PARAMETER_NAME");
-    if (typeof value === "number" && !Number.isFinite(value)) reasons.push("NON_FINITE_PARAMETER_VALUE");
+  if (!isParameterRecord(specification.parameters)) {
+    reasons.push("INVALID_PARAMETERS");
+  } else {
+    for (const [name, value] of Object.entries(specification.parameters)) {
+      if (!name.trim()) reasons.push("INVALID_PARAMETER_NAME");
+      if (!["string", "number", "boolean"].includes(typeof value)) reasons.push("INVALID_PARAMETER_VALUE");
+      if (typeof value === "number" && !Number.isFinite(value)) reasons.push("NON_FINITE_PARAMETER_VALUE");
+    }
   }
 
-  const generatedAtMs = Date.parse(specification.generatedAt);
-  const evaluationStartedAtMs = Date.parse(specification.evaluationStartedAt);
-  const evaluationEndedAtMs = Date.parse(specification.evaluationEndedAt);
+  const generatedAtMs = parseTimestamp(specification.generatedAt);
+  const evaluationStartedAtMs = parseTimestamp(specification.evaluationStartedAt);
+  const evaluationEndedAtMs = parseTimestamp(specification.evaluationEndedAt);
   if (!Number.isFinite(generatedAtMs)) reasons.push("INVALID_GENERATED_AT");
   if (!Number.isFinite(evaluationStartedAtMs)) reasons.push("INVALID_EVALUATION_STARTED_AT");
   if (!Number.isFinite(evaluationEndedAtMs)) reasons.push("INVALID_EVALUATION_ENDED_AT");
 
-  if (Number.isFinite(generatedAtMs) && Number.isFinite(evaluationStartedAtMs) && generatedAtMs > evaluationStartedAtMs) {
-    reasons.push("SPECIFICATION_CREATED_AFTER_EVALUATION_START");
+  if (Number.isFinite(generatedAtMs) && Number.isFinite(evaluationStartedAtMs) && generatedAtMs >= evaluationStartedAtMs) {
+    reasons.push("SPECIFICATION_NOT_PRECOMMITTED");
   }
   if (Number.isFinite(evaluationStartedAtMs) && Number.isFinite(evaluationEndedAtMs) && evaluationStartedAtMs > evaluationEndedAtMs) {
     reasons.push("INVALID_EVALUATION_CHRONOLOGY");
@@ -98,7 +117,7 @@ export function validateResearchCandidateSpecification(
   try {
     specificationHash = hashSpecification(specification);
   } catch {
-    specificationHash = createHash("sha256").update(JSON.stringify({ invalidCandidateSpecification: true, reasons: normalizedReasons }), "utf8").digest("hex");
+    specificationHash = rejectionHash(normalizedReasons);
   }
   return freeze({
     status: normalizedReasons.length === 0 ? "VERIFIED" : "REJECTED",
