@@ -4,7 +4,9 @@ import { runScheduledAutopilot } from "./scheduledRuntime";
 import type { ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
 const SHA = "a".repeat(40);
+const FAILED_SHA = "b".repeat(40);
 const RUN_ID = 4242;
+const NOW = 1_787_968_000_000;
 
 function namespace(acquired: boolean): ExecutionCoordinatorNamespace {
   return {
@@ -73,6 +75,7 @@ test("scheduled runtime abstains when authenticated evidence is unavailable", as
   const outcome = await runScheduledAutopilot({}, Date.now(), githubFetch());
   assert.equal(outcome.status, "ABSTAINED");
   assert.equal(outcome.reason, "github-token-not-configured");
+  assert.deepEqual(outcome.discoveredOpportunityIds, []);
   assert.equal(outcome.liveAuthority, "NONE");
   assert.equal(outcome.productionMutationAllowed, false);
   assert.equal(outcome.aiAuthority, "ZERO_AUTHORITY");
@@ -83,19 +86,92 @@ test("scheduled runtime reuses exact-main canonical CI and existing dispatch spi
     NUSA_GITHUB_TOKEN: "token",
     NUSA_GITHUB_REPOSITORY: "cinamoncandy/NUSA",
     NUSA_EXECUTION_COORDINATOR: namespace(true),
-  }, 1_787_968_000_000, githubFetch());
+  }, NOW, githubFetch());
 
   assert.equal(outcome.status, "EXECUTION_DISPATCHED");
   assert.equal(outcome.headSha, SHA);
   assert.equal(outcome.workflowRunId, RUN_ID);
   assert.equal(outcome.executor?.status, "DISPATCHED");
+  assert.deepEqual(outcome.discoveredOpportunityIds, []);
+});
+
+test("scheduled runtime discovers fresh failed main workflow evidence without dispatching from it", async () => {
+  const fetchWithFailure = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url.endsWith("/branches/main")) {
+      return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (url.includes("/actions/runs?")) {
+      return new Response(JSON.stringify({ workflow_runs: [
+        {
+          id: RUN_ID,
+          name: "CI",
+          conclusion: "success",
+          head_branch: "main",
+          head_sha: SHA,
+          event: "push",
+        },
+        {
+          id: RUN_ID + 1,
+          name: "CI",
+          conclusion: "failure",
+          head_branch: "main",
+          head_sha: FAILED_SHA,
+          event: "push",
+          completed_at: new Date(NOW - 60_000).toISOString(),
+        },
+      ] }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (url.endsWith("/dispatches")) {
+      const body = JSON.parse(String(init?.body));
+      assert.equal(body.client_payload.head_sha, SHA);
+      assert.equal(body.client_payload.workflow_run_id, RUN_ID);
+      return new Response(null, { status: 204 });
+    }
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+
+  const outcome = await runScheduledAutopilot({
+    NUSA_GITHUB_TOKEN: "token",
+    NUSA_EXECUTION_COORDINATOR: namespace(true),
+  }, NOW, fetchWithFailure);
+
+  assert.equal(outcome.status, "EXECUTION_DISPATCHED");
+  assert.deepEqual(outcome.discoveredOpportunityIds, [`gha:ci:${FAILED_SHA}:failure`]);
+  assert.equal(outcome.liveAuthority, "NONE");
+  assert.equal(outcome.productionMutationAllowed, false);
+  assert.equal(outcome.aiAuthority, "ZERO_AUTHORITY");
+});
+
+test("scheduled runtime excludes stale failed workflow evidence", async () => {
+  const fetchWithStaleFailure = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith("/branches/main")) {
+      return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (url.includes("/actions/runs?")) {
+      return new Response(JSON.stringify({ workflow_runs: [
+        { id: RUN_ID, name: "CI", conclusion: "success", head_branch: "main", head_sha: SHA, event: "push" },
+        { id: RUN_ID + 1, name: "CI", conclusion: "failure", head_branch: "main", head_sha: FAILED_SHA, event: "push", completed_at: new Date(NOW - 25 * 60 * 60 * 1000).toISOString() },
+      ] }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (url.endsWith("/dispatches")) return new Response(null, { status: 204 });
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+
+  const outcome = await runScheduledAutopilot({
+    NUSA_GITHUB_TOKEN: "token",
+    NUSA_EXECUTION_COORDINATOR: namespace(true),
+  }, NOW, fetchWithStaleFailure);
+
+  assert.deepEqual(outcome.discoveredOpportunityIds, []);
 });
 
 test("scheduled runtime cannot bypass persistent dedupe", async () => {
   const outcome = await runScheduledAutopilot({
     NUSA_GITHUB_TOKEN: "token",
     NUSA_EXECUTION_COORDINATOR: namespace(false),
-  }, 1_787_968_000_000, githubFetch());
+  }, NOW, githubFetch());
 
   assert.equal(outcome.status, "DUPLICATE_EXECUTION_SUPPRESSED");
   assert.equal(outcome.reason, "ALREADY_DISPATCHED");
@@ -108,7 +184,7 @@ test("scheduled runtime fails closed when latest main lacks exact canonical CI e
       return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200, headers: { "content-type": "application/json" } });
     }
     if (url.includes("/actions/runs?")) {
-      return new Response(JSON.stringify({ workflow_runs: [{ id: RUN_ID, name: "CI", conclusion: "success", head_branch: "main", head_sha: "b".repeat(40), event: "push" }] }), { status: 200, headers: { "content-type": "application/json" } });
+      return new Response(JSON.stringify({ workflow_runs: [{ id: RUN_ID, name: "CI", conclusion: "success", head_branch: "main", head_sha: FAILED_SHA, event: "push" }] }), { status: 200, headers: { "content-type": "application/json" } });
     }
     return new Response("not found", { status: 404 });
   }) as typeof fetch;
@@ -116,7 +192,7 @@ test("scheduled runtime fails closed when latest main lacks exact canonical CI e
   const outcome = await runScheduledAutopilot({
     NUSA_GITHUB_TOKEN: "token",
     NUSA_EXECUTION_COORDINATOR: namespace(true),
-  }, 1_787_968_000_000, fetchWithoutExactCi);
+  }, NOW, fetchWithoutExactCi);
 
   assert.equal(outcome.status, "ABSTAINED");
   assert.equal(outcome.reason, "exact-main-canonical-ci-not-found");
