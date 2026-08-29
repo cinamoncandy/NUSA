@@ -95,6 +95,7 @@
   },
   "dependencies": {
     "@cloudflare/sandbox": "0.13.0-next.751.1",
+    "image-size": "1.2.1",
     "ws": "8.21.0"
   },
   "build": {
