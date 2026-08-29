@@ -238,6 +238,37 @@ describe("evaluateLeague", () => {
     assert.equal(standing.coverage.candidateCount, 2);
   });
 
+  it("exposes explicit research outcomes without changing ranking semantics", () => {
+    const qualified = evaluateLeague([fullCandidate("qualified")]).entries[0]!;
+    assert.equal(qualified.outcome, "QUALIFIED_FOR_LEAGUE");
+    assert.equal(qualified.eligible, true);
+    assert.equal(qualified.rank, 1);
+
+    const insufficient = evaluateLeague([fullCandidate("insufficient", {
+      benchmark: benchmark({
+        id: "insufficient",
+        eligible: false,
+        reasons: ["MINIMUM_OOS_POINTS_NOT_MET"],
+        researchScore: undefined,
+      }),
+    })]).entries[0]!;
+    assert.equal(insufficient.outcome, "INSUFFICIENT");
+    assert.equal(insufficient.eligible, false);
+    assert.equal(insufficient.rank, undefined);
+
+    const rejected = evaluateLeague([fullCandidate("rejected", {
+      benchmark: benchmark({
+        id: "rejected",
+        eligible: false,
+        reasons: ["MAXIMUM_DRAWDOWN_EXCEEDED"],
+        researchScore: undefined,
+      }),
+    })]).entries[0]!;
+    assert.equal(rejected.outcome, "REJECTED");
+    assert.equal(rejected.eligible, false);
+    assert.equal(rejected.rank, undefined);
+  });
+
   it("considers the trial ledger's failed/rejected attempts as a scored component, not hidden evidence", () => {
     const cleanRecord = fullCandidate("candidate-clean", { trialLedgerSummary: trialLedgerSummary({ failedCount: 0, rejectedCount: 0, completedCount: 10, trialCount: 10 }) });
     const messyRecord = fullCandidate("candidate-messy", { benchmark: benchmark({ id: "candidate-messy" }), trialLedgerSummary: trialLedgerSummary({ failedCount: 8, rejectedCount: 1, completedCount: 1, trialCount: 10 }) });
