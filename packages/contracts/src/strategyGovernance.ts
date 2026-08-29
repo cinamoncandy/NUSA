@@ -28,7 +28,13 @@ export interface StrategyGovernanceDecision {
 }
 export interface RegisteredStrategy { readonly identity: StrategyIdentity; readonly lifecycle: StrategyLifecycle; }
 export type StrategyGovernanceEventType = "STRATEGY_REGISTERED" | "VALIDATION_RECORDED" | "PAPER_STARTED" | "PAPER_COMPLETED" | "PROMOTION_REQUESTED" | "PROMOTION_REJECTED" | "CHALLENGER_APPROVED" | "CHAMPION_PROMOTED" | "STRATEGY_SUSPENDED" | "STRATEGY_ROLLED_BACK" | "STRATEGY_RETIRED";
+export interface StrategyGovernanceApproval {
+  readonly actorType: "HUMAN";
+  readonly approvalReference: string;
+  readonly decisionFingerprint: string;
+  readonly approvedAt: number;
+}
 export interface StrategyGovernanceEvent {
   readonly type: StrategyGovernanceEventType; readonly strategyId: string; readonly version: string; readonly lifecycle: StrategyLifecycle;
-  readonly family: string; readonly occurredAt: number; readonly reason: string;
+  readonly family: string; readonly occurredAt: number; readonly reason: string; readonly approval?: StrategyGovernanceApproval;
 }
