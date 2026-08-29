@@ -11,9 +11,7 @@ import {
   type ExecutionCoordinatorNamespace,
 } from "./executionCoordinator";
 import { runScheduledAutopilot } from "./scheduledRuntime";
-import type { CloudflareSandboxNamespace } from "./cloudflareSandboxBackend";
 
-export { Sandbox } from "@cloudflare/sandbox";
 export { ExecutionCoordinator } from "./executionCoordinator";
 
 export interface Env {
@@ -25,7 +23,7 @@ export interface Env {
   NUSA_AI_CODING_TOKEN?: string;
   NUSA_DEPLOYMENT_REVISION?: string;
   NUSA_EXECUTION_COORDINATOR?: ExecutionCoordinatorNamespace;
-  Sandbox?: CloudflareSandboxNamespace;
+  Sandbox?: unknown;
 }
 
 const DEFAULT_REPOSITORY = "cinamoncandy/NUSA";
@@ -63,14 +61,7 @@ export default {
       if (!env.NUSA_EXECUTION_COORDINATOR) return json({ status: "UNAVAILABLE", reason: "PERSISTENT_EXECUTION_COORDINATOR_REQUIRED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 503);
       try {
         const receipt = await readScheduledRuntimeReceipt(env.NUSA_EXECUTION_COORDINATOR);
-        return json({
-          status: receipt ? "OBSERVED" : "AWAITING_FIRST_SCHEDULED_EVENT",
-          deploymentRevision: env.NUSA_DEPLOYMENT_REVISION?.trim() || "UNVERIFIED",
-          receipt,
-          liveAuthority: "NONE",
-          productionMutationAllowed: false,
-          aiAuthority: "ZERO_AUTHORITY",
-        });
+        return json({ status: receipt ? "OBSERVED" : "AWAITING_FIRST_SCHEDULED_EVENT", deploymentRevision: env.NUSA_DEPLOYMENT_REVISION?.trim() || "UNVERIFIED", receipt, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
       } catch {
         return json({ status: "UNAVAILABLE", reason: "SCHEDULED_RUNTIME_RECEIPT_READ_FAILED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 503);
       }
@@ -106,23 +97,13 @@ export default {
     let execution = planned;
     let boundedExecution = null;
     try {
-      boundedExecution = prepareProductionExecution(dispatch, {
-        deliveryId,
-        origin: "AUTO_BACKGROUND",
-        now: Date.now(),
-        allowedRepository,
-      });
+      boundedExecution = prepareProductionExecution(dispatch, { deliveryId, origin: "AUTO_BACKGROUND", now: Date.now(), allowedRepository });
       if (dispatch.kind === "CI_SUCCEEDED") {
         if (!boundedExecution) throw new Error("PRODUCTION_EXECUTION_BOUNDARY_REQUIRED");
         if (!env.NUSA_EXECUTION_COORDINATOR) throw new Error("PERSISTENT_EXECUTION_COORDINATOR_REQUIRED");
         const lease = boundedExecution.state.lease;
         if (!lease) throw new Error("PERSISTENT_EXECUTION_LEASE_REQUIRED");
-        const persistent = await acquirePersistentExecution(env.NUSA_EXECUTION_COORDINATOR, {
-          dedupeKey: boundedExecution.envelope.dedupeKey,
-          executionId: boundedExecution.envelope.executionId,
-          now: Date.now(),
-          leaseExpiresAt: lease.expiresAt,
-        });
+        const persistent = await acquirePersistentExecution(env.NUSA_EXECUTION_COORDINATOR, { dedupeKey: boundedExecution.envelope.dedupeKey, executionId: boundedExecution.envelope.executionId, now: Date.now(), leaseExpiresAt: lease.expiresAt });
         if (!persistent.acquired) return json({ accepted: true, status: "DUPLICATE_EXECUTION_SUPPRESSED", reason: persistent.reason, deliveryId, event, dispatch, executionBoundary: { dedupeKey: boundedExecution.envelope.dedupeKey, origin: boundedExecution.envelope.origin }, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 202);
         execution = boundedExecution.request;
       }
@@ -131,56 +112,17 @@ export default {
     }
 
     const executor = await executeGithubDispatch(execution, { token: env.NUSA_GITHUB_TOKEN, allowedRepository });
-    if (boundedExecution && executor.status === "DISPATCHED" && env.NUSA_EXECUTION_COORDINATOR) {
-      await markPersistentExecutionDispatched(env.NUSA_EXECUTION_COORDINATOR, {
-        dedupeKey: boundedExecution.envelope.dedupeKey,
-        executionId: boundedExecution.envelope.executionId,
-        now: Date.now(),
-      });
-    }
-    return json({
-      accepted: true,
-      status: execution.kind === "NOOP" ? "NO_ACTION" : executor.status === "DISPATCHED" ? "EXECUTION_DISPATCHED" : "EXECUTION_REQUEST_PLANNED",
-      deliveryId,
-      event,
-      dispatch,
-      execution,
-      executionBoundary: boundedExecution ? {
-        cycleId: boundedExecution.envelope.cycleId,
-        workItemId: boundedExecution.envelope.workItemId,
-        executionId: boundedExecution.envelope.executionId,
-        dedupeKey: boundedExecution.envelope.dedupeKey,
-        origin: boundedExecution.envelope.origin,
-        state: boundedExecution.state.status,
-        leaseExpiresAt: boundedExecution.state.lease?.expiresAt ?? null,
-        evidenceRefs: boundedExecution.envelope.evidenceRefs,
-      } : null,
-      executor,
-      liveAuthority: "NONE",
-      productionMutationAllowed: false,
-      aiAuthority: "ZERO_AUTHORITY",
-    }, 202);
+    if (boundedExecution && executor.status === "DISPATCHED" && env.NUSA_EXECUTION_COORDINATOR) await markPersistentExecutionDispatched(env.NUSA_EXECUTION_COORDINATOR, { dedupeKey: boundedExecution.envelope.dedupeKey, executionId: boundedExecution.envelope.executionId, now: Date.now() });
+    return json({ accepted: true, status: execution.kind === "NOOP" ? "NO_ACTION" : executor.status === "DISPATCHED" ? "EXECUTION_DISPATCHED" : "EXECUTION_REQUEST_PLANNED", deliveryId, event, dispatch, execution, executionBoundary: boundedExecution ? { cycleId: boundedExecution.envelope.cycleId, workItemId: boundedExecution.envelope.workItemId, executionId: boundedExecution.envelope.executionId, dedupeKey: boundedExecution.envelope.dedupeKey, origin: boundedExecution.envelope.origin, state: boundedExecution.state.status, leaseExpiresAt: boundedExecution.state.lease?.expiresAt ?? null, evidenceRefs: boundedExecution.envelope.evidenceRefs } : null, executor, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 202);
   },
 
   async scheduled(controller: { scheduledTime?: number }, env: Env): Promise<void> {
-    const scheduledTime = Number.isSafeInteger(controller?.scheduledTime) && Number(controller?.scheduledTime) >= 0
-      ? Number(controller.scheduledTime)
-      : Date.now();
+    const scheduledTime = Number.isSafeInteger(controller?.scheduledTime) && Number(controller?.scheduledTime) >= 0 ? Number(controller.scheduledTime) : Date.now();
     const outcome = await runScheduledAutopilot(env, scheduledTime);
     if (env.NUSA_EXECUTION_COORDINATOR) {
       const observedAt = Math.max(Date.now(), scheduledTime);
       try {
-        await recordScheduledRuntimeReceipt(env.NUSA_EXECUTION_COORDINATOR, {
-          scheduledTime,
-          observedAt,
-          status: outcome.status,
-          reason: outcome.reason,
-          headSha: outcome.headSha,
-          workflowRunId: outcome.workflowRunId,
-          liveAuthority: "NONE",
-          productionMutationAllowed: false,
-          aiAuthority: "ZERO_AUTHORITY",
-        });
+        await recordScheduledRuntimeReceipt(env.NUSA_EXECUTION_COORDINATOR, { scheduledTime, observedAt, status: outcome.status, reason: outcome.reason, headSha: outcome.headSha, workflowRunId: outcome.workflowRunId, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
       } catch (error) {
         console.error(JSON.stringify({ event: "NUSA_SCHEDULED_RECEIPT_FAILED", reason: error instanceof Error ? error.message : "UNKNOWN" }));
       }
