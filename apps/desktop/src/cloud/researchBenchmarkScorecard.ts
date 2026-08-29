@@ -1,4 +1,4 @@
-import type { ResearchExperimentResult } from "./researchDataset";
+import { requireResearchExecutionCostEvidence, type ResearchExperimentResult } from "./researchDataset";
 
 export interface ResearchBenchmarkPolicy {
   readonly minimumWindows?: number;
@@ -88,7 +88,19 @@ function normalizePolicy(policy: ResearchBenchmarkPolicy): Required<ResearchBenc
   return freeze(normalized);
 }
 
+function validateExecutionCostEvidence(experiment: ResearchExperimentResult): void {
+  const costs = experiment.experimentConfig?.executionCosts;
+  requireResearchExecutionCostEvidence({
+    feeRate: costs?.feeRate,
+    executionCosts: {
+      spreadBps: costs?.spreadBps,
+      slippageBps: costs?.slippageBps,
+    },
+  });
+}
+
 function scoreSlice(slice: ResearchBenchmarkSlice, policy: Required<ResearchBenchmarkPolicy>): ResearchBenchmarkSliceScore {
+  validateExecutionCostEvidence(slice.experiment);
   if (!slice.id.trim()) throw new Error("benchmark slice id is required");
   const manifest = slice.experiment.manifest;
   const oos = slice.experiment.walkForwardResult.combinedOutOfSampleMetrics;
