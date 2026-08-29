@@ -86,7 +86,6 @@
     "electron": "41.10.3",
     "electron-builder": "26.15.3",
     "eslint": "9.39.1",
-    "image-size": "1.2.1",
     "jsdom": "26.0.0",
     "storybook": "8.6.17",
     "typescript": "5.9.3",
