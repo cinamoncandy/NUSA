@@ -24,6 +24,12 @@ describe("research run OOS observation provenance", () => {
     assert.throws(() => extractResearchRunOosObservations("candidate-b", runResearchFixture()), (error) => error instanceof ResearchRunOosObservationError && error.code === "CANDIDATE_EXPERIMENT_IDENTITY_MISMATCH");
   });
 
+  it("reports an absent OOS window as missing evidence", () => {
+    const fixture = runResearchFixture();
+    fixture.walkForwardResult.windows = [];
+    assert.throws(() => extractResearchRunOosObservations("candidate-a", fixture), (error) => error instanceof ResearchRunOosObservationError && error.code === "MISSING_OOS_OBSERVATION_SOURCE");
+  });
+
   it("rejects an OOS decision whose market differs from the dataset", () => {
     const fixture = runResearchFixture();
     fixture.walkForwardResult.windows[0].testResult.decisions[0].market = "KRW-ETH";

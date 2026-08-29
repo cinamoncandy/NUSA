@@ -71,12 +71,26 @@ export function extractResearchRunOosObservations(
 ): readonly OosObservationTrace[] {
   if (!candidateId.trim()) throw new ResearchRunOosObservationError("INVALID_CANDIDATE_ID", "candidate id is required");
   const configured = experiment.experimentConfig.candidates;
+  if (configured.length === 0) {
+    throw new ResearchRunOosObservationError("MISSING_OOS_OBSERVATION_SOURCE", `candidate ${candidateId} has no candidate-specific OOS observation source`);
+  }
   if (configured.length !== 1 || configured[0]?.id !== candidateId) {
     throw new ResearchRunOosObservationError("CANDIDATE_EXPERIMENT_IDENTITY_MISMATCH", `candidate ${candidateId} must own a single-candidate experiment`);
   }
   const dataset = experiment.manifest;
+  const windows = experiment.walkForwardResult.windows;
+  const hasObservationWindow = windows.some((windowResult) => (
+    (Array.isArray(windowResult.window?.testPoints) && windowResult.window.testPoints.length > 0) ||
+    (Array.isArray(windowResult.testResult?.decisions) && windowResult.testResult.decisions.length > 0)
+  ));
+  if (!hasObservationWindow) {
+    throw new ResearchRunOosObservationError("MISSING_OOS_OBSERVATION_SOURCE", `candidate ${candidateId} has no OOS observation windows`);
+  }
   const observations: OosObservationTrace[] = [];
-  for (const windowResult of experiment.walkForwardResult.windows) {
+  for (const windowResult of windows) {
+    if (!Array.isArray(windowResult.window?.testPoints) || !Array.isArray(windowResult.testResult?.decisions)) {
+      throw new ResearchRunOosObservationError("INVALID_OOS_WINDOW", `candidate ${candidateId} contains an incomplete OOS window`);
+    }
     const first = windowResult.window.testPoints[0]?.timestamp;
     const last = windowResult.window.testPoints.at(-1)?.timestamp;
     if (first == null || last == null || !Number.isFinite(first) || !Number.isFinite(last) || first > last) {
@@ -95,7 +109,14 @@ export function extractResearchRunOosObservations(
         finite(decision.executionPrice, "INVALID_EXECUTION_PRICE", "execution price must be finite");
         if (decision.executionPrice <= 0) throw new ResearchRunOosObservationError("INVALID_EXECUTION_PRICE", "execution price must be positive");
       }
-      observations.push(freeze({ candidateId, datasetId: dataset.datasetId, windowId: windowResult.window.index, decisionTimestamp: decision.timestamp, market: decision.market, observedPrice: decision.price, signal: freeze({ ...decision.signal }), outcome: decision.outcome, ...(decision.executionPrice == null ? {} : { executionPrice: decision.executionPrice }), ...(decision.rejectionReason == null ? {} : { rejectionReason: decision.rejectionReason }) }));
+      const signal: BacktestDecision["signal"] = Object.freeze({
+        type: decision.signal.type,
+        reason: decision.signal.reason,
+        confidence: decision.signal.confidence,
+        timestamp: decision.signal.timestamp,
+        ...(decision.signal.regime == null ? {} : { regime: decision.signal.regime }),
+      });
+      observations.push(freeze({ candidateId, datasetId: dataset.datasetId, windowId: windowResult.window.index, decisionTimestamp: decision.timestamp, market: decision.market, observedPrice: decision.price, signal, outcome: decision.outcome, ...(decision.executionPrice == null ? {} : { executionPrice: decision.executionPrice }), ...(decision.rejectionReason == null ? {} : { rejectionReason: decision.rejectionReason }) }));
       previous = decision.timestamp;
     }
   }
