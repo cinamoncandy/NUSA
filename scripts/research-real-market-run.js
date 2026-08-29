@@ -14,6 +14,7 @@ const { runExecutionCostStress } = require("../dist/apps/desktop/src/strategy/ex
 const { projectExecutionCostStress } = require("./lib/research-cost-stress-projection.js");
 const { runParameterRobustnessRequest } = require("./lib/parameter-robustness-runner.js");
 const { verifyParameterRobustnessResult } = require("./lib/parameter-robustness-verifier.js");
+const { buildResearchRunRobustnessEvidence } = require("../dist/apps/desktop/src/cloud/researchRunRobustnessEvidence.js");
 
 const STRATEGY_FAMILY_ID = "sma-crossover";
 const MARKET = "KRW-BTC";
@@ -266,6 +267,13 @@ async function main() {
       datasetContentSha256: manifest.contentSha256
     }
   };
+  const costStressEvidence = projectExecutionCostStress(costStress);
+  const robustnessEvidence = buildResearchRunRobustnessEvidence({
+    datasetId: manifest.datasetId,
+    datasetContentSha256: manifest.contentSha256,
+    parameterRobustness: parameterRobustnessEvidence,
+    costStress: costStressEvidence
+  });
 
   const generatedAt = new Date().toISOString();
   const result = runWalkForwardExperiment(
@@ -309,7 +317,11 @@ async function main() {
       deflatedSharpe: deflatedSharpe.evidenceByCandidate.get(candidate.id),
       trialLedgerSummary: deflatedSharpe.trialLedgerSummary
     })),
-    { generatedAt, ...(probabilityBacktestOverfitting == null ? {} : { probabilityBacktestOverfitting }) }
+    {
+      generatedAt,
+      ...(probabilityBacktestOverfitting == null ? {} : { probabilityBacktestOverfitting }),
+      robustnessEvidence
+    }
   );
 
   const oos = result.walkForwardResult.combinedOutOfSampleMetrics;
@@ -338,7 +350,7 @@ async function main() {
       selectionChurnRatio: result.walkForwardResult.stabilityDiagnostics.selectionChurnRatio,
       candidates: result.walkForwardResult.stabilityDiagnostics.candidates
     },
-    costStress: projectExecutionCostStress(costStress),
+    costStress: costStressEvidence,
     parameterRobustness: parameterRobustnessEvidence,
     outOfSample: {
       totalOosPoints: oos.totalOosPoints,
