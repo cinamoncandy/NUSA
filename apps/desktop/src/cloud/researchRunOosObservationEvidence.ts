@@ -109,7 +109,14 @@ export function extractResearchRunOosObservations(
         finite(decision.executionPrice, "INVALID_EXECUTION_PRICE", "execution price must be finite");
         if (decision.executionPrice <= 0) throw new ResearchRunOosObservationError("INVALID_EXECUTION_PRICE", "execution price must be positive");
       }
-      observations.push(freeze({ candidateId, datasetId: dataset.datasetId, windowId: windowResult.window.index, decisionTimestamp: decision.timestamp, market: decision.market, observedPrice: decision.price, signal: freeze({ ...decision.signal }), outcome: decision.outcome, ...(decision.executionPrice == null ? {} : { executionPrice: decision.executionPrice }), ...(decision.rejectionReason == null ? {} : { rejectionReason: decision.rejectionReason }) }));
+      const signal: BacktestDecision["signal"] = Object.freeze({
+        type: decision.signal.type,
+        reason: decision.signal.reason,
+        confidence: decision.signal.confidence,
+        timestamp: decision.signal.timestamp,
+        ...(decision.signal.regime == null ? {} : { regime: decision.signal.regime }),
+      });
+      observations.push(freeze({ candidateId, datasetId: dataset.datasetId, windowId: windowResult.window.index, decisionTimestamp: decision.timestamp, market: decision.market, observedPrice: decision.price, signal, outcome: decision.outcome, ...(decision.executionPrice == null ? {} : { executionPrice: decision.executionPrice }), ...(decision.rejectionReason == null ? {} : { rejectionReason: decision.rejectionReason }) }));
       previous = decision.timestamp;
     }
   }
