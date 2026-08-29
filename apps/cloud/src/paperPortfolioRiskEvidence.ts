@@ -1,5 +1,45 @@
+import { createHash } from "node:crypto";
+import type { PaperChaosTrustedGitHubRunReceipt } from "./paperChaosEvidenceProvenance";
+
 export type PaperPortfolioRiskEvidenceStatus = "VERIFIED" | "INSUFFICIENT" | "UNKNOWN" | "CONFLICTING";
 export type PaperPortfolioRiskDecision = "ACCEPT" | "ABSTAIN";
+
+export interface PaperPortfolioTrustedEvidenceRiskFacts {
+  readonly candidateId: string;
+  readonly datasetId: string;
+  readonly datasetContentSha256: string;
+  readonly observedAt: string;
+  readonly evaluatedAt: string;
+  readonly evidencePeriods: number;
+  readonly portfolioDrawdownContribution: number;
+  readonly diversificationBenefit: number;
+}
+
+export interface PaperPortfolioTrustedLongitudinalEvidence {
+  readonly schemaVersion: 1;
+  readonly verificationStatus: "VERIFIED";
+  readonly verificationSource: "GITHUB_API" | "RUNNER_ATTESTATION";
+  readonly repository: string;
+  readonly sourceSha: string;
+  readonly workflowRunId: number;
+  readonly workflowRunAttempt: number;
+  readonly workflowRef: string;
+  readonly eventName: string;
+  readonly workflowRunUrl: string;
+  readonly candidateId: string;
+  readonly datasetId: string;
+  readonly datasetContentSha256: string;
+  readonly periodIds: readonly string[];
+  readonly outcomeReceiptFingerprints: readonly string[];
+  readonly evidenceFingerprintSha256: string;
+  readonly verifiedAt: string;
+}
+
+export interface PaperPortfolioTrustedLongitudinalEvidenceInput extends PaperPortfolioTrustedEvidenceRiskFacts {
+  readonly trustedRun: PaperChaosTrustedGitHubRunReceipt;
+  readonly periodIds: readonly string[];
+  readonly outcomeReceiptFingerprints: readonly string[];
+}
 
 export interface PaperPortfolioRiskEvidenceInput {
   readonly evaluationId: string;
@@ -16,6 +56,11 @@ export interface PaperPortfolioRiskEvidenceInput {
   readonly maximumDrawdownContribution: number;
   readonly diversificationBenefit: number;
   readonly minimumDiversificationBenefit: number;
+  /**
+   * A trusted, canonical PAPER evidence binding. A caller-provided VERIFIED status or dataset
+   * hash is not sufficient to accept portfolio evidence.
+   */
+  readonly trustedEvidence?: PaperPortfolioTrustedLongitudinalEvidence;
 }
 
 export interface PaperPortfolioRiskEvidenceResult {
@@ -35,6 +80,106 @@ export interface PaperPortfolioRiskEvidenceResult {
 }
 
 const sha256 = /^[a-f0-9]{64}$/i;
+const sourceSha = /^[a-f0-9]{40}$/i;
+const repository = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+const workflowRef = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/\.github\/workflows\/[^@]+\.(?:yml|yaml)@refs\/heads\/.+$/;
+
+const trustedEvidenceObjects = new WeakSet<object>();
+
+const canonical = (value: unknown): string => {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return JSON.stringify(value);
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new Error("portfolio evidence binding contains a non-finite number");
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>).sort(([left], [right]) => left.localeCompare(right));
+    return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`).join(",")}}`;
+  }
+  throw new Error("portfolio evidence binding contains an unsupported value");
+};
+
+const digest = (value: unknown): string => createHash("sha256").update(canonical(value), "utf8").digest("hex");
+
+const trustedPayload = (evidence: Omit<PaperPortfolioTrustedLongitudinalEvidence, "evidenceFingerprintSha256">): Omit<PaperPortfolioTrustedLongitudinalEvidence, "evidenceFingerprintSha256"> => evidence;
+
+const bindingFacts = (
+  facts: PaperPortfolioTrustedEvidenceRiskFacts,
+  run: PaperChaosTrustedGitHubRunReceipt,
+  periodIds: readonly string[],
+  outcomeReceiptFingerprints: readonly string[],
+): object => ({
+  candidateId: facts.candidateId,
+  datasetId: facts.datasetId,
+  datasetContentSha256: facts.datasetContentSha256,
+  observedAt: facts.observedAt,
+  evaluatedAt: facts.evaluatedAt,
+  evidencePeriods: facts.evidencePeriods,
+  portfolioDrawdownContribution: facts.portfolioDrawdownContribution,
+  diversificationBenefit: facts.diversificationBenefit,
+  trustedRun: run,
+  periodIds,
+  outcomeReceiptFingerprints,
+});
+
+const validateTrustedRun = (run: PaperChaosTrustedGitHubRunReceipt): void => {
+  if (run.verificationSource !== "GITHUB_API" && run.verificationSource !== "RUNNER_ATTESTATION") throw new Error("trusted PAPER run source is invalid");
+  if (!repository.test(run.repository)) throw new Error("trusted PAPER repository is invalid");
+  if (!sourceSha.test(run.headSha)) throw new Error("trusted PAPER source SHA is invalid");
+  if (!Number.isSafeInteger(run.workflowRunId) || run.workflowRunId <= 0) throw new Error("trusted PAPER workflow run id is invalid");
+  if (!Number.isSafeInteger(run.workflowRunAttempt) || run.workflowRunAttempt <= 0) throw new Error("trusted PAPER workflow run attempt is invalid");
+  if (!workflowRef.test(run.workflowRef) || !run.workflowRef.startsWith(`${run.repository}/`)) throw new Error("trusted PAPER workflow reference is invalid");
+  if (!run.eventName.trim()) throw new Error("trusted PAPER event name is required");
+  if (run.workflowRunUrl !== `https://github.com/${run.repository}/actions/runs/${run.workflowRunId}`) throw new Error("trusted PAPER workflow URL is invalid");
+};
+
+const validateTrustedFacts = (facts: PaperPortfolioTrustedEvidenceRiskFacts): void => {
+  if (!facts.candidateId.trim() || !facts.datasetId.trim() || !sha256.test(facts.datasetContentSha256)) throw new Error("trusted PAPER evidence identity is invalid");
+  if (!Number.isFinite(Date.parse(facts.observedAt)) || !Number.isFinite(Date.parse(facts.evaluatedAt))) throw new Error("trusted PAPER evidence timestamp is invalid");
+  if (!Number.isSafeInteger(facts.evidencePeriods) || facts.evidencePeriods < 1) throw new Error("trusted PAPER evidence periods are invalid");
+  if (!Number.isFinite(facts.portfolioDrawdownContribution) || !Number.isFinite(facts.diversificationBenefit)) throw new Error("trusted PAPER evidence metrics are invalid");
+};
+
+/**
+ * Creates the only accepted portfolio-evidence capability. The run receipt must come from the
+ * existing GitHub API/runner-attestation trust boundary; structurally similar caller objects are
+ * rejected by the evaluator. The fingerprint binds provenance, realized-period identities and
+ * the exact risk facts so fabricated metrics cannot be paired with a trusted-looking run.
+ */
+export function createPaperPortfolioTrustedLongitudinalEvidence(
+  input: PaperPortfolioTrustedLongitudinalEvidenceInput,
+): PaperPortfolioTrustedLongitudinalEvidence {
+  validateTrustedRun(input.trustedRun);
+  validateTrustedFacts(input);
+  if (input.trustedRun.headSha.toLowerCase() !== input.trustedRun.headSha) throw new Error("trusted PAPER source SHA must be lowercase");
+  if (input.periodIds.length !== input.evidencePeriods || input.outcomeReceiptFingerprints.length !== input.evidencePeriods) throw new Error("trusted PAPER outcome count does not match evidence periods");
+  if (new Set(input.periodIds).size !== input.periodIds.length || input.periodIds.some((id) => !id.trim())) throw new Error("trusted PAPER period identities are invalid");
+  if (input.outcomeReceiptFingerprints.some((fingerprint) => !sha256.test(fingerprint))) throw new Error("trusted PAPER outcome provenance is invalid");
+
+  const verifiedAt = input.evaluatedAt;
+  const evidence: Omit<PaperPortfolioTrustedLongitudinalEvidence, "evidenceFingerprintSha256"> = {
+    schemaVersion: 1,
+    verificationStatus: "VERIFIED",
+    verificationSource: input.trustedRun.verificationSource,
+    repository: input.trustedRun.repository,
+    sourceSha: input.trustedRun.headSha,
+    workflowRunId: input.trustedRun.workflowRunId,
+    workflowRunAttempt: input.trustedRun.workflowRunAttempt,
+    workflowRef: input.trustedRun.workflowRef,
+    eventName: input.trustedRun.eventName,
+    workflowRunUrl: input.trustedRun.workflowRunUrl,
+    candidateId: input.candidateId,
+    datasetId: input.datasetId,
+    datasetContentSha256: input.datasetContentSha256,
+    periodIds: Object.freeze([...input.periodIds]),
+    outcomeReceiptFingerprints: Object.freeze([...input.outcomeReceiptFingerprints]),
+    verifiedAt,
+  };
+  const result = Object.freeze({ ...evidence, evidenceFingerprintSha256: digest({ facts: bindingFacts(input, input.trustedRun, input.periodIds, input.outcomeReceiptFingerprints), evidence: trustedPayload(evidence) }) });
+  trustedEvidenceObjects.add(result);
+  return result;
+}
 
 const requireFinite = (value: number, label: string): void => {
   if (!Number.isFinite(value)) throw new Error(`${label} must be finite`);
@@ -43,6 +188,63 @@ const requireFinite = (value: number, label: string): void => {
 const requireRatio = (value: number, label: string): void => {
   requireFinite(value, label);
   if (value < 0 || value > 1) throw new Error(`${label} must be between 0 and 1`);
+};
+
+const trustedEvidenceReasons = (input: PaperPortfolioRiskEvidenceInput): string[] => {
+  const trusted = input.trustedEvidence;
+  if (trusted == null) return ["CANONICAL_TRUSTED_PAPER_EVIDENCE_REQUIRED"];
+  if (typeof trusted !== "object" || !trustedEvidenceObjects.has(trusted)) return ["UNTRUSTED_PAPER_EVIDENCE"];
+
+  const reasons: string[] = [];
+  try {
+    const run: PaperChaosTrustedGitHubRunReceipt = {
+      verificationSource: trusted.verificationSource,
+      repository: trusted.repository,
+      headSha: trusted.sourceSha,
+      workflowRunId: trusted.workflowRunId,
+      workflowRunAttempt: trusted.workflowRunAttempt,
+      workflowRef: trusted.workflowRef,
+      eventName: trusted.eventName,
+      workflowRunUrl: trusted.workflowRunUrl,
+    };
+    validateTrustedRun(run);
+    if (trusted.schemaVersion !== 1 || trusted.verificationStatus !== "VERIFIED") reasons.push("TRUSTED_PAPER_EVIDENCE_NOT_VERIFIED");
+    if (trusted.sourceSha !== trusted.sourceSha.toLowerCase()) reasons.push("TRUSTED_PAPER_SOURCE_SHA_NOT_CANONICAL");
+    if (trusted.candidateId !== input.candidateId || trusted.datasetId !== input.datasetId || trusted.datasetContentSha256 !== input.datasetContentSha256) reasons.push("TRUSTED_PAPER_PROVENANCE_MISMATCH");
+    if (trusted.periodIds.length !== input.evidencePeriods || trusted.outcomeReceiptFingerprints.length !== input.evidencePeriods) reasons.push("TRUSTED_PAPER_OUTCOME_COUNT_MISMATCH");
+    if (new Set(trusted.periodIds).size !== trusted.periodIds.length || trusted.periodIds.some((id) => typeof id !== "string" || !id.trim())) reasons.push("TRUSTED_PAPER_PERIOD_ID_INVALID");
+    if (trusted.outcomeReceiptFingerprints.some((fingerprint) => !sha256.test(fingerprint))) reasons.push("TRUSTED_PAPER_OUTCOME_PROVENANCE_INVALID");
+    const verifiedAtMs = Date.parse(trusted.verifiedAt);
+    const evaluatedAtMs = Date.parse(input.evaluatedAt);
+    if (!Number.isFinite(verifiedAtMs) || verifiedAtMs > evaluatedAtMs) reasons.push("TRUSTED_PAPER_EVIDENCE_TIME_INVALID");
+    if (trusted.workflowRunId !== run.workflowRunId || trusted.workflowRunAttempt !== run.workflowRunAttempt || trusted.workflowRef !== run.workflowRef || trusted.eventName !== run.eventName || trusted.workflowRunUrl !== run.workflowRunUrl) reasons.push("TRUSTED_PAPER_RUN_BINDING_MISMATCH");
+
+    const expectedFingerprint = digest({
+      facts: bindingFacts(input, run, trusted.periodIds, trusted.outcomeReceiptFingerprints),
+      evidence: {
+        schemaVersion: trusted.schemaVersion,
+        verificationStatus: trusted.verificationStatus,
+        verificationSource: trusted.verificationSource,
+        repository: trusted.repository,
+        sourceSha: trusted.sourceSha,
+        workflowRunId: trusted.workflowRunId,
+        workflowRunAttempt: trusted.workflowRunAttempt,
+        workflowRef: trusted.workflowRef,
+        eventName: trusted.eventName,
+        workflowRunUrl: trusted.workflowRunUrl,
+        candidateId: trusted.candidateId,
+        datasetId: trusted.datasetId,
+        datasetContentSha256: trusted.datasetContentSha256,
+        periodIds: trusted.periodIds,
+        outcomeReceiptFingerprints: trusted.outcomeReceiptFingerprints,
+        verifiedAt: trusted.verifiedAt,
+      },
+    });
+    if (trusted.evidenceFingerprintSha256 !== expectedFingerprint) reasons.push("TRUSTED_PAPER_EVIDENCE_FINGERPRINT_MISMATCH");
+  } catch {
+    reasons.push("TRUSTED_PAPER_EVIDENCE_INVALID");
+  }
+  return reasons;
 };
 
 export function evaluatePaperPortfolioRiskEvidence(
@@ -72,7 +274,7 @@ export function evaluatePaperPortfolioRiskEvidence(
   requireFinite(input.diversificationBenefit, "diversificationBenefit");
   requireFinite(input.minimumDiversificationBenefit, "minimumDiversificationBenefit");
 
-  const reasons: string[] = [];
+  const reasons: string[] = trustedEvidenceReasons(input);
   if (input.status !== "VERIFIED") reasons.push(`EVIDENCE_${input.status}`);
   if (input.evidencePeriods < input.minimumEvidencePeriods) reasons.push("INSUFFICIENT_LONGITUDINAL_EVIDENCE");
   if (observedAtMs > evaluatedAtMs) reasons.push("FUTURE_EVIDENCE");

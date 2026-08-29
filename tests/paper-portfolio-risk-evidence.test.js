@@ -1,8 +1,22 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { evaluatePaperPortfolioRiskEvidence } = require("../dist/apps/cloud/src/paperPortfolioRiskEvidence.js");
+const {
+  createPaperPortfolioTrustedLongitudinalEvidence,
+  evaluatePaperPortfolioRiskEvidence,
+} = require("../dist/apps/cloud/src/paperPortfolioRiskEvidence.js");
 
-const input = (overrides = {}) => ({
+const trustedRun = {
+  verificationSource: "GITHUB_API",
+  repository: "cinamoncandy/NUSA",
+  headSha: "a".repeat(40),
+  workflowRunId: 33150000000,
+  workflowRunAttempt: 1,
+  workflowRef: "cinamoncandy/NUSA/.github/workflows/actual-paper-runtime.yml@refs/heads/main",
+  eventName: "workflow_dispatch",
+  workflowRunUrl: "https://github.com/cinamoncandy/NUSA/actions/runs/33150000000",
+};
+
+const baseInput = {
   evaluationId: "risk-eval-881",
   candidateId: "candidate-881-risk",
   datasetId: "dataset-881-risk",
@@ -17,8 +31,24 @@ const input = (overrides = {}) => ({
   maximumDrawdownContribution: 0.1,
   diversificationBenefit: 0.03,
   minimumDiversificationBenefit: 0.01,
-  ...overrides,
+};
+
+const trustedEvidenceFor = (value) => createPaperPortfolioTrustedLongitudinalEvidence({
+  ...value,
+  trustedRun,
+  periodIds: Array.from({ length: value.evidencePeriods }, (_, index) => `period-${index}`),
+  outcomeReceiptFingerprints: Array.from({ length: value.evidencePeriods }, (_, index) => String(index).padStart(64, "0")),
 });
+
+const input = (overrides = {}) => {
+  const value = { ...baseInput, ...overrides };
+  const trustedEvidence = Object.prototype.hasOwnProperty.call(overrides, "trustedEvidence")
+    ? overrides.trustedEvidence
+    : (() => {
+      try { return trustedEvidenceFor(value); } catch { return undefined; }
+    })();
+  return { ...value, trustedEvidence };
+};
 
 test("accepts only verified point-in-time risk evidence inside drawdown and diversification bounds", () => {
   const result = evaluatePaperPortfolioRiskEvidence(input());
@@ -69,4 +99,27 @@ test("malformed provenance and non-finite risk numerics fail closed", () => {
   assert.throws(() => evaluatePaperPortfolioRiskEvidence(input({ datasetContentSha256: "bad" })), /sha256/);
   assert.throws(() => evaluatePaperPortfolioRiskEvidence(input({ portfolioDrawdownContribution: Number.NaN })), /finite/);
   assert.throws(() => evaluatePaperPortfolioRiskEvidence(input({ diversificationBenefit: Number.POSITIVE_INFINITY })), /finite/);
+});
+
+test("caller-asserted VERIFIED evidence without the canonical capability stays abstained", () => {
+  const result = evaluatePaperPortfolioRiskEvidence(input({
+    trustedEvidence: {
+      verificationStatus: "VERIFIED",
+      candidateId: "candidate-881-risk",
+      datasetId: "dataset-881-risk",
+      datasetContentSha256: "c".repeat(64),
+    },
+  }));
+  assert.equal(result.decision, "ABSTAIN");
+  assert.ok(result.reasons.includes("UNTRUSTED_PAPER_EVIDENCE"));
+});
+
+test("trusted provenance cannot be paired with changed portfolio metrics", () => {
+  const trustedEvidence = trustedEvidenceFor(baseInput);
+  const result = evaluatePaperPortfolioRiskEvidence(input({
+    portfolioDrawdownContribution: 0.09,
+    trustedEvidence,
+  }));
+  assert.equal(result.decision, "ABSTAIN");
+  assert.ok(result.reasons.includes("TRUSTED_PAPER_EVIDENCE_FINGERPRINT_MISMATCH"));
 });
