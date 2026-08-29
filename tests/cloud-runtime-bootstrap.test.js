@@ -68,7 +68,15 @@ function spawnRuntime(env) {
 function waitForExit(child, deadlineMs) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("process did not exit in time")), deadlineMs);
-    child.once("exit", (code, signal) => { clearTimeout(timer); resolve({ code, signal }); });
+    const finish = (code, signal) => { clearTimeout(timer); resolve({ code, signal }); };
+    child.once("exit", finish);
+    // On Windows, child.kill() may terminate the process before the caller
+    // subscribes to the exit event. Observe the terminal state as well so the
+    // helper cannot wait forever for an event that already fired.
+    if (child.exitCode !== null || child.signalCode !== null) {
+      child.off("exit", finish);
+      finish(child.exitCode, child.signalCode);
+    }
   });
 }
 

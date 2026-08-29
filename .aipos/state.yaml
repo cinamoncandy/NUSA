@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-29T15:10:00+09:00"
+updated_at: "2026-08-29T15:42:00+09:00"
 current_execution_target:
-  work_order: WO-ISSUE-903-EVENT-REPLAY-HARDENING
-  status: VERIFYING
-  branch: codex/issue-903-event-determinism
-  base_sha: c12d70b5eb98dac0969275e1bdbbb30162a5c5b2
-  scope: "Harden the canonical development event boundary with safe identity/time validation and deterministic replay."
+  work_order: WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL
+  status: IN_PROGRESS
+  branch: codex/issue-905-readmodel-hardening
+  base_sha: bf7e8c0de7614dec959d6c28180d16dfc8ef87f5
+  scope: "Harden the existing read-only Engineering OS production read-model boundary against malformed nested evidence and credential-shaped fields."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: verification
 status: verifying
@@ -23,9 +23,9 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: codex/issue-903-event-determinism
+active_branch: codex/issue-905-readmodel-hardening
 active_successor_branch: null
-active_pull_request: null
+active_pull_request: 1073
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -83,14 +83,14 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-ISSUE-903-EVENT-REPLAY-HARDENING
-  status: VERIFYING
-  branch: codex/issue-903-event-determinism
-  base_commit: c12d70b5eb98dac0969275e1bdbbb30162a5c5b2
-  scope: "Harden the canonical development event boundary with safe identity/time validation and deterministic replay."
+  work_order: WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL
+  status: IN_PROGRESS
+  branch: codex/issue-905-readmodel-hardening
+  base_commit: bf7e8c0de7614dec959d6c28180d16dfc8ef87f5
+  scope: "Harden the existing read-only Engineering OS production read-model boundary against malformed nested evidence and credential-shaped fields."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  implementation_commit: LOCAL_COMMIT_PENDING_REMOTE
-  validation: "Event-orchestrator focused tests and build passed locally; no execution, broker, Risk, LIVE, or AI authority changes."
+  implementation_commit: c7e92868e65d841952fca117faa75d3b9d358456
+  validation: "Engineering OS read-model focused HTTP/redaction tests PASS 12/12; preflight, typecheck, build, lint, architecture, safety, security, package validation, and AIPOS checks PASS; determinism run intentionally stopped after repository script entered its 10-run heavyweight loop; no execution, broker, Risk, LIVE, or AI authority changes."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -505,9 +505,9 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
-  - id: WO-ISSUE-903-EVENT-REPLAY-HARDENING
-    evidence: ".aipos/work-orders/WO-ISSUE-903-EVENT-REPLAY-HARDENING.yaml"
-    summary: "Harden the canonical development-event boundary with bounded identity/time validation and deterministic pure replay; no execution or authority mutation."
+  - id: WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL
+    evidence: ".aipos/work-orders/WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL.yaml"
+    summary: "Harden the read-only Engineering OS production read-model boundary against malformed nested evidence and credential-shaped fields; no execution or authority mutation."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -534,8 +534,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-ISSUE-903-EVENT-REPLAY-HARDENING.yaml
-  reason: "Publish deterministic development-event replay hardening after exact-head validation; preserve interface-ready external triggers and zero authority."
+  work_order: .aipos/work-orders/WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL.yaml
+  reason: "Publish read-only Engineering OS read-model validation hardening after exact-head validation; preserve missing telemetry as INSUFFICIENT and zero authority."
 verification:
   wo_0057:
     parent_pull_request: 552

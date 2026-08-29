@@ -62,6 +62,36 @@ describe("Engineering OS read-only HTTP projection", () => {
     assert.equal(JSON.parse(response.body).error, "ENGINEERING_OPERATIONS_UNAVAILABLE");
   });
 
+  it("rejects nested credential and account identifiers before serialization", () => {
+    const snapshot = createNusaEngineeringOperatingReadModel().getSnapshot();
+    const response = handleEngineeringOperationsHttp({ method: "GET", headers: { authorization: "Bearer ok" } }, {
+      tokenVerifier,
+      loadSnapshot: () => ({
+        ...snapshot,
+        opportunityPriority: [{
+          ...snapshot.opportunityPriority[0],
+          components: { ...snapshot.opportunityPriority[0]?.components, accountIdentifier: "fixture-account" },
+        }],
+      } as never),
+    });
+    assert.equal(response.status, 503);
+    assert.equal(JSON.parse(response.body).error, "ENGINEERING_OPERATIONS_UNAVAILABLE");
+  });
+
+  it("rejects nested order and fill identifiers in evidence collections", () => {
+    const snapshot = createNusaEngineeringOperatingReadModel().getSnapshot();
+    const response = handleEngineeringOperationsHttp({ method: "GET", headers: { authorization: "Bearer ok" } }, {
+      tokenVerifier,
+      loadSnapshot: () => ({
+        ...snapshot,
+        selfOptimizer: { ...snapshot.selfOptimizer, evidence: { ...snapshot.selfOptimizer.evidence, orderIdentifier: "fixture-order" } },
+        outcome: { ...snapshot.outcome, diagnostics: { fillIdentifier: "fixture-fill" } },
+      } as never),
+    });
+    assert.equal(response.status, 503);
+    assert.equal(JSON.parse(response.body).error, "ENGINEERING_OPERATIONS_UNAVAILABLE");
+  });
+
   it("rejects a verified snapshot that still carries blockers", () => {
     const snapshot = createNusaEngineeringOperatingReadModel().getSnapshot();
     const response = handleEngineeringOperationsHttp({ method: "GET", headers: { authorization: "Bearer ok" } }, {
