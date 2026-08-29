@@ -40,6 +40,15 @@ describe("concurrencyAdvisor", () => {
     assert.equal(result.recommendedWip, 2);
   });
 
+  it("fails closed when verified evidence has no auditable source", () => {
+    for (const source of ["", "   ", "x".repeat(257)]) {
+      const result = adviseConcurrency({ ...verified(), source });
+      assert.equal(result.action, "HOLD");
+      assert.equal(result.recommendedWip, 2);
+      assert.equal(result.reason, "insufficient-or-invalid-evidence");
+    }
+  });
+
   it("fails closed for invalid measurements", () => {
     const result = adviseConcurrency({ ...verified(), ciUtilization: 1.2 });
     assert.equal(result.action, "HOLD");
