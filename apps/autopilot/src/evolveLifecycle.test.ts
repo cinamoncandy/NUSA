@@ -147,3 +147,17 @@ test("evolve lifecycle fails closed when observed runtime revision differs from 
   assert.equal(result.reason, "runtime-revision-mismatch");
   assert.equal(result.learning, undefined);
 });
+
+test("evolve lifecycle rejects malformed circuit state before producing a result", () => {
+  const input = baseInput();
+  assert.throws(
+    () => coordinateEvolutionLifecycle({
+      ...input,
+      circuit: {
+        ...input.circuit,
+        state: { state: "CLOSED", consecutiveFailures: "0" } as never,
+      },
+    }),
+    /EVOLVE_CIRCUIT_FAILURE_COUNT_INVALID/,
+  );
+});

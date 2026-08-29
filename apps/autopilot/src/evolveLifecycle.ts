@@ -1,4 +1,11 @@
-import { recordCircuitFailure, type EvolutionCircuitBreakerPolicy, type EvolutionCircuitBreakerState } from "./evolveCircuitBreaker";
+import {
+  recordCircuitFailure,
+  validateCircuitBreakerPolicy,
+  validateCircuitBreakerState,
+  validateCircuitBreakerTimestamp,
+  type EvolutionCircuitBreakerPolicy,
+  type EvolutionCircuitBreakerState,
+} from "./evolveCircuitBreaker";
 import { createEvolutionControlSnapshot, type EvolutionControlSnapshot } from "./evolveControlRoom";
 import { createEvolutionExecutionEnvelope, type EvolutionExecutionEnvelope, type EvolutionExecutionRequest } from "./evolveExecutionAdapter";
 import { createEvolutionLearningRecord, type EvolutionLearningRecord } from "./evolveLearningMemory";
@@ -71,6 +78,9 @@ export interface EvolutionLifecycleResult {
 const freezeResult = (result: EvolutionLifecycleResult): EvolutionLifecycleResult => Object.freeze(result);
 
 export function coordinateEvolutionLifecycle(input: EvolutionLifecycleInput): EvolutionLifecycleResult {
+  const circuitState = validateCircuitBreakerState(input.circuit.state);
+  const circuitPolicy = validateCircuitBreakerPolicy(input.circuit.policy);
+  const circuitNow = validateCircuitBreakerTimestamp(input.circuit.now);
   const opportunity = validateEvolutionOpportunity(input.opportunity);
   validateEvolutionValidationResult(input.validation);
   const plan = planEvolutionOpportunity(opportunity);
@@ -90,7 +100,7 @@ export function coordinateEvolutionLifecycle(input: EvolutionLifecycleInput): Ev
       ...(lastOutcome ? { lastOutcome } : {}),
     });
 
-  if (input.circuit.state.state === "OPEN") {
+  if (circuitState.state === "OPEN") {
     const promotion = Object.freeze({ eligible: false, exactHeadSha: input.validation.exactHeadSha, reason: "blocked:circuit-open" });
     return freezeResult({
       status: "CIRCUIT_OPEN",
@@ -98,7 +108,7 @@ export function coordinateEvolutionLifecycle(input: EvolutionLifecycleInput): Ev
       plan,
       execution,
       promotion,
-      circuit: input.circuit.state,
+      circuit: circuitState,
       schedule,
       control: baseControl(true),
       reason: "circuit-open",
@@ -113,7 +123,7 @@ export function coordinateEvolutionLifecycle(input: EvolutionLifecycleInput): Ev
       plan,
       execution,
       promotion,
-      circuit: input.circuit.state,
+      circuit: circuitState,
       schedule,
       control: baseControl(false),
       reason: `schedule-blocked:${schedule.reason}`,
@@ -128,7 +138,7 @@ export function coordinateEvolutionLifecycle(input: EvolutionLifecycleInput): Ev
       plan,
       execution,
       promotion,
-      circuit: input.circuit.state,
+      circuit: circuitState,
       schedule,
       control: baseControl(false),
       reason: "plan-abstained",
@@ -143,7 +153,7 @@ export function coordinateEvolutionLifecycle(input: EvolutionLifecycleInput): Ev
       plan,
       execution,
       promotion,
-      circuit: input.circuit.state,
+      circuit: circuitState,
       schedule,
       control: baseControl(false),
       reason: "validation-opportunity-mismatch",
@@ -158,7 +168,7 @@ export function coordinateEvolutionLifecycle(input: EvolutionLifecycleInput): Ev
       plan,
       execution,
       promotion,
-      circuit: input.circuit.state,
+      circuit: circuitState,
       schedule,
       control: baseControl(false),
       reason: "stale-exact-head",
@@ -168,7 +178,7 @@ export function coordinateEvolutionLifecycle(input: EvolutionLifecycleInput): Ev
   const promotion = decideEvolutionPromotion(input.validation, input.targetBranch);
   if (!promotion.eligible) {
     const recovery = decideEvolutionRecovery(input.recovery);
-    const circuit = recordCircuitFailure(input.circuit.state, input.circuit.policy, input.circuit.now);
+    const circuit = recordCircuitFailure(circuitState, circuitPolicy, circuitNow);
     const status: EvolutionLifecycleStatus = circuit.state === "OPEN" ? "CIRCUIT_OPEN" : recovery.action === "ABSTAIN" ? "ABSTAINED" : "RECOVERING";
     return freezeResult({
       status,
@@ -186,7 +196,7 @@ export function coordinateEvolutionLifecycle(input: EvolutionLifecycleInput): Ev
 
   if (input.observation.revision !== promotion.exactHeadSha) {
     const recovery = decideEvolutionRecovery({ ...input.recovery, failureClass: "UNKNOWN" });
-    const circuit = recordCircuitFailure(input.circuit.state, input.circuit.policy, input.circuit.now);
+    const circuit = recordCircuitFailure(circuitState, circuitPolicy, circuitNow);
     const status: EvolutionLifecycleStatus = circuit.state === "OPEN" ? "CIRCUIT_OPEN" : "ABSTAINED";
     return freezeResult({
       status,
@@ -229,7 +239,7 @@ export function coordinateEvolutionLifecycle(input: EvolutionLifecycleInput): Ev
 
   if (!observation.health || outcome.outcome === "UNDERPERFORMED" || outcome.outcome === "REGRESSION" || outcome.outcome === "FAILED" || outcome.outcome === "UNKNOWN") {
     const recovery = decideEvolutionRecovery(input.recovery);
-    const circuit = recordCircuitFailure(input.circuit.state, input.circuit.policy, input.circuit.now);
+    const circuit = recordCircuitFailure(circuitState, circuitPolicy, circuitNow);
     const status: EvolutionLifecycleStatus = circuit.state === "OPEN" ? "CIRCUIT_OPEN" : recovery.action === "ABSTAIN" ? "ABSTAINED" : "RECOVERING";
     return freezeResult({
       status,
@@ -257,7 +267,7 @@ export function coordinateEvolutionLifecycle(input: EvolutionLifecycleInput): Ev
     observation,
     outcome,
     learning,
-    circuit: input.circuit.state,
+    circuit: circuitState,
     schedule,
     control: baseControl(false, outcome.outcome),
     reason: "bounded-lifecycle-complete",
