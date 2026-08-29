@@ -48,20 +48,24 @@ test("rejects missing lineage, code, dataset, hash, or cost-model identity", () 
   }
 });
 
-test("rejects non-finite parameters and preserves a safe rejection fingerprint", () => {
-  const result = validateResearchCandidateSpecification(specification({ parameters: { fast: Number.NaN } }), NOW);
-  assert.equal(result.status, "REJECTED");
-  assert.ok(result.reasons.includes("NON_FINITE_PARAMETER_VALUE"));
-  assert.equal(result.specificationHash.length, 64);
+test("rejects malformed and non-finite parameters without throwing", () => {
+  const malformed = validateResearchCandidateSpecification(specification({ parameters: null }), NOW);
+  assert.equal(malformed.status, "REJECTED");
+  assert.ok(malformed.reasons.includes("INVALID_PARAMETERS"));
+  assert.equal(malformed.specificationHash.length, 64);
+
+  const nonFinite = validateResearchCandidateSpecification(specification({ parameters: { fast: Number.NaN } }), NOW);
+  assert.equal(nonFinite.status, "REJECTED");
+  assert.ok(nonFinite.reasons.includes("NON_FINITE_PARAMETER_VALUE"));
+  assert.equal(nonFinite.specificationHash.length, 64);
 });
 
-test("rejects specifications created after evaluation begins", () => {
-  const result = validateResearchCandidateSpecification(specification({
-    generatedAt: "2026-08-29T14:10:00.000Z",
-    evaluationStartedAt: "2026-08-29T14:05:00.000Z",
-  }), NOW);
-  assert.equal(result.status, "REJECTED");
-  assert.ok(result.reasons.includes("SPECIFICATION_CREATED_AFTER_EVALUATION_START"));
+test("requires specification precommit strictly before evaluation begins", () => {
+  for (const generatedAt of ["2026-08-29T14:05:00.000Z", "2026-08-29T14:10:00.000Z"]) {
+    const result = validateResearchCandidateSpecification(specification({ generatedAt }), NOW);
+    assert.equal(result.status, "REJECTED");
+    assert.ok(result.reasons.includes("SPECIFICATION_NOT_PRECOMMITTED"));
+  }
 });
 
 test("rejects future-derived and reversed evaluation chronology", () => {
