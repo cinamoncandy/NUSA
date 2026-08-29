@@ -6,10 +6,7 @@
   "author": "NUSA contributors",
   "main": "dist/apps/desktop/src/cloudMain.js",
   "packageManager": "pnpm@11.7.0",
-  "engines": {
-    "node": ">=24.0.0",
-    "pnpm": ">=11.7.0"
-  },
+  "engines": {"node": ">=24.0.0", "pnpm": ">=11.7.0"},
   "scripts": {
     "postinstall": "node scripts/apply-security-backports.js",
     "preflight": "node scripts/check-runtime.js && node scripts/validate-repository-portability.js",
@@ -77,6 +74,7 @@
     "research:real-run": "pnpm run preflight && pnpm run build && node scripts/research-real-market-run.js"
   },
   "devDependencies": {
+    "@cloudflare/sandbox": "0.13.0-next.751.1",
     "@playwright/test": "1.55.1",
     "@storybook/addon-a11y": "8.6.17",
     "@storybook/web-components": "8.6.17",
@@ -93,9 +91,7 @@
     "typescript": "5.9.3",
     "vitest": "3.2.6"
   },
-  "dependencies": {
-    "ws": "8.21.0"
-  },
+  "dependencies": {"ws": "8.21.0"},
   "build": {
     "appId": "com.nusa.trader",
     "productName": "NUSA",
