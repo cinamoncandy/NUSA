@@ -3,6 +3,11 @@ import type { ResearchExperimentResult } from "./researchDataset";
 import type { PboCscvEvidence } from "./researchSearchAdjustedEvidence";
 import type { DeflatedSharpeEvidence } from "./researchSearchAdjustedEvidence";
 import type { RegimeAwareStrategyEvaluation } from "./regimeAwareStrategyEvaluation";
+import type { RegimeHealthAssessment } from "./regimeHealth";
+import type { AbstentionAssessment } from "./abstentionEngine";
+import type { GhostExecutionResult } from "./ghostExecution";
+import type { CounterfactualAssessment } from "./counterfactualEngine";
+import type { ResearchTrialLedgerSummary } from "./researchTrialLedger";
 import { runLeagueResearchPipeline } from "./leagueResearchPipeline";
 import { evaluateLeague, type LeagueCandidateInput, type LeaguePolicy, type LeagueStanding } from "./nusaLeague";
 import type { LeagueCapitalAllocationAdvisory, LeagueCapitalAllocationPolicy } from "./leagueCapitalAllocation";
@@ -38,6 +43,16 @@ export interface ResearchRunCandidate {
   readonly regimeAwareEvaluation?: RegimeAwareStrategyEvaluation;
   /** Candidate-specific DSR produced from this search's cost-aware OOS returns. */
   readonly deflatedSharpe?: DeflatedSharpeEvidence;
+  /** Current regime evidence produced by the canonical regime-health engine, when available. */
+  readonly regime?: RegimeHealthAssessment;
+  /** Existing abstention decision for this candidate, when the canonical engine produced one. */
+  readonly abstention?: AbstentionAssessment;
+  /** Existing ghost execution result; this bridge never creates one implicitly. */
+  readonly ghostExecution?: GhostExecutionResult;
+  /** Existing counterfactual assessment; this bridge never creates one implicitly. */
+  readonly counterfactual?: CounterfactualAssessment;
+  /** Existing immutable trial-ledger summary for the research attempt, when available. */
+  readonly trialLedgerSummary?: ResearchTrialLedgerSummary;
   /**
    * Longitudinal PAPER evidence may enter League only through the VERIFIED provenance gate.
    * INSUFFICIENT evidence remains visible in bridge reasons but never populates paperPerformance.
@@ -120,7 +135,12 @@ export function buildResearchRunLeague(
       familyId: candidate.familyId,
       benchmark: slice,
       ...(candidate.deflatedSharpe == null ? {} : { deflatedSharpe: candidate.deflatedSharpe }),
+      ...(candidate.regime == null ? {} : { regime: candidate.regime }),
       ...(candidate.regimeAwareEvaluation == null ? {} : { regimeAwareEvaluation: candidate.regimeAwareEvaluation }),
+      ...(candidate.abstention == null ? {} : { abstention: candidate.abstention }),
+      ...(candidate.ghostExecution == null ? {} : { ghostExecution: candidate.ghostExecution }),
+      ...(candidate.counterfactual == null ? {} : { counterfactual: candidate.counterfactual }),
+      ...(candidate.trialLedgerSummary == null ? {} : { trialLedgerSummary: candidate.trialLedgerSummary }),
       ...(paperDecision?.paperPerformance == null ? {} : { paperPerformance: paperDecision.paperPerformance }),
     };
   });
