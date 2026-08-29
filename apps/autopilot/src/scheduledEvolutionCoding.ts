@@ -1,10 +1,11 @@
-import { executeCodingRunner, type CodingRunnerEnv } from "./codingRunner";
+import { executeGithubDispatch } from "./githubExecutor";
 import { prepareDiscoveredCodingRequest } from "./evolveCodingBridge";
 import { deriveWorkflowFailureOpportunities, type WorkflowFailureEvidence } from "./evolveEvidenceOpportunitySource";
 import type { EvolutionDiscoverySignal } from "./evolveOpportunityDiscovery";
 import { acquirePersistentExecution, markPersistentExecutionDispatched, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
-export interface ScheduledEvolutionCodingEnv extends CodingRunnerEnv {
+export interface ScheduledEvolutionCodingEnv {
+  readonly NUSA_GITHUB_TOKEN?: string;
   readonly NUSA_EXECUTION_COORDINATOR?: ExecutionCoordinatorNamespace;
 }
 
@@ -71,16 +72,17 @@ function signalsFromRuns(candidates: readonly unknown[], now: number): readonly 
 
 /**
  * Thin scheduled composition: authenticated read-only workflow evidence -> existing
- * discovery/selector bridge -> existing CodingRunner. It reuses the persistent
- * coordinator for dedupe and never grants LIVE or production mutation authority.
+ * discovery/selector bridge -> existing GitHub dispatch spine. Coding is delegated to
+ * the single repository_dispatch consumer, which may use a configured external runner
+ * or the bounded GitHub Models fallback. No direct production mutation authority exists.
  */
 export async function runScheduledEvolutionCoding(
   env: ScheduledEvolutionCodingEnv,
   input: { readonly candidates: readonly unknown[]; readonly now: number; readonly repository: string; readonly mainSha: string; readonly workflowRunId: number },
   fetchImpl: typeof fetch = fetch,
 ): Promise<ScheduledEvolutionCodingResult> {
-  if (!env.NUSA_AI_CODING_ENDPOINT?.trim() || !env.NUSA_AI_CODING_TOKEN?.trim()) return result("INTERFACE_READY", "ai-coding-engine-not-configured");
-  if (!env.NUSA_GITHUB_TOKEN?.trim()) return result("ABSTAINED", "github-token-not-configured");
+  const token = env.NUSA_GITHUB_TOKEN?.trim();
+  if (!token) return result("ABSTAINED", "github-token-not-configured");
   const coordinator = env.NUSA_EXECUTION_COORDINATOR;
   if (!coordinator) return result("ABSTAINED", "persistent-execution-coordinator-required");
   if (!Number.isSafeInteger(input.now) || input.now < 0 || !SHA40.test(input.mainSha) || !Number.isSafeInteger(input.workflowRunId) || input.workflowRunId <= 0) {
@@ -116,11 +118,11 @@ export async function runScheduledEvolutionCoding(
   });
   if (!persistent.acquired) return result("DUPLICATE_SUPPRESSED", persistent.reason ?? "DUPLICATE_EXECUTION", signals.map((signal) => signal.id));
 
-  const executed = await executeCodingRunner(bridge.request, env, fetchImpl);
-  if (executed.status === "EXECUTION_ACCEPTED") {
+  const dispatched = await executeGithubDispatch(bridge.request, { token, allowedRepository: input.repository }, fetchImpl);
+  if (dispatched.status === "DISPATCHED") {
     await markPersistentExecutionDispatched(coordinator, { dedupeKey: bridge.request.dedupeKey, executionId: bridge.request.executionId, now: input.now });
-    return result("EXECUTION_ACCEPTED", bridge.reason, signals.map((signal) => signal.id));
+    return result("EXECUTION_ACCEPTED", "github-coding-dispatch-accepted", signals.map((signal) => signal.id));
   }
-  if (executed.status === "INTERFACE_READY") return result("INTERFACE_READY", executed.reason ?? "coding-runner-interface-ready", signals.map((signal) => signal.id));
-  return result("EXECUTION_FAILED", `coding-runner-http-${executed.httpStatus ?? "unknown"}`, signals.map((signal) => signal.id));
+  if (dispatched.status === "INTERFACE_READY") return result("INTERFACE_READY", dispatched.reason, signals.map((signal) => signal.id));
+  return result("EXECUTION_FAILED", dispatched.reason, signals.map((signal) => signal.id));
 }
