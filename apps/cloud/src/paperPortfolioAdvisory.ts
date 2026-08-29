@@ -1,12 +1,122 @@
 import type { CapitalAllocationPolicy } from "./capitalAllocationEngine";
 import { evaluatePaperPortfolioRiskEvidence, type PaperPortfolioRiskEvidenceInput } from "./paperPortfolioRiskEvidence";
-\nexport type PaperPortfolioAdvisoryDecision = "ADVISE" | "ABSTAIN";\nexport type PaperEvidenceStatus = "VERIFIED" | "INSUFFICIENT" | "UNKNOWN" | "CONFLICTING";\n\nexport interface PaperPortfolioEvidence {\n  readonly candidateId: string;\n  readonly datasetId: string;\n  readonly datasetContentSha256: string;\n  readonly observedAt: string;\n  readonly regime: string;\n  readonly status: PaperEvidenceStatus;\n  readonly evidencePeriods: number;\n  readonly currentPortfolioGrossWeight: number;\n  readonly currentStrategyWeight: number;\n  readonly maximumPeerCorrelation: number;\n  readonly regimeCoFailureRate: number;\n  readonly estimatedTurnover: number;\n  readonly estimatedFeeRate: number;\n  readonly estimatedSlippageRate: number;\n  readonly grossExpectedEdge: number;\n}\n\nexport interface PaperPortfolioAdvisoryInput {
-  readonly advisoryId: string;\n  readonly strategyId: string;\n  readonly generatedAt: string;\n  readonly source: "PAPER" | "SHADOW";\n  readonly evidence: PaperPortfolioEvidence;\n  readonly minimumEvidencePeriods: number;\n  readonly maximumEvidenceAgeMs: number;
+
+export type PaperPortfolioAdvisoryDecision = "ADVISE" | "ABSTAIN";
+export type PaperEvidenceStatus = "VERIFIED" | "INSUFFICIENT" | "UNKNOWN" | "CONFLICTING";
+
+export interface PaperPortfolioEvidence {
+  readonly candidateId: string;
+  readonly datasetId: string;
+  readonly datasetContentSha256: string;
+  readonly observedAt: string;
+  readonly regime: string;
+  readonly status: PaperEvidenceStatus;
+  readonly evidencePeriods: number;
+  readonly currentPortfolioGrossWeight: number;
+  readonly currentStrategyWeight: number;
+  readonly maximumPeerCorrelation: number;
+  readonly regimeCoFailureRate: number;
+  readonly estimatedTurnover: number;
+  readonly estimatedFeeRate: number;
+  readonly estimatedSlippageRate: number;
+  readonly grossExpectedEdge: number;
+}
+
+export interface PaperPortfolioAdvisoryInput {
+  readonly advisoryId: string;
+  readonly strategyId: string;
+  readonly generatedAt: string;
+  readonly source: "PAPER" | "SHADOW";
+  readonly evidence: PaperPortfolioEvidence;
+  readonly minimumEvidencePeriods: number;
+  readonly maximumEvidenceAgeMs: number;
   readonly maximumRegimeCoFailureRate: number;
   /** Canonical portfolio risk evidence is required for an allocation advisory. */
   readonly riskEvidence?: PaperPortfolioRiskEvidenceInput;
 }
-\nexport interface PaperPortfolioAdvisoryResult {\n  readonly advisoryId: string;\n  readonly strategyId: string;\n  readonly decision: PaperPortfolioAdvisoryDecision;\n  readonly recommendedWeight: number;\n  readonly maximumWeight: number;\n  readonly netExpectedEdge: number;\n  readonly reasons: readonly string[];\n  readonly candidateId: string;\n  readonly datasetId: string;\n  readonly datasetContentSha256: string;\n  readonly regime: string;\n  readonly evidenceObservedAt: string;\n  readonly generatedAt: string;\n  readonly source: "PAPER" | "SHADOW";\n  readonly liveAuthority: "NONE";\n  readonly productionMutationAllowed: false;\n  readonly aiAuthority: "ZERO_AUTHORITY";\n}\n\nconst sha256 = /^[a-f0-9]{64}$/i;\n\nconst requireFinite = (value: number, label: string): void => {\n  if (!Number.isFinite(value)) throw new Error(`${label} must be finite`);\n};\n\nconst requireRatio = (value: number, label: string): void => {\n  requireFinite(value, label);\n  if (value < 0 || value > 1) throw new Error(`${label} must be between 0 and 1`);\n};\n\nconst roundFinite = (value: number, label: string): number => {\n  requireFinite(value, label);\n  const rounded = Math.round(value * 1_000_000) / 1_000_000;\n  requireFinite(rounded, label);\n  return rounded;\n};\n\nconst validateConsumedPolicy = (policy: CapitalAllocationPolicy): void => {\n  requireRatio(policy.maximumPortfolioWeight, "maximumPortfolioWeight");\n  requireRatio(policy.maximumStrategyWeight, "maximumStrategyWeight");\n  requireRatio(policy.maximumCorrelation, "maximumCorrelation");\n};\n\nconst freezeResult = (result: PaperPortfolioAdvisoryResult): PaperPortfolioAdvisoryResult => {\n  Object.freeze(result.reasons);\n  return Object.freeze(result);\n};\n\nexport const evaluatePaperPortfolioAdvisory = (\n  input: PaperPortfolioAdvisoryInput,\n  policy: CapitalAllocationPolicy\n): PaperPortfolioAdvisoryResult => {\n  if (!input.advisoryId.trim()) throw new Error("advisoryId is required");\n  if (!input.strategyId.trim()) throw new Error("strategyId is required");\n  if (!input.evidence.candidateId.trim()) throw new Error("candidateId is required");\n  if (!input.evidence.datasetId.trim()) throw new Error("datasetId is required");\n  if (!sha256.test(input.evidence.datasetContentSha256)) throw new Error("datasetContentSha256 must be sha256");\n  if (!input.evidence.regime.trim()) throw new Error("regime is required");\n\n  const generatedAtMs = Date.parse(input.generatedAt);\n  const observedAtMs = Date.parse(input.evidence.observedAt);\n  if (!Number.isFinite(generatedAtMs)) throw new Error("generatedAt must be a valid ISO timestamp");\n  if (!Number.isFinite(observedAtMs)) throw new Error("observedAt must be a valid ISO timestamp");\n  if (!Number.isInteger(input.minimumEvidencePeriods) || input.minimumEvidencePeriods <= 0) {\n    throw new Error("minimumEvidencePeriods must be a positive integer");\n  }\n  if (!Number.isInteger(input.evidence.evidencePeriods) || input.evidence.evidencePeriods < 0) {\n    throw new Error("evidencePeriods must be a non-negative integer");\n  }\n  if (!Number.isFinite(input.maximumEvidenceAgeMs) || input.maximumEvidenceAgeMs < 0) {\n    throw new Error("maximumEvidenceAgeMs must be non-negative");\n  }\n  validateConsumedPolicy(policy);\n  requireRatio(input.maximumRegimeCoFailureRate, "maximumRegimeCoFailureRate");\n  requireRatio(input.evidence.currentPortfolioGrossWeight, "currentPortfolioGrossWeight");\n  requireRatio(input.evidence.currentStrategyWeight, "currentStrategyWeight");\n  requireRatio(input.evidence.maximumPeerCorrelation, "maximumPeerCorrelation");\n  requireRatio(input.evidence.regimeCoFailureRate, "regimeCoFailureRate");\n  requireRatio(input.evidence.estimatedTurnover, "estimatedTurnover");\n  requireRatio(input.evidence.estimatedFeeRate, "estimatedFeeRate");\n  requireRatio(input.evidence.estimatedSlippageRate, "estimatedSlippageRate");
+
+export interface PaperPortfolioAdvisoryResult {
+  readonly advisoryId: string;
+  readonly strategyId: string;
+  readonly decision: PaperPortfolioAdvisoryDecision;
+  readonly recommendedWeight: number;
+  readonly maximumWeight: number;
+  readonly netExpectedEdge: number;
+  readonly reasons: readonly string[];
+  readonly candidateId: string;
+  readonly datasetId: string;
+  readonly datasetContentSha256: string;
+  readonly regime: string;
+  readonly evidenceObservedAt: string;
+  readonly generatedAt: string;
+  readonly source: "PAPER" | "SHADOW";
+  readonly liveAuthority: "NONE";
+  readonly productionMutationAllowed: false;
+  readonly aiAuthority: "ZERO_AUTHORITY";
+}
+
+const sha256 = /^[a-f0-9]{64}$/i;
+
+const requireFinite = (value: number, label: string): void => {
+  if (!Number.isFinite(value)) throw new Error(`${label} must be finite`);
+};
+
+const requireRatio = (value: number, label: string): void => {
+  requireFinite(value, label);
+  if (value < 0 || value > 1) throw new Error(`${label} must be between 0 and 1`);
+};
+
+const roundFinite = (value: number, label: string): number => {
+  requireFinite(value, label);
+  const rounded = Math.round(value * 1_000_000) / 1_000_000;
+  requireFinite(rounded, label);
+  return rounded;
+};
+
+const validateConsumedPolicy = (policy: CapitalAllocationPolicy): void => {
+  requireRatio(policy.maximumPortfolioWeight, "maximumPortfolioWeight");
+  requireRatio(policy.maximumStrategyWeight, "maximumStrategyWeight");
+  requireRatio(policy.maximumCorrelation, "maximumCorrelation");
+};
+
+const freezeResult = (result: PaperPortfolioAdvisoryResult): PaperPortfolioAdvisoryResult => {
+  Object.freeze(result.reasons);
+  return Object.freeze(result);
+};
+
+export const evaluatePaperPortfolioAdvisory = (
+  input: PaperPortfolioAdvisoryInput,
+  policy: CapitalAllocationPolicy
+): PaperPortfolioAdvisoryResult => {
+  if (!input.advisoryId.trim()) throw new Error("advisoryId is required");
+  if (!input.strategyId.trim()) throw new Error("strategyId is required");
+  if (!input.evidence.candidateId.trim()) throw new Error("candidateId is required");
+  if (!input.evidence.datasetId.trim()) throw new Error("datasetId is required");
+  if (!sha256.test(input.evidence.datasetContentSha256)) throw new Error("datasetContentSha256 must be sha256");
+  if (!input.evidence.regime.trim()) throw new Error("regime is required");
+
+  const generatedAtMs = Date.parse(input.generatedAt);
+  const observedAtMs = Date.parse(input.evidence.observedAt);
+  if (!Number.isFinite(generatedAtMs)) throw new Error("generatedAt must be a valid ISO timestamp");
+  if (!Number.isFinite(observedAtMs)) throw new Error("observedAt must be a valid ISO timestamp");
+  if (!Number.isInteger(input.minimumEvidencePeriods) || input.minimumEvidencePeriods <= 0) {
+    throw new Error("minimumEvidencePeriods must be a positive integer");
+  }
+  if (!Number.isInteger(input.evidence.evidencePeriods) || input.evidence.evidencePeriods < 0) {
+    throw new Error("evidencePeriods must be a non-negative integer");
+  }
+  if (!Number.isFinite(input.maximumEvidenceAgeMs) || input.maximumEvidenceAgeMs < 0) {
+    throw new Error("maximumEvidenceAgeMs must be non-negative");
+  }
+  validateConsumedPolicy(policy);
+  requireRatio(input.maximumRegimeCoFailureRate, "maximumRegimeCoFailureRate");
+  requireRatio(input.evidence.currentPortfolioGrossWeight, "currentPortfolioGrossWeight");
+  requireRatio(input.evidence.currentStrategyWeight, "currentStrategyWeight");
+  requireRatio(input.evidence.maximumPeerCorrelation, "maximumPeerCorrelation");
+  requireRatio(input.evidence.regimeCoFailureRate, "regimeCoFailureRate");
+  requireRatio(input.evidence.estimatedTurnover, "estimatedTurnover");
+  requireRatio(input.evidence.estimatedFeeRate, "estimatedFeeRate");
+  requireRatio(input.evidence.estimatedSlippageRate, "estimatedSlippageRate");
   requireFinite(input.evidence.grossExpectedEdge, "grossExpectedEdge");
 
   const reasons: string[] = [];
@@ -25,4 +135,45 @@ import { evaluatePaperPortfolioRiskEvidence, type PaperPortfolioRiskEvidenceInpu
     if (risk.decision !== "ACCEPT") reasons.push(...risk.reasons.map((reason) => `RISK_${reason}`));
   }
   if (input.evidence.status !== "VERIFIED") reasons.push(`EVIDENCE_${input.evidence.status}`);
-  if (input.evidence.evidencePeriods < input.minimumEvidencePeriods) reasons.push("INSUFFICIENT_LONGITUDINAL_EVIDENCE");\n  if (observedAtMs > generatedAtMs) reasons.push("FUTURE_EVIDENCE");\n  if (generatedAtMs - observedAtMs > input.maximumEvidenceAgeMs) reasons.push("STALE_EVIDENCE");\n  if (input.evidence.maximumPeerCorrelation > policy.maximumCorrelation) reasons.push("CORRELATION_LIMIT_EXCEEDED");\n  if (input.evidence.regimeCoFailureRate > input.maximumRegimeCoFailureRate) reasons.push("REGIME_CO_FAILURE_LIMIT_EXCEEDED");\n\n  const costDrag = input.evidence.estimatedTurnover\n    * (input.evidence.estimatedFeeRate + input.evidence.estimatedSlippageRate);\n  const netExpectedEdge = roundFinite(input.evidence.grossExpectedEdge - costDrag, "netExpectedEdge");\n  if (netExpectedEdge <= 0) reasons.push("NON_POSITIVE_EDGE_AFTER_COSTS");\n\n  const availablePortfolioWeight = Math.max(\n    0,\n    policy.maximumPortfolioWeight - input.evidence.currentPortfolioGrossWeight + input.evidence.currentStrategyWeight\n  );\n  const maximumWeight = roundFinite(Math.min(policy.maximumStrategyWeight, availablePortfolioWeight), "maximumWeight");\n  if (maximumWeight <= 0) reasons.push("PORTFOLIO_CONCENTRATION_LIMIT_REACHED");\n\n  const failClosed = reasons.length > 0;\n  const recommendedWeight = failClosed ? 0 : maximumWeight;\n  requireFinite(recommendedWeight, "recommendedWeight");\n\n  return freezeResult({\n    advisoryId: input.advisoryId,\n    strategyId: input.strategyId,\n    decision: failClosed ? "ABSTAIN" : "ADVISE",\n    recommendedWeight,\n    maximumWeight,\n    netExpectedEdge,\n    reasons: Object.freeze(reasons),\n    candidateId: input.evidence.candidateId,\n    datasetId: input.evidence.datasetId,\n    datasetContentSha256: input.evidence.datasetContentSha256,\n    regime: input.evidence.regime,\n    evidenceObservedAt: input.evidence.observedAt,\n    generatedAt: input.generatedAt,\n    source: input.source,\n    liveAuthority: "NONE",\n    productionMutationAllowed: false,\n    aiAuthority: "ZERO_AUTHORITY"\n  });\n};\n
+  if (input.evidence.evidencePeriods < input.minimumEvidencePeriods) reasons.push("INSUFFICIENT_LONGITUDINAL_EVIDENCE");
+  if (observedAtMs > generatedAtMs) reasons.push("FUTURE_EVIDENCE");
+  if (generatedAtMs - observedAtMs > input.maximumEvidenceAgeMs) reasons.push("STALE_EVIDENCE");
+  if (input.evidence.maximumPeerCorrelation > policy.maximumCorrelation) reasons.push("CORRELATION_LIMIT_EXCEEDED");
+  if (input.evidence.regimeCoFailureRate > input.maximumRegimeCoFailureRate) reasons.push("REGIME_CO_FAILURE_LIMIT_EXCEEDED");
+
+  const costDrag = input.evidence.estimatedTurnover
+    * (input.evidence.estimatedFeeRate + input.evidence.estimatedSlippageRate);
+  const netExpectedEdge = roundFinite(input.evidence.grossExpectedEdge - costDrag, "netExpectedEdge");
+  if (netExpectedEdge <= 0) reasons.push("NON_POSITIVE_EDGE_AFTER_COSTS");
+
+  const availablePortfolioWeight = Math.max(
+    0,
+    policy.maximumPortfolioWeight - input.evidence.currentPortfolioGrossWeight + input.evidence.currentStrategyWeight
+  );
+  const maximumWeight = roundFinite(Math.min(policy.maximumStrategyWeight, availablePortfolioWeight), "maximumWeight");
+  if (maximumWeight <= 0) reasons.push("PORTFOLIO_CONCENTRATION_LIMIT_REACHED");
+
+  const failClosed = reasons.length > 0;
+  const recommendedWeight = failClosed ? 0 : maximumWeight;
+  requireFinite(recommendedWeight, "recommendedWeight");
+
+  return freezeResult({
+    advisoryId: input.advisoryId,
+    strategyId: input.strategyId,
+    decision: failClosed ? "ABSTAIN" : "ADVISE",
+    recommendedWeight,
+    maximumWeight,
+    netExpectedEdge,
+    reasons: Object.freeze(reasons),
+    candidateId: input.evidence.candidateId,
+    datasetId: input.evidence.datasetId,
+    datasetContentSha256: input.evidence.datasetContentSha256,
+    regime: input.evidence.regime,
+    evidenceObservedAt: input.evidence.observedAt,
+    generatedAt: input.generatedAt,
+    source: input.source,
+    liveAuthority: "NONE",
+    productionMutationAllowed: false,
+    aiAuthority: "ZERO_AUTHORITY"
+  });
+};
