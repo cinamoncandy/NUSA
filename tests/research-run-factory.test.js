@@ -112,6 +112,15 @@ test("rejects duplicate candidates and hypothesis-family drift", () => {
   );
 });
 
+test("rejects a candidate compiled from a different source revision", () => {
+  assert.throws(
+    () => buildResearchRunProvenancePlan(inputs({
+      candidates: [{ ...inputs().candidates[0], codeSha: "c".repeat(40) }],
+    })),
+    (error) => error instanceof ResearchRunFactoryError && error.code === "CANDIDATE_SOURCE_MISMATCH",
+  );
+});
+
 test("rejects malformed dataset, source, and non-snapshot chronology", () => {
   assert.throws(
     () => buildResearchRunProvenancePlan(inputs({ sourceCommitSha: "not-a-sha" })),
