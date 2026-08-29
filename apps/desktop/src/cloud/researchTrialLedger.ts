@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-export type ResearchTrialOutcome = "COMPLETED" | "FAILED" | "REJECTED";
+export type ResearchTrialOutcome = "COMPLETED" | "FAILED" | "REJECTED" | "ABSTAINED";
 
 export interface ResearchTrialDatasetRef {
   readonly datasetId: string;
@@ -27,6 +27,8 @@ export interface ResearchTrialInput {
   readonly score?: number;
   readonly metrics?: Readonly<Record<string, number | string | boolean | null>>;
   readonly rejectionReasons?: readonly string[];
+  /** Reasons the canonical abstention engine withheld this trial from advancement. */
+  readonly abstentionReasons?: readonly string[];
   readonly tags?: readonly string[];
 }
 
@@ -42,6 +44,7 @@ export interface ResearchTrialLedgerSummary {
   readonly completedCount: number;
   readonly failedCount: number;
   readonly rejectedCount: number;
+  readonly abstainedCount: number;
   readonly distinctSearchCount: number;
   readonly distinctFamilyCount: number;
   readonly maximumSearchAttemptOrdinal: number;
@@ -108,12 +111,19 @@ function validateInput(input: ResearchTrialInput): ResearchTrialInput {
   const candidateIds = normalizeStringArray(input.candidateIds, "candidateIds") ?? Object.freeze([]);
   if (candidateIds.length === 0) throw new ResearchTrialLedgerError("EMPTY_CANDIDATES", "candidateIds requires at least one candidate");
   const rejectionReasons = normalizeStringArray(input.rejectionReasons, "rejectionReasons");
+  const abstentionReasons = normalizeStringArray(input.abstentionReasons, "abstentionReasons");
   const tags = normalizeStringArray(input.tags, "tags");
   if (input.outcome === "REJECTED" && (rejectionReasons == null || rejectionReasons.length === 0)) {
     throw new ResearchTrialLedgerError("MISSING_REJECTION_REASON", "rejected trials require at least one rejection reason");
   }
   if (input.outcome !== "REJECTED" && rejectionReasons != null && rejectionReasons.length > 0) {
     throw new ResearchTrialLedgerError("UNEXPECTED_REJECTION_REASON", "only rejected trials may contain rejection reasons");
+  }
+  if (input.outcome === "ABSTAINED" && (abstentionReasons == null || abstentionReasons.length === 0)) {
+    throw new ResearchTrialLedgerError("MISSING_ABSTENTION_REASON", "abstained trials require at least one abstention reason");
+  }
+  if (input.outcome !== "ABSTAINED" && abstentionReasons != null && abstentionReasons.length > 0) {
+    throw new ResearchTrialLedgerError("UNEXPECTED_ABSTENTION_REASON", "only abstained trials may contain abstention reasons");
   }
   if (input.parentTrialId != null) assertNonEmpty(input.parentTrialId, "parentTrialId");
   const metrics = input.metrics == null ? undefined : freeze({ ...input.metrics });
@@ -135,6 +145,7 @@ function validateInput(input: ResearchTrialInput): ResearchTrialInput {
     ...(input.score != null ? { score: input.score } : {}),
     ...(metrics != null ? { metrics } : {}),
     ...(rejectionReasons != null ? { rejectionReasons } : {}),
+    ...(abstentionReasons != null ? { abstentionReasons } : {}),
     ...(tags != null ? { tags } : {})
   });
 }
@@ -194,19 +205,22 @@ export function summarizeResearchTrialLedger(records: readonly ResearchTrialReco
   let completedCount = 0;
   let failedCount = 0;
   let rejectedCount = 0;
+  let abstainedCount = 0;
   for (const record of records) {
     searchIds.add(record.search.searchId);
     familyIds.add(record.familyId);
     maximumSearchAttemptOrdinal = Math.max(maximumSearchAttemptOrdinal, record.search.attemptOrdinal);
     if (record.outcome === "COMPLETED") completedCount += 1;
     else if (record.outcome === "FAILED") failedCount += 1;
-    else rejectedCount += 1;
+    else if (record.outcome === "REJECTED") rejectedCount += 1;
+    else abstainedCount += 1;
   }
   return freeze({
     trialCount: records.length,
     completedCount,
     failedCount,
     rejectedCount,
+    abstainedCount,
     distinctSearchCount: searchIds.size,
     distinctFamilyCount: familyIds.size,
     maximumSearchAttemptOrdinal,
