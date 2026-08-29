@@ -23,7 +23,7 @@ describe("autonomous execution state", () => {
   it("covers implementation, merge, and bounded rework transitions", () => {
     const ready = stateWithStatus("READY");
     const leased = acquireExecutionLease(ready, "runner-1", 1000, 500);
-    const implementing = transitionExecution(transitionExecution(leased, "CODEX_DISPATCHED"), "IMPLEMENTING");
+    const implementing = transitionExecution(transitionExecution(leased, "CODING_DISPATCHED"), "IMPLEMENTING");
     const commitProduced = transitionExecution(implementing, "COMMIT_PRODUCED");
     const prOpen = transitionExecution(commitProduced, "PR_OPEN");
     const ciRunning = transitionExecution(prOpen, "CI_RUNNING");
@@ -40,7 +40,7 @@ describe("autonomous execution state", () => {
 
   it("keeps implementation blocks and rollback recommendations fail-closed", () => {
     const leased = acquireExecutionLease(createExecutionState(identity), "runner-1", 1000, 500);
-    const blocked = transitionExecution(transitionExecution(leased, "CODEX_DISPATCHED"), "IMPLEMENTATION_BLOCKED");
+    const blocked = transitionExecution(transitionExecution(leased, "CODING_DISPATCHED"), "IMPLEMENTATION_BLOCKED");
     assert.equal(transitionExecution(blocked, "REWORK_QUEUED").status, "REWORK_QUEUED");
     const recommendation = transitionExecution(stateWithStatus("ROLLBACK_RECOMMENDED"), "HUMAN_ONLY");
     assert.equal(recommendation.mutationAllowed, false);
@@ -56,14 +56,14 @@ describe("autonomous execution state", () => {
 
   it("requires a lease before dispatch", () => {
     const ready = createExecutionState(identity);
-    assert.throws(() => transitionExecution({ ...ready, status: "LEASED" }, "CODEX_DISPATCHED"), /LEASE_REQUIRED/);
+    assert.throws(() => transitionExecution({ ...ready, status: "LEASED" }, "CODING_DISPATCHED"), /LEASE_REQUIRED/);
   });
 
-  it("acquires a bounded lease and permits dispatch", () => {
+  it("acquires a bounded lease and permits provider-neutral dispatch", () => {
     const leased = acquireExecutionLease(createExecutionState(identity), "runner-1", 1000, 500);
     assert.equal(leased.status, "LEASED");
     assert.equal(leased.lease?.expiresAt, 1500);
-    assert.equal(transitionExecution(leased, "CODEX_DISPATCHED").status, "CODEX_DISPATCHED");
+    assert.equal(transitionExecution(leased, "CODING_DISPATCHED").status, "CODING_DISPATCHED");
   });
 
   it("recovers only expired leases", () => {
@@ -86,6 +86,6 @@ describe("autonomous execution state", () => {
   it("never grants mutation authority", () => {
     const leased = acquireExecutionLease(createExecutionState(identity), "runner-1", 1000, 500);
     assert.equal(leased.mutationAllowed, false);
-    assert.equal(transitionExecution(leased, "CODEX_DISPATCHED").mutationAllowed, false);
+    assert.equal(transitionExecution(leased, "CODING_DISPATCHED").mutationAllowed, false);
   });
 });
