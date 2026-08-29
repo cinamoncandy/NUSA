@@ -32,6 +32,14 @@ const AUTHORITY = Object.freeze({
 const MAX_SIGNALS = 64;
 const MIN_EVIDENCE_QUALITY = 0.5;
 const MAX_RISK = 0.8;
+const MAX_SIGNAL_AGE_MS = 60 * 60 * 1_000;
+const MAX_FUTURE_SKEW_MS = 5 * 60 * 1_000;
+
+function assertScore(value: number): void {
+  if (!Number.isFinite(value) || value < 0 || value > 1) {
+    throw new Error("DISCOVERY_SCORE_INVALID");
+  }
+}
 
 /**
  * Converts bounded, externally observed signals into EVOLVE opportunities.
@@ -40,17 +48,36 @@ const MAX_RISK = 0.8;
  */
 export function discoverEvolutionOpportunities(
   signals: readonly EvolutionDiscoverySignal[],
+  now: Date = new Date(),
 ): EvolutionDiscoveryResult {
   const opportunities: EvolutionOpportunity[] = [];
   const rejectedSignalIds: string[] = [];
   const seen = new Set<string>();
+  const nowMs = now.getTime();
+
+  if (!Number.isFinite(nowMs)) {
+    throw new Error("DISCOVERY_CLOCK_INVALID");
+  }
 
   for (const signal of signals.slice(0, MAX_SIGNALS)) {
     if (seen.has(signal.id)) continue;
     seen.add(signal.id);
 
     try {
-      if (!Number.isFinite(Date.parse(signal.observedAt))) throw new Error("DISCOVERY_TIMESTAMP_INVALID");
+      const observedAtMs = Date.parse(signal.observedAt);
+      if (!Number.isFinite(observedAtMs)) throw new Error("DISCOVERY_TIMESTAMP_INVALID");
+      if (nowMs - observedAtMs > MAX_SIGNAL_AGE_MS) throw new Error("DISCOVERY_EVIDENCE_STALE");
+      if (observedAtMs - nowMs > MAX_FUTURE_SKEW_MS) throw new Error("DISCOVERY_TIMESTAMP_IN_FUTURE");
+      if (!signal.id.trim() || !signal.source.trim() || !signal.reference.trim() || !signal.problem.trim()) {
+        throw new Error("DISCOVERY_TEXT_INVALID");
+      }
+
+      assertScore(signal.evidenceQuality);
+      assertScore(signal.impact);
+      assertScore(signal.confidence);
+      assertScore(signal.risk);
+      assertScore(signal.reversibility);
+
       if (signal.evidenceQuality < MIN_EVIDENCE_QUALITY) throw new Error("DISCOVERY_EVIDENCE_INSUFFICIENT");
       if (signal.risk > MAX_RISK) throw new Error("DISCOVERY_RISK_TOO_HIGH");
 
