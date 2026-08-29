@@ -227,7 +227,7 @@ export function buildResearchRunProvenancePlan(input: {
       codeSha,
       datasetId: input.manifest.datasetId,
       datasetContentSha256: input.manifest.contentSha256.trim().toLowerCase(),
-      costModelVersion: seed.costModelVersion.trim(),
+      costModelVersion,
       generatedAt: input.timeline.specificationGeneratedAt,
       evaluationStartedAt: input.timeline.evaluationStartedAt,
       evaluationEndedAt: input.timeline.evaluationEndedAt,
