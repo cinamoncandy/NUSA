@@ -52,6 +52,9 @@ acceptance:
   - no_execution_accounting_risk_broker_or_live_authority_changes
 implementation_status: IMPLEMENTED_LOCAL_VALIDATION_COMPLETE_PENDING_PUBLISH
 implementation_commit: c2638d91edf8a2e3f24d4ed940a37b798f9c3981
+pull_request: 1049
+published_head: c288c597141a8f0f8930d5327b90097149e60cdd
+remote_validation: PENDING_EXACT_HEAD_CI
 validation:
   focused: PASS_13_OF_13
   relevant_regressions: PASS_38_OF_38_TARGETED

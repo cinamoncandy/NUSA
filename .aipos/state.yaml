@@ -25,7 +25,7 @@ latest_research_slice:
 base_branch: main
 active_branch: codex/issue-880-lifecycle-boundary
 active_successor_branch: null
-active_pull_request: null
+active_pull_request: 1049
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -90,7 +90,7 @@ claimed_state:
   scope: "Apply existing evidence-bound strategy containment advice only through an explicit human approval command with stale-decision and restart-idempotency guards."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
   implementation_commit: c2638d91edf8a2e3f24d4ed940a37b798f9c3981
-  validation: "Containment approval boundary implemented at c2638d91edf8a2e3f24d4ed940a37b798f9c3981; focused 13/13 and targeted 38/38 PASS; preflight/typecheck/build/lint/architecture/safety/security/Restricted LIVE/read-only broker/AIPOS/package validation PASS; full local isolated suite remains blocked by Windows TEMP mkdtemp EPERM; publication and exact-head CI pending."
+  validation: "Containment approval boundary implemented at c2638d91edf8a2e3f24d4ed940a37b798f9c3981; PR #1049 opened at c288c597141a8f0f8930d5327b90097149e60cdd; focused 13/13 and targeted 38/38 PASS; preflight/typecheck/build/lint/architecture/safety/security/Restricted LIVE/read-only broker/AIPOS/package validation PASS; full local isolated suite remains blocked by Windows TEMP mkdtemp EPERM; exact-head CI pending."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
