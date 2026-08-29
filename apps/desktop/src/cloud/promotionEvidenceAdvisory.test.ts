@@ -30,6 +30,7 @@ function entry(id: string, overrides: Partial<LeagueRankedEntry> = {}): LeagueRa
     id,
     familyId: "family-1",
     eligible: true,
+    outcome: "QUALIFIED_FOR_LEAGUE",
     reasons: [],
     evidenceBreadth: 1,
     components: strongComponents(),
@@ -94,7 +95,7 @@ describe("assessPromotionEvidence", () => {
   it("pins strength at INSUFFICIENT on any hard blocker, however strong the rest of the evidence is", () => {
     // Each case keeps every other pillar perfect, so only the blocker can be responsible.
     const cases: readonly (readonly [string, LeagueRankedEntry])[] = [
-      ["LEAGUE_INELIGIBLE", entry("a", { eligible: false })],
+      ["LEAGUE_INELIGIBLE", entry("a", { eligible: false, outcome: "REJECTED" })],
       ["NO_LEAGUE_SCORE", entry("a", { leagueScore: undefined })],
       ["REGIME_FRAGILE_EDGE", entry("a", { components: strongComponents({ regimeRobustnessClass: "FRAGILE" }) })],
       ["PAPER_RELIABILITY_RISK", entry("a", { components: strongComponents({ paperReliabilityPenalty: 0.4 }) })],
