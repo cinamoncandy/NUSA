@@ -6,7 +6,7 @@ repository: cinamoncandy/NUSA
 issue: 905
 pull_request: null
 base_branch: main
-base_commit: 602ff89c783d3f77397896d4869e212d6149e962
+base_commit: bf7e8c0de7614dec959d6c28180d16dfc8ef87f5
 implementation_branch: codex/issue-905-readmodel-hardening
 objective: "Harden the existing read-only Engineering OS production read-model boundary against malformed nested evidence and credential-shaped fields without inventing measurements or adding execution authority."
 architecture_impact:
@@ -53,7 +53,7 @@ acceptance:
   - credential-shaped_fields_are_rejected_at_the_read_only_boundary
   - safety_authority_remains_unchanged
 validation:
-  focused: PASS_10_OF_10
+  focused: PASS_12_OF_12
   production_wiring: PASS
   full_isolated_suite: PASS_729_FILES
   preflight: PASS
@@ -66,8 +66,8 @@ validation:
   security: PASS
   aipos: PASS
   git_diff_check: PASS
-  origin_branch: PUSHED
-  remote_pr: PENDING_GITHUB_AUTH
+  origin_branch: LOCAL_COMMIT_READY
+  remote_pr: PENDING_PUBLICATION
 implementation_status: IMPLEMENTED_VERIFYING
 known_limitations:
   - "Production GitHub telemetry, queue persistence, and pre/post optimization observations remain unavailable until their canonical external adapters are connected; the read model must report INSUFFICIENT rather than fabricate values."

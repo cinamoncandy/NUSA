@@ -1,11 +1,11 @@
 version: 1
 project: nusa
-updated_at: "2026-08-29T15:20:00+09:00"
+updated_at: "2026-08-29T15:35:00+09:00"
 current_execution_target:
   work_order: WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL
   status: IN_PROGRESS
   branch: codex/issue-905-readmodel-hardening
-  base_sha: 602ff89c783d3f77397896d4869e212d6149e962
+  base_sha: bf7e8c0de7614dec959d6c28180d16dfc8ef87f5
   scope: "Harden the existing read-only Engineering OS production read-model boundary against malformed nested evidence and credential-shaped fields."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: verification
@@ -86,11 +86,11 @@ claimed_state:
   work_order: WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL
   status: IN_PROGRESS
   branch: codex/issue-905-readmodel-hardening
-  base_commit: 602ff89c783d3f77397896d4869e212d6149e962
+  base_commit: bf7e8c0de7614dec959d6c28180d16dfc8ef87f5
   scope: "Harden the existing read-only Engineering OS production read-model boundary against malformed nested evidence and credential-shaped fields."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  implementation_commit: LOCAL_COMMIT_PENDING_REMOTE
-  validation: "Event-orchestrator focused tests and build passed locally; no execution, broker, Risk, LIVE, or AI authority changes."
+  implementation_commit: c7e92868e65d841952fca117faa75d3b9d358456
+  validation: "Engineering OS read-model focused HTTP/redaction tests PASS 12/12; preflight, typecheck, build, lint, architecture, safety, security, package validation, and AIPOS checks PASS; determinism run intentionally stopped after repository script entered its 10-run heavyweight loop; no execution, broker, Risk, LIVE, or AI authority changes."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
