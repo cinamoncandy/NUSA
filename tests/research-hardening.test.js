@@ -88,3 +88,14 @@ test("candidate admission rejects provenance that does not bind the evidence ide
   assert.equal(result.status, "NOT_ELIGIBLE");
   assert.ok(result.reasons.includes("PROVENANCE_EVIDENCE_MISMATCH"));
 });
+
+
+test("candidate freshness uses the injected clock at evaluation time", () => {
+  const p = provenance("window-1");
+  const result = new ResearchCandidateGate({ nowMs: 10, clock: () => 11 }).evaluate({
+    candidateId: "candidate-1",
+    evidence: [evidence(p, { evaluationTimestamp: 11 })],
+  });
+  assert.equal(result.status, "NOT_ELIGIBLE");
+  assert.equal(result.reasons.includes("FUTURE_EVALUATION_TIMESTAMP"), false);
+});
