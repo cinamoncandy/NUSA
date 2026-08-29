@@ -1,5 +1,5 @@
 import { canonicalResearchJson, type ResearchComparisonEvidence } from "../../../packages/contracts/src/researchRuntime";
-import { researchHardeningHash, validateResearchProvenance, validateResearchTemporalIntegrity, type ResearchCandidateGateDecision, type ResearchCostEvidence, type ResearchProvenance } from "../../../packages/contracts/src/researchHardening";
+import { researchHardeningHash, validateResearchProvenance, validateResearchTemporalIntegrity, type ResearchCandidateGateDecision, type ResearchProvenance } from "../../../packages/contracts/src/researchHardening";
 import { validateResearchCostEvidence } from "./researchCostEvidence";
 
 export interface ResearchCandidateGateOptions {
