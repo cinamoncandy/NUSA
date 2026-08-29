@@ -6,6 +6,7 @@ const assert = require("node:assert/strict");
 const {
   ResearchTrialLedgerError,
   appendResearchTrial,
+  appendResearchTrialIdempotent,
   parseResearchTrialLedger,
   serializeResearchTrialLedger,
   summarizeResearchTrialLedger,
@@ -58,6 +59,32 @@ test("trial ledger creates deterministic tamper-evident records", () => {
 
   const recreated = appendResearchTrial([], trial());
   assert.equal(recreated[0].recordHash, first[0].recordHash);
+});
+
+test("exact trial replay is idempotent and does not double count evidence", () => {
+  const ledger = appendResearchTrialIdempotent([], trial({ candidateIds: ["sma-8-20", "sma-5-20"] }));
+  const replayed = appendResearchTrialIdempotent(ledger, trial({
+    candidateIds: ["sma-5-20", "sma-8-20"],
+    tags: ["momentum", "baseline"]
+  }));
+
+  assert.strictEqual(replayed, ledger);
+  assert.equal(replayed.length, 1);
+  assert.equal(summarizeResearchTrialLedger(replayed).trialCount, 1);
+  assert.equal(replayed[0].recordHash, ledger[0].recordHash);
+});
+
+test("trial replay fails closed when persisted evidence drifts", () => {
+  const ledger = appendResearchTrialIdempotent([], trial());
+
+  assert.throws(
+    () => appendResearchTrialIdempotent(ledger, trial({ score: 0.99 })),
+    (error) => error instanceof ResearchTrialLedgerError && error.code === "REPLAY_EVIDENCE_MISMATCH"
+  );
+  assert.throws(
+    () => appendResearchTrialIdempotent(ledger, trial({ dataset: { ...trial().dataset, contentSha256: "b".repeat(64) } })),
+    (error) => error instanceof ResearchTrialLedgerError && error.code === "REPLAY_EVIDENCE_MISMATCH"
+  );
 });
 
 test("trial ledger counts failed and rejected attempts instead of hiding search failures", () => {
