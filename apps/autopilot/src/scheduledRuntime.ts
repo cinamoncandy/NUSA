@@ -2,6 +2,7 @@ import type { AutopilotDispatchPlan } from "./dispatchPlanner";
 import { executeGithubDispatch, type GithubExecutorResult } from "./githubExecutor";
 import { prepareProductionExecution } from "./productionExecutionSpine";
 import { deriveWorkflowFailureOpportunities, type WorkflowFailureEvidence } from "./evolveEvidenceOpportunitySource";
+import { runScheduledEvolutionCoding } from "./scheduledEvolutionCoding";
 import {
   acquirePersistentExecution,
   markPersistentExecutionDispatched,
@@ -11,6 +12,8 @@ import {
 export interface ScheduledRuntimeEnv {
   readonly NUSA_GITHUB_TOKEN?: string;
   readonly NUSA_GITHUB_REPOSITORY?: string;
+  readonly NUSA_AI_CODING_ENDPOINT?: string;
+  readonly NUSA_AI_CODING_TOKEN?: string;
   readonly NUSA_EXECUTION_COORDINATOR?: ExecutionCoordinatorNamespace;
 }
 
@@ -151,6 +154,25 @@ export async function runScheduledAutopilot(
       return result("ABSTAINED", "exact-main-canonical-ci-not-found", mainSha, null, null, discoveredOpportunityIds);
     }
     workflowRunId = resolvedRunId;
+
+    try {
+      const coding = await runScheduledEvolutionCoding(env, {
+        candidates,
+        now,
+        repository,
+        mainSha,
+        workflowRunId,
+      }, fetchImpl);
+      console.log(JSON.stringify({ event: "NUSA_SCHEDULED_EVOLVE_CODING", ...coding }));
+    } catch (error) {
+      console.error(JSON.stringify({
+        event: "NUSA_SCHEDULED_EVOLVE_CODING_FAILED",
+        reason: error instanceof Error ? error.message : "UNKNOWN",
+        liveAuthority: "NONE",
+        productionMutationAllowed: false,
+        aiAuthority: "ZERO_AUTHORITY",
+      }));
+    }
   } catch (error) {
     return result("ABSTAINED", error instanceof Error ? error.message : "scheduled-evidence-query-failed");
   }
