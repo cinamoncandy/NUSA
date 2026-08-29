@@ -1,8 +1,8 @@
-import { getSandbox, type Sandbox } from "@cloudflare/sandbox";
+import { getSandbox } from "@cloudflare/sandbox";
 import { assertSafeCodingEnvelope, type CodingBackend, type CodingBackendCheckpoint, type CodingBackendCommandResult } from "./codingBackend";
 import type { CodingExecutionEnvelope } from "./codingExecutionEnvelope";
 
-type SandboxNamespace = Parameters<typeof getSandbox<Sandbox>>[0];
+type SandboxNamespace = Parameters<typeof getSandbox>[0];
 
 interface WorkspaceRef {
   readonly sandboxId: string;
