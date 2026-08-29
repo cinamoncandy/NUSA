@@ -31,7 +31,7 @@ const ID = /^[A-Za-z0-9_.:/#@-]{1,240}$/;
 function validateEvidence(evidence: readonly EvolutionConfidenceEvidence[]): readonly EvolutionConfidenceEvidence[] {
   const seen = new Set<string>();
   return Object.freeze(evidence.map((item) => {
-    if (!ID.test(item.id) || !item.source.trim() || seen.has(item.id)) throw new Error("EVOLVE_CONFIDENCE_EVIDENCE_INVALID");
+    if (typeof item.id !== "string" || !ID.test(item.id) || typeof item.source !== "string" || !item.source.trim() || typeof item.independent !== "boolean" || seen.has(item.id)) throw new Error("EVOLVE_CONFIDENCE_EVIDENCE_INVALID");
     if (!bounded(item.quality)) throw new Error("EVOLVE_CONFIDENCE_EVIDENCE_QUALITY_INVALID");
     seen.add(item.id);
     return Object.freeze({ ...item, source: item.source.trim() });
