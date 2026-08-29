@@ -102,6 +102,17 @@ function regimeEvaluation(datasetId, overrides = {}) {
 
 const entryOf = (result, id) => result.standing.entries.find((entry) => entry.id === id);
 
+test("rejects candidate experiment identity mismatches before ranking aggregate evidence", () => {
+  const mismatched = candidate("bridge-id", "family-a");
+  mismatched.experiment.experimentConfig.candidates = [{ id: "different-candidate" }];
+
+  assert.throws(
+    () => buildResearchRunLeague([mismatched, candidate("other", "family-b")]),
+    (error) => error instanceof ResearchRunLeagueBridgeError
+      && error.code === "CANDIDATE_EXPERIMENT_IDENTITY_MISMATCH"
+  );
+});
+
 test("bridges a real research run through benchmark scorecard, League ranking, and allocation", () => {
   const result = buildResearchRunLeague([
     candidate("sma-5-20", "sma-crossover"),
