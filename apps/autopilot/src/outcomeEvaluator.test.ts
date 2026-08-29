@@ -58,7 +58,6 @@ describe("outcomeEvaluator", () => {
     assert.equal(result.classification, "VERIFIED_IMPROVEMENT");
     assert.equal(result.directionalDelta, 4);
   });
-
   it("fails closed instead of treating an unknown direction as lower-is-better", () => {
     const result = evaluateOutcome(verified({ direction: "UNKNOWN" as never }));
     assert.equal(result.classification, "INSUFFICIENT");
@@ -83,5 +82,5 @@ describe("outcomeEvaluator", () => {
     assert.equal(result.directionalDelta, null);
     assert.equal(result.recommendation, "GATHER_EVIDENCE");
   });
-});
 
+});

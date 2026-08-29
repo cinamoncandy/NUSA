@@ -100,4 +100,3 @@ export function evaluateOutcome(evidence: OutcomeEvidence): OutcomeEvaluation {
     reason: "verified-post-merge-regression",
   });
 }
-
