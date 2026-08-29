@@ -67,7 +67,7 @@ function experiment(id, candidateIndex, overrides = {}) {
     experimentConfig: {
       walkForward: {},
       candidates: [{ id }],
-      executionCosts: { spreadBps: 5, slippageBps: 5 }
+      executionCosts: { feeRate: 0.0005, spreadBps: 5, slippageBps: 5 }
     },
     generatedAt: "2026-01-01T00:00:00.000Z",
     warnings: [],

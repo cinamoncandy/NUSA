@@ -133,7 +133,7 @@ export class ResearchCandidateGate {
       if (item.challenger.metrics.maximumDrawdown > item.champion.metrics.maximumDrawdown) reasons.push("DRAWDOWN_NON_REGRESSION_FAILED");
       if (item.challenger.metrics.sharpeRatio < item.champion.metrics.sharpeRatio) reasons.push("RISK_ADJUSTED_NON_SUPERIOR");
       if (item.challenger.metrics.costAdjustedReturn - item.champion.metrics.costAdjustedReturn < this.options.minimumSuperiorityMargin) reasons.push("COST_ADJUSTED_MARGIN_NOT_MET");
-      if (!finite(item.challenger.metrics.statisticalConfidence) || item.challenger.metrics.statisticalConfidence < 0.95) reasons.push("STATISTICAL_CONFIDENCE_NOT_MET");
+      if (!finite(item.challenger.metrics.statisticalConfidence) || item.challenger.metrics.statisticalConfidence < this.options.minimumStatisticalConfidence) reasons.push("STATISTICAL_CONFIDENCE_NOT_MET");
       if (!finite(item.challenger.metrics.superiorityMargin) || item.challenger.metrics.superiorityMargin < this.options.minimumSuperiorityMargin) reasons.push("SUPERIORITY_MARGIN_NOT_MET");
       if (item.result !== "CHALLENGER_BETTER") reasons.push("CHALLENGER_NOT_SUPERIOR");
       if (validTimestamp(item.evaluationTimestamp) && validTimestamp(nowMs) && item.evaluationTimestamp <= nowMs && nowMs - item.evaluationTimestamp > this.options.maxEvidenceAgeMs) reasons.push("STALE_EVIDENCE");

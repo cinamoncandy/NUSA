@@ -21,13 +21,46 @@ function result(status: GithubExecutorResult["status"], reason: string, httpStat
   return Object.freeze({ status, reason, httpStatus });
 }
 
+function object(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+async function resolveCurrentMainSha(
+  base: string,
+  repository: string,
+  token: string,
+  fetchImpl: typeof fetch,
+): Promise<GithubExecutorResult | string> {
+  const response = await fetchImpl(`${base}/repos/${repository}/branches/main`, {
+    headers: {
+      accept: "application/vnd.github+json",
+      authorization: `Bearer ${token}`,
+      "user-agent": "nusa-autopilot-worker",
+      "x-github-api-version": "2022-11-28",
+    },
+  });
+  if (response.status === 401 || response.status === 403) return result("FAILED", "github-executor-auth-rejected", response.status);
+  if (response.status === 404) return result("FAILED", "github-executor-repository-or-token-scope-invalid", 404);
+  if (!response.ok) return result("FAILED", `github-executor-main-head-http-${response.status}`, response.status);
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    return result("FAILED", "github-executor-main-head-invalid", response.status);
+  }
+  const sha = object(object(payload)?.commit)?.sha;
+  if (typeof sha !== "string" || !SHA40.test(sha)) return result("FAILED", "github-executor-main-head-invalid", response.status);
+  return sha.toLowerCase();
+}
+
 export async function executeGithubDispatch(
   request: AutopilotExecutionRequest,
   config: GithubExecutorConfig,
   fetchImpl: typeof fetch = fetch,
 ): Promise<GithubExecutorResult> {
   if (request.kind === "NOOP") return result("NOOP", "execution-request-noop");
-  if (!config.token?.trim()) return result("INTERFACE_READY", "github-executor-token-not-configured");
+  const token = config.token?.trim();
+  if (!token) return result("INTERFACE_READY", "github-executor-token-not-configured");
   if (!REPOSITORY.test(config.allowedRepository)) return result("REJECTED", "github-executor-allowlist-invalid");
   if (request.repository !== config.allowedRepository) return result("REJECTED", "github-executor-repository-not-allowed");
   if (!request.headSha || !SHA40.test(request.headSha)) return result("REJECTED", "github-executor-head-sha-invalid");
@@ -40,11 +73,15 @@ export async function executeGithubDispatch(
   }
 
   const base = (config.apiBaseUrl ?? "https://api.github.com").replace(/\/$/, "");
+  const currentMainSha = await resolveCurrentMainSha(base, config.allowedRepository, token, fetchImpl);
+  if (typeof currentMainSha !== "string") return currentMainSha;
+  if (currentMainSha !== request.headSha.toLowerCase()) return result("REJECTED", "github-executor-stale-head-suppressed");
+
   const response = await fetchImpl(`${base}/repos/${config.allowedRepository}/dispatches`, {
     method: "POST",
     headers: {
       accept: "application/vnd.github+json",
-      authorization: `Bearer ${config.token}`,
+      authorization: `Bearer ${token}`,
       "content-type": "application/json",
       "user-agent": "nusa-autopilot-worker",
       "x-github-api-version": "2022-11-28",

@@ -1,4 +1,4 @@
-import type { ResearchExperimentResult } from "./researchDataset";
+import { requireResearchExecutionCostEvidence, type ResearchExperimentResult } from "./researchDataset";
 
 export interface ResearchBenchmarkPolicy {
   readonly minimumWindows?: number;
@@ -88,11 +88,45 @@ function normalizePolicy(policy: ResearchBenchmarkPolicy): Required<ResearchBenc
   return freeze(normalized);
 }
 
+function validateExecutionCostEvidence(experiment: ResearchExperimentResult): void {
+  const costs = experiment.experimentConfig?.executionCosts;
+  requireResearchExecutionCostEvidence({
+    feeRate: costs?.feeRate,
+    executionCosts: {
+      spreadBps: costs?.spreadBps,
+      slippageBps: costs?.slippageBps,
+    },
+  });
+}
+
 function scoreSlice(slice: ResearchBenchmarkSlice, policy: Required<ResearchBenchmarkPolicy>): ResearchBenchmarkSliceScore {
+  validateExecutionCostEvidence(slice.experiment);
   if (!slice.id.trim()) throw new Error("benchmark slice id is required");
   const manifest = slice.experiment.manifest;
   const oos = slice.experiment.walkForwardResult.combinedOutOfSampleMetrics;
   const churn = slice.experiment.walkForwardResult.stabilityDiagnostics.selectionChurnRatio;
+  if (oos.equalWeight == null || oos.sequentialCompounded == null) {
+    throw new Error("benchmark aggregate evidence is incomplete");
+  }
+  for (const [name, value] of [
+    ["totalReturn", oos.totalReturn],
+    ["averageBenchmarkReturn", oos.equalWeight.averageBenchmarkReturn],
+    ["averageOutperformance", oos.equalWeight.averageOutperformance],
+  ] as const) {
+    if (!Number.isFinite(value)) throw new Error(`${name} must be finite`);
+  }
+  for (const [name, value] of [
+    ["windowCount", oos.windowCount],
+    ["totalOosPoints", oos.totalOosPoints],
+    ["totalOosClosedTrades", oos.totalOosClosedTrades],
+  ] as const) {
+    if (!Number.isSafeInteger(value) || value < 0) {
+      throw new Error(`${name} must be a non-negative integer`);
+    }
+  }
+  if (!Number.isFinite(oos.sequentialCompounded.initialEquity) || oos.sequentialCompounded.initialEquity <= 0) {
+    throw new Error("initialEquity must be positive and finite");
+  }
   finiteNonNegative(oos.maximumDrawdown, "maximumDrawdown");
   finiteNonNegative(oos.turnover, "turnover");
   finiteNonNegative(oos.totalTradingCost, "totalTradingCost");

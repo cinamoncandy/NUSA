@@ -25,7 +25,7 @@ function experiment(overrides = {}) {
       createdAt: "2026-01-01T00:00:00.000Z",
       contentSha256: overrides.contentSha256 ?? `sha-${id}`
     },
-    experimentConfig: { walkForward: {}, candidates: [], executionCosts: {} },
+    experimentConfig: { walkForward: {}, candidates: [], executionCosts: { feeRate: 0.0005, spreadBps: 5, slippageBps: 5 } },
     generatedAt: "2026-01-01T00:00:00.000Z",
     warnings: [],
     walkForwardResult: {
@@ -123,6 +123,27 @@ test("supports explicit versioned research thresholds without changing defaults"
   });
   assert.equal(relaxed.slices[0].eligible, true);
   assert.equal(relaxed.policy.maximumDrawdown, 0.5);
+});
+
+test("rejects malformed aggregate evidence before ranking", () => {
+  assert.throws(
+    () => createResearchBenchmarkScorecard([
+      { id: "nan-return", experiment: experiment({ totalReturn: Number.NaN }) }
+    ]),
+    /totalReturn must be finite/
+  );
+  assert.throws(
+    () => createResearchBenchmarkScorecard([
+      { id: "fractional-count", experiment: experiment({ totalOosPoints: 1.5 }) }
+    ]),
+    /totalOosPoints must be a non-negative integer/
+  );
+  assert.throws(
+    () => createResearchBenchmarkScorecard([
+      { id: "empty-equity", experiment: experiment({ initialEquity: 0 }) }
+    ]),
+    /initialEquity must be positive and finite/
+  );
 });
 
 test("rejects duplicate slice ids and invalid policy ratios", () => {
