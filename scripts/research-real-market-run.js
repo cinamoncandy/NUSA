@@ -4,12 +4,13 @@ const {
   evaluateUpbitDailyCandleFreshness,
   mapUpbitDayCandlesToResearchCandles
 } = require("../dist/apps/desktop/src/exchange/upbitCandleAdapter.js");
-const { createHistoricalDatasetManifest, runWalkForwardExperiment } = require("../dist/apps/desktop/src/cloud/researchDataset.js");
+const { createHistoricalDatasetManifest, candlesToBacktestPoints, runWalkForwardExperiment } = require("../dist/apps/desktop/src/cloud/researchDataset.js");
 const { SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
 const { buildResearchRunLeague } = require("../dist/apps/desktop/src/cloud/researchRunLeagueBridge.js");
 const { buildResearchRunRegimeEvaluation } = require("../dist/apps/desktop/src/cloud/researchRunRegimeEvidence.js");
 const { buildResearchRunPboEvidence } = require("../dist/apps/desktop/src/cloud/researchRunPboEvidence.js");
 const { buildResearchRunDsrEvidence } = require("../dist/apps/desktop/src/cloud/researchRunDsrEvidence.js");
+const { runExecutionCostStress } = require("../dist/apps/desktop/src/strategy/executionCostStress.js");
 
 const STRATEGY_FAMILY_ID = "sma-crossover";
 const MARKET = "KRW-BTC";
@@ -22,6 +23,33 @@ const BACKTEST_CONFIG = {
   orderQuantity: 0.001,
   executionCosts: { spreadBps: 5, slippageBps: 5 }
 };
+
+// Fixed before the dataset is observed: the existing cost-stress engine reruns the same
+// walk-forward plan under a declared baseline/moderate/severe grid. This is sensitivity
+// evidence only; it never changes candidate selection authority or execution policy.
+const COST_STRESS_SCENARIOS = [
+  {
+    id: "BASE",
+    label: "configured baseline",
+    feeRate: BACKTEST_CONFIG.feeRate,
+    spreadBps: BACKTEST_CONFIG.executionCosts.spreadBps,
+    slippageBps: BACKTEST_CONFIG.executionCosts.slippageBps
+  },
+  {
+    id: "MODERATE",
+    label: "moderate cost inflation",
+    feeRate: BACKTEST_CONFIG.feeRate * 1.5,
+    spreadBps: BACKTEST_CONFIG.executionCosts.spreadBps * 2,
+    slippageBps: BACKTEST_CONFIG.executionCosts.slippageBps * 2
+  },
+  {
+    id: "SEVERE",
+    label: "severe cost inflation",
+    feeRate: BACKTEST_CONFIG.feeRate * 2,
+    spreadBps: BACKTEST_CONFIG.executionCosts.spreadBps * 4,
+    slippageBps: BACKTEST_CONFIG.executionCosts.slippageBps * 6
+  }
+];
 
 const WALK_FORWARD_CONFIG = {
   trainSize: 120,
@@ -54,6 +82,31 @@ function requiredResearchCostModelVersion() {
     throw new Error("real research run requires NUSA_RESEARCH_COST_MODEL_VERSION");
   }
   return value.trim();
+}
+
+function projectCostStress(stress) {
+  const projectScenario = (scenarioResult) => ({
+    scenario: scenarioResult.scenario,
+    selectionMode: scenarioResult.selectionMode,
+    markedTotalReturn: scenarioResult.markedTotalReturn,
+    markedMaximumDrawdown: scenarioResult.markedMaximumDrawdown,
+    closedTradeNetProfit: scenarioResult.closedTradeNetProfit,
+    closedTradeExpectancy: scenarioResult.closedTradeExpectancy ?? null,
+    closedTradeProfitFactor: scenarioResult.closedTradeProfitFactor ?? null,
+    totalTradingCost: scenarioResult.totalTradingCost,
+    benchmarkOutperformance: scenarioResult.benchmarkOutperformance,
+    warnings: scenarioResult.warnings
+  });
+  return {
+    selectionMode: stress.selectionMode,
+    identity: stress.identity,
+    baseline: projectScenario(stress.baseline),
+    scenarios: stress.scenarios.map(projectScenario),
+    degradation: stress.degradation,
+    breakEvenEstimate: stress.breakEvenEstimate,
+    robustnessScore: stress.robustnessScore,
+    warnings: stress.warnings
+  };
 }
 
 function nextWallClockTimestamp(previousMs) {
@@ -143,6 +196,21 @@ async function main() {
     parameters: { shortPeriod, longPeriod }
   }));
 
+  const costStress = runExecutionCostStress(
+    candlesToBacktestPoints(candles),
+    candidates,
+    WALK_FORWARD_CONFIG,
+    {
+      scenarios: COST_STRESS_SCENARIOS,
+      baselineScenarioId: "BASE",
+      candidateSelectionMode: "FIX_BASELINE_SELECTION"
+    },
+    {
+      sourceExperimentSha: `real-run:${manifest.datasetId}`,
+      datasetSha256: manifest.contentSha256
+    }
+  );
+
   const generatedAt = new Date().toISOString();
   const result = runWalkForwardExperiment(
     { candles, manifest },
@@ -214,6 +282,7 @@ async function main() {
       selectionChurnRatio: result.walkForwardResult.stabilityDiagnostics.selectionChurnRatio,
       candidates: result.walkForwardResult.stabilityDiagnostics.candidates
     },
+    costStress: projectCostStress(costStress),
     outOfSample: {
       totalOosPoints: oos.totalOosPoints,
       totalOosClosedTrades: oos.totalOosClosedTrades,
