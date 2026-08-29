@@ -6,6 +6,7 @@ import { runScheduledEvolutionCoding } from "./scheduledEvolutionCoding";
 import {
   acquirePersistentExecution,
   markPersistentExecutionDispatched,
+  readScheduledRuntimeReceipt,
   type ExecutionCoordinatorNamespace,
 } from "./executionCoordinator";
 
@@ -108,6 +109,22 @@ function discoverWorkflowFailureOpportunityIds(candidates: readonly unknown[], n
   return Object.freeze(opportunities.map((opportunity) => opportunity.id));
 }
 
+function hasFreshWorkflowFailureSince(candidates: readonly unknown[], observedAt: number): boolean {
+  if (!safeTimestamp(observedAt)) return true;
+  for (const candidate of candidates) {
+    const run = object(candidate);
+    if (!run) continue;
+    const conclusion = text(run.conclusion);
+    if (conclusion !== "failure" && conclusion !== "cancelled" && conclusion !== "timed_out") continue;
+    if (text(run.head_branch) !== "main" || text(run.event) === "repository_dispatch") continue;
+    const completedAt = text(run.completed_at);
+    if (!completedAt) continue;
+    const completedAtMs = Date.parse(completedAt);
+    if (Number.isFinite(completedAtMs) && completedAtMs >= observedAt) return true;
+  }
+  return false;
+}
+
 export async function runScheduledAutopilot(
   env: ScheduledRuntimeEnv,
   now: number,
@@ -121,6 +138,13 @@ export async function runScheduledAutopilot(
 
   const repository = env.NUSA_GITHUB_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) return result("ABSTAINED", "repository-invalid");
+
+  let previousReceipt = null;
+  try {
+    previousReceipt = await readScheduledRuntimeReceipt(coordinator);
+  } catch {
+    previousReceipt = null;
+  }
 
   let mainSha: string;
   let workflowRunId: number;
@@ -154,6 +178,15 @@ export async function runScheduledAutopilot(
       return result("ABSTAINED", "exact-main-canonical-ci-not-found", mainSha, null, null, discoveredOpportunityIds);
     }
     workflowRunId = resolvedRunId;
+
+    if (
+      previousReceipt
+      && previousReceipt.headSha === mainSha
+      && previousReceipt.workflowRunId === workflowRunId
+      && !hasFreshWorkflowFailureSince(candidates, previousReceipt.observedAt)
+    ) {
+      return result("DUPLICATE_EXECUTION_SUPPRESSED", "scheduled-state-unchanged", mainSha, workflowRunId, null, discoveredOpportunityIds);
+    }
 
     try {
       const coding = await runScheduledEvolutionCoding(env, {
