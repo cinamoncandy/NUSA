@@ -15,12 +15,21 @@ export interface EvolutionOutcomeRecord {
   readonly evidence: readonly string[];
 }
 
+const EVIDENCE_REFERENCE = /^[A-Za-z0-9_.:/#@-]{1,240}$/;
+
+function normalizeEvidenceReference(reference: string): string {
+  const normalized = reference.trim();
+  if (!EVIDENCE_REFERENCE.test(normalized)) throw new Error("EVOLVE_OUTCOME_EVIDENCE_INVALID");
+  return normalized;
+}
+
 export function evaluateEvolutionOutcome(input: {
   opportunityId: string;
   expectedMetric: number;
   actualMetric: number;
   tolerance?: number;
   evidence: readonly string[];
+  trustedEvidenceReferences: readonly string[];
   observedAt?: string;
 }): EvolutionOutcomeRecord {
   if (!input.opportunityId.trim()) throw new Error("EVOLVE_OUTCOME_OPPORTUNITY_REQUIRED");
@@ -28,6 +37,12 @@ export function evaluateEvolutionOutcome(input: {
     throw new Error("EVOLVE_OUTCOME_METRIC_INVALID");
   }
   if (input.evidence.length === 0) throw new Error("EVOLVE_OUTCOME_EVIDENCE_REQUIRED");
+  const trustedEvidence = new Set(input.trustedEvidenceReferences.map(normalizeEvidenceReference));
+  if (trustedEvidence.size === 0) throw new Error("EVOLVE_OUTCOME_TRUSTED_EVIDENCE_REQUIRED");
+  const evidence = input.evidence.map(normalizeEvidenceReference);
+  if (evidence.some((reference) => !trustedEvidence.has(reference))) {
+    throw new Error("EVOLVE_OUTCOME_EVIDENCE_UNBOUND");
+  }
   const observedAt = input.observedAt;
   if (typeof observedAt !== "string" || observedAt.trim().length === 0) {
     throw new Error("EVOLVE_OUTCOME_OBSERVED_AT_REQUIRED");
@@ -48,6 +63,6 @@ export function evaluateEvolutionOutcome(input: {
     actualMetric: input.actualMetric,
     outcome,
     observedAt,
-    evidence: Object.freeze([...input.evidence]),
+    evidence: Object.freeze(evidence),
   });
 }
