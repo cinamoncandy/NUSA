@@ -76,3 +76,14 @@ test("uses deterministic opportunity id ordering to break equal scores", () => {
   });
   assert.equal(result.selectedOpportunity?.id, "a");
 });
+
+test("rejects malformed selector envelopes before runtime property access", () => {
+  assert.throws(() => selectNextEvolutionOpportunity(null as never), /EVOLVE_SELECTION_INPUT_INVALID/);
+  assert.throws(() => selectNextEvolutionOpportunity({ ...baseInput(), circuit: null } as never), /EVOLVE_SELECTION_CIRCUIT_INVALID/);
+  assert.throws(() => selectNextEvolutionOpportunity({ ...baseInput(), schedulePolicy: null } as never), /EVOLVE_SELECTION_SCHEDULE_POLICY_INVALID/);
+  assert.throws(() => selectNextEvolutionOpportunity({ ...baseInput(), opportunities: null } as never), /EVOLVE_SELECTION_OPPORTUNITIES_INVALID/);
+  assert.throws(() => selectNextEvolutionOpportunity({
+    ...baseInput(),
+    opportunities: [null],
+  } as never), /EVOLVE_OPPORTUNITY_INVALID/);
+});

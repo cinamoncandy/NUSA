@@ -1,5 +1,5 @@
-import type { EvolutionCircuitBreakerState } from "./evolveCircuitBreaker";
-import type { EvolutionOpportunity } from "./evolveOpportunity";
+import { validateCircuitBreakerState, type EvolutionCircuitBreakerState } from "./evolveCircuitBreaker";
+import { validateEvolutionOpportunity, type EvolutionOpportunity } from "./evolveOpportunity";
 import { rankEvolutionOpportunities, type EvolutionPriority } from "./evolveRanking";
 import { decideEvolutionSchedule, type EvolutionSchedulePolicy } from "./evolveScheduler";
 
@@ -36,10 +36,18 @@ const AUTHORITY = Object.freeze({
 export function selectNextEvolutionOpportunity(
   input: EvolutionAutonomousSelectionInput,
 ): EvolutionAutonomousSelection {
+  if (input == null || typeof input !== "object") throw new Error("EVOLVE_SELECTION_INPUT_INVALID");
+  if (input.circuit == null || typeof input.circuit !== "object") {
+    throw new Error("EVOLVE_SELECTION_CIRCUIT_INVALID");
+  }
+  validateCircuitBreakerState(input.circuit);
   if (input.circuit.state !== "CLOSED") {
     return Object.freeze({ selectedOpportunity: null, priority: null, reason: "circuit-open", authority: AUTHORITY });
   }
 
+  if (input.schedulePolicy == null || typeof input.schedulePolicy !== "object") {
+    throw new Error("EVOLVE_SELECTION_SCHEDULE_POLICY_INVALID");
+  }
   const schedule = decideEvolutionSchedule(
     input.schedulePolicy,
     input.activeExecutions,
@@ -49,6 +57,8 @@ export function selectNextEvolutionOpportunity(
     return Object.freeze({ selectedOpportunity: null, priority: null, reason: schedule.reason, authority: AUTHORITY });
   }
 
+  if (!Array.isArray(input.opportunities)) throw new Error("EVOLVE_SELECTION_OPPORTUNITIES_INVALID");
+  for (const opportunity of input.opportunities) validateEvolutionOpportunity(opportunity);
   const ranked = rankEvolutionOpportunities(input.opportunities);
   const priority = ranked.find((candidate) => candidate.eligible && candidate.score > 0) ?? null;
   if (!priority) {
