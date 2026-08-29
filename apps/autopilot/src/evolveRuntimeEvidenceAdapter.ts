@@ -1,4 +1,5 @@
 import type { EvolutionLifecycleInput } from "./evolveLifecycle";
+import { validateEvolutionValidationResult } from "./evolveValidation";
 
 export interface EvolutionRuntimeEvidenceSnapshot {
   readonly lifecycle: Omit<EvolutionLifecycleInput, "opportunity">;
@@ -46,6 +47,12 @@ export function adaptRuntimeEvidenceToLifecycle(
   }
   if (lifecycle.execution.authority !== "ZERO_AUTHORITY") return abstain("runtime-execution-authority-invalid", sources);
   if (!SHA40.test(lifecycle.execution.headSha)) return abstain("runtime-execution-head-invalid", sources);
+
+  try {
+    validateEvolutionValidationResult(lifecycle.validation);
+  } catch {
+    return abstain("runtime-validation-evidence-invalid", sources);
+  }
 
   if (!SHA40.test(lifecycle.validation.exactHeadSha) || lifecycle.validation.evidence.length === 0) {
     return abstain("runtime-validation-evidence-required", sources);
