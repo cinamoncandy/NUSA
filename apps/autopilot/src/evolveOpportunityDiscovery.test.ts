@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { discoverEvolutionOpportunities, type EvolutionDiscoverySignal } from "./evolveOpportunityDiscovery";
 
 const signal = (overrides: Partial<EvolutionDiscoverySignal> = {}): EvolutionDiscoverySignal => ({
@@ -18,13 +19,20 @@ const signal = (overrides: Partial<EvolutionDiscoverySignal> = {}): EvolutionDis
 describe("discoverEvolutionOpportunities", () => {
   it("creates a bounded discovered opportunity without authority", () => {
     const result = discoverEvolutionOpportunities([signal()]);
-    expect(result.opportunities).toHaveLength(1);
-    expect(result.opportunities[0]).toMatchObject({
-      id: "discovery:ci-regression-1",
-      status: "DISCOVERED",
-      source: "github-actions",
-    });
-    expect(result.authority).toEqual({
+    assert.equal(result.opportunities.length, 1);
+    assert.deepEqual(
+      {
+        id: result.opportunities[0]?.id,
+        status: result.opportunities[0]?.status,
+        source: result.opportunities[0]?.source,
+      },
+      {
+        id: "discovery:ci-regression-1",
+        status: "DISCOVERED",
+        source: "github-actions",
+      },
+    );
+    assert.deepEqual(result.authority, {
       liveAuthority: "NONE",
       productionMutationAllowed: false,
       aiAuthority: "ZERO_AUTHORITY",
@@ -36,14 +44,14 @@ describe("discoverEvolutionOpportunities", () => {
       signal({ id: "weak", evidenceQuality: 0.49 }),
       signal({ id: "risky", risk: 0.81 }),
     ]);
-    expect(result.opportunities).toHaveLength(0);
-    expect(result.rejectedSignalIds).toEqual(["weak", "risky"]);
+    assert.equal(result.opportunities.length, 0);
+    assert.deepEqual(result.rejectedSignalIds, ["weak", "risky"]);
   });
 
   it("deduplicates signals and bounds discovery input", () => {
     const duplicate = signal({ id: "same" });
     const many = Array.from({ length: 70 }, (_, index) => signal({ id: `s${index}` }));
-    expect(discoverEvolutionOpportunities([duplicate, duplicate]).opportunities).toHaveLength(1);
-    expect(discoverEvolutionOpportunities(many).opportunities).toHaveLength(64);
+    assert.equal(discoverEvolutionOpportunities([duplicate, duplicate]).opportunities.length, 1);
+    assert.equal(discoverEvolutionOpportunities(many).opportunities.length, 64);
   });
 });
