@@ -21,6 +21,15 @@ export interface ResearchCandidateSpecificationDecision {
   readonly specificationHash: string;
 }
 
+export interface ResearchCandidateSpecificationBinding {
+  readonly candidateId: string;
+  readonly familyId: string;
+  readonly datasetId: string;
+  readonly datasetContentSha256: string;
+  readonly parameters: Readonly<Record<string, string | number | boolean>>;
+  readonly evaluationGeneratedAt: string;
+}
+
 const SHA40 = /^[0-9a-f]{40}$/i;
 const SHA256 = /^[0-9a-f]{64}$/i;
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
@@ -30,7 +39,11 @@ function isParameterRecord(value: unknown): value is Readonly<Record<string, str
 }
 
 function canonicalParameters(parameters: Readonly<Record<string, string | number | boolean>>): Record<string, string | number | boolean> {
-  return Object.fromEntries(Object.entries(parameters).sort(([left], [right]) => left.localeCompare(right)));
+  return Object.fromEntries(Object.entries(parameters).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0));
+}
+
+function canonicalParameterJson(parameters: Readonly<Record<string, string | number | boolean>>): string {
+  return JSON.stringify(canonicalParameters(parameters));
 }
 
 function canonicalSpecification(specification: ResearchCandidateSpecification): Record<string, unknown> {
@@ -123,5 +136,41 @@ export function validateResearchCandidateSpecification(
     status: normalizedReasons.length === 0 ? "VERIFIED" : "REJECTED",
     reasons: normalizedReasons,
     specificationHash,
+  });
+}
+
+export function validateResearchCandidateSpecificationBinding(
+  specification: ResearchCandidateSpecification,
+  expected: ResearchCandidateSpecificationBinding,
+): ResearchCandidateSpecificationDecision {
+  const evaluationGeneratedAtMs = parseTimestamp(expected.evaluationGeneratedAt);
+  const base = validateResearchCandidateSpecification(specification, evaluationGeneratedAtMs);
+  const reasons = [...base.reasons];
+
+  if (!nonEmpty(expected.candidateId)) reasons.push("MISSING_EXPECTED_CANDIDATE_ID");
+  if (!nonEmpty(expected.familyId)) reasons.push("MISSING_EXPECTED_FAMILY_ID");
+  if (!nonEmpty(expected.datasetId)) reasons.push("MISSING_EXPECTED_DATASET_ID");
+  if (!SHA256.test(expected.datasetContentSha256)) reasons.push("INVALID_EXPECTED_DATASET_CONTENT_SHA256");
+
+  if (specification.candidateId !== expected.candidateId) reasons.push("SPECIFICATION_CANDIDATE_ID_MISMATCH");
+  if (specification.familyId !== expected.familyId) reasons.push("SPECIFICATION_FAMILY_ID_MISMATCH");
+  if (specification.datasetId !== expected.datasetId) reasons.push("SPECIFICATION_DATASET_ID_MISMATCH");
+  if (specification.datasetContentSha256.toLowerCase() !== expected.datasetContentSha256.toLowerCase()) {
+    reasons.push("SPECIFICATION_DATASET_HASH_MISMATCH");
+  }
+
+  try {
+    if (canonicalParameterJson(specification.parameters) !== canonicalParameterJson(expected.parameters)) {
+      reasons.push("SPECIFICATION_PARAMETERS_MISMATCH");
+    }
+  } catch {
+    reasons.push("SPECIFICATION_PARAMETERS_INVALID");
+  }
+
+  const normalizedReasons = Object.freeze([...new Set(reasons)].sort());
+  return freeze({
+    status: normalizedReasons.length === 0 ? "VERIFIED" : "REJECTED",
+    reasons: normalizedReasons,
+    specificationHash: base.specificationHash,
   });
 }

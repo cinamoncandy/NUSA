@@ -14,6 +14,10 @@ import type { LeagueCapitalAllocationAdvisory, LeagueCapitalAllocationPolicy } f
 import { LeagueCapitalAllocationError } from "./leagueCapitalAllocation";
 import { extractResearchRunOosObservations, ResearchRunOosObservationError, type OosObservationTrace } from "./researchRunOosObservationEvidence";
 import { gatePaperForwardLeagueEvidence, type PaperForwardLeagueEvidenceDecision, type PaperForwardLeagueEvidenceSource } from "./paperForwardLeagueEvidence";
+import {
+  validateResearchCandidateSpecificationBinding,
+  type ResearchCandidateSpecification,
+} from "./researchCandidateSpecification";
 
 /**
  * Minimal adapter joining a real research run to the League pipeline.
@@ -39,6 +43,8 @@ export interface ResearchRunCandidate {
   /** Strategy family. Tuned variants of one strategy MUST share a familyId. */
   readonly familyId: string;
   readonly experiment: ResearchExperimentResult;
+  /** Immutable provenance contract bound to this candidate's experiment and dataset. */
+  readonly candidateSpecification: ResearchCandidateSpecification;
   /** Optional point-in-time multi-window regime evidence for this candidate's own experiment. */
   readonly regimeAwareEvaluation?: RegimeAwareStrategyEvaluation;
   /** Candidate-specific DSR produced from this search's cost-aware OOS returns. */
@@ -116,6 +122,32 @@ export function buildResearchRunLeague(
       throw new ResearchRunLeagueBridgeError(
         "CANDIDATE_EXPERIMENT_IDENTITY_MISMATCH",
         `candidate ${candidate.id} must own exactly one matching experiment candidate`,
+      );
+    }
+
+    try {
+      const specificationDecision = validateResearchCandidateSpecificationBinding(
+        candidate.candidateSpecification,
+        {
+          candidateId: candidate.id,
+          familyId: candidate.familyId,
+          datasetId: candidate.experiment.manifest.datasetId,
+          datasetContentSha256: candidate.experiment.manifest.contentSha256,
+          parameters: configuredCandidates[0]?.parameters ?? {},
+          evaluationGeneratedAt: candidate.experiment.generatedAt,
+        },
+      );
+      if (specificationDecision.status !== "VERIFIED") {
+        throw new ResearchRunLeagueBridgeError(
+          "INVALID_CANDIDATE_SPECIFICATION",
+          `candidate ${candidate.id} has invalid bound specification: ${specificationDecision.reasons.join(",")}`,
+        );
+      }
+    } catch (error) {
+      if (error instanceof ResearchRunLeagueBridgeError) throw error;
+      throw new ResearchRunLeagueBridgeError(
+        "INVALID_CANDIDATE_SPECIFICATION",
+        `candidate ${candidate.id} has malformed bound specification`,
       );
     }
   }

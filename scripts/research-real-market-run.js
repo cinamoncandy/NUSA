@@ -40,6 +40,62 @@ const SMA_PARAMETER_NEIGHBORHOOD = [
   { shortPeriod: 10, longPeriod: 30 }
 ];
 
+function requiredResearchSourceCommitSha() {
+  const value = process.env.NUSA_SOURCE_COMMIT_SHA ?? process.env.GITHUB_SHA ?? "";
+  if (!/^[a-f0-9]{40}$/i.test(value)) {
+    throw new Error("real research run requires NUSA_SOURCE_COMMIT_SHA or GITHUB_SHA");
+  }
+  return value.toLowerCase();
+}
+
+function requiredResearchCostModelVersion() {
+  const value = process.env.NUSA_RESEARCH_COST_MODEL_VERSION ?? "";
+  if (!value.trim()) {
+    throw new Error("real research run requires NUSA_RESEARCH_COST_MODEL_VERSION");
+  }
+  return value.trim();
+}
+
+function nextWallClockTimestamp(previousMs) {
+  const currentMs = Date.now();
+  return Math.max(currentMs, previousMs + 1);
+}
+
+function runProvenanceBoundExperiment({ id, shortPeriod, longPeriod, candles, manifest, sourceCommitSha, costModelVersion }) {
+  const specificationGeneratedAtMs = Date.now();
+  const evaluationStartedAtMs = nextWallClockTimestamp(specificationGeneratedAtMs);
+  const rawExperiment = runWalkForwardExperiment(
+    { candles, manifest },
+    [{
+      id,
+      strategyFactory: () => new SmaCrossoverStrategy(shortPeriod, longPeriod),
+      parameters: { shortPeriod, longPeriod }
+    }],
+    WALK_FORWARD_CONFIG,
+    { generatedAt: new Date(evaluationStartedAtMs).toISOString() }
+  );
+  const evaluationEndedAtMs = nextWallClockTimestamp(evaluationStartedAtMs);
+  const experiment = Object.freeze({
+    ...rawExperiment,
+    generatedAt: new Date(evaluationEndedAtMs).toISOString()
+  });
+  const candidateSpecification = Object.freeze({
+    schemaVersion: 1,
+    candidateId: id,
+    familyId: STRATEGY_FAMILY_ID,
+    lineageId: `${STRATEGY_FAMILY_ID}-v1`,
+    parameters: { shortPeriod, longPeriod },
+    codeSha: sourceCommitSha,
+    datasetId: manifest.datasetId,
+    datasetContentSha256: manifest.contentSha256,
+    costModelVersion,
+    generatedAt: new Date(specificationGeneratedAtMs).toISOString(),
+    evaluationStartedAt: new Date(evaluationStartedAtMs).toISOString(),
+    evaluationEndedAt: new Date(evaluationEndedAtMs).toISOString()
+  });
+  return { experiment, candidateSpecification };
+}
+
 async function fetchDayCandlePage(path) {
   const response = await fetch(`https://api.upbit.com${path}`);
   if (!response.ok) throw new Error(`Upbit request failed: HTTP ${response.status}`);
@@ -78,6 +134,8 @@ async function main() {
     sourceRequest: sourceRequests.join(" | "),
     createdAt: new Date(dataAsOf).toISOString()
   });
+  const sourceCommitSha = requiredResearchSourceCommitSha();
+  const costModelVersion = requiredResearchCostModelVersion();
 
   const candidates = SMA_PARAMETER_NEIGHBORHOOD.map(({ shortPeriod, longPeriod }) => ({
     id: `sma-${shortPeriod}-${longPeriod}`,
@@ -95,18 +153,21 @@ async function main() {
 
   const leagueCandidates = SMA_PARAMETER_NEIGHBORHOOD.map(({ shortPeriod, longPeriod }) => {
     const id = `sma-${shortPeriod}-${longPeriod}`;
-    const experiment = runWalkForwardExperiment(
-      { candles, manifest },
-      [{ id, strategyFactory: () => new SmaCrossoverStrategy(shortPeriod, longPeriod), parameters: { shortPeriod, longPeriod } }],
-      WALK_FORWARD_CONFIG,
-      { generatedAt }
-    );
+    const { experiment, candidateSpecification } = runProvenanceBoundExperiment({
+      id,
+      shortPeriod,
+      longPeriod,
+      candles,
+      manifest,
+      sourceCommitSha,
+      costModelVersion
+    });
     const regimeAwareEvaluation = buildResearchRunRegimeEvaluation(
       experiment,
       [{ manifest, candles }],
       { lookbackPeriods: 20 }
     );
-    return { id, familyId: STRATEGY_FAMILY_ID, experiment, regimeAwareEvaluation };
+    return { id, familyId: STRATEGY_FAMILY_ID, experiment, candidateSpecification, regimeAwareEvaluation };
   });
 
   const deflatedSharpe = buildResearchRunDsrEvidence(leagueCandidates);
