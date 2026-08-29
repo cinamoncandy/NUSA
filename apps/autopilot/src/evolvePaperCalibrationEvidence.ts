@@ -79,6 +79,7 @@ const FORBIDDEN_KEY = /(authorization|bearer|token|secret|password|api[_-]?key|a
 /** The existing PAPER admission contract uses thirty completed periods as the minimum breadth. */
 export const MIN_CALIBRATION_COMPARISON_PERIODS = 30;
 const boundedProbability = (value: number): boolean => Number.isFinite(value) && value >= 0 && value <= 1;
+const compareStableStrings = (left: string, right: string): number => left < right ? -1 : left > right ? 1 : 0;
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 
 function normalizedIdentifier(value: string, field: string): string {
@@ -113,7 +114,7 @@ function canonical(value: unknown, seen = new Set<object>()): string {
     if (seen.has(value)) throw new Error("EVOLVE_PAPER_CALIBRATION_CANONICAL_CYCLE");
     seen.add(value);
     const result = `{${Object.entries(value as Record<string, unknown>)
-      .sort(([left], [right]) => left.localeCompare(right))
+      .sort(([left], [right]) => compareStableStrings(left, right))
       .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item, seen)}`)
       .join(",")}}`;
     seen.delete(value);
@@ -124,7 +125,7 @@ function canonical(value: unknown, seen = new Set<object>()): string {
 
 function observationWindow(observations: readonly PaperCalibrationObservation[], field: string): { readonly startAt: number; readonly endAt: number } {
   if (observations.length === 0) throw new Error(`EVOLVE_PAPER_CALIBRATION_${field}_EMPTY`);
-  const ordered = [...observations].sort((left, right) => left.periodStartAt - right.periodStartAt || left.observationId.localeCompare(right.observationId));
+  const ordered = [...observations].sort((left, right) => left.periodStartAt - right.periodStartAt || compareStableStrings(left.observationId, right.observationId));
   const first = ordered[0]!;
   const last = ordered[ordered.length - 1]!;
   return freeze({ startAt: first.periodStartAt, endAt: last.periodEndAt });
@@ -137,7 +138,7 @@ function comparisonEvidenceId(
   candidateObservations: readonly PaperCalibrationObservation[],
 ): string {
   const normalize = (observations: readonly PaperCalibrationObservation[]) => [...observations]
-    .sort((left, right) => left.periodStartAt - right.periodStartAt || left.observationId.localeCompare(right.observationId))
+    .sort((left, right) => left.periodStartAt - right.periodStartAt || compareStableStrings(left.observationId, right.observationId))
     .map((observation) => ({
       observationId: normalizedIdentifier(observation.observationId, "OBSERVATION_ID"),
       candidateId: normalizedIdentifier(observation.candidateId, "CANDIDATE_ID"),
@@ -185,7 +186,7 @@ export function buildPaperCalibrationEvidence(input: {
   if (input.observations.length === 0) throw new Error("EVOLVE_PAPER_CALIBRATION_EMPTY");
   if (input.observations.length !== input.admission.periodCount) throw new Error("EVOLVE_PAPER_CALIBRATION_PERIOD_COUNT_MISMATCH");
 
-  const ordered = [...input.observations].sort((left, right) => left.periodStartAt - right.periodStartAt || left.observationId.localeCompare(right.observationId));
+  const ordered = [...input.observations].sort((left, right) => left.periodStartAt - right.periodStartAt || compareStableStrings(left.observationId, right.observationId));
   const seen = new Set<string>();
   let regime: string | undefined;
   let previousEndAt: number | undefined;
