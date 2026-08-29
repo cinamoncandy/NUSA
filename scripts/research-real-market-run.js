@@ -13,6 +13,7 @@ const { buildResearchRunDsrEvidence } = require("../dist/apps/desktop/src/cloud/
 const { runExecutionCostStress } = require("../dist/apps/desktop/src/strategy/executionCostStress.js");
 const { projectExecutionCostStress } = require("./lib/research-cost-stress-projection.js");
 const { runParameterRobustnessRequest } = require("./lib/parameter-robustness-runner.js");
+const { verifyParameterRobustnessResult } = require("./lib/parameter-robustness-verifier.js");
 
 const STRATEGY_FAMILY_ID = "sma-crossover";
 const MARKET = "KRW-BTC";
@@ -239,16 +240,25 @@ async function main() {
     }
   );
 
-  const parameterRobustness = runParameterRobustnessRequest(
-    buildParameterRobustnessRequest({ candles, manifest })
-  );
+  const parameterRobustnessRequest = buildParameterRobustnessRequest({ candles, manifest });
+  const parameterRobustness = runParameterRobustnessRequest(parameterRobustnessRequest);
   if (parameterRobustness.status !== "PASS") {
     throw new Error(
       `real parameter robustness failed: ${parameterRobustness.failures.join(", ")}`
     );
   }
+  const parameterRobustnessVerification = verifyParameterRobustnessResult(
+    parameterRobustnessRequest,
+    parameterRobustness
+  );
+  if (parameterRobustnessVerification.status !== "PASS") {
+    throw new Error(
+      `real parameter robustness verification failed: ${parameterRobustnessVerification.errors.join(", ")}`
+    );
+  }
   const parameterRobustnessEvidence = {
     ...parameterRobustness,
+    verification: { status: parameterRobustnessVerification.status },
     provenance: {
       sourceCommitSha,
       costModelVersion,
