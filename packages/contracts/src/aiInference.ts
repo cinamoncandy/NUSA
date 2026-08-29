@@ -7,6 +7,10 @@ export type AiCalibrationStatus = "UNKNOWN" | "UNVERIFIED" | "INSUFFICIENT_DATA"
 export type AiCalibrationProvenance = "VERIFIED_RUNTIME" | "SYNTHETIC_TEST";
 export type AiLearningProvenance = "AUTO_BACKGROUND" | "USER_TRIGGERED" | "UNKNOWN";
 
+/** Missing or malformed trigger evidence must remain unknown; it is never inferred by a projection. */
+export const normalizeAiLearningProvenance = (value: unknown): AiLearningProvenance =>
+  value === "AUTO_BACKGROUND" || value === "USER_TRIGGERED" ? value : "UNKNOWN";
+
 export interface ModelUsage {
   readonly inputTokens?: number;
   readonly outputTokens?: number;
@@ -139,6 +143,8 @@ export interface AiCalibrationProfile {
 
 export interface AiReadOnlyProjection {
   readonly status: "AVAILABLE" | "UNAVAILABLE" | "INCOMPLETE";
+  /** Trusted provenance for the learning/evaluation activity, when supplied by the runtime. */
+  readonly learningProvenance: AiLearningProvenance;
   readonly thesis: string | null;
   /** Trusted effective confidence only. It remains zero unless calibration is verified and CALIBRATED. */
   readonly confidence: number;
@@ -170,8 +176,6 @@ export interface AiReadOnlyProjection {
   readonly explanationReasonCodes?: readonly string[];
   /** Prior structural lessons (WO-AI-009 learning memory) actually fed into this decision's evidence. */
   readonly recentLessonCount?: number;
-  /** Proven only from explicit run/evidence origin. Missing or ambiguous origin is UNKNOWN. */
-  readonly learningProvenance?: AiLearningProvenance;
   /** WO-AI-008 opt-in scenario robustness check against the same evidence, when enabled. */
   readonly scenarioRobustnessState?: "ROBUST" | "SENSITIVE" | "CONTRADICTORY" | "INCOMPLETE" | "UNVERIFIED" | "NOT_EVALUATED";
   readonly scenarioTrustDisposition?: "NO_UPLIFT" | "REDUCE" | "ABSTAIN";
@@ -202,3 +206,4 @@ export const canonicalAiJson = (value: unknown): string => {
 export const aiSha256 = (value: unknown): string => createHash("sha256").update(canonicalAiJson(value), "utf8").digest("hex");
 
 export const isAiSha256 = (value: unknown): value is string => typeof value === "string" && /^[a-f0-9]{64}$/i.test(value);
+

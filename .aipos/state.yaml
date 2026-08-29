@@ -1,15 +1,15 @@
 version: 1
 project: nusa
-updated_at: "2026-08-29T02:05:00+09:00"
+updated_at: "2026-08-29T17:05:00+09:00"
 current_execution_target:
-  work_order: WO-ISSUE-905-OUTCOME-EVIDENCE-BOUNDARY
+  work_order: WO-ISSUE-1053-LEARNING-PROVENANCE
   status: IN_PROGRESS
-  branch: codex/issue-905-outcome-evidence-boundary
-  base_sha: 69066b89057571d7b09b7f5ac562fdf52ee9cddc
-  scope: "Harden the existing canonical engineering outcome evaluator so malformed identity, confidence, or direction evidence cannot become a verified outcome."
+  branch: nusa/p1-learning-provenance-1053
+  base_sha: 870ea977d942297e0055e5de559482e423be43ae
+  scope: "Expose explicit evidence-backed learning provenance in the existing read-only AI projection and LEARNING surface; unknown or ambiguous provenance remains fail-closed."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-phase: verification
-status: verifying
+phase: implementation
+status: implementing
 objective: "Harden the existing canonical engineering outcome evaluator with deterministic fail-closed validation while holding all production and LIVE authority at the human/environment boundary."
 latest_research_slice:
   work_order: WO-MARKET-INTELLIGENCE-REGIME-POINT-IN-TIME-001
@@ -23,9 +23,9 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: codex/issue-905-outcome-evidence-boundary
+active_branch: nusa/p1-learning-provenance-1053
 active_successor_branch: null
-active_pull_request: null
+active_pull_request: 1057
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -83,14 +83,14 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-ISSUE-905-OUTCOME-EVIDENCE-BOUNDARY
-  status: VERIFYING
-  branch: codex/issue-905-outcome-evidence-boundary
-  base_commit: 69066b89057571d7b09b7f5ac562fdf52ee9cddc
-  scope: "Harden canonical engineering outcome evidence validation against malformed identity and enum values."
+  work_order: WO-ISSUE-1053-LEARNING-PROVENANCE
+  status: IMPLEMENTING
+  branch: nusa/p1-learning-provenance-1053
+  base_commit: 870ea977d942297e0055e5de559482e423be43ae
+  scope: "Add explicit evidence-backed AUTO_BACKGROUND, USER_TRIGGERED, and UNKNOWN provenance to the existing read-only AI learning projection without inferring absent evidence."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  implementation_commit: LOCAL_PATCH_PENDING_PUBLISH
-  validation: "Focused outcome evaluator regression pending; no execution, broker, Risk, LIVE, or AI authority changes."
+  implementation_commit: PENDING
+  validation: "Focused contract/projection and AI-view provenance tests are green locally; exact-head CI pending."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS

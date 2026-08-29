@@ -17,7 +17,7 @@ import {
   type MultiAgentGovernanceEvent,
   MultiAgentGovernanceEventType
 } from "../../../../packages/contracts/src/multiAgentGovernance";
-import { aiSha256, type AiAgentRole, type AiEvidenceMaterialization, type ModelFailure, type ModelProvider, type ModelRequest, type StructuredAgentOutput } from "../../../../packages/contracts/src/aiInference";
+import { aiSha256, normalizeAiLearningProvenance, type AiAgentRole, type AiEvidenceMaterialization, type ModelFailure, type ModelProvider, type ModelRequest, type StructuredAgentOutput } from "../../../../packages/contracts/src/aiInference";
 import type { AiInferenceBudgetPolicy, AiInferenceResourceSnapshot } from "../../../../packages/contracts/src/aiInferenceResources";
 import { assessAgentIndependence, createAgentDefinition, evaluateMultiAgentDecision } from "../multiAgentGovernance";
 import { AgentExecutor } from "./agentExecutor";
@@ -38,11 +38,14 @@ export interface AiOrchestrationInput {
   readonly certificationIds?: readonly string[];
   readonly controlPlaneStateId?: string;
   readonly contextValidForMs?: number;
+  /** Explicit trusted trigger evidence. Omitted or malformed values remain UNKNOWN. */
+  readonly learningProvenance?: import("../../../../packages/contracts/src/aiInference").AiLearningProvenance;
 }
 
 export interface AiOrchestrationResult {
   readonly status: "COMPLETED" | "UNAVAILABLE" | "INCOMPLETE";
   readonly orchestrationRunId: string;
+  readonly learningProvenance: import("../../../../packages/contracts/src/aiInference").AiLearningProvenance;
   readonly governanceDecision: MultiAgentDecisionResult | null;
   readonly independence: AgentIndependenceAssessment | null;
   readonly agents: readonly AgentDefinition[];
@@ -115,7 +118,7 @@ const validateRoleOutput = (role: AiAgentRole, value: unknown): StructuredAgentO
 
 const contract = (role: AgentRole, output: string, id: string): AgentRoleContract => Object.freeze({ contractId: `ai-contract-${id}`, role, requiredInputs: ["evidence_context"], permittedOutputs: [output], prohibitedOutputs: ["order", "cancel", "transfer", "withdraw", "credential", "secret", "production_mutation", "live_execution"], evidenceRequirements: ["verified"], timeoutBehavior: "incomplete", fallbackPolicyId: "AI_ZERO_AUTHORITY_FAIL_CLOSED_V1", status: "active" });
 
-const failureResult = (input: AiOrchestrationInput, status: "UNAVAILABLE" | "INCOMPLETE", agents: readonly AgentDefinition[] = [], contexts: readonly AgentContextSnapshot[] = [], runs: readonly AgentRun[] = [], failureCodes: readonly ModelFailure["code"][] = [], inferenceResources?: AiInferenceResourceSnapshot): AiOrchestrationResult => Object.freeze({ status, orchestrationRunId: input.orchestrationRunId, governanceDecision: null, independence: agents.length ? assessAgentIndependence(agents) : null, agents, contexts, runs, failureCodes: Object.freeze([...failureCodes]), outputHashes: Object.freeze([]), structuredOutputs: Object.freeze([]), ...(inferenceResources == null ? {} : { inferenceResources }), liveAuthority: "NONE", realOrderAuthority: false, realTransferAuthority: false, productionMutationAllowed: false });
+const failureResult = (input: AiOrchestrationInput, status: "UNAVAILABLE" | "INCOMPLETE", agents: readonly AgentDefinition[] = [], contexts: readonly AgentContextSnapshot[] = [], runs: readonly AgentRun[] = [], failureCodes: readonly ModelFailure["code"][] = [], inferenceResources?: AiInferenceResourceSnapshot): AiOrchestrationResult => Object.freeze({ status, orchestrationRunId: input.orchestrationRunId, learningProvenance: normalizeAiLearningProvenance(input.learningProvenance), governanceDecision: null, independence: agents.length ? assessAgentIndependence(agents) : null, agents, contexts, runs, failureCodes: Object.freeze([...failureCodes]), outputHashes: Object.freeze([]), structuredOutputs: Object.freeze([]), ...(inferenceResources == null ? {} : { inferenceResources }), liveAuthority: "NONE", realOrderAuthority: false, realTransferAuthority: false, productionMutationAllowed: false });
 
 const evidenceFailureCode = (error: unknown): ModelFailure["code"] => {
   const message = error instanceof Error ? error.message : String(error);
@@ -165,6 +168,7 @@ export class MultiAgentOrchestrator {
         certificationIds: [...(input.certificationIds ?? [])].sort(),
         controlPlaneStateId: input.controlPlaneStateId ?? "",
         contextValidForMs: input.contextValidForMs ?? 60_000,
+        learningProvenance: normalizeAiLearningProvenance(input.learningProvenance),
         providerId: this.provider.providerId,
         modelVersionId: this.provider.modelVersionId,
         promptIdentity,
@@ -216,7 +220,7 @@ export class MultiAgentOrchestrator {
     const governanceEvaluatedAt = runs.reduce((latest, run) => run.completedAt == null ? latest : Math.max(latest, run.completedAt), input.evaluatedAt);
     const decision = evaluateMultiAgentDecision({ decisionId: input.decisionId, evaluatedAt: governanceEvaluatedAt, agents, roleContracts: roles.map((role) => contract(roleMap[role], outputName[role], role.toLowerCase())), evidence: input.evidence, contexts, runs, evidenceAssessment: assessment, proposal, adversarialReview: review, riskVerification: risk, disagreements: [], controlVetoReasons: [] });
     this.eventSink?.append({ eventId: `${input.orchestrationRunId}:decision`, type: decision.result === "deny" ? MultiAgentGovernanceEventType.MULTI_AGENT_DECISION_DENIED : MultiAgentGovernanceEventType.MULTI_AGENT_DECISION_EVALUATED, occurredAt: governanceEvaluatedAt, payload: { decision, independence }, evidenceHash: aiSha256({ decision, independence }) });
-    return this.cacheAndReturn(input, inputHash, Object.freeze({ status: "COMPLETED", orchestrationRunId: input.orchestrationRunId, governanceDecision: decision, independence, agents: Object.freeze(agents), contexts: Object.freeze(contexts), runs: Object.freeze(runs), failureCodes: Object.freeze(failures), outputHashes: Object.freeze(outputHashes), structuredOutputs: Object.freeze([...outputs.values()]), inferenceResources: resourceSnapshot(), liveAuthority: "NONE", realOrderAuthority: false, realTransferAuthority: false, productionMutationAllowed: false }));
+    return this.cacheAndReturn(input, inputHash, Object.freeze({ status: "COMPLETED", orchestrationRunId: input.orchestrationRunId, learningProvenance: normalizeAiLearningProvenance(input.learningProvenance), governanceDecision: decision, independence, agents: Object.freeze(agents), contexts: Object.freeze(contexts), runs: Object.freeze(runs), failureCodes: Object.freeze(failures), outputHashes: Object.freeze(outputHashes), structuredOutputs: Object.freeze([...outputs.values()]), inferenceResources: resourceSnapshot(), liveAuthority: "NONE", realOrderAuthority: false, realTransferAuthority: false, productionMutationAllowed: false }));
   }
 
   private definition(role: AiAgentRole): AgentDefinition {
@@ -234,3 +238,4 @@ export class MultiAgentOrchestrator {
   private toReview(output: StructuredAgentOutput, run: AgentRun, proposalHash: string): AdversarialReview { const p = output.payload; const reviewed = text(p.reviewedProposalHash, "reviewedProposalHash"); return Object.freeze({ reviewId: `${run.agentRunId}:review`, agentRunId: run.agentRunId, reviewedProposalHash: reviewed, counterClaims: strings(p.counterClaims ?? [], "counterClaims"), failedAssumptions: strings(p.failedAssumptions ?? [], "failedAssumptions"), missingTests: strings(p.missingTests ?? [], "missingTests"), alternativeExplanations: strings(p.alternativeExplanations ?? [], "alternativeExplanations"), severity: p.severity as AdversarialReview["severity"], reviewHash: aiSha256({ reviewedProposalHash: proposalHash, counterClaims: p.counterClaims ?? [], failedAssumptions: p.failedAssumptions ?? [], missingTests: p.missingTests ?? [], alternativeExplanations: p.alternativeExplanations ?? [], severity: p.severity }) }); }
   private toRisk(output: StructuredAgentOutput, run: AgentRun): IndependentRiskVerification { const p = output.payload; const seed = { result: p.result, hardDenies: strings(p.hardDenies ?? [], "hardDenies"), warnings: strings(p.warnings ?? [], "warnings"), missingRequirements: strings(p.missingRequirements ?? [], "missingRequirements"), requiredEscalations: strings(p.requiredEscalations ?? [], "requiredEscalations"), policyReferences: strings(p.policyReferences, "policyReferences"), evidenceReferences: output.evidenceReferences }; return Object.freeze({ verificationId: `${run.agentRunId}:risk`, agentRunId: run.agentRunId, ...seed, verificationHash: aiSha256(seed) } as IndependentRiskVerification); }
 }
+

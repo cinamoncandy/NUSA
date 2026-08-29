@@ -1,0 +1,62 @@
+version: 1
+id: WO-ISSUE-1053-LEARNING-PROVENANCE
+title: "Issue #1053 evidence-backed learning provenance"
+status: IMPLEMENTING
+priority: P1
+owner: codex
+repository: cinamoncandy/NUSA
+issue: 1053
+base_branch: main
+base_commit: 870ea977d942297e0055e5de559482e423be43ae
+implementation_branch: nusa/p1-learning-provenance-1053
+objective: "Expose explicit runtime/evidence provenance for learning activity in the existing read-only AI projection and mobile LEARNING surface."
+architecture_impact:
+  acknowledged: true
+  analysis: "Extend the existing AiOrchestrationInput/result, projection, and AiView contracts. Reuse the existing orchestration and projection path; do not add a scheduler, queue, engine, or authority."
+  references:
+    - packages/contracts/src/aiInference.ts
+    - apps/cloud/src/ai/multiAgentOrchestrator.ts
+    - apps/cloud/src/ai/projection.ts
+    - apps/cloud/src/runtime.ts
+    - apps/mobile/src/aiView.tsx
+scope:
+  - explicit_learning_provenance
+  - fail_closed_unknown_projection
+  - runtime_background_tick_binding
+  - read_only_mobile_display
+  - regression_coverage
+prohibited:
+  - live_activation
+  - broker_or_order_mutation
+  - risk_authority_change
+  - credential_handling
+  - new_scheduler_or_ai_engine
+  - provenance_inference_from_time_or_ui
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  brokerMutation: NONE
+  paper_only: true
+acceptance:
+  - explicit_auto_background_provenance_is_preserved
+  - explicit_user_triggered_provenance_is_preserved_when_supplied
+  - missing_or_malformed_provenance_is_unknown
+  - existing_projection_and_learning_hierarchy_are_preserved
+  - provenance_participates_in_deterministic_orchestration_identity
+  - no_authority_or_mutation_changes
+limitations:
+  - "No current production user-triggered AI producer was found; absent/ambiguous callers remain UNKNOWN until a trusted source is wired."
+  - "Physical device visual acceptance is outside this repository slice."
+validation:
+  focused:
+    - tests/ai-learning-provenance.test.js
+    - tests/ai-calibration-projection.test.js
+    - tests/ai-cloud-runtime.test.js
+  commands:
+    - "node --test tests/ai-learning-provenance.test.js"
+    - "node --test tests/ai-calibration-projection.test.js tests/ai-cloud-runtime.test.js"
+    - "pnpm typecheck"
+    - "pnpm build"
+    - "git diff --check"
+  status: PENDING_EXACT_HEAD

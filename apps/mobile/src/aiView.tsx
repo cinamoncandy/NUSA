@@ -18,7 +18,7 @@ function metric(value: number | null | undefined): string { return value == null
 const calibrationStatusLabel: Record<string, string> = { UNKNOWN: "알 수 없음", UNVERIFIED: "미검증", INSUFFICIENT_DATA: "표본 부족", CALIBRATED: "보정 완료", DEGRADED: "성능 저하" };
 const explanationVerdictLabel: Record<string, string> = { PASS: "검증 통과", ABSTAIN: "판단 보류", NOT_EVALUATED: "평가 안 됨" };
 const scenarioRobustnessLabel: Record<string, string> = { ROBUST: "강건함", SENSITIVE: "민감함", CONTRADICTORY: "모순 발견", INCOMPLETE: "불완전", UNVERIFIED: "미검증", NOT_EVALUATED: "평가 안 됨" };
-const learningProvenanceLabel: Record<string, string> = { AUTO_BACKGROUND: "자동 백그라운드", USER_TRIGGERED: "사용자 실행", UNKNOWN: "출처 미확인" };
+const learningProvenanceLabel: Record<string, string> = { AUTO_BACKGROUND: "백그라운드 자동 실행", USER_TRIGGERED: "사용자 요청", UNKNOWN: "알 수 없음" };
 function labelOf(map: Record<string, string>, value: string | null | undefined): string { return value == null ? "-" : (map[value] ?? value); }
 function AiState({ title, detail, testID, retry, loading = false }: Readonly<{ title: string; detail: string; testID: string; retry?: () => void; loading?: boolean }>) { const { theme } = useTheme(); return <View style={styles.state} testID={testID}><View style={styles.stateInner}>{loading ? <ActivityIndicator color={theme.colors.primary} /> : null}<InlineNotice title={title} detail={detail} tone={retry ? "danger" : "info"} />{retry ? <NusaButton label="다시 불러오기" onPress={retry} /> : null}</View></View>; }
 
@@ -35,6 +35,11 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
   const evidenceCount = ai?.evidenceReferences.length ?? 0;
   const counterCount = ai?.counterEvidence.length ?? 0;
   const learningProvenance = ai?.learningProvenance ?? "UNKNOWN";
+  const learningProvenanceDetail = learningProvenance === "AUTO_BACKGROUND"
+    ? "검증된 실행 근거에 따라 백그라운드 자동 실행으로 분류되었습니다."
+    : learningProvenance === "USER_TRIGGERED"
+      ? "검증된 실행 근거에 따라 사용자 요청으로 분류되었습니다."
+      : "실행 근거가 확인되지 않아 출처를 분류하지 않습니다.";
 
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="ai-screen">
     <ScreenHeader eyebrow="NUSA INTELLIGENCE" title="AI" description="현재 관찰과 근거를 읽기 전용으로 제공합니다. AI는 주문 권한이 없습니다." statusLabel="READ ONLY" statusTone="primary" />
@@ -70,10 +75,11 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
 
     <View style={styles.decisionSection} testID="ai-learning">
       <View style={styles.sectionHeader}><View><Text accessibilityRole="header" style={[styles.eyebrow, { color: theme.colors.textMuted }]}>LEARNING</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>실제 판단에 사용된 학습 근거</Text></View></View>
-      <NusaCard testID="ai-learning-card"><DataRow label="참고한 과거 사례" value={ai?.recentLessonCount == null ? "-" : String(ai.recentLessonCount)} /><DataRow label="학습 출처" value={labelOf(learningProvenanceLabel, learningProvenance)} tone={learningProvenance === "UNKNOWN" ? "warning" : "default"} /><DataRow label="시나리오 강건성" value={labelOf(scenarioRobustnessLabel, ai?.scenarioRobustnessState ?? "NOT_EVALUATED")} tone={ai?.scenarioRobustnessState === "ROBUST" ? "default" : ai?.scenarioRobustnessState === "SENSITIVE" || ai?.scenarioRobustnessState === "CONTRADICTORY" ? "warning" : "default"} /></NusaCard>
-      {learningProvenance === "UNKNOWN" ? <InlineNotice title="학습 출처를 추정하지 않습니다" detail="명시적 실행·근거 출처가 없거나 서로 충돌하면 UNKNOWN으로 유지합니다. 시간, 화면 이동, 라벨이나 내용만으로 자동 작업 또는 사용자 실행으로 승격하지 않습니다." tone="info" /> : null}
+      <NusaCard testID="ai-learning-card"><DataRow label="참고한 과거 사례" value={ai?.recentLessonCount == null ? "-" : String(ai.recentLessonCount)} /><DataRow label="시나리오 강건성" value={labelOf(scenarioRobustnessLabel, ai?.scenarioRobustnessState ?? "NOT_EVALUATED")} tone={ai?.scenarioRobustnessState === "ROBUST" ? "default" : ai?.scenarioRobustnessState === "SENSITIVE" || ai?.scenarioRobustnessState === "CONTRADICTORY" ? "warning" : "default"} /><View testID="ai-learning-provenance" accessible accessibilityRole="text" accessibilityLabel={`학습 근거 출처 ${labelOf(learningProvenanceLabel, learningProvenance)}`}><DataRow label="학습 근거 출처" value={labelOf(learningProvenanceLabel, learningProvenance)} /></View></NusaCard>
+      <InlineNotice title="학습 근거 출처" detail={learningProvenanceDetail} tone="info" />
     </View>
   </ScrollView>;
 }
 
 const styles = StyleSheet.create({ content: { paddingHorizontal: 20, paddingTop: 20, gap: 20, paddingBottom: 44, width: "100%", maxWidth: uxLayout.maxWorkspaceWidth, alignSelf: "center" }, state: { flex: 1, justifyContent: "center", padding: 20, alignItems: "center" }, stateInner: { width: "100%", maxWidth: 720, gap: 12 }, hero: { paddingVertical: 10, gap: 13 }, heroTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }, eyebrow: { fontSize: 10, lineHeight: 15, fontWeight: "800", letterSpacing: 1.1 }, heroTitle: { marginTop: 4, fontSize: 20, lineHeight: 26, fontWeight: "800", letterSpacing: -0.4 }, thesis: { fontSize: 25, lineHeight: 35, fontWeight: "700", letterSpacing: -0.75 }, heroMeta: { flexDirection: "row", flexWrap: "wrap", gap: 12 }, meta: { fontSize: 11, lineHeight: 17, fontWeight: "600" }, metricGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 }, evidenceSection: { gap: 14, paddingVertical: 4 }, decisionSection: { gap: 14, paddingVertical: 4 }, sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }, sectionTitle: { marginTop: 4, fontSize: 19, lineHeight: 25, fontWeight: "800", letterSpacing: -0.4 }, evidenceGrid: { flexDirection: "row", flexWrap: "wrap", gap: 20 }, evidenceColumn: { flexGrow: 1, flexBasis: 300 }, columnLabel: { fontSize: 11, lineHeight: 16, fontWeight: "800", letterSpacing: 0.7, marginBottom: 7 }, evidence: { fontSize: 13, lineHeight: 20, marginBottom: 6 }, disagreement: { paddingTop: 4 }, detailGrid: { flexDirection: "row", flexWrap: "wrap", gap: 14, alignItems: "flex-start" }, detailCell: { flexGrow: 1, flexBasis: 440, gap: 14 }, cardHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10 }, cardTitle: { marginTop: 4, fontSize: 18, fontWeight: "700", letterSpacing: -0.4 }, body: { fontSize: 13, lineHeight: 20, marginTop: 8 } });
+
