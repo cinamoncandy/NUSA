@@ -12,7 +12,7 @@ import { runLeagueResearchPipeline } from "./leagueResearchPipeline";
 import { evaluateLeague, type LeagueCandidateInput, type LeaguePolicy, type LeagueStanding } from "./nusaLeague";
 import type { LeagueCapitalAllocationAdvisory, LeagueCapitalAllocationPolicy } from "./leagueCapitalAllocation";
 import { LeagueCapitalAllocationError } from "./leagueCapitalAllocation";
-import { extractResearchRunOosObservations, type OosObservationTrace } from "./researchRunOosObservationEvidence";
+import { extractResearchRunOosObservations, ResearchRunOosObservationError, type OosObservationTrace } from "./researchRunOosObservationEvidence";
 import { gatePaperForwardLeagueEvidence, type PaperForwardLeagueEvidenceDecision, type PaperForwardLeagueEvidenceSource } from "./paperForwardLeagueEvidence";
 
 /**
@@ -156,8 +156,17 @@ export function buildResearchRunLeague(
     try {
       oosObservationEvidence[candidate.id] = extractResearchRunOosObservations(candidate.id, candidate.experiment);
     } catch (error) {
-      if (!(error instanceof Error) || !error.message) throw error;
-      reasons.push("INSUFFICIENT_OBSERVATION_EVIDENCE");
+      if (error instanceof ResearchRunOosObservationError && error.code === "INSUFFICIENT_OBSERVATION_EVIDENCE") {
+        reasons.push("INSUFFICIENT_OBSERVATION_EVIDENCE");
+        continue;
+      }
+      if (error instanceof ResearchRunOosObservationError) {
+        throw new ResearchRunLeagueBridgeError(
+          "INVALID_OOS_OBSERVATION_EVIDENCE",
+          `candidate ${candidate.id} contains invalid OOS evidence`,
+        );
+      }
+      throw error;
     }
   }
   if (Object.keys(oosObservationEvidence).length === candidates.length) reasons.push("OOS_OBSERVATION_PROVENANCE_PRESENT");
