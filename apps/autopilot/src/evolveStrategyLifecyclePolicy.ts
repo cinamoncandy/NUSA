@@ -12,6 +12,22 @@ export type StrategyLifecycleState =
   | "QUARANTINED"
   | "RETIRED";
 
+const VALID_LIFECYCLE_STATES = new Set<StrategyLifecycleState>([
+  "CANDIDATE",
+  "WATCH",
+  "PROMOTED",
+  "DEMOTED",
+  "QUARANTINED",
+  "RETIRED",
+]);
+
+export function validateStrategyLifecycleState(value: unknown): StrategyLifecycleState {
+  if (typeof value !== "string" || !VALID_LIFECYCLE_STATES.has(value as StrategyLifecycleState)) {
+    throw new Error("STRATEGY_LIFECYCLE_STATE_INVALID");
+  }
+  return value as StrategyLifecycleState;
+}
+
 export interface StrategyCalibrationContainmentInput {
   readonly currentState: StrategyLifecycleState;
   /**
@@ -81,7 +97,7 @@ function decision(
 export function decideStrategyCalibrationContainment(
   input: StrategyCalibrationContainmentInput,
 ): StrategyLifecycleDecision {
-  const current = input.currentState;
+  const current = validateStrategyLifecycleState(input.currentState);
   if (current === "RETIRED") return decision(current, "RETIRED", "retired-is-absorbing");
 
   if (input.calibration == null) {
