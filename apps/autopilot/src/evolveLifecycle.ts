@@ -9,7 +9,7 @@ import { planEvolutionOpportunity, type EvolutionPlan } from "./evolvePlanner";
 import { decideEvolutionPromotion, type EvolutionPromotionDecision } from "./evolvePromotion";
 import { decideEvolutionRecovery, type EvolutionRecoveryDecision } from "./evolveRecovery";
 import { decideEvolutionSchedule, type EvolutionScheduleDecision, type EvolutionSchedulePolicy } from "./evolveScheduler";
-import type { EvolutionValidationResult } from "./evolveValidation";
+import { validateEvolutionValidationResult, type EvolutionValidationResult } from "./evolveValidation";
 
 export type EvolutionLifecycleStatus = "COMPLETED" | "ABSTAINED" | "RECOVERING" | "CIRCUIT_OPEN";
 
@@ -72,6 +72,7 @@ const freezeResult = (result: EvolutionLifecycleResult): EvolutionLifecycleResul
 
 export function coordinateEvolutionLifecycle(input: EvolutionLifecycleInput): EvolutionLifecycleResult {
   const opportunity = validateEvolutionOpportunity(input.opportunity);
+  validateEvolutionValidationResult(input.validation);
   const plan = planEvolutionOpportunity(opportunity);
   const execution = createEvolutionExecutionEnvelope(input.execution);
   const schedule = decideEvolutionSchedule(
