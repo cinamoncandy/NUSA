@@ -23,9 +23,12 @@ export interface ConcurrencyRecommendation {
 const finite = (value: number): boolean => Number.isFinite(value);
 const boundedRate = (value: number): boolean => finite(value) && value >= 0 && value <= 1;
 const positiveInteger = (value: number): boolean => Number.isInteger(value) && value > 0;
+const evidenceSource = (value: unknown): value is string =>
+  typeof value === "string" && value.trim().length > 0 && value.trim().length <= 256;
 
 export function adviseConcurrency(evidence: ConcurrencyEvidence): ConcurrencyRecommendation {
   const valid =
+    evidenceSource(evidence.source) &&
     evidence.confidence === "VERIFIED" &&
     positiveInteger(evidence.currentWip) &&
     positiveInteger(evidence.maxWip) &&
