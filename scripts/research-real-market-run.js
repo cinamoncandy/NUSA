@@ -17,6 +17,7 @@ const { verifyParameterRobustnessResult } = require("./lib/parameter-robustness-
 const { buildResearchRunRobustnessEvidence } = require("../dist/apps/desktop/src/cloud/researchRunRobustnessEvidence.js");
 const { buildResearchHypothesis } = require("../dist/apps/desktop/src/cloud/researchHypothesis.js");
 const { buildResearchRunTimeline } = require("../dist/apps/desktop/src/cloud/researchRunTimeline.js");
+const { buildResearchRunProvenancePlan } = require("../dist/apps/desktop/src/cloud/researchRunFactory.js");
 
 const STRATEGY_FAMILY_ID = "sma-crossover";
 const MARKET = "KRW-BTC";
@@ -141,8 +142,7 @@ function requiredResearchCostModelVersion() {
   return value.trim();
 }
 
-function runProvenanceBoundExperiment({ id, shortPeriod, longPeriod, candles, manifest, sourceCommitSha, costModelVersion, timeline }) {
-  const evaluationStartedAtMs = Date.parse(timeline.evaluationStartedAt);
+function runProvenanceBoundExperiment({ id, shortPeriod, longPeriod, candles, manifest, candidateSpecification }) {
   const rawExperiment = runWalkForwardExperiment(
     { candles, manifest },
     [{
@@ -151,26 +151,11 @@ function runProvenanceBoundExperiment({ id, shortPeriod, longPeriod, candles, ma
       parameters: { shortPeriod, longPeriod }
     }],
     WALK_FORWARD_CONFIG,
-    { generatedAt: new Date(evaluationStartedAtMs).toISOString() }
+    { generatedAt: candidateSpecification.evaluationStartedAt }
   );
-  const evaluationEndedAtMs = Date.parse(timeline.evaluationEndedAt);
   const experiment = Object.freeze({
     ...rawExperiment,
-    generatedAt: new Date(evaluationEndedAtMs).toISOString()
-  });
-  const candidateSpecification = Object.freeze({
-    schemaVersion: 1,
-    candidateId: id,
-    familyId: STRATEGY_FAMILY_ID,
-    lineageId: `${STRATEGY_FAMILY_ID}-v1`,
-    parameters: { shortPeriod, longPeriod },
-    codeSha: sourceCommitSha,
-    datasetId: manifest.datasetId,
-    datasetContentSha256: manifest.contentSha256,
-    costModelVersion,
-    generatedAt: timeline.specificationGeneratedAt,
-    evaluationStartedAt: timeline.evaluationStartedAt,
-    evaluationEndedAt: timeline.evaluationEndedAt
+    generatedAt: candidateSpecification.evaluationEndedAt
   });
   return { experiment, candidateSpecification };
 }
@@ -228,10 +213,31 @@ async function main() {
     generatedAt: timeline.hypothesisGeneratedAt
   });
 
-  const candidates = SMA_PARAMETER_NEIGHBORHOOD.map(({ shortPeriod, longPeriod }) => ({
-    id: `sma-${shortPeriod}-${longPeriod}`,
-    strategyFactory: () => new SmaCrossoverStrategy(shortPeriod, longPeriod),
-    parameters: { shortPeriod, longPeriod }
+  const candidateSeeds = SMA_PARAMETER_NEIGHBORHOOD.map(({ shortPeriod, longPeriod }) => ({
+    candidateId: `sma-${shortPeriod}-${longPeriod}`,
+    familyId: STRATEGY_FAMILY_ID,
+    lineageId: `${STRATEGY_FAMILY_ID}-v1`,
+    parameters: { shortPeriod, longPeriod },
+    codeSha: sourceCommitSha,
+    costModelVersion
+  }));
+  const provenancePlan = buildResearchRunProvenancePlan({
+    manifest,
+    hypothesis,
+    timeline,
+    sourceCommitSha,
+    candidates: candidateSeeds
+  });
+  const candidateSpecifications = new Map(
+    provenancePlan.candidates.map((candidate) => [candidate.candidateId, candidate.specification])
+  );
+  const candidates = provenancePlan.candidates.map((candidate) => ({
+    id: candidate.candidateId,
+    strategyFactory: () => new SmaCrossoverStrategy(
+      Number(candidate.parameters.shortPeriod),
+      Number(candidate.parameters.longPeriod)
+    ),
+    parameters: candidate.parameters
   }));
 
   const costStress = runExecutionCostStress(
@@ -299,9 +305,7 @@ async function main() {
       longPeriod,
       candles,
       manifest,
-      sourceCommitSha,
-      costModelVersion,
-      timeline
+      candidateSpecification: candidateSpecifications.get(id)
     });
     const regimeAwareEvaluation = buildResearchRunRegimeEvaluation(
       experiment,
