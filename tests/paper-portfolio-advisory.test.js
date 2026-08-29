@@ -34,6 +34,23 @@ const evidence = Object.freeze({
   grossExpectedEdge: 0.01
 });
 
+const riskEvidence = Object.freeze({
+  evaluationId: "risk-eval-881",
+  candidateId: "candidate-881",
+  datasetId: "dataset-881",
+  datasetContentSha256: "a".repeat(64),
+  observedAt: "2026-08-29T00:00:00.000Z",
+  evaluatedAt: "2026-08-29T00:30:00.000Z",
+  status: "VERIFIED",
+  evidencePeriods: 40,
+  minimumEvidencePeriods: 30,
+  maximumEvidenceAgeMs: 24 * 60 * 60 * 1000,
+  portfolioDrawdownContribution: 0.08,
+  maximumDrawdownContribution: 0.1,
+  diversificationBenefit: 0.03,
+  minimumDiversificationBenefit: 0.01
+});
+
 const input = Object.freeze({
   advisoryId: "advisory-881",
   strategyId: "strategy-881",
@@ -42,7 +59,8 @@ const input = Object.freeze({
   evidence,
   minimumEvidencePeriods: 30,
   maximumEvidenceAgeMs: 24 * 60 * 60 * 1000,
-  maximumRegimeCoFailureRate: 0.5
+  maximumRegimeCoFailureRate: 0.5,
+  riskEvidence
 });
 
 test("advises only from verified point-in-time PAPER evidence", () => {
@@ -178,3 +196,45 @@ test("derived advisory numerics can never become non-finite", () => {
   assert.ok(Number.isFinite(result.maximumWeight));
   assert.ok(Number.isFinite(result.recommendedWeight));
 });
+
+test("allocation advice abstains when canonical portfolio risk evidence is absent or not accepted", () => {
+  const missing = evaluatePaperPortfolioAdvisory({ ...input, riskEvidence: undefined }, policy);
+  assert.equal(missing.decision, "ABSTAIN");
+  assert.equal(missing.recommendedWeight, 0);
+  assert.ok(missing.reasons.includes("RISK_EVIDENCE_MISSING"));
+
+  const rejected = evaluatePaperPortfolioAdvisory({
+    ...input,
+    riskEvidence: { ...riskEvidence, portfolioDrawdownContribution: 0.11 }
+  }, policy);
+  assert.equal(rejected.decision, "ABSTAIN");
+  assert.ok(rejected.reasons.includes("RISK_DRAWDOWN_CONTRIBUTION_LIMIT_EXCEEDED"));
+});
+
+test("portfolio risk evidence must match advisory provenance and be current at decision time", () => {
+  const mismatch = evaluatePaperPortfolioAdvisory({
+    ...input,
+    riskEvidence: { ...riskEvidence, candidateId: "candidate-other" }
+  }, policy);
+  assert.equal(mismatch.decision, "ABSTAIN");
+  assert.ok(mismatch.reasons.includes("RISK_EVIDENCE_PROVENANCE_MISMATCH"));
+
+  const future = evaluatePaperPortfolioAdvisory({
+    ...input,
+    riskEvidence: { ...riskEvidence, evaluatedAt: "2026-08-29T02:00:00.000Z" }
+  }, policy);
+  assert.equal(future.decision, "ABSTAIN");
+  assert.ok(future.reasons.includes("RISK_EVIDENCE_FUTURE"));
+
+  const stale = evaluatePaperPortfolioAdvisory({
+    ...input,
+    riskEvidence: {
+      ...riskEvidence,
+      observedAt: "2026-08-27T00:00:00.000Z",
+      evaluatedAt: "2026-08-27T00:30:00.000Z"
+    }
+  }, policy);
+  assert.equal(stale.decision, "ABSTAIN");
+  assert.ok(stale.reasons.includes("RISK_EVALUATION_STALE"));
+});
+
