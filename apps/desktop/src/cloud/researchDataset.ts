@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { BacktestExecutionCosts, BacktestPoint } from "../strategy/backtestEngine";
+import type { BacktestConfig, BacktestPoint } from "../strategy/backtestEngine";
 import { runWalkForward, type WalkForwardCandidate, type WalkForwardConfig, type WalkForwardResult } from "../strategy/walkForwardEngine";
 
 export type ResearchInterval = "1m" | "3m" | "5m" | "10m" | "15m" | "30m" | "60m" | "240m" | "1d";
@@ -45,9 +45,15 @@ export interface HistoricalDatasetManifest {
 export interface CreateManifestOptions { readonly source: string; readonly allowMissing?: boolean; readonly createdAt?: string; readonly sourceRequest?: string; readonly notes?: string; }
 export interface ResearchDataset { readonly candles: readonly ResearchCandle[]; readonly manifest: HistoricalDatasetManifest; }
 
+export interface ResearchExecutionCostEvidence {
+  readonly feeRate: number;
+  readonly spreadBps: number;
+  readonly slippageBps: number;
+}
+
 export interface ResearchExperimentResult {
   readonly manifest: HistoricalDatasetManifest;
-  readonly experimentConfig: Readonly<{ walkForward: WalkForwardConfig; candidates: readonly Readonly<{ id: string; parameters?: Readonly<Record<string, string | number | boolean>> }>[]; executionCosts: BacktestExecutionCosts; }>;
+  readonly experimentConfig: Readonly<{ walkForward: WalkForwardConfig; candidates: readonly Readonly<{ id: string; parameters?: Readonly<Record<string, string | number | boolean>> }>[]; executionCosts: ResearchExecutionCostEvidence; }>;
   readonly walkForwardResult: WalkForwardResult;
   readonly generatedAt: string;
   readonly warnings: readonly string[];
@@ -83,6 +89,19 @@ function assertExperimentGeneratedAt(generatedAt: string, manifest: HistoricalDa
   if (generatedAtMs < minimumGeneratedAt) {
     throw new ResearchDatasetError("INVALID_GENERATED_AT", "experiment generatedAt cannot precede its dataset provenance");
   }
+}
+
+export function requireResearchExecutionCostEvidence(config: BacktestConfig | undefined): ResearchExecutionCostEvidence {
+  const feeRate = config?.feeRate;
+  const spreadBps = config?.executionCosts?.spreadBps;
+  const slippageBps = config?.executionCosts?.slippageBps;
+  if (typeof feeRate !== "number" || !Number.isFinite(feeRate) || typeof spreadBps !== "number" || !Number.isFinite(spreadBps) || typeof slippageBps !== "number" || !Number.isFinite(slippageBps)) {
+    throw new ResearchDatasetError("MISSING_EXECUTION_COST_EVIDENCE", "research experiments require explicit feeRate, spreadBps, and slippageBps");
+  }
+  if (feeRate < 0 || spreadBps < 0 || slippageBps < 0 || spreadBps >= 10_000 || slippageBps >= 10_000 || spreadBps / 2 + slippageBps >= 10_000) {
+    throw new ResearchDatasetError("INVALID_EXECUTION_COST_EVIDENCE", "research execution costs are invalid");
+  }
+  return freeze({ feeRate, spreadBps, slippageBps });
 }
 
 function assertCandle(candle: ResearchCandle, index: number): void {
@@ -167,8 +186,9 @@ export function runWalkForwardExperiment(dataset: ResearchDataset, candidates: r
   const validated = verifyHistoricalDatasetManifest(dataset.manifest, dataset.candles);
   const generatedAt = options.generatedAt ?? DEFAULT_EXPERIMENT_GENERATED_AT;
   assertExperimentGeneratedAt(generatedAt, dataset.manifest);
+  const executionCosts = requireResearchExecutionCostEvidence(config.backtestConfig);
   const walkForwardResult = runWalkForward(candlesToBacktestPoints(validated.candles), candidates, config);
   const warnings = [...validated.warnings, ...walkForwardResult.warnings];
   if (walkForwardResult.windows.some((window) => window.testResult.openPosition.status === "OPEN_POSITION") && !warnings.includes("OPEN_POSITION_MARKED_AT_WINDOW_END")) warnings.push("OPEN_POSITION_MARKED_AT_WINDOW_END");
-  return freeze({ manifest: freeze({ ...dataset.manifest }), experimentConfig: freeze({ walkForward: freeze({ ...config }), candidates: Object.freeze(candidates.map((candidate) => freeze({ id: candidate.id, parameters: candidate.parameters == null ? undefined : freeze({ ...candidate.parameters }) }))), executionCosts: freeze({ ...(config.backtestConfig?.executionCosts ?? {}) }) }), walkForwardResult, generatedAt, warnings: Object.freeze(warnings) });
+  return freeze({ manifest: freeze({ ...dataset.manifest }), experimentConfig: freeze({ walkForward: freeze({ ...config }), candidates: Object.freeze(candidates.map((candidate) => freeze({ id: candidate.id, parameters: candidate.parameters == null ? undefined : freeze({ ...candidate.parameters }) }))), executionCosts }), walkForwardResult, generatedAt, warnings: Object.freeze(warnings) });
 }
