@@ -16,7 +16,8 @@ concurrency:
 
 jobs:
   consume:
-    if: ${{ github.event.client_payload.kind == 'REPOSITORY_AUTOPILOT' }}
+    # A repository_dispatch can arrive after main advances; stale requests are intentionally skipped.
+    if: ${{ github.event.client_payload.kind == 'REPOSITORY_AUTOPILOT' && github.event.client_payload.head_sha == github.sha }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -86,12 +87,28 @@ jobs:
         env:
           NUSA_CODING_RUNNER_URL: ${{ secrets.NUSA_CODING_RUNNER_URL }}
           NUSA_CODING_RUNNER_TOKEN: ${{ secrets.NUSA_CODING_RUNNER_TOKEN }}
+          NUSA_EXECUTION_REASON: ${{ github.event.client_payload.reason }}
         run: |
           if [ -n "${NUSA_CODING_RUNNER_URL:-}" ] && [ -n "${NUSA_CODING_RUNNER_TOKEN:-}" ]; then
             echo 'mode=external' >> "$GITHUB_OUTPUT"
-          else
+          elif printf '%s' "${NUSA_EXECUTION_REASON:-}" | grep -q 'gha:'; then
             echo 'mode=github-models' >> "$GITHUB_OUTPUT"
+          else
+            echo 'mode=observe-only' >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Record non-coding dispatch
+        if: ${{ steps.backend.outputs.mode == 'observe-only' }}
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const request = JSON.parse(fs.readFileSync('artifacts/autopilot-execution/coding-runner-request.json', 'utf8'));
+          fs.writeFileSync('artifacts/autopilot-execution/coding-runner-result.json', JSON.stringify({
+            status: 'NO_ACTION',
+            reason: 'no-failure-evidence-for-github-models',
+            request,
+          }, null, 2));
+          NODE
 
       - name: Dispatch to configured external coding runner
         if: ${{ steps.backend.outputs.mode == 'external' }}
@@ -127,7 +144,10 @@ jobs:
           const fs = require('fs');
           const { execFileSync } = require('child_process');
           const request = JSON.parse(fs.readFileSync('artifacts/autopilot-execution/coding-runner-request.json', 'utf8'));
-          const match = String(request.reason || '').match(/gha:[^:]+:([0-9a-f]{40}):(failure|cancelled|timed_out)/i);
+          const reason = String(request.reason || '');
+          const ghaIndex = reason.indexOf('gha:');
+          const failureReference = ghaIndex >= 0 ? reason.slice(ghaIndex) : '';
+          const match = failureReference.match(/:([0-9a-f]{40}):(failure|cancelled|timed_out)(?::|$)/i);
           if (!match) throw new Error('EVOLVE_FAILURE_REFERENCE_REQUIRED');
           const failedSha = match[1].toLowerCase();
           const token = process.env.GH_TOKEN;
