@@ -48,6 +48,7 @@ export class ResearchRunFactoryError extends Error {
 
 const SHA40 = /^[0-9a-f]{40}$/i;
 const SHA256 = /^[0-9a-f]{64}$/i;
+const FORBIDDEN_PARAMETER_NAME = /password|secret|token|authorization|cookie|credential|private[-_]?key|access[-_]?key|api[-_]?key/i;
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 
 function nonEmpty(value: unknown): value is string {
@@ -71,25 +72,31 @@ function validateParameters(
   if (parameters == null || typeof parameters !== "object" || Array.isArray(parameters)) {
     throw new ResearchRunFactoryError(
       "INVALID_PARAMETERS",
-      `candidate ${candidateId} parameters must be a scalar record`,
+      "candidate " + candidateId + " parameters must be a scalar record",
     );
   }
   for (const [name, value] of Object.entries(parameters)) {
-    if (!name.trim() || !["string", "number", "boolean"].includes(typeof value)) {
+    const normalizedName = name.trim();
+    if (!normalizedName || FORBIDDEN_PARAMETER_NAME.test(normalizedName)) {
+      throw new ResearchRunFactoryError(
+        "FORBIDDEN_PARAMETER",
+        "candidate " + candidateId + " parameters cannot contain credential-like fields",
+      );
+    }
+    if (!["string", "number", "boolean"].includes(typeof value)) {
       throw new ResearchRunFactoryError(
         "INVALID_PARAMETERS",
-        `candidate ${candidateId} parameters must contain named scalar values`,
+        "candidate " + candidateId + " parameters must contain named scalar values",
       );
     }
     if (typeof value === "number" && !Number.isFinite(value)) {
       throw new ResearchRunFactoryError(
         "NON_FINITE_PARAMETER_VALUE",
-        `candidate ${candidateId} parameters must be finite`,
+        "candidate " + candidateId + " parameters must be finite",
       );
     }
   }
 }
-
 function validateManifest(manifest: HistoricalDatasetManifest): void {
   if (manifest == null || typeof manifest !== "object") {
     throw new ResearchRunFactoryError("INVALID_DATASET_MANIFEST", "research run requires a dataset manifest");
