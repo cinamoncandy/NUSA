@@ -31,13 +31,13 @@ const SHA40 = /^[0-9a-f]{40}$/i;
 const DEFAULT_LEASE_TTL_MS = 5 * 60 * 1000;
 
 const boundedId = (value: string): string => value.trim().replace(/[^A-Za-z0-9_.:-]/g, "_").slice(0, 160);
+const safeTimestamp = (value: number): boolean => Number.isSafeInteger(value) && value >= 0;
+const safePositiveDuration = (value: number): boolean => Number.isSafeInteger(value) && value > 0;
 
 export function prepareProductionExecution(
   dispatch: AutopilotDispatchPlan,
   options: ProductionExecutionOptions,
 ): PreparedProductionExecution | null {
-  // Only a completed, successful canonical CI run has the exact evidence needed to enter
-  // autonomous coding. Push/PR events remain planning signals and cannot bypass this gate.
   if (dispatch.kind !== "CI_SUCCEEDED") return null;
   if (dispatch.repository !== options.allowedRepository) throw new Error("PRODUCTION_EXECUTION_REPOSITORY_INVALID");
   if (!dispatch.headSha || !SHA40.test(dispatch.headSha)) throw new Error("PRODUCTION_EXECUTION_HEAD_SHA_INVALID");
@@ -45,7 +45,9 @@ export function prepareProductionExecution(
     throw new Error("PRODUCTION_EXECUTION_WORKFLOW_RUN_REQUIRED");
   }
   if (!options.deliveryId.trim()) throw new Error("PRODUCTION_EXECUTION_DELIVERY_ID_REQUIRED");
-  if (!Number.isFinite(options.now)) throw new Error("PRODUCTION_EXECUTION_TIME_INVALID");
+  if (!safeTimestamp(options.now)) throw new Error("PRODUCTION_EXECUTION_TIME_INVALID");
+  const leaseTtlMs = options.leaseTtlMs ?? DEFAULT_LEASE_TTL_MS;
+  if (!safePositiveDuration(leaseTtlMs)) throw new Error("PRODUCTION_EXECUTION_LEASE_TTL_INVALID");
 
   const delivery = boundedId(options.deliveryId);
   const cycleId = `ci:${dispatch.workflowRunId}`;
@@ -54,7 +56,7 @@ export function prepareProductionExecution(
   const dedupeKey = `ci:${dispatch.workflowRunId}:${dispatch.headSha}`;
 
   let state = createExecutionState({ cycleId, workItemId, executionId, dedupeKey });
-  state = acquireExecutionLease(state, "cloudflare:nusa-autopilot", options.now, options.leaseTtlMs ?? DEFAULT_LEASE_TTL_MS);
+  state = acquireExecutionLease(state, "cloudflare:nusa-autopilot", options.now, leaseTtlMs);
 
   const envelope = validateCodingExecutionEnvelope({
     cycleId,
