@@ -1,16 +1,16 @@
 version: 1
 project: nusa
-updated_at: "2026-08-29T17:35:00+09:00"
+updated_at: "2026-08-29T18:20:00+09:00"
 current_execution_target:
-  work_order: WO-ISSUE-880-HUMAN-CONTAINMENT-COMMAND
+  work_order: WO-ISSUE-881-RISK-EVIDENCE-BINDING
   status: VERIFYING
-  branch: codex/issue-880-lifecycle-boundary
-  base_sha: 0091c870fc8e8f81fbe87c6609991b2a48b9c3e8
-  scope: "Apply existing evidence-bound strategy containment advice only through an explicit human approval command with stale-decision and restart-idempotency guards."
+  branch: codex/issue-881-risk-evidence-binding
+  base_sha: 545b3286a39ef72ef1872521ace37127142929dd
+  scope: "Bind the existing canonical portfolio risk evidence evaluator to the existing PAPER portfolio advisory with provenance and freshness fail-closed checks."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: verification
 status: verifying
-objective: "Advance strategy lifecycle safety using existing evidence and governance primitives while holding all production and LIVE authority at the human/environment boundary."
+objective: "Consume canonical portfolio risk evidence in the existing PAPER allocation advisory while holding all production and LIVE authority at the human/environment boundary."
 latest_research_slice:
   work_order: WO-MARKET-INTELLIGENCE-REGIME-POINT-IN-TIME-001
   status: COMPLETED
@@ -23,9 +23,9 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: codex/issue-880-lifecycle-boundary
+active_branch: codex/issue-881-risk-evidence-binding
 active_successor_branch: null
-active_pull_request: 1049
+active_pull_request: 1051
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -83,14 +83,14 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-ISSUE-880-HUMAN-CONTAINMENT-COMMAND
+  work_order: WO-ISSUE-881-RISK-EVIDENCE-BINDING
   status: VERIFYING
-  branch: codex/issue-880-lifecycle-boundary
-  base_commit: 0091c870fc8e8f81fbe87c6609991b2a48b9c3e8
-  scope: "Apply existing evidence-bound strategy containment advice only through an explicit human approval command with stale-decision and restart-idempotency guards."
+  branch: codex/issue-881-risk-evidence-binding
+  base_commit: 545b3286a39ef72ef1872521ace37127142929dd
+  scope: "Bind canonical portfolio risk evidence to the existing PAPER portfolio advisory with provenance and freshness fail-closed checks."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  implementation_commit: c2638d91edf8a2e3f24d4ed940a37b798f9c3981
-  validation: "Containment approval boundary implemented at c2638d91edf8a2e3f24d4ed940a37b798f9c3981; PR #1049 opened at c288c597141a8f0f8930d5327b90097149e60cdd; focused 13/13 and targeted 38/38 PASS; preflight/typecheck/build/lint/architecture/safety/security/Restricted LIVE/read-only broker/AIPOS/package validation PASS; full local isolated suite remains blocked by Windows TEMP mkdtemp EPERM; exact-head CI pending."
+  implementation_commit: eff5f306d1cb69da48c75872b9c41b4356eb207f
+  validation: "Exact branch focused advisory 11/11 and portfolio/risk/performance/allocation 31/31 PASS; preflight/typecheck/build/lint/architecture/safety/security/Restricted LIVE/read-only broker/AIPOS/package validation PASS."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -505,9 +505,9 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
-  - id: WO-ISSUE-880-HUMAN-CONTAINMENT-COMMAND
-    evidence: ".aipos/work-orders/WO-ISSUE-880-HUMAN-CONTAINMENT-COMMAND.yaml"
-    summary: "Apply existing evidence-bound strategy containment advice only through an explicit human approval command with stale-decision and restart-idempotency guards; no new engine or authority."
+  - id: WO-ISSUE-881-RISK-EVIDENCE-BINDING
+    evidence: ".aipos/work-orders/WO-ISSUE-881-RISK-EVIDENCE-BINDING.yaml"
+    summary: "Bind canonical portfolio risk evidence to the existing PAPER portfolio advisory with provenance and freshness fail-closed checks; no new engine or authority."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -534,8 +534,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-ISSUE-880-HUMAN-CONTAINMENT-COMMAND.yaml
-  reason: "Issue #880 is the next repository-side P1: bind containment lifecycle changes to an explicit human approval and preserve safe replay semantics."
+  work_order: .aipos/work-orders/WO-ISSUE-881-RISK-EVIDENCE-BINDING.yaml
+  reason: "Issue #881 is the next repository-side P1: require canonical portfolio risk evidence before issuing a PAPER allocation advisory."
 verification:
   wo_0057:
     parent_pull_request: 552

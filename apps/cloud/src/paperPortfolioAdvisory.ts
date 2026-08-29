@@ -1,4 +1,5 @@
 import type { CapitalAllocationPolicy } from "./capitalAllocationEngine";
+import { evaluatePaperPortfolioRiskEvidence, type PaperPortfolioRiskEvidenceInput } from "./paperPortfolioRiskEvidence";
 
 export type PaperPortfolioAdvisoryDecision = "ADVISE" | "ABSTAIN";
 export type PaperEvidenceStatus = "VERIFIED" | "INSUFFICIENT" | "UNKNOWN" | "CONFLICTING";
@@ -30,6 +31,8 @@ export interface PaperPortfolioAdvisoryInput {
   readonly minimumEvidencePeriods: number;
   readonly maximumEvidenceAgeMs: number;
   readonly maximumRegimeCoFailureRate: number;
+  /** Canonical portfolio risk evidence is required for an allocation advisory. */
+  readonly riskEvidence?: PaperPortfolioRiskEvidenceInput;
 }
 
 export interface PaperPortfolioAdvisoryResult {
@@ -117,6 +120,20 @@ export const evaluatePaperPortfolioAdvisory = (
   requireFinite(input.evidence.grossExpectedEdge, "grossExpectedEdge");
 
   const reasons: string[] = [];
+  if (input.riskEvidence == null) {
+    reasons.push("RISK_EVIDENCE_MISSING");
+  } else {
+    const risk = evaluatePaperPortfolioRiskEvidence(input.riskEvidence);
+    const riskEvaluatedAtMs = Date.parse(risk.evaluatedAt);
+    if (risk.candidateId !== input.evidence.candidateId
+      || risk.datasetId !== input.evidence.datasetId
+      || risk.datasetContentSha256 !== input.evidence.datasetContentSha256) {
+      reasons.push("RISK_EVIDENCE_PROVENANCE_MISMATCH");
+    }
+    if (riskEvaluatedAtMs > generatedAtMs) reasons.push("RISK_EVIDENCE_FUTURE");
+    if (generatedAtMs - riskEvaluatedAtMs > input.maximumEvidenceAgeMs) reasons.push("RISK_EVALUATION_STALE");
+    if (risk.decision !== "ACCEPT") reasons.push(...risk.reasons.map((reason) => `RISK_${reason}`));
+  }
   if (input.evidence.status !== "VERIFIED") reasons.push(`EVIDENCE_${input.evidence.status}`);
   if (input.evidence.evidencePeriods < input.minimumEvidencePeriods) reasons.push("INSUFFICIENT_LONGITUDINAL_EVIDENCE");
   if (observedAtMs > generatedAtMs) reasons.push("FUTURE_EVIDENCE");
