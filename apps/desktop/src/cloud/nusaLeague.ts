@@ -81,6 +81,9 @@ export interface LeagueCandidateComponents {
   readonly outOfSamplePerformance: number;
   readonly benchmarkExcess: number;
   readonly maximumDrawdown: number;
+  /** Candidate-specific turnover and post-cost burden from the benchmark scorecard. */
+  readonly turnover?: number;
+  readonly tradingCostBurden?: number;
   readonly riskAdjusted?: number;
   readonly regimeRobustness?: number;
   readonly regimeRobustnessClass?: RegimeRobustnessClass;
@@ -118,6 +121,26 @@ export interface LeagueStanding {
   readonly provenance: Readonly<{ sourceDatasetIds: readonly string[] }>;
 }
 
+/**
+ * Human-readable, research-only explanation of one League disposition. It reports the evidence
+ * already present on the ranked entry; it does not create eligibility, performance, allocation,
+ * execution, or LIVE authority.
+ */
+export interface LeagueCandidateEvidenceReport {
+  readonly candidateId: string;
+  readonly outcome: LeagueCandidateOutcome;
+  readonly summary: string;
+  readonly supportingEvidence: readonly string[];
+  readonly counterEvidence: readonly string[];
+  readonly missingEvidence: readonly string[];
+  readonly costSensitivity: Readonly<{
+    readonly status: "AVAILABLE" | "MISSING";
+    readonly turnover?: number;
+    readonly tradingCostBurden?: number;
+  }>;
+  readonly overfitRisk: "AVAILABLE" | "MISSING";
+}
+
 export class NusaLeagueError extends Error {
   constructor(readonly code: string, message: string) {
     super(message);
@@ -133,6 +156,84 @@ const DEFAULT_POLICY: Required<LeaguePolicy> = Object.freeze({
 });
 
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
+
+function stableUnique(values: readonly string[]): readonly string[] {
+  return freeze([...new Set(values)].sort());
+}
+
+/**
+ * Projects existing ranked evidence into a deterministic explanation for research consumers.
+ * Missing evidence remains explicit; it is never converted into a positive signal.
+ */
+export function buildLeagueCandidateEvidenceReport(
+  entry: LeagueRankedEntry,
+  options: { readonly pboAvailable?: boolean } = {},
+): LeagueCandidateEvidenceReport {
+  const supportingEvidence: string[] = ["OUT_OF_SAMPLE_BENCHMARK_EVIDENCE"];
+  const missingEvidence: string[] = [];
+  const components = entry.components;
+
+  if (components.riskAdjusted == null) missingEvidence.push("DEFLATED_SHARPE_EVIDENCE_MISSING");
+  else supportingEvidence.push("DEFLATED_SHARPE_EVIDENCE");
+
+  const costAvailable = Number.isFinite(components.turnover) && Number.isFinite(components.tradingCostBurden);
+  if (costAvailable) supportingEvidence.push("COST_SENSITIVITY_EVIDENCE");
+  else missingEvidence.push("COST_SENSITIVITY_EVIDENCE_MISSING");
+
+  if (options.pboAvailable === true) supportingEvidence.push("PBO_EVIDENCE");
+  else missingEvidence.push("PBO_EVIDENCE_MISSING");
+
+  if (components.regimeRobustnessClass === "ROBUST") supportingEvidence.push("REGIME_ROBUSTNESS_EVIDENCE");
+  else if (components.regimeRobustnessClass === "FRAGILE") supportingEvidence.push("REGIME_FRAGILITY_EVIDENCE");
+  else if (components.regimeRobustnessClass === "INSUFFICIENT") missingEvidence.push("REGIME_ROBUSTNESS_EVIDENCE_INSUFFICIENT");
+  else missingEvidence.push("REGIME_ROBUSTNESS_EVIDENCE_MISSING");
+
+  const optionalEvidence: readonly [keyof LeagueCandidateComponents, string][] = [
+    ["abstentionQuality", "ABSTENTION_EVIDENCE"],
+    ["costAdjustedGhostReturn", "GHOST_EXECUTION_EVIDENCE"],
+    ["counterfactualRegret", "COUNTERFACTUAL_EVIDENCE"],
+    ["trialFailureRatio", "TRIAL_LEDGER_EVIDENCE"],
+    ["paperNetReturn", "PAPER_PERFORMANCE_EVIDENCE"],
+  ];
+  for (const [field, label] of optionalEvidence) {
+    if (components[field] == null) missingEvidence.push(label + "_MISSING");
+    else supportingEvidence.push(label);
+  }
+
+  const counterEvidence = stableUnique(entry.reasons.filter((reason) => reason !== "REGIME_ROBUST_EDGE"));
+  const missing = stableUnique(missingEvidence);
+  const supporting = stableUnique(supportingEvidence);
+  const outcomeDescription = entry.outcome === "QUALIFIED_FOR_LEAGUE"
+    ? "qualified for League ranking"
+    : entry.outcome === "INSUFFICIENT" ? "insufficiently evidenced"
+    : "rejected";
+  const counterDescription = counterEvidence.length === 0
+    ? "No recorded counter-evidence."
+    : "Counter-evidence: " + counterEvidence.join(", ") + ".";
+  const missingDescription = missing.length === 0
+    ? "Required report evidence is present."
+    : missing.length + " evidence item(s) remain unavailable.";
+
+  const costSensitivity = costAvailable
+    ? {
+      status: "AVAILABLE" as const,
+      turnover: components.turnover,
+      tradingCostBurden: components.tradingCostBurden,
+    }
+    : { status: "MISSING" as const };
+
+  return freeze({
+    candidateId: entry.id,
+    outcome: entry.outcome,
+    summary: "Candidate " + entry.id + " is " + outcomeDescription + ". " + counterDescription + " " + missingDescription,
+    supportingEvidence: supporting,
+    counterEvidence,
+    missingEvidence: missing,
+    costSensitivity,
+    overfitRisk: options.pboAvailable === true ? "AVAILABLE" as const : "MISSING" as const,
+  });
+}
+
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
 
 function assertFinite(value: number, code: string, message: string): void {
@@ -313,6 +414,8 @@ function scoreCandidate(candidate: LeagueCandidateInput, policy: Required<League
     outOfSamplePerformance: candidate.benchmark.totalReturn,
     benchmarkExcess: candidate.benchmark.averageOutperformance,
     maximumDrawdown: candidate.benchmark.maximumDrawdown,
+    turnover: candidate.benchmark.turnover,
+    tradingCostBurden: candidate.benchmark.tradingCostBurden,
     ...(candidate.deflatedSharpe == null ? {} : { riskAdjusted: candidate.deflatedSharpe.deflatedSharpeProbability }),
     ...(candidate.regimeAwareEvaluation != null
       ? (candidate.regimeAwareEvaluation.regimeRobustnessScore == null
