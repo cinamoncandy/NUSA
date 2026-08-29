@@ -3,6 +3,10 @@
     "target": "ES2022",
     "module": "CommonJS",
     "moduleResolution": "Node",
+    "baseUrl": ".",
+    "paths": {
+      "@cloudflare/sandbox": ["node_modules/@cloudflare/sandbox/dist/index.d.ts"]
+    },
     "rootDir": ".",
     "outDir": "dist",
     "declaration": true,
