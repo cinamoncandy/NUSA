@@ -72,3 +72,13 @@ test("rejects malformed or sensitive coordinator writes before persistence", asy
   );
   assert.deepEqual(await memory.get("evolve-learning-memory-v1"), [record]);
 });
+
+test("fails closed when coordinator storage contains corrupt learning memory", async () => {
+  const storage = new Storage();
+  await storage.put("value", [{ opportunityId: record.opportunityId }]);
+  const coordinator = new ExecutionCoordinator({ storage });
+
+  const response = await coordinator.fetch(new Request("https://execution-coordinator/evolve-learning-memory", { method: "GET" }));
+  assert.equal(response.status, 500);
+  assert.deepEqual(await response.json(), { error: "EVOLVE_LEARNING_MEMORY_CORRUPT" });
+});
