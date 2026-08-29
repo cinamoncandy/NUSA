@@ -87,6 +87,7 @@ test("trial ledger counts failed and rejected attempts instead of hiding search 
     completedCount: 1,
     failedCount: 1,
     rejectedCount: 1,
+    abstainedCount: 0,
     distinctSearchCount: 2,
     distinctFamilyCount: 2,
     maximumSearchAttemptOrdinal: 2,
@@ -155,5 +156,21 @@ test("rejected trials require explicit rejection reasons", () => {
   assert.throws(
     () => appendResearchTrial([], trial({ outcome: "REJECTED", score: undefined, metrics: undefined })),
     (error) => error instanceof ResearchTrialLedgerError && error.code === "MISSING_REJECTION_REASON"
+  );
+});
+
+test("abstained trials require reasons and remain in the immutable denominator", () => {
+  let ledger = appendResearchTrial([], trial({ outcome: "ABSTAINED", score: undefined, metrics: undefined, abstentionReasons: ["INSUFFICIENT_CONFIDENCE"] }));
+  ledger = appendResearchTrial(ledger, trial({
+    trialId: "trial-2",
+    search: { searchId: "search-1", attemptOrdinal: 2 },
+    outcome: "COMPLETED"
+  }));
+  const summary = summarizeResearchTrialLedger(ledger);
+  assert.equal(summary.abstainedCount, 1);
+  assert.equal(summary.trialCount, 2);
+  assert.throws(
+    () => appendResearchTrial([], trial({ outcome: "ABSTAINED", score: undefined, metrics: undefined })),
+    (error) => error instanceof ResearchTrialLedgerError && error.code === "MISSING_ABSTENTION_REASON"
   );
 });
