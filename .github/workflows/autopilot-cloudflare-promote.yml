@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
-          fetch-depth: 0
+          fetch-depth: 2
 
       - name: Verify autopilot deployment-relevant change
         id: changes
@@ -48,6 +48,9 @@ jobs:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
+          # No-op CI completions need only HEAD and its parent. Fetch full main history
+          # only when a deployment-relevant autopilot change actually needs ancestry checks.
+          git fetch --unshallow --no-tags origin main
           git fetch origin cloudflare-production
           current_sha="$(git rev-parse origin/cloudflare-production)"
 

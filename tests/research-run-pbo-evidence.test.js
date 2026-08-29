@@ -117,11 +117,30 @@ function experiment(id, candidateIndex, overrides = {}) {
 }
 
 function candidates() {
-  return [0, 1, 2].map((index) => ({
-    id: `candidate-${index}`,
-    familyId: `family-${index}`,
-    experiment: experiment(`candidate-${index}`, index)
-  }));
+  return [0, 1, 2].map((index) => {
+    const id = `candidate-${index}`;
+    const familyId = `family-${index}`;
+    const candidateExperiment = experiment(id, index);
+    return {
+      id,
+      familyId,
+      experiment: candidateExperiment,
+      candidateSpecification: {
+        schemaVersion: 1,
+        candidateId: id,
+        familyId,
+        lineageId: `${familyId}-v1`,
+        parameters: {},
+        codeSha: "b".repeat(40),
+        datasetId: candidateExperiment.manifest.datasetId,
+        datasetContentSha256: candidateExperiment.manifest.contentSha256,
+        costModelVersion: "fixture-cost-v1",
+        generatedAt: "2025-12-31T23:00:00.000Z",
+        evaluationStartedAt: "2025-12-31T23:05:00.000Z",
+        evaluationEndedAt: "2025-12-31T23:30:00.000Z"
+      }
+    };
+  });
 }
 
 test("derives CSCV PBO from aligned cost-aware OOS equity returns only", () => {
@@ -183,6 +202,51 @@ test("DSR fails closed on candidate identity and dataset provenance mismatch", (
     () => buildResearchRunDsrEvidence(provenanceMismatch),
     (error) => error instanceof ResearchRunDsrEvidenceError && error.code === "DATASET_PROVENANCE_MISMATCH"
   );
+});
+
+test("DSR records canonical abstention in the search denominator without manufacturing evidence", () => {
+  const input = candidates();
+  input[2] = {
+    ...input[2],
+    abstention: {
+      schemaVersion: 1,
+      asOf: 1,
+      decision: "ABSTAIN",
+      netExpectedEdge: -0.001,
+      effectiveMinimumConfidence: 0.6,
+      reasons: ["INSUFFICIENT_CONFIDENCE"],
+      sourceDatasetIds: ["shared-dataset"]
+    }
+  };
+  const result = buildResearchRunDsrEvidence(input);
+  assert.equal(result.evidenceByCandidate.size, 2);
+  assert.equal(result.unavailableReasons.get(input[2].id), "ABSTENTION_DECISION");
+  assert.equal(result.trialLedgerSummary.abstainedCount, 1);
+  assert.equal(result.evidenceByCandidate.get(input[0].id).searchTrialCount, 3);
+});
+
+test("passes DSR abstention ledger summaries through the League bridge", () => {
+  const input = candidates();
+  input[2] = {
+    ...input[2],
+    abstention: {
+      schemaVersion: 1,
+      asOf: 1,
+      decision: "ABSTAIN",
+      netExpectedEdge: -0.001,
+      effectiveMinimumConfidence: 0.6,
+      reasons: ["INSUFFICIENT_CONFIDENCE"],
+      sourceDatasetIds: ["shared-dataset"]
+    }
+  };
+  const dsr = buildResearchRunDsrEvidence(input);
+  const league = buildResearchRunLeague(input.map((candidate) => ({
+    ...candidate,
+    deflatedSharpe: dsr.evidenceByCandidate.get(candidate.id),
+    trialLedgerSummary: dsr.trialLedgerSummary
+  })));
+  assert.equal(league.standing.entries.length, input.length);
+  assert.equal(dsr.trialLedgerSummary.abstainedCount, 1);
 });
 
 test("DSR preserves a zero-variance candidate as unavailable without inventing evidence", () => {

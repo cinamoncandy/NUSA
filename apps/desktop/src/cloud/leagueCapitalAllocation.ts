@@ -65,6 +65,7 @@ function eligibleEntries(standing: LeagueStanding, policy: LeagueCapitalAllocati
   return standing.entries
     .filter((entry): entry is LeagueRankedEntry & { rank: number; leagueScore: number } =>
       entry.eligible === true
+      && entry.outcome === "QUALIFIED_FOR_LEAGUE"
       && entry.rank != null
       && entry.leagueScore != null
       && Number.isFinite(entry.leagueScore)

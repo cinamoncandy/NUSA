@@ -9,11 +9,30 @@ import type { GhostExecutionResult } from "./ghostExecution";
 import type { CounterfactualAssessment } from "./counterfactualEngine";
 import type { ResearchTrialLedgerSummary } from "./researchTrialLedger";
 import { runLeagueResearchPipeline } from "./leagueResearchPipeline";
-import { evaluateLeague, type LeagueCandidateInput, type LeaguePolicy, type LeagueStanding } from "./nusaLeague";
+import {
+  buildLeagueCandidateEvidenceReport,
+  evaluateLeague,
+  type LeagueCandidateEvidenceReport,
+  type LeagueCandidateInput,
+  type LeaguePolicy,
+  type LeagueStanding,
+} from "./nusaLeague";
 import type { LeagueCapitalAllocationAdvisory, LeagueCapitalAllocationPolicy } from "./leagueCapitalAllocation";
 import { LeagueCapitalAllocationError } from "./leagueCapitalAllocation";
 import { extractResearchRunOosObservations, ResearchRunOosObservationError, type OosObservationTrace } from "./researchRunOosObservationEvidence";
 import { gatePaperForwardLeagueEvidence, type PaperForwardLeagueEvidenceDecision, type PaperForwardLeagueEvidenceSource } from "./paperForwardLeagueEvidence";
+import {
+  validateResearchCandidateSpecificationBinding,
+  type ResearchCandidateSpecification,
+} from "./researchCandidateSpecification";
+import {
+  validateResearchRunRobustnessEvidence,
+  type ResearchRunRobustnessEvidence,
+} from "./researchRunRobustnessEvidence";
+import {
+  validateResearchHypothesisBinding,
+  type ResearchHypothesis,
+} from "./researchHypothesis";
 
 /**
  * Minimal adapter joining a real research run to the League pipeline.
@@ -39,6 +58,8 @@ export interface ResearchRunCandidate {
   /** Strategy family. Tuned variants of one strategy MUST share a familyId. */
   readonly familyId: string;
   readonly experiment: ResearchExperimentResult;
+  /** Immutable provenance contract bound to this candidate's experiment and dataset. */
+  readonly candidateSpecification: ResearchCandidateSpecification;
   /** Optional point-in-time multi-window regime evidence for this candidate's own experiment. */
   readonly regimeAwareEvaluation?: RegimeAwareStrategyEvaluation;
   /** Candidate-specific DSR produced from this search's cost-aware OOS returns. */
@@ -65,6 +86,16 @@ export interface ResearchRunLeagueResult {
   readonly evidenceMode: "RESEARCH_TIER_ONLY";
   /** The League ranking. Always produced: a refused allocation does not invalidate the ranking. */
   readonly standing: LeagueStanding;
+  /** Deterministic human-readable projection of the evidence already present in each entry. */
+  readonly evidenceReport: readonly LeagueCandidateEvidenceReport[];
+  /**
+   * Run-level parameter-neighborhood and cost-stress evidence. This is intentionally kept
+   * outside candidate evidence breadth because it describes the shared research run, not
+   * independent evidence for any one candidate.
+   */
+  readonly robustnessEvidence?: ResearchRunRobustnessEvidence;
+  /** The explicit market hypothesis that precommitted this research run, when available. */
+  readonly hypothesis?: ResearchHypothesis;
   readonly allocation?: LeagueCapitalAllocationAdvisory;
   /** Why no allocation advisory could be produced, when that is the case. */
   readonly allocationUnavailableReason?: string;
@@ -96,6 +127,10 @@ export function buildResearchRunLeague(
     readonly leaguePolicy?: LeaguePolicy;
     readonly allocationPolicy?: Partial<LeagueCapitalAllocationPolicy>;
     readonly generatedAt?: string;
+    /** Already-verified run-level sensitivity/stress evidence; never used to grant authority. */
+    readonly robustnessEvidence?: ResearchRunRobustnessEvidence;
+    /** Explicit, read-only hypothesis provenance for this research run. */
+    readonly hypothesis?: ResearchHypothesis;
   } = {},
 ): ResearchRunLeagueResult {
   if (candidates.length === 0) {
@@ -116,6 +151,86 @@ export function buildResearchRunLeague(
       throw new ResearchRunLeagueBridgeError(
         "CANDIDATE_EXPERIMENT_IDENTITY_MISMATCH",
         `candidate ${candidate.id} must own exactly one matching experiment candidate`,
+      );
+    }
+
+    try {
+      const specificationDecision = validateResearchCandidateSpecificationBinding(
+        candidate.candidateSpecification,
+        {
+          candidateId: candidate.id,
+          familyId: candidate.familyId,
+          datasetId: candidate.experiment.manifest.datasetId,
+          datasetContentSha256: candidate.experiment.manifest.contentSha256,
+          parameters: configuredCandidates[0]?.parameters ?? {},
+          evaluationGeneratedAt: candidate.experiment.generatedAt,
+        },
+      );
+      if (specificationDecision.status !== "VERIFIED") {
+        throw new ResearchRunLeagueBridgeError(
+          "INVALID_CANDIDATE_SPECIFICATION",
+          `candidate ${candidate.id} has invalid bound specification: ${specificationDecision.reasons.join(",")}`,
+        );
+      }
+    } catch (error) {
+      if (error instanceof ResearchRunLeagueBridgeError) throw error;
+      throw new ResearchRunLeagueBridgeError(
+        "INVALID_CANDIDATE_SPECIFICATION",
+        `candidate ${candidate.id} has malformed bound specification`,
+      );
+    }
+  }
+
+  if (options.robustnessEvidence != null) {
+    try {
+      validateResearchRunRobustnessEvidence(options.robustnessEvidence);
+    } catch (error) {
+      if (error instanceof ResearchRunLeagueBridgeError) throw error;
+      const message = error instanceof Error ? error.message : "malformed robustness evidence";
+      throw new ResearchRunLeagueBridgeError("INVALID_ROBUSTNESS_EVIDENCE", message);
+    }
+    const firstManifest = candidates[0]!.experiment.manifest;
+    if (candidates.some((candidate) => (
+      candidate.experiment.manifest.datasetId !== firstManifest.datasetId
+      || candidate.experiment.manifest.contentSha256 !== firstManifest.contentSha256
+    ))) {
+      throw new ResearchRunLeagueBridgeError(
+        "ROBUSTNESS_PROVENANCE_MISMATCH",
+        "run-level robustness evidence requires one shared candidate dataset",
+      );
+    }
+    if (
+      options.robustnessEvidence.datasetId !== firstManifest.datasetId
+      || options.robustnessEvidence.datasetContentSha256 !== firstManifest.contentSha256
+    ) {
+      throw new ResearchRunLeagueBridgeError(
+        "ROBUSTNESS_PROVENANCE_MISMATCH",
+        "run-level robustness evidence does not match candidate dataset provenance",
+      );
+    }
+  }
+
+  if (options.hypothesis != null) {
+    const firstManifest = candidates[0]!.experiment.manifest;
+    const expectedEvaluationGeneratedAt = options.generatedAt ?? candidates[0]!.experiment.generatedAt;
+    const decision = validateResearchHypothesisBinding(options.hypothesis, {
+      hypothesisId: options.hypothesis.hypothesisId,
+      familyId: candidates[0]!.familyId,
+      market: firstManifest.market,
+      interval: firstManifest.interval,
+      sourceDatasetId: firstManifest.datasetId,
+      evaluationGeneratedAt: expectedEvaluationGeneratedAt,
+    });
+    const candidateBindingMismatch = candidates.some((candidate) => (
+      candidate.familyId !== options.hypothesis!.familyId
+      || candidate.experiment.manifest.market !== options.hypothesis!.market
+      || candidate.experiment.manifest.interval !== options.hypothesis!.interval
+      || candidate.experiment.manifest.datasetId !== options.hypothesis!.sourceDatasetId
+    ));
+    if (decision.status !== "VERIFIED" || candidateBindingMismatch) {
+      throw new ResearchRunLeagueBridgeError(
+        "HYPOTHESIS_PROVENANCE_MISMATCH",
+        decision.reasons.join(",") || "hypothesis does not bind to every candidate in the research run",
       );
     }
   }
@@ -187,6 +302,10 @@ export function buildResearchRunLeague(
   if (new Set(candidates.map((candidate) => candidate.familyId)).size <= 1) reasons.push("SINGLE_FAMILY_RESEARCH_RUN");
   if (candidates.every((candidate) => candidate.regimeAwareEvaluation != null)) reasons.push("POINT_IN_TIME_REGIME_EVIDENCE_PRESENT");
   if (options.probabilityBacktestOverfitting != null) reasons.push("SEARCH_OVERFITTING_EVIDENCE_PRESENT");
+  if (options.robustnessEvidence != null) {
+    reasons.push("PARAMETER_ROBUSTNESS_EVIDENCE_PRESENT", "COST_STRESS_EVIDENCE_PRESENT");
+  }
+  if (options.hypothesis != null) reasons.push("PRECOMMITTED_HYPOTHESIS_PRESENT");
 
   const pipelineInput = {
     candidates: leagueCandidates,
@@ -221,10 +340,17 @@ export function buildResearchRunLeague(
     reasons.push("NO_ALLOCATION_ADVISORY_AVAILABLE");
   }
 
+  const evidenceReport = freeze(standing.entries.map((entry) => buildLeagueCandidateEvidenceReport(entry, {
+    pboAvailable: options.probabilityBacktestOverfitting != null,
+  })));
+
   return freeze({
     schemaVersion: 1,
     evidenceMode: "RESEARCH_TIER_ONLY",
     standing,
+    evidenceReport,
+    ...(options.robustnessEvidence == null ? {} : { robustnessEvidence: options.robustnessEvidence }),
+    ...(options.hypothesis == null ? {} : { hypothesis: options.hypothesis }),
     ...(allocation == null ? {} : { allocation }),
     ...(allocationUnavailableReason == null ? {} : { allocationUnavailableReason }),
     ...(Object.keys(oosObservationEvidence).length === 0 ? {} : { oosObservationEvidence: freeze(oosObservationEvidence) }),

@@ -16,7 +16,7 @@ import { verifyResearchTrialLedger, type ResearchTrialRecord } from "./researchT
  * - **No self-influence.** A trial never contributes to the prior applied to itself. Feedback for
  *   a family is computed strictly from records sealed *earlier* in the ledger, so a result can
  *   never justify itself.
- * - **Survivors do not define the denominator.** FAILED and REJECTED trials are counted in full.
+ * - **Survivors do not define the denominator.** FAILED, REJECTED, and ABSTAINED trials are counted in full.
  *   Computing over completed trials only would be textbook survivorship bias, so a family whose
  *   completions look good but which failed far more often is scored down, not up.
  * - **Bounded in both directions.** The adjustment is clamped to a configured band, so no amount
@@ -44,6 +44,7 @@ export interface ResearchFamilyFeedback {
   readonly completedCount: number;
   readonly failedCount: number;
   readonly rejectedCount: number;
+  readonly abstainedCount: number;
   /** Failure share over ALL prior trials, not over survivors. */
   readonly failureRatio: number;
   /** Bounded prior adjustment. Negative means this family's own history argues against it. */
@@ -107,16 +108,17 @@ function familyPrior(
   completedCount: number,
   failedCount: number,
   rejectedCount: number,
+  abstainedCount: number,
   policy: ResearchFeedbackPolicy,
 ): { readonly failureRatio: number; readonly priorAdjustment: number; readonly reasons: readonly string[] } {
-  const priorTrialCount = completedCount + failedCount + rejectedCount;
+  const priorTrialCount = completedCount + failedCount + rejectedCount + abstainedCount;
   const reasons: string[] = [];
   if (priorTrialCount < policy.minimumPriorTrials) {
     // Too little sealed history to say anything: neutral, and say why.
     return { failureRatio: priorTrialCount === 0 ? 0 : (failedCount + rejectedCount) / priorTrialCount, priorAdjustment: 0, reasons: sortedUnique(["INSUFFICIENT_PRIOR_HISTORY"]) };
   }
 
-  const failureRatio = (failedCount + rejectedCount) / priorTrialCount;
+  const failureRatio = (failedCount + rejectedCount + abstainedCount) / priorTrialCount;
   // 0.5 failure ratio is the neutral point; above it the family's own history argues against it.
   const raw = (0.5 - failureRatio) * 2 * policy.maximumAdjustment;
   const priorAdjustment = Math.max(-policy.maximumAdjustment, Math.min(policy.maximumAdjustment, raw));
@@ -152,25 +154,27 @@ export function buildResearchFeedbackDigest(
   // Strictly-earlier records only: this is what makes the feedback non-circular.
   const priorRecords = ledger.filter((record) => record.sequence < evaluatedSequence);
 
-  const byFamily = new Map<string, { completed: number; failed: number; rejected: number }>();
+  const byFamily = new Map<string, { completed: number; failed: number; rejected: number; abstained: number }>();
   for (const record of priorRecords) {
-    const bucket = byFamily.get(record.familyId) ?? { completed: 0, failed: 0, rejected: 0 };
+    const bucket = byFamily.get(record.familyId) ?? { completed: 0, failed: 0, rejected: 0, abstained: 0 };
     if (record.outcome === "COMPLETED") bucket.completed += 1;
     else if (record.outcome === "FAILED") bucket.failed += 1;
-    else bucket.rejected += 1;
+    else if (record.outcome === "REJECTED") bucket.rejected += 1;
+    else bucket.abstained += 1;
     byFamily.set(record.familyId, bucket);
   }
 
   const families = [...byFamily.entries()]
     .map(([familyId, counts]) => {
-      const priorTrialCount = counts.completed + counts.failed + counts.rejected;
-      const { failureRatio, priorAdjustment, reasons } = familyPrior(counts.completed, counts.failed, counts.rejected, policy);
+      const priorTrialCount = counts.completed + counts.failed + counts.rejected + counts.abstained;
+      const { failureRatio, priorAdjustment, reasons } = familyPrior(counts.completed, counts.failed, counts.rejected, counts.abstained, policy);
       return freeze({
         familyId,
         priorTrialCount,
         completedCount: counts.completed,
         failedCount: counts.failed,
         rejectedCount: counts.rejected,
+        abstainedCount: counts.abstained,
         failureRatio,
         priorAdjustment,
         reasons,
