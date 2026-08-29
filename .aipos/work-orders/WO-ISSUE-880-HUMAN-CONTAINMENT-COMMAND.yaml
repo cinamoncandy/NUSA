@@ -1,7 +1,7 @@
 version: 1
 id: WO-ISSUE-880-HUMAN-CONTAINMENT-COMMAND
 title: "Issue #880 apply containment only through an evidence-bound human approval command"
-status: VERIFYING
+status: COMPLETED
 priority: P1
 owner: codex
 repository: cinamoncandy/NUSA
@@ -50,15 +50,16 @@ acceptance:
   - approval_metadata_is_persisted_and_integrity_verified
   - existing_containment_governance_promotion_rollback_and_restart_regressions_remain_green
   - no_execution_accounting_risk_broker_or_live_authority_changes
-implementation_status: IMPLEMENTED_LOCAL_VALIDATION_COMPLETE_PENDING_PUBLISH
-implementation_commit: c2638d91edf8a2e3f24d4ed940a37b798f9c3981
+implementation_status: MERGED_PR_1049
+implementation_commit: 352f1853dc6f1b3b0821ce5c39d3996ba6226c64
 pull_request: 1049
-published_head: c288c597141a8f0f8930d5327b90097149e60cdd
-remote_validation: PENDING_EXACT_HEAD_CI
+merge_commit: 51376cd6415c8b3fde9816edcd029279f49402cd
+published_head: 352f1853dc6f1b3b0821ce5c39d3996ba6226c64
+remote_validation: PASS_6_OF_6_EXACT_HEAD
 validation:
   focused: PASS_13_OF_13
   relevant_regressions: PASS_38_OF_38_TARGETED
-  full_isolated_suite: BLOCKED_WINDOWS_TEMP_MKDTEMP_EPERM; remote exact-head validation pending
+  full_isolated_suite: PASS_REMOTE_EXACT_HEAD
   preflight: PASS
   typecheck: PASS
   build: PASS
@@ -75,4 +76,4 @@ validation:
 known_limitations:
   - "This slice does not fabricate missing calibration, regime, cost, or long-horizon PAPER evidence; those remain fail-closed until canonical producers exist."
   - "The approval command records a human approval binding but does not grant LIVE or real-money authority."
-next: "Validate and publish only this scoped human-approved containment boundary; keep broader Issue #880 evidence producers open."
+next: "Keep broader Issue #880 evidence producers open; continue with the next evidence-bound portfolio gap."
