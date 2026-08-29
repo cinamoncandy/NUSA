@@ -5,6 +5,11 @@ export type AiOrchestrationStatus = "COMPLETED" | "UNAVAILABLE" | "INCOMPLETE" |
 export type ModelFailureCode = "PROVIDER_UNAVAILABLE" | "TIMEOUT" | "OUTPUT_TOO_LARGE" | "MALFORMED_OUTPUT" | "SCHEMA_VIOLATION" | "PROMPT_DIGEST_MISMATCH" | "CONTEXT_INVALID" | "EVIDENCE_MISSING" | "EVIDENCE_DIGEST_MISMATCH" | "SENSITIVE_EVIDENCE" | "REPLAY_CONFLICT" | "UNKNOWN";
 export type AiCalibrationStatus = "UNKNOWN" | "UNVERIFIED" | "INSUFFICIENT_DATA" | "CALIBRATED" | "DEGRADED";
 export type AiCalibrationProvenance = "VERIFIED_RUNTIME" | "SYNTHETIC_TEST";
+export type AiLearningProvenance = "AUTO_BACKGROUND" | "USER_TRIGGERED" | "UNKNOWN";
+
+/** Only repository-bound automatic execution is currently trusted. USER_TRIGGERED remains UNKNOWN until a canonical trusted trigger receipt exists. */
+export const normalizeAiLearningProvenance = (value: unknown): AiLearningProvenance =>
+  value === "AUTO_BACKGROUND" ? "AUTO_BACKGROUND" : "UNKNOWN";
 
 export interface ModelUsage {
   readonly inputTokens?: number;
@@ -138,6 +143,8 @@ export interface AiCalibrationProfile {
 
 export interface AiReadOnlyProjection {
   readonly status: "AVAILABLE" | "UNAVAILABLE" | "INCOMPLETE";
+  /** Trusted provenance for the learning/evaluation activity, when supplied by the runtime. */
+  readonly learningProvenance: AiLearningProvenance;
   readonly thesis: string | null;
   /** Trusted effective confidence only. It remains zero unless calibration is verified and CALIBRATED. */
   readonly confidence: number;
