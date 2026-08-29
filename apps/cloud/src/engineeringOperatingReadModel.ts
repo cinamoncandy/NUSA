@@ -81,7 +81,7 @@ const SHA64 = /^[a-f0-9]{64}$/;
 const SAFE_IDENTIFIER = /^[A-Za-z0-9._:-]{1,256}$/;
 const SAFE_REASON = /^[A-Z0-9_.:-]{1,160}$/;
 const SAFE_URI = /^[a-z][a-z0-9+.-]*:\/\/[A-Za-z0-9._:/-]+$/;
-const FORBIDDEN_KEY = /(authorization|bearer|token|secret|password|api[_-]?key|access[_-]?key|private[_-]?key|cookie|jwt|nonce|signature|account[_-]?id|order[_-]?id|fill[_-]?id)/i;
+const FORBIDDEN_KEY = /(authorization|bearer|token|secret|password|api[_-]?key|access[_-]?key|private[_-]?key|cookie|jwt|nonce|signature|account[_-]?(?:id|identifier)|exchange[_-]?account[_-]?(?:id|identifier)|order[_-]?(?:id|identifier)|fill[_-]?(?:id|identifier))/i;
 const ACTIVE_STATES: ReadonlySet<NusaDevelopmentWorkState> = new Set([
   "CLAIMED",
   "IMPLEMENTING",

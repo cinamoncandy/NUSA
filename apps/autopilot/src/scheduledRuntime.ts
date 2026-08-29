@@ -1,6 +1,7 @@
 import type { AutopilotDispatchPlan } from "./dispatchPlanner";
 import { executeGithubDispatch, type GithubExecutorResult } from "./githubExecutor";
 import { prepareProductionExecution } from "./productionExecutionSpine";
+import { deriveWorkflowFailureOpportunities, type WorkflowFailureEvidence } from "./evolveEvidenceOpportunitySource";
 import {
   acquirePersistentExecution,
   markPersistentExecutionDispatched,
@@ -23,6 +24,7 @@ export interface ScheduledRuntimeResult {
   readonly headSha: string | null;
   readonly workflowRunId: number | null;
   readonly executor: GithubExecutorResult | null;
+  readonly discoveredOpportunityIds: readonly string[];
   readonly liveAuthority: "NONE";
   readonly productionMutationAllowed: false;
   readonly aiAuthority: "ZERO_AUTHORITY";
@@ -31,6 +33,7 @@ export interface ScheduledRuntimeResult {
 type JsonObject = Record<string, unknown>;
 
 const DEFAULT_REPOSITORY = "cinamoncandy/NUSA";
+const WORKFLOW_FAILURE_MAX_AGE_SECONDS = 24 * 60 * 60;
 const SHA40 = /^[0-9a-f]{40}$/i;
 const object = (value: unknown): JsonObject | null => value !== null && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : null;
 const text = (value: unknown): string | null => typeof value === "string" && value.trim() ? value.trim() : null;
@@ -48,8 +51,17 @@ function result(
   headSha: string | null = null,
   workflowRunId: number | null = null,
   executor: GithubExecutorResult | null = null,
+  discoveredOpportunityIds: readonly string[] = Object.freeze([]),
 ): ScheduledRuntimeResult {
-  return Object.freeze({ status, reason, headSha, workflowRunId, executor, ...authority });
+  return Object.freeze({
+    status,
+    reason,
+    headSha,
+    workflowRunId,
+    executor,
+    discoveredOpportunityIds: Object.freeze([...discoveredOpportunityIds]),
+    ...authority,
+  });
 }
 
 async function githubJson(url: string, token: string, fetchImpl: typeof fetch): Promise<JsonObject> {
@@ -65,6 +77,32 @@ async function githubJson(url: string, token: string, fetchImpl: typeof fetch): 
   const body = object(await response.json());
   if (!body) throw new Error("GITHUB_JSON_INVALID");
   return body;
+}
+
+function discoverWorkflowFailureOpportunityIds(candidates: readonly unknown[], now: number): readonly string[] {
+  const observations: WorkflowFailureEvidence[] = [];
+  for (const candidate of candidates) {
+    const run = object(candidate);
+    if (!run) continue;
+    const conclusion = text(run.conclusion);
+    if (conclusion !== "failure" && conclusion !== "cancelled" && conclusion !== "timed_out") continue;
+    if (text(run.head_branch) !== "main" || text(run.event) === "repository_dispatch") continue;
+
+    const workflowName = text(run.name);
+    const runId = positiveInteger(run.id);
+    const headSha = text(run.head_sha);
+    const completedAt = text(run.completed_at);
+    if (!workflowName || !runId || !headSha || !SHA40.test(headSha) || !completedAt || !Number.isFinite(Date.parse(completedAt))) continue;
+
+    observations.push(Object.freeze({ workflowName, runId, headSha: headSha.toLowerCase(), conclusion, completedAt }));
+  }
+
+  const opportunities = deriveWorkflowFailureOpportunities({
+    observations,
+    observedAt: new Date(now).toISOString(),
+    maxAgeSeconds: WORKFLOW_FAILURE_MAX_AGE_SECONDS,
+  });
+  return Object.freeze(opportunities.map((opportunity) => opportunity.id));
 }
 
 export async function runScheduledAutopilot(
@@ -83,6 +121,7 @@ export async function runScheduledAutopilot(
 
   let mainSha: string;
   let workflowRunId: number;
+  let discoveredOpportunityIds: readonly string[] = Object.freeze([]);
   try {
     const main = await githubJson(`https://api.github.com/repos/${repository}/branches/main`, token, fetchImpl);
     const commit = object(main.commit);
@@ -96,6 +135,7 @@ export async function runScheduledAutopilot(
       fetchImpl,
     );
     const candidates = Array.isArray(runs.workflow_runs) ? runs.workflow_runs : [];
+    discoveredOpportunityIds = discoverWorkflowFailureOpportunityIds(candidates, now);
     const canonical = candidates
       .map(object)
       .filter((run): run is JsonObject => run !== null)
@@ -107,7 +147,9 @@ export async function runScheduledAutopilot(
         && text(run.event) !== "repository_dispatch"
       );
     const resolvedRunId = positiveInteger(canonical?.id);
-    if (!canonical || !resolvedRunId) return result("ABSTAINED", "exact-main-canonical-ci-not-found", mainSha);
+    if (!canonical || !resolvedRunId) {
+      return result("ABSTAINED", "exact-main-canonical-ci-not-found", mainSha, null, null, discoveredOpportunityIds);
+    }
     workflowRunId = resolvedRunId;
   } catch (error) {
     return result("ABSTAINED", error instanceof Error ? error.message : "scheduled-evidence-query-failed");
@@ -128,7 +170,9 @@ export async function runScheduledAutopilot(
     now,
     allowedRepository: repository,
   });
-  if (!prepared?.state.lease) return result("ABSTAINED", "production-execution-boundary-unavailable", mainSha, workflowRunId);
+  if (!prepared?.state.lease) {
+    return result("ABSTAINED", "production-execution-boundary-unavailable", mainSha, workflowRunId, null, discoveredOpportunityIds);
+  }
 
   const persistent = await acquirePersistentExecution(coordinator, {
     dedupeKey: prepared.envelope.dedupeKey,
@@ -137,7 +181,7 @@ export async function runScheduledAutopilot(
     leaseExpiresAt: prepared.state.lease.expiresAt,
   });
   if (!persistent.acquired) {
-    return result("DUPLICATE_EXECUTION_SUPPRESSED", persistent.reason ?? "DUPLICATE_EXECUTION", mainSha, workflowRunId);
+    return result("DUPLICATE_EXECUTION_SUPPRESSED", persistent.reason ?? "DUPLICATE_EXECUTION", mainSha, workflowRunId, null, discoveredOpportunityIds);
   }
 
   const executor = await executeGithubDispatch(prepared.request, { token, allowedRepository: repository }, fetchImpl);
@@ -147,7 +191,7 @@ export async function runScheduledAutopilot(
       executionId: prepared.envelope.executionId,
       now,
     });
-    return result("EXECUTION_DISPATCHED", executor.reason, mainSha, workflowRunId, executor);
+    return result("EXECUTION_DISPATCHED", executor.reason, mainSha, workflowRunId, executor, discoveredOpportunityIds);
   }
-  return result("EXECUTION_NOT_DISPATCHED", executor.reason, mainSha, workflowRunId, executor);
+  return result("EXECUTION_NOT_DISPATCHED", executor.reason, mainSha, workflowRunId, executor, discoveredOpportunityIds);
 }
