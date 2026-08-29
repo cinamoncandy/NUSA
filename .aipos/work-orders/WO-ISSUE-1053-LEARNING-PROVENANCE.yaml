@@ -1,7 +1,7 @@
 version: 1
 id: WO-ISSUE-1053-LEARNING-PROVENANCE
 title: "Issue #1053 evidence-backed learning provenance"
-status: IMPLEMENTING
+status: VERIFYING
 priority: P1
 owner: codex
 repository: cinamoncandy/NUSA
@@ -59,4 +59,4 @@ validation:
     - "pnpm typecheck"
     - "pnpm build"
     - "git diff --check"
-  status: PENDING_EXACT_HEAD
+  status: VERIFYING

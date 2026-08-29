@@ -8,8 +8,8 @@ current_execution_target:
   base_sha: 870ea977d942297e0055e5de559482e423be43ae
   scope: "Expose explicit evidence-backed learning provenance in the existing read-only AI projection and LEARNING surface; unknown or ambiguous provenance remains fail-closed."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-phase: implementation
-status: implementing
+phase: verification
+status: verifying
 objective: "Expose evidence-backed learning provenance in the existing read-only AI projection and LEARNING surface without inferring absent trigger evidence."
 latest_research_slice:
   work_order: WO-MARKET-INTELLIGENCE-REGIME-POINT-IN-TIME-001
@@ -84,7 +84,7 @@ repository_maintenance:
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
   work_order: WO-ISSUE-1053-LEARNING-PROVENANCE
-  status: IMPLEMENTING
+  status: VERIFYING
   branch: nusa/p1-learning-provenance-1053
   base_commit: 870ea977d942297e0055e5de559482e423be43ae
   scope: "Add explicit evidence-backed AUTO_BACKGROUND, USER_TRIGGERED, and UNKNOWN provenance to the existing read-only AI learning projection without inferring absent evidence."
