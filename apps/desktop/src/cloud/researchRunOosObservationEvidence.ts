@@ -71,6 +71,9 @@ export function extractResearchRunOosObservations(
 ): readonly OosObservationTrace[] {
   if (!candidateId.trim()) throw new ResearchRunOosObservationError("INVALID_CANDIDATE_ID", "candidate id is required");
   const configured = experiment.experimentConfig.candidates;
+  if (configured.length === 0) {
+    throw new ResearchRunOosObservationError("MISSING_OOS_OBSERVATION_SOURCE", `candidate ${candidateId} has no candidate-specific OOS observation source`);
+  }
   if (configured.length !== 1 || configured[0]?.id !== candidateId) {
     throw new ResearchRunOosObservationError("CANDIDATE_EXPERIMENT_IDENTITY_MISMATCH", `candidate ${candidateId} must own a single-candidate experiment`);
   }
