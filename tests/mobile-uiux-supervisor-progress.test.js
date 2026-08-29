@@ -24,11 +24,14 @@ test("Supervisor progress consumes the existing verified read-only client", () =
   assert.match(contract, /scope: "OPERATIONAL_EVIDENCE_ONLY"/);
 });
 
-test("Supervisor progress shows blockers before expandable evidence provenance", () => {
-  const blocker = panel.indexOf('testID="home-supervisor-progress-blocker"');
+test("Supervisor progress surfaces attention before progress and expandable evidence provenance", () => {
+  const attention = panel.indexOf('testID="home-supervisor-progress-attention"');
+  const progress = panel.indexOf('testID="home-supervisor-progress-ratio"');
   const evidenceToggle = panel.indexOf('testID="home-supervisor-progress-toggle"');
   const evidence = panel.indexOf('testID="home-supervisor-progress-evidence"');
-  assert.ok(blocker >= 0 && evidenceToggle > blocker && evidence > evidenceToggle);
+  assert.ok(attention >= 0 && progress > attention && evidenceToggle > progress && evidence > evidenceToggle);
+  assert.match(panel, /primaryBlocker/);
+  assert.match(panel, /blockerCount/);
   assert.match(panel, /snapshot\.headSha/);
   assert.match(panel, /snapshot\.domains\.map/);
   assert.match(panel, /snapshot\.reasons/);
