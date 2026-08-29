@@ -33,6 +33,18 @@ const ID = /^[A-Za-z0-9_.:-]{1,160}$/;
 const SOURCE = /^[A-Za-z0-9_.:/-]{1,120}$/;
 const REFERENCE = /^[A-Za-z0-9_.:/#@-]{1,240}$/;
 const bounded = (value: number): boolean => Number.isFinite(value) && value >= 0 && value <= 1;
+const VALID_STATUSES: ReadonlySet<EvolutionOpportunityStatus> = new Set([
+  "DISCOVERED",
+  "ANALYZING",
+  "PLANNED",
+  "REJECTED",
+  "READY",
+  "EXECUTING",
+  "VALIDATING",
+  "COMPLETED",
+  "FAILED",
+  "ABSTAINED",
+]);
 
 export function validateEvolutionOpportunity(value: unknown): EvolutionOpportunity {
   if (!value || typeof value !== "object") throw new Error("EVOLVE_OPPORTUNITY_INVALID");
@@ -51,7 +63,9 @@ export function validateEvolutionOpportunity(value: unknown): EvolutionOpportuni
   if (!bounded(opportunity.confidence ?? NaN)) throw new Error("EVOLVE_OPPORTUNITY_CONFIDENCE_INVALID");
   if (!bounded(opportunity.risk ?? NaN)) throw new Error("EVOLVE_OPPORTUNITY_RISK_INVALID");
   if (!bounded(opportunity.reversibility ?? NaN)) throw new Error("EVOLVE_OPPORTUNITY_REVERSIBILITY_INVALID");
-  if (typeof opportunity.status !== "string") throw new Error("EVOLVE_OPPORTUNITY_STATUS_INVALID");
+  if (typeof opportunity.status !== "string" || !VALID_STATUSES.has(opportunity.status as EvolutionOpportunityStatus)) {
+    throw new Error("EVOLVE_OPPORTUNITY_STATUS_INVALID");
+  }
   if (typeof opportunity.createdAt !== "string" || Number.isNaN(Date.parse(opportunity.createdAt))) throw new Error("EVOLVE_OPPORTUNITY_CREATED_AT_INVALID");
   return Object.freeze({
     id: opportunity.id,
