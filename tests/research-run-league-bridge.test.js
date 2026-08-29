@@ -409,6 +409,7 @@ test("projects existing contextual research evidence instead of dropping it at t
     completedCount: 3,
     failedCount: 1,
     rejectedCount: 0,
+    abstainedCount: 0,
     distinctSearchCount: 1,
     distinctFamilyCount: 1,
     maximumSearchAttemptOrdinal: 4,

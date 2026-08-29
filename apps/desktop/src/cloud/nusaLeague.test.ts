@@ -281,6 +281,22 @@ describe("evaluateLeague", () => {
     assert.ok(clean.leagueScore! > messy.leagueScore!);
   });
 
+  it("accepts complete trial ledgers that include abstained attempts", () => {
+    const standing = evaluateLeague([fullCandidate("candidate-abstained", {
+      trialLedgerSummary: trialLedgerSummary({
+        trialCount: 10,
+        completedCount: 5,
+        failedCount: 2,
+        rejectedCount: 2,
+        abstainedCount: 1,
+      }),
+    })]);
+    const entry = standing.entries[0]!;
+    // Abstentions remain in the denominator, while the existing failure component retains its
+    // documented failed/rejected numerator.
+    assert.equal(entry.components.trialFailureRatio, 0.4);
+  });
+
   it("applies one shared probability-of-backtest-overfitting penalty across the whole league", () => {
     const withoutPbo = evaluateLeague([fullCandidate("candidate-a")]);
     const withPbo = evaluateLeague([fullCandidate("candidate-a")], { probabilityBacktestOverfitting: pbo() });

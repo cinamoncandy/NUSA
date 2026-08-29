@@ -225,6 +225,30 @@ test("DSR records canonical abstention in the search denominator without manufac
   assert.equal(result.evidenceByCandidate.get(input[0].id).searchTrialCount, 3);
 });
 
+test("passes DSR abstention ledger summaries through the League bridge", () => {
+  const input = candidates();
+  input[2] = {
+    ...input[2],
+    abstention: {
+      schemaVersion: 1,
+      asOf: 1,
+      decision: "ABSTAIN",
+      netExpectedEdge: -0.001,
+      effectiveMinimumConfidence: 0.6,
+      reasons: ["INSUFFICIENT_CONFIDENCE"],
+      sourceDatasetIds: ["shared-dataset"]
+    }
+  };
+  const dsr = buildResearchRunDsrEvidence(input);
+  const league = buildResearchRunLeague(input.map((candidate) => ({
+    ...candidate,
+    deflatedSharpe: dsr.evidenceByCandidate.get(candidate.id),
+    trialLedgerSummary: dsr.trialLedgerSummary
+  })));
+  assert.equal(league.standing.entries.length, input.length);
+  assert.equal(dsr.trialLedgerSummary.abstainedCount, 1);
+});
+
 test("DSR preserves a zero-variance candidate as unavailable without inventing evidence", () => {
   const input = candidates();
   const flat = experiment(input[2].id, 2);
