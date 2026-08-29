@@ -9,7 +9,14 @@ import type { GhostExecutionResult } from "./ghostExecution";
 import type { CounterfactualAssessment } from "./counterfactualEngine";
 import type { ResearchTrialLedgerSummary } from "./researchTrialLedger";
 import { runLeagueResearchPipeline } from "./leagueResearchPipeline";
-import { evaluateLeague, type LeagueCandidateInput, type LeaguePolicy, type LeagueStanding } from "./nusaLeague";
+import {
+  buildLeagueCandidateEvidenceReport,
+  evaluateLeague,
+  type LeagueCandidateEvidenceReport,
+  type LeagueCandidateInput,
+  type LeaguePolicy,
+  type LeagueStanding,
+} from "./nusaLeague";
 import type { LeagueCapitalAllocationAdvisory, LeagueCapitalAllocationPolicy } from "./leagueCapitalAllocation";
 import { LeagueCapitalAllocationError } from "./leagueCapitalAllocation";
 import { extractResearchRunOosObservations, ResearchRunOosObservationError, type OosObservationTrace } from "./researchRunOosObservationEvidence";
@@ -71,6 +78,8 @@ export interface ResearchRunLeagueResult {
   readonly evidenceMode: "RESEARCH_TIER_ONLY";
   /** The League ranking. Always produced: a refused allocation does not invalidate the ranking. */
   readonly standing: LeagueStanding;
+  /** Deterministic human-readable projection of the evidence already present in each entry. */
+  readonly evidenceReport: readonly LeagueCandidateEvidenceReport[];
   readonly allocation?: LeagueCapitalAllocationAdvisory;
   /** Why no allocation advisory could be produced, when that is the case. */
   readonly allocationUnavailableReason?: string;
@@ -253,10 +262,15 @@ export function buildResearchRunLeague(
     reasons.push("NO_ALLOCATION_ADVISORY_AVAILABLE");
   }
 
+  const evidenceReport = freeze(standing.entries.map((entry) => buildLeagueCandidateEvidenceReport(entry, {
+    pboAvailable: options.probabilityBacktestOverfitting != null,
+  })));
+
   return freeze({
     schemaVersion: 1,
     evidenceMode: "RESEARCH_TIER_ONLY",
     standing,
+    evidenceReport,
     ...(allocation == null ? {} : { allocation }),
     ...(allocationUnavailableReason == null ? {} : { allocationUnavailableReason }),
     ...(Object.keys(oosObservationEvidence).length === 0 ? {} : { oosObservationEvidence: freeze(oosObservationEvidence) }),
