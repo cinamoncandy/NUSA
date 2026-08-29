@@ -26,7 +26,7 @@ function experiment(overrides = {}) {
       missingCandlePolicy: "REJECT",
       missingCandleCount: 0,
       createdAt: "2026-01-01T00:00:00.000Z",
-      contentSha256: overrides.contentSha256 ?? `sha-${id}`
+      contentSha256: overrides.contentSha256 ?? "c".repeat(64)
     },
     experimentConfig: { walkForward: {}, candidates: [], executionCosts: { feeRate: 0.0005, spreadBps: 5, slippageBps: 5 } },
     generatedAt: "2026-01-01T00:00:00.000Z",
@@ -79,7 +79,25 @@ function experiment(overrides = {}) {
 const candidate = (id, familyId, overrides = {}) => {
   const result = experiment({ datasetId: `ds-${id}`, ...overrides });
   result.experimentConfig.candidates = [{ id }];
-  return { id, familyId, experiment: result };
+  return {
+    id,
+    familyId,
+    experiment: result,
+    candidateSpecification: {
+      schemaVersion: 1,
+      candidateId: id,
+      familyId,
+      lineageId: `${familyId}-v1`,
+      parameters: {},
+      codeSha: "a".repeat(40),
+      datasetId: result.manifest.datasetId,
+      datasetContentSha256: result.manifest.contentSha256,
+      costModelVersion: "fixture-cost-v1",
+      generatedAt: "2025-12-31T23:00:00.000Z",
+      evaluationStartedAt: "2025-12-31T23:05:00.000Z",
+      evaluationEndedAt: "2025-12-31T23:30:00.000Z"
+    }
+  };
 };
 
 
@@ -110,6 +128,24 @@ test("rejects candidate experiment identity mismatches before ranking aggregate 
     () => buildResearchRunLeague([mismatched, candidate("other", "family-b")]),
     (error) => error instanceof ResearchRunLeagueBridgeError
       && error.code === "CANDIDATE_EXPERIMENT_IDENTITY_MISMATCH"
+  );
+});
+
+test("rejects a missing or mismatched bound candidate specification before ranking", () => {
+  const missing = candidate("missing-spec", "family-a");
+  delete missing.candidateSpecification;
+  assert.throws(
+    () => buildResearchRunLeague([missing, candidate("other", "family-b")]),
+    (error) => error instanceof ResearchRunLeagueBridgeError
+      && error.code === "INVALID_CANDIDATE_SPECIFICATION"
+  );
+
+  const mismatched = candidate("mismatched-spec", "family-a");
+  mismatched.candidateSpecification.datasetId = "another-dataset";
+  assert.throws(
+    () => buildResearchRunLeague([mismatched, candidate("other-2", "family-b")]),
+    (error) => error instanceof ResearchRunLeagueBridgeError
+      && error.code === "INVALID_CANDIDATE_SPECIFICATION"
   );
 });
 
