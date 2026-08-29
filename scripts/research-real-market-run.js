@@ -12,6 +12,8 @@ const { buildResearchRunPboEvidence } = require("../dist/apps/desktop/src/cloud/
 const { buildResearchRunDsrEvidence } = require("../dist/apps/desktop/src/cloud/researchRunDsrEvidence.js");
 const { runExecutionCostStress } = require("../dist/apps/desktop/src/strategy/executionCostStress.js");
 const { projectExecutionCostStress } = require("./lib/research-cost-stress-projection.js");
+const { runParameterRobustnessRequest } = require("./lib/parameter-robustness-runner.js");
+const { verifyParameterRobustnessResult } = require("./lib/parameter-robustness-verifier.js");
 
 const STRATEGY_FAMILY_ID = "sma-crossover";
 const MARKET = "KRW-BTC";
@@ -20,6 +22,7 @@ const REQUEST_PATH = `/v1/candles/days?market=${MARKET}&count=${CANDLE_COUNT}`;
 
 const BACKTEST_CONFIG = {
   market: MARKET,
+  initialCash: 10_000_000,
   feeRate: 0.0005,
   orderQuantity: 0.001,
   executionCosts: { spreadBps: 5, slippageBps: 5 }
@@ -68,6 +71,56 @@ const SMA_PARAMETER_NEIGHBORHOOD = [
   { shortPeriod: 8, longPeriod: 20 },
   { shortPeriod: 10, longPeriod: 30 }
 ];
+
+function buildParameterRobustnessRequest({ candles, manifest }) {
+  if (!Array.isArray(candles) || candles.length === 0) {
+    throw new Error("real parameter robustness requires canonical candles");
+  }
+  if (
+    manifest == null
+    || typeof manifest.market !== "string"
+    || typeof manifest.datasetId !== "string"
+    || typeof manifest.contentSha256 !== "string"
+  ) {
+    throw new Error("real parameter robustness requires a canonical dataset manifest");
+  }
+  return {
+    schemaVersion: 1,
+    id: `real-run:${manifest.datasetId}:parameter-robustness`,
+    market: manifest.market,
+    candles,
+    referenceParameters: [
+      { source: "PRODUCTION_DEFAULT", shortWindow: 5, longWindow: 20 }
+    ],
+    neighborhood: {
+      shortOffsets: [-2, -1, 0, 1, 2],
+      longOffsets: [-5, -2, 0, 2, 5]
+    },
+    minimumTrades: 0,
+    execution: {
+      initialCash: BACKTEST_CONFIG.initialCash,
+      orderQuantity: BACKTEST_CONFIG.orderQuantity,
+      executionCosts: {
+        spreadBps: BACKTEST_CONFIG.executionCosts.spreadBps
+      },
+      latencyCandles: 0,
+      riskPolicy: {}
+    },
+    evaluation: {
+      mode: "BOTH",
+      oosWindows: {
+        trainingCandles: WALK_FORWARD_CONFIG.trainSize,
+        testCandles: WALK_FORWARD_CONFIG.testSize,
+        stepCandles: WALK_FORWARD_CONFIG.testSize
+      }
+    },
+    costConditions: COST_STRESS_SCENARIOS.map(({ id, feeRate, slippageBps }) => ({
+      name: id,
+      feeRate,
+      slippageBps
+    }))
+  };
+}
 
 function requiredResearchSourceCommitSha() {
   const value = process.env.NUSA_SOURCE_COMMIT_SHA ?? process.env.GITHUB_SHA ?? "";
@@ -187,6 +240,33 @@ async function main() {
     }
   );
 
+  const parameterRobustnessRequest = buildParameterRobustnessRequest({ candles, manifest });
+  const parameterRobustness = runParameterRobustnessRequest(parameterRobustnessRequest);
+  if (parameterRobustness.status !== "PASS") {
+    throw new Error(
+      `real parameter robustness failed: ${parameterRobustness.failures.join(", ")}`
+    );
+  }
+  const parameterRobustnessVerification = verifyParameterRobustnessResult(
+    parameterRobustnessRequest,
+    parameterRobustness
+  );
+  if (parameterRobustnessVerification.status !== "PASS") {
+    throw new Error(
+      `real parameter robustness verification failed: ${parameterRobustnessVerification.errors.join(", ")}`
+    );
+  }
+  const parameterRobustnessEvidence = {
+    ...parameterRobustness,
+    verification: { status: parameterRobustnessVerification.status },
+    provenance: {
+      sourceCommitSha,
+      costModelVersion,
+      datasetId: manifest.datasetId,
+      datasetContentSha256: manifest.contentSha256
+    }
+  };
+
   const generatedAt = new Date().toISOString();
   const result = runWalkForwardExperiment(
     { candles, manifest },
@@ -259,6 +339,7 @@ async function main() {
       candidates: result.walkForwardResult.stabilityDiagnostics.candidates
     },
     costStress: projectExecutionCostStress(costStress),
+    parameterRobustness: parameterRobustnessEvidence,
     outOfSample: {
       totalOosPoints: oos.totalOosPoints,
       totalOosClosedTrades: oos.totalOosClosedTrades,
@@ -311,7 +392,11 @@ async function main() {
   }, null, 2));
 }
 
-main().catch((error) => {
-  console.error("research real-market run failed:", error instanceof Error ? error.message : String(error));
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error("research real-market run failed:", error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  });
+}
+
+module.exports = { buildParameterRobustnessRequest };
