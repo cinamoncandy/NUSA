@@ -79,14 +79,18 @@ export function extractResearchRunOosObservations(
   }
   const dataset = experiment.manifest;
   const windows = experiment.walkForwardResult.windows;
-  if (
-    windows.length === 0 ||
-    windows.every((windowResult) => windowResult.window.testPoints.length === 0 && windowResult.testResult.decisions.length === 0)
-  ) {
+  const hasObservationWindow = windows.some((windowResult) => (
+    (Array.isArray(windowResult.window?.testPoints) && windowResult.window.testPoints.length > 0) ||
+    (Array.isArray(windowResult.testResult?.decisions) && windowResult.testResult.decisions.length > 0)
+  ));
+  if (!hasObservationWindow) {
     throw new ResearchRunOosObservationError("MISSING_OOS_OBSERVATION_SOURCE", `candidate ${candidateId} has no OOS observation windows`);
   }
   const observations: OosObservationTrace[] = [];
   for (const windowResult of windows) {
+    if (!Array.isArray(windowResult.window?.testPoints) || !Array.isArray(windowResult.testResult?.decisions)) {
+      throw new ResearchRunOosObservationError("INVALID_OOS_WINDOW", `candidate ${candidateId} contains an incomplete OOS window`);
+    }
     const first = windowResult.window.testPoints[0]?.timestamp;
     const last = windowResult.window.testPoints.at(-1)?.timestamp;
     if (first == null || last == null || !Number.isFinite(first) || !Number.isFinite(last) || first > last) {
