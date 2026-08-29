@@ -154,7 +154,13 @@ export class ExecutionCoordinator {
 
   private async readEvolutionLearningMemory(): Promise<Response> {
     const value = await this.ctx.storage.get<unknown>("value");
-    return json({ value: value ?? null });
+    if (value == null) return json({ value: null });
+    try {
+      validatePersistedEvolutionLearningMemory(value);
+    } catch {
+      return json({ error: "EVOLVE_LEARNING_MEMORY_CORRUPT" }, 500);
+    }
+    return json({ value });
   }
 }
 
