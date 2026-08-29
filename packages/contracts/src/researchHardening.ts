@@ -3,6 +3,21 @@ import { canonicalResearchJson } from "./researchRuntime";
 
 export const RESEARCH_HARDENING_SCHEMA_VERSION = 1 as const;
 
+export interface ResearchCostEvidence {
+  readonly schemaVersion: 1;
+  readonly evaluationId: string;
+  readonly datasetId: string;
+  readonly datasetContentSha256: string;
+  readonly feeRate: number;
+  readonly spreadRate: number;
+  readonly slippageRate: number;
+  readonly turnoverRate: number;
+  readonly grossReturn: number;
+  readonly netReturn: number;
+  readonly costModelVersion: string;
+  readonly observedAt: number;
+}
+
 export interface ResearchProvenance {
   readonly researchRunId: string;
   readonly sessionId: string;
