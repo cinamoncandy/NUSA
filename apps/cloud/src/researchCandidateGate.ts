@@ -22,7 +22,7 @@ export interface ResearchCandidateGateInput {
 
 const metrics = ["netReturn", "costAdjustedReturn", "maximumDrawdown", "sharpeRatio", "executionQuality", "unresolvedFaultCount", "dataQualityFailures", "tradeCount"] as const;
 const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
-const validTimestamp = (value: unknown): value is number => Number.isSafeInteger(value) && value >= 0;
+const validTimestamp = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 
 function sameEvidenceProvenance(left: ResearchProvenance, right: ResearchProvenance): boolean {
   return left.researchRunId === right.researchRunId
