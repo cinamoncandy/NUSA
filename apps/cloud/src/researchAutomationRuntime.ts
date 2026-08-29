@@ -54,7 +54,7 @@ export interface ResearchRuntimeMarketDataInput {
 const freeze = <T>(value: T): T => Object.freeze(value);
 const hash = (value: unknown): string => createHash("sha256").update(canonicalResearchJson(value), "utf8").digest("hex");
 const validText = (value: unknown): value is string => typeof value === "string" && value.trim() !== "";
-const zeroMetrics = (): ResearchSessionMetrics => freeze({ experimentCount: 0, positiveEvaluationCount: 0, negativeEvaluationCount: 0, cumulativeNetReturn: 0, averageNetReturn: 0, costAdjustedEvidenceCount: 0, missingCostEvidenceCount: 0, unresolvedFaultCount: 0, dataQualityFailureCount: 0, tradeCount: 0, observationDays: 0, executionQuality: 0, riskAdjustedPerformance: 0 });
+const zeroMetrics = (): ResearchSessionMetrics => freeze({ experimentCount: 0, positiveEvaluationCount: 0, negativeEvaluationCount: 0, cumulativeNetReturn: 0, averageNetReturn: 0, championBetterCount: 0, challengerBetterCount: 0, equivalentCount: 0, inconclusiveCount: 0, costAdjustedEvidenceCount: 0, missingCostEvidenceCount: 0, unresolvedFaultCount: 0, dataQualityFailureCount: 0, tradeCount: 0, observationDays: 0, executionQuality: 0, riskAdjustedPerformance: 0 });
 
 function requireStart(input: ResearchSessionStartInput): void {
   for (const [field, value] of Object.entries(input)) if (["deterministicConfig", "maxExperiments", "hypothesis"].includes(field) === false && !validText(value)) throw new Error(`research session ${field} is required`);
