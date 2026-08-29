@@ -19,6 +19,7 @@ export function SystemLearningSupervisorView({ baseUrl, credentialProvider, onCl
   React.useEffect(() => { void refresh(); }, [refresh]);
 
   const ready = result.status === "READY" ? result.snapshot : null;
+  const unavailableReason = result.status === "READY" ? null : result.reason;
   const latest = ready?.latest ?? null;
   const tone = latest?.outcome === "FAILED" || latest?.outcome === "REGRESSION" ? theme.colors.danger : theme.colors.aiSignalEnd;
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.colors.primary} />} testID="system-learning-screen">
@@ -31,7 +32,7 @@ export function SystemLearningSupervisorView({ baseUrl, credentialProvider, onCl
       <Text style={[styles.value, { color: theme.colors.text }]}>READ ONLY · AI ZERO AUTHORITY · LIVE NONE</Text>
       <Text style={[styles.meta, { color: theme.colors.textMuted }]}>이 화면은 진화/시스템 학습의 증거만 보여주며 전략 승격, 주문, 자본 변경 권한을 갖지 않습니다.</Text>
     </View>
-    {ready == null ? <View style={[styles.card, { borderColor: theme.colors.border }]} testID="system-learning-unavailable"><Text style={[styles.label, { color: theme.colors.textMuted }]}>EVIDENCE</Text><Text style={[styles.value, { color: theme.colors.text }]}>{result.reason}</Text></View>
+    {ready == null ? <View style={[styles.card, { borderColor: theme.colors.border }]} testID="system-learning-unavailable"><Text style={[styles.label, { color: theme.colors.textMuted }]}>EVIDENCE</Text><Text style={[styles.value, { color: theme.colors.text }]}>{unavailableReason ?? "System learning evidence is unavailable."}</Text></View>
       : latest == null ? <View style={[styles.card, { borderColor: theme.colors.border }]} testID="system-learning-empty"><Text style={[styles.label, { color: theme.colors.textMuted }]}>LATEST</Text><Text style={[styles.value, { color: theme.colors.text }]}>아직 검증된 시스템 학습 기록이 없습니다.</Text><Text style={[styles.meta, { color: theme.colors.textMuted }]}>EVENTS 0 · HEAD {ready.headHash.slice(0, 12)}</Text></View>
       : <>
         <View style={[styles.card, { borderColor: tone }]} testID="system-learning-latest">
