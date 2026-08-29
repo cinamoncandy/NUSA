@@ -77,6 +77,8 @@ const transitions: Readonly<Record<AutonomousExecutionStatus, readonly Autonomou
 });
 
 const nonEmpty = (value: string): boolean => value.trim().length > 0;
+const safeTimestamp = (value: number): boolean => Number.isSafeInteger(value) && value >= 0;
+const safePositiveDuration = (value: number): boolean => Number.isSafeInteger(value) && value > 0;
 
 export function createExecutionState(identity: ExecutionIdentity): AutonomousExecutionState {
   if (![identity.cycleId, identity.workItemId, identity.executionId, identity.dedupeKey].every(nonEmpty)) {
@@ -103,15 +105,19 @@ export function acquireExecutionLease(
   ttlMs: number,
 ): AutonomousExecutionState {
   if (state.status !== "READY" || state.lease !== null) throw new Error("AUTONOMOUS_EXECUTION_NOT_LEASABLE");
-  if (!nonEmpty(holder) || !Number.isFinite(now) || !Number.isFinite(ttlMs) || ttlMs <= 0) {
+  if (!nonEmpty(holder) || !safeTimestamp(now) || !safePositiveDuration(ttlMs)) {
     throw new Error("AUTONOMOUS_EXECUTION_LEASE_INVALID");
   }
-  const lease = Object.freeze({ executionId: state.executionId, holder, acquiredAt: now, expiresAt: now + ttlMs, heartbeatAt: now });
+  const expiresAt = now + ttlMs;
+  if (!safeTimestamp(expiresAt) || expiresAt <= now) {
+    throw new Error("AUTONOMOUS_EXECUTION_LEASE_INVALID");
+  }
+  const lease = Object.freeze({ executionId: state.executionId, holder, acquiredAt: now, expiresAt, heartbeatAt: now });
   return Object.freeze({ ...state, status: "LEASED", lease, mutationAllowed: false });
 }
 
 export function recoverExpiredLease(state: AutonomousExecutionState, now: number): AutonomousExecutionState {
-  if (!Number.isFinite(now)) throw new Error("AUTONOMOUS_EXECUTION_RECOVERY_TIME_INVALID");
+  if (!safeTimestamp(now)) throw new Error("AUTONOMOUS_EXECUTION_RECOVERY_TIME_INVALID");
   if (state.status !== "LEASED" || state.lease === null || state.lease.expiresAt > now) return state;
   return Object.freeze({ ...state, status: "READY", lease: null, mutationAllowed: false });
 }
