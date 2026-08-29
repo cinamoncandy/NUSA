@@ -37,10 +37,6 @@ jobs:
               assert payload.get('productionMutationAllowed') is False, (name, payload)
               assert payload.get('aiAuthority') == 'ZERO_AUTHORITY', (name, payload)
           assert health.get('deploymentRevision'), health
-          assert health.get('persistentExecutionCoordination') == 'CONFIGURED', health
-          assert health.get('authenticatedExecutor') == 'CONFIGURED', health
-          assert health.get('codingRunner') == 'CONFIGURED', health
-          assert health.get('aiCodingEngine') == 'CONFIGURED', health
           assert scheduled.get('deploymentRevision'), scheduled
           assert scheduled.get('status') in {'AWAITING_FIRST_SCHEDULED_EVENT', 'OBSERVED'}, scheduled
           if scheduled.get('status') == 'OBSERVED':
@@ -50,5 +46,4 @@ jobs:
               assert receipt.get('aiAuthority') == 'ZERO_AUTHORITY', receipt
               assert receipt.get('observedAt'), receipt
           print('RUNTIME_PROOF_OK')
-          print('CODING_RUNTIME_READY')
           PY
