@@ -14,6 +14,15 @@ test("classifies an evidenced outcome deterministically", () => {
   assert.equal(Object.isFrozen(result), true);
 });
 
+test("fails closed when the deterministic observation timestamp is missing", () => {
+  assert.throws(() => evaluateEvolutionOutcome({
+    opportunityId: "ci:failure-rate",
+    expectedMetric: 80,
+    actualMetric: 81,
+    evidence: ["run:123"],
+  }), /EVOLVE_OUTCOME_OBSERVED_AT_REQUIRED/);
+});
+
 test("fails closed without evidence", () => {
   assert.throws(() => evaluateEvolutionOutcome({
     opportunityId: "ci:failure-rate",
