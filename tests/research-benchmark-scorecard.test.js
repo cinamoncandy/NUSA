@@ -125,6 +125,27 @@ test("supports explicit versioned research thresholds without changing defaults"
   assert.equal(relaxed.policy.maximumDrawdown, 0.5);
 });
 
+test("rejects malformed aggregate evidence before ranking", () => {
+  assert.throws(
+    () => createResearchBenchmarkScorecard([
+      { id: "nan-return", experiment: experiment({ totalReturn: Number.NaN }) }
+    ]),
+    /totalReturn must be finite/
+  );
+  assert.throws(
+    () => createResearchBenchmarkScorecard([
+      { id: "fractional-count", experiment: experiment({ totalOosPoints: 1.5 }) }
+    ]),
+    /totalOosPoints must be a non-negative integer/
+  );
+  assert.throws(
+    () => createResearchBenchmarkScorecard([
+      { id: "empty-equity", experiment: experiment({ initialEquity: 0 }) }
+    ]),
+    /initialEquity must be positive and finite/
+  );
+});
+
 test("rejects duplicate slice ids and invalid policy ratios", () => {
   const slice = { id: "dup", experiment: experiment() };
   assert.throws(() => createResearchBenchmarkScorecard([slice, slice]), /unique and non-empty/);
