@@ -1,73 +1,114 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  decideStrategyLifecycle,
-  type StrategyLifecycleEvidence,
+  decideStrategyCalibrationContainment,
+  type StrategyCalibrationContainmentInput,
   type StrategyLifecycleState,
 } from "./evolveStrategyLifecyclePolicy";
+import type { PaperCalibrationObservation } from "./evolvePaperCalibrationEvidence";
 
-const evidence = (
-  dimension: StrategyLifecycleEvidence["dimension"],
-  verdict: StrategyLifecycleEvidence["verdict"],
-  overrides: Partial<StrategyLifecycleEvidence> = {},
-): StrategyLifecycleEvidence => ({ dimension, verdict, fresh: true, independent: true, ...overrides });
+const DATASET_HASH = "a".repeat(64);
+
+function observations(prefix: string, count: number, startAt: number, probability: number): PaperCalibrationObservation[] {
+  return Array.from({ length: count }, (_, index) => {
+    const periodStartAt = startAt + index * 10;
+    return {
+      observationId: `${prefix}-${index}`,
+      candidateId: "strategy-a",
+      datasetId: "paper-dataset-a",
+      datasetContentSha256: DATASET_HASH,
+      regime: "regime-a",
+      predictedAt: periodStartAt - 1,
+      periodStartAt,
+      periodEndAt: periodStartAt + 5,
+      predictedPositiveNetReturnProbability: probability,
+      realizedNetReturn: 0.01,
+      status: "COMPLETED",
+    };
+  });
+}
+
+function calibration(
+  baselineProbability: number,
+  candidateProbability: number,
+  count = 30,
+): NonNullable<StrategyCalibrationContainmentInput["calibration"]> {
+  const admission = {
+    candidateId: "strategy-a",
+    datasetId: "paper-dataset-a",
+    datasetContentSha256: DATASET_HASH,
+    strength: "VERIFIED" as const,
+    periodCount: count,
+    completedPeriodCount: count,
+  };
+  return {
+    baseline: { admission, observations: observations("baseline", count, 1_000, baselineProbability) },
+    candidate: { admission, observations: observations("candidate", count, 10_000, candidateProbability) },
+    currentConfidence: 0.5,
+    requestedConfidence: 0.5,
+  };
+}
 
 const decide = (
   currentState: StrategyLifecycleState,
-  items: readonly StrategyLifecycleEvidence[],
-  strategyFailureStreak = 0,
-) => decideStrategyLifecycle({ currentState, evidence: items, strategyFailureStreak });
+  evidence?: NonNullable<StrategyCalibrationContainmentInput["calibration"]>,
+) => decideStrategyCalibrationContainment({ currentState, ...(evidence == null ? {} : { calibration: evidence }) });
 
-test("demotes promoted strategies when evidence is missing, stale, insufficient or non-independent", () => {
-  assert.equal(decide("PROMOTED", []).nextState, "DEMOTED");
-  assert.equal(decide("PROMOTED", [evidence("EDGE", "VERIFIED_HEALTHY", { fresh: false })]).nextState, "DEMOTED");
-  assert.equal(decide("PROMOTED", [evidence("EDGE", "INSUFFICIENT")]).nextState, "DEMOTED");
-  assert.equal(decide("PROMOTED", [evidence("EDGE", "VERIFIED_HEALTHY", { independent: false })]).nextState, "DEMOTED");
+test("fails closed when canonical calibration evidence is missing or insufficient", () => {
+  const missing = decide("PROMOTED");
+  assert.equal(missing.nextState, "DEMOTED");
+  assert.equal(missing.reason, "canonical-calibration-evidence-missing");
+
+  const insufficient = decide("PROMOTED", calibration(0.5, 0.9, 1));
+  assert.equal(insufficient.nextState, "DEMOTED");
+  assert.equal(insufficient.reason, "canonical-calibration-insufficient");
+  assert.equal(decide("CANDIDATE").nextState, "WATCH");
 });
 
-test("quarantines conflicting evidence for the same dimension", () => {
-  const result = decide("PROMOTED", [
-    evidence("CALIBRATION", "VERIFIED_HEALTHY"),
-    evidence("CALIBRATION", "DETERIORATED"),
-  ]);
-  assert.equal(result.nextState, "QUARANTINED");
-  assert.equal(result.reason, "evidence-conflicting");
+test("demotes promoted strategies on canonical PAPER calibration regression", () => {
+  const result = decide("PROMOTED", calibration(0.9, 0.5));
+  assert.equal(result.nextState, "DEMOTED");
+  assert.equal(result.reason, "canonical-calibration-regression");
 });
 
-test("quarantines provenance and infrastructure failures without attributing them to strategy retirement", () => {
-  const provenance = decide("PROMOTED", [evidence("PROVENANCE", "FAILED")], 99);
-  assert.equal(provenance.nextState, "QUARANTINED");
-  assert.equal(provenance.reason, "provenance-failure");
+test("verified calibration improvement never promotes candidate or watch states", () => {
+  const candidate = decide("CANDIDATE", calibration(0.5, 0.9));
+  assert.equal(candidate.nextState, "CANDIDATE");
+  assert.equal(candidate.reason, "canonical-calibration-improved-no-promotion");
 
-  const infrastructure = decide("QUARANTINED", [evidence("INFRASTRUCTURE", "FAILED")], 99);
-  assert.equal(infrastructure.nextState, "QUARANTINED");
-  assert.equal(infrastructure.reason, "infrastructure-failure");
+  const watch = decide("WATCH", calibration(0.5, 0.9));
+  assert.equal(watch.nextState, "WATCH");
 });
 
-test("retires only after repeated independently verified strategy failures from a contained state", () => {
-  const first = decide("PROMOTED", [evidence("EDGE", "FAILED")], 1);
-  assert.equal(first.nextState, "QUARANTINED");
-  assert.equal(first.reason, "strategy-failure");
-
-  const repeated = decide("QUARANTINED", [evidence("EDGE", "FAILED")], 3);
-  assert.equal(repeated.nextState, "RETIRED");
-  assert.equal(repeated.reason, "repeated-strategy-failure");
+test("uses the canonical comparator instead of accepting caller-asserted status", () => {
+  const invalid = calibration(0.5, 0.9);
+  const first = invalid.candidate.observations[0]!;
+  const malformed = {
+    ...invalid,
+    candidate: {
+      ...invalid.candidate,
+      observations: [
+        { ...first, predictedAt: first.periodStartAt },
+        ...invalid.candidate.observations.slice(1),
+      ],
+    },
+  };
+  assert.throws(
+    () => decide("PROMOTED", malformed),
+    /EVOLVE_PAPER_CALIBRATION_LOOKAHEAD/,
+  );
 });
 
-test("deterioration demotes promoted strategies but never promotes candidate or watch states", () => {
-  assert.equal(decide("PROMOTED", [evidence("COST", "DETERIORATED")]).nextState, "DEMOTED");
-  assert.equal(decide("CANDIDATE", [evidence("EDGE", "VERIFIED_HEALTHY")]).nextState, "CANDIDATE");
-  assert.equal(decide("WATCH", [evidence("EDGE", "VERIFIED_HEALTHY")]).nextState, "WATCH");
-});
-
-test("retirement is absorbing and decisions are deterministic/idempotent", () => {
-  const input = [evidence("EDGE", "VERIFIED_HEALTHY")];
-  assert.deepEqual(decide("RETIRED", input), decide("RETIRED", input));
-  assert.equal(decide("RETIRED", input).nextState, "RETIRED");
+test("retirement is absorbing and does not re-evaluate evidence", () => {
+  const first = decide("RETIRED", calibration(0.9, 0.5));
+  const second = decide("RETIRED", calibration(0.5, 0.9));
+  assert.equal(first.nextState, "RETIRED");
+  assert.equal(second.nextState, "RETIRED");
+  assert.equal(first.reason, "retired-is-absorbing");
 });
 
 test("never grants live, production mutation or AI authority", () => {
-  const result = decide("PROMOTED", [evidence("REGIME", "FAILED")], 1);
+  const result = decide("PROMOTED", calibration(0.9, 0.5));
   assert.deepEqual(result.authority, {
     liveAuthority: "NONE",
     productionMutationAllowed: false,
