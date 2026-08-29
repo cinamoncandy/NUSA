@@ -3,6 +3,22 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "r
 import { useTheme } from "./ThemeProvider";
 import { loadEvolutionLearningSupervisor, type EvolutionLearningSupervisorLoadResult } from "./evolutionLearningSupervisorClient";
 import type { DashboardCredentialProvider } from "./personalPaperOperationsClient";
+import type { EvolutionLearningSupervisorOutcome } from "../../../packages/contracts/src/evolutionLearningSupervisor";
+
+type LearningAttention = Readonly<{ label: "CLEAR" | "WATCH" | "REVIEW" | "INSUFFICIENT"; detail: string }>;
+
+function learningAttention(outcome: EvolutionLearningSupervisorOutcome): LearningAttention {
+  if (outcome === "FAILED" || outcome === "REGRESSION") {
+    return Object.freeze({ label: "REVIEW", detail: "실패 또는 회귀가 기록되었습니다. 실패·롤백 근거를 확인하세요." });
+  }
+  if (outcome === "PARTIAL_SUCCESS" || outcome === "UNDERPERFORMED") {
+    return Object.freeze({ label: "WATCH", detail: "부분 성공 또는 기대 미달 기록입니다. 다음 검증 근거를 계속 관찰하세요." });
+  }
+  if (outcome === "SUCCESS") {
+    return Object.freeze({ label: "CLEAR", detail: "최신 검증 결과가 성공으로 기록되었습니다." });
+  }
+  return Object.freeze({ label: "INSUFFICIENT", detail: "최신 결과가 UNKNOWN이므로 감독 결론을 확대하지 않습니다." });
+}
 
 export function SystemLearningSupervisorView({ baseUrl, credentialProvider, onClose }: Readonly<{ baseUrl: string; credentialProvider: DashboardCredentialProvider; onClose: () => void }>) {
   const { theme } = useTheme();
@@ -21,12 +37,22 @@ export function SystemLearningSupervisorView({ baseUrl, credentialProvider, onCl
   const ready = result.status === "READY" ? result.snapshot : null;
   const unavailableReason = result.status === "READY" ? null : result.reason;
   const latest = ready?.latest ?? null;
+  const attention = latest == null ? null : learningAttention(latest.outcome);
   const tone = latest?.outcome === "FAILED" || latest?.outcome === "REGRESSION" ? theme.colors.danger : theme.colors.aiSignalEnd;
+  const attentionTone = attention?.label === "REVIEW"
+    ? theme.colors.danger
+    : attention?.label === "INSUFFICIENT"
+      ? theme.colors.textMuted
+      : theme.colors.aiSignalEnd;
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.colors.primary} />} testID="system-learning-screen">
     <View style={styles.header}>
       <View><Text style={[styles.kicker, { color: theme.colors.aiSignalEnd }]}>SYSTEM LEARNING / SUPERVISOR</Text><Text style={[styles.title, { color: theme.colors.text }]}>NUSA가 무엇을 배웠는지</Text></View>
       <Pressable accessibilityRole="button" onPress={onClose} testID="system-learning-close"><Text style={[styles.close, { color: theme.colors.textMuted }]}>닫기</Text></Pressable>
     </View>
+    {attention ? <View style={[styles.attentionCard, { borderColor: attentionTone }]} testID="system-learning-attention">
+      <View style={styles.row}><Text style={[styles.label, { color: theme.colors.textMuted }]}>ATTENTION</Text><Text style={[styles.attentionLabel, { color: attentionTone }]}>{attention.label}</Text></View>
+      <Text style={[styles.value, { color: theme.colors.text }]}>{attention.detail}</Text>
+    </View> : null}
     <View style={[styles.card, { borderColor: theme.colors.borderStrong }]}>
       <Text style={[styles.label, { color: theme.colors.textMuted }]}>AUTHORITY</Text>
       <Text style={[styles.value, { color: theme.colors.text }]}>READ ONLY · AI ZERO AUTHORITY · LIVE NONE</Text>
@@ -59,4 +85,4 @@ export function SystemLearningSupervisorView({ baseUrl, credentialProvider, onCl
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({ content: { paddingHorizontal: 20, paddingVertical: 18, gap: 14, paddingBottom: 120 }, header: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }, kicker: { fontSize: 11, fontWeight: "800", letterSpacing: 1.4 }, title: { marginTop: 5, fontSize: 24, lineHeight: 30, fontWeight: "800" }, close: { fontSize: 13, fontWeight: "700", paddingVertical: 6 }, card: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 9 }, row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 }, label: { fontSize: 11, fontWeight: "800", letterSpacing: 1.2 }, value: { fontSize: 15, lineHeight: 21, fontWeight: "600" }, problem: { fontSize: 20, lineHeight: 27, fontWeight: "800" }, outcome: { fontSize: 13, fontWeight: "900", letterSpacing: 1 }, meta: { fontSize: 12, lineHeight: 18 }, details: { gap: 6, paddingTop: 4 } });
+const styles = StyleSheet.create({ content: { paddingHorizontal: 20, paddingVertical: 18, gap: 14, paddingBottom: 120 }, header: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }, kicker: { fontSize: 11, fontWeight: "800", letterSpacing: 1.4 }, title: { marginTop: 5, fontSize: 24, lineHeight: 30, fontWeight: "800" }, close: { fontSize: 13, fontWeight: "700", paddingVertical: 6 }, attentionCard: { borderWidth: 2, borderRadius: 16, padding: 16, gap: 9 }, attentionLabel: { fontSize: 13, fontWeight: "900", letterSpacing: 1.1 }, card: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 9 }, row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 }, label: { fontSize: 11, fontWeight: "800", letterSpacing: 1.2 }, value: { fontSize: 15, lineHeight: 21, fontWeight: "600" }, problem: { fontSize: 20, lineHeight: 27, fontWeight: "800" }, outcome: { fontSize: 13, fontWeight: "900", letterSpacing: 1 }, meta: { fontSize: 12, lineHeight: 18 }, details: { gap: 6, paddingTop: 4 } });
