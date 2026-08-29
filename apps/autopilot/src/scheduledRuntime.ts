@@ -73,7 +73,8 @@ export async function runScheduledAutopilot(
 ): Promise<ScheduledRuntimeResult> {
   const token = env.NUSA_GITHUB_TOKEN?.trim();
   if (!token) return result("ABSTAINED", "github-token-not-configured");
-  if (!env.NUSA_EXECUTION_COORDINATOR) return result("ABSTAINED", "persistent-execution-coordinator-required");
+  const coordinator = env.NUSA_EXECUTION_COORDINATOR;
+  if (!coordinator) return result("ABSTAINED", "persistent-execution-coordinator-required");
   if (!Number.isFinite(now)) return result("ABSTAINED", "scheduled-time-invalid");
 
   const repository = env.NUSA_GITHUB_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
@@ -128,7 +129,7 @@ export async function runScheduledAutopilot(
   });
   if (!prepared?.state.lease) return result("ABSTAINED", "production-execution-boundary-unavailable", mainSha, workflowRunId);
 
-  const persistent = await acquirePersistentExecution(env.NUSA_EXECUTION_COORDINATOR, {
+  const persistent = await acquirePersistentExecution(coordinator, {
     dedupeKey: prepared.envelope.dedupeKey,
     executionId: prepared.envelope.executionId,
     now,
@@ -140,7 +141,7 @@ export async function runScheduledAutopilot(
 
   const executor = await executeGithubDispatch(prepared.request, { token, allowedRepository: repository }, fetchImpl);
   if (executor.status === "DISPATCHED") {
-    await markPersistentExecutionDispatched(env.NUSA_EXECUTION_COORDINATOR, {
+    await markPersistentExecutionDispatched(coordinator, {
       dedupeKey: prepared.envelope.dedupeKey,
       executionId: prepared.envelope.executionId,
       now,
