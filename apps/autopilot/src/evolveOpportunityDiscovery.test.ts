@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { discoverEvolutionOpportunities, type EvolutionDiscoverySignal } from "./evolveOpportunityDiscovery";
 
+const NOW = new Date("2026-08-29T06:00:00.000Z");
+
 const signal = (overrides: Partial<EvolutionDiscoverySignal> = {}): EvolutionDiscoverySignal => ({
   id: "ci-regression-1",
   source: "github-actions",
@@ -18,7 +20,7 @@ const signal = (overrides: Partial<EvolutionDiscoverySignal> = {}): EvolutionDis
 
 describe("discoverEvolutionOpportunities", () => {
   it("creates a bounded discovered opportunity without authority", () => {
-    const result = discoverEvolutionOpportunities([signal()]);
+    const result = discoverEvolutionOpportunities([signal()], NOW);
     assert.equal(result.opportunities.length, 1);
     assert.deepEqual(
       {
@@ -43,15 +45,33 @@ describe("discoverEvolutionOpportunities", () => {
     const result = discoverEvolutionOpportunities([
       signal({ id: "weak", evidenceQuality: 0.49 }),
       signal({ id: "risky", risk: 0.81 }),
-    ]);
+    ], NOW);
     assert.equal(result.opportunities.length, 0);
     assert.deepEqual(result.rejectedSignalIds, ["weak", "risky"]);
+  });
+
+  it("rejects stale and implausibly future evidence", () => {
+    const result = discoverEvolutionOpportunities([
+      signal({ id: "stale", observedAt: "2026-08-29T04:59:59.999Z" }),
+      signal({ id: "future", observedAt: "2026-08-29T06:05:00.001Z" }),
+    ], NOW);
+    assert.equal(result.opportunities.length, 0);
+    assert.deepEqual(result.rejectedSignalIds, ["stale", "future"]);
+  });
+
+  it("rejects malformed scores and evidence text fail closed", () => {
+    const result = discoverEvolutionOpportunities([
+      signal({ id: "nan", confidence: Number.NaN }),
+      signal({ id: "empty-ref", reference: "   " }),
+    ], NOW);
+    assert.equal(result.opportunities.length, 0);
+    assert.deepEqual(result.rejectedSignalIds, ["nan", "empty-ref"]);
   });
 
   it("deduplicates signals and bounds discovery input", () => {
     const duplicate = signal({ id: "same" });
     const many = Array.from({ length: 70 }, (_, index) => signal({ id: `s${index}` }));
-    assert.equal(discoverEvolutionOpportunities([duplicate, duplicate]).opportunities.length, 1);
-    assert.equal(discoverEvolutionOpportunities(many).opportunities.length, 64);
+    assert.equal(discoverEvolutionOpportunities([duplicate, duplicate], NOW).opportunities.length, 1);
+    assert.equal(discoverEvolutionOpportunities(many, NOW).opportunities.length, 64);
   });
 });
