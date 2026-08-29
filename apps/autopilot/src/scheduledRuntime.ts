@@ -35,6 +35,7 @@ const SHA40 = /^[0-9a-f]{40}$/i;
 const object = (value: unknown): JsonObject | null => value !== null && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : null;
 const text = (value: unknown): string | null => typeof value === "string" && value.trim() ? value.trim() : null;
 const positiveInteger = (value: unknown): number | null => Number.isSafeInteger(value) && Number(value) > 0 ? Number(value) : null;
+const safeTimestamp = (value: number): boolean => Number.isSafeInteger(value) && value >= 0;
 const authority = {
   liveAuthority: "NONE" as const,
   productionMutationAllowed: false as const,
@@ -75,7 +76,7 @@ export async function runScheduledAutopilot(
   if (!token) return result("ABSTAINED", "github-token-not-configured");
   const coordinator = env.NUSA_EXECUTION_COORDINATOR;
   if (!coordinator) return result("ABSTAINED", "persistent-execution-coordinator-required");
-  if (!Number.isFinite(now)) return result("ABSTAINED", "scheduled-time-invalid");
+  if (!safeTimestamp(now)) return result("ABSTAINED", "scheduled-time-invalid");
 
   const repository = env.NUSA_GITHUB_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) return result("ABSTAINED", "repository-invalid");
