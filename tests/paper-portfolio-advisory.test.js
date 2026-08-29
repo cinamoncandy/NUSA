@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { evaluatePaperPortfolioAdvisory } = require("../dist/apps/cloud/src/paperPortfolioAdvisory.js");
+const { createPaperPortfolioTrustedLongitudinalEvidence } = require("../dist/apps/cloud/src/paperPortfolioRiskEvidence.js");
 
 const policy = Object.freeze({
   policyVersion: "capital-v1",
@@ -34,6 +35,17 @@ const evidence = Object.freeze({
   grossExpectedEdge: 0.01
 });
 
+const trustedRun = Object.freeze({
+  verificationSource: "GITHUB_API",
+  repository: "cinamoncandy/NUSA",
+  headSha: "a".repeat(40),
+  workflowRunId: 33150000000,
+  workflowRunAttempt: 1,
+  workflowRef: "cinamoncandy/NUSA/.github/workflows/actual-paper-runtime.yml@refs/heads/main",
+  eventName: "workflow_dispatch",
+  workflowRunUrl: "https://github.com/cinamoncandy/NUSA/actions/runs/33150000000"
+});
+
 const riskEvidence = Object.freeze({
   evaluationId: "risk-eval-881",
   candidateId: "candidate-881",
@@ -48,7 +60,21 @@ const riskEvidence = Object.freeze({
   portfolioDrawdownContribution: 0.08,
   maximumDrawdownContribution: 0.1,
   diversificationBenefit: 0.03,
-  minimumDiversificationBenefit: 0.01
+  minimumDiversificationBenefit: 0.01,
+  trustedEvidence: createPaperPortfolioTrustedLongitudinalEvidence({
+    evaluationId: "risk-eval-881",
+    candidateId: "candidate-881",
+    datasetId: "dataset-881",
+    datasetContentSha256: "a".repeat(64),
+    observedAt: "2026-08-29T00:00:00.000Z",
+    evaluatedAt: "2026-08-29T00:30:00.000Z",
+    evidencePeriods: 40,
+    portfolioDrawdownContribution: 0.08,
+    diversificationBenefit: 0.03,
+    trustedRun,
+    periodIds: Array.from({ length: 40 }, (_, index) => `period-${index}`),
+    outcomeReceiptFingerprints: Array.from({ length: 40 }, (_, index) => String(index).padStart(64, "0"))
+  })
 });
 
 const input = Object.freeze({
