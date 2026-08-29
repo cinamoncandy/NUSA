@@ -5,6 +5,7 @@ export type AiOrchestrationStatus = "COMPLETED" | "UNAVAILABLE" | "INCOMPLETE" |
 export type ModelFailureCode = "PROVIDER_UNAVAILABLE" | "TIMEOUT" | "OUTPUT_TOO_LARGE" | "MALFORMED_OUTPUT" | "SCHEMA_VIOLATION" | "PROMPT_DIGEST_MISMATCH" | "CONTEXT_INVALID" | "EVIDENCE_MISSING" | "EVIDENCE_DIGEST_MISMATCH" | "SENSITIVE_EVIDENCE" | "REPLAY_CONFLICT" | "UNKNOWN";
 export type AiCalibrationStatus = "UNKNOWN" | "UNVERIFIED" | "INSUFFICIENT_DATA" | "CALIBRATED" | "DEGRADED";
 export type AiCalibrationProvenance = "VERIFIED_RUNTIME" | "SYNTHETIC_TEST";
+export type AiLearningProvenance = "AUTO_BACKGROUND" | "USER_TRIGGERED" | "UNKNOWN";
 
 export interface ModelUsage {
   readonly inputTokens?: number;
@@ -169,6 +170,8 @@ export interface AiReadOnlyProjection {
   readonly explanationReasonCodes?: readonly string[];
   /** Prior structural lessons (WO-AI-009 learning memory) actually fed into this decision's evidence. */
   readonly recentLessonCount?: number;
+  /** Proven only from explicit run/evidence origin. Missing or ambiguous origin is UNKNOWN. */
+  readonly learningProvenance?: AiLearningProvenance;
   /** WO-AI-008 opt-in scenario robustness check against the same evidence, when enabled. */
   readonly scenarioRobustnessState?: "ROBUST" | "SENSITIVE" | "CONTRADICTORY" | "INCOMPLETE" | "UNVERIFIED" | "NOT_EVALUATED";
   readonly scenarioTrustDisposition?: "NO_UPLIFT" | "REDUCE" | "ABSTAIN";
