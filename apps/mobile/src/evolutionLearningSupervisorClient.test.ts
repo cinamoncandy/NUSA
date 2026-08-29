@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { loadEvolutionLearningSupervisor } from "./evolutionLearningSupervisorClient";
-import { clearPaperConnectionSession, markPaperConnectionVerified, setConfiguredPaperEndpoint } from "./paperConnectionSession";
+import { clearConfiguredPaperEndpoint, markPaperConnectionVerified, setConfiguredPaperEndpoint } from "./paperConnectionSession";
 
 const BASE = "https://nusa.example.test";
 const snapshot = Object.freeze({
@@ -17,7 +17,7 @@ const snapshot = Object.freeze({
 });
 
 function verified(): void {
-  clearPaperConnectionSession();
+  clearConfiguredPaperEndpoint();
   setConfiguredPaperEndpoint(BASE);
   markPaperConnectionVerified(BASE);
 }
@@ -27,7 +27,7 @@ test("loads validated evolution learning through the verified supervisor endpoin
   const result = await loadEvolutionLearningSupervisor({
     baseUrl: BASE,
     credentialProvider: async () => "session-token",
-    request: async (input) => new Response(JSON.stringify(snapshot), {
+    request: async () => new Response(JSON.stringify(snapshot), {
       status: 200,
       headers: { "content-type": "application/json" },
     }),
