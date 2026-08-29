@@ -1,9 +1,12 @@
+import type { AbstentionAssessment } from "./abstentionEngine";
 import { calculateDeflatedSharpeEvidence, type DeflatedSharpeEvidence } from "./researchSearchAdjustedEvidence";
 import { appendResearchTrial, summarizeResearchTrialLedger, type ResearchTrialRecord, type ResearchTrialLedgerSummary } from "./researchTrialLedger";
 import { researchRunOosReturns, type ResearchRunPboCandidate } from "./researchRunPboEvidence";
 
 export interface ResearchRunDsrCandidate extends ResearchRunPboCandidate {
   readonly familyId: string;
+  /** Existing abstention evidence, when this candidate was withheld from research. */
+  readonly abstention?: AbstentionAssessment;
 }
 
 export interface ResearchRunDsrEvidenceResult {
@@ -69,14 +72,34 @@ export function buildResearchRunDsrEvidence(candidates: readonly ResearchRunDsrC
     if (candidateManifest.datasetId !== manifest.datasetId || candidateManifest.contentSha256 !== manifest.contentSha256) {
       throw new ResearchRunDsrEvidenceError("DATASET_PROVENANCE_MISMATCH", "all DSR candidates must use the same verified dataset");
     }
-    let statistics: ReturnType<typeof moments> | undefined;
-    try {
-      statistics = moments(entry.returns.map((value) => value.value));
-      statisticsByCandidate.set(entry.candidate.id, statistics);
-    } catch (error) {
-      if (!(error instanceof ResearchRunDsrEvidenceError) || error.code !== "ZERO_OOS_RETURN_VARIANCE") throw error;
-      unavailableReasons.set(entry.candidate.id, error.code);
+    const abstention = entry.candidate.abstention;
+    if (abstention != null) {
+      if (abstention.schemaVersion !== 1
+        || !Number.isFinite(abstention.asOf)
+        || !["PROCEED_RESEARCH", "ABSTAIN"].includes(abstention.decision)
+        || !Array.isArray(abstention.sourceDatasetIds)
+        || !abstention.sourceDatasetIds.includes(manifest.datasetId)) {
+        throw new ResearchRunDsrEvidenceError("INVALID_ABSTENTION_EVIDENCE", "candidate " + entry.candidate.id + " carries invalid or mismatched abstention evidence");
+      }
+      if (abstention.decision === "ABSTAIN" && (!Array.isArray(abstention.reasons) || abstention.reasons.length === 0)) {
+        throw new ResearchRunDsrEvidenceError("INVALID_ABSTENTION_EVIDENCE", "candidate " + entry.candidate.id + " abstention requires at least one reason");
+      }
     }
+    const isAbstained = abstention?.decision === "ABSTAIN";
+    let statistics: ReturnType<typeof moments> | undefined;
+    if (isAbstained) {
+      // An abstained candidate remains in the search denominator but cannot acquire DSR evidence.
+      unavailableReasons.set(entry.candidate.id, "ABSTENTION_DECISION");
+    } else {
+      try {
+        statistics = moments(entry.returns.map((value) => value.value));
+        statisticsByCandidate.set(entry.candidate.id, statistics);
+      } catch (error) {
+        if (!(error instanceof ResearchRunDsrEvidenceError) || error.code !== "ZERO_OOS_RETURN_VARIANCE") throw error;
+        unavailableReasons.set(entry.candidate.id, error.code);
+      }
+    }
+    const outcome = isAbstained ? "ABSTAINED" : statistics == null ? "REJECTED" : "COMPLETED";
     ledger = appendResearchTrial(ledger, {
       trialId: entry.candidate.id,
       familyId: entry.candidate.familyId,
@@ -90,8 +113,10 @@ export function buildResearchRunDsrEvidence(candidates: readonly ResearchRunDsrC
       },
       candidateIds: [entry.candidate.id],
       search: { searchId, attemptOrdinal: index + 1 },
-      outcome: statistics == null ? "REJECTED" : "COMPLETED",
-      ...(statistics == null ? { rejectionReasons: ["ZERO_OOS_RETURN_VARIANCE"] } : { metrics: { sharpeRatio: statistics.sharpeRatio } }),
+      outcome,
+      ...(isAbstained
+        ? { abstentionReasons: abstention!.reasons }
+        : statistics == null ? { rejectionReasons: ["ZERO_OOS_RETURN_VARIANCE"] } : { metrics: { sharpeRatio: statistics.sharpeRatio } }),
       tags: ["COST_AWARE", "OUT_OF_SAMPLE"],
     });
   }
