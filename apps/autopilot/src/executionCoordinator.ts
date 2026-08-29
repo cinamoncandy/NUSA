@@ -1,3 +1,5 @@
+import type { EvolutionLearningMemoryStorage } from "./evolveDurableLearningMemory";
+
 interface DurableObjectStorageLike {
   get<T>(key: string): Promise<T | undefined>;
   put<T>(key: string, value: T): Promise<void>;
@@ -41,6 +43,7 @@ export interface ScheduledRuntimeReceipt {
 }
 
 const SCHEDULED_RECEIPT_COORDINATOR_KEY = "scheduled-runtime-observability";
+const EVOLVE_LEARNING_COORDINATOR_KEY = "evolve-learning-memory";
 const json = (body: unknown, status = 200): Response => new Response(JSON.stringify(body), {
   status,
   headers: { "content-type": "application/json; charset=utf-8" },
@@ -85,10 +88,12 @@ export class ExecutionCoordinator {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/scheduled-receipt") return this.readScheduledReceipt();
+    if (request.method === "GET" && url.pathname === "/evolve-learning-memory") return this.readEvolutionLearningMemory();
     if (request.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405);
     if (url.pathname === "/acquire") return this.acquire(await request.json());
     if (url.pathname === "/dispatched") return this.markDispatched(await request.json());
     if (url.pathname === "/scheduled-receipt") return this.writeScheduledReceipt(await request.json());
+    if (url.pathname === "/evolve-learning-memory") return this.writeEvolutionLearningMemory(await request.json());
     return json({ error: "NOT_FOUND" }, 404);
   }
 
@@ -135,6 +140,17 @@ export class ExecutionCoordinator {
     const receipt = await this.ctx.storage.get<ScheduledRuntimeReceipt>("scheduled-receipt");
     return json({ receipt: receipt ?? null });
   }
+
+  private async writeEvolutionLearningMemory(value: unknown): Promise<Response> {
+    if (!value || typeof value !== "object" || !("value" in value)) return json({ error: "EVOLVE_LEARNING_MEMORY_REQUEST_INVALID" }, 400);
+    await this.ctx.storage.put("value", (value as { value: unknown }).value);
+    return json({ updated: true });
+  }
+
+  private async readEvolutionLearningMemory(): Promise<Response> {
+    const value = await this.ctx.storage.get<unknown>("value");
+    return json({ value: value ?? null });
+  }
 }
 
 export interface ExecutionCoordinatorNamespace {
@@ -142,54 +158,51 @@ export interface ExecutionCoordinatorNamespace {
   get(id: DurableObjectIdLike): DurableObjectStubLike;
 }
 
-export async function acquirePersistentExecution(
-  namespace: ExecutionCoordinatorNamespace,
-  input: AcquireRequest,
-): Promise<{ acquired: boolean; reason?: string }> {
+export async function acquirePersistentExecution(namespace: ExecutionCoordinatorNamespace, input: AcquireRequest): Promise<{ acquired: boolean; reason?: string }> {
   const stub = namespace.get(namespace.idFromName(input.dedupeKey));
-  const response = await stub.fetch("https://execution-coordinator/acquire", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(input),
-  });
+  const response = await stub.fetch("https://execution-coordinator/acquire", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) });
   const body = await response.json() as { acquired?: boolean; reason?: string };
   if (response.status === 201 && body.acquired === true) return { acquired: true };
   if (response.status === 409 && body.acquired === false) return { acquired: false, reason: body.reason ?? "DUPLICATE_EXECUTION" };
   throw new Error("PERSISTENT_EXECUTION_COORDINATION_FAILED");
 }
 
-export async function markPersistentExecutionDispatched(
-  namespace: ExecutionCoordinatorNamespace,
-  input: { dedupeKey: string; executionId: string; now: number },
-): Promise<void> {
+export async function markPersistentExecutionDispatched(namespace: ExecutionCoordinatorNamespace, input: { dedupeKey: string; executionId: string; now: number }): Promise<void> {
   const stub = namespace.get(namespace.idFromName(input.dedupeKey));
-  const response = await stub.fetch("https://execution-coordinator/dispatched", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(input),
-  });
+  const response = await stub.fetch("https://execution-coordinator/dispatched", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) });
   if (!response.ok) throw new Error("PERSISTENT_EXECUTION_DISPATCH_RECONCILIATION_FAILED");
 }
 
-export async function recordScheduledRuntimeReceipt(
-  namespace: ExecutionCoordinatorNamespace,
-  receipt: ScheduledRuntimeReceipt,
-): Promise<void> {
+export async function recordScheduledRuntimeReceipt(namespace: ExecutionCoordinatorNamespace, receipt: ScheduledRuntimeReceipt): Promise<void> {
   const stub = namespace.get(namespace.idFromName(SCHEDULED_RECEIPT_COORDINATOR_KEY));
-  const response = await stub.fetch("https://execution-coordinator/scheduled-receipt", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(receipt),
-  });
+  const response = await stub.fetch("https://execution-coordinator/scheduled-receipt", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(receipt) });
   if (!response.ok) throw new Error("SCHEDULED_RUNTIME_RECEIPT_PERSIST_FAILED");
 }
 
-export async function readScheduledRuntimeReceipt(
-  namespace: ExecutionCoordinatorNamespace,
-): Promise<ScheduledRuntimeReceipt | null> {
+export async function readScheduledRuntimeReceipt(namespace: ExecutionCoordinatorNamespace): Promise<ScheduledRuntimeReceipt | null> {
   const stub = namespace.get(namespace.idFromName(SCHEDULED_RECEIPT_COORDINATOR_KEY));
   const response = await stub.fetch("https://execution-coordinator/scheduled-receipt", { method: "GET" });
   if (!response.ok) throw new Error("SCHEDULED_RUNTIME_RECEIPT_READ_FAILED");
   const body = await response.json() as { receipt?: ScheduledRuntimeReceipt | null };
   return body.receipt ?? null;
+}
+
+export function createEvolutionLearningMemoryStorage(namespace: ExecutionCoordinatorNamespace): EvolutionLearningMemoryStorage {
+  const stub = namespace.get(namespace.idFromName(EVOLVE_LEARNING_COORDINATOR_KEY));
+  return Object.freeze({
+    async get<T>(_key: string): Promise<T | undefined> {
+      const response = await stub.fetch("https://execution-coordinator/evolve-learning-memory", { method: "GET" });
+      if (!response.ok) throw new Error("EVOLVE_DURABLE_MEMORY_READ_FAILED");
+      const body = await response.json() as { value?: T | null };
+      return body.value == null ? undefined : body.value;
+    },
+    async put<T>(_key: string, value: T): Promise<void> {
+      const response = await stub.fetch("https://execution-coordinator/evolve-learning-memory", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ value }),
+      });
+      if (!response.ok) throw new Error("EVOLVE_DURABLE_MEMORY_WRITE_FAILED");
+    },
+  });
 }

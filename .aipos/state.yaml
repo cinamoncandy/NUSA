@@ -1,16 +1,16 @@
 version: 1
 project: nusa
-updated_at: "2026-08-29T02:05:00+09:00"
+updated_at: "2026-08-29T13:35:00+09:00"
 current_execution_target:
-  work_order: WO-ISSUE-905-OUTCOME-EVIDENCE-BOUNDARY
-  status: IN_PROGRESS
-  branch: codex/issue-905-outcome-evidence-boundary
-  base_sha: 69066b89057571d7b09b7f5ac562fdf52ee9cddc
-  scope: "Harden the existing canonical engineering outcome evaluator so malformed identity, confidence, or direction evidence cannot become a verified outcome."
+  work_order: WO-ISSUE-1053-LEARNING-PROVENANCE
+  status: VERIFYING
+  branch: codex/issue-1053-provenance-current
+  base_sha: 233f4bedb741d826ae7efbe8cbf99b15eb10c421
+  scope: "Expose explicit runtime/evidence provenance for learning activity in the existing read-only AI projection and mobile LEARNING surface."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: verification
 status: verifying
-objective: "Harden the existing canonical engineering outcome evaluator with deterministic fail-closed validation while holding all production and LIVE authority at the human/environment boundary."
+objective: "Expose trusted automatic-learning provenance in the existing read-only AI projection and mobile LEARNING surface while holding all production and LIVE authority at the human/environment boundary."
 latest_research_slice:
   work_order: WO-MARKET-INTELLIGENCE-REGIME-POINT-IN-TIME-001
   status: COMPLETED
@@ -23,7 +23,7 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: codex/issue-905-outcome-evidence-boundary
+active_branch: codex/issue-1053-provenance-current
 active_successor_branch: null
 active_pull_request: null
 current_non_live_work_order:
@@ -83,14 +83,14 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-ISSUE-905-OUTCOME-EVIDENCE-BOUNDARY
+  work_order: WO-ISSUE-1053-LEARNING-PROVENANCE
   status: VERIFYING
-  branch: codex/issue-905-outcome-evidence-boundary
-  base_commit: 69066b89057571d7b09b7f5ac562fdf52ee9cddc
-  scope: "Harden canonical engineering outcome evidence validation against malformed identity and enum values."
+  branch: codex/issue-1053-provenance-current
+  base_commit: 233f4bedb741d826ae7efbe8cbf99b15eb10c421
+  scope: "Expose trusted automatic-learning provenance in the existing read-only AI projection and mobile LEARNING surface."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  implementation_commit: LOCAL_PATCH_PENDING_PUBLISH
-  validation: "Focused outcome evaluator regression pending; no execution, broker, Risk, LIVE, or AI authority changes."
+  implementation_commit: LOCAL_COMMIT_PENDING_REMOTE
+  validation: "Provenance-focused and full isolated validation passed locally; no execution, broker, Risk, LIVE, or AI authority changes."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -505,9 +505,9 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
-  - id: WO-ISSUE-905-OUTCOME-EVIDENCE-BOUNDARY
-    evidence: ".aipos/work-orders/WO-ISSUE-905-OUTCOME-EVIDENCE-BOUNDARY.yaml"
-    summary: "Harden the existing #905 engineering outcome evaluator so malformed identity, confidence, and direction evidence remains fail-closed; no new scheduler or authority."
+  - id: WO-ISSUE-1053-LEARNING-PROVENANCE
+    evidence: ".aipos/work-orders/WO-ISSUE-1053-LEARNING-PROVENANCE.yaml"
+    summary: "Expose trusted automatic-learning provenance in the existing read-only AI projection and mobile learning surface; ambiguous sources remain UNKNOWN with zero authority."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -534,8 +534,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-ISSUE-905-OUTCOME-EVIDENCE-BOUNDARY.yaml
-  reason: "Harden the existing #905 outcome-feedback boundary against malformed evidence before claiming engineering optimization outcomes."
+  work_order: .aipos/work-orders/WO-ISSUE-1053-LEARNING-PROVENANCE.yaml
+  reason: "Publish the provenance-bound learning projection after exact-head validation; keep unsupported trigger sources UNKNOWN."
 verification:
   wo_0057:
     parent_pull_request: 552
