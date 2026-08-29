@@ -121,6 +121,7 @@ function trialLedgerSummary(overrides: Partial<ResearchTrialLedgerSummary> = {})
     completedCount: 6,
     failedCount: 2,
     rejectedCount: 2,
+    abstainedCount: 0,
     distinctSearchCount: 3,
     distinctFamilyCount: 1,
     maximumSearchAttemptOrdinal: 4,
