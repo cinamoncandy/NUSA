@@ -8,6 +8,7 @@ import {
 import {
   applyNusaDevelopmentEvent,
   createNusaDevelopmentEventOrchestratorState,
+  replayNusaDevelopmentEvents,
 } from "./nusaDevelopmentEventOrchestrator";
 
 const T0 = Date.parse("2026-08-27T12:00:00.000Z");
@@ -171,5 +172,49 @@ describe("NUSA development event orchestrator", () => {
     assert.equal(blocked.item?.state, "BLOCKED_HUMAN");
     assert.equal(blocked.item?.nextAction, "human-blocked:physical-device-evidence");
     assert.equal(blocked.item?.claim, null);
+  });
+
+  it("canonicalizes processed event ids regardless of delivery order", () => {
+    const queue = createNusaDevelopmentQueue([work({ id: "w1" })]);
+    const events = [
+      { eventId: "z-event", type: "IMPLEMENTATION_STARTED" as const, workId: "w1", expectedRevision: 1, occurredAt: T0 + 2 },
+      { eventId: "a-event", type: "VALIDATION_STARTED" as const, workId: "w1", expectedRevision: 2, occurredAt: T0 + 3 },
+    ];
+    assert.deepEqual(
+      createNusaDevelopmentEventOrchestratorState(queue, events).processedEventIds,
+      ["a-event", "z-event"],
+    );
+  });
+
+  it("rejects unsafe event identity, revision, and timestamp values", () => {
+    const state = claimedState();
+    for (const override of [
+      { eventId: "", expectedRevision: state.queue.revision },
+      { eventId: "event with spaces", expectedRevision: state.queue.revision },
+      { eventId: "valid", expectedRevision: -1 },
+      { eventId: "valid", expectedRevision: state.queue.revision, occurredAt: 1.5 },
+    ]) {
+      assert.throws(() => applyNusaDevelopmentEvent(state, {
+        eventId: override.eventId,
+        type: "IMPLEMENTATION_STARTED",
+        workId: "w1",
+        expectedRevision: override.expectedRevision,
+        occurredAt: override.occurredAt ?? T0 + 1,
+      }), /EVENT_(ID_INVALID|EXPECTED_REVISION_INVALID|OCCURRED_AT_INVALID)/);
+    }
+  });
+
+  it("replays a canonical history deterministically and rejects chronology regressions", () => {
+    const initial = createNusaDevelopmentQueue([work({ id: "w1", state: "CLAIMED", canonicalOwner: "development", claim: { owner: "development", requestId: "claim-1", claimedAt: T0, leaseExpiresAt: T0 + 60_000 } })]);
+    const events = [
+      { eventId: "event-1", type: "IMPLEMENTATION_STARTED" as const, workId: "w1", expectedRevision: 0, occurredAt: T0 + 1 },
+      { eventId: "event-2", type: "VALIDATION_STARTED" as const, workId: "w1", expectedRevision: 1, occurredAt: T0 + 2 },
+      { eventId: "event-3", type: "CI_STARTED" as const, workId: "w1", expectedRevision: 2, occurredAt: T0 + 3 },
+    ];
+    const first = replayNusaDevelopmentEvents(initial, events);
+    const second = replayNusaDevelopmentEvents(initial, [...events]);
+    assert.deepEqual(first, second);
+    assert.equal(first.queue.revision, 3);
+    assert.throws(() => replayNusaDevelopmentEvents(initial, [events[1]!, events[0]!]), /EVENT_REPLAY_CHRONOLOGY_INVALID|EVENT_REPLAY_REVISION_CONFLICT/);
   });
 });
