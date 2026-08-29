@@ -10,7 +10,7 @@ current_execution_target:
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: implementation
 status: implementing
-objective: "Harden the existing canonical engineering outcome evaluator with deterministic fail-closed validation while holding all production and LIVE authority at the human/environment boundary."
+objective: "Expose evidence-backed learning provenance in the existing read-only AI projection and LEARNING surface without inferring absent trigger evidence."
 latest_research_slice:
   work_order: WO-MARKET-INTELLIGENCE-REGIME-POINT-IN-TIME-001
   status: COMPLETED
@@ -505,9 +505,9 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
-  - id: WO-ISSUE-905-OUTCOME-EVIDENCE-BOUNDARY
-    evidence: ".aipos/work-orders/WO-ISSUE-905-OUTCOME-EVIDENCE-BOUNDARY.yaml"
-    summary: "Harden the existing #905 engineering outcome evaluator so malformed identity, confidence, and direction evidence remains fail-closed; no new scheduler or authority."
+  - id: WO-ISSUE-1053-LEARNING-PROVENANCE
+    evidence: ".aipos/work-orders/WO-ISSUE-1053-LEARNING-PROVENANCE.yaml"
+    summary: "Expose explicit evidence-backed learning provenance in the existing read-only AI projection; missing or ambiguous provenance remains UNKNOWN."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -523,7 +523,7 @@ serialized_human_environment_gate:
     - LIVE_ACTIVATION
     - REAL_MONEY_MUTATION
     - LIVE_RISK_ENVELOPE_EXPANSION
-  reason: "WO-0051 remains mandatory for LIVE and real-money transition; non-LIVE successors cannot satisfy, weaken, or bypass it."
+  reason: "Complete the #1053 evidence-backed learning provenance projection with fail-closed UNKNOWN semantics and no authority change."
 blocked:
   - "ACTUAL_EXTERNAL_READONLY_PREFLIGHT_REQUIRED"
   - "ACTUAL_HUMAN_ACTIVATION_CEREMONY_REQUIRED"
@@ -534,7 +534,7 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-ISSUE-905-OUTCOME-EVIDENCE-BOUNDARY.yaml
+  work_order: .aipos/work-orders/WO-ISSUE-1053-LEARNING-PROVENANCE.yaml
   reason: "Harden the existing #905 outcome-feedback boundary against malformed evidence before claiming engineering optimization outcomes."
 verification:
   wo_0057:
