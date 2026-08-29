@@ -3,7 +3,13 @@ import { planAutopilotExecution } from "./executionPlanner";
 import { executeGithubDispatch } from "./githubExecutor";
 import { executeCodingRunner, validateCodingRunnerRequest } from "./codingRunner";
 import { prepareProductionExecution } from "./productionExecutionSpine";
-import { acquirePersistentExecution, markPersistentExecutionDispatched, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import {
+  acquirePersistentExecution,
+  markPersistentExecutionDispatched,
+  readScheduledRuntimeReceipt,
+  recordScheduledRuntimeReceipt,
+  type ExecutionCoordinatorNamespace,
+} from "./executionCoordinator";
 import { runScheduledAutopilot } from "./scheduledRuntime";
 
 export { ExecutionCoordinator } from "./executionCoordinator";
@@ -49,6 +55,23 @@ export default {
     const url = new URL(request.url);
     const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
     if (request.method === "GET" && url.pathname === "/health") return json({ service: "nusa-autopilot", status: env.NUSA_WEBHOOK_SECRET ? "WEBHOOK_READY" : "INTERFACE_READY", deploymentRevision: env.NUSA_DEPLOYMENT_REVISION?.trim() || "UNVERIFIED", executionPlanning: "ENABLED", boundedExecutionSpine: "ENABLED", persistentExecutionCoordination: env.NUSA_EXECUTION_COORDINATOR ? "CONFIGURED" : "INTERFACE_READY", authenticatedExecutor: env.NUSA_GITHUB_TOKEN ? "CONFIGURED" : "INTERFACE_READY", codingRunner: env.NUSA_CODING_RUNNER_TOKEN ? "CONFIGURED" : "INTERFACE_READY", aiCodingEngine: env.NUSA_AI_CODING_ENDPOINT && env.NUSA_AI_CODING_TOKEN ? "CONFIGURED" : "INTERFACE_READY", allowedRepository, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+
+    if (request.method === "GET" && url.pathname === "/scheduled/status") {
+      if (!env.NUSA_EXECUTION_COORDINATOR) return json({ status: "UNAVAILABLE", reason: "PERSISTENT_EXECUTION_COORDINATOR_REQUIRED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 503);
+      try {
+        const receipt = await readScheduledRuntimeReceipt(env.NUSA_EXECUTION_COORDINATOR);
+        return json({
+          status: receipt ? "OBSERVED" : "AWAITING_FIRST_SCHEDULED_EVENT",
+          deploymentRevision: env.NUSA_DEPLOYMENT_REVISION?.trim() || "UNVERIFIED",
+          receipt,
+          liveAuthority: "NONE",
+          productionMutationAllowed: false,
+          aiAuthority: "ZERO_AUTHORITY",
+        });
+      } catch {
+        return json({ status: "UNAVAILABLE", reason: "SCHEDULED_RUNTIME_RECEIPT_READ_FAILED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 503);
+      }
+    }
 
     if (request.method === "POST" && url.pathname === "/coding/execute") {
       const configured = env.NUSA_CODING_RUNNER_TOKEN?.trim();
@@ -137,8 +160,28 @@ export default {
   },
 
   async scheduled(controller: { scheduledTime?: number }, env: Env): Promise<void> {
-    const scheduledTime = Number.isFinite(controller?.scheduledTime) ? Number(controller.scheduledTime) : Date.now();
+    const scheduledTime = Number.isSafeInteger(controller?.scheduledTime) && Number(controller?.scheduledTime) >= 0
+      ? Number(controller.scheduledTime)
+      : Date.now();
     const outcome = await runScheduledAutopilot(env, scheduledTime);
+    if (env.NUSA_EXECUTION_COORDINATOR) {
+      const observedAt = Math.max(Date.now(), scheduledTime);
+      try {
+        await recordScheduledRuntimeReceipt(env.NUSA_EXECUTION_COORDINATOR, {
+          scheduledTime,
+          observedAt,
+          status: outcome.status,
+          reason: outcome.reason,
+          headSha: outcome.headSha,
+          workflowRunId: outcome.workflowRunId,
+          liveAuthority: "NONE",
+          productionMutationAllowed: false,
+          aiAuthority: "ZERO_AUTHORITY",
+        });
+      } catch (error) {
+        console.error(JSON.stringify({ event: "NUSA_SCHEDULED_RECEIPT_FAILED", reason: error instanceof Error ? error.message : "UNKNOWN" }));
+      }
+    }
     console.log(JSON.stringify({ event: "NUSA_SCHEDULED_AUTOPILOT", ...outcome }));
   },
 };
