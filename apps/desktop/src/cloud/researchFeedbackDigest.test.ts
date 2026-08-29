@@ -22,6 +22,7 @@ function seal(
     search: { searchId, attemptOrdinal: records.filter((record) => record.search.searchId === searchId).length + 1 },
     outcome,
     ...(outcome === "REJECTED" ? { rejectionReasons: ["OOS_BELOW_THRESHOLD"] } : {}),
+    ...(outcome === "ABSTAINED" ? { abstentionReasons: ["INSUFFICIENT_CONFIDENCE"] } : {}),
   });
 }
 
@@ -48,6 +49,21 @@ describe("buildResearchFeedbackDigest", () => {
     assert.equal(family.failureRatio, 0.75);
     assert.ok(family.priorAdjustment < 0, "a mostly-unsuccessful search must be scored down, not up");
     assert.ok(family.reasons.includes("HISTORICAL_FAILURE_RATE_ARGUES_AGAINST_FAMILY"));
+  });
+
+  it("counts abstained trials as unsuccessful evidence in the denominator", () => {
+    const ledger = ledgerOf(
+      ["momentum", "COMPLETED"],
+      ["momentum", "ABSTAINED"],
+      ["momentum", "FAILED"],
+      ["momentum", "REJECTED"],
+      ["momentum", "COMPLETED"],
+      ["momentum", "COMPLETED"],
+    );
+    const family = buildResearchFeedbackDigest(ledger).families[0]!;
+    assert.equal(family.priorTrialCount, 6);
+    assert.equal(family.abstainedCount, 1);
+    assert.equal(family.failureRatio, 0.5);
   });
 
   it("never lets a trial influence the prior applied to itself", () => {
