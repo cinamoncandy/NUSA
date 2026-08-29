@@ -194,9 +194,14 @@ function validateCandidate(candidate: LeagueCandidateInput): void {
   }
   if (candidate.trialLedgerSummary != null) {
     const summary = candidate.trialLedgerSummary;
-    if (!Number.isInteger(summary.trialCount) || summary.trialCount < 0) throw new NusaLeagueError("INVALID_TRIAL_LEDGER_EVIDENCE", `candidate ${candidate.id} trial ledger summary is invalid`);
-    if (summary.completedCount + summary.failedCount + summary.rejectedCount > summary.trialCount) {
-      throw new NusaLeagueError("INVALID_TRIAL_LEDGER_EVIDENCE", `candidate ${candidate.id} trial ledger outcome counts exceed trialCount`);
+    const outcomeCounts = [summary.completedCount, summary.failedCount, summary.rejectedCount];
+    if (
+      !Number.isSafeInteger(summary.trialCount)
+      || summary.trialCount < 0
+      || outcomeCounts.some((value) => !Number.isSafeInteger(value) || value < 0)
+      || outcomeCounts.reduce((total, value) => total + value, 0) !== summary.trialCount
+    ) {
+      throw new NusaLeagueError("INVALID_TRIAL_LEDGER_EVIDENCE", `candidate ${candidate.id} trial ledger outcome counts must be non-negative integers that sum to trialCount`);
     }
   }
   if (candidate.paperPerformance != null) {

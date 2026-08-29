@@ -107,6 +107,17 @@ export function buildResearchRunLeague(
     if (!candidate.familyId.trim()) throw new ResearchRunLeagueBridgeError("INVALID_FAMILY_ID", `candidate ${candidate.id} requires a familyId`);
     if (ids.has(candidate.id)) throw new ResearchRunLeagueBridgeError("DUPLICATE_CANDIDATE_ID", `duplicate candidate id: ${candidate.id}`);
     ids.add(candidate.id);
+    const configuredCandidates = candidate.experiment.experimentConfig?.candidates;
+    if (
+      !Array.isArray(configuredCandidates)
+      || configuredCandidates.length !== 1
+      || configuredCandidates[0]?.id !== candidate.id
+    ) {
+      throw new ResearchRunLeagueBridgeError(
+        "CANDIDATE_EXPERIMENT_IDENTITY_MISMATCH",
+        `candidate ${candidate.id} must own exactly one matching experiment candidate`,
+      );
+    }
   }
 
   const slices: readonly ResearchBenchmarkSlice[] = candidates.map((candidate) => ({
