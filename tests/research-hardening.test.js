@@ -64,3 +64,27 @@ test("hypothesis lifecycle is append-only and terminal transitions are rejected"
   assert.throws(() => appendResearchHypothesisEvent(events, { hypothesisId: "h-1", type: "ACTIVATED", title: "H", statement: "S", occurredAt: "2026-08-08T00:00:03.000Z" }), /transition/);
   assert.throws(() => replayResearchHypothesisEvents(events.map((event) => event.sequence === 2 ? { ...event, hash: "f".repeat(64) } : event)), /integrity/);
 });
+
+test("future and non-finite evaluation timestamps fail closed", () => {
+  const p = provenance("window-1");
+  const gate = new ResearchCandidateGate({ nowMs: 10 });
+  const future = gate.evaluate({ candidateId: "candidate-1", evidence: [evidence(p, { evaluationTimestamp: 11 })] });
+  assert.equal(future.status, "NOT_ELIGIBLE");
+  assert.ok(future.reasons.includes("FUTURE_EVALUATION_TIMESTAMP"));
+  const nonFinite = gate.evaluate({ candidateId: "candidate-1", evidence: [evidence(p, { evaluationTimestamp: Number.NaN })] });
+  assert.equal(nonFinite.status, "NOT_ELIGIBLE");
+  assert.ok(nonFinite.reasons.includes("INVALID_EVALUATION_TIMESTAMP"));
+});
+
+test("candidate admission rejects provenance that does not bind the evidence identity", () => {
+  const first = provenance("window-1");
+  const second = provenance("window-2", "HOLDOUT", "holdout");
+  const mismatched = { ...second, datasetId: "dataset-tampered" };
+  const result = new ResearchCandidateGate({ nowMs: 10 }).evaluate({
+    candidateId: "candidate-1",
+    evidence: [evidence(first), evidence(second)],
+    provenance: [first, mismatched],
+  });
+  assert.equal(result.status, "NOT_ELIGIBLE");
+  assert.ok(result.reasons.includes("PROVENANCE_EVIDENCE_MISMATCH"));
+});
