@@ -28,6 +28,19 @@ interface AcquireRequest {
   leaseExpiresAt: number;
 }
 
+export interface ScheduledRuntimeReceipt {
+  scheduledTime: number;
+  observedAt: number;
+  status: string;
+  reason: string;
+  headSha: string | null;
+  workflowRunId: number | null;
+  liveAuthority: "NONE";
+  productionMutationAllowed: false;
+  aiAuthority: "ZERO_AUTHORITY";
+}
+
+const SCHEDULED_RECEIPT_COORDINATOR_KEY = "scheduled-runtime-observability";
 const json = (body: unknown, status = 200): Response => new Response(JSON.stringify(body), {
   status,
   headers: { "content-type": "application/json; charset=utf-8" },
@@ -37,24 +50,45 @@ function validText(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0 && value.length <= 512;
 }
 
+function validSafeTimestamp(value: unknown): value is number {
+  return Number.isSafeInteger(value) && Number(value) >= 0;
+}
+
 function validAcquire(value: unknown): value is AcquireRequest {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<AcquireRequest>;
   return validText(candidate.dedupeKey)
     && validText(candidate.executionId)
-    && Number.isFinite(candidate.now)
-    && Number.isFinite(candidate.leaseExpiresAt)
+    && validSafeTimestamp(candidate.now)
+    && validSafeTimestamp(candidate.leaseExpiresAt)
     && Number(candidate.leaseExpiresAt) > Number(candidate.now);
+}
+
+function validScheduledReceipt(value: unknown): value is ScheduledRuntimeReceipt {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<ScheduledRuntimeReceipt>;
+  return validSafeTimestamp(candidate.scheduledTime)
+    && validSafeTimestamp(candidate.observedAt)
+    && candidate.observedAt >= candidate.scheduledTime
+    && validText(candidate.status)
+    && validText(candidate.reason)
+    && (candidate.headSha === null || (typeof candidate.headSha === "string" && /^[0-9a-f]{40}$/i.test(candidate.headSha)))
+    && (candidate.workflowRunId === null || (Number.isSafeInteger(candidate.workflowRunId) && Number(candidate.workflowRunId) > 0))
+    && candidate.liveAuthority === "NONE"
+    && candidate.productionMutationAllowed === false
+    && candidate.aiAuthority === "ZERO_AUTHORITY";
 }
 
 export class ExecutionCoordinator {
   constructor(private readonly ctx: DurableObjectStateLike) {}
 
   async fetch(request: Request): Promise<Response> {
-    if (request.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405);
     const url = new URL(request.url);
+    if (request.method === "GET" && url.pathname === "/scheduled-receipt") return this.readScheduledReceipt();
+    if (request.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405);
     if (url.pathname === "/acquire") return this.acquire(await request.json());
     if (url.pathname === "/dispatched") return this.markDispatched(await request.json());
+    if (url.pathname === "/scheduled-receipt") return this.writeScheduledReceipt(await request.json());
     return json({ error: "NOT_FOUND" }, 404);
   }
 
@@ -82,12 +116,24 @@ export class ExecutionCoordinator {
   private async markDispatched(value: unknown): Promise<Response> {
     if (!value || typeof value !== "object") return json({ error: "EXECUTION_COORDINATION_REQUEST_INVALID" }, 400);
     const request = value as { dedupeKey?: unknown; executionId?: unknown; now?: unknown };
-    if (!validText(request.dedupeKey) || !validText(request.executionId) || !Number.isFinite(request.now)) return json({ error: "EXECUTION_COORDINATION_REQUEST_INVALID" }, 400);
+    if (!validText(request.dedupeKey) || !validText(request.executionId) || !validSafeTimestamp(request.now)) return json({ error: "EXECUTION_COORDINATION_REQUEST_INVALID" }, 400);
     const current = await this.ctx.storage.get<ExecutionRecord>("execution");
     if (!current || current.dedupeKey !== request.dedupeKey || current.executionId !== request.executionId) return json({ error: "EXECUTION_LEASE_MISMATCH" }, 409);
     const record: ExecutionRecord = Object.freeze({ ...current, state: "DISPATCHED", updatedAt: Number(request.now) });
     await this.ctx.storage.put("execution", record);
     return json({ updated: true, record });
+  }
+
+  private async writeScheduledReceipt(value: unknown): Promise<Response> {
+    if (!validScheduledReceipt(value)) return json({ error: "SCHEDULED_RUNTIME_RECEIPT_INVALID" }, 400);
+    const receipt = Object.freeze({ ...value });
+    await this.ctx.storage.put("scheduled-receipt", receipt);
+    return json({ updated: true, receipt });
+  }
+
+  private async readScheduledReceipt(): Promise<Response> {
+    const receipt = await this.ctx.storage.get<ScheduledRuntimeReceipt>("scheduled-receipt");
+    return json({ receipt: receipt ?? null });
   }
 }
 
@@ -123,4 +169,27 @@ export async function markPersistentExecutionDispatched(
     body: JSON.stringify(input),
   });
   if (!response.ok) throw new Error("PERSISTENT_EXECUTION_DISPATCH_RECONCILIATION_FAILED");
+}
+
+export async function recordScheduledRuntimeReceipt(
+  namespace: ExecutionCoordinatorNamespace,
+  receipt: ScheduledRuntimeReceipt,
+): Promise<void> {
+  const stub = namespace.get(namespace.idFromName(SCHEDULED_RECEIPT_COORDINATOR_KEY));
+  const response = await stub.fetch("https://execution-coordinator/scheduled-receipt", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(receipt),
+  });
+  if (!response.ok) throw new Error("SCHEDULED_RUNTIME_RECEIPT_PERSIST_FAILED");
+}
+
+export async function readScheduledRuntimeReceipt(
+  namespace: ExecutionCoordinatorNamespace,
+): Promise<ScheduledRuntimeReceipt | null> {
+  const stub = namespace.get(namespace.idFromName(SCHEDULED_RECEIPT_COORDINATOR_KEY));
+  const response = await stub.fetch("https://execution-coordinator/scheduled-receipt", { method: "GET" });
+  if (!response.ok) throw new Error("SCHEDULED_RUNTIME_RECEIPT_READ_FAILED");
+  const body = await response.json() as { receipt?: ScheduledRuntimeReceipt | null };
+  return body.receipt ?? null;
 }
