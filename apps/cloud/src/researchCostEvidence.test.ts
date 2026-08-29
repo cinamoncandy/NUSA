@@ -25,16 +25,24 @@ test("explicit research cost evidence verifies only after cost reconciliation", 
 });
 
 test("missing fee/spread/slippage/turnover evidence fails closed", () => {
-  for (const [field, value, reason] of [
-    ["feeRate", Number.NaN, "INVALID_FEE_EVIDENCE"],
-    ["spreadRate", Number.NaN, "INVALID_SPREAD_EVIDENCE"],
-    ["slippageRate", Number.NaN, "INVALID_SLIPPAGE_EVIDENCE"],
-    ["turnoverRate", Number.NaN, "INVALID_TURNOVER_EVIDENCE"],
+  for (const [field, reason] of [
+    ["feeRate", "INVALID_FEE_EVIDENCE"],
+    ["spreadRate", "INVALID_SPREAD_EVIDENCE"],
+    ["slippageRate", "INVALID_SLIPPAGE_EVIDENCE"],
+    ["turnoverRate", "INVALID_TURNOVER_EVIDENCE"],
   ] as const) {
-    const result = validateResearchCostEvidence(validEvidence({ [field]: value }), 10);
+    const result = validateResearchCostEvidence(validEvidence({ [field]: undefined } as Partial<ResearchCostEvidence>), 10);
     assert.equal(result.status, "REJECTED");
     assert.ok(result.reasons.includes(reason));
+    assert.match(result.evidenceHash, /^[a-f0-9]{64}$/);
   }
+});
+
+test("non-finite cost evidence fails closed without breaking evidence hashing", () => {
+  const result = validateResearchCostEvidence(validEvidence({ feeRate: Number.NaN }), 10);
+  assert.equal(result.status, "REJECTED");
+  assert.ok(result.reasons.includes("INVALID_FEE_EVIDENCE"));
+  assert.match(result.evidenceHash, /^[a-f0-9]{64}$/);
 });
 
 test("gross return cannot masquerade as cost-adjusted net return", () => {
