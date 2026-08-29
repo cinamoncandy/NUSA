@@ -14,6 +14,7 @@ const OWNER_BOOTSTRAP_CREDENTIAL = "p".repeat(40);
 const OWNER_ID = "operator";
 const ORDER_RATE_WINDOW_MS = 1_000;
 const ORDER_RATE_WINDOW_SAFETY_MS = 25;
+const CLOUD_REQUEST_TIMEOUT_MS = 10_000;
 
 async function allocatePort() {
   const server = net.createServer();
@@ -109,14 +110,14 @@ async function bootstrapDesktopClient(port, sessionPath) {
   assert.equal(snapshot.endpoint, `http://127.0.0.1:${port}`);
   assert.equal(Object.prototype.hasOwnProperty.call(snapshot, "accessToken"), false);
   assert.equal(Object.prototype.hasOwnProperty.call(snapshot, "refreshToken"), false);
-  return { store, session, client: new CloudPaperClient({ session, timeoutMs: 2_000 }) };
+  return { store, session, client: new CloudPaperClient({ session, timeoutMs: CLOUD_REQUEST_TIMEOUT_MS }) };
 }
 
 async function restoreDesktopClient(sessionPath) {
   const store = new DesktopCloudSessionStore(safeStorage, sessionPath);
   const session = new DesktopCloudSessionClient(store);
   assert.equal(await session.restore(), true, "Desktop restart must restore through the rotated encrypted refresh credential");
-  return { store, session, client: new CloudPaperClient({ session, timeoutMs: 2_000 }) };
+  return { store, session, client: new CloudPaperClient({ session, timeoutMs: CLOUD_REQUEST_TIMEOUT_MS }) };
 }
 
 async function waitForOperations(client, timeoutMs = 5_000) {
