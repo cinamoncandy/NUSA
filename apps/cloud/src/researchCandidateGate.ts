@@ -21,6 +21,21 @@ export interface ResearchCandidateGateInput {
 
 const metrics = ["netReturn", "costAdjustedReturn", "maximumDrawdown", "sharpeRatio", "executionQuality", "unresolvedFaultCount", "dataQualityFailures", "tradeCount"] as const;
 const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
+const validTimestamp = (value: unknown): value is number => Number.isSafeInteger(value) && value >= 0;
+
+function sameEvidenceProvenance(left: ResearchProvenance, right: ResearchProvenance): boolean {
+  return left.researchRunId === right.researchRunId
+    && left.evaluationId === right.evaluationId
+    && left.canonicalInputHash === right.canonicalInputHash
+    && left.datasetId === right.datasetId
+    && left.datasetContentSha256 === right.datasetContentSha256
+    && left.strategyId === right.strategyId
+    && left.strategyVersion === right.strategyVersion
+    && left.experimentFamilyId === right.experimentFamilyId
+    && left.windowId === right.windowId
+    && left.windowRole === right.windowRole
+    && left.splitHash === right.splitHash;
+}
 
 function reject(reasons: readonly string[], evidence: unknown): ResearchCandidateGateDecision {
   return Object.freeze({ status: "NOT_ELIGIBLE", reasons: Object.freeze([...new Set(reasons)].sort()), candidateAuthority: "PAPER_ONLY", automaticPromotion: false, evidenceHash: researchHardeningHash(evidence) });
@@ -71,7 +86,13 @@ export class ResearchCandidateGate {
       if (item.productionMutationAllowed !== false || item.promotionAllowed !== false) reasons.push("AUTHORITY_VIOLATION");
       if (item.champion == null || item.challenger == null) { reasons.push("MISSING_EVALUATION_SIDE"); continue; }
       if (item.champion.authority !== "PAPER_ONLY" || item.challenger.authority !== "ZERO_AUTHORITY") reasons.push("UNKNOWN_AUTHORITY_STATE");
-      if (item.provenance != null && !provenance.some((value) => value.evaluationId === item.evaluationId && value.canonicalInputHash === item.canonicalInputHash)) reasons.push("PROVENANCE_EVIDENCE_MISMATCH");
+      if (item.provenance == null) {
+        reasons.push("MISSING_EVIDENCE_PROVENANCE");
+      } else if (!provenance.some((value) => sameEvidenceProvenance(value, item.provenance!))) {
+        reasons.push("PROVENANCE_EVIDENCE_MISMATCH");
+      }
+      if (!validTimestamp(item.evaluationTimestamp)) reasons.push("INVALID_EVALUATION_TIMESTAMP");
+      else if (item.evaluationTimestamp > this.options.nowMs) reasons.push("FUTURE_EVALUATION_TIMESTAMP");
       for (const metric of metrics) if (!finite(item.champion.metrics[metric]) || !finite(item.challenger.metrics[metric])) reasons.push(`MISSING_METRIC_${metric.toUpperCase()}`);
       if (item.challenger.metrics.unresolvedFaultCount > 0) reasons.push("UNRESOLVED_FAULT");
       if (item.challenger.metrics.dataQualityFailures > 0) reasons.push("DATA_QUALITY_FAILURE");
@@ -84,7 +105,7 @@ export class ResearchCandidateGate {
       if (!finite(item.challenger.metrics.statisticalConfidence) || item.challenger.metrics.statisticalConfidence < 0.95) reasons.push("STATISTICAL_CONFIDENCE_NOT_MET");
       if (!finite(item.challenger.metrics.superiorityMargin) || item.challenger.metrics.superiorityMargin < this.options.minimumSuperiorityMargin) reasons.push("SUPERIORITY_MARGIN_NOT_MET");
       if (item.result !== "CHALLENGER_BETTER") reasons.push("CHALLENGER_NOT_SUPERIOR");
-      if (this.options.nowMs - item.evaluationTimestamp > this.options.maxEvidenceAgeMs) reasons.push("STALE_EVIDENCE");
+      if (validTimestamp(item.evaluationTimestamp) && item.evaluationTimestamp <= this.options.nowMs && this.options.nowMs - item.evaluationTimestamp > this.options.maxEvidenceAgeMs) reasons.push("STALE_EVIDENCE");
     }
     if (holdouts.some((item) => item.finalHoldoutUntouched !== true)) reasons.push("FINAL_HOLDOUT_NOT_UNTOUCHED");
     const distinctInputs = new Set(evidence.map((item) => item.canonicalInputHash));
