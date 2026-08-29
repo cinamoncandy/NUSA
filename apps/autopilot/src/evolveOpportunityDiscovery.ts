@@ -35,8 +35,16 @@ const MAX_RISK = 0.8;
 const MAX_SIGNAL_AGE_MS = 60 * 60 * 1_000;
 const MAX_FUTURE_SKEW_MS = 5 * 60 * 1_000;
 
-function assertScore(value: number): void {
-  if (!Number.isFinite(value) || value < 0 || value > 1) {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function rejectionId(value: unknown, index: number): string {
+  return isRecord(value) && typeof value.id === "string" ? value.id : `invalid:${index}`;
+}
+
+function assertScore(value: unknown): asserts value is number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) {
     throw new Error("DISCOVERY_SCORE_INVALID");
   }
 }
@@ -50,6 +58,8 @@ export function discoverEvolutionOpportunities(
   signals: readonly EvolutionDiscoverySignal[],
   now: Date = new Date(),
 ): EvolutionDiscoveryResult {
+  if (!Array.isArray(signals)) throw new Error("DISCOVERY_SIGNALS_INVALID");
+  if (!(now instanceof Date)) throw new Error("DISCOVERY_CLOCK_INVALID");
   const opportunities: EvolutionOpportunity[] = [];
   const rejectedSignalIds: string[] = [];
   const seen = new Set<string>();
@@ -59,11 +69,18 @@ export function discoverEvolutionOpportunities(
     throw new Error("DISCOVERY_CLOCK_INVALID");
   }
 
-  for (const signal of signals.slice(0, MAX_SIGNALS)) {
-    if (seen.has(signal.id)) continue;
-    seen.add(signal.id);
+  for (const [index, rawSignal] of signals.slice(0, MAX_SIGNALS).entries()) {
+    const id = rejectionId(rawSignal, index);
 
     try {
+      if (!isRecord(rawSignal)) throw new Error("DISCOVERY_SIGNAL_INVALID");
+      if (typeof rawSignal.id !== "string") throw new Error("DISCOVERY_TEXT_INVALID");
+      if (seen.has(rawSignal.id)) continue;
+      seen.add(rawSignal.id);
+      if (typeof rawSignal.source !== "string" || typeof rawSignal.reference !== "string" || typeof rawSignal.problem !== "string" || typeof rawSignal.observedAt !== "string") {
+        throw new Error("DISCOVERY_TEXT_INVALID");
+      }
+      const signal = rawSignal as unknown as EvolutionDiscoverySignal;
       const observedAtMs = Date.parse(signal.observedAt);
       if (!Number.isFinite(observedAtMs)) throw new Error("DISCOVERY_TIMESTAMP_INVALID");
       if (nowMs - observedAtMs > MAX_SIGNAL_AGE_MS) throw new Error("DISCOVERY_EVIDENCE_STALE");
@@ -98,7 +115,7 @@ export function discoverEvolutionOpportunities(
         createdAt: signal.observedAt,
       }));
     } catch {
-      rejectedSignalIds.push(signal.id);
+      rejectedSignalIds.push(id);
     }
   }
 

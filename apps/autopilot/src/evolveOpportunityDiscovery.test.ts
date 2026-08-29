@@ -74,4 +74,26 @@ describe("discoverEvolutionOpportunities", () => {
     assert.equal(discoverEvolutionOpportunities([duplicate, duplicate], NOW).opportunities.length, 1);
     assert.equal(discoverEvolutionOpportunities(many, NOW).opportunities.length, 64);
   });
+
+  it("rejects malformed signal envelopes without throwing or leaking unsafe identifiers", () => {
+    const result = discoverEvolutionOpportunities([
+      null,
+      { id: 42 },
+      { id: "bad-source", source: null },
+      signal({ id: "valid" }),
+    ] as never, NOW);
+    assert.equal(result.opportunities.length, 1);
+    assert.deepEqual(result.rejectedSignalIds, ["invalid:0", "invalid:1", "bad-source"]);
+    assert.deepEqual(result.authority, {
+      liveAuthority: "NONE",
+      productionMutationAllowed: false,
+      aiAuthority: "ZERO_AUTHORITY",
+    });
+  });
+
+  it("rejects malformed discovery envelopes at the boundary", () => {
+    assert.throws(() => discoverEvolutionOpportunities(null as never, NOW), /DISCOVERY_SIGNALS_INVALID/);
+    assert.throws(() => discoverEvolutionOpportunities([], "2026-08-29T06:00:00.000Z" as never), /DISCOVERY_CLOCK_INVALID/);
+    assert.throws(() => discoverEvolutionOpportunities([], new Date("invalid")), /DISCOVERY_CLOCK_INVALID/);
+  });
 });
