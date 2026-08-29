@@ -1,5 +1,6 @@
 import { canonicalResearchJson, type ResearchComparisonEvidence } from "../../../packages/contracts/src/researchRuntime";
-import { researchHardeningHash, validateResearchProvenance, validateResearchTemporalIntegrity, type ResearchCandidateGateDecision, type ResearchProvenance } from "../../../packages/contracts/src/researchHardening";
+import { researchHardeningHash, validateResearchProvenance, validateResearchTemporalIntegrity, type ResearchCandidateGateDecision, type ResearchCostEvidence, type ResearchProvenance } from "../../../packages/contracts/src/researchHardening";
+import { validateResearchCostEvidence } from "./researchCostEvidence";
 
 export interface ResearchCandidateGateOptions {
   readonly minimumObservationDays?: number;
@@ -23,6 +24,10 @@ export interface ResearchCandidateGateInput {
 const metrics = ["netReturn", "costAdjustedReturn", "maximumDrawdown", "sharpeRatio", "executionQuality", "unresolvedFaultCount", "dataQualityFailures", "tradeCount"] as const;
 const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 const validTimestamp = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+
+export function deriveResearchCandidateId(sessionId: string, strategyId: string, strategyVersion: string): string {
+  return `candidate-${researchHardeningHash({ sessionId, strategyId, strategyVersion }).slice(0, 48)}`;
+}
 
 function sameEvidenceProvenance(left: ResearchProvenance, right: ResearchProvenance): boolean {
   return left.researchRunId === right.researchRunId
@@ -97,6 +102,21 @@ export class ResearchCandidateGate {
       if (item.productionMutationAllowed !== false || item.promotionAllowed !== false) reasons.push("AUTHORITY_VIOLATION");
       if (item.champion == null || item.challenger == null) { reasons.push("MISSING_EVALUATION_SIDE"); continue; }
       if (item.champion.authority !== "PAPER_ONLY" || item.challenger.authority !== "ZERO_AUTHORITY") reasons.push("UNKNOWN_AUTHORITY_STATE");
+      if (item.costEvidence == null) {
+        reasons.push("MISSING_COST_EVIDENCE");
+      } else {
+        const costDecision = validateResearchCostEvidence(item.costEvidence, item.evaluationTimestamp);
+        reasons.push(...costDecision.reasons.map((value) => `COST_EVIDENCE_${value}`));
+        if (item.costEvidence.evaluationId !== item.evaluationId) reasons.push("COST_EVIDENCE_EVALUATION_MISMATCH");
+        if (item.provenance != null && (
+          item.costEvidence.datasetId !== item.provenance.datasetId
+          || item.costEvidence.datasetContentSha256 !== item.provenance.datasetContentSha256
+        )) reasons.push("COST_EVIDENCE_PROVENANCE_MISMATCH");
+        if (finite(item.costEvidence.netReturn) && finite(item.challenger.metrics.costAdjustedReturn)
+          && Math.abs(item.costEvidence.netReturn - item.challenger.metrics.costAdjustedReturn) > 1e-12) {
+          reasons.push("COST_EVIDENCE_RETURN_MISMATCH");
+        }
+      }
       if (item.provenance == null) {
         reasons.push("MISSING_EVIDENCE_PROVENANCE");
       } else if (!provenance.some((value) => sameEvidenceProvenance(value, item.provenance!))) {
