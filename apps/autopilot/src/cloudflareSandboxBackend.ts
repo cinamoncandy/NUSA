@@ -3,6 +3,7 @@ import { assertSafeCodingEnvelope, type CodingBackend, type CodingBackendCheckpo
 import type { CodingExecutionEnvelope } from "./codingExecutionEnvelope";
 
 type SandboxNamespace = Parameters<typeof getSandbox>[0];
+type SandboxCommand = Parameters<ReturnType<typeof getSandbox>["exec"]>[0];
 
 interface WorkspaceRef {
   readonly sandboxId: string;
@@ -34,6 +35,11 @@ function assertRelativePath(path: string): void {
   if (!path || path.startsWith("/") || path.split("/").includes("..")) throw new Error("INVALID_SANDBOX_PATH");
 }
 
+function asSandboxCommand(argv: readonly string[]): SandboxCommand {
+  if (argv.length === 0) throw new Error("SANDBOX_EXEC_ARGV_REQUIRED");
+  return [argv[0]!, ...argv.slice(1)] as SandboxCommand;
+}
+
 export class CloudflareSandboxBackend implements CodingBackend {
   readonly name = BACKEND_NAME;
 
@@ -61,7 +67,9 @@ export class CloudflareSandboxBackend implements CodingBackend {
   async read(workspaceId: string, path: string): Promise<string> {
     assertRelativePath(path);
     const ref = decodeWorkspace(workspaceId);
-    return getSandbox(this.namespace, ref.sandboxId).readFile(`${ref.root}/${path}`);
+    const file = await getSandbox(this.namespace, ref.sandboxId).readFile(`${ref.root}/${path}`, { encoding: "utf-8" });
+    if (typeof file.content !== "string") throw new Error("SANDBOX_READ_TEXT_REQUIRED");
+    return file.content;
   }
 
   async write(workspaceId: string, path: string, content: string): Promise<void> {
@@ -71,9 +79,8 @@ export class CloudflareSandboxBackend implements CodingBackend {
   }
 
   async exec(workspaceId: string, argv: readonly string[]): Promise<CodingBackendCommandResult> {
-    if (argv.length === 0) throw new Error("SANDBOX_EXEC_ARGV_REQUIRED");
     const ref = decodeWorkspace(workspaceId);
-    const process = await getSandbox(this.namespace, ref.sandboxId).exec([...argv], { cwd: ref.root });
+    const process = await getSandbox(this.namespace, ref.sandboxId).exec(asSandboxCommand(argv), { cwd: ref.root });
     const result = await process.output({ encoding: "utf8" });
     return { exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr };
   }
