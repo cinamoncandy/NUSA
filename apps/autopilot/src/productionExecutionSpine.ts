@@ -83,7 +83,7 @@ export function prepareProductionExecution(
     aiAuthority: "ZERO_AUTHORITY",
   }, options.allowedRepository);
 
-  state = transitionExecution(state, "CODEX_DISPATCHED");
+  state = transitionExecution(state, "CODING_DISPATCHED");
   const runner = toCodingRunnerRequest(envelope);
   const request: AutopilotExecutionRequest = Object.freeze({
     kind: runner.kind,
