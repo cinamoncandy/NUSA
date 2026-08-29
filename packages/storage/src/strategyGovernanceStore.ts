@@ -22,6 +22,14 @@ export class SqliteStrategyGovernanceStore {
     });
   }
 
+  hasCommand(commandId: string, fingerprint: string): boolean {
+    if (!commandId.trim() || !fingerprint.trim()) throw new Error("governance command is invalid");
+    const existing = this.db.connection.prepare("SELECT fingerprint FROM strategy_governance_commands WHERE command_id=?").get(commandId) as { fingerprint: string } | undefined;
+    if (!existing) return false;
+    if (existing.fingerprint !== fingerprint) throw new Error("governance command conflict");
+    return true;
+  }
+
   append(strategy: RegisteredStrategy, event: StrategyGovernanceEvent): void {
     this.db.transaction(() => {
       const records = this.listEvents();

@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   evaluateStrategyContainment,
+  fingerprintStrategyContainmentDecision,
 } = require("../dist/apps/cloud/src/strategyRollbackEngine.js");
 const { StrategyGovernanceService } = require("../dist/apps/cloud/src/strategyGovernanceService.js");
 const { SqliteDatabase } = require("../dist/packages/storage/src/index.js");
@@ -136,5 +137,131 @@ test("governance service evaluates containment without appending events or chang
   assert.equal(store.listEvents().length, beforeEvents);
   assert.deepEqual(store.listStrategies()[0], before);
   store.verify();
+  db.close();
+});
+
+test("human-approved containment applies one evidence-bound lifecycle event and survives replay", () => {
+  const db = new SqliteDatabase(":memory:");
+  const store = new SqliteStrategyGovernanceStore(db);
+  const service = new StrategyGovernanceService(store);
+  const identity = {
+    strategyId: "strategy-1",
+    version: "1.0.0",
+    name: "Strategy 1",
+    createdAt: 1,
+    gitCommitSha: "b".repeat(40),
+    featureFingerprint: "c".repeat(64),
+    engineVersion: "1",
+    authorType: "HUMAN",
+  };
+  service.register("register-apply-containment", identity, 1);
+  const decision = service.evaluateContainment(input({
+    currentLifecycle: "DRAFT",
+    rollback: rollback({ previousChampionVersion: undefined, unresolvedFaultCount: 1 }),
+  }));
+  assert.equal(decision.action, "SUSPEND");
+  const approval = {
+    actorType: "HUMAN",
+    approvalReference: "owner:containment:1",
+    approvedAt: 101,
+    decisionFingerprint: fingerprintStrategyContainmentDecision(decision),
+  };
+  service.applyContainmentDecision("apply-containment-1", decision, approval, "family-1");
+  assert.equal(store.listStrategies()[0].lifecycle, "SUSPENDED");
+  assert.equal(store.listEvents().length, 2);
+  assert.deepEqual(store.listEvents().at(-1).event.approval, approval);
+
+  const restarted = new StrategyGovernanceService(store);
+  restarted.restorePersistedState();
+  restarted.applyContainmentDecision("apply-containment-1", decision, approval, "family-1");
+  assert.equal(store.listEvents().length, 2);
+  store.verify();
+  db.close();
+});
+
+test("containment approval rejects mismatched, non-human, and stale decisions without mutation", () => {
+  const db = new SqliteDatabase(":memory:");
+  const store = new SqliteStrategyGovernanceStore(db);
+  const service = new StrategyGovernanceService(store);
+  const identity = {
+    strategyId: "strategy-1",
+    version: "1.0.0",
+    name: "Strategy 1",
+    createdAt: 1,
+    gitCommitSha: "b".repeat(40),
+    featureFingerprint: "c".repeat(64),
+    engineVersion: "1",
+    authorType: "HUMAN",
+  };
+  service.register("register-reject-containment", identity, 1);
+  const decision = service.evaluateContainment(input({
+    currentLifecycle: "DRAFT",
+    rollback: rollback({ previousChampionVersion: undefined, unresolvedFaultCount: 1 }),
+  }));
+  const approval = {
+    actorType: "HUMAN",
+    approvalReference: "owner:containment:2",
+    approvedAt: 101,
+    decisionFingerprint: fingerprintStrategyContainmentDecision(decision),
+  };
+  assert.throws(() => service.applyContainmentDecision("bad-fingerprint", decision, { ...approval, decisionFingerprint: "0".repeat(64) }), /APPROVAL_MISMATCH/);
+  assert.throws(() => service.applyContainmentDecision("bad-actor", decision, { ...approval, actorType: "AI" }), /APPROVAL_INVALID/);
+  assert.equal(store.listEvents().length, 1);
+  service.applyContainmentDecision("apply-containment-2", decision, approval);
+  assert.throws(() => service.applyContainmentDecision("stale-containment", decision, approval), /STALE/);
+  const hold = service.evaluateContainment(input({ currentLifecycle: "SUSPENDED", rollback: rollback({ previousChampionVersion: undefined }) }));
+  assert.equal(hold.action, "HOLD");
+  assert.throws(() => service.applyContainmentDecision("hold-containment", hold, approval), /NO_ACTION/);
+  assert.equal(store.listEvents().length, 2);
+  store.verify();
+  db.close();
+});
+
+test("public governance transition cannot bypass human-approved containment", () => {
+  const db = new SqliteDatabase(":memory:");
+  const store = new SqliteStrategyGovernanceStore(db);
+  const service = new StrategyGovernanceService(store);
+  const identity = {
+    strategyId: "strategy-1",
+    version: "1.0.0",
+    name: "Strategy 1",
+    createdAt: 1,
+    gitCommitSha: "b".repeat(40),
+    featureFingerprint: "c".repeat(64),
+    engineVersion: "1",
+    authorType: "HUMAN",
+  };
+  service.register("register-transition-guard", identity, 1);
+  assert.throws(
+    () => service.transition("bypass-containment", identity.strategyId, identity.version, "STRATEGY_SUSPENDED", "SUSPENDED", "family-1", 101, "containment:UNRESOLVED_FAULT"),
+    /STRATEGY_CONTAINMENT_APPROVAL_REQUIRED/,
+  );
+  assert.equal(store.listStrategies()[0].lifecycle, "DRAFT");
+  assert.equal(store.listEvents().length, 1);
+  db.close();
+});
+
+test("approval metadata is part of the governance integrity chain", () => {
+  const db = new SqliteDatabase(":memory:");
+  const store = new SqliteStrategyGovernanceStore(db);
+  const service = new StrategyGovernanceService(store);
+  const identity = {
+    strategyId: "strategy-1",
+    version: "1.0.0",
+    name: "Strategy 1",
+    createdAt: 1,
+    gitCommitSha: "b".repeat(40),
+    featureFingerprint: "c".repeat(64),
+    engineVersion: "1",
+    authorType: "HUMAN",
+  };
+  service.register("register-integrity-containment", identity, 1);
+  const decision = service.evaluateContainment(input({ currentLifecycle: "DRAFT", rollback: rollback({ previousChampionVersion: undefined, unresolvedFaultCount: 1 }) }));
+  const approval = { actorType: "HUMAN", approvalReference: "owner:containment:3", approvedAt: 101, decisionFingerprint: fingerprintStrategyContainmentDecision(decision) };
+  service.applyContainmentDecision("apply-integrity-containment", decision, approval);
+  const records = store.listEvents();
+  const last = records.at(-1);
+  db.connection.prepare("UPDATE strategy_governance_events SET event_json=? WHERE sequence=?").run(JSON.stringify({ ...last.event, approval: { ...last.event.approval, approvalReference: "owner:tampered" } }), last.sequence);
+  assert.throws(() => store.verify(), /integrity/);
   db.close();
 });
