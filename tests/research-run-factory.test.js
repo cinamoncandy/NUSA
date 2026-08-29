@@ -83,7 +83,7 @@ test("builds a deterministic, immutable hypothesis-to-candidate provenance plan"
   assert.ok(Object.isFrozen(first.candidates[0].specification));
   assert.deepEqual(Object.keys(first.candidates[0].parameters), ["longPeriod", "shortPeriod"]);
   assert.equal(first.candidates[0].specification.datasetId, first.dataset.datasetId);
-  assert.equal(first.candidates[0].specification.generatedAt, first.candidates[0].specification.evaluationStartedAt.replace(/\\+2$/, ""));
+  assert.equal(first.candidates[0].specification.generatedAt, new Date(SNAPSHOT + 1).toISOString());
 });
 
 test("binds every candidate to the precommitted hypothesis and one dataset", () => {
