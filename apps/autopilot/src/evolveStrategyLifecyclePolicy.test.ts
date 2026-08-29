@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   decideStrategyCalibrationContainment,
+  validateStrategyLifecycleState,
   type StrategyCalibrationContainmentInput,
   type StrategyLifecycleState,
 } from "./evolveStrategyLifecyclePolicy";
@@ -115,4 +116,15 @@ test("never grants live, production mutation or AI authority", () => {
     aiAuthority: "ZERO_AUTHORITY",
   });
   assert.equal(Object.isFrozen(result), true);
+});
+
+test("rejects unknown lifecycle states at the runtime boundary", () => {
+  assert.throws(
+    () => validateStrategyLifecycleState("PROMOTED_BY_AI"),
+    /STRATEGY_LIFECYCLE_STATE_INVALID/,
+  );
+  assert.throws(
+    () => decideStrategyCalibrationContainment({ currentState: "PROMOTED_BY_AI" as StrategyLifecycleState }),
+    /STRATEGY_LIFECYCLE_STATE_INVALID/,
+  );
 });
