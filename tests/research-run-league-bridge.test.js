@@ -76,11 +76,11 @@ function experiment(overrides = {}) {
   };
 }
 
-const candidate = (id, familyId, overrides = {}) => ({
-  id,
-  familyId,
-  experiment: experiment({ datasetId: `ds-${id}`, ...overrides })
-});
+const candidate = (id, familyId, overrides = {}) => {
+  const result = experiment({ datasetId: `ds-${id}`, ...overrides });
+  result.experimentConfig.candidates = [{ id }];
+  return { id, familyId, experiment: result };
+};
 
 
 function regimeEvaluation(datasetId, overrides = {}) {
