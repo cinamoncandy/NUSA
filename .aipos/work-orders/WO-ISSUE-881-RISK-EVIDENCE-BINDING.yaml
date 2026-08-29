@@ -68,4 +68,3 @@ known_limitations:
   - "This slice only binds existing portfolio risk evidence to the advisory; it does not create longitudinal PAPER performance evidence or actual capital execution."
   - "Issue #881 broader acceptance remains open for correlation, concentration, cost, performance, and runtime evidence integration beyond this consumer binding."
 next: "Publish this focused consumer binding, validate exact-head gates, and keep remaining Issue #881 evidence gaps fail-closed."
-
