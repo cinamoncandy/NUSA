@@ -16,7 +16,8 @@ concurrency:
 
 jobs:
   consume:
-    if: ${{ github.event.client_payload.kind == 'REPOSITORY_AUTOPILOT' }}
+    # A repository_dispatch can arrive after main advances; stale requests are intentionally skipped.
+    if: ${{ github.event.client_payload.kind == 'REPOSITORY_AUTOPILOT' && github.event.client_payload.head_sha == github.sha }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
