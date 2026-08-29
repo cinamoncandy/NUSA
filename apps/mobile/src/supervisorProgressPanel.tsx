@@ -47,10 +47,10 @@ export function SupervisorProgressPanel({ refreshing }: Readonly<{ refreshing: b
   if (state.status !== "READY") {
     return <View style={[styles.panel, { borderColor: theme.colors.border }]} testID="home-supervisor-progress-unavailable">
       <View style={styles.header}>
-        <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>PROGRESS</Text>
+        <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>SUPERVISOR PROGRESS</Text>
         <Text style={[styles.authority, { color: theme.colors.textMuted }]}>READ ONLY</Text>
       </View>
-      <Text style={[styles.unavailable, { color: theme.colors.textMuted }]}>검증된 운영 진척도 없음</Text>
+      <Text style={[styles.attentionValue, { color: theme.colors.textMuted }]}>검증된 운영 진척도 없음</Text>
       <Text style={[styles.meta, { color: theme.colors.textMuted }]}>{state.reason}</Text>
     </View>;
   }
@@ -58,27 +58,32 @@ export function SupervisorProgressPanel({ refreshing }: Readonly<{ refreshing: b
   const { snapshot } = state;
   const blockerCount = snapshot.blockers.length + snapshot.blockedCriteria.length;
   const primaryBlocker = snapshot.blockers[0] ?? snapshot.blockedCriteria[0] ?? null;
-  const progressColor = blockerCount > 0 ? theme.colors.aiSignalEnd : theme.colors.text;
+  const needsAttention = blockerCount > 0;
+  const attentionColor = needsAttention ? theme.colors.aiSignalEnd : theme.colors.textMuted;
 
-  return <View style={[styles.panel, { borderColor: blockerCount > 0 ? theme.colors.aiSignalEnd : theme.colors.borderStrong }]} testID="home-supervisor-progress">
+  return <View style={[styles.panel, { borderColor: needsAttention ? theme.colors.aiSignalEnd : theme.colors.borderStrong }]} testID="home-supervisor-progress">
     <View style={styles.header}>
-      <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>PROGRESS</Text>
+      <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>SUPERVISOR PROGRESS</Text>
       <Text style={[styles.authority, { color: theme.colors.textMuted }]}>OPERATIONAL EVIDENCE · READ ONLY</Text>
     </View>
-    <View style={styles.progressRail}>
-      <View>
-        <Text style={[styles.level, { color: theme.colors.text }]} testID="home-supervisor-progress-level">LEVEL {snapshot.level}</Text>
-        <Text style={[styles.progressValue, { color: progressColor }]} testID="home-supervisor-progress-ratio">{percent(snapshot.overallProgressRatio)}</Text>
+
+    <View style={[styles.attention, { borderTopColor: theme.colors.border }]} testID="home-supervisor-progress-attention">
+      <View style={styles.attentionHeader}>
+        <Text style={[styles.attentionLabel, { color: attentionColor }]}>{needsAttention ? "ATTENTION" : "CLEAR"}</Text>
+        <Text style={[styles.blockedCount, { color: attentionColor }]}>{needsAttention ? `${blockerCount} BLOCKED` : "0 BLOCKED"}</Text>
       </View>
-      <View style={styles.counts}>
-        <Text style={[styles.count, { color: theme.colors.textMuted }]}>ACHIEVED {snapshot.achievedCriteria.length}</Text>
-        <Text style={[styles.count, { color: blockerCount > 0 ? theme.colors.aiSignalEnd : theme.colors.textMuted }]}>BLOCKED {blockerCount}</Text>
-      </View>
+      <Text style={[styles.attentionValue, { color: theme.colors.text }]}>{primaryBlocker ?? "현재 canonical blocker 없음"}</Text>
     </View>
 
-    <View style={[styles.blocker, { borderTopColor: theme.colors.border }]} testID="home-supervisor-progress-blocker">
-      <Text style={[styles.blockerLabel, { color: blockerCount > 0 ? theme.colors.aiSignalEnd : theme.colors.textMuted }]}>BLOCKER</Text>
-      <Text style={[styles.blockerValue, { color: theme.colors.text }]}>{primaryBlocker ?? "현재 canonical blocker 없음"}</Text>
+    <View style={[styles.progressRail, { borderTopColor: theme.colors.border }]}>
+      <View>
+        <Text style={[styles.level, { color: theme.colors.textMuted }]} testID="home-supervisor-progress-level">LEVEL {snapshot.level}</Text>
+        <Text style={[styles.progressValue, { color: theme.colors.text }]} testID="home-supervisor-progress-ratio">{percent(snapshot.overallProgressRatio)}</Text>
+      </View>
+      <View style={styles.counts}>
+        <Text style={[styles.count, { color: theme.colors.textMuted }]}>CANONICAL PROGRESS</Text>
+        <Text style={[styles.count, { color: theme.colors.textMuted }]}>ACHIEVED {snapshot.achievedCriteria.length}</Text>
+      </View>
     </View>
 
     <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={() => setExpanded((value) => !value)} style={({ pressed }) => [styles.toggle, { borderTopColor: theme.colors.border, opacity: pressed ? theme.interaction.pressedOpacity : 1 }]} testID="home-supervisor-progress-toggle">
@@ -100,15 +105,16 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
   kicker: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 1.5 },
   authority: { fontSize: 8, lineHeight: 11, fontWeight: "800", letterSpacing: 1 },
-  unavailable: { fontSize: 14, lineHeight: 20, fontWeight: "800" },
-  progressRail: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 16 },
-  level: { fontSize: 10, lineHeight: 14, fontWeight: "900", letterSpacing: 1.2 },
-  progressValue: { marginTop: 2, fontSize: 34, lineHeight: 38, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  attention: { borderTopWidth: 1, paddingTop: 10, gap: 5 },
+  attentionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  attentionLabel: { fontSize: 10, lineHeight: 13, fontWeight: "900", letterSpacing: 1.3 },
+  blockedCount: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 1 },
+  attentionValue: { fontSize: 14, lineHeight: 20, fontWeight: "800" },
+  progressRail: { borderTopWidth: 1, paddingTop: 10, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 16 },
+  level: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.1 },
+  progressValue: { marginTop: 2, fontSize: 30, lineHeight: 34, fontWeight: "900", fontVariant: ["tabular-nums"] },
   counts: { alignItems: "flex-end", gap: 4 },
   count: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 1 },
-  blocker: { borderTopWidth: 1, paddingTop: 10, gap: 4 },
-  blockerLabel: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 1.2 },
-  blockerValue: { fontSize: 12, lineHeight: 18, fontWeight: "800" },
   toggle: { minHeight: 40, borderTopWidth: 1, paddingTop: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   toggleLabel: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 1 },
   evidence: { borderTopWidth: 1, paddingTop: 10, gap: 8 },

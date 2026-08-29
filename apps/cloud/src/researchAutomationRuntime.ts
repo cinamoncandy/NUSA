@@ -105,7 +105,7 @@ export class ResearchAutomationRuntime {
   public constructor(private readonly options: ResearchAutomationOptions) {
     this.now = options.now ?? (() => Date.now());
     this.maxEvidenceAgeMs = options.maxEvidenceAgeMs ?? 86_400_000;
-    this.candidateGate = options.candidateGate ?? new ResearchCandidateGate({ nowMs: this.now() });
+    this.candidateGate = options.candidateGate ?? new ResearchCandidateGate({ nowMs: this.now(), clock: this.now });
     this.streamNormalizer = options.streamNormalizer ?? new ResearchStreamNormalizer();
   }
 

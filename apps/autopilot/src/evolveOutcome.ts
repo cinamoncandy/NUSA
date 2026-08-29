@@ -32,11 +32,14 @@ export function evaluateEvolutionOutcome(input: {
   trustedEvidenceReferences: readonly string[];
   observedAt?: string;
 }): EvolutionOutcomeRecord {
-  if (!input.opportunityId.trim()) throw new Error("EVOLVE_OUTCOME_OPPORTUNITY_REQUIRED");
+  if (typeof input.opportunityId !== "string" || !input.opportunityId.trim()) throw new Error("EVOLVE_OUTCOME_OPPORTUNITY_REQUIRED");
   if (!Number.isFinite(input.expectedMetric) || !Number.isFinite(input.actualMetric)) {
     throw new Error("EVOLVE_OUTCOME_METRIC_INVALID");
   }
-  if (input.evidence.length === 0) throw new Error("EVOLVE_OUTCOME_EVIDENCE_REQUIRED");
+  if (!Array.isArray(input.evidence) || input.evidence.length === 0) throw new Error("EVOLVE_OUTCOME_EVIDENCE_REQUIRED");
+  if (!input.evidence.every((value) => typeof value === "string")) throw new Error("EVOLVE_OUTCOME_EVIDENCE_INVALID");
+  if (!Array.isArray(input.trustedEvidenceReferences) || input.trustedEvidenceReferences.length === 0) throw new Error("EVOLVE_OUTCOME_TRUSTED_EVIDENCE_REQUIRED");
+  if (!input.trustedEvidenceReferences.every((value) => typeof value === "string")) throw new Error("EVOLVE_OUTCOME_EVIDENCE_INVALID");
   const trustedEvidence = new Set(input.trustedEvidenceReferences.map(normalizeEvidenceReference));
   if (trustedEvidence.size === 0) throw new Error("EVOLVE_OUTCOME_TRUSTED_EVIDENCE_REQUIRED");
   const evidence = input.evidence.map(normalizeEvidenceReference);
