@@ -28,6 +28,13 @@ export function evaluateEvolutionOutcome(input: {
     throw new Error("EVOLVE_OUTCOME_METRIC_INVALID");
   }
   if (input.evidence.length === 0) throw new Error("EVOLVE_OUTCOME_EVIDENCE_REQUIRED");
+  const observedAt = input.observedAt;
+  if (typeof observedAt !== "string" || observedAt.trim().length === 0) {
+    throw new Error("EVOLVE_OUTCOME_OBSERVED_AT_REQUIRED");
+  }
+  if (!Number.isFinite(Date.parse(observedAt))) {
+    throw new Error("EVOLVE_OUTCOME_OBSERVED_AT_INVALID");
+  }
   const tolerance = input.tolerance ?? Math.max(Math.abs(input.expectedMetric) * 0.1, 0.000001);
   if (!Number.isFinite(tolerance) || tolerance < 0) throw new Error("EVOLVE_OUTCOME_TOLERANCE_INVALID");
   const delta = input.actualMetric - input.expectedMetric;
@@ -40,7 +47,7 @@ export function evaluateEvolutionOutcome(input: {
     expectedMetric: input.expectedMetric,
     actualMetric: input.actualMetric,
     outcome,
-    observedAt: input.observedAt ?? new Date().toISOString(),
+    observedAt,
     evidence: Object.freeze([...input.evidence]),
   });
 }
