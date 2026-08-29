@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import assert from "node:assert/strict";
+import test from "node:test";
 import {
   DurableEvolutionLearningMemory,
   type EvolutionLearningMemoryStorage,
@@ -33,36 +34,40 @@ const record = (index: number): EvolutionLearningRecord => ({
   recordedAt: "2026-08-29T04:20:00.000Z",
 });
 
-describe("DurableEvolutionLearningMemory", () => {
-  it("hydrates, appends, flushes, and rehydrates through injected storage", async () => {
-    const storage = new MemoryStorage();
-    const memory = await DurableEvolutionLearningMemory.hydrate(storage);
-    memory.append(record(1));
-    await memory.flush(storage);
+test("hydrates, appends, flushes, and rehydrates through injected storage", async () => {
+  const storage = new MemoryStorage();
+  const memory = await DurableEvolutionLearningMemory.hydrate(storage);
+  memory.append(record(1));
+  await memory.flush(storage);
 
-    const restored = await DurableEvolutionLearningMemory.hydrate(storage);
-    expect(restored.list()).toEqual([record(1)]);
-  });
+  const restored = await DurableEvolutionLearningMemory.hydrate(storage);
+  assert.deepEqual(restored.list(), [record(1)]);
+});
 
-  it("keeps only the newest 256 records", async () => {
-    const storage = new MemoryStorage();
-    const memory = await DurableEvolutionLearningMemory.hydrate(storage);
-    for (let index = 1; index <= 300; index += 1) memory.append(record(index));
-    expect(memory.list()).toHaveLength(256);
-    expect(memory.list()[0]?.changeReference).toBe("change:45");
-  });
+test("keeps only the newest 256 records", async () => {
+  const storage = new MemoryStorage();
+  const memory = await DurableEvolutionLearningMemory.hydrate(storage);
+  for (let index = 1; index <= 300; index += 1) memory.append(record(index));
+  assert.equal(memory.list().length, 256);
+  assert.equal(memory.list()[0]?.changeReference, "change:45");
+});
 
-  it("fails closed on malformed persisted state", async () => {
-    const storage = new MemoryStorage();
-    storage.value = [{ opportunityId: "partial" }];
-    await expect(DurableEvolutionLearningMemory.hydrate(storage)).rejects.toThrow("EVOLVE_DURABLE_MEMORY_INVALID");
-  });
+test("fails closed on malformed persisted state", async () => {
+  const storage = new MemoryStorage();
+  storage.value = [{ opportunityId: "partial" }];
+  await assert.rejects(
+    DurableEvolutionLearningMemory.hydrate(storage),
+    /EVOLVE_DURABLE_MEMORY_INVALID/,
+  );
+});
 
-  it("fails closed when persistence fails", async () => {
-    const storage = new MemoryStorage();
-    const memory = await DurableEvolutionLearningMemory.hydrate(storage);
-    memory.append(record(1));
-    storage.failPut = true;
-    await expect(memory.flush(storage)).rejects.toThrow("EVOLVE_DURABLE_MEMORY_PERSISTENCE_FAILED");
-  });
+test("fails closed when persistence fails", async () => {
+  const storage = new MemoryStorage();
+  const memory = await DurableEvolutionLearningMemory.hydrate(storage);
+  memory.append(record(1));
+  storage.failPut = true;
+  await assert.rejects(
+    memory.flush(storage),
+    /EVOLVE_DURABLE_MEMORY_PERSISTENCE_FAILED/,
+  );
 });
