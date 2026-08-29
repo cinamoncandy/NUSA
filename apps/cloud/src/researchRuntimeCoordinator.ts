@@ -163,6 +163,7 @@ function validateEvaluation(value: ResearchEvaluation, evaluator: { strategyId: 
 }
 
 function evidence(input: ResearchInputSnapshot, hash: string, result: ResearchComparisonResult, reasonText: string, champion: ResearchEvaluation | null, challenger: ResearchEvaluation | null): ResearchComparisonEvidence {
+  const costEvidence = projectCostEvidence(input.costEvidence);
   return freeze({
     schemaVersion: 1,
     researchRunId: input.researchRunId,
@@ -177,7 +178,7 @@ function evidence(input: ResearchInputSnapshot, hash: string, result: ResearchCo
     feeModelVersion: input.feeModelVersion,
     slippageModelVersion: input.slippageModelVersion,
     ...(input.provenance == null ? {} : { provenance: input.provenance }),
-    ...(projectCostEvidence(input.costEvidence) == null ? {} : { costEvidence: projectCostEvidence(input.costEvidence) }),
+    ...(costEvidence == null ? {} : { costEvidence }),
     champion,
     challenger,
     result,
