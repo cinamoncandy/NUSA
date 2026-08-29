@@ -108,7 +108,7 @@ test("rejects candidate experiment identity mismatches before ranking aggregate 
 
   assert.throws(
     () => buildResearchRunLeague([mismatched, candidate("other", "family-b")]),
-    (error) => error instanceof ResearchRunLeagueError
+    (error) => error instanceof ResearchRunLeagueBridgeError
       && error.code === "CANDIDATE_EXPERIMENT_IDENTITY_MISMATCH"
   );
 });
