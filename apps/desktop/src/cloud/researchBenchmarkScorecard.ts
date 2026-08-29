@@ -105,6 +105,28 @@ function scoreSlice(slice: ResearchBenchmarkSlice, policy: Required<ResearchBenc
   const manifest = slice.experiment.manifest;
   const oos = slice.experiment.walkForwardResult.combinedOutOfSampleMetrics;
   const churn = slice.experiment.walkForwardResult.stabilityDiagnostics.selectionChurnRatio;
+  if (oos.equalWeight == null || oos.sequentialCompounded == null) {
+    throw new Error("benchmark aggregate evidence is incomplete");
+  }
+  for (const [name, value] of [
+    ["totalReturn", oos.totalReturn],
+    ["averageBenchmarkReturn", oos.equalWeight.averageBenchmarkReturn],
+    ["averageOutperformance", oos.equalWeight.averageOutperformance],
+  ] as const) {
+    if (!Number.isFinite(value)) throw new Error(`${name} must be finite`);
+  }
+  for (const [name, value] of [
+    ["windowCount", oos.windowCount],
+    ["totalOosPoints", oos.totalOosPoints],
+    ["totalOosClosedTrades", oos.totalOosClosedTrades],
+  ] as const) {
+    if (!Number.isSafeInteger(value) || value < 0) {
+      throw new Error(`${name} must be a non-negative integer`);
+    }
+  }
+  if (!Number.isFinite(oos.sequentialCompounded.initialEquity) || oos.sequentialCompounded.initialEquity <= 0) {
+    throw new Error("initialEquity must be positive and finite");
+  }
   finiteNonNegative(oos.maximumDrawdown, "maximumDrawdown");
   finiteNonNegative(oos.turnover, "turnover");
   finiteNonNegative(oos.totalTradingCost, "totalTradingCost");
