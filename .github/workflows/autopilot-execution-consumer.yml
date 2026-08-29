@@ -5,8 +5,10 @@ on:
     types: [nusa_autopilot_execution]
 
 permissions:
-  contents: read
-  actions: read
+  contents: write
+  actions: write
+  pull-requests: write
+  models: read
 
 concurrency:
   group: autopilot-execution-${{ github.event.client_payload.dedupe_key }}
@@ -16,7 +18,7 @@ jobs:
   consume:
     if: ${{ github.event.client_payload.kind == 'REPOSITORY_AUTOPILOT' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Checkout exact requested SHA
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -45,17 +47,17 @@ jobs:
           if (payload.live_authority !== 'NONE') fail('live_authority must remain NONE');
           if (payload.production_mutation_allowed !== false) fail('production_mutation_allowed must remain false');
           if (payload.ai_authority !== 'ZERO_AUTHORITY') fail('ai_authority must remain ZERO_AUTHORITY');
-          console.log(`validated ${payload.repository}@${payload.head_sha}`);
-          console.log(`executionId=${payload.execution_id}`);
-          console.log(`dedupeKey=${payload.dedupe_key}`);
-          console.log('liveAuthority=NONE');
-          console.log('productionMutationAllowed=false');
-          console.log('AI authority=ZERO_AUTHORITY');
           NODE
 
-      - name: Verify checkout matches requested SHA
+      - name: Verify checkout and current main identity
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          test "$(git rev-parse HEAD)" = "${{ github.event.client_payload.head_sha }}"
+          set -euo pipefail
+          requested='${{ github.event.client_payload.head_sha }}'
+          test "$(git rev-parse HEAD)" = "$requested"
+          current="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          test "$current" = "$requested" || { echo "stale main: requested=$requested current=$current"; exit 1; }
 
       - name: Build coding runner request
         run: |
@@ -79,29 +81,31 @@ jobs:
           fs.writeFileSync('artifacts/autopilot-execution/coding-runner-request.json', JSON.stringify(request, null, 2));
           NODE
 
-      - name: Dispatch to external coding runner
+      - name: Select coding backend
+        id: backend
+        env:
+          NUSA_CODING_RUNNER_URL: ${{ secrets.NUSA_CODING_RUNNER_URL }}
+          NUSA_CODING_RUNNER_TOKEN: ${{ secrets.NUSA_CODING_RUNNER_TOKEN }}
+        run: |
+          if [ -n "${NUSA_CODING_RUNNER_URL:-}" ] && [ -n "${NUSA_CODING_RUNNER_TOKEN:-}" ]; then
+            echo 'mode=external' >> "$GITHUB_OUTPUT"
+          else
+            echo 'mode=github-models' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Dispatch to configured external coding runner
+        if: ${{ steps.backend.outputs.mode == 'external' }}
         env:
           NUSA_CODING_RUNNER_URL: ${{ secrets.NUSA_CODING_RUNNER_URL }}
           NUSA_CODING_RUNNER_TOKEN: ${{ secrets.NUSA_CODING_RUNNER_TOKEN }}
         run: |
           node - <<'NODE'
           const fs = require('fs');
-          const url = process.env.NUSA_CODING_RUNNER_URL?.trim();
-          const token = process.env.NUSA_CODING_RUNNER_TOKEN?.trim();
           const request = JSON.parse(fs.readFileSync('artifacts/autopilot-execution/coding-runner-request.json', 'utf8'));
-          if (!url || !token) {
-            fs.writeFileSync('artifacts/autopilot-execution/coding-runner-result.json', JSON.stringify({
-              status: 'INTERFACE_READY',
-              reason: 'external-coding-runner-not-configured',
-              request,
-            }, null, 2));
-            console.log('External coding runner is not configured; request persisted fail-closed.');
-            process.exit(0);
-          }
-          fetch(url, {
+          fetch(process.env.NUSA_CODING_RUNNER_URL, {
             method: 'POST',
             headers: {
-              'authorization': `Bearer ${token}`,
+              authorization: `Bearer ${process.env.NUSA_CODING_RUNNER_TOKEN}`,
               'content-type': 'application/json',
               'x-nusa-execution-id': request.executionId,
               'x-nusa-dedupe-key': request.dedupeKey,
@@ -109,27 +113,165 @@ jobs:
             body: JSON.stringify(request),
           }).then(async (response) => {
             const text = await response.text();
-            fs.writeFileSync('artifacts/autopilot-execution/coding-runner-result.json', JSON.stringify({
-              status: response.ok ? 'DISPATCHED' : 'DISPATCH_FAILED',
-              httpStatus: response.status,
-              response: text,
-              request,
-            }, null, 2));
+            fs.writeFileSync('artifacts/autopilot-execution/coding-runner-result.json', JSON.stringify({ status: response.ok ? 'DISPATCHED' : 'DISPATCH_FAILED', httpStatus: response.status, response: text, request }, null, 2));
             if (!response.ok) process.exit(1);
-          }).catch((error) => {
-            console.error(error);
-            process.exit(1);
-          });
+          }).catch((error) => { console.error(error); process.exit(1); });
           NODE
 
-      - name: Classify execution boundary
+      - name: Collect bounded failure context
+        if: ${{ steps.backend.outputs.mode == 'github-models' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           node - <<'NODE'
           const fs = require('fs');
-          const result = JSON.parse(fs.readFileSync('artifacts/autopilot-execution/coding-runner-result.json', 'utf8'));
+          const { execFileSync } = require('child_process');
+          const request = JSON.parse(fs.readFileSync('artifacts/autopilot-execution/coding-runner-request.json', 'utf8'));
+          const match = String(request.reason || '').match(/gha:[^:]+:([0-9a-f]{40}):(failure|cancelled|timed_out)/i);
+          if (!match) throw new Error('EVOLVE_FAILURE_REFERENCE_REQUIRED');
+          const failedSha = match[1].toLowerCase();
+          const token = process.env.GH_TOKEN;
+          const headers = { accept: 'application/vnd.github+json', authorization: `Bearer ${token}`, 'x-github-api-version': '2022-11-28' };
+          const api = async (url) => {
+            const r = await fetch(url, { headers });
+            if (!r.ok) throw new Error(`GITHUB_HTTP_${r.status}`);
+            return r.json();
+          };
+          (async () => {
+            const runs = await api(`https://api.github.com/repos/${request.repository}/actions/runs?branch=main&status=completed&per_page=100`);
+            const failed = (runs.workflow_runs || []).find((run) => String(run.head_sha).toLowerCase() === failedSha && ['failure','cancelled','timed_out'].includes(run.conclusion) && run.event !== 'repository_dispatch');
+            if (!failed) throw new Error('FAILED_WORKFLOW_EVIDENCE_NOT_FOUND');
+            const jobs = await api(failed.jobs_url);
+            let logs = '';
+            for (const job of (jobs.jobs || []).filter((job) => job.conclusion && job.conclusion !== 'success').slice(0, 3)) {
+              const r = await fetch(`https://api.github.com/repos/${request.repository}/actions/jobs/${job.id}/logs`, { headers });
+              if (r.ok) logs += `\n===== ${job.name} =====\n${(await r.text()).slice(-12000)}`;
+            }
+            const files = execFileSync('bash', ['-lc', "find apps/autopilot/src -maxdepth 1 -type f -name '*.ts' -printf '%p\\n' | sort | head -120"], { encoding: 'utf8' });
+            const prompt = [
+              'You are a bounded repository repair engine. Produce ONE minimal unified diff that fixes the concrete failure evidence.',
+              'Return JSON only with keys summary and patch. patch must be a git-compatible unified diff.',
+              'Hard constraints: modify at most 3 existing or new .ts files under apps/autopilot/src only.',
+              'Do not modify index.ts, workflows, wrangler config, package files, secrets, credentials, broker/live/order/withdraw/transfer surfaces, or authority constants.',
+              'Do not add dependencies. Do not weaken tests, safety checks, validation, dedupe, leases, exact-head verification, or fail-closed behavior.',
+              'If no safe fix is possible, return {"summary":"ABSTAIN","patch":""}.',
+              `Requested head: ${request.headSha}`,
+              `Failure reason: ${request.reason}`,
+              `Failed workflow run: ${failed.id} ${failed.name} ${failed.conclusion} ${failedSha}`,
+              `Available autopilot files:\n${files}`,
+              `Failure logs:\n${logs.slice(-24000)}`,
+            ].join('\n\n');
+            fs.writeFileSync('artifacts/autopilot-execution/github-models-prompt.txt', prompt);
+          })().catch((error) => { console.error(error); process.exit(1); });
+          NODE
+
+      - name: Generate bounded repair patch with GitHub Models
+        if: ${{ steps.backend.outputs.mode == 'github-models' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const prompt = fs.readFileSync('artifacts/autopilot-execution/github-models-prompt.txt', 'utf8');
+          fetch('https://models.github.ai/inference/chat/completions', {
+            method: 'POST',
+            headers: { accept: 'application/vnd.github+json', authorization: `Bearer ${process.env.GH_TOKEN}`, 'content-type': 'application/json', 'x-github-api-version': '2026-03-10' },
+            body: JSON.stringify({
+              model: 'openai/gpt-4.1',
+              temperature: 0,
+              max_tokens: 5000,
+              response_format: { type: 'json_object' },
+              messages: [
+                { role: 'system', content: 'Repair only the bounded repository failure described by the user prompt. Obey every constraint. Return JSON only.' },
+                { role: 'user', content: prompt },
+              ],
+            }),
+          }).then(async (response) => {
+            const body = await response.text();
+            if (!response.ok) throw new Error(`GITHUB_MODELS_HTTP_${response.status}:${body.slice(0,300)}`);
+            const parsed = JSON.parse(body);
+            const content = parsed.choices?.[0]?.message?.content;
+            if (typeof content !== 'string') throw new Error('GITHUB_MODELS_RESPONSE_INVALID');
+            const proposal = JSON.parse(content);
+            fs.writeFileSync('artifacts/autopilot-execution/github-models-proposal.json', JSON.stringify(proposal, null, 2));
+          }).catch((error) => { console.error(error); process.exit(1); });
+          NODE
+
+      - name: Validate and apply bounded model patch
+        id: patch
+        if: ${{ steps.backend.outputs.mode == 'github-models' }}
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const { execFileSync } = require('child_process');
+          const proposal = JSON.parse(fs.readFileSync('artifacts/autopilot-execution/github-models-proposal.json', 'utf8'));
+          const patch = typeof proposal.patch === 'string' ? proposal.patch.trim() : '';
+          if (!patch) {
+            fs.writeFileSync(process.env.GITHUB_OUTPUT, 'applied=false\n', { flag: 'a' });
+            fs.writeFileSync('artifacts/autopilot-execution/coding-runner-result.json', JSON.stringify({ status: 'ABSTAINED', reason: 'github-models-no-safe-patch' }, null, 2));
+            process.exit(0);
+          }
+          if (patch.length > 24000) throw new Error('MODEL_PATCH_TOO_LARGE');
+          if (/liveAuthority|productionMutationAllowed|aiAuthority|NUSA_|wrangler|\.github\//i.test(patch)) throw new Error('MODEL_PATCH_FORBIDDEN_AUTHORITY_SURFACE');
+          const paths = [...patch.matchAll(/^\+\+\+ b\/(.+)$/gm)].map((m) => m[1]);
+          const unique = [...new Set(paths)];
+          if (!unique.length || unique.length > 3) throw new Error('MODEL_PATCH_FILE_COUNT_INVALID');
+          for (const path of unique) {
+            if (!/^apps\/autopilot\/src\/[A-Za-z0-9_.-]+\.ts$/.test(path)) throw new Error(`MODEL_PATCH_PATH_FORBIDDEN:${path}`);
+            if (/\/index\.ts$|live|broker|order|credential|secret|withdraw|transfer/i.test(path)) throw new Error(`MODEL_PATCH_SAFETY_PATH_FORBIDDEN:${path}`);
+          }
+          fs.writeFileSync('artifacts/autopilot-execution/model.patch', `${patch}\n`);
+          execFileSync('git', ['apply', '--check', 'artifacts/autopilot-execution/model.patch'], { stdio: 'inherit' });
+          execFileSync('git', ['apply', 'artifacts/autopilot-execution/model.patch'], { stdio: 'inherit' });
+          fs.writeFileSync(process.env.GITHUB_OUTPUT, 'applied=true\n', { flag: 'a' });
+          NODE
+
+      - name: Validate generated repair
+        if: ${{ steps.backend.outputs.mode == 'github-models' && steps.patch.outputs.applied == 'true' }}
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm run build
+          pnpm run architecture:check
+          pnpm run safety:invariants
+          pnpm run ai:architecture
+
+      - name: Open bounded repair PR
+        if: ${{ steps.backend.outputs.mode == 'github-models' && steps.patch.outputs.applied == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          requested='${{ github.event.client_payload.head_sha }}'
+          current="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          test "$current" = "$requested" || { echo "main moved during repair; aborting"; exit 1; }
+          branch="evolve/auto-${GITHUB_RUN_ID}-${requested:0:8}"
+          git config user.name 'nusa-evolve-bot'
+          git config user.email 'nusa-evolve-bot@users.noreply.github.com'
+          git switch -c "$branch"
+          git add apps/autopilot/src
+          git commit -m "fix(evolve): bounded autonomous repair"
+          git push origin "$branch"
+          summary="$(node -e "const p=require('./artifacts/autopilot-execution/github-models-proposal.json'); console.log(String(p.summary||'bounded GitHub Models repair').slice(0,500))")"
+          url="$(gh pr create --base main --head "$branch" --title 'fix(evolve): bounded autonomous repair' --body "Automated bounded repair from EVOLVE failure evidence.\n\nSummary: $summary\n\nSafety: liveAuthority=NONE, productionMutationAllowed=false, AI authority=ZERO_AUTHORITY. No auto-merge. Exact-head CI remains required.")"
+          printf '%s\n' "$url" > artifacts/autopilot-execution/generated-pr-url.txt
+          gh workflow run ci.yml --ref "$branch"
+          node - <<'NODE'
+          const fs = require('fs');
+          const request = JSON.parse(fs.readFileSync('artifacts/autopilot-execution/coding-runner-request.json', 'utf8'));
+          const prUrl = fs.readFileSync('artifacts/autopilot-execution/generated-pr-url.txt', 'utf8').trim();
+          fs.writeFileSync('artifacts/autopilot-execution/coding-runner-result.json', JSON.stringify({ status: 'PR_CREATED', reason: 'github-models-bounded-repair-pr-created', prUrl, request }, null, 2));
+          NODE
+
+      - name: Classify execution boundary
+        if: always()
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const path = 'artifacts/autopilot-execution/coding-runner-result.json';
+          const result = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path, 'utf8')) : { status: 'FAILED_CLOSED' };
           console.log(`executor=${result.status}`);
-          console.log(`executionId=${result.request?.executionId ?? 'UNVERIFIED'}`);
-          console.log(`dedupeKey=${result.request?.dedupeKey ?? 'UNVERIFIED'}`);
           console.log('liveAuthority=NONE');
           console.log('productionMutationAllowed=false');
           console.log('AI authority=ZERO_AUTHORITY');
