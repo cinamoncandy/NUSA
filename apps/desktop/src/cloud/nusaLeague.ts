@@ -71,6 +71,12 @@ export interface LeaguePolicy {
  */
 export type RegimeRobustnessClass = "ROBUST" | "FRAGILE" | "INSUFFICIENT";
 
+/**
+ * Explicit research disposition for a candidate. This is a League/PAPER eligibility outcome only;
+ * it never grants execution, capital, broker, or LIVE authority.
+ */
+export type LeagueCandidateOutcome = "REJECTED" | "INSUFFICIENT" | "QUALIFIED_FOR_LEAGUE";
+
 export interface LeagueCandidateComponents {
   readonly outOfSamplePerformance: number;
   readonly benchmarkExcess: number;
@@ -93,6 +99,7 @@ export interface LeagueRankedEntry {
   readonly id: string;
   readonly familyId: string;
   readonly eligible: boolean;
+  readonly outcome: LeagueCandidateOutcome;
   readonly reasons: readonly string[];
   readonly evidenceBreadth: number;
   readonly components: LeagueCandidateComponents;
@@ -130,6 +137,19 @@ const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
 
 function assertFinite(value: number, code: string, message: string): void {
   if (!Number.isFinite(value)) throw new NusaLeagueError(code, message);
+}
+
+const INSUFFICIENT_BENCHMARK_REASONS = new Set([
+  "MINIMUM_WINDOWS_NOT_MET",
+  "MINIMUM_OOS_POINTS_NOT_MET",
+  "MINIMUM_CLOSED_TRADES_NOT_MET",
+]);
+
+function classifyCandidateOutcome(candidate: LeagueCandidateInput): LeagueCandidateOutcome {
+  if (candidate.benchmark.eligible) return "QUALIFIED_FOR_LEAGUE";
+  return candidate.benchmark.reasons.some((reason) => INSUFFICIENT_BENCHMARK_REASONS.has(reason))
+    ? "INSUFFICIENT"
+    : "REJECTED";
 }
 
 /**
@@ -266,6 +286,7 @@ function classifyRegimeRobustness(candidate: LeagueCandidateInput, threshold: nu
 function scoreCandidate(candidate: LeagueCandidateInput, policy: Required<LeaguePolicy>): LeagueRankedEntry {
   const reasons: string[] = [...candidate.benchmark.reasons];
   const eligible = candidate.benchmark.eligible;
+  const outcome = classifyCandidateOutcome(candidate);
   const trialFailureRatio = candidate.trialLedgerSummary != null && candidate.trialLedgerSummary.trialCount > 0
     ? (candidate.trialLedgerSummary.failedCount + candidate.trialLedgerSummary.rejectedCount) / candidate.trialLedgerSummary.trialCount
     : undefined;
@@ -343,6 +364,7 @@ function scoreCandidate(candidate: LeagueCandidateInput, policy: Required<League
     id: candidate.id,
     familyId: candidate.familyId,
     eligible,
+    outcome,
     reasons: freeze(reasons),
     evidenceBreadth,
     components,
@@ -401,7 +423,7 @@ export function evaluateLeague(
   });
 
   const rankedEligible = scored
-    .filter((entry) => entry.eligible && entry.leagueScore != null)
+    .filter((entry) => entry.outcome === "QUALIFIED_FOR_LEAGUE" && entry.leagueScore != null)
     .sort((left, right) => right.leagueScore! - left.leagueScore! || left.id.localeCompare(right.id));
   const ranks = new Map(rankedEligible.map((entry, index) => [entry.id, index + 1] as const));
   const entries = scored
