@@ -16,6 +16,9 @@ function namespace(receipt: ScheduledRuntimeReceipt): ExecutionCoordinatorNamesp
         if (url.endsWith("/scheduled-receipt")) {
           return new Response(JSON.stringify({ receipt }), { status: 200, headers: { "content-type": "application/json" } });
         }
+        if (url.endsWith("/acquire")) {
+          return new Response(JSON.stringify({ acquired: false, reason: "LEASE_ACTIVE" }), { status: 409, headers: { "content-type": "application/json" } });
+        }
         throw new Error(`unexpected coordinator call: ${url}`);
       },
     }),
