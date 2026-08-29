@@ -9,7 +9,8 @@ const view = fs.readFileSync(path.join(root, "apps/mobile/src/systemLearningSupe
 const client = fs.readFileSync(path.join(root, "apps/mobile/src/evolutionLearningSupervisorClient.ts"), "utf8");
 
 test("system learning is a distinct read-only supervisor mode, not PAPER learning", () => {
-  assert.match(cockpit, /"PAPER", "SYSTEM", "SHADOW", "REAL", "LIVE_READY"/);
+  assert.match(cockpit, /BASE_MODES = \["PAPER", "SHADOW", "REAL"\]/);
+  assert.match(cockpit, /"SYSTEM"/);
   assert.match(cockpit, /SYSTEM LEARNING/);
   assert.match(cockpit, /SystemLearningSupervisorView/);
   assert.match(cockpit, /InMemoryDashboardCredentialSession/);
