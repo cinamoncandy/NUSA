@@ -8,6 +8,7 @@ import {
   markPersistentExecutionDispatched,
   readScheduledRuntimeReceipt,
   type ExecutionCoordinatorNamespace,
+  type ScheduledRuntimeReceipt,
 } from "./executionCoordinator";
 
 export interface ScheduledRuntimeEnv {
@@ -139,7 +140,7 @@ export async function runScheduledAutopilot(
   const repository = env.NUSA_GITHUB_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) return result("ABSTAINED", "repository-invalid");
 
-  let previousReceipt = null;
+  let previousReceipt: ScheduledRuntimeReceipt | null = null;
   try {
     previousReceipt = await readScheduledRuntimeReceipt(coordinator);
   } catch {
