@@ -1,4 +1,4 @@
-import type { EvolutionLearningMemoryStorage } from "./evolveDurableLearningMemory";
+import { validatePersistedEvolutionLearningMemory, type EvolutionLearningMemoryStorage } from "./evolveDurableLearningMemory";
 
 interface DurableObjectStorageLike {
   get<T>(key: string): Promise<T | undefined>;
@@ -143,6 +143,11 @@ export class ExecutionCoordinator {
 
   private async writeEvolutionLearningMemory(value: unknown): Promise<Response> {
     if (!value || typeof value !== "object" || !("value" in value)) return json({ error: "EVOLVE_LEARNING_MEMORY_REQUEST_INVALID" }, 400);
+    try {
+      validatePersistedEvolutionLearningMemory((value as { value: unknown }).value);
+    } catch {
+      return json({ error: "EVOLVE_LEARNING_MEMORY_VALUE_INVALID" }, 400);
+    }
     await this.ctx.storage.put("value", (value as { value: unknown }).value);
     return json({ updated: true });
   }

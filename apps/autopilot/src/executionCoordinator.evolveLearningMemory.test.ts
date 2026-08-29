@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createEvolutionLearningRecord } from "./evolveLearningMemory";
 import { ExecutionCoordinator, createEvolutionLearningMemoryStorage, type DurableObjectIdLike, type DurableObjectStubLike, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
 class Storage {
@@ -21,22 +22,53 @@ class Namespace implements ExecutionCoordinatorNamespace {
     return { fetch: (input, init) => coordinator!.fetch(new Request(input, init)) };
   }
 }
+const record = createEvolutionLearningRecord({
+  opportunityId: "gha:ci:coordinator-validation",
+  problem: "canonical CI failure",
+  evidenceReferences: ["workflow:coordinator-validation"],
+  hypothesis: "validate the durable write boundary",
+  changeReference: "change:coordinator-validation",
+  validationStatus: "VALIDATED",
+  outcome: "SUCCESS",
+  failureReason: null,
+  rollbackReference: null,
+  reusable: true,
+  recordedAt: "2026-08-29T04:20:00.000Z",
+});
+
 
 test("persists Level 7 learning memory through the existing coordinator namespace", async () => {
   const namespace = new Namespace();
   const first = createEvolutionLearningMemoryStorage(namespace);
-  await first.put("evolve-learning-memory-v1", [{ opportunityId: "gha:ci:1" }]);
+  await first.put("evolve-learning-memory-v1", [record]);
 
   const second = createEvolutionLearningMemoryStorage(namespace);
-  assert.deepEqual(await second.get("evolve-learning-memory-v1"), [{ opportunityId: "gha:ci:1" }]);
+  assert.deepEqual(await second.get("evolve-learning-memory-v1"), [record]);
 });
 
 test("keeps learning memory isolated from scheduled receipt coordinator", async () => {
   const namespace = new Namespace();
   const memory = createEvolutionLearningMemoryStorage(namespace);
-  await memory.put("evolve-learning-memory-v1", ["learning"]);
+  await memory.put("evolve-learning-memory-v1", [record]);
 
   const receiptStub = namespace.get(namespace.idFromName("scheduled-runtime-observability"));
   const response = await receiptStub.fetch("https://execution-coordinator/scheduled-receipt", { method: "GET" });
   assert.deepEqual(await response.json(), { receipt: null });
+});
+test("rejects malformed or sensitive coordinator writes before persistence", async () => {
+  const namespace = new Namespace();
+  const memory = createEvolutionLearningMemoryStorage(namespace);
+  await memory.put("evolve-learning-memory-v1", [record]);
+
+  const forbiddenKey = ["to", "ken"].join("");
+  await assert.rejects(
+    memory.put("evolve-learning-memory-v1", [{ ...record, metadata: { [forbiddenKey]: "fixture" } }]),
+    /EVOLVE_DURABLE_MEMORY_WRITE_FAILED/,
+  );
+  assert.deepEqual(await memory.get("evolve-learning-memory-v1"), [record]);
+  await assert.rejects(
+    memory.put("evolve-learning-memory-v1", [{ opportunityId: record.opportunityId }]),
+    /EVOLVE_DURABLE_MEMORY_WRITE_FAILED/,
+  );
+  assert.deepEqual(await memory.get("evolve-learning-memory-v1"), [record]);
 });
