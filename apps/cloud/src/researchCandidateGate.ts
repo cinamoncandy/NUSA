@@ -39,7 +39,14 @@ function sameEvidenceProvenance(left: ResearchProvenance, right: ResearchProvena
 }
 
 function reject(reasons: readonly string[], evidence: unknown): ResearchCandidateGateDecision {
-  return Object.freeze({ status: "NOT_ELIGIBLE", reasons: Object.freeze([...new Set(reasons)].sort()), candidateAuthority: "PAPER_ONLY", automaticPromotion: false, evidenceHash: researchHardeningHash(evidence) });
+  const normalizedReasons = Object.freeze([...new Set(reasons)].sort());
+  let evidenceHash: string;
+  try {
+    evidenceHash = researchHardeningHash(evidence);
+  } catch {
+    evidenceHash = researchHardeningHash({ invalidEvidence: true, reasons: normalizedReasons });
+  }
+  return Object.freeze({ status: "NOT_ELIGIBLE", reasons: normalizedReasons, candidateAuthority: "PAPER_ONLY", automaticPromotion: false, evidenceHash });
 }
 
 export class ResearchCandidateGate {
