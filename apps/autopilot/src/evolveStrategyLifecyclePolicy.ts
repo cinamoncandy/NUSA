@@ -1,3 +1,9 @@
+import {
+  comparePaperCalibrationEvidence,
+  type PaperCalibrationAdmissionBinding,
+  type PaperCalibrationObservation,
+} from "./evolvePaperCalibrationEvidence";
+
 export type StrategyLifecycleState =
   | "CANDIDATE"
   | "WATCH"
@@ -6,30 +12,24 @@ export type StrategyLifecycleState =
   | "QUARANTINED"
   | "RETIRED";
 
-export type StrategyEvidenceDimension =
-  | "DRAWDOWN"
-  | "CALIBRATION"
-  | "REGIME"
-  | "EDGE"
-  | "COST"
-  | "PROVENANCE"
-  | "INFRASTRUCTURE";
-
-export type StrategyEvidenceVerdict = "VERIFIED_HEALTHY" | "DETERIORATED" | "FAILED" | "INSUFFICIENT";
-
-export interface StrategyLifecycleEvidence {
-  readonly dimension: StrategyEvidenceDimension;
-  readonly verdict: StrategyEvidenceVerdict;
-  readonly fresh: boolean;
-  /** True only when the evidence judge is independent from the strategy creator. */
-  readonly independent: boolean;
-}
-
-export interface StrategyLifecycleInput {
+export interface StrategyCalibrationContainmentInput {
   readonly currentState: StrategyLifecycleState;
-  readonly evidence: readonly StrategyLifecycleEvidence[];
-  /** Consecutive independently attributed strategy failures from canonical history. */
-  readonly strategyFailureStreak: number;
+  /**
+   * Raw PAPER observations are projected through the existing canonical calibration comparator.
+   * Callers cannot assert VERIFIED/REGRESSION/independence directly at this boundary.
+   */
+  readonly calibration?: {
+    readonly baseline: {
+      readonly admission: PaperCalibrationAdmissionBinding;
+      readonly observations: readonly PaperCalibrationObservation[];
+    };
+    readonly candidate: {
+      readonly admission: PaperCalibrationAdmissionBinding;
+      readonly observations: readonly PaperCalibrationObservation[];
+    };
+    readonly currentConfidence: number;
+    readonly requestedConfidence: number;
+  };
 }
 
 export interface StrategyLifecycleDecision {
@@ -37,16 +37,10 @@ export interface StrategyLifecycleDecision {
   readonly nextState: StrategyLifecycleState;
   readonly reason:
     | "retired-is-absorbing"
-    | "evidence-missing"
-    | "evidence-not-independent"
-    | "evidence-stale-or-insufficient"
-    | "evidence-conflicting"
-    | "provenance-failure"
-    | "infrastructure-failure"
-    | "repeated-strategy-failure"
-    | "strategy-failure"
-    | "strategy-deterioration"
-    | "verified-healthy-no-promotion";
+    | "canonical-calibration-evidence-missing"
+    | "canonical-calibration-insufficient"
+    | "canonical-calibration-regression"
+    | "canonical-calibration-improved-no-promotion";
   readonly authority: {
     readonly liveAuthority: "NONE";
     readonly productionMutationAllowed: false;
@@ -60,18 +54,10 @@ const AUTHORITY = Object.freeze({
   aiAuthority: "ZERO_AUTHORITY" as const,
 });
 
-const STRATEGY_DIMENSIONS = new Set<StrategyEvidenceDimension>([
-  "DRAWDOWN",
-  "CALIBRATION",
-  "REGIME",
-  "EDGE",
-  "COST",
-]);
-
 function failClosedState(currentState: StrategyLifecycleState): StrategyLifecycleState {
   if (currentState === "PROMOTED") return "DEMOTED";
-  if (currentState === "QUARANTINED" || currentState === "DEMOTED") return currentState;
-  return "WATCH";
+  if (currentState === "CANDIDATE") return "WATCH";
+  return currentState;
 }
 
 function decision(
@@ -82,74 +68,33 @@ function decision(
   return Object.freeze({ previousState, nextState, reason, authority: AUTHORITY });
 }
 
-function hasConflictingEvidence(evidence: readonly StrategyLifecycleEvidence[]): boolean {
-  const verdictsByDimension = new Map<StrategyEvidenceDimension, Set<StrategyEvidenceVerdict>>();
-  for (const item of evidence) {
-    const verdicts = verdictsByDimension.get(item.dimension) ?? new Set<StrategyEvidenceVerdict>();
-    verdicts.add(item.verdict);
-    verdictsByDimension.set(item.dimension, verdicts);
-  }
-
-  for (const verdicts of verdictsByDimension.values()) {
-    if (verdicts.has("VERIFIED_HEALTHY") && (verdicts.has("DETERIORATED") || verdicts.has("FAILED"))) {
-      return true;
-    }
-  }
-  return false;
-}
-
 /**
- * Deterministic containment policy for the existing EVOLVE lifecycle.
+ * Small containment projection for #880 that reuses the canonical PAPER calibration evidence
+ * boundary. It intentionally implements only the calibration slice: drawdown, regime, edge,
+ * cost, provenance and repeated-failure retirement remain INSUFFICIENT until they have their own
+ * repository-controlled trusted evidence bindings.
  *
- * This function deliberately cannot promote a strategy, enqueue work, execute
- * trades, or mutate production. Promotion remains owned by the canonical
- * evidence/promotion boundary. This policy only preserves or reduces
- * eligibility when independent evidence deteriorates.
+ * This function cannot promote a strategy, create a queue/scheduler, execute trades, mutate
+ * production, or manufacture evidence status. VERIFIED_IMPROVEMENT only preserves the current
+ * state; insufficient calibration demotes a promoted strategy fail-closed.
  */
-export function decideStrategyLifecycle(input: StrategyLifecycleInput): StrategyLifecycleDecision {
+export function decideStrategyCalibrationContainment(
+  input: StrategyCalibrationContainmentInput,
+): StrategyLifecycleDecision {
   const current = input.currentState;
   if (current === "RETIRED") return decision(current, "RETIRED", "retired-is-absorbing");
 
-  if (input.evidence.length === 0) {
-    return decision(current, failClosedState(current), "evidence-missing");
+  if (input.calibration == null) {
+    return decision(current, failClosedState(current), "canonical-calibration-evidence-missing");
   }
 
-  if (input.evidence.some((item) => !item.independent)) {
-    return decision(current, failClosedState(current), "evidence-not-independent");
+  const comparison = comparePaperCalibrationEvidence(input.calibration);
+  if (comparison.status === "INSUFFICIENT") {
+    return decision(current, failClosedState(current), "canonical-calibration-insufficient");
+  }
+  if (comparison.status === "REGRESSION") {
+    return decision(current, current === "PROMOTED" ? "DEMOTED" : failClosedState(current), "canonical-calibration-regression");
   }
 
-  if (input.evidence.some((item) => !item.fresh || item.verdict === "INSUFFICIENT")) {
-    return decision(current, failClosedState(current), "evidence-stale-or-insufficient");
-  }
-
-  if (hasConflictingEvidence(input.evidence)) {
-    return decision(current, "QUARANTINED", "evidence-conflicting");
-  }
-
-  if (input.evidence.some((item) => item.dimension === "PROVENANCE" && item.verdict === "FAILED")) {
-    return decision(current, "QUARANTINED", "provenance-failure");
-  }
-
-  if (input.evidence.some((item) => item.dimension === "INFRASTRUCTURE" && item.verdict === "FAILED")) {
-    return decision(current, "QUARANTINED", "infrastructure-failure");
-  }
-
-  const strategyFailure = input.evidence.some(
-    (item) => STRATEGY_DIMENSIONS.has(item.dimension) && item.verdict === "FAILED",
-  );
-  if (strategyFailure) {
-    if (input.strategyFailureStreak >= 3 && (current === "DEMOTED" || current === "QUARANTINED")) {
-      return decision(current, "RETIRED", "repeated-strategy-failure");
-    }
-    return decision(current, "QUARANTINED", "strategy-failure");
-  }
-
-  const strategyDeterioration = input.evidence.some(
-    (item) => STRATEGY_DIMENSIONS.has(item.dimension) && item.verdict === "DETERIORATED",
-  );
-  if (strategyDeterioration) {
-    return decision(current, current === "PROMOTED" ? "DEMOTED" : failClosedState(current), "strategy-deterioration");
-  }
-
-  return decision(current, current, "verified-healthy-no-promotion");
+  return decision(current, current, "canonical-calibration-improved-no-promotion");
 }
