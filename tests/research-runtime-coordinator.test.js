@@ -59,6 +59,59 @@ test("champion and challenger receive one immutable input hash and shared cost m
   assert.equal(result.promotionAllowed, false);
 });
 
+test("validated cost evidence is carried into immutable comparison evidence", () => {
+  const coordinator = new ResearchRuntimeCoordinator({
+    champion: evaluator("champion-1", "1.0.0", "PAPER_ONLY", 0.1),
+    challenger: evaluator("challenger-1", "1.0.0", "ZERO_AUTHORITY", 0.2)
+  });
+  const result = coordinator.evaluate(input({
+    costEvidence: {
+      schemaVersion: 1,
+      evaluationId: "evaluation-1",
+      datasetId: "dataset-1",
+      datasetContentSha256: "a".repeat(64),
+      feeRate: 0.001,
+      spreadRate: 0.0005,
+      slippageRate: 0.0005,
+      turnoverRate: 2,
+      grossReturn: 0.02,
+      netReturn: 0.016,
+      costModelVersion: "cost-v1",
+      observedAt: 1000
+    }
+  }));
+  assert.equal(result.result, "CHALLENGER_BETTER");
+  assert.equal(Object.isFrozen(result.costEvidence), true);
+  assert.equal(result.costEvidence.evaluationId, "evaluation-1");
+  assert.equal(result.costEvidence.datasetContentSha256, "a".repeat(64));
+});
+
+test("malformed cost evidence is rejected without persisting unknown fields", () => {
+  const coordinator = new ResearchRuntimeCoordinator({
+    champion: evaluator("champion-1", "1.0.0", "PAPER_ONLY", 0.1),
+    challenger: evaluator("challenger-1", "1.0.0", "ZERO_AUTHORITY", 0.2)
+  });
+  const result = coordinator.evaluate(input({
+    costEvidence: {
+      schemaVersion: 1,
+      evaluationId: "evaluation-1",
+      datasetId: "dataset-1",
+      datasetContentSha256: "a".repeat(64),
+      feeRate: Number.NaN,
+      spreadRate: 0.0005,
+      slippageRate: 0.0005,
+      turnoverRate: 2,
+      grossReturn: 0.02,
+      netReturn: 0.016,
+      costModelVersion: "cost-v1",
+      observedAt: 1000,
+      credential: "secret-like-value"
+    }
+  }));
+  assert.equal(result.result, "INCONCLUSIVE");
+  assert.match(result.reason, /INVALID_COST_EVIDENCE/);
+  assert.equal(JSON.stringify(result).includes("secret-like-value"), false);
+});
 test("evaluator context hash mismatch is inconclusive and never promotes", () => {
   const coordinator = new ResearchRuntimeCoordinator({
     champion: evaluator("champion-1", "1.0.0", "PAPER_ONLY", 0.1),
