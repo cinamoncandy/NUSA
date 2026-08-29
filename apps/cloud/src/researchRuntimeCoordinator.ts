@@ -9,7 +9,8 @@ import {
   type ResearchInputSnapshot,
   type ResearchEvaluatorAuthority
 } from "../../../packages/contracts/src/researchRuntime";
-import { validateResearchProvenance } from "../../../packages/contracts/src/researchHardening";
+import { validateResearchProvenance, type ResearchCostEvidence } from "../../../packages/contracts/src/researchHardening";
+import { validateResearchCostEvidence } from "./researchCostEvidence";
 
 export interface ChampionResearchEvaluator {
   readonly strategyId: string;
@@ -68,11 +69,39 @@ function canonicalHash(value: unknown): CanonicalHashResult {
   catch { return { hash: invalidInputHash, valid: false }; }
 }
 
+function projectCostEvidence(value: unknown): ResearchCostEvidence | undefined {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const candidate = value as Record<string, unknown>;
+  const projected = {
+    schemaVersion: candidate.schemaVersion,
+    evaluationId: candidate.evaluationId,
+    datasetId: candidate.datasetId,
+    datasetContentSha256: candidate.datasetContentSha256,
+    feeRate: candidate.feeRate,
+    spreadRate: candidate.spreadRate,
+    slippageRate: candidate.slippageRate,
+    turnoverRate: candidate.turnoverRate,
+    grossReturn: candidate.grossReturn,
+    netReturn: candidate.netReturn,
+    costModelVersion: candidate.costModelVersion,
+    observedAt: candidate.observedAt
+  };
+  try {
+    canonicalResearchJson(projected);
+    return freeze(projected) as ResearchCostEvidence;
+  } catch {
+    return undefined;
+  }
+}
+
 function snapshot(input: ResearchInputSnapshot): ResearchInputSnapshot {
   const candidate = input as unknown as Record<string, unknown> | null;
   const marketData = candidate != null && Array.isArray(candidate.marketData) ? candidate.marketData : undefined;
+  const hasCostEvidence = candidate != null && typeof candidate === "object" && Object.prototype.hasOwnProperty.call(candidate, "costEvidence");
+  const costEvidence = hasCostEvidence ? projectCostEvidence(candidate.costEvidence) : undefined;
   return freeze({
     ...(candidate != null && typeof candidate === "object" ? candidate : {}),
+    ...(hasCostEvidence ? { costEvidence: costEvidence ?? null } : {}),
     marketData: marketData === undefined ? undefined : freeze(marketData.map(clonePoint))
   }) as unknown as ResearchInputSnapshot;
 }
@@ -107,6 +136,20 @@ function invalidReasons(input: ResearchInputSnapshot, canonicalInputValid: boole
     ids.add(key);
   }
   if (input.provenance != null) reasons.push(...validateResearchProvenance(input.provenance));
+  if (Object.prototype.hasOwnProperty.call(input as object, "costEvidence")) {
+    const costEvidence = (input as ResearchInputSnapshot & { readonly costEvidence?: unknown }).costEvidence;
+    if (costEvidence == null || typeof costEvidence !== "object" || Array.isArray(costEvidence)) {
+      reasons.push("INVALID_COST_EVIDENCE");
+    } else {
+      const decision = validateResearchCostEvidence(costEvidence as ResearchCostEvidence, input.evaluationTimestamp);
+      reasons.push(...decision.reasons.map((item) => `COST_EVIDENCE_${item}`));
+      if ((costEvidence as ResearchCostEvidence).evaluationId !== input.evaluationId) reasons.push("COST_EVIDENCE_EVALUATION_MISMATCH");
+      if (input.provenance != null && (
+        (costEvidence as ResearchCostEvidence).datasetId !== input.provenance.datasetId
+        || (costEvidence as ResearchCostEvidence).datasetContentSha256 !== input.provenance.datasetContentSha256
+      )) reasons.push("COST_EVIDENCE_PROVENANCE_MISMATCH");
+    }
+  }
   return Object.freeze([...new Set(reasons)].sort());
 }
 
@@ -134,6 +177,7 @@ function evidence(input: ResearchInputSnapshot, hash: string, result: ResearchCo
     feeModelVersion: input.feeModelVersion,
     slippageModelVersion: input.slippageModelVersion,
     ...(input.provenance == null ? {} : { provenance: input.provenance }),
+    ...(projectCostEvidence(input.costEvidence) == null ? {} : { costEvidence: projectCostEvidence(input.costEvidence) }),
     champion,
     challenger,
     result,
