@@ -25,32 +25,30 @@ const baseResult = () => ({
   productionMutationAllowed: false,
 });
 
-test("projection preserves only explicit learning provenance and fails closed for missing or malformed evidence", () => {
+test("projection preserves only repository-bound automatic provenance and fails closed for untrusted or malformed evidence", () => {
   assert.equal(normalizeAiLearningProvenance("AUTO_BACKGROUND"), "AUTO_BACKGROUND");
-  assert.equal(normalizeAiLearningProvenance("USER_TRIGGERED"), "USER_TRIGGERED");
-  for (const value of [undefined, null, "", "APP_BACKGROUND", "user", 1]) {
+  assert.equal(normalizeAiLearningProvenance("USER_TRIGGERED"), "UNKNOWN");
+  for (const value of [undefined, null, "", "APP_BACKGROUND", "user", "USER_TRIGGERED", 1]) {
     assert.equal(normalizeAiLearningProvenance(value), "UNKNOWN");
     assert.equal(projectAiReadOnly({ ...baseResult(), learningProvenance: value }).learningProvenance, "UNKNOWN");
   }
-  for (const value of ["AUTO_BACKGROUND", "USER_TRIGGERED"]) {
-    assert.equal(projectAiReadOnly({ ...baseResult(), learningProvenance: value }).learningProvenance, value);
-  }
+  assert.equal(projectAiReadOnly({ ...baseResult(), learningProvenance: "AUTO_BACKGROUND" }).learningProvenance, "AUTO_BACKGROUND");
   assert.equal(projectAiReadOnly(null).learningProvenance, "UNKNOWN");
 });
 
-test("cloud runtime binds the automatic market-tick path while the mobile LEARNING surface stays read-only and accessible", () => {
+test("cloud runtime binds the automatic market-tick path while USER_TRIGGERED stays unsupported until a trusted receipt exists", () => {
   const runtime = read("apps/cloud/src/runtime.ts");
   const orchestrator = read("apps/cloud/src/ai/multiAgentOrchestrator.ts");
+  const contracts = read("packages/contracts/src/aiInference.ts");
   const mobile = read("apps/mobile/src/aiView.tsx");
   assert.match(runtime, /contextValidForMs: 120_000, learningProvenance: "AUTO_BACKGROUND"/);
   assert.match(orchestrator, /learningProvenance: normalizeAiLearningProvenance\(input\.learningProvenance\)/);
   assert.match(orchestrator, /learningProvenance: normalizeAiLearningProvenance\(input\.learningProvenance\),\s*providerId/);
+  assert.match(contracts, /USER_TRIGGERED remains UNKNOWN until a canonical trusted trigger receipt exists/);
   assert.match(mobile, /AUTO_BACKGROUND: "백그라운드 자동 실행"/);
   assert.match(mobile, /USER_TRIGGERED: "사용자 요청"/);
   assert.match(mobile, /UNKNOWN: "알 수 없음"/);
   assert.match(mobile, /testID="ai-learning-provenance" accessible accessibilityRole="text"/);
   assert.match(mobile, /실행 근거가 확인되지 않아 출처를 분류하지 않습니다/);
-  assert.doesNotMatch(mobile, /현재 읽기 전용 projection은 AUTO_BACKGROUND와 USER_TRIGGERED의 학습 근거를 구분해 제공하지 않습니다/);
   assert.doesNotMatch(mobile, /productionMutationAllowed\s*[:=]\s*true/);
 });
-
