@@ -66,14 +66,6 @@ async function githubJson(url: string, token: string, fetchImpl: typeof fetch): 
   return body;
 }
 
-/**
- * Scheduled resilience edge for the existing bounded autonomous execution spine.
- *
- * The scheduler does not create a second executor or bypass CI. It only replays the
- * latest successful canonical CI evidence for the exact current main SHA. The
- * persistent coordinator's existing dedupe key suppresses repeats of the same
- * workflow-run/SHA pair, so a cron tick cannot create an unbounded execution loop.
- */
 export async function runScheduledAutopilot(
   env: ScheduledRuntimeEnv,
   now: number,
@@ -143,7 +135,7 @@ export async function runScheduledAutopilot(
     leaseExpiresAt: prepared.state.lease.expiresAt,
   });
   if (!persistent.acquired) {
-    return result("DUPLICATE_EXECUTION_SUPPRESSED", persistent.reason, mainSha, workflowRunId);
+    return result("DUPLICATE_EXECUTION_SUPPRESSED", persistent.reason ?? "DUPLICATE_EXECUTION", mainSha, workflowRunId);
   }
 
   const executor = await executeGithubDispatch(prepared.request, { token, allowedRepository: repository }, fetchImpl);
