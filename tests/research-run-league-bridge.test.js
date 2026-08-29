@@ -375,3 +375,31 @@ test("projects existing contextual research evidence instead of dropping it at t
   assert.ok(contextualEntry.evidenceBreadth > bareEntry.evidenceBreadth);
   assert.equal(bareEntry.components.costAdjustedGhostReturn, undefined);
 });
+
+test("fails closed when canonical OOS observations are malformed", () => {
+  const invalid = candidate("invalid-oos", "family-invalid");
+  invalid.experiment.experimentConfig.candidates = [{ id: "invalid-oos" }];
+  invalid.experiment.walkForwardResult.windows = [{
+    window: {
+      index: 0,
+      testPoints: [{ timestamp: 1, close: 100 }]
+    },
+    testResult: {
+      decisions: [{
+        timestamp: 1,
+        market: "KRW-ETH",
+        price: 100,
+        signal: { type: "BUY", reason: "malformed-fixture", confidence: 0.8, timestamp: 1 },
+        outcome: "FILLED",
+        equityBefore: 10_000,
+        equityAfter: 10_000,
+        executionPrice: 100
+      }]
+    }
+  }];
+
+  assert.throws(
+    () => buildResearchRunLeague([invalid, candidate("other-oos", "family-other")]),
+    (error) => error instanceof ResearchRunLeagueBridgeError && error.code === "INVALID_OOS_OBSERVATION_EVIDENCE"
+  );
+});
