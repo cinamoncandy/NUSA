@@ -142,7 +142,6 @@ function requiredResearchCostModelVersion() {
 }
 
 function runProvenanceBoundExperiment({ id, shortPeriod, longPeriod, candles, manifest, sourceCommitSha, costModelVersion, timeline }) {
-  const specificationGeneratedAtMs = Date.parse(timeline.specificationGeneratedAt);
   const evaluationStartedAtMs = Date.parse(timeline.evaluationStartedAt);
   const rawExperiment = runWalkForwardExperiment(
     { candles, manifest },
