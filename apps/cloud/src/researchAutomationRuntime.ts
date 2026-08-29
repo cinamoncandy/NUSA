@@ -7,6 +7,7 @@ import { canonicalResearchJson } from "../../../packages/contracts/src/researchR
 import type { ResearchExperimentRecord, ResearchHypothesis, SqliteResearchMemoryRepository } from "../../../packages/storage/src/researchMemory";
 import type { ResearchRuntimeCoordinator } from "./researchRuntimeCoordinator";
 import { deriveResearchCandidateId, ResearchCandidateGate } from "./researchCandidateGate";
+import { validateResearchCostEvidence } from "./researchCostEvidence";
 import { ResearchStreamNormalizer } from "./researchStreamNormalizer";
 import { createResearchExperimentManifest, createResearchExperimentResult, researchHardeningHash } from "../../../packages/contracts/src/researchHardening";
 
@@ -68,7 +69,15 @@ function metric(record: ResearchComparisonEvidence, current: ResearchSessionMetr
   const count = current.experimentCount + 1;
   const nextMaxDrawdown = record.challenger?.metrics.maxDrawdown;
   const costAdjusted = record.challenger?.metrics.costAdjustedReturn;
-  const hasVerifiedCostAdjustedValue = record.costEvidence != null && typeof costAdjusted === "number" && Number.isFinite(costAdjusted);
+  const costEvidence = record.costEvidence;
+  const costDecision = costEvidence == null ? undefined : validateResearchCostEvidence(costEvidence, record.evaluationTimestamp);
+  const hasVerifiedCostAdjustedValue = costEvidence != null
+    && costDecision?.status === "VERIFIED"
+    && costEvidence.evaluationId === record.evaluationId
+    && (record.provenance == null || (costEvidence.datasetId === record.provenance.datasetId && costEvidence.datasetContentSha256 === record.provenance.datasetContentSha256))
+    && typeof costAdjusted === "number"
+    && Number.isFinite(costAdjusted)
+    && Math.abs(costEvidence.netReturn - costAdjusted) <= 1e-12;
   const unresolvedFaultCount = record.challenger?.metrics.unresolvedFaultCount;
   const dataQualityFailureCount = record.challenger?.metrics.dataQualityFailures;
   const tradeCount = record.challenger?.metrics.tradeCount;
