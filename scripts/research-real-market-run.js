@@ -11,6 +11,7 @@ const { buildResearchRunRegimeEvaluation } = require("../dist/apps/desktop/src/c
 const { buildResearchRunPboEvidence } = require("../dist/apps/desktop/src/cloud/researchRunPboEvidence.js");
 const { buildResearchRunDsrEvidence } = require("../dist/apps/desktop/src/cloud/researchRunDsrEvidence.js");
 const { runExecutionCostStress } = require("../dist/apps/desktop/src/strategy/executionCostStress.js");
+const { projectExecutionCostStress } = require("./lib/research-cost-stress-projection.js");
 
 const STRATEGY_FAMILY_ID = "sma-crossover";
 const MARKET = "KRW-BTC";
@@ -82,31 +83,6 @@ function requiredResearchCostModelVersion() {
     throw new Error("real research run requires NUSA_RESEARCH_COST_MODEL_VERSION");
   }
   return value.trim();
-}
-
-function projectCostStress(stress) {
-  const projectScenario = (scenarioResult) => ({
-    scenario: scenarioResult.scenario,
-    selectionMode: scenarioResult.selectionMode,
-    markedTotalReturn: scenarioResult.markedTotalReturn,
-    markedMaximumDrawdown: scenarioResult.markedMaximumDrawdown,
-    closedTradeNetProfit: scenarioResult.closedTradeNetProfit,
-    closedTradeExpectancy: scenarioResult.closedTradeExpectancy ?? null,
-    closedTradeProfitFactor: scenarioResult.closedTradeProfitFactor ?? null,
-    totalTradingCost: scenarioResult.totalTradingCost,
-    benchmarkOutperformance: scenarioResult.benchmarkOutperformance,
-    warnings: scenarioResult.warnings
-  });
-  return {
-    selectionMode: stress.selectionMode,
-    identity: stress.identity,
-    baseline: projectScenario(stress.baseline),
-    scenarios: stress.scenarios.map(projectScenario),
-    degradation: stress.degradation,
-    breakEvenEstimate: stress.breakEvenEstimate,
-    robustnessScore: stress.robustnessScore,
-    warnings: stress.warnings
-  };
 }
 
 function nextWallClockTimestamp(previousMs) {
@@ -282,7 +258,7 @@ async function main() {
       selectionChurnRatio: result.walkForwardResult.stabilityDiagnostics.selectionChurnRatio,
       candidates: result.walkForwardResult.stabilityDiagnostics.candidates
     },
-    costStress: projectCostStress(costStress),
+    costStress: projectExecutionCostStress(costStress),
     outOfSample: {
       totalOosPoints: oos.totalOosPoints,
       totalOosClosedTrades: oos.totalOosClosedTrades,
