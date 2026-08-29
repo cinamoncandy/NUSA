@@ -67,6 +67,11 @@ test("multiple experiments flow through evaluation ledger and memory while stric
   try { state.automation.startSession(startInput("session-1")); const first = state.automation.runExperiment(input("session-1", "evaluation-1")); const second = state.automation.runExperiment(input("session-1", "evaluation-2", { marketDataTimestamp: 1_860 })); assert.equal(first.result, "CHALLENGER_BETTER"); assert.equal(second.result, "CHALLENGER_BETTER"); assert.equal(state.ledger.list().length, 2); assert.equal(state.memory.listExperiments().length, 2); assert.equal(state.candidates.listCandidates().length, 0); const status = state.automation.status("session-1"); assert.equal(status.experimentCount, 2); assert.equal(status.metrics.challengerBetterCount, 2); assert.equal(status.metrics.positiveEvaluationCount, 2); assert.equal(status.health, "HEALTHY"); } finally { state.db.close(); }
 });
 
+test("missing explicit cost evidence is not counted as cost-adjusted performance", () => {
+  const state = setup();
+  try { state.automation.startSession(startInput("session-cost")); state.automation.runExperiment(input("session-cost", "evaluation-cost")); const metrics = state.automation.status("session-cost").metrics; assert.equal(metrics.costAdjustedPerformance, undefined); assert.equal(metrics.costAdjustedEvidenceCount, 0); assert.equal(metrics.missingCostEvidenceCount, 1); } finally { state.db.close(); }
+});
+
 test("candidate registration requires the hardened evidence gate and never promotes", () => {
   const state = setup();
   try { state.automation.startSession(startInput("session-1")); state.automation.runExperiment(input("session-1", "evaluation-1")); assert.equal(state.automation.runExperiment(input("session-1", "evaluation-1")).evaluationId, "evaluation-1"); assert.equal(state.candidates.listCandidates().length, 0); assert.equal(state.candidates.getChampion(), null); assert.equal(state.candidates.listAudit().length, 0); } finally { state.db.close(); }
