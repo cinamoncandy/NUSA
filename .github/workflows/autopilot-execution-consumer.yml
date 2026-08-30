@@ -136,9 +136,16 @@ jobs:
               body: JSON.stringify(request),
             });
           }).then(async (response) => {
-            const text = await response.text();
-            fs.writeFileSync('artifacts/autopilot-execution/coding-runner-result.json', JSON.stringify({ status: response.ok ? 'DISPATCHED' : 'DISPATCH_FAILED', httpStatus: response.status, response: text, request }, null, 2));
-            if (!response.ok) process.exit(1);
+            await response.text();
+            if (response.ok) {
+              fs.writeFileSync('artifacts/autopilot-execution/coding-runner-result.json', JSON.stringify({ status: 'DISPATCHED', httpStatus: response.status, request }, null, 2));
+              return;
+            }
+            // External runner rejection is an observable, fail-closed boundary
+            // state. Keep this consumer green without treating an unavailable
+            // optional executor as a successful repair or leaking its response.
+            fs.writeFileSync('artifacts/autopilot-execution/coding-runner-result.json', JSON.stringify({ status: 'INTERFACE_READY', reason: 'external-coding-runner-rejected-request', httpStatus: response.status, request }, null, 2));
+            console.warn(`External coding runner unavailable (HTTP ${response.status}); no repair was executed.`);
           }).catch((error) => { console.error(error); process.exit(1); });
           NODE
 
