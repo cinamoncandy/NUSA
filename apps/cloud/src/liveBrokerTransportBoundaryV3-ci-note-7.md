@@ -1,0 +1,1 @@
+Fail-closed safety boundary.
