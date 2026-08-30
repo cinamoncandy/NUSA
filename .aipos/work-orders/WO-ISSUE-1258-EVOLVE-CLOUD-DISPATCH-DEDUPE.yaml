@@ -1,6 +1,6 @@
 id: WO-ISSUE-1258-EVOLVE-CLOUD-DISPATCH-DEDUPE
 title: "Issue #1258 EVOLVE one-event one-effective-dispatch"
-status: VERIFYING
+status: PARTIAL
 priority: P0
 owner: nusa
 repository: cinamoncandy/NUSA
@@ -10,6 +10,9 @@ base_commit: 39f98fb60e64fad1a937aa872a94d632a22bf719
 implementation_branch: codex/evolve-1258-dispatch-dedupe
 implementation_commit: f6fa1fd3c46f8958f6f0c5dbdadfd923de9a0c80
 pull_request: 1262
+remote_head: 24a55cb6344aecab00494d39a1e21d6b86314d84
+merge_commit: 7cb0f70620ab50fe8488b899744fe3ed6231302c
+implementation_status: MERGED
 objective: "Remove the duplicate repository-dispatch Cloud coding route and add durable, fail-closed execution telemetry so one nusa_autopilot_execution event has one effective dispatch with replay-safe evidence."
 architecture_impact:
   acknowledged: true
@@ -49,27 +52,17 @@ acceptance:
 validation:
   focused_autopilot_regression: PASS_34_OF_34
   workflow_dispatch_topology: PASS_1_OF_1
-  targeted_typecheck: PASS
-  repository_typecheck: BLOCKED_LOCAL_DEPENDENCIES_REACT_AND_NODE_TYPES
-  build: BLOCKED_SAME_REPOSITORY_TYPECHECK_DEPENDENCY_GAP
-  lint: PASS_DESKTOP_AND_MOBILE
+  protected_merge_commit_checks: PASS_13_OF_13
   architecture_truth: PASS
   architecture_check: PASS
   safety_architecture: PASS
   safety_invariants: PASS
   ai_zero_authority: PASS
-  safety_input_literals: PASS
-  security_gate_local: INCOMPLETE_LOCAL_LICENSE_VERIFICATION_AFTER_DEPENDENCY_AUDIT
-  remote_main_ci: PASS_RUN_33307067410_AT_39F98FB
-  remote_autopilot_consumer: PASS_WORKFLOW_33306974517_AT_888746B_WORKER_HTTP_400_CODING_RUNNER_HEAD_SHA_UNVERIFIED
-  remote_promotion: PASS_RUN_33307251744_AT_39F98FB_DEPLOYMENT_REPORTED
-  remote_ci_current_changes: IN_PROGRESS_PR_1262
-  runtime_evidence: PARTIAL_HEALTH_200_SCHEDULED_STATUS_200_CODING_TELEMETRY_404_DEPLOYED_49595D
-  one_minute_loop_evidence: PASS_120_RECEIPTS_EXACT_60S_GAPS_STATUS_57_ABSTAINED_63_DUPLICATE_SUPPRESSED
+  runtime_deployment: PARTIAL_TELEMETRY_ENDPOINT_UNVERIFIED
+  runtime_head_verification: FAIL_CLOSED_HEAD_SHA_UNVERIFIED
   git_diff_check: PASS
 known_limitations:
-  - "The live GitHub main is 39f98fb60e64fad1a937aa872a94d632a22bf719 and Issue #1258 is OPEN; implementation commit f6fa1fd3c46f8958f6f0c5dbdadfd923de9a0c80 has no PR yet, so exact-head CI has not run for this slice."
-  - "The deployed Worker revision 49595d087fb9a8749e383e132dad2d667258364c returns /health 200 and /scheduled/status 200 but /coding/telemetry 404; consumer run 33306974517 returned HTTP 400 CODING_RUNNER_HEAD_SHA_UNVERIFIED, so cloud coding success is not claimed."
-  - "PR #1261 is merged as 39f98fb, changed only GitHub Actions OIDC validation, and did not reintroduce a second nusa_autopilot_execution consumer; topology remains one canonical consumer."
-  - "Remote CI and Promotion succeeded for 39f98fb, but they did not validate or deploy implementation commit f6fa1fd3; the current slice remains unpromoted."
-next: "Push the committed slice and open a PR for exact-head CI; only after those checks pass, deploy the Worker, verify telemetry persistence, repair the HEAD-SHA verification mismatch, and perform only a harmless cloud dogfood with runtime evidence."
+  - "The repository implementation is merged in PR #1262 as 7cb0f70620ab50fe8488b899744fe3ed6231302c; this records code-side completion only."
+  - "Deployed runtime evidence is incomplete: a prior deployed Worker returned /coding/telemetry 404 and a consumer returned HTTP 400 CODING_RUNNER_HEAD_SHA_UNVERIFIED."
+  - "Issue #1258 remains open because its real post-change runtime dogfood and deployment evidence are not established here."
+next: "Retain the runtime/deployment gap as external evidence work; repository execution proceeds to an audit of Issue #1094."
