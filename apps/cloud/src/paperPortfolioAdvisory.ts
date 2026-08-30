@@ -130,6 +130,9 @@ export const evaluatePaperPortfolioAdvisory = (
       || risk.datasetContentSha256 !== input.evidence.datasetContentSha256) {
       reasons.push("RISK_EVIDENCE_PROVENANCE_MISMATCH");
     }
+    if (risk.maximumAbsoluteCandidateCorrelation !== input.evidence.maximumPeerCorrelation) {
+      reasons.push("RISK_CANDIDATE_DEPENDENCE_MISMATCH");
+    }
     if (riskEvaluatedAtMs > generatedAtMs) reasons.push("RISK_EVIDENCE_FUTURE");
     if (generatedAtMs - riskEvaluatedAtMs > input.maximumEvidenceAgeMs) reasons.push("RISK_EVALUATION_STALE");
     if (risk.decision !== "ACCEPT") reasons.push(...risk.reasons.map((reason) => `RISK_${reason}`));
