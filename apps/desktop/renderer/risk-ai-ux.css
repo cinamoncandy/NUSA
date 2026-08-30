@@ -1,0 +1,63 @@
+.risk-before-action,
+.ai-evidence-compression {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.risk-before-action__summary,
+.ai-evidence-compression__summary {
+  display: grid;
+  gap: 8px;
+}
+
+.risk-before-action__impact,
+.ai-evidence-compression__evidence {
+  min-width: 0;
+}
+
+.risk-before-action__action {
+  order: 6;
+}
+
+.risk-before-action__warning,
+.risk-before-action__blocked,
+.risk-before-action__stale {
+  border-inline-start: 3px solid currentColor;
+  padding-inline-start: 10px;
+}
+
+.ai-evidence-compression__confidence,
+.ai-evidence-compression__freshness,
+.ai-evidence-compression__invalidation {
+  font-variant-numeric: tabular-nums;
+}
+
+.ai-evidence-compression__counter {
+  margin-block-start: 6px;
+}
+
+.risk-before-action :focus-visible,
+.ai-evidence-compression :focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+@media (max-width: 720px) {
+  .risk-before-action,
+  .ai-evidence-compression {
+    gap: 8px;
+  }
+
+  .ai-evidence-compression__secondary[data-secondary="true"] {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .risk-before-action *,
+  .ai-evidence-compression * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
