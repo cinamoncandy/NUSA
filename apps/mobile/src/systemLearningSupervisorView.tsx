@@ -24,6 +24,7 @@ export function SystemLearningSupervisorView({ baseUrl, credentialProvider, onCl
   const { theme } = useTheme();
   const [result, setResult] = React.useState<EvolutionLearningSupervisorLoadResult>({ status: "UNAVAILABLE", reason: "System learning evidence has not been loaded yet." });
   const [refreshing, setRefreshing] = React.useState(false);
+  const [historyOpen, setHistoryOpen] = React.useState(false);
   const [detailsOpen, setDetailsOpen] = React.useState(false);
 
   const refresh = React.useCallback(async () => {
@@ -37,6 +38,7 @@ export function SystemLearningSupervisorView({ baseUrl, credentialProvider, onCl
   const ready = result.status === "READY" ? result.snapshot : null;
   const unavailableReason = result.status === "READY" ? null : result.reason;
   const latest = ready?.latest ?? null;
+  const priorLearning = ready?.recent?.slice(1) ?? [];
   const attention = latest == null ? null : learningAttention(latest.outcome);
   const tone = latest?.outcome === "FAILED" || latest?.outcome === "REGRESSION" ? theme.colors.danger : theme.colors.aiSignalEnd;
   const attentionTone = attention?.label === "REVIEW"
@@ -70,6 +72,25 @@ export function SystemLearningSupervisorView({ baseUrl, credentialProvider, onCl
           <Text style={[styles.label, { color: theme.colors.textMuted }]}>HYPOTHESIS</Text><Text style={[styles.value, { color: theme.colors.text }]}>{latest.hypothesis}</Text>
         </View>
         {latest.failureReason ? <View style={[styles.card, { borderColor: theme.colors.danger }]}><Text style={[styles.label, { color: theme.colors.danger }]}>FAILURE</Text><Text style={[styles.value, { color: theme.colors.text }]}>{latest.failureReason}</Text></View> : null}
+        {priorLearning.length > 0 ? <Pressable accessibilityRole="button" accessibilityState={{ expanded: historyOpen }} onPress={() => setHistoryOpen((open) => !open)} style={[styles.card, { borderColor: theme.colors.border }]} testID="system-learning-history-toggle">
+          <View style={styles.row}><Text style={[styles.label, { color: theme.colors.textMuted }]}>RECENT LEARNING</Text><Text style={[styles.label, { color: theme.colors.aiSignalEnd }]}>{historyOpen ? "CLOSE" : "OPEN"}</Text></View>
+          <Text style={[styles.meta, { color: theme.colors.textMuted }]}>최신 기록 이전 {priorLearning.length}건의 검증된 시스템 학습 증거</Text>
+          {historyOpen ? <View style={styles.details} testID="system-learning-history">
+            {priorLearning.map((item, index) => {
+              const itemAttention = learningAttention(item.outcome);
+              const itemTone = itemAttention.label === "REVIEW"
+                ? theme.colors.danger
+                : itemAttention.label === "INSUFFICIENT"
+                  ? theme.colors.textMuted
+                  : theme.colors.aiSignalEnd;
+              return <View key={`${item.opportunityId}:${item.changeReference}:${item.recordedAt}`} style={[styles.historyItem, { borderTopColor: theme.colors.border }]} testID={`system-learning-history-item-${index}`}>
+                <View style={styles.row}><Text style={[styles.outcome, { color: itemTone }]}>{item.outcome}</Text><Text style={[styles.label, { color: itemTone }]}>{itemAttention.label}</Text></View>
+                <Text style={[styles.value, { color: theme.colors.text }]}>{item.problem}</Text>
+                <Text style={[styles.meta, { color: theme.colors.textMuted }]}>RECORDED {item.recordedAt} · REUSABLE {item.reusable ? "YES" : "NO"}</Text>
+              </View>;
+            })}
+          </View> : null}
+        </Pressable> : null}
         <Pressable accessibilityRole="button" accessibilityState={{ expanded: detailsOpen }} onPress={() => setDetailsOpen((open) => !open)} style={[styles.card, { borderColor: theme.colors.border }]} testID="system-learning-evidence-toggle">
           <View style={styles.row}><Text style={[styles.label, { color: theme.colors.textMuted }]}>EVIDENCE</Text><Text style={[styles.label, { color: theme.colors.aiSignalEnd }]}>{detailsOpen ? "CLOSE" : "OPEN"}</Text></View>
           <Text style={[styles.meta, { color: theme.colors.textMuted }]}>EVENTS {ready.eventCount} · HEAD {ready.headHash.slice(0, 12)}</Text>
@@ -85,4 +106,4 @@ export function SystemLearningSupervisorView({ baseUrl, credentialProvider, onCl
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({ content: { paddingHorizontal: 20, paddingVertical: 18, gap: 14, paddingBottom: 120 }, header: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }, kicker: { fontSize: 11, fontWeight: "800", letterSpacing: 1.4 }, title: { marginTop: 5, fontSize: 24, lineHeight: 30, fontWeight: "800" }, close: { fontSize: 13, fontWeight: "700", paddingVertical: 6 }, attentionCard: { borderWidth: 2, borderRadius: 16, padding: 16, gap: 9 }, attentionLabel: { fontSize: 13, fontWeight: "900", letterSpacing: 1.1 }, card: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 9 }, row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 }, label: { fontSize: 11, fontWeight: "800", letterSpacing: 1.2 }, value: { fontSize: 15, lineHeight: 21, fontWeight: "600" }, problem: { fontSize: 20, lineHeight: 27, fontWeight: "800" }, outcome: { fontSize: 13, fontWeight: "900", letterSpacing: 1 }, meta: { fontSize: 12, lineHeight: 18 }, details: { gap: 6, paddingTop: 4 } });
+const styles = StyleSheet.create({ content: { paddingHorizontal: 20, paddingVertical: 18, gap: 14, paddingBottom: 120 }, header: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }, kicker: { fontSize: 11, fontWeight: "800", letterSpacing: 1.4 }, title: { marginTop: 5, fontSize: 24, lineHeight: 30, fontWeight: "800" }, close: { fontSize: 13, fontWeight: "700", paddingVertical: 6 }, attentionCard: { borderWidth: 2, borderRadius: 16, padding: 16, gap: 9 }, attentionLabel: { fontSize: 13, fontWeight: "900", letterSpacing: 1.1 }, card: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 9 }, row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 }, label: { fontSize: 11, fontWeight: "800", letterSpacing: 1.2 }, value: { fontSize: 15, lineHeight: 21, fontWeight: "600" }, problem: { fontSize: 20, lineHeight: 27, fontWeight: "800" }, outcome: { fontSize: 13, fontWeight: "900", letterSpacing: 1 }, meta: { fontSize: 12, lineHeight: 18 }, details: { gap: 6, paddingTop: 4 }, historyItem: { borderTopWidth: 1, paddingTop: 10, marginTop: 4, gap: 6 } });
