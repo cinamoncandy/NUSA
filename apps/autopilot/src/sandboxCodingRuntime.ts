@@ -52,6 +52,7 @@ export class SandboxCodingRuntime implements CodingRuntime {
         workspaceVerified: true as const,
         proposalValidated: true as const,
         changedFiles: validated.changedFiles,
+        validatedFiles: validated.validatedFiles,
       });
     }
 
