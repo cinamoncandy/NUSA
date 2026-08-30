@@ -19,9 +19,14 @@ const request: CodingRunnerRequest = Object.freeze({
   aiAuthority: "ZERO_AUTHORITY",
 });
 
+const proposal = {
+  patch: "diff --git a/apps/autopilot/src/example.ts b/apps/autopilot/src/example.ts\n--- a/apps/autopilot/src/example.ts\n+++ b/apps/autopilot/src/example.ts\n@@ -1 +1 @@\n-old\n+new\n",
+};
+
 class FakeBackend implements CodingBackend {
   readonly name = "fake-sandbox";
   readonly commands: readonly string[][] = [];
+  readonly writes: Array<{ path: string; content: string }> = [];
   preparedEnvelope: CodingExecutionEnvelope | null = null;
   cleaned = false;
   dirty = false;
@@ -33,7 +38,9 @@ class FakeBackend implements CodingBackend {
   }
 
   async read(): Promise<string> { return ""; }
-  async write(): Promise<void> {}
+  async write(_workspaceId: string, path: string, content: string): Promise<void> {
+    this.writes.push({ path, content });
+  }
 
   async exec(_workspaceId: string, argv: readonly string[]): Promise<CodingBackendCommandResult> {
     (this.commands as string[][]).push([...argv]);
@@ -42,6 +49,9 @@ class FakeBackend implements CodingBackend {
     }
     if (argv[0] === "git" && argv[1] === "status") {
       return { exitCode: 0, stdout: this.dirty ? " M apps/autopilot/src/index.ts\n" : "", stderr: "" };
+    }
+    if (argv[0] === "git" && argv[1] === "diff" && argv[2] === "--name-only") {
+      return { exitCode: 0, stdout: "apps/autopilot/src/example.ts\n", stderr: "" };
     }
     return { exitCode: 0, stdout: "", stderr: "" };
   }
@@ -64,6 +74,36 @@ describe("sandbox coding runtime", () => {
     assert.equal(backend.preparedEnvelope?.productionMutationAllowed, false);
     assert.equal(backend.preparedEnvelope?.aiAuthority, "ZERO_AUTHORITY");
     assert.equal(backend.cleaned, true);
+  });
+
+  it("validates a bounded AI proposal with the full sandbox gate and cleans up", async () => {
+    const backend = new FakeBackend();
+    const result = await new SandboxCodingRuntime(backend).execute(request, proposal);
+    assert.deepEqual(result, {
+      backend: "fake-sandbox",
+      checkpointId: request.headSha,
+      workspaceVerified: true,
+      proposalValidated: true,
+      changedFiles: ["apps/autopilot/src/example.ts"],
+    });
+    assert.equal(backend.preparedEnvelope?.allowedScope[0], "apps/autopilot/");
+    assert.equal(backend.preparedEnvelope?.maxChangedFiles, 1);
+    assert.equal(backend.writes[0]?.path, ".nusa-autopilot.patch");
+    assert.ok(backend.commands.some((argv) => argv.join(" ") === "pnpm run build"));
+    assert.ok(backend.commands.some((argv) => argv.join(" ") === "pnpm run architecture:check"));
+    assert.ok(backend.commands.some((argv) => argv.join(" ") === "pnpm run safety:invariants"));
+    assert.ok(backend.commands.some((argv) => argv.join(" ") === "pnpm run ai:architecture"));
+    assert.equal(backend.cleaned, true);
+  });
+
+  it("rejects an AI proposal outside the bounded scope before sandbox preparation", async () => {
+    const backend = new FakeBackend();
+    const unsafe = {
+      patch: "diff --git a/apps/desktop/src/example.ts b/apps/desktop/src/example.ts\n--- a/apps/desktop/src/example.ts\n+++ b/apps/desktop/src/example.ts\n@@ -1 +1 @@\n-old\n+new\n",
+    };
+    await assert.rejects(() => new SandboxCodingRuntime(backend).execute(request, unsafe), /SANDBOX_PATCH_PATH_OUTSIDE_ALLOWED_SCOPE/);
+    assert.equal(backend.preparedEnvelope, null);
+    assert.equal(backend.cleaned, false);
   });
 
   it("fails closed on a mismatched checkout and still cleans up", async () => {
