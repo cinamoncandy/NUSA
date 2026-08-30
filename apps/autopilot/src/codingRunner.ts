@@ -159,7 +159,7 @@ function githubHeaders(token?: string): Record<string, string> {
 async function githubEvidenceGet(url: string, githubToken: string | undefined, fetchImpl: FetchImpl): Promise<HttpResponse> {
   const token = githubToken?.trim();
   const first = await fetchImpl(url, { method: "GET", headers: githubHeaders(token) });
-  if (!token || (first.status !== 401 && first.status !== 403)) return first;
+  if (!token || (first.status !== 401 && first.status !== 403 && first.status !== 404)) return first;
   return fetchImpl(url, { method: "GET", headers: githubHeaders() });
 }
 
