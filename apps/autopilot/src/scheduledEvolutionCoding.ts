@@ -82,7 +82,7 @@ function signalsFromRuns(candidates: readonly unknown[], now: number): readonly 
  * Thin scheduled composition: authenticated read-only workflow evidence -> existing
  * discovery/selector bridge -> existing GitHub dispatch spine. Coding is delegated to
  * the single repository_dispatch consumer, which may use a configured external runner
- * or the bounded GitHub Models fallback. No direct production mutation authority exists.
+ * or the bounded provider-neutral Workers AI runtime. No direct production mutation authority exists.
  */
 export async function runScheduledEvolutionCoding(
   env: ScheduledEvolutionCodingEnv,
