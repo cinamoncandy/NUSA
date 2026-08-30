@@ -1,6 +1,6 @@
 id: WO-ISSUE-1186-CODING-EXECUTION-EVIDENCE
 title: "Issue #1186 persist safe coding execution evidence"
-status: IN_PROGRESS
+status: VERIFYING
 owner: nusa
 repository: cinamoncandy/NUSA
 issue: 1186
@@ -41,14 +41,20 @@ acceptance:
   - GET_coding_evidence_is_read_only
   - no_new_execution_or_broker_authority
 validation:
-  focused_evidence_tests: PENDING
-  focused_coordinator_tests: PENDING
-  typecheck: PENDING
-  build: PENDING
-  lint: PENDING
-  architecture: PENDING
-  safety: PENDING
-  security: PENDING
+  focused_evidence_tests: PASS_3_OF_3
+  focused_coordinator_tests: PASS_5_OF_5
+  focused_worker_projection: PASS_8_OF_8
+  full_isolated_suite: PASS_799_FILES
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture: PASS
+  safety: PASS
+  security: PASS_SECRETS_0
+  aipos_conformance: PASS
+  aipos_drift: PASS
+  aipos_provenance: PASS
   exact_head_ci: PENDING
 known_limitations:
   - "Real unattended external coding-runner execution still depends on deployment/runtime configuration and is not fabricated by this evidence boundary."
