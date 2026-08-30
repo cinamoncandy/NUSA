@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-30T14:55:30+09:00"
+updated_at: "2026-08-30T19:49:39+09:00"
 current_execution_target:
-  work_order: WO-ISSUE-1186-CODING-EXECUTION-EVIDENCE
+  work_order: WO-ISSUE-1258-EVOLVE-CLOUD-DISPATCH-DEDUPE
   status: VERIFYING
-  branch: codex/issue-1186-e2e-repair
-  base_sha: 781e82f68bcf796f38d6d88b397aff370085a2ba
-  scope: "Keep optional external coding execution opt-in via repository configuration while preserving bounded GitHub Models fallback and fail-closed evidence."
+  branch: codex/evolve-1258-dispatch-dedupe
+  base_sha: 39f98fb60e64fad1a937aa872a94d632a22bf719
+  scope: "Remove duplicate nusa_autopilot_execution Cloud coding dispatch and add durable fail-closed execution telemetry; current changes remain local pending exact-head CI and deployment."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: verification
 status: verifying
@@ -23,7 +23,7 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: codex/issue-1186-e2e-repair
+active_branch: codex/evolve-1258-dispatch-dedupe
 active_successor_branch: null
 active_pull_request: null
 current_non_live_work_order:
@@ -83,14 +83,14 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-ISSUE-1186-CODING-EXECUTION-EVIDENCE
+  work_order: WO-ISSUE-1258-EVOLVE-CLOUD-DISPATCH-DEDUPE
   status: VERIFYING
-  branch: codex/issue-1186-e2e-repair
-  base_commit: 781e82f68bcf796f38d6d88b397aff370085a2ba
-  scope: "Keep optional external coding execution opt-in via repository configuration while preserving bounded GitHub Models fallback and fail-closed evidence."
+  branch: codex/evolve-1258-dispatch-dedupe
+  base_commit: 39f98fb60e64fad1a937aa872a94d632a22bf719
+  scope: "Remove duplicate nusa_autopilot_execution Cloud coding dispatch and add durable fail-closed execution telemetry; current changes remain local pending exact-head CI and deployment."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  implementation_commit: 2ea9929d
-  validation: "External runner endpoint is repository-variable opt-in; absent configuration no longer dispatches the optional runner. Workflow static contract, preflight/typecheck/build/lint/architecture/safety/security/AIPOS and full isolated suite PASS; exact-head CI pending; no execution, broker, Risk, LIVE, or AI authority changes."
+  implementation_commit: UNCOMMITTED_WORKTREE
+  validation: "Focused autopilot regression 34/34, workflow topology 1/1, targeted typecheck, lint, architecture, safety, and AI zero-authority gates PASS; repository typecheck/build are blocked by missing local React/Node/mobile dependencies. Current origin/main 39f98fb has CI run 33307067410 PASS and Promotion run 33307251744 PASS; deployed revision 49595d0 still returns /coding/telemetry 404, and consumer run 33306974517 returned HTTP 400 CODING_RUNNER_HEAD_SHA_UNVERIFIED. One-minute runtime receipts are proven separately."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -505,9 +505,9 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
-  - id: WO-ISSUE-1186-CODING-EXECUTION-EVIDENCE
-    evidence: ".aipos/work-orders/WO-ISSUE-1186-CODING-EXECUTION-EVIDENCE.yaml"
-    summary: "Persist bounded, deterministic, redacted coding execution outcomes through the existing read-only autopilot coordinator; no execution or authority mutation."
+  - id: WO-ISSUE-1258-EVOLVE-CLOUD-DISPATCH-DEDUPE
+    evidence: ".aipos/work-orders/WO-ISSUE-1258-EVOLVE-CLOUD-DISPATCH-DEDUPE.yaml"
+    summary: "Keep one canonical Cloud coding consumer and persist bounded dedupe-safe EVOLVE execution telemetry; current changes await exact-head CI and deployment evidence."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -534,8 +534,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-ISSUE-1186-CODING-EXECUTION-EVIDENCE.yaml
-  reason: "Validate and publish the bounded coding execution evidence boundary; preserve external unattended-run gaps as unproven and zero authority."
+  work_order: .aipos/work-orders/WO-ISSUE-1258-EVOLVE-CLOUD-DISPATCH-DEDUPE.yaml
+  reason: "Publish only after exact-head CI is authorized, then deploy and verify one-event one-effective-dispatch telemetry; preserve unattended-run gaps as unproven and zero authority."
 verification:
   wo_0057:
     parent_pull_request: 552

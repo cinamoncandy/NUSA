@@ -147,6 +147,16 @@ jobs:
               }, null, 2));
               return;
             }
+            if (response.ok && workerStatus === 'DUPLICATE_EXECUTION_SUPPRESSED') {
+              fs.writeFileSync('artifacts/autopilot-execution/coding-runner-result.json', JSON.stringify({
+                status: 'DUPLICATE_EXECUTION_SUPPRESSED',
+                httpStatus: response.status,
+                workerStatus,
+                response: body.slice(0, 4000),
+                request,
+              }, null, 2));
+              return;
+            }
             fs.writeFileSync('artifacts/autopilot-execution/coding-runner-result.json', JSON.stringify({
               status: 'INTERFACE_READY',
               reason: response.ok ? 'cloud-coding-runtime-not-ready' : 'external-coding-runner-rejected-request',

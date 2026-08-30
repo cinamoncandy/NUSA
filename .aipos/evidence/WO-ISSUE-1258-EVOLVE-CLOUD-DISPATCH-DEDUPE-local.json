@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "workOrder": "WO-ISSUE-1258-EVOLVE-CLOUD-DISPATCH-DEDUPE",
+  "status": "IMPLEMENTED_LOCAL_VALIDATION_PENDING_REMOTE",
+  "baseSha": "888746b909a16239ce71c58eaa888bccdf75631e",
+  "branch": "codex/evolve-1258-dispatch-dedupe",
+  "implementationCommit": null,
+  "observedAt": "2026-08-30T19:49:39+09:00",
+  "scope": {
+    "canonicalWorkflowConsumer": "autopilot-execution-consumer.yml",
+    "duplicateBridgeRemoved": true,
+    "durableCoordinatorDedupe": true,
+    "executionTelemetry": true,
+    "hourlyAggregation": true,
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY"
+  },
+  "verification": {
+    "focusedAutopilotRegression": "PASS_34_OF_34",
+    "workflowDispatchTopology": "PASS_1_OF_1",
+    "targetedTypecheck": "PASS",
+    "repositoryTypecheck": "BLOCKED_LOCAL_DEPENDENCIES_REACT_AND_NODE_TYPES",
+    "build": "BLOCKED_SAME_REPOSITORY_TYPECHECK_DEPENDENCY_GAP",
+    "lint": "PASS_DESKTOP_AND_MOBILE",
+    "architectureTruth": "PASS",
+    "architectureCheck": "PASS",
+    "safetyArchitecture": "PASS",
+    "safetyInvariants": "PASS",
+    "aiZeroAuthority": "PASS",
+    "securityGateLocal": "INCOMPLETE_LOCAL_LICENSE_VERIFICATION_AFTER_DEPENDENCY_AUDIT",
+    "remoteMainCi": "PASS_RUN_33307067410_AT_39F98FB",
+    "remoteAutopilotConsumer": "PASS_WORKFLOW_33306974517_AT_888746B_WORKER_HTTP_400_CODING_RUNNER_HEAD_SHA_UNVERIFIED",
+    "remotePromotion": "PASS_RUN_33307251744_AT_39F98FB_DEPLOYMENT_REPORTED",
+    "remoteCiCurrentChanges": "NOT_RUN_LOCAL_ONLY",
+    "runtimeEvidence": "PARTIAL_HEALTH_200_SCHEDULED_STATUS_200_CODING_TELEMETRY_404_DEPLOYED_49595D",
+    "oneMinuteLoopEvidence": "PASS_120_RECEIPTS_EXACT_60S_GAPS_STATUS_57_ABSTAINED_63_DUPLICATE_SUPPRESSED"
+  },
+  "dedupeProof": {
+    "coordinatorLeaseSequence": "PASS_ACQUIRE_LEASE_ACTIVE_DISPATCHED_ALREADY_DISPATCHED",
+    "codingBoundaryDogfood": "PASS_FIRST_CALL_ONLY_RUNTIME_ONCE_SECOND_CALL_DUPLICATE_SUPPRESSED",
+    "telemetryHistory": "PASS_IDEMPOTENT_BOUNDED_HOURLY_SUMMARY"
+  },
+  "blockers": [
+    "CURRENT_CHANGES_HAVE_NO_EXACT_HEAD_REMOTE_CI",
+    "DEPLOYED_WORKER_CODING_TELEMETRY_404",
+    "DEPLOYED_WORKER_HEAD_SHA_UNVERIFIED",
+    "NO_PROMOTION_OR_DEPLOYMENT_OF_LOCAL_SLICE",
+    "DEPLOYED_REVISION_LACKS_LOCAL_TELEMETRY_ENDPOINT"
+  ],
+  "safety": {
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY",
+    "paperOnly": true,
+    "protectedAuthorityChanged": false
+  }
+}
