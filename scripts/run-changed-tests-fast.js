@@ -64,7 +64,7 @@ function main() {
 
   console.log(`FAST_GATE ${tests.length} changed test file(s): ${tests.join(", ")}`);
   for (const relativePath of tests) {
-    const args = [vitestCli, "run", "--reporter=spec", relativePath];
+    const args = [vitestCli, "run", relativePath];
     const result = spawnSync(process.execPath, args, {
       cwd: root,
       env: { ...process.env },
