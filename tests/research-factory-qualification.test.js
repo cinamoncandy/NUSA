@@ -184,6 +184,34 @@ test("mismatched human-readable evidence coverage fails closed", () => {
   assert.throws(() => qualifyResearchFactoryRun(run({ evidenceReport: [report({ outcome: "REJECTED" })] })), /outcome mismatch/);
 });
 
+test("duplicate evidence reports fail closed", () => {
+  const base = run();
+  const secondEntry = entry({ id: "candidate-b", rank: 2 });
+  const secondBinding = {
+    ...base.provenance.candidateBindings[0],
+    candidateId: "candidate-b",
+  };
+  assert.throws(
+    () => qualifyResearchFactoryRun({
+      ...base,
+      standing: {
+        ...base.standing,
+        entries: [entry(), secondEntry],
+      },
+      provenance: {
+        ...base.provenance,
+        candidateBindings: [...base.provenance.candidateBindings, secondBinding],
+      },
+      evidenceReport: [
+        report({ candidateId: "candidate-a" }),
+        report({ candidateId: "candidate-b" }),
+        report({ candidateId: "candidate-b" }),
+      ],
+    }),
+    /research evidence report coverage mismatch/,
+  );
+});
+
 test("missing run-level provenance fails closed before League qualification", () => {
   const invalid = run();
   delete invalid.provenance;
