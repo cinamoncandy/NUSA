@@ -73,17 +73,23 @@ async function oidcToken({ fetchImpl, requestUrl = process.env.ACTIONS_ID_TOKEN_
   if (typeof requestUrl !== "string" || !requestUrl || typeof requestToken !== "string" || !requestToken) {
     return { ok: false, status: null, reason: "github-oidc-not-configured", retryable: false };
   }
+  let response;
   try {
-    const response = await fetchImpl(requestUrl + "&audience=nusa-autopilot", {
+    response = await fetchImpl(requestUrl + "&audience=nusa-autopilot", {
       headers: { authorization: "Bearer " + requestToken },
     });
-    if (!response.ok) return { ok: false, status: response.status, reason: "github-oidc-request-failed", retryable: transientStatus(response.status) };
-    const payload = await response.json();
-    if (!payload || typeof payload.value !== "string" || !payload.value) return { ok: false, status: response.status, reason: "github-oidc-token-missing", retryable: false };
-    return { ok: true, status: response.status, value: payload.value };
   } catch {
     return { ok: false, status: null, reason: "github-oidc-network-failure", retryable: true };
   }
+  if (!response.ok) return { ok: false, status: response.status, reason: "github-oidc-request-failed", retryable: transientStatus(response.status) };
+  let payload;
+  try {
+    payload = await response.json();
+  } catch {
+    return { ok: false, status: response.status, reason: "github-oidc-token-missing", retryable: false };
+  }
+  if (!payload || typeof payload.value !== "string" || !payload.value) return { ok: false, status: response.status, reason: "github-oidc-token-missing", retryable: false };
+  return { ok: true, status: response.status, value: payload.value };
 }
 
 async function dispatchWithRetry({

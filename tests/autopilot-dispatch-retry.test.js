@@ -65,6 +65,25 @@ test("retries transient OIDC and runner failures with bounded exponential backof
   assert.deepEqual(result.attempts.map((attempt) => attempt.http_class), ["5xx", "5xx", "2xx"]);
 });
 
+
+test("does not retry malformed successful OIDC responses", async () => {
+  let calls = 0;
+  const result = await dispatchWithRetry({
+    request,
+    url: "https://runner.example.test/coding/execute",
+    oidcRequestUrl: "https://oidc.example.test/token",
+    oidcRequestToken: "oidc-request-test",
+    sleep: async () => { throw new Error("unexpected retry"); },
+    fetchImpl: async () => {
+      calls += 1;
+      return { ok: true, status: 200, json: async () => { throw new Error("malformed"); } };
+    },
+  });
+  assert.equal(result.status, "FAILED_CLOSED");
+  assert.equal(result.reason, "github-oidc-token-missing");
+  assert.equal(result.summary.attempts, 1);
+  assert.equal(calls, 1);
+});
 test("does not retry deterministic runner rejection", async () => {
   let calls = 0;
   const result = await dispatchWithRetry({
