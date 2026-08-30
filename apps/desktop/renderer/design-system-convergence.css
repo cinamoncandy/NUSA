@@ -1,0 +1,83 @@
+/* NUSA design-system convergence bridge.
+ * Presentation-only aliases for the active simple-ui surface.
+ * Keep existing hooks stable while future components migrate to semantic roles.
+ */
+#simple-ui-root {
+  --nusa-canvas: var(--simple-bg);
+  --nusa-surface: var(--simple-surface);
+  --nusa-surface-muted: var(--simple-surface-muted);
+  --nusa-border: var(--simple-border);
+  --nusa-border-strong: var(--simple-border-strong);
+  --nusa-text: var(--simple-text);
+  --nusa-text-muted: var(--simple-muted);
+
+  --nusa-state-info: var(--simple-primary);
+  --nusa-state-success: var(--simple-success);
+  --nusa-state-warning: var(--simple-warning);
+  --nusa-state-danger: var(--simple-danger);
+
+  --nusa-mode-paper: var(--simple-primary);
+  --nusa-mode-paper-soft: var(--simple-primary-soft);
+
+  --nusa-radius-sm: var(--simple-radius-sm);
+  --nusa-radius-md: var(--simple-radius-md);
+  --nusa-radius-lg: var(--simple-radius-lg);
+
+  --nusa-space-1: var(--simple-space-1);
+  --nusa-space-2: var(--simple-space-2);
+  --nusa-space-3: var(--simple-space-3);
+  --nusa-space-4: var(--simple-space-4);
+  --nusa-space-5: var(--simple-space-5);
+  --nusa-space-6: var(--simple-space-6);
+  --nusa-space-8: var(--simple-space-8);
+  --nusa-space-10: var(--simple-space-10);
+}
+
+#simple-ui-root .nusa-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 750;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+#simple-ui-root .nusa-state--info { color: var(--nusa-state-info); background: var(--simple-primary-soft); }
+#simple-ui-root .nusa-state--success { color: var(--nusa-state-success); background: var(--simple-success-soft); }
+#simple-ui-root .nusa-state--warning { color: var(--nusa-state-warning); background: var(--simple-warning-soft); }
+#simple-ui-root .nusa-state--danger { color: var(--nusa-state-danger); background: var(--simple-danger-soft); }
+
+#simple-ui-root .nusa-mode--paper {
+  color: var(--nusa-mode-paper);
+  background: var(--nusa-mode-paper-soft);
+}
+
+#simple-ui-root .nusa-focusable:focus-visible,
+#simple-ui-root button:focus-visible,
+#simple-ui-root input:focus-visible,
+#simple-ui-root select:focus-visible,
+#simple-ui-root a:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+#simple-ui-root .nusa-number {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #simple-ui-root *,
+  #simple-ui-root *::before,
+  #simple-ui-root *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
