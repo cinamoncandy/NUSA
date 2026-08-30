@@ -16,8 +16,11 @@ jobs:
   promote:
     name: Promote exact CI-verified Worker revision
     if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'main'
+      ${{
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_repository.full_name == github.repository
+      }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -26,6 +29,17 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 2
+
+      - name: Verify exact current main revision
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          current_main="$(git rev-parse origin/main)"
+          test "$current_main" = "$HEAD_SHA"
+          echo "Verified CI revision is current main: $HEAD_SHA"
 
       - name: Verify autopilot deployment-relevant change
         id: changes
