@@ -153,7 +153,7 @@ export function qualifyResearchFactoryRun(run: ResearchRunLeagueResult): Researc
   }
   validateRunProvenance(run);
   const reports = new Map(run.evidenceReport.map((report) => [report.candidateId, report] as const));
-  if (reports.size !== run.standing.entries.length) throw new Error("research evidence report coverage mismatch");
+  if (reports.size !== run.standing.entries.length || reports.size !== run.evidenceReport.length) {\n    throw new Error("research evidence report coverage mismatch");\n  }
 
   const candidates = run.standing.entries.map((entry) => {
     const report = reports.get(entry.id);
