@@ -114,8 +114,6 @@ jobs:
         if: ${{ steps.backend.outputs.mode == 'external' }}
         env:
           NUSA_CODING_RUNNER_URL: https://nusa.desporin12.workers.dev/coding/execute
-          ACTIONS_ID_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
-          ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
         run: |
           node - <<'NODE'
           const fs = require('fs');
