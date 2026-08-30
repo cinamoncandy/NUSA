@@ -2,7 +2,7 @@ import { parseGithubWebhookPayload, planGithubWebhookDispatch, type SupportedGit
 import { planAutopilotExecution } from "./executionPlanner";
 import { executeGithubDispatch } from "./githubExecutor";
 import { verifyGithubActionsOidcToken } from "./githubActionsOidc";
-import { executeCodingRunner, validateCodingRunnerRequest, type CodingPublisher, type CodingRuntime } from "./codingRunner";
+import { executeCodingRunner, validateCodingRunnerRequest, type CodingPublisher, type CodingRuntime, type WorkersAiBinding } from "./codingRunner";
 import { prepareProductionExecution } from "./productionExecutionSpine";
 import {
   acquirePersistentExecution,
@@ -25,6 +25,8 @@ export interface Env {
   NUSA_CODING_RUNNER_TOKEN?: string;
   NUSA_AI_CODING_ENDPOINT?: string;
   NUSA_AI_CODING_TOKEN?: string;
+  NUSA_AI_CODING_MODEL?: string;
+  AI?: WorkersAiBinding;
   NUSA_DEPLOYMENT_REVISION?: string;
   NUSA_EXECUTION_COORDINATOR?: ExecutionCoordinatorNamespace;
 }
@@ -98,7 +100,7 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
-    if (request.method === "GET" && url.pathname === "/health") return json({ service: "nusa-autopilot", status: env.NUSA_WEBHOOK_SECRET ? "WEBHOOK_READY" : "INTERFACE_READY", deploymentRevision: env.NUSA_DEPLOYMENT_REVISION?.trim() || "UNVERIFIED", executionPlanning: "ENABLED", boundedExecutionSpine: "ENABLED", persistentExecutionCoordination: env.NUSA_EXECUTION_COORDINATOR ? "CONFIGURED" : "INTERFACE_READY", codingExecutionEvidence: env.NUSA_EXECUTION_COORDINATOR ? "CONFIGURED" : "INTERFACE_READY", authenticatedExecutor: env.NUSA_GITHUB_TOKEN ? "CONFIGURED" : "INTERFACE_READY", codingRunner: "OIDC_READY", legacyCodingRunnerToken: env.NUSA_CODING_RUNNER_TOKEN ? "CONFIGURED" : "NOT_REQUIRED", aiCodingEngine: env.NUSA_AI_CODING_ENDPOINT && env.NUSA_AI_CODING_TOKEN ? "CONFIGURED" : "INTERFACE_READY", allowedRepository, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+    if (request.method === "GET" && url.pathname === "/health") return json({ service: "nusa-autopilot", status: env.NUSA_WEBHOOK_SECRET ? "WEBHOOK_READY" : "INTERFACE_READY", deploymentRevision: env.NUSA_DEPLOYMENT_REVISION?.trim() || "UNVERIFIED", executionPlanning: "ENABLED", boundedExecutionSpine: "ENABLED", persistentExecutionCoordination: env.NUSA_EXECUTION_COORDINATOR ? "CONFIGURED" : "INTERFACE_READY", codingExecutionEvidence: env.NUSA_EXECUTION_COORDINATOR ? "CONFIGURED" : "INTERFACE_READY", authenticatedExecutor: env.NUSA_GITHUB_TOKEN ? "CONFIGURED" : "INTERFACE_READY", codingRunner: "OIDC_READY", legacyCodingRunnerToken: env.NUSA_CODING_RUNNER_TOKEN ? "CONFIGURED" : "NOT_REQUIRED", aiCodingEngine: (env.NUSA_AI_CODING_ENDPOINT && env.NUSA_AI_CODING_TOKEN) || env.AI ? "CONFIGURED" : "INTERFACE_READY", allowedRepository, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
 
     if (request.method === "GET" && url.pathname === "/scheduled/status") {
       if (!env.NUSA_EXECUTION_COORDINATOR) return json({ status: "UNAVAILABLE", reason: "PERSISTENT_EXECUTION_COORDINATOR_REQUIRED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 503);

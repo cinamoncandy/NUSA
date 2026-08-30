@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { executeCodingRunner, validateCodingRunnerRequest, verifyCodingRunnerRequestAgainstGitHub, type CodingRuntime } from "./codingRunner";
+import { executeCodingRunner, validateCodingRunnerRequest, verifyCodingRunnerRequestAgainstGitHub, type CodingRuntime, type WorkersAiBinding } from "./codingRunner";
 
 const request = {
   kind: "REPOSITORY_AUTOPILOT" as const,
@@ -102,6 +102,21 @@ describe("coding runner", () => {
     assert.equal(urls.length, 2);
   });
 
+  it("accepts a failed workflow only for an explicit gha failure-repair request", async () => {
+    const failureRequest = { ...request, reason: "gha:CI:123:failure" };
+    await verifyCodingRunnerRequestAgainstGitHub(failureRequest, "github-token", async (url) => {
+      if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+      return response(200, {
+        id: request.workflowRunId,
+        head_sha: request.headSha,
+        head_branch: "main",
+        status: "completed",
+        conclusion: "failure",
+        repository: { full_name: request.repository },
+      });
+    });
+  });
+
   it("sends a bounded patch-only proposal to the injected cloud runtime after GitHub verification", async () => {
     let runtimeCalls = 0;
     const runtime: CodingRuntime = {
@@ -135,7 +150,7 @@ describe("coding runner", () => {
     assert.equal(calls.length, 3);
   });
 
-  it("uses GitHub Models when no dedicated AI coding endpoint is configured", async () => {
+  it("uses the Cloudflare Workers AI binding when no dedicated endpoint is configured", async () => {
     let runtimeCalls = 0;
     const runtime: CodingRuntime = {
       name: "fake-sandbox",
@@ -152,35 +167,35 @@ describe("coding runner", () => {
         };
       },
     };
-    const calls: Array<{ url: string; init?: RequestInit }> = [];
-    const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token" }, async (url, init) => {
-      calls.push({ url, init });
-      if (url.includes("/commits/") || url.includes("/actions/runs/")) return verifiedGithubFetch(url);
-      return response(200, {
-        choices: [{ message: { content: JSON.stringify({ patch }) } }],
-      });
-    }, runtime);
+    const calls: Array<{ model: string; input: { prompt: string } }> = [];
+    const ai: WorkersAiBinding = {
+      async run(model, input) {
+        calls.push({ model, input });
+        return { response: JSON.stringify({ patch }) };
+      },
+    };
+    const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch, runtime);
     assert.equal(result.status, "EXECUTION_ACCEPTED");
     assert.equal(result.proposalValidated, true);
     assert.equal(runtimeCalls, 1);
-    assert.equal(calls.length, 3);
-    const modelCall = calls[2];
-    assert.equal(modelCall?.url, "https://models.github.ai/inference/chat/completions");
-    const body = JSON.parse(String(modelCall?.init?.body));
-    assert.equal(body.model, "openai/gpt-4.1");
-    assert.equal(body.response_format.type, "json_object");
-    const headers = modelCall?.init?.headers as Record<string, string>;
-    assert.equal(headers.authorization, "Bearer github-token");
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0]?.model, "@cf/meta/llama-3.1-8b-instruct");
+    assert.match(calls[0]?.input.prompt ?? "", /unified diff/);
   });
 
-  it("fails closed when GitHub Models access is unavailable", async () => {
-    const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token" }, async (url) => {
-      if (url.includes("/commits/") || url.includes("/actions/runs/")) return verifiedGithubFetch(url);
-      return response(403, { message: "Forbidden" });
-    });
+  it("stays interface-ready when no provider-neutral coding engine is configured", async () => {
+    const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token" }, verifiedGithubFetch);
+    assert.equal(result.status, "INTERFACE_READY");
+    assert.equal(result.reason, "ai-coding-engine-not-configured");
+  });
+
+  it("fails closed when the Workers AI binding is unavailable", async () => {
+    const result = await executeCodingRunner(request, {
+      NUSA_GITHUB_TOKEN: "github-token",
+      AI: { async run() { throw new Error("provider unavailable"); } },
+    }, verifiedGithubFetch);
     assert.equal(result.status, "EXECUTION_FAILED");
-    assert.equal(result.httpStatus, 403);
-    assert.equal(result.reason, "github-models-coding-engine-failed");
+    assert.equal(result.reason, "provider unavailable");
   });
 
   it("fails closed when the coding engine does not return a patch proposal", async () => {

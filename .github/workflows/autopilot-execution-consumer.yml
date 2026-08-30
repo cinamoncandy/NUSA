@@ -85,7 +85,8 @@ jobs:
       - name: Select supported coding backend
         id: backend
         env:
-          NUSA_CODING_RUNNER_URL: ${{ vars.NUSA_CODING_RUNNER_URL }}
+          # Public Worker URL is configuration, not a credential. No repository variable bootstrap is required.
+          NUSA_CODING_RUNNER_URL: https://nusa.desporin12.workers.dev/coding/execute
         run: |
           if [ -n "${NUSA_CODING_RUNNER_URL:-}" ]; then
             echo 'mode=external' >> "$GITHUB_OUTPUT"
@@ -109,7 +110,7 @@ jobs:
       - name: Dispatch to configured external coding runner
         if: ${{ steps.backend.outputs.mode == 'external' }}
         env:
-          NUSA_CODING_RUNNER_URL: ${{ vars.NUSA_CODING_RUNNER_URL }}
+          NUSA_CODING_RUNNER_URL: https://nusa.desporin12.workers.dev/coding/execute
         run: |
           node - <<'NODE'
           const fs = require('fs');
@@ -133,10 +134,14 @@ jobs:
             });
           }).then(async (response) => {
             const body = await response.text();
-            if (response.ok) {
+            let payload = {};
+            try { payload = JSON.parse(body); } catch {}
+            const workerStatus = typeof payload.status === 'string' ? payload.status : 'UNKNOWN';
+            if (response.ok && ['EXECUTION_ACCEPTED', 'EXECUTION_DISPATCHED'].includes(workerStatus)) {
               fs.writeFileSync('artifacts/autopilot-execution/coding-runner-result.json', JSON.stringify({
                 status: 'DISPATCHED',
                 httpStatus: response.status,
+                workerStatus,
                 response: body.slice(0, 4000),
                 request,
               }, null, 2));
@@ -144,8 +149,9 @@ jobs:
             }
             fs.writeFileSync('artifacts/autopilot-execution/coding-runner-result.json', JSON.stringify({
               status: 'INTERFACE_READY',
-              reason: 'external-coding-runner-rejected-request',
+              reason: response.ok ? 'cloud-coding-runtime-not-ready' : 'external-coding-runner-rejected-request',
               httpStatus: response.status,
+              workerStatus,
               response: body.slice(0, 4000),
               request,
             }, null, 2));
