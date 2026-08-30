@@ -125,19 +125,22 @@ describe("evaluateStrategyByRegime", () => {
   it("aggregates OOS performance by point-in-time regime and exposes robustness", () => {
     const result = evaluateStrategyByRegime(experiment(), [
       regime(0, "HEALTHY"),
-      regime(1, "HEALTHY"),
+      regime(1, "MIXED"),
       regime(2, "STRESSED"),
       regime(3, "STRESSED"),
-    ]);
+    ], { minimumWindowsPerRegime: 1 });
 
     const healthy = result.slices.find((slice) => slice.regime === "HEALTHY")!;
+    const mixed = result.slices.find((slice) => slice.regime === "MIXED")!;
     const stressed = result.slices.find((slice) => slice.regime === "STRESSED")!;
-    assert.equal(healthy.windowCount, 2);
+    assert.equal(healthy.windowCount, 1);
     assert.equal(healthy.sufficientEvidence, true);
     assert.ok(healthy.averageReturn! > 0);
+    assert.equal(mixed.windowCount, 1);
+    assert.equal(mixed.sufficientEvidence, true);
     assert.equal(stressed.windowCount, 2);
     assert.ok(stressed.averageReturn! < 0);
-    assert.equal(result.sufficientRegimeCount, 2);
+    assert.equal(result.sufficientRegimeCount, 3);
     assert.ok(result.regimeRobustnessScore != null);
     assert.deepEqual(result.sourceDatasetIds, ["dataset-a"]);
   });
