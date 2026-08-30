@@ -58,6 +58,8 @@ export interface PaperPortfolioRiskEvidenceInput extends PaperPortfolioTrustedEv
   readonly maximumDrawdownContribution: number;
   readonly minimumDiversificationBenefit: number;
   readonly maximumAllowedCandidateCorrelation: number;
+  /** Optional canonical run receipt used to bind the evidence to the evaluated workflow run. */
+  readonly trustedRun?: PaperChaosTrustedGitHubRunReceipt;
   readonly trustedEvidence?: PaperPortfolioTrustedLongitudinalEvidence;
 }
 
@@ -216,7 +218,7 @@ const trustedEvidenceReasons = (input: PaperPortfolioRiskEvidenceInput): string[
   if (typeof trusted !== "object" || !trustedEvidenceObjects.has(trusted)) return ["UNTRUSTED_PAPER_EVIDENCE"];
   const reasons: string[] = [];
   try {
-    const run: PaperChaosTrustedGitHubRunReceipt = {
+    const trustedRun: PaperChaosTrustedGitHubRunReceipt = {
       verificationSource: trusted.verificationSource,
       repository: trusted.repository,
       headSha: trusted.sourceSha,
@@ -226,6 +228,8 @@ const trustedEvidenceReasons = (input: PaperPortfolioRiskEvidenceInput): string[
       eventName: trusted.eventName,
       workflowRunUrl: trusted.workflowRunUrl,
     };
+    validateTrustedRun(trustedRun);
+    const run = input.trustedRun ?? trustedRun;
     validateTrustedRun(run);
     if (trusted.schemaVersion !== 1 || trusted.verificationStatus !== "VERIFIED") reasons.push("TRUSTED_PAPER_EVIDENCE_NOT_VERIFIED");
     if (trusted.sourceSha !== trusted.sourceSha.toLowerCase()) reasons.push("TRUSTED_PAPER_SOURCE_SHA_NOT_CANONICAL");
@@ -236,6 +240,13 @@ const trustedEvidenceReasons = (input: PaperPortfolioRiskEvidenceInput): string[
     const verifiedAtMs = Date.parse(trusted.verifiedAt);
     const evaluatedAtMs = Date.parse(input.evaluatedAt);
     if (!Number.isFinite(verifiedAtMs) || verifiedAtMs > evaluatedAtMs) reasons.push("TRUSTED_PAPER_EVIDENCE_TIME_INVALID");
+    if (trustedRun.workflowRunId !== run.workflowRunId
+      || trustedRun.workflowRunAttempt !== run.workflowRunAttempt
+      || trustedRun.workflowRef !== run.workflowRef
+      || trustedRun.eventName !== run.eventName
+      || trustedRun.workflowRunUrl !== run.workflowRunUrl) {
+      reasons.push("TRUSTED_PAPER_RUN_BINDING_MISMATCH");
+    }
     const expectedFingerprint = digest({
       facts: bindingFacts(input, run, trusted.periodIds, trusted.outcomeReceiptFingerprints),
       evidence: {
