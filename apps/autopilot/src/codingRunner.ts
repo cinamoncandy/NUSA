@@ -92,6 +92,7 @@ const DEDUPE_KEY = /^[A-Za-z0-9_.:-]{1,256}$/;
 const DEFAULT_REPOSITORY = "cinamoncandy/NUSA";
 const GITHUB_API_ORIGIN = "https://api.github.com";
 const DEFAULT_WORKERS_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct";
+const RETIRED_WORKERS_AI_MODELS = new Set(["@cf/meta/infire-llama-3.1-8b-instruct"]);
 
 export function validateCodingRunnerRequest(value: unknown, allowedRepository = DEFAULT_REPOSITORY): CodingRunnerRequest {
   if (!value || typeof value !== "object") throw new Error("CODING_RUNNER_REQUEST_INVALID");
@@ -286,7 +287,11 @@ export async function executeCodingRunner(
   }
 
   if (!env.AI) return { status: "INTERFACE_READY", reason: "ai-coding-engine-not-configured" };
-  const model = env.NUSA_AI_CODING_MODEL?.trim() || DEFAULT_WORKERS_AI_MODEL;
+  const configuredModel = env.NUSA_AI_CODING_MODEL?.trim();
+  // Dashboard vars can outlive a provider retirement; never call a known-retired model.
+  const model = !configuredModel || RETIRED_WORKERS_AI_MODELS.has(configuredModel)
+    ? DEFAULT_WORKERS_AI_MODEL
+    : configuredModel;
   if (!validWorkersAiModel(model)) return { status: "EXECUTION_FAILED", reason: "WORKERS_AI_MODEL_INVALID" };
   try {
     const proposal = workersAiProposal(await env.AI.run(model, workersAiCodingRequest(request, model)));
