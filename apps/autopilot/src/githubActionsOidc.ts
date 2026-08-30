@@ -40,6 +40,12 @@ function decodeBase64Url(value: string): Uint8Array {
   return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }
 
+function toArrayBuffer(value: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(value.byteLength);
+  copy.set(value);
+  return copy.buffer;
+}
+
 function decodeJson<T>(value: string, error: string): T {
   try {
     return JSON.parse(new TextDecoder().decode(decodeBase64Url(value))) as T;
@@ -118,8 +124,8 @@ export async function verifyGithubActionsOidcToken(
     throw new Error("CODING_RUNNER_OIDC_KEY_INVALID");
   }
 
-  const signed = new TextEncoder().encode(`${encodedHeader}.${encodedClaims}`);
-  const signature = decodeBase64Url(encodedSignature!);
+  const signed = toArrayBuffer(new TextEncoder().encode(`${encodedHeader}.${encodedClaims}`));
+  const signature = toArrayBuffer(decodeBase64Url(encodedSignature!));
   const verified = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, signature, signed);
   if (!verified) throw new Error("CODING_RUNNER_OIDC_SIGNATURE_INVALID");
   assertClaims(claims, allowedRepository, nowSeconds, audience);
