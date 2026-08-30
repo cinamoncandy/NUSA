@@ -5,6 +5,39 @@ import worker, {
   computeGithubWebhookSignature,
   verifyGithubWebhookSignature,
 } from "./index";
+import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
+import { ExecutionCoordinator, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+
+class MemoryStorage {
+  private readonly values = new Map<string, unknown>();
+
+  async get<T>(key: string): Promise<T | undefined> {
+    return this.values.get(key) as T | undefined;
+  }
+
+  async put<T>(key: string, value: T): Promise<void> {
+    this.values.set(key, value);
+  }
+}
+
+function evidenceFixture() {
+  const result = createCodingExecutionEvidence({
+    kind: "REPOSITORY_AUTOPILOT",
+    repository: "cinamoncandy/NUSA",
+    headSha: "a".repeat(40),
+    workflowRunId: 44,
+    reason: "gha:CI:success",
+    executionId: "github:delivery-44",
+    dedupeKey: `ci:44:${"a".repeat(40)}`,
+    mutationAllowed: false,
+    liveAuthority: "NONE",
+    productionMutationAllowed: false,
+    aiAuthority: "ZERO_AUTHORITY",
+  }, { status: "EXECUTION_ACCEPTED", reason: "validated", backend: "cloudflare-sandbox", checkpointId: "checkpoint:44", workspaceVerified: true }, 44);
+  assert.equal(result.status, "RECORDED");
+  if (result.status !== "RECORDED") throw new Error("fixture evidence was not recorded");
+  return result.evidence;
+}
 
 describe("NUSA autopilot GitHub webhook", () => {
   it("classifies only the bounded event surface", () => {
@@ -126,5 +159,28 @@ describe("NUSA autopilot GitHub webhook", () => {
       body,
     }), { NUSA_WEBHOOK_SECRET: "secret" });
     assert.equal(response.status, 400);
+  });
+
+  it("projects persisted coding evidence through a read-only safety boundary", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const evidence = evidenceFixture();
+    await coordinator.fetch(new Request("https://execution-coordinator/coding-evidence", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ evidence }),
+    }));
+    const namespace: ExecutionCoordinatorNamespace = {
+      idFromName: () => ({}),
+      get: () => ({ fetch: (input: RequestInfo | URL, init?: RequestInit) => coordinator.fetch(new Request(input, init)) }),
+    };
+    const response = await worker.fetch(new Request("https://example.test/coding/evidence"), { NUSA_EXECUTION_COORDINATOR: namespace });
+    assert.equal(response.status, 200);
+    const payload = await response.json() as { status: string; history: readonly unknown[]; liveAuthority: string; productionMutationAllowed: boolean; aiAuthority: string };
+    assert.equal(payload.status, "OBSERVED");
+    assert.equal(payload.history.length, 1);
+    assert.equal(payload.liveAuthority, "NONE");
+    assert.equal(payload.productionMutationAllowed, false);
+    assert.equal(payload.aiAuthority, "ZERO_AUTHORITY");
   });
 });

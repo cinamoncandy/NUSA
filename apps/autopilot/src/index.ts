@@ -7,11 +7,14 @@ import { prepareProductionExecution } from "./productionExecutionSpine";
 import {
   acquirePersistentExecution,
   markPersistentExecutionDispatched,
+  readCodingExecutionEvidence,
+  recordCodingExecutionEvidence,
   readScheduledRuntimeEvidence,
   recordScheduledRuntimeReceipt,
   type ExecutionCoordinatorNamespace,
 } from "./executionCoordinator";
 import { runScheduledAutopilot } from "./scheduledRuntime";
+import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
 
 export { ExecutionCoordinator } from "./executionCoordinator";
 
@@ -75,7 +78,17 @@ export async function handleCodingExecute(
   try {
     const runnerRequest = validateCodingRunnerRequest(await request.json(), allowedRepository);
     const result = await executeCodingRunner(runnerRequest, env, undefined, runtime, publisher);
-    return json({ accepted: true, ...result, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, result.status === "EXECUTION_FAILED" ? 502 : 202);
+    const evidenceDecision = createCodingExecutionEvidence(runnerRequest, result, Date.now());
+    let evidencePersisted = false;
+    if (evidenceDecision.status === "RECORDED" && env.NUSA_EXECUTION_COORDINATOR) {
+      try {
+        await recordCodingExecutionEvidence(env.NUSA_EXECUTION_COORDINATOR, evidenceDecision.evidence);
+        evidencePersisted = true;
+      } catch {
+        console.error(JSON.stringify({ event: "NUSA_CODING_EVIDENCE_PERSIST_FAILED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }));
+      }
+    }
+    return json({ accepted: true, ...result, executionEvidence: evidenceDecision.status === "RECORDED" ? evidenceDecision.evidence : null, executionEvidencePersisted: evidencePersisted, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, result.status === "EXECUTION_FAILED" ? 502 : 202);
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "CODING_RUNNER_REQUEST_INVALID" }, 400);
   }
@@ -85,7 +98,7 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
-    if (request.method === "GET" && url.pathname === "/health") return json({ service: "nusa-autopilot", status: env.NUSA_WEBHOOK_SECRET ? "WEBHOOK_READY" : "INTERFACE_READY", deploymentRevision: env.NUSA_DEPLOYMENT_REVISION?.trim() || "UNVERIFIED", executionPlanning: "ENABLED", boundedExecutionSpine: "ENABLED", persistentExecutionCoordination: env.NUSA_EXECUTION_COORDINATOR ? "CONFIGURED" : "INTERFACE_READY", authenticatedExecutor: env.NUSA_GITHUB_TOKEN ? "CONFIGURED" : "INTERFACE_READY", codingRunner: "OIDC_READY", legacyCodingRunnerToken: env.NUSA_CODING_RUNNER_TOKEN ? "CONFIGURED" : "NOT_REQUIRED", aiCodingEngine: env.NUSA_AI_CODING_ENDPOINT && env.NUSA_AI_CODING_TOKEN ? "CONFIGURED" : "INTERFACE_READY", allowedRepository, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+    if (request.method === "GET" && url.pathname === "/health") return json({ service: "nusa-autopilot", status: env.NUSA_WEBHOOK_SECRET ? "WEBHOOK_READY" : "INTERFACE_READY", deploymentRevision: env.NUSA_DEPLOYMENT_REVISION?.trim() || "UNVERIFIED", executionPlanning: "ENABLED", boundedExecutionSpine: "ENABLED", persistentExecutionCoordination: env.NUSA_EXECUTION_COORDINATOR ? "CONFIGURED" : "INTERFACE_READY", codingExecutionEvidence: env.NUSA_EXECUTION_COORDINATOR ? "CONFIGURED" : "INTERFACE_READY", authenticatedExecutor: env.NUSA_GITHUB_TOKEN ? "CONFIGURED" : "INTERFACE_READY", codingRunner: "OIDC_READY", legacyCodingRunnerToken: env.NUSA_CODING_RUNNER_TOKEN ? "CONFIGURED" : "NOT_REQUIRED", aiCodingEngine: env.NUSA_AI_CODING_ENDPOINT && env.NUSA_AI_CODING_TOKEN ? "CONFIGURED" : "INTERFACE_READY", allowedRepository, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
 
     if (request.method === "GET" && url.pathname === "/scheduled/status") {
       if (!env.NUSA_EXECUTION_COORDINATOR) return json({ status: "UNAVAILABLE", reason: "PERSISTENT_EXECUTION_COORDINATOR_REQUIRED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 503);
@@ -103,6 +116,16 @@ export default {
         });
       } catch {
         return json({ status: "UNAVAILABLE", reason: "SCHEDULED_RUNTIME_RECEIPT_READ_FAILED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 503);
+      }
+    }
+
+    if (request.method === "GET" && url.pathname === "/coding/evidence") {
+      if (!env.NUSA_EXECUTION_COORDINATOR) return json({ status: "UNAVAILABLE", reason: "PERSISTENT_EXECUTION_COORDINATOR_REQUIRED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 503);
+      try {
+        const evidence = await readCodingExecutionEvidence(env.NUSA_EXECUTION_COORDINATOR);
+        return json({ status: evidence.evidence ? "OBSERVED" : "AWAITING_FIRST_EXECUTION", ...evidence, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+      } catch {
+        return json({ status: "UNAVAILABLE", reason: "CODING_EVIDENCE_READ_FAILED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 503);
       }
     }
 

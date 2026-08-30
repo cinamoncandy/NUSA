@@ -1,4 +1,5 @@
 import { validatePersistedEvolutionLearningMemory, type EvolutionLearningMemoryStorage } from "./evolveDurableLearningMemory";
+import { validatePersistedCodingExecutionEvidence, type CodingExecutionEvidence } from "./codingExecutionEvidence";
 
 interface DurableObjectStorageLike {
   get<T>(key: string): Promise<T | undefined>;
@@ -61,10 +62,18 @@ interface ScheduledRuntimeReceiptHistory {
   receipts: readonly ScheduledRuntimeReceipt[];
 }
 
+interface CodingExecutionEvidenceHistory {
+  schemaVersion: 1;
+  evidence: readonly CodingExecutionEvidence[];
+}
+
 const SCHEDULED_RECEIPT_COORDINATOR_KEY = "scheduled-runtime-observability";
 const SCHEDULED_RECEIPT_HISTORY_KEY = "scheduled-runtime-receipts-v1";
 const MAX_SCHEDULED_RECEIPTS = 120;
 const EVOLVE_LEARNING_COORDINATOR_KEY = "evolve-learning-memory";
+const CODING_EVIDENCE_COORDINATOR_KEY = "coding-execution-observability";
+const CODING_EVIDENCE_HISTORY_KEY = "coding-execution-evidence-v1";
+const MAX_CODING_EVIDENCE = 32;
 const json = (body: unknown, status = 200): Response => new Response(JSON.stringify(body), {
   status,
   headers: { "content-type": "application/json; charset=utf-8" },
@@ -162,11 +171,13 @@ export class ExecutionCoordinator {
     if (request.method === "GET" && url.pathname === "/scheduled-receipt") return this.readScheduledReceiptLegacy();
     if (request.method === "GET" && url.pathname === "/scheduled-receipt-history") return this.readScheduledReceipt();
     if (request.method === "GET" && url.pathname === "/evolve-learning-memory") return this.readEvolutionLearningMemory();
+    if (request.method === "GET" && url.pathname === "/coding-evidence-history") return this.readCodingExecutionEvidence();
     if (request.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405);
     if (url.pathname === "/acquire") return this.acquire(await request.json());
     if (url.pathname === "/dispatched") return this.markDispatched(await request.json());
     if (url.pathname === "/scheduled-receipt") return this.writeScheduledReceipt(await request.json());
     if (url.pathname === "/evolve-learning-memory") return this.writeEvolutionLearningMemory(await request.json());
+    if (url.pathname === "/coding-evidence") return this.writeCodingExecutionEvidence(await request.json());
     return json({ error: "NOT_FOUND" }, 404);
   }
 
@@ -278,6 +289,63 @@ export class ExecutionCoordinator {
     }
     return json({ value });
   }
+
+  private async writeCodingExecutionEvidence(value: unknown): Promise<Response> {
+    if (!value || typeof value !== "object" || !("evidence" in value)) return json({ error: "CODING_EVIDENCE_REQUEST_INVALID" }, 400);
+    const evidence = (value as { evidence: unknown }).evidence;
+    try {
+      validatePersistedCodingExecutionEvidence(evidence);
+    } catch {
+      return json({ error: "CODING_EVIDENCE_INVALID" }, 400);
+    }
+    let current: CodingExecutionEvidenceHistory;
+    try {
+      current = await this.readCodingExecutionEvidenceHistory();
+    } catch {
+      return json({ error: "CODING_EVIDENCE_CORRUPT" }, 500);
+    }
+    const existing = current.evidence.find((candidate) => candidate.evidenceId === evidence.evidenceId);
+    if (existing) {
+      if (JSON.stringify(existing) !== JSON.stringify(evidence)) return json({ error: "CODING_EVIDENCE_IDENTITY_CONFLICT" }, 409);
+      return json({ updated: false, evidence: existing });
+    }
+    const next = [...current.evidence, evidence]
+      .sort((left, right) => left.recordedAtMs - right.recordedAtMs || left.evidenceId.localeCompare(right.evidenceId))
+      .slice(-MAX_CODING_EVIDENCE);
+    const history: CodingExecutionEvidenceHistory = Object.freeze({ schemaVersion: 1, evidence: Object.freeze(next) });
+    await this.ctx.storage.put(CODING_EVIDENCE_HISTORY_KEY, history);
+    return json({ updated: true, evidence });
+  }
+
+  private async readCodingExecutionEvidence(): Promise<Response> {
+    try {
+      const history = await this.readCodingExecutionEvidenceHistory();
+      return json({
+        evidence: history.evidence.at(-1) ?? null,
+        history: history.evidence,
+        liveAuthority: "NONE",
+        productionMutationAllowed: false,
+        aiAuthority: "ZERO_AUTHORITY",
+      });
+    } catch {
+      return json({ error: "CODING_EVIDENCE_CORRUPT" }, 500);
+    }
+  }
+
+  private async readCodingExecutionEvidenceHistory(): Promise<CodingExecutionEvidenceHistory> {
+    const stored = await this.ctx.storage.get<unknown>(CODING_EVIDENCE_HISTORY_KEY);
+    if (stored == null) return Object.freeze({ schemaVersion: 1, evidence: Object.freeze([]) });
+    if (!stored || typeof stored !== "object" || (stored as { schemaVersion?: unknown }).schemaVersion !== 1 || !Array.isArray((stored as { evidence?: unknown }).evidence) || (stored as { evidence: unknown[] }).evidence.length > MAX_CODING_EVIDENCE) {
+      throw new Error("CODING_EVIDENCE_CORRUPT");
+    }
+    const evidence = (stored as { evidence: unknown[] }).evidence;
+    evidence.forEach(validatePersistedCodingExecutionEvidence);
+    const validEvidence = evidence as CodingExecutionEvidence[];
+    return Object.freeze({
+      schemaVersion: 1,
+      evidence: Object.freeze([...validEvidence].sort((left, right) => left.recordedAtMs - right.recordedAtMs || left.evidenceId.localeCompare(right.evidenceId))),
+    });
+  }
 }
 
 export interface ExecutionCoordinatorNamespace {
@@ -365,4 +433,38 @@ export function createEvolutionLearningMemoryStorage(namespace: ExecutionCoordin
       if (!response.ok) throw new Error("EVOLVE_DURABLE_MEMORY_WRITE_FAILED");
     },
   });
+}
+
+export async function recordCodingExecutionEvidence(namespace: ExecutionCoordinatorNamespace, evidence: CodingExecutionEvidence): Promise<void> {
+  const stub = namespace.get(namespace.idFromName(CODING_EVIDENCE_COORDINATOR_KEY));
+  const response = await stub.fetch("https://execution-coordinator/coding-evidence", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ evidence }),
+  });
+  if (!response.ok) throw new Error("CODING_EVIDENCE_PERSIST_FAILED");
+}
+
+export async function readCodingExecutionEvidence(namespace: ExecutionCoordinatorNamespace): Promise<{
+  readonly evidence: CodingExecutionEvidence | null;
+  readonly history: readonly CodingExecutionEvidence[];
+}> {
+  const stub = namespace.get(namespace.idFromName(CODING_EVIDENCE_COORDINATOR_KEY));
+  const response = await stub.fetch("https://execution-coordinator/coding-evidence-history", { method: "GET" });
+  if (!response.ok) throw new Error("CODING_EVIDENCE_READ_FAILED");
+  const body = await response.json() as { evidence?: unknown; history?: unknown };
+  if (body.evidence !== null && body.evidence !== undefined) validatePersistedCodingExecutionEvidence(body.evidence);
+  if (!Array.isArray(body.history) || !body.history.every((entry) => {
+    try {
+      validatePersistedCodingExecutionEvidence(entry);
+      return true;
+    } catch {
+      return false;
+    }
+  })) throw new Error("CODING_EVIDENCE_READ_INVALID");
+  const history = body.history as readonly CodingExecutionEvidence[];
+  const latest = history.at(-1) ?? null;
+  if (latest !== null && JSON.stringify(body.evidence) !== JSON.stringify(latest)) throw new Error("CODING_EVIDENCE_READ_INVALID");
+  if (latest === null && body.evidence != null) throw new Error("CODING_EVIDENCE_READ_INVALID");
+  return Object.freeze({ evidence: latest, history: Object.freeze([...history]) });
 }
