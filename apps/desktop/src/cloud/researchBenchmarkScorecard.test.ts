@@ -4,6 +4,20 @@ import { createResearchBenchmarkScorecard } from "./researchBenchmarkScorecard";
 import type { ResearchExperimentResult } from "./researchDataset";
 
 function experiment(executionCosts: unknown): ResearchExperimentResult {
+  const windows = [
+    {
+      testResult: {
+        metrics: { totalReturn: 0.09, benchmarkReturn: 0.01, excessReturn: 0.08, outperformance: 0.08 },
+        benchmark: { strategyReturn: 0.09, buyAndHoldReturn: 0.01, outperformance: 0.08 },
+      },
+    },
+    {
+      testResult: {
+        metrics: { totalReturn: 0.01, benchmarkReturn: 0.01, excessReturn: 0, outperformance: 0 },
+        benchmark: { strategyReturn: 0.01, buyAndHoldReturn: 0.01, outperformance: 0 },
+      },
+    },
+  ];
   return {
     manifest: {
       schemaVersion: 1,
@@ -29,7 +43,7 @@ function experiment(executionCosts: unknown): ResearchExperimentResult {
     generatedAt: "1970-01-01T00:00:00.000Z",
     warnings: [],
     walkForwardResult: {
-      windows: [],
+      windows,
       candidateSelectionCounts: {},
       warnings: [],
       stabilityDiagnostics: {

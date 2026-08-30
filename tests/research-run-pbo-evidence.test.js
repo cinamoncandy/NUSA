@@ -23,7 +23,11 @@ function equityCurve(candidateIndex, windowIndex) {
 function experiment(id, candidateIndex, overrides = {}) {
   const datasetId = overrides.datasetId ?? "shared-dataset";
   const contentSha256 = overrides.contentSha256 ?? "a".repeat(64);
-  const windows = Array.from({ length: 4 }, (_, windowIndex) => ({
+  const windows = Array.from({ length: 4 }, (_, windowIndex) => {
+    const benchmarkReturn = 0.005;
+    const outperformance = windowIndex < 3 ? 0.006666666666666667 : 0;
+    const strategyReturn = benchmarkReturn + outperformance;
+    return {
     window: {
       index: windowIndex,
       trainStart: 0,
@@ -39,13 +43,22 @@ function experiment(id, candidateIndex, overrides = {}) {
     selectionReason: "fixture",
     testResult: {
       equityCurve: equityCurve(candidateIndex, windowIndex),
-      metrics: { totalReturn: 0.01, maxDrawdown: 0.02, turnover: 1, totalTradingCost: 100 },
+      metrics: {
+        totalReturn: strategyReturn,
+        benchmarkReturn,
+        excessReturn: outperformance,
+        outperformance,
+        maxDrawdown: 0.02,
+        turnover: 1,
+        totalTradingCost: 100,
+      },
       trades: [],
       performance: { expectancy: 1 },
-      benchmark: { buyAndHoldReturn: 0.005, outperformance: 0.005 },
+      benchmark: { strategyReturn, buyAndHoldReturn: benchmarkReturn, outperformance },
       openPosition: { status: "FLAT" }
     }
-  }));
+    };
+  });
 
   return {
     manifest: {
