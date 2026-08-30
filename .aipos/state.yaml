@@ -25,7 +25,7 @@ latest_research_slice:
 base_branch: main
 active_branch: codex/evolve-1258-dispatch-dedupe
 active_successor_branch: null
-active_pull_request: null
+active_pull_request: 1262
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -90,7 +90,7 @@ claimed_state:
   scope: "Remove duplicate nusa_autopilot_execution Cloud coding dispatch and add durable fail-closed execution telemetry; committed locally pending exact-head CI and deployment."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
   implementation_commit: f6fa1fd3c46f8958f6f0c5dbdadfd923de9a0c80
-  validation: "Focused autopilot regression 34/34, workflow topology 1/1, targeted typecheck, lint, architecture, safety, and AI zero-authority gates PASS; repository typecheck/build are blocked by missing local React/Node/mobile dependencies. Local implementation commit f6fa1fd3 is not yet covered by exact-head remote CI; origin/main 39f98fb has CI run 33307067410 PASS and Promotion run 33307251744 PASS. Deployed revision 49595d0 still returns /coding/telemetry 404, and consumer run 33306974517 returned HTTP 400 CODING_RUNNER_HEAD_SHA_UNVERIFIED. One-minute runtime receipts are proven separately."
+  validation: "Focused autopilot regression 34/34, workflow topology 1/1, targeted typecheck, lint, architecture, safety, and AI zero-authority gates PASS; repository typecheck/build are blocked by missing local React/Node/mobile dependencies. PR #1262 is open and its exact-head CI is in progress; origin/main 39f98fb has CI run 33307067410 PASS and Promotion run 33307251744 PASS. Deployed revision 49595d0 still returns /coding/telemetry 404, and consumer run 33306974517 returned HTTP 400 CODING_RUNNER_HEAD_SHA_UNVERIFIED. One-minute runtime receipts are proven separately."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS

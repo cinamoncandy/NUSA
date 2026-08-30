@@ -4,6 +4,7 @@
   "status": "IMPLEMENTED_COMMITTED_PENDING_REMOTE",
   "baseSha": "888746b909a16239ce71c58eaa888bccdf75631e",
   "branch": "codex/evolve-1258-dispatch-dedupe",
+  "pullRequest": 1262,
   "implementationCommit": "f6fa1fd3c46f8958f6f0c5dbdadfd923de9a0c80",
   "observedAt": "2026-08-30T19:49:39+09:00",
   "scope": {
@@ -32,7 +33,7 @@
     "remoteMainCi": "PASS_RUN_33307067410_AT_39F98FB",
     "remoteAutopilotConsumer": "PASS_WORKFLOW_33306974517_AT_888746B_WORKER_HTTP_400_CODING_RUNNER_HEAD_SHA_UNVERIFIED",
     "remotePromotion": "PASS_RUN_33307251744_AT_39F98FB_DEPLOYMENT_REPORTED",
-    "remoteCiCurrentChanges": "NOT_RUN_LOCAL_ONLY",
+    "remoteCiCurrentChanges": "IN_PROGRESS_PR_1262",
     "runtimeEvidence": "PARTIAL_HEALTH_200_SCHEDULED_STATUS_200_CODING_TELEMETRY_404_DEPLOYED_49595D",
     "oneMinuteLoopEvidence": "PASS_120_RECEIPTS_EXACT_60S_GAPS_STATUS_57_ABSTAINED_63_DUPLICATE_SUPPRESSED"
   },
