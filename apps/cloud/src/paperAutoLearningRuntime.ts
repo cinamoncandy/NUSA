@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { CioDecision } from "./cioDecisionEngine";
+import { validatePaperAutonomousDecisions } from "./paperAutonomousDecisionValidation";
 import type {
   PaperAccountState,
   PaperExecutionResult,
@@ -139,7 +140,10 @@ export class PaperAutoLearningRuntime {
       }
 
       const account = this.options.execution.snapshot();
-      const decisions = freeze([...this.options.decisions({ ...observation, account })]);
+      const decisions = validatePaperAutonomousDecisions(
+        this.options.decisions({ ...observation, account }),
+        { now: observation.now },
+      );
       const actionable = decisions.find((decision) => decision.symbol === observation.market.trim().toUpperCase() && (decision.action === "BUY" || decision.action === "SELL"));
       this.lastDecision = actionable ?? decisions[0];
       this.lastObservationAt = observation.observedAt;
