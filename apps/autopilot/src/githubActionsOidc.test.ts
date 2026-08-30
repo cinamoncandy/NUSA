@@ -47,9 +47,14 @@ async function fixture(overrides: Record<string, unknown> = {}) {
 }
 
 describe("GitHub Actions OIDC", () => {
-  it("accepts only the trusted main repository_dispatch workflow", async () => {
+  it("accepts the trusted execution consumer workflow", async () => {
     const valid = await fixture();
     await verifyGithubActionsOidcToken(valid.token, repository, valid.fetch, now);
+  });
+
+  it("accepts the trusted worker dispatch bridge workflow", async () => {
+    const bridge = await fixture({ workflow_ref: `${repository}/.github/workflows/autopilot-worker-dispatch-bridge.yml@refs/heads/main` });
+    await verifyGithubActionsOidcToken(bridge.token, repository, bridge.fetch, now);
   });
 
   it("rejects a token from another workflow or branch", async () => {
