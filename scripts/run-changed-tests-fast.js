@@ -1,6 +1,7 @@
 "use strict";
 
-const { existsSync } = require("node:fs");
+const { existsSync, mkdtempSync, rmSync, writeFileSync } = require("node:fs");
+const { tmpdir } = require("node:os");
 const { join } = require("node:path");
 const { spawnSync } = require("node:child_process");
 
@@ -10,6 +11,34 @@ function toRunnableTest(relativePath) {
   if (/\.test\.(?:js|cjs|mjs)$/.test(normalized)) return normalized;
   if (/\.test\.ts$/.test(normalized)) return normalized;
   return null;
+}
+
+function runTest(vitestCli, relativePath, root) {
+  const tempConfigDir = mkdtempSync(join(tmpdir(), "nusa-vitest-"));
+  const configPath = join(tempConfigDir, "config.mjs");
+  const escapedPath = JSON.stringify(relativePath);
+  writeFileSync(
+    configPath,
+    `import { defineConfig } from ${JSON.stringify("vitest/config")};\n\nexport default defineConfig({\n  test: {\n    environment: "node",\n    include: [${escapedPath}]\n  }\n});\n`,
+    "utf8"
+  );
+
+  try {
+    const result = spawnSync(process.execPath, [vitestCli, "run", "--config", configPath], {
+      cwd: root,
+      env: { ...process.env },
+      encoding: "utf8",
+      stdio: "inherit",
+      shell: false,
+      windowsHide: true,
+      timeout: 120_000,
+      killSignal: "SIGKILL"
+    });
+    if (result.error) console.error(result.error.stack || result.error.message);
+    return result.error || result.status !== 0 ? (result.status || 1) : 0;
+  } finally {
+    rmSync(tempConfigDir, { recursive: true, force: true });
+  }
 }
 
 function main() {
@@ -64,21 +93,8 @@ function main() {
 
   console.log(`FAST_GATE ${tests.length} changed test file(s): ${tests.join(", ")}`);
   for (const relativePath of tests) {
-    const args = [vitestCli, "run", relativePath];
-    const result = spawnSync(process.execPath, args, {
-      cwd: root,
-      env: { ...process.env },
-      encoding: "utf8",
-      stdio: "inherit",
-      shell: false,
-      windowsHide: true,
-      timeout: 120_000,
-      killSignal: "SIGKILL"
-    });
-    if (result.error || result.status !== 0) {
-      if (result.error) console.error(result.error.stack || result.error.message);
-      process.exit(result.status || 1);
-    }
+    const status = runTest(vitestCli, relativePath, root);
+    if (status !== 0) process.exit(status);
   }
 
   console.log(`PASS ${tests.length} changed test file(s) before expensive CI gates`);
