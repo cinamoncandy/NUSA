@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-30T13:20:00+09:00"
+updated_at: "2026-08-30T14:55:30+09:00"
 current_execution_target:
   work_order: WO-ISSUE-1186-CODING-EXECUTION-EVIDENCE
   status: VERIFYING
-  branch: codex/issue-1186-execution-evidence
-  base_sha: 0108d231697c461f007759aab337af76d346e910
-  scope: "Persist bounded, deterministic, redacted coding-execution outcome evidence through the existing read-only autopilot coordinator without adding execution or authority."
+  branch: codex/issue-1186-e2e-repair
+  base_sha: 781e82f68bcf796f38d6d88b397aff370085a2ba
+  scope: "Keep optional external coding execution opt-in via repository configuration while preserving bounded GitHub Models fallback and fail-closed evidence."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: verification
 status: verifying
@@ -23,7 +23,7 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: codex/issue-1186-execution-evidence
+active_branch: codex/issue-1186-e2e-repair
 active_successor_branch: null
 active_pull_request: null
 current_non_live_work_order:
@@ -85,12 +85,12 @@ repository_maintenance:
 claimed_state:
   work_order: WO-ISSUE-1186-CODING-EXECUTION-EVIDENCE
   status: VERIFYING
-  branch: codex/issue-1186-execution-evidence
-  base_commit: 0108d231697c461f007759aab337af76d346e910
-  scope: "Persist bounded, deterministic, redacted coding-execution outcome evidence through the existing read-only autopilot coordinator without adding execution or authority."
+  branch: codex/issue-1186-e2e-repair
+  base_commit: 781e82f68bcf796f38d6d88b397aff370085a2ba
+  scope: "Keep optional external coding execution opt-in via repository configuration while preserving bounded GitHub Models fallback and fail-closed evidence."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  implementation_commit: 3f41bdcc
-  validation: "Focused coding execution evidence/coordinator/worker tests PASS 16/16; full isolated suite PASS 799 files; preflight/typecheck/build/lint/architecture/safety/security/AIPOS local PASS; exact-head CI pending; no execution, broker, Risk, LIVE, or AI authority changes."
+  implementation_commit: 2ea9929d
+  validation: "External runner endpoint is repository-variable opt-in; absent configuration no longer dispatches the optional runner. Workflow static contract, preflight/typecheck/build/lint/architecture/safety/security/AIPOS and full isolated suite PASS; exact-head CI pending; no execution, broker, Risk, LIVE, or AI authority changes."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS

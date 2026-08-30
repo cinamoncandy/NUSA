@@ -76,6 +76,17 @@ function rawEvidence(overrides = {}) {
 }
 
 function experiment(candidateId, datasetId = "real-run-dataset") {
+  const windows = Array.from({ length: 4 }, (_, index) => {
+    const benchmarkReturn = 0.02;
+    const outperformance = index < 3 ? 0.013333333333333334 : 0;
+    const strategyReturn = benchmarkReturn + outperformance;
+    return {
+      testResult: {
+        metrics: { totalReturn: strategyReturn, benchmarkReturn, excessReturn: outperformance, outperformance },
+        benchmark: { strategyReturn, buyAndHoldReturn: benchmarkReturn, outperformance },
+      },
+    };
+  });
   return {
     manifest: {
       schemaVersion: 1,
@@ -101,7 +112,7 @@ function experiment(candidateId, datasetId = "real-run-dataset") {
     generatedAt: "2026-01-01T00:00:00.000Z",
     warnings: [],
     walkForwardResult: {
-      windows: [],
+      windows,
       candidateSelectionCounts: {},
       warnings: [],
       stabilityDiagnostics: { candidates: [], selectionChurn: 0, selectionChurnRatio: 0 },
