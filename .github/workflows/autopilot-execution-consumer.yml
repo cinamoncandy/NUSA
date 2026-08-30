@@ -17,7 +17,7 @@ concurrency:
 jobs:
   consume:
     # A repository_dispatch can arrive after main advances; stale requests are intentionally skipped.
-    if: ${{ github.event.client_payload.kind == 'REPOSITORY_AUTOPILOT' && github.event.client_payload.head_sha == github.sha }}
+    if: ${{ github.event.client_payload.kind == 'REPOSITORY_AUTOPILOT' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -86,7 +86,7 @@ jobs:
         id: backend
         env:
           # Public Worker URL is configuration, not a credential. No repository variable bootstrap is required.
-          NUSA_CODING_RUNNER_URL: https://nusa.desporin12.workers.dev/coding/execute
+          NUSA_CODING_RUNNER_URL: https://nusa-autopilot.desporin12.workers.dev/coding/execute
         run: |
           if [ -n "${NUSA_CODING_RUNNER_URL:-}" ]; then
             echo 'mode=external' >> "$GITHUB_OUTPUT"
@@ -110,7 +110,7 @@ jobs:
       - name: Dispatch to configured external coding runner
         if: ${{ steps.backend.outputs.mode == 'external' }}
         env:
-          NUSA_CODING_RUNNER_URL: https://nusa.desporin12.workers.dev/coding/execute
+          NUSA_CODING_RUNNER_URL: https://nusa-autopilot.desporin12.workers.dev/coding/execute
         run: |
           node - <<'NODE'
           const fs = require('fs');

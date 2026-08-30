@@ -126,12 +126,23 @@ function validateCodingProposal(value: unknown): CodingProposal {
 }
 
 function parseProposalText(value: string): CodingProposal {
-  try {
-    return validateCodingProposal(JSON.parse(value));
-  } catch (error) {
-    if (error instanceof Error && error.message.startsWith("CODING_PROPOSAL_")) throw error;
-    throw new Error("CODING_PROPOSAL_INVALID");
+  const text = value.trim();
+  const fenced = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)?.[1]?.trim();
+  const candidate = fenced ?? text;
+  const candidates = [candidate];
+  const start = candidate.indexOf("{");
+  const end = candidate.lastIndexOf("}");
+  if (start >= 0 && end > start && (start !== 0 || end !== candidate.length - 1)) {
+    candidates.push(candidate.slice(start, end + 1));
   }
+  for (const json of candidates) {
+    try {
+      return validateCodingProposal(JSON.parse(json));
+    } catch (error) {
+      if (error instanceof Error && error.message === "CODING_PROPOSAL_PATCH_REQUIRED") throw error;
+    }
+  }
+  throw new Error("CODING_PROPOSAL_INVALID");
 }
 
 function workersAiProposal(value: unknown): CodingProposal {
@@ -223,6 +234,7 @@ function codingProposalPrompt(request: CodingRunnerRequest): string {
   return [
     "Propose exactly one minimal, low-risk NUSA repository improvement as a git-compatible unified diff.",
     "Return JSON only with one field named patch.",
+    "Do not use Markdown fences or explanatory text around the JSON.",
     "Modify exactly one .ts file under apps/autopilot/src.",
     "Do not modify index.ts, worker.ts, live/broker/order/credential/secret/withdraw/transfer surfaces, workflows, package files, or authority constants.",
     "Do not add dependencies or weaken tests, validation, safety, exact-head verification, dedupe, leases, or fail-closed behavior.",
