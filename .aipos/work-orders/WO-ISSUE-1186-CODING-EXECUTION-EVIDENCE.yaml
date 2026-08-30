@@ -1,0 +1,55 @@
+id: WO-ISSUE-1186-CODING-EXECUTION-EVIDENCE
+title: "Issue #1186 persist safe coding execution evidence"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+issue: 1186
+base_branch: main
+base_commit: 0108d231697c461f007759aab337af76d346e910
+implementation_branch: codex/issue-1186-execution-evidence
+objective: "Record deterministic, bounded, redacted outcomes from the existing coding runner so unattended execution can be observed and replayed without adding mutation authority."
+architecture_impact:
+  acknowledged: true
+  analysis: "Reuse the existing autopilot Worker, ExecutionCoordinator Durable Object, coding runner, sandbox validation, and publisher contracts; add only an observability evidence boundary and GET projection."
+  references:
+    - apps/autopilot/src/index.ts
+    - apps/autopilot/src/codingRunner.ts
+    - apps/autopilot/src/executionCoordinator.ts
+    - apps/autopilot/src/codingExecutionEvidence.ts
+scope:
+  - coding_execution_outcome_evidence
+  - durable_bounded_replay
+  - read_only_worker_projection
+  - redaction_and_identity_validation
+prohibited:
+  - live_execution
+  - broker_mutation
+  - GitHub_mutation_from_read_model
+  - credential_or_secret_persistence
+  - AI_execution_authority
+  - workflow_or_branch_protection_bypass
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  mutationAllowed: false
+acceptance:
+  - execution_result_is_sanitized_before_persistence
+  - evidence_identity_is_deterministic_and_integrity_checked
+  - duplicate_and_conflicting_records_fail_closed
+  - replay_is_bounded_and_deterministically_ordered
+  - GET_coding_evidence_is_read_only
+  - no_new_execution_or_broker_authority
+validation:
+  focused_evidence_tests: PENDING
+  focused_coordinator_tests: PENDING
+  typecheck: PENDING
+  build: PENDING
+  lint: PENDING
+  architecture: PENDING
+  safety: PENDING
+  security: PENDING
+  exact_head_ci: PENDING
+known_limitations:
+  - "Real unattended external coding-runner execution still depends on deployment/runtime configuration and is not fabricated by this evidence boundary."
+next: "Run focused and repository validation, publish a PR only after local preflight passes, then verify exact-head protected checks."
