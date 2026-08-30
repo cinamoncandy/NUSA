@@ -110,6 +110,26 @@ function discoverWorkflowFailureOpportunityIds(candidates: readonly unknown[], n
   return Object.freeze(opportunities.map((opportunity) => opportunity.id));
 }
 
+function currentMainFailureRunId(candidates: readonly unknown[], mainSha: string, now: number): number | null {
+  for (const candidate of candidates) {
+    const run = object(candidate);
+    if (!run) continue;
+    const conclusion = text(run.conclusion);
+    if (conclusion !== "failure" && conclusion !== "cancelled" && conclusion !== "timed_out") continue;
+    if (text(run.head_branch) !== "main" || text(run.event) === "repository_dispatch") continue;
+    if (text(run.head_sha)?.toLowerCase() !== mainSha.toLowerCase()) continue;
+    const runId = positiveInteger(run.id);
+    const completedAt = text(run.completed_at);
+    if (!runId || !completedAt) continue;
+    const completedAtMs = Date.parse(completedAt);
+    if (!Number.isFinite(completedAtMs)) continue;
+    const ageSeconds = (now - completedAtMs) / 1000;
+    if (ageSeconds < 0 || ageSeconds > WORKFLOW_FAILURE_MAX_AGE_SECONDS) continue;
+    return runId;
+  }
+  return null;
+}
+
 function hasFreshWorkflowFailureSince(candidates: readonly unknown[], observedAt: number): boolean {
   if (!safeTimestamp(observedAt)) return true;
   for (const candidate of candidates) {
@@ -164,6 +184,40 @@ export async function runScheduledAutopilot(
     );
     const candidates = Array.isArray(runs.workflow_runs) ? runs.workflow_runs : [];
     discoveredOpportunityIds = discoverWorkflowFailureOpportunityIds(candidates, now);
+
+    const failedRunId = currentMainFailureRunId(candidates, mainSha, now);
+    if (failedRunId) {
+      try {
+        const coding = await runScheduledEvolutionCoding(env, {
+          candidates,
+          now,
+          repository,
+          mainSha,
+          workflowRunId: failedRunId,
+        }, fetchImpl);
+        console.log(JSON.stringify({ event: "NUSA_SCHEDULED_EVOLVE_CODING", ...coding }));
+        if (coding.status === "EXECUTION_ACCEPTED") {
+          return result("EXECUTION_DISPATCHED", coding.reason, mainSha, failedRunId, null, discoveredOpportunityIds);
+        }
+        if (coding.status === "DUPLICATE_SUPPRESSED") {
+          return result("DUPLICATE_EXECUTION_SUPPRESSED", coding.reason, mainSha, failedRunId, null, discoveredOpportunityIds);
+        }
+        if (coding.status === "INTERFACE_READY" || coding.status === "EXECUTION_FAILED") {
+          return result("EXECUTION_NOT_DISPATCHED", coding.reason, mainSha, failedRunId, null, discoveredOpportunityIds);
+        }
+        return result("ABSTAINED", coding.reason, mainSha, failedRunId, null, discoveredOpportunityIds);
+      } catch (error) {
+        return result(
+          "EXECUTION_NOT_DISPATCHED",
+          error instanceof Error ? error.message : "scheduled-evolve-coding-failed",
+          mainSha,
+          failedRunId,
+          null,
+          discoveredOpportunityIds,
+        );
+      }
+    }
+
     const canonical = candidates
       .map(object)
       .filter((run): run is JsonObject => run !== null)
