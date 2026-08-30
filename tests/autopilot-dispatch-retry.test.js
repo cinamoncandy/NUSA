@@ -50,17 +50,17 @@ test("retries transient OIDC and runner failures with bounded exponential backof
     fetchImpl: async (url) => {
       calls.push(url);
       if (calls.length === 1) return response(503);
-      if (calls.length === 2) return oidcSuccess();
+      if (calls.length === 2 || calls.length === 4) return oidcSuccess();
       if (calls.length === 3) return response(502);
       return response(200, { status: "EXECUTION_ACCEPTED" });
     },
   });
   assert.equal(result.status, "DISPATCHED");
-  assert.equal(result.summary.attempts, 2);
-  assert.equal(result.summary.retries, 1);
-  assert.deepEqual(waits, [10]);
-  assert.deepEqual(result.attempts.map((attempt) => attempt.decision), ["RETRY", "DISPATCHED"]);
-  assert.deepEqual(result.attempts.map((attempt) => attempt.http_class), ["5xx", "2xx"]);
+  assert.equal(result.summary.attempts, 3);
+  assert.equal(result.summary.retries, 2);
+  assert.deepEqual(waits, [10, 20]);
+  assert.deepEqual(result.attempts.map((attempt) => attempt.decision), ["RETRY", "RETRY", "DISPATCHED"]);
+  assert.deepEqual(result.attempts.map((attempt) => attempt.http_class), ["5xx", "5xx", "2xx"]);
 });
 
 test("does not retry deterministic runner rejection", async () => {
