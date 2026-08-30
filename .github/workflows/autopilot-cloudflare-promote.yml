@@ -15,19 +15,35 @@ concurrency:
 jobs:
   promote:
     name: Promote exact CI-verified Worker revision
-    if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Verify triggering CI eligibility
+        id: gate
+        shell: bash
+        env:
+          CI_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          CI_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          CI_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          printf 'trigger conclusion=%s branch=%s sha=%s\n' "$CI_CONCLUSION" "$CI_HEAD_BRANCH" "$CI_HEAD_SHA"
+          if [ "$CI_CONCLUSION" = 'success' ] && [ "$CI_HEAD_BRANCH" = 'main' ] && [[ "$CI_HEAD_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo 'eligible=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'eligible=false' >> "$GITHUB_OUTPUT"
+            echo 'Trigger is not an eligible successful main CI completion; promotion remains fail-closed.'
+          fi
+
       - name: Checkout exact CI-verified commit
+        if: steps.gate.outputs.eligible == 'true'
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 2
 
       - name: Verify autopilot deployment-relevant change
+        if: steps.gate.outputs.eligible == 'true'
         id: changes
         shell: bash
         run: |
@@ -42,7 +58,7 @@ jobs:
           fi
 
       - name: Promote exact verified revision to Cloudflare production branch
-        if: steps.changes.outputs.deploy == 'true'
+        if: steps.gate.outputs.eligible == 'true' && steps.changes.outputs.deploy == 'true'
         shell: bash
         env:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
