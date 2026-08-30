@@ -14,6 +14,15 @@ export interface EvolutionDriftObservation {
   readonly costSlippageDegradation: number;
   readonly turnoverInstability: number;
   readonly evidenceAgeMs: number;
+  /** Optional canonical diagnostics; absent values remain UNKNOWN rather than zero. */
+  readonly realizedEdgeDecay?: number;
+  readonly drawdownDeterioration?: number;
+  readonly successRateDegradation?: number;
+  readonly confidenceMisalignment?: number;
+  readonly provenanceDegradation?: number;
+  readonly infrastructureDegradation?: number;
+  readonly independentEvidenceReused?: boolean;
+  readonly regimeMismatch?: boolean;
 }
 
 export interface EvolutionDriftInput {
@@ -63,6 +72,9 @@ function validate(input: EvolutionDriftInput): void {
   finiteNonNegative(o.costSlippageDegradation, "costSlippageDegradation");
   finiteNonNegative(o.turnoverInstability, "turnoverInstability");
   finiteNonNegative(o.evidenceAgeMs, "evidenceAgeMs");
+  for (const [label, value] of Object.entries({ realizedEdgeDecay: o.realizedEdgeDecay, drawdownDeterioration: o.drawdownDeterioration, successRateDegradation: o.successRateDegradation, confidenceMisalignment: o.confidenceMisalignment, provenanceDegradation: o.provenanceDegradation, infrastructureDegradation: o.infrastructureDegradation })) {
+    if (value !== undefined) finiteNonNegative(value, label);
+  }
 }
 
 export function detectEvolutionDrift(input: EvolutionDriftInput): EvolutionDriftResult {
@@ -75,6 +87,8 @@ export function detectEvolutionDrift(input: EvolutionDriftInput): EvolutionDrift
   if (observedAtMs > evaluatedAtMs) reasons.push("FUTURE_EVIDENCE");
   if (o.evidenceAgeMs > input.maximumEvidenceAgeMs || evaluatedAtMs - observedAtMs > input.maximumEvidenceAgeMs) reasons.push("STALE_EVIDENCE");
   if (o.evidenceStatus !== "VERIFIED") reasons.push(`EVIDENCE_${o.evidenceStatus}`);
+  if (o.independentEvidenceReused === true) reasons.push("NON_INDEPENDENT_EVIDENCE_REUSE");
+  if (o.regimeMismatch === true) reasons.push("REGIME_MISMATCH");
 
   if (reasons.length > 0) {
     return freeze({
@@ -99,6 +113,12 @@ export function detectEvolutionDrift(input: EvolutionDriftInput): EvolutionDrift
     ["STRATEGY_DECAY", o.strategyDecay],
     ["COST_SLIPPAGE_DEGRADATION", o.costSlippageDegradation],
     ["TURNOVER_INSTABILITY", o.turnoverInstability],
+    ["REALIZED_EDGE_DECAY", o.realizedEdgeDecay ?? 0],
+    ["DRAWDOWN_DETERIORATION", o.drawdownDeterioration ?? 0],
+    ["SUCCESS_RATE_DEGRADATION", o.successRateDegradation ?? 0],
+    ["CONFIDENCE_MISALIGNMENT", o.confidenceMisalignment ?? 0],
+    ["PROVENANCE_DEGRADATION", o.provenanceDegradation ?? 0],
+    ["INFRASTRUCTURE_DEGRADATION", o.infrastructureDegradation ?? 0],
   ];
   const maximumObservedDrift = Math.max(...metrics.map(([, value]) => value));
   for (const [name, value] of metrics) {
