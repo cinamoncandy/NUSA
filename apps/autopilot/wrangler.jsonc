@@ -5,6 +5,9 @@
   "compatibility_date": "2026-08-27",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
+  "ai": {
+    "binding": "AI"
+  },
   "triggers": {
     "crons": ["* * * * *"]
   },

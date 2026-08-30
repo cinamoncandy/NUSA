@@ -16,8 +16,14 @@ export interface CodingRunnerEnv {
   NUSA_CODING_RUNNER_TOKEN?: string;
   NUSA_AI_CODING_ENDPOINT?: string;
   NUSA_AI_CODING_TOKEN?: string;
+  NUSA_AI_CODING_MODEL?: string;
   NUSA_GITHUB_REPOSITORY?: string;
   NUSA_GITHUB_TOKEN?: string;
+  AI?: WorkersAiBinding;
+}
+
+export interface WorkersAiBinding {
+  run(model: string, input: { prompt: string }): Promise<unknown>;
 }
 
 export interface CodingProposal {
@@ -85,7 +91,7 @@ const EXECUTION_ID = /^[A-Za-z0-9_.:-]{1,160}$/;
 const DEDUPE_KEY = /^[A-Za-z0-9_.:-]{1,256}$/;
 const DEFAULT_REPOSITORY = "cinamoncandy/NUSA";
 const GITHUB_API_ORIGIN = "https://api.github.com";
-const GITHUB_MODELS_ENDPOINT = "https://models.github.ai/inference/chat/completions";
+const DEFAULT_WORKERS_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct";
 
 export function validateCodingRunnerRequest(value: unknown, allowedRepository = DEFAULT_REPOSITORY): CodingRunnerRequest {
   if (!value || typeof value !== "object") throw new Error("CODING_RUNNER_REQUEST_INVALID");
@@ -115,18 +121,19 @@ function validateCodingProposal(value: unknown): CodingProposal {
   return Object.freeze({ patch: proposal.patch });
 }
 
-function githubModelsProposal(value: unknown): CodingProposal {
-  const payload = object(value);
-  if (!Array.isArray(payload.choices) || payload.choices.length < 1) throw new Error("CODING_PROPOSAL_INVALID");
-  const choice = object(payload.choices[0]);
-  const message = object(choice.message);
-  if (typeof message.content !== "string" || !message.content.trim()) throw new Error("CODING_PROPOSAL_INVALID");
+function parseProposalText(value: string): CodingProposal {
   try {
-    return validateCodingProposal(JSON.parse(message.content));
+    return validateCodingProposal(JSON.parse(value));
   } catch (error) {
     if (error instanceof Error && error.message.startsWith("CODING_PROPOSAL_")) throw error;
     throw new Error("CODING_PROPOSAL_INVALID");
   }
+}
+
+function workersAiProposal(value: unknown): CodingProposal {
+  const payload = object(value);
+  if (typeof payload.response !== "string" || !payload.response.trim()) throw new Error("CODING_PROPOSAL_INVALID");
+  return parseProposalText(payload.response);
 }
 
 function publicRuntimeResult(runtime: CodingRuntimeExecutionResult): Pick<CodingRunnerResult, "backend" | "checkpointId" | "workspaceVerified" | "proposalValidated" | "changedFiles"> {
@@ -161,7 +168,12 @@ export async function verifyCodingRunnerRequestAgainstGitHub(
   if (run.id !== request.workflowRunId) throw new Error("CODING_RUNNER_WORKFLOW_RUN_ID_MISMATCH");
   if (typeof run.head_sha !== "string" || run.head_sha.toLowerCase() !== request.headSha.toLowerCase()) throw new Error("CODING_RUNNER_WORKFLOW_HEAD_MISMATCH");
   if (runRepository.full_name !== request.repository) throw new Error("CODING_RUNNER_WORKFLOW_REPOSITORY_MISMATCH");
-  if (run.status !== "completed" || run.conclusion !== "success") throw new Error("CODING_RUNNER_WORKFLOW_NOT_SUCCESSFUL");
+  if (run.status !== "completed") throw new Error("CODING_RUNNER_WORKFLOW_NOT_COMPLETED");
+  const failureRepair = request.reason.includes("gha:");
+  const allowedConclusions = failureRepair ? ["failure", "cancelled", "timed_out"] : ["success"];
+  if (typeof run.conclusion !== "string" || !allowedConclusions.includes(run.conclusion)) {
+    throw new Error(failureRepair ? "CODING_RUNNER_FAILURE_EVIDENCE_INVALID" : "CODING_RUNNER_WORKFLOW_NOT_SUCCESSFUL");
+  }
   if (typeof run.head_branch !== "string" || !run.head_branch.trim()) throw new Error("CODING_RUNNER_WORKFLOW_BRANCH_INVALID");
 }
 
@@ -188,8 +200,8 @@ function codingEngineRequest(request: CodingRunnerRequest, token: string): Reque
   };
 }
 
-function githubModelsCodingRequest(request: CodingRunnerRequest, token: string): RequestInit {
-  const userPrompt = [
+function codingProposalPrompt(request: CodingRunnerRequest): string {
+  return [
     "Propose exactly one minimal, low-risk NUSA repository improvement as a git-compatible unified diff.",
     "Return JSON only with one field named patch.",
     "Modify exactly one .ts file under apps/autopilot/src.",
@@ -202,25 +214,37 @@ function githubModelsCodingRequest(request: CodingRunnerRequest, token: string):
     `Execution id: ${request.executionId}`,
     `Dedupe key: ${request.dedupeKey}`,
   ].join("\n");
-  return {
-    method: "POST",
-    headers: {
-      accept: "application/vnd.github+json",
-      authorization: `Bearer ${token}`,
-      "content-type": "application/json",
-      "x-github-api-version": "2026-03-10",
-    },
-    body: JSON.stringify({
-      model: "openai/gpt-4.1",
-      temperature: 0,
-      max_tokens: 5000,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: "You are NUSA's bounded cloud coding proposal engine. Obey every constraint and return JSON only." },
-        { role: "user", content: userPrompt },
-      ],
-    }),
-  };
+}
+
+function workersAiCodingRequest(request: CodingRunnerRequest, model: string): { model: string; prompt: string } {
+  return { model, prompt: codingProposalPrompt(request) };
+}
+
+function validWorkersAiModel(value: string): boolean {
+  return /^[A-Za-z0-9@._/-]{1,128}$/.test(value);
+}
+
+async function executeProposal(
+  request: CodingRunnerRequest,
+  proposal: CodingProposal,
+  runtime: CodingRuntime | undefined,
+  publisher: CodingPublisher | undefined,
+  httpStatus?: number,
+): Promise<CodingRunnerResult> {
+  const status = httpStatus === undefined ? {} : { httpStatus };
+  if (!runtime) return { status: "EXECUTION_ACCEPTED", ...status };
+  try {
+    const runtimeResult = await runtime.execute(request, proposal);
+    const safeRuntime = publicRuntimeResult(runtimeResult);
+    if (!publisher) return { status: "EXECUTION_ACCEPTED", ...status, ...safeRuntime };
+    if (!runtimeResult.proposalValidated || !runtimeResult.validatedFiles?.length) {
+      return { status: "EXECUTION_FAILED", reason: "CODING_PUBLISH_VALIDATION_REQUIRED", ...status };
+    }
+    const published = await publisher.publish(request, runtimeResult);
+    return { status: "EXECUTION_ACCEPTED", ...status, ...safeRuntime, ...published };
+  } catch (error) {
+    return { status: "EXECUTION_FAILED", reason: error instanceof Error ? error.message : "coding-runtime-failed", ...status };
+  }
 }
 
 export async function executeCodingRunner(
@@ -237,32 +261,24 @@ export async function executeCodingRunner(
   const endpoint = env.NUSA_AI_CODING_ENDPOINT?.trim();
   const token = env.NUSA_AI_CODING_TOKEN?.trim();
   const useConfiguredEngine = Boolean(endpoint && token);
-  const response = useConfiguredEngine
-    ? await fetchImpl(endpoint!, codingEngineRequest(request, token!))
-    : await fetchImpl(GITHUB_MODELS_ENDPOINT, githubModelsCodingRequest(request, githubToken));
-  if (!response.ok) return { status: "EXECUTION_FAILED", httpStatus: response.status, reason: useConfiguredEngine ? undefined : "github-models-coding-engine-failed" };
-
-  if (runtime) {
-    let proposal: CodingProposal;
+  if (useConfiguredEngine) {
+    const response = await fetchImpl(endpoint!, codingEngineRequest(request, token!));
+    if (!response.ok) return { status: "EXECUTION_FAILED", httpStatus: response.status, reason: "coding-engine-request-failed" };
+    if (!runtime) return { status: "EXECUTION_ACCEPTED", httpStatus: response.status };
     try {
-      const payload = await response.json();
-      proposal = useConfiguredEngine ? validateCodingProposal(payload) : githubModelsProposal(payload);
+      return await executeProposal(request, validateCodingProposal(await response.json()), runtime, publisher, response.status);
     } catch (error) {
       return { status: "EXECUTION_FAILED", reason: error instanceof Error ? error.message : "CODING_PROPOSAL_INVALID", httpStatus: response.status };
     }
-    try {
-      const runtimeResult = await runtime.execute(request, proposal);
-      const safeRuntime = publicRuntimeResult(runtimeResult);
-      if (!publisher) return { status: "EXECUTION_ACCEPTED", httpStatus: response.status, ...safeRuntime };
-      if (!runtimeResult.proposalValidated || !runtimeResult.validatedFiles?.length) {
-        return { status: "EXECUTION_FAILED", reason: "CODING_PUBLISH_VALIDATION_REQUIRED", httpStatus: response.status };
-      }
-      const published = await publisher.publish(request, runtimeResult);
-      return { status: "EXECUTION_ACCEPTED", httpStatus: response.status, ...safeRuntime, ...published };
-    } catch (error) {
-      return { status: "EXECUTION_FAILED", reason: error instanceof Error ? error.message : "coding-runtime-failed", httpStatus: response.status };
-    }
   }
 
-  return { status: "EXECUTION_ACCEPTED", httpStatus: response.status };
+  if (!env.AI) return { status: "INTERFACE_READY", reason: "ai-coding-engine-not-configured" };
+  const model = env.NUSA_AI_CODING_MODEL?.trim() || DEFAULT_WORKERS_AI_MODEL;
+  if (!validWorkersAiModel(model)) return { status: "EXECUTION_FAILED", reason: "WORKERS_AI_MODEL_INVALID" };
+  try {
+    const proposal = workersAiProposal(await env.AI.run(model, workersAiCodingRequest(request, model)));
+    return await executeProposal(request, proposal, runtime, publisher);
+  } catch (error) {
+    return { status: "EXECUTION_FAILED", reason: error instanceof Error ? error.message : "WORKERS_AI_CODING_ENGINE_FAILED" };
+  }
 }
