@@ -1,0 +1,76 @@
+:root {
+  --nusa-dock-gap: 12px;
+  --nusa-dock-radius: 12px;
+}
+
+.decision-context-dock {
+  display: grid;
+  gap: var(--nusa-dock-gap);
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+  align-items: start;
+}
+
+.decision-context-dock__context,
+.decision-context-dock__action {
+  min-width: 0;
+  border-radius: var(--nusa-dock-radius);
+}
+
+.decision-context-dock__context {
+  display: grid;
+  gap: var(--nusa-dock-gap);
+}
+
+.decision-context-dock__section {
+  min-width: 0;
+}
+
+.decision-context-dock__action {
+  position: sticky;
+  top: 12px;
+}
+
+.decision-context-dock__risk {
+  order: 3;
+}
+
+.decision-context-dock__evidence {
+  order: 4;
+}
+
+.decision-context-dock__action {
+  order: 5;
+}
+
+.decision-context-dock :focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+@media (max-width: 900px) {
+  .decision-context-dock {
+    grid-template-columns: 1fr;
+  }
+
+  .decision-context-dock__action {
+    position: static;
+  }
+}
+
+@media (max-width: 560px) {
+  .decision-context-dock {
+    gap: 8px;
+  }
+
+  .decision-context-dock__evidence[data-secondary="true"] {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .decision-context-dock * {
+    scroll-behavior: auto;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
