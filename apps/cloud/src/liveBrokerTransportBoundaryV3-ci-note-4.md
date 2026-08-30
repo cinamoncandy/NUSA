@@ -1,0 +1,1 @@
+Intentionally fail closed.
