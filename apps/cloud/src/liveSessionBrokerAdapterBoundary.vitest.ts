@@ -50,17 +50,16 @@ const baseRequest = (): LiveSessionBoundPreExecutionRequest => ({
 });
 
 describe("session-bound LIVE broker adapter boundary", () => {
-  it("maps a valid bounded transport request into the broker interface", async () => {
+  it("rejects the legacy caller-supplied session path", async () => {
     const transport = new RecordingTransport();
     const result = await submitSessionBoundLiveOrder(baseRequest(), new LiveExecutionConsumeOnce(new MemoryStorage()), transport);
-    expect(result).toEqual({ status: "SUBMITTED", result: { accepted: false, reason: "TEST_TRANSPORT_NO_MUTATION" } });
-    expect(transport.requests).toHaveLength(1);
-    expect(transport.requests[0]).toMatchObject({ ownerId: "owner-1", market: "BTC-USD", side: "buy", notional: 100 });
+    expect(result).toEqual({ status: "REJECTED", reason: "AUTHORITATIVE_SESSION_REQUIRED" });
+    expect(transport.requests).toHaveLength(0);
   });
 
   it("uses the disabled fail-closed transport by default", async () => {
     const result = await submitSessionBoundLiveOrder(baseRequest(), new LiveExecutionConsumeOnce(new MemoryStorage()));
-    expect(result).toEqual({ status: "SUBMITTED", result: { accepted: false, reason: "LIVE_TRANSPORT_DISABLED" } });
+    expect(result).toEqual({ status: "REJECTED", reason: "AUTHORITATIVE_SESSION_REQUIRED" });
   });
 
   it("does not reach transport when the session is expired", async () => {
@@ -74,8 +73,8 @@ describe("session-bound LIVE broker adapter boundary", () => {
   it("does not reach transport on replay", async () => {
     const transport = new RecordingTransport();
     const consumer = new LiveExecutionConsumeOnce(new MemoryStorage());
-    expect((await submitSessionBoundLiveOrder(baseRequest(), consumer, transport)).status).toBe("SUBMITTED");
     expect((await submitSessionBoundLiveOrder(baseRequest(), consumer, transport)).status).toBe("REJECTED");
-    expect(transport.requests).toHaveLength(1);
+    expect((await submitSessionBoundLiveOrder(baseRequest(), consumer, transport)).status).toBe("REJECTED");
+    expect(transport.requests).toHaveLength(0);
   });
 });
