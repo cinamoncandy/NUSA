@@ -86,13 +86,17 @@ jobs:
       - name: Select coding backend
         id: backend
         env:
-          NUSA_CODING_RUNNER_URL: https://nusa.desporin12.workers.dev/coding/execute
+          # Failure evidence is repaired in Actions first so every model patch
+          # must cross the isolated Cloudflare Sandbox validation gate before
+          # local application or GitHub mutation. External execution remains
+          # available only for non-failure coding dispatches.
+          NUSA_CODING_RUNNER_URL: ${{ vars.NUSA_CODING_RUNNER_URL }}
           NUSA_EXECUTION_REASON: ${{ github.event.client_payload.reason }}
         run: |
-          if [ -n "${NUSA_CODING_RUNNER_URL:-}" ]; then
-            echo 'mode=external' >> "$GITHUB_OUTPUT"
-          elif printf '%s' "${NUSA_EXECUTION_REASON:-}" | grep -q 'gha:'; then
+          if printf '%s' "${NUSA_EXECUTION_REASON:-}" | grep -q 'gha:'; then
             echo 'mode=github-models' >> "$GITHUB_OUTPUT"
+          elif [ -n "${NUSA_CODING_RUNNER_URL:-}" ]; then
+            echo 'mode=external' >> "$GITHUB_OUTPUT"
           else
             echo 'mode=observe-only' >> "$GITHUB_OUTPUT"
           fi
@@ -113,7 +117,7 @@ jobs:
       - name: Dispatch to configured external coding runner
         if: ${{ steps.backend.outputs.mode == 'external' }}
         env:
-          NUSA_CODING_RUNNER_URL: https://nusa.desporin12.workers.dev/coding/execute
+          NUSA_CODING_RUNNER_URL: ${{ vars.NUSA_CODING_RUNNER_URL }}
         run: |
           node - <<'NODE'
           const fs = require('fs');
@@ -141,9 +145,6 @@ jobs:
               fs.writeFileSync('artifacts/autopilot-execution/coding-runner-result.json', JSON.stringify({ status: 'DISPATCHED', httpStatus: response.status, request }, null, 2));
               return;
             }
-            // External runner rejection is an observable, fail-closed boundary
-            // state. Keep this consumer green without treating an unavailable
-            // optional executor as a successful repair or leaking its response.
             fs.writeFileSync('artifacts/autopilot-execution/coding-runner-result.json', JSON.stringify({ status: 'INTERFACE_READY', reason: 'external-coding-runner-rejected-request', httpStatus: response.status, request }, null, 2));
             console.warn(`External coding runner unavailable (HTTP ${response.status}); no repair was executed.`);
           }).catch((error) => { console.error(error); process.exit(1); });
@@ -231,20 +232,79 @@ jobs:
           }).catch((error) => { console.error(error); process.exit(1); });
           NODE
 
-      - name: Validate and apply bounded model patch
-        id: patch
+      - name: Validate model patch in Cloudflare Sandbox
+        id: sandbox
         if: ${{ steps.backend.outputs.mode == 'github-models' }}
+        env:
+          NUSA_CODING_RUNNER_URL: ${{ vars.NUSA_CODING_RUNNER_URL }}
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const proposal = JSON.parse(fs.readFileSync('artifacts/autopilot-execution/github-models-proposal.json', 'utf8'));
+          const patch = typeof proposal.patch === 'string' ? proposal.patch.trim() : '';
+          if (!patch) {
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, 'accepted=false\n');
+            fs.writeFileSync('artifacts/autopilot-execution/coding-runner-result.json', JSON.stringify({ status: 'ABSTAINED', reason: 'github-models-no-safe-patch' }, null, 2));
+            process.exit(0);
+          }
+          if (!process.env.NUSA_CODING_RUNNER_URL) throw new Error('SANDBOX_VALIDATION_URL_REQUIRED');
+          const request = JSON.parse(fs.readFileSync('artifacts/autopilot-execution/coding-runner-request.json', 'utf8'));
+          const oidcUrl = `${process.env.ACTIONS_ID_TOKEN_REQUEST_URL}&audience=nusa-autopilot`;
+          const validateUrl = new URL('/coding/sandbox/validate', process.env.NUSA_CODING_RUNNER_URL).toString();
+          const envelope = {
+            cycleId: `repair:${request.workflowRunId}`,
+            workItemId: `repair:${request.headSha}`,
+            executionId: request.executionId,
+            dedupeKey: request.dedupeKey,
+            origin: 'AUTO_BACKGROUND',
+            repository: request.repository,
+            baseSha: request.headSha,
+            workflowRunId: request.workflowRunId,
+            objective: 'Validate one bounded GitHub Models repair patch in Cloudflare Sandbox before any repository mutation.',
+            acceptanceCriteria: [
+              'Patch applies cleanly to the exact requested SHA.',
+              'Build, architecture, safety, and AI architecture checks pass.',
+              'Only bounded Autopilot TypeScript files are changed.',
+              'No LIVE or production authority is introduced.'
+            ],
+            evidenceRefs: [`github:workflow-run:${request.workflowRunId}`, `github:commit:${request.headSha}`],
+            allowedScope: ['apps/autopilot/src/'],
+            forbiddenScope: ['.github/', 'live-trading', 'production-authority', 'secrets'],
+            maxChangedFiles: 3,
+            mutationAllowed: false,
+            liveAuthority: 'NONE',
+            productionMutationAllowed: false,
+            aiAuthority: 'ZERO_AUTHORITY'
+          };
+          (async () => {
+            const oidcResponse = await fetch(oidcUrl, { headers: { authorization: `Bearer ${process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN}` } });
+            if (!oidcResponse.ok) throw new Error(`GITHUB_OIDC_HTTP_${oidcResponse.status}`);
+            const oidc = await oidcResponse.json();
+            if (typeof oidc.value !== 'string' || !oidc.value) throw new Error('GITHUB_OIDC_TOKEN_MISSING');
+            const response = await fetch(validateUrl, {
+              method: 'POST',
+              headers: { authorization: `Bearer ${oidc.value}`, 'content-type': 'application/json' },
+              body: JSON.stringify({ envelope, patch }),
+            });
+            const body = await response.text();
+            let result = {};
+            try { result = JSON.parse(body); } catch {}
+            if (!response.ok || result.accepted !== true) throw new Error(`SANDBOX_PATCH_REJECTED_HTTP_${response.status}`);
+            fs.writeFileSync('artifacts/autopilot-execution/sandbox-validation.json', JSON.stringify(result, null, 2));
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, 'accepted=true\n');
+          })().catch((error) => { console.error(error); process.exit(1); });
+          NODE
+
+      - name: Apply sandbox-approved bounded model patch
+        id: patch
+        if: ${{ steps.backend.outputs.mode == 'github-models' && steps.sandbox.outputs.accepted == 'true' }}
         run: |
           node - <<'NODE'
           const fs = require('fs');
           const { execFileSync } = require('child_process');
           const proposal = JSON.parse(fs.readFileSync('artifacts/autopilot-execution/github-models-proposal.json', 'utf8'));
           const patch = typeof proposal.patch === 'string' ? proposal.patch.trim() : '';
-          if (!patch) {
-            fs.writeFileSync(process.env.GITHUB_OUTPUT, 'applied=false\n', { flag: 'a' });
-            fs.writeFileSync('artifacts/autopilot-execution/coding-runner-result.json', JSON.stringify({ status: 'ABSTAINED', reason: 'github-models-no-safe-patch' }, null, 2));
-            process.exit(0);
-          }
+          if (!patch) throw new Error('MODEL_PATCH_REQUIRED_AFTER_SANDBOX_ACCEPTANCE');
           if (patch.length > 24000) throw new Error('MODEL_PATCH_TOO_LARGE');
           if (/liveAuthority|productionMutationAllowed|aiAuthority|NUSA_|wrangler|\.github\//i.test(patch)) throw new Error('MODEL_PATCH_FORBIDDEN_AUTHORITY_SURFACE');
           const paths = [...patch.matchAll(/^\+\+\+ b\/(.+)$/gm)].map((m) => m[1]);
@@ -257,7 +317,7 @@ jobs:
           fs.writeFileSync('artifacts/autopilot-execution/model.patch', `${patch}\n`);
           execFileSync('git', ['apply', '--check', 'artifacts/autopilot-execution/model.patch'], { stdio: 'inherit' });
           execFileSync('git', ['apply', 'artifacts/autopilot-execution/model.patch'], { stdio: 'inherit' });
-          fs.writeFileSync(process.env.GITHUB_OUTPUT, 'applied=true\n', { flag: 'a' });
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'applied=true\n');
           NODE
 
       - name: Validate generated repair
@@ -288,14 +348,14 @@ jobs:
           git commit -m "fix(evolve): bounded autonomous repair"
           git push origin "$branch"
           summary="$(node -e "const p=require('./artifacts/autopilot-execution/github-models-proposal.json'); console.log(String(p.summary||'bounded GitHub Models repair').slice(0,500))")"
-          url="$(gh pr create --base main --head "$branch" --title 'fix(evolve): bounded autonomous repair' --body "Automated bounded repair from EVOLVE failure evidence.\n\nSummary: $summary\n\nSafety: liveAuthority=NONE, productionMutationAllowed=false, AI authority=ZERO_AUTHORITY. No auto-merge. Exact-head CI remains required.")"
+          url="$(gh pr create --base main --head "$branch" --title 'fix(evolve): bounded autonomous repair' --body "Automated bounded repair from EVOLVE failure evidence.\n\nSummary: $summary\n\nCloudflare Sandbox validation: passed before repository mutation.\n\nSafety: liveAuthority=NONE, productionMutationAllowed=false, AI authority=ZERO_AUTHORITY. No auto-merge. Exact-head CI remains required.")"
           printf '%s\n' "$url" > artifacts/autopilot-execution/generated-pr-url.txt
           gh workflow run ci.yml --ref "$branch"
           node - <<'NODE'
           const fs = require('fs');
           const request = JSON.parse(fs.readFileSync('artifacts/autopilot-execution/coding-runner-request.json', 'utf8'));
           const prUrl = fs.readFileSync('artifacts/autopilot-execution/generated-pr-url.txt', 'utf8').trim();
-          fs.writeFileSync('artifacts/autopilot-execution/coding-runner-result.json', JSON.stringify({ status: 'PR_CREATED', reason: 'github-models-bounded-repair-pr-created', prUrl, request }, null, 2));
+          fs.writeFileSync('artifacts/autopilot-execution/coding-runner-result.json', JSON.stringify({ status: 'PR_CREATED', reason: 'github-models-sandbox-validated-repair-pr-created', prUrl, request }, null, 2));
           NODE
 
       - name: Classify execution boundary

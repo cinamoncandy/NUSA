@@ -32,6 +32,14 @@ function result(status: ScheduledEvolutionCodingResult["status"], reason: string
   return Object.freeze({ status, reason, selectedSignalIds: Object.freeze([...selectedSignalIds]), ...AUTHORITY });
 }
 
+function workflowCompletedAt(run: JsonObject): string | null {
+  const completedAt = text(run.completed_at);
+  if (completedAt && Number.isFinite(Date.parse(completedAt))) return completedAt;
+  if (text(run.status) !== "completed") return null;
+  const updatedAt = text(run.updated_at);
+  return updatedAt && Number.isFinite(Date.parse(updatedAt)) ? updatedAt : null;
+}
+
 function evidenceFromRuns(candidates: readonly unknown[]): readonly WorkflowFailureEvidence[] {
   const evidence: WorkflowFailureEvidence[] = [];
   for (const candidate of candidates.slice(0, 50)) {
@@ -43,8 +51,8 @@ function evidenceFromRuns(candidates: readonly unknown[]): readonly WorkflowFail
     const workflowName = text(run.name);
     const runId = positiveInteger(run.id);
     const headSha = text(run.head_sha);
-    const completedAt = text(run.completed_at);
-    if (!workflowName || !runId || !headSha || !SHA40.test(headSha) || !completedAt || !Number.isFinite(Date.parse(completedAt))) continue;
+    const completedAt = workflowCompletedAt(run);
+    if (!workflowName || !runId || !headSha || !SHA40.test(headSha) || !completedAt) continue;
     evidence.push(Object.freeze({ workflowName, runId, headSha: headSha.toLowerCase(), conclusion, completedAt }));
   }
   return Object.freeze(evidence);
