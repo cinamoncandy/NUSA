@@ -102,6 +102,19 @@ describe("coding runner", () => {
     assert.equal(urls.length, 2);
   });
 
+  it("falls back to public GitHub evidence when an optional token is rejected", async () => {
+    const calls: Array<{ url: string; authorization?: string }> = [];
+    await verifyCodingRunnerRequestAgainstGitHub(request, "stale-token", async (url, init) => {
+      const headers = init?.headers as Record<string, string> | undefined;
+      calls.push({ url, authorization: headers?.Authorization });
+      if (headers?.Authorization) return response(401, { message: "Bad credentials" });
+      return verifiedGithubFetch(url);
+    });
+    assert.equal(calls.length, 4);
+    assert.ok(calls.some((call) => call.authorization === "Bearer stale-token"));
+    assert.ok(calls.some((call) => call.authorization === undefined));
+  });
+
   it("accepts a failed workflow only for an explicit gha failure-repair request", async () => {
     const failureRequest = { ...request, reason: "gha:CI:123:failure" };
     await verifyCodingRunnerRequestAgainstGitHub(failureRequest, "github-token", async (url) => {
@@ -267,7 +280,15 @@ describe("coding runner", () => {
     assert.equal(headers["x-nusa-dedupe-key"], request.dedupeKey);
   });
 
-  it("stays interface-ready until GitHub verification is configured", async () => {
-    assert.deepEqual(await executeCodingRunner(request, {}), { status: "INTERFACE_READY", reason: "github-verification-not-configured" });
+  it("uses public GitHub verification when no GitHub token is configured", async () => {
+    const seenAuthorization: Array<string | undefined> = [];
+    const result = await executeCodingRunner(request, {}, async (url, init) => {
+      const headers = init?.headers as Record<string, string> | undefined;
+      seenAuthorization.push(headers?.Authorization);
+      return verifiedGithubFetch(url);
+    });
+    assert.equal(result.status, "INTERFACE_READY");
+    assert.equal(result.reason, "ai-coding-engine-not-configured");
+    assert.deepEqual(seenAuthorization, [undefined, undefined]);
   });
 });

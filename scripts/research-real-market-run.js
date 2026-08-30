@@ -392,6 +392,7 @@ async function main() {
       medianLogit: probabilityBacktestOverfitting?.medianLogit ?? null
     },
     researchFactoryQualification: factoryQualification,
+    researchRunProvenance: league.provenance,
     league: {
       evidenceMode: league.evidenceMode,
       evidenceReports: league.evidenceReport,
