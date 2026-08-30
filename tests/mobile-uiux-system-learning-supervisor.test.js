@@ -16,15 +16,27 @@ test("system learning is a distinct read-only supervisor mode, not PAPER learnin
   assert.match(cockpit, /InMemoryDashboardCredentialSession/);
 });
 
-test("system learning presents result before progressively disclosed evidence", () => {
+test("system learning presents attention and result before progressively disclosed evidence", () => {
+  const attention = view.indexOf('testID="system-learning-attention"');
   const result = view.indexOf('testID="system-learning-latest"');
   const toggle = view.indexOf('testID="system-learning-evidence-toggle"');
   const details = view.indexOf('testID="system-learning-evidence-details"');
-  assert.ok(result >= 0 && toggle > result && details > toggle);
+  assert.ok(attention >= 0 && result > attention && toggle > result && details > toggle);
   assert.match(view, /VALIDATION/);
   assert.match(view, /REUSABLE/);
   assert.match(view, /headHash\.slice/);
   assert.match(view, /evidenceReferences\.map/);
+});
+
+test("system learning attention is deterministic from recorded outcome only", () => {
+  assert.match(view, /outcome === "FAILED" \|\| outcome === "REGRESSION"/);
+  assert.match(view, /outcome === "PARTIAL_SUCCESS" \|\| outcome === "UNDERPERFORMED"/);
+  assert.match(view, /outcome === "SUCCESS"/);
+  assert.match(view, /label: "REVIEW"/);
+  assert.match(view, /label: "WATCH"/);
+  assert.match(view, /label: "CLEAR"/);
+  assert.match(view, /label: "INSUFFICIENT"/);
+  assert.doesNotMatch(view, /confidence|score|percent/i);
 });
 
 test("system learning surface keeps zero-authority truth visible", () => {
@@ -38,5 +50,4 @@ test("system learning surface keeps zero-authority truth visible", () => {
 test("empty or unavailable learning evidence remains truthful", () => {
   assert.match(view, /아직 검증된 시스템 학습 기록이 없습니다/);
   assert.match(view, /system-learning-unavailable/);
-  assert.doesNotMatch(view, /confidence|score|percent/i);
 });
