@@ -16,6 +16,8 @@ const request = {
   aiAuthority: "ZERO_AUTHORITY" as const,
 };
 
+const patch = "diff --git a/apps/autopilot/src/example.ts b/apps/autopilot/src/example.ts\n--- a/apps/autopilot/src/example.ts\n+++ b/apps/autopilot/src/example.ts\n@@ -1 +1 @@\n-old\n+new\n";
+
 const response = (status: number, body: unknown) => ({
   ok: status >= 200 && status < 300,
   status,
@@ -32,6 +34,12 @@ const verifiedGithubFetch = async (url: string) => {
     conclusion: "success",
     repository: { full_name: request.repository },
   });
+};
+
+const runtimeEnv = {
+  NUSA_AI_CODING_ENDPOINT: "https://coding.example.test/execute",
+  NUSA_AI_CODING_TOKEN: "ai-token",
+  NUSA_GITHUB_TOKEN: "github-token",
 };
 
 describe("coding runner", () => {
@@ -94,24 +102,40 @@ describe("coding runner", () => {
     assert.equal(urls.length, 2);
   });
 
-  it("executes an injected cloud runtime only after GitHub evidence verification", async () => {
+  it("sends a bounded patch-only proposal to the injected cloud runtime after GitHub verification", async () => {
     let runtimeCalls = 0;
     const runtime: CodingRuntime = {
       name: "fake-sandbox",
-      async execute(value) {
+      async execute(value, proposal) {
         runtimeCalls += 1;
         assert.equal(value.headSha, request.headSha);
-        return { backend: "fake-sandbox", checkpointId: request.headSha, workspaceVerified: true };
+        assert.equal(proposal?.patch, patch);
+        return {
+          backend: "fake-sandbox",
+          checkpointId: request.headSha,
+          workspaceVerified: true,
+          proposalValidated: true,
+          changedFiles: ["apps/autopilot/src/example.ts"],
+        };
       },
     };
-    const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token" }, verifiedGithubFetch, runtime);
+    const calls: string[] = [];
+    const fakeFetch = async (url: string) => {
+      calls.push(url);
+      if (url.includes("/commits/") || url.includes("/actions/runs/")) return verifiedGithubFetch(url);
+      return response(200, { patch });
+    };
+    const result = await executeCodingRunner(request, runtimeEnv, fakeFetch, runtime);
     assert.equal(result.status, "EXECUTION_ACCEPTED");
     assert.equal(result.backend, "fake-sandbox");
     assert.equal(result.workspaceVerified, true);
+    assert.equal(result.proposalValidated, true);
+    assert.deepEqual(result.changedFiles, ["apps/autopilot/src/example.ts"]);
     assert.equal(runtimeCalls, 1);
+    assert.equal(calls.length, 3);
   });
 
-  it("does not invoke an injected runtime when GitHub evidence is invalid", async () => {
+  it("fails closed when the coding engine does not return a patch proposal", async () => {
     let runtimeCalls = 0;
     const runtime: CodingRuntime = {
       name: "fake-sandbox",
@@ -120,14 +144,37 @@ describe("coding runner", () => {
         return { backend: "fake-sandbox", checkpointId: request.headSha, workspaceVerified: true };
       },
     };
-    await assert.rejects(
-      () => executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token" }, async () => response(404, {}), runtime),
-      /CODING_RUNNER_HEAD_SHA_UNVERIFIED/,
-    );
+    const result = await executeCodingRunner(request, runtimeEnv, async (url) => {
+      if (url.includes("/commits/") || url.includes("/actions/runs/")) return verifiedGithubFetch(url);
+      return response(200, { accepted: true });
+    }, runtime);
+    assert.equal(result.status, "EXECUTION_FAILED");
+    assert.equal(result.reason, "CODING_PROPOSAL_PATCH_REQUIRED");
     assert.equal(runtimeCalls, 0);
   });
 
-  it("preserves lifecycle identity when calling the configured coding engine", async () => {
+  it("does not call the coding engine or runtime when GitHub evidence is invalid", async () => {
+    let runtimeCalls = 0;
+    let fetchCalls = 0;
+    const runtime: CodingRuntime = {
+      name: "fake-sandbox",
+      async execute() {
+        runtimeCalls += 1;
+        return { backend: "fake-sandbox", checkpointId: request.headSha, workspaceVerified: true };
+      },
+    };
+    await assert.rejects(
+      () => executeCodingRunner(request, runtimeEnv, async () => {
+        fetchCalls += 1;
+        return response(404, {});
+      }, runtime),
+      /CODING_RUNNER_HEAD_SHA_UNVERIFIED/,
+    );
+    assert.equal(runtimeCalls, 0);
+    assert.equal(fetchCalls, 1);
+  });
+
+  it("preserves lifecycle identity and requires patch-only output when calling the configured coding engine", async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const fakeFetch = async (url: string, init?: RequestInit) => {
       calls.push({ url, init });
@@ -140,20 +187,18 @@ describe("coding runner", () => {
         conclusion: "success",
         repository: { full_name: request.repository },
       });
-      return response(202, { accepted: true });
+      return response(202, { patch });
     };
 
-    const result = await executeCodingRunner(request, {
-      NUSA_AI_CODING_ENDPOINT: "https://coding.example.test/execute",
-      NUSA_AI_CODING_TOKEN: "ai-token",
-      NUSA_GITHUB_TOKEN: "github-token",
-    }, fakeFetch);
+    const result = await executeCodingRunner(request, runtimeEnv, fakeFetch);
     assert.equal(result.status, "EXECUTION_ACCEPTED");
     const dispatch = calls.at(-1);
     assert.equal(dispatch?.url, "https://coding.example.test/execute");
     const body = JSON.parse(String(dispatch?.init?.body));
     assert.equal(body.executionId, request.executionId);
     assert.equal(body.dedupeKey, request.dedupeKey);
+    assert.deepEqual(body.outputContract, { patch: "unified-git-diff" });
+    assert.equal(body.constraints.mutationAllowed, false);
     const headers = dispatch?.init?.headers as Record<string, string>;
     assert.equal(headers["x-nusa-execution-id"], request.executionId);
     assert.equal(headers["x-nusa-dedupe-key"], request.dedupeKey);
