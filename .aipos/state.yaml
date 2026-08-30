@@ -83,17 +83,15 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-ISSUE-1258-EVOLVE-CLOUD-DISPATCH-DEDUPE
-  status: PARTIAL
-  branch: codex/evolve-1258-dispatch-dedupe
-  base_commit: 39f98fb60e64fad1a937aa872a94d632a22bf719
-  scope: "Remove duplicate nusa_autopilot_execution Cloud coding dispatch and add durable fail-closed execution telemetry; repository implementation is merged, while deployed runtime telemetry remains unverified."
+  work_order: WO-ISSUE-1094-RESEARCH-FACTORY
+  status: IN_PROGRESS
+  branch: codex/reconcile-aipos-after-1258
+  base_commit: 63736d6722119f1f7e9e2ac0b1b752dd370febbd
+  scope: "Audit the existing canonical Research Factory against Issue #1094 acceptance and implement only a proven repository-side gap; missing longitudinal PAPER evidence remains fail-closed."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  implementation_commit: f6fa1fd3c46f8958f6f0c5dbdadfd923de9a0c80
-  remote_head: 24a55cb6344aecab00494d39a1e21d6b86314d84
-  pull_request: 1262
-  merge_commit: 7cb0f70620ab50fe8488b899744fe3ed6231302c
-  validation: "PR #1262 is merged; focused Autopilot regression 34/34, workflow topology 1/1, and protected merge-commit checks 13/13 PASS. Runtime deployment evidence remains partial: the deployed Worker previously returned /coding/telemetry 404 and a consumer returned CODING_RUNNER_HEAD_SHA_UNVERIFIED."
+  implementation_commit: 8f9016d837e0ef3e641849b7321feb0fbdd2b6d7
+  pull_request: 1281
+  validation: "Current-main AIPOS reconciliation is in progress; #1258 repository implementation is already merged as 7cb0f70620ab50fe8488b899744fe3ed6231302c with deployment/runtime gaps explicitly recorded."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS

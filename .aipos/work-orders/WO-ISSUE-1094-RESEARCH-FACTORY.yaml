@@ -8,7 +8,7 @@ issue: 1094
 base_branch: main
 base_commit: 63736d6722119f1f7e9e2ac0b1b752dd370febbd
 implementation_branch: codex/reconcile-aipos-after-1258
-implementation_commit: 4595f67888a0ef58c1c50858cd65a1316f02d9f6
+implementation_commit: 8f9016d837e0ef3e641849b7321feb0fbdd2b6d7
 pull_request: 1281
 objective: "Audit and, only where a repository-side gap is proven, complete the canonical research-factory path from deterministic hypothesis and candidate provenance through point-in-time OOS, cost-aware robustness, qualification, and truthful PAPER evidence admission."
 architecture_impact:
