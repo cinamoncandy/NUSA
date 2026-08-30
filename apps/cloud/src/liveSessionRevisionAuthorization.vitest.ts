@@ -13,7 +13,7 @@ class MemoryStorage implements LiveRuntimeSessionStorage {
 const prepared = (revision: number): LiveAuthoritativeSessionTransportResult => ({
   status: "READY",
   revision,
-  chain: { preExecutionStatus: "READY", transport: { status: "READY", request: { schemaVersion: 1, market: "KRW-BTC", side: "BUY", notionalUsd: 10, ownerPrincipalId: "owner-1", authorizationFingerprint: "a".repeat(64), preparedAtMs: 2_000, expiresAtMs: 3_000 } } },
+  chain: { preExecutionStatus: "READY", transport: { status: "READY", request: { ownerPrincipalId: "owner-1", market: "KRW-BTC", side: "BUY", requestedNotionalUsd: 10, authorizationFingerprintSha256: "a".repeat(64) } } },
 });
 
 async function setup() {
