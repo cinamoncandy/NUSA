@@ -32,6 +32,7 @@ jobs:
           fetch-depth: 2
 
       - name: Verify exact current main revision
+        id: revision
         shell: bash
         env:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
@@ -39,11 +40,17 @@ jobs:
           set -euo pipefail
           git fetch --no-tags origin main
           current_main="$(git rev-parse origin/main)"
-          test "$current_main" = "$HEAD_SHA"
+          if [ "$current_main" != "$HEAD_SHA" ]; then
+            echo 'current=false' >> "$GITHUB_OUTPUT"
+            echo "Skipping stale CI revision ${HEAD_SHA}; current main is ${current_main}."
+            exit 0
+          fi
+          echo 'current=true' >> "$GITHUB_OUTPUT"
           echo "Verified CI revision is current main: $HEAD_SHA"
 
       - name: Verify autopilot deployment-relevant change
         id: changes
+        if: steps.revision.outputs.current == 'true'
         shell: bash
         env:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
@@ -58,7 +65,7 @@ jobs:
           fi
 
       - name: Promote exact verified revision to Cloudflare production branch
-        if: steps.changes.outputs.deploy == 'true'
+        if: steps.revision.outputs.current == 'true' && steps.changes.outputs.deploy == 'true'
         shell: bash
         env:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
@@ -66,6 +73,11 @@ jobs:
           set -euo pipefail
           git fetch --unshallow --no-tags origin main
           git fetch origin cloudflare-production
+          latest_main="$(git rev-parse origin/main)"
+          if [ "$latest_main" != "$HEAD_SHA" ]; then
+            echo "Skipping stale CI revision ${HEAD_SHA}; current main is ${latest_main}."
+            exit 0
+          fi
           current_sha="$(git rev-parse origin/cloudflare-production)"
 
           if [ "$current_sha" = "$HEAD_SHA" ] || git merge-base --is-ancestor "$HEAD_SHA" "$current_sha"; then
