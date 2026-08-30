@@ -6,6 +6,7 @@ import { GithubValidatedPatchPublisher } from "./githubValidatedPatchPublisher";
 import { SandboxCodingRuntime } from "./sandboxCodingRuntime";
 import { validateCodingExecutionEnvelope } from "./codingExecutionEnvelope";
 import { validatePatchInSandbox } from "./sandboxPatchValidator";
+import { verifyGithubActionsOidcToken } from "./githubActionsOidc";
 
 export { Sandbox, ExecutionCoordinator };
 
@@ -25,6 +26,21 @@ function constantTimeEqual(left: string, right: string): boolean {
   return mismatch === 0;
 }
 
+async function verifySandboxAuthorization(
+  provided: string | undefined,
+  configured: string | undefined,
+  allowedRepository: string,
+): Promise<boolean> {
+  if (!provided) return false;
+  if (configured && constantTimeEqual(configured, provided)) return true;
+  try {
+    await verifyGithubActionsOidcToken(provided, allowedRepository);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const worker = {
   async fetch(request: Request, env: WorkerEnv): Promise<Response> {
     const url = new URL(request.url);
@@ -38,15 +54,16 @@ const worker = {
     }
 
     if (request.method === "POST" && url.pathname === "/coding/sandbox/validate") {
+      const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || "cinamoncandy/NUSA";
       const configured = env.NUSA_CODING_RUNNER_TOKEN?.trim();
       const provided = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
-      if (!configured) return json({ error: "CODING_RUNNER_TOKEN_NOT_CONFIGURED", status: "INTERFACE_READY" }, 503);
-      if (!provided || !constantTimeEqual(configured, provided)) return json({ error: "CODING_RUNNER_UNAUTHORIZED" }, 401);
+      if (!await verifySandboxAuthorization(provided, configured, allowedRepository)) {
+        return json({ error: "CODING_RUNNER_UNAUTHORIZED" }, 401);
+      }
       if (!env.Sandbox) return json({ error: "CLOUDFLARE_SANDBOX_NOT_CONFIGURED", status: "INTERFACE_READY" }, 503);
 
       try {
         const body = await request.json() as { envelope?: unknown; patch?: unknown };
-        const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || "cinamoncandy/NUSA";
         const envelope = validateCodingExecutionEnvelope(body.envelope, allowedRepository);
         if (typeof body.patch !== "string") throw new Error("SANDBOX_PATCH_REQUIRED");
         const backend = new CloudflareSandboxBackend(env.Sandbox);

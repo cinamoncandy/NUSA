@@ -86,7 +86,9 @@ jobs:
       - name: Select coding backend
         id: backend
         env:
-          NUSA_CODING_RUNNER_URL: https://nusa.desporin12.workers.dev/coding/execute
+          # External execution is opt-in. The trusted OIDC credential is only
+          # requested when a repository-level runner endpoint is configured.
+          NUSA_CODING_RUNNER_URL: ${{ vars.NUSA_CODING_RUNNER_URL }}
           NUSA_EXECUTION_REASON: ${{ github.event.client_payload.reason }}
         run: |
           if [ -n "${NUSA_CODING_RUNNER_URL:-}" ]; then
@@ -113,7 +115,7 @@ jobs:
       - name: Dispatch to configured external coding runner
         if: ${{ steps.backend.outputs.mode == 'external' }}
         env:
-          NUSA_CODING_RUNNER_URL: https://nusa.desporin12.workers.dev/coding/execute
+          NUSA_CODING_RUNNER_URL: ${{ vars.NUSA_CODING_RUNNER_URL }}
         run: |
           node - <<'NODE'
           const fs = require('fs');
