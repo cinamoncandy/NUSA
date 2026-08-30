@@ -43,6 +43,8 @@ test("retries transient OIDC and runner failures with bounded exponential backof
   const result = await dispatchWithRetry({
     request,
     url: "https://runner.example.test/coding/execute",
+    oidcRequestUrl: "https://oidc.example.test/token",
+    oidcRequestToken: "oidc-request-test",
     maxAttempts: 3,
     baseBackoffMs: 10,
     now: () => now,
@@ -68,6 +70,8 @@ test("does not retry deterministic runner rejection", async () => {
   const result = await dispatchWithRetry({
     request,
     url: "https://runner.example.test/coding/execute",
+    oidcRequestUrl: "https://oidc.example.test/token",
+    oidcRequestToken: "oidc-request-test",
     sleep: async () => { throw new Error("unexpected retry"); },
     fetchImpl: async () => {
       calls += 1;
@@ -87,6 +91,8 @@ test("bounds repeated transient rejection and closes without mutation", async ()
   const result = await dispatchWithRetry({
     request,
     url: "https://runner.example.test/coding/execute",
+    oidcRequestUrl: "https://oidc.example.test/token",
+    oidcRequestToken: "oidc-request-test",
     baseBackoffMs: 5,
     sleep: async (milliseconds) => waits.push(milliseconds),
     fetchImpl: async () => {
@@ -108,6 +114,8 @@ test("records duplicate suppression as no action without retry", async () => {
   const result = await dispatchWithRetry({
     request,
     url: "https://runner.example.test/coding/execute",
+    oidcRequestUrl: "https://oidc.example.test/token",
+    oidcRequestToken: "oidc-request-test",
     fetchImpl: async () => {
       calls += 1;
       return calls === 1 ? oidcSuccess() : response(202, { status: "DUPLICATE_EXECUTION_SUPPRESSED" });

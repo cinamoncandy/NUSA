@@ -68,9 +68,8 @@ function resultSummary(request, attempts, status, reason, httpStatus, workerStat
   };
 }
 
-async function oidcToken({ fetchImpl }) {
-  const requestUrl = process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
-  const requestToken = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
+async function oidcToken({ fetchImpl, requestUrl = process.env.ACTIONS_ID_TOKEN_REQUEST_URL, requestToken = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }) {
+
   if (typeof requestUrl !== "string" || !requestUrl || typeof requestToken !== "string" || !requestToken) {
     return { ok: false, status: null, reason: "github-oidc-not-configured", retryable: false };
   }
@@ -95,6 +94,8 @@ async function dispatchWithRetry({
   now = () => Date.now(),
   maxAttempts = DEFAULT_MAX_ATTEMPTS,
   baseBackoffMs = DEFAULT_BACKOFF_MS,
+  oidcRequestUrl = process.env.ACTIONS_ID_TOKEN_REQUEST_URL,
+  oidcRequestToken = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN,
 }) {
   if (!Number.isSafeInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 3) throw new Error("AUTOPILOT_RETRY_LIMIT_INVALID");
   if (!Number.isSafeInteger(baseBackoffMs) || baseBackoffMs < 0 || baseBackoffMs > 30_000) throw new Error("AUTOPILOT_BACKOFF_INVALID");
@@ -102,7 +103,7 @@ async function dispatchWithRetry({
   const attempts = [];
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const startedAt = now();
-    const token = await oidcToken({ fetchImpl });
+    const token = await oidcToken({ fetchImpl, requestUrl: oidcRequestUrl, requestToken: oidcRequestToken });
     if (!token.ok) {
       const decision = token.retryable && attempt < maxAttempts ? "RETRY" : "FAILED_CLOSED";
       attempts.push(attemptRecord({
