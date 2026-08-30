@@ -1,7 +1,6 @@
 "use strict";
 
-const { existsSync, mkdtempSync, rmSync, writeFileSync } = require("node:fs");
-const { tmpdir } = require("node:os");
+const { existsSync } = require("node:fs");
 const { join } = require("node:path");
 const { spawnSync } = require("node:child_process");
 
@@ -14,31 +13,19 @@ function toRunnableTest(relativePath) {
 }
 
 function runTest(vitestCli, relativePath, root) {
-  const tempConfigDir = mkdtempSync(join(tmpdir(), "nusa-vitest-"));
-  const configPath = join(tempConfigDir, "config.mjs");
-  const escapedPath = JSON.stringify(relativePath);
-  writeFileSync(
-    configPath,
-    `import { defineConfig } from ${JSON.stringify("vitest/config")};\n\nexport default defineConfig({\n  test: {\n    environment: "node",\n    include: [${escapedPath}]\n  }\n});\n`,
-    "utf8"
-  );
-
-  try {
-    const result = spawnSync(process.execPath, [vitestCli, "run", "--config", configPath], {
-      cwd: root,
-      env: { ...process.env },
-      encoding: "utf8",
-      stdio: "inherit",
-      shell: false,
-      windowsHide: true,
-      timeout: 120_000,
-      killSignal: "SIGKILL"
-    });
-    if (result.error) console.error(result.error.stack || result.error.message);
-    return result.error || result.status !== 0 ? (result.status || 1) : 0;
-  } finally {
-    rmSync(tempConfigDir, { recursive: true, force: true });
-  }
+  const configPath = join(root, "vitest.config.mjs");
+  const result = spawnSync(process.execPath, [vitestCli, "run", "--config", configPath, relativePath], {
+    cwd: root,
+    env: { ...process.env },
+    encoding: "utf8",
+    stdio: "inherit",
+    shell: false,
+    windowsHide: true,
+    timeout: 120_000,
+    killSignal: "SIGKILL"
+  });
+  if (result.error) console.error(result.error.stack || result.error.message);
+  return result.error || result.status !== 0 ? (result.status || 1) : 0;
 }
 
 function main() {
@@ -88,6 +75,11 @@ function main() {
 
   if (!existsSync(vitestCli)) {
     console.error(`Changed-test fast gate could not find Vitest CLI at ${vitestCli}`);
+    process.exit(1);
+  }
+
+  if (!existsSync(join(root, "vitest.config.mjs"))) {
+    console.error(`Changed-test fast gate could not find Vitest config at ${join(root, "vitest.config.mjs")}`);
     process.exit(1);
   }
 
