@@ -150,6 +150,7 @@ function githubHeaders(token?: string): Record<string, string> {
   const headers: Record<string, string> = {
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
+    "User-Agent": "nusa-autopilot-worker",
   };
   const trimmed = token?.trim();
   if (trimmed) headers.Authorization = `Bearer ${trimmed}`;
