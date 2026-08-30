@@ -5,6 +5,7 @@ import {
   claimNextNusaDevelopmentWork,
   createNusaDevelopmentQueue,
   recoverStaleNusaDevelopmentClaims,
+  recoverStaleNusaDevelopmentClaimWithEvidence,
   type NusaDevelopmentWorkItem,
 } from "./nusaDevelopmentControlPlane";
 
@@ -241,6 +242,29 @@ describe("NUSA canonical development queue", () => {
 
     const replay = recoverStaleNusaDevelopmentClaims(recovered, T0 + 1_000);
     assert.equal(replay, recovered);
+  });
+
+  it("requeues only expired claims with matching execution evidence", () => {
+    const claimed = claimNextNusaDevelopmentWork(
+      createNusaDevelopmentQueue([work({ id: "evidence-stale" })]),
+      { owner: "development", requestId: "evidence-run", expectedRevision: 0, now: T0, leaseMs: 1_000 },
+    );
+    assert.equal(claimed.status, "CLAIMED");
+    const blocked = recoverStaleNusaDevelopmentClaimWithEvidence(claimed.queue, T0 + 1_000, {
+      "evidence-stale": { claimRequestId: "evidence-run", sourceSha: "abc", activeCi: true, activePr: false, checkpointAvailable: false, executionStatus: "STOPPED" },
+    });
+    assert.equal(blocked.queue, claimed.queue);
+    assert.equal(blocked.outcomes["evidence-stale"], "CLAIM_BLOCKED_HUMAN");
+    const requeued = recoverStaleNusaDevelopmentClaimWithEvidence(claimed.queue, T0 + 1_000, {
+      "evidence-stale": { claimRequestId: "evidence-run", sourceSha: "abc", activeCi: false, activePr: false, checkpointAvailable: false, executionStatus: "STOPPED" },
+    });
+    assert.equal(requeued.queue.items[0]?.state, "READY");
+    assert.equal(requeued.outcomes["evidence-stale"], "CLAIM_STALE_REQUEUE");
+    const mismatch = recoverStaleNusaDevelopmentClaimWithEvidence(claimed.queue, T0 + 1_000, {
+      "evidence-stale": { claimRequestId: "other-run", sourceSha: "abc", activeCi: false, activePr: false, checkpointAvailable: false, executionStatus: "STOPPED" },
+    });
+    assert.equal(mismatch.queue, claimed.queue);
+    assert.equal(mismatch.outcomes["evidence-stale"], "CLAIM_FAIL_CLOSED");
   });
 
   it("fails closed on unsafe claim and recovery timestamps while preserving the safe integer boundary", () => {
