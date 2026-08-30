@@ -13,10 +13,15 @@ on:
       - 'scripts/verify-autopilot-cloudflare-runtime.mjs'
       - '.github/workflows/autopilot-cloudflare-runtime-proof.yml'
   schedule:
-    - cron: '17 * * * *'
+    # Keep the hourly proof away from the scheduler's common minute boundary.
+    - cron: '37 * * * *'
 
 permissions:
   contents: read
+
+concurrency:
+  group: nusa-autopilot-cloudflare-runtime-proof
+  cancel-in-progress: false
 
 jobs:
   runtime-proof:
@@ -26,7 +31,19 @@ jobs:
       NUSA_AUTOPILOT_URL: https://nusa.desporin12.workers.dev
       NUSA_AUTOPILOT_MAX_RECEIPT_AGE_MS: '180000'
     steps:
+      - name: Prepare proof evidence directory
+        run: mkdir -p artifacts/autopilot
       - name: Checkout exact revision
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Verify deployed Worker and fresh scheduled receipt
+        env:
+          NUSA_RUNTIME_PROOF_OUTPUT: artifacts/autopilot/runtime-proof.json
         run: node scripts/verify-autopilot-cloudflare-runtime.mjs
+      - name: Upload runtime proof evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: autopilot-cloudflare-runtime-proof-${{ github.run_id }}
+          path: artifacts/autopilot/runtime-proof.json
+          if-no-files-found: warn
+          retention-days: 7
