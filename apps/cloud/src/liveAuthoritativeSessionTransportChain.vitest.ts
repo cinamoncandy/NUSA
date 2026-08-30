@@ -1,26 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { prepareAuthoritativeSessionBoundLiveTransport } from "./liveAuthoritativeSessionTransportChain";
+import { prepareAuthoritativeSessionBoundLiveTransport, type LiveAuthoritativeSessionRequest } from "./liveAuthoritativeSessionTransportChain";
 import { LiveRuntimeSessionDurableStore, type LiveRuntimeSessionStorage } from "./liveRuntimeSessionDurableStore";
-import { LiveExecutionConsumeOnce, type LiveExecutionConsumptionStorage } from "./liveExecutionConsumeOnce";
+import { LiveExecutionConsumeOnce, type ConsumeOnceStorage } from "./liveExecutionConsumeOnce";
 
-class MemoryStorage implements LiveRuntimeSessionStorage, LiveExecutionConsumptionStorage {
+class MemoryStorage implements LiveRuntimeSessionStorage, ConsumeOnceStorage {
   private readonly values = new Map<string, unknown>();
   async transaction<T>(callback: (txn: any) => Promise<T>): Promise<T> {
     return callback({ get: async (key: string) => this.values.get(key), put: async (key: string, value: unknown) => { this.values.set(key, value); } });
   }
 }
 
-const request = {
+const request: LiveAuthoritativeSessionRequest = {
   ownerPrincipalId: "owner-1",
   policyOwnerPrincipalId: "owner-1",
   market: "BTC-USD",
-  side: "BUY" as const,
+  side: "BUY",
   requestedNotionalUsd: 100,
   totalEquityUsd: 1_000,
   riskApprovedNotionalUsd: 200,
-  riskDecision: "APPROVE" as const,
+  riskDecision: "ALLOW",
   tradingAllowed: true,
-  overallHealth: "HEALTHY" as const,
+  overallHealth: "HEALTHY",
   marketTrusted: true,
   observedAt: 1_000,
   decidedAt: 1_000,
