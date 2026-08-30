@@ -114,6 +114,16 @@ function validateCodingProposal(value: unknown): CodingProposal {
   return Object.freeze({ patch: proposal.patch });
 }
 
+function publicRuntimeResult(runtime: CodingRuntimeExecutionResult): Pick<CodingRunnerResult, "backend" | "checkpointId" | "workspaceVerified" | "proposalValidated" | "changedFiles"> {
+  return {
+    backend: runtime.backend,
+    checkpointId: runtime.checkpointId,
+    workspaceVerified: runtime.workspaceVerified,
+    proposalValidated: runtime.proposalValidated,
+    changedFiles: runtime.changedFiles,
+  };
+}
+
 export async function verifyCodingRunnerRequestAgainstGitHub(
   request: CodingRunnerRequest,
   githubToken: string,
@@ -190,12 +200,13 @@ export async function executeCodingRunner(
     }
     try {
       const runtimeResult = await runtime.execute(request, proposal);
-      if (!publisher) return { status: "EXECUTION_ACCEPTED", httpStatus: response.status, ...runtimeResult };
+      const safeRuntime = publicRuntimeResult(runtimeResult);
+      if (!publisher) return { status: "EXECUTION_ACCEPTED", httpStatus: response.status, ...safeRuntime };
       if (!runtimeResult.proposalValidated || !runtimeResult.validatedFiles?.length) {
         return { status: "EXECUTION_FAILED", reason: "CODING_PUBLISH_VALIDATION_REQUIRED", httpStatus: response.status };
       }
       const published = await publisher.publish(request, runtimeResult);
-      return { status: "EXECUTION_ACCEPTED", httpStatus: response.status, ...runtimeResult, ...published };
+      return { status: "EXECUTION_ACCEPTED", httpStatus: response.status, ...safeRuntime, ...published };
     } catch (error) {
       return { status: "EXECUTION_FAILED", reason: error instanceof Error ? error.message : "coding-runtime-failed", httpStatus: response.status };
     }
