@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-30T18:02:08Z"
+updated_at: "2026-08-30T21:32:07.362Z"
 current_execution_target:
   work_order: WO-ISSUE-1094-RESEARCH-FACTORY
   status: VERIFYING
-  branch: codex/1094-research-report-coverage
-  base_sha: 65ee9b01b95faccbab53e5b48c43c1f581029dd1
-  scope: "Verify the canonical hypothesis-to-OOS-to-robustness-to-PAPER candidate pipeline on current main; preserve fail-closed evidence semantics and do not synthesize longitudinal PAPER evidence."
+  branch: codex/1094-pbo-insufficient-projection
+  base_sha: cc12b9d28c4e4683f73594c5843c15b56d2a6d78
+  scope: "Preserve explicit fail-closed INSUFFICIENT output when canonical real-market PBO evidence is unavailable; do not synthesize longitudinal PAPER evidence."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: implementation
 status: in_progress
@@ -23,9 +23,9 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: codex/1094-research-report-coverage
+active_branch: codex/1094-pbo-insufficient-projection
 active_successor_branch: null
-active_pull_request: null
+active_pull_request: 1287
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -536,7 +536,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-ISSUE-1094-RESEARCH-FACTORY.yaml
-  reason: "Verify the merged Research Factory qualification coverage; preserve missing longitudinal sources as fail-closed and wait for truthful runtime PAPER evidence."
+  reason: "Validate PR #1287 PBO insufficiency projection; preserve missing longitudinal sources as fail-closed and wait for truthful runtime PAPER evidence."
 verification:
   wo_0057:
     parent_pull_request: 552

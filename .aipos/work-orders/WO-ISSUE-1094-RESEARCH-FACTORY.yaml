@@ -6,11 +6,11 @@ owner: nusa
 repository: cinamoncandy/NUSA
 issue: 1094
 base_branch: main
-base_commit: 65ee9b01b95faccbab53e5b48c43c1f581029dd1
-implementation_branch: codex/1094-research-report-coverage
-implementation_commit: 5c9634844e549d0de6ea6147e6d5598c5acf0c4d
-pull_request: 1282
-objective: "Audit and, only where a repository-side gap is proven, complete the canonical research-factory path from deterministic hypothesis and candidate provenance through point-in-time OOS, cost-aware robustness, qualification, and truthful PAPER evidence admission."
+base_commit: cc12b9d28c4e4683f73594c5843c15b56d2a6d78
+implementation_branch: codex/1094-pbo-insufficient-projection
+implementation_commit: c562770e8106d810fe4d53f2e64d9532d925feb6
+pull_request: 1287
+objective: "Close the proven real-market PBO insufficiency projection gap while preserving the canonical research-factory path, fail-closed evidence semantics, and truthful PAPER evidence admission."
 architecture_impact:
   acknowledged: true
   analysis: "Reuse the existing research run factory, walk-forward/OOS, DSR/PBO, regime, robustness, League, and PAPER provenance components; do not create a parallel research engine or fabricate longitudinal evidence."
@@ -45,4 +45,4 @@ implementation:
     - scripts/research-real-market-run.js
     - apps/cloud/src/paperRealizedPeriodProducer.ts
   known_truth: "The canonical research-factory code is present; actual longitudinal realized PAPER history must remain unavailable/fail-closed until produced by a truthful runtime source."
-  next: "Repository-side duplicate evidence-report coverage is closed by PR #1282; continue to fail closed until a truthful longitudinal PAPER source exists."
+  next: "PR #1287 projects known PBO insufficiency as explicit INSUFFICIENT output; continue to fail closed until a truthful longitudinal PAPER source exists."
