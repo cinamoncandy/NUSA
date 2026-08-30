@@ -146,22 +146,36 @@ function publicRuntimeResult(runtime: CodingRuntimeExecutionResult): Pick<Coding
   };
 }
 
+function githubHeaders(token?: string): Record<string, string> {
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+  const trimmed = token?.trim();
+  if (trimmed) headers.Authorization = `Bearer ${trimmed}`;
+  return headers;
+}
+
+async function githubEvidenceGet(url: string, githubToken: string | undefined, fetchImpl: FetchImpl): Promise<HttpResponse> {
+  const token = githubToken?.trim();
+  const first = await fetchImpl(url, { method: "GET", headers: githubHeaders(token) });
+  if (!token || (first.status !== 401 && first.status !== 403)) return first;
+  return fetchImpl(url, { method: "GET", headers: githubHeaders() });
+}
+
 export async function verifyCodingRunnerRequestAgainstGitHub(
   request: CodingRunnerRequest,
-  githubToken: string,
+  githubToken: string | undefined,
   fetchImpl: FetchImpl = fetch as unknown as FetchImpl,
 ): Promise<void> {
-  const token = githubToken.trim();
-  if (!token) throw new Error("CODING_RUNNER_GITHUB_TOKEN_REQUIRED");
   const repository = request.repository.split("/").map(encodeURIComponent).join("/");
-  const headers = { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "X-GitHub-Api-Version": "2022-11-28" };
 
-  const commitResponse = await fetchImpl(`${GITHUB_API_ORIGIN}/repos/${repository}/commits/${request.headSha}`, { method: "GET", headers });
+  const commitResponse = await githubEvidenceGet(`${GITHUB_API_ORIGIN}/repos/${repository}/commits/${request.headSha}`, githubToken, fetchImpl);
   if (commitResponse.status !== 200) throw new Error("CODING_RUNNER_HEAD_SHA_UNVERIFIED");
   const commit = object(await commitResponse.json());
   if (typeof commit.sha !== "string" || commit.sha.toLowerCase() !== request.headSha.toLowerCase()) throw new Error("CODING_RUNNER_HEAD_SHA_MISMATCH");
 
-  const runResponse = await fetchImpl(`${GITHUB_API_ORIGIN}/repos/${repository}/actions/runs/${request.workflowRunId}`, { method: "GET", headers });
+  const runResponse = await githubEvidenceGet(`${GITHUB_API_ORIGIN}/repos/${repository}/actions/runs/${request.workflowRunId}`, githubToken, fetchImpl);
   if (runResponse.status !== 200) throw new Error("CODING_RUNNER_WORKFLOW_RUN_UNVERIFIED");
   const run = object(await runResponse.json());
   const runRepository = object(run.repository);
@@ -254,9 +268,7 @@ export async function executeCodingRunner(
   runtime?: CodingRuntime,
   publisher?: CodingPublisher,
 ): Promise<CodingRunnerResult> {
-  const githubToken = env.NUSA_GITHUB_TOKEN?.trim();
-  if (!githubToken) return { status: "INTERFACE_READY", reason: "github-verification-not-configured" };
-  await verifyCodingRunnerRequestAgainstGitHub(request, githubToken, fetchImpl);
+  await verifyCodingRunnerRequestAgainstGitHub(request, env.NUSA_GITHUB_TOKEN, fetchImpl);
 
   const endpoint = env.NUSA_AI_CODING_ENDPOINT?.trim();
   const token = env.NUSA_AI_CODING_TOKEN?.trim();
