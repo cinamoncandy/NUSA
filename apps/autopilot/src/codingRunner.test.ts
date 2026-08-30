@@ -236,6 +236,23 @@ describe("coding runner", () => {
     assert.equal(result.proposalValidated, true);
   });
 
+  it("distinguishes syntax-invalid Workers AI output", async () => {
+    const ai: WorkersAiBinding = {
+      async run() { return { response: "{not-json" }; },
+    };
+    const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch);
+    assert.equal(result.status, "EXECUTION_FAILED");
+    assert.equal(result.reason, "CODING_PROPOSAL_JSON_INVALID");
+  });
+
+  it("distinguishes valid JSON with an invalid proposal shape", async () => {
+    const ai: WorkersAiBinding = {
+      async run() { return { response: JSON.stringify({ explanation: "missing patch" }) }; },
+    };
+    const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch);
+    assert.equal(result.status, "EXECUTION_FAILED");
+    assert.equal(result.reason, "CODING_PROPOSAL_SHAPE_INVALID");
+  });
   it("falls back from the retired dashboard model to the supported default", async () => {
     const calls: string[] = [];
     const ai: WorkersAiBinding = {

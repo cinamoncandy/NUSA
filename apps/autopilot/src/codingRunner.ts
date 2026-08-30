@@ -135,14 +135,23 @@ function parseProposalText(value: string): CodingProposal {
   if (start >= 0 && end > start && (start !== 0 || end !== candidate.length - 1)) {
     candidates.push(candidate.slice(start, end + 1));
   }
+  let parsedJson = false;
   for (const json of candidates) {
     try {
-      return validateCodingProposal(JSON.parse(json));
+      const parsed = JSON.parse(json);
+      parsedJson = true;
+      try {
+        return validateCodingProposal(parsed);
+      } catch (error) {
+        if (error instanceof Error && error.message === "CODING_PROPOSAL_PATCH_REQUIRED") throw error;
+        if (!(error instanceof Error) || error.message !== "CODING_PROPOSAL_INVALID") throw error;
+      }
     } catch (error) {
       if (error instanceof Error && error.message === "CODING_PROPOSAL_PATCH_REQUIRED") throw error;
+      if (!(error instanceof SyntaxError)) throw error;
     }
   }
-  throw new Error("CODING_PROPOSAL_INVALID");
+  throw new Error(parsedJson ? "CODING_PROPOSAL_SHAPE_INVALID" : "CODING_PROPOSAL_JSON_INVALID");
 }
 
 function workersAiProposal(value: unknown): CodingProposal {
