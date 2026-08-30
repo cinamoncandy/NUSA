@@ -14,6 +14,10 @@ objective: "Restore reliable, classified, artifact-backed hourly Cloudflare runt
 architecture_impact:
   acknowledged: true
   analysis: "Reuse the existing GitHub proof workflow, verifier, Cloudflare runtime receipt, and safety fields; no new control plane, execution, broker, or credential path."
+  references:
+    - .github/workflows/autopilot-cloudflare-runtime-proof.yml
+    - scripts/verify-autopilot-cloudflare-runtime.mjs
+    - tests/autopilot-cloudflare-runtime-proof.test.js
 scope:
   - hourly_schedule_delivery_observability
   - proof_failure_classification

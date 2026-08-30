@@ -506,9 +506,9 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
-  - id: WO-ISSUE-1094-RESEARCH-FACTORY
-    evidence: ".aipos/work-orders/WO-ISSUE-1094-RESEARCH-FACTORY.yaml"
-    summary: "Audit the existing canonical research factory and close only repository-side evidence gaps; no synthetic longitudinal PAPER evidence."
+  - id: WO-ISSUE-1288-CLOUDFLARE-RUNTIME-PROOF
+    evidence: ".aipos/work-orders/WO-ISSUE-1288-CLOUDFLARE-RUNTIME-PROOF.yaml"
+    summary: "Restore classified, artifact-backed hourly Cloudflare runtime-proof observability; two fresh scheduled proofs remain external acceptance evidence."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
