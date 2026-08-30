@@ -23,6 +23,22 @@ export interface NusaDevelopmentClaim {
   readonly leaseExpiresAt: number;
 }
 
+export interface NusaStaleClaimEvidence {
+  readonly claimRequestId: string;
+  readonly sourceSha: string;
+  readonly activeCi: boolean;
+  readonly activePr: boolean;
+  readonly checkpointAvailable: boolean;
+  readonly executionStatus: "RUNNING" | "STOPPED" | "UNKNOWN";
+}
+
+export type NusaStaleClaimRecoveryOutcome =
+  | "CLAIM_VALID"
+  | "CLAIM_STALE_REQUEUE"
+  | "CLAIM_STALE_RESUME"
+  | "CLAIM_BLOCKED_HUMAN"
+  | "CLAIM_FAIL_CLOSED";
+
 export interface NusaDevelopmentWorkItem {
   readonly id: string;
   readonly state: NusaDevelopmentWorkState;
@@ -217,4 +233,36 @@ export function recoverStaleNusaDevelopmentClaims(queue: NusaDevelopmentQueue, n
     });
   });
   return changed ? freezeQueue(queue.revision + 1, items) : queue;
+}
+
+export function recoverStaleNusaDevelopmentClaimWithEvidence(
+  queue: NusaDevelopmentQueue,
+  now: number,
+  evidenceByWorkId: Readonly<Record<string, NusaStaleClaimEvidence>>,
+): { readonly queue: NusaDevelopmentQueue; readonly outcomes: Readonly<Record<string, NusaStaleClaimRecoveryOutcome>> } {
+  if (!isCanonicalTimestamp(now)) throw new Error("STALE_RECOVERY_NOW_INVALID");
+  let changed = false;
+  const outcomes: Record<string, NusaStaleClaimRecoveryOutcome> = {};
+  const items = queue.items.map((item) => {
+    if (item.state !== "CLAIMED" || !item.claim) return item;
+    if (item.claim.leaseExpiresAt > now) {
+      outcomes[item.id] = "CLAIM_VALID";
+      return item;
+    }
+    const evidence = evidenceByWorkId[item.id];
+    if (!evidence || evidence.claimRequestId !== item.claim.requestId || !evidence.sourceSha.trim()) {
+      outcomes[item.id] = "CLAIM_FAIL_CLOSED";
+      return item;
+    }
+    if (evidence.activeCi || evidence.activePr || evidence.checkpointAvailable || evidence.executionStatus === "RUNNING") {
+      outcomes[item.id] = evidence.checkpointAvailable || evidence.executionStatus === "RUNNING"
+        ? "CLAIM_STALE_RESUME"
+        : "CLAIM_BLOCKED_HUMAN";
+      return item;
+    }
+    changed = true;
+    outcomes[item.id] = "CLAIM_STALE_REQUEUE";
+    return freezeItem({ ...item, state: "READY", canonicalOwner: null, claim: null, nextAction: "claim" });
+  });
+  return { queue: changed ? freezeQueue(queue.revision + 1, items) : queue, outcomes: Object.freeze(outcomes) };
 }

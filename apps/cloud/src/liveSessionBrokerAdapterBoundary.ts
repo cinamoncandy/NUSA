@@ -7,7 +7,10 @@ import {
   validateLiveBrokerTransportRequest,
 } from "./liveBrokerTransportBoundaryV3";
 import type { LiveSessionBoundPreExecutionRequest } from "./liveSessionBoundPreExecution";
-import { prepareSessionBoundLiveTransport } from "./liveSessionTransportChain";
+import type { LiveAuthoritativeSessionRequest } from "./liveAuthoritativeSessionTransportChain";
+import { prepareAuthoritativeSessionBoundLiveTransport } from "./liveAuthoritativeSessionTransportChain";
+import { authorizeCurrentLiveSessionRevision } from "./liveSessionRevisionAuthorization";
+import type { LiveRuntimeSessionDurableStore } from "./liveRuntimeSessionDurableStore";
 
 export type LiveSessionBrokerAdapterDecision =
   | Readonly<{ status: "REJECTED"; reason: string }>
@@ -19,14 +22,25 @@ export type LiveSessionBrokerAdapterDecision =
  * production mutation unless a separately governed transport is explicitly supplied.
  */
 export async function submitSessionBoundLiveOrder(
-  request: LiveSessionBoundPreExecutionRequest,
+  _request: LiveSessionBoundPreExecutionRequest,
+  _consumeOnce: LiveExecutionConsumeOnce,
+  _transport: LiveBrokerTransport = new FailClosedLiveBrokerTransport(),
+): Promise<LiveSessionBrokerAdapterDecision> {
+  return Object.freeze({ status: "REJECTED", reason: "AUTHORITATIVE_SESSION_REQUIRED" });
+}
+
+export async function submitAuthoritativeSessionBoundLiveOrder(
+  request: LiveAuthoritativeSessionRequest,
+  sessionStore: LiveRuntimeSessionDurableStore,
   consumeOnce: LiveExecutionConsumeOnce,
   transport: LiveBrokerTransport = new FailClosedLiveBrokerTransport(),
 ): Promise<LiveSessionBrokerAdapterDecision> {
-  const chain = await prepareSessionBoundLiveTransport(request, consumeOnce);
-  if (chain.transport.status !== "READY") {
-    return Object.freeze({ status: "REJECTED", reason: chain.transport.reason });
-  }
+  const prepared = await prepareAuthoritativeSessionBoundLiveTransport(request, sessionStore, consumeOnce);
+  if (prepared.status !== "READY") return Object.freeze({ status: "REJECTED", reason: prepared.reason });
+  const authorized = await authorizeCurrentLiveSessionRevision(prepared, request.ownerPrincipalId, sessionStore, request.now);
+  if (authorized.status !== "AUTHORIZED") return Object.freeze({ status: "REJECTED", reason: authorized.reason });
+  const chain = prepared.chain;
+  if (chain.transport.status !== "READY") return Object.freeze({ status: "REJECTED", reason: chain.transport.reason });
 
   const brokerRequest: LiveBrokerTransportRequest = Object.freeze({
     ownerId: chain.transport.request.ownerPrincipalId,
