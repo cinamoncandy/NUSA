@@ -13,8 +13,15 @@ export interface PaperPortfolioTrustedEvidenceRiskFacts {
   readonly evidencePeriods: number;
   readonly portfolioDrawdownContribution: number;
   readonly diversificationBenefit: number;
-  /** Maximum absolute pairwise correlation against already-selected portfolio candidates. */
   readonly maximumAbsoluteCandidateCorrelation: number;
+  readonly portfolioRegime: string;
+  readonly regimeCoFailureRate: number;
+  readonly currentPortfolioGrossWeight: number;
+  readonly currentStrategyWeight: number;
+  readonly estimatedTurnover: number;
+  readonly estimatedFeeRate: number;
+  readonly estimatedSlippageRate: number;
+  readonly grossExpectedEdge: number;
 }
 
 export interface PaperPortfolioTrustedLongitudinalEvidence {
@@ -43,31 +50,14 @@ export interface PaperPortfolioTrustedLongitudinalEvidenceInput extends PaperPor
   readonly outcomeReceiptFingerprints: readonly string[];
 }
 
-export interface PaperPortfolioRiskEvidenceInput {
+export interface PaperPortfolioRiskEvidenceInput extends PaperPortfolioTrustedEvidenceRiskFacts {
   readonly evaluationId: string;
-  readonly candidateId: string;
-  readonly datasetId: string;
-  readonly datasetContentSha256: string;
-  readonly observedAt: string;
-  readonly evaluatedAt: string;
   readonly status: PaperPortfolioRiskEvidenceStatus;
-  readonly evidencePeriods: number;
   readonly minimumEvidencePeriods: number;
   readonly maximumEvidenceAgeMs: number;
-  readonly portfolioDrawdownContribution: number;
   readonly maximumDrawdownContribution: number;
-  readonly diversificationBenefit: number;
   readonly minimumDiversificationBenefit: number;
-  /** Point-in-time maximum absolute pairwise correlation to the selected portfolio. */
-  readonly maximumAbsoluteCandidateCorrelation: number;
-  /** Highest allowed absolute correlation before the advisory must abstain. */
   readonly maximumAllowedCandidateCorrelation: number;
-  /** Optional canonical run receipt used to bind the evidence to the evaluated workflow run. */
-  readonly trustedRun?: PaperChaosTrustedGitHubRunReceipt;
-  /**
-   * A trusted, canonical PAPER evidence binding. A caller-provided VERIFIED status or dataset
-   * hash is not sufficient to accept portfolio evidence.
-   */
   readonly trustedEvidence?: PaperPortfolioTrustedLongitudinalEvidence;
 }
 
@@ -83,6 +73,14 @@ export interface PaperPortfolioRiskEvidenceResult {
   readonly portfolioDrawdownContribution: number;
   readonly diversificationBenefit: number;
   readonly maximumAbsoluteCandidateCorrelation: number;
+  readonly portfolioRegime: string;
+  readonly regimeCoFailureRate: number;
+  readonly currentPortfolioGrossWeight: number;
+  readonly currentStrategyWeight: number;
+  readonly estimatedTurnover: number;
+  readonly estimatedFeeRate: number;
+  readonly estimatedSlippageRate: number;
+  readonly grossExpectedEdge: number;
   readonly liveAuthority: "NONE";
   readonly productionMutationAllowed: false;
   readonly aiAuthority: "ZERO_AUTHORITY";
@@ -92,7 +90,6 @@ const sha256 = /^[a-f0-9]{64}$/i;
 const sourceSha = /^[a-f0-9]{40}$/i;
 const repository = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const workflowRef = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/\.github\/workflows\/[^@]+\.(?:yml|yaml)@refs\/heads\/.+$/;
-
 const trustedEvidenceObjects = new WeakSet<object>();
 
 const canonical = (value: unknown): string => {
@@ -110,10 +107,7 @@ const canonical = (value: unknown): string => {
 };
 
 const digest = (value: unknown): string => createHash("sha256").update(canonical(value), "utf8").digest("hex");
-
-const trustedPayload = (
-  evidence: Omit<PaperPortfolioTrustedLongitudinalEvidence, "evidenceFingerprintSha256">,
-): Omit<PaperPortfolioTrustedLongitudinalEvidence, "evidenceFingerprintSha256"> => evidence;
+const trustedPayload = (evidence: Omit<PaperPortfolioTrustedLongitudinalEvidence, "evidenceFingerprintSha256">): Omit<PaperPortfolioTrustedLongitudinalEvidence, "evidenceFingerprintSha256"> => evidence;
 
 const bindingFacts = (
   facts: PaperPortfolioTrustedEvidenceRiskFacts,
@@ -130,6 +124,14 @@ const bindingFacts = (
   portfolioDrawdownContribution: facts.portfolioDrawdownContribution,
   diversificationBenefit: facts.diversificationBenefit,
   maximumAbsoluteCandidateCorrelation: facts.maximumAbsoluteCandidateCorrelation,
+  portfolioRegime: facts.portfolioRegime,
+  regimeCoFailureRate: facts.regimeCoFailureRate,
+  currentPortfolioGrossWeight: facts.currentPortfolioGrossWeight,
+  currentStrategyWeight: facts.currentStrategyWeight,
+  estimatedTurnover: facts.estimatedTurnover,
+  estimatedFeeRate: facts.estimatedFeeRate,
+  estimatedSlippageRate: facts.estimatedSlippageRate,
+  grossExpectedEdge: facts.grossExpectedEdge,
   trustedRun: run,
   periodIds,
   outcomeReceiptFingerprints,
@@ -149,7 +151,6 @@ const validateTrustedRun = (run: PaperChaosTrustedGitHubRunReceipt): void => {
 const requireFinite = (value: number, label: string): void => {
   if (!Number.isFinite(value)) throw new Error(`${label} must be finite`);
 };
-
 const requireRatio = (value: number, label: string): void => {
   requireFinite(value, label);
   if (value < 0 || value > 1) throw new Error(`${label} must be between 0 and 1`);
@@ -159,19 +160,20 @@ const validateTrustedFacts = (facts: PaperPortfolioTrustedEvidenceRiskFacts): vo
   if (!facts.candidateId.trim() || !facts.datasetId.trim() || !sha256.test(facts.datasetContentSha256)) throw new Error("trusted PAPER evidence identity is invalid");
   if (!Number.isFinite(Date.parse(facts.observedAt)) || !Number.isFinite(Date.parse(facts.evaluatedAt))) throw new Error("trusted PAPER evidence timestamp is invalid");
   if (!Number.isSafeInteger(facts.evidencePeriods) || facts.evidencePeriods < 1) throw new Error("trusted PAPER evidence periods are invalid");
-  if (!Number.isFinite(facts.portfolioDrawdownContribution) || !Number.isFinite(facts.diversificationBenefit)) throw new Error("trusted PAPER evidence metrics are invalid");
+  if (!facts.portfolioRegime.trim()) throw new Error("portfolioRegime is required");
+  requireRatio(facts.portfolioDrawdownContribution, "portfolioDrawdownContribution");
+  requireFinite(facts.diversificationBenefit, "diversificationBenefit");
   requireRatio(facts.maximumAbsoluteCandidateCorrelation, "maximumAbsoluteCandidateCorrelation");
+  requireRatio(facts.regimeCoFailureRate, "regimeCoFailureRate");
+  requireRatio(facts.currentPortfolioGrossWeight, "currentPortfolioGrossWeight");
+  requireRatio(facts.currentStrategyWeight, "currentStrategyWeight");
+  requireRatio(facts.estimatedTurnover, "estimatedTurnover");
+  requireRatio(facts.estimatedFeeRate, "estimatedFeeRate");
+  requireRatio(facts.estimatedSlippageRate, "estimatedSlippageRate");
+  requireFinite(facts.grossExpectedEdge, "grossExpectedEdge");
 };
 
-/**
- * Creates the only accepted portfolio-evidence capability. The run receipt must come from the
- * existing GitHub API/runner-attestation trust boundary; structurally similar caller objects are
- * rejected by the evaluator. The fingerprint binds provenance, realized-period identities and
- * the exact risk/dependence facts so fabricated metrics cannot be paired with trusted evidence.
- */
-export function createPaperPortfolioTrustedLongitudinalEvidence(
-  input: PaperPortfolioTrustedLongitudinalEvidenceInput,
-): PaperPortfolioTrustedLongitudinalEvidence {
+export function createPaperPortfolioTrustedLongitudinalEvidence(input: PaperPortfolioTrustedLongitudinalEvidenceInput): PaperPortfolioTrustedLongitudinalEvidence {
   validateTrustedRun(input.trustedRun);
   validateTrustedFacts(input);
   if (input.trustedRun.headSha.toLowerCase() !== input.trustedRun.headSha) throw new Error("trusted PAPER source SHA must be lowercase");
@@ -179,7 +181,6 @@ export function createPaperPortfolioTrustedLongitudinalEvidence(
   if (new Set(input.periodIds).size !== input.periodIds.length || input.periodIds.some((id) => !id.trim())) throw new Error("trusted PAPER period identities are invalid");
   if (input.outcomeReceiptFingerprints.some((fingerprint) => !sha256.test(fingerprint))) throw new Error("trusted PAPER outcome provenance is invalid");
 
-  const verifiedAt = input.evaluatedAt;
   const evidence: Omit<PaperPortfolioTrustedLongitudinalEvidence, "evidenceFingerprintSha256"> = {
     schemaVersion: 1,
     verificationStatus: "VERIFIED",
@@ -196,7 +197,7 @@ export function createPaperPortfolioTrustedLongitudinalEvidence(
     datasetContentSha256: input.datasetContentSha256,
     periodIds: Object.freeze([...input.periodIds]),
     outcomeReceiptFingerprints: Object.freeze([...input.outcomeReceiptFingerprints]),
-    verifiedAt,
+    verifiedAt: input.evaluatedAt,
   };
   const result = Object.freeze({
     ...evidence,
@@ -213,10 +214,9 @@ const trustedEvidenceReasons = (input: PaperPortfolioRiskEvidenceInput): string[
   const trusted = input.trustedEvidence;
   if (trusted == null) return ["CANONICAL_TRUSTED_PAPER_EVIDENCE_REQUIRED"];
   if (typeof trusted !== "object" || !trustedEvidenceObjects.has(trusted)) return ["UNTRUSTED_PAPER_EVIDENCE"];
-
   const reasons: string[] = [];
   try {
-    const trustedRun: PaperChaosTrustedGitHubRunReceipt = {
+    const run: PaperChaosTrustedGitHubRunReceipt = {
       verificationSource: trusted.verificationSource,
       repository: trusted.repository,
       headSha: trusted.sourceSha,
@@ -226,8 +226,6 @@ const trustedEvidenceReasons = (input: PaperPortfolioRiskEvidenceInput): string[
       eventName: trusted.eventName,
       workflowRunUrl: trusted.workflowRunUrl,
     };
-    validateTrustedRun(trustedRun);
-    const run = input.trustedRun ?? trustedRun;
     validateTrustedRun(run);
     if (trusted.schemaVersion !== 1 || trusted.verificationStatus !== "VERIFIED") reasons.push("TRUSTED_PAPER_EVIDENCE_NOT_VERIFIED");
     if (trusted.sourceSha !== trusted.sourceSha.toLowerCase()) reasons.push("TRUSTED_PAPER_SOURCE_SHA_NOT_CANONICAL");
@@ -238,8 +236,6 @@ const trustedEvidenceReasons = (input: PaperPortfolioRiskEvidenceInput): string[
     const verifiedAtMs = Date.parse(trusted.verifiedAt);
     const evaluatedAtMs = Date.parse(input.evaluatedAt);
     if (!Number.isFinite(verifiedAtMs) || verifiedAtMs > evaluatedAtMs) reasons.push("TRUSTED_PAPER_EVIDENCE_TIME_INVALID");
-    if (trustedRun.workflowRunId !== run.workflowRunId || trustedRun.workflowRunAttempt !== run.workflowRunAttempt || trustedRun.workflowRef !== run.workflowRef || trustedRun.eventName !== run.eventName || trustedRun.workflowRunUrl !== run.workflowRunUrl) reasons.push("TRUSTED_PAPER_RUN_BINDING_MISMATCH");
-
     const expectedFingerprint = digest({
       facts: bindingFacts(input, run, trusted.periodIds, trusted.outcomeReceiptFingerprints),
       evidence: {
@@ -268,14 +264,11 @@ const trustedEvidenceReasons = (input: PaperPortfolioRiskEvidenceInput): string[
   return reasons;
 };
 
-export function evaluatePaperPortfolioRiskEvidence(
-  input: PaperPortfolioRiskEvidenceInput,
-): PaperPortfolioRiskEvidenceResult {
+export function evaluatePaperPortfolioRiskEvidence(input: PaperPortfolioRiskEvidenceInput): PaperPortfolioRiskEvidenceResult {
   if (!input.evaluationId.trim()) throw new Error("evaluationId is required");
   if (!input.candidateId.trim()) throw new Error("candidateId is required");
   if (!input.datasetId.trim()) throw new Error("datasetId is required");
   if (!sha256.test(input.datasetContentSha256)) throw new Error("datasetContentSha256 must be sha256");
-
   const observedAtMs = Date.parse(input.observedAt);
   const evaluatedAtMs = Date.parse(input.evaluatedAt);
   if (!Number.isFinite(observedAtMs)) throw new Error("observedAt must be a valid ISO timestamp");
@@ -283,12 +276,9 @@ export function evaluatePaperPortfolioRiskEvidence(
   if (!Number.isInteger(input.evidencePeriods) || input.evidencePeriods < 0) throw new Error("evidencePeriods must be a non-negative integer");
   if (!Number.isInteger(input.minimumEvidencePeriods) || input.minimumEvidencePeriods <= 0) throw new Error("minimumEvidencePeriods must be a positive integer");
   if (!Number.isFinite(input.maximumEvidenceAgeMs) || input.maximumEvidenceAgeMs < 0) throw new Error("maximumEvidenceAgeMs must be non-negative");
-
-  requireRatio(input.portfolioDrawdownContribution, "portfolioDrawdownContribution");
+  validateTrustedFacts(input);
   requireRatio(input.maximumDrawdownContribution, "maximumDrawdownContribution");
-  requireFinite(input.diversificationBenefit, "diversificationBenefit");
   requireFinite(input.minimumDiversificationBenefit, "minimumDiversificationBenefit");
-  requireRatio(input.maximumAbsoluteCandidateCorrelation, "maximumAbsoluteCandidateCorrelation");
   requireRatio(input.maximumAllowedCandidateCorrelation, "maximumAllowedCandidateCorrelation");
 
   const reasons: string[] = trustedEvidenceReasons(input);
@@ -312,6 +302,14 @@ export function evaluatePaperPortfolioRiskEvidence(
     portfolioDrawdownContribution: input.portfolioDrawdownContribution,
     diversificationBenefit: input.diversificationBenefit,
     maximumAbsoluteCandidateCorrelation: input.maximumAbsoluteCandidateCorrelation,
+    portfolioRegime: input.portfolioRegime,
+    regimeCoFailureRate: input.regimeCoFailureRate,
+    currentPortfolioGrossWeight: input.currentPortfolioGrossWeight,
+    currentStrategyWeight: input.currentStrategyWeight,
+    estimatedTurnover: input.estimatedTurnover,
+    estimatedFeeRate: input.estimatedFeeRate,
+    estimatedSlippageRate: input.estimatedSlippageRate,
+    grossExpectedEdge: input.grossExpectedEdge,
     liveAuthority: "NONE",
     productionMutationAllowed: false,
     aiAuthority: "ZERO_AUTHORITY",
