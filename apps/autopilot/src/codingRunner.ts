@@ -85,6 +85,7 @@ const EXECUTION_ID = /^[A-Za-z0-9_.:-]{1,160}$/;
 const DEDUPE_KEY = /^[A-Za-z0-9_.:-]{1,256}$/;
 const DEFAULT_REPOSITORY = "cinamoncandy/NUSA";
 const GITHUB_API_ORIGIN = "https://api.github.com";
+const GITHUB_MODELS_ENDPOINT = "https://models.github.ai/inference/chat/completions";
 
 export function validateCodingRunnerRequest(value: unknown, allowedRepository = DEFAULT_REPOSITORY): CodingRunnerRequest {
   if (!value || typeof value !== "object") throw new Error("CODING_RUNNER_REQUEST_INVALID");
@@ -112,6 +113,20 @@ function validateCodingProposal(value: unknown): CodingProposal {
   const proposal = value as Record<string, unknown>;
   if (typeof proposal.patch !== "string" || !proposal.patch.trim()) throw new Error("CODING_PROPOSAL_PATCH_REQUIRED");
   return Object.freeze({ patch: proposal.patch });
+}
+
+function githubModelsProposal(value: unknown): CodingProposal {
+  const payload = object(value);
+  if (!Array.isArray(payload.choices) || payload.choices.length < 1) throw new Error("CODING_PROPOSAL_INVALID");
+  const choice = object(payload.choices[0]);
+  const message = object(choice.message);
+  if (typeof message.content !== "string" || !message.content.trim()) throw new Error("CODING_PROPOSAL_INVALID");
+  try {
+    return validateCodingProposal(JSON.parse(message.content));
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("CODING_PROPOSAL_")) throw error;
+    throw new Error("CODING_PROPOSAL_INVALID");
+  }
 }
 
 function publicRuntimeResult(runtime: CodingRuntimeExecutionResult): Pick<CodingRunnerResult, "backend" | "checkpointId" | "workspaceVerified" | "proposalValidated" | "changedFiles"> {
@@ -173,6 +188,41 @@ function codingEngineRequest(request: CodingRunnerRequest, token: string): Reque
   };
 }
 
+function githubModelsCodingRequest(request: CodingRunnerRequest, token: string): RequestInit {
+  const userPrompt = [
+    "Propose exactly one minimal, low-risk NUSA repository improvement as a git-compatible unified diff.",
+    "Return JSON only with one field named patch.",
+    "Modify exactly one .ts file under apps/autopilot/src.",
+    "Do not modify index.ts, worker.ts, live/broker/order/credential/secret/withdraw/transfer surfaces, workflows, package files, or authority constants.",
+    "Do not add dependencies or weaken tests, validation, safety, exact-head verification, dedupe, leases, or fail-closed behavior.",
+    `Repository: ${request.repository}`,
+    `Exact main SHA: ${request.headSha}`,
+    `Workflow run: ${request.workflowRunId}`,
+    `Execution reason: ${request.reason}`,
+    `Execution id: ${request.executionId}`,
+    `Dedupe key: ${request.dedupeKey}`,
+  ].join("\n");
+  return {
+    method: "POST",
+    headers: {
+      accept: "application/vnd.github+json",
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json",
+      "x-github-api-version": "2026-03-10",
+    },
+    body: JSON.stringify({
+      model: "openai/gpt-4.1",
+      temperature: 0,
+      max_tokens: 5000,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: "You are NUSA's bounded cloud coding proposal engine. Obey every constraint and return JSON only." },
+        { role: "user", content: userPrompt },
+      ],
+    }),
+  };
+}
+
 export async function executeCodingRunner(
   request: CodingRunnerRequest,
   env: CodingRunnerEnv,
@@ -180,21 +230,23 @@ export async function executeCodingRunner(
   runtime?: CodingRuntime,
   publisher?: CodingPublisher,
 ): Promise<CodingRunnerResult> {
-  const endpoint = env.NUSA_AI_CODING_ENDPOINT?.trim();
-  const token = env.NUSA_AI_CODING_TOKEN?.trim();
-  if (!endpoint || !token) return { status: "INTERFACE_READY", reason: "ai-coding-engine-not-configured" };
-
   const githubToken = env.NUSA_GITHUB_TOKEN?.trim();
   if (!githubToken) return { status: "INTERFACE_READY", reason: "github-verification-not-configured" };
   await verifyCodingRunnerRequestAgainstGitHub(request, githubToken, fetchImpl);
 
-  const response = await fetchImpl(endpoint, codingEngineRequest(request, token));
-  if (!response.ok) return { status: "EXECUTION_FAILED", httpStatus: response.status };
+  const endpoint = env.NUSA_AI_CODING_ENDPOINT?.trim();
+  const token = env.NUSA_AI_CODING_TOKEN?.trim();
+  const useConfiguredEngine = Boolean(endpoint && token);
+  const response = useConfiguredEngine
+    ? await fetchImpl(endpoint!, codingEngineRequest(request, token!))
+    : await fetchImpl(GITHUB_MODELS_ENDPOINT, githubModelsCodingRequest(request, githubToken));
+  if (!response.ok) return { status: "EXECUTION_FAILED", httpStatus: response.status, reason: useConfiguredEngine ? undefined : "github-models-coding-engine-failed" };
 
   if (runtime) {
     let proposal: CodingProposal;
     try {
-      proposal = validateCodingProposal(await response.json());
+      const payload = await response.json();
+      proposal = useConfiguredEngine ? validateCodingProposal(payload) : githubModelsProposal(payload);
     } catch (error) {
       return { status: "EXECUTION_FAILED", reason: error instanceof Error ? error.message : "CODING_PROPOSAL_INVALID", httpStatus: response.status };
     }
