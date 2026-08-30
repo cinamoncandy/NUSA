@@ -6,6 +6,7 @@ import {
   revokeLiveRuntimeSession,
   setLiveRuntimeCapitalWeight,
   setLiveRuntimeKillSwitch,
+  type LiveRuntimeSessionEvaluation,
   type LiveRuntimeSessionStorage,
 } from "./liveRuntimeSessionState";
 
@@ -21,6 +22,10 @@ async function storageWith(record: ReturnType<typeof createLiveRuntimeSession>):
   return storage;
 }
 
+function rejectionReason(result: LiveRuntimeSessionEvaluation): string | null {
+  return result.usable ? null : result.reason;
+}
+
 describe("live runtime session state", () => {
   it("allows only an active, unexpired, capital-enabled bounded session", async () => {
     const record = createLiveRuntimeSession({ ownerPrincipalId: "owner", investmentCapitalWeight: 0.25, now: 1_000, ttlMs: 10_000 });
@@ -32,10 +37,10 @@ describe("live runtime session state", () => {
 
   it("fails closed on expiry, kill switch, zero capital, and revocation", async () => {
     const base = createLiveRuntimeSession({ ownerPrincipalId: "owner", investmentCapitalWeight: 0.25, now: 1_000, ttlMs: 10_000 });
-    assert.equal((await evaluateLiveRuntimeSession(await storageWith(base), "owner", 11_000)).reason, "EXPIRED");
-    assert.equal((await evaluateLiveRuntimeSession(await storageWith(setLiveRuntimeKillSwitch(base, true)), "owner", 5_000)).reason, "KILL_SWITCH_ACTIVE");
-    assert.equal((await evaluateLiveRuntimeSession(await storageWith(setLiveRuntimeCapitalWeight(base, 0)), "owner", 5_000)).reason, "CAPITAL_DISABLED");
-    assert.equal((await evaluateLiveRuntimeSession(await storageWith(revokeLiveRuntimeSession(base, 5_000)), "owner", 5_000)).reason, "REVOKED");
+    assert.equal(rejectionReason(await evaluateLiveRuntimeSession(await storageWith(base), "owner", 11_000)), "EXPIRED");
+    assert.equal(rejectionReason(await evaluateLiveRuntimeSession(await storageWith(setLiveRuntimeKillSwitch(base, true)), "owner", 5_000)), "KILL_SWITCH_ACTIVE");
+    assert.equal(rejectionReason(await evaluateLiveRuntimeSession(await storageWith(setLiveRuntimeCapitalWeight(base, 0)), "owner", 5_000)), "CAPITAL_DISABLED");
+    assert.equal(rejectionReason(await evaluateLiveRuntimeSession(await storageWith(revokeLiveRuntimeSession(base, 5_000)), "owner", 5_000)), "REVOKED");
   });
 
   it("fails closed when storage state is uncertain", async () => {
