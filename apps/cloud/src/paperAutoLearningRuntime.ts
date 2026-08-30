@@ -61,14 +61,7 @@ function evidenceId(kind: string, observation: PaperAutoLearningObservation, suf
   return `${kind}:${createHash("sha256").update(`${observation.market}:${observation.observedAt}:${suffix}`, "utf8").digest("hex").slice(0, 24)}`;
 }
 
-/**
- * Canonical autonomous PAPER orchestration layer.
- *
- * This class deliberately owns no broker, accounting, fill, or position logic. All simulated
- * mutation terminates at PaperTradingExecutionLoop, so restart/idempotency/fee/PnL behavior has
- * one source of truth. AI text is never parsed into a trading signal; callers must supply explicit
- * governed CioDecision records.
- */
+/** Canonical autonomous PAPER orchestration layer. */
 export class PaperAutoLearningRuntime {
   private status: PaperAutoLearningStatus;
   private lastObservationAt?: number;
@@ -91,77 +84,32 @@ export class PaperAutoLearningRuntime {
   }
 
   public snapshot(): PaperAutoLearningSnapshot {
-    return freeze({
-      status: this.status,
-      ...(this.lastObservationAt === undefined ? {} : { lastObservationAt: this.lastObservationAt }),
-      ...(this.lastDecision === undefined ? {} : { lastDecision: this.lastDecision }),
-      ...(this.lastFill === undefined ? {} : { lastFill: this.lastFill }),
-      ...(this.lastExecutionStatus === undefined ? {} : { lastExecutionStatus: this.lastExecutionStatus }),
-      ...(this.lastReason === undefined ? {} : { lastReason: this.lastReason }),
-      ...(this.lastError === undefined ? {} : { lastError: this.lastError }),
-      account: this.options.execution.snapshot()
-    });
+    return freeze({ status: this.status, ...(this.lastObservationAt === undefined ? {} : { lastObservationAt: this.lastObservationAt }), ...(this.lastDecision === undefined ? {} : { lastDecision: this.lastDecision }), ...(this.lastFill === undefined ? {} : { lastFill: this.lastFill }), ...(this.lastExecutionStatus === undefined ? {} : { lastExecutionStatus: this.lastExecutionStatus }), ...(this.lastReason === undefined ? {} : { lastReason: this.lastReason }), ...(this.lastError === undefined ? {} : { lastError: this.lastError }), account: this.options.execution.snapshot() });
   }
 
-  public pause(reason = "PAPER_AUTO_LEARNING_PAUSED"): PaperAutoLearningSnapshot {
-    if (this.status !== "HALTED") this.status = "PAUSED";
-    this.lastReason = reason;
-    return this.snapshot();
-  }
-
-  public resume(): PaperAutoLearningSnapshot {
-    if (this.status === "HALTED") throw new Error("paper auto-learning is halted");
-    this.status = "RUNNING";
-    this.lastError = undefined;
-    this.lastReason = "PAPER_AUTO_LEARNING_RESUMED";
-    return this.snapshot();
-  }
-
-  public halt(reason = "PAPER_AUTO_LEARNING_HALTED"): PaperAutoLearningSnapshot {
-    this.status = "HALTED";
-    this.lastReason = reason;
-    return this.snapshot();
-  }
+  public pause(reason = "PAPER_AUTO_LEARNING_PAUSED"): PaperAutoLearningSnapshot { if (this.status !== "HALTED") this.status = "PAUSED"; this.lastReason = reason; return this.snapshot(); }
+  public resume(): PaperAutoLearningSnapshot { if (this.status === "HALTED") throw new Error("paper auto-learning is halted"); this.status = "RUNNING"; this.lastError = undefined; this.lastReason = "PAPER_AUTO_LEARNING_RESUMED"; return this.snapshot(); }
+  public halt(reason = "PAPER_AUTO_LEARNING_HALTED"): PaperAutoLearningSnapshot { this.status = "HALTED"; this.lastReason = reason; return this.snapshot(); }
 
   public onMarketObservation(observation: PaperAutoLearningObservation): PaperAutoLearningSnapshot {
     if (this.status !== "RUNNING") return this.snapshot();
     try {
       this.validateObservation(observation);
       const control = this.options.control();
-      if (control.killSwitchActive || !control.tradingAllowed || control.overallHealth === "DOWN") {
-        this.status = "HALTED";
-        this.lastReason = "PAPER_RISK_HALT";
-        return this.snapshot();
-      }
-      if (control.overallHealth !== "HEALTHY") {
-        this.status = "PAUSED";
-        this.lastReason = "PAPER_RUNTIME_NOT_HEALTHY";
-        return this.snapshot();
-      }
+      if (control.killSwitchActive || !control.tradingAllowed || control.overallHealth === "DOWN") { this.status = "HALTED"; this.lastReason = "PAPER_RISK_HALT"; return this.snapshot(); }
+      if (control.overallHealth !== "HEALTHY") { this.status = "PAUSED"; this.lastReason = "PAPER_RUNTIME_NOT_HEALTHY"; return this.snapshot(); }
 
       const account = this.options.execution.snapshot();
       const decisions = validatePaperAutonomousDecisions(
         this.options.decisions({ ...observation, account }),
-        { now: observation.now },
+        { now: observation.now, maxDecisionAgeMs: this.maxObservationAgeMs },
       );
       const actionable = decisions.find((decision) => decision.symbol === observation.market.trim().toUpperCase() && (decision.action === "BUY" || decision.action === "SELL"));
       this.lastDecision = actionable ?? decisions[0];
       this.lastObservationAt = observation.observedAt;
       this.options.evidence?.sessionObserved(evidenceId("paper-observation", observation), observation.now);
 
-      const result = this.options.execution.processTick({
-        now: observation.now,
-        market: observation.market.trim().toUpperCase(),
-        price: observation.price,
-        observedAt: observation.observedAt,
-        mode: "PAPER",
-        killSwitchActive: control.killSwitchActive,
-        tradingAllowed: control.tradingAllowed,
-        overallHealth: control.overallHealth,
-        decisions,
-        investmentPercent: this.investmentPercent,
-        observedQuote: observation.observedQuote
-      });
+      const result = this.options.execution.processTick({ now: observation.now, market: observation.market.trim().toUpperCase(), price: observation.price, observedAt: observation.observedAt, mode: "PAPER", killSwitchActive: control.killSwitchActive, tradingAllowed: control.tradingAllowed, overallHealth: control.overallHealth, decisions, investmentPercent: this.investmentPercent, observedQuote: observation.observedQuote });
       this.lastExecutionStatus = result.status;
       this.lastReason = result.reason;
 
@@ -169,18 +117,11 @@ export class PaperAutoLearningRuntime {
         this.lastFill = result.fills[0];
         for (const fill of result.fills) this.options.evidence?.orderCompleted(evidenceId("paper-fill", observation, fill.id), fill.filledAt);
         this.options.research?.onMarketData({ market: observation.market.trim().toUpperCase(), price: observation.price, observedAt: observation.observedAt, now: observation.now });
-      } else if (result.status === "DUPLICATE") {
-        this.options.evidence?.duplicateOrderChecked(evidenceId("paper-duplicate", observation, result.reason ?? "duplicate"), observation.now);
-      } else if (result.status === "FAILED") {
-        this.fail(result.reason ?? "PAPER_EXECUTION_FAILED");
-      } else if (result.status === "BLOCKED") {
-        this.status = "HALTED";
-      }
+      } else if (result.status === "DUPLICATE") this.options.evidence?.duplicateOrderChecked(evidenceId("paper-duplicate", observation, result.reason ?? "duplicate"), observation.now);
+      else if (result.status === "FAILED") this.fail(result.reason ?? "PAPER_EXECUTION_FAILED");
+      else if (result.status === "BLOCKED") this.status = "HALTED";
       return this.snapshot();
-    } catch (error) {
-      this.fail(error instanceof Error ? error.message : "PAPER_AUTO_LEARNING_FAILED");
-      return this.snapshot();
-    }
+    } catch (error) { this.fail(error instanceof Error ? error.message : "PAPER_AUTO_LEARNING_FAILED"); return this.snapshot(); }
   }
 
   private validateObservation(observation: PaperAutoLearningObservation): void {
@@ -196,13 +137,8 @@ export class PaperAutoLearningRuntime {
       if (observation.observedQuote.market.trim().toUpperCase() !== market) throw new Error("PAPER_OBSERVED_QUOTE_MARKET_MISMATCH");
       if (observation.observedQuote.observedAt > observation.now || observation.now - observation.observedQuote.observedAt >= this.maxObservationAgeMs) throw new Error("PAPER_OBSERVED_QUOTE_STALE");
     }
-    this.lastChronologyObservationAt = observation.observedAt;
-    this.lastChronologyNow = observation.now;
+    this.lastChronologyObservationAt = observation.observedAt; this.lastChronologyNow = observation.now;
   }
 
-  private fail(message: string): void {
-    this.status = "ERROR";
-    this.lastError = message;
-    this.lastReason = "PAPER_FAIL_CLOSED";
-  }
+  private fail(message: string): void { this.status = "ERROR"; this.lastError = message; this.lastReason = "PAPER_FAIL_CLOSED"; }
 }
