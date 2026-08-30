@@ -8,13 +8,13 @@ function toRunnableTest(relativePath) {
   const normalized = relativePath.trim().replaceAll("\\", "/");
   if (!normalized) return null;
   if (/\.test\.(?:js|cjs|mjs)$/.test(normalized)) return normalized;
-  if (/\.test\.ts$/.test(normalized)) return `dist/${normalized.slice(0, -3)}.js`;
+  if (/\.test\.ts$/.test(normalized)) return normalized;
   return null;
 }
 
 function main() {
   const root = process.cwd();
-  const registerDistPath = join(root, "tests", "register-dist.cjs");
+  const vitestCli = join(root, "node_modules", "vitest", "vitest.mjs");
   const isPrimaryPullRequestCi = process.env.GITHUB_ACTIONS === "true"
     && process.env.GITHUB_EVENT_NAME === "pull_request"
     && process.env.GITHUB_WORKFLOW === "CI";
@@ -57,11 +57,14 @@ function main() {
     return;
   }
 
+  if (!existsSync(vitestCli)) {
+    console.error(`Changed-test fast gate could not find Vitest CLI at ${vitestCli}`);
+    process.exit(1);
+  }
+
   console.log(`FAST_GATE ${tests.length} changed test file(s): ${tests.join(", ")}`);
   for (const relativePath of tests) {
-    const args = existsSync(registerDistPath)
-      ? ["--require", registerDistPath, "--test", "--test-reporter=spec", relativePath]
-      : ["--test", "--test-reporter=spec", relativePath];
+    const args = [vitestCli, "run", "--reporter=spec", relativePath];
     const result = spawnSync(process.execPath, args, {
       cwd: root,
       env: { ...process.env },
