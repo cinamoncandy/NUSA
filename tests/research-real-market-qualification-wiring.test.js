@@ -12,11 +12,18 @@ test("real-market research run consumes the canonical factory qualification gate
   );
   assert.match(source, /const factoryQualification = qualifyResearchFactoryRun\(league\);/);
   assert.match(source, /researchFactoryQualification: factoryQualification,/);
+  assert.match(source, /researchRunProvenance: league\.provenance,/);
 
   const buildIndex = source.indexOf("const league = buildResearchRunLeague(");
   const qualificationIndex = source.indexOf("const factoryQualification = qualifyResearchFactoryRun(league);");
   const outputIndex = source.indexOf("researchFactoryQualification: factoryQualification,");
-  assert.ok(buildIndex >= 0 && qualificationIndex > buildIndex && outputIndex > qualificationIndex);
+  const provenanceOutputIndex = source.indexOf("researchRunProvenance: league.provenance,");
+  assert.ok(
+    buildIndex >= 0
+      && qualificationIndex > buildIndex
+      && outputIndex > qualificationIndex
+      && provenanceOutputIndex > outputIndex,
+  );
 });
 
 test("real-market qualification wiring does not weaken research-only authority", () => {
