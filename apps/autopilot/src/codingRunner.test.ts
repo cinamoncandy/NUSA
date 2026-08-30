@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { executeCodingRunner, validateCodingRunnerRequest, verifyCodingRunnerRequestAgainstGitHub } from "./codingRunner";
+import { executeCodingRunner, validateCodingRunnerRequest, verifyCodingRunnerRequestAgainstGitHub, type CodingRuntime } from "./codingRunner";
 
 const request = {
   kind: "REPOSITORY_AUTOPILOT" as const,
@@ -21,6 +21,18 @@ const response = (status: number, body: unknown) => ({
   status,
   json: async () => body,
 });
+
+const verifiedGithubFetch = async (url: string) => {
+  if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+  return response(200, {
+    id: request.workflowRunId,
+    head_sha: request.headSha,
+    head_branch: "main",
+    status: "completed",
+    conclusion: "success",
+    repository: { full_name: request.repository },
+  });
+};
 
 describe("coding runner", () => {
   it("accepts only the fail-closed repository contract with lifecycle identity", () => {
@@ -77,17 +89,42 @@ describe("coding runner", () => {
     const urls: string[] = [];
     await verifyCodingRunnerRequestAgainstGitHub(request, "github-token", async (url) => {
       urls.push(url);
-      if (url.includes("/commits/")) return response(200, { sha: request.headSha });
-      return response(200, {
-        id: request.workflowRunId,
-        head_sha: request.headSha,
-        head_branch: "feat/auto-coding-runner",
-        status: "completed",
-        conclusion: "success",
-        repository: { full_name: request.repository },
-      });
+      return verifiedGithubFetch(url);
     });
     assert.equal(urls.length, 2);
+  });
+
+  it("executes an injected cloud runtime only after GitHub evidence verification", async () => {
+    let runtimeCalls = 0;
+    const runtime: CodingRuntime = {
+      name: "fake-sandbox",
+      async execute(value) {
+        runtimeCalls += 1;
+        assert.equal(value.headSha, request.headSha);
+        return { backend: "fake-sandbox", checkpointId: request.headSha, workspaceVerified: true };
+      },
+    };
+    const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token" }, verifiedGithubFetch, runtime);
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.equal(result.backend, "fake-sandbox");
+    assert.equal(result.workspaceVerified, true);
+    assert.equal(runtimeCalls, 1);
+  });
+
+  it("does not invoke an injected runtime when GitHub evidence is invalid", async () => {
+    let runtimeCalls = 0;
+    const runtime: CodingRuntime = {
+      name: "fake-sandbox",
+      async execute() {
+        runtimeCalls += 1;
+        return { backend: "fake-sandbox", checkpointId: request.headSha, workspaceVerified: true };
+      },
+    };
+    await assert.rejects(
+      () => executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token" }, async () => response(404, {}), runtime),
+      /CODING_RUNNER_HEAD_SHA_UNVERIFIED/,
+    );
+    assert.equal(runtimeCalls, 0);
   });
 
   it("preserves lifecycle identity when calling the configured coding engine", async () => {

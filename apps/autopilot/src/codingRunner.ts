@@ -20,6 +20,26 @@ export interface CodingRunnerEnv {
   NUSA_GITHUB_TOKEN?: string;
 }
 
+export interface CodingRuntimeExecutionResult {
+  readonly backend: string;
+  readonly checkpointId: string;
+  readonly workspaceVerified: true;
+}
+
+export interface CodingRuntime {
+  readonly name: string;
+  execute(request: CodingRunnerRequest): Promise<CodingRuntimeExecutionResult>;
+}
+
+export interface CodingRunnerResult {
+  readonly status: string;
+  readonly reason?: string;
+  readonly httpStatus?: number;
+  readonly backend?: string;
+  readonly checkpointId?: string;
+  readonly workspaceVerified?: true;
+}
+
 interface HttpResponse {
   readonly ok: boolean;
   readonly status: number;
@@ -85,11 +105,24 @@ export async function executeCodingRunner(
   request: CodingRunnerRequest,
   env: CodingRunnerEnv,
   fetchImpl: FetchImpl = fetch as unknown as FetchImpl,
-): Promise<{ status: string; reason?: string; httpStatus?: number }> {
+  runtime?: CodingRuntime,
+): Promise<CodingRunnerResult> {
+  const githubToken = env.NUSA_GITHUB_TOKEN?.trim();
+
+  if (runtime) {
+    if (!githubToken) return { status: "INTERFACE_READY", reason: "github-verification-not-configured" };
+    await verifyCodingRunnerRequestAgainstGitHub(request, githubToken, fetchImpl);
+    try {
+      const result = await runtime.execute(request);
+      return { status: "EXECUTION_ACCEPTED", ...result };
+    } catch (error) {
+      return { status: "EXECUTION_FAILED", reason: error instanceof Error ? error.message : "coding-runtime-failed" };
+    }
+  }
+
   const endpoint = env.NUSA_AI_CODING_ENDPOINT?.trim();
   const token = env.NUSA_AI_CODING_TOKEN?.trim();
   if (!endpoint || !token) return { status: "INTERFACE_READY", reason: "ai-coding-engine-not-configured" };
-  const githubToken = env.NUSA_GITHUB_TOKEN?.trim();
   if (!githubToken) return { status: "INTERFACE_READY", reason: "github-verification-not-configured" };
 
   await verifyCodingRunnerRequestAgainstGitHub(request, githubToken, fetchImpl);
