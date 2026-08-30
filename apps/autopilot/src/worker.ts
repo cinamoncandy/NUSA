@@ -2,6 +2,7 @@ import { Sandbox } from "@cloudflare/sandbox";
 import baseWorker, { handleCodingExecute, type Env as BaseEnv } from "./index";
 import { ExecutionCoordinator } from "./executionCoordinator";
 import { CloudflareSandboxBackend, type CloudflareSandboxNamespace } from "./cloudflareSandboxBackend";
+import { GithubValidatedPatchPublisher } from "./githubValidatedPatchPublisher";
 import { SandboxCodingRuntime } from "./sandboxCodingRuntime";
 import { validateCodingExecutionEnvelope } from "./codingExecutionEnvelope";
 import { validatePatchInSandbox } from "./sandboxPatchValidator";
@@ -31,7 +32,9 @@ const worker = {
     if (request.method === "POST" && url.pathname === "/coding/execute") {
       if (!env.Sandbox) return json({ error: "CLOUDFLARE_SANDBOX_NOT_CONFIGURED", status: "INTERFACE_READY" }, 503);
       const runtime = new SandboxCodingRuntime(new CloudflareSandboxBackend(env.Sandbox));
-      return handleCodingExecute(request, env, runtime);
+      const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || "cinamoncandy/NUSA";
+      const publisher = new GithubValidatedPatchPublisher({ token: env.NUSA_GITHUB_TOKEN, allowedRepository });
+      return handleCodingExecute(request, env, runtime, publisher);
     }
 
     if (request.method === "POST" && url.pathname === "/coding/sandbox/validate") {
@@ -50,7 +53,10 @@ const worker = {
         const result = await validatePatchInSandbox(backend, { envelope, patch: body.patch });
         return json({
           accepted: true,
-          ...result,
+          status: result.status,
+          backend: result.backend,
+          changedFiles: result.changedFiles,
+          checkpoint: result.checkpoint,
           liveAuthority: "NONE",
           productionMutationAllowed: false,
           aiAuthority: "ZERO_AUTHORITY",
