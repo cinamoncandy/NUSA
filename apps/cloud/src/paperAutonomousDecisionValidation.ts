@@ -41,7 +41,8 @@ export function validatePaperAutonomousDecisions(
     assertUnit(decision.allocation, "allocation");
     if (!Number.isInteger(decision.leverage) || decision.leverage < 1 || decision.leverage > 20) throw new Error("PAPER_DECISION_LEVERAGE_INVALID");
     if (!Number.isFinite(decision.score) || decision.score < -1 || decision.score > 1) throw new Error("PAPER_DECISION_SCORE_INVALID");
-    if (!Array.isArray(decision.reasons) || decision.reasons.length === 0 || decision.reasons.some((reason) => typeof reason !== "string" || !reason.trim())) throw new Error("PAPER_DECISION_REASONS_INVALID");
+    if (!Array.isArray(decision.reasons) || decision.reasons.length === 0 || decision.reasons.some((reason: unknown) => typeof reason !== "string" || !reason.trim())) throw new Error("PAPER_DECISION_REASONS_INVALID");
+    const reasons = decision.reasons as readonly string[];
     if (!Number.isSafeInteger(decision.decidedAt) || decision.decidedAt < 0 || decision.decidedAt > context.now) throw new Error("PAPER_DECISION_CLOCK_INVALID");
 
     const paperCandidateBinding = decision.paperCandidateBinding == null
@@ -50,7 +51,7 @@ export function validatePaperAutonomousDecisions(
 
     return Object.freeze({
       ...decision,
-      reasons: Object.freeze(decision.reasons.map((reason) => reason.trim())),
+      reasons: Object.freeze(reasons.map((reason: string) => reason.trim())),
       ...(paperCandidateBinding == null ? {} : { paperCandidateBinding }),
     });
   });
