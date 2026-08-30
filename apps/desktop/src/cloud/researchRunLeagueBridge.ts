@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { canonicalResearchJson } from "../../../../packages/contracts/src/researchRuntime";
 import { createResearchBenchmarkScorecard, type ResearchBenchmarkPolicy, type ResearchBenchmarkSlice } from "./researchBenchmarkScorecard";
 import type { ResearchExperimentResult } from "./researchDataset";
 import type { PboCscvEvidence } from "./researchSearchAdjustedEvidence";
@@ -84,6 +86,8 @@ export interface ResearchRunCandidate {
 export interface ResearchRunLeagueResult {
   readonly schemaVersion: 1;
   readonly evidenceMode: "RESEARCH_TIER_ONLY";
+  /** Immutable run-level identity binding every candidate and evidence projection together. */
+  readonly provenance: ResearchRunProvenance;
   /** The League ranking. Always produced: a refused allocation does not invalidate the ranking. */
   readonly standing: LeagueStanding;
   /** Deterministic human-readable projection of the evidence already present in each entry. */
@@ -104,6 +108,43 @@ export interface ResearchRunLeagueResult {
   readonly oosObservationEvidence?: Readonly<Record<string, readonly OosObservationTrace[]>>;
 }
 
+export interface ResearchRunProvenance {
+  readonly schemaVersion: 1;
+  readonly runFingerprintSha256: string;
+  readonly sourceCommitSha: string;
+  readonly costModelVersion: string;
+  readonly dataset: Readonly<{
+    readonly datasetId: string;
+    readonly contentSha256: string;
+    readonly source: string;
+    readonly market: string;
+    readonly interval: string;
+    readonly startOpenTime: number;
+    readonly endCloseTime: number;
+  }>;
+  readonly hypothesisHash?: string;
+  readonly candidateBindings: readonly Readonly<{
+    readonly candidateId: string;
+    readonly familyId: string;
+    readonly lineageId: string;
+    readonly specificationHash: string;
+    readonly datasetId: string;
+    readonly datasetContentSha256: string;
+    readonly parameters: Readonly<Record<string, string | number | boolean>>;
+  }>[];
+  readonly benchmarkIdentity: Readonly<{
+    readonly kind: "BUY_AND_HOLD";
+    readonly evidenceSha256: string;
+  }>;
+  readonly evidenceIdentity: Readonly<{
+    readonly pboSha256?: string;
+    readonly dsrSha256: string;
+    readonly robustnessSha256?: string;
+    readonly regimeSha256: string;
+    readonly oosObservationSha256: string;
+  }>;
+}
+
 export class ResearchRunLeagueBridgeError extends Error {
   constructor(readonly code: string, message: string) {
     super(message);
@@ -112,6 +153,10 @@ export class ResearchRunLeagueBridgeError extends Error {
 }
 
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
+
+function hashCanonical(value: unknown): string {
+  return createHash("sha256").update(canonicalResearchJson(value), "utf8").digest("hex");
+}
 
 /**
  * Joins real research-run experiments to the existing League ranking and allocation advisory.
@@ -137,6 +182,7 @@ export function buildResearchRunLeague(
     throw new ResearchRunLeagueBridgeError("EMPTY_RESEARCH_RUN", "research run league requires at least one candidate");
   }
   const ids = new Set<string>();
+  const specificationHashes = new Map<string, string>();
   for (const candidate of candidates) {
     if (!candidate.id.trim()) throw new ResearchRunLeagueBridgeError("INVALID_CANDIDATE_ID", "candidate id is required");
     if (!candidate.familyId.trim()) throw new ResearchRunLeagueBridgeError("INVALID_FAMILY_ID", `candidate ${candidate.id} requires a familyId`);
@@ -172,11 +218,30 @@ export function buildResearchRunLeague(
           `candidate ${candidate.id} has invalid bound specification: ${specificationDecision.reasons.join(",")}`,
         );
       }
+      specificationHashes.set(candidate.id, specificationDecision.specificationHash);
     } catch (error) {
       if (error instanceof ResearchRunLeagueBridgeError) throw error;
       throw new ResearchRunLeagueBridgeError(
         "INVALID_CANDIDATE_SPECIFICATION",
         `candidate ${candidate.id} has malformed bound specification`,
+      );
+    }
+  }
+
+  const firstSpecification = candidates[0]!.candidateSpecification;
+  const sourceCommitSha = firstSpecification.codeSha.trim().toLowerCase();
+  const costModelVersion = firstSpecification.costModelVersion.trim();
+  for (const candidate of candidates.slice(1)) {
+    if (candidate.candidateSpecification.codeSha.trim().toLowerCase() !== sourceCommitSha) {
+      throw new ResearchRunLeagueBridgeError(
+        "CANDIDATE_SOURCE_MISMATCH",
+        "all research candidates must use one source commit",
+      );
+    }
+    if (candidate.candidateSpecification.costModelVersion.trim() !== costModelVersion) {
+      throw new ResearchRunLeagueBridgeError(
+        "COST_MODEL_IDENTITY_MISMATCH",
+        "all research candidates must use one cost model version",
       );
     }
   }
@@ -210,6 +275,7 @@ export function buildResearchRunLeague(
     }
   }
 
+  let hypothesisHash: string | undefined;
   if (options.hypothesis != null) {
     const firstManifest = candidates[0]!.experiment.manifest;
     const expectedEvaluationGeneratedAt = options.generatedAt ?? candidates[0]!.experiment.generatedAt;
@@ -233,6 +299,7 @@ export function buildResearchRunLeague(
         decision.reasons.join(",") || "hypothesis does not bind to every candidate in the research run",
       );
     }
+    hypothesisHash = decision.hypothesisHash;
   }
 
   const slices: readonly ResearchBenchmarkSlice[] = candidates.map((candidate) => ({
@@ -344,9 +411,76 @@ export function buildResearchRunLeague(
     pboAvailable: options.probabilityBacktestOverfitting != null,
   })));
 
+  const canonicalManifest = candidates
+    .map((candidate) => candidate.experiment.manifest)
+    .sort((left, right) => (
+      left.datasetId.localeCompare(right.datasetId)
+      || left.contentSha256.localeCompare(right.contentSha256)
+    ))[0]!;
+  const canonicalDataset = freeze({
+    datasetId: canonicalManifest.datasetId,
+    contentSha256: canonicalManifest.contentSha256,
+    source: canonicalManifest.source,
+    market: canonicalManifest.market,
+    interval: canonicalManifest.interval,
+    startOpenTime: canonicalManifest.startOpenTime,
+    endCloseTime: canonicalManifest.endCloseTime,
+  });
+  const candidateBindings = freeze(candidates.map((candidate) => freeze({
+    candidateId: candidate.id,
+    familyId: candidate.familyId,
+    lineageId: candidate.candidateSpecification.lineageId,
+    specificationHash: specificationHashes.get(candidate.id)!,
+    datasetId: candidate.experiment.manifest.datasetId,
+    datasetContentSha256: candidate.experiment.manifest.contentSha256,
+    parameters: freeze({ ...candidate.candidateSpecification.parameters }),
+  })).sort((left, right) => left.candidateId.localeCompare(right.candidateId)));
+  const benchmarkIdentity = freeze({
+    kind: "BUY_AND_HOLD" as const,
+    evidenceSha256: hashCanonical(scorecard.slices),
+  });
+  const evidenceIdentity = freeze({
+    ...(options.probabilityBacktestOverfitting == null
+      ? {}
+      : { pboSha256: hashCanonical(options.probabilityBacktestOverfitting) }),
+    dsrSha256: hashCanonical(candidates.map((candidate) => ({
+      candidateId: candidate.id,
+      deflatedSharpe: candidate.deflatedSharpe ?? null,
+      trialLedgerSummary: candidate.trialLedgerSummary ?? null,
+    })).sort((left, right) => left.candidateId.localeCompare(right.candidateId))),
+    ...(options.robustnessEvidence == null
+      ? {}
+      : { robustnessSha256: hashCanonical(options.robustnessEvidence) }),
+    regimeSha256: hashCanonical(candidates.map((candidate) => ({
+      candidateId: candidate.id,
+      regime: candidate.regime ?? null,
+      regimeAwareEvaluation: candidate.regimeAwareEvaluation ?? null,
+    })).sort((left, right) => left.candidateId.localeCompare(right.candidateId))),
+    oosObservationSha256: hashCanonical(oosObservationEvidence),
+  });
+  const provenancePayload = {
+    schemaVersion: 1 as const,
+    sourceCommitSha,
+    costModelVersion,
+    dataset: canonicalDataset,
+    ...(hypothesisHash == null ? {} : { hypothesisHash }),
+    candidateBindings,
+    benchmarkIdentity,
+    evidenceIdentity,
+  };
+  const runFingerprintSha256 = hashCanonical({
+    provenance: provenancePayload,
+    standing,
+    evidenceReport,
+    allocation: allocation ?? null,
+    allocationUnavailableReason: allocationUnavailableReason ?? null,
+  });
+  const provenance = freeze({ ...provenancePayload, runFingerprintSha256 });
+
   return freeze({
     schemaVersion: 1,
     evidenceMode: "RESEARCH_TIER_ONLY",
+    provenance,
     standing,
     evidenceReport,
     ...(options.robustnessEvidence == null ? {} : { robustnessEvidence: options.robustnessEvidence }),

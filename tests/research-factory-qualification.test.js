@@ -53,6 +53,36 @@ const report = (overrides = {}) => ({
 const run = (overrides = {}) => ({
   schemaVersion: 1,
   evidenceMode: "RESEARCH_TIER_ONLY",
+  provenance: {
+    schemaVersion: 1,
+    runFingerprintSha256: "d".repeat(64),
+    sourceCommitSha: "e".repeat(40),
+    costModelVersion: "cost-v1",
+    dataset: {
+      datasetId: "dataset-a",
+      contentSha256: "f".repeat(64),
+      source: "fixture",
+      market: "KRW-BTC",
+      interval: "1d",
+      startOpenTime: 0,
+      endCloseTime: 1,
+    },
+    candidateBindings: [{
+      candidateId: "candidate-a",
+      familyId: "family-a",
+      lineageId: "family-a-v1",
+      specificationHash: "a".repeat(64),
+      datasetId: "dataset-a",
+      datasetContentSha256: "f".repeat(64),
+      parameters: {},
+    }],
+    benchmarkIdentity: { kind: "BUY_AND_HOLD", evidenceSha256: "1".repeat(64) },
+    evidenceIdentity: {
+      dsrSha256: "2".repeat(64),
+      regimeSha256: "3".repeat(64),
+      oosObservationSha256: "4".repeat(64),
+    },
+  },
   standing: {
     schemaVersion: 1,
     generatedAt: "2026-08-30T00:00:00.000Z",
@@ -152,4 +182,19 @@ test("baseline benchmark rejection and insufficiency remain fail closed", () => 
 test("mismatched human-readable evidence coverage fails closed", () => {
   assert.throws(() => qualifyResearchFactoryRun(run({ evidenceReport: [] })), /coverage mismatch/);
   assert.throws(() => qualifyResearchFactoryRun(run({ evidenceReport: [report({ outcome: "REJECTED" })] })), /outcome mismatch/);
+});
+
+test("missing run-level provenance fails closed before League qualification", () => {
+  const invalid = run();
+  delete invalid.provenance;
+  assert.throws(() => qualifyResearchFactoryRun(invalid), /provenance is missing or malformed/);
+});
+
+test("duplicate candidate provenance bindings fail closed", () => {
+  const invalid = run();
+  invalid.provenance = {
+    ...invalid.provenance,
+    candidateBindings: [...invalid.provenance.candidateBindings, { ...invalid.provenance.candidateBindings[0] }],
+  };
+  assert.throws(() => qualifyResearchFactoryRun(invalid), /candidate provenance coverage mismatch/);
 });

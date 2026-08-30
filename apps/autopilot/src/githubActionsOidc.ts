@@ -2,6 +2,10 @@ const GITHUB_OIDC_ISSUER = "https://token.actions.githubusercontent.com";
 const GITHUB_OIDC_JWKS = `${GITHUB_OIDC_ISSUER}/.well-known/jwks`;
 const DEFAULT_AUDIENCE = "nusa-autopilot";
 const CLOCK_SKEW_SECONDS = 60;
+const TRUSTED_WORKFLOWS = Object.freeze([
+  ".github/workflows/autopilot-execution-consumer.yml",
+  ".github/workflows/autopilot-worker-dispatch-bridge.yml",
+]);
 
 interface JsonResponse {
   readonly ok: boolean;
@@ -86,8 +90,8 @@ function assertClaims(
   if (claims.repository !== allowedRepository) throw new Error("CODING_RUNNER_OIDC_REPOSITORY_INVALID");
   if (claims.ref !== "refs/heads/main") throw new Error("CODING_RUNNER_OIDC_REF_INVALID");
   if (claims.event_name !== "repository_dispatch") throw new Error("CODING_RUNNER_OIDC_EVENT_INVALID");
-  const expectedWorkflowRef = `${allowedRepository}/.github/workflows/autopilot-execution-consumer.yml@refs/heads/main`;
-  if (claims.workflow_ref !== expectedWorkflowRef) throw new Error("CODING_RUNNER_OIDC_WORKFLOW_INVALID");
+  const trustedWorkflowRefs = TRUSTED_WORKFLOWS.map((path) => `${allowedRepository}/${path}@refs/heads/main`);
+  if (typeof claims.workflow_ref !== "string" || !trustedWorkflowRefs.includes(claims.workflow_ref)) throw new Error("CODING_RUNNER_OIDC_WORKFLOW_INVALID");
 }
 
 export async function verifyGithubActionsOidcToken(

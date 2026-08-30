@@ -40,6 +40,51 @@ const REJECTION_REASONS = Object.freeze(new Set([
 
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 
+function validateRunProvenance(run: ResearchRunLeagueResult): void {
+  const provenance = run.provenance;
+  if (
+    provenance == null
+    || provenance.schemaVersion !== 1
+    || !/^[0-9a-f]{40}$/i.test(provenance.sourceCommitSha)
+    || !/^[0-9a-f]{64}$/i.test(provenance.runFingerprintSha256)
+    || !provenance.dataset?.datasetId
+    || !/^[0-9a-f]{64}$/i.test(provenance.dataset.contentSha256)
+    || !Array.isArray(provenance.candidateBindings)
+    || !provenance.benchmarkIdentity
+    || provenance.benchmarkIdentity.kind !== "BUY_AND_HOLD"
+    || !/^[0-9a-f]{64}$/i.test(provenance.benchmarkIdentity.evidenceSha256)
+    || !provenance.evidenceIdentity
+    || !/^[0-9a-f]{64}$/i.test(provenance.evidenceIdentity.dsrSha256)
+    || !/^[0-9a-f]{64}$/i.test(provenance.evidenceIdentity.regimeSha256)
+    || !/^[0-9a-f]{64}$/i.test(provenance.evidenceIdentity.oosObservationSha256)
+  ) {
+    throw new Error("research run provenance is missing or malformed");
+  }
+  if (!run.standing.provenance.sourceDatasetIds.includes(provenance.dataset.datasetId)) {
+    throw new Error("research run provenance dataset does not match standing");
+  }
+  const bindings = new Map(provenance.candidateBindings.map((binding) => [binding.candidateId, binding] as const));
+  if (
+    bindings.size !== provenance.candidateBindings.length
+    || bindings.size !== run.standing.entries.length
+  ) {
+    throw new Error("research run candidate provenance coverage mismatch");
+  }
+  for (const entry of run.standing.entries) {
+    const binding = bindings.get(entry.id);
+    if (
+      binding == null
+      || binding.familyId !== entry.familyId
+      || !/^[0-9a-f]{64}$/i.test(binding.specificationHash)
+      || !binding.datasetId
+      || !/^[0-9a-f]{64}$/i.test(binding.datasetContentSha256)
+      || !entry.sourceDatasetIds.includes(binding.datasetId)
+    ) {
+      throw new Error(`research run candidate provenance mismatch for ${entry.id}`);
+    }
+  }
+}
+
 function stableUnique(values: readonly string[]): readonly string[] {
   return freeze([...new Set(values)].sort());
 }
@@ -106,6 +151,7 @@ export function qualifyResearchFactoryRun(run: ResearchRunLeagueResult): Researc
   if (run.schemaVersion !== 1 || run.evidenceMode !== "RESEARCH_TIER_ONLY") {
     throw new Error("unsupported research run league result");
   }
+  validateRunProvenance(run);
   const reports = new Map(run.evidenceReport.map((report) => [report.candidateId, report] as const));
   if (reports.size !== run.standing.entries.length) throw new Error("research evidence report coverage mismatch");
 
