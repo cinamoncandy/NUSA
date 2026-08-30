@@ -84,6 +84,14 @@ async function githubJson(url: string, token: string, fetchImpl: typeof fetch): 
   return body;
 }
 
+function workflowCompletedAt(run: JsonObject): string | null {
+  const completedAt = text(run.completed_at);
+  if (completedAt && Number.isFinite(Date.parse(completedAt))) return completedAt;
+  if (text(run.status) !== "completed") return null;
+  const updatedAt = text(run.updated_at);
+  return updatedAt && Number.isFinite(Date.parse(updatedAt)) ? updatedAt : null;
+}
+
 function discoverWorkflowFailureOpportunityIds(candidates: readonly unknown[], now: number): readonly string[] {
   const observations: WorkflowFailureEvidence[] = [];
   for (const candidate of candidates) {
@@ -96,8 +104,8 @@ function discoverWorkflowFailureOpportunityIds(candidates: readonly unknown[], n
     const workflowName = text(run.name);
     const runId = positiveInteger(run.id);
     const headSha = text(run.head_sha);
-    const completedAt = text(run.completed_at);
-    if (!workflowName || !runId || !headSha || !SHA40.test(headSha) || !completedAt || !Number.isFinite(Date.parse(completedAt))) continue;
+    const completedAt = workflowCompletedAt(run);
+    if (!workflowName || !runId || !headSha || !SHA40.test(headSha) || !completedAt) continue;
 
     observations.push(Object.freeze({ workflowName, runId, headSha: headSha.toLowerCase(), conclusion, completedAt }));
   }
@@ -119,10 +127,9 @@ function currentMainFailureRunId(candidates: readonly unknown[], mainSha: string
     if (text(run.head_branch) !== "main" || text(run.event) === "repository_dispatch") continue;
     if (text(run.head_sha)?.toLowerCase() !== mainSha.toLowerCase()) continue;
     const runId = positiveInteger(run.id);
-    const completedAt = text(run.completed_at);
+    const completedAt = workflowCompletedAt(run);
     if (!runId || !completedAt) continue;
     const completedAtMs = Date.parse(completedAt);
-    if (!Number.isFinite(completedAtMs)) continue;
     const ageSeconds = (now - completedAtMs) / 1000;
     if (ageSeconds < 0 || ageSeconds > WORKFLOW_FAILURE_MAX_AGE_SECONDS) continue;
     return runId;
@@ -138,10 +145,10 @@ function hasFreshWorkflowFailureSince(candidates: readonly unknown[], observedAt
     const conclusion = text(run.conclusion);
     if (conclusion !== "failure" && conclusion !== "cancelled" && conclusion !== "timed_out") continue;
     if (text(run.head_branch) !== "main" || text(run.event) === "repository_dispatch") continue;
-    const completedAt = text(run.completed_at);
+    const completedAt = workflowCompletedAt(run);
     if (!completedAt) continue;
     const completedAtMs = Date.parse(completedAt);
-    if (Number.isFinite(completedAtMs) && completedAtMs >= observedAt) return true;
+    if (completedAtMs >= observedAt) return true;
   }
   return false;
 }
