@@ -44,15 +44,17 @@ jobs:
       - name: Verify autopilot deployment-relevant change
         id: changes
         shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          head_sha='${{ github.event.workflow_run.head_sha }}'
-          changed="$(git diff-tree --no-commit-id --name-only -r "${head_sha}^" "${head_sha}")"
+          git fetch origin cloudflare-production
+          changed="$(git diff --name-only "origin/cloudflare-production...${HEAD_SHA}")"
           if grep -Eq '^(apps/autopilot/)' <<<"$changed"; then
             echo 'deploy=true' >> "$GITHUB_OUTPUT"
           else
             echo 'deploy=false' >> "$GITHUB_OUTPUT"
-            echo 'No autopilot deployment-relevant change in CI-verified commit.'
+            echo 'No autopilot deployment-relevant change between Cloudflare production and verified main.'
           fi
 
       - name: Promote exact verified revision to Cloudflare production branch
@@ -62,8 +64,6 @@ jobs:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          # No-op CI completions need only HEAD and its parent. Fetch full main history
-          # only when a deployment-relevant autopilot change actually needs ancestry checks.
           git fetch --unshallow --no-tags origin main
           git fetch origin cloudflare-production
           current_sha="$(git rev-parse origin/cloudflare-production)"
