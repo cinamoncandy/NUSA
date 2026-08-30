@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  decideStrategyEdgeDecayContainment,
   decideStrategyCalibrationContainment,
   validateStrategyLifecycleState,
   type StrategyCalibrationContainmentInput,
@@ -54,6 +55,56 @@ const decide = (
   currentState: StrategyLifecycleState,
   evidence?: NonNullable<StrategyCalibrationContainmentInput["calibration"]>,
 ) => decideStrategyCalibrationContainment({ currentState, ...(evidence == null ? {} : { calibration: evidence }) });
+
+const edgePolicy = Object.freeze({
+  policyVersion: "edge-decay-v1",
+  minimumRecentSamples: 100,
+  yellowScore: 0.15,
+  orangeScore: 0.35,
+  redScore: 0.6,
+  metricWeights: Object.freeze({
+    sharpe: 2,
+    winRate: 1,
+    calibration: 1,
+    profitFactor: 1,
+    drawdown: 2,
+    slippage: 1,
+    capacity: 1,
+  }),
+});
+
+const edgeInput = (overrides: Record<string, unknown> = {}) => ({
+  edgeId: "strategy-a",
+  edgeVersion: "1.0.0",
+  generatedAt: "2026-04-01T00:00:00.000Z",
+  baseline: {
+    windowId: "baseline",
+    startAt: "2025-01-01T00:00:00.000Z",
+    endAt: "2025-12-31T00:00:00.000Z",
+    sampleSize: 1_000,
+    sharpe: 2,
+    winRate: 0.7,
+    expectedCalibrationError: 0.04,
+    profitFactor: 1.8,
+    maximumDrawdown: 0.08,
+    averageSlippageBps: 4,
+    capacityUsd: 1_000_000,
+  },
+  recent: {
+    windowId: "recent",
+    startAt: "2026-01-01T00:00:00.000Z",
+    endAt: "2026-03-31T00:00:00.000Z",
+    sampleSize: 150,
+    sharpe: 1.9,
+    winRate: 0.68,
+    expectedCalibrationError: 0.05,
+    profitFactor: 1.7,
+    maximumDrawdown: 0.09,
+    averageSlippageBps: 4.5,
+    capacityUsd: 900_000,
+  },
+  ...overrides,
+});
 
 test("fails closed when canonical calibration evidence is missing or insufficient", () => {
   const missing = decide("PROMOTED");
@@ -127,4 +178,82 @@ test("rejects unknown lifecycle states at the runtime boundary", () => {
     () => decideStrategyCalibrationContainment({ currentState: "PROMOTED_BY_AI" as StrategyLifecycleState }),
     /STRATEGY_LIFECYCLE_STATE_INVALID/,
   );
+});
+
+test("contains a critically decayed promoted strategy without granting authority", () => {
+  const result = decideStrategyEdgeDecayContainment({
+    currentState: "PROMOTED",
+    edgeDecay: {
+      input: edgeInput({
+        recent: {
+          ...edgeInput().recent,
+          sharpe: 0.1,
+          winRate: 0.2,
+          expectedCalibrationError: 0.25,
+          profitFactor: 0.4,
+          maximumDrawdown: 0.35,
+          averageSlippageBps: 18,
+          capacityUsd: 100_000,
+        },
+      }),
+      policy: edgePolicy,
+    },
+  });
+  assert.equal(result.nextState, "QUARANTINED");
+  assert.equal(result.reason, "canonical-edge-decay-suspend");
+  assert.equal(result.edgeDecay?.action, "SUSPEND");
+  assert.deepEqual(result.authority, {
+    liveAuthority: "NONE",
+    productionMutationAllowed: false,
+    aiAuthority: "ZERO_AUTHORITY",
+  });
+});
+
+test("demotes promoted strategies on canonical edge-decay reduction", () => {
+  const result = decideStrategyEdgeDecayContainment({
+    currentState: "PROMOTED",
+    edgeDecay: {
+      input: edgeInput({
+        recent: {
+          ...edgeInput().recent,
+          sharpe: 1.1,
+          winRate: 0.55,
+          expectedCalibrationError: 0.09,
+          profitFactor: 1.2,
+          maximumDrawdown: 0.14,
+          averageSlippageBps: 7,
+          capacityUsd: 600_000,
+        },
+      }),
+      policy: edgePolicy,
+    },
+  });
+  assert.equal(result.nextState, "DEMOTED");
+  assert.equal(result.reason, "canonical-edge-decay-reduce");
+});
+
+test("fails closed when edge-decay evidence is missing or malformed", () => {
+  const missing = decideStrategyEdgeDecayContainment({ currentState: "PROMOTED" });
+  assert.equal(missing.nextState, "DEMOTED");
+  assert.equal(missing.reason, "canonical-edge-decay-evidence-missing");
+
+  assert.throws(() => decideStrategyEdgeDecayContainment({
+    currentState: "PROMOTED",
+    edgeDecay: {
+      input: edgeInput({ recent: { ...edgeInput().recent, endAt: "2027-01-01T00:00:00.000Z" } }),
+      policy: edgePolicy,
+    },
+  }), /cannot end in the future/);
+});
+
+test("does not re-evaluate or revive retired strategies", () => {
+  const result = decideStrategyEdgeDecayContainment({
+    currentState: "RETIRED",
+    edgeDecay: {
+      input: edgeInput({ recent: { ...edgeInput().recent, endAt: "not-a-date" } }),
+      policy: edgePolicy,
+    },
+  });
+  assert.equal(result.nextState, "RETIRED");
+  assert.equal(result.reason, "retired-is-absorbing");
 });
