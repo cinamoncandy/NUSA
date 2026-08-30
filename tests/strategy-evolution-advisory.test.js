@@ -115,6 +115,24 @@ test("promotion is blocked without enough independent evidence or calibration pe
   assert.equal(heldCalibration.recommendation, "HOLD");
 });
 
+test("learning explanation is deterministic and separates positive, counter, and missing evidence", () => {
+  const patch = {
+    costEvidence: "FAILED",
+    regimeEvidence: "INSUFFICIENT",
+    independentEvidenceCount: 2,
+  };
+  const first = evaluateStrategyEvolutionAdvisory(withEvidence(patch));
+  const second = evaluateStrategyEvolutionAdvisory(withEvidence(patch));
+  assert.deepEqual(first.explanation, second.explanation);
+  assert.equal(first.explanation.promotionBlocked, true);
+  assert.ok(first.explanation.positiveEvidence.includes("calibration:CALIBRATED"));
+  assert.ok(first.explanation.counterEvidence.includes("cost:FAILED"));
+  assert.ok(first.explanation.missingEvidence.includes("regime:INSUFFICIENT"));
+  assert.match(first.explanation.summary, /Positive evidence:/);
+  assert.match(first.explanation.summary, /Counter-evidence:/);
+  assert.match(first.explanation.summary, /Missing evidence:/);
+});
+
 test("calibration identity and authority mismatches are rejected", () => {
   assert.throws(() => evaluateStrategyEvolutionAdvisory(withEvidence({ calibration: calibration({ regime: "RISK_OFF" }) })), /identity mismatch/);
   assert.throws(() => evaluateStrategyEvolutionAdvisory(withEvidence({ calibration: calibration({ liveAuthority: "FULL" }) })), /authority invariant/);
