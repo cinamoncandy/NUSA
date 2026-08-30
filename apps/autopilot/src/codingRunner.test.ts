@@ -69,7 +69,7 @@ describe("coding runner", () => {
       }),
       /CODING_RUNNER_HEAD_SHA_UNVERIFIED/,
     );
-    assert.equal(calls, 1);
+    assert.equal(calls, 2);
   });
 
   it("rejects a stale or attacker-chosen SHA not bound to the trusted workflow run", async () => {
@@ -128,6 +128,19 @@ describe("coding runner", () => {
         repository: { full_name: request.repository },
       });
     });
+  });
+
+  it("falls back to public GitHub evidence when a scoped token masks a public resource as not found", async () => {
+    const calls: string[] = [];
+    await verifyCodingRunnerRequestAgainstGitHub(request, "scoped-token", async (url, init) => {
+      calls.push(`${url}:${(init?.headers as Record<string, string>)?.Authorization ?? "anonymous"}`);
+      if (calls.length === 1) return response(404, { message: "Not Found" });
+      return verifiedGithubFetch(url);
+    });
+    assert.equal(calls.length, 3);
+    assert.match(calls[0] ?? "", /Bearer scoped-token/);
+    assert.match(calls[1] ?? "", /anonymous/);
+    assert.match(calls[2] ?? "", /Bearer scoped-token/);
   });
 
   it("sends a bounded patch-only proposal to the injected cloud runtime after GitHub verification", async () => {
@@ -247,7 +260,7 @@ describe("coding runner", () => {
       /CODING_RUNNER_HEAD_SHA_UNVERIFIED/,
     );
     assert.equal(runtimeCalls, 0);
-    assert.equal(fetchCalls, 1);
+    assert.equal(fetchCalls, 2);
   });
 
   it("preserves lifecycle identity and requires patch-only output when calling the configured coding engine", async () => {
