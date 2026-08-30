@@ -139,7 +139,10 @@ function sliceForRegime(
 
 function robustnessScore(slices: readonly RegimePerformanceSlice[]): number | undefined {
   const sufficient = slices.filter((slice) => slice.sufficientEvidence && slice.averageReturn != null && slice.maximumDrawdown != null);
-  if (sufficient.length < 2) return undefined;
+  // Do not transfer confidence from observed regimes into an unseen or under-sampled regime.
+  // A cross-regime robustness score is emitted only when every canonical regime bucket is
+  // independently supported by the configured minimum amount of point-in-time OOS evidence.
+  if (sufficient.length !== REGIMES.length) return undefined;
   const utilities = sufficient.map((slice) => {
     const excess = slice.averageBenchmarkExcess ?? 0;
     const cost = slice.tradingCostBurden ?? 0;
@@ -169,6 +172,8 @@ export function evaluateStrategyByRegime(
   const sufficientRegimeCount = slices.filter((slice) => slice.sufficientEvidence).length;
   const score = robustnessScore(slices);
   const reasons: string[] = [];
+  if (observedRegimeCount < REGIMES.length) reasons.push("UNSEEN_REGIME_EVIDENCE");
+  if (sufficientRegimeCount < REGIMES.length) reasons.push("INSUFFICIENT_REGIME_COVERAGE");
   if (observedRegimeCount < 2) reasons.push("INSUFFICIENT_REGIME_DIVERSITY");
   if (score == null) reasons.push("INSUFFICIENT_ROBUSTNESS_EVIDENCE");
 
