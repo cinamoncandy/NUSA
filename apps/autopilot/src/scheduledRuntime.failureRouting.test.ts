@@ -33,7 +33,7 @@ function namespace(): ExecutionCoordinatorNamespace {
 }
 
 test("scheduled runtime routes a fresh current-main CI failure into the coding consumer before requiring successful canonical CI", async () => {
-  let dispatchPayload: Record<string, unknown> | null = null;
+  const dispatchPayloads: Record<string, unknown>[] = [];
   const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.endsWith("/branches/main")) {
@@ -58,8 +58,9 @@ test("scheduled runtime routes a fresh current-main CI failure into the coding c
     }
     if (url.endsWith("/dispatches")) {
       assert.equal(init?.method, "POST");
-      const body = JSON.parse(String(init?.body));
-      dispatchPayload = body.client_payload;
+      const body = JSON.parse(String(init?.body)) as { client_payload?: unknown };
+      assert.ok(body.client_payload && typeof body.client_payload === "object" && !Array.isArray(body.client_payload));
+      dispatchPayloads.push(body.client_payload as Record<string, unknown>);
       return new Response(null, { status: 204 });
     }
     return new Response("not found", { status: 404 });
@@ -76,6 +77,8 @@ test("scheduled runtime routes a fresh current-main CI failure into the coding c
   assert.equal(outcome.headSha, SHA);
   assert.equal(outcome.workflowRunId, FAILURE_RUN_ID);
   assert.deepEqual(outcome.discoveredOpportunityIds, [`gha:ci:${SHA}:failure`]);
+  assert.equal(dispatchPayloads.length, 1);
+  const dispatchPayload = dispatchPayloads[0];
   assert.ok(dispatchPayload);
   assert.equal(dispatchPayload.head_sha, SHA);
   assert.equal(dispatchPayload.workflow_run_id, FAILURE_RUN_ID);
