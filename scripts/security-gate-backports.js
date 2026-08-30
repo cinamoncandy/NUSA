@@ -52,6 +52,7 @@ function trackedSecrets() {
   for (const relative of files) {
     if (ignored.test(relative) || !extensions.has(path.extname(relative).toLowerCase())) continue;
     const full = path.join(root, relative);
+    if (!fs.existsSync(full)) continue;
     const bytes = fs.readFileSync(full);
     if (bytes.includes(0)) continue;
     findings.push(...core.scanText(bytes.toString("utf8"), relative));

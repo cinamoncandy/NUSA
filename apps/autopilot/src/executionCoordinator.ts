@@ -1,5 +1,6 @@
 import { validatePersistedEvolutionLearningMemory, type EvolutionLearningMemoryStorage } from "./evolveDurableLearningMemory";
 import { validatePersistedCodingExecutionEvidence, type CodingExecutionEvidence } from "./codingExecutionEvidence";
+import { validateAutopilotExecutionTelemetry, type AutopilotExecutionTelemetry } from "./executionTelemetry";
 
 interface DurableObjectStorageLike {
   get<T>(key: string): Promise<T | undefined>;
@@ -67,6 +68,11 @@ interface CodingExecutionEvidenceHistory {
   evidence: readonly CodingExecutionEvidence[];
 }
 
+interface AutopilotExecutionTelemetryHistory {
+  schemaVersion: 1;
+  telemetry: readonly AutopilotExecutionTelemetry[];
+}
+
 const SCHEDULED_RECEIPT_COORDINATOR_KEY = "scheduled-runtime-observability";
 const SCHEDULED_RECEIPT_HISTORY_KEY = "scheduled-runtime-receipts-v1";
 const MAX_SCHEDULED_RECEIPTS = 120;
@@ -74,6 +80,9 @@ const EVOLVE_LEARNING_COORDINATOR_KEY = "evolve-learning-memory";
 const CODING_EVIDENCE_COORDINATOR_KEY = "coding-execution-observability";
 const CODING_EVIDENCE_HISTORY_KEY = "coding-execution-evidence-v1";
 const MAX_CODING_EVIDENCE = 32;
+const AUTOPILOT_TELEMETRY_COORDINATOR_KEY = "autopilot-execution-telemetry";
+const AUTOPILOT_TELEMETRY_HISTORY_KEY = "autopilot-execution-telemetry-v1";
+const MAX_AUTOPILOT_TELEMETRY = 120;
 const json = (body: unknown, status = 200): Response => new Response(JSON.stringify(body), {
   status,
   headers: { "content-type": "application/json; charset=utf-8" },
@@ -172,12 +181,14 @@ export class ExecutionCoordinator {
     if (request.method === "GET" && url.pathname === "/scheduled-receipt-history") return this.readScheduledReceipt();
     if (request.method === "GET" && url.pathname === "/evolve-learning-memory") return this.readEvolutionLearningMemory();
     if (request.method === "GET" && url.pathname === "/coding-evidence-history") return this.readCodingExecutionEvidence();
+    if (request.method === "GET" && url.pathname === "/execution-telemetry") return this.readExecutionTelemetry();
     if (request.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405);
     if (url.pathname === "/acquire") return this.acquire(await request.json());
     if (url.pathname === "/dispatched") return this.markDispatched(await request.json());
     if (url.pathname === "/scheduled-receipt") return this.writeScheduledReceipt(await request.json());
     if (url.pathname === "/evolve-learning-memory") return this.writeEvolutionLearningMemory(await request.json());
     if (url.pathname === "/coding-evidence") return this.writeCodingExecutionEvidence(await request.json());
+    if (url.pathname === "/execution-telemetry") return this.writeExecutionTelemetry(await request.json());
     return json({ error: "NOT_FOUND" }, 404);
   }
 
@@ -346,6 +357,118 @@ export class ExecutionCoordinator {
       evidence: Object.freeze([...validEvidence].sort((left, right) => left.recordedAtMs - right.recordedAtMs || left.evidenceId.localeCompare(right.evidenceId))),
     });
   }
+
+  private async writeExecutionTelemetry(value: unknown): Promise<Response> {
+    if (!value || typeof value !== "object" || !("telemetry" in value)) return json({ error: "AUTOPILOT_TELEMETRY_REQUEST_INVALID" }, 400);
+    const telemetry = (value as { telemetry: unknown }).telemetry;
+    try {
+      validateAutopilotExecutionTelemetry(telemetry);
+    } catch {
+      return json({ error: "AUTOPILOT_TELEMETRY_INVALID" }, 400);
+    }
+    let current: AutopilotExecutionTelemetryHistory;
+    try {
+      current = await this.readExecutionTelemetryHistory();
+    } catch {
+      return json({ error: "AUTOPILOT_TELEMETRY_CORRUPT" }, 500);
+    }
+    const existing = current.telemetry.find((candidate) => candidate.telemetryId === telemetry.telemetryId);
+    if (existing) {
+      if (JSON.stringify(existing) !== JSON.stringify(telemetry)) return json({ error: "AUTOPILOT_TELEMETRY_IDENTITY_CONFLICT" }, 409);
+      return json({ updated: false, telemetry: existing });
+    }
+    const next = [...current.telemetry, telemetry]
+      .sort((left, right) => left.timestampMs - right.timestampMs || left.telemetryId.localeCompare(right.telemetryId))
+      .slice(-MAX_AUTOPILOT_TELEMETRY);
+    const history: AutopilotExecutionTelemetryHistory = Object.freeze({ schemaVersion: 1, telemetry: Object.freeze(next) });
+    await this.ctx.storage.put(AUTOPILOT_TELEMETRY_HISTORY_KEY, history);
+    return json({ updated: true, telemetry });
+  }
+
+  private async readExecutionTelemetry(): Promise<Response> {
+    try {
+      const history = await this.readExecutionTelemetryHistory();
+      const telemetry = history.telemetry;
+      return json({
+        telemetry: telemetry.at(-1) ?? null,
+        history: telemetry,
+        summary: summarizeExecutionTelemetry(telemetry),
+      });
+    } catch {
+      return json({ error: "AUTOPILOT_TELEMETRY_CORRUPT" }, 500);
+    }
+  }
+
+  private async readExecutionTelemetryHistory(): Promise<AutopilotExecutionTelemetryHistory> {
+    const stored = await this.ctx.storage.get<unknown>(AUTOPILOT_TELEMETRY_HISTORY_KEY);
+    if (stored == null) return Object.freeze({ schemaVersion: 1, telemetry: Object.freeze([]) });
+    if (!stored || typeof stored !== "object" || (stored as { schemaVersion?: unknown }).schemaVersion !== 1 || !Array.isArray((stored as { telemetry?: unknown }).telemetry) || (stored as { telemetry: unknown[] }).telemetry.length > MAX_AUTOPILOT_TELEMETRY) {
+      throw new Error("AUTOPILOT_TELEMETRY_CORRUPT");
+    }
+    const telemetry = (stored as { telemetry: unknown[] }).telemetry;
+    telemetry.forEach(validateAutopilotExecutionTelemetry);
+    return Object.freeze({
+      schemaVersion: 1,
+      telemetry: Object.freeze([...(telemetry as AutopilotExecutionTelemetry[])].sort((left, right) => left.timestampMs - right.timestampMs || left.telemetryId.localeCompare(right.telemetryId))),
+    });
+  }
+}
+
+export interface AutopilotExecutionTelemetrySummary {
+  readonly telemetryCount: number;
+  readonly actionCount: number;
+  readonly noActionCount: number;
+  readonly successCount: number;
+  readonly failureCount: number;
+  readonly duplicateSuppressedCount: number;
+  readonly hourly: readonly Readonly<{
+    hourStartMs: number;
+    executions: number;
+    actions: number;
+    noActions: number;
+    successes: number;
+    failures: number;
+    duplicates: number;
+  }>[];
+}
+
+function summarizeExecutionTelemetry(telemetry: readonly AutopilotExecutionTelemetry[]): AutopilotExecutionTelemetrySummary {
+  const hourly = new Map<number, { executions: number; actions: number; noActions: number; successes: number; failures: number; duplicates: number }>();
+  let actionCount = 0;
+  let successCount = 0;
+  let failureCount = 0;
+  let duplicateSuppressedCount = 0;
+  for (const entry of telemetry) {
+    const hourStartMs = Math.floor(entry.timestampMs / 3_600_000) * 3_600_000;
+    const bucket = hourly.get(hourStartMs) ?? { executions: 0, actions: 0, noActions: 0, successes: 0, failures: 0, duplicates: 0 };
+    bucket.executions += 1;
+    if (entry.action === "ACTION") { bucket.actions += 1; actionCount += 1; } else bucket.noActions += 1;
+    if (/duplicate/i.test(entry.result)) { bucket.duplicates += 1; duplicateSuppressedCount += 1; }
+    if (/accepted|success|dispatched/i.test(entry.result)) { bucket.successes += 1; successCount += 1; }
+    if (/failed|error|blocked|rejected/i.test(entry.result)) { bucket.failures += 1; failureCount += 1; }
+    hourly.set(hourStartMs, bucket);
+  }
+  return Object.freeze({
+    telemetryCount: telemetry.length,
+    actionCount,
+    noActionCount: telemetry.length - actionCount,
+    successCount,
+    failureCount,
+    duplicateSuppressedCount,
+    hourly: Object.freeze([...hourly.entries()].sort(([left], [right]) => left - right).map(([hourStartMs, value]) => Object.freeze({ hourStartMs, ...value }))),
+  });
+}
+
+function validExecutionTelemetrySummary(value: unknown): value is AutopilotExecutionTelemetrySummary {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const candidate = value as Partial<AutopilotExecutionTelemetrySummary>;
+  if (![candidate.telemetryCount, candidate.actionCount, candidate.noActionCount, candidate.successCount, candidate.failureCount, candidate.duplicateSuppressedCount].every((count) => Number.isSafeInteger(count) && Number(count) >= 0)) return false;
+  if (!Array.isArray(candidate.hourly)) return false;
+  return candidate.hourly.every((bucket) => {
+    if (!bucket || typeof bucket !== "object") return false;
+    const item = bucket as Record<string, unknown>;
+    return ["hourStartMs", "executions", "actions", "noActions", "successes", "failures", "duplicates"].every((key) => Number.isSafeInteger(item[key]) && Number(item[key]) >= 0);
+  });
 }
 
 export interface ExecutionCoordinatorNamespace {
@@ -467,4 +590,37 @@ export async function readCodingExecutionEvidence(namespace: ExecutionCoordinato
   if (latest !== null && JSON.stringify(body.evidence) !== JSON.stringify(latest)) throw new Error("CODING_EVIDENCE_READ_INVALID");
   if (latest === null && body.evidence != null) throw new Error("CODING_EVIDENCE_READ_INVALID");
   return Object.freeze({ evidence: latest, history: Object.freeze([...history]) });
+}
+
+export async function recordAutopilotExecutionTelemetry(namespace: ExecutionCoordinatorNamespace, telemetry: AutopilotExecutionTelemetry): Promise<void> {
+  validateAutopilotExecutionTelemetry(telemetry);
+  const stub = namespace.get(namespace.idFromName(AUTOPILOT_TELEMETRY_COORDINATOR_KEY));
+  const response = await stub.fetch("https://execution-coordinator/execution-telemetry", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ telemetry }),
+  });
+  if (!response.ok) throw new Error("AUTOPILOT_TELEMETRY_PERSIST_FAILED");
+}
+
+export async function readAutopilotExecutionTelemetry(namespace: ExecutionCoordinatorNamespace): Promise<{
+  readonly telemetry: AutopilotExecutionTelemetry | null;
+  readonly history: readonly AutopilotExecutionTelemetry[];
+  readonly summary: AutopilotExecutionTelemetrySummary;
+}> {
+  const stub = namespace.get(namespace.idFromName(AUTOPILOT_TELEMETRY_COORDINATOR_KEY));
+  const response = await stub.fetch("https://execution-coordinator/execution-telemetry", { method: "GET" });
+  if (!response.ok) throw new Error("AUTOPILOT_TELEMETRY_READ_FAILED");
+  const body = await response.json() as { telemetry?: unknown; history?: unknown; summary?: unknown };
+  if (body.telemetry !== null && body.telemetry !== undefined) validateAutopilotExecutionTelemetry(body.telemetry);
+  if (!Array.isArray(body.history)) throw new Error("AUTOPILOT_TELEMETRY_READ_INVALID");
+  body.history.forEach(validateAutopilotExecutionTelemetry);
+  const history = body.history as readonly AutopilotExecutionTelemetry[];
+  const latest = history.at(-1) ?? null;
+  if (latest !== null && JSON.stringify(body.telemetry) !== JSON.stringify(latest)) throw new Error("AUTOPILOT_TELEMETRY_READ_INVALID");
+  if (latest === null && body.telemetry != null) throw new Error("AUTOPILOT_TELEMETRY_READ_INVALID");
+  if (!validExecutionTelemetrySummary(body.summary)) throw new Error("AUTOPILOT_TELEMETRY_READ_INVALID");
+  const expectedSummary = summarizeExecutionTelemetry(history);
+  if (JSON.stringify(body.summary) !== JSON.stringify(expectedSummary)) throw new Error("AUTOPILOT_TELEMETRY_READ_INVALID");
+  return Object.freeze({ telemetry: latest, history: Object.freeze([...history]), summary: body.summary });
 }
