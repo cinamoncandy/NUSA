@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "workOrder": "WO-ISSUE-1258-EVOLVE-CLOUD-DISPATCH-DEDUPE",
-  "status": "IMPLEMENTED_LOCAL_VALIDATION_PENDING_REMOTE",
+  "status": "IMPLEMENTED_COMMITTED_PENDING_REMOTE",
   "baseSha": "888746b909a16239ce71c58eaa888bccdf75631e",
   "branch": "codex/evolve-1258-dispatch-dedupe",
-  "implementationCommit": null,
+  "implementationCommit": "f6fa1fd3c46f8958f6f0c5dbdadfd923de9a0c80",
   "observedAt": "2026-08-30T19:49:39+09:00",
   "scope": {
     "canonicalWorkflowConsumer": "autopilot-execution-consumer.yml",
@@ -42,7 +42,7 @@
     "telemetryHistory": "PASS_IDEMPOTENT_BOUNDED_HOURLY_SUMMARY"
   },
   "blockers": [
-    "CURRENT_CHANGES_HAVE_NO_EXACT_HEAD_REMOTE_CI",
+    "COMMITTED_SLICE_HAS_NO_EXACT_HEAD_REMOTE_CI",
     "DEPLOYED_WORKER_CODING_TELEMETRY_404",
     "DEPLOYED_WORKER_HEAD_SHA_UNVERIFIED",
     "NO_PROMOTION_OR_DEPLOYMENT_OF_LOCAL_SLICE",

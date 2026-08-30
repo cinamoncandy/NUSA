@@ -6,7 +6,7 @@ current_execution_target:
   status: VERIFYING
   branch: codex/evolve-1258-dispatch-dedupe
   base_sha: 39f98fb60e64fad1a937aa872a94d632a22bf719
-  scope: "Remove duplicate nusa_autopilot_execution Cloud coding dispatch and add durable fail-closed execution telemetry; current changes remain local pending exact-head CI and deployment."
+  scope: "Remove duplicate nusa_autopilot_execution Cloud coding dispatch and add durable fail-closed execution telemetry; committed locally pending exact-head CI and deployment."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: verification
 status: verifying
@@ -87,10 +87,10 @@ claimed_state:
   status: VERIFYING
   branch: codex/evolve-1258-dispatch-dedupe
   base_commit: 39f98fb60e64fad1a937aa872a94d632a22bf719
-  scope: "Remove duplicate nusa_autopilot_execution Cloud coding dispatch and add durable fail-closed execution telemetry; current changes remain local pending exact-head CI and deployment."
+  scope: "Remove duplicate nusa_autopilot_execution Cloud coding dispatch and add durable fail-closed execution telemetry; committed locally pending exact-head CI and deployment."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  implementation_commit: UNCOMMITTED_WORKTREE
-  validation: "Focused autopilot regression 34/34, workflow topology 1/1, targeted typecheck, lint, architecture, safety, and AI zero-authority gates PASS; repository typecheck/build are blocked by missing local React/Node/mobile dependencies. Current origin/main 39f98fb has CI run 33307067410 PASS and Promotion run 33307251744 PASS; deployed revision 49595d0 still returns /coding/telemetry 404, and consumer run 33306974517 returned HTTP 400 CODING_RUNNER_HEAD_SHA_UNVERIFIED. One-minute runtime receipts are proven separately."
+  implementation_commit: f6fa1fd3c46f8958f6f0c5dbdadfd923de9a0c80
+  validation: "Focused autopilot regression 34/34, workflow topology 1/1, targeted typecheck, lint, architecture, safety, and AI zero-authority gates PASS; repository typecheck/build are blocked by missing local React/Node/mobile dependencies. Local implementation commit f6fa1fd3 is not yet covered by exact-head remote CI; origin/main 39f98fb has CI run 33307067410 PASS and Promotion run 33307251744 PASS. Deployed revision 49595d0 still returns /coding/telemetry 404, and consumer run 33306974517 returned HTTP 400 CODING_RUNNER_HEAD_SHA_UNVERIFIED. One-minute runtime receipts are proven separately."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -535,7 +535,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-ISSUE-1258-EVOLVE-CLOUD-DISPATCH-DEDUPE.yaml
-  reason: "Publish only after exact-head CI is authorized, then deploy and verify one-event one-effective-dispatch telemetry; preserve unattended-run gaps as unproven and zero authority."
+  reason: "Push the committed slice for exact-head CI, then deploy and verify one-event one-effective-dispatch telemetry; preserve unattended-run gaps as unproven and zero authority."
 verification:
   wo_0057:
     parent_pull_request: 552
