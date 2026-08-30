@@ -58,7 +58,7 @@ export async function handleCodingExecute(request: Request, env: Env, runtime?: 
   if (!provided || !constantTimeEqual(configured, provided)) return json({ error: "CODING_RUNNER_UNAUTHORIZED" }, 401);
   try {
     const runnerRequest = validateCodingRunnerRequest(await request.json(), allowedRepository);
-    const result = await executeCodingRunner(runnerRequest, env, fetch as never, runtime);
+    const result = await executeCodingRunner(runnerRequest, env, undefined, runtime);
     return json({ accepted: true, ...result, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, result.status === "EXECUTION_FAILED" ? 502 : 202);
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "CODING_RUNNER_REQUEST_INVALID" }, 400);
