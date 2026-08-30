@@ -1,6 +1,7 @@
 import { parseGithubWebhookPayload, planGithubWebhookDispatch, type SupportedGithubEvent } from "./dispatchPlanner";
 import { planAutopilotExecution } from "./executionPlanner";
 import { executeGithubDispatch } from "./githubExecutor";
+import { verifyGithubActionsOidcToken } from "./githubActionsOidc";
 import { executeCodingRunner, validateCodingRunnerRequest, type CodingPublisher, type CodingRuntime } from "./codingRunner";
 import { prepareProductionExecution } from "./productionExecutionSpine";
 import {
@@ -50,6 +51,17 @@ export async function verifyGithubWebhookSignature(secret: string, body: string,
   return constantTimeEqual(await computeGithubWebhookSignature(secret, body), provided);
 }
 
+async function verifyCodingRunnerAuthorization(provided: string | undefined, configured: string | undefined, allowedRepository: string): Promise<boolean> {
+  if (!provided) return false;
+  if (configured && constantTimeEqual(configured, provided)) return true;
+  try {
+    await verifyGithubActionsOidcToken(provided, allowedRepository);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function handleCodingExecute(
   request: Request,
   env: Env,
@@ -59,8 +71,7 @@ export async function handleCodingExecute(
   const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
   const configured = env.NUSA_CODING_RUNNER_TOKEN?.trim();
   const provided = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
-  if (!configured) return json({ error: "CODING_RUNNER_TOKEN_NOT_CONFIGURED", status: "INTERFACE_READY" }, 503);
-  if (!provided || !constantTimeEqual(configured, provided)) return json({ error: "CODING_RUNNER_UNAUTHORIZED" }, 401);
+  if (!await verifyCodingRunnerAuthorization(provided, configured, allowedRepository)) return json({ error: "CODING_RUNNER_UNAUTHORIZED" }, 401);
   try {
     const runnerRequest = validateCodingRunnerRequest(await request.json(), allowedRepository);
     const result = await executeCodingRunner(runnerRequest, env, undefined, runtime, publisher);
@@ -74,7 +85,7 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
-    if (request.method === "GET" && url.pathname === "/health") return json({ service: "nusa-autopilot", status: env.NUSA_WEBHOOK_SECRET ? "WEBHOOK_READY" : "INTERFACE_READY", deploymentRevision: env.NUSA_DEPLOYMENT_REVISION?.trim() || "UNVERIFIED", executionPlanning: "ENABLED", boundedExecutionSpine: "ENABLED", persistentExecutionCoordination: env.NUSA_EXECUTION_COORDINATOR ? "CONFIGURED" : "INTERFACE_READY", authenticatedExecutor: env.NUSA_GITHUB_TOKEN ? "CONFIGURED" : "INTERFACE_READY", codingRunner: env.NUSA_CODING_RUNNER_TOKEN ? "CONFIGURED" : "INTERFACE_READY", aiCodingEngine: env.NUSA_AI_CODING_ENDPOINT && env.NUSA_AI_CODING_TOKEN ? "CONFIGURED" : "INTERFACE_READY", allowedRepository, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+    if (request.method === "GET" && url.pathname === "/health") return json({ service: "nusa-autopilot", status: env.NUSA_WEBHOOK_SECRET ? "WEBHOOK_READY" : "INTERFACE_READY", deploymentRevision: env.NUSA_DEPLOYMENT_REVISION?.trim() || "UNVERIFIED", executionPlanning: "ENABLED", boundedExecutionSpine: "ENABLED", persistentExecutionCoordination: env.NUSA_EXECUTION_COORDINATOR ? "CONFIGURED" : "INTERFACE_READY", authenticatedExecutor: env.NUSA_GITHUB_TOKEN ? "CONFIGURED" : "INTERFACE_READY", codingRunner: "OIDC_READY", legacyCodingRunnerToken: env.NUSA_CODING_RUNNER_TOKEN ? "CONFIGURED" : "NOT_REQUIRED", aiCodingEngine: env.NUSA_AI_CODING_ENDPOINT && env.NUSA_AI_CODING_TOKEN ? "CONFIGURED" : "INTERFACE_READY", allowedRepository, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
 
     if (request.method === "GET" && url.pathname === "/scheduled/status") {
       if (!env.NUSA_EXECUTION_COORDINATOR) return json({ status: "UNAVAILABLE", reason: "PERSISTENT_EXECUTION_COORDINATOR_REQUIRED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 503);
