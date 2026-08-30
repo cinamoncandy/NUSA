@@ -121,7 +121,10 @@ function object(value: unknown): Record<string, unknown> {
 function validateCodingProposal(value: unknown): CodingProposal {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("CODING_PROPOSAL_INVALID");
   const proposal = value as Record<string, unknown>;
-  if (typeof proposal.patch !== "string" || !proposal.patch.trim()) throw new Error("CODING_PROPOSAL_PATCH_REQUIRED");
+  if (!Object.prototype.hasOwnProperty.call(proposal, "patch") || proposal.patch === undefined || proposal.patch === null || (typeof proposal.patch === "string" && !proposal.patch.trim())) {
+    throw new Error("CODING_PROPOSAL_PATCH_REQUIRED");
+  }
+  if (typeof proposal.patch !== "string") throw new Error("CODING_PROPOSAL_INVALID");
   return Object.freeze({ patch: proposal.patch });
 }
 

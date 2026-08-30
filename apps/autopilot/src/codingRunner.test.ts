@@ -247,7 +247,7 @@ describe("coding runner", () => {
 
   it("distinguishes valid JSON with an invalid proposal shape", async () => {
     const ai: WorkersAiBinding = {
-      async run() { return { response: JSON.stringify({ explanation: "missing patch" }) }; },
+      async run() { return { response: JSON.stringify({ patch: 42, explanation: "invalid patch shape" }) }; },
     };
     const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch);
     assert.equal(result.status, "EXECUTION_FAILED");
