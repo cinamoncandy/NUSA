@@ -1,6 +1,11 @@
 id: WO-0061
 title: "Process Complexity Reduction — Validation Consolidation & Lightweight Recovery Path"
-status: DRAFT
+status: IMPLEMENTED_PARTIAL
+implementation_notes_runtime:
+  - "2026-08-30: pnpm validate and validate:full added on main (PR #1231)"
+  - "2026-08-30: AGENTS.md lightweight recovery path and evidence scope present on main"
+  - "Remaining: owner acceptance to mark COMPLETED; optional deeper script consolidation beyond entrypoints"
+
 priority: P2
 owner: nusa
 repository: cinamoncandy/NUSA

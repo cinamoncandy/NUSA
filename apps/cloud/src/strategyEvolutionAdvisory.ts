@@ -26,12 +26,23 @@ export interface StrategyEvolutionAdvisoryInput {
   readonly evidence: StrategyEvolutionEvidence;
 }
 
+export interface StrategyEvolutionLearningExplanation {
+  readonly whatChanged: string;
+  readonly why: string;
+  readonly positiveEvidence: readonly string[];
+  readonly counterEvidence: readonly string[];
+  readonly missingEvidence: readonly string[];
+  readonly promotionBlocked: boolean;
+  readonly summary: string;
+}
+
 export interface StrategyEvolutionAdvisoryResult {
   readonly advisoryId: string;
   readonly currentState: EvolutionLifecycleState;
   readonly recommendedState: EvolutionLifecycleState;
   readonly recommendation: EvolutionRecommendation;
   readonly reasons: readonly string[];
+  readonly explanation: StrategyEvolutionLearningExplanation;
   readonly candidateId: string;
   readonly strategyFamilyId: string;
   readonly regime: string;
@@ -65,6 +76,88 @@ function recommendationState(current: EvolutionLifecycleState, recommendation: E
   if (recommendation === "DEMOTE") return "DEMOTED";
   if (recommendation === "PROMOTE") return "PROMOTED";
   return current;
+}
+
+const reasonText: Readonly<Record<string, string>> = Object.freeze({
+  CALIBRATION_DETERIORATION: "calibration deteriorated",
+  COST_EROSION: "modeled trading costs eroded the result",
+  DRAWDOWN_DETERIORATION: "drawdown evidence deteriorated",
+  EVIDENCE_UNCERTAIN_FAIL_CLOSED: "evidence is insufficient, stale, or conflicting",
+  INDEPENDENT_VERIFIED_EVIDENCE_SUPPORTS_PROMOTION_RECOMMENDATION: "independent verified evidence supports a promotion recommendation",
+  INFRASTRUCTURE_FAILURE: "infrastructure evidence failed",
+  NO_EVIDENCE_BACKED_STATE_CHANGE: "no evidence-backed state change was found",
+  PROVENANCE_FAILURE: "provenance evidence failed",
+  REGIME_DEGRADATION: "regime evidence deteriorated",
+  REPEATED_INDEPENDENT_FAILURES: "repeated independent failures were recorded",
+  RETIRED_IS_TERMINAL: "retirement is terminal",
+  STRUCTURALLY_DOMINATED: "the candidate is structurally dominated",
+});
+
+function uniqueSorted(values: readonly string[]): readonly string[] {
+  return freeze([...new Set(values)].sort());
+}
+
+function buildLearningExplanation(
+  input: StrategyEvolutionAdvisoryInput,
+  recommendation: EvolutionRecommendation,
+  recommendedState: EvolutionLifecycleState,
+  reasons: readonly string[],
+): StrategyEvolutionLearningExplanation {
+  const evidence = input.evidence;
+  const statuses = [
+    ["regime", evidence.regimeEvidence],
+    ["cost", evidence.costEvidence],
+    ["drawdown", evidence.drawdownEvidence],
+    ["provenance", evidence.provenanceEvidence],
+    ["infrastructure", evidence.infrastructureEvidence],
+  ] as const;
+  const positiveEvidence = statuses
+    .filter(([, status]) => status === "VERIFIED")
+    .map(([name]) => name + ":VERIFIED");
+  if (evidence.calibration.decision === "CALIBRATED") positiveEvidence.push("calibration:CALIBRATED");
+  if (evidence.independentEvidenceCount >= evidence.minimumIndependentEvidenceForPromotion) {
+    positiveEvidence.push("independent-evidence:" + evidence.independentEvidenceCount + "/" + evidence.minimumIndependentEvidenceForPromotion);
+  }
+
+  const counterEvidence = statuses
+    .filter(([, status]) => status === "FAILED" || status === "CONFLICTING")
+    .map(([name, status]) => name + ":" + status);
+  if (evidence.calibration.confidenceAction === "REDUCE") counterEvidence.push("calibration:REDUCE");
+  if (evidence.repeatedFailureCount > 0) counterEvidence.push("repeated-failures:" + evidence.repeatedFailureCount);
+  if (evidence.structurallyDominated) counterEvidence.push("structural-domination");
+
+  const missingEvidence = statuses
+    .filter(([, status]) => status === "INSUFFICIENT" || status === "STALE")
+    .map(([name, status]) => name + ":" + status);
+  if (evidence.calibration.decision !== "CALIBRATED") missingEvidence.push("calibration:CALIBRATED");
+  if (evidence.independentEvidenceCount < evidence.minimumIndependentEvidenceForPromotion) {
+    missingEvidence.push("independent-evidence:" + evidence.independentEvidenceCount + "/" + evidence.minimumIndependentEvidenceForPromotion);
+  }
+
+  const positive = uniqueSorted(positiveEvidence);
+  const counter = uniqueSorted(counterEvidence);
+  const missing = uniqueSorted(missingEvidence);
+  const why = reasons.length === 0
+    ? "no evidence-backed state change was found"
+    : reasons.map((reason) => reasonText[reason] ?? "reason code " + reason).join("; ");
+  const whatChanged = input.currentState === recommendedState
+    ? "state remains " + input.currentState + "; recommendation=" + recommendation
+    : "state changes " + input.currentState + " -> " + recommendedState + "; recommendation=" + recommendation;
+  const list = (values: readonly string[]): string => values.length === 0 ? "none recorded" : values.join(", ");
+  const summary = recommendation + " - " + whatChanged + ". Why: " + why
+    + ". Positive evidence: " + list(positive)
+    + ". Counter-evidence: " + list(counter)
+    + ". Missing evidence: " + list(missing) + ".";
+
+  return freeze({
+    whatChanged,
+    why,
+    positiveEvidence: positive,
+    counterEvidence: counter,
+    missingEvidence: missing,
+    promotionBlocked: recommendation !== "PROMOTE",
+    summary,
+  });
 }
 
 /** Advisory only. It cannot mutate lifecycle state, submit a promotion command, or grant authority. */
@@ -106,12 +199,14 @@ export function evaluateStrategyEvolutionAdvisory(input: StrategyEvolutionAdviso
     reasons.push("NO_EVIDENCE_BACKED_STATE_CHANGE");
   }
 
+  const recommendedState = recommendationState(input.currentState, recommendation);
   return freeze({
     advisoryId: input.advisoryId,
     currentState: input.currentState,
-    recommendedState: recommendationState(input.currentState, recommendation),
+    recommendedState,
     recommendation,
     reasons: freeze([...new Set(reasons)].sort()),
+    explanation: buildLearningExplanation(input, recommendation, recommendedState, freeze([...new Set(reasons)].sort())),
     candidateId: evidence.candidateId,
     strategyFamilyId: evidence.strategyFamilyId,
     regime: evidence.regime,
