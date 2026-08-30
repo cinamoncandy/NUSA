@@ -147,7 +147,7 @@ function parseProposalText(value: string): CodingProposal {
 
 function workersAiProposal(value: unknown): CodingProposal {
   const payload = object(value);
-  if (typeof payload.response !== "string" || !payload.response.trim()) throw new Error("CODING_PROPOSAL_INVALID");
+  if (typeof payload.response !== "string" || !payload.response.trim()) throw new Error("CODING_PROPOSAL_RESPONSE_INVALID");
   return parseProposalText(payload.response);
 }
 
