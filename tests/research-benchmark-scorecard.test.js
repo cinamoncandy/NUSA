@@ -8,6 +8,43 @@ function experiment(overrides = {}) {
   const market = overrides.market ?? "KRW-BTC";
   const interval = overrides.interval ?? "1d";
   const id = overrides.datasetId ?? `${market}-${interval}`;
+  const windowCount = overrides.windowCount ?? 4;
+  const averageBenchmarkReturn = overrides.averageBenchmarkReturn ?? 0.02;
+  const averageOutperformance = overrides.averageOutperformance ?? 0.01;
+  const strategyReturn = averageBenchmarkReturn + averageOutperformance;
+  const windows = Array.from({ length: windowCount }, (_, index) => ({
+    window: {
+      index,
+      trainStart: index * 10,
+      trainEnd: index * 10 + 4,
+      testStart: index * 10 + 5,
+      testEnd: index * 10 + 9,
+      trainPoints: [{ timestamp: index * 1_000 + 100, close: 100 }],
+      testPoints: [{ timestamp: index * 1_000 + 500, close: 100 }]
+    },
+    selectedCandidateId: "candidate-a",
+    trainResult: {},
+    candidateTrainScores: [],
+    selectionReason: "fixture",
+    testResult: {
+      metrics: {
+        totalReturn: strategyReturn,
+        benchmarkReturn: averageBenchmarkReturn,
+        excessReturn: averageOutperformance,
+        outperformance: averageOutperformance,
+        maxDrawdown: 0.05,
+        totalTradingCost: 1,
+        initialEquity: 10_000_000
+      },
+      benchmark: {
+        strategyReturn,
+        buyAndHoldReturn: averageBenchmarkReturn,
+        outperformance: averageOutperformance
+      },
+      performance: { trades: 2 }
+    }
+  }));
+  if (overrides.mutateWindowBenchmark) overrides.mutateWindowBenchmark(windows);
   return {
     manifest: {
       schemaVersion: 1,
@@ -29,7 +66,7 @@ function experiment(overrides = {}) {
     generatedAt: "2026-01-01T00:00:00.000Z",
     warnings: [],
     walkForwardResult: {
-      windows: [],
+      windows,
       candidateSelectionCounts: {},
       warnings: [],
       stabilityDiagnostics: {
@@ -41,7 +78,7 @@ function experiment(overrides = {}) {
         closedTradeNetProfit: 0,
         markedTotalReturn: overrides.totalReturn ?? 0.12,
         markedMaximumDrawdown: overrides.maximumDrawdown ?? 0.1,
-        windowCount: overrides.windowCount ?? 4,
+        windowCount,
         totalOosPoints: overrides.totalOosPoints ?? 80,
         totalOosClosedTrades: overrides.totalOosClosedTrades ?? 8,
         netProfit: 0,
@@ -56,11 +93,11 @@ function experiment(overrides = {}) {
         totalTradingCost: overrides.totalTradingCost ?? 3000,
         profitableWindowRatio: overrides.profitableWindowRatio ?? 0.75,
         positiveExpectancyWindowRatio: 0.75,
-        benchmarkOutperformanceWindowRatio: overrides.benchmarkOutperformanceWindowRatio ?? 0.75,
+        benchmarkOutperformanceWindowRatio: overrides.benchmarkOutperformanceWindowRatio ?? (averageOutperformance > 0 ? 1 : 0),
         equalWeight: {
-          averageReturn: 0.03,
-          averageBenchmarkReturn: overrides.averageBenchmarkReturn ?? 0.02,
-          averageOutperformance: overrides.averageOutperformance ?? 0.01
+          averageReturn: strategyReturn,
+          averageBenchmarkReturn,
+          averageOutperformance
         },
         sequentialCompounded: {
           initialEquity: overrides.initialEquity ?? 10_000_000,
@@ -93,7 +130,7 @@ test("ranks eligible slices deterministically and preserves provenance", () => {
 
 test("keeps ineligible evidence visible with fail-closed reasons", () => {
   const card = createResearchBenchmarkScorecard([
-    { id: "fragile", experiment: experiment({ windowCount: 1, totalOosPoints: 10, totalOosClosedTrades: 0, maximumDrawdown: 0.5, benchmarkOutperformanceWindowRatio: 0.25, selectionChurnRatio: 0.9 }) }
+    { id: "fragile", experiment: experiment({ windowCount: 1, totalOosPoints: 10, totalOosClosedTrades: 0, maximumDrawdown: 0.5, benchmarkOutperformanceWindowRatio: 1, selectionChurnRatio: 0.9 }) }
   ]);
   const score = card.slices[0];
   assert.equal(score.eligible, false);
@@ -104,7 +141,6 @@ test("keeps ineligible evidence visible with fail-closed reasons", () => {
     "MINIMUM_OOS_POINTS_NOT_MET",
     "MINIMUM_CLOSED_TRADES_NOT_MET",
     "MAXIMUM_DRAWDOWN_EXCEEDED",
-    "BENCHMARK_OUTPERFORMANCE_RATIO_NOT_MET",
     "SELECTION_CHURN_EXCEEDED"
   ]);
   assert.deepEqual(card.coverage.warnings, [
@@ -115,11 +151,11 @@ test("keeps ineligible evidence visible with fail-closed reasons", () => {
 });
 
 test("supports explicit versioned research thresholds without changing defaults", () => {
-  const weak = { id: "weak", experiment: experiment({ maximumDrawdown: 0.4, benchmarkOutperformanceWindowRatio: 0.4 }) };
+  const weak = { id: "weak", experiment: experiment({ maximumDrawdown: 0.4, averageOutperformance: -0.01, benchmarkOutperformanceWindowRatio: 0 }) };
   assert.equal(createResearchBenchmarkScorecard([weak]).slices[0].eligible, false);
   const relaxed = createResearchBenchmarkScorecard([weak], {
     maximumDrawdown: 0.5,
-    minimumBenchmarkOutperformanceWindowRatio: 0.4
+    minimumBenchmarkOutperformanceWindowRatio: 0
   });
   assert.equal(relaxed.slices[0].eligible, true);
   assert.equal(relaxed.policy.maximumDrawdown, 0.5);
@@ -143,6 +179,36 @@ test("rejects malformed aggregate evidence before ranking", () => {
       { id: "empty-equity", experiment: experiment({ initialEquity: 0 }) }
     ]),
     /initialEquity must be positive and finite/
+  );
+});
+
+test("rejects benchmark substitution inside an OOS window", () => {
+  const tampered = experiment({
+    mutateWindowBenchmark(windows) {
+      windows[0].testResult.benchmark.buyAndHoldReturn = -0.5;
+    }
+  });
+  assert.throws(
+    () => createResearchBenchmarkScorecard([{ id: "tampered-window", experiment: tampered }]),
+    /benchmark identity mismatch in OOS window/
+  );
+});
+
+test("rejects favorable aggregate benchmark rewriting", () => {
+  const tampered = experiment();
+  tampered.walkForwardResult.combinedOutOfSampleMetrics.equalWeight.averageBenchmarkReturn = -0.5;
+  assert.throws(
+    () => createResearchBenchmarkScorecard([{ id: "tampered-aggregate", experiment: tampered }]),
+    /benchmark aggregate evidence does not match OOS windows/
+  );
+});
+
+test("rejects missing OOS benchmark provenance windows", () => {
+  const tampered = experiment();
+  tampered.walkForwardResult.windows.pop();
+  assert.throws(
+    () => createResearchBenchmarkScorecard([{ id: "missing-window", experiment: tampered }]),
+    /benchmark window evidence count does not match aggregate windowCount/
   );
 });
 

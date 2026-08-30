@@ -63,6 +63,7 @@ const DEFAULT_POLICY: Required<ResearchBenchmarkPolicy> = Object.freeze({
   maximumSelectionChurnRatio: 0.75
 });
 
+const BENCHMARK_EPSILON = 1e-12;
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 
 function finiteNonNegative(value: number, name: string): void {
@@ -71,6 +72,10 @@ function finiteNonNegative(value: number, name: string): void {
 
 function ratio(value: number, name: string): void {
   if (!Number.isFinite(value) || value < 0 || value > 1) throw new Error(`${name} must be between 0 and 1`);
+}
+
+function nearlyEqual(left: number, right: number): boolean {
+  return Math.abs(left - right) <= BENCHMARK_EPSILON * Math.max(1, Math.abs(left), Math.abs(right));
 }
 
 function normalizePolicy(policy: ResearchBenchmarkPolicy): Required<ResearchBenchmarkPolicy> {
@@ -99,6 +104,62 @@ function validateExecutionCostEvidence(experiment: ResearchExperimentResult): vo
   });
 }
 
+/**
+ * The walk-forward engine owns the BUY_AND_HOLD benchmark definition. The scorecard must never
+ * trust a detached aggregate benchmark number: every aggregate is re-bound to the exact OOS
+ * window evidence produced by that experiment. This makes benchmark substitution or favorable
+ * aggregate rewriting fail closed before League qualification.
+ */
+function validateBenchmarkEvidence(experiment: ResearchExperimentResult): void {
+  const windows = experiment.walkForwardResult.windows;
+  const oos = experiment.walkForwardResult.combinedOutOfSampleMetrics;
+  if (windows.length !== oos.windowCount) {
+    throw new Error("benchmark window evidence count does not match aggregate windowCount");
+  }
+  if (windows.length === 0) return;
+
+  const benchmarkReturns: number[] = [];
+  const outperformance: number[] = [];
+  let outperformingWindows = 0;
+  for (const window of windows) {
+    const result = window.testResult;
+    const benchmark = result.benchmark;
+    const values = [
+      result.metrics.totalReturn,
+      result.metrics.benchmarkReturn,
+      result.metrics.excessReturn,
+      result.metrics.outperformance,
+      benchmark?.strategyReturn,
+      benchmark?.buyAndHoldReturn,
+      benchmark?.outperformance,
+    ];
+    if (benchmark == null || values.some((value) => typeof value !== "number" || !Number.isFinite(value))) {
+      throw new Error("benchmark OOS evidence must be finite and complete");
+    }
+    if (
+      !nearlyEqual(benchmark.strategyReturn, result.metrics.totalReturn)
+      || !nearlyEqual(benchmark.buyAndHoldReturn, result.metrics.benchmarkReturn)
+      || !nearlyEqual(benchmark.outperformance, result.metrics.outperformance)
+      || !nearlyEqual(result.metrics.excessReturn, result.metrics.outperformance)
+      || !nearlyEqual(benchmark.outperformance, benchmark.strategyReturn - benchmark.buyAndHoldReturn)
+    ) {
+      throw new Error("benchmark identity mismatch in OOS window");
+    }
+    benchmarkReturns.push(benchmark.buyAndHoldReturn);
+    outperformance.push(benchmark.outperformance);
+    if (benchmark.outperformance > 0) outperformingWindows += 1;
+  }
+
+  const average = (values: readonly number[]): number => values.reduce((sum, value) => sum + value, 0) / values.length;
+  if (
+    !nearlyEqual(oos.equalWeight.averageBenchmarkReturn, average(benchmarkReturns))
+    || !nearlyEqual(oos.equalWeight.averageOutperformance, average(outperformance))
+    || !nearlyEqual(oos.benchmarkOutperformanceWindowRatio, outperformingWindows / windows.length)
+  ) {
+    throw new Error("benchmark aggregate evidence does not match OOS windows");
+  }
+}
+
 function scoreSlice(slice: ResearchBenchmarkSlice, policy: Required<ResearchBenchmarkPolicy>): ResearchBenchmarkSliceScore {
   validateExecutionCostEvidence(slice.experiment);
   if (!slice.id.trim()) throw new Error("benchmark slice id is required");
@@ -124,6 +185,7 @@ function scoreSlice(slice: ResearchBenchmarkSlice, policy: Required<ResearchBenc
       throw new Error(`${name} must be a non-negative integer`);
     }
   }
+  validateBenchmarkEvidence(slice.experiment);
   if (!Number.isFinite(oos.sequentialCompounded.initialEquity) || oos.sequentialCompounded.initialEquity <= 0) {
     throw new Error("initialEquity must be positive and finite");
   }

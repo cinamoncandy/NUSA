@@ -11,6 +11,38 @@ function experiment(overrides = {}) {
   const market = overrides.market ?? "KRW-BTC";
   const interval = overrides.interval ?? "1d";
   const id = overrides.datasetId ?? `${market}-${interval}`;
+  const averageBenchmarkReturn = overrides.averageBenchmarkReturn ?? 0.02;
+  const averageOutperformance = overrides.averageOutperformance ?? 0.01;
+  const targetOutperformanceRatio = overrides.benchmarkOutperformanceWindowRatio ?? 0.75;
+  const windowCount = overrides.windowCount ?? (() => {
+    if (targetOutperformanceRatio === 0 || targetOutperformanceRatio === 1) return 4;
+    for (let count = 2; count <= 100; count += 1) {
+      if (Math.abs(targetOutperformanceRatio * count - Math.round(targetOutperformanceRatio * count)) < 1e-9) return count;
+    }
+    return 4;
+  })();
+  const positiveWindows = Math.round(targetOutperformanceRatio * windowCount);
+  const windowOutperformance = Array.from({ length: windowCount }, (_, index) => {
+    if (positiveWindows === 0) return averageOutperformance;
+    if (averageOutperformance >= 0) return index < positiveWindows ? averageOutperformance / targetOutperformanceRatio : 0;
+    if (index < positiveWindows) return 1e-6;
+    return (averageOutperformance * windowCount - positiveWindows * 1e-6) / (windowCount - positiveWindows);
+  });
+  const windows = windowOutperformance.map((outperformance) => ({
+    testResult: {
+      metrics: {
+        totalReturn: averageBenchmarkReturn + outperformance,
+        benchmarkReturn: averageBenchmarkReturn,
+        excessReturn: outperformance,
+        outperformance,
+      },
+      benchmark: {
+        strategyReturn: averageBenchmarkReturn + outperformance,
+        buyAndHoldReturn: averageBenchmarkReturn,
+        outperformance,
+      },
+    },
+  }));
   return {
     manifest: {
       schemaVersion: 1,
@@ -32,7 +64,7 @@ function experiment(overrides = {}) {
     generatedAt: "2026-01-01T00:00:00.000Z",
     warnings: [],
     walkForwardResult: {
-      windows: [],
+      windows,
       candidateSelectionCounts: {},
       warnings: [],
       stabilityDiagnostics: {
@@ -44,7 +76,7 @@ function experiment(overrides = {}) {
         closedTradeNetProfit: 0,
         markedTotalReturn: overrides.totalReturn ?? 0.12,
         markedMaximumDrawdown: overrides.maximumDrawdown ?? 0.1,
-        windowCount: overrides.windowCount ?? 4,
+        windowCount,
         totalOosPoints: overrides.totalOosPoints ?? 80,
         totalOosClosedTrades: overrides.totalOosClosedTrades ?? 8,
         netProfit: 0,
@@ -59,11 +91,11 @@ function experiment(overrides = {}) {
         totalTradingCost: overrides.totalTradingCost ?? 3000,
         profitableWindowRatio: overrides.profitableWindowRatio ?? 0.75,
         positiveExpectancyWindowRatio: 0.75,
-        benchmarkOutperformanceWindowRatio: overrides.benchmarkOutperformanceWindowRatio ?? 0.75,
+        benchmarkOutperformanceWindowRatio: targetOutperformanceRatio,
         equalWeight: {
-          averageReturn: 0.03,
-          averageBenchmarkReturn: overrides.averageBenchmarkReturn ?? 0.02,
-          averageOutperformance: overrides.averageOutperformance ?? 0.01
+          averageReturn: averageBenchmarkReturn + averageOutperformance,
+          averageBenchmarkReturn,
+          averageOutperformance
         },
         sequentialCompounded: {
           initialEquity: overrides.initialEquity ?? 10_000_000,
@@ -431,12 +463,21 @@ test("projects existing contextual research evidence instead of dropping it at t
 test("fails closed when canonical OOS observations are malformed", () => {
   const invalid = candidate("invalid-oos", "family-invalid");
   invalid.experiment.experimentConfig.candidates = [{ id: "invalid-oos" }];
+  invalid.experiment.walkForwardResult.combinedOutOfSampleMetrics.windowCount = 1;
+  invalid.experiment.walkForwardResult.combinedOutOfSampleMetrics.benchmarkOutperformanceWindowRatio = 1;
   invalid.experiment.walkForwardResult.windows = [{
     window: {
       index: 0,
       testPoints: [{ timestamp: 1, close: 100 }]
     },
     testResult: {
+      metrics: {
+        totalReturn: 0.03,
+        benchmarkReturn: 0.02,
+        excessReturn: 0.01,
+        outperformance: 0.01,
+      },
+      benchmark: { strategyReturn: 0.03, buyAndHoldReturn: 0.02, outperformance: 0.01 },
       decisions: [{
         timestamp: 1,
         market: "KRW-ETH",
