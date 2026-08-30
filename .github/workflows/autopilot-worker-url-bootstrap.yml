@@ -1,0 +1,31 @@
+name: Autopilot Worker URL Bootstrap
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/autopilot-worker-url-bootstrap.yml
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Configure public coding runner URL
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUSA_CODING_RUNNER_URL: https://nusa.desporin12.workers.dev/coding/execute
+        run: |
+          set -euo pipefail
+          if gh api "repos/$GITHUB_REPOSITORY/actions/variables/NUSA_CODING_RUNNER_URL" >/dev/null 2>&1; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/actions/variables/NUSA_CODING_RUNNER_URL" -f value="$NUSA_CODING_RUNNER_URL"
+          else
+            gh api --method POST "repos/$GITHUB_REPOSITORY/actions/variables" -f name='NUSA_CODING_RUNNER_URL' -f value="$NUSA_CODING_RUNNER_URL"
+          fi
+          value="$(gh api "repos/$GITHUB_REPOSITORY/actions/variables/NUSA_CODING_RUNNER_URL" --jq '.value')"
+          test "$value" = "$NUSA_CODING_RUNNER_URL"
