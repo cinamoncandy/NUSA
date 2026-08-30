@@ -4,6 +4,7 @@ on:
   workflow_run:
     workflows: ['CI']
     types: [completed]
+    branches: [main]
 
 permissions:
   contents: write
@@ -49,12 +50,11 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin cloudflare-production
-          changed="$(git diff --name-only "origin/cloudflare-production...${HEAD_SHA}")"
-          if grep -Eq '^(apps/autopilot/)' <<<"$changed"; then
-            echo 'deploy=true' >> "$GITHUB_OUTPUT"
-          else
+          if git diff --quiet "origin/cloudflare-production" "${HEAD_SHA}" -- apps/autopilot/; then
             echo 'deploy=false' >> "$GITHUB_OUTPUT"
-            echo 'No autopilot deployment-relevant change between Cloudflare production and verified main.'
+            echo 'No autopilot deployment-relevant tree difference between Cloudflare production and verified main.'
+          else
+            echo 'deploy=true' >> "$GITHUB_OUTPUT"
           fi
 
       - name: Promote exact verified revision to Cloudflare production branch
