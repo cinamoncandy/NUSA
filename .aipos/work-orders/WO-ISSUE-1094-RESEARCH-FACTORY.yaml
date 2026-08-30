@@ -1,0 +1,48 @@
+id: WO-ISSUE-1094-RESEARCH-FACTORY
+title: "Issue #1094 canonical hypothesis-to-OOS-to-robustness-to-PAPER candidate pipeline"
+status: IN_PROGRESS
+priority: P1
+owner: nusa
+repository: cinamoncandy/NUSA
+issue: 1094
+base_branch: main
+base_commit: 63736d6722119f1f7e9e2ac0b1b752dd370febbd
+implementation_branch: codex/reconcile-aipos-after-1258
+implementation_commit: 8f9016d837e0ef3e641849b7321feb0fbdd2b6d7
+pull_request: 1281
+objective: "Audit and, only where a repository-side gap is proven, complete the canonical research-factory path from deterministic hypothesis and candidate provenance through point-in-time OOS, cost-aware robustness, qualification, and truthful PAPER evidence admission."
+architecture_impact:
+  acknowledged: true
+  analysis: "Reuse the existing research run factory, walk-forward/OOS, DSR/PBO, regime, robustness, League, and PAPER provenance components; do not create a parallel research engine or fabricate longitudinal evidence."
+  references:
+    - apps/desktop/src/cloud/researchRunFactory.ts
+    - apps/desktop/src/cloud/researchFactoryQualification.ts
+    - scripts/research-real-market-run.js
+    - apps/cloud/src/paperRealizedPeriodProducer.ts
+scope:
+  - deterministic_candidate_and_hypothesis_provenance
+  - point_in_time_dataset_binding
+  - cost_aware_oos_and_robustness
+  - fail_closed_qualification
+  - truthful_paper_evidence_admission
+prohibited:
+  - synthetic_market_data
+  - fabricated_paper_history
+  - lookahead_or_leakage
+  - candidate_provenance_mismatch
+  - live_execution
+  - broker_mutation
+  - authority_expansion
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  mutationAllowed: false
+implementation:
+  current_main_contains:
+    - apps/desktop/src/cloud/researchRunFactory.ts
+    - apps/desktop/src/cloud/researchFactoryQualification.ts
+    - scripts/research-real-market-run.js
+    - apps/cloud/src/paperRealizedPeriodProducer.ts
+  known_truth: "The canonical research-factory code is present; actual longitudinal realized PAPER history must remain unavailable/fail-closed until produced by a truthful runtime source."
+  next: "Compare Issue #1094 acceptance to current-main contracts and tests; implement only a missing repository-controlled gap, then record truthful evidence."
