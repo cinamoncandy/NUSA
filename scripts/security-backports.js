@@ -38,6 +38,16 @@ function packageRoot(name, version) {
   return root;
 }
 
+function optionalPackageRoot(name, version) {
+  const roots = resolvePackageRoots(name, version);
+  if (roots.length === 0) return null;
+  if (roots.length !== 1) throw new Error(`SECURITY_BACKPORT_PACKAGE_RESOLUTION:${name}@${version}:${roots.length}`);
+  const root = roots[0];
+  const metadata = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+  if (metadata.name !== name || metadata.version !== version) throw new Error(`SECURITY_BACKPORT_VERSION_MISMATCH:${name}@${version}`);
+  return root;
+}
+
 function patchExact(text, before, after, expectedCount, label) {
   if (text.includes(after)) {
     const count = text.split(after).length - 1;
@@ -54,15 +64,6 @@ function patchImageSizeIcns(text) {
   return patchExact(text, before, after, 2, "image-size/icns-offset");
 }
 
-// utils.js's findBox already guards its own internal box-skip loop against a zero-size box,
-// but that guard only fires when the box it lands on doesn't match the requested name. It
-// returns immediately on a name match, size included -- so a matching box with size 0 makes
-// findBox return the same offset it was given. jxl.js's extractPartialStreams then advances
-// its own scan offset by `jxlpBox.offset + jxlpBox.size`, which is unchanged when size is 0,
-// so the next findBox call starts over at the same offset and finds the same zero-size box
-// again: an unbounded loop pushing ever-larger buffers until the process runs out of memory
-// (confirmed with a crafted JXL container). This is the part of GHSA-5p2g-fcmc-qvqq the
-// upstream box-progress guard does not cover.
 function patchImageSizeJxlPartialStreams(text) {
   const before = "offset = jxlpBox.offset + jxlpBox.size;";
   const after = "offset = jxlpBox.offset + (jxlpBox.size > 0 ? jxlpBox.size : 8);";
@@ -94,20 +95,24 @@ function writePatched(file, patcher) {
 }
 
 function applyBackports() {
-  const imageRoot = packageRoot("image-size", EXPECTED.imageSize);
-  const nanoidRoot = packageRoot("nanoid", EXPECTED.nanoid);
+  const imageRoot = optionalPackageRoot("image-size", EXPECTED.imageSize);
+  const nanoidRoot = optionalPackageRoot("nanoid", EXPECTED.nanoid);
 
-  writePatched(path.join(imageRoot, "dist", "types", "icns.js"), patchImageSizeIcns);
-  writePatched(path.join(imageRoot, "dist", "types", "jxl.js"), patchImageSizeJxlPartialStreams);
+  if (imageRoot) {
+    writePatched(path.join(imageRoot, "dist", "types", "icns.js"), patchImageSizeIcns);
+    writePatched(path.join(imageRoot, "dist", "types", "jxl.js"), patchImageSizeJxlPartialStreams);
+  }
 
-  const sync = ["index.js", "index.cjs", "index.browser.js", "index.browser.cjs"];
-  for (const relative of sync) writePatched(path.join(nanoidRoot, relative), (text) => patchNanoidSync(text, `nanoid/${relative}`));
+  if (nanoidRoot) {
+    const sync = ["index.js", "index.cjs", "index.browser.js", "index.browser.cjs"];
+    for (const relative of sync) writePatched(path.join(nanoidRoot, relative), (text) => patchNanoidSync(text, `nanoid/${relative}`));
 
-  const asyncBrowser = ["async/index.browser.js", "async/index.browser.cjs"];
-  for (const relative of asyncBrowser) writePatched(path.join(nanoidRoot, relative), (text) => patchNanoidAsyncBrowser(text, `nanoid/${relative}`));
+    const asyncBrowser = ["async/index.browser.js", "async/index.browser.cjs"];
+    for (const relative of asyncBrowser) writePatched(path.join(nanoidRoot, relative), (text) => patchNanoidAsyncBrowser(text, `nanoid/${relative}`));
 
-  const asyncNode = ["async/index.js", "async/index.cjs"];
-  for (const relative of asyncNode) writePatched(path.join(nanoidRoot, relative), (text) => patchNanoidAsyncNode(text, `nanoid/${relative}`));
+    const asyncNode = ["async/index.js", "async/index.cjs"];
+    for (const relative of asyncNode) writePatched(path.join(nanoidRoot, relative), (text) => patchNanoidAsyncNode(text, `nanoid/${relative}`));
+  }
 
   return verifyBackports();
 }
@@ -116,8 +121,8 @@ function verifyBackports() {
   const findings = [];
   let imageRoot;
   let nanoidRoot;
-  try { imageRoot = packageRoot("image-size", EXPECTED.imageSize); } catch (error) { findings.push(String(error.message)); }
-  try { nanoidRoot = packageRoot("nanoid", EXPECTED.nanoid); } catch (error) { findings.push(String(error.message)); }
+  try { imageRoot = optionalPackageRoot("image-size", EXPECTED.imageSize); } catch (error) { findings.push(String(error.message)); }
+  try { nanoidRoot = optionalPackageRoot("nanoid", EXPECTED.nanoid); } catch (error) { findings.push(String(error.message)); }
 
   if (imageRoot) {
     const icns = fs.readFileSync(path.join(imageRoot, "dist", "types", "icns.js"), "utf8");
@@ -146,11 +151,11 @@ function verifyBackports() {
     findings,
     packages: { "image-size": EXPECTED.imageSize, nanoid: EXPECTED.nanoid },
     controls: {
-      "GHSA-w3rx-r6r6-pgpr": findings.every((item) => !item.startsWith("IMAGE_SIZE_ICNS")),
-      "GHSA-5p2g-fcmc-qvqq": findings.every((item) => !item.startsWith("IMAGE_SIZE_BOX") && !item.startsWith("IMAGE_SIZE_JXL")),
-      "GHSA-2v37-7h3g-55p8": findings.every((item) => !item.startsWith("NANOID"))
+      "GHSA-w3rx-r6r6-pgpr": !imageRoot || findings.every((item) => !item.startsWith("IMAGE_SIZE_ICNS")),
+      "GHSA-5p2g-fcmc-qvqq": !imageRoot || findings.every((item) => !item.startsWith("IMAGE_SIZE_BOX") && !item.startsWith("IMAGE_SIZE_JXL")),
+      "GHSA-2v37-7h3g-55p8": !nanoidRoot || findings.every((item) => !item.startsWith("NANOID"))
     }
   };
 }
 
-module.exports = { EXPECTED, resolvePackageRoots, packageRoot, patchExact, patchImageSizeIcns, patchImageSizeJxlPartialStreams, patchNanoidSync, patchNanoidAsyncBrowser, patchNanoidAsyncNode, applyBackports, verifyBackports };
+module.exports = { EXPECTED, resolvePackageRoots, packageRoot, optionalPackageRoot, patchExact, patchImageSizeIcns, patchImageSizeJxlPartialStreams, patchNanoidSync, patchNanoidAsyncBrowser, patchNanoidAsyncNode, applyBackports, verifyBackports };

@@ -61,6 +61,8 @@ const riskEvidence = Object.freeze({
   maximumDrawdownContribution: 0.1,
   diversificationBenefit: 0.03,
   minimumDiversificationBenefit: 0.01,
+  maximumAbsoluteCandidateCorrelation: 0.4,
+  maximumAllowedCandidateCorrelation: 0.7,
   trustedEvidence: createPaperPortfolioTrustedLongitudinalEvidence({
     evaluationId: "risk-eval-881",
     candidateId: "candidate-881",
@@ -71,6 +73,7 @@ const riskEvidence = Object.freeze({
     evidencePeriods: 40,
     portfolioDrawdownContribution: 0.08,
     diversificationBenefit: 0.03,
+    maximumAbsoluteCandidateCorrelation: 0.4,
     trustedRun,
     periodIds: Array.from({ length: 40 }, (_, index) => `period-${index}`),
     outcomeReceiptFingerprints: Array.from({ length: 40 }, (_, index) => String(index).padStart(64, "0"))
@@ -140,6 +143,7 @@ test("correlation, regime co-failure and concentration force abstention", () => 
   }, policy);
   assert.equal(correlated.decision, "ABSTAIN");
   assert.ok(correlated.reasons.includes("CORRELATION_LIMIT_EXCEEDED"));
+  assert.ok(correlated.reasons.includes("RISK_CANDIDATE_DEPENDENCE_MISMATCH"));
 
   const coFailure = evaluatePaperPortfolioAdvisory({
     ...input,
@@ -154,6 +158,16 @@ test("correlation, regime co-failure and concentration force abstention", () => 
   }, policy);
   assert.equal(concentrated.decision, "ABSTAIN");
   assert.ok(concentrated.reasons.includes("PORTFOLIO_CONCENTRATION_LIMIT_REACHED"));
+});
+
+test("advisory correlation cannot diverge from trusted risk dependence evidence", () => {
+  const result = evaluatePaperPortfolioAdvisory({
+    ...input,
+    evidence: { ...evidence, maximumPeerCorrelation: 0.2 }
+  }, policy);
+  assert.equal(result.decision, "ABSTAIN");
+  assert.equal(result.recommendedWeight, 0);
+  assert.ok(result.reasons.includes("RISK_CANDIDATE_DEPENDENCE_MISMATCH"));
 });
 
 test("fees and slippage are charged before positive-edge advice", () => {

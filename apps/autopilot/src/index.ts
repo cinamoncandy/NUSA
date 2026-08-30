@@ -6,7 +6,7 @@ import { prepareProductionExecution } from "./productionExecutionSpine";
 import {
   acquirePersistentExecution,
   markPersistentExecutionDispatched,
-  readScheduledRuntimeReceipt,
+  readScheduledRuntimeEvidence,
   recordScheduledRuntimeReceipt,
   type ExecutionCoordinatorNamespace,
 } from "./executionCoordinator";
@@ -59,11 +59,13 @@ export default {
     if (request.method === "GET" && url.pathname === "/scheduled/status") {
       if (!env.NUSA_EXECUTION_COORDINATOR) return json({ status: "UNAVAILABLE", reason: "PERSISTENT_EXECUTION_COORDINATOR_REQUIRED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 503);
       try {
-        const receipt = await readScheduledRuntimeReceipt(env.NUSA_EXECUTION_COORDINATOR);
+        const evidence = await readScheduledRuntimeEvidence(env.NUSA_EXECUTION_COORDINATOR);
         return json({
-          status: receipt ? "OBSERVED" : "AWAITING_FIRST_SCHEDULED_EVENT",
+          status: evidence.receipt ? "OBSERVED" : "AWAITING_FIRST_SCHEDULED_EVENT",
           deploymentRevision: env.NUSA_DEPLOYMENT_REVISION?.trim() || "UNVERIFIED",
-          receipt,
+          receipt: evidence.receipt,
+          history: evidence.history,
+          summary: evidence.summary,
           liveAuthority: "NONE",
           productionMutationAllowed: false,
           aiAuthority: "ZERO_AUTHORITY",

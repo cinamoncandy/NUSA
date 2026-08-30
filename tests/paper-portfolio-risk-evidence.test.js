@@ -31,6 +31,8 @@ const baseInput = {
   maximumDrawdownContribution: 0.1,
   diversificationBenefit: 0.03,
   minimumDiversificationBenefit: 0.01,
+  maximumAbsoluteCandidateCorrelation: 0.45,
+  maximumAllowedCandidateCorrelation: 0.85,
 };
 
 const trustedEvidenceFor = (value) => createPaperPortfolioTrustedLongitudinalEvidence({
@@ -50,10 +52,11 @@ const input = (overrides = {}) => {
   return { ...value, trustedEvidence };
 };
 
-test("accepts only verified point-in-time risk evidence inside drawdown and diversification bounds", () => {
+test("accepts only verified point-in-time risk evidence inside portfolio bounds", () => {
   const result = evaluatePaperPortfolioRiskEvidence(input());
   assert.equal(result.decision, "ACCEPT");
   assert.deepEqual(result.reasons, []);
+  assert.equal(result.maximumAbsoluteCandidateCorrelation, 0.45);
   assert.equal(result.liveAuthority, "NONE");
   assert.equal(result.productionMutationAllowed, false);
   assert.equal(result.aiAuthority, "ZERO_AUTHORITY");
@@ -95,10 +98,39 @@ test("missing diversification benefit forces abstention", () => {
   assert.ok(result.reasons.includes("INSUFFICIENT_DIVERSIFICATION_BENEFIT"));
 });
 
+test("high candidate dependence forces abstention", () => {
+  const result = evaluatePaperPortfolioRiskEvidence(input({ maximumAbsoluteCandidateCorrelation: 0.96 }));
+  assert.equal(result.decision, "ABSTAIN");
+  assert.ok(result.reasons.includes("CANDIDATE_DEPENDENCE_LIMIT_EXCEEDED"));
+});
+
+test("correlation evidence is fingerprint-bound and cannot be swapped after verification", () => {
+  const trustedEvidence = trustedEvidenceFor(baseInput);
+  const result = evaluatePaperPortfolioRiskEvidence(input({
+    maximumAbsoluteCandidateCorrelation: 0.84,
+    trustedEvidence,
+  }));
+  assert.equal(result.decision, "ABSTAIN");
+  assert.ok(result.reasons.includes("TRUSTED_PAPER_EVIDENCE_FINGERPRINT_MISMATCH"));
+});
+
+test("trusted evidence cannot be rebound to another workflow run", () => {
+  const trustedEvidence = trustedEvidenceFor(baseInput);
+  const reboundRun = {
+    ...trustedRun,
+    workflowRunId: trustedRun.workflowRunId + 1,
+    workflowRunUrl: `https://github.com/${trustedRun.repository}/actions/runs/${trustedRun.workflowRunId + 1}`,
+  };
+  const result = evaluatePaperPortfolioRiskEvidence(input({ trustedEvidence, trustedRun: reboundRun }));
+  assert.equal(result.decision, "ABSTAIN");
+  assert.ok(result.reasons.includes("TRUSTED_PAPER_RUN_BINDING_MISMATCH"));
+});
+
 test("malformed provenance and non-finite risk numerics fail closed", () => {
   assert.throws(() => evaluatePaperPortfolioRiskEvidence(input({ datasetContentSha256: "bad" })), /sha256/);
   assert.throws(() => evaluatePaperPortfolioRiskEvidence(input({ portfolioDrawdownContribution: Number.NaN })), /finite/);
   assert.throws(() => evaluatePaperPortfolioRiskEvidence(input({ diversificationBenefit: Number.POSITIVE_INFINITY })), /finite/);
+  assert.throws(() => evaluatePaperPortfolioRiskEvidence(input({ maximumAbsoluteCandidateCorrelation: 1.01 })), /between 0 and 1/);
 });
 
 test("caller-asserted VERIFIED evidence without the canonical capability stays abstained", () => {

@@ -176,6 +176,22 @@ export function appendResearchTrial(records: readonly ResearchTrialRecord[], inp
   return Object.freeze([...records, record]);
 }
 
+export function appendResearchTrialIdempotent(records: readonly ResearchTrialRecord[], input: ResearchTrialInput): readonly ResearchTrialRecord[] {
+  verifyResearchTrialLedger(records);
+  const normalized = validateInput(input);
+  const existing = records.find((record) => record.trialId === normalized.trialId);
+  if (existing == null) return appendResearchTrial(records, normalized);
+
+  const { schemaVersion: _schemaVersion, sequence: _sequence, previousRecordHash: _previousRecordHash, recordHash: _recordHash, ...existingInput } = existing;
+  if (canonicalSerializeResearchTrial(existingInput) !== canonicalSerializeResearchTrial(normalized)) {
+    throw new ResearchTrialLedgerError(
+      "REPLAY_EVIDENCE_MISMATCH",
+      `trialId ${normalized.trialId} replay does not match persisted evidence`,
+    );
+  }
+  return records;
+}
+
 export function verifyResearchTrialLedger(records: readonly ResearchTrialRecord[]): void {
   const trialIds = new Set<string>();
   const searchOrdinals = new Map<string, number>();

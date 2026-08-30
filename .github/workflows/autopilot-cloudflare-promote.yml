@@ -4,6 +4,7 @@ on:
   workflow_run:
     workflows: ['CI']
     types: [completed]
+    branches: [main]
 
 permissions:
   contents: write
@@ -16,8 +17,11 @@ jobs:
   promote:
     name: Promote exact CI-verified Worker revision
     if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'main'
+      ${{
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_repository.full_name == github.repository
+      }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -27,18 +31,30 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 2
 
+      - name: Verify exact current main revision
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          current_main="$(git rev-parse origin/main)"
+          test "$current_main" = "$HEAD_SHA"
+          echo "Verified CI revision is current main: $HEAD_SHA"
+
       - name: Verify autopilot deployment-relevant change
         id: changes
         shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          head_sha='${{ github.event.workflow_run.head_sha }}'
-          changed="$(git diff-tree --no-commit-id --name-only -r "${head_sha}^" "${head_sha}")"
-          if grep -Eq '^(apps/autopilot/)' <<<"$changed"; then
-            echo 'deploy=true' >> "$GITHUB_OUTPUT"
-          else
+          git fetch origin cloudflare-production
+          if git diff --quiet "origin/cloudflare-production" "${HEAD_SHA}" -- apps/autopilot/; then
             echo 'deploy=false' >> "$GITHUB_OUTPUT"
-            echo 'No autopilot deployment-relevant change in CI-verified commit.'
+            echo 'No autopilot deployment-relevant tree difference between Cloudflare production and verified main.'
+          else
+            echo 'deploy=true' >> "$GITHUB_OUTPUT"
           fi
 
       - name: Promote exact verified revision to Cloudflare production branch
@@ -48,8 +64,6 @@ jobs:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          # No-op CI completions need only HEAD and its parent. Fetch full main history
-          # only when a deployment-relevant autopilot change actually needs ancestry checks.
           git fetch --unshallow --no-tags origin main
           git fetch origin cloudflare-production
           current_sha="$(git rev-parse origin/cloudflare-production)"
