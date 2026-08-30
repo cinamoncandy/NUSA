@@ -52,14 +52,12 @@ describe("GitHub Actions OIDC", () => {
     await verifyGithubActionsOidcToken(valid.token, repository, valid.fetch, now);
   });
 
-  it("accepts the trusted worker dispatch bridge workflow", async () => {
-    const bridge = await fixture({ workflow_ref: `${repository}/.github/workflows/autopilot-worker-dispatch-bridge.yml@refs/heads/main` });
-    await verifyGithubActionsOidcToken(bridge.token, repository, bridge.fetch, now);
-  });
-
   it("rejects a token from another workflow or branch", async () => {
     const wrongWorkflow = await fixture({ workflow_ref: `${repository}/.github/workflows/ci.yml@refs/heads/main` });
     await assert.rejects(() => verifyGithubActionsOidcToken(wrongWorkflow.token, repository, wrongWorkflow.fetch, now), /CODING_RUNNER_OIDC_WORKFLOW_INVALID/);
+
+    const obsoleteBridge = await fixture({ workflow_ref: `${repository}/.github/workflows/autopilot-worker-dispatch-bridge.yml@refs/heads/main` });
+    await assert.rejects(() => verifyGithubActionsOidcToken(obsoleteBridge.token, repository, obsoleteBridge.fetch, now), /CODING_RUNNER_OIDC_WORKFLOW_INVALID/);
 
     const wrongRef = await fixture({ ref: "refs/heads/feature" });
     await assert.rejects(() => verifyGithubActionsOidcToken(wrongRef.token, repository, wrongRef.fetch, now), /CODING_RUNNER_OIDC_REF_INVALID/);
