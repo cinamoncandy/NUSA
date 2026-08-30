@@ -200,6 +200,41 @@ test("bridges a real research run through benchmark scorecard, League ranking, a
   assert.ok(result.reasons.includes("RESEARCH_TIER_ONLY"));
 });
 
+test("emits a deterministic run provenance identity for the complete research evidence set", () => {
+  const first = buildResearchRunLeague([
+    candidate("identity-a", "family-a"),
+    candidate("identity-b", "family-b", { totalReturn: 0.09 }),
+  ]);
+  const second = buildResearchRunLeague([
+    candidate("identity-b", "family-b", { totalReturn: 0.09 }),
+    candidate("identity-a", "family-a"),
+  ]);
+
+  assert.equal(first.provenance.runFingerprintSha256, second.provenance.runFingerprintSha256);
+  assert.equal(first.provenance.benchmarkIdentity.kind, "BUY_AND_HOLD");
+  assert.equal(first.provenance.candidateBindings.length, 2);
+  assert.ok(Object.isFrozen(first.provenance));
+  assert.ok(Object.isFrozen(first.provenance.candidateBindings));
+});
+
+test("rejects mixed source commits or cost model identities before ranking", () => {
+  const sourceMismatch = candidate("source-a", "family-a");
+  const sourceOther = candidate("source-b", "family-b");
+  sourceOther.candidateSpecification.codeSha = "b".repeat(40);
+  assert.throws(
+    () => buildResearchRunLeague([sourceMismatch, sourceOther]),
+    (error) => error instanceof ResearchRunLeagueBridgeError && error.code === "CANDIDATE_SOURCE_MISMATCH",
+  );
+
+  const costMismatch = candidate("cost-a", "family-a");
+  const costOther = candidate("cost-b", "family-b");
+  costOther.candidateSpecification.costModelVersion = "different-cost-v1";
+  assert.throws(
+    () => buildResearchRunLeague([costMismatch, costOther]),
+    (error) => error instanceof ResearchRunLeagueBridgeError && error.code === "COST_MODEL_IDENTITY_MISMATCH",
+  );
+});
+
 test("refuses to allocate across candidates that carry only benchmark evidence", () => {
   // The real research run currently produces benchmark/OOS evidence only -- no DSR, regime,
   // ghost, counterfactual, or PAPER evidence -- so evidence breadth is 0. The allocation gate
