@@ -48,6 +48,8 @@ async function main() {
   if (!Number.isSafeInteger(observedAt) || observedAt < 0) throw new Error("SCHEDULED_RECEIPT_TIMESTAMP_INVALID");
   const ageMs = Date.now() - observedAt;
   if (ageMs < 0 || ageMs > maxReceiptAgeMs) throw new Error(`SCHEDULED_RECEIPT_STALE:${ageMs}`);
+  const history = Array.isArray(scheduled.history) ? scheduled.history : [];
+  const summary = scheduled.summary && typeof scheduled.summary === "object" ? scheduled.summary : null;
 
   console.log(JSON.stringify({
     proof: "CLOUDFLARE_AUTOPILOT_RUNTIME_VERIFIED",
@@ -57,6 +59,10 @@ async function main() {
     scheduledReason: scheduled.receipt.reason,
     headSha: scheduled.receipt.headSha,
     workflowRunId: scheduled.receipt.workflowRunId,
+    receiptCount: summary?.receiptCount ?? (history.length || 1),
+    windowStart: summary?.windowStart ?? history[0]?.scheduledTime ?? observedAt,
+    windowEnd: summary?.windowEnd ?? history.at(-1)?.scheduledTime ?? scheduled.receipt.scheduledTime,
+    windowSpanMs: summary?.windowSpanMs ?? (history.length > 1 ? history.at(-1).scheduledTime - history[0].scheduledTime : 0),
     liveAuthority: "NONE",
     productionMutationAllowed: false,
     aiAuthority: "ZERO_AUTHORITY",

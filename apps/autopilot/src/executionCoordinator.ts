@@ -42,7 +42,28 @@ export interface ScheduledRuntimeReceipt {
   aiAuthority: "ZERO_AUTHORITY";
 }
 
+export interface ScheduledRuntimeEvidenceSummary {
+  readonly receiptCount: number;
+  readonly windowStart: number | null;
+  readonly windowEnd: number | null;
+  readonly windowSpanMs: number;
+  readonly statusCounts: Readonly<Record<string, number>>;
+}
+
+export interface ScheduledRuntimeEvidenceSnapshot {
+  readonly receipt: ScheduledRuntimeReceipt | null;
+  readonly history: readonly ScheduledRuntimeReceipt[];
+  readonly summary: ScheduledRuntimeEvidenceSummary;
+}
+
+interface ScheduledRuntimeReceiptHistory {
+  schemaVersion: 1;
+  receipts: readonly ScheduledRuntimeReceipt[];
+}
+
 const SCHEDULED_RECEIPT_COORDINATOR_KEY = "scheduled-runtime-observability";
+const SCHEDULED_RECEIPT_HISTORY_KEY = "scheduled-runtime-receipts-v1";
+const MAX_SCHEDULED_RECEIPTS = 120;
 const EVOLVE_LEARNING_COORDINATOR_KEY = "evolve-learning-memory";
 const json = (body: unknown, status = 200): Response => new Response(JSON.stringify(body), {
   status,
@@ -82,12 +103,64 @@ function validScheduledReceipt(value: unknown): value is ScheduledRuntimeReceipt
     && candidate.aiAuthority === "ZERO_AUTHORITY";
 }
 
+function sameScheduledReceipt(left: ScheduledRuntimeReceipt, right: ScheduledRuntimeReceipt): boolean {
+  return left.scheduledTime === right.scheduledTime
+    && left.observedAt === right.observedAt
+    && left.status === right.status
+    && left.reason === right.reason
+    && left.headSha === right.headSha
+    && left.workflowRunId === right.workflowRunId;
+}
+
+function validScheduledReceiptHistory(value: unknown): value is ScheduledRuntimeReceiptHistory {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<ScheduledRuntimeReceiptHistory>;
+  if (candidate.schemaVersion !== 1 || !Array.isArray(candidate.receipts) || candidate.receipts.length > MAX_SCHEDULED_RECEIPTS) return false;
+  const scheduledTimes = new Set<number>();
+  for (const receipt of candidate.receipts) {
+    if (!validScheduledReceipt(receipt) || scheduledTimes.has(receipt.scheduledTime)) return false;
+    scheduledTimes.add(receipt.scheduledTime);
+  }
+  return true;
+}
+
+function sortScheduledReceipts(receipts: readonly ScheduledRuntimeReceipt[]): readonly ScheduledRuntimeReceipt[] {
+  return Object.freeze([...receipts].sort((left, right) => left.scheduledTime - right.scheduledTime || left.observedAt - right.observedAt));
+}
+
+function summarizeScheduledReceipts(receipts: readonly ScheduledRuntimeReceipt[]): ScheduledRuntimeEvidenceSummary {
+  const sorted = sortScheduledReceipts(receipts);
+  const statusCounts: Record<string, number> = {};
+  for (const receipt of sorted) statusCounts[receipt.status] = (statusCounts[receipt.status] ?? 0) + 1;
+  const windowStart = sorted[0]?.scheduledTime ?? null;
+  const windowEnd = sorted.at(-1)?.scheduledTime ?? null;
+  return Object.freeze({
+    receiptCount: sorted.length,
+    windowStart,
+    windowEnd,
+    windowSpanMs: windowStart === null || windowEnd === null ? 0 : windowEnd - windowStart,
+    statusCounts: Object.freeze(statusCounts),
+  });
+}
+
+function validScheduledRuntimeSummary(value: unknown): value is ScheduledRuntimeEvidenceSummary {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<ScheduledRuntimeEvidenceSummary>;
+  if (!Number.isSafeInteger(candidate.receiptCount) || Number(candidate.receiptCount) < 0) return false;
+  if (candidate.windowStart !== null && !validSafeTimestamp(candidate.windowStart)) return false;
+  if (candidate.windowEnd !== null && !validSafeTimestamp(candidate.windowEnd)) return false;
+  if (!Number.isSafeInteger(candidate.windowSpanMs) || Number(candidate.windowSpanMs) < 0) return false;
+  if (!candidate.statusCounts || typeof candidate.statusCounts !== "object" || Array.isArray(candidate.statusCounts)) return false;
+  return Object.values(candidate.statusCounts).every((count) => Number.isSafeInteger(count) && Number(count) >= 0);
+}
+
 export class ExecutionCoordinator {
   constructor(private readonly ctx: DurableObjectStateLike) {}
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    if (request.method === "GET" && url.pathname === "/scheduled-receipt") return this.readScheduledReceipt();
+    if (request.method === "GET" && url.pathname === "/scheduled-receipt") return this.readScheduledReceiptLegacy();
+    if (request.method === "GET" && url.pathname === "/scheduled-receipt-history") return this.readScheduledReceipt();
     if (request.method === "GET" && url.pathname === "/evolve-learning-memory") return this.readEvolutionLearningMemory();
     if (request.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405);
     if (url.pathname === "/acquire") return this.acquire(await request.json());
@@ -132,13 +205,56 @@ export class ExecutionCoordinator {
   private async writeScheduledReceipt(value: unknown): Promise<Response> {
     if (!validScheduledReceipt(value)) return json({ error: "SCHEDULED_RUNTIME_RECEIPT_INVALID" }, 400);
     const receipt = Object.freeze({ ...value });
-    await this.ctx.storage.put("scheduled-receipt", receipt);
+    let current: ScheduledRuntimeReceiptHistory = { schemaVersion: 1, receipts: Object.freeze([]) };
+    try {
+      current = await this.readScheduledReceiptHistory();
+    } catch {
+      return json({ error: "SCHEDULED_RUNTIME_RECEIPT_CORRUPT" }, 500);
+    }
+    const existing = current.receipts.find((candidate) => candidate.scheduledTime === receipt.scheduledTime);
+    if (existing) {
+      if (!sameScheduledReceipt(existing, receipt)) return json({ error: "SCHEDULED_RUNTIME_RECEIPT_IDENTITY_CONFLICT" }, 409);
+      return json({ updated: false, receipt: existing });
+    }
+    const receipts = sortScheduledReceipts([...current.receipts, receipt]).slice(-MAX_SCHEDULED_RECEIPTS);
+    const history: ScheduledRuntimeReceiptHistory = Object.freeze({ schemaVersion: 1, receipts: Object.freeze(receipts) });
+    await this.ctx.storage.put(SCHEDULED_RECEIPT_HISTORY_KEY, history);
     return json({ updated: true, receipt });
   }
 
   private async readScheduledReceipt(): Promise<Response> {
-    const receipt = await this.ctx.storage.get<ScheduledRuntimeReceipt>("scheduled-receipt");
-    return json({ receipt: receipt ?? null });
+    try {
+      const history = await this.readScheduledReceiptHistory();
+      const receipts = sortScheduledReceipts(history.receipts);
+      return json({
+        receipt: receipts.at(-1) ?? null,
+        history: receipts,
+        summary: summarizeScheduledReceipts(receipts),
+      });
+    } catch {
+      return json({ error: "SCHEDULED_RUNTIME_RECEIPT_CORRUPT" }, 500);
+    }
+  }
+
+  private async readScheduledReceiptLegacy(): Promise<Response> {
+    try {
+      const history = await this.readScheduledReceiptHistory();
+      return json({ receipt: sortScheduledReceipts(history.receipts).at(-1) ?? null });
+    } catch {
+      return json({ error: "SCHEDULED_RUNTIME_RECEIPT_CORRUPT" }, 500);
+    }
+  }
+
+  private async readScheduledReceiptHistory(): Promise<ScheduledRuntimeReceiptHistory> {
+    const stored = await this.ctx.storage.get<unknown>(SCHEDULED_RECEIPT_HISTORY_KEY);
+    if (stored != null) {
+      if (!validScheduledReceiptHistory(stored)) throw new Error("SCHEDULED_RUNTIME_RECEIPT_CORRUPT");
+      return Object.freeze({ schemaVersion: 1, receipts: sortScheduledReceipts(stored.receipts) });
+    }
+    const legacy = await this.ctx.storage.get<unknown>("scheduled-receipt");
+    if (legacy == null) return Object.freeze({ schemaVersion: 1, receipts: Object.freeze([]) });
+    if (!validScheduledReceipt(legacy)) throw new Error("SCHEDULED_RUNTIME_RECEIPT_CORRUPT");
+    return Object.freeze({ schemaVersion: 1, receipts: Object.freeze([legacy]) });
   }
 
   private async writeEvolutionLearningMemory(value: unknown): Promise<Response> {
@@ -191,11 +307,44 @@ export async function recordScheduledRuntimeReceipt(namespace: ExecutionCoordina
 }
 
 export async function readScheduledRuntimeReceipt(namespace: ExecutionCoordinatorNamespace): Promise<ScheduledRuntimeReceipt | null> {
+  return (await readScheduledRuntimeEvidence(namespace)).receipt;
+}
+
+export async function readScheduledRuntimeEvidence(namespace: ExecutionCoordinatorNamespace): Promise<ScheduledRuntimeEvidenceSnapshot> {
   const stub = namespace.get(namespace.idFromName(SCHEDULED_RECEIPT_COORDINATOR_KEY));
   const response = await stub.fetch("https://execution-coordinator/scheduled-receipt", { method: "GET" });
   if (!response.ok) throw new Error("SCHEDULED_RUNTIME_RECEIPT_READ_FAILED");
-  const body = await response.json() as { receipt?: ScheduledRuntimeReceipt | null };
-  return body.receipt ?? null;
+  const legacy = await response.json() as Partial<ScheduledRuntimeEvidenceSnapshot>;
+  let body = legacy;
+  try {
+    const historyResponse = await stub.fetch("https://execution-coordinator/scheduled-receipt-history", { method: "GET" });
+    if (historyResponse.ok) body = await historyResponse.json() as Partial<ScheduledRuntimeEvidenceSnapshot>;
+  } catch {
+    // Older coordinator deployments expose only the legacy latest-receipt response.
+  }
+  if (body.receipt !== null && body.receipt !== undefined && !validScheduledReceipt(body.receipt)) throw new Error("SCHEDULED_RUNTIME_RECEIPT_READ_INVALID");
+  const history = body.history == null
+    ? (body.receipt == null ? [] : [body.receipt])
+    : body.history;
+  if (!Array.isArray(history) || !history.every(validScheduledReceipt)) throw new Error("SCHEDULED_RUNTIME_RECEIPT_READ_INVALID");
+  const summary = body.summary == null ? summarizeScheduledReceipts(history) : body.summary;
+  if (!validScheduledRuntimeSummary(summary)) throw new Error("SCHEDULED_RUNTIME_RECEIPT_READ_INVALID");
+  const expectedSummary = summarizeScheduledReceipts(history);
+  if (summary.receiptCount !== expectedSummary.receiptCount
+    || summary.windowStart !== expectedSummary.windowStart
+    || summary.windowEnd !== expectedSummary.windowEnd
+    || summary.windowSpanMs !== expectedSummary.windowSpanMs
+    || JSON.stringify(summary.statusCounts) !== JSON.stringify(expectedSummary.statusCounts)) {
+    throw new Error("SCHEDULED_RUNTIME_RECEIPT_READ_INVALID");
+  }
+  const latest = history.at(-1) ?? null;
+  if (latest !== null && (body.receipt == null || !sameScheduledReceipt(latest, body.receipt))) throw new Error("SCHEDULED_RUNTIME_RECEIPT_READ_INVALID");
+  if (latest === null && body.receipt != null) throw new Error("SCHEDULED_RUNTIME_RECEIPT_READ_INVALID");
+  return Object.freeze({
+    receipt: body.receipt ?? null,
+    history: sortScheduledReceipts(history),
+    summary,
+  });
 }
 
 export function createEvolutionLearningMemoryStorage(namespace: ExecutionCoordinatorNamespace): EvolutionLearningMemoryStorage {
