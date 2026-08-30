@@ -1,7 +1,7 @@
 import { parseGithubWebhookPayload, planGithubWebhookDispatch, type SupportedGithubEvent } from "./dispatchPlanner";
 import { planAutopilotExecution } from "./executionPlanner";
 import { executeGithubDispatch } from "./githubExecutor";
-import { executeCodingRunner, validateCodingRunnerRequest, type CodingRuntime } from "./codingRunner";
+import { executeCodingRunner, validateCodingRunnerRequest, type CodingPublisher, type CodingRuntime } from "./codingRunner";
 import { prepareProductionExecution } from "./productionExecutionSpine";
 import {
   acquirePersistentExecution,
@@ -50,7 +50,12 @@ export async function verifyGithubWebhookSignature(secret: string, body: string,
   return constantTimeEqual(await computeGithubWebhookSignature(secret, body), provided);
 }
 
-export async function handleCodingExecute(request: Request, env: Env, runtime?: CodingRuntime): Promise<Response> {
+export async function handleCodingExecute(
+  request: Request,
+  env: Env,
+  runtime?: CodingRuntime,
+  publisher?: CodingPublisher,
+): Promise<Response> {
   const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
   const configured = env.NUSA_CODING_RUNNER_TOKEN?.trim();
   const provided = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
@@ -58,7 +63,7 @@ export async function handleCodingExecute(request: Request, env: Env, runtime?: 
   if (!provided || !constantTimeEqual(configured, provided)) return json({ error: "CODING_RUNNER_UNAUTHORIZED" }, 401);
   try {
     const runnerRequest = validateCodingRunnerRequest(await request.json(), allowedRepository);
-    const result = await executeCodingRunner(runnerRequest, env, undefined, runtime);
+    const result = await executeCodingRunner(runnerRequest, env, undefined, runtime, publisher);
     return json({ accepted: true, ...result, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, result.status === "EXECUTION_FAILED" ? 502 : 202);
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "CODING_RUNNER_REQUEST_INVALID" }, 400);

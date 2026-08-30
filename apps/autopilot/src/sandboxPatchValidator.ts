@@ -10,10 +10,16 @@ export interface SandboxPatchValidationRequest {
   readonly patch: string;
 }
 
+export interface SandboxValidatedFile {
+  readonly path: string;
+  readonly content: string;
+}
+
 export interface SandboxPatchValidationResult {
   readonly status: "VALIDATED";
   readonly backend: string;
   readonly changedFiles: readonly string[];
+  readonly validatedFiles: readonly SandboxValidatedFile[];
   readonly checkpoint: CodingBackendCheckpoint;
 }
 
@@ -85,8 +91,12 @@ export async function validatePatchInSandbox(
     await mustExec(backend, workspaceId, ["pnpm", "run", "safety:invariants"], "SANDBOX_SAFETY_FAILED");
     await mustExec(backend, workspaceId, ["pnpm", "run", "ai:architecture"], "SANDBOX_AI_ARCHITECTURE_FAILED");
 
+    const validatedFiles = await Promise.all(changedFiles.map(async (path) => Object.freeze({
+      path,
+      content: await backend.read(workspaceId, path),
+    })));
     const checkpoint = await backend.checkpoint(workspaceId);
-    return { status: "VALIDATED", backend: backend.name, changedFiles, checkpoint };
+    return { status: "VALIDATED", backend: backend.name, changedFiles, validatedFiles, checkpoint };
   } finally {
     await backend.cleanup(workspaceId);
   }
