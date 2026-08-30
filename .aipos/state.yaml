@@ -83,11 +83,11 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-ISSUE-1094-RESEARCH-FACTORY
+  work_order: WO-ISSUE-1288-CLOUDFLARE-RUNTIME-PROOF
   status: VERIFYING
-  branch: codex/1094-research-report-coverage
-  base_commit: 65ee9b01b95faccbab53e5b48c43c1f581029dd1
-  scope: "Verify the existing canonical Research Factory against Issue #1094 acceptance; missing longitudinal PAPER evidence remains fail-closed."
+  branch: codex/1288-runtime-proof-observability
+  base_commit: 1fbaae0c99b667aa0f59d8a37223f150b778ca33
+  scope: "Restore classified, artifact-backed hourly Cloudflare runtime-proof observability; keep external two-run acceptance fail-closed."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
   implementation_commit: 5c9634844e549d0de6ea6147e6d5598c5acf0c4d
   pull_request: 1282

@@ -363,5 +363,5 @@ jobs:
       - name: Require validation and coverage
         shell: bash
         run: |
-          test "${{ needs.validation.result }}" = "success"
-          test "${{ needs.coverage.result }}" = "success"
+          [ "${{ needs.validation.result }}" = "success" ]
+          [ "${{ needs.coverage.result }}" = "success" ]
