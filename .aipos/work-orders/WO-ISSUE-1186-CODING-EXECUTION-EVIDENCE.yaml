@@ -7,7 +7,7 @@ issue: 1186
 base_branch: main
 base_commit: 781e82f68bcf796f38d6d88b397aff370085a2ba
 implementation_branch: codex/issue-1186-e2e-repair
-objective: "Route unattended coding execution to an optional configured external runner or the bounded GitHub Models fallback only when concrete failure evidence exists, while preserving deterministic evidence and zero mutation authority."
+objective: "Route unattended coding execution to an optional configured external runner or Cloudflare Workers AI binding only when concrete failure evidence exists, while preserving deterministic evidence and zero mutation authority."
 architecture_impact:
   acknowledged: true
   analysis: "Reuse the existing autopilot Worker, ExecutionCoordinator Durable Object, coding runner, sandbox validation, and publisher contracts; keep the Consumer's external rejection path observable and non-fatal without treating an unexecuted repair as success."

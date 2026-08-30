@@ -207,7 +207,7 @@ describe("coding runner", () => {
     assert.equal(result.proposalValidated, true);
     assert.equal(runtimeCalls, 1);
     assert.equal(calls.length, 1);
-    assert.equal(calls[0]?.model, "@cf/meta/llama-3.1-8b-instruct");
+    assert.equal(calls[0]?.model, "@cf/meta/llama-3.1-8b-instruct-fast");
     assert.match(calls[0]?.input.prompt ?? "", /unified diff/);
   });
 
@@ -225,7 +225,7 @@ describe("coding runner", () => {
       AI: ai,
     }, verifiedGithubFetch);
     assert.equal(result.status, "EXECUTION_ACCEPTED");
-    assert.deepEqual(calls, ["@cf/meta/llama-3.1-8b-instruct"]);
+    assert.deepEqual(calls, ["@cf/meta/llama-3.1-8b-instruct-fast"]);
   });
 
   it("stays interface-ready when no provider-neutral coding engine is configured", async () => {
