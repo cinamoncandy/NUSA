@@ -3,13 +3,13 @@ project: nusa
 updated_at: "2026-08-30T17:27:28.131Z"
 current_execution_target:
   work_order: WO-ISSUE-1094-RESEARCH-FACTORY
-  status: DISCOVERING
-  branch: null
+  status: IN_PROGRESS
+  branch: codex/reconcile-aipos-after-1258
   base_sha: 63736d6722119f1f7e9e2ac0b1b752dd370febbd
   scope: "Audit the canonical hypothesis-to-OOS-to-robustness-to-PAPER candidate pipeline on current main; preserve fail-closed evidence semantics and do not synthesize longitudinal PAPER evidence."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-phase: discovery
-status: discovering
+phase: implementation
+status: in_progress
 objective: "Make repository event-driven development transitions deterministic and replay-safe while holding all production and LIVE authority at the human/environment boundary."
 latest_research_slice:
   work_order: WO-MARKET-INTELLIGENCE-REGIME-POINT-IN-TIME-001
@@ -23,9 +23,9 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: null
+active_branch: codex/reconcile-aipos-after-1258
 active_successor_branch: null
-active_pull_request: null
+active_pull_request: 1281
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
