@@ -30,6 +30,8 @@ export interface EvolutionLearningSupervisorSnapshot {
   readonly eventCount: number;
   readonly headHash: string;
   readonly latest: EvolutionLearningSupervisorRecord | null;
+  /** Newest-first bounded evidence history. Optional on input for schema-v1 compatibility. */
+  readonly recent?: readonly EvolutionLearningSupervisorRecord[];
 }
 
 const OUTCOMES = new Set<EvolutionLearningSupervisorOutcome>([
@@ -41,6 +43,7 @@ const OUTCOMES = new Set<EvolutionLearningSupervisorOutcome>([
   "UNKNOWN",
 ]);
 const SHA256 = /^[a-f0-9]{64}$/i;
+const MAX_RECENT = 5;
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 
 function text(value: unknown, name: string): string {
@@ -78,6 +81,12 @@ function record(value: unknown): EvolutionLearningSupervisorRecord {
   });
 }
 
+function sameIdentity(left: EvolutionLearningSupervisorRecord, right: EvolutionLearningSupervisorRecord): boolean {
+  return left.opportunityId === right.opportunityId
+    && left.changeReference === right.changeReference
+    && left.recordedAt === right.recordedAt;
+}
+
 export function validateEvolutionLearningSupervisorSnapshot(value: unknown): EvolutionLearningSupervisorSnapshot {
   if (value == null || typeof value !== "object" || Array.isArray(value)) throw new Error("evolution learning supervisor snapshot is required");
   const input = value as Record<string, unknown>;
@@ -92,6 +101,25 @@ export function validateEvolutionLearningSupervisorSnapshot(value: unknown): Evo
   const latest = input.latest == null ? null : record(input.latest);
   if ((input.eventCount as number) === 0 && latest !== null) throw new Error("evolution learning supervisor empty ledger cannot expose latest evidence");
   if ((input.eventCount as number) > 0 && latest === null) throw new Error("evolution learning supervisor non-empty ledger requires latest evidence");
+
+  const recentInput = input.recent;
+  if (recentInput != null && !Array.isArray(recentInput)) throw new Error("evolution learning recent evidence is invalid");
+  if (Array.isArray(recentInput) && recentInput.length > MAX_RECENT) throw new Error("evolution learning recent evidence exceeds bounded history");
+  const recent = freeze(
+    recentInput == null
+      ? (latest == null ? [] : [latest])
+      : (recentInput as unknown[]).map((item) => record(item)),
+  );
+  if ((input.eventCount as number) === 0 && recent.length !== 0) throw new Error("evolution learning empty ledger cannot expose recent evidence");
+  if ((input.eventCount as number) > 0 && recent.length === 0) throw new Error("evolution learning non-empty ledger requires recent evidence");
+  if (recent.length > (input.eventCount as number)) throw new Error("evolution learning recent evidence exceeds ledger count");
+  if (latest != null && !sameIdentity(recent[0]!, latest)) throw new Error("evolution learning recent evidence must start with latest evidence");
+  for (let index = 1; index < recent.length; index += 1) {
+    if (Date.parse(recent[index - 1]!.recordedAt) < Date.parse(recent[index]!.recordedAt)) {
+      throw new Error("evolution learning recent evidence must be newest first");
+    }
+  }
+
   return freeze({
     schemaVersion: 1,
     scope: "EVOLUTION_LEARNING_EVIDENCE_ONLY",
@@ -102,5 +130,6 @@ export function validateEvolutionLearningSupervisorSnapshot(value: unknown): Evo
     eventCount: input.eventCount as number,
     headHash: input.headHash.toLowerCase(),
     latest,
+    recent,
   });
 }
