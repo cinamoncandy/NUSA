@@ -6,6 +6,10 @@ import type { DashboardCredentialProvider } from "./personalPaperOperationsClien
 import type { EvolutionLearningSupervisorOutcome } from "../../../packages/contracts/src/evolutionLearningSupervisor";
 
 type LearningAttention = Readonly<{ label: "CLEAR" | "WATCH" | "REVIEW" | "INSUFFICIENT"; detail: string }>;
+type EvidenceFreshness = Readonly<{ label: "FRESH" | "AGING" | "STALE" | "INSUFFICIENT"; detail: string }>;
+
+const FRESH_EVIDENCE_MS = 24 * 60 * 60 * 1000;
+const STALE_EVIDENCE_MS = 72 * 60 * 60 * 1000;
 
 function learningAttention(outcome: EvolutionLearningSupervisorOutcome): LearningAttention {
   if (outcome === "FAILED" || outcome === "REGRESSION") {
@@ -18,6 +22,21 @@ function learningAttention(outcome: EvolutionLearningSupervisorOutcome): Learnin
     return Object.freeze({ label: "CLEAR", detail: "최신 검증 결과가 성공으로 기록되었습니다." });
   }
   return Object.freeze({ label: "INSUFFICIENT", detail: "최신 결과가 UNKNOWN이므로 감독 결론을 확대하지 않습니다." });
+}
+
+function evidenceFreshness(recordedAt: string, nowMs: number): EvidenceFreshness {
+  const recordedMs = Date.parse(recordedAt);
+  const ageMs = nowMs - recordedMs;
+  if (!Number.isFinite(recordedMs) || ageMs < 0) {
+    return Object.freeze({ label: "INSUFFICIENT", detail: "기록 시각을 신뢰할 수 없어 최신성 결론을 표시하지 않습니다." });
+  }
+  if (ageMs <= FRESH_EVIDENCE_MS) {
+    return Object.freeze({ label: "FRESH", detail: "최근 24시간 안에 기록된 검증 증거입니다." });
+  }
+  if (ageMs <= STALE_EVIDENCE_MS) {
+    return Object.freeze({ label: "AGING", detail: "24시간을 지난 증거입니다. 최신 검증이 이어지는지 관찰하세요." });
+  }
+  return Object.freeze({ label: "STALE", detail: "72시간을 지난 증거입니다. 현재 상태를 대표한다고 가정하지 않습니다." });
 }
 
 export function SystemLearningSupervisorView({ baseUrl, credentialProvider, onClose }: Readonly<{ baseUrl: string; credentialProvider: DashboardCredentialProvider; onClose: () => void }>) {
@@ -40,10 +59,16 @@ export function SystemLearningSupervisorView({ baseUrl, credentialProvider, onCl
   const latest = ready?.latest ?? null;
   const priorLearning = ready?.recent?.slice(1) ?? [];
   const attention = latest == null ? null : learningAttention(latest.outcome);
+  const freshness = latest == null ? null : evidenceFreshness(latest.recordedAt, Date.now());
   const tone = latest?.outcome === "FAILED" || latest?.outcome === "REGRESSION" ? theme.colors.danger : theme.colors.aiSignalEnd;
   const attentionTone = attention?.label === "REVIEW"
     ? theme.colors.danger
     : attention?.label === "INSUFFICIENT"
+      ? theme.colors.textMuted
+      : theme.colors.aiSignalEnd;
+  const freshnessTone = freshness?.label === "STALE"
+    ? theme.colors.danger
+    : freshness?.label === "INSUFFICIENT"
       ? theme.colors.textMuted
       : theme.colors.aiSignalEnd;
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.colors.primary} />} testID="system-learning-screen">
@@ -54,6 +79,11 @@ export function SystemLearningSupervisorView({ baseUrl, credentialProvider, onCl
     {attention ? <View style={[styles.attentionCard, { borderColor: attentionTone }]} testID="system-learning-attention">
       <View style={styles.row}><Text style={[styles.label, { color: theme.colors.textMuted }]}>ATTENTION</Text><Text style={[styles.attentionLabel, { color: attentionTone }]}>{attention.label}</Text></View>
       <Text style={[styles.value, { color: theme.colors.text }]}>{attention.detail}</Text>
+    </View> : null}
+    {freshness ? <View style={[styles.card, { borderColor: freshnessTone }]} testID="system-learning-freshness">
+      <View style={styles.row}><Text style={[styles.label, { color: theme.colors.textMuted }]}>EVIDENCE FRESHNESS</Text><Text style={[styles.attentionLabel, { color: freshnessTone }]}>{freshness.label}</Text></View>
+      <Text style={[styles.value, { color: theme.colors.text }]}>{freshness.detail}</Text>
+      <Text style={[styles.meta, { color: theme.colors.textMuted }]}>RECORDED {latest?.recordedAt}</Text>
     </View> : null}
     <View style={[styles.card, { borderColor: theme.colors.borderStrong }]}>
       <Text style={[styles.label, { color: theme.colors.textMuted }]}>AUTHORITY</Text>
