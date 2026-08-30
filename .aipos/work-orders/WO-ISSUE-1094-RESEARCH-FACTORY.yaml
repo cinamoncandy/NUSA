@@ -1,0 +1,48 @@
+id: WO-ISSUE-1094-RESEARCH-FACTORY
+title: "Issue #1094 canonical hypothesis-to-OOS-to-robustness-to-PAPER candidate pipeline"
+status: VERIFYING
+priority: P1
+owner: nusa
+repository: cinamoncandy/NUSA
+issue: 1094
+base_branch: main
+base_commit: 65ee9b01b95faccbab53e5b48c43c1f581029dd1
+implementation_branch: codex/1094-research-report-coverage
+implementation_commit: 5c9634844e549d0de6ea6147e6d5598c5acf0c4d
+pull_request: 1282
+objective: "Audit and, only where a repository-side gap is proven, complete the canonical research-factory path from deterministic hypothesis and candidate provenance through point-in-time OOS, cost-aware robustness, qualification, and truthful PAPER evidence admission."
+architecture_impact:
+  acknowledged: true
+  analysis: "Reuse the existing research run factory, walk-forward/OOS, DSR/PBO, regime, robustness, League, and PAPER provenance components; do not create a parallel research engine or fabricate longitudinal evidence."
+  references:
+    - apps/desktop/src/cloud/researchRunFactory.ts
+    - apps/desktop/src/cloud/researchFactoryQualification.ts
+    - scripts/research-real-market-run.js
+    - apps/cloud/src/paperRealizedPeriodProducer.ts
+scope:
+  - deterministic_candidate_and_hypothesis_provenance
+  - point_in_time_dataset_binding
+  - cost_aware_oos_and_robustness
+  - fail_closed_qualification
+  - truthful_paper_evidence_admission
+prohibited:
+  - synthetic_market_data
+  - fabricated_paper_history
+  - lookahead_or_leakage
+  - candidate_provenance_mismatch
+  - live_execution
+  - broker_mutation
+  - authority_expansion
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  mutationAllowed: false
+implementation:
+  current_main_contains:
+    - apps/desktop/src/cloud/researchRunFactory.ts
+    - apps/desktop/src/cloud/researchFactoryQualification.ts
+    - scripts/research-real-market-run.js
+    - apps/cloud/src/paperRealizedPeriodProducer.ts
+  known_truth: "The canonical research-factory code is present; actual longitudinal realized PAPER history must remain unavailable/fail-closed until produced by a truthful runtime source."
+  next: "Repository-side duplicate evidence-report coverage is closed by PR #1282; continue to fail closed until a truthful longitudinal PAPER source exists."
