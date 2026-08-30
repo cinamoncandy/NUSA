@@ -39,6 +39,26 @@ test("fails closed on future-dated decisions", () => {
   );
 });
 
+test("fails closed on stale autonomous decisions", () => {
+  const invalid = Object.freeze({ ...validDecision, decidedAt: 899 }) as CioDecision;
+  assert.throws(
+    () => validatePaperAutonomousDecisions(Object.freeze([invalid]), { now: 1_000, maxDecisionAgeMs: 100 }),
+    /PAPER_DECISION_STALE/,
+  );
+});
+
+test("accepts a decision exactly at the freshness boundary", () => {
+  const boundary = Object.freeze({ ...validDecision, decidedAt: 900 }) as CioDecision;
+  assert.doesNotThrow(() => validatePaperAutonomousDecisions(Object.freeze([boundary]), { now: 1_000, maxDecisionAgeMs: 100 }));
+});
+
+test("fails closed on invalid decision freshness policy", () => {
+  assert.throws(
+    () => validatePaperAutonomousDecisions(Object.freeze([validDecision]), { now: 1_000, maxDecisionAgeMs: -1 }),
+    /PAPER_DECISION_MAX_AGE_INVALID/,
+  );
+});
+
 test("fails closed when one market has multiple autonomous decisions in a tick", () => {
   const second = Object.freeze({ ...validDecision, action: "SELL" as const, decidedAt: 996 });
   assert.throws(

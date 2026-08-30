@@ -7,9 +7,11 @@ import {
 
 const ACTIONS = new Set<CioAction>(["BUY", "SELL", "HOLD", "REDUCE", "EXIT", "WAIT"]);
 const RISKS = new Set<RiskLevel>(["LOW", "MEDIUM", "HIGH", "CRITICAL"]);
+const DEFAULT_MAX_DECISION_AGE_MS = 30_000;
 
 export interface PaperAutonomousDecisionValidationContext {
   readonly now: number;
+  readonly maxDecisionAgeMs?: number;
 }
 
 function assertUnit(value: number, field: string): void {
@@ -27,6 +29,8 @@ export function validatePaperAutonomousDecisions(
 ): readonly CioDecision[] {
   if (!Array.isArray(decisions)) throw new Error("PAPER_DECISIONS_INVALID");
   if (!Number.isSafeInteger(context.now) || context.now < 0) throw new Error("PAPER_DECISION_CLOCK_INVALID");
+  const maxDecisionAgeMs = context.maxDecisionAgeMs ?? DEFAULT_MAX_DECISION_AGE_MS;
+  if (!Number.isSafeInteger(maxDecisionAgeMs) || maxDecisionAgeMs < 0) throw new Error("PAPER_DECISION_MAX_AGE_INVALID");
 
   const seenSymbols = new Set<string>();
   const validated = decisions.map((decision) => {
@@ -44,6 +48,7 @@ export function validatePaperAutonomousDecisions(
     if (!Array.isArray(decision.reasons) || decision.reasons.length === 0 || decision.reasons.some((reason: unknown) => typeof reason !== "string" || !reason.trim())) throw new Error("PAPER_DECISION_REASONS_INVALID");
     const reasons = decision.reasons as readonly string[];
     if (!Number.isSafeInteger(decision.decidedAt) || decision.decidedAt < 0 || decision.decidedAt > context.now) throw new Error("PAPER_DECISION_CLOCK_INVALID");
+    if (context.now - decision.decidedAt > maxDecisionAgeMs) throw new Error("PAPER_DECISION_STALE");
 
     const paperCandidateBinding = decision.paperCandidateBinding == null
       ? undefined
