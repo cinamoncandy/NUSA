@@ -1,0 +1,40 @@
+id: WO-ISSUE-1288-CLOUDFLARE-RUNTIME-PROOF
+title: "Issue #1288 hourly Cloudflare runtime-proof observability"
+status: VERIFYING
+priority: P1
+owner: nusa
+repository: cinamoncandy/NUSA
+issue: 1288
+base_branch: main
+base_commit: 1fbaae0c99b667aa0f59d8a37223f150b778ca33
+implementation_branch: codex/1288-runtime-proof-observability
+implementation_commit: 53fb9adbc60fdf130df235d66426e610f07fa292
+pull_request: 1289
+objective: "Restore reliable, classified, artifact-backed hourly Cloudflare runtime-proof observability without changing execution authority."
+architecture_impact:
+  acknowledged: true
+  analysis: "Reuse the existing GitHub proof workflow, verifier, Cloudflare runtime receipt, and safety fields; no new control plane, execution, broker, or credential path."
+scope:
+  - hourly_schedule_delivery_observability
+  - proof_failure_classification
+  - bounded_runtime_proof_artifact
+prohibited:
+  - live_execution
+  - broker_mutation
+  - credential_exposure
+  - authority_expansion
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  mutationAllowed: false
+implementation:
+  current_main_contains:
+    - .github/workflows/autopilot-cloudflare-runtime-proof.yml
+    - scripts/verify-autopilot-cloudflare-runtime.mjs
+    - tests/autopilot-cloudflare-runtime-proof.test.js
+  known_truth: "GitHub schedule delivery had a gap in recorded runs; this slice adds safe classification/artifact evidence and moves the hourly schedule off minute 17. Two consecutive post-fix scheduled proof executions remain required before issue closure."
+  next: "Observe two consecutive fresh scheduled proof executions; keep worker/deployment health fail-closed if unavailable."
+validation:
+  static_regression: PENDING_EXACT_HEAD_CI
+  external_scheduled_proofs: PENDING_TWO_CONSECUTIVE_FRESH_EXECUTIONS

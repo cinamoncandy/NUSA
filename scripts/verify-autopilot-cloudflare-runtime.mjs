@@ -4,7 +4,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
 const baseUrl = (process.env.NUSA_AUTOPILOT_URL ?? process.argv[2] ?? "").trim().replace(/\/$/, "");
-const maxReceiptAgeMs = Number(process.env.NUSA_AUTOPILOT_MAX_RECEIP_AGE_MS ?? process.env.NUSA_AUTOPILOT_MAX_RECEIPT_AGE_MS ?? 180000);
+const maxReceiptAgeMs = Number(process.env.NUSA_AUTOPILOT_MAX_RECEIPT_AGE_MS ?? 180000);
 const proofOutputPath = (process.env.NUSA_RUNTIME_PROOF_OUTPUT ?? "").trim();
 
 class RuntimeProofFailure extends Error {

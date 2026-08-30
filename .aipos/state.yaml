@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-30T21:32:07.362Z"
+updated_at: "2026-08-30T22:32:29Z"
 current_execution_target:
-  work_order: WO-ISSUE-1094-RESEARCH-FACTORY
+  work_order: WO-ISSUE-1288-CLOUDFLARE-RUNTIME-PROOF
   status: VERIFYING
-  branch: codex/1094-pbo-insufficient-projection
-  base_sha: cc12b9d28c4e4683f73594c5843c15b56d2a6d78
-  scope: "Preserve explicit fail-closed INSUFFICIENT output when canonical real-market PBO evidence is unavailable; do not synthesize longitudinal PAPER evidence."
+  branch: codex/1288-runtime-proof-observability
+  base_sha: 1fbaae0c99b667aa0f59d8a37223f150b778ca33
+  scope: "Restore classified, artifact-backed hourly Cloudflare runtime-proof observability; keep external two-run acceptance fail-closed."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: implementation
 status: in_progress
@@ -23,9 +23,9 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: codex/1094-pbo-insufficient-projection
+active_branch: codex/1288-runtime-proof-observability
 active_successor_branch: null
-active_pull_request: 1287
+active_pull_request: 1289
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -535,8 +535,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-ISSUE-1094-RESEARCH-FACTORY.yaml
-  reason: "Validate PR #1287 PBO insufficiency projection; preserve missing longitudinal sources as fail-closed and wait for truthful runtime PAPER evidence."
+  work_order: .aipos/work-orders/WO-ISSUE-1288-CLOUDFLARE-RUNTIME-PROOF.yaml
+  reason: "Validate the hourly Cloudflare runtime-proof observability change; keep two consecutive fresh scheduled proofs as an external acceptance requirement."
 verification:
   wo_0057:
     parent_pull_request: 552
@@ -821,3 +821,15 @@ issue_661_live_ready_observability:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   protected_checks: "CI PASS; Mobile Native PASS; Actual PAPER Runtime PASS; Restricted LIVE Activation/Capability/Transport PASS; Read-only Broker PASS; Android Release Candidate SKIPPED_NOT_APPLICABLE"
   next: "PR #770 is eligible for merge under repository policy. After merge, verify main and continue the Issue #661 acceptance audit; Android promotion remains post-merge only."
+
+issue_1288_cloudflare_runtime_proof:
+  issue: 1288
+  work_order: WO-ISSUE-1288-CLOUDFLARE-RUNTIME-PROOF
+  status: IMPLEMENTED_PENDING_EXACT_HEAD_VALIDATION
+  base_commit: 1fbaae0c99b667aa0f59d8a37223f150b778ca33
+  implementation_branch: codex/1288-runtime-proof-observability
+  implementation_commit: 53fb9adbc60fdf130df235d66426e610f07fa292
+  pull_request: 1289
+  scope: "Classified read-only Cloudflare runtime-proof evidence with bounded artifact retention and hourly schedule observability."
+  acceptance: "Two consecutive fresh scheduled proof executions remain pending and cannot be synthesized by repository code."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
