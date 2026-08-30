@@ -211,6 +211,31 @@ describe("coding runner", () => {
     assert.match(calls[0]?.input.prompt ?? "", /unified diff/);
   });
 
+  it("accepts a Workers AI JSON proposal wrapped in a markdown fence", async () => {
+    const runtime: CodingRuntime = {
+      name: "fake-sandbox",
+      async execute(value, proposal) {
+        assert.equal(value.executionId, request.executionId);
+        assert.equal(proposal?.patch, patch);
+        return {
+          backend: "fake-sandbox",
+          checkpointId: request.headSha,
+          workspaceVerified: true,
+          proposalValidated: true,
+          changedFiles: ["apps/autopilot/src/example.ts"],
+        };
+      },
+    };
+    const ai: WorkersAiBinding = {
+      async run() {
+        return { response: `Here is the proposal:\n\`\`\`json\n${JSON.stringify({ patch })}\n\`\`\`` };
+      },
+    };
+    const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch, runtime);
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.equal(result.proposalValidated, true);
+  });
+
   it("falls back from the retired dashboard model to the supported default", async () => {
     const calls: string[] = [];
     const ai: WorkersAiBinding = {
