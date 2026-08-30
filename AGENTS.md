@@ -15,6 +15,37 @@ Before planning, editing, or generating code:
 
 Do not rely on prior conversation history. The repository is the source of truth. Vendor-specific instructions may supplement AIPOS but cannot replace it.
 
+## Lightweight recovery path (authority_impact: none)
+
+Full AIPOS recovery remains the default for any work that can affect authority, risk, execution, accounting, persistence, recovery, credentials, or LIVE boundaries.
+
+A **lightweight path** is allowed only when all of the following are true:
+
+1. The active or proposed work order marks `authority_impact: none` (or equivalent explicit non-authority scope).
+2. The change is limited to docs, presentation/UI copy, non-safety mobile visuals, comments, or packaging that does not alter safety gates.
+3. No LIVE, real-money, credential-execution, production-mutation, risk-policy, or AI-authority behavior changes.
+
+Under the lightweight path:
+
+- Still read `.aipos/state.yaml` and confirm no conflicting active authority work.
+- Prefer `pnpm run validate` for local gates (preflight + architecture:truth + safety:architecture + ai:architecture).
+- Use `pnpm run validate:full` when repository-wide contracts may be affected or when unsure.
+- Full evidence packages are **not** required; a short change note in the PR body is enough.
+- Do **not** skip fail-closed safety rules. If scope is ambiguous, use the full recovery protocol.
+
+## Evidence scope
+
+Require full durable evidence packages for changes that touch:
+
+- authority boundaries
+- risk, execution, or accounting
+- recovery or persistence
+- credentials or LIVE-related surfaces
+
+Allow lighter PR change notes for pure documentation, presentation, and other explicit `authority_impact: none` work.
+
+Physical Android device acceptance remains `HUMAN_ENVIRONMENT_ONLY` and does not block unrelated non-LIVE repository work.
+
 ## Read first
 
 Before changing code:
