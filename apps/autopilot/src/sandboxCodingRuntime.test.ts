@@ -37,7 +37,9 @@ class FakeBackend implements CodingBackend {
     return { workspaceId: "workspace-1" };
   }
 
-  async read(): Promise<string> { return ""; }
+  async read(_workspaceId: string, path: string): Promise<string> {
+    return path === "apps/autopilot/src/example.ts" ? "new\n" : "";
+  }
   async write(_workspaceId: string, path: string, content: string): Promise<void> {
     this.writes.push({ path, content });
   }
@@ -76,7 +78,7 @@ describe("sandbox coding runtime", () => {
     assert.equal(backend.cleaned, true);
   });
 
-  it("validates a bounded AI proposal with the full sandbox gate and cleans up", async () => {
+  it("validates a bounded AI proposal with the full sandbox gate and preserves exact file bytes", async () => {
     const backend = new FakeBackend();
     const result = await new SandboxCodingRuntime(backend).execute(request, proposal);
     assert.deepEqual(result, {
@@ -85,6 +87,7 @@ describe("sandbox coding runtime", () => {
       workspaceVerified: true,
       proposalValidated: true,
       changedFiles: ["apps/autopilot/src/example.ts"],
+      validatedFiles: [{ path: "apps/autopilot/src/example.ts", content: "new\n" }],
     });
     assert.equal(backend.preparedEnvelope?.allowedScope[0], "apps/autopilot/");
     assert.equal(backend.preparedEnvelope?.maxChangedFiles, 1);
