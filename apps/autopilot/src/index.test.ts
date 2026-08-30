@@ -3,9 +3,11 @@ import { describe, it } from "node:test";
 import worker, {
   classifyGithubEvent,
   computeGithubWebhookSignature,
+  handleCodingExecute,
   verifyGithubWebhookSignature,
 } from "./index";
 import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
+import type { CodingRuntime } from "./codingRunner";
 import { ExecutionCoordinator, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
 class MemoryStorage {
@@ -39,6 +41,20 @@ function evidenceFixture() {
   return result.evidence;
 }
 
+const codingRequest = {
+  kind: "REPOSITORY_AUTOPILOT" as const,
+  repository: "cinamoncandy/NUSA",
+  headSha: "a".repeat(40),
+  workflowRunId: 1258,
+  reason: "continue-from:ci_succeeded",
+  executionId: "github:delivery-1258",
+  dedupeKey: `ci:1258:${"a".repeat(40)}`,
+  mutationAllowed: false as const,
+  liveAuthority: "NONE" as const,
+  productionMutationAllowed: false as const,
+  aiAuthority: "ZERO_AUTHORITY" as const,
+};
+
 describe("NUSA autopilot GitHub webhook", () => {
   it("classifies only the bounded event surface", () => {
     assert.equal(classifyGithubEvent("ping"), "ping");
@@ -52,7 +68,9 @@ describe("NUSA autopilot GitHub webhook", () => {
   it("exposes a fail-closed deployment revision health signal", async () => {
     const unverified = await worker.fetch(new Request("https://example.test/health"), {});
     assert.equal(unverified.status, 200);
-    assert.equal((await unverified.json() as { deploymentRevision: string }).deploymentRevision, "UNVERIFIED");
+    const unverifiedPayload = await unverified.json() as { deploymentRevision: string; executionTelemetry: string };
+    assert.equal(unverifiedPayload.deploymentRevision, "UNVERIFIED");
+    assert.equal(unverifiedPayload.executionTelemetry, "INTERFACE_READY");
 
     const verified = await worker.fetch(new Request("https://example.test/health"), { NUSA_DEPLOYMENT_REVISION: "a".repeat(40) });
     assert.equal((await verified.json() as { deploymentRevision: string }).deploymentRevision, "a".repeat(40));
@@ -182,5 +200,69 @@ describe("NUSA autopilot GitHub webhook", () => {
     assert.equal(payload.liveAuthority, "NONE");
     assert.equal(payload.productionMutationAllowed, false);
     assert.equal(payload.aiAuthority, "ZERO_AUTHORITY");
+  });
+
+  it("suppresses duplicate cloud coding calls at the execution boundary", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const namespace: ExecutionCoordinatorNamespace = {
+      idFromName: () => ({}),
+      get: () => ({ fetch: (input: RequestInfo | URL, init?: RequestInit) => coordinator.fetch(new Request(input, init)) }),
+    };
+    let runtimeCalls = 0;
+    const runtime: CodingRuntime = {
+      name: "fake-cloud-runtime",
+      async execute() {
+        runtimeCalls += 1;
+        return {
+          backend: "fake-cloud-runtime",
+          checkpointId: "checkpoint:1258",
+          workspaceVerified: true,
+          proposalValidated: true,
+          changedFiles: ["apps/autopilot/src/index.ts"],
+        };
+      },
+    };
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/commits/")) return new Response(JSON.stringify({ sha: codingRequest.headSha }), { status: 200 });
+      if (url.includes("/actions/runs/")) return new Response(JSON.stringify({
+        id: codingRequest.workflowRunId,
+        head_sha: codingRequest.headSha,
+        head_branch: "main",
+        status: "completed",
+        conclusion: "success",
+        repository: { full_name: codingRequest.repository },
+      }), { status: 200 });
+      return new Response(JSON.stringify({ patch: "diff --git a/apps/autopilot/src/index.ts b/apps/autopilot/src/index.ts\n" }), { status: 200 });
+    }) as typeof fetch;
+    try {
+      const request = () => new Request("https://example.test/coding/execute", {
+        method: "POST",
+        headers: { authorization: "Bearer runner-token", "content-type": "application/json" },
+        body: JSON.stringify(codingRequest),
+      });
+      const env = {
+        NUSA_CODING_RUNNER_TOKEN: "runner-token",
+        NUSA_GITHUB_TOKEN: "github-token",
+        NUSA_AI_CODING_ENDPOINT: "https://coding.example.test/execute",
+        NUSA_AI_CODING_TOKEN: "ai-token",
+        NUSA_EXECUTION_COORDINATOR: namespace,
+      };
+      const first = await handleCodingExecute(request(), env, runtime);
+      const second = await handleCodingExecute(request(), env, runtime);
+      assert.equal(first.status, 202);
+      assert.equal((await first.clone().json() as { status: string }).status, "EXECUTION_ACCEPTED");
+      assert.equal(second.status, 202);
+      assert.equal((await second.json() as { status: string }).status, "DUPLICATE_EXECUTION_SUPPRESSED");
+      assert.equal(runtimeCalls, 1);
+      const telemetry = await coordinator.fetch(new Request("https://execution-coordinator/execution-telemetry"));
+      const telemetryBody = await telemetry.json() as { history: readonly unknown[]; summary: { duplicateSuppressedCount: number } };
+      assert.equal(telemetryBody.history.length, 2);
+      assert.equal(telemetryBody.summary.duplicateSuppressedCount, 1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });
