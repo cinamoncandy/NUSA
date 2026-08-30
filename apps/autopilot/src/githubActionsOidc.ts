@@ -4,7 +4,6 @@ const DEFAULT_AUDIENCE = "nusa-autopilot";
 const CLOCK_SKEW_SECONDS = 60;
 const TRUSTED_WORKFLOWS = Object.freeze([
   ".github/workflows/autopilot-execution-consumer.yml",
-  ".github/workflows/autopilot-worker-dispatch-bridge.yml",
 ]);
 
 interface JsonResponse {
