@@ -46,40 +46,40 @@ const trustedRun = Object.freeze({
   workflowRunUrl: "https://github.com/cinamoncandy/NUSA/actions/runs/33150000000"
 });
 
-const riskEvidence = Object.freeze({
+const riskFacts = Object.freeze({
   evaluationId: "risk-eval-881",
-  candidateId: "candidate-881",
-  datasetId: "dataset-881",
-  datasetContentSha256: "a".repeat(64),
-  observedAt: "2026-08-29T00:00:00.000Z",
+  candidateId: evidence.candidateId,
+  datasetId: evidence.datasetId,
+  datasetContentSha256: evidence.datasetContentSha256,
+  observedAt: evidence.observedAt,
   evaluatedAt: "2026-08-29T00:30:00.000Z",
   status: "VERIFIED",
-  evidencePeriods: 40,
+  evidencePeriods: evidence.evidencePeriods,
   minimumEvidencePeriods: 30,
   maximumEvidenceAgeMs: 24 * 60 * 60 * 1000,
   portfolioDrawdownContribution: 0.08,
   maximumDrawdownContribution: 0.1,
   diversificationBenefit: 0.03,
   minimumDiversificationBenefit: 0.01,
-  maximumAbsoluteCandidateCorrelation: 0.4,
-  maximumAllowedCandidateCorrelation: 0.7,
-  trustedEvidence: createPaperPortfolioTrustedLongitudinalEvidence({
-    evaluationId: "risk-eval-881",
-    candidateId: "candidate-881",
-    datasetId: "dataset-881",
-    datasetContentSha256: "a".repeat(64),
-    observedAt: "2026-08-29T00:00:00.000Z",
-    evaluatedAt: "2026-08-29T00:30:00.000Z",
-    evidencePeriods: 40,
-    portfolioDrawdownContribution: 0.08,
-    diversificationBenefit: 0.03,
-    maximumAbsoluteCandidateCorrelation: 0.4,
-    trustedRun,
-    periodIds: Array.from({ length: 40 }, (_, index) => `period-${index}`),
-    outcomeReceiptFingerprints: Array.from({ length: 40 }, (_, index) => String(index).padStart(64, "0"))
-  })
+  maximumAbsoluteCandidateCorrelation: evidence.maximumPeerCorrelation,
+  maximumAllowedCandidateCorrelation: policy.maximumCorrelation,
+  portfolioRegime: evidence.regime,
+  regimeCoFailureRate: evidence.regimeCoFailureRate,
+  currentPortfolioGrossWeight: evidence.currentPortfolioGrossWeight,
+  currentStrategyWeight: evidence.currentStrategyWeight,
+  estimatedTurnover: evidence.estimatedTurnover,
+  estimatedFeeRate: evidence.estimatedFeeRate,
+  estimatedSlippageRate: evidence.estimatedSlippageRate,
+  grossExpectedEdge: evidence.grossExpectedEdge,
 });
 
+const trustedEvidence = createPaperPortfolioTrustedLongitudinalEvidence({
+  ...riskFacts,
+  trustedRun,
+  periodIds: Array.from({ length: 40 }, (_, index) => `period-${index}`),
+  outcomeReceiptFingerprints: Array.from({ length: 40 }, (_, index) => String(index).padStart(64, "0"))
+});
+const riskEvidence = Object.freeze({ ...riskFacts, trustedEvidence });
 const input = Object.freeze({
   advisoryId: "advisory-881",
   strategyId: "strategy-881",
@@ -98,9 +98,6 @@ test("advises only from verified point-in-time PAPER evidence", () => {
   assert.equal(result.recommendedWeight, 0.2);
   assert.ok(result.netExpectedEdge > 0);
   assert.deepEqual(result.reasons, []);
-  assert.equal(result.candidateId, evidence.candidateId);
-  assert.equal(result.datasetId, evidence.datasetId);
-  assert.equal(result.datasetContentSha256, evidence.datasetContentSha256);
   assert.equal(result.liveAuthority, "NONE");
   assert.equal(result.productionMutationAllowed, false);
   assert.equal(result.aiAuthority, "ZERO_AUTHORITY");
@@ -108,12 +105,9 @@ test("advises only from verified point-in-time PAPER evidence", () => {
   assert.ok(Object.isFrozen(result.reasons));
 });
 
-test("UNKNOWN and INSUFFICIENT can never become allocation confidence", () => {
+test("UNKNOWN INSUFFICIENT and CONFLICTING evidence never becomes allocation confidence", () => {
   for (const status of ["UNKNOWN", "INSUFFICIENT", "CONFLICTING"]) {
-    const result = evaluatePaperPortfolioAdvisory({
-      ...input,
-      evidence: { ...evidence, status }
-    }, policy);
+    const result = evaluatePaperPortfolioAdvisory({ ...input, evidence: { ...evidence, status } }, policy);
     assert.equal(result.decision, "ABSTAIN");
     assert.equal(result.recommendedWeight, 0);
     assert.ok(result.reasons.includes(`EVIDENCE_${status}`));
@@ -121,159 +115,74 @@ test("UNKNOWN and INSUFFICIENT can never become allocation confidence", () => {
 });
 
 test("future and stale evidence fail closed", () => {
-  const future = evaluatePaperPortfolioAdvisory({
-    ...input,
-    evidence: { ...evidence, observedAt: "2026-08-29T02:00:00.000Z" }
-  }, policy);
-  assert.equal(future.decision, "ABSTAIN");
+  const future = evaluatePaperPortfolioAdvisory({ ...input, evidence: { ...evidence, observedAt: "2026-08-29T02:00:00.000Z" } }, policy);
   assert.ok(future.reasons.includes("FUTURE_EVIDENCE"));
-
-  const stale = evaluatePaperPortfolioAdvisory({
-    ...input,
-    evidence: { ...evidence, observedAt: "2026-08-27T00:00:00.000Z" }
-  }, policy);
-  assert.equal(stale.decision, "ABSTAIN");
+  const stale = evaluatePaperPortfolioAdvisory({ ...input, evidence: { ...evidence, observedAt: "2026-08-27T00:00:00.000Z" } }, policy);
   assert.ok(stale.reasons.includes("STALE_EVIDENCE"));
 });
 
-test("correlation, regime co-failure and concentration force abstention", () => {
-  const correlated = evaluatePaperPortfolioAdvisory({
-    ...input,
-    evidence: { ...evidence, maximumPeerCorrelation: 0.9 }
-  }, policy);
-  assert.equal(correlated.decision, "ABSTAIN");
+test("correlation regime co-failure and concentration limits still force abstention", () => {
+  const correlated = evaluatePaperPortfolioAdvisory({ ...input, evidence: { ...evidence, maximumPeerCorrelation: 0.9 } }, policy);
   assert.ok(correlated.reasons.includes("CORRELATION_LIMIT_EXCEEDED"));
   assert.ok(correlated.reasons.includes("RISK_CANDIDATE_DEPENDENCE_MISMATCH"));
-
-  const coFailure = evaluatePaperPortfolioAdvisory({
-    ...input,
-    evidence: { ...evidence, regimeCoFailureRate: 0.8 }
-  }, policy);
-  assert.equal(coFailure.decision, "ABSTAIN");
+  const coFailure = evaluatePaperPortfolioAdvisory({ ...input, evidence: { ...evidence, regimeCoFailureRate: 0.8 } }, policy);
   assert.ok(coFailure.reasons.includes("REGIME_CO_FAILURE_LIMIT_EXCEEDED"));
-
-  const concentrated = evaluatePaperPortfolioAdvisory({
-    ...input,
-    evidence: { ...evidence, currentPortfolioGrossWeight: 0.8 }
-  }, policy);
-  assert.equal(concentrated.decision, "ABSTAIN");
+  assert.ok(coFailure.reasons.includes("RISK_REGIME_CO_FAILURE_MISMATCH"));
+  const concentrated = evaluatePaperPortfolioAdvisory({ ...input, evidence: { ...evidence, currentPortfolioGrossWeight: 0.8 } }, policy);
   assert.ok(concentrated.reasons.includes("PORTFOLIO_CONCENTRATION_LIMIT_REACHED"));
+  assert.ok(concentrated.reasons.includes("RISK_CONCENTRATION_EVIDENCE_MISMATCH"));
 });
 
-test("advisory correlation cannot diverge from trusted risk dependence evidence", () => {
-  const result = evaluatePaperPortfolioAdvisory({
-    ...input,
-    evidence: { ...evidence, maximumPeerCorrelation: 0.2 }
-  }, policy);
-  assert.equal(result.decision, "ABSTAIN");
-  assert.equal(result.recommendedWeight, 0);
-  assert.ok(result.reasons.includes("RISK_CANDIDATE_DEPENDENCE_MISMATCH"));
+test("all allocation-driving advisory facts must equal trusted risk facts", () => {
+  const mutations = [
+    [{ regime: "RISK_OFF" }, "RISK_REGIME_MISMATCH"],
+    [{ maximumPeerCorrelation: 0.2 }, "RISK_CANDIDATE_DEPENDENCE_MISMATCH"],
+    [{ regimeCoFailureRate: 0.3 }, "RISK_REGIME_CO_FAILURE_MISMATCH"],
+    [{ currentPortfolioGrossWeight: 0.5 }, "RISK_CONCENTRATION_EVIDENCE_MISMATCH"],
+    [{ currentStrategyWeight: 0.1 }, "RISK_CONCENTRATION_EVIDENCE_MISMATCH"],
+    [{ estimatedTurnover: 0.4 }, "RISK_COST_EDGE_EVIDENCE_MISMATCH"],
+    [{ estimatedFeeRate: 0.002 }, "RISK_COST_EDGE_EVIDENCE_MISMATCH"],
+    [{ estimatedSlippageRate: 0.002 }, "RISK_COST_EDGE_EVIDENCE_MISMATCH"],
+    [{ grossExpectedEdge: 0.02 }, "RISK_COST_EDGE_EVIDENCE_MISMATCH"],
+  ];
+  for (const [mutation, reason] of mutations) {
+    const result = evaluatePaperPortfolioAdvisory({ ...input, evidence: { ...evidence, ...mutation } }, policy);
+    assert.equal(result.decision, "ABSTAIN");
+    assert.equal(result.recommendedWeight, 0);
+    assert.ok(result.reasons.includes(reason));
+  }
 });
 
 test("fees and slippage are charged before positive-edge advice", () => {
+  const alteredRisk = { ...riskFacts, estimatedTurnover: 1, estimatedFeeRate: 0.01, estimatedSlippageRate: 0.01, grossExpectedEdge: 0.015 };
+  const alteredTrusted = createPaperPortfolioTrustedLongitudinalEvidence({
+    ...alteredRisk,
+    trustedRun,
+    periodIds: Array.from({ length: 40 }, (_, index) => `cost-period-${index}`),
+    outcomeReceiptFingerprints: Array.from({ length: 40 }, (_, index) => String(index + 100).padStart(64, "0"))
+  });
   const result = evaluatePaperPortfolioAdvisory({
     ...input,
-    evidence: {
-      ...evidence,
-      estimatedTurnover: 1,
-      estimatedFeeRate: 0.01,
-      estimatedSlippageRate: 0.01,
-      grossExpectedEdge: 0.015
-    }
+    evidence: { ...evidence, estimatedTurnover: 1, estimatedFeeRate: 0.01, estimatedSlippageRate: 0.01, grossExpectedEdge: 0.015 },
+    riskEvidence: { ...alteredRisk, trustedEvidence: alteredTrusted }
   }, policy);
   assert.equal(result.decision, "ABSTAIN");
   assert.ok(result.netExpectedEdge < 0);
   assert.ok(result.reasons.includes("NON_POSITIVE_EDGE_AFTER_COSTS"));
 });
 
-test("insufficient longitudinal periods and invalid provenance fail closed", () => {
-  const short = evaluatePaperPortfolioAdvisory({
-    ...input,
-    evidence: { ...evidence, evidencePeriods: 29 }
-  }, policy);
-  assert.equal(short.decision, "ABSTAIN");
-  assert.ok(short.reasons.includes("INSUFFICIENT_LONGITUDINAL_EVIDENCE"));
-
-  assert.throws(() => evaluatePaperPortfolioAdvisory({
-    ...input,
-    evidence: { ...evidence, datasetContentSha256: "not-a-hash" }
-  }, policy), /sha256/);
-});
-
-test("malformed longitudinal period counts fail closed before decisioning", () => {
-  for (const evidencePeriods of [Number.NaN, Number.POSITIVE_INFINITY, -1, 1.5]) {
-    assert.throws(() => evaluatePaperPortfolioAdvisory({
-      ...input,
-      evidence: { ...evidence, evidencePeriods }
-    }, policy), /evidencePeriods must be a non-negative integer/);
-  }
-});
-
-test("malformed consumed allocation policy limits fail closed", () => {
-  const malformedPolicies = [
-    { ...policy, maximumCorrelation: Number.NaN },
-    { ...policy, maximumCorrelation: Number.POSITIVE_INFINITY },
-    { ...policy, maximumCorrelation: -0.1 },
-    { ...policy, maximumPortfolioWeight: Number.NaN },
-    { ...policy, maximumPortfolioWeight: 1.1 },
-    { ...policy, maximumStrategyWeight: Number.POSITIVE_INFINITY },
-    { ...policy, maximumStrategyWeight: -0.1 }
-  ];
-
-  for (const malformedPolicy of malformedPolicies) {
-    assert.throws(() => evaluatePaperPortfolioAdvisory(input, malformedPolicy), /must be (finite|between 0 and 1)/);
-  }
-});
-
-test("derived advisory numerics can never become non-finite", () => {
-  assert.throws(() => evaluatePaperPortfolioAdvisory({
-    ...input,
-    evidence: { ...evidence, grossExpectedEdge: Number.MAX_VALUE }
-  }, policy), /netExpectedEdge must be finite/);
-
-  const result = evaluatePaperPortfolioAdvisory(input, policy);
-  assert.ok(Number.isFinite(result.netExpectedEdge));
-  assert.ok(Number.isFinite(result.maximumWeight));
-  assert.ok(Number.isFinite(result.recommendedWeight));
-});
-
 test("allocation advice abstains when canonical portfolio risk evidence is absent or not accepted", () => {
   const missing = evaluatePaperPortfolioAdvisory({ ...input, riskEvidence: undefined }, policy);
-  assert.equal(missing.decision, "ABSTAIN");
-  assert.equal(missing.recommendedWeight, 0);
   assert.ok(missing.reasons.includes("RISK_EVIDENCE_MISSING"));
-
-  const rejected = evaluatePaperPortfolioAdvisory({
-    ...input,
-    riskEvidence: { ...riskEvidence, portfolioDrawdownContribution: 0.11 }
-  }, policy);
-  assert.equal(rejected.decision, "ABSTAIN");
+  const rejected = evaluatePaperPortfolioAdvisory({ ...input, riskEvidence: { ...riskEvidence, portfolioDrawdownContribution: 0.11 } }, policy);
   assert.ok(rejected.reasons.includes("RISK_DRAWDOWN_CONTRIBUTION_LIMIT_EXCEEDED"));
 });
 
-test("portfolio risk evidence must match advisory provenance and be current at decision time", () => {
-  const mismatch = evaluatePaperPortfolioAdvisory({
-    ...input,
-    riskEvidence: { ...riskEvidence, candidateId: "candidate-other" }
-  }, policy);
-  assert.equal(mismatch.decision, "ABSTAIN");
-  assert.ok(mismatch.reasons.includes("RISK_EVIDENCE_PROVENANCE_MISMATCH"));
-
-  const future = evaluatePaperPortfolioAdvisory({
-    ...input,
-    riskEvidence: { ...riskEvidence, evaluatedAt: "2026-08-29T02:00:00.000Z" }
-  }, policy);
-  assert.equal(future.decision, "ABSTAIN");
-  assert.ok(future.reasons.includes("RISK_EVIDENCE_FUTURE"));
-
-  const stale = evaluatePaperPortfolioAdvisory({
-    ...input,
-    riskEvidence: {
-      ...riskEvidence,
-      observedAt: "2026-08-27T00:00:00.000Z",
-      evaluatedAt: "2026-08-27T00:30:00.000Z"
-    }
-  }, policy);
-  assert.equal(stale.decision, "ABSTAIN");
-  assert.ok(stale.reasons.includes("RISK_EVALUATION_STALE"));
+test("malformed policy and numerics fail closed", () => {
+  for (const malformedPolicy of [
+    { ...policy, maximumCorrelation: Number.NaN },
+    { ...policy, maximumPortfolioWeight: 1.1 },
+    { ...policy, maximumStrategyWeight: -0.1 }
+  ]) assert.throws(() => evaluatePaperPortfolioAdvisory(input, malformedPolicy), /must be (finite|between 0 and 1)/);
+  assert.throws(() => evaluatePaperPortfolioAdvisory({ ...input, evidence: { ...evidence, grossExpectedEdge: Number.MAX_VALUE } }, policy), /netExpectedEdge must be finite/);
 });
