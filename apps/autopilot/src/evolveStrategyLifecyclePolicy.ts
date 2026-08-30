@@ -3,6 +3,12 @@ import {
   type PaperCalibrationAdmissionBinding,
   type PaperCalibrationObservation,
 } from "./evolvePaperCalibrationEvidence";
+import {
+  evaluateEdgeDecay,
+  type EdgeDecayInput,
+  type EdgeDecayPolicy,
+  type EdgeDecayResult,
+} from "../../cloud/src/edgeDecayMonitor";
 
 export type StrategyLifecycleState =
   | "CANDIDATE"
@@ -56,7 +62,12 @@ export interface StrategyLifecycleDecision {
     | "canonical-calibration-evidence-missing"
     | "canonical-calibration-insufficient"
     | "canonical-calibration-regression"
-    | "canonical-calibration-improved-no-promotion";
+    | "canonical-calibration-improved-no-promotion"
+    | "canonical-edge-decay-evidence-missing"
+    | "canonical-edge-decay-healthy"
+    | "canonical-edge-decay-watch"
+    | "canonical-edge-decay-reduce"
+    | "canonical-edge-decay-suspend";
   readonly authority: {
     readonly liveAuthority: "NONE";
     readonly productionMutationAllowed: false;
@@ -82,6 +93,58 @@ function decision(
   reason: StrategyLifecycleDecision["reason"],
 ): StrategyLifecycleDecision {
   return Object.freeze({ previousState, nextState, reason, authority: AUTHORITY });
+}
+
+export interface StrategyEdgeDecayContainmentInput {
+  readonly currentState: StrategyLifecycleState;
+  /** Raw performance windows are evaluated by the canonical edge-decay monitor. */
+  readonly edgeDecay?: {
+    readonly input: EdgeDecayInput;
+    readonly policy: EdgeDecayPolicy;
+  };
+}
+
+export interface StrategyEdgeDecayContainmentDecision extends StrategyLifecycleDecision {
+  readonly edgeDecay?: EdgeDecayResult;
+}
+
+function edgeDecayFailClosedState(currentState: StrategyLifecycleState): StrategyLifecycleState {
+  if (currentState === "PROMOTED") return "DEMOTED";
+  if (currentState === "CANDIDATE") return "WATCH";
+  return currentState;
+}
+
+/**
+ * Applies the existing canonical edge-decay result to the strategy lifecycle. The monitor is
+ * evaluated from raw, point-in-time windows here; callers cannot assert a decay status or action.
+ * This is a containment projection only: it never promotes, executes, mutates a scheduler, or
+ * grants authority. Missing/insufficient evidence and deterioration fail closed.
+ */
+export function decideStrategyEdgeDecayContainment(
+  input: StrategyEdgeDecayContainmentInput,
+): StrategyEdgeDecayContainmentDecision {
+  const current = validateStrategyLifecycleState(input.currentState);
+  if (current === "RETIRED") return decision(current, "RETIRED", "retired-is-absorbing");
+
+  if (input.edgeDecay == null) {
+    return decision(current, edgeDecayFailClosedState(current), "canonical-edge-decay-evidence-missing");
+  }
+
+  const edgeDecay = evaluateEdgeDecay(input.edgeDecay.input, input.edgeDecay.policy);
+  let nextState: StrategyLifecycleState = current;
+  let reason: StrategyLifecycleDecision["reason"] = "canonical-edge-decay-healthy";
+  if (edgeDecay.status === "RED" || edgeDecay.action === "SUSPEND") {
+    nextState = "QUARANTINED";
+    reason = "canonical-edge-decay-suspend";
+  } else if (edgeDecay.status === "ORANGE" || edgeDecay.action === "REDUCE_CAPITAL") {
+    nextState = edgeDecayFailClosedState(current);
+    reason = "canonical-edge-decay-reduce";
+  } else if (edgeDecay.status === "YELLOW" || edgeDecay.action === "OBSERVE") {
+    nextState = edgeDecayFailClosedState(current);
+    reason = "canonical-edge-decay-watch";
+  }
+
+  return Object.freeze({ ...decision(current, nextState, reason), edgeDecay });
 }
 
 /**
