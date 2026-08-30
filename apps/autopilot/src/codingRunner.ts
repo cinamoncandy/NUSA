@@ -24,17 +24,36 @@ export interface CodingProposal {
   readonly patch: string;
 }
 
+export interface CodingValidatedFile {
+  readonly path: string;
+  readonly content: string;
+}
+
 export interface CodingRuntimeExecutionResult {
   readonly backend: string;
   readonly checkpointId: string;
   readonly workspaceVerified: true;
   readonly proposalValidated?: true;
   readonly changedFiles?: readonly string[];
+  readonly validatedFiles?: readonly CodingValidatedFile[];
 }
 
 export interface CodingRuntime {
   readonly name: string;
   execute(request: CodingRunnerRequest, proposal?: CodingProposal): Promise<CodingRuntimeExecutionResult>;
+}
+
+export interface CodingPublisherResult {
+  readonly publisher: string;
+  readonly branch: string;
+  readonly commitSha: string;
+  readonly pullRequestNumber: number;
+  readonly pullRequestUrl: string;
+}
+
+export interface CodingPublisher {
+  readonly name: string;
+  publish(request: CodingRunnerRequest, runtime: CodingRuntimeExecutionResult): Promise<CodingPublisherResult>;
 }
 
 export interface CodingRunnerResult {
@@ -46,6 +65,11 @@ export interface CodingRunnerResult {
   readonly workspaceVerified?: true;
   readonly proposalValidated?: true;
   readonly changedFiles?: readonly string[];
+  readonly publisher?: string;
+  readonly branch?: string;
+  readonly commitSha?: string;
+  readonly pullRequestNumber?: number;
+  readonly pullRequestUrl?: string;
 }
 
 interface HttpResponse {
@@ -144,6 +168,7 @@ export async function executeCodingRunner(
   env: CodingRunnerEnv,
   fetchImpl: FetchImpl = fetch as unknown as FetchImpl,
   runtime?: CodingRuntime,
+  publisher?: CodingPublisher,
 ): Promise<CodingRunnerResult> {
   const endpoint = env.NUSA_AI_CODING_ENDPOINT?.trim();
   const token = env.NUSA_AI_CODING_TOKEN?.trim();
@@ -164,8 +189,13 @@ export async function executeCodingRunner(
       return { status: "EXECUTION_FAILED", reason: error instanceof Error ? error.message : "CODING_PROPOSAL_INVALID", httpStatus: response.status };
     }
     try {
-      const result = await runtime.execute(request, proposal);
-      return { status: "EXECUTION_ACCEPTED", httpStatus: response.status, ...result };
+      const runtimeResult = await runtime.execute(request, proposal);
+      if (!publisher) return { status: "EXECUTION_ACCEPTED", httpStatus: response.status, ...runtimeResult };
+      if (!runtimeResult.proposalValidated || !runtimeResult.validatedFiles?.length) {
+        return { status: "EXECUTION_FAILED", reason: "CODING_PUBLISH_VALIDATION_REQUIRED", httpStatus: response.status };
+      }
+      const published = await publisher.publish(request, runtimeResult);
+      return { status: "EXECUTION_ACCEPTED", httpStatus: response.status, ...runtimeResult, ...published };
     } catch (error) {
       return { status: "EXECUTION_FAILED", reason: error instanceof Error ? error.message : "coding-runtime-failed", httpStatus: response.status };
     }
