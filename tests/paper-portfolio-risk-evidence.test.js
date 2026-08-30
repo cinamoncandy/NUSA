@@ -33,6 +33,14 @@ const baseInput = {
   minimumDiversificationBenefit: 0.01,
   maximumAbsoluteCandidateCorrelation: 0.45,
   maximumAllowedCandidateCorrelation: 0.85,
+  portfolioRegime: "RISK_ON",
+  regimeCoFailureRate: 0.2,
+  currentPortfolioGrossWeight: 0.4,
+  currentStrategyWeight: 0,
+  estimatedTurnover: 0.25,
+  estimatedFeeRate: 0.001,
+  estimatedSlippageRate: 0.001,
+  grossExpectedEdge: 0.01,
 };
 
 const trustedEvidenceFor = (value) => createPaperPortfolioTrustedLongitudinalEvidence({
@@ -57,6 +65,10 @@ test("accepts only verified point-in-time risk evidence inside portfolio bounds"
   assert.equal(result.decision, "ACCEPT");
   assert.deepEqual(result.reasons, []);
   assert.equal(result.maximumAbsoluteCandidateCorrelation, 0.45);
+  assert.equal(result.regimeCoFailureRate, 0.2);
+  assert.equal(result.currentPortfolioGrossWeight, 0.4);
+  assert.equal(result.estimatedTurnover, 0.25);
+  assert.equal(result.grossExpectedEdge, 0.01);
   assert.equal(result.liveAuthority, "NONE");
   assert.equal(result.productionMutationAllowed, false);
   assert.equal(result.aiAuthority, "ZERO_AUTHORITY");
@@ -76,42 +88,43 @@ test("insufficient future and stale evidence fail closed", () => {
   const short = evaluatePaperPortfolioRiskEvidence(input({ evidencePeriods: 29 }));
   assert.equal(short.decision, "ABSTAIN");
   assert.ok(short.reasons.includes("INSUFFICIENT_LONGITUDINAL_EVIDENCE"));
-
   const future = evaluatePaperPortfolioRiskEvidence(input({ observedAt: "2026-08-29T02:00:00.000Z" }));
   assert.equal(future.decision, "ABSTAIN");
   assert.ok(future.reasons.includes("FUTURE_EVIDENCE"));
-
   const stale = evaluatePaperPortfolioRiskEvidence(input({ observedAt: "2026-08-27T00:00:00.000Z" }));
   assert.equal(stale.decision, "ABSTAIN");
   assert.ok(stale.reasons.includes("STALE_EVIDENCE"));
 });
 
-test("excess drawdown contribution forces abstention", () => {
-  const result = evaluatePaperPortfolioRiskEvidence(input({ portfolioDrawdownContribution: 0.11 }));
-  assert.equal(result.decision, "ABSTAIN");
-  assert.ok(result.reasons.includes("DRAWDOWN_CONTRIBUTION_LIMIT_EXCEEDED"));
+test("drawdown diversification and candidate dependence remain bounded", () => {
+  const drawdown = evaluatePaperPortfolioRiskEvidence(input({ portfolioDrawdownContribution: 0.11 }));
+  assert.ok(drawdown.reasons.includes("DRAWDOWN_CONTRIBUTION_LIMIT_EXCEEDED"));
+  const diversification = evaluatePaperPortfolioRiskEvidence(input({ diversificationBenefit: 0.005 }));
+  assert.ok(diversification.reasons.includes("INSUFFICIENT_DIVERSIFICATION_BENEFIT"));
+  const dependence = evaluatePaperPortfolioRiskEvidence(input({ maximumAbsoluteCandidateCorrelation: 0.96 }));
+  assert.ok(dependence.reasons.includes("CANDIDATE_DEPENDENCE_LIMIT_EXCEEDED"));
 });
 
-test("missing diversification benefit forces abstention", () => {
-  const result = evaluatePaperPortfolioRiskEvidence(input({ diversificationBenefit: 0.005 }));
-  assert.equal(result.decision, "ABSTAIN");
-  assert.ok(result.reasons.includes("INSUFFICIENT_DIVERSIFICATION_BENEFIT"));
-});
-
-test("high candidate dependence forces abstention", () => {
-  const result = evaluatePaperPortfolioRiskEvidence(input({ maximumAbsoluteCandidateCorrelation: 0.96 }));
-  assert.equal(result.decision, "ABSTAIN");
-  assert.ok(result.reasons.includes("CANDIDATE_DEPENDENCE_LIMIT_EXCEEDED"));
-});
-
-test("correlation evidence is fingerprint-bound and cannot be swapped after verification", () => {
+test("every allocation-driving fact is fingerprint-bound and cannot be swapped", () => {
   const trustedEvidence = trustedEvidenceFor(baseInput);
-  const result = evaluatePaperPortfolioRiskEvidence(input({
-    maximumAbsoluteCandidateCorrelation: 0.84,
-    trustedEvidence,
-  }));
-  assert.equal(result.decision, "ABSTAIN");
-  assert.ok(result.reasons.includes("TRUSTED_PAPER_EVIDENCE_FINGERPRINT_MISMATCH"));
+  const mutations = [
+    { maximumAbsoluteCandidateCorrelation: 0.46 },
+    { portfolioRegime: "RISK_OFF" },
+    { regimeCoFailureRate: 0.21 },
+    { currentPortfolioGrossWeight: 0.41 },
+    { currentStrategyWeight: 0.01 },
+    { estimatedTurnover: 0.26 },
+    { estimatedFeeRate: 0.002 },
+    { estimatedSlippageRate: 0.002 },
+    { grossExpectedEdge: 0.011 },
+    { portfolioDrawdownContribution: 0.09 },
+    { diversificationBenefit: 0.04 },
+  ];
+  for (const mutation of mutations) {
+    const result = evaluatePaperPortfolioRiskEvidence(input({ ...mutation, trustedEvidence }));
+    assert.equal(result.decision, "ABSTAIN");
+    assert.ok(result.reasons.includes("TRUSTED_PAPER_EVIDENCE_FINGERPRINT_MISMATCH"));
+  }
 });
 
 test("trusted evidence cannot be rebound to another workflow run", () => {
@@ -126,11 +139,14 @@ test("trusted evidence cannot be rebound to another workflow run", () => {
   assert.ok(result.reasons.includes("TRUSTED_PAPER_RUN_BINDING_MISMATCH"));
 });
 
-test("malformed provenance and non-finite risk numerics fail closed", () => {
+test("malformed provenance and allocation-driving numerics fail closed", () => {
   assert.throws(() => evaluatePaperPortfolioRiskEvidence(input({ datasetContentSha256: "bad" })), /sha256/);
   assert.throws(() => evaluatePaperPortfolioRiskEvidence(input({ portfolioDrawdownContribution: Number.NaN })), /finite/);
-  assert.throws(() => evaluatePaperPortfolioRiskEvidence(input({ diversificationBenefit: Number.POSITIVE_INFINITY })), /finite/);
   assert.throws(() => evaluatePaperPortfolioRiskEvidence(input({ maximumAbsoluteCandidateCorrelation: 1.01 })), /between 0 and 1/);
+  assert.throws(() => evaluatePaperPortfolioRiskEvidence(input({ regimeCoFailureRate: 1.01 })), /between 0 and 1/);
+  assert.throws(() => evaluatePaperPortfolioRiskEvidence(input({ currentPortfolioGrossWeight: -0.01 })), /between 0 and 1/);
+  assert.throws(() => evaluatePaperPortfolioRiskEvidence(input({ estimatedTurnover: Number.POSITIVE_INFINITY })), /finite/);
+  assert.throws(() => evaluatePaperPortfolioRiskEvidence(input({ grossExpectedEdge: Number.NaN })), /finite/);
 });
 
 test("caller-asserted VERIFIED evidence without the canonical capability stays abstained", () => {
@@ -144,14 +160,4 @@ test("caller-asserted VERIFIED evidence without the canonical capability stays a
   }));
   assert.equal(result.decision, "ABSTAIN");
   assert.ok(result.reasons.includes("UNTRUSTED_PAPER_EVIDENCE"));
-});
-
-test("trusted provenance cannot be paired with changed portfolio metrics", () => {
-  const trustedEvidence = trustedEvidenceFor(baseInput);
-  const result = evaluatePaperPortfolioRiskEvidence(input({
-    portfolioDrawdownContribution: 0.09,
-    trustedEvidence,
-  }));
-  assert.equal(result.decision, "ABSTAIN");
-  assert.ok(result.reasons.includes("TRUSTED_PAPER_EVIDENCE_FINGERPRINT_MISMATCH"));
 });

@@ -130,8 +130,20 @@ export const evaluatePaperPortfolioAdvisory = (
       || risk.datasetContentSha256 !== input.evidence.datasetContentSha256) {
       reasons.push("RISK_EVIDENCE_PROVENANCE_MISMATCH");
     }
+    if (risk.portfolioRegime !== input.evidence.regime) reasons.push("RISK_REGIME_MISMATCH");
     if (risk.maximumAbsoluteCandidateCorrelation !== input.evidence.maximumPeerCorrelation) {
       reasons.push("RISK_CANDIDATE_DEPENDENCE_MISMATCH");
+    }
+    if (risk.regimeCoFailureRate !== input.evidence.regimeCoFailureRate) reasons.push("RISK_REGIME_CO_FAILURE_MISMATCH");
+    if (risk.currentPortfolioGrossWeight !== input.evidence.currentPortfolioGrossWeight
+      || risk.currentStrategyWeight !== input.evidence.currentStrategyWeight) {
+      reasons.push("RISK_CONCENTRATION_EVIDENCE_MISMATCH");
+    }
+    if (risk.estimatedTurnover !== input.evidence.estimatedTurnover
+      || risk.estimatedFeeRate !== input.evidence.estimatedFeeRate
+      || risk.estimatedSlippageRate !== input.evidence.estimatedSlippageRate
+      || risk.grossExpectedEdge !== input.evidence.grossExpectedEdge) {
+      reasons.push("RISK_COST_EDGE_EVIDENCE_MISMATCH");
     }
     if (riskEvaluatedAtMs > generatedAtMs) reasons.push("RISK_EVIDENCE_FUTURE");
     if (generatedAtMs - riskEvaluatedAtMs > input.maximumEvidenceAgeMs) reasons.push("RISK_EVALUATION_STALE");
