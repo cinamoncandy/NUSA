@@ -14,4 +14,7 @@ test("one nusa_autopilot_execution event has one effective workflow consumer", (
   assert.match(canonical, /NUSA_CODING_RUNNER_URL/);
   assert.match(canonical, /id-token:\s*write/);
   assert.match(canonical, /DUPLICATE_EXECUTION_SUPPRESSED/);
+  assert.match(canonical, /autopilot-dispatch-retry\.js/);
+  assert.match(canonical, /execution-attempts\.json/);
+  assert.match(canonical, /execution-summary\.json/);
 });
