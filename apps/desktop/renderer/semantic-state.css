@@ -1,0 +1,101 @@
+/* NUSA semantic state grammar. Presentation only: no execution or authority logic. */
+:root {
+  --state-ok: var(--color-success);
+  --state-warn: var(--color-warning);
+  --state-danger: var(--color-danger);
+  --state-neutral: var(--color-text-muted);
+  --state-info: var(--color-primary);
+}
+
+.nusa-state {
+  --state-accent: var(--state-neutral);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 1.75rem;
+  padding: 0 0.65rem;
+  border: 1px solid hsl(var(--state-accent) / 0.38);
+  border-radius: var(--radius-full);
+  background: hsl(var(--state-accent) / 0.10);
+  color: var(--color-fg);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.nusa-state__indicator {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--state-accent);
+}
+
+.nusa-state__label { display: inline-flex; align-items: center; gap: 0.25rem; }
+.nusa-state__detail { color: var(--color-text-muted); font-weight: var(--font-weight-medium); }
+
+.nusa-state[data-state="healthy"],
+.nusa-state[data-state="success"] { --state-accent: var(--state-ok); }
+.nusa-state[data-state="connecting"],
+.nusa-state[data-state="degraded"],
+.nusa-state[data-state="stale"],
+.nusa-state[data-state="pending"],
+.nusa-state[data-state="blocked"] { --state-accent: var(--state-warn); }
+.nusa-state[data-state="disconnected"],
+.nusa-state[data-state="error"],
+.nusa-state[data-state="failed"] { --state-accent: var(--state-danger); }
+.nusa-state[data-state="ready"],
+.nusa-state[data-state="info"] { --state-accent: var(--state-info); }
+
+.nusa-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2rem;
+  padding: 0 0.7rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-fg);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.04em;
+}
+
+.nusa-mode[data-mode="paper"] { border-color: hsl(var(--color-primary) / 0.55); }
+.nusa-mode[data-mode="shadow"] { border-color: hsl(var(--state-warn) / 0.55); }
+.nusa-mode[data-mode="live"] { border-color: hsl(var(--state-danger) / 0.65); }
+
+.nusa-mode__label::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--state-neutral);
+}
+.nusa-mode[data-mode="paper"] .nusa-mode__label::before { background: var(--state-info); }
+.nusa-mode[data-mode="shadow"] .nusa-mode__label::before { background: var(--state-warn); }
+.nusa-mode[data-mode="live"] .nusa-mode__label::before { background: var(--state-danger); }
+
+.nusa-action-state {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.75rem 0.9rem;
+  border-left: 3px solid var(--state-accent, var(--state-neutral));
+  background: hsl(var(--state-accent, var(--state-neutral)) / 0.08);
+}
+
+.nusa-action-state[data-state="ready"] { --state-accent: var(--state-info); }
+.nusa-action-state[data-state="blocked"] { --state-accent: var(--state-warn); }
+.nusa-action-state[data-state="failed"] { --state-accent: var(--state-danger); }
+.nusa-action-state[data-state="success"] { --state-accent: var(--state-ok); }
+
+@media (prefers-reduced-motion: reduce) {
+  .nusa-state, .nusa-action-state { transition: none !important; animation: none !important; }
+}
+
+@media (max-width: 48rem) {
+  .nusa-state { min-height: 2rem; }
+  .nusa-state__detail { display: none; }
+}
