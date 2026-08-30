@@ -6,7 +6,10 @@
   "author": "NUSA contributors",
   "main": "dist/apps/desktop/src/cloudMain.js",
   "packageManager": "pnpm@11.7.0",
-  "engines": {"node": ">=24.0.0", "pnpm": ">=11.7.0"},
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=11.7.0"
+  },
   "scripts": {
     "postinstall": "node scripts/apply-security-backports.js",
     "preflight": "node scripts/check-runtime.js && node scripts/validate-repository-portability.js",
@@ -71,7 +74,9 @@
     "opportunity:schedule-import": "pnpm run preflight && pnpm run build && node scripts/import-opportunity-schedule.js",
     "research:evidence-status": "pnpm run preflight && pnpm run build && node scripts/research-evidence-status.js",
     "runtime:diagnostics-validate": "pnpm run preflight && pnpm run build && node scripts/validate-runtime-diagnostics.js",
-    "research:real-run": "pnpm run preflight && pnpm run build && node scripts/research-real-market-run.js"
+    "research:real-run": "pnpm run preflight && pnpm run build && node scripts/research-real-market-run.js",
+    "validate": "pnpm run preflight && pnpm run architecture:truth && pnpm run safety:architecture && pnpm run ai:architecture",
+    "validate:full": "pnpm run validate && pnpm run architecture:check && pnpm run aipos:drift && pnpm run aipos:conformance && pnpm run safety:invariants && pnpm run safety:inputs"
   },
   "devDependencies": {
     "@cloudflare/sandbox": "0.13.0-next.751.1",
@@ -91,15 +96,42 @@
     "typescript": "5.9.3",
     "vitest": "3.2.6"
   },
-  "dependencies": {"ws": "8.21.0"},
+  "dependencies": {
+    "ws": "8.21.0"
+  },
   "build": {
     "appId": "com.nusa.trader",
     "productName": "NUSA",
     "asar": true,
-    "directories": {"output": "release"},
-    "files": ["dist/**/*","apps/desktop/renderer/**/*","apps/desktop/package.json","package.json","!**/*.ts","!**/*.map","!**/tests{,/**/*}","!**/docs{,/**/*}"],
-    "extraMetadata": {"main": "dist/apps/desktop/src/cloudMain.js"},
-    "win": {"target": "nsis","icon": "build/nusa-a4p.ico","artifactName": "NUSA-${version}-Windows-Setup.${ext}","signAndEditExecutable": false},
-    "nsis": {"oneClick": false,"perMachine": false,"allowToChangeInstallationDirectory": false,"createDesktopShortcut": true,"createStartMenuShortcut": true,"deleteAppDataOnUninstall": false}
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "apps/desktop/renderer/**/*",
+      "apps/desktop/package.json",
+      "package.json",
+      "!**/*.ts",
+      "!**/*.map",
+      "!**/tests{,/**/*}",
+      "!**/docs{,/**/*}"
+    ],
+    "extraMetadata": {
+      "main": "dist/apps/desktop/src/cloudMain.js"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/nusa-a4p.ico",
+      "artifactName": "NUSA-${version}-Windows-Setup.${ext}",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false
+    }
   }
 }
