@@ -135,6 +135,54 @@ describe("coding runner", () => {
     assert.equal(calls.length, 3);
   });
 
+  it("uses GitHub Models when no dedicated AI coding endpoint is configured", async () => {
+    let runtimeCalls = 0;
+    const runtime: CodingRuntime = {
+      name: "fake-sandbox",
+      async execute(value, proposal) {
+        runtimeCalls += 1;
+        assert.equal(value.executionId, request.executionId);
+        assert.equal(proposal?.patch, patch);
+        return {
+          backend: "fake-sandbox",
+          checkpointId: request.headSha,
+          workspaceVerified: true,
+          proposalValidated: true,
+          changedFiles: ["apps/autopilot/src/example.ts"],
+        };
+      },
+    };
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token" }, async (url, init) => {
+      calls.push({ url, init });
+      if (url.includes("/commits/") || url.includes("/actions/runs/")) return verifiedGithubFetch(url);
+      return response(200, {
+        choices: [{ message: { content: JSON.stringify({ patch }) } }],
+      });
+    }, runtime);
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.equal(result.proposalValidated, true);
+    assert.equal(runtimeCalls, 1);
+    assert.equal(calls.length, 3);
+    const modelCall = calls[2];
+    assert.equal(modelCall?.url, "https://models.github.ai/inference/chat/completions");
+    const body = JSON.parse(String(modelCall?.init?.body));
+    assert.equal(body.model, "openai/gpt-4.1");
+    assert.equal(body.response_format.type, "json_object");
+    const headers = modelCall?.init?.headers as Record<string, string>;
+    assert.equal(headers.authorization, "Bearer github-token");
+  });
+
+  it("fails closed when GitHub Models access is unavailable", async () => {
+    const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token" }, async (url) => {
+      if (url.includes("/commits/") || url.includes("/actions/runs/")) return verifiedGithubFetch(url);
+      return response(403, { message: "Forbidden" });
+    });
+    assert.equal(result.status, "EXECUTION_FAILED");
+    assert.equal(result.httpStatus, 403);
+    assert.equal(result.reason, "github-models-coding-engine-failed");
+  });
+
   it("fails closed when the coding engine does not return a patch proposal", async () => {
     let runtimeCalls = 0;
     const runtime: CodingRuntime = {
@@ -204,7 +252,7 @@ describe("coding runner", () => {
     assert.equal(headers["x-nusa-dedupe-key"], request.dedupeKey);
   });
 
-  it("stays interface-ready until a real AI coding engine is configured", async () => {
-    assert.deepEqual(await executeCodingRunner(request, {}), { status: "INTERFACE_READY", reason: "ai-coding-engine-not-configured" });
+  it("stays interface-ready until GitHub verification is configured", async () => {
+    assert.deepEqual(await executeCodingRunner(request, {}), { status: "INTERFACE_READY", reason: "github-verification-not-configured" });
   });
 });
