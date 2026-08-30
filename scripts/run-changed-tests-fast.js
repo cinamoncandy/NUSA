@@ -8,14 +8,15 @@ function toRunnableTest(relativePath) {
   const normalized = relativePath.trim().replaceAll("\\", "/");
   if (!normalized) return null;
   if (/\.test\.(?:js|cjs|mjs)$/.test(normalized)) return normalized;
-  if (/\.(?:test|vitest)\.ts$/.test(normalized)) return normalized;
+  if (/\.test\.ts$/.test(normalized)) return `dist/${normalized.slice(0, -3)}.js`;
+  if (/\.vitest\.ts$/.test(normalized)) return normalized;
   return null;
 }
 
 function runTest(vitestCli, relativePath, root) {
-  const isTypeScriptTest = /\.(?:test|vitest)\.ts$/.test(relativePath);
+  const isVitestTest = /\.vitest\.ts$/.test(relativePath);
   const registerDistPath = join(root, "tests", "register-dist.cjs");
-  const args = isTypeScriptTest
+  const args = isVitestTest
     ? [vitestCli, "run", "--config", "vitest.config.mjs", relativePath]
     : [
       ...(existsSync(registerDistPath) ? ["--require", registerDistPath] : []),
@@ -82,7 +83,7 @@ function main() {
     return;
   }
 
-  if (tests.some((relativePath) => /\.(?:test|vitest)\.ts$/.test(relativePath)) && !existsSync(vitestCli)) {
+  if (tests.some((relativePath) => /\.vitest\.ts$/.test(relativePath)) && !existsSync(vitestCli)) {
     console.error(`Changed-test fast gate could not find Vitest CLI at ${vitestCli}`);
     process.exit(1);
   }

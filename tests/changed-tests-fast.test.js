@@ -9,10 +9,10 @@ test("changed-test fast gate recognizes runnable JavaScript tests", () => {
   assert.equal(toRunnableTest("tests\\windows-path.test.cjs"), "tests/windows-path.test.cjs");
 });
 
-test("changed-test fast gate runs co-located TypeScript tests from source", () => {
+test("changed-test fast gate maps co-located TypeScript tests to the matching runner", () => {
   assert.equal(
     toRunnableTest("apps/desktop/src/cloud/example.test.ts"),
-    "apps/desktop/src/cloud/example.test.ts"
+    "dist/apps/desktop/src/cloud/example.test.js"
   );
   assert.equal(
     toRunnableTest("apps/cloud/src/liveBrokerTransportBoundaryV3.vitest.ts"),
