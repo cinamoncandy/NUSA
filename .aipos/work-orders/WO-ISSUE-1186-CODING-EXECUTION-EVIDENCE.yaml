@@ -5,9 +5,9 @@ owner: nusa
 repository: cinamoncandy/NUSA
 issue: 1186
 base_branch: main
-base_commit: 59ad886864afeb68b0d00afbcd9b7962b7fa9faa
-implementation_branch: codex/fix-autopilot-consumer-fallback
-objective: "Record deterministic, bounded, redacted outcomes from the existing coding runner so unattended execution can be observed and replayed without adding mutation authority, while treating optional external-runner rejection as an observable fail-closed interface state."
+base_commit: 781e82f68bcf796f38d6d88b397aff370085a2ba
+implementation_branch: codex/issue-1186-e2e-repair
+objective: "Route unattended coding execution to an optional configured external runner or the bounded GitHub Models fallback only when concrete failure evidence exists, while preserving deterministic evidence and zero mutation authority."
 architecture_impact:
   acknowledged: true
   analysis: "Reuse the existing autopilot Worker, ExecutionCoordinator Durable Object, coding runner, sandbox validation, and publisher contracts; keep the Consumer's external rejection path observable and non-fatal without treating an unexecuted repair as success."
@@ -22,6 +22,7 @@ scope:
   - read_only_worker_projection
   - redaction_and_identity_validation
   - external_runner_rejection_observability
+  - optional_external_runner_selection
 prohibited:
   - live_execution
   - broker_mutation
@@ -42,6 +43,7 @@ acceptance:
   - GET_coding_evidence_is_read_only
   - no_new_execution_or_broker_authority
   - external_runner_rejection_does_not_report_false_repair_success
+  - external_runner_is_not_selected_without_repository_configuration
 validation:
   focused_evidence_tests: PASS_3_OF_3
   focused_coordinator_tests: PASS_5_OF_5
