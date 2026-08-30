@@ -1,1 +1,0 @@
-CI validation note: this boundary is intentionally fail-closed and does not submit production orders.

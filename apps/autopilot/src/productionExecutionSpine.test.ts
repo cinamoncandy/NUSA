@@ -26,7 +26,7 @@ describe("production execution spine", () => {
   it("binds verified CI evidence to identity, lease, bounded envelope, and runner request", () => {
     const prepared = prepareProductionExecution(success, options);
     assert.ok(prepared);
-    assert.equal(prepared.state.status, "CODEX_DISPATCHED");
+    assert.equal(prepared.state.status, "CODING_DISPATCHED");
     assert.equal(prepared.state.lease?.holder, "cloudflare:nusa-autopilot");
     assert.equal(prepared.envelope.baseSha, sha);
     assert.equal(prepared.envelope.workflowRunId, 12345);
