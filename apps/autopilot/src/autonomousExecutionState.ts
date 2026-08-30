@@ -3,7 +3,7 @@ export type AutonomousExecutionStatus =
   | "RANKED"
   | "READY"
   | "LEASED"
-  | "CODEX_DISPATCHED"
+  | "CODING_DISPATCHED"
   | "IMPLEMENTING"
   | "IMPLEMENTATION_BLOCKED"
   | "COMMIT_PRODUCED"
@@ -51,14 +51,14 @@ const transitions: Readonly<Record<AutonomousExecutionStatus, readonly Autonomou
   DISCOVERED: ["RANKED", "BLOCKED", "HUMAN_ONLY"],
   RANKED: ["READY", "BLOCKED", "HUMAN_ONLY"],
   READY: ["LEASED", "BLOCKED", "HUMAN_ONLY"],
-  LEASED: ["CODEX_DISPATCHED", "READY", "BLOCKED", "HUMAN_ONLY"],
-  CODEX_DISPATCHED: ["IMPLEMENTING", "PR_OPEN", "IMPLEMENTATION_BLOCKED", "BLOCKED", "HUMAN_ONLY"],
+  LEASED: ["CODING_DISPATCHED", "READY", "BLOCKED", "HUMAN_ONLY"],
+  CODING_DISPATCHED: ["IMPLEMENTING", "PR_OPEN", "IMPLEMENTATION_BLOCKED", "BLOCKED", "HUMAN_ONLY"],
   IMPLEMENTING: ["COMMIT_PRODUCED", "PR_OPEN", "IMPLEMENTATION_BLOCKED", "BLOCKED", "HUMAN_ONLY"],
-  IMPLEMENTATION_BLOCKED: ["REWORK_QUEUED", "CODEX_DISPATCHED", "BLOCKED", "HUMAN_ONLY"],
+  IMPLEMENTATION_BLOCKED: ["REWORK_QUEUED", "CODING_DISPATCHED", "BLOCKED", "HUMAN_ONLY"],
   COMMIT_PRODUCED: ["PR_OPEN", "BLOCKED", "HUMAN_ONLY"],
   PR_OPEN: ["CI_RUNNING", "BLOCKED", "HUMAN_ONLY"],
   CI_RUNNING: ["CI_FAILED", "CI_PASSED", "BLOCKED", "HUMAN_ONLY"],
-  CI_FAILED: ["CODEX_DISPATCHED", "BLOCKED", "HUMAN_ONLY"],
+  CI_FAILED: ["CODING_DISPATCHED", "BLOCKED", "HUMAN_ONLY"],
   CI_PASSED: ["MERGE_READY", "BLOCKED", "HUMAN_ONLY"],
   MERGE_READY: ["MERGING", "CI_RUNNING", "BLOCKED", "HUMAN_ONLY"],
   MERGING: ["MERGED", "CI_RUNNING", "BLOCKED", "HUMAN_ONLY"],
@@ -92,7 +92,7 @@ export function transitionExecution(
   next: AutonomousExecutionStatus,
 ): AutonomousExecutionState {
   if (!transitions[state.status].includes(next)) throw new Error("AUTONOMOUS_EXECUTION_TRANSITION_INVALID");
-  if (state.status === "LEASED" && next === "CODEX_DISPATCHED" && state.lease === null) {
+  if (state.status === "LEASED" && next === "CODING_DISPATCHED" && state.lease === null) {
     throw new Error("AUTONOMOUS_EXECUTION_LEASE_REQUIRED");
   }
   return Object.freeze({ ...state, status: next, lease: next === "READY" ? null : state.lease, mutationAllowed: false });
