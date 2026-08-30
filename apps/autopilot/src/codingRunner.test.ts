@@ -211,6 +211,23 @@ describe("coding runner", () => {
     assert.match(calls[0]?.input.prompt ?? "", /unified diff/);
   });
 
+  it("falls back from the retired dashboard model to the supported default", async () => {
+    const calls: string[] = [];
+    const ai: WorkersAiBinding = {
+      async run(model) {
+        calls.push(model);
+        return { response: JSON.stringify({ patch }) };
+      },
+    };
+    const result = await executeCodingRunner(request, {
+      NUSA_GITHUB_TOKEN: "github-token",
+      NUSA_AI_CODING_MODEL: "@cf/meta/infire-llama-3.1-8b-instruct",
+      AI: ai,
+    }, verifiedGithubFetch);
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.deepEqual(calls, ["@cf/meta/llama-3.1-8b-instruct"]);
+  });
+
   it("stays interface-ready when no provider-neutral coding engine is configured", async () => {
     const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token" }, verifiedGithubFetch);
     assert.equal(result.status, "INTERFACE_READY");
