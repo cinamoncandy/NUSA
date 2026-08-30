@@ -1,22 +1,24 @@
 import type { CodingBackend } from "./codingBackend";
 import { assertSafeCodingEnvelope } from "./codingBackend";
 import type { CodingExecutionEnvelope } from "./codingExecutionEnvelope";
-import type { CodingRunnerRequest, CodingRuntime, CodingRuntimeExecutionResult } from "./codingRunner";
+import type { CodingProposal, CodingRunnerRequest, CodingRuntime, CodingRuntimeExecutionResult } from "./codingRunner";
+import { validatePatchInSandbox } from "./sandboxPatchValidator";
 
 function toSandboxEnvelope(request: CodingRunnerRequest): CodingExecutionEnvelope {
   const envelope: CodingExecutionEnvelope = Object.freeze({
     cycleId: `runtime:${request.workflowRunId}`,
-    workItemId: `sandbox-probe:${request.headSha}`,
+    workItemId: `sandbox-proposal:${request.headSha}`,
     executionId: request.executionId,
     dedupeKey: request.dedupeKey,
     origin: "AUTO_BACKGROUND",
     repository: request.repository,
     baseSha: request.headSha,
     workflowRunId: request.workflowRunId,
-    objective: "Verify a clean, exact-head cloud coding workspace before any repository edit is attempted.",
+    objective: "Validate one bounded AI-proposed Autopilot patch in an isolated cloud sandbox before any GitHub mutation.",
     acceptanceCriteria: [
-      "Workspace HEAD matches the verified successful CI SHA.",
-      "Workspace starts with no uncommitted changes.",
+      "The proposal applies cleanly to the verified successful CI SHA.",
+      "The proposal changes at most one file under apps/autopilot/.",
+      "Build, architecture, safety, and AI architecture validation all pass.",
       "No LIVE or production authority is introduced.",
     ],
     evidenceRefs: [`github:workflow-run:${request.workflowRunId}`, `github:commit:${request.headSha}`],
@@ -39,8 +41,20 @@ export class SandboxCodingRuntime implements CodingRuntime {
     this.name = backend.name;
   }
 
-  async execute(request: CodingRunnerRequest): Promise<CodingRuntimeExecutionResult> {
+  async execute(request: CodingRunnerRequest, proposal?: CodingProposal): Promise<CodingRuntimeExecutionResult> {
     const envelope = toSandboxEnvelope(request);
+
+    if (proposal) {
+      const validated = await validatePatchInSandbox(this.backend, { envelope, patch: proposal.patch });
+      return Object.freeze({
+        backend: validated.backend,
+        checkpointId: validated.checkpoint.checkpointId,
+        workspaceVerified: true as const,
+        proposalValidated: true as const,
+        changedFiles: validated.changedFiles,
+      });
+    }
+
     const prepared = await this.backend.prepare(envelope);
     try {
       const head = await this.backend.exec(prepared.workspaceId, ["git", "rev-parse", "HEAD"]);

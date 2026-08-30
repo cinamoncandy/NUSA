@@ -20,15 +20,21 @@ export interface CodingRunnerEnv {
   NUSA_GITHUB_TOKEN?: string;
 }
 
+export interface CodingProposal {
+  readonly patch: string;
+}
+
 export interface CodingRuntimeExecutionResult {
   readonly backend: string;
   readonly checkpointId: string;
   readonly workspaceVerified: true;
+  readonly proposalValidated?: true;
+  readonly changedFiles?: readonly string[];
 }
 
 export interface CodingRuntime {
   readonly name: string;
-  execute(request: CodingRunnerRequest): Promise<CodingRuntimeExecutionResult>;
+  execute(request: CodingRunnerRequest, proposal?: CodingProposal): Promise<CodingRuntimeExecutionResult>;
 }
 
 export interface CodingRunnerResult {
@@ -38,6 +44,8 @@ export interface CodingRunnerResult {
   readonly backend?: string;
   readonly checkpointId?: string;
   readonly workspaceVerified?: true;
+  readonly proposalValidated?: true;
+  readonly changedFiles?: readonly string[];
 }
 
 interface HttpResponse {
@@ -75,6 +83,13 @@ function object(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+function validateCodingProposal(value: unknown): CodingProposal {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("CODING_PROPOSAL_INVALID");
+  const proposal = value as Record<string, unknown>;
+  if (typeof proposal.patch !== "string" || !proposal.patch.trim()) throw new Error("CODING_PROPOSAL_PATCH_REQUIRED");
+  return Object.freeze({ patch: proposal.patch });
+}
+
 export async function verifyCodingRunnerRequestAgainstGitHub(
   request: CodingRunnerRequest,
   githubToken: string,
@@ -101,33 +116,8 @@ export async function verifyCodingRunnerRequestAgainstGitHub(
   if (typeof run.head_branch !== "string" || !run.head_branch.trim()) throw new Error("CODING_RUNNER_WORKFLOW_BRANCH_INVALID");
 }
 
-export async function executeCodingRunner(
-  request: CodingRunnerRequest,
-  env: CodingRunnerEnv,
-  fetchImpl: FetchImpl = fetch as unknown as FetchImpl,
-  runtime?: CodingRuntime,
-): Promise<CodingRunnerResult> {
-  const githubToken = env.NUSA_GITHUB_TOKEN?.trim();
-
-  if (runtime) {
-    if (!githubToken) return { status: "INTERFACE_READY", reason: "github-verification-not-configured" };
-    await verifyCodingRunnerRequestAgainstGitHub(request, githubToken, fetchImpl);
-    try {
-      const result = await runtime.execute(request);
-      return { status: "EXECUTION_ACCEPTED", ...result };
-    } catch (error) {
-      return { status: "EXECUTION_FAILED", reason: error instanceof Error ? error.message : "coding-runtime-failed" };
-    }
-  }
-
-  const endpoint = env.NUSA_AI_CODING_ENDPOINT?.trim();
-  const token = env.NUSA_AI_CODING_TOKEN?.trim();
-  if (!endpoint || !token) return { status: "INTERFACE_READY", reason: "ai-coding-engine-not-configured" };
-  if (!githubToken) return { status: "INTERFACE_READY", reason: "github-verification-not-configured" };
-
-  await verifyCodingRunnerRequestAgainstGitHub(request, githubToken, fetchImpl);
-
-  const response = await fetchImpl(endpoint, {
+function codingEngineRequest(request: CodingRunnerRequest, token: string): RequestInit {
+  return {
     method: "POST",
     headers: {
       authorization: `Bearer ${token}`,
@@ -136,16 +126,50 @@ export async function executeCodingRunner(
       "x-nusa-dedupe-key": request.dedupeKey,
     },
     body: JSON.stringify({
-      task: "Implement the next safe NUSA repository improvement, run tests, and open a pull request. Never mutate LIVE trading or production authority.",
+      task: "Propose the next safe NUSA repository improvement as a unified git patch. Do not mutate GitHub, open a pull request, access LIVE trading, or change production authority. Return JSON only with one field: patch.",
       repository: request.repository,
       headSha: request.headSha,
       workflowRunId: request.workflowRunId,
       reason: request.reason,
       executionId: request.executionId,
       dedupeKey: request.dedupeKey,
-      constraints: { liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" },
+      outputContract: { patch: "unified-git-diff" },
+      constraints: { mutationAllowed: false, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" },
     }),
-  });
+  };
+}
+
+export async function executeCodingRunner(
+  request: CodingRunnerRequest,
+  env: CodingRunnerEnv,
+  fetchImpl: FetchImpl = fetch as unknown as FetchImpl,
+  runtime?: CodingRuntime,
+): Promise<CodingRunnerResult> {
+  const endpoint = env.NUSA_AI_CODING_ENDPOINT?.trim();
+  const token = env.NUSA_AI_CODING_TOKEN?.trim();
+  if (!endpoint || !token) return { status: "INTERFACE_READY", reason: "ai-coding-engine-not-configured" };
+
+  const githubToken = env.NUSA_GITHUB_TOKEN?.trim();
+  if (!githubToken) return { status: "INTERFACE_READY", reason: "github-verification-not-configured" };
+  await verifyCodingRunnerRequestAgainstGitHub(request, githubToken, fetchImpl);
+
+  const response = await fetchImpl(endpoint, codingEngineRequest(request, token));
   if (!response.ok) return { status: "EXECUTION_FAILED", httpStatus: response.status };
+
+  if (runtime) {
+    let proposal: CodingProposal;
+    try {
+      proposal = validateCodingProposal(await response.json());
+    } catch (error) {
+      return { status: "EXECUTION_FAILED", reason: error instanceof Error ? error.message : "CODING_PROPOSAL_INVALID", httpStatus: response.status };
+    }
+    try {
+      const result = await runtime.execute(request, proposal);
+      return { status: "EXECUTION_ACCEPTED", httpStatus: response.status, ...result };
+    } catch (error) {
+      return { status: "EXECUTION_FAILED", reason: error instanceof Error ? error.message : "coding-runtime-failed", httpStatus: response.status };
+    }
+  }
+
   return { status: "EXECUTION_ACCEPTED", httpStatus: response.status };
 }
