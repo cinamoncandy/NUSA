@@ -14,15 +14,38 @@ export interface AutopilotExecutionRequest {
 }
 
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
+const SHA40 = /^[0-9a-f]{40}$/i;
+
+function failureConclusion(reason: string): "failure" | "cancelled" | "timed_out" {
+  if (reason.endsWith(":cancelled")) return "cancelled";
+  if (reason.endsWith(":timed_out")) return "timed_out";
+  return "failure";
+}
 
 export function planAutopilotExecution(dispatch: AutopilotDispatchPlan): AutopilotExecutionRequest {
   if (dispatch.kind === "CI_FAILED") {
+    const workflowRunId = dispatch.workflowRunId;
+    const headSha = dispatch.headSha;
+    if (!workflowRunId || !headSha || !SHA40.test(headSha)) {
+      return freeze({
+        kind: "NOOP",
+        repository: dispatch.repository,
+        headSha,
+        workflowRunId,
+        reason: "ci-failure-missing-bounded-identity",
+        mutationAllowed: false,
+      });
+    }
+
+    const conclusion = failureConclusion(dispatch.reason);
     return freeze({
-      kind: "CI_RECOVERY",
+      kind: "REPOSITORY_AUTOPILOT",
       repository: dispatch.repository,
-      headSha: dispatch.headSha,
-      workflowRunId: dispatch.workflowRunId,
-      reason: "classify-failure-before-any-retry",
+      headSha,
+      workflowRunId,
+      reason: `gha:${workflowRunId}:${headSha.toLowerCase()}:${conclusion}`,
+      executionId: `ci-failure:${workflowRunId}`,
+      dedupeKey: `ci-failure:${workflowRunId}:${headSha.toLowerCase()}`,
       mutationAllowed: false,
     });
   }
