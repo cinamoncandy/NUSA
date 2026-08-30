@@ -62,6 +62,13 @@ async function mustExec(backend: CodingBackend, workspaceId: string, argv: reado
   return result.stdout;
 }
 
+function splitPaths(output: string): readonly string[] {
+  return output
+    .split(/\r?\n/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
 export async function validatePatchInSandbox(
   backend: CodingBackend,
   request: SandboxPatchValidationRequest,
@@ -76,11 +83,18 @@ export async function validatePatchInSandbox(
     await mustExec(backend, workspaceId, ["git", "apply", PATCH_PATH], "SANDBOX_PATCH_APPLY_FAILED");
     await mustExec(backend, workspaceId, ["git", "diff", "--check"], "SANDBOX_PATCH_DIFF_CHECK_FAILED");
 
-    const changed = (await mustExec(backend, workspaceId, ["git", "diff", "--name-only"], "SANDBOX_PATCH_DIFF_LIST_FAILED"))
-      .split(/\r?\n/)
-      .map((value) => value.trim())
-      .filter(Boolean);
-    const changedFiles = [...new Set(changed)];
+    const trackedChanged = splitPaths(
+      await mustExec(backend, workspaceId, ["git", "diff", "--name-only"], "SANDBOX_PATCH_DIFF_LIST_FAILED"),
+    );
+    const untrackedChanged = splitPaths(
+      await mustExec(
+        backend,
+        workspaceId,
+        ["git", "ls-files", "--others", "--exclude-standard"],
+        "SANDBOX_PATCH_UNTRACKED_LIST_FAILED",
+      ),
+    ).filter((path) => path !== PATCH_PATH);
+    const changedFiles = [...new Set([...trackedChanged, ...untrackedChanged])];
     if (changedFiles.length !== expectedPaths.length || changedFiles.some((path) => !expectedPaths.includes(path))) {
       throw new Error("SANDBOX_PATCH_CHANGED_FILES_MISMATCH");
     }
