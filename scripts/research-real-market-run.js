@@ -77,6 +77,18 @@ const SMA_PARAMETER_NEIGHBORHOOD = [
   { shortPeriod: 10, longPeriod: 30 }
 ];
 
+const PBO_EVIDENCE_UNAVAILABLE_CODES = Object.freeze([
+  "ZERO_RETURN_VARIANCE",
+  "INSUFFICIENT_CANDIDATES",
+  "INSUFFICIENT_OOS_EQUITY_POINTS",
+  "INSUFFICIENT_OOS_RETURN_POINTS",
+  "NO_SYMMETRIC_CSCV_PARTITION"
+]);
+
+function isResearchRunPboEvidenceUnavailable(error) {
+  return typeof error?.code === "string" && PBO_EVIDENCE_UNAVAILABLE_CODES.includes(error.code);
+}
+
 function buildParameterRobustnessRequest({ candles, manifest }) {
   if (!Array.isArray(candles) || candles.length === 0) {
     throw new Error("real parameter robustness requires canonical candles");
@@ -322,7 +334,7 @@ async function main() {
   try {
     probabilityBacktestOverfitting = buildResearchRunPboEvidence(leagueCandidates);
   } catch (error) {
-    if (error?.code !== "ZERO_RETURN_VARIANCE") throw error;
+    if (!isResearchRunPboEvidenceUnavailable(error)) throw error;
     pboUnavailableReason = error.code;
   }
   const league = buildResearchRunLeague(
@@ -430,4 +442,8 @@ if (require.main === module) {
   });
 }
 
-module.exports = { buildParameterRobustnessRequest, buildResearchRunTimeline };
+module.exports = {
+  buildParameterRobustnessRequest,
+  buildResearchRunTimeline,
+  isResearchRunPboEvidenceUnavailable
+};
