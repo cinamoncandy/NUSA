@@ -9,6 +9,7 @@ permissions:
   actions: write
   pull-requests: write
   models: read
+  id-token: write
 
 concurrency:
   group: autopilot-execution-${{ github.event.client_payload.dedupe_key }}
@@ -85,11 +86,10 @@ jobs:
       - name: Select coding backend
         id: backend
         env:
-          NUSA_CODING_RUNNER_URL: ${{ secrets.NUSA_CODING_RUNNER_URL }}
-          NUSA_CODING_RUNNER_TOKEN: ${{ secrets.NUSA_CODING_RUNNER_TOKEN }}
+          NUSA_CODING_RUNNER_URL: https://nusa.desporin12.workers.dev/coding/execute
           NUSA_EXECUTION_REASON: ${{ github.event.client_payload.reason }}
         run: |
-          if [ -n "${NUSA_CODING_RUNNER_URL:-}" ] && [ -n "${NUSA_CODING_RUNNER_TOKEN:-}" ]; then
+          if [ -n "${NUSA_CODING_RUNNER_URL:-}" ]; then
             echo 'mode=external' >> "$GITHUB_OUTPUT"
           elif printf '%s' "${NUSA_EXECUTION_REASON:-}" | grep -q 'gha:'; then
             echo 'mode=github-models' >> "$GITHUB_OUTPUT"
@@ -113,21 +113,28 @@ jobs:
       - name: Dispatch to configured external coding runner
         if: ${{ steps.backend.outputs.mode == 'external' }}
         env:
-          NUSA_CODING_RUNNER_URL: ${{ secrets.NUSA_CODING_RUNNER_URL }}
-          NUSA_CODING_RUNNER_TOKEN: ${{ secrets.NUSA_CODING_RUNNER_TOKEN }}
+          NUSA_CODING_RUNNER_URL: https://nusa.desporin12.workers.dev/coding/execute
         run: |
           node - <<'NODE'
           const fs = require('fs');
           const request = JSON.parse(fs.readFileSync('artifacts/autopilot-execution/coding-runner-request.json', 'utf8'));
-          fetch(process.env.NUSA_CODING_RUNNER_URL, {
-            method: 'POST',
-            headers: {
-              authorization: `Bearer ${process.env.NUSA_CODING_RUNNER_TOKEN}`,
-              'content-type': 'application/json',
-              'x-nusa-execution-id': request.executionId,
-              'x-nusa-dedupe-key': request.dedupeKey,
-            },
-            body: JSON.stringify(request),
+          const oidcUrl = `${process.env.ACTIONS_ID_TOKEN_REQUEST_URL}&audience=nusa-autopilot`;
+          fetch(oidcUrl, {
+            headers: { authorization: `Bearer ${process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN}` },
+          }).then(async (oidcResponse) => {
+            if (!oidcResponse.ok) throw new Error(`GITHUB_OIDC_HTTP_${oidcResponse.status}`);
+            const oidc = await oidcResponse.json();
+            if (typeof oidc.value !== 'string' || !oidc.value) throw new Error('GITHUB_OIDC_TOKEN_MISSING');
+            return fetch(process.env.NUSA_CODING_RUNNER_URL, {
+              method: 'POST',
+              headers: {
+                authorization: `Bearer ${oidc.value}`,
+                'content-type': 'application/json',
+                'x-nusa-execution-id': request.executionId,
+                'x-nusa-dedupe-key': request.dedupeKey,
+              },
+              body: JSON.stringify(request),
+            });
           }).then(async (response) => {
             const text = await response.text();
             fs.writeFileSync('artifacts/autopilot-execution/coding-runner-result.json', JSON.stringify({ status: response.ok ? 'DISPATCHED' : 'DISPATCH_FAILED', httpStatus: response.status, response: text, request }, null, 2));
