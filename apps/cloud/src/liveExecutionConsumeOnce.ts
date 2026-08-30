@@ -8,12 +8,20 @@ export interface ConsumeOnceResult {
   readonly reason?: "ALREADY_CONSUMED" | "EXPIRED" | "INVALID";
 }
 
-export interface ConsumeOnceStorage {
+export interface ConsumeOnceTransaction {
   get<T>(key: string): Promise<T | undefined>;
   put<T>(key: string, value: T): Promise<void>;
 }
 
-/** One-time LIVE execution envelope storage boundary. */
+export interface ConsumeOnceStorage {
+  transaction<T>(callback: (transaction: ConsumeOnceTransaction) => Promise<T>): Promise<T>;
+}
+
+/**
+ * One-time LIVE execution envelope storage boundary.
+ * The Durable Object supplies the transactional storage implementation,
+ * making concurrent retries resolve to a single consumer.
+ */
 export class LiveExecutionConsumeOnce {
   public constructor(private readonly storage: ConsumeOnceStorage) {}
 
@@ -23,9 +31,11 @@ export class LiveExecutionConsumeOnce {
     if (!Number.isSafeInteger(envelope.expiresAt) || envelope.expiresAt <= now) return { consumed: false, reason: "EXPIRED" };
 
     const key = `live-execution-consumed:${envelope.authorizationFingerprintSha256}`;
-    const existing = await this.storage.get<{ consumedAt: number }>(key);
-    if (existing !== undefined) return { consumed: false, reason: "ALREADY_CONSUMED" };
-    await this.storage.put(key, Object.freeze({ consumedAt: now }));
-    return { consumed: true };
+    return this.storage.transaction(async (transaction) => {
+      const existing = await transaction.get<{ consumedAt: number }>(key);
+      if (existing !== undefined) return { consumed: false, reason: "ALREADY_CONSUMED" as const };
+      await transaction.put(key, Object.freeze({ consumedAt: now }));
+      return { consumed: true } as const;
+    });
   }
 }
