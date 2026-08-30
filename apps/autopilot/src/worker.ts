@@ -1,7 +1,8 @@
 import { Sandbox } from "@cloudflare/sandbox";
-import baseWorker, { type Env as BaseEnv } from "./index";
+import baseWorker, { handleCodingExecute, type Env as BaseEnv } from "./index";
 import { ExecutionCoordinator } from "./executionCoordinator";
 import { CloudflareSandboxBackend, type CloudflareSandboxNamespace } from "./cloudflareSandboxBackend";
+import { SandboxCodingRuntime } from "./sandboxCodingRuntime";
 import { validateCodingExecutionEnvelope } from "./codingExecutionEnvelope";
 import { validatePatchInSandbox } from "./sandboxPatchValidator";
 
@@ -26,6 +27,13 @@ function constantTimeEqual(left: string, right: string): boolean {
 const worker = {
   async fetch(request: Request, env: WorkerEnv): Promise<Response> {
     const url = new URL(request.url);
+
+    if (request.method === "POST" && url.pathname === "/coding/execute") {
+      if (!env.Sandbox) return json({ error: "CLOUDFLARE_SANDBOX_NOT_CONFIGURED", status: "INTERFACE_READY" }, 503);
+      const runtime = new SandboxCodingRuntime(new CloudflareSandboxBackend(env.Sandbox));
+      return handleCodingExecute(request, env, runtime);
+    }
+
     if (request.method === "POST" && url.pathname === "/coding/sandbox/validate") {
       const configured = env.NUSA_CODING_RUNNER_TOKEN?.trim();
       const provided = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();

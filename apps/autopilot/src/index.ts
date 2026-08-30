@@ -1,7 +1,7 @@
 import { parseGithubWebhookPayload, planGithubWebhookDispatch, type SupportedGithubEvent } from "./dispatchPlanner";
 import { planAutopilotExecution } from "./executionPlanner";
 import { executeGithubDispatch } from "./githubExecutor";
-import { executeCodingRunner, validateCodingRunnerRequest } from "./codingRunner";
+import { executeCodingRunner, validateCodingRunnerRequest, type CodingRuntime } from "./codingRunner";
 import { prepareProductionExecution } from "./productionExecutionSpine";
 import {
   acquirePersistentExecution,
@@ -50,6 +50,21 @@ export async function verifyGithubWebhookSignature(secret: string, body: string,
   return constantTimeEqual(await computeGithubWebhookSignature(secret, body), provided);
 }
 
+export async function handleCodingExecute(request: Request, env: Env, runtime?: CodingRuntime): Promise<Response> {
+  const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
+  const configured = env.NUSA_CODING_RUNNER_TOKEN?.trim();
+  const provided = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
+  if (!configured) return json({ error: "CODING_RUNNER_TOKEN_NOT_CONFIGURED", status: "INTERFACE_READY" }, 503);
+  if (!provided || !constantTimeEqual(configured, provided)) return json({ error: "CODING_RUNNER_UNAUTHORIZED" }, 401);
+  try {
+    const runnerRequest = validateCodingRunnerRequest(await request.json(), allowedRepository);
+    const result = await executeCodingRunner(runnerRequest, env, undefined, runtime);
+    return json({ accepted: true, ...result, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, result.status === "EXECUTION_FAILED" ? 502 : 202);
+  } catch (error) {
+    return json({ error: error instanceof Error ? error.message : "CODING_RUNNER_REQUEST_INVALID" }, 400);
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -75,19 +90,7 @@ export default {
       }
     }
 
-    if (request.method === "POST" && url.pathname === "/coding/execute") {
-      const configured = env.NUSA_CODING_RUNNER_TOKEN?.trim();
-      const provided = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
-      if (!configured) return json({ error: "CODING_RUNNER_TOKEN_NOT_CONFIGURED", status: "INTERFACE_READY" }, 503);
-      if (!provided || !constantTimeEqual(configured, provided)) return json({ error: "CODING_RUNNER_UNAUTHORIZED" }, 401);
-      try {
-        const runnerRequest = validateCodingRunnerRequest(await request.json(), allowedRepository);
-        const result = await executeCodingRunner(runnerRequest, env);
-        return json({ accepted: true, ...result, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, result.status === "EXECUTION_FAILED" ? 502 : 202);
-      } catch (error) {
-        return json({ error: error instanceof Error ? error.message : "CODING_RUNNER_REQUEST_INVALID" }, 400);
-      }
-    }
+    if (request.method === "POST" && url.pathname === "/coding/execute") return handleCodingExecute(request, env);
 
     if (request.method !== "POST" || url.pathname !== "/github/webhook") return json({ error: "NOT_FOUND" }, 404);
     if (!env.NUSA_WEBHOOK_SECRET) return json({ error: "WEBHOOK_SECRET_NOT_CONFIGURED", status: "INTERFACE_READY" }, 503);
@@ -162,7 +165,7 @@ export default {
   },
 
   async scheduled(controller: { scheduledTime?: number }, env: Env): Promise<void> {
-    const scheduledTime = Number.isSafeInteger(controller?.scheduledTime) && Number(controller?.scheduledTime) >= 0
+    const scheduledTime = Number.isSafeInteger(controller?.scheduledTime) && Number(controller.scheduledTime) >= 0
       ? Number(controller.scheduledTime)
       : Date.now();
     const outcome = await runScheduledAutopilot(env, scheduledTime);
