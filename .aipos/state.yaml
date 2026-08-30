@@ -1,12 +1,12 @@
 version: 1
 project: nusa
-updated_at: "2026-08-30T17:27:28.131Z"
+updated_at: "2026-08-30T18:02:08Z"
 current_execution_target:
   work_order: WO-ISSUE-1094-RESEARCH-FACTORY
-  status: IN_PROGRESS
-  branch: codex/reconcile-aipos-after-1258
-  base_sha: 63736d6722119f1f7e9e2ac0b1b752dd370febbd
-  scope: "Audit the canonical hypothesis-to-OOS-to-robustness-to-PAPER candidate pipeline on current main; preserve fail-closed evidence semantics and do not synthesize longitudinal PAPER evidence."
+  status: VERIFYING
+  branch: codex/1094-research-report-coverage
+  base_sha: 65ee9b01b95faccbab53e5b48c43c1f581029dd1
+  scope: "Verify the canonical hypothesis-to-OOS-to-robustness-to-PAPER candidate pipeline on current main; preserve fail-closed evidence semantics and do not synthesize longitudinal PAPER evidence."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: implementation
 status: in_progress
@@ -23,9 +23,9 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: codex/reconcile-aipos-after-1258
+active_branch: codex/1094-research-report-coverage
 active_successor_branch: null
-active_pull_request: 1281
+active_pull_request: null
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -84,14 +84,14 @@ repository_maintenance:
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
   work_order: WO-ISSUE-1094-RESEARCH-FACTORY
-  status: IN_PROGRESS
-  branch: codex/reconcile-aipos-after-1258
-  base_commit: 63736d6722119f1f7e9e2ac0b1b752dd370febbd
-  scope: "Audit the existing canonical Research Factory against Issue #1094 acceptance and implement only a proven repository-side gap; missing longitudinal PAPER evidence remains fail-closed."
+  status: VERIFYING
+  branch: codex/1094-research-report-coverage
+  base_commit: 65ee9b01b95faccbab53e5b48c43c1f581029dd1
+  scope: "Verify the existing canonical Research Factory against Issue #1094 acceptance; missing longitudinal PAPER evidence remains fail-closed."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  implementation_commit: 8f9016d837e0ef3e641849b7321feb0fbdd2b6d7
-  pull_request: 1281
-  validation: "Current-main AIPOS reconciliation is in progress; #1258 repository implementation is already merged as 7cb0f70620ab50fe8488b899744fe3ed6231302c with deployment/runtime gaps explicitly recorded."
+  implementation_commit: 5c9634844e549d0de6ea6147e6d5598c5acf0c4d
+  pull_request: 1282
+  validation: "PR #1282 exact head 5c9634844e549d0de6ea6147e6d5598c5acf0c4d passed all six protected workflows and merged to main as b925d4674edaf795036453c452560253b5a7b7d0; the canonical factory remains fail-closed pending truthful longitudinal PAPER evidence."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -536,7 +536,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-ISSUE-1094-RESEARCH-FACTORY.yaml
-  reason: "Audit current-main Research Factory acceptance against canonical OOS/robustness/PAPER evidence; preserve missing longitudinal sources as fail-closed."
+  reason: "Verify the merged Research Factory qualification coverage; preserve missing longitudinal sources as fail-closed and wait for truthful runtime PAPER evidence."
 verification:
   wo_0057:
     parent_pull_request: 552
