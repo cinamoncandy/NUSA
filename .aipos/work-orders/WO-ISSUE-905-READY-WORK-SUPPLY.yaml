@@ -1,0 +1,67 @@
+id: WO-ISSUE-905-READY-WORK-SUPPLY
+title: "Issue #905 eliminate READY work starvation with evidence-bound portfolio routing"
+status: VERIFYING
+priority: P1
+owner: codex
+repository: cinamoncandy/NUSA
+issue: 905
+base_branch: main
+base_commit: 779243809ede56eff42eedb1f594b40b0df5e19e
+implementation_branch: fix/905-ready-work-portfolio
+implementation_commit: 25142e6f76bcb16fe593ff3ca28965e280af9980
+objective: "Turn verified repository work into a deterministic multi-item supply portfolio and let the existing #903 queue claim bounded parallel work without weakening evidence, conflict, dependency, exact-head, or safety gates."
+architecture_impact:
+  acknowledged: true
+  analysis: "Extends the existing #905 portfolio scheduler, #905 adaptive concurrency decision, #903 development queue, and read-only Engineering OS projection. No second queue, scheduler, executor, merge engine, or mutation path is introduced."
+  references:
+    - apps/desktop/src/cloud/nusaEngineeringPortfolioScheduler.ts
+    - apps/desktop/src/cloud/nusaAdaptiveConcurrency.ts
+    - apps/desktop/src/cloud/nusaDevelopmentControlPlane.ts
+    - apps/cloud/src/engineeringOperatingReadModel.ts
+    - apps/desktop/src/cloud/nusaEngineeringPortfolioScheduler.test.ts
+    - apps/desktop/src/cloud/nusaAdaptiveConcurrency.test.ts
+    - apps/desktop/src/cloud/nusaDevelopmentControlPlane.test.ts
+    - apps/cloud/src/engineeringOperatingReadModel.test.ts
+scope:
+  - repository_controlled_work_portfolio_discovery
+  - deterministic_dependency_dag_and_conflict_graph
+  - fast_and_deep_lane_metadata
+  - bounded_idempotent_parallel_queue_claim
+  - measured_ready_supply_and_executor_capacity_ramp
+  - read_only_work_supply_metrics
+prohibited:
+  - live_execution
+  - broker_mutation
+  - production_mutation
+  - credential_or_secret_access
+  - exact_head_or_safety_gate_weakening
+  - synthetic_throughput_or_runtime_evidence
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  mutationAllowed: false
+  paper_only: true
+acceptance:
+  - verified repository work is classified READY only when evidence, planning metadata, repository scope, and dependencies are known
+  - UNKNOWN or INSUFFICIENT evidence is retained as WAITING_REAL_EVIDENCE; HUMAN_ONLY, EXTERNAL_ONLY, DUPLICATE, and BLOCKED_DEPENDENCY remain auditable
+  - dependency edges are acyclic and canonical touched-file conflicts are projected without discarding READY work
+  - bounded portfolio claims reuse claimNextNusaDevelopmentWork for lease, revision, WIP, conflict, dependency, and idempotency invariants
+  - adaptive concurrency can ramp 2, 4, 6, 8+ only with measured READY supply, executor/CI capacity, clean heads, and low conflict/rework
+  - #905 read-only projection exposes supply metrics and fails closed when the portfolio is missing or malformed
+  - all existing authority and fail-closed safety invariants remain unchanged
+validation:
+  focused_tests: PASS_47_OF_47
+  full_isolated_suite: PASS_821_FILES
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture_and_aipos: PASS
+  safety: PASS
+  git_diff_check: PASS
+  remote_pr: PR_1313_OPEN_EXACT_HEAD_VALIDATION_RUNNING
+known_limitations:
+  - "This slice adds the canonical contracts and read-only projection; external event adapters must supply truthful portfolio and executor evidence before autonomous claiming can scale in production."
+  - "Implementation/hour, merge-ready/hour, verified-improvement/hour, CI-wait, and utilization metrics remain UNKNOWN until independent time-series producers are connected; no proxy values are synthesized."
+next: "Validate PR #1313 at exact head 25142e6f76bcb16fe593ff3ca28965e280af9980; merge only after the latest main/base and all required protected checks remain compatible."

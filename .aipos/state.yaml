@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-31T14:10:00+09:00"
+updated_at: "2026-08-31T15:04:20+09:00"
 current_execution_target:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -23,9 +23,9 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: main
-active_successor_branch: null
-active_pull_request: null
+active_branch: fix/905-ready-work-portfolio
+active_successor_branch: fix/905-ready-work-portfolio
+active_pull_request: 1313
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -83,15 +83,15 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-0051
-  status: IN_PROGRESS
-  branch: main
-  base_commit: 9fe44a95bab25ae341e9a47c2a4a41b32fb7a26c
-  scope: "Terminal human/environment gate for LIVE and real-money transition; automated work remains fail-closed."
+  work_order: WO-ISSUE-905-READY-WORK-SUPPLY
+  status: VERIFYING
+  branch: fix/905-ready-work-portfolio
+  base_commit: 779243809ede56eff42eedb1f594b40b0df5e19e
+  scope: "Evidence-bound repository work-supply portfolio and bounded parallel development claims; non-LIVE only."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  implementation_commit: "PR #1309 merge 9fe44a95bab25ae341e9a47c2a4a41b32fb7a26c; no active implementation branch."
-  pull_request: null
-  validation: "PR #1309 exact head 768fb06f702fdb00208461e2b8037fbdd0b838f3 passed all six protected workflows and merged to main as 9fe44a95bab25ae341e9a47c2a4a41b32fb7a26c."
+  implementation_commit: "25142e6f76bcb16fe593ff3ca28965e280af9980; PR #1313 exact-head protected checks running."
+  pull_request: 1313
+  validation: "Local typecheck, build, lint, full 821-file isolated suite, architecture/AIPOS, safety, and diff checks pass; PR #1313 base 779243809ede56eff42eedb1f594b40b0df5e19e and head 25142e6f76bcb16fe593ff3ca28965e280af9980 verified; protected checks running."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -506,6 +506,9 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
+  - id: WO-ISSUE-905-READY-WORK-SUPPLY
+    evidence: ".aipos/work-orders/WO-ISSUE-905-READY-WORK-SUPPLY.yaml"
+    summary: "Repository-controlled READY work supply now has evidence-bound portfolio routing and bounded parallel claim contracts; protected exact-head PR validation remains pending."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -532,8 +535,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "Canonical LIVE final-chain audit completed in PR #1309; continue only with the existing human/environment gate for any LIVE or real-money transition."
+  work_order: .aipos/work-orders/WO-ISSUE-905-READY-WORK-SUPPLY.yaml
+  reason: "Continue the allowed non-LIVE Engineering OS successor on the exact feature head; preserve WO-0051 as the mandatory human/environment gate for LIVE and real-money transition."
 verification:
   wo_0057:
     parent_pull_request: 552

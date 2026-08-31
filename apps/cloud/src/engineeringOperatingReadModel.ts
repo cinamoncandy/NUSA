@@ -17,6 +17,7 @@ import {
   rankEngineeringOpportunities,
   type EngineeringOpportunityPriorityDecision,
   type EngineeringOpportunityPriorityInput,
+  type EngineeringWorkPortfolio,
 } from "../../desktop/src/cloud/nusaEngineeringPortfolioScheduler";
 import {
   selectEngineeringSystemOptimization,
@@ -47,6 +48,8 @@ export interface NusaEngineeringOperatingInput {
   readonly executionEvidence: NusaEngineeringExecutionEvidence | null;
   readonly outcomeEvidence: NusaEngineeringCiOutcomeEvidence;
   readonly queue: NusaDevelopmentQueue | null;
+  /** Optional canonical #905/#903 work-supply projection; absent is UNKNOWN. */
+  readonly workPortfolio?: EngineeringWorkPortfolio | null;
 }
 
 export interface NusaEngineeringQueueProjection {
@@ -55,6 +58,21 @@ export interface NusaEngineeringQueueProjection {
   readonly totalItems: number;
   readonly activeItems: number;
   readonly mergeReadyItems: number;
+}
+
+export interface NusaEngineeringWorkSupplyProjection {
+  readonly status: "AVAILABLE" | "UNAVAILABLE";
+  readonly candidateGapCount: number;
+  readonly validatedGapCount: number;
+  readonly readyBacklog: number;
+  readonly readyToWorkerRatio: number | "UNKNOWN";
+  readonly activeClaimCount: number | "UNKNOWN";
+  readonly waitingRealEvidenceCount: number;
+  readonly humanOnlyCount: number;
+  readonly externalOnlyCount: number;
+  readonly duplicateCount: number;
+  readonly blockedDependencyCount: number;
+  readonly conflictCount: number;
 }
 
 export interface NusaEngineeringOperatingSnapshot {
@@ -70,6 +88,7 @@ export interface NusaEngineeringOperatingSnapshot {
   readonly executionOrigin: NusaEngineeringExecutionOriginProjection;
   readonly outcome: NusaEngineeringCiOutcomeAssessment;
   readonly queue: NusaEngineeringQueueProjection;
+  readonly workSupply: NusaEngineeringWorkSupplyProjection;
   readonly blockers: readonly string[];
   readonly authority: typeof NUSA_ENGINEERING_OPERATING_AUTHORITY;
 }
@@ -141,6 +160,23 @@ function unavailableOutcome(): NusaEngineeringCiOutcomeAssessment {
   });
 }
 
+function unavailableWorkSupply(): NusaEngineeringWorkSupplyProjection {
+  return freeze({
+    status: "UNAVAILABLE",
+    candidateGapCount: 0,
+    validatedGapCount: 0,
+    readyBacklog: 0,
+    readyToWorkerRatio: "UNKNOWN",
+    activeClaimCount: "UNKNOWN",
+    waitingRealEvidenceCount: 0,
+    humanOnlyCount: 0,
+    externalOnlyCount: 0,
+    duplicateCount: 0,
+    blockedDependencyCount: 0,
+    conflictCount: 0,
+  });
+}
+
 function unavailableSnapshot(reason = "ENGINEERING_SOURCE_UNAVAILABLE"): NusaEngineeringOperatingSnapshot {
   return freeze({
     schemaVersion: 1,
@@ -155,6 +191,7 @@ function unavailableSnapshot(reason = "ENGINEERING_SOURCE_UNAVAILABLE"): NusaEng
     executionOrigin: projectNusaEngineeringExecutionOrigin(null),
     outcome: unavailableOutcome(),
     queue: freeze({ status: "UNAVAILABLE", revision: null, totalItems: 0, activeItems: 0, mergeReadyItems: 0 }),
+    workSupply: unavailableWorkSupply(),
     blockers: freeze([reason]),
     authority: NUSA_ENGINEERING_OPERATING_AUTHORITY,
   });
@@ -195,6 +232,71 @@ function projectQueue(queue: NusaDevelopmentQueue | null): NusaEngineeringQueueP
   });
 }
 
+function projectWorkSupply(portfolio: EngineeringWorkPortfolio | null | undefined): NusaEngineeringWorkSupplyProjection {
+  if (portfolio == null) return unavailableWorkSupply();
+  rejectForbiddenKeys(portfolio);
+  if (typeof portfolio !== "object" || Array.isArray(portfolio) || portfolio.schemaVersion !== 1 || !Array.isArray(portfolio.packages) || !Array.isArray(portfolio.ready) || !Array.isArray(portfolio.parked) || !Array.isArray(portfolio.conflictEdges)) {
+    throw new Error("ENGINEERING_WORK_SUPPLY_INVALID");
+  }
+  if (portfolio.ready.length + portfolio.parked.length !== portfolio.packages.length) throw new Error("ENGINEERING_WORK_SUPPLY_PARTITION_INVALID");
+  if (portfolio.metrics == null || typeof portfolio.metrics !== "object" || Array.isArray(portfolio.metrics)) throw new Error("ENGINEERING_WORK_SUPPLY_METRICS_INVALID");
+
+  const metrics = portfolio.metrics;
+  const countNames = [
+    "candidateGapCount",
+    "validatedGapCount",
+    "readyBacklog",
+    "waitingRealEvidenceCount",
+    "humanOnlyCount",
+    "externalOnlyCount",
+    "duplicateCount",
+    "blockedDependencyCount",
+    "conflictCount",
+  ] as const;
+  for (const name of countNames) nonNegativeInteger(metrics[name], `ENGINEERING_WORK_SUPPLY_${name.toUpperCase()}_INVALID`);
+  if (metrics.readyBacklog !== portfolio.ready.length || metrics.conflictCount !== portfolio.conflictEdges.length) throw new Error("ENGINEERING_WORK_SUPPLY_METRICS_MISMATCH");
+  if (metrics.readyToWorkerRatio !== "UNKNOWN" && (typeof metrics.readyToWorkerRatio !== "number" || !Number.isFinite(metrics.readyToWorkerRatio) || metrics.readyToWorkerRatio < 0)) {
+    throw new Error("ENGINEERING_WORK_SUPPLY_WORKER_RATIO_INVALID");
+  }
+  if (metrics.activeClaimCount !== "UNKNOWN") nonNegativeInteger(metrics.activeClaimCount, "ENGINEERING_WORK_SUPPLY_ACTIVE_CLAIMS_INVALID");
+
+  const packageRecords = portfolio.packages.map((item) => record(item, "ENGINEERING_WORK_SUPPLY_PACKAGE_INVALID"));
+  const dispositionCounts = new Map<string, number>();
+  const packageIds = new Set<string>();
+  let validatedGapCount = 0;
+  for (const item of packageRecords) {
+    const packageId = item.packageId;
+    identifier(packageId, "ENGINEERING_WORK_SUPPLY_PACKAGE_ID_INVALID");
+    const normalizedPackageId = packageId as string;
+    if (packageIds.has(normalizedPackageId)) throw new Error("ENGINEERING_WORK_SUPPLY_PACKAGE_ID_DUPLICATE");
+    packageIds.add(normalizedPackageId);
+    const disposition = String(item.disposition);
+    if (![
+      "READY",
+      "WAITING_REAL_EVIDENCE",
+      "HUMAN_ONLY",
+      "EXTERNAL_ONLY",
+      "DUPLICATE",
+      "BLOCKED_DEPENDENCY",
+    ].includes(disposition)) throw new Error("ENGINEERING_WORK_SUPPLY_PACKAGE_DISPOSITION_INVALID");
+    const evidenceState = String(item.evidenceState);
+    if (!["VERIFIED", "UNKNOWN", "INSUFFICIENT"].includes(evidenceState)) throw new Error("ENGINEERING_WORK_SUPPLY_PACKAGE_EVIDENCE_INVALID");
+    dispositionCounts.set(disposition, (dispositionCounts.get(disposition) ?? 0) + 1);
+    if (evidenceState === "VERIFIED" && disposition !== "DUPLICATE") validatedGapCount += 1;
+  }
+  const expectedCandidateGapCount = packageRecords.filter((item) => item.disposition !== "DUPLICATE").length;
+  const expectedDuplicateCount = dispositionCounts.get("DUPLICATE") ?? 0;
+  if (metrics.candidateGapCount !== expectedCandidateGapCount || metrics.validatedGapCount !== validatedGapCount || metrics.duplicateCount !== expectedDuplicateCount) throw new Error("ENGINEERING_WORK_SUPPLY_DISPOSITION_MISMATCH");
+  for (const item of portfolio.ready) {
+    if (record(item, "ENGINEERING_WORK_SUPPLY_READY_ITEM_INVALID").disposition !== "READY") throw new Error("ENGINEERING_WORK_SUPPLY_READY_ITEM_INVALID");
+  }
+  for (const item of portfolio.parked) {
+    if (record(item, "ENGINEERING_WORK_SUPPLY_PARKED_ITEM_INVALID").disposition === "READY") throw new Error("ENGINEERING_WORK_SUPPLY_PARKED_ITEM_INVALID");
+  }
+
+  return freeze({ status: "AVAILABLE", ...metrics });
+}
+
 function validateInput(input: NusaEngineeringOperatingInput): void {
   if (!Number.isSafeInteger(input.observedAt) || input.observedAt < 0) throw new Error("ENGINEERING_OBSERVED_AT_INVALID");
   if (input.currentHeadSha != null && !SHA40.test(input.currentHeadSha)) throw new Error("ENGINEERING_CURRENT_HEAD_INVALID");
@@ -222,6 +324,7 @@ function readModelBlockers(
   executionOrigin: NusaEngineeringExecutionOriginProjection,
   outcome: NusaEngineeringCiOutcomeAssessment,
   queue: NusaEngineeringQueueProjection,
+  workSupply: NusaEngineeringWorkSupplyProjection,
 ): readonly string[] {
   const blockers: string[] = [];
   if (input.currentHeadSha == null) blockers.push("CURRENT_HEAD_EVIDENCE_MISSING");
@@ -230,6 +333,7 @@ function readModelBlockers(
   if (outcome.classification === "INSUFFICIENT") blockers.push(...outcome.reasons.map((reason) => `OUTCOME:${reason}`));
   if (executionOrigin.status !== "VERIFIED") blockers.push(...executionOrigin.reasons.map((reason) => `EXECUTION_ORIGIN:${reason}`));
   if (queue.status !== "AVAILABLE") blockers.push("DEVELOPMENT_QUEUE_EVIDENCE_MISSING");
+  if (workSupply.status !== "AVAILABLE") blockers.push("WORK_SUPPLY_EVIDENCE_MISSING");
   if (priorities.some((decision) => decision.classification !== "RANKABLE")) blockers.push("OPPORTUNITY_PRIORITY_EVIDENCE_INSUFFICIENT");
   if (outcome.postMergeHeadSha != null && input.currentHeadSha != null && outcome.postMergeHeadSha !== input.currentHeadSha) blockers.push("POST_MERGE_HEAD_NOT_CURRENT");
   return uniqueSorted(blockers);
@@ -248,7 +352,8 @@ export function buildNusaEngineeringOperatingSnapshot(input: NusaEngineeringOper
   const executionOrigin = projectNusaEngineeringExecutionOrigin(input.executionEvidence);
   const outcome = assessNusaCiCriticalPathOutcome(input.outcomeEvidence);
   const queue = projectQueue(input.queue);
-  const blockers = readModelBlockers(input, opportunityPriority, selfOptimizer, adaptiveConcurrency, executionOrigin, outcome, queue);
+  const workSupply = projectWorkSupply(input.workPortfolio);
+  const blockers = readModelBlockers(input, opportunityPriority, selfOptimizer, adaptiveConcurrency, executionOrigin, outcome, queue, workSupply);
   return freeze({
     schemaVersion: 1,
     scope: "ENGINEERING_OPERATIONS_READ_ONLY",
@@ -262,6 +367,7 @@ export function buildNusaEngineeringOperatingSnapshot(input: NusaEngineeringOper
     executionOrigin,
     outcome,
     queue,
+    workSupply,
     blockers,
     authority: NUSA_ENGINEERING_OPERATING_AUTHORITY,
   });
@@ -295,6 +401,11 @@ export function validateNusaEngineeringOperatingSnapshot(value: unknown): NusaEn
   if (!Array.isArray(candidate.blockers) || candidate.blockers.some((reason) => typeof reason !== "string")) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_BLOCKERS_INVALID");
   if (!Array.isArray(candidate.sourceFingerprints) || candidate.sourceFingerprints.some((fingerprint) => typeof fingerprint !== "string" || !SHA64.test(fingerprint))) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_PROVENANCE_INVALID");
   validateSnapshotCollections(candidate);
+  const workSupplyStatus = (candidate.workSupply as NusaEngineeringWorkSupplyProjection).status;
+  if (candidate.status === "VERIFIED" && workSupplyStatus !== "AVAILABLE") throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_VERIFIED_WITHOUT_WORK_SUPPLY");
+  if (workSupplyStatus === "UNAVAILABLE" && candidate.status === "INSUFFICIENT" && !candidate.blockers.includes("WORK_SUPPLY_EVIDENCE_MISSING")) {
+    throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_WORK_SUPPLY_BLOCKER_MISSING");
+  }
   if (candidate.status === "VERIFIED" && candidate.blockers.length !== 0) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_VERIFIED_WITH_BLOCKERS");
   if (candidate.status === "INSUFFICIENT" && candidate.blockers.length === 0) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_INSUFFICIENT_WITHOUT_BLOCKER");
   if (candidate.authority?.liveAuthority !== "NONE" || candidate.authority?.productionMutationAllowed !== false || candidate.authority?.aiAuthority !== "ZERO_AUTHORITY" || candidate.authority?.mutationAllowed !== false) throw new Error("ENGINEERING_OPERATIONS_AUTHORITY_VIOLATION");
@@ -351,6 +462,26 @@ function nullableFinite(value: unknown, code: string): void {
 function boundedMetric(value: unknown, code: string): void {
   if (value === "UNKNOWN") return;
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) throw new Error(code);
+}
+
+function validateWorkSupplyProjection(value: unknown): void {
+  const workSupply = record(value, "ENGINEERING_OPERATIONS_SNAPSHOT_WORK_SUPPLY_INVALID");
+  if (workSupply.status !== "AVAILABLE" && workSupply.status !== "UNAVAILABLE") throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_WORK_SUPPLY_STATUS_INVALID");
+  for (const name of [
+    "candidateGapCount",
+    "validatedGapCount",
+    "readyBacklog",
+    "waitingRealEvidenceCount",
+    "humanOnlyCount",
+    "externalOnlyCount",
+    "duplicateCount",
+    "blockedDependencyCount",
+    "conflictCount",
+  ] as const) nonNegativeInteger(workSupply[name], `ENGINEERING_OPERATIONS_SNAPSHOT_WORK_SUPPLY_${name.toUpperCase()}_INVALID`);
+  if (workSupply.readyToWorkerRatio !== "UNKNOWN" && (typeof workSupply.readyToWorkerRatio !== "number" || !Number.isFinite(workSupply.readyToWorkerRatio) || workSupply.readyToWorkerRatio < 0)) {
+    throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_WORK_SUPPLY_WORKER_RATIO_INVALID");
+  }
+  if (workSupply.activeClaimCount !== "UNKNOWN") nonNegativeInteger(workSupply.activeClaimCount, "ENGINEERING_OPERATIONS_SNAPSHOT_WORK_SUPPLY_ACTIVE_CLAIMS_INVALID");
 }
 
 function validateSnapshotCollections(candidate: Partial<NusaEngineeringOperatingSnapshot>): void {
@@ -413,4 +544,5 @@ function validateSnapshotCollections(candidate: Partial<NusaEngineeringOperating
   if (queue.revision !== null) nonNegativeInteger(queue.revision, "ENGINEERING_OPERATIONS_SNAPSHOT_QUEUE_REVISION_INVALID");
   for (const name of ["totalItems", "activeItems", "mergeReadyItems"] as const) nonNegativeInteger(queue[name], "ENGINEERING_OPERATIONS_SNAPSHOT_QUEUE_COUNT_INVALID");
   if (queue.status === "AVAILABLE" && queue.revision === null) throw new Error("ENGINEERING_OPERATIONS_SNAPSHOT_QUEUE_REVISION_MISSING");
+  validateWorkSupplyProjection(candidate.workSupply);
 }
