@@ -10,6 +10,8 @@ export type NusaDevelopmentEventType =
   | "CI_STARTED"
   | "CI_SUCCEEDED"
   | "CI_FAILED"
+  | "AUDIT_SUCCEEDED"
+  | "AUDIT_FAILED"
   | "PR_MERGED"
   | "HUMAN_BLOCKED";
 
@@ -44,8 +46,10 @@ const TRANSITIONS: Readonly<Record<NusaDevelopmentEventType, Readonly<Record<str
   IMPLEMENTATION_STARTED: Object.freeze({ CLAIMED: "IMPLEMENTING" }),
   VALIDATION_STARTED: Object.freeze({ IMPLEMENTING: "VALIDATING" }),
   CI_STARTED: Object.freeze({ VALIDATING: "CI" }),
-  CI_SUCCEEDED: Object.freeze({ CI: "MERGE_READY" }),
+  CI_SUCCEEDED: Object.freeze({ CI: "AUDIT" }),
   CI_FAILED: Object.freeze({ CI: "IMPLEMENTING" }),
+  AUDIT_SUCCEEDED: Object.freeze({ AUDIT: "MERGE_READY" }),
+  AUDIT_FAILED: Object.freeze({ AUDIT: "IMPLEMENTING" }),
   PR_MERGED: Object.freeze({ MERGE_READY: "MERGED" }),
   HUMAN_BLOCKED: Object.freeze({
     READY: "BLOCKED_HUMAN",
@@ -53,6 +57,7 @@ const TRANSITIONS: Readonly<Record<NusaDevelopmentEventType, Readonly<Record<str
     IMPLEMENTING: "BLOCKED_HUMAN",
     VALIDATING: "BLOCKED_HUMAN",
     CI: "BLOCKED_HUMAN",
+    AUDIT: "BLOCKED_HUMAN",
     MERGE_READY: "BLOCKED_HUMAN",
   }),
 });
@@ -113,8 +118,10 @@ function nextActionFor(event: NusaDevelopmentEvent): string {
     case "IMPLEMENTATION_STARTED": return "implement";
     case "VALIDATION_STARTED": return "validate";
     case "CI_STARTED": return "await-exact-head-ci";
-    case "CI_SUCCEEDED": return "merge";
+    case "CI_SUCCEEDED": return "audit";
     case "CI_FAILED": return "repair-ci-failure";
+    case "AUDIT_SUCCEEDED": return "release";
+    case "AUDIT_FAILED": return "repair-audit-failure";
     case "PR_MERGED": return "done";
     case "HUMAN_BLOCKED": return event.reason?.trim() ? `human-blocked:${event.reason.trim()}` : "human-blocked";
   }
