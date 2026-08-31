@@ -93,6 +93,10 @@ describe("NUSA merge rework telemetry", () => {
       validatedHeadSha: HEAD_A,
       requiredChecksPassed: true,
       safetyChecksPassed: true,
+      auditedHeadSha: HEAD_A,
+      auditVerdict: "PASS",
+      auditMergeAllowed: true,
+      auditObservedAt: 1_400,
       unresolvedReviewThreads: 0,
       observedAt: 1_500,
     };
