@@ -24,14 +24,18 @@ latest_research_slice:
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 current_research_follow_up:
   work_order: WO-ISSUE-1094-RESEARCH-FACTORY
-  status: VERIFYING
+  status: COMPLETED
   base_commit: 07b92f86bbac6e939906c9de88575ac89d316f9f
   implementation_branch: codex/research-factory-hypothesis-admission
-  implementation_commit: 49ad713061c6b26868789df7f793f9b127ef800c
+  implementation_commit: 74e349ce4a3f56da8a0f7d50ae71f23b45791960
+  pull_request: 1319
+  merge_commit: 3919719eff3ddf3b327db3ed700cf72acbd4a5a7
+  exact_head_ci: "6/6 PASS (PR head 74e349ce4a3f56da8a0f7d50ae71f23b45791960)"
+  post_merge_main: 3919719eff3ddf3b327db3ed700cf72acbd4a5a7
   scope: "Candidate-level canonical research hypothesis admission and provenance binding in the existing Research Factory path."
   validation: "Focused 30/30; research/League regression 39/39; full isolated 825/825; typecheck/build/lint/preflight/architecture/safety/security/AIPOS/Restricted LIVE/Read-only Broker PASS."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  remaining: "Remote publication and exact-head CI; truthful longitudinal PAPER source remains unavailable/fail-closed."
+  remaining: "Truthful longitudinal PAPER source remains unavailable and fail-closed; continue #861 only when verified runtime evidence exists."
 base_branch: main
 active_branch: main
 active_successor_branch: null
