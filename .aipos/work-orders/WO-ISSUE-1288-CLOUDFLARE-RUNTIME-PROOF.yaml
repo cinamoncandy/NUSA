@@ -6,7 +6,7 @@ owner: nusa
 repository: cinamoncandy/NUSA
 issue: 1288
 base_branch: main
-base_commit: 9db352214a34bf919a8dc838a996c4a03bc7c92e
+base_commit: 0167a07021cfda1277124995b862bf9002a2de85
 implementation_branch: codex/1288-runtime-proof-provenance
 implementation_commit: a1f3a0ab6b917cf4fdf22eaf2ae54297997ff5fa
 pull_request: 1301
