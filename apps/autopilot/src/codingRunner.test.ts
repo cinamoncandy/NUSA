@@ -303,6 +303,47 @@ describe("coding runner", () => {
     assert.equal(runtimeCalls, 0);
   });
 
+  it("accepts a configured coding engine proposal wrapped in a generic response envelope", async () => {
+    const runtime: CodingRuntime = {
+      name: "fake-sandbox",
+      async execute(value, proposal) {
+        assert.equal(value.headSha, request.headSha);
+        assert.equal(proposal?.patch, patch);
+        return {
+          backend: "fake-sandbox",
+          checkpointId: request.headSha,
+          workspaceVerified: true,
+          proposalValidated: true,
+          changedFiles: ["apps/autopilot/src/example.ts"],
+        };
+      },
+    };
+    const result = await executeCodingRunner(request, runtimeEnv, async (url) => {
+      if (url.includes("/commits/") || url.includes("/actions/runs/")) return verifiedGithubFetch(url);
+      return response(200, { response: `Here is the proposal:\n\`\`\`json\n${JSON.stringify({ patch })}\n\`\`\`` });
+    }, runtime);
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.equal(result.proposalValidated, true);
+  });
+
+  it("still distinguishes shape-invalid output from a configured coding engine wrapped in a response envelope", async () => {
+    let runtimeCalls = 0;
+    const runtime: CodingRuntime = {
+      name: "fake-sandbox",
+      async execute() {
+        runtimeCalls += 1;
+        return { backend: "fake-sandbox", checkpointId: request.headSha, workspaceVerified: true };
+      },
+    };
+    const result = await executeCodingRunner(request, runtimeEnv, async (url) => {
+      if (url.includes("/commits/") || url.includes("/actions/runs/")) return verifiedGithubFetch(url);
+      return response(200, { response: JSON.stringify({ patch: 42 }) });
+    }, runtime);
+    assert.equal(result.status, "EXECUTION_FAILED");
+    assert.equal(result.reason, "CODING_PROPOSAL_SHAPE_INVALID");
+    assert.equal(runtimeCalls, 0);
+  });
+
   it("does not call the coding engine or runtime when GitHub evidence is invalid", async () => {
     let runtimeCalls = 0;
     let fetchCalls = 0;
