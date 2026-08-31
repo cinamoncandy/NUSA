@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-31T17:35:58+09:00"
+updated_at: "2026-08-31T18:03:00+09:00"
 current_execution_target:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -45,6 +45,18 @@ latest_runtime_proof_slice:
   scope: "Direct regression coverage for proof_not_scheduled and proof_scheduled_late classifications in the existing Cloudflare runtime-proof verifier."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   remaining: "GitHub scheduled-event delivery remains external evidence; two consecutive fresh scheduled proofs are still pending."
+
+latest_ux_telemetry_slice:
+  status: COMPLETED
+  base_commit: cd171a387b31b19b74f1dcf5d531b65330980a30
+  implementation_branch: feat/ux-telemetry-route-and-client
+  implementation_head: be2d36987066c8e809dda6191966e2d683eb5db4
+  pull_request: 1327
+  merge_commit: 5b6e5163826d5ac34d5cd7039182a1a9dd300412
+  exact_head_ci: "7/7 PASS (CI run 33374206183; Mobile Native 33374206226; protected workflows on exact head)"
+  scope: "Register the existing opt-in UX telemetry HTTP handler and add a best-effort secure mobile emitter; no screen emission, trading, LIVE, account-mutation, or authority path."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  remaining: "Telemetry remains opt-in and is not wired into screens until an explicit settings/consent state exists."
 
 current_research_follow_up:
   work_order: WO-ISSUE-1094-RESEARCH-FACTORY
