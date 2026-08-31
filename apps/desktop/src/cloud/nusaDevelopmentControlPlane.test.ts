@@ -29,7 +29,7 @@ function work(overrides: Partial<NusaDevelopmentWorkItem> & Pick<NusaDevelopment
 
 describe("NUSA canonical development queue", () => {
   it("uses the complete #903 state vocabulary and preserves zero live authority", () => {
-    const states = ["READY", "CLAIMED", "IMPLEMENTING", "VALIDATING", "CI", "MERGE_READY", "MERGED", "BLOCKED_HUMAN"] as const;
+    const states = ["READY", "CLAIMED", "IMPLEMENTING", "VALIDATING", "CI", "AUDIT", "MERGE_READY", "MERGED", "BLOCKED_HUMAN"] as const;
     const queue = createNusaDevelopmentQueue(states.map((state, index) => work({ id: `w${index}`, state })));
     assert.deepEqual(queue.items.map((item) => item.state), states);
     assert.deepEqual(NUSA_DEVELOPMENT_CONTROL_PLANE_AUTHORITY, {
@@ -106,7 +106,7 @@ describe("NUSA canonical development queue", () => {
   });
 
   it("treats CLAIMED through MERGE_READY as active conflicts but not MERGED or BLOCKED_HUMAN", () => {
-    const activeStates = ["CLAIMED", "IMPLEMENTING", "VALIDATING", "CI", "MERGE_READY"] as const;
+    const activeStates = ["CLAIMED", "IMPLEMENTING", "VALIDATING", "CI", "AUDIT", "MERGE_READY"] as const;
     for (const [index, state] of activeStates.entries()) {
       const queue = createNusaDevelopmentQueue([
         work({ id: `active-${state}`, state, canonicalOwner: "other", touchedFiles: ["same.ts"] }),
