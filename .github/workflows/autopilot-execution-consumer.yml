@@ -107,68 +107,11 @@ jobs:
           }, null, 2));
           NODE
 
-      - name: Dispatch to configured external coding runner
+      - name: Dispatch to configured external coding runner with bounded retry
         if: ${{ steps.backend.outputs.mode == 'external' }}
         env:
           NUSA_CODING_RUNNER_URL: https://nusa-autopilot.desporin12.workers.dev/coding/execute
-        run: |
-          node - <<'NODE'
-          const fs = require('fs');
-          const request = JSON.parse(fs.readFileSync('artifacts/autopilot-execution/coding-runner-request.json', 'utf8'));
-          const oidcUrl = `${process.env.ACTIONS_ID_TOKEN_REQUEST_URL}&audience=nusa-autopilot`;
-          fetch(oidcUrl, {
-            headers: { authorization: `Bearer ${process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN}` },
-          }).then(async (oidcResponse) => {
-            if (!oidcResponse.ok) throw new Error(`GITHUB_OIDC_HTTP_${oidcResponse.status}`);
-            const oidc = await oidcResponse.json();
-            if (typeof oidc.value !== 'string' || !oidc.value) throw new Error('GITHUB_OIDC_TOKEN_MISSING');
-            return fetch(process.env.NUSA_CODING_RUNNER_URL, {
-              method: 'POST',
-              headers: {
-                authorization: `Bearer ${oidc.value}`,
-                'content-type': 'application/json',
-                'x-nusa-execution-id': request.executionId,
-                'x-nusa-dedupe-key': request.dedupeKey,
-              },
-              body: JSON.stringify(request),
-            });
-          }).then(async (response) => {
-            const body = await response.text();
-            let payload = {};
-            try { payload = JSON.parse(body); } catch {}
-            const workerStatus = typeof payload.status === 'string' ? payload.status : 'UNKNOWN';
-            if (response.ok && ['EXECUTION_ACCEPTED', 'EXECUTION_DISPATCHED'].includes(workerStatus)) {
-              fs.writeFileSync('artifacts/autopilot-execution/coding-runner-result.json', JSON.stringify({
-                status: 'DISPATCHED',
-                httpStatus: response.status,
-                workerStatus,
-                response: body.slice(0, 4000),
-                request,
-              }, null, 2));
-              return;
-            }
-            if (response.ok && workerStatus === 'DUPLICATE_EXECUTION_SUPPRESSED') {
-              fs.writeFileSync('artifacts/autopilot-execution/coding-runner-result.json', JSON.stringify({
-                status: 'DUPLICATE_EXECUTION_SUPPRESSED',
-                httpStatus: response.status,
-                workerStatus,
-                response: body.slice(0, 4000),
-                request,
-              }, null, 2));
-              return;
-            }
-            fs.writeFileSync('artifacts/autopilot-execution/coding-runner-result.json', JSON.stringify({
-              status: 'INTERFACE_READY',
-              reason: response.ok ? 'cloud-coding-runtime-not-ready' : 'external-coding-runner-rejected-request',
-              httpStatus: response.status,
-              workerStatus,
-              response: body.slice(0, 4000),
-              request,
-            }, null, 2));
-            console.warn(`External coding runner unavailable (HTTP ${response.status}); no repository mutation was performed.`);
-          }).catch((error) => { console.error(error); process.exit(1); });
-          NODE
-
+        run: node scripts/autopilot-dispatch-retry.js
       - name: Classify execution boundary
         if: always()
         run: |

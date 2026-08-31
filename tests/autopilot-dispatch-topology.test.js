@@ -13,5 +13,9 @@ test("one nusa_autopilot_execution event has one effective workflow consumer", (
   const canonical = fs.readFileSync(path.join(workflowDir, consumers[0]), "utf8");
   assert.match(canonical, /NUSA_CODING_RUNNER_URL/);
   assert.match(canonical, /id-token:\s*write/);
-  assert.match(canonical, /DUPLICATE_EXECUTION_SUPPRESSED/);
+  assert.match(canonical, /autopilot-dispatch-retry\.js/);
+  const retryScript = fs.readFileSync(path.resolve("scripts", "autopilot-dispatch-retry.js"), "utf8");
+  assert.match(retryScript, /DUPLICATE_EXECUTION_SUPPRESSED/);
+  assert.match(retryScript, /execution-attempts\.json/);
+  assert.match(retryScript, /execution-summary\.json/);
 });
