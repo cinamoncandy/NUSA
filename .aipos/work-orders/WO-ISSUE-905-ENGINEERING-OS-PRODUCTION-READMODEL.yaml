@@ -76,9 +76,9 @@ validation:
   origin_branch: CURRENT_MAIN_BASE
   remote_pr: 1291
   integrated_main_commit: c3cb9395274a8963f067e51f41258c446f30ca35
-  remote_required_checks: PENDING_CURRENT_HEAD
-implementation_status: MAIN_INTEGRATED_PENDING_EXACT_HEAD
+  remote_required_checks: PASS_6_OF_6_EXACT_HEAD
+implementation_status: PR_OPEN_PENDING_PROTECTED_MAIN_MERGE
 known_limitations:
   - "Production GitHub telemetry, queue persistence, and pre/post optimization observations remain unavailable until their canonical external adapters are connected; the read model must report INSUFFICIENT rather than fabricate values."
   - "PR #1291 exact-head required checks are green; protected main merge requires explicit shared-history authorization."
-next: "Push the main-integrated branch tip, validate its exact-head checks, and merge only after explicit protected-main authorization; preserve absent external telemetry as INSUFFICIENT."
+next: "PR #1291 exact head is green; merge only after explicit protected-main authorization, then verify main and continue with the next evidence-backed gap."

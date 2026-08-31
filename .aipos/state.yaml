@@ -662,7 +662,7 @@ continuity:
 latest_engineering_os_slice:
   work_order: WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL
   issue: 905
-  status: MAIN_INTEGRATED_PENDING_EXACT_HEAD
+  status: PR_OPEN_PENDING_PROTECTED_MAIN_MERGE
   base_commit: c3cb9395274a8963f067e51f41258c446f30ca35
   implementation_branch: codex/issue-905-readmodel-input-hardening
   scope: "Fail-closed runtime validation for malformed opportunity signals, duplicate priority identities, and malformed #903 queue evidence at the existing read-only Engineering OS projection boundary."
@@ -675,8 +675,8 @@ latest_engineering_os_slice:
   implementation_commit: 4e5a47c85f593148d8f5ad34b47e94615c65f4f4
   remote_pr: 1291
   integrated_main_commit: c3cb9395274a8963f067e51f41258c446f30ca35
-  remote_required_checks: PENDING_CURRENT_HEAD
-  next: "Validate PR #1291 at the current main-integrated head; protected main merge requires explicit authorization. Do not fabricate external telemetry or speedup evidence."
+  remote_required_checks: PASS_6_OF_6_EXACT_HEAD
+  next: "PR #1291 exact head is green; protected main merge requires explicit authorization. Do not fabricate external telemetry or speedup evidence."
 
 issue_661_paper_learning_visibility:
   issue: 661
