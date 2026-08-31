@@ -4,6 +4,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const DEFAULT_WEBHOOK_URL = "https://nusa-autopilot.desporin12.workers.dev/github/webhook";
+const DEFAULT_OIDC_AUDIENCE = "nusa-autopilot";
 const SUPPORTED_EVENTS = new Set(["push", "pull_request", "workflow_run", "ping"]);
 const TRANSIENT_STATUSES = new Set([429, 500, 502, 503, 504]);
 const MAX_ATTEMPTS = 2;
@@ -31,6 +32,42 @@ export function createGithubSignature(secret, body) {
   return `sha256=${crypto.createHmac("sha256", secret).update(body).digest("hex")}`;
 }
 
+export async function requestGithubActionsOidcToken({
+  requestUrl,
+  requestToken,
+  audience = DEFAULT_OIDC_AUDIENCE,
+  fetchImpl = fetch,
+}) {
+  const hasUrl = typeof requestUrl === "string" && requestUrl.trim().length > 0;
+  const hasToken = typeof requestToken === "string" && requestToken.trim().length > 0;
+  if (!hasUrl && !hasToken) return null;
+  if (!hasUrl || !hasToken) throw new Error("GITHUB_OIDC_REQUEST_ENV_INCOMPLETE");
+  let url;
+  try {
+    url = new URL(requestUrl);
+  } catch {
+    throw new Error("GITHUB_OIDC_REQUEST_URL_INVALID");
+  }
+  if (url.protocol !== "https:") throw new Error("GITHUB_OIDC_REQUEST_URL_INVALID");
+  url.searchParams.set("audience", audience);
+  const response = await fetchImpl(url, {
+    method: "GET",
+    headers: {
+      authorization: `Bearer ${requestToken}`,
+      accept: "application/json",
+    },
+  });
+  if (!response.ok) throw new Error(`GITHUB_OIDC_REQUEST_HTTP_${response.status}`);
+  let payload;
+  try {
+    payload = await response.json();
+  } catch {
+    throw new Error("GITHUB_OIDC_RESPONSE_INVALID");
+  }
+  if (!payload || typeof payload.value !== "string" || payload.value.trim().length === 0) throw new Error("GITHUB_OIDC_TOKEN_MISSING");
+  return payload.value.trim();
+}
+
 function responseClass(status) {
   if (status >= 200 && status < 300) return "SUCCESS";
   if (status === 401 || status === 403) return "AUTH_REJECTED";
@@ -54,6 +91,7 @@ async function responseSafety(response) {
 
 export async function dispatchGithubEvent({
   secret,
+  oidcToken,
   body,
   event,
   repository,
@@ -68,12 +106,15 @@ export async function dispatchGithubEvent({
   if (!normalizedEvent) throw new Error("GITHUB_EVENT_UNSUPPORTED");
   if (!(body instanceof Uint8Array)) throw new Error("GITHUB_EVENT_BODY_INVALID");
   const deliveryId = createDeliveryId({ repository, event: normalizedEvent, runId, runAttempt });
-  if (typeof secret !== "string" || secret.trim().length === 0) {
-    return Object.freeze({ status: "INTERFACE_READY", event: normalizedEvent, deliveryId, attempts: 0, responseStatus: null });
-  }
+  const hasOidc = typeof oidcToken === "string" && oidcToken.trim().length > 0;
+  const hasSecret = typeof secret === "string" && secret.trim().length > 0;
+  if (!hasOidc && !hasSecret) throw new Error("WEBHOOK_AUTH_REQUIRED");
   if (typeof webhookUrl !== "string" || !/^https:\/\//.test(webhookUrl)) throw new Error("WEBHOOK_URL_INVALID");
 
-  const signature = createGithubSignature(secret, body);
+  const authentication = hasOidc ? "OIDC" : "HMAC";
+  const authHeaders = hasOidc
+    ? { authorization: `Bearer ${oidcToken.trim()}` }
+    : { "x-hub-signature-256": createGithubSignature(secret, body) };
   let attempts = 0;
   let response;
   for (; attempts < MAX_ATTEMPTS; attempts += 1) {
@@ -86,8 +127,8 @@ export async function dispatchGithubEvent({
           "content-type": "application/json",
           "x-github-delivery": deliveryId,
           "x-github-event": normalizedEvent,
-          "x-hub-signature-256": signature,
           "user-agent": "nusa-github-event-bridge",
+          ...authHeaders,
         },
         body,
         signal: controller.signal,
@@ -105,7 +146,7 @@ export async function dispatchGithubEvent({
     const classification = responseClass(response.status);
     if (classification === "SUCCESS") {
       await responseSafety(response);
-      return Object.freeze({ status: "DELIVERED", event: normalizedEvent, deliveryId, attempts: attempts + 1, responseStatus: response.status });
+      return Object.freeze({ status: "DELIVERED", authentication, event: normalizedEvent, deliveryId, attempts: attempts + 1, responseStatus: response.status });
     }
     if (classification !== "TRANSIENT_FAILURE" || attempts + 1 >= MAX_ATTEMPTS) {
       throw new Error(`WEBHOOK_HTTP_${response.status}`);
@@ -120,6 +161,7 @@ function summaryLine(result) {
     "## NUSA Autopilot GitHub Event Bridge",
     "",
     `- status: ${result.status}`,
+    `- authentication: ${result.authentication}`,
     `- event: ${result.event}`,
     `- delivery: ${result.deliveryId}`,
     `- attempts: ${result.attempts}`,
@@ -140,8 +182,13 @@ async function main() {
   const bodyPath = process.env.GITHUB_EVENT_PATH;
   if (!bodyPath) throw new Error("GITHUB_EVENT_PATH_REQUIRED");
   const body = fs.readFileSync(bodyPath);
+  const oidcToken = await requestGithubActionsOidcToken({
+    requestUrl: process.env.ACTIONS_ID_TOKEN_REQUEST_URL,
+    requestToken: process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN,
+  });
   const result = await dispatchGithubEvent({
     secret: process.env.NUSA_WEBHOOK_SECRET,
+    oidcToken,
     body,
     event,
     repository: process.env.GITHUB_REPOSITORY,
