@@ -6,6 +6,10 @@
   "baseSha": "db9067754e12c2e462579f5b39b0ebc99a182d19",
   "branch": "codex/903-github-event-bridge",
   "implementationCommit": "53263fb1caffe48632b3a5e4abc43997475ad1b7",
+  "pullRequest": 1304,
+  "validatedHead": "6bc81e2ef4e287978c16e0a443a0eafcd18efb14",
+  "remoteRequiredChecks": "PASS_6_OF_6",
+  "mergeState": "CLEAN_MERGE_PENDING_EXPLICIT_OWNER_AUTHORIZATION",
   "scope": [
     "signed GitHub push, pull_request_target, and canonical CI workflow_run ingress",
     "existing Autopilot webhook, planner, production-execution spine",

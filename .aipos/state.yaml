@@ -866,6 +866,10 @@ issue_903_event_bridge:
   base_sha: db9067754e12c2e462579f5b39b0ebc99a182d19
   branch: codex/903-github-event-bridge
   implementation_commit: 53263fb1caffe48632b3a5e4abc43997475ad1b7
+  pull_request: 1304
+  validation_head: 6bc81e2ef4e287978c16e0a443a0eafcd18efb14
+  remote_required_checks: PASS_6_OF_6
+  merge_state: CLEAN_MERGE_PENDING_EXPLICIT_OWNER_AUTHORIZATION
   scope: "Signed GitHub push, pull_request_target, and canonical CI workflow_run ingress into the existing read-only Autopilot webhook spine; no second queue, scheduler, executor, or mutation path."
   canonical_spine: EXISTING_AUTOPILOT_WEBHOOK_PLANNER_EXECUTION
   runtime_activation: INTERFACE_READY_PENDING_SECRET_AND_ARTIFACT_BACKED_DELIVERY
@@ -890,4 +894,4 @@ issue_903_event_bridge:
     lint: BLOCKED_LOCAL_NODE_MODULES_RELINK_BEFORE_LINT
   event_delivery: "The workflow makes no request when NUSA_WEBHOOK_SECRET is absent and never claims ACTIVE; real delivery remains unproven until artifact-backed runtime evidence exists."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  next: "Publish through a normal exact-head PR; preserve #1288 scheduled-proof acceptance as a separate external gate."
+  next: "Obtain explicit owner authorization before protected-main merge; preserve #1288 scheduled-proof acceptance as a separate external gate."
