@@ -5,7 +5,9 @@ import { assessNusaCiCriticalPathOutcome } from "./nusaEngineeringOutcomeFeedbac
 
 const BASE = Date.parse("2026-08-27T14:00:00.000Z");
 const FP = "1".repeat(64);
-const receipt = (headSha: string, jobId: number, durationMs: number): GithubCiJobTimingReceipt => ({
+const POST_FP = "2".repeat(64);
+const THIRD_FP = "3".repeat(64);
+const receipt = (headSha: string, jobId: number, durationMs: number, sourceFingerprint = headSha === "a".repeat(40) ? FP : POST_FP): GithubCiJobTimingReceipt => ({
   jobId,
   runId: jobId,
   runAttempt: 1,
@@ -15,10 +17,10 @@ const receipt = (headSha: string, jobId: number, durationMs: number): GithubCiJo
   conclusion: "success",
   startedAt: new Date(BASE).toISOString(),
   completedAt: new Date(BASE + durationMs).toISOString(),
-  sourceFingerprint: FP,
+  sourceFingerprint,
 });
 
-const telemetry = (headSha: string, jobId: number, durationMs: number) => analyzeNusaCiCriticalPathTelemetry([receipt(headSha, jobId, durationMs)], headSha);
+const telemetry = (headSha: string, jobId: number, durationMs: number, sourceFingerprint?: string) => analyzeNusaCiCriticalPathTelemetry([receipt(headSha, jobId, durationMs, sourceFingerprint)], headSha);
 
 describe("assessNusaCiCriticalPathOutcome", () => {
   it("evaluates a real exact-head pre/post metric without inventing a result", () => {
@@ -31,7 +33,7 @@ describe("assessNusaCiCriticalPathOutcome", () => {
     assert.equal(result.baselineHeadSha, "a".repeat(40));
     assert.equal(result.postMergeHeadSha, "b".repeat(40));
     assert.deepEqual(result.baselineSourceFingerprints, [FP]);
-    assert.deepEqual(result.postMergeSourceFingerprints, [FP]);
+    assert.deepEqual(result.postMergeSourceFingerprints, [POST_FP]);
   });
 
   it("keeps a missing post-merge observation insufficient", () => {
@@ -53,6 +55,21 @@ describe("assessNusaCiCriticalPathOutcome", () => {
       postMerge: telemetry("b".repeat(40), 2, 800),
       minimumMeaningfulChange: 1,
     }), /OUTCOME_BASELINE_PROVENANCE_INVALID/);
+  });
+
+  it("rejects a receipt fingerprint reused across pre and post observations", () => {
+    assert.throws(() => assessNusaCiCriticalPathOutcome({
+      baseline: telemetry("a".repeat(40), 1, 1_000, FP),
+      postMerge: telemetry("b".repeat(40), 2, 800, FP),
+      minimumMeaningfulChange: 100,
+    }), /OUTCOME_PROVENANCE_NOT_DISTINCT/);
+  });
+
+  it("canonicalizes provenance ordering before returning an assessment", () => {
+    const baseline = { ...telemetry("a".repeat(40), 1, 1_000), sourceFingerprints: [POST_FP, FP] };
+    const postMerge = telemetry("b".repeat(40), 2, 800, THIRD_FP);
+    const result = assessNusaCiCriticalPathOutcome({ baseline, postMerge, minimumMeaningfulChange: 100 });
+    assert.deepEqual(result.baselineSourceFingerprints, [FP, POST_FP]);
   });
 
   it("classifies a measured regression as rollback or rework", () => {

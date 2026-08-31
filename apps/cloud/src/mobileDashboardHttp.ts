@@ -52,7 +52,7 @@ function authorizeScope(
   request: DashboardHttpRequest,
   tokenVerifier: DashboardTokenVerifier,
   method: "GET" | "POST",
-  scope: "dashboard:read" | "paper:trade"
+  scope: "dashboard:read" | "paper:trade" | "telemetry:write"
 ): DashboardAuthorization {
   if (request.method.toUpperCase() !== method) {
     const base = dashboardJsonResponse(405, { error: "METHOD_NOT_ALLOWED" });
@@ -87,6 +87,12 @@ export function authorizeDashboardReadRequest(request: DashboardHttpRequest, tok
 /** Explicit PAPER-only mutation boundary. It grants no LIVE, transfer, withdrawal, or production authority. */
 export function authorizePaperTradeRequest(request: DashboardHttpRequest, tokenVerifier: DashboardTokenVerifier): DashboardAuthorization {
   return authorizeScope(request, tokenVerifier, "POST", "paper:trade");
+}
+
+/** UX telemetry ingestion boundary. Grants no trading, LIVE, or account-mutation authority -- it
+ * only permits appending observability events scoped to the authenticated principal's own session. */
+export function authorizeUxTelemetryWriteRequest(request: DashboardHttpRequest, tokenVerifier: DashboardTokenVerifier): DashboardAuthorization {
+  return authorizeScope(request, tokenVerifier, "POST", "telemetry:write");
 }
 
 export function handleMobileDashboardHttp(

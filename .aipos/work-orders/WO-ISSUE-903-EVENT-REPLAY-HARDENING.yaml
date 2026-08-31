@@ -6,14 +6,16 @@ owner: codex
 repository: cinamoncandy/NUSA
 issue: 903
 base_branch: main
-base_commit: c12d70b5eb98dac0969275e1bdbbb30162a5c5b2
-implementation_branch: codex/issue-903-event-determinism
-objective: "Harden the existing read-only development event orchestrator so malformed event identity/time data and nondeterministic replay cannot advance the canonical work queue."
+base_commit: db9067754e12c2e462579f5b39b0ebc99a182d19
+implementation_branch: codex/903-github-event-bridge
+objective: "Complete the repository-controlled GitHub event ingress into the existing read-only Autopilot planning and execution spine while preserving deterministic replay and fail-closed runtime evidence."
 scope:
   - validate bounded canonical event ids, work ids, event types, revisions, timestamps, and reasons
   - canonicalize processed-event identity ordering
   - provide pure deterministic replay for persisted event histories
   - reject chronology regressions and contradictory/invalid transitions fail-closed
+  - deliver main, pull-request, and canonical CI completion events to the existing signed Worker webhook
+  - keep missing webhook configuration explicitly INTERFACE_READY rather than claiming autonomous activation
 prohibited:
   - live_activation
   - broker_or_order_mutation
@@ -27,6 +29,33 @@ architecture_impact:
     - apps/desktop/src/cloud/nusaDevelopmentEventOrchestrator.ts
     - apps/desktop/src/cloud/nusaDevelopmentControlPlane.ts
     - apps/desktop/src/cloud/nusaDevelopmentEventOrchestrator.test.ts
+    - .github/workflows/autopilot-github-event-bridge.yml
+    - scripts/dispatch-github-event-to-autopilot.mjs
+
+event_ingress:
+  status: INGRESS_CONNECTED_WAITING_EXECUTION
+  implementation_commit: 53263fb1caffe48632b3a5e4abc43997475ad1b7
+  workflow: .github/workflows/autopilot-github-event-bridge.yml
+  delivery_script: scripts/dispatch-github-event-to-autopilot.mjs
+  target: https://nusa-autopilot.desporin12.workers.dev/github/webhook
+  event_sources:
+    - push_main
+    - pull_request_target
+    - workflow_run_canonical_ci_completed_main
+  authentication: repository_secret_to_existing_worker_hmac
+  missing_secret: INTERFACE_READY_NO_REQUEST
+  retry: BOUNDED_TRANSIENT_ONLY
+  runtime_activation: BLOCKED_MISSING_SECRET
+post_merge_runtime_proof:
+  workflow_run: 33354759806
+  trigger: push
+  source_sha: 259b98f21ebe4d28644ac406e26aeb4b3a19648c
+  workflow_conclusion: SUCCESS
+  bridge_result: INTERFACE_READY
+  attempts: 0
+  response_status: null
+  reason: NUSA_WEBHOOK_SECRET_EMPTY
+  canonical_worker_receipt: NOT_PROVEN
 safety:
   liveAuthority: NONE
   productionMutationAllowed: false
@@ -39,6 +68,8 @@ acceptance_criteria:
   - chronology regressions and invalid transitions fail closed
   - processed event ids serialize in canonical order regardless of delivery order
   - existing control-plane transition behavior remains unchanged
+  - GitHub event bridge uses the existing signed webhook and does not create a second queue or executor
+  - bridge response authority is checked for liveAuthority NONE, productionMutationAllowed false, and AI ZERO_AUTHORITY
   - focused tests, typecheck, build, lint, architecture, safety, security, AIPOS, and diff checks pass
 verification:
   - node --test dist/apps/desktop/src/cloud/nusaDevelopmentEventOrchestrator.test.js
@@ -55,4 +86,50 @@ verification:
   - pnpm run aipos:conformance
   - pnpm run aipos:provenance
   - git diff --check
-next_on_pass: "Publish through a normal exact-head PR only after all recorded validations pass."
+  - node --test tests/autopilot-github-event-bridge.test.js
+next_on_pass: "Publish through a normal exact-head PR; keep runtime activation and throughput claims fail-closed until artifact-backed event delivery is observed."
+
+current_main_audit:
+  audited_at: "2026-08-31"
+  current_main: db9067754e12c2e462579f5b39b0ebc99a182d19
+  recent_main_merges:
+    - pull_request: 1291
+      merge_commit: d955cdc0e6d27023a89890b6a5efbf283eab6f09
+    - pull_request: 1292
+      merge_commit: e7cfab58eb89cfd6a06359198635dcb13fc7a37b
+  issue_status: OPEN
+  focused_control_plane_regression: PASS_39_OF_39
+  evidence_classification:
+    canonical_queue_state_claim_recovery: IMPLEMENTED_VERIFIED
+    conflict_aware_allocation: IMPLEMENTED_VERIFIED
+    deterministic_event_replay: IMPLEMENTED_VERIFIED
+    dependency_aware_merge_train: IMPLEMENTED_VERIFIED
+    exact_head_gate_model: IMPLEMENTED_NO_RUNTIME_EVIDENCE
+    real_github_ci_telemetry: IMPLEMENTED_NO_RUNTIME_EVIDENCE
+    event_trigger_infrastructure: INGRESS_CONNECTED_EXECUTION_BLOCKED_BY_MISSING_SECRET
+    autopilot_slo_runtime_measurements: IMPLEMENTED_NO_RUNTIME_EVIDENCE
+    verified_throughput_speedup: MISSING
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  latest_revalidation:
+    branch_head: 8d448f8a
+    main_integration: MERGED_ORIGIN_MAIN_E5A7E370
+    focused_bridge_and_affected_regression: PASS_27_OF_27
+    full_isolated_suite: PASS_819_FILES
+    typecheck: PASS
+    build: PASS
+    lint: PASS
+    preflight: PASS
+    architecture_truth: PASS
+    architecture_check: PASS
+    ai_zero_authority: PASS
+    safety_architecture: PASS
+    safety_invariants: PASS
+    restricted_live_check: PASS
+    restricted_live_readiness: PASS
+    read_only_broker: PASS
+    security_gate: PASS_SECRETS_0
+    aipos_drift: PASS
+    aipos_conformance: PASS
+    aipos_provenance: PASS
+    diff_check: PASS
+  next: "Configure the repository secret through the normal owner-controlled GitHub settings path, then capture a fresh artifact-backed Worker receipt and control-plane execution proof; keep #903 fail-closed until then."

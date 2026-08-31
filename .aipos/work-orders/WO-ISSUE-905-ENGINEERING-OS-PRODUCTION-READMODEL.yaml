@@ -1,14 +1,14 @@
 id: WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL
 title: "Issue #905 wire the measured Engineering OS read model into production"
-status: IN_PROGRESS
+status: FOLLOW_UP_PR_PENDING_EXACT_HEAD_VALIDATION
 owner: nusa
 repository: cinamoncandy/NUSA
 issue: 905
-pull_request: 1073
+pull_request: NOT_CREATED
 base_branch: main
-base_commit: bf7e8c0de7614dec959d6c28180d16dfc8ef87f5
-implementation_branch: codex/issue-905-readmodel-hardening
-objective: "Harden the existing read-only Engineering OS production read-model boundary against malformed nested evidence and credential-shaped fields without inventing measurements or adding execution authority."
+base_commit: e7cfab58eb89cfd6a06359198635dcb13fc7a37b
+implementation_branch: codex/905-outcome-feedback-observability-v2
+objective: "Harden the existing read-only Engineering OS production read-model boundary against malformed nested evidence, duplicate identities, and credential-shaped fields without inventing measurements or adding execution authority."
 architecture_impact:
   acknowledged: true
   analysis: "Reuse the existing deterministic opportunity ranking, self-optimizer, adaptive concurrency, execution-origin, outcome-feedback, and #903 queue contracts at one production read-model boundary; no second queue, scheduler, merge engine, or mutation path is introduced."
@@ -27,6 +27,11 @@ scope:
   - exact_head_outcome_projection
   - production_runtime_accessor_regression
   - nested_snapshot_validation_and_redaction_boundary
+  - malformed_opportunity_signal_rejection
+  - duplicate_priority_identity_rejection
+  - canonical_queue_input_shape_validation
+  - independent_pre_post_receipt_provenance
+  - deterministic_outcome_provenance_projection
 prohibited:
   - live_execution
   - broker_mutation
@@ -51,11 +56,17 @@ acceptance:
   - production_runtime_wires_accessor_without_mutation
   - nested_snapshot_shape_and_provenance_are_validated_before_serialization
   - credential-shaped_fields_are_rejected_at_the_read_only_boundary
+  - malformed_opportunity_and_queue_evidence_fails_closed_before_projection
+  - duplicate_priority_identity_fails_closed_before_ranking
+  - pre_and_post_outcome_evidence_must_not_reuse_receipt_provenance
+  - outcome_provenance_is_returned_in_canonical_order
   - safety_authority_remains_unchanged
 validation:
-  focused: PASS_12_OF_12
+  focused: PASS_28_OF_28
+  engineering_os_regression: PASS_81_OF_81
+  control_plane_regression: PASS_39_OF_39
   production_wiring: PASS
-  full_isolated_suite: PASS_729_FILES
+  full_isolated_suite: PASS_813_FILES
   preflight: PASS
   typecheck: PASS
   build: PASS
@@ -66,10 +77,14 @@ validation:
   security: PASS
   aipos: PASS
   git_diff_check: PASS
-  origin_branch: PUBLISHED
-  remote_pr: 1073_OPEN_EXACT_HEAD_PENDING
-implementation_status: IMPLEMENTED_VERIFYING
+  origin_branch: CURRENT_MAIN_BASE
+  remote_pr: NOT_CREATED
+  integrated_main_commit: e7cfab58eb89cfd6a06359198635dcb13fc7a37b
+  remote_required_checks: PENDING_EXACT_HEAD
+implementation_status: FOLLOW_UP_PR_PENDING_EXACT_HEAD_VALIDATION
+implementation_commit: ae7eeae699fd221132a2f4c78c75f32f42d72773
 known_limitations:
   - "Production GitHub telemetry, queue persistence, and pre/post optimization observations remain unavailable until their canonical external adapters are connected; the read model must report INSUFFICIENT rather than fabricate values."
-  - "GitHub CLI authentication is unavailable in this environment; remote PR publication and exact-head validation remain pending."
-next: "Publish the validation-hardening slice, verify its exact-head protected checks, and merge only when all required checks are green; do not fabricate absent production telemetry."
+  - "PR #1291 merged as d955cdc0e6d27023a89890b6a5efbf283eab6f09 and PR #1292 merged as e7cfab58eb89cfd6a06359198635dcb13fc7a37b; their exact-head checks were green."
+  - "This follow-up rejects reused immutable receipt provenance across pre/post observations; no independent production telemetry exists, so optimization outcome remains INSUFFICIENT_EVIDENCE."
+next: "Publish the follow-up exact-head PR, validate protected checks, and do not claim a measured speedup without independent pre/post telemetry."

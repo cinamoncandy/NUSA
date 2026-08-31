@@ -35,6 +35,11 @@ import {
   validateResearchHypothesisBinding,
   type ResearchHypothesis,
 } from "./researchHypothesis";
+import {
+  admitCanonicalResearchHypothesis,
+  ResearchHypothesisAdmissionError,
+} from "./researchHypothesisAdmission";
+import type { ResearchHypothesis as CanonicalResearchHypothesis } from "../../../../packages/contracts/src/researchHypothesisContract";
 
 /**
  * Minimal adapter joining a real research run to the League pipeline.
@@ -62,6 +67,9 @@ export interface ResearchRunCandidate {
   readonly experiment: ResearchExperimentResult;
   /** Immutable provenance contract bound to this candidate's experiment and dataset. */
   readonly candidateSpecification: ResearchCandidateSpecification;
+  /** Rich hypothesis admitted by the canonical run factory, when this is a factory-backed run. */
+  readonly canonicalHypothesis?: CanonicalResearchHypothesis;
+  readonly canonicalHypothesisHash?: string;
   /** Optional point-in-time multi-window regime evidence for this candidate's own experiment. */
   readonly regimeAwareEvaluation?: RegimeAwareStrategyEvaluation;
   /** Candidate-specific DSR produced from this search's cost-aware OOS returns. */
@@ -219,6 +227,39 @@ export function buildResearchRunLeague(
         );
       }
       specificationHashes.set(candidate.id, specificationDecision.specificationHash);
+      if (candidate.canonicalHypothesis != null || candidate.canonicalHypothesisHash != null) {
+        if (candidate.canonicalHypothesis == null || candidate.canonicalHypothesisHash == null) {
+          throw new ResearchRunLeagueBridgeError(
+            "INCOMPLETE_CANONICAL_HYPOTHESIS_BINDING",
+            `candidate ${candidate.id} has an incomplete canonical hypothesis binding`,
+          );
+        }
+        const binding = (() => {
+          try {
+            return admitCanonicalResearchHypothesis({
+              hypothesis: candidate.canonicalHypothesis,
+              candidateId: candidate.id,
+              manifest: candidate.experiment.manifest,
+              expectedCreatedAt: candidate.canonicalHypothesis.createdAt,
+              evaluationGeneratedAt: candidate.experiment.generatedAt,
+            });
+          } catch (error) {
+            if (error instanceof ResearchHypothesisAdmissionError) {
+              throw new ResearchRunLeagueBridgeError(
+                error.code,
+                `candidate ${candidate.id} canonical hypothesis rejected`,
+              );
+            }
+            throw error;
+          }
+        })();
+        if (binding.hypothesisHash !== candidate.canonicalHypothesisHash) {
+          throw new ResearchRunLeagueBridgeError(
+            "CANONICAL_HYPOTHESIS_HASH_MISMATCH",
+            `candidate ${candidate.id} canonical hypothesis hash does not match its binding`,
+          );
+        }
+      }
     } catch (error) {
       if (error instanceof ResearchRunLeagueBridgeError) throw error;
       throw new ResearchRunLeagueBridgeError(

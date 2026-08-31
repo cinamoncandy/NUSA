@@ -45,6 +45,8 @@ import { handlePublicUpbitQuotationHttp, isPublicUpbitQuotationPath } from "./pu
 import { handleLiveReadinessHttp, type LiveReadinessHttpDependencies } from "./liveReadinessHttp";
 import { handleEngineeringOperationsHttp, type EngineeringOperationsHttpDependencies } from "./engineeringOperationsHttp";
 import { handleEvolutionLearningSupervisorHttp, type EvolutionLearningSupervisorHttpDependencies } from "./evolutionLearningSupervisorHttp";
+import { handleUxTelemetryEventHttp } from "./uxTelemetryHttp";
+import type { UxTelemetryStorage } from "./uxTelemetryJournal";
 
 export interface CloudReadinessSnapshot {
   readonly ok: boolean;
@@ -69,6 +71,7 @@ export interface CloudDashboardServerOptions {
   readonly loadEvolutionLearning?: EvolutionLearningSupervisorHttpDependencies["loadSnapshot"];
   readonly submitPaperOrder?: PersonalPaperOrderHttpDependencies["submitOrder"];
   readonly investmentAllocationSettings?: InvestmentAllocationSettingsRepository;
+  readonly uxTelemetryStorage?: UxTelemetryStorage;
   readonly userAccessRepository?: NusaUserAccessRepository;
   readonly desktopSessionService?: DesktopSessionService;
   readonly mobileSessionService?: MobileSessionService;
@@ -349,6 +352,18 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
           tokenVerifier: requestTokenVerifier,
           submitOrder: options.submitPaperOrder ?? (() => { throw new Error("PAPER order submission not configured"); }),
           loadSnapshot: options.loadPaperOperations
+        }));
+        return;
+      }
+      if (req.url === "/api/ux-telemetry" && options.uxTelemetryStorage != null) {
+        let payload: unknown = null;
+        if ((req.method ?? "GET").toUpperCase() === "POST") {
+          try { payload = JSON.parse(body ?? ""); }
+          catch { respond("ux_telemetry", dashboardJsonResponse(400, { error: "INVALID_JSON" })); return; }
+        }
+        respond("ux_telemetry", await handleUxTelemetryEventHttp(dashboardRequest, payload, {
+          tokenVerifier: requestTokenVerifier,
+          storage: options.uxTelemetryStorage
         }));
         return;
       }

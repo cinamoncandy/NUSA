@@ -1,0 +1,1 @@
+Final reservation hardening for #1298 is intentionally limited to the durable session authority boundary. It does not grant LIVE authority, enable production mutation, or claim atomicity across an external broker network call. See `liveFinalExecutionReservation.md` for the linearization semantics.

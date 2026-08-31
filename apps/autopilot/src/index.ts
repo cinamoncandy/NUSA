@@ -11,6 +11,7 @@ import {
   readAutopilotExecutionTelemetry,
   readCodingExecutionEvidence,
   recordCodingExecutionEvidence,
+  releasePersistentExecution,
   readScheduledRuntimeEvidence,
   recordScheduledRuntimeReceipt,
   type ExecutionCoordinatorNamespace,
@@ -45,6 +46,19 @@ async function persistCodingTelemetry(env: Env, input: AutopilotExecutionTelemet
     await recordAutopilotExecutionTelemetry(env.NUSA_EXECUTION_COORDINATOR, createAutopilotExecutionTelemetry(input));
   } catch (error) {
     console.error(JSON.stringify({ event: "NUSA_AUTOPILOT_TELEMETRY_PERSIST_FAILED", reason: error instanceof Error ? error.message : "UNKNOWN", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }));
+  }
+}
+
+async function releaseCodingExecutionLease(env: Env, request: { readonly dedupeKey: string; readonly executionId: string }): Promise<void> {
+  if (!env.NUSA_EXECUTION_COORDINATOR) return;
+  try {
+    await releasePersistentExecution(env.NUSA_EXECUTION_COORDINATOR, {
+      dedupeKey: request.dedupeKey,
+      executionId: request.executionId,
+      now: Date.now(),
+    });
+  } catch (error) {
+    console.error(JSON.stringify({ event: "NUSA_AUTOPILOT_LEASE_RELEASE_FAILED", reason: error instanceof Error ? error.message : "UNKNOWN", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }));
   }
 }
 
@@ -134,6 +148,7 @@ export async function handleCodingExecute(
       result = await executeCodingRunner(runnerRequest, env, undefined, runtime, publisher);
     } catch (error) {
       const failureReason = error instanceof Error ? error.message : "CODING_RUNNER_EXECUTION_FAILED";
+      await releaseCodingExecutionLease(env, runnerRequest);
       await persistCodingTelemetry(env, {
         executionId: runnerRequest.executionId,
         timestampMs: Date.now(),
@@ -167,6 +182,8 @@ export async function handleCodingExecute(
         executionId: runnerRequest.executionId,
         now: Date.now(),
       });
+    } else {
+      await releaseCodingExecutionLease(env, runnerRequest);
     }
     const failureReason = result.reason ?? null;
     await persistCodingTelemetry(env, {
