@@ -2,8 +2,8 @@
  * Before/after UX metric comparison (NUSA governing charter section 41 and section 54).
  *
  * "단순히 예뻐 보인다고 유지하지 않는다" / "Merge is not completion" -- a UX change survives only on
- * measured evidence, classified the same way as any other merged change:
- * VERIFIED_IMPROVEMENT | NEUTRAL | REGRESSION | INSUFFICIENT.
+ * measured evidence, classified with the same verdict vocabulary applied to every other merged
+ * change: VERIFIED_IMPROVEMENT | NEUTRAL | REGRESSION | INSUFFICIENT.
  */
 import type { UxMetricsSummary } from "./uxTelemetryMetrics";
 
