@@ -2,10 +2,12 @@
 
 ## Scope
 
-This audit covers the repository-controlled final execution chain present on
-`main` at `259b98f21ebe4d28644ac406e26aeb4b3a19648c`, including the fixes from
-#1297 and #1299. It does not activate LIVE, connect a broker, use credentials,
-or place an order.
+This audit began against `main` at `259b98f21ebe4d28644ac406e26aeb4b3a19648c`,
+including the fixes from #1297 and #1299. Before remote publication, `main`
+advanced by one unrelated commit to `e871a28b8452b6b85a1f438d49d8150df3f8dd7f`
+(elapsed PAPER soak evidence); that commit was merged normally into the
+branch and the affected validation was rerun. The audit does not activate
+LIVE, connect a broker, use credentials, or place an order.
 
 ## Canonical chain
 
@@ -49,16 +51,16 @@ audit does not remove or rewrite dormant interfaces.
 
 Focused result after a clean TypeScript build: **6/6 PASS**. The focused
 regression was also run with 28 existing live-chain regressions: **34/34
-PASS**. The repository's full isolated suite then completed with **820 test
-files PASS**, including the new root test.
+PASS**. The repository's full isolated suite then completed with **821 test
+files PASS**, including the new root test and the elapsed PAPER soak test from
+the updated main.
 
 Repository gates on this exact local source tree also passed: preflight,
 typecheck, build, lint, architecture truth/check, safety inputs/architecture/
 invariants, Restricted LIVE governance/readiness, Read-only Broker, AI
 zero-authority, security, package validation, AIPOS drift/conformance/
 provenance/evidence, and `git diff --check`. Remote PR/CI validation remains
-pending because GitHub authentication is not currently available in this
-environment.
+pending on PR #1309's updated exact head.
 
 ## Safety result
 

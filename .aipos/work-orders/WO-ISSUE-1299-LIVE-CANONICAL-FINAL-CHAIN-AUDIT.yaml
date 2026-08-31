@@ -1,13 +1,14 @@
 version: 1
 id: WO-ISSUE-1299-LIVE-CANONICAL-FINAL-CHAIN-AUDIT
 title: "Canonical LIVE final execution chain audit"
-status: IN_PROGRESS
+status: VERIFYING
 priority: P0
 owner: nusa
 repository: cinamoncandy/NUSA
 issue: 1299
 base_branch: main
-base_commit: 259b98f21ebe4d28644ac406e26aeb4b3a19648c
+base_commit: e871a28b8452b6b85a1f438d49d8150df3f8dd7f
+initial_audit_commit: 259b98f21ebe4d28644ac406e26aeb4b3a19648c
 implementation_branch: codex/live-canonical-final-chain-audit
 objective: "Close the repository-controlled fault, concurrency, replay, and bypass-visibility gap around the canonical authoritative LIVE final execution chain without enabling LIVE mutation."
 scope:
@@ -54,7 +55,7 @@ validation:
   focused_canonical_final_chain: PASS_6_OF_6
   existing_live_regressions: PASS_28_OF_28
   combined_targeted_live_regressions: PASS_34_OF_34
-  full_isolated_suite: PASS_820_FILES
+  full_isolated_suite: PASS_821_FILES
   preflight: PASS
   typecheck: PASS
   build: PASS
@@ -71,5 +72,5 @@ validation:
   package_validation: PASS
   aipos: PASS
   diff_check: PASS
-  exact_head_remote_validation: PENDING
-next: "Publish through one normal PR, then validate the exact remote head; keep the canonical chain fail-closed until remote checks are green."
+  exact_head_remote_validation: PENDING_PR_1309
+next: "Validate the updated exact remote head for PR #1309; keep the canonical chain fail-closed until remote checks are green."

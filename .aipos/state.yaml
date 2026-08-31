@@ -1,11 +1,11 @@
 version: 1
 project: nusa
-updated_at: "2026-08-31T13:00:00+09:00"
+updated_at: "2026-08-31T13:55:00+09:00"
 current_execution_target:
   work_order: WO-ISSUE-1299-LIVE-CANONICAL-FINAL-CHAIN-AUDIT
-  status: IN_PROGRESS
+  status: VERIFYING
   branch: codex/live-canonical-final-chain-audit
-  base_sha: 259b98f21ebe4d28644ac406e26aeb4b3a19648c
+  base_sha: e871a28b8452b6b85a1f438d49d8150df3f8dd7f
   scope: "Repository-controlled canonical LIVE final-chain fault, concurrency, replay, and bypass regression evidence; no LIVE mutation authority."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: verification
@@ -25,7 +25,7 @@ latest_research_slice:
 base_branch: main
 active_branch: codex/live-canonical-final-chain-audit
 active_successor_branch: null
-active_pull_request: null
+active_pull_request: 1309
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -84,14 +84,14 @@ repository_maintenance:
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
   work_order: WO-ISSUE-1299-LIVE-CANONICAL-FINAL-CHAIN-AUDIT
-  status: IN_PROGRESS
+  status: VERIFYING
   branch: codex/live-canonical-final-chain-audit
-  base_commit: 259b98f21ebe4d28644ac406e26aeb4b3a19648c
+  base_commit: e871a28b8452b6b85a1f438d49d8150df3f8dd7f
   scope: "Repository-controlled canonical LIVE final-chain fault, concurrency, replay, and bypass regression evidence; no LIVE mutation authority."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  implementation_commit: "local regression evidence pending publication"
-  pull_request: null
-  validation: "Focused canonical final-chain regression 6/6 PASS after clean build; repository gates are still pending."
+  implementation_commit: c8d41fdb7a6cb8cd80615784e352205e0c559b85
+  pull_request: 1309
+  validation: "Updated-main validation: focused chain/PAPER 32/32 PASS, full isolated suite 821 files PASS, repository gates PASS; remote exact-head validation pending."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -536,7 +536,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-ISSUE-1299-LIVE-CANONICAL-FINAL-CHAIN-AUDIT.yaml
-  reason: "Verify the canonical #1299 final execution chain with focused fault, concurrency, replay, and production-bypass regression evidence; keep all LIVE mutation fail-closed."
+  reason: "Validate PR #1309 on the updated exact remote head; keep all LIVE mutation fail-closed."
 verification:
   wo_0057:
     parent_pull_request: 552
