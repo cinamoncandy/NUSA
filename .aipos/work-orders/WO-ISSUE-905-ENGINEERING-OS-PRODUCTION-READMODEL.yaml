@@ -1,10 +1,10 @@
 id: WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL
 title: "Issue #905 wire the measured Engineering OS read model into production"
-status: IN_PROGRESS
+status: PR_OPEN_PENDING_PROTECTED_MAIN_MERGE
 owner: nusa
 repository: cinamoncandy/NUSA
 issue: 905
-pull_request: null
+pull_request: 1291
 base_branch: main
 base_commit: 348654d0c5253231cca96c3f824697bb8ee377a1
 implementation_branch: codex/issue-905-readmodel-input-hardening
@@ -74,9 +74,11 @@ validation:
   aipos: PASS
   git_diff_check: PASS
   origin_branch: CURRENT_MAIN_BASE
-  remote_pr: PENDING
-implementation_status: IMPLEMENTING
+  remote_pr: 1291
+  remote_head: 4e5a47c85f593148d8f5ad34b47e94615c65f4f4
+  remote_required_checks: PASS_6_OF_6_EXACT_HEAD
+implementation_status: PR_OPEN_PENDING_PROTECTED_MAIN_MERGE
 known_limitations:
   - "Production GitHub telemetry, queue persistence, and pre/post optimization observations remain unavailable until their canonical external adapters are connected; the read model must report INSUFFICIENT rather than fabricate values."
-  - "GitHub CLI authentication is unavailable in this environment; remote PR publication and exact-head validation remain pending."
-next: "Publish this input-hardening slice through a normal exact-head PR; preserve absent production telemetry as INSUFFICIENT and merge only when all required checks are green."
+  - "PR #1291 exact-head required checks are green; protected main merge requires explicit shared-history authorization."
+next: "Keep PR #1291 at exact head 4e5a47c85f593148d8f5ad34b47e94615c65f4f4; merge only after explicit protected-main authorization, then verify main and continue with the next evidence-backed gap."
