@@ -289,6 +289,7 @@ export default {
     if (request.method === "POST" && url.pathname === "/coding/execute") return handleCodingExecute(request, env);
 
     if (request.method !== "POST" || url.pathname !== "/github/webhook") return json({ error: "NOT_FOUND" }, 404);
+    if (!env.NUSA_WEBHOOK_SECRET && !request.headers.get("authorization")?.trim()) return json({ error: "WEBHOOK_AUTH_NOT_PROVIDED", status: "INTERFACE_READY" }, 503);
     const deliveryId = request.headers.get("x-github-delivery");
     if (!deliveryId?.trim()) return json({ error: "GITHUB_DELIVERY_ID_REQUIRED" }, 400);
     const event = classifyGithubEvent(request.headers.get("x-github-event"));
