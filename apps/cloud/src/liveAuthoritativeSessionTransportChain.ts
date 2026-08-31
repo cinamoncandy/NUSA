@@ -27,7 +27,15 @@ export async function prepareAuthoritativeSessionBoundLiveTransport(
     return { status: "REJECTED", reason: "AUTHORITATIVE_SESSION_OWNER_MISMATCH" };
   }
 
-  const chain = await prepareSessionBoundLiveTransport({ ...request, session: record.session }, consumeOnce);
+  const chain = await prepareSessionBoundLiveTransport(
+    { ...request, session: record.session },
+    consumeOnce,
+    {
+      ownerPrincipalId: record.session.ownerPrincipalId,
+      sessionId: record.session.sessionId,
+      sessionRevision: record.revision,
+    },
+  );
   if (chain.preExecutionStatus !== "READY" || chain.transport.status !== "READY") {
     return { status: "REJECTED", reason: `SESSION_CHAIN_${chain.transport.status}` };
   }
