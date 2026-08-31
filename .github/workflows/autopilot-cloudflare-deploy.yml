@@ -1,0 +1,142 @@
+name: Autopilot Cloudflare Deploy
+
+# Removes the manual-deploy bottleneck: every exact-head CI-verified apps/autopilot change on
+# main is deployed to the canonical Cloudflare Worker automatically, with no local machine or
+# `wrangler login` session required. `autopilot-cloudflare-promote.yml` keeps its separate,
+# unchanged responsibility -- promoting the CI-verified tree onto the `cloudflare-production`
+# git branch as a durable, reviewable record of what was verified. This workflow owns the one
+# thing that branch push cannot do by itself: actually calling `wrangler deploy` against the
+# live Worker and proving the deployed revision matches.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/autopilot/**"
+      - ".github/workflows/autopilot-cloudflare-deploy.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nusa-autopilot-cloudflare-deploy
+  cancel-in-progress: false
+
+env:
+  NUSA_WORKER_HEALTH_URL: https://nusa-autopilot.desporin12.workers.dev/health
+
+jobs:
+  deploy:
+    name: Deploy exact CI-verified Worker revision
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact pushed commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+
+      - name: Wait for exact-head CI success before deploying
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 30); do
+            conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$HEAD_SHA&status=completed" --jq '[.workflow_runs[] | select(.name == "CI")][0].conclusion // empty')"
+            if [ "$conclusion" = "success" ]; then
+              echo "Exact-head CI verified: $HEAD_SHA"
+              exit 0
+            fi
+            if [ -n "$conclusion" ]; then
+              echo "Exact-head CI did not succeed for $HEAD_SHA: $conclusion"
+              exit 1
+            fi
+            echo "Waiting for exact-head CI on $HEAD_SHA (attempt $attempt/30)..."
+            sleep 20
+          done
+          echo "Timed out waiting for exact-head CI on $HEAD_SHA"
+          exit 1
+
+      - name: Verify exact current main revision
+        id: revision
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          current="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          if [ "$current" != "$HEAD_SHA" ]; then
+            echo 'current=false' >> "$GITHUB_OUTPUT"
+            echo "Skipping stale push ${HEAD_SHA}; current main is ${current}. A newer run will deploy it."
+            exit 0
+          fi
+          echo 'current=true' >> "$GITHUB_OUTPUT"
+          echo "Verified pushed revision is current main: $HEAD_SHA"
+
+      - name: Enable pnpm via Corepack
+        if: steps.revision.outputs.current == 'true'
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.7.0 --activate
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        if: steps.revision.outputs.current == 'true'
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install locked dependencies
+        if: steps.revision.outputs.current == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify Cloudflare deployment credentials are configured
+        if: steps.revision.outputs.current == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            echo '::error::CLOUDFLARE_API_TOKEN is not configured as a repository secret. This is a HUMAN_ONLY blocker: add the secret to enable automatic Worker deployment. No secret value is ever logged by this workflow. Failing closed.'
+            exit 1
+          fi
+          echo "Cloudflare deployment credentials are configured."
+
+      - name: Deploy exact CI-verified revision to Cloudflare
+        if: steps.revision.outputs.current == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          pnpm dlx wrangler@4.127.1 deploy \
+            --config apps/autopilot/wrangler.jsonc \
+            --var "NUSA_DEPLOYMENT_REVISION:${HEAD_SHA}" \
+            --containers-rollout=none
+
+      - name: Verify deployed Worker reports the exact-head revision
+        if: steps.revision.outputs.current == 'true'
+        env:
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 15); do
+            revision="$(curl -sS --max-time 20 "$NUSA_WORKER_HEALTH_URL" | jq -r '.deploymentRevision // empty')"
+            if [ "$revision" = "$HEAD_SHA" ]; then
+              echo "Verified deployed Worker revision: $revision"
+              exit 0
+            fi
+            echo "Waiting for Worker health to report ${HEAD_SHA} (currently ${revision:-unknown}), attempt $attempt/15..."
+            sleep 10
+          done
+          echo "::error::Worker health never reported the deployed revision ${HEAD_SHA}. Failing closed."
+          exit 1
+
+      - name: Record fail-closed authority invariants
+        if: always()
+        run: |
+          echo 'liveAuthority=NONE'
+          echo 'productionMutationAllowed=false'
+          echo 'AI authority=ZERO_AUTHORITY'
