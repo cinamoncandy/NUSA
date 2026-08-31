@@ -17,7 +17,7 @@ test("primary financial values use stable tabular numerals outside DataRow", () 
   const trading = read("apps/mobile/src/tradingViewLegacy.tsx");
   const watchlist = read("apps/mobile/src/watchlistView.tsx");
 
-  for (const style of ["supervisorValue", "metricNumber", "heroMetric"]) expectTabularStyle(home, style);
+  for (const style of ["supervisorValue", "cashValue"]) expectTabularStyle(home, style);
   expectTabularStyle(primitives, "compactMetricValue");
   for (const style of ["allocationValue", "splitValue", "positionValue"]) expectTabularStyle(portfolio, style);
   expectTabularStyle(trading, "price");
