@@ -1,0 +1,4 @@
+import { describe, expect, it } from "vitest";
+import { LiveRuntimeSessionDurableStore, type LiveRuntimeSessionStorageTransaction } from "./liveRuntimeSessionDurableStore";
+class S{values=new Map<string,unknown>();async transaction<T>(cb:(txn:LiveRuntimeSessionStorageTransaction)=>Promise<T>):Promise<T>{return cb({get:async<U>(k:string)=>this.values.get(k) as U|undefined,put:async<U>(k:string,v:U)=>{this.values.set(k,v);}})}}
+describe("final reservation window",()=>{it("rejects expiration at the exact boundary",async()=>{const store=new LiveRuntimeSessionDurableStore(new S());await store.write({sessionId:"s",ownerPrincipalId:"o",investmentCapitalWeight:.5,state:"ACTIVE",killSwitchEngaged:false,activatedAtMs:1,expiresAtMs:10},null);expect(await store.reserveFinalExecution("o","s",1,"3".repeat(64),10)).toEqual({status:"REJECTED",reason:"SESSION_WINDOW_INACTIVE"});});});

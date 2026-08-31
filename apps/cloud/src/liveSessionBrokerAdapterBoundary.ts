@@ -16,11 +16,6 @@ export type LiveSessionBrokerAdapterDecision =
   | Readonly<{ status: "REJECTED"; reason: string }>
   | Readonly<{ status: "SUBMITTED"; result: LiveBrokerTransportResult }>;
 
-/**
- * Last fail-closed orchestration boundary before the broker transport interface.
- * The default transport remains disabled, so calling this function cannot enable
- * production mutation unless a separately governed transport is explicitly supplied.
- */
 export async function submitSessionBoundLiveOrder(
   _request: LiveSessionBoundPreExecutionRequest,
   _consumeOnce: LiveExecutionConsumeOnce,
@@ -50,9 +45,16 @@ export async function submitAuthoritativeSessionBoundLiveOrder(
     fingerprint: chain.transport.request.authorizationFingerprintSha256,
   });
   const invalidReason = validateLiveBrokerTransportRequest(brokerRequest);
-  if (invalidReason !== null) {
-    return Object.freeze({ status: "REJECTED", reason: invalidReason });
-  }
+  if (invalidReason !== null) return Object.freeze({ status: "REJECTED", reason: invalidReason });
+
+  const finalReservation = await sessionStore.reserveFinalExecution(
+    authorized.authorization.ownerPrincipalId,
+    authorized.authorization.sessionId,
+    authorized.authorization.revision,
+    brokerRequest.fingerprint,
+    request.now,
+  );
+  if (finalReservation.status !== "RESERVED") return Object.freeze({ status: "REJECTED", reason: finalReservation.reason });
 
   return Object.freeze({ status: "SUBMITTED", result: await transport.submit(brokerRequest) });
 }
