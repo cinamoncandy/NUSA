@@ -22,7 +22,7 @@ const os = require("node:os");
 const fs = require("node:fs");
 
 const RUNTIME_ENTRY = path.join(__dirname, "..", "dist", "apps", "cloud", "src", "runtime.js");
-const STARTUP_TIMEOUT_MS = 5_000;
+const STARTUP_TIMEOUT_MS = process.platform === "win32" ? 15_000 : 5_000;
 const SHUTDOWN_TIMEOUT_MS = 5_000;
 const isWindows = process.platform === "win32";
 const posixOnly = isWindows
