@@ -1,19 +1,18 @@
 name: Autopilot Cloudflare Deploy
 
-# Removes the manual-deploy bottleneck: every exact-head CI-verified apps/autopilot change on
-# main is deployed to the canonical Cloudflare Worker automatically, with no local machine or
-# `wrangler login` session required. `autopilot-cloudflare-promote.yml` keeps its separate,
-# unchanged responsibility -- promoting the CI-verified tree onto the `cloudflare-production`
-# git branch as a durable, reviewable record of what was verified. This workflow owns the one
-# thing that branch push cannot do by itself: actually calling `wrangler deploy` against the
-# live Worker and proving the deployed revision matches.
+# Removes the manual-deploy bottleneck: every exact-head CI-verified main revision is deployed
+# to the canonical Cloudflare Worker automatically, with no local machine or `wrangler login`
+# session required. Running on every main push also closes the recovery gap where an autopilot
+# change fails deployment, then a CI-only follow-up fixes verification without touching
+# apps/autopilot/**. `autopilot-cloudflare-promote.yml` keeps its separate responsibility --
+# promoting the CI-verified tree onto the `cloudflare-production` git branch as a durable,
+# reviewable record of what was verified. This workflow owns the one thing that branch push
+# cannot do by itself: actually calling `wrangler deploy` against the live Worker and proving
+# the deployed revision matches the exact current main SHA.
 
 on:
   push:
     branches: [main]
-    paths:
-      - "apps/autopilot/**"
-      - ".github/workflows/autopilot-cloudflare-deploy.yml"
 
 permissions:
   contents: read
