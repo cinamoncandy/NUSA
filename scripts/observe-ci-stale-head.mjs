@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
 
 const SHA = /^[a-f0-9]{40}$/;
 
@@ -47,6 +48,11 @@ export function buildObservation({ run, currentHeadSha, observedAt }) {
   });
 }
 
+async function writeResult(outputPath, result) {
+  await mkdir(dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, `${JSON.stringify(result, null, 2)}\n`);
+}
+
 async function main() {
   const eventPath = process.env.GITHUB_EVENT_PATH;
   const repository = process.env.GITHUB_REPOSITORY;
@@ -58,7 +64,9 @@ async function main() {
   const run = event.workflow_run;
   const pullRequest = Array.isArray(run?.pull_requests) && run.pull_requests.length === 1 ? run.pull_requests[0] : null;
   if (!pullRequest?.number) {
-    await writeFile(outputPath, `${JSON.stringify({ schemaVersion: 1, status: "UNKNOWN", reason: "PULL_REQUEST_PROVENANCE_UNAVAILABLE" }, null, 2)}\n`);
+    const result = { schemaVersion: 1, status: "UNKNOWN", reason: "PULL_REQUEST_PROVENANCE_UNAVAILABLE" };
+    await writeResult(outputPath, result);
+    process.stdout.write(`NUSA_REWORK_TELEMETRY UNKNOWN reason=${result.reason}\n`);
     return;
   }
 
@@ -73,7 +81,7 @@ async function main() {
   if (!response.ok) throw new Error(`GitHub PR fetch failed: ${response.status}`);
   const current = await response.json();
   const result = buildObservation({ run, currentHeadSha: current?.head?.sha, observedAt: Date.now() });
-  await writeFile(outputPath, `${JSON.stringify(result, null, 2)}\n`);
+  await writeResult(outputPath, result);
 
   if (result.status === "MEASURED") {
     const o = result.observation;
@@ -83,7 +91,7 @@ async function main() {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]?.replaceAll("\\", "/")}` || process.argv[1]?.endsWith("observe-ci-stale-head.mjs")) {
+if (process.argv[1]?.endsWith("observe-ci-stale-head.mjs")) {
   main().catch((error) => {
     console.error(error instanceof Error ? error.stack ?? error.message : String(error));
     process.exitCode = 1;
