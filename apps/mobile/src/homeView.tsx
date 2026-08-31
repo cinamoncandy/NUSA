@@ -261,7 +261,7 @@ export function HomeView({
         </View>
         <View style={styles.metricMatrix}>
           <View style={[styles.metricTile, { borderColor: theme.colors.border }]}><Text style={[styles.metricKey, { color: theme.colors.textMuted }]}>EQUITY</Text><Text style={[styles.metricNumber, { color: theme.colors.text }]}>{account ? krw(account.equity) : "—"}</Text></View>
-          <View style={[styles.metricTile, { borderColor: theme.colors.border }]}><Text style={[styles.metricKey, { color: theme.colors.textMuted }]}>P&L</Text><Text style={[styles.metricNumber, { color: totalPnl == null ? theme.colors.textMuted : totalPnl >= 0 ? terminalSignal : theme.colors.danger }]}>{totalPnl == null ? "—" : `${totalPnl >= 0 ? "+" : ""}${krw(totalPnl)}`}</Text></View>
+          <View style={[styles.metricTile, { borderColor: theme.colors.border }]}><Text style={[styles.metricKey, { color: theme.colors.textMuted }]}>P&L</Text><Text style={[styles.metricNumber, styles.cashValue, { color: totalPnl == null ? theme.colors.textMuted : totalPnl >= 0 ? terminalSignal : theme.colors.danger }]}>{totalPnl == null ? "—" : `${totalPnl >= 0 ? "+" : ""}${krw(totalPnl)}`}</Text></View>
           <View style={[styles.metricTile, { borderColor: theme.colors.border }]}><Text style={[styles.metricKey, { color: theme.colors.textMuted }]}>ORDERS</Text><Text style={[styles.metricNumber, { color: theme.colors.text }]}>{heartbeat?.paperOrderCount ?? "—"}</Text></View>
           <View style={[styles.metricTile, { borderColor: theme.colors.border }]}><Text style={[styles.metricKey, { color: theme.colors.textMuted }]}>FILLS</Text><Text style={[styles.metricNumber, { color: theme.colors.text }]}>{heartbeat?.paperFillCount ?? "—"}</Text></View>
         </View>
@@ -400,6 +400,7 @@ const styles = StyleSheet.create({
   metricTile: { width: "48%", minHeight: 54, borderWidth: 1, padding: 7, justifyContent: "space-between" },
   metricKey: { fontSize: 7, lineHeight: 10, fontWeight: "900", letterSpacing: 0.7 },
   metricNumber: { fontSize: 11, lineHeight: 14, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  cashValue: { fontSize: 15, lineHeight: 19, fontWeight: "800", fontVariant: ["tabular-nums"] },
   portfolioHero: { gap: 1, paddingTop: 6 },
   heroMetric: { fontSize: 20, lineHeight: 24, fontWeight: "900", fontVariant: ["tabular-nums"] },
   portfolioRows: { gap: 0 },
