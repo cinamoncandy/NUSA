@@ -23,7 +23,7 @@ test("mock settings repository persists an immutable normalized model including 
   const repository = new MockSettingsRepository();
   await repository.save({ theme: "DARK", locale: "en-US", notifications: { enabled: true, riskAlerts: false, orderUpdates: true }, paperEndpoint: "https://paper.test/" });
   const loaded = await repository.load();
-  assert.deepEqual(loaded, { theme: "DARK", locale: "en-US", notifications: { enabled: true, riskAlerts: false, orderUpdates: true }, paperEndpoint: "https://paper.test", capitalAllocation: { investmentPercent: 100 } });
+  assert.deepEqual(loaded, { theme: "DARK", locale: "en-US", notifications: { enabled: true, riskAlerts: false, orderUpdates: true }, paperEndpoint: "https://paper.test", capitalAllocation: { investmentPercent: 100 }, usageTelemetry: { enabled: false } });
   assert.equal(Object.isFrozen(loaded), true);
   assert.equal(Object.isFrozen(loaded.notifications), true);
 });
@@ -38,5 +38,5 @@ test("secure settings repository persists encoded settings and endpoint but no d
   const persistedText = new TextDecoder().decode(encoded);
   assert.match(persistedText, /"paperEndpoint":"https:\/\/paper\.test"/);
   assert.doesNotMatch(persistedText, /token|credential|authorization/i);
-  assert.deepEqual(await repository.load(), { theme: "LIGHT", locale: "ko-KR", notifications: { enabled: false, riskAlerts: true, orderUpdates: false }, paperEndpoint: "https://paper.test", capitalAllocation: { investmentPercent: 100 } });
+  assert.deepEqual(await repository.load(), { theme: "LIGHT", locale: "ko-KR", notifications: { enabled: false, riskAlerts: true, orderUpdates: false }, paperEndpoint: "https://paper.test", capitalAllocation: { investmentPercent: 100 }, usageTelemetry: { enabled: false } });
 });
