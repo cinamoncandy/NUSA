@@ -224,4 +224,18 @@ describe("buildNusaDevelopmentHealthSlo", () => {
       eventHistoryStartedAt: 4_500,
     }), /SLO_EVENT_PRECEDES_HISTORY_START:merge-1/);
   });
+
+  it("rejects queue chronology that would produce a negative age", () => {
+    const base = fullInput();
+    const queue = createNusaDevelopmentQueue([work({ id: "future", createdAt: 10_001 })]);
+    assert.throws(() => buildNusaDevelopmentHealthSlo({ ...base, queue }), /SLO_WORK_CREATED_AT_INVALID:future/);
+  });
+
+  it("rejects duplicate canonical event identities", () => {
+    const base = fullInput();
+    assert.throws(() => buildNusaDevelopmentHealthSlo({
+      ...base,
+      eventHistory: [base.eventHistory[0]!, base.eventHistory[0]!],
+    }), /SLO_EVENT_ID_DUPLICATE:merge-1/);
+  });
 });
