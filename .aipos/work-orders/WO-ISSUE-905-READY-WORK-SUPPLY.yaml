@@ -1,6 +1,6 @@
 id: WO-ISSUE-905-READY-WORK-SUPPLY
 title: "Issue #905 eliminate READY work starvation with evidence-bound portfolio routing"
-status: VERIFYING
+status: COMPLETED
 priority: P1
 owner: codex
 repository: cinamoncandy/NUSA
@@ -9,6 +9,8 @@ base_branch: main
 base_commit: 779243809ede56eff42eedb1f594b40b0df5e19e
 implementation_branch: fix/905-ready-work-portfolio
 implementation_commit: 25142e6f76bcb16fe593ff3ca28965e280af9980
+pull_request: 1313
+merge_commit: 57952f14485e816a7ac88e11ba5f8f3e11dba34c
 objective: "Turn verified repository work into a deterministic multi-item supply portfolio and let the existing #903 queue claim bounded parallel work without weakening evidence, conflict, dependency, exact-head, or safety gates."
 architecture_impact:
   acknowledged: true
@@ -60,8 +62,12 @@ validation:
   architecture_and_aipos: PASS
   safety: PASS
   git_diff_check: PASS
-  remote_pr: PR_1313_OPEN_EXACT_HEAD_VALIDATION_RUNNING
+  remote_pr: PR_1313_EXACT_HEAD_PASS_MERGED
+  post_merge_main: 57952f14485e816a7ac88e11ba5f8f3e11dba34c
+  post_merge_ci: PASS_RUN_33363161756
+  post_merge_sandbox_guard: PASS_RUN_33363161696
+  post_merge_actual_paper_runtime: PASS_RUN_33363161755
 known_limitations:
   - "This slice adds the canonical contracts and read-only projection; external event adapters must supply truthful portfolio and executor evidence before autonomous claiming can scale in production."
   - "Implementation/hour, merge-ready/hour, verified-improvement/hour, CI-wait, and utilization metrics remain UNKNOWN until independent time-series producers are connected; no proxy values are synthesized."
-next: "Validate PR #1313 at exact head 25142e6f76bcb16fe593ff3ca28965e280af9980; merge only after the latest main/base and all required protected checks remain compatible."
+next: "Continue the mandatory WO-0051 human/environment gate; keep LIVE and real-money transition fail-closed while future non-LIVE work remains independently evidence-bound."
