@@ -23,7 +23,11 @@ import {
   type EngineeringSelfOptimizerDecision,
   type EngineeringSelfOptimizerEvidence,
 } from "../../desktop/src/cloud/nusaEngineeringSelfOptimizer";
-import type { NusaDevelopmentQueue, NusaDevelopmentWorkState } from "../../desktop/src/cloud/nusaDevelopmentControlPlane";
+import {
+  createNusaDevelopmentQueue,
+  type NusaDevelopmentQueue,
+  type NusaDevelopmentWorkState,
+} from "../../desktop/src/cloud/nusaDevelopmentControlPlane";
 
 export const NUSA_ENGINEERING_OPERATING_AUTHORITY = Object.freeze({
   liveAuthority: "NONE" as const,
@@ -89,6 +93,18 @@ const ACTIVE_STATES: ReadonlySet<NusaDevelopmentWorkState> = new Set([
   "CI",
   "MERGE_READY",
 ]);
+const QUEUE_STATES: ReadonlySet<NusaDevelopmentWorkState> = new Set([
+  "READY",
+  "CLAIMED",
+  "IMPLEMENTING",
+  "VALIDATING",
+  "CI",
+  "MERGE_READY",
+  "MERGED",
+  "BLOCKED_HUMAN",
+]);
+const QUEUE_PRIORITIES = new Set(["P0", "P1", "P2", "P3"]);
+const MAX_QUEUE_TEXT_LENGTH = 1024;
 
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 
@@ -146,15 +162,36 @@ function unavailableSnapshot(reason = "ENGINEERING_SOURCE_UNAVAILABLE"): NusaEng
 
 function projectQueue(queue: NusaDevelopmentQueue | null): NusaEngineeringQueueProjection {
   if (queue == null) return freeze({ status: "UNAVAILABLE", revision: null, totalItems: 0, activeItems: 0, mergeReadyItems: 0 });
-  if (queue.schemaVersion !== 1 || !Number.isSafeInteger(queue.revision) || queue.revision < 0 || !Array.isArray(queue.items)) {
+  if (typeof queue !== "object" || Array.isArray(queue) || queue.schemaVersion !== 1 || !Number.isSafeInteger(queue.revision) || queue.revision < 0 || !Array.isArray(queue.items)) {
     throw new Error("ENGINEERING_QUEUE_EVIDENCE_INVALID");
   }
+  for (const rawItem of queue.items as readonly unknown[]) {
+    const item = record(rawItem, "ENGINEERING_QUEUE_ITEM_INVALID");
+    queueText(item.id, "ENGINEERING_QUEUE_ITEM_ID_INVALID");
+    if (typeof item.state !== "string" || !QUEUE_STATES.has(item.state as NusaDevelopmentWorkState)) throw new Error("ENGINEERING_QUEUE_ITEM_STATE_INVALID");
+    if (typeof item.priority !== "string" || !QUEUE_PRIORITIES.has(item.priority)) throw new Error("ENGINEERING_QUEUE_ITEM_PRIORITY_INVALID");
+    queueTextArray(item.dependencies, "ENGINEERING_QUEUE_ITEM_DEPENDENCIES_INVALID");
+    queueTextArray(item.touchedFiles, "ENGINEERING_QUEUE_ITEM_TOUCHED_FILES_INVALID");
+    queueTextArray(item.evidenceRequirements, "ENGINEERING_QUEUE_ITEM_EVIDENCE_INVALID");
+    if (item.canonicalOwner !== null) queueText(item.canonicalOwner, "ENGINEERING_QUEUE_ITEM_OWNER_INVALID");
+    queueText(item.nextAction, "ENGINEERING_QUEUE_ITEM_NEXT_ACTION_INVALID");
+    nonNegativeInteger(item.createdAt, "ENGINEERING_QUEUE_ITEM_CREATED_AT_INVALID");
+    if (item.claim !== null) {
+      const claim = record(item.claim, "ENGINEERING_QUEUE_ITEM_CLAIM_INVALID");
+      queueText(claim.owner, "ENGINEERING_QUEUE_ITEM_CLAIM_OWNER_INVALID");
+      queueText(claim.requestId, "ENGINEERING_QUEUE_ITEM_CLAIM_REQUEST_INVALID");
+      const claimedAt = nonNegativeIntegerValue(claim.claimedAt, "ENGINEERING_QUEUE_ITEM_CLAIMED_AT_INVALID");
+      const leaseExpiresAt = nonNegativeIntegerValue(claim.leaseExpiresAt, "ENGINEERING_QUEUE_ITEM_LEASE_EXPIRES_AT_INVALID");
+      if (leaseExpiresAt <= claimedAt) throw new Error("ENGINEERING_QUEUE_ITEM_LEASE_INVALID");
+    }
+  }
+  const canonicalQueue = createNusaDevelopmentQueue(queue.items, queue.revision);
   return freeze({
     status: "AVAILABLE",
-    revision: queue.revision,
-    totalItems: queue.items.length,
-    activeItems: queue.items.filter((item) => ACTIVE_STATES.has(item.state)).length,
-    mergeReadyItems: queue.items.filter((item) => item.state === "MERGE_READY").length,
+    revision: canonicalQueue.revision,
+    totalItems: canonicalQueue.items.length,
+    activeItems: canonicalQueue.items.filter((item) => ACTIVE_STATES.has(item.state)).length,
+    mergeReadyItems: canonicalQueue.items.filter((item) => item.state === "MERGE_READY").length,
   });
 }
 
@@ -290,6 +327,21 @@ function reasons(value: unknown, code: string): void {
 
 function nonNegativeInteger(value: unknown, code: string): void {
   if (!Number.isSafeInteger(value) || (value as number) < 0) throw new Error(code);
+}
+
+function nonNegativeIntegerValue(value: unknown, code: string): number {
+  nonNegativeInteger(value, code);
+  return value as number;
+}
+
+function queueText(value: unknown, code: string): void {
+  if (typeof value !== "string" || value.trim() === "" || value.length > MAX_QUEUE_TEXT_LENGTH) throw new Error(code);
+}
+
+function queueTextArray(value: unknown, code: string): void {
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string" || entry.trim() === "" || entry.length > MAX_QUEUE_TEXT_LENGTH)) {
+    throw new Error(code);
+  }
 }
 
 function nullableFinite(value: unknown, code: string): void {

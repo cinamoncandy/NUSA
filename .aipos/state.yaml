@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-30T22:32:29Z"
+updated_at: "2026-08-31T00:16:00Z"
 current_execution_target:
   work_order: WO-ISSUE-1288-CLOUDFLARE-RUNTIME-PROOF
   status: VERIFYING
@@ -658,6 +658,25 @@ continuity:
   prior_chat_dependency: prohibited
   hidden_chain_of_thought_dependency: prohibited
   provider_private_context_dependency: prohibited
+
+latest_engineering_os_slice:
+  work_order: WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL
+  issue: 905
+  status: PR_OPEN_PENDING_PROTECTED_MAIN_MERGE
+  base_commit: c3cb9395274a8963f067e51f41258c446f30ca35
+  implementation_branch: codex/issue-905-readmodel-input-hardening
+  scope: "Fail-closed runtime validation for malformed opportunity signals, duplicate priority identities, and malformed #903 queue evidence at the existing read-only Engineering OS projection boundary."
+  focused: PASS_17_OF_17
+  engineering_os_regression: PASS_44_OF_44
+  control_plane_regression: PASS_39_OF_39
+  full_isolated_suite: PASS_813_FILES
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  external_telemetry: INSUFFICIENT
+  implementation_commit: 4e5a47c85f593148d8f5ad34b47e94615c65f4f4
+  remote_pr: 1291
+  integrated_main_commit: c3cb9395274a8963f067e51f41258c446f30ca35
+  remote_required_checks: PASS_6_OF_6_EXACT_HEAD
+  next: "PR #1291 exact head is green; protected main merge requires explicit authorization. Do not fabricate external telemetry or speedup evidence."
 
 issue_661_paper_learning_visibility:
   issue: 661

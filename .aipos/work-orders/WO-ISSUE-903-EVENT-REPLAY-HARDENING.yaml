@@ -56,3 +56,21 @@ verification:
   - pnpm run aipos:provenance
   - git diff --check
 next_on_pass: "Publish through a normal exact-head PR only after all recorded validations pass."
+
+current_main_audit:
+  audited_at: "2026-08-31"
+  current_main: 348654d0c5253231cca96c3f824697bb8ee377a1
+  issue_status: OPEN
+  focused_control_plane_regression: PASS_39_OF_39
+  evidence_classification:
+    canonical_queue_state_claim_recovery: IMPLEMENTED_VERIFIED
+    conflict_aware_allocation: IMPLEMENTED_VERIFIED
+    deterministic_event_replay: IMPLEMENTED_VERIFIED
+    dependency_aware_merge_train: IMPLEMENTED_VERIFIED
+    exact_head_gate_model: IMPLEMENTED_NO_RUNTIME_EVIDENCE
+    real_github_ci_telemetry: IMPLEMENTED_NO_RUNTIME_EVIDENCE
+    event_trigger_infrastructure: INTERFACE_READY
+    autopilot_slo_runtime_measurements: IMPLEMENTED_NO_RUNTIME_EVIDENCE
+    verified_throughput_speedup: MISSING
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  next: "Keep external event runtime and real telemetry fail-closed until artifact-backed runtime evidence exists; do not claim #903 complete from structural tests alone."

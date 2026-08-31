@@ -1,14 +1,14 @@
 id: WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL
 title: "Issue #905 wire the measured Engineering OS read model into production"
-status: IN_PROGRESS
+status: PR_OPEN_PENDING_PROTECTED_MAIN_MERGE
 owner: nusa
 repository: cinamoncandy/NUSA
 issue: 905
-pull_request: 1073
+pull_request: 1291
 base_branch: main
-base_commit: bf7e8c0de7614dec959d6c28180d16dfc8ef87f5
-implementation_branch: codex/issue-905-readmodel-hardening
-objective: "Harden the existing read-only Engineering OS production read-model boundary against malformed nested evidence and credential-shaped fields without inventing measurements or adding execution authority."
+base_commit: c3cb9395274a8963f067e51f41258c446f30ca35
+implementation_branch: codex/issue-905-readmodel-input-hardening
+objective: "Harden the existing read-only Engineering OS production read-model boundary against malformed nested evidence, duplicate identities, and credential-shaped fields without inventing measurements or adding execution authority."
 architecture_impact:
   acknowledged: true
   analysis: "Reuse the existing deterministic opportunity ranking, self-optimizer, adaptive concurrency, execution-origin, outcome-feedback, and #903 queue contracts at one production read-model boundary; no second queue, scheduler, merge engine, or mutation path is introduced."
@@ -27,6 +27,9 @@ scope:
   - exact_head_outcome_projection
   - production_runtime_accessor_regression
   - nested_snapshot_validation_and_redaction_boundary
+  - malformed_opportunity_signal_rejection
+  - duplicate_priority_identity_rejection
+  - canonical_queue_input_shape_validation
 prohibited:
   - live_execution
   - broker_mutation
@@ -51,11 +54,15 @@ acceptance:
   - production_runtime_wires_accessor_without_mutation
   - nested_snapshot_shape_and_provenance_are_validated_before_serialization
   - credential-shaped_fields_are_rejected_at_the_read_only_boundary
+  - malformed_opportunity_and_queue_evidence_fails_closed_before_projection
+  - duplicate_priority_identity_fails_closed_before_ranking
   - safety_authority_remains_unchanged
 validation:
-  focused: PASS_12_OF_12
+  focused: PASS_17_OF_17
+  engineering_os_regression: PASS_44_OF_44
+  control_plane_regression: PASS_39_OF_39
   production_wiring: PASS
-  full_isolated_suite: PASS_729_FILES
+  full_isolated_suite: PASS_813_FILES
   preflight: PASS
   typecheck: PASS
   build: PASS
@@ -66,10 +73,12 @@ validation:
   security: PASS
   aipos: PASS
   git_diff_check: PASS
-  origin_branch: PUBLISHED
-  remote_pr: 1073_OPEN_EXACT_HEAD_PENDING
-implementation_status: IMPLEMENTED_VERIFYING
+  origin_branch: CURRENT_MAIN_BASE
+  remote_pr: 1291
+  integrated_main_commit: c3cb9395274a8963f067e51f41258c446f30ca35
+  remote_required_checks: PASS_6_OF_6_EXACT_HEAD
+implementation_status: PR_OPEN_PENDING_PROTECTED_MAIN_MERGE
 known_limitations:
   - "Production GitHub telemetry, queue persistence, and pre/post optimization observations remain unavailable until their canonical external adapters are connected; the read model must report INSUFFICIENT rather than fabricate values."
-  - "GitHub CLI authentication is unavailable in this environment; remote PR publication and exact-head validation remain pending."
-next: "Publish the validation-hardening slice, verify its exact-head protected checks, and merge only when all required checks are green; do not fabricate absent production telemetry."
+  - "PR #1291 exact-head required checks are green; protected main merge requires explicit shared-history authorization."
+next: "PR #1291 exact head is green; merge only after explicit protected-main authorization, then verify main and continue with the next evidence-backed gap."

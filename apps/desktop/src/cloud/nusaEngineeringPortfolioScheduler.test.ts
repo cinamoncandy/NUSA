@@ -62,3 +62,14 @@ test("rejects fabricated out-of-range confidence components", () => {
     /ENGINEERING_PRIORITY_INVALID_UNCERTAINTY/,
   );
 });
+
+test("fails closed on duplicate or unsafe opportunity identities", () => {
+  assert.throws(
+    () => rankEngineeringOpportunities([opportunity("same"), opportunity("same")]),
+    /ENGINEERING_PRIORITY_DUPLICATE_OPPORTUNITY_ID/,
+  );
+  assert.throws(
+    () => scoreEngineeringOpportunity(opportunity("unsafe id")),
+    /ENGINEERING_PRIORITY_OPPORTUNITY_ID_INVALID/,
+  );
+});
