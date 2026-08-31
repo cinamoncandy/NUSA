@@ -101,7 +101,7 @@ function mergeBlockers(
   item: NusaDevelopmentWorkItem,
   evidence: NusaExactHeadMergeEvidence | undefined,
   queue: NusaDevelopmentQueue,
-  mainMovementImpact?: NusaMainMovementImpact,
+  mainMovementImpact: NusaMainMovementImpact,
 ): readonly string[] {
   const blockers: string[] = [];
   if (item.state !== "MERGE_READY") blockers.push("STATE_NOT_MERGE_READY");
@@ -144,7 +144,7 @@ export function planNusaDevelopmentMergeTrain(
   const ready: NusaMergeTrainEntry[] = [];
   for (const item of queue.items.filter((candidate) => candidate.state === "MERGE_READY")) {
     const itemEvidence = evidenceById.get(item.id);
-    const mainMovementImpact = context ? assessNusaDevelopmentMainMovement(item, mainMovementById.get(item.id)) : undefined;
+    const mainMovementImpact = assessNusaDevelopmentMainMovement(item, mainMovementById.get(item.id));
     const blockers = mergeBlockers(item, itemEvidence, queue, mainMovementImpact);
     if (blockers.length > 0) {
       blocked[item.id] = blockers;
