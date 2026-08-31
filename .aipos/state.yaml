@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-31T15:17:24+09:00"
+updated_at: "2026-08-31T17:07:16+09:00"
 current_execution_target:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -22,6 +22,18 @@ latest_research_slice:
   scope: "Add strictly point-in-time regime evidence to the canonical real-market research run and carry it through the existing League bridge without weakening insufficient-evidence semantics."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
+latest_ai_contract_slice:
+  status: COMPLETED
+  base_commit: 41ad3ca288347c58c93899072c3f8b1fc3b17650
+  implementation_branch: feat/wire-ai-trading-judgment-assembly
+  implementation_head: 51921040a4686fde1ed255bf56cef3e08598e486
+  pull_request: 1322
+  merge_commit: cd0a14f73bf717c48cce2e9dd3fdb78c96b46e93
+  exact_head_ci: "6/6 PASS (CI run 33370894124; protected workflow runs on exact head)"
+  scope: "Assemble the existing multi-agent DecisionResult into the validated AiTradingJudgment contract without fabricating market scenarios, returns, risk framing, or execution authority."
+  validation: "Focused assembly tests 10/10; architecture, safety, AI-zero-authority, lifecycle, type-safety, and build validations PASS; exact-head protected workflows 6/6 PASS."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  remaining: "AI output remains proposal/analysis only; scenarios and risk framing require caller-owned evidence and no LIVE or production mutation path is added."
 current_research_follow_up:
   work_order: WO-ISSUE-1094-RESEARCH-FACTORY
   status: COMPLETED
