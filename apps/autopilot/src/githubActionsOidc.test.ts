@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { verifyGithubActionsOidcToken } from "./githubActionsOidc";
+import { verifyGithubActionsOidcToken, verifyGithubEventBridgeOidcToken } from "./githubActionsOidc";
 
 const repository = "cinamoncandy/NUSA";
 const now = 1_788_061_200;
@@ -52,7 +52,7 @@ describe("GitHub Actions OIDC", () => {
     await verifyGithubActionsOidcToken(valid.token, repository, valid.fetch, now);
   });
 
-  it("rejects a token from another workflow or branch", async () => {
+  it("rejects a token from another coding workflow or branch", async () => {
     const wrongWorkflow = await fixture({ workflow_ref: `${repository}/.github/workflows/ci.yml@refs/heads/main` });
     await assert.rejects(() => verifyGithubActionsOidcToken(wrongWorkflow.token, repository, wrongWorkflow.fetch, now), /CODING_RUNNER_OIDC_WORKFLOW_INVALID/);
 
@@ -61,6 +61,27 @@ describe("GitHub Actions OIDC", () => {
 
     const wrongRef = await fixture({ ref: "refs/heads/feature" });
     await assert.rejects(() => verifyGithubActionsOidcToken(wrongRef.token, repository, wrongRef.fetch, now), /CODING_RUNNER_OIDC_REF_INVALID/);
+  });
+
+  it("accepts only the trusted event bridge workflow and bounded event surface", async () => {
+    const valid = await fixture({
+      workflow_ref: `${repository}/.github/workflows/autopilot-github-event-bridge.yml@refs/heads/main`,
+      event_name: "workflow_run",
+      ref: "refs/heads/feature-pr-head",
+    });
+    await verifyGithubEventBridgeOidcToken(valid.token, repository, valid.fetch, now);
+
+    const wrongWorkflow = await fixture({
+      workflow_ref: `${repository}/.github/workflows/ci.yml@refs/heads/main`,
+      event_name: "workflow_run",
+    });
+    await assert.rejects(() => verifyGithubEventBridgeOidcToken(wrongWorkflow.token, repository, wrongWorkflow.fetch, now), /EVENT_BRIDGE_OIDC_WORKFLOW_INVALID/);
+
+    const wrongEvent = await fixture({
+      workflow_ref: `${repository}/.github/workflows/autopilot-github-event-bridge.yml@refs/heads/main`,
+      event_name: "issues",
+    });
+    await assert.rejects(() => verifyGithubEventBridgeOidcToken(wrongEvent.token, repository, wrongEvent.fetch, now), /EVENT_BRIDGE_OIDC_EVENT_INVALID/);
   });
 
   it("rejects wrong audience and expired tokens", async () => {
