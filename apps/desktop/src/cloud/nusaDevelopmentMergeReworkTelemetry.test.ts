@@ -4,6 +4,7 @@ import {
   bindNusaMergeEvidenceToGithubObservation,
   buildNusaMergeReworkTelemetry,
   classifyNusaMergeReworkObservation,
+  NusaMergeReworkTelemetryError,
   type NusaGithubMergeReworkObservation,
 } from "./nusaDevelopmentMergeReworkTelemetry";
 import type { NusaExactHeadMergeEvidence } from "./nusaDevelopmentMergeTrain";
@@ -24,6 +25,10 @@ function observation(overrides: Partial<NusaGithubMergeReworkObservation> = {}):
     sourceFingerprint: overrides.sourceFingerprint ?? FINGERPRINT,
     observedAt: overrides.observedAt ?? 1_000,
   };
+}
+
+function hasCode(code: string): (error: unknown) => boolean {
+  return (error: unknown): boolean => error instanceof NusaMergeReworkTelemetryError && error.code === code;
 }
 
 describe("NUSA merge rework telemetry", () => {
@@ -58,26 +63,26 @@ describe("NUSA merge rework telemetry", () => {
     const conflict = observation({ currentHeadSha: HEAD_B });
     assert.throws(
       () => buildNusaMergeReworkTelemetry([first, conflict]),
-      /OBSERVATION_ID_CONFLICT/,
+      hasCode("OBSERVATION_ID_CONFLICT"),
     );
   });
 
   it("fails closed on malformed GitHub provenance", () => {
     assert.throws(
       () => classifyNusaMergeReworkObservation(observation({ workflowRunId: 0 })),
-      /INVALID_WORKFLOW_RUN_ID/,
+      hasCode("INVALID_WORKFLOW_RUN_ID"),
     );
     assert.throws(
       () => classifyNusaMergeReworkObservation(observation({ sourceFingerprint: "not-a-sha256" })),
-      /INVALID_SOURCE_FINGERPRINT/,
+      hasCode("INVALID_SOURCE_FINGERPRINT"),
     );
     assert.throws(
       () => classifyNusaMergeReworkObservation(observation({ currentHeadSha: "short" })),
-      /INVALID_COMMIT_SHA/,
+      hasCode("INVALID_COMMIT_SHA"),
     );
     assert.throws(
       () => classifyNusaMergeReworkObservation(observation({ observedAt: -1 })),
-      /INVALID_OBSERVED_AT/,
+      hasCode("INVALID_OBSERVED_AT"),
     );
   });
 
