@@ -81,12 +81,12 @@ next_on_pass: "Publish through a normal exact-head PR; keep runtime activation a
 
 current_main_audit:
   audited_at: "2026-08-31"
-  current_main: db9067754e12c2e462579f5b39b0ebc99a182d19
+  current_main: e5a7e370e5bb2d822a94df57e088f3233e117398
   recent_main_merges:
-    - pull_request: 1291
-      merge_commit: d955cdc0e6d27023a89890b6a5efbf283eab6f09
-    - pull_request: 1292
-      merge_commit: e7cfab58eb89cfd6a06359198635dcb13fc7a37b
+    - pull_request: 1302
+      merge_commit: d7a9510c99f48f83f967a224d198f51a53577bcb
+    - pull_request: 1305
+      merge_commit: e5a7e370e5bb2d822a94df57e088f3233e117398
   issue_status: OPEN
   focused_control_plane_regression: PASS_39_OF_39
   evidence_classification:
@@ -100,4 +100,26 @@ current_main_audit:
     autopilot_slo_runtime_measurements: IMPLEMENTED_NO_RUNTIME_EVIDENCE
     verified_throughput_speedup: MISSING
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  next: "Keep external event runtime and real telemetry fail-closed until artifact-backed runtime evidence exists; do not claim #903 complete from structural tests alone."
+  latest_revalidation:
+    branch_head: 8d448f8a
+    main_integration: MERGED_ORIGIN_MAIN_E5A7E370
+    focused_bridge_and_affected_regression: PASS_27_OF_27
+    full_isolated_suite: PASS_819_FILES
+    typecheck: PASS
+    build: PASS
+    lint: PASS
+    preflight: PASS
+    architecture_truth: PASS
+    architecture_check: PASS
+    ai_zero_authority: PASS
+    safety_architecture: PASS
+    safety_invariants: PASS
+    restricted_live_check: PASS
+    restricted_live_readiness: PASS
+    read_only_broker: PASS
+    security_gate: PASS_SECRETS_0
+    aipos_drift: PASS
+    aipos_conformance: PASS
+    aipos_provenance: PASS
+    diff_check: PASS
+  next: "Publish the latest-main-integrated branch through a normal PR update; keep runtime activation and throughput claims fail-closed until artifact-backed event delivery is observed."
