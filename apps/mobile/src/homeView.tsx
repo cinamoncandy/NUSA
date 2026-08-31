@@ -138,7 +138,9 @@ export function HomeView({
     primaryLabel,
     primaryDetail,
   } = decisionSurface;
+  const supervisorWhy = decisionSurface.why;
   const supervisorResult = decisionSurface.result;
+  const supervisorRisk = decisionSurface.risk;
   const terrainStrength = signalReady ? 0.92 : snapshot ? 0.45 : 0.25;
   const terrainLabel = aiInsightAvailable ? "NUSA verified signal field" : signalReady ? "NUSA analyzing market" : "NUSA waiting for market connection";
   const terminalSignal = theme.preset === "master" && theme.mode === "dark" ? "#C9FF3D" : theme.colors.aiSignalEnd;
@@ -189,9 +191,9 @@ export function HomeView({
       </View>
       <Text style={[styles.authorityMode, { color: theme.colors.textMuted }]}>PAPER ONLY · LIVE NONE</Text>
       <SupervisorRow label="NOW" value={decisionSurface.now} labelColor={attentionColor} valueColor={theme.colors.text} strong testID="home-supervisor-now" />
-      <SupervisorRow label="WHY" value={decisionSurface.why} borderColor={theme.colors.border} labelColor={theme.colors.textMuted} valueColor={theme.colors.text} testID="home-supervisor-why" onPress={aiInsightAvailable ? () => onNavigate("AiSignal") : undefined} actionLabel={aiInsightAvailable ? "EVIDENCE →" : undefined} />
+      <SupervisorRow label="WHY" value={supervisorWhy} borderColor={theme.colors.border} labelColor={theme.colors.textMuted} valueColor={theme.colors.text} testID="home-supervisor-why" onPress={aiInsightAvailable ? () => onNavigate("AiSignal") : undefined} actionLabel={aiInsightAvailable ? "EVIDENCE →" : undefined} />
       <SupervisorRow label="RESULT" value={supervisorResult} borderColor={theme.colors.border} labelColor={theme.colors.textMuted} valueColor={theme.colors.text} testID="home-supervisor-result" onPress={account == null ? undefined : () => onNavigate("Portfolio")} actionLabel={account == null ? undefined : "SUPERVISE →"} />
-      <SupervisorRow label="RISK" value={decisionSurface.risk} borderColor={theme.colors.border} labelColor={attentionColor} valueColor={attentionLevel === "QUIET" ? theme.colors.text : attentionColor} testID="home-supervisor-risk" />
+      <SupervisorRow label="RISK" value={supervisorRisk} borderColor={theme.colors.border} labelColor={attentionColor} valueColor={attentionLevel === "QUIET" ? theme.colors.text : attentionColor} testID="home-supervisor-risk" />
       <SupervisorRow label="LEARNING" value={decisionSurface.learning} borderColor={theme.colors.border} labelColor={theme.colors.textMuted} valueColor={theme.colors.text} testID="home-supervisor-learning" onPress={disconnected ? undefined : onOpenPaperLearning} actionLabel={disconnected ? undefined : "EVIDENCE →"} />
       <View style={[styles.supervisorAuthority, { borderTopColor: theme.colors.border }]}>
         <Text style={[styles.meta, { color: theme.colors.textMuted }]}>AI ZERO AUTHORITY · productionMutationAllowed=false · liveAuthority=NONE</Text>
@@ -311,7 +313,7 @@ export function HomeView({
         <View><Text style={[styles.kicker, { color: terminalSignal }]}>AI INSIGHT / SIGNAL TERRAIN</Text><Text style={[styles.stageTitle, { color: theme.colors.text }]}>NUSA VIEW</Text></View>
         <Text style={[styles.decisionState, { color: aiInsightAvailable ? terminalSignal : theme.colors.textMuted }]}>{aiInsightAvailable ? "VERIFIED" : signalReady ? "ANALYZING" : "WAITING"}</Text>
       </View>
-      <View style={[styles.terrainHero, { height: tablet ? 260 : 180 }]} testID="home-decision-stage">
+      <View style={[styles.terrainHero, { height: tablet ? 300 : 220 }]} testID="home-decision-stage">
         <View style={[styles.crosshairH, { backgroundColor: theme.colors.border }]} />
         <View style={[styles.crosshairV, { backgroundColor: theme.colors.border }]} />
         <View style={[styles.scanlineA, { backgroundColor: terminalSignal }]} />
