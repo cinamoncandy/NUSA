@@ -1,0 +1,70 @@
+name: PAPER Real Elapsed Soak Evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      duration_minutes:
+        description: Genuine wall-clock soak duration in minutes (max 330 on GitHub-hosted runner)
+        required: false
+        default: "60"
+  schedule:
+    - cron: "17 0 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: paper-real-elapsed-soak-main
+  cancel-in-progress: false
+
+jobs:
+  paper-real-elapsed-soak:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+      - name: Enable pnpm via Corepack
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.7.0 --activate
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Workflow action supply-chain pins
+        run: node scripts/validate-workflow-action-pins.js
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build exact main head
+        run: pnpm run build
+      - name: Resolve genuine elapsed duration
+        id: duration
+        shell: bash
+        run: |
+          minutes='${{ github.event.inputs.duration_minutes || '330' }}'
+          if ! [[ "$minutes" =~ ^[0-9]+$ ]] || [ "$minutes" -lt 10 ] || [ "$minutes" -gt 330 ]; then
+            echo 'duration_minutes must be an integer between 10 and 330' >&2
+            exit 1
+          fi
+          echo "duration_ms=$((minutes * 60 * 1000))" >> "$GITHUB_OUTPUT"
+      - name: Run genuine wall-clock PAPER soak
+        env:
+          NUSA_MODE: PAPER
+          NUSA_LIVE_MUTATION: PROHIBITED
+          NUSA_SOAK_MARKET: KRW-BTC
+          NUSA_SOAK_DURATION_MS: ${{ steps.duration.outputs.duration_ms }}
+          NUSA_SOAK_POLL_MS: "30000"
+          NUSA_SOAK_OUTPUT: artifacts/operational-evidence/paper-real-elapsed-soak.json
+        run: node scripts/paper-elapsed-soak.js
+      - name: Upload genuine elapsed PAPER soak receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: paper-real-elapsed-soak-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/operational-evidence/paper-real-elapsed-soak.json
+          if-no-files-found: error
+          retention-days: 30
