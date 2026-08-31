@@ -9,6 +9,11 @@ on:
         default: "60"
   schedule:
     - cron: "17 0 * * *"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/paper-real-elapsed-soak.yml"
 
 permissions:
   contents: read
@@ -59,7 +64,9 @@ jobs:
           NUSA_SOAK_DURATION_MS: ${{ steps.duration.outputs.duration_ms }}
           NUSA_SOAK_POLL_MS: "30000"
           NUSA_SOAK_OUTPUT: artifacts/operational-evidence/paper-real-elapsed-soak.json
-        run: node scripts/paper-elapsed-soak.js
+        run: node scripts/run-paper-elapsed-soak-ci.js
+      - name: Bind receipt to exact GitHub run provenance
+        run: node scripts/bind-paper-soak-provenance.js artifacts/operational-evidence/paper-real-elapsed-soak.json
       - name: Upload genuine elapsed PAPER soak receipt
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
