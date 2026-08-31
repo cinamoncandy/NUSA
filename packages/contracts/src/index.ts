@@ -41,6 +41,7 @@ export * from "./liveReadinessObservability";
 export * from "./paperForwardEvidence";
 export * from "./leagueCapitalAllocation";
 export * from "./persistedPaperPeriod";
+export * from "./uxTelemetryEvent";
 
 export enum LedgerSide { BUY = "BUY", SELL = "SELL" }
 export enum PositionScopeType { WALLET = "WALLET", STRATEGY = "STRATEGY" }
