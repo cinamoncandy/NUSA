@@ -42,6 +42,27 @@ describe("authoritative LIVE session transport chain", () => {
     if (result.status === "READY") expect(result.revision).toBe(1);
   });
 
+  it("binds consume-once to the authoritative session revision", async () => {
+    const { store, consume } = await setup();
+    const first = await prepareAuthoritativeSessionBoundLiveTransport(request, store, consume);
+    expect(first.status).toBe("READY");
+    if (first.status !== "READY" || first.chain.transport.status !== "READY") return;
+
+    const replay = await prepareAuthoritativeSessionBoundLiveTransport(request, store, consume);
+    expect(replay).toEqual({ status: "REJECTED", reason: "SESSION_CHAIN_REJECTED" });
+
+    const current = await store.read("owner-1");
+    expect(current).toBeDefined();
+    await store.write({ ...current!.session }, current!.revision);
+
+    const nextRevision = await prepareAuthoritativeSessionBoundLiveTransport(request, store, consume);
+    expect(nextRevision.status).toBe("READY");
+    if (nextRevision.status !== "READY" || nextRevision.chain.transport.status !== "READY") return;
+    expect(nextRevision.revision).toBe(2);
+    expect(nextRevision.chain.transport.request.authorizationFingerprintSha256)
+      .not.toBe(first.chain.transport.request.authorizationFingerprintSha256);
+  });
+
   it("fails closed when no persisted session exists", async () => {
     const storage = new MemoryStorage();
     const result = await prepareAuthoritativeSessionBoundLiveTransport(request, new LiveRuntimeSessionDurableStore(storage), new LiveExecutionConsumeOnce(storage));
