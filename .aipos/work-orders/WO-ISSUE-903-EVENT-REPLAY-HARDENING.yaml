@@ -59,7 +59,12 @@ next_on_pass: "Publish through a normal exact-head PR only after all recorded va
 
 current_main_audit:
   audited_at: "2026-08-31"
-  current_main: 348654d0c5253231cca96c3f824697bb8ee377a1
+  current_main: e7cfab58eb89cfd6a06359198635dcb13fc7a37b
+  recent_main_merges:
+    - pull_request: 1291
+      merge_commit: d955cdc0e6d27023a89890b6a5efbf283eab6f09
+    - pull_request: 1292
+      merge_commit: e7cfab58eb89cfd6a06359198635dcb13fc7a37b
   issue_status: OPEN
   focused_control_plane_regression: PASS_39_OF_39
   evidence_classification:

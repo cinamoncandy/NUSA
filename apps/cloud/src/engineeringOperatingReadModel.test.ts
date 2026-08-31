@@ -10,7 +10,8 @@ import {
 
 const BASE = Date.parse("2026-08-29T00:00:00.000Z");
 const FP = "1".repeat(64);
-const receipt = (headSha: string, jobId: number, durationMs: number): GithubCiJobTimingReceipt => ({
+const POST_FP = "2".repeat(64);
+const receipt = (headSha: string, jobId: number, durationMs: number, sourceFingerprint = headSha === "a".repeat(40) ? FP : POST_FP): GithubCiJobTimingReceipt => ({
   jobId,
   runId: jobId,
   runAttempt: 1,
@@ -20,7 +21,7 @@ const receipt = (headSha: string, jobId: number, durationMs: number): GithubCiJo
   conclusion: "success",
   startedAt: new Date(BASE).toISOString(),
   completedAt: new Date(BASE + durationMs).toISOString(),
-  sourceFingerprint: FP,
+  sourceFingerprint,
 });
 
 function input(overrides: Partial<NusaEngineeringOperatingInput> = {}): NusaEngineeringOperatingInput {
@@ -94,7 +95,7 @@ describe("NUSA Engineering OS production read model", () => {
     assert.equal(result.adaptiveConcurrency.classification, "MEASURED");
     assert.equal(result.outcome.classification, "VERIFIED_IMPROVEMENT");
     assert.equal(result.executionOrigin.origin, "USER_TRIGGERED");
-    assert.deepEqual(result.sourceFingerprints, [FP]);
+    assert.deepEqual(result.sourceFingerprints, [FP, POST_FP]);
     assert.deepEqual(result.queue, { status: "AVAILABLE", revision: 0, totalItems: 1, activeItems: 1, mergeReadyItems: 1 });
     assert.deepEqual(result.blockers, []);
     assert.deepEqual(result.authority, { liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY", mutationAllowed: false });
@@ -145,5 +146,19 @@ describe("NUSA Engineering OS production read model", () => {
     const unavailable = createNusaEngineeringOperatingReadModel(() => input({ queue: malformedQueue })).getSnapshot();
     assert.equal(unavailable.status, "UNAVAILABLE");
     assert.deepEqual(unavailable.blockers, ["ENGINEERING_SOURCE_UNAVAILABLE"]);
+  });
+
+  it("fails closed when pre and post outcome evidence reuse a receipt fingerprint", () => {
+    const base = input();
+    const conflictingOutcome = {
+      ...base.outcomeEvidence,
+      postMerge: {
+        ...base.outcomeEvidence.postMerge!,
+        sourceFingerprints: [...base.outcomeEvidence.baseline!.sourceFingerprints],
+      },
+    };
+    const result = createNusaEngineeringOperatingReadModel(() => input({ outcomeEvidence: conflictingOutcome })).getSnapshot();
+    assert.equal(result.status, "UNAVAILABLE");
+    assert.deepEqual(result.blockers, ["ENGINEERING_SOURCE_UNAVAILABLE"]);
   });
 });
