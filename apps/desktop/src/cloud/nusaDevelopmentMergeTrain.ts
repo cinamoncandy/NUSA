@@ -6,12 +6,18 @@ export const NUSA_DEVELOPMENT_MERGE_TRAIN_AUTHORITY = Object.freeze({
   aiAuthority: "ZERO_AUTHORITY" as const,
 });
 
+export type NusaAuditVerdict = "PASS" | "PASS_WITH_NOTES" | "FAIL";
+
 export interface NusaExactHeadMergeEvidence {
   readonly workItemId: string;
   readonly headSha: string;
   readonly validatedHeadSha: string;
   readonly requiredChecksPassed: boolean;
   readonly safetyChecksPassed: boolean;
+  readonly auditedHeadSha: string;
+  readonly auditVerdict: NusaAuditVerdict;
+  readonly auditMergeAllowed: boolean;
+  readonly auditObservedAt: number;
   readonly unresolvedReviewThreads: number;
   readonly observedAt: number;
 }
@@ -113,6 +119,15 @@ function mergeBlockers(
   if (evidence.headSha !== evidence.validatedHeadSha) blockers.push("EXACT_HEAD_MISMATCH");
   if (!evidence.requiredChecksPassed) blockers.push("REQUIRED_CHECKS_NOT_PASSED");
   if (!evidence.safetyChecksPassed) blockers.push("SAFETY_CHECKS_NOT_PASSED");
+  if (!evidence.auditedHeadSha?.trim()) blockers.push("AUDIT_HEAD_SHA_MISSING");
+  else if (evidence.auditedHeadSha !== evidence.headSha) blockers.push("AUDIT_HEAD_MISMATCH");
+  if (evidence.auditVerdict !== "PASS" && evidence.auditVerdict !== "PASS_WITH_NOTES" && evidence.auditVerdict !== "FAIL") {
+    blockers.push("AUDIT_VERDICT_INVALID");
+  } else if (evidence.auditVerdict === "FAIL") {
+    blockers.push("AUDIT_NOT_PASSED");
+  }
+  if (evidence.auditMergeAllowed !== true) blockers.push("AUDIT_MERGE_NOT_ALLOWED");
+  if (!isTimestamp(evidence.auditObservedAt)) blockers.push("AUDIT_EVIDENCE_TIMESTAMP_INVALID");
   if (!Number.isSafeInteger(evidence.unresolvedReviewThreads) || evidence.unresolvedReviewThreads < 0) blockers.push("REVIEW_THREAD_COUNT_INVALID");
   else if (evidence.unresolvedReviewThreads > 0) blockers.push("UNRESOLVED_REVIEW_THREADS");
   if (!isTimestamp(evidence.observedAt)) blockers.push("EVIDENCE_TIMESTAMP_INVALID");
