@@ -51,13 +51,24 @@ function movement(workItemId: string, overrides: Partial<NusaMainMovementEvidenc
   };
 }
 
+function unchanged(workItemId: string): NusaMainMovementEvidence {
+  return movement(workItemId, {
+    currentBaseSha: "base-a",
+    changedFilesSinceValidation: null,
+    mergedWorkItemIdsSinceValidation: null,
+    crossCuttingImpact: "UNKNOWN",
+  });
+}
+
 describe("planNusaDevelopmentMergeTrain", () => {
   it("orders merge-ready work by priority only after exact-head gates pass", () => {
     const queue = createNusaDevelopmentQueue([
       work({ id: "p1", priority: "P1" }),
       work({ id: "p0", priority: "P0" }),
     ]);
-    const plan = planNusaDevelopmentMergeTrain(queue, [evidence("p1"), evidence("p0")]);
+    const plan = planNusaDevelopmentMergeTrain(queue, [evidence("p1"), evidence("p0")], {
+      mainMovementEvidence: [unchanged("p1"), unchanged("p0")],
+    });
     assert.equal(plan.status, "READY");
     assert.deepEqual(plan.entries.map((entry) => entry.workItemId), ["p0", "p1"]);
   });
@@ -68,7 +79,9 @@ describe("planNusaDevelopmentMergeTrain", () => {
       evidence("stale", { validatedHeadSha: "old-head" }),
       evidence("unsafe", { safetyChecksPassed: false }),
       evidence("review", { unresolvedReviewThreads: 1 }),
-    ]);
+    ], {
+      mainMovementEvidence: [unchanged("stale"), unchanged("unsafe"), unchanged("review")],
+    });
     assert.equal(plan.status, "BLOCKED");
     assert.deepEqual(plan.blocked.stale, ["EXACT_HEAD_MISMATCH"]);
     assert.deepEqual(plan.blocked.unsafe, ["SAFETY_CHECKS_NOT_PASSED"]);
@@ -81,9 +94,19 @@ describe("planNusaDevelopmentMergeTrain", () => {
       work({ id: "base", state: "CI" }),
       work({ id: "dependent", dependencies: ["base"] }),
     ]);
-    const plan = planNusaDevelopmentMergeTrain(queue, [evidence("dependent")]);
+    const plan = planNusaDevelopmentMergeTrain(queue, [evidence("dependent")], {
+      mainMovementEvidence: [unchanged("dependent")],
+    });
     assert.equal(plan.status, "BLOCKED");
     assert.deepEqual(plan.blocked.dependent, ["DEPENDENCY_NOT_MERGED:base"]);
+  });
+
+  it("fails closed when the planning context is omitted", () => {
+    const queue = createNusaDevelopmentQueue([work({ id: "missing-context" })]);
+    const plan = planNusaDevelopmentMergeTrain(queue, [evidence("missing-context")]);
+    assert.equal(plan.status, "BLOCKED");
+    assert.deepEqual(plan.blocked["missing-context"], ["MAIN_MOVEMENT_PROVENANCE_UNKNOWN"]);
+    assert.equal(plan.entries.length, 0);
   });
 
   it("rejects duplicate evidence identities instead of choosing one", () => {
@@ -147,14 +170,9 @@ describe("planNusaDevelopmentMergeTrain", () => {
   it("accepts an unchanged validated base without requiring movement projections", () => {
     const item = work({ id: "unchanged" });
     const queue = createNusaDevelopmentQueue([item]);
-    const unchanged = movement("unchanged", {
-      currentBaseSha: "base-a",
-      changedFilesSinceValidation: null,
-      mergedWorkItemIdsSinceValidation: null,
-      crossCuttingImpact: "UNKNOWN",
-    });
-    assert.equal(assessNusaDevelopmentMainMovement(item, unchanged), "UNCHANGED");
-    assert.equal(planNusaDevelopmentMergeTrain(queue, [evidence("unchanged")], { mainMovementEvidence: [unchanged] }).status, "READY");
+    const unchangedEvidence = unchanged("unchanged");
+    assert.equal(assessNusaDevelopmentMainMovement(item, unchangedEvidence), "UNCHANGED");
+    assert.equal(planNusaDevelopmentMergeTrain(queue, [evidence("unchanged")], { mainMovementEvidence: [unchangedEvidence] }).status, "READY");
   });
 
   it("rejects duplicate main-movement evidence identities", () => {
