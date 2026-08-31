@@ -536,7 +536,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-ISSUE-1288-CLOUDFLARE-RUNTIME-PROOF.yaml
-  reason: "Validate PR #1301 on exact head 0b882cb7b83a2ae9753aeef60dcd45444308a5ea; after merge observe two consecutive fresh scheduled proofs and keep acceptance fail-closed."
+  reason: "Validate PR #1301 on exact head a1f3a0ab6b917cf4fdf22eaf2ae54297997ff5fa; after merge observe two consecutive fresh scheduled proofs and keep acceptance fail-closed."
 verification:
   wo_0057:
     parent_pull_request: 552
@@ -853,7 +853,7 @@ issue_1288_cloudflare_runtime_proof:
   status: STRUCTURAL_FIX_PENDING_EXACT_HEAD_AND_EXTERNAL_PROOFS
   base_commit: 9db352214a34bf919a8dc838a996c4a03bc7c92e
   implementation_branch: codex/1288-runtime-proof-provenance
-  implementation_commit: 0b882cb7b83a2ae9753aeef60dcd45444308a5ea
+  implementation_commit: a1f3a0ab6b917cf4fdf22eaf2ae54297997ff5fa
   pull_request: 1301
   scope: "Classified read-only Cloudflare runtime-proof evidence with bounded artifact retention, exact workflow provenance, trigger classification, deterministic identity, and bounded transient retry."
   acceptance: "Two consecutive fresh post-merge scheduled proof executions remain required; push/manual/old-head receipts cannot satisfy this acceptance."

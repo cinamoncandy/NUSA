@@ -8,7 +8,7 @@ issue: 1288
 base_branch: main
 base_commit: 9db352214a34bf919a8dc838a996c4a03bc7c92e
 implementation_branch: codex/1288-runtime-proof-provenance
-implementation_commit: 0b882cb7b83a2ae9753aeef60dcd45444308a5ea
+implementation_commit: a1f3a0ab6b917cf4fdf22eaf2ae54297997ff5fa
 pull_request: 1301
 objective: "Restore reliable, classified, artifact-backed hourly Cloudflare runtime-proof observability without changing execution authority."
 architecture_impact:
@@ -40,5 +40,5 @@ implementation:
   known_truth: "PR #1301 separates actual proof-run provenance from the Worker receipt identity, classifies non-scheduled runs as insufficient evidence, binds scheduled receipts to the source head, and retries only bounded transient failures. Two consecutive post-merge scheduled proof executions remain required before issue closure."
   next: "After exact-head validation and merge, observe two consecutive fresh scheduled proof executions; keep worker/deployment health and source-head checks fail-closed if unavailable."
 validation:
-  static_regression: PASS_8_OF_8_LOCAL
+  static_regression: PASS_9_OF_9_LOCAL
   external_scheduled_proofs: PENDING_TWO_CONSECUTIVE_POST_MERGE_FRESH_EXECUTIONS
