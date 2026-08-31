@@ -2,6 +2,19 @@
 
 These rules apply to every human or AI agent working on NUSA.
 
+## NUSA CORE master operating protocol
+
+For autonomous engineering, repository operations, CI/PR handling, deployment
+verification, dogfood, and cross-AI handoff, read and follow
+[`docs/NUSA_CORE_MASTER_INSTRUCTIONS.md`](docs/NUSA_CORE_MASTER_INSTRUCTIONS.md).
+It is the consolidated CORE execution protocol and supplements the AIPOS,
+architecture, and safety rules below; it cannot override them or grant LIVE,
+real-money, credential, broker-mutation, or production authority.
+
+The OWNER shortcuts are `ㅇ` (execute the next safe real action), `ㅂ` (verified
+state), `ㅎ` (diagnose and repair), `ㅈ` (print the master protocol), and
+`/grill-me` (adversarial CORE review).
+
 ## AIPOS recovery is mandatory
 
 Before planning, editing, or generating code:
