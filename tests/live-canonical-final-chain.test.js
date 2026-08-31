@@ -72,7 +72,7 @@ async function setup(Store = LiveRuntimeSessionDurableStore) {
   const store = new Store(storage);
   const stored = await store.write(activeSession, null);
   assert.equal(stored.status, 'STORED');
-  return { store, consumeOnce: new LiveExecutionConsumeOnce(storage) };
+  return { store, consumeOnce: new LiveExecutionConsumeOnce(storage), storage };
 }
 
 class RecordingTransport {
@@ -115,9 +115,9 @@ class RevisionChangingStore extends LiveRuntimeSessionDurableStore {
 }
 
 test('authoritative final chain uses the persisted session and reaches only the injected transport', async () => {
-  const { store, consumeOnce } = await setup();
+  const { store, consumeOnce, storage } = await setup();
   const transport = new RecordingTransport();
-  const result = await submitAuthoritativeSessionBoundLiveOrder(request(), store, consumeOnce, transport);
+  const result = await submitAuthoritativeSessionBoundLiveOrder(request(), store, consumeOnce, transport, storage);
 
   assert.deepEqual(result, {
     status: 'SUBMITTED',
@@ -135,9 +135,9 @@ test('authoritative final chain uses the persisted session and reaches only the 
 });
 
 test('concurrent authoritative requests reserve and reach the transport at most once', async () => {
-  const { store, consumeOnce } = await setup();
+  const { store, consumeOnce, storage } = await setup();
   const transport = new RecordingTransport();
-  const results = await Promise.all(Array.from({ length: 8 }, () => submitAuthoritativeSessionBoundLiveOrder(request(), store, consumeOnce, transport)));
+  const results = await Promise.all(Array.from({ length: 8 }, () => submitAuthoritativeSessionBoundLiveOrder(request(), store, consumeOnce, transport, storage)));
 
   assert.equal(results.filter((result) => result.status === 'SUBMITTED').length, 1);
   assert.equal(results.filter((result) => result.status === 'REJECTED').length, 7);
@@ -145,23 +145,21 @@ test('concurrent authoritative requests reserve and reach the transport at most 
 });
 
 test('a persisted session revision change after preparation blocks transport access', async () => {
-  const { store, consumeOnce } = await setup(RevisionChangingStore);
+  const { store, consumeOnce, storage } = await setup(RevisionChangingStore);
   const transport = new RecordingTransport();
-  const result = await submitAuthoritativeSessionBoundLiveOrder(request(), store, consumeOnce, transport);
+  const result = await submitAuthoritativeSessionBoundLiveOrder(request(), store, consumeOnce, transport, storage);
 
   assert.deepEqual(result, { status: 'REJECTED', reason: 'SESSION_REVISION_CHANGED' });
   assert.equal(transport.requests.length, 0);
 });
 
 test('an unknown transport outcome cannot be retried into a second transport call', async () => {
-  const { store, consumeOnce } = await setup();
+  const { store, consumeOnce, storage } = await setup();
   const transport = new ThrowingTransport();
 
-  await assert.rejects(
-    submitAuthoritativeSessionBoundLiveOrder(request(), store, consumeOnce, transport),
-    /TEST_TRANSPORT_OUTCOME_UNKNOWN/,
-  );
-  const retry = await submitAuthoritativeSessionBoundLiveOrder(request(), store, consumeOnce, transport);
+  const first = await submitAuthoritativeSessionBoundLiveOrder(request(), store, consumeOnce, transport, storage);
+  assert.deepEqual(first, { status: 'REJECTED', reason: 'BROKER_RESULT_UNCERTAIN' });
+  const retry = await submitAuthoritativeSessionBoundLiveOrder(request(), store, consumeOnce, transport, storage);
 
   assert.deepEqual(retry, { status: 'REJECTED', reason: 'SESSION_CHAIN_REJECTED' });
   assert.equal(transport.calls, 1);

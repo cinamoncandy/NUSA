@@ -49,6 +49,10 @@ export async function submitAuthoritativeSessionBoundLiveOrder(
   const invalidReason = validateLiveBrokerTransportRequest(brokerRequest);
   if (invalidReason !== null) return Object.freeze({ status: "REJECTED", reason: invalidReason });
 
+  // Production broker mutation remains disabled. A broker-capable caller must provide
+  // durable dispatch storage so crash/retry state is committed before any external call.
+  if (!dispatchStorage) return Object.freeze({ status: "REJECTED", reason: "DURABLE_DISPATCH_REQUIRED" });
+
   const finalReservation = await sessionStore.reserveFinalExecution(
     authorized.authorization.ownerPrincipalId,
     authorized.authorization.sessionId,
@@ -58,9 +62,6 @@ export async function submitAuthoritativeSessionBoundLiveOrder(
   );
   if (finalReservation.status !== "RESERVED") return Object.freeze({ status: "REJECTED", reason: finalReservation.reason });
 
-  // Production broker mutation remains disabled. A broker-capable caller must provide
-  // durable dispatch storage so crash/retry state is committed before any external call.
-  if (!dispatchStorage) return Object.freeze({ status: "REJECTED", reason: "DURABLE_DISPATCH_REQUIRED" });
   const dispatch = new LiveBrokerDispatchDurableState(dispatchStorage);
   const acquired = await dispatch.acquire(
     brokerRequest.fingerprint,
