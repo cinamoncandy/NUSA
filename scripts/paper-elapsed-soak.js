@@ -135,8 +135,10 @@ async function run(options = {}) {
   const { env: cleanEnv, removed: scrubbedPrivateKeys } = scrubPrivateExchangeEnv(process.env);
   const env = { ...cleanEnv, NUSA_MODE: "PAPER", NUSA_LIVE_MUTATION: "PROHIBITED", NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_HOST: "127.0.0.1", NUSA_CLOUD_DASHBOARD_TOKEN: token, NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true", NUSA_CLOUD_UPBIT_MARKETS: String(options.market || process.env.NUSA_SOAK_MARKET || "KRW-BTC").trim().toUpperCase(), NUSA_CLOUD_STATE_DB_PATH: resolve(root, options.databasePath || ".runtime-evidence/paper-soak/state.sqlite"), NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "10000000", NUSA_CLOUD_PAPER_INVESTMENT_PERCENT: "10" };
   const child = spawn(process.execPath, [runtimePath], { cwd: root, env, shell: false, stdio: ["ignore", "ignore", "pipe"] });
-  const stderr = [];
-  child.stderr.on("data", (chunk) => stderr.push(String(chunk).slice(-4000)));
+  let stderrTail = "";
+  child.stderr.on("data", (chunk) => {
+    stderrTail = `${stderrTail}${String(chunk)}`.slice(-16_384);
+  });
   const observations = [];
 
   try {
@@ -144,7 +146,7 @@ async function run(options = {}) {
     const monotonicStart = process.hrtime.bigint();
     observations.push(summarizeSnapshot(firstSnapshot, 0));
     while (Number(process.hrtime.bigint() - monotonicStart) / 1e6 < durationMs) {
-      if (child.exitCode != null) throw new Error(`PAPER runtime exited during soak (${child.exitCode}): ${stderr.join("").slice(-4000)}`);
+      if (child.exitCode != null) throw new Error(`PAPER runtime exited during soak (${child.exitCode}): ${stderrTail.slice(-4000)}`);
       const elapsed = Number(process.hrtime.bigint() - monotonicStart) / 1e6;
       await sleep(Math.min(pollMs, Math.max(1, durationMs - elapsed)));
       const snapshot = await loadOperations(`http://127.0.0.1:${port}`, token);
