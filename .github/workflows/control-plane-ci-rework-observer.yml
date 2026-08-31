@@ -1,0 +1,36 @@
+name: Control Plane CI Rework Observer
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  observe:
+    if: ${{ github.event.workflow_run.event == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout trusted main observer
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Observe CI exact-head rework
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          NUSA_REWORK_TELEMETRY_OUTPUT: artifacts/control-plane/merge-rework-observation.json
+        run: node scripts/observe-ci-stale-head.mjs
+
+      - name: Upload provenance-bound rework observation
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: control-plane-merge-rework-${{ github.event.workflow_run.id }}
+          path: artifacts/control-plane/merge-rework-observation.json
+          if-no-files-found: error
+          retention-days: 30
