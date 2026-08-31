@@ -178,6 +178,30 @@ describe("coding runner", () => {
     assert.equal(calls.length, 3);
   });
 
+  it("prefers the canonical Workers AI binding over a configured legacy endpoint", async () => {
+    let endpointCalls = 0;
+    let aiCalls = 0;
+    const ai: WorkersAiBinding = {
+      async run(model, input) {
+        aiCalls += 1;
+        assert.equal(model, "@cf/meta/llama-3.1-8b-instruct-fast");
+        assert.match(input.prompt, /unified diff/);
+        return { response: JSON.stringify({ patch }) };
+      },
+    };
+    const result = await executeCodingRunner(request, {
+      ...runtimeEnv,
+      AI: ai,
+    }, async (url) => {
+      if (url.includes("/commits/") || url.includes("/actions/runs/")) return verifiedGithubFetch(url);
+      endpointCalls += 1;
+      return response(502, { error: "legacy endpoint unavailable" });
+    });
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.equal(endpointCalls, 0);
+    assert.equal(aiCalls, 1);
+  });
+
   it("uses the Cloudflare Workers AI binding when no dedicated endpoint is configured", async () => {
     let runtimeCalls = 0;
     const runtime: CodingRuntime = {

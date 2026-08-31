@@ -316,7 +316,9 @@ export async function executeCodingRunner(
 
   const endpoint = env.NUSA_AI_CODING_ENDPOINT?.trim();
   const token = env.NUSA_AI_CODING_TOKEN?.trim();
-  const useConfiguredEngine = Boolean(endpoint && token);
+  // Prefer the binding-backed Workers AI path whenever it is available. A stale or retired
+  // configured endpoint must not shadow the canonical Worker AI binding in production.
+  const useConfiguredEngine = Boolean(endpoint && token && !env.AI);
   if (useConfiguredEngine) {
     const response = await fetchImpl(endpoint!, codingEngineRequest(request, token!));
     if (!response.ok) return { status: "EXECUTION_FAILED", httpStatus: response.status, reason: "coding-engine-request-failed" };
