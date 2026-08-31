@@ -20,7 +20,7 @@ export interface DurableObjectStubLike {
 interface ExecutionRecord {
   dedupeKey: string;
   executionId: string;
-  state: "LEASED" | "DISPATCHED";
+  state: "LEASED" | "DISPATCHED" | "RELEASED";
   leaseExpiresAt: number;
   updatedAt: number;
 }
@@ -185,6 +185,7 @@ export class ExecutionCoordinator {
     if (request.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405);
     if (url.pathname === "/acquire") return this.acquire(await request.json());
     if (url.pathname === "/dispatched") return this.markDispatched(await request.json());
+    if (url.pathname === "/release") return this.release(await request.json());
     if (url.pathname === "/scheduled-receipt") return this.writeScheduledReceipt(await request.json());
     if (url.pathname === "/evolve-learning-memory") return this.writeEvolutionLearningMemory(await request.json());
     if (url.pathname === "/coding-evidence") return this.writeCodingExecutionEvidence(await request.json());
@@ -199,7 +200,7 @@ export class ExecutionCoordinator {
 
     if (current?.dedupeKey === request.dedupeKey) {
       if (current.state === "DISPATCHED") return json({ acquired: false, reason: "ALREADY_DISPATCHED", record: current }, 409);
-      if (current.leaseExpiresAt > request.now) return json({ acquired: false, reason: "LEASE_ACTIVE", record: current }, 409);
+      if (current.state === "LEASED" && current.leaseExpiresAt > request.now) return json({ acquired: false, reason: "LEASE_ACTIVE", record: current }, 409);
     }
 
     const record: ExecutionRecord = Object.freeze({
@@ -222,6 +223,18 @@ export class ExecutionCoordinator {
     const record: ExecutionRecord = Object.freeze({ ...current, state: "DISPATCHED", updatedAt: Number(request.now) });
     await this.ctx.storage.put("execution", record);
     return json({ updated: true, record });
+  }
+
+  private async release(value: unknown): Promise<Response> {
+    if (!value || typeof value !== "object") return json({ error: "EXECUTION_COORDINATION_REQUEST_INVALID" }, 400);
+    const request = value as { dedupeKey?: unknown; executionId?: unknown; now?: unknown };
+    if (!validText(request.dedupeKey) || !validText(request.executionId) || !validSafeTimestamp(request.now)) return json({ error: "EXECUTION_COORDINATION_REQUEST_INVALID" }, 400);
+    const current = await this.ctx.storage.get<ExecutionRecord>("execution");
+    if (!current || current.dedupeKey !== request.dedupeKey || current.executionId !== request.executionId) return json({ error: "EXECUTION_LEASE_MISMATCH" }, 409);
+    if (current.state !== "LEASED") return json({ error: "EXECUTION_LEASE_NOT_ACTIVE" }, 409);
+    const record: ExecutionRecord = Object.freeze({ ...current, state: "RELEASED", leaseExpiresAt: Number(request.now), updatedAt: Number(request.now) });
+    await this.ctx.storage.put("execution", record);
+    return json({ released: true, record });
   }
 
   private async writeScheduledReceipt(value: unknown): Promise<Response> {
@@ -489,6 +502,12 @@ export async function markPersistentExecutionDispatched(namespace: ExecutionCoor
   const stub = namespace.get(namespace.idFromName(input.dedupeKey));
   const response = await stub.fetch("https://execution-coordinator/dispatched", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) });
   if (!response.ok) throw new Error("PERSISTENT_EXECUTION_DISPATCH_RECONCILIATION_FAILED");
+}
+
+export async function releasePersistentExecution(namespace: ExecutionCoordinatorNamespace, input: { dedupeKey: string; executionId: string; now: number }): Promise<void> {
+  const stub = namespace.get(namespace.idFromName(input.dedupeKey));
+  const response = await stub.fetch("https://execution-coordinator/release", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) });
+  if (!response.ok) throw new Error("PERSISTENT_EXECUTION_RELEASE_FAILED");
 }
 
 export async function recordScheduledRuntimeReceipt(namespace: ExecutionCoordinatorNamespace, receipt: ScheduledRuntimeReceipt): Promise<void> {
