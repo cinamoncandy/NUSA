@@ -134,4 +134,16 @@ describe("NUSA Engineering OS production read model", () => {
     assert.equal(result.status, "UNAVAILABLE");
     assert.deepEqual(result.blockers, ["ENGINEERING_SOURCE_UNAVAILABLE"]);
   });
+
+  it("rejects malformed queue evidence before projecting availability", () => {
+    const validQueue = input().queue!;
+    const malformedQueue = { ...validQueue, items: [{} as never] };
+    assert.throws(
+      () => buildNusaEngineeringOperatingSnapshot(input({ queue: malformedQueue })),
+      /ENGINEERING_QUEUE_ITEM_ID_INVALID/,
+    );
+    const unavailable = createNusaEngineeringOperatingReadModel(() => input({ queue: malformedQueue })).getSnapshot();
+    assert.equal(unavailable.status, "UNAVAILABLE");
+    assert.deepEqual(unavailable.blockers, ["ENGINEERING_SOURCE_UNAVAILABLE"]);
+  });
 });

@@ -90,4 +90,12 @@ describe("discoverNusaEngineeringOpportunities", () => {
       signal({ signalId: "sig-k", kind: "ARCHITECTURE_DRIFT", subject: "duplicate engine", existingIssueNumber: 905, sourceFingerprint: FP("a") }),
     ]), /OPPORTUNITY_ISSUE_IDENTITY_CONFLICT/);
   });
+
+  it("rejects unsupported signal identities and evidence states before discovery", () => {
+    const base = signal({ signalId: "sig-safe", kind: "ARCHITECTURE_DRIFT", subject: "safe input", sourceFingerprint: FP("b") });
+    assert.throws(() => discoverNusaEngineeringOpportunities([{ ...base, signalId: "unsafe id" }]), /OPPORTUNITY_SIGNAL_ID_INVALID/);
+    assert.throws(() => discoverNusaEngineeringOpportunities([{ ...base, kind: "UNKNOWN_KIND" as NusaEngineeringOpportunitySignal["kind"] }]), /OPPORTUNITY_KIND_INVALID/);
+    assert.throws(() => discoverNusaEngineeringOpportunities([{ ...base, evidenceState: "STALE" as NusaEngineeringOpportunitySignal["evidenceState"] }]), /OPPORTUNITY_EVIDENCE_STATE_INVALID/);
+    assert.throws(() => discoverNusaEngineeringOpportunities([null as unknown as NusaEngineeringOpportunitySignal]), /OPPORTUNITY_SIGNAL_INVALID/);
+  });
 });

@@ -44,6 +44,17 @@ export interface NusaEngineeringOpportunityDiscoveryResult {
 }
 
 const SHA256 = /^[a-f0-9]{64}$/;
+const SAFE_SIGNAL_ID = /^[A-Za-z0-9._:-]{1,160}$/;
+const OPPORTUNITY_KINDS: ReadonlySet<NusaEngineeringOpportunityKind> = new Set([
+  "CI_FAILURE_FAMILY",
+  "CI_LONG_TAIL",
+  "RECOVERY_GAP",
+  "ARCHITECTURE_DRIFT",
+  "PAPER_EVIDENCE_GAP",
+  "UI_FRICTION",
+  "DEPENDENCY_BOTTLENECK",
+]);
+const EVIDENCE_STATES: ReadonlySet<NusaEngineeringEvidenceState> = new Set(["VERIFIED", "UNKNOWN", "INSUFFICIENT"]);
 const canonicalTimestamp = (value: number): boolean => Number.isSafeInteger(value) && value >= 0;
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 
@@ -56,15 +67,23 @@ function candidateKey(signal: NusaEngineeringOpportunitySignal): string {
 }
 
 function validateSignal(signal: NusaEngineeringOpportunitySignal): void {
-  if (!signal.signalId.trim()) throw new Error("OPPORTUNITY_SIGNAL_ID_REQUIRED");
-  if (!signal.subject.trim()) throw new Error("OPPORTUNITY_SUBJECT_REQUIRED");
+  if (signal == null || typeof signal !== "object" || Array.isArray(signal)) throw new Error("OPPORTUNITY_SIGNAL_INVALID");
+  if (typeof signal.signalId !== "string" || !SAFE_SIGNAL_ID.test(signal.signalId)) throw new Error("OPPORTUNITY_SIGNAL_ID_INVALID");
+  if (typeof signal.kind !== "string" || !OPPORTUNITY_KINDS.has(signal.kind as NusaEngineeringOpportunityKind)) throw new Error("OPPORTUNITY_KIND_INVALID");
+  if (typeof signal.subject !== "string" || !signal.subject.trim()) throw new Error("OPPORTUNITY_SUBJECT_REQUIRED");
+  if (signal.subject.length > 256) throw new Error("OPPORTUNITY_SUBJECT_INVALID");
+  if (typeof signal.evidenceState !== "string" || !EVIDENCE_STATES.has(signal.evidenceState as NusaEngineeringEvidenceState)) {
+    throw new Error("OPPORTUNITY_EVIDENCE_STATE_INVALID");
+  }
   if (!canonicalTimestamp(signal.observedAt)) throw new Error("OPPORTUNITY_OBSERVED_AT_INVALID");
   if (!Number.isSafeInteger(signal.occurrences) || signal.occurrences <= 0) throw new Error("OPPORTUNITY_OCCURRENCES_INVALID");
-  if (!SHA256.test(signal.sourceFingerprint)) throw new Error("OPPORTUNITY_SOURCE_FINGERPRINT_INVALID");
+  if (typeof signal.sourceFingerprint !== "string" || !SHA256.test(signal.sourceFingerprint)) throw new Error("OPPORTUNITY_SOURCE_FINGERPRINT_INVALID");
   if (signal.existingIssueNumber != null && (!Number.isSafeInteger(signal.existingIssueNumber) || signal.existingIssueNumber <= 0)) {
     throw new Error("OPPORTUNITY_EXISTING_ISSUE_INVALID");
   }
-  if (signal.existingWorkId != null && !signal.existingWorkId.trim()) throw new Error("OPPORTUNITY_EXISTING_WORK_INVALID");
+  if (signal.existingWorkId != null && (typeof signal.existingWorkId !== "string" || !signal.existingWorkId.trim() || signal.existingWorkId.length > 256)) {
+    throw new Error("OPPORTUNITY_EXISTING_WORK_INVALID");
+  }
 }
 
 /**
@@ -75,6 +94,7 @@ function validateSignal(signal: NusaEngineeringOpportunitySignal): void {
 export function discoverNusaEngineeringOpportunities(
   signals: readonly NusaEngineeringOpportunitySignal[],
 ): NusaEngineeringOpportunityDiscoveryResult {
+  if (!Array.isArray(signals)) throw new Error("OPPORTUNITY_SIGNALS_INVALID");
   const ids = new Set<string>();
   const fingerprints = new Map<string, string>();
   for (const signal of signals) {

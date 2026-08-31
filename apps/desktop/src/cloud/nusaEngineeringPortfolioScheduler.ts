@@ -29,6 +29,7 @@ export type EngineeringOpportunityPriorityDecision = {
 
 const MIN_COMPONENT = 0;
 const MAX_COMPONENT = 100;
+const SAFE_OPPORTUNITY_ID = /^[A-Za-z0-9._:-]{1,256}$/;
 
 function validateComponent(name: string, value: EngineeringEvidenceValue): void {
   if (value === "UNKNOWN") return;
@@ -40,8 +41,11 @@ function validateComponent(name: string, value: EngineeringEvidenceValue): void 
 export function scoreEngineeringOpportunity(
   input: EngineeringOpportunityPriorityInput,
 ): EngineeringOpportunityPriorityDecision {
+  if (input == null || typeof input !== "object" || Array.isArray(input) || typeof input.opportunityId !== "string") {
+    throw new Error("ENGINEERING_PRIORITY_MISSING_OPPORTUNITY_ID");
+  }
   const opportunityId = input.opportunityId.trim();
-  if (!opportunityId) throw new Error("ENGINEERING_PRIORITY_MISSING_OPPORTUNITY_ID");
+  if (!SAFE_OPPORTUNITY_ID.test(opportunityId)) throw new Error("ENGINEERING_PRIORITY_OPPORTUNITY_ID_INVALID");
 
   const components = {
     expectedProductValue: input.expectedProductValue,
@@ -92,6 +96,17 @@ export function scoreEngineeringOpportunity(
 export function rankEngineeringOpportunities(
   inputs: readonly EngineeringOpportunityPriorityInput[],
 ): EngineeringOpportunityPriorityDecision[] {
+  if (!Array.isArray(inputs)) throw new Error("ENGINEERING_PRIORITY_INPUTS_INVALID");
+  const opportunityIds = new Set<string>();
+  for (const input of inputs) {
+    if (input == null || typeof input !== "object" || Array.isArray(input) || typeof input.opportunityId !== "string") {
+      throw new Error("ENGINEERING_PRIORITY_MISSING_OPPORTUNITY_ID");
+    }
+    const opportunityId = input.opportunityId.trim();
+    if (!SAFE_OPPORTUNITY_ID.test(opportunityId)) throw new Error("ENGINEERING_PRIORITY_OPPORTUNITY_ID_INVALID");
+    if (opportunityIds.has(opportunityId)) throw new Error(`ENGINEERING_PRIORITY_DUPLICATE_OPPORTUNITY_ID:${opportunityId}`);
+    opportunityIds.add(opportunityId);
+  }
   return inputs
     .map(scoreEngineeringOpportunity)
     .sort((left, right) => {
