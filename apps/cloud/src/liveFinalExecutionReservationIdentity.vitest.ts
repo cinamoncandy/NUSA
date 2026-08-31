@@ -1,0 +1,4 @@
+import { describe, expect, it } from "vitest";
+import { LiveRuntimeSessionDurableStore, type LiveRuntimeSessionStorageTransaction } from "./liveRuntimeSessionDurableStore";
+class S { values=new Map<string,unknown>(); async transaction<T>(cb:(txn:LiveRuntimeSessionStorageTransaction)=>Promise<T>):Promise<T>{return cb({get:async<U>(k:string)=>this.values.get(k) as U|undefined,put:async<U>(k:string,v:U)=>{this.values.set(k,v);}});} }
+describe("final reservation identity",()=>{it("rejects a different authoritative session id",async()=>{const store=new LiveRuntimeSessionDurableStore(new S());await store.write({sessionId:"new",ownerPrincipalId:"o",investmentCapitalWeight:.5,state:"ACTIVE",killSwitchEngaged:false,activatedAtMs:1,expiresAtMs:100},null);expect(await store.reserveFinalExecution("o","old",1,"2".repeat(64),2)).toEqual({status:"REJECTED",reason:"SESSION_IDENTITY_CHANGED"});});});
