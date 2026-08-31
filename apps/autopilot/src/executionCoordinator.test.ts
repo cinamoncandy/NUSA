@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { acquirePersistentExecution, ExecutionCoordinator, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, ExecutionCoordinator, releasePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
 
 class MemoryStorage {
@@ -85,6 +85,42 @@ describe("persistent execution coordination", () => {
         leaseExpiresAt: 200,
       }),
       /PERSISTENT_EXECUTION_COORDINATION_FAILED/,
+    );
+  });
+
+  it("releases a failed lease so a bounded retry can reacquire it", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const namespace: ExecutionCoordinatorNamespace = {
+      idFromName: () => ({}),
+      get: () => ({ fetch: (input: RequestInfo | URL, init?: RequestInit) => coordinator.fetch(new Request(input, init)) }),
+    };
+    const request = { dedupeKey: "ci:retry:abc", executionId: "github:retry-1", now: 100, leaseExpiresAt: 1_000 };
+
+    assert.deepEqual(await acquirePersistentExecution(namespace, request), { acquired: true });
+    await releasePersistentExecution(namespace, { dedupeKey: request.dedupeKey, executionId: request.executionId, now: 200 });
+    assert.deepEqual(await acquirePersistentExecution(namespace, { ...request, now: 201, leaseExpiresAt: 1_101 }), { acquired: true });
+  });
+
+  it("does not release an already dispatched execution", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const namespace: ExecutionCoordinatorNamespace = {
+      idFromName: () => ({}),
+      get: () => ({ fetch: (input: RequestInfo | URL, init?: RequestInit) => coordinator.fetch(new Request(input, init)) }),
+    };
+    const request = { dedupeKey: "ci:dispatched:abc", executionId: "github:dispatched-1", now: 100, leaseExpiresAt: 1_000 };
+
+    assert.deepEqual(await acquirePersistentExecution(namespace, request), { acquired: true });
+    const marked = await coordinator.fetch(new Request("https://execution-coordinator/dispatched", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ dedupeKey: request.dedupeKey, executionId: request.executionId, now: 150 }),
+    }));
+    assert.equal(marked.status, 200);
+    await assert.rejects(
+      releasePersistentExecution(namespace, { dedupeKey: request.dedupeKey, executionId: request.executionId, now: 200 }),
+      /PERSISTENT_EXECUTION_RELEASE_FAILED/,
     );
   });
 

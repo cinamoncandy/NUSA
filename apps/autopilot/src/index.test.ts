@@ -265,4 +265,50 @@ describe("NUSA autopilot GitHub webhook", () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  it("releases a failed coding lease so the bounded retry can reach the Worker again", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const namespace: ExecutionCoordinatorNamespace = {
+      idFromName: () => ({}),
+      get: () => ({ fetch: (input: RequestInfo | URL, init?: RequestInit) => coordinator.fetch(new Request(input, init)) }),
+    };
+    let codingEngineCalls = 0;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/commits/")) return new Response(JSON.stringify({ sha: codingRequest.headSha }), { status: 200 });
+      if (url.includes("/actions/runs/")) return new Response(JSON.stringify({
+        id: codingRequest.workflowRunId,
+        head_sha: codingRequest.headSha,
+        head_branch: "main",
+        status: "completed",
+        conclusion: "success",
+        repository: { full_name: codingRequest.repository },
+      }), { status: 200 });
+      codingEngineCalls += 1;
+      return new Response(JSON.stringify({ error: "temporary" }), { status: 503 });
+    }) as typeof fetch;
+    try {
+      const request = () => new Request("https://example.test/coding/execute", {
+        method: "POST",
+        headers: { authorization: "Bearer runner-token", "content-type": "application/json" },
+        body: JSON.stringify(codingRequest),
+      });
+      const env = {
+        NUSA_CODING_RUNNER_TOKEN: "runner-token",
+        NUSA_GITHUB_TOKEN: "github-token",
+        NUSA_AI_CODING_ENDPOINT: "https://coding.example.test/execute",
+        NUSA_AI_CODING_TOKEN: "ai-token",
+        NUSA_EXECUTION_COORDINATOR: namespace,
+      };
+      const first = await handleCodingExecute(request(), env);
+      const second = await handleCodingExecute(request(), env);
+      assert.equal(first.status, 502);
+      assert.equal(second.status, 502);
+      assert.equal(codingEngineCalls, 2);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
