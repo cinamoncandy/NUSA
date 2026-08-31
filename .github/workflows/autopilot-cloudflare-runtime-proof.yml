@@ -30,6 +30,11 @@ jobs:
     env:
       NUSA_AUTOPILOT_URL: https://nusa.desporin12.workers.dev
       NUSA_AUTOPILOT_MAX_RECEIPT_AGE_MS: '180000'
+      NUSA_RUNTIME_PROOF_EVENT: ${{ github.event_name }}
+      NUSA_RUNTIME_PROOF_RUN_ID: ${{ github.run_id }}
+      NUSA_RUNTIME_PROOF_RUN_ATTEMPT: ${{ github.run_attempt }}
+      NUSA_RUNTIME_PROOF_SOURCE_SHA: ${{ github.sha }}
+      NUSA_RUNTIME_PROOF_SOURCE_BRANCH: ${{ github.ref_name }}
     steps:
       - name: Prepare proof evidence directory
         run: mkdir -p artifacts/autopilot
@@ -47,3 +52,4 @@ jobs:
           path: artifacts/autopilot/runtime-proof.json
           if-no-files-found: warn
           retention-days: 7
+
