@@ -34,6 +34,7 @@ architecture_impact:
 
 event_ingress:
   status: IMPLEMENTED_INTERFACE_READY
+  implementation_commit: 53263fb1caffe48632b3a5e4abc43997475ad1b7
   workflow: .github/workflows/autopilot-github-event-bridge.yml
   delivery_script: scripts/dispatch-github-event-to-autopilot.mjs
   target: https://nusa-autopilot.desporin12.workers.dev/github/webhook
