@@ -75,7 +75,7 @@ function response(status, body) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 }
 
-function fetchSequence({ headSha, transientScheduledFailures = 0, healthStatus = 200 }) {
+function fetchSequence({ headSha, transientScheduledFailures = 0, healthStatus = 200, scheduledPayload }) {
   let healthCalls = 0;
   let scheduledCalls = 0;
   return {
@@ -87,7 +87,7 @@ function fetchSequence({ headSha, transientScheduledFailures = 0, healthStatus =
       }
       scheduledCalls += 1;
       if (scheduledCalls <= transientScheduledFailures) return response(503, { error: "temporary" });
-      return response(200, scheduledBody(headSha));
+      return response(200, scheduledPayload ?? scheduledBody(headSha));
     },
   };
 }
@@ -173,6 +173,63 @@ test("push verification cannot be counted as a scheduled proof", async () => {
   });
   assert.equal(proof.proofStatus, "INSUFFICIENT_EVIDENCE");
   assert.equal(proof.exactHeadVerified, true);
+});
+
+test("missing scheduled evidence is classified as proof_not_scheduled", async () => {
+  const sourceSha = "a".repeat(40);
+  const sequence = fetchSequence({
+    headSha: sourceSha,
+    scheduledPayload: {
+      status: "AWAITING_FIRST_SCHEDULED_EVENT",
+      receipt: null,
+      liveAuthority: "NONE",
+      productionMutationAllowed: false,
+      aiAuthority: "ZERO_AUTHORITY",
+    },
+  });
+  const verifier = await loadVerifier();
+  await assert.rejects(() => verifier.collectRuntimeProof({
+    fetchImpl: sequence.fetchImpl,
+    requestBaseUrl: "https://example.test",
+    contextOverride: { workflowRunId: 12345, workflowRunAttempt: 1, triggerType: "schedule", sourceBranch: "main", sourceSha },
+    now: 1_700_000_000_500,
+  }), (error) => error?.classification === "proof_not_scheduled" && error?.reasonCode === "PROOF_NOT_SCHEDULED");
+  assert.deepEqual(sequence.calls, { healthCalls: 1, scheduledCalls: 1 });
+});
+
+test("a scheduled receipt observed after its allowed schedule window is classified as proof_scheduled_late", async () => {
+  const sourceSha = "a".repeat(40);
+  const observedAt = 1_700_000_000_000;
+  const sequence = fetchSequence({
+    headSha: sourceSha,
+    scheduledPayload: {
+      status: "OBSERVED",
+      receipt: {
+        scheduledTime: observedAt - 180_001,
+        observedAt,
+        status: "DUPLICATE_EXECUTION_SUPPRESSED",
+        reason: "scheduled-state-unchanged",
+        headSha: sourceSha,
+        workflowRunId: 999,
+        liveAuthority: "NONE",
+        productionMutationAllowed: false,
+        aiAuthority: "ZERO_AUTHORITY",
+      },
+      history: [],
+      summary: null,
+      liveAuthority: "NONE",
+      productionMutationAllowed: false,
+      aiAuthority: "ZERO_AUTHORITY",
+    },
+  });
+  const verifier = await loadVerifier();
+  await assert.rejects(() => verifier.collectRuntimeProof({
+    fetchImpl: sequence.fetchImpl,
+    requestBaseUrl: "https://example.test",
+    contextOverride: { workflowRunId: 12345, workflowRunAttempt: 1, triggerType: "schedule", sourceBranch: "main", sourceSha },
+    now: observedAt + 500,
+  }), (error) => error?.classification === "proof_scheduled_late" && error?.reasonCode === "PROOF_SCHEDULED_LATE");
+  assert.deepEqual(sequence.calls, { healthCalls: 1, scheduledCalls: 1 });
 });
 
 test("authentication failures fail closed without retry", async () => {
