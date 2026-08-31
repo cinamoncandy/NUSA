@@ -10,6 +10,7 @@ import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
 import { buildLocalPortfolio, isLocalPaperActive } from "./localPaperLedger";
 import { useLocalPaperMarkPrice, useLocalPaperSnapshot } from "./localPaperLedgerHooks";
 import { SupervisorProgressPanel } from "./supervisorProgressPanel";
+import { buildChartViewModel, type PublicCandle } from "./chartViewModel";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
 export type HomeDestination = "Markets" | "AiSignal" | "Portfolio";
@@ -20,6 +21,11 @@ interface HomeViewProps {
   readonly readOnlyError: string | null;
   readonly notConfigured: string | null;
   readonly refreshing: boolean;
+  readonly publicMarket: string;
+  readonly publicCandles: readonly PublicCandle[] | null;
+  readonly publicCurrentPrice: number | null;
+  readonly publicMarketConnectionState: string;
+  readonly publicMarketStale: boolean;
   readonly onRefresh: () => void;
   readonly onGoSettings: () => void;
   readonly onNavigate: (destination: HomeDestination) => void;
@@ -78,6 +84,11 @@ export function HomeView({
   readOnlyError,
   notConfigured,
   refreshing,
+  publicMarket,
+  publicCandles,
+  publicCurrentPrice,
+  publicMarketConnectionState,
+  publicMarketStale,
   onRefresh,
   onGoSettings,
   onNavigate,
@@ -114,6 +125,15 @@ export function HomeView({
     return result;
   }, { up: 0, flat: 0, down: 0 });
   const hasMarketBreadth = publicMarkets.length > 0;
+  const marketWave = buildChartViewModel({
+    market: publicMarket,
+    interval: "1m",
+    rawCandles: publicCandles === null ? null : [...publicCandles],
+    currentPrice: publicCurrentPrice,
+    connectionState: publicMarketConnectionState,
+    stale: publicMarketStale,
+  });
+  const marketWaveBars = marketWave.state === "READY" ? marketWave.bars.slice(-20) : [];
   const positionOpen = account != null && account.position.quantity > 0 && Boolean(account.position.market);
   const decisionSurface = buildHomeDecisionSurface({
     runtimeState,
@@ -265,7 +285,20 @@ export function HomeView({
           <View style={[styles.metricTile, { borderColor: theme.colors.border }]}><Text style={[styles.metricKey, { color: theme.colors.textMuted }]}>ORDERS</Text><Text style={[styles.metricNumber, { color: theme.colors.text }]}>{heartbeat?.paperOrderCount ?? "—"}</Text></View>
           <View style={[styles.metricTile, { borderColor: theme.colors.border }]}><Text style={[styles.metricKey, { color: theme.colors.textMuted }]}>FILLS</Text><Text style={[styles.metricNumber, { color: theme.colors.text }]}>{heartbeat?.paperFillCount ?? "—"}</Text></View>
         </View>
-        <Text style={[styles.panelMeta, { color: theme.colors.textMuted }]}>TIME SERIES: UNAVAILABLE · no canonical HOME history projection</Text>
+        {marketWave.state === "READY" ? <View style={styles.marketWave} testID="home-market-wave-ready">
+          <View style={styles.marketWaveHeader}>
+            <Text style={[styles.metricKey, { color: theme.colors.textMuted }]}>MARKET WAVE · {marketWave.market} · 1m</Text>
+            <Text style={[styles.marketWavePrice, { color: theme.colors.text }]}>{marketWave.currentPrice == null ? "—" : krw(marketWave.currentPrice)}</Text>
+          </View>
+          <View style={[styles.marketWaveStrip, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceSunken }]} accessibilityLabel={`${marketWave.market} validated one minute candle market wave`}>
+            {marketWaveBars.map((bar) => <View key={bar.openTime} style={styles.marketWaveSlot}>
+              <View style={[styles.marketWaveWick, { top: `${bar.wickTop}%`, height: `${bar.wickHeight}%`, backgroundColor: bar.up ? terminalSignal : theme.colors.danger }]} />
+              <View style={[styles.marketWaveBody, { top: `${bar.bodyTop}%`, height: `${bar.bodyHeight}%`, backgroundColor: bar.up ? terminalSignal : theme.colors.danger }]} />
+            </View>)}
+          </View>
+        </View> : <View style={styles.marketWaveUnavailable} testID="home-market-wave-unavailable">
+          <Text style={[styles.panelMeta, { color: theme.colors.textMuted }]}>MARKET WAVE: UNAVAILABLE · {marketWave.error ?? marketWave.state}</Text>
+        </View>}
       </View>
 
       <View style={[styles.terminalPanel, terminalBorder]} testID="home-context-panel">
@@ -401,6 +434,14 @@ const styles = StyleSheet.create({
   metricKey: { fontSize: 7, lineHeight: 10, fontWeight: "900", letterSpacing: 0.7 },
   metricNumber: { fontSize: 11, lineHeight: 14, fontWeight: "900", fontVariant: ["tabular-nums"] },
   cashValue: { fontSize: 15, lineHeight: 19, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  marketWave: { gap: 5, paddingTop: 2 },
+  marketWaveHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  marketWavePrice: { fontSize: 9, lineHeight: 12, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  marketWaveStrip: { height: 62, borderWidth: 1, flexDirection: "row", alignItems: "stretch", overflow: "hidden", paddingHorizontal: 3 },
+  marketWaveSlot: { flex: 1, position: "relative", minWidth: 2 },
+  marketWaveWick: { position: "absolute", left: "48%", width: 1 },
+  marketWaveBody: { position: "absolute", left: "22%", right: "22%", minHeight: 2 },
+  marketWaveUnavailable: { minHeight: 34, justifyContent: "center" },
   portfolioHero: { gap: 1, paddingTop: 6 },
   heroMetric: { fontSize: 20, lineHeight: 24, fontWeight: "900", fontVariant: ["tabular-nums"] },
   portfolioRows: { gap: 0 },

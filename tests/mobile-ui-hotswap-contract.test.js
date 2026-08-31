@@ -53,17 +53,46 @@ test("HomeView consumes the MASTER profile and presents the dense truthful termi
 
 test("HOME terminal uses canonical data and declares unavailable feeds instead of fabricating them", () => {
   const home = read("apps/mobile/src/homeView.tsx");
+  const app = read("apps/mobile/App.tsx");
   assert.match(home, /const publicMarkets = snapshot\?\.markets \?\? \[\]/);
   assert.match(home, /market\.source|UPBIT PUBLIC/);
   assert.match(home, /NO VERIFIED MARKET SNAPSHOT/);
   assert.match(home, /ORDER FLOW: UNAVAILABLE/);
-  assert.match(home, /TIME SERIES: UNAVAILABLE/);
   assert.match(home, /NO VERIFIED FEED/);
   assert.match(home, /LOCAL PAPER · 실제 계좌\/Cloud PAPER와 합산하지 않음/);
   assert.match(home, /CLOUD PAPER · REAL account not blended/);
+
+  assert.match(app, /publicMarket=\{CHART_MARKET\}/);
+  assert.match(app, /publicCandles=\{publicMarkets\.candles\}/);
+  assert.match(app, /publicCurrentPrice=\{publicMarkets\.currentPrice\}/);
+  assert.match(app, /publicMarketConnectionState=\{publicMarketConnectionState\}/);
+  assert.match(app, /publicMarketStale=\{publicMarkets\.status !== "READY"\}/);
+
+  assert.match(home, /import \{ buildChartViewModel, type PublicCandle \} from "\.\/chartViewModel"/);
+  assert.match(home, /buildChartViewModel\(\{[\s\S]*market:\s*publicMarket,[\s\S]*interval:\s*"1m"[\s\S]*rawCandles:\s*publicCandles === null \? null : \[\.\.\.publicCandles\][\s\S]*currentPrice:\s*publicCurrentPrice[\s\S]*connectionState:\s*publicMarketConnectionState[\s\S]*stale:\s*publicMarketStale/);
+  assert.match(home, /marketWave\.state === "READY" \? marketWave\.bars\.slice\(-20\) : \[\]/);
+  assert.match(home, /marketWave\.state === "READY"[\s\S]*testID="home-market-wave-ready"/);
+  assert.match(home, /MARKET WAVE: UNAVAILABLE · \{marketWave\.error \?\? marketWave\.state\}/);
+  assert.match(home, /bar\.wickTop/);
+  assert.match(home, /bar\.wickHeight/);
+  assert.match(home, /bar\.bodyTop/);
+  assert.match(home, /bar\.bodyHeight/);
+  assert.match(home, /bar\.up \? terminalSignal : theme\.colors\.danger/);
+
   assert.doesNotMatch(home, /BTC[^\n]*(65000000|70000000|100000000)/);
+  assert.doesNotMatch(home, /Math\.random\(|synthetic|mock candle|fake candle/i);
   assert.doesNotMatch(home, /liveAuthority\s*=\s*["'](?:FULL|LIVE|ENABLED)["']/);
   assert.doesNotMatch(home, /productionMutationAllowed\s*=\s*true/);
+});
+
+test("HOME rendered financial values keep stable tabular numerals", () => {
+  const home = read("apps/mobile/src/homeView.tsx");
+  assert.match(home, /marketPrice:[^\n]*fontVariant:\s*\["tabular-nums"\]/);
+  assert.match(home, /marketChange:[^\n]*fontVariant:\s*\["tabular-nums"\]/);
+  assert.match(home, /metricNumber:[^\n]*fontVariant:\s*\["tabular-nums"\]/);
+  assert.match(home, /cashValue:[^\n]*fontVariant:\s*\["tabular-nums"\]/);
+  assert.match(home, /marketWavePrice:[^\n]*fontVariant:\s*\["tabular-nums"\]/);
+  assert.match(home, /dataValue:[^\n]*fontVariant:\s*\["tabular-nums"\]/);
 });
 
 test("fresh or stale installs converge on the canonical master preset", () => {
