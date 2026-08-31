@@ -87,10 +87,38 @@ function validateInput(input: NusaDevelopmentHealthSloInput): void {
   if (input.eventHistoryStartedAt !== null && (!isTimestamp(input.eventHistoryStartedAt) || input.eventHistoryStartedAt > input.asOf)) {
     throw new Error("SLO_EVENT_HISTORY_START_INVALID");
   }
+
+  for (const item of input.queue.items) {
+    if (!isTimestamp(item.createdAt) || item.createdAt > input.asOf) throw new Error(`SLO_WORK_CREATED_AT_INVALID:${item.id}`);
+    if (item.claim !== null) {
+      const claim = item.claim;
+      if (!isTimestamp(claim.claimedAt)
+        || !isTimestamp(claim.leaseExpiresAt)
+        || claim.claimedAt < item.createdAt
+        || claim.claimedAt > input.asOf
+        || claim.leaseExpiresAt <= claim.claimedAt) {
+        throw new Error(`SLO_CLAIM_CHRONOLOGY_INVALID:${item.id}`);
+      }
+    }
+  }
+
+  const eventIds = new Set<string>();
   for (const event of input.eventHistory) {
+    if (!SAFE_ID.test(event.eventId)) throw new Error("SLO_EVENT_ID_INVALID");
+    if (eventIds.has(event.eventId)) throw new Error(`SLO_EVENT_ID_DUPLICATE:${event.eventId}`);
+    eventIds.add(event.eventId);
     if (!isTimestamp(event.occurredAt) || event.occurredAt > input.asOf) throw new Error(`SLO_EVENT_TIMESTAMP_INVALID:${event.eventId}`);
     if (input.eventHistoryStartedAt !== null && event.occurredAt < input.eventHistoryStartedAt) {
       throw new Error(`SLO_EVENT_PRECEDES_HISTORY_START:${event.eventId}`);
+    }
+  }
+
+  if (input.ciTelemetry !== null) {
+    if (!Number.isFinite(input.ciTelemetry.workflowP50Ms)
+      || input.ciTelemetry.workflowP50Ms < 0
+      || !Number.isFinite(input.ciTelemetry.workflowP95Ms)
+      || input.ciTelemetry.workflowP95Ms < input.ciTelemetry.workflowP50Ms) {
+      throw new Error("SLO_CI_TELEMETRY_INVALID");
     }
   }
 }
@@ -119,10 +147,16 @@ function stalledAgentCount(receipts: readonly NusaAgentHeartbeatReceipt[], asOf:
     if (ids.has(receipt.agentId)) throw new Error(`SLO_AGENT_HEARTBEAT_DUPLICATE:${receipt.agentId}`);
     ids.add(receipt.agentId);
     if (!SHA256.test(receipt.sourceFingerprint)) throw new Error(`SLO_AGENT_FINGERPRINT_INVALID:${receipt.agentId}`);
-    if (!isTimestamp(receipt.lastHeartbeatAt) || receipt.lastHeartbeatAt > asOf || !Number.isSafeInteger(receipt.heartbeatTtlMs) || receipt.heartbeatTtlMs <= 0) {
+    const expiresAt = receipt.lastHeartbeatAt + receipt.heartbeatTtlMs;
+    if (!isTimestamp(receipt.lastHeartbeatAt)
+      || receipt.lastHeartbeatAt > asOf
+      || !Number.isSafeInteger(receipt.heartbeatTtlMs)
+      || receipt.heartbeatTtlMs <= 0
+      || !isTimestamp(expiresAt)
+      || expiresAt <= receipt.lastHeartbeatAt) {
       throw new Error(`SLO_AGENT_HEARTBEAT_INVALID:${receipt.agentId}`);
     }
-    if (receipt.lastHeartbeatAt + receipt.heartbeatTtlMs <= asOf) stalled += 1;
+    if (expiresAt <= asOf) stalled += 1;
   }
   return measured(stalled);
 }
@@ -150,13 +184,17 @@ function blockedTimeRatio(input: NusaDevelopmentHealthSloInput): NusaDevelopment
   let blockedMs = 0;
   for (const item of input.queue.items) {
     const events = (byWork.get(item.id) ?? []).sort((left, right) => left.occurredAt - right.occurredAt || left.eventId.localeCompare(right.eventId));
-    const merged = events.find((event) => event.type === "PR_MERGED");
-    const blocked = events.find((event) => event.type === "HUMAN_BLOCKED");
+    if (events.some((event) => event.occurredAt < item.createdAt)) return unknown(`EVENT_PRECEDES_WORK_CREATION:${item.id}`);
+    const mergedEvents = events.filter((event) => event.type === "PR_MERGED");
+    const blockedEvents = events.filter((event) => event.type === "HUMAN_BLOCKED");
+    if (mergedEvents.length > 1) return unknown(`MULTIPLE_MERGE_EVENTS:${item.id}`);
+    if (blockedEvents.length > 1) return unknown(`MULTIPLE_HUMAN_BLOCK_EVENTS:${item.id}`);
+    const merged = mergedEvents[0];
+    const blocked = blockedEvents[0];
     if (item.state === "MERGED" && !merged) return unknown(`MERGE_EVENT_MISSING:${item.id}`);
+    if (item.state !== "MERGED" && merged) return unknown(`MERGE_STATE_INCONSISTENT:${item.id}`);
     if (item.state === "BLOCKED_HUMAN" && !blocked) return unknown(`HUMAN_BLOCK_EVENT_MISSING:${item.id}`);
-    if (item.state !== "BLOCKED_HUMAN" && blocked && (!merged || blocked.occurredAt < merged.occurredAt)) {
-      return unknown(`HUMAN_BLOCK_STATE_INCONSISTENT:${item.id}`);
-    }
+    if (item.state !== "BLOCKED_HUMAN" && blocked) return unknown(`HUMAN_BLOCK_STATE_INCONSISTENT:${item.id}`);
 
     const start = Math.max(item.createdAt, input.windowStartedAt);
     const end = Math.min(input.asOf, merged?.occurredAt ?? input.asOf);
@@ -183,11 +221,15 @@ function portfolioRates(portfolio: EngineeringWorkPortfolio | null): Readonly<{ 
     conflicted.add(edge.packageId);
     if (edge.conflictingPackageId !== null) conflicted.add(edge.conflictingPackageId);
   }
-  return freeze({ duplicateWorkRate, conflictRate: measured(conflicted.size / portfolio.ready.length) });
+  const conflictRate = conflicted.size / portfolio.ready.length;
+  if (conflictRate > 1) throw new Error("SLO_WORK_PORTFOLIO_CONFLICT_RATE_INVALID");
+  return freeze({ duplicateWorkRate, conflictRate: measured(conflictRate) });
 }
 
 function reworkRate(telemetry: NusaMergeReworkTelemetrySnapshot | null): NusaDevelopmentSloNumber {
   if (!telemetry || telemetry.totals.total === 0) return unknown("MERGE_REWORK_EVIDENCE_MISSING");
+  const classified = telemetry.totals.exactHeadReady + telemetry.totals.staleHeadRevalidationRequired + telemetry.totals.unknown;
+  if (classified !== telemetry.totals.total) throw new Error("SLO_MERGE_REWORK_TOTAL_MISMATCH");
   if (telemetry.totals.unknown > 0) return unknown("MERGE_REWORK_UNKNOWN_OBSERVATIONS_PRESENT");
   return measured(telemetry.totals.staleHeadRevalidationRequired / telemetry.totals.total);
 }
