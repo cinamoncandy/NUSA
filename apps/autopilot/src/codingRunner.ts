@@ -163,6 +163,21 @@ function workersAiProposal(value: unknown): CodingProposal {
   return parseProposalText(payload.response);
 }
 
+// A configured external coding engine is expected to return the patch-only contract directly
+// ({ patch: string }), but provider-neutral gateways may wrap model output in the same generic
+// { response: string } envelope Workers AI uses. Fall back to that existing parser without
+// changing the strict patch-only contract or execution boundary.
+function configuredEngineProposal(value: unknown): CodingProposal {
+  try {
+    return validateCodingProposal(value);
+  } catch (error) {
+    if (value && typeof value === "object" && !Array.isArray(value) && typeof (value as Record<string, unknown>).response === "string") {
+      return workersAiProposal(value);
+    }
+    throw error;
+  }
+}
+
 function publicRuntimeResult(runtime: CodingRuntimeExecutionResult): Pick<CodingRunnerResult, "backend" | "checkpointId" | "workspaceVerified" | "proposalValidated" | "changedFiles"> {
   return {
     backend: runtime.backend,
@@ -307,7 +322,7 @@ export async function executeCodingRunner(
     if (!response.ok) return { status: "EXECUTION_FAILED", httpStatus: response.status, reason: "coding-engine-request-failed" };
     if (!runtime) return { status: "EXECUTION_ACCEPTED", httpStatus: response.status };
     try {
-      return await executeProposal(request, validateCodingProposal(await response.json()), runtime, publisher, response.status);
+      return await executeProposal(request, configuredEngineProposal(await response.json()), runtime, publisher, response.status);
     } catch (error) {
       return { status: "EXECUTION_FAILED", reason: error instanceof Error ? error.message : "CODING_PROPOSAL_INVALID", httpStatus: response.status };
     }
