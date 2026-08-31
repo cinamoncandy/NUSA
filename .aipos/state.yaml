@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-31T17:07:16+09:00"
+updated_at: "2026-08-31T17:35:58+09:00"
 current_execution_target:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -34,6 +34,18 @@ latest_ai_contract_slice:
   validation: "Focused assembly tests 10/10; architecture, safety, AI-zero-authority, lifecycle, type-safety, and build validations PASS; exact-head protected workflows 6/6 PASS."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   remaining: "AI output remains proposal/analysis only; scenarios and risk framing require caller-owned evidence and no LIVE or production mutation path is added."
+latest_runtime_proof_slice:
+  status: COMPLETED
+  base_commit: ae57de2886d31819b313e44e6e8aabae44f369ec
+  implementation_branch: test/1288-runtime-proof-classifications
+  implementation_head: 8604702e83e49a7b8657bca7f50b26f4ba613753
+  pull_request: 1325
+  merge_commit: 5c30e2d401ceb54fedc55cbaa7c021e73e628eb9
+  exact_head_ci: "6/6 PASS (CI run 33373028629; protected workflow runs on exact head)"
+  scope: "Direct regression coverage for proof_not_scheduled and proof_scheduled_late classifications in the existing Cloudflare runtime-proof verifier."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  remaining: "GitHub scheduled-event delivery remains external evidence; two consecutive fresh scheduled proofs are still pending."
+
 current_research_follow_up:
   work_order: WO-ISSUE-1094-RESEARCH-FACTORY
   status: COMPLETED
