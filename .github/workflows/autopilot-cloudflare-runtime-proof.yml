@@ -35,6 +35,7 @@ jobs:
       NUSA_RUNTIME_PROOF_RUN_ATTEMPT: ${{ github.run_attempt }}
       NUSA_RUNTIME_PROOF_SOURCE_SHA: ${{ github.sha }}
       NUSA_RUNTIME_PROOF_SOURCE_BRANCH: ${{ github.ref_name }}
+      NUSA_RUNTIME_PROOF_STARTED_AT: ${{ github.run_started_at }}
     steps:
       - name: Prepare proof evidence directory
         run: mkdir -p artifacts/autopilot

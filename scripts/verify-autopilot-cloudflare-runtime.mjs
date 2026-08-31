@@ -28,6 +28,12 @@ function positiveInteger(value) {
   return Number.isSafeInteger(number) && number > 0 ? number : null;
 }
 
+function timestamp(value) {
+  if (Number.isSafeInteger(value) && value >= 0) return value;
+  const parsed = Date.parse(String(value ?? ""));
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
+}
+
 function runtimeContext(overrides = {}) {
   const sourceShaValue = process.env.NUSA_RUNTIME_PROOF_SOURCE_SHA?.trim() || process.env.GITHUB_SHA?.trim() || "";
   return {
@@ -37,7 +43,7 @@ function runtimeContext(overrides = {}) {
     triggerType: process.env.NUSA_RUNTIME_PROOF_EVENT?.trim() || process.env.GITHUB_EVENT_NAME?.trim() || "unknown",
     sourceBranch: process.env.NUSA_RUNTIME_PROOF_SOURCE_BRANCH?.trim() || process.env.GITHUB_REF_NAME?.trim() || null,
     sourceSha: SHA_40.test(sourceShaValue) ? sourceShaValue.toLowerCase() : null,
-    actualStartTimestamp: Number.isSafeInteger(Number(process.env.GITHUB_RUN_STARTED_AT)) ? Number(process.env.GITHUB_RUN_STARTED_AT) : null,
+    actualStartTimestamp: timestamp(process.env.NUSA_RUNTIME_PROOF_STARTED_AT || process.env.GITHUB_RUN_STARTED_AT),
     ...overrides,
   };
 }

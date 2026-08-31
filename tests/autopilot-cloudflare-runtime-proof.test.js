@@ -113,6 +113,31 @@ test("scheduled proof binds the actual workflow run and exact source head", asyn
   assert.deepEqual(sequence.calls, { healthCalls: 1, scheduledCalls: 1 });
 });
 
+test("runtime context preserves the workflow start timestamp when supplied as ISO evidence", async () => {
+  const sourceSha = "a".repeat(40);
+  const verifier = await loadVerifier();
+  const previous = process.env.NUSA_RUNTIME_PROOF_STARTED_AT;
+  process.env.NUSA_RUNTIME_PROOF_STARTED_AT = "2026-08-31T02:00:00.000Z";
+  try {
+    const proof = await verifier.collectRuntimeProof({
+      fetchImpl: fetchSequence({ headSha: sourceSha }).fetchImpl,
+      requestBaseUrl: "https://example.test",
+      contextOverride: {
+        workflowRunId: 12345,
+        workflowRunAttempt: 1,
+        triggerType: "schedule",
+        sourceBranch: "main",
+        sourceSha,
+      },
+      now: 1_700_000_000_500,
+    });
+    assert.equal(proof.actualStartTimestamp, Date.parse("2026-08-31T02:00:00.000Z"));
+  } finally {
+    if (previous === undefined) delete process.env.NUSA_RUNTIME_PROOF_STARTED_AT;
+    else process.env.NUSA_RUNTIME_PROOF_STARTED_AT = previous;
+  }
+});
+
 test("transient runtime failures retry only within the bounded budget", async () => {
   const sourceSha = "a".repeat(40);
   const sequence = fetchSequence({ headSha: sourceSha, transientScheduledFailures: 1 });
