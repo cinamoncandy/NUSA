@@ -5,6 +5,7 @@ import {
 } from "./liveSessionBoundPreExecution";
 import {
   prepareLiveTransportRequest,
+  type LiveTransportConsumeScope,
   type LiveTransportDecision,
 } from "./liveTransportContract";
 
@@ -22,9 +23,10 @@ export interface LiveSessionTransportChainResult {
 export async function prepareSessionBoundLiveTransport(
   request: LiveSessionBoundPreExecutionRequest,
   consumeOnce: LiveExecutionConsumeOnce,
+  consumeScope?: LiveTransportConsumeScope,
 ): Promise<LiveSessionTransportChainResult> {
   const envelope = evaluateLiveSessionBoundPreExecution(request);
-  const transport = await prepareLiveTransportRequest(envelope, consumeOnce, request.now);
+  const transport = await prepareLiveTransportRequest(envelope, consumeOnce, request.now, consumeScope);
 
   return Object.freeze({
     preExecutionStatus: envelope.status,
