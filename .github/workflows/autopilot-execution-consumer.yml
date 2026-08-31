@@ -112,6 +112,7 @@ jobs:
         env:
           NUSA_CODING_RUNNER_URL: https://nusa-autopilot.desporin12.workers.dev/coding/execute
         run: node scripts/autopilot-dispatch-retry.js
+
       - name: Classify execution boundary
         if: always()
         run: |
@@ -131,3 +132,98 @@ jobs:
         with:
           name: autopilot-execution-${{ github.run_id }}
           path: artifacts/autopilot-execution
+
+  audit-request:
+    # PR CI success is an independent Audit handoff. It must never start the next main coding cycle.
+    if: ${{ github.event.client_payload.kind == 'AUDIT_REQUEST' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Persist audit dispatch evidence
+        run: |
+          mkdir -p artifacts/autopilot-audit-request
+          cat "$GITHUB_EVENT_PATH" > artifacts/autopilot-audit-request/repository-dispatch.json
+
+      - name: Validate fail-closed audit payload
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+          const payload = event.client_payload || {};
+          const fail = (message) => { console.error(message); process.exit(1); };
+          if (payload.kind !== 'AUDIT_REQUEST') fail(`unexpected kind: ${payload.kind}`);
+          if (payload.repository !== process.env.GITHUB_REPOSITORY) fail(`repository mismatch: ${payload.repository}`);
+          if (!Number.isSafeInteger(payload.pr_number) || payload.pr_number <= 0) fail('pr_number must be a positive safe integer');
+          if (!/^[0-9a-f]{40}$/i.test(payload.head_sha || '')) fail('head_sha must be an exact 40-character commit SHA');
+          if (!Number.isSafeInteger(payload.workflow_run_id) || payload.workflow_run_id <= 0) fail('workflow_run_id must be a positive safe integer');
+          if (!/^[A-Za-z0-9_.:-]{1,160}$/.test(payload.execution_id || '')) fail('execution_id must be a bounded lifecycle identity');
+          if (!/^[A-Za-z0-9_.:-]{1,256}$/.test(payload.dedupe_key || '')) fail('dedupe_key must be a bounded lifecycle identity');
+          if (payload.live_authority !== 'NONE') fail('live_authority must remain NONE');
+          if (payload.production_mutation_allowed !== false) fail('production_mutation_allowed must remain false');
+          if (payload.ai_authority !== 'ZERO_AUTHORITY') fail('ai_authority must remain ZERO_AUTHORITY');
+          NODE
+
+      - name: Verify current PR head and canonical CI evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          REQUESTED_HEAD: ${{ github.event.client_payload.head_sha }}
+          WORKFLOW_RUN_ID: ${{ github.event.client_payload.workflow_run_id }}
+        run: |
+          set -euo pipefail
+          current_head="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha')"
+          current_state="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.state')"
+          test "$current_state" = "open" || { echo "PR is not open: $current_state"; exit 1; }
+          test "$current_head" = "$REQUESTED_HEAD" || { echo "stale PR head: requested=$REQUESTED_HEAD current=$current_head"; exit 1; }
+
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$WORKFLOW_RUN_ID" > artifacts/autopilot-audit-request/workflow-run.json
+          node - <<'NODE'
+          const fs = require('fs');
+          const run = JSON.parse(fs.readFileSync('artifacts/autopilot-audit-request/workflow-run.json', 'utf8'));
+          const pr = Number(process.env.PR_NUMBER);
+          const expectedHead = process.env.REQUESTED_HEAD;
+          const fail = (message) => { console.error(message); process.exit(1); };
+          if (run.name !== 'CI') fail(`unexpected workflow: ${run.name}`);
+          if (run.event !== 'pull_request') fail(`unexpected workflow event: ${run.event}`);
+          if (run.status !== 'completed' || run.conclusion !== 'success') fail(`CI is not successful: ${run.status}/${run.conclusion}`);
+          if (run.head_sha !== expectedHead) fail(`CI head mismatch: ${run.head_sha}`);
+          const numbers = Array.isArray(run.pull_requests) ? run.pull_requests.map((value) => value?.number).filter(Number.isSafeInteger) : [];
+          if (!numbers.includes(pr)) fail(`workflow run is not bound to PR #${pr}`);
+          NODE
+
+      - name: Publish idempotent Audit request on PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          REQUESTED_HEAD: ${{ github.event.client_payload.head_sha }}
+          WORKFLOW_RUN_ID: ${{ github.event.client_payload.workflow_run_id }}
+        run: |
+          set -euo pipefail
+          marker="<!-- nusa-audit-request:${PR_NUMBER}:${WORKFLOW_RUN_ID}:${REQUESTED_HEAD} -->"
+          existing="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --jq ".[] | select(.body | contains(\"$marker\")) | .id" | head -n 1)"
+          if [ -n "$existing" ]; then
+            echo "Audit request already published as comment $existing"
+            exit 0
+          fi
+          cat > artifacts/autopilot-audit-request/audit-request.md <<EOF
+          $marker
+          ## NUSA Audit request
+
+          - PR: #$PR_NUMBER
+          - exact head: \`$REQUESTED_HEAD\`
+          - canonical CI run: \`$WORKFLOW_RUN_ID\`
+          - CI result: **PASS**
+          - next stage: **independent Audit**
+          - stale-head rule: any PR head change invalidates this request
+          - liveAuthority: \`NONE\`
+          - productionMutationAllowed: \`false\`
+          - aiAuthority: \`ZERO_AUTHORITY\`
+          EOF
+          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file artifacts/autopilot-audit-request/audit-request.md
+
+      - name: Upload Audit request evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: autopilot-audit-request-${{ github.run_id }}
+          path: artifacts/autopilot-audit-request

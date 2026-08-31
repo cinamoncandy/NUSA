@@ -5,6 +5,7 @@ export type AutopilotDispatchKind =
   | "MAIN_PUSH"
   | "PR_CHANGED"
   | "CI_SUCCEEDED"
+  | "PR_CI_SUCCEEDED"
   | "CI_FAILED"
   | "IGNORED";
 
@@ -25,6 +26,7 @@ const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 const object = (value: unknown): JsonObject | null => value !== null && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : null;
 const text = (value: unknown): string | null => typeof value === "string" && value.trim() ? value : null;
 const positiveInteger = (value: unknown): number | null => Number.isSafeInteger(value) && Number(value) > 0 ? Number(value) : null;
+const array = (value: unknown): readonly unknown[] => Array.isArray(value) ? value : [];
 
 function repositoryName(payload: JsonObject): string | null {
   return text(object(payload.repository)?.full_name);
@@ -32,6 +34,13 @@ function repositoryName(payload: JsonObject): string | null {
 
 function ignored(payload: JsonObject, reason: string): AutopilotDispatchPlan {
   return freeze({ kind: "IGNORED", repository: repositoryName(payload), headSha: null, prNumber: null, workflowRunId: null, reason, mutationAllowed: false });
+}
+
+function workflowRunPullRequestNumber(run: JsonObject): number | null {
+  const numbers = [...new Set(array(run.pull_requests)
+    .map((value) => positiveInteger(object(value)?.number))
+    .filter((value): value is number => value !== null))];
+  return numbers.length === 1 ? numbers[0] : null;
 }
 
 export function parseGithubWebhookPayload(body: string): JsonObject {
@@ -76,21 +85,40 @@ export function planGithubWebhookDispatch(event: SupportedGithubEvent, payload: 
   const status = text(run?.status);
   const conclusion = text(run?.conclusion);
   const workflowName = text(run?.name);
+  const runEvent = text(run?.event);
   if (action !== "completed" || !run || !workflowRunId || !headSha || status !== "completed") return ignored(payload, "workflow-run-not-completed");
 
   // repository_dispatch is the output edge of this autopilot. Dispatching again when the
   // consumer workflow completes would create a self-amplifying workflow_run -> dispatch loop.
-  if (text(run.event) === "repository_dispatch") return ignored(payload, "workflow-run-originated-from-repository-dispatch");
+  if (runEvent === "repository_dispatch") return ignored(payload, "workflow-run-originated-from-repository-dispatch");
 
   if (conclusion === "success") {
     // A single commit can complete several successful workflows. Only the canonical full CI
     // workflow may advance the development loop; auxiliary evidence/workflows remain signals,
     // not duplicate execution edges for the same head SHA.
     if (workflowName !== CANONICAL_CI_WORKFLOW) return ignored(payload, "workflow-run-success-not-canonical-ci");
+
+    if (runEvent === "pull_request") {
+      const prNumber = workflowRunPullRequestNumber(run);
+      if (!prNumber) return ignored(payload, "pr-ci-success-missing-pr-identity");
+      return freeze({
+        kind: "PR_CI_SUCCEEDED",
+        repository,
+        headSha,
+        prNumber,
+        workflowRunId,
+        reason: "pull-request-ci-success",
+        mutationAllowed: false,
+      });
+    }
+
+    if (runEvent !== "push" || text(run.head_branch) !== "main") {
+      return ignored(payload, "canonical-ci-success-origin-not-actionable");
+    }
     return freeze({ kind: "CI_SUCCEEDED", repository, headSha, prNumber: null, workflowRunId, reason: "workflow-run-success", mutationAllowed: false });
   }
   if (["failure", "cancelled", "timed_out", "action_required", "startup_failure", "stale"].includes(conclusion ?? "")) {
-    return freeze({ kind: "CI_FAILED", repository, headSha, prNumber: null, workflowRunId, reason: `workflow-run:${conclusion}`, mutationAllowed: false });
+    return freeze({ kind: "CI_FAILED", repository, headSha, prNumber: workflowRunPullRequestNumber(run), workflowRunId, reason: `workflow-run:${conclusion}`, mutationAllowed: false });
   }
   return ignored(payload, `workflow-run-conclusion:${conclusion ?? "unknown"}`);
 }

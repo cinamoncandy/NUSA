@@ -4,6 +4,7 @@ export type NusaDevelopmentWorkState =
   | "IMPLEMENTING"
   | "VALIDATING"
   | "CI"
+  | "AUDIT"
   | "MERGE_READY"
   | "MERGED"
   | "BLOCKED_HUMAN";
@@ -104,7 +105,7 @@ export interface ClaimNusaDevelopmentPortfolioResult {
 }
 
 const PRIORITY_RANK: Readonly<Record<NusaDevelopmentPriority, number>> = Object.freeze({ P0: 0, P1: 1, P2: 2, P3: 3 });
-const ACTIVE_STATES: ReadonlySet<NusaDevelopmentWorkState> = new Set(["CLAIMED", "IMPLEMENTING", "VALIDATING", "CI", "MERGE_READY"]);
+const ACTIVE_STATES: ReadonlySet<NusaDevelopmentWorkState> = new Set(["CLAIMED", "IMPLEMENTING", "VALIDATING", "CI", "AUDIT", "MERGE_READY"]);
 
 const isCanonicalTimestamp = (value: number): boolean => Number.isSafeInteger(value) && value >= 0;
 
