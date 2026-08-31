@@ -862,19 +862,20 @@ issue_1288_cloudflare_runtime_proof:
 issue_903_event_bridge:
   work_order: WO-ISSUE-903-EVENT-REPLAY-HARDENING
   issue: 903
-  status: IMPLEMENTED_INTERFACE_READY_PENDING_PR_UPDATE
+  status: INGRESS_CONNECTED_WAITING_EXECUTION
   base_sha: db9067754e12c2e462579f5b39b0ebc99a182d19
   branch: codex/903-github-event-bridge
   implementation_commit: 53263fb1caffe48632b3a5e4abc43997475ad1b7
   pull_request: 1304
-  latest_main: e5a7e370e5bb2d822a94df57e088f3233e117398
+  merged_main: 259b98f21ebe4d28644ac406e26aeb4b3a19648c
+  latest_main: 259b98f21ebe4d28644ac406e26aeb4b3a19648c
   main_integration_commit: 8d448f8a
-  validation_head: 8d448f8a
-  remote_required_checks: STALE_PRIOR_HEAD_PASS_6_OF_6_REVALIDATION_REQUIRED
-  merge_state: MAIN_INTEGRATED_REMOTE_REVALIDATION_PENDING
+  validation_head: e8ce56ae978433726a750e67384ede5dee941379
+  remote_required_checks: MERGED_CODE_HEAD_PASS_6_OF_6_AIPOS_FOLLOWUP_NOT_RUN
+  merge_state: MERGED_RUNTIME_PROOF_BLOCKED_BY_MISSING_SECRET
   scope: "Signed GitHub push, pull_request_target, and canonical CI workflow_run ingress into the existing read-only Autopilot webhook spine; no second queue, scheduler, executor, or mutation path."
   canonical_spine: EXISTING_AUTOPILOT_WEBHOOK_PLANNER_EXECUTION
-  runtime_activation: INTERFACE_READY_PENDING_SECRET_AND_ARTIFACT_BACKED_DELIVERY
+  runtime_activation: INGRESS_CONNECTED_WAITING_MISSING_SECRET_AND_ARTIFACT_BACKED_EXECUTION
   local_validation:
     focused_bridge: PASS_7_OF_7
     affected_autopilot_regression: PASS_20_OF_20
@@ -896,6 +897,14 @@ issue_903_event_bridge:
     aipos_conformance: PASS
     aipos_provenance: PASS
     diff_check: PASS
-  event_delivery: "The workflow makes no request when NUSA_WEBHOOK_SECRET is absent and never claims ACTIVE; real delivery remains unproven until artifact-backed runtime evidence exists."
+  event_delivery: "Post-merge push proof run 33354759806 on main 259b98f21ebe4d28644ac406e26aeb4b3a19648c completed successfully; the bridge logged INTERFACE_READY with attempts=0 and no response because NUSA_WEBHOOK_SECRET was empty. No canonical Worker request or control-plane execution occurred."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  next: "Push the latest-main-integrated branch, await exact-head revalidation, then preserve the protected-main owner gate and #1288 scheduled-proof acceptance as separate external gates."
+  post_merge_runtime_proof:
+    workflow_run: 33354759806
+    trigger: push
+    source_sha: 259b98f21ebe4d28644ac406e26aeb4b3a19648c
+    workflow_conclusion: SUCCESS
+    bridge_result: INTERFACE_READY
+    webhook_request: NOT_SENT_MISSING_NUSA_WEBHOOK_SECRET
+    control_plane_receipt: NOT_PROVEN
+  next: "Owner must configure NUSA_WEBHOOK_SECRET in GitHub Actions without exposing its value; then a fresh push/workflow_run proof must show canonical Worker delivery and control-plane receipt before #903 can become ACTIVE."
