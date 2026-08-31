@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-31T14:58:51+09:00"
+updated_at: "2026-08-31T15:04:20+09:00"
 current_execution_target:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -25,7 +25,7 @@ latest_research_slice:
 base_branch: main
 active_branch: fix/905-ready-work-portfolio
 active_successor_branch: fix/905-ready-work-portfolio
-active_pull_request: null
+active_pull_request: 1313
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -84,14 +84,14 @@ repository_maintenance:
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
   work_order: WO-ISSUE-905-READY-WORK-SUPPLY
-  status: IN_PROGRESS
+  status: VERIFYING
   branch: fix/905-ready-work-portfolio
   base_commit: 779243809ede56eff42eedb1f594b40b0df5e19e
   scope: "Evidence-bound repository work-supply portfolio and bounded parallel development claims; non-LIVE only."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  implementation_commit: "90a6ef89f02862b2edb508c3ce12f472bbbefafe; exact-head PR pending."
-  pull_request: null
-  validation: "Local typecheck, build, lint, full 821-file isolated suite, architecture/AIPOS, safety, and diff checks pass; remote exact-head validation pending."
+  implementation_commit: "25142e6f76bcb16fe593ff3ca28965e280af9980; PR #1313 exact-head protected checks running."
+  pull_request: 1313
+  validation: "Local typecheck, build, lint, full 821-file isolated suite, architecture/AIPOS, safety, and diff checks pass; PR #1313 base 779243809ede56eff42eedb1f594b40b0df5e19e and head 25142e6f76bcb16fe593ff3ca28965e280af9980 verified; protected checks running."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
