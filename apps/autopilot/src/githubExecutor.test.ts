@@ -14,7 +14,24 @@ const request: AutopilotExecutionRequest = {
   mutationAllowed: false,
 };
 
+const auditRequest: AutopilotExecutionRequest = {
+  kind: "AUDIT_REQUEST",
+  repository: "cinamoncandy/NUSA",
+  headSha: "c".repeat(40),
+  prNumber: 42,
+  workflowRunId: 987654321,
+  reason: `audit:pr:42:ci:987654321:${"c".repeat(40)}`,
+  executionId: "audit:42:987654321",
+  dedupeKey: `audit:42:987654321:${"c".repeat(40)}`,
+  mutationAllowed: false,
+};
+
 const mainResponse = (sha = request.headSha!) => new Response(JSON.stringify({ commit: { sha } }), {
+  status: 200,
+  headers: { "content-type": "application/json" },
+});
+
+const prResponse = (sha = auditRequest.headSha!, state = "open") => new Response(JSON.stringify({ state, head: { sha } }), {
   status: 200,
   headers: { "content-type": "application/json" },
 });
@@ -56,10 +73,14 @@ describe("executeGithubDispatch", () => {
       token: "secret",
       allowedRepository: "cinamoncandy/NUSA",
     }, fakeFetch)).reason, "github-executor-dedupe-key-required");
+    assert.equal((await executeGithubDispatch({ ...auditRequest, prNumber: null }, {
+      token: "secret",
+      allowedRepository: "cinamoncandy/NUSA",
+    }, fakeFetch)).reason, "github-executor-pr-number-required");
     assert.equal(called, false);
   });
 
-  it("suppresses stale head before repository dispatch is created", async () => {
+  it("suppresses stale main head before repository dispatch is created", async () => {
     const calls: string[] = [];
     const fakeFetch = (async (url: string | URL | Request) => {
       calls.push(String(url));
@@ -75,6 +96,24 @@ describe("executeGithubDispatch", () => {
     assert.equal(value.status, "REJECTED");
     assert.equal(value.reason, "github-executor-stale-head-suppressed");
     assert.deepEqual(calls, ["https://api.example.test/repos/cinamoncandy/NUSA/branches/main"]);
+  });
+
+  it("suppresses stale PR audit heads and never substitutes current main", async () => {
+    const calls: string[] = [];
+    const fakeFetch = (async (url: string | URL | Request) => {
+      calls.push(String(url));
+      return prResponse("d".repeat(40));
+    }) as typeof fetch;
+
+    const value = await executeGithubDispatch(auditRequest, {
+      token: "secret",
+      allowedRepository: "cinamoncandy/NUSA",
+      apiBaseUrl: "https://api.example.test/",
+    }, fakeFetch);
+
+    assert.equal(value.status, "REJECTED");
+    assert.equal(value.reason, "github-executor-stale-pr-head-suppressed");
+    assert.deepEqual(calls, ["https://api.example.test/repos/cinamoncandy/NUSA/pulls/42"]);
   });
 
   it("sends one bounded repository dispatch with durable lifecycle identity and no authority escalation", async () => {
@@ -102,6 +141,33 @@ describe("executeGithubDispatch", () => {
     assert.equal(payload.client_payload.workflow_run_id, 123456789);
     assert.equal(payload.client_payload.execution_id, request.executionId);
     assert.equal(payload.client_payload.dedupe_key, request.dedupeKey);
+    assert.equal(payload.client_payload.production_mutation_allowed, false);
+    assert.equal(payload.client_payload.live_authority, "NONE");
+    assert.equal(payload.client_payload.ai_authority, "ZERO_AUTHORITY");
+  });
+
+  it("dispatches an audit request only after exact current PR-head verification", async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const fakeFetch = (async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), init });
+      if (String(url).endsWith("/pulls/42")) return prResponse();
+      return new Response(null, { status: 204 });
+    }) as typeof fetch;
+
+    const value = await executeGithubDispatch(auditRequest, {
+      token: "secret",
+      allowedRepository: "cinamoncandy/NUSA",
+      apiBaseUrl: "https://api.example.test/",
+    }, fakeFetch);
+
+    assert.equal(value.status, "DISPATCHED");
+    assert.equal(calls[0]?.url, "https://api.example.test/repos/cinamoncandy/NUSA/pulls/42");
+    assert.equal(calls[1]?.url, "https://api.example.test/repos/cinamoncandy/NUSA/dispatches");
+    const payload = JSON.parse(String(calls[1]?.init?.body));
+    assert.equal(payload.client_payload.kind, "AUDIT_REQUEST");
+    assert.equal(payload.client_payload.pr_number, 42);
+    assert.equal(payload.client_payload.head_sha, auditRequest.headSha);
+    assert.equal(payload.client_payload.workflow_run_id, auditRequest.workflowRunId);
     assert.equal(payload.client_payload.production_mutation_allowed, false);
     assert.equal(payload.client_payload.live_authority, "NONE");
     assert.equal(payload.client_payload.ai_authority, "ZERO_AUTHORITY");

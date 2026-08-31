@@ -25,20 +25,22 @@ function object(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }
 
+function githubHeaders(token: string): Record<string, string> {
+  return {
+    accept: "application/vnd.github+json",
+    authorization: `Bearer ${token}`,
+    "user-agent": "nusa-autopilot-worker",
+    "x-github-api-version": "2022-11-28",
+  };
+}
+
 async function resolveCurrentMainSha(
   base: string,
   repository: string,
   token: string,
   fetchImpl: typeof fetch,
 ): Promise<GithubExecutorResult | string> {
-  const response = await fetchImpl(`${base}/repos/${repository}/branches/main`, {
-    headers: {
-      accept: "application/vnd.github+json",
-      authorization: `Bearer ${token}`,
-      "user-agent": "nusa-autopilot-worker",
-      "x-github-api-version": "2022-11-28",
-    },
-  });
+  const response = await fetchImpl(`${base}/repos/${repository}/branches/main`, { headers: githubHeaders(token) });
   if (response.status === 401 || response.status === 403) return result("FAILED", "github-executor-auth-rejected", response.status);
   if (response.status === 404) return result("FAILED", "github-executor-repository-or-token-scope-invalid", 404);
   if (!response.ok) return result("FAILED", `github-executor-main-head-http-${response.status}`, response.status);
@@ -50,6 +52,30 @@ async function resolveCurrentMainSha(
   }
   const sha = object(object(payload)?.commit)?.sha;
   if (typeof sha !== "string" || !SHA40.test(sha)) return result("FAILED", "github-executor-main-head-invalid", response.status);
+  return sha.toLowerCase();
+}
+
+async function resolveCurrentPullRequestHead(
+  base: string,
+  repository: string,
+  prNumber: number,
+  token: string,
+  fetchImpl: typeof fetch,
+): Promise<GithubExecutorResult | string> {
+  const response = await fetchImpl(`${base}/repos/${repository}/pulls/${prNumber}`, { headers: githubHeaders(token) });
+  if (response.status === 401 || response.status === 403) return result("FAILED", "github-executor-auth-rejected", response.status);
+  if (response.status === 404) return result("FAILED", "github-executor-pr-or-token-scope-invalid", 404);
+  if (!response.ok) return result("FAILED", `github-executor-pr-head-http-${response.status}`, response.status);
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    return result("FAILED", "github-executor-pr-head-invalid", response.status);
+  }
+  const pr = object(payload);
+  const sha = object(pr?.head)?.sha;
+  if (pr?.state !== "open") return result("REJECTED", "github-executor-pr-not-open", response.status);
+  if (typeof sha !== "string" || !SHA40.test(sha)) return result("FAILED", "github-executor-pr-head-invalid", response.status);
   return sha.toLowerCase();
 }
 
@@ -67,24 +93,28 @@ export async function executeGithubDispatch(
   if (!Number.isSafeInteger(request.workflowRunId) || (request.workflowRunId ?? 0) <= 0) {
     return result("REJECTED", "github-executor-workflow-run-id-required");
   }
-  if (request.kind === "REPOSITORY_AUTOPILOT") {
+  if (request.kind === "REPOSITORY_AUTOPILOT" || request.kind === "AUDIT_REQUEST") {
     if (!request.executionId || !EXECUTION_ID.test(request.executionId)) return result("REJECTED", "github-executor-execution-id-required");
     if (!request.dedupeKey || !DEDUPE_KEY.test(request.dedupeKey)) return result("REJECTED", "github-executor-dedupe-key-required");
   }
+  if (request.kind === "AUDIT_REQUEST" && (!Number.isSafeInteger(request.prNumber) || (request.prNumber ?? 0) <= 0)) {
+    return result("REJECTED", "github-executor-pr-number-required");
+  }
 
   const base = (config.apiBaseUrl ?? "https://api.github.com").replace(/\/$/, "");
-  const currentMainSha = await resolveCurrentMainSha(base, config.allowedRepository, token, fetchImpl);
-  if (typeof currentMainSha !== "string") return currentMainSha;
-  if (currentMainSha !== request.headSha.toLowerCase()) return result("REJECTED", "github-executor-stale-head-suppressed");
+  const currentHead = request.kind === "AUDIT_REQUEST"
+    ? await resolveCurrentPullRequestHead(base, config.allowedRepository, request.prNumber!, token, fetchImpl)
+    : await resolveCurrentMainSha(base, config.allowedRepository, token, fetchImpl);
+  if (typeof currentHead !== "string") return currentHead;
+  if (currentHead !== request.headSha.toLowerCase()) {
+    return result("REJECTED", request.kind === "AUDIT_REQUEST" ? "github-executor-stale-pr-head-suppressed" : "github-executor-stale-head-suppressed");
+  }
 
   const response = await fetchImpl(`${base}/repos/${config.allowedRepository}/dispatches`, {
     method: "POST",
     headers: {
-      accept: "application/vnd.github+json",
-      authorization: `Bearer ${token}`,
+      ...githubHeaders(token),
       "content-type": "application/json",
-      "user-agent": "nusa-autopilot-worker",
-      "x-github-api-version": "2022-11-28",
     },
     body: JSON.stringify({
       event_type: "nusa_autopilot_execution",
@@ -92,6 +122,7 @@ export async function executeGithubDispatch(
         kind: request.kind,
         repository: request.repository,
         head_sha: request.headSha,
+        pr_number: request.prNumber ?? null,
         workflow_run_id: request.workflowRunId,
         reason: request.reason,
         execution_id: request.executionId ?? null,

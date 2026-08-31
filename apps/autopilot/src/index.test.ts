@@ -144,6 +144,7 @@ describe("NUSA autopilot GitHub webhook", () => {
         kind: string;
         repository: string | null;
         headSha: string | null;
+        prNumber: number | null;
         workflowRunId: number | null;
         reason: string;
         mutationAllowed: boolean;
@@ -158,6 +159,7 @@ describe("NUSA autopilot GitHub webhook", () => {
       kind: "REPOSITORY_AUTOPILOT",
       repository: "cinamoncandy/NUSA",
       headSha: "a".repeat(40),
+      prNumber: null,
       workflowRunId: null,
       reason: "continue-from:main_push",
       mutationAllowed: false,
