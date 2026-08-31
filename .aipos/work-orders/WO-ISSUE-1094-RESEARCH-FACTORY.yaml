@@ -47,10 +47,13 @@ implementation:
   known_truth: "The canonical research-factory code is present; actual longitudinal realized PAPER history must remain unavailable/fail-closed until produced by a truthful runtime source."
   next: "PR #1287 projects known PBO insufficiency as explicit INSUFFICIENT output; continue to fail closed until a truthful longitudinal PAPER source exists."
 current_follow_up:
-  status: VERIFYING
+  status: COMPLETED
   base_commit: 07b92f86bbac6e939906c9de88575ac89d316f9f
   implementation_branch: codex/research-factory-hypothesis-admission
-  implementation_commit: 49ad713061c6b26868789df7f793f9b127ef800c
+  implementation_commit: 74e349ce4a3f56da8a0f7d50ae71f23b45791960
+  pull_request: 1319
+  merge_commit: 3919719eff3ddf3b327db3ed700cf72acbd4a5a7
+  exact_head_ci: "6/6 PASS (PR head 74e349ce4a3f56da8a0f7d50ae71f23b45791960)"
   scope: "Admit the immutable candidate-level research hypothesis contract before the existing OOS, robustness, and League bridge path; bind candidate, dataset, timing, and provenance without creating a second research evaluator."
   implementation:
     - packages/contracts/src/researchHypothesisContract.ts
@@ -64,4 +67,4 @@ current_follow_up:
     - apps/desktop/src/cloud/researchHypothesisAdmission.test.ts
   validation: "Focused contract/admission/factory 30/30 PASS; research/League regression 39/39 PASS; full isolated suite 825/825 PASS; preflight/typecheck/build/lint/architecture/safety/security/AIPOS/Restricted LIVE/Read-only Broker PASS."
   known_truth: "Longitudinal realized PAPER history remains unavailable and fail-closed; this slice does not fabricate PAPER performance evidence or add execution authority."
-  next: "Publish the exact head and observe required checks before updating Issue #1094 completion evidence."
+  next: "Continue the #861 longitudinal realized PAPER evidence gap only after a truthful runtime source exists; do not synthesize or promote operational receipts."
