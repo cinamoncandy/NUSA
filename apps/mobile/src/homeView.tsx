@@ -285,7 +285,6 @@ export function HomeView({
           <Text style={[styles.panelCode, { color: terminalSignal }]}>{accountSource ? `${accountSource} PAPER` : "NO LINK"}</Text>
         </View>
         {account ? <>
-          <View style={styles.portfolioHero}><Text style={[styles.heroMetric, { color: theme.colors.text }]}>{krw(account.equity)}</Text><Text style={[styles.micro, { color: theme.colors.textMuted }]}>TOTAL EQUITY</Text></View>
           <View style={styles.portfolioRows}>
             <View style={[styles.dataRow, { borderTopColor: theme.colors.border }]}><Text style={[styles.dataKey, { color: theme.colors.textMuted }]}>CASH</Text><Text style={[styles.dataValue, { color: theme.colors.text }]}>{krw(account.cash)}</Text></View>
             <View style={[styles.dataRow, { borderTopColor: theme.colors.border }]}><Text style={[styles.dataKey, { color: theme.colors.textMuted }]}>ASSET VALUE</Text><Text style={[styles.dataValue, { color: theme.colors.text }]}>{assetValue == null ? "—" : krw(assetValue)}</Text></View>
@@ -297,7 +296,7 @@ export function HomeView({
 
       <View style={[styles.terminalPanel, terminalBorder]} testID="home-capital-limits">
         <View style={styles.panelHeader}>
-          <Text style={[styles.panelTitle, { color: theme.colors.text }]}>CAPITAL LIMITS</Text>
+          <Text style={[styles.panelTitle, { color: theme.colors.text }]}>01 // CAPITAL LIMITS</Text>
           <Text style={[styles.panelCode, { color: theme.colors.textMuted }]}>PAPER ONLY</Text>
         </View>
         {cashEnvelope ? <View style={styles.portfolioRows} testID="home-cash-allocation">
