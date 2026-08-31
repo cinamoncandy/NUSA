@@ -138,6 +138,7 @@ export function HomeView({
     primaryLabel,
     primaryDetail,
   } = decisionSurface;
+  const supervisorResult = decisionSurface.result;
   const terrainStrength = signalReady ? 0.92 : snapshot ? 0.45 : 0.25;
   const terrainLabel = aiInsightAvailable ? "NUSA verified signal field" : signalReady ? "NUSA analyzing market" : "NUSA waiting for market connection";
   const terminalSignal = theme.preset === "master" && theme.mode === "dark" ? "#C9FF3D" : theme.colors.aiSignalEnd;
@@ -189,7 +190,7 @@ export function HomeView({
       <Text style={[styles.authorityMode, { color: theme.colors.textMuted }]}>PAPER ONLY · LIVE NONE</Text>
       <SupervisorRow label="NOW" value={decisionSurface.now} labelColor={attentionColor} valueColor={theme.colors.text} strong testID="home-supervisor-now" />
       <SupervisorRow label="WHY" value={decisionSurface.why} borderColor={theme.colors.border} labelColor={theme.colors.textMuted} valueColor={theme.colors.text} testID="home-supervisor-why" onPress={aiInsightAvailable ? () => onNavigate("AiSignal") : undefined} actionLabel={aiInsightAvailable ? "EVIDENCE →" : undefined} />
-      <SupervisorRow label="RESULT" value={decisionSurface.result} borderColor={theme.colors.border} labelColor={theme.colors.textMuted} valueColor={theme.colors.text} testID="home-supervisor-result" onPress={account == null ? undefined : () => onNavigate("Portfolio")} actionLabel={account == null ? undefined : "SUPERVISE →"} />
+      <SupervisorRow label="RESULT" value={supervisorResult} borderColor={theme.colors.border} labelColor={theme.colors.textMuted} valueColor={theme.colors.text} testID="home-supervisor-result" onPress={account == null ? undefined : () => onNavigate("Portfolio")} actionLabel={account == null ? undefined : "SUPERVISE →"} />
       <SupervisorRow label="RISK" value={decisionSurface.risk} borderColor={theme.colors.border} labelColor={attentionColor} valueColor={attentionLevel === "QUIET" ? theme.colors.text : attentionColor} testID="home-supervisor-risk" />
       <SupervisorRow label="LEARNING" value={decisionSurface.learning} borderColor={theme.colors.border} labelColor={theme.colors.textMuted} valueColor={theme.colors.text} testID="home-supervisor-learning" onPress={disconnected ? undefined : onOpenPaperLearning} actionLabel={disconnected ? undefined : "EVIDENCE →"} />
       <View style={[styles.supervisorAuthority, { borderTopColor: theme.colors.border }]}>
