@@ -17,6 +17,7 @@ const { runParameterRobustnessRequest } = require("./lib/parameter-robustness-ru
 const { verifyParameterRobustnessResult } = require("./lib/parameter-robustness-verifier.js");
 const { buildResearchRunRobustnessEvidence } = require("../dist/apps/desktop/src/cloud/researchRunRobustnessEvidence.js");
 const { buildResearchHypothesis } = require("../dist/apps/desktop/src/cloud/researchHypothesis.js");
+const { createResearchHypothesis } = require("../dist/packages/contracts/src/researchHypothesisContract.js");
 const { buildResearchRunTimeline } = require("../dist/apps/desktop/src/cloud/researchRunTimeline.js");
 const { buildResearchRunProvenancePlan } = require("../dist/apps/desktop/src/cloud/researchRunFactory.js");
 
@@ -232,7 +233,22 @@ async function main() {
     lineageId: `${STRATEGY_FAMILY_ID}-v1`,
     parameters: { shortPeriod, longPeriod },
     codeSha: sourceCommitSha,
-    costModelVersion
+    costModelVersion,
+    canonicalHypothesis: createResearchHypothesis({
+      hypothesisId: `${hypothesis.hypothesisId}:${shortPeriod}-${longPeriod}`,
+      candidateId: `sma-${shortPeriod}-${longPeriod}`,
+      family: "MOMENTUM",
+      rationale: hypothesis.thesis,
+      mechanism: "A moving-average crossover represents a precommitted persistence hypothesis whose directional signal is evaluated only on later candles.",
+      targetMarket: manifest.market,
+      expectedRegime: "UNKNOWN",
+      invalidationCondition: "The cost-adjusted out-of-sample edge is not reproducible across the declared walk-forward windows.",
+      holdingPeriodMs: 86_400_000,
+      capacityAssumptions: { maxNotional: BACKTEST_CONFIG.initialCash, maxParticipationRate: 0.05 },
+      transactionCostSensitivity: 1,
+      provenance: { author: "nusa-real-market-research", sourceReferences: [`dataset:${manifest.datasetId}`] },
+      createdAt: timeline.hypothesisGeneratedAt
+    })
   }));
   const provenancePlan = buildResearchRunProvenancePlan({
     manifest,
@@ -250,7 +266,8 @@ async function main() {
       Number(candidate.parameters.shortPeriod),
       Number(candidate.parameters.longPeriod)
     ),
-    parameters: candidate.parameters
+    parameters: candidate.parameters,
+    canonicalHypothesis: candidate.canonicalHypothesis
   }));
 
   const costStress = runExecutionCostStress(

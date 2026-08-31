@@ -83,6 +83,13 @@ export interface ResearchHypothesisValidation {
   readonly errors: readonly string[];
 }
 
+export class ResearchHypothesisContractError extends Error {
+  constructor(readonly code: string, message: string) {
+    super(message);
+    this.name = "ResearchHypothesisContractError";
+  }
+}
+
 const ID = /^[A-Za-z0-9_.:-]{1,128}$/;
 const nonEmptyText = (value: unknown, maxLength = 4_000): value is string =>
   typeof value === "string" && value.trim().length > 0 && value.length <= maxLength;
@@ -152,6 +159,57 @@ export function validateResearchHypothesis(value: unknown): ResearchHypothesisVa
 
 export function isValidResearchHypothesis(value: unknown): value is ResearchHypothesis {
   return validateResearchHypothesis(value).valid;
+}
+
+const deepFreeze = <T>(value: T): T => {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const child of Object.values(value as Record<string, unknown>)) deepFreeze(child);
+  }
+  return value;
+};
+
+/**
+ * Creates the immutable, fully populated contract that a research pipeline may admit. This is
+ * intentionally separate from the AI DRAFT record: callers must provide every field explicitly;
+ * no missing research assumption is filled in by this helper.
+ */
+export function createResearchHypothesis(
+  input: Omit<ResearchHypothesis, "schemaVersion">,
+): ResearchHypothesis {
+  if (input == null || typeof input !== "object" || Array.isArray(input)) {
+    throw new ResearchHypothesisContractError("INVALID_HYPOTHESIS", "research hypothesis input must be an object");
+  }
+  const hypothesis = {
+    schemaVersion: 1 as const,
+    hypothesisId: input.hypothesisId,
+    candidateId: input.candidateId,
+    family: input.family,
+    ...(input.parentHypothesisId === undefined ? {} : { parentHypothesisId: input.parentHypothesisId }),
+    rationale: input.rationale,
+    mechanism: input.mechanism,
+    targetMarket: input.targetMarket,
+    expectedRegime: input.expectedRegime,
+    invalidationCondition: input.invalidationCondition,
+    holdingPeriodMs: input.holdingPeriodMs,
+    capacityAssumptions: input.capacityAssumptions == null ? input.capacityAssumptions : { ...input.capacityAssumptions },
+    transactionCostSensitivity: input.transactionCostSensitivity,
+    provenance: input.provenance == null ? input.provenance : {
+      ...input.provenance,
+      sourceReferences: Array.isArray(input.provenance.sourceReferences)
+        ? [...input.provenance.sourceReferences]
+        : input.provenance.sourceReferences,
+    },
+    createdAt: input.createdAt,
+  };
+  const decision = validateResearchHypothesis(hypothesis);
+  if (!decision.valid) {
+    throw new ResearchHypothesisContractError(
+      "INVALID_HYPOTHESIS",
+      `research hypothesis is invalid: ${decision.errors.join(",")}`,
+    );
+  }
+  return deepFreeze(hypothesis as ResearchHypothesis);
 }
 
 /**
