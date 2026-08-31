@@ -22,29 +22,48 @@ test("classic and master presets are materially distinct visual systems", () => 
   assert.match(profile, /master:[\s\S]*?metricGap:\s*6/);
 });
 
-test("HomeView consumes the selected preset for MASTER geometry and current composition", () => {
+test("HomeView consumes the MASTER profile and presents the dense truthful terminal composition", () => {
   const home = read("apps/mobile/src/homeView.tsx");
   assert.match(home, /getHomeVisualProfile\(theme\.preset\)/);
   assert.match(home, /paddingHorizontal:\s*profile\.screen\.horizontalPadding/);
   assert.match(home, /paddingTop:\s*profile\.screen\.topPadding/);
-  assert.match(home, /gap:\s*tablet \? 24 : 18/);
+  assert.match(home, /gap:\s*tablet \? 18 : 12/);
   assert.match(home, /paddingBottom:\s*profile\.screen\.bottomPadding/);
   assert.match(home, /maxWidth:\s*tablet \? Math\.max\(profile\.screen\.maxWidth, 980\) : profile\.screen\.maxWidth/);
   assert.match(home, /testID="home-screen"/);
   assert.match(home, /testID="home-supervisor-summary"/);
+  assert.match(home, /testID="home-terminal-grid"/);
+  assert.match(home, /testID="home-market-pulse"/);
+  assert.match(home, /testID="home-market-structure"/);
+  assert.match(home, /testID="home-paper-performance"/);
+  assert.match(home, /testID="home-context-panel"/);
+  assert.match(home, /testID="home-portfolio-matrix"/);
+  assert.match(home, /testID="home-risk-authority"/);
   assert.match(home, /testID="home-signal-trace"/);
   assert.match(home, /<InsightPanel/);
   assert.match(home, /<CompactMetric/);
   assert.match(home, /<OperationalNotice/);
   assert.match(home, /testID="home-supervisor-result"[\s\S]*onNavigate\("Portfolio"\)[\s\S]*SUPERVISE →/);
   assert.match(home, /testID="home-supervisor-learning"[\s\S]*onOpenPaperLearning[\s\S]*EVIDENCE →/);
-  assert.doesNotMatch(home, /testID="account-hero-card"/);
-  assert.doesNotMatch(home, /label="PAPER 학습 보기"/);
-  assert.match(home, /AI READ ONLY · ZERO AUTHORITY/);
-  assert.match(home, /02 \/\/ SIGNAL TERRAIN/);
+  assert.match(home, /AI ZERO AUTHORITY · productionMutationAllowed=false · liveAuthority=NONE/);
+  assert.match(home, /AI INSIGHT \/ SIGNAL TERRAIN/);
   assert.match(home, /<TerrainSignal variant="symbolic"[\s\S]*testID="home-signal-trace" \/>/);
   assert.match(home, /RISK[\s\S]*NEUTRAL[\s\S]*OPPORTUNITY/);
-  assert.doesNotMatch(home, /styles\.grid, \{ gap: profile\.density\.metricGap \}/);
+});
+
+test("HOME terminal uses canonical data and declares unavailable feeds instead of fabricating them", () => {
+  const home = read("apps/mobile/src/homeView.tsx");
+  assert.match(home, /const publicMarkets = snapshot\?\.markets \?\? \[\]/);
+  assert.match(home, /market\.source|UPBIT PUBLIC/);
+  assert.match(home, /NO VERIFIED MARKET SNAPSHOT/);
+  assert.match(home, /ORDER FLOW: UNAVAILABLE/);
+  assert.match(home, /TIME SERIES: UNAVAILABLE/);
+  assert.match(home, /NO VERIFIED FEED/);
+  assert.match(home, /LOCAL PAPER · 실제 계좌\/Cloud PAPER와 합산하지 않음/);
+  assert.match(home, /CLOUD PAPER · REAL account not blended/);
+  assert.doesNotMatch(home, /BTC[^\n]*(65000000|70000000|100000000)/);
+  assert.doesNotMatch(home, /liveAuthority\s*=\s*["'](?:FULL|LIVE|ENABLED)["']/);
+  assert.doesNotMatch(home, /productionMutationAllowed\s*=\s*true/);
 });
 
 test("fresh or stale installs converge on the canonical master preset", () => {
