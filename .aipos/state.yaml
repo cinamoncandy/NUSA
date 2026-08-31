@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-31T18:03:00+09:00"
+updated_at: "2026-09-01T08:54:07+09:00"
 current_execution_target:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -57,6 +57,42 @@ latest_ux_telemetry_slice:
   scope: "Register the existing opt-in UX telemetry HTTP handler and add a best-effort secure mobile emitter; no screen emission, trading, LIVE, account-mutation, or authority path."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   remaining: "Telemetry remains opt-in and is not wired into screens until an explicit settings/consent state exists."
+
+latest_mobile_settings_slice:
+  status: COMPLETED
+  base_commit: 2933fb48c5b497a9465f36b2d1617a632f70fa14
+  implementation_branch: feat/usage-telemetry-settings-toggle
+  implementation_head: 80565b7c01d0765030b48e2ba76a3bddc52c7ad8
+  pull_request: 1329
+  merge_commit: b014900179414faf52e857d0394b658cd9a3b72f
+  exact_head_ci: "7/7 PASS (CI 33375653456; Mobile Native 33375653518; protected workflows on exact head)"
+  scope: "Persist the explicit usageTelemetry opt-in setting with a disabled-by-default, backward-compatible normalization path."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  follow_up: "AIPOS state was recorded by the subsequent documentation merge; no runtime telemetry emission is enabled by default."
+
+latest_home_terminal_slice:
+  status: COMPLETED
+  base_commit: 9c69e0bd1a144a3fa69901270196460314e0a1f9
+  implementation_branch: dev/594-home-dense-terminal
+  implementation_head: 8eb3cec63dc159dced69c2aa754871ffcebf84a4
+  pull_request: 1360
+  merge_commit: c34793dec2ce89b73ab423db0592221b386fc573
+  exact_head_ci: "7/7 PASS (CI 33452154257; Mobile Native 33452154222; protected workflows on exact head)"
+  scope: "Increase Home information density using canonical market, PAPER, portfolio, learning, AI, risk, and authority data while preserving unavailable-state and accounting-isolation semantics."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  remaining: "Physical Galaxy visual acceptance remains HUMAN_ENVIRONMENT_ONLY."
+
+latest_event_bridge_oidc_slice:
+  status: COMPLETED
+  base_commit: 9c69e0bd1a144a3fa69901270196460314e0a1f9
+  implementation_branch: autopilot/oidc-event-bridge
+  implementation_head: c80e13340e9bdb6171bca99cc99d91688b1ac980
+  pull_request: 1361
+  merge_commit: c323e6d4155576ea5c7755d24cc9f13e1f011c9b
+  exact_head_ci: "6/6 PASS (CI 33451207265; protected workflows on exact head)"
+  scope: "Authenticate the existing GitHub event bridge with strict repository/workflow/event-bound OIDC while preserving fail-closed HMAC compatibility."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  remaining: "NUSA_WEBHOOK_SECRET/OIDC runtime delivery and control-plane receipt remain external deployment evidence; no unauthenticated fallback is allowed."
 
 current_research_follow_up:
   work_order: WO-ISSUE-1094-RESEARCH-FACTORY
