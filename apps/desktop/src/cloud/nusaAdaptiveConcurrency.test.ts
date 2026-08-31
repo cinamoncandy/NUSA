@@ -61,6 +61,57 @@ describe("decideNusaAdaptiveConcurrency", () => {
     assert.equal(result.classification, "MEASURED");
   });
 
+  it("ramps above two only with measured ready supply, executor capacity, and clean heads", () => {
+    for (const [capacity, expected] of [[2, 2], [4, 4], [6, 6], [8, 8]] as const) {
+      const result = decideNusaAdaptiveConcurrency({
+        mergedWorkCount: 12,
+        reworkCount: 0,
+        conflictCount: 0,
+        ciCapacitySlots: capacity,
+        ciPeakConcurrentJobs: 0,
+        readyBacklog: 20,
+        executorCapacitySlots: capacity,
+        observationCount: 4,
+        staleHeadCount: 0,
+        avoidableIdleCount: 1,
+      });
+      assert.equal(result.maximumActiveWorkPerOwner, expected);
+      assert.equal(result.classification, "MEASURED");
+      assert.ok(result.reasons.includes("ADAPTIVE_CONCURRENCY_MEASURED"));
+    }
+  });
+
+  it("keeps supply scaling fail-closed when extended evidence is incomplete or stale", () => {
+    const incomplete = decideNusaAdaptiveConcurrency({
+      mergedWorkCount: 12,
+      reworkCount: 0,
+      conflictCount: 0,
+      ciCapacitySlots: 8,
+      ciPeakConcurrentJobs: 0,
+      readyBacklog: 20,
+      executorCapacitySlots: null,
+      observationCount: 4,
+      staleHeadCount: 0,
+    });
+    assert.equal(incomplete.maximumActiveWorkPerOwner, 1);
+    assert.equal(incomplete.classification, "CONSERVATIVE");
+    assert.ok(incomplete.reasons.includes("INSUFFICIENT_READY_SUPPLY_EVIDENCE"));
+
+    const stale = decideNusaAdaptiveConcurrency({
+      mergedWorkCount: 12,
+      reworkCount: 0,
+      conflictCount: 0,
+      ciCapacitySlots: 8,
+      ciPeakConcurrentJobs: 0,
+      readyBacklog: 20,
+      executorCapacitySlots: 8,
+      observationCount: 4,
+      staleHeadCount: 1,
+    });
+    assert.equal(stale.maximumActiveWorkPerOwner, 1);
+    assert.ok(stale.reasons.includes("STALE_HEAD_EVIDENCE_PRESENT"));
+  });
+
   it("rejects malformed evidence instead of converting UNKNOWN into confidence", () => {
     assert.throws(() => decideNusaAdaptiveConcurrency({
       mergedWorkCount: -1,
@@ -76,5 +127,13 @@ describe("decideNusaAdaptiveConcurrency", () => {
       ciCapacitySlots: 0,
       ciPeakConcurrentJobs: 1,
     }), /ADAPTIVE_CONCURRENCY_INVALID_CICAPACITYSLOTS/);
+    assert.throws(() => decideNusaAdaptiveConcurrency({
+      mergedWorkCount: 4,
+      reworkCount: 0,
+      conflictCount: 0,
+      ciCapacitySlots: 4,
+      ciPeakConcurrentJobs: 1,
+      readyBacklog: -1,
+    }), /ADAPTIVE_CONCURRENCY_INVALID_READYBACKLOG/);
   });
 });

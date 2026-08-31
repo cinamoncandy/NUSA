@@ -1,11 +1,11 @@
 version: 1
 project: nusa
-updated_at: "2026-08-31T14:10:00+09:00"
+updated_at: "2026-08-31T15:17:24+09:00"
 current_execution_target:
   work_order: WO-0051
   status: IN_PROGRESS
   branch: main
-  base_sha: 9fe44a95bab25ae341e9a47c2a4a41b32fb7a26c
+  base_sha: 57952f14485e816a7ac88e11ba5f8f3e11dba34c
   scope: "Terminal human/environment gate for LIVE and real-money transition; automated work remains fail-closed."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: verification
@@ -86,12 +86,12 @@ claimed_state:
   work_order: WO-0051
   status: IN_PROGRESS
   branch: main
-  base_commit: 9fe44a95bab25ae341e9a47c2a4a41b32fb7a26c
+  base_commit: 57952f14485e816a7ac88e11ba5f8f3e11dba34c
   scope: "Terminal human/environment gate for LIVE and real-money transition; automated work remains fail-closed."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  implementation_commit: "PR #1309 merge 9fe44a95bab25ae341e9a47c2a4a41b32fb7a26c; no active implementation branch."
+  implementation_commit: "57952f14485e816a7ac88e11ba5f8f3e11dba34c; PR #1313 exact head 11d6f8bc9f7fb0d10433c3854c7e1eaed8373d3d merged with post-merge main gates PASS."
   pull_request: null
-  validation: "PR #1309 exact head 768fb06f702fdb00208461e2b8037fbdd0b838f3 passed all six protected workflows and merged to main as 9fe44a95bab25ae341e9a47c2a4a41b32fb7a26c."
+  validation: "PR #1313 exact-head protected checks PASS; merge 57952f14485e816a7ac88e11ba5f8f3e11dba34c; post-merge main CI 33363161756, Sandbox Guard 33363161696, and Actual PAPER Runtime 33363161755 PASS; WO-0051 remains human/environment only."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -430,6 +430,9 @@ planning_gates:
     serialization: HUMAN_ENVIRONMENT_ONLY
     summary: "Governed longitudinal held-out evaluation remains planning/audit only; point-in-time leakage, economic-usefulness, statistical-validity, regime-degradation, tail-risk, portfolio-dependence/concentration, censoring/selection-validity, and uncertainty/effective-sample contracts are hardened. LIVE and real-money runtime implementation remains prohibited, while PAPER, read-only, mobile-auth, secure-session, UI/UX, and other non-LIVE work may proceed under independent fail-closed contracts."
 completed:
+  - id: WO-ISSUE-905-READY-WORK-SUPPLY
+    evidence: ".aipos/work-orders/WO-ISSUE-905-READY-WORK-SUPPLY.yaml"
+    summary: "Issue #905 READY work starvation fix merged in PR #1313 at exact head 11d6f8bc9f7fb0d10433c3854c7e1eaed8373d3d as 57952f14485e816a7ac88e11ba5f8f3e11dba34c; all protected PR checks and post-merge main CI, Sandbox Guard, and Actual PAPER Runtime passed with zero authority unchanged."
   - id: WO-ISSUE-865-EVOLUTION-LEARNING-LEDGER
     evidence: ".aipos/work-orders/WO-ISSUE-865-EVOLUTION-LEARNING-LEDGER.yaml"
     summary: "Bounded canonical SQLite evolution learning ledger merged in PR #1043 at exact head ffead4811f5f60848c7574cee1e36ea626792d7e as bfd7af3f2748fe7c499b489a1cf32ffb0f812ba5; required CI and repository validation passed with zero authority."
@@ -533,7 +536,7 @@ scope_reclassified:
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
   work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
-  reason: "Canonical LIVE final-chain audit completed in PR #1309; continue only with the existing human/environment gate for any LIVE or real-money transition."
+  reason: "Issue #905 READY work supply successor completed and is recorded in completed; continue WO-0051 as the mandatory human/environment gate for LIVE and real-money transition."
 verification:
   wo_0057:
     parent_pull_request: 552

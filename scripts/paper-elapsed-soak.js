@@ -95,10 +95,13 @@ async function loadOperations(baseUrl, token) {
   return await response.json();
 }
 
-async function waitForReady(baseUrl, token, timeoutMs = 90_000) {
+async function waitForReady(baseUrl, token, child, stderr, timeoutMs = 90_000) {
   const deadline = Date.now() + timeoutMs;
   let lastError;
   while (Date.now() < deadline) {
+    if (child.exitCode != null) {
+      throw new Error(`PAPER runtime exited before readiness (${child.exitCode}): ${stderr.join("").slice(-4000)}`);
+    }
     try {
       const snapshot = await loadOperations(baseUrl, token);
       const summary = summarizeSnapshot(snapshot);
@@ -108,7 +111,7 @@ async function waitForReady(baseUrl, token, timeoutMs = 90_000) {
     }
     await sleep(750);
   }
-  throw new Error(`PAPER runtime readiness timeout${lastError ? `: ${lastError.message}` : ""}`);
+  throw new Error(`PAPER runtime readiness timeout${lastError ? `: ${lastError.message}` : ""}; stderr=${stderr.join("").slice(-4000)}`);
 }
 
 async function stopChild(child) {
@@ -130,6 +133,9 @@ async function run(options = {}) {
   const runtimePath = resolve(root, "dist/apps/cloud/src/runtime.js");
   if (!existsSync(runtimePath)) throw new Error("compiled Cloud runtime is missing; run `pnpm run build` first");
 
+  const databasePath = resolve(root, options.databasePath || ".runtime-evidence/paper-soak/state.sqlite");
+  mkdirSync(dirname(databasePath), { recursive: true });
+
   const port = await availablePort();
   const token = randomBytes(32).toString("hex");
   const { env: cleanEnv, removed: scrubbedPrivateKeys } = scrubPrivateExchangeEnv(process.env);
@@ -142,7 +148,7 @@ async function run(options = {}) {
     NUSA_CLOUD_DASHBOARD_TOKEN: token,
     NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true",
     NUSA_CLOUD_UPBIT_MARKETS: String(options.market || process.env.NUSA_SOAK_MARKET || "KRW-BTC").trim().toUpperCase(),
-    NUSA_CLOUD_STATE_DB_PATH: resolve(root, options.databasePath || ".runtime-evidence/paper-soak/state.sqlite"),
+    NUSA_CLOUD_STATE_DB_PATH: databasePath,
     NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "10000000",
     NUSA_CLOUD_PAPER_INVESTMENT_PERCENT: "10",
   };
@@ -156,7 +162,7 @@ async function run(options = {}) {
   const observations = [];
   const startedAtMs = Date.now();
   try {
-    const firstSnapshot = await waitForReady(baseUrl, token);
+    const firstSnapshot = await waitForReady(baseUrl, token, child, stderr);
     observations.push(summarizeSnapshot(firstSnapshot));
     const deadline = startedAtMs + durationMs;
     while (Date.now() < deadline) {
