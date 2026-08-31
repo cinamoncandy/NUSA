@@ -33,7 +33,7 @@ architecture_impact:
     - scripts/dispatch-github-event-to-autopilot.mjs
 
 event_ingress:
-  status: IMPLEMENTED_INTERFACE_READY
+  status: INGRESS_CONNECTED_WAITING_EXECUTION
   implementation_commit: 53263fb1caffe48632b3a5e4abc43997475ad1b7
   workflow: .github/workflows/autopilot-github-event-bridge.yml
   delivery_script: scripts/dispatch-github-event-to-autopilot.mjs
@@ -45,7 +45,17 @@ event_ingress:
   authentication: repository_secret_to_existing_worker_hmac
   missing_secret: INTERFACE_READY_NO_REQUEST
   retry: BOUNDED_TRANSIENT_ONLY
-  runtime_activation: PENDING_ARTIFACT_BACKED_EVENT_DELIVERY
+  runtime_activation: BLOCKED_MISSING_SECRET
+post_merge_runtime_proof:
+  workflow_run: 33354759806
+  trigger: push
+  source_sha: 259b98f21ebe4d28644ac406e26aeb4b3a19648c
+  workflow_conclusion: SUCCESS
+  bridge_result: INTERFACE_READY
+  attempts: 0
+  response_status: null
+  reason: NUSA_WEBHOOK_SECRET_EMPTY
+  canonical_worker_receipt: NOT_PROVEN
 safety:
   liveAuthority: NONE
   productionMutationAllowed: false
@@ -96,8 +106,30 @@ current_main_audit:
     dependency_aware_merge_train: IMPLEMENTED_VERIFIED
     exact_head_gate_model: IMPLEMENTED_NO_RUNTIME_EVIDENCE
     real_github_ci_telemetry: IMPLEMENTED_NO_RUNTIME_EVIDENCE
-    event_trigger_infrastructure: IMPLEMENTED_INTERFACE_READY_SECRET_AND_DEPLOYMENT_DEPENDENT
+    event_trigger_infrastructure: INGRESS_CONNECTED_EXECUTION_BLOCKED_BY_MISSING_SECRET
     autopilot_slo_runtime_measurements: IMPLEMENTED_NO_RUNTIME_EVIDENCE
     verified_throughput_speedup: MISSING
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  next: "Keep external event runtime and real telemetry fail-closed until artifact-backed runtime evidence exists; do not claim #903 complete from structural tests alone."
+  latest_revalidation:
+    branch_head: 8d448f8a
+    main_integration: MERGED_ORIGIN_MAIN_E5A7E370
+    focused_bridge_and_affected_regression: PASS_27_OF_27
+    full_isolated_suite: PASS_819_FILES
+    typecheck: PASS
+    build: PASS
+    lint: PASS
+    preflight: PASS
+    architecture_truth: PASS
+    architecture_check: PASS
+    ai_zero_authority: PASS
+    safety_architecture: PASS
+    safety_invariants: PASS
+    restricted_live_check: PASS
+    restricted_live_readiness: PASS
+    read_only_broker: PASS
+    security_gate: PASS_SECRETS_0
+    aipos_drift: PASS
+    aipos_conformance: PASS
+    aipos_provenance: PASS
+    diff_check: PASS
+  next: "Configure the repository secret through the normal owner-controlled GitHub settings path, then capture a fresh artifact-backed Worker receipt and control-plane execution proof; keep #903 fail-closed until then."
