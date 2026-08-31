@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-08-31T12:16:22.5141477+09:00"
+updated_at: "2026-08-31T12:52:00+09:00"
 current_execution_target:
   work_order: WO-ISSUE-1288-CLOUDFLARE-RUNTIME-PROOF
   status: VERIFYING
@@ -870,7 +870,7 @@ issue_903_event_bridge:
   merged_main: 259b98f21ebe4d28644ac406e26aeb4b3a19648c
   latest_main: 259b98f21ebe4d28644ac406e26aeb4b3a19648c
   main_integration_commit: 8d448f8a
-  validation_head: e8ce56ae978433726a750e67384ede5dee941379
+  validation_head: aa3d99a879c8a3ecfad1532c81fd32f0f1e77dd9
   remote_required_checks: MERGED_CODE_HEAD_PASS_6_OF_6_AIPOS_FOLLOWUP_NOT_RUN
   merge_state: MERGED_RUNTIME_PROOF_BLOCKED_BY_MISSING_SECRET
   scope: "Signed GitHub push, pull_request_target, and canonical CI workflow_run ingress into the existing read-only Autopilot webhook spine; no second queue, scheduler, executor, or mutation path."
