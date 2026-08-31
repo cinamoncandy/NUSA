@@ -21,9 +21,9 @@ test("the event bridge uses one deterministic delivery identity and exact HMAC b
   assert.equal(createGithubSignature("bridge-test-secret", body), `sha256=${crypto.createHmac("sha256", "bridge-test-secret").update(body).digest("hex")}`);
 });
 
-test("missing repository secret stays interface-ready without making a request", async () => {
+test("missing OIDC and repository secret fails closed without making a request", async () => {
   let calls = 0;
-  const result = await dispatchGithubEvent({
+  await assert.rejects(() => dispatchGithubEvent({
     secret: "",
     body,
     event: "push",
@@ -31,9 +31,7 @@ test("missing repository secret stays interface-ready without making a request",
     runId: "11",
     runAttempt: "1",
     fetchImpl: async () => { calls += 1; return safetyResponse(); },
-  });
-  assert.equal(result.status, "INTERFACE_READY");
-  assert.equal(result.attempts, 0);
+  }), /WEBHOOK_AUTH_REQUIRED/);
   assert.equal(calls, 0);
 });
 
@@ -115,6 +113,7 @@ test("the workflow is a read-only bridge to the existing canonical webhook", () 
   assert.match(workflow, /node scripts\/dispatch-github-event-to-autopilot\.mjs/);
   assert.match(workflow, /NUSA_WEBHOOK_SECRET:/);
   assert.match(workflow, /contents: read/);
+  assert.match(workflow, /id-token: write/);
   assert.doesNotMatch(workflow, /contents: write/);
   assert.doesNotMatch(workflow, /actions: write/);
   assert.doesNotMatch(workflow, /NUSA_GITHUB_TOKEN/);
