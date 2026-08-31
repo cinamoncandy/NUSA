@@ -1,7 +1,7 @@
 import { parseGithubWebhookPayload, planGithubWebhookDispatch, type SupportedGithubEvent } from "./dispatchPlanner";
 import { planAutopilotExecution } from "./executionPlanner";
 import { executeGithubDispatch } from "./githubExecutor";
-import { verifyGithubActionsOidcToken } from "./githubActionsOidc";
+import { verifyGithubActionsOidcToken, verifyGithubEventBridgeOidcToken } from "./githubActionsOidc";
 import { executeCodingRunner, validateCodingRunnerRequest, type CodingPublisher, type CodingRuntime, type WorkersAiBinding } from "./codingRunner";
 import { prepareProductionExecution } from "./productionExecutionSpine";
 import {
@@ -81,6 +81,21 @@ export async function computeGithubWebhookSignature(secret: string, body: string
 export async function verifyGithubWebhookSignature(secret: string, body: string, provided: string | null): Promise<boolean> {
   if (!provided?.startsWith("sha256=")) return false;
   return constantTimeEqual(await computeGithubWebhookSignature(secret, body), provided);
+}
+
+async function verifyGithubWebhookAuthorization(request: Request, env: Env, body: string, allowedRepository: string): Promise<boolean> {
+  const bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
+  if (bearer) {
+    try {
+      await verifyGithubEventBridgeOidcToken(bearer, allowedRepository);
+      return true;
+    } catch {
+      // Fall through to the legacy HMAC path when configured.
+    }
+  }
+  const secret = env.NUSA_WEBHOOK_SECRET?.trim();
+  if (!secret) return false;
+  return verifyGithubWebhookSignature(secret, body, request.headers.get("x-hub-signature-256"));
 }
 
 async function verifyCodingRunnerAuthorization(provided: string | undefined, configured: string | undefined, allowedRepository: string): Promise<boolean> {
@@ -230,7 +245,7 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
-    if (request.method === "GET" && url.pathname === "/health") return json({ service: "nusa-autopilot", status: env.NUSA_WEBHOOK_SECRET ? "WEBHOOK_READY" : "INTERFACE_READY", deploymentRevision: env.NUSA_DEPLOYMENT_REVISION?.trim() || "UNVERIFIED", executionPlanning: "ENABLED", boundedExecutionSpine: "ENABLED", persistentExecutionCoordination: env.NUSA_EXECUTION_COORDINATOR ? "CONFIGURED" : "INTERFACE_READY", codingExecutionEvidence: env.NUSA_EXECUTION_COORDINATOR ? "CONFIGURED" : "INTERFACE_READY", executionTelemetry: env.NUSA_EXECUTION_COORDINATOR ? "CONFIGURED" : "INTERFACE_READY", authenticatedExecutor: env.NUSA_GITHUB_TOKEN ? "CONFIGURED" : "INTERFACE_READY", codingRunner: "OIDC_READY", legacyCodingRunnerToken: env.NUSA_CODING_RUNNER_TOKEN ? "CONFIGURED" : "NOT_REQUIRED", aiCodingEngine: (env.NUSA_AI_CODING_ENDPOINT && env.NUSA_AI_CODING_TOKEN) || env.AI ? "CONFIGURED" : "INTERFACE_READY", allowedRepository, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+    if (request.method === "GET" && url.pathname === "/health") return json({ service: "nusa-autopilot", status: "WEBHOOK_READY", webhookAuthentication: env.NUSA_WEBHOOK_SECRET ? "OIDC_OR_HMAC" : "OIDC", deploymentRevision: env.NUSA_DEPLOYMENT_REVISION?.trim() || "UNVERIFIED", executionPlanning: "ENABLED", boundedExecutionSpine: "ENABLED", persistentExecutionCoordination: env.NUSA_EXECUTION_COORDINATOR ? "CONFIGURED" : "INTERFACE_READY", codingExecutionEvidence: env.NUSA_EXECUTION_COORDINATOR ? "CONFIGURED" : "INTERFACE_READY", executionTelemetry: env.NUSA_EXECUTION_COORDINATOR ? "CONFIGURED" : "INTERFACE_READY", authenticatedExecutor: env.NUSA_GITHUB_TOKEN ? "CONFIGURED" : "INTERFACE_READY", codingRunner: "OIDC_READY", legacyCodingRunnerToken: env.NUSA_CODING_RUNNER_TOKEN ? "CONFIGURED" : "NOT_REQUIRED", aiCodingEngine: (env.NUSA_AI_CODING_ENDPOINT && env.NUSA_AI_CODING_TOKEN) || env.AI ? "CONFIGURED" : "INTERFACE_READY", allowedRepository, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
 
     if (request.method === "GET" && url.pathname === "/scheduled/status") {
       if (!env.NUSA_EXECUTION_COORDINATOR) return json({ status: "UNAVAILABLE", reason: "PERSISTENT_EXECUTION_COORDINATOR_REQUIRED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 503);
@@ -274,13 +289,12 @@ export default {
     if (request.method === "POST" && url.pathname === "/coding/execute") return handleCodingExecute(request, env);
 
     if (request.method !== "POST" || url.pathname !== "/github/webhook") return json({ error: "NOT_FOUND" }, 404);
-    if (!env.NUSA_WEBHOOK_SECRET) return json({ error: "WEBHOOK_SECRET_NOT_CONFIGURED", status: "INTERFACE_READY" }, 503);
     const deliveryId = request.headers.get("x-github-delivery");
     if (!deliveryId?.trim()) return json({ error: "GITHUB_DELIVERY_ID_REQUIRED" }, 400);
     const event = classifyGithubEvent(request.headers.get("x-github-event"));
     if (!event) return json({ error: "GITHUB_EVENT_UNSUPPORTED" }, 422);
     const body = await request.text();
-    if (!await verifyGithubWebhookSignature(env.NUSA_WEBHOOK_SECRET, body, request.headers.get("x-hub-signature-256"))) return json({ error: "GITHUB_SIGNATURE_INVALID" }, 401);
+    if (!await verifyGithubWebhookAuthorization(request, env, body, allowedRepository)) return json({ error: "GITHUB_WEBHOOK_UNAUTHORIZED" }, 401);
     let dispatch;
     try { dispatch = planGithubWebhookDispatch(event, parseGithubWebhookPayload(body)); }
     catch (error) { return json({ error: error instanceof Error ? error.message : "GITHUB_WEBHOOK_PAYLOAD_INVALID" }, 400); }
