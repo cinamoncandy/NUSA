@@ -1,16 +1,16 @@
 version: 1
 project: nusa
-updated_at: "2026-08-31T12:16:22.5141477+09:00"
+updated_at: "2026-08-31T13:55:00+09:00"
 current_execution_target:
-  work_order: WO-ISSUE-1288-CLOUDFLARE-RUNTIME-PROOF
+  work_order: WO-ISSUE-1299-LIVE-CANONICAL-FINAL-CHAIN-AUDIT
   status: VERIFYING
-  branch: codex/1288-runtime-proof-provenance
-  base_sha: 0167a07021cfda1277124995b862bf9002a2de85
-  scope: "Read-only Cloudflare/ runtime-proof observability with exact workflow provenance, trigger classification, bounded transient retry, and external two-run acceptance kept fail-closed."
+  branch: codex/live-canonical-final-chain-audit
+  base_sha: e871a28b8452b6b85a1f438d49d8150df3f8dd7f
+  scope: "Repository-controlled canonical LIVE final-chain fault, concurrency, replay, and bypass regression evidence; no LIVE mutation authority."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-phase: implementation
+phase: verification
 status: in_progress
-objective: "Make repository event-driven development transitions deterministic and replay-safe while holding all production and LIVE authority at the human/environment boundary."
+objective: "Make repository event-driven development transitions deterministic and replay-safe while holding all production and LIVE authority at the human/environment boundary; currently verify the canonical LIVE final execution chain."
 latest_research_slice:
   work_order: WO-MARKET-INTELLIGENCE-REGIME-POINT-IN-TIME-001
   status: COMPLETED
@@ -23,9 +23,9 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: codex/1288-runtime-proof-provenance
+active_branch: codex/live-canonical-final-chain-audit
 active_successor_branch: null
-active_pull_request: 1301
+active_pull_request: 1309
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -83,15 +83,15 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-ISSUE-1288-CLOUDFLARE-RUNTIME-PROOF
+  work_order: WO-ISSUE-1299-LIVE-CANONICAL-FINAL-CHAIN-AUDIT
   status: VERIFYING
-  branch: codex/1288-runtime-proof-observability
-  base_commit: 1fbaae0c99b667aa0f59d8a37223f150b778ca33
-  scope: "Restore classified, artifact-backed hourly Cloudflare runtime-proof observability; keep external two-run acceptance fail-closed."
+  branch: codex/live-canonical-final-chain-audit
+  base_commit: e871a28b8452b6b85a1f438d49d8150df3f8dd7f
+  scope: "Repository-controlled canonical LIVE final-chain fault, concurrency, replay, and bypass regression evidence; no LIVE mutation authority."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  implementation_commit: 5c9634844e549d0de6ea6147e6d5598c5acf0c4d
-  pull_request: 1282
-  validation: "PR #1282 exact head 5c9634844e549d0de6ea6147e6d5598c5acf0c4d passed all six protected workflows and merged to main as b925d4674edaf795036453c452560253b5a7b7d0; the canonical factory remains fail-closed pending truthful longitudinal PAPER evidence."
+  implementation_commit: c8d41fdb7a6cb8cd80615784e352205e0c559b85
+  pull_request: 1309
+  validation: "Updated-main validation: focused chain/PAPER 32/32 PASS, full isolated suite 821 files PASS, repository gates PASS; remote exact-head validation pending."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -506,9 +506,9 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
-  - id: WO-ISSUE-1288-CLOUDFLARE-RUNTIME-PROOF
-    evidence: ".aipos/work-orders/WO-ISSUE-1288-CLOUDFLARE-RUNTIME-PROOF.yaml"
-    summary: "Exact workflow provenance and trigger classification are hardened in PR #1301; two fresh post-merge scheduled proofs remain external acceptance evidence."
+  - id: WO-ISSUE-1299-LIVE-CANONICAL-FINAL-CHAIN-AUDIT
+    evidence: ".aipos/work-orders/WO-ISSUE-1299-LIVE-CANONICAL-FINAL-CHAIN-AUDIT.yaml"
+    summary: "Repository-controlled canonical LIVE final-chain fault, concurrency, replay, and bypass regression evidence is being verified without enabling LIVE mutation."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -535,8 +535,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-ISSUE-1288-CLOUDFLARE-RUNTIME-PROOF.yaml
-  reason: "Validate PR #1301 on exact head 9b5cfc8d8a06545533ec257a474dcf6a79f9fb58; after merge observe two consecutive fresh scheduled proofs and keep acceptance fail-closed."
+  work_order: .aipos/work-orders/WO-ISSUE-1299-LIVE-CANONICAL-FINAL-CHAIN-AUDIT.yaml
+  reason: "Validate PR #1309 on the updated exact remote head; keep all LIVE mutation fail-closed."
 verification:
   wo_0057:
     parent_pull_request: 552

@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "workOrder": "WO-ISSUE-1299-LIVE-CANONICAL-FINAL-CHAIN-AUDIT",
+  "issue": 1299,
+  "status": "VERIFYING",
+  "baseSha": "e871a28b8452b6b85a1f438d49d8150df3f8dd7f",
+  "initialAuditSha": "259b98f21ebe4d28644ac406e26aeb4b3a19648c",
+  "mainIntegratedSha": "e871a28b8452b6b85a1f438d49d8150df3f8dd7f",
+  "validationHead": "d8333ee63f97744cb921ace7ff3f6b9d5aa72497",
+  "implementationCommit": "c8d41fdb7a6cb8cd80615784e352205e0c559b85",
+  "branch": "codex/live-canonical-final-chain-audit",
+  "pullRequest": 1309,
+  "scope": [
+    "canonical authoritative session to final reservation regression",
+    "concurrent duplicate transport suppression",
+    "revision race fail-closed",
+    "unknown transport outcome replay suppression",
+    "storage failure before transport",
+    "legacy direct broker production reachability guard"
+  ],
+  "validation": {
+    "focusedCanonicalFinalChain": "PASS_6_OF_6",
+    "existingLiveRegressions": "PASS_28_OF_28",
+    "combinedTargetedLiveRegressions": "PASS_34_OF_34",
+    "fullIsolatedSuite": "PASS_821_FILES",
+    "preflight": "PASS",
+    "typecheck": "PASS",
+    "build": "PASS",
+    "lint": "PASS",
+    "architectureTruth": "PASS",
+    "architecture": "PASS",
+    "safetyInputs": "PASS",
+    "safety": "PASS",
+    "restrictedLive": "PASS",
+    "restrictedLiveReadiness": "PASS",
+    "readOnlyBroker": "PASS",
+    "aiZeroAuthority": "PASS",
+    "security": "PASS",
+    "packageValidation": "PASS",
+    "aipos": "PASS",
+    "cleanBuildBeforeFocusedRun": "PASS",
+    "gitDiffCheck": "PASS"
+  },
+  "safety": {
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY",
+    "brokerMutation": "NONE",
+    "activation": "NONE",
+    "credentials": "NOT_USED"
+  },
+  "next": "Validate PR #1309 on the updated exact remote head."
+}
