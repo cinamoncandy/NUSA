@@ -303,27 +303,6 @@ describe("coding runner", () => {
     assert.equal(runtimeCalls, 0);
   });
 
-  it("does not call the coding engine or runtime when GitHub evidence is invalid", async () => {
-    let runtimeCalls = 0;
-    let fetchCalls = 0;
-    const runtime: CodingRuntime = {
-      name: "fake-sandbox",
-      async execute() {
-        runtimeCalls += 1;
-        return { backend: "fake-sandbox", checkpointId: request.headSha, workspaceVerified: true };
-      },
-    };
-    await assert.rejects(
-      () => executeCodingRunner(request, runtimeEnv, async () => {
-        fetchCalls += 1;
-        return response(404, {});
-      }, runtime),
-      /CODING_RUNNER_HEAD_SHA_UNVERIFIED/,
-    );
-    assert.equal(runtimeCalls, 0);
-    assert.equal(fetchCalls, 2);
-  });
-
   it("accepts a configured coding engine proposal wrapped in a generic response envelope", async () => {
     const runtime: CodingRuntime = {
       name: "fake-sandbox",
@@ -363,6 +342,27 @@ describe("coding runner", () => {
     assert.equal(result.status, "EXECUTION_FAILED");
     assert.equal(result.reason, "CODING_PROPOSAL_SHAPE_INVALID");
     assert.equal(runtimeCalls, 0);
+  });
+
+  it("does not call the coding engine or runtime when GitHub evidence is invalid", async () => {
+    let runtimeCalls = 0;
+    let fetchCalls = 0;
+    const runtime: CodingRuntime = {
+      name: "fake-sandbox",
+      async execute() {
+        runtimeCalls += 1;
+        return { backend: "fake-sandbox", checkpointId: request.headSha, workspaceVerified: true };
+      },
+    };
+    await assert.rejects(
+      () => executeCodingRunner(request, runtimeEnv, async () => {
+        fetchCalls += 1;
+        return response(404, {});
+      }, runtime),
+      /CODING_RUNNER_HEAD_SHA_UNVERIFIED/,
+    );
+    assert.equal(runtimeCalls, 0);
+    assert.equal(fetchCalls, 2);
   });
 
   it("preserves lifecycle identity and requires patch-only output when calling the configured coding engine", async () => {

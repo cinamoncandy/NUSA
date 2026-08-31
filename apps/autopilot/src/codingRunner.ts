@@ -164,9 +164,9 @@ function workersAiProposal(value: unknown): CodingProposal {
 }
 
 // A configured external coding engine is expected to return the patch-only contract directly
-// ({ patch: string }), but provider-neutral gateways may wrap model output in the same generic
-// { response: string } envelope Workers AI uses. Fall back to that existing parser without
-// changing the strict patch-only contract or execution boundary.
+// ({ patch: string }), but many provider-neutral gateways instead wrap its output in the same
+// generic { response: string } envelope Workers AI uses. Fall back to that lenient, fence/JSON-
+// extraction-aware parse so a wrapped-but-valid proposal is not rejected outright.
 function configuredEngineProposal(value: unknown): CodingProposal {
   try {
     return validateCodingProposal(value);
