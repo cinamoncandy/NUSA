@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildEngineeringWorkPortfolio,
   rankEngineeringOpportunities,
   scoreEngineeringOpportunity,
   type EngineeringOpportunityPriorityInput,
+  type EngineeringWorkPackageInput,
 } from "./nusaEngineeringPortfolioScheduler.js";
 
 function opportunity(
@@ -71,5 +73,102 @@ test("fails closed on duplicate or unsafe opportunity identities", () => {
   assert.throws(
     () => scoreEngineeringOpportunity(opportunity("unsafe id")),
     /ENGINEERING_PRIORITY_OPPORTUNITY_ID_INVALID/,
+  );
+});
+
+function workPackage(
+  packageId: string,
+  overrides: Partial<EngineeringWorkPackageInput> = {},
+): EngineeringWorkPackageInput {
+  return {
+    packageId,
+    opportunityId: `${packageId}-opportunity`,
+    priority: "P1",
+    incident: false,
+    lane: "FAST",
+    evidenceState: "VERIFIED",
+    repositoryControlled: true,
+    dependencies: [],
+    touchedFiles: [`apps/${packageId}.ts`],
+    evidenceRequirements: ["exact-head-ci"],
+    estimatedEffort: 20,
+    risk: 10,
+    blastRadius: 10,
+    validationRequirements: ["targeted-test", "safety-gates"],
+    duplicateOf: null,
+    waitingReason: null,
+    ...overrides,
+  };
+}
+
+test("builds an evidence-bound work portfolio without discarding conflict or parked work", () => {
+  const portfolio = buildEngineeringWorkPortfolio([
+    workPackage("incident", { priority: "P0", incident: true, lane: "DEEP", touchedFiles: ["shared.ts"] }),
+    workPackage("fast", { touchedFiles: ["fast.ts"] }),
+    workPackage("deep", { lane: "DEEP", touchedFiles: ["shared.ts"] }),
+    workPackage("verified-dependency", { dependencies: ["merged-base"] }),
+    workPackage("unknown", { evidenceState: "UNKNOWN" }),
+    workPackage("unknown-metadata", { estimatedEffort: "UNKNOWN" }),
+    workPackage("human", { waitingReason: "HUMAN_ONLY" }),
+    workPackage("external", { repositoryControlled: false }),
+    workPackage("duplicate", { duplicateOf: "fast" }),
+  ], {
+    mergedPackageIds: ["merged-base"],
+    activeTouchedFiles: ["active.ts"],
+    activeWorkerCount: 2,
+    activeClaimCount: 1,
+  });
+
+  assert.deepEqual(portfolio.ready.map((item) => item.packageId), ["incident", "fast", "verified-dependency", "deep"]);
+  assert.equal(portfolio.metrics.candidateGapCount, 8);
+  assert.equal(portfolio.metrics.validatedGapCount, 7);
+  assert.equal(portfolio.metrics.readyBacklog, 4);
+  assert.equal(portfolio.metrics.readyToWorkerRatio, 2);
+  assert.equal(portfolio.metrics.activeClaimCount, 1);
+  assert.equal(portfolio.metrics.waitingRealEvidenceCount, 2);
+  assert.equal(portfolio.metrics.humanOnlyCount, 1);
+  assert.equal(portfolio.metrics.externalOnlyCount, 1);
+  assert.equal(portfolio.metrics.duplicateCount, 1);
+  assert.equal(portfolio.metrics.conflictCount, 1);
+  assert.deepEqual(portfolio.conflictEdges, [{
+    packageId: "incident",
+    conflictingPackageId: "deep",
+    touchedFiles: ["shared.ts"],
+    active: false,
+  }]);
+  assert.equal(portfolio.parked.find((item) => item.packageId === "unknown")?.disposition, "WAITING_REAL_EVIDENCE");
+  assert.equal(portfolio.parked.find((item) => item.packageId === "unknown-metadata")?.disposition, "WAITING_REAL_EVIDENCE");
+  assert.equal(portfolio.parked.find((item) => item.packageId === "duplicate")?.disposition, "DUPLICATE");
+  assert.deepEqual(portfolio.dependencyEdges, [{ packageId: "verified-dependency", dependencyId: "merged-base" }]);
+
+  const sameOpportunity = buildEngineeringWorkPortfolio([
+    workPackage("canonical", { opportunityId: "same-opportunity" }),
+    workPackage("same-opportunity-duplicate", { opportunityId: "same-opportunity", duplicateOf: "canonical" }),
+  ]);
+  assert.equal(sameOpportunity.metrics.duplicateCount, 1);
+
+  const activeConflict = buildEngineeringWorkPortfolio([workPackage("active-conflict", { touchedFiles: ["active.ts"] })], {
+    activeTouchedFiles: ["active.ts"],
+  });
+  assert.deepEqual(activeConflict.conflictEdges, [{
+    packageId: "active-conflict",
+    conflictingPackageId: null,
+    touchedFiles: ["active.ts"],
+    active: true,
+  }]);
+});
+
+test("fails closed on portfolio identity, dependency cycle, and canonical path violations", () => {
+  assert.throws(
+    () => buildEngineeringWorkPortfolio([workPackage("same"), workPackage("same", { opportunityId: "other" })]),
+    /ENGINEERING_WORK_PACKAGE_ID_DUPLICATE/,
+  );
+  assert.throws(
+    () => buildEngineeringWorkPortfolio([workPackage("a", { dependencies: ["b"] }), workPackage("b", { dependencies: ["a"] })]),
+    /ENGINEERING_WORK_DEPENDENCY_CYCLE/,
+  );
+  assert.throws(
+    () => buildEngineeringWorkPortfolio([workPackage("unsafe", { touchedFiles: ["..\\secret"] })]),
+    /ENGINEERING_WORK_TOUCHED_FILE_INVALID/,
   );
 });

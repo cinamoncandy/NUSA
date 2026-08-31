@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   NUSA_DEVELOPMENT_CONTROL_PLANE_AUTHORITY,
+  claimNusaDevelopmentWorkPortfolio,
   claimNextNusaDevelopmentWork,
   createNusaDevelopmentQueue,
   recoverStaleNusaDevelopmentClaims,
@@ -181,6 +182,87 @@ describe("NUSA canonical development queue", () => {
     });
     assert.equal(result.status, "CLAIMED");
     assert.equal(result.item?.id, "ready");
+  });
+
+  it("claims a bounded conflict-aware portfolio through the canonical single-item path", () => {
+    const queue = createNusaDevelopmentQueue([
+      work({ id: "p0-shared", priority: "P0", touchedFiles: ["shared.ts"] }),
+      work({ id: "p0-independent", priority: "P0", touchedFiles: ["independent.ts"] }),
+      work({ id: "p1-shared", priority: "P1", touchedFiles: ["shared.ts"] }),
+    ]);
+    const result = claimNusaDevelopmentWorkPortfolio(queue, {
+      owner: "development",
+      requestId: "portfolio-run",
+      expectedRevision: 0,
+      now: T0,
+      leaseMs: 60_000,
+      maximumItems: 3,
+      allocationPolicy: { maximumActiveWorkPerOwner: 3, preventTouchedFileConflicts: true },
+    });
+    assert.equal(result.status, "PARTIAL");
+    assert.deepEqual(result.items.map((item) => item.id), ["p0-independent", "p0-shared"]);
+    assert.equal(result.claimedCount, 2);
+    assert.equal(result.replayedCount, 0);
+    assert.equal(result.stopReason, "NO_READY_WORK");
+    assert.equal(result.queue.revision, 2);
+    assert.equal(result.queue.items.find((item) => item.id === "p1-shared")?.state, "READY");
+
+    const replay = claimNusaDevelopmentWorkPortfolio(result.queue, {
+      owner: "development",
+      requestId: "portfolio-run",
+      expectedRevision: 0,
+      now: T0,
+      leaseMs: 60_000,
+      maximumItems: 2,
+      allocationPolicy: { maximumActiveWorkPerOwner: 3, preventTouchedFileConflicts: true },
+    });
+    assert.equal(replay.status, "IDEMPOTENT_REPLAY");
+    assert.equal(replay.claimedCount, 0);
+    assert.equal(replay.replayedCount, 2);
+    assert.equal(replay.queue, result.queue);
+  });
+
+  it("stops portfolio allocation at the owner WIP limit and rejects stale revisions", () => {
+    const queue = createNusaDevelopmentQueue([
+      work({ id: "already-active", state: "CI", canonicalOwner: "development" }),
+      work({ id: "ready-a", priority: "P0" }),
+      work({ id: "ready-b", priority: "P1" }),
+    ]);
+    const limited = claimNusaDevelopmentWorkPortfolio(queue, {
+      owner: "development",
+      requestId: "limited-run",
+      expectedRevision: 0,
+      now: T0,
+      leaseMs: 60_000,
+      maximumItems: 4,
+      allocationPolicy: { maximumActiveWorkPerOwner: 2, preventTouchedFileConflicts: true },
+    });
+    assert.equal(limited.status, "PARTIAL");
+    assert.equal(limited.claimedCount, 1);
+    assert.equal(limited.stopReason, "WIP_LIMIT_REACHED");
+
+    const stale = claimNusaDevelopmentWorkPortfolio(queue, {
+      owner: "development",
+      requestId: "stale-run",
+      expectedRevision: 1,
+      now: T0,
+      leaseMs: 60_000,
+      maximumItems: 1,
+    });
+    assert.equal(stale.status, "REVISION_CONFLICT");
+    assert.equal(stale.items.length, 0);
+  });
+
+  it("rejects an unbounded or invalid portfolio request before claiming", () => {
+    const queue = createNusaDevelopmentQueue([work({ id: "ready" })]);
+    assert.throws(() => claimNusaDevelopmentWorkPortfolio(queue, {
+      owner: "development",
+      requestId: "bad-max",
+      expectedRevision: 0,
+      now: T0,
+      leaseMs: 60_000,
+      maximumItems: 0,
+    }), /CLAIM_PORTFOLIO_MAXIMUM_ITEMS_INVALID/);
   });
 
   it("fails closed on invalid WIP allocation policy", () => {

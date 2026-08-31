@@ -43,6 +43,8 @@ export * from "./leagueCapitalAllocation";
 export * from "./persistedPaperPeriod";
 export * from "./uxTelemetryEvent";
 export * from "./aiTradingJudgment";
+export * from "./researchHypothesisContract";
+export * from "./portfolioRiskIntelligence";
 
 export enum LedgerSide { BUY = "BUY", SELL = "SELL" }
 export enum PositionScopeType { WALLET = "WALLET", STRATEGY = "STRATEGY" }

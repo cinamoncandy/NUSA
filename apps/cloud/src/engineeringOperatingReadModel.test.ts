@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { analyzeNusaCiCriticalPathTelemetry, type GithubCiJobTimingReceipt } from "../../desktop/src/cloud/nusaCiCriticalPathTelemetry";
 import { createNusaDevelopmentQueue } from "../../desktop/src/cloud/nusaDevelopmentControlPlane";
+import { buildEngineeringWorkPortfolio } from "../../desktop/src/cloud/nusaEngineeringPortfolioScheduler";
 import {
   buildNusaEngineeringOperatingSnapshot,
   createNusaEngineeringOperatingReadModel,
@@ -82,6 +83,22 @@ function input(overrides: Partial<NusaEngineeringOperatingInput> = {}): NusaEngi
       createdAt: BASE,
       claim: null,
     }]),
+    workPortfolio: buildEngineeringWorkPortfolio([{
+      packageId: "ci-latency",
+      opportunityId: "ci-latency",
+      priority: "P1",
+      incident: false,
+      lane: "FAST",
+      evidenceState: "VERIFIED",
+      repositoryControlled: true,
+      dependencies: [],
+      touchedFiles: ["apps/cloud/src/runtime.ts"],
+      evidenceRequirements: ["exact-head"],
+      estimatedEffort: 20,
+      risk: 10,
+      blastRadius: 10,
+      validationRequirements: ["targeted-test"],
+    }], { activeWorkerCount: 1, activeClaimCount: 1 }),
     ...overrides,
   };
 }
@@ -97,6 +114,20 @@ describe("NUSA Engineering OS production read model", () => {
     assert.equal(result.executionOrigin.origin, "USER_TRIGGERED");
     assert.deepEqual(result.sourceFingerprints, [FP, POST_FP]);
     assert.deepEqual(result.queue, { status: "AVAILABLE", revision: 0, totalItems: 1, activeItems: 1, mergeReadyItems: 1 });
+    assert.deepEqual(result.workSupply, {
+      status: "AVAILABLE",
+      candidateGapCount: 1,
+      validatedGapCount: 1,
+      readyBacklog: 1,
+      readyToWorkerRatio: 1,
+      activeClaimCount: 1,
+      waitingRealEvidenceCount: 0,
+      humanOnlyCount: 0,
+      externalOnlyCount: 0,
+      duplicateCount: 0,
+      blockedDependencyCount: 0,
+      conflictCount: 0,
+    });
     assert.deepEqual(result.blockers, []);
     assert.deepEqual(result.authority, { liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY", mutationAllowed: false });
   });
@@ -119,6 +150,7 @@ describe("NUSA Engineering OS production read model", () => {
     assert.equal(unavailable.adaptiveConcurrency.classification, "CONSERVATIVE");
     assert.equal(unavailable.outcome.classification, "INSUFFICIENT");
     assert.equal(unavailable.queue.status, "UNAVAILABLE");
+    assert.equal(unavailable.workSupply.status, "UNAVAILABLE");
     assert.equal(unavailable.authority.productionMutationAllowed, false);
 
     let reads = 0;
@@ -144,6 +176,18 @@ describe("NUSA Engineering OS production read model", () => {
       /ENGINEERING_QUEUE_ITEM_ID_INVALID/,
     );
     const unavailable = createNusaEngineeringOperatingReadModel(() => input({ queue: malformedQueue })).getSnapshot();
+    assert.equal(unavailable.status, "UNAVAILABLE");
+    assert.deepEqual(unavailable.blockers, ["ENGINEERING_SOURCE_UNAVAILABLE"]);
+  });
+
+  it("keeps missing or malformed work supply fail-closed instead of fabricating backlog", () => {
+    const missing = buildNusaEngineeringOperatingSnapshot(input({ workPortfolio: null }));
+    assert.equal(missing.status, "INSUFFICIENT");
+    assert.equal(missing.workSupply.status, "UNAVAILABLE");
+    assert.ok(missing.blockers.includes("WORK_SUPPLY_EVIDENCE_MISSING"));
+
+    const malformed = { ...input().workPortfolio!, metrics: { ...input().workPortfolio!.metrics, readyBacklog: 99 } };
+    const unavailable = createNusaEngineeringOperatingReadModel(() => input({ workPortfolio: malformed })).getSnapshot();
     assert.equal(unavailable.status, "UNAVAILABLE");
     assert.deepEqual(unavailable.blockers, ["ENGINEERING_SOURCE_UNAVAILABLE"]);
   });
