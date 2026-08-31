@@ -7,6 +7,12 @@ import {
   validateResearchHypothesisBinding,
   type ResearchHypothesis,
 } from "./researchHypothesis";
+import {
+  admitCanonicalResearchHypothesis,
+  ResearchHypothesisAdmissionError,
+  type CanonicalResearchHypothesisBinding,
+} from "./researchHypothesisAdmission";
+import type { ResearchHypothesis as CanonicalResearchHypothesis } from "../../../../packages/contracts/src/researchHypothesisContract";
 import type { ResearchRunTimeline } from "./researchRunTimeline";
 
 export type ResearchCandidateParameter = string | number | boolean;
@@ -18,6 +24,8 @@ export interface ResearchCandidateSeed {
   readonly parameters: Readonly<Record<string, ResearchCandidateParameter>>;
   readonly codeSha: string;
   readonly costModelVersion: string;
+  /** Rich immutable hypothesis required before a candidate enters the canonical run factory. */
+  readonly canonicalHypothesis: CanonicalResearchHypothesis;
 }
 
 export interface ResearchRunCandidatePlan {
@@ -25,6 +33,8 @@ export interface ResearchRunCandidatePlan {
   readonly familyId: string;
   readonly parameters: Readonly<Record<string, ResearchCandidateParameter>>;
   readonly specification: ResearchCandidateSpecification;
+  readonly canonicalHypothesis: CanonicalResearchHypothesis;
+  readonly canonicalHypothesisHash: string;
 }
 
 export interface ResearchRunProvenancePlan {
@@ -219,6 +229,21 @@ export function buildResearchRunProvenancePlan(input: {
     const parameters = canonicalParameters(seed.parameters);
     const codeSha = typeof seed.codeSha === "string" ? seed.codeSha.trim().toLowerCase() : "";
     const costModelVersion = typeof seed.costModelVersion === "string" ? seed.costModelVersion.trim() : "";
+    let canonicalHypothesis: CanonicalResearchHypothesisBinding;
+    try {
+      canonicalHypothesis = admitCanonicalResearchHypothesis({
+        hypothesis: seed.canonicalHypothesis,
+        candidateId,
+        manifest: input.manifest,
+        expectedCreatedAt: input.timeline.hypothesisGeneratedAt,
+        evaluationGeneratedAt: input.timeline.generatedAt,
+      });
+    } catch (error) {
+      if (error instanceof ResearchHypothesisAdmissionError) {
+        throw new ResearchRunFactoryError(error.code, `candidate ${candidateId} canonical hypothesis rejected`);
+      }
+      throw new ResearchRunFactoryError("INVALID_CANONICAL_HYPOTHESIS", `candidate ${candidateId} canonical hypothesis is invalid`);
+    }
     if (codeSha !== sourceCommitSha) {
       throw new ResearchRunFactoryError(
         "CANDIDATE_SOURCE_MISMATCH",
@@ -258,6 +283,8 @@ export function buildResearchRunProvenancePlan(input: {
       familyId,
       parameters,
       specification,
+      canonicalHypothesis: canonicalHypothesis.hypothesis,
+      canonicalHypothesisHash: canonicalHypothesis.hypothesisHash,
     });
   });
 

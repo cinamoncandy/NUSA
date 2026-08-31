@@ -22,6 +22,16 @@ latest_research_slice:
   scope: "Add strictly point-in-time regime evidence to the canonical real-market research run and carry it through the existing League bridge without weakening insufficient-evidence semantics."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
+current_research_follow_up:
+  work_order: WO-ISSUE-1094-RESEARCH-FACTORY
+  status: VERIFYING
+  base_commit: 07b92f86bbac6e939906c9de88575ac89d316f9f
+  implementation_branch: codex/research-factory-hypothesis-admission
+  implementation_commit: 49ad713061c6b26868789df7f793f9b127ef800c
+  scope: "Candidate-level canonical research hypothesis admission and provenance binding in the existing Research Factory path."
+  validation: "Focused 30/30; research/League regression 39/39; full isolated 825/825; typecheck/build/lint/preflight/architecture/safety/security/AIPOS/Restricted LIVE/Read-only Broker PASS."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  remaining: "Remote publication and exact-head CI; truthful longitudinal PAPER source remains unavailable/fail-closed."
 base_branch: main
 active_branch: main
 active_successor_branch: null

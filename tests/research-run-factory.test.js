@@ -12,10 +12,29 @@ const {
   buildResearchRunProvenancePlan,
   ResearchRunFactoryError,
 } = require("../dist/apps/desktop/src/cloud/researchRunFactory.js");
+const { createResearchHypothesis } = require("../dist/packages/contracts/src/researchHypothesisContract.js");
 
 const SNAPSHOT = Date.parse("2026-08-29T15:00:00.000Z");
 const SOURCE_SHA = "a".repeat(40);
 const DATASET_HASH = "b".repeat(64);
+
+function canonicalHypothesis(candidateId, createdAt) {
+  return createResearchHypothesis({
+    hypothesisId: `canonical:${candidateId}`,
+    candidateId,
+    family: "MOMENTUM",
+    rationale: "A precommitted directional persistence claim.",
+    mechanism: "Delayed liquidity replenishment can preserve short-lived order-flow pressure.",
+    targetMarket: "KRW-BTC",
+    expectedRegime: "UNKNOWN",
+    invalidationCondition: "The cost-adjusted out-of-sample effect is not reproducible.",
+    holdingPeriodMs: 86_400_000,
+    capacityAssumptions: { maxNotional: 10_000_000, maxParticipationRate: 0.05 },
+    transactionCostSensitivity: 1,
+    provenance: { author: "research-run", sourceReferences: ["dataset:upbit-KRW-BTC-1d-20260828"] },
+    createdAt,
+  });
+}
 
 function inputs(overrides = {}) {
   const timeline = buildResearchRunTimeline(SNAPSHOT);
@@ -59,6 +78,7 @@ function inputs(overrides = {}) {
         parameters: { longPeriod: 20, shortPeriod: 5 },
         codeSha: SOURCE_SHA,
         costModelVersion: "wf-cost-v1",
+        canonicalHypothesis: canonicalHypothesis("sma-5-20", new Date(SNAPSHOT).toISOString()),
       },
       {
         candidateId: "sma-8-20",
@@ -67,6 +87,7 @@ function inputs(overrides = {}) {
         parameters: { shortPeriod: 8, longPeriod: 20 },
         codeSha: SOURCE_SHA,
         costModelVersion: "wf-cost-v1",
+        canonicalHypothesis: canonicalHypothesis("sma-8-20", new Date(SNAPSHOT).toISOString()),
       },
     ],
     ...overrides,
@@ -84,6 +105,8 @@ test("builds a deterministic, immutable hypothesis-to-candidate provenance plan"
   assert.deepEqual(Object.keys(first.candidates[0].parameters), ["longPeriod", "shortPeriod"]);
   assert.equal(first.candidates[0].specification.datasetId, first.dataset.datasetId);
   assert.equal(first.candidates[0].specification.generatedAt, new Date(SNAPSHOT + 1).toISOString());
+  assert.match(first.candidates[0].canonicalHypothesisHash, /^[a-f0-9]{64}$/);
+  assert.equal(first.candidates[0].canonicalHypothesis.candidateId, first.candidates[0].candidateId);
 });
 
 test("binds every candidate to the precommitted hypothesis and one dataset", () => {
@@ -146,5 +169,14 @@ test("rejects secret-like candidate parameters before they enter provenance", ()
       candidates: [{ ...inputs().candidates[0], parameters: { apiToken: "must-not-enter" } }],
     })),
     (error) => error instanceof ResearchRunFactoryError && error.code === "FORBIDDEN_PARAMETER",
+  );
+});
+
+test("requires a rich canonical hypothesis for every candidate", () => {
+  const missing = { ...inputs().candidates[0] };
+  delete missing.canonicalHypothesis;
+  assert.throws(
+    () => buildResearchRunProvenancePlan(inputs({ candidates: [missing] })),
+    (error) => error instanceof ResearchRunFactoryError && error.code === "INVALID_CANONICAL_HYPOTHESIS",
   );
 });
