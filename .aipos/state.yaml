@@ -1,16 +1,16 @@
 version: 1
 project: nusa
-updated_at: "2026-08-31T13:55:00+09:00"
+updated_at: "2026-08-31T14:10:00+09:00"
 current_execution_target:
-  work_order: WO-ISSUE-1299-LIVE-CANONICAL-FINAL-CHAIN-AUDIT
-  status: VERIFYING
-  branch: codex/live-canonical-final-chain-audit
-  base_sha: e871a28b8452b6b85a1f438d49d8150df3f8dd7f
-  scope: "Repository-controlled canonical LIVE final-chain fault, concurrency, replay, and bypass regression evidence; no LIVE mutation authority."
+  work_order: WO-0051
+  status: IN_PROGRESS
+  branch: main
+  base_sha: 9fe44a95bab25ae341e9a47c2a4a41b32fb7a26c
+  scope: "Terminal human/environment gate for LIVE and real-money transition; automated work remains fail-closed."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: verification
 status: in_progress
-objective: "Make repository event-driven development transitions deterministic and replay-safe while holding all production and LIVE authority at the human/environment boundary; currently verify the canonical LIVE final execution chain."
+objective: "Make repository event-driven development transitions deterministic and replay-safe while holding all production and LIVE authority at the human/environment boundary."
 latest_research_slice:
   work_order: WO-MARKET-INTELLIGENCE-REGIME-POINT-IN-TIME-001
   status: COMPLETED
@@ -23,9 +23,9 @@ latest_research_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   validation: "Point-in-time regime/bridge focused coverage and PR #854 exact-head protected workflows 6/6 PASS; CI validation, typecheck/build/lint/architecture/safety/security/AIPOS PASS."
 base_branch: main
-active_branch: codex/live-canonical-final-chain-audit
+active_branch: main
 active_successor_branch: null
-active_pull_request: 1309
+active_pull_request: null
 current_non_live_work_order:
   id: WO-0070
   # WO-0070 is a historical collision. The bare id is retained for compatibility, but it is
@@ -83,15 +83,15 @@ repository_maintenance:
     status: MERGED
     scope: "Actual mobile visual redesign across tokens, Home, Markets, Chart, bottom navigation, and bounded terrain/signal visual; no logo or authority change."
 claimed_state:
-  work_order: WO-ISSUE-1299-LIVE-CANONICAL-FINAL-CHAIN-AUDIT
-  status: VERIFYING
-  branch: codex/live-canonical-final-chain-audit
-  base_commit: e871a28b8452b6b85a1f438d49d8150df3f8dd7f
-  scope: "Repository-controlled canonical LIVE final-chain fault, concurrency, replay, and bypass regression evidence; no LIVE mutation authority."
+  work_order: WO-0051
+  status: IN_PROGRESS
+  branch: main
+  base_commit: 9fe44a95bab25ae341e9a47c2a4a41b32fb7a26c
+  scope: "Terminal human/environment gate for LIVE and real-money transition; automated work remains fail-closed."
   safety: "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY"
-  implementation_commit: c8d41fdb7a6cb8cd80615784e352205e0c559b85
-  pull_request: 1309
-  validation: "Updated-main validation: focused chain/PAPER 32/32 PASS, full isolated suite 821 files PASS, repository gates PASS; remote exact-head validation pending."
+  implementation_commit: "PR #1309 merge 9fe44a95bab25ae341e9a47c2a4a41b32fb7a26c; no active implementation branch."
+  pull_request: null
+  validation: "PR #1309 exact head 768fb06f702fdb00208461e2b8037fbdd0b838f3 passed all six protected workflows and merged to main as 9fe44a95bab25ae341e9a47c2a4a41b32fb7a26c."
 previous_claimed_state:
   work_order: WO-ISSUE-661-LIVE-READY-OBSERVABILITY
   status: IN_PROGRESS
@@ -506,9 +506,6 @@ in_progress:
   - id: WO-0051
     evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
     summary: "Terminal human/environment gate remains in progress for LIVE and real-money transition only; automation cannot complete it."
-  - id: WO-ISSUE-1299-LIVE-CANONICAL-FINAL-CHAIN-AUDIT
-    evidence: ".aipos/work-orders/WO-ISSUE-1299-LIVE-CANONICAL-FINAL-CHAIN-AUDIT.yaml"
-    summary: "Repository-controlled canonical LIVE final-chain fault, concurrency, replay, and bypass regression evidence is being verified without enabling LIVE mutation."
 serialized_human_environment_gate:
   work_order: WO-0051
   evidence: ".aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml"
@@ -535,8 +532,8 @@ scope_reclassified:
     status: NOT_APPLICABLE_PERSONAL_USE
     reason: "Public Windows distribution is out of scope for the current private/personal-use product. Reopen only if public distribution is approved."
 next:
-  work_order: .aipos/work-orders/WO-ISSUE-1299-LIVE-CANONICAL-FINAL-CHAIN-AUDIT.yaml
-  reason: "Validate PR #1309 on the updated exact remote head; keep all LIVE mutation fail-closed."
+  work_order: .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
+  reason: "Canonical LIVE final-chain audit completed in PR #1309; continue only with the existing human/environment gate for any LIVE or real-money transition."
 verification:
   wo_0057:
     parent_pull_request: 552

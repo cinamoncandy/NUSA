@@ -59,8 +59,11 @@ Repository gates on this exact local source tree also passed: preflight,
 typecheck, build, lint, architecture truth/check, safety inputs/architecture/
 invariants, Restricted LIVE governance/readiness, Read-only Broker, AI
 zero-authority, security, package validation, AIPOS drift/conformance/
-provenance/evidence, and `git diff --check`. Remote PR/CI validation remains
-pending on PR #1309's updated exact head.
+provenance/evidence, and `git diff --check`. PR #1309's exact head
+`768fb06f702fdb00208461e2b8037fbdd0b838f3` passed all six required workflows
+and was squash-merged to `main` as `9fe44a95bab25ae341e9a47c2a4a41b32fb7a26c`.
+The merged default branch contains `tests/live-canonical-final-chain.test.js`,
+verified through the default-branch file fetch.
 
 ## Safety result
 

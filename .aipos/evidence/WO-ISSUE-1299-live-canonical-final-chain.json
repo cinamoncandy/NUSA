@@ -2,7 +2,7 @@
   "version": 1,
   "workOrder": "WO-ISSUE-1299-LIVE-CANONICAL-FINAL-CHAIN-AUDIT",
   "issue": 1299,
-  "status": "VERIFYING",
+  "status": "PASS",
   "baseSha": "e871a28b8452b6b85a1f438d49d8150df3f8dd7f",
   "initialAuditSha": "259b98f21ebe4d28644ac406e26aeb4b3a19648c",
   "mainIntegratedSha": "e871a28b8452b6b85a1f438d49d8150df3f8dd7f",
@@ -10,6 +10,14 @@
   "implementationCommit": "c8d41fdb7a6cb8cd80615784e352205e0c559b85",
   "branch": "codex/live-canonical-final-chain-audit",
   "pullRequest": 1309,
+  "finalExactHead": "768fb06f702fdb00208461e2b8037fbdd0b838f3",
+  "mergeCommit": "9fe44a95bab25ae341e9a47c2a4a41b32fb7a26c",
+  "postMergeMain": "9fe44a95bab25ae341e9a47c2a4a41b32fb7a26c",
+  "remoteValidation": {
+    "requiredWorkflows": "6/6 PASS",
+    "head": "768fb06f702fdb00208461e2b8037fbdd0b838f3",
+    "merge": "9fe44a95bab25ae341e9a47c2a4a41b32fb7a26c"
+  },
   "scope": [
     "canonical authoritative session to final reservation regression",
     "concurrent duplicate transport suppression",
@@ -49,5 +57,5 @@
     "activation": "NONE",
     "credentials": "NOT_USED"
   },
-  "next": "Validate PR #1309 on the updated exact remote head."
+  "next": "WO-0051 remains the only terminal human/environment gate for LIVE and real-money transition."
 }
