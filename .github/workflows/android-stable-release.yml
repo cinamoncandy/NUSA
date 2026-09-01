@@ -237,7 +237,7 @@ jobs:
           unzip -p "$APK" "$BUNDLE_PATH" > "$BUNDLE_FILE"
           BUNDLE_STRINGS="$RUNNER_TEMP/index.android.bundle.strings"
           strings "$BUNDLE_FILE" > "$BUNDLE_STRINGS"
-          for UI_MARKER in home-paper-learning trade-paper-learning portfolio-paper-learning paper-learning-monitor; do
+          for UI_MARKER in home-supervisor-learning trade-paper-learning portfolio-paper-learning paper-learning-monitor; do
             grep -F "$UI_MARKER" "$BUNDLE_STRINGS"
           done
           for CHART_MARKER in markets-chart-tab market-detail-workspace chart-screen chart-candles; do
