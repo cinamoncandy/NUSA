@@ -9,9 +9,7 @@ on:
     workflows: [CI]
     types: [completed]
 
-permissions:
-  contents: read
-  id-token: write
+permissions: {}
 
 concurrency:
   group: autopilot-github-event-bridge-${{ github.event_name }}-${{ github.run_id }}
@@ -21,6 +19,11 @@ jobs:
   bridge:
     runs-on: ubuntu-latest
     timeout-minutes: 2
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      audit_fallback_eligible: ${{ steps.deliver.outputs.audit_fallback_eligible }}
     steps:
       - name: Checkout trusted bridge implementation
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -30,6 +33,7 @@ jobs:
           persist-credentials: false
 
       - name: Deliver GitHub event to canonical Autopilot webhook
+        id: deliver
         env:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           GITHUB_RUN_ID: ${{ github.run_id }}
@@ -37,3 +41,32 @@ jobs:
           NUSA_AUTOPILOT_WEBHOOK_URL: https://nusa-autopilot.desporin12.workers.dev/github/webhook
           NUSA_WEBHOOK_SECRET: ${{ secrets.NUSA_WEBHOOK_SECRET }}
         run: node scripts/dispatch-github-event-to-autopilot.mjs
+
+  audit-dispatch-fallback:
+    needs: bridge
+    if: >-
+      ${{ github.event_name == 'workflow_run' &&
+          github.event.workflow_run.name == 'CI' &&
+          github.event.workflow_run.status == 'completed' &&
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'pull_request' &&
+          needs.bridge.outputs.audit_fallback_eligible == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: write
+      actions: read
+      pull-requests: read
+    steps:
+      - name: Checkout trusted Audit fallback implementation
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Dispatch Audit only after explicit Worker token-missing evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUSA_AUDIT_FALLBACK_ELIGIBLE: ${{ needs.bridge.outputs.audit_fallback_eligible }}
+        run: node scripts/fallback-audit-dispatch-from-bridge.mjs

@@ -10,6 +10,8 @@ export interface GithubExecutorResult {
   readonly status: "NOOP" | "INTERFACE_READY" | "DISPATCHED" | "REJECTED" | "FAILED";
   readonly reason: string;
   readonly httpStatus: number | null;
+  readonly requestedHeadSha: string | null;
+  readonly observedHeadSha: string | null;
 }
 
 const SHA40 = /^[0-9a-f]{40}$/i;
@@ -17,8 +19,14 @@ const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const EXECUTION_ID = /^[A-Za-z0-9_.:-]{1,160}$/;
 const DEDUPE_KEY = /^[A-Za-z0-9_.:-]{1,256}$/;
 
-function result(status: GithubExecutorResult["status"], reason: string, httpStatus: number | null = null): GithubExecutorResult {
-  return Object.freeze({ status, reason, httpStatus });
+function result(
+  status: GithubExecutorResult["status"],
+  reason: string,
+  httpStatus: number | null = null,
+  requestedHeadSha: string | null = null,
+  observedHeadSha: string | null = null,
+): GithubExecutorResult {
+  return Object.freeze({ status, reason, httpStatus, requestedHeadSha, observedHeadSha });
 }
 
 function object(value: unknown): Record<string, unknown> | null {
@@ -106,8 +114,15 @@ export async function executeGithubDispatch(
     ? await resolveCurrentPullRequestHead(base, config.allowedRepository, request.prNumber!, token, fetchImpl)
     : await resolveCurrentMainSha(base, config.allowedRepository, token, fetchImpl);
   if (typeof currentHead !== "string") return currentHead;
-  if (currentHead !== request.headSha.toLowerCase()) {
-    return result("REJECTED", request.kind === "AUDIT_REQUEST" ? "github-executor-stale-pr-head-suppressed" : "github-executor-stale-head-suppressed");
+  const requestedHead = request.headSha.toLowerCase();
+  if (currentHead !== requestedHead) {
+    return result(
+      "REJECTED",
+      request.kind === "AUDIT_REQUEST" ? "github-executor-stale-pr-head-suppressed" : "github-executor-stale-head-suppressed",
+      null,
+      requestedHead,
+      currentHead,
+    );
   }
 
   const response = await fetchImpl(`${base}/repos/${config.allowedRepository}/dispatches`, {
@@ -134,8 +149,8 @@ export async function executeGithubDispatch(
     }),
   });
 
-  if (response.status === 204) return result("DISPATCHED", "github-repository-dispatch-accepted", 204);
-  if (response.status === 401 || response.status === 403) return result("FAILED", "github-executor-auth-rejected", response.status);
-  if (response.status === 404) return result("FAILED", "github-executor-repository-or-token-scope-invalid", 404);
-  return result("FAILED", `github-executor-http-${response.status}`, response.status);
+  if (response.status === 204) return result("DISPATCHED", "github-repository-dispatch-accepted", 204, requestedHead, currentHead);
+  if (response.status === 401 || response.status === 403) return result("FAILED", "github-executor-auth-rejected", response.status, requestedHead, currentHead);
+  if (response.status === 404) return result("FAILED", "github-executor-repository-or-token-scope-invalid", 404, requestedHead, currentHead);
+  return result("FAILED", `github-executor-http-${response.status}`, response.status, requestedHead, currentHead);
 }

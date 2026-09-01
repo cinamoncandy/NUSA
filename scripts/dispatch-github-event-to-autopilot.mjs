@@ -9,6 +9,12 @@ const SUPPORTED_EVENTS = new Set(["push", "pull_request", "workflow_run", "ping"
 const TRANSIENT_STATUSES = new Set([429, 500, 502, 503, 504]);
 const MAX_ATTEMPTS = 2;
 const REQUEST_TIMEOUT_MS = 20_000;
+const AUDIT_CREDENTIAL_FAILURES = new Set([
+  "github-executor-token-not-configured",
+  "github-executor-auth-rejected",
+  "github-executor-repository-or-token-scope-invalid",
+  "github-executor-pr-or-token-scope-invalid",
+]);
 
 function safeEventName(value) {
   const event = value === "pull_request_target" ? "pull_request" : value;
@@ -18,6 +24,18 @@ function safeEventName(value) {
 function safeRunPart(value, name) {
   if (!/^[1-9][0-9]*$/.test(String(value ?? ""))) throw new Error(`${name}_INVALID`);
   return String(value);
+}
+
+function object(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value : null;
+}
+
+function safeExecutorEvidence(payload) {
+  const executor = object(object(payload)?.executor);
+  const status = typeof executor?.status === "string" ? executor.status : null;
+  const reason = typeof executor?.reason === "string" ? executor.reason : null;
+  const httpStatus = Number.isSafeInteger(executor?.httpStatus) ? executor.httpStatus : null;
+  return Object.freeze({ status, reason, httpStatus });
 }
 
 export function createDeliveryId({ repository, event, runId, runAttempt }) {
@@ -89,6 +107,17 @@ async function responseSafety(response) {
   return payload;
 }
 
+export function isAuditFallbackEligible(payload) {
+  const value = object(payload);
+  const execution = object(value?.execution);
+  const executor = object(value?.executor);
+  if (execution?.kind !== "AUDIT_REQUEST") return false;
+  const reason = typeof executor?.reason === "string" ? executor.reason : "";
+  if (!AUDIT_CREDENTIAL_FAILURES.has(reason)) return false;
+  if (reason === "github-executor-token-not-configured") return executor?.status === "INTERFACE_READY";
+  return executor?.status === "FAILED" && [401, 403, 404].includes(executor?.httpStatus);
+}
+
 export async function dispatchGithubEvent({
   secret,
   oidcToken,
@@ -145,8 +174,20 @@ export async function dispatchGithubEvent({
     }
     const classification = responseClass(response.status);
     if (classification === "SUCCESS") {
-      await responseSafety(response);
-      return Object.freeze({ status: "DELIVERED", authentication, event: normalizedEvent, deliveryId, attempts: attempts + 1, responseStatus: response.status });
+      const payload = await responseSafety(response);
+      const executor = safeExecutorEvidence(payload);
+      return Object.freeze({
+        status: "DELIVERED",
+        authentication,
+        event: normalizedEvent,
+        deliveryId,
+        attempts: attempts + 1,
+        responseStatus: response.status,
+        executorStatus: executor.status,
+        executorReason: executor.reason,
+        executorHttpStatus: executor.httpStatus,
+        auditFallbackEligible: isAuditFallbackEligible(payload),
+      });
     }
     if (classification !== "TRANSIENT_FAILURE" || attempts + 1 >= MAX_ATTEMPTS) {
       throw new Error(`WEBHOOK_HTTP_${response.status}`);
@@ -166,6 +207,10 @@ function summaryLine(result) {
     `- delivery: ${result.deliveryId}`,
     `- attempts: ${result.attempts}`,
     `- response: ${result.responseStatus ?? "none"}`,
+    `- executor status: ${result.executorStatus ?? "none"}`,
+    `- executor reason: ${result.executorReason ?? "none"}`,
+    `- executor http: ${result.executorHttpStatus ?? "none"}`,
+    `- audit fallback eligible: ${result.auditFallbackEligible === true ? "true" : "false"}`,
     "- liveAuthority: NONE",
     "- productionMutationAllowed: false",
     "- AI authority: ZERO_AUTHORITY",
@@ -175,6 +220,12 @@ function summaryLine(result) {
 function writeSummary(result) {
   const destination = process.env.GITHUB_STEP_SUMMARY;
   if (destination) fs.appendFileSync(destination, `${summaryLine(result)}\n`);
+}
+
+function writeOutputs(result) {
+  const destination = process.env.GITHUB_OUTPUT;
+  if (!destination) return;
+  fs.appendFileSync(destination, `audit_fallback_eligible=${result.auditFallbackEligible === true ? "true" : "false"}\n`);
 }
 
 async function main() {
@@ -197,6 +248,7 @@ async function main() {
     webhookUrl: process.env.NUSA_AUTOPILOT_WEBHOOK_URL || DEFAULT_WEBHOOK_URL,
   });
   writeSummary(result);
+  writeOutputs(result);
   console.log(JSON.stringify(result));
 }
 

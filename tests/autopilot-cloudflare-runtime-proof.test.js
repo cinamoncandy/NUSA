@@ -9,6 +9,10 @@ const workflow = fs.readFileSync(path.join(__dirname, "..", ".github", "workflow
 
 test("runtime proof runs hourly away from the scheduler burst and uploads bounded evidence", () => {
   assert.equal(workflow.includes("cron: '37 * * * *'"), true);
+  assert.equal(workflow.includes("workflow_run:"), true);
+  assert.equal(workflow.includes("workflows: [Autopilot Cloudflare Deploy]"), true);
+  assert.equal(workflow.includes("branches: [main]"), true);
+  assert.equal(workflow.includes("github.event.workflow_run.head_sha"), true);
   assert.equal(workflow.includes("NUSA_RUNTIME_PROOF_OUTPUT"), true);
   assert.equal(workflow.includes("NUSA_RUNTIME_PROOF_EVENT"), true);
   assert.equal(workflow.includes("NUSA_RUNTIME_PROOF_RUN_ID"), true);
@@ -173,6 +177,30 @@ test("push verification cannot be counted as a scheduled proof", async () => {
   });
   assert.equal(proof.proofStatus, "INSUFFICIENT_EVIDENCE");
   assert.equal(proof.exactHeadVerified, true);
+});
+
+test("successful canonical main workflow_run is an event-driven proof", async () => {
+  const sourceSha = "a".repeat(40);
+  const verifier = await loadVerifier();
+  const proof = await verifier.collectRuntimeProof({
+    fetchImpl: fetchSequence({ headSha: sourceSha }).fetchImpl,
+    requestBaseUrl: "https://example.test",
+    contextOverride: { workflowRunId: 12345, workflowRunAttempt: 1, triggerType: "workflow_run", sourceBranch: "main", sourceSha },
+    now: 1_700_000_000_500,
+  });
+  assert.equal(proof.proofStatus, "PROOF_FRESH");
+  assert.equal(proof.expectedMainSha, sourceSha);
+  assert.equal(proof.exactHeadVerified, true);
+});
+
+test("event-driven proof from another head fails closed", async () => {
+  const verifier = await loadVerifier();
+  await assert.rejects(() => verifier.collectRuntimeProof({
+    fetchImpl: fetchSequence({ headSha: "b".repeat(40) }).fetchImpl,
+    requestBaseUrl: "https://example.test",
+    contextOverride: { workflowRunId: 12345, workflowRunAttempt: 1, triggerType: "workflow_run", sourceBranch: "main", sourceSha: "a".repeat(40) },
+    now: 1_700_000_000_500,
+  }), (error) => error?.classification === "head_mismatch_failed_closed" && error?.reasonCode === "HEAD_MISMATCH_FAILED_CLOSED");
 });
 
 test("missing scheduled evidence is classified as proof_not_scheduled", async () => {

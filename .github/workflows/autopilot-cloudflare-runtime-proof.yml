@@ -12,6 +12,10 @@ on:
       - 'apps/autopilot/**'
       - 'scripts/verify-autopilot-cloudflare-runtime.mjs'
       - '.github/workflows/autopilot-cloudflare-runtime-proof.yml'
+  workflow_run:
+    workflows: [Autopilot Cloudflare Deploy]
+    types: [completed]
+    branches: [main]
   schedule:
     # Keep the hourly proof away from the scheduler's common minute boundary.
     - cron: '37 * * * *'
@@ -25,16 +29,17 @@ concurrency:
 
 jobs:
   runtime-proof:
+    if: ${{ github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository) }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      NUSA_AUTOPILOT_URL: https://nusa.desporin12.workers.dev
+      NUSA_AUTOPILOT_URL: https://nusa-autopilot.desporin12.workers.dev
       NUSA_AUTOPILOT_MAX_RECEIPT_AGE_MS: '180000'
       NUSA_RUNTIME_PROOF_EVENT: ${{ github.event_name }}
       NUSA_RUNTIME_PROOF_RUN_ID: ${{ github.run_id }}
       NUSA_RUNTIME_PROOF_RUN_ATTEMPT: ${{ github.run_attempt }}
-      NUSA_RUNTIME_PROOF_SOURCE_SHA: ${{ github.sha }}
-      NUSA_RUNTIME_PROOF_SOURCE_BRANCH: ${{ github.ref_name }}
+      NUSA_RUNTIME_PROOF_SOURCE_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+      NUSA_RUNTIME_PROOF_SOURCE_BRANCH: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}
       NUSA_RUNTIME_PROOF_STARTED_AT: ${{ github.run_started_at }}
     steps:
       - name: Prepare proof evidence directory
@@ -53,4 +58,3 @@ jobs:
           path: artifacts/autopilot/runtime-proof.json
           if-no-files-found: warn
           retention-days: 7
-
