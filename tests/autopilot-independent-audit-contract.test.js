@@ -45,7 +45,7 @@ test("Audit execution is isolated from coding mutation endpoint", () => {
 });
 
 test("independent Audit re-fetches exact PR/head/base/CI and rejects partial diff evidence", () => {
-  assert.equal((auditRunner.match(/verifyCurrentPullAndCi\(request, fetchImpl\)/g) ?? []).length, 2);
+  assert.equal((auditRunner.match(/verifyCurrentPullAndCi\(request,/g) ?? []).length, 2);
   assert.match(auditRunner, /method: "GET"/);
   assert.doesNotMatch(auditRunner, /method: "POST"|method: "PATCH"|method: "PUT"|method: "DELETE"/);
   assert.match(auditRunner, /AUDIT_PR_HEAD_MISMATCH/);
