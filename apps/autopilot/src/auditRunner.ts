@@ -88,6 +88,30 @@ const MAX_EVIDENCE_REF_CHARS = 500;
 const ALLOWED_MODEL_KEYS = new Set(["verdict", "findings", "blockers", "safetyInvariantResult"]);
 const ALLOWED_FINDING_KEYS = new Set(["code", "severity", "message", "evidenceRef"]);
 
+const AUDIT_FINDING_SCHEMA = Object.freeze({
+  type: "object",
+  additionalProperties: false,
+  properties: Object.freeze({
+    code: Object.freeze({ type: "string" }),
+    severity: Object.freeze({ type: "string", enum: Object.freeze(["NOTE", "BLOCKER"]) }),
+    message: Object.freeze({ type: "string" }),
+    evidenceRef: Object.freeze({ anyOf: Object.freeze([{ type: "string" }, { type: "null" }]) }),
+  }),
+  required: Object.freeze(["code", "severity", "message", "evidenceRef"]),
+});
+
+const AUDIT_NOTE_FINDING_SCHEMA = Object.freeze({
+  type: "object",
+  additionalProperties: false,
+  properties: Object.freeze({
+    code: Object.freeze({ type: "string" }),
+    severity: Object.freeze({ type: "string", enum: Object.freeze(["NOTE"]) }),
+    message: Object.freeze({ type: "string" }),
+    evidenceRef: Object.freeze({ anyOf: Object.freeze([{ type: "string" }, { type: "null" }]) }),
+  }),
+  required: Object.freeze(["code", "severity", "message", "evidenceRef"]),
+});
+
 const AUDIT_RESPONSE_FORMAT = Object.freeze({
   type: "json_schema",
   json_schema: Object.freeze({
@@ -98,22 +122,36 @@ const AUDIT_RESPONSE_FORMAT = Object.freeze({
       findings: Object.freeze({
         type: "array",
         maxItems: MAX_FINDINGS,
-        items: Object.freeze({
-          type: "object",
-          additionalProperties: false,
-          properties: Object.freeze({
-            code: Object.freeze({ type: "string" }),
-            severity: Object.freeze({ type: "string", enum: Object.freeze(["NOTE", "BLOCKER"]) }),
-            message: Object.freeze({ type: "string" }),
-            evidenceRef: Object.freeze({ anyOf: Object.freeze([{ type: "string" }, { type: "null" }]) }),
-          }),
-          required: Object.freeze(["code", "severity", "message", "evidenceRef"]),
-        }),
+        items: AUDIT_FINDING_SCHEMA,
       }),
       blockers: Object.freeze({ type: "array", maxItems: MAX_BLOCKERS, items: Object.freeze({ type: "string" }) }),
       safetyInvariantResult: Object.freeze({ type: "string", enum: Object.freeze(["PASS", "FAIL"]) }),
     }),
     required: Object.freeze(["verdict", "findings", "blockers", "safetyInvariantResult"]),
+    anyOf: Object.freeze([
+      Object.freeze({
+        properties: Object.freeze({
+          verdict: Object.freeze({ enum: Object.freeze(["PASS"]) }),
+          findings: Object.freeze({ type: "array", maxItems: 0 }),
+          blockers: Object.freeze({ type: "array", maxItems: 0 }),
+          safetyInvariantResult: Object.freeze({ enum: Object.freeze(["PASS"]) }),
+        }),
+      }),
+      Object.freeze({
+        properties: Object.freeze({
+          verdict: Object.freeze({ enum: Object.freeze(["PASS_WITH_NOTES"]) }),
+          findings: Object.freeze({ type: "array", minItems: 1, maxItems: MAX_FINDINGS, items: AUDIT_NOTE_FINDING_SCHEMA }),
+          blockers: Object.freeze({ type: "array", maxItems: 0 }),
+          safetyInvariantResult: Object.freeze({ enum: Object.freeze(["PASS"]) }),
+        }),
+      }),
+      Object.freeze({
+        properties: Object.freeze({
+          verdict: Object.freeze({ enum: Object.freeze(["FAIL"]) }),
+          blockers: Object.freeze({ type: "array", minItems: 1, maxItems: MAX_BLOCKERS, items: Object.freeze({ type: "string" }) }),
+        }),
+      }),
+    ]),
   }),
 });
 
