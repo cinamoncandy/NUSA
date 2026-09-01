@@ -61,6 +61,38 @@ describe("portfolio risk intelligence", () => {
     assert.ok(result.insufficientEvidenceReasons.some((reason) => reason.startsWith("VOLATILITY_MISSING")));
   });
 
+  it("fails closed when a pairwise correlation is missing instead of assuming independence", () => {
+    const result = summarizePortfolioRisk({
+      equity: 1000,
+      assets: [{ market: "BTC-USD", marketValue: 500 }, { market: "ETH-USD", marketValue: 500 }],
+      correlations: {},
+      volatility: { "BTC-USD": 0.02, "ETH-USD": 0.03 },
+    });
+    assert.equal(result.riskContributions, null);
+    assert.equal(result.expectedRisk, null);
+    assert.ok(result.insufficientEvidenceReasons.includes("CORRELATION_MISSING:BTC-USD|ETH-USD"));
+  });
+
+  it("fails closed on invalid correlation or volatility evidence", () => {
+    const invalidCorrelation = summarizePortfolioRisk({
+      equity: 1000,
+      assets: [{ market: "BTC-USD", marketValue: 500 }, { market: "ETH-USD", marketValue: 500 }],
+      correlations: { "BTC-USD|ETH-USD": Number.NaN },
+      volatility: { "BTC-USD": 0.02, "ETH-USD": 0.03 },
+    });
+    assert.equal(invalidCorrelation.riskContributions, null);
+    assert.ok(invalidCorrelation.insufficientEvidenceReasons.includes("CORRELATION_INVALID:BTC-USD|ETH-USD"));
+
+    const invalidVolatility = summarizePortfolioRisk({
+      equity: 1000,
+      assets: [{ market: "BTC-USD", marketValue: 500 }, { market: "ETH-USD", marketValue: 500 }],
+      correlations: { "BTC-USD|ETH-USD": 0.5 },
+      volatility: { "BTC-USD": 0.02, "ETH-USD": -0.03 },
+    });
+    assert.equal(invalidVolatility.riskContributions, null);
+    assert.ok(invalidVolatility.insufficientEvidenceReasons.includes("VOLATILITY_INVALID:ETH-USD"));
+  });
+
   it("computes risk contributions and expected risk when correlations and volatility are supplied", () => {
     const result = summarizePortfolioRisk({
       equity: 1000,
