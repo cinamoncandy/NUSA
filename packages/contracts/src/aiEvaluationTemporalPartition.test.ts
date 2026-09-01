@@ -4,6 +4,7 @@ import {
   validateAiPredictionTemporalIdentity,
   assignAiEvaluationPartition,
   isHoldoutUntouchedByTraining,
+  evaluatePurgeEmbargo,
   type AiPredictionTemporalIdentity,
   type AiEvaluationPartition,
 } from "./aiEvaluationTemporalPartition";
@@ -135,5 +136,83 @@ describe("isHoldoutUntouchedByTraining", () => {
 
   it("is false when a prediction time cannot be assigned at all", () => {
     assert.equal(isHoldoutUntouchedByTraining([2_100, 50_000], partitions()), false);
+  });
+});
+
+describe("evaluatePurgeEmbargo", () => {
+  const policy = { embargoMs: 100 };
+
+  it("keeps a TRAIN candidate whose outcome window does not overlap or approach a boundary", () => {
+    const result = evaluatePurgeEmbargo({ predictionTime: 100, outcomeWindowStart: 100, outcomeWindowEnd: 300 }, partitions(), policy);
+    assert.deepEqual(result, { excluded: false });
+  });
+
+  it("purges a TRAIN candidate whose outcome window overlaps the VALIDATION partition", () => {
+    const result = evaluatePurgeEmbargo({ predictionTime: 800, outcomeWindowStart: 800, outcomeWindowEnd: 1_200 }, partitions(), policy);
+    assert.equal(result.excluded, true);
+    if (result.excluded) {
+      assert.equal(result.reason, "PURGED_OVERLAPPING_OUTCOME_WINDOW");
+      assert.equal(result.conflictingPartitionId, "validation");
+    }
+  });
+
+  it("purges a TRAIN candidate whose outcome window overlaps the HOLDOUT partition even without touching VALIDATION", () => {
+    const result = evaluatePurgeEmbargo({ predictionTime: 100, outcomeWindowStart: 2_500, outcomeWindowEnd: 2_600 }, partitions(), policy);
+    assert.equal(result.excluded, true);
+    if (result.excluded) assert.equal(result.conflictingPartitionId, "holdout");
+  });
+
+  it("embargoes a TRAIN candidate predicted just before a boundary even with no literal overlap", () => {
+    const result = evaluatePurgeEmbargo({ predictionTime: 950, outcomeWindowStart: 950, outcomeWindowEnd: 960 }, partitions(), policy);
+    assert.equal(result.excluded, true);
+    if (result.excluded) {
+      assert.equal(result.reason, "EMBARGOED_NEAR_BOUNDARY");
+      assert.equal(result.conflictingPartitionId, "validation");
+    }
+  });
+
+  it("does not embargo a candidate outside the embargo window", () => {
+    const result = evaluatePurgeEmbargo({ predictionTime: 800, outcomeWindowStart: 800, outcomeWindowEnd: 850 }, partitions(), policy);
+    assert.deepEqual(result, { excluded: false });
+  });
+
+  it("never excludes a candidate against TRAIN-role partitions", () => {
+    const trainOnly: readonly AiEvaluationPartition[] = [{ partitionId: "train", role: "TRAIN", startTime: 0, endTime: 1_000 }];
+    const result = evaluatePurgeEmbargo({ predictionTime: 500, outcomeWindowStart: 500, outcomeWindowEnd: 999 }, trainOnly, policy);
+    assert.deepEqual(result, { excluded: false });
+  });
+
+  it("fails closed toward exclusion on an inverted outcome window", () => {
+    const result = evaluatePurgeEmbargo({ predictionTime: 100, outcomeWindowStart: 500, outcomeWindowEnd: 100 }, partitions(), policy);
+    assert.equal(result.excluded, true);
+  });
+
+  it("fails closed toward exclusion when predictionTime is after outcomeWindowStart (causal-ordering violation), even when neither overlap nor embargo would otherwise trigger", () => {
+    // outcomeWindowStart=1_000..outcomeWindowEnd=1_100 already began before predictionTime=1_500 was
+    // made -- the candidate's own clocks are causally invalid regardless of where partitions sit.
+    const result = evaluatePurgeEmbargo({ predictionTime: 1_500, outcomeWindowStart: 1_000, outcomeWindowEnd: 1_100 }, partitions(), policy);
+    assert.equal(result.excluded, true);
+  });
+
+  it("fails closed toward exclusion on a negative embargoMs policy", () => {
+    const result = evaluatePurgeEmbargo({ predictionTime: 100, outcomeWindowStart: 100, outcomeWindowEnd: 200 }, partitions(), { embargoMs: -1 });
+    assert.equal(result.excluded, true);
+  });
+
+  it("fails closed when a boundary partition has a malformed timestamp", () => {
+    const malformed: readonly AiEvaluationPartition[] = [
+      { partitionId: "validation", role: "VALIDATION", startTime: Number.NaN, endTime: 2_000 },
+    ];
+    const result = evaluatePurgeEmbargo({ predictionTime: 100, outcomeWindowStart: 100, outcomeWindowEnd: 200 }, malformed, policy);
+    assert.equal(result.excluded, true);
+  });
+
+  it("fails closed when boundary partitions overlap", () => {
+    const overlapping: readonly AiEvaluationPartition[] = [
+      { partitionId: "validation", role: "VALIDATION", startTime: 1_000, endTime: 2_000 },
+      { partitionId: "holdout", role: "HOLDOUT", startTime: 1_500, endTime: 2_500 },
+    ];
+    const result = evaluatePurgeEmbargo({ predictionTime: 100, outcomeWindowStart: 100, outcomeWindowEnd: 200 }, overlapping, policy);
+    assert.equal(result.excluded, true);
   });
 });

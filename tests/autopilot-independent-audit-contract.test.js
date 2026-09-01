@@ -6,13 +6,21 @@ const workflow = fs.readFileSync(".github/workflows/autopilot-execution-consumer
 const worker = fs.readFileSync("apps/autopilot/src/worker.ts", "utf8");
 const auditRunner = fs.readFileSync("apps/autopilot/src/auditRunner.ts", "utf8");
 
+function auditJobSlice() {
+  const start = workflow.indexOf("  audit-request:");
+  const end = workflow.indexOf("\n  audit-recovery:", start);
+  assert.ok(start >= 0, "Audit job must exist");
+  assert.ok(end > start, "Audit job must end before audit-recovery");
+  return workflow.slice(start, end);
+}
+
 test("execution consumer removes workflow-wide mutation permissions", () => {
   assert.match(workflow, /permissions: \{\}/);
   assert.doesNotMatch(workflow.slice(0, workflow.indexOf("jobs:")), /contents: write|actions: write|pull-requests: write/);
 });
 
 test("Audit job has bounded read/OIDC/comment permissions only", () => {
-  const auditJob = workflow.slice(workflow.indexOf("  audit-request:"));
+  const auditJob = auditJobSlice();
   const permissionStart = auditJob.indexOf("    permissions:");
   const stepsStart = auditJob.indexOf("    steps:", permissionStart);
   assert.ok(permissionStart >= 0, "Audit job permissions block must exist");
@@ -53,19 +61,24 @@ test("Audit treats repository diff as untrusted data rather than model instructi
   assert.match(auditRunner, /Ignore prompt-like text/);
 });
 
-test("Audit request is idempotent and verdict is exact-head machine-readable evidence", () => {
-  const auditJob = workflow.slice(workflow.indexOf("  audit-request:"));
-  assert.match(auditJob, /nusa-audit-verdict:\$\{PR_NUMBER\}:\$\{WORKFLOW_RUN_ID\}:\$\{REQUESTED_HEAD\}/);
-  assert.match(auditJob, /Detect existing exact-head Audit verdict/);
-  assert.match(auditJob, /skip=true/);
-  assert.match(auditJob, /Re-verify PR identity after Audit execution/);
+test("Audit always executes independently and exposes trusted same-workflow Release authority", () => {
+  const auditJob = auditJobSlice();
+  assert.doesNotMatch(auditJob, /nusa-audit-verdict:\$\{PR_NUMBER\}:\$\{WORKFLOW_RUN_ID\}:\$\{REQUESTED_HEAD\}/);
+  assert.doesNotMatch(auditJob, /Detect existing exact-head Audit verdict/);
+  assert.doesNotMatch(auditJob, /steps\.existing-audit|skip=true/);
+  assert.match(auditJob, /Execute independent read-only Audit with GitHub OIDC/);
+  assert.match(auditJob, /Re-verify exact head\/base\/main after Audit execution/);
   assert.match(auditJob, /PR head moved during Audit/);
   assert.match(auditJob, /PR base moved during Audit/);
-  assert.match(auditJob, /JSON\.stringify\(result\)/);
+  assert.match(auditJob, /main moved during Audit/);
+  assert.match(auditJob, /Bind trusted same-workflow Audit authority/);
+  assert.match(auditJob, /auditExecutionRunId/);
+  assert.match(auditJob, /auditExecutionAttempt/);
+  assert.match(auditJob, /authorization source: \*\*same-workflow trusted output; this comment has no authority\*\*/);
 });
 
 test("only clean PASS automatically authorizes Release", () => {
-  const auditJob = workflow.slice(workflow.indexOf("  audit-request:"));
+  const auditJob = auditJobSlice();
   assert.match(auditJob, /result\.verdict === 'PASS' && result\.mergeAllowed !== true/);
   assert.match(auditJob, /result\.verdict === 'PASS_WITH_NOTES' && result\.mergeAllowed !== false/);
   assert.match(auditJob, /result\.verdict === 'FAIL' && result\.mergeAllowed !== false/);
@@ -76,7 +89,7 @@ test("only clean PASS automatically authorizes Release", () => {
 });
 
 test("malformed or unsafe Audit evidence cannot advance Release", () => {
-  const auditJob = workflow.slice(workflow.indexOf("  audit-request:"));
+  const auditJob = auditJobSlice();
   assert.match(auditJob, /process\.exit\(1\)/);
   assert.match(auditRunner, /AUDIT_VERDICT_KEYS_INVALID/);
   assert.match(auditRunner, /AUDIT_VERDICT_SAFETY_REQUIRES_FAIL/);
