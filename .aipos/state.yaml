@@ -108,6 +108,18 @@ current_research_follow_up:
   validation: "Focused 30/30; research/League regression 39/39; full isolated 825/825; typecheck/build/lint/preflight/architecture/safety/security/AIPOS/Restricted LIVE/Read-only Broker PASS."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   remaining: "Truthful longitudinal PAPER source remains unavailable and fail-closed; continue #861 only when verified runtime evidence exists."
+latest_portfolio_risk_data_quality_slice:
+  status: COMPLETED
+  base_commit: e400a0329f269a122483e7b4f17e244d0d28639c
+  implementation_branch: fix/mobile-risk-reject-zero-mark
+  implementation_head: d900071637a32030b8d9e86c0b67861ad4eea398
+  pull_request: 1369
+  merge_commit: a2fcce0df984ec5180882ed5a1c7c1f9a3dcc280
+  scope: "Reject zero mark prices in the existing multi-position portfolio risk adapter as unavailable; preserve UNKNOWN != zero valuation."
+  validation: "Exact-head protected workflows passed; CI, coverage, typecheck/build/lint, Actual PAPER, Restricted LIVE, and Read-only Broker passed. Android release-candidate and iOS checks were SKIPPED_NOT_APPLICABLE."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  remaining: "External account credentials, Cloudflare/runtime proof, physical Galaxy acceptance, and human LIVE gate remain unchanged."
+
 base_branch: main
 active_branch: main
 active_successor_branch: null
