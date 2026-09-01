@@ -84,7 +84,6 @@ jobs:
       - name: Select supported coding backend
         id: backend
         env:
-          # Public Worker URL is configuration, not a credential. No repository variable bootstrap is required.
           NUSA_CODING_RUNNER_URL: https://nusa-autopilot.desporin12.workers.dev/coding/execute
         run: |
           if [ -n "${NUSA_CODING_RUNNER_URL:-}" ]; then
@@ -176,26 +175,34 @@ jobs:
         run: |
           set -euo pipefail
           gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > artifacts/autopilot-audit-request/pull-before-audit.json
-          current_head="$(node -p "require('./artifacts/autopilot-audit-request/pull-before-audit.json').head.sha")"
-          current_base="$(node -p "require('./artifacts/autopilot-audit-request/pull-before-audit.json').base.sha")"
-          current_state="$(node -p "require('./artifacts/autopilot-audit-request/pull-before-audit.json').state")"
-          test "$current_state" = "open" || { echo "PR is not open: $current_state"; exit 1; }
-          test "$current_head" = "$REQUESTED_HEAD" || { echo "stale PR head: requested=$REQUESTED_HEAD current=$current_head"; exit 1; }
-          echo "$current_base" > artifacts/autopilot-audit-request/base-sha.txt
-
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$WORKFLOW_RUN_ID" > artifacts/autopilot-audit-request/workflow-run.json
+          gh api "repos/$GITHUB_REPOSITORY/commits/$REQUESTED_HEAD/pulls" > artifacts/autopilot-audit-request/head-pulls.json
           node - <<'NODE'
           const fs = require('fs');
+          const pull = JSON.parse(fs.readFileSync('artifacts/autopilot-audit-request/pull-before-audit.json', 'utf8'));
           const run = JSON.parse(fs.readFileSync('artifacts/autopilot-audit-request/workflow-run.json', 'utf8'));
+          const headPulls = JSON.parse(fs.readFileSync('artifacts/autopilot-audit-request/head-pulls.json', 'utf8'));
           const pr = Number(process.env.PR_NUMBER);
-          const expectedHead = process.env.REQUESTED_HEAD;
+          const expectedHead = process.env.REQUESTED_HEAD.toLowerCase();
           const fail = (message) => { console.error(message); process.exit(1); };
+          if (pull.state !== 'open') fail(`PR is not open: ${pull.state}`);
+          if (String(pull.head?.sha || '').toLowerCase() !== expectedHead) fail(`stale PR head: requested=${expectedHead} current=${pull.head?.sha}`);
+          if (pull.base?.repo?.full_name !== process.env.GITHUB_REPOSITORY) fail('PR base repository mismatch');
+          if (!/^[0-9a-f]{40}$/i.test(pull.base?.sha || '')) fail('PR base SHA invalid');
+          fs.writeFileSync('artifacts/autopilot-audit-request/base-sha.txt', pull.base.sha.toLowerCase());
           if (run.name !== 'CI') fail(`unexpected workflow: ${run.name}`);
           if (run.event !== 'pull_request') fail(`unexpected workflow event: ${run.event}`);
           if (run.status !== 'completed' || run.conclusion !== 'success') fail(`CI is not successful: ${run.status}/${run.conclusion}`);
-          if (run.head_sha !== expectedHead) fail(`CI head mismatch: ${run.head_sha}`);
-          const numbers = Array.isArray(run.pull_requests) ? run.pull_requests.map((value) => value?.number).filter(Number.isSafeInteger) : [];
-          if (!numbers.includes(pr)) fail(`workflow run is not bound to PR #${pr}`);
+          if (String(run.head_sha || '').toLowerCase() !== expectedHead) fail(`CI head mismatch: ${run.head_sha}`);
+          if (run.repository?.full_name !== process.env.GITHUB_REPOSITORY) fail('CI repository mismatch');
+          const numbers = [...new Set(Array.isArray(run.pull_requests) ? run.pull_requests.map((value) => value?.number).filter((value) => Number.isSafeInteger(value) && value > 0) : [])];
+          if (numbers.length === 1 && numbers[0] === pr) process.exit(0);
+          if (!Array.isArray(headPulls)) fail('exact-head PR fallback response invalid');
+          const matches = headPulls.filter((candidate) => candidate?.state === 'open'
+            && String(candidate?.head?.sha || '').toLowerCase() === expectedHead
+            && candidate?.base?.repo?.full_name === process.env.GITHUB_REPOSITORY);
+          if (matches.length !== 1) fail(`exact-head PR identity unresolved: ${matches.length}`);
+          if (matches[0]?.number !== pr) fail(`exact-head PR mismatch: expected=${pr} actual=${matches[0]?.number}`);
           NODE
 
       - name: Detect existing exact-head Audit verdict
@@ -371,16 +378,37 @@ jobs:
           gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file artifacts/autopilot-audit-request/audit-verdict.md
 
       - name: Enforce Audit verdict gate
-        if: ${{ steps.existing-audit.outputs.skip != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          REQUESTED_HEAD: ${{ github.event.client_payload.head_sha }}
+          WORKFLOW_RUN_ID: ${{ github.event.client_payload.workflow_run_id }}
         run: |
-          node - <<'NODE'
-          const result = require('./artifacts/autopilot-audit-request/audit-runner-result.json');
-          if (result.verdict !== 'PASS' || result.mergeAllowed !== true || result.safetyInvariantResult !== 'PASS') {
-            console.error(`Audit blocks automatic Release: ${result.verdict}`);
-            process.exit(1);
-          }
-          console.log('Audit permits automatic Release handoff: PASS');
-          NODE
+          set -euo pipefail
+          if [ -f artifacts/autopilot-audit-request/audit-runner-result.json ]; then
+            node - <<'NODE'
+            const result = require('./artifacts/autopilot-audit-request/audit-runner-result.json');
+            if (result.verdict !== 'PASS' || result.mergeAllowed !== true || result.safetyInvariantResult !== 'PASS') {
+              console.error(`Audit blocks automatic Release: ${result.verdict}`);
+              process.exit(1);
+            }
+            NODE
+          else
+            marker="<!-- nusa-audit-verdict:${PR_NUMBER}:${WORKFLOW_RUN_ID}:${REQUESTED_HEAD} -->"
+            gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" > artifacts/autopilot-audit-request/comments-pages.json
+            MARKER="$marker" node - <<'NODE'
+            const fs = require('fs');
+            const pages = JSON.parse(fs.readFileSync('artifacts/autopilot-audit-request/comments-pages.json', 'utf8'));
+            const comments = pages.flat();
+            const matches = comments.filter((comment) => typeof comment?.body === 'string' && comment.body.includes(process.env.MARKER));
+            if (matches.length !== 1) throw new Error(`expected exactly one exact-head Audit verdict, found ${matches.length}`);
+            const fenced = matches[0].body.match(/```json\s*([\s\S]*?)\s*```/i)?.[1];
+            if (!fenced) throw new Error('existing Audit verdict JSON missing');
+            const result = JSON.parse(fenced);
+            if (result.verdict !== 'PASS' || result.mergeAllowed !== true || result.safetyInvariantResult !== 'PASS') throw new Error(`Audit blocks automatic Release: ${result.verdict}`);
+            NODE
+          fi
+          echo 'Audit permits automatic Release handoff: PASS'
 
       - name: Upload Audit execution evidence
         if: always()
@@ -388,3 +416,309 @@ jobs:
         with:
           name: autopilot-audit-request-${{ github.run_id }}
           path: artifacts/autopilot-audit-request
+
+  audit-recovery:
+    # A code-level Audit rejection or Audit infrastructure failure re-enters the one canonical
+    # development control plane. It never changes the PR or bypasses Audit/Release itself.
+    needs: audit-request
+    if: ${{ always() && github.event.client_payload.kind == 'AUDIT_REQUEST' && needs.audit-request.result == 'failure' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - name: Dispatch bounded Audit recovery to canonical main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          REQUESTED_HEAD: ${{ github.event.client_payload.head_sha }}
+          WORKFLOW_RUN_ID: ${{ github.event.client_payload.workflow_run_id }}
+        run: |
+          set -euo pipefail
+          pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          state="$(node -e 'const p=JSON.parse(process.argv[1]); process.stdout.write(String(p.state||""))' "$pr")"
+          current_head="$(node -e 'const p=JSON.parse(process.argv[1]); process.stdout.write(String(p.head?.sha||""))' "$pr")"
+          if [ "$state" != "open" ] || [ "$current_head" != "$REQUESTED_HEAD" ]; then
+            echo 'Audit recovery suppressed: PR is closed or head moved.'
+            exit 0
+          fi
+          current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          execution_id="audit-recovery:${PR_NUMBER}:${WORKFLOW_RUN_ID}"
+          dedupe_key="audit-recovery:${PR_NUMBER}:${REQUESTED_HEAD}:${current_main}"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/dispatches" --input - <<EOF
+          {
+            "event_type": "nusa_autopilot_execution",
+            "client_payload": {
+              "kind": "REPOSITORY_AUTOPILOT",
+              "repository": "$GITHUB_REPOSITORY",
+              "head_sha": "$current_main",
+              "pr_number": $PR_NUMBER,
+              "workflow_run_id": $WORKFLOW_RUN_ID,
+              "reason": "audit-recovery:pr:$PR_NUMBER:head:$REQUESTED_HEAD",
+              "execution_id": "$execution_id",
+              "dedupe_key": "$dedupe_key",
+              "live_authority": "NONE",
+              "production_mutation_allowed": false,
+              "ai_authority": "ZERO_AUTHORITY"
+            }
+          }
+          EOF
+
+  release:
+    # This job is the NUSA Release lane: it has merge authority only after the independent Audit job
+    # succeeds, and then independently rechecks every exact-head/base/safety/review condition.
+    needs: audit-request
+    if: ${{ always() && github.event.client_payload.kind == 'AUDIT_REQUEST' && needs.audit-request.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    concurrency:
+      group: nusa-release-main
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      actions: read
+      pull-requests: write
+    steps:
+      - name: Persist Release dispatch evidence
+        run: |
+          mkdir -p artifacts/autopilot-release
+          cat "$GITHUB_EVENT_PATH" > artifacts/autopilot-release/repository-dispatch.json
+
+      - name: Detect completed exact-head Release replay
+        id: replay
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          REQUESTED_HEAD: ${{ github.event.client_payload.head_sha }}
+          WORKFLOW_RUN_ID: ${{ github.event.client_payload.workflow_run_id }}
+        run: |
+          set -euo pipefail
+          marker="<!-- nusa-release-result:${PR_NUMBER}:${WORKFLOW_RUN_ID}:${REQUESTED_HEAD} -->"
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > artifacts/autopilot-release/pull-initial.json
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" > artifacts/autopilot-release/comments-pages.json
+          MARKER="$marker" node - <<'NODE'
+          const fs = require('fs');
+          const pull = JSON.parse(fs.readFileSync('artifacts/autopilot-release/pull-initial.json', 'utf8'));
+          const pages = JSON.parse(fs.readFileSync('artifacts/autopilot-release/comments-pages.json', 'utf8'));
+          const matches = pages.flat().filter((comment) => typeof comment?.body === 'string' && comment.body.includes(process.env.MARKER));
+          if (matches.length > 1) throw new Error('duplicate exact-head Release result evidence');
+          if (pull.merged === true && matches.length === 1) {
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, 'skip=true\n');
+            process.exit(0);
+          }
+          if (pull.merged === true) throw new Error('PR merged without exact-head Release result evidence');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'skip=false\n');
+          NODE
+
+      - name: Verify exact-head Release eligibility
+        if: ${{ steps.replay.outputs.skip != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          REQUESTED_HEAD: ${{ github.event.client_payload.head_sha }}
+          WORKFLOW_RUN_ID: ${{ github.event.client_payload.workflow_run_id }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > artifacts/autopilot-release/pull.json
+          gh api "repos/$GITHUB_REPOSITORY/branches/main" > artifacts/autopilot-release/main.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$WORKFLOW_RUN_ID" > artifacts/autopilot-release/ci-run.json
+          gh api "repos/$GITHUB_REPOSITORY/commits/$REQUESTED_HEAD/pulls" > artifacts/autopilot-release/head-pulls.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$REQUESTED_HEAD&event=pull_request&per_page=100" > artifacts/autopilot-release/head-runs.json
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" > artifacts/autopilot-release/comments-pages.json
+          IFS=/ read -r owner repo <<< "$GITHUB_REPOSITORY"
+          gh api graphql -f query='query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviewThreads(first:100){pageInfo{hasNextPage}nodes{isResolved}}}}}' -f owner="$owner" -f repo="$repo" -F number="$PR_NUMBER" > artifacts/autopilot-release/review-threads.json
+          node - <<'NODE'
+          const fs = require('fs');
+          const fail = (message) => { console.error(message); process.exit(1); };
+          const pull = JSON.parse(fs.readFileSync('artifacts/autopilot-release/pull.json', 'utf8'));
+          const main = JSON.parse(fs.readFileSync('artifacts/autopilot-release/main.json', 'utf8'));
+          const ci = JSON.parse(fs.readFileSync('artifacts/autopilot-release/ci-run.json', 'utf8'));
+          const headPulls = JSON.parse(fs.readFileSync('artifacts/autopilot-release/head-pulls.json', 'utf8'));
+          const headRuns = JSON.parse(fs.readFileSync('artifacts/autopilot-release/head-runs.json', 'utf8'));
+          const commentPages = JSON.parse(fs.readFileSync('artifacts/autopilot-release/comments-pages.json', 'utf8'));
+          const reviewThreads = JSON.parse(fs.readFileSync('artifacts/autopilot-release/review-threads.json', 'utf8'));
+          const pr = Number(process.env.PR_NUMBER);
+          const requestedHead = process.env.REQUESTED_HEAD.toLowerCase();
+          const workflowRunId = Number(process.env.WORKFLOW_RUN_ID);
+          if (pull.state !== 'open' || pull.draft === true) fail('Release requires open non-draft PR');
+          if (String(pull.head?.sha || '').toLowerCase() !== requestedHead) fail('Release exact PR head mismatch');
+          if (pull.base?.ref !== 'main' || pull.base?.repo?.full_name !== process.env.GITHUB_REPOSITORY) fail('Release base repository/ref mismatch');
+          const currentMain = String(main.commit?.sha || '').toLowerCase();
+          const baseSha = String(pull.base?.sha || '').toLowerCase();
+          if (!/^[0-9a-f]{40}$/.test(currentMain) || baseSha !== currentMain) fail(`Release base is stale: base=${baseSha} main=${currentMain}`);
+          if (pull.mergeable !== true) fail(`Release PR is not mergeable: ${pull.mergeable}`);
+          if (ci.id !== workflowRunId || ci.name !== 'CI' || ci.event !== 'pull_request' || ci.status !== 'completed' || ci.conclusion !== 'success') fail('Release canonical CI evidence invalid');
+          if (String(ci.head_sha || '').toLowerCase() !== requestedHead || ci.repository?.full_name !== process.env.GITHUB_REPOSITORY) fail('Release canonical CI identity mismatch');
+          const direct = [...new Set(Array.isArray(ci.pull_requests) ? ci.pull_requests.map((value) => value?.number).filter((value) => Number.isSafeInteger(value) && value > 0) : [])];
+          if (!(direct.length === 1 && direct[0] === pr)) {
+            const matches = Array.isArray(headPulls) ? headPulls.filter((candidate) => candidate?.state === 'open'
+              && String(candidate?.head?.sha || '').toLowerCase() === requestedHead
+              && candidate?.base?.repo?.full_name === process.env.GITHUB_REPOSITORY) : [];
+            if (matches.length !== 1 || matches[0]?.number !== pr) fail('Release exact-head PR identity unresolved');
+          }
+          const auditMarker = `<!-- nusa-audit-verdict:${pr}:${workflowRunId}:${process.env.REQUESTED_HEAD} -->`;
+          const auditComments = commentPages.flat().filter((comment) => typeof comment?.body === 'string' && comment.body.includes(auditMarker));
+          if (auditComments.length !== 1) fail(`Release requires exactly one Audit verdict: ${auditComments.length}`);
+          const fenced = auditComments[0].body.match(/```json\s*([\s\S]*?)\s*```/i)?.[1];
+          if (!fenced) fail('Release Audit verdict JSON missing');
+          let audit;
+          try { audit = JSON.parse(fenced); } catch { fail('Release Audit verdict JSON invalid'); }
+          if (audit?.schemaVersion !== 1 || audit?.status !== 'AUDIT_COMPLETED') fail('Release Audit result schema/status invalid');
+          if (audit?.repository !== process.env.GITHUB_REPOSITORY || audit?.prNumber !== pr) fail('Release Audit repository/PR mismatch');
+          if (String(audit?.reviewedHeadSha || '').toLowerCase() !== requestedHead || String(audit?.baseSha || '').toLowerCase() !== baseSha || audit?.workflowRunId !== workflowRunId) fail('Release Audit exact-head/base/CI mismatch');
+          if (audit?.verdict !== 'PASS' || audit?.mergeAllowed !== true || audit?.safetyInvariantResult !== 'PASS') fail(`Release Audit blocks merge: ${audit?.verdict}`);
+          if (audit?.liveAuthority !== 'NONE' || audit?.productionMutationAllowed !== false || audit?.aiAuthority !== 'ZERO_AUTHORITY') fail('Release Audit safety invariants invalid');
+          const requiredSafety = [
+            'Restricted LIVE Transport Credential Readiness',
+            'Read-only Broker Credential Integration',
+            'Restricted LIVE Capability Surface Guard',
+            'Restricted LIVE Activation Rehearsal',
+            'Actual PAPER Public-Market Runtime Evidence',
+          ];
+          const runs = Array.isArray(headRuns.workflow_runs) ? headRuns.workflow_runs : [];
+          for (const name of requiredSafety) {
+            const candidates = runs.filter((run) => run?.name === name && String(run?.head_sha || '').toLowerCase() === requestedHead)
+              .sort((a, b) => Number(b?.id || 0) - Number(a?.id || 0));
+            if (candidates.length === 0 || candidates[0]?.status !== 'completed' || candidates[0]?.conclusion !== 'success') fail(`Release safety workflow not PASS: ${name}`);
+          }
+          const threads = reviewThreads?.data?.repository?.pullRequest?.reviewThreads;
+          if (!threads || threads.pageInfo?.hasNextPage === true) fail('Release review thread evidence incomplete');
+          if (!Array.isArray(threads.nodes) || threads.nodes.some((thread) => thread?.isResolved !== true)) fail('Release has unresolved review threads');
+          fs.writeFileSync('artifacts/autopilot-release/verified-release.json', JSON.stringify({
+            repository: process.env.GITHUB_REPOSITORY,
+            prNumber: pr,
+            headSha: requestedHead,
+            baseSha,
+            workflowRunId,
+            auditVerdict: audit.verdict,
+            auditMergeAllowed: audit.mergeAllowed,
+            requiredSafetyChecksPassed: true,
+            unresolvedReviewThreads: 0,
+            liveAuthority: 'NONE',
+            productionMutationAllowed: false,
+            aiAuthority: 'ZERO_AUTHORITY',
+          }, null, 2));
+          NODE
+
+      - name: Merge through normal protected GitHub path
+        if: ${{ steps.replay.outputs.skip != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          REQUESTED_HEAD: ${{ github.event.client_payload.head_sha }}
+        run: |
+          set -euo pipefail
+          gh api --method PUT "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/merge" --input - > artifacts/autopilot-release/merge-result.json <<EOF
+          {
+            "sha": "$REQUESTED_HEAD",
+            "merge_method": "merge"
+          }
+          EOF
+          node - <<'NODE'
+          const fs = require('fs');
+          const result = JSON.parse(fs.readFileSync('artifacts/autopilot-release/merge-result.json', 'utf8'));
+          if (result.merged !== true || !/^[0-9a-f]{40}$/i.test(result.sha || '')) throw new Error(`Release merge rejected: ${result.message || 'unknown'}`);
+          fs.writeFileSync('artifacts/autopilot-release/merge-sha.txt', result.sha.toLowerCase());
+          NODE
+
+      - name: Verify merged commit reached current main
+        if: ${{ steps.replay.outputs.skip != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+        run: |
+          set -euo pipefail
+          merge_sha="$(cat artifacts/autopilot-release/merge-sha.txt)"
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > artifacts/autopilot-release/pull-after-merge.json
+          current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          test "$(node -p "require('./artifacts/autopilot-release/pull-after-merge.json').merged")" = "true"
+          gh api "repos/$GITHUB_REPOSITORY/compare/$merge_sha...$current_main" > artifacts/autopilot-release/merge-main-compare.json
+          node - <<'NODE'
+          const compare = require('./artifacts/autopilot-release/merge-main-compare.json');
+          if (!['identical', 'ahead'].includes(compare.status)) throw new Error(`merged commit is not on current main ancestry: ${compare.status}`);
+          NODE
+
+      - name: Publish idempotent Release result
+        if: ${{ steps.replay.outputs.skip != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          REQUESTED_HEAD: ${{ github.event.client_payload.head_sha }}
+          WORKFLOW_RUN_ID: ${{ github.event.client_payload.workflow_run_id }}
+        run: |
+          set -euo pipefail
+          marker="<!-- nusa-release-result:${PR_NUMBER}:${WORKFLOW_RUN_ID}:${REQUESTED_HEAD} -->"
+          existing="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --jq ".[] | select(.body | contains(\"$marker\")) | .id" | head -n 1)"
+          if [ -n "$existing" ]; then exit 0; fi
+          merge_sha="$(cat artifacts/autopilot-release/merge-sha.txt)"
+          cat > artifacts/autopilot-release/release-result.md <<EOF
+          $marker
+          ## NUSA Release result
+
+          - exact audited head: \`$REQUESTED_HEAD\`
+          - canonical CI run: \`$WORKFLOW_RUN_ID\`
+          - independent Audit: **PASS / merge allowed**
+          - Release recheck: **PASS**
+          - merge commit: \`$merge_sha\`
+          - branch protection bypass: **none**
+          - liveAuthority: \`NONE\`
+          - productionMutationAllowed: \`false\`
+          - aiAuthority: \`ZERO_AUTHORITY\`
+          EOF
+          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file artifacts/autopilot-release/release-result.md
+
+      - name: Upload Release evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: autopilot-release-${{ github.run_id }}
+          path: artifacts/autopilot-release
+
+  release-recovery:
+    # Release failure never bypasses the gate. If the exact PR is still open, route the blocker back
+    # to the existing development control plane so base movement/conflict/evidence repair can occur.
+    needs: [audit-request, release]
+    if: ${{ always() && github.event.client_payload.kind == 'AUDIT_REQUEST' && needs.audit-request.result == 'success' && needs.release.result == 'failure' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - name: Dispatch bounded Release recovery to canonical main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          REQUESTED_HEAD: ${{ github.event.client_payload.head_sha }}
+          WORKFLOW_RUN_ID: ${{ github.event.client_payload.workflow_run_id }}
+        run: |
+          set -euo pipefail
+          pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          state="$(node -e 'const p=JSON.parse(process.argv[1]); process.stdout.write(String(p.state||""))' "$pr")"
+          merged="$(node -e 'const p=JSON.parse(process.argv[1]); process.stdout.write(String(p.merged===true))' "$pr")"
+          if [ "$state" != "open" ] || [ "$merged" = "true" ]; then
+            echo 'Release recovery suppressed: PR is no longer open.'
+            exit 0
+          fi
+          current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          execution_id="release-recovery:${PR_NUMBER}:${WORKFLOW_RUN_ID}"
+          dedupe_key="release-recovery:${PR_NUMBER}:${REQUESTED_HEAD}:${current_main}"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/dispatches" --input - <<EOF
+          {
+            "event_type": "nusa_autopilot_execution",
+            "client_payload": {
+              "kind": "REPOSITORY_AUTOPILOT",
+              "repository": "$GITHUB_REPOSITORY",
+              "head_sha": "$current_main",
+              "pr_number": $PR_NUMBER,
+              "workflow_run_id": $WORKFLOW_RUN_ID,
+              "reason": "release-recovery:pr:$PR_NUMBER:audited-head:$REQUESTED_HEAD",
+              "execution_id": "$execution_id",
+              "dedupe_key": "$dedupe_key",
+              "live_authority": "NONE",
+              "production_mutation_allowed": false,
+              "ai_authority": "ZERO_AUTHORITY"
+            }
+          }
+          EOF
