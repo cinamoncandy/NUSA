@@ -8,7 +8,6 @@ const headSha = "a".repeat(40);
 const baseSha = "b".repeat(40);
 const runId = 123456;
 const prNumber = 1404;
-const healthUrl = "https://nusa-autopilot.example/health";
 const apiBase = "https://api.github.example";
 
 const modulePromise = import(pathToFileURL(path.resolve("scripts/fallback-audit-dispatch-from-bridge.mjs")).href);
@@ -40,17 +39,6 @@ function exactEvidenceFetch(options = {}) {
   const calls = [];
   const fetchImpl = async (url, init = {}) => {
     calls.push({ url: String(url), init });
-    if (url === healthUrl) {
-      return jsonResponse({
-        service: "nusa-autopilot",
-        status: "WEBHOOK_READY",
-        authenticatedExecutor: options.executorState ?? "INTERFACE_READY",
-        allowedRepository: repository,
-        liveAuthority: "NONE",
-        productionMutationAllowed: false,
-        aiAuthority: "ZERO_AUTHORITY",
-      });
-    }
     if (url === `${apiBase}/repos/${repository}/actions/runs/${runId}`) {
       return jsonResponse({
         id: runId,
@@ -94,31 +82,30 @@ function exactEvidenceFetch(options = {}) {
   return { fetchImpl, calls };
 }
 
-test("configured Worker remains primary and Bridge does not fallback", async () => {
+test("without exact Worker token-missing evidence the Bridge cannot fallback", async () => {
   const { runAuditDispatchFallback } = await modulePromise;
-  const { fetchImpl, calls } = exactEvidenceFetch({ executorState: "CONFIGURED" });
+  let calls = 0;
   const result = await runAuditDispatchFallback({
     eventPayload: canonicalEvent(),
     repository,
-    githubToken: "",
-    healthUrl,
+    githubToken: "ephemeral-actions-token",
+    bridgeEligibility: "false",
     apiBase,
-    fetchImpl,
+    fetchImpl: async () => { calls += 1; throw new Error("must not fetch"); },
   });
   assert.equal(result.status, "NO_ACTION");
-  assert.equal(result.reason, "worker-github-executor-configured");
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].url, healthUrl);
+  assert.equal(result.reason, "worker-event-did-not-explicitly-require-token-fallback");
+  assert.equal(calls, 0);
 });
 
-test("INTERFACE_READY Worker dispatches exactly one bounded AUDIT_REQUEST after exact evidence validation", async () => {
+test("explicit Worker token-missing evidence dispatches exactly one bounded AUDIT_REQUEST after exact validation", async () => {
   const { runAuditDispatchFallback } = await modulePromise;
   const { fetchImpl, calls } = exactEvidenceFetch();
   const result = await runAuditDispatchFallback({
     eventPayload: canonicalEvent(),
     repository,
     githubToken: "ephemeral-actions-token",
-    healthUrl,
+    bridgeEligibility: "true",
     apiBase,
     fetchImpl,
   });
@@ -151,7 +138,7 @@ test("empty workflow_run.pull_requests resolves exactly one canonical open PR by
     eventPayload: canonicalEvent(),
     repository,
     githubToken: "ephemeral-actions-token",
-    healthUrl,
+    bridgeEligibility: "true",
     apiBase,
     fetchImpl,
   });
@@ -166,7 +153,7 @@ test("stale PR head fails closed before repository dispatch", async () => {
     eventPayload: canonicalEvent(),
     repository,
     githubToken: "ephemeral-actions-token",
-    healthUrl,
+    bridgeEligibility: "true",
     apiBase,
     fetchImpl,
   }), /AUDIT_FALLBACK_STALE_PR_HEAD/);
@@ -180,7 +167,7 @@ test("base movement after CI fails closed before repository dispatch", async () 
     eventPayload: canonicalEvent(),
     repository,
     githubToken: "ephemeral-actions-token",
-    healthUrl,
+    bridgeEligibility: "true",
     apiBase,
     fetchImpl,
   }), /AUDIT_FALLBACK_BASE_MAIN_MISMATCH/);
@@ -194,7 +181,7 @@ test("wrong CI head fails closed before PR or repository dispatch", async () => 
     eventPayload: canonicalEvent(),
     repository,
     githubToken: "ephemeral-actions-token",
-    healthUrl,
+    bridgeEligibility: "true",
     apiBase,
     fetchImpl,
   }), /AUDIT_FALLBACK_CI_HEAD_MISMATCH/);
@@ -208,7 +195,7 @@ test("non canonical PR CI event never gets fallback mutation authority", async (
     eventPayload: canonicalEvent({ event: "push" }),
     repository,
     githubToken: "ephemeral-actions-token",
-    healthUrl,
+    bridgeEligibility: "true",
     apiBase,
     fetchImpl: async () => { calls += 1; throw new Error("must not fetch"); },
   });
@@ -233,7 +220,7 @@ test("ambiguous exact-head PR identity fails closed", async () => {
     eventPayload: canonicalEvent(),
     repository,
     githubToken: "ephemeral-actions-token",
-    healthUrl,
+    bridgeEligibility: "true",
     apiBase,
     fetchImpl,
   }), /AUDIT_FALLBACK_PR_IDENTITY_AMBIGUOUS/);
