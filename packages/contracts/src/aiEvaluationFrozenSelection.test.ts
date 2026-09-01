@@ -11,8 +11,11 @@ describe("validateFrozenSelection", () => {
     assert.deepEqual(validateFrozenSelection(selection(), 2_000), { valid: true });
   });
 
-  it("accepts a selection frozen at exactly the earliest outcome observation (boundary allowed)", () => {
-    assert.deepEqual(validateFrozenSelection(selection({ frozenAt: 1_000 }), 1_000), { valid: true });
+  it("rejects a selection frozen exactly at the earliest outcome observation boundary", () => {
+    assert.deepEqual(validateFrozenSelection(selection({ frozenAt: 1_000 }), 1_000), {
+      valid: false,
+      reason: "SELECTION_FROZEN_AFTER_OUTCOME_OBSERVED",
+    });
   });
 
   it("rejects a selection frozen after outcomes were already observed (post-hoc cherry-picking risk)", () => {
