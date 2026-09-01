@@ -37,6 +37,12 @@ describe("evaluateEvidenceSufficiency", () => {
     assert.deepEqual((result as { reasons: readonly string[] }).reasons, ["INVALID_INPUT"]);
   });
 
+  it("fails closed on a fractional effective sample size because dependence groups are a count", () => {
+    const result = evaluateEvidenceSufficiency({ effectiveSampleSize: 30.1, observedWindowMs: 604_800_000 }, policy);
+    assert.equal(result.sufficient, false);
+    assert.deepEqual((result as { reasons: readonly string[] }).reasons, ["INVALID_INPUT"]);
+  });
+
   it("fails closed on a non-finite observation window", () => {
     const result = evaluateEvidenceSufficiency({ effectiveSampleSize: 30, observedWindowMs: Number.NaN }, policy);
     assert.equal(result.sufficient, false);
