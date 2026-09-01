@@ -110,7 +110,7 @@ test("server connection has a bounded stale watchdog and no local fallback", () 
   assert.match(script, /SERVER_SNAPSHOT_STALE_MS\s*=\s*7_000/);
   assert.match(script, /serverLastSuccessAt/);
   assert.match(script, /state\.serverConnectionCode\s*=\s*"disconnected"/);
-  assert.doesNotMatch(script, /PaperBroker|local broker fallback|paper:snapshot/);
+  assert.doesNotMatch(script, /PaperBroker|paper:snapshot|global\.nusa\.placeOrder/);
 });
 
 test("canonical navigation is keyboard-addressable and shows one page at a time", () => {
