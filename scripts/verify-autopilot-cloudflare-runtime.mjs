@@ -184,14 +184,18 @@ export async function collectRuntimeProof({ fetchImpl = fetch, requestBaseUrl = 
   if (ageMs > maxReceiptAgeMsOverride) {
     throw new RuntimeProofFailure("worker_receipt_stale", "WORKER_RECEIPT_STALE", "/scheduled/status");
   }
+  const eventDrivenProof = context.triggerType === "workflow_run" && context.sourceBranch === "main";
   const expectedMainSha = context.triggerType === "schedule" || context.sourceBranch === "main" ? context.sourceSha : null;
   const exactHeadVerified = expectedMainSha !== null && scheduled.receipt.headSha.toLowerCase() === expectedMainSha;
-  if (context.triggerType === "schedule" && !exactHeadVerified) {
+  if ((context.triggerType === "schedule" || eventDrivenProof) && !exactHeadVerified) {
     throw new RuntimeProofFailure("head_mismatch_failed_closed", "HEAD_MISMATCH_FAILED_CLOSED", "/scheduled/status");
   }
   const history = Array.isArray(scheduled.history) ? scheduled.history : [];
   const summary = scheduled.summary && typeof scheduled.summary === "object" ? scheduled.summary : null;
-  const proofStatus = context.triggerType === "schedule" ? "PROOF_FRESH" : "INSUFFICIENT_EVIDENCE";
+  // Scheduled proofs remain the hourly liveness signal. A successful canonical main-CI
+  // workflow_run is an independent event-driven proof trigger; push/manual runs stay
+  // insufficient so they cannot masquerade as either runtime cadence.
+  const proofStatus = context.triggerType === "schedule" || eventDrivenProof ? "PROOF_FRESH" : "INSUFFICIENT_EVIDENCE";
   const workerReceiptIdentity = hashCanonical({
     scheduledTime,
     observedAt,
