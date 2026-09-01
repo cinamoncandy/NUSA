@@ -54,7 +54,7 @@ test("mobile renderer prioritizes supervision, PAPER results, and REAL approval 
 
   await page.locator(".nusa-bottom-nav [data-nav='settings']").click();
   await expect(page.locator("[data-page='settings']")).toBeVisible();
-  await expect(page.getByText("비밀번호 + 지문")).toBeVisible();
+  await expect(page.getByText("비밀번호 + 지문", { exact: true })).toBeVisible();
   await expect(page.getByText("허용 안 함")).toBeVisible();
   await expect(page.getByText("판단됨 ≠ 승인됨 ≠ 주문됨 ≠ 체결됨")).toBeVisible();
 });
