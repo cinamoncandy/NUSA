@@ -116,6 +116,10 @@ function passingModel() {
   return ai({ response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS" }) });
 }
 
+function auditEnv(model?: ReturnType<typeof ai>) {
+  return { AI: model, NUSA_GITHUB_TOKEN: "github-token" };
+}
+
 test("validates the immutable read-only audit request contract", () => {
   const validated = validateAuditRunnerRequest(request);
   assert.equal(validated.headSha, HEAD);
@@ -124,6 +128,25 @@ test("validates the immutable read-only audit request contract", () => {
   assert.equal(validated.liveAuthority, "NONE");
   assert.equal(validated.productionMutationAllowed, false);
   assert.equal(validated.aiAuthority, "ZERO_AUTHORITY");
+});
+
+test("authenticates every GitHub evidence request without exposing the token", async () => {
+  const sequence = fetchSequence();
+  const requests: RequestInit[] = [];
+  const result = await executeIndependentAudit(
+    request,
+    auditEnv(passingModel()),
+    (async (_input: string, init?: RequestInit) => {
+      if (init) requests.push(init);
+      return sequence();
+    }) as never,
+  );
+  assert.equal(result.verdict, "PASS");
+  assert.ok(requests.length >= 5);
+  for (const init of requests) {
+    const headers = init.headers as Record<string, string>;
+    assert.equal(headers.Authorization, "Bearer github-token");
+  }
 });
 
 test("rejects any repository or production mutation attempt", () => {
@@ -136,18 +159,18 @@ test("rejects any repository or production mutation attempt", () => {
 test("fails closed when the current PR head is stale", async () => {
   const stale = "c".repeat(40);
   await assert.rejects(
-    executeIndependentAudit(request, { AI: ai({ response: "{}" }) }, fetchSequence({ firstPull: pull(stale) }) as never),
+    executeIndependentAudit(request, auditEnv(ai({ response: "{}" })), fetchSequence({ firstPull: pull(stale) }) as never),
     /AUDIT_PR_HEAD_MISMATCH/,
   );
 });
 
 test("fails closed when canonical CI is bound to another head or run", async () => {
   await assert.rejects(
-    executeIndependentAudit(request, { AI: ai({ response: "{}" }) }, fetchSequence({ firstRun: run("d".repeat(40)) }) as never),
+    executeIndependentAudit(request, auditEnv(ai({ response: "{}" })), fetchSequence({ firstRun: run("d".repeat(40)) }) as never),
     /AUDIT_CI_HEAD_MISMATCH/,
   );
   await assert.rejects(
-    executeIndependentAudit(request, { AI: ai({ response: "{}" }) }, fetchSequence({ firstRun: run(HEAD, request.workflowRunId + 1) }) as never),
+    executeIndependentAudit(request, auditEnv(ai({ response: "{}" })), fetchSequence({ firstRun: run(HEAD, request.workflowRunId + 1) }) as never),
     /AUDIT_CI_RUN_ID_MISMATCH/,
   );
 });
@@ -155,7 +178,7 @@ test("fails closed when canonical CI is bound to another head or run", async () 
 test("resolves empty workflow_run.pull_requests through one open exact-head PR", async () => {
   const result = await executeIndependentAudit(
     request,
-    { AI: passingModel() },
+    auditEnv(passingModel()),
     fetchSequence({ firstRun: run(HEAD, request.workflowRunId, []), secondRun: run(HEAD, request.workflowRunId, []) }) as never,
     () => 101,
   );
@@ -168,7 +191,7 @@ test("allows a fork head while binding Audit to canonical base repository and ex
   const forkPull = pull(HEAD, BASE, 1, "contributor/NUSA", "cinamoncandy/NUSA");
   const result = await executeIndependentAudit(
     request,
-    { AI: passingModel() },
+    auditEnv(passingModel()),
     fetchSequence({
       firstPull: forkPull,
       secondPull: forkPull,
@@ -182,11 +205,11 @@ test("allows a fork head while binding Audit to canonical base repository and ex
 test("fails closed when empty PR identity resolves to zero or multiple exact-head open PRs", async () => {
   const emptyRun = run(HEAD, request.workflowRunId, []);
   await assert.rejects(
-    executeIndependentAudit(request, { AI: passingModel() }, fetchSequence({ firstRun: emptyRun, firstHeadPulls: [] }) as never),
+    executeIndependentAudit(request, auditEnv(passingModel()), fetchSequence({ firstRun: emptyRun, firstHeadPulls: [] }) as never),
     /AUDIT_CI_PR_IDENTITY_UNRESOLVED/,
   );
   await assert.rejects(
-    executeIndependentAudit(request, { AI: passingModel() }, fetchSequence({
+    executeIndependentAudit(request, auditEnv(passingModel()), fetchSequence({
       firstRun: emptyRun,
       firstHeadPulls: headPulls([
         { number: request.prNumber, state: "open", head: { sha: HEAD }, base: { repo: { full_name: "cinamoncandy/NUSA" } } },
@@ -199,7 +222,7 @@ test("fails closed when empty PR identity resolves to zero or multiple exact-hea
 
 test("fails closed when unique exact-head fallback points at a different PR", async () => {
   await assert.rejects(
-    executeIndependentAudit(request, { AI: passingModel() }, fetchSequence({
+    executeIndependentAudit(request, auditEnv(passingModel()), fetchSequence({
       firstRun: run(HEAD, request.workflowRunId, []),
       firstHeadPulls: headPulls([{ number: request.prNumber + 1, state: "open", head: { sha: HEAD }, base: { repo: { full_name: "cinamoncandy/NUSA" } } }]),
     }) as never),
@@ -209,7 +232,7 @@ test("fails closed when unique exact-head fallback points at a different PR", as
 
 test("fails closed when current PR targets a different base repository", async () => {
   await assert.rejects(
-    executeIndependentAudit(request, { AI: passingModel() }, fetchSequence({ firstPull: pull(HEAD, BASE, 1, "fork-owner/NUSA", "other/NUSA") }) as never),
+    executeIndependentAudit(request, auditEnv(passingModel()), fetchSequence({ firstPull: pull(HEAD, BASE, 1, "fork-owner/NUSA", "other/NUSA") }) as never),
     /AUDIT_PR_BASE_REPOSITORY_MISMATCH/,
   );
 });
@@ -217,7 +240,7 @@ test("fails closed when current PR targets a different base repository", async (
 test("fails closed when GitHub diff evidence does not cover every changed file", async () => {
   const model = passingModel();
   await assert.rejects(
-    executeIndependentAudit(request, { AI: model }, fetchSequence({ firstPull: pull(HEAD, BASE, 2), secondPull: pull(HEAD, BASE, 2) }) as never),
+    executeIndependentAudit(request, auditEnv(model), fetchSequence({ firstPull: pull(HEAD, BASE, 2), secondPull: pull(HEAD, BASE, 2) }) as never),
     /AUDIT_DIFF_FILE_COUNT_MISMATCH/,
   );
 });
@@ -240,7 +263,7 @@ test("safety regression is preserved as FAIL and cannot become merge allowed", a
       safetyInvariantResult: "FAIL",
     }),
   });
-  const result = await executeIndependentAudit(request, { AI: model }, fetchSequence() as never, () => 1234);
+  const result = await executeIndependentAudit(request, auditEnv(model), fetchSequence() as never, () => 1234);
   assert.equal(result.verdict, "FAIL");
   assert.equal(result.mergeAllowed, false);
   assert.equal(result.safetyInvariantResult, "FAIL");
@@ -250,7 +273,7 @@ test("safety regression is preserved as FAIL and cannot become merge allowed", a
 test("detects PR head movement after model review", async () => {
   const model = passingModel();
   await assert.rejects(
-    executeIndependentAudit(request, { AI: model }, fetchSequence({ secondPull: pull("e".repeat(40)) }) as never),
+    executeIndependentAudit(request, auditEnv(model), fetchSequence({ secondPull: pull("e".repeat(40)) }) as never),
     /AUDIT_PR_HEAD_MISMATCH/,
   );
 });
@@ -264,7 +287,7 @@ test("returns exact-head PASS_WITH_NOTES evidence but does not auto-authorize me
       safetyInvariantResult: "PASS",
     }) + "\n```",
   });
-  const result = await executeIndependentAudit(request, { AI: model }, fetchSequence() as never, () => 5678);
+  const result = await executeIndependentAudit(request, auditEnv(model), fetchSequence() as never, () => 5678);
   assert.equal(result.status, "AUDIT_COMPLETED");
   assert.equal(result.verdict, "PASS_WITH_NOTES");
   assert.equal(result.mergeAllowed, false);
@@ -282,5 +305,9 @@ test("returns exact-head PASS_WITH_NOTES evidence but does not auto-authorize me
 });
 
 test("fails closed when no independent AI audit engine is configured", async () => {
-  await assert.rejects(executeIndependentAudit(request, {}, fetchSequence() as never), /AUDIT_AI_NOT_CONFIGURED/);
+  await assert.rejects(executeIndependentAudit(request, { NUSA_GITHUB_TOKEN: "github-token" }, fetchSequence() as never), /AUDIT_AI_NOT_CONFIGURED/);
+});
+
+test("fails closed when GitHub evidence credentials are unavailable", async () => {
+  await assert.rejects(executeIndependentAudit(request, { AI: passingModel() }, fetchSequence() as never), /AUDIT_GITHUB_TOKEN_NOT_CONFIGURED/);
 });

@@ -48,6 +48,8 @@ export interface AuditRunnerResult {
 export interface AuditRunnerEnv {
   readonly AI?: WorkersAiBinding;
   readonly NUSA_AI_AUDIT_MODEL?: string;
+  /** Token used only for authenticated, read-only GitHub evidence fetches. */
+  readonly NUSA_GITHUB_TOKEN?: string;
 }
 
 interface AuditModelVerdict {
@@ -185,22 +187,23 @@ function parseAuditModelResponse(value: unknown): AuditModelVerdict {
   return validateAuditModelVerdict(parseJsonText(payload.response));
 }
 
-function githubHeaders(accept = "application/vnd.github+json"): Record<string, string> {
+function githubHeaders(accept = "application/vnd.github+json", token: string): Record<string, string> {
   return {
     Accept: accept,
+    Authorization: `Bearer ${token}`,
     "X-GitHub-Api-Version": "2022-11-28",
     "User-Agent": "nusa-independent-audit-runner",
   };
 }
 
-async function githubJson(url: string, fetchImpl: FetchImpl): Promise<Record<string, unknown>> {
-  const response = await fetchImpl(url, { method: "GET", headers: githubHeaders() });
+async function githubJson(url: string, token: string, fetchImpl: FetchImpl): Promise<Record<string, unknown>> {
+  const response = await fetchImpl(url, { method: "GET", headers: githubHeaders(undefined, token) });
   if (response.status !== 200) throw new Error(`AUDIT_GITHUB_EVIDENCE_HTTP_${response.status}`);
   return object(await response.json(), "AUDIT_GITHUB_EVIDENCE_INVALID");
 }
 
-async function githubArray(url: string, fetchImpl: FetchImpl): Promise<readonly unknown[]> {
-  const response = await fetchImpl(url, { method: "GET", headers: githubHeaders() });
+async function githubArray(url: string, token: string, fetchImpl: FetchImpl): Promise<readonly unknown[]> {
+  const response = await fetchImpl(url, { method: "GET", headers: githubHeaders(undefined, token) });
   if (response.status !== 200) throw new Error(`AUDIT_GITHUB_EVIDENCE_HTTP_${response.status}`);
   const payload = await response.json();
   if (!Array.isArray(payload)) throw new Error("AUDIT_GITHUB_EVIDENCE_INVALID");
@@ -215,6 +218,7 @@ async function verifyCanonicalCiPullRequestBinding(
   request: AuditRunnerRequest,
   repository: string,
   run: Record<string, unknown>,
+  token: string,
   fetchImpl: FetchImpl,
 ): Promise<void> {
   const pullNumbers = Array.isArray(run.pull_requests)
@@ -227,7 +231,7 @@ async function verifyCanonicalCiPullRequestBinding(
   // identity from the exact immutable CI head instead of treating the array as authoritative. The
   // fallback is deliberately strict: exactly one currently-open PR in the canonical base repo may
   // point at the exact requested head, otherwise Audit stops without guessing.
-  const candidates = await githubArray(`${GITHUB_API_ORIGIN}/repos/${repository}/commits/${request.headSha}/pulls`, fetchImpl);
+  const candidates = await githubArray(`${GITHUB_API_ORIGIN}/repos/${repository}/commits/${request.headSha}/pulls`, token, fetchImpl);
   const matches = candidates.filter((entry) => {
     const candidate = nested(entry);
     const head = nested(candidate?.head);
@@ -241,9 +245,9 @@ async function verifyCanonicalCiPullRequestBinding(
   if (nested(matches[0])?.number !== request.prNumber) throw new Error("AUDIT_CI_PR_MISMATCH");
 }
 
-async function verifyCurrentPullAndCi(request: AuditRunnerRequest, fetchImpl: FetchImpl): Promise<VerifiedPullEvidence> {
+async function verifyCurrentPullAndCi(request: AuditRunnerRequest, token: string, fetchImpl: FetchImpl): Promise<VerifiedPullEvidence> {
   const repository = request.repository.split("/").map(encodeURIComponent).join("/");
-  const pull = await githubJson(`${GITHUB_API_ORIGIN}/repos/${repository}/pulls/${request.prNumber}`, fetchImpl);
+  const pull = await githubJson(`${GITHUB_API_ORIGIN}/repos/${repository}/pulls/${request.prNumber}`, token, fetchImpl);
   const head = nested(pull.head);
   const base = nested(pull.base);
   if (pull.state !== "open") throw new Error("AUDIT_PR_NOT_OPEN");
@@ -252,22 +256,22 @@ async function verifyCurrentPullAndCi(request: AuditRunnerRequest, fetchImpl: Fe
   if (typeof base?.sha !== "string" || base.sha.toLowerCase() !== request.baseSha) throw new Error("AUDIT_PR_BASE_MISMATCH");
   if (!Number.isSafeInteger(pull.changed_files) || Number(pull.changed_files) <= 0 || Number(pull.changed_files) > MAX_CHANGED_FILES) throw new Error("AUDIT_PR_CHANGED_FILES_INVALID");
 
-  const run = await githubJson(`${GITHUB_API_ORIGIN}/repos/${repository}/actions/runs/${request.workflowRunId}`, fetchImpl);
+  const run = await githubJson(`${GITHUB_API_ORIGIN}/repos/${repository}/actions/runs/${request.workflowRunId}`, token, fetchImpl);
   if (run.id !== request.workflowRunId) throw new Error("AUDIT_CI_RUN_ID_MISMATCH");
   if (run.name !== "CI") throw new Error("AUDIT_CI_WORKFLOW_INVALID");
   if (run.event !== "pull_request") throw new Error("AUDIT_CI_EVENT_INVALID");
   if (run.status !== "completed" || run.conclusion !== "success") throw new Error("AUDIT_CI_NOT_SUCCESSFUL");
   if (typeof run.head_sha !== "string" || run.head_sha.toLowerCase() !== request.headSha) throw new Error("AUDIT_CI_HEAD_MISMATCH");
   if (nested(run.repository)?.full_name !== request.repository) throw new Error("AUDIT_CI_REPOSITORY_MISMATCH");
-  await verifyCanonicalCiPullRequestBinding(request, repository, run, fetchImpl);
+  await verifyCanonicalCiPullRequestBinding(request, repository, run, token, fetchImpl);
   return Object.freeze({ changedFiles: Number(pull.changed_files) });
 }
 
-async function fetchPullDiff(request: AuditRunnerRequest, expectedChangedFiles: number, fetchImpl: FetchImpl): Promise<string> {
+async function fetchPullDiff(request: AuditRunnerRequest, expectedChangedFiles: number, token: string, fetchImpl: FetchImpl): Promise<string> {
   const repository = request.repository.split("/").map(encodeURIComponent).join("/");
   const response = await fetchImpl(`${GITHUB_API_ORIGIN}/repos/${repository}/pulls/${request.prNumber}`, {
     method: "GET",
-    headers: githubHeaders("application/vnd.github.v3.diff"),
+    headers: githubHeaders("application/vnd.github.v3.diff", token),
   });
   if (response.status !== 200 || typeof response.text !== "function") throw new Error(`AUDIT_DIFF_HTTP_${response.status}`);
   const diff = await response.text();
@@ -305,15 +309,17 @@ export async function executeIndependentAudit(
   fetchImpl: FetchImpl = fetch as unknown as FetchImpl,
   now: () => number = () => Date.now(),
 ): Promise<AuditRunnerResult> {
-  const beforeAudit = await verifyCurrentPullAndCi(request, fetchImpl);
-  const diff = await fetchPullDiff(request, beforeAudit.changedFiles, fetchImpl);
+  const githubToken = env.NUSA_GITHUB_TOKEN?.trim();
+  if (!githubToken) throw new Error("AUDIT_GITHUB_TOKEN_NOT_CONFIGURED");
+  const beforeAudit = await verifyCurrentPullAndCi(request, githubToken, fetchImpl);
+  const diff = await fetchPullDiff(request, beforeAudit.changedFiles, githubToken, fetchImpl);
   if (!env.AI) throw new Error("AUDIT_AI_NOT_CONFIGURED");
   const model = env.NUSA_AI_AUDIT_MODEL?.trim() || DEFAULT_AUDIT_MODEL;
   const modelResult = parseAuditModelResponse(await env.AI.run(model, { prompt: auditPrompt(request, diff) }));
 
   // Re-fetch exact PR/base/CI evidence after model review. A concurrent push, base movement, or
   // evidence-shape change invalidates the verdict instead of attaching it to a different state.
-  const afterAudit = await verifyCurrentPullAndCi(request, fetchImpl);
+  const afterAudit = await verifyCurrentPullAndCi(request, githubToken, fetchImpl);
   if (afterAudit.changedFiles !== beforeAudit.changedFiles) throw new Error("AUDIT_PR_CHANGED_FILES_MOVED");
 
   const evidenceRefs = Object.freeze([
