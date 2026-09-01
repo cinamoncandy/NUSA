@@ -59,6 +59,28 @@ describe("buildPortfolioRiskPresentation", () => {
     assert.equal(presentation.largestPositionLabel, "-");
   });
 
+  it("fails closed instead of rendering non-finite or malformed required values", () => {
+    const malformedSummaries: PortfolioRiskSummary[] = [
+      summary({ equity: Number.NaN }),
+      summary({ concentration: { herfindahlIndex: Number.POSITIVE_INFINITY, largestPositionWeight: 0.6, largestPositionMarket: "BTC-USD" } }),
+      summary({ concentration: { herfindahlIndex: 0.52, largestPositionWeight: Number.NEGATIVE_INFINITY, largestPositionMarket: "BTC-USD" } }),
+      summary({ exposure: { grossExposureRatio: Number.NaN, netExposureRatio: 1, perAssetWeight: {} } }),
+      summary({ exposure: { grossExposureRatio: 1, netExposureRatio: Number.POSITIVE_INFINITY, perAssetWeight: {} } }),
+      summary({ expectedRisk: Number.NaN }),
+      summary({ currentDrawdown: Number.POSITIVE_INFINITY }),
+      summary({ maxPairwiseCorrelation: Number.NEGATIVE_INFINITY }),
+    ];
+
+    for (const malformed of malformedSummaries) {
+      const presentation = buildPortfolioRiskPresentation(malformed);
+      assert.equal(presentation.status, "UNAVAILABLE");
+      assert.equal(presentation.concentrationLabel, "-");
+      assert.equal(presentation.grossExposureLabel, "-");
+      assert.equal(presentation.expectedRiskLabel, "-");
+      assert.equal(presentation.maxCorrelationLabel, "-");
+    }
+  });
+
   it("passes through the insufficientEvidenceReasons verbatim", () => {
     const presentation = buildPortfolioRiskPresentation(summary());
     assert.deepEqual(presentation.insufficientEvidenceReasons, ["CORRELATIONS_OR_VOLATILITY_MISSING", "EQUITY_CURVE_MISSING"]);
