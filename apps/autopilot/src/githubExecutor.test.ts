@@ -41,6 +41,8 @@ describe("executeGithubDispatch", () => {
     const value = await executeGithubDispatch(request, { allowedRepository: "cinamoncandy/NUSA" });
     assert.equal(value.status, "INTERFACE_READY");
     assert.equal(value.reason, "github-executor-token-not-configured");
+    assert.equal(value.requestedHeadSha, null);
+    assert.equal(value.observedHeadSha, null);
   });
 
   it("fails closed on repository mismatch and invalid SHA", async () => {
@@ -95,6 +97,8 @@ describe("executeGithubDispatch", () => {
 
     assert.equal(value.status, "REJECTED");
     assert.equal(value.reason, "github-executor-stale-head-suppressed");
+    assert.equal(value.requestedHeadSha, "a".repeat(40));
+    assert.equal(value.observedHeadSha, "b".repeat(40));
     assert.deepEqual(calls, ["https://api.example.test/repos/cinamoncandy/NUSA/branches/main"]);
   });
 
@@ -113,6 +117,8 @@ describe("executeGithubDispatch", () => {
 
     assert.equal(value.status, "REJECTED");
     assert.equal(value.reason, "github-executor-stale-pr-head-suppressed");
+    assert.equal(value.requestedHeadSha, "c".repeat(40));
+    assert.equal(value.observedHeadSha, "d".repeat(40));
     assert.deepEqual(calls, ["https://api.example.test/repos/cinamoncandy/NUSA/pulls/42"]);
   });
 
@@ -131,6 +137,8 @@ describe("executeGithubDispatch", () => {
     }, fakeFetch);
 
     assert.equal(value.status, "DISPATCHED");
+    assert.equal(value.requestedHeadSha, request.headSha);
+    assert.equal(value.observedHeadSha, request.headSha);
     assert.equal(calls.length, 2);
     assert.equal(calls[0]?.url, "https://api.example.test/repos/cinamoncandy/NUSA/branches/main");
     assert.equal(calls[1]?.url, "https://api.example.test/repos/cinamoncandy/NUSA/dispatches");
@@ -161,6 +169,8 @@ describe("executeGithubDispatch", () => {
     }, fakeFetch);
 
     assert.equal(value.status, "DISPATCHED");
+    assert.equal(value.requestedHeadSha, auditRequest.headSha);
+    assert.equal(value.observedHeadSha, auditRequest.headSha);
     assert.equal(calls[0]?.url, "https://api.example.test/repos/cinamoncandy/NUSA/pulls/42");
     assert.equal(calls[1]?.url, "https://api.example.test/repos/cinamoncandy/NUSA/dispatches");
     const payload = JSON.parse(String(calls[1]?.init?.body));
@@ -182,6 +192,8 @@ describe("executeGithubDispatch", () => {
     assert.equal(value.status, "FAILED");
     assert.equal(value.reason, "github-executor-main-head-http-503");
     assert.equal(value.httpStatus, 503);
+    assert.equal(value.requestedHeadSha, null);
+    assert.equal(value.observedHeadSha, null);
   });
 
   it("classifies auth and scope failures without leaking response bodies", async () => {

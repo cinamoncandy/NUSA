@@ -9,6 +9,12 @@ const SUPPORTED_EVENTS = new Set(["push", "pull_request", "workflow_run", "ping"
 const TRANSIENT_STATUSES = new Set([429, 500, 502, 503, 504]);
 const MAX_ATTEMPTS = 2;
 const REQUEST_TIMEOUT_MS = 20_000;
+const AUDIT_CREDENTIAL_FAILURES = new Set([
+  "github-executor-token-not-configured",
+  "github-executor-auth-rejected",
+  "github-executor-repository-or-token-scope-invalid",
+  "github-executor-pr-or-token-scope-invalid",
+]);
 
 function safeEventName(value) {
   const event = value === "pull_request_target" ? "pull_request" : value;
@@ -22,6 +28,14 @@ function safeRunPart(value, name) {
 
 function object(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value) ? value : null;
+}
+
+function safeExecutorEvidence(payload) {
+  const executor = object(object(payload)?.executor);
+  const status = typeof executor?.status === "string" ? executor.status : null;
+  const reason = typeof executor?.reason === "string" ? executor.reason : null;
+  const httpStatus = Number.isSafeInteger(executor?.httpStatus) ? executor.httpStatus : null;
+  return Object.freeze({ status, reason, httpStatus });
 }
 
 export function createDeliveryId({ repository, event, runId, runAttempt }) {
@@ -97,9 +111,11 @@ export function isAuditFallbackEligible(payload) {
   const value = object(payload);
   const execution = object(value?.execution);
   const executor = object(value?.executor);
-  return execution?.kind === "AUDIT_REQUEST" &&
-    executor?.status === "INTERFACE_READY" &&
-    executor?.reason === "github-executor-token-not-configured";
+  if (execution?.kind !== "AUDIT_REQUEST") return false;
+  const reason = typeof executor?.reason === "string" ? executor.reason : "";
+  if (!AUDIT_CREDENTIAL_FAILURES.has(reason)) return false;
+  if (reason === "github-executor-token-not-configured") return executor?.status === "INTERFACE_READY";
+  return executor?.status === "FAILED" && [401, 403, 404].includes(executor?.httpStatus);
 }
 
 export async function dispatchGithubEvent({
@@ -159,6 +175,7 @@ export async function dispatchGithubEvent({
     const classification = responseClass(response.status);
     if (classification === "SUCCESS") {
       const payload = await responseSafety(response);
+      const executor = safeExecutorEvidence(payload);
       return Object.freeze({
         status: "DELIVERED",
         authentication,
@@ -166,6 +183,9 @@ export async function dispatchGithubEvent({
         deliveryId,
         attempts: attempts + 1,
         responseStatus: response.status,
+        executorStatus: executor.status,
+        executorReason: executor.reason,
+        executorHttpStatus: executor.httpStatus,
         auditFallbackEligible: isAuditFallbackEligible(payload),
       });
     }
@@ -187,6 +207,9 @@ function summaryLine(result) {
     `- delivery: ${result.deliveryId}`,
     `- attempts: ${result.attempts}`,
     `- response: ${result.responseStatus ?? "none"}`,
+    `- executor status: ${result.executorStatus ?? "none"}`,
+    `- executor reason: ${result.executorReason ?? "none"}`,
+    `- executor http: ${result.executorHttpStatus ?? "none"}`,
     `- audit fallback eligible: ${result.auditFallbackEligible === true ? "true" : "false"}`,
     "- liveAuthority: NONE",
     "- productionMutationAllowed: false",

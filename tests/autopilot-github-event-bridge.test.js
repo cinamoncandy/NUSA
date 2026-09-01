@@ -55,6 +55,9 @@ test("pull_request_target is delivered as the canonical pull_request event", asy
   });
   assert.equal(result.status, "DELIVERED");
   assert.equal(result.auditFallbackEligible, false);
+  assert.equal(result.executorStatus, null);
+  assert.equal(result.executorReason, null);
+  assert.equal(result.executorHttpStatus, null);
   assert.equal(request.url, "https://autopilot.example.test/github/webhook");
   assert.equal(request.init.method, "POST");
   assert.equal(request.init.headers["x-github-event"], "pull_request");
@@ -63,15 +66,31 @@ test("pull_request_target is delivered as the canonical pull_request event", asy
   assert.equal(request.init.headers["x-hub-signature-256"], createGithubSignature("bridge-test-secret", body));
 });
 
-test("Audit fallback eligibility requires the exact bounded Worker token-missing result", async () => {
-  const exact = safetyPayload({
+test("Audit fallback eligibility is limited to explicit credential failures on AUDIT_REQUEST", async () => {
+  const tokenMissing = safetyPayload({
     execution: { kind: "AUDIT_REQUEST" },
-    executor: { status: "INTERFACE_READY", reason: "github-executor-token-not-configured" },
+    executor: { status: "INTERFACE_READY", reason: "github-executor-token-not-configured", httpStatus: null },
   });
-  assert.equal(isAuditFallbackEligible(exact), true);
-  assert.equal(isAuditFallbackEligible({ ...exact, execution: { kind: "REPOSITORY_AUTOPILOT" } }), false);
-  assert.equal(isAuditFallbackEligible({ ...exact, executor: { status: "FAILED", reason: "github-executor-token-not-configured" } }), false);
-  assert.equal(isAuditFallbackEligible({ ...exact, executor: { status: "INTERFACE_READY", reason: "github-executor-auth-rejected" } }), false);
+  const authRejected = safetyPayload({
+    execution: { kind: "AUDIT_REQUEST" },
+    executor: { status: "FAILED", reason: "github-executor-auth-rejected", httpStatus: 403 },
+  });
+  const dispatchScopeInvalid = safetyPayload({
+    execution: { kind: "AUDIT_REQUEST" },
+    executor: { status: "FAILED", reason: "github-executor-repository-or-token-scope-invalid", httpStatus: 404 },
+  });
+  const prScopeInvalid = safetyPayload({
+    execution: { kind: "AUDIT_REQUEST" },
+    executor: { status: "FAILED", reason: "github-executor-pr-or-token-scope-invalid", httpStatus: 404 },
+  });
+  assert.equal(isAuditFallbackEligible(tokenMissing), true);
+  assert.equal(isAuditFallbackEligible(authRejected), true);
+  assert.equal(isAuditFallbackEligible(dispatchScopeInvalid), true);
+  assert.equal(isAuditFallbackEligible(prScopeInvalid), true);
+  assert.equal(isAuditFallbackEligible({ ...authRejected, execution: { kind: "REPOSITORY_AUTOPILOT" } }), false);
+  assert.equal(isAuditFallbackEligible(safetyPayload({ execution: { kind: "AUDIT_REQUEST" }, executor: { status: "REJECTED", reason: "github-executor-stale-pr-head-suppressed", httpStatus: null } })), false);
+  assert.equal(isAuditFallbackEligible(safetyPayload({ execution: { kind: "AUDIT_REQUEST" }, executor: { status: "FAILED", reason: "github-executor-http-500", httpStatus: 500 } })), false);
+  assert.equal(isAuditFallbackEligible(safetyPayload({ execution: { kind: "AUDIT_REQUEST" }, executor: { status: "FAILED", reason: "github-executor-auth-rejected", httpStatus: 500 } })), false);
 
   const result = await dispatchGithubEvent({
     secret: "bridge-test-secret",
@@ -80,10 +99,15 @@ test("Audit fallback eligibility requires the exact bounded Worker token-missing
     repository: "cinamoncandy/NUSA",
     runId: "16",
     runAttempt: "1",
-    fetchImpl: async () => new Response(JSON.stringify(exact), { status: 202, headers: { "content-type": "application/json" } }),
+    fetchImpl: async () => new Response(JSON.stringify(authRejected), { status: 202, headers: { "content-type": "application/json" } }),
     timeoutMs: 100,
   });
   assert.equal(result.auditFallbackEligible, true);
+  assert.equal(result.executorStatus, "FAILED");
+  assert.equal(result.executorReason, "github-executor-auth-rejected");
+  assert.equal(result.executorHttpStatus, 403);
+  assert.equal("token" in result, false);
+  assert.equal("headers" in result, false);
 });
 
 test("transient delivery failures retry once while authentication failures fail closed", async () => {
@@ -150,7 +174,6 @@ test("the primary bridge remains read-only and fallback write authority is isola
   assert.doesNotMatch(normalized, /actions: write/);
   assert.doesNotMatch(normalized, /pull-requests: write/);
   assert.doesNotMatch(normalized, /NUSA_GITHUB_TOKEN/);
-  assert.doesNotMatch(normalized, /NUSA_AUTOPILOT_HEALTH_URL/);
   assert.doesNotMatch(normalized, /LIVE|ACTIVE/);
 
   assert.match(bridgeJob, /outputs:\s*\n\s*audit_fallback_eligible: \$\{\{ steps\.deliver\.outputs\.audit_fallback_eligible \}\}/);

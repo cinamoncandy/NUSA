@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      NUSA_AUTOPILOT_URL: https://nusa.desporin12.workers.dev
+      NUSA_AUTOPILOT_URL: https://nusa-autopilot.desporin12.workers.dev
       NUSA_AUTOPILOT_MAX_RECEIPT_AGE_MS: '180000'
       NUSA_RUNTIME_PROOF_EVENT: ${{ github.event_name }}
       NUSA_RUNTIME_PROOF_RUN_ID: ${{ github.run_id }}
@@ -58,4 +58,3 @@ jobs:
           path: artifacts/autopilot/runtime-proof.json
           if-no-files-found: warn
           retention-days: 7
-
