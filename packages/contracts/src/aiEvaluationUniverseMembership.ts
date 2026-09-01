@@ -40,6 +40,21 @@ function eventHistoryIsWellFormed(events: readonly UniverseMembershipEvent[]): b
     if (symbolTimes.has(symbolTime)) return false;
     symbolTimes.add(symbolTime);
   }
+
+  // A symbol rename is represented as an exit from the old symbol plus exactly one ADDED event
+  // for the new symbol at the same effective time. Requiring the paired event keeps membership
+  // reconstruction explicit and prevents `renamedTo` from becoming observability-only metadata.
+  for (const event of events) {
+    if (event.type !== "SYMBOL_CHANGED") continue;
+    const renamedTo = event.renamedTo!.trim();
+    if (renamedTo === event.symbol) return false;
+    const pairedAdds = events.filter((candidate) =>
+      candidate.type === "ADDED"
+      && candidate.symbol === renamedTo
+      && candidate.effectiveAt === event.effectiveAt
+    );
+    if (pairedAdds.length !== 1) return false;
+  }
   return true;
 }
 
