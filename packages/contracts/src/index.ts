@@ -46,6 +46,7 @@ export * from "./aiTradingJudgment";
 export * from "./researchHypothesisContract";
 export * from "./portfolioRiskIntelligence";
 export * from "./aiEvaluationTemporalPartition";
+export * from "./aiEvaluationDataVintage";
 export * from "./aiEvaluationDependenceGroups";
 export * from "./aiEvaluationMultipleTestingCorrection";
 
