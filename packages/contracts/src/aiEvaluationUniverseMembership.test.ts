@@ -9,7 +9,7 @@ function events(): readonly UniverseMembershipEvent[] {
     { eventId: "e3", symbol: "BBB", type: "ADDED", effectiveAt: 2_000 },
     { eventId: "e4", symbol: "CCC", type: "ADDED", effectiveAt: 1_000 },
     { eventId: "e5", symbol: "CCC", type: "REMOVED", effectiveAt: 3_000 },
-    { eventId: "e6", symbol: "CCC", type: "ADDED", effectiveAt: 4_000 }, // re-added after removal
+    { eventId: "e6", symbol: "CCC", type: "ADDED", effectiveAt: 4_000 },
   ];
 }
 
@@ -18,7 +18,7 @@ describe("resolveUniverseMembership", () => {
     assert.deepEqual(resolveUniverseMembership("AAA", 2_000, events()), { member: true });
   });
 
-  it("is not a member before its ADDED event (would-be survivorship bias if assumed a member)", () => {
+  it("is not a member before its ADDED event", () => {
     assert.deepEqual(resolveUniverseMembership("BBB", 1_500, events()), { member: false, reason: "NEVER_ADDED_BY_EFFECTIVE_TIME" });
   });
 
@@ -32,9 +32,9 @@ describe("resolveUniverseMembership", () => {
   });
 
   it("handles a re-add after a prior removal correctly", () => {
-    assert.deepEqual(resolveUniverseMembership("CCC", 2_500, events()), { member: true }); // between first add and removal
-    assert.deepEqual(resolveUniverseMembership("CCC", 3_500, events()), { member: false, reason: "REMOVED_BEFORE_EFFECTIVE_TIME" }); // after removal, before re-add
-    assert.deepEqual(resolveUniverseMembership("CCC", 4_500, events()), { member: true }); // after re-add
+    assert.deepEqual(resolveUniverseMembership("CCC", 2_500, events()), { member: true });
+    assert.deepEqual(resolveUniverseMembership("CCC", 3_500, events()), { member: false, reason: "REMOVED_BEFORE_EFFECTIVE_TIME" });
+    assert.deepEqual(resolveUniverseMembership("CCC", 4_500, events()), { member: true });
   });
 
   it("fails closed on an invalid asOf", () => {
@@ -69,6 +69,15 @@ describe("resolveUniverseMembership", () => {
     ];
     assert.deepEqual(resolveUniverseMembership("AAA", 3_000, duplicate), { member: false, reason: "INVALID_EVENT_HISTORY" });
   });
+
+  it("fails closed on conflicting same-symbol events at the same effective time", () => {
+    const ambiguous: readonly UniverseMembershipEvent[] = [
+      { eventId: "e1", symbol: "AAA", type: "ADDED", effectiveAt: 1_000 },
+      { eventId: "e2", symbol: "AAA", type: "DELISTED", effectiveAt: 1_000 },
+    ];
+    assert.deepEqual(resolveUniverseMembership("AAA", 1_000, ambiguous), { member: false, reason: "INVALID_EVENT_HISTORY" });
+    assert.deepEqual(resolveUniverseMembership("AAA", 2_000, [...ambiguous].reverse()), { member: false, reason: "INVALID_EVENT_HISTORY" });
+  });
 });
 
 describe("isUniverseMembershipConsistent", () => {
@@ -82,7 +91,7 @@ describe("isUniverseMembershipConsistent", () => {
     assert.equal(isUniverseMembershipConsistent(claims, events()), false);
   });
 
-  it("is false when any claim references a delisted/removed symbol at that time (survivorship bias)", () => {
+  it("is false when any claim references a delisted/removed symbol at that time", () => {
     const claims = [{ symbol: "AAA", asOf: 6_000 }];
     assert.equal(isUniverseMembershipConsistent(claims, events()), false);
   });
