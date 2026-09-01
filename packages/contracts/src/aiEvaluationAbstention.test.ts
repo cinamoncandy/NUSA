@@ -50,6 +50,13 @@ describe("evaluateEvidenceSufficiency", () => {
     assert.deepEqual((result as { reasons: readonly string[] }).reasons, ["INVALID_POLICY"]);
   });
 
+  it("fails closed on a malformed policy (zero minObservationWindowMs)", () => {
+    const malformed: MinimumEvidencePolicy = { minEffectiveSampleSize: 30, minObservationWindowMs: 0 };
+    const result = evaluateEvidenceSufficiency({ effectiveSampleSize: 30, observedWindowMs: 604_800_000 }, malformed);
+    assert.equal(result.sufficient, false);
+    assert.deepEqual((result as { reasons: readonly string[] }).reasons, ["INVALID_POLICY"]);
+  });
+
   it("fails closed on a malformed policy (negative minObservationWindowMs)", () => {
     const malformed: MinimumEvidencePolicy = { minEffectiveSampleSize: 30, minObservationWindowMs: -1 };
     const result = evaluateEvidenceSufficiency({ effectiveSampleSize: 30, observedWindowMs: 604_800_000 }, malformed);
