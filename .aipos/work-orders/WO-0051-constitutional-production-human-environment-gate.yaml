@@ -239,3 +239,12 @@ latest_repository_portfolio_risk_evidence_slice:
   merge_commit: 91b245221e97c9ea0b1d1a8927e8a3e5c519f62c
   evidence: "Focused regression coverage and all observed exact-head protected workflows passed; no execution, credential, accounting, or LIVE boundary changed."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+latest_repository_portfolio_risk_drawdown_slice:
+  status: COMPLETED
+  scope: "Fail closed on malformed or no-positive-base equity curves before computing portfolio drawdown."
+  pull_request: 1374
+  implementation_head: 9cab25b013301e8652a333d861a76047c0211d10
+  merge_commit: 7eaf4814c05c1c76a940205b187099c4b6a6dc75
+  evidence: "Focused regression and all observed exact-head workflow checks passed; no execution, credential, accounting, or LIVE boundary changed."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
