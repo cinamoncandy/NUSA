@@ -42,6 +42,25 @@ function githubHeaders(token: string): Record<string, string> {
   };
 }
 
+function githubClientPayload(request: AutopilotExecutionRequest): Record<string, unknown> {
+  // GitHub repository_dispatch accepts at most 10 top-level client_payload properties.
+  // Keep only fields consumed by each dispatch kind so the safety contract remains flat
+  // while avoiding a provider-side 422 validation failure.
+  return {
+    kind: request.kind,
+    repository: request.repository,
+    head_sha: request.headSha,
+    ...(request.kind === "AUDIT_REQUEST" ? { pr_number: request.prNumber } : {}),
+    workflow_run_id: request.workflowRunId,
+    ...(request.kind === "AUDIT_REQUEST" ? {} : { reason: request.reason }),
+    execution_id: request.executionId ?? null,
+    dedupe_key: request.dedupeKey ?? null,
+    live_authority: "NONE",
+    production_mutation_allowed: false,
+    ai_authority: "ZERO_AUTHORITY",
+  };
+}
+
 async function resolveCurrentMainSha(
   base: string,
   repository: string,
@@ -133,19 +152,7 @@ export async function executeGithubDispatch(
     },
     body: JSON.stringify({
       event_type: "nusa_autopilot_execution",
-      client_payload: {
-        kind: request.kind,
-        repository: request.repository,
-        head_sha: request.headSha,
-        pr_number: request.prNumber ?? null,
-        workflow_run_id: request.workflowRunId,
-        reason: request.reason,
-        execution_id: request.executionId ?? null,
-        dedupe_key: request.dedupeKey ?? null,
-        live_authority: "NONE",
-        production_mutation_allowed: false,
-        ai_authority: "ZERO_AUTHORITY",
-      },
+      client_payload: githubClientPayload(request),
     }),
   });
 
