@@ -15,6 +15,13 @@ The OWNER shortcuts are `ㅇ` (execute the next safe real action), `ㅂ` (verifi
 state), `ㅎ` (diagnose and repair), `ㅈ` (print the master protocol), and
 `/grill-me` (adversarial CORE review).
 
+For `/grill-me`, also read and follow
+[`docs/GRILL_ME_PROTOCOL.md`](docs/GRILL_ME_PROTOCOL.md). That document is the
+canonical detailed execution protocol for the adversarial review summarized in
+section 22 of the CORE master instructions. It remains subordinate to AIPOS,
+architecture, repository-protection, and safety rules, and it is explicitly a
+pre-Audit review rather than independent Audit or Release approval.
+
 ## AIPOS recovery is mandatory
 
 Before planning, editing, or generating code:
