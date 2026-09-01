@@ -106,18 +106,49 @@ test("a successful HTTP response with unsafe authority metadata is rejected", as
   }), /WEBHOOK_RESPONSE_LIVE_AUTHORITY_INVALID/);
 });
 
-test("the workflow is a read-only bridge to the existing canonical webhook", () => {
-  assert.match(workflow, /push:\s*\n\s*branches: \[main\]/);
-  assert.match(workflow, /pull_request_target:/);
-  assert.match(workflow, /workflow_run:\s*\n\s*workflows: \[CI\]/);
-  assert.match(workflow, /node scripts\/dispatch-github-event-to-autopilot\.mjs/);
-  assert.match(workflow, /NUSA_WEBHOOK_SECRET:/);
-  assert.match(workflow, /contents: read/);
-  assert.match(workflow, /id-token: write/);
-  assert.doesNotMatch(workflow, /contents: write/);
-  assert.doesNotMatch(workflow, /actions: write/);
-  assert.doesNotMatch(workflow, /NUSA_GITHUB_TOKEN/);
-  assert.doesNotMatch(workflow, /LIVE|ACTIVE/);
+test("the primary bridge remains read-only and fallback write authority is isolated", () => {
+  const normalized = workflow.replace(/\r\n/g, "\n");
+  const bridgeStart = normalized.indexOf("  bridge:\n");
+  const fallbackStart = normalized.indexOf("  audit-dispatch-fallback:\n");
+  assert.ok(bridgeStart >= 0, "primary bridge job must exist");
+  assert.ok(fallbackStart > bridgeStart, "fallback job must be separate from the primary bridge");
+  const bridgeJob = normalized.slice(bridgeStart, fallbackStart);
+  const fallbackJob = normalized.slice(fallbackStart);
+
+  assert.match(normalized, /push:\s*\n\s*branches: \[main\]/);
+  assert.match(normalized, /pull_request_target:/);
+  assert.match(normalized, /workflow_run:\s*\n\s*workflows: \[CI\]/);
+  assert.match(normalized, /permissions: \{\}/);
+  assert.equal((normalized.match(/contents: write/g) ?? []).length, 1, "only the bounded fallback job may receive contents: write");
+  assert.doesNotMatch(normalized, /actions: write/);
+  assert.doesNotMatch(normalized, /pull-requests: write/);
+  assert.doesNotMatch(normalized, /NUSA_GITHUB_TOKEN/);
+  assert.doesNotMatch(normalized, /LIVE|ACTIVE/);
+
+  assert.match(bridgeJob, /node scripts\/dispatch-github-event-to-autopilot\.mjs/);
+  assert.match(bridgeJob, /NUSA_WEBHOOK_SECRET:/);
+  assert.match(bridgeJob, /contents: read/);
+  assert.match(bridgeJob, /id-token: write/);
+  assert.doesNotMatch(bridgeJob, /contents: write/);
+  assert.doesNotMatch(bridgeJob, /actions: write/);
+  assert.doesNotMatch(bridgeJob, /pull-requests: write/);
+  assert.match(bridgeJob, /persist-credentials: false/);
+
+  assert.match(fallbackJob, /needs: bridge/);
+  assert.match(fallbackJob, /github\.event_name == 'workflow_run'/);
+  assert.match(fallbackJob, /github\.event\.workflow_run\.name == 'CI'/);
+  assert.match(fallbackJob, /github\.event\.workflow_run\.status == 'completed'/);
+  assert.match(fallbackJob, /github\.event\.workflow_run\.conclusion == 'success'/);
+  assert.match(fallbackJob, /github\.event\.workflow_run\.event == 'pull_request'/);
+  assert.match(fallbackJob, /contents: write/);
+  assert.match(fallbackJob, /actions: read/);
+  assert.match(fallbackJob, /pull-requests: read/);
+  assert.doesNotMatch(fallbackJob, /id-token: write/);
+  assert.doesNotMatch(fallbackJob, /actions: write/);
+  assert.doesNotMatch(fallbackJob, /pull-requests: write/);
+  assert.match(fallbackJob, /persist-credentials: false/);
+  assert.match(fallbackJob, /GH_TOKEN: \$\{\{ github\.token \}\}/);
+  assert.match(fallbackJob, /node scripts\/fallback-audit-dispatch-from-bridge\.mjs/);
 });
 
 test("the bridge remains connected to the one existing event-planning spine", () => {
