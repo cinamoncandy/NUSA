@@ -132,3 +132,76 @@ export function isHoldoutUntouchedByTraining(
     return assignment.assigned && assignment.role === "HOLDOUT";
   });
 }
+
+/**
+ * Purge/embargo policy (WO-AI-011: "purge or embargo policy for overlapping realized-label
+ * horizons"). A TRAIN prediction whose own outcome window overlaps a later VALIDATION/HOLDOUT
+ * partition's time range has effectively seen into that partition's future and must be purged.
+ * A TRAIN prediction made too close in time before a VALIDATION/HOLDOUT boundary is embargoed even
+ * without a literal overlap, because serially correlated inputs (the usual case for market/event
+ * data) can leak information across that boundary regardless of the declared outcome window.
+ */
+export interface PurgeEmbargoPolicy {
+  /** Buffer immediately before a VALIDATION/HOLDOUT partition's start during which a TRAIN
+   * prediction is embargoed even if its outcome window does not literally overlap that partition. */
+  readonly embargoMs: number;
+}
+
+export type PurgeEmbargoDecision =
+  | { readonly excluded: false }
+  | { readonly excluded: true; readonly reason: "PURGED_OVERLAPPING_OUTCOME_WINDOW" | "EMBARGOED_NEAR_BOUNDARY"; readonly conflictingPartitionId: string };
+
+export interface PurgeEmbargoCandidate {
+  readonly predictionTime: number;
+  readonly outcomeWindowStart: number;
+  readonly outcomeWindowEnd: number;
+}
+
+function overlaps(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
+  return aStart < bEnd && bStart < aEnd;
+}
+
+function invalidPurgeEmbargoDecision(boundaryPartitions: readonly AiEvaluationPartition[]): PurgeEmbargoDecision {
+  const fallbackId = typeof boundaryPartitions[0]?.partitionId === "string" && boundaryPartitions[0].partitionId.trim()
+    ? boundaryPartitions[0].partitionId
+    : "INVALID_INPUT";
+  return { excluded: true, reason: "PURGED_OVERLAPPING_OUTCOME_WINDOW", conflictingPartitionId: fallbackId };
+}
+
+/**
+ * Evaluates whether one TRAIN-role candidate must be purged or embargoed against the given
+ * VALIDATION/HOLDOUT partitions. Only ever excludes TRAIN candidates -- a VALIDATION or HOLDOUT
+ * sample is never purged/embargoed against itself or against other partitions of the same kind;
+ * that is what assignAiEvaluationPartition already guarantees is disjoint. Fails closed toward
+ * exclusion: on any ambiguity about overlap, the candidate is purged rather than kept.
+ */
+export function evaluatePurgeEmbargo(
+  candidate: PurgeEmbargoCandidate,
+  boundaryPartitions: readonly AiEvaluationPartition[],
+  policy: PurgeEmbargoPolicy,
+): PurgeEmbargoDecision {
+  if (
+    !isTimestamp(candidate.predictionTime) || !isTimestamp(candidate.outcomeWindowStart) || !isTimestamp(candidate.outcomeWindowEnd)
+    || candidate.outcomeWindowStart > candidate.outcomeWindowEnd
+    || candidate.predictionTime > candidate.outcomeWindowStart
+    || !Number.isSafeInteger(policy.embargoMs) || policy.embargoMs < 0
+    || !partitionsAreWellFormed(boundaryPartitions)
+  ) {
+    return invalidPurgeEmbargoDecision(boundaryPartitions);
+  }
+
+  for (const partition of boundaryPartitions) {
+    if (partition.role === "TRAIN") continue;
+    if (overlaps(candidate.outcomeWindowStart, candidate.outcomeWindowEnd, partition.startTime, partition.endTime)) {
+      return { excluded: true, reason: "PURGED_OVERLAPPING_OUTCOME_WINDOW", conflictingPartitionId: partition.partitionId };
+    }
+  }
+  for (const partition of boundaryPartitions) {
+    if (partition.role === "TRAIN") continue;
+    const embargoStart = partition.startTime - policy.embargoMs;
+    if (candidate.predictionTime >= embargoStart && candidate.predictionTime < partition.startTime) {
+      return { excluded: true, reason: "EMBARGOED_NEAR_BOUNDARY", conflictingPartitionId: partition.partitionId };
+    }
+  }
+  return { excluded: false };
+}
