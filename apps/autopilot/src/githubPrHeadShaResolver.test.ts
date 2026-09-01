@@ -14,7 +14,7 @@ function fakeFetch(status: number, body: unknown): typeof fetch {
 }
 
 function config(overrides: Partial<Parameters<typeof resolveOpenPullRequestByHeadSha>[1]> = {}) {
-  return { token: "test-token", allowedRepository: "cinamoncandy/NUSA", ...overrides };
+  return { token: "test", allowedRepository: "cinamoncandy/NUSA", ...overrides };
 }
 
 describe("resolveOpenPullRequestByHeadSha", () => {
