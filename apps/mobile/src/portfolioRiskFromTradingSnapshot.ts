@@ -35,7 +35,7 @@ export interface PortfolioRiskFromTradingSnapshotResult {
 }
 
 function isFinitePrice(value: number | null): value is number {
-  return value !== null && Number.isFinite(value) && value >= 0;
+  return value !== null && Number.isFinite(value) && value > 0;
 }
 
 /**
