@@ -73,6 +73,44 @@ describe("buildPortfolioRiskSummaryFromTradingSnapshot", () => {
     assert.throws(() => buildPortfolioRiskSummaryFromTradingSnapshot(snapshot([]), -1, () => null));
   });
 
+  it("rejects non-finite position quantity before mark-price lookup", () => {
+    for (const quantity of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      assert.throws(
+        () => buildPortfolioRiskSummaryFromTradingSnapshot(
+          snapshot([{ market: "BTC-USD", quantity, averageEntryPrice: 50_000 }]),
+          1_000,
+          () => { throw new Error("mark-price lookup must not run"); },
+        ),
+        /position quantity must be finite: BTC-USD/,
+      );
+    }
+  });
+
+  it("rejects malformed position market identity before mark-price lookup", () => {
+    for (const market of ["", "   ", " BTC-USD", "BTC-USD "]) {
+      assert.throws(
+        () => buildPortfolioRiskSummaryFromTradingSnapshot(
+          snapshot([{ market, quantity: 1, averageEntryPrice: 50_000 }]),
+          1_000,
+          () => { throw new Error("mark-price lookup must not run"); },
+        ),
+        /position market must be a non-empty trimmed string/,
+      );
+    }
+  });
+
+  it("rejects a non-string runtime market from an unvalidated API snapshot", () => {
+    const malformedMarket = null as unknown as string;
+    assert.throws(
+      () => buildPortfolioRiskSummaryFromTradingSnapshot(
+        snapshot([{ market: malformedMarket, quantity: 1, averageEntryPrice: 50_000 }]),
+        1_000,
+        () => { throw new Error("mark-price lookup must not run"); },
+      ),
+      /position market must be a non-empty trimmed string/,
+    );
+  });
+
   it("treats a zero mark price as unavailable rather than zero-valuing a position", () => {
     const trading = snapshot([{ market: "BTC-USD", quantity: 1, averageEntryPrice: 50_000 }]);
     const result = buildPortfolioRiskSummaryFromTradingSnapshot(trading, 1_000, () => 0);
