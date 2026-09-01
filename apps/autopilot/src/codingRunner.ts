@@ -130,8 +130,20 @@ function validateCodingProposal(value: unknown): CodingProposal {
 
 function parseProposalText(value: string): CodingProposal {
   const text = value.trim();
-  const fenced = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)?.[1]?.trim();
+  const fenced = (
+    text.match(/^```(?:json|diff|patch)?\s*([\s\S]*?)\s*```$/i)
+    ?? text.match(/```(?:json|diff|patch)\s*([\s\S]*?)\s*```/i)
+  )?.[1]?.trim();
   const candidate = fenced ?? text;
+
+  // Workers AI occasionally emits the requested unified diff directly (or in a
+  // ```diff fence) despite the JSON-only instruction. Treat that as the same
+  // patch-only proposal contract; the sandbox still performs the authoritative
+  // apply, scope, and safety validation before any publication.
+  if (/^diff --git a\/[^\s]+ b\/[^\s]+(?:\r?\n|$)/.test(candidate) && /^\+\+\+ b\/[^\r\n]+$/m.test(candidate)) {
+    return validateCodingProposal({ patch: candidate });
+  }
+
   const candidates = [candidate];
   const start = candidate.indexOf("{");
   const end = candidate.lastIndexOf("}");

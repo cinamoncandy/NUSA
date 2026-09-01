@@ -260,6 +260,32 @@ describe("coding runner", () => {
     assert.equal(result.proposalValidated, true);
   });
 
+  it("accepts a raw or fenced unified diff from Workers AI", async () => {
+    const runtime: CodingRuntime = {
+      name: "fake-sandbox",
+      async execute(value, proposal) {
+        assert.equal(value.executionId, request.executionId);
+        assert.equal(proposal?.patch, patch.trim());
+        return {
+          backend: "fake-sandbox",
+          checkpointId: request.headSha,
+          workspaceVerified: true,
+          proposalValidated: true,
+          changedFiles: ["apps/autopilot/src/example.ts"],
+        };
+      },
+    };
+    const fencedDiff = ["Here is the patch:", "```diff", patch, "```"].join("\n");
+    for (const responseText of [patch, fencedDiff]) {
+      const ai: WorkersAiBinding = {
+        async run() { return { response: responseText }; },
+      };
+      const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch, runtime);
+      assert.equal(result.status, "EXECUTION_ACCEPTED");
+      assert.equal(result.proposalValidated, true);
+    }
+  });
+
   it("distinguishes syntax-invalid Workers AI output", async () => {
     const ai: WorkersAiBinding = {
       async run() { return { response: "{not-json" }; },
