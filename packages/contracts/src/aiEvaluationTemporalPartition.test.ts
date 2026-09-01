@@ -187,6 +187,13 @@ describe("evaluatePurgeEmbargo", () => {
     assert.equal(result.excluded, true);
   });
 
+  it("fails closed toward exclusion when predictionTime is after outcomeWindowStart (causal-ordering violation), even when neither overlap nor embargo would otherwise trigger", () => {
+    // outcomeWindowStart=1_000..outcomeWindowEnd=1_100 already began before predictionTime=1_500 was
+    // made -- the candidate's own clocks are causally invalid regardless of where partitions sit.
+    const result = evaluatePurgeEmbargo({ predictionTime: 1_500, outcomeWindowStart: 1_000, outcomeWindowEnd: 1_100 }, partitions(), policy);
+    assert.equal(result.excluded, true);
+  });
+
   it("fails closed toward exclusion on a negative embargoMs policy", () => {
     const result = evaluatePurgeEmbargo({ predictionTime: 100, outcomeWindowStart: 100, outcomeWindowEnd: 200 }, partitions(), { embargoMs: -1 });
     assert.equal(result.excluded, true);

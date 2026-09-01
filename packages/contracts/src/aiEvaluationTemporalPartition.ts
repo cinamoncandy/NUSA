@@ -183,6 +183,7 @@ export function evaluatePurgeEmbargo(
   if (
     !isTimestamp(candidate.predictionTime) || !isTimestamp(candidate.outcomeWindowStart) || !isTimestamp(candidate.outcomeWindowEnd)
     || candidate.outcomeWindowStart > candidate.outcomeWindowEnd
+    || candidate.predictionTime > candidate.outcomeWindowStart
     || !Number.isSafeInteger(policy.embargoMs) || policy.embargoMs < 0
     || !partitionsAreWellFormed(boundaryPartitions)
   ) {
