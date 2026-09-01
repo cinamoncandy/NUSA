@@ -132,6 +132,15 @@ describe("portfolio risk intelligence", () => {
     assert.ok(Math.abs((result.currentDrawdown as number) - 0.25) < 1e-9);
   });
 
+  it("reports current drawdown rather than a recovered historical maximum drawdown", () => {
+    const result = summarizePortfolioRisk({
+      equity: 1100,
+      assets: [{ market: "BTC-USD", marketValue: 1100 }],
+      equityCurve: [1000, 800, 1100],
+    });
+    assert.equal(result.currentDrawdown, 0);
+  });
+
   it("fails closed when the equity curve is malformed or has no positive base", () => {
     for (const equityCurve of [[1000, Number.NaN], [1000, -1], [0, 1000]]) {
       const result = summarizePortfolioRisk({

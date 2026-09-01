@@ -202,12 +202,10 @@ function computeDrawdown(equityCurve: readonly number[] | undefined, reasons: st
     return null;
   }
   let peak = equityCurve[0];
-  let maxDrawdown = 0;
   for (const value of equityCurve) {
     if (value > peak) peak = value;
-    maxDrawdown = Math.max(maxDrawdown, (peak - value) / peak);
   }
-  return maxDrawdown;
+  return (peak - equityCurve[equityCurve.length - 1]) / peak;
 }
 
 /**
