@@ -9,9 +9,12 @@
   const unsubscribers = [];
   const money = new Intl.NumberFormat("ko-KR", { style: "currency", currency: "KRW", maximumFractionDigits: 0 });
   const pages = Object.freeze({ dashboard: "홈", portfolio: "포트폴리오", nusa: "NUSA", logs: "기록", settings: "설정" });
+  const SERVER_SNAPSHOT_STALE_MS = 7_000;
   const state = {
     page: "dashboard",
     connectionCode: "unknown",
+    serverConnectionCode: "unknown",
+    serverLastSuccessAt: null,
     connection: "unknown",
     connectionLabel: "확인 중",
     lastPrice: null,
@@ -21,6 +24,7 @@
     chartPoints: [],
     updatedAt: null
   };
+  let connectionWatchdog = null;
 
   function finite(value) { return typeof value === "number" && Number.isFinite(value); }
   function moneyValue(value) { return viewModel?.formatMoney(value) || (finite(value) ? money.format(value) : "-"); }
@@ -29,11 +33,25 @@
   function normalizeConnection(value) {
     if (viewModel?.normalizeConnection) return viewModel.normalizeConnection(value);
     const code = String(value ?? "").toLowerCase();
-    if (code === "connected" || ["online", "healthy", "fresh"].some((item) => code.includes(item))) return ["connected", "정상"];
-    if (["disconnect", "stale", "offline"].some((item) => code.includes(item))) return ["disconnected", "연결 이상"];
+    if (code === "connected" || code === "recovered" || ["online", "healthy", "fresh"].some((item) => code.includes(item))) return ["connected", "정상"];
+    if (["disconnect", "stale", "offline", "unavailable"].some((item) => code.includes(item))) return ["disconnected", "연결 이상"];
     if (["error", "fault"].some((item) => code.includes(item))) return ["error", "오류"];
     if (code.includes("connect")) return ["connecting", "연결 중"];
     return ["unknown", "확인 중"];
+  }
+  function marketConnection() { return normalizeConnection(state.connectionCode); }
+  function serverConnection() { return normalizeConnection(state.serverConnectionCode); }
+  function overallConnection() {
+    const [marketTone, marketLabel] = marketConnection();
+    const [serverTone, serverLabel] = serverConnection();
+    if (["disconnected", "error"].includes(marketTone)) return [marketTone, `업비트 ${marketLabel}`];
+    if (["disconnected", "error"].includes(serverTone)) return [serverTone, `서버 ${serverLabel}`];
+    if (marketTone === "connected" && serverTone === "connected") return ["connected", "서버 · 업비트 정상"];
+    if (marketTone === "connecting") return ["connecting", "업비트 연결 중"];
+    if (serverTone === "connecting") return ["connecting", "서버 연결 중"];
+    if (marketTone === "connected") return ["unknown", "서버 확인 중"];
+    if (serverTone === "connected") return ["unknown", "업비트 확인 중"];
+    return ["unknown", "연결 확인 중"];
   }
   function summary() { return viewModel?.summarize(state.snapshot, state.lastPrice) || {}; }
   function latestControlEvent() { return Array.isArray(state.control?.events) && state.control.events.length ? state.control.events[0] : null; }
@@ -147,11 +165,12 @@
 
   function renderHome() {
     const [decision, reason] = judgement();
+    const [marketTone, marketLabel] = marketConnection();
     const page = $('[data-page="dashboard"]');
     const grid = make("div", { className: "nusa-grid" }, [
       metricCard("REAL 총 자산", "연결 전", "실계좌 연결 전에는 값을 표시하지 않습니다."),
       metricCard("REAL 오늘 손익", "-", "실제 체결 데이터 기준으로만 표시"),
-      metricCard("시장 데이터", state.connection === "connected" ? "정상" : state.connectionLabel, `BTC/KRW ${moneyValue(state.lastPrice)}`),
+      metricCard("업비트 시장 데이터", marketTone === "connected" ? "정상" : marketLabel, `BTC/KRW ${moneyValue(state.lastPrice)}`),
       card("nusa-card--wide", [sectionHead("시장 / 성과 추이", "현재 연결된 데이터 범위", make("span", { text: signedPercent(state.changeRate) })), chartSurface()]),
       card("nusa-card--side", [
         sectionHead("NUSA 현재 판단", "실행 권한과 분리된 판단 정보"),
@@ -179,6 +198,8 @@
 
   function renderNUSA() {
     const [decision, reason] = judgement();
+    const [marketTone, marketLabel] = marketConnection();
+    const [serverTone, serverLabel] = serverConnection();
     const status = String(state.control?.status || "STOPPED");
     const strategyStatus = status === "RUNNING" ? "실행 중" : status === "PAUSED" ? "일시 중지" : "중지됨";
     const page = $('[data-page="nusa"]');
@@ -190,7 +211,8 @@
       card("nusa-card--side", [sectionHead("운용 상태", "현재 control snapshot"), kv([
         ["전략", strategyStatus],
         ["PAPER 자동운용", state.control?.autoTradeEnabled ? "활성" : "비활성"],
-        ["시장 데이터", state.connection === "connected" ? "정상" : "확인 필요"]
+        ["NUSA 서버", serverTone === "connected" ? "정상" : serverLabel],
+        ["업비트", marketTone === "connected" ? "정상" : marketLabel]
       ])]),
       card("nusa-card--full", [sectionHead("학습 결과", "PAPER의 개별 주문 조작 대신 결과만 표시합니다."), paperMetrics()])
     ]);
@@ -218,6 +240,8 @@
   }
 
   function renderSettings() {
+    const [marketTone, marketLabel] = marketConnection();
+    const [serverTone, serverLabel] = serverConnection();
     const page = $('[data-page="settings"]');
     const grid = make("div", { className: "nusa-grid" }, [
       card("nusa-card--wide", [sectionHead("REAL 승인", "안전 계약"), kv([
@@ -227,6 +251,10 @@
         ["주문 변경 시", "기존 승인 즉시 무효"]
       ])]),
       card("nusa-card--side", [sectionHead("PAPER", "자동 학습"), notice("사용자 조작 없음:", "PAPER는 주문 버튼 없이 학습 결과만 제공합니다.")]),
+      card("nusa-card--full", [sectionHead("연결 상태", "서버와 업비트를 따로 확인합니다."), kv([
+        ["NUSA 서버", serverTone === "connected" ? "정상" : serverLabel],
+        ["업비트 공개 시세", marketTone === "connected" ? "정상" : marketLabel]
+      ])]),
       card("nusa-card--full", [sectionHead("상태 구분", "승인과 체결을 혼동하지 않습니다."), notice("안전 원칙:", "판단됨 ≠ 승인됨 ≠ 주문됨 ≠ 체결됨")])
     ]);
     page.replaceChildren(pageHead("SETTINGS", "설정", "REAL 안전 규칙과 PAPER 표시 정책을 확인합니다."), grid);
@@ -257,7 +285,7 @@
   }
 
   function renderConnection() {
-    const [tone, label] = normalizeConnection(state.connectionCode);
+    const [tone, label] = overallConnection();
     state.connection = tone;
     state.connectionLabel = label;
     $$('[data-connection]').forEach((element) => {
@@ -299,6 +327,12 @@
     if (page !== "dashboard") $(".nusa-content")?.focus({ preventScroll: true });
   }
 
+  function markServerConnected(snapshot) {
+    state.snapshot = snapshot || null;
+    state.serverConnectionCode = "connected";
+    state.serverLastSuccessAt = Date.now();
+  }
+
   function installEvents() {
     $$('[data-nav]').forEach((button) => button.addEventListener("click", () => showPage(button.dataset.nav)));
     global.addEventListener("hashchange", () => showPage(global.location.hash.slice(1), false));
@@ -306,12 +340,23 @@
     if (!api) return;
     if (typeof api.onStatus === "function") unsubscribers.push(api.onStatus((value) => { state.connectionCode = value; state.updatedAt = new Date(); renderAll(); }));
     if (typeof api.onTicker === "function") unsubscribers.push(api.onTicker((value) => {
-      if (finite(value?.trade_price)) state.lastPrice = value.trade_price;
+      if (finite(value?.trade_price)) {
+        state.lastPrice = value.trade_price;
+        // A validated ticker arriving after renderer subscription is stronger evidence than a
+        // status event that may have fired before the page finished loading.
+        state.connectionCode = "connected";
+      }
       state.changeRate = finite(value?.signed_change_rate) ? value.signed_change_rate : null;
       state.updatedAt = new Date();
       renderAll();
     }));
-    if (typeof api.onSnapshot === "function") unsubscribers.push(api.onSnapshot((value) => { state.snapshot = value || null; state.updatedAt = new Date(); renderAll(); }));
+    if (typeof api.onSnapshot === "function") unsubscribers.push(api.onSnapshot((value) => {
+      // This callback is fed only by successful canonical cloud-paper:snapshot reads. The
+      // preload deliberately has no local broker fallback, so success proves server reachability.
+      markServerConnected(value);
+      state.updatedAt = new Date();
+      renderAll();
+    }));
     if (typeof api.onControl === "function") unsubscribers.push(api.onControl((value) => { state.control = value || null; state.updatedAt = new Date(); renderAll(); }));
     if (typeof api.onChartPoint === "function") unsubscribers.push(api.onChartPoint((value) => {
       if (finite(value?.value)) {
@@ -325,13 +370,18 @@
   async function read(method, fallback = null) {
     try { return typeof method === "function" ? await method() : fallback; } catch { return fallback; }
   }
+  async function readResult(method) {
+    if (typeof method !== "function") return { ok: false, value: null };
+    try { return { ok: true, value: await method() }; } catch { return { ok: false, value: null }; }
+  }
   async function loadInitial() {
     const api = global.nusa;
-    const [snapshot, control] = await Promise.all([
-      read(api?.getSnapshot?.bind(api)),
+    const [snapshotResult, control] = await Promise.all([
+      readResult(api?.getSnapshot?.bind(api)),
       read(api?.getControlSnapshot?.bind(api))
     ]);
-    if (snapshot) state.snapshot = snapshot;
+    if (snapshotResult.ok) markServerConnected(snapshotResult.value);
+    else state.serverConnectionCode = "disconnected";
     if (control) state.control = control;
     state.updatedAt = new Date();
     renderAll();
@@ -342,6 +392,16 @@
   showPage(global.location.hash.slice(1) || "dashboard", false);
   renderAll();
   void loadInitial();
-  global.addEventListener("beforeunload", () => unsubscribers.forEach((unsubscribe) => { try { unsubscribe?.(); } catch { /* best effort */ } }));
+  connectionWatchdog = global.setInterval(() => {
+    if (state.serverConnectionCode !== "connected" || state.serverLastSuccessAt == null) return;
+    if (Date.now() - state.serverLastSuccessAt <= SERVER_SNAPSHOT_STALE_MS) return;
+    state.serverConnectionCode = "disconnected";
+    state.updatedAt = new Date();
+    renderAll();
+  }, 2_000);
+  global.addEventListener("beforeunload", () => {
+    unsubscribers.forEach((unsubscribe) => { try { unsubscribe?.(); } catch { /* best effort */ } });
+    if (connectionWatchdog != null) global.clearInterval(connectionWatchdog);
+  });
   global.NUSASimpleUI = Object.freeze({ showPage, state });
 })(window);
