@@ -34,7 +34,7 @@ function isNonNegativeFiniteNumber(value: unknown): value is number {
 
 function policyIsWellFormed(policy: MinimumEvidencePolicy): boolean {
   return Number.isSafeInteger(policy.minEffectiveSampleSize) && policy.minEffectiveSampleSize > 0
-    && Number.isSafeInteger(policy.minObservationWindowMs) && policy.minObservationWindowMs >= 0;
+    && Number.isSafeInteger(policy.minObservationWindowMs) && policy.minObservationWindowMs > 0;
 }
 
 /**
