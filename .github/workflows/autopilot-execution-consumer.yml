@@ -271,8 +271,8 @@ jobs:
         env:
           NUSA_AUDIT_RUNNER_URL: https://nusa-autopilot.desporin12.workers.dev/audit/execute
         run: |
-          node - <<'NODE'
-          const fs = require('fs');
+          node --input-type=module - <<'NODE'
+          import fs from 'node:fs';
           const fail = (message) => { console.error(message); process.exit(1); };
           const request = JSON.parse(fs.readFileSync('artifacts/autopilot-audit-request/audit-runner-request.json', 'utf8'));
           const oidcUrl = process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
@@ -436,7 +436,6 @@ jobs:
               "kind": "REPOSITORY_AUTOPILOT",
               "repository": "$GITHUB_REPOSITORY",
               "head_sha": "$current_main",
-              "pr_number": $PR_NUMBER,
               "workflow_run_id": $WORKFLOW_RUN_ID,
               "reason": "audit-recovery:pr:$PR_NUMBER:head:$REQUESTED_HEAD",
               "execution_id": "$execution_id",
@@ -710,7 +709,6 @@ jobs:
               "kind": "REPOSITORY_AUTOPILOT",
               "repository": "$GITHUB_REPOSITORY",
               "head_sha": "$current_main",
-              "pr_number": $PR_NUMBER,
               "workflow_run_id": $WORKFLOW_RUN_ID,
               "reason": "release-recovery:pr:$PR_NUMBER:audited-head:$REQUESTED_HEAD",
               "execution_id": "$execution_id",
