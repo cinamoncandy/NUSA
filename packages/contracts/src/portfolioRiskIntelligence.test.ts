@@ -61,6 +61,38 @@ describe("portfolio risk intelligence", () => {
     assert.ok(result.insufficientEvidenceReasons.some((reason) => reason.startsWith("VOLATILITY_MISSING")));
   });
 
+  it("fails closed when a pairwise correlation is missing instead of assuming independence", () => {
+    const result = summarizePortfolioRisk({
+      equity: 1000,
+      assets: [{ market: "BTC-USD", marketValue: 500 }, { market: "ETH-USD", marketValue: 500 }],
+      correlations: {},
+      volatility: { "BTC-USD": 0.02, "ETH-USD": 0.03 },
+    });
+    assert.equal(result.riskContributions, null);
+    assert.equal(result.expectedRisk, null);
+    assert.ok(result.insufficientEvidenceReasons.includes("CORRELATION_MISSING:BTC-USD|ETH-USD"));
+  });
+
+  it("fails closed on invalid correlation or volatility evidence", () => {
+    const invalidCorrelation = summarizePortfolioRisk({
+      equity: 1000,
+      assets: [{ market: "BTC-USD", marketValue: 500 }, { market: "ETH-USD", marketValue: 500 }],
+      correlations: { "BTC-USD|ETH-USD": Number.NaN },
+      volatility: { "BTC-USD": 0.02, "ETH-USD": 0.03 },
+    });
+    assert.equal(invalidCorrelation.riskContributions, null);
+    assert.ok(invalidCorrelation.insufficientEvidenceReasons.includes("CORRELATION_INVALID:BTC-USD|ETH-USD"));
+
+    const invalidVolatility = summarizePortfolioRisk({
+      equity: 1000,
+      assets: [{ market: "BTC-USD", marketValue: 500 }, { market: "ETH-USD", marketValue: 500 }],
+      correlations: { "BTC-USD|ETH-USD": 0.5 },
+      volatility: { "BTC-USD": 0.02, "ETH-USD": -0.03 },
+    });
+    assert.equal(invalidVolatility.riskContributions, null);
+    assert.ok(invalidVolatility.insufficientEvidenceReasons.includes("VOLATILITY_INVALID:ETH-USD"));
+  });
+
   it("computes risk contributions and expected risk when correlations and volatility are supplied", () => {
     const result = summarizePortfolioRisk({
       equity: 1000,
@@ -98,6 +130,47 @@ describe("portfolio risk intelligence", () => {
     });
     // peak 1200, current 900 -> drawdown = 300/1200 = 0.25
     assert.ok(Math.abs((result.currentDrawdown as number) - 0.25) < 1e-9);
+  });
+
+  it("reports current drawdown rather than a recovered historical maximum drawdown", () => {
+    const result = summarizePortfolioRisk({
+      equity: 1100,
+      assets: [{ market: "BTC-USD", marketValue: 1100 }],
+      equityCurve: [1000, 800, 1100],
+    });
+    assert.equal(result.currentDrawdown, 0);
+  });
+
+  it("fails closed when the equity curve does not end at current equity", () => {
+    const result = summarizePortfolioRisk({
+      equity: 900,
+      assets: [{ market: "BTC-USD", marketValue: 900 }],
+      equityCurve: [1000, 800, 1100],
+    });
+    assert.equal(result.currentDrawdown, null);
+    assert.ok(result.insufficientEvidenceReasons.includes("EQUITY_CURVE_CURRENT_EQUITY_MISMATCH"));
+  });
+
+  it("fails closed when current equity is invalid for drawdown evidence", () => {
+    const result = summarizePortfolioRisk({
+      equity: Number.NaN,
+      assets: [{ market: "BTC-USD", marketValue: 900 }],
+      equityCurve: [1000, 900],
+    });
+    assert.equal(result.currentDrawdown, null);
+    assert.ok(result.insufficientEvidenceReasons.includes("CURRENT_EQUITY_INVALID"));
+  });
+
+  it("fails closed when the equity curve is malformed or has no positive base", () => {
+    for (const equityCurve of [[1000, Number.NaN], [1000, -1], [0, 1000]]) {
+      const result = summarizePortfolioRisk({
+        equity: 900,
+        assets: [{ market: "BTC-USD", marketValue: 900 }],
+        equityCurve,
+      });
+      assert.equal(result.currentDrawdown, null);
+      assert.ok(result.insufficientEvidenceReasons.includes("EQUITY_CURVE_INVALID"));
+    }
   });
 
   it("returns null drawdown with a reason when no equity curve is supplied", () => {

@@ -206,6 +206,57 @@ function summarizeSnapshot(snapshot) {
   };
 }
 
+
+function paperChaosStateFromSnapshot(snapshot, observedAt) {
+  if (!Number.isSafeInteger(observedAt) || observedAt < 0) throw new Error("PAPER chaos observation time is invalid");
+  if (snapshot?.operations?.runtimeState !== "RUNNING" || snapshot?.operations?.transport !== "ONLINE") {
+    throw new Error("PAPER chaos receipt requires a running online PAPER runtime");
+  }
+  const orders = Array.isArray(snapshot?.orders) ? snapshot.orders : [];
+  const orderIds = orders.map((order) => String(order?.id || "")).sort();
+  const fillIds = orders.flatMap((order) => Array.isArray(order?.fills) ? order.fills.map((fill) => String(fill?.id || "")) : []).sort();
+  if (orderIds.some((id) => id.length === 0) || fillIds.some((id) => id.length === 0) || new Set(orderIds).size !== orderIds.length || new Set(fillIds).size !== fillIds.length) {
+    throw new Error("PAPER chaos receipt cannot use missing or duplicate order/fill identity");
+  }
+  return Object.freeze({
+    runtimeStatus: "RUNNING",
+    persistenceStatus: "AVAILABLE",
+    upstreamStatus: "HEALTHY",
+    chronologyStatus: "UNKNOWN",
+    reconciliationStatus: "UNKNOWN",
+    orderIds,
+    fillIds,
+    observedAt,
+  });
+}
+
+function snapshotObservedAt(snapshot) {
+  const value = snapshot?.generatedAt;
+  if (Number.isSafeInteger(value) && value >= 0) return value;
+  if (typeof value === "string") {
+    const parsed = Date.parse(value);
+    if (Number.isSafeInteger(parsed) && parsed >= 0) return parsed;
+  }
+  throw new Error("PAPER chaos receipt requires a valid runtime observation timestamp");
+}
+
+function buildBoundPaperChaosRestartEvidence(root, beforeSnapshot, afterSnapshot) {
+  const { buildPaperChaosRecoveryReceipt } = require(resolve(root, "dist/apps/cloud/src/paperChaosRecovery.js"));
+  const before = paperChaosStateFromSnapshot(beforeSnapshot, snapshotObservedAt(beforeSnapshot));
+  const after = paperChaosStateFromSnapshot(afterSnapshot, snapshotObservedAt(afterSnapshot));
+  if (after.observedAt < before.observedAt) throw new Error("PAPER chaos receipt chronology regressed");
+  const receipt = buildPaperChaosRecoveryReceipt({
+    schemaVersion: 1,
+    drillId: "actual-paper-runtime-supervisor-restart",
+    scenario: "PROCESS_RESTART",
+    triggerObserved: true,
+    before,
+    after,
+  });
+  if (receipt.status !== "PASS") throw new Error("PAPER chaos restart receipt failed closed");
+  return Object.freeze({ verificationStatus: "BOUND_UNVERIFIED", receipt });
+}
+
 async function run(options = {}) {
   const root = resolve(options.root || process.cwd());
   const outputPath = resolve(root, options.outputPath || "artifacts/operational-evidence/actual-paper-runtime-e2e.json");
@@ -335,6 +386,7 @@ async function run(options = {}) {
       duplicate_order_ids: false,
       duplicate_fill_ids: false,
     };
+    const chaosRecoveryEvidence = buildBoundPaperChaosRestartEvidence(root, supervisedStart, supervisedRecovery);
     await stopSupervisor(supervisor);
     supervisor = undefined;
 
@@ -354,6 +406,7 @@ async function run(options = {}) {
       restart_recovery: recoverySummary,
       automatic_restart: secondSummary,
       supervisor: supervisorEvidence,
+      chaos_recovery: chaosRecoveryEvidence,
       idempotency_retry: { status: firstOrder == null ? "NOT_APPLICABLE_NO_AUTOMATIC_ORDER" : "AUTOMATIC_RESTART_RECONCILED", original_order_id: firstOrder?.id ?? null, matching_order_count: repeatedOrders.length, matching_fill_count: repeatedFills.length, double_fill: false },
       prohibited_capabilities: { upbit_private_credentials: false, live_order_endpoint: false, withdrawal_transfer: false, real_money_mutation: false },
     };
@@ -390,4 +443,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { availablePort, canonical, readPersistedPaperLearningIds, run, scrubPrivateExchangeEnv, sha256, summarizeSnapshot };
+module.exports = { availablePort, buildBoundPaperChaosRestartEvidence, canonical, paperChaosStateFromSnapshot, readPersistedPaperLearningIds, run, scrubPrivateExchangeEnv, sha256, snapshotObservedAt, summarizeSnapshot };

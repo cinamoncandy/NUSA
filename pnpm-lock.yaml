@@ -17,8 +17,8 @@ importers:
   .:
     dependencies:
       ws:
-        specifier: 8.21.0
-        version: 8.21.0
+        specifier: 8.21.3
+        version: 8.21.3
     devDependencies:
       '@cloudflare/sandbox':
         specifier: 0.13.0-next.751.1
@@ -4205,6 +4205,18 @@ packages:
 
   ws@8.21.0:
     resolution: {integrity: sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
+  ws@8.21.3:
+    resolution: {integrity: sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw==}
     engines: {node: '>=10.0.0'}
     peerDependencies:
       bufferutil: ^4.0.1
@@ -8793,6 +8805,8 @@ snapshots:
   ws@7.5.13: {}
 
   ws@8.21.0: {}
+
+  ws@8.21.3: {}
 
   xml-name-validator@5.0.0: {}
 

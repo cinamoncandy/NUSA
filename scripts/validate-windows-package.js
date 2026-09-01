@@ -11,7 +11,7 @@ const exists = (relative) => fs.existsSync(path.join(root, relative));
 const expectedDesktopMain = "dist/apps/desktop/src/cloudMain.js";
 required(packageJson.main === expectedDesktopMain, "root main must point at the Cloud canonical Desktop bootstrap");
 required(build?.extraMetadata?.main === expectedDesktopMain, "packaged extraMetadata main must match the Cloud canonical Desktop bootstrap");
-required(packageJson.dependencies?.ws === "8.21.0", "runtime WebSocket dependency must be production-scoped and pinned");
+required(packageJson.dependencies?.ws === "8.21.3", "runtime WebSocket dependency must be production-scoped and pinned");
 required(build?.appId === "com.nusa.trader", "appId is missing or changed");
 required(build?.productName === "NUSA", "productName is missing or changed");
 required(build?.asar === true, "asar must be enabled");

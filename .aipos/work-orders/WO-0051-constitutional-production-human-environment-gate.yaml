@@ -221,3 +221,39 @@ recent_repository_safety_slice:
     live_authority: NONE
     production_mutation_allowed: false
     ai_authority: ZERO_AUTHORITY
+
+latest_repository_safety_slice:
+  status: COMPLETED
+  scope: "Portfolio risk adapter now fail-closes on zero mark prices instead of converting unavailable quotes into zero-valued assets."
+  pull_request: 1369
+  implementation_head: d900071637a32030b8d9e86c0b67861ad4eea398
+  merge_commit: a2fcce0df984ec5180882ed5a1c7c1f9a3dcc280
+  evidence: "Focused zero-mark regression and exact-head CI passed; no authority, execution, credential, or LIVE boundary changed."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+latest_repository_portfolio_risk_evidence_slice:
+  status: COMPLETED
+  scope: "Reject missing pairwise correlations rather than assuming independence; reject non-finite, out-of-range correlations and invalid volatility before risk contribution calculation."
+  pull_request: 1372
+  implementation_head: 43488904544470c111ef648eda64268a6a4e47e9
+  merge_commit: 91b245221e97c9ea0b1d1a8927e8a3e5c519f62c
+  evidence: "Focused regression coverage and all observed exact-head protected workflows passed; no execution, credential, accounting, or LIVE boundary changed."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+latest_repository_portfolio_risk_drawdown_slice:
+  status: COMPLETED
+  scope: "Fail closed on malformed or no-positive-base equity curves before computing portfolio drawdown."
+  pull_request: 1374
+  implementation_head: 9cab25b013301e8652a333d861a76047c0211d10
+  merge_commit: 7eaf4814c05c1c76a940205b187099c4b6a6dc75
+  evidence: "Focused regression and all observed exact-head workflow checks passed; no execution, credential, accounting, or LIVE boundary changed."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+latest_repository_portfolio_risk_current_drawdown_slice:
+  status: COMPLETED
+  scope: "Align current drawdown with peak-to-current semantics; recovered portfolios no longer report stale historical maximum drawdown."
+  pull_request: 1376
+  implementation_head: bc218ee8a6e7e2d42e410ee0202c5beb33303b79
+  merge_commit: aaa82d526d0439c7b7de0dcc1533d6c959dcb9e9
+  evidence: "Focused recovery regression and all observed exact-head workflow checks passed; no execution, credential, accounting, or LIVE boundary changed."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
