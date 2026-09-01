@@ -32,7 +32,7 @@ describe("Autopilot Execution Consumer workflow contract", () => {
       "- name: Re-verify exact head/base/main after Audit execution",
     );
 
-    assert.match(auditStep, /node - <<'NODE'\n\s+\(async \(\) => \{/);
+    assert.match(auditStep, /node - <<'NODE'\r?\n\s+\(async \(\) => \{/);
     assert.match(auditStep, /\}\)\(\)\.catch\(\(error\) => \{/);
     assert.match(auditStep, /await fetch\(tokenUrl/);
     assert.match(auditStep, /await fetch\(process\.env\.NUSA_AUDIT_RUNNER_URL/);
