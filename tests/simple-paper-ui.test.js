@@ -31,98 +31,91 @@ function bootstrap({ snapshot = null, control = null } = {}) {
   return { dom, window, handlers };
 }
 
-test("simple UI exposes the required Paper dashboard structure", () => {
-  for (const page of ["dashboard", "market", "orders", "positions", "more"]) assert.match(html, new RegExp(`data-simple-nav="${page}"`));
-  for (const page of ["dashboard", "market", "orders", "positions", "balance", "strategy", "logs", "settings", "more"]) assert.match(html, new RegExp(`data-simple-page="${page}"`));
-  assert.match(html, /PAPER · 실거래 비활성/);
-  assert.match(html, /Paper 매수/);
-  assert.match(html, /Paper 매도/);
-  assert.match(html, /실거래 · Private API · 인증 정보 비활성/);
-  assert.equal((html.match(/class="simple-bottom-nav"/g) || []).length, 1);
-  assert.equal((html.match(/<nav class="simple-bottom-nav"[\s\S]*?<\/nav>/g)[0].match(/data-simple-nav=/g) || []).length, 5);
-  assert.doesNotMatch(script, /innerHTML/);
+function settle() { return new Promise((resolve) => setImmediate(resolve)); }
+
+test("canonical UI exposes five supervision destinations and no manual PAPER order controls", () => {
+  const { dom, window } = bootstrap();
+  const nav = [...window.document.querySelectorAll(".nusa-sidebar [data-nav]")];
+  assert.equal(nav.length, 5);
+  assert.deepEqual(nav.map((button) => button.dataset.nav), ["dashboard", "portfolio", "nusa", "logs", "settings"]);
+  assert.equal(window.document.querySelectorAll(".nusa-bottom-nav [data-nav]").length, 5);
+  assert.match(window.document.body.textContent, /PAPER 자동 학습/);
+  assert.match(window.document.body.textContent, /REAL 승인 필요/);
+  assert.match(window.document.body.textContent, /PAPER 학습 결과/);
+  assert.doesNotMatch(window.document.querySelector("#simple-ui-root").textContent, /Paper 매수|Paper 매도|주문 수량/);
+  assert.doesNotMatch(script, /innerHTML|insertAdjacentHTML|outerHTML|document\.write/);
+  dom.window.close();
 });
 
-test("dashboard renders paper account values and honest empty states", async () => {
+test("home keeps REAL fail-closed while showing PAPER learning outcomes", async () => {
   const { dom, window } = bootstrap({ snapshot: {
     equity: 10_000_000,
     cash: 10_000_000,
-    unrealizedPnl: 0,
-    position: { market: "KRW-BTC", quantity: 0, averagePrice: 0, realizedPnl: 0 },
-    orders: []
+    unrealizedPnl: 125_000,
+    position: { market: "KRW-BTC", quantity: 0, averagePrice: 0, realizedPnl: 50_000 },
+    orders: [{ side: "BUY" }, { side: "SELL" }]
   } });
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.match(window.document.querySelector("[data-simple-total-equity]").textContent, /10,000,000/);
-  assert.equal(window.document.querySelector("[data-simple-position-count]").textContent, "0개");
-  assert.match(window.document.querySelector("[data-simple-position-table]").textContent, /보유 중인 Paper 포지션이 없습니다/);
-  assert.match(window.document.querySelector("[data-simple-recent-orders]").textContent, /아직 주문 기록이 없습니다/);
+  await settle();
+  const home = window.document.querySelector('[data-page="dashboard"]');
+  const realAssetCard = [...home.querySelectorAll(".nusa-card")].find((card) => card.textContent.includes("REAL 총 자산"));
+  const paperCard = [...home.querySelectorAll(".nusa-card")].find((card) => card.textContent.includes("PAPER 학습 결과"));
+  assert.match(realAssetCard.textContent, /연결 전/);
+  assert.doesNotMatch(realAssetCard.textContent, /10,000,000/);
+  assert.match(paperCard.textContent, /10,000,000/);
+  assert.match(paperCard.textContent, /2건/);
   dom.window.close();
 });
 
-test("disconnected market disables Paper actions and connected state enables them", () => {
+test("market connection is observational and never exposes manual order actions", () => {
   const { dom, window, handlers } = bootstrap();
   handlers.ticker({ trade_price: 90_000_000, signed_change_rate: 0.01 });
   handlers.status("disconnected");
-  assert.equal(window.document.querySelector("[data-simple-order='BUY']").disabled, true);
+  assert.match(window.document.querySelector("[data-connection]").textContent, /연결 끊김|연결 이상/);
   handlers.status("connected");
-  assert.equal(window.document.querySelector("[data-simple-order='BUY']").disabled, false);
-  assert.match(window.document.querySelector("[data-simple-connection]").textContent, /연결됨/);
+  assert.match(window.document.querySelector("[data-connection]").textContent, /연결됨|정상/);
+  assert.match(window.document.querySelector('[data-page="dashboard"]').textContent, /90,000,000/);
+  assert.equal(window.document.querySelectorAll("[data-simple-order], [data-order]").length, 0);
   dom.window.close();
 });
 
-test("navigation is keyboard-addressable and shows one screen at a time", () => {
+test("canonical navigation is keyboard-addressable and shows one page at a time", () => {
   const { dom, window } = bootstrap();
-  const orders = window.document.querySelector("[data-simple-nav='orders']");
-  orders.click();
-  assert.equal(window.document.querySelector("[data-simple-page='orders']").hidden, false);
-  assert.equal(window.document.querySelector("[data-simple-page='dashboard']").hidden, true);
-  assert.equal(orders.getAttribute("aria-current"), "page");
+  const portfolio = window.document.querySelector(".nusa-sidebar [data-nav='portfolio']");
+  portfolio.click();
+  assert.equal(window.document.querySelector('[data-page="portfolio"]').hidden, false);
+  assert.equal(window.document.querySelector('[data-page="dashboard"]').hidden, true);
+  assert.equal(portfolio.getAttribute("aria-current"), "page");
+  assert.equal(window.document.querySelector(".nusa-bottom-nav [data-nav='portfolio']").getAttribute("aria-current"), "page");
   assert.match(css, /:focus-visible/);
   assert.match(css, /prefers-reduced-motion/);
   dom.window.close();
 });
 
-test("renderer surface is read-only with no credential or live mutation UI", () => {
-  assert.doesNotMatch(html, /Access Key|Secret Key|JWT|Authorization/);
-  assert.doesNotMatch(script, /enableLiveTrading|privateApi|credential|productionMutationAllowed/);
-  assert.match(script, /placeOrder\(side, quantity\)/);
-  assert.match(script, /Paper 주문이 기록되었습니다/);
-});
-
-test("Paper order requires an explicit confirmation sheet before IPC mutation", async () => {
-  const { dom, window, handlers } = bootstrap();
-  let calls = 0;
-  window.nusa.placeOrder = async (side, quantity) => {
-    calls += 1;
-    assert.equal(side, "BUY");
-    assert.equal(quantity, 0.001);
-    return { snapshot: { equity: 1000000, cash: 1000000, position: { quantity: 0 }, orders: [] } };
-  };
-  handlers.ticker({ trade_price: 90000000, signed_change_rate: 0.01 });
-  handlers.status("connected");
-  const trigger = window.document.querySelector("[data-simple-order='BUY']");
-  trigger.click();
-  assert.equal(window.document.querySelector("[data-simple-sheet]").hidden, false);
-  assert.match(window.document.querySelector("[data-simple-sheet]").textContent, /Paper 주문 확인/);
-  assert.equal(calls, 0);
-  window.document.querySelector("[data-simple-sheet-confirm]").click();
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(calls, 1);
-  assert.equal(window.document.querySelector("[data-simple-sheet]").hidden, true);
+test("REAL approval policy is explicit while renderer exposes no execution mutation", () => {
+  const { dom, window } = bootstrap();
+  window.document.querySelector(".nusa-sidebar [data-nav='settings']").click();
+  const settings = window.document.querySelector('[data-page="settings"]');
+  assert.match(settings.textContent, /비밀번호 \+ 지문/);
+  assert.match(settings.textContent, /단일 인증 우회/);
+  assert.match(settings.textContent, /허용 안 함/);
+  assert.match(settings.textContent, /판단됨 ≠ 승인됨 ≠ 주문됨 ≠ 체결됨/);
+  assert.doesNotMatch(script, /placeOrder|enableLiveTrading|privateApi|productionMutationAllowed/);
+  assert.doesNotMatch(window.document.querySelector("#simple-ui-root").textContent, /Access Key|Secret Key|JWT|Authorization/);
   dom.window.close();
 });
 
-test("Escape closes the Paper order confirmation and restores the trigger", () => {
-  const { dom, window, handlers } = bootstrap();
-  handlers.ticker({ trade_price: 90000000 });
-  handlers.status("connected");
-  const trigger = window.document.querySelector("[data-simple-order='BUY']");
-  trigger.focus();
-  trigger.click();
-  assert.equal(window.document.querySelector("[data-simple-sheet]").hidden, false);
-  window.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape" }));
-  assert.equal(window.document.querySelector("[data-simple-sheet]").hidden, true);
-  assert.equal(window.document.activeElement, trigger);
+test("dynamic control messages are rendered as text rather than executable markup", async () => {
+  const hostile = '<img src=x onerror="window.__nusaInjected=true">';
+  const { dom, window } = bootstrap({ control: { status: "RUNNING", autoTradeEnabled: true, events: [{ type: "BUY", message: hostile }] } });
+  await settle();
+  const judgement = window.document.querySelector('[data-page="dashboard"] .nusa-judgement');
+  assert.match(judgement.textContent, /<img src=x/);
+  assert.equal(judgement.querySelectorAll("img").length, 0);
+  assert.equal(window.__nusaInjected, undefined);
+  window.document.querySelector(".nusa-sidebar [data-nav='logs']").click();
+  const logs = window.document.querySelector('[data-page="logs"]');
+  assert.match(logs.textContent, /<img src=x/);
+  assert.equal(logs.querySelectorAll("img").length, 0);
   dom.window.close();
 });
 
