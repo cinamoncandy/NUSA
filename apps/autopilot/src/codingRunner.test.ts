@@ -286,6 +286,30 @@ describe("coding runner", () => {
     }
   });
 
+  it("extracts JSON whose patch contains nested braces after explanatory text", async () => {
+    const objectPatch = `${patch}+const result = { status: "ok" };\n`;
+    const runtime: CodingRuntime = {
+      name: "fake-sandbox",
+      async execute(value, proposal) {
+        assert.equal(value.executionId, request.executionId);
+        assert.equal(proposal?.patch, objectPatch);
+        return {
+          backend: "fake-sandbox",
+          checkpointId: request.headSha,
+          workspaceVerified: true,
+          proposalValidated: true,
+          changedFiles: ["apps/autopilot/src/example.ts"],
+        };
+      },
+    };
+    const ai: WorkersAiBinding = {
+      async run() { return { response: `The validated proposal is:\n${JSON.stringify({ patch: objectPatch })}\nApply it safely.` }; },
+    };
+    const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch, runtime);
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.equal(result.proposalValidated, true);
+  });
+
   it("distinguishes syntax-invalid Workers AI output", async () => {
     const ai: WorkersAiBinding = {
       async run() { return { response: "{not-json" }; },
