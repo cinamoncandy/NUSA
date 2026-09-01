@@ -97,7 +97,7 @@
     "vitest": "3.2.6"
   },
   "dependencies": {
-    "ws": "8.21.0"
+    "ws": "8.21.3"
   },
   "build": {
     "appId": "com.nusa.trader",
