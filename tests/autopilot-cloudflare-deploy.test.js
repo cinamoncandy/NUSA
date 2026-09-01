@@ -12,6 +12,7 @@ test("Cloudflare deployment recovers after a CI-only repair merge", () => {
   assert.match(workflow, /deploymentRevision/);
   assert.match(workflow, /git diff --quiet .*apps\/autopilot/);
   assert.match(workflow, /CLOUDFLARE_API_TOKEN/);
+  assert.match(workflow, /--containers-rollout=immediate/);
   assert.match(workflow, /liveAuthority=NONE/);
   assert.match(workflow, /productionMutationAllowed=false/);
   assert.match(workflow, /AI authority=ZERO_AUTHORITY/);
