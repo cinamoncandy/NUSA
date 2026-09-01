@@ -35,13 +35,23 @@ test("Audit job has bounded read/OIDC/comment permissions only", () => {
 
 test("Audit execution is isolated from coding mutation endpoint", () => {
   assert.match(worker, /url\.pathname === "\/audit\/execute"/);
-  assert.match(worker, /executeIndependentAudit\(auditRequest, env\)/);
+  assert.match(worker, /executeOidcAuthorizedIndependentAudit\(auditRequest, env\)/);
   const authHelper = worker.slice(worker.indexOf("async function verifyAuditAuthorization"), worker.indexOf("async function handleAuditExecute"));
   const auditHandler = worker.slice(worker.indexOf("async function handleAuditExecute"), worker.indexOf("const worker ="));
   assert.match(authHelper, /verifyGithubActionsOidcToken/);
   assert.match(auditHandler, /verifyAuditAuthorization/);
+  assert.match(auditHandler, /executeOidcAuthorizedIndependentAudit/);
   assert.doesNotMatch(auditHandler, /GithubValidatedPatchPublisher|SandboxCodingRuntime|publish\(|create_branch|commit|merge/);
   assert.doesNotMatch(auditHandler, /NUSA_CODING_RUNNER_TOKEN/);
+});
+
+test("OIDC evidence fallback cannot silently weaken ordinary independent Audit", () => {
+  assert.match(auditRunner, /executeIndependentAuditInternal\(request, env, fetchImpl, now, false\)/);
+  assert.match(auditRunner, /executeIndependentAuditInternal\(request, env, fetchImpl, now, true\)/);
+  assert.match(auditRunner, /allowCanonicalOidcEvidenceFallback/);
+  assert.match(auditRunner, /AUDIT_GITHUB_EVIDENCE_HTTP_403/);
+  assert.match(auditRunner, /AUDIT_DIFF_HTTP_403/);
+  assert.match(auditRunner, /canonical main/);
 });
 
 test("independent Audit re-fetches exact PR/head/base/CI and rejects partial diff evidence", () => {
