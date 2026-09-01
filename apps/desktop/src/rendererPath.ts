@@ -1,17 +1,17 @@
 import path from "node:path";
 
 /**
- * Pure path arithmetic for the Electron renderer entry point. Takes the compiled main
- * process's own directory (dist/apps/desktop/src) and walks back up to the source tree's
- * apps/desktop/renderer/index.html -- the same walk holds for both `electron apps/desktop`
- * dev execution and electron-builder's packaged layout (files: dist/**, apps/desktop/**),
- * since both keep dist/ and apps/ as siblings under the app root. See WO-0003: this
- * previously duplicated the apps/desktop segment by combining app.getAppPath() (already
- * apps/desktop under dev execution) with another "apps/desktop/..." suffix.
+ * Resolve the canonical desktop renderer entry.
  *
- * No Electron import, no app.getAppPath(), no process.cwd(), no __dirname reference --
- * callers pass their own directory in, so this stays testable without a GUI.
+ * UI/UX V2 intentionally uses a single renderer entry (`index-v2.html`) instead of
+ * mounting the legacy renderer and hiding it behind another presentation layer. The
+ * legacy `index.html` remains in the repository during migration as an immediate
+ * rollback target, but it is no longer the active desktop entry point.
+ *
+ * No Electron import, app.getAppPath(), process.cwd(), or __dirname reference lives in
+ * this helper; callers pass their compiled directory so the path remains deterministic
+ * and unit-testable in development and packaged layouts.
  */
 export function resolveRendererIndexPath(mainDirectory: string): string {
-  return path.resolve(mainDirectory, "../../../../apps/desktop/renderer/index.html");
+  return path.resolve(mainDirectory, "../../../../apps/desktop/renderer/index-v2.html");
 }
