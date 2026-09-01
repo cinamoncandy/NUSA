@@ -78,6 +78,13 @@ function correlationKey(a: string, b: string): string {
   return a <= b ? `${a}|${b}` : `${b}|${a}`;
 }
 
+function validateRequiredNumerics(input: PortfolioRiskIntelligenceInput): void {
+  if (!Number.isFinite(input.equity)) throw new Error("equity must be finite");
+  for (const asset of input.assets) {
+    if (!Number.isFinite(asset.marketValue)) throw new Error(`marketValue must be finite: ${asset.market}`);
+  }
+}
+
 function computeConcentration(assets: readonly PortfolioRiskAssetInput[], grossTotal: number): PortfolioConcentration {
   if (grossTotal <= 0 || assets.length === 0) {
     return { herfindahlIndex: 0, largestPositionWeight: 0, largestPositionMarket: null };
@@ -225,6 +232,7 @@ function computeDrawdown(equityCurve: readonly number[] | undefined, currentEqui
  * inputs are missing.
  */
 export function summarizePortfolioRisk(input: PortfolioRiskIntelligenceInput): PortfolioRiskSummary {
+  validateRequiredNumerics(input);
   const reasons: string[] = [];
   const grossTotal = input.assets.reduce((sum, asset) => sum + Math.abs(asset.marketValue), 0);
 
