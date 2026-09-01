@@ -22,18 +22,22 @@ export interface CodingRunnerEnv {
   AI?: WorkersAiBinding;
 }
 
+export interface WorkersAiJsonSchema {
+  readonly type: "object";
+  readonly properties: Readonly<Record<string, unknown>>;
+  readonly required: readonly string[];
+  readonly additionalProperties: false;
+}
+
+export interface WorkersAiResponseFormat {
+  readonly type: "json_schema";
+  readonly json_schema: WorkersAiJsonSchema;
+}
+
 export interface WorkersAiBinding {
   run(model: string, input: {
     prompt: string;
-    response_format?: {
-      type: "json_schema";
-      json_schema: {
-        type: "object";
-        properties: { patch: { type: "string" } };
-        required: readonly ["patch"];
-        additionalProperties: false;
-      };
-    };
+    response_format?: WorkersAiResponseFormat;
   }): Promise<unknown>;
 }
 
