@@ -1,0 +1,51 @@
+id: WO-GRILL-ME-PROTOCOL-001
+title: "Harden /grill-me Adversarial Review Protocol"
+status: PROPOSED
+owner: nusa-core
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: ff1a9a9a5af63541eb5d1da57bdbe7b50f051353
+implementation_branch: core/grill-me-protocol-hardening
+objective: "Turn /grill-me into a bounded, evidence-bound pre-Audit adversarial review protocol with explicit stale-head, authority, replay, recovery, provenance, anti-gaming, severity, remediation, and verdict rules."
+authority_impact: none
+scope:
+  files:
+    - AGENTS.md
+    - docs/GRILL_ME_PROTOCOL.md
+    - .aipos/work-orders/WO-GRILL-ME-PROTOCOL-001.yaml
+  behavior:
+    - "Document and bind the canonical /grill-me review procedure."
+    - "Require exact-head evidence, bounded review scope, reproducible findings, and explicit unknown states."
+    - "Keep /grill-me subordinate to AIPOS, architecture, independent Audit, and Release."
+non_goals:
+  - "No runtime or product behavior change."
+  - "No trading, broker, credential, account, risk, execution, LIVE, or production-mutation authority."
+  - "No second queue, scheduler, control plane, merge engine, orchestrator, evidence authority, Audit lane, or Release lane."
+  - "No synthetic replacement for physical, external-service, or human acceptance evidence."
+architecture_impact:
+  classification: none
+  rationale: "Documentation/process hardening only; it adds no runtime component or lifecycle owner and does not redefine canonical subsystem ownership."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  ai_self_grant: prohibited
+  automatic_live_activation: prohibited
+  withdrawals_transfers: prohibited
+  paper_real_separation: strict
+  fail_closed: required
+  evidence_fabrication: prohibited
+acceptance:
+  - "AGENTS.md points /grill-me to the detailed protocol while preserving higher-precedence AIPOS, architecture, repository-protection, and safety rules."
+  - "The protocol binds each review to a concrete current target, exact head/base, reviewed scope, and durable evidence."
+  - "The protocol explicitly reviews authority, stale state, replay/idempotency, chronology, canonical ownership, failure/recovery, provenance, human-only gates, UX truthfulness, tests, security, and critical-path defects when applicable."
+  - "P0/P1/P2 severity and PASS/PASS_WITH_NOTES/FAIL/INSUFFICIENT_EVIDENCE verdict rules are explicit and resistant to evidence-free downgrade or PASS claims."
+  - "A head change invalidates head-bound review evidence; self-review is never represented as independent Audit or Release approval."
+  - "Repository-controlled P0/P1 findings route to the canonical owner and require smallest-coherent-fix plus fresh exact-head validation."
+  - "No safety, authority, required-check, provenance, or human-environment gate is weakened."
+validation:
+  required_before_pr:
+    - "pnpm run validate:full"
+  required_after_pr:
+    - "fresh exact-head protected CI"
+completion_rule: "Complete only after required local validation, exact-head PR validation, independent Audit as applicable, and merge through the normal Release gate. No chat statement or self-review alone completes this work order."
