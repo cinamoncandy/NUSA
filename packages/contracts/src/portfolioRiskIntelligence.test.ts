@@ -141,6 +141,26 @@ describe("portfolio risk intelligence", () => {
     assert.equal(result.currentDrawdown, 0);
   });
 
+  it("fails closed when the equity curve does not end at current equity", () => {
+    const result = summarizePortfolioRisk({
+      equity: 900,
+      assets: [{ market: "BTC-USD", marketValue: 900 }],
+      equityCurve: [1000, 800, 1100],
+    });
+    assert.equal(result.currentDrawdown, null);
+    assert.ok(result.insufficientEvidenceReasons.includes("EQUITY_CURVE_CURRENT_EQUITY_MISMATCH"));
+  });
+
+  it("fails closed when current equity is invalid for drawdown evidence", () => {
+    const result = summarizePortfolioRisk({
+      equity: Number.NaN,
+      assets: [{ market: "BTC-USD", marketValue: 900 }],
+      equityCurve: [1000, 900],
+    });
+    assert.equal(result.currentDrawdown, null);
+    assert.ok(result.insufficientEvidenceReasons.includes("CURRENT_EQUITY_INVALID"));
+  });
+
   it("fails closed when the equity curve is malformed or has no positive base", () => {
     for (const equityCurve of [[1000, Number.NaN], [1000, -1], [0, 1000]]) {
       const result = summarizePortfolioRisk({

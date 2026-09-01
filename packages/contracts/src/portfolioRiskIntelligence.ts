@@ -192,7 +192,7 @@ function computeRiskContributions(
   return { contributions: Object.freeze(contributions), portfolioVolatility, maxCorrelation };
 }
 
-function computeDrawdown(equityCurve: readonly number[] | undefined, reasons: string[]): number | null {
+function computeDrawdown(equityCurve: readonly number[] | undefined, currentEquity: number, reasons: string[]): number | null {
   if (!equityCurve || equityCurve.length === 0) {
     reasons.push("EQUITY_CURVE_MISSING");
     return null;
@@ -201,11 +201,21 @@ function computeDrawdown(equityCurve: readonly number[] | undefined, reasons: st
     reasons.push("EQUITY_CURVE_INVALID");
     return null;
   }
+  if (!Number.isFinite(currentEquity) || currentEquity < 0) {
+    reasons.push("CURRENT_EQUITY_INVALID");
+    return null;
+  }
+  const curveCurrentEquity = equityCurve[equityCurve.length - 1];
+  const tolerance = Math.max(1, Math.abs(currentEquity), Math.abs(curveCurrentEquity)) * 1e-9;
+  if (Math.abs(curveCurrentEquity - currentEquity) > tolerance) {
+    reasons.push("EQUITY_CURVE_CURRENT_EQUITY_MISMATCH");
+    return null;
+  }
   let peak = equityCurve[0];
   for (const value of equityCurve) {
     if (value > peak) peak = value;
   }
-  return (peak - equityCurve[equityCurve.length - 1]) / peak;
+  return (peak - curveCurrentEquity) / peak;
 }
 
 /**
@@ -235,7 +245,7 @@ export function summarizePortfolioRisk(input: PortfolioRiskIntelligenceInput): P
     maxPairwiseCorrelation = result.maxCorrelation;
   }
 
-  const currentDrawdown = computeDrawdown(input.equityCurve, reasons);
+  const currentDrawdown = computeDrawdown(input.equityCurve, input.equity, reasons);
 
   return Object.freeze({
     schemaVersion: 1,
