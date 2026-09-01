@@ -74,7 +74,7 @@ describe("NUSA autopilot dispatch planner", () => {
     assert.equal(plan.mutationAllowed, false);
   });
 
-  it("fails closed when successful PR CI lacks an unambiguous PR identity", () => {
+  it("still surfaces PR_CI_SUCCEEDED (prNumber: null) when workflow_run.pull_requests is empty, so the caller can resolve the PR by exact head SHA instead of the event being silently dropped", () => {
     const plan = planGithubWebhookDispatch("workflow_run", {
       action: "completed",
       workflow_run: {
@@ -89,8 +89,29 @@ describe("NUSA autopilot dispatch planner", () => {
       },
       repository: { full_name: "cinamoncandy/NUSA" },
     });
-    assert.equal(plan.kind, "IGNORED");
-    assert.equal(plan.reason, "pr-ci-success-missing-pr-identity");
+    assert.equal(plan.kind, "PR_CI_SUCCEEDED");
+    assert.equal(plan.prNumber, null);
+    assert.equal(plan.headSha, "8".repeat(40));
+    assert.equal(plan.reason, "pull-request-ci-success-pr-identity-requires-head-sha-resolution");
+  });
+
+  it("still surfaces PR_CI_SUCCEEDED (prNumber: null) when workflow_run.pull_requests has more than one distinct PR number", () => {
+    const plan = planGithubWebhookDispatch("workflow_run", {
+      action: "completed",
+      workflow_run: {
+        id: 72,
+        name: "CI",
+        head_sha: "9".repeat(40),
+        head_branch: "feature/pr-audit",
+        status: "completed",
+        conclusion: "success",
+        event: "pull_request",
+        pull_requests: [{ number: 10 }, { number: 11 }],
+      },
+      repository: { full_name: "cinamoncandy/NUSA" },
+    });
+    assert.equal(plan.kind, "PR_CI_SUCCEEDED");
+    assert.equal(plan.prNumber, null);
   });
 
   it("distinguishes workflow failure", () => {

@@ -1,4 +1,5 @@
 import { parseGithubWebhookPayload, planGithubWebhookDispatch, type SupportedGithubEvent } from "./dispatchPlanner";
+import { resolveOpenPullRequestByHeadSha } from "./githubPrHeadShaResolver";
 import { planAutopilotExecution } from "./executionPlanner";
 import { executeGithubDispatch } from "./githubExecutor";
 import { verifyGithubActionsOidcToken, verifyGithubEventBridgeOidcToken } from "./githubActionsOidc";
@@ -299,6 +300,19 @@ export default {
     let dispatch;
     try { dispatch = planGithubWebhookDispatch(event, parseGithubWebhookPayload(body)); }
     catch (error) { return json({ error: error instanceof Error ? error.message : "GITHUB_WEBHOOK_PAYLOAD_INVALID" }, 400); }
+
+    // workflow_run.pull_requests is empty for cross-repository PRs, restricted forks, and some
+    // pull_request_target runs -- not a reliable "no PR" signal. dispatchPlanner.ts still surfaces
+    // PR_CI_SUCCEEDED with prNumber: null in that case; resolve it here by exact head SHA before
+    // falling through. Any failure to resolve (zero or multiple matches, API error) leaves prNumber
+    // null, and planAutopilotExecution already NOOPs that -- no separate fail-closed path needed.
+    if (dispatch.kind === "PR_CI_SUCCEEDED" && dispatch.prNumber === null && dispatch.headSha && env.NUSA_GITHUB_TOKEN) {
+      const resolution = await resolveOpenPullRequestByHeadSha(dispatch.headSha, {
+        token: env.NUSA_GITHUB_TOKEN,
+        allowedRepository,
+      });
+      if (resolution.resolved) dispatch = { ...dispatch, prNumber: resolution.prNumber, reason: `${dispatch.reason}:${resolution.reason}` };
+    }
 
     const planned = planAutopilotExecution(dispatch);
     let execution = planned;

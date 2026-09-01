@@ -100,14 +100,19 @@ export function planGithubWebhookDispatch(event: SupportedGithubEvent, payload: 
 
     if (runEvent === "pull_request") {
       const prNumber = workflowRunPullRequestNumber(run);
-      if (!prNumber) return ignored(payload, "pr-ci-success-missing-pr-identity");
+      // GitHub's own workflow_run.pull_requests array is empty for cross-repository PRs, PRs from
+      // forks with restricted permissions, and some fork-triggered pull_request_target runs -- it
+      // is not a reliable "no PR exists" signal. Still surfacing PR_CI_SUCCEEDED (with prNumber:
+      // null) here, rather than IGNORED, lets the caller resolve the PR by exact head SHA via the
+      // GitHub API before deciding whether to request an Audit; a caller that cannot resolve it
+      // must still fail closed (see executionPlanner.ts, which already NOOPs a null prNumber).
       return freeze({
         kind: "PR_CI_SUCCEEDED",
         repository,
         headSha,
         prNumber,
         workflowRunId,
-        reason: "pull-request-ci-success",
+        reason: prNumber ? "pull-request-ci-success" : "pull-request-ci-success-pr-identity-requires-head-sha-resolution",
         mutationAllowed: false,
       });
     }
