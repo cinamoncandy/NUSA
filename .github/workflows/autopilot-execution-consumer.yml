@@ -4,11 +4,7 @@ on:
   repository_dispatch:
     types: [nusa_autopilot_execution]
 
-permissions:
-  contents: write
-  actions: write
-  pull-requests: write
-  id-token: write
+permissions: {}
 
 concurrency:
   group: autopilot-execution-${{ github.event.client_payload.dedupe_key }}
@@ -20,6 +16,9 @@ jobs:
     if: ${{ github.event.client_payload.kind == 'REPOSITORY_AUTOPILOT' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Checkout exact requested SHA
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -134,10 +133,15 @@ jobs:
           path: artifacts/autopilot-execution
 
   audit-request:
-    # PR CI success is an independent Audit handoff. It must never start the next main coding cycle.
+    # PR CI success invokes an independent read-only Audit. It never enters the coding/mutation path.
     if: ${{ github.event.client_payload.kind == 'AUDIT_REQUEST' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
+      id-token: write
     steps:
       - name: Persist audit dispatch evidence
         run: |
@@ -163,7 +167,7 @@ jobs:
           if (payload.ai_authority !== 'ZERO_AUTHORITY') fail('ai_authority must remain ZERO_AUTHORITY');
           NODE
 
-      - name: Verify current PR head and canonical CI evidence
+      - name: Verify current PR head/base and canonical CI evidence
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.client_payload.pr_number }}
@@ -171,10 +175,13 @@ jobs:
           WORKFLOW_RUN_ID: ${{ github.event.client_payload.workflow_run_id }}
         run: |
           set -euo pipefail
-          current_head="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha')"
-          current_state="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.state')"
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > artifacts/autopilot-audit-request/pull-before-audit.json
+          current_head="$(node -p "require('./artifacts/autopilot-audit-request/pull-before-audit.json').head.sha")"
+          current_base="$(node -p "require('./artifacts/autopilot-audit-request/pull-before-audit.json').base.sha")"
+          current_state="$(node -p "require('./artifacts/autopilot-audit-request/pull-before-audit.json').state")"
           test "$current_state" = "open" || { echo "PR is not open: $current_state"; exit 1; }
           test "$current_head" = "$REQUESTED_HEAD" || { echo "stale PR head: requested=$REQUESTED_HEAD current=$current_head"; exit 1; }
+          echo "$current_base" > artifacts/autopilot-audit-request/base-sha.txt
 
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$WORKFLOW_RUN_ID" > artifacts/autopilot-audit-request/workflow-run.json
           node - <<'NODE'
@@ -191,7 +198,27 @@ jobs:
           if (!numbers.includes(pr)) fail(`workflow run is not bound to PR #${pr}`);
           NODE
 
+      - name: Detect existing exact-head Audit verdict
+        id: existing-audit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          REQUESTED_HEAD: ${{ github.event.client_payload.head_sha }}
+          WORKFLOW_RUN_ID: ${{ github.event.client_payload.workflow_run_id }}
+        run: |
+          set -euo pipefail
+          marker="<!-- nusa-audit-verdict:${PR_NUMBER}:${WORKFLOW_RUN_ID}:${REQUESTED_HEAD} -->"
+          existing="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --jq ".[] | select(.body | contains(\"$marker\")) | .id" | head -n 1)"
+          if [ -n "$existing" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "comment_id=$existing" >> "$GITHUB_OUTPUT"
+            echo "Exact-head Audit verdict already published as comment $existing"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish idempotent Audit request on PR
+        if: ${{ steps.existing-audit.outputs.skip != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.client_payload.pr_number }}
@@ -213,7 +240,7 @@ jobs:
           - exact head: \`$REQUESTED_HEAD\`
           - canonical CI run: \`$WORKFLOW_RUN_ID\`
           - CI result: **PASS**
-          - next stage: **independent Audit**
+          - next stage: **independent read-only Audit execution**
           - stale-head rule: any PR head change invalidates this request
           - liveAuthority: \`NONE\`
           - productionMutationAllowed: \`false\`
@@ -221,7 +248,141 @@ jobs:
           EOF
           gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file artifacts/autopilot-audit-request/audit-request.md
 
-      - name: Upload Audit request evidence
+      - name: Build independent Audit runner request
+        if: ${{ steps.existing-audit.outputs.skip != 'true' }}
+        env:
+          PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          REQUESTED_HEAD: ${{ github.event.client_payload.head_sha }}
+          WORKFLOW_RUN_ID: ${{ github.event.client_payload.workflow_run_id }}
+          EXECUTION_ID: ${{ github.event.client_payload.execution_id }}
+          DEDUPE_KEY: ${{ github.event.client_payload.dedupe_key }}
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const request = {
+            kind: 'AUDIT_REQUEST',
+            repository: process.env.GITHUB_REPOSITORY,
+            prNumber: Number(process.env.PR_NUMBER),
+            headSha: process.env.REQUESTED_HEAD,
+            baseSha: fs.readFileSync('artifacts/autopilot-audit-request/base-sha.txt', 'utf8').trim(),
+            workflowRunId: Number(process.env.WORKFLOW_RUN_ID),
+            executionId: process.env.EXECUTION_ID,
+            dedupeKey: process.env.DEDUPE_KEY,
+            mutationAllowed: false,
+            liveAuthority: 'NONE',
+            productionMutationAllowed: false,
+            aiAuthority: 'ZERO_AUTHORITY',
+          };
+          fs.writeFileSync('artifacts/autopilot-audit-request/audit-runner-request.json', JSON.stringify(request, null, 2));
+          NODE
+
+      - name: Execute independent read-only Audit with GitHub OIDC
+        if: ${{ steps.existing-audit.outputs.skip != 'true' }}
+        env:
+          NUSA_AUDIT_RUNNER_URL: https://nusa-autopilot.desporin12.workers.dev/audit/execute
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const fail = (message) => { console.error(message); process.exit(1); };
+          const request = JSON.parse(fs.readFileSync('artifacts/autopilot-audit-request/audit-runner-request.json', 'utf8'));
+          const oidcUrl = process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
+          const oidcRequestToken = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
+          if (!oidcUrl || !oidcRequestToken) fail('GitHub OIDC environment is unavailable');
+          const tokenUrl = new URL(oidcUrl);
+          tokenUrl.searchParams.set('audience', 'nusa-autopilot');
+          const oidcResponse = await fetch(tokenUrl, { headers: { authorization: `Bearer ${oidcRequestToken}`, accept: 'application/json' } });
+          if (!oidcResponse.ok) fail(`OIDC request failed: ${oidcResponse.status}`);
+          const oidc = await oidcResponse.json();
+          if (!oidc || typeof oidc.value !== 'string' || !oidc.value) fail('OIDC token missing');
+          const response = await fetch(process.env.NUSA_AUDIT_RUNNER_URL, {
+            method: 'POST',
+            headers: { authorization: `Bearer ${oidc.value}`, 'content-type': 'application/json' },
+            body: JSON.stringify(request),
+          });
+          const result = await response.json().catch(() => null);
+          fs.writeFileSync('artifacts/autopilot-audit-request/audit-runner-result.json', JSON.stringify(result ?? { status: 'INVALID_RESPONSE' }, null, 2));
+          if (!response.ok) fail(`Audit runner rejected request: ${response.status} ${result?.error || result?.status || 'unknown'}`);
+          if (!result || result.accepted !== true || result.status !== 'AUDIT_COMPLETED') fail('Audit runner response is not a completed Audit');
+          if (result.schemaVersion !== 1) fail('Audit schema version invalid');
+          if (!['PASS', 'PASS_WITH_NOTES', 'FAIL'].includes(result.verdict)) fail('Audit verdict invalid');
+          if (result.repository !== request.repository || result.prNumber !== request.prNumber) fail('Audit repository/PR identity mismatch');
+          if (result.reviewedHeadSha !== request.headSha || result.baseSha !== request.baseSha || result.workflowRunId !== request.workflowRunId) fail('Audit exact-head/base/CI evidence mismatch');
+          if (result.liveAuthority !== 'NONE' || result.productionMutationAllowed !== false || result.aiAuthority !== 'ZERO_AUTHORITY') fail('Audit safety invariant response invalid');
+          if (result.verdict === 'PASS' && result.mergeAllowed !== true) fail('PASS verdict must explicitly allow merge');
+          if (result.verdict === 'PASS_WITH_NOTES' && result.mergeAllowed !== false) fail('PASS_WITH_NOTES must remain non-merge-authorizing');
+          if (result.verdict === 'FAIL' && result.mergeAllowed !== false) fail('FAIL verdict cannot allow merge');
+          NODE
+
+      - name: Re-verify PR identity after Audit execution
+        if: ${{ steps.existing-audit.outputs.skip != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          REQUESTED_HEAD: ${{ github.event.client_payload.head_sha }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > artifacts/autopilot-audit-request/pull-after-audit.json
+          before_base="$(cat artifacts/autopilot-audit-request/base-sha.txt)"
+          current_head="$(node -p "require('./artifacts/autopilot-audit-request/pull-after-audit.json').head.sha")"
+          current_base="$(node -p "require('./artifacts/autopilot-audit-request/pull-after-audit.json').base.sha")"
+          current_state="$(node -p "require('./artifacts/autopilot-audit-request/pull-after-audit.json').state")"
+          test "$current_state" = "open" || { echo "PR changed state during Audit: $current_state"; exit 1; }
+          test "$current_head" = "$REQUESTED_HEAD" || { echo "PR head moved during Audit: expected=$REQUESTED_HEAD current=$current_head"; exit 1; }
+          test "$current_base" = "$before_base" || { echo "PR base moved during Audit: expected=$before_base current=$current_base"; exit 1; }
+
+      - name: Publish machine-readable exact-head Audit verdict
+        if: ${{ steps.existing-audit.outputs.skip != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          REQUESTED_HEAD: ${{ github.event.client_payload.head_sha }}
+          WORKFLOW_RUN_ID: ${{ github.event.client_payload.workflow_run_id }}
+        run: |
+          set -euo pipefail
+          marker="<!-- nusa-audit-verdict:${PR_NUMBER}:${WORKFLOW_RUN_ID}:${REQUESTED_HEAD} -->"
+          existing="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --jq ".[] | select(.body | contains(\"$marker\")) | .id" | head -n 1)"
+          if [ -n "$existing" ]; then
+            echo "Audit verdict already published as comment $existing"
+            exit 0
+          fi
+          node - <<'NODE'
+          const fs = require('fs');
+          const result = JSON.parse(fs.readFileSync('artifacts/autopilot-audit-request/audit-runner-result.json', 'utf8'));
+          const marker = `<!-- nusa-audit-verdict:${process.env.PR_NUMBER}:${process.env.WORKFLOW_RUN_ID}:${process.env.REQUESTED_HEAD} -->`;
+          const body = [
+            marker,
+            '## NUSA independent Audit verdict',
+            '',
+            `- verdict: **${result.verdict}**`,
+            `- exact head: \`${result.reviewedHeadSha}\``,
+            `- base: \`${result.baseSha}\``,
+            `- canonical CI run: \`${result.workflowRunId}\``,
+            `- merge allowed by Audit: \`${result.mergeAllowed}\``,
+            `- safety invariants: **${result.safetyInvariantResult}**`,
+            '- repository mutation by Audit: `NONE`',
+            '- stale-head rule: any head/base change invalidates this verdict',
+            '',
+            '```json',
+            JSON.stringify(result),
+            '```',
+          ].join('\n');
+          fs.writeFileSync('artifacts/autopilot-audit-request/audit-verdict.md', body + '\n');
+          NODE
+          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file artifacts/autopilot-audit-request/audit-verdict.md
+
+      - name: Enforce Audit verdict gate
+        if: ${{ steps.existing-audit.outputs.skip != 'true' }}
+        run: |
+          node - <<'NODE'
+          const result = require('./artifacts/autopilot-audit-request/audit-runner-result.json');
+          if (result.verdict !== 'PASS' || result.mergeAllowed !== true || result.safetyInvariantResult !== 'PASS') {
+            console.error(`Audit blocks automatic Release: ${result.verdict}`);
+            process.exit(1);
+          }
+          console.log('Audit permits automatic Release handoff: PASS');
+          NODE
+
+      - name: Upload Audit execution evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
