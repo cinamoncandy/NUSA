@@ -308,8 +308,9 @@ jobs:
           if (result.repository !== request.repository || result.prNumber !== request.prNumber) fail('Audit repository/PR identity mismatch');
           if (result.reviewedHeadSha !== request.headSha || result.baseSha !== request.baseSha || result.workflowRunId !== request.workflowRunId) fail('Audit exact-head/base/CI evidence mismatch');
           if (result.liveAuthority !== 'NONE' || result.productionMutationAllowed !== false || result.aiAuthority !== 'ZERO_AUTHORITY') fail('Audit safety invariant response invalid');
+          if (result.verdict === 'PASS' && result.mergeAllowed !== true) fail('PASS verdict must explicitly allow merge');
+          if (result.verdict === 'PASS_WITH_NOTES' && result.mergeAllowed !== false) fail('PASS_WITH_NOTES must remain non-merge-authorizing');
           if (result.verdict === 'FAIL' && result.mergeAllowed !== false) fail('FAIL verdict cannot allow merge');
-          if (result.verdict !== 'FAIL' && result.mergeAllowed !== true) fail('passing Audit verdict must explicitly allow merge');
           NODE
 
       - name: Re-verify PR identity after Audit execution
@@ -374,11 +375,11 @@ jobs:
         run: |
           node - <<'NODE'
           const result = require('./artifacts/autopilot-audit-request/audit-runner-result.json');
-          if (result.verdict === 'FAIL' || result.mergeAllowed !== true || result.safetyInvariantResult !== 'PASS') {
-            console.error(`Audit blocks Release: ${result.verdict}`);
+          if (result.verdict !== 'PASS' || result.mergeAllowed !== true || result.safetyInvariantResult !== 'PASS') {
+            console.error(`Audit blocks automatic Release: ${result.verdict}`);
             process.exit(1);
           }
-          console.log(`Audit permits Release handoff: ${result.verdict}`);
+          console.log('Audit permits automatic Release handoff: PASS');
           NODE
 
       - name: Upload Audit execution evidence
