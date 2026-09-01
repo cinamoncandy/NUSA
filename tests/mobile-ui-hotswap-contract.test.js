@@ -40,6 +40,7 @@ test("HomeView consumes the MASTER profile and presents the dense truthful termi
   assert.match(home, /testID="home-portfolio-matrix"/);
   assert.match(home, /testID="home-risk-authority"/);
   assert.match(home, /testID="home-signal-trace"/);
+  assert.match(home, /testID="home-paper-learning"/);
   assert.match(home, /<InsightPanel/);
   assert.match(home, /<CompactMetric/);
   assert.match(home, /<OperationalNotice/);
