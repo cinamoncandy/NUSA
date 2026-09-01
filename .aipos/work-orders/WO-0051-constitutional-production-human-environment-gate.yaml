@@ -221,3 +221,13 @@ recent_repository_safety_slice:
     live_authority: NONE
     production_mutation_allowed: false
     ai_authority: ZERO_AUTHORITY
+
+latest_repository_safety_slice:
+  status: COMPLETED
+  scope: "Portfolio risk adapter now fail-closes on zero mark prices instead of converting unavailable quotes into zero-valued assets."
+  pull_request: 1369
+  implementation_head: d900071637a32030b8d9e86c0b67861ad4eea398
+  merge_commit: a2fcce0df984ec5180882ed5a1c7c1f9a3dcc280
+  evidence: "Focused zero-mark regression and exact-head CI passed; no authority, execution, credential, or LIVE boundary changed."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
