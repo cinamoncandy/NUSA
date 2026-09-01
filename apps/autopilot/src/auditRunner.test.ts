@@ -28,16 +28,26 @@ function response(status: number, payload: unknown, textValue?: string) {
   };
 }
 
-function pull(headSha = HEAD, baseSha = BASE, changedFiles = 1) {
+function pull(
+  headSha = HEAD,
+  baseSha = BASE,
+  changedFiles = 1,
+  headRepository = "cinamoncandy/NUSA",
+  baseRepository = "cinamoncandy/NUSA",
+) {
   return {
     state: "open",
     changed_files: changedFiles,
-    head: { sha: headSha, repo: { full_name: "cinamoncandy/NUSA" } },
-    base: { sha: baseSha },
+    head: { sha: headSha, repo: { full_name: headRepository } },
+    base: { sha: baseSha, repo: { full_name: baseRepository } },
   };
 }
 
-function run(headSha = HEAD, id = request.workflowRunId) {
+function run(
+  headSha = HEAD,
+  id = request.workflowRunId,
+  pullRequests: readonly { readonly number: number }[] = [{ number: request.prNumber }],
+) {
   return {
     id,
     name: "CI",
@@ -46,23 +56,48 @@ function run(headSha = HEAD, id = request.workflowRunId) {
     conclusion: "success",
     head_sha: headSha,
     repository: { full_name: "cinamoncandy/NUSA" },
-    pull_requests: [{ number: request.prNumber }],
+    pull_requests: pullRequests,
   };
+}
+
+function headPulls(entries: readonly unknown[] = [{
+  number: request.prNumber,
+  state: "open",
+  head: { sha: HEAD, repo: { full_name: "fork-owner/NUSA" } },
+  base: { repo: { full_name: "cinamoncandy/NUSA" } },
+}]) {
+  return entries;
+}
+
+function needsFallback(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const pullRequests = (value as { pull_requests?: unknown }).pull_requests;
+  if (!Array.isArray(pullRequests)) return true;
+  const numbers = [...new Set(pullRequests
+    .map((entry) => entry && typeof entry === "object" ? (entry as { number?: unknown }).number : null)
+    .filter((number): number is number => Number.isSafeInteger(number) && Number(number) > 0))];
+  return numbers.length !== 1 || numbers[0] !== request.prNumber;
 }
 
 function fetchSequence(options: {
   readonly firstPull?: unknown;
   readonly firstRun?: unknown;
+  readonly firstHeadPulls?: readonly unknown[];
   readonly diff?: string;
   readonly secondPull?: unknown;
   readonly secondRun?: unknown;
+  readonly secondHeadPulls?: readonly unknown[];
 } = {}) {
+  const firstRun = options.firstRun ?? run();
+  const secondRun = options.secondRun ?? firstRun;
   const queue = [
     response(200, options.firstPull ?? pull()),
-    response(200, options.firstRun ?? run()),
+    response(200, firstRun),
+    ...(needsFallback(firstRun) ? [response(200, options.firstHeadPulls ?? headPulls())] : []),
     response(200, {}, options.diff ?? "diff --git a/a.ts b/a.ts\n+const safe = true;\n"),
     response(200, options.secondPull ?? options.firstPull ?? pull()),
-    response(200, options.secondRun ?? options.firstRun ?? run()),
+    response(200, secondRun),
+    ...(needsFallback(secondRun) ? [response(200, options.secondHeadPulls ?? options.firstHeadPulls ?? headPulls())] : []),
   ];
   return async () => {
     const next = queue.shift();
@@ -75,6 +110,10 @@ function ai(responseBody: unknown) {
   return {
     async run() { return responseBody; },
   };
+}
+
+function passingModel() {
+  return ai({ response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS" }) });
 }
 
 test("validates the immutable read-only audit request contract", () => {
@@ -113,8 +152,70 @@ test("fails closed when canonical CI is bound to another head or run", async () 
   );
 });
 
+test("resolves empty workflow_run.pull_requests through one open exact-head PR", async () => {
+  const result = await executeIndependentAudit(
+    request,
+    { AI: passingModel() },
+    fetchSequence({ firstRun: run(HEAD, request.workflowRunId, []), secondRun: run(HEAD, request.workflowRunId, []) }) as never,
+    () => 101,
+  );
+  assert.equal(result.verdict, "PASS");
+  assert.equal(result.mergeAllowed, true);
+  assert.equal(result.reviewedHeadSha, HEAD);
+});
+
+test("allows a fork head while binding Audit to canonical base repository and exact head", async () => {
+  const forkPull = pull(HEAD, BASE, 1, "contributor/NUSA", "cinamoncandy/NUSA");
+  const result = await executeIndependentAudit(
+    request,
+    { AI: passingModel() },
+    fetchSequence({
+      firstPull: forkPull,
+      secondPull: forkPull,
+      firstRun: run(HEAD, request.workflowRunId, []),
+      secondRun: run(HEAD, request.workflowRunId, []),
+    }) as never,
+  );
+  assert.equal(result.verdict, "PASS");
+});
+
+test("fails closed when empty PR identity resolves to zero or multiple exact-head open PRs", async () => {
+  const emptyRun = run(HEAD, request.workflowRunId, []);
+  await assert.rejects(
+    executeIndependentAudit(request, { AI: passingModel() }, fetchSequence({ firstRun: emptyRun, firstHeadPulls: [] }) as never),
+    /AUDIT_CI_PR_IDENTITY_UNRESOLVED/,
+  );
+  await assert.rejects(
+    executeIndependentAudit(request, { AI: passingModel() }, fetchSequence({
+      firstRun: emptyRun,
+      firstHeadPulls: headPulls([
+        { number: request.prNumber, state: "open", head: { sha: HEAD }, base: { repo: { full_name: "cinamoncandy/NUSA" } } },
+        { number: request.prNumber + 1, state: "open", head: { sha: HEAD }, base: { repo: { full_name: "cinamoncandy/NUSA" } } },
+      ]),
+    }) as never),
+    /AUDIT_CI_PR_IDENTITY_UNRESOLVED/,
+  );
+});
+
+test("fails closed when unique exact-head fallback points at a different PR", async () => {
+  await assert.rejects(
+    executeIndependentAudit(request, { AI: passingModel() }, fetchSequence({
+      firstRun: run(HEAD, request.workflowRunId, []),
+      firstHeadPulls: headPulls([{ number: request.prNumber + 1, state: "open", head: { sha: HEAD }, base: { repo: { full_name: "cinamoncandy/NUSA" } } }]),
+    }) as never),
+    /AUDIT_CI_PR_MISMATCH/,
+  );
+});
+
+test("fails closed when current PR targets a different base repository", async () => {
+  await assert.rejects(
+    executeIndependentAudit(request, { AI: passingModel() }, fetchSequence({ firstPull: pull(HEAD, BASE, 1, "fork-owner/NUSA", "other/NUSA") }) as never),
+    /AUDIT_PR_BASE_REPOSITORY_MISMATCH/,
+  );
+});
+
 test("fails closed when GitHub diff evidence does not cover every changed file", async () => {
-  const model = ai({ response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS" }) });
+  const model = passingModel();
   await assert.rejects(
     executeIndependentAudit(request, { AI: model }, fetchSequence({ firstPull: pull(HEAD, BASE, 2), secondPull: pull(HEAD, BASE, 2) }) as never),
     /AUDIT_DIFF_FILE_COUNT_MISMATCH/,
@@ -147,7 +248,7 @@ test("safety regression is preserved as FAIL and cannot become merge allowed", a
 });
 
 test("detects PR head movement after model review", async () => {
-  const model = ai({ response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS" }) });
+  const model = passingModel();
   await assert.rejects(
     executeIndependentAudit(request, { AI: model }, fetchSequence({ secondPull: pull("e".repeat(40)) }) as never),
     /AUDIT_PR_HEAD_MISMATCH/,
