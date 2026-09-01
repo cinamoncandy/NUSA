@@ -3,16 +3,18 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { createDeliveryId, createGithubSignature, dispatchGithubEvent } from "../scripts/dispatch-github-event-to-autopilot.mjs";
+import { createDeliveryId, createGithubSignature, dispatchGithubEvent, isAuditFallbackEligible } from "../scripts/dispatch-github-event-to-autopilot.mjs";
 
 const workflow = fs.readFileSync(path.resolve(".github", "workflows", "autopilot-github-event-bridge.yml"), "utf8");
 const body = Buffer.from(JSON.stringify({ ref: "refs/heads/main", after: "a".repeat(40), repository: { full_name: "cinamoncandy/NUSA" } }));
-const safetyResponse = () => new Response(JSON.stringify({
+const safetyPayload = (extra = {}) => ({
   accepted: true,
   liveAuthority: "NONE",
   productionMutationAllowed: false,
   aiAuthority: "ZERO_AUTHORITY",
-}), { status: 202, headers: { "content-type": "application/json" } });
+  ...extra,
+});
+const safetyResponse = (extra = {}) => new Response(JSON.stringify(safetyPayload(extra)), { status: 202, headers: { "content-type": "application/json" } });
 
 test("the event bridge uses one deterministic delivery identity and exact HMAC bytes", () => {
   const first = createDeliveryId({ repository: "cinamoncandy/NUSA", event: "push", runId: "10", runAttempt: "2" });
@@ -52,12 +54,36 @@ test("pull_request_target is delivered as the canonical pull_request event", asy
     timeoutMs: 100,
   });
   assert.equal(result.status, "DELIVERED");
+  assert.equal(result.auditFallbackEligible, false);
   assert.equal(request.url, "https://autopilot.example.test/github/webhook");
   assert.equal(request.init.method, "POST");
   assert.equal(request.init.headers["x-github-event"], "pull_request");
   assert.equal(request.init.headers["x-github-delivery"], result.deliveryId);
   assert.equal(Buffer.from(request.init.body).toString(), body.toString());
   assert.equal(request.init.headers["x-hub-signature-256"], createGithubSignature("bridge-test-secret", body));
+});
+
+test("Audit fallback eligibility requires the exact bounded Worker token-missing result", async () => {
+  const exact = safetyPayload({
+    execution: { kind: "AUDIT_REQUEST" },
+    executor: { status: "INTERFACE_READY", reason: "github-executor-token-not-configured" },
+  });
+  assert.equal(isAuditFallbackEligible(exact), true);
+  assert.equal(isAuditFallbackEligible({ ...exact, execution: { kind: "REPOSITORY_AUTOPILOT" } }), false);
+  assert.equal(isAuditFallbackEligible({ ...exact, executor: { status: "FAILED", reason: "github-executor-token-not-configured" } }), false);
+  assert.equal(isAuditFallbackEligible({ ...exact, executor: { status: "INTERFACE_READY", reason: "github-executor-auth-rejected" } }), false);
+
+  const result = await dispatchGithubEvent({
+    secret: "bridge-test-secret",
+    body,
+    event: "workflow_run",
+    repository: "cinamoncandy/NUSA",
+    runId: "16",
+    runAttempt: "1",
+    fetchImpl: async () => new Response(JSON.stringify(exact), { status: 202, headers: { "content-type": "application/json" } }),
+    timeoutMs: 100,
+  });
+  assert.equal(result.auditFallbackEligible, true);
 });
 
 test("transient delivery failures retry once while authentication failures fail closed", async () => {
@@ -78,6 +104,7 @@ test("transient delivery failures retry once while authentication failures fail 
   });
   assert.equal(retried.status, "DELIVERED");
   assert.equal(retried.attempts, 2);
+  assert.equal(retried.auditFallbackEligible, false);
 
   await assert.rejects(() => dispatchGithubEvent({
     secret: "bridge-test-secret",
@@ -123,8 +150,11 @@ test("the primary bridge remains read-only and fallback write authority is isola
   assert.doesNotMatch(normalized, /actions: write/);
   assert.doesNotMatch(normalized, /pull-requests: write/);
   assert.doesNotMatch(normalized, /NUSA_GITHUB_TOKEN/);
+  assert.doesNotMatch(normalized, /NUSA_AUTOPILOT_HEALTH_URL/);
   assert.doesNotMatch(normalized, /LIVE|ACTIVE/);
 
+  assert.match(bridgeJob, /outputs:\s*\n\s*audit_fallback_eligible: \$\{\{ steps\.deliver\.outputs\.audit_fallback_eligible \}\}/);
+  assert.match(bridgeJob, /id: deliver/);
   assert.match(bridgeJob, /node scripts\/dispatch-github-event-to-autopilot\.mjs/);
   assert.match(bridgeJob, /NUSA_WEBHOOK_SECRET:/);
   assert.match(bridgeJob, /contents: read/);
@@ -140,6 +170,7 @@ test("the primary bridge remains read-only and fallback write authority is isola
   assert.match(fallbackJob, /github\.event\.workflow_run\.status == 'completed'/);
   assert.match(fallbackJob, /github\.event\.workflow_run\.conclusion == 'success'/);
   assert.match(fallbackJob, /github\.event\.workflow_run\.event == 'pull_request'/);
+  assert.match(fallbackJob, /needs\.bridge\.outputs\.audit_fallback_eligible == 'true'/);
   assert.match(fallbackJob, /contents: write/);
   assert.match(fallbackJob, /actions: read/);
   assert.match(fallbackJob, /pull-requests: read/);
@@ -148,6 +179,7 @@ test("the primary bridge remains read-only and fallback write authority is isola
   assert.doesNotMatch(fallbackJob, /pull-requests: write/);
   assert.match(fallbackJob, /persist-credentials: false/);
   assert.match(fallbackJob, /GH_TOKEN: \$\{\{ github\.token \}\}/);
+  assert.match(fallbackJob, /NUSA_AUDIT_FALLBACK_ELIGIBLE: \$\{\{ needs\.bridge\.outputs\.audit_fallback_eligible \}\}/);
   assert.match(fallbackJob, /node scripts\/fallback-audit-dispatch-from-bridge\.mjs/);
 });
 
