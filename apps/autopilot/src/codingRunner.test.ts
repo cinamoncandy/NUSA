@@ -267,6 +267,36 @@ describe("coding runner", () => {
     assert.equal(result.proposalValidated, true);
   });
 
+  it("retries a bounded proposal after sandbox patch-contract rejection", async () => {
+    let runtimeCalls = 0;
+    const prompts: string[] = [];
+    const runtime: CodingRuntime = {
+      name: "fake-sandbox",
+      async execute() {
+        runtimeCalls += 1;
+        if (runtimeCalls === 1) throw new Error("SANDBOX_PATCH_FILE_COUNT_INVALID");
+        return {
+          backend: "fake-sandbox",
+          checkpointId: request.headSha,
+          workspaceVerified: true,
+          proposalValidated: true,
+          changedFiles: ["apps/autopilot/src/example.ts"],
+        };
+      },
+    };
+    const ai: WorkersAiBinding = {
+      async run(_model, input) {
+        prompts.push(input.prompt);
+        return { response: { patch } };
+      },
+    };
+    const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch, runtime);
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.equal(runtimeCalls, 2);
+    assert.equal(prompts.length, 2);
+    assert.match(prompts[1] ?? "", /SANDBOX_PATCH_FILE_COUNT_INVALID/);
+  });
+
   it("accepts a Workers AI JSON proposal wrapped in a markdown fence", async () => {
     const runtime: CodingRuntime = {
       name: "fake-sandbox",
