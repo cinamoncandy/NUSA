@@ -149,6 +149,8 @@ describe("executeGithubDispatch", () => {
     assert.equal(payload.client_payload.workflow_run_id, 123456789);
     assert.equal(payload.client_payload.execution_id, request.executionId);
     assert.equal(payload.client_payload.dedupe_key, request.dedupeKey);
+    assert.ok(Object.keys(payload.client_payload).length <= 10);
+    assert.equal("pr_number" in payload.client_payload, false);
     assert.equal(payload.client_payload.production_mutation_allowed, false);
     assert.equal(payload.client_payload.live_authority, "NONE");
     assert.equal(payload.client_payload.ai_authority, "ZERO_AUTHORITY");
@@ -176,6 +178,8 @@ describe("executeGithubDispatch", () => {
     const payload = JSON.parse(String(calls[1]?.init?.body));
     assert.equal(payload.client_payload.kind, "AUDIT_REQUEST");
     assert.equal(payload.client_payload.pr_number, 42);
+    assert.ok(Object.keys(payload.client_payload).length <= 10);
+    assert.equal("reason" in payload.client_payload, false);
     assert.equal(payload.client_payload.head_sha, auditRequest.headSha);
     assert.equal(payload.client_payload.workflow_run_id, auditRequest.workflowRunId);
     assert.equal(payload.client_payload.production_mutation_allowed, false);
