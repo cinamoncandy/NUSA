@@ -36,6 +36,8 @@ import { getLocalPaperLearningReadiness, recordLocalPaperPublicMarkets } from ".
 import { resolveCanonicalCloudOrigin } from "./src/canonicalOrigin";
 import type { PublicCandle } from "./src/chartViewModel";
 import type { WatchlistMarket } from "./src/watchlist";
+import { emitUxTelemetryEvent } from "./src/uxTelemetryClient";
+import { screenIdForNavigationState, createUxTelemetrySessionId } from "./src/uxTelemetryScreenTracking";
 
 const tabs = ["Home", "Markets", "Paper", "Portfolio"] as const;
 type PrimaryTab = (typeof tabs)[number];
@@ -136,6 +138,8 @@ function AuthenticatedApp() {
   const [investmentPercent, setInvestmentPercent] = useState(DEFAULT_SETTINGS.capitalAllocation.investmentPercent);
   const credentialSession = useMemo(() => new InMemoryDashboardCredentialSession(), []);
   const investmentAllocationClient = useMemo(() => createCloudInvestmentAllocationClient({ credentialProvider: credentialSession.credentialProvider }), [credentialSession]);
+  const uxTelemetrySessionId = useMemo(() => createUxTelemetrySessionId(), []);
+  const [usageTelemetryEnabled, setUsageTelemetryEnabled] = useState(false);
   const watchlistRepository = useMemo(() => new WatchlistRepository(AsyncStorage), []);
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
   const refreshGenerationRef = useRef(0);
@@ -157,6 +161,22 @@ function AuthenticatedApp() {
     void settingsRepository.load().then((stored) => { if (active) setInvestmentPercent(normalizeSettings(stored ?? DEFAULT_SETTINGS).capitalAllocation.investmentPercent); }).catch(() => { if (active) setInvestmentPercent(DEFAULT_SETTINGS.capitalAllocation.investmentPercent); });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    void settingsRepository.load().then((stored) => { if (active) setUsageTelemetryEnabled(normalizeSettings(stored ?? DEFAULT_SETTINGS).usageTelemetry.enabled); }).catch(() => { if (active) setUsageTelemetryEnabled(false); });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    const screenId = screenIdForNavigationState(activeTab, utilityView);
+    const endpoint = getConfiguredPaperEndpoint();
+    void emitUxTelemetryEvent(
+      { kind: "SCREEN_VIEW", screenId },
+      { baseUrl: endpoint ?? "", credentialProvider: credentialSession.credentialProvider, sessionId: uxTelemetrySessionId, enabled: usageTelemetryEnabled && Boolean(endpoint) }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, utilityView, usageTelemetryEnabled, uxTelemetrySessionId]);
 
   const refresh = useCallback((): Promise<void> => {
     if (refreshInFlightRef.current) return refreshInFlightRef.current;
