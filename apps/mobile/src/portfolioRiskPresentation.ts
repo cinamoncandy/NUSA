@@ -40,13 +40,37 @@ function ratio(value: number): string {
   return `${(value * 100).toFixed(0)}%`;
 }
 
+function isFiniteOrNull(value: number | null): boolean {
+  return value === null || Number.isFinite(value);
+}
+
+/**
+ * A PortfolioRiskSummary is normally produced by the validated contract calculator, but this
+ * presentation model is also a trust boundary for callers and persisted/replayed data. Never
+ * turn a malformed numeric value into a user-visible "NaN%" or "Infinity%".
+ */
+function isRenderableSummary(summary: PortfolioRiskSummary): boolean {
+  return Number.isFinite(summary.equity)
+    && summary.concentration != null
+    && Number.isFinite(summary.concentration.herfindahlIndex)
+    && Number.isFinite(summary.concentration.largestPositionWeight)
+    && (summary.concentration.largestPositionMarket === null || typeof summary.concentration.largestPositionMarket === "string")
+    && summary.exposure != null
+    && Number.isFinite(summary.exposure.grossExposureRatio)
+    && Number.isFinite(summary.exposure.netExposureRatio)
+    && isFiniteOrNull(summary.expectedRisk)
+    && isFiniteOrNull(summary.currentDrawdown)
+    && isFiniteOrNull(summary.maxPairwiseCorrelation)
+    && Array.isArray(summary.insufficientEvidenceReasons);
+}
+
 /**
  * Builds the portfolio risk presentation from a real PortfolioRiskSummary, or returns the
  * UNAVAILABLE state when there is none (no portfolio data yet, or the equity/assets required to
  * compute even concentration/exposure were unavailable upstream).
  */
 export function buildPortfolioRiskPresentation(summary: PortfolioRiskSummary | null): PortfolioRiskPresentation {
-  if (summary === null) return unavailable();
+  if (summary === null || !isRenderableSummary(summary)) return unavailable();
   return Object.freeze({
     status: "AVAILABLE",
     concentrationLabel: percentage(summary.concentration.herfindahlIndex),
