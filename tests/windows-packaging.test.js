@@ -22,7 +22,7 @@ test("Windows packaging validation keeps the desktop runtime paper-only and sand
 test("packaging metadata is deterministic and excludes development sources", () => {
   const build = packageJson.build;
   assert.equal(packageJson.main, "dist/apps/desktop/src/cloudMain.js");
-  assert.equal(packageJson.dependencies.ws, "8.21.0");
+  assert.equal(packageJson.dependencies.ws, "8.21.3");
   assert.equal(build.appId, "com.nusa.trader");
   assert.equal(build.productName, "NUSA");
   assert.equal(build.asar, true);
