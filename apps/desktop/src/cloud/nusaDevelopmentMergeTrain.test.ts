@@ -30,6 +30,10 @@ function evidence(workItemId: string, overrides: Partial<NusaExactHeadMergeEvide
     validatedHeadSha: overrides.validatedHeadSha ?? overrides.headSha ?? `${workItemId}-head`,
     requiredChecksPassed: overrides.requiredChecksPassed ?? true,
     safetyChecksPassed: overrides.safetyChecksPassed ?? true,
+    auditedHeadSha: overrides.auditedHeadSha ?? overrides.headSha ?? `${workItemId}-head`,
+    auditVerdict: overrides.auditVerdict ?? "PASS",
+    auditMergeAllowed: overrides.auditMergeAllowed ?? true,
+    auditObservedAt: overrides.auditObservedAt ?? 9,
     unresolvedReviewThreads: overrides.unresolvedReviewThreads ?? 0,
     observedAt: overrides.observedAt ?? 10,
   };
@@ -61,7 +65,7 @@ function unchanged(workItemId: string): NusaMainMovementEvidence {
 }
 
 describe("planNusaDevelopmentMergeTrain", () => {
-  it("orders merge-ready work by priority only after exact-head gates pass", () => {
+  it("orders merge-ready work by priority only after exact-head CI, safety, and Audit gates pass", () => {
     const queue = createNusaDevelopmentQueue([
       work({ id: "p1", priority: "P1" }),
       work({ id: "p0", priority: "P0" }),
@@ -87,6 +91,55 @@ describe("planNusaDevelopmentMergeTrain", () => {
     assert.deepEqual(plan.blocked.unsafe, ["SAFETY_CHECKS_NOT_PASSED"]);
     assert.deepEqual(plan.blocked.review, ["UNRESOLVED_REVIEW_THREADS"]);
     assert.equal(plan.entries.length, 0);
+  });
+
+  it("requires an Audit verdict bound to the current exact head", () => {
+    const queue = createNusaDevelopmentQueue([
+      work({ id: "missing-audit" }),
+      work({ id: "stale-audit" }),
+      work({ id: "failed-audit" }),
+      work({ id: "notes-not-mergeable" }),
+    ]);
+    const plan = planNusaDevelopmentMergeTrain(queue, [
+      evidence("missing-audit", { auditedHeadSha: "" }),
+      evidence("stale-audit", { auditedHeadSha: "prior-head" }),
+      evidence("failed-audit", { auditVerdict: "FAIL" }),
+      evidence("notes-not-mergeable", { auditVerdict: "PASS_WITH_NOTES", auditMergeAllowed: false }),
+    ], {
+      mainMovementEvidence: [
+        unchanged("missing-audit"),
+        unchanged("stale-audit"),
+        unchanged("failed-audit"),
+        unchanged("notes-not-mergeable"),
+      ],
+    });
+    assert.equal(plan.status, "BLOCKED");
+    assert.deepEqual(plan.blocked["missing-audit"], ["AUDIT_HEAD_SHA_MISSING"]);
+    assert.deepEqual(plan.blocked["stale-audit"], ["AUDIT_HEAD_MISMATCH"]);
+    assert.deepEqual(plan.blocked["failed-audit"], ["AUDIT_NOT_PASSED"]);
+    assert.deepEqual(plan.blocked["notes-not-mergeable"], ["AUDIT_MERGE_NOT_ALLOWED"]);
+    assert.equal(plan.entries.length, 0);
+  });
+
+  it("accepts PASS_WITH_NOTES only when Audit explicitly allows merge on the exact head", () => {
+    const queue = createNusaDevelopmentQueue([work({ id: "notes" })]);
+    const plan = planNusaDevelopmentMergeTrain(queue, [
+      evidence("notes", { auditVerdict: "PASS_WITH_NOTES", auditMergeAllowed: true }),
+    ], {
+      mainMovementEvidence: [unchanged("notes")],
+    });
+    assert.equal(plan.status, "READY");
+    assert.deepEqual(plan.entries.map((entry) => entry.workItemId), ["notes"]);
+  });
+
+  it("fails closed on invalid Audit evidence timestamp", () => {
+    const queue = createNusaDevelopmentQueue([work({ id: "audit-time" })]);
+    const plan = planNusaDevelopmentMergeTrain(queue, [
+      evidence("audit-time", { auditObservedAt: -1 }),
+    ], {
+      mainMovementEvidence: [unchanged("audit-time")],
+    });
+    assert.deepEqual(plan.blocked["audit-time"], ["AUDIT_EVIDENCE_TIMESTAMP_INVALID"]);
   });
 
   it("never schedules a dependent item before its canonical dependency is merged", () => {
