@@ -191,4 +191,21 @@ describe("evaluatePurgeEmbargo", () => {
     const result = evaluatePurgeEmbargo({ predictionTime: 100, outcomeWindowStart: 100, outcomeWindowEnd: 200 }, partitions(), { embargoMs: -1 });
     assert.equal(result.excluded, true);
   });
+
+  it("fails closed when a boundary partition has a malformed timestamp", () => {
+    const malformed: readonly AiEvaluationPartition[] = [
+      { partitionId: "validation", role: "VALIDATION", startTime: Number.NaN, endTime: 2_000 },
+    ];
+    const result = evaluatePurgeEmbargo({ predictionTime: 100, outcomeWindowStart: 100, outcomeWindowEnd: 200 }, malformed, policy);
+    assert.equal(result.excluded, true);
+  });
+
+  it("fails closed when boundary partitions overlap", () => {
+    const overlapping: readonly AiEvaluationPartition[] = [
+      { partitionId: "validation", role: "VALIDATION", startTime: 1_000, endTime: 2_000 },
+      { partitionId: "holdout", role: "HOLDOUT", startTime: 1_500, endTime: 2_500 },
+    ];
+    const result = evaluatePurgeEmbargo({ predictionTime: 100, outcomeWindowStart: 100, outcomeWindowEnd: 200 }, overlapping, policy);
+    assert.equal(result.excluded, true);
+  });
 });
