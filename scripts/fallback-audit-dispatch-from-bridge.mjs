@@ -2,7 +2,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-const DEFAULT_HEALTH_URL = "https://nusa-autopilot.desporin12.workers.dev/health";
 const DEFAULT_GITHUB_API = "https://api.github.com";
 const SHA40 = /^[0-9a-f]{40}$/i;
 const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -67,18 +66,6 @@ export function classifyCanonicalPrCiEvent(eventPayload, repository) {
   return Object.freeze({ actionable: true, runId, headSha });
 }
 
-async function readWorkerExecutorState(healthUrl, repository, fetchImpl) {
-  if (typeof healthUrl !== "string" || !/^https:\/\//.test(healthUrl)) fail("WORKER_HEALTH_URL_INVALID");
-  const payload = object(await readJson(await fetchImpl(healthUrl, { method: "GET" }), "WORKER_HEALTH"));
-  if (!payload) fail("WORKER_HEALTH_PAYLOAD_INVALID");
-  if (payload.service !== "nusa-autopilot" || payload.status !== "WEBHOOK_READY") fail("WORKER_HEALTH_SERVICE_INVALID");
-  if (payload.allowedRepository !== repository) fail("WORKER_HEALTH_REPOSITORY_MISMATCH");
-  validateSafety(payload, "WORKER_HEALTH");
-  const state = text(payload.authenticatedExecutor);
-  if (state !== "CONFIGURED" && state !== "INTERFACE_READY") fail("WORKER_EXECUTOR_STATE_INVALID");
-  return state;
-}
-
 function matchingPrNumbers(run) {
   const values = Array.isArray(run.pull_requests) ? run.pull_requests : [];
   return [...new Set(values.map((value) => positiveInteger(object(value)?.number)).filter((value) => value !== null))];
@@ -141,7 +128,7 @@ export async function runAuditDispatchFallback({
   eventPayload,
   repository,
   githubToken,
-  healthUrl = DEFAULT_HEALTH_URL,
+  bridgeEligibility,
   apiBase = DEFAULT_GITHUB_API,
   fetchImpl = fetch,
 }) {
@@ -151,9 +138,16 @@ export async function runAuditDispatchFallback({
     return Object.freeze({ status: "NO_ACTION", reason: event.reason, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
   }
 
-  const executorState = await readWorkerExecutorState(healthUrl, repository, fetchImpl);
-  if (executorState === "CONFIGURED") {
-    return Object.freeze({ status: "NO_ACTION", reason: "worker-github-executor-configured", headSha: event.headSha, workflowRunId: event.runId, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+  if (String(bridgeEligibility ?? "").trim() !== "true") {
+    return Object.freeze({
+      status: "NO_ACTION",
+      reason: "worker-event-did-not-explicitly-require-token-fallback",
+      headSha: event.headSha,
+      workflowRunId: event.runId,
+      liveAuthority: "NONE",
+      productionMutationAllowed: false,
+      aiAuthority: "ZERO_AUTHORITY",
+    });
   }
 
   const token = text(githubToken);
@@ -196,7 +190,7 @@ export async function runAuditDispatchFallback({
 
   return Object.freeze({
     status: "FALLBACK_DISPATCHED",
-    reason: "worker-github-executor-interface-ready",
+    reason: "worker-event-explicit-token-fallback",
     prNumber: evidence.prNumber,
     headSha: event.headSha,
     baseSha: evidence.baseSha,
@@ -233,7 +227,7 @@ async function main() {
     eventPayload,
     repository: process.env.GITHUB_REPOSITORY,
     githubToken: process.env.GH_TOKEN || process.env.GITHUB_TOKEN,
-    healthUrl: process.env.NUSA_AUTOPILOT_HEALTH_URL || DEFAULT_HEALTH_URL,
+    bridgeEligibility: process.env.NUSA_AUDIT_FALLBACK_ELIGIBLE,
   });
   validateSafety(result, "AUDIT_FALLBACK_RESULT");
   writeSummary(result);
