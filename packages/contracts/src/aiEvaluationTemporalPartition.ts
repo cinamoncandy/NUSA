@@ -161,6 +161,13 @@ function overlaps(aStart: number, aEnd: number, bStart: number, bEnd: number): b
   return aStart < bEnd && bStart < aEnd;
 }
 
+function invalidPurgeEmbargoDecision(boundaryPartitions: readonly AiEvaluationPartition[]): PurgeEmbargoDecision {
+  const fallbackId = typeof boundaryPartitions[0]?.partitionId === "string" && boundaryPartitions[0].partitionId.trim()
+    ? boundaryPartitions[0].partitionId
+    : "INVALID_INPUT";
+  return { excluded: true, reason: "PURGED_OVERLAPPING_OUTCOME_WINDOW", conflictingPartitionId: fallbackId };
+}
+
 /**
  * Evaluates whether one TRAIN-role candidate must be purged or embargoed against the given
  * VALIDATION/HOLDOUT partitions. Only ever excludes TRAIN candidates -- a VALIDATION or HOLDOUT
@@ -177,9 +184,9 @@ export function evaluatePurgeEmbargo(
     !isTimestamp(candidate.predictionTime) || !isTimestamp(candidate.outcomeWindowStart) || !isTimestamp(candidate.outcomeWindowEnd)
     || candidate.outcomeWindowStart > candidate.outcomeWindowEnd
     || !Number.isSafeInteger(policy.embargoMs) || policy.embargoMs < 0
+    || !partitionsAreWellFormed(boundaryPartitions)
   ) {
-    const fallback = boundaryPartitions[0];
-    return { excluded: true, reason: "PURGED_OVERLAPPING_OUTCOME_WINDOW", conflictingPartitionId: fallback?.partitionId ?? "INVALID_INPUT" };
+    return invalidPurgeEmbargoDecision(boundaryPartitions);
   }
 
   for (const partition of boundaryPartitions) {
