@@ -77,6 +77,7 @@ const FINDING_CODE = /^[A-Z0-9_.:-]{1,80}$/;
 const DEFAULT_REPOSITORY = "cinamoncandy/NUSA";
 const DEFAULT_AUDIT_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
 const GITHUB_API_ORIGIN = "https://api.github.com";
+const GITHUB_COMPARE_ORIGIN = "https://github.com";
 const MAX_DIFF_CHARS = 180_000;
 const MAX_CHANGED_FILES = 300;
 const MAX_FINDINGS = 40;
@@ -312,6 +313,27 @@ async function fetchPullDiff(request: AuditRunnerRequest, expectedChangedFiles: 
   return diff;
 }
 
+function isAnonymousGithubEvidence403(error: unknown): boolean {
+  return error instanceof Error && (error.message === "AUDIT_GITHUB_EVIDENCE_HTTP_403" || error.message === "AUDIT_DIFF_HTTP_403");
+}
+
+async function fetchImmutableCompareDiff(request: AuditRunnerRequest, fetchImpl: FetchImpl): Promise<string> {
+  const [owner, repo, ...extra] = request.repository.split("/");
+  if (!owner || !repo || extra.length > 0) throw new Error("AUDIT_RUNNER_REPOSITORY_INVALID");
+  const repository = `${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
+  const response = await fetchImpl(`${GITHUB_COMPARE_ORIGIN}/${repository}/compare/${request.baseSha}...${request.headSha}.diff`, {
+    method: "GET",
+    headers: { Accept: "text/plain", "User-Agent": "nusa-independent-audit-runner" },
+  });
+  if (response.status !== 200 || typeof response.text !== "function") throw new Error(`AUDIT_IMMUTABLE_DIFF_HTTP_${response.status}`);
+  const diff = await response.text();
+  if (!diff.trim()) throw new Error("AUDIT_DIFF_EMPTY");
+  if (diff.length > MAX_DIFF_CHARS) throw new Error("AUDIT_DIFF_TOO_LARGE");
+  const observedChangedFiles = (diff.match(/^diff --git /gm) ?? []).length;
+  if (observedChangedFiles <= 0 || observedChangedFiles > MAX_CHANGED_FILES) throw new Error("AUDIT_DIFF_FILE_COUNT_INVALID");
+  return diff;
+}
+
 function auditPrompt(request: AuditRunnerRequest, diff: string): string {
   return [
     "You are NUSA independent Audit. Review only; never propose or perform a mutation.",
@@ -332,14 +354,31 @@ function auditPrompt(request: AuditRunnerRequest, diff: string): string {
   ].join("\n");
 }
 
-export async function executeIndependentAudit(
+async function executeIndependentAuditInternal(
   request: AuditRunnerRequest,
   env: AuditRunnerEnv,
-  fetchImpl: FetchImpl = fetch as unknown as FetchImpl,
-  now: () => number = () => Date.now(),
+  fetchImpl: FetchImpl,
+  now: () => number,
+  allowCanonicalOidcEvidenceFallback: boolean,
 ): Promise<AuditRunnerResult> {
-  const beforeAudit = await verifyCurrentPullAndCi(request, fetchImpl);
-  const diff = await fetchPullDiff(request, beforeAudit.changedFiles, fetchImpl);
+  let beforeAudit: VerifiedPullEvidence | null = null;
+  let diff: string;
+  let usedImmutableFallback = false;
+
+  try {
+    beforeAudit = await verifyCurrentPullAndCi(request, fetchImpl);
+    diff = await fetchPullDiff(request, beforeAudit.changedFiles, fetchImpl);
+  } catch (error) {
+    if (!allowCanonicalOidcEvidenceFallback || !isAnonymousGithubEvidence403(error)) throw error;
+    // This fallback is reachable only after worker.ts verifies the canonical main
+    // repository_dispatch consumer's GitHub OIDC token. That workflow independently
+    // verifies PR/head/base/main/CI before calling the Worker and re-verifies them after
+    // the Worker returns. Fetch the immutable base...head diff here so anonymous GitHub
+    // REST throttling cannot make the independent model review unavailable.
+    diff = await fetchImmutableCompareDiff(request, fetchImpl);
+    usedImmutableFallback = true;
+  }
+
   if (!env.AI) throw new Error("AUDIT_AI_NOT_CONFIGURED");
   const model = env.NUSA_AI_AUDIT_MODEL?.trim() || DEFAULT_AUDIT_MODEL;
   const modelRequest = {
@@ -348,15 +387,23 @@ export async function executeIndependentAudit(
   };
   const modelResult = parseAuditModelResponse(await env.AI.run(model, modelRequest));
 
-  // Re-fetch exact PR/base/CI evidence after model review. A concurrent push, base movement, or
-  // evidence-shape change invalidates the verdict instead of attaching it to a different state.
-  const afterAudit = await verifyCurrentPullAndCi(request, fetchImpl);
-  if (afterAudit.changedFiles !== beforeAudit.changedFiles) throw new Error("AUDIT_PR_CHANGED_FILES_MOVED");
+  if (beforeAudit) {
+    try {
+      const afterAudit = await verifyCurrentPullAndCi(request, fetchImpl);
+      if (afterAudit.changedFiles !== beforeAudit.changedFiles) throw new Error("AUDIT_PR_CHANGED_FILES_MOVED");
+    } catch (error) {
+      if (!allowCanonicalOidcEvidenceFallback || !isAnonymousGithubEvidence403(error)) throw error;
+      usedImmutableFallback = true;
+      // The canonical GitHub Actions consumer performs the authoritative post-Audit
+      // PR/head/base/main re-verification before exposing trusted Release authority.
+    }
+  }
 
   const evidenceRefs = Object.freeze([
     `github:pull/${request.prNumber}@${request.headSha}`,
     `github:base/${request.baseSha}`,
     `github:actions/runs/${request.workflowRunId}`,
+    ...(usedImmutableFallback ? [`github:compare/${request.baseSha}...${request.headSha}`] : []),
   ]);
   const mergeAllowed = modelResult.verdict === "PASS" && modelResult.safetyInvariantResult === "PASS" && modelResult.blockers.length === 0;
   return Object.freeze({
@@ -378,4 +425,22 @@ export async function executeIndependentAudit(
     productionMutationAllowed: false,
     aiAuthority: "ZERO_AUTHORITY",
   });
+}
+
+export async function executeIndependentAudit(
+  request: AuditRunnerRequest,
+  env: AuditRunnerEnv,
+  fetchImpl: FetchImpl = fetch as unknown as FetchImpl,
+  now: () => number = () => Date.now(),
+): Promise<AuditRunnerResult> {
+  return executeIndependentAuditInternal(request, env, fetchImpl, now, false);
+}
+
+export async function executeOidcAuthorizedIndependentAudit(
+  request: AuditRunnerRequest,
+  env: AuditRunnerEnv,
+  fetchImpl: FetchImpl = fetch as unknown as FetchImpl,
+  now: () => number = () => Date.now(),
+): Promise<AuditRunnerResult> {
+  return executeIndependentAuditInternal(request, env, fetchImpl, now, true);
 }
