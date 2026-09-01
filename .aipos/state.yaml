@@ -1040,3 +1040,15 @@ latest_independent_audit_slice:
   scope: "Add an independent read-only Audit execution boundary for exact PR/head/base/CI evidence, strict verdict validation, GitHub OIDC authentication, bounded idempotency, and no coding/mutation path."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   remaining: "External Audit runner availability and credentials remain deployment evidence; no LIVE, broker, order, Git, or merge authority is granted to the Audit runner."
+
+latest_portfolio_risk_evidence_completeness_slice:
+  status: COMPLETED
+  base_commit: a7fd2f8a536d213ed5fe6e3f394096f427220fe5
+  implementation_branch: codex/portfolio-risk-evidence-fail-closed
+  implementation_head: 43488904544470c111ef648eda64268a6a4e47e9
+  pull_request: 1372
+  merge_commit: 91b245221e97c9ea0b1d1a8927e8a3e5c519f62c
+  scope: "Portfolio risk intelligence now rejects incomplete pairwise correlation evidence and invalid volatility/correlation inputs instead of treating unknown risk inputs as neutral."
+  validation: "Exact-head protected workflows passed: test, coverage, coverage shards, type/validation, Actual PAPER, Restricted LIVE, Read-only Broker, bridge, readiness, and safety guard workflows all succeeded."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  remaining: "Longitudinal PAPER evidence, real-account credentials/relay, Cloudflare runtime proof, physical-device acceptance, and human LIVE approval remain fail-closed."

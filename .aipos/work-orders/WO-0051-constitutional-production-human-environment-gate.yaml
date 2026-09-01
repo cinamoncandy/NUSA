@@ -231,3 +231,11 @@ latest_repository_safety_slice:
   evidence: "Focused zero-mark regression and exact-head CI passed; no authority, execution, credential, or LIVE boundary changed."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+latest_repository_portfolio_risk_evidence_slice:
+  status: COMPLETED
+  scope: "Reject missing pairwise correlations rather than assuming independence; reject non-finite, out-of-range correlations and invalid volatility before risk contribution calculation."
+  pull_request: 1372
+  implementation_head: 43488904544470c111ef648eda64268a6a4e47e9
+  merge_commit: 91b245221e97c9ea0b1d1a8927e8a3e5c519f62c
+  evidence: "Focused regression coverage and all observed exact-head protected workflows passed; no execution, credential, accounting, or LIVE boundary changed."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
