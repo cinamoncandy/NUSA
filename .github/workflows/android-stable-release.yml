@@ -1,16 +1,14 @@
 name: Android Stable Release
 
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
-    paths:
-      - ".github/android-release-source.txt"
-      - ".github/android-release-version.txt"
-      - ".github/workflows/android-stable-release.yml"
   workflow_dispatch:
     inputs:
       source_sha:
-        description: "Exact source commit SHA to release (blank = pointer file)"
+        description: "Exact source commit SHA to release (blank = current main)"
         required: false
         type: string
 
@@ -20,36 +18,146 @@ permissions:
 
 concurrency:
   group: android-stable-release
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
-  build-and-publish:
+  resolve:
+    name: Resolve stable promotion candidate
+    if: >-
+      ${{
+        github.event_name != 'workflow_run' ||
+        (
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.head_branch == 'main' &&
+          github.event.workflow_run.head_repository.full_name == github.repository
+        )
+      }}
     runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.release.outputs.release }}
+      sha: ${{ steps.release.outputs.sha }}
+      short_sha: ${{ steps.release.outputs.short_sha }}
+      version: ${{ steps.release.outputs.version }}
     steps:
       - name: Checkout release control plane
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
-      - name: Resolve exact release source and version
+      - name: Resolve exact CI-verified source and next version
         id: release
         env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
           DISPATCH_SHA: ${{ inputs.source_sha }}
+          WORKFLOW_RUN_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          SOURCE_SHA="${DISPATCH_SHA:-}"
-          if [ -z "$SOURCE_SHA" ]; then
-            SOURCE_SHA="$(tr -d '[:space:]' < .github/android-release-source.txt)"
+
+          POINTER_SHA="$(tr -d '[:space:]' < .github/android-release-source.txt)"
+          VERSION_FLOOR="$(tr -d '[:space:]' < .github/android-release-version.txt)"
+          printf '%s' "$POINTER_SHA" | grep -Eq '^[0-9a-fA-F]{40}$'
+          printf '%s' "$VERSION_FLOOR" | grep -Eq '^[0-9]+$'
+          test "$VERSION_FLOOR" -ge 102
+
+          if [ "$EVENT_NAME" = "workflow_run" ]; then
+            SOURCE_SHA="$WORKFLOW_RUN_SHA"
+          else
+            SOURCE_SHA="${DISPATCH_SHA:-}"
+            if [ -z "$SOURCE_SHA" ]; then
+              SOURCE_SHA="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+            fi
           fi
-          RELEASE_VERSION="$(tr -d '[:space:]' < .github/android-release-version.txt)"
           printf '%s' "$SOURCE_SHA" | grep -Eq '^[0-9a-fA-F]{40}$'
-          printf '%s' "$RELEASE_VERSION" | grep -Eq '^[0-9]+$'
-          test "$RELEASE_VERSION" -ge 102
-          git fetch --no-tags origin "$SOURCE_SHA"
-          git checkout --detach "$SOURCE_SHA"
-          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+
+          CURRENT_MAIN="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          if [ "$EVENT_NAME" = "workflow_run" ] && [ "$SOURCE_SHA" != "$CURRENT_MAIN" ]; then
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping stale CI result $SOURCE_SHA; current main is $CURRENT_MAIN."
+            exit 0
+          fi
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            CI_CONCLUSION="$(
+              gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SOURCE_SHA&status=completed&per_page=100" \
+                --jq '[.workflow_runs[] | select(.name == "CI")][0].conclusion // empty'
+            )"
+            if [ "$CI_CONCLUSION" != "success" ]; then
+              echo "::error::Exact source $SOURCE_SHA does not have a successful CI run."
+              exit 1
+            fi
+          fi
+
+          RELEASE_NAME="$(gh release view nusa-android --json name --jq '.name' 2>/dev/null || true)"
+          RELEASE_TARGET="$(gh release view nusa-android --json targetCommitish --jq '.targetCommitish' 2>/dev/null || true)"
+          CURRENT_VERSION="$(printf '%s' "$RELEASE_NAME" | sed -nE 's/^NUSA Android 1\.0\.([0-9]+)$/\1/p')"
+          if [ -z "$CURRENT_VERSION" ]; then
+            CURRENT_VERSION=0
+          fi
+
+          NEXT_VERSION=$((CURRENT_VERSION + 1))
+          if [ "$VERSION_FLOOR" -gt "$NEXT_VERSION" ]; then
+            RELEASE_VERSION="$VERSION_FLOOR"
+          else
+            RELEASE_VERSION="$NEXT_VERSION"
+          fi
+
+          if [ "$EVENT_NAME" = "workflow_run" ]; then
+            if [ "$RELEASE_TARGET" = "$SOURCE_SHA" ]; then
+              echo "release=false" >> "$GITHUB_OUTPUT"
+              echo "Stable release already targets $SOURCE_SHA."
+              exit 0
+            fi
+
+            if [ -n "$RELEASE_TARGET" ]; then
+              printf '%s' "$RELEASE_TARGET" | grep -Eq '^[0-9a-fA-F]{40}$' || {
+                echo "::error::Stable release target is not an exact commit SHA: $RELEASE_TARGET"
+                exit 1
+              }
+              git fetch --no-tags origin "$RELEASE_TARGET" "$SOURCE_SHA"
+              if git diff --quiet "$RELEASE_TARGET" "$SOURCE_SHA" -- \
+                apps/mobile \
+                scripts/prepare-mobile-build-config.js \
+                pnpm-lock.yaml \
+                pnpm-workspace.yaml \
+                package.json \
+                .github/workflows/android-stable-release.yml; then
+                echo "release=false" >> "$GITHUB_OUTPUT"
+                echo "No Android release-relevant changes since stable source $RELEASE_TARGET."
+                exit 0
+              fi
+            fi
+          fi
+
+          echo "release=true" >> "$GITHUB_OUTPUT"
           echo "sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
           echo "short_sha=${SOURCE_SHA:0:8}" >> "$GITHUB_OUTPUT"
+          echo "version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "Promoting exact source $SOURCE_SHA as Android stable 1.0.$RELEASE_VERSION."
+
+  build-and-publish:
+    name: Build and publish exact stable APK
+    needs: resolve
+    if: needs.resolve.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact release source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          fetch-depth: 0
+
+      - name: Bind resolved release metadata
+        id: release
+        env:
+          SOURCE_SHA: ${{ needs.resolve.outputs.sha }}
+          SHORT_SHA: ${{ needs.resolve.outputs.short_sha }}
+          RELEASE_VERSION: ${{ needs.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          echo "sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
           echo "version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Enable pnpm via Corepack
@@ -130,6 +238,19 @@ jobs:
           printf 'source_sha=%s\ncanonical_origin=%s\nconfig_mode=sealed\nversion_name=%s\nversion_code=%s\nui_marker=paper-learning-present\nchart_marker=market-chart-present\n' \
             "$EXPECTED_SHA" "$EXPECTED_ORIGIN" "$EXPECTED_VERSION_NAME" "$EXPECTED_VERSION" \
             > NUSA-Android.provenance.txt
+
+      - name: Verify source is still current main before publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ steps.release.outputs.sha }}
+        run: |
+          set -euo pipefail
+          CURRENT_MAIN="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          if [ "$CURRENT_MAIN" != "$EXPECTED_SHA" ]; then
+            echo "::error::Refusing stale Android publication. Built $EXPECTED_SHA but current main is $CURRENT_MAIN."
+            exit 1
+          fi
+          echo "Verified publication source is current main: $EXPECTED_SHA"
 
       - name: Prepare stable APK assets
         run: |
