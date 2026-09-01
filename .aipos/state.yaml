@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-09-01T09:15:42.892+09:00"
+updated_at: "2026-09-01T09:27:26.482+09:00"
 current_execution_target:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -1004,3 +1004,15 @@ latest_mobile_safety_slice:
   scope: "Close the legacy mobile home projection safety gap by keeping canTrade PAPER-only; LIVE mode no longer implies production trading authority even when AI and risk inputs are favorable."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   remaining: "No LIVE activation or production mutation capability was added; physical-device acceptance and external runtime evidence remain separate HUMAN_ENVIRONMENT_ONLY gates."
+
+latest_portfolio_risk_bridge_slice:
+  status: COMPLETED
+  base_commit: 5b68e4710720eef97ccd35e0ee092193d2f6053a
+  implementation_branch: feat/portfolio-risk-from-trading-snapshot
+  implementation_head: 30fe8e6f51aefacc03247627d31019957e4b7310
+  pull_request: 1366
+  merge_commit: 2c04e7e9611308735a813579620c6c1c62beeeca
+  exact_head_ci: "7/7 PASS (CI 33454398865; Mobile Native 33454398900; Actual PAPER 33454398836; protected workflows on exact head)"
+  scope: "Bridge the existing multi-position TradingSnapshot into the canonical portfolioRiskIntelligence summary with explicit unavailable-price omission; no fabricated price, capital deployment, broker mutation, or LIVE authority."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  remaining: "Rendering the multi-position risk summary in a mobile surface is a separate UI slice; this bridge does not alter accounting or execution."
