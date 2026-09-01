@@ -20,6 +20,10 @@ function safeRunPart(value, name) {
   return String(value);
 }
 
+function object(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value : null;
+}
+
 export function createDeliveryId({ repository, event, runId, runAttempt }) {
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(String(repository ?? ""))) throw new Error("GITHUB_REPOSITORY_INVALID");
   const normalizedEvent = safeEventName(event);
@@ -89,6 +93,15 @@ async function responseSafety(response) {
   return payload;
 }
 
+export function isAuditFallbackEligible(payload) {
+  const value = object(payload);
+  const execution = object(value?.execution);
+  const executor = object(value?.executor);
+  return execution?.kind === "AUDIT_REQUEST" &&
+    executor?.status === "INTERFACE_READY" &&
+    executor?.reason === "github-executor-token-not-configured";
+}
+
 export async function dispatchGithubEvent({
   secret,
   oidcToken,
@@ -145,8 +158,16 @@ export async function dispatchGithubEvent({
     }
     const classification = responseClass(response.status);
     if (classification === "SUCCESS") {
-      await responseSafety(response);
-      return Object.freeze({ status: "DELIVERED", authentication, event: normalizedEvent, deliveryId, attempts: attempts + 1, responseStatus: response.status });
+      const payload = await responseSafety(response);
+      return Object.freeze({
+        status: "DELIVERED",
+        authentication,
+        event: normalizedEvent,
+        deliveryId,
+        attempts: attempts + 1,
+        responseStatus: response.status,
+        auditFallbackEligible: isAuditFallbackEligible(payload),
+      });
     }
     if (classification !== "TRANSIENT_FAILURE" || attempts + 1 >= MAX_ATTEMPTS) {
       throw new Error(`WEBHOOK_HTTP_${response.status}`);
@@ -166,6 +187,7 @@ function summaryLine(result) {
     `- delivery: ${result.deliveryId}`,
     `- attempts: ${result.attempts}`,
     `- response: ${result.responseStatus ?? "none"}`,
+    `- audit fallback eligible: ${result.auditFallbackEligible === true ? "true" : "false"}`,
     "- liveAuthority: NONE",
     "- productionMutationAllowed: false",
     "- AI authority: ZERO_AUTHORITY",
@@ -175,6 +197,12 @@ function summaryLine(result) {
 function writeSummary(result) {
   const destination = process.env.GITHUB_STEP_SUMMARY;
   if (destination) fs.appendFileSync(destination, `${summaryLine(result)}\n`);
+}
+
+function writeOutputs(result) {
+  const destination = process.env.GITHUB_OUTPUT;
+  if (!destination) return;
+  fs.appendFileSync(destination, `audit_fallback_eligible=${result.auditFallbackEligible === true ? "true" : "false"}\n`);
 }
 
 async function main() {
@@ -197,6 +225,7 @@ async function main() {
     webhookUrl: process.env.NUSA_AUTOPILOT_WEBHOOK_URL || DEFAULT_WEBHOOK_URL,
   });
   writeSummary(result);
+  writeOutputs(result);
   console.log(JSON.stringify(result));
 }
 
