@@ -24,6 +24,17 @@ describe("resolveOpenPullRequestByHeadSha", () => {
     assert.deepEqual(result, { resolved: true, prNumber: 42, reason: "resolved-unique-open-pr-at-exact-head" });
   });
 
+  it("uses the fixed canonical GitHub API origin and repository path", async () => {
+    let requestUrl = "";
+    const fetchImpl = (async (input: unknown) => {
+      requestUrl = String(input);
+      return { ok: true, status: 200, json: async () => [{ number: 42, state: "open", head: { sha: HEAD } }] };
+    }) as unknown as typeof fetch;
+    const result = await resolveOpenPullRequestByHeadSha(HEAD, config({ fetchImpl }));
+    assert.equal(result.resolved, true);
+    assert.equal(requestUrl, `https://api.github.com/repos/cinamoncandy/NUSA/commits/${HEAD}/pulls`);
+  });
+
   it("fails closed when no PR is returned at all", async () => {
     const fetchImpl = fakeFetch(200, []);
     const result = await resolveOpenPullRequestByHeadSha(HEAD, config({ fetchImpl }));
