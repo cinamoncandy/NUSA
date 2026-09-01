@@ -47,6 +47,7 @@ export * from "./researchHypothesisContract";
 export * from "./portfolioRiskIntelligence";
 export * from "./aiEvaluationTemporalPartition";
 export * from "./aiEvaluationDependenceGroups";
+export * from "./aiEvaluationMultipleTestingCorrection";
 
 export enum LedgerSide { BUY = "BUY", SELL = "SELL" }
 export enum PositionScopeType { WALLET = "WALLET", STRATEGY = "STRATEGY" }
