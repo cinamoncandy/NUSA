@@ -23,7 +23,18 @@ export interface CodingRunnerEnv {
 }
 
 export interface WorkersAiBinding {
-  run(model: string, input: { prompt: string }): Promise<unknown>;
+  run(model: string, input: {
+    prompt: string;
+    response_format?: {
+      type: "json_schema";
+      json_schema: {
+        type: "object";
+        properties: { patch: { type: "string" } };
+        required: readonly ["patch"];
+        additionalProperties: false;
+      };
+    };
+  }): Promise<unknown>;
 }
 
 export interface CodingProposal {
@@ -194,8 +205,22 @@ function parseProposalText(value: string): CodingProposal {
 
 function workersAiProposal(value: unknown): CodingProposal {
   const payload = object(value);
-  if (typeof payload.response !== "string" || !payload.response.trim()) throw new Error("CODING_PROPOSAL_RESPONSE_INVALID");
-  return parseProposalText(payload.response);
+  if (typeof payload.response === "string") {
+    if (!payload.response.trim()) throw new Error("CODING_PROPOSAL_RESPONSE_INVALID");
+    return parseProposalText(payload.response);
+  }
+  // Workers AI JSON mode returns the schema object directly under `response`,
+  // while non-JSON text mode returns a string. Validate both shapes without
+  // accepting any unstructured or authority-bearing fields.
+  if (payload.response && typeof payload.response === "object" && !Array.isArray(payload.response)) {
+    try {
+      return validateCodingProposal(payload.response);
+    } catch (error) {
+      if (error instanceof Error && error.message === "CODING_PROPOSAL_PATCH_REQUIRED") throw error;
+      throw new Error("CODING_PROPOSAL_SHAPE_INVALID");
+    }
+  }
+  throw new Error("CODING_PROPOSAL_RESPONSE_INVALID");
 }
 
 // A configured external coding engine is expected to return the patch-only contract directly
@@ -309,8 +334,32 @@ function codingProposalPrompt(request: CodingRunnerRequest): string {
   ].join("\n");
 }
 
-function workersAiCodingRequest(request: CodingRunnerRequest, model: string): { model: string; prompt: string } {
-  return { model, prompt: codingProposalPrompt(request) };
+function workersAiCodingRequest(request: CodingRunnerRequest, model: string): {
+  model: string;
+  prompt: string;
+  response_format: {
+    type: "json_schema";
+    json_schema: {
+      type: "object";
+      properties: { patch: { type: "string" } };
+      required: readonly ["patch"];
+      additionalProperties: false;
+    };
+  };
+} {
+  return {
+    model,
+    prompt: codingProposalPrompt(request),
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        type: "object",
+        properties: { patch: { type: "string" } },
+        required: ["patch"],
+        additionalProperties: false,
+      },
+    },
+  };
 }
 
 function validWorkersAiModel(value: string): boolean {
