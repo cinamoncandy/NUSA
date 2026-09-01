@@ -28,6 +28,10 @@ export type EvidenceSufficiencyResult =
   | { readonly sufficient: true }
   | { readonly sufficient: false; readonly reasons: readonly ("INSUFFICIENT_EFFECTIVE_SAMPLE_SIZE" | "INSUFFICIENT_OBSERVATION_WINDOW" | "INVALID_POLICY" | "INVALID_INPUT")[] };
 
+function isNonNegativeSafeInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
 function isNonNegativeFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
@@ -40,13 +44,13 @@ function policyIsWellFormed(policy: MinimumEvidencePolicy): boolean {
 /**
  * Decides whether a metric computed from `input` has enough evidence to report a value under a
  * frozen `policy`, or must abstain as INSUFFICIENT_EVIDENCE. Fails closed: a malformed policy or
- * malformed input (negative/non-finite sample size or window) is treated as insufficient, never
- * as passing by default. Both conditions are checked and every failing reason is reported, so a
- * caller does not have to guess which threshold was missed.
+ * malformed input (fractional/negative/non-finite sample size or negative/non-finite window) is
+ * treated as insufficient, never as passing by default. Both conditions are checked and every
+ * failing reason is reported, so a caller does not have to guess which threshold was missed.
  */
 export function evaluateEvidenceSufficiency(input: EvidenceSufficiencyInput, policy: MinimumEvidencePolicy): EvidenceSufficiencyResult {
   if (!policyIsWellFormed(policy)) return { sufficient: false, reasons: ["INVALID_POLICY"] };
-  if (!isNonNegativeFiniteNumber(input.effectiveSampleSize) || !isNonNegativeFiniteNumber(input.observedWindowMs)) {
+  if (!isNonNegativeSafeInteger(input.effectiveSampleSize) || !isNonNegativeFiniteNumber(input.observedWindowMs)) {
     return { sufficient: false, reasons: ["INVALID_INPUT"] };
   }
 
