@@ -38,6 +38,7 @@ const EXIT_EVENT_TYPES: readonly UniverseMembershipEventType[] = ["REMOVED", "DE
 function eventHistoryIsWellFormed(events: readonly UniverseMembershipEvent[]): boolean {
   if (events.length === 0) return false;
   const ids = new Set<string>();
+  const symbolTimes = new Set<string>();
   for (const event of events) {
     if (typeof event.eventId !== "string" || !event.eventId.trim()) return false;
     if (typeof event.symbol !== "string" || !event.symbol.trim()) return false;
@@ -46,6 +47,9 @@ function eventHistoryIsWellFormed(events: readonly UniverseMembershipEvent[]): b
     if (event.type === "SYMBOL_CHANGED" && (typeof event.renamedTo !== "string" || !event.renamedTo.trim())) return false;
     if (ids.has(event.eventId)) return false;
     ids.add(event.eventId);
+    const symbolTime = `${event.symbol}\u0000${event.effectiveAt}`;
+    if (symbolTimes.has(symbolTime)) return false;
+    symbolTimes.add(symbolTime);
   }
   return true;
 }
@@ -56,7 +60,9 @@ function eventHistoryIsWellFormed(events: readonly UniverseMembershipEvent[]): b
  * invalid `asOf` is treated as non-membership, never as membership by default. The symbol is a
  * member iff it has an ADDED event at or before `asOf` and no exit event (REMOVED, DELISTED,
  * MERGED, BANKRUPT, SYMBOL_CHANGED) at or before `asOf` that is later than its most recent ADDED
- * event -- this allows re-adds after a prior removal to be handled correctly.
+ * event -- this allows re-adds after a prior removal to be handled correctly. Multiple events for
+ * the same symbol at the same effective time are rejected as ambiguous rather than resolved by
+ * input ordering.
  */
 export function resolveUniverseMembership(
   symbol: string,
