@@ -80,7 +80,7 @@
   .nusa-bottom-nav button { min-width:0; padding:0 var(--space-4); font-size:var(--font-size-caption); white-space:nowrap; }
 }
 @media (max-width:640px) {
-  .nusa-header-meta>:not(.nusa-badge--real) { display:none; }
+  .nusa-header-meta>[data-updated] { display:none; }
   .nusa-page-head { align-items:flex-start; flex-direction:column; }
   .nusa-grid { display:block; }
   .nusa-card { margin-bottom:var(--space-12); padding:var(--space-16); }
