@@ -19,6 +19,7 @@ export type MarketSeriesIdentityValidation =
   | { readonly valid: false; readonly errors: readonly string[] };
 
 const isTimestamp = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+const isNonBlankString = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
 
 export function validateMarketSeriesIdentity(points: readonly MarketSeriesPoint[]): MarketSeriesIdentityValidation {
   if (points.length === 0) return { valid: false, errors: ["EMPTY_SERIES"] };
@@ -30,8 +31,10 @@ export function validateMarketSeriesIdentity(points: readonly MarketSeriesPoint[
   const seenTimestamps = new Set<number>();
 
   for (const point of points) {
-    if (point.seriesId !== seriesId) errors.add("MIXED_SERIES_ID");
-    if (point.symbol !== symbol) errors.add("MIXED_SYMBOL");
+    if (!isNonBlankString(point.seriesId)) errors.add("INVALID_SERIES_ID");
+    else if (point.seriesId !== seriesId) errors.add("MIXED_SERIES_ID");
+    if (!isNonBlankString(point.symbol)) errors.add("INVALID_SYMBOL");
+    else if (point.symbol !== symbol) errors.add("MIXED_SYMBOL");
     if (point.adjustment !== adjustment) errors.add("MIXED_ADJUSTMENT_TYPE");
     if (!isTimestamp(point.timestamp)) errors.add("INVALID_TIMESTAMP");
     else if (seenTimestamps.has(point.timestamp)) errors.add("DUPLICATE_TIMESTAMP");
