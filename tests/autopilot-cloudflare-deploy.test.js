@@ -10,9 +10,8 @@ test("Cloudflare deployment recovers after a CI-only repair merge", () => {
   assert.match(workflow, /github\.event\.workflow_run\.head_sha/);
   assert.match(workflow, /Determine whether Worker deployment is needed/);
   assert.match(workflow, /deploymentRevision/);
-  assert.match(workflow, /git diff --quiet .*apps\/autopilot/);
-  assert.match(workflow, /previous_deployment/);
-  assert.match(workflow, /previous Cloudflare deployment failed/);
+  assert.match(workflow, /Container rollout stay atomically aligned/);
+  assert.doesNotMatch(workflow, /git diff --quiet .*apps\/autopilot/);
   assert.match(workflow, /CLOUDFLARE_API_TOKEN/);
   assert.match(workflow, /--containers-rollout=immediate/);
   assert.match(workflow, /liveAuthority=NONE/);
