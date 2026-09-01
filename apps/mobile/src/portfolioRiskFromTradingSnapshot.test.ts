@@ -73,6 +73,14 @@ describe("buildPortfolioRiskSummaryFromTradingSnapshot", () => {
     assert.throws(() => buildPortfolioRiskSummaryFromTradingSnapshot(snapshot([]), -1, () => null));
   });
 
+  it("treats a zero mark price as unavailable rather than zero-valuing a position", () => {
+    const trading = snapshot([{ market: "BTC-USD", quantity: 1, averageEntryPrice: 50_000 }]);
+    const result = buildPortfolioRiskSummaryFromTradingSnapshot(trading, 1_000, () => 0);
+    assert.deepEqual(result.droppedMarkets, ["BTC-USD"]);
+    assert.equal(result.summary.equity, 1_000);
+    assert.ok(result.summary.insufficientEvidenceReasons.includes("NO_ASSETS"));
+  });
+
   it("ignores a negative mark price for a market, treating it as unavailable", () => {
     const trading = snapshot([{ market: "BTC-USD", quantity: 1, averageEntryPrice: 50_000 }]);
     const result = buildPortfolioRiskSummaryFromTradingSnapshot(trading, 0, () => -1);
