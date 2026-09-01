@@ -122,6 +122,38 @@ function computeRiskContributions(
     reasons.push(`VOLATILITY_MISSING:${missingVolatility.map((asset) => asset.market).join(",")}`);
     return { contributions: null, portfolioVolatility: null, maxCorrelation: null };
   }
+
+  const invalidVolatility = assets.filter((asset) => {
+    const value = volatility[asset.market];
+    return !Number.isFinite(value) || value < 0;
+  });
+  if (invalidVolatility.length > 0) {
+    reasons.push(`VOLATILITY_INVALID:${invalidVolatility.map((asset) => asset.market).join(",")}`);
+    return { contributions: null, portfolioVolatility: null, maxCorrelation: null };
+  }
+
+  const missingCorrelations: string[] = [];
+  const invalidCorrelations: string[] = [];
+  for (let i = 0; i < assets.length; i += 1) {
+    for (let j = i + 1; j < assets.length; j += 1) {
+      const key = correlationKey(assets[i].market, assets[j].market);
+      const value = correlations[key];
+      if (value === undefined) {
+        missingCorrelations.push(key);
+      } else if (!Number.isFinite(value) || value < -1 || value > 1) {
+        invalidCorrelations.push(key);
+      }
+    }
+  }
+  if (missingCorrelations.length > 0) {
+    reasons.push(`CORRELATION_MISSING:${missingCorrelations.join(",")}`);
+    return { contributions: null, portfolioVolatility: null, maxCorrelation: null };
+  }
+  if (invalidCorrelations.length > 0) {
+    reasons.push(`CORRELATION_INVALID:${invalidCorrelations.join(",")}`);
+    return { contributions: null, portfolioVolatility: null, maxCorrelation: null };
+  }
+
   if (equity <= 0) {
     reasons.push("EQUITY_NON_POSITIVE");
     return { contributions: null, portfolioVolatility: null, maxCorrelation: null };
@@ -136,7 +168,7 @@ function computeRiskContributions(
     for (let j = 0; j < assets.length; j += 1) {
       const volatilityI = volatility[assets[i].market];
       const volatilityJ = volatility[assets[j].market];
-      const correlation = i === j ? 1 : (correlations[correlationKey(assets[i].market, assets[j].market)] ?? 0);
+      const correlation = i === j ? 1 : correlations[correlationKey(assets[i].market, assets[j].market)];
       if (i !== j) {
         if (maxCorrelation === null || Math.abs(correlation) > Math.abs(maxCorrelation)) maxCorrelation = correlation;
       }
