@@ -1052,3 +1052,15 @@ latest_portfolio_risk_evidence_completeness_slice:
   validation: "Exact-head protected workflows passed: test, coverage, coverage shards, type/validation, Actual PAPER, Restricted LIVE, Read-only Broker, bridge, readiness, and safety guard workflows all succeeded."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   remaining: "Longitudinal PAPER evidence, real-account credentials/relay, Cloudflare runtime proof, physical-device acceptance, and human LIVE approval remain fail-closed."
+
+latest_portfolio_risk_drawdown_validation_slice:
+  status: COMPLETED
+  base_commit: 5d2a907067771eecec612ec3151db2a5186b64c9
+  implementation_branch: codex/portfolio-risk-drawdown-validation
+  implementation_head: 9cab25b013301e8652a333d861a76047c0211d10
+  pull_request: 1374
+  merge_commit: 7eaf4814c05c1c76a940205b187099c4b6a6dc75
+  scope: "Portfolio drawdown now rejects non-finite, negative, or no-positive-base equity curves rather than emitting NaN or fabricated drawdown."
+  validation: "Exact-head workflow checks passed: test, coverage, coverage shards, validation, Actual PAPER, Restricted LIVE, Read-only Broker, bridge, readiness, safety guard, and rehearsal all succeeded."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  remaining: "Longitudinal PAPER evidence, real-account credentials/relay, Cloudflare runtime proof, physical-device acceptance, and human LIVE approval remain fail-closed."
