@@ -28,9 +28,10 @@ function response(status: number, payload: unknown, textValue?: string) {
   };
 }
 
-function pull(headSha = HEAD, baseSha = BASE) {
+function pull(headSha = HEAD, baseSha = BASE, changedFiles = 1) {
   return {
     state: "open",
+    changed_files: changedFiles,
     head: { sha: headSha, repo: { full_name: "cinamoncandy/NUSA" } },
     base: { sha: baseSha },
   };
@@ -112,11 +113,21 @@ test("fails closed when canonical CI is bound to another head or run", async () 
   );
 });
 
+test("fails closed when GitHub diff evidence does not cover every changed file", async () => {
+  const model = ai({ response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS" }) });
+  await assert.rejects(
+    executeIndependentAudit(request, { AI: model }, fetchSequence({ firstPull: pull(HEAD, BASE, 2), secondPull: pull(HEAD, BASE, 2) }) as never),
+    /AUDIT_DIFF_FILE_COUNT_MISMATCH/,
+  );
+});
+
 test("strict verdict schema rejects malformed, mutation-shaped, and inconsistent responses", () => {
   assert.throws(() => validateAuditModelVerdict({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", patch: "diff" }), /AUDIT_VERDICT_KEYS_INVALID/);
   assert.throws(() => validateAuditModelVerdict({ verdict: "PASS", findings: [{ code: "NOTE", severity: "NOTE", message: "note", evidenceRef: null }], blockers: [], safetyInvariantResult: "PASS" }), /AUDIT_VERDICT_PASS_FINDINGS_FORBIDDEN/);
   assert.throws(() => validateAuditModelVerdict({ verdict: "PASS_WITH_NOTES", findings: [], blockers: ["blocker"], safetyInvariantResult: "PASS" }), /AUDIT_VERDICT_BLOCKERS_REQUIRE_FAIL/);
-  assert.throws(() => validateAuditModelVerdict({ verdict: "PASS_WITH_NOTES", findings: [], blockers: [], safetyInvariantResult: "FAIL" }), /AUDIT_VERDICT_SAFETY_REQUIRES_FAIL/);
+  assert.throws(() => validateAuditModelVerdict({ verdict: "PASS_WITH_NOTES", findings: [], blockers: [], safetyInvariantResult: "PASS" }), /AUDIT_VERDICT_NOTES_REQUIRED/);
+  assert.throws(() => validateAuditModelVerdict({ verdict: "PASS_WITH_NOTES", findings: [{ code: "NOTE", severity: "NOTE", message: "note", evidenceRef: null }], blockers: [], safetyInvariantResult: "FAIL" }), /AUDIT_VERDICT_SAFETY_REQUIRES_FAIL/);
+  assert.throws(() => validateAuditModelVerdict({ verdict: "FAIL", findings: [], blockers: [], safetyInvariantResult: "FAIL" }), /AUDIT_VERDICT_FAIL_BLOCKER_REQUIRED/);
 });
 
 test("safety regression is preserved as FAIL and cannot become merge allowed", async () => {
@@ -143,7 +154,7 @@ test("detects PR head movement after model review", async () => {
   );
 });
 
-test("returns exact-head PASS_WITH_NOTES evidence without mutation authority", async () => {
+test("returns exact-head PASS_WITH_NOTES evidence but does not auto-authorize merge", async () => {
   const model = ai({
     response: "```json\n" + JSON.stringify({
       verdict: "PASS_WITH_NOTES",
@@ -155,7 +166,7 @@ test("returns exact-head PASS_WITH_NOTES evidence without mutation authority", a
   const result = await executeIndependentAudit(request, { AI: model }, fetchSequence() as never, () => 5678);
   assert.equal(result.status, "AUDIT_COMPLETED");
   assert.equal(result.verdict, "PASS_WITH_NOTES");
-  assert.equal(result.mergeAllowed, true);
+  assert.equal(result.mergeAllowed, false);
   assert.equal(result.reviewedHeadSha, HEAD);
   assert.equal(result.baseSha, BASE);
   assert.equal(result.workflowRunId, request.workflowRunId);
