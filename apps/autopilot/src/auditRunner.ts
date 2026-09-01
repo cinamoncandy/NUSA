@@ -199,8 +199,46 @@ async function githubJson(url: string, fetchImpl: FetchImpl): Promise<Record<str
   return object(await response.json(), "AUDIT_GITHUB_EVIDENCE_INVALID");
 }
 
+async function githubArray(url: string, fetchImpl: FetchImpl): Promise<readonly unknown[]> {
+  const response = await fetchImpl(url, { method: "GET", headers: githubHeaders() });
+  if (response.status !== 200) throw new Error(`AUDIT_GITHUB_EVIDENCE_HTTP_${response.status}`);
+  const payload = await response.json();
+  if (!Array.isArray(payload)) throw new Error("AUDIT_GITHUB_EVIDENCE_INVALID");
+  return payload;
+}
+
 function nested(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+async function verifyCanonicalCiPullRequestBinding(
+  request: AuditRunnerRequest,
+  repository: string,
+  run: Record<string, unknown>,
+  fetchImpl: FetchImpl,
+): Promise<void> {
+  const pullNumbers = Array.isArray(run.pull_requests)
+    ? run.pull_requests.map((entry) => nested(entry)?.number).filter((number): number is number => Number.isSafeInteger(number) && Number(number) > 0)
+    : [];
+  const distinctPullNumbers = [...new Set(pullNumbers)];
+  if (distinctPullNumbers.length === 1 && distinctPullNumbers[0] === request.prNumber) return;
+
+  // GitHub can legitimately emit workflow_run.pull_requests=[] for a PR CI run. Re-resolve the
+  // identity from the exact immutable CI head instead of treating the array as authoritative. The
+  // fallback is deliberately strict: exactly one currently-open PR in the canonical base repo may
+  // point at the exact requested head, otherwise Audit stops without guessing.
+  const candidates = await githubArray(`${GITHUB_API_ORIGIN}/repos/${repository}/commits/${request.headSha}/pulls`, fetchImpl);
+  const matches = candidates.filter((entry) => {
+    const candidate = nested(entry);
+    const head = nested(candidate?.head);
+    const base = nested(candidate?.base);
+    return candidate?.state === "open"
+      && typeof head?.sha === "string"
+      && head.sha.toLowerCase() === request.headSha
+      && nested(base?.repo)?.full_name === request.repository;
+  });
+  if (matches.length !== 1) throw new Error("AUDIT_CI_PR_IDENTITY_UNRESOLVED");
+  if (nested(matches[0])?.number !== request.prNumber) throw new Error("AUDIT_CI_PR_MISMATCH");
 }
 
 async function verifyCurrentPullAndCi(request: AuditRunnerRequest, fetchImpl: FetchImpl): Promise<VerifiedPullEvidence> {
@@ -210,7 +248,7 @@ async function verifyCurrentPullAndCi(request: AuditRunnerRequest, fetchImpl: Fe
   const base = nested(pull.base);
   if (pull.state !== "open") throw new Error("AUDIT_PR_NOT_OPEN");
   if (typeof head?.sha !== "string" || head.sha.toLowerCase() !== request.headSha) throw new Error("AUDIT_PR_HEAD_MISMATCH");
-  if (nested(head?.repo)?.full_name !== request.repository) throw new Error("AUDIT_PR_HEAD_REPOSITORY_MISMATCH");
+  if (nested(base?.repo)?.full_name !== request.repository) throw new Error("AUDIT_PR_BASE_REPOSITORY_MISMATCH");
   if (typeof base?.sha !== "string" || base.sha.toLowerCase() !== request.baseSha) throw new Error("AUDIT_PR_BASE_MISMATCH");
   if (!Number.isSafeInteger(pull.changed_files) || Number(pull.changed_files) <= 0 || Number(pull.changed_files) > MAX_CHANGED_FILES) throw new Error("AUDIT_PR_CHANGED_FILES_INVALID");
 
@@ -221,10 +259,7 @@ async function verifyCurrentPullAndCi(request: AuditRunnerRequest, fetchImpl: Fe
   if (run.status !== "completed" || run.conclusion !== "success") throw new Error("AUDIT_CI_NOT_SUCCESSFUL");
   if (typeof run.head_sha !== "string" || run.head_sha.toLowerCase() !== request.headSha) throw new Error("AUDIT_CI_HEAD_MISMATCH");
   if (nested(run.repository)?.full_name !== request.repository) throw new Error("AUDIT_CI_REPOSITORY_MISMATCH");
-  const pullNumbers = Array.isArray(run.pull_requests)
-    ? run.pull_requests.map((entry) => nested(entry)?.number).filter((number): number is number => Number.isSafeInteger(number))
-    : [];
-  if (!pullNumbers.includes(request.prNumber)) throw new Error("AUDIT_CI_PR_MISMATCH");
+  await verifyCanonicalCiPullRequestBinding(request, repository, run, fetchImpl);
   return Object.freeze({ changedFiles: Number(pull.changed_files) });
 }
 
