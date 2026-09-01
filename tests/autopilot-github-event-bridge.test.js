@@ -12,6 +12,7 @@ const safetyPayload = (extra = {}) => ({
   liveAuthority: "NONE",
   productionMutationAllowed: false,
   aiAuthority: "ZERO_AUTHORITY",
+  executor: { status: "NOOP", reason: "no-action", httpStatus: null },
   ...extra,
 });
 const safetyResponse = (extra = {}) => new Response(JSON.stringify(safetyPayload(extra)), { status: 202, headers: { "content-type": "application/json" } });
@@ -55,9 +56,7 @@ test("pull_request_target is delivered as the canonical pull_request event", asy
   });
   assert.equal(result.status, "DELIVERED");
   assert.equal(result.auditFallbackEligible, false);
-  assert.equal(result.executorStatus, null);
-  assert.equal(result.executorReason, null);
-  assert.equal(result.executorHttpStatus, null);
+  assert.equal(result.executorStatus, "NOOP");
   assert.equal(request.url, "https://autopilot.example.test/github/webhook");
   assert.equal(request.init.method, "POST");
   assert.equal(request.init.headers["x-github-event"], "pull_request");
@@ -129,6 +128,7 @@ test("transient delivery failures retry once while authentication failures fail 
   assert.equal(retried.status, "DELIVERED");
   assert.equal(retried.attempts, 2);
   assert.equal(retried.auditFallbackEligible, false);
+  assert.equal(retried.executorStatus, "NOOP");
 
   await assert.rejects(() => dispatchGithubEvent({
     secret: "bridge-test-secret",
@@ -157,6 +157,69 @@ test("a successful HTTP response with unsafe authority metadata is rejected", as
   }), /WEBHOOK_RESPONSE_LIVE_AUTHORITY_INVALID/);
 });
 
+test("surfaces safe executor outcome and exact-head evidence", async () => {
+  const headSha = "a".repeat(40);
+  const result = await dispatchGithubEvent({
+    secret: "bridge-test-secret",
+    body,
+    event: "workflow_run",
+    repository: "cinamoncandy/NUSA",
+    runId: "19",
+    runAttempt: "1",
+    fetchImpl: async () => new Response(JSON.stringify(safetyPayload({
+      execution: { kind: "AUDIT_REQUEST" },
+      executor: {
+        status: "DISPATCHED",
+        reason: "github-repository-dispatch-accepted",
+        httpStatus: 204,
+        requestedHeadSha: headSha,
+        observedHeadSha: headSha,
+      },
+    })), { status: 202 }),
+    retryDelayMs: 0,
+    timeoutMs: 100,
+  });
+  assert.equal(result.executorStatus, "DISPATCHED");
+  assert.equal(result.executorReason, "github-repository-dispatch-accepted");
+  assert.equal(result.executorHttpStatus, 204);
+  assert.equal(result.requestedHeadSha, headSha);
+  assert.equal(result.observedHeadSha, headSha);
+  assert.equal(result.auditFallbackEligible, false);
+});
+
+test("rejects malformed executor evidence at the bridge boundary", async () => {
+  await assert.rejects(() => dispatchGithubEvent({
+    secret: "bridge-test-secret",
+    body,
+    event: "workflow_run",
+    repository: "cinamoncandy/NUSA",
+    runId: "17",
+    runAttempt: "1",
+    fetchImpl: async () => new Response(JSON.stringify(safetyPayload({
+      executor: { status: "FAILED", reason: "bad reason with spaces", httpStatus: 401 },
+    })), { status: 202 }),
+    retryDelayMs: 0,
+    timeoutMs: 100,
+  }), /WEBHOOK_EXECUTOR_REASON_INVALID/);
+});
+
+test("fails closed when an Audit request is accepted without a dispatch or approved credential fallback", async () => {
+  await assert.rejects(() => dispatchGithubEvent({
+    secret: "bridge-test-secret",
+    body,
+    event: "workflow_run",
+    repository: "cinamoncandy/NUSA",
+    runId: "18",
+    runAttempt: "1",
+    fetchImpl: async () => new Response(JSON.stringify(safetyPayload({
+      execution: { kind: "AUDIT_REQUEST" },
+      executor: { status: "FAILED", reason: "github-executor-http-500", httpStatus: 500 },
+    })), { status: 202 }),
+    retryDelayMs: 0,
+    timeoutMs: 100,
+  }), /WEBHOOK_AUDIT_NOT_DISPATCHED:FAILED:github-executor-http-500:500/);
+});
+
 test("the primary bridge remains read-only and fallback write authority is isolated", () => {
   const normalized = workflow.replace(/\r\n/g, "\n");
   const bridgeStart = normalized.indexOf("  bridge:\n");
@@ -174,6 +237,7 @@ test("the primary bridge remains read-only and fallback write authority is isola
   assert.doesNotMatch(normalized, /actions: write/);
   assert.doesNotMatch(normalized, /pull-requests: write/);
   assert.doesNotMatch(normalized, /NUSA_GITHUB_TOKEN/);
+  assert.doesNotMatch(normalized, /NUSA_AUTOPILOT_HEALTH_URL/);
   assert.doesNotMatch(normalized, /LIVE|ACTIVE/);
 
   assert.match(bridgeJob, /outputs:\s*\n\s*audit_fallback_eligible: \$\{\{ steps\.deliver\.outputs\.audit_fallback_eligible \}\}/);

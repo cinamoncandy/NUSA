@@ -6,6 +6,11 @@ const safePayload = {
   liveAuthority: "NONE",
   productionMutationAllowed: false,
   aiAuthority: "ZERO_AUTHORITY",
+  executor: {
+    status: "DISPATCHED",
+    reason: "github-repository-dispatch-accepted",
+    httpStatus: 204,
+  },
 };
 
 describe("Autopilot GitHub Event Bridge OIDC dispatch", () => {
@@ -45,6 +50,7 @@ describe("Autopilot GitHub Event Bridge OIDC dispatch", () => {
     });
     assert.equal(result.status, "DELIVERED");
     assert.equal(result.authentication, "OIDC");
+    assert.equal(result.executorStatus, "DISPATCHED");
     assert.equal(headers.authorization, "Bearer short-lived-oidc");
     assert.equal("x-hub-signature-256" in headers, false);
   });

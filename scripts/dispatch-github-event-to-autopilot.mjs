@@ -30,14 +30,6 @@ function object(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value) ? value : null;
 }
 
-function safeExecutorEvidence(payload) {
-  const executor = object(object(payload)?.executor);
-  const status = typeof executor?.status === "string" ? executor.status : null;
-  const reason = typeof executor?.reason === "string" ? executor.reason : null;
-  const httpStatus = Number.isSafeInteger(executor?.httpStatus) ? executor.httpStatus : null;
-  return Object.freeze({ status, reason, httpStatus });
-}
-
 export function createDeliveryId({ repository, event, runId, runAttempt }) {
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(String(repository ?? ""))) throw new Error("GITHUB_REPOSITORY_INVALID");
   const normalizedEvent = safeEventName(event);
@@ -104,7 +96,29 @@ async function responseSafety(response) {
   if (payload.liveAuthority !== "NONE") throw new Error("WEBHOOK_RESPONSE_LIVE_AUTHORITY_INVALID");
   if (payload.productionMutationAllowed !== false) throw new Error("WEBHOOK_RESPONSE_PRODUCTION_MUTATION_INVALID");
   if (payload.aiAuthority !== "ZERO_AUTHORITY") throw new Error("WEBHOOK_RESPONSE_AI_AUTHORITY_INVALID");
-  return payload;
+  const executor = object(payload.executor);
+  if (!executor) throw new Error("WEBHOOK_EXECUTOR_EVIDENCE_INVALID");
+  const status = executor.status;
+  if (!["NOOP", "INTERFACE_READY", "DISPATCHED", "REJECTED", "FAILED"].includes(status)) throw new Error("WEBHOOK_EXECUTOR_STATUS_INVALID");
+  const reason = executor.reason;
+  if (reason !== null && reason !== undefined && (typeof reason !== "string" || !/^[A-Za-z0-9_.:-]{1,200}$/.test(reason))) throw new Error("WEBHOOK_EXECUTOR_REASON_INVALID");
+  const httpStatus = executor.httpStatus;
+  if (httpStatus !== null && httpStatus !== undefined && (!Number.isInteger(httpStatus) || httpStatus < 100 || httpStatus > 599)) throw new Error("WEBHOOK_EXECUTOR_HTTP_STATUS_INVALID");
+  const requestedHeadSha = executor.requestedHeadSha;
+  const observedHeadSha = executor.observedHeadSha;
+  for (const [name, value] of [["REQUESTED", requestedHeadSha], ["OBSERVED", observedHeadSha]]) {
+    if (value !== null && value !== undefined && (typeof value !== "string" || !/^[0-9a-f]{40}$/i.test(value))) throw new Error(`WEBHOOK_EXECUTOR_${name}_HEAD_SHA_INVALID`);
+  }
+  return Object.freeze({
+    payload,
+    executor: Object.freeze({
+      status,
+      reason: reason ?? null,
+      httpStatus: httpStatus ?? null,
+      requestedHeadSha: requestedHeadSha ? requestedHeadSha.toLowerCase() : null,
+      observedHeadSha: observedHeadSha ? observedHeadSha.toLowerCase() : null,
+    }),
+  });
 }
 
 export function isAuditFallbackEligible(payload) {
@@ -174,8 +188,12 @@ export async function dispatchGithubEvent({
     }
     const classification = responseClass(response.status);
     if (classification === "SUCCESS") {
-      const payload = await responseSafety(response);
-      const executor = safeExecutorEvidence(payload);
+      const { payload, executor } = await responseSafety(response);
+      const fallbackEligible = isAuditFallbackEligible(payload);
+      const execution = object(payload.execution);
+      if (execution?.kind === "AUDIT_REQUEST" && executor.status !== "DISPATCHED" && !fallbackEligible) {
+        throw new Error(`WEBHOOK_AUDIT_NOT_DISPATCHED:${executor.status}:${executor.reason ?? "none"}:${executor.httpStatus ?? "none"}`);
+      }
       return Object.freeze({
         status: "DELIVERED",
         authentication,
@@ -183,10 +201,12 @@ export async function dispatchGithubEvent({
         deliveryId,
         attempts: attempts + 1,
         responseStatus: response.status,
+        auditFallbackEligible: fallbackEligible,
         executorStatus: executor.status,
         executorReason: executor.reason,
         executorHttpStatus: executor.httpStatus,
-        auditFallbackEligible: isAuditFallbackEligible(payload),
+        requestedHeadSha: executor.requestedHeadSha,
+        observedHeadSha: executor.observedHeadSha,
       });
     }
     if (classification !== "TRANSIENT_FAILURE" || attempts + 1 >= MAX_ATTEMPTS) {
@@ -207,10 +227,12 @@ function summaryLine(result) {
     `- delivery: ${result.deliveryId}`,
     `- attempts: ${result.attempts}`,
     `- response: ${result.responseStatus ?? "none"}`,
-    `- executor status: ${result.executorStatus ?? "none"}`,
-    `- executor reason: ${result.executorReason ?? "none"}`,
-    `- executor http: ${result.executorHttpStatus ?? "none"}`,
     `- audit fallback eligible: ${result.auditFallbackEligible === true ? "true" : "false"}`,
+    `- executor: ${result.executorStatus ?? "none"}`,
+    `- executor reason: ${result.executorReason ?? "none"}`,
+    `- executor HTTP: ${result.executorHttpStatus ?? "none"}`,
+    `- requested head: ${result.requestedHeadSha ?? "none"}`,
+    `- observed head: ${result.observedHeadSha ?? "none"}`,
     "- liveAuthority: NONE",
     "- productionMutationAllowed: false",
     "- AI authority: ZERO_AUTHORITY",
@@ -225,7 +247,14 @@ function writeSummary(result) {
 function writeOutputs(result) {
   const destination = process.env.GITHUB_OUTPUT;
   if (!destination) return;
-  fs.appendFileSync(destination, `audit_fallback_eligible=${result.auditFallbackEligible === true ? "true" : "false"}\n`);
+  fs.appendFileSync(destination, [
+    `audit_fallback_eligible=${result.auditFallbackEligible === true ? "true" : "false"}`,
+    `executor_status=${result.executorStatus ?? "unknown"}`,
+    `executor_reason=${result.executorReason ?? "none"}`,
+    `executor_http_status=${result.executorHttpStatus ?? "none"}`,
+    `requested_head_sha=${result.requestedHeadSha ?? "none"}`,
+    `observed_head_sha=${result.observedHeadSha ?? "none"}`,
+  ].join("\n") + "\n");
 }
 
 async function main() {
@@ -257,7 +286,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
     await main();
   } catch (error) {
     const safeError = error instanceof Error ? error.message : "WEBHOOK_BRIDGE_FAILED";
-    console.error(JSON.stringify({ status: "FAILED_CLOSED", reason: safeError, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }));
+    console.error(safeError);
     process.exitCode = 1;
   }
 }
