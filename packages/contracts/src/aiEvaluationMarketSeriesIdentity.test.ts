@@ -29,15 +29,28 @@ describe("validateMarketSeriesIdentity", () => {
     assert.deepEqual(validateMarketSeriesIdentity([]), { valid: false, errors: ["EMPTY_SERIES"] });
   });
 
-  it("rejects a series mixing ADJUSTED and UNADJUSTED points (silent corruption risk)", () => {
+  it("rejects blank seriesId or symbol identity", () => {
+    const blankSeriesId: readonly MarketSeriesPoint[] = [
+      { seriesId: " ", symbol: "AAPL", timestamp: 1_000, adjustment: "UNADJUSTED", value: 100 },
+    ];
+    const blankSymbol: readonly MarketSeriesPoint[] = [
+      { seriesId: "s1", symbol: "", timestamp: 1_000, adjustment: "UNADJUSTED", value: 100 },
+    ];
+    const seriesIdResult = validateMarketSeriesIdentity(blankSeriesId);
+    const symbolResult = validateMarketSeriesIdentity(blankSymbol);
+    assert.equal(seriesIdResult.valid, false);
+    assert.ok((seriesIdResult as { errors: readonly string[] }).errors.includes("INVALID_SERIES_ID"));
+    assert.equal(symbolResult.valid, false);
+    assert.ok((symbolResult as { errors: readonly string[] }).errors.includes("INVALID_SYMBOL"));
+  });
+
+  it("rejects a series mixing ADJUSTED and UNADJUSTED points", () => {
     const mixed: readonly MarketSeriesPoint[] = [
       { seriesId: "s1", symbol: "AAPL", timestamp: 1_000, adjustment: "ADJUSTED", value: 100, corporateActionIds: [] },
       { seriesId: "s1", symbol: "AAPL", timestamp: 2_000, adjustment: "UNADJUSTED", value: 102 },
     ];
     const result = validateMarketSeriesIdentity(mixed);
     assert.equal(result.valid, false);
-    // no INVALID_ADJUSTMENT_TYPE-style error needed here -- both are individually valid adjustment
-    // values, mixing is fine to allow at the type level but must be caught by the single-adjustment check
     assert.equal(isMarketSeriesSingleAdjustment(mixed, "ADJUSTED"), false);
   });
 
@@ -50,7 +63,7 @@ describe("validateMarketSeriesIdentity", () => {
     assert.ok((result as { errors: readonly string[] }).errors.includes("ADJUSTED_POINT_MISSING_PROVENANCE"));
   });
 
-  it("rejects an UNADJUSTED point that carries corporateActionIds (contradiction)", () => {
+  it("rejects an UNADJUSTED point that carries corporateActionIds", () => {
     const contradictory: readonly MarketSeriesPoint[] = [
       { seriesId: "s1", symbol: "AAPL", timestamp: 1_000, adjustment: "UNADJUSTED", value: 100, corporateActionIds: ["split-2for1"] },
     ];
@@ -88,7 +101,7 @@ describe("validateMarketSeriesIdentity", () => {
     assert.ok((result as { errors: readonly string[] }).errors.includes("NON_FINITE_VALUE"));
   });
 
-  it("rejects an ADJUSTED point with a malformed (blank) corporate-action id", () => {
+  it("rejects an ADJUSTED point with a malformed corporate-action id", () => {
     const malformed: readonly MarketSeriesPoint[] = [
       { seriesId: "s1", symbol: "AAPL", timestamp: 1_000, adjustment: "ADJUSTED", value: 100, corporateActionIds: [""] },
     ];
@@ -110,7 +123,7 @@ describe("isMarketSeriesSingleAdjustment", () => {
 
   it("is false for an invalid series even if points share one adjustment type", () => {
     const invalid: readonly MarketSeriesPoint[] = [
-      { seriesId: "s1", symbol: "AAPL", timestamp: 1_000, adjustment: "ADJUSTED", value: 100 }, // missing provenance
+      { seriesId: "s1", symbol: "AAPL", timestamp: 1_000, adjustment: "ADJUSTED", value: 100 },
     ];
     assert.equal(isMarketSeriesSingleAdjustment(invalid, "ADJUSTED"), false);
   });
