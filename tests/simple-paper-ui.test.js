@@ -59,14 +59,22 @@ test("dashboard renders paper account values and honest empty states", async () 
   dom.window.close();
 });
 
-test("disconnected market disables Paper actions and connected state enables them", () => {
+test("Paper actions require both market and NUSA server connection", () => {
   const { dom, window, handlers } = bootstrap();
   handlers.ticker({ trade_price: 90_000_000, signed_change_rate: 0.01 });
   handlers.status("disconnected");
   assert.equal(window.document.querySelector("[data-simple-order='BUY']").disabled, true);
   handlers.status("connected");
+  assert.equal(window.document.querySelector("[data-simple-order='BUY']").disabled, true);
+  handlers.snapshot({
+    equity: 1_000_000,
+    cash: 1_000_000,
+    unrealizedPnl: 0,
+    position: { market: "KRW-BTC", quantity: 0, averagePrice: 0, realizedPnl: 0 },
+    orders: []
+  });
   assert.equal(window.document.querySelector("[data-simple-order='BUY']").disabled, false);
-  assert.match(window.document.querySelector("[data-simple-connection]").textContent, /연결됨/);
+  assert.match(window.document.querySelector("[data-simple-connection]").textContent, /서버 · 업비트 정상/);
   dom.window.close();
 });
 
