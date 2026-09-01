@@ -46,6 +46,14 @@ describe("resolveUniverseMembership", () => {
     assert.deepEqual(resolveUniverseMembership("AAA", 2_000, []), { member: false, reason: "INVALID_EVENT_HISTORY" });
   });
 
+  it("fails closed on a malformed event (unknown event type)", () => {
+    const malformed: readonly UniverseMembershipEvent[] = [
+      { eventId: "e1", symbol: "AAA", type: "ADDED", effectiveAt: 1_000 },
+      { eventId: "e2", symbol: "AAA", type: "UNKNOWN" as UniverseMembershipEvent["type"], effectiveAt: 2_000 },
+    ];
+    assert.deepEqual(resolveUniverseMembership("AAA", 3_000, malformed), { member: false, reason: "INVALID_EVENT_HISTORY" });
+  });
+
   it("fails closed on a malformed event (SYMBOL_CHANGED missing renamedTo)", () => {
     const malformed: readonly UniverseMembershipEvent[] = [
       { eventId: "e1", symbol: "AAA", type: "ADDED", effectiveAt: 1_000 },
