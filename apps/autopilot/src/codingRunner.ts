@@ -322,6 +322,7 @@ function codingProposalPrompt(request: CodingRunnerRequest): string {
     "Propose exactly one minimal, low-risk NUSA repository improvement as a git-compatible unified diff.",
     "Return JSON only with one field named patch.",
     "Do not use Markdown fences or explanatory text around the JSON.",
+    "The patch must contain exactly one diff --git header and exactly one +++ b/apps/autopilot/src/<file>.ts path; do not include any other file.",
     "Modify exactly one .ts file under apps/autopilot/src.",
     "Do not modify index.ts, worker.ts, live/broker/order/credential/secret/withdraw/transfer surfaces, workflows, package files, or authority constants.",
     "Do not add dependencies or weaken tests, validation, safety, exact-head verification, dedupe, leases, or fail-closed behavior.",
@@ -334,7 +335,7 @@ function codingProposalPrompt(request: CodingRunnerRequest): string {
   ].join("\n");
 }
 
-function workersAiCodingRequest(request: CodingRunnerRequest, model: string): {
+function workersAiCodingRequest(request: CodingRunnerRequest, model: string, prompt = codingProposalPrompt(request)): {
   model: string;
   prompt: string;
   response_format: {
@@ -349,7 +350,7 @@ function workersAiCodingRequest(request: CodingRunnerRequest, model: string): {
 } {
   return {
     model,
-    prompt: codingProposalPrompt(request),
+    prompt,
     response_format: {
       type: "json_schema",
       json_schema: {
@@ -360,6 +361,12 @@ function workersAiCodingRequest(request: CodingRunnerRequest, model: string): {
       },
     },
   };
+}
+
+const MAX_WORKERS_AI_PROPOSAL_ATTEMPTS = 3;
+
+function retryableProposalFailure(reason: string): boolean {
+  return reason.startsWith("CODING_PROPOSAL_") || reason.startsWith("SANDBOX_PATCH_");
 }
 
 function validWorkersAiModel(value: string): boolean {
@@ -421,10 +428,24 @@ export async function executeCodingRunner(
     ? DEFAULT_WORKERS_AI_MODEL
     : configuredModel;
   if (!validWorkersAiModel(model)) return { status: "EXECUTION_FAILED", reason: "WORKERS_AI_MODEL_INVALID" };
-  try {
-    const proposal = workersAiProposal(await env.AI.run(model, workersAiCodingRequest(request, model)));
-    return await executeProposal(request, proposal, runtime, publisher);
-  } catch (error) {
-    return { status: "EXECUTION_FAILED", reason: error instanceof Error ? error.message : "WORKERS_AI_CODING_ENGINE_FAILED" };
+  let prompt = codingProposalPrompt(request);
+  let lastFailure: CodingRunnerResult | undefined;
+  for (let attempt = 1; attempt <= MAX_WORKERS_AI_PROPOSAL_ATTEMPTS; attempt += 1) {
+    try {
+      const proposal = workersAiProposal(await env.AI.run(model, workersAiCodingRequest(request, model, prompt)));
+      const result = await executeProposal(request, proposal, runtime, publisher);
+      if (result.status === "EXECUTION_ACCEPTED" || !retryableProposalFailure(result.reason ?? "") || attempt === MAX_WORKERS_AI_PROPOSAL_ATTEMPTS) {
+        return result;
+      }
+      lastFailure = result;
+      prompt = `${codingProposalPrompt(request)}\nThe previous proposal was rejected by the bounded patch contract (${result.reason}). Return a new valid one-file unified diff only.`;
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "WORKERS_AI_CODING_ENGINE_FAILED";
+      if (!retryableProposalFailure(reason) || attempt === MAX_WORKERS_AI_PROPOSAL_ATTEMPTS) {
+        return { status: "EXECUTION_FAILED", reason };
+      }
+      prompt = `${codingProposalPrompt(request)}\nThe previous proposal was rejected by the bounded proposal contract (${reason}). Return a new valid one-file unified diff only.`;
+    }
   }
+  return lastFailure ?? { status: "EXECUTION_FAILED", reason: "WORKERS_AI_CODING_ENGINE_FAILED" };
 }
