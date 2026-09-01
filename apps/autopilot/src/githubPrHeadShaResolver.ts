@@ -15,7 +15,6 @@
 export interface GithubPrHeadShaResolverConfig {
   readonly token?: string;
   readonly allowedRepository: string;
-  readonly apiBaseUrl?: string;
   readonly fetchImpl?: typeof fetch;
 }
 
@@ -57,7 +56,7 @@ export async function resolveOpenPullRequestByHeadSha(
   if (!config.token) return unresolved("github-token-required");
   if (!config.allowedRepository?.trim()) return unresolved("allowed-repository-required");
 
-  const base = (config.apiBaseUrl ?? "https://api.github.com").replace(/\/$/, "");
+  const base = "https://api.github.com";
   const fetchImpl = config.fetchImpl ?? fetch;
 
   let response: Response;
