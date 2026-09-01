@@ -197,11 +197,15 @@ function computeDrawdown(equityCurve: readonly number[] | undefined, reasons: st
     reasons.push("EQUITY_CURVE_MISSING");
     return null;
   }
+  if (equityCurve.some((value) => !Number.isFinite(value) || value < 0) || equityCurve[0] <= 0) {
+    reasons.push("EQUITY_CURVE_INVALID");
+    return null;
+  }
   let peak = equityCurve[0];
   let maxDrawdown = 0;
   for (const value of equityCurve) {
     if (value > peak) peak = value;
-    if (peak > 0) maxDrawdown = Math.max(maxDrawdown, (peak - value) / peak);
+    maxDrawdown = Math.max(maxDrawdown, (peak - value) / peak);
   }
   return maxDrawdown;
 }

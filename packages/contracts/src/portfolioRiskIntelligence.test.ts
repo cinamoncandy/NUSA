@@ -132,6 +132,18 @@ describe("portfolio risk intelligence", () => {
     assert.ok(Math.abs((result.currentDrawdown as number) - 0.25) < 1e-9);
   });
 
+  it("fails closed when the equity curve is malformed or has no positive base", () => {
+    for (const equityCurve of [[1000, Number.NaN], [1000, -1], [0, 1000]]) {
+      const result = summarizePortfolioRisk({
+        equity: 900,
+        assets: [{ market: "BTC-USD", marketValue: 900 }],
+        equityCurve,
+      });
+      assert.equal(result.currentDrawdown, null);
+      assert.ok(result.insufficientEvidenceReasons.includes("EQUITY_CURVE_INVALID"));
+    }
+  });
+
   it("returns null drawdown with a reason when no equity curve is supplied", () => {
     const result = summarizePortfolioRisk({ equity: 900, assets: [{ market: "BTC-USD", marketValue: 900 }] });
     assert.equal(result.currentDrawdown, null);
