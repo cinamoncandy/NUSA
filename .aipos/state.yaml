@@ -1,6 +1,6 @@
 version: 1
 project: nusa
-updated_at: "2026-09-01T08:54:07+09:00"
+updated_at: "2026-09-01T09:15:42.892+09:00"
 current_execution_target:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -992,3 +992,15 @@ issue_903_event_bridge:
     webhook_request: NOT_SENT_MISSING_NUSA_WEBHOOK_SECRET
     control_plane_receipt: NOT_PROVEN
   next: "Owner must configure NUSA_WEBHOOK_SECRET in GitHub Actions without exposing its value; then a fresh push/workflow_run proof must show canonical Worker delivery and control-plane receipt before #903 can become ACTIVE."
+
+latest_mobile_safety_slice:
+  status: COMPLETED
+  base_commit: ff1a9a9a5af63541eb5d1da57bdbe7b50f051353
+  implementation_branch: fix/mobile-home-live-authority-boundary
+  implementation_head: ca05e9468f34a1d4a4eac52bad4006fe2b22b7ee
+  pull_request: 1364
+  merge_commit: 5b68e4710720eef97ccd35e0ee092193d2f6053a
+  exact_head_ci: "7/7 PASS (CI 33453433094; Mobile Native 33453433235; Actual PAPER 33453433032; protected workflows on exact head)"
+  scope: "Close the legacy mobile home projection safety gap by keeping canTrade PAPER-only; LIVE mode no longer implies production trading authority even when AI and risk inputs are favorable."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  remaining: "No LIVE activation or production mutation capability was added; physical-device acceptance and external runtime evidence remain separate HUMAN_ENVIRONMENT_ONLY gates."
