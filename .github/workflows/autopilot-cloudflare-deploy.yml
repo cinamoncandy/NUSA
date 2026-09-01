@@ -90,6 +90,7 @@ jobs:
         id: deployment
         if: steps.revision.outputs.current == 'true'
         env:
+          GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
         run: |
           set -euo pipefail
@@ -103,6 +104,13 @@ jobs:
           if [ -z "$worker_revision" ]; then
             echo 'deploy=true' >> "$GITHUB_OUTPUT"
             echo 'Worker revision could not be read; deploying the exact CI-verified revision and failing closed if health does not converge.'
+            exit 0
+          fi
+
+          previous_deployment="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?per_page=30" --jq '[.workflow_runs[] | select(.name == "Autopilot Cloudflare Deploy" and .status == "completed")][0].conclusion // empty')"
+          if [ "$previous_deployment" = "failure" ]; then
+            echo 'deploy=true' >> "$GITHUB_OUTPUT"
+            echo 'The previous Cloudflare deployment failed; redeploying the exact CI-verified revision.'
             exit 0
           fi
 
@@ -159,7 +167,7 @@ jobs:
           pnpm dlx wrangler@4.127.1 deploy \
             --config apps/autopilot/wrangler.jsonc \
             --var "NUSA_DEPLOYMENT_REVISION:${HEAD_SHA}" \
-            --containers-rollout=none
+            --containers-rollout=immediate
 
       - name: Verify deployed Worker reports the exact-head revision
         if: steps.revision.outputs.current == 'true' && steps.deployment.outputs.deploy == 'true'

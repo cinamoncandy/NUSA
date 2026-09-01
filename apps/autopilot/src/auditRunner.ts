@@ -88,6 +88,35 @@ const MAX_EVIDENCE_REF_CHARS = 500;
 const ALLOWED_MODEL_KEYS = new Set(["verdict", "findings", "blockers", "safetyInvariantResult"]);
 const ALLOWED_FINDING_KEYS = new Set(["code", "severity", "message", "evidenceRef"]);
 
+const AUDIT_RESPONSE_FORMAT = Object.freeze({
+  type: "json_schema",
+  json_schema: Object.freeze({
+    type: "object",
+    additionalProperties: false,
+    properties: Object.freeze({
+      verdict: Object.freeze({ type: "string", enum: Object.freeze(["PASS", "PASS_WITH_NOTES", "FAIL"]) }),
+      findings: Object.freeze({
+        type: "array",
+        maxItems: MAX_FINDINGS,
+        items: Object.freeze({
+          type: "object",
+          additionalProperties: false,
+          properties: Object.freeze({
+            code: Object.freeze({ type: "string" }),
+            severity: Object.freeze({ type: "string", enum: Object.freeze(["NOTE", "BLOCKER"]) }),
+            message: Object.freeze({ type: "string" }),
+            evidenceRef: Object.freeze({ anyOf: Object.freeze([{ type: "string" }, { type: "null" }]) }),
+          }),
+          required: Object.freeze(["code", "severity", "message", "evidenceRef"]),
+        }),
+      }),
+      blockers: Object.freeze({ type: "array", maxItems: MAX_BLOCKERS, items: Object.freeze({ type: "string" }) }),
+      safetyInvariantResult: Object.freeze({ type: "string", enum: Object.freeze(["PASS", "FAIL"]) }),
+    }),
+    required: Object.freeze(["verdict", "findings", "blockers", "safetyInvariantResult"]),
+  }),
+});
+
 function object(value: unknown, error: string): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(error);
   return value as Record<string, unknown>;
@@ -183,8 +212,13 @@ function parseJsonText(text: string): unknown {
 
 function parseAuditModelResponse(value: unknown): AuditModelVerdict {
   const payload = object(value, "AUDIT_MODEL_RESPONSE_INVALID");
-  if (typeof payload.response !== "string" || !payload.response.trim()) throw new Error("AUDIT_MODEL_RESPONSE_INVALID");
-  return validateAuditModelVerdict(parseJsonText(payload.response));
+  if (payload.response && typeof payload.response === "object" && !Array.isArray(payload.response)) {
+    return validateAuditModelVerdict(payload.response);
+  }
+  if (typeof payload.response === "string" && payload.response.trim()) {
+    return validateAuditModelVerdict(parseJsonText(payload.response));
+  }
+  throw new Error("AUDIT_MODEL_RESPONSE_INVALID");
 }
 
 function githubHeaders(accept = "application/vnd.github+json", token: string): Record<string, string> {
@@ -289,8 +323,7 @@ function auditPrompt(request: AuditRunnerRequest, diff: string): string {
     "Evaluate the exact pull-request diff below against correctness, regressions, architecture consistency, evidence integrity, test integrity, and NUSA safety invariants.",
     "Fail closed on ambiguity, missing evidence, weakened assertions/checks, synthetic evidence presented as actual evidence, duplicate control-plane/queue/scheduler/merge engines, stale-head assumptions, or unsafe authority changes.",
     "Safety invariants: liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY; no AI self-grant; no automatic LIVE activation; no withdrawals/transfers; no mobile credential storage; PAPER/REAL separation; fail-closed; actual evidence must not be fabricated.",
-    "Return JSON only, with exactly these keys:",
-    '{"verdict":"PASS|PASS_WITH_NOTES|FAIL","findings":[{"code":"UPPER_SNAKE_OR_COLON_CODE","severity":"NOTE|BLOCKER","message":"bounded explanation","evidenceRef":"diff path/line or null"}],"blockers":["bounded blocker text"],"safetyInvariantResult":"PASS|FAIL"}',
+    "Return only the structured verdict requested by response_format.",
     "Rules: PASS requires zero findings and zero blockers. PASS_WITH_NOTES requires one or more NOTE findings and zero blockers and is not automatically merge-authorizing. FAIL requires at least one blocker. Any BLOCKER finding, safety failure, test weakening, evidence integrity issue, or material uncertainty requires FAIL.",
     `Repository: ${request.repository}`,
     `PR: #${request.prNumber}`,
@@ -315,7 +348,11 @@ export async function executeIndependentAudit(
   const diff = await fetchPullDiff(request, beforeAudit.changedFiles, githubToken, fetchImpl);
   if (!env.AI) throw new Error("AUDIT_AI_NOT_CONFIGURED");
   const model = env.NUSA_AI_AUDIT_MODEL?.trim() || DEFAULT_AUDIT_MODEL;
-  const modelResult = parseAuditModelResponse(await env.AI.run(model, { prompt: auditPrompt(request, diff) }));
+  const modelRequest = {
+    prompt: auditPrompt(request, diff),
+    response_format: AUDIT_RESPONSE_FORMAT,
+  };
+  const modelResult = parseAuditModelResponse(await env.AI.run(model, modelRequest));
 
   // Re-fetch exact PR/base/CI evidence after model review. A concurrent push, base movement, or
   // evidence-shape change invalidates the verdict instead of attaching it to a different state.
