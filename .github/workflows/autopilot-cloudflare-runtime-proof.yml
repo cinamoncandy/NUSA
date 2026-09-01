@@ -46,7 +46,28 @@ jobs:
         run: mkdir -p artifacts/autopilot
       - name: Checkout exact revision
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Verify proof source is current main
+        id: freshness
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          SOURCE_BRANCH: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ "$SOURCE_BRANCH" != "main" ]; then
+            echo 'current=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          current="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          if [ "$current" != "$SOURCE_SHA" ]; then
+            echo 'current=false' >> "$GITHUB_OUTPUT"
+            echo "Skipping stale runtime-proof source ${SOURCE_SHA}; current main is ${current}."
+            exit 0
+          fi
+          echo 'current=true' >> "$GITHUB_OUTPUT"
+          echo "Verified runtime-proof source is current main: $SOURCE_SHA"
       - name: Verify deployed Worker and fresh scheduled receipt
+        if: steps.freshness.outputs.current == 'true'
         env:
           NUSA_RUNTIME_PROOF_OUTPUT: artifacts/autopilot/runtime-proof.json
         run: node scripts/verify-autopilot-cloudflare-runtime.mjs
