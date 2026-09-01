@@ -214,7 +214,9 @@ export function HomeView({
       <SupervisorRow label="WHY" value={supervisorWhy} borderColor={theme.colors.border} labelColor={theme.colors.textMuted} valueColor={theme.colors.text} testID="home-supervisor-why" onPress={aiInsightAvailable ? () => onNavigate("AiSignal") : undefined} actionLabel={aiInsightAvailable ? "EVIDENCE →" : undefined} />
       <SupervisorRow label="RESULT" value={supervisorResult} borderColor={theme.colors.border} labelColor={theme.colors.textMuted} valueColor={theme.colors.text} testID="home-supervisor-result" onPress={account == null ? undefined : () => onNavigate("Portfolio")} actionLabel={account == null ? undefined : "SUPERVISE →"} />
       <SupervisorRow label="RISK" value={supervisorRisk} borderColor={theme.colors.border} labelColor={attentionColor} valueColor={attentionLevel === "QUIET" ? theme.colors.text : attentionColor} testID="home-supervisor-risk" />
-      <SupervisorRow label="LEARNING" value={decisionSurface.learning} borderColor={theme.colors.border} labelColor={theme.colors.textMuted} valueColor={theme.colors.text} testID="home-supervisor-learning" onPress={disconnected ? undefined : onOpenPaperLearning} actionLabel={disconnected ? undefined : "EVIDENCE →"} />
+      <View testID="home-paper-learning">
+        <SupervisorRow label="LEARNING" value={decisionSurface.learning} borderColor={theme.colors.border} labelColor={theme.colors.textMuted} valueColor={theme.colors.text} testID="home-supervisor-learning" onPress={disconnected ? undefined : onOpenPaperLearning} actionLabel={disconnected ? undefined : "EVIDENCE →"} />
+      </View>
       <View style={[styles.supervisorAuthority, { borderTopColor: theme.colors.border }]}>
         <Text style={[styles.meta, { color: theme.colors.textMuted }]}>AI ZERO AUTHORITY · productionMutationAllowed=false · liveAuthority=NONE</Text>
         <Pressable accessibilityRole="button" onPress={runPrimaryAction} style={({ pressed }) => [styles.primaryButton, { borderColor: attentionLevel === "ACTION REQUIRED" ? attentionColor : terminalSignal, opacity: pressed ? theme.interaction.pressedOpacity : 1 }]} testID="home-supervisor-primary-action">
