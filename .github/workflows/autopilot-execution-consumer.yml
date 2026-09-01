@@ -427,8 +427,10 @@ jobs:
             exit 0
           fi
           current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
-          execution_id="audit-recovery:${PR_NUMBER}:${WORKFLOW_RUN_ID}"
-          dedupe_key="audit-recovery:${PR_NUMBER}:${REQUESTED_HEAD}:${current_main}"
+          main_workflow_run_id="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$current_main&status=completed&per_page=100" --jq '[.workflow_runs[] | select(.name == "CI" and .conclusion == "success" and .head_sha == "'"$current_main"'") | .id] | max // empty')"
+          test -n "$main_workflow_run_id" || { echo 'Audit recovery suppressed: no successful CI run exists for current main.'; exit 1; }
+          execution_id="audit-recovery:${PR_NUMBER}:${WORKFLOW_RUN_ID}:${main_workflow_run_id}"
+          dedupe_key="audit-recovery:${PR_NUMBER}:${REQUESTED_HEAD}:${current_main}:${main_workflow_run_id}"
           gh api --method POST "repos/$GITHUB_REPOSITORY/dispatches" --input - <<EOF
           {
             "event_type": "nusa_autopilot_execution",
@@ -436,8 +438,8 @@ jobs:
               "kind": "REPOSITORY_AUTOPILOT",
               "repository": "$GITHUB_REPOSITORY",
               "head_sha": "$current_main",
-              "workflow_run_id": $WORKFLOW_RUN_ID,
-              "reason": "audit-recovery:pr:$PR_NUMBER:head:$REQUESTED_HEAD",
+              "workflow_run_id": $main_workflow_run_id,
+              "reason": "audit-recovery:pr:$PR_NUMBER:head:$REQUESTED_HEAD:main-run:$main_workflow_run_id",
               "execution_id": "$execution_id",
               "dedupe_key": "$dedupe_key",
               "live_authority": "NONE",
@@ -700,8 +702,10 @@ jobs:
             exit 0
           fi
           current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
-          execution_id="release-recovery:${PR_NUMBER}:${WORKFLOW_RUN_ID}"
-          dedupe_key="release-recovery:${PR_NUMBER}:${REQUESTED_HEAD}:${current_main}"
+          main_workflow_run_id="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$current_main&status=completed&per_page=100" --jq '[.workflow_runs[] | select(.name == "CI" and .conclusion == "success" and .head_sha == "'"$current_main"'") | .id] | max // empty')"
+          test -n "$main_workflow_run_id" || { echo 'Release recovery suppressed: no successful CI run exists for current main.'; exit 1; }
+          execution_id="release-recovery:${PR_NUMBER}:${WORKFLOW_RUN_ID}:${main_workflow_run_id}"
+          dedupe_key="release-recovery:${PR_NUMBER}:${REQUESTED_HEAD}:${current_main}:${main_workflow_run_id}"
           gh api --method POST "repos/$GITHUB_REPOSITORY/dispatches" --input - <<EOF
           {
             "event_type": "nusa_autopilot_execution",
@@ -709,8 +713,8 @@ jobs:
               "kind": "REPOSITORY_AUTOPILOT",
               "repository": "$GITHUB_REPOSITORY",
               "head_sha": "$current_main",
-              "workflow_run_id": $WORKFLOW_RUN_ID,
-              "reason": "release-recovery:pr:$PR_NUMBER:audited-head:$REQUESTED_HEAD",
+              "workflow_run_id": $main_workflow_run_id,
+              "reason": "release-recovery:pr:$PR_NUMBER:audited-head:$REQUESTED_HEAD:main-run:$main_workflow_run_id",
               "execution_id": "$execution_id",
               "dedupe_key": "$dedupe_key",
               "live_authority": "NONE",
