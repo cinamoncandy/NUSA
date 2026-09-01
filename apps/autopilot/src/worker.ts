@@ -7,7 +7,7 @@ import { SandboxCodingRuntime } from "./sandboxCodingRuntime";
 import { validateCodingExecutionEnvelope } from "./codingExecutionEnvelope";
 import { validatePatchInSandbox } from "./sandboxPatchValidator";
 import { verifyGithubActionsOidcToken } from "./githubActionsOidc";
-import { executeIndependentAudit, validateAuditRunnerRequest } from "./auditRunner";
+import { executeOidcAuthorizedIndependentAudit, validateAuditRunnerRequest } from "./auditRunner";
 
 export { Sandbox, ExecutionCoordinator };
 
@@ -92,7 +92,7 @@ async function handleAuditExecute(request: Request, env: WorkerEnv): Promise<Res
   }
 
   try {
-    const result = await executeIndependentAudit(auditRequest, env);
+    const result = await executeOidcAuthorizedIndependentAudit(auditRequest, env);
     return json({ accepted: true, ...result }, 200);
   } catch (error) {
     return json({
