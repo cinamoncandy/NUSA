@@ -1076,3 +1076,11 @@ latest_portfolio_risk_current_drawdown_slice:
   validation: "Exact-head workflow checks passed: test, coverage, coverage shards, validation, Actual PAPER, Restricted LIVE, Read-only Broker, bridge, readiness, safety guard, and rehearsal all succeeded."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   remaining: "Longitudinal PAPER evidence, real-account credentials/relay, Cloudflare runtime proof, physical-device acceptance, and human LIVE approval remain fail-closed."
+
+latest_paper_chaos_bound_runtime_evidence_slice:
+  status: IN_PROGRESS
+  issue: 882
+  base_commit: 1e085360dc057ed8c097d28de36d40c71cb1cc5c
+  implementation_branch: codex/paper-chaos-bound-runtime-evidence
+  scope: "Emit only BOUND_UNVERIFIED restart-recovery evidence from the canonical actual PAPER runtime harness; external workflow verification remains separate."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
