@@ -32,6 +32,7 @@ export type UniverseMembershipResolution =
 
 const isTimestamp = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 
+const EVENT_TYPES: readonly UniverseMembershipEventType[] = ["ADDED", "REMOVED", "DELISTED", "MERGED", "BANKRUPT", "SYMBOL_CHANGED"];
 const EXIT_EVENT_TYPES: readonly UniverseMembershipEventType[] = ["REMOVED", "DELISTED", "MERGED", "BANKRUPT", "SYMBOL_CHANGED"];
 
 function eventHistoryIsWellFormed(events: readonly UniverseMembershipEvent[]): boolean {
@@ -40,6 +41,7 @@ function eventHistoryIsWellFormed(events: readonly UniverseMembershipEvent[]): b
   for (const event of events) {
     if (typeof event.eventId !== "string" || !event.eventId.trim()) return false;
     if (typeof event.symbol !== "string" || !event.symbol.trim()) return false;
+    if (!EVENT_TYPES.includes(event.type)) return false;
     if (!isTimestamp(event.effectiveAt)) return false;
     if (event.type === "SYMBOL_CHANGED" && (typeof event.renamedTo !== "string" || !event.renamedTo.trim())) return false;
     if (ids.has(event.eventId)) return false;
