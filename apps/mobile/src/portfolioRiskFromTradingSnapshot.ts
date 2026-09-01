@@ -14,7 +14,8 @@
  *
  * A position with no available mark price is dropped from the risk calculation rather than
  * assumed to be worth zero or fabricated a price -- consistent with portfolioRiskIntelligence's
- * own "return null/omit rather than fabricate" rule.
+ * own "return null/omit rather than fabricate" rule. Malformed position identity or quantity is
+ * different from missing price evidence and is rejected fail-closed instead of being dropped.
  */
 import type { TradingSnapshot } from "./tradingService";
 import { summarizePortfolioRisk, type PortfolioRiskIntelligenceInput, type PortfolioRiskSummary } from "../../../packages/contracts/src/portfolioRiskIntelligence";
@@ -38,6 +39,18 @@ function isFinitePrice(value: number | null): value is number {
   return value !== null && Number.isFinite(value) && value > 0;
 }
 
+function validatedPositionMarket(value: string): string {
+  if (typeof value !== "string" || value.trim().length === 0 || value.trim() !== value) {
+    throw new Error("position market must be a non-empty trimmed string");
+  }
+  return value;
+}
+
+function validatedPositionQuantity(value: number, market: string): number {
+  if (!Number.isFinite(value)) throw new Error(`position quantity must be finite: ${market}`);
+  return value;
+}
+
 /**
  * Builds a PortfolioRiskSummary from a real TradingSnapshot, available cash, and a mark-price
  * lookup. Positions with no available mark price are excluded from both the asset list and the
@@ -55,13 +68,15 @@ export function buildPortfolioRiskSummaryFromTradingSnapshot(
   const droppedMarkets: string[] = [];
 
   for (const position of trading.positions) {
-    if (position.quantity === 0) continue;
-    const price = markPrice(position.market);
+    const market = validatedPositionMarket(position.market);
+    const quantity = validatedPositionQuantity(position.quantity, market);
+    if (quantity === 0) continue;
+    const price = markPrice(market);
     if (!isFinitePrice(price)) {
-      droppedMarkets.push(position.market);
+      droppedMarkets.push(market);
       continue;
     }
-    assets.push({ market: position.market, marketValue: position.quantity * price });
+    assets.push({ market, marketValue: quantity * price });
   }
 
   const equity = cash + assets.reduce((sum, asset) => sum + asset.marketValue, 0);
