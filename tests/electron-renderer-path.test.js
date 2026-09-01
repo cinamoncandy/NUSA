@@ -9,7 +9,7 @@ test("renderer index path resolves from the compiled Electron main directory", (
   const compiledMainDirectory = path.join(repositoryRoot, "dist", "apps", "desktop", "src");
 
   const resolved = resolveRendererIndexPath(compiledMainDirectory);
-  const expected = path.join(repositoryRoot, "apps", "desktop", "renderer", "index.html");
+  const expected = path.join(repositoryRoot, "apps", "desktop", "renderer", "index-v2.html");
 
   assert.equal(resolved, expected);
 });

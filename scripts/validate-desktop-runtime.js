@@ -5,7 +5,7 @@
  * rendererPath modules exist; apps/desktop/package.json points at the canonical bootstrap;
  * the bootstrap activates Cloud PAPER authority and schedules the secure session IPC only
  * after Electron readiness before loading the legacy runtime; local renderer assets exist;
- * and the legacy main still resolves renderer/index.html correctly.
+ * and the legacy main resolves the canonical renderer entry correctly.
  * Node built-ins only, no network, no Electron, no file writes. Run after `pnpm run build`.
  */
 const fs = require("node:fs");
@@ -20,13 +20,13 @@ const compiledLegacyMain = path.join(ROOT, "dist", "apps", "desktop", "src", "ma
 const compiledPreload = path.join(ROOT, "dist", "apps", "desktop", "src", "preload.js");
 const compiledRendererPathModule = path.join(ROOT, "dist", "apps", "desktop", "src", "rendererPath.js");
 const cloudMainSourcePath = path.join(ROOT, "apps", "desktop", "src", "cloudMain.ts");
-const rendererIndex = path.join(ROOT, "apps", "desktop", "renderer", "index.html");
+const rendererIndex = path.join(ROOT, "apps", "desktop", "renderer", "index-v2.html");
+const rollbackRendererIndex = path.join(ROOT, "apps", "desktop", "renderer", "index.html");
 
 function isFile(candidate) {
   return fs.existsSync(candidate) && fs.statSync(candidate).isFile();
 }
 
-// A: build artifacts and canonical bootstrap source
 for (const [label, file] of [
   ["compiled canonical Cloud Electron main", compiledCloudMain],
   ["compiled legacy Electron main", compiledLegacyMain],
@@ -37,10 +37,9 @@ for (const [label, file] of [
   if (!isFile(file)) fail(`Missing ${label}: ${path.relative(ROOT, file)}`);
 }
 
-// B: renderer entry
 if (!isFile(rendererIndex)) fail(`Missing renderer entry: ${path.relative(ROOT, rendererIndex)}`);
+if (!isFile(rollbackRendererIndex)) fail(`Missing legacy renderer rollback target: ${path.relative(ROOT, rollbackRendererIndex)}`);
 
-// C: apps/desktop/package.json must resolve to the canonical Cloud bootstrap.
 const desktopPackagePath = path.join(ROOT, "apps", "desktop", "package.json");
 let desktopPackage;
 try {
@@ -63,8 +62,6 @@ if (desktopPackage) {
   }
 }
 
-// D: root package.json's desktop script remains portable and build-first, and its packaged
-// entrypoint agrees with the app package instead of creating a second Desktop authority.
 const rootPackage = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
 const desktopScript = rootPackage.scripts && rootPackage.scripts.desktop;
 if (typeof desktopScript !== "string" || desktopScript.length === 0) {
@@ -88,9 +85,6 @@ if (rootPackage.main !== expectedRootMain || rootPackage.build?.extraMetadata?.m
   fail(`Root Desktop package metadata must resolve to the canonical Cloud bootstrap: ${expectedRootMain}`);
 }
 
-// E: authority must be activated synchronously before the legacy runtime can register any
-// local PAPER mutation path. Secure credential composition is scheduled through app.whenReady
-// and uses the production safeStorage session factory before the legacy import appears.
 if (isFile(cloudMainSourcePath)) {
   const cloudMainSource = fs.readFileSync(cloudMainSourcePath, "utf8");
   const activateIndex = cloudMainSource.indexOf("activateCloudCanonicalDesktopAuthority()");
@@ -105,8 +99,6 @@ if (isFile(cloudMainSourcePath)) {
   }
 }
 
-// F: compiled canonical bootstrap must retain the authority, Cloud IPC, secure-session factory,
-// and legacy runtime dependencies. Validate emitted identities rather than implementation details.
 if (isFile(compiledCloudMain)) {
   const cloudMainCompiled = fs.readFileSync(compiledCloudMain, "utf8");
   if (!/desktopPaperAuthorityPolicy/.test(cloudMainCompiled)) fail(`Compiled cloudMain.js does not reference desktopPaperAuthorityPolicy`);
@@ -116,7 +108,6 @@ if (isFile(compiledCloudMain)) {
   if (!/(?:require|import).*\.\/main|import\(["']\.\/main["']\)/.test(cloudMainCompiled)) fail(`Compiled cloudMain.js does not load the legacy Desktop runtime`);
 }
 
-// G: renderer's local <script src>/<link href> assets actually exist.
 if (isFile(rendererIndex)) {
   const rendererDirectory = path.dirname(rendererIndex);
   const html = fs.readFileSync(rendererIndex, "utf8");
@@ -137,8 +128,6 @@ if (isFile(rendererIndex)) {
   }
 }
 
-// H: renderer path resolution remains based on the legacy main directory because legacy
-// main owns BrowserWindow creation after the canonical bootstrap has established authority.
 if (isFile(compiledRendererPathModule)) {
   try {
     const rendererPathModule = require(compiledRendererPathModule);
@@ -156,8 +145,6 @@ if (isFile(compiledRendererPathModule)) {
   }
 }
 
-// I: legacy main.js must still wire BrowserWindow loadFile() through rendererPath and must
-// not regain package-entry authority or the old duplicated renderer path.
 if (isFile(compiledLegacyMain)) {
   const mainSource = fs.readFileSync(compiledLegacyMain, "utf8");
   const requiresRendererPathModule = /require\(["']\.\/rendererPath["']\)/.test(mainSource);
@@ -179,7 +166,8 @@ console.log("Desktop runtime validation passed:");
 console.log("- Canonical Cloud Electron bootstrap found");
 console.log("- Legacy Electron main found");
 console.log("- Preload entry found");
-console.log("- Renderer entry found");
+console.log("- Canonical renderer entry found");
+console.log("- Legacy renderer rollback target found");
 console.log("- Local renderer assets found");
 console.log("- Package entrypoints consistent");
 console.log("- Cloud authority + ready-only secure session composition consistent");
