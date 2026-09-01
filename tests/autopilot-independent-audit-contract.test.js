@@ -13,7 +13,11 @@ test("execution consumer removes workflow-wide mutation permissions", () => {
 
 test("Audit job has bounded read/OIDC/comment permissions only", () => {
   const auditJob = workflow.slice(workflow.indexOf("  audit-request:"));
-  const permissionBlock = auditJob.match(/permissions:\n([\s\S]*?)    steps:/)?.[1] ?? "";
+  const permissionStart = auditJob.indexOf("    permissions:");
+  const stepsStart = auditJob.indexOf("    steps:", permissionStart);
+  assert.ok(permissionStart >= 0, "Audit job permissions block must exist");
+  assert.ok(stepsStart > permissionStart, "Audit job steps must follow its permissions block");
+  const permissionBlock = auditJob.slice(permissionStart, stepsStart);
   assert.match(permissionBlock, /contents: read/);
   assert.match(permissionBlock, /actions: read/);
   assert.match(permissionBlock, /pull-requests: write/);
@@ -24,9 +28,11 @@ test("Audit job has bounded read/OIDC/comment permissions only", () => {
 test("Audit execution is isolated from coding mutation endpoint", () => {
   assert.match(worker, /url\.pathname === "\/audit\/execute"/);
   assert.match(worker, /executeIndependentAudit\(auditRequest, env\)/);
+  const authHelper = worker.slice(worker.indexOf("async function verifyAuditAuthorization"), worker.indexOf("async function handleAuditExecute"));
   const auditHandler = worker.slice(worker.indexOf("async function handleAuditExecute"), worker.indexOf("const worker ="));
+  assert.match(authHelper, /verifyGithubActionsOidcToken/);
+  assert.match(auditHandler, /verifyAuditAuthorization/);
   assert.doesNotMatch(auditHandler, /GithubValidatedPatchPublisher|SandboxCodingRuntime|publish\(|create_branch|commit|merge/);
-  assert.match(auditHandler, /verifyGithubActionsOidcToken/);
   assert.doesNotMatch(auditHandler, /NUSA_CODING_RUNNER_TOKEN/);
 });
 
