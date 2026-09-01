@@ -40,6 +40,16 @@ describe("validateMarketSeriesIdentity", () => {
       assert.ok((result as { errors: readonly string[] }).errors.includes(error));
     }
   });
+  it("rejects blank seriesId and symbol identities", () => {
+    for (const [point, error] of [
+      [{ seriesId: "   ", symbol: "AAPL", timestamp: 1_000, adjustment: "UNADJUSTED", value: 100 }, "INVALID_SERIES_ID"],
+      [{ seriesId: "s1", symbol: "   ", timestamp: 1_000, adjustment: "UNADJUSTED", value: 100 }, "INVALID_SYMBOL"],
+    ] as const) {
+      const result = validateMarketSeriesIdentity([point as MarketSeriesPoint]);
+      assert.equal(result.valid, false);
+      assert.ok((result as { errors: readonly string[] }).errors.includes(error));
+    }
+  });
   it("rejects duplicate timestamps and non-finite values", () => {
     const duplicate: readonly MarketSeriesPoint[] = [
       { seriesId: "s1", symbol: "AAPL", timestamp: 1_000, adjustment: "UNADJUSTED", value: 100 },
