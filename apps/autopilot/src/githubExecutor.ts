@@ -18,6 +18,7 @@ const SHA40 = /^[0-9a-f]{40}$/i;
 const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const EXECUTION_ID = /^[A-Za-z0-9_.:-]{1,160}$/;
 const DEDUPE_KEY = /^[A-Za-z0-9_.:-]{1,256}$/;
+const OBSERVATION_ONLY_REASONS = new Set(["continue-from:main_push", "continue-from:pr_changed"]);
 
 function result(
   status: GithubExecutorResult["status"],
@@ -59,6 +60,14 @@ function githubClientPayload(request: AutopilotExecutionRequest): Record<string,
     production_mutation_allowed: false,
     ai_authority: "ZERO_AUTHORITY",
   };
+}
+
+function isObservationOnlyRawSignal(request: AutopilotExecutionRequest): boolean {
+  return request.kind === "REPOSITORY_AUTOPILOT"
+    && request.workflowRunId === null
+    && !request.executionId
+    && !request.dedupeKey
+    && OBSERVATION_ONLY_REASONS.has(request.reason);
 }
 
 async function resolveCurrentMainSha(
@@ -112,6 +121,7 @@ export async function executeGithubDispatch(
   fetchImpl: typeof fetch = fetch,
 ): Promise<GithubExecutorResult> {
   if (request.kind === "NOOP") return result("NOOP", "execution-request-noop");
+  if (isObservationOnlyRawSignal(request)) return result("NOOP", "github-executor-raw-event-observation-only");
   const token = config.token?.trim();
   if (!token) return result("INTERFACE_READY", "github-executor-token-not-configured");
   if (!REPOSITORY.test(config.allowedRepository)) return result("REJECTED", "github-executor-allowlist-invalid");
