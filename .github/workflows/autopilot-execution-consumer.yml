@@ -272,35 +272,40 @@ jobs:
           NUSA_AUDIT_RUNNER_URL: https://nusa-autopilot.desporin12.workers.dev/audit/execute
         run: |
           node - <<'NODE'
-          const fs = require('fs');
-          const fail = (message) => { console.error(message); process.exit(1); };
-          const request = JSON.parse(fs.readFileSync('artifacts/autopilot-audit-request/audit-runner-request.json', 'utf8'));
-          const oidcUrl = process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
-          const oidcRequestToken = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
-          if (!oidcUrl || !oidcRequestToken) fail('GitHub OIDC environment is unavailable');
-          const tokenUrl = new URL(oidcUrl);
-          tokenUrl.searchParams.set('audience', 'nusa-autopilot');
-          const oidcResponse = await fetch(tokenUrl, { headers: { authorization: `Bearer ${oidcRequestToken}`, accept: 'application/json' } });
-          if (!oidcResponse.ok) fail(`OIDC request failed: ${oidcResponse.status}`);
-          const oidc = await oidcResponse.json();
-          if (!oidc || typeof oidc.value !== 'string' || !oidc.value) fail('OIDC token missing');
-          const response = await fetch(process.env.NUSA_AUDIT_RUNNER_URL, {
-            method: 'POST',
-            headers: { authorization: `Bearer ${oidc.value}`, 'content-type': 'application/json' },
-            body: JSON.stringify(request),
+          (async () => {
+            const fs = require('fs');
+            const fail = (message) => { console.error(message); process.exit(1); };
+            const request = JSON.parse(fs.readFileSync('artifacts/autopilot-audit-request/audit-runner-request.json', 'utf8'));
+            const oidcUrl = process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
+            const oidcRequestToken = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
+            if (!oidcUrl || !oidcRequestToken) fail('GitHub OIDC environment is unavailable');
+            const tokenUrl = new URL(oidcUrl);
+            tokenUrl.searchParams.set('audience', 'nusa-autopilot');
+            const oidcResponse = await fetch(tokenUrl, { headers: { authorization: `Bearer ${oidcRequestToken}`, accept: 'application/json' } });
+            if (!oidcResponse.ok) fail(`OIDC request failed: ${oidcResponse.status}`);
+            const oidc = await oidcResponse.json();
+            if (!oidc || typeof oidc.value !== 'string' || !oidc.value) fail('OIDC token missing');
+            const response = await fetch(process.env.NUSA_AUDIT_RUNNER_URL, {
+              method: 'POST',
+              headers: { authorization: `Bearer ${oidc.value}`, 'content-type': 'application/json' },
+              body: JSON.stringify(request),
+            });
+            const result = await response.json().catch(() => null);
+            fs.writeFileSync('artifacts/autopilot-audit-request/audit-runner-result.json', JSON.stringify(result ?? { status: 'INVALID_RESPONSE' }, null, 2));
+            if (!response.ok) fail(`Audit runner rejected request: ${response.status} ${result?.error || result?.status || 'unknown'}`);
+            if (!result || result.accepted !== true || result.status !== 'AUDIT_COMPLETED') fail('Audit runner response is not a completed Audit');
+            if (result.schemaVersion !== 1) fail('Audit schema version invalid');
+            if (!['PASS', 'PASS_WITH_NOTES', 'FAIL'].includes(result.verdict)) fail('Audit verdict invalid');
+            if (result.repository !== request.repository || result.prNumber !== request.prNumber) fail('Audit repository/PR identity mismatch');
+            if (result.reviewedHeadSha !== request.headSha || result.baseSha !== request.baseSha || result.workflowRunId !== request.workflowRunId) fail('Audit exact-head/base/CI evidence mismatch');
+            if (result.liveAuthority !== 'NONE' || result.productionMutationAllowed !== false || result.aiAuthority !== 'ZERO_AUTHORITY') fail('Audit safety invariant response invalid');
+            if (result.verdict === 'PASS' && result.mergeAllowed !== true) fail('PASS verdict must explicitly allow merge');
+            if (result.verdict === 'PASS_WITH_NOTES' && result.mergeAllowed !== false) fail('PASS_WITH_NOTES must remain non-merge-authorizing');
+            if (result.verdict === 'FAIL' && result.mergeAllowed !== false) fail('FAIL verdict cannot allow merge');
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
           });
-          const result = await response.json().catch(() => null);
-          fs.writeFileSync('artifacts/autopilot-audit-request/audit-runner-result.json', JSON.stringify(result ?? { status: 'INVALID_RESPONSE' }, null, 2));
-          if (!response.ok) fail(`Audit runner rejected request: ${response.status} ${result?.error || result?.status || 'unknown'}`);
-          if (!result || result.accepted !== true || result.status !== 'AUDIT_COMPLETED') fail('Audit runner response is not a completed Audit');
-          if (result.schemaVersion !== 1) fail('Audit schema version invalid');
-          if (!['PASS', 'PASS_WITH_NOTES', 'FAIL'].includes(result.verdict)) fail('Audit verdict invalid');
-          if (result.repository !== request.repository || result.prNumber !== request.prNumber) fail('Audit repository/PR identity mismatch');
-          if (result.reviewedHeadSha !== request.headSha || result.baseSha !== request.baseSha || result.workflowRunId !== request.workflowRunId) fail('Audit exact-head/base/CI evidence mismatch');
-          if (result.liveAuthority !== 'NONE' || result.productionMutationAllowed !== false || result.aiAuthority !== 'ZERO_AUTHORITY') fail('Audit safety invariant response invalid');
-          if (result.verdict === 'PASS' && result.mergeAllowed !== true) fail('PASS verdict must explicitly allow merge');
-          if (result.verdict === 'PASS_WITH_NOTES' && result.mergeAllowed !== false) fail('PASS_WITH_NOTES must remain non-merge-authorizing');
-          if (result.verdict === 'FAIL' && result.mergeAllowed !== false) fail('FAIL verdict cannot allow merge');
           NODE
 
       - name: Re-verify exact head/base/main after Audit execution
@@ -436,7 +441,6 @@ jobs:
               "kind": "REPOSITORY_AUTOPILOT",
               "repository": "$GITHUB_REPOSITORY",
               "head_sha": "$current_main",
-              "pr_number": $PR_NUMBER,
               "workflow_run_id": $WORKFLOW_RUN_ID,
               "reason": "audit-recovery:pr:$PR_NUMBER:head:$REQUESTED_HEAD",
               "execution_id": "$execution_id",
@@ -710,7 +714,6 @@ jobs:
               "kind": "REPOSITORY_AUTOPILOT",
               "repository": "$GITHUB_REPOSITORY",
               "head_sha": "$current_main",
-              "pr_number": $PR_NUMBER,
               "workflow_run_id": $WORKFLOW_RUN_ID,
               "reason": "release-recovery:pr:$PR_NUMBER:audited-head:$REQUESTED_HEAD",
               "execution_id": "$execution_id",
