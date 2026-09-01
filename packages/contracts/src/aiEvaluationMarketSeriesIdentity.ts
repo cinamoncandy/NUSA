@@ -30,14 +30,16 @@ export type MarketSeriesIdentityValidation =
   | { readonly valid: false; readonly errors: readonly string[] };
 
 const isTimestamp = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+const isIdentity = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
 
 /**
- * Validates a single market-price series: every point shares the same seriesId/symbol, no
- * duplicate timestamps, values are finite, every ADJUSTED point declares a corporateActionIds
- * array (may be empty -- e.g. adjusted-but-no-action-applied-yet -- but must be present and
- * well-formed), and no UNADJUSTED point carries corporateActionIds (that would be a contradiction
- * in terms). Fails closed: any of these violations makes the whole series invalid rather than
- * silently accepting the well-formed points and dropping the rest.
+ * Validates a single market-price series: every point carries non-empty seriesId/symbol identity,
+ * every point shares the same seriesId/symbol, no duplicate timestamps, values are finite, every
+ * ADJUSTED point declares a corporateActionIds array (may be empty -- e.g. adjusted-but-no-action-
+ * applied-yet -- but must be present and well-formed), and no UNADJUSTED point carries
+ * corporateActionIds (that would be a contradiction in terms). Fails closed: any of these
+ * violations makes the whole series invalid rather than silently accepting the well-formed points
+ * and dropping the rest.
  */
 export function validateMarketSeriesIdentity(points: readonly MarketSeriesPoint[]): MarketSeriesIdentityValidation {
   if (points.length === 0) return { valid: false, errors: ["EMPTY_SERIES"] };
@@ -49,6 +51,8 @@ export function validateMarketSeriesIdentity(points: readonly MarketSeriesPoint[
   const seenTimestamps = new Set<number>();
 
   for (const point of points) {
+    if (!isIdentity(point.seriesId)) errors.add("INVALID_SERIES_ID");
+    if (!isIdentity(point.symbol)) errors.add("INVALID_SYMBOL");
     if (point.seriesId !== seriesId) errors.add("MIXED_SERIES_ID");
     if (point.symbol !== symbol) errors.add("MIXED_SYMBOL");
     if (point.adjustment !== adjustment) errors.add("MIXED_ADJUSTMENT_TYPE");
