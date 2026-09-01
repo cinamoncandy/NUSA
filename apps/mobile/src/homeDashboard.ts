@@ -85,7 +85,8 @@ export const buildHomeDashboard = (input: HomeDashboardInput): HomeDashboard => 
   const deployableCapital = (byBucket.get("SPOT") ?? 0) + (byBucket.get("FUTURES") ?? 0) + (byBucket.get("CASH") ?? 0);
   const protectedCapital = (byBucket.get("WITHDRAWAL") ?? 0) + (byBucket.get("RESERVE") ?? 0);
   const pendingCapital = byBucket.get("PENDING") ?? 0;
-  const canTrade = input.mode === "PAPER" || (input.mode === "LIVE" && input.aiHealth === "HEALTHY" && input.riskLevel !== "CRITICAL");
+  // This legacy projection must never imply production execution authority.
+  const canTrade = input.mode === "PAPER";
 
   return Object.freeze({
     generatedAt: input.generatedAt,
