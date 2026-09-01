@@ -68,3 +68,10 @@ implementation_head: 864274b9af824d8fdae1e0629c61596cc81155ea
 pull_request: 942
 merge_sha: 864274b9af824d8fdae1e0629c61596cc81155ea
 next: "Complete the remaining Issue #882 long-duration and runtime acceptance items separately; do not reopen the merged slice or claim full issue closure from the focused merge."
+
+bound_runtime_evidence_slice:
+  status: IN_PROGRESS
+  branch: codex/paper-chaos-bound-runtime-evidence
+  base_commit: 1e085360dc057ed8c097d28de36d40c71cb1cc5c
+  scope: "Canonical actual PAPER supervisor restart observation -> BOUND_UNVERIFIED chaos receipt artifact."
+  prohibited: "No VERIFIED self-promotion; no order, broker, credential, or LIVE authority."
