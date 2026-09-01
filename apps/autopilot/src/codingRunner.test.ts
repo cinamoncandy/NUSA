@@ -219,7 +219,7 @@ describe("coding runner", () => {
         };
       },
     };
-    const calls: Array<{ model: string; input: { prompt: string } }> = [];
+    const calls: Array<{ model: string; input: Parameters<WorkersAiBinding["run"]>[1] }> = [];
     const ai: WorkersAiBinding = {
       async run(model, input) {
         calls.push({ model, input });
@@ -233,6 +233,38 @@ describe("coding runner", () => {
     assert.equal(calls.length, 1);
     assert.equal(calls[0]?.model, "@cf/meta/llama-3.1-8b-instruct-fast");
     assert.match(calls[0]?.input.prompt ?? "", /unified diff/);
+    assert.deepEqual(calls[0]?.input.response_format, {
+      type: "json_schema",
+      json_schema: {
+        type: "object",
+        properties: { patch: { type: "string" } },
+        required: ["patch"],
+        additionalProperties: false,
+      },
+    });
+  });
+
+  it("accepts Workers AI JSON mode object responses", async () => {
+    const runtime: CodingRuntime = {
+      name: "fake-sandbox",
+      async execute(value, proposal) {
+        assert.equal(value.executionId, request.executionId);
+        assert.equal(proposal?.patch, patch);
+        return {
+          backend: "fake-sandbox",
+          checkpointId: request.headSha,
+          workspaceVerified: true,
+          proposalValidated: true,
+          changedFiles: ["apps/autopilot/src/example.ts"],
+        };
+      },
+    };
+    const ai: WorkersAiBinding = {
+      async run() { return { response: { patch } }; },
+    };
+    const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch, runtime);
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.equal(result.proposalValidated, true);
   });
 
   it("accepts a Workers AI JSON proposal wrapped in a markdown fence", async () => {
