@@ -10,9 +10,11 @@
 .nusa-brand strong { font-size:var(--font-size-title); }
 .nusa-brand span { margin-top:2px; color:hsl(var(--color-text-muted)); font-size:var(--font-size-caption); }
 .nusa-nav { display:grid; gap:var(--space-4); }
-.nusa-nav button { display:flex; align-items:center; gap:var(--space-12); min-height:44px; padding:0 var(--space-12); border:0; border-radius:var(--radius-md); background:transparent; color:hsl(var(--color-text-muted)); font:inherit; text-align:left; cursor:pointer; }
-.nusa-nav button:hover { background:hsl(var(--color-surface-raised)); color:hsl(var(--color-fg)); }
-.nusa-nav button.is-active { background:hsl(var(--color-primary)/.14); color:hsl(var(--color-primary)); font-weight:700; }
+.nusa-nav button,.nusa-bottom-nav button { min-height:44px; border:0; border-radius:var(--radius-md); background:transparent; color:hsl(var(--color-text-muted)); font:inherit; cursor:pointer; }
+.nusa-nav button { display:flex; align-items:center; gap:var(--space-12); padding:0 var(--space-12); text-align:left; }
+.nusa-nav button:hover,.nusa-bottom-nav button:hover { background:hsl(var(--color-surface-raised)); color:hsl(var(--color-fg)); }
+.nusa-nav button.is-active,.nusa-bottom-nav button.is-active { background:hsl(var(--color-primary)/.14); color:hsl(var(--color-primary)); font-weight:700; }
+.nusa-nav button:focus-visible,.nusa-bottom-nav button:focus-visible { outline:none; box-shadow:var(--shadow-focus); }
 .nusa-sidebar-status { margin-top:auto; padding:var(--space-16) var(--space-8) 0; border-top:1px solid hsl(var(--color-border)); }
 .nusa-status-line { display:flex; align-items:center; gap:var(--space-8); font-size:var(--font-size-caption); }
 .nusa-status-dot { width:8px; height:8px; border-radius:var(--radius-full); background:hsl(var(--color-warning)); }
@@ -25,7 +27,8 @@
 .nusa-header-meta { display:flex; align-items:center; gap:var(--space-12); color:hsl(var(--color-text-muted)); font-size:var(--font-size-caption); }
 .nusa-badge { display:inline-flex; align-items:center; min-height:28px; padding:0 var(--space-12); border:1px solid hsl(var(--color-border)); border-radius:var(--radius-full); background:hsl(var(--color-surface-raised)); color:hsl(var(--color-text-muted)); font-size:var(--font-size-caption); font-weight:700; }
 .nusa-badge--real { border-color:hsl(var(--color-danger)); color:hsl(var(--color-danger)); }
-.nusa-content { width:min(100%,1440px); margin:0 auto; padding:var(--space-32); }
+.nusa-content { width:min(100%,1440px); margin:0 auto; padding:var(--space-32); outline:none; }
+.nusa-content:focus-visible { box-shadow:inset var(--shadow-focus); }
 .nusa-page[hidden] { display:none; }
 .nusa-page-head { display:flex; align-items:flex-end; justify-content:space-between; gap:var(--space-24); margin-bottom:var(--space-24); }
 .nusa-page-head h2,.nusa-card h3,.nusa-card p { margin:0; }
@@ -34,19 +37,56 @@
 .nusa-eyebrow { color:hsl(var(--color-primary)); font-size:var(--font-size-caption); font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
 .nusa-grid { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:var(--space-16); }
 .nusa-card { min-width:0; padding:var(--space-24); border:1px solid hsl(var(--color-border)); border-radius:var(--radius-lg); background:hsl(var(--color-surface)); box-shadow:var(--shadow-xs); }
-.nusa-card--metric { grid-column:span 4; }.nusa-card--wide { grid-column:span 8; }.nusa-card--side { grid-column:span 4; }.nusa-card--full { grid-column:1/-1; }
+.nusa-card--metric { grid-column:span 4; }
+.nusa-card--wide { grid-column:span 8; }
+.nusa-card--side { grid-column:span 4; }
+.nusa-card--full { grid-column:1/-1; }
 .nusa-card-label { display:block; margin-bottom:var(--space-8); color:hsl(var(--color-text-muted)); font-size:var(--font-size-caption); font-weight:700; }
 .nusa-metric { display:block; font-size:clamp(1.6rem,2.6vw,2.4rem); letter-spacing:-.04em; font-variant-numeric:tabular-nums; }
 .nusa-submetric { display:block; margin-top:var(--space-8); color:hsl(var(--color-text-muted)); font-size:var(--font-size-caption); }
 .nusa-section-head { display:flex; align-items:flex-start; justify-content:space-between; gap:var(--space-16); margin-bottom:var(--space-16); }
 .nusa-section-head p { margin-top:var(--space-4); color:hsl(var(--color-text-muted)); font-size:var(--font-size-caption); }
-.nusa-judgement { display:grid; gap:var(--space-12); }.nusa-judgement strong { font-size:var(--font-size-heading); }.nusa-judgement p { color:hsl(var(--color-text-muted)); line-height:1.6; }
-.nusa-kv { display:grid; gap:var(--space-12); margin:0; }.nusa-kv div { display:flex; justify-content:space-between; gap:var(--space-16); padding-bottom:var(--space-12); border-bottom:1px solid hsl(var(--color-border)); }.nusa-kv div:last-child { padding-bottom:0; border-bottom:0; }.nusa-kv dt { color:hsl(var(--color-text-muted)); }.nusa-kv dd { margin:0; font-weight:700; text-align:right; }
-.nusa-timeline { display:grid; gap:0; }.nusa-event { display:flex; justify-content:space-between; gap:var(--space-16); padding:var(--space-12) 0; border-bottom:1px solid hsl(var(--color-border)); }.nusa-event:last-child { border-bottom:0; }.nusa-event strong,.nusa-event small { display:block; }.nusa-event small,.nusa-event time { color:hsl(var(--color-text-muted)); }.nusa-event small { margin-top:var(--space-4); }.nusa-event time { white-space:nowrap; }
+.nusa-judgement { display:grid; gap:var(--space-12); }
+.nusa-judgement strong { font-size:var(--font-size-heading); }
+.nusa-judgement p { color:hsl(var(--color-text-muted)); line-height:1.6; }
+.nusa-kv { display:grid; gap:var(--space-12); margin:0; }
+.nusa-kv div { display:flex; justify-content:space-between; gap:var(--space-16); padding-bottom:var(--space-12); border-bottom:1px solid hsl(var(--color-border)); }
+.nusa-kv div:last-child { padding-bottom:0; border-bottom:0; }
+.nusa-kv dt { color:hsl(var(--color-text-muted)); }
+.nusa-kv dd { margin:0; font-weight:700; text-align:right; }
+.nusa-timeline { display:grid; gap:0; }
+.nusa-event { display:flex; justify-content:space-between; gap:var(--space-16); padding:var(--space-12) 0; border-bottom:1px solid hsl(var(--color-border)); }
+.nusa-event:last-child { border-bottom:0; }
+.nusa-event strong,.nusa-event small { display:block; }
+.nusa-event small,.nusa-event time { color:hsl(var(--color-text-muted)); }
+.nusa-event small { margin-top:var(--space-4); overflow-wrap:anywhere; }
+.nusa-event time { white-space:nowrap; }
 .nusa-empty { padding:var(--space-24) 0; color:hsl(var(--color-text-muted)); text-align:center; }
-.nusa-positive { color:hsl(var(--color-success)); }.nusa-negative { color:hsl(var(--color-danger)); }.nusa-warning { color:hsl(var(--color-warning)); }
-.nusa-chart { min-height:220px; display:grid; place-items:center; border-top:1px solid hsl(var(--color-border)); }.nusa-chart svg { width:100%; height:220px; }
-.nusa-table-wrap { overflow-x:auto; }.nusa-table { width:100%; border-collapse:collapse; }.nusa-table th,.nusa-table td { padding:var(--space-12); border-bottom:1px solid hsl(var(--color-border)); text-align:right; white-space:nowrap; }.nusa-table th:first-child,.nusa-table td:first-child { text-align:left; }.nusa-table th { color:hsl(var(--color-text-muted)); font-size:var(--font-size-caption); }
-.nusa-notice { padding:var(--space-16); border:1px solid hsl(var(--color-border)); border-radius:var(--radius-md); background:hsl(var(--color-surface-raised)); color:hsl(var(--color-text-muted)); line-height:1.6; }.nusa-notice strong { color:hsl(var(--color-fg)); }
-@media (max-width:980px) { .nusa-app { grid-template-columns:1fr; }.nusa-sidebar { position:sticky; top:0; z-index:var(--z-sticky); flex-direction:row; align-items:center; gap:var(--space-12); padding:var(--space-12) var(--space-16); border-right:0; border-bottom:1px solid hsl(var(--color-border)); overflow-x:auto; }.nusa-brand span,.nusa-sidebar-status { display:none; }.nusa-nav { display:flex; gap:var(--space-4); }.nusa-nav button { white-space:nowrap; }.nusa-header { padding:var(--space-16); }.nusa-content { padding:var(--space-16); }.nusa-card--metric,.nusa-card--wide,.nusa-card--side { grid-column:1/-1; } }
-@media (max-width:640px) { .nusa-header-meta>:not(.nusa-badge--real) { display:none; }.nusa-page-head { align-items:flex-start; flex-direction:column; }.nusa-grid { display:block; }.nusa-card { margin-bottom:var(--space-12); padding:var(--space-16); }.nusa-metric { font-size:1.8rem; } }
+.nusa-positive { color:hsl(var(--color-success)); }
+.nusa-negative { color:hsl(var(--color-danger)); }
+.nusa-warning { color:hsl(var(--color-warning)); }
+.nusa-chart { min-height:220px; display:grid; place-items:center; border-top:1px solid hsl(var(--color-border)); color:hsl(var(--color-primary)); }
+.nusa-chart svg { width:100%; height:220px; }
+.nusa-notice { padding:var(--space-16); border:1px solid hsl(var(--color-border)); border-radius:var(--radius-md); background:hsl(var(--color-surface-raised)); color:hsl(var(--color-text-muted)); line-height:1.6; }
+.nusa-notice strong { color:hsl(var(--color-fg)); }
+.nusa-bottom-nav { display:none; }
+@media (max-width:980px) {
+  .nusa-app { grid-template-columns:1fr; }
+  .nusa-sidebar { display:none; }
+  .nusa-header { padding:var(--space-16); }
+  .nusa-content { padding:var(--space-16) var(--space-16) calc(var(--space-96) + var(--space-16)); }
+  .nusa-card--metric,.nusa-card--wide,.nusa-card--side { grid-column:1/-1; }
+  .nusa-bottom-nav { position:fixed; left:0; right:0; bottom:0; z-index:var(--z-sticky); display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:var(--space-4); padding:var(--space-8); border-top:1px solid hsl(var(--color-border)); background:hsl(var(--color-surface)); box-shadow:var(--shadow-md); }
+  .nusa-bottom-nav button { min-width:0; padding:0 var(--space-4); font-size:var(--font-size-caption); white-space:nowrap; }
+}
+@media (max-width:640px) {
+  .nusa-header-meta>:not(.nusa-badge--real) { display:none; }
+  .nusa-page-head { align-items:flex-start; flex-direction:column; }
+  .nusa-grid { display:block; }
+  .nusa-card { margin-bottom:var(--space-12); padding:var(--space-16); }
+  .nusa-metric { font-size:1.8rem; }
+  .nusa-event { align-items:flex-start; flex-direction:column; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .nusa-app * { scroll-behavior:auto!important; transition-duration:0ms!important; animation-duration:0ms!important; }
+}
