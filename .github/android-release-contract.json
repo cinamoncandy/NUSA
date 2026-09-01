@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "releaseMode": "PAPER_SHADOW_ONLY",
+  "safety": {
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY",
+    "mobileCredentialStorageAllowed": false,
+    "paperRealSeparation": true,
+    "failClosed": true
+  },
+  "uiMarkers": {
+    "homePaperLearning": "home-paper-learning",
+    "homeSupervisorLearning": "home-supervisor-learning",
+    "tradePaperLearning": "trade-paper-learning",
+    "portfolioPaperLearning": "portfolio-paper-learning",
+    "paperLearningMonitor": "paper-learning-monitor"
+  },
+  "chartMarkers": {
+    "marketsChartTab": "markets-chart-tab",
+    "marketDetailWorkspace": "market-detail-workspace",
+    "chartScreen": "chart-screen",
+    "chartCandles": "chart-candles"
+  }
+}
