@@ -132,7 +132,7 @@ function parseProposalText(value: string): CodingProposal {
   const text = value.trim();
   const fenced = (
     text.match(/^```(?:json|diff|patch)?\s*([\s\S]*?)\s*```$/i)
-    ?? text.match(/```(?:json|diff|patch)\s*([\s\S]*?)\s*```/i)
+    ?? text.match(/```(?:json|diff|patch)?\s*([\s\S]*?)\s*```/i)
   )?.[1]?.trim();
   const candidate = fenced ?? text;
 
@@ -140,15 +140,38 @@ function parseProposalText(value: string): CodingProposal {
   // ```diff fence) despite the JSON-only instruction. Treat that as the same
   // patch-only proposal contract; the sandbox still performs the authoritative
   // apply, scope, and safety validation before any publication.
-  if (/^diff --git a\/[^\s]+ b\/[^\s]+(?:\r?\n|$)/.test(candidate) && /^\+\+\+ b\/[^\r\n]+$/m.test(candidate)) {
-    return validateCodingProposal({ patch: candidate });
+  const diffStart = candidate.search(/^diff --git a\/[^\s]+ b\/[^\s]+(?:\r?\n|$)/m);
+  if (diffStart >= 0) {
+    const diff = candidate.slice(diffStart).replace(/\s*```\s*$/i, "").trim();
+    if (/^\+\+\+ b\/[^\r\n]+$/m.test(diff)) return validateCodingProposal({ patch: diff });
   }
 
+  // A patch string commonly contains TypeScript object literals. Track quoted
+  // strings while balancing braces so those inner braces cannot truncate the
+  // surrounding JSON object.
   const candidates = [candidate];
-  const start = candidate.indexOf("{");
-  const end = candidate.lastIndexOf("}");
-  if (start >= 0 && end > start && (start !== 0 || end !== candidate.length - 1)) {
-    candidates.push(candidate.slice(start, end + 1));
+  for (let start = candidate.indexOf("{"); start >= 0; start = candidate.indexOf("{", start + 1)) {
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let index = start; index < candidate.length; index += 1) {
+      const character = candidate[index]!;
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (character === "\\") escaped = true;
+        else if (character === '"') inString = false;
+        continue;
+      }
+      if (character === '"') {
+        inString = true;
+        continue;
+      }
+      if (character === "{") depth += 1;
+      else if (character === "}" && --depth === 0) {
+        candidates.push(candidate.slice(start, index + 1));
+        break;
+      }
+    }
   }
   let parsedJson = false;
   for (const json of candidates) {
