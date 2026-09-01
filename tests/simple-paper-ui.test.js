@@ -10,12 +10,12 @@ const css = fs.readFileSync(path.join(root, "simple-ui.css"), "utf8");
 const viewModel = fs.readFileSync(path.join(root, "mobile-view-model.js"), "utf8");
 const script = fs.readFileSync(path.join(root, "simple-ui.js"), "utf8");
 
-function bootstrap({ snapshot = null, control = null } = {}) {
+function bootstrap({ snapshot = null, control = null, snapshotError = false } = {}) {
   const dom = new JSDOM(html, { url: "http://localhost/", pretendToBeVisual: true, runScripts: "dangerously" });
   const { window } = dom;
   const handlers = {};
   window.nusa = {
-    getSnapshot: () => Promise.resolve(snapshot),
+    getSnapshot: () => snapshotError ? Promise.reject(new Error("cloud unavailable")) : Promise.resolve(snapshot),
     getControlSnapshot: () => Promise.resolve(control),
     onStatus: (handler) => { handlers.status = handler; return () => {}; },
     onTicker: (handler) => { handlers.ticker = handler; return () => {}; },
@@ -66,16 +66,51 @@ test("home keeps REAL fail-closed while showing PAPER learning outcomes", async 
   dom.window.close();
 });
 
-test("market connection is observational and never exposes manual order actions", () => {
+test("market connection is observational and never exposes manual order actions", async () => {
   const { dom, window, handlers } = bootstrap();
+  await settle();
   handlers.ticker({ trade_price: 90_000_000, signed_change_rate: 0.01 });
   handlers.status("disconnected");
-  assert.match(window.document.querySelector("[data-connection]").textContent, /연결 끊김|연결 이상/);
+  assert.match(window.document.querySelector("[data-connection]").textContent, /업비트.*연결 끊김|업비트.*연결 이상/);
   handlers.status("connected");
-  assert.match(window.document.querySelector("[data-connection]").textContent, /연결됨|정상/);
+  assert.match(window.document.querySelector("[data-connection]").textContent, /서버 · 업비트 정상/);
   assert.match(window.document.querySelector('[data-page="dashboard"]').textContent, /90,000,000/);
   assert.equal(window.document.querySelectorAll("[data-simple-order], [data-order]").length, 0);
   dom.window.close();
+});
+
+test("validated Upbit ticker repairs a missed initial connected event", async () => {
+  const { dom, window, handlers } = bootstrap();
+  await settle();
+  assert.match(window.document.querySelector("[data-connection]").textContent, /업비트 확인 중/);
+  handlers.ticker({ trade_price: 91_234_567, signed_change_rate: 0.0025 });
+  assert.equal(window.NUSASimpleUI.state.connectionCode, "connected");
+  assert.match(window.document.querySelector("[data-connection]").textContent, /서버 · 업비트 정상/);
+  assert.match(window.document.querySelector('[data-page="dashboard"]').textContent, /91,234,567/);
+  dom.window.close();
+});
+
+test("cloud snapshot failure is distinct from Upbit and successful polling recovers it", async () => {
+  const { dom, window, handlers } = bootstrap({ snapshotError: true });
+  handlers.ticker({ trade_price: 92_000_000, signed_change_rate: -0.003 });
+  await settle();
+  assert.equal(window.NUSASimpleUI.state.serverConnectionCode, "disconnected");
+  assert.match(window.document.querySelector("[data-connection]").textContent, /서버.*연결/);
+  handlers.snapshot({ equity: 10_000_000, cash: 10_000_000, unrealizedPnl: 0, position: { quantity: 0, realizedPnl: 0 }, orders: [] });
+  assert.equal(window.NUSASimpleUI.state.serverConnectionCode, "connected");
+  assert.match(window.document.querySelector("[data-connection]").textContent, /서버 · 업비트 정상/);
+  window.document.querySelector(".nusa-sidebar [data-nav='settings']").click();
+  const settings = window.document.querySelector('[data-page="settings"]');
+  assert.match(settings.textContent, /NUSA 서버.*정상/s);
+  assert.match(settings.textContent, /업비트 공개 시세.*정상/s);
+  dom.window.close();
+});
+
+test("server connection has a bounded stale watchdog and no local fallback", () => {
+  assert.match(script, /SERVER_SNAPSHOT_STALE_MS\s*=\s*7_000/);
+  assert.match(script, /serverLastSuccessAt/);
+  assert.match(script, /state\.serverConnectionCode\s*=\s*"disconnected"/);
+  assert.doesNotMatch(script, /PaperBroker|local broker fallback|paper:snapshot/);
 });
 
 test("canonical navigation is keyboard-addressable and shows one page at a time", () => {
