@@ -23,6 +23,10 @@
     "ExecutionCoordinator": {
       "type": "durable-object",
       "storage": "sqlite"
+    },
+    "Sandbox": {
+      "type": "durable-object",
+      "state": "deleted"
     }
   }
 }
