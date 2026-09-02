@@ -14,6 +14,14 @@ function auditJobSlice() {
   return workflow.slice(start, end);
 }
 
+function auditRecoveryJobSlice() {
+  const start = workflow.indexOf("  audit-recovery:");
+  const end = workflow.indexOf("\n  release:", start);
+  assert.ok(start >= 0, "Audit recovery job must exist");
+  assert.ok(end > start, "Audit recovery job must end before release");
+  return workflow.slice(start, end);
+}
+
 test("execution consumer removes workflow-wide mutation permissions", () => {
   assert.match(workflow, /permissions: \{\}/);
   assert.doesNotMatch(workflow.slice(0, workflow.indexOf("jobs:")), /contents: write|actions: write|pull-requests: write/);
@@ -107,4 +115,14 @@ test("malformed or unsafe Audit evidence cannot advance Release", () => {
   assert.match(auditRunner, /AUDIT_VERDICT_KEYS_INVALID/);
   assert.match(auditRunner, /AUDIT_VERDICT_SAFETY_REQUIRES_FAIL/);
   assert.match(auditRunner, /AUDIT_RUNNER_MUTATION_FORBIDDEN/);
+});
+
+test("Audit recovery paginates and binds exact-main evidence to canonical CI", () => {
+  const recovery = auditRecoveryJobSlice();
+  assert.match(recovery, /gh api --paginate --slurp/);
+  assert.match(recovery, /\.path == "\.github\/workflows\/ci\.yml"/);
+  assert.match(recovery, /\.name == "CI"/);
+  assert.match(recovery, /\.conclusion == "success"/);
+  assert.match(recovery, /\.head_sha == /);
+  assert.match(recovery, /\$current_main/);
 });
