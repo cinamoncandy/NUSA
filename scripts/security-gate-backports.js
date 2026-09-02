@@ -29,17 +29,25 @@ function parseJsonObject(output) {
   throw new Error("AUDIT_JSON_INCOMPLETE");
 }
 
+function parseAuditResult(output) {
+  const value = parseJsonObject(output);
+  if (value && typeof value === "object" && value.error) {
+    throw new Error(`AUDIT_UNAVAILABLE:${value.error.code ?? "unknown"}`);
+  }
+  return value;
+}
+
 function audit() {
   try {
     const windows = os.platform() === "win32";
     const executable = windows ? (process.env.ComSpec ?? "cmd.exe") : "pnpm";
     const args = windows ? ["/d", "/s", "/c", "pnpm audit --json"] : ["audit", "--json"];
     const output = execFileSync(executable, args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-    return parseJsonObject(output);
+    return parseAuditResult(output);
   } catch (error) {
     const output = String(error.stdout ?? "");
     if (!output.includes("{")) throw error;
-    return parseJsonObject(output);
+    return parseAuditResult(output);
   }
 }
 
@@ -113,4 +121,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { parseJsonObject, evaluateAudit };
+module.exports = { parseJsonObject, parseAuditResult, evaluateAudit };

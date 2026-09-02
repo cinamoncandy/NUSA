@@ -125,6 +125,7 @@ jobs:
       group: deterministic-release-main
       cancel-in-progress: false
     permissions:
+      actions: write
       contents: write
       pull-requests: write
     env:
@@ -153,3 +154,11 @@ jobs:
           echo 'liveAuthority=NONE'
           echo 'productionMutationAllowed=false'
           echo 'aiAuthority=ZERO_AUTHORITY'
+
+      - name: Start canonical post-merge main CI
+        run: |
+          set -euo pipefail
+          merged_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          test "$merged_main" != "$AUDITED_BASE"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/dispatches" -f ref=main
+          echo "Dispatched canonical main CI for merged revision $merged_main"
