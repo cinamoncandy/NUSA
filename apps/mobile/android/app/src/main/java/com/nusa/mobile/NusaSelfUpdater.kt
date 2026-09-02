@@ -7,6 +7,7 @@ import android.os.Build
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -39,7 +40,6 @@ object NusaSelfUpdater {
       checking.set(false)
       return
     }
-    prefs.edit().putLong("last-check-at", now).apply()
 
     Thread {
       try {
@@ -55,7 +55,10 @@ object NusaSelfUpdater {
           @Suppress("DEPRECATION")
           activity.packageManager.getPackageInfo(activity.packageName, 0).versionCode.toLong()
         }
-        if (remoteVersion <= currentVersion) return@Thread
+        if (remoteVersion <= currentVersion) {
+          prefs.edit().putLong("last-check-at", now).apply()
+          return@Thread
+        }
 
         val expectedSha = readUtf8(SHA_URL, 1024).trim().split(Regex("\\s+"))[0].lowercase()
         if (!expectedSha.matches(Regex("^[0-9a-f]{64}$"))) return@Thread
@@ -70,6 +73,8 @@ object NusaSelfUpdater {
 
         activity.runOnUiThread {
           if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !activity.packageManager.canRequestPackageInstalls()) {
+            // Do not advance the throttle here. Returning from Settings must immediately retry
+            // the verified release flow and continue into the OS installer.
             val permissionIntent = Intent(
               Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
               Uri.parse("package:${activity.packageName}")
@@ -77,6 +82,7 @@ object NusaSelfUpdater {
             activity.startActivity(permissionIntent)
             return@runOnUiThread
           }
+          prefs.edit().putLong("last-check-at", now).apply()
           launchInstaller(activity, apk)
         }
       } catch (_: Exception) {
@@ -100,16 +106,24 @@ object NusaSelfUpdater {
   private fun readUtf8(url: String, maxBytes: Int): String {
     val connection = open(url)
     connection.inputStream.use { input ->
-      val bytes = input.readNBytes(maxBytes + 1)
-      require(bytes.size <= maxBytes)
-      return bytes.toString(Charsets.UTF_8)
+      val output = ByteArrayOutputStream()
+      val buffer = ByteArray(4096)
+      var total = 0
+      while (true) {
+        val count = input.read(buffer)
+        if (count < 0) break
+        total += count
+        require(total <= maxBytes)
+        output.write(buffer, 0, count)
+      }
+      return output.toString(Charsets.UTF_8.name())
     }
   }
 
   private fun download(url: String, destination: File) {
     val connection = open(url)
     val contentLength = connection.contentLengthLong
-    require(contentLength in 1..MAX_APK_BYTES)
+    if (contentLength > 0) require(contentLength <= MAX_APK_BYTES)
     destination.outputStream().use { output ->
       connection.inputStream.use { input ->
         val buffer = ByteArray(64 * 1024)
