@@ -2,6 +2,7 @@ import { app, ipcMain } from "electron";
 import { activateCloudCanonicalDesktopAuthority } from "./paper/desktopPaperAuthorityPolicy";
 import { registerDesktopCloudPaperIpc } from "./cloud/desktopCloudPaperIpc";
 import { createDesktopCloudSessionClient } from "./cloud/desktopCloudSessionRuntime";
+import { startDesktopAutoUpdate } from "./update/desktopAutoUpdate";
 
 // These handlers belong to the legacy local simulator. The explicit LOCAL_SIMULATION
 // development entrypoint may still load main.ts directly, but the packaged Cloud-canonical
@@ -24,6 +25,7 @@ activateCloudCanonicalDesktopAuthority();
 // as Electron becomes ready, without ever exposing credentials to preload/renderer code.
 void app.whenReady().then(() => {
   registerDesktopCloudPaperIpc(ipcMain, createDesktopCloudSessionClient());
+  startDesktopAutoUpdate();
 }).catch((error) => {
   console.error("[desktop-cloud-paper] secure session registration failed", error instanceof Error ? error.message : "unknown error");
 });
