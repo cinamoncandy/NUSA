@@ -1,0 +1,64 @@
+id: WO-UI-20260902-AI-TRADING-COCKPIT-REDESIGN
+schema_version: 1
+title: "AI Trading Cockpit full UX redesign"
+status: in_progress
+authority_impact: none
+owner: owner-requested
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 3d6399e1c471dac0dbbda917515da0fc5cf42993
+implementation_branch: ux/ai-trading-cockpit-redesign-20260902
+objective: "Redesign the canonical Electron Paper Trading renderer into a high-density AI-native trading cockpit while preserving the existing runtime, Paper order, safety, and authority contracts."
+owner_request:
+  - "재설계"
+  - "다 해"
+impact:
+  profit_potential: "Reduce time-to-decision and make evidence, position, market, and activity context easier to compare without inventing investment evidence."
+  safety: "Make PAPER/live-disabled, connectivity, automation, and unavailable risk evidence more prominent without changing any authority or risk behavior."
+  efficiency: "Reorganize the six canonical routes around a three-second command-home scan and action-adjacent panels."
+  convenience: "Improve desktop density, mobile prioritization, order ergonomics, and progressive disclosure."
+authority:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+scope:
+  - "Define the cockpit design principles, target information architecture, desktop wireframe, mobile wireframe, component contract, and implementation order."
+  - "Extend DESIGN_SYSTEM.md with the cockpit hierarchy and density contract."
+  - "Keep the canonical six route boundaries while remapping them to Command Home, Markets + Order, Portfolio + Risk, AI Decision, Analytics + Activity, and Settings + Authority."
+  - "Rewrite canonical semantic markup without changing data-simple runtime ownership."
+  - "Add a dedicated cockpit.css presentation layer after app.css."
+  - "Add static contract tests for cockpit markup, route count, safety copy, token use, responsive structure, and unavailable-data truthfulness."
+exclusions:
+  - "No backend, IPC, broker, exchange, credential, LIVE, REAL, risk-policy, accounting, persistence, or production mutation behavior."
+  - "No new runtime subscription owner and no MutationObserver mirroring."
+  - "No fabricated AI confidence, rationale, risk limit, drawdown, concentration, benchmark, or execution values."
+  - "No changes to Paper order gating or order placement semantics."
+ux_contract:
+  - "A user can identify assets, PnL, exposure, market health, automation state, and execution mode within one scan."
+  - "PAPER and live-disabled state remain unmistakable in header, order station, confirmation, and authority settings."
+  - "Missing canonical risk or AI evidence is labeled unavailable instead of simulated."
+  - "Five primary mobile destinations remain unchanged; Settings remains outside primary navigation."
+  - "Critical state is never communicated by color alone."
+verification:
+  required:
+    - "pnpm run preflight"
+    - "pnpm run validate"
+    - "pnpm run lint:desktop"
+    - "pnpm run test:ui"
+    - "pnpm run build"
+    - "node --test tests/simple-paper-ui.test.js"
+    - "git diff --check"
+  status: DEFERRED_OWNER_LOCAL
+  note: "OWNER explicitly deferred local work. No validation PASS is claimed and no PR may be opened until required local validation passes."
+completion_criteria:
+  - "Cockpit design and implementation contracts are durable repository documents."
+  - "Canonical runtime selectors and one-owner subscription model remain intact."
+  - "Desktop presentation becomes a command-oriented cockpit with clear hierarchy and action adjacency."
+  - "Mobile presentation prioritizes essential financial fields and maintains touch-safe controls."
+  - "Unavailable advanced risk/AI/analytics evidence is not fabricated."
+  - "Required local validation passes before PR creation."
+provenance:
+  requested_by: owner
+  requested_at: "2026-09-02"
+  request: "재설계 / 다 해"

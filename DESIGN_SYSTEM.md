@@ -45,3 +45,37 @@ Available radius values are `sm`, `md`, `lg`, `xl`, and `full`. Available elevat
 Use semantic HTML first. Dialogs use native `<dialog>`; drawers use `<aside>` with an accessible name; button, form, and tooltip states keep visible keyboard focus. `component-library.js` only manages dialog and drawer visibility. It must never call the trading bridge or contain domain decisions.
 
 Run `pnpm storybook` for the interactive catalogue, `pnpm run test:ui` for Vitest contracts, and `pnpm run test:e2e` for Playwright keyboard and responsive checks.
+
+## AI Trading Cockpit extension
+
+The canonical product surface follows the detailed contract in `docs/NUSA_AI_TRADING_COCKPIT_DESIGN.md`.
+
+### Hierarchy
+
+Every primary trading surface uses this priority order:
+
+1. execution mode, connectivity, and freshness;
+2. account outcome and capital exposure;
+3. NUSA/market decision context;
+4. positions, Paper actions, and risk evidence;
+5. analytics, history, and diagnostics.
+
+Large financial values and safety state receive stronger visual weight than descriptive copy. Status labels remain short and task-oriented.
+
+### Density
+
+Cockpit density is achieved through grid alignment, compact captions, tabular numerics, sticky table headers, and aligned panel edges. Minimum touch/focus target sizes remain unchanged. Dense layout must never require tiny text to fit more information.
+
+### Surfaces
+
+`app.css` supplies canonical baseline behavior and responsive accessibility. `cockpit.css` may change layout, spacing, hierarchy, and visual composition only. It must not disable focus treatment, override a runtime-disabled control into an enabled state, create runtime subscriptions, or own trading decisions.
+
+### State presentation
+
+PAPER/live-disabled, disconnected, loading, error, blocked, empty, and unavailable states are meanings, not colors. Text or structure must communicate each state even without color perception.
+
+Unavailable advanced risk, AI, or analytics evidence is shown as unavailable. Presentation must never invent values simply to complete a card or visual balance.
+
+### Responsive semantics
+
+Desktop may expose denser evidence in parallel columns. Mobile prioritizes essential financial fields, uses the five canonical primary destinations, keeps Settings separate, and converts the Paper confirmation surface to a bottom sheet. Hiding a secondary field must not change its data ownership or semantic meaning.

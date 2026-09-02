@@ -6,24 +6,38 @@
 
 1. `tokens.css` — semantic visual tokens
 2. `components.css` — shared presentation primitives
-3. `app.css` — product layout and responsive composition
-4. `mobile-view-model.js` — shared formatting/snapshot summarization contract
-5. `app-runtime.js` — navigation, runtime subscriptions, Paper order flow, settings, portfolio and NUSA state rendering
-6. `app-adapter.js` — reserved zero-authority extension seam; it must not subscribe to runtime data or duplicate product rendering
-7. `app-accessibility.js` — dialog keyboard/focus containment
+3. `app.css` — canonical product layout, behavior-safe baseline, and responsive composition
+4. `cockpit.css` — presentation-only AI Trading Cockpit hierarchy and responsive overrides
+5. `mobile-view-model.js` — shared formatting/snapshot summarization contract
+6. `app-runtime.js` — navigation, runtime subscriptions, Paper order flow, settings, portfolio and NUSA state rendering
+7. `app-adapter.js` — reserved zero-authority extension seam; it must not subscribe to runtime data or duplicate product rendering
+8. `app-accessibility.js` — dialog keyboard/focus containment
 
 ## Views
 
-The framework-neutral renderer intentionally keeps view markup as semantic sections in `index.html` rather than generating it from JavaScript. Each section is a single view boundary:
+The framework-neutral renderer intentionally keeps view markup as semantic sections in `index.html` rather than generating it from JavaScript. The canonical route boundaries remain stable while the product presentation is organized as an AI-native trading cockpit:
 
-- `dashboard` — Home / outcome summary
-- `orders` — Trading / Paper action
-- `positions` — Portfolio / holdings and PnL
-- `strategy` — NUSA runtime state and Paper strategy controls
-- `logs` — History / operational timeline
-- `settings` — display and diagnostics only
+- `dashboard` — Command Home / account outcome, exposure, health, NUSA state
+- `orders` — Markets + Order Station / market context and explicit Paper action
+- `positions` — Portfolio + Risk / holdings, PnL, composition, available risk evidence
+- `strategy` — AI Decision / NUSA runtime-backed state and Paper strategy controls
+- `logs` — Analytics + Activity / outcome summary and chronological events
+- `settings` — Settings + Authority / display, diagnostics, Paper-only boundary
 
-This avoids multiple mount systems and keeps the DOM inspectable, deterministic and accessible. View behavior belongs in `app-runtime.js`; reusable visual primitives belong in `components.css`.
+This avoids multiple mount systems and keeps the DOM inspectable, deterministic and accessible. View behavior belongs in `app-runtime.js`; reusable visual primitives belong in `components.css`; cockpit presentation belongs in `cockpit.css`.
+
+## Presentation-layer invariant
+
+`cockpit.css` may change composition, density, spacing, responsive visibility, and visual hierarchy. It may not:
+
+- subscribe to runtime data;
+- add or infer trading authority;
+- enable disabled controls;
+- synthesize investment, risk, AI, execution, account, or freshness values;
+- replace canonical `data-simple-*` ownership;
+- create a second navigation or rendering runtime.
+
+Semantic markup may repeat selectors rendered through `app-runtime.js`'s multi-target `text()` helper. Single mutable targets such as order inputs, allocation containers, and position tables remain unique.
 
 ## Runtime invariants
 
@@ -38,13 +52,14 @@ This avoids multiple mount systems and keeps the DOM inspectable, deterministic 
 
 ## Responsive/accessibility invariants
 
-- Touch targets are at least 44px.
+- Touch targets are at least 44px; primary mobile Paper order targets are at least 52px in the cockpit layer.
 - Mobile primary navigation remains five destinations; Settings stays separate.
-- Financial tables are keyboard-focusable horizontal regions.
+- Financial tables remain keyboard-focusable horizontal regions even when secondary columns are hidden on narrow screens.
 - Focus remains visible.
-- Paper order confirmation is a modal dialog with focus containment and focus restoration.
+- Paper order confirmation is a modal dialog with focus containment and focus restoration; presentation becomes a bottom sheet on mobile.
 - Reduced-motion preferences are respected.
 - Critical state is never communicated by color alone.
+- Unavailable data is never styled or worded as zero, safe, healthy, or complete.
 
 ## Historical renderer files
 

@@ -1,0 +1,49 @@
+{
+  "workOrder": "WO-UI-20260902-AI-TRADING-COCKPIT-REDESIGN",
+  "status": "IMPLEMENTED_VALIDATION_DEFERRED",
+  "authorityImpact": "none",
+  "baseCommit": "3d6399e1c471dac0dbbda917515da0fc5cf42993",
+  "implementationBranch": "ux/ai-trading-cockpit-redesign-20260902",
+  "runtimeBehaviorChanged": false,
+  "runtimeSubscriptionOwnerChanged": false,
+  "paperOrderSemanticsChanged": false,
+  "safety": {
+    "mode": "PAPER_ONLY",
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY"
+  },
+  "implemented": [
+    "AI Trading Cockpit design principles and canonical information architecture",
+    "desktop and mobile wireframes",
+    "renderer implementation contract",
+    "design-system cockpit hierarchy and density extension",
+    "canonical renderer markup redesign while preserving data-simple runtime hooks",
+    "presentation-only cockpit.css layer",
+    "static cockpit contract test"
+  ],
+  "deferredEvidence": [
+    "AI confidence/rationale/invalidation/horizon",
+    "risk limits/drawdown/concentration/breach reason",
+    "benchmark and advanced attribution",
+    "richer order lifecycle"
+  ],
+  "localValidation": {
+    "status": "DEFERRED_OWNER_LOCAL",
+    "reason": "OWNER explicitly said local work will be done later.",
+    "passClaimed": false,
+    "required": [
+      "pnpm run preflight",
+      "pnpm run validate",
+      "pnpm run lint:desktop",
+      "pnpm run test:ui",
+      "pnpm run build",
+      "node --test tests/simple-paper-ui.test.js",
+      "git diff --check"
+    ]
+  },
+  "pullRequest": {
+    "opened": false,
+    "reason": "Repository protocol prohibits opening a PR before required local validation passes."
+  }
+}
