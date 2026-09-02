@@ -11,6 +11,8 @@ import { buildLocalPortfolio, isLocalPaperActive } from "./localPaperLedger";
 import { useLocalPaperMarkPrice, useLocalPaperSnapshot } from "./localPaperLedgerHooks";
 import { SupervisorProgressPanel } from "./supervisorProgressPanel";
 import { buildChartViewModel, type PublicCandle } from "./chartViewModel";
+import { selectHomeMarketData } from "./homeMarketData";
+import type { WatchlistMarket } from "./watchlist";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
 export type HomeDestination = "Markets" | "AiSignal" | "Portfolio";
@@ -22,6 +24,7 @@ interface HomeViewProps {
   readonly notConfigured: string | null;
   readonly refreshing: boolean;
   readonly publicMarket: string;
+  readonly publicMarkets: readonly WatchlistMarket[] | null;
   readonly publicCandles: readonly PublicCandle[] | null;
   readonly publicCurrentPrice: number | null;
   readonly publicMarketConnectionState: string;
@@ -85,6 +88,7 @@ export function HomeView({
   notConfigured,
   refreshing,
   publicMarket,
+  publicMarkets,
   publicCandles,
   publicCurrentPrice,
   publicMarketConnectionState,
@@ -114,17 +118,17 @@ export function HomeView({
   const disconnected = notConfigured != null;
   const runtimeState = snapshot?.operations.runtimeState;
   const heartbeat = snapshot?.operations.heartbeat;
-  const publicMarkets = snapshot?.markets ?? [];
-  const marketRows = [...publicMarkets]
+  const marketFeed = selectHomeMarketData(publicMarkets, snapshot?.markets ?? []);
+  const marketRows = [...marketFeed]
     .sort((left, right) => Math.abs(right.changeRate ?? 0) - Math.abs(left.changeRate ?? 0))
     .slice(0, tablet ? 5 : 3);
-  const marketBreadth = publicMarkets.reduce((result, market) => {
+  const marketBreadth = marketFeed.reduce((result, market) => {
     if (market.changeRate == null || market.changeRate === 0) result.flat += 1;
     else if (market.changeRate > 0) result.up += 1;
     else result.down += 1;
     return result;
   }, { up: 0, flat: 0, down: 0 });
-  const hasMarketBreadth = publicMarkets.length > 0;
+  const hasMarketBreadth = marketFeed.length > 0;
   const marketWave = buildChartViewModel({
     market: publicMarket,
     interval: "1m",

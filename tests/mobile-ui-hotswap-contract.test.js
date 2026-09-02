@@ -55,7 +55,8 @@ test("HomeView consumes the MASTER profile and presents the dense truthful termi
 test("HOME terminal uses canonical data and declares unavailable feeds instead of fabricating them", () => {
   const home = read("apps/mobile/src/homeView.tsx");
   const app = read("apps/mobile/App.tsx");
-  assert.match(home, /const publicMarkets = snapshot\?\.markets \?\? \[\]/);
+  assert.match(home, /selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)/);
+  assert.match(home, /publicMarkets: readonly WatchlistMarket\[\] \| null/);
   assert.match(home, /market\.source|UPBIT PUBLIC/);
   assert.match(home, /NO VERIFIED MARKET SNAPSHOT/);
   assert.match(home, /ORDER FLOW: UNAVAILABLE/);
