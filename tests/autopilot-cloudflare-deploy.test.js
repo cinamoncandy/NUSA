@@ -58,6 +58,16 @@ test("daily read-only readiness guard detects broken Cloudflare credentials befo
   assert.doesNotMatch(readiness, /wrangler@4\.127\.1 deploy/);
 });
 
+test("deployment waits for the canonical exact-head CI beyond the default API page", () => {
+  assert.match(workflow, /actions\/workflows\/ci\.yml\/runs\?head_sha=\$HEAD_SHA&status=completed&per_page=100/);
+  assert.match(workflow, /actions\/runs\/\$CI_RUN_ID/);
+  assert.match(workflow, /CI_RUN_ID.*workflow_run\.id/);
+  assert.match(workflow, /actions\/runs\/\$CI_RUN_ID.*\.head_sha == \"'\"\$HEAD_SHA\"'\"/s);
+  assert.match(workflow, /\.path == \"\.github\/workflows\/ci\.yml\"/);
+  assert.match(workflow, /\.head_sha == \"'\"\$HEAD_SHA\"'\"/);
+  assert.match(workflow, /HEAD_SHA.*\^\[0-9a-fA-F\]\{40\}\$/);
+});
+
 test("deployment workflow remains fail-closed and read-only toward GitHub", () => {
   assert.match(workflow, /permissions:\s*\n\s*contents: read/);
   assert.doesNotMatch(workflow, /contents: write/);
