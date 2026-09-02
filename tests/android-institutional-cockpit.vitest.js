@@ -4,6 +4,8 @@ import fs from "node:fs";
 const themeProvider = fs.readFileSync("apps/mobile/src/ThemeProvider.tsx", "utf8");
 const androidTheme = fs.readFileSync("apps/mobile/src/androidInstitutionalTheme.ts", "utf8");
 const homeProfile = fs.readFileSync("apps/mobile/src/homeVisualProfile.ts", "utf8");
+const marketsView = fs.readFileSync("apps/mobile/src/marketsView.tsx", "utf8");
+const tradingView = fs.readFileSync("apps/mobile/src/tradingView.tsx", "utf8");
 const nativeTheme = fs.readFileSync("apps/mobile/android/app/src/main/res/values/styles.xml", "utf8");
 const nativeColors = fs.readFileSync("apps/mobile/android/app/src/main/res/values/colors.xml", "utf8");
 
@@ -12,6 +14,8 @@ describe("Android institutional cockpit", () => {
     expect(themeProvider).toContain('Platform.OS === "android" ? applyAndroidInstitutionalTheme(base) : base');
     expect(themeProvider).toContain('Platform.OS === "android" ? <StatusBar');
     expect(homeProfile).toContain('Platform.OS === "android" && preset === "master"');
+    expect(marketsView).toContain('Platform.OS === "android"');
+    expect(tradingView).toContain('Platform.OS === "android"');
   });
 
   it("uses a restrained graphite + teal institutional palette", () => {
@@ -27,6 +31,13 @@ describe("Android institutional cockpit", () => {
       expect(androidTheme).not.toContain(forbidden);
     }
     expect(androidTheme).toContain("visual tokens only");
+  });
+
+  it("uses denser terminal geometry on Android market and PAPER context", () => {
+    expect(marketsView).toContain("androidTradeAction");
+    expect(marketsView).toContain("theme.radii.sm");
+    expect(tradingView).toContain("androidMarketPanel");
+    expect(tradingView).toContain("androidMiniChart");
   });
 
   it("aligns Android launch and system chrome with the cockpit", () => {
