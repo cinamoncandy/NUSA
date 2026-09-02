@@ -18,6 +18,11 @@ test("Cloudflare deployment recovers after a CI-only repair merge", () => {
   assert.match(workflow, /AI authority=ZERO_AUTHORITY/);
 });
 
+test("deployment selects the newest completed canonical CI run for an exact head", () => {
+  assert.match(workflow, /select\(\.name == "CI" and \.path == "\.github\/workflows\/ci\.yml" and \.head_sha == env\.HEAD_SHA\)/);
+  assert.match(workflow, /sort_by\(\.id\) \| reverse \| \.\[0\]\.conclusion/);
+});
+
 test("deployment is Worker-only and has no paid Cloudflare Containers rollout", () => {
   assert.match(workflow, /Workers Free-compatible runtime/);
   assert.match(workflow, /wrangler@4\.127\.1 deploy/);
