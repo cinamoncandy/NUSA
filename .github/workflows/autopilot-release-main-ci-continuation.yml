@@ -1,0 +1,52 @@
+name: Autopilot Release Main CI Continuation
+
+on:
+  workflow_run:
+    workflows: [Autopilot Execution Consumer]
+    types: [completed]
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: nusa-release-main-ci-continuation
+  cancel-in-progress: false
+
+jobs:
+  continue-main-ci:
+    if: github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Dispatch canonical CI only when current main has no canonical CI run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          if ! [[ "$current_main" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'Current main SHA is malformed; refusing continuation.' >&2
+            exit 1
+          fi
+
+          # Query the canonical ci.yml workflow itself, scoped to branch=main and the exact
+          # protected-main SHA. A same-name workflow elsewhere cannot satisfy this guard.
+          existing="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&head_sha=$current_main&per_page=100" \
+            --jq '[.workflow_runs[] | select(.path == ".github/workflows/ci.yml" and .head_branch == "main" and .head_sha == "'"$current_main"'" and (.status == "queued" or .status == "in_progress" or .status == "completed"))] | length')"
+          if ! [[ "$existing" =~ ^[0-9]+$ ]]; then
+            echo 'Unable to determine exact-main canonical CI state; refusing continuation.' >&2
+            exit 1
+          fi
+          if [ "$existing" -gt 0 ]; then
+            echo "Canonical ci.yml already exists for current protected main $current_main; no dispatch."
+            exit 0
+          fi
+
+          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/dispatches" \
+            --input - <<'EOF'
+          {"ref":"main"}
+          EOF
+          echo "Dispatched canonical ci.yml for current protected main $current_main."
