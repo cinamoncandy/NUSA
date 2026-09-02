@@ -1,0 +1,62 @@
+name: Cloudflare Deployment Readiness
+
+on:
+  schedule:
+    - cron: "30 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nusa-cloudflare-deployment-readiness
+  cancel-in-progress: true
+
+env:
+  NUSA_WORKER_HEALTH_URL: https://nusa-autopilot.desporin12.workers.dev/health
+
+jobs:
+  readiness:
+    name: Verify Cloudflare auth and deployed Worker health
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Enable pnpm via Corepack
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.7.0 --activate
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+
+      - name: Verify Cloudflare secrets are configured
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo '::error::CLOUDFLARE_API_TOKEN is missing.'; exit 1; }
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}" || { echo '::error::CLOUDFLARE_ACCOUNT_ID is missing.'; exit 1; }
+
+      - name: Verify Cloudflare token/account access read-only
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          if ! pnpm dlx wrangler@4.127.1 whoami >/tmp/nusa-wrangler-whoami.log 2>&1; then
+            cat /tmp/nusa-wrangler-whoami.log
+            echo '::error::Cloudflare authentication/account readiness failed before the next deployment.'
+            exit 1
+          fi
+          echo 'Cloudflare token/account readiness passed.'
+
+      - name: Verify deployed Worker health endpoint
+        run: |
+          set -euo pipefail
+          payload="$(curl --fail --silent --show-error --max-time 20 "$NUSA_WORKER_HEALTH_URL")"
+          echo "$payload" | jq -e '.deploymentRevision | type == "string" and length > 0' >/dev/null
+          echo "$payload" | jq -e '.liveAuthority == "NONE"' >/dev/null
+          echo "$payload" | jq -e '.productionMutationAllowed == false' >/dev/null
+          echo 'Worker health/read-only authority readiness passed.'
