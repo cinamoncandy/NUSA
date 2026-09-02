@@ -2,7 +2,7 @@
 
 ## Status
 
-Normative UX direction for the canonical NUSA Electron Paper Trading client. This document refines, but does not replace, `docs/NUSA_USER_EXPERIENCE_PRINCIPLE.md`.
+Normative UX direction for the canonical NUSA Electron Paper Trading client and semantic alignment reference for the independent React Native mobile client. This document refines, but does not replace, `docs/NUSA_USER_EXPERIENCE_PRINCIPLE.md`.
 
 ## North star
 
@@ -33,7 +33,7 @@ NUSA may show a conclusion only to the depth supported by canonical runtime evid
 
 ### 4. Safety is structure, not decoration
 
-PAPER/live-disabled state is repeated in the global header, order safety notice, confirmation sheet, and authority settings. Color reinforces state but never carries the meaning alone.
+PAPER/live-disabled state is repeated in the global header, order safety notice, confirmation sheet, authority settings, and native-mobile supervisor surfaces. Color reinforces state but never carries the meaning alone.
 
 ### 5. Progressive disclosure
 
@@ -43,13 +43,15 @@ Default surfaces communicate task-level meaning. Technical identifiers, raw even
 
 Density comes from alignment, shared baselines, compact labels, tabular numerics, and deliberate grouping. It does not come from shrinking type until information becomes difficult to scan.
 
-### 7. One semantic system across desktop and mobile
+### 7. One semantic system, platform-specific navigation
 
-Desktop uses a persistent left navigation and wide command canvas. Mobile uses five primary destinations and a separate Settings entry, but PAPER/LIVE, risk, health, and action semantics remain identical.
+Desktop Electron uses a persistent left navigation and wide command canvas. The Electron narrow viewport keeps its five canonical primary destinations plus separate Settings because that is the tested renderer contract.
 
-## Canonical information architecture
+The native React Native app remains an independent mobile cockpit: four high-frequency primary task tabs (`Home`, `Markets`, `Paper`, `Portfolio`) with AI Signal and Order History as contextual destinations. The platforms share PAPER/LIVE, risk, health, evidence, and action semantics; they do not have to share identical navigation geometry.
 
-The renderer keeps the existing six route boundaries to preserve runtime and deep-link contracts while changing their product meaning.
+## Canonical desktop information architecture
+
+The Electron renderer keeps the existing six route boundaries to preserve runtime and deep-link contracts while changing their product meaning.
 
 | Canonical route | Cockpit product meaning | Primary task |
 | --- | --- | --- |
@@ -117,7 +119,7 @@ Top-level Markets, Risk Center, and Analytics concepts therefore exist without c
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Mobile wireframe
+## Electron narrow-viewport wireframe
 
 ```text
 ┌──────────────────────────────┐
@@ -136,7 +138,25 @@ Top-level Markets, Risk Center, and Analytics concepts therefore exist without c
 └──────────────────────────────┘
 ```
 
-On mobile, financial tables keep keyboard/scroll semantics but secondary columns are hidden so the essential outcome does not require horizontal panning. Paper order confirmation becomes a bottom sheet.
+On the Electron narrow viewport, financial tables keep keyboard/scroll semantics but secondary columns are hidden so the essential outcome does not require horizontal panning. Paper order confirmation becomes a bottom sheet.
+
+## Native mobile wireframe
+
+```text
+┌──────────────────────────────┐
+│ NUSA          PAPER / LIVE   │
+├──────────────────────────────┤
+│ SUPERVISOR / EVIDENCE FIRST  │
+│ NOW · WHY · RESULT · RISK    │
+├──────────────────────────────┤
+│ Market / Paper / Portfolio   │
+│ focused task surface         │
+├──────────────────────────────┤
+│ Home Markets Paper Portfolio │
+└──────────────────────────────┘
+```
+
+AI Signal, Order History, Paper Learning/monitoring, notifications, and Settings remain contextual/deeper surfaces. See `docs/NUSA_AI_TRADING_COCKPIT_MOBILE_ALIGNMENT.md`.
 
 ## Visual language
 
@@ -173,11 +193,12 @@ Explain the absence of positions, orders, or history without implying an error.
 ## Interaction contract
 
 - Frequent navigation and inspection: one deliberate action.
-- Paper order: input -> explicit side selection -> confirmation sheet -> submit.
+- Paper order: input -> explicit side selection -> confirmation -> submit.
 - Authority-changing LIVE interactions: not present in this work order.
 - Settings: presentation/diagnostic only.
-- Focus indicators remain visible.
-- Touch targets remain at least 44px; primary mobile order targets should be at least 52px.
+- Focus indicators remain visible where applicable.
+- Desktop/narrow Electron touch targets remain at least 44px; primary order targets should be at least 52px on narrow screens.
+- Native mobile retains its 48px design-system interaction contract.
 
 ## Content hierarchy
 
@@ -191,7 +212,7 @@ Explain the absence of positions, orders, or history without implying an error.
 
 The cockpit design reserves semantic space for the following but must not synthesize them:
 
-- AI confidence and detailed rationale;
+- AI confidence and detailed rationale beyond authoritative runtime contracts;
 - invalidation and horizon;
 - explicit risk limits and breach reasons;
 - drawdown and concentration;
@@ -203,4 +224,4 @@ These become active only when a canonical backend/runtime contract supplies auth
 
 ## Definition of done
 
-The redesign is successful when the OWNER can scan current truth quickly, the next safe action is obvious, PAPER/live-disabled status is unmistakable, mobile preserves essential outcomes, and no polished surface creates evidence that the runtime does not actually possess.
+The redesign is successful when the OWNER can scan current truth quickly, the next safe action is obvious, PAPER/live-disabled status is unmistakable, each platform preserves task-appropriate navigation, and no polished surface creates evidence that the runtime does not actually possess.
