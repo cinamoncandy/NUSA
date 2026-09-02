@@ -38,8 +38,6 @@ function healthyInput(overrides = {}) {
   };
 }
 
-// ------------------------------------------------------------------ 1. MATCHED
-
 test("1: a clean persisted snapshot reconciles as MATCHED", () => {
   const result = compareRecoveryState(healthyInput());
   assert.equal(result.outcome, "MATCHED", JSON.stringify({ m: result.mismatchCodes, e: result.errorCodes }));
@@ -50,13 +48,10 @@ test("1: a clean persisted snapshot reconciles as MATCHED", () => {
   assert.equal(result.checkedAt, CHECKED_AT);
 });
 
-// -------------------------------------------- 2-5. MISMATCHED, one cause each
-
 test("2: an unresolved fill reconciles as MISMATCHED", () => {
   const broker = freshBroker();
   broker.execute("BUY", 0.001, 100_000_000, new Date(CHECKED_AT - 1_000));
   const state = broker.exportState();
-  // Strip the fill timestamp: an order the record cannot place in time is unresolved.
   const tampered = { ...state, orders: state.orders.map((order) => ({ ...order, filledAt: "" })) };
   const result = compareRecoveryState(healthyInput({
     broker: new PaperBroker(INITIAL_CASH, "KRW-BTC", 0.0005, RISK_POLICY, tampered, { slippageBps: 5, spreadBps: 5, maxFillRatio: 0.9 })
@@ -69,7 +64,6 @@ test("3: persisted cash projection is rebuilt from the authoritative ledger", ()
   const broker = freshBroker();
   broker.execute("BUY", 0.001, 100_000_000, new Date(CHECKED_AT - 1_000));
   const state = broker.exportState();
-  // Move the account's cash away from what the ledger independently computes.
   const tampered = { ...state, cash: state.cash - 1_000 };
   const result = compareRecoveryState(healthyInput({
     broker: new PaperBroker(INITIAL_CASH, "KRW-BTC", 0.0005, RISK_POLICY, tampered, { slippageBps: 5, spreadBps: 5, maxFillRatio: 0.9 })
@@ -117,11 +111,7 @@ test("5b: kill switch, open P0, markerless evidence and capability each reconcil
   }
 });
 
-// ------------------------------------------------------ 6-7. ERROR, not MISMATCHED
-
 test("6: a missing snapshot or unreadable state reconciles as ERROR, never MISMATCHED", () => {
-  // ERROR and MISMATCHED are different claims. "I could not compare" must never be reported
-  // as "I compared and they disagree" -- one is ignorance, the other is knowledge.
   const cases = [
     [{ persistedSnapshotPresent: false }, "PERSISTED_SNAPSHOT_MISSING"],
     [{ recoveryRecordId: null }, "RECOVERY_RECORD_MISSING"],
@@ -141,18 +131,14 @@ test("7: a comparison that throws reports a specific code, not a generic error",
   const result = compareRecoveryState(healthyInput({ broker: exploding }));
   assert.equal(result.outcome, "ERROR");
   assert.ok(result.errorCodes.includes("COMPARISON_THREW"), JSON.stringify(result.errorCodes));
-  // The message is not carried through -- only the error's shape. A raw message could carry a path.
   assert.equal(result.evidence.some((item) => item.includes("ledger read failed")), false);
 });
 
 test("7b: main.ts registers all four recovery handlers", () => {
-  // A missing handler is the difference between a specific blocker and an opaque IPC failure.
   for (const channel of ["recovery:status", "recovery:reconcile", "recovery:owner-review", "recovery:complete"]) {
     assert.ok(recoveryIpcSource.includes(`ipcMain.handle("${channel}"`), `${channel} handler must be registered`);
   }
 });
-
-// ------------------------------------------------- 8-10. owner review discipline
 
 test("8: owner approval is refused before the comparison MATCHES", () => {
   const mismatched = compareRecoveryState(healthyInput({ killSwitchActive: true }));
@@ -166,7 +152,6 @@ test("8: owner approval is refused before the comparison MATCHES", () => {
 });
 
 test("8b: approval is refused without an explicit owner action", () => {
-  // There is no default-approved value. A caller that omits the flag is refused, not consented.
   const matched = compareRecoveryState(healthyInput());
   const result = approveRecoveryReview({ comparison: matched, explicitOwnerAction: false, reviewedAt: CHECKED_AT });
   assert.equal(result.approved, false);
@@ -191,7 +176,6 @@ test("10: a changed fingerprint invalidates an existing approval", () => {
   state.recordApproval(approveRecoveryReview({ comparison: first, explicitOwnerAction: true, reviewedAt: CHECKED_AT }).approval);
   assert.equal(state.status().ownerApproved, true);
 
-  // The world moved: the kill switch came on after the owner reviewed.
   const second = compareRecoveryState(healthyInput({ killSwitchActive: true }));
   assert.notEqual(second.fingerprint, first.fingerprint);
   state.recordComparison(second);
@@ -220,8 +204,6 @@ test("10c: an approval for a different recovery record cannot complete this one"
   assert.equal(result.refusal, "APPROVAL_RECORD_MISMATCH");
 });
 
-// ------------------------------------------------- 11-13. completion discipline
-
 test("11: MATCHED plus a matching approval clears the recovery gate", () => {
   const matched = compareRecoveryState(healthyInput());
   const approval = approveRecoveryReview({ comparison: matched, explicitOwnerAction: true, reviewedAt: CHECKED_AT }).approval;
@@ -246,7 +228,6 @@ test("12: a completed recovery record is marked COMPLETED, never deleted", () =>
   const approval = approveRecoveryReview({ comparison: matched, explicitOwnerAction: true, reviewedAt: CHECKED_AT }).approval;
   const result = completeRecovery({ comparison: matched, approval, completedAt: CHECKED_AT });
   assert.equal(result.recoveryRecordStatus, "COMPLETED");
-  // The record id survives into the audit event: the account of what was recovered is kept.
   assert.equal(result.auditEvent.recoveryRecordId, "snapshot-1");
 });
 
@@ -258,15 +239,12 @@ test("13: no code path in this module deletes a record or an evidence archive", 
   }
 });
 
-// --------------------------------------------------------- 14-17. safety posture
-
 test("14-16: the module starts no Shadow session, calls no private API, and mutates nothing", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "recovery", "recoveryReconciliation.ts"), "utf8");
   const code = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
   for (const forbidden of ["shadowRuntime", ".start(", "api.upbit.com", "access_key", "secret_key", "node:http", "fetch(", ".buy(", ".sell("]) {
     assert.equal(code.includes(forbidden), false, `reconciliation must never reference ${forbidden}`);
   }
-  // Reading the broker is allowed; the only two calls it may make are read-only.
   const brokerCalls = [...code.matchAll(/broker\.(\w+)\(/g)].map((match) => match[1]);
   assert.deepEqual([...new Set(brokerCalls)].sort(), ["exportState", "snapshot"], JSON.stringify(brokerCalls));
 });
@@ -277,8 +255,6 @@ test("17: the comparison result carries no secret and no absolute path", () => {
   assert.equal(/\/home\/|\/Users\/|[A-Za-z]:\\/.test(rendered), false, "no absolute user path may reach the result");
   assert.equal(/secret|token|api[-_]?key|password/i.test(rendered), false, "no credential-shaped field may reach the result");
 });
-
-// ------------------------------------------------ 18-19. renderer isolation
 
 test("18-19: the renderer stays sandboxed with node integration off", () => {
   const options = mainSource.match(/webPreferences:\s*\{[\s\S]*?\}/);
@@ -293,7 +269,6 @@ test("18b: the preload exposes only the four fixed recovery channels", () => {
   assert.ok(block, "the recovery bridge must be a frozen fixed-channel object");
   const channels = [...block[0].matchAll(/"(recovery:[a-z-]+)"/g)].map((match) => match[1]).sort();
   assert.deepEqual(channels, ["recovery:complete", "recovery:owner-review", "recovery:reconcile", "recovery:status"]);
-  // No general-purpose escape hatch reaches the renderer.
   assert.equal(preloadSource.includes("exposeInMainWorld(\"ipcRenderer\""), false);
   assert.equal(/exposeInMainWorld\([^)]*,\s*ipcRenderer\s*\)/.test(preloadSource), false);
   assert.equal(preloadSource.includes("require(\"node:fs\")"), false);
@@ -302,11 +277,9 @@ test("18b: the preload exposes only the four fixed recovery channels", () => {
 
 test("18c: the owner-review payload accepts only an explicit literal confirmation", () => {
   assert.deepEqual(parseRecoveryOwnerReviewIpc({ confirmed: true }), { confirmed: true });
-  // Truthy is not consent. Only the literal `true` is.
   for (const bad of [{ confirmed: "true" }, { confirmed: 1 }, { confirmed: {} }, { confirmed: false }, {}, null, [], { confirmed: true, extra: 1 }]) {
     assert.throws(() => parseRecoveryOwnerReviewIpc(bad), JSON.stringify(bad));
   }
-  // The renderer cannot name a fingerprint, a reviewer or a timestamp on any channel.
   for (const parse of [parseRecoveryStatusIpc, parseRecoveryReconcileIpc, parseRecoveryCompleteIpc]) {
     assert.deepEqual(parse(null), {});
     assert.deepEqual(parse({}), {});
@@ -314,8 +287,6 @@ test("18c: the owner-review payload accepts only an explicit literal confirmatio
     assert.throws(() => parse({ reviewer: "local-owner" }));
   }
 });
-
-// ------------------------------------------------------- 20. status consistency
 
 test("20: the reported status matches the underlying comparison at every step", () => {
   const state = new RecoveryReviewState();
@@ -351,51 +322,41 @@ test("20: the reported status matches the underlying comparison at every step", 
 test("20b: main.ts derives the comparison from its own state, never from the renderer", () => {
   const builder = mainSource.match(/function buildRecoveryComparison\(\)[\s\S]*?\n\}/);
   assert.ok(builder, "the comparison builder must exist");
-  // No parameter at all: there is nothing for a renderer payload to flow into.
   assert.match(builder[0], /function buildRecoveryComparison\(\): /);
   assert.equal(/buildRecoveryComparison\(\s*\w+/.test(mainSource), false, "the builder must take no caller input");
 
   const approveHandler = recoveryIpcSource.match(/ipcMain\.handle\("recovery:owner-review"[\s\S]*?\n\s*\}\);/);
   assert.ok(approveHandler, "the owner-review handler must exist");
-  // The approval is bound to the stored comparison, and refuses when none was run.
   assert.match(approveHandler[0], /recoveryReview\.latestComparison\(\)/);
   assert.match(approveHandler[0], /has not been run/);
   assert.match(approveHandler[0], /explicitOwnerAction: true/);
 });
 
-// ------------------------------------------------ owner review UI contract (A4H)
-
+// Historical admin renderer remains regression-tested below, but the canonical consumer
+// renderer must never surface recovery owner authority controls.
 const rendererSource = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "renderer", "renderer.js"), "utf8");
 const indexHtml = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "renderer", "index.html"), "utf8");
 
-test("UI: both owner controls start disabled in the markup", () => {
-  const panel = indexHtml.match(/<section id="recovery-review"[\s\S]*?<\/section>/);
-  assert.ok(panel, "the recovery review panel must exist");
-  assert.match(panel[0], /id="approve-recovery-review"[^>]*\bdisabled\b/);
-  assert.match(panel[0], /id="complete-recovery"[^>]*\bdisabled\b/);
-  // A page that failed to load its script must not present an enabled approve button.
+test("UI: canonical consumer renderer exposes no recovery owner authority controls", () => {
+  assert.doesNotMatch(indexHtml, /id="recovery-review"/);
+  assert.doesNotMatch(indexHtml, /id="approve-recovery-review"/);
+  assert.doesNotMatch(indexHtml, /id="complete-recovery"/);
+  assert.doesNotMatch(indexHtml, /recovery:owner-review|recovery:complete/);
 });
 
-test("UI: the approve control is gated on the main process's own verdict", () => {
+test("UI: the historical approve control is gated on the main process's own verdict", () => {
   const render = rendererSource.match(/function renderRecoveryReview\(status\)[\s\S]*?\n\}/);
   assert.ok(render, "renderRecoveryReview must exist");
-  // Enabled from `approvalAllowed` alone. Re-deriving "looks matched to me" in the renderer
-  // would put a second, weaker opinion beside the authoritative one.
   assert.match(render[0], /approve\.disabled = !status\.approvalAllowed/);
-  // Exactly one assignment, so no later line can quietly re-enable it on the renderer's own
-  // reading of the state.
   assert.equal((render[0].match(/approve\.disabled\s*=/g) ?? []).length, 1);
   assert.equal((render[0].match(/complete\.disabled\s*=/g) ?? []).length, 1);
-  // Completion additionally requires a recorded approval; MATCHED alone must not enable it.
   assert.match(render[0], /complete\.disabled = !\(status\.ownerApproved && status\.reconciliation === "MATCHED"\)/);
 });
 
-test("UI: a finished request restores controls from status, never blanket-enables them", () => {
+test("UI: a finished historical request restores controls from status, never blanket-enables them", () => {
   const wire = rendererSource.match(/const wireRecoveryButton = [\s\S]*?\n\};/);
   assert.ok(wire, "wireRecoveryButton must exist");
   assert.match(wire[0], /finally \{\s*restoreRecoveryControls\(\);\s*\}/);
-  // The regression a real browser caught: `finally { button.disabled = false; }` handed back
-  // a complete button after the gate had already cleared.
   assert.equal(/finally \{[\s\S]*?button\.disabled = false/.test(wire[0]), false, "controls must not be blanket re-enabled");
 
   const restore = rendererSource.match(/const restoreRecoveryControls = \(\) => \{[\s\S]*?\n\};/);
@@ -403,11 +364,10 @@ test("UI: a finished request restores controls from status, never blanket-enable
   assert.match(restore[0], /renderRecoveryReview\(lastRecoveryStatus\)/);
 });
 
-test("UI: the panel renders no HTML string and no inline style", () => {
+test("UI: historical recovery rendering uses no HTML string or inline style", () => {
   const panelCode = rendererSource.match(/function renderRecoveryReview[\s\S]*?wireRecoveryButton\("complete-recovery"[^\n]*\n/);
   assert.ok(panelCode, "the recovery panel block must exist");
   assert.equal(/\.innerHTML\s*=/.test(panelCode[0]), false, "strict CSP forbids innerHTML");
   assert.equal(/\.style\./.test(panelCode[0]), false, "strict CSP forbids inline style writes");
-  // The full digest is never shown: it identifies the comparison and adds nothing actionable.
   assert.match(panelCode[0], /fingerprint\.slice\(0, 12\)/);
 });
