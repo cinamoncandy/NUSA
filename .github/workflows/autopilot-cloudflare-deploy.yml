@@ -94,7 +94,7 @@ jobs:
         run: |
           set -euo pipefail
           echo 'deploy=true' >> "$GITHUB_OUTPUT"
-          echo "Exact-head CI is verified for ${HEAD_SHA}; deploying the current Worker revision."
+          echo "Exact-head CI is verified for ${HEAD_SHA}; Worker and Container rollout stay atomically aligned by selecting the rollout mode before deploy."
 
       - name: Determine Container rollout mode
         id: container
