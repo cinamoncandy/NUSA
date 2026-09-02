@@ -4,259 +4,92 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none';" />
-  <title>NUSA Paper Trader</title>
+  <title>NUSA</title>
   <link rel="stylesheet" href="tokens.css" />
   <link rel="stylesheet" href="components.css" />
-  <link rel="stylesheet" href="command-palette.css" />
-  <link rel="stylesheet" href="application-state.css" />
-  <link rel="stylesheet" href="control-room.css" />
-  <link rel="stylesheet" href="product-screens.css" />
-  <link rel="stylesheet" href="brand-ui.css" />
-  <link rel="stylesheet" href="workspace.css" />
-  <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="simple-ui.css" />
-  <script src="theme-provider.js"></script>
-  <script src="component-library.js"></script>
-  <script src="command-palette.js"></script>
-  <script src="control-room.js"></script>
-  <script src="product-screens.js"></script>
+  <link rel="stylesheet" href="app.css" />
 </head>
 <body>
-  <div id="simple-ui-root" class="simple-app" data-testid="simple-ui-root">
-    <aside class="simple-sidebar" aria-label="주요 메뉴">
-      <div class="simple-brand">
-        <img src="assets/nusa-a4p-symbol.svg" alt="NUSA" class="simple-brand__mark" />
-        <div><strong>NUSA</strong><span>Paper Trading</span></div>
-      </div>
-      <div class="simple-mode"><span class="simple-mode__dot" aria-hidden="true"></span><div><strong>Paper Trading</strong><span>실거래 비활성</span></div></div>
-      <nav class="simple-nav" aria-label="작업 공간">
-        <button class="simple-nav__item is-active" type="button" data-simple-nav="dashboard" aria-current="page"><span aria-hidden="true">⌂</span>대시보드</button>
-        <button class="simple-nav__item" type="button" data-simple-nav="market"><span aria-hidden="true">◌</span>마켓</button>
-        <button class="simple-nav__item" type="button" data-simple-nav="orders"><span aria-hidden="true">↗</span>주문</button>
-        <button class="simple-nav__item" type="button" data-simple-nav="positions"><span aria-hidden="true">▦</span>자산</button>
-        <button class="simple-nav__item" type="button" data-simple-nav="more"><span aria-hidden="true">•••</span>더보기</button>
+  <div id="simple-ui-root" class="v2-app" data-testid="nusa-app-root" data-runtime-owner="canonical">
+    <aside class="v2-sidebar" aria-label="주요 메뉴">
+      <div class="v2-brand"><img src="assets/nusa-a4p-symbol.svg" alt="NUSA" /><strong>NUSA</strong></div>
+      <nav class="v2-nav" aria-label="작업 공간">
+        <button type="button" class="v2-nav__item is-active" data-simple-nav="dashboard" aria-current="page">홈</button>
+        <button type="button" class="v2-nav__item" data-simple-nav="orders">거래</button>
+        <button type="button" class="v2-nav__item" data-simple-nav="positions">포트폴리오</button>
+        <button type="button" class="v2-nav__item" data-simple-nav="strategy">NUSA</button>
+        <button type="button" class="v2-nav__item" data-simple-nav="logs">기록</button>
       </nav>
-      <div class="simple-sidebar__footer" aria-label="시스템 상태">
-        <div class="simple-system-status"><span class="simple-status-dot" data-simple-status-dot aria-hidden="true"></span><div><strong data-simple-sidebar-status>확인 중</strong><span>시스템 상태</span></div></div>
-        <span class="simple-version">NUSA Paper Trader</span>
-      </div>
+      <button class="v2-settings" type="button" data-simple-nav="settings" aria-label="설정 열기">설정</button>
     </aside>
-    <div class="simple-main">
-      <header class="simple-header">
-        <div><p class="simple-eyebrow">NUSA PAPER TRADING</p><h1 id="simple-page-title">대시보드</h1></div>
-        <div class="simple-header__status">
-          <span class="simple-connection" data-simple-connection><span class="simple-status-dot" aria-hidden="true"></span>연결 상태 확인 중</span>
-          <span class="simple-exchange">Upbit · Public data</span>
-          <span class="simple-paper-badge">PAPER · 실거래 비활성</span>
-          <button class="simple-icon-button" type="button" data-simple-nav="settings" aria-label="설정으로 이동" title="설정">⚙</button>
+
+    <div class="v2-main">
+      <header class="v2-header">
+        <div><span class="v2-kicker">NUSA PAPER</span><strong>NUSA</strong></div>
+        <div class="v2-status" aria-label="운영 상태">
+          <span data-simple-connection aria-live="polite"><span class="simple-status-dot" aria-hidden="true"></span>확인 중</span>
+          <span class="v2-mode" aria-label="Paper Trading · 실거래 비활성">PAPER · 실거래 비활성</span>
         </div>
       </header>
-      <main id="simple-page-content" class="simple-content" tabindex="-1">
-        <section class="simple-page is-active" data-simple-page="dashboard" aria-labelledby="simple-dashboard-title">
-          <div class="simple-page-heading"><div><p class="simple-eyebrow">OVERVIEW</p><h2 id="simple-dashboard-title">오늘의 상태</h2><p>Paper Trading 계정과 시장 연결을 한눈에 확인하세요.</p></div><span class="simple-update" data-simple-updated>업데이트 대기 중</span></div>
-          <div class="simple-hero-grid">
-            <article class="simple-card simple-card--health"><div class="simple-card__label">시스템 상태</div><div class="simple-health"><span class="simple-status-dot" data-simple-status-dot aria-hidden="true"></span><strong data-simple-health>확인 중</strong></div><p data-simple-health-copy>Paper 계정과 공개 시장 데이터 상태를 확인하고 있습니다.</p></article>
-            <article class="simple-card simple-card--action"><div class="simple-card__label">빠른 행동</div><strong data-simple-next-action>시세 연결을 기다리는 중입니다.</strong><p data-simple-next-copy>주문 화면에서 내용을 확인한 뒤 Paper 주문을 진행합니다.</p><div class="simple-order-actions"><button class="simple-button simple-button--primary" type="button" data-simple-quick-order="BUY">Paper 매수</button><button class="simple-button simple-button--secondary" type="button" data-simple-quick-order="SELL">Paper 매도</button></div></article>
+
+      <main id="simple-page-content" class="v2-content" tabindex="-1">
+        <section class="v2-page" data-simple-page="dashboard">
+          <div class="v2-page-title"><div><span>HOME</span><h1>오늘의 상태</h1><p class="v2-page-helper">자산 결과와 NUSA 운영 상태를 먼저 확인합니다.</p></div><small data-simple-updated>업데이트 대기 중</small></div>
+          <div class="v2-metrics" aria-label="계정 요약">
+            <article><span>총 자산</span><strong data-simple-total-equity>-</strong></article>
+            <article><span>평가 손익</span><strong data-simple-pnl>-</strong></article>
+            <article><span>현재 포지션</span><strong data-simple-position-count>-</strong></article>
           </div>
-          <div class="simple-summary-grid" aria-label="계정 요약">
-            <article class="simple-card simple-summary-card"><span>총 자산</span><strong data-simple-total-equity>-</strong><small>Paper 계정 평가액</small></article>
-            <article class="simple-card simple-summary-card"><span>평가 손익</span><strong data-simple-pnl>-</strong><small>현재가 기준</small></article>
-            <article class="simple-card simple-summary-card"><span>보유 종목</span><strong data-simple-position-count>-</strong><small>열린 포지션</small></article>
-            <article class="simple-card simple-summary-card"><span>주문 수</span><strong data-simple-order-count>-</strong><small>누적 체결 기준</small></article>
+          <div class="v2-home-grid">
+            <article class="v2-panel v2-chart-panel"><div class="v2-panel-head"><div><span>PORTFOLIO</span><h2>자산 추이</h2></div></div><div class="v2-chart" data-simple-equity-chart><div class="simple-empty">아직 표시할 자산 추이 데이터가 없습니다.</div></div></article>
+            <article class="v2-panel v2-decision-card"><div class="v2-panel-head"><div><span>NUSA</span><h2>NUSA 운영 상태</h2></div></div><div class="v2-decision"><strong data-simple-strategy-status>중지됨</strong><p data-simple-last-signal>현재 전략과 자동화 상태를 확인합니다.</p></div><dl><div><dt>시장 데이터</dt><dd data-simple-market-status>확인 중</dd></div><div><dt>자동화</dt><dd data-simple-auto-trade>꺼짐</dd></div></dl><button type="button" class="v2-link" data-simple-nav="strategy">NUSA 상태 보기</button></article>
           </div>
-          <div class="simple-dashboard-grid">
-            <article class="simple-card simple-card--wide"><div class="simple-section-heading"><div><h3>자산 추이</h3><p>Paper 계정 평가액</p></div><div class="simple-segmented" role="group" aria-label="자산 추이 기간"><button class="is-active" type="button" disabled>1일</button><button type="button" disabled>1주</button><button type="button" disabled>1개월</button></div></div><div class="simple-chart" data-simple-equity-chart><div class="simple-empty">아직 표시할 자산 추이 데이터가 없습니다.</div></div></article>
-            <article class="simple-card"><div class="simple-section-heading"><div><h3>포트폴리오 구성</h3><p>KRW와 보유 자산</p></div></div><div class="simple-composition" data-simple-composition><div class="simple-empty">보유 자산이 없습니다.</div></div></article>
+          <article class="v2-panel"><div class="v2-panel-head"><div><span>POSITION</span><h2>현재 포지션</h2></div><button class="v2-link" type="button" data-simple-nav="positions">전체 보기</button></div><div class="v2-table-wrap" tabindex="0" role="region" aria-label="현재 포지션 표"><table><thead><tr><th>마켓</th><th>수량</th><th>평균가</th><th>현재가</th><th>평가 손익</th><th>수익률</th></tr></thead><tbody data-simple-position-table><tr><td colspan="6">보유 포지션이 없습니다.</td></tr></tbody></table></div></article>
+        </section>
+
+        <section class="v2-page" data-simple-page="orders" hidden>
+          <div class="v2-page-title"><div><span>TRADING</span><h1>거래</h1><p class="v2-page-helper">가격 → 상태 → 주문 → 기록 순서로 확인합니다.</p></div><div><strong data-simple-market-price>-</strong> <small data-simple-market-change>-</small></div></div>
+          <p class="v2-note v2-order-safety" id="paper-order-note">이 화면의 주문은 모두 Paper Trading입니다. 실거래 주문을 전송하지 않습니다.</p>
+          <div class="v2-trading-grid">
+            <article class="v2-panel v2-chart-panel"><div class="v2-panel-head"><div><span>KRW-BTC</span><h2>시장 / 자산 흐름</h2></div></div><div class="v2-chart" data-simple-equity-chart><div class="simple-empty">데이터를 기다리고 있습니다.</div></div></article>
+            <aside class="v2-stack" aria-label="거래 보조 영역">
+              <article class="v2-panel v2-decision-card"><span>NUSA 상태</span><strong data-simple-strategy-status>중지됨</strong><p data-simple-last-signal>아직 운영 이벤트가 없습니다.</p><dl><div><dt>시장 데이터</dt><dd data-simple-market-status>확인 중</dd></div></dl></article>
+              <article class="v2-panel"><div class="v2-panel-head"><div><span>ORDER</span><h2>Paper 주문</h2></div></div><div class="v2-order-form"><label>수량 (BTC)<input data-simple-order-quantity aria-describedby="paper-order-note" type="number" min="0.00000001" step="0.0001" value="0.001" inputmode="decimal" /></label><dl><div><dt>현재가</dt><dd data-simple-order-price>-</dd></div><div><dt>예상 금액</dt><dd data-simple-order-notional>-</dd></div><div><dt>수수료</dt><dd data-simple-order-fee>-</dd></div></dl><div class="v2-order-actions"><button type="button" data-simple-order="BUY" disabled>Paper 매수</button><button type="button" data-simple-order="SELL" class="danger" disabled>Paper 매도</button></div><p data-simple-order-message role="status" aria-live="assertive"></p></div></article>
+            </aside>
           </div>
-          <div class="simple-dashboard-grid simple-dashboard-grid--lower">
-            <article class="simple-card simple-card--wide"><div class="simple-section-heading"><div><h3>보유 포지션</h3><p>현재 Paper 포지션</p></div><button class="simple-link-button" type="button" data-simple-nav="positions">전체 보기</button></div><div class="simple-table-wrap"><table class="simple-table"><thead><tr><th>마켓</th><th>수량</th><th>평균가</th><th>현재가</th><th>평가 손익</th><th>수익률</th></tr></thead><tbody data-simple-position-table><tr><td colspan="6"><span class="simple-empty">보유 중인 Paper 포지션이 없습니다.</span></td></tr></tbody></table></div><div class="simple-mobile-list" data-simple-position-cards><div class="simple-empty">보유 중인 Paper 포지션이 없습니다.</div></div></article>
-            <article class="simple-card"><div class="simple-section-heading"><div><h3>최근 주문</h3><p>최근 Paper 체결</p></div><button class="simple-link-button" type="button" data-simple-nav="orders">전체 보기</button></div><div class="simple-activity-list" data-simple-recent-orders><div class="simple-empty">아직 주문 기록이 없습니다.</div></div><div class="simple-mobile-list" data-simple-order-cards><div class="simple-empty">아직 주문 기록이 없습니다.</div></div></article>
-          </div>
+          <article class="v2-panel"><div class="v2-panel-head"><div><span>ACTIVITY</span><h2>최근 체결</h2></div><button class="v2-link" type="button" data-simple-nav="logs">전체 기록</button></div><div data-simple-order-list class="v2-list"><div class="simple-empty">아직 주문 기록이 없습니다.</div></div></article>
         </section>
-        <section class="simple-page" data-simple-page="market" aria-labelledby="simple-market-title" hidden>
-          <div class="simple-page-heading"><div><p class="simple-eyebrow">MARKET</p><h2 id="simple-market-title">마켓</h2><p>공개 시장 데이터의 현재 상태와 최신 가격을 확인합니다.</p></div></div>
-          <div class="simple-toolbar"><label class="simple-search"><span class="sr-only">마켓 검색</span><input type="search" placeholder="마켓 검색" value="KRW-BTC" disabled /></label><span class="simple-filter">★ 즐겨찾기</span></div>
-          <article class="simple-card"><div class="simple-table-wrap"><table class="simple-table simple-market-table"><thead><tr><th>마켓</th><th>현재가</th><th>변동률</th><th>24시간 거래량</th><th>데이터 상태</th></tr></thead><tbody><tr><td><strong>KRW-BTC</strong><small>비트코인 / 원화</small></td><td data-simple-market-price>-</td><td data-simple-market-change>-</td><td class="simple-muted">연결 후 제공</td><td><span class="simple-inline-status" data-simple-market-status>확인 중</span></td></tr></tbody></table></div><div class="simple-market-card"><div><strong>KRW-BTC</strong><small>비트코인 / 원화</small></div><strong data-simple-market-price>-</strong><span data-simple-market-change>-</span><span class="simple-inline-status" data-simple-market-status>확인 중</span></div></article>
-          <article class="simple-card simple-card--notice"><div class="simple-notice-icon" aria-hidden="true">i</div><div><strong>공개 데이터만 사용합니다.</strong><p>이 화면은 Upbit Public API 시장 데이터만 표시하며, 계정 정보나 Private API를 사용하지 않습니다.</p></div></article>
+
+        <section class="v2-page" data-simple-page="positions" hidden>
+          <div class="v2-page-title"><div><span>PORTFOLIO</span><h1>포트폴리오</h1><p class="v2-page-helper">자산 규모, 손익, 보유 구성을 한 화면에서 확인합니다.</p></div></div>
+          <div class="v2-metrics"><article><span>총 자산</span><strong data-simple-balance-total>-</strong></article><article><span>평가 손익</span><strong data-simple-pnl>-</strong></article><article><span>실현 손익</span><strong data-simple-realized-pnl>-</strong></article></div>
+          <div class="v2-home-grid"><article class="v2-panel v2-chart-panel"><div class="v2-panel-head"><div><span>EQUITY</span><h2>자산 추이</h2></div></div><div class="v2-chart" data-simple-equity-chart><div class="simple-empty">아직 표시할 자산 추이 데이터가 없습니다.</div></div></article><article class="v2-panel"><div class="v2-panel-head"><div><span>ALLOCATION</span><h2>자산 구성</h2></div></div><div data-simple-composition class="v2-composition"><div class="simple-empty">보유 자산이 없습니다.</div></div></article></div>
+          <article class="v2-panel"><div class="v2-panel-head"><div><span>HOLDINGS</span><h2>보유 포지션</h2></div></div><div class="v2-table-wrap" tabindex="0" role="region" aria-label="보유 포지션 표"><table><thead><tr><th>마켓</th><th>수량</th><th>평균 진입가</th><th>현재가</th><th>시장 가치</th><th>평가 손익</th><th>수익률</th></tr></thead><tbody data-simple-position-table-full><tr><td colspan="7">보유 포지션이 없습니다.</td></tr></tbody></table></div><div hidden data-simple-assets-panel="balance"><span data-simple-cash>-</span><span data-simple-held-value>-</span></div><div hidden data-simple-assets-panel="pnl"></div></article>
         </section>
-        <section class="simple-page" data-simple-page="orders" aria-labelledby="simple-orders-title" hidden>
-          <div class="simple-page-heading"><div><p class="simple-eyebrow">PAPER ORDERS</p><h2 id="simple-orders-title">주문</h2><p>모든 주문은 Paper 계정에서만 처리됩니다.</p></div><span class="simple-paper-badge">실거래 주문 없음</span></div>
-          <div class="simple-order-layout"><article class="simple-card"><div class="simple-section-heading"><div><h3>Paper 주문</h3><p>시세가 연결된 경우에만 사용할 수 있습니다.</p></div></div><div class="simple-order-form"><label>마켓<input type="text" value="KRW-BTC" disabled /></label><label>수량 (BTC)<input data-simple-order-quantity type="number" min="0.00000001" step="0.0001" value="0.001" /></label><div class="simple-order-summary"><span>현재가</span><strong data-simple-order-price>-</strong><span>예상 주문 금액</span><strong data-simple-order-notional>-</strong><span>예상 수수료</span><strong data-simple-order-fee>연결 후 계산</strong></div><div class="simple-order-actions"><button class="simple-button simple-button--primary" type="button" data-simple-order="BUY" disabled>Paper 매수</button><button class="simple-button simple-button--danger" type="button" data-simple-order="SELL" disabled>Paper 매도</button></div><p class="simple-form-message" data-simple-order-message role="status" aria-live="polite"></p></div></article><article class="simple-card"><div class="simple-section-heading"><div><h3>최근 주문</h3><p>체결된 Paper 주문</p></div></div><div class="simple-activity-list" data-simple-order-list><div class="simple-empty">아직 주문 기록이 없습니다.</div></div></article></div>
+
+        <section class="v2-page" data-simple-page="strategy" hidden>
+          <div class="v2-page-title"><div><span>NUSA</span><h1>상태와 이벤트</h1><p class="v2-page-helper">실제 runtime이 제공하는 전략·자동화·시장 연결 상태만 표시합니다.</p></div></div>
+          <article class="v2-panel v2-nusa-hero"><span>현재 상태</span><strong data-simple-strategy-status>중지됨</strong><p data-simple-last-signal>아직 운영 이벤트가 없습니다.</p></article>
+          <div class="v2-home-grid"><article class="v2-panel"><div class="v2-panel-head"><div><span>STATUS</span><h2>운영 상태</h2></div></div><dl class="v2-detail"><div><dt>시장 연결</dt><dd data-simple-market-status>확인 중</dd></div><div><dt>자동화</dt><dd data-simple-auto-trade>꺼짐</dd></div><div><dt>전략 상태</dt><dd data-simple-strategy-status>중지됨</dd></div></dl></article><article class="v2-panel"><div class="v2-panel-head"><div><span>CONTROL</span><h2>Paper 전략 제어</h2></div></div><div class="v2-order-actions"><button type="button" data-simple-strategy="start">시작</button><button type="button" class="secondary" data-simple-strategy="stop">중지</button></div><p class="v2-note">실거래가 아닌 Paper 환경 제어입니다. 실거래 권한은 없으며 REAL/LIVE 상태를 추론하거나 활성화하지 않습니다.</p></article></div>
+          <article class="v2-panel"><div class="v2-panel-head"><div><span>HISTORY</span><h2>최근 운영 이벤트</h2></div></div><div data-simple-log-list class="v2-list"><div class="simple-empty">아직 기록이 없습니다.</div></div></article>
         </section>
-        <section class="simple-page" data-simple-page="positions" aria-labelledby="simple-positions-title" hidden>
-          <div class="simple-page-heading"><div><p class="simple-eyebrow">PAPER ASSETS</p><h2 id="simple-positions-title">자산</h2><p>보유 중인 Paper 자산, 포지션, 손익을 확인합니다.</p></div></div><div class="simple-segmented simple-assets-tabs" role="tablist" aria-label="자산 보기"><button class="is-active" type="button" role="tab" aria-selected="true" data-simple-assets-tab="positions">포지션</button><button type="button" role="tab" aria-selected="false" data-simple-assets-tab="balance">자산</button><button type="button" role="tab" aria-selected="false" data-simple-assets-tab="pnl">손익</button></div><article class="simple-card" data-simple-assets-panel="positions"><div class="simple-table-wrap"><table class="simple-table"><thead><tr><th>마켓</th><th>수량</th><th>평균 진입가</th><th>현재가</th><th>시장 가치</th><th>평가 손익</th><th>수익률</th></tr></thead><tbody data-simple-position-table-full><tr><td colspan="7"><span class="simple-empty">보유 중인 Paper 포지션이 없습니다.</span></td></tr></tbody></table></div><div class="simple-mobile-list" data-simple-position-cards-full><div class="simple-empty">보유 중인 Paper 포지션이 없습니다.</div></div></article><article class="simple-card" data-simple-assets-panel="balance" hidden><div class="simple-balance-grid"><div><span>사용 가능 KRW</span><strong data-simple-cash>-</strong></div><div><span>보유 자산 가치</span><strong data-simple-held-value>-</strong></div><div><span>총 자산</span><strong data-simple-balance-total>-</strong></div></div></article><article class="simple-card" data-simple-assets-panel="pnl" hidden><dl class="simple-detail-list"><div><dt>평가 손익</dt><dd data-simple-pnl>-</dd></div><div><dt>실현 손익</dt><dd data-simple-realized-pnl>-</dd></div><div><dt>수수료</dt><dd>Paper 체결 기록 기준</dd></div></dl></article>
-        </section>
-        <section class="simple-page" data-simple-page="balance" aria-labelledby="simple-balance-title" hidden>
-          <div class="simple-page-heading"><div><p class="simple-eyebrow">PAPER ACCOUNT</p><h2 id="simple-balance-title">잔고</h2><p>Paper Trading 계정의 사용 가능 자산입니다.</p></div></div><div class="simple-balance-grid"><article class="simple-card simple-balance-card"><span>사용 가능 KRW</span><strong data-simple-cash>-</strong><small>주문에 사용할 수 있는 금액</small></article><article class="simple-card simple-balance-card"><span>보유 자산 가치</span><strong data-simple-held-value>-</strong><small>현재가 기준 추정</small></article><article class="simple-card simple-balance-card"><span>총 자산</span><strong data-simple-balance-total>-</strong><small>현금 + 보유 자산</small></article></div><article class="simple-card simple-card--notice"><div class="simple-notice-icon" aria-hidden="true">₩</div><div><strong>Paper 계정입니다.</strong><p>실제 Upbit 잔고나 개인 계정 정보는 이 화면에 표시되지 않습니다.</p></div></article>
-        </section>
-        <section class="simple-page" data-simple-page="strategy" aria-labelledby="simple-strategy-title" hidden>
-          <div class="simple-page-heading"><div><p class="simple-eyebrow">STRATEGY</p><h2 id="simple-strategy-title">전략</h2><p>전략은 신호만 생성하며, 주문은 별도 안전 검증을 통과해야 합니다.</p></div></div><div class="simple-strategy-layout"><article class="simple-card"><div class="simple-section-heading"><div><h3 data-simple-strategy-name>sma-crossover</h3><p>KRW-BTC · 1분봉</p></div><span class="simple-inline-status" data-simple-strategy-status>중지됨</span></div><dl class="simple-detail-list"><div><dt>최근 신호</dt><dd data-simple-last-signal>아직 없음</dd></div><div><dt>Paper 주문 권한</dt><dd>Risk 검증 후</dd></div><div><dt>자동 실행</dt><dd data-simple-auto-trade>꺼짐</dd></div></dl><div class="simple-order-actions"><button class="simple-button simple-button--primary" type="button" data-simple-strategy="start">전략 시작</button><button class="simple-button simple-button--secondary" type="button" data-simple-strategy="stop">전략 중지</button></div></article><article class="simple-card simple-card--notice"><div class="simple-notice-icon" aria-hidden="true">✓</div><div><strong>안전한 실행 경계</strong><p>전략은 신호만 생성합니다. 주문은 Risk 및 Execution 검증 후 Paper 계정에만 반영됩니다. Live Trading은 비활성화되어 있습니다.</p></div></article></div>
-        </section>
-        <section class="simple-page" data-simple-page="logs" aria-labelledby="simple-logs-title" hidden>
-          <div class="simple-page-heading"><div><p class="simple-eyebrow">OPERATIONS</p><h2 id="simple-logs-title">로그</h2><p>시스템 상태와 Paper 운영 이벤트를 이해하기 쉽게 표시합니다.</p></div><span class="simple-paper-badge">민감 정보 숨김</span></div><div class="simple-toolbar"><span class="simple-filter is-active">전체</span><span class="simple-filter">주문</span><span class="simple-filter">시장 데이터</span><span class="simple-filter">복구</span><span class="simple-filter">오류</span></div><article class="simple-card"><div class="simple-log-list" data-simple-log-list><div class="simple-empty">아직 운영 로그가 없습니다.</div></div></article>
-        </section>
-        <section class="simple-page" data-simple-page="more" aria-labelledby="simple-more-title" hidden>
-          <div class="simple-page-heading"><div><p class="simple-eyebrow">MORE</p><h2 id="simple-more-title">더보기</h2><p>운영과 고급 기능은 필요한 때에만 확인하세요.</p></div></div><div class="simple-more-list" role="list"><button type="button" data-simple-advanced="strategy"><span>✦</span><div><strong>전략</strong><small>전략 상태와 Paper 실행 경계를 확인합니다.</small></div><b aria-hidden="true">›</b></button><button type="button" data-simple-advanced="control-room"><span>◉</span><div><strong>운영 상태</strong><small>Shadow와 Paper 운영 상태를 확인합니다.</small></div><b aria-hidden="true">›</b></button><button type="button" data-simple-advanced="risk"><span>!</span><div><strong>위험</strong><small>Risk와 fail-closed 상태를 확인합니다.</small></div><b aria-hidden="true">›</b></button><button type="button" data-simple-advanced="recovery"><span>↻</span><div><strong>복구</strong><small>재시작 후 상태와 기록을 확인합니다.</small></div><b aria-hidden="true">›</b></button><button type="button" data-simple-advanced="evidence"><span>▤</span><div><strong>Evidence</strong><small>변경할 수 없는 운영 기록을 확인합니다.</small></div><b aria-hidden="true">›</b></button><button type="button" data-simple-advanced="diagnostics"><span>⌁</span><div><strong>진단</strong><small>상세 상태와 연결 정보를 확인합니다.</small></div><b aria-hidden="true">›</b></button><button type="button" data-simple-advanced="logs"><span>≡</span><div><strong>로그</strong><small>이해하기 쉬운 운영 이벤트를 확인합니다.</small></div><b aria-hidden="true">›</b></button><button type="button" data-simple-advanced="settings"><span>⚙</span><div><strong>설정</strong><small>화면, 알림, 데이터 표시를 관리합니다.</small></div><b aria-hidden="true">›</b></button></div><article class="simple-card simple-advanced-pane" data-simple-advanced-pane hidden><button class="simple-link-button" type="button" data-simple-more-back>‹ 더보기로 돌아가기</button><div class="simple-advanced-mount" data-simple-advanced-mount></div></article>
-        </section>
-        <section class="simple-page" data-simple-page="settings" aria-labelledby="simple-settings-title" hidden>
-          <div class="simple-page-heading"><div><p class="simple-eyebrow">PREFERENCES</p><h2 id="simple-settings-title">설정</h2><p>화면과 진단 표시 방식을 안전하게 관리합니다.</p></div></div><div class="simple-settings-layout"><article class="simple-card"><h3>연결</h3><dl class="simple-detail-list"><div><dt>거래소</dt><dd>Upbit</dd></div><div><dt>시장 데이터</dt><dd data-simple-settings-market>확인 중</dd></div><div><dt>인증 정보</dt><dd>설정되지 않음</dd></div><div><dt>재연결</dt><dd>자동 재연결</dd></div></dl></article><article class="simple-card"><h3>화면과 진단</h3><div class="simple-settings-form"><label>테마<select data-simple-setting="theme"><option value="light">라이트</option><option value="dark">다크</option><option value="contrast">고대비</option></select></label><label>로그 수준<select data-simple-setting="logLevel"><option value="INFO">정보</option><option value="WARNING">주의</option><option value="ERROR">오류</option></select></label><label class="simple-check"><input type="checkbox" data-simple-setting="showDiagnostics" checked /> 상세 진단 표시</label><label class="simple-check"><input type="checkbox" data-simple-setting="showNotifications" checked /> 알림 표시</label><div class="simple-order-actions"><button class="simple-button simple-button--primary" type="button" data-simple-settings-save>설정 저장</button><button class="simple-button simple-button--secondary" type="button" data-simple-settings-reset>설정 초기화</button></div><p class="simple-form-message" data-simple-settings-message role="status" aria-live="polite"></p></div></article></div><article class="simple-card simple-card--notice"><div class="simple-notice-icon" aria-hidden="true">N</div><div><strong>NUSA Paper Trader</strong><p><span data-simple-app-version>버전 확인 중</span> · <span data-simple-app-mode>Paper Trading</span></p><p>LIVE TRADING DISABLED · Private API 비활성</p></div></article>
-        </section>
+
+        <section class="v2-page" data-simple-page="logs" hidden><div class="v2-page-title"><div><span>HISTORY</span><h1>기록</h1><p class="v2-page-helper">거래와 NUSA 운영 이벤트를 시간순으로 확인합니다.</p></div></div><article class="v2-panel"><div class="v2-panel-head"><div><span>TIMELINE</span><h2>거래 · NUSA · 운영 이벤트</h2></div></div><div data-simple-log-list class="v2-list"><div class="simple-empty">아직 기록이 없습니다.</div></div></article></section>
+
+        <section class="v2-page" data-simple-page="settings" hidden><div class="v2-page-title"><div><span>SETTINGS</span><h1>설정</h1><p class="v2-page-helper">화면과 진단 표시만 조정합니다. 실행 권한은 변경하지 않습니다.</p></div></div><div class="v2-home-grid"><article class="v2-panel"><div class="v2-panel-head"><div><span>DISPLAY</span><h2>화면</h2></div></div><label>테마<select data-simple-setting="theme"><option value="dark">Dark</option><option value="contrast">Contrast</option></select></label><label>로그 수준<select data-simple-setting="logLevel"><option value="info">Info</option><option value="warn">Warn</option><option value="error">Error</option></select></label><label><input type="checkbox" data-simple-setting="showDiagnostics" /> 진단 정보 표시</label><label><input type="checkbox" data-simple-setting="showNotifications" /> 알림 표시</label><div class="v2-order-actions"><button type="button" data-simple-settings-save>저장</button><button type="button" class="secondary" data-simple-settings-reset>초기화</button></div><p data-simple-settings-message role="status" aria-live="polite"></p></article><article class="v2-panel"><div class="v2-panel-head"><div><span>SYSTEM</span><h2>시스템 정보</h2></div></div><dl class="v2-detail"><div><dt>모드</dt><dd data-simple-app-mode>Paper Trading</dd></div><div><dt>버전</dt><dd data-simple-app-version>-</dd></div><div><dt>시장 상태</dt><dd data-simple-settings-market>확인 중</dd></div></dl></article></div></section>
+
+        <section class="v2-page" data-simple-page="market" hidden></section><section class="v2-page" data-simple-page="balance" hidden></section><section class="v2-page" data-simple-page="more" hidden></section>
       </main>
-      <div class="simple-sheet-backdrop" data-simple-sheet-backdrop hidden>
-        <section class="simple-sheet" data-simple-sheet role="dialog" aria-modal="true" aria-labelledby="simple-order-confirm-title" hidden>
-          <div class="simple-section-heading"><div><p class="simple-eyebrow">PAPER ORDER</p><h2 id="simple-order-confirm-title">Paper 주문 확인</h2></div><button class="simple-link-button" type="button" data-simple-sheet-close aria-label="주문 확인 닫기">닫기</button></div>
-          <dl class="simple-detail-list"><div><dt>모드</dt><dd>Paper Trading</dd></div><div><dt>마켓</dt><dd data-simple-sheet-market>KRW-BTC</dd></div><div><dt>구분</dt><dd data-simple-sheet-side>-</dd></div><div><dt>현재가</dt><dd data-simple-sheet-price>-</dd></div><div><dt>수량</dt><dd data-simple-sheet-quantity>-</dd></div><div><dt>예상 주문 금액</dt><dd data-simple-sheet-notional>-</dd></div><div><dt>예상 수수료</dt><dd data-simple-sheet-fee>-</dd></div></dl>
-          <p class="simple-form-message" data-simple-sheet-message role="status" aria-live="polite"></p>
-          <div class="simple-order-actions"><button class="simple-button simple-button--secondary" type="button" data-simple-sheet-close>주문 취소</button><button class="simple-button simple-button--primary" type="button" data-simple-sheet-confirm>Paper 주문 확인</button></div>
-        </section>
-      </div>
-      <footer class="simple-footer"><span>Paper Trading only</span><span>실거래 · Private API · 인증 정보 비활성</span></footer>
-      <nav class="simple-bottom-nav" aria-label="주요 탭"><button class="is-active" type="button" data-simple-nav="dashboard" aria-current="page"><span aria-hidden="true">⌂</span><strong>홈</strong></button><button type="button" data-simple-nav="market"><span aria-hidden="true">◌</span><strong>마켓</strong></button><button type="button" data-simple-nav="orders"><span aria-hidden="true">↗</span><strong>주문</strong></button><button type="button" data-simple-nav="positions"><span aria-hidden="true">▦</span><strong>자산</strong></button><button type="button" data-simple-nav="more"><span aria-hidden="true">•••</span><strong>더보기</strong></button></nav>
     </div>
-  </div>
-  <main class="app-shell legacy-renderer-shell" data-testid="app-shell">
-    <aside class="app-sidebar" aria-label="Primary navigation">
-      <div class="brand-lockup">
-        <img src="assets/nusa-a4p-symbol.svg" alt="NUSA" class="brand-lockup__mark" />
-        <div><strong>NUSA</strong><span>NUSA</span></div>
-      </div>
-      <p class="sidebar-caption">PAPER INVESTMENT OS</p>
-      <nav class="primary-nav" aria-label="Workspace">
-        <a class="primary-nav__item is-active" href="#dashboard" data-nav-target="dashboard"><span aria-hidden="true">◈</span> Dashboard</a>
-        <a class="primary-nav__item" href="#market" data-nav-target="market"><span aria-hidden="true">◌</span> Market</a>
-        <a class="primary-nav__item" href="#shadow-session" data-nav-target="shadow-session"><span aria-hidden="true">◫</span> Observation</a>
-        <a class="primary-nav__item" href="#orders" data-nav-target="orders"><span aria-hidden="true">↗</span> Orders &amp; fills</a>
-        <a class="primary-nav__item" href="#portfolio" data-nav-target="portfolio"><span aria-hidden="true">◍</span> Portfolio</a>
-        <a class="primary-nav__item" href="#risk" data-nav-target="risk"><span aria-hidden="true">◇</span> Risk</a>
-        <a class="primary-nav__item" href="#recovery-review" data-nav-target="recovery"><span aria-hidden="true">↻</span> Recovery</a>
-        <a class="primary-nav__item" href="#evidence" data-nav-target="evidence"><span aria-hidden="true">▤</span> Evidence</a>
-        <a class="primary-nav__item" href="#a4-diagnostics" data-nav-target="diagnostics"><span aria-hidden="true">⌁</span> Diagnostics</a>
-      </nav>
-      <nav class="primary-nav primary-nav--secondary" aria-label="Application">
-        <a class="primary-nav__item" href="#product-settings" data-nav-target="settings"><span aria-hidden="true">⚙</span> Settings</a>
-        <a class="primary-nav__item" href="#product-about" data-nav-target="about"><span aria-hidden="true">ⓘ</span> About</a>
-      </nav>
-      <div class="sidebar-safety" aria-label="Trading safety status"><span class="sidebar-safety__dot" aria-hidden="true"></span><div><strong>Paper only</strong><span>Live trading disabled</span></div></div>
+
+    <div class="v2-sheet-backdrop" data-simple-sheet-backdrop hidden></div>
+    <aside class="v2-sheet" data-simple-sheet hidden role="dialog" aria-modal="true" aria-labelledby="order-sheet-title">
+      <button type="button" data-simple-sheet-close aria-label="닫기">×</button><span id="order-sheet-title">Paper 주문 확인</span><h2 data-simple-sheet-side>-</h2><dl class="v2-detail"><div><dt>현재가</dt><dd data-simple-sheet-price>-</dd></div><div><dt>수량</dt><dd data-simple-sheet-quantity>-</dd></div><div><dt>예상 금액</dt><dd data-simple-sheet-notional>-</dd></div><div><dt>수수료</dt><dd data-simple-sheet-fee>-</dd></div></dl><button type="button" data-simple-sheet-confirm>Paper 주문 확인</button>
     </aside>
-    <div class="app-main">
-      <div id="dashboard" class="screen-anchor" aria-hidden="true"></div>
-    <header class="app-header">
-      <div><p class="eyebrow">UPBIT · PAPER ONLY</p><h1><img class="cr-wordmark" src="assets/nusa-a4p-lockup.svg" alt="NUSA Control Room" /></h1></div>
-      <div class="header-actions"><button id="command-palette-trigger" class="ui-button ui-button--secondary ui-button--small" type="button" aria-haspopup="dialog" aria-controls="command-palette">명령 <kbd>Ctrl K</kbd></button><span id="status" class="status">연결 준비</span></div>
-    </header>
-    <!--
-      Control room first, chart second. The operator's first question is "what is the system
-      doing and may it act", not "what is the price" -- so system state sits above the fold
-      and the price hero moves below it.
-    -->
-    <section id="control-room" class="control-room" aria-label="관제실 — 시스템 상태"></section>
-    <section id="a4-diagnostics" class="card a4-diagnostics" aria-labelledby="a4-diagnostics-title">
-      <div class="section-title">
-        <div><p class="eyebrow">A4 READ ONLY</p><h2 id="a4-diagnostics-title">Safety diagnostics</h2></div>
-        <button id="run-a4-diagnostics" class="secondary" type="button">Run read-only check</button>
-      </div>
-      <p id="a4-diagnostics-verdict" class="a4-verdict neutral" role="status" aria-live="polite">Not checked.</p>
-      <div id="a4-diagnostics-grid" class="a4-diagnostics-grid" hidden></div>
-      <p id="a4-diagnostics-error" class="error" role="alert" aria-live="assertive"></p>
-    </section>
-    <!--
-      Recovery reconciliation and owner review (WO-0034-A4H). The approve control starts
-      disabled and is enabled only when the main process reports approvalAllowed, which is
-      true only for a MATCHED comparison. The renderer never decides this for itself.
-    -->
-    <section id="recovery-review" class="card a4-diagnostics" aria-labelledby="recovery-review-title">
-      <div class="section-title">
-        <div><p class="eyebrow">복구 정산</p><h2 id="recovery-review-title">정산 확인 및 소유자 검토</h2></div>
-        <button id="run-recovery-reconcile" class="secondary" type="button">정산 대조 실행</button>
-      </div>
-      <p id="recovery-review-verdict" class="a4-verdict neutral" role="status" aria-live="polite">아직 대조하지 않았습니다.</p>
-      <div id="recovery-review-grid" class="a4-diagnostics-grid" hidden></div>
-      <div class="section-title">
-        <button id="approve-recovery-review" class="secondary" type="button" disabled>소유자 검토 승인</button>
-        <button id="complete-recovery" class="secondary" type="button" disabled>복구 완료 처리</button>
-      </div>
-      <p id="recovery-review-note" class="a4-note">승인 버튼은 대조 결과가 일치(MATCHED)일 때만 활성화됩니다. 승인해도 복구는 자동으로 완료되지 않습니다.</p>
-      <p id="recovery-review-error" class="error" role="alert" aria-live="assertive"></p>
-    </section>
-    <section id="evidence" class="product-section" aria-label="Evidence and operations records"></section>
-    <section id="market" class="hero card">
-      <div><span>KRW-BTC</span><strong id="price">시세 대기 중</strong><small id="change">실시간 WebSocket</small></div>
-      <div class="equity"><span>평가 자산</span><strong id="equity">-</strong></div>
-    </section>
-    <section class="card chart-card"><div class="section-title"><h2>실시간 가격</h2><span>최근 240틱</span></div><canvas id="chart" width="1100" height="220"></canvas></section>
-    <section class="grid">
-      <article class="card"><h2>Paper 주문</h2><label for="quantity">수량 (BTC)</label><input id="quantity" type="number" min="0.00000001" step="0.0001" value="0.001" /><div class="actions"><button id="buy">매수</button><button id="sell" class="sell">매도</button></div><p id="error" class="error" role="alert" aria-live="assertive"></p></article>
-      <article id="operations-detail" class="card"><h2>전략 제어</h2><dl><div><dt>상태</dt><dd id="strategy-status">STOPPED</dd></div><div><dt>전략</dt><dd id="strategy-id">sma-crossover</dd></div></dl><label for="strategy-quantity">자동주문 수량</label><input id="strategy-quantity" type="number" min="0.00000001" step="0.0001" value="0.001" /><div class="actions"><button id="strategy-start">시작</button><button id="strategy-stop" class="secondary">중지</button></div><label class="toggle"><input id="auto-trade" type="checkbox" /> Paper 자동매매</label><div class="ai-signal-explain"><button id="ai-explain-signal" type="button" class="secondary">AI로 신호 설명 보기</button><p id="ai-explain-output" class="ai-signal-explain__output" hidden></p><div id="ai-followup" class="ai-signal-explain__followup" hidden><input id="ai-followup-question" type="text" maxlength="300" placeholder="추가로 궁금한 점을 물어보세요" /><button id="ai-followup-ask" type="button" class="secondary">질문하기</button><p id="ai-followup-answer" class="ai-signal-explain__output" hidden></p></div></div></article>
-      <article id="ai-challenger" class="card ai-challenger" hidden><h2>AI 챌린저 (관찰 전용)</h2><p class="ai-challenger__note">실제 전략(챔피언) 신호가 바뀔 때마다 AI라면 어떻게 판단했을지 비교만 보여줍니다. 주문·리스크 경로에는 전혀 연결되어 있지 않습니다.</p><dl><div><dt>챔피언 신호</dt><dd id="ai-challenger-champion">-</dd></div><div><dt>AI 신호</dt><dd id="ai-challenger-ai">-</dd></div><div><dt>일치 여부</dt><dd id="ai-challenger-agreement">-</dd></div><div><dt>AI 판단 근거</dt><dd id="ai-challenger-reason">-</dd></div><div><dt>누적 일치율</dt><dd id="ai-challenger-agreement-rate">-</dd></div></dl><button id="ai-explain-disagreement" type="button" class="secondary" hidden>왜 다른지 설명 보기</button><p id="ai-disagreement-output" class="ai-signal-explain__output" hidden></p><button id="ai-challenger-history-toggle" type="button" class="secondary">관찰 이력 보기</button><table id="ai-challenger-history-table" hidden><thead><tr><th>시간</th><th>챔피언 신호</th><th>AI 신호</th><th>일치 여부</th></tr></thead><tbody id="ai-challenger-history-body"><tr><td colspan="4">관찰 기록 없음</td></tr></tbody></table></article>
-      <article class="card ai-signal-explain"><h2>AI 세션 요약</h2><p class="ai-challenger__note">계좌 손익, 최근 신호 활동, AI 챌린저 일치율을 종합해 지금 세션이 어떻게 흘러가고 있는지 문단으로 요약합니다. 버튼을 눌렀을 때만 실행되며, 주문·리스크 경로에는 연결되어 있지 않습니다.</p><button id="ai-summarize-session" type="button" class="secondary">AI 세션 요약 보기</button><p id="ai-summary-output" class="ai-signal-explain__output" hidden></p></article>
-      <article class="card ai-signal-explain"><h2>AI 레짐 설명</h2><p class="ai-challenger__note">전략 엔진이 현재 시장을 왜 특정 레짐(추세/횡보/변동성 등)으로 판단했는지, 그리고 그 판단이 전략에 어떤 영향을 주는지 AI가 설명합니다. 버튼을 눌렀을 때만 실행되며, 레짐 판단이나 주문 경로에는 전혀 연결되어 있지 않습니다.</p><button id="ai-explain-regime" type="button" class="secondary">AI 레짐 설명 보기</button><p id="ai-regime-output" class="ai-signal-explain__output" hidden></p></article>
-      <article class="card ai-signal-explain"><h2>AI 리스크 코멘터리</h2><p class="ai-challenger__note">현재 드로다운, 포트폴리오 히트, 청산 여유 비율, 킬스위치 상태를 AI가 쉬운 말로 설명합니다. 버튼을 눌렀을 때만 실행되며, 리스크 게이트나 주문 경로에는 전혀 연결되어 있지 않습니다.</p><button id="ai-explain-risk" type="button" class="secondary">AI 리스크 코멘터리 보기</button><p id="ai-risk-output" class="ai-signal-explain__output" hidden></p></article>
-      <article class="card"><h2>계좌</h2><dl><div><dt>현금</dt><dd id="cash">-</dd></div><div><dt>보유 수량</dt><dd id="position">-</dd></div><div><dt>평균 단가</dt><dd id="average">-</dd></div><div><dt>미실현 손익</dt><dd id="unrealized">-</dd></div><div><dt>실현 손익</dt><dd id="realized">-</dd></div></dl></article>
-      <article class="card"><h2>이벤트 로그</h2><ul id="events" class="events"><li>이벤트 없음</li></ul></article>
-    </section>
-    <section id="orders-panel" class="card"><h2>체결 기록</h2><table><thead><tr><th>시간</th><th>구분</th><th>수량</th><th>가격</th><th>수수료</th><th>체결비용(스프레드+슬리피지+시장충격)</th></tr></thead><tbody id="orders"><tr><td colspan="6">체결 없음</td></tr></tbody></table></section>
-    <footer>실거래 주문은 구현되어 있지 않습니다. 모든 주문은 로컬 Paper Trading입니다.</footer>
-    <section id="ai-cio-dashboard" class="card cio-panel" aria-label="AI CIO read-only command center" tabindex="-1">
-      <div class="cio-header">
-        <div><p class="eyebrow">DEEP INSPECTION · READ ONLY</p><h2>Operations detail</h2></div>
-        <div class="badges"><span class="status">PAPER / DRY_RUN</span><span class="status">LIVE TRADING DISABLED</span><strong id="cio-status" class="cio-status no-data" aria-live="polite">NO_DATA</strong></div>
-      </div>
-      <p id="cio-freshness" class="cio-freshness">Dashboard data is not available.</p>
-      <div class="cio-grid">
-        <section><h3>System Status</h3><p id="cio-system">No data</p></section>
-        <section><h3>Portfolio</h3><dl id="cio-portfolio"><div><dt>Total equity</dt><dd>No data</dd></div></dl></section>
-        <section><h3>Opportunity</h3><p id="cio-opportunity">No data</p></section>
-        <section><h3>Strategy Health</h3><p id="cio-strategy">No data</p></section>
-        <section><h3>Investment Committee</h3><p id="cio-committee">No data</p></section>
-        <section><h3>Execution</h3><p id="cio-execution">No data</p></section>
-        <section><h3>Risk</h3><p id="cio-risk">No data</p><p id="cio-risk-reasons" class="cio-risk-reasons">No data</p>
-          <div class="kill-switch-controls">
-            <label>사유<input id="kill-switch-reason" type="text" maxlength="500" placeholder="해제/재활성화 사유" /></label>
-            <label>확인 문구 (해제 시 정확히 입력: PAPER TRADING ENABLE)<input id="kill-switch-confirm" type="text" placeholder="PAPER TRADING ENABLE" /></label>
-            <div class="actions">
-              <button id="kill-switch-release" class="secondary" type="button">Kill Switch 해제</button>
-              <button id="kill-switch-activate" class="secondary" type="button">Kill Switch 재활성화</button>
-            </div>
-            <p id="kill-switch-message" class="a4-note" role="status" aria-live="polite"></p>
-          </div>
-        </section>
-        <section><h3>Research</h3><p id="cio-research">No data</p></section>
-      </div>
-      <section class="cio-warnings"><h3>Warnings</h3><ul id="cio-warnings"><li>Dashboard data is not available.</li></ul></section>
-    </section>
-    <section id="application-state" class="application-state" role="status" aria-live="polite" aria-atomic="true" data-state="LOADING" data-tone="neutral">
-      <span class="application-state__indicator" aria-hidden="true"></span>
-      <div class="application-state__body">
-        <strong id="application-state-title">Loading operational state</strong>
-        <p id="application-state-description">Checking the Paper account and market connection.</p>
-        <p id="application-state-action" class="application-state__action">Please wait.</p>
-      </div>
-    </section>
-    <!--
-      WO-0034-A4O productization screens. Placed after the dashboard on purpose: the operator's
-      first question is still system state, and settings/About are things they go looking for.
-    -->
-    <section id="product-settings" class="product-section" aria-label="설정"></section>
-    <section id="product-about" class="product-section" aria-label="앱 정보"></section>
-    </div>
-  </main>
-  <div id="product-overlays"></div>
-  <div id="command-palette" class="command-palette" role="dialog" aria-modal="true" aria-labelledby="command-palette-title" hidden>
-    <div class="command-palette__backdrop" data-command-palette-close></div>
-    <section class="command-palette__surface" role="document">
-      <header class="command-palette__header"><h2 id="command-palette-title">명령 팔레트</h2><button id="command-palette-close" class="ui-button ui-button--ghost ui-button--small" type="button" aria-label="명령 팔레트 닫기">닫기 <kbd>Esc</kbd></button></header>
-      <label class="command-palette__search-label" for="command-palette-search">명령 검색</label>
-      <input id="command-palette-search" class="ui-input" type="search" autocomplete="off" placeholder="명령 검색" aria-controls="command-palette-list" aria-activedescendant="" />
-      <p id="command-palette-status" class="command-palette__status" aria-live="polite"></p>
-      <ul id="command-palette-list" class="command-palette__list" role="listbox" aria-label="사용 가능한 명령"></ul>
-      <p id="command-palette-empty" class="command-palette__empty" hidden>일치하는 명령이 없습니다. 다른 검색어를 입력하세요.</p>
-    </section>
   </div>
-  <script src="brand-ui.js"></script>
-  <script src="renderer.js"></script>
-  <script src="application-state.js"></script>
-  <script src="application-state-mount.js"></script>
   <script src="mobile-view-model.js"></script>
-  <script src="simple-ui.js"></script>
+  <script src="app-runtime.js"></script>
+  <script src="app-adapter.js"></script>
+  <script src="app-accessibility.js"></script>
 </body>
 </html>

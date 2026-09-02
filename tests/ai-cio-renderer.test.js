@@ -7,14 +7,13 @@ const html = readFileSync(join(process.cwd(), "apps/desktop/renderer/index.html"
 const script = readFileSync(join(process.cwd(), "apps/desktop/renderer/renderer.js"), "utf8");
 const css = readFileSync(join(process.cwd(), "apps/desktop/renderer/styles.css"), "utf8");
 
-test("renderer contains PAPER and live-disabled read-only command center sections", () => {
-  assert.match(html, /id="ai-cio-dashboard"/);
-  assert.match(html, /PAPER \/ DRY_RUN/);
-  assert.match(html, /LIVE TRADING DISABLED/);
-  for (const section of ["System Status", "Portfolio", "Opportunity", "Strategy Health", "Investment Committee", "Execution", "Risk", "Research", "Warnings"]) {
-    assert.match(html, new RegExp(section));
-  }
-  assert.match(html, /aria-label="AI CIO [^"]+"/);
+test("canonical renderer exposes PAPER, live-disabled and read-only NUSA state surfaces", () => {
+  assert.match(html, /data-runtime-owner="canonical"/);
+  assert.match(html, /PAPER · 실거래 비활성/);
+  assert.match(html, /실거래 주문을 전송하지 않습니다/);
+  assert.match(html, /REAL\/LIVE 상태를 추론하거나 활성화하지 않습니다/);
+  assert.match(html, /실제 runtime이 제공하는 전략·자동화·시장 연결 상태만 표시합니다/);
+  assert.doesNotMatch(html, /data-(?:simple-)?(?:live|real)-(?:order|enable|activate)/i);
 });
 
 test("renderer explicitly supports all dashboard states and typed units", () => {
