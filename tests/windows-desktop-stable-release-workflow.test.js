@@ -16,11 +16,23 @@ test('Windows desktop stable release is exact-main and CI gated', () => {
 });
 
 test('Windows desktop stable release packages the canonical Electron renderer', () => {
-  assert.ok(workflow.includes('pnpm run package:win'));
+  assert.ok(workflow.includes('pnpm run preflight && pnpm run build'));
+  assert.ok(workflow.includes("find dist -type f -name '*.map' -delete"));
+  assert.ok(workflow.includes('node scripts/validate-package.js'));
+  assert.ok(workflow.includes('pnpm exec electron-builder --win nsis'));
   assert.ok(workflow.includes('pnpm run package:validate'));
   assert.ok(workflow.includes('data-runtime-owner="canonical"'));
   assert.ok(workflow.includes('app-runtime.js'));
   assert.ok(workflow.includes("index-v2\\.html|simple-ui\\.js|simple-ui\\.css"));
+});
+
+test('Windows desktop stable release prunes maps before pre-packaging validation', () => {
+  const pruneIndex = workflow.indexOf("find dist -type f -name '*.map' -delete");
+  const validateIndex = workflow.indexOf('node scripts/validate-package.js');
+  const packageIndex = workflow.indexOf('pnpm exec electron-builder --win nsis');
+  assert.ok(pruneIndex >= 0);
+  assert.ok(validateIndex > pruneIndex);
+  assert.ok(packageIndex > validateIndex);
 });
 
 test('Windows desktop stable release publishes immutable provenance with safety invariants', () => {
