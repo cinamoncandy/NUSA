@@ -74,6 +74,8 @@ test("Audit always executes independently and exposes trusted same-workflow Rele
   assert.match(auditJob, /Resolve Audit request freshness/);
   assert.match(auditJob, /applicable: \$\{\{ steps\.freshness\.outputs\.applicable \}\}/);
   assert.match(auditJob, /audit-request-stale-pr/);
+  assert.match(auditJob, /main-freshness\.json/);
+  assert.match(auditJob, /currentBase !== currentMain/);
   assert.doesNotMatch(auditJob, /nusa-audit-verdict:\$\{PR_NUMBER\}:\$\{WORKFLOW_RUN_ID\}:\$\{REQUESTED_HEAD\}/);
   assert.doesNotMatch(auditJob, /Detect existing exact-head Audit verdict/);
   assert.doesNotMatch(auditJob, /steps\.existing-audit|skip=true/);
@@ -119,7 +121,8 @@ test("malformed or unsafe Audit evidence cannot advance Release", () => {
 
 test("Audit recovery paginates and binds exact-main evidence to canonical CI", () => {
   const recovery = auditRecoveryJobSlice();
-  assert.match(recovery, /gh api --paginate --slurp/);
+  assert.match(recovery, /gh api --paginate/);
+  assert.doesNotMatch(recovery, /gh api --paginate --slurp[^\n]*--jq/);
   assert.match(recovery, /\.path == "\.github\/workflows\/ci\.yml"/);
   assert.match(recovery, /\.name == "CI"/);
   assert.match(recovery, /\.conclusion == "success"/);
