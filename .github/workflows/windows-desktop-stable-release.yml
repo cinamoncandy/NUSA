@@ -117,6 +117,16 @@ jobs:
       - name: Build Windows release staging tree
         run: pnpm run preflight && pnpm run build
 
+      - name: Stamp exact release source into packaged app
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          node -e "const fs=require('node:fs'); const sha=process.env.SOURCE_SHA; if(!/^[0-9a-f]{40}$/i.test(sha||'')) process.exit(2); fs.writeFileSync('dist/apps/desktop/release-build.json', JSON.stringify({source_sha:sha.toLowerCase()})+'\\n');"
+          grep -F "${SOURCE_SHA,,}" dist/apps/desktop/release-build.json >/dev/null
+          echo "Stamped packaged desktop build with exact source $SOURCE_SHA"
+
       - name: Remove generated source maps from release staging tree
         shell: bash
         run: |
@@ -157,7 +167,7 @@ jobs:
           INDEX_SHA="$(sha256sum apps/desktop/renderer/index.html | awk '{print $1}')"
           CSS_SHA="$(sha256sum apps/desktop/renderer/app.css | awk '{print $1}')"
           RUNTIME_SHA="$(sha256sum apps/desktop/renderer/app-runtime.js | awk '{print $1}')"
-          printf 'source_sha=%s\nshort_sha=%s\nrenderer_index_sha256=%s\nrenderer_css_sha256=%s\nrenderer_runtime_sha256=%s\nrelease_mode=PAPER_SHADOW_ONLY\nlive_authority=NONE\nproduction_mutation_allowed=false\nai_authority=ZERO_AUTHORITY\nsigning=unsigned_private_distribution\n' \
+          printf 'source_sha=%s\nshort_sha=%s\nrenderer_index_sha256=%s\nrenderer_css_sha256=%s\nrenderer_runtime_sha256=%s\nrelease_mode=PAPER_SHADOW_ONLY\nlive_authority=NONE\nproduction_mutation_allowed=false\nai_authority=ZERO_AUTHORITY\nsigning=unsigned_private_distribution\nauto_update=sha256_verified_silent_nsis\n' \
             "$SOURCE_SHA" "$SHORT_SHA" "$INDEX_SHA" "$CSS_SHA" "$RUNTIME_SHA" \
             > NUSA-Windows.provenance.txt
 
@@ -194,7 +204,7 @@ jobs:
           SHORT_SHA: ${{ steps.source.outputs.short_sha }}
         run: |
           set -euo pipefail
-          NOTES="NUSA Windows desktop stable from exact source ${SHORT_SHA}. Canonical Electron renderer included. PAPER/SHADOW only; LIVE authority NONE; AI ZERO_AUTHORITY. Unsigned private/personal-use installer."
+          NOTES="NUSA Windows desktop stable from exact source ${SHORT_SHA}. Canonical Electron renderer included. PAPER/SHADOW only; LIVE authority NONE; AI ZERO_AUTHORITY. SHA-256 verified silent self-update enabled for updater-capable clients. Unsigned private/personal-use installer."
           if gh release view nusa-windows >/dev/null 2>&1; then
             gh release upload nusa-windows NUSA-Windows-Setup.exe NUSA-Windows-Setup.exe.sha256 NUSA-Windows.provenance.txt --clobber
             gh release edit nusa-windows --target "$TARGET_SHA" --title "NUSA Windows ${SHORT_SHA}" --notes "$NOTES"
