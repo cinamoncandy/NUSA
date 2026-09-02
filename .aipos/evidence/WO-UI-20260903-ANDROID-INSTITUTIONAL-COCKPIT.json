@@ -3,27 +3,40 @@
   "branch": "ux/android-institutional-cockpit-20260903",
   "base": "a07a8e10c8a2f011d3e79ca6b0e3eedf64ff6942",
   "scope": "ANDROID_PRESENTATION_ONLY",
+  "referenceDirection": "LUXURY_EDITORIAL_INVESTMENT_OS",
   "implementation": {
     "androidInstitutionalTheme": "apps/mobile/src/androidInstitutionalTheme.ts",
     "platformGate": "apps/mobile/src/ThemeProvider.tsx",
-    "homeDensity": "apps/mobile/src/homeVisualProfile.ts",
+    "androidHome": "apps/mobile/src/androidReferenceHomeView.tsx",
+    "homeRouter": "apps/mobile/src/homeView.tsx",
+    "homeLegacyPreserved": "apps/mobile/src/homeViewLegacy.tsx",
+    "androidDecision": "apps/mobile/src/androidReferenceAiView.tsx",
+    "aiRouter": "apps/mobile/src/aiView.tsx",
+    "aiLegacyPreserved": "apps/mobile/src/aiViewLegacy.tsx",
     "marketsGeometry": "apps/mobile/src/marketsView.tsx",
     "paperGeometry": "apps/mobile/src/tradingView.tsx",
     "nativeColors": "apps/mobile/android/app/src/main/res/values/colors.xml",
     "nativeTheme": "apps/mobile/android/app/src/main/res/values/styles.xml",
-    "designContract": "docs/NUSA_ANDROID_INSTITUTIONAL_COCKPIT.md",
     "staticContractTest": "tests/android-institutional-cockpit.vitest.js"
   },
   "design": {
-    "identity": "INSTITUTIONAL_MOBILE_TRADING_COCKPIT",
-    "darkBackground": "#020506",
-    "primary": "#41E0C2",
-    "warning": "#E7BC68",
-    "danger": "#FF718A",
+    "identity": "AUTONOMOUS_INVESTMENT_INTELLIGENCE_OS",
+    "darkBackground": "#020405",
+    "warmIvoryText": "#E7E2DA",
+    "primary": "#0BB8B0",
+    "warning": "#C89236",
+    "danger": "#D75F65",
+    "visualRules": [
+      "large black negative space",
+      "serif NUSA editorial wordmark",
+      "asset-state first",
+      "decision-stage second",
+      "evidence before execution",
+      "minimal glow and low-radius panels"
+    ],
     "touchTargetMinimumDp": 48,
     "androidOnly": true,
-    "iosChanged": false,
-    "desktopChanged": false
+    "iosChanged": false
   },
   "truthBoundaries": {
     "paperOnly": true,
@@ -31,16 +44,12 @@
     "productionMutationAllowed": false,
     "aiAuthority": "ZERO_AUTHORITY",
     "fabricatedFinancialTruth": false,
+    "riskScoreFabricated": false,
+    "invalidationFabricated": false,
+    "performanceHistoryFabricated": false,
     "runtimeSemanticsChanged": false,
     "credentialSemanticsChanged": false,
-    "riskPolicyChanged": false,
-    "marketDataSemanticsChanged": false,
-    "paperExecutionSemanticsChanged": false
-  },
-  "implementationStatus": {
-    "codeComplete": true,
-    "localValidationComplete": false,
-    "prCreated": false
+    "riskPolicyChanged": false
   },
   "validation": {
     "status": "DEFERRED_OWNER_LOCAL",

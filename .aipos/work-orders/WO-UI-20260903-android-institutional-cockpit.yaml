@@ -1,5 +1,5 @@
 id: WO-UI-20260903-ANDROID-INSTITUTIONAL-COCKPIT
-title: "Android Institutional Trading Cockpit"
+title: "Android Editorial Investment OS"
 status: IN_PROGRESS
 owner: nusa
 repository: cinamoncandy/NUSA
@@ -7,28 +7,28 @@ base_branch: main
 base_commit: a07a8e10c8a2f011d3e79ca6b0e3eedf64ff6942
 implementation_branch: ux/android-institutional-cockpit-20260903
 authority_impact: none
-objective: "Raise the Android-only NUSA mobile presentation to an institutional-grade trading cockpit while preserving all existing PAPER, runtime, credential, risk, market-data, and authority semantics."
+objective: "Apply the owner-approved mobile reference direction to Android as a luxury editorial investment-intelligence OS, with asset state and NUSA decision surfaces replacing generic exchange-dashboard presentation while preserving all authority and financial truth boundaries."
 provenance:
   predecessor_scope: WO-0063.mobile-master-ux-wave1
   relationship: PRESENTATION_ONLY_FOLLOW_UP
-  desktop_redesign_branch: ux/ai-trading-cockpit-redesign-20260902
   desktop_scope_included: false
+  ios_scope_included: false
+  reference_direction: LUXURY_EDITORIAL_INVESTMENT_OS
 scope:
-  - "Apply an Android-only graphite/teal institutional theme overlay through ThemeProvider."
-  - "Keep iOS presentation unchanged."
-  - "Tighten Android MASTER Home density without changing Home data ownership or decisions."
-  - "Use Android-only terminal geometry for Markets segmented observation controls while preserving public-market read-only semantics."
-  - "Use Android-only compact terminal geometry for the PAPER public-market context panel while preserving PAPER execution semantics."
-  - "Align Android launch background, status bar, navigation bar, and native accent with the cockpit palette."
-  - "Add a static contract test proving Android-only application and presentation-only ownership."
-  - "Document Android information hierarchy, interaction, accessibility, and safety rules."
+  - "Route Android Home to a dedicated Asset State / Operating Overview reference surface."
+  - "Route Android AI to a dedicated NUSA Decision Stage with evidence-first presentation."
+  - "Preserve the previous shared Home and AI screens as legacy implementations for non-Android platforms."
+  - "Use near-black space, warm ivory typography, restrained teal and amber, low-radius panels, minimal glow, and serif NUSA editorial branding."
+  - "Expose only canonical PAPER asset, PnL, AI evidence, confidence calibration, research and authority truth."
+  - "Explicitly mark unavailable risk score, invalidation and performance-history data instead of fabricating reference-screen values."
+  - "Retain Android system-bar, Markets and PAPER presentation alignment from the prior institutional wave."
 excluded:
   - "desktop renderer changes"
   - "iOS redesign"
   - "order/risk/credential/runtime/market-data state-machine changes"
   - "LIVE or REAL-money capability"
   - "new AI authority or autonomous execution"
-  - "fabricated confidence, risk, freshness, PnL, or execution truth"
+  - "fabricated confidence, risk, freshness, PnL, invalidation, performance history or execution truth"
 safety:
   mode: PAPER_ONLY
   live_authority: NONE
@@ -38,16 +38,12 @@ safety:
   ai_authority: ZERO_AUTHORITY
 architecture_impact:
   acknowledged: true
-  analysis: "Presentation only. Android receives platform-gated theme and geometry overlays. Existing shared runtime/domain models and existing Markets/PAPER data flows remain authoritative. iOS continues using the existing cross-platform theme and geometry."
+  analysis: "Presentation only. Platform routers select dedicated Android reference surfaces while retaining the prior shared implementations for iOS. Existing runtime, domain models, PAPER execution, credentials, risk and authority state remain authoritative and unchanged."
   references:
     - AGENTS.md
     - .aipos/architecture.md
     - .aipos/work-orders/WO-0063-mobile-master-ux-wave1.yaml
     - docs/NUSA_ANDROID_INSTITUTIONAL_COCKPIT.md
-implementation_status:
-  code_complete: true
-  local_validation_complete: false
-  pr_allowed: false
 validation:
   status: DEFERRED_OWNER_LOCAL
   pass_claimed: false
