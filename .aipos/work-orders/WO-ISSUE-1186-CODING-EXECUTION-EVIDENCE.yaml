@@ -1,6 +1,6 @@
 id: WO-ISSUE-1186-CODING-EXECUTION-EVIDENCE
 title: "Issue #1186 persist safe coding execution evidence"
-status: VERIFYING
+status: COMPLETED
 owner: nusa
 repository: cinamoncandy/NUSA
 issue: 1186
@@ -59,8 +59,11 @@ validation:
   aipos_conformance: PASS
   aipos_drift: PASS
   aipos_provenance: PASS
-  exact_head_ci: PENDING
+  exact_head_ci: PASS
 known_limitations:
   - "Real unattended external coding-runner execution still depends on deployment/runtime configuration and is not fabricated by this evidence boundary."
   - "The deployed Worker currently rejects the latest main head with CODING_RUNNER_HEAD_SHA_UNVERIFIED; this slice records that boundary as INTERFACE_READY but cannot repair Cloudflare's GitHub credential configuration."
-next: "Run workflow/static validation, publish a PR only after local preflight passes, then verify exact-head protected checks and re-run the failed Consumer event without claiming a repair."
+next: "COMPLETE."
+completion:
+  pull_requests: [1220, 1222, 1226, 1275]
+  reconciled_by: "NUSA session audit, 2026-09-02: work order was stuck at VERIFYING/exact_head_ci=PENDING even though parent GitHub issue #1186 is CLOSED and its four merged PRs (persist coding execution evidence; keep external runner rejection fail-closed; make external runner opt-in; consume requested head after dispatch) are all on current main. Verified apps/autopilot/src/codingExecutionEvidence.test.ts still passes 3/3 on current main. Status corrected to reflect actual repository state; no code changed."
