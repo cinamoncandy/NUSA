@@ -1,0 +1,7 @@
+{
+  "work_order": "WO-UI-20260902-CANONICAL-DESKTOP-POLISH",
+  "branch_head": "a2bfe06a595f6cdd0816507ffcc6bccaceec2f80",
+  "current_main": "8c2da5f9c1793f15e9bc93339d962b6c1f28c2c0",
+  "relationship": "branch behind main by one non-overlapping CI-only commit",
+  "sync_policy": "Do not rewrite shared branch history. Merge current main when a proper checkout/merge environment is available, then run required local validation before PR creation."
+}
