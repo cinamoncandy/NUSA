@@ -119,7 +119,8 @@ test("malformed or unsafe Audit evidence cannot advance Release", () => {
 
 test("Audit recovery paginates and binds exact-main evidence to canonical CI", () => {
   const recovery = auditRecoveryJobSlice();
-  assert.match(recovery, /gh api --paginate --slurp/);
+  assert.match(recovery, /gh api --paginate/);
+  assert.doesNotMatch(recovery, /gh api --paginate --slurp[^\n]*--jq/);
   assert.match(recovery, /\.path == "\.github\/workflows\/ci\.yml"/);
   assert.match(recovery, /\.name == "CI"/);
   assert.match(recovery, /\.conclusion == "success"/);
