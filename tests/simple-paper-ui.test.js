@@ -44,14 +44,15 @@ test("canonical order runtime is fail-closed and explicitly confirmed", () => {
 test("canonical renderer remains presentation-only with no live credential surface", () => {
   assert.doesNotMatch(html, /Access Key|Secret Key|JWT|Authorization/);
   assert.doesNotMatch(runtime, /enableLiveTrading|privateApi|credential|productionMutationAllowed|withdraw|transfer/i);
-  assert.match(runtime, /api\.placeOrder\(side, quantity\)/);
+  assert.match(runtime, /global\.nusa\.placeOrder\(side, quantity\)/);
+  assert.match(runtime, /실제 주문은 발생하지 않았습니다/);
   assert.match(html, /실거래 주문을 전송하지 않습니다/);
 });
 
 test("canonical responsive CSS keeps keyboard focus and reduced-motion support", () => {
   assert.match(css, /:focus-visible/);
-  assert.match(css, /prefers-reduced-motion/);
-  assert.match(css, /@media \(max-width: 720px\)/);
+  assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)/);
+  assert.match(css, /@media\s*\(max-width:\s*720px\)/);
 });
 
 test("mobile view model distinguishes unavailable values from zero", () => {
