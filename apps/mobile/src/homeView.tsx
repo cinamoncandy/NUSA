@@ -1,12 +1,12 @@
 import React from "react";
 import { Platform } from "react-native";
-import { AndroidReferenceHomeView } from "./androidReferenceHomeView";
+import { AndroidNowView } from "./androidNowView";
 import { HomeView as LegacyHomeView } from "./homeViewLegacy";
 
 export type { HomeDestination } from "./homeViewLegacy";
 
 export function HomeView(props: React.ComponentProps<typeof LegacyHomeView>) {
   return Platform.OS === "android"
-    ? <AndroidReferenceHomeView {...props} />
+    ? <AndroidNowView {...props} />
     : <LegacyHomeView {...props} />;
 }
