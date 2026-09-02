@@ -1,14 +1,8 @@
 name: Autopilot Cloudflare Deploy
 
-# Removes the manual-deploy bottleneck: every exact-head CI-verified apps/autopilot change on
-# main is deployed to the canonical Cloudflare Worker automatically, with no local machine or
-# `wrangler login` session required. `autopilot-cloudflare-promote.yml` keeps its separate,
-# unchanged responsibility -- promoting the CI-verified tree onto the `cloudflare-production`
-# git branch as a durable, reviewable record of what was verified. This workflow owns the one
-# thing that branch push cannot do by itself: actually calling `wrangler deploy` against the
-# live Worker and proving the deployed revision matches. Container rollout is only requested
-# when the exact-head change modifies the container definition; Worker-only changes reuse the
-# already-deployed container image and avoid unnecessary container-registry authorization.
+# Deploys the exact CI-verified Autopilot Worker revision. Autonomous coding validation runs on
+# the canonical GitHub Actions execution consumer, so the Cloudflare deployment has no paid
+# Containers dependency.
 
 on:
   push:
@@ -46,29 +40,16 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
-          fetch-depth: 2
+          fetch-depth: 1
 
       - name: Wait for exact-head CI success before deploying
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
-          CI_RUN_ID: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || '' }}
         run: |
           set -euo pipefail
-          if ! [[ "$HEAD_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
-            echo "Invalid exact-head SHA: $HEAD_SHA"
-            exit 1
-          fi
-          if [ -n "$CI_RUN_ID" ] && ! [[ "$CI_RUN_ID" =~ ^[0-9]+$ ]]; then
-            echo "Invalid canonical CI run ID: $CI_RUN_ID"
-            exit 1
-          fi
           for attempt in $(seq 1 30); do
-            if [ -n "$CI_RUN_ID" ]; then
-              conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID" --jq '[select(.name == "CI" and .path == ".github/workflows/ci.yml" and .head_sha == "'"$HEAD_SHA"'") | .conclusion][0] // empty')"
-            else
-              conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$HEAD_SHA&status=completed&per_page=100" --jq '[.workflow_runs[] | select(.name == "CI" and .path == ".github/workflows/ci.yml" and .head_sha == "'"$HEAD_SHA"'") | .conclusion][0] // empty')"
-            fi
+            conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$HEAD_SHA&status=completed&per_page=100" --jq '[.workflow_runs[] | select(.name == "CI" and .path == ".github/workflows/ci.yml" and .head_sha == env.HEAD_SHA)][0].conclusion // empty')"
             if [ "$conclusion" = "success" ]; then
               echo "Exact-head CI verified: $HEAD_SHA"
               exit 0
@@ -99,111 +80,76 @@ jobs:
           echo 'current=true' >> "$GITHUB_OUTPUT"
           echo "Verified pushed revision is current main: $HEAD_SHA"
 
-      - name: Determine whether Worker deployment is needed
-        id: deployment
-        if: steps.revision.outputs.current == 'true'
-        env:
-          HEAD_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
-        run: |
-          set -euo pipefail
-          echo 'deploy=true' >> "$GITHUB_OUTPUT"
-          echo "Exact-head CI is verified for ${HEAD_SHA}; Worker and Container rollout stay atomically aligned by selecting the rollout mode before deploy."
-
-      - name: Determine Container rollout mode
-        id: container
-        if: steps.revision.outputs.current == 'true' && steps.deployment.outputs.deploy == 'true'
-        run: |
-          set -euo pipefail
-
-          # A container rollout is only necessary when the image or container declaration changes.
-          # For ordinary Worker/workflow changes, reusing the currently deployed image avoids an
-          # unnecessary registry push and its separate Containers permission requirement.
-          if ! git rev-parse HEAD^ >/dev/null 2>&1; then
-            echo 'rollout=immediate' >> "$GITHUB_OUTPUT"
-            echo 'No parent commit is available; conservatively requesting an immediate Container rollout.'
-            exit 0
-          fi
-
-          changed="$(git diff --name-only HEAD^ HEAD)"
-          printf 'Exact-head changed paths:\n%s\n' "$changed"
-
-          if printf '%s\n' "$changed" | grep -Eq '^(apps/autopilot/Dockerfile|apps/autopilot/wrangler\.jsonc)$'; then
-            echo 'rollout=immediate' >> "$GITHUB_OUTPUT"
-            echo 'Container definition changed; requesting immediate Container rollout.'
-          else
-            echo 'rollout=none' >> "$GITHUB_OUTPUT"
-            echo 'Container definition unchanged; reusing the deployed image and skipping Container rollout.'
-          fi
-
       - name: Enable pnpm via Corepack
-        if: steps.revision.outputs.current == 'true' && steps.deployment.outputs.deploy == 'true'
+        if: steps.revision.outputs.current == 'true'
         run: |
           corepack enable
           corepack prepare pnpm@11.7.0 --activate
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        if: steps.revision.outputs.current == 'true' && steps.deployment.outputs.deploy == 'true'
+        if: steps.revision.outputs.current == 'true'
         with:
           node-version: 24
           cache: pnpm
 
       - name: Install locked dependencies
-        if: steps.revision.outputs.current == 'true' && steps.deployment.outputs.deploy == 'true'
+        if: steps.revision.outputs.current == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Verify Cloudflare deployment credentials and account access
-        if: steps.revision.outputs.current == 'true' && steps.deployment.outputs.deploy == 'true'
+        if: steps.revision.outputs.current == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
           if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
-            echo '::error::CLOUDFLARE_API_TOKEN is not configured as a repository secret. HUMAN_ONLY blocker. Failing closed before deployment.'
+            echo '::error::CLOUDFLARE_API_TOKEN is not configured. HUMAN_ONLY blocker.'
             exit 1
           fi
-          if [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
-            echo '::error::CLOUDFLARE_ACCOUNT_ID is not configured as a repository secret. HUMAN_ONLY blocker. Failing closed before deployment.'
+          if ! [[ "${CLOUDFLARE_ACCOUNT_ID:-}" =~ ^[0-9a-fA-F]{32}$ ]]; then
+            echo '::error::CLOUDFLARE_ACCOUNT_ID is missing or malformed. HUMAN_ONLY blocker.'
             exit 1
           fi
-          echo 'Cloudflare deployment secrets are configured; validating token/account access read-only.'
-          if ! pnpm dlx wrangler@4.127.1 whoami >/tmp/nusa-wrangler-whoami.log 2>&1; then
+          if ! pnpm dlx wrangler@4.127.1 whoami --config apps/autopilot/wrangler.jsonc >/tmp/nusa-wrangler-whoami.log 2>&1; then
             cat /tmp/nusa-wrangler-whoami.log
-            echo '::error::Cloudflare authentication/account preflight failed. Deployment was not attempted. Rotate or repair CLOUDFLARE_API_TOKEN/CLOUDFLARE_ACCOUNT_ID before retrying.'
+            echo '::error::Cloudflare authentication/account preflight failed.'
             exit 1
           fi
           echo 'Cloudflare token/account preflight passed.'
 
-      - name: Deploy exact CI-verified revision to Cloudflare
-        if: steps.revision.outputs.current == 'true' && steps.deployment.outputs.deploy == 'true'
+      - name: Deploy exact CI-verified revision to Cloudflare Workers Free-compatible runtime
+        if: steps.revision.outputs.current == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           HEAD_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
-          CONTAINERS_ROLLOUT: ${{ steps.container.outputs.rollout }}
         run: |
           set -euo pipefail
           pnpm dlx wrangler@4.127.1 deploy \
             --config apps/autopilot/wrangler.jsonc \
-            --var "NUSA_DEPLOYMENT_REVISION:${HEAD_SHA}" \
-            --containers-rollout="${CONTAINERS_ROLLOUT}"
+            --var "NUSA_DEPLOYMENT_REVISION:${HEAD_SHA}"
 
-      - name: Verify deployed Worker reports the exact-head revision
-        if: steps.revision.outputs.current == 'true' && steps.deployment.outputs.deploy == 'true'
+      - name: Verify deployed Worker reports the exact-head revision and fail-closed authority
+        if: steps.revision.outputs.current == 'true'
         env:
           HEAD_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
         run: |
           set -euo pipefail
           for attempt in $(seq 1 15); do
-            revision="$(curl -sS --max-time 20 "$NUSA_WORKER_HEALTH_URL" | jq -r '.deploymentRevision // empty')"
-            if [ "$revision" = "$HEAD_SHA" ]; then
-              echo "Verified deployed Worker revision: $revision"
+            health="$(curl -sS --fail-with-body --max-time 20 "$NUSA_WORKER_HEALTH_URL" || true)"
+            revision="$(printf '%s' "$health" | jq -r '.deploymentRevision // empty' 2>/dev/null || true)"
+            live="$(printf '%s' "$health" | jq -r '.liveAuthority // empty' 2>/dev/null || true)"
+            mutation="$(printf '%s' "$health" | jq -r '.productionMutationAllowed // empty' 2>/dev/null || true)"
+            ai="$(printf '%s' "$health" | jq -r '.aiAuthority // empty' 2>/dev/null || true)"
+            if [ "$revision" = "$HEAD_SHA" ] && [ "$live" = "NONE" ] && [ "$mutation" = "false" ] && [ "$ai" = "ZERO_AUTHORITY" ]; then
+              echo "Verified deployed Worker revision and safety invariants: $revision"
               exit 0
             fi
-            echo "Waiting for Worker health to report ${HEAD_SHA} (currently ${revision:-unknown}), attempt $attempt/15..."
+            echo "Waiting for exact safe Worker revision ${HEAD_SHA} (currently ${revision:-unknown}), attempt $attempt/15..."
             sleep 10
           done
-          echo "::error::Worker health never reported the deployed revision ${HEAD_SHA}. Failing closed."
+          echo "::error::Worker health never reported the exact safe deployed revision ${HEAD_SHA}. Failing closed."
           exit 1
 
       - name: Record fail-closed authority invariants
