@@ -17,6 +17,8 @@ scope:
   - "Apply an Android-only graphite/teal institutional theme overlay through ThemeProvider."
   - "Keep iOS presentation unchanged."
   - "Tighten Android MASTER Home density without changing Home data ownership or decisions."
+  - "Use Android-only terminal geometry for Markets segmented observation controls while preserving public-market read-only semantics."
+  - "Use Android-only compact terminal geometry for the PAPER public-market context panel while preserving PAPER execution semantics."
   - "Align Android launch background, status bar, navigation bar, and native accent with the cockpit palette."
   - "Add a static contract test proving Android-only application and presentation-only ownership."
   - "Document Android information hierarchy, interaction, accessibility, and safety rules."
@@ -36,12 +38,16 @@ safety:
   ai_authority: ZERO_AUTHORITY
 architecture_impact:
   acknowledged: true
-  analysis: "Presentation only. Android receives a platform-gated visual overlay. Existing shared runtime and domain models remain authoritative, and iOS continues using the existing cross-platform theme."
+  analysis: "Presentation only. Android receives platform-gated theme and geometry overlays. Existing shared runtime/domain models and existing Markets/PAPER data flows remain authoritative. iOS continues using the existing cross-platform theme and geometry."
   references:
     - AGENTS.md
     - .aipos/architecture.md
     - .aipos/work-orders/WO-0063-mobile-master-ux-wave1.yaml
     - docs/NUSA_ANDROID_INSTITUTIONAL_COCKPIT.md
+implementation_status:
+  code_complete: true
+  local_validation_complete: false
+  pr_allowed: false
 validation:
   status: DEFERRED_OWNER_LOCAL
   pass_claimed: false
