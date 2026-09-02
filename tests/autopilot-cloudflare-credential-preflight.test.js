@@ -26,9 +26,17 @@ test('preflight reuses existing runtime cadence instead of adding a scheduler', 
   assert.doesNotMatch(workflow, /cron:/);
 });
 
-test('preflight validates active token, exact account identity and non-mutating Containers read', () => {
+test('preflight treats token self-verify as informational, not fail-closed (scoped tokens can legitimately 401 there while still deploying)', () => {
   assert.match(workflow, /user\/tokens\/verify/);
-  assert.match(workflow, /payload\.result\?\.status !== 'active'/);
+  assert.match(workflow, /informational only/);
+  assert.match(workflow, /payload\.result\?\.status === 'active'/);
+  assert.match(workflow, /catch \{/);
+  assert.match(workflow, /non-JSON response/);
+  const tokenVerifyStep = workflow.slice(workflow.indexOf('user/tokens/verify') - 400, workflow.indexOf('user/tokens/verify') + 50);
+  assert.doesNotMatch(tokenVerifyStep, /--fail-with-body/);
+});
+
+test('preflight validates exact account identity and non-mutating Containers read', () => {
   assert.match(workflow, /accounts\/\$CLOUDFLARE_ACCOUNT_ID/);
   assert.match(workflow, /observed !== expected/);
   assert.match(workflow, /wrangler@4\.127\.1 whoami/);
