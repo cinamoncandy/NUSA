@@ -31,6 +31,14 @@ function bootstrap({ snapshot = null, control = null } = {}) {
   return { dom, window, handlers };
 }
 
+const connectedSnapshot = {
+  equity: 1_000_000,
+  cash: 1_000_000,
+  unrealizedPnl: 0,
+  position: { market: "KRW-BTC", quantity: 0, averagePrice: 0, realizedPnl: 0 },
+  orders: []
+};
+
 test("simple UI exposes the required Paper dashboard structure", () => {
   for (const page of ["dashboard", "market", "orders", "positions", "more"]) assert.match(html, new RegExp(`data-simple-nav="${page}"`));
   for (const page of ["dashboard", "market", "orders", "positions", "balance", "strategy", "logs", "settings", "more"]) assert.match(html, new RegExp(`data-simple-page="${page}"`));
@@ -66,13 +74,7 @@ test("Paper actions require both market and NUSA server connection", () => {
   assert.equal(window.document.querySelector("[data-simple-order='BUY']").disabled, true);
   handlers.status("connected");
   assert.equal(window.document.querySelector("[data-simple-order='BUY']").disabled, true);
-  handlers.snapshot({
-    equity: 1_000_000,
-    cash: 1_000_000,
-    unrealizedPnl: 0,
-    position: { market: "KRW-BTC", quantity: 0, averagePrice: 0, realizedPnl: 0 },
-    orders: []
-  });
+  handlers.snapshot(connectedSnapshot);
   assert.equal(window.document.querySelector("[data-simple-order='BUY']").disabled, false);
   assert.match(window.document.querySelector("[data-simple-connection]").textContent, /서버 · 업비트 정상/);
   dom.window.close();
@@ -104,10 +106,11 @@ test("Paper order requires an explicit confirmation sheet before IPC mutation", 
     calls += 1;
     assert.equal(side, "BUY");
     assert.equal(quantity, 0.001);
-    return { snapshot: { equity: 1000000, cash: 1000000, position: { quantity: 0 }, orders: [] } };
+    return { snapshot: connectedSnapshot };
   };
   handlers.ticker({ trade_price: 90000000, signed_change_rate: 0.01 });
   handlers.status("connected");
+  handlers.snapshot(connectedSnapshot);
   const trigger = window.document.querySelector("[data-simple-order='BUY']");
   trigger.click();
   assert.equal(window.document.querySelector("[data-simple-sheet]").hidden, false);
@@ -124,6 +127,7 @@ test("Escape closes the Paper order confirmation and restores the trigger", () =
   const { dom, window, handlers } = bootstrap();
   handlers.ticker({ trade_price: 90000000 });
   handlers.status("connected");
+  handlers.snapshot(connectedSnapshot);
   const trigger = window.document.querySelector("[data-simple-order='BUY']");
   trigger.focus();
   trigger.click();
