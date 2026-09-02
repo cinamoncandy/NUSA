@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { NusaButton } from "./components";
 import { useTheme } from "./ThemeProvider";
 import { ChartView } from "./chartView";
@@ -31,6 +31,7 @@ type Panel = "WATCHLIST" | "CHART";
 export function MarketsView({ repository, market, rawMarkets, rawCandles, currentPrice, marketConnectionState, stale, marketsStale, chartError, chartErrorDiagnostic, error, refreshing, onRefresh, onPaperTrade }: MarketsViewProps) {
   const { theme } = useTheme();
   const { width } = useWindowDimensions();
+  const androidInstitutional = Platform.OS === "android";
   const [panel, setPanel] = useState<Panel>("CHART");
   const [selectedMarket, setSelectedMarket] = useState(market);
   const [selectedCandles, setSelectedCandles] = useState<readonly PublicCandle[] | null>(null);
@@ -105,6 +106,8 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
       style={({ pressed }) => [styles.segment, {
         backgroundColor: selected ? theme.colors.surfaceRaised : "transparent",
         borderColor: selected ? theme.colors.borderStrong : "transparent",
+        borderRadius: androidInstitutional ? theme.radii.sm : 999,
+        minHeight: androidInstitutional ? 44 : 48,
         opacity: pressed ? theme.interaction.pressedOpacity : 1,
       }]}
     ><Text style={[styles.segmentLabel, { color: selected ? theme.colors.text : theme.colors.textMuted, fontWeight: selected ? theme.typography.weights.bold : theme.typography.weights.semibold }]} numberOfLines={1}>{label}</Text></Pressable>;
@@ -113,7 +116,7 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
   const watchlist = <WatchlistView error={error} onRefresh={refreshMarketView} rawMarkets={rawMarkets} refreshing={refreshing || selectedChartLoading} repository={repository} selectedMarket={selectedMarket} onSelectMarket={handleSelectMarket} stale={marketsStale} />;
   const chart = <View style={styles.detailWorkspace} testID="market-detail-workspace">
     <ChartView changeRate={changeRate} diagnostic={displayedChartError ? displayedDiagnostic : null} error={displayedChartError ?? error} currentPrice={selectedCurrentPrice} market={selectedMarket} marketConnectionState={marketConnectionState} onRefresh={refreshMarketView} rawCandles={displayedCandles === null ? null : [...displayedCandles]} refreshing={refreshing || selectedChartLoading} stale={displayedStale} />
-    <View style={[styles.tradeAction, { borderTopColor: theme.colors.border }]} testID="market-observation-context">
+    <View style={[styles.tradeAction, { borderTopColor: theme.colors.border }, androidInstitutional && styles.androidTradeAction]} testID="market-observation-context">
       <View style={styles.tradeCopy}>
         <Text style={[styles.tradeEyebrow, { color: theme.colors.textMuted }]}>PUBLIC OBSERVATION</Text>
         <Text style={[styles.tradeDetail, { color: theme.colors.textMuted }]}>현재 선택 시장은 공개 시세 관찰 컨텍스트입니다. NUSA의 AI 판단 대상이나 PAPER 주문 종목으로 자동 승격되지 않습니다.</Text>
@@ -127,8 +130,8 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
       <View style={styles.tabletPanel} testID="markets-tablet-watchlist">{watchlist}</View>
       <View style={styles.tabletPanel} testID="markets-tablet-chart">{chart}</View>
     </View> : null}
-    {!tabletWorkspace ? <View style={[styles.segmentOuter, { paddingHorizontal: width < 380 ? 16 : 20 }]}>
-      <View accessibilityRole="tablist" style={[styles.panels, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.border }]} testID="markets-panels"><View testID="markets-panel-segmented-control" style={styles.segmentAlias}>
+    {!tabletWorkspace ? <View style={[styles.segmentOuter, { paddingHorizontal: androidInstitutional ? 12 : width < 380 ? 16 : 20 }]}>
+      <View accessibilityRole="tablist" style={[styles.panels, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.border, borderRadius: androidInstitutional ? theme.radii.md : 999, padding: androidInstitutional ? 2 : 4 }]} testID="markets-panels"><View testID="markets-panel-segmented-control" style={styles.segmentAlias}>
         {segment("WATCHLIST", "관찰 목록", "markets-watchlist-tab")}
         {segment("CHART", "관찰 상세", "markets-chart-tab")}
       </View></View>
@@ -148,6 +151,7 @@ const styles = StyleSheet.create({
   segmentLabel: { fontSize: 13, letterSpacing: -0.15 },
   detailWorkspace: { flex: 1, minWidth: 0 },
   tradeAction: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 20, paddingVertical: 14, gap: 12 },
+  androidTradeAction: { paddingHorizontal: 14, paddingVertical: 12, gap: 10 },
   tradeCopy: { gap: 4 },
   tradeEyebrow: { fontSize: 9, lineHeight: 14, fontWeight: "800", letterSpacing: 1.5 },
   tradeDetail: { fontSize: 11, lineHeight: 16 },
