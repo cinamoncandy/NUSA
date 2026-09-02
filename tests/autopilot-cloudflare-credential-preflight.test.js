@@ -36,11 +36,16 @@ test('preflight treats token self-verify as informational, not fail-closed (scop
   assert.doesNotMatch(tokenVerifyStep, /--fail-with-body/);
 });
 
-test('preflight validates exact account identity and non-mutating Containers read', () => {
+test('preflight requires Container read only when the exact revision changes the Container definition', () => {
   assert.match(workflow, /accounts\/\$CLOUDFLARE_ACCOUNT_ID/);
   assert.match(workflow, /observed !== expected/);
   assert.match(workflow, /wrangler@4\.127\.1 whoami/);
-  assert.match(workflow, /wrangler@4\.127\.1 containers list/);
+  assert.match(workflow, /Determine whether Container read preflight is required/);
+  assert.match(workflow, /ref: \$\{\{ steps\.main\.outputs\.sha \}\}[\s\S]*fetch-depth: 2/);
+  assert.match(workflow, /git diff --quiet HEAD\^ HEAD -- apps\/autopilot\/Dockerfile apps\/autopilot\/wrangler\.jsonc/);
+  assert.match(workflow, /Verify non-mutating Containers read access for changed Container definitions/);
+  assert.match(workflow, /if: steps\.container-preflight\.outputs\.required == 'true'/);
+  assert.match(workflow, /Record Container read preflight scope/);
   assert.match(workflow, /Containers Write is not inferred/);
   assert.doesNotMatch(workflow, /containers delete|containers push|wrangler@4\.127\.1 deploy/);
   assert.doesNotMatch(workflow, /nusa-wrangler-whoami|nusa-containers-list/);
