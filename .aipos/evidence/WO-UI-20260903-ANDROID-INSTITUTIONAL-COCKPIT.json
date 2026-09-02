@@ -1,0 +1,48 @@
+{
+  "workOrder": "WO-UI-20260903-ANDROID-INSTITUTIONAL-COCKPIT",
+  "branch": "ux/android-institutional-cockpit-20260903",
+  "base": "a07a8e10c8a2f011d3e79ca6b0e3eedf64ff6942",
+  "scope": "ANDROID_PRESENTATION_ONLY",
+  "implementation": {
+    "androidInstitutionalTheme": "apps/mobile/src/androidInstitutionalTheme.ts",
+    "platformGate": "apps/mobile/src/ThemeProvider.tsx",
+    "homeDensity": "apps/mobile/src/homeVisualProfile.ts",
+    "nativeColors": "apps/mobile/android/app/src/main/res/values/colors.xml",
+    "nativeTheme": "apps/mobile/android/app/src/main/res/values/styles.xml",
+    "designContract": "docs/NUSA_ANDROID_INSTITUTIONAL_COCKPIT.md",
+    "staticContractTest": "tests/android-institutional-cockpit.vitest.js"
+  },
+  "design": {
+    "identity": "INSTITUTIONAL_MOBILE_TRADING_COCKPIT",
+    "darkBackground": "#020506",
+    "primary": "#41E0C2",
+    "warning": "#E7BC68",
+    "danger": "#FF718A",
+    "touchTargetMinimumDp": 48,
+    "androidOnly": true,
+    "iosChanged": false
+  },
+  "truthBoundaries": {
+    "paperOnly": true,
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY",
+    "fabricatedFinancialTruth": false,
+    "runtimeSemanticsChanged": false,
+    "credentialSemanticsChanged": false,
+    "riskPolicyChanged": false
+  },
+  "validation": {
+    "status": "DEFERRED_OWNER_LOCAL",
+    "passClaimed": false,
+    "reason": "Owner explicitly deferred local validation. Repository policy prohibits claiming PASS before the required local checks run.",
+    "required": [
+      "pnpm run validate",
+      "pnpm run lint:mobile",
+      "tests/android-institutional-cockpit.vitest.js",
+      "repository-required Android/mobile build and type checks",
+      "git diff --check",
+      "physical Galaxy visual QA when available"
+    ]
+  }
+}
