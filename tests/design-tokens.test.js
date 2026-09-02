@@ -15,9 +15,15 @@ test("design tokens expose every required token family", () => {
   assert.match(css, /data-theme="contrast"/);
 });
 
-test("desktop loads tokens before component styles", () => {
+test("desktop loads semantic tokens before shared components and product styles", () => {
   const html = read("apps/desktop/renderer/index.html");
-  assert.ok(html.indexOf("tokens.css") < html.indexOf("styles.css"));
+  const tokenIndex = html.indexOf('href="tokens.css"');
+  const componentIndex = html.indexOf('href="components.css"');
+  const appIndex = html.indexOf('href="app.css"');
+  assert.ok(tokenIndex >= 0);
+  assert.ok(componentIndex > tokenIndex);
+  assert.ok(appIndex > componentIndex);
+  assert.doesNotMatch(html, /href="styles\.css"/);
 });
 
 test("Tailwind and shadcn share the CSS variable theme", () => {
@@ -39,7 +45,7 @@ test("theme provider exposes dark and contrast themes without renderer business 
   assert.doesNotMatch(provider, /electron|ipcRenderer|PaperBroker|ControlPlane/);
 });
 
-test("renderer styles use semantic variables rather than literal colors", () => {
+test("historical renderer styles use semantic variables rather than literal colors", () => {
   const styles = read("apps/desktop/renderer/styles.css");
   assert.doesNotMatch(styles, /#[0-9a-f]{3,8}\b/i);
   assert.doesNotMatch(styles, /\brgba?\(/i);

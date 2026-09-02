@@ -145,13 +145,12 @@ test("state catalog uses honest non-profit language", () => {
   assert.match(copy, /Paper/);
 });
 
-test("renderer contract exposes an accessible live status surface", () => {
+test("canonical renderer exposes accessible live operational status surfaces", () => {
   const html = read("apps/desktop/renderer/index.html");
   const script = read("apps/desktop/renderer/application-state.js");
-  assert.match(html, /id="application-state"[^>]*role="status"[^>]*aria-live="polite"/);
-  assert.match(html, /id="application-state-title"/);
-  assert.match(html, /id="application-state-description"/);
-  assert.match(html, /id="application-state-action"/);
+  assert.match(html, /data-simple-connection[^>]*aria-live="polite"/);
+  assert.match(html, /data-simple-order-message[^>]*role="status"[^>]*aria-live="assertive"/);
+  assert.match(html, /data-simple-settings-message[^>]*role="status"[^>]*aria-live="polite"/);
   assert.match(script, /MutationObserver/);
   assert.match(script, /addEventListener\("offline"/);
   assert.match(script, /addEventListener\("online"/);
