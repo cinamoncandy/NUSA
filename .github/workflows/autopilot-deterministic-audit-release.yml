@@ -2,7 +2,7 @@ name: Autopilot Deterministic Audit Release
 
 on:
   repository_dispatch:
-    types: [nusa_autopilot_execution]
+    types: [nusa_autopilot_audit]
 
 permissions: {}
 
@@ -99,7 +99,6 @@ jobs:
               }
           done
 
-          # Re-read the protected main and PR immediately before granting authority.
           final_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           final_state="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.state')"
           final_head="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha')"
