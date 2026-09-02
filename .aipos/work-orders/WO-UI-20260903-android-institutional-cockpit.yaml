@@ -1,0 +1,55 @@
+id: WO-UI-20260903-ANDROID-INSTITUTIONAL-COCKPIT
+title: "Android Institutional Trading Cockpit"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: a07a8e10c8a2f011d3e79ca6b0e3eedf64ff6942
+implementation_branch: ux/android-institutional-cockpit-20260903
+authority_impact: none
+objective: "Raise the Android-only NUSA mobile presentation to an institutional-grade trading cockpit while preserving all existing PAPER, runtime, credential, risk, market-data, and authority semantics."
+provenance:
+  predecessor_scope: WO-0063.mobile-master-ux-wave1
+  relationship: PRESENTATION_ONLY_FOLLOW_UP
+  desktop_redesign_branch: ux/ai-trading-cockpit-redesign-20260902
+  desktop_scope_included: false
+scope:
+  - "Apply an Android-only graphite/teal institutional theme overlay through ThemeProvider."
+  - "Keep iOS presentation unchanged."
+  - "Tighten Android MASTER Home density without changing Home data ownership or decisions."
+  - "Align Android launch background, status bar, navigation bar, and native accent with the cockpit palette."
+  - "Add a static contract test proving Android-only application and presentation-only ownership."
+  - "Document Android information hierarchy, interaction, accessibility, and safety rules."
+excluded:
+  - "desktop renderer changes"
+  - "iOS redesign"
+  - "order/risk/credential/runtime/market-data state-machine changes"
+  - "LIVE or REAL-money capability"
+  - "new AI authority or autonomous execution"
+  - "fabricated confidence, risk, freshness, PnL, or execution truth"
+safety:
+  mode: PAPER_ONLY
+  live_authority: NONE
+  production_mutation_allowed: false
+  real_order_authority: false
+  real_transfer_authority: false
+  ai_authority: ZERO_AUTHORITY
+architecture_impact:
+  acknowledged: true
+  analysis: "Presentation only. Android receives a platform-gated visual overlay. Existing shared runtime and domain models remain authoritative, and iOS continues using the existing cross-platform theme."
+  references:
+    - AGENTS.md
+    - .aipos/architecture.md
+    - .aipos/work-orders/WO-0063-mobile-master-ux-wave1.yaml
+    - docs/NUSA_ANDROID_INSTITUTIONAL_COCKPIT.md
+validation:
+  status: DEFERRED_OWNER_LOCAL
+  pass_claimed: false
+  required:
+    - "pnpm run validate"
+    - "pnpm run lint:mobile"
+    - "tests/android-institutional-cockpit.vitest.js"
+    - "repository-required Android/mobile build and type checks"
+    - "git diff --check"
+    - "physical Galaxy visual QA when available"
+completion_rule: "Complete only after required local validation and exact-head repository gates pass. Implementation alone does not authorize a PASS claim or PR creation."
