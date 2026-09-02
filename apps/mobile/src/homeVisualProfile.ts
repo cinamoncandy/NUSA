@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import type { DesignPresetName } from "./designSystem";
 
 export interface HomeVisualProfile {
@@ -64,6 +65,14 @@ const profiles: Readonly<Record<DesignPresetName, HomeVisualProfile>> = Object.f
   }),
 });
 
+const androidInstitutionalMaster: HomeVisualProfile = Object.freeze({
+  screen: Object.freeze({ horizontalPadding: 12, topPadding: 10, sectionGap: 10, bottomPadding: 24, maxWidth: 720 }),
+  dashboard: Object.freeze({ gap: 10, tabletGap: 16, secondaryPaddingLeft: 14 }),
+  hero: Object.freeze({ minHeight: 212, horizontalPadding: 14, topPadding: 14, bottomPadding: 0, radius: 4, borderWidth: 0, balanceSize: 42, balanceLineHeight: 46, balanceLetterSpacing: -2, tabletBalanceSize: 52, tabletBalanceLineHeight: 56 }),
+  type: Object.freeze({ kicker: 9, sectionTitle: 17, sectionTitleLineHeight: 21, body: 12, bodyLineHeight: 18, meta: 10, thesis: 17, thesisLineHeight: 24, value: 18, valueLineHeight: 23 }),
+  density: Object.freeze({ contentGap: 10, metricGap: 6, sectionGap: 8, compactPadding: 2, railHeight: 3 }),
+});
+
 export function getHomeVisualProfile(preset: DesignPresetName): HomeVisualProfile {
-  return profiles[preset];
+  return Platform.OS === "android" && preset === "master" ? androidInstitutionalMaster : profiles[preset];
 }
