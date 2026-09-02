@@ -23,9 +23,25 @@
     "design-system cockpit hierarchy and density extension",
     "canonical desktop renderer markup redesign while preserving data-simple runtime hooks",
     "presentation-only cockpit.css layer",
+    "institutional premium presentation layer with tighter information density and reduced decorative treatment",
     "static desktop cockpit contract test",
+    "static premium presentation contract test",
     "native mobile audited as an independent evidence-first cockpit; no destructive parity rewrite required"
   ],
+  "premiumVisualPass": {
+    "goal": "Make NUSA read as a professional capital-management instrument rather than a decorative futuristic dashboard.",
+    "changes": [
+      "compress header, status rail, metric cards, panel spacing, and table rows",
+      "replace broad glow/gradient emphasis with restrained NUSA teal, amber safety, and danger semantics",
+      "use monospaced tabular financial values and compact operator labels",
+      "reduce panel radius and visual chrome",
+      "strengthen Paper order station, keyboard focus, and mobile order targets",
+      "keep the layer presentation-only and removable without runtime changes"
+    ],
+    "asset": "apps/desktop/renderer/cockpit-premium.css",
+    "mount": "apps/desktop/renderer/app-adapter.js",
+    "runtimeAuthority": "none"
+  },
   "nativeMobileEvidence": {
     "primaryTasks": ["Home", "Markets", "Paper", "Portfolio"],
     "contextualTasks": ["AiSignal", "Order"],
