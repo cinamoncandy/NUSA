@@ -95,7 +95,7 @@
     const [marketTone, marketLabel] = marketConnection();
     const [serverTone, serverLabel] = serverConnection();
     const [tone, label] = overallConnection();
-    state.connection = marketTone;
+    state.connection = tone;
     state.connectionLabel = label;
     $$("[data-simple-connection]").forEach((node) => {
       node.dataset.state = tone;
@@ -121,6 +121,7 @@
       if (action) action.textContent = tone === "reconnecting" ? "연결을 다시 복구하는 중입니다." : "서버와 시세 연결을 확인하는 중입니다.";
       if (copy) copy.textContent = "연결 전에는 주문 버튼이 비활성화됩니다.";
     }
+    renderOrderSummary();
   }
   function renderNav() {
     const activePage = ["strategy", "logs", "settings"].includes(state.page) ? "more" : state.page === "balance" ? "positions" : state.page;
@@ -248,9 +249,10 @@
     text("[data-simple-order-price]", moneyValue(state.lastPrice));
     const input = $("[data-simple-order-quantity]");
     const quantity = Number(input?.value);
+    const [connectionTone] = overallConnection();
     text("[data-simple-order-notional]", finite(quantity) && finite(state.lastPrice) ? moneyValue(quantity * state.lastPrice) : "-");
     text("[data-simple-order-fee]", finite(state.lastPrice) ? "Paper 설정값 적용" : "연결 후 계산");
-    $$("[data-simple-order]").forEach((button) => button.disabled = !(state.connection === "connected" && finite(state.lastPrice) && finite(quantity) && quantity > 0));
+    $$("[data-simple-order]").forEach((button) => button.disabled = !(connectionTone === "connected" && finite(state.lastPrice) && finite(quantity) && quantity > 0));
     renderOrderSheet();
   }
   function renderOrderSheet() {
@@ -278,7 +280,8 @@
   function openOrderSheet(side) {
     const quantity = Number($("[data-simple-order-quantity]")?.value);
     const message = $("[data-simple-order-message]");
-    if (state.connection !== "connected" || !finite(state.lastPrice) || !finite(quantity) || quantity <= 0) {
+    const [connectionTone] = overallConnection();
+    if (connectionTone !== "connected" || !finite(state.lastPrice) || !finite(quantity) || quantity <= 0) {
       if (message) message.textContent = "연결 상태와 유효한 수량을 확인하세요.";
       return;
     }
@@ -373,7 +376,11 @@
   }
   async function placePaperOrder(side) {
     const input = $("[data-simple-order-quantity]"); const message = $("[data-simple-order-message]"); const quantity = Number(input?.value);
-    if (!state.pendingOrder || state.pendingOrder.side !== side || !global.nusa?.placeOrder || !finite(quantity) || quantity <= 0 || !finite(state.lastPrice)) return;
+    const [connectionTone] = overallConnection();
+    if (connectionTone !== "connected" || !state.pendingOrder || state.pendingOrder.side !== side || !global.nusa?.placeOrder || !finite(quantity) || quantity <= 0 || !finite(state.lastPrice)) {
+      if (connectionTone !== "connected" && message) message.textContent = "서버와 시세 연결이 모두 정상일 때만 Paper 주문을 기록할 수 있습니다.";
+      return;
+    }
     const button = $(`[data-simple-order="${side}"]`); if (button) button.disabled = true;
     try {
       const result = await global.nusa.placeOrder(side, quantity);
@@ -410,9 +417,9 @@
     $("[data-simple-more-back]")?.addEventListener("click", () => { const pane = $("[data-simple-advanced-pane]"); if (pane) pane.hidden = true; });
     const api = global.nusa;
     if (!api) return;
-    if (typeof api.onStatus === "function") unsubscribers.push(api.onStatus((value) => { state.connectionCode = value; recordLog("시장 데이터", `연결 상태: ${value}`, value === "connected" ? "정보" : "주의"); renderConnection(); renderOrderSummary(); }));
+    if (typeof api.onStatus === "function") unsubscribers.push(api.onStatus((value) => { state.connectionCode = value; recordLog("시장 데이터", `연결 상태: ${value}`, value === "connected" ? "정보" : "주의"); renderConnection(); }));
     if (typeof api.onTicker === "function") unsubscribers.push(api.onTicker((value) => { renderTicker(value); renderChart(); }));
-    if (typeof api.onSnapshot === "function") unsubscribers.push(api.onSnapshot((value) => { markServerConnected(); renderSnapshot(value); renderConnection(); }));
+    if (typeof api.onSnapshot === "function") unsubscribers.push(api.onSnapshot((value) => { markServerConnected(); renderConnection(); renderSnapshot(value); }));
     if (typeof api.onControl === "function") unsubscribers.push(api.onControl((value) => { renderControl(value); render(); }));
     if (typeof api.onChartPoint === "function") unsubscribers.push(api.onChartPoint((value) => { if (finite(value?.value)) { state.chartPoints.push(value); state.chartPoints = state.chartPoints.slice(-120); renderChart(); } }));
   }
