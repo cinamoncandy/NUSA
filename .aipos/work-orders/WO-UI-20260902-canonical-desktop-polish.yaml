@@ -2,6 +2,7 @@ id: WO-UI-20260902-CANONICAL-DESKTOP-POLISH
 schema_version: 1
 title: "Canonical desktop trading UX polish"
 status: in_progress
+authority_impact: none
 owner: owner-requested
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -29,10 +30,12 @@ safety_boundaries:
   - "AI remains ZERO_AUTHORITY."
 verification:
   required:
-    - "npm run preflight"
-    - "npm run secret:guard"
-    - "repository UI/type/build checks required by the exact head"
+    - "pnpm run validate"
+    - "pnpm run lint:desktop"
+    - "pnpm run test:ui"
     - "git diff --check"
+  status: BLOCKED_ENVIRONMENT
+  blocker: "Current execution container provides Node 22.16.0 and pnpm 10.9.2, while repository package.json requires Node >=24.0.0 and pnpm >=11.7.0. Repository checkout materialization is also unavailable in this connector environment. No validation PASS is claimed."
 completion_criteria:
   - "Canonical desktop hierarchy is materially clearer without runtime duplication."
   - "Primary portfolio tables remain readable at mobile width without mandatory horizontal scrolling for essential fields."
