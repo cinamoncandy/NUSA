@@ -1,7 +1,7 @@
 version: 1
 id: WO-ISSUE-881-RISK-EVIDENCE-BINDING
 title: "Issue #881 bind canonical portfolio risk evidence to PAPER advisory"
-status: VERIFYING
+status: COMPLETED
 priority: P1
 owner: codex
 repository: cinamoncandy/NUSA
@@ -67,4 +67,7 @@ validation:
 known_limitations:
   - "This slice only binds existing portfolio risk evidence to the advisory; it does not create longitudinal PAPER performance evidence or actual capital execution."
   - "Issue #881 broader acceptance remains open for correlation, concentration, cost, performance, and runtime evidence integration beyond this consumer binding."
-next: "Publish this focused consumer binding, validate exact-head gates, and keep remaining Issue #881 evidence gaps fail-closed."
+next: "COMPLETE for this slice's scope."
+completion:
+  pull_request: 1051
+  reconciled_by: "NUSA session audit, 2026-09-02: work order was stuck at VERIFYING even though parent GitHub issue #881 is CLOSED and PR #1051 is merged to current main. Verified tests/paper-portfolio-advisory.test.js still passes 13/13 on current main. Status corrected to reflect actual repository state; no code changed."
