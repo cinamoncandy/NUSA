@@ -85,6 +85,13 @@ const MAX_FINDINGS = 40;
 const MAX_BLOCKERS = 40;
 const MAX_MESSAGE_CHARS = 1_200;
 const MAX_EVIDENCE_REF_CHARS = 500;
+// Workers AI structured-output occasionally returns a response that fails
+// validateAuditModelVerdict's schema checks even with response_format constraints applied --
+// observed transient (the same head_sha's audit request succeeds on a later attempt without any
+// code change). Retrying the identical prompt a bounded number of times absorbs that
+// nondeterminism without weakening any validation: a persistently malformed response still fails
+// closed exactly as before once attempts are exhausted.
+const MAX_AUDIT_MODEL_ATTEMPTS = 3;
 const ALLOWED_MODEL_KEYS = new Set(["verdict", "findings", "blockers", "safetyInvariantResult"]);
 const ALLOWED_FINDING_KEYS = new Set(["code", "severity", "message", "evidenceRef"]);
 
@@ -397,7 +404,18 @@ export async function executeIndependentAudit(
     prompt: auditPrompt(request, diff),
     response_format: AUDIT_RESPONSE_FORMAT,
   };
-  const modelResult = parseAuditModelResponse(await env.AI.run(model, modelRequest));
+  let modelResult: AuditModelVerdict | undefined;
+  let lastModelError: unknown;
+  for (let attempt = 1; attempt <= MAX_AUDIT_MODEL_ATTEMPTS; attempt += 1) {
+    const rawModelResponse = await env.AI.run(model, modelRequest);
+    try {
+      modelResult = parseAuditModelResponse(rawModelResponse);
+      break;
+    } catch (error) {
+      lastModelError = error;
+    }
+  }
+  if (!modelResult) throw lastModelError instanceof Error ? lastModelError : new Error("AUDIT_MODEL_RESPONSE_INVALID");
 
   // Re-fetch exact PR/base/CI evidence after model review. A concurrent push, base movement, or
   // evidence-shape change invalidates the verdict instead of attaching it to a different state.
