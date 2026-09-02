@@ -1,0 +1,45 @@
+id: WO-UI-20260902-CANONICAL-DESKTOP-POLISH
+schema_version: 1
+title: "Canonical desktop trading UX polish"
+status: in_progress
+owner: owner-requested
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: ux/full-gap-close-20260902
+objective: "Close presentation-only desktop/mobile-web usability gaps in the canonical Paper Trading renderer without changing runtime, trading, risk, credential, or authority semantics."
+authority:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+scope:
+  - "Strengthen account, execution-mode, decision, position, and Paper order visual hierarchy using existing canonical renderer truth."
+  - "Improve narrow-screen table readability without fabricating fields or changing data ownership."
+  - "Improve touch ergonomics and order-confirmation sheet presentation."
+  - "Keep visual status semantics token-driven and accessible."
+exclusions:
+  - "No connection/freshness runtime logic already covered by PR #1473."
+  - "No navigation, theme, chart, timeline, or runtime subscription ownership changes."
+  - "No backend, IPC, broker, credential, LIVE, REAL, risk-policy, or financial-authority changes."
+  - "No fabricated market, signal, confidence, execution, risk, or PnL values."
+safety_boundaries:
+  - "Paper Trading remains explicit on every trading-critical surface."
+  - "LIVE authority remains NONE."
+  - "productionMutationAllowed remains false."
+  - "AI remains ZERO_AUTHORITY."
+verification:
+  required:
+    - "npm run preflight"
+    - "npm run secret:guard"
+    - "repository UI/type/build checks required by the exact head"
+    - "git diff --check"
+completion_criteria:
+  - "Canonical desktop hierarchy is materially clearer without runtime duplication."
+  - "Primary portfolio tables remain readable at mobile width without mandatory horizontal scrolling for essential fields."
+  - "Paper order confirmation remains explicit and touch-safe."
+  - "No authority or execution behavior changes."
+  - "Required local validation passes before PR creation."
+provenance:
+  requested_by: owner
+  requested_at: "2026-09-02"
+  request: "다해"
