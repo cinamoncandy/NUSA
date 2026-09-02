@@ -51,6 +51,7 @@ export * from "./aiEvaluationDependenceGroups";
 export * from "./aiEvaluationMultipleTestingCorrection";
 export * from "./aiEvaluationLineage";
 export * from "./aiEvaluationFrozenSelection";
+export * from "./aiEvaluationConfirmatoryLabeling";
 
 export enum LedgerSide { BUY = "BUY", SELL = "SELL" }
 export enum PositionScopeType { WALLET = "WALLET", STRATEGY = "STRATEGY" }
