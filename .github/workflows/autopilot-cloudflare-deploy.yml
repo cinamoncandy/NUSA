@@ -49,13 +49,23 @@ jobs:
           fetch-depth: 1
 
       - name: Wait for exact-head CI success before deploying
+        # On the workflow_run trigger, the job-level `if:` above already requires
+        # github.event.workflow_run.conclusion == 'success' for this exact head_sha -- the
+        # trigger itself IS the CI-success proof, so re-querying the Actions API here is both
+        # redundant and unsafe: this repository's autopilot control-plane workflows generate many
+        # workflow_run entries reacting to the same head_sha, and an unpaginated, unfiltered
+        # `actions/runs?head_sha=...` query only returns the 30 most-recent runs by default, so
+        # the actual "CI" run can be paginated off-page within the 10-minute poll window and the
+        # step times out on a false negative even though CI genuinely succeeded. Only the `push`
+        # trigger path (where no workflow_run conclusion is available) still needs to poll.
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          HEAD_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           for attempt in $(seq 1 30); do
-            conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$HEAD_SHA&status=completed" --jq '[.workflow_runs[] | select(.name == "CI")][0].conclusion // empty')"
+            conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$HEAD_SHA&status=completed&per_page=100" --jq '[.workflow_runs[] | select(.name == "CI")][0].conclusion // empty')"
             if [ "$conclusion" = "success" ]; then
               echo "Exact-head CI verified: $HEAD_SHA"
               exit 0
