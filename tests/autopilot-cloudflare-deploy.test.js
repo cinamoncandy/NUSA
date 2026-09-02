@@ -4,6 +4,7 @@ const path = require("node:path");
 const test = require("node:test");
 
 const workflow = fs.readFileSync(path.join(__dirname, "..", ".github", "workflows", "autopilot-cloudflare-deploy.yml"), "utf8");
+const readiness = fs.readFileSync(path.join(__dirname, "..", ".github", "workflows", "cloudflare-deployment-readiness.yml"), "utf8");
 
 test("Cloudflare deployment recovers after a CI-only repair merge", () => {
   assert.match(workflow, /workflow_run:\s*\n\s*workflows: \[CI\]/);
@@ -29,6 +30,32 @@ test("Container rollout is immediate only for container-definition changes and o
   assert.match(workflow, /CONTAINERS_ROLLOUT: \$\{\{ steps\.container\.outputs\.rollout \}\}/);
   assert.match(workflow, /--containers-rollout="\$\{CONTAINERS_ROLLOUT\}"/);
   assert.doesNotMatch(workflow, /--containers-rollout=immediate\s*$/m);
+});
+
+test("deployment authenticates read-only before attempting Cloudflare mutation", () => {
+  const preflightIndex = workflow.indexOf("Verify Cloudflare deployment credentials and account access");
+  const deployIndex = workflow.indexOf("Deploy exact CI-verified revision to Cloudflare");
+  assert.ok(preflightIndex >= 0);
+  assert.ok(deployIndex > preflightIndex);
+  assert.match(workflow, /CLOUDFLARE_ACCOUNT_ID/);
+  assert.match(workflow, /wrangler@4\.127\.1 whoami/);
+  assert.match(workflow, /Deployment was not attempted/);
+  assert.match(workflow, /Cloudflare token\/account preflight passed/);
+});
+
+test("daily read-only readiness guard detects broken Cloudflare credentials before deployment day", () => {
+  assert.match(readiness, /schedule:/);
+  assert.match(readiness, /cron: "30 0 \* \* \*"/);
+  assert.match(readiness, /workflow_dispatch:/);
+  assert.match(readiness, /permissions:\s*\n\s*contents: read/);
+  assert.doesNotMatch(readiness, /contents: write/);
+  assert.match(readiness, /wrangler@4\.127\.1 whoami/);
+  assert.match(readiness, /CLOUDFLARE_API_TOKEN/);
+  assert.match(readiness, /CLOUDFLARE_ACCOUNT_ID/);
+  assert.match(readiness, /deploymentRevision/);
+  assert.match(readiness, /liveAuthority == "NONE"/);
+  assert.match(readiness, /productionMutationAllowed == false/);
+  assert.doesNotMatch(readiness, /wrangler@4\.127\.1 deploy/);
 });
 
 test("deployment workflow remains fail-closed and read-only toward GitHub", () => {
