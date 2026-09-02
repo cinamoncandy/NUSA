@@ -2,11 +2,13 @@
   "workOrder": "WO-UI-20260902-AI-TRADING-COCKPIT-REDESIGN",
   "status": "IMPLEMENTED_VALIDATION_DEFERRED",
   "authorityImpact": "none",
-  "baseCommit": "3d6399e1c471dac0dbbda917515da0fc5cf42993",
+  "initialBaseCommit": "3d6399e1c471dac0dbbda917515da0fc5cf42993",
+  "syncedMainCommit": "4c7453bcd8b831686f390c5d6a984c6f3a46deed",
   "implementationBranch": "ux/ai-trading-cockpit-redesign-20260902",
   "runtimeBehaviorChanged": false,
   "runtimeSubscriptionOwnerChanged": false,
   "paperOrderSemanticsChanged": false,
+  "nativeMobileRuntimeChanged": false,
   "safety": {
     "mode": "PAPER_ONLY",
     "liveAuthority": "NONE",
@@ -16,14 +18,23 @@
   "implemented": [
     "AI Trading Cockpit design principles and canonical information architecture",
     "desktop and mobile wireframes",
-    "renderer implementation contract",
+    "desktop renderer implementation contract",
+    "native-mobile cockpit alignment contract",
     "design-system cockpit hierarchy and density extension",
-    "canonical renderer markup redesign while preserving data-simple runtime hooks",
+    "canonical desktop renderer markup redesign while preserving data-simple runtime hooks",
     "presentation-only cockpit.css layer",
-    "static cockpit contract test"
+    "static desktop cockpit contract test",
+    "native mobile audited as an independent evidence-first cockpit; no destructive parity rewrite required"
   ],
+  "nativeMobileEvidence": {
+    "primaryTasks": ["Home", "Markets", "Paper", "Portfolio"],
+    "contextualTasks": ["AiSignal", "Order"],
+    "existingSafetyCopy": ["PAPER ONLY", "LIVE NONE", "AI ZERO AUTHORITY"],
+    "interactionTargetPx": 48,
+    "decision": "retain independent mobile navigation and runtime ownership; align semantics, not desktop geometry"
+  },
   "deferredEvidence": [
-    "AI confidence/rationale/invalidation/horizon",
+    "AI confidence/rationale/invalidation/horizon beyond authoritative contracts",
     "risk limits/drawdown/concentration/breach reason",
     "benchmark and advanced attribution",
     "richer order lifecycle"

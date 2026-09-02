@@ -8,15 +8,15 @@ repository: cinamoncandy/NUSA
 base_branch: main
 base_commit: 3d6399e1c471dac0dbbda917515da0fc5cf42993
 implementation_branch: ux/ai-trading-cockpit-redesign-20260902
-objective: "Redesign the canonical Electron Paper Trading renderer into a high-density AI-native trading cockpit while preserving the existing runtime, Paper order, safety, and authority contracts."
+objective: "Redesign the canonical desktop Paper Trading renderer into a high-density AI-native trading cockpit and align the existing independent native-mobile UX to the same evidence/safety semantics without changing runtime, trading, risk, credential, or authority behavior."
 owner_request:
   - "재설계"
   - "다 해"
 impact:
   profit_potential: "Reduce time-to-decision and make evidence, position, market, and activity context easier to compare without inventing investment evidence."
   safety: "Make PAPER/live-disabled, connectivity, automation, and unavailable risk evidence more prominent without changing any authority or risk behavior."
-  efficiency: "Reorganize the six canonical routes around a three-second command-home scan and action-adjacent panels."
-  convenience: "Improve desktop density, mobile prioritization, order ergonomics, and progressive disclosure."
+  efficiency: "Reorganize the desktop routes around a three-second command-home scan while retaining the already task-optimized native-mobile navigation model."
+  convenience: "Improve desktop density, mobile semantic consistency, order ergonomics, and progressive disclosure."
 authority:
   mode: PAPER_ONLY
   liveAuthority: NONE
@@ -25,20 +25,24 @@ authority:
 scope:
   - "Define the cockpit design principles, target information architecture, desktop wireframe, mobile wireframe, component contract, and implementation order."
   - "Extend DESIGN_SYSTEM.md with the cockpit hierarchy and density contract."
-  - "Keep the canonical six route boundaries while remapping them to Command Home, Markets + Order, Portfolio + Risk, AI Decision, Analytics + Activity, and Settings + Authority."
-  - "Rewrite canonical semantic markup without changing data-simple runtime ownership."
+  - "Keep the canonical desktop six route boundaries while remapping them to Command Home, Markets + Order, Portfolio + Risk, AI Decision, Analytics + Activity, and Settings + Authority."
+  - "Rewrite canonical desktop semantic markup without changing data-simple runtime ownership."
   - "Add a dedicated cockpit.css presentation layer after app.css."
+  - "Audit native React Native mobile against the cockpit principles and preserve its independent Home/Markets/Paper/Portfolio task rail where it already satisfies them."
+  - "Document why native mobile AI Signal and Order History remain contextual secondary destinations rather than forcing desktop navigation symmetry."
   - "Add static contract tests for cockpit markup, route count, safety copy, token use, responsive structure, and unavailable-data truthfulness."
 exclusions:
   - "No backend, IPC, broker, exchange, credential, LIVE, REAL, risk-policy, accounting, persistence, or production mutation behavior."
   - "No new runtime subscription owner and no MutationObserver mirroring."
   - "No fabricated AI confidence, rationale, risk limit, drawdown, concentration, benchmark, or execution values."
   - "No changes to Paper order gating or order placement semantics."
+  - "No destructive native-mobile rewrite solely to imitate the desktop layout."
 ux_contract:
-  - "A user can identify assets, PnL, exposure, market health, automation state, and execution mode within one scan."
-  - "PAPER and live-disabled state remain unmistakable in header, order station, confirmation, and authority settings."
+  - "A user can identify assets, PnL, exposure, market health, automation state, and execution mode within one desktop scan."
+  - "PAPER and live-disabled state remain unmistakable in header, order station, confirmation, authority settings, and native-mobile supervisor surfaces."
   - "Missing canonical risk or AI evidence is labeled unavailable instead of simulated."
-  - "Five primary mobile destinations remain unchanged; Settings remains outside primary navigation."
+  - "Desktop keeps five primary destinations with Settings outside primary navigation."
+  - "Native mobile retains four high-frequency primary task tabs and contextual AI/order-history destinations unless measured evidence supports a navigation change."
   - "Critical state is never communicated by color alone."
 verification:
   required:
@@ -53,9 +57,9 @@ verification:
   note: "OWNER explicitly deferred local work. No validation PASS is claimed and no PR may be opened until required local validation passes."
 completion_criteria:
   - "Cockpit design and implementation contracts are durable repository documents."
-  - "Canonical runtime selectors and one-owner subscription model remain intact."
+  - "Canonical desktop runtime selectors and one-owner subscription model remain intact."
   - "Desktop presentation becomes a command-oriented cockpit with clear hierarchy and action adjacency."
-  - "Mobile presentation prioritizes essential financial fields and maintains touch-safe controls."
+  - "Native mobile is explicitly aligned to the same evidence/safety semantics without discarding its stronger independent mobile task architecture."
   - "Unavailable advanced risk/AI/analytics evidence is not fabricated."
   - "Required local validation passes before PR creation."
 provenance:
