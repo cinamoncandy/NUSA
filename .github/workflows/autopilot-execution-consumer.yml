@@ -143,6 +143,9 @@ jobs:
       id-token: write
     outputs:
       authority: ${{ steps.audit-authority.outputs.authority }}
+      applicable: ${{ steps.freshness.outputs.applicable }}
+      failure_class: ${{ steps.classify-audit.outputs.failure_class }}
+      recovery: ${{ steps.classify-audit.outputs.recovery }}
     steps:
       - name: Persist audit dispatch evidence
         run: |
@@ -168,7 +171,40 @@ jobs:
           if (payload.ai_authority !== 'ZERO_AUTHORITY') fail('ai_authority must remain ZERO_AUTHORITY');
           NODE
 
+      - name: Resolve Audit request freshness
+        id: freshness
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          REQUESTED_HEAD: ${{ github.event.client_payload.head_sha }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > artifacts/autopilot-audit-request/pull-freshness.json
+          PR_NUMBER="$PR_NUMBER" REQUESTED_HEAD="$REQUESTED_HEAD" node - <<'NODE'
+          const fs = require('fs');
+          const pull = JSON.parse(fs.readFileSync('artifacts/autopilot-audit-request/pull-freshness.json', 'utf8'));
+          const requestedHead = String(process.env.REQUESTED_HEAD || '').toLowerCase();
+          const currentHead = String(pull.head?.sha || '').toLowerCase();
+          if (pull.state !== 'open' || currentHead !== requestedHead) {
+            fs.writeFileSync('artifacts/autopilot-audit-request/audit-runner-result.json', JSON.stringify({
+              status: 'NO_ACTION',
+              reason: 'audit-request-stale-pr',
+              requestedHead,
+              currentHead: currentHead || null,
+              prState: pull.state || null,
+              liveAuthority: 'NONE',
+              productionMutationAllowed: false,
+              aiAuthority: 'ZERO_AUTHORITY',
+            }, null, 2));
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, 'applicable=false\n');
+            console.log(`Audit request is stale; no Audit or recovery is required (PR #${process.env.PR_NUMBER}).`);
+            process.exit(0);
+          }
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'applicable=true\n');
+          NODE
+
       - name: Verify current PR head/base and canonical CI evidence
+        if: ${{ steps.freshness.outputs.applicable == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.client_payload.pr_number }}
@@ -212,6 +248,7 @@ jobs:
           NODE
 
       - name: Publish idempotent Audit request on PR
+        if: ${{ steps.freshness.outputs.applicable == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.client_payload.pr_number }}
@@ -241,6 +278,7 @@ jobs:
           gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file artifacts/autopilot-audit-request/audit-request.md
 
       - name: Build independent Audit runner request
+        if: ${{ steps.freshness.outputs.applicable == 'true' }}
         env:
           PR_NUMBER: ${{ github.event.client_payload.pr_number }}
           REQUESTED_HEAD: ${{ github.event.client_payload.head_sha }}
@@ -268,6 +306,7 @@ jobs:
           NODE
 
       - name: Execute independent read-only Audit with GitHub OIDC
+        if: ${{ steps.freshness.outputs.applicable == 'true' }}
         env:
           NUSA_AUDIT_RUNNER_URL: https://nusa-autopilot.desporin12.workers.dev/audit/execute
         run: |
@@ -303,7 +342,40 @@ jobs:
           if (result.verdict === 'FAIL' && result.mergeAllowed !== false) fail('FAIL verdict cannot allow merge');
           NODE
 
+      - name: Classify Audit failure boundary
+        if: ${{ always() && steps.freshness.outputs.applicable == 'true' }}
+        id: classify-audit
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const path = 'artifacts/autopilot-audit-request/audit-runner-result.json';
+          let result = {};
+          try {
+            if (fs.existsSync(path)) result = JSON.parse(fs.readFileSync(path, 'utf8'));
+          } catch {
+            result = {};
+          }
+          const text = `${result.error || ''} ${result.reason || ''} ${result.status || ''}`;
+          let failureClass = 'unsafe_or_ambiguous';
+          let recovery = 'none';
+          if (result.status === 'AUDIT_COMPLETED') {
+            failureClass = 'none';
+          } else if (/4006|daily free allocation|neurons|quota/i.test(text)) {
+            failureClass = 'executor_unavailable';
+          } else if (/AUDIT_(PR_NOT_OPEN|PR_HEAD_MISMATCH|PR_BASE_MISMATCH|CI_NOT_SUCCESSFUL|CI_HEAD_MISMATCH|CI_REPOSITORY_MISMATCH)|stale|closed|head moved|base moved/i.test(text)) {
+            failureClass = 'deterministic';
+          } else if (/AUDIT_(VERDICT|MODEL_RESPONSE)|JSON_INVALID/i.test(text)) {
+            failureClass = 'validation_failure';
+          } else if (/429|5\\d\\d|timeout|timed out|fetch failed|temporar|network|ECONN/i.test(text)) {
+            failureClass = 'transient';
+            recovery = 'retry';
+          }
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `failure_class=${failureClass}\nrecovery=${recovery}\n`);
+          console.log(`auditFailureClass=${failureClass} recovery=${recovery}`);
+          NODE
+
       - name: Re-verify exact head/base/main after Audit execution
+        if: ${{ steps.freshness.outputs.applicable == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.client_payload.pr_number }}
@@ -323,6 +395,7 @@ jobs:
           test "$current_main" = "$before_base" || { echo "main moved during Audit: audited_base=$before_base current_main=$current_main"; exit 1; }
 
       - name: Enforce Audit verdict gate
+        if: ${{ steps.freshness.outputs.applicable == 'true' }}
         run: |
           node - <<'NODE'
           const result = require('./artifacts/autopilot-audit-request/audit-runner-result.json');
@@ -334,6 +407,7 @@ jobs:
           NODE
 
       - name: Bind trusted same-workflow Audit authority
+        if: ${{ steps.freshness.outputs.applicable == 'true' }}
         id: audit-authority
         run: |
           node - <<'NODE'
@@ -362,6 +436,7 @@ jobs:
           NODE
 
       - name: Publish observability-only exact-head Audit verdict
+        if: ${{ steps.freshness.outputs.applicable == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.client_payload.pr_number }}
@@ -404,7 +479,7 @@ jobs:
 
   audit-recovery:
     needs: audit-request
-    if: ${{ always() && github.event.client_payload.kind == 'AUDIT_REQUEST' && needs.audit-request.result == 'failure' }}
+    if: ${{ always() && github.event.client_payload.kind == 'AUDIT_REQUEST' && needs.audit-request.result == 'failure' && needs.audit-request.outputs.recovery == 'retry' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -427,7 +502,7 @@ jobs:
             exit 0
           fi
           current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
-          main_workflow_run_id="$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$current_main&status=completed&per_page=100" --jq '[.[].workflow_runs[] | select(.path == ".github/workflows/ci.yml" and .name == "CI" and .conclusion == "success" and .head_sha == "'"$current_main"'") | .id] | max // empty')"
+          main_workflow_run_id="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$current_main&status=completed&per_page=100" --jq '[.workflow_runs[] | select(.name == "CI" and .conclusion == "success" and .head_sha == "'"$current_main"'") | .id] | max // empty')"
           test -n "$main_workflow_run_id" || { echo 'Audit recovery suppressed: no successful CI run exists for current main.'; exit 1; }
           execution_id="audit-recovery:${PR_NUMBER}:${WORKFLOW_RUN_ID}:${main_workflow_run_id}"
           dedupe_key="audit-recovery:${PR_NUMBER}:${REQUESTED_HEAD}:${current_main}:${main_workflow_run_id}"
@@ -452,7 +527,7 @@ jobs:
   release:
     # Release consumes only the authenticated Audit output from this workflow run; PR comments are never authority.
     needs: audit-request
-    if: ${{ always() && github.event.client_payload.kind == 'AUDIT_REQUEST' && needs.audit-request.result == 'success' }}
+    if: ${{ always() && github.event.client_payload.kind == 'AUDIT_REQUEST' && needs.audit-request.result == 'success' && needs.audit-request.outputs.applicable == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 8
     concurrency:

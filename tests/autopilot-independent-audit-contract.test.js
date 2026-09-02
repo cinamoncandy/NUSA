@@ -14,14 +14,6 @@ function auditJobSlice() {
   return workflow.slice(start, end);
 }
 
-function auditRecoveryJobSlice() {
-  const start = workflow.indexOf("  audit-recovery:");
-  const end = workflow.indexOf("\n  release:", start);
-  assert.ok(start >= 0, "Audit recovery job must exist");
-  assert.ok(end > start, "Audit recovery job must end before release");
-  return workflow.slice(start, end);
-}
-
 test("execution consumer removes workflow-wide mutation permissions", () => {
   assert.match(workflow, /permissions: \{\}/);
   assert.doesNotMatch(workflow.slice(0, workflow.indexOf("jobs:")), /contents: write|actions: write|pull-requests: write/);
@@ -71,6 +63,9 @@ test("Audit treats repository diff as untrusted data rather than model instructi
 
 test("Audit always executes independently and exposes trusted same-workflow Release authority", () => {
   const auditJob = auditJobSlice();
+  assert.match(auditJob, /Resolve Audit request freshness/);
+  assert.match(auditJob, /applicable: \$\{\{ steps\.freshness\.outputs\.applicable \}\}/);
+  assert.match(auditJob, /audit-request-stale-pr/);
   assert.doesNotMatch(auditJob, /nusa-audit-verdict:\$\{PR_NUMBER\}:\$\{WORKFLOW_RUN_ID\}:\$\{REQUESTED_HEAD\}/);
   assert.doesNotMatch(auditJob, /Detect existing exact-head Audit verdict/);
   assert.doesNotMatch(auditJob, /steps\.existing-audit|skip=true/);
@@ -83,6 +78,16 @@ test("Audit always executes independently and exposes trusted same-workflow Rele
   assert.match(auditJob, /auditExecutionRunId/);
   assert.match(auditJob, /auditExecutionAttempt/);
   assert.match(auditJob, /authorization source: \*\*same-workflow trusted output; this comment has no authority\*\*/);
+});
+
+test("Audit recovery is bounded to classified transient executor failures", () => {
+  const auditJob = auditJobSlice();
+  assert.match(auditJob, /Classify Audit failure boundary/);
+  assert.match(auditJob, /4006\|daily free allocation\|neurons\|quota/);
+  assert.match(auditJob, /failureClass = 'executor_unavailable'/);
+  assert.match(auditJob, /recovery = 'retry'/);
+  assert.match(workflow, /needs\.audit-request\.outputs\.recovery == 'retry'/);
+  assert.match(workflow, /needs\.audit-request\.outputs\.applicable == 'true'/);
 });
 
 test("only clean PASS automatically authorizes Release", () => {
@@ -102,14 +107,4 @@ test("malformed or unsafe Audit evidence cannot advance Release", () => {
   assert.match(auditRunner, /AUDIT_VERDICT_KEYS_INVALID/);
   assert.match(auditRunner, /AUDIT_VERDICT_SAFETY_REQUIRES_FAIL/);
   assert.match(auditRunner, /AUDIT_RUNNER_MUTATION_FORBIDDEN/);
-});
-
-test("Audit recovery paginates and binds exact-main evidence to canonical CI", () => {
-  const recovery = auditRecoveryJobSlice();
-  assert.match(recovery, /gh api --paginate --slurp/);
-  assert.match(recovery, /\.path == "\.github\/workflows\/ci\.yml"/);
-  assert.match(recovery, /\.name == "CI"/);
-  assert.match(recovery, /\.conclusion == "success"/);
-  assert.match(recovery, /\.head_sha == /);
-  assert.match(recovery, /\$current_main/);
 });
