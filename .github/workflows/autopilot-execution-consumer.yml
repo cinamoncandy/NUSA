@@ -427,7 +427,7 @@ jobs:
             exit 0
           fi
           current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
-          main_workflow_run_id="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$current_main&status=completed&per_page=100" --jq '[.workflow_runs[] | select(.name == "CI" and .conclusion == "success" and .head_sha == "'"$current_main"'") | .id] | max // empty')"
+          main_workflow_run_id="$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$current_main&status=completed&per_page=100" --jq '[.[].workflow_runs[] | select(.path == ".github/workflows/ci.yml" and .name == "CI" and .conclusion == "success" and .head_sha == "'"$current_main"'") | .id] | max // empty')"
           test -n "$main_workflow_run_id" || { echo 'Audit recovery suppressed: no successful CI run exists for current main.'; exit 1; }
           execution_id="audit-recovery:${PR_NUMBER}:${WORKFLOW_RUN_ID}:${main_workflow_run_id}"
           dedupe_key="audit-recovery:${PR_NUMBER}:${REQUESTED_HEAD}:${current_main}:${main_workflow_run_id}"
