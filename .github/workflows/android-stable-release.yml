@@ -53,7 +53,6 @@ jobs:
           WORKFLOW_RUN_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-
           POINTER_SHA="$(tr -d '[:space:]' < .github/android-release-source.txt)"
           VERSION_FLOOR="$(tr -d '[:space:]' < .github/android-release-version.txt)"
           printf '%s' "$POINTER_SHA" | grep -Eq '^[0-9a-fA-F]{40}$'
@@ -78,10 +77,7 @@ jobs:
           fi
 
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            CI_CONCLUSION="$(
-              gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SOURCE_SHA&status=completed&per_page=100" \
-                --jq '[.workflow_runs[] | select(.name == "CI")][0].conclusion // empty'
-            )"
+            CI_CONCLUSION="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SOURCE_SHA&status=completed&per_page=100" --jq '[.workflow_runs[] | select(.name == "CI")][0].conclusion // empty')"
             if [ "$CI_CONCLUSION" != "success" ]; then
               echo "::error::Exact source $SOURCE_SHA does not have a successful CI run."
               exit 1
@@ -91,43 +87,29 @@ jobs:
           RELEASE_NAME="$(gh release view nusa-android --json name --jq '.name' 2>/dev/null || true)"
           RELEASE_TARGET="$(gh release view nusa-android --json targetCommitish --jq '.targetCommitish' 2>/dev/null || true)"
           CURRENT_VERSION="$(printf '%s' "$RELEASE_NAME" | sed -nE 's/^NUSA Android 1\.0\.([0-9]+)$/\1/p')"
-          if [ -z "$CURRENT_VERSION" ]; then
-            CURRENT_VERSION=0
-          fi
-
+          [ -n "$CURRENT_VERSION" ] || CURRENT_VERSION=0
           NEXT_VERSION=$((CURRENT_VERSION + 1))
-          if [ "$VERSION_FLOOR" -gt "$NEXT_VERSION" ]; then
-            RELEASE_VERSION="$VERSION_FLOOR"
-          else
-            RELEASE_VERSION="$NEXT_VERSION"
+          if [ "$VERSION_FLOOR" -gt "$NEXT_VERSION" ]; then RELEASE_VERSION="$VERSION_FLOOR"; else RELEASE_VERSION="$NEXT_VERSION"; fi
+
+          if [ "$EVENT_NAME" = "workflow_run" ] && [ "$RELEASE_TARGET" = "$SOURCE_SHA" ]; then
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "Stable release already targets $SOURCE_SHA."
+            exit 0
           fi
 
-          if [ "$EVENT_NAME" = "workflow_run" ]; then
-            if [ "$RELEASE_TARGET" = "$SOURCE_SHA" ]; then
+          if [ "$EVENT_NAME" = "workflow_run" ] && [ -n "$RELEASE_TARGET" ]; then
+            printf '%s' "$RELEASE_TARGET" | grep -Eq '^[0-9a-fA-F]{40}$'
+            git fetch --no-tags origin "$RELEASE_TARGET" "$SOURCE_SHA"
+            if git diff --quiet "$RELEASE_TARGET" "$SOURCE_SHA" -- \
+              apps/mobile \
+              scripts/prepare-mobile-build-config.js \
+              scripts/validate-android-release-contract.js \
+              .github/android-release-contract.json \
+              pnpm-lock.yaml pnpm-workspace.yaml package.json \
+              .github/workflows/android-stable-release.yml; then
               echo "release=false" >> "$GITHUB_OUTPUT"
-              echo "Stable release already targets $SOURCE_SHA; Firebase-success finalization was therefore already reached."
+              echo "No Android release-relevant changes since stable source $RELEASE_TARGET."
               exit 0
-            fi
-
-            if [ -n "$RELEASE_TARGET" ]; then
-              printf '%s' "$RELEASE_TARGET" | grep -Eq '^[0-9a-fA-F]{40}$' || {
-                echo "::error::Stable release target is not an exact commit SHA: $RELEASE_TARGET"
-                exit 1
-              }
-              git fetch --no-tags origin "$RELEASE_TARGET" "$SOURCE_SHA"
-              if git diff --quiet "$RELEASE_TARGET" "$SOURCE_SHA" -- \
-                apps/mobile \
-                scripts/prepare-mobile-build-config.js \
-                scripts/validate-android-release-contract.js \
-                .github/android-release-contract.json \
-                pnpm-lock.yaml \
-                pnpm-workspace.yaml \
-                package.json \
-                .github/workflows/android-stable-release.yml; then
-                echo "release=false" >> "$GITHUB_OUTPUT"
-                echo "No Android release-relevant changes since stable source $RELEASE_TARGET."
-                exit 0
-              fi
             fi
           fi
 
@@ -135,7 +117,6 @@ jobs:
           echo "sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
           echo "short_sha=${SOURCE_SHA:0:8}" >> "$GITHUB_OUTPUT"
           echo "version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "Promoting exact source $SOURCE_SHA as Android stable 1.0.$RELEASE_VERSION."
 
   build-and-publish:
     name: Build and publish exact stable APK
@@ -180,7 +161,6 @@ jobs:
           cache: gradle
 
       - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
-
       - run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
       - run: pnpm install --frozen-lockfile
 
@@ -199,7 +179,6 @@ jobs:
           NUSA_BUILD_SHA: ${{ steps.release.outputs.sha }}
         run: |
           set -euo pipefail
-          test -f scripts/prepare-mobile-build-config.js
           node scripts/prepare-mobile-build-config.js
           test -f apps/mobile/src/generatedBuildConfig.ts
           test -n "${EXPO_PUBLIC_NUSA_API_BASE_URL}"
@@ -210,6 +189,30 @@ jobs:
       - run: chmod +x apps/mobile/android/gradlew
       - run: chmod +x apps/mobile/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc
 
+      - name: Prepare protected Android release signing material
+        env:
+          KEYSTORE_B64: ${{ secrets.NUSA_ANDROID_RELEASE_KEYSTORE_B64 }}
+          STORE_PASSWORD: ${{ secrets.NUSA_ANDROID_RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.NUSA_ANDROID_RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.NUSA_ANDROID_RELEASE_KEY_PASSWORD }}
+          CERT_SHA256: ${{ secrets.NUSA_ANDROID_RELEASE_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_B64" || { echo '::error::NUSA_ANDROID_RELEASE_KEYSTORE_B64 missing'; exit 1; }
+          test -n "$STORE_PASSWORD" || { echo '::error::NUSA_ANDROID_RELEASE_STORE_PASSWORD missing'; exit 1; }
+          test -n "$KEY_ALIAS" || { echo '::error::NUSA_ANDROID_RELEASE_KEY_ALIAS missing'; exit 1; }
+          test -n "$KEY_PASSWORD" || { echo '::error::NUSA_ANDROID_RELEASE_KEY_PASSWORD missing'; exit 1; }
+          printf '%s' "$CERT_SHA256" | tr '[:upper:]' '[:lower:]' | grep -Eq '^[0-9a-f]{64}$' || { echo '::error::NUSA_ANDROID_RELEASE_CERT_SHA256 must be 64 hex characters'; exit 1; }
+          KEYSTORE_PATH="$RUNNER_TEMP/nusa-android-release.jks"
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"
+          test -s "$KEYSTORE_PATH"
+          chmod 600 "$KEYSTORE_PATH"
+          echo "NUSA_ANDROID_RELEASE_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+          echo "NUSA_ANDROID_RELEASE_STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "NUSA_ANDROID_RELEASE_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "NUSA_ANDROID_RELEASE_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+          echo "NUSA_ANDROID_RELEASE_CERT_SHA256=$(printf '%s' "$CERT_SHA256" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
       - name: Build stable release APK from clean source
         env:
           NUSA_BUILD_SHA: ${{ steps.release.outputs.sha }}
@@ -218,7 +221,7 @@ jobs:
         run: ./gradlew clean :app:assembleRelease --no-build-cache
         working-directory: apps/mobile/android
 
-      - name: Verify stable APK provenance and exact-source binding
+      - name: Verify stable APK provenance, signature, and exact-source binding
         env:
           EXPECTED_SHA: ${{ steps.release.outputs.sha }}
           EXPECTED_VERSION: ${{ steps.release.outputs.version }}
@@ -231,10 +234,20 @@ jobs:
           SHORT_SHA="${EXPECTED_SHA:0:8}"
           EXPECTED_VERSION_NAME="1.0.${EXPECTED_VERSION}-${SHORT_SHA}"
           AAPT="${ANDROID_HOME}/build-tools/35.0.0/aapt"
+          APKSIGNER="${ANDROID_HOME}/build-tools/35.0.0/apksigner"
           test -x "$AAPT"
+          test -x "$APKSIGNER"
           BADGING="$("$AAPT" dump badging "$APK")"
           printf '%s\n' "$BADGING" | grep -F "versionCode='${EXPECTED_VERSION}'"
           printf '%s\n' "$BADGING" | grep -F "versionName='${EXPECTED_VERSION_NAME}'"
+
+          "$APKSIGNER" verify --verbose "$APK"
+          CERT_DUMP="$("$APKSIGNER" verify --print-certs "$APK")"
+          ACTUAL_CERT_SHA256="$(printf '%s\n' "$CERT_DUMP" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n1 | tr '[:upper:]' '[:lower:]')"
+          test "$ACTUAL_CERT_SHA256" = "$NUSA_ANDROID_RELEASE_CERT_SHA256" || {
+            echo "::error::Android release signing certificate mismatch"
+            exit 1
+          }
 
           RESOURCE_DUMP="$RUNNER_TEMP/stable-apk-resources.txt"
           "$AAPT" dump --values resources "$APK" > "$RESOURCE_DUMP"
@@ -249,8 +262,8 @@ jobs:
           unzip -p "$APK" "$BUNDLE_PATH" > "$BUNDLE_FILE"
           test -s "$BUNDLE_FILE"
 
-          printf 'source_sha=%s\ncanonical_origin=%s\nconfig_mode=sealed\nversion_name=%s\nversion_code=%s\nrelease_contract_sha256=%s\nrelease_contract_validation=exact-source-pass\nrelease_mode=PAPER_SHADOW_ONLY\nlive_authority=NONE\nproduction_mutation_allowed=false\nai_authority=ZERO_AUTHORITY\nmobile_credential_storage_allowed=false\npaper_real_separation=true\nfail_closed=true\nui_marker=paper-learning-present\nchart_marker=market-chart-present\n' \
-            "$EXPECTED_SHA" "$EXPECTED_ORIGIN" "$EXPECTED_VERSION_NAME" "$EXPECTED_VERSION" "$EXPECTED_CONTRACT_SHA" \
+          printf 'source_sha=%s\ncanonical_origin=%s\nconfig_mode=sealed\nversion_name=%s\nversion_code=%s\nrelease_contract_sha256=%s\nrelease_contract_validation=exact-source-pass\nrelease_signing=dedicated_protected_key\nrelease_cert_sha256=%s\nrelease_mode=PAPER_SHADOW_ONLY\nlive_authority=NONE\nproduction_mutation_allowed=false\nai_authority=ZERO_AUTHORITY\nmobile_credential_storage_allowed=false\npaper_real_separation=true\nfail_closed=true\nui_marker=paper-learning-present\nchart_marker=market-chart-present\n' \
+            "$EXPECTED_SHA" "$EXPECTED_ORIGIN" "$EXPECTED_VERSION_NAME" "$EXPECTED_VERSION" "$EXPECTED_CONTRACT_SHA" "$ACTUAL_CERT_SHA256" \
             > NUSA-Android.provenance.txt
 
       - name: Prepare stable APK assets
@@ -262,7 +275,10 @@ jobs:
       - name: Prepare Firebase credentials
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
-        run: printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_SERVICE_ACCOUNT_JSON"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
 
       - name: Install Firebase CLI
         run: npm install --global firebase-tools
@@ -274,11 +290,7 @@ jobs:
         run: |
           set -euo pipefail
           CURRENT_MAIN="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
-          if [ "$CURRENT_MAIN" != "$EXPECTED_SHA" ]; then
-            echo "::error::Refusing stale Android Firebase distribution. Built $EXPECTED_SHA but current main is $CURRENT_MAIN."
-            exit 1
-          fi
-          echo "Verified Firebase distribution source is current main: $EXPECTED_SHA"
+          test "$CURRENT_MAIN" = "$EXPECTED_SHA" || { echo "::error::Refusing stale Android Firebase distribution"; exit 1; }
 
       - name: Distribute stable APK to Firebase App Distribution
         id: firebase
@@ -290,16 +302,8 @@ jobs:
         run: |
           set -euo pipefail
           for ATTEMPT in 1 2 3; do
-            if firebase appdistribution:distribute NUSA-Android.apk \
-              --app "$FIREBASE_APP_ID" \
-              --testers "desporin12@gmail.com" \
-              --release-notes "NUSA Android stable 1.0.${RELEASE_VERSION} from exact source ${SHORT_SHA}"; then
-              exit 0
-            fi
-            if [ "$ATTEMPT" -eq 3 ]; then
-              echo "::error::Firebase distribution failed after 3 attempts. Stable GitHub release pointer remains unchanged."
-              exit 1
-            fi
+            if firebase appdistribution:distribute NUSA-Android.apk --app "$FIREBASE_APP_ID" --testers "desporin12@gmail.com" --release-notes "NUSA Android stable 1.0.${RELEASE_VERSION} from exact source ${SHORT_SHA}"; then exit 0; fi
+            [ "$ATTEMPT" -lt 3 ] || { echo "::error::Firebase distribution failed after 3 attempts"; exit 1; }
             sleep $((ATTEMPT * 15))
           done
 
@@ -311,13 +315,13 @@ jobs:
         run: |
           set -euo pipefail
           APK_SHA="$(awk '{print $1}' NUSA-Android.apk.sha256)"
-          printf 'source_sha=%s\nversion_code=%s\napk_sha256=%s\nrelease_contract_sha256=%s\nfirebase_outcome=success\n' \
-            "$SOURCE_SHA" "$RELEASE_VERSION" "$APK_SHA" "$CONTRACT_SHA" \
-            > NUSA-Android.firebase-success.txt
+          printf 'source_sha=%s\nversion_code=%s\napk_sha256=%s\nrelease_contract_sha256=%s\nrelease_cert_sha256=%s\nfirebase_outcome=success\n' \
+            "$SOURCE_SHA" "$RELEASE_VERSION" "$APK_SHA" "$CONTRACT_SHA" "$NUSA_ANDROID_RELEASE_CERT_SHA256" > NUSA-Android.firebase-success.txt
 
-      - name: Remove Firebase credentials
+      - name: Remove sensitive release credentials
         if: always()
-        run: rm -f "$RUNNER_TEMP/firebase-service-account.json"
+        run: |
+          rm -f "$RUNNER_TEMP/firebase-service-account.json" "$RUNNER_TEMP/nusa-android-release.jks"
 
       - name: Verify source is still current main before stable finalization
         env:
@@ -326,11 +330,7 @@ jobs:
         run: |
           set -euo pipefail
           CURRENT_MAIN="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
-          if [ "$CURRENT_MAIN" != "$EXPECTED_SHA" ]; then
-            echo "::error::Refusing stale Android stable finalization. Firebase received $EXPECTED_SHA but current main is $CURRENT_MAIN."
-            exit 1
-          fi
-          echo "Verified stable finalization source is current main: $EXPECTED_SHA"
+          test "$CURRENT_MAIN" = "$EXPECTED_SHA" || { echo "::error::Refusing stale Android stable finalization"; exit 1; }
 
       - name: Create or update stable GitHub release after Firebase success
         env:
@@ -341,7 +341,7 @@ jobs:
           CONTRACT_SHA: ${{ steps.contract.outputs.sha256 }}
         run: |
           set -euo pipefail
-          NOTES="NUSA Android stable 1.0.${RELEASE_VERSION} from exact source ${SHORT_SHA}. PAPER/SHADOW only; LIVE authority NONE; AI ZERO_AUTHORITY; Firebase distribution verified; release contract ${CONTRACT_SHA:0:12}."
+          NOTES="NUSA Android stable 1.0.${RELEASE_VERSION} from exact source ${SHORT_SHA}. Dedicated protected release signing verified. PAPER/SHADOW only; LIVE authority NONE; AI ZERO_AUTHORITY; Firebase distribution verified; release contract ${CONTRACT_SHA:0:12}."
           if gh release view nusa-android >/dev/null 2>&1; then
             gh release upload nusa-android NUSA-Android.apk NUSA-Android.apk.sha256 NUSA-Android.provenance.txt NUSA-Android.firebase-success.txt --clobber
             gh release edit nusa-android --target "$TARGET_SHA" --title "NUSA Android 1.0.${RELEASE_VERSION}" --notes "$NOTES"
@@ -359,18 +359,13 @@ jobs:
           JOB_STATUS: ${{ job.status }}
         run: |
           set -u
-          SOURCE="${SOURCE_SHA:-unresolved}"
           APK_SHA="unavailable"
           VERSION_NAME="unavailable"
-          CHART_MARKER="unavailable"
-          CONTRACT_SHA="unavailable"
-          if [ -f NUSA-Android.apk.sha256 ]; then
-            APK_SHA="$(awk '{print $1}' NUSA-Android.apk.sha256)"
-          fi
+          CERT_SHA="unavailable"
+          [ ! -f NUSA-Android.apk.sha256 ] || APK_SHA="$(awk '{print $1}' NUSA-Android.apk.sha256)"
           if [ -f NUSA-Android.provenance.txt ]; then
             VERSION_NAME="$(sed -n 's/^version_name=//p' NUSA-Android.provenance.txt)"
-            CHART_MARKER="$(sed -n 's/^chart_marker=//p' NUSA-Android.provenance.txt)"
-            CONTRACT_SHA="$(sed -n 's/^release_contract_sha256=//p' NUSA-Android.provenance.txt)"
+            CERT_SHA="$(sed -n 's/^release_cert_sha256=//p' NUSA-Android.provenance.txt)"
           fi
           RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           BODY=$(cat <<EOF
@@ -378,11 +373,10 @@ jobs:
 
           - job_status: ${JOB_STATUS}
           - firebase_outcome: ${FIREBASE_OUTCOME:-not_run}
-          - source_sha: ${SOURCE}
+          - source_sha: ${SOURCE_SHA:-unresolved}
           - version_name: ${VERSION_NAME}
           - version_code: ${RELEASE_VERSION:-unavailable}
-          - chart_marker: ${CHART_MARKER}
-          - release_contract_sha256: ${CONTRACT_SHA}
+          - release_cert_sha256: ${CERT_SHA}
           - apk_sha256: ${APK_SHA}
           - run: ${RUN_URL}
           EOF
