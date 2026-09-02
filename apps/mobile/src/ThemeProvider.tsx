@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { useColorScheme } from "react-native";
+import { Platform, StatusBar, useColorScheme } from "react-native";
+import { applyAndroidInstitutionalTheme } from "./androidInstitutionalTheme";
 import { createTheme, type DesignPresetName, type Theme, type ThemeMode } from "./designSystem";
 
 export type ThemePreference = ThemeMode | "system";
@@ -58,9 +59,12 @@ export function ThemeProvider({ children, initialMode = "dark", initialPreset = 
   }, []);
 
   const mode: ThemeMode = preference === "system" ? (colorScheme === "light" ? "light" : "dark") : preference;
-  const theme = useMemo(() => createTheme(mode, preset), [mode, preset]);
+  const theme = useMemo(() => {
+    const base = createTheme(mode, preset);
+    return Platform.OS === "android" ? applyAndroidInstitutionalTheme(base) : base;
+  }, [mode, preset]);
   const value = useMemo(() => Object.freeze({ mode, preference, preset, theme, setMode: setPreference, setPreset }), [mode, preference, preset, theme, setPreset]);
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+  return <ThemeContext.Provider value={value}>{Platform.OS === "android" ? <StatusBar animated barStyle={mode === "dark" ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} /> : null}{children}</ThemeContext.Provider>;
 }
 
 export function useTheme(): ThemeContextValue {
