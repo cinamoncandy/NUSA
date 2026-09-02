@@ -90,7 +90,6 @@ jobs:
         id: deployment
         if: steps.revision.outputs.current == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
         run: |
           set -euo pipefail
@@ -100,33 +99,8 @@ jobs:
             exit 0
           fi
 
-          worker_revision="$(curl -fsS --max-time 20 "$NUSA_WORKER_HEALTH_URL" | jq -r '.deploymentRevision // empty' || true)"
-          if [ -z "$worker_revision" ]; then
-            echo 'deploy=true' >> "$GITHUB_OUTPUT"
-            echo 'Worker revision could not be read; deploying the exact CI-verified revision and failing closed if health does not converge.'
-            exit 0
-          fi
-
-          previous_deployment="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?per_page=30" --jq '[.workflow_runs[] | select(.name == "Autopilot Cloudflare Deploy" and .status == "completed")][0].conclusion // empty')"
-          if [ "$previous_deployment" = "failure" ]; then
-            echo 'deploy=true' >> "$GITHUB_OUTPUT"
-            echo 'The previous Cloudflare deployment failed; redeploying the exact CI-verified revision.'
-            exit 0
-          fi
-
-          if ! git fetch --no-tags origin "$worker_revision" --depth=1 >/dev/null 2>&1 || ! git cat-file -e "${worker_revision}^{commit}" 2>/dev/null; then
-            echo 'deploy=true' >> "$GITHUB_OUTPUT"
-            echo "Worker revision ${worker_revision} is not available for comparison; deploying ${HEAD_SHA}."
-            exit 0
-          fi
-
-          if git diff --quiet "$worker_revision" "$HEAD_SHA" -- apps/autopilot/ .github/workflows/autopilot-cloudflare-deploy.yml; then
-            echo 'deploy=false' >> "$GITHUB_OUTPUT"
-            echo "Worker already contains the deployment-relevant tree for ${HEAD_SHA}; no deploy needed."
-          else
-            echo 'deploy=true' >> "$GITHUB_OUTPUT"
-            echo "Worker revision ${worker_revision} is behind deployment-relevant changes in ${HEAD_SHA}; deploying."
-          fi
+          echo 'deploy=true' >> "$GITHUB_OUTPUT"
+          echo "Exact-head CI is verified for ${HEAD_SHA}; deploying so the Worker and its Container rollout stay atomically aligned."
 
       - name: Enable pnpm via Corepack
         if: steps.revision.outputs.current == 'true' && steps.deployment.outputs.deploy == 'true'
