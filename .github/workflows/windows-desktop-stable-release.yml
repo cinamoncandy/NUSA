@@ -133,7 +133,7 @@ jobs:
         run: node scripts/validate-package.js
 
       - name: Package Windows installer
-        run: pnpm exec electron-builder --win nsis
+        run: pnpm exec electron-builder --win nsis --publish never
 
       - name: Validate packaged Windows app
         run: pnpm run package:validate
