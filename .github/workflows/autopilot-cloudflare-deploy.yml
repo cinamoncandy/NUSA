@@ -140,7 +140,7 @@ jobs:
             health="$(curl -sS --fail-with-body --max-time 20 "$NUSA_WORKER_HEALTH_URL" || true)"
             revision="$(printf '%s' "$health" | jq -r '.deploymentRevision // empty' 2>/dev/null || true)"
             live="$(printf '%s' "$health" | jq -r '.liveAuthority // empty' 2>/dev/null || true)"
-            mutation="$(printf '%s' "$health" | jq -r '.productionMutationAllowed // empty' 2>/dev/null || true)"
+            mutation="$(printf '%s' "$health" | jq -r 'if has("productionMutationAllowed") then (.productionMutationAllowed | tostring) else empty end' 2>/dev/null || true)"
             ai="$(printf '%s' "$health" | jq -r '.aiAuthority // empty' 2>/dev/null || true)"
             if [ "$revision" = "$HEAD_SHA" ] && [ "$live" = "NONE" ] && [ "$mutation" = "false" ] && [ "$ai" = "ZERO_AUTHORITY" ]; then
               echo "Verified deployed Worker revision and safety invariants: $revision"
