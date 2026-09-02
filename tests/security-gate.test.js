@@ -25,7 +25,7 @@ test("lockfile contains integrity metadata for every resolved package", () => {
 
 test("lockfile pins the patched versions for audited high advisories", () => {
   const packages = parseLockfile().packages;
-  assert.ok(packages.some((item) => item.name === "fast-uri" && item.version === "3.1.5"));
+  assert.ok(packages.some((item) => item.name === "fast-uri" && item.version === "3.1.6"));
   assert.ok(packages.some((item) => item.name === "brace-expansion" && item.version === "1.1.18"));
   assert.equal(packages.some((item) => item.name === "fast-uri" && item.version === "3.1.4"), false);
   assert.equal(packages.some((item) => item.name === "brace-expansion" && item.version === "1.1.17"), false);
