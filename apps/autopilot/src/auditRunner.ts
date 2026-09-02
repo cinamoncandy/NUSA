@@ -211,18 +211,25 @@ function validateFinding(value: unknown): AuditRunnerFinding {
   return Object.freeze({ code, severity: finding.severity, message, evidenceRef });
 }
 
+function normalizeAuditSafetyInvariant(value: unknown): AuditSafetyInvariantResult {
+  if (typeof value !== "string") throw new Error("AUDIT_VERDICT_SAFETY_INVALID");
+  const normalized = value.trim().toUpperCase();
+  if (normalized !== "PASS" && normalized !== "FAIL") throw new Error("AUDIT_VERDICT_SAFETY_INVALID");
+  return normalized;
+}
+
 export function validateAuditModelVerdict(value: unknown): AuditModelVerdict {
   const verdict = object(value, "AUDIT_VERDICT_INVALID");
   strictKeys(verdict, ALLOWED_MODEL_KEYS, "AUDIT_VERDICT_KEYS_INVALID");
   if (verdict.verdict !== "PASS" && verdict.verdict !== "PASS_WITH_NOTES" && verdict.verdict !== "FAIL") throw new Error("AUDIT_VERDICT_STATUS_INVALID");
-  if (verdict.safetyInvariantResult !== "PASS" && verdict.safetyInvariantResult !== "FAIL") throw new Error("AUDIT_VERDICT_SAFETY_INVALID");
+  const safetyInvariantResult = normalizeAuditSafetyInvariant(verdict.safetyInvariantResult);
   if (!Array.isArray(verdict.findings) || verdict.findings.length > MAX_FINDINGS) throw new Error("AUDIT_VERDICT_FINDINGS_INVALID");
   if (!Array.isArray(verdict.blockers) || verdict.blockers.length > MAX_BLOCKERS) throw new Error("AUDIT_VERDICT_BLOCKERS_INVALID");
   const findings = Object.freeze(verdict.findings.map(validateFinding));
   const blockers = Object.freeze(verdict.blockers.map((item) => boundedString(item, "AUDIT_VERDICT_BLOCKER_INVALID", MAX_MESSAGE_CHARS)));
   if (findings.some((finding) => finding.severity === "BLOCKER") && blockers.length === 0) throw new Error("AUDIT_VERDICT_BLOCKER_LIST_REQUIRED");
   if (verdict.verdict !== "FAIL" && blockers.length > 0) throw new Error("AUDIT_VERDICT_BLOCKERS_REQUIRE_FAIL");
-  if (verdict.verdict !== "FAIL" && verdict.safetyInvariantResult !== "PASS") throw new Error("AUDIT_VERDICT_SAFETY_REQUIRES_FAIL");
+  if (verdict.verdict !== "FAIL" && safetyInvariantResult !== "PASS") throw new Error("AUDIT_VERDICT_SAFETY_REQUIRES_FAIL");
   if (verdict.verdict === "PASS" && findings.length > 0) throw new Error("AUDIT_VERDICT_PASS_FINDINGS_FORBIDDEN");
   if (verdict.verdict === "PASS_WITH_NOTES" && findings.length === 0) throw new Error("AUDIT_VERDICT_NOTES_REQUIRED");
   if (verdict.verdict === "FAIL" && blockers.length === 0) throw new Error("AUDIT_VERDICT_FAIL_BLOCKER_REQUIRED");
@@ -230,7 +237,7 @@ export function validateAuditModelVerdict(value: unknown): AuditModelVerdict {
     verdict: verdict.verdict,
     findings,
     blockers,
-    safetyInvariantResult: verdict.safetyInvariantResult,
+    safetyInvariantResult,
   });
 }
 
