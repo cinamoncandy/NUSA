@@ -6,6 +6,7 @@ const androidTheme = fs.readFileSync("apps/mobile/src/androidInstitutionalTheme.
 const homeProfile = fs.readFileSync("apps/mobile/src/homeVisualProfile.ts", "utf8");
 const marketsView = fs.readFileSync("apps/mobile/src/marketsView.tsx", "utf8");
 const tradingView = fs.readFileSync("apps/mobile/src/tradingView.tsx", "utf8");
+const designSystem = fs.readFileSync("apps/mobile/src/designSystem.ts", "utf8");
 const nativeTheme = fs.readFileSync("apps/mobile/android/app/src/main/res/values/styles.xml", "utf8");
 const nativeColors = fs.readFileSync("apps/mobile/android/app/src/main/res/values/colors.xml", "utf8");
 
@@ -33,8 +34,9 @@ describe("Android institutional cockpit", () => {
     expect(androidTheme).toContain("visual tokens only");
   });
 
-  it("uses denser terminal geometry on Android market and PAPER context", () => {
-    expect(marketsView).toContain("androidTradeAction");
+  it("preserves the 48dp interaction floor while tightening geometry", () => {
+    expect(designSystem).toContain("touchTarget: 48 as const");
+    expect(marketsView).toContain("minHeight: theme.interaction.touchTarget");
     expect(marketsView).toContain("theme.radii.sm");
     expect(tradingView).toContain("androidMarketPanel");
     expect(tradingView).toContain("androidMiniChart");
