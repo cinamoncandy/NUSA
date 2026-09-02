@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import { StatusChip } from "./components";
 import { useTheme } from "./ThemeProvider";
 import { buildChartViewModel, type PublicCandle } from "./chartViewModel";
@@ -14,6 +14,7 @@ type TradingViewProps = React.ComponentProps<typeof LegacyTradingView>;
 
 function CloudPaperPublicChart() {
   const { theme } = useTheme();
+  const androidInstitutional = Platform.OS === "android";
   const [markPrice, setMarkPrice] = useState<number | null>(null);
   const [candles, setCandles] = useState<readonly PublicCandle[] | null>(null);
   const [priceError, setPriceError] = useState<string | null>(null);
@@ -64,7 +65,7 @@ function CloudPaperPublicChart() {
   });
   const chartBars = chartModel.bars.slice(-60);
 
-  return <View style={[styles.marketPanel, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceSunken }]} testID="paper-upbit-market-panel">
+  return <View style={[styles.marketPanel, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceSunken, borderRadius: androidInstitutional ? theme.radii.lg : 18 }, androidInstitutional && styles.androidMarketPanel]} testID="paper-upbit-market-panel">
     <View style={styles.panelHeader}>
       <View>
         <Text style={[styles.stepLabel, { color: theme.colors.textMuted }]}>UPBIT PUBLIC MARKET</Text>
@@ -72,7 +73,7 @@ function CloudPaperPublicChart() {
       </View>
       <StatusChip label={chartModel.state === "READY" ? "차트 LIVE" : "차트 대기"} tone={chartModel.state === "READY" ? "success" : "warning"} />
     </View>
-    {chartModel.state === "READY" ? <View style={styles.miniChart} testID="paper-upbit-chart">
+    {chartModel.state === "READY" ? <View style={[styles.miniChart, androidInstitutional && styles.androidMiniChart]} testID="paper-upbit-chart">
       {chartBars.map((bar) => <View key={bar.openTime} style={styles.chartColumn}>
         <View style={[styles.chartWick, { backgroundColor: bar.up ? theme.colors.success : theme.colors.danger, top: `${bar.wickTop}%`, height: `${bar.wickHeight}%` }]} />
         <View style={[styles.chartBody, { backgroundColor: bar.up ? theme.colors.success : theme.colors.danger, top: `${bar.bodyTop}%`, height: `${bar.bodyHeight}%` }]} />
@@ -105,10 +106,12 @@ const styles = StyleSheet.create({
   screen: { flex: 1, width: "100%" },
   legacyWorkspace: { flex: 1, minHeight: 0 },
   marketPanel: { borderWidth: 1, borderRadius: 18, padding: 16, gap: 12, marginHorizontal: 20, marginTop: 12 },
+  androidMarketPanel: { padding: 14, gap: 10, marginHorizontal: 12, marginTop: 10 },
   panelHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 },
   stepLabel: { fontSize: 10, lineHeight: 15, fontWeight: "800", letterSpacing: 1.15 },
   panelTitle: { marginTop: 4, fontSize: 18, lineHeight: 24, fontWeight: "800" },
   miniChart: { height: 180, flexDirection: "row", alignItems: "stretch", gap: 1, overflow: "hidden", position: "relative" },
+  androidMiniChart: { height: 156 },
   chartColumn: { flex: 1, minWidth: 2, position: "relative" },
   chartWick: { position: "absolute", left: "50%", width: 1 },
   chartBody: { position: "absolute", left: "15%", right: "15%", minHeight: 2 },
