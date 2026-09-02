@@ -1,0 +1,155 @@
+name: Autopilot Deterministic Audit Release
+
+on:
+  repository_dispatch:
+    types: [nusa_autopilot_audit]
+
+permissions: {}
+
+concurrency:
+  group: deterministic-audit-release-${{ github.event.client_payload.dedupe_key }}
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    if: ${{ github.event.client_payload.kind == 'AUDIT_REQUEST' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    outputs:
+      applicable: ${{ steps.audit.outputs.applicable }}
+      authority: ${{ steps.audit.outputs.authority }}
+      audited_base: ${{ steps.audit.outputs.audited_base }}
+    steps:
+      - name: Validate and bind deterministic Audit authority
+        id: audit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          REQUESTED_HEAD: ${{ github.event.client_payload.head_sha }}
+          WORKFLOW_RUN_ID: ${{ github.event.client_payload.workflow_run_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/nusa-deterministic-audit"
+
+          node - <<'NODE'
+          const fs = require('fs');
+          const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+          const p = event.client_payload || {};
+          const fail = (m) => { console.error(m); process.exit(1); };
+          if (p.kind !== 'AUDIT_REQUEST') fail('unexpected Audit request kind');
+          if (p.repository !== process.env.GITHUB_REPOSITORY) fail('repository mismatch');
+          if (!Number.isSafeInteger(p.pr_number) || p.pr_number <= 0) fail('invalid PR number');
+          if (!/^[0-9a-f]{40}$/i.test(p.head_sha || '')) fail('invalid exact head SHA');
+          if (!Number.isSafeInteger(p.workflow_run_id) || p.workflow_run_id <= 0) fail('invalid CI run id');
+          if (p.live_authority !== 'NONE') fail('liveAuthority must remain NONE');
+          if (p.production_mutation_allowed !== false) fail('productionMutationAllowed must remain false');
+          if (p.ai_authority !== 'ZERO_AUTHORITY') fail('aiAuthority must remain ZERO_AUTHORITY');
+          NODE
+
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > "$RUNNER_TEMP/nusa-deterministic-audit/pr.json"
+          gh api "repos/$GITHUB_REPOSITORY/branches/main" > "$RUNNER_TEMP/nusa-deterministic-audit/main.json"
+
+          current_state="$(jq -r '.state' "$RUNNER_TEMP/nusa-deterministic-audit/pr.json")"
+          current_head="$(jq -r '.head.sha // empty' "$RUNNER_TEMP/nusa-deterministic-audit/pr.json")"
+          current_base="$(jq -r '.base.sha // empty' "$RUNNER_TEMP/nusa-deterministic-audit/pr.json")"
+          base_ref="$(jq -r '.base.ref // empty' "$RUNNER_TEMP/nusa-deterministic-audit/pr.json")"
+          base_repo="$(jq -r '.base.repo.full_name // empty' "$RUNNER_TEMP/nusa-deterministic-audit/pr.json")"
+          current_main="$(jq -r '.commit.sha // empty' "$RUNNER_TEMP/nusa-deterministic-audit/main.json")"
+
+          if [ "$current_state" != "open" ] || [ "$current_head" != "$REQUESTED_HEAD" ] || [ "$base_ref" != "main" ] || [ "$base_repo" != "$GITHUB_REPOSITORY" ] || [ "$current_base" != "$current_main" ]; then
+            echo 'applicable=false' >> "$GITHUB_OUTPUT"
+            echo 'authority=NONE' >> "$GITHUB_OUTPUT"
+            echo "audited_base=$current_main" >> "$GITHUB_OUTPUT"
+            echo "NO_ACTION stale Audit request: state=$current_state requested_head=$REQUESTED_HEAD current_head=$current_head base=$current_base main=$current_main"
+            exit 0
+          fi
+
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$WORKFLOW_RUN_ID" > "$RUNNER_TEMP/nusa-deterministic-audit/ci.json"
+          jq -e --arg head "$REQUESTED_HEAD" --arg repo "$GITHUB_REPOSITORY" '
+            .name == "CI" and
+            .path == ".github/workflows/ci.yml" and
+            .event == "pull_request" and
+            .status == "completed" and
+            .conclusion == "success" and
+            .head_sha == $head and
+            .repository.full_name == $repo
+          ' "$RUNNER_TEMP/nusa-deterministic-audit/ci.json" >/dev/null
+
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$REQUESTED_HEAD&event=pull_request&status=completed&per_page=100" \
+            --jq '.workflow_runs[] | select(.conclusion == "success") | [.name, .head_sha, .path, (.id|tostring)] | @tsv' \
+            > "$RUNNER_TEMP/nusa-deterministic-audit/successful-runs.tsv"
+
+          required_workflows=(
+            "CI"
+            "Actual PAPER Public-Market Runtime Evidence"
+            "Read-only Broker Credential Integration"
+            "Restricted LIVE Capability Surface Guard"
+            "Restricted LIVE Transport Credential Readiness"
+            "Restricted LIVE Activation Rehearsal"
+          )
+          for required in "${required_workflows[@]}"; do
+            awk -F '\t' -v name="$required" -v head="$REQUESTED_HEAD" '$1 == name && $2 == head { found=1 } END { exit found ? 0 : 1 }' \
+              "$RUNNER_TEMP/nusa-deterministic-audit/successful-runs.tsv" || {
+                echo "required exact-head workflow missing or not successful: $required" >&2
+                exit 1
+              }
+          done
+
+          final_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          final_state="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.state')"
+          final_head="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha')"
+          final_base="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.base.sha')"
+          test "$final_state" = "open"
+          test "$final_head" = "$REQUESTED_HEAD"
+          test "$final_base" = "$current_main"
+          test "$final_main" = "$current_main"
+
+          echo 'applicable=true' >> "$GITHUB_OUTPUT"
+          echo 'authority=DETERMINISTIC_AUDIT_PASS' >> "$GITHUB_OUTPUT"
+          echo "audited_base=$current_main" >> "$GITHUB_OUTPUT"
+          echo "Deterministic Audit PASS: pr=$PR_NUMBER head=$REQUESTED_HEAD base=$current_main ci=$WORKFLOW_RUN_ID"
+          echo 'liveAuthority=NONE'
+          echo 'productionMutationAllowed=false'
+          echo 'aiAuthority=ZERO_AUTHORITY'
+
+  release:
+    needs: audit
+    if: ${{ needs.audit.result == 'success' && needs.audit.outputs.applicable == 'true' && needs.audit.outputs.authority == 'DETERMINISTIC_AUDIT_PASS' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    concurrency:
+      group: deterministic-release-main
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+      EXPECTED_HEAD: ${{ github.event.client_payload.head_sha }}
+      AUDITED_BASE: ${{ needs.audit.outputs.audited_base }}
+    steps:
+      - name: Re-verify expected head and audited base
+        run: |
+          set -euo pipefail
+          pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          test "$(jq -r '.state' <<<"$pr")" = "open"
+          test "$(jq -r '.head.sha' <<<"$pr")" = "$EXPECTED_HEAD"
+          test "$(jq -r '.base.ref' <<<"$pr")" = "main"
+          test "$(jq -r '.base.sha' <<<"$pr")" = "$AUDITED_BASE"
+          test "$main" = "$AUDITED_BASE"
+
+      - name: Canonical expected-head merge
+        run: |
+          set -euo pipefail
+          result="$(gh api --method PUT "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/merge" -f sha="$EXPECTED_HEAD" -f merge_method=merge)"
+          jq -e '.merged == true' <<<"$result" >/dev/null
+          echo "Canonical deterministic Release merged PR #$PR_NUMBER at expected head $EXPECTED_HEAD"
+          echo 'liveAuthority=NONE'
+          echo 'productionMutationAllowed=false'
+          echo 'aiAuthority=ZERO_AUTHORITY'
