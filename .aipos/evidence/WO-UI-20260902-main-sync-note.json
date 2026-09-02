@@ -1,0 +1,10 @@
+{
+  "work_order": "WO-UI-20260902-CANONICAL-DESKTOP-POLISH",
+  "main_commit": "8c2da5f9c1793f15e9bc93339d962b6c1f28c2c0",
+  "main_change_scope": [
+    ".github/workflows/autopilot-cloudflare-deploy.yml",
+    "tests/autopilot-cloudflare-deploy.test.js"
+  ],
+  "overlap_with_ui_files": false,
+  "decision": "Merge current main into the implementation branch without rewriting shared branch history; no PR is opened until required local validation can run."
+}
