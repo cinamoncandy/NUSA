@@ -2,7 +2,7 @@ import { app } from "electron";
 import { createHash } from "node:crypto";
 import { createReadStream, createWriteStream, existsSync, promises as fs } from "node:fs";
 import { request } from "node:https";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { spawn } from "node:child_process";
 
 const RELEASE_BASE = "https://github.com/cinamoncandy/NUSA/releases/download/nusa-windows";
@@ -77,8 +77,6 @@ function getHttpsResponse(rawUrl: string, redirects = 0): Promise<import("node:h
         response.resume();
         return reject(new Error(`update request failed with HTTP ${status}`));
       }
-      const finalUrl = response.url || url.toString();
-      assertAllowedUrl(finalUrl);
       resolve(response);
     });
     req.setTimeout(30_000, () => req.destroy(new Error("update request timeout")));
@@ -108,7 +106,7 @@ async function downloadInstaller(rawUrl: string, destination: string): Promise<v
     throw new Error("installer exceeds size limit");
   }
 
-  await fs.mkdir(join(destination, ".."), { recursive: true }).catch(() => undefined);
+  await fs.mkdir(dirname(destination), { recursive: true });
   const stream = createWriteStream(destination, { flags: "w" });
   let total = 0;
   try {
