@@ -107,7 +107,7 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
         backgroundColor: selected ? theme.colors.surfaceRaised : "transparent",
         borderColor: selected ? theme.colors.borderStrong : "transparent",
         borderRadius: androidInstitutional ? theme.radii.sm : 999,
-        minHeight: androidInstitutional ? 44 : 48,
+        minHeight: theme.interaction.touchTarget,
         opacity: pressed ? theme.interaction.pressedOpacity : 1,
       }]}
     ><Text style={[styles.segmentLabel, { color: selected ? theme.colors.text : theme.colors.textMuted, fontWeight: selected ? theme.typography.weights.bold : theme.typography.weights.semibold }]} numberOfLines={1}>{label}</Text></Pressable>;
