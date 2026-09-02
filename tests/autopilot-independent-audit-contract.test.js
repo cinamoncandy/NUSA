@@ -71,6 +71,9 @@ test("Audit treats repository diff as untrusted data rather than model instructi
 
 test("Audit always executes independently and exposes trusted same-workflow Release authority", () => {
   const auditJob = auditJobSlice();
+  assert.match(auditJob, /Resolve Audit request freshness/);
+  assert.match(auditJob, /applicable: \$\{\{ steps\.freshness\.outputs\.applicable \}\}/);
+  assert.match(auditJob, /audit-request-stale-pr/);
   assert.doesNotMatch(auditJob, /nusa-audit-verdict:\$\{PR_NUMBER\}:\$\{WORKFLOW_RUN_ID\}:\$\{REQUESTED_HEAD\}/);
   assert.doesNotMatch(auditJob, /Detect existing exact-head Audit verdict/);
   assert.doesNotMatch(auditJob, /steps\.existing-audit|skip=true/);
@@ -83,6 +86,16 @@ test("Audit always executes independently and exposes trusted same-workflow Rele
   assert.match(auditJob, /auditExecutionRunId/);
   assert.match(auditJob, /auditExecutionAttempt/);
   assert.match(auditJob, /authorization source: \*\*same-workflow trusted output; this comment has no authority\*\*/);
+});
+
+test("Audit recovery is bounded to classified transient executor failures", () => {
+  const auditJob = auditJobSlice();
+  assert.match(auditJob, /Classify Audit failure boundary/);
+  assert.match(auditJob, /4006\|daily free allocation\|neurons\|quota/);
+  assert.match(auditJob, /failureClass = 'executor_unavailable'/);
+  assert.match(auditJob, /recovery = 'retry'/);
+  assert.match(workflow, /needs\.audit-request\.outputs\.recovery == 'retry'/);
+  assert.match(workflow, /needs\.audit-request\.outputs\.applicable == 'true'/);
 });
 
 test("only clean PASS automatically authorizes Release", () => {

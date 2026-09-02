@@ -1,22 +1,27 @@
-import { Sandbox } from "@cloudflare/sandbox";
 import baseWorker, { handleCodingExecute, type Env as BaseEnv } from "./index";
 import { acquirePersistentExecution, ExecutionCoordinator, releasePersistentExecution } from "./executionCoordinator";
-import { CloudflareSandboxBackend, type CloudflareSandboxNamespace } from "./cloudflareSandboxBackend";
+import {
+  executeCodingRunner,
+  validateCodingRunnerRequest,
+  verifyCodingRunnerRequestAgainstGitHub,
+  type CodingProposal,
+  type CodingRuntime,
+  type CodingRuntimeExecutionResult,
+  type CodingRunnerRequest,
+} from "./codingRunner";
 import { GithubValidatedPatchPublisher } from "./githubValidatedPatchPublisher";
-import { SandboxCodingRuntime } from "./sandboxCodingRuntime";
-import { validateCodingExecutionEnvelope } from "./codingExecutionEnvelope";
-import { validatePatchInSandbox } from "./sandboxPatchValidator";
 import { verifyGithubActionsOidcToken } from "./githubActionsOidc";
 import { executeIndependentAudit, validateAuditRunnerRequest } from "./auditRunner";
 
-export { Sandbox, ExecutionCoordinator };
+export { ExecutionCoordinator };
 
 interface WorkerEnv extends BaseEnv {
-  Sandbox?: CloudflareSandboxNamespace;
   NUSA_AI_AUDIT_MODEL?: string;
 }
 
 const AUDIT_EXECUTION_LEASE_MS = 5 * 60 * 1000;
+const MAX_VALIDATED_FILE_BYTES = 128_000;
+const SAFE_AUTOPILOT_PATH = /^apps\/autopilot\/[A-Za-z0-9._/-]+$/;
 const json = (body: unknown, status = 200): Response => new Response(JSON.stringify(body), {
   status,
   headers: { "content-type": "application/json; charset=utf-8" },
@@ -29,7 +34,7 @@ function constantTimeEqual(left: string, right: string): boolean {
   return mismatch === 0;
 }
 
-async function verifySandboxAuthorization(
+async function verifyCodingAuthorization(
   provided: string | undefined,
   configured: string | undefined,
   allowedRepository: string,
@@ -51,6 +56,123 @@ async function verifyAuditAuthorization(provided: string | undefined, allowedRep
     return true;
   } catch {
     return false;
+  }
+}
+
+class ProposalCaptureRuntime implements CodingRuntime {
+  readonly name = "github-actions-proposal";
+  proposal?: CodingProposal;
+
+  async execute(request: CodingRunnerRequest, proposal?: CodingProposal): Promise<CodingRuntimeExecutionResult> {
+    if (!proposal?.patch.trim()) throw new Error("CODING_PROPOSAL_PATCH_REQUIRED");
+    this.proposal = proposal;
+    return Object.freeze({
+      backend: this.name,
+      checkpointId: request.headSha,
+      workspaceVerified: true as const,
+    });
+  }
+}
+
+function validatePublishedFiles(value: unknown): readonly { readonly path: string; readonly content: string }[] {
+  if (!Array.isArray(value) || value.length !== 1) throw new Error("CODING_PUBLISH_FILE_COUNT_INVALID");
+  const file = value[0];
+  if (!file || typeof file !== "object" || Array.isArray(file)) throw new Error("CODING_PUBLISH_FILE_INVALID");
+  const record = file as Record<string, unknown>;
+  const path = record.path;
+  const content = record.content;
+  if (typeof path !== "string" || !SAFE_AUTOPILOT_PATH.test(path) || path.includes("..")) {
+    throw new Error("CODING_PUBLISH_PATH_INVALID");
+  }
+  if (path === "apps/autopilot/src/index.ts" || path === "apps/autopilot/src/worker.ts") {
+    throw new Error("CODING_PUBLISH_AUTHORITY_SURFACE_FORBIDDEN");
+  }
+  if (typeof content !== "string" || new TextEncoder().encode(content).byteLength > MAX_VALIDATED_FILE_BYTES) {
+    throw new Error("CODING_PUBLISH_CONTENT_INVALID");
+  }
+  return Object.freeze([Object.freeze({ path, content })]);
+}
+
+async function handleCodingProposal(request: Request, env: WorkerEnv): Promise<Response> {
+  const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || "cinamoncandy/NUSA";
+  const provided = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
+  if (!await verifyCodingAuthorization(provided, env.NUSA_CODING_RUNNER_TOKEN?.trim(), allowedRepository)) {
+    return json({ accepted: false, status: "CODING_PROPOSAL_FAILED_CLOSED", error: "CODING_RUNNER_UNAUTHORIZED" }, 401);
+  }
+
+  try {
+    const runnerRequest = validateCodingRunnerRequest(await request.json(), allowedRepository);
+    const capture = new ProposalCaptureRuntime();
+    const result = await executeCodingRunner(runnerRequest, env, undefined, capture);
+    if (result.status !== "EXECUTION_ACCEPTED" || !capture.proposal?.patch.trim()) {
+      throw new Error(result.reason || "CODING_PROPOSAL_UNAVAILABLE");
+    }
+    return json({
+      accepted: true,
+      status: "PROPOSAL_READY",
+      patch: capture.proposal.patch,
+      headSha: runnerRequest.headSha,
+      workflowRunId: runnerRequest.workflowRunId,
+      liveAuthority: "NONE",
+      productionMutationAllowed: false,
+      aiAuthority: "ZERO_AUTHORITY",
+    });
+  } catch (error) {
+    return json({
+      accepted: false,
+      status: "CODING_PROPOSAL_FAILED_CLOSED",
+      error: error instanceof Error ? error.message : "CODING_PROPOSAL_FAILED",
+      liveAuthority: "NONE",
+      productionMutationAllowed: false,
+      aiAuthority: "ZERO_AUTHORITY",
+    }, 409);
+  }
+}
+
+async function handleCodingPublish(request: Request, env: WorkerEnv): Promise<Response> {
+  const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || "cinamoncandy/NUSA";
+  const provided = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
+  if (!await verifyCodingAuthorization(provided, env.NUSA_CODING_RUNNER_TOKEN?.trim(), allowedRepository)) {
+    return json({ accepted: false, status: "CODING_PUBLISH_FAILED_CLOSED", error: "CODING_RUNNER_UNAUTHORIZED" }, 401);
+  }
+
+  try {
+    const body = await request.json() as { request?: unknown; validatedFiles?: unknown };
+    const runnerRequest = validateCodingRunnerRequest(body.request, allowedRepository);
+    await verifyCodingRunnerRequestAgainstGitHub(runnerRequest, env.NUSA_GITHUB_TOKEN);
+    const validatedFiles = validatePublishedFiles(body.validatedFiles);
+    const runtime: CodingRuntimeExecutionResult = Object.freeze({
+      backend: "github-actions-runner",
+      checkpointId: runnerRequest.headSha,
+      workspaceVerified: true,
+      proposalValidated: true,
+      changedFiles: Object.freeze(validatedFiles.map((file) => file.path)),
+      validatedFiles,
+    });
+    const publisher = new GithubValidatedPatchPublisher({ token: env.NUSA_GITHUB_TOKEN, allowedRepository });
+    const published = await publisher.publish(runnerRequest, runtime);
+    return json({
+      accepted: true,
+      status: "EXECUTION_ACCEPTED",
+      backend: runtime.backend,
+      checkpointId: runtime.checkpointId,
+      workspaceVerified: true,
+      proposalValidated: true,
+      changedFiles: runtime.changedFiles,
+      ...published,
+      liveAuthority: "NONE",
+      productionMutationAllowed: false,
+      aiAuthority: "ZERO_AUTHORITY",
+    });
+  } catch (error) {
+    return json({
+      accepted: false,
+      status: "CODING_PUBLISH_FAILED_CLOSED",
+      error: error instanceof Error ? error.message : "CODING_PUBLISH_FAILED",
+      liveAuthority: "NONE",
+      productionMutationAllowed: false,
+      aiAuthority: "ZERO_AUTHORITY",
+    }, 409);
   }
 }
 
@@ -128,47 +250,26 @@ const worker = {
     }
 
     if (request.method === "POST" && url.pathname === "/coding/execute") {
-      if (!env.Sandbox) return json({ error: "CLOUDFLARE_SANDBOX_NOT_CONFIGURED", status: "INTERFACE_READY" }, 503);
-      const runtime = new SandboxCodingRuntime(new CloudflareSandboxBackend(env.Sandbox));
-      const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || "cinamoncandy/NUSA";
-      const publisher = new GithubValidatedPatchPublisher({ token: env.NUSA_GITHUB_TOKEN, allowedRepository });
-      return handleCodingExecute(request, env, runtime, publisher);
+      return handleCodingExecute(request, env);
+    }
+
+    if (request.method === "POST" && url.pathname === "/coding/propose") {
+      return handleCodingProposal(request, env);
+    }
+
+    if (request.method === "POST" && url.pathname === "/coding/publish") {
+      return handleCodingPublish(request, env);
     }
 
     if (request.method === "POST" && url.pathname === "/coding/sandbox/validate") {
-      const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || "cinamoncandy/NUSA";
-      const configured = env.NUSA_CODING_RUNNER_TOKEN?.trim();
-      const provided = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
-      if (!await verifySandboxAuthorization(provided, configured, allowedRepository)) {
-        return json({ error: "CODING_RUNNER_UNAUTHORIZED" }, 401);
-      }
-      if (!env.Sandbox) return json({ error: "CLOUDFLARE_SANDBOX_NOT_CONFIGURED", status: "INTERFACE_READY" }, 503);
-
-      try {
-        const body = await request.json() as { envelope?: unknown; patch?: unknown };
-        const envelope = validateCodingExecutionEnvelope(body.envelope, allowedRepository);
-        if (typeof body.patch !== "string") throw new Error("SANDBOX_PATCH_REQUIRED");
-        const backend = new CloudflareSandboxBackend(env.Sandbox);
-        const result = await validatePatchInSandbox(backend, { envelope, patch: body.patch });
-        return json({
-          accepted: true,
-          status: result.status,
-          backend: result.backend,
-          changedFiles: result.changedFiles,
-          checkpoint: result.checkpoint,
-          liveAuthority: "NONE",
-          productionMutationAllowed: false,
-          aiAuthority: "ZERO_AUTHORITY",
-        }, 200);
-      } catch (error) {
-        return json({
-          accepted: false,
-          error: error instanceof Error ? error.message : "SANDBOX_PATCH_VALIDATION_FAILED",
-          liveAuthority: "NONE",
-          productionMutationAllowed: false,
-          aiAuthority: "ZERO_AUTHORITY",
-        }, 400);
-      }
+      return json({
+        accepted: false,
+        status: "CONTAINER_RUNTIME_RETIRED",
+        error: "GITHUB_ACTIONS_VALIDATION_REQUIRED",
+        liveAuthority: "NONE",
+        productionMutationAllowed: false,
+        aiAuthority: "ZERO_AUTHORITY",
+      }, 410);
     }
 
     return baseWorker.fetch(request, env);

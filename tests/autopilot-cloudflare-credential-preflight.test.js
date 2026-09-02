@@ -26,29 +26,27 @@ test('preflight reuses existing runtime cadence instead of adding a scheduler', 
   assert.doesNotMatch(workflow, /cron:/);
 });
 
-test('preflight treats token self-verify as informational, not fail-closed (scoped tokens can legitimately 401 there while still deploying)', () => {
+test('preflight treats token self-verify as informational, not fail-closed', () => {
   assert.match(workflow, /user\/tokens\/verify/);
   assert.match(workflow, /informational only/);
   assert.match(workflow, /payload\.result\?\.status === 'active'/);
   assert.match(workflow, /catch \{/);
   assert.match(workflow, /non-JSON response/);
-  const tokenVerifyStep = workflow.slice(workflow.indexOf('user/tokens/verify') - 400, workflow.indexOf('user/tokens/verify') + 50);
+  const tokenVerifyStep = workflow.slice(workflow.indexOf('user/tokens/verify') - 400, workflow.indexOf('user/tokens/verify') + 80);
   assert.doesNotMatch(tokenVerifyStep, /--fail-with-body/);
 });
 
-test('preflight requires Container read only when the exact revision changes the Container definition', () => {
+test('preflight verifies the free-tier Worker has no paid Container or Sandbox binding', () => {
   assert.match(workflow, /accounts\/\$CLOUDFLARE_ACCOUNT_ID/);
   assert.match(workflow, /observed !== expected/);
   assert.match(workflow, /wrangler@4\.127\.1 whoami/);
-  assert.match(workflow, /Determine whether Container read preflight is required/);
-  assert.match(workflow, /ref: \$\{\{ steps\.main\.outputs\.sha \}\}[\s\S]*fetch-depth: 2/);
-  assert.match(workflow, /git diff --quiet HEAD\^ HEAD -- apps\/autopilot\/Dockerfile apps\/autopilot\/wrangler\.jsonc/);
-  assert.match(workflow, /Verify non-mutating Containers read access for changed Container definitions/);
-  assert.match(workflow, /if: steps\.container-preflight\.outputs\.required == 'true'/);
-  assert.match(workflow, /Record Container read preflight scope/);
-  assert.match(workflow, /Containers Write is not inferred/);
-  assert.doesNotMatch(workflow, /containers delete|containers push|wrangler@4\.127\.1 deploy/);
-  assert.doesNotMatch(workflow, /nusa-wrangler-whoami|nusa-containers-list/);
+  assert.match(workflow, /Verify free-tier Worker configuration has no paid Container binding/);
+  assert.match(workflow, /Array\.isArray\(config\.containers\)/);
+  assert.match(workflow, /binding\?\.name === 'Sandbox'/);
+  assert.match(workflow, /Workers Free-compatible configuration verified/);
+  assert.doesNotMatch(workflow, /wrangler@4\.127\.1 containers list/);
+  assert.doesNotMatch(workflow, /--containers-rollout/);
+  assert.doesNotMatch(workflow, /wrangler@4\.127\.1 deploy/);
 });
 
 test('preflight requires exact-main deploy and live Worker revision', () => {
