@@ -53,6 +53,7 @@ export * from "./aiEvaluationEconomicCostDecomposition";
 export * from "./aiEvaluationLineage";
 export * from "./aiEvaluationFrozenSelection";
 export * from "./aiEvaluationPointInTimeRegimeLabels";
+export * from "./aiEvaluationTailConditionalLoss";
 
 export enum LedgerSide { BUY = "BUY", SELL = "SELL" }
 export enum PositionScopeType { WALLET = "WALLET", STRATEGY = "STRATEGY" }
