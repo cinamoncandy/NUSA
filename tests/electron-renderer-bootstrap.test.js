@@ -62,7 +62,7 @@ test("initial execution surface is fail-closed and unmistakably Paper-only", () 
 
 test("runtime subscribes only to declared preload projections and owns cleanup", () => {
   for (const subscription of ["onStatus", "onTicker", "onSnapshot", "onControl", "onChartPoint"]) {
-    assert.match(runtime, new RegExp(`\\.${subscription}\\?\\.`));
+    assert.match(runtime, new RegExp(`api\\.${subscription}`));
   }
   assert.match(runtime, /unsubscribers/);
   assert.match(runtime, /cleanup/);
@@ -78,13 +78,14 @@ test("runtime fails closed for disconnected, invalid-price, invalid-quantity and
   assert.match(runtime, /button\.disabled = Boolean\(reason\)/);
 });
 
-test("canonical order confirmation is modal and accessibility layer owns focus containment", () => {
+test("canonical order confirmation is modal, focus-contained, and Escape-closeable", () => {
   const dom = new JSDOM(html);
   const document = dom.window.document;
   const dialog = document.querySelector('[data-simple-sheet][role="dialog"]');
   assert.ok(dialog);
   assert.equal(dialog.getAttribute("aria-modal"), "true");
-  assert.match(accessibility, /Tab/);
-  assert.match(accessibility, /Escape/);
+  assert.match(accessibility, /event\.key !== "Tab"/);
   assert.match(accessibility, /focus/);
+  assert.match(runtime, /event\.key === "Escape" && state\.pendingOrder/);
+  assert.match(runtime, /closeOrderSheet\(\)/);
 });
