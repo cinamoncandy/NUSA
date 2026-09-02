@@ -138,17 +138,28 @@ jobs:
         if: steps.revision.outputs.current == 'true' && steps.deployment.outputs.deploy == 'true'
         run: pnpm install --frozen-lockfile
 
-      - name: Verify Cloudflare deployment credentials are configured
+      - name: Verify Cloudflare deployment credentials and account access
         if: steps.revision.outputs.current == 'true' && steps.deployment.outputs.deploy == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
           if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
-            echo '::error::CLOUDFLARE_API_TOKEN is not configured as a repository secret. This is a HUMAN_ONLY blocker: add the secret to enable automatic Worker deployment. No secret value is ever logged by this workflow. Failing closed.'
+            echo '::error::CLOUDFLARE_API_TOKEN is not configured as a repository secret. HUMAN_ONLY blocker. Failing closed before deployment.'
             exit 1
           fi
-          echo "Cloudflare deployment credentials are configured."
+          if [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo '::error::CLOUDFLARE_ACCOUNT_ID is not configured as a repository secret. HUMAN_ONLY blocker. Failing closed before deployment.'
+            exit 1
+          fi
+          echo 'Cloudflare deployment secrets are configured; validating token/account access read-only.'
+          if ! pnpm dlx wrangler@4.127.1 whoami >/tmp/nusa-wrangler-whoami.log 2>&1; then
+            cat /tmp/nusa-wrangler-whoami.log
+            echo '::error::Cloudflare authentication/account preflight failed. Deployment was not attempted. Rotate or repair CLOUDFLARE_API_TOKEN/CLOUDFLARE_ACCOUNT_ID before retrying.'
+            exit 1
+          fi
+          echo 'Cloudflare token/account preflight passed.'
 
       - name: Deploy exact CI-verified revision to Cloudflare
         if: steps.revision.outputs.current == 'true' && steps.deployment.outputs.deploy == 'true'
