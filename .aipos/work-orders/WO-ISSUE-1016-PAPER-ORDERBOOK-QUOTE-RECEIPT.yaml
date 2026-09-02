@@ -1,7 +1,7 @@
 version: 1
 id: WO-ISSUE-1016-PAPER-ORDERBOOK-QUOTE-RECEIPT
 title: "Persist canonical PAPER order-book quote receipts"
-status: VERIFYING
+status: COMPLETED
 owner: nusa
 repository: cinamoncandy/NUSA
 issue: 1016
@@ -54,4 +54,10 @@ validation:
   build: PASS
 known_limitations:
   - "Missing public order-book evidence preserves the existing incomplete-cost fail-closed research semantics; no synthetic spread or slippage is created."
-next: "Run exact-head validation for PR #1029 without changing PAPER/LIVE authority."
+next: "COMPLETE."
+completion:
+  pull_request: 1029
+  exact_head: 86a1dff66ee2f96e8df118292abfbbe75e2b2855
+  merge_commit: bfaac61e652210178eeab78200aa4af4a48adc24
+  exact_head_ci: PASS
+  reconciled_by: "NUSA session audit, 2026-09-02: work order was stuck at VERIFYING even though PR #1029 merged 2026-08-28 with canonical CI PASS (the one failing check in its rollup, 'Workers Builds: nusa', is a downstream Cloudflare deploy check, not a required correctness gate). Verified apps/cloud/src/paperOrderBookQuoteReceipt.test.ts still passes 5/5 on current main. Status corrected to reflect actual repository state; no code changed."
