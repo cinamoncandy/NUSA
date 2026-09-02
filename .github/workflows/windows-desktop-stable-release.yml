@@ -1,0 +1,217 @@
+name: Windows Desktop Stable Release
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: "Exact source commit SHA to release (blank = current main)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-desktop-stable-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish exact-main Windows installer
+    if: >-
+      ${{
+        github.event_name != 'workflow_run' ||
+        (
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.head_branch == 'main' &&
+          github.event.workflow_run.head_repository.full_name == github.repository
+        )
+      }}
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Resolve exact CI-verified source
+        id: source
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          WORKFLOW_RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          DISPATCH_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_run" ]; then
+            SOURCE_SHA="$WORKFLOW_RUN_SHA"
+          else
+            SOURCE_SHA="${DISPATCH_SHA:-}"
+            if [ -z "$SOURCE_SHA" ]; then
+              SOURCE_SHA="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+            fi
+          fi
+          printf '%s' "$SOURCE_SHA" | grep -Eq '^[0-9a-fA-F]{40}$'
+
+          CURRENT_MAIN="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          if [ "$SOURCE_SHA" != "$CURRENT_MAIN" ]; then
+            echo "::error::Refusing stale Windows release. Requested $SOURCE_SHA but current main is $CURRENT_MAIN."
+            exit 1
+          fi
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            CI_CONCLUSION="$(
+              gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SOURCE_SHA&status=completed&per_page=100" \
+                --jq '[.workflow_runs[] | select(.name == "CI" and .path == ".github/workflows/ci.yml")][0].conclusion // empty'
+            )"
+            if [ "$CI_CONCLUSION" != "success" ]; then
+              echo "::error::Exact source $SOURCE_SHA does not have a successful canonical CI run."
+              exit 1
+            fi
+          fi
+
+          echo "sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${SOURCE_SHA:0:8}" >> "$GITHUB_OUTPUT"
+          echo "Resolved exact current-main source $SOURCE_SHA"
+
+      - name: Checkout exact source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ steps.source.outputs.sha }}
+          fetch-depth: 0
+
+      - name: Enable pnpm via Corepack
+        shell: bash
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.7.0 --activate
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Verify action pins
+        run: node scripts/validate-workflow-action-pins.js
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify canonical renderer source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f apps/desktop/renderer/index.html
+          test -f apps/desktop/renderer/app.css
+          test -f apps/desktop/renderer/app-runtime.js
+          grep -F 'data-runtime-owner="canonical"' apps/desktop/renderer/index.html >/dev/null
+          grep -F 'app-runtime.js' apps/desktop/renderer/index.html >/dev/null
+          if grep -Eq 'index-v2\.html|simple-ui\.js|simple-ui\.css' apps/desktop/renderer/index.html; then
+            echo '::error::Canonical renderer unexpectedly references retired UI assets.'
+            exit 1
+          fi
+          echo 'Canonical desktop renderer source verified.'
+
+      - name: Build Windows release staging tree
+        run: pnpm run preflight && pnpm run build
+
+      - name: Remove generated source maps from release staging tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          COUNT="$(find dist -type f -name '*.map' | wc -l | tr -d ' ')"
+          find dist -type f -name '*.map' -delete
+          if find dist -type f -name '*.map' | grep -q .; then
+            echo '::error::Source maps remain in the Windows release staging tree.'
+            exit 1
+          fi
+          echo "Removed ${COUNT} generated source maps from release staging."
+
+      - name: Validate pre-packaging file set
+        run: node scripts/validate-package.js
+
+      - name: Package Windows installer
+        run: pnpm exec electron-builder --win nsis --publish never
+
+      - name: Validate packaged Windows app
+        run: pnpm run package:validate
+
+      - name: Prepare stable installer assets and provenance
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          SHORT_SHA: ${{ steps.source.outputs.short_sha }}
+        run: |
+          set -euo pipefail
+          mapfile -t INSTALLERS < <(find release -maxdepth 1 -type f -name 'NUSA-*-Windows-Setup.exe' -print)
+          if [ "${#INSTALLERS[@]}" -ne 1 ]; then
+            printf '::error::Expected exactly one NUSA Windows installer, found %s.\n' "${#INSTALLERS[@]}"
+            printf '%s\n' "${INSTALLERS[@]:-}"
+            exit 1
+          fi
+          cp "${INSTALLERS[0]}" NUSA-Windows-Setup.exe
+          sha256sum NUSA-Windows-Setup.exe > NUSA-Windows-Setup.exe.sha256
+
+          INDEX_SHA="$(sha256sum apps/desktop/renderer/index.html | awk '{print $1}')"
+          CSS_SHA="$(sha256sum apps/desktop/renderer/app.css | awk '{print $1}')"
+          RUNTIME_SHA="$(sha256sum apps/desktop/renderer/app-runtime.js | awk '{print $1}')"
+          printf 'source_sha=%s\nshort_sha=%s\nrenderer_index_sha256=%s\nrenderer_css_sha256=%s\nrenderer_runtime_sha256=%s\nrelease_mode=PAPER_SHADOW_ONLY\nlive_authority=NONE\nproduction_mutation_allowed=false\nai_authority=ZERO_AUTHORITY\nsigning=unsigned_private_distribution\n' \
+            "$SOURCE_SHA" "$SHORT_SHA" "$INDEX_SHA" "$CSS_SHA" "$RUNTIME_SHA" \
+            > NUSA-Windows.provenance.txt
+
+      - name: Verify source is still current main before publication
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          CURRENT_MAIN="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          if [ "$CURRENT_MAIN" != "$EXPECTED_SHA" ]; then
+            echo "::error::Refusing stale Windows publication. Built $EXPECTED_SHA but current main is $CURRENT_MAIN."
+            exit 1
+          fi
+          echo "Verified publication source is exact current main: $EXPECTED_SHA"
+
+      - name: Upload workflow installer artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: NUSA-Windows-${{ steps.source.outputs.short_sha }}
+          path: |
+            NUSA-Windows-Setup.exe
+            NUSA-Windows-Setup.exe.sha256
+            NUSA-Windows.provenance.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish stable Windows GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ steps.source.outputs.sha }}
+          SHORT_SHA: ${{ steps.source.outputs.short_sha }}
+        run: |
+          set -euo pipefail
+          NOTES="NUSA Windows desktop stable from exact source ${SHORT_SHA}. Canonical Electron renderer included. PAPER/SHADOW only; LIVE authority NONE; AI ZERO_AUTHORITY. Unsigned private/personal-use installer."
+          if gh release view nusa-windows >/dev/null 2>&1; then
+            gh release upload nusa-windows NUSA-Windows-Setup.exe NUSA-Windows-Setup.exe.sha256 NUSA-Windows.provenance.txt --clobber
+            gh release edit nusa-windows --target "$TARGET_SHA" --title "NUSA Windows ${SHORT_SHA}" --notes "$NOTES"
+          else
+            gh release create nusa-windows NUSA-Windows-Setup.exe NUSA-Windows-Setup.exe.sha256 NUSA-Windows.provenance.txt --target "$TARGET_SHA" --title "NUSA Windows ${SHORT_SHA}" --notes "$NOTES"
+          fi
+
+      - name: Final release pointer verification
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          RELEASE_TARGET="$(gh release view nusa-windows --json targetCommitish --jq '.targetCommitish')"
+          if [ "$RELEASE_TARGET" != "$EXPECTED_SHA" ]; then
+            echo "::error::Stable Windows release target mismatch: expected $EXPECTED_SHA, got $RELEASE_TARGET"
+            exit 1
+          fi
+          echo "Windows stable release now points to exact source $EXPECTED_SHA"

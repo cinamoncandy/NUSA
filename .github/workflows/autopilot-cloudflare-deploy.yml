@@ -6,9 +6,9 @@ name: Autopilot Cloudflare Deploy
 # unchanged responsibility -- promoting the CI-verified tree onto the `cloudflare-production`
 # git branch as a durable, reviewable record of what was verified. This workflow owns the one
 # thing that branch push cannot do by itself: actually calling `wrangler deploy` against the
-# live Worker and proving the deployed revision matches. The workflow_run trigger closes the
-# recovery gap where a deployment fails, then a test-only CI repair merge would otherwise never
-# retrigger this workflow.
+# live Worker and proving the deployed revision matches. Container rollout is only requested
+# when the exact-head change modifies the container definition; Worker-only changes reuse the
+# already-deployed container image and avoid unnecessary container-registry authorization.
 
 on:
   push:
@@ -46,7 +46,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
-          fetch-depth: 1
+          fetch-depth: 2
 
       - name: Wait for exact-head CI success before deploying
         env:
@@ -93,14 +93,34 @@ jobs:
           HEAD_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
         run: |
           set -euo pipefail
-          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
-            echo 'deploy=true' >> "$GITHUB_OUTPUT"
-            echo "Push path is deployment-relevant; deploying ${HEAD_SHA}."
+          echo 'deploy=true' >> "$GITHUB_OUTPUT"
+          echo "Exact-head CI is verified for ${HEAD_SHA}; Worker and Container rollout stay atomically aligned by selecting the rollout mode before deploy."
+
+      - name: Determine Container rollout mode
+        id: container
+        if: steps.revision.outputs.current == 'true' && steps.deployment.outputs.deploy == 'true'
+        run: |
+          set -euo pipefail
+
+          # A container rollout is only necessary when the image or container declaration changes.
+          # For ordinary Worker/workflow changes, reusing the currently deployed image avoids an
+          # unnecessary registry push and its separate Containers permission requirement.
+          if ! git rev-parse HEAD^ >/dev/null 2>&1; then
+            echo 'rollout=immediate' >> "$GITHUB_OUTPUT"
+            echo 'No parent commit is available; conservatively requesting an immediate Container rollout.'
             exit 0
           fi
 
-          echo 'deploy=true' >> "$GITHUB_OUTPUT"
-          echo "Exact-head CI is verified for ${HEAD_SHA}; deploying so the Worker and its Container rollout stay atomically aligned."
+          changed="$(git diff --name-only HEAD^ HEAD)"
+          printf 'Exact-head changed paths:\n%s\n' "$changed"
+
+          if printf '%s\n' "$changed" | grep -Eq '^(apps/autopilot/Dockerfile|apps/autopilot/wrangler\.jsonc)$'; then
+            echo 'rollout=immediate' >> "$GITHUB_OUTPUT"
+            echo 'Container definition changed; requesting immediate Container rollout.'
+          else
+            echo 'rollout=none' >> "$GITHUB_OUTPUT"
+            echo 'Container definition unchanged; reusing the deployed image and skipping Container rollout.'
+          fi
 
       - name: Enable pnpm via Corepack
         if: steps.revision.outputs.current == 'true' && steps.deployment.outputs.deploy == 'true'
@@ -118,17 +138,28 @@ jobs:
         if: steps.revision.outputs.current == 'true' && steps.deployment.outputs.deploy == 'true'
         run: pnpm install --frozen-lockfile
 
-      - name: Verify Cloudflare deployment credentials are configured
+      - name: Verify Cloudflare deployment credentials and account access
         if: steps.revision.outputs.current == 'true' && steps.deployment.outputs.deploy == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
           if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
-            echo '::error::CLOUDFLARE_API_TOKEN is not configured as a repository secret. This is a HUMAN_ONLY blocker: add the secret to enable automatic Worker deployment. No secret value is ever logged by this workflow. Failing closed.'
+            echo '::error::CLOUDFLARE_API_TOKEN is not configured as a repository secret. HUMAN_ONLY blocker. Failing closed before deployment.'
             exit 1
           fi
-          echo "Cloudflare deployment credentials are configured."
+          if [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo '::error::CLOUDFLARE_ACCOUNT_ID is not configured as a repository secret. HUMAN_ONLY blocker. Failing closed before deployment.'
+            exit 1
+          fi
+          echo 'Cloudflare deployment secrets are configured; validating token/account access read-only.'
+          if ! pnpm dlx wrangler@4.127.1 whoami >/tmp/nusa-wrangler-whoami.log 2>&1; then
+            cat /tmp/nusa-wrangler-whoami.log
+            echo '::error::Cloudflare authentication/account preflight failed. Deployment was not attempted. Rotate or repair CLOUDFLARE_API_TOKEN/CLOUDFLARE_ACCOUNT_ID before retrying.'
+            exit 1
+          fi
+          echo 'Cloudflare token/account preflight passed.'
 
       - name: Deploy exact CI-verified revision to Cloudflare
         if: steps.revision.outputs.current == 'true' && steps.deployment.outputs.deploy == 'true'
@@ -136,12 +167,13 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           HEAD_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          CONTAINERS_ROLLOUT: ${{ steps.container.outputs.rollout }}
         run: |
           set -euo pipefail
           pnpm dlx wrangler@4.127.1 deploy \
             --config apps/autopilot/wrangler.jsonc \
             --var "NUSA_DEPLOYMENT_REVISION:${HEAD_SHA}" \
-            --containers-rollout=immediate
+            --containers-rollout="${CONTAINERS_ROLLOUT}"
 
       - name: Verify deployed Worker reports the exact-head revision
         if: steps.revision.outputs.current == 'true' && steps.deployment.outputs.deploy == 'true'

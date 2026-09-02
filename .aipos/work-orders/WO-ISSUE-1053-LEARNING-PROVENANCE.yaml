@@ -1,7 +1,7 @@
 version: 1
 id: WO-ISSUE-1053-LEARNING-PROVENANCE
 title: "Issue #1053 evidence-backed learning provenance"
-status: VERIFYING
+status: COMPLETED
 priority: P1
 owner: codex
 repository: cinamoncandy/NUSA
@@ -74,4 +74,10 @@ validation:
     - "pnpm run identity:check"
     - "pnpm test"
     - "git diff --check"
-  status: PASS_LOCAL_PENDING_EXACT_HEAD_CI
+  status: SATISFIED
+completion:
+  pull_request: 1066
+  exact_head: 83a85af414f8bf02cd7bb7c123477244eeced4d6
+  merge_commit: 545500550e201c3b09da928550adf7d3497e90ce
+  exact_head_ci: PASS
+  reconciled_by: "NUSA session audit, 2026-09-02: work order was stuck at VERIFYING/PASS_LOCAL_PENDING_EXACT_HEAD_CI after PR #1066 ('feat(ai): expose trusted learning provenance') actually merged on 2026-08-29 with exact-head CI PASS. Verified tests/ai-learning-provenance.test.js still passes 2/2 on current main. Status corrected to reflect actual repository state; no code changed."

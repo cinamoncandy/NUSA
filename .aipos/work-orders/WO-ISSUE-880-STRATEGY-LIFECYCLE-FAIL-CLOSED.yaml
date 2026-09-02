@@ -1,7 +1,7 @@
 version: 1
 id: WO-ISSUE-880-STRATEGY-LIFECYCLE-FAIL-CLOSED
 title: "Issue #880 strategy lifecycle rollback input hardening"
-status: VERIFYING
+status: COMPLETED
 priority: P1
 owner: codex
 repository: cinamoncandy/NUSA
@@ -61,4 +61,7 @@ validation:
   git_diff_check: PASS
 known_limitations:
   - "This slice hardens the existing rollback recommendation boundary; it does not implement the full #880 lifecycle persistence/quarantine/retirement orchestration."
-next: "Publish only this scoped hardening after validation; keep full strategy lifecycle acceptance open until evidence-driven transitions and durable replay are implemented."
+next: "COMPLETE for this scoped hardening slice. Broader #880 lifecycle persistence/quarantine/retirement orchestration remains tracked separately (parent issue #880 is closed; this slice's own scope is done)."
+completion:
+  pull_request: 986
+  reconciled_by: "NUSA session audit, 2026-09-02: work order was stuck at VERIFYING even though parent GitHub issue #880 is CLOSED and this slice's PR #986 is merged to current main. Verified tests/strategy-rollback-fail-closed.test.js still passes 3/3 on current main. Status corrected to reflect actual repository state; no code changed."

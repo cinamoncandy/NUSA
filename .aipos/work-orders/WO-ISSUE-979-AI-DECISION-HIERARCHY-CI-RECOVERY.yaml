@@ -1,7 +1,7 @@
 version: 1
 id: WO-ISSUE-979-AI-DECISION-HIERARCHY-CI-RECOVERY
 title: "Issue #979 AI decision hierarchy CI regression recovery"
-status: VERIFYING
+status: COMPLETED
 priority: P1
 owner: codex
 repository: cinamoncandy/NUSA
@@ -57,4 +57,9 @@ validation:
   git_diff_check: PASS
 known_limitations:
   - "Physical-device visual acceptance remains outside CI and is not inferred from this fix."
-next: "Publish and validate the exact PR #983 head; do not merge until required checks are green."
+next: "COMPLETE."
+completion:
+  exact_head: f8a7e170d033374cc5e59e1deb9880be8a576a62
+  merge_commit: 3276364dbdb81bb3354e6d57b8900ea4e080eedc
+  exact_head_ci: PASS
+  reconciled_by: "NUSA session audit, 2026-09-02: work order was stuck at VERIFYING even though PR #983 merged with canonical CI PASS (the one 'Workers Builds: nusa' failure in the check rollup is a downstream Cloudflare deploy check, not a required correctness gate). Verified tests/uiux-authority-hierarchy-closeout.test.js still passes 3/3 on current main. Status corrected to reflect actual repository state; no code changed."

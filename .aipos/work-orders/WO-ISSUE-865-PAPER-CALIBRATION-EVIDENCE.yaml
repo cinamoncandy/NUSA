@@ -1,6 +1,6 @@
 id: WO-ISSUE-865-PAPER-CALIBRATION-EVIDENCE
 title: "Issue #865 bind point-in-time PAPER calibration evidence"
-status: VERIFYING
+status: COMPLETED
 owner: nusa
 repository: cinamoncandy/NUSA
 issue: 865
@@ -61,4 +61,7 @@ implementation_status: IMPLEMENTED_VERIFYING
 known_limitations:
   - "Calibration is evidence-only and never makes a strategy promotion or confidence decision by itself."
   - "External exact-head CI is required before merge; physical-device and credential-gated evidence remain outside this repository slice."
-next: "Complete local gates, push the chronology fixture fix to existing PR #1034, then validate its new exact head without creating a duplicate PR."
+next: "COMPLETE."
+completion:
+  pull_request: 1034
+  reconciled_by: "NUSA session audit, 2026-09-02: work order was stuck at VERIFYING even though parent GitHub issue #865 is CLOSED and PR #1034 (which itself carried this work order file) is merged to current main. Verified apps/autopilot/src/evolvePaperCalibrationEvidence.test.ts still passes 14/14 on current main. Status corrected to reflect actual repository state; no code changed."

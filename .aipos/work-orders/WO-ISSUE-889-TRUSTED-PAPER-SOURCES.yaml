@@ -1,6 +1,6 @@
 id: WO-ISSUE-889-TRUSTED-PAPER-SOURCES
 title: "Issue #889 wire trusted public PAPER benchmark and execution-friction sources"
-status: VERIFYING
+status: COMPLETED
 owner: nusa
 repository: cinamoncandy/NUSA
 issue: 889
@@ -67,4 +67,7 @@ implementation_commit: 70b35428e8d2e5e5fb3f266bc0f4ea47b0237bd9
 integration_commit: 1e986c28f7d01c4d4eb7d0da0dbd2b779716193e
 known_limitations:
   - "Longitudinal admission still requires candidate-bound chronology and all existing League gates."
-next: "Complete package/AIPOS validation, publish the focused branch, and verify exact-head checks; keep missing longitudinal evidence fail-closed."
+next: "COMPLETE for this slice's scope."
+completion:
+  pull_request: 1028
+  reconciled_by: "NUSA session audit, 2026-09-02: work order was stuck at VERIFYING even though parent GitHub issue #889 is CLOSED and PR #1028 is merged to current main. Verified apps/cloud/src/paperMarketBenchmark.test.ts still passes on current main. Status corrected to reflect actual repository state; no code changed."
