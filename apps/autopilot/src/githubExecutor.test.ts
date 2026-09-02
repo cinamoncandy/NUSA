@@ -176,6 +176,7 @@ describe("executeGithubDispatch", () => {
     assert.equal(calls[0]?.url, "https://api.example.test/repos/cinamoncandy/NUSA/pulls/42");
     assert.equal(calls[1]?.url, "https://api.example.test/repos/cinamoncandy/NUSA/dispatches");
     const payload = JSON.parse(String(calls[1]?.init?.body));
+    assert.equal(payload.event_type, "nusa_autopilot_audit");
     assert.equal(payload.client_payload.kind, "AUDIT_REQUEST");
     assert.equal(payload.client_payload.pr_number, 42);
     assert.ok(Object.keys(payload.client_payload).length <= 10);
