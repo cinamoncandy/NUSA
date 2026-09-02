@@ -1,0 +1,41 @@
+{
+  "work_order": "WO-UI-20260902-CANONICAL-DESKTOP-POLISH",
+  "status": "BLOCKED_ENVIRONMENT",
+  "implementation_branch": "ux/full-gap-close-20260902",
+  "observed_head_before_status_commit": "c7eb8ddadc07bf2c5f3f9a1d2c8fdc80fda81276",
+  "authority_impact": "none",
+  "safety": "PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY",
+  "implemented_scope": [
+    "presentation-only canonical desktop trading UX layer",
+    "Paper execution-mode emphasis",
+    "portfolio and order visual hierarchy",
+    "mobile-width table readability",
+    "touch-safe order confirmation sheet",
+    "design-system trading UX rules and gap audit"
+  ],
+  "partial_validation": {
+    "app_adapter_syntax": "PASS",
+    "stylesheet_mount_smoke": "PASS",
+    "repository_required_local_validation": "NOT_RUN"
+  },
+  "environment_blocker": {
+    "available_node": "22.16.0",
+    "required_node": ">=24.0.0",
+    "available_pnpm": "10.9.2",
+    "required_pnpm": ">=11.7.0",
+    "claim": "No full validation PASS is claimed."
+  },
+  "remote_action_hold": "PR creation, CI, audit, and merge are intentionally not started because AGENTS.md requires required local validation before remote CI.",
+  "resume_sequence": [
+    "pnpm run validate",
+    "pnpm run lint:desktop",
+    "pnpm run test:ui",
+    "pnpm run build",
+    "git diff --check",
+    "verify no duplicate active PR",
+    "create one PR",
+    "wait for exact-head protected CI",
+    "independent audit/merge gate",
+    "merge and post-merge main verification"
+  ]
+}
