@@ -15,7 +15,11 @@ const {
   patchNanoidAsyncBrowser,
   patchNanoidAsyncNode
 } = require("../scripts/security-backports.js");
-const { evaluateAudit } = require("../scripts/security-gate-backports.js");
+const { parseAuditResult, evaluateAudit } = require("../scripts/security-gate-backports.js");
+
+test("dependency audit errors fail closed instead of becoming an empty pass", () => {
+  assert.throws(() => parseAuditResult(JSON.stringify({ error: { code: "ERR_PNPM_FETCH" } })), /AUDIT_UNAVAILABLE/);
+});
 
 test("image-size ICNS patch guards exactly two offset increments and is idempotent", () => {
   const vulnerable = [
