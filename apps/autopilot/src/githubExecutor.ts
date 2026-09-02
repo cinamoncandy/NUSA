@@ -43,9 +43,6 @@ function githubHeaders(token: string): Record<string, string> {
 }
 
 function githubClientPayload(request: AutopilotExecutionRequest): Record<string, unknown> {
-  // GitHub repository_dispatch accepts at most 10 top-level client_payload properties.
-  // Keep only fields consumed by each dispatch kind so the safety contract remains flat
-  // while avoiding a provider-side 422 validation failure.
   return {
     kind: request.kind,
     repository: request.repository,
@@ -151,7 +148,7 @@ export async function executeGithubDispatch(
       "content-type": "application/json",
     },
     body: JSON.stringify({
-      event_type: "nusa_autopilot_execution",
+      event_type: request.kind === "AUDIT_REQUEST" ? "nusa_autopilot_audit" : "nusa_autopilot_execution",
       client_payload: githubClientPayload(request),
     }),
   });
