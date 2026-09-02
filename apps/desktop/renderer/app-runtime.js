@@ -7,9 +7,12 @@
 
   const pageLabels = Object.freeze({ dashboard: "홈", orders: "거래", positions: "포트폴리오", strategy: "NUSA", logs: "기록", settings: "설정" });
   const routeAliases = Object.freeze({ market: "orders", balance: "positions", more: "settings" });
+  const SERVER_SNAPSHOT_STALE_MS = 7_000;
   const state = {
     page: "dashboard",
     connectionCode: "unknown",
+    serverConnectionCode: "unknown",
+    serverLastSuccessAt: null,
     connection: "unknown",
     connectionLabel: "연결 상태 확인 중",
     lastPrice: null,
@@ -44,12 +47,31 @@
     if (viewModel?.normalizeConnection) return viewModel.normalizeConnection(value);
     const code = String(value ?? "").toLowerCase();
     if (code.includes("reconnect")) return ["reconnecting", "재연결 중"];
-    if (["disconnect", "stale", "offline"].some((item) => code.includes(item))) return ["disconnected", "연결 끊김"];
-    if (code === "connected" || ["online", "healthy", "fresh"].some((item) => code.includes(item))) return ["connected", "연결됨"];
+    if (["disconnect", "stale", "offline", "unavailable"].some((item) => code.includes(item))) return ["disconnected", "연결 끊김"];
+    if (code === "connected" || code === "recovered" || ["online", "healthy", "fresh"].some((item) => code.includes(item))) return ["connected", "연결됨"];
     if (code.includes("connect")) return ["connecting", "연결 중"];
     if (["error", "fault"].some((item) => code.includes(item))) return ["error", "오류"];
     return ["unknown", "확인 중"];
   }
+  function marketConnection() { return normalizedConnection(state.connectionCode); }
+  function serverConnection() { return normalizedConnection(state.serverConnectionCode); }
+  function overallConnection() {
+    const [marketTone, marketLabel] = marketConnection();
+    const [serverTone, serverLabel] = serverConnection();
+    if (["disconnected", "error"].includes(marketTone)) return [marketTone, `업비트 ${marketLabel}`];
+    if (["disconnected", "error"].includes(serverTone)) return [serverTone, `서버 ${serverLabel}`];
+    if (marketTone === "connected" && serverTone === "connected") return ["connected", "서버 · 업비트 정상"];
+    if (["reconnecting", "connecting"].includes(marketTone)) return [marketTone, "업비트 연결 중"];
+    if (["reconnecting", "connecting"].includes(serverTone)) return [serverTone, "서버 연결 중"];
+    if (marketTone === "connected") return ["unknown", "서버 확인 중"];
+    if (serverTone === "connected") return ["unknown", "업비트 확인 중"];
+    return ["unknown", "연결 확인 중"];
+  }
+  function markServerConnected() {
+    state.serverConnectionCode = "connected";
+    state.serverLastSuccessAt = Date.now();
+  }
+  function markServerDisconnected(value = "disconnected") { state.serverConnectionCode = value; }
   function recordLog(category, message, severity = "정보") {
     if (!message) return;
     const key = `${category}:${message}:${severity}`;
@@ -60,7 +82,9 @@
   function applyTheme(theme) { document.documentElement.dataset.theme = theme === "contrast" ? "contrast" : "dark"; }
 
   function renderConnection() {
-    const [tone, label] = normalizedConnection(state.connectionCode);
+    const [marketTone, marketLabel] = marketConnection();
+    const [serverTone, serverLabel] = serverConnection();
+    const [tone, label] = overallConnection();
     state.connection = tone;
     state.connectionLabel = label;
     root.dataset.state = state.loading ? "loading" : tone;
@@ -69,8 +93,9 @@
       const dot = node.querySelector(".simple-status-dot");
       if (dot) node.replaceChildren(dot, document.createTextNode(label)); else node.textContent = label;
     });
-    text("[data-simple-market-status]", label);
-    text("[data-simple-settings-market]", label);
+    text("[data-simple-market-status]", marketTone === "connected" ? "정상" : marketLabel);
+    text("[data-simple-settings-market]", marketTone === "connected" ? "정상" : marketLabel);
+    text("[data-simple-server-status]", serverTone === "connected" ? "정상" : serverLabel);
   }
   function renderNav() {
     $$("[data-simple-nav]").forEach((button) => {
@@ -164,7 +189,8 @@
     state.loading = false; state.lastUpdated = new Date(); root.dataset.state = state.connection; text("[data-simple-updated]", `마지막 업데이트 ${state.lastUpdated.toLocaleTimeString("ko-KR")}`);
   }
   function orderBlockReason(quantity) {
-    if (state.connection !== "connected") return "시장 데이터가 연결되지 않아 주문할 수 없습니다.";
+    const [connectionTone] = overallConnection();
+    if (connectionTone !== "connected") return "NUSA 서버와 시장 데이터가 모두 연결되어야 주문할 수 있습니다.";
     if (!finite(state.lastPrice)) return "유효한 현재가가 없어 주문할 수 없습니다.";
     if (!finite(quantity) || quantity <= 0) return "0보다 큰 주문 수량을 입력하세요.";
     if (state.orderSubmitting) return "Paper 주문을 처리 중입니다.";
@@ -195,10 +221,13 @@
     state.pendingOrder = { side }; state.orderTrigger = document.activeElement; renderOrderSheet(); $("[data-simple-sheet-confirm]")?.focus();
   }
   function renderTicker(ticker) {
-    if (finite(ticker?.trade_price)) state.lastPrice = ticker.trade_price;
+    if (finite(ticker?.trade_price)) {
+      state.lastPrice = ticker.trade_price;
+      state.connectionCode = "connected";
+    }
     state.changeRate = finite(ticker?.signed_change_rate) ? ticker.signed_change_rate : null;
     text("[data-simple-market-price]", moneyValue(state.lastPrice)); text("[data-simple-order-price]", moneyValue(state.lastPrice)); text("[data-simple-market-change]", signedPercent(state.changeRate));
-    renderPositions(state.snapshot); renderComposition(state.snapshot); renderOrderSummary();
+    renderConnection(); renderPositions(state.snapshot); renderComposition(state.snapshot); renderOrderSummary();
   }
   function renderCharts() {
     const targets = $$("[data-simple-equity-chart]"); if (!targets.length) return;
@@ -223,6 +252,7 @@
   }
   function render() { renderConnection(); renderNav(); renderSnapshot(state.snapshot); renderTicker({ trade_price: state.lastPrice, signed_change_rate: state.changeRate }); renderControl(state.control); renderCharts(); }
   async function read(method, fallback = null) { try { return typeof method === "function" ? await method() : fallback; } catch { return fallback; } }
+  async function readResult(method, fallback = null) { try { return { ok: true, value: typeof method === "function" ? await method() : fallback }; } catch (error) { return { ok: false, value: fallback, error }; } }
   async function loadSettings() {
     const api = global.nusaApp; const payload = await read(api?.settings?.bind(api)); const settings = payload?.settings || payload; if (!settings || typeof settings !== "object") return;
     state.settings = settings; applyTheme(settings.theme);
@@ -245,9 +275,9 @@
     const reason = orderBlockReason(quantity); if (reason) { if (message) message.textContent = reason; return; }
     state.orderSubmitting = true; renderOrderSummary();
     try {
-      const result = await global.nusa.placeOrder(side, quantity); closeOrderSheet({ restoreFocus: false }); renderSnapshot(result?.snapshot || state.snapshot);
+      const result = await global.nusa.placeOrder(side, quantity); closeOrderSheet({ restoreFocus: false }); markServerConnected(); renderConnection(); renderSnapshot(result?.snapshot || state.snapshot);
       if (message) message.textContent = "Paper 주문이 기록되었습니다. 실제 주문은 발생하지 않았습니다."; recordLog("주문", side === "BUY" ? "Paper 매수 기록" : "Paper 매도 기록", "정보"); renderControl(state.control);
-    } catch (error) { if (message) message.textContent = error instanceof Error ? error.message : "Paper 주문을 기록하지 못했습니다."; }
+    } catch (error) { markServerDisconnected("error"); renderConnection(); if (message) message.textContent = error instanceof Error ? error.message : "Paper 주문을 기록하지 못했습니다."; }
     finally { state.orderSubmitting = false; renderOrderSummary(); }
   }
   async function strategyCommand(command) {
@@ -271,16 +301,30 @@
     const api = global.nusa; if (!api) return;
     if (typeof api.onStatus === "function") unsubscribers.push(api.onStatus((value) => { state.connectionCode = value; recordLog("시장 데이터", `연결 상태: ${value}`, value === "connected" ? "정보" : "주의"); renderConnection(); renderOrderSummary(); }));
     if (typeof api.onTicker === "function") unsubscribers.push(api.onTicker(renderTicker));
-    if (typeof api.onSnapshot === "function") unsubscribers.push(api.onSnapshot(renderSnapshot));
+    if (typeof api.onSnapshot === "function") unsubscribers.push(api.onSnapshot((value) => { markServerConnected(); renderConnection(); renderSnapshot(value); }));
     if (typeof api.onControl === "function") unsubscribers.push(api.onControl(renderControl));
     if (typeof api.onChartPoint === "function") unsubscribers.push(api.onChartPoint((value) => { if (finite(value?.value)) { state.chartPoints.push(value); if (state.chartPoints.length > 120) state.chartPoints.splice(0, state.chartPoints.length - 120); renderCharts(); } }));
   }
   async function loadInitial() {
-    const api = global.nusa; const [snapshot, control] = await Promise.all([read(api?.getSnapshot?.bind(api)), read(api?.getControlSnapshot?.bind(api))]);
-    if (snapshot) renderSnapshot(snapshot); if (control) renderControl(control); await loadSettings(); await loadAbout(); render();
+    const api = global.nusa; const [snapshotResult, control] = await Promise.all([readResult(api?.getSnapshot?.bind(api)), read(api?.getControlSnapshot?.bind(api))]);
+    if (snapshotResult.ok) {
+      markServerConnected();
+      if (snapshotResult.value) renderSnapshot(snapshotResult.value);
+    } else {
+      markServerDisconnected();
+      recordLog("NUSA 서버", "초기 Cloud snapshot 연결 실패", "주의");
+    }
+    if (control) renderControl(control); await loadSettings(); await loadAbout(); render();
   }
 
   installEvents(); showPage(global.location.hash.slice(1) || "dashboard", false); render(); void loadInitial();
-  global.addEventListener("beforeunload", () => { unsubscribers.forEach((unsubscribe) => { try { unsubscribe?.(); } catch { /* best effort */ } }); cleanup.forEach((dispose) => { try { dispose(); } catch { /* best effort */ } }); });
+  const connectionWatchdog = global.setInterval(() => {
+    if (state.serverLastSuccessAt != null && Date.now() - state.serverLastSuccessAt > SERVER_SNAPSHOT_STALE_MS && state.serverConnectionCode !== "disconnected") {
+      markServerDisconnected();
+      recordLog("NUSA 서버", "Cloud snapshot이 stale 상태로 전환됨", "주의");
+      renderConnection(); renderOrderSummary(); renderControl(state.control);
+    }
+  }, 2_000);
+  global.addEventListener("beforeunload", () => { global.clearInterval(connectionWatchdog); unsubscribers.forEach((unsubscribe) => { try { unsubscribe?.(); } catch { /* best effort */ } }); cleanup.forEach((dispose) => { try { dispose(); } catch { /* best effort */ } }); });
   global.NUSACanonicalUI = Object.freeze({ showPage, state });
 })(window);

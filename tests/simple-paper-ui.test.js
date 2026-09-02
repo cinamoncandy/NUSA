@@ -30,7 +30,9 @@ test("retired simple presentation assets are not active", () => {
 });
 
 test("canonical order runtime is fail-closed and explicitly confirmed", () => {
-  assert.match(runtime, /state\.connection !== "connected"/);
+  assert.match(runtime, /const \[connectionTone\] = overallConnection\(\)/);
+  assert.match(runtime, /connectionTone !== "connected"/);
+  assert.match(runtime, /NUSA 서버와 시장 데이터가 모두 연결되어야 주문할 수 있습니다/);
   assert.match(runtime, /!finite\(state\.lastPrice\)/);
   assert.match(runtime, /!finite\(quantity\) \|\| quantity <= 0/);
   assert.match(runtime, /state\.orderSubmitting/);
