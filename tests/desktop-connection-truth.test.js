@@ -33,6 +33,12 @@ test("server disconnect detection is bounded and recovers on later snapshots", (
   assert.match(source, /global\.clearInterval/);
 });
 
+test("Paper action and final mutation gates require combined server and market connection", () => {
+  assert.match(source, /const \[connectionTone\] = overallConnection\(\)/);
+  assert.match(source, /button\.disabled = !\(connectionTone === "connected"/);
+  assert.match(source, /if \(connectionTone !== "connected" \|\| !state\.pendingOrder/);
+});
+
 test("connection truth remains observational and does not add REAL authority", () => {
   assert.doesNotMatch(source, /liveAuthority\s*=\s*["'](?!NONE)/);
   assert.doesNotMatch(source, /productionMutationAllowed\s*=\s*true/);
