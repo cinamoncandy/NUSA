@@ -28,6 +28,12 @@ test("deployment is Worker-only and has no paid Cloudflare Containers rollout", 
   assert.doesNotMatch(workflow, /containers list/);
 });
 
+test("containerless deployment retires the previously provisioned Sandbox Durable Object", () => {
+  const config = fs.readFileSync(path.join(__dirname, "..", "apps", "autopilot", "wrangler.jsonc"), "utf8");
+  assert.match(config, /"Sandbox":\s*\{[\s\S]*"type":\s*"durable-object"[\s\S]*"state":\s*"deleted"/);
+  assert.doesNotMatch(config, /"name":\s*"Sandbox"|"class_name":\s*"Sandbox"/);
+});
+
 test("deployment authenticates read-only before attempting Cloudflare mutation", () => {
   const preflightIndex = workflow.indexOf("Verify Cloudflare deployment credentials and account access");
   const deployIndex = workflow.indexOf("Deploy exact CI-verified revision to Cloudflare Workers Free-compatible runtime");
