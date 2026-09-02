@@ -7,6 +7,8 @@
     "androidInstitutionalTheme": "apps/mobile/src/androidInstitutionalTheme.ts",
     "platformGate": "apps/mobile/src/ThemeProvider.tsx",
     "homeDensity": "apps/mobile/src/homeVisualProfile.ts",
+    "marketsGeometry": "apps/mobile/src/marketsView.tsx",
+    "paperGeometry": "apps/mobile/src/tradingView.tsx",
     "nativeColors": "apps/mobile/android/app/src/main/res/values/colors.xml",
     "nativeTheme": "apps/mobile/android/app/src/main/res/values/styles.xml",
     "designContract": "docs/NUSA_ANDROID_INSTITUTIONAL_COCKPIT.md",
@@ -20,7 +22,8 @@
     "danger": "#FF718A",
     "touchTargetMinimumDp": 48,
     "androidOnly": true,
-    "iosChanged": false
+    "iosChanged": false,
+    "desktopChanged": false
   },
   "truthBoundaries": {
     "paperOnly": true,
@@ -30,7 +33,14 @@
     "fabricatedFinancialTruth": false,
     "runtimeSemanticsChanged": false,
     "credentialSemanticsChanged": false,
-    "riskPolicyChanged": false
+    "riskPolicyChanged": false,
+    "marketDataSemanticsChanged": false,
+    "paperExecutionSemanticsChanged": false
+  },
+  "implementationStatus": {
+    "codeComplete": true,
+    "localValidationComplete": false,
+    "prCreated": false
   },
   "validation": {
     "status": "DEFERRED_OWNER_LOCAL",
