@@ -112,6 +112,16 @@ function ai(responseBody: unknown) {
   };
 }
 
+function aiSequence(responses: readonly unknown[]) {
+  const queue = [...responses];
+  return {
+    async run() {
+      if (queue.length === 0) throw new Error("unexpected extra AI.run call");
+      return queue.shift();
+    },
+  };
+}
+
 function passingModel() {
   return ai({ response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS" }) });
 }
@@ -302,6 +312,46 @@ test("returns exact-head PASS_WITH_NOTES evidence but does not auto-authorize me
   assert.equal(result.liveAuthority, "NONE");
   assert.equal(result.productionMutationAllowed, false);
   assert.equal(result.aiAuthority, "ZERO_AUTHORITY");
+});
+
+test("retries a malformed model response before failing, and returns the eventual valid verdict", async () => {
+  const passing = JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS" });
+  const model = aiSequence([{ response: "not json at all" }, { response: "{}" }, { response: passing }]);
+  const result = await executeIndependentAudit(request, auditEnv(model), fetchSequence() as never, () => 1234);
+  assert.equal(result.verdict, "PASS");
+  assert.equal(result.mergeAllowed, true);
+});
+
+test("does not retry AI provider or transport failures", async () => {
+  let calls = 0;
+  const model = {
+    async run() {
+      calls += 1;
+      throw new Error("AUDIT_AI_PROVIDER_UNAVAILABLE");
+    },
+  };
+  await assert.rejects(
+    executeIndependentAudit(request, auditEnv(model), fetchSequence() as never),
+    /AUDIT_AI_PROVIDER_UNAVAILABLE/,
+  );
+  assert.equal(calls, 1);
+});
+
+test("fails closed after exhausting retries when the model response stays malformed every time (never fabricates a verdict)", async () => {
+  const model = aiSequence([{ response: "not json" }, { response: "{}" }, { response: "still not json" }]);
+  await assert.rejects(
+    executeIndependentAudit(request, auditEnv(model), fetchSequence() as never),
+    /AUDIT_VERDICT_INVALID|AUDIT_VERDICT_JSON_INVALID/,
+  );
+});
+
+test("does not retry beyond the bounded attempt limit even if given more valid-eventually responses", async () => {
+  const passing = JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS" });
+  // 4 malformed responses queued; only 3 attempts are made, so this must still fail closed rather
+  // than retry indefinitely -- an unbounded retry loop is exactly the "duplicate control-plane
+  // waiting forever" failure mode this bound exists to prevent.
+  const model = aiSequence([{ response: "bad-1" }, { response: "bad-2" }, { response: "bad-3" }, { response: passing }]);
+  await assert.rejects(executeIndependentAudit(request, auditEnv(model), fetchSequence() as never));
 });
 
 test("fails closed when no independent AI audit engine is configured", async () => {
