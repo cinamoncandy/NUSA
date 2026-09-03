@@ -4,18 +4,19 @@ import fs from "node:fs";
 const themeProvider = fs.readFileSync("apps/mobile/src/ThemeProvider.tsx", "utf8");
 const androidTheme = fs.readFileSync("apps/mobile/src/androidInstitutionalTheme.ts", "utf8");
 const homeRouter = fs.readFileSync("apps/mobile/src/homeView.tsx", "utf8");
-const androidHome = fs.readFileSync("apps/mobile/src/androidEHomeView.tsx", "utf8");
+const androidHome = fs.readFileSync("apps/mobile/src/androidAHomeView.tsx", "utf8");
 const aiRouter = fs.readFileSync("apps/mobile/src/aiView.tsx", "utf8");
 const androidAi = fs.readFileSync("apps/mobile/src/androidNusaDecisionView.tsx", "utf8");
 const markets = fs.readFileSync("apps/mobile/src/marketsView.tsx", "utf8");
 const nativeTheme = fs.readFileSync("apps/mobile/android/app/src/main/res/values/styles.xml", "utf8");
 const nativeColors = fs.readFileSync("apps/mobile/android/app/src/main/res/values/colors.xml", "utf8");
 
-describe("Android temporary concept E", () => {
-  it("routes concept E only on Android while preserving legacy iOS surfaces", () => {
+describe("Android design concept A", () => {
+  it("routes concept A only on Android while preserving legacy iOS surfaces", () => {
     expect(themeProvider).toContain('Platform.OS === "android" ? applyAndroidInstitutionalTheme(base) : base');
     expect(homeRouter).toContain('Platform.OS === "android"');
-    expect(homeRouter).toContain("AndroidEHomeView");
+    expect(homeRouter).toContain("AndroidAHomeView");
+    expect(homeRouter).not.toContain("AndroidEHomeView");
     expect(homeRouter).not.toContain("AndroidNowView");
     expect(aiRouter).toContain('Platform.OS === "android"');
     expect(aiRouter).toContain("AndroidNusaDecisionView");
@@ -23,14 +24,15 @@ describe("Android temporary concept E", () => {
     expect(aiRouter).toContain("LegacyAiView");
   });
 
-  it("implements E as a calm supervisory canvas rather than a card wall", () => {
+  it("implements A as the calm supervisory canvas", () => {
     expect(androidHome).toContain("AI SUPERVISORY OS");
     expect(androidHome).toContain("MARKETS ARE BEING MONITORED");
     expect(androidHome).toContain("OPERATING HEALTH");
     expect(androidHome).toContain("NUSA INSIGHT");
     expect(androidHome).toContain("근거와 분석");
     expect(androidHome).toContain("판단이 바뀌는 조건");
-    expect(androidHome).toContain("TEMP E");
+    expect(androidHome).toContain("ANDROID · A");
+    expect(androidHome).not.toContain("TEMP E");
     expect(androidTheme).toContain('background: dark ? "#07101D"');
     expect(androidTheme).toContain('primary: dark ? "#65E0C2"');
     expect(androidTheme).toContain('neonPurple: dark ? "#8F9CFF"');
