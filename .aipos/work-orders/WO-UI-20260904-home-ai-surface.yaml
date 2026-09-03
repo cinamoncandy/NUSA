@@ -22,6 +22,7 @@ scope:
   - "Convert WHY / RESULT / RISK / LEARNING from the old stacked supervisor box into an evidence rail."
   - "Use a HOME-scoped acid-lime signal accent and restrained magenta fail-closed accent without changing global theme semantics."
   - "Preserve existing market, candle, PAPER account, AI evidence, portfolio, navigation and diagnostics sources."
+  - "Add focused source-level regression coverage that prevents return to the prior SUPERVISOR / EVIDENCE FIRST stacked surface."
 excluded:
   - "new market, news, orderbook, broker, risk or AI data sources"
   - "desktop or iOS-specific redesign"
@@ -42,18 +43,23 @@ validation:
   machine_validation_run: false
   blocker: "Assistant runtime is Node v22.16.0, pnpm is unavailable, and github.com DNS is unavailable; repository requires Node >=24 and pnpm >=11.7."
   static_review:
-    branch_ahead_by: 1
-    branch_behind_by: 0
     changed_product_files:
       - apps/mobile/src/homeView.tsx
+    added_regression_tests:
+      - tests/mobile-home-ai-surface.test.js
+    canonical_master_shell_contract_reviewed: true
+    canonical_hotswap_contract_reviewed: true
     canonical_test_ids_preserved: true
     canonical_public_market_projection_preserved: true
     canonical_candle_projection_preserved: true
     paper_real_provenance_separation_preserved: true
+    visible_old_supervisor_copy_removed: true
+    machine_pass_claimed: false
   required_before_pr:
     - "pnpm run preflight"
     - "pnpm run typecheck"
     - "pnpm run lint:mobile"
+    - "node --test tests/mobile-home-ai-surface.test.js"
     - "node --test tests/mobile-ui-hotswap-contract.test.js"
     - "node --test tests/mobile-home-master-shell.test.js"
     - "node --test tests/mobile-home-public-market-fallback.test.js"
