@@ -25,11 +25,17 @@ jobs:
     name: Resolve stable promotion candidate
     if: >-
       ${{
-        github.event_name != 'workflow_run' ||
         (
-          github.event.workflow_run.conclusion == 'success' &&
-          github.event.workflow_run.head_branch == 'main' &&
-          github.event.workflow_run.head_repository.full_name == github.repository
+          github.event_name != 'workflow_dispatch' ||
+          github.ref == 'refs/heads/main'
+        ) &&
+        (
+          github.event_name != 'workflow_run' ||
+          (
+            github.event.workflow_run.conclusion == 'success' &&
+            github.event.workflow_run.head_branch == 'main' &&
+            github.event.workflow_run.head_repository.full_name == github.repository
+          )
         )
       }}
     runs-on: ubuntu-latest
@@ -75,9 +81,16 @@ jobs:
             echo "Skipping stale CI result $SOURCE_SHA; current main is $CURRENT_MAIN."
             exit 0
           fi
+          if [ "$SOURCE_SHA" != "$CURRENT_MAIN" ]; then
+            echo "::error::Refusing stale manual Android release source $SOURCE_SHA; current main is $CURRENT_MAIN."
+            exit 1
+          fi
 
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            CI_CONCLUSION="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SOURCE_SHA&status=completed&per_page=100" --jq '[.workflow_runs[] | select(.name == "CI")][0].conclusion // empty')"
+            CI_CONCLUSION="$(
+              gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$SOURCE_SHA&status=completed&per_page=100" \
+                --jq '[.workflow_runs[] | select(.path == ".github/workflows/ci.yml" and .head_sha == "'"$SOURCE_SHA"'")][0].conclusion // empty'
+            )"
             if [ "$CI_CONCLUSION" != "success" ]; then
               echo "::error::Exact source $SOURCE_SHA does not have a successful CI run."
               exit 1
@@ -242,6 +255,19 @@ jobs:
           echo "sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
           echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
           echo "version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Verify source is still current main before build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ needs.resolve.outputs.sha }}
+        run: |
+          set -euo pipefail
+          CURRENT_MAIN="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          if [ "$CURRENT_MAIN" != "$EXPECTED_SHA" ]; then
+            echo "::error::Refusing to build stale Android release source. Requested $EXPECTED_SHA but current main is $CURRENT_MAIN."
+            exit 1
+          fi
+          echo "Verified build source is current main: $EXPECTED_SHA"
 
       - name: Enable pnpm via Corepack
         run: |
@@ -448,6 +474,57 @@ jobs:
           else
             gh release create nusa-android NUSA-Android.apk NUSA-Android.apk.sha256 NUSA-Android.provenance.txt NUSA-Android.firebase-success.txt --target "$TARGET_SHA" --title "NUSA Android 1.0.${RELEASE_VERSION}" --notes "$NOTES"
           fi
+
+      - name: Verify stable GitHub asset download integrity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA256_FILE: NUSA-Android.apk.sha256
+        run: |
+          set -euo pipefail
+          asset_metadata="$(mktemp)"
+          headers_file="$(mktemp)"
+          downloaded_apk="$(mktemp --suffix=.apk)"
+          trap 'rm -f "$asset_metadata" "$headers_file" "$downloaded_apk"' EXIT
+
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/nusa-android" > "$asset_metadata"
+          ASSET_METADATA="$asset_metadata" node - <<'NODE'
+          const fs = require('fs');
+          const payload = JSON.parse(fs.readFileSync(process.env.ASSET_METADATA, 'utf8'));
+          const matches = (payload.assets || []).filter((asset) => asset?.name === 'NUSA-Android.apk');
+          if (matches.length !== 1 || typeof matches[0].browser_download_url !== 'string') {
+            throw new Error('Stable GitHub release must contain exactly one downloadable NUSA-Android.apk asset.');
+          }
+          const expectedUrl = `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/nusa-android/NUSA-Android.apk`;
+          if (matches[0].browser_download_url !== expectedUrl) {
+            throw new Error('Stable Android asset URL is outside the canonical GitHub release path.');
+          }
+          NODE
+
+          asset_url="$(ASSET_METADATA="$asset_metadata" node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync(process.env.ASSET_METADATA,'utf8')); const a=(p.assets||[]).find(x=>x?.name==='NUSA-Android.apk'); process.stdout.write(a.browser_download_url)")"
+          curl -fsSL --retry 3 --retry-delay 2 --retry-all-errors --max-time 120 \
+            -D "$headers_file" -o "$downloaded_apk" "$asset_url"
+
+          test -s "$downloaded_apk"
+          content_type="$(awk 'BEGIN { IGNORECASE=1 } /^Content-Type:/ { gsub("\r", ""); value=$0; sub(/^[^:]*:[[:space:]]*/, "", value) } END { print value }' "$headers_file")"
+          if [[ "$content_type" == text/html* || "$content_type" == application/xhtml* ]]; then
+            echo '::error::Stable GitHub asset download returned HTML instead of an APK.'
+            exit 1
+          fi
+          content_length="$(awk 'BEGIN { IGNORECASE=1 } /^Content-Length:/ { gsub("\r", ""); value=$2 } END { print value }' "$headers_file")"
+          downloaded_size="$(wc -c < "$downloaded_apk" | tr -d '[:space:]')"
+          if [[ -n "$content_length" && "$content_length" != "$downloaded_size" ]]; then
+            echo "::error::Stable GitHub asset Content-Length mismatch: header=$content_length downloaded=$downloaded_size."
+            exit 1
+          fi
+          apk_magic="$(od -An -tx1 -N2 "$downloaded_apk" | tr -d '[:space:]')"
+          test "$apk_magic" = '504b' || { echo '::error::Stable GitHub asset is not a ZIP/APK.'; exit 1; }
+          declared_sha="$(awk 'NR == 1 { print tolower($1) }' "$EXPECTED_SHA256_FILE")"
+          downloaded_sha="$(sha256sum "$downloaded_apk" | awk '{ print tolower($1) }')"
+          test "$declared_sha" = "$downloaded_sha" || {
+            echo "::error::Stable GitHub asset SHA-256 mismatch: declared=$declared_sha downloaded=$downloaded_sha."
+            exit 1
+          }
+          echo "Stable GitHub asset download integrity PASS: ${downloaded_size} bytes, sha256=${downloaded_sha}."
 
       - name: Publish stable deployment receipt
         if: always()
