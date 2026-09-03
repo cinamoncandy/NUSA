@@ -39,6 +39,8 @@ describe("Android D device-QA release candidate", () => {
     expect(androidHome).toContain("PAPER ONLY");
     expect(androidHome).toContain("LIVE NONE");
     expect(androidHome).toContain("AI ZERO AUTHORITY");
+    expect(androidHome).toContain('label: "NUSA 판단"');
+    expect(androidHome).not.toContain('label: "새 판단"');
     expect(androidHome).toContain("canonical AI projection에 전용 invalidation 필드가 없어 조건을 임의 생성하지 않습니다");
     expect(androidAi).toContain("AI AUTHORITY");
     expect(androidAi).toContain('value="ZERO"');
