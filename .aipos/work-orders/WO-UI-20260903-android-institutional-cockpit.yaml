@@ -1,27 +1,26 @@
 id: WO-UI-20260903-ANDROID-INSTITUTIONAL-COCKPIT
-title: "Android Editorial Investment OS"
+title: "Android NUSA Supervisory OS"
 status: IN_PROGRESS
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: a07a8e10c8a2f011d3e79ca6b0e3eedf64ff6942
 implementation_branch: ux/android-institutional-cockpit-20260903
 authority_impact: none
-objective: "Apply the owner-approved mobile reference direction to Android as a luxury editorial investment-intelligence OS, with asset state and NUSA decision surfaces replacing generic exchange-dashboard presentation while preserving all authority and financial truth boundaries."
+objective: "Iterate Android-only NUSA supervisory investment-intelligence UX with temporary concept C as the sole active visual reference while preserving all authority and financial-truth boundaries."
 provenance:
   predecessor_scope: WO-0063.mobile-master-ux-wave1
   relationship: PRESENTATION_ONLY_FOLLOW_UP
   desktop_scope_included: false
   ios_scope_included: false
-  reference_direction: LUXURY_EDITORIAL_INVESTMENT_OS
+  active_reference: TEMPORARY_CONCEPT_C
 scope:
-  - "Route Android Home to a dedicated Asset State / Operating Overview reference surface."
-  - "Route Android AI to a dedicated NUSA Decision Stage with evidence-first presentation."
-  - "Preserve the previous shared Home and AI screens as legacy implementations for non-Android platforms."
-  - "Use near-black space, warm ivory typography, restrained teal and amber, low-radius panels, minimal glow, and serif NUSA editorial branding."
-  - "Expose only canonical PAPER asset, PnL, AI evidence, confidence calibration, research and authority truth."
-  - "Explicitly mark unavailable risk score, invalidation and performance-history data instead of fabricating reference-screen values."
-  - "Retain Android system-bar, Markets and PAPER presentation alignment from the prior institutional wave."
+  - "Route Android Home to the state-driven NOW surface."
+  - "Route Android NUSA/AI to the evidence-first Decision Workspace."
+  - "Keep iOS on the existing shared legacy implementation."
+  - "Use compact System Truth Rail, prioritized NOW condition, evidence/counter-evidence, compact asset/exposure state, real constraints, next actions, and prioritized alerts."
+  - "Expose only canonical PAPER asset, PnL, AI evidence, calibrated confidence, research and authority truth."
+  - "Do not fabricate risk score, invalidation, performance history, freshness, execution, or authority values."
+  - "Keep previous temporary concepts A and B out of the current tree/reference contract."
 excluded:
   - "desktop renderer changes"
   - "iOS redesign"
@@ -38,12 +37,12 @@ safety:
   ai_authority: ZERO_AUTHORITY
 architecture_impact:
   acknowledged: true
-  analysis: "Presentation only. Platform routers select dedicated Android reference surfaces while retaining the prior shared implementations for iOS. Existing runtime, domain models, PAPER execution, credentials, risk and authority state remain authoritative and unchanged."
+  analysis: "Presentation only. Android platform routers select concept C surfaces while iOS keeps legacy surfaces. Existing runtime, domain models, PAPER execution, credentials, risk and authority state remain authoritative and unchanged."
   references:
     - AGENTS.md
     - .aipos/architecture.md
     - .aipos/work-orders/WO-0063-mobile-master-ux-wave1.yaml
-    - docs/NUSA_ANDROID_INSTITUTIONAL_COCKPIT.md
+    - docs/NUSA_ANDROID_HUMAN_FACTORS_UX_RESEARCH.md
 validation:
   status: DEFERRED_OWNER_LOCAL
   pass_claimed: false
