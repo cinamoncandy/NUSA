@@ -94,16 +94,12 @@ jobs:
         run: pnpm run aipos:drift
       - name: AIPOS verified-state evidence integrity
         run: node scripts/validate-aipos-evidence.js
-      - name: AIPOS evidence integrity regression tests
-        run: node --test --test-reporter=spec tests/aipos-evidence-integrity.test.js
+      - name: AIPOS regression tests
+        run: node --test --test-reporter=spec tests/aipos-evidence-integrity.test.js tests/aipos-work-order-provenance.test.js tests/aipos-cross-ai-conformance.test.js
       - name: AIPOS work-order provenance reconciliation
         run: pnpm run aipos:provenance
-      - name: AIPOS work-order provenance regression tests
-        run: node --test --test-reporter=spec tests/aipos-work-order-provenance.test.js
       - name: AIPOS cross-AI handoff conformance
         run: pnpm run aipos:conformance
-      - name: AIPOS cross-AI conformance regression tests
-        run: node --test --test-reporter=spec tests/aipos-cross-ai-conformance.test.js
       - name: Capability contract registry validation
         run: pnpm run capability:check
       - name: Capability contract registry regression tests
@@ -130,10 +126,8 @@ jobs:
         run: node --test --test-reporter=spec tests/shadow-governance.test.js
       - name: Restricted LIVE governance validation
         run: pnpm run restricted-live:check
-      - name: Restricted LIVE governance regression tests
-        run: node --test --test-reporter=spec tests/restricted-live-governance.test.js
-      - name: Restricted LIVE operational readiness regressions
-        run: node --test --test-reporter=spec tests/restricted-live-operational-readiness.test.js
+      - name: Restricted LIVE regression tests
+        run: node --test --test-reporter=spec tests/restricted-live-governance.test.js tests/restricted-live-operational-readiness.test.js
       - name: Restricted LIVE operational readiness verification
         run: pnpm run restricted-live:readiness -- --output artifacts/operational-evidence/restricted-live-readiness.json
       - name: Upload Restricted LIVE readiness evidence
