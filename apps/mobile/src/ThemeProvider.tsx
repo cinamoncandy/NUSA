@@ -64,7 +64,7 @@ export function ThemeProvider({ children, initialMode = "dark", initialPreset = 
     return Platform.OS === "android" ? applyAndroidInstitutionalTheme(base) : base;
   }, [mode, preset]);
   const value = useMemo(() => Object.freeze({ mode, preference, preset, theme, setMode: setPreference, setPreset }), [mode, preference, preset, theme, setPreset]);
-  return <ThemeContext.Provider value={value}>{Platform.OS === "android" ? <StatusBar animated barStyle={mode === "dark" ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} /> : null}{children}</ThemeContext.Provider>;
+  return <ThemeContext.Provider value={value}>{Platform.OS === "android" ? <StatusBar animated barStyle={theme.mode === "dark" ? "light-content" : "dark-content"} backgroundColor={theme.colors.background} /> : null}{children}</ThemeContext.Provider>;
 }
 
 export function useTheme(): ThemeContextValue {
