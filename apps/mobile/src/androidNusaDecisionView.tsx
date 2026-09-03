@@ -1,5 +1,5 @@
 import React from "react";
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useTheme } from "./ThemeProvider";
 import { AiView as LegacyAiView } from "./aiViewLegacy";
 
@@ -17,6 +17,8 @@ function AuthorityRow({ label, value, positive = false }: Readonly<{ label: stri
 
 export function AndroidNusaDecisionView(props: Props) {
   const { theme } = useTheme();
+  const { width, fontScale } = useWindowDimensions();
+  const stacked = width < 430 || fontScale >= 1.35;
   const ai = props.ai;
   const trustedConfidence = ai?.calibrationStatus === "CALIBRATED" && ai.confidence != null && Number.isFinite(ai.confidence)
     ? `${Math.round(ai.confidence * 100)}%`
@@ -35,14 +37,14 @@ export function AndroidNusaDecisionView(props: Props) {
     <View style={styles.brandBlock}>
       <Text style={[styles.wordmark, { color: theme.colors.text }]}>NUSA</Text>
       <Text style={[styles.productLine, { color: theme.colors.textMuted }]}>AI INVESTMENT OS</Text>
-      <View style={styles.titleRow}><View><Text style={[styles.pageTitle, { color: theme.colors.text }]}>NUSA 판단</Text><Caption>DECISION WORKSPACE</Caption></View><Text style={[styles.readOnly, { color: theme.colors.primary }]}>READ ONLY</Text></View>
+      <View style={[styles.titleRow, stacked && styles.titleRowStacked]}><View><Text style={[styles.pageTitle, { color: theme.colors.text }]}>NUSA 판단</Text><Caption>DECISION WORKSPACE</Caption></View><Text style={[styles.readOnly, { color: theme.colors.primary }]}>READ ONLY</Text></View>
     </View>
 
     <View style={[styles.hero, { borderColor: theme.colors.borderStrong, backgroundColor: theme.colors.surface }]} testID="android-ai-decision-stage">
-      <View style={styles.heroHeader}><View><Caption accent>NUSA AI DECISION</Caption><Text style={[styles.heroState, { color: available ? theme.colors.primary : theme.colors.textMuted }]}>{available ? "VERIFIED" : "WAITING"}</Text></View><Text style={[styles.updated, { color: theme.colors.textMuted }]}>{lastRun}</Text></View>
+      <View style={[styles.heroHeader, stacked && styles.heroHeaderStacked]}><View><Caption accent>NUSA AI DECISION</Caption><Text style={[styles.heroState, { color: available ? theme.colors.primary : theme.colors.textMuted }]}>{ai?.status ?? "UNAVAILABLE"}</Text></View><Text style={[styles.updated, { color: theme.colors.textMuted }]}>{lastRun}</Text></View>
       <Text style={[styles.thesis, { color: theme.colors.text }]}>{available && ai?.thesis ? ai.thesis : "검증된 판단을 기다리고 있습니다."}</Text>
-      <View style={styles.heroBody}>
-        <View accessible accessibilityLabel={`검증 신뢰도 ${trustedConfidence}`} style={[styles.confidenceBlock, { borderColor: ai?.calibrationStatus === "CALIBRATED" ? theme.colors.primary : theme.colors.borderStrong }]}>
+      <View style={[styles.heroBody, stacked && styles.heroBodyStacked]}>
+        <View accessible accessibilityLabel={`검증 신뢰도 ${trustedConfidence}`} style={[styles.confidenceBlock, stacked && styles.confidenceBlockStacked, { borderColor: ai?.calibrationStatus === "CALIBRATED" ? theme.colors.primary : theme.colors.borderStrong }]}>
           <Text style={[styles.confidenceLabel, { color: theme.colors.textMuted }]}>CALIBRATED CONFIDENCE</Text>
           <Text style={[styles.confidenceValue, { color: theme.colors.text }]}>{trustedConfidence}</Text>
           <Text style={[styles.calibration, { color: theme.colors.textMuted }]}>{ai?.calibrationStatus ?? "UNVERIFIED"}</Text>
@@ -105,16 +107,20 @@ const styles = StyleSheet.create({
   wordmark: { fontFamily: "serif", fontSize: 34, lineHeight: 40, fontWeight: "400", letterSpacing: 4.2 },
   productLine: { fontSize: 9, lineHeight: 13, fontWeight: "700", letterSpacing: 1.8 },
   titleRow: { marginTop: 16, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 12 },
+  titleRowStacked: { flexDirection: "column", alignItems: "flex-start" },
   pageTitle: { fontSize: 18, lineHeight: 24, fontWeight: "600", letterSpacing: -0.2 },
   readOnly: { fontSize: 8, lineHeight: 12, fontWeight: "700", letterSpacing: 1.2 },
   caption: { fontSize: 8, lineHeight: 12, fontWeight: "600", letterSpacing: 1.1 },
   hero: { borderWidth: 1, borderRadius: 12, padding: 16, gap: 18 },
   heroHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
+  heroHeaderStacked: { flexDirection: "column", alignItems: "flex-start" },
   heroState: { marginTop: 4, fontSize: 12, lineHeight: 17, fontWeight: "700", letterSpacing: 0.9 },
   updated: { fontSize: 8, lineHeight: 12, fontVariant: ["tabular-nums"] },
   thesis: { fontSize: 28, lineHeight: 38, fontWeight: "600", letterSpacing: -0.7 },
   heroBody: { flexDirection: "row", alignItems: "stretch", gap: 12 },
+  heroBodyStacked: { flexDirection: "column" },
   confidenceBlock: { width: 132, minHeight: 116, borderRadius: 10, borderWidth: 1, padding: 12, justifyContent: "center" },
+  confidenceBlockStacked: { width: "100%", minHeight: 96 },
   confidenceLabel: { fontSize: 7, lineHeight: 10, letterSpacing: 0.9 },
   confidenceValue: { marginTop: 6, fontSize: 30, lineHeight: 35, fontWeight: "400", fontVariant: ["tabular-nums"] },
   calibration: { marginTop: 4, fontSize: 7, lineHeight: 10, letterSpacing: 0.6 },
