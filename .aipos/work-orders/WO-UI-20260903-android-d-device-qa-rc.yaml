@@ -1,6 +1,6 @@
 id: WO-UI-20260903-ANDROID-D-DEVICE-QA-RC
 title: "Android D Device-QA Release Candidate"
-status: IN_PROGRESS
+status: SUPERSEDED
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -8,7 +8,7 @@ base_commit: 83093d0e8f8b44f76c8eddd444fe146bd9336d3e
 implementation_branch: ux/android-d-release-candidate-20260903
 latest_main_sync_commit: c2c70c63846217a002e653e5b0aee6676928aebc
 authority_impact: none
-objective: "Stage the owner-selected bright Concept D Android supervisory UI on the latest protected main line, preserve current canonical market-data safety behavior and prepare a truthful physical-device/release candidate without changing execution authority."
+objective: "Historical temporary bright Concept D Android supervisory UI. Superseded before validation/PR/merge because current protected main already contains the approved HOME MASTER product direction and D would override/regress that canonical visual surface."
 provenance:
   reconciliation: NON_DESTRUCTIVE
   relationship: PRESENTATION_ONLY_FOLLOW_UP
@@ -29,15 +29,18 @@ provenance:
     merged: false
     ci_results_accepted_as_validation: false
     note: "Opened accidentally before required machine validation and closed immediately. It must not be reopened or used as validation evidence."
+supersession:
+  decision: DO_NOT_VALIDATE_DO_NOT_PR_DO_NOT_MERGE_DO_NOT_RELEASE
+  reason: "Protected main already contains merged HOME MASTER (#767, merge 054ef5612e8c4f2f57787ad36d552b83b8f63bcd) and subsequent canonical HOME decision-surface work. Concept D is a bright/card-based temporary branch that would override the current approved terminal-family direction on Android."
+  canonical_visual_issues:
+    - 594
+    - 536
+  canonical_home_master_pr: 767
+  canonical_home_master_merge: 054ef5612e8c4f2f57787ad36d552b83b8f63bcd
+  branch_preserved_for_history: true
 scope:
-  - "Android only: render AndroidDHomeView for Home and AndroidNusaDecisionView for NUSA judgment."
-  - "Preserve current main Home and AI implementations for non-Android clients."
-  - "Preserve latest main public-market feed precedence and forward publicMarkets into Home surfaces."
-  - "Use Android primary navigation NOW / MARKET / NUSA / ASSETS / CONTROL; keep PAPER trading contextual through the Markets flow."
-  - "Apply bright pearl visual tokens and matching native Android system chrome."
-  - "Keep compact-window and large-font stacked layout behavior and at least 48dp primary interaction targets."
-  - "Expose only canonical PAPER portfolio, market, AI evidence, calibration and authority truth."
-  - "Render canonical AI status without upgrading AVAILABLE to VERIFIED or implying unsupported recency."
+  - "Historical Android-only Concept D presentation/navigation experiment."
+  - "No further implementation, validation, PR, merge, or release work is authorized on this branch."
 excluded:
   - "desktop presentation or runtime changes"
   - "iOS redesign or navigation changes"
@@ -54,7 +57,7 @@ safety:
   ai_authority: ZERO_AUTHORITY
 architecture_impact:
   acknowledged: true
-  analysis: "Presentation/navigation only. The existing NUSA runtime, canonical Home market-source selector, PAPER execution boundaries, credentials, risk and authority remain authoritative and unchanged. Android rendering is selected at the App shell while non-Android canonical surfaces remain intact. The protected-main delta since the prior recorded review was inspected and has no Android D implementation overlap."
+  analysis: "Historical presentation/navigation branch only. It is explicitly superseded and must not replace the canonical HOME MASTER / current-main mobile product direction."
   references:
     - AGENTS.md
     - .aipos/architecture.md
@@ -63,18 +66,18 @@ static_audit:
   completed: true
   pass_claimed: false
   fixed_findings:
-    - "AI AVAILABLE was incorrectly presented as VERIFIED; canonical status is now rendered directly."
-    - "NUSA decision hero lacked compact/large-font stacking; it now stacks below 430dp-like window width or when fontScale >= 1.35."
-    - "AI AVAILABLE was labeled 새 판단 without canonical recency evidence; it now uses neutral NUSA 판단."
+    - "AI AVAILABLE was incorrectly presented as VERIFIED; canonical status was rendered directly."
+    - "NUSA decision hero lacked compact/large-font stacking; stacking was added below 430dp-like width or fontScale >= 1.35."
+    - "AI AVAILABLE was labeled 새 판단 without canonical recency evidence; wording was neutralized."
   remaining_known_repository_p1: 0
-  note: "Static inspection is not machine validation and does not authorize PR, merge, or release."
+  note: "These historical fixes do not make Concept D a release candidate because the visual direction itself is superseded."
 validation:
-  status: BLOCKED_ASSISTANT_LOCAL_ENVIRONMENT
+  status: NOT_APPLICABLE_SUPERSEDED
   pass_claimed: false
   machine_validation_run: false
   remote_ci_used_as_debugger: false
   accidental_remote_ci_must_be_ignored: true
-  blocker: "Assistant container cannot resolve github.com and therefore cannot materialize the repository/dependency tree required for Node24/pnpm/Gradle validation. Observed local runtime is Node v22.16.0 while the repository requires Node >=24 and pnpm >=11.7. Current exact-main CI/release success verifies main delivery infrastructure, not this unmerged RC branch."
+  blocker: "Validation intentionally stopped: testing a superseded visual branch would not advance the canonical product and could create pressure to merge a known visual regression."
   main_delivery_observation:
     exact_main: 13266b7e269d74cfe4daaafb9583b62242d97ddb
     exact_main_ci_run: 33763241936
@@ -91,27 +94,10 @@ validation:
     stable_release_target: 13266b7e269d74cfe4daaafb9583b62242d97ddb
     firebase_distribution: SUCCESS
     branch_validation_credit: NONE
-  required_before_pr:
-    - "pnpm run preflight"
-    - "pnpm run typecheck"
-    - "pnpm run lint:mobile"
-    - "pnpm exec vitest run tests/android-d-device-qa-rc.vitest.js"
-    - "node --test tests/mobile-home-public-market-fallback.test.js"
-    - "pnpm run validate"
-    - "repository-required Android/mobile build checks"
-    - "git diff --check"
-  human_environment_only:
-    - "physical Galaxy install and launch from exact candidate build"
-    - "default font portrait visual and scroll acceptance"
-    - "200 percent font scaling with all actions reachable"
-    - "TalkBack focus order and labels"
-    - "landscape/window resize and inset/cutout behavior"
-    - "status/navigation bar contrast"
-    - "NOW / MARKET / NUSA / ASSETS / CONTROL reachability and selected state"
-    - "PAPER ONLY / LIVE NONE / AI ZERO AUTHORITY visual truth review"
 release_policy:
   stable_release_requires_exact_main: true
   pr_before_local_validation: prohibited
   stable_release_before_pr_merge_and_exact_main_ci: prohibited
   closed_pr_1564_is_dead: true
-completion_rule: "Do not claim RC PASS, open a replacement RC PR, merge the RC to main, or release the RC until branch-specific machine validation is actually run successfully. Physical Galaxy acceptance remains HUMAN_ENVIRONMENT_ONLY."
+  concept_d_release_prohibited: true
+completion_rule: "Concept D is superseded. Preserve history only; do not validate, reopen/create PR, merge, or release this branch. Continue canonical Android visual work under current main / issues #594 and #536, with exact-APK Galaxy visual acceptance before Design PASS."
