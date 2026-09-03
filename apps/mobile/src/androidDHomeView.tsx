@@ -123,7 +123,7 @@ export function AndroidDHomeView(props: Props) {
       }
       : ai?.status === "AVAILABLE"
         ? {
-          label: "새 판단",
+          label: "NUSA 판단",
           title: ai.thesis || "검토할 판단이 있습니다.",
           detail: "근거와 반대 근거를 확인한 뒤 사용자가 결정합니다.",
           tone: "normal",
@@ -301,7 +301,7 @@ const styles = StyleSheet.create({
   judgment: { minHeight: 260, borderWidth: 1, borderRadius: 30, padding: 20, gap: 14, overflow: "hidden", shadowColor: "#6157D9", shadowOpacity: 0.07, shadowRadius: 20, shadowOffset: { width: 0, height: 7 }, elevation: 2 },
   judgmentArt: { ...StyleSheet.absoluteFill, alignItems: "flex-end", justifyContent: "center", opacity: 0.22 },
   judgmentWaveOne: { position: "absolute", width: 420, height: 180, borderRadius: 210, borderWidth: 1, right: -145, bottom: -42, transform: [{ rotate: "-10deg" }] },
-  judgmentWaveTwo: { position: "absolute", width: 360, height: 150, borderRadius: 190, borderWidth: 1, right: -102, bottom: 2, transform: [{ rotate: "8deg" }] },
+  judgmentWaveTwo: { position: "absolute", width: 360, height: 150, borderRadius: 190, borderWidth: 1, right: -102, bottom: 2, transform: [{ rotate: "8deg" }], opacity: 0.22 },
   judgmentWaveThree: { position: "absolute", width: 300, height: 120, borderRadius: 160, borderWidth: 1, right: -78, bottom: 40, transform: [{ rotate: "-17deg" }] },
   judgmentText: { maxWidth: 560, fontSize: 22, lineHeight: 31, fontWeight: "600", letterSpacing: -0.4, zIndex: 1 },
   judgmentSub: { maxWidth: 520, fontSize: 11, lineHeight: 18, zIndex: 1 },
