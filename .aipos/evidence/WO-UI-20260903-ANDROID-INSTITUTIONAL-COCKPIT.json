@@ -11,7 +11,7 @@
     "androidNow": "apps/mobile/src/androidNowView.tsx",
     "homeRouter": "apps/mobile/src/homeView.tsx",
     "homeLegacyPreserved": "apps/mobile/src/homeViewLegacy.tsx",
-    "androidDecision": "apps/mobile/src/androidReferenceAiView.tsx",
+    "androidDecision": "apps/mobile/src/androidNusaDecisionView.tsx",
     "aiRouter": "apps/mobile/src/aiView.tsx",
     "aiLegacyPreserved": "apps/mobile/src/aiViewLegacy.tsx",
     "marketsGeometry": "apps/mobile/src/marketsView.tsx",
@@ -21,8 +21,10 @@
     "humanFactorsResearch": "docs/NUSA_ANDROID_HUMAN_FACTORS_UX_RESEARCH.md",
     "staticContractTest": "tests/android-institutional-cockpit.vitest.js"
   },
-  "conceptC": {
+  "activeConcept": {
+    "id": "C",
     "status": "ACTIVE_TEMPORARY_REFERENCE",
+    "predecessorConceptsRetained": false,
     "principles": [
       "System Truth Rail stays compact and persistent",
       "NOW promotes the highest-priority owner condition",
@@ -32,14 +34,6 @@
       "risk UI displays only canonical constraints that actually exist",
       "owner actions and prioritized alerts remain directly reachable",
       "no visual placeholder may fabricate financial truth"
-    ],
-    "visualLanguage": [
-      "deep black editorial background",
-      "serif NUSA wordmark",
-      "teal semantic accent",
-      "amber and red reserved for real warning and danger state",
-      "contained premium panels with restrained radius",
-      "dense but legible mobile spacing"
     ]
   },
   "truthBoundaries": {
@@ -48,9 +42,6 @@
     "productionMutationAllowed": false,
     "aiAuthority": "ZERO_AUTHORITY",
     "fabricatedFinancialTruth": false,
-    "riskScoreFabricated": false,
-    "invalidationFabricated": false,
-    "performanceHistoryFabricated": false,
     "runtimeSemanticsChanged": false,
     "credentialSemanticsChanged": false,
     "riskPolicyChanged": false
