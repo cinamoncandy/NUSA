@@ -389,6 +389,7 @@ function writeArtifacts(request, result) {
 
 async function main() {
   const request = readDispatchRequest();
+  const startedAt = Date.now();
   try {
     const runnerUrl = process.env.NUSA_CODING_RUNNER_URL;
     if (typeof runnerUrl !== "string" || !runnerUrl) throw new Error("AUTOPILOT_CODING_RUNNER_URL_MISSING");
@@ -421,7 +422,10 @@ async function main() {
 }
 
 if (require.main === module) {
-  main().catch(() => { process.exitCode = 1; });
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : "AUTOPILOT_GITHUB_RUNNER_UNHANDLED");
+    process.exitCode = 1;
+  });
 }
 
 module.exports = {
