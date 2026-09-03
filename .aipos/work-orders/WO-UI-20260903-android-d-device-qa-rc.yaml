@@ -6,7 +6,7 @@ repository: cinamoncandy/NUSA
 base_branch: main
 base_commit: 83093d0e8f8b44f76c8eddd444fe146bd9336d3e
 implementation_branch: ux/android-d-release-candidate-20260903
-latest_main_sync_commit: 7ad981cc68b2eb5af29afa1b9c78647d064e309e
+latest_main_sync_commit: c2c70c63846217a002e653e5b0aee6676928aebc
 authority_impact: none
 objective: "Stage the owner-selected bright Concept D Android supervisory UI on the latest protected main line, preserve current canonical market-data safety behavior and prepare a truthful physical-device/release candidate without changing execution authority."
 provenance:
@@ -19,10 +19,10 @@ provenance:
   selected_reference: TEMPORARY_CONCEPT_D_DEVICE_QA
   future_redesign_expected: true
   previous_rc_base: 724aac9298156ca48cb20cfe2969856d61451a04
-  latest_main_reviewed: 83093d0e8f8b44f76c8eddd444fe146bd9336d3e
+  latest_main_reviewed: 13266b7e269d74cfe4daaafb9583b62242d97ddb
   latest_main_delta_overlap: false
-  latest_main_delta_commit_count: 6
-  latest_main_delta_scope: "PAPER runtime chaos/restart lease-boundary workflow, scripts and test only; no mobile implementation files."
+  latest_main_delta_commit_count: 7
+  latest_main_delta_scope: "Research factory promotion bridge plus exact-main Android stable release-trigger workflow/test; no Android D implementation overlap."
   accidental_prevalidation_pr:
     number: 1564
     status: CLOSED_DO_NOT_USE
@@ -53,7 +53,7 @@ safety:
   ai_authority: ZERO_AUTHORITY
 architecture_impact:
   acknowledged: true
-  analysis: "Presentation/navigation only. The existing NUSA runtime, canonical Home market-source selector, PAPER execution boundaries, credentials, risk and authority remain authoritative and unchanged. Android rendering is selected at the App shell while non-Android canonical surfaces remain intact. The protected-main delta since the prior sync was reviewed and has no mobile/UI overlap."
+  analysis: "Presentation/navigation only. The existing NUSA runtime, canonical Home market-source selector, PAPER execution boundaries, credentials, risk and authority remain authoritative and unchanged. Android rendering is selected at the App shell while non-Android canonical surfaces remain intact. The protected-main delta since the prior recorded review was inspected and has no Android D implementation overlap."
   references:
     - AGENTS.md
     - .aipos/architecture.md
@@ -64,7 +64,21 @@ validation:
   machine_validation_run: false
   remote_ci_used_as_debugger: false
   accidental_remote_ci_must_be_ignored: true
-  blocker: "Assistant container cannot resolve github.com and therefore cannot materialize the repository/dependency tree required for Node24/pnpm/Gradle validation. The connected GitHub tool exposes no workflow-dispatch or workflow-cancel action that can substitute for the required pre-PR machine validation."
+  blocker: "Assistant container cannot resolve github.com and therefore cannot materialize the repository/dependency tree required for Node24/pnpm/Gradle validation. Current exact-main CI/release success verifies main delivery infrastructure, not this unmerged RC branch."
+  main_delivery_observation:
+    exact_main: 13266b7e269d74cfe4daaafb9583b62242d97ddb
+    exact_main_ci_run: 33763241936
+    exact_main_ci_conclusion: SUCCESS
+    actual_paper_runtime_run: 33763822519
+    actual_paper_runtime_conclusion: SUCCESS
+    android_stable_trigger_run: 33763827867
+    android_stable_trigger_conclusion: SUCCESS
+    android_stable_release_run: 33763847552
+    android_stable_release_conclusion: SUCCESS
+    stable_release_version: "1.0.108"
+    stable_release_target: 13266b7e269d74cfe4daaafb9583b62242d97ddb
+    firebase_distribution: SUCCESS
+    branch_validation_credit: NONE
   required_before_pr:
     - "pnpm run preflight"
     - "pnpm run typecheck"
@@ -88,4 +102,4 @@ release_policy:
   pr_before_local_validation: prohibited
   stable_release_before_pr_merge_and_exact_main_ci: prohibited
   closed_pr_1564_is_dead: true
-completion_rule: "Do not claim PASS, open a replacement PR, merge to main, or trigger stable release until machine validation is actually run successfully. Physical Galaxy acceptance remains HUMAN_ENVIRONMENT_ONLY."
+completion_rule: "Do not claim RC PASS, open a replacement RC PR, merge the RC to main, or release the RC until branch-specific machine validation is actually run successfully. Physical Galaxy acceptance remains HUMAN_ENVIRONMENT_ONLY."
