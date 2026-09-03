@@ -1,10 +1,14 @@
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
 const test = require("node:test");
 const {
   dispatchWithRetry,
   transientStatus,
   assertBoundedPatch,
   proposalFailureCode,
+  readDispatchRequest,
   assertGithubRunnerWorkspaceClean,
   filterGithubRunnerWorkspacePaths,
 } = require("../scripts/autopilot-dispatch-retry.js");
@@ -197,4 +201,29 @@ test("classifies only bounded proposal validation failures as no-action", () => 
   assert.equal(proposalFailureCode("SANDBOX_PATCH_APPLY_CHECK_FAILED:128:error: malformed diff"), "SANDBOX_PATCH_APPLY_CHECK_FAILED");
   assert.equal(proposalFailureCode("CODING_RUNTIME_WORKSPACE_DIRTY"), null);
   assert.equal(proposalFailureCode("CODING_PROPOSAL_JSON_INVALID secret=redacted"), null);
+});
+
+test("normalizes a UTF-8 BOM and rejects malformed dispatch events with bounded reasons", () => {
+  const eventPath = path.join(os.tmpdir(), `nusa-autopilot-event-${process.pid}-${Date.now()}.json`);
+  const previousEventPath = process.env.GITHUB_EVENT_PATH;
+  try {
+    fs.writeFileSync(eventPath, `\uFEFF${JSON.stringify({ client_payload: {
+      kind: "REPOSITORY_AUTOPILOT",
+      repository: request.repository,
+      head_sha: request.headSha,
+      workflow_run_id: request.workflowRunId,
+      reason: request.reason,
+      execution_id: request.executionId,
+      dedupe_key: request.dedupeKey,
+    } })}`);
+    process.env.GITHUB_EVENT_PATH = eventPath;
+    assert.equal(readDispatchRequest().headSha, request.headSha);
+
+    fs.writeFileSync(eventPath, "not-json");
+    assert.throws(() => readDispatchRequest(), /GITHUB_EVENT_JSON_INVALID/);
+  } finally {
+    if (previousEventPath === undefined) delete process.env.GITHUB_EVENT_PATH;
+    else process.env.GITHUB_EVENT_PATH = previousEventPath;
+    fs.rmSync(eventPath, { force: true });
+  }
 });

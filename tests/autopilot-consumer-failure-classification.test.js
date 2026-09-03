@@ -36,7 +36,7 @@ test('autopilot consumer has no undefined runtime identifiers', () => {
 test('autopilot consumer timestamps main execution before failure classification', () => {
   assert.match(
     source,
-    /async function main\(\) \{\s*const request = readDispatchRequest\(\);\s*const startedAt = Date\.now\(\);/s,
+    /async function main\(\) \{\s*const startedAt = Date\.now\(\);\s*let request;\s*try \{\s*request = readDispatchRequest\(\);/s,
   );
   assert.match(source, /attemptRecord\(\{[\s\S]*?startedAt,[\s\S]*?decision: safeProposalFailure \? "NO_ACTION" : "FAILED_CLOSED"/);
 });
