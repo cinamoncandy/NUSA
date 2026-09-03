@@ -6,21 +6,25 @@ repository: cinamoncandy/NUSA
 base_branch: main
 implementation_branch: ux/android-institutional-cockpit-20260903
 authority_impact: none
-objective: "Iterate Android-only NUSA supervisory investment-intelligence UX with concept B as the active visual reference, while retaining concept A for direct owner comparison and preserving all authority and financial-truth boundaries."
+objective: "Iterate Android-only NUSA supervisory investment-intelligence UX with concept C as the active platform-grade visual reference, while retaining A/B for direct owner comparison and preserving all authority and financial-truth boundaries."
 provenance:
   predecessor_scope: WO-0063.mobile-master-ux-wave1
   relationship: PRESENTATION_ONLY_FOLLOW_UP
   desktop_scope_included: false
   ios_scope_included: false
-  active_reference: TEMPORARY_CONCEPT_B
-  retained_comparison_reference: CONCEPT_A
+  active_reference: TEMPORARY_CONCEPT_C
+  retained_comparison_references:
+    - CONCEPT_A
+    - CONCEPT_B
 scope:
-  - "Route Android Home to concept B: premium decision-first supervisory desk."
-  - "Retain concept A source as a comparison reference; it is not routed as the active Android Home."
+  - "Route Android Home to concept C: content-first, platform-grade supervisory surface."
+  - "Retain concept A and B source files as unrouted comparison references."
   - "Keep Android NUSA/AI on the evidence-first Decision Workspace."
   - "Keep iOS on the existing shared legacy implementation."
-  - "Prioritize NOW decision state, active market truth, capital ledger, verifiable NUSA judgment, evidence/counter-evidence and explicit owner command."
-  - "Use quiet navy institutional surfaces with restrained mint/lavender depth and strong typographic hierarchy rather than a card-wall dashboard."
+  - "Apply research-backed Material 3 Expressive principles through stronger typography, semantic shape variation and state hierarchy without decorative UI excess."
+  - "Apply Apple-like restraint by keeping content surfaces calm and limiting depth treatment to controls and hierarchy rather than glassmorphism across data content."
+  - "Prioritize current state, active market truth, capital facts, verifiable NUSA judgment, evidence/counter-evidence and explicit owner action."
+  - "Use neutral graphite surfaces and a restrained mint accent instead of sci-fi navy/neon dashboard chrome."
   - "Expose only canonical PAPER asset, PnL, AI evidence, calibration, research and authority truth."
   - "Do not fabricate risk score, invalidation, performance history, freshness, execution, or authority values."
 excluded:
@@ -39,7 +43,7 @@ safety:
   ai_authority: ZERO_AUTHORITY
 architecture_impact:
   acknowledged: true
-  analysis: "Presentation only. Android platform router selects concept B Home while concept A remains an unrouted comparison source and iOS keeps the legacy Home. Existing runtime, domain models, PAPER execution, credentials, risk and authority state remain authoritative and unchanged."
+  analysis: "Presentation only. Android platform router selects concept C Home while concepts A/B remain unrouted comparison sources and iOS keeps the legacy Home. Existing runtime, domain models, PAPER execution, credentials, risk and authority state remain authoritative and unchanged."
   references:
     - AGENTS.md
     - .aipos/architecture.md
