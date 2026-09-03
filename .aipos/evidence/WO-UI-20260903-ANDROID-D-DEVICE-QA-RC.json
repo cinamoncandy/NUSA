@@ -1,0 +1,79 @@
+{
+  "workOrder": "WO-UI-20260903-ANDROID-D-DEVICE-QA-RC",
+  "branch": "ux/android-d-release-candidate-20260903",
+  "baseCommit": "0d486557fb3cd041c718eb9c4012a046c02b4733",
+  "codeHead": "2688eddea995d916e8c842c0b24f5120c05e2a0c",
+  "scope": "ANDROID_PRESENTATION_AND_NAVIGATION_ONLY",
+  "designStatus": "TEMPORARY_CONCEPT_D_DEVICE_QA",
+  "finalDesignFrozen": false,
+  "ownerSelectedForDeviceQA": true,
+  "futureRedesignExpected": true,
+  "implementation": {
+    "appShell": "apps/mobile/App.tsx",
+    "canonicalHomePreserved": "apps/mobile/src/homeView.tsx",
+    "canonicalAiPreserved": "apps/mobile/src/aiView.tsx",
+    "androidHome": "apps/mobile/src/androidDHomeView.tsx",
+    "androidDecision": "apps/mobile/src/androidNusaDecisionView.tsx",
+    "androidTheme": "apps/mobile/src/androidInstitutionalTheme.ts",
+    "themeGate": "apps/mobile/src/ThemeProvider.tsx",
+    "nativeColors": "apps/mobile/android/app/src/main/res/values/colors.xml",
+    "nativeTheme": "apps/mobile/android/app/src/main/res/values/styles.xml",
+    "contractTest": "tests/android-d-device-qa-rc.vitest.js"
+  },
+  "preservedMainBehavior": {
+    "publicMarketPrecedence": true,
+    "publicMarketsForwarded": true,
+    "homeMarketDataSelectorUntouched": true,
+    "canonicalNonAndroidHomeUntouched": true,
+    "canonicalNonAndroidAiUntouched": true,
+    "androidBuildGradleFromMainUntouched": true
+  },
+  "androidNavigation": ["NOW", "MARKET", "NUSA", "ASSETS", "CONTROL"],
+  "truthBoundaries": {
+    "paperOnly": true,
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY",
+    "fabricatedFinancialTruth": false,
+    "fabricatedRiskScore": false,
+    "fabricatedInvalidation": false,
+    "fabricatedMultiAssetQuotes": false,
+    "runtimeSemanticsChanged": false,
+    "credentialSemanticsChanged": false,
+    "riskPolicyChanged": false
+  },
+  "validation": {
+    "status": "LOCAL_ENVIRONMENT_REQUIRED",
+    "passClaimed": false,
+    "machineValidationRun": false,
+    "remoteCiUsedAsDebugger": false,
+    "pullRequestOpened": false,
+    "stableReleaseTriggered": false,
+    "requiredBeforePR": [
+      "pnpm run preflight",
+      "pnpm run typecheck",
+      "pnpm run lint:mobile",
+      "pnpm exec vitest run tests/android-d-device-qa-rc.vitest.js",
+      "node --test tests/mobile-home-public-market-fallback.test.js",
+      "pnpm run validate",
+      "repository-required Android/mobile build checks",
+      "git diff --check"
+    ],
+    "humanOnlyDeviceQA": [
+      "physical Galaxy install and launch",
+      "default-font portrait visual/scroll acceptance",
+      "200 percent font scaling",
+      "TalkBack focus and labels",
+      "landscape/window resize and insets",
+      "system-bar contrast",
+      "five-tab reachability and selected state",
+      "PAPER/LIVE/AI-authority truth review"
+    ]
+  },
+  "releaseGate": {
+    "stableWorkflowRequiresCurrentMain": true,
+    "successfulExactMainCiRequired": true,
+    "protectedSigningSecretsRequired": true,
+    "currentCandidateIsStableReleasable": false
+  }
+}
