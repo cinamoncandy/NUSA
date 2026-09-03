@@ -1,0 +1,1 @@
+This file intentionally exists only as a repository-visible companion to `tests/mobile-build-source-ui.test.js` for deployment diagnostics traceability. The executable regression test is authoritative.
