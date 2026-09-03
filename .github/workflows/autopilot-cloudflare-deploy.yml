@@ -23,6 +23,7 @@ on:
 
 permissions:
   contents: read
+  actions: write
 
 concurrency:
   group: nusa-autopilot-cloudflare-deploy
@@ -158,6 +159,20 @@ jobs:
           done
           echo "::error::Worker health never reported the exact safe deployed revision ${HEAD_SHA}. Failing closed."
           exit 1
+
+      - name: Dispatch Runtime Proof directly for fresh observability
+        if: steps.revision.outputs.current == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # This job itself may have been started via a GITHUB_TOKEN-authenticated
+          # workflow_dispatch call (see the Release workflow), whose completion does not fire workflow_run listeners on other workflows.
+          # Autopilot Cloudflare Runtime Proof depends on exactly that workflow_run:[Autopilot Cloudflare Deploy]
+          # chain for its post-deploy freshness check, so dispatch it directly instead
+          # of relying on the chain (same pattern as the CI -> Deploy fix).
+          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-cloudflare-runtime-proof.yml/dispatches" -f ref=main
+          echo "Dispatched Autopilot Cloudflare Runtime Proof for exact-main deploy verification."
 
       - name: Record fail-closed authority invariants
         if: always()
