@@ -2,13 +2,13 @@
   "workOrder": "WO-UI-20260903-ANDROID-INSTITUTIONAL-COCKPIT",
   "branch": "ux/android-institutional-cockpit-20260903",
   "scope": "ANDROID_PRESENTATION_ONLY",
-  "designStatus": "TEMPORARY_CONCEPT_E",
+  "designStatus": "TEMPORARY_CONCEPT_A",
   "finalDesignFrozen": false,
   "referenceDirection": "NUSA_CALM_CINEMATIC_SUPERVISORY_OS",
   "implementation": {
     "androidInstitutionalTheme": "apps/mobile/src/androidInstitutionalTheme.ts",
     "platformGate": "apps/mobile/src/ThemeProvider.tsx",
-    "androidHome": "apps/mobile/src/androidEHomeView.tsx",
+    "androidHome": "apps/mobile/src/androidAHomeView.tsx",
     "homeRouter": "apps/mobile/src/homeView.tsx",
     "homeLegacyPreserved": "apps/mobile/src/homeViewLegacy.tsx",
     "androidDecision": "apps/mobile/src/androidNusaDecisionView.tsx",
@@ -22,10 +22,9 @@
     "staticContractTest": "tests/android-institutional-cockpit.vitest.js"
   },
   "activeConcept": {
-    "id": "E",
+    "id": "A",
     "status": "ACTIVE_TEMPORARY_REFERENCE",
-    "predecessorConceptsRetainedAsActive": false,
-    "conceptCHomeRemoved": true,
+    "priorConceptsPurgedFromCurrentTree": true,
     "principles": [
       "calm edge-to-edge supervisory canvas instead of a card wall",
       "large state-driven NOW message dominates the first viewport",
@@ -61,7 +60,7 @@
   "validation": {
     "status": "DEFERRED_OWNER_LOCAL",
     "passClaimed": false,
-    "reason": "Owner explicitly deferred local validation while temporary Android visual concepts are iterated.",
+    "reason": "Owner explicitly deferred local validation while Android visual concepts are iterated.",
     "requiredBeforePR": [
       "pnpm run validate",
       "pnpm run lint:mobile",
