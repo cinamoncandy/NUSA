@@ -190,15 +190,27 @@ jobs:
           echo "Post-merge CI verified for $MERGED_MAIN; dispatching Cloudflare Deploy directly."
           gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-cloudflare-deploy.yml/dispatches" -f ref=main -f "inputs[head_sha]=$MERGED_MAIN"
 
-      - name: Dispatch other CI-gated downstream workflows directly
+      - name: Dispatch exact-main runtime evidence and CI-gated downstream workflows directly
         env:
           MERGED_MAIN: ${{ steps.ci.outputs.merged_main }}
         run: |
           set -euo pipefail
-          # These also listen for workflow_run:[CI] on branches:[main] and stopped firing
-          # for the same GITHUB_TOKEN-dispatch reason as Cloudflare Deploy. Dispatch them
-          # directly instead of depending on that chain.
+          CURRENT_MAIN="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          if [ "$CURRENT_MAIN" != "$MERGED_MAIN" ]; then
+            echo "Main advanced from $MERGED_MAIN to $CURRENT_MAIN; newer Release chain owns post-merge evidence."
+            exit 0
+          fi
+
+          # GITHUB_TOKEN-created merge/dispatch events do not reliably trigger downstream
+          # push/workflow_run listeners. Dispatch the canonical runtime proof explicitly.
+          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/wo-0059-actual-paper-runtime.yml/dispatches" -f ref=main
+
           gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-cloudflare-promote.yml/dispatches" -f ref=main -f "inputs[head_sha]=$MERGED_MAIN"
-          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/android-stable-release.yml/dispatches" -f ref=main
+
+          # Route Android through the bounded exact-main CI trigger instead of calling the
+          # stable-release workflow directly. The trigger polls CI, detects main drift,
+          # deduplicates active releases, and fails closed before promotion.
+          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/android-stable-release-trigger.yml/dispatches" -f ref=main
           gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/windows-desktop-stable-release.yml/dispatches" -f ref=main
-          echo "Dispatched Cloudflare Promote, Android Stable Release, and Windows Desktop Stable Release for $MERGED_MAIN."
+
+          echo "Dispatched Actual PAPER runtime evidence, Cloudflare Promote, Android stable trigger, and Windows Desktop Stable Release for $MERGED_MAIN."
