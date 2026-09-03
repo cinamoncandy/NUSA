@@ -49,6 +49,36 @@
     "credentialSemanticsChanged": false,
     "riskPolicyChanged": false
   },
+  "staticAudit": {
+    "completed": true,
+    "passClaimed": false,
+    "reviewScope": [
+      "Android D app-shell routing and five-destination navigation",
+      "Android D Home financial/authority truth presentation",
+      "Android NUSA decision evidence/calibration/authority presentation",
+      "Android-only theme/system chrome",
+      "device-QA script and branch contract test"
+    ],
+    "fixedFindings": [
+      {
+        "severity": "P1_TRUTHFULNESS",
+        "finding": "The Android NUSA decision hero translated canonical AI status AVAILABLE into VERIFIED, which could overstate the meaning of the canonical projection.",
+        "resolution": "Render the canonical AI status token directly and use UNAVAILABLE only when no status exists.",
+        "commit": "268f817e34aa3ee4b134e062c768b2cf77f022c8"
+      },
+      {
+        "severity": "P1_ACCESSIBILITY",
+        "finding": "The Android NUSA decision hero used fixed horizontal layouts without the large-font/compact-window stacking already required for physical-device QA.",
+        "resolution": "Use useWindowDimensions and stack title/header/confidence/facts when width < 430 or fontScale >= 1.35; add contract assertions.",
+        "commits": [
+          "268f817e34aa3ee4b134e062c768b2cf77f022c8",
+          "56680e63ec5a3489b853eabdcccaf42ef2b540a1"
+        ]
+      }
+    ],
+    "remainingRepositoryKnownP1": 0,
+    "note": "Static inspection reduces known repository-side defects but is not a substitute for required Node24/pnpm/Gradle validation or physical-device acceptance."
+  },
   "validation": {
     "status": "BLOCKED_ASSISTANT_LOCAL_ENVIRONMENT",
     "passClaimed": false,
@@ -78,7 +108,7 @@
     ],
     "localExecutionEnvironmentBlocker": "Assistant container cannot resolve github.com and cannot materialize the full repository/dependency tree for Node24/pnpm/Gradle validation.",
     "observedLocalRuntime": "Node v22.16.0; repository requires Node >=24 and pnpm >=11.7; no pnpm binary is locally available.",
-    "connectorLimit": "Current GitHub connector can inspect workflow state but is not being used as a substitute for required branch-specific pre-PR machine validation.",
+    "connectorLimit": "Current GitHub connector can inspect and mutate repository text but has no compliant workflow-dispatch action being used as a substitute for required branch-specific pre-PR machine validation.",
     "mainDeliveryValidationCredit": "NONE_FOR_RC_BRANCH",
     "oneShotCommand": "powershell -ExecutionPolicy Bypass -File scripts/android-d-device-qa.ps1",
     "requiredBeforePR": [
@@ -113,6 +143,8 @@
     "androidStableTriggerConclusion": "SUCCESS",
     "androidStableReleaseRun": 33763847552,
     "androidStableReleaseConclusion": "SUCCESS",
+    "watchdogRun": 33767059794,
+    "watchdogConclusion": "SUCCESS",
     "releaseTag": "nusa-android",
     "releaseVersion": "1.0.108",
     "releaseTargetCommitish": "13266b7e269d74cfe4daaafb9583b62242d97ddb",
@@ -120,12 +152,15 @@
     "protectedSigning": "VERIFIED",
     "apkIntegrityVerification": "SUCCESS",
     "apkSha256": "38b414517c59ddace956c7a1da5bc2cc484e7a5dcb1635f3d085e74e91ad93ce",
+    "receiptIssue": 558,
+    "receiptRecorded": true,
     "note": "This proves current main delivery health and exact-source deployment only. It does not validate or release the unmerged Android D RC branch."
   },
   "releaseInfrastructure": {
     "mobileNativeWorkflow": ".github/workflows/mobile-native.yml",
     "stableTriggerWorkflow": ".github/workflows/android-stable-release-trigger.yml",
     "stableReleaseWorkflow": ".github/workflows/android-stable-release.yml",
+    "stableWatchdogWorkflow": ".github/workflows/android-stable-release-watchdog.yml",
     "workflowDispatchSupportedByRepository": true,
     "debugApkArtifactSupported": true,
     "exactHeadRcArtifactSupported": true,
