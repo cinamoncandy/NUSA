@@ -4,9 +4,9 @@ status: IN_PROGRESS
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: 724aac9298156ca48cb20cfe2969856d61451a04
+base_commit: 83093d0e8f8b44f76c8eddd444fe146bd9336d3e
 implementation_branch: ux/android-d-release-candidate-20260903
-latest_main_sync_commit: 0911ca302bc43dcfa6a382b82dd3adccfae9c30c
+latest_main_sync_commit: 7ad981cc68b2eb5af29afa1b9c78647d064e309e
 authority_impact: none
 objective: "Stage the owner-selected bright Concept D Android supervisory UI on the latest protected main line, preserve current canonical market-data safety behavior and prepare a truthful physical-device/release candidate without changing execution authority."
 provenance:
@@ -17,9 +17,17 @@ provenance:
   primary_state_hijacked: false
   selected_reference: TEMPORARY_CONCEPT_D_DEVICE_QA
   future_redesign_expected: true
-  previous_rc_base: 0d486557fb3cd041c718eb9c4012a046c02b4733
-  latest_main_reviewed: 724aac9298156ca48cb20cfe2969856d61451a04
+  previous_rc_base: 724aac9298156ca48cb20cfe2969856d61451a04
+  latest_main_reviewed: 83093d0e8f8b44f76c8eddd444fe146bd9336d3e
   latest_main_delta_overlap: false
+  latest_main_delta_commit_count: 6
+  latest_main_delta_scope: "PAPER runtime chaos/restart lease-boundary workflow, scripts and test only; no mobile implementation files."
+  accidental_prevalidation_pr:
+    number: 1564
+    status: CLOSED_DO_NOT_USE
+    merged: false
+    ci_results_accepted_as_validation: false
+    note: "Opened accidentally before required machine validation and closed immediately. It must not be reopened or used as validation evidence."
 scope:
   - "Android only: render AndroidDHomeView for Home and AndroidNusaDecisionView for NUSA judgment."
   - "Preserve current main Home and AI implementations for non-Android clients."
@@ -44,7 +52,7 @@ safety:
   ai_authority: ZERO_AUTHORITY
 architecture_impact:
   acknowledged: true
-  analysis: "Presentation/navigation only. The existing NUSA runtime, canonical Home market-source selector, PAPER execution boundaries, credentials, risk and authority remain authoritative and unchanged. Android rendering is selected at the App shell while non-Android canonical surfaces remain intact. The 14-commit delta from the previous RC base to protected main was reviewed and contains no mobile implementation overlap."
+  analysis: "Presentation/navigation only. The existing NUSA runtime, canonical Home market-source selector, PAPER execution boundaries, credentials, risk and authority remain authoritative and unchanged. Android rendering is selected at the App shell while non-Android canonical surfaces remain intact. The protected-main delta since the prior sync was reviewed and has no mobile/UI overlap."
   references:
     - AGENTS.md
     - .aipos/architecture.md
@@ -53,7 +61,9 @@ validation:
   status: BLOCKED_ASSISTANT_LOCAL_ENVIRONMENT
   pass_claimed: false
   machine_validation_run: false
-  blocker: "Assistant container cannot resolve github.com and therefore cannot materialize the repository/dependency tree required for Node24/pnpm/Gradle validation. Remote CI is not being used as an iterative debugger."
+  remote_ci_used_as_debugger: false
+  accidental_remote_ci_must_be_ignored: true
+  blocker: "Assistant container cannot resolve github.com and therefore cannot materialize the repository/dependency tree required for Node24/pnpm/Gradle validation. The connected GitHub tool exposes no workflow-dispatch or workflow-cancel action that can substitute for the required pre-PR machine validation."
   required_before_pr:
     - "pnpm run preflight"
     - "pnpm run typecheck"
@@ -76,4 +86,5 @@ release_policy:
   stable_release_requires_exact_main: true
   pr_before_local_validation: prohibited
   stable_release_before_pr_merge_and_exact_main_ci: prohibited
-completion_rule: "Do not claim PASS, open the PR, merge to main, or trigger stable release until machine validation is actually run successfully. Physical Galaxy acceptance remains HUMAN_ENVIRONMENT_ONLY."
+  closed_pr_1564_is_dead: true
+completion_rule: "Do not claim PASS, open a replacement PR, merge to main, or trigger stable release until machine validation is actually run successfully. Physical Galaxy acceptance remains HUMAN_ENVIRONMENT_ONLY."
