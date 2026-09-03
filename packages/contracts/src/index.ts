@@ -49,6 +49,7 @@ export * from "./aiEvaluationTemporalPartition";
 export * from "./aiEvaluationDataVintage";
 export * from "./aiEvaluationDependenceGroups";
 export * from "./aiEvaluationMultipleTestingCorrection";
+export * from "./aiEvaluationEconomicCostDecomposition";
 export * from "./aiEvaluationLineage";
 export * from "./aiEvaluationFrozenSelection";
 export * from "./aiEvaluationPointInTimeRegimeLabels";
