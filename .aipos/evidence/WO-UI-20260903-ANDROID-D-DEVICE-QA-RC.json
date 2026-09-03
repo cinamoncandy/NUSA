@@ -119,7 +119,7 @@
     ],
     "localExecutionEnvironmentBlocker": "Assistant container cannot resolve github.com and cannot materialize the full repository/dependency tree for Node24/pnpm/Gradle validation.",
     "observedLocalRuntime": "Node v22.16.0; repository requires Node >=24 and pnpm >=11.7; no pnpm binary is locally available.",
-    "connectorLimit": "Current GitHub connector can inspect and mutate repository text but has no compliant workflow-dispatch action being used as a substitute for required branch-specific pre-PR machine validation.",
+    "connectorLimit": "Current GitHub connector can inspect and mutate repository text but is not being used as a substitute for required branch-specific pre-PR machine validation.",
     "mainDeliveryValidationCredit": "NONE_FOR_RC_BRANCH",
     "oneShotCommand": "powershell -ExecutionPolicy Bypass -File scripts/android-d-device-qa.ps1",
     "requiredBeforePR": [
