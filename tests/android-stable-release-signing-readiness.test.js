@@ -2,7 +2,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
-const workflow = fs.readFileSync('.github/workflows/android-stable-release.yml', 'utf8');
+const workflow = fs
+  .readFileSync('.github/workflows/android-stable-release.yml', 'utf8')
+  .replace(/\r\n/g, '\n');
 
 test('android stable release checks signing readiness before build', () => {
   assert.match(workflow, /signing-readiness:\n[\s\S]*name: Android release signing readiness/);
