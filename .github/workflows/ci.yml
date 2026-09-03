@@ -170,20 +170,16 @@ jobs:
         run: node scripts/verify-paper-pilot-evidence.js
       - name: Shadow pilot verification (no real broker mutation)
         run: node scripts/run-shadow-paper-pilot.js --dry-run
-      - name: Runtime persistence atomicity tests
-        run: node --test --test-reporter=spec tests/runtime-command-service.test.js
-      - name: Control audit ledger tests
-        run: node --test --test-reporter=spec tests/control-audit-ledger.test.js
-      - name: Transactional control service tests
-        run: node --test --test-reporter=spec tests/transactional-control-command-service.test.js
-      - name: Funding carry safety tests
-        run: node --test --test-reporter=spec tests/funding-carry-engine.test.js
-      - name: Strategy governance tests
-        run: node --test --test-reporter=spec tests/strategy-governance.test.js
-      - name: Investment committee tests
-        run: node --test --test-reporter=spec tests/investment-committee.test.js
-      - name: Research persistence tests
-        run: node --test --test-reporter=spec tests/research-memory.test.js
+      - name: Runtime/control/research persistence regression tests
+        run: >-
+          node --test --test-reporter=spec
+          tests/runtime-command-service.test.js
+          tests/control-audit-ledger.test.js
+          tests/transactional-control-command-service.test.js
+          tests/funding-carry-engine.test.js
+          tests/strategy-governance.test.js
+          tests/investment-committee.test.js
+          tests/research-memory.test.js
       - name: AI CIO dashboard read-only tests
         run: node --test --test-reporter=spec tests/ai-cio-dashboard.test.js tests/ai-cio-paper-projection.test.js tests/ai-cio-dashboard-ipc.test.js tests/ai-cio-ipc-bridge.test.js tests/ai-cio-renderer.test.js
       - name: Operational completion policy tests
