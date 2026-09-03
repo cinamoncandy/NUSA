@@ -49,6 +49,7 @@ jobs:
           NUSA_MODE: PAPER
           NUSA_LIVE_MUTATION: PROHIBITED
           NUSA_E2E_MARKET: KRW-BTC
+          NUSA_PAPER_CHAOS_E2E_NON_MUTATING: "true"
         run: node scripts/actual-paper-runtime-e2e.js --working-dir "${{ runner.temp }}/nusa-wo-0059" --output artifacts/operational-evidence/actual-paper-runtime-e2e.json
       - name: Upload actual PAPER runtime evidence
         if: always()

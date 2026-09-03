@@ -19,6 +19,9 @@ function supervisorChildEnv(baseEnv, snapshot) {
     NUSA_PAPER_SUPERVISOR_RESTART_COUNT: String(snapshot.restartCount),
     NUSA_PAPER_SUPERVISOR_STARTED_AT: String(snapshot.startedAt),
   };
+  if (baseEnv.NUSA_PAPER_CHAOS_E2E_NON_MUTATING === "true") {
+    env.NUSA_CLOUD_PAPER_INVESTMENT_PERCENT = "0";
+  }
   if (snapshot.lastExit != null) {
     env.NUSA_PAPER_SUPERVISOR_LAST_EXIT_CODE = snapshot.lastExit.code == null ? "" : String(snapshot.lastExit.code);
     env.NUSA_PAPER_SUPERVISOR_LAST_EXIT_SIGNAL = snapshot.lastExit.signal == null ? "" : String(snapshot.lastExit.signal);

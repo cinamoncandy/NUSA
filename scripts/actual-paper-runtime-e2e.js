@@ -206,7 +206,6 @@ function summarizeSnapshot(snapshot) {
   };
 }
 
-
 function paperChaosStateFromSnapshot(snapshot, observedAt) {
   if (!Number.isSafeInteger(observedAt) || observedAt < 0) throw new Error("PAPER chaos observation time is invalid");
   if (snapshot?.operations?.runtimeState !== "RUNNING" || snapshot?.operations?.transport !== "ONLINE") {
@@ -350,8 +349,6 @@ async function run(options = {}) {
       args: ["dist/apps/cloud/src/runtime.js"],
       cwd: root,
       env,
-      initialBackoffMs: 100,
-      maxBackoffMs: 500,
       stableWindowMs: 60_000,
       write: () => {},
     });
@@ -386,7 +383,7 @@ async function run(options = {}) {
       duplicate_order_ids: false,
       duplicate_fill_ids: false,
     };
-    const chaosRecoveryEvidence = buildBoundPaperChaosRestartEvidence(root, supervisedStart, supervisedRecovery);
+    const chaosRecoveryEvidence = buildBoundPaperChaosRestartEvidence(root, secondCycleSnapshot, supervisedRecovery);
     await stopSupervisor(supervisor);
     supervisor = undefined;
 
