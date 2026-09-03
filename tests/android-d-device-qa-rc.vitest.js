@@ -44,6 +44,8 @@ describe("Android D device-QA release candidate", () => {
     expect(androidAi).toContain('value="ZERO"');
     expect(androidAi).toContain("주문·이체·출금·운영 변경 권한이 없습니다");
     expect(androidAi).toContain("전용 invalidation 필드가 없습니다");
+    expect(androidAi).toContain('ai?.status ?? "UNAVAILABLE"');
+    expect(androidAi).not.toContain('available ? "VERIFIED"');
     expect(androidHome).toContain('ai?.calibrationStatus === "CALIBRATED"');
     for (const source of [androidHome, androidAi, androidTheme]) {
       for (const forbidden of ["submitOrder", "productionMutationAllowed = true", "liveAuthority = \"LIVE\"", "withdraw(", "transfer(", "WebSocket("]) {
@@ -59,6 +61,8 @@ describe("Android D device-QA release candidate", () => {
     expect(themeProvider).toContain('barStyle={theme.mode === "dark" ? "light-content" : "dark-content"}');
     expect(androidHome).toContain("minHeight: 48");
     expect(androidHome).toContain("fontScale >= 1.35");
+    expect(androidAi).toContain("fontScale >= 1.35");
+    expect(androidAi).toContain("heroBodyStacked");
     expect(androidHome).toContain("StyleSheet.absoluteFill");
     expect(androidHome).not.toContain("StyleSheet.absoluteFillObject");
     expect(nativeTheme).toContain("android:windowLightStatusBar\">true");
