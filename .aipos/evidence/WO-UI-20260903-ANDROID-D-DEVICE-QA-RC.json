@@ -88,7 +88,7 @@
       }
     ],
     "remainingRepositoryKnownP1": 0,
-    "note": "Static inspection reduces known repository-side defects but is not a substitute for required Node24/pnpm/Gradle validation or physical-device acceptance."
+    "note": "Static inspection reduces known repository-side defects but is not a substitute for required Node24/pnpm/Gradle validation or physical-device acceptance. Commit e810741d5b1bbcd0b5f96e963bb05798c79e84c6 rewrote identical Android Home content and introduced no tree/content change beyond commit metadata."
   },
   "validation": {
     "status": "BLOCKED_ASSISTANT_LOCAL_ENVIRONMENT",
