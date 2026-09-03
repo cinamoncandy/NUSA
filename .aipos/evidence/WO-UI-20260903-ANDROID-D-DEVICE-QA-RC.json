@@ -54,7 +54,7 @@
     "passClaimed": false,
     "reviewScope": [
       "Android D app-shell routing and five-destination navigation",
-      "Android D Home financial/authority truth presentation",
+      "Android D Home financial/authority/status truth presentation",
       "Android NUSA decision evidence/calibration/authority presentation",
       "Android-only theme/system chrome",
       "device-QA script and branch contract test"
@@ -74,6 +74,17 @@
           "268f817e34aa3ee4b134e062c768b2cf77f022c8",
           "56680e63ec5a3489b853eabdcccaf42ef2b540a1"
         ]
+      },
+      {
+        "severity": "P1_TRUTHFULNESS",
+        "finding": "The Android Home labeled every canonical AI AVAILABLE state as 새 판단 even though the projection does not establish that the judgment is newly arrived.",
+        "resolution": "Use the neutral label NUSA 판단 and guard against unsupported recency wording in the Android D contract test.",
+        "commits": [
+          "8088de65bd31a86453b5fb9e7b7fcfbe2679ed54",
+          "b942ed39e00e42f98f5e56bffc3fe4f846a41cdf",
+          "987907e4abce467b3a68990d045c34211e530869"
+        ],
+        "scopeCorrection": "Commit b942ed39e00e42f98f5e56bffc3fe4f846a41cdf removed an incidental visual-only opacity drift introduced while applying the wording fix, leaving the intended Home behavior change limited to the status wording."
       }
     ],
     "remainingRepositoryKnownP1": 0,
