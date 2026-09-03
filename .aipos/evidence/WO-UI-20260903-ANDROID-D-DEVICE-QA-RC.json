@@ -2,7 +2,7 @@
   "workOrder": "WO-UI-20260903-ANDROID-D-DEVICE-QA-RC",
   "branch": "ux/android-d-release-candidate-20260903",
   "baseCommit": "83093d0e8f8b44f76c8eddd444fe146bd9336d3e",
-  "latestMainSyncCommit": "7ad981cc68b2eb5af29afa1b9c78647d064e309e",
+  "latestMainSyncCommit": "c2c70c63846217a002e653e5b0aee6676928aebc",
   "scope": "ANDROID_PRESENTATION_AND_NAVIGATION_ONLY",
   "designStatus": "TEMPORARY_CONCEPT_D_DEVICE_QA",
   "finalDesignFrozen": false,
@@ -30,10 +30,10 @@
     "canonicalNonAndroidAiUntouched": true,
     "androidBuildGradleFromMainUntouched": true,
     "latestProtectedMainReviewed": true,
-    "latestProtectedMain": "83093d0e8f8b44f76c8eddd444fe146bd9336d3e",
-    "previousSyncToLatestMainCommitCount": 6,
+    "latestProtectedMain": "13266b7e269d74cfe4daaafb9583b62242d97ddb",
+    "previousSyncToLatestMainCommitCount": 7,
     "postBaseMainDeltaOverlap": false,
-    "postBaseMainDeltaScope": "PAPER runtime chaos/restart lease-boundary workflow, scripts and test only; no mobile implementation files"
+    "postBaseMainDeltaScope": "Research factory promotion bridge plus exact-main Android stable release-trigger workflow/test; no Android D implementation overlap"
   },
   "androidNavigation": ["NOW", "MARKET", "NUSA", "ASSETS", "CONTROL"],
   "truthBoundaries": {
@@ -78,7 +78,8 @@
     ],
     "localExecutionEnvironmentBlocker": "Assistant container cannot resolve github.com and cannot materialize the full repository/dependency tree for Node24/pnpm/Gradle validation.",
     "observedLocalRuntime": "Node v22.16.0; repository requires Node >=24 and pnpm >=11.7; no pnpm binary is locally available.",
-    "connectorLimit": "Current GitHub connector exposes workflow read/retry operations but no workflow-dispatch or workflow-cancel operation usable as a compliant pre-PR validator.",
+    "connectorLimit": "Current GitHub connector can inspect workflow state but is not being used as a substitute for required branch-specific pre-PR machine validation.",
+    "mainDeliveryValidationCredit": "NONE_FOR_RC_BRANCH",
     "oneShotCommand": "powershell -ExecutionPolicy Bypass -File scripts/android-d-device-qa.ps1",
     "requiredBeforePR": [
       "pnpm run preflight",
@@ -101,11 +102,31 @@
       "verify PAPER ONLY / LIVE NONE / AI ZERO AUTHORITY labels"
     ]
   },
+  "currentMainDelivery": {
+    "exactMainSha": "13266b7e269d74cfe4daaafb9583b62242d97ddb",
+    "mainStillExactAfterRelease": true,
+    "ciRun": 33763241936,
+    "ciConclusion": "SUCCESS",
+    "actualPaperRuntimeRun": 33763822519,
+    "actualPaperRuntimeConclusion": "SUCCESS",
+    "androidStableTriggerRun": 33763827867,
+    "androidStableTriggerConclusion": "SUCCESS",
+    "androidStableReleaseRun": 33763847552,
+    "androidStableReleaseConclusion": "SUCCESS",
+    "releaseTag": "nusa-android",
+    "releaseVersion": "1.0.108",
+    "releaseTargetCommitish": "13266b7e269d74cfe4daaafb9583b62242d97ddb",
+    "firebaseDistribution": "SUCCESS",
+    "protectedSigning": "VERIFIED",
+    "apkIntegrityVerification": "SUCCESS",
+    "apkSha256": "38b414517c59ddace956c7a1da5bc2cc484e7a5dcb1635f3d085e74e91ad93ce",
+    "note": "This proves current main delivery health and exact-source deployment only. It does not validate or release the unmerged Android D RC branch."
+  },
   "releaseInfrastructure": {
     "mobileNativeWorkflow": ".github/workflows/mobile-native.yml",
+    "stableTriggerWorkflow": ".github/workflows/android-stable-release-trigger.yml",
+    "stableReleaseWorkflow": ".github/workflows/android-stable-release.yml",
     "workflowDispatchSupportedByRepository": true,
-    "workflowDispatchAvailableToCurrentConnector": false,
-    "workflowCancelAvailableToCurrentConnector": false,
     "debugApkArtifactSupported": true,
     "exactHeadRcArtifactSupported": true,
     "stableWorkflowRequiresCurrentMain": true,
