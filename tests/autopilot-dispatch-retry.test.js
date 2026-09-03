@@ -4,6 +4,7 @@ const {
   dispatchWithRetry,
   transientStatus,
   assertBoundedPatch,
+  proposalFailureCode,
   assertGithubRunnerWorkspaceClean,
   filterGithubRunnerWorkspacePaths,
 } = require("../scripts/autopilot-dispatch-retry.js");
@@ -189,4 +190,11 @@ test("rejects forbidden authority-surface patch paths", () => {
     () => assertBoundedPatch("diff --git a/apps/autopilot/src/live/broker/order/credential/secret/withdraw/transfer.ts b/apps/autopilot/src/live/broker/order/credential/secret/withdraw/transfer.ts\n+++ b/apps/autopilot/src/live/broker/order/credential/secret/withdraw/transfer.ts\n"),
     /SANDBOX_PATCH_PATH_FORBIDDEN/,
   );
+});
+
+test("classifies only bounded proposal validation failures as no-action", () => {
+  assert.equal(proposalFailureCode("CODING_PROPOSAL_JSON_INVALID"), "CODING_PROPOSAL_JSON_INVALID");
+  assert.equal(proposalFailureCode("SANDBOX_PATCH_APPLY_CHECK_FAILED:128:error: malformed diff"), "SANDBOX_PATCH_APPLY_CHECK_FAILED");
+  assert.equal(proposalFailureCode("CODING_RUNTIME_WORKSPACE_DIRTY"), null);
+  assert.equal(proposalFailureCode("CODING_PROPOSAL_JSON_INVALID secret=redacted"), null);
 });
