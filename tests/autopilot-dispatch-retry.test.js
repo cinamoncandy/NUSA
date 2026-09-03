@@ -3,6 +3,7 @@ const test = require("node:test");
 const {
   dispatchWithRetry,
   transientStatus,
+  assertBoundedPatch,
   assertGithubRunnerWorkspaceClean,
   filterGithubRunnerWorkspacePaths,
 } = require("../scripts/autopilot-dispatch-retry.js");
@@ -181,4 +182,11 @@ test("still rejects tracked or unrelated dirty workspace entries", () => {
       /CODING_RUNTIME_WORKSPACE_DIRTY/,
     );
   }
+});
+
+test("rejects forbidden authority-surface patch paths", () => {
+  assert.throws(
+    () => assertBoundedPatch("diff --git a/apps/autopilot/src/live/broker/order/credential/secret/withdraw/transfer.ts b/apps/autopilot/src/live/broker/order/credential/secret/withdraw/transfer.ts\n+++ b/apps/autopilot/src/live/broker/order/credential/secret/withdraw/transfer.ts\n"),
+    /SANDBOX_PATCH_PATH_FORBIDDEN/,
+  );
 });

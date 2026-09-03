@@ -389,6 +389,16 @@ describe("coding runner", () => {
     assert.equal(result.status, "EXECUTION_FAILED");
     assert.equal(result.reason, "CODING_PROPOSAL_SHAPE_INVALID");
   });
+
+  it("rejects forbidden authority-surface proposal paths before sandbox execution", async () => {
+    const forbiddenPatch = patch.replaceAll("apps/autopilot/src/example.ts", "apps/autopilot/src/live/broker/order/credential/secret/withdraw/transfer.ts");
+    const ai: WorkersAiBinding = {
+      async run() { return { response: JSON.stringify({ patch: forbiddenPatch }) }; },
+    };
+    const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch);
+    assert.equal(result.status, "EXECUTION_FAILED");
+    assert.equal(result.reason, "CODING_PROPOSAL_PATH_FORBIDDEN");
+  });
   it("falls back from the retired dashboard model to the supported default", async () => {
     const calls: string[] = [];
     const ai: WorkersAiBinding = {
