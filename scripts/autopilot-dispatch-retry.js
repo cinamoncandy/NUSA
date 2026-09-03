@@ -210,7 +210,18 @@ async function dispatchWithRetry({
 function readDispatchRequest() {
   const eventPath = process.env.GITHUB_EVENT_PATH;
   if (typeof eventPath !== "string" || !eventPath) throw new Error("GITHUB_EVENT_PATH_MISSING");
-  const event = JSON.parse(fs.readFileSync(eventPath, "utf8"));
+  let contents;
+  try {
+    contents = fs.readFileSync(eventPath, "utf8");
+  } catch {
+    throw new Error("GITHUB_EVENT_FILE_UNREADABLE");
+  }
+  let event;
+  try {
+    event = JSON.parse(contents.replace(/^\uFEFF/, ""));
+  } catch {
+    throw new Error("GITHUB_EVENT_JSON_INVALID");
+  }
   const payload = event.client_payload || {};
   return {
     kind: payload.kind,
@@ -225,6 +236,21 @@ function readDispatchRequest() {
     productionMutationAllowed: false,
     aiAuthority: "ZERO_AUTHORITY",
   };
+}
+
+function writeFailureArtifact(reason) {
+  const directory = "artifacts/autopilot-execution";
+  fs.mkdirSync(directory, { recursive: true });
+  fs.writeFileSync(directory + "/coding-runner-result.json", JSON.stringify({
+    schemaVersion: 1,
+    status: "FAILED_CLOSED",
+    reason,
+    workerStatus: "FAILED_CLOSED",
+    request: null,
+    liveAuthority: "NONE",
+    productionMutationAllowed: false,
+    aiAuthority: "ZERO_AUTHORITY",
+  }, null, 2));
 }
 
 function endpointFor(runnerUrl, suffix) {
@@ -388,9 +414,10 @@ function writeArtifacts(request, result) {
 }
 
 async function main() {
-  const request = readDispatchRequest();
   const startedAt = Date.now();
+  let request;
   try {
+    request = readDispatchRequest();
     const runnerUrl = process.env.NUSA_CODING_RUNNER_URL;
     if (typeof runnerUrl !== "string" || !runnerUrl) throw new Error("AUTOPILOT_CODING_RUNNER_URL_MISSING");
     const result = await executeGithubActionsRunner(request, runnerUrl);
@@ -398,6 +425,12 @@ async function main() {
     console.log(`execution=${result.status} backend=github-actions-runner changed=${(result.changedFiles || []).join(",")}`);
   } catch (error) {
     const reason = error instanceof Error ? error.message : "AUTOPILOT_GITHUB_RUNNER_FAILED";
+    if (!request) {
+      try { writeFailureArtifact(reason); } catch { /* preserve the original bounded failure below */ }
+      console.error(reason);
+      process.exitCode = 1;
+      return;
+    }
     const safeProposalFailure = proposalFailureCode(reason);
     const attempts = [attemptRecord({
       request,
@@ -437,6 +470,7 @@ module.exports = {
   resultSummary,
   assertBoundedPatch,
   proposalFailureCode,
+  readDispatchRequest,
   assertGithubRunnerWorkspaceClean,
   filterGithubRunnerWorkspacePaths,
   validatePatchOnGithubRunner,
