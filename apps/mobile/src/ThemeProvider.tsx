@@ -2,12 +2,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useColorScheme } from "react-native";
 import { createTheme, type DesignPresetName, type Theme, type ThemeMode } from "./designSystem";
+import { BUILD_SOURCE_SHA } from "./generatedBuildConfig";
 
 export type ThemePreference = ThemeMode | "system";
 
 const DESIGN_PRESET_STORAGE_KEY = "nusa:design-preset";
 const DESIGN_PRESET_SCHEMA_KEY = "nusa:design-preset-schema";
-const DESIGN_PRESET_SCHEMA_VERSION = "2";
+const RELEASE_BUILD_SOURCE_SHA = /^[0-9a-f]{40}$/i.test(BUILD_SOURCE_SHA) ? BUILD_SOURCE_SHA.toLowerCase() : null;
+const DESIGN_PRESET_SCHEMA_VERSION = RELEASE_BUILD_SOURCE_SHA == null ? "dev-v3" : `build:${RELEASE_BUILD_SOURCE_SHA}`;
 const CURRENT_DEFAULT_PRESET: DesignPresetName = "master";
 const isDesignPresetName = (value: string | null): value is DesignPresetName => value === "classic" || value === "master";
 
