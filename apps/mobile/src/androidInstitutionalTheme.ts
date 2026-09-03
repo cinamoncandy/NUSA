@@ -20,8 +20,8 @@ function deepFreezeTheme(theme: Theme): Theme {
 }
 
 /**
- * Android-only presentation overlay for NUSA temporary concept E.
- * Direction: calm cinematic supervisory OS, adaptive glass surfaces and restrained depth.
+ * Android-only presentation overlay for NUSA supervisory UI concepts.
+ * Direction: calm institutional supervisory OS, adaptive surfaces and restrained depth.
  * Visual tokens only: no trading, authority, runtime, risk, market-data or credential semantics.
  */
 export function applyAndroidInstitutionalTheme(base: Theme): Theme {
