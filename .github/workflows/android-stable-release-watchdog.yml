@@ -1,0 +1,110 @@
+name: Android Stable Release Watchdog
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+  issues: write
+
+concurrency:
+  group: android-stable-release-watchdog
+  cancel-in-progress: true
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout trusted main watchdog
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Reconcile Android stable deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          MAIN_SHA="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          printf '%s' "$MAIN_SHA" | grep -Eq '^[0-9a-fA-F]{40}$'
+
+          CI_CONCLUSION="$(
+            gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$MAIN_SHA&status=completed&per_page=100" \
+              --jq '[.workflow_runs[] | select(.path == ".github/workflows/ci.yml" and .head_sha == "'"$MAIN_SHA"'")][0].conclusion // empty'
+          )"
+          if [ "$CI_CONCLUSION" != "success" ]; then
+            echo "Exact-main CI is not successful yet; watchdog remains fail-closed."
+            exit 0
+          fi
+
+          RELEASE_TARGET="$(gh release view nusa-android --json targetCommitish --jq '.targetCommitish' 2>/dev/null || true)"
+          if [ "$RELEASE_TARGET" = "$MAIN_SHA" ]; then
+            echo "Android stable already converged on exact main $MAIN_SHA."
+            exit 0
+          fi
+
+          if [ -n "$RELEASE_TARGET" ]; then
+            printf '%s' "$RELEASE_TARGET" | grep -Eq '^[0-9a-fA-F]{40}$'
+            git fetch --no-tags origin "$RELEASE_TARGET" "$MAIN_SHA"
+            if git diff --quiet "$RELEASE_TARGET" "$MAIN_SHA" -- \
+              apps/mobile \
+              scripts/prepare-mobile-build-config.js \
+              scripts/validate-android-release-contract.js \
+              .github/android-release-contract.json \
+              pnpm-lock.yaml pnpm-workspace.yaml package.json \
+              .github/workflows/android-stable-release.yml \
+              .github/workflows/android-stable-release-trigger.yml \
+              .github/workflows/android-release-pipeline-guard.yml \
+              .github/workflows/android-stable-release-watchdog.yml; then
+              echo "No Android release-relevant drift from stable target."
+              exit 0
+            fi
+          fi
+
+          RUNS_JSON="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/342016298/runs?branch=main&per_page=50")"
+          ACTIVE_ID="$(printf '%s' "$RUNS_JSON" | jq -r --arg sha "$MAIN_SHA" '[.workflow_runs[] | select(.head_sha == $sha and (.status == "queued" or .status == "in_progress" or .status == "pending"))][0].id // empty')"
+          if [ -n "$ACTIVE_ID" ]; then
+            echo "Android Stable Release already active for exact main: run $ACTIVE_ID."
+            exit 0
+          fi
+
+          FAILED_ID="$(printf '%s' "$RUNS_JSON" | jq -r --arg sha "$MAIN_SHA" '[.workflow_runs[] | select(.head_sha == $sha and .status == "completed" and .conclusion == "failure")][0].id // empty')"
+          FAILED_ATTEMPT="$(printf '%s' "$RUNS_JSON" | jq -r --arg sha "$MAIN_SHA" '[.workflow_runs[] | select(.head_sha == $sha and .status == "completed" and .conclusion == "failure")][0].run_attempt // 0')"
+
+          CURRENT_MAIN="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          if [ "$CURRENT_MAIN" != "$MAIN_SHA" ]; then
+            echo "Main advanced during reconciliation; refusing stale recovery."
+            exit 0
+          fi
+
+          if [ -n "$FAILED_ID" ] && [ "$FAILED_ATTEMPT" -lt 3 ]; then
+            echo "Retrying failed Android Stable Release run $FAILED_ID, bounded attempt $((FAILED_ATTEMPT + 1))/3."
+            gh api --method POST "repos/$GITHUB_REPOSITORY/actions/runs/$FAILED_ID/rerun-failed-jobs"
+            exit 0
+          fi
+
+          if [ -n "$FAILED_ID" ] && [ "$FAILED_ATTEMPT" -ge 3 ]; then
+            TITLE="Android stable deployment blocked for ${MAIN_SHA:0:8}"
+            EXISTING="$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number // empty')"
+            if [ -z "$EXISTING" ]; then
+              gh issue create \
+                --title "$TITLE" \
+                --body "Android Stable Release failed three bounded attempts for exact-main $MAIN_SHA. Automatic retries stopped fail-closed. Inspect run https://github.com/$GITHUB_REPOSITORY/actions/runs/$FAILED_ID. Safety invariants remain LIVE=NONE, productionMutationAllowed=false, AI=ZERO_AUTHORITY."
+            fi
+            echo "Automatic retry budget exhausted; incident surfaced and deployment remains fail-closed."
+            exit 0
+          fi
+
+          echo "No active exact-main release run found; dispatching a fresh deterministic promotion."
+          gh api --method POST \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/android-stable-release.yml/dispatches" \
+            -f ref=main \
+            -F "inputs[source_sha]=$MAIN_SHA"
