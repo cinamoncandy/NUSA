@@ -47,6 +47,7 @@ export * from "./researchHypothesisContract";
 export * from "./researchFactoryOutcome";
 export * from "./researchFactoryEvidenceReport";
 export * from "./researchCandidateSpecification";
+export * from "./researchFactoryPromotionBridge";
 export * from "./portfolioRiskIntelligence";
 export * from "./aiEvaluationTemporalPartition";
 export * from "./aiEvaluationDataVintage";
