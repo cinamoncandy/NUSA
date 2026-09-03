@@ -78,10 +78,20 @@ jobs:
               scripts/validate-android-release-contract.js \
               .github/android-release-contract.json \
               pnpm-lock.yaml pnpm-workspace.yaml package.json \
-              .github/workflows/android-stable-release.yml; then
+              .github/workflows/android-stable-release.yml \
+              .github/workflows/android-stable-release-trigger.yml \
+              .github/workflows/android-release-pipeline-guard.yml \
+              .github/workflows/android-stable-release-watchdog.yml; then
               echo "No Android release-relevant changes since stable source $RELEASE_TARGET."
               exit 0
             fi
+          fi
+
+          RUNS_JSON="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/342016298/runs?branch=main&per_page=50")"
+          ACTIVE_ID="$(printf '%s' "$RUNS_JSON" | jq -r --arg sha "$MAIN_SHA" '[.workflow_runs[] | select(.head_sha == $sha and (.status == "queued" or .status == "in_progress" or .status == "pending"))][0].id // empty')"
+          if [ -n "$ACTIVE_ID" ]; then
+            echo "Android Stable Release already active for exact main: run $ACTIVE_ID."
+            exit 0
           fi
 
           CURRENT_MAIN="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
