@@ -1,0 +1,98 @@
+name: Android Stable Release Trigger
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: android-stable-release-trigger
+  cancel-in-progress: true
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout trusted main release trigger
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Wait for exact-main CI and dispatch Android stable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          MAIN_SHA="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          printf '%s' "$MAIN_SHA" | grep -Eq '^[0-9a-fA-F]{40}$'
+
+          CI_CONCLUSION=""
+          for attempt in $(seq 1 60); do
+            CURRENT_MAIN="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+            if [ "$CURRENT_MAIN" != "$MAIN_SHA" ]; then
+              echo "Main advanced from $MAIN_SHA to $CURRENT_MAIN; newer trigger will own promotion."
+              exit 0
+            fi
+
+            CI_CONCLUSION="$(
+              gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$MAIN_SHA&status=completed&per_page=100" \
+                --jq '[.workflow_runs[] | select(.path == ".github/workflows/ci.yml" and .head_sha == "'"$MAIN_SHA"'")][0].conclusion // empty'
+            )"
+            if [ "$CI_CONCLUSION" = "success" ]; then
+              break
+            fi
+            if [ -n "$CI_CONCLUSION" ] && [ "$CI_CONCLUSION" != "success" ]; then
+              echo "Exact-main CI concluded $CI_CONCLUSION; refusing Android stable release."
+              exit 0
+            fi
+            sleep 10
+          done
+
+          if [ "$CI_CONCLUSION" != "success" ]; then
+            echo "Exact-main CI did not complete successfully within the bounded wait; fail closed."
+            exit 0
+          fi
+
+          RELEASE_TARGET="$(gh release view nusa-android --json targetCommitish --jq '.targetCommitish' 2>/dev/null || true)"
+          if [ "$RELEASE_TARGET" = "$MAIN_SHA" ]; then
+            echo "Android stable already targets exact main $MAIN_SHA."
+            exit 0
+          fi
+
+          if [ -n "$RELEASE_TARGET" ]; then
+            printf '%s' "$RELEASE_TARGET" | grep -Eq '^[0-9a-fA-F]{40}$'
+            git fetch --no-tags origin "$RELEASE_TARGET" "$MAIN_SHA"
+            if git diff --quiet "$RELEASE_TARGET" "$MAIN_SHA" -- \
+              apps/mobile \
+              scripts/prepare-mobile-build-config.js \
+              scripts/validate-android-release-contract.js \
+              .github/android-release-contract.json \
+              pnpm-lock.yaml pnpm-workspace.yaml package.json \
+              .github/workflows/android-stable-release.yml; then
+              echo "No Android release-relevant changes since stable source $RELEASE_TARGET."
+              exit 0
+            fi
+          fi
+
+          CURRENT_MAIN="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          test "$CURRENT_MAIN" = "$MAIN_SHA" || {
+            echo "Main changed before dispatch; refusing stale promotion."
+            exit 0
+          }
+
+          gh api --method POST \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/android-stable-release.yml/dispatches" \
+            -f ref=main \
+            -F "inputs[source_sha]=$MAIN_SHA"
+
+          echo "Dispatched Android Stable Release for exact CI-verified main $MAIN_SHA."
