@@ -59,6 +59,8 @@ describe("Android D device-QA release candidate", () => {
     expect(themeProvider).toContain('barStyle={theme.mode === "dark" ? "light-content" : "dark-content"}');
     expect(androidHome).toContain("minHeight: 48");
     expect(androidHome).toContain("fontScale >= 1.35");
+    expect(androidHome).toContain("StyleSheet.absoluteFill");
+    expect(androidHome).not.toContain("StyleSheet.absoluteFillObject");
     expect(nativeTheme).toContain("android:windowLightStatusBar\">true");
     expect(nativeTheme).toContain("android:windowLightNavigationBar\">true");
     expect(nativeColors).toContain('<color name="nusa_accent">#24B99E</color>');
