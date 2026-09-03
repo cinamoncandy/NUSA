@@ -13,6 +13,7 @@ const date = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" });
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 const AUDIT_MAX_ATTEMPTS = 3;
 const AUDIT_RETRY_DELAY_MS = 2_000;
+const AUDIT_ATTEMPT_TIMEOUT_MS = 120_000;
 
 const COMPENSATED = Object.freeze({
   "1138808": { package: "image-size", ghsa: "GHSA-w3rx-r6r6-pgpr" },
@@ -44,12 +45,19 @@ function audit() {
     const windows = os.platform() === "win32";
     const executable = windows ? (process.env.ComSpec ?? "cmd.exe") : "pnpm";
     const args = windows ? ["/d", "/s", "/c", "pnpm audit --json"] : ["audit", "--json"];
-    const output = execFileSync(executable, args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    const output = execFileSync(executable, args, {
+      cwd: root,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: AUDIT_ATTEMPT_TIMEOUT_MS,
+      killSignal: "SIGTERM"
+    });
     return parseAuditResult(output);
   } catch (error) {
     const output = String(error.stdout ?? "");
-    if (!output.includes("{")) throw error;
-    return parseAuditResult(output);
+    if (output.includes("{")) return parseAuditResult(output);
+    if (error?.code === "ETIMEDOUT" || error?.signal === "SIGTERM") throw new Error("AUDIT_UNAVAILABLE:timeout");
+    throw error;
   }
 }
 
