@@ -268,7 +268,7 @@ function validatePatchOnGithubRunner(request, patch) {
   if (run("git", ["rev-parse", "HEAD"], "GITHUB_RUNNER_HEAD_FAILED").trim().toLowerCase() !== request.headSha.toLowerCase()) {
     throw new Error("CODING_RUNTIME_HEAD_MISMATCH");
   }
-  assertGithubRunnerWorkspaceClean(run("git", ["status", "--porcelain"], "GITHUB_RUNNER_STATUS_FAILED"));
+  assertGithubRunnerWorkspaceClean(run("git", ["status", "--porcelain", "--untracked-files=all"], "GITHUB_RUNNER_STATUS_FAILED"));
 
   fs.writeFileSync(PATCH_PATH, `${patch.trim()}\n`);
   run("git", ["apply", "--check", PATCH_PATH], "SANDBOX_PATCH_APPLY_CHECK_FAILED");
