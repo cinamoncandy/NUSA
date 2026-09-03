@@ -1,0 +1,56 @@
+{
+  "workOrder": "WO-UI-20260904-MOBILE-DELIVERY-TRUTH",
+  "branch": "fix/mobile-ui-delivery-truth-a6ea732",
+  "baseCommit": "a6ea7320280191e54075faa777615936fc1e3e72",
+  "implementationHeadBeforeEvidence": "ae4875edb2fbbef9d93676abe8f747c541f3dad6",
+  "authorityImpact": "none",
+  "rootCause": {
+    "sourceDeliveryMismatch": "Expected HOME redesign remained SOURCE_ONLY on ux/home-ai-surface-20260904 and therefore was absent from protected main and Stable.",
+    "stalePresetRisk": "ThemeProvider persisted classic/master under fixed schema version 2, so a previously stored classic value could survive an APK update when the schema was unchanged.",
+    "releaseIdentityGap": "PR #1568 repaired exact-main Stable convergence and packaged build identity; it merged as a6ea7320280191e54075faa777615936fc1e3e72 and Stable 1.0.109 targets that exact commit."
+  },
+  "implementation": {
+    "themeProvider": "apps/mobile/src/ThemeProvider.tsx",
+    "deviceDiagnostics": "apps/mobile/src/moreView.tsx",
+    "deliveryContract": "docs/NUSA_MOBILE_UI_DELIVERY_CONTRACT.md",
+    "aiposDiscovery": ".aipos/aipos.yaml",
+    "focusedRegression": "tests/mobile-ui-delivery-truth.test.js"
+  },
+  "guards": {
+    "releaseBuildInvalidatesStalePreset": true,
+    "canonicalPreset": "master",
+    "deviceShowsBuildSha": true,
+    "deviceShowsActiveUiPreset": true,
+    "deliveryStates": ["SOURCE_ONLY", "MAIN_INTEGRATED", "STABLE_RELEASED", "DEVICE_VERIFIED"],
+    "branchOnlyMayBeCalledDelivered": false,
+    "exactMainStableRequired": true,
+    "pathDiffStableEquivalenceAllowed": false
+  },
+  "verifiedRepositoryStateAtDiagnosis": {
+    "protectedMain": "a6ea7320280191e54075faa777615936fc1e3e72",
+    "mainMergedPr": 1568,
+    "stableRelease": "NUSA Android 1.0.109",
+    "stableTarget": "a6ea7320280191e54075faa777615936fc1e3e72",
+    "expectedHomeRedesignBranch": "ux/home-ai-surface-20260904",
+    "expectedHomeRedesignStatusVsMain": "DIVERGED_SOURCE_ONLY",
+    "expectedHomeRedesignBehindMainBy": 15
+  },
+  "safety": {
+    "mode": "PAPER_ONLY",
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY"
+  },
+  "validation": {
+    "status": "BLOCKED_ASSISTANT_LOCAL_ENVIRONMENT",
+    "observedNode": "v22.16.0",
+    "pnpmAvailable": false,
+    "githubDnsAvailable": false,
+    "repositoryNodeRequirement": ">=24",
+    "repositoryPnpmRequirement": ">=11.7",
+    "staticSourceReviewCompleted": true,
+    "machinePassClaimed": false,
+    "prOpened": false,
+    "mergeAttempted": false
+  }
+}
