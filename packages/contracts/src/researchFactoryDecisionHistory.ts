@@ -81,7 +81,7 @@ function assertHistoryState(history: ResearchFactoryDecisionHistoryState): void 
         typeof record.candidateId !== "string" || record.candidateId.length === 0 ||
         typeof record.evaluationId !== "string" || record.evaluationId.length === 0 ||
         !OUTCOMES.has(record.outcome) ||
-        !Array.isArray(record.reasons) || !record.reasons.every((reason) => typeof reason === "string") ||
+        !Array.isArray(record.reasons) || !record.reasons.every((reason: unknown) => typeof reason === "string") ||
         !Number.isSafeInteger(record.observedAt) || record.observedAt < 0) {
       throw new Error("RESEARCH_FACTORY_HISTORY_STATE_INVALID");
     }
