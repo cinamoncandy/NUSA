@@ -6,6 +6,7 @@
   "designIntent": "Visibly replace the installed stacked SUPERVISOR/EVIDENCE FIRST HOME with an AI-first NOW + signal-field composition while retaining NUSA terminal identity and truthful evidence rails.",
   "implementation": {
     "home": "apps/mobile/src/homeView.tsx",
+    "focusedRegression": "tests/mobile-home-ai-surface.test.js",
     "newFirstScreenHierarchy": ["NUSA", "NOW", "SIGNAL TERRAIN", "WHY", "RESULT", "RISK", "LEARNING"],
     "homeScopedSignalAccent": "acid-lime",
     "failClosedAccent": "restrained-magenta",
@@ -23,6 +24,8 @@
     "aiAuthority": "ZERO_AUTHORITY"
   },
   "staticAudit": {
+    "masterShellContractReviewed": true,
+    "hotswapContractReviewed": true,
     "canonicalTestIdsPreserved": true,
     "homeMasterRailPreserved": true,
     "supervisorDecisionProjectionPreserved": true,
@@ -30,6 +33,8 @@
     "candleProjectionPreserved": true,
     "tabularFinancialNumeralsPreserved": true,
     "minimumPrimaryActionHeightDp": 48,
+    "oldSupervisorEvidenceFirstCopyAbsent": true,
+    "focusedRegressionAdded": true,
     "machinePassClaimed": false
   },
   "validation": {
