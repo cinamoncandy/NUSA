@@ -8,7 +8,7 @@ allowBuilds:
 overrides:
   ws@8.18.3: 8.21.0
   brace-expansion@1.1.17: 1.1.18
-  fast-uri@3.1.4: 3.1.5
+  fast-uri@3.1.4: 3.1.6
   fast-xml-parser: 5.7.0
   js-yaml@4.3.0: 4.3.1
   nanoid: 3.3.18

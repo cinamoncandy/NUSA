@@ -120,11 +120,12 @@ jobs:
     needs: audit
     if: ${{ needs.audit.result == 'success' && needs.audit.outputs.applicable == 'true' && needs.audit.outputs.authority == 'DETERMINISTIC_AUDIT_PASS' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 20
     concurrency:
       group: deterministic-release-main
       cancel-in-progress: false
     permissions:
+      actions: write
       contents: write
       pull-requests: write
     env:
@@ -153,3 +154,51 @@ jobs:
           echo 'liveAuthority=NONE'
           echo 'productionMutationAllowed=false'
           echo 'aiAuthority=ZERO_AUTHORITY'
+
+      - name: Start canonical post-merge main CI
+        id: ci
+        run: |
+          set -euo pipefail
+          merged_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          test "$merged_main" != "$AUDITED_BASE"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/dispatches" -f ref=main
+          echo "merged_main=$merged_main" >> "$GITHUB_OUTPUT"
+          echo "Dispatched canonical main CI for merged revision $merged_main"
+
+      - name: Wait for post-merge CI and dispatch Cloudflare Deploy directly
+        env:
+          MERGED_MAIN: ${{ steps.ci.outputs.merged_main }}
+        run: |
+          set -euo pipefail
+          # A CI run dispatched via GITHUB_TOKEN does not fire workflow_run listeners on
+          # completion (GitHub Actions anti-recursion behavior), so Autopilot Cloudflare
+          # Deploy's workflow_run:[CI] trigger never fires for it. Wait for exact-head CI
+          # to finish, then dispatch Deploy directly instead of relying on that chain.
+          conclusion=""
+          for attempt in $(seq 1 40); do
+            conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$MERGED_MAIN&status=completed&per_page=100" --jq '[.workflow_runs[] | select(.name == "CI" and .path == ".github/workflows/ci.yml" and .head_sha == env.MERGED_MAIN)][0].conclusion // empty')"
+            if [ -n "$conclusion" ]; then
+              break
+            fi
+            echo "Waiting for post-merge CI on $MERGED_MAIN (attempt $attempt/40)..."
+            sleep 20
+          done
+          if [ "$conclusion" != "success" ]; then
+            echo "::error::Post-merge CI for $MERGED_MAIN did not succeed (conclusion=${conclusion:-timeout}); not dispatching Deploy."
+            exit 1
+          fi
+          echo "Post-merge CI verified for $MERGED_MAIN; dispatching Cloudflare Deploy directly."
+          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-cloudflare-deploy.yml/dispatches" -f ref=main -f "inputs[head_sha]=$MERGED_MAIN"
+
+      - name: Dispatch other CI-gated downstream workflows directly
+        env:
+          MERGED_MAIN: ${{ steps.ci.outputs.merged_main }}
+        run: |
+          set -euo pipefail
+          # These also listen for workflow_run:[CI] on branches:[main] and stopped firing
+          # for the same GITHUB_TOKEN-dispatch reason as Cloudflare Deploy. Dispatch them
+          # directly instead of depending on that chain.
+          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-cloudflare-promote.yml/dispatches" -f ref=main -f "inputs[head_sha]=$MERGED_MAIN"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/android-stable-release.yml/dispatches" -f ref=main
+          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/windows-desktop-stable-release.yml/dispatches" -f ref=main
+          echo "Dispatched Cloudflare Promote, Android Stable Release, and Windows Desktop Stable Release for $MERGED_MAIN."

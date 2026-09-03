@@ -43,6 +43,31 @@ test("Release re-verifies exact expected head and audited base before merge", ()
   assert.match(workflow, /\.merged == true/);
 });
 
+test("Release explicitly dispatches canonical main CI after a GITHUB_TOKEN merge", () => {
+  assert.match(workflow, /actions:\s*write/);
+  assert.match(workflow, /Start canonical post-merge main CI/);
+  assert.match(workflow, /actions\/workflows\/ci\.yml\/dispatches/);
+  assert.match(workflow, /-f ref=main/);
+  assert.match(workflow, /merged_main/);
+});
+
+test("Release directly dispatches Cloudflare Deploy after post-merge CI succeeds, since GITHUB_TOKEN-dispatched CI does not fire workflow_run", () => {
+  assert.match(workflow, /Wait for post-merge CI and dispatch Cloudflare Deploy directly/);
+  assert.match(workflow, /does not fire workflow_run listeners/);
+  assert.match(workflow, /actions\/runs\?head_sha=\$MERGED_MAIN&status=completed&per_page=100/);
+  assert.match(workflow, /actions\/workflows\/autopilot-cloudflare-deploy\.yml\/dispatches/);
+  assert.match(workflow, /inputs\[head_sha\]=\$MERGED_MAIN/);
+  assert.match(workflow, /conclusion" != "success"/);
+});
+
+test("Release directly dispatches Cloudflare Promote, Android Stable Release, and Windows Desktop Stable Release after post-merge CI succeeds", () => {
+  assert.match(workflow, /Dispatch other CI-gated downstream workflows directly/);
+  assert.match(workflow, /actions\/workflows\/autopilot-cloudflare-promote\.yml\/dispatches/);
+  assert.match(workflow, /inputs\[head_sha\]=\$MERGED_MAIN/);
+  assert.match(workflow, /actions\/workflows\/android-stable-release\.yml\/dispatches/);
+  assert.match(workflow, /actions\/workflows\/windows-desktop-stable-release\.yml\/dispatches/);
+});
+
 test("safety invariants remain fail-closed", () => {
   assert.match(workflow, /live_authority !== 'NONE'/);
   assert.match(workflow, /production_mutation_allowed !== false/);

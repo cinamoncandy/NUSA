@@ -10,6 +10,9 @@ test('Windows desktop stable release is exact-main and CI gated', () => {
   assert.ok(workflow.includes('workflow_run:'));
   assert.ok(workflow.includes('workflows: [CI]'));
   assert.ok(workflow.includes('branches: [main]'));
+  assert.ok(workflow.includes('Resolve current-main Windows release candidate'));
+  assert.ok(workflow.includes('needs: resolve'));
+  assert.ok(workflow.includes('Skipping stale Windows workflow_run'));
   assert.ok(workflow.includes('Refusing stale Windows release'));
   assert.ok(workflow.includes('canonical CI run'));
   assert.ok(workflow.includes('Refusing stale Windows publication'));
@@ -42,6 +45,7 @@ test('Windows desktop stable release publishes immutable provenance with safety 
   assert.ok(workflow.includes('live_authority=NONE'));
   assert.ok(workflow.includes('production_mutation_allowed=false'));
   assert.ok(workflow.includes('ai_authority=ZERO_AUTHORITY'));
+  assert.ok(workflow.includes('auto_update=sha256_verified_silent_nsis'));
   assert.ok(workflow.includes('gh release upload nusa-windows'));
   assert.ok(workflow.includes('gh release create nusa-windows'));
 });
