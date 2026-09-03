@@ -44,6 +44,7 @@ export * from "./persistedPaperPeriod";
 export * from "./uxTelemetryEvent";
 export * from "./aiTradingJudgment";
 export * from "./researchHypothesisContract";
+export * from "./researchFactoryOutcome";
 export * from "./portfolioRiskIntelligence";
 export * from "./aiEvaluationTemporalPartition";
 export * from "./aiEvaluationDataVintage";
