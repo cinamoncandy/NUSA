@@ -1,6 +1,11 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { dispatchWithRetry, transientStatus } = require("../scripts/autopilot-dispatch-retry.js");
+const {
+  dispatchWithRetry,
+  transientStatus,
+  assertGithubRunnerWorkspaceClean,
+  filterGithubRunnerWorkspacePaths,
+} = require("../scripts/autopilot-dispatch-retry.js");
 
 const request = Object.freeze({
   kind: "REPOSITORY_AUTOPILOT",
@@ -144,4 +149,35 @@ test("records duplicate suppression as no action without retry", async () => {
   assert.equal(result.summary.noAction, 1);
   assert.equal(result.attempts[0].decision, "NO_ACTION");
   assert.equal(calls, 2);
+});
+
+test("allows only this workflow's generated artifacts before patch validation", () => {
+  assert.doesNotThrow(() => assertGithubRunnerWorkspaceClean([
+    "?? artifacts/autopilot-execution/repository-dispatch.json",
+    "?? artifacts/autopilot-execution/coding-runner-request.json",
+  ].join("\n")));
+  assert.doesNotThrow(() => assertGithubRunnerWorkspaceClean(""));
+  assert.deepEqual(
+    filterGithubRunnerWorkspacePaths([
+      ".nusa-autopilot.patch",
+      "artifacts/autopilot-execution/repository-dispatch.json",
+      "apps/autopilot/src/codingRunner.ts",
+    ]),
+    ["apps/autopilot/src/codingRunner.ts"],
+  );
+});
+
+test("still rejects tracked or unrelated dirty workspace entries", () => {
+  for (const status of [
+    " M apps/autopilot/src/codingRunner.ts",
+    "?? .nusa-autopilot.patch",
+    "?? artifacts/autopilot-execution/unexpected.txt",
+    "?? artifacts/other.json",
+    " M artifacts/autopilot-execution/repository-dispatch.json",
+  ]) {
+    assert.throws(
+      () => assertGithubRunnerWorkspaceClean(status),
+      /CODING_RUNTIME_WORKSPACE_DIRTY/,
+    );
+  }
 });
