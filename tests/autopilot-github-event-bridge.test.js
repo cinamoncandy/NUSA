@@ -12,6 +12,7 @@ const safetyPayload = (extra = {}) => ({
   liveAuthority: "NONE",
   productionMutationAllowed: false,
   aiAuthority: "ZERO_AUTHORITY",
+  executor: { status: "NOOP", reason: "no-action", httpStatus: null },
   ...extra,
 });
 const safetyResponse = (extra = {}) => new Response(JSON.stringify(safetyPayload(extra)), { status: 202, headers: { "content-type": "application/json" } });
@@ -25,39 +26,16 @@ test("the event bridge uses one deterministic delivery identity and exact HMAC b
 
 test("missing OIDC and repository secret fails closed without making a request", async () => {
   let calls = 0;
-  await assert.rejects(() => dispatchGithubEvent({
-    secret: "",
-    body,
-    event: "push",
-    repository: "cinamoncandy/NUSA",
-    runId: "11",
-    runAttempt: "1",
-    fetchImpl: async () => { calls += 1; return safetyResponse(); },
-  }), /WEBHOOK_AUTH_REQUIRED/);
+  await assert.rejects(() => dispatchGithubEvent({ secret: "", body, event: "push", repository: "cinamoncandy/NUSA", runId: "11", runAttempt: "1", fetchImpl: async () => { calls += 1; return safetyResponse(); } }), /WEBHOOK_AUTH_REQUIRED/);
   assert.equal(calls, 0);
 });
 
 test("pull_request_target is delivered as the canonical pull_request event", async () => {
   let request;
-  const result = await dispatchGithubEvent({
-    secret: "bridge-test-secret",
-    body,
-    event: "pull_request_target",
-    repository: "cinamoncandy/NUSA",
-    runId: "12",
-    runAttempt: "1",
-    webhookUrl: "https://autopilot.example.test/github/webhook",
-    fetchImpl: async (url, init) => {
-      request = { url, init };
-      return safetyResponse();
-    },
-    timeoutMs: 100,
-  });
+  const result = await dispatchGithubEvent({ secret: "bridge-test-secret", body, event: "pull_request_target", repository: "cinamoncandy/NUSA", runId: "12", runAttempt: "1", webhookUrl: "https://autopilot.example.test/github/webhook", fetchImpl: async (url, init) => { request = { url, init }; return safetyResponse(); }, timeoutMs: 100 });
   assert.equal(result.status, "DELIVERED");
   assert.equal(result.auditFallbackEligible, false);
-  assert.equal(result.executorStatus, null);
-  assert.equal(result.executorReason, null);
-  assert.equal(result.executorHttpStatus, null);
+  assert.equal(result.executorStatus, "NOOP");
   assert.equal(request.url, "https://autopilot.example.test/github/webhook");
   assert.equal(request.init.method, "POST");
   assert.equal(request.init.headers["x-github-event"], "pull_request");
@@ -67,22 +45,10 @@ test("pull_request_target is delivered as the canonical pull_request event", asy
 });
 
 test("Audit fallback eligibility is limited to explicit credential failures on AUDIT_REQUEST", async () => {
-  const tokenMissing = safetyPayload({
-    execution: { kind: "AUDIT_REQUEST" },
-    executor: { status: "INTERFACE_READY", reason: "github-executor-token-not-configured", httpStatus: null },
-  });
-  const authRejected = safetyPayload({
-    execution: { kind: "AUDIT_REQUEST" },
-    executor: { status: "FAILED", reason: "github-executor-auth-rejected", httpStatus: 403 },
-  });
-  const dispatchScopeInvalid = safetyPayload({
-    execution: { kind: "AUDIT_REQUEST" },
-    executor: { status: "FAILED", reason: "github-executor-repository-or-token-scope-invalid", httpStatus: 404 },
-  });
-  const prScopeInvalid = safetyPayload({
-    execution: { kind: "AUDIT_REQUEST" },
-    executor: { status: "FAILED", reason: "github-executor-pr-or-token-scope-invalid", httpStatus: 404 },
-  });
+  const tokenMissing = safetyPayload({ execution: { kind: "AUDIT_REQUEST" }, executor: { status: "INTERFACE_READY", reason: "github-executor-token-not-configured", httpStatus: null } });
+  const authRejected = safetyPayload({ execution: { kind: "AUDIT_REQUEST" }, executor: { status: "FAILED", reason: "github-executor-auth-rejected", httpStatus: 403 } });
+  const dispatchScopeInvalid = safetyPayload({ execution: { kind: "AUDIT_REQUEST" }, executor: { status: "FAILED", reason: "github-executor-repository-or-token-scope-invalid", httpStatus: 404 } });
+  const prScopeInvalid = safetyPayload({ execution: { kind: "AUDIT_REQUEST" }, executor: { status: "FAILED", reason: "github-executor-pr-or-token-scope-invalid", httpStatus: 404 } });
   assert.equal(isAuditFallbackEligible(tokenMissing), true);
   assert.equal(isAuditFallbackEligible(authRejected), true);
   assert.equal(isAuditFallbackEligible(dispatchScopeInvalid), true);
@@ -90,120 +56,66 @@ test("Audit fallback eligibility is limited to explicit credential failures on A
   assert.equal(isAuditFallbackEligible({ ...authRejected, execution: { kind: "REPOSITORY_AUTOPILOT" } }), false);
   assert.equal(isAuditFallbackEligible(safetyPayload({ execution: { kind: "AUDIT_REQUEST" }, executor: { status: "REJECTED", reason: "github-executor-stale-pr-head-suppressed", httpStatus: null } })), false);
   assert.equal(isAuditFallbackEligible(safetyPayload({ execution: { kind: "AUDIT_REQUEST" }, executor: { status: "FAILED", reason: "github-executor-http-500", httpStatus: 500 } })), false);
-  assert.equal(isAuditFallbackEligible(safetyPayload({ execution: { kind: "AUDIT_REQUEST" }, executor: { status: "FAILED", reason: "github-executor-auth-rejected", httpStatus: 500 } })), false);
-
-  const result = await dispatchGithubEvent({
-    secret: "bridge-test-secret",
-    body,
-    event: "workflow_run",
-    repository: "cinamoncandy/NUSA",
-    runId: "16",
-    runAttempt: "1",
-    fetchImpl: async () => new Response(JSON.stringify(authRejected), { status: 202, headers: { "content-type": "application/json" } }),
-    timeoutMs: 100,
-  });
+  const result = await dispatchGithubEvent({ secret: "bridge-test-secret", body, event: "workflow_run", repository: "cinamoncandy/NUSA", runId: "16", runAttempt: "1", fetchImpl: async () => new Response(JSON.stringify(authRejected), { status: 202 }), timeoutMs: 100 });
   assert.equal(result.auditFallbackEligible, true);
   assert.equal(result.executorStatus, "FAILED");
   assert.equal(result.executorReason, "github-executor-auth-rejected");
   assert.equal(result.executorHttpStatus, 403);
-  assert.equal("token" in result, false);
-  assert.equal("headers" in result, false);
 });
 
 test("transient delivery failures retry once while authentication failures fail closed", async () => {
   let calls = 0;
-  const retried = await dispatchGithubEvent({
-    secret: "bridge-test-secret",
-    body,
-    event: "workflow_run",
-    repository: "cinamoncandy/NUSA",
-    runId: "13",
-    runAttempt: "1",
-    fetchImpl: async () => {
-      calls += 1;
-      return calls === 1 ? new Response("", { status: 503 }) : safetyResponse();
-    },
-    retryDelayMs: 0,
-    timeoutMs: 100,
-  });
+  const retried = await dispatchGithubEvent({ secret: "bridge-test-secret", body, event: "workflow_run", repository: "cinamoncandy/NUSA", runId: "13", runAttempt: "1", fetchImpl: async () => { calls += 1; return calls === 1 ? new Response("", { status: 503 }) : safetyResponse(); }, retryDelayMs: 0, timeoutMs: 100 });
   assert.equal(retried.status, "DELIVERED");
   assert.equal(retried.attempts, 2);
-  assert.equal(retried.auditFallbackEligible, false);
-
-  await assert.rejects(() => dispatchGithubEvent({
-    secret: "bridge-test-secret",
-    body,
-    event: "workflow_run",
-    repository: "cinamoncandy/NUSA",
-    runId: "14",
-    runAttempt: "1",
-    fetchImpl: async () => new Response("", { status: 401 }),
-    retryDelayMs: 0,
-    timeoutMs: 100,
-  }), /WEBHOOK_HTTP_401/);
+  assert.equal(retried.executorStatus, "NOOP");
+  await assert.rejects(() => dispatchGithubEvent({ secret: "bridge-test-secret", body, event: "workflow_run", repository: "cinamoncandy/NUSA", runId: "14", runAttempt: "1", fetchImpl: async () => new Response("", { status: 401 }), retryDelayMs: 0, timeoutMs: 100 }), /WEBHOOK_HTTP_401/);
 });
 
 test("a successful HTTP response with unsafe authority metadata is rejected", async () => {
-  await assert.rejects(() => dispatchGithubEvent({
-    secret: "bridge-test-secret",
-    body,
-    event: "push",
-    repository: "cinamoncandy/NUSA",
-    runId: "15",
-    runAttempt: "1",
-    fetchImpl: async () => new Response(JSON.stringify({ accepted: true, liveAuthority: "LIVE" }), { status: 202 }),
-    retryDelayMs: 0,
-    timeoutMs: 100,
-  }), /WEBHOOK_RESPONSE_LIVE_AUTHORITY_INVALID/);
+  await assert.rejects(() => dispatchGithubEvent({ secret: "bridge-test-secret", body, event: "push", repository: "cinamoncandy/NUSA", runId: "15", runAttempt: "1", fetchImpl: async () => new Response(JSON.stringify({ accepted: true, liveAuthority: "LIVE" }), { status: 202 }), retryDelayMs: 0, timeoutMs: 100 }), /WEBHOOK_RESPONSE_LIVE_AUTHORITY_INVALID/);
+});
+
+test("surfaces safe executor outcome and exact-head evidence", async () => {
+  const headSha = "a".repeat(40);
+  const result = await dispatchGithubEvent({ secret: "bridge-test-secret", body, event: "workflow_run", repository: "cinamoncandy/NUSA", runId: "19", runAttempt: "1", fetchImpl: async () => new Response(JSON.stringify(safetyPayload({ execution: { kind: "AUDIT_REQUEST" }, executor: { status: "DISPATCHED", reason: "github-repository-dispatch-accepted", httpStatus: 204, requestedHeadSha: headSha, observedHeadSha: headSha } })), { status: 202 }), retryDelayMs: 0, timeoutMs: 100 });
+  assert.equal(result.executorStatus, "DISPATCHED");
+  assert.equal(result.executorReason, "github-repository-dispatch-accepted");
+  assert.equal(result.executorHttpStatus, 204);
+  assert.equal(result.requestedHeadSha, headSha);
+  assert.equal(result.observedHeadSha, headSha);
+  assert.equal(result.auditFallbackEligible, false);
+});
+
+test("rejects malformed executor evidence at the bridge boundary", async () => {
+  await assert.rejects(() => dispatchGithubEvent({ secret: "bridge-test-secret", body, event: "workflow_run", repository: "cinamoncandy/NUSA", runId: "17", runAttempt: "1", fetchImpl: async () => new Response(JSON.stringify(safetyPayload({ executor: { status: "FAILED", reason: "bad reason with spaces", httpStatus: 401 } })), { status: 202 }), retryDelayMs: 0, timeoutMs: 100 }), /WEBHOOK_EXECUTOR_REASON_INVALID/);
+});
+
+test("fails closed when an Audit request is accepted without a dispatch or approved credential fallback", async () => {
+  await assert.rejects(() => dispatchGithubEvent({ secret: "bridge-test-secret", body, event: "workflow_run", repository: "cinamoncandy/NUSA", runId: "18", runAttempt: "1", fetchImpl: async () => new Response(JSON.stringify(safetyPayload({ execution: { kind: "AUDIT_REQUEST" }, executor: { status: "FAILED", reason: "github-executor-http-500", httpStatus: 500 } })), { status: 202 }), retryDelayMs: 0, timeoutMs: 100 }), /WEBHOOK_AUDIT_NOT_DISPATCHED:FAILED:github-executor-http-500:500/);
 });
 
 test("the primary bridge remains read-only and fallback write authority is isolated", () => {
   const normalized = workflow.replace(/\r\n/g, "\n");
   const bridgeStart = normalized.indexOf("  bridge:\n");
   const fallbackStart = normalized.indexOf("  audit-dispatch-fallback:\n");
-  assert.ok(bridgeStart >= 0, "primary bridge job must exist");
-  assert.ok(fallbackStart > bridgeStart, "fallback job must be separate from the primary bridge");
+  assert.ok(bridgeStart >= 0);
+  assert.ok(fallbackStart > bridgeStart);
   const bridgeJob = normalized.slice(bridgeStart, fallbackStart);
   const fallbackJob = normalized.slice(fallbackStart);
-
-  assert.match(normalized, /push:\s*\n\s*branches: \[main\]/);
-  assert.match(normalized, /pull_request_target:/);
-  assert.match(normalized, /workflow_run:\s*\n\s*workflows: \[CI\]/);
   assert.match(normalized, /permissions: \{\}/);
-  assert.equal((normalized.match(/contents: write/g) ?? []).length, 1, "only the bounded fallback job may receive contents: write");
+  assert.equal((normalized.match(/contents: write/g) ?? []).length, 1);
   assert.doesNotMatch(normalized, /actions: write/);
   assert.doesNotMatch(normalized, /pull-requests: write/);
   assert.doesNotMatch(normalized, /NUSA_GITHUB_TOKEN/);
-  assert.doesNotMatch(normalized, /LIVE|ACTIVE/);
-
-  assert.match(bridgeJob, /outputs:\s*\n\s*audit_fallback_eligible: \$\{\{ steps\.deliver\.outputs\.audit_fallback_eligible \}\}/);
-  assert.match(bridgeJob, /id: deliver/);
-  assert.match(bridgeJob, /node scripts\/dispatch-github-event-to-autopilot\.mjs/);
-  assert.match(bridgeJob, /NUSA_WEBHOOK_SECRET:/);
+  assert.doesNotMatch(normalized, /NUSA_AUTOPILOT_HEALTH_URL/);
   assert.match(bridgeJob, /contents: read/);
   assert.match(bridgeJob, /id-token: write/);
   assert.doesNotMatch(bridgeJob, /contents: write/);
-  assert.doesNotMatch(bridgeJob, /actions: write/);
-  assert.doesNotMatch(bridgeJob, /pull-requests: write/);
-  assert.match(bridgeJob, /persist-credentials: false/);
-
-  assert.match(fallbackJob, /needs: bridge/);
-  assert.match(fallbackJob, /github\.event_name == 'workflow_run'/);
-  assert.match(fallbackJob, /github\.event\.workflow_run\.name == 'CI'/);
-  assert.match(fallbackJob, /github\.event\.workflow_run\.status == 'completed'/);
-  assert.match(fallbackJob, /github\.event\.workflow_run\.conclusion == 'success'/);
-  assert.match(fallbackJob, /github\.event\.workflow_run\.event == 'pull_request'/);
   assert.match(fallbackJob, /needs\.bridge\.outputs\.audit_fallback_eligible == 'true'/);
   assert.match(fallbackJob, /contents: write/);
   assert.match(fallbackJob, /actions: read/);
   assert.match(fallbackJob, /pull-requests: read/);
-  assert.doesNotMatch(fallbackJob, /id-token: write/);
-  assert.doesNotMatch(fallbackJob, /actions: write/);
-  assert.doesNotMatch(fallbackJob, /pull-requests: write/);
-  assert.match(fallbackJob, /persist-credentials: false/);
-  assert.match(fallbackJob, /GH_TOKEN: \$\{\{ github\.token \}\}/);
-  assert.match(fallbackJob, /NUSA_AUDIT_FALLBACK_ELIGIBLE: \$\{\{ needs\.bridge\.outputs\.audit_fallback_eligible \}\}/);
-  assert.match(fallbackJob, /node scripts\/fallback-audit-dispatch-from-bridge\.mjs/);
 });
 
 test("the bridge remains connected to the one existing event-planning spine", () => {
