@@ -1,10 +1,8 @@
 {
   "workOrder": "WO-UI-20260903-ANDROID-D-DEVICE-QA-RC",
   "branch": "ux/android-d-release-candidate-20260903",
-  "baseCommit": "0d486557fb3cd041c718eb9c4012a046c02b4733",
-  "productAndContractHead": "2688eddea995d916e8c842c0b24f5120c05e2a0c",
-  "deviceHarnessHead": "a2e255f880b0386003a922fd550e3dcb55c547ab",
-  "candidateHeadObservedBeforeEvidenceSeal": "674b28b955a920fe1c5b84d55c4322be606c6291",
+  "baseCommit": "724aac9298156ca48cb20cfe2969856d61451a04",
+  "latestMainSyncCommit": "0911ca302bc43dcfa6a382b82dd3adccfae9c30c",
   "scope": "ANDROID_PRESENTATION_AND_NAVIGATION_ONLY",
   "designStatus": "TEMPORARY_CONCEPT_D_DEVICE_QA",
   "finalDesignFrozen": false,
@@ -31,9 +29,11 @@
     "canonicalNonAndroidHomeUntouched": true,
     "canonicalNonAndroidAiUntouched": true,
     "androidBuildGradleFromMainUntouched": true,
-    "postBaseMainDeltaReviewed": true,
+    "latestProtectedMainReviewed": true,
+    "latestProtectedMain": "724aac9298156ca48cb20cfe2969856d61451a04",
+    "previousBaseToLatestMainCommitCount": 14,
     "postBaseMainDeltaOverlap": false,
-    "postBaseMainDeltaScope": "research-factory contracts only"
+    "postBaseMainDeltaScope": "CI/audit workflow hardening, archive/docs maintenance, and research-factory contracts; no mobile implementation files"
   },
   "androidNavigation": ["NOW", "MARKET", "NUSA", "ASSETS", "CONTROL"],
   "truthBoundaries": {
@@ -50,13 +50,14 @@
     "riskPolicyChanged": false
   },
   "validation": {
-    "status": "LOCAL_ENVIRONMENT_REQUIRED",
+    "status": "BLOCKED_ASSISTANT_LOCAL_ENVIRONMENT",
     "passClaimed": false,
     "machineValidationRun": false,
     "remoteCiUsedAsDebugger": false,
     "pullRequestOpened": false,
     "stableReleaseTriggered": false,
-    "localExecutionEnvironmentBlocker": "Current assistant container cannot resolve github.com and cannot materialize the full repository/dependency tree for Node24/pnpm/Gradle validation.",
+    "localExecutionEnvironmentBlocker": "Assistant container cannot resolve github.com and cannot materialize the full repository/dependency tree for Node24/pnpm/Gradle validation.",
+    "observedLocalRuntime": "Node v22.16.0; repository requires Node >=24 and pnpm >=11.7; no pnpm binary is locally available.",
     "oneShotCommand": "powershell -ExecutionPolicy Bypass -File scripts/android-d-device-qa.ps1",
     "requiredBeforePR": [
       "pnpm run preflight",
@@ -81,6 +82,8 @@
   },
   "releaseInfrastructure": {
     "mobileNativeWorkflow": ".github/workflows/mobile-native.yml",
+    "workflowDispatchSupportedByRepository": true,
+    "workflowDispatchAvailableToCurrentConnector": false,
     "debugApkArtifactSupported": true,
     "exactHeadRcArtifactSupported": true,
     "stableWorkflowRequiresCurrentMain": true,
