@@ -99,8 +99,12 @@ test("HOME rendered financial values keep stable tabular numerals", () => {
 
 test("fresh or stale installs converge on the canonical master preset", () => {
   const provider = read("apps/mobile/src/ThemeProvider.tsx");
+  assert.match(provider, /import \{ BUILD_SOURCE_SHA \} from "\.\/generatedBuildConfig"/);
+  assert.match(provider, /RELEASE_BUILD_SOURCE_SHA/);
+  assert.match(provider, /DESIGN_PRESET_SCHEMA_VERSION = RELEASE_BUILD_SOURCE_SHA == null \? "dev-v3" : `build:\$\{RELEASE_BUILD_SOURCE_SHA\}`/);
   assert.match(provider, /CURRENT_DEFAULT_PRESET:\s*DesignPresetName\s*=\s*"master"/);
   assert.match(provider, /storedSchema !== DESIGN_PRESET_SCHEMA_VERSION/);
   assert.match(provider, /setPresetState\(CURRENT_DEFAULT_PRESET\)/);
   assert.match(provider, /AsyncStorage\.setItem\(DESIGN_PRESET_STORAGE_KEY, CURRENT_DEFAULT_PRESET\)/);
+  assert.doesNotMatch(provider, /DESIGN_PRESET_SCHEMA_VERSION\s*=\s*"2"/);
 });
