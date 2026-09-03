@@ -6,14 +6,22 @@ const path = require("node:path");
 const root = path.join(__dirname, "..", "apps", "mobile");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-test("product navigation promotes PAPER and AI through the canonical four-tab shell", () => {
+test("product navigation preserves the canonical PAPER shell while Android exposes the supervisory five-tab shell", () => {
   const app = read("App.tsx");
   const tradingShell = read("src/tradingView.tsx");
   const tradingWorkspace = read("src/tradingViewLegacy.tsx");
   assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio"\] as const/);
   assert.match(app, /Paper: "PAPER"/);
+  assert.match(app, /const androidTabs = \["Home", "Markets", "AiSignal", "Portfolio", "Control"\] as const/);
+  assert.match(app, /Home: "NOW"/);
+  assert.match(app, /Markets: "MARKET"/);
+  assert.match(app, /AiSignal: "NUSA"/);
+  assert.match(app, /Portfolio: "ASSETS"/);
+  assert.match(app, /Control: "CONTROL"/);
   assert.match(app, /type Tab = PrimaryTab \| "AiSignal" \| "Order"/);
-  assert.match(app, /activeTab === "AiSignal" \? <AiView/);
+  assert.match(app, /activeTab === "AiSignal" \? \(Platform\.OS === "android"/);
+  assert.match(app, /<AndroidNusaDecisionView/);
+  assert.match(app, /: <AiView/);
   assert.doesNotMatch(app, /<MoreView/);
   assert.match(app, /activeTab === "Order" \? <OrderHistoryView/);
   assert.match(app, /header-notifications/);
