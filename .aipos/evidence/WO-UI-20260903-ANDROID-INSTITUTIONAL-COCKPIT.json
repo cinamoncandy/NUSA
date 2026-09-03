@@ -1,13 +1,14 @@
 {
   "workOrder": "WO-UI-20260903-ANDROID-INSTITUTIONAL-COCKPIT",
   "branch": "ux/android-institutional-cockpit-20260903",
-  "base": "a07a8e10c8a2f011d3e79ca6b0e3eedf64ff6942",
   "scope": "ANDROID_PRESENTATION_ONLY",
-  "referenceDirection": "LUXURY_EDITORIAL_INVESTMENT_OS",
+  "designStatus": "TEMPORARY_CONCEPT_C",
+  "finalDesignFrozen": false,
+  "referenceDirection": "NUSA_NOW_SUPERVISORY_INVESTMENT_OS",
   "implementation": {
     "androidInstitutionalTheme": "apps/mobile/src/androidInstitutionalTheme.ts",
     "platformGate": "apps/mobile/src/ThemeProvider.tsx",
-    "androidHome": "apps/mobile/src/androidReferenceHomeView.tsx",
+    "androidNow": "apps/mobile/src/androidNowView.tsx",
     "homeRouter": "apps/mobile/src/homeView.tsx",
     "homeLegacyPreserved": "apps/mobile/src/homeViewLegacy.tsx",
     "androidDecision": "apps/mobile/src/androidReferenceAiView.tsx",
@@ -17,26 +18,29 @@
     "paperGeometry": "apps/mobile/src/tradingView.tsx",
     "nativeColors": "apps/mobile/android/app/src/main/res/values/colors.xml",
     "nativeTheme": "apps/mobile/android/app/src/main/res/values/styles.xml",
+    "humanFactorsResearch": "docs/NUSA_ANDROID_HUMAN_FACTORS_UX_RESEARCH.md",
     "staticContractTest": "tests/android-institutional-cockpit.vitest.js"
   },
-  "design": {
-    "identity": "AUTONOMOUS_INVESTMENT_INTELLIGENCE_OS",
-    "darkBackground": "#020405",
-    "warmIvoryText": "#E7E2DA",
-    "primary": "#0BB8B0",
-    "warning": "#C89236",
-    "danger": "#D75F65",
-    "visualRules": [
-      "large black negative space",
-      "serif NUSA editorial wordmark",
-      "asset-state first",
-      "decision-stage second",
-      "evidence before execution",
-      "minimal glow and low-radius panels"
+  "conceptC": {
+    "status": "ACTIVE_TEMPORARY_REFERENCE",
+    "principles": [
+      "System Truth Rail stays compact and persistent",
+      "NOW promotes the highest-priority owner condition",
+      "NUSA judgment shows evidence and counter-evidence before action",
+      "calibrated confidence is supporting metadata rather than the hero",
+      "asset and exposure summaries remain compact",
+      "risk UI displays only canonical constraints that actually exist",
+      "owner actions and prioritized alerts remain directly reachable",
+      "no visual placeholder may fabricate financial truth"
     ],
-    "touchTargetMinimumDp": 48,
-    "androidOnly": true,
-    "iosChanged": false
+    "visualLanguage": [
+      "deep black editorial background",
+      "serif NUSA wordmark",
+      "teal semantic accent",
+      "amber and red reserved for real warning and danger state",
+      "contained premium panels with restrained radius",
+      "dense but legible mobile spacing"
+    ]
   },
   "truthBoundaries": {
     "paperOnly": true,
@@ -54,8 +58,8 @@
   "validation": {
     "status": "DEFERRED_OWNER_LOCAL",
     "passClaimed": false,
-    "reason": "Owner explicitly deferred local validation. Repository policy prohibits claiming PASS before the required local checks run.",
-    "required": [
+    "reason": "Owner explicitly deferred local validation while temporary Android visual concepts are iterated.",
+    "requiredBeforePR": [
       "pnpm run validate",
       "pnpm run lint:mobile",
       "tests/android-institutional-cockpit.vitest.js",
