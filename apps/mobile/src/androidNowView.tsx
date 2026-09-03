@@ -50,7 +50,13 @@ function TruthCell({ label, value, tone = "default" }: Readonly<{ label: string;
 
 function EvidenceLine({ children, counter = false }: Readonly<{ children: React.ReactNode; counter?: boolean }>) {
   const { theme } = useTheme();
-  return <View style={styles.evidenceLine}><View style={[styles.evidenceDot, { backgroundColor: counter ? theme.colors.warning : theme.colors.primary }]} /><Text style={[styles.evidenceText, { color: theme.colors.text }]}>{children}</Text></View>;
+  return <View style={styles.evidenceLine}><View style={[styles.evidenceDot, { backgroundColor: counter ? theme.colors.danger : theme.colors.primary }]} /><Text style={[styles.evidenceText, { color: theme.colors.text }]}>{children}</Text></View>;
+}
+
+function ConstraintRow({ label, value, tone = "default" }: Readonly<{ label: string; value: string; tone?: "default" | "positive" | "warning" }>) {
+  const { theme } = useTheme();
+  const color = tone === "positive" ? theme.colors.success : tone === "warning" ? theme.colors.warning : theme.colors.text;
+  return <View style={[styles.constraintRow, { borderTopColor: theme.colors.border }]}><Text style={[styles.constraintLabel, { color: theme.colors.textMuted }]}>{label}</Text><Text style={[styles.constraintValue, { color }]}>{value}</Text></View>;
 }
 
 export function AndroidNowView(props: Props) {
@@ -101,7 +107,7 @@ export function AndroidNowView(props: Props) {
 
   const priority: PriorityState = disconnected
     ? {
-      eyebrow: "CONNECTION",
+      eyebrow: "HIGH PRIORITY · CONNECTION",
       title: "연결 상태 확인이 필요합니다",
       detail: props.readOnlyError ?? props.notConfigured ?? "PAPER 연결 상태를 확인하세요.",
       tone: "blocked",
@@ -110,7 +116,7 @@ export function AndroidNowView(props: Props) {
     }
     : props.snapshot != null && !paperReady
       ? {
-        eyebrow: "SAFETY GATE",
+        eyebrow: "HIGH PRIORITY · SAFETY GATE",
         title: "PAPER 운용 게이트가 차단되었습니다",
         detail: "현재 검증 상태에서는 운용 행동보다 차단 원인 확인이 우선입니다.",
         tone: "attention",
@@ -128,9 +134,9 @@ export function AndroidNowView(props: Props) {
         }
         : positionOpen
           ? {
-            eyebrow: "POSITION",
+            eyebrow: "POSITION SUPERVISION",
             title: "열린 포지션을 감독하고 있습니다",
-            detail: "현재 포지션 상태와 자산 노출을 확인하세요.",
+            detail: "현재 포지션과 자산 노출의 변화를 확인하세요.",
             tone: "normal",
             actionLabel: "자산 감독",
             action: () => props.onNavigate("Portfolio"),
@@ -162,17 +168,17 @@ export function AndroidNowView(props: Props) {
     testID="home-screen"
   >
     <View style={styles.brandRow} testID="android-now-brand">
-      <View><Text style={[styles.wordmark, { color: theme.colors.text }]}>NUSA</Text><Text style={[styles.productLine, { color: theme.colors.textMuted }]}>AI INVESTMENT OS</Text></View>
-      <Text style={[styles.androidOnly, { color: theme.colors.primary }]}>ANDROID · TEMP B</Text>
+      <View><Text style={[styles.wordmark, { color: theme.colors.text }]}>NUSA</Text><Text style={[styles.productLine, { color: theme.colors.primary }]}>AI INVESTMENT OS</Text></View>
+      <Text style={[styles.androidOnly, { color: theme.colors.textMuted }]}>ANDROID · TEMP C</Text>
     </View>
 
     <View style={[styles.truthRail, { borderColor: theme.colors.borderStrong, backgroundColor: theme.colors.surface }]} testID="android-system-truth-rail">
-      <TruthCell label="MODE" value="PAPER ONLY" tone="accent" />
+      <TruthCell label="SYSTEM TRUTH" value="PAPER ONLY" tone="accent" />
       <TruthCell label="AI AUTHORITY" value="ZERO" />
       <TruthCell label="MARKET DATA" value={marketFresh ? "FRESH" : "CHECK"} tone={marketFresh ? "accent" : "warning"} />
     </View>
 
-    <View style={styles.sectionLead}><Text style={[styles.sectionLeadAccent, { color: theme.colors.primary }]}>NOW</Text><Text style={[styles.sectionLeadSub, { color: theme.colors.textMuted }]}>지금 가장 중요한 것</Text></View>
+    <View style={styles.sectionLead}><Text style={[styles.sectionLeadAccent, { color: theme.colors.text }]}>NOW</Text><Text style={[styles.sectionLeadSub, { color: theme.colors.textMuted }]}>지금 가장 중요한 것</Text></View>
 
     <View style={[styles.nowStage, { borderColor: theme.colors.borderStrong, backgroundColor: theme.colors.surface }]} testID="android-now-priority">
       <View style={[styles.priorityBar, { backgroundColor: priorityColor }]} />
@@ -180,48 +186,52 @@ export function AndroidNowView(props: Props) {
         <Meta accent>{priority.eyebrow}</Meta>
         <Text style={[styles.nowTitle, { color: theme.colors.text }]}>{priority.title}</Text>
         <Text style={[styles.nowDetail, { color: theme.colors.textMuted }]}>{priority.detail}</Text>
-        <Pressable accessibilityRole="button" onPress={priority.action} style={({ pressed }) => [styles.inlineAction, { borderColor: priorityColor, opacity: pressed ? theme.interaction.pressedOpacity : 1 }]}>
-          <Text style={[styles.inlineActionLabel, { color: priorityColor }]}>{priority.actionLabel}</Text><Text style={[styles.inlineActionArrow, { color: priorityColor }]}>→</Text>
+        <Pressable accessibilityRole="button" onPress={priority.action} style={({ pressed }) => [styles.inlineAction, { borderColor: theme.colors.borderStrong, backgroundColor: theme.colors.surfaceSunken, opacity: pressed ? theme.interaction.pressedOpacity : 1 }]}>
+          <Text style={[styles.inlineActionLabel, { color: theme.colors.text }]}>{priority.actionLabel}</Text><Text style={[styles.inlineActionArrow, { color: priorityColor }]}>→</Text>
         </Pressable>
       </View>
     </View>
 
-    {ai?.status === "AVAILABLE" ? <View style={styles.decisionSection} testID="android-now-decision">
+    {ai?.status === "AVAILABLE" ? <View style={[styles.decisionCard, { borderColor: theme.colors.borderStrong, backgroundColor: theme.colors.surface }]} testID="android-now-decision">
       <View style={styles.decisionHeader}>
-        <View><Meta accent>NUSA · LATEST JUDGMENT</Meta><Text style={[styles.decisionTitle, { color: theme.colors.text }]}>{ai.thesis || "검증된 판단"}</Text></View>
-        <View style={styles.reliability}><Meta>CALIBRATED CONF.</Meta><Text style={[styles.reliabilityValue, { color: trustedConfidence === "—" ? theme.colors.textMuted : theme.colors.text }]}>{trustedConfidence}</Text></View>
+        <View><Meta accent>NUSA · 최근 판단</Meta><Text style={[styles.decisionTitle, { color: theme.colors.text }]}>{ai.thesis || "검증된 판단"}</Text></View>
+        <View style={[styles.reliabilityBadge, { borderColor: theme.colors.border }]}><Meta>CALIBRATED</Meta><Text style={[styles.reliabilityValue, { color: trustedConfidence === "—" ? theme.colors.textMuted : theme.colors.text }]}>{trustedConfidence}</Text></View>
       </View>
       <Divider />
       <View style={styles.evidenceColumns}>
-        <View style={styles.evidenceColumn}><Meta accent>SUPPORT</Meta>{evidence.length > 0 ? evidence.slice(0, 2).map((item, index) => <EvidenceLine key={`support-${index}`}>{item}</EvidenceLine>) : <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>검증된 근거 참조 없음</Text>}</View>
-        <View style={styles.evidenceColumn}><Meta>COUNTER</Meta>{counterEvidence.length > 0 ? counterEvidence.slice(0, 2).map((item, index) => <EvidenceLine counter key={`counter-${index}`}>{item}</EvidenceLine>) : <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>등록된 반대 근거 없음</Text>}</View>
+        <View style={styles.evidenceColumn}><Meta accent>핵심 근거</Meta>{evidence.length > 0 ? evidence.slice(0, 3).map((item, index) => <EvidenceLine key={`support-${index}`}>{item}</EvidenceLine>) : <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>검증된 근거 참조 없음</Text>}</View>
+        <View style={styles.evidenceColumn}><Meta>가장 강한 반대 근거</Meta>{counterEvidence.length > 0 ? counterEvidence.slice(0, 2).map((item, index) => <EvidenceLine counter key={`counter-${index}`}>{item}</EvidenceLine>) : <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>등록된 반대 근거 없음</Text>}</View>
       </View>
       <Pressable accessibilityRole="button" onPress={() => props.onNavigate("AiSignal")} style={({ pressed }) => [styles.fullWidthAction, { borderTopColor: theme.colors.border, opacity: pressed ? theme.interaction.pressedOpacity : 1 }]}>
-        <Text style={[styles.fullWidthActionText, { color: theme.colors.text }]}>판단이 틀릴 수 있는 조건까지 검토</Text><Text style={[styles.inlineActionArrow, { color: theme.colors.primary }]}>→</Text>
+        <Text style={[styles.fullWidthActionText, { color: theme.colors.primary }]}>상세 분석 보기</Text><Text style={[styles.inlineActionArrow, { color: theme.colors.primary }]}>→</Text>
       </Pressable>
     </View> : null}
 
-    <View style={styles.assetStrip} testID="android-now-assets">
-      <View style={styles.assetPrimary}><Meta>ASSET STATE</Meta><Text style={[styles.assetValue, { color: theme.colors.text }]}>{account == null ? "—" : krw(account.equity)}</Text><Text style={[styles.assetDelta, { color: pnlColor }]}>{totalPnl == null ? "검증된 PnL 대기" : signedKrw(totalPnl)}</Text></View>
-      <View style={styles.assetMetric}><Meta>EXPOSURE</Meta><Text style={[styles.metricValue, { color: theme.colors.text }]}>{percent(exposure)}</Text></View>
-      <View style={styles.assetMetric}><Meta>POSITION</Meta><Text style={[styles.metricValueSmall, { color: theme.colors.text }]}>{positionOpen && account ? account.position.market : "NONE"}</Text></View>
-    </View>
-
-    <View style={styles.controlSection} testID="android-now-control">
-      <View style={styles.sectionHeader}><View><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>위험 · 통제</Text><Meta>REAL CONSTRAINTS ONLY</Meta></View><Text style={[styles.controlState, { color: paperReady ? theme.colors.success : theme.colors.warning }]}>{paperReady ? "READY" : "FAIL CLOSED"}</Text></View>
-      <Divider />
-      <View style={styles.controlRows}>
-        <View style={styles.controlRow}><Text style={[styles.controlLabel, { color: theme.colors.textMuted }]}>PAPER GATE</Text><Text style={[styles.controlValue, { color: paperReady ? theme.colors.success : theme.colors.warning }]}>{paperReady ? "READY" : "BLOCKED"}</Text></View>
-        <View style={styles.controlRow}><Text style={[styles.controlLabel, { color: theme.colors.textMuted }]}>LIVE AUTHORITY</Text><Text style={[styles.controlValue, { color: theme.colors.text }]}>NONE</Text></View>
-        <View style={styles.controlRow}><Text style={[styles.controlLabel, { color: theme.colors.textMuted }]}>AI AUTHORITY</Text><Text style={[styles.controlValue, { color: theme.colors.text }]}>ZERO</Text></View>
-        {allocation ? <View style={styles.controlRow}><Text style={[styles.controlLabel, { color: theme.colors.textMuted }]}>PROTECTED CASH</Text><Text style={[styles.controlValue, { color: theme.colors.text }]}>{krw(allocation.reservedCash)}</Text></View> : null}
+    <View style={styles.summaryGrid} testID="android-now-assets">
+      <View style={[styles.summaryCard, styles.summaryCardWide, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
+        <Meta>자산 현황 · ASSET STATE</Meta>
+        <Text style={[styles.assetValue, { color: theme.colors.text }]}>{account == null ? "—" : krw(account.equity)}</Text>
+        <Text style={[styles.assetDelta, { color: pnlColor }]}>{totalPnl == null ? "검증된 PnL 대기" : signedKrw(totalPnl)}</Text>
+      </View>
+      <View style={[styles.summaryCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]}>
+        <Meta>노출 현황</Meta>
+        <Text style={[styles.exposureValue, { color: theme.colors.text }]}>{percent(exposure)}</Text>
+        <Text style={[styles.summarySub, { color: theme.colors.textMuted }]}>{positionOpen && account ? account.position.market : "NO POSITION"}</Text>
       </View>
     </View>
 
-    <View style={styles.nextSection} testID="android-now-next-actions">
-      <View style={styles.sectionHeader}><View><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>다음 행동</Text><Meta>OWNER ACTION</Meta></View></View>
-      <Pressable accessibilityRole="button" onPress={runDecisionAction} style={({ pressed }) => [styles.nextPrimary, { borderColor: theme.colors.borderStrong, opacity: pressed ? theme.interaction.pressedOpacity : 1 }]} testID="home-supervisor-primary-action">
-        <View style={styles.nextPrimaryCopy}><Meta accent>NUSA SUGGESTION</Meta><Text style={[styles.nextPrimaryTitle, { color: theme.colors.text }]}>{decision.primaryLabel}</Text><Text style={[styles.nextPrimaryDetail, { color: theme.colors.textMuted }]}>{decision.result}</Text></View><Text style={[styles.nextChevron, { color: theme.colors.primary }]}>→</Text>
+    <View style={[styles.controlCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]} testID="android-now-control">
+      <View style={styles.sectionHeader}><View><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>위험 제약</Text><Meta>REAL CONSTRAINTS ONLY</Meta></View><Text style={[styles.controlState, { color: paperReady ? theme.colors.success : theme.colors.warning }]}>{paperReady ? "READY" : "FAIL CLOSED"}</Text></View>
+      <ConstraintRow label="PAPER GATE" value={paperReady ? "READY" : "BLOCKED"} tone={paperReady ? "positive" : "warning"} />
+      <ConstraintRow label="LIVE AUTHORITY" value="NONE" />
+      <ConstraintRow label="AI AUTHORITY" value="ZERO" />
+      {allocation ? <ConstraintRow label="PROTECTED CASH" value={krw(allocation.reservedCash)} /> : null}
+    </View>
+
+    <View style={[styles.nextCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]} testID="android-now-next-actions">
+      <View style={styles.sectionHeader}><View><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>다음 행동 제안</Text><Meta>NUSA SUGGESTION</Meta></View></View>
+      <Pressable accessibilityRole="button" onPress={runDecisionAction} style={({ pressed }) => [styles.nextPrimary, { borderColor: theme.colors.borderStrong, backgroundColor: theme.colors.surfaceSunken, opacity: pressed ? theme.interaction.pressedOpacity : 1 }]} testID="home-supervisor-primary-action">
+        <View style={styles.nextPrimaryCopy}><Text style={[styles.nextPrimaryTitle, { color: theme.colors.text }]}>{decision.primaryLabel}</Text><Text style={[styles.nextPrimaryDetail, { color: theme.colors.textMuted }]}>{decision.result}</Text></View><Text style={[styles.nextChevron, { color: theme.colors.primary }]}>→</Text>
       </Pressable>
       <View style={styles.quickActions}>
         <Pressable onPress={() => props.onNavigate("Markets")} style={styles.quickAction}><Meta>MARKETS</Meta><Text style={[styles.quickLabel, { color: theme.colors.text }]}>시장 확인</Text></Pressable>
@@ -230,10 +240,9 @@ export function AndroidNowView(props: Props) {
       </View>
     </View>
 
-    <View style={styles.alertSection} testID="android-now-alerts">
+    <View style={[styles.alertCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]} testID="android-now-alerts">
       <View style={styles.sectionHeader}><View><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>중요 알림</Text><Meta>PRIORITIZED</Meta></View><Text style={[styles.alertCount, { color: alerts.length > 0 ? theme.colors.warning : theme.colors.textMuted }]}>{alerts.length}</Text></View>
-      <Divider />
-      {alerts.length === 0 ? <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>현재 우선 처리가 필요한 시스템 알림이 없습니다.</Text> : alerts.map((alert) => <View key={`${alert.label}-${alert.value}`} style={styles.alertRow}><View style={[styles.alertDot, { backgroundColor: alert.tone === "warning" ? theme.colors.warning : theme.colors.primary }]} /><Text style={[styles.alertLabel, { color: theme.colors.text }]}>{alert.label}</Text><Text style={[styles.alertValue, { color: theme.colors.textMuted }]}>{alert.value}</Text></View>)}
+      {alerts.length === 0 ? <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>현재 우선 처리가 필요한 시스템 알림이 없습니다.</Text> : alerts.map((alert) => <View key={`${alert.label}-${alert.value}`} style={[styles.alertRow, { borderTopColor: theme.colors.border }]}><View style={[styles.alertDot, { backgroundColor: alert.tone === "warning" ? theme.colors.warning : theme.colors.primary }]} /><Text style={[styles.alertLabel, { color: theme.colors.text }]}>{alert.label}</Text><Text style={[styles.alertValue, { color: theme.colors.textMuted }]}>{alert.value}</Text></View>)}
     </View>
 
     <Text style={[styles.footer, { color: theme.colors.textMuted }]}>판단을 설득하지 않습니다. 검증 가능하게 만들고, 결정은 사용자에게 남깁니다.</Text>
@@ -241,69 +250,68 @@ export function AndroidNowView(props: Props) {
 }
 
 const styles = StyleSheet.create({
-  content: { width: "100%", maxWidth: 620, alignSelf: "center", paddingHorizontal: 18, paddingTop: 18, paddingBottom: 34, gap: 18 },
-  brandRow: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 12, paddingBottom: 2 },
-  wordmark: { fontFamily: "serif", fontSize: 34, lineHeight: 39, fontWeight: "400", letterSpacing: 4.2 },
-  productLine: { fontSize: 8, lineHeight: 12, fontWeight: "700", letterSpacing: 2.1 },
-  androidOnly: { fontSize: 8, lineHeight: 12, fontWeight: "700", letterSpacing: 1.1 },
-  truthRail: { minHeight: 68, borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, flexDirection: "row", alignItems: "center" },
+  content: { width: "100%", maxWidth: 620, alignSelf: "center", paddingHorizontal: 16, paddingTop: 16, paddingBottom: 30, gap: 14 },
+  brandRow: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 12, paddingHorizontal: 2, paddingBottom: 2 },
+  wordmark: { fontFamily: "serif", fontSize: 33, lineHeight: 39, fontWeight: "400", letterSpacing: 3.9 },
+  productLine: { fontSize: 8, lineHeight: 12, fontWeight: "700", letterSpacing: 2.05 },
+  androidOnly: { fontSize: 7, lineHeight: 10, fontWeight: "700", letterSpacing: 0.95 },
+  truthRail: { minHeight: 68, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, flexDirection: "row", alignItems: "center" },
   truthCell: { flex: 1, gap: 4 },
   truthValue: { fontSize: 11, lineHeight: 15, fontWeight: "700", fontVariant: ["tabular-nums"] },
-  meta: { fontSize: 7, lineHeight: 10, fontWeight: "700", letterSpacing: 1.05 },
-  sectionLead: { flexDirection: "row", alignItems: "baseline", gap: 10 },
-  sectionLeadAccent: { fontSize: 16, lineHeight: 21, fontWeight: "700", letterSpacing: 0.4 },
+  meta: { fontSize: 7, lineHeight: 10, fontWeight: "700", letterSpacing: 1.0 },
+  sectionLead: { flexDirection: "row", alignItems: "baseline", gap: 10, paddingHorizontal: 2 },
+  sectionLeadAccent: { fontSize: 22, lineHeight: 27, fontWeight: "700", letterSpacing: 0.1 },
   sectionLeadSub: { fontSize: 10, lineHeight: 15 },
-  nowStage: { minHeight: 188, borderWidth: 1, borderRadius: 10, overflow: "hidden", flexDirection: "row" },
-  priorityBar: { width: 4 },
+  nowStage: { minHeight: 190, borderWidth: 1, borderRadius: 12, overflow: "hidden", flexDirection: "row" },
+  priorityBar: { width: 5 },
   nowCopy: { flex: 1, padding: 18, gap: 10, justifyContent: "center" },
-  nowTitle: { fontFamily: "serif", fontSize: 25, lineHeight: 34, fontWeight: "400", letterSpacing: -0.6 },
+  nowTitle: { fontSize: 24, lineHeight: 32, fontWeight: "600", letterSpacing: -0.65 },
   nowDetail: { fontSize: 11, lineHeight: 18, maxWidth: 440 },
   inlineAction: { alignSelf: "flex-start", minHeight: 48, borderWidth: 1, borderRadius: 24, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 12, marginTop: 4 },
   inlineActionLabel: { fontSize: 11, lineHeight: 15, fontWeight: "700" },
   inlineActionArrow: { fontSize: 18, lineHeight: 20, fontWeight: "300" },
-  decisionSection: { gap: 14, paddingVertical: 4 },
+  decisionCard: { borderWidth: 1, borderRadius: 12, padding: 16, gap: 13 },
   decisionHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 16 },
-  decisionTitle: { marginTop: 5, fontFamily: "serif", fontSize: 21, lineHeight: 29, fontWeight: "400", maxWidth: 360 },
-  reliability: { alignItems: "flex-end", gap: 3 },
-  reliabilityValue: { fontSize: 18, lineHeight: 23, fontWeight: "500", fontVariant: ["tabular-nums"] },
+  decisionTitle: { marginTop: 5, fontSize: 20, lineHeight: 28, fontWeight: "600", maxWidth: 360 },
+  reliabilityBadge: { minWidth: 82, borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, alignItems: "flex-end", gap: 2 },
+  reliabilityValue: { fontSize: 17, lineHeight: 22, fontWeight: "500", fontVariant: ["tabular-nums"] },
   divider: { height: StyleSheet.hairlineWidth, width: "100%" },
-  evidenceColumns: { flexDirection: "row", gap: 18 },
+  evidenceColumns: { flexDirection: "row", gap: 16 },
   evidenceColumn: { flex: 1, gap: 8 },
   evidenceLine: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   evidenceDot: { width: 5, height: 5, borderRadius: 3, marginTop: 6 },
   evidenceText: { flex: 1, fontSize: 10, lineHeight: 17 },
   emptyText: { fontSize: 10, lineHeight: 17 },
-  fullWidthAction: { minHeight: 52, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 10 },
-  fullWidthActionText: { fontSize: 11, lineHeight: 16, fontWeight: "600" },
-  assetStrip: { flexDirection: "row", alignItems: "flex-end", gap: 16, paddingVertical: 8 },
-  assetPrimary: { flex: 1.8, gap: 4 },
-  assetMetric: { flex: 1, gap: 5 },
-  assetValue: { fontSize: 27, lineHeight: 32, fontWeight: "400", fontVariant: ["tabular-nums"] },
+  fullWidthAction: { minHeight: 48, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 10 },
+  fullWidthActionText: { fontSize: 11, lineHeight: 16, fontWeight: "700" },
+  summaryGrid: { flexDirection: "row", gap: 10 },
+  summaryCard: { flex: 1, minHeight: 126, borderWidth: 1, borderRadius: 12, padding: 14, justifyContent: "space-between", gap: 7 },
+  summaryCardWide: { flex: 1.35 },
+  assetValue: { fontSize: 25, lineHeight: 31, fontWeight: "400", fontVariant: ["tabular-nums"] },
   assetDelta: { fontSize: 11, lineHeight: 16, fontWeight: "600", fontVariant: ["tabular-nums"] },
-  metricValue: { fontSize: 18, lineHeight: 23, fontWeight: "500", fontVariant: ["tabular-nums"] },
-  metricValueSmall: { fontSize: 11, lineHeight: 16, fontWeight: "600" },
-  controlSection: { gap: 10, paddingTop: 2 },
+  exposureValue: { fontSize: 27, lineHeight: 33, fontWeight: "400", fontVariant: ["tabular-nums"] },
+  summarySub: { fontSize: 9, lineHeight: 13, fontWeight: "600" },
+  controlCard: { borderWidth: 1, borderRadius: 12, padding: 14, gap: 6 },
   sectionHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
   sectionTitle: { fontSize: 14, lineHeight: 19, fontWeight: "700" },
   controlState: { fontSize: 9, lineHeight: 13, fontWeight: "700", letterSpacing: 0.7 },
-  controlRows: { gap: 0 },
-  controlRow: { minHeight: 43, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16 },
-  controlLabel: { fontSize: 9, lineHeight: 13 },
-  controlValue: { fontSize: 10, lineHeight: 14, fontWeight: "700", fontVariant: ["tabular-nums"] },
-  nextSection: { gap: 12 },
-  nextPrimary: { minHeight: 96, borderWidth: 1, borderRadius: 10, padding: 15, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 14 },
+  constraintRow: { minHeight: 44, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16 },
+  constraintLabel: { flex: 1, fontSize: 9, lineHeight: 13 },
+  constraintValue: { fontSize: 10, lineHeight: 14, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  nextCard: { borderWidth: 1, borderRadius: 12, padding: 14, gap: 11 },
+  nextPrimary: { minHeight: 86, borderWidth: 1, borderRadius: 10, padding: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 14 },
   nextPrimaryCopy: { flex: 1, gap: 4 },
-  nextPrimaryTitle: { fontSize: 15, lineHeight: 20, fontWeight: "700" },
+  nextPrimaryTitle: { fontSize: 14, lineHeight: 20, fontWeight: "700" },
   nextPrimaryDetail: { fontSize: 10, lineHeight: 16 },
   nextChevron: { fontSize: 24, lineHeight: 28, fontWeight: "300" },
-  quickActions: { flexDirection: "row", gap: 10 },
-  quickAction: { flex: 1, minHeight: 58, justifyContent: "center", gap: 4 },
+  quickActions: { flexDirection: "row", gap: 8 },
+  quickAction: { flex: 1, minHeight: 52, justifyContent: "center", gap: 4 },
   quickLabel: { fontSize: 10, lineHeight: 15, fontWeight: "600" },
-  alertSection: { gap: 10 },
+  alertCard: { borderWidth: 1, borderRadius: 12, padding: 14, gap: 6 },
   alertCount: { fontSize: 12, lineHeight: 16, fontWeight: "700", fontVariant: ["tabular-nums"] },
-  alertRow: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 9 },
+  alertRow: { minHeight: 46, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row", alignItems: "center", gap: 9 },
   alertDot: { width: 6, height: 6, borderRadius: 3 },
   alertLabel: { flex: 1, fontSize: 10, lineHeight: 15, fontWeight: "600" },
   alertValue: { fontSize: 9, lineHeight: 13, fontVariant: ["tabular-nums"] },
-  footer: { paddingTop: 4, fontFamily: "serif", fontSize: 10, lineHeight: 18, textAlign: "center" },
+  footer: { paddingTop: 2, fontFamily: "serif", fontSize: 9, lineHeight: 17, textAlign: "center" },
 });
