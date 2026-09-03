@@ -1,10 +1,10 @@
 import React from "react";
 import { Platform } from "react-native";
-import { AndroidReferenceAiView } from "./androidReferenceAiView";
+import { AndroidNusaDecisionView } from "./androidNusaDecisionView";
 import { AiView as LegacyAiView } from "./aiViewLegacy";
 
 export function AiView(props: React.ComponentProps<typeof LegacyAiView>) {
   return Platform.OS === "android"
-    ? <AndroidReferenceAiView {...props} />
+    ? <AndroidNusaDecisionView {...props} />
     : <LegacyAiView {...props} />;
 }
