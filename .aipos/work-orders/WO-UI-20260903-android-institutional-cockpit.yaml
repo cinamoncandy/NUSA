@@ -6,27 +6,28 @@ repository: cinamoncandy/NUSA
 base_branch: main
 implementation_branch: ux/android-institutional-cockpit-20260903
 authority_impact: none
-objective: "Iterate Android-only NUSA supervisory investment-intelligence UX with concept C as the active platform-grade visual reference, while retaining A/B for direct owner comparison and preserving all authority and financial-truth boundaries."
+objective: "Use the owner-selected bright pearl Android concept D as the temporary physical-device validation reference while preserving all authority and financial-truth boundaries."
 provenance:
   predecessor_scope: WO-0063.mobile-master-ux-wave1
   relationship: PRESENTATION_ONLY_FOLLOW_UP
   desktop_scope_included: false
   ios_scope_included: false
-  active_reference: TEMPORARY_CONCEPT_C
+  active_reference: TEMPORARY_CONCEPT_D_DEVICE_QA
   retained_comparison_references:
     - CONCEPT_A
     - CONCEPT_B
+    - CONCEPT_C
 scope:
-  - "Route Android Home to concept C: content-first, platform-grade supervisory surface."
-  - "Retain concept A and B source files as unrouted comparison references."
-  - "Keep Android NUSA/AI on the evidence-first Decision Workspace."
-  - "Keep iOS on the existing shared legacy implementation."
-  - "Apply research-backed Material 3 Expressive principles through stronger typography, semantic shape variation and state hierarchy without decorative UI excess."
-  - "Apply Apple-like restraint by keeping content surfaces calm and limiting depth treatment to controls and hierarchy rather than glassmorphism across data content."
-  - "Prioritize current state, active market truth, capital facts, verifiable NUSA judgment, evidence/counter-evidence and explicit owner action."
-  - "Use neutral graphite surfaces and a restrained mint accent instead of sci-fi navy/neon dashboard chrome."
-  - "Expose only canonical PAPER asset, PnL, AI evidence, calibration, research and authority truth."
-  - "Do not fabricate risk score, invalidation, performance history, freshness, execution, or authority values."
+  - "Route Android Home to concept D: bright pearl AI supervisory surface selected by the owner for physical-device validation."
+  - "Retain concept A/B/C sources as unrouted comparison references until the owner requests cleanup."
+  - "Use Android-only five-destination navigation: NOW / MARKET / NUSA / ASSETS / CONTROL."
+  - "Keep PAPER trading contextual through Markets rather than as a primary Android destination."
+  - "Keep iOS on the existing shared legacy implementation and legacy primary navigation."
+  - "Use a high-key pearl background, translucent white control surfaces, restrained mint/lavender depth, large NOW state and native-layer glass-orb motif."
+  - "Adapt hero/capital/owner-command layouts when the window is compact or font scale is large."
+  - "Expose only canonical PAPER asset, PnL, market freshness, AI evidence, calibration and authority truth."
+  - "Show confidence only when calibrationStatus is CALIBRATED."
+  - "Do not fabricate risk score, invalidation, multi-asset market quotes, performance history, execution, freshness, or authority values."
 excluded:
   - "desktop renderer changes"
   - "iOS redesign"
@@ -43,20 +44,27 @@ safety:
   ai_authority: ZERO_AUTHORITY
 architecture_impact:
   acknowledged: true
-  analysis: "Presentation only. Android platform router selects concept C Home while concepts A/B remain unrouted comparison sources and iOS keeps the legacy Home. Existing runtime, domain models, PAPER execution, credentials, risk and authority state remain authoritative and unchanged."
+  analysis: "Presentation/navigation only. Android selects concept D and an Android-specific supervisory primary navigation. PAPER remains reachable contextually from Markets. iOS stays on the legacy navigation. Runtime, order, credentials, market-data, risk and authority state machines are unchanged."
   references:
     - AGENTS.md
     - .aipos/architecture.md
     - .aipos/work-orders/WO-0063-mobile-master-ux-wave1.yaml
     - docs/NUSA_ANDROID_HUMAN_FACTORS_UX_RESEARCH.md
 validation:
-  status: DEFERRED_OWNER_LOCAL
+  status: DEVICE_QA_REQUESTED
   pass_claimed: false
-  required:
+  machine_required_before_pr:
     - "pnpm run validate"
     - "pnpm run lint:mobile"
     - "tests/android-institutional-cockpit.vitest.js"
     - "repository-required Android/mobile build and type checks"
     - "git diff --check"
-    - "physical Galaxy visual QA when available"
-completion_rule: "Complete only after required local validation and exact-head repository gates pass. Implementation alone does not authorize a PASS claim or PR creation."
+  human_only_device_qa:
+    - "Install/run the exact branch build on a physical Galaxy device."
+    - "Verify first viewport hierarchy, scrolling, five-tab reachability and no clipped content at default font scale."
+    - "Verify Android font size at 200%: no inaccessible actions, overlapping critical truth or horizontal truncation that hides meaning."
+    - "Verify TalkBack focus order and labels for primary navigation, NOW action, market row, NUSA judgment and owner commands."
+    - "Verify portrait plus landscape/window resize behavior; on foldable/tablet if available, verify adaptive stacking rather than stretched cards."
+    - "Verify status/navigation bar icon contrast, cutout/inset handling and one-handed reach on the target Galaxy."
+    - "Verify PAPER ONLY / LIVE NONE / AI ZERO AUTHORITY remain visible and no unavailable financial truth appears."
+completion_rule: "Do not claim validation PASS or create/refresh a PR until required machine validation passes and the owner completes physical-device QA."
