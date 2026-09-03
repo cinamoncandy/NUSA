@@ -60,11 +60,15 @@ test("Release directly dispatches Cloudflare Deploy after post-merge CI succeeds
   assert.match(workflow, /conclusion" != "success"/);
 });
 
-test("Release directly dispatches Cloudflare Promote, Android Stable Release, and Windows Desktop Stable Release after post-merge CI succeeds", () => {
-  assert.match(workflow, /Dispatch other CI-gated downstream workflows directly/);
+test("Release dispatches exact-main PAPER evidence and bounded downstream promotion chain after post-merge CI succeeds", () => {
+  assert.match(workflow, /Dispatch exact-main runtime evidence and CI-gated downstream workflows directly/);
+  assert.match(workflow, /CURRENT_MAIN=.*branches\/main/);
+  assert.match(workflow, /Main advanced from \$MERGED_MAIN to \$CURRENT_MAIN; newer Release chain owns post-merge evidence/);
+  assert.match(workflow, /actions\/workflows\/wo-0059-actual-paper-runtime\.yml\/dispatches/);
   assert.match(workflow, /actions\/workflows\/autopilot-cloudflare-promote\.yml\/dispatches/);
   assert.match(workflow, /inputs\[head_sha\]=\$MERGED_MAIN/);
-  assert.match(workflow, /actions\/workflows\/android-stable-release\.yml\/dispatches/);
+  assert.match(workflow, /actions\/workflows\/android-stable-release-trigger\.yml\/dispatches/);
+  assert.doesNotMatch(workflow, /actions\/workflows\/android-stable-release\.yml\/dispatches/);
   assert.match(workflow, /actions\/workflows\/windows-desktop-stable-release\.yml\/dispatches/);
 });
 
