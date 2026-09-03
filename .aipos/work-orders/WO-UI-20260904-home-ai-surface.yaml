@@ -1,0 +1,71 @@
+id: WO-UI-20260904-HOME-AI-SURFACE
+title: "HOME AI-first visible redesign"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 13266b7e269d74cfe4daaafb9583b62242d97ddb
+implementation_branch: ux/home-ai-surface-20260904
+authority_impact: none
+objective: "Replace the installed HOME screen's stacked supervisor-card presentation with a visibly different AI-first supervisory surface while preserving canonical PAPER, market, AI evidence, portfolio and authority truth."
+provenance:
+  reconciliation: NON_DESTRUCTIVE
+  relationship: PRESENTATION_ONLY_FOLLOW_UP
+  canonical_visual_issue: 594
+  master_visual_issue: 536
+  supersedes_concept_d: true
+  concept_d_work_order: WO-UI-20260903-ANDROID-D-DEVICE-QA-RC
+  current_main_home_master_preserved_as_data_contract: true
+scope:
+  - "HOME presentation only in apps/mobile/src/homeView.tsx."
+  - "Promote canonical NOW and truthful TerrainSignal to the first-screen visual hero."
+  - "Convert WHY / RESULT / RISK / LEARNING from the old stacked supervisor box into an evidence rail."
+  - "Use a HOME-scoped acid-lime signal accent and restrained magenta fail-closed accent without changing global theme semantics."
+  - "Preserve existing market, candle, PAPER account, AI evidence, portfolio, navigation and diagnostics sources."
+excluded:
+  - "new market, news, orderbook, broker, risk or AI data sources"
+  - "desktop or iOS-specific redesign"
+  - "credential, persistence, execution or runtime state-machine changes"
+  - "LIVE activation or real-money authority"
+safety:
+  mode: PAPER_ONLY
+  live_authority: NONE
+  production_mutation_allowed: false
+  ai_authority: ZERO_AUTHORITY
+  fabricated_financial_truth: false
+architecture_impact:
+  acknowledged: true
+  analysis: "Presentation-only HOME rewrite. Existing App-owned public quotation cycle, buildHomeDecisionSurface, PAPER/LOCAL portfolio separation, candle projection, settings, broker boundaries and authority gates remain canonical and unchanged."
+validation:
+  status: BLOCKED_ASSISTANT_LOCAL_ENVIRONMENT
+  pass_claimed: false
+  machine_validation_run: false
+  blocker: "Assistant runtime is Node v22.16.0, pnpm is unavailable, and github.com DNS is unavailable; repository requires Node >=24 and pnpm >=11.7."
+  static_review:
+    branch_ahead_by: 1
+    branch_behind_by: 0
+    changed_product_files:
+      - apps/mobile/src/homeView.tsx
+    canonical_test_ids_preserved: true
+    canonical_public_market_projection_preserved: true
+    canonical_candle_projection_preserved: true
+    paper_real_provenance_separation_preserved: true
+  required_before_pr:
+    - "pnpm run preflight"
+    - "pnpm run typecheck"
+    - "pnpm run lint:mobile"
+    - "node --test tests/mobile-ui-hotswap-contract.test.js"
+    - "node --test tests/mobile-home-master-shell.test.js"
+    - "node --test tests/mobile-home-public-market-fallback.test.js"
+    - "pnpm run validate"
+    - "repository-required Mobile Native / Android build checks"
+    - "git diff --check"
+  human_environment_only:
+    - "exact-APK physical Galaxy screenshot"
+    - "visual confirmation that the installed HOME is visibly different from the prior SUPERVISOR / EVIDENCE FIRST stacked screen"
+    - "200 percent font, TalkBack, landscape/window and inset acceptance"
+release_policy:
+  pr_before_machine_validation: prohibited
+  merge_before_exact_head_required_gates: prohibited
+  release_before_merge: prohibited
+completion_rule: "Do not claim installed UI changed until this exact branch is validated, merged to protected main, exact-main Android Stable Release succeeds, and the new APK is installed/observed on Galaxy."
