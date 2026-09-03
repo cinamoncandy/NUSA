@@ -231,7 +231,7 @@ function assertBoundedPatch(patch) {
   if (unique.length !== 1) throw new Error("SANDBOX_PATCH_FILE_COUNT_INVALID");
   const path = unique[0];
   if (!path.startsWith("apps/autopilot/") || path.startsWith("/") || path.split("/").includes("..")) throw new Error(`SANDBOX_PATCH_PATH_OUTSIDE_ALLOWED_SCOPE:${path}`);
-  if (path === "apps/autopilot/src/index.ts" || path === "apps/autopilot/src/worker.ts") throw new Error(`SANDBOX_PATCH_PATH_FORBIDDEN:${path}`);
+  if (path === "apps/autopilot/src/index.ts" || path === "apps/autopilot/src/worker.ts" || /(?:^|\/)(?:live|live-trading|broker|order|credential|secret|secrets|withdraw|transfer|production-authority)(?:\/|$)/i.test(path)) throw new Error(`SANDBOX_PATCH_PATH_FORBIDDEN:${path}`);
   return path;
 }
 
