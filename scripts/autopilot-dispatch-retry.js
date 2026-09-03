@@ -10,6 +10,26 @@ const GENERATED_WORKSPACE_ARTIFACTS = new Set([
   "artifacts/autopilot-execution/repository-dispatch.json",
   "artifacts/autopilot-execution/coding-runner-request.json",
 ]);
+const SAFE_PROPOSAL_FAILURE_CODES = new Set([
+  "CODING_PROPOSAL_AUTHORITY_SURFACE_FORBIDDEN",
+  "CODING_PROPOSAL_FAILED_CLOSED",
+  "CODING_PROPOSAL_INVALID",
+  "CODING_PROPOSAL_JSON_INVALID",
+  "CODING_PROPOSAL_PATCH_REQUIRED",
+  "CODING_PROPOSAL_PATH_FORBIDDEN",
+  "CODING_PROPOSAL_PATH_INVALID",
+  "CODING_PROPOSAL_RESPONSE_INVALID",
+  "CODING_PROPOSAL_SHAPE_INVALID",
+  "CODING_PROPOSAL_TOO_LARGE",
+  "CODING_PROPOSAL_UNAVAILABLE",
+  "SANDBOX_PATCH_APPLY_CHECK_FAILED",
+  "SANDBOX_PATCH_FILE_COUNT_INVALID",
+  "SANDBOX_PATCH_FORBIDDEN_AUTHORITY_SURFACE",
+  "SANDBOX_PATCH_PATH_FORBIDDEN",
+  "SANDBOX_PATCH_PATH_OUTSIDE_ALLOWED_SCOPE",
+  "SANDBOX_PATCH_REQUIRED",
+  "SANDBOX_PATCH_TOO_LARGE",
+]);
 
 function transientStatus(status) {
   return status === 429 || (Number.isInteger(status) && status >= 500 && status <= 599);
@@ -22,6 +42,15 @@ function httpClass(status) {
 
 function fixedFailureClass(status) {
   return transientStatus(status) ? "transient" : "deterministic";
+}
+
+function proposalFailureCode(reason) {
+  const text = String(reason || "");
+  const match = text.match(/^(CODING_PROPOSAL_[A-Z0-9_]+|SANDBOX_PATCH_[A-Z0-9_]+)/);
+  const code = match?.[1];
+  if (!code || !SAFE_PROPOSAL_FAILURE_CODES.has(code)) return null;
+  if (code.startsWith("CODING_PROPOSAL_")) return text === code ? code : null;
+  return text === code || text.startsWith(`${code}:`) ? code : null;
 }
 
 function safeWorkerStatus(value) {
@@ -368,9 +397,24 @@ async function main() {
     console.log(`execution=${result.status} backend=github-actions-runner changed=${(result.changedFiles || []).join(",")}`);
   } catch (error) {
     const reason = error instanceof Error ? error.message : "AUTOPILOT_GITHUB_RUNNER_FAILED";
-    const attempts = [attemptRecord({ request, attempt: 1, decision: "FAILED_CLOSED", startedAt: Date.now(), status: null, workerStatus: "FAILED_CLOSED", failureClass: "deterministic", reason, now: () => Date.now() })];
-    const result = resultSummary(request, attempts, "FAILED_CLOSED", reason, null, "FAILED_CLOSED");
+    const safeProposalFailure = proposalFailureCode(reason);
+    const attempts = [attemptRecord({
+      request,
+      attempt: 1,
+      decision: safeProposalFailure ? "NO_ACTION" : "FAILED_CLOSED",
+      startedAt,
+      status: null,
+      workerStatus: safeProposalFailure ? "PROPOSAL_REJECTED" : "FAILED_CLOSED",
+      failureClass: "deterministic",
+      reason: safeProposalFailure || reason,
+      now: () => Date.now(),
+    })];
+    const result = resultSummary(request, attempts, safeProposalFailure ? "NO_ACTION" : "FAILED_CLOSED", safeProposalFailure || reason, null, safeProposalFailure ? "PROPOSAL_REJECTED" : "FAILED_CLOSED");
     writeArtifacts(request, result);
+    if (safeProposalFailure) {
+      console.log(`execution=NO_ACTION backend=github-actions-runner reason=${safeProposalFailure}`);
+      return;
+    }
     console.error(reason);
     process.exitCode = 1;
   }
@@ -388,6 +432,7 @@ module.exports = {
   httpClass,
   resultSummary,
   assertBoundedPatch,
+  proposalFailureCode,
   assertGithubRunnerWorkspaceClean,
   filterGithubRunnerWorkspacePaths,
   validatePatchOnGithubRunner,
