@@ -31,6 +31,12 @@ export interface AppendResearchFactoryDecisionHistoryResult {
   readonly appended: boolean;
 }
 
+const OUTCOMES = new Set<ResearchFactoryDecision["outcome"]>([
+  "REJECTED",
+  "INSUFFICIENT",
+  "QUALIFIED_FOR_LEAGUE",
+]);
+
 function freezeRecord(record: ResearchFactoryDecisionHistoryRecord): ResearchFactoryDecisionHistoryRecord {
   return Object.freeze({ ...record, reasons: Object.freeze([...record.reasons]) });
 }
@@ -48,13 +54,50 @@ function sameRecord(left: ResearchFactoryDecisionHistoryRecord, right: ResearchF
     left.reasons.every((reason, index) => reason === right.reasons[index]);
 }
 
+function assertSafetyMetadata(value: {
+  readonly authority: unknown;
+  readonly liveAuthority: unknown;
+  readonly productionMutationAllowed: unknown;
+  readonly aiAuthority: unknown;
+}): void {
+  if (value.authority !== "PAPER_ONLY" ||
+      value.liveAuthority !== "NONE" ||
+      value.productionMutationAllowed !== false ||
+      value.aiAuthority !== "ZERO_AUTHORITY") {
+    throw new Error("RESEARCH_FACTORY_HISTORY_AUTHORITY_INVALID");
+  }
+}
+
 function assertCanonicalDecision(decision: ResearchFactoryDecision): void {
   if (!decision || typeof decision !== "object") throw new Error("RESEARCH_FACTORY_HISTORY_DECISION_INVALID");
-  if (decision.authority !== "PAPER_ONLY" ||
-      decision.liveAuthority !== "NONE" ||
-      decision.productionMutationAllowed !== false ||
-      decision.aiAuthority !== "ZERO_AUTHORITY") {
-    throw new Error("RESEARCH_FACTORY_HISTORY_AUTHORITY_INVALID");
+  assertSafetyMetadata(decision);
+}
+
+function assertHistoryState(history: ResearchFactoryDecisionHistoryState): void {
+  if (!history || !Array.isArray(history.records)) throw new Error("RESEARCH_FACTORY_HISTORY_STATE_INVALID");
+  const evaluationIds = new Set<string>();
+  for (const record of history.records) {
+    if (!record || typeof record !== "object" ||
+        typeof record.candidateId !== "string" || record.candidateId.length === 0 ||
+        typeof record.evaluationId !== "string" || record.evaluationId.length === 0 ||
+        !OUTCOMES.has(record.outcome) ||
+        !Array.isArray(record.reasons) || !record.reasons.every((reason) => typeof reason === "string") ||
+        !Number.isSafeInteger(record.observedAt) || record.observedAt < 0) {
+      throw new Error("RESEARCH_FACTORY_HISTORY_STATE_INVALID");
+    }
+    assertSafetyMetadata(record);
+    if (evaluationIds.has(record.evaluationId)) throw new Error("RESEARCH_FACTORY_HISTORY_DUPLICATE_EVALUATION");
+    evaluationIds.add(record.evaluationId);
+  }
+
+  const rejected = history.records.filter((record) => record.outcome === "REJECTED").length;
+  const insufficient = history.records.filter((record) => record.outcome === "INSUFFICIENT").length;
+  const qualifiedForLeague = history.records.filter((record) => record.outcome === "QUALIFIED_FOR_LEAGUE").length;
+  if (history.totalDecisions !== history.records.length ||
+      history.rejected !== rejected ||
+      history.insufficient !== insufficient ||
+      history.qualifiedForLeague !== qualifiedForLeague) {
+    throw new Error("RESEARCH_FACTORY_HISTORY_COUNT_MISMATCH");
   }
 }
 
@@ -79,7 +122,7 @@ export function appendResearchFactoryDecisionHistory(
   input: AppendResearchFactoryDecisionHistoryInput,
 ): AppendResearchFactoryDecisionHistoryResult {
   if (!input || typeof input !== "object") throw new Error("RESEARCH_FACTORY_HISTORY_INPUT_INVALID");
-  if (!input.history || !Array.isArray(input.history.records)) throw new Error("RESEARCH_FACTORY_HISTORY_STATE_INVALID");
+  assertHistoryState(input.history);
   assertCanonicalDecision(input.decision);
   if (!Number.isSafeInteger(input.observedAt) || input.observedAt < 0) throw new Error("RESEARCH_FACTORY_HISTORY_TIME_INVALID");
 
