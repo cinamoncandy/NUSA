@@ -1,13 +1,13 @@
 <resources>
 
-    <!-- Android-only native chrome for the NUSA institutional cockpit. -->
+    <!-- Android-only native chrome for the selected bright NUSA physical-device reference. -->
     <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
         <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
         <item name="android:windowBackground">@color/nusa_window_background</item>
         <item name="android:statusBarColor">@color/nusa_system_bar</item>
         <item name="android:navigationBarColor">@color/nusa_navigation_bar</item>
-        <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
         <item name="android:colorAccent">@color/nusa_accent</item>
         <item name="android:windowActionModeOverlay">true</item>
     </style>
