@@ -110,3 +110,38 @@ test("authority escalation cannot enter research decision history", () => {
     observedAt: 1,
   }), /RESEARCH_FACTORY_HISTORY_AUTHORITY_INVALID/);
 });
+
+test("forged denominator counts fail closed", () => {
+  const first = appendResearchFactoryDecisionHistory({
+    history: emptyResearchFactoryDecisionHistory(),
+    decision: decision("eval-1", passEvidence),
+    observedAt: 1,
+  });
+  const forged = { ...first.history, totalDecisions: 0 };
+
+  assert.throws(() => appendResearchFactoryDecisionHistory({
+    history: forged,
+    decision: decision("eval-2", passEvidence),
+    observedAt: 2,
+  }), /RESEARCH_FACTORY_HISTORY_COUNT_MISMATCH/);
+});
+
+test("duplicate evaluation ids already present in history fail closed", () => {
+  const first = appendResearchFactoryDecisionHistory({
+    history: emptyResearchFactoryDecisionHistory(),
+    decision: decision("eval-1", passEvidence),
+    observedAt: 1,
+  });
+  const duplicate = {
+    ...first.history,
+    records: [first.history.records[0], first.history.records[0]],
+    totalDecisions: 2,
+    qualifiedForLeague: 2,
+  };
+
+  assert.throws(() => appendResearchFactoryDecisionHistory({
+    history: duplicate,
+    decision: decision("eval-2", passEvidence),
+    observedAt: 2,
+  }), /RESEARCH_FACTORY_HISTORY_DUPLICATE_EVALUATION/);
+});
