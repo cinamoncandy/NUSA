@@ -6,6 +6,10 @@ const DEFAULT_BACKOFF_MS = 1_000;
 const MAX_PATCH_BYTES = 24_000;
 const MAX_VALIDATED_FILE_BYTES = 128_000;
 const PATCH_PATH = ".nusa-autopilot.patch";
+const GENERATED_WORKSPACE_ARTIFACTS = new Set([
+  "artifacts/autopilot-execution/repository-dispatch.json",
+  "artifacts/autopilot-execution/coding-runner-request.json",
+]);
 
 function transientStatus(status) {
   return status === 429 || (Number.isInteger(status) && status >= 500 && status <= 599);
@@ -238,12 +242,33 @@ function run(command, args, label, timeout = 300_000) {
   return String(result.stdout || "");
 }
 
+function isGeneratedWorkspaceArtifact(path) {
+  return GENERATED_WORKSPACE_ARTIFACTS.has(path);
+}
+
+function filterGithubRunnerWorkspacePaths(paths) {
+  return paths.filter((path) => path && path !== PATCH_PATH && !isGeneratedWorkspaceArtifact(path));
+}
+
+function assertGithubRunnerWorkspaceClean(statusOutput) {
+  const unexpected = String(statusOutput || "")
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter(Boolean)
+    .filter((line) => {
+      const status = line.slice(0, 2);
+      const path = line.slice(3).trim();
+      return status !== "??" || !isGeneratedWorkspaceArtifact(path);
+    });
+  if (unexpected.length > 0) throw new Error("CODING_RUNTIME_WORKSPACE_DIRTY");
+}
+
 function validatePatchOnGithubRunner(request, patch) {
   const expectedPath = assertBoundedPatch(patch);
   if (run("git", ["rev-parse", "HEAD"], "GITHUB_RUNNER_HEAD_FAILED").trim().toLowerCase() !== request.headSha.toLowerCase()) {
     throw new Error("CODING_RUNTIME_HEAD_MISMATCH");
   }
-  if (run("git", ["status", "--porcelain"], "GITHUB_RUNNER_STATUS_FAILED").trim()) throw new Error("CODING_RUNTIME_WORKSPACE_DIRTY");
+  assertGithubRunnerWorkspaceClean(run("git", ["status", "--porcelain"], "GITHUB_RUNNER_STATUS_FAILED"));
 
   fs.writeFileSync(PATCH_PATH, `${patch.trim()}\n`);
   run("git", ["apply", "--check", PATCH_PATH], "SANDBOX_PATCH_APPLY_CHECK_FAILED");
@@ -251,7 +276,9 @@ function validatePatchOnGithubRunner(request, patch) {
   run("git", ["diff", "--check"], "SANDBOX_PATCH_DIFF_CHECK_FAILED");
 
   const tracked = run("git", ["diff", "--name-only"], "SANDBOX_PATCH_DIFF_LIST_FAILED").split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
-  const untracked = run("git", ["ls-files", "--others", "--exclude-standard"], "SANDBOX_PATCH_UNTRACKED_LIST_FAILED").split(/\r?\n/).map((value) => value.trim()).filter((value) => value && value !== PATCH_PATH);
+  const untracked = filterGithubRunnerWorkspacePaths(run("git", ["ls-files", "--others", "--exclude-standard"], "SANDBOX_PATCH_UNTRACKED_LIST_FAILED")
+    .split(/\r?\n/)
+    .map((value) => value.trim()));
   const changed = [...new Set([...tracked, ...untracked])];
   if (changed.length !== 1 || changed[0] !== expectedPath) throw new Error("SANDBOX_PATCH_CHANGED_FILES_MISMATCH");
 
@@ -361,6 +388,8 @@ module.exports = {
   httpClass,
   resultSummary,
   assertBoundedPatch,
+  assertGithubRunnerWorkspaceClean,
+  filterGithubRunnerWorkspacePaths,
   validatePatchOnGithubRunner,
   endpointFor,
 };
