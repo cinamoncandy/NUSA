@@ -10,6 +10,7 @@ latest_main_sync_commit: 7ad981cc68b2eb5af29afa1b9c78647d064e309e
 authority_impact: none
 objective: "Stage the owner-selected bright Concept D Android supervisory UI on the latest protected main line, preserve current canonical market-data safety behavior and prepare a truthful physical-device/release candidate without changing execution authority."
 provenance:
+  reconciliation: NON_DESTRUCTIVE
   relationship: PRESENTATION_ONLY_FOLLOW_UP
   predecessor_branch: ux/android-institutional-cockpit-20260903
   predecessor_history_preserved: true
