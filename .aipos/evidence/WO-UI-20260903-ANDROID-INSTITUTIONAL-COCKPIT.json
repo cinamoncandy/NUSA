@@ -1,20 +1,23 @@
 {
   "workOrder": "WO-UI-20260903-ANDROID-INSTITUTIONAL-COCKPIT",
   "branch": "ux/android-institutional-cockpit-20260903",
-  "scope": "ANDROID_PRESENTATION_ONLY",
-  "designStatus": "TEMPORARY_CONCEPT_C",
+  "scope": "ANDROID_PRESENTATION_AND_NAVIGATION_ONLY",
+  "designStatus": "TEMPORARY_CONCEPT_D_DEVICE_QA",
   "finalDesignFrozen": false,
-  "referenceDirection": "NUSA_PLATFORM_GRADE_EXPRESSIVE_SUPERVISORY_OS",
+  "referenceDirection": "NUSA_BRIGHT_PEARL_AI_SUPERVISORY_OS",
   "implementation": {
     "androidInstitutionalTheme": "apps/mobile/src/androidInstitutionalTheme.ts",
     "platformGate": "apps/mobile/src/ThemeProvider.tsx",
-    "activeAndroidHome": "apps/mobile/src/androidCHomeView.tsx",
+    "activeAndroidHome": "apps/mobile/src/androidDHomeView.tsx",
     "retainedComparisonHomes": [
       "apps/mobile/src/androidAHomeView.tsx",
-      "apps/mobile/src/androidBHomeView.tsx"
+      "apps/mobile/src/androidBHomeView.tsx",
+      "apps/mobile/src/androidCHomeView.tsx"
     ],
     "homeRouter": "apps/mobile/src/homeView.tsx",
     "homeLegacyPreserved": "apps/mobile/src/homeViewLegacy.tsx",
+    "androidPrimaryNavigation": "NOW / MARKET / NUSA / ASSETS / CONTROL in apps/mobile/App.tsx",
+    "iosPrimaryNavigationPreserved": "HOME / OBSERVE / PAPER / SUPERVISE",
     "androidDecision": "apps/mobile/src/androidNusaDecisionView.tsx",
     "aiRouter": "apps/mobile/src/aiView.tsx",
     "aiLegacyPreserved": "apps/mobile/src/aiViewLegacy.tsx",
@@ -26,29 +29,34 @@
     "staticContractTest": "tests/android-institutional-cockpit.vitest.js"
   },
   "activeConcept": {
-    "id": "C",
-    "status": "ACTIVE_TEMPORARY_REFERENCE",
-    "conceptsRetainedForComparison": ["A", "B"],
+    "id": "D",
+    "status": "ACTIVE_TEMPORARY_DEVICE_QA_REFERENCE",
+    "selectedByOwner": true,
+    "futureRedesignExpected": true,
+    "conceptsRetainedForComparison": ["A", "B", "C"],
     "principles": [
-      "content-first hierarchy with one dominant current-state surface",
-      "expressive asymmetric shape language communicates hierarchy without decorative card accumulation",
-      "platform-grade neutral graphite palette with one restrained mint accent",
-      "authority truth is reduced to a quiet persistent line rather than a large safety dashboard",
-      "market truth is embedded as supporting context within the current-state surface",
-      "capital truth is presented as a flat fact band instead of metric cards",
-      "NUSA judgment uses a distinct semantic surface and never promotes uncalibrated confidence as a hero metric",
-      "evidence and counter-evidence remain immediately inspectable with truthful unavailable invalidation",
-      "controls use strong simple capsules while financial content remains visually quiet",
-      "all primary interactions preserve a minimum 48dp floor",
-      "no visual placeholder may fabricate financial, risk, execution or authority truth"
+      "bright pearl high-key visual field with calm white content surfaces",
+      "large NOW state remains the first decision surface",
+      "native layered orb motif carries the futuristic AI identity without embedding a fake financial visualization",
+      "authority, mode and market freshness stay explicit in a compact translucent truth rail",
+      "capital overview uses only canonical PAPER data and no mock multi-asset values",
+      "NUSA judgment exposes evidence, counter-evidence and actual calibration state",
+      "confidence is displayed only when canonical calibration status is CALIBRATED",
+      "owner commands route to existing supervisory surfaces rather than granting AI authority",
+      "Android primary navigation is NOW / MARKET / NUSA / ASSETS / CONTROL and PAPER trading remains contextual",
+      "compact windows and large font scales trigger stacked layout",
+      "primary interactions preserve at least a 48dp interaction floor",
+      "no visual placeholder may fabricate financial, risk, execution, freshness or authority truth"
     ],
     "visualLanguage": {
-      "background": "#0B0D10",
-      "primary": "#65E0C2",
-      "surface": "#11151A",
-      "surfaceRaised": "#171C22",
-      "layoutStyle": "PLATFORM_GRADE_EXPRESSIVE_CONTENT_FIRST",
-      "interactionMinimumDp": 48
+      "background": "#F5F7FB",
+      "primary": "#24B99E",
+      "lavenderDepth": "#8B7EF5",
+      "surface": "#FFFFFF",
+      "surfaceRaised": "#FBFCFF",
+      "layoutStyle": "BRIGHT_PEARL_GLASS_AI_SUPERVISORY",
+      "interactionMinimumDp": 48,
+      "forcedAndroidPresentationMode": "LIGHT_FOR_DEVICE_REFERENCE"
     }
   },
   "truthBoundaries": {
@@ -59,21 +67,32 @@
     "fabricatedFinancialTruth": false,
     "fabricatedRiskScore": false,
     "fabricatedInvalidation": false,
+    "fabricatedMultiAssetQuotes": false,
     "runtimeSemanticsChanged": false,
     "credentialSemanticsChanged": false,
     "riskPolicyChanged": false
   },
   "validation": {
-    "status": "DEFERRED_OWNER_LOCAL",
+    "status": "DEVICE_QA_REQUESTED",
     "passClaimed": false,
-    "reason": "Owner is iterating Android visual concepts before local validation and PR creation.",
-    "requiredBeforePR": [
+    "machineValidationRun": false,
+    "machineRequiredBeforePR": [
       "pnpm run validate",
       "pnpm run lint:mobile",
       "tests/android-institutional-cockpit.vitest.js",
       "repository-required Android/mobile build and type checks",
-      "git diff --check",
-      "physical Galaxy visual QA when available"
-    ]
+      "git diff --check"
+    ],
+    "humanOnlyDeviceQA": [
+      "physical Galaxy install/run from exact branch build",
+      "default font first-viewport and scrolling visual check",
+      "200% font scaling and action reachability",
+      "TalkBack focus order and labels",
+      "portrait plus landscape/window resize",
+      "status/navigation bar contrast and inset/cutout handling",
+      "five-tab navigation reachability and selected state",
+      "PAPER ONLY / LIVE NONE / AI ZERO AUTHORITY truth review"
+    ],
+    "prBlockedUntilComplete": true
   }
 }
