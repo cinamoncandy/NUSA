@@ -1,41 +1,18 @@
 {
   "workOrder": "WO-UI-20260903-ANDROID-D-DEVICE-QA-RC",
   "branch": "ux/android-d-release-candidate-20260903",
-  "baseCommit": "83093d0e8f8b44f76c8eddd444fe146bd9336d3e",
-  "latestMainSyncCommit": "c2c70c63846217a002e653e5b0aee6676928aebc",
-  "scope": "ANDROID_PRESENTATION_AND_NAVIGATION_ONLY",
-  "designStatus": "TEMPORARY_CONCEPT_D_DEVICE_QA",
+  "scope": "HISTORICAL_ANDROID_PRESENTATION_AND_NAVIGATION_ONLY",
+  "designStatus": "SUPERSEDED_DO_NOT_RELEASE",
   "finalDesignFrozen": false,
-  "ownerSelectedForDeviceQA": true,
-  "futureRedesignExpected": true,
-  "implementation": {
-    "appShell": "apps/mobile/App.tsx",
-    "canonicalHomePreserved": "apps/mobile/src/homeView.tsx",
-    "canonicalAiPreserved": "apps/mobile/src/aiView.tsx",
-    "androidHome": "apps/mobile/src/androidDHomeView.tsx",
-    "androidDecision": "apps/mobile/src/androidNusaDecisionView.tsx",
-    "androidTheme": "apps/mobile/src/androidInstitutionalTheme.ts",
-    "themeGate": "apps/mobile/src/ThemeProvider.tsx",
-    "nativeColors": "apps/mobile/android/app/src/main/res/values/colors.xml",
-    "nativeTheme": "apps/mobile/android/app/src/main/res/values/styles.xml",
-    "contractTest": "tests/android-d-device-qa-rc.vitest.js",
-    "oneShotWindowsDeviceQa": "scripts/android-d-device-qa.ps1",
-    "localQaCaptureIgnore": "artifacts/android-d-device-qa/"
+  "ownerSelectedForDeviceQA": false,
+  "supersession": {
+    "decision": "DO_NOT_VALIDATE_DO_NOT_PR_DO_NOT_MERGE_DO_NOT_RELEASE",
+    "reason": "Current protected main already contains the merged HOME MASTER direction and later canonical HOME decision-surface work. The bright/card-based Concept D branch would override the current approved terminal-family surface on Android and is therefore a known visual regression candidate.",
+    "canonicalVisualIssues": [594, 536],
+    "canonicalHomeMasterPr": 767,
+    "canonicalHomeMasterMerge": "054ef5612e8c4f2f57787ad36d552b83b8f63bcd",
+    "historicalBranchPreserved": true
   },
-  "preservedMainBehavior": {
-    "publicMarketPrecedence": true,
-    "publicMarketsForwarded": true,
-    "homeMarketDataSelectorUntouched": true,
-    "canonicalNonAndroidHomeUntouched": true,
-    "canonicalNonAndroidAiUntouched": true,
-    "androidBuildGradleFromMainUntouched": true,
-    "latestProtectedMainReviewed": true,
-    "latestProtectedMain": "13266b7e269d74cfe4daaafb9583b62242d97ddb",
-    "previousSyncToLatestMainCommitCount": 7,
-    "postBaseMainDeltaOverlap": false,
-    "postBaseMainDeltaScope": "Research factory promotion bridge plus exact-main Android stable release-trigger workflow/test; no Android D implementation overlap"
-  },
-  "androidNavigation": ["NOW", "MARKET", "NUSA", "ASSETS", "CONTROL"],
   "truthBoundaries": {
     "paperOnly": true,
     "liveAuthority": "NONE",
@@ -44,108 +21,37 @@
     "fabricatedFinancialTruth": false,
     "fabricatedRiskScore": false,
     "fabricatedInvalidation": false,
-    "fabricatedMultiAssetQuotes": false,
     "runtimeSemanticsChanged": false,
     "credentialSemanticsChanged": false,
     "riskPolicyChanged": false
   },
-  "staticAudit": {
+  "historicalStaticAudit": {
     "completed": true,
     "passClaimed": false,
-    "reviewScope": [
-      "Android D app-shell routing and five-destination navigation",
-      "Android D Home financial/authority/status truth presentation",
-      "Android NUSA decision evidence/calibration/authority presentation",
-      "Android-only theme/system chrome",
-      "device-QA script and branch contract test"
-    ],
     "fixedFindings": [
-      {
-        "severity": "P1_TRUTHFULNESS",
-        "finding": "The Android NUSA decision hero translated canonical AI status AVAILABLE into VERIFIED, which could overstate the meaning of the canonical projection.",
-        "resolution": "Render the canonical AI status token directly and use UNAVAILABLE only when no status exists.",
-        "commit": "268f817e34aa3ee4b134e062c768b2cf77f022c8"
-      },
-      {
-        "severity": "P1_ACCESSIBILITY",
-        "finding": "The Android NUSA decision hero used fixed horizontal layouts without the large-font/compact-window stacking already required for physical-device QA.",
-        "resolution": "Use useWindowDimensions and stack title/header/confidence/facts when width < 430 or fontScale >= 1.35; add contract assertions.",
-        "commits": [
-          "268f817e34aa3ee4b134e062c768b2cf77f022c8",
-          "56680e63ec5a3489b853eabdcccaf42ef2b540a1"
-        ]
-      },
-      {
-        "severity": "P1_TRUTHFULNESS",
-        "finding": "The Android Home labeled every canonical AI AVAILABLE state as 새 판단 even though the projection does not establish that the judgment is newly arrived.",
-        "resolution": "Use the neutral label NUSA 판단 and guard against unsupported recency wording in the Android D contract test.",
-        "commits": [
-          "8088de65bd31a86453b5fb9e7b7fcfbe2679ed54",
-          "b942ed39e00e42f98f5e56bffc3fe4f846a41cdf",
-          "987907e4abce467b3a68990d045c34211e530869"
-        ],
-        "scopeCorrection": "Commit b942ed39e00e42f98f5e56bffc3fe4f846a41cdf removed an incidental visual-only opacity drift introduced while applying the wording fix, leaving the intended Home behavior change limited to the status wording."
-      }
+      "Canonical AI AVAILABLE status was no longer upgraded to VERIFIED.",
+      "Compact/large-font stacking was added for the Android NUSA decision surface.",
+      "Unsupported recency wording 새 판단 was replaced with neutral NUSA 판단."
     ],
-    "remainingRepositoryKnownP1": 0,
-    "note": "Static inspection reduces known repository-side defects but is not a substitute for required Node24/pnpm/Gradle validation or physical-device acceptance. Commit e810741d5b1bbcd0b5f96e963bb05798c79e84c6 rewrote identical Android Home content and introduced no tree/content change beyond commit metadata."
+    "note": "Historical truth/accessibility fixes remain recorded, but they do not authorize release of a superseded visual direction."
   },
   "validation": {
-    "status": "BLOCKED_ASSISTANT_LOCAL_ENVIRONMENT",
+    "status": "NOT_APPLICABLE_SUPERSEDED",
     "passClaimed": false,
     "machineValidationRun": false,
-    "remoteCiUsedAsDebugger": false,
     "currentOpenPullRequest": null,
     "stableReleaseTriggered": false,
     "accidentalPreValidationPr": {
       "number": 1564,
       "status": "CLOSED_DO_NOT_USE",
       "merged": false,
-      "openedHead": "7821fd40bab09e59f40d056b474854e871ac589d",
-      "ciTriggered": true,
       "ciAcceptedAsValidation": false,
-      "reopenProhibited": true,
-      "note": "Accidentally opened before required machine validation and closed immediately. Its workflow results are not valid pre-PR validation evidence and must not be used to justify merge or release."
+      "reopenProhibited": true
     },
-    "accidentalWorkflowRunsObserved": [
-      33761105742,
-      33761105745,
-      33761105730,
-      33761105723,
-      33761105749,
-      33761105721,
-      33761105736,
-      33761105812
-    ],
-    "localExecutionEnvironmentBlocker": "Assistant container cannot resolve github.com and cannot materialize the full repository/dependency tree for Node24/pnpm/Gradle validation.",
-    "observedLocalRuntime": "Node v22.16.0; repository requires Node >=24 and pnpm >=11.7; no pnpm binary is locally available.",
-    "connectorLimit": "Current GitHub connector can inspect and mutate repository text but is not being used as a substitute for required branch-specific pre-PR machine validation.",
-    "mainDeliveryValidationCredit": "NONE_FOR_RC_BRANCH",
-    "oneShotCommand": "powershell -ExecutionPolicy Bypass -File scripts/android-d-device-qa.ps1",
-    "requiredBeforePR": [
-      "pnpm run preflight",
-      "pnpm run typecheck",
-      "pnpm run lint:mobile",
-      "pnpm exec vitest run tests/android-d-device-qa-rc.vitest.js",
-      "node --test tests/mobile-home-public-market-fallback.test.js",
-      "pnpm run validate",
-      "self-contained Android debug APK assembly",
-      "git diff --check"
-    ],
-    "humanOnlyDeviceQA": [
-      "connect and authorize one physical Galaxy over ADB",
-      "visually accept default-font portrait layout and scrolling",
-      "visually accept 200 percent font scaling",
-      "verify TalkBack focus order and labels",
-      "verify landscape/window resize and insets",
-      "verify system-bar contrast",
-      "verify five-tab reachability and selected state",
-      "verify PAPER ONLY / LIVE NONE / AI ZERO AUTHORITY labels"
-    ]
+    "note": "Machine/device validation intentionally stopped because the branch is superseded. CI must not be spent to turn a known visual regression into a merge candidate."
   },
   "currentMainDelivery": {
     "exactMainSha": "13266b7e269d74cfe4daaafb9583b62242d97ddb",
-    "mainStillExactAfterRelease": true,
     "ciRun": 33763241936,
     "ciConclusion": "SUCCESS",
     "actualPaperRuntimeRun": 33763822519,
@@ -163,21 +69,11 @@
     "protectedSigning": "VERIFIED",
     "apkIntegrityVerification": "SUCCESS",
     "apkSha256": "38b414517c59ddace956c7a1da5bc2cc484e7a5dcb1635f3d085e74e91ad93ce",
-    "receiptIssue": 558,
-    "receiptRecorded": true,
-    "note": "This proves current main delivery health and exact-source deployment only. It does not validate or release the unmerged Android D RC branch."
+    "note": "Current stable main delivery is healthy and does not include Concept D."
   },
-  "releaseInfrastructure": {
-    "mobileNativeWorkflow": ".github/workflows/mobile-native.yml",
-    "stableTriggerWorkflow": ".github/workflows/android-stable-release-trigger.yml",
-    "stableReleaseWorkflow": ".github/workflows/android-stable-release.yml",
-    "stableWatchdogWorkflow": ".github/workflows/android-stable-release-watchdog.yml",
-    "workflowDispatchSupportedByRepository": true,
-    "debugApkArtifactSupported": true,
-    "exactHeadRcArtifactSupported": true,
-    "stableWorkflowRequiresCurrentMain": true,
-    "successfulExactMainCiRequired": true,
-    "protectedSigningSecretsRequired": true,
-    "currentCandidateIsStableReleasable": false
+  "nextCanonicalWork": {
+    "issues": [594, 536],
+    "requiredGate": "Exact-head repository validation followed by exact-APK physical Galaxy visual comparison and user acceptance.",
+    "conceptDMayBeReused": false
   }
 }
