@@ -61,11 +61,21 @@ test("deployment accepts a direct workflow_dispatch with exact head_sha for GITH
   assert.match(workflow, /inputs\.head_sha/);
 });
 
-test("deployment workflow remains fail-closed and read-only toward GitHub", () => {
+test("deployment workflow remains read-only toward GitHub contents and cannot mutate the repository", () => {
   assert.match(workflow, /permissions:\s*\n\s*contents: read/);
   assert.doesNotMatch(workflow, /contents: write/);
-  assert.doesNotMatch(workflow, /actions: write/);
   assert.match(workflow, /Skipping stale push/);
   assert.match(workflow, /HUMAN_ONLY blocker/);
   assert.match(workflow, /Failing closed/);
+});
+
+test("successful deploy directly dispatches Runtime Proof instead of relying on workflow_run chaining", () => {
+  assert.match(workflow, /permissions:[^]*actions: write/);
+  assert.match(workflow, /Dispatch Runtime Proof directly for fresh observability/);
+  assert.match(workflow, /does not fire workflow_run listeners/);
+  assert.match(workflow, /actions\/workflows\/autopilot-cloudflare-runtime-proof\.yml\/dispatches/);
+  assert.match(workflow, /-f ref=main/);
+  const dispatchIndex = workflow.indexOf("Dispatch Runtime Proof directly");
+  assert.ok(dispatchIndex > 0);
+  assert.match(workflow.slice(dispatchIndex, dispatchIndex + 400), /if: steps\.revision\.outputs\.current == 'true'/);
 });
