@@ -1,8 +1,8 @@
 {
   "workOrder": "WO-UI-20260903-ANDROID-D-DEVICE-QA-RC",
   "branch": "ux/android-d-release-candidate-20260903",
-  "baseCommit": "724aac9298156ca48cb20cfe2969856d61451a04",
-  "latestMainSyncCommit": "0911ca302bc43dcfa6a382b82dd3adccfae9c30c",
+  "baseCommit": "83093d0e8f8b44f76c8eddd444fe146bd9336d3e",
+  "latestMainSyncCommit": "7ad981cc68b2eb5af29afa1b9c78647d064e309e",
   "scope": "ANDROID_PRESENTATION_AND_NAVIGATION_ONLY",
   "designStatus": "TEMPORARY_CONCEPT_D_DEVICE_QA",
   "finalDesignFrozen": false,
@@ -30,10 +30,10 @@
     "canonicalNonAndroidAiUntouched": true,
     "androidBuildGradleFromMainUntouched": true,
     "latestProtectedMainReviewed": true,
-    "latestProtectedMain": "724aac9298156ca48cb20cfe2969856d61451a04",
-    "previousBaseToLatestMainCommitCount": 14,
+    "latestProtectedMain": "83093d0e8f8b44f76c8eddd444fe146bd9336d3e",
+    "previousSyncToLatestMainCommitCount": 6,
     "postBaseMainDeltaOverlap": false,
-    "postBaseMainDeltaScope": "CI/audit workflow hardening, archive/docs maintenance, and research-factory contracts; no mobile implementation files"
+    "postBaseMainDeltaScope": "PAPER runtime chaos/restart lease-boundary workflow, scripts and test only; no mobile implementation files"
   },
   "androidNavigation": ["NOW", "MARKET", "NUSA", "ASSETS", "CONTROL"],
   "truthBoundaries": {
@@ -54,10 +54,31 @@
     "passClaimed": false,
     "machineValidationRun": false,
     "remoteCiUsedAsDebugger": false,
-    "pullRequestOpened": false,
+    "currentOpenPullRequest": null,
     "stableReleaseTriggered": false,
+    "accidentalPreValidationPr": {
+      "number": 1564,
+      "status": "CLOSED_DO_NOT_USE",
+      "merged": false,
+      "openedHead": "7821fd40bab09e59f40d056b474854e871ac589d",
+      "ciTriggered": true,
+      "ciAcceptedAsValidation": false,
+      "reopenProhibited": true,
+      "note": "Accidentally opened before required machine validation and closed immediately. Its workflow results are not valid pre-PR validation evidence and must not be used to justify merge or release."
+    },
+    "accidentalWorkflowRunsObserved": [
+      33761105742,
+      33761105745,
+      33761105730,
+      33761105723,
+      33761105749,
+      33761105721,
+      33761105736,
+      33761105812
+    ],
     "localExecutionEnvironmentBlocker": "Assistant container cannot resolve github.com and cannot materialize the full repository/dependency tree for Node24/pnpm/Gradle validation.",
     "observedLocalRuntime": "Node v22.16.0; repository requires Node >=24 and pnpm >=11.7; no pnpm binary is locally available.",
+    "connectorLimit": "Current GitHub connector exposes workflow read/retry operations but no workflow-dispatch or workflow-cancel operation usable as a compliant pre-PR validator.",
     "oneShotCommand": "powershell -ExecutionPolicy Bypass -File scripts/android-d-device-qa.ps1",
     "requiredBeforePR": [
       "pnpm run preflight",
@@ -84,6 +105,7 @@
     "mobileNativeWorkflow": ".github/workflows/mobile-native.yml",
     "workflowDispatchSupportedByRepository": true,
     "workflowDispatchAvailableToCurrentConnector": false,
+    "workflowCancelAvailableToCurrentConnector": false,
     "debugApkArtifactSupported": true,
     "exactHeadRcArtifactSupported": true,
     "stableWorkflowRequiresCurrentMain": true,
