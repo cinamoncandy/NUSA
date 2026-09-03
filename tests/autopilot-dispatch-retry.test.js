@@ -172,6 +172,7 @@ test("still rejects tracked or unrelated dirty workspace entries", () => {
     " M apps/autopilot/src/codingRunner.ts",
     "?? .nusa-autopilot.patch",
     "?? artifacts/autopilot-execution/unexpected.txt",
+    "?? artifacts/",
     "?? artifacts/other.json",
     " M artifacts/autopilot-execution/repository-dispatch.json",
   ]) {
