@@ -6,21 +6,22 @@ repository: cinamoncandy/NUSA
 base_branch: main
 implementation_branch: ux/android-institutional-cockpit-20260903
 authority_impact: none
-objective: "Iterate Android-only NUSA supervisory investment-intelligence UX with temporary concept C as the sole active visual reference while preserving all authority and financial-truth boundaries."
+objective: "Iterate Android-only NUSA supervisory investment-intelligence UX with temporary concept E as the sole active visual reference while preserving all authority and financial-truth boundaries."
 provenance:
   predecessor_scope: WO-0063.mobile-master-ux-wave1
   relationship: PRESENTATION_ONLY_FOLLOW_UP
   desktop_scope_included: false
   ios_scope_included: false
-  active_reference: TEMPORARY_CONCEPT_C
+  active_reference: TEMPORARY_CONCEPT_E
 scope:
-  - "Route Android Home to the state-driven NOW surface."
-  - "Route Android NUSA/AI to the evidence-first Decision Workspace."
+  - "Route Android Home to the calm cinematic state-driven NOW surface."
+  - "Keep Android NUSA/AI on the evidence-first Decision Workspace."
   - "Keep iOS on the existing shared legacy implementation."
-  - "Use compact System Truth Rail, prioritized NOW condition, evidence/counter-evidence, compact asset/exposure state, real constraints, next actions, and prioritized alerts."
+  - "Use a compact truth rail, large NOW state, operating-health summary, NUSA insight, contextual evidence sheet and explicit owner action."
+  - "Use navy/soft-glass surfaces with restrained mint/lavender depth rather than neon dashboard chrome."
   - "Expose only canonical PAPER asset, PnL, AI evidence, calibrated confidence, research and authority truth."
   - "Do not fabricate risk score, invalidation, performance history, freshness, execution, or authority values."
-  - "Keep previous temporary concepts A and B out of the current tree/reference contract."
+  - "Remove superseded concept C Home from the active tree; concepts A and B remain absent."
 excluded:
   - "desktop renderer changes"
   - "iOS redesign"
@@ -37,7 +38,7 @@ safety:
   ai_authority: ZERO_AUTHORITY
 architecture_impact:
   acknowledged: true
-  analysis: "Presentation only. Android platform routers select concept C surfaces while iOS keeps legacy surfaces. Existing runtime, domain models, PAPER execution, credentials, risk and authority state remain authoritative and unchanged."
+  analysis: "Presentation only. Android platform router selects concept E Home while iOS keeps the legacy Home. Existing runtime, domain models, PAPER execution, credentials, risk and authority state remain authoritative and unchanged."
   references:
     - AGENTS.md
     - .aipos/architecture.md
