@@ -15,6 +15,7 @@ paths:
   ai_architecture: docs/NUSA_AI_ARCHITECTURE_V1.md
   investment_knowledge_principle: docs/NUSA_INVESTMENT_KNOWLEDGE_PRINCIPLE.md
   user_experience_principle: docs/NUSA_USER_EXPERIENCE_PRINCIPLE.md
+  mobile_ui_delivery_contract: docs/NUSA_MOBILE_UI_DELIVERY_CONTRACT.md
   governing_charter: docs/NUSA_GOVERNING_CHARTER.md
   handoff_contract: .aipos/AI_HANDOFF_CONTRACT.md
   state: .aipos/state.yaml
@@ -57,6 +58,7 @@ rules:
   - "Validate architecture-to-AIPOS synchronization before selecting implementation work."
   - "Read the investment knowledge principle before modifying investment intelligence, research, portfolio, risk-model, or trading-decision capabilities."
   - "Read the user experience principle before modifying user-facing desktop, mobile, cloud, conversational, approval, trading, risk, or safety surfaces."
+  - "Read and obey the mobile UI delivery contract before claiming a mobile UI change is applied, deployed, shipped, installed, or complete."
   - "Read the governing charter for standing product direction, authority hierarchy, and development priority (P0/P1/P2); it grants no authority and cannot open, widen, or bypass any .aipos/current-mission.yaml serialization gate."
   - "Implement only a ready work order unless a human explicitly overrides it."
   - "Preserve NUSA safety boundaries and fail closed."
