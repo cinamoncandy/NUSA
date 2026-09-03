@@ -1,0 +1,46 @@
+{
+  "workOrder": "WO-UI-20260904-HOME-AI-SURFACE",
+  "branch": "ux/home-ai-surface-20260904",
+  "baseCommit": "13266b7e269d74cfe4daaafb9583b62242d97ddb",
+  "authorityImpact": "none",
+  "designIntent": "Visibly replace the installed stacked SUPERVISOR/EVIDENCE FIRST HOME with an AI-first NOW + signal-field composition while retaining NUSA terminal identity and truthful evidence rails.",
+  "implementation": {
+    "home": "apps/mobile/src/homeView.tsx",
+    "newFirstScreenHierarchy": ["NUSA", "NOW", "SIGNAL TERRAIN", "WHY", "RESULT", "RISK", "LEARNING"],
+    "homeScopedSignalAccent": "acid-lime",
+    "failClosedAccent": "restrained-magenta",
+    "existingTerminalModulesPreserved": ["MARKET PULSE", "MARKET STRUCTURE", "PAPER PERFORMANCE", "NEWS / ECON unavailable state", "PORTFOLIO / ALLOCATION", "CAPITAL LIMITS", "RISK / AUTHORITY"]
+  },
+  "truthBoundaries": {
+    "publicMarkets": "selectHomeMarketData(publicMarkets, snapshot.markets)",
+    "marketWave": "buildChartViewModel from existing validated public candles",
+    "paperVsLocal": "kept separate",
+    "realReadOnlyBlendedIntoPaper": false,
+    "fabricatedNews": false,
+    "fabricatedOrderFlow": false,
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY"
+  },
+  "staticAudit": {
+    "canonicalTestIdsPreserved": true,
+    "homeMasterRailPreserved": true,
+    "supervisorDecisionProjectionPreserved": true,
+    "marketDataSelectorPreserved": true,
+    "candleProjectionPreserved": true,
+    "tabularFinancialNumeralsPreserved": true,
+    "minimumPrimaryActionHeightDp": 48,
+    "machinePassClaimed": false
+  },
+  "validation": {
+    "status": "BLOCKED_ASSISTANT_LOCAL_ENVIRONMENT",
+    "observedNode": "v22.16.0",
+    "pnpmAvailable": false,
+    "githubDnsAvailable": false,
+    "repositoryNodeRequirement": ">=24",
+    "repositoryPnpmRequirement": ">=11.7",
+    "prOpened": false,
+    "mergeAttempted": false,
+    "stableReleaseTriggered": false
+  }
+}
