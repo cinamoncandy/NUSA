@@ -4,10 +4,11 @@ status: IN_PROGRESS
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: 0d486557fb3cd041c718eb9c4012a046c02b4733
+base_commit: 724aac9298156ca48cb20cfe2969856d61451a04
 implementation_branch: ux/android-d-release-candidate-20260903
+latest_main_sync_commit: 0911ca302bc43dcfa6a382b82dd3adccfae9c30c
 authority_impact: none
-objective: "Stage the owner-selected bright Concept D Android supervisory UI on the latest main line, preserve current canonical market-data safety behavior and prepare a truthful physical-device/release candidate without changing execution authority."
+objective: "Stage the owner-selected bright Concept D Android supervisory UI on the latest protected main line, preserve current canonical market-data safety behavior and prepare a truthful physical-device/release candidate without changing execution authority."
 provenance:
   relationship: PRESENTATION_ONLY_FOLLOW_UP
   predecessor_branch: ux/android-institutional-cockpit-20260903
@@ -16,6 +17,9 @@ provenance:
   primary_state_hijacked: false
   selected_reference: TEMPORARY_CONCEPT_D_DEVICE_QA
   future_redesign_expected: true
+  previous_rc_base: 0d486557fb3cd041c718eb9c4012a046c02b4733
+  latest_main_reviewed: 724aac9298156ca48cb20cfe2969856d61451a04
+  latest_main_delta_overlap: false
 scope:
   - "Android only: render AndroidDHomeView for Home and AndroidNusaDecisionView for NUSA judgment."
   - "Preserve current main Home and AI implementations for non-Android clients."
@@ -40,15 +44,16 @@ safety:
   ai_authority: ZERO_AUTHORITY
 architecture_impact:
   acknowledged: true
-  analysis: "Presentation/navigation only. The existing NUSA runtime, canonical Home market-source selector, PAPER execution boundaries, credentials, risk and authority remain authoritative and unchanged. Android rendering is selected at the App shell while non-Android canonical surfaces remain intact."
+  analysis: "Presentation/navigation only. The existing NUSA runtime, canonical Home market-source selector, PAPER execution boundaries, credentials, risk and authority remain authoritative and unchanged. Android rendering is selected at the App shell while non-Android canonical surfaces remain intact. The 14-commit delta from the previous RC base to protected main was reviewed and contains no mobile implementation overlap."
   references:
     - AGENTS.md
     - .aipos/architecture.md
     - docs/NUSA_USER_EXPERIENCE_PRINCIPLE.md
 validation:
-  status: LOCAL_ENVIRONMENT_REQUIRED
+  status: BLOCKED_ASSISTANT_LOCAL_ENVIRONMENT
   pass_claimed: false
   machine_validation_run: false
+  blocker: "Assistant container cannot resolve github.com and therefore cannot materialize the repository/dependency tree required for Node24/pnpm/Gradle validation. Remote CI is not being used as an iterative debugger."
   required_before_pr:
     - "pnpm run preflight"
     - "pnpm run typecheck"
