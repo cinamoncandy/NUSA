@@ -2,13 +2,14 @@
   "workOrder": "WO-UI-20260903-ANDROID-INSTITUTIONAL-COCKPIT",
   "branch": "ux/android-institutional-cockpit-20260903",
   "scope": "ANDROID_PRESENTATION_ONLY",
-  "designStatus": "TEMPORARY_CONCEPT_A",
+  "designStatus": "TEMPORARY_CONCEPT_B",
   "finalDesignFrozen": false,
-  "referenceDirection": "NUSA_CALM_CINEMATIC_SUPERVISORY_OS",
+  "referenceDirection": "NUSA_PREMIUM_SUPERVISORY_DESK",
   "implementation": {
     "androidInstitutionalTheme": "apps/mobile/src/androidInstitutionalTheme.ts",
     "platformGate": "apps/mobile/src/ThemeProvider.tsx",
-    "androidHome": "apps/mobile/src/androidAHomeView.tsx",
+    "activeAndroidHome": "apps/mobile/src/androidBHomeView.tsx",
+    "retainedComparisonHome": "apps/mobile/src/androidAHomeView.tsx",
     "homeRouter": "apps/mobile/src/homeView.tsx",
     "homeLegacyPreserved": "apps/mobile/src/homeViewLegacy.tsx",
     "androidDecision": "apps/mobile/src/androidNusaDecisionView.tsx",
@@ -22,19 +23,20 @@
     "staticContractTest": "tests/android-institutional-cockpit.vitest.js"
   },
   "activeConcept": {
-    "id": "A",
+    "id": "B",
     "status": "ACTIVE_TEMPORARY_REFERENCE",
-    "priorConceptsPurgedFromCurrentTree": true,
+    "conceptARetainedForComparison": true,
     "principles": [
-      "calm edge-to-edge supervisory canvas instead of a card wall",
-      "large state-driven NOW message dominates the first viewport",
-      "compact System Truth Rail keeps authority and freshness visible",
-      "cinematic depth is built from native presentation layers rather than decorative financial imagery",
-      "operating health, asset state and exposure remain compact supporting context",
-      "NUSA insight promotes verifiable judgment rather than confidence persuasion",
-      "evidence, counter-evidence and unavailable invalidation live in a contextual sheet",
-      "owner action stays explicit and separate from AI authority",
-      "no visual placeholder may fabricate financial truth"
+      "decision-first supervisory hierarchy rather than dashboard card accumulation",
+      "NOW state dominates before secondary metrics",
+      "compact authority, freshness and operating truth remain continuously visible",
+      "active market quotation is separated from capital truth",
+      "capital ledger emphasizes total asset, PnL, exposure, position and protected cash without invented analytics",
+      "NUSA judgment is presented as verifiable evidence rather than persuasion",
+      "evidence and counter-evidence use ledger-like editorial treatment instead of faux interactive tabs",
+      "owner command remains explicit and visually separate from AI authority",
+      "all primary interactions preserve a minimum 48dp floor",
+      "no visual placeholder may fabricate financial, risk, execution or authority truth"
     ],
     "visualLanguage": {
       "background": "#07101D",
@@ -42,6 +44,7 @@
       "lavenderDepth": "#8F9CFF",
       "surface": "#0D192A",
       "surfaceRaised": "#13233A",
+      "layoutStyle": "QUIET_INSTITUTIONAL_LEDGER",
       "interactionMinimumDp": 48
     }
   },
@@ -60,7 +63,7 @@
   "validation": {
     "status": "DEFERRED_OWNER_LOCAL",
     "passClaimed": false,
-    "reason": "Owner explicitly deferred local validation while Android visual concepts are iterated.",
+    "reason": "Owner is iterating Android visual concepts before local validation and PR creation.",
     "requiredBeforePR": [
       "pnpm run validate",
       "pnpm run lint:mobile",
