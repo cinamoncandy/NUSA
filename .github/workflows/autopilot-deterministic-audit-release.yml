@@ -189,3 +189,16 @@ jobs:
           fi
           echo "Post-merge CI verified for $MERGED_MAIN; dispatching Cloudflare Deploy directly."
           gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-cloudflare-deploy.yml/dispatches" -f ref=main -f "inputs[head_sha]=$MERGED_MAIN"
+
+      - name: Dispatch other CI-gated downstream workflows directly
+        env:
+          MERGED_MAIN: ${{ steps.ci.outputs.merged_main }}
+        run: |
+          set -euo pipefail
+          # These also listen for workflow_run:[CI] on branches:[main] and stopped firing
+          # for the same GITHUB_TOKEN-dispatch reason as Cloudflare Deploy. Dispatch them
+          # directly instead of depending on that chain.
+          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-cloudflare-promote.yml/dispatches" -f ref=main -f "inputs[head_sha]=$MERGED_MAIN"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/android-stable-release.yml/dispatches" -f ref=main
+          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/windows-desktop-stable-release.yml/dispatches" -f ref=main
+          echo "Dispatched Cloudflare Promote, Android Stable Release, and Windows Desktop Stable Release for $MERGED_MAIN."

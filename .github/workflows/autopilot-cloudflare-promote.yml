@@ -5,6 +5,12 @@ on:
     workflows: ['CI']
     types: [completed]
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      head_sha:
+        description: "Exact main revision to promote (used when GITHUB_TOKEN-dispatched CI completion cannot fire workflow_run)"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -18,9 +24,10 @@ jobs:
     name: Promote exact CI-verified Worker revision
     if: >-
       ${{
-        github.event.workflow_run.conclusion == 'success' &&
+        github.event_name == 'workflow_dispatch' ||
+        (github.event.workflow_run.conclusion == 'success' &&
         github.event.workflow_run.head_branch == 'main' &&
-        github.event.workflow_run.head_repository.full_name == github.repository
+        github.event.workflow_run.head_repository.full_name == github.repository)
       }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -28,14 +35,14 @@ jobs:
       - name: Checkout exact CI-verified commit
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.event.workflow_run.head_sha }}
           fetch-depth: 2
 
       - name: Verify exact current main revision
         id: revision
         shell: bash
         env:
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
           git fetch --no-tags origin main
@@ -53,7 +60,7 @@ jobs:
         if: steps.revision.outputs.current == 'true'
         shell: bash
         env:
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
           git fetch origin cloudflare-production
@@ -68,7 +75,7 @@ jobs:
         if: steps.revision.outputs.current == 'true' && steps.changes.outputs.deploy == 'true'
         shell: bash
         env:
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
           git fetch --unshallow --no-tags origin main
