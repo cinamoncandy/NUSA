@@ -37,6 +37,7 @@ scope:
   - "Apply bright pearl visual tokens and matching native Android system chrome."
   - "Keep compact-window and large-font stacked layout behavior and at least 48dp primary interaction targets."
   - "Expose only canonical PAPER portfolio, market, AI evidence, calibration and authority truth."
+  - "Render canonical AI status without upgrading AVAILABLE to VERIFIED or implying unsupported recency."
 excluded:
   - "desktop presentation or runtime changes"
   - "iOS redesign or navigation changes"
@@ -58,13 +59,22 @@ architecture_impact:
     - AGENTS.md
     - .aipos/architecture.md
     - docs/NUSA_USER_EXPERIENCE_PRINCIPLE.md
+static_audit:
+  completed: true
+  pass_claimed: false
+  fixed_findings:
+    - "AI AVAILABLE was incorrectly presented as VERIFIED; canonical status is now rendered directly."
+    - "NUSA decision hero lacked compact/large-font stacking; it now stacks below 430dp-like window width or when fontScale >= 1.35."
+    - "AI AVAILABLE was labeled 새 판단 without canonical recency evidence; it now uses neutral NUSA 판단."
+  remaining_known_repository_p1: 0
+  note: "Static inspection is not machine validation and does not authorize PR, merge, or release."
 validation:
   status: BLOCKED_ASSISTANT_LOCAL_ENVIRONMENT
   pass_claimed: false
   machine_validation_run: false
   remote_ci_used_as_debugger: false
   accidental_remote_ci_must_be_ignored: true
-  blocker: "Assistant container cannot resolve github.com and therefore cannot materialize the repository/dependency tree required for Node24/pnpm/Gradle validation. Current exact-main CI/release success verifies main delivery infrastructure, not this unmerged RC branch."
+  blocker: "Assistant container cannot resolve github.com and therefore cannot materialize the repository/dependency tree required for Node24/pnpm/Gradle validation. Observed local runtime is Node v22.16.0 while the repository requires Node >=24 and pnpm >=11.7. Current exact-main CI/release success verifies main delivery infrastructure, not this unmerged RC branch."
   main_delivery_observation:
     exact_main: 13266b7e269d74cfe4daaafb9583b62242d97ddb
     exact_main_ci_run: 33763241936
@@ -75,6 +85,8 @@ validation:
     android_stable_trigger_conclusion: SUCCESS
     android_stable_release_run: 33763847552
     android_stable_release_conclusion: SUCCESS
+    android_stable_watchdog_run: 33767059794
+    android_stable_watchdog_conclusion: SUCCESS
     stable_release_version: "1.0.108"
     stable_release_target: 13266b7e269d74cfe4daaafb9583b62242d97ddb
     firebase_distribution: SUCCESS
