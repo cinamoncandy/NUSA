@@ -1,0 +1,67 @@
+id: WO-UI-20260904-MOBILE-DELIVERY-TRUTH
+title: "Prevent false mobile UI delivery completion and stale visual presets"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: a6ea7320280191e54075faa777615936fc1e3e72
+implementation_branch: fix/mobile-ui-delivery-truth-a6ea732
+authority_impact: none
+objective: "Make mobile UI delivery state machine-verifiable so branch-only UI cannot be reported as shipped, installed builds expose exact source/preset identity, and stale persisted visual presets cannot mask a newly packaged canonical release."
+root_cause:
+  - "The expected HOME redesign existed only on a feature branch; protected main and the Stable APK correctly still contained the prior HOME composition."
+  - "Delivery states were not named strongly enough, allowing SOURCE_ONLY work to be conversationally confused with deployed UI."
+  - "The app persisted an internal design preset using fixed schema version 2; a stored classic preset with the same schema could survive a new APK and continue to mask the canonical master preset."
+  - "Before PR #1568, installed-build identity and stale-release convergence were not sufficiently visible/enforced; #1568 is now merged and Stable targets exact main."
+scope:
+  - "Bind design-preset cache invalidation to packaged BUILD_SOURCE_SHA so every new stable release converges to the canonical master preset."
+  - "Expose active UI preset beside packaged build identity in the More workspace."
+  - "Define SOURCE_ONLY / MAIN_INTEGRATED / STABLE_RELEASED / DEVICE_VERIFIED as the canonical mobile UI delivery states."
+  - "Make AIPOS recovery require the mobile UI delivery contract before an agent claims UI delivery completion."
+  - "Add source-level regression coverage for delivery-state truth, build-bound preset migration, device diagnostics, and exact-main stable convergence."
+excluded:
+  - "HOME visual redesign itself"
+  - "new product data or trading capability"
+  - "credential, order, broker, risk, persistence, accounting, or LIVE changes"
+  - "automatic device installation or physical Galaxy acceptance"
+safety:
+  mode: PAPER_ONLY
+  live_authority: NONE
+  production_mutation_allowed: false
+  ai_authority: ZERO_AUTHORITY
+architecture_impact:
+  acknowledged: true
+  analysis: "Reliability and delivery-truth guard only. UI presentation selection remains client-side and never becomes an authority source. Exact-main release, provenance, and fail-closed semantics are strengthened rather than widened."
+validation:
+  status: BLOCKED_ASSISTANT_LOCAL_ENVIRONMENT
+  pass_claimed: false
+  machine_validation_run: false
+  blocker: "Assistant runtime is Node v22.16.0, pnpm is unavailable, and github.com DNS is unavailable; repository requires Node >=24 and pnpm >=11.7."
+  static_review:
+    build_source_imported_into_theme_provider: true
+    fixed_design_schema_removed: true
+    stable_build_changes_invalidate_old_preset_schema: true
+    canonical_master_reset_preserved: true
+    build_and_active_preset_visible_together: true
+    exact_main_watchdog_preserved: true
+    path_diff_convergence_bypass_absent: true
+    delivery_contract_discoverable_from_aipos: true
+    machine_pass_claimed: false
+  required_before_pr:
+    - "node --test tests/mobile-ui-delivery-truth.test.js"
+    - "node --test tests/mobile-ui-hotswap-contract.test.js"
+    - "node --test tests/mobile-build-source-ui.test.js"
+    - "pnpm run preflight"
+    - "pnpm run typecheck"
+    - "pnpm run lint:mobile"
+    - "pnpm run validate"
+    - "git diff --check"
+  human_environment_only:
+    - "confirm installed stable build label matches nusa-android target"
+    - "confirm active UI preset reports MASTER on the updated release"
+    - "physical Galaxy visual acceptance"
+release_policy:
+  pr_before_machine_validation: prohibited
+  merge_before_exact_head_required_gates: prohibited
+  release_before_merge: prohibited
+completion_rule: "SOURCE_ONLY is never delivery completion. Report STABLE_RELEASED only after exact-main Stable convergence and DEVICE_VERIFIED only after installed build identity/preset are observed on the device."
