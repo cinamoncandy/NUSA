@@ -1,7 +1,7 @@
 <resources>
-    <color name="nusa_icon_background">#07101D</color>
-    <color name="nusa_window_background">#07101D</color>
-    <color name="nusa_system_bar">#07101D</color>
-    <color name="nusa_navigation_bar">#0B1727</color>
-    <color name="nusa_accent">#65E0C2</color>
+    <color name="nusa_icon_background">#F5F7FB</color>
+    <color name="nusa_window_background">#F5F7FB</color>
+    <color name="nusa_system_bar">#F5F7FB</color>
+    <color name="nusa_navigation_bar">#FBFCFF</color>
+    <color name="nusa_accent">#24B99E</color>
 </resources>
