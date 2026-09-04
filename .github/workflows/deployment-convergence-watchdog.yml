@@ -182,11 +182,17 @@ jobs:
             if workflow_active "Android Stable Release" || workflow_active "Android Stable Release Trigger"; then
               echo "Android exact-main convergence already active."
             else
-              assert_still_current
-              echo "Android stable target ${ANDROID_TARGET:-none} is stale; dispatching bounded exact-main trigger."
-              gh api --method POST \
-                "repos/$GITHUB_REPOSITORY/actions/workflows/android-stable-release-trigger.yml/dispatches" \
-                -f ref=main
+              ANDROID_FAILURES="$(workflow_failures "Android Stable Release")"
+              if [ "$ANDROID_FAILURES" -ge 3 ]; then
+                surface_incident "Android Stable" "Observed $ANDROID_FAILURES failed/timed-out/cancelled exact-main stable runs."
+                echo "Android retry budget exhausted; remaining fail-closed."
+              else
+                assert_still_current
+                echo "Android stable target ${ANDROID_TARGET:-none} is stale; dispatching convergence trigger within stable retry budget $((ANDROID_FAILURES + 1))/3."
+                gh api --method POST \
+                  "repos/$GITHUB_REPOSITORY/actions/workflows/android-stable-release-trigger.yml/dispatches" \
+                  -f ref=main
+              fi
             fi
           else
             echo "Android stable already targets exact main."
