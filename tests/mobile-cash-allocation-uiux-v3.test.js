@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const read = (relative) => fs.readFileSync(path.join(__dirname, "..", relative), "utf8");
 
-test("cash allocation remains a first-class PAPER contract without cluttering canonical HOME", () => {
+test("cash allocation remains a first-class PAPER contract in canonical terminal HOME", () => {
   const settings = read("apps/mobile/src/settings.ts");
   const guard = read("apps/mobile/src/capitalAllocationGuard.ts");
   const app = read("apps/mobile/App.tsx");
@@ -31,7 +31,9 @@ test("cash allocation remains a first-class PAPER contract without cluttering ca
   assert.match(app, /investmentPercent=\{investmentPercent\}/);
   assert.match(home, /readonly investmentPercent: number/);
   assert.match(home, /testID="account-hero-card"/);
-  assert.doesNotMatch(home, /home-investable-cash|home-reserved-cash/);
+  assert.match(home, /home-investable-cash/);
+  assert.match(home, /home-reserved-cash/);
+  assert.match(home, /PAPER PERFORMANCE/);
   assert.match(portfolio, /portfolio-investable-cash/);
   assert.match(trading, /const cashEnvelope = createCashInvestmentEnvelope\(effectiveSnapshot\.account\.cash, investmentPercent\)/);
   assert.match(trading, /const modelCash = side === "BUY" \? cashEnvelope\.investableCash : effectiveSnapshot\.account\.cash/);
