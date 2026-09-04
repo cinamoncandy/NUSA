@@ -48,6 +48,20 @@ describe("control room derivation", () => {
     expect(room.describeBlocker("MARKET_DATA_DISCONNECTED")).toContain("연결");
     expect(room.describeBlocker("SOMETHING_NEW:detail")).toContain("SOMETHING_NEW");
   });
+
+  it("builds the status-first banner and re-renders on status input", async () => {
+    const room = window.NUSAControlRoom;
+    const root = document.createElement("div");
+    document.body.append(root);
+    const created = room.createControlRoom({ root, document });
+    expect(created.element).toBe(root);
+    expect(root.textContent).toContain("꺼짐");
+    expect(root.querySelector('[role="status"]')).not.toBeNull();
+    created.setMarketStatus("HEALTHY");
+    created.setControlSnapshot({ status: "RUNNING", autoTradeEnabled: false, events: [] });
+    await created.refresh();
+    expect(root.textContent).toContain("정상");
+  });
 });
 
 describe("command palette execution", () => {
