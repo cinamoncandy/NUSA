@@ -3,7 +3,6 @@
 `scripts/` contains ~40 `validate-*.js` guards. This registry maps every guard
 to one of 3 tiers so contributors know what to run. The per-file scripts remain
 the source of truth; `scripts/validate-tiers.js` is a convenience runner.
-
 - `node scripts/validate-tiers.js --tier=safety` — fail-closed authority gates
 - `node scripts/validate-tiers.js --tier=architecture` — module/topology Truth gates
 - `node scripts/validate-tiers.js --tier=aipos` — continuity/provenance gates
@@ -66,11 +65,33 @@ the 3 tiers: `validate-package.js`, `validate-windows-package.js`,
 `--input <absolute.json>` plus built artifacts
 (`pnpm run runtime:diagnostics-validate`), so it is not a zero-arg tier gate.
 
-## Coverage floors
+## Coverage floors (enforced)
 
+- `config/coverage/floors.json` holds unified-total floors (statements/lines/functions 85,
+  branches 70), set ~8 points below the measured 2026-09-04 baseline
+  (93.25/77.94/93.73/93.25). Raise only with a recorded decision.
+- `node scripts/check-coverage-floor.js` (`pnpm coverage:floor`) fails closed on
+  breach. It reads `coverage/unified-summary.json`, so it runs after the merge step.
+- CI enforces it additively in the `coverage` job right after `Merge coverage baseline`.
+  Existing coverage steps are untouched.
 - `vitest.config.mjs` `coverage.thresholds` (lines/functions/statements 50,
   branches 40) apply only when coverage is explicitly enabled
   (`vitest run --coverage`); the default `pnpm test:ui` run is unaffected.
-- `pnpm coverage` (c8 + vitest + playwright merger) has no hard floor by
-  design: raise the vitest thresholds as renderer coverage improves rather
-  than gating the bespoke merger on an unverified number.
+
+## Composition (why some checks run twice)
+
+Validators compose; this is intentional, not duplication to delete:
+
+- `validate-safety-invariants.js` internally requires `validate-safety-architecture`,
+  `validate-shadow-governance`, `validate-restricted-live-governance`, and spawns
+  `validate-ai-zero-authority.js`. Running `safety:invariants` alone covers the
+  whole safety tier.
+- `validate-aipos-cross-ai-conformance.js`, `validate-aipos-evidence.js`,
+  `validate-aipos-work-order-provenance.js`, and `validate-repository-truth.js`
+  all share `validate-aipos-drift.js` as a library (no double execution cost).
+- Consequence: `pnpm run validate:full` runs the AI guard and the safety
+  architecture check twice (once via `validate`, once inside `safety:invariants`).
+  This is accepted: each gate stays meaningful standalone (the lightweight
+  `pnpm run validate` path must not depend on the full suite), and every
+  composed check completes in seconds. Do not "optimize" this away without a
+  recorded architecture decision.

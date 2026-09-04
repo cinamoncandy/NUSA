@@ -1,0 +1,17 @@
+{
+  "$schema": "nusa-coverage-floors-v1",
+  "note": "Unified-coverage floor gate. Baselines measured from the 2026-09-04 CI coverage-baseline artifact (statements 93.25, branches 77.94, functions 93.73, lines 93.25). Floors sit ~8 points below baseline so genuine regressions fail while normal fluctuation passes. Raise only with a recorded decision, never to greenwash a drop.",
+  "measuredBaseline": {
+    "date": "2026-09-04",
+    "statements": 93.25,
+    "branches": 77.94,
+    "functions": 93.73,
+    "lines": 93.25
+  },
+  "floors": {
+    "statements": 85,
+    "branches": 70,
+    "functions": 85,
+    "lines": 85
+  }
+}

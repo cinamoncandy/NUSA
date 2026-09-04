@@ -82,7 +82,8 @@
     "validate:tier-safety": "node scripts/validate-tiers.js --tier=safety",
     "validate:tier-architecture": "node scripts/validate-tiers.js --tier=architecture",
     "validate:tier-aipos": "node scripts/validate-tiers.js --tier=aipos",
-    "validate:tiers": "node scripts/validate-tiers.js --tier=all"
+    "validate:tiers": "node scripts/validate-tiers.js --tier=all",
+    "coverage:floor": "node scripts/check-coverage-floor.js"
   },
   "devDependencies": {
     "@cloudflare/sandbox": "0.13.0-next.751.1",

@@ -90,6 +90,13 @@ pnpm run architecture:truth
 pnpm run package:validate
 ```
 
+Grouped validator tiers (see `docs/VALIDATOR_REGISTRY.md`):
+
+```bash
+node scripts/validate-tiers.js --tier=safety|architecture|aipos|all
+pnpm coverage:floor   # after pnpm coverage; fails closed below config/coverage/floors.json
+```
+
 ## Project Layout
 
 | Path | Purpose |
@@ -119,6 +126,7 @@ Market Data → Intelligence → Strategy → Decision → Risk → Portfolio �
 - Fail closed on uncertainty
 
 Full principles: see `nusa.md`, `AGENTS.md`, and `.aipos/architecture.md`.
+Stage-to-code mapping (no end-to-end orchestrator file exists): see `docs/PIPELINE_TO_CODE.md`.
 
 ## License
 

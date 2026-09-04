@@ -1,6 +1,16 @@
 # NUSA Complexity Reduction Proposal
 
-**Status**: Proposal only — requires owner review and AIPOS work order  
+**Status**: Proposal only — requires owner review and AIPOS work order
+
+**Implementation status (annotated, code unchanged by this note)**:
+- §1 (validation consolidation): PARTIAL — `scripts/validate-tiers.js` groups the
+  ~40 validators into safety/architecture/aipos tiers for invocation
+  (`docs/VALIDATOR_REGISTRY.md`); per-file gates are unchanged. Full file-level
+  consolidation still needs the work order below (CI calls gates by name).
+- §2 (lightweight recovery) + §3 (evidence scope) + §5 (human-only physical
+  acceptance): IMPLEMENTED in `AGENTS.md` (lightweight path,
+  `authority_impact: none`, evidence scope, `HUMAN_ENVIRONMENT_ONLY`).
+- §4 (docs surface reduction): OPEN.  
 **Goal**: Reduce maintenance burden while **preserving all safety invariants**
 
 ## Problem Statement
