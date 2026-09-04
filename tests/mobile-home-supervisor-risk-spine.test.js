@@ -8,24 +8,20 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
 test("HOME supervisor decision spine preserves NOW -> WHY -> RESULT -> RISK -> LEARNING order", () => {
   const home = read("apps/mobile/src/homeView.tsx");
-  const ids = [
-    "home-supervisor-now",
-    "home-supervisor-why",
-    "home-supervisor-result",
-    "home-supervisor-risk",
-    "home-supervisor-learning",
-  ];
+  const ids = ["home-supervisor-now", "home-supervisor-why", "home-supervisor-result", "home-supervisor-risk", "home-supervisor-learning"];
   const positions = ids.map((id) => home.indexOf(`testID=\"${id}\"`));
   positions.forEach((position, index) => assert.ok(position >= 0, `${ids[index]} must exist`));
-  for (let index = 1; index < positions.length; index += 1) {
-    assert.ok(positions[index - 1] < positions[index], `${ids[index - 1]} must precede ${ids[index]}`);
-  }
+  for (let index = 1; index < positions.length; index += 1) assert.ok(positions[index - 1] < positions[index], `${ids[index - 1]} must precede ${ids[index]}`);
 });
 
 test("HOME RISK is fail-closed and derives only from canonical PAPER runtime/safety evidence", () => {
   const home = read("apps/mobile/src/homeView.tsx");
   const decisionSurface = read("apps/mobile/src/homeDecisionSurface.ts");
+  assert.match(home, /buildHomeDecisionSurface\(\{/);
   assert.match(home, /const supervisorRisk = decisionSurface\.risk/);
+  assert.match(home, /runtimeState,/);
+  assert.match(home, /health: snapshot\?\.health/);
+  assert.match(home, /readyForPaperOperations: snapshot\?\.readyForPaperOperations \?\? false/);
   assert.match(decisionSurface, /const risk = input\.disconnected/);
   assert.match(decisionSurface, /"BLOCKED · PAPER LINK REQUIRED"/);
   assert.match(decisionSurface, /"BLOCKED · READ-ONLY RECOVERY REQUIRED"/);
@@ -36,13 +32,13 @@ test("HOME RISK is fail-closed and derives only from canonical PAPER runtime/saf
   assert.match(decisionSurface, /"WATCH · PAPER SAFETY GATES NOT READY"/);
 });
 
-test("HOME RISK cannot imply LIVE authority or introduce a second action", () => {
+test("white mint HOME risk display has no mutation action and never implies LIVE authority", () => {
   const home = read("apps/mobile/src/homeView.tsx");
   const decisionSurface = read("apps/mobile/src/homeDecisionSurface.ts");
-  const riskRow = home.match(/<TruthCell label=\"RISK\"[^>]+\/>/)?.[0] ?? "";
-  assert.match(riskRow, /value=\{supervisorRisk\}/);
-  assert.doesNotMatch(riskRow, /onPress=|actionLabel=/);
+  assert.match(home, /testID="home-supervisor-risk"/);
+  assert.match(home, /\{supervisorRisk\}/);
   assert.match(home, /PAPER ONLY · LIVE NONE/);
   assert.match(home, /AI ZERO AUTHORITY · productionMutationAllowed=false · liveAuthority=NONE/);
   assert.doesNotMatch(decisionSurface, /(?:LIVE READY|LIVE ACTIVE|LIVE ENABLED|LIVE AUTHORIZED)/);
+  assert.doesNotMatch(home, /testID="home-supervisor-risk"[^\n]*onPress=/);
 });
