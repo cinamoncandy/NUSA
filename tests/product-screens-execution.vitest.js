@@ -5,7 +5,7 @@
 // credential-free settings, key-based folder opening, cancelless shutdown.
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { describe, expect, it, beforeEach, vi } from "vitest";
+import { describe, expect, it, beforeEach } from "vitest";
 
 const root = path.resolve(import.meta.dirname, "..");
 

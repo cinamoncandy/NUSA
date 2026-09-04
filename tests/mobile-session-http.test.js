@@ -6,6 +6,7 @@ const { MobileSessionService } = require("../dist/apps/cloud/src/mobileSessionSe
 const {
   handleMobileBootstrapIssueHttp,
   handleMobileBootstrapHttp,
+  handleMobileEnrollmentHttp,
   handleMobileSessionRefreshHttp,
   handleMobileSessionRevokeHttp,
   handleMobileMeHttp,
@@ -115,8 +116,7 @@ test("refresh rotates tokens and rejects reuse", () => {
   } finally { db.close(); }
 });
 
-test("revoke invalidates access and me reflects it", () => {
-  const { db, service, dependencies } = setup();
+test("revoke invalidates access and me reflects it", () => {  const { db, service, dependencies } = setup();
   try {
     assert.equal(handleMobileSessionRevokeHttp({ method: "GET", headers: {} }, dependencies).status, 405);
     assert.equal(handleMobileSessionRevokeHttp({ method: "POST", headers: {} }, dependencies).status, 401);
@@ -136,5 +136,80 @@ test("revoke invalidates access and me reflects it", () => {
     assert.equal(revoked.status, 200);
     assert.equal(JSON.parse(revoked.body).revoked, true);
     assert.equal(handleMobileMeHttp({ method: "GET", headers: auth }, dependencies).status, 401);
+  } finally { db.close(); }
+});
+
+test("non-OWNER manage-scoped callers and throwing verifiers fail closed", () => {
+  const { db, users, dependencies } = setup();
+  try {
+    users.registerUser({ id: "staff", email: "staff@nusa.local" }, 4);
+    users.changeStatus({ actorUserId: "owner", targetUserId: "staff", action: "APPROVE", now: 5 });
+    const staffVerifier = {
+      verify(token) {
+        return token === "staff-token" ? { userId: "staff", email: "staff@nusa.local", scopes: ["users:manage"] } : undefined;
+      },
+    };
+    const staffDependencies = { ...dependencies, legacyTokenVerifier: staffVerifier };
+    assert.equal(handleMobileBootstrapIssueHttp({
+      method: "POST",
+      headers: { authorization: "Bearer staff-token" },
+      body: JSON.stringify({ targetUserId: "user" }),
+    }, staffDependencies).status, 403);
+    const throwingDependencies = {
+      ...dependencies,
+      legacyTokenVerifier: { verify() { throw new Error("directory down"); } },
+    };
+    assert.equal(handleMobileMeHttp({
+      method: "GET", headers: { authorization: "Bearer anything" },
+    }, throwingDependencies).status, 401);
+    assert.equal(handleMobileSessionRevokeHttp({
+      method: "POST", headers: { authorization: "Bearer anything" },
+    }, throwingDependencies).status, 401);
+  } finally { db.close(); }
+});
+
+test("service failures map to explicit HTTP codes without leaking internals", () => {
+  const { db, dependencies } = setup();
+  try {
+    const auth = { authorization: `Bearer ${USER_TOKEN}` };
+    const scopeFailing = {
+      ...dependencies,
+      sessionService: { issueSelfBootstrap() { throw new Error("invalid scope set"); } },
+    };
+    const scopeResponse = handleMobileEnrollmentHttp({
+      method: "POST", headers: auth, body: JSON.stringify({ deviceId: "nusa-install-test-device-1234" }),
+    }, scopeFailing);
+    assert.equal(scopeResponse.status, 400);
+    const activeFailing = {
+      ...dependencies,
+      sessionService: { issueSelfBootstrap() { throw new Error("user not ACTIVE"); } },
+    };
+    const activeResponse = handleMobileEnrollmentHttp({
+      method: "POST", headers: auth, body: JSON.stringify({ deviceId: "nusa-install-test-device-1234" }),
+    }, activeFailing);
+    assert.equal(activeResponse.status, 403);
+    const opaqueFailing = {
+      ...dependencies,
+      sessionService: { issueSelfBootstrap() { throw new Error("disk full"); } },
+    };
+    const opaqueResponse = handleMobileEnrollmentHttp({
+      method: "POST", headers: auth, body: JSON.stringify({ deviceId: "nusa-install-test-device-1234" }),
+    }, opaqueFailing);
+    assert.equal(opaqueResponse.status, 403);
+    assert.equal(JSON.parse(opaqueResponse.body).error, "MOBILE_ENROLLMENT_REJECTED");
+    const revokeThrowing = {
+      ...dependencies,
+      sessionService: { verifyAccess() { throw new Error("store down"); }, revokeAccess() {} },
+    };
+    assert.equal(handleMobileSessionRevokeHttp({
+      method: "POST", headers: auth,
+    }, revokeThrowing).status, 503);
+    const meThrowing = {
+      ...dependencies,
+      sessionService: { me() { throw new Error("store down"); } },
+    };
+    assert.equal(handleMobileMeHttp({
+      method: "GET", headers: auth,
+    }, meThrowing).status, 503);
   } finally { db.close(); }
 });

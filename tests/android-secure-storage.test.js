@@ -63,3 +63,18 @@ test("corrupt native payloads fail closed instead of returning bytes", async () 
 test("factory returns null outside a React Native Android runtime", () => {
   assert.equal(createMobileSecureStorage(), null);
 });
+
+test("decoder tolerates padding variants and trims whitespace", async () => {
+  const native = memoryNative();
+  const storage = new AndroidKeystoreSecureStorage(native);
+  native.values.set("one-pad", "YWI=");
+  assert.deepEqual(await storage.getSecret("one-pad"), new Uint8Array([97, 98]));
+  native.values.set("two-pad", "YQ==");
+  assert.deepEqual(await storage.getSecret("two-pad"), new Uint8Array([97]));
+  native.values.set("padded", "  YWI=  ");
+  assert.deepEqual(await storage.getSecret("padded"), new Uint8Array([97, 98]));
+  native.values.set("empty", "");
+  await assert.rejects(() => storage.getSecret("empty"), /payload is invalid/);
+  native.values.set("bad-char", "YW=!");
+  await assert.rejects(() => storage.getSecret("bad-char"), /payload is invalid/);
+});
