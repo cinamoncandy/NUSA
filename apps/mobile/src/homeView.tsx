@@ -98,7 +98,7 @@ export function HomeView({
   const muted = theme.colors.terrain;
   const positive = theme.colors.success;
   const negative = theme.colors.danger;
-  const fallbackJudgement = readOnlyError ? "연결 상태를 확인하고 있습니다." : notConfigured ? "관망이 전략입니다." : "관망이 전략입니다.";
+  const fallbackJudgement = notConfigured ? "PAPER 연결이 필요합니다." : readOnlyError ? "연결 상태를 확인하고 있습니다." : "관망이 전략입니다.";
   const judgement = aiInsightAvailable ? (ai?.thesis ?? fallbackJudgement) : fallbackJudgement;
   const terrainStrength = aiInsightAvailable ? 0.92 : snapshot ? 0.62 : 0.45;
   const contentWidth = tablet ? 760 : 560;
@@ -131,7 +131,7 @@ export function HomeView({
       {notConfigured || readOnlyError ? <Pressable onPress={onGoSettings} style={[styles.connectionStrip, { borderColor: border, backgroundColor: surface }]} testID="home-operational-notice">
         <View style={[styles.connectionDot, { backgroundColor: notConfigured ? theme.colors.warning : negative }]} />
         <View style={styles.connectionCopy}>
-          <Text style={[styles.connectionTitle, { color: theme.colors.text }]}>{notConfigured ? "PAPER 연결 필요" : "PAPER 연결 확인"}</Text>
+          <Text style={[styles.connectionTitle, { color: theme.colors.text }]}>{notConfigured ? "PAPER 연결 필요" : "PAPER 연결 오류"}</Text>
           <Text style={[styles.connectionDetail, { color: theme.colors.textMuted }]} numberOfLines={1}>{notConfigured ? "연결 전에는 검증된 PAPER 자산만 비워 둡니다." : "읽기 전용 연결 상태를 확인합니다."}</Text>
         </View>
         <Text style={[styles.connectionAction, { color: theme.colors.text }]}>설정</Text>
