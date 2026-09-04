@@ -210,6 +210,29 @@ jobs:
             echo "Windows stable already targets exact main."
           fi
 
+          # A single machine-readable convergence receipt is emitted only after all
+          # exact-main runtime and distribution surfaces independently prove success.
+          RUNS_JSON="$(runs_for_main)"
+          ANDROID_TARGET="$(gh release view nusa-android --json targetCommitish --jq '.targetCommitish' 2>/dev/null || true)"
+          WINDOWS_TARGET="$(gh release view nusa-windows --json targetCommitish --jq '.targetCommitish' 2>/dev/null || true)"
+
+          if workflow_success "Autopilot Cloudflare Deploy" \
+            && workflow_success "Autopilot Cloudflare Promote" \
+            && workflow_success "Autopilot Cloudflare Runtime Proof" \
+            && workflow_success "Actual PAPER Public-Market Runtime Evidence" \
+            && workflow_success "Android Stable Release" \
+            && workflow_success "Windows Desktop Stable Release" \
+            && [ "$ANDROID_TARGET" = "$MAIN_SHA" ] \
+            && [ "$WINDOWS_TARGET" = "$MAIN_SHA" ]; then
+            dispatch_bounded \
+              "Deployment Receipt" \
+              "Deployment Convergence Receipt" \
+              "deployment-convergence-receipt.yml" \
+              -f "inputs[source_sha]=$MAIN_SHA"
+          else
+            echo "Convergence receipt waits for all exact-main runtime and stable distribution proofs."
+          fi
+
           assert_still_current
           echo "Convergence pass complete for $MAIN_SHA. Any newly dispatched prerequisite is verified on the next bounded cycle."
           echo 'liveAuthority=NONE'

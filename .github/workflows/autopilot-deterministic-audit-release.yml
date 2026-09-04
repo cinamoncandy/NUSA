@@ -165,28 +165,70 @@ jobs:
           echo "merged_main=$merged_main" >> "$GITHUB_OUTPUT"
           echo "Dispatched canonical main CI for merged revision $merged_main"
 
-      - name: Wait for post-merge CI and dispatch Cloudflare Deploy directly
+      - name: Recover post-merge CI retries and dispatch Cloudflare Deploy
         env:
           MERGED_MAIN: ${{ steps.ci.outputs.merged_main }}
         run: |
           set -euo pipefail
-          # A CI run dispatched via GITHUB_TOKEN does not fire workflow_run listeners on
-          # completion (GitHub Actions anti-recursion behavior), so Autopilot Cloudflare
-          # Deploy's workflow_run:[CI] trigger never fires for it. Wait for exact-head CI
-          # to finish, then dispatch Deploy directly instead of relying on that chain.
-          conclusion=""
-          for attempt in $(seq 1 40); do
-            conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$MERGED_MAIN&status=completed&per_page=100" --jq '[.workflow_runs[] | select(.name == "CI" and .path == ".github/workflows/ci.yml" and .head_sha == env.MERGED_MAIN)][0].conclusion // empty')"
-            if [ -n "$conclusion" ]; then
+          # A GITHUB_TOKEN-dispatched CI does not reliably fan out through workflow_run.
+          # Treat CI attempts as a retryable exact-head state machine: any successful
+          # attempt authorizes deployment, while a failed attempt is rerun in-place up to
+          # three total attempts. This prevents a transient first failure from permanently
+          # severing the canonical Release handoff.
+          success=false
+          for poll in $(seq 1 40); do
+            current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+            if [ "$current_main" != "$MERGED_MAIN" ]; then
+              echo "Main advanced from $MERGED_MAIN to $current_main; newer Release/watchdog owns convergence."
+              exit 0
+            fi
+
+            runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$MERGED_MAIN&per_page=100")"
+            successful_run="$(jq -r --arg sha "$MERGED_MAIN" '[.workflow_runs[] | select(.name == "CI" and .path == ".github/workflows/ci.yml" and .head_sha == $sha and .status == "completed" and .conclusion == "success")][0].id // empty' <<<"$runs")"
+            if [ -n "$successful_run" ]; then
+              echo "Post-merge CI SUCCESS recovered for $MERGED_MAIN via run $successful_run."
+              success=true
               break
             fi
-            echo "Waiting for post-merge CI on $MERGED_MAIN (attempt $attempt/40)..."
+
+            active_count="$(jq -r --arg sha "$MERGED_MAIN" '[.workflow_runs[] | select(.name == "CI" and .path == ".github/workflows/ci.yml" and .head_sha == $sha and (.status == "queued" or .status == "in_progress" or .status == "pending"))] | length' <<<"$runs")"
+            if [ "$active_count" -gt 0 ]; then
+              echo "Waiting for active post-merge CI on $MERGED_MAIN (poll $poll/40)..."
+              sleep 20
+              continue
+            fi
+
+            failed_run_id="$(jq -r --arg sha "$MERGED_MAIN" '[.workflow_runs[] | select(.name == "CI" and .path == ".github/workflows/ci.yml" and .head_sha == $sha and .status == "completed" and (.conclusion == "failure" or .conclusion == "timed_out" or .conclusion == "cancelled"))] | sort_by(.updated_at) | reverse | .[0].id // empty' <<<"$runs")"
+            failed_attempt="$(jq -r --arg sha "$MERGED_MAIN" '[.workflow_runs[] | select(.name == "CI" and .path == ".github/workflows/ci.yml" and .head_sha == $sha and .status == "completed" and (.conclusion == "failure" or .conclusion == "timed_out" or .conclusion == "cancelled"))] | sort_by(.updated_at) | reverse | .[0].run_attempt // 0' <<<"$runs")"
+
+            if [ -n "$failed_run_id" ]; then
+              if [ "$failed_attempt" -ge 3 ]; then
+                echo "::error::Post-merge CI retry budget exhausted for $MERGED_MAIN after attempt $failed_attempt."
+                exit 1
+              fi
+              echo "Post-merge CI attempt $failed_attempt failed; requesting bounded rerun for run $failed_run_id."
+              if ! gh api --method POST "repos/$GITHUB_REPOSITORY/actions/runs/$failed_run_id/rerun-failed-jobs" >/dev/null; then
+                gh api --method POST "repos/$GITHUB_REPOSITORY/actions/runs/$failed_run_id/rerun" >/dev/null
+              fi
+              sleep 20
+              continue
+            fi
+
+            echo "Waiting for post-merge CI run creation on $MERGED_MAIN (poll $poll/40)..."
             sleep 20
           done
-          if [ "$conclusion" != "success" ]; then
-            echo "::error::Post-merge CI for $MERGED_MAIN did not succeed (conclusion=${conclusion:-timeout}); not dispatching Deploy."
+
+          if [ "$success" != "true" ]; then
+            echo "::error::Post-merge CI for $MERGED_MAIN produced no successful attempt before timeout."
             exit 1
           fi
+
+          current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          if [ "$current_main" != "$MERGED_MAIN" ]; then
+            echo "Main advanced after CI recovery; newer convergence chain owns deployment."
+            exit 0
+          fi
+
           echo "Post-merge CI verified for $MERGED_MAIN; dispatching Cloudflare Deploy directly."
           gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-cloudflare-deploy.yml/dispatches" -f ref=main -f "inputs[head_sha]=$MERGED_MAIN"
 
