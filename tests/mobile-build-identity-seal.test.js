@@ -41,3 +41,20 @@ test("release builds require sealed identity at Gradle evaluation", () => {
   assert.match(gradle, /NUSA_BUILD_NUMBER_REQUIRED_FOR_RELEASE/);
   assert.match(gradle, /\^?\[0-9a-fA-F\]\{40\}\$/);
 });
+
+test("sealed builds refuse cleartext API clients at construction", () => {
+  const source = read("apps/mobile/src/apiClient.ts");
+  assert.match(source, /cleartext ApiClient is forbidden in a sealed build/);
+  assert.match(source, /describeBuildIdentity\(\)\.sealed/);
+  const { ApiClient } = require("../dist/apps/mobile/src/apiClient.js");
+  const transport = { async request() { return { status: 200, data: {} }; } };
+  assert.doesNotThrow(() => new ApiClient({ transport }));
+  assert.doesNotThrow(() => new ApiClient({ baseUrl: "https://paper.test", transport }));
+  assert.doesNotThrow(() => new ApiClient({ baseUrl: "http://127.0.0.1:41731", transport }));
+});
+
+test("runtime identity is displayed on the shipped Settings surface", () => {
+  const settings = read("apps/mobile/src/settingsView.tsx");
+  assert.match(settings, /RUNTIME_BUILD_IDENTITY/);
+  assert.match(settings, /label="런타임"/);
+});

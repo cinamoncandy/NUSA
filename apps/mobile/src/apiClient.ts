@@ -1,5 +1,6 @@
-export type HttpMethod = "GET" | "POST";
+import { describeBuildIdentity } from "./buildIdentity";
 
+export type HttpMethod = "GET" | "POST";
 export interface ApiRequest<TBody = unknown> {
   readonly method: HttpMethod;
   readonly path: string;
@@ -74,6 +75,12 @@ export class ApiClient {
 
   public constructor(options: ApiClientOptions = {}) {
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, "");
+    // Defense in depth behind manifest usesCleartextTraffic=false: a sealed
+    // release build must never construct a cleartext client, not even for
+    // loopback. Dev/unsealed builds keep the loopback default.
+    if (this.baseUrl.startsWith("http://") && describeBuildIdentity().sealed) {
+      throw new Error("cleartext ApiClient is forbidden in a sealed build");
+    }
     this.timeoutMs = assertPositive(options.timeoutMs ?? 5000, "timeoutMs");
     this.maxRetries = options.maxRetries === undefined ? 2 : assertRetries(options.maxRetries);
     this.retryDelayMs = assertPositive(options.retryDelayMs ?? 100, "retryDelayMs");
