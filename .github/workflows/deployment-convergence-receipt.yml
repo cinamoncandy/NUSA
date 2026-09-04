@@ -60,8 +60,8 @@ jobs:
           ANDROID_RUN_ID="$(success_run_id "Android Stable Release")"
           WINDOWS_RUN_ID="$(success_run_id "Windows Desktop Stable Release")"
 
-          ANDROID_TARGET="$(gh release view nusa-android --json targetCommitish --jq '.targetCommitish' 2>/dev/null || true)"
-          WINDOWS_TARGET="$(gh release view nusa-windows --json targetCommitish --jq '.targetCommitish' 2>/dev/null || true)"
+          ANDROID_TARGET="$(gh release view nusa-android --repo "$GITHUB_REPOSITORY" --json targetCommitish --jq '.targetCommitish' 2>/dev/null || true)"
+          WINDOWS_TARGET="$(gh release view nusa-windows --repo "$GITHUB_REPOSITORY" --json targetCommitish --jq '.targetCommitish' 2>/dev/null || true)"
 
           main_exact=false
           ci_ok=false
