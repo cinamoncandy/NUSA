@@ -1,0 +1,159 @@
+name: Deployment Convergence Receipt
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact protected-main SHA to attest
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: deployment-convergence-receipt-${{ inputs.source_sha }}
+  cancel-in-progress: false
+
+jobs:
+  receipt:
+    name: Verify and publish exact-main deployment receipt
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      status: ${{ steps.verify.outputs.status }}
+    steps:
+      - name: Verify exact-main convergence and write receipt
+        id: verify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ inputs.source_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/deployment-convergence
+          printf '%s' "$EXPECTED_SHA" | grep -Eq '^[0-9a-fA-F]{40}$'
+
+          CURRENT_MAIN="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+
+          gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$EXPECTED_SHA&per_page=100" \
+            --jq '.workflow_runs[]' > "$RUNNER_TEMP/runs.ndjson"
+          jq -s '{workflow_runs: .}' "$RUNNER_TEMP/runs.ndjson" > "$RUNNER_TEMP/runs.json"
+
+          success_run_id() {
+            local workflow_name="$1"
+            jq -r --arg name "$workflow_name" --arg sha "$EXPECTED_SHA" '
+              [.workflow_runs[] |
+                select(.name == $name and .head_sha == $sha and
+                  .status == "completed" and .conclusion == "success")] |
+              sort_by(.created_at) | reverse | .[0].id // empty
+            ' "$RUNNER_TEMP/runs.json"
+          }
+
+          CI_RUN_ID="$(success_run_id "CI")"
+          DEPLOY_RUN_ID="$(success_run_id "Autopilot Cloudflare Deploy")"
+          PROMOTE_RUN_ID="$(success_run_id "Autopilot Cloudflare Promote")"
+          RUNTIME_PROOF_RUN_ID="$(success_run_id "Autopilot Cloudflare Runtime Proof")"
+          PAPER_RUN_ID="$(success_run_id "Actual PAPER Public-Market Runtime Evidence")"
+          ANDROID_RUN_ID="$(success_run_id "Android Stable Release")"
+          WINDOWS_RUN_ID="$(success_run_id "Windows Desktop Stable Release")"
+
+          ANDROID_TARGET="$(gh release view nusa-android --json targetCommitish --jq '.targetCommitish' 2>/dev/null || true)"
+          WINDOWS_TARGET="$(gh release view nusa-windows --json targetCommitish --jq '.targetCommitish' 2>/dev/null || true)"
+
+          main_exact=false
+          ci_ok=false
+          deploy_ok=false
+          promote_ok=false
+          runtime_proof_ok=false
+          paper_ok=false
+          android_ok=false
+          windows_ok=false
+
+          [ "$CURRENT_MAIN" = "$EXPECTED_SHA" ] && main_exact=true
+          [ -n "$CI_RUN_ID" ] && ci_ok=true
+          [ -n "$DEPLOY_RUN_ID" ] && deploy_ok=true
+          [ -n "$PROMOTE_RUN_ID" ] && promote_ok=true
+          [ -n "$RUNTIME_PROOF_RUN_ID" ] && runtime_proof_ok=true
+          [ -n "$PAPER_RUN_ID" ] && paper_ok=true
+          if [ -n "$ANDROID_RUN_ID" ] && [ "$ANDROID_TARGET" = "$EXPECTED_SHA" ]; then android_ok=true; fi
+          if [ -n "$WINDOWS_RUN_ID" ] && [ "$WINDOWS_TARGET" = "$EXPECTED_SHA" ]; then windows_ok=true; fi
+
+          STATUS=FAIL
+          if $main_exact && $ci_ok && $deploy_ok && $promote_ok && $runtime_proof_ok && $paper_ok && $android_ok && $windows_ok; then
+            STATUS=PASS
+          fi
+
+          jq -n \
+            --arg schema_version "1" \
+            --arg status "$STATUS" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg source_sha "$EXPECTED_SHA" \
+            --arg observed_main_sha "$CURRENT_MAIN" \
+            --arg generated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg ci_run_id "$CI_RUN_ID" \
+            --arg deploy_run_id "$DEPLOY_RUN_ID" \
+            --arg promote_run_id "$PROMOTE_RUN_ID" \
+            --arg runtime_proof_run_id "$RUNTIME_PROOF_RUN_ID" \
+            --arg paper_run_id "$PAPER_RUN_ID" \
+            --arg android_run_id "$ANDROID_RUN_ID" \
+            --arg windows_run_id "$WINDOWS_RUN_ID" \
+            --arg android_target "$ANDROID_TARGET" \
+            --arg windows_target "$WINDOWS_TARGET" \
+            --argjson main_exact "$main_exact" \
+            --argjson ci_ok "$ci_ok" \
+            --argjson deploy_ok "$deploy_ok" \
+            --argjson promote_ok "$promote_ok" \
+            --argjson runtime_proof_ok "$runtime_proof_ok" \
+            --argjson paper_ok "$paper_ok" \
+            --argjson android_ok "$android_ok" \
+            --argjson windows_ok "$windows_ok" \
+            '{
+              schema_version: ($schema_version | tonumber),
+              status: $status,
+              repository: $repository,
+              source_sha: $source_sha,
+              observed_main_sha: $observed_main_sha,
+              generated_at: $generated_at,
+              safety: {
+                liveAuthority: "NONE",
+                productionMutationAllowed: false,
+                aiAuthority: "ZERO_AUTHORITY"
+              },
+              components: {
+                protected_main: { exact: $main_exact },
+                ci: { pass: $ci_ok, run_id: $ci_run_id },
+                cloudflare_deploy: { pass: $deploy_ok, run_id: $deploy_run_id },
+                cloudflare_promote: { pass: $promote_ok, run_id: $promote_run_id },
+                runtime_proof: { pass: $runtime_proof_ok, run_id: $runtime_proof_run_id },
+                actual_paper_runtime: { pass: $paper_ok, run_id: $paper_run_id },
+                android_stable: { pass: $android_ok, run_id: $android_run_id, target_sha: $android_target },
+                windows_stable: { pass: $windows_ok, run_id: $windows_run_id, target_sha: $windows_target }
+              }
+            }' > artifacts/deployment-convergence/receipt.json
+
+          cat artifacts/deployment-convergence/receipt.json
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+
+      - name: Upload machine-readable convergence receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: deployment-convergence-receipt-${{ inputs.source_sha }}
+          path: artifacts/deployment-convergence/receipt.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce converged PASS
+        env:
+          STATUS: ${{ steps.verify.outputs.status }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$STATUS" = "PASS"
+          echo "Exact-main deployment CONVERGED for ${{ inputs.source_sha }}"
+          echo 'liveAuthority=NONE'
+          echo 'productionMutationAllowed=false'
+          echo 'aiAuthority=ZERO_AUTHORITY'
