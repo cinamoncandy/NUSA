@@ -58,7 +58,9 @@ test("supervisor restart state is persisted atomically and recovered", () => {
       restartCount: 7,
       lastExit: { code: 2, signal: null, exitedAt: 5000, uptimeMs: 4000 },
     });
-    assert.equal(fs.statSync(statePath).mode & 0o777, 0o600);
+    // Windows does not preserve POSIX permission bits; production is Linux and
+    // the mode assertion remains pinned there without making Windows CI lie.
+    if (process.platform !== "win32") assert.equal(fs.statSync(statePath).mode & 0o777, 0o600);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
