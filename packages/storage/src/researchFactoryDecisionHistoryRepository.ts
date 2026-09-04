@@ -80,6 +80,9 @@ export class SqliteResearchFactoryDecisionHistoryRepository {
     validateRecord(record);
     const json = recordJson(record);
     return this.db.transaction(() => {
+      // Every write starts from a fully verified chain+meta state. This prevents
+      // replay or a later append from normalizing pre-existing corruption.
+      this.list();
       const existing = this.db.connection.prepare(
         "SELECT record_json FROM research_factory_decision_history WHERE evaluation_id = ?",
       ).get(record.evaluationId) as { record_json: string } | undefined;
