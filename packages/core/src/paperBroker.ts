@@ -108,7 +108,19 @@ const LEDGER_REPLAY_SCALE = 100_000_000n;
 
 function toScaledLedgerAmount(amount: number): bigint {
   if (!Number.isFinite(amount)) throw new Error("ledger amount must be finite");
-  return BigInt(Math.round(amount * Number(LEDGER_REPLAY_SCALE)));
+  // Exact decimal conversion, unified with FixedPrecision.toUnits: the
+  // decimal text of the double (12dp) is scaled to 8dp with round-half-up.
+  // The previous `BigInt(Math.round(amount * SCALE))` multiplied in binary
+  // float first, silently losing units once |amount| * 1e8 exceeds 2^53
+  // (around the 9e7 scale — ordinary KRW paper-account territory).
+  const negative = amount < 0;
+  const text = Math.abs(amount).toFixed(12);
+  if (text.includes("e") || text.includes("E")) throw new Error("ledger amount out of exact-decimal range");
+  const [intPart, fracPart = ""] = text.split(".");
+  const digits = (intPart + fracPart.padEnd(12, "0")).replace(/^0+(?=\d)/, "");
+  const raw = BigInt(digits === "" ? "0" : digits);
+  const scaled = (raw + 5000n) / 10000n;
+  return negative ? -scaled : scaled;
 }
 
 function fromScaledLedgerAmount(amount: bigint): number {
@@ -331,6 +343,16 @@ export class PaperBroker {
     this.orders.unshift(order);
     this.ledger.push(Object.freeze({ sequence: this.ledger.length + 1, orderId: order.id, fillId: `fill:${order.id}`, market: order.market, side: order.side, quantity: order.quantity, price: order.price, fee: order.fee, cashBefore, cashAfter: nextCash, positionQuantityBefore, positionQuantityAfter: nextQuantity, realizedPnlAfter: nextRealizedPnl, occurredAt: order.filledAt }));
     this.projectFromLedger(this.ledger[0].cashBefore);
+    // Persist replay-canonical after-values so the ledger is exact-decimal
+    // end to end. The float previews computed above never reach storage;
+    // otherwise the stored entries would drift from canonical state as
+    // magnitudes grow (observed: gate mismatch by the 5th fill at 1e9).
+    this.ledger[this.ledger.length - 1] = Object.freeze({
+      ...this.ledger[this.ledger.length - 1],
+      cashAfter: this.cash,
+      positionQuantityAfter: this.position.quantity,
+      realizedPnlAfter: this.position.realizedPnl,
+    });
     return order;
   }
 

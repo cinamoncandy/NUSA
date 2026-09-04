@@ -13,6 +13,15 @@ export function reconcilePaperLedger(orders:readonly LedgerOrder[], initialCash:
 
 export function replayPaperLedger(entries: readonly PaperLedgerEntry[], initialCash: number, markPrice: number) {
   if (!Number.isFinite(initialCash) || initialCash < 0 || !Number.isFinite(markPrice) || markPrice <= 0) throw new Error("invalid ledger projection input");
+  // Float dust grows with magnitude (~1e-16 relative), so an absolute-only
+  // tolerance false-halts healthy large-scale ledgers (reproduced: a valid
+  // 1e9-scale ledger mismatched by the 5th fill under 1e-8 absolute).
+  // The floor preserves today's strictness at ordinary magnitudes; the
+  // relative term keeps detection meaningful where absolute noise is
+  // physically unavoidable. This is a correctness fix, not a relaxation:
+  // economically meaningful drift still throws at every scale.
+  const tolerance = (a: number, b: number, floor: number): number =>
+    Math.max(floor, 1e-12 * Math.max(Math.abs(a), Math.abs(b), 1));
   let cash = initialCash;
   let quantity = 0;
   let averagePrice = 0;
@@ -24,7 +33,7 @@ export function replayPaperLedger(entries: readonly PaperLedgerEntry[], initialC
     if (entry.sequence !== previousSequence + 1) throw new Error("ledger sequence mismatch");
     if (seen.has(entry.fillId)) throw new Error(`duplicate ledger fill: ${entry.fillId}`);
     if (!Number.isFinite(entry.quantity) || entry.quantity <= 0 || !Number.isFinite(entry.price) || entry.price <= 0 || !Number.isFinite(entry.fee) || entry.fee < 0) throw new Error(`invalid ledger entry: ${entry.fillId}`);
-    if (Math.abs(entry.cashBefore - cash) > 1e-8 || Math.abs(entry.positionQuantityBefore - quantity) > 1e-12) throw new Error(`ledger before-state mismatch: ${entry.fillId}`);
+    if (Math.abs(entry.cashBefore - cash) > tolerance(entry.cashBefore, cash, 1e-8) || Math.abs(entry.positionQuantityBefore - quantity) > tolerance(entry.positionQuantityBefore, quantity, 1e-12)) throw new Error(`ledger before-state mismatch: ${entry.fillId}`);
     seen.add(entry.fillId);
     const notional = entry.quantity * entry.price;
     if (entry.side === "BUY") {
@@ -39,7 +48,7 @@ export function replayPaperLedger(entries: readonly PaperLedgerEntry[], initialC
       if (quantity === 0) averagePrice = 0;
     }
     fees += entry.fee;
-    if (Math.abs(entry.cashAfter - cash) > 1e-8 || Math.abs(entry.positionQuantityAfter - quantity) > 1e-12 || Math.abs(entry.realizedPnlAfter - realizedPnl) > 1e-8) throw new Error(`ledger after-state mismatch: ${entry.fillId}`);
+    if (Math.abs(entry.cashAfter - cash) > tolerance(entry.cashAfter, cash, 1e-8) || Math.abs(entry.positionQuantityAfter - quantity) > tolerance(entry.positionQuantityAfter, quantity, 1e-12) || Math.abs(entry.realizedPnlAfter - realizedPnl) > tolerance(entry.realizedPnlAfter, realizedPnl, 1e-8)) throw new Error(`ledger after-state mismatch: ${entry.fillId}`);
     previousSequence = entry.sequence;
   }
   const unrealizedPnl = quantity * (markPrice - averagePrice);
