@@ -9,8 +9,8 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 test("HOME keeps the canonical terrain compact and tablet-aware", () => {
   const home = read("apps/mobile/src/homeView.tsx");
   assert.match(home, /const tablet = width >= 768;/);
-  assert.match(home, /terrainFrame: \{ height: 206,/);
-  assert.match(home, /const contentWidth = tablet \? 760 : 520;/);
+  assert.match(home, /terrainCanvas: \{ height: 250,/);
+  assert.match(home, /const contentWidth = tablet \? 760 : 560;/);
   assert.match(home, /\.slice\(0, 3\);/);
 });
 

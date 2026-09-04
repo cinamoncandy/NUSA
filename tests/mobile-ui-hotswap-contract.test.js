@@ -22,7 +22,7 @@ test("HomeView presents the approved canonical master-board composition instead 
   const home = read("apps/mobile/src/homeView.tsx");
 
   assert.match(home, /useWindowDimensions/);
-  assert.match(home, /const contentWidth = tablet \? 760 : 520/);
+  assert.match(home, /const contentWidth = tablet \? 760 : 560/);
   assert.match(home, /testID="home-screen"/);
   assert.match(home, /testID="home-master-rail"/);
   assert.match(home, /testID="account-hero-card"/);
@@ -49,12 +49,14 @@ test("canonical HOME uses verified market and PAPER data without fabricating una
 
   assert.match(home, /selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)/);
   assert.match(home, /publicMarkets: readonly WatchlistMarket\[\] \| null/);
-  assert.match(home, /const marketRows = \[\.\.\.marketFeed\][\s\S]*\.slice\(0, 3\)/);
+  assert.match(home, /const marketRows = \[\.\.\.selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)\][\s\S]*\.slice\(0, 3\)/);
   assert.match(home, /market \? krw\(market\.price\) : "—"/);
   assert.match(home, /signedPercent\(market\?\.changeRate \?\? null\)/);
   assert.match(home, /snapshot\?\.portfolio\?\.account \?\? localPortfolio\?\.account \?\? null/);
   assert.match(home, /buildLocalPortfolio\(localTradingSnapshot, localMarkPrice\)/);
-  assert.match(home, /<OperationalNotice/);
+  assert.match(home, /testID="home-operational-notice"/);
+  assert.match(home, /onPress=\{onGoSettings\}/);
+  assert.doesNotMatch(home, /<OperationalNotice/);
 
   assert.match(app, /publicMarket=\{CHART_MARKET\}/);
   assert.match(app, /publicMarkets=\{publicMarkets\.markets\}/);

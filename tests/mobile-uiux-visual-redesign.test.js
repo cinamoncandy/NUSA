@@ -30,8 +30,8 @@ test("Home uses the approved AI judgment plus one state-bound terrain primitive"
   assert.match(home, /testID="ai-card"/);
   assert.match(home, />NUSA AI 판단<\/Text>/);
   assert.match(home, />신뢰도<\/Text>/);
-  assert.match(home, /const terrainStrength = aiInsightAvailable \? 0\.95 : snapshot \? 0\.58 : 0\.34/);
-  assert.match(home, /signalStrength=\{terrainStrength\}/);
+  assert.match(home, /const terrainStrength = aiInsightAvailable \? 0\.92 : snapshot \? 0\.62 : 0\.45/);
+  assert.match(home, /<PremiumTerrain[^>]*strength=\{terrainStrength\}/);
   assert.match(home, /testID="home-signal-trace"/);
   assert.match(home, /testID="home-market-pulse"/);
   assert.match(home, />주요 지표<\/Text>/);
