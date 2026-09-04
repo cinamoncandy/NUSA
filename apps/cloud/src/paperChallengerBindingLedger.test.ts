@@ -80,11 +80,13 @@ describe("PaperChallengerBindingLedger", () => {
     assert.throws(() => runtime.revoke("KRW-BTC", HASH_B, "different-candidate", 3_000, "FAILED"), /does not match/);
   });
 
-  it("fails closed if two unreconciled challengers are active for one market", () => {
+  it("fails closed when a second challenger is activated before the first is revoked", () => {
     const persistence = new MemoryLedger();
     const runtime = new PaperChallengerBindingLedger(persistence);
     runtime.activate("KRW-BTC", binding());
-    runtime.activate("KRW-BTC", binding({ candidateId: "challenger-b-v1", bindingFingerprintSha256: HASH_A, periodStartAt: 2_500 }));
-    assert.throws(() => runtime.read("KRW-BTC", 3_000), /multiple PAPER challengers/);
+    assert.throws(
+      () => runtime.activate("KRW-BTC", binding({ candidateId: "challenger-b-v1", bindingFingerprintSha256: HASH_A, periodStartAt: 2_500 })),
+      /multiple PAPER challengers/,
+    );
   });
 });
