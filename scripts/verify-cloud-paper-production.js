@@ -30,7 +30,7 @@ function assertSnapshot(snapshot, now) {
   if (operations.transport !== "ONLINE") throw new Error("public market transport is not ONLINE");
   if (!operations.supervisor || operations.supervisor.managed !== true) throw new Error("production runtime is not under the canonical PAPER supervisor");
   if (operations.supervisor.liveAuthority !== "NONE" || operations.supervisor.productionMutationAllowed !== false || operations.supervisor.aiAuthority !== "ZERO_AUTHORITY") throw new Error("supervisor authority invariant violated");
-  if (!Number.isSafeInteger(heartbeat.eventCount) || !Number.isSafeInteger(heartbeat.paperOrderCount) || !Number.isSafeInteger(heartbeat.paperFillCount)) throw new Error("runtime heartbeat counters unavailable");
+  if (!Number.isSafeInteger(heartbeat.eventCount) || !Number.isSafeInteger(heartbeat.decisionCount) || !Number.isSafeInteger(heartbeat.paperOrderCount) || !Number.isSafeInteger(heartbeat.paperFillCount)) throw new Error("runtime heartbeat counters unavailable");
   if (!Number.isFinite(heartbeat.lastHeartbeatAt) || now - heartbeat.lastHeartbeatAt > 15_000) throw new Error("runtime heartbeat stale");
   if (!Number.isFinite(heartbeat.lastMarketEventAt) || now - heartbeat.lastMarketEventAt > 60_000) throw new Error("market data stale");
   if (!Array.isArray(snapshot.markets) || snapshot.markets.length === 0) throw new Error("no production market observations");
@@ -94,10 +94,10 @@ async function run(env = process.env) {
   const checks = {
     heartbeatProgressed: last.lastHeartbeatAt > first.lastHeartbeatAt,
     marketDataProgressed: last.eventCount > first.eventCount && last.lastMarketEventAt > first.lastMarketEventAt,
-    decisionsProgressed: last.decisionCount >= first.decisionCount,
-    autonomousPaperOrdersObserved: last.paperOrderCount > 0,
-    autonomousPaperFillsObserved: last.paperFillCount > 0,
-    feesObserved: last.totalFee > 0,
+    autonomousDecisionsProgressed: last.decisionCount > first.decisionCount,
+    autonomousPaperOrdersProgressed: last.paperOrderCount > first.paperOrderCount,
+    autonomousPaperFillsProgressed: last.paperFillCount > first.paperFillCount,
+    feesAccumulated: last.totalFee > first.totalFee,
     durableSupervisorRecoveryObserved: last.restartCount > 0,
     noDuplicateProjectedOrderOrFillIds: true,
     liveMutationAuthorityAbsent: true,
