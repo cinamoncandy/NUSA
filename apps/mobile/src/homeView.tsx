@@ -165,8 +165,8 @@ export function HomeView({
   const supervisorRisk = decisionSurface.risk;
   const terrainStrength = signalReady ? 0.92 : snapshot ? 0.45 : 0.25;
   const terrainLabel = aiInsightAvailable ? "NUSA verified signal field" : signalReady ? "NUSA analyzing market" : "NUSA waiting for market connection";
-  const terminalSignal = theme.mode === "dark" ? "#C8FF48" : "#3E6500";
-  const counterSignal = theme.mode === "dark" ? "#FF4B9B" : "#9B285F";
+  const terminalSignal = theme.colors.success;
+  const counterSignal = theme.colors.danger;
   const terminalBorder = { borderColor: theme.colors.borderStrong, backgroundColor: theme.colors.surface } as const;
 
   const contentStyle = {
