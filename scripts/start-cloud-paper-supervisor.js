@@ -61,7 +61,9 @@ function start(options = {}) {
   const baseEnv = { ...(options.env || process.env) };
   assertPaperOnly(baseEnv);
   const statePath = baseEnv.NUSA_PAPER_SUPERVISOR_STATE_PATH || DEFAULT_STATE_PATH;
-  const runtimePath = options.runtimePath || path.resolve(process.cwd(), "dist/apps/cloud/src/runtime.js");
+  // Production must enter through the composition root that restores closed-learning
+  // challenger provenance before public market data starts flowing.
+  const runtimePath = options.runtimePath || path.resolve(process.cwd(), "dist/apps/cloud/src/closedLearningProductionRuntime.js");
   const spawnFn = options.spawn || spawn;
   const setTimer = options.setTimeout || setTimeout;
   const now = options.now || Date.now;
