@@ -126,7 +126,7 @@ test("A4L: exceeding the attempt ceiling or the time ceiling gives up with a nam
 });
 
 test("A4L: a stale feed is not a disconnected feed, and an unmeasurable one is neither", () => {
-  let now = 100_000;
+  const now = 100_000;
   const supervisor = new MarketConnectionSupervisor({ now: () => now });
   supervisor.noteOpened();
   supervisor.noteMessage();

@@ -9,7 +9,6 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 test("system theme follows device preference and persisted settings are applied", () => {
   const provider = read("src/ThemeProvider.tsx");
   const app = read("App.tsx");
-  const home = read("src/homeView.tsx");
   const settings = read("src/settingsView.tsx");
   assert.match(provider, /useColorScheme/);
   assert.match(provider, /export type ThemePreference = ThemeMode \| "system"/);
@@ -51,7 +50,6 @@ test("not-configured dashboard state is distinct from runtime errors", () => {
 });
 
 test("Home hierarchy avoids developer-console cards while preserving verified safety state", () => {
-  const app = read("App.tsx");
   const home = read("src/homeView.tsx");
   assert.match(home, /testID="home-supervisor-summary"/);
   assert.doesNotMatch(home, /testID="account-hero-card"/);

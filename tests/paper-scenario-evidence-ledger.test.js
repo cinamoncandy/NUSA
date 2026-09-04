@@ -18,7 +18,7 @@ test("records real scenario evidence and derives immutable counters", () => {
 });
 
 test("rejects duplicate, reverse-time, and tampered evidence", () => {
-  let records = appendPaperScenarioEvent([], event("s1", "SESSION_OBSERVED", 10));
+  const records = appendPaperScenarioEvent([], event("s1", "SESSION_OBSERVED", 10));
   assert.throws(() => appendPaperScenarioEvent(records, event("s1", "SESSION_OBSERVED", 11)), /duplicate/);
   assert.throws(() => appendPaperScenarioEvent(records, event("s2", "SESSION_OBSERVED", 9)), /non-decreasing/);
   assert.throws(() => replayPaperScenarioEvidence([{ ...records[0], hash: "f".repeat(64) }]), /hash chain/);

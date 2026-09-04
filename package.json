@@ -16,8 +16,9 @@
     "android:release-contract": "node scripts/validate-android-release-contract.js",
     "build": "tsc -p tsconfig.json && node scripts/run-changed-tests-fast.js",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p apps/mobile/tsconfig.json --noEmit",
-    "lint": "pnpm run lint:desktop && pnpm run lint:mobile",
+    "lint": "pnpm run lint:desktop && pnpm run lint:scripts && pnpm run lint:mobile",
     "lint:desktop": "eslint apps/desktop/renderer",
+    "lint:scripts": "eslint scripts services tests",
     "lint:mobile": "node scripts/lint-mobile.js",
     "test": "pnpm run preflight && pnpm run build && node scripts/run-tests-isolated.js",
     "test:ui": "vitest run --config vitest.config.mjs",
@@ -77,7 +78,11 @@
     "runtime:diagnostics-validate": "pnpm run preflight && pnpm run build && node scripts/validate-runtime-diagnostics.js",
     "research:real-run": "pnpm run preflight && pnpm run build && node scripts/research-real-market-run.js",
     "validate": "pnpm run preflight && pnpm run architecture:truth && pnpm run safety:architecture && pnpm run ai:architecture",
-    "validate:full": "pnpm run validate && pnpm run architecture:check && pnpm run aipos:drift && pnpm run aipos:conformance && pnpm run safety:invariants && pnpm run safety:inputs"
+    "validate:full": "pnpm run validate && pnpm run architecture:check && pnpm run aipos:drift && pnpm run aipos:conformance && pnpm run safety:invariants && pnpm run safety:inputs",
+    "validate:tier-safety": "node scripts/validate-tiers.js --tier=safety",
+    "validate:tier-architecture": "node scripts/validate-tiers.js --tier=architecture",
+    "validate:tier-aipos": "node scripts/validate-tiers.js --tier=aipos",
+    "validate:tiers": "node scripts/validate-tiers.js --tier=all"
   },
   "devDependencies": {
     "@cloudflare/sandbox": "0.13.0-next.751.1",

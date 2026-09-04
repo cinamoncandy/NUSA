@@ -23,6 +23,9 @@ It prioritizes capital survival, evidence, and safety over speed or aggressive a
 
 - Live trading is not implemented or authorized
 - The application does not request or store LIVE exchange execution credentials
+  (read-only `UPBIT_ACCESS_KEY/SECRET` may be used for observation-only account
+  sync via `apps/desktop/src/exchange/upbitReadOnlyCredentialProvider.ts` and
+  `services/upbit-readonly/`; execution paths still throw `LiveMutationDisabledError`)
 - Buy and sell activity is Paper/Shadow simulation only
 - AI remains advisory / zero-authority
 - Electron renderer isolation, sandboxing, and restricted preload IPC remain enabled
@@ -91,11 +94,17 @@ pnpm run package:validate
 
 | Path | Purpose |
 |------|---------|
-| `apps/desktop` | Electron main, preload, renderer, paper broker, Upbit WebSocket |
+| `apps/desktop` | Electron main, preload, renderer, paper broker (`src/paper/paperBroker.ts`), Upbit WebSocket (`src/exchange/upbitWebSocket.ts`) |
 | `apps/cloud` | Cloud PAPER / read-only runtime and dashboard server |
 | `apps/mobile` | Read-only mobile operations surface |
+| `apps/execution` | Execution gateway / durable-execution policy-validation-only services (no live authority by default) |
+| `apps/autopilot` | Audit runner and coding-evidence automation (fail-closed, zero authority) |
+| `packages/core` | Shared strategy, market-data, and paper-trading domain logic |
 | `packages/contracts` | Shared accounting, operations, AI, and risk contracts |
 | `packages/storage` | SQLite accounting and durable storage |
+| `packages/aipos` | AIPOS continuity helpers |
+| `services/upbit-readonly` | Localhost-only read-only Upbit observation bridge (GET-only) |
+| `services/nusa-mcp` | Constrained local MCP surface (allowlisted paths/origins) |
 | `.aipos/` | Cross-AI recovery, work orders, architecture state |
 
 ## Architecture Principles

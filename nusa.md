@@ -60,18 +60,23 @@ Market Data
 - Desktop chart and event display
 - `apps/cloud`: substantial server-side domain logic (investment committee, strategy governance,
   hash-chained control audit ledger with a mobile-triggered kill switch, mobile dashboard API/HTTP
-  server, and a Paper trading engine ported from the desktop core). Present in the source tree and
-  covered by tests, but not deployed and not wired into any running process yet.
+  server, and a Paper trading engine ported from the desktop core). Present in the source tree,
+  covered by tests, and runnable as a bounded localhost-by-default PAPER runtime via
+  `pnpm cloud:runtime` (`scripts/start-cloud-runtime.js`). It remains PAPER-only with
+  `liveAuthority=NONE` and `productionMutationAllowed=false`; use `pnpm cloud:runtime:bare`
+  to run the compiled runtime with no operational defaults supplied.
 
 ### Not active
 
 - Live Upbit orders
-- API key storage
+- API key storage for execution (read-only observation keys via
+  `apps/desktop/src/exchange/upbitReadOnlyCredentialProvider.ts` and
+  `services/upbit-readonly/` are the only credential path; execution use is prohibited)
 - Binance futures
 - Autonomous real-money AI execution
-- Any cloud-hosted process. `apps/cloud`'s server and trading engine exist as source only --
-  persistence, hosting, and authentication for a real deployment are open decisions, not
-  implementation gaps.
+- Any cloud-hosted process beyond the local bounded PAPER runtime. `apps/cloud`'s server and
+  trading engine run locally via `pnpm cloud:runtime`; remote persistence, hosting, and
+  authentication for a real deployment remain open decisions, not implementation gaps.
 
 ## Product stages
 

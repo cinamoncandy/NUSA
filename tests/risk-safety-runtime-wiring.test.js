@@ -128,7 +128,7 @@ test("a manual approval expires after its 60-second TTL and fails closed", () =>
 test("strategy approval issued through PaperApprovalService (as control:start does) allows automatic orders; restart never auto-recovers it", () => {
   const persistence = new InMemoryRiskSafetyPersistence();
   const built = buildGate({ persistence });
-  const { service, control } = serviceFor(built.gate, built.broker);
+  const { service } = serviceFor(built.gate, built.broker);
   // Mirrors control:start: an explicit "start" action issues a fresh STRATEGY approval.
   const approval = built.approvals.issueStrategyApproval({ symbol: "KRW-BTC", strategyId: "sma-crossover", policyFingerprint: "policy-1", nowMs: NOW });
   service.start();
@@ -302,7 +302,7 @@ test("an evidence write failure fails the order closed with PERSISTENCE_UNHEALTH
 test("strategy automatic entry issued through PaperApprovalService reaches canonical gate before Broker", () => {
   const persistence = new InMemoryRiskSafetyPersistence();
   const built = buildGate({ persistence });
-  const { service, control } = serviceFor(built.gate, built.broker);
+  const { service } = serviceFor(built.gate, built.broker);
   const approval = built.approvals.issueStrategyApproval({ symbol: "KRW-BTC", strategyId: "sma-crossover", policyFingerprint: "policy-1", nowMs: NOW });
   service.start();
   service.setAutoTrade(true);
