@@ -23,7 +23,10 @@ test("Home preserves the canonical master-board safety-first actions without res
   assert.doesNotMatch(home, /testID="home-next-action"/);
   assert.doesNotMatch(home, /testID="home-next-action-button"/);
 
-  assert.match(home, /onAction=\{onGoSettings\}/);
+  assert.match(home, /testID="home-operational-notice"/);
+  assert.match(home, /onPress=\{onGoSettings\}/);
+  assert.doesNotMatch(home, /onAction=\{onGoSettings\}/);
+  assert.doesNotMatch(home, /<OperationalNotice/);
   assert.match(home, /onNavigate\("Portfolio"\)/);
   assert.match(home, /onNavigate\("AiSignal"\)/);
   assert.match(home, /onNavigate\("Markets"\)/);
