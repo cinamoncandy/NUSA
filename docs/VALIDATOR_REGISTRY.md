@@ -74,6 +74,19 @@ the 3 tiers: `validate-package.js`, `validate-windows-package.js`,
   breach. It reads `coverage/unified-summary.json`, so it runs after the merge step.
 - CI enforces it additively in the `coverage` job right after `Merge coverage baseline`.
   Existing coverage steps are untouched.
+- Critical-path aggregate floors (`criticalFloors` in the same file) guard
+  ledger/accounting/portfolio/recovery/risk/market/strategy/execution/order
+  modules against targeted erosion that totals would hide. Per-module floors are
+  deliberately absent (they would turn every new file into a gate change).
+- Renderer 0% triage (2026-09-04 baseline): the ten 0% renderer files
+  (`app-*.js`, `brand-ui.js`, `component-library.js`, `components.stories.js`,
+  `mobile-view-model.js`, `product-screens.js`, `renderer.js`, `theme-provider.js`)
+  are all live (loaded via `index.html`, storybook glob, or package validation)
+  and asserted on as source text. 0% is a measurement artifact: browser scripts
+  execute outside V8 instrumentation and Chromium E2E JS is uninstrumented by
+  design. `tests/theme-provider-execution.vitest.js` executes the theme provider
+  under jsdom as the first behavioral renderer test; extending this pattern is
+  tracked work, not a gate.
 - `vitest.config.mjs` `coverage.thresholds` (lines/functions/statements 50,
   branches 40) apply only when coverage is explicitly enabled
   (`vitest run --coverage`); the default `pnpm test:ui` run is unaffected.
