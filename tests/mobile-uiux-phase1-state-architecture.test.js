@@ -49,19 +49,26 @@ test("not-configured dashboard state is distinct from runtime errors", () => {
   assert.doesNotMatch(app, /error=\{readOnlyError \?\? notConfigured\}/);
 });
 
-test("Home hierarchy stays AI-first without developer-console cards while preserving verified safety state", () => {
+test("Home hierarchy follows the approved AI-first master board while preserving verified safety state", () => {
   const home = read("src/homeView.tsx");
-  assert.match(home, /testID="home-supervisor-summary"/);
-  assert.match(home, /AI INSIGHT \/ SIGNAL TERRAIN/);
-  assert.match(home, /testID="home-paper-performance"/);
-  assert.match(home, /testID="home-supervisor-primary-action"/);
+  assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /testID="ai-card"/);
+  assert.match(home, /testID="home-signal-trace"/);
+  assert.match(home, /testID="home-market-pulse"/);
+  assert.match(home, /testID="home-reference-navigation"/);
+  assert.match(home, />NUSA AI 판단<\/Text>/);
+  assert.match(home, />신뢰도<\/Text>/);
+  assert.match(home, />주요 지표<\/Text>/);
   assert.match(home, /testID="safety-card"/);
+  assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
+  assert.doesNotMatch(home, /testID="home-supervisor-summary"/);
+  assert.doesNotMatch(home, /AI INSIGHT \/ SIGNAL TERRAIN/);
+  assert.doesNotMatch(home, /testID="home-paper-performance"/);
+  assert.doesNotMatch(home, /testID="home-supervisor-primary-action"/);
   assert.doesNotMatch(home, /testID="operations-card"/);
   assert.doesNotMatch(home, /testID="research-card"/);
   assert.doesNotMatch(home, /label="스케줄러"|label="대기 쓰기"|label="Champion"|label="Challenger"/);
-  assert.match(home, /label="LIVE 권한"/);
-  assert.match(home, /label="Production mutation"/);
+  assert.doesNotMatch(home, /productionMutationAllowed:\s*true|authority:\s*"LIVE"/);
 });
 
 test("AI hierarchy prioritizes evidence, uncertainty, calibration, and authority", () => {
