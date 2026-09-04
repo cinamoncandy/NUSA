@@ -188,47 +188,31 @@ jobs:
           file apps/mobile/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc
           test -x apps/mobile/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc
           apps/mobile/node_modules/hermes-compiler/hermesc/linux64-bin/hermesc -help >/dev/null
-      - name: Assemble exact-head Android release candidate
-        run: ./gradlew :app:assembleRelease
+      - name: Verify protected signing boundary for exact-head Android release candidate
+        shell: bash
         working-directory: apps/mobile/android
         env:
           NUSA_BUILD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           NUSA_BUILD_NUMBER: ${{ github.run_number }}
-      - name: Seal Android release candidate provenance
-        shell: bash
-        env:
-          NUSA_BUILD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-          NUSA_BUILD_NUMBER: ${{ github.run_number }}
-          NUSA_RUN_ID: ${{ github.run_id }}
-          NUSA_REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          OUT="apps/mobile/android/app/build/outputs/apk/release"
-          APK="$OUT/app-release.apk"
-          APK_SHA256="$(sha256sum "$APK" | awk '{print $1}')"
-          printf '%s  %s\n' "$APK_SHA256" "app-release.apk" > "$OUT/app-release.apk.sha256"
-          cat > "$OUT/provenance.json" <<EOF
+          LOG="$RUNNER_TEMP/nusa-mobile-native-release-boundary.log"
+          if ./gradlew :app:assembleRelease >"$LOG" 2>&1; then
+            echo "::error::Mobile Native must not produce a release APK without the dedicated protected signing material."
+            exit 1
+          fi
+          grep -Fq "NUSA_ANDROID_RELEASE_SIGNING_REQUIRED" "$LOG"
           {
-            "repository": "$NUSA_REPOSITORY",
-            "sourceSha": "$NUSA_BUILD_SHA",
-            "runNumber": "$NUSA_BUILD_NUMBER",
-            "runId": "$NUSA_RUN_ID",
-            "apk": "app-release.apk",
-            "apkSha256": "$APK_SHA256"
-          }
-          EOF
-          grep -F "\"sourceSha\": \"$NUSA_BUILD_SHA\"" "$OUT/provenance.json"
-          grep -F "\"apkSha256\": \"$APK_SHA256\"" "$OUT/provenance.json"
-      - name: Upload exact-head Android release candidate APK
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: nusa-android-rc-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_number }}
-          path: |
-            apps/mobile/android/app/build/outputs/apk/release/app-release.apk
-            apps/mobile/android/app/build/outputs/apk/release/app-release.apk.sha256
-            apps/mobile/android/app/build/outputs/apk/release/provenance.json
-          if-no-files-found: error
-          retention-days: 14
+            echo "### Android release candidate signing boundary verified"
+            echo
+            echo "- exact source: \`${NUSA_BUILD_SHA}\`"
+            echo "- unsigned/repository-key release APK emitted: \`false\`"
+            echo "- protected signing requirement: \`enforced\`"
+            echo "- signed stable APK owner: \`Android Stable Release\`"
+            echo "- liveAuthority: \`NONE\`"
+            echo "- productionMutationAllowed: \`false\`"
+            echo "- aiAuthority: \`ZERO_AUTHORITY\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   ios-release-candidate:
     if: ${{ false }}
