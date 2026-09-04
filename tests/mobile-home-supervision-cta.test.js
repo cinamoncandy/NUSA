@@ -15,9 +15,9 @@ test("HOME surfaces degraded PAPER connection states before exploration without 
   assert.ok(notice >= 0, "PAPER operational notice must exist");
   assert.ok(ai >= 0 && terrain >= 0 && markets >= 0, "canonical HOME decision flow must exist");
   assert.ok(notice < ai && ai < terrain && terrain < markets, "connection truth must lead the canonical exploration flow");
-  assert.match(home, /title="PAPER 연결 오류"/);
-  assert.match(home, /title="PAPER 연결 필요"/);
-  assert.match(home, /onAction=\{onGoSettings\}/);
+  assert.match(home, /"PAPER 연결 오류"/);
+  assert.match(home, /"PAPER 연결 필요"/);
+  assert.match(home, /onPress=\{onGoSettings\}/);
   assert.doesNotMatch(home, /testID="home-supervisor-primary-action"/);
 
   assert.match(decisionSurface, /const WATCH_RUNTIME_STATES = new Set\(\["DEGRADED", "STOPPED", "STOPPING"\]\)/);
