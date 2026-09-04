@@ -59,6 +59,21 @@ jobs:
           current="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           test "$current" = "$requested" || { echo "stale main: requested=$requested current=$current"; exit 1; }
 
+      - name: Suppress stale failure-repair dispatch
+        id: freshness
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DISPATCH_REASON: ${{ github.event.client_payload.reason }}
+          DISPATCH_RUN_ID: ${{ github.event.client_payload.workflow_run_id }}
+        run: |
+          set -euo pipefail
+          if gh api "repos/$GITHUB_REPOSITORY/actions/runs/$DISPATCH_RUN_ID" > artifacts/autopilot-execution/cited-run.json 2>/dev/null; then
+            node scripts/verify-dispatch-run-freshness.js --reason "$DISPATCH_REASON" --run artifacts/autopilot-execution/cited-run.json --out artifacts/autopilot-execution/dispatch-freshness.json | tee -a "$GITHUB_OUTPUT"
+          else
+            echo "run fetch failed; deferring to worker verification"
+            echo "repair=true" | tee -a "$GITHUB_OUTPUT"
+          fi
+
       - name: Build coding runner request
         run: |
           node - <<'NODE'
@@ -105,8 +120,22 @@ jobs:
           }, null, 2));
           NODE
 
+      - name: Record stale repair suppression
+        if: ${{ steps.freshness.outputs.repair == 'false' }}
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const request = JSON.parse(fs.readFileSync('artifacts/autopilot-execution/coding-runner-request.json', 'utf8'));
+          const freshness = JSON.parse(fs.readFileSync('artifacts/autopilot-execution/dispatch-freshness.json', 'utf8'));
+          fs.writeFileSync('artifacts/autopilot-execution/coding-runner-result.json', JSON.stringify({
+            status: 'NO_ACTION',
+            reason: `stale-failure-repair-suppressed:${freshness.reason}`,
+            request,
+          }, null, 2));
+          NODE
+
       - name: Dispatch to configured external coding runner with bounded retry
-        if: ${{ steps.backend.outputs.mode == 'external' }}
+        if: ${{ steps.backend.outputs.mode == 'external' && steps.freshness.outputs.repair != 'false' }}
         env:
           NUSA_CODING_RUNNER_URL: https://nusa-autopilot.desporin12.workers.dev/coding/execute
         run: node scripts/autopilot-dispatch-retry.js
