@@ -122,18 +122,18 @@ test("primary mobile workspaces keep bounded tablet widths and intentional respo
 
   const tradingShell = read("apps/mobile/src/tradingView.tsx");
   const home = read("apps/mobile/src/homeView.tsx");
-  const profile = read("apps/mobile/src/homeVisualProfile.ts");
   const markets = read("apps/mobile/src/marketsView.tsx");
   const portfolio = read("apps/mobile/src/portfolioView.tsx");
   const ai = read("apps/mobile/src/aiView.tsx");
 
   assert.match(tradingShell, /<LegacyTradingView \{\.\.\.props\} \/>/);
   assert.doesNotMatch(tradingShell, /productionMutationAllowed: true/);
-  assert.match(home, /maxWidth: tablet \? Math\.max\(profile\.screen\.maxWidth, 980\) : profile\.screen\.maxWidth/);
-  assert.match(profile, /classic:[\s\S]*maxWidth: 920/);
-  assert.match(profile, /master:[\s\S]*maxWidth: 780/);
+  assert.match(home, /useWindowDimensions/);
+  assert.match(home, /const tablet = width >= 768/);
+  assert.match(home, /const contentWidth = tablet \? 760 : 520/);
+  assert.match(home, /contentContainerStyle=\{\[styles\.content, \{ maxWidth: contentWidth \}\]\}/);
   assert.match(home, /testID="home-signal-trace"/);
-  assert.match(home, /<CompactMetric/);
+  assert.match(home, /testID="home-market-pulse"/);
   assert.match(home, /<OperationalNotice/);
   assert.doesNotMatch(home, /grid: \{ flexDirection: "row", flexWrap: "wrap" \}/);
   assert.doesNotMatch(home, /column: \{ flexGrow: 1, flexBasis: 440/);
