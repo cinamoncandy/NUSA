@@ -209,10 +209,6 @@ function isMobilePresentationSource(file) {
   return file === "apps/mobile/App.tsx" || (file.startsWith("apps/mobile/") && file.endsWith(".tsx"));
 }
 
-function isProtectedBoundarySource(file) {
-  return file.startsWith("packages/core/") || file.startsWith("packages/contracts/") || isMobilePresentationSource(file);
-}
-
 function isForbiddenMobilePresentationReference(edge) {
   if (!isMobilePresentationSource(edge.source)) return false;
   if (edge.target.startsWith("apps/mobile/")) return false;

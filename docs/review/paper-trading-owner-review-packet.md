@@ -30,7 +30,8 @@ This packet is a review aid. Creating it is not owner approval, does not change 
 
 - Electron main: `apps/desktop/src/main.ts`
 - Renderer bridge: `apps/desktop/src/preload.ts`
-- Paper broker: `apps/desktop/src/paperBroker.ts`
+- Paper broker: `apps/desktop/src/paper/paperBroker.ts` (re-exported from `packages/core/src/paperBroker.ts`)
+- Upbit public WebSocket: `apps/desktop/src/exchange/upbitWebSocket.ts`
 - Runtime transaction boundary: `apps/desktop/src/runtimeCommandService.ts`
 - Control plane: `apps/desktop/src/controlPlane.ts`
 - SQLite persistence: `apps/desktop/src/desktopPersistenceStore.ts`

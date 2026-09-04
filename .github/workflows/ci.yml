@@ -325,6 +325,8 @@ jobs:
         env:
           NUSA_COVERAGE_COMBINED_V8_DIR: .coverage-v8-all
         run: node scripts/run-coverage.js --prepared --merge-precomputed
+      - name: Enforce coverage floors
+        run: node scripts/check-coverage-floor.js
       - name: Upload coverage baseline
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

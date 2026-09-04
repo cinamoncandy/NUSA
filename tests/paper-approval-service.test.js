@@ -51,8 +51,7 @@ test("revoke makes an issued approval immediately unusable", () => {
 });
 
 test("issuance fails closed when the underlying gate rejects the approval (e.g. malformed input)", () => {
-  const { persistence } = service();
-  const throwing = { saveApproval() { throw new Error("policy fingerprint required"); }, revokeApproval() {} };
+const throwing = { saveApproval() { throw new Error("policy fingerprint required"); }, revokeApproval() {} };
   const svc = new PaperApprovalService(throwing);
   assert.throws(() => svc.issueManualApproval({ symbol: "", side: "BUY", commandId: "cmd-1", policyFingerprint: "policy-1", nowMs: NOW }), /policy fingerprint required/);
 });
