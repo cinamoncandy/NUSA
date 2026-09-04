@@ -50,11 +50,11 @@ test("not-configured dashboard state is distinct from runtime errors", () => {
   assert.doesNotMatch(app, /error=\{readOnlyError \?\? notConfigured\}/);
 });
 
-test("Home hierarchy avoids developer-console cards while preserving verified safety state", () => {
-  const app = read("App.tsx");
+test("Home hierarchy stays AI-first without developer-console cards while preserving verified safety state", () => {
   const home = read("src/homeView.tsx");
   assert.match(home, /testID="home-supervisor-summary"/);
-  assert.doesNotMatch(home, /testID="account-hero-card"/);
+  assert.match(home, /AI INSIGHT \/ SIGNAL TERRAIN/);
+  assert.match(home, /testID="home-paper-performance"/);
   assert.match(home, /testID="home-supervisor-primary-action"/);
   assert.match(home, /testID="ai-card"/);
   assert.match(home, /testID="safety-card"/);
