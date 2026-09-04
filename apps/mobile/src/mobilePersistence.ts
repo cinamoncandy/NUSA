@@ -39,7 +39,12 @@ export class VersionedJsonStore<T> {
     } catch {
       const backup = await this.storage.getItem(`${this.key}:backup`);
       if (backup === null) throw new Error("stored data is unrecoverable");
-      const record = JSON.parse(backup) as Partial<VersionedRecord<unknown>>;
+      let record: Partial<VersionedRecord<unknown>>;
+      try {
+        record = JSON.parse(backup) as Partial<VersionedRecord<unknown>>;
+      } catch {
+        throw new Error("backup data is invalid");
+      }
       if (record.version !== this.version || record.checksum !== checksum(record.value)) throw new Error("backup data is invalid");
       return this.validate(record.value);
     }
