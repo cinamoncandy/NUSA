@@ -12,8 +12,27 @@ test("execution lifecycle persists transitions and blocks live mutation by defau
   record = await service.queue(record.executionId);
   await assert.rejects(() => service.submit(record.executionId), LiveMutationDisabledError);
   assert.equal(repo.get(record.executionId).state, "QUEUED");
-  assert.equal(repo.transitions(record.executionId).length, 4);
+  assert.equal(repo.get(record.executionId).riskDecisionId, "risk-1");
+  assert.equal(repo.transitions(record.executionId).length, 3);
   assert.equal(new DisabledExchangeExecutionPort().productionMutationAllowed, false);
+});
+
+test("risk approve and reject persist the decision binding in a single transition", async () => {
+  const repo = new InMemoryExecutionRepository();
+  const service = new ExecutionService(repo, new DisabledExchangeExecutionPort());
+  let approved = await service.createIntent(intent());
+  approved = await service.approveRisk(approved.executionId, "risk-9");
+  assert.equal(approved.riskDecisionId, "risk-9");
+  assert.equal(repo.get(approved.executionId).riskDecisionId, "risk-9");
+  assert.equal(repo.transitions(approved.executionId).length, 2);
+  let rejected = await service.createIntent(intent());
+  rejected = await service.rejectRisk(rejected.executionId, "risk-10", "RISK_LIMIT");
+  assert.equal(rejected.state, "RISK_REJECTED");
+  assert.equal(rejected.riskDecisionId, "risk-10");
+  const reloaded = repo.get(rejected.executionId);
+  assert.equal(reloaded.state, "RISK_REJECTED");
+  assert.equal(reloaded.riskDecisionId, "risk-10");
+  assert.equal(repo.transitions(rejected.executionId).length, 2);
 });
 
 test("invalid transitions and duplicate fill events fail closed", async () => {
