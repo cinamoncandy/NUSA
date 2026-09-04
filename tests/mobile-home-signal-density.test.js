@@ -12,11 +12,14 @@ test("HOME keeps the signal terrain compact on phones while preserving tablet de
   assert.match(home, /styles\.terrainHero, \{ height: tablet \? 300 : 220 \}/);
 });
 
-test("HOME signal terrain remains downstream of the supervisor decision spine", () => {
+test("HOME AI-first hierarchy leads with signal terrain before the evidence truth rail", () => {
   const home = read("apps/mobile/src/homeView.tsx");
-  const learning = home.indexOf('testID="home-supervisor-learning"');
   const terrain = home.indexOf('testID="home-decision-stage"');
-  assert.ok(learning >= 0, "supervisor LEARNING row must exist");
+  const why = home.indexOf('testID="home-supervisor-why"');
+  const learning = home.indexOf('testID="home-supervisor-learning"');
   assert.ok(terrain >= 0, "signal terrain must exist");
-  assert.ok(learning < terrain, "decision spine must stay ahead of the visual signal terrain");
+  assert.ok(why >= 0, "WHY evidence cell must exist");
+  assert.ok(learning >= 0, "LEARNING evidence cell must exist");
+  assert.ok(terrain < why, "AI-first signal terrain must lead the evidence truth rail");
+  assert.ok(why < learning, "evidence truth rail must preserve WHY before LEARNING");
 });
