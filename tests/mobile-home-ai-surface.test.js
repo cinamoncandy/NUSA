@@ -6,48 +6,51 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), "utf8");
 
-test("HOME is visibly AI-first instead of the prior stacked supervisor screen", () => {
+test("HOME matches the canonical white mint supervisory composition", () => {
   const home = read("apps/mobile/src/homeView.tsx");
+  const provider = read("apps/mobile/src/ThemeProvider.tsx");
 
-  assert.match(home, /AUTONOMOUS INVESTMENT INTELLIGENCE/);
-  assert.match(home, /AI INSIGHT \/ SIGNAL TERRAIN/);
+  assert.match(provider, /initialMode = "light"/);
+  assert.match(home, /AI SUPERVISORY OS/);
+  assert.match(home, /AI ZERO AUTHORITY/);
+  assert.match(home, /PAPER ONLY · LIVE NONE/);
+  assert.match(home, /YOU ARE SUPERVISOR/);
+  assert.match(home, /All Stable\./);
+  assert.match(home, /No Action Needed\./);
+  assert.match(home, /MARKET OVERVIEW/);
+  assert.match(home, /CAPITAL OVERVIEW/);
+  assert.match(home, /NUSA JUDGMENT/);
+  assert.match(home, /EVIDENCE STREAM/);
+  assert.match(home, /OWNER COMMAND/);
   assert.match(home, />NOW<\/Text>/);
-  assert.match(home, /testID="home-signal-trace"/);
-  assert.match(home, /terminalSignal = theme\.colors\.success/);
-  assert.match(home, /counterSignal = theme\.colors\.danger/);
-  assert.doesNotMatch(home, /terminalSignal = theme\.mode === "dark" \? "#/);
-  assert.doesNotMatch(home, /counterSignal = theme\.mode === "dark" \? "#/);
-  assert.match(home, /function TruthCell/);
-  assert.match(home, /label="WHY"/);
-  assert.match(home, /label="RESULT"/);
-  assert.match(home, /label="RISK"/);
-  assert.match(home, /label="LEARNING"/);
-  assert.doesNotMatch(home, /SUPERVISOR \/ EVIDENCE FIRST/);
+  assert.match(home, />MARKET<\/Text>/);
+  assert.match(home, />NUSA<\/Text>/);
+  assert.match(home, />ASSETS<\/Text>/);
+  assert.match(home, />CONTROL<\/Text>/);
+  assert.doesNotMatch(home, /AI INSIGHT \/ SIGNAL TERRAIN/);
+  assert.doesNotMatch(home, /function TruthCell/);
 });
 
-test("HOME AI-first redesign remains evidence-first and authority-safe", () => {
+test("white mint HOME remains runtime truthful and authority safe", () => {
   const home = read("apps/mobile/src/homeView.tsx");
 
   assert.match(home, /selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)/);
-  assert.match(home, /buildChartViewModel\(\{/);
-  assert.match(home, /ORDER FLOW: UNAVAILABLE/);
-  assert.match(home, /NO VERIFIED FEED/);
-  assert.match(home, /LOCAL PAPER · 실제 계좌\/Cloud PAPER와 합산하지 않음/);
-  assert.match(home, /CLOUD PAPER · REAL account not blended/);
+  assert.match(home, /buildLocalPortfolio\(localTradingSnapshot, localMarkPrice\)/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
-  assert.match(home, /AI ZERO AUTHORITY · productionMutationAllowed=false · liveAuthority=NONE/);
+  assert.match(home, /const mint = theme\.colors\.success/);
   assert.doesNotMatch(home, /productionMutationAllowed\s*=\s*true/);
   assert.doesNotMatch(home, /liveAuthority\s*=\s*["'](?:FULL|LIVE|ENABLED)["']/);
   assert.doesNotMatch(home, /Math\.random\(|synthetic|fake candle|mock candle/i);
 });
 
-test("HOME keeps real actions and a 48dp primary decision target", () => {
+test("white mint HOME keeps real navigation and learning actions", () => {
   const home = read("apps/mobile/src/homeView.tsx");
 
-  assert.match(home, /testID="home-supervisor-primary-action"/);
-  assert.match(home, /case "SETTINGS": return onGoSettings\(\)/);
-  assert.match(home, /case "PORTFOLIO": return onNavigate\("Portfolio"\)/);
-  assert.match(home, /case "AI_SIGNAL": return onNavigate\("AiSignal"\)/);
-  assert.match(home, /case "MARKETS": return onNavigate\("Markets"\)/);
-  assert.match(home, /primaryButton:\s*\{[^}]*minHeight:\s*48/);
+  assert.match(home, /onNavigate\("Markets"\)/);
+  assert.match(home, /onNavigate\("AiSignal"\)/);
+  assert.match(home, /onNavigate\("Portfolio"\)/);
+  assert.match(home, /onOpenPaperLearning/);
+  assert.match(home, /testID="home-supervisor-learning"/);
+  assert.match(home, /testID="home-paper-learning"/);
+  assert.match(home, /testID="home-reference-navigation"/);
 });
