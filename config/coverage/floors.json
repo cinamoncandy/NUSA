@@ -27,5 +27,17 @@
     "branches": 70,
     "functions": 89,
     "lines": 92
-  }
+  },
+  "moduleFloors": [
+    { "match": "packages/core/src/strategyEngine", "lines": 93, "branches": 85 },
+    { "match": "packages/core/src/independentRiskGateway", "lines": 95, "branches": 85 },
+    { "match": "apps/desktop/src/recovery/recoveryReconciliation", "lines": 95, "branches": 86 },
+    { "match": "packages/contracts/src/riskGateway", "lines": 95, "branches": 95 },
+    { "match": "apps/execution/src/hard-risk-gateway", "lines": 95, "branches": 74 },
+    { "match": "apps/desktop/src/strategy/strategyRegistry", "lines": 93, "branches": 79 },
+    { "match": "apps/desktop/src/strategy/walkForwardEngine", "lines": 95, "branches": 77 },
+    { "match": "packages/storage/src/hedgeRecoveryStore", "lines": 95, "branches": 59 },
+    { "match": "apps/execution/src/tiny-bounded-live-envelope", "lines": 95, "branches": 66 },
+    { "match": "packages/storage/src/order-idempotency", "lines": 95, "branches": 88 }
+  ]
 }
