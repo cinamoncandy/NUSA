@@ -22,7 +22,7 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-export function ThemeProvider({ children, initialMode = "dark", initialPreset = CURRENT_DEFAULT_PRESET }: Readonly<{ children: React.ReactNode; initialMode?: ThemePreference; initialPreset?: DesignPresetName }>) {
+export function ThemeProvider({ children, initialMode = "light", initialPreset = CURRENT_DEFAULT_PRESET }: Readonly<{ children: React.ReactNode; initialMode?: ThemePreference; initialPreset?: DesignPresetName }>) {
   const colorScheme = useColorScheme();
   const [preference, setPreference] = useState<ThemePreference>(initialMode);
   const [preset, setPresetState] = useState<DesignPresetName>(initialPreset);
