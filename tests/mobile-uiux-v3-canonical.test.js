@@ -18,26 +18,34 @@ test("App shell routes the canonical four-tab decision flow and preserves deeper
   assert.match(app, /StatusChip label="LIVE NONE"/);
 });
 
-test("Home uses MASTER hierarchy and keeps AI read-only", () => {
+test("Home uses the approved MASTER board hierarchy and keeps AI read-only", () => {
   const source = read("src/homeView.tsx");
   const decisionSurface = read("src/homeDecisionSurface.ts");
+
   assert.match(source, />NUSA<\/Text>/);
-  assert.match(source, /const supervisorResult = decisionSurface\.result/);
-  assert.match(decisionSurface, /PAPER P&L .*EQUITY/);
-  assert.match(source, /CAPITAL LIMITS/);
-  assert.doesNotMatch(source, />TOTAL EQUITY<\/Text>/);
-  assert.match(source, />PAPER ONLY<\/Text>/);
-  assert.match(source, /NUSA VIEW/);
-  assert.match(source, /<InsightPanel/);
-  assert.match(source, /READ ONLY/);
+  assert.match(source, />총 자산<\/Text>/);
+  assert.match(source, />오늘<\/Text>/);
+  assert.match(source, />NUSA AI 판단<\/Text>/);
+  assert.match(source, />신뢰도<\/Text>/);
   assert.match(source, /testID="home-signal-trace"/);
-  assert.match(source, /<CompactMetric label="PAPER 연결"/);
-  assert.match(source, /<CompactMetric label="안전 게이트"/);
-  assert.match(source, /<CompactMetric label="AI 분석"/);
-  assert.match(source, /LIVE 권한/);
-  assert.match(source, /Production mutation/);
-  assert.doesNotMatch(source, /<ScreenHeader/);
-  assert.doesNotMatch(source, /<MetricTile/);
+  assert.match(source, />주요 지표<\/Text>/);
+  assert.match(source, /testID="home-reference-navigation"/);
+  assert.match(source, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
+  assert.match(source, /selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)/);
+  assert.match(source, /calibrationStatus === "CALIBRATED"/);
+
+  // The fail-closed decision model remains available to the product, but the approved
+  // master-board HOME must not recreate the retired supervisor/terminal composition.
+  assert.match(decisionSurface, /PAPER P&L .*EQUITY/);
+  assert.doesNotMatch(source, /const supervisorResult = decisionSurface\.result/);
+  assert.doesNotMatch(source, /CAPITAL LIMITS/);
+  assert.doesNotMatch(source, /NUSA VIEW/);
+  assert.doesNotMatch(source, /<InsightPanel/);
+  assert.doesNotMatch(source, /<CompactMetric/);
+  assert.doesNotMatch(source, /<SupervisorProgressPanel/);
+  assert.doesNotMatch(source, /AI INSIGHT \/ SIGNAL TERRAIN/);
+  assert.doesNotMatch(source, /productionMutationAllowed:\s*true/);
+  assert.doesNotMatch(source, /authority:\s*"LIVE"/);
 });
 
 test("Markets, PAPER, Settings and History use shared segmented controls", () => {
