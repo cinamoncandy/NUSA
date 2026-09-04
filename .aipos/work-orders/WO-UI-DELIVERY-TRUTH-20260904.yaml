@@ -1,0 +1,34 @@
+id: WO-UI-DELIVERY-TRUTH-20260904
+title: "Enforce mobile UI delivery truth"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: a6ea7320280191e54075faa777615936fc1e3e72
+implementation_branch: fix/mobile-ui-delivery-truth-20260904
+authority_impact: none
+objective: "Prevent branch-only or merged-only mobile UI work from being reported as installed/device-visible, and preserve exact-main/stable/install identity guards."
+root_cause:
+  - "UI implementation existed on a feature branch but was not merged into protected main, while delivery language could still be interpreted as applied."
+  - "Before PR #1568, Android stable convergence could accept stale release state through a path-diff shortcut."
+  - "Before PR #1568, the installed app did not expose its exact packaged BUILD_SOURCE_SHA or a stale-install warning."
+  - "The existing UI work-order completion rule was declarative but not reinforced by a repository-wide agent rule and regression test."
+controls:
+  - "Add repository-wide BRANCH_IMPLEMENTED -> MAIN_MERGED -> STABLE_RELEASED -> DEVICE_VERIFIED state vocabulary to AGENTS.md."
+  - "Prohibit installed/deployed/device-visible claims before DEVICE_VERIFIED."
+  - "Require separate reporting of branch head, protected main, stable release target, and installed BUILD_SOURCE_SHA when device evidence exists."
+  - "Add regression coverage preserving build identity, stale-install warning, exact-main watchdog convergence, monotonic version identity, and source-bound stable release."
+safety:
+  mode: PAPER_ONLY
+  live_authority: NONE
+  production_mutation_allowed: false
+  ai_authority: ZERO_AUTHORITY
+validation:
+  status: BLOCKED_ASSISTANT_LOCAL_ENVIRONMENT
+  pass_claimed: false
+  required_before_pr:
+    - "node --test tests/mobile-ui-delivery-truth.test.js"
+    - "pnpm run preflight"
+    - "pnpm run validate"
+    - "git diff --check"
+completion_rule: "The prevention control is complete only after validation passes and the exact guard head is merged to protected main; DEVICE_VERIFIED remains a separate human-environment state for individual APK installs."
