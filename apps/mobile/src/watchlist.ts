@@ -82,6 +82,36 @@ function compareMarkets(left: WatchlistMarket, right: WatchlistMarket, sort: Wat
   return left.market.localeCompare(right.market);
 }
 
+/**
+ * Newest valid observation instant across a feed, for first-class freshness
+ * display. Invalid timestamps are skipped, never thrown: an unparseable row
+ * must not take down the list. Returns null when nothing parseable exists.
+ */
+export function freshestObservedAtMs(markets: readonly WatchlistMarket[]): number | null {
+  let latest: number | null = null;
+  for (const market of markets) {
+    const at = Date.parse(market.observedAt);
+    if (!Number.isFinite(at) || at <= 0) continue;
+    if (latest === null || at > latest) latest = at;
+  }
+  return latest;
+}
+
+/**
+ * Short Korean relative age for a feed instant ("방금", "12초 전", ...).
+ * Pure function of two instants so unit tests never depend on wall-clock.
+ * Returns null for unverifiable input instead of inventing an age.
+ */
+export function formatFeedAgeMs(observedAtMs: number, nowMs: number): string | null {
+  if (!Number.isFinite(observedAtMs) || !Number.isFinite(nowMs)) return null;
+  const elapsed = nowMs - observedAtMs;
+  if (elapsed < 0) return null;
+  if (elapsed < 10_000) return "방금";
+  if (elapsed < 60_000) return `${Math.floor(elapsed / 1000)}초 전`;
+  if (elapsed < 3_600_000) return `${Math.floor(elapsed / 60_000)}분 전`;
+  return `${Math.floor(elapsed / 3_600_000)}시간 전`;
+}
+
 export function buildWatchlistViewModel(input: { readonly rawMarkets: unknown[] | null; readonly watchlist: readonly string[] | null; readonly query: string; readonly sort: WatchlistSort }): WatchlistViewModel {
   const empty = (state: WatchlistViewModel["state"], error: string | null): WatchlistViewModel => freeze({ state, error, query: input.query, sort: input.sort, watchlist: input.watchlist ?? [], activeMarkets: [], searchResults: [] });
   const watchlist = input.watchlist;

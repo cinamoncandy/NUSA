@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const { WatchlistRepository, buildWatchlistViewModel, parseWatchlistMarkets } = require("../dist/apps/mobile/src/watchlist.js");
+const { WatchlistRepository, buildWatchlistViewModel, parseWatchlistMarkets, freshestObservedAtMs, formatFeedAgeMs } = require("../dist/apps/mobile/src/watchlist.js");
 
 function memoryStorage(initial = null) {
   let value = initial;
@@ -53,6 +53,23 @@ test("watchlist view model supports search, sort and fail-closed states", () => 
   assert.equal(buildWatchlistViewModel({ rawMarkets: [{ ...markets[0], source: "ESTIMATED" }], watchlist: [], query: "", sort: "MARKET" }).state, "ERROR");
 });
 
+test("feed freshness picks the newest valid observation and formats Korean relative age", () => {
+  const parsed = parseWatchlistMarkets(markets);
+  assert.equal(freshestObservedAtMs(parsed), Date.parse("2026-08-03T00:00:01.000Z"));
+  assert.equal(freshestObservedAtMs([]), null);
+  assert.equal(formatFeedAgeMs(Date.parse("2026-08-03T00:00:01.000Z"), Date.parse("2026-08-03T00:00:05.000Z")), "방금");
+  assert.equal(formatFeedAgeMs(Date.parse("2026-08-03T00:00:01.000Z"), Date.parse("2026-08-03T00:00:31.000Z")), "30초 전");
+  assert.equal(formatFeedAgeMs(Date.parse("2026-08-03T00:00:01.000Z"), Date.parse("2026-08-03T00:05:01.000Z")), "5분 전");
+  assert.equal(formatFeedAgeMs(Date.parse("2026-08-03T00:00:01.000Z"), Date.parse("2026-08-03T02:00:01.000Z")), "2시간 전");
+  assert.equal(formatFeedAgeMs(Date.parse("2026-08-03T00:00:02.000Z"), Date.parse("2026-08-03T00:00:01.000Z")), null);
+  assert.equal(formatFeedAgeMs(Number.NaN, Date.now()), null);
+});
+
+test("watchlist header exposes feed freshness without weakening read-only contract", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "watchlistView.tsx"), "utf8");
+  assert.match(source, /watchlist-freshness/);
+  assert.match(source, /StatusChip label="STALE"/);
+});
 test("watchlist UI remains read-only and is wired into the markets workspace", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "watchlistView.tsx"), "utf8");
   assert.match(source, /시장 검색/);
