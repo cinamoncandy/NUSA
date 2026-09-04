@@ -41,7 +41,7 @@ function signedPercent(value: number | null): string {
 
 function PremiumTerrain({ accent, accentMid, accentStart, muted, border, strength }: Readonly<{ accent: string; accentMid: string; accentStart: string; muted: string; border: string; strength: number }>) {
   const shift = Math.round((strength - 0.5) * 22);
-  return <View accessible accessibilityRole="image" accessibilityLabel="NUSA AI signal terrain" style={[styles.terrainFrame, { borderColor: border }]} testID="home-signal-trace">
+  return <View accessible accessibilityRole="image" accessibilityLabel="NUSA AI signal terrain" style={[styles.terrainCanvas, { borderColor: border }]} testID="home-signal-trace">
     <View style={[styles.gridLine, styles.gridTop, { backgroundColor: border }]} />
     <View style={[styles.gridLine, styles.gridMid, { backgroundColor: border }]} />
     <View style={[styles.gridLine, styles.gridLow, { backgroundColor: border }]} />
@@ -101,7 +101,7 @@ export function HomeView({
   const fallbackJudgement = notConfigured ? "PAPER 연결이 필요합니다." : readOnlyError ? "연결 상태를 확인하고 있습니다." : "관망이 전략입니다.";
   const judgement = aiInsightAvailable ? (ai?.thesis ?? fallbackJudgement) : fallbackJudgement;
   const terrainStrength = aiInsightAvailable ? 0.92 : snapshot ? 0.62 : 0.45;
-  const contentWidth = tablet ? 760 : 520;
+  const contentWidth = tablet ? 760 : 560;
 
   return <View style={[styles.shell, { backgroundColor: theme.colors.background }]} testID="home-screen">
     <ScrollView
@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
   confidenceTrack: { flex: 1, height: 4, borderRadius: 2, overflow: "hidden", opacity: 0.9 },
   confidenceFill: { height: 4, borderRadius: 2 },
   terrainSection: { marginTop: 2 },
-  terrainFrame: { height: 206, borderWidth: StyleSheet.hairlineWidth, borderRadius: 24, overflow: "hidden", position: "relative" },
+  terrainCanvas: { height: 250, borderWidth: StyleSheet.hairlineWidth, borderRadius: 24, overflow: "hidden", position: "relative" },
   gridLine: { position: "absolute", left: "5%", right: "5%", height: StyleSheet.hairlineWidth, opacity: 0.48 },
   gridTop: { top: "28%" }, gridMid: { top: "50%" }, gridLow: { top: "72%" },
   meshBand: { position: "absolute", height: 3, borderRadius: 2, opacity: 0.72 },
@@ -229,12 +229,12 @@ const styles = StyleSheet.create({
   meshBandThree: { width: "72%", left: "18%", top: "61%", transform: [{ rotate: "10deg" }] },
   meshBandFour: { width: "86%", left: "6%", top: "76%", transform: [{ rotate: "-3deg" }] },
   glowDisc: { position: "absolute", borderWidth: 1, borderRadius: 999, opacity: 0.46 },
-  glowDiscOuter: { width: 150, height: 150, top: 28, marginLeft: -75 },
-  glowDiscInner: { width: 92, height: 92, top: 57, marginLeft: -46, opacity: 0.7 },
-  signalBeam: { position: "absolute", width: 2, top: 30, bottom: 28, marginLeft: -1, opacity: 0.72 },
-  signalHalo: { position: "absolute", width: 58, height: 58, borderRadius: 29, borderWidth: 1.5, top: 74, marginLeft: -29, opacity: 0.7 },
-  signalDot: { position: "absolute", width: 24, height: 24, borderRadius: 12, top: 91, marginLeft: -12, shadowOpacity: 0.8, shadowRadius: 14, elevation: 6 },
-  signalTip: { position: "absolute", width: 9, height: 9, borderRadius: 5, top: 26, marginLeft: -4.5, shadowOpacity: 0.9, shadowRadius: 8, elevation: 4 },
+  glowDiscOuter: { width: 150, height: 150, top: 50, marginLeft: -75 },
+  glowDiscInner: { width: 92, height: 92, top: 79, marginLeft: -46, opacity: 0.7 },
+  signalBeam: { position: "absolute", width: 2, top: 46, bottom: 42, marginLeft: -1, opacity: 0.72 },
+  signalHalo: { position: "absolute", width: 58, height: 58, borderRadius: 29, borderWidth: 1.5, top: 96, marginLeft: -29, opacity: 0.7 },
+  signalDot: { position: "absolute", width: 24, height: 24, borderRadius: 12, top: 113, marginLeft: -12, shadowOpacity: 0.8, shadowRadius: 14, elevation: 6 },
+  signalTip: { position: "absolute", width: 9, height: 9, borderRadius: 5, top: 42, marginLeft: -4.5, shadowOpacity: 0.9, shadowRadius: 8, elevation: 4 },
   metricsHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 },
   metricsTitle: { fontSize: 22, lineHeight: 28, fontWeight: "900", letterSpacing: -0.5 },
   metricsLink: { fontSize: 12, lineHeight: 18, fontWeight: "700" },
