@@ -1,6 +1,5 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const crypto = require("node:crypto");
 const { ResearchCandidateGate } = require("../dist/apps/cloud/src/researchCandidateGate.js");
 const { ResearchStreamNormalizer } = require("../dist/apps/cloud/src/researchStreamNormalizer.js");
 const { createResearchExperimentManifest, validateResearchExperimentManifest, validateResearchExperimentResult, researchHardeningHash } = require("../dist/packages/contracts/src/researchHardening.js");

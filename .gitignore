@@ -19,5 +19,5 @@ dist/
 outputs/
 work/
 release/
-coverage/
+/coverage/
 storybook-static/

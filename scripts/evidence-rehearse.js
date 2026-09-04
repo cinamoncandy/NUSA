@@ -22,7 +22,7 @@ if (outputIndex >= 0 && (!outputPath || outputPath.startsWith("-"))) {
       gap: report.warnings
     }, null, 2));
     process.exitCode = report.overallStatus === "PASS" ? 0 : 1;
-  } catch (error) {
+  } catch {
     console.error("evidence rehearsal failed");
     process.exitCode = 1;
   }

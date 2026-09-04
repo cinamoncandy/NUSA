@@ -50,7 +50,7 @@ test("classifies only 429 and 5xx as retryable HTTP statuses", () => {
 test("retries transient OIDC and runner failures with bounded exponential backoff", async () => {
   const calls = [];
   const waits = [];
-  let now = 1000;
+  const now = 1000;
   const result = await dispatchWithRetry({
     request,
     url: "https://runner.example.test/coding/execute",

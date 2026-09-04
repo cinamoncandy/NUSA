@@ -187,7 +187,7 @@ test("resource exhaustion blocks later replay provider side effects fail-closed"
 });
 
 test("invalid multi-dimension ablation is rejected before replay side effects", async () => {
-  let now = 100;
+  const now = 100;
   let calls = 0;
   const resources = new InferenceResourceLedger(budget(2), now);
   const evaluator = new GovernedAttributionReplayEvaluator(new GovernedOutcomeAttributionEngine(policy), {
