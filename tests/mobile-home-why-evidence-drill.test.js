@@ -16,7 +16,8 @@ test("HOME AI judgment drills into verified evidence without creating a dead con
   assert.match(home, /aiInsightAvailable,/);
   assert.match(home, /testID="ai-card"/);
   assert.match(home, /case "AI_SIGNAL": return onNavigate\("AiSignal"\)/);
-  assert.match(surface, /const aiInsightAvailable = Boolean\(input\.aiThesis\?\.trim\(\)\) && input\.aiEvidenceCount > 0/);
+  assert.match(surface, /const aiThesis = input\.aiThesis\?\.trim\(\) \?\? ""/);
+  assert.match(surface, /const aiInsightAvailable = aiThesis\.length > 0 && input\.aiEvidenceCount > 0/);
 });
 
 test("HOME keeps verified AI judgment and WHY evidence ahead of market exploration", () => {
