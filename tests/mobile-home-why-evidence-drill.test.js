@@ -6,20 +6,22 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-test("HOME WHY drills into verified evidence without creating a dead control", () => {
+test("HOME AI judgment drills into verified evidence without creating a dead control", () => {
   const home = read("apps/mobile/src/homeView.tsx");
-  assert.match(
-    home,
-    /<TruthCell label="WHY"[\s\S]*?onPress=\{aiInsightAvailable \? \(\) => onNavigate\("AiSignal"\) : undefined\}[\s\S]*?actionLabel=\{aiInsightAvailable \? "EVIDENCE →" : undefined\}/,
-  );
-  assert.match(home, /return onPress == null \? content : <Pressable accessibilityRole="button"/);
+  assert.match(home, /const aiInsightAvailable = ai\?\.status === "AVAILABLE" && Boolean\(ai\.thesis\?\.trim\(\)\) && ai\.evidenceReferences\.length > 0/);
+  assert.match(home, /accessibilityHint="AI 시그널 상세 보기"/);
+  assert.match(home, /onPress=\{\(\) => onNavigate\("AiSignal"\)\}/);
+  assert.match(home, /testID="ai-card"/);
+  assert.match(home, /const judgement = aiInsightAvailable \? \(ai\?\.thesis \?\? fallbackJudgement\) : fallbackJudgement/);
 });
 
-test("HOME keeps WHY downstream of NOW and ahead of RESULT", () => {
+test("HOME keeps verified AI judgment ahead of terrain and major indicators", () => {
   const home = read("apps/mobile/src/homeView.tsx");
-  const now = home.indexOf('testID="home-supervisor-now"');
-  const why = home.indexOf('testID="home-supervisor-why"');
-  const result = home.indexOf('testID="home-supervisor-result"');
-  assert.ok(now >= 0 && why >= 0 && result >= 0, "AI-first decision truth cells must exist");
-  assert.ok(now < why && why < result, "HOME scan order must remain NOW → WHY → RESULT");
+  const ai = home.indexOf('testID="ai-card"');
+  const terrain = home.indexOf('testID="home-decision-stage"');
+  const metrics = home.indexOf('testID="home-market-pulse"');
+  assert.ok(ai >= 0 && terrain >= 0 && metrics >= 0, "canonical AI decision flow must exist");
+  assert.ok(ai < terrain && terrain < metrics, "HOME scan order must remain AI judgment → terrain → major indicators");
+  assert.doesNotMatch(home, /<TruthCell label="WHY"/);
+  assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
 });
