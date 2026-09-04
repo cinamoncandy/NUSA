@@ -1,4 +1,4 @@
-import { classifyPriceRegime, DEFAULT_REGIME_CONFIG, type TradingRegime } from "./regimePolicy";
+import { classifyPriceRegime, DEFAULT_REGIME_CONFIG, evaluateStrategyRegime, type TradingRegime } from "./regimePolicy";
 
 export type StrategySignalType = "BUY" | "SELL" | "HOLD";
 
@@ -233,6 +233,144 @@ export class MacdMomentumStrategy implements TradingStrategy {
     this.signalEma = undefined;
     this.previousSpread = undefined;
   }
+}
+
+export class StochasticOscillatorStrategy implements TradingStrategy {
+  readonly id = "stochastic-oscillator";
+  readonly name = "Stochastic Oscillator";
+  private previousPosition?: -1 | 0 | 1;
+
+  constructor(
+    private readonly kPeriod = 14,
+    private readonly dPeriod = 3,
+    private readonly oversold = 20,
+    private readonly overbought = 80,
+  ) {
+    for (const period of [kPeriod, dPeriod]) {
+      if (!Number.isInteger(period) || period < 2) throw new Error("invalid Stochastic period");
+    }
+    if (!(oversold > 0 && oversold < overbought && overbought < 100)) {
+      throw new Error("invalid Stochastic thresholds");
+    }
+  }
+
+  private percentK(closes: readonly number[]): number[] {
+    const output: number[] = [];
+    for (let end = this.kPeriod; end <= closes.length; end += 1) {
+      const window = closes.slice(end - this.kPeriod, end);
+      const lowest = Math.min(...window);
+      const highest = Math.max(...window);
+      output.push(highest === lowest ? 50 : ((closes[end - 1]! - lowest) / (highest - lowest)) * 100);
+    }
+    return output;
+  }
+
+  onTick(tick: MarketTick, context: StrategyContext): StrategySignal {
+    const closes = [...context.prices, tick.price];
+    if (closes.length < this.kPeriod + this.dPeriod - 1) {
+      return { type: "HOLD", reason: "warming-up", confidence: 0, timestamp: tick.timestamp };
+    }
+    const kSeries = this.percentK(closes);
+    const d = kSeries.slice(-this.dPeriod).reduce((total, value) => total + value, 0) / this.dPeriod;
+    const k = kSeries.at(-1)!;
+    const position = k < this.oversold ? -1 : k > this.overbought ? 1 : 0;
+    const prior = this.previousPosition;
+    this.previousPosition = position;
+    if (prior === undefined) {
+      return { type: "HOLD", reason: "baseline-established", confidence: 0, timestamp: tick.timestamp };
+    }
+    const strength = Math.min(1, Math.abs(k - d) / 100 + Math.abs(k - 50) / 100);
+    if (prior === -1 && k >= this.oversold) {
+      return { type: "BUY", reason: "stochastic-recovered-from-oversold", confidence: strength, timestamp: tick.timestamp };
+    }
+    if (prior === 1 && k <= this.overbought) {
+      return { type: "SELL", reason: "stochastic-rejected-from-overbought", confidence: strength, timestamp: tick.timestamp };
+    }
+    return { type: "HOLD", reason: "stochastic-no-signal", confidence: strength, timestamp: tick.timestamp };
+  }
+
+  reset(): void { this.previousPosition = undefined; }
+}
+
+export class DonchianBreakoutStrategy implements TradingStrategy {
+  readonly id = "donchian-breakout";
+  readonly name = "Donchian Breakout";
+  private previousPosition?: -1 | 0 | 1;
+
+  constructor(private readonly channelPeriod = 20) {
+    if (!Number.isInteger(channelPeriod) || channelPeriod < 2) throw new Error("invalid Donchian period");
+  }
+
+  onTick(tick: MarketTick, context: StrategyContext): StrategySignal {
+    const closes = [...context.prices, tick.price];
+    if (closes.length < this.channelPeriod + 1) {
+      return { type: "HOLD", reason: "warming-up", confidence: 0, timestamp: tick.timestamp };
+    }
+    // Breakout is measured against the channel *excluding* the current tick:
+    // a close that merely extends a one-tick spike must not confirm itself.
+    const channel = closes.slice(-(this.channelPeriod + 1), -1);
+    const highest = Math.max(...channel);
+    const lowest = Math.min(...channel);
+    const position = tick.price > highest ? 1 : tick.price < lowest ? -1 : 0;
+    const prior = this.previousPosition;
+    this.previousPosition = position;
+    if (prior === undefined) {
+      return { type: "HOLD", reason: "baseline-established", confidence: 0, timestamp: tick.timestamp };
+    }
+    const range = highest - lowest;
+    const confidence = range > 0 ? Math.min(1, Math.abs(tick.price - (highest + lowest) / 2) / range) : 0;
+    if (prior <= 0 && position === 1) {
+      return { type: "BUY", reason: "close-broke-above-donchian-channel", confidence, timestamp: tick.timestamp };
+    }
+    if (prior >= 0 && position === -1) {
+      return { type: "SELL", reason: "close-broke-below-donchian-channel", confidence, timestamp: tick.timestamp };
+    }
+    return { type: "HOLD", reason: "channel-ride", confidence: 0, timestamp: tick.timestamp };
+  }
+
+  reset(): void { this.previousPosition = undefined; }
+}
+
+/**
+ * Regime-gated wrapper: converts entries (BUY) to HOLD in regimes where the
+ * canonical policy forbids new exposure, while exits (SELL) always pass
+ * through — a risk gate must never trap a position. Blocked regimes are
+ * derived from evaluateStrategyRegime at construction so the gate stays in
+ * sync with policy without duplicating its thresholds. Unknown regimes
+ * (classifier warm-up) pass through: constituent strategies already HOLD
+ * until warmed up.
+ */
+export class RegimeGatedStrategy implements TradingStrategy {
+  readonly id: string;
+  readonly name: string;
+  private readonly blockedRegimes: ReadonlySet<TradingRegime>;
+
+  constructor(
+    private readonly inner: TradingStrategy,
+    blockedRegimes?: readonly TradingRegime[],
+  ) {
+    if (inner == null || typeof inner.onTick !== "function" || typeof inner.reset !== "function") {
+      throw new Error("regime gate requires an inner strategy");
+    }
+    const blocked = blockedRegimes ?? (
+      (["STRONG_UPTREND", "WEAK_UPTREND", "SIDEWAYS", "LOW_VOLATILITY", "HIGH_VOLATILITY", "STRONG_DOWNTREND", "WEAK_DOWNTREND"] as const).filter(
+        (regime) => !evaluateStrategyRegime(inner.id, regime).allowNewExposure
+      )
+    );
+    this.blockedRegimes = new Set(blocked);
+    this.id = `${inner.id}+regime-gate`;
+    this.name = `${inner.name} + Regime Gate`;
+  }
+
+  onTick(tick: MarketTick, context: StrategyContext): StrategySignal {
+    const signal = this.inner.onTick(tick, context);
+    if (signal.type !== "BUY") return signal;
+    const regime = classifyPriceRegime([...context.prices, tick.price], tick.timestamp);
+    if (regime === undefined || !this.blockedRegimes.has(regime)) return signal;
+    return { type: "HOLD", reason: `regime-gated:${regime}`, confidence: 0, timestamp: tick.timestamp };
+  }
+
+  reset(): void { this.inner.reset(); }
 }
 
 export class StrategyEngine {

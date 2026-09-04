@@ -4,9 +4,12 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const {
   BollingerBreakoutStrategy,
+  DonchianBreakoutStrategy,
   MacdMomentumStrategy,
+  RegimeGatedStrategy,
   RsiMeanReversionStrategy,
   SmaCrossoverStrategy,
+  StochasticOscillatorStrategy,
   StrategyEngine,
 } = require("../dist/packages/core/src/strategyEngine.js");
 const { StrategyRegistry } = require("../dist/apps/desktop/src/strategy/strategyRegistry.js");
@@ -16,6 +19,8 @@ const FACTORIES = {
   "rsi-mean-reversion": () => new RsiMeanReversionStrategy(14, 30, 70),
   "bollinger-breakout": () => new BollingerBreakoutStrategy(20, 2),
   "macd-momentum": () => new MacdMomentumStrategy(12, 26, 9),
+  "stochastic-oscillator": () => new StochasticOscillatorStrategy(14, 3, 20, 80),
+  "donchian-breakout": () => new DonchianBreakoutStrategy(20),
 };
 
 function drive(factory, prices, startTimestamp = 1_000) {
@@ -38,9 +43,15 @@ test("newcomers reject invalid construction parameters", () => {
   assert.throws(() => new BollingerBreakoutStrategy(20, 0), /invalid Bollinger multiplier/);
   assert.throws(() => new MacdMomentumStrategy(26, 12, 9), /invalid MACD periods/);
   assert.throws(() => new MacdMomentumStrategy(12, 26, 1), /invalid MACD period/);
+  assert.throws(() => new StochasticOscillatorStrategy(1), /invalid Stochastic period/);
+  assert.throws(() => new StochasticOscillatorStrategy(14, 3, 80, 20), /invalid Stochastic thresholds/);
   assert.equal(new RsiMeanReversionStrategy().id, "rsi-mean-reversion");
   assert.equal(new BollingerBreakoutStrategy().id, "bollinger-breakout");
   assert.equal(new MacdMomentumStrategy().id, "macd-momentum");
+  assert.equal(new StochasticOscillatorStrategy().id, "stochastic-oscillator");
+  assert.equal(new DonchianBreakoutStrategy(20).id, "donchian-breakout");
+  assert.throws(() => new DonchianBreakoutStrategy(1), /invalid Donchian period/);
+  assert.throws(() => new RegimeGatedStrategy(null), /requires an inner strategy/);
 });
 
 test("newcomers hold during warm-up with zero confidence", () => {
@@ -104,6 +115,100 @@ test("MACD buys sustained rallies and sells sustained declines", () => {
   }
 });
 
+test("Stochastic buys oversold recovery and sells overbought rejection", () => {
+  const decline = Array.from({ length: 16 }, (_, index) => 100 - index);
+  const recovery = drive(FACTORIES["stochastic-oscillator"], [...decline, 90, 93, 96]);
+  assert.ok(
+    reasons(recovery).includes("BUY:stochastic-recovered-from-oversold"),
+    `expected stochastic recovery BUY, got ${reasons(recovery).join(",")}`
+  );
+  const rally = Array.from({ length: 16 }, (_, index) => 84 + index);
+  const rejection = drive(FACTORIES["stochastic-oscillator"], [...rally, 94, 91, 88]);
+  assert.ok(
+    reasons(rejection).includes("SELL:stochastic-rejected-from-overbought"),
+    `expected stochastic rejection SELL, got ${reasons(rejection).join(",")}`
+  );
+});
+
+test("Donchian buys channel breakout and sells breakdown at exact ticks", () => {
+  const flat = Array.from({ length: 21 }, () => 100);
+  const breakout = drive(FACTORIES["donchian-breakout"], [...flat, 105]);
+  assert.deepEqual(
+    [breakout.at(-1).type, breakout.at(-1).reason],
+    ["BUY", "close-broke-above-donchian-channel"]
+  );
+  const reset = Array.from({ length: 21 }, () => 105);
+  const breakdown = drive(FACTORIES["donchian-breakout"], [...flat, 105, ...reset, 100]);
+  assert.deepEqual(
+    [breakdown.at(-1).type, breakdown.at(-1).reason],
+    ["SELL", "close-broke-below-donchian-channel"]
+  );
+});
+
+test("regime gate suppresses entries in forbidden regimes but never exits", () => {
+  const alwaysBuy = {
+    id: "stub-always-buy",
+    name: "Stub Always Buy",
+    onTick: (tick) => ({ type: "BUY", reason: "stub", confidence: 1, timestamp: tick.timestamp }),
+    reset: () => {},
+  };
+  const gated = new RegimeGatedStrategy(alwaysBuy);
+  assert.equal(gated.id, "stub-always-buy+regime-gate");
+  assert.equal(gated.name, "Stub Always Buy + Regime Gate");
+  const decline = Array.from({ length: 30 }, (_, index) => 100 - index);
+  const gatedSignals = drive(() => gated, decline);
+  assert.ok(gatedSignals.length > 0);
+  // Classifier warm-up passes through; once the regime resolves, entries stop.
+  assert.ok(gatedSignals.slice(0, 5).every((signal) => signal.type === "BUY"));
+  for (const signal of gatedSignals.slice(-5)) {
+    assert.equal(signal.type, "HOLD");
+    assert.match(signal.reason, /^regime-gated:(STRONG_DOWNTREND|HIGH_VOLATILITY)$/);
+    assert.equal(signal.confidence, 0);
+  }
+  const alwaysSell = {
+    id: "stub-always-sell",
+    name: "Stub Always Sell",
+    onTick: (tick) => ({ type: "SELL", reason: "stub", confidence: 1, timestamp: tick.timestamp }),
+    reset: () => {},
+  };
+  const sellSignals = drive(() => new RegimeGatedStrategy(alwaysSell), decline);
+  assert.ok(sellSignals.every((signal) => signal.type === "SELL"), "gate must never suppress exits");
+});
+
+test("regime gate passes signals when the regime is unknown or allowed", () => {
+  const alwaysBuy = {
+    id: "stub-always-buy",
+    name: "Stub Always Buy",
+    onTick: (tick) => ({ type: "BUY", reason: "stub", confidence: 1, timestamp: tick.timestamp }),
+    reset: () => {},
+  };
+  const short = drive(() => new RegimeGatedStrategy(alwaysBuy), [100, 101, 102]);
+  assert.ok(short.every((signal) => signal.type === "BUY"), "unknown regime must pass through");
+  const custom = new RegimeGatedStrategy(alwaysBuy, ["SIDEWAYS"]);
+  const sideways = Array.from({ length: 30 }, (_, index) => 100 + ((index % 2 === 0) ? 0.05 : -0.05));
+  const { classifyPriceRegime } = require("../dist/packages/core/src/regimePolicy.js");
+  assert.equal(
+    classifyPriceRegime(sideways, 2_000),
+    "SIDEWAYS",
+    "fixture must produce SIDEWAYS or the gate assertion below is vacuous"
+  );
+  const customSignals = drive(() => custom, sideways);
+  assert.equal(customSignals.at(-1).type, "HOLD");
+  assert.equal(customSignals.at(-1).reason, "regime-gated:SIDEWAYS");
+});
+
+test("regime gate delegates reset to the inner strategy", () => {
+  let resets = 0;
+  const inner = {
+    id: "stub",
+    name: "stub",
+    onTick: (tick) => ({ type: "HOLD", reason: "stub", confidence: 0, timestamp: tick.timestamp }),
+    reset: () => { resets += 1; },
+  };
+  new RegimeGatedStrategy(inner).reset();
+  assert.equal(resets, 1);
+});
+
 test("newcomers re-establish baseline after reset", () => {
   const series = Array.from({ length: 45 }, (_, index) => 100 + Math.sin(index) * 5 + index * 0.2);
   for (const [id, create] of Object.entries(FACTORIES)) {
@@ -124,6 +229,8 @@ test("newcomers register as PAPER strategies with zero execution authority", () 
     "rsi-mean-reversion": { name: "RSI Mean Reversion", requiredHistory: 15 },
     "bollinger-breakout": { name: "Bollinger Breakout", requiredHistory: 20 },
     "macd-momentum": { name: "MACD Momentum", requiredHistory: 35 },
+    "stochastic-oscillator": { name: "Stochastic Oscillator", requiredHistory: 16 },
+    "donchian-breakout": { name: "Donchian Breakout", requiredHistory: 21 },
   };
   for (const [id, meta] of Object.entries(descriptors)) {
     registry.register({
@@ -140,7 +247,7 @@ test("newcomers register as PAPER strategies with zero execution authority", () 
       create: FACTORIES[id],
     });
   }
-  assert.equal(registry.size(), 3);
+  assert.equal(registry.size(), 5);
   for (const id of Object.keys(descriptors)) {
     const descriptor = registry.require(id, "1.0.0").descriptor;
     assert.equal(descriptor.executionAuthority, "NONE");
