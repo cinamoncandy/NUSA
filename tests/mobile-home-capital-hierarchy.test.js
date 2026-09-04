@@ -7,18 +7,21 @@ const home = fs.readFileSync(path.join(process.cwd(), "apps/mobile/src/homeView.
 const decisionSurface = fs.readFileSync(path.join(process.cwd(), "apps/mobile/src/homeDecisionSurface.ts"), "utf8");
 const portfolio = fs.readFileSync(path.join(process.cwd(), "apps/mobile/src/portfolioView.tsx"), "utf8");
 
-test("HOME presents truthful PAPER equity and today PnL in the canonical asset hero", () => {
+test("HOME presents truthful canonical PAPER equity and PnL", () => {
   assert.match(home, /testID="account-hero-card"/);
-  assert.match(home, />총 자산<\/Text>/);
-  assert.match(home, /const equity = account\?\.equity \?\? null/);
+  assert.match(home, />EQUITY<\/Text>/);
+  assert.match(home, />P&L<\/Text>/);
+  assert.match(home, /const account = snapshot\?\.portfolio\?\.account \?\? localPortfolio\?\.account \?\? null/);
   assert.match(home, /const totalPnl = account == null \? null : \(account\.realizedPnl \?\? account\.position\.realizedPnl\) \+ account\.unrealizedPnl/);
-  assert.match(home, /const dayPnlRate = equity != null && equity !== 0 && totalPnl != null \? totalPnl \/ equity : null/);
+  assert.match(home, /paperEquity: account\?\.equity/);
+  assert.match(home, /paperTotalPnl: totalPnl/);
   assert.match(decisionSurface, /PAPER P&L .*EQUITY/);
-  assert.doesNotMatch(home, /label="RESULT" value=\{supervisorResult\}/);
+  assert.match(home, /testID="home-supervisor-result"/);
 });
 
-test("capital allocation constraints remain actionable in PAPER portfolio/trading without cluttering canonical HOME", () => {
-  assert.doesNotMatch(home, /testID="home-capital-limits"/);
+test("capital allocation constraints remain visible and PAPER-only", () => {
+  assert.match(home, /const cashEnvelope = account == null \? null : createCashInvestmentEnvelope\(account\.cash, investmentPercent\)/);
+  assert.match(home, /testID="home-capital-limits"/);
   assert.match(portfolio, /portfolio-investable-cash/);
   assert.match(home, /readonly investmentPercent: number/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
