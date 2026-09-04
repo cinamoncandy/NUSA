@@ -13,8 +13,10 @@ test("HOME is visibly AI-first instead of the prior stacked supervisor screen", 
   assert.match(home, /AI INSIGHT \/ SIGNAL TERRAIN/);
   assert.match(home, />NOW<\/Text>/);
   assert.match(home, /testID="home-signal-trace"/);
-  assert.match(home, /terminalSignal = theme\.mode === "dark" \? "#C8FF48"/);
-  assert.match(home, /counterSignal = theme\.mode === "dark" \? "#FF4B9B"/);
+  assert.match(home, /terminalSignal = theme\.colors\.success/);
+  assert.match(home, /counterSignal = theme\.colors\.danger/);
+  assert.doesNotMatch(home, /terminalSignal = theme\.mode === "dark" \? "#/);
+  assert.doesNotMatch(home, /counterSignal = theme\.mode === "dark" \? "#/);
   assert.match(home, /function TruthCell/);
   assert.match(home, /label="WHY"/);
   assert.match(home, /label="RESULT"/);
