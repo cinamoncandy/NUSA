@@ -50,6 +50,22 @@ test("invalid transitions and duplicate fill events fail closed", async () => {
   assert.equal(repo.fills(record.executionId).length, 1);
 });
 
+test("fills in different decimal scales still complete", async () => {
+  const port = new FakeExchangeExecutionPort({ status: "ACCEPTED", exchangeOrderId: "order-9" });
+  const repo = new InMemoryExecutionRepository();
+  const service = new ExecutionService(repo, port, true);
+  let record = await service.createIntent(intent({ requestedQuantity: "2.5" }));
+  record = await service.approveRisk(record.executionId, "risk-9");
+  record = await service.queue(record.executionId);
+  record = await service.submit(record.executionId);
+  assert.equal(record.state, "ACCEPTED");
+  const partial = await service.addFill({ fillId: "fill-1", executionId: record.executionId, exchangeTradeId: "trade-1", quantity: "1.50", price: "100", fee: null, feeCurrency: null, executedAt: record.createdAt });
+  assert.equal(partial.state, "PARTIALLY_FILLED");
+  const filled = await service.addFill({ fillId: "fill-2", executionId: record.executionId, exchangeTradeId: "trade-2", quantity: "1.0", price: "100", fee: null, feeCurrency: null, executedAt: record.createdAt });
+  assert.equal(filled.state, "FILLED");
+  assert.equal(filled.filledQuantity, "2.50");
+});
+
 test("transition table includes reconciliation and unknown-submission recovery without resubmission", () => {
   const table = allowedExecutionTransitions();
   assert.deepEqual(table.SUBMISSION_UNKNOWN, ["ACCEPTED", "PARTIALLY_FILLED", "FILLED", "REJECTED", "RECONCILIATION_REQUIRED"]);

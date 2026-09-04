@@ -3,6 +3,8 @@ const { spawn } = require("node:child_process");
 const DEFAULT_INITIAL_BACKOFF_MS = 1_000;
 const DEFAULT_MAX_BACKOFF_MS = 30_000;
 const DEFAULT_STABLE_WINDOW_MS = 60_000;
+const DEFAULT_MAX_RESTARTS = 10;
+const DEFAULT_MAX_RESTART_WINDOW_MS = 600_000;
 
 function boundedBackoffMs(attempt, initialMs = DEFAULT_INITIAL_BACKOFF_MS, maxMs = DEFAULT_MAX_BACKOFF_MS) {
   if (!Number.isSafeInteger(attempt) || attempt < 0) throw new Error("supervisor attempt must be a non-negative safe integer");
@@ -43,6 +45,13 @@ class PaperRuntimeProcessSupervisor {
     this.initialBackoffMs = options.initialBackoffMs ?? DEFAULT_INITIAL_BACKOFF_MS;
     this.maxBackoffMs = options.maxBackoffMs ?? DEFAULT_MAX_BACKOFF_MS;
     this.stableWindowMs = options.stableWindowMs ?? DEFAULT_STABLE_WINDOW_MS;
+    this.maxRestarts = options.maxRestarts ?? DEFAULT_MAX_RESTARTS;
+    this.maxRestartWindowMs = options.maxRestartWindowMs ?? DEFAULT_MAX_RESTART_WINDOW_MS;
+    if (!Number.isSafeInteger(this.maxRestarts) || this.maxRestarts < 1) throw new Error("SUPERVISOR_RESTART_BUDGET_UNBOUNDED: maxRestarts must be a positive safe integer");
+    if (!Number.isSafeInteger(this.maxRestartWindowMs) || this.maxRestartWindowMs < this.initialBackoffMs) throw new Error("SUPERVISOR_RESTART_WINDOW_INVALID: maxRestartWindowMs must cover at least one backoff");
+    this.unstableWindowStartMs = null;
+    this.unstableStreak = 0;
+    this.gaveUp = false;
     this.command = options.command ?? process.execPath;
     this.args = options.args ?? ["scripts/start-cloud-runtime.js"];
     this.child = null;
@@ -57,7 +66,7 @@ class PaperRuntimeProcessSupervisor {
   snapshot() {
     return Object.freeze({
       mode: "PAPER_ONLY",
-      status: this.stopping ? "STOPPING" : this.child == null ? (this.restartTimer == null ? "OFFLINE" : "RECOVERING") : "RUNNING",
+      status: this.stopping ? "STOPPING" : this.gaveUp ? "FAILED" : this.child == null ? (this.restartTimer == null ? "OFFLINE" : "RECOVERING") : "RUNNING",
       restartAttempt: this.restartAttempt,
       restartCount: this.restartCount,
       startedAt: this.startedAt,
@@ -71,6 +80,13 @@ class PaperRuntimeProcessSupervisor {
   start() {
     if (this.stopping) throw new Error("PAPER_RUNTIME_SUPERVISOR_STOPPING");
     if (this.child != null || this.restartTimer != null) return this.snapshot();
+    if (this.gaveUp) {
+      this.gaveUp = false;
+      this.restartAttempt = 0;
+      this.unstableStreak = 0;
+      this.unstableWindowStartMs = null;
+      this.write("[paper-supervisor] manual restart after FAILED; restart budget restored\n");
+    }
     this.launch();
     return this.snapshot();
   }
@@ -113,7 +129,22 @@ class PaperRuntimeProcessSupervisor {
     this.child = null;
     if (this.stopping) return;
 
-    if (uptimeMs >= this.stableWindowMs) this.restartAttempt = 0;
+    // Consecutive unstable exits consume the restart budget; a stable run
+    // restores it in full. restartAttempt keeps its legacy backoff meaning
+    // (and snapshot shape); unstableStreak counts budget consumption.
+    if (uptimeMs >= this.stableWindowMs) {
+      this.restartAttempt = 0;
+      this.unstableStreak = 0;
+      this.unstableWindowStartMs = null;
+    } else {
+      if (this.unstableWindowStartMs == null) this.unstableWindowStartMs = exitedAt;
+      this.unstableStreak += 1;
+    }
+    if (this.unstableStreak > this.maxRestarts || (this.unstableWindowStartMs != null && exitedAt - this.unstableWindowStartMs >= this.maxRestartWindowMs)) {
+      this.gaveUp = true;
+      this.write(`[paper-supervisor] restart budget exhausted after ${this.restartCount} restarts; FAILED, manual start() required\n`);
+      return;
+    }
     const delay = boundedBackoffMs(this.restartAttempt, this.initialBackoffMs, this.maxBackoffMs);
     this.restartAttempt += 1;
     this.restartCount += 1;
