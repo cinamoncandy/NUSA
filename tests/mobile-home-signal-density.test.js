@@ -6,10 +6,11 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-test("HOME keeps the signal terrain compact on phones while preserving tablet depth", () => {
+test("HOME keeps the AI signal terrain compact while preserving tablet-aware information density", () => {
   const home = read("apps/mobile/src/homeView.tsx");
   assert.match(home, /const tablet = width >= 768;/);
-  assert.match(home, /styles\.terrainHero, \{ height: tablet \? 300 : 220 \}/);
+  assert.match(home, /heroSignal: \{ height: 228,/);
+  assert.match(home, /\.slice\(0, tablet \? 5 : 3\);/);
 });
 
 test("HOME AI-first hierarchy leads with signal terrain before the evidence truth rail", () => {
