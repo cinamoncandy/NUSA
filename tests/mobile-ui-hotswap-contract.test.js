@@ -18,45 +18,41 @@ test("classic and master presets remain materially distinct visual systems", () 
   assert.match(profile, /master:[\s\S]*?balanceSize:\s*44/);
 });
 
-test("HomeView presents the approved canonical master-board composition instead of the retired terminal deck", () => {
+test("HomeView presents the approved canonical autonomous-intelligence composition", () => {
   const home = read("apps/mobile/src/homeView.tsx");
 
   assert.match(home, /useWindowDimensions/);
-  assert.match(home, /const contentWidth = tablet \? 760 : 560/);
+  assert.match(home, /const tablet = width >= 768/);
+  assert.match(home, /maxWidth: tablet \? Math\.max\(profile\.screen\.maxWidth, 980\) : profile\.screen\.maxWidth/);
   assert.match(home, /testID="home-screen"/);
   assert.match(home, /testID="home-master-rail"/);
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /testID="ai-card"/);
+  assert.match(home, /testID="home-decision-stage"/);
   assert.match(home, /testID="home-signal-trace"/);
   assert.match(home, /testID="home-market-pulse"/);
   assert.match(home, /testID="home-paper-learning"/);
   assert.match(home, /testID="home-reference-navigation"/);
-  assert.match(home, />총 자산<\/Text>/);
-  assert.match(home, />NUSA AI 판단<\/Text>/);
-  assert.match(home, />주요 지표<\/Text>/);
+  assert.match(home, /AUTONOMOUS INVESTMENT INTELLIGENCE/);
+  assert.match(home, /AI INSIGHT \/ SIGNAL TERRAIN/);
+  assert.match(home, /testID="home-supervisor-summary"/);
+  assert.match(home, /<SupervisorProgressPanel/);
+  assert.match(home, /getHomeVisualProfile\(theme\.preset\)/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
-
-  assert.doesNotMatch(home, /getHomeVisualProfile\(theme\.preset\)/);
-  assert.doesNotMatch(home, /AI INSIGHT \/ SIGNAL TERRAIN/);
-  assert.doesNotMatch(home, /testID="home-terminal-grid"/);
-  assert.doesNotMatch(home, /testID="home-supervisor-summary"/);
-  assert.doesNotMatch(home, /<SupervisorProgressPanel/);
 });
 
 test("canonical HOME uses verified market and PAPER data without fabricating unavailable feeds", () => {
   const home = read("apps/mobile/src/homeView.tsx");
   const app = read("apps/mobile/App.tsx");
 
-  assert.match(home, /selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)/);
+  assert.match(home, /const marketFeed = selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)/);
   assert.match(home, /publicMarkets: readonly WatchlistMarket\[\] \| null/);
-  assert.match(home, /const marketRows = \[\.\.\.selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)\][\s\S]*\.slice\(0, 3\)/);
-  assert.match(home, /market \? krw\(market\.price\) : "—"/);
-  assert.match(home, /signedPercent\(market\?\.changeRate \?\? null\)/);
+  assert.match(home, /const marketRows = \[\.\.\.marketFeed\][\s\S]*\.slice\(0, tablet \? 5 : 3\)/);
   assert.match(home, /snapshot\?\.portfolio\?\.account \?\? localPortfolio\?\.account \?\? null/);
   assert.match(home, /buildLocalPortfolio\(localTradingSnapshot, localMarkPrice\)/);
+  assert.match(home, /buildChartViewModel\(\{/);
+  assert.match(home, /rawCandles: publicCandles === null \? null : \[\.\.\.publicCandles\]/);
   assert.match(home, /testID="home-operational-notice"/);
-  assert.match(home, /onPress=\{onGoSettings\}/);
-  assert.doesNotMatch(home, /<OperationalNotice/);
 
   assert.match(app, /publicMarket=\{CHART_MARKET\}/);
   assert.match(app, /publicMarkets=\{publicMarkets\.markets\}/);
@@ -73,11 +69,12 @@ test("canonical HOME uses verified market and PAPER data without fabricating una
 
 test("HOME rendered financial values keep stable tabular numerals", () => {
   const home = read("apps/mobile/src/homeView.tsx");
-  assert.match(home, /balance:[^\n]*fontVariant:\s*\["tabular-nums"\]/);
-  assert.match(home, /dayChange:[^\n]*fontVariant:\s*\["tabular-nums"\]/);
-  assert.match(home, /metricPrice:[^\n]*fontVariant:\s*\["tabular-nums"\]/);
-  assert.match(home, /metricChange:[^\n]*fontVariant:\s*\["tabular-nums"\]/);
-  assert.match(home, /confidenceValue:[^\n]*fontVariant:\s*\["tabular-nums"\]/);
+  assert.match(home, /truthValue:[^\n]*fontVariant:\s*\["tabular-nums"\]/);
+  assert.match(home, /marketPrice:[^\n]*fontVariant:\s*\["tabular-nums"\]/);
+  assert.match(home, /marketChange:[^\n]*fontVariant:\s*\["tabular-nums"\]/);
+  assert.match(home, /metricNumber:[^\n]*fontVariant:\s*\["tabular-nums"\]/);
+  assert.match(home, /cashValue:[^\n]*fontVariant:\s*\["tabular-nums"\]/);
+  assert.match(home, /dataValue:[^\n]*fontVariant:\s*\["tabular-nums"\]/);
 });
 
 test("fresh or stale installs converge on the canonical master preset", () => {
