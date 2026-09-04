@@ -19,6 +19,10 @@ function fixture() {
     '<section data-simple-page="orders" hidden>ord</section>' +
     '<div data-simple-connection><span class="simple-status-dot"></span></div>' +
     '<div id="simple-page-content" tabindex="-1"></div>' +
+    '<button data-simple-settings-save>save</button>' +
+    '<button data-simple-settings-reset>reset</button>' +
+    '<div data-simple-settings-message></div>' +
+    '<input data-simple-setting="theme" value="SYSTEM" />' +
     "</div>";
 }
 
@@ -34,6 +38,8 @@ function mount() {
 
 afterEach(() => {
   vi.useRealTimers();
+  delete window.nusaApp;
+  delete window.confirm;
 });
 
 describe("app runtime mount", () => {
@@ -84,5 +90,33 @@ describe("app runtime mount", () => {
     expect(ui.state.pendingOrder).toBeNull();
     document.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     expect(ui.state.pendingOrder).toBeNull();
+  });
+
+  it("resets settings only after confirmation", async () => {
+    mount();
+    let resetCalls = 0;
+    window.nusaApp = {
+      resetSettings: async () => { resetCalls += 1; },
+      settings: async () => ({ settings: { theme: "DARK" } }),
+    };
+    const message = () => document.querySelector("[data-simple-settings-message]").textContent;
+    window.confirm = () => false;
+    document.querySelector("[data-simple-settings-reset]").click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(resetCalls).toBe(0);
+    window.confirm = () => true;
+    document.querySelector("[data-simple-settings-reset]").click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(resetCalls).toBe(1);
+    expect(message().length).toBeGreaterThan(0);
+    delete window.confirm;
+  });
+
+  it("reports unavailable save bridge without throwing", async () => {
+    mount();
+    expect(window.nusaApp).toBeUndefined();
+    document.querySelector("[data-simple-settings-save]").click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(document.querySelector("[data-simple-settings-message]").textContent.length).toBeGreaterThan(0);
   });
 });
