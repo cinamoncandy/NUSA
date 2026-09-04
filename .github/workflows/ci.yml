@@ -129,9 +129,10 @@ jobs:
       - name: Restricted LIVE regression tests
         run: node --test --test-reporter=spec tests/restricted-live-governance.test.js tests/restricted-live-operational-readiness.test.js
       - name: Restricted LIVE operational readiness verification
+        id: restricted-live-readiness
         run: pnpm run restricted-live:readiness -- --output artifacts/operational-evidence/restricted-live-readiness.json
       - name: Upload Restricted LIVE readiness evidence
-        if: always()
+        if: always() && steps.restricted-live-readiness.conclusion == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: restricted-live-operational-readiness-evidence
@@ -141,9 +142,10 @@ jobs:
       - name: Operational evidence harness regression tests
         run: node --test --test-reporter=spec tests/operational-evidence-harness.test.js
       - name: PAPER runtime operational verification
+        id: paper-runtime-verification
         run: pnpm run verify:paper-runtime -- --output artifacts/operational-evidence/paper-runtime.json
       - name: Upload PAPER runtime operational evidence
-        if: always()
+        if: always() && steps.paper-runtime-verification.conclusion == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: paper-runtime-operational-evidence
