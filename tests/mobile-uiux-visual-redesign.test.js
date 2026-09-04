@@ -21,20 +21,32 @@ test("visual redesign has a distinct NUSA surface and financial hierarchy", () =
   assert.match(primitives, /borderRadius: 999, borderWidth: 1, gap: 3/);
 });
 
-test("Home uses one truthful supervisor result plus one state-bound signal primitive", () => {
+test("Home uses the approved AI judgment plus one state-bound terrain primitive", () => {
   const home = read("src/homeView.tsx");
   const decisionSurface = read("src/homeDecisionSurface.ts");
   const components = read("src/components.tsx");
-  assert.match(home, /testID="home-supervisor-summary"/);
-  assert.match(home, /testID="home-supervisor-result"/);
-  assert.match(home, /const supervisorResult = decisionSurface\.result/);
-  assert.match(decisionSurface, /`PAPER P&L .* · EQUITY \$\{krw\(input\.paperEquity\)\}`/s);
-  assert.match(home, /testID="home-paper-performance"/);
+
+  assert.match(home, /testID="account-hero-card"/);
+  assert.match(home, /testID="ai-card"/);
+  assert.match(home, />NUSA AI 판단<\/Text>/);
+  assert.match(home, />신뢰도<\/Text>/);
+  assert.match(home, /const terrainStrength = aiInsightAvailable \? 0\.95 : snapshot \? 0\.58 : 0\.34/);
+  assert.match(home, /signalStrength=\{terrainStrength\}/);
+  assert.match(home, /testID="home-signal-trace"/);
+  assert.match(home, /testID="home-market-pulse"/);
+  assert.match(home, />주요 지표<\/Text>/);
+  assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
+
+  assert.doesNotMatch(home, /testID="home-supervisor-summary"/);
+  assert.doesNotMatch(home, /testID="home-supervisor-result"/);
+  assert.doesNotMatch(home, /const supervisorResult = decisionSurface\.result/);
+  assert.doesNotMatch(home, /testID="home-paper-performance"/);
   assert.doesNotMatch(home, />TOTAL EQUITY</);
   assert.doesNotMatch(home, />CUMULATIVE PAPER P&L</);
-  assert.match(home, /const terrainStrength = signalReady \? 0\.92 : snapshot \? 0\.45 : 0\.25/);
-  assert.match(home, /const terrainLabel = aiInsightAvailable/);
-  assert.match(home, /<TerrainSignal variant="symbolic" signalStrength=\{terrainStrength\} accessibilityLabel=\{terrainLabel\} testID="home-signal-trace" \/>/);
+
+  // The fail-closed decision projection remains valid for downstream consumers even though
+  // the approved HOME presentation no longer renders the retired supervisor deck.
+  assert.match(decisionSurface, /`PAPER P&L .* · EQUITY \$\{krw\(input\.paperEquity\)\}`/s);
   assert.match(components, /accessibilityLabel=\{accessibilityLabel \?\? \(variant === "market" \? "실제 시장 데이터에 연결된 시그널" : "NUSA 상태 시그널"\)/);
 });
 
