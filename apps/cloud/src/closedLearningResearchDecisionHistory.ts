@@ -1,10 +1,6 @@
 import type { ResearchFactoryDecisionHistoryRecord, ResearchFactoryDecisionHistoryState } from "../../../packages/contracts/src/researchFactoryDecisionHistory";
 import type { SqliteDatabase } from "../../../packages/storage/src/index";
-import { runExtensionMigrations } from "../../../packages/storage/src/migrationRunner";
-import {
-  researchFactoryDecisionHistoryMigration,
-  SqliteResearchFactoryDecisionHistoryRepository,
-} from "../../../packages/storage/src/researchFactoryDecisionHistoryRepository";
+import { SqliteResearchFactoryDecisionHistoryRepository } from "../../../packages/storage/src/researchFactoryDecisionHistoryRepository";
 import type { ClosedLearningResearchReplayResult } from "./closedLearningResearchWorkerClient";
 
 export interface ClosedLearningResearchDecisionHistoryPersistResult {
@@ -64,7 +60,6 @@ export class ClosedLearningResearchDecisionHistory {
   private readonly repository: SqliteResearchFactoryDecisionHistoryRepository;
 
   public constructor(database: SqliteDatabase) {
-    runExtensionMigrations(database.connection, [researchFactoryDecisionHistoryMigration]);
     this.repository = new SqliteResearchFactoryDecisionHistoryRepository(database);
   }
 
