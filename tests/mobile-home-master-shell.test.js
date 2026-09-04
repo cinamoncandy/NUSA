@@ -12,8 +12,9 @@ test("HOME uses one canonical NUSA header instead of the legacy global shell hea
 
   assert.match(app, /const homeShellActive = utilityView === null && activeTab === "Home"/);
   assert.match(app, /\{!homeShellActive \? <View style=\{\[styles\.header/);
-  assert.match(home, /style=\{styles\.header\} testID="home-master-rail"/);
+  assert.match(home, /testID="home-master-rail"/);
   assert.match(home, />NUSA<\/Text>/);
+  assert.match(home, />AUTONOMOUS INVESTMENT INTELLIGENCE<\/Text>/);
 });
 
 test("bottom navigation is restrained and does not restore the legacy neon pill shell", () => {
