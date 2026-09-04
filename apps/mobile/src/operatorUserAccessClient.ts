@@ -24,10 +24,24 @@ async function checked(response: Response): Promise<Record<string, unknown>> {
   return payload;
 }
 
+function validRecord(value: unknown): value is OperatorUserRecord {
+  if (value == null || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.id === "string" && record.id.length > 0
+    && typeof record.email === "string" && record.email.length > 0
+    && (record.role === "OWNER" || record.role === "USER")
+    && (record.status === "PENDING" || record.status === "ACTIVE" || record.status === "REJECTED" || record.status === "SUSPENDED");
+}
+
 export async function loadOperatorUsers(baseUrl: string, token: string): Promise<OperatorUserAccessSnapshot> {
   if (!token.trim()) throw new Error("운영자 토큰이 필요합니다.");
   const payload = await checked(await fetch(endpoint(baseUrl), { method: "GET", headers: { Authorization: `Bearer ${token.trim()}`, Accept: "application/json" } }));
-  return Object.freeze({ users: Object.freeze(Array.isArray(payload.users) ? payload.users as OperatorUserRecord[] : []) });
+  // An empty or malformed user list must never render as a valid empty state:
+  // fail closed so the operator sees an error instead of missing approvals.
+  if (!Array.isArray(payload.users) || !payload.users.every(validRecord)) {
+    throw new Error("운영자 목록 응답이 올바르지 않습니다.");
+  }
+  return Object.freeze({ users: Object.freeze(payload.users as OperatorUserRecord[]) });
 }
 
 export async function changeOperatorUserStatus(baseUrl: string, token: string, targetUserId: string, action: OperatorUserAction): Promise<void> {
