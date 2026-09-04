@@ -29,7 +29,7 @@ test("shipped Settings surface carries the build seal", () => {
 
 test("App passes its verified session into TradingView", () => {
   const app = read("apps/mobile/App.tsx");
-  assert.match(app, /<TradingView credentialSession=\{credentialSession\}/);
+  assert.match(app, /<TradingView error=\{readOnlyError\} credentialSession=\{credentialSession\}/);
   const trading = read("apps/mobile/src/tradingView.tsx");
   assert.match(trading, /credentialSession\?: InMemoryDashboardCredentialSession/);
   assert.match(trading, /props\.credentialSession \?\? fallbackSession/);
