@@ -109,6 +109,28 @@ Before changing code:
 - Do not claim tests passed unless they were actually run or CI confirms them.
 - Update AIPOS state whenever architecture, scope, current work, or next work changes.
 
+## Mobile UI delivery truth
+
+Mobile UI work has four distinct delivery states. They are not interchangeable:
+
+- `BRANCH_IMPLEMENTED`: the UI exists only on a feature branch.
+- `MAIN_MERGED`: the exact UI commit is reachable from protected `main`, but no installed-device claim is allowed yet.
+- `STABLE_RELEASED`: the canonical `nusa-android` stable release targets the exact protected-main SHA that contains the UI change, and the APK was built with that exact source identity.
+- `DEVICE_VERIFIED`: the owner/device is running the intended stable APK and the packaged build SHA has been observed on the device; only this state may be described as installed, visible on device, or applied to the owner's phone.
+
+Never describe `BRANCH_IMPLEMENTED` or `MAIN_MERGED` work as installed, deployed, visible on device, or applied to the owner's phone. Never infer device state from branch state, PR state, CI success, merge success, Firebase distribution, or GitHub Release publication alone.
+
+For Android UI work, every agent must verify and report these identities separately when relevant:
+
+1. implementation branch/head SHA,
+2. protected `main` SHA,
+3. canonical `nusa-android.target_commitish`,
+4. packaged/installed `BUILD_SOURCE_SHA` when device evidence exists.
+
+A mobile UI task may only be marked completed as an installed-device outcome after all four identities converge as required by the work order. If physical-device evidence is unavailable, report the highest verified state explicitly and leave device verification `HUMAN_ENVIRONMENT_ONLY`.
+
+The canonical Android app must keep visible build identity and stale-install detection. The stable-release watchdog must converge to exact protected `main`; path-diff shortcuts that allow a stale stable target are prohibited. Stable APK version identity must remain monotonic and source-bound.
+
 ## PR and CI noise prevention
 
 These rules are mandatory for every AI coding agent and are specifically intended to prevent repeated failing GitHub Actions runs and notification spam.
@@ -151,6 +173,8 @@ A task is complete only when:
 - safety boundaries are preserved,
 - documentation and AIPOS state are updated,
 - no known critical issue is hidden.
+
+For mobile UI work, "complete" does not imply `DEVICE_VERIFIED` unless the Mobile UI delivery truth requirements above have been satisfied and recorded.
 
 ## Current priority
 
