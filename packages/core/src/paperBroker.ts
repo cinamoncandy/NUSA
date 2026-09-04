@@ -204,7 +204,14 @@ export class PaperBroker {
       if (this.position.quantity === 0) this.position.averagePrice = 0;
       this.orders = restoredState.orders.map((order) => ({ ...order }));
       this.ledger = (restoredState.ledger ?? []).map((entry) => ({ ...entry }));
-      if (this.ledger.length > 0) this.projectFromLedger(this.ledger[0].cashBefore);
+      if (this.ledger.length > 0) {
+        this.projectFromLedger(this.ledger[0].cashBefore);
+        // The ledger replay must agree with the snapshotted cash: a divergence
+        // means a tampered or half-written state, never honest float dust, so
+        // restore fails closed instead of silently adopting one side.
+        const tolerance = Math.max(1e-9 * Math.max(Math.abs(this.cash), Math.abs(restoredState.cash), 1), 1e-12);
+        if (Math.abs(this.cash - restoredState.cash) > tolerance) throw new Error("PERSISTENCE_UNHEALTHY: paper ledger replay diverges from snapshotted cash");
+      }
     } else {
       this.cash = initialCash;
       this.feeRate = feeRate;
