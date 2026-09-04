@@ -104,11 +104,37 @@ if (files.length === 0) {
   throw new Error('AI_ZERO_AUTHORITY_GUARD: no AI runtime files found');
 }
 
+// Meta-guard: any *new* AI directory outside the scanned roots fails closed
+// instead of silently escaping the guard. `packages/aipos` (continuity
+// contract, not AI runtime) is intentionally not an `ai` directory.
+const coveredRoots = scanRoots.map((dir) => dir + path.sep);
+const uncoveredAiDirs = [];
+function collectUncoveredAiDirs(dir) {
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === 'dist') continue;
+    const full = path.join(dir, entry.name);
+    if (entry.name.toLowerCase() === 'ai' && !coveredRoots.some((covered) => (full + path.sep).startsWith(covered))) {
+      uncoveredAiDirs.push(path.relative(root, full).replace(/\\/g, '/'));
+    }
+    collectUncoveredAiDirs(full);
+  }
+}
+for (const top of ['apps', 'packages', 'services']) collectUncoveredAiDirs(path.join(root, top));
 const source = files.map((full) => ({
   name: path.relative(root, full).replace(/\\/g, '/'),
   text: fs.readFileSync(full, 'utf8'),
 }));
 const violations = [];
+for (const dir of uncoveredAiDirs.sort()) {
+  violations.push(`${dir}: AI directory outside guard scan roots (register it in scanRoots or justify the exclusion)`);
+}
 let astParsed = 0;
 let regexFallback = 0;
 
