@@ -80,10 +80,13 @@ function parseRevocation(record: EvolutionRecord): PaperChallengerRevocationRece
 }
 
 function lifecycle(ledger: EvolutionLedgerPort): readonly (PaperChallengerActivationReceipt | PaperChallengerRevocationReceipt)[] {
-  return Object.freeze(ledger.list().flatMap((record) => {
+  const events: (PaperChallengerActivationReceipt | PaperChallengerRevocationReceipt)[] = [];
+  for (const record of ledger.list()) {
     const kind = eventKind(record);
-    return kind === "ACTIVE" ? [parseActivation(record)] : kind === "REVOKED" ? [parseRevocation(record)] : [];
-  }));
+    if (kind === "ACTIVE") events.push(parseActivation(record));
+    else if (kind === "REVOKED") events.push(parseRevocation(record));
+  }
+  return Object.freeze(events);
 }
 
 /**
