@@ -76,8 +76,12 @@ the 3 tiers: `validate-package.js`, `validate-windows-package.js`,
   Existing coverage steps are untouched.
 - Critical-path aggregate floors (`criticalFloors` in the same file) guard
   ledger/accounting/portfolio/recovery/risk/market/strategy/execution/order
-  modules against targeted erosion that totals would hide. Per-module floors are
-  deliberately absent (they would turn every new file into a gate change).
+  modules against targeted erosion that totals would hide.
+- Pinned per-module floors (`moduleFloors`: 10 safety-critical modules,
+  lines+branches ~5 points below measured) close the remaining hole: a single
+  module collapsing while totals and the aggregate still pass. Each entry must
+  match exactly one summary module; zero or ambiguous matches fail explicitly
+  so renames force a floors update instead of silently passing.
 - Renderer 0% triage (2026-09-04 baseline): the ten 0% renderer files
   (`app-*.js`, `brand-ui.js`, `component-library.js`, `components.stories.js`,
   `mobile-view-model.js`, `product-screens.js`, `renderer.js`, `theme-provider.js`)
