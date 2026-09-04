@@ -3,12 +3,19 @@ import { readCloudRuntimeConfig } from "./cloudRuntimeConfig";
 import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { SqliteCloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
 import { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
+import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, type PaperAccountState } from "./paperTradingExecutionLoop";
 import { createCloudAiRuntime } from "./ai/runtime";
 import { registerGracefulShutdown, startCloudRuntime, type CloudRuntimeHandle } from "./runtime";
 
 export interface ClosedLearningProductionComposition {
   readonly handle: CloudRuntimeHandle;
   readonly challengerBindings: PaperChallengerBindingLedger;
+  /**
+   * Read-only view of the exact canonical PAPER loop owned by this production process.
+   * Closed-learning evidence consumers use this instead of opening a second account repository
+   * or acquiring a competing writer lease.
+   */
+  readonly readCanonicalPaperAccount: () => PaperAccountState | undefined;
 }
 
 /**
@@ -26,20 +33,34 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   const learningLedger = new SqliteEvolutionLearningLedger(database);
   const challengerBindings = new PaperChallengerBindingLedger(learningLedger);
   const dashboardHydrator = new CloudRuntimeDashboardHydrator({ paperCandidateBindingProvider: challengerBindings });
+
+  // Own the canonical PAPER repository/loop at this composition root so the same process can
+  // supply restart-safe candidate performance evidence without opening a second writer lease.
+  const paperRepository = config.paperInitialCapitalKrw === undefined
+    ? undefined
+    : new SqliteCloudPaperAccountRepository(database);
+  const paperLoop = config.paperInitialCapitalKrw === undefined || paperRepository == null
+    ? undefined
+    : new PaperTradingExecutionLoop({ initialCapital: config.paperInitialCapitalKrw, repository: paperRepository });
+
   const handle = startCloudRuntime(
     env,
     undefined,
     dashboardHydrator,
     undefined,
     snapshots,
-    undefined,
-    undefined,
+    paperRepository,
+    paperLoop,
     undefined,
     undefined,
     undefined,
     createCloudAiRuntime(env),
   );
-  return Object.freeze({ handle, challengerBindings });
+  return Object.freeze({
+    handle,
+    challengerBindings,
+    readCanonicalPaperAccount: () => paperLoop?.snapshot(),
+  });
 }
 
 function main(): void {
