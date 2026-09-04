@@ -9,7 +9,6 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 test("system theme follows device preference and persisted settings are applied", () => {
   const provider = read("src/ThemeProvider.tsx");
   const app = read("App.tsx");
-  const home = read("src/homeView.tsx");
   const settings = read("src/settingsView.tsx");
   assert.match(provider, /useColorScheme/);
   assert.match(provider, /export type ThemePreference = ThemeMode \| "system"/);
