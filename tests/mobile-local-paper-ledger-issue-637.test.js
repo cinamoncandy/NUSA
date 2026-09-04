@@ -55,12 +55,15 @@ test("#637: Home uses Cloud PAPER when present and otherwise renders shared LOCA
   assert.match(home, /const localPaperActive = snapshot == null && isLocalPaperActive\(\)/);
   assert.match(home, /const localPortfolio = localPaperActive \? buildLocalPortfolio\(localTradingSnapshot, localMarkPrice\) : null/);
   assert.match(home, /const account = snapshot\?\.portfolio\?\.account \?\? localPortfolio\?\.account \?\? null/);
+  assert.match(home, /const accountSource = snapshot != null \? "CLOUD" : localPortfolio != null \? "LOCAL" : null/);
   assert.match(home, /const totalPnl = account == null \? null : \(account\.realizedPnl \?\? account\.position\.realizedPnl\) \+ account\.unrealizedPnl/);
   assert.match(home, /testID="account-hero-card"/);
-  assert.match(home, />총 자산<\/Text>/);
+  assert.match(home, />EQUITY<\/Text>/);
+  assert.match(home, />P&L<\/Text>/);
   assert.match(home, /\{equity == null \? "—" : krw\(equity\)\}/);
   assert.match(home, /\{totalPnl == null \? "—" : `\$\{totalPnl >= 0 \? "\+" : ""\}\$\{krw\(totalPnl\)\}`\}/);
-  assert.doesNotMatch(home, /home-supervisor-summary|home-local-paper-note/);
+  assert.match(home, /testID="home-supervisor-summary"/);
+  assert.match(home, /testID="home-paper-learning"/);
 });
 
 test("#637: Portfolio renders the shared LOCAL PAPER cash/position/PnL only when Cloud PAPER is not active, and Cloud always wins when present", () => {
