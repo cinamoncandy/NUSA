@@ -130,11 +130,14 @@ test("primary mobile workspaces keep bounded tablet widths and intentional respo
   assert.doesNotMatch(tradingShell, /productionMutationAllowed: true/);
   assert.match(home, /useWindowDimensions/);
   assert.match(home, /const tablet = width >= 768/);
-  assert.match(home, /const contentWidth = tablet \? 760 : 520/);
+  assert.match(home, /const contentWidth = tablet \? 760 : 560/);
   assert.match(home, /contentContainerStyle=\{\[styles\.content, \{ maxWidth: contentWidth \}\]\}/);
   assert.match(home, /testID="home-signal-trace"/);
+  assert.match(home, /terrainCanvas: \{ height: 250/);
   assert.match(home, /testID="home-market-pulse"/);
-  assert.match(home, /<OperationalNotice/);
+  assert.match(home, /testID="home-operational-notice"/);
+  assert.match(home, /onPress=\{onGoSettings\}/);
+  assert.doesNotMatch(home, /<OperationalNotice/);
   assert.doesNotMatch(home, /grid: \{ flexDirection: "row", flexWrap: "wrap" \}/);
   assert.doesNotMatch(home, /column: \{ flexGrow: 1, flexBasis: 440/);
 
