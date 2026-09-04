@@ -190,3 +190,55 @@ export function buildHomeDecisionSurface(input: HomeDecisionSurfaceInput): HomeD
     runtimeNeedsSupervision,
   };
 }
+
+export const HOME_EMPTY = "—" as const;
+
+/** Single canonical empty marker: never blank, never undefined. */
+export function formatHomeKrw(value: number | null | undefined): string {
+  return value == null ? HOME_EMPTY : `₩${Math.round(value).toLocaleString("ko-KR")}`;
+}
+
+export function formatHomeSignedKrw(value: number | null | undefined): string {
+  return value == null ? HOME_EMPTY : `${value >= 0 ? "+" : ""}${formatHomeKrw(value)}`;
+}
+
+export function formatHomeConfidence(
+  value: number | null | undefined,
+  calibrationStatus: string | null | undefined,
+  available: boolean,
+): string {
+  return available && calibrationStatus === "CALIBRATED" && value != null
+    ? `${Math.round(value * 100)}%`
+    : HOME_EMPTY;
+}
+
+/** Top-of-HOME header projection: status + attention in one label for 3-second parsing. */
+export function describeHomeDecisionHeader(surface: HomeDecisionSurface): {
+  readonly label: string;
+  readonly tone: "success" | "warning" | "danger" | "info";
+} {
+  return Object.freeze({ label: `${surface.statusLabel} · ${surface.attention}`, tone: surface.statusTone });
+}
+
+export interface HomeDecisionCardProps {
+  readonly judgement: string;
+  readonly badge: HomeDecisionAttention;
+  readonly tone: HomeDecisionTone;
+  readonly cta: string;
+  readonly detail: string;
+  readonly action: HomeDecisionPrimaryAction;
+  readonly aiMarked: boolean;
+}
+
+/** Single mapping from the tested surface to card props, so views cannot re-derive it inconsistently. */
+export function toHomeCardProps(surface: HomeDecisionSurface): HomeDecisionCardProps {
+  return Object.freeze({
+    judgement: surface.why,
+    badge: surface.attention,
+    tone: surface.statusTone,
+    cta: surface.primaryLabel,
+    detail: surface.primaryDetail,
+    action: surface.primaryAction,
+    aiMarked: surface.aiInsightAvailable,
+  });
+}

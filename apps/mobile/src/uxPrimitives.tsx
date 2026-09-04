@@ -22,10 +22,11 @@ export function ScreenHeader({ eyebrow, title, description, statusLabel, statusT
 export function MetricTile({ label, value, detail, tone = "default", testID }: Readonly<{ label: string; value: string; detail?: string; tone?: "default" | "primary" | "success" | "warning" | "danger" | "info"; testID?: string }>) {
   const { theme } = useTheme();
   const tokens = metricTone(theme, tone);
+  const valueColor = tone === "success" ? theme.colors.success : tone === "warning" ? theme.colors.warning : tone === "danger" ? theme.colors.danger : tone === "info" ? theme.colors.aiSignalEnd : theme.colors.text;
   return <View accessible accessibilityLabel={`${label}: ${value}${detail ? `. ${detail}` : ""}`} style={[styles.metric, { backgroundColor: tokens.background, borderColor: tokens.border }]} testID={testID}>
     <View style={[styles.metricAccent, { backgroundColor: tokens.accent }]} />
     <Text style={[styles.metricLabel, { color: theme.colors.textMuted }]}>{label}</Text>
-    <Text style={[styles.metricValue, { color: theme.colors.text }]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
+    <Text style={[styles.metricValue, { color: valueColor }]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
     {detail ? <Text style={[styles.metricDetail, { color: theme.colors.textMuted }]}>{detail}</Text> : null}
   </View>;
 }
@@ -93,7 +94,8 @@ export function InlineNotice({ title, detail, tone = "info", testID }: Readonly<
 export function OperationalNotice({ title, detail, tone = "info", actionLabel, onAction, testID, actionTestID }: Readonly<{ title: string; detail?: string; tone?: "success" | "warning" | "danger" | "info"; actionLabel?: string; onAction?: () => void; testID?: string; actionTestID?: string }>) {
   const { theme } = useTheme();
   const accent = tone === "success" ? theme.colors.success : tone === "warning" ? theme.colors.warning : tone === "danger" ? theme.colors.danger : theme.colors.info;
-  return <View accessibilityRole="text" style={[styles.operationalNotice, { borderTopColor: theme.colors.border, borderBottomColor: theme.colors.border }]} testID={testID}>
+  const wash = tone === "success" ? `${theme.colors.success}1A` : tone === "warning" ? `${theme.colors.warning}1A` : tone === "danger" ? `${theme.colors.danger}1A` : theme.colors.surfaceSunken;
+  return <View accessibilityRole="text" style={[styles.operationalNotice, { backgroundColor: wash, borderLeftWidth: 3, borderLeftColor: accent, borderTopColor: accent, borderBottomColor: accent }]} testID={testID}>
     <View style={[styles.operationalNoticeDot, { backgroundColor: accent }]} />
     <View style={styles.operationalNoticeCopy}>
       <Text style={[styles.operationalNoticeTitle, { color: theme.colors.text }]}>{title}</Text>
@@ -103,8 +105,20 @@ export function OperationalNotice({ title, detail, tone = "info", actionLabel, o
   </View>;
 }
 
-const styles = StyleSheet.create({
-  screenHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 16, paddingBottom: 4 },
+export function HomeSafetyHeader({ label, tone = "info", freshnessLabel, testID }: Readonly<{ label: string; tone?: "success" | "warning" | "danger" | "info"; freshnessLabel?: string | null; testID?: string }>) {
+  return <View style={{ gap: 8 }} testID={testID}>
+    <InlineNotice title={label} tone={tone} />
+    {freshnessLabel ? <QuietStatus label={freshnessLabel} tone={tone === "danger" || tone === "warning" ? tone : "info"} /> : null}
+  </View>;
+}
+
+export function HomeEmptyNotice({ kind, testID }: Readonly<{ kind: "LOADING" | "EMPTY"; testID?: string }>) {
+  return kind === "LOADING"
+    ? <InlineNotice title="시장 데이터를 불러오는 중" tone="info" testID={testID} />
+    : <InlineNotice title="표시할 시장이 없습니다" detail="워치리스트에 마켓을 추가하면 홈에 표시됩니다." tone="warning" testID={testID} />;
+}
+
+const styles = StyleSheet.create({  screenHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 16, paddingBottom: 4 },
   screenHeaderCopy: { flex: 1, gap: 5, minWidth: 0 },
   eyebrow: { fontSize: 10, fontWeight: "800", letterSpacing: 2.1 },
   title: { fontSize: 32, lineHeight: 38, fontWeight: "800", letterSpacing: -1.35 },

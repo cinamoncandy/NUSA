@@ -150,7 +150,7 @@ export function createTheme(mode: ThemeMode, presetName: DesignPresetName = "mas
       navSurface: palette.navSurface,
       border: palette.border,
       borderStrong: palette.borderStrong,
-      success: dark ? "#36D8CB" : preset.name === "master" ? "#0F6843" : "#147A50",
+      success: dark ? "#4CC38A" : preset.name === "master" ? "#0F6843" : "#147A50",
       warning: dark ? "#E5C06C" : "#8D681B",
       danger: dark ? "#F17A94" : preset.name === "master" ? "#8F263B" : "#B83249",
       info: palette.info,

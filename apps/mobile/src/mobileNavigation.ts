@@ -48,3 +48,19 @@ export function createMobileNavigationState(input: MobileNavigationMemory, moreI
 export function restoreMobileNavigationState(memory: MobileNavigationMemory | undefined): MobileNavigationState {
   return createMobileNavigationState(memory ?? { activeTab: "HOME" });
 }
+
+export type HomeReferenceDestination = "Home" | "Markets" | "AiSignal" | "Paper" | "Portfolio";
+
+/**
+ * Maps HOME's reference navigation nouns onto the canonical primary tabs so
+ * both vocabularies resolve identically. Unknown destinations fail closed.
+ */
+export function homeReferenceToPrimary(destination: HomeReferenceDestination): PrimaryMobileTab {
+  switch (destination) {
+    case "Home": return "HOME";
+    case "Markets": return "OBSERVE";
+    case "AiSignal": return "SUPERVISE";
+    case "Paper": return "PAPER";
+    case "Portfolio": return "SUPERVISE";
+  }
+}

@@ -105,3 +105,33 @@ export const buildHomeDashboard = (input: HomeDashboardInput): HomeDashboard => 
     intelligence: input.intelligence
   });
 };
+
+export interface HomeRiskSummary {
+  readonly label: string;
+  readonly tone: "success" | "warning" | "danger" | "info";
+}
+
+/**
+ * Surfaces the mode + risk level the dashboard already computes but no hero
+ * shows. Any non-PAPER mode is danger by construction.
+ */
+export function describeHomeRisk(dashboard: HomeDashboard): HomeRiskSummary {
+  if (dashboard.mode !== "PAPER") {
+    return Object.freeze({ label: `${dashboard.mode} · ${dashboard.riskLevel}`, tone: "danger" as const });
+  }
+  if (dashboard.aiHealth !== "HEALTHY" || dashboard.riskLevel === "CRITICAL") {
+    return Object.freeze({ label: `PAPER · ${dashboard.riskLevel}`, tone: "warning" as const });
+  }
+  return Object.freeze({ label: `PAPER · ${dashboard.riskLevel}`, tone: "info" as const });
+}
+
+export const HOME_FRESHNESS_STALE_MS = 60_000;
+
+/** Human freshness label; anything older than a minute is explicitly STALE. */
+export function formatHomeFreshness(generatedAt: number, now: number): string {
+  const ageMs = now - generatedAt;
+  if (!Number.isFinite(ageMs) || ageMs < 0) return "STALE";
+  if (ageMs > HOME_FRESHNESS_STALE_MS) return "STALE";
+  const ageSec = Math.floor(ageMs / 1000);
+  return ageSec < 5 ? "LIVE" : `${ageSec}s ago`;
+}

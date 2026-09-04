@@ -67,3 +67,20 @@ const profiles: Readonly<Record<DesignPresetName, HomeVisualProfile>> = Object.f
 export function getHomeVisualProfile(preset: DesignPresetName): HomeVisualProfile {
   return profiles[preset];
 }
+
+/** Canonical HOME content spacing derived from the profile instead of hardcoded values. */
+export function homeContentStyle(profile: HomeVisualProfile): Readonly<{
+  paddingHorizontal: number;
+  paddingTop: number;
+  paddingBottom: number;
+  gap: number;
+  maxWidth: number;
+}> {
+  return Object.freeze({
+    paddingHorizontal: profile.screen.horizontalPadding,
+    paddingTop: profile.screen.topPadding,
+    paddingBottom: profile.screen.bottomPadding,
+    gap: profile.screen.sectionGap,
+    maxWidth: profile.screen.maxWidth,
+  });
+}
