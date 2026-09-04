@@ -268,7 +268,7 @@ export function HomeView({
               <Text style={[styles.marketPrice, { color: theme.colors.text }]}>{krw(market.price)}</Text>
               <Text style={[styles.marketChange, { color: market.changeRate == null ? theme.colors.textMuted : market.changeRate >= 0 ? terminalSignal : theme.colors.danger }]}>{signedPercent(market.changeRate)}</Text>
             </View>
-          ))}
+          </View>)}
         </View> : <View style={styles.unavailableBlock} testID="home-market-unavailable">
           <Text style={[styles.unavailableTitle, { color: theme.colors.text }]}>NO VERIFIED MARKET SNAPSHOT</Text>
           <Text style={[styles.panelMeta, { color: theme.colors.textMuted }]}>검증된 public ticker가 도착하기 전 가격을 만들지 않습니다.</Text>
