@@ -39,7 +39,7 @@ test("HOME RISK is fail-closed and derives only from canonical PAPER runtime/saf
 test("HOME RISK cannot imply LIVE authority or introduce a second action", () => {
   const home = read("apps/mobile/src/homeView.tsx");
   const decisionSurface = read("apps/mobile/src/homeDecisionSurface.ts");
-  const riskRow = home.match(/<SupervisorRow label=\"RISK\"[^>]+\/>/)?.[0] ?? "";
+  const riskRow = home.match(/<TruthCell label=\"RISK\"[^>]+\/>/)?.[0] ?? "";
   assert.match(riskRow, /value=\{supervisorRisk\}/);
   assert.doesNotMatch(riskRow, /onPress=|actionLabel=/);
   assert.match(home, /PAPER ONLY · LIVE NONE/);
