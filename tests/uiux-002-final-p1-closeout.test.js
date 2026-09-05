@@ -12,12 +12,15 @@ function expectTabularStyle(source, styleName) {
 
 test("primary financial values use stable tabular numerals outside DataRow", () => {
   const home = read("apps/mobile/src/homeView.tsx");
+  const intelligence = read("apps/mobile/src/intelligenceOs.tsx");
   const primitives = read("apps/mobile/src/uxPrimitives.tsx");
   const portfolio = read("apps/mobile/src/portfolioView.tsx");
   const trading = read("apps/mobile/src/tradingViewLegacy.tsx");
   const watchlist = read("apps/mobile/src/watchlistView.tsx");
 
-  for (const style of ["assetValue", "dayValue", "signalChange", "marketPrice", "marketMove", "bigMetric", "metricSub", "microMetric", "portfolioValue"]) expectTabularStyle(home, style);
+  assert.match(home, /<MetricStrip testID="account-hero-card"/);
+  expectTabularStyle(intelligence, "metricValue");
+  expectTabularStyle(intelligence, "factValue");
   expectTabularStyle(primitives, "compactMetricValue");
   for (const style of ["allocationValue", "splitValue", "positionValue"]) expectTabularStyle(portfolio, style);
   expectTabularStyle(trading, "price");
