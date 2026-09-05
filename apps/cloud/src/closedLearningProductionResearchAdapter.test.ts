@@ -22,6 +22,30 @@ const identity: ClosedLearningEvidenceIdentity & { readonly cycleId: string } = 
   evidenceReferences: Object.freeze(["paper-period:p1"]),
 });
 
+const advisory: QualifiedPaperChallengerArtifact["advisory"] = Object.freeze({
+  schemaVersion: 1,
+  generatedAt: new Date(1_000).toISOString(),
+  policy: Object.freeze({
+    maximumCandidateWeight: 1,
+    minimumEvidenceBreadth: 1,
+    maximumCandidateCount: 1,
+    maximumFamilyWeight: 1,
+  }),
+  entries: Object.freeze([Object.freeze({
+    id: "candidate-q",
+    familyId: "sma",
+    rank: 1,
+    leagueScore: 1,
+    evidenceBreadth: 1,
+    researchWeight: 1,
+    reasons: Object.freeze(["qualified"]),
+    sourceDatasetIds: Object.freeze(["dataset-q"]),
+  })]),
+  excludedCandidateIds: Object.freeze([]),
+  reasons: Object.freeze(["research-only allocation"]),
+  provenance: Object.freeze({ sourceDatasetIds: Object.freeze(["dataset-q"]) }),
+});
+
 function artifact(): QualifiedPaperChallengerArtifact {
   const researchDecisionReference = `closed-learning-replay:${REPLAY}:candidate-q`;
   return {
@@ -29,7 +53,7 @@ function artifact(): QualifiedPaperChallengerArtifact {
     candidateId: "candidate-q",
     candidateVersion: VERSION,
     market: "KRW-BTC",
-    advisory: { schemaVersion: 1, entries: [{ id: "candidate-q", researchWeight: 1 }] } as QualifiedPaperChallengerArtifact["advisory"],
+    advisory,
     candidateProvenance: Object.freeze([{ candidateId: "candidate-q", datasetId: "dataset-q", datasetContentSha256: DATASET_HASH }]),
     researchDecisionReference,
     researchLineage: Object.freeze({
