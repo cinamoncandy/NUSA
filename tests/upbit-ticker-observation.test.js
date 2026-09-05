@@ -18,6 +18,7 @@ test("maps an Upbit ticker to stable, bounded, market-scoped intelligence eviden
     id: "KRW-BTC:9000",
     source: "CHART",
     market: "KRW-BTC",
+    price: 100_000_000,
     sentiment: 0.41,
     rawChangeRate: 0.0123,
     normalizationPolicyId: "CHART_NORMALIZATION_V1",

@@ -93,6 +93,14 @@ function projectPaperDeployment(snapshot, replay, originalRunFingerprintSha256) 
     : [];
   if (snapshotCandidates.length !== 1) throw new Error("closed-learning worker allocated candidate snapshot identity is invalid");
   const manifest = snapshotCandidates[0]?.experiment?.manifest;
+  const candidateSpecification = snapshotCandidates[0]?.candidateSpecification;
+  if (candidateSpecification == null || typeof candidateSpecification !== "object" || Array.isArray(candidateSpecification)) throw new Error("closed-learning worker allocated candidate strategy specification is unavailable");
+  if (candidateSpecification.candidateId !== candidateId || typeof candidateSpecification.familyId !== "string" || typeof candidateSpecification.lineageId !== "string" || !candidateSpecification.parameters || typeof candidateSpecification.parameters !== "object" || Array.isArray(candidateSpecification.parameters) || typeof candidateSpecification.codeSha !== "string" || typeof candidateSpecification.costModelVersion !== "string") {
+    throw new Error("closed-learning worker allocated candidate strategy specification is invalid");
+  }
+  const specificationBinding = run.provenance.candidateBindings.find((binding) => binding.candidateId === candidateId);
+  if (specificationBinding == null || specificationBinding.specificationHash == null || !SHA64.test(String(specificationBinding.specificationHash).trim().toLowerCase())) throw new Error("closed-learning worker allocated candidate strategy specification fingerprint is unavailable");
+  if (candidateSpecification.codeSha.trim().toLowerCase() !== String(snapshot.sourceCommitSha).trim().toLowerCase()) throw new Error("closed-learning worker candidate strategy source provenance drifted");
   const market = String(manifest?.market || "").trim().toUpperCase();
   if (!market || !PAPER_MARKET.test(market)) return notDeployable("PAPER_MARKET_UNSUPPORTED");
   if (manifest.datasetId !== datasetId || String(manifest.contentSha256 || "").trim().toLowerCase() !== datasetContentSha256) {
@@ -119,6 +127,15 @@ function projectPaperDeployment(snapshot, replay, originalRunFingerprintSha256) 
     market,
     advisory: allocation,
     candidateProvenance: Object.freeze([{ candidateId, datasetId, datasetContentSha256 }]),
+    candidateStrategy: Object.freeze({
+      candidateId,
+      familyId: candidateSpecification.familyId.trim(),
+      lineageId: candidateSpecification.lineageId.trim(),
+      specificationHash: String(specificationBinding.specificationHash).trim().toLowerCase(),
+      codeSha: candidateSpecification.codeSha.trim().toLowerCase(),
+      costModelVersion: candidateSpecification.costModelVersion.trim(),
+      parameters: Object.freeze({ ...candidateSpecification.parameters }),
+    }),
     researchDecisionReference,
     researchLineage,
     liveAuthority: "NONE",

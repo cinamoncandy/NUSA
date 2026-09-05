@@ -1,4 +1,5 @@
 import type { LeagueCapitalAllocationAdvisory } from "../../../packages/contracts/src/leagueCapitalAllocation";
+import type { PaperCandidateStrategySpec } from "../../../packages/contracts/src/paperCandidateExecutionBinding";
 import type { PersistedPaperCandidateProvenance, PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import { bindPaperCandidateForExecution } from "../../../packages/contracts/src/paperCandidateExecutionBinding";
 import type { PaperAccountState } from "./paperTradingExecutionLoop";
@@ -18,6 +19,8 @@ export interface QualifiedPaperChallengerArtifact {
   readonly market: string;
   readonly advisory: LeagueCapitalAllocationAdvisory;
   readonly candidateProvenance: readonly PersistedPaperCandidateProvenance[];
+  /** Exact immutable strategy semantics copied from the qualified Research candidate. */
+  readonly candidateStrategy?: PaperCandidateStrategySpec;
   readonly researchDecisionReference: string;
   /** Legacy stored artifacts may omit lineage, but autonomous deployment must fail closed on them. */
   readonly researchLineage?: PaperResearchLineage;
@@ -93,7 +96,9 @@ export class PaperChallengerDeploymentRuntime implements PaperChallengerDeployme
     const account = this.options.readCanonicalPaperAccount();
     if (account == null || account.version !== 1 || !Number.isSafeInteger(account.updatedAt) || account.updatedAt < 0) throw new Error("canonical PAPER account boundary is unavailable");
     const periodStartAt = account.updatedAt;
-    const binding = bindPaperCandidateForExecution(artifact.advisory, artifact.candidateProvenance, candidateId, periodStartAt);
+    if (artifact.candidateStrategy == null) throw new Error("qualified PAPER challenger strategy semantics are unavailable");
+    if (artifact.candidateStrategy.specificationHash !== candidateVersion) throw new Error("qualified PAPER challenger strategy specification identity conflicts with candidate version");
+    const binding = bindPaperCandidateForExecution(artifact.advisory, artifact.candidateProvenance, candidateId, periodStartAt, artifact.candidateStrategy);
     const periodId = `${input.cycleId}:paper:${binding.bindingFingerprintSha256}`;
 
     const prior = this.options.bindings.current(market, periodStartAt);

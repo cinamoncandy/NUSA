@@ -98,6 +98,7 @@ export function upbitTickerToIntelligenceObservation(
     id: `${ticker.code}:${ticker.trade_timestamp}`,
     source: "CHART" as const,
     market: ticker.code,
+    price: ticker.trade_price,
     sentiment: normalizedScore,
     rawChangeRate: signedChangeRate,
     normalizationPolicyId: CHART_NORMALIZATION_V1.id,
