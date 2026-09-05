@@ -97,7 +97,7 @@ function banner(env, stripped) {
     "",
     "  NUSA Cloud PAPER runtime",
     `  endpoint   ${endpoint}`,
-    `  token      ${env.NUSA_CLOUD_DASHBOARD_TOKEN}`,
+    "  token      [redacted]",
     `  token file ${TOKEN_FILE}`,
     "",
     "  PAPER only - liveAuthority=NONE, productionMutationAllowed=false",
@@ -107,7 +107,7 @@ function banner(env, stripped) {
   lines.push(
     "",
     "  Android emulator: adb reverse tcp:" + env.NUSA_CLOUD_DASHBOARD_PORT + " tcp:" + env.NUSA_CLOUD_DASHBOARD_PORT,
-    "  Then in the app: Settings -> PAPER server -> paste the endpoint and token above.",
+    "  Then in the app: Settings -> PAPER server -> paste the endpoint above and token from the token file.",
     "",
   );
   return lines.join("\n");
