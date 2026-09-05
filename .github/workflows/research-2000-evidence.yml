@@ -31,10 +31,15 @@ jobs:
       - name: Diagnose public daily-history availability
         run: |
           node <<'NODE'
-          const markets = ["KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-SOL", "KRW-DOGE"];
+          // Replacement selection is availability-only and precommitted before reading results:
+          // keep BTC/ETH/XRP/DOGE; replace SOL with the first lexicographically listed candidate
+          // below that has the full 2000 completed daily candles. No return/performance data is read.
+          const markets = ["KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-SOL", "KRW-DOGE", "KRW-ADA", "KRW-BCH", "KRW-ETC"];
+          const replacementCandidates = ["KRW-ADA", "KRW-BCH", "KRW-ETC"];
           const DAY = 86400000;
           const completedBy = Date.now();
           const initialBefore = Math.floor(completedBy / DAY) * DAY;
+          const counts = new Map();
           for (const market of markets) {
             let before = initialBefore;
             let total = 0;
@@ -56,8 +61,11 @@ jobs:
               if (rows.length < count) break;
               await new Promise((resolve) => setTimeout(resolve, 150));
             }
+            counts.set(market, total);
             console.log(`HISTORY_AVAILABILITY market=${market} candles=${total} pages=${pages} oldest=${oldest ?? "NONE"}`);
           }
+          const replacement = replacementCandidates.find((market) => counts.get(market) === 2000) ?? "NONE";
+          console.log(`AVAILABILITY_ONLY_REPLACEMENT=${replacement}`);
           NODE
       - name: Run canonical 2000-day public-market Research
         env:
