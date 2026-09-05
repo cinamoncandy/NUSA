@@ -22,29 +22,26 @@ test("Home uses the approved autonomous-intelligence hierarchy and keeps AI read
   const source = read("src/homeView.tsx");
   const decisionSurface = read("src/homeDecisionSurface.ts");
 
-  assert.match(source, />NUSA<\/Text>/);
-  assert.match(source, /AUTONOMOUS/);
-  assert.match(source, /INVESTMENT/);
-  assert.match(source, /INTELLIGENCE/);
-  assert.match(source, />총 자산<\/Text>/);
-  assert.match(source, /\{rail\.pnlBasisLabel\}/);
+  assert.match(source, /AUTONOMOUS INVESTMENT INTELLIGENCE/);
+  assert.match(source, /testID="home-master-rail"/);
+  assert.match(source, /testID="home-now"/);
+  assert.match(source, /testID="account-hero-card"/);
+  assert.match(source, /label: "EQUITY"/);
+  assert.match(source, /label: "TOTAL PNL"/);
   assert.doesNotMatch(source, />오늘</);
-  assert.match(source, /AI INSIGHT/);
+  assert.match(source, /WHY · AI INSIGHT/);
   assert.match(source, /label="NOW"/);
-  assert.match(source, /label="WHY"/);
   assert.match(source, /label="RESULT"/);
   assert.match(source, /label="RISK"/);
-  assert.match(source, /label="LEARNING"/);
-  assert.match(source, /testID="home-signal-trace"/);
+  assert.match(source, /testID="home-risk-status"/);
+  assert.match(source, /testID="home-decision-stage"/);
   assert.match(source, /SIGNAL TERRAIN/);
-  assert.match(source, /MARKET PULSE/);
   assert.match(source, /PAPER PERFORMANCE/);
   assert.match(source, /RISK STATUS/);
-  assert.match(source, /testID="home-reference-navigation"/);
   assert.match(source, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
   assert.match(source, /selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)/);
   assert.match(source, /const aiInsightAvailable = decisionSurface\.aiInsightAvailable && !disconnected && readOnlyError == null/);
-  assert.match(source, /market == null \? "검증된 신호 없음"/);
+  assert.match(source, /NO QUALIFIED SIGNAL/);
 
   // The fail-closed decision model remains authoritative for presentation truth;
   // HOME may expose rich read-only evidence but must never create LIVE authority.
@@ -73,11 +70,13 @@ test("Markets, PAPER, Settings and History use shared segmented controls", () =>
 test("Portfolio and AI use decision-first v3 information hierarchy", () => {
   const portfolio = read("src/portfolioView.tsx");
   const ai = read("src/aiView.tsx");
-  assert.match(portfolio, /<ScreenHeader/);
+  assert.match(portfolio, /<AuthorityRail/);
+  assert.match(portfolio, /<ScreenLead/);
   assert.match(portfolio, /testID="portfolio-supervisor-summary"/);
-  assert.match(portfolio, /<DataRow label="PAPER 평가자산"/);
+  assert.match(portfolio, /label: "EQUITY"/);
   assert.match(portfolio, /testID="portfolio-upbit-read-only"/);
   assert.match(portfolio, /testID="portfolio-allocation-rail"/);
+  assert.match(portfolio, /REAL_READ_ONLY 잔고는 감독용 기준선이며 PAPER 성과와 절대 합산하지 않습니다/);
   assert.doesNotMatch(portfolio, /testID="portfolio-summary"/);
   assert.doesNotMatch(portfolio, /<MetricTile/);
   assert.match(ai, /<ScreenHeader/);

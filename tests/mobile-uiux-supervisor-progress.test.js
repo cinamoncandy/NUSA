@@ -12,10 +12,14 @@ const contract = fs.readFileSync(path.join(root, "packages/contracts/src/operati
 test("Canonical HOME does not restore the retired Supervisor progress panel", () => {
   assert.doesNotMatch(home, /<SupervisorProgressPanel/);
   assert.doesNotMatch(home, /home-supervisor-progress-attention/);
+  assert.match(home, /testID="home-master-rail"/);
+  assert.match(home, /testID="home-now"/);
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /testID="ai-card"/);
-  assert.match(home, /testID="home-signal-trace"/);
-  assert.match(home, /testID="home-market-pulse"/);
+  assert.match(home, /testID="home-risk-status"/);
+  assert.match(home, /testID="home-decision-stage"/);
+  assert.match(home, /testID="home-paper-performance"/);
+  assert.match(home, /testID="home-paper-learning"/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
 });
 

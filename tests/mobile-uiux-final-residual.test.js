@@ -6,16 +6,18 @@ const path = require("node:path");
 const root = path.join(__dirname, "..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-test("Home preserves the canonical master-board safety-first actions without restoring the legacy supervisor CTA", () => {
+test("Home preserves the canonical Intelligence OS safety-first actions without restoring the legacy supervisor CTA", () => {
   const home = read("apps/mobile/src/homeView.tsx");
   const decisionSurface = read("apps/mobile/src/homeDecisionSurface.ts");
 
   assert.match(home, /testID="home-screen"/);
+  assert.match(home, /testID="home-master-rail"/);
+  assert.match(home, /testID="home-now"/);
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /testID="ai-card"/);
-  assert.match(home, /testID="home-signal-trace"/);
-  assert.match(home, /testID="home-market-pulse"/);
-  assert.match(home, /testID="home-reference-navigation"/);
+  assert.match(home, /testID="home-risk-status"/);
+  assert.match(home, /testID="home-decision-stage"/);
+  assert.match(home, /testID="home-paper-performance"/);
   assert.match(home, /testID="home-paper-learning"/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
 

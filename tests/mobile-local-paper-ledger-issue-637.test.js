@@ -48,28 +48,35 @@ test("#637: ledger state is not tied to any component lifecycle", () => {
   assert.ok(firstRead.orders.length > 0);
 });
 
-test("#637: Home uses Cloud PAPER when present and otherwise renders shared LOCAL PAPER equity/PnL in the canonical asset hero", () => {
+test("#637: Home gives Cloud PAPER precedence and otherwise renders shared LOCAL PAPER equity/PnL", () => {
   const home = read("apps/mobile/src/homeView.tsx");
   assert.match(home, /import \{ buildLocalPortfolio, isLocalPaperActive \} from "\.\/localPaperLedger"/);
   assert.match(home, /import \{ useLocalPaperMarkPrice, useLocalPaperSnapshot \} from "\.\/localPaperLedgerHooks"/);
   assert.match(home, /const localPaperActive = snapshot == null && isLocalPaperActive\(\)/);
   assert.match(home, /const localPortfolio = localPaperActive \? buildLocalPortfolio\(localTradingSnapshot, localMarkPrice\) : null/);
-  assert.match(home, /const account = snapshot\?\.portfolio\?\.account \?\? localPortfolio\?\.account \?\? null/);
+  assert.match(home, /const cloudAccount = snapshot\?\.portfolio\?\.account \?\? null/);
+  assert.match(home, /const localAccount = localPortfolio\?\.account \?\? null/);
+  assert.match(home, /const account = cloudAccount \?\? localAccount/);
+  assert.match(home, /const accountSource = snapshot != null \? "CLOUD" : localPortfolio != null \? "LOCAL" : null/);
   assert.match(home, /const totalPnl = account == null \? null : \(account\.realizedPnl \?\? account\.position\.realizedPnl\) \+ account\.unrealizedPnl/);
   assert.match(home, /testID="account-hero-card"/);
-  assert.match(home, />총 자산<\/Text>/);
-  assert.match(home, /\{equity == null \? "—" : krw\(equity\)\}/);
-  assert.match(home, /\{totalPnl == null \? "—" : `\$\{totalPnl >= 0 \? "\+" : ""\}\$\{krw\(totalPnl\)\}`\}/);
-  assert.doesNotMatch(home, /home-supervisor-summary|home-local-paper-note/);
+  assert.match(home, /label: "EQUITY"/);
+  assert.match(home, /value: krw\(account\?\.equity\)/);
+  assert.match(home, /label: "TOTAL PNL"/);
+  assert.match(home, /value: signedMoney\(totalPnl\)/);
+  assert.doesNotMatch(home, /home-local-paper-note/);
 });
 
-test("#637: Portfolio renders the shared LOCAL PAPER cash/position/PnL only when Cloud PAPER is not active, and Cloud always wins when present", () => {
+test("#637: Portfolio renders shared LOCAL PAPER only when Cloud PAPER is absent", () => {
   const portfolio = read("apps/mobile/src/portfolioView.tsx");
   assert.match(portfolio, /import \{ buildLocalPortfolio, isLocalPaperActive \} from "\.\/localPaperLedger"/);
   assert.match(portfolio, /import \{ useLocalPaperMarkPrice, useLocalPaperSnapshot \} from "\.\/localPaperLedgerHooks"/);
   assert.match(portfolio, /const localPaperActive = snapshot === null && isLocalPaperActive\(\)/);
+  assert.match(portfolio, /const localPortfolio = localPaperActive \? buildLocalPortfolio\(localTradingSnapshot, localMarkPrice\) : null/);
   assert.match(portfolio, /const effectiveSnapshot = snapshot \?\? localPortfolio/);
-  assert.match(portfolio, /testID="portfolio-local-paper-note"/);
+  assert.match(portfolio, /const usingLocalPaper = snapshot === null && localPortfolio !== null/);
+  assert.match(portfolio, /status=\{model \? \(usingLocalPaper \? "LOCAL PAPER" : "PAPER READY"\)/);
+  assert.match(portfolio, /testID="portfolio-supervisor-summary"/);
 });
 
 test("#637: Trade, Home, and Portfolio all derive LOCAL-vs-Cloud from the one shared isLocalPaperActive expression", () => {

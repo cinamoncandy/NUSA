@@ -10,11 +10,12 @@ test("HOME surfaces degraded PAPER connection states before exploration without 
   const notice = home.indexOf('testID="home-operational-notice"');
   const ai = home.indexOf('testID="ai-card"');
   const terrain = home.indexOf('testID="home-decision-stage"');
-  const markets = home.indexOf('testID="home-market-pulse"');
+  const paperPerformance = home.indexOf('testID="home-paper-performance"');
+  const learning = home.indexOf('testID="home-paper-learning"');
 
   assert.ok(notice >= 0, "PAPER operational notice must exist");
-  assert.ok(ai >= 0 && terrain >= 0 && markets >= 0, "canonical HOME decision flow must exist");
-  assert.ok(notice < ai && ai < terrain && terrain < markets, "connection truth must lead the canonical exploration flow");
+  assert.ok(ai >= 0 && terrain >= 0 && paperPerformance >= 0 && learning >= 0, "canonical HOME intelligence flow must exist");
+  assert.ok(notice < ai && ai < terrain && terrain < paperPerformance && paperPerformance < learning, "connection truth must lead the canonical intelligence flow");
   assert.match(home, /"PAPER 연결 오류"/);
   assert.match(home, /"PAPER 연결 필요"/);
   assert.match(home, /onPress=\{onGoSettings\}/);
@@ -25,8 +26,11 @@ test("HOME surfaces degraded PAPER connection states before exploration without 
 });
 
 test("HOME connection failure copy wins over stale AI output while fail-closed supervisor logic remains available", () => {
-  assert.match(home, /const fallbackJudgement = notConfigured[\s\S]*\? "PAPER 연결이 필요합니다\."[\s\S]*: readOnlyError[\s\S]*\? "연결 상태를 확인하고 있습니다\."/);
-  assert.match(home, /const judgement = aiInsightAvailable \? \(ai\?\.thesis \?\? fallbackJudgement\) : fallbackJudgement/);
+  assert.match(home, /const disconnected = notConfigured != null/);
+  assert.match(home, /const decisionSurface = buildHomeDecisionSurface\(\{[\s\S]*disconnected,[\s\S]*readOnlyError: readOnlyError != null/);
+  assert.match(home, /const aiInsightAvailable = decisionSurface\.aiInsightAvailable && !disconnected && readOnlyError == null/);
+  assert.match(home, /const posture = disconnected[\s\S]*\? "PAPER 서버 연결이 필요합니다\."[\s\S]*: readOnlyError[\s\S]*\? "PAPER 상태를 확인하고 있습니다\."/);
+  assert.match(home, /const why = aiInsightAvailable \? decisionSurface\.why : disconnected \? "Cloud PAPER 상태가 연결되기 전에는 판단 근거를 확정하지 않습니다\." : decisionSurface\.why/);
 
   const whyStart = decisionSurface.indexOf("const why = input.disconnected");
   const degradedIndex = decisionSurface.indexOf(': runtimeState === "DEGRADED"', whyStart);

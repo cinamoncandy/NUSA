@@ -8,24 +8,19 @@ const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), "u
 
 test("HOME matches the canonical autonomous-intelligence hierarchy", () => {
   const home = read("apps/mobile/src/homeView.tsx");
+  const os = read("apps/mobile/src/intelligenceOs.tsx");
 
+  assert.match(home, /AuthorityRail/);
   assert.match(home, /testID="home-master-rail"/);
-  assert.match(home, />NUSA<\/Text>/);
-  assert.match(home, />AUTONOMOUS<\/Text>/);
-  assert.match(home, />INVESTMENT<\/Text>/);
-  assert.match(home, />INTELLIGENCE<\/Text>/);
-  assert.match(home, />총 자산<\/Text>/);
-  assert.match(home, /AI INSIGHT/);
-  assert.match(home, /label="NOW"/);
-  assert.match(home, /label="WHY"/);
-  assert.match(home, /label="RESULT"/);
-  assert.match(home, /label="RISK"/);
-  assert.match(home, /label="LEARNING"/);
-  assert.match(home, /testID="home-signal-trace"/);
-  assert.match(home, /SIGNAL TERRAIN/);
-  assert.match(home, /testID="home-market-pulse"/);
-  assert.match(home, /testID="home-terminal-grid"/);
-  assert.match(home, /testID="home-reference-navigation"/);
+  assert.match(os, />NUSA<\/Text>/);
+  assert.match(home, /AUTONOMOUS INVESTMENT INTELLIGENCE/);
+  assert.match(home, /eyebrow="NOW"/);
+  assert.match(home, /kicker="WHY · AI INSIGHT"/);
+  assert.match(home, /testID="account-hero-card"/);
+  assert.match(home, /kicker="RISK STATUS"/);
+  assert.match(home, /kicker="SIGNAL TERRAIN"/);
+  assert.match(home, /kicker="PAPER PERFORMANCE"/);
+  assert.match(home, /kicker="LEARNING"/);
 });
 
 test("HOME autonomous-intelligence design uses verified runtime data and preserves authority safety", () => {
@@ -33,12 +28,15 @@ test("HOME autonomous-intelligence design uses verified runtime data and preserv
 
   assert.match(home, /selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)/);
   assert.match(home, /buildLocalPortfolio\(localTradingSnapshot, localMarkPrice\)/);
-  assert.match(home, /const terminal = theme\.colors\.success/);
-  assert.match(home, /const danger = theme\.colors\.danger/);
+  assert.match(home, /buildHomeDecisionSurface/);
+  assert.match(home, /buildHomeStatusRail/);
+  assert.match(home, /freshestObservedAtMs\(marketRows\)/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
+  assert.match(home, /PUBLIC READ ONLY · 시장 관찰은 전략 신호나 주문 권한으로 자동 승격되지 않습니다/);
   assert.doesNotMatch(home, /productionMutationAllowed\s*=\s*true/);
   assert.doesNotMatch(home, /liveAuthority\s*=\s*["'](?:FULL|LIVE|ENABLED)["']/);
   assert.doesNotMatch(home, /Math\.random\(|synthetic|fake candle|mock candle/i);
+  assert.doesNotMatch(home, /BULLISH|BEARISH|STRONG SIGNAL|WEAK SIGNAL/);
 });
 
 test("HOME autonomous-intelligence design keeps real navigation actions", () => {
@@ -48,10 +46,6 @@ test("HOME autonomous-intelligence design keeps real navigation actions", () => 
   assert.match(home, /onNavigate\("AiSignal"\)/);
   assert.match(home, /onNavigate\("Portfolio"\)/);
   assert.match(home, /onOpenPaperLearning/);
-  assert.match(home, />홈<\/Text>/);
-  assert.match(home, />관찰<\/Text>/);
-  assert.match(home, />시그널<\/Text>/);
-  assert.match(home, />페이퍼<\/Text>/);
-  assert.match(home, />포트폴리오<\/Text>/);
-  assert.match(home, />더보기<\/Text>/);
+  assert.match(home, /onPress=\{onGoSettings\}/);
+  assert.match(home, /testID="home-operational-notice"/);
 });

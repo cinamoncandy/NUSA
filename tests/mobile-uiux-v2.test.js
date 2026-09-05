@@ -23,7 +23,7 @@ test("product navigation promotes PAPER and AI through the canonical four-tab sh
   assert.match(app, /PaperLearningMonitorView/);
   assert.match(app, /buildPaperLearningScreen/);
   assert.match(app, /onOpenPaperLearning/);
-  assert.match(home, /nativeID="home-supervisor-learning"/);
+  assert.match(home, /testID="home-supervisor-learning"/);
   assert.match(home, /testID="home-paper-learning"/);
   assert.match(home, /onOpenPaperLearning/);
   assert.match(tradingShell, /import \{ TradingView as LegacyTradingView \} from "\.\/tradingViewLegacy"/);

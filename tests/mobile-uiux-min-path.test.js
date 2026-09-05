@@ -10,8 +10,9 @@ test("premium UI minimum path keeps canonical actionable Home routes and truthfu
   const home = read("src/homeView.tsx");
   const decisionSurface = read("src/homeDecisionSurface.ts");
   assert.match(home, /testID="ai-card"/);
+  assert.match(home, /testID="home-decision-stage"/);
+  assert.match(home, /testID="home-paper-performance"/);
   assert.match(home, /testID="home-paper-learning"/);
-  assert.match(home, /testID="home-signal-trace"/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
   assert.match(decisionSurface, /const statusLabel = input\.accountSource === "CLOUD"[\s\S]*PAPER · \$\{[\s\S]*PAPER · LOCAL[\s\S]*PAPER · OFFLINE[\s\S]*PAPER · STANDBY/);
   assert.doesNotMatch(home, /testID="home-supervisor-primary-action"/);

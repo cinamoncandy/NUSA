@@ -20,11 +20,14 @@ test("TRADE public quotation stays independent from PAPER execution transport", 
   assert.doesNotMatch(marketEffect, /usingLocalPaper/);
 });
 
-test("TRADE public chart is explicitly rendered for verified Cloud PAPER while legacy LOCAL PAPER stays intact", () => {
-  assert.match(tradingViewSource, /cloudPaperConnected/);
-  assert.match(tradingViewSource, /if \(!cloudPaperConnected\) return <LegacyTradingView/);
-  assert.match(tradingViewSource, /<CloudPaperPublicChart \/>/);
+test("PAPER public chart is conditional on verified Cloud PAPER while the local execution workspace remains available", () => {
+  assert.match(tradingViewSource, /const cloudPaperConnected = Boolean\(/);
+  assert.match(tradingViewSource, /\{cloudPaperConnected \? <CloudPaperPublicChart \/> : null\}/);
+  assert.match(tradingViewSource, /<LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.match(tradingViewSource, /testID="paper-authority-rail"/);
+  assert.match(tradingViewSource, /SIMULATED EXECUTION · LIVE NONE · AI ZERO AUTHORITY/);
+  assert.match(tradingViewSource, /CLOUD PAPER NOT CONNECTED/);
   assert.match(tradingViewSource, /testID="paper-upbit-market-panel"/);
   assert.match(tradingViewSource, /testID="paper-upbit-chart"/);
-  assert.match(tradingViewSource, /Upbit 공개 시세 · 읽기 전용 · PAPER 실행 경로와 독립/);
+  assert.match(tradingViewSource, /공개 시장 관찰은 PAPER 전략 신호가 아니며 실제 주문 권한을 갖지 않습니다/);
 });
