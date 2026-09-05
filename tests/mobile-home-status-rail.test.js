@@ -99,3 +99,13 @@ test("production HomeView wires the status rail and keeps time labels truthful",
   assert.match(home, /위험 \{rail\.riskLabel\}/);
   assert.doesNotMatch(home, /accessibilityLabel="알림"/);
 });
+
+test("no dead segmented controls or dead action captions on HOME", () => {
+  const home = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "homeView.tsx"), "utf8");
+  assert.doesNotMatch(home, />1W<\/Text>/);
+  assert.doesNotMatch(home, />1M<\/Text>/);
+  assert.doesNotMatch(home, />ALL<\/Text>/);
+  assert.doesNotMatch(home, /periodActive/);
+  assert.match(home, /최근 1분봉 \{sparkValues\.length\}개/);
+  assert.doesNotMatch(home, /title="◎  SIGNAL TERRAIN" action=/);
+});

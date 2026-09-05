@@ -202,7 +202,7 @@ export function HomeView({
           </View>
           <View style={styles.sparkWrap}>
             <MiniSpark values={sparkValues} color={terminal} muted={softBorder} />
-            <View style={styles.periodRow}><Text style={[styles.periodActive, { color: terminal, borderColor: terminal }]}>1D</Text><Text style={[styles.periodText, { color: muted }]}>1W</Text><Text style={[styles.periodText, { color: muted }]}>1M</Text><Text style={[styles.periodText, { color: muted }]}>ALL</Text></View>
+            {sparkValues.length === 0 ? null : <View style={styles.periodRow}><Text style={[styles.periodText, { color: muted }]}>최근 1분봉 {sparkValues.length}개</Text></View>}
           </View>
         </View>
       </View>
@@ -229,7 +229,7 @@ export function HomeView({
       </View>
 
       <View style={[styles.signalCard, { backgroundColor: panel, borderColor: border }]} testID="home-decision-stage">
-        <PanelTitle title="◎  SIGNAL TERRAIN" action="전체 신호 보기 ›" color={terminal} />
+        <PanelTitle title="◎  SIGNAL TERRAIN" color={terminal} />
         <View style={styles.signalBody}>
           <View style={styles.terrainWrap}>
             <View style={[styles.radarRingLarge, { borderColor: softBorder }]} />
@@ -331,7 +331,6 @@ const styles = StyleSheet.create({
   sparkBar: { width: 3, borderRadius: 2 },
   sparkEmpty: { height: 1, width: "100%", marginTop: 22 },
   periodRow: { flexDirection: "row", justifyContent: "flex-end", gap: 12, alignItems: "center" },
-  periodActive: { fontSize: 10, fontWeight: "900", borderWidth: 1, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3 },
   periodText: { fontSize: 10, fontWeight: "800", opacity: 0.58 },
   aiInsightCard: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 18, padding: 16, gap: 12 },
   panelTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
