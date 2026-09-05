@@ -71,14 +71,22 @@ const WALK_FORWARD_CONFIG = {
   selectionPolicy: { minimumClosedTrades: 0 }
 };
 
-const SMA_PARAMETER_NEIGHBORHOOD = [
-  { shortPeriod: 3, longPeriod: 15 },
-  { shortPeriod: 5, longPeriod: 15 },
-  { shortPeriod: 5, longPeriod: 20 },
-  { shortPeriod: 5, longPeriod: 25 },
-  { shortPeriod: 8, longPeriod: 20 },
-  { shortPeriod: 10, longPeriod: 30 }
-];
+// Precommitted before each dataset is observed. The fast crossover cells are not a
+// relaxed qualification path: they remain subject to the exact same OOS, DSR, PBO,
+// regime, cost-stress and League gates. They only widen the already-existing SMA
+// hypothesis to include higher-turnover cells capable of producing non-zero OOS
+// return variance and enough closed-trade observations for those gates to evaluate.
+const SMA_PARAMETER_NEIGHBORHOOD = Object.freeze([
+  Object.freeze({ shortPeriod: 2, longPeriod: 8 }),
+  Object.freeze({ shortPeriod: 3, longPeriod: 10 }),
+  Object.freeze({ shortPeriod: 4, longPeriod: 10 }),
+  Object.freeze({ shortPeriod: 3, longPeriod: 15 }),
+  Object.freeze({ shortPeriod: 5, longPeriod: 15 }),
+  Object.freeze({ shortPeriod: 5, longPeriod: 20 }),
+  Object.freeze({ shortPeriod: 5, longPeriod: 25 }),
+  Object.freeze({ shortPeriod: 8, longPeriod: 20 }),
+  Object.freeze({ shortPeriod: 10, longPeriod: 30 })
+]);
 
 const PBO_EVIDENCE_UNAVAILABLE_CODES = Object.freeze([
   "ZERO_RETURN_VARIANCE",
@@ -110,7 +118,8 @@ function buildParameterRobustnessRequest({ candles, manifest }) {
     market: manifest.market,
     candles,
     referenceParameters: [
-      { source: "PRODUCTION_DEFAULT", shortWindow: 5, longWindow: 20 }
+      { source: "PRODUCTION_DEFAULT", shortWindow: 5, longWindow: 20 },
+      { source: "MANUAL_RESEARCH_REFERENCE", shortWindow: 2, longWindow: 8 }
     ],
     neighborhood: {
       shortOffsets: [-2, -1, 0, 1, 2],
@@ -515,6 +524,7 @@ if (require.main === module) {
 
 module.exports = {
   RESEARCH_MARKETS,
+  SMA_PARAMETER_NEIGHBORHOOD,
   fetchResearchCandles,
   researchCandleCount,
   buildParameterRobustnessRequest,

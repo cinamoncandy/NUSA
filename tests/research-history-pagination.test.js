@@ -1,6 +1,12 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { RESEARCH_MARKETS, fetchResearchCandles, researchCandleCount } = require("../scripts/research-real-market-run.js");
+const {
+  RESEARCH_MARKETS,
+  SMA_PARAMETER_NEIGHBORHOOD,
+  fetchResearchCandles,
+  researchCandleCount,
+  buildParameterRobustnessRequest
+} = require("../scripts/research-real-market-run.js");
 const { createHistoricalDatasetManifest } = require("../dist/apps/desktop/src/cloud/researchDataset.js");
 
 const DAY = 86_400_000;
@@ -28,6 +34,55 @@ test("research horizon is bounded and never selected from performance", () => {
 test("independent regime markets are predeclared and immutable", () => {
   assert.deepEqual(RESEARCH_MARKETS, ["KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-SOL", "KRW-DOGE"]);
   assert.ok(Object.isFrozen(RESEARCH_MARKETS));
+});
+
+test("SMA candidate neighborhood is predeclared, immutable, and includes fast evidence cells", () => {
+  assert.deepEqual(SMA_PARAMETER_NEIGHBORHOOD, [
+    { shortPeriod: 2, longPeriod: 8 },
+    { shortPeriod: 3, longPeriod: 10 },
+    { shortPeriod: 4, longPeriod: 10 },
+    { shortPeriod: 3, longPeriod: 15 },
+    { shortPeriod: 5, longPeriod: 15 },
+    { shortPeriod: 5, longPeriod: 20 },
+    { shortPeriod: 5, longPeriod: 25 },
+    { shortPeriod: 8, longPeriod: 20 },
+    { shortPeriod: 10, longPeriod: 30 }
+  ]);
+  assert.ok(Object.isFrozen(SMA_PARAMETER_NEIGHBORHOOD));
+  assert.ok(SMA_PARAMETER_NEIGHBORHOOD.every(Object.isFrozen));
+});
+
+test("fast SMA cells are covered by a predeclared robustness reference without relaxing gates", () => {
+  const request = buildParameterRobustnessRequest({
+    candles: [{ market: "KRW-BTC" }],
+    manifest: {
+      market: "KRW-BTC",
+      datasetId: "dataset:test",
+      contentSha256: "a".repeat(64)
+    }
+  });
+  assert.deepEqual(request.referenceParameters, [
+    { source: "PRODUCTION_DEFAULT", shortWindow: 5, longWindow: 20 },
+    { source: "MANUAL_RESEARCH_REFERENCE", shortWindow: 2, longWindow: 8 }
+  ]);
+  assert.equal(request.minimumTrades, 0);
+  assert.equal(request.evaluation.mode, "BOTH");
+  assert.deepEqual(request.evaluation.oosWindows, {
+    trainingCandles: 120,
+    testCandles: 20,
+    stepCandles: 20
+  });
+
+  const fastReference = request.referenceParameters[1];
+  const grid = new Set();
+  for (const shortOffset of request.neighborhood.shortOffsets) {
+    for (const longOffset of request.neighborhood.longOffsets) {
+      grid.add(`${fastReference.shortWindow + shortOffset}/${fastReference.longWindow + longOffset}`);
+    }
+  }
+  for (const candidate of SMA_PARAMETER_NEIGHBORHOOD.slice(0, 3)) {
+    assert.ok(grid.has(`${candidate.shortPeriod}/${candidate.longPeriod}`));
+  }
 });
 
 test("five pages restore 1000 completed days with stable request provenance and checksum", async () => {
