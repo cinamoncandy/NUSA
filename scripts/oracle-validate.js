@@ -12,6 +12,11 @@ const researchTimerPath = rooted("/etc/systemd/system/nusa-research.timer");
 const currentPath = rooted("/opt/nusa/current");
 const fail = (message) => { throw new Error(message); };
 const sha40 = /^[a-f0-9]{40}$/;
+const normalizeOracleAbsolute = (value, field) => {
+  const candidate = String(value || "").trim();
+  if (!path.posix.isAbsolute(candidate)) fail(`${field} must be an absolute Oracle path`);
+  return path.posix.normalize(candidate);
+};
 
 if (!fs.existsSync(envPath)) fail(`missing environment file: ${envPath}`);
 const env = fs.readFileSync(envPath, "utf8");
@@ -30,13 +35,13 @@ if (!sha40.test(sourceCommit)) fail("missing exact NUSA_SOURCE_COMMIT(_SHA)");
 if (values.NUSA_SOURCE_COMMIT && values.NUSA_SOURCE_COMMIT_SHA && values.NUSA_SOURCE_COMMIT.toLowerCase() !== values.NUSA_SOURCE_COMMIT_SHA.toLowerCase()) {
   fail("NUSA_SOURCE_COMMIT and NUSA_SOURCE_COMMIT_SHA disagree");
 }
-const dbAbsolute = path.resolve(values.NUSA_CLOUD_STATE_DB_PATH);
+const dbAbsolute = normalizeOracleAbsolute(values.NUSA_CLOUD_STATE_DB_PATH, "NUSA_CLOUD_STATE_DB_PATH");
 if (dbAbsolute.startsWith("/opt/nusa/current/") || dbAbsolute === "/opt/nusa/current") fail("database must be outside release tree");
 if (!dbAbsolute.startsWith("/var/lib/nusa/")) fail("database must be inside /var/lib/nusa for the hardened systemd unit");
 const snapshotAbsolute = values.NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH
-  ? path.resolve(values.NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH)
-  : path.join(path.dirname(dbAbsolute), "research-replay-snapshots.json");
-if (!path.isAbsolute(snapshotAbsolute) || !snapshotAbsolute.startsWith("/var/lib/nusa/")) {
+  ? normalizeOracleAbsolute(values.NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH, "NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH")
+  : path.posix.join(path.posix.dirname(dbAbsolute), "research-replay-snapshots.json");
+if (!snapshotAbsolute.startsWith("/var/lib/nusa/")) {
   fail("Research replay snapshot must be inside /var/lib/nusa for the hardened systemd unit");
 }
 if (!fs.existsSync(backupPath)) fail(`missing backup directory: ${backupPath}`);
