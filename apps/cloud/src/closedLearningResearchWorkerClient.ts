@@ -1,7 +1,10 @@
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import type { QualifiedPaperChallengerArtifact } from "./paperChallengerDeploymentRuntime";
+import { validatePaperResearchLineage } from "./paperResearchLineage";
 
 const SHA256 = /^[a-f0-9]{64}$/;
+const MARKET = /^KRW-[A-Z0-9-]+$/;
 const OUTCOMES = new Set(["REJECTED", "INSUFFICIENT", "QUALIFIED_FOR_LEAGUE"]);
 
 export interface ClosedLearningResearchReplayCandidateResult {
@@ -10,6 +13,29 @@ export interface ClosedLearningResearchReplayCandidateResult {
   readonly reasons: readonly string[];
   readonly summary: string;
 }
+
+export interface ClosedLearningResearchNotDeployable {
+  readonly schemaVersion: 1;
+  readonly status: "NOT_DEPLOYABLE";
+  readonly reasons: readonly string[];
+  readonly authority: "PAPER_RESEARCH_ONLY";
+  readonly liveAuthority: "NONE";
+  readonly productionMutationAllowed: false;
+  readonly aiAuthority: "ZERO_AUTHORITY";
+}
+
+export interface ClosedLearningResearchDeployable {
+  readonly schemaVersion: 1;
+  readonly status: "DEPLOYABLE";
+  readonly reasons: readonly string[];
+  readonly artifact: QualifiedPaperChallengerArtifact & { readonly researchLineage: NonNullable<QualifiedPaperChallengerArtifact["researchLineage"]> };
+  readonly authority: "PAPER_RESEARCH_ONLY";
+  readonly liveAuthority: "NONE";
+  readonly productionMutationAllowed: false;
+  readonly aiAuthority: "ZERO_AUTHORITY";
+}
+
+export type ClosedLearningResearchPaperDeployment = ClosedLearningResearchNotDeployable | ClosedLearningResearchDeployable;
 
 export interface ClosedLearningResearchReplayResult {
   readonly schemaVersion: 1;
@@ -29,6 +55,7 @@ export interface ClosedLearningResearchReplayResult {
     readonly productionMutationAllowed: false;
     readonly aiAuthority: "ZERO_AUTHORITY";
   };
+  readonly deployment: ClosedLearningResearchPaperDeployment;
   readonly liveAuthority: "NONE";
   readonly productionMutationAllowed: false;
   readonly aiAuthority: "ZERO_AUTHORITY";
@@ -68,6 +95,11 @@ function safeCount(value: unknown, field: string): number {
   return value as number;
 }
 
+function reasons(value: unknown, field: string): readonly string[] {
+  if (!Array.isArray(value) || value.length === 0 || value.some((reason) => typeof reason !== "string" || !reason.trim())) throw new Error(`${field} is invalid`);
+  return Object.freeze(value.map((reason) => String(reason).trim()));
+}
+
 function defaultProcess(input: Parameters<ClosedLearningResearchWorkerProcess>[0]): ClosedLearningResearchWorkerProcessResult {
   const result = spawnSync(input.executable, [...input.args], {
     input: input.stdin,
@@ -77,6 +109,70 @@ function defaultProcess(input: Parameters<ClosedLearningResearchWorkerProcess>[0
     windowsHide: true,
   });
   return Object.freeze({ status: result.status, stdout: result.stdout ?? "", stderr: result.stderr ?? "", error: result.error });
+}
+
+function validateDeployment(
+  value: unknown,
+  originalRunFingerprintSha256: string,
+  replayRunFingerprintSha256: string,
+  candidates: readonly ClosedLearningResearchReplayCandidateResult[],
+): ClosedLearningResearchPaperDeployment {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) throw new Error("Research replay worker deployment is invalid");
+  const item = value as Record<string, unknown>;
+  if (item.schemaVersion !== 1 || item.authority !== "PAPER_RESEARCH_ONLY" || item.liveAuthority !== "NONE" || item.productionMutationAllowed !== false || item.aiAuthority !== "ZERO_AUTHORITY") throw new Error("Research replay worker deployment authority is invalid");
+  const normalizedReasons = reasons(item.reasons, "Research replay worker deployment reasons");
+  if (item.status === "NOT_DEPLOYABLE") {
+    if (item.artifact != null) throw new Error("Research replay worker non-deployable result contains an artifact");
+    return Object.freeze({ schemaVersion: 1, status: "NOT_DEPLOYABLE", reasons: normalizedReasons, authority: "PAPER_RESEARCH_ONLY", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+  }
+  if (item.status !== "DEPLOYABLE" || item.artifact == null || typeof item.artifact !== "object" || Array.isArray(item.artifact)) throw new Error("Research replay worker deployment status is invalid");
+  const artifact = item.artifact as Record<string, unknown>;
+  if (artifact.schemaVersion !== 1 || artifact.liveAuthority !== "NONE" || artifact.productionMutationAllowed !== false || artifact.aiAuthority !== "ZERO_AUTHORITY") throw new Error("Research replay worker artifact authority is invalid");
+  const candidateId = safeText(artifact.candidateId, "Research replay worker artifact candidateId", 240);
+  const candidateVersion = safeText(artifact.candidateVersion, "Research replay worker artifact candidateVersion", 64).toLowerCase();
+  if (!SHA256.test(candidateVersion)) throw new Error("Research replay worker artifact candidate version is invalid");
+  const market = safeText(artifact.market, "Research replay worker artifact market", 32).toUpperCase();
+  if (!MARKET.test(market)) throw new Error("Research replay worker artifact market is invalid");
+  const decisionReference = safeText(artifact.researchDecisionReference, "Research replay worker artifact decision reference", 240);
+  const lineage = validatePaperResearchLineage(artifact.researchLineage as never);
+  if (
+    lineage.candidateId !== candidateId
+    || lineage.candidateVersion !== candidateVersion
+    || lineage.originalRunFingerprintSha256 !== originalRunFingerprintSha256
+    || lineage.replayRunFingerprintSha256 !== replayRunFingerprintSha256
+    || lineage.researchDecisionReference !== decisionReference
+  ) throw new Error("Research replay worker artifact lineage provenance is invalid");
+  const qualified = candidates.filter((candidate) => candidate.candidateId === candidateId && candidate.outcome === "QUALIFIED_FOR_LEAGUE");
+  if (qualified.length !== 1) throw new Error("Research replay worker deployable candidate is not uniquely qualified");
+  if (!Array.isArray(artifact.candidateProvenance) || artifact.candidateProvenance.length !== 1) throw new Error("Research replay worker artifact candidate provenance is invalid");
+  const candidateProvenance = artifact.candidateProvenance[0] as Record<string, unknown>;
+  const datasetId = safeText(candidateProvenance.candidateId === candidateId ? candidateProvenance.datasetId : undefined, "Research replay worker artifact datasetId", 240);
+  const datasetContentSha256 = safeText(candidateProvenance.datasetContentSha256, "Research replay worker artifact dataset hash", 64).toLowerCase();
+  if (!SHA256.test(datasetContentSha256)) throw new Error("Research replay worker artifact dataset hash is invalid");
+  if (artifact.advisory == null || typeof artifact.advisory !== "object" || Array.isArray(artifact.advisory)) throw new Error("Research replay worker artifact advisory is invalid");
+  const advisory = artifact.advisory as Record<string, unknown>;
+  if (!Array.isArray(advisory.entries) || advisory.entries.length !== 1 || (advisory.entries[0] as Record<string, unknown> | undefined)?.id !== candidateId) throw new Error("Research replay worker artifact advisory candidate is invalid");
+  return Object.freeze({
+    schemaVersion: 1,
+    status: "DEPLOYABLE",
+    reasons: normalizedReasons,
+    artifact: Object.freeze({
+      ...(artifact as unknown as QualifiedPaperChallengerArtifact),
+      candidateId,
+      candidateVersion,
+      market,
+      researchDecisionReference: decisionReference,
+      researchLineage: lineage,
+      candidateProvenance: Object.freeze([{ candidateId, datasetId, datasetContentSha256 }]),
+      liveAuthority: "NONE",
+      productionMutationAllowed: false,
+      aiAuthority: "ZERO_AUTHORITY",
+    }),
+    authority: "PAPER_RESEARCH_ONLY",
+    liveAuthority: "NONE",
+    productionMutationAllowed: false,
+    aiAuthority: "ZERO_AUTHORITY",
+  });
 }
 
 function validateResult(value: unknown, expectedFingerprint: string): ClosedLearningResearchReplayResult {
@@ -111,12 +207,14 @@ function validateResult(value: unknown, expectedFingerprint: string): ClosedLear
   });
   const counted = candidates.reduce((acc, candidate) => { acc[candidate.outcome] += 1; return acc; }, { REJECTED: 0, INSUFFICIENT: 0, QUALIFIED_FOR_LEAGUE: 0 });
   if (normalizedCoverage.candidateCount !== candidates.length || normalizedCoverage.rejectedCount !== counted.REJECTED || normalizedCoverage.insufficientCount !== counted.INSUFFICIENT || normalizedCoverage.qualifiedCount !== counted.QUALIFIED_FOR_LEAGUE) throw new Error("Research replay worker coverage reconciliation failed");
+  const deployment = validateDeployment(item.deployment, original, replay, candidates);
   return Object.freeze({
     schemaVersion: 1,
     operation: "REPLAY_PAPER_EVIDENCE",
     originalRunFingerprintSha256: original,
     replayRunFingerprintSha256: replay,
     qualification: Object.freeze({ schemaVersion: 1, candidates: Object.freeze(candidates), coverage: normalizedCoverage, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }),
+    deployment,
     liveAuthority: "NONE",
     productionMutationAllowed: false,
     aiAuthority: "ZERO_AUTHORITY",
