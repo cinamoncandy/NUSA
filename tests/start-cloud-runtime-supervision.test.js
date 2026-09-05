@@ -10,6 +10,12 @@ test("production cloud runtime entrypoint is supervised", () => {
   assert.match(source, /if \(require\.main === module\) runManaged\(\);/);
 });
 
+test("production supervisor launches the closed-learning composition root", () => {
+  assert.match(source, /const PRODUCTION_RUNTIME_ENTRYPOINT = "dist\/apps\/cloud\/src\/closedLearningProductionRuntime\.js"/);
+  assert.match(source, /spawnFn\(process\.execPath, \[PRODUCTION_RUNTIME_ENTRYPOINT\]/);
+  assert.doesNotMatch(source, /spawnFn\(process\.execPath, \["dist\/apps\/cloud\/src\/runtime\.js"\]/);
+});
+
 test("supervisor child marker prevents recursive supervisor nesting", () => {
   assert.match(source, /NUSA_PAPER_RUNTIME_SUPERVISOR_CHILD/);
   assert.match(source, /baseEnv\[SUPERVISOR_CHILD_ENV\] === "true"\) return start\(options\)/);
