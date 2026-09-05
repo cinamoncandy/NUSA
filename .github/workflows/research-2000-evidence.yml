@@ -75,7 +75,7 @@ jobs:
           NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH: ${{ runner.temp }}/research-replay-snapshot.json
         run: |
           set -o pipefail
-          pnpm run research:real-run | tee research-2000-e176532.json
+          pnpm run research:real-run 2>&1 | tee research-2000-e176532.json
       - name: Upload Research evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
