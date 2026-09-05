@@ -3,6 +3,7 @@ import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native
 import { NusaButton, NusaCard, StatusChip } from "./components";
 import { useTheme } from "./ThemeProvider";
 import type { PaperLearningScreenState, PaperLearningUiEvent } from "./paperLearningScreen";
+import { formatCompactKRW } from "./paperLearningScreen";
 
 export interface PaperLearningMonitorViewProps {
   readonly state: PaperLearningScreenState;
@@ -14,6 +15,8 @@ export interface PaperLearningMonitorViewProps {
 const formatNumber = (value: number | null | undefined, digits = 2): string => value == null || !Number.isFinite(value)
   ? "-"
   : value.toLocaleString("ko-KR", { maximumFractionDigits: digits });
+
+// Compact KRW lives in paperLearningScreen.ts (testable domain module).
 
 // Plain-language label for the raw evidence.outcome enum, so RESULT (실제 손익) and LEARNING
 // (검증된 평가 결론) read as two distinct, human-legible concepts rather than one card of
@@ -193,7 +196,7 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
         <Metric label="REALIZED" value={formatNumber(state.performance.realizedPnL)} />
         <Metric label="UNREALIZED" value={formatNumber(state.performance.unrealizedPnL)} />
         <Metric label="FEES" value={formatNumber(state.performance.fees)} />
-        <Metric label="TURNOVER" value={formatNumber(state.performance.turnover)} />
+        <Metric label="TURNOVER" value={formatCompactKRW(state.performance.turnover)} />
         <Metric label="CYCLES" value={String(state.performance.completedCycles)} />
         <Metric label="FILLED" value={String(state.performance.filledCycles)} />
         <Metric label="WIN RATE" value={state.performance.winRate == null ? "-" : `${formatNumber(state.performance.winRate * 100, 1)}%`} />

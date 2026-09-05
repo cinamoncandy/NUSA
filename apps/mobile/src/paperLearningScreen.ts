@@ -158,3 +158,31 @@ export function buildPaperLearningScreen(
     autoRefresh: true
   });
 }
+
+/**
+ * Compact KRW for unbounded cumulative displays (TURNOVER). Full locale
+ * strings grow unreadably past millions (₩1,234,567,890) while ratios and
+ * scores keep exact precision. Display only — never accounting.
+ */
+export function formatCompactKRW(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  const abs = Math.abs(value);
+  if (abs < 1000) return `₩${Math.round(abs).toLocaleString("ko-KR")}`;
+  const sign = value < 0 ? "-" : "";
+  let scaled = abs;
+  let unit = "K";
+  for (const [limit, suffix] of [[1_000_000_000, "B"], [1_000_000, "M"], [1_000, "K"]] as const) {
+    if (abs >= limit) {
+      scaled = abs / limit;
+      unit = suffix;
+      break;
+    }
+  }
+  let rounded = Math.round(scaled * 10) / 10;
+  if (rounded >= 1000 && unit !== "B") {
+    rounded /= 1000;
+    unit = unit === "K" ? "M" : "B";
+  }
+  const digits = Number.isInteger(rounded) ? rounded.toString() : rounded.toFixed(1);
+  return `${sign}₩${digits}${unit}`;
+}
