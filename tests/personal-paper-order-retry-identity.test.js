@@ -90,11 +90,12 @@ test("credential rotation makes an in-flight PAPER result ambiguous and preserve
   assert.equal(observedKeys[1], observedKeys[0], "credential rotation must not consume the unresolved retry identity");
 });
 
-test("TradingView keeps unresolved retry identity across tab unmount and remount", () => {
+test("legacy PAPER workspace keeps unresolved retry identity while production PAPER remains monitor-only", () => {
   const shellSource = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
   const workspaceSource = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingViewLegacy.tsx"), "utf8");
   assert.match(shellSource, /TradingView as LegacyTradingView/);
-  assert.match(shellSource, /<LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.match(shellSource, /<PaperLearningMonitorView/);
+  assert.doesNotMatch(shellSource, /<LegacyTradingView \{\.\.\.props\} \/>/);
   assert.match(workspaceSource, /const processPaperOrderRetryIdentity = new PersonalPaperOrderRetryIdentity\(\)/);
   assert.match(workspaceSource, /submitPersonalPaperOrderWithRetryIdentity\([\s\S]*processPaperOrderRetryIdentity/);
   assert.doesNotMatch(workspaceSource, /const retryIdentity = useMemo\(\(\) => new PersonalPaperOrderRetryIdentity\(\), \[\]\)/);

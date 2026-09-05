@@ -6,35 +6,26 @@ const path = require("node:path");
 const root = path.join(__dirname, "..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-test("mobile PAPER keeps the 10M KRW local simulator available without Cloud authority", () => {
+test("production PAPER monitors autonomous learning while legacy local simulator stays isolated", () => {
   const app = read("apps/mobile/App.tsx");
   const shell = read("apps/mobile/src/tradingView.tsx");
-  const view = read("apps/mobile/src/tradingViewLegacy.tsx");
+  const legacy = read("apps/mobile/src/tradingViewLegacy.tsx");
   const ledger = read("apps/mobile/src/localPaperLedger.ts");
-  assert.match(app, /activeTab !== "Portfolio" && activeTab !== "Paper"/);
-  assert.match(shell, /TradingView as LegacyTradingView/);
-  assert.match(shell, /<LegacyTradingView \{\.\.\.props\} \/>/);
-  assert.match(shell, /CLOUD PAPER NOT CONNECTED/);
-  assert.match(shell, /SIMULATED EXECUTION · LIVE NONE · AI ZERO AUTHORITY/);
+
+  assert.match(app, /activeTab === "Paper" \? <TradingView/);
+  assert.match(shell, /PaperLearningMonitorView/);
+  assert.doesNotMatch(shell, /<LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.doesNotMatch(shell, /priceInput|quantityInput|PAPER 주문 확정|placeLocalPaperOrder/);
+
+  // The old simulator remains available only as an internal/debug implementation and stays PAPER-only.
   assert.match(ledger, /10_000_000/);
   assert.match(ledger, /MockTradingService/);
   assert.match(ledger, /currency: "KRW"/);
-  assert.match(ledger, /export function isLocalPaperActive/);
-  assert.match(ledger, /Boolean\(configuredEndpoint && session\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
-  assert.match(ledger, /localPaperLedgerService\.placePaperOrder\(/);
-  assert.match(view, /const usingLocalPaper = isLocalPaperActive\(\)/);
-  assert.match(view, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
-  assert.match(view, /loadUpbitPublicMarkets\(\)/);
-  assert.match(view, /await placeLocalPaperOrder\(/);
-  assert.match(view, /LOCAL PAPER 체결 완료/);
-  assert.match(view, /liveMutationAllowed: false/);
-  assert.match(view, /productionMutationAllowed: false/);
-  assert.doesNotMatch(view, /authority:\s*"LIVE"/);
-  assert.doesNotMatch(view, /productionMutationAllowed:\s*true/);
-  assert.doesNotMatch(shell, /authority:\s*"LIVE"/);
-  assert.doesNotMatch(shell, /productionMutationAllowed:\s*true/);
-  assert.doesNotMatch(ledger, /authority:\s*"LIVE"/);
-  assert.doesNotMatch(ledger, /productionMutationAllowed:\s*true/);
+  assert.match(legacy, /const usingLocalPaper = isLocalPaperActive\(\)/);
+  assert.match(legacy, /await placeLocalPaperOrder\(/);
+  assert.match(legacy, /productionMutationAllowed: false/);
+  assert.doesNotMatch(legacy, /productionMutationAllowed:\s*true|authority:\s*"LIVE"/);
+  assert.doesNotMatch(shell, /productionMutationAllowed:\s*true|authority:\s*"LIVE"/);
 });
 
 test("MockTradingService parses KRW-BTC as KRW quote and BTC base", () => {

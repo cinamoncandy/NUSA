@@ -50,7 +50,7 @@ test("Trading model enforces balance, mode, and live mutation gates", () => {
   assert.ok(unsafe.blockedReasons.includes("LIVE_MUTATION_DISABLED"));
 });
 
-test("Market order uses verified current price and UI exposes only PAPER execution", () => {
+test("Market order model remains safe while production PAPER exposes learning only and legacy execution stays isolated", () => {
   const model = buildTradingViewModel(input({ draft: { side: "BUY", orderType: "MARKET", priceInput: "", quantityInput: "2" } }));
   assert.equal(model.price, 100);
   assert.equal(model.estimatedNotional, 200);
@@ -59,8 +59,9 @@ test("Market order uses verified current price and UI exposes only PAPER executi
   const shell = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
 
-  assert.match(shell, /TradingView as LegacyTradingView/);
-  assert.match(shell, /<LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.match(shell, /PaperLearningMonitorView/);
+  assert.match(shell, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
+  assert.doesNotMatch(shell, /<LegacyTradingView \{\.\.\.props\} \/>/);
   assert.doesNotMatch(shell, /authority:\s*"LIVE"/);
   assert.doesNotMatch(shell, /productionMutationAllowed:\s*true/);
   assert.doesNotMatch(shell, /\/api\/(?:live|withdraw|transfer)/i);
@@ -106,13 +107,12 @@ test("SELL has a holdings-based allocation panel and BUY shows a genuine post-or
   assert.doesNotMatch(source, /label="주문 후 보호 현금"/);
 });
 
-test("feed status chips stay observation-only and never borrow LIVE authority wording", () => {
+test("production PAPER contains no public-feed execution context while legacy feed labels never borrow LIVE authority wording", () => {
   const shell = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
   const legacy = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingViewLegacy.tsx"), "utf8");
 
-  assert.match(shell, /chartModel\.state === "READY" \? "FRESH" : "WAITING"/);
-  assert.match(shell, /value: "READ ONLY"/);
-  assert.match(shell, /공개 시장 관찰은 PAPER 전략 신호가 아니며 실제 주문 권한을 갖지 않습니다/);
+  assert.match(shell, /PaperLearningMonitorView/);
+  assert.doesNotMatch(shell, /CloudPaperPublicChart|PUBLIC CONTEXT|loadUpbitPublicMarkets|loadUpbitPublicCandles/);
   assert.match(legacy, /수신 중/);
   for (const source of [shell, legacy]) {
     assert.doesNotMatch(source, /차트 LIVE/);

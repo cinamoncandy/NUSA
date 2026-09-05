@@ -36,14 +36,15 @@ test("mobile intelligence shell displays real AI projection and truthful scoped 
   assert.doesNotMatch(app, /94%/);
 });
 
-test("PAPER surface exposes local or verified cloud PAPER execution without LIVE authority", () => {
+test("production PAPER is supervision-only while legacy PAPER execution remains isolated and never gains LIVE authority", () => {
   const app = read("App.tsx");
   const trading = read("src/tradingView.tsx");
   const legacyTrading = read("src/tradingViewLegacy.tsx");
   assert.match(app, /<TradingView[^>]*snapshot=/s);
   assert.doesNotMatch(app, /<TradingView[^>]*onSubmit=/s);
-  assert.match(trading, /import \{ TradingView as LegacyTradingView \} from "\.\/tradingViewLegacy"/);
-  assert.match(trading, /<LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.match(trading, /PaperLearningMonitorView/);
+  assert.match(trading, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
+  assert.doesNotMatch(trading, /<LegacyTradingView \{\.\.\.props\} \/>/);
   assert.match(legacyTrading, /const usingLocalPaper = isLocalPaperActive\(\)/);
   assert.match(legacyTrading, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
   assert.match(legacyTrading, /const cloudPaperSubmitAvailable = runtimeCanSubmit && !usingLocalPaper/);

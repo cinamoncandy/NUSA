@@ -6,7 +6,7 @@ const path = require("node:path");
 const root = path.join(__dirname, "..", "apps", "mobile");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-test("product navigation promotes PAPER and AI through the canonical four-tab shell", () => {
+test("product navigation promotes PAPER learning supervision through the canonical four-tab shell", () => {
   const app = read("App.tsx");
   const tradingShell = read("src/tradingView.tsx");
   const tradingWorkspace = read("src/tradingViewLegacy.tsx");
@@ -26,8 +26,9 @@ test("product navigation promotes PAPER and AI through the canonical four-tab sh
   assert.match(home, /testID="home-supervisor-learning"/);
   assert.match(home, /testID="home-paper-learning"/);
   assert.match(home, /onOpenPaperLearning/);
-  assert.match(tradingShell, /import \{ TradingView as LegacyTradingView \} from "\.\/tradingViewLegacy"/);
-  assert.match(tradingShell, /<LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.match(tradingShell, /import \{ PaperLearningMonitorView \} from "\.\/paperLearningMonitorView"/);
+  assert.match(tradingShell, /<PaperLearningMonitorView/);
+  assert.doesNotMatch(tradingShell, /<LegacyTradingView \{\.\.\.props\} \/>/);
   assert.match(tradingWorkspace, /testID="trade-paper-learning"/);
   assert.match(read("src/portfolioView.tsx"), /testID="portfolio-paper-learning"/);
 });
@@ -46,25 +47,22 @@ test("AI destination is evidence-backed and explicitly zero authority", () => {
 });
 
 test("Markets keeps the chart reachable and truthful even when App has no candle data", () => {
-  // v5 (docs/NUSA_MOBILE_UIUX_V5_OBSIDIAN_FINANCE.md §6): the chart is not hidden until real
-  // data exists -- it defaults first and shows its own truthful unavailable state instead.
   const source = read("src/marketsView.tsx");
   const app = read("App.tsx");
   assert.match(source, /useState<Panel>\("CHART"\)/);
   assert.doesNotMatch(source, /chartAvailable/);
   assert.match(source, /panel === "WATCHLIST"/);
-  // Real candle wiring landed (see PR #526) -- the chart data source is no longer a placeholder gap.
   assert.match(app, /rawCandles=\{publicMarkets\.candles === null \? null : \[\.\.\.publicMarkets\.candles\]\}/);
 });
 
-test("PAPER submit keeps LOCAL independent while Cloud PAPER remains runtime-gated", () => {
+test("production PAPER exposes learning only while isolated legacy PAPER execution stays runtime-gated", () => {
   const shell = read("src/tradingView.tsx");
   const source = read("src/tradingViewLegacy.tsx");
-  assert.match(shell, /import \{ TradingView as LegacyTradingView \} from "\.\/tradingViewLegacy"/);
-  assert.match(shell, /<LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.match(shell, /import \{ PaperLearningMonitorView \} from "\.\/paperLearningMonitorView"/);
+  assert.match(shell, /buildPaperLearningScreen/);
+  assert.match(shell, /<PaperLearningMonitorView/);
+  assert.doesNotMatch(shell, /<LegacyTradingView \{\.\.\.props\} \/>/);
   assert.match(source, /const configuredEndpoint = getConfiguredPaperEndpoint\(\)/);
-  // Issue #637: the LOCAL-vs-Cloud activation rule moved into the shared ledger (isLocalPaperActive)
-  // so Home/Trade/Portfolio can never disagree about which ledger is authoritative.
   assert.match(read("src/localPaperLedger.ts"), /Boolean\(configuredEndpoint && session\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
   assert.match(source, /const usingLocalPaper = isLocalPaperActive\(\)/);
   assert.match(source, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);

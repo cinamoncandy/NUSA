@@ -32,12 +32,14 @@ test("Markets keeps chart navigation reachable regardless of verified candles", 
   assert.match(markets, /const chart = <View[\s\S]*<ChartView/);
 });
 
-test("PAPER exposes local simulation independently while cloud submit stays authority-gated", () => {
+test("production PAPER is learning supervision only while legacy simulation stays isolated and PAPER-only", () => {
   const wrapper = source("tradingView.tsx");
   const trading = source("tradingViewLegacy.tsx");
 
-  assert.match(wrapper, /import \{ TradingView as LegacyTradingView \} from "\.\/tradingViewLegacy"/);
-  assert.match(wrapper, /<LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.match(wrapper, /import \{ PaperLearningMonitorView \} from "\.\/paperLearningMonitorView"/);
+  assert.match(wrapper, /buildPaperLearningScreen/);
+  assert.match(wrapper, /<PaperLearningMonitorView/);
+  assert.doesNotMatch(wrapper, /<LegacyTradingView \{\.\.\.props\} \/>/);
   assert.doesNotMatch(wrapper, /productionMutationAllowed:\s*true/);
   assert.doesNotMatch(wrapper, /authority:\s*["']LIVE["']/);
 
