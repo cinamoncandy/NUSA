@@ -1,6 +1,7 @@
 import { getSandbox } from "@cloudflare/sandbox";
 import { assertSafeCodingEnvelope, type CodingBackend, type CodingBackendCheckpoint, type CodingBackendCommandResult } from "./codingBackend";
 import type { CodingExecutionEnvelope } from "./codingExecutionEnvelope";
+import { deriveSandboxWorkspaceIdentity } from "./sandboxWorkspaceIdentity";
 
 type SandboxNamespace = Parameters<typeof getSandbox>[0];
 type SandboxCommand = Parameters<ReturnType<typeof getSandbox>["exec"]>[0];
@@ -13,10 +14,6 @@ interface WorkspaceRef {
 const BACKEND_NAME = "cloudflare-sandbox";
 const WORKSPACE_PREFIX = "nusa-sbx-v1";
 const REPOSITORY = "https://github.com/cinamoncandy/NUSA.git";
-
-function safeSegment(value: string): string {
-  return value.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 96);
-}
 
 function encodeWorkspace(ref: WorkspaceRef): string {
   return `${WORKSPACE_PREFIX}:${ref.sandboxId}:${ref.root}`;
@@ -47,8 +44,7 @@ export class CloudflareSandboxBackend implements CodingBackend {
 
   async prepare(envelope: CodingExecutionEnvelope): Promise<{ readonly workspaceId: string }> {
     assertSafeCodingEnvelope(envelope);
-    const sandboxId = safeSegment(`task-${envelope.executionId}`);
-    const root = `/workspace/nusa/${safeSegment(envelope.executionId)}`;
+    const { sandboxId, root } = await deriveSandboxWorkspaceIdentity(envelope);
     const sandbox = getSandbox(this.namespace, sandboxId);
     const launch = await sandbox.exec([
       "/bin/bash",
