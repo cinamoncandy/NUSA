@@ -72,7 +72,6 @@ test("Market order uses verified current price and UI exposes only PAPER executi
   assert.match(source, /authority: "PAPER_ONLY"/);
   assert.match(source, /productionMutationAllowed: false/);
   assert.match(source, /isPaperConnectionVerified\(configuredEndpoint\)/);
-  // Issue #637: the LOCAL-vs-Cloud activation check moved into the shared ledger.
   assert.match(fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "localPaperLedger.ts"), "utf8"), /session\.isConfigured\(\)/);
   assert.match(source, /PAPER 주문 연결이 필요합니다/);
   assert.match(source, /02 · 주문 검토/);
@@ -98,11 +97,6 @@ test("Market order uses verified current price and UI exposes only PAPER executi
 });
 
 test("SELL has a holdings-based allocation panel and BUY shows a genuine post-order remaining figure", () => {
-  // v5 (docs/NUSA_MOBILE_UIUX_V5_OBSIDIAN_FINANCE.md §7): SELL previously only got an
-  // InlineNotice while BUY got a full allocation panel; SELL now gets an equivalent
-  // contextual panel bounded by holdings, not cash (capitalAllocationGuard.ts's reservePercent
-  // correctly never applies to SELL). BUY's "after order" figure was previously a static
-  // reservedCash value that never actually changed with the order.
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingViewLegacy.tsx"), "utf8");
   assert.match(source, /testID="paper-holdings-panel"/);
   assert.match(source, /매도 가능 수량/);
@@ -112,10 +106,15 @@ test("SELL has a holdings-based allocation panel and BUY shows a genuine post-or
   assert.doesNotMatch(source, /label="주문 후 보호 현금"/);
 });
 
-test("feed status chips never borrow the LIVE word (PAPER-only product)", () => {
-  for (const file of ["apps/mobile/src/tradingView.tsx", "apps/mobile/src/tradingViewLegacy.tsx"]) {
-    const source = fs.readFileSync(path.join(__dirname, "..", file), "utf8");
-    assert.match(source, /수신 중/);
+test("feed status chips stay observation-only and never borrow LIVE authority wording", () => {
+  const shell = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
+  const legacy = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingViewLegacy.tsx"), "utf8");
+
+  assert.match(shell, /chartModel\.state === "READY" \? "FRESH" : "WAITING"/);
+  assert.match(shell, /value: "READ ONLY"/);
+  assert.match(shell, /공개 시장 관찰은 PAPER 전략 신호가 아니며 실제 주문 권한을 갖지 않습니다/);
+  assert.match(legacy, /수신 중/);
+  for (const source of [shell, legacy]) {
     assert.doesNotMatch(source, /차트 LIVE/);
     assert.doesNotMatch(source, /PUBLIC LIVE/);
   }
