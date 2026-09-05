@@ -6,6 +6,15 @@ import { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
 import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, type PaperAccountState } from "./paperTradingExecutionLoop";
 import { createCloudAiRuntime } from "./ai/runtime";
 import { registerGracefulShutdown, startCloudRuntime, type CloudRuntimeHandle } from "./runtime";
+import { readClosedLearningProductionConfig } from "./closedLearningProductionConfig";
+import { ClosedLearningResearchWorkerClient } from "./closedLearningResearchWorkerClient";
+import { ClosedLearningResearchDecisionHistory } from "./closedLearningResearchDecisionHistory";
+import { FileQualifiedPaperChallengerArtifactStore } from "./qualifiedPaperChallengerArtifactStore";
+import { ClosedLearningLineageReplayInputSource } from "./closedLearningLineageReplayInputSource";
+import { ClosedLearningProductionResearchAdapter } from "./closedLearningProductionResearchAdapter";
+import { ClosedLearningEvolutionLedgerRepository } from "./closedLearningEvolutionLedgerRepository";
+import { ClosedLearningLoopCoordinator, type ClosedLearningCycleResult, type ClosedLearningEvidenceIdentity } from "./closedLearningLoopCoordinator";
+import { PaperChallengerDeploymentRuntime } from "./paperChallengerDeploymentRuntime";
 
 export interface ClosedLearningProductionComposition {
   readonly handle: CloudRuntimeHandle;
@@ -16,18 +25,21 @@ export interface ClosedLearningProductionComposition {
    * or acquiring a competing writer lease.
    */
   readonly readCanonicalPaperAccount: () => PaperAccountState | undefined;
+  /** Executes one replay-safe closed-learning cycle over an explicit immutable evidence identity. */
+  readonly runClosedLearningCycle: (input: ClosedLearningEvidenceIdentity) => ClosedLearningCycleResult;
 }
 
 /**
  * Production composition root for autonomous PAPER + closed-learning candidate attribution.
  *
- * It deliberately reuses the existing Cloud runtime, SQLite state database, CIO, risk gate,
- * PAPER execution/accounting, and Evolution Learning ledger. The only additional authority is
- * a read-only active-challenger provenance provider. No LIVE route or production champion
- * mutation is introduced here.
+ * One process owns the canonical SQLite database, PAPER account loop, realized-period producer,
+ * Research replay worker boundary, complete denominator history, immutable challenger artifacts,
+ * replay-safe cycle ledger, and next-PAPER deployment. No second PAPER writer, Research scoring
+ * engine, LIVE route, or production champion mutation is introduced here.
  */
 export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = process.env): ClosedLearningProductionComposition {
   const config = readCloudRuntimeConfig(env);
+  const closedLearningConfig = readClosedLearningProductionConfig(env, config.cloudStateDbPath);
   const database = new SqliteDatabase(config.cloudStateDbPath);
   const snapshots = new SqliteCloudDashboardSnapshotRepository(database);
   const learningLedger = new SqliteEvolutionLearningLedger(database);
@@ -56,10 +68,44 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     undefined,
     createCloudAiRuntime(env),
   );
+
+  const readCanonicalPaperAccount = (): PaperAccountState | undefined => paperLoop?.snapshot();
+  const requireCanonicalPaperAccount = (): PaperAccountState => {
+    const account = readCanonicalPaperAccount();
+    if (account == null) throw new Error("closed learning canonical PAPER account is unavailable");
+    return account;
+  };
+
+  // Adapt the exact realized-period producer already owned inside startCloudRuntime. No second
+  // realized-period repository is opened, which preserves the single-writer production boundary.
+  const periods = Object.freeze({
+    listRealizedPeriods: () => handle.listPaperRealizedPeriods(),
+    openPeriodFromCanonicalAccount: (input: Parameters<CloudRuntimeHandle["openPaperRealizedPeriodFromCanonicalAccount"]>[0]) => handle.openPaperRealizedPeriodFromCanonicalAccount(input),
+  });
+  const replayInput = new ClosedLearningLineageReplayInputSource({
+    periods,
+    bindings: challengerBindings,
+    readCanonicalPaperAccount,
+    executionQualityPolicy: closedLearningConfig.executionQualityPolicy,
+  });
+  const worker = new ClosedLearningResearchWorkerClient({ snapshotPath: closedLearningConfig.researchReplaySnapshotPath });
+  const history = new ClosedLearningResearchDecisionHistory(database);
+  const artifacts = new FileQualifiedPaperChallengerArtifactStore(closedLearningConfig.qualifiedArtifactPath);
+  const researchFactory = new ClosedLearningProductionResearchAdapter({ replayInput, worker, history, artifacts });
+  const cycleRepository = new ClosedLearningEvolutionLedgerRepository(learningLedger);
+  const paperDeployment = new PaperChallengerDeploymentRuntime({
+    artifacts,
+    bindings: challengerBindings,
+    periods,
+    readCanonicalPaperAccount: requireCanonicalPaperAccount,
+  });
+  const coordinator = new ClosedLearningLoopCoordinator(cycleRepository, researchFactory, paperDeployment);
+
   return Object.freeze({
     handle,
     challengerBindings,
-    readCanonicalPaperAccount: () => paperLoop?.snapshot(),
+    readCanonicalPaperAccount,
+    runClosedLearningCycle: (input: ClosedLearningEvidenceIdentity) => coordinator.run(input),
   });
 }
 
