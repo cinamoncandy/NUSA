@@ -76,7 +76,7 @@
     "opportunity:schedule-import": "pnpm run preflight && pnpm run build && node scripts/import-opportunity-schedule.js",
     "research:evidence-status": "pnpm run preflight && pnpm run build && node scripts/research-evidence-status.js",
     "runtime:diagnostics-validate": "pnpm run preflight && pnpm run build && node scripts/validate-runtime-diagnostics.js",
-    "research:real-run": "pnpm run preflight && pnpm run build && node scripts/research-real-market-run.js",
+    "research:real-run": "pnpm run preflight && pnpm run build && node -r ./scripts/research-replay-snapshot-capture.js scripts/research-real-market-run.js",
     "validate": "pnpm run preflight && pnpm run architecture:truth && pnpm run safety:architecture && pnpm run ai:architecture",
     "validate:full": "pnpm run validate && pnpm run architecture:check && pnpm run aipos:drift && pnpm run aipos:conformance && pnpm run safety:invariants && pnpm run safety:inputs",
     "validate:tier-safety": "node scripts/validate-tiers.js --tier=safety",
