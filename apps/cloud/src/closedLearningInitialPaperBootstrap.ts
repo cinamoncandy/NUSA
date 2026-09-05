@@ -22,7 +22,7 @@ export interface ClosedLearningInitialPaperBootstrapResult {
 
 export interface ClosedLearningInitialPaperBootstrapOptions {
   readonly snapshots: ResearchRunReplaySnapshotReader;
-  readonly worker: Pick<ClosedLearningResearchWorkerClient, "replayInitialResearch">;
+  readonly worker: Pick<ClosedLearningResearchWorkerClient, "replayInitialResearch"> & Partial<Pick<ClosedLearningResearchWorkerClient, "replayInitialResearchAsync">>;
   readonly history: Pick<ClosedLearningResearchDecisionHistory, "persist">;
   readonly artifacts: QualifiedPaperChallengerArtifactWriter;
   readonly deployment: PaperChallengerDeploymentAdapter;
@@ -81,14 +81,16 @@ export class ClosedLearningInitialPaperBootstrap {
     this.now = options.now ?? Date.now;
   }
 
-  public runOnce(): ClosedLearningInitialPaperBootstrapResult {
+  private eligibleSnapshot(): { readonly early?: ClosedLearningInitialPaperBootstrapResult; readonly snapshot?: ResearchRunReplaySnapshot } {
     if (this.options.listOpenPeriods().length > 0 || this.options.listRealizedPeriods().length > 0) {
-      return Object.freeze({ status: "EXISTING_PAPER_STATE" });
+      return Object.freeze({ early: Object.freeze({ status: "EXISTING_PAPER_STATE" }) });
     }
-
     const snapshot = latestSnapshot(this.options.snapshots.list());
-    if (snapshot == null) return Object.freeze({ status: "WAITING_RESEARCH_SNAPSHOT" });
-    const result = this.options.worker.replayInitialResearch(snapshot.originalRunFingerprintSha256);
+    if (snapshot == null) return Object.freeze({ early: Object.freeze({ status: "WAITING_RESEARCH_SNAPSHOT" }) });
+    return Object.freeze({ snapshot });
+  }
+
+  private finalize(snapshot: ResearchRunReplaySnapshot, result: ClosedLearningResearchReplayResult): ClosedLearningInitialPaperBootstrapResult {
     const observedAt = this.now();
     if (!Number.isSafeInteger(observedAt) || observedAt < 0) throw new Error("initial PAPER bootstrap clock is invalid");
 
@@ -120,5 +122,23 @@ export class ClosedLearningInitialPaperBootstrap {
       originalRunFingerprintSha256: snapshot.originalRunFingerprintSha256,
       deployment,
     });
+  }
+
+  public runOnce(): ClosedLearningInitialPaperBootstrapResult {
+    const eligible = this.eligibleSnapshot();
+    if (eligible.early != null) return eligible.early;
+    const snapshot = eligible.snapshot!;
+    return this.finalize(snapshot, this.options.worker.replayInitialResearch(snapshot.originalRunFingerprintSha256));
+  }
+
+  /** Async production path yields while the isolated Research/League child process executes when supported. */
+  public async runOnceAsync(): Promise<ClosedLearningInitialPaperBootstrapResult> {
+    const eligible = this.eligibleSnapshot();
+    if (eligible.early != null) return eligible.early;
+    const snapshot = eligible.snapshot!;
+    const result = this.options.worker.replayInitialResearchAsync == null
+      ? this.options.worker.replayInitialResearch(snapshot.originalRunFingerprintSha256)
+      : await this.options.worker.replayInitialResearchAsync(snapshot.originalRunFingerprintSha256);
+    return this.finalize(snapshot, result);
   }
 }
