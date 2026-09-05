@@ -179,6 +179,10 @@ function validateDeployment(
   const market = safeText(artifact.market, "Research replay worker artifact market", 32).toUpperCase();
   if (!MARKET.test(market)) throw new Error("Research replay worker artifact market is invalid");
   const decisionReference = safeText(artifact.researchDecisionReference, "Research replay worker artifact decision reference", 240);
+  const candidateStrategy = artifact.candidateStrategy;
+  if (candidateStrategy == null || typeof candidateStrategy !== "object" || Array.isArray(candidateStrategy)) throw new Error("Research replay worker artifact strategy specification is unavailable");
+  const strategy = candidateStrategy as Record<string, unknown>;
+  if (strategy.candidateId !== candidateId || typeof strategy.familyId !== "string" || typeof strategy.lineageId !== "string" || typeof strategy.specificationHash !== "string" || !SHA256.test(strategy.specificationHash.trim().toLowerCase()) || typeof strategy.codeSha !== "string" || !/^[a-f0-9]{40}$/.test(strategy.codeSha.trim().toLowerCase()) || typeof strategy.costModelVersion !== "string" || strategy.parameters == null || typeof strategy.parameters !== "object" || Array.isArray(strategy.parameters)) throw new Error("Research replay worker artifact strategy specification is invalid");
   const lineage = validatePaperResearchLineage(artifact.researchLineage as never);
   if (
     lineage.candidateId !== candidateId
@@ -209,6 +213,15 @@ function validateDeployment(
       researchDecisionReference: decisionReference,
       researchLineage: lineage,
       candidateProvenance: Object.freeze([{ candidateId, datasetId, datasetContentSha256 }]),
+      candidateStrategy: Object.freeze({
+        candidateId,
+        familyId: strategy.familyId.trim(),
+        lineageId: strategy.lineageId.trim(),
+        specificationHash: strategy.specificationHash.trim().toLowerCase(),
+        codeSha: strategy.codeSha.trim().toLowerCase(),
+        costModelVersion: strategy.costModelVersion.trim(),
+        parameters: Object.freeze({ ...(strategy.parameters as Record<string, string | number | boolean>) }),
+      }),
       liveAuthority: "NONE",
       productionMutationAllowed: false,
       aiAuthority: "ZERO_AUTHORITY",

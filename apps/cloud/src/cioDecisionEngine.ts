@@ -1,6 +1,7 @@
 export type CioAction = "BUY" | "SELL" | "HOLD" | "REDUCE" | "EXIT" | "WAIT";
 export type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 export type SignalSource = "MACRO" | "NEWS" | "CHART" | "ONCHAIN" | "ETF" | "FUNDING" | "OI" | "RISK";
+import { normalizePaperCandidateStrategy, type PaperCandidateStrategySpec } from "../../../packages/contracts/src/paperCandidateExecutionBinding";
 
 /**
  * Fail-closed transport form of the research-side PAPER candidate binding receipt.
@@ -22,6 +23,15 @@ export interface PaperCandidateExecutionBinding {
   readonly periodStartAt: number;
   readonly advisoryFingerprintSha256: string;
   readonly bindingFingerprintSha256: string;
+  readonly candidateStrategy?: PaperCandidateStrategySpec;
+}
+
+export interface PaperCandidateStrategyDecision {
+  readonly action: "BUY" | "SELL" | "HOLD" | "WAIT";
+  readonly score: number;
+  readonly confidence: number;
+  readonly reason: string;
+  readonly observedAt: number;
 }
 
 export interface CioSignal {
@@ -42,6 +52,8 @@ export interface CioDecisionInput {
   readonly risk: RiskLevel;
   readonly tradingEnabled: boolean;
   readonly paperCandidateBinding?: PaperCandidateExecutionBinding;
+  /** Decision produced by the bound immutable PAPER candidate strategy, when active. */
+  readonly paperCandidateStrategyDecision?: PaperCandidateStrategyDecision;
 }
 
 export interface CioDecision {
@@ -55,6 +67,7 @@ export interface CioDecision {
   readonly reasons: readonly string[];
   readonly decidedAt: number;
   readonly paperCandidateBinding?: PaperCandidateExecutionBinding;
+  readonly paperCandidateStrategyDecision?: PaperCandidateStrategyDecision;
 }
 
 const WEIGHTS: Readonly<Record<SignalSource, number>> = Object.freeze({
@@ -103,7 +116,15 @@ export function validatePaperCandidateExecutionBinding(
   }
   if (binding.advisoryGeneratedAt >= binding.periodStartAt) throw new Error("paper candidate binding contains lookahead advisory provenance");
   if (binding.periodStartAt > decisionAt) throw new Error("paper candidate binding period starts after decision time");
-  return Object.freeze({ ...binding, candidateId, datasetId });
+  return Object.freeze({ ...binding, candidateId, datasetId, ...(binding.candidateStrategy == null ? {} : { candidateStrategy: normalizePaperCandidateStrategy(binding.candidateStrategy, candidateId) }) });
+}
+
+function validateCandidateStrategyDecision(value: PaperCandidateStrategyDecision, now: number): PaperCandidateStrategyDecision {
+  if (value == null || !["BUY", "SELL", "HOLD", "WAIT"].includes(value.action)) throw new Error("paper candidate strategy decision action is invalid");
+  if (!Number.isFinite(value.score) || value.score < -1 || value.score > 1) throw new Error("paper candidate strategy decision score is invalid");
+  assertUnit(value.confidence, "paper candidate strategy decision confidence");
+  if (!Number.isSafeInteger(value.observedAt) || value.observedAt < 0 || value.observedAt > now || !value.reason.trim()) throw new Error("paper candidate strategy decision evidence is invalid");
+  return Object.freeze({ action: value.action, score: round4(value.score), confidence: round4(value.confidence), reason: value.reason.trim(), observedAt: value.observedAt });
 }
 
 export function decideCio(input: CioDecisionInput): CioDecision {
@@ -118,6 +139,10 @@ export function decideCio(input: CioDecisionInput): CioDecision {
   const candidateBinding = input.paperCandidateBinding == null
     ? undefined
     : validatePaperCandidateExecutionBinding(input.paperCandidateBinding, input.now);
+  const candidateStrategyDecision = input.paperCandidateStrategyDecision == null
+    ? undefined
+    : validateCandidateStrategyDecision(input.paperCandidateStrategyDecision, input.now);
+  if (candidateStrategyDecision != null && candidateBinding?.candidateStrategy == null) throw new Error("paper candidate strategy decision requires an immutable candidate strategy binding");
   const seen = new Set<SignalSource>();
   let weightedScore = 0;
   let totalWeight = 0;
@@ -139,8 +164,9 @@ export function decideCio(input: CioDecisionInput): CioDecision {
     reasons.push(`${signal.source}: ${signal.reason.trim()}`);
   }
 
-  const score = round4(weightedScore / Math.max(confidenceWeight, Number.EPSILON));
-  const confidence = round4(clamp(confidenceWeight / totalWeight, 0, 1));
+  const score = candidateStrategyDecision?.score ?? round4(weightedScore / Math.max(confidenceWeight, Number.EPSILON));
+  const confidence = candidateStrategyDecision?.confidence ?? round4(clamp(confidenceWeight / totalWeight, 0, 1));
+  if (candidateStrategyDecision != null) reasons.unshift(`PAPER_CANDIDATE:${candidateBinding!.candidateStrategy!.familyId}:${candidateStrategyDecision.reason}`);
 
   let action: CioAction;
   let allocation = input.currentAllocation;
@@ -154,6 +180,20 @@ export function decideCio(input: CioDecisionInput): CioDecision {
   } else if (input.risk === "HIGH") {
     action = input.currentAllocation > 0 ? "REDUCE" : "WAIT";
     allocation = round4(input.currentAllocation * 0.5);
+  } else if (candidateStrategyDecision != null) {
+    const strategyAction = candidateStrategyDecision.action;
+    if (strategyAction === "BUY" && input.currentAllocation === 0) {
+      action = "BUY";
+      allocation = round4(clamp(input.currentAllocation + (input.maxAllocation - input.currentAllocation) * confidence, 0, input.maxAllocation));
+      leverage = input.risk === "LOW" ? Math.min(2, input.maxLeverage) : 1;
+    } else if (strategyAction === "SELL" && input.currentAllocation > 0) {
+      action = "SELL";
+      allocation = 0;
+    } else if (strategyAction === "HOLD" && input.currentAllocation > 0) {
+      action = "HOLD";
+    } else {
+      action = "WAIT";
+    }
   } else if (score >= 0.35 && confidence >= 0.55) {
     action = input.currentAllocation === 0 ? "BUY" : "HOLD";
     allocation = round4(clamp(input.currentAllocation + (input.maxAllocation - input.currentAllocation) * confidence, 0, input.maxAllocation));
@@ -175,6 +215,7 @@ export function decideCio(input: CioDecisionInput): CioDecision {
     score,
     reasons: Object.freeze(reasons),
     decidedAt: input.now,
-    ...(candidateBinding == null ? {} : { paperCandidateBinding: candidateBinding })
+    ...(candidateBinding == null ? {} : { paperCandidateBinding: candidateBinding }),
+    ...(candidateStrategyDecision == null ? {} : { paperCandidateStrategyDecision: candidateStrategyDecision })
   });
 }

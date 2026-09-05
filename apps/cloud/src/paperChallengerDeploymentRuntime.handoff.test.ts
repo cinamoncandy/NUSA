@@ -10,7 +10,7 @@ const ORIGINAL = "d".repeat(64);
 const REPLAY = "e".repeat(64);
 const ACCOUNT_AT = 10_000;
 const CANDIDATE = "challenger-next";
-const VERSION = "candidate-v2";
+const VERSION = "f".repeat(64);
 const DECISION_REFERENCE = "research:qualified-next";
 
 function artifact(): QualifiedPaperChallengerArtifact {
@@ -29,6 +29,7 @@ function artifact(): QualifiedPaperChallengerArtifact {
       provenance: Object.freeze({ sourceDatasetIds: Object.freeze(["dataset-next"]) }),
     }),
     candidateProvenance: Object.freeze([{ candidateId: CANDIDATE, datasetId: "dataset-next", datasetContentSha256: DATASET_HASH }]),
+    candidateStrategy: Object.freeze({ candidateId: CANDIDATE, familyId: "sma-crossover", lineageId: "sma-v1", specificationHash: VERSION, codeSha: "f".repeat(40), costModelVersion: "cost-v1", parameters: Object.freeze({ shortPeriod: 2, longPeriod: 3 }) }),
     researchDecisionReference: DECISION_REFERENCE,
     researchLineage: Object.freeze({
       schemaVersion: 1,

@@ -4,6 +4,7 @@ import { buildPortfolioPlan } from "./portfolioOrchestrator";
 import type { MobileDashboardApiInput } from "./mobileDashboardApi";
 import type { CloudDashboardStateProvider } from "./cloudDashboardStateProvider";
 import type { IntelligenceObservation } from "./marketIntelligenceFusion";
+import { evaluatePaperCandidateStrategy } from "./paperCandidateStrategy";
 
 export interface PaperCandidateBindingProvider {
   read(market: string, decisionAt: number): PaperCandidateExecutionBinding | undefined;
@@ -78,6 +79,9 @@ export class CloudRuntimeDashboardHydrator {
           .filter((allocation) => allocation.symbol === market && allocation.instrument === "SPOT")
           .reduce((sum, allocation) => sum + allocation.share, 0) ?? 0);
         const paperCandidateBinding = this.paperCandidateBindingProvider?.read(market, now);
+        const paperCandidateStrategyDecision = paperCandidateBinding?.candidateStrategy == null
+          ? undefined
+          : evaluatePaperCandidateStrategy(paperCandidateBinding.candidateStrategy, marketGroups.get(market) ?? [], now, market);
         decisions.push(decideCio({
           symbol: market,
           now,
@@ -87,7 +91,8 @@ export class CloudRuntimeDashboardHydrator {
           maxLeverage: 1,
           risk: "MEDIUM",
           tradingEnabled: true,
-          ...(paperCandidateBinding == null ? {} : { paperCandidateBinding })
+          ...(paperCandidateBinding == null ? {} : { paperCandidateBinding }),
+          ...(paperCandidateStrategyDecision == null ? {} : { paperCandidateStrategyDecision })
         }));
       }
 
