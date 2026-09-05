@@ -23,7 +23,7 @@ test("production Research replay uses asynchronous child-process path", () => {
   assert.match(worker, /import \{ spawn, spawnSync \} from "node:child_process"/);
   assert.match(worker, /public replayAsync\(/);
   assert.match(worker, /public replayInitialResearchAsync\(/);
-  const asyncExecute = worker.match(/private async executeAsync[\s\S]*?\n  }\n\n  public replay\(/);
+  const asyncExecute = worker.match(/private async executeAsync[\s\S]*?\r?\n  }\r?\n\r?\n  public replay\(/);
   assert.ok(asyncExecute, "async Research execution method must exist");
   assert.match(asyncExecute[0], /runAsyncProcess/);
   assert.doesNotMatch(asyncExecute[0], /runProcess\(/);
