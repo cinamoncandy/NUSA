@@ -23,8 +23,8 @@ const { buildResearchRunProvenancePlan } = require("../dist/apps/desktop/src/clo
 
 const STRATEGY_FAMILY_ID = "sma-crossover";
 const MARKET = "KRW-BTC";
-const CANDLE_COUNT = 200;
-const REQUEST_PATH = `/v1/candles/days?market=${MARKET}&count=${CANDLE_COUNT}`;
+const DEFAULT_CANDLE_COUNT = 1000;
+const DAY_MS = 86_400_000;
 
 const BACKTEST_CONFIG = {
   market: MARKET,
@@ -175,35 +175,55 @@ function runProvenanceBoundExperiment({ id, shortPeriod, longPeriod, candles, ma
 }
 
 async function fetchDayCandlePage(path) {
-  const response = await fetch(`https://api.upbit.com${path}`);
+  const response = await fetch(`https://api.upbit.com${path}`, { signal: AbortSignal.timeout(15_000) });
   if (!response.ok) throw new Error(`Upbit request failed: HTTP ${response.status}`);
   const body = await response.json();
   if (!Array.isArray(body) || body.length === 0) throw new Error("Upbit returned no candles");
   return body;
 }
 
+function researchCandleCount(value = process.env.NUSA_RESEARCH_CANDLE_COUNT) {
+  if (value === undefined) return DEFAULT_CANDLE_COUNT;
+  if (!/^\d+$/.test(String(value)) || !Number.isInteger(Number(value)) || Number(value) < 200 || Number(value) > 2000) {
+    throw new Error("NUSA_RESEARCH_CANDLE_COUNT must be an integer from 200 to 2000");
+  }
+  return Number(value);
+}
+
+async function fetchResearchCandles({ dataAsOf, count = DEFAULT_CANDLE_COUNT, fetchPage = fetchDayCandlePage, pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }) {
+  count = researchCandleCount(count);
+  if (!Number.isFinite(dataAsOf)) throw new Error("research dataAsOf must be finite");
+  // Upbit's `to` is exclusive. Anchor every request to completed UTC days,
+  // including the first page, so an in-flight day cannot change the dataset.
+  let before = Math.floor(dataAsOf / DAY_MS) * DAY_MS;
+  const candles = [];
+  const sourceRequests = [];
+  for (let page = 0; page < Math.ceil(count / 200); page += 1) {
+    const pageSize = Math.min(200, count - candles.length);
+    const requestPath = `/v1/candles/days?market=${MARKET}&count=${pageSize}&to=${encodeURIComponent(new Date(before).toISOString())}`;
+    if (page > 0) await pause(150);
+    const raw = await fetchPage(requestPath);
+    if (!Array.isArray(raw) || raw.length !== pageSize) throw new Error("Upbit research history is incomplete");
+    const mapped = mapUpbitDayCandlesToResearchCandles(raw, { completedBy: dataAsOf });
+    if (mapped.length !== pageSize) throw new Error("Upbit research page contains incomplete candles");
+    for (let index = 0; index < mapped.length; index += 1) {
+      const candle = mapped[index];
+      const expectedOpenTime = before - (mapped.length - index) * DAY_MS;
+      if (candle.market !== MARKET || candle.openTime !== expectedOpenTime) {
+        throw new Error("Upbit research history has a market, gap, duplicate, or cursor mismatch");
+      }
+    }
+    sourceRequests.push(`GET ${requestPath}`);
+    candles.unshift(...mapped);
+    before = mapped[0].openTime;
+  }
+  return { candles, sourceRequests };
+}
+
 async function main() {
   const dataAsOf = Date.now();
   const timeline = buildResearchRunTimeline(dataAsOf);
-  const primaryRaw = await fetchDayCandlePage(REQUEST_PATH);
-  const sourceRequests = [`GET ${REQUEST_PATH}`];
-  let allRaw = primaryRaw;
-  let candles = mapUpbitDayCandlesToResearchCandles(allRaw, { completedBy: dataAsOf, maxCount: CANDLE_COUNT });
-
-  if (candles.length < CANDLE_COUNT) {
-    const missingCount = CANDLE_COUNT - candles.length;
-    const oldestCompletedOpenTime = candles[0]?.openTime;
-    if (oldestCompletedOpenTime == null) throw new Error("Upbit completed-candle backfill has no anchor");
-    const backfillPath = `/v1/candles/days?market=${MARKET}&count=${missingCount}&to=${encodeURIComponent(new Date(oldestCompletedOpenTime).toISOString())}`;
-    const backfillRaw = await fetchDayCandlePage(backfillPath);
-    sourceRequests.push(`GET ${backfillPath}`);
-    allRaw = [...primaryRaw, ...backfillRaw];
-    candles = mapUpbitDayCandlesToResearchCandles(allRaw, { completedBy: dataAsOf, maxCount: CANDLE_COUNT });
-  }
-
-  if (candles.length !== CANDLE_COUNT) {
-    throw new Error(`Upbit returned only ${candles.length} completed daily candles; expected ${CANDLE_COUNT}`);
-  }
+  const { candles, sourceRequests } = await fetchResearchCandles({ dataAsOf, count: researchCandleCount() });
   const freshness = evaluateUpbitDailyCandleFreshness(candles, dataAsOf);
   if (!freshness.fresh) {
     throw new Error(`Upbit completed daily candle source is stale by ${freshness.lagDays} UTC day(s)`);
@@ -381,6 +401,7 @@ async function main() {
       startOpenTime: new Date(manifest.startOpenTime).toISOString(),
       endCloseTime: new Date(manifest.endCloseTime).toISOString(),
       contentSha256: manifest.contentSha256,
+      sourceRequest: manifest.sourceRequest,
       completedBy: new Date(dataAsOf).toISOString(),
       freshness: {
         status: "FRESH",
@@ -460,6 +481,8 @@ if (require.main === module) {
 }
 
 module.exports = {
+  fetchResearchCandles,
+  researchCandleCount,
   buildParameterRobustnessRequest,
   buildResearchRunTimeline,
   isResearchRunPboEvidenceUnavailable
