@@ -1,6 +1,9 @@
 name: Android Stable Release Watchdog
 
 on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
