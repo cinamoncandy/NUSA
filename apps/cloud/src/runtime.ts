@@ -115,8 +115,12 @@ function buildCloudRuntimeReadiness(durableRepository: CloudDashboardSnapshotRep
   if (!(durableRepository instanceof SqliteCloudDashboardSnapshotRepository)) return failed();
   try {
     const db = durableRepository.database();
-    const quickCheck = db.connection.prepare("PRAGMA quick_check").get() as Record<string, unknown> | undefined;
-    const database = quickCheck != null && Object.values(quickCheck).includes("ok");
+    // Readiness runs on the HTTP event loop. A full-file PRAGMA quick_check can take
+    // seconds on the production ledger and starve even the O(1) /health endpoint.
+    // Probe the already-open canonical connection here; migration/persistence/recovery
+    // checks below still fail closed on an unreadable or inconsistent runtime store.
+    const databaseProbe = db.connection.prepare("SELECT 1 AS ready").get() as Record<string, unknown> | undefined;
+    const database = Number(databaseProbe?.ready ?? 0) === 1;
     const latestMigration = db.connection.prepare("SELECT id FROM schema_migrations ORDER BY id DESC LIMIT 1").get() as Record<string, unknown> | undefined;
     const migrations = db.migrationResult.currentVersion !== undefined && String(latestMigration?.id ?? "") === db.migrationResult.currentVersion;
     const dashboardState = effectiveProvider.read({ userId: "operator", scopes: ["dashboard:read"] });
