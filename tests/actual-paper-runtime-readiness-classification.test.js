@@ -12,7 +12,22 @@ test("no autonomous order/fill/PnL cannot be classified PASS", () => {
   const result = classify(base);
   assert.equal(result.result, "INCOMPLETE");
   assert.equal(result.production_readiness.status, "INCOMPLETE_NO_AUTONOMOUS_ORDER_FILL_PNL");
+  assert.equal(result.production_readiness.account_or_pnl_change_observed, false);
   assert.equal(result.production_readiness.completion_claim_allowed, false);
+});
+
+test("zero-quantity position is not an account change", () => {
+  const result = classify({
+    ...base,
+    first_runtime: {
+      orderCount: 0,
+      realizedPnl: 0,
+      unrealizedPnl: 0,
+      position: { market: "KRW-BTC", quantity: 0, averagePrice: 0 },
+    },
+  });
+  assert.equal(result.production_readiness.account_or_pnl_change_observed, false);
+  assert.equal(result.result, "INCOMPLETE");
 });
 
 test("autonomous fill plus account change can be classified complete while LIVE remains zero", () => {
