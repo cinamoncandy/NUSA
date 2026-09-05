@@ -1,6 +1,9 @@
 id: WO-ISSUE-1701-RESEARCH-HORIZON
 status: IN_PROGRESS
-local_validation: Focused and Research/closed-learning regression 296/296; typecheck, build, lint, validate:full, security PASS. Actual public run pending.
+local_validation: Focused and Research/closed-learning regression 296/296; typecheck, build, lint, validate:full, security PASS.
+full_isolated: PASS_939_FILES
+runtime_evidence: docs/research/public-history-horizon-2026-09-05.md
+actual_public_run: 1000 completed candles, 44 OOS windows, 6 REJECTED, 0 qualified; durable restart replay PASS. Not forward PAPER evidence.
 authority_impact: none
 base_branch: main
 base_commit: 13363002133bd764494bc3bb4d56f64016971bdf
