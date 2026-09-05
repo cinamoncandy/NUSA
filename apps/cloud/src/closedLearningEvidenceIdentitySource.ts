@@ -96,7 +96,7 @@ export class ClosedLearningEvidenceIdentitySource {
     const lineage = lineageFor(window.closedPeriod, this.options.bindings);
     const market = marketOf(window.closedPeriod);
     const selected = realized.filter((period) => {
-      if (period.record.status !== "COMPLETED" || marketOf(period) !== market) return false;
+      if (marketOf(period) !== market) return false;
       try {
         return samePaperResearchLineage(lineageFor(period, this.options.bindings), lineage);
       } catch {
@@ -144,6 +144,7 @@ export class ClosedLearningEvidenceIdentitySource {
         turnoverCostRate: period.record.turnoverCostRate,
         costEvidenceFingerprintSha256: period.record.costEvidence.evidenceFingerprintSha256,
         canonicalOutcomeReceiptFingerprint: period.record.canonicalOutcomeReceiptFingerprint ?? null,
+        status: period.record.status,
         candidateProvenance: period.candidateProvenance,
       })),
     });

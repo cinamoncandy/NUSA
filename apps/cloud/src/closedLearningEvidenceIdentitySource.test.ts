@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { validateResearchCandidateSpecification, type ResearchCandidateSpecification } from "../../desktop/src/cloud/researchCandidateSpecification";
 import type { ResearchRunReplaySnapshotReader } from "../../desktop/src/cloud/researchRunReplaySnapshotStore";
-import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
+import type { PaperPeriodLifecycleStatus, PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import type { PaperChallengerActivationReceipt } from "./paperChallengerBindingLedger";
 import { ClosedLearningEvidenceIdentitySource } from "./closedLearningEvidenceIdentitySource";
 
@@ -69,7 +69,12 @@ function activation(candidateId = "candidate-a", original = ORIGINAL): PaperChal
   });
 }
 
-function period(recordId: string, periodIndex: number, periodStartAt: number): PersistedPaperPeriodEnvelope {
+function period(
+  recordId: string,
+  periodIndex: number,
+  periodStartAt: number,
+  status: PaperPeriodLifecycleStatus = "COMPLETED",
+): PersistedPaperPeriodEnvelope {
   return Object.freeze({
     record: Object.freeze({
       recordId,
@@ -83,7 +88,7 @@ function period(recordId: string, periodIndex: number, periodStartAt: number): P
       turnoverCostRate: 0.001,
       costEvidence: Object.freeze({ evidenceId: `cost-${recordId}`, source: "PAPER_EXECUTION_RECEIPT" as const, evidenceKind: "OBSERVED" as const, evidenceFingerprintSha256: "3".repeat(64), observedAt: periodStartAt + 10_000, feeRate: 0.0005, spreadRate: 0.0002, slippageRate: 0.0003 }),
       canonicalOutcomeReceiptFingerprint: "4".repeat(64),
-      status: "COMPLETED" as const,
+      status,
     }),
     candidateProvenance: Object.freeze([{ candidateId: "candidate-a", datasetId: "dataset-a", datasetContentSha256: DATASET_HASH }]),
   });
@@ -126,6 +131,25 @@ describe("ClosedLearningEvidenceIdentitySource", () => {
     assert.deepEqual(left.evidenceReferences, ["paper-period:record-1", "paper-period:record-2"]);
     assert.match(left.evidenceFingerprintSha256, /^[a-f0-9]{64}$/);
     assert.equal(left.evidenceId, `closed-learning-paper:${left.evidenceFingerprintSha256}`);
+  });
+
+  it("preserves REJECTED, HALTED, and COMPLETED periods in one immutable same-lineage cohort", () => {
+    const rejected = period("record-rejected", 1, 10_000, "REJECTED");
+    const halted = period("record-halted", 2, 20_000, "HALTED");
+    const completed = period("record-completed", 3, 30_000, "COMPLETED");
+    const active = activation();
+    const source = new ClosedLearningEvidenceIdentitySource({
+      bindings: { current: () => active },
+      replaySnapshots: snapshotReader(),
+      readRiskConfigHash: () => RISK,
+    });
+
+    const result = source.build({ closedPeriod: completed, realizedPeriods: [completed, halted, rejected] });
+    assert.deepEqual(result.evidenceReferences, [
+      "paper-period:record-rejected",
+      "paper-period:record-halted",
+      "paper-period:record-completed",
+    ]);
   });
 
   it("excludes realized periods from a different Research lineage", () => {
