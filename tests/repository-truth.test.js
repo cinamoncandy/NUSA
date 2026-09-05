@@ -18,10 +18,11 @@ function fixture() {
   write(root, "README.md", `# NUSA\n\n## Cloud PAPER runtime\n\nRun with pnpm cloud:runtime.\n\nAuthority remains liveAuthority NONE and productionMutationAllowed false.\n`);
   write(root, "docs/NEXT_TASK.md", `# Next Task\n\n### WO-0031: canonical strategy research promotion architecture\n\nWO-0031 has one canonical research-promotion authority.\n\nThe evidence manifest owns evidence integrity, provenance, and immutable linkage only. The promotion-gate runner plus independent verifier own the only researchDecision. strategy-research-scorecard.js remains compatibility/readiness only and must not emit, own, or imply an independent research-promotion decision.\n`);
   write(root, "package.json", JSON.stringify({ scripts: {
-    "cloud:runtime": "pnpm run build && node dist/apps/cloud/src/runtime.js",
+    "cloud:runtime": "pnpm run build && node scripts/start-cloud-runtime.js",
     "architecture:truth": "node scripts/validate-repository-truth.js"
   } }));
-  for (const path of ["apps/cloud/src/runtime.ts", "apps/cloud/src/server.ts", "apps/cloud/src/cloudRuntimeConfig.ts"]) write(root, path);
+  write(root, "scripts/start-cloud-runtime.js", `const child = "dist/apps/cloud/src/closedLearningProductionRuntime.js";\nvoid child;\n`);
+  for (const path of ["apps/cloud/src/runtime.ts", "apps/cloud/src/closedLearningProductionRuntime.ts", "apps/cloud/src/server.ts", "apps/cloud/src/cloudRuntimeConfig.ts"]) write(root, path);
   write(root, ".aipos/work-orders/WO-AI-009-governed-outcome-attribution-learning.yaml", `id: WO-AI-009\nstatus: PLANNED\nverification:\n  result: PASS\nplanning_gate:\n  status: MERGED\n  exact_head: ${"b".repeat(40)}\n  merge_commit: ${"c".repeat(40)}\nimplementation_gate:\n  status: NOT_STARTED\n`);
   write(root, ".aipos/evidence/WO-AI-003-completion.json", "{}\n");
   write(root, ".aipos/current-mission.yaml", `id: WO-AI-004\ntitle: Outcome-Linked Calibration Engine\nstatus: IN_PROGRESS\n`);
