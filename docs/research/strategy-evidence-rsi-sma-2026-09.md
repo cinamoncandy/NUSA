@@ -53,4 +53,24 @@ Verdict summary: **no qualified candidate** (details below).
 ## What would change the verdict
 
 Longer OOS span (multiple regimes), fee-tier-accurate costs, latency
-modeling, and an independent second dataset — none claimed here.
+modeling, and an independent second dataset — the last one is now done,
+see below. The rest remain unclaimed.
+
+## Second market: KRW-ETH (same method, 2026-08-15 → 2026-09-05)
+
+- 30,400 real 1m candles, same 7-window walk-forward, same costs and
+  selection policy (`orderQuantity: 0.01` for ETH scale).
+- Selection: `rsi-14-30-70` 6/7 windows, `sma-10-30` 1/7, `sma-5-20` 0/7.
+- Combined OOS over 229 closed trades: **-0.04% total return
+  (-9,065 KRW net)**, win rate 41.9%, profit factor 0.73, max DD 0.21%.
+- Costs 18,711 KRW (fees 8,505 + spread 1,701 + slippage 8,505) exceed
+  gross edge outright. Additional warning vs BTC run:
+  `COSTS_DOMINATE_OOS_PERFORMANCE`.
+
+## Updated verdicts
+
+- `rsi-14-30-70`: **REJECTED** (was INSUFFICIENT on BTC alone) — negative
+  cross-market OOS with costs dominating in both datasets.
+- `sma-5-20`, `sma-10-30`: **REJECTED** (unchanged).
+- Cross-market confirmation strengthens the kill: no family here shows a
+  durable edge. Still no registration, promotion, or production change.
