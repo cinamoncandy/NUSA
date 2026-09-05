@@ -56,3 +56,32 @@ test("production mutation authority remains prohibited", () => {
 test("PROMOTE recommendation requires rollback target", () => {
   assert.ok(failures((r) => { r.promotions[0].recommendation = "PROMOTE"; delete r.bundles[1].rollbackBundleId; }).some((x) => x.startsWith("PROMOTION_ROLLBACK_TARGET_MISSING")));
 });
+
+test("canonical Release recovers a transient post-merge CI failure", () => {
+  const workflow = readFileSync(join(process.cwd(), ".github/workflows/autopilot-deterministic-audit-release.yml"), "utf8");
+  assert.match(workflow, /rerun-failed-jobs/);
+  assert.match(workflow, /failed_attempt" -ge 3/);
+  assert.match(workflow, /Post-merge CI SUCCESS recovered/);
+  assert.match(workflow, /head_sha=\$MERGED_MAIN/);
+});
+
+test("deployment convergence receipt requires every exact-main proof surface", () => {
+  const receipt = readFileSync(join(process.cwd(), ".github/workflows/deployment-convergence-receipt.yml"), "utf8");
+  const watchdog = readFileSync(join(process.cwd(), ".github/workflows/deployment-convergence-watchdog.yml"), "utf8");
+  for (const required of [
+    "Autopilot Cloudflare Deploy",
+    "Autopilot Cloudflare Promote",
+    "Autopilot Cloudflare Runtime Proof",
+    "Actual PAPER Public-Market Runtime Evidence",
+    "Android Stable Release",
+    "Windows Desktop Stable Release",
+  ]) {
+    assert.match(receipt, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.match(watchdog, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+  assert.match(receipt, /status: \$status/);
+  assert.match(receipt, /liveAuthority: "NONE"/);
+  assert.match(receipt, /productionMutationAllowed: false/);
+  assert.match(receipt, /aiAuthority: "ZERO_AUTHORITY"/);
+  assert.match(watchdog, /deployment-convergence-receipt\.yml/);
+});

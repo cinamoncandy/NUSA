@@ -3,10 +3,11 @@ const { join } = require("node:path");
 const { execFileSync } = require("node:child_process");
 const { block, scalar } = require("./validate-aipos-drift.js");
 
-const COMPILED_CLOUD_RUNTIME = "dist/apps/cloud/src/runtime.js";
+const COMPILED_CLOUD_RUNTIME = "dist/apps/cloud/src/closedLearningProductionRuntime.js";
 
 const REQUIRED_RUNTIME_FILES = Object.freeze([
   "apps/cloud/src/runtime.ts",
+  "apps/cloud/src/closedLearningProductionRuntime.ts",
   "apps/cloud/src/server.ts",
   "apps/cloud/src/cloudRuntimeConfig.ts"
 ]);
@@ -75,10 +76,10 @@ function validateRepositoryTruth(root = process.cwd(), options = {}) {
     if (!existsSync(join(root, relativePath))) failures.push(`CLOUD_RUNTIME_PATH_MISSING:${relativePath}`);
   }
 
-  // The documented entry point must still start the compiled Cloud runtime. It may do so through
-  // the launcher that supplies operational defaults, in which case the launcher itself has to
-  // reference the compiled runtime -- so the guard follows the indirection rather than accepting
-  // any script that merely mentions the launcher.
+  // The documented entry point must still start the compiled Cloud production composition root.
+  // It may do so through the launcher that supplies operational defaults, in which case the
+  // launcher itself has to reference that exact compiled entrypoint. This follows the indirection
+  // rather than accepting any script that merely mentions the launcher.
   const cloudRuntimeScript = packageJson?.scripts?.["cloud:runtime"];
   const launcherRelativePath = "scripts/start-cloud-runtime.js";
   const launcherSource = existsSync(join(root, launcherRelativePath))

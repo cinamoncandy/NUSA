@@ -6,6 +6,30 @@ const DEFAULT_BACKOFF_MS = 1_000;
 const MAX_PATCH_BYTES = 24_000;
 const MAX_VALIDATED_FILE_BYTES = 128_000;
 const PATCH_PATH = ".nusa-autopilot.patch";
+const GENERATED_WORKSPACE_ARTIFACTS = new Set([
+  "artifacts/autopilot-execution/repository-dispatch.json",
+  "artifacts/autopilot-execution/coding-runner-request.json",
+]);
+const SAFE_PROPOSAL_FAILURE_CODES = new Set([
+  "CODING_PROPOSAL_AUTHORITY_SURFACE_FORBIDDEN",
+  "CODING_PROPOSAL_FAILED_CLOSED",
+  "CODING_PROPOSAL_INVALID",
+  "CODING_PROPOSAL_JSON_INVALID",
+  "CODING_PROPOSAL_PATCH_REQUIRED",
+  "CODING_PROPOSAL_PATH_FORBIDDEN",
+  "CODING_PROPOSAL_PATH_INVALID",
+  "CODING_PROPOSAL_RESPONSE_INVALID",
+  "CODING_PROPOSAL_SHAPE_INVALID",
+  "CODING_PROPOSAL_TOO_LARGE",
+  "CODING_PROPOSAL_UNAVAILABLE",
+  "SANDBOX_PATCH_APPLY_CHECK_FAILED",
+  "SANDBOX_PATCH_FILE_COUNT_INVALID",
+  "SANDBOX_PATCH_FORBIDDEN_AUTHORITY_SURFACE",
+  "SANDBOX_PATCH_PATH_FORBIDDEN",
+  "SANDBOX_PATCH_PATH_OUTSIDE_ALLOWED_SCOPE",
+  "SANDBOX_PATCH_REQUIRED",
+  "SANDBOX_PATCH_TOO_LARGE",
+]);
 
 function transientStatus(status) {
   return status === 429 || (Number.isInteger(status) && status >= 500 && status <= 599);
@@ -18,6 +42,15 @@ function httpClass(status) {
 
 function fixedFailureClass(status) {
   return transientStatus(status) ? "transient" : "deterministic";
+}
+
+function proposalFailureCode(reason) {
+  const text = String(reason || "");
+  const match = text.match(/^(CODING_PROPOSAL_[A-Z0-9_]+|SANDBOX_PATCH_[A-Z0-9_]+)/);
+  const code = match?.[1];
+  if (!code || !SAFE_PROPOSAL_FAILURE_CODES.has(code)) return null;
+  if (code.startsWith("CODING_PROPOSAL_")) return text === code ? code : null;
+  return text === code || text.startsWith(`${code}:`) ? code : null;
 }
 
 function safeWorkerStatus(value) {
@@ -177,7 +210,18 @@ async function dispatchWithRetry({
 function readDispatchRequest() {
   const eventPath = process.env.GITHUB_EVENT_PATH;
   if (typeof eventPath !== "string" || !eventPath) throw new Error("GITHUB_EVENT_PATH_MISSING");
-  const event = JSON.parse(fs.readFileSync(eventPath, "utf8"));
+  let contents;
+  try {
+    contents = fs.readFileSync(eventPath, "utf8");
+  } catch {
+    throw new Error("GITHUB_EVENT_FILE_UNREADABLE");
+  }
+  let event;
+  try {
+    event = JSON.parse(contents.replace(/^\uFEFF/, ""));
+  } catch {
+    throw new Error("GITHUB_EVENT_JSON_INVALID");
+  }
   const payload = event.client_payload || {};
   return {
     kind: payload.kind,
@@ -192,6 +236,21 @@ function readDispatchRequest() {
     productionMutationAllowed: false,
     aiAuthority: "ZERO_AUTHORITY",
   };
+}
+
+function writeFailureArtifact(reason) {
+  const directory = "artifacts/autopilot-execution";
+  fs.mkdirSync(directory, { recursive: true });
+  fs.writeFileSync(directory + "/coding-runner-result.json", JSON.stringify({
+    schemaVersion: 1,
+    status: "FAILED_CLOSED",
+    reason,
+    workerStatus: "FAILED_CLOSED",
+    request: null,
+    liveAuthority: "NONE",
+    productionMutationAllowed: false,
+    aiAuthority: "ZERO_AUTHORITY",
+  }, null, 2));
 }
 
 function endpointFor(runnerUrl, suffix) {
@@ -227,7 +286,7 @@ function assertBoundedPatch(patch) {
   if (unique.length !== 1) throw new Error("SANDBOX_PATCH_FILE_COUNT_INVALID");
   const path = unique[0];
   if (!path.startsWith("apps/autopilot/") || path.startsWith("/") || path.split("/").includes("..")) throw new Error(`SANDBOX_PATCH_PATH_OUTSIDE_ALLOWED_SCOPE:${path}`);
-  if (path === "apps/autopilot/src/index.ts" || path === "apps/autopilot/src/worker.ts") throw new Error(`SANDBOX_PATCH_PATH_FORBIDDEN:${path}`);
+  if (path === "apps/autopilot/src/index.ts" || path === "apps/autopilot/src/worker.ts" || /(?:^|\/)(?:live|live-trading|broker|order|credential|secret|secrets|withdraw|transfer|production-authority)(?:\/|$)/i.test(path)) throw new Error(`SANDBOX_PATCH_PATH_FORBIDDEN:${path}`);
   return path;
 }
 
@@ -238,12 +297,33 @@ function run(command, args, label, timeout = 300_000) {
   return String(result.stdout || "");
 }
 
+function isGeneratedWorkspaceArtifact(path) {
+  return GENERATED_WORKSPACE_ARTIFACTS.has(path);
+}
+
+function filterGithubRunnerWorkspacePaths(paths) {
+  return paths.filter((path) => path && path !== PATCH_PATH && !isGeneratedWorkspaceArtifact(path));
+}
+
+function assertGithubRunnerWorkspaceClean(statusOutput) {
+  const unexpected = String(statusOutput || "")
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter(Boolean)
+    .filter((line) => {
+      const status = line.slice(0, 2);
+      const path = line.slice(3).trim();
+      return status !== "??" || !isGeneratedWorkspaceArtifact(path);
+    });
+  if (unexpected.length > 0) throw new Error("CODING_RUNTIME_WORKSPACE_DIRTY");
+}
+
 function validatePatchOnGithubRunner(request, patch) {
   const expectedPath = assertBoundedPatch(patch);
   if (run("git", ["rev-parse", "HEAD"], "GITHUB_RUNNER_HEAD_FAILED").trim().toLowerCase() !== request.headSha.toLowerCase()) {
     throw new Error("CODING_RUNTIME_HEAD_MISMATCH");
   }
-  if (run("git", ["status", "--porcelain"], "GITHUB_RUNNER_STATUS_FAILED").trim()) throw new Error("CODING_RUNTIME_WORKSPACE_DIRTY");
+  assertGithubRunnerWorkspaceClean(run("git", ["status", "--porcelain", "--untracked-files=all"], "GITHUB_RUNNER_STATUS_FAILED"));
 
   fs.writeFileSync(PATCH_PATH, `${patch.trim()}\n`);
   run("git", ["apply", "--check", PATCH_PATH], "SANDBOX_PATCH_APPLY_CHECK_FAILED");
@@ -251,7 +331,9 @@ function validatePatchOnGithubRunner(request, patch) {
   run("git", ["diff", "--check"], "SANDBOX_PATCH_DIFF_CHECK_FAILED");
 
   const tracked = run("git", ["diff", "--name-only"], "SANDBOX_PATCH_DIFF_LIST_FAILED").split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
-  const untracked = run("git", ["ls-files", "--others", "--exclude-standard"], "SANDBOX_PATCH_UNTRACKED_LIST_FAILED").split(/\r?\n/).map((value) => value.trim()).filter((value) => value && value !== PATCH_PATH);
+  const untracked = filterGithubRunnerWorkspacePaths(run("git", ["ls-files", "--others", "--exclude-standard"], "SANDBOX_PATCH_UNTRACKED_LIST_FAILED")
+    .split(/\r?\n/)
+    .map((value) => value.trim()));
   const changed = [...new Set([...tracked, ...untracked])];
   if (changed.length !== 1 || changed[0] !== expectedPath) throw new Error("SANDBOX_PATCH_CHANGED_FILES_MISMATCH");
 
@@ -332,8 +414,10 @@ function writeArtifacts(request, result) {
 }
 
 async function main() {
-  const request = readDispatchRequest();
+  const startedAt = Date.now();
+  let request;
   try {
+    request = readDispatchRequest();
     const runnerUrl = process.env.NUSA_CODING_RUNNER_URL;
     if (typeof runnerUrl !== "string" || !runnerUrl) throw new Error("AUTOPILOT_CODING_RUNNER_URL_MISSING");
     const result = await executeGithubActionsRunner(request, runnerUrl);
@@ -341,16 +425,40 @@ async function main() {
     console.log(`execution=${result.status} backend=github-actions-runner changed=${(result.changedFiles || []).join(",")}`);
   } catch (error) {
     const reason = error instanceof Error ? error.message : "AUTOPILOT_GITHUB_RUNNER_FAILED";
-    const attempts = [attemptRecord({ request, attempt: 1, decision: "FAILED_CLOSED", startedAt: Date.now(), status: null, workerStatus: "FAILED_CLOSED", failureClass: "deterministic", reason, now: () => Date.now() })];
-    const result = resultSummary(request, attempts, "FAILED_CLOSED", reason, null, "FAILED_CLOSED");
+    if (!request) {
+      try { writeFailureArtifact(reason); } catch { /* preserve the original bounded failure below */ }
+      console.error(reason);
+      process.exitCode = 1;
+      return;
+    }
+    const safeProposalFailure = proposalFailureCode(reason);
+    const attempts = [attemptRecord({
+      request,
+      attempt: 1,
+      decision: safeProposalFailure ? "NO_ACTION" : "FAILED_CLOSED",
+      startedAt,
+      status: null,
+      workerStatus: safeProposalFailure ? "PROPOSAL_REJECTED" : "FAILED_CLOSED",
+      failureClass: "deterministic",
+      reason: safeProposalFailure || reason,
+      now: () => Date.now(),
+    })];
+    const result = resultSummary(request, attempts, safeProposalFailure ? "NO_ACTION" : "FAILED_CLOSED", safeProposalFailure || reason, null, safeProposalFailure ? "PROPOSAL_REJECTED" : "FAILED_CLOSED");
     writeArtifacts(request, result);
+    if (safeProposalFailure) {
+      console.log(`execution=NO_ACTION backend=github-actions-runner reason=${safeProposalFailure}`);
+      return;
+    }
     console.error(reason);
     process.exitCode = 1;
   }
 }
 
 if (require.main === module) {
-  main().catch(() => { process.exitCode = 1; });
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : "AUTOPILOT_GITHUB_RUNNER_UNHANDLED");
+    process.exitCode = 1;
+  });
 }
 
 module.exports = {
@@ -361,6 +469,10 @@ module.exports = {
   httpClass,
   resultSummary,
   assertBoundedPatch,
+  proposalFailureCode,
+  readDispatchRequest,
+  assertGithubRunnerWorkspaceClean,
+  filterGithubRunnerWorkspacePaths,
   validatePatchOnGithubRunner,
   endpointFor,
 };

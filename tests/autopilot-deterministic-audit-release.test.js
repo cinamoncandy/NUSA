@@ -43,6 +43,38 @@ test("Release re-verifies exact expected head and audited base before merge", ()
   assert.match(workflow, /\.merged == true/);
 });
 
+test("Release explicitly dispatches canonical main CI after a GITHUB_TOKEN merge", () => {
+  assert.match(workflow, /actions:\s*write/);
+  assert.match(workflow, /Start canonical post-merge main CI/);
+  assert.match(workflow, /actions\/workflows\/ci\.yml\/dispatches/);
+  assert.match(workflow, /-f ref=main/);
+  assert.match(workflow, /merged_main/);
+});
+
+test("Release recovers bounded post-merge CI retries before directly dispatching Cloudflare Deploy", () => {
+  assert.match(workflow, /Recover post-merge CI retries and dispatch Cloudflare Deploy/);
+  assert.match(workflow, /does not reliably fan out through workflow_run/);
+  assert.match(workflow, /actions\/runs\?head_sha=\$MERGED_MAIN&per_page=100/);
+  assert.match(workflow, /\.conclusion == "success"/);
+  assert.match(workflow, /rerun-failed-jobs/);
+  assert.match(workflow, /failed_attempt" -ge 3/);
+  assert.match(workflow, /Post-merge CI SUCCESS recovered/);
+  assert.match(workflow, /actions\/workflows\/autopilot-cloudflare-deploy\.yml\/dispatches/);
+  assert.match(workflow, /inputs\[head_sha\]=\$MERGED_MAIN/);
+});
+
+test("Release dispatches exact-main runtime evidence and guarded downstream release workflows after post-merge CI succeeds", () => {
+  assert.match(workflow, /Dispatch exact-main runtime evidence and CI-gated downstream workflows directly/);
+  assert.match(workflow, /CURRENT_MAIN=.*branches\/main/);
+  assert.match(workflow, /CURRENT_MAIN.*MERGED_MAIN/);
+  assert.match(workflow, /actions\/workflows\/wo-0059-actual-paper-runtime\.yml\/dispatches/);
+  assert.match(workflow, /actions\/workflows\/autopilot-cloudflare-promote\.yml\/dispatches/);
+  assert.match(workflow, /inputs\[head_sha\]=\$MERGED_MAIN/);
+  assert.match(workflow, /actions\/workflows\/android-stable-release-trigger\.yml\/dispatches/);
+  assert.doesNotMatch(workflow, /actions\/workflows\/android-stable-release\.yml\/dispatches/);
+  assert.match(workflow, /actions\/workflows\/windows-desktop-stable-release\.yml\/dispatches/);
+});
+
 test("safety invariants remain fail-closed", () => {
   assert.match(workflow, /live_authority !== 'NONE'/);
   assert.match(workflow, /production_mutation_allowed !== false/);

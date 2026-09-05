@@ -306,7 +306,7 @@ function buildAggregate(windowResults, initialCash) {
   };
 }
 
-function buildWarnings(aggregate, windowResults) {
+function buildWarnings(aggregate, _windowResults) {
   const warnings = [];
   const passedCount = aggregate.passedWindowCount;
   if (passedCount >= 2 && aggregate.degradation.trainingPositiveTestNegativeCount / passedCount >= 0.5) warnings.push("TRAINING_POSITIVE_TEST_NEGATIVE_REPEATED");

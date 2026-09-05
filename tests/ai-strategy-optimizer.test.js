@@ -18,7 +18,7 @@ function strategy() {
 function candle(timestamp, close, high = close + 1, low = close - 1) { return { timestamp, open: close, high, low, close, volume: 10 }; }
 function candles(holdoutEntry = 100) {
   const window = [candle(1_000, 90), candle(2_000, holdoutEntry === 100 ? 105 : 111), candle(3_000, 111, 112, 110), candle(4_000, 90)];
-  return [...window, ...window.map((item, index) => ({ ...item, timestamp: item.timestamp + 10_000 })), ...window.map((item, index) => ({ ...item, timestamp: item.timestamp + 20_000 }))];
+  return [...window, ...window.map((item, _index) => ({ ...item, timestamp: item.timestamp + 10_000 })), ...window.map((item, _index) => ({ ...item, timestamp: item.timestamp + 20_000 }))];
 }
 
 function input(overrides = {}) {

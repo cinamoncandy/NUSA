@@ -14,9 +14,16 @@ on:
     workflows: [CI]
     types: [completed]
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      head_sha:
+        description: "Exact main revision to deploy (used when GITHUB_TOKEN-dispatched CI completion cannot fire workflow_run)"
+        required: true
+        type: string
 
 permissions:
   contents: read
+  actions: write
 
 concurrency:
   group: nusa-autopilot-cloudflare-deploy
@@ -30,6 +37,7 @@ jobs:
     name: Deploy exact CI-verified Worker revision
     if: >-
       ${{ github.event_name == 'push' ||
+        github.event_name == 'workflow_dispatch' ||
         (github.event.workflow_run.conclusion == 'success' &&
          github.event.workflow_run.head_branch == 'main' &&
          github.event.workflow_run.head_repository.full_name == github.repository) }}
@@ -39,13 +47,13 @@ jobs:
       - name: Checkout exact CI-verified commit
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
           fetch-depth: 1
 
       - name: Wait for exact-head CI success before deploying
         env:
           GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          HEAD_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
         run: |
           set -euo pipefail
           for attempt in $(seq 1 30); do
@@ -68,7 +76,7 @@ jobs:
         id: revision
         env:
           GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          HEAD_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
         run: |
           set -euo pipefail
           current="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
@@ -123,7 +131,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          HEAD_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          HEAD_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
         run: |
           set -euo pipefail
           pnpm dlx wrangler@4.127.1 deploy \
@@ -133,7 +141,7 @@ jobs:
       - name: Verify deployed Worker reports the exact-head revision and fail-closed authority
         if: steps.revision.outputs.current == 'true'
         env:
-          HEAD_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          HEAD_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
         run: |
           set -euo pipefail
           for attempt in $(seq 1 15); do
@@ -151,6 +159,20 @@ jobs:
           done
           echo "::error::Worker health never reported the exact safe deployed revision ${HEAD_SHA}. Failing closed."
           exit 1
+
+      - name: Dispatch Runtime Proof directly for fresh observability
+        if: steps.revision.outputs.current == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # This job itself may have been started via a GITHUB_TOKEN-authenticated
+          # workflow_dispatch call (see the Release workflow), whose completion does not fire workflow_run listeners on other workflows.
+          # Autopilot Cloudflare Runtime Proof depends on exactly that workflow_run:[Autopilot Cloudflare Deploy]
+          # chain for its post-deploy freshness check, so dispatch it directly instead
+          # of relying on the chain (same pattern as the CI -> Deploy fix).
+          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-cloudflare-runtime-proof.yml/dispatches" -f ref=main
+          echo "Dispatched Autopilot Cloudflare Runtime Proof for exact-main deploy verification."
 
       - name: Record fail-closed authority invariants
         if: always()

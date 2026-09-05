@@ -1,0 +1,21 @@
+[Unit]
+Description=NUSA canonical public-market Research snapshot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=nusa
+Group=nusa
+WorkingDirectory=/opt/nusa/current
+EnvironmentFile=/etc/nusa/cloud-runtime.env
+Environment=HOME=/var/lib/nusa
+ExecStart=/usr/bin/node /opt/nusa/current/scripts/run-cloud-research-snapshot.js
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/nusa /var/backups/nusa
+
+[Install]
+WantedBy=multi-user.target

@@ -107,6 +107,8 @@ const DEDUPE_KEY = /^[A-Za-z0-9_.:-]{1,256}$/;
 const DEFAULT_REPOSITORY = "cinamoncandy/NUSA";
 const GITHUB_API_ORIGIN = "https://api.github.com";
 const DEFAULT_WORKERS_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
+const MAX_CODING_PROPOSAL_BYTES = 24_000;
+const FORBIDDEN_CODING_PATH_SEGMENT = /(?:^|\/)(?:live|live-trading|broker|order|credential|secret|secrets|withdraw|transfer|production-authority)(?:\/|$)/i;
 const RETIRED_WORKERS_AI_MODELS = new Set([
   "@cf/meta/infire-llama-3.1-8b-instruct",
   "@cf/meta/llama-3.1-8b-instruct",
@@ -140,6 +142,20 @@ function validateCodingProposal(value: unknown): CodingProposal {
     throw new Error("CODING_PROPOSAL_PATCH_REQUIRED");
   }
   if (typeof proposal.patch !== "string") throw new Error("CODING_PROPOSAL_INVALID");
+  if (new TextEncoder().encode(proposal.patch).byteLength > MAX_CODING_PROPOSAL_BYTES) throw new Error("CODING_PROPOSAL_TOO_LARGE");
+  if (/liveAuthority|productionMutationAllowed|aiAuthority|NUSA_|wrangler|\.github\//i.test(proposal.patch)) {
+    throw new Error("CODING_PROPOSAL_AUTHORITY_SURFACE_FORBIDDEN");
+  }
+  const paths = [...proposal.patch.matchAll(/^\+\+\+ b\/([^\r\n]+)$/gm)].map((match) => match[1]!.trim());
+  const uniquePaths = [...new Set(paths)];
+  if (uniquePaths.length !== 1) throw new Error("CODING_PROPOSAL_PATH_INVALID");
+  const path = uniquePaths[0]!;
+  if (!path.startsWith("apps/autopilot/src/") || !path.endsWith(".ts") || path.startsWith("/") || path.split("/").includes("..")) {
+    throw new Error("CODING_PROPOSAL_PATH_FORBIDDEN");
+  }
+  if (path === "apps/autopilot/src/index.ts" || path === "apps/autopilot/src/worker.ts" || FORBIDDEN_CODING_PATH_SEGMENT.test(path)) {
+    throw new Error("CODING_PROPOSAL_PATH_FORBIDDEN");
+  }
   return Object.freeze({ patch: proposal.patch });
 }
 
@@ -326,9 +342,9 @@ function codingProposalPrompt(request: CodingRunnerRequest): string {
     "Propose exactly one minimal, low-risk NUSA repository improvement as a git-compatible unified diff.",
     "Return JSON only with one field named patch.",
     "Do not use Markdown fences or explanatory text around the JSON.",
-    "The patch must contain exactly one diff --git header and exactly one +++ b/apps/autopilot/src/<file>.ts path; do not include any other file.",
-    "Modify exactly one .ts file under apps/autopilot/src.",
-    "Do not modify index.ts, worker.ts, live/broker/order/credential/secret/withdraw/transfer surfaces, workflows, package files, or authority constants.",
+    "The patch must contain exactly one diff --git header and exactly one +++ b/apps/autopilot/src/<existing-file>.ts path; do not include any other file or create a new file.",
+    "Modify exactly one existing .ts file under apps/autopilot/src.",
+    "Forbidden target paths include index.ts, worker.ts, any live/live-trading/broker/order/credential/secret(s)/withdraw/transfer/production-authority path, workflows, package files, or authority constants. Never use a forbidden example path as a target.",
     "Do not add dependencies or weaken tests, validation, safety, exact-head verification, dedupe, leases, or fail-closed behavior.",
     `Repository: ${request.repository}`,
     `Exact main SHA: ${request.headSha}`,

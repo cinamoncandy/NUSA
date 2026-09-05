@@ -19,5 +19,10 @@ dist/
 outputs/
 work/
 release/
-coverage/
+/coverage/
 storybook-static/
+
+# GitHub Actions Autopilot preflight evidence. These are generated before
+# workspace-clean validation and must not be mistaken for code mutations.
+/artifacts/autopilot-execution/cited-run.json
+/artifacts/autopilot-execution/dispatch-freshness.json

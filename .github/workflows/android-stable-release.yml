@@ -25,11 +25,17 @@ jobs:
     name: Resolve stable promotion candidate
     if: >-
       ${{
-        github.event_name != 'workflow_run' ||
         (
-          github.event.workflow_run.conclusion == 'success' &&
-          github.event.workflow_run.head_branch == 'main' &&
-          github.event.workflow_run.head_repository.full_name == github.repository
+          github.event_name != 'workflow_dispatch' ||
+          github.ref == 'refs/heads/main'
+        ) &&
+        (
+          github.event_name != 'workflow_run' ||
+          (
+            github.event.workflow_run.conclusion == 'success' &&
+            github.event.workflow_run.head_branch == 'main' &&
+            github.event.workflow_run.head_repository.full_name == github.repository
+          )
         )
       }}
     runs-on: ubuntu-latest
@@ -75,9 +81,16 @@ jobs:
             echo "Skipping stale CI result $SOURCE_SHA; current main is $CURRENT_MAIN."
             exit 0
           fi
+          if [ "$SOURCE_SHA" != "$CURRENT_MAIN" ]; then
+            echo "::error::Refusing stale manual Android release source $SOURCE_SHA; current main is $CURRENT_MAIN."
+            exit 1
+          fi
 
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            CI_CONCLUSION="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SOURCE_SHA&status=completed&per_page=100" --jq '[.workflow_runs[] | select(.name == "CI")][0].conclusion // empty')"
+            CI_CONCLUSION="$(
+              gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$SOURCE_SHA&status=completed&per_page=100" \
+                --jq '[.workflow_runs[] | select(.path == ".github/workflows/ci.yml" and .head_sha == "'"$SOURCE_SHA"'")][0].conclusion // empty'
+            )"
             if [ "$CI_CONCLUSION" != "success" ]; then
               echo "::error::Exact source $SOURCE_SHA does not have a successful CI run."
               exit 1
@@ -118,10 +131,120 @@ jobs:
           echo "short_sha=${SOURCE_SHA:0:8}" >> "$GITHUB_OUTPUT"
           echo "version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
 
-  build-and-publish:
-    name: Build and publish exact stable APK
+  signing-readiness:
+    name: Android release signing readiness
     needs: resolve
     if: needs.resolve.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.readiness.outputs.ready }}
+      reason: ${{ steps.readiness.outputs.reason }}
+    steps:
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Validate protected signing configuration before build
+        id: readiness
+        env:
+          KEYSTORE_B64: ${{ secrets.NUSA_ANDROID_RELEASE_KEYSTORE_B64 }}
+          STORE_PASSWORD: ${{ secrets.NUSA_ANDROID_RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.NUSA_ANDROID_RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.NUSA_ANDROID_RELEASE_KEY_PASSWORD }}
+          CERT_SHA256: ${{ secrets.NUSA_ANDROID_RELEASE_CERT_SHA256 }}
+        run: |
+          set -u
+          block() {
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "reason=$1" >> "$GITHUB_OUTPUT"
+            echo "::error::ANDROID_RELEASE_SIGNING_CONFIGURATION_BLOCKED:$1"
+            {
+              echo "### Android release signing blocked"
+              echo
+              echo "- reason: \`$1\`"
+              echo "- deployment_started: \`false\`"
+              echo "- liveAuthority: \`NONE\`"
+              echo "- productionMutationAllowed: \`false\`"
+              echo "- aiAuthority: \`ZERO_AUTHORITY\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          }
+
+          KEYSTORE_B64="$(printf '%s' "${KEYSTORE_B64:-}" | tr -d '[:space:]')"
+          STORE_PASSWORD="$(printf '%s' "${STORE_PASSWORD:-}" | tr -d '\r\n')"
+          KEY_ALIAS="$(printf '%s' "${KEY_ALIAS:-}" | tr -d '\r\n')"
+          KEY_PASSWORD="$(printf '%s' "${KEY_PASSWORD:-}" | tr -d '\r\n')"
+          EXPECTED_CERT_SHA256="$(printf '%s' "${CERT_SHA256:-}" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+
+          MISSING=()
+          [ -n "$KEYSTORE_B64" ] || MISSING+=("NUSA_ANDROID_RELEASE_KEYSTORE_B64")
+          [ -n "$STORE_PASSWORD" ] || MISSING+=("NUSA_ANDROID_RELEASE_STORE_PASSWORD")
+          [ -n "$KEY_ALIAS" ] || MISSING+=("NUSA_ANDROID_RELEASE_KEY_ALIAS")
+          [ -n "$KEY_PASSWORD" ] || MISSING+=("NUSA_ANDROID_RELEASE_KEY_PASSWORD")
+          [ -n "$EXPECTED_CERT_SHA256" ] || MISSING+=("NUSA_ANDROID_RELEASE_CERT_SHA256")
+          if [ "${#MISSING[@]}" -gt 0 ]; then
+            block "missing:${MISSING[*]}"
+          fi
+
+          printf '%s' "$EXPECTED_CERT_SHA256" | grep -Eq '^[0-9a-f]{64}$' || block "invalid:certificate-sha256"
+
+          KEYSTORE_PATH="$RUNNER_TEMP/nusa-android-release-preflight.jks"
+          VERIFY_PATH="$RUNNER_TEMP/nusa-android-release-preflight.p12"
+          trap 'rm -f "$KEYSTORE_PATH" "$VERIFY_PATH"' EXIT
+
+          if ! printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"; then
+            block "invalid:keystore-base64"
+          fi
+          [ -s "$KEYSTORE_PATH" ] || block "invalid:keystore-empty"
+          chmod 600 "$KEYSTORE_PATH"
+
+          if ! keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" >/dev/null 2>&1; then
+            block "invalid:keystore-or-store-password"
+          fi
+
+          if ! keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null 2>&1; then
+            block "invalid:key-alias"
+          fi
+
+          if ! keytool -importkeystore -noprompt \
+            -srckeystore "$KEYSTORE_PATH" \
+            -srcstorepass "$STORE_PASSWORD" \
+            -srcalias "$KEY_ALIAS" \
+            -srckeypass "$KEY_PASSWORD" \
+            -destkeystore "$VERIFY_PATH" \
+            -deststoretype PKCS12 \
+            -deststorepass "nusa-preflight-verification" >/dev/null 2>&1; then
+            block "invalid:key-password"
+          fi
+
+          ACTUAL_CERT_SHA256="$(
+            keytool -exportcert -rfc \
+              -keystore "$KEYSTORE_PATH" \
+              -storepass "$STORE_PASSWORD" \
+              -alias "$KEY_ALIAS" 2>/dev/null \
+              | openssl x509 -noout -fingerprint -sha256 \
+              | sed 's/^.*=//' \
+              | tr -d ':' \
+              | tr '[:upper:]' '[:lower:]'
+          )"
+          [ "$ACTUAL_CERT_SHA256" = "$EXPECTED_CERT_SHA256" ] || block "invalid:certificate-mismatch"
+
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+          echo "reason=ready" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Android release signing ready"
+            echo
+            echo "- protected signing inputs: normalized and verified"
+            echo "- dedicated protected signing key: verified"
+            echo "- signing certificate SHA-256: verified"
+            echo "- deployment may proceed: \`true\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  build-and-publish:
+    name: Build and publish exact stable APK
+    needs: [resolve, signing-readiness]
+    if: needs.resolve.outputs.release == 'true' && needs.signing-readiness.outputs.ready == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout exact release source
@@ -142,6 +265,19 @@ jobs:
           echo "sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
           echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
           echo "version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Verify source is still current main before build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ needs.resolve.outputs.sha }}
+        run: |
+          set -euo pipefail
+          CURRENT_MAIN="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          if [ "$CURRENT_MAIN" != "$EXPECTED_SHA" ]; then
+            echo "::error::Refusing to build stale Android release source. Requested $EXPECTED_SHA but current main is $CURRENT_MAIN."
+            exit 1
+          fi
+          echo "Verified build source is current main: $EXPECTED_SHA"
 
       - name: Enable pnpm via Corepack
         run: |
@@ -198,20 +334,33 @@ jobs:
           CERT_SHA256: ${{ secrets.NUSA_ANDROID_RELEASE_CERT_SHA256 }}
         run: |
           set -euo pipefail
+          KEYSTORE_B64="$(printf '%s' "${KEYSTORE_B64:-}" | tr -d '[:space:]')"
+          STORE_PASSWORD="$(printf '%s' "${STORE_PASSWORD:-}" | tr -d '\r\n')"
+          KEY_ALIAS="$(printf '%s' "${KEY_ALIAS:-}" | tr -d '\r\n')"
+          KEY_PASSWORD="$(printf '%s' "${KEY_PASSWORD:-}" | tr -d '\r\n')"
+          CERT_SHA256="$(printf '%s' "${CERT_SHA256:-}" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+
           test -n "$KEYSTORE_B64" || { echo '::error::NUSA_ANDROID_RELEASE_KEYSTORE_B64 missing'; exit 1; }
           test -n "$STORE_PASSWORD" || { echo '::error::NUSA_ANDROID_RELEASE_STORE_PASSWORD missing'; exit 1; }
           test -n "$KEY_ALIAS" || { echo '::error::NUSA_ANDROID_RELEASE_KEY_ALIAS missing'; exit 1; }
           test -n "$KEY_PASSWORD" || { echo '::error::NUSA_ANDROID_RELEASE_KEY_PASSWORD missing'; exit 1; }
-          printf '%s' "$CERT_SHA256" | tr '[:upper:]' '[:lower:]' | grep -Eq '^[0-9a-f]{64}$' || { echo '::error::NUSA_ANDROID_RELEASE_CERT_SHA256 must be 64 hex characters'; exit 1; }
+          printf '%s' "$CERT_SHA256" | grep -Eq '^[0-9a-f]{64}$' || { echo '::error::NUSA_ANDROID_RELEASE_CERT_SHA256 must be 64 hex characters'; exit 1; }
+
           KEYSTORE_PATH="$RUNNER_TEMP/nusa-android-release.jks"
           printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"
           test -s "$KEYSTORE_PATH"
           chmod 600 "$KEYSTORE_PATH"
+
+          keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" >/dev/null 2>&1 || { echo '::error::Android release keystore/store password validation failed'; exit 1; }
+          keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null 2>&1 || { echo '::error::Android release key alias validation failed'; exit 1; }
+
+          echo "::add-mask::$STORE_PASSWORD"
+          echo "::add-mask::$KEY_PASSWORD"
           echo "NUSA_ANDROID_RELEASE_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
           echo "NUSA_ANDROID_RELEASE_STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
           echo "NUSA_ANDROID_RELEASE_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
           echo "NUSA_ANDROID_RELEASE_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
-          echo "NUSA_ANDROID_RELEASE_CERT_SHA256=$(printf '%s' "$CERT_SHA256" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+          echo "NUSA_ANDROID_RELEASE_CERT_SHA256=$CERT_SHA256" >> "$GITHUB_ENV"
 
       - name: Build stable release APK from clean source
         env:
@@ -348,6 +497,57 @@ jobs:
           else
             gh release create nusa-android NUSA-Android.apk NUSA-Android.apk.sha256 NUSA-Android.provenance.txt NUSA-Android.firebase-success.txt --target "$TARGET_SHA" --title "NUSA Android 1.0.${RELEASE_VERSION}" --notes "$NOTES"
           fi
+
+      - name: Verify stable GitHub asset download integrity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA256_FILE: NUSA-Android.apk.sha256
+        run: |
+          set -euo pipefail
+          asset_metadata="$(mktemp)"
+          headers_file="$(mktemp)"
+          downloaded_apk="$(mktemp --suffix=.apk)"
+          trap 'rm -f "$asset_metadata" "$headers_file" "$downloaded_apk"' EXIT
+
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/nusa-android" > "$asset_metadata"
+          ASSET_METADATA="$asset_metadata" node - <<'NODE'
+          const fs = require('fs');
+          const payload = JSON.parse(fs.readFileSync(process.env.ASSET_METADATA, 'utf8'));
+          const matches = (payload.assets || []).filter((asset) => asset?.name === 'NUSA-Android.apk');
+          if (matches.length !== 1 || typeof matches[0].browser_download_url !== 'string') {
+            throw new Error('Stable GitHub release must contain exactly one downloadable NUSA-Android.apk asset.');
+          }
+          const expectedUrl = `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/nusa-android/NUSA-Android.apk`;
+          if (matches[0].browser_download_url !== expectedUrl) {
+            throw new Error('Stable Android asset URL is outside the canonical GitHub release path.');
+          }
+          NODE
+
+          asset_url="$(ASSET_METADATA="$asset_metadata" node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync(process.env.ASSET_METADATA,'utf8')); const a=(p.assets||[]).find(x=>x?.name==='NUSA-Android.apk'); process.stdout.write(a.browser_download_url)")"
+          curl -fsSL --retry 3 --retry-delay 2 --retry-all-errors --max-time 120 \
+            -D "$headers_file" -o "$downloaded_apk" "$asset_url"
+
+          test -s "$downloaded_apk"
+          content_type="$(awk 'BEGIN { IGNORECASE=1 } /^Content-Type:/ { gsub("\r", ""); value=$0; sub(/^[^:]*:[[:space:]]*/, "", value) } END { print value }' "$headers_file")"
+          if [[ "$content_type" == text/html* || "$content_type" == application/xhtml* ]]; then
+            echo '::error::Stable GitHub asset download returned HTML instead of an APK.'
+            exit 1
+          fi
+          content_length="$(awk 'BEGIN { IGNORECASE=1 } /^Content-Length:/ { gsub("\r", ""); value=$2 } END { print value }' "$headers_file")"
+          downloaded_size="$(wc -c < "$downloaded_apk" | tr -d '[:space:]')"
+          if [[ -n "$content_length" && "$content_length" != "$downloaded_size" ]]; then
+            echo "::error::Stable GitHub asset Content-Length mismatch: header=$content_length downloaded=$downloaded_size."
+            exit 1
+          fi
+          apk_magic="$(od -An -tx1 -N2 "$downloaded_apk" | tr -d '[:space:]')"
+          test "$apk_magic" = '504b' || { echo '::error::Stable GitHub asset is not a ZIP/APK.'; exit 1; }
+          declared_sha="$(awk 'NR == 1 { print tolower($1) }' "$EXPECTED_SHA256_FILE")"
+          downloaded_sha="$(sha256sum "$downloaded_apk" | awk '{ print tolower($1) }')"
+          test "$declared_sha" = "$downloaded_sha" || {
+            echo "::error::Stable GitHub asset SHA-256 mismatch: declared=$declared_sha downloaded=$downloaded_sha."
+            exit 1
+          }
+          echo "Stable GitHub asset download integrity PASS: ${downloaded_size} bytes, sha256=${downloaded_sha}."
 
       - name: Publish stable deployment receipt
         if: always()

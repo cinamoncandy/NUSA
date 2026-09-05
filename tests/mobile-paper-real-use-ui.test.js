@@ -115,33 +115,37 @@ test("primary mobile workspaces keep bounded tablet widths and intentional respo
     "apps/mobile/src/settingsView.tsx": /maxWidth: 820/,
     "apps/mobile/src/marketsView.tsx": /uxLayout\.maxWorkspaceWidth/,
     "apps/mobile/src/tradingViewLegacy.tsx": /maxWidth: 820/,
-    "apps/mobile/src/portfolioView.tsx": /maxWidth: 1080/,
+    "apps/mobile/src/portfolioView.tsx": /maxWidth: 720/,
     "apps/mobile/src/aiView.tsx": /uxLayout\.maxWorkspaceWidth/,
   };
   for (const [file, contract] of Object.entries(bounded)) assert.match(read(file), contract, `${file} must remain intentionally tablet-bounded`);
 
   const tradingShell = read("apps/mobile/src/tradingView.tsx");
   const home = read("apps/mobile/src/homeView.tsx");
-  const profile = read("apps/mobile/src/homeVisualProfile.ts");
   const markets = read("apps/mobile/src/marketsView.tsx");
   const portfolio = read("apps/mobile/src/portfolioView.tsx");
   const ai = read("apps/mobile/src/aiView.tsx");
 
   assert.match(tradingShell, /<LegacyTradingView \{\.\.\.props\} \/>/);
   assert.doesNotMatch(tradingShell, /productionMutationAllowed: true/);
-  assert.match(home, /maxWidth: tablet \? Math\.max\(profile\.screen\.maxWidth, 980\) : profile\.screen\.maxWidth/);
-  assert.match(profile, /classic:[\s\S]*maxWidth: 920/);
-  assert.match(profile, /master:[\s\S]*maxWidth: 780/);
-  assert.match(home, /testID="home-signal-trace"/);
-  assert.match(home, /<CompactMetric/);
-  assert.match(home, /<OperationalNotice/);
-  assert.doesNotMatch(home, /grid: \{ flexDirection: "row", flexWrap: "wrap" \}/);
-  assert.doesNotMatch(home, /column: \{ flexGrow: 1, flexBasis: 440/);
+  assert.match(home, /useWindowDimensions/);
+  assert.match(home, /const tablet = width >= 768/);
+  assert.match(home, /contentContainerStyle=\{\[styles\.content, \{ maxWidth: tablet \? 980 : 680 \}\]\}/);
+  assert.match(home, /testID="home-risk-status"/);
+  assert.match(home, /testID="home-decision-stage"/);
+  assert.match(home, /testID="home-paper-performance"/);
+  assert.match(home, /testID="home-paper-learning"/);
+  assert.match(home, /testID="home-operational-notice"/);
+  assert.match(home, /onPress=\{onGoSettings\}/);
+  assert.match(home, /twoColumnTablet: \{ flexDirection: "row", alignItems: "stretch" \}/);
+  assert.doesNotMatch(home, /productionMutationAllowed:\s*true/);
 
   assert.match(markets, /useWindowDimensions/);
   assert.match(markets, /minHeight: 48/);
-  assert.match(portfolio, /detailGrid: \{ flexDirection: "row", flexWrap: "wrap"/);
-  assert.match(portfolio, /detailCell: \{ flexGrow: 1, flexBasis: 420/);
+  assert.match(portfolio, /testID="portfolio-authority-rail"/);
+  assert.match(portfolio, /testID="portfolio-supervisor-summary"/);
+  assert.match(portfolio, /testID="portfolio-account-breakdown"/);
+  assert.match(portfolio, /maxWidth: 720/);
   assert.match(ai, /detailGrid: \{ flexDirection: "row", flexWrap: "wrap"/);
   assert.match(ai, /detailCell: \{ flexGrow: 1, flexBasis: 440/);
 });

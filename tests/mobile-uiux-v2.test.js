@@ -10,6 +10,7 @@ test("product navigation promotes PAPER and AI through the canonical four-tab sh
   const app = read("App.tsx");
   const tradingShell = read("src/tradingView.tsx");
   const tradingWorkspace = read("src/tradingViewLegacy.tsx");
+  const home = read("src/homeView.tsx");
   assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio"\] as const/);
   assert.match(app, /Paper: "PAPER"/);
   assert.match(app, /type Tab = PrimaryTab \| "AiSignal" \| "Order"/);
@@ -22,8 +23,9 @@ test("product navigation promotes PAPER and AI through the canonical four-tab sh
   assert.match(app, /PaperLearningMonitorView/);
   assert.match(app, /buildPaperLearningScreen/);
   assert.match(app, /onOpenPaperLearning/);
-  assert.match(read("src/homeView.tsx"), /testID="home-supervisor-learning"/);
-  assert.match(read("src/homeView.tsx"), /onOpenPaperLearning/);
+  assert.match(home, /testID="home-supervisor-learning"/);
+  assert.match(home, /testID="home-paper-learning"/);
+  assert.match(home, /onOpenPaperLearning/);
   assert.match(tradingShell, /import \{ TradingView as LegacyTradingView \} from "\.\/tradingViewLegacy"/);
   assert.match(tradingShell, /<LegacyTradingView \{\.\.\.props\} \/>/);
   assert.match(tradingWorkspace, /testID="trade-paper-learning"/);

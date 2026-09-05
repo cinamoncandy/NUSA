@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { aggregatePublicCandles, buildChartViewModel, formatChartMove, parsePublicCandles } = require("../dist/apps/mobile/src/chartViewModel.js");
+const { aggregatePublicCandles, buildChartViewModel, formatChartMove, latestCandleCloseMs, parsePublicCandles } = require("../dist/apps/mobile/src/chartViewModel.js");
 
 function candles(count = 10) {
   return Array.from({ length: count }, (_, index) => {
@@ -90,4 +90,13 @@ test("chart UI stays read-only while Markets uses public data separate from PAPE
   assert.match(client, /authorization:\s*`Bearer/);
   assert.match(client, /unavailableDashboardCredentialProvider/);
   assert.doesNotMatch(client, /EXPO_PUBLIC_.*TOKEN|hardcoded.*token|Bearer\s+[A-Za-z0-9._-]{16,}/i);
+});
+
+test("chart exposes the newest candle close for first-class freshness display", () => {
+  const parsed = parsePublicCandles(candles(), "KRW-BTC");
+  assert.equal(latestCandleCloseMs(parsed), 600_000);
+  assert.equal(latestCandleCloseMs([]), null);
+  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "chartView.tsx"), "utf8");
+  assert.match(source, /chart-freshness/);
+  assert.match(source, /latestCandleCloseMs/);
 });

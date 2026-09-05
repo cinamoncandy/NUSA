@@ -112,7 +112,8 @@ describe("NUSA final canonical desktop UI", () => {
   });
 
   it("fail-closes orders on disconnected, missing-price and invalid-quantity states", () => {
-    expect(runtime).toContain('state.connection !== "connected"');
+    expect(runtime).toContain('connectionTone !== "connected"');
+    expect(runtime).toContain("NUSA 서버와 시장 데이터가 모두 연결되어야 주문할 수 있습니다.");
     expect(runtime).toContain("유효한 현재가가 없어 주문할 수 없습니다.");
     expect(runtime).toContain("0보다 큰 주문 수량을 입력하세요.");
     expect(runtime).toContain("root.dataset.state = state.loading ? \"loading\" : tone");

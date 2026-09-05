@@ -6,16 +6,16 @@ const path = require("node:path");
 const root = path.join(__dirname, "..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-test("mobile PAPER falls back to a 10M KRW local simulator without Cloud authority", () => {
+test("mobile PAPER keeps the 10M KRW local simulator available without Cloud authority", () => {
   const app = read("apps/mobile/App.tsx");
   const shell = read("apps/mobile/src/tradingView.tsx");
   const view = read("apps/mobile/src/tradingViewLegacy.tsx");
-  // Issue #637: the 10M KRW simulator is now the one app-level LOCAL PAPER ledger shared with
-  // Home and Portfolio (./localPaperLedger), not a Trade-screen-only local.
   const ledger = read("apps/mobile/src/localPaperLedger.ts");
   assert.match(app, /activeTab !== "Portfolio" && activeTab !== "Paper"/);
   assert.match(shell, /TradingView as LegacyTradingView/);
-  assert.match(shell, /return <LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.match(shell, /<LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.match(shell, /CLOUD PAPER NOT CONNECTED/);
+  assert.match(shell, /SIMULATED EXECUTION · LIVE NONE · AI ZERO AUTHORITY/);
   assert.match(ledger, /10_000_000/);
   assert.match(ledger, /MockTradingService/);
   assert.match(ledger, /currency: "KRW"/);

@@ -77,7 +77,6 @@ async function runShadowObservationSmoke(options) {
   strategy.start();
 
   let archive = null;
-  let busCapacity = 0;
   const createEvidenceBus = ({ sessionId, createdAt, onHalt }) => {
     const pending = ShadowEvidenceArchive.create(root, {
       sessionId,
@@ -100,7 +99,7 @@ async function runShadowObservationSmoke(options) {
       sinks: [new InMemoryEvidenceSink(), new DurableEvidenceSink(writer, now)],
       onHalt
     });
-    busCapacity = bus.diagnostics().capacity;
+    bus.diagnostics(); // smoke: diagnostics() must not throw; capacity is asserted via profile below
     return bus;
   };
 

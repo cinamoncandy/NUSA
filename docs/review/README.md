@@ -31,8 +31,8 @@
 - `apps/desktop/src/runtimeCommandService.ts`
 - `apps/desktop/src/controlPlane.ts`
 - `apps/desktop/src/strategyEngine.ts`
-- `apps/desktop/src/paperBroker.ts`
-- `apps/desktop/src/upbitWebSocket.ts`
+- `apps/desktop/src/paper/paperBroker.ts` (re-exported from `packages/core/src/paperBroker.ts`)
+- `apps/desktop/src/exchange/upbitWebSocket.ts`
 
 ### Persistence
 

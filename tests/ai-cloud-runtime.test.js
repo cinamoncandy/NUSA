@@ -80,7 +80,7 @@ test("Cloud AI scheduler suppresses overlap and cadence, retains only fresh vali
 });
 
 test("provider failure never becomes a latest validated result", async () => {
-  let clock = 50_000;
+  const clock = 50_000;
   const failing = new TransportModelProvider("down", "down", async () => { throw new Error("provider down"); });
   const runtime = createCloudAiRuntime({ NUSA_AI_ENABLED: "true" }, failing, { now: () => clock, minimumCadenceMs: 0 });
   assert.equal(runtime.schedule(input(clock, "provider-down")), true);

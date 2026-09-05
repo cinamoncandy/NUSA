@@ -176,6 +176,17 @@ export function DataRow({ label, value, emphasis = false, tone = "default", test
   return <View accessible accessibilityLabel={`${label}: ${value}`} style={styles.dataRow} testID={testID}><Text style={[styles.dataLabel, { color: theme.colors.textMuted }]}>{label}</Text><Text style={[styles.dataValue, emphasis && styles.dataValueEmphasis, { color, fontWeight: emphasis ? theme.typography.weights.bold : theme.typography.weights.semibold }]}>{value}</Text></View>;
 }
 
+/**
+ * Static loading skeleton block. Deliberately animation-free so loading
+ * states stay deterministic under tests and cheap on low-end devices;
+ * perceived motion remains the job of refresh controls and progress UI.
+ * Decorative only — never a substitute for real content or state text.
+ */
+export function Skeleton({ width = "100%", height = 14, borderRadius = 7, testID }: Readonly<{ width?: number | `${number}%`; height?: number; borderRadius?: number; testID?: string }>) {
+  const { theme } = useTheme();
+  return <View accessible={false} testID={testID} style={[styles.skeleton, { width, height, borderRadius, backgroundColor: theme.colors.surfaceRaised }]} />;
+}
+
 const styles = StyleSheet.create({
   button: { alignItems: "center", justifyContent: "center", borderWidth: 1 },
   buttonLabel: { fontSize: 15, letterSpacing: -0.15 },
@@ -195,6 +206,7 @@ const styles = StyleSheet.create({
   authorityDetail: { fontSize: 13, lineHeight: 20 },
   dataRow: { minHeight: 36, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 14 },
   dataLabel: { flex: 1, fontSize: 13, lineHeight: 19 },
+  skeleton: { opacity: 0.85 },
   dataValue: { flexShrink: 1, textAlign: "right", fontSize: 13, lineHeight: 19, fontVariant: ["tabular-nums"] },
   dataValueEmphasis: { fontSize: 14 },
   // Issue #536's MASTER VISUAL REFERENCE names this centerpiece the visual hero of HOME, not a

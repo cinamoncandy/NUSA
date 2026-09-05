@@ -237,7 +237,7 @@ describe("NUSA autopilot GitHub webhook", () => {
         conclusion: "success",
         repository: { full_name: codingRequest.repository },
       }), { status: 200 });
-      return new Response(JSON.stringify({ patch: "diff --git a/apps/autopilot/src/index.ts b/apps/autopilot/src/index.ts\n" }), { status: 200 });
+      return new Response(JSON.stringify({ patch: "diff --git a/apps/autopilot/src/codingRunner.ts b/apps/autopilot/src/codingRunner.ts\n--- a/apps/autopilot/src/codingRunner.ts\n+++ b/apps/autopilot/src/codingRunner.ts\n" }), { status: 200 });
     }) as typeof fetch;
     try {
       const request = () => new Request("https://example.test/coding/execute", {

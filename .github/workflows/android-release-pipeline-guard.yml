@@ -1,0 +1,101 @@
+name: Android Release Pipeline Guard
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/mobile/android/**"
+      - ".github/workflows/android-stable-release*.yml"
+      - ".github/workflows/android-release-pipeline-guard.yml"
+      - "scripts/prepare-mobile-build-config.js"
+      - "scripts/validate-android-release-contract.js"
+      - ".github/android-release-contract.json"
+      - "pnpm-lock.yaml"
+      - "package.json"
+  push:
+    branches: [main]
+    paths:
+      - "apps/mobile/android/**"
+      - ".github/workflows/android-stable-release*.yml"
+      - ".github/workflows/android-release-pipeline-guard.yml"
+      - "scripts/prepare-mobile-build-config.js"
+      - "scripts/validate-android-release-contract.js"
+      - ".github/android-release-contract.json"
+      - "pnpm-lock.yaml"
+      - "package.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-release-pipeline-guard-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-configuration-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Enable pnpm via Corepack
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.7.0 --activate
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Generate ephemeral CI-only signing key
+        id: signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          KEYSTORE="$RUNNER_TEMP/nusa-release-smoke.jks"
+          STORE_PASS="nusa-ci-smoke-store-9f5c7c"
+          KEY_PASS="nusa-ci-smoke-key-4b3e8d"
+          ALIAS="nusa-ci-smoke"
+          keytool -genkeypair -noprompt \
+            -keystore "$KEYSTORE" \
+            -storepass "$STORE_PASS" \
+            -keypass "$KEY_PASS" \
+            -alias "$ALIAS" \
+            -keyalg RSA -keysize 2048 -validity 2 \
+            -dname "CN=NUSA CI Release Smoke,O=NUSA,C=KR"
+          chmod 600 "$KEYSTORE"
+          echo "keystore=$KEYSTORE" >> "$GITHUB_OUTPUT"
+          echo "store_pass=$STORE_PASS" >> "$GITHUB_OUTPUT"
+          echo "key_pass=$KEY_PASS" >> "$GITHUB_OUTPUT"
+          echo "alias=$ALIAS" >> "$GITHUB_OUTPUT"
+      - name: Validate Android release Gradle DSL with signing enabled
+        working-directory: apps/mobile/android
+        env:
+          NUSA_ANDROID_RELEASE_KEYSTORE_PATH: ${{ steps.signing.outputs.keystore }}
+          NUSA_ANDROID_RELEASE_STORE_PASSWORD: ${{ steps.signing.outputs.store_pass }}
+          NUSA_ANDROID_RELEASE_KEY_ALIAS: ${{ steps.signing.outputs.alias }}
+          NUSA_ANDROID_RELEASE_KEY_PASSWORD: ${{ steps.signing.outputs.key_pass }}
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :app:tasks --all --no-daemon --stacktrace
+      - name: Enforce signing DSL compatibility contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE="apps/mobile/android/app/build.gradle"
+          grep -F 'enableV1Signing true' "$FILE"
+          grep -F 'enableV2Signing true' "$FILE"
+          ! grep -Eq 'enableV3Signing|enableV4Signing' "$FILE"
+          ! grep -Eq 'signingConfig[[:space:]]+signingConfigs\.debug' "$FILE"
+          ! test -f apps/mobile/android/app/debug.keystore
+      - name: Remove ephemeral signing key
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/nusa-release-smoke.jks"
