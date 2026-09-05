@@ -22,7 +22,7 @@ export interface ClosedLearningInitialPaperBootstrapResult {
 
 export interface ClosedLearningInitialPaperBootstrapOptions {
   readonly snapshots: ResearchRunReplaySnapshotReader;
-  readonly worker: Pick<ClosedLearningResearchWorkerClient, "replayInitialResearch" | "replayInitialResearchAsync">;
+  readonly worker: Pick<ClosedLearningResearchWorkerClient, "replayInitialResearch"> & Partial<Pick<ClosedLearningResearchWorkerClient, "replayInitialResearchAsync">>;
   readonly history: Pick<ClosedLearningResearchDecisionHistory, "persist">;
   readonly artifacts: QualifiedPaperChallengerArtifactWriter;
   readonly deployment: PaperChallengerDeploymentAdapter;
@@ -131,11 +131,14 @@ export class ClosedLearningInitialPaperBootstrap {
     return this.finalize(snapshot, this.options.worker.replayInitialResearch(snapshot.originalRunFingerprintSha256));
   }
 
-  /** Async production path yields while the isolated Research/League child process executes. */
+  /** Async production path yields while the isolated Research/League child process executes when supported. */
   public async runOnceAsync(): Promise<ClosedLearningInitialPaperBootstrapResult> {
     const eligible = this.eligibleSnapshot();
     if (eligible.early != null) return eligible.early;
     const snapshot = eligible.snapshot!;
-    return this.finalize(snapshot, await this.options.worker.replayInitialResearchAsync(snapshot.originalRunFingerprintSha256));
+    const result = this.options.worker.replayInitialResearchAsync == null
+      ? this.options.worker.replayInitialResearch(snapshot.originalRunFingerprintSha256)
+      : await this.options.worker.replayInitialResearchAsync(snapshot.originalRunFingerprintSha256);
+    return this.finalize(snapshot, result);
   }
 }
