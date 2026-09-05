@@ -24,11 +24,11 @@ test("Intelligence OS keeps authority and data-integrity boundaries visible", ()
   assert.doesNotMatch(home, /BULLISH|BEARISH|STRONG SIGNAL|WEAK SIGNAL/);
 });
 
-test("HOME follows state -> reason -> capital -> risk -> observation -> execution -> learning", () => {
+test("HOME follows state -> capital truth -> reason -> risk -> observation -> execution -> learning", () => {
   const anchors = [
     'eyebrow="NOW"',
-    'kicker="WHY · AI INSIGHT"',
     'testID="account-hero-card"',
+    'kicker="WHY · AI INSIGHT"',
     'kicker="RISK STATUS"',
     'kicker="SIGNAL TERRAIN"',
     'kicker="PAPER PERFORMANCE"',
