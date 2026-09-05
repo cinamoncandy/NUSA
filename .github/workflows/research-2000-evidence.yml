@@ -33,6 +33,7 @@ jobs:
           NUSA_SOURCE_COMMIT_SHA: e17653254ac5114d8cab4f74855abe1837a261d8
           NUSA_RESEARCH_COST_MODEL_VERSION: research-v1-fee5bps-spread5bps-slippage5bps
           NUSA_RESEARCH_CANDLE_COUNT: "2000"
+          NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH: ${{ runner.temp }}/research-replay-snapshot.json
         run: |
           set -o pipefail
           pnpm run research:real-run | tee research-2000-e176532.json
@@ -41,6 +42,8 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: canonical-research-2000-e176532
-          path: research-2000-e176532.json
-          if-no-files-found: error
+          path: |
+            research-2000-e176532.json
+            ${{ runner.temp }}/research-replay-snapshot.json
+          if-no-files-found: warn
           retention-days: 14
