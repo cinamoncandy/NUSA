@@ -49,28 +49,26 @@ test("not-configured dashboard state is distinct from runtime errors", () => {
   assert.doesNotMatch(app, /error=\{readOnlyError \?\? notConfigured\}/);
 });
 
-test("Home hierarchy follows the approved autonomous-intelligence board while preserving verified safety state", () => {
+test("Home hierarchy follows the Intelligence OS state-to-learning flow while preserving verified safety", () => {
   const home = read("src/homeView.tsx");
-  assert.match(home, /testID="home-master-rail"/);
-  assert.match(home, /testID="account-hero-card"/);
-  assert.match(home, /testID="ai-card"/);
-  assert.match(home, /testID="home-signal-trace"/);
-  assert.match(home, /testID="home-market-pulse"/);
-  assert.match(home, /testID="home-terminal-grid"/);
-  assert.match(home, /testID="home-reference-navigation"/);
-  assert.match(home, />NUSA<\/Text>/);
-  assert.match(home, />AUTONOMOUS<\/Text>/);
-  assert.match(home, />INVESTMENT<\/Text>/);
-  assert.match(home, />INTELLIGENCE<\/Text>/);
-  assert.match(home, /✦ AI INSIGHT/);
-  for (const label of ["NOW", "WHY", "RESULT", "RISK", "LEARNING"]) assert.match(home, new RegExp(`label="${label}"`));
+  const markers = [
+    'testID="home-master-rail"',
+    'testID="home-status-rail"',
+    'testID="home-now"',
+    'testID="account-hero-card"',
+    'testID="ai-card"',
+    'testID="home-risk-status"',
+    'testID="home-decision-stage"',
+    'testID="home-operational-notice"',
+  ];
+  for (const marker of markers) assert.match(home, new RegExp(marker));
+  assert.match(home, /AUTONOMOUS INVESTMENT INTELLIGENCE/);
+  assert.match(home, /WHY · AI INSIGHT/);
   assert.match(home, /SIGNAL TERRAIN/);
   assert.match(home, /PAPER PERFORMANCE/);
-  assert.match(home, /PORTFOLIO/);
   assert.match(home, /RISK STATUS/);
-  assert.match(home, /testID="home-operational-notice"/);
   assert.match(home, /buildHomeStatusRail/);
-  assert.match(home, /testID="safety-card"/);
+  assert.match(home, /NO QUALIFIED SIGNAL/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
   assert.doesNotMatch(home, /label="스케줄러"|label="대기 쓰기"|label="Champion"|label="Challenger"/);
   assert.doesNotMatch(home, /productionMutationAllowed:\s*true|authority:\s*"LIVE"/);
@@ -92,7 +90,7 @@ test("AI hierarchy prioritizes evidence, uncertainty, calibration, and authority
   assert.doesNotMatch(ai, /ORDER_CREATE|LIVE_EXECUTION|onSubmit/);
 });
 
-test("recoverable states expose retry while unwired notifications stay truthful", () => {
+test("recoverable states stay actionable while PAPER observation remains truthful", () => {
   const notifications = read("src/notificationView.tsx");
   const tradingShell = read("src/tradingView.tsx");
   const tradingWorkspace = read("src/tradingViewLegacy.tsx");
@@ -102,8 +100,11 @@ test("recoverable states expose retry while unwired notifications stay truthful"
   assert.match(notifications, /실제 이벤트가 연결되기 전에는 알림 목록이나 동작하지 않는 알림 설정을 제공하지 않습니다/);
   assert.doesNotMatch(notifications, /testID="notifications-error"|NusaButton label="다시 시도"/);
   assert.match(tradingShell, /import \{ TradingView as LegacyTradingView \} from "\.\/tradingViewLegacy"/);
-  assert.match(tradingShell, /if \(!cloudPaperConnected\) return <LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.match(tradingShell, /!cloudPaperConnected \? <StateNotice title="CLOUD PAPER NOT CONNECTED"/);
+  assert.match(tradingShell, /cloudPaperConnected \? <CloudPaperPublicChart \/> : null/);
   assert.match(tradingShell, /<LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.match(tradingShell, /PUBLIC CONTEXT/);
+  assert.match(tradingShell, /value: "READ ONLY"/);
   assert.match(tradingWorkspace, /관찰 가능한 시장이 없습니다[\s\S]*NusaButton label="다시 불러오기"/);
   assert.doesNotMatch(tradingShell, /productionMutationAllowed:\s*true|LIVE_EXECUTION|ORDER_CREATE/);
   assert.doesNotMatch(tradingWorkspace, /productionMutationAllowed:\s*true|LIVE_EXECUTION|ORDER_CREATE/);
