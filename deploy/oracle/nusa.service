@@ -9,6 +9,7 @@ User=nusa
 Group=nusa
 WorkingDirectory=/opt/nusa/current
 EnvironmentFile=/etc/nusa/cloud-runtime.env
+Environment=HOME=/var/lib/nusa
 ExecStart=/usr/bin/node /opt/nusa/current/scripts/start-cloud-runtime.js
 Restart=on-failure
 RestartSec=5s
