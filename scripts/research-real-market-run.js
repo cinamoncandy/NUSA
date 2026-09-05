@@ -23,8 +23,10 @@ const { buildResearchRunProvenancePlan } = require("../dist/apps/desktop/src/clo
 
 const STRATEGY_FAMILY_ID = "sma-crossover";
 const MARKET = "KRW-BTC";
+const RESEARCH_MARKETS = Object.freeze(["KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-SOL", "KRW-DOGE"]);
 const DEFAULT_CANDLE_COUNT = 1000;
 const DAY_MS = 86_400_000;
+const REQUEST_THROTTLE_MS = 150;
 
 const BACKTEST_CONFIG = {
   market: MARKET,
@@ -190,8 +192,9 @@ function researchCandleCount(value = process.env.NUSA_RESEARCH_CANDLE_COUNT) {
   return Number(value);
 }
 
-async function fetchResearchCandles({ dataAsOf, count = DEFAULT_CANDLE_COUNT, fetchPage = fetchDayCandlePage, pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }) {
+async function fetchResearchCandles({ market = MARKET, dataAsOf, count = DEFAULT_CANDLE_COUNT, fetchPage = fetchDayCandlePage, pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }) {
   count = researchCandleCount(count);
+  if (!RESEARCH_MARKETS.includes(market)) throw new Error(`unsupported research market: ${market}`);
   if (!Number.isFinite(dataAsOf)) throw new Error("research dataAsOf must be finite");
   // Upbit's `to` is exclusive. Anchor every request to completed UTC days,
   // including the first page, so an in-flight day cannot change the dataset.
@@ -200,8 +203,8 @@ async function fetchResearchCandles({ dataAsOf, count = DEFAULT_CANDLE_COUNT, fe
   const sourceRequests = [];
   for (let page = 0; page < Math.ceil(count / 200); page += 1) {
     const pageSize = Math.min(200, count - candles.length);
-    const requestPath = `/v1/candles/days?market=${MARKET}&count=${pageSize}&to=${encodeURIComponent(new Date(before).toISOString())}`;
-    if (page > 0) await pause(150);
+    const requestPath = `/v1/candles/days?market=${market}&count=${pageSize}&to=${encodeURIComponent(new Date(before).toISOString())}`;
+    if (page > 0) await pause(REQUEST_THROTTLE_MS);
     const raw = await fetchPage(requestPath);
     if (!Array.isArray(raw) || raw.length !== pageSize) throw new Error("Upbit research history is incomplete");
     const mapped = mapUpbitDayCandlesToResearchCandles(raw, { completedBy: dataAsOf });
@@ -209,7 +212,7 @@ async function fetchResearchCandles({ dataAsOf, count = DEFAULT_CANDLE_COUNT, fe
     for (let index = 0; index < mapped.length; index += 1) {
       const candle = mapped[index];
       const expectedOpenTime = before - (mapped.length - index) * DAY_MS;
-      if (candle.market !== MARKET || candle.openTime !== expectedOpenTime) {
+      if (candle.market !== market || candle.openTime !== expectedOpenTime) {
         throw new Error("Upbit research history has a market, gap, duplicate, or cursor mismatch");
       }
     }
@@ -220,19 +223,35 @@ async function fetchResearchCandles({ dataAsOf, count = DEFAULT_CANDLE_COUNT, fe
   return { candles, sourceRequests };
 }
 
-async function main() {
-  const dataAsOf = Date.now();
-  const timeline = buildResearchRunTimeline(dataAsOf);
-  const { candles, sourceRequests } = await fetchResearchCandles({ dataAsOf, count: researchCandleCount() });
+function createMarketDataset({ market, dataAsOf, candles, sourceRequests }) {
   const freshness = evaluateUpbitDailyCandleFreshness(candles, dataAsOf);
   if (!freshness.fresh) {
-    throw new Error(`Upbit completed daily candle source is stale by ${freshness.lagDays} UTC day(s)`);
+    throw new Error(`${market} completed daily candle source is stale by ${freshness.lagDays} UTC day(s)`);
   }
   const manifest = createHistoricalDatasetManifest(candles, {
     source: "upbit-public-api",
     sourceRequest: sourceRequests.join(" | "),
     createdAt: new Date(dataAsOf).toISOString()
   });
+  return Object.freeze({ market, candles, sourceRequests, freshness, manifest });
+}
+
+async function main() {
+  const dataAsOf = Date.now();
+  const timeline = buildResearchRunTimeline(dataAsOf);
+  const candleCount = researchCandleCount();
+  const marketDatasets = [];
+  for (let index = 0; index < RESEARCH_MARKETS.length; index += 1) {
+    if (index > 0) await new Promise((resolve) => setTimeout(resolve, REQUEST_THROTTLE_MS));
+    const market = RESEARCH_MARKETS[index];
+    const history = await fetchResearchCandles({ market, dataAsOf, count: candleCount });
+    marketDatasets.push(createMarketDataset({ market, dataAsOf, ...history }));
+  }
+  const primaryDataset = marketDatasets.find((entry) => entry.market === MARKET);
+  if (primaryDataset == null) throw new Error(`primary research market ${MARKET} was not loaded`);
+  const { candles, manifest, freshness } = primaryDataset;
+  const regimeInputs = marketDatasets.map((entry) => ({ manifest: entry.manifest, candles: entry.candles }));
+
   const sourceCommitSha = requiredResearchSourceCommitSha();
   const costModelVersion = requiredResearchCostModelVersion();
   const hypothesis = buildResearchHypothesis({
@@ -266,7 +285,10 @@ async function main() {
       holdingPeriodMs: 86_400_000,
       capacityAssumptions: { maxNotional: BACKTEST_CONFIG.initialCash, maxParticipationRate: 0.05 },
       transactionCostSensitivity: 1,
-      provenance: { author: "nusa-real-market-research", sourceReferences: [`dataset:${manifest.datasetId}`] },
+      provenance: {
+        author: "nusa-real-market-research",
+        sourceReferences: marketDatasets.map((entry) => `dataset:${entry.manifest.datasetId}`)
+      },
       createdAt: timeline.hypothesisGeneratedAt
     })
   }));
@@ -359,7 +381,7 @@ async function main() {
     });
     const regimeAwareEvaluation = buildResearchRunRegimeEvaluation(
       experiment,
-      [{ manifest, candles }],
+      regimeInputs,
       { lookbackPeriods: 20 }
     );
     return { id, familyId: STRATEGY_FAMILY_ID, experiment, candidateSpecification, regimeAwareEvaluation };
@@ -410,6 +432,17 @@ async function main() {
         lagDays: freshness.lagDays
       }
     },
+    evidenceDatasets: marketDatasets.map((entry) => ({
+      datasetId: entry.manifest.datasetId,
+      market: entry.manifest.market,
+      interval: entry.manifest.interval,
+      candleCount: entry.manifest.candleCount,
+      startOpenTime: new Date(entry.manifest.startOpenTime).toISOString(),
+      endCloseTime: new Date(entry.manifest.endCloseTime).toISOString(),
+      contentSha256: entry.manifest.contentSha256,
+      sourceRequest: entry.manifest.sourceRequest,
+      freshnessLagDays: entry.freshness.lagDays
+    })),
     windowCount: result.walkForwardResult.windows.length,
     parameterNeighborhood: {
       candidateSelectionCounts: result.walkForwardResult.candidateSelectionCounts,
@@ -481,6 +514,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  RESEARCH_MARKETS,
   fetchResearchCandles,
   researchCandleCount,
   buildParameterRobustnessRequest,
