@@ -6,13 +6,15 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-test("canonical HOME keeps the approved visual hierarchy instead of restoring the legacy truth rail", () => {
+test("canonical HOME keeps the approved Intelligence OS hierarchy instead of restoring the legacy truth rail", () => {
   const home = read("apps/mobile/src/homeView.tsx");
   const ai = home.indexOf('testID="ai-card"');
+  const risk = home.indexOf('testID="home-risk-status"');
   const terrain = home.indexOf('testID="home-decision-stage"');
-  const metrics = home.indexOf('testID="home-market-pulse"');
-  assert.ok(ai >= 0 && terrain >= 0 && metrics >= 0);
-  assert.ok(ai < terrain && terrain < metrics);
+  const performance = home.indexOf('testID="home-paper-performance"');
+  const learning = home.indexOf('testID="home-paper-learning"');
+  assert.ok(ai >= 0 && risk >= 0 && terrain >= 0 && performance >= 0 && learning >= 0);
+  assert.ok(ai < risk && risk < terrain && terrain < performance && performance < learning);
   assert.doesNotMatch(home, /<TruthCell label="(?:NOW|WHY|RESULT|RISK|LEARNING)"/);
 });
 
@@ -32,7 +34,7 @@ test("canonical decision risk remains fail-closed and derives only from PAPER ru
 test("canonical HOME preserves zero-authority safety and one PAPER learning route", () => {
   const home = read("apps/mobile/src/homeView.tsx");
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
-  assert.match(home, /nativeID="home-supervisor-learning"/);
-  assert.match(home, /testID="home-paper-learning"/);
+  assert.match(home, /testID="home-supervisor-learning"/);
+  assert.equal((home.match(/testID="home-paper-learning"/g) ?? []).length, 1);
   assert.doesNotMatch(home, /productionMutationAllowed\s*=\s*true/);
 });
