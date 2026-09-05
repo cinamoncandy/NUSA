@@ -3,7 +3,10 @@ const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs"
 const os = require("node:os");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
-const { PaperRuntimeProcessSupervisor } = require("./paper-runtime-supervisor.js");
+const {
+  PAPER_WRITER_LEASE_CONFLICT_EXIT_CODE,
+  PaperRuntimeProcessSupervisor,
+} = require("./paper-runtime-supervisor.js");
 
 /**
  * Starts the Cloud PAPER runtime with a configuration that actually works out of the box.
@@ -127,6 +130,12 @@ function leaseRecoveryGuidance(stderrTail) {
   ].filter((line) => line !== "").join("\n") + "\n";
 }
 
+function launcherExitCode(code, signal, stderrTail) {
+  if (signal) return 1;
+  if (code !== 0 && /PAPER_WRITER_ALREADY_ACTIVE/.test(stderrTail)) return PAPER_WRITER_LEASE_CONFLICT_EXIT_CODE;
+  return code ?? 0;
+}
+
 function start(options = {}) {
   const baseEnv = options.env ?? process.env;
   const token = (options.resolveToken ?? resolveDashboardToken)();
@@ -149,7 +158,7 @@ function start(options = {}) {
     if (code !== 0 && /PAPER_WRITER_CLOCK_ANOMALY|PAPER_WRITER_ALREADY_ACTIVE/.test(stderrTail)) {
       write(leaseRecoveryGuidance(stderrTail));
     }
-    process.exitCode = signal ? 1 : code ?? 0;
+    process.exitCode = launcherExitCode(code, signal, stderrTail);
   });
   for (const signal of ["SIGINT", "SIGTERM"]) {
     process.on(signal, () => { if (child.exitCode == null) child.kill(signal); });
@@ -177,6 +186,7 @@ function runManaged(options = {}) {
     now: options.now,
     initialBackoffMs: options.initialBackoffMs,
     maxBackoffMs: options.maxBackoffMs,
+    writerLeaseRetryMs: options.writerLeaseRetryMs,
     stableWindowMs: options.stableWindowMs,
     maxRestarts: options.maxRestarts,
     maxRestartWindowMs: options.maxRestartWindowMs,
@@ -192,6 +202,7 @@ if (require.main === module) runManaged();
 
 module.exports = {
   buildRuntimeEnv,
+  launcherExitCode,
   resolveDashboardToken,
   runManaged,
   start,
