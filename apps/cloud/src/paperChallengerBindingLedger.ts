@@ -2,6 +2,7 @@ import { canonicalResearchJson } from "../../../packages/contracts/src/researchR
 import type { SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
 import { validatePaperCandidateExecutionBinding, type PaperCandidateExecutionBinding } from "./cioDecisionEngine";
 import type { PaperCandidateBindingProvider } from "./cloudRuntimeDashboardHydrator";
+import { samePaperResearchLineage, validatePaperResearchLineage, type PaperResearchLineage } from "./paperResearchLineage";
 
 type EvolutionRecord = Parameters<SqliteEvolutionLearningLedger["append"]>[0];
 type EvolutionLedgerPort = Pick<SqliteEvolutionLearningLedger, "append" | "list">;
@@ -12,6 +13,8 @@ export interface PaperChallengerActivationReceipt {
   readonly market: string;
   readonly binding: PaperCandidateExecutionBinding;
   readonly activatedAt: number;
+  /** Legacy activations may not have lineage. New closed-learning deployments require it. */
+  readonly researchLineage?: PaperResearchLineage;
   readonly liveAuthority: "NONE";
   readonly productionMutationAllowed: false;
   readonly aiAuthority: "ZERO_AUTHORITY";
@@ -66,7 +69,19 @@ function parseActivation(record: EvolutionRecord): PaperChallengerActivationRece
   const activatedAt = timestamp(item.activatedAt, "activatedAt");
   const binding = validatePaperCandidateExecutionBinding(item.binding, Math.max(activatedAt, item.binding.periodStartAt));
   if (binding.periodStartAt !== activatedAt) throw new Error("PAPER challenger activation must match the canonical period start");
-  return Object.freeze({ schemaVersion: 1, status: "ACTIVE", market: normalizedMarket, binding, activatedAt, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+  const researchLineage = item.researchLineage == null ? undefined : validatePaperResearchLineage(item.researchLineage);
+  if (researchLineage != null && researchLineage.candidateId !== binding.candidateId) throw new Error("PAPER challenger Research lineage candidate conflict");
+  return Object.freeze({
+    schemaVersion: 1,
+    status: "ACTIVE",
+    market: normalizedMarket,
+    binding,
+    activatedAt,
+    ...(researchLineage == null ? {} : { researchLineage }),
+    liveAuthority: "NONE",
+    productionMutationAllowed: false,
+    aiAuthority: "ZERO_AUTHORITY",
+  });
 }
 
 function parseRevocation(record: EvolutionRecord): PaperChallengerRevocationReceipt {
@@ -96,13 +111,29 @@ function lifecycle(ledger: EvolutionLedgerPort): readonly (PaperChallengerActiva
 export class PaperChallengerBindingLedger implements PaperCandidateBindingProvider {
   public constructor(private readonly ledger: EvolutionLedgerPort) {}
 
-  public activate(marketValue: string, bindingValue: PaperCandidateExecutionBinding): PaperChallengerActivationReceipt {
+  public activate(marketValue: string, bindingValue: PaperCandidateExecutionBinding, researchLineageValue?: PaperResearchLineage): PaperChallengerActivationReceipt {
     const normalizedMarket = market(marketValue);
     const binding = validatePaperCandidateExecutionBinding(bindingValue, bindingValue.periodStartAt);
-    const event: PaperChallengerActivationReceipt = Object.freeze({ schemaVersion: 1, status: "ACTIVE", market: normalizedMarket, binding, activatedAt: binding.periodStartAt, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+    const researchLineage = researchLineageValue == null ? undefined : validatePaperResearchLineage(researchLineageValue);
+    if (researchLineage != null && researchLineage.candidateId !== binding.candidateId) throw new Error("PAPER challenger Research lineage candidate conflict");
+    const event: PaperChallengerActivationReceipt = Object.freeze({
+      schemaVersion: 1,
+      status: "ACTIVE",
+      market: normalizedMarket,
+      binding,
+      activatedAt: binding.periodStartAt,
+      ...(researchLineage == null ? {} : { researchLineage }),
+      liveAuthority: "NONE",
+      productionMutationAllowed: false,
+      aiAuthority: "ZERO_AUTHORITY",
+    });
     const opportunityId = `paper-challenger:${normalizedMarket}:${binding.bindingFingerprintSha256}:active`;
-    this.ledger.append({ opportunityId, problem: PREFIX, evidenceReferences: [`binding:${binding.bindingFingerprintSha256}`, `dataset:${binding.datasetContentSha256}`], hypothesis: canonicalResearchJson(event), changeReference: `candidate:${binding.candidateId}`, validationStatus: "ACTIVE", outcome: "SUCCESS", failureReason: null, rollbackReference: null, reusable: true, recordedAt: new Date(binding.periodStartAt).toISOString() });
-    return this.current(normalizedMarket, binding.periodStartAt) ?? (() => { throw new Error("PAPER challenger activation was not recoverable"); })();
+    const evidenceReferences = [`binding:${binding.bindingFingerprintSha256}`, `dataset:${binding.datasetContentSha256}`];
+    if (researchLineage != null) evidenceReferences.push(`research-run:${researchLineage.originalRunFingerprintSha256}`, `research-replay:${researchLineage.replayRunFingerprintSha256}`);
+    this.ledger.append({ opportunityId, problem: PREFIX, evidenceReferences, hypothesis: canonicalResearchJson(event), changeReference: `candidate:${binding.candidateId}`, validationStatus: "ACTIVE", outcome: "SUCCESS", failureReason: null, rollbackReference: null, reusable: true, recordedAt: new Date(binding.periodStartAt).toISOString() });
+    const recovered = this.current(normalizedMarket, binding.periodStartAt) ?? (() => { throw new Error("PAPER challenger activation was not recoverable"); })();
+    if (researchLineage != null && (recovered.researchLineage == null || !samePaperResearchLineage(recovered.researchLineage, researchLineage))) throw new Error("PAPER challenger Research lineage was not recoverable");
+    return recovered;
   }
 
   public revoke(marketValue: string, bindingFingerprintSha256: string, candidateId: string, revokedAtValue: number, reasonValue: string): PaperChallengerRevocationReceipt {
@@ -133,6 +164,10 @@ export class PaperChallengerBindingLedger implements PaperCandidateBindingProvid
       }
     }
     return active;
+  }
+
+  public lineage(marketValue: string, decisionAt: number): PaperResearchLineage | undefined {
+    return this.current(marketValue, decisionAt)?.researchLineage;
   }
 
   public read(marketValue: string, decisionAt: number): PaperCandidateExecutionBinding | undefined {
