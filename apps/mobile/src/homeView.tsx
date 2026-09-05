@@ -11,6 +11,7 @@ import { selectHomeMarketData } from "./homeMarketData";
 import { freshestObservedAtMs, type WatchlistMarket } from "./watchlist";
 import type { PublicCandle } from "./chartViewModel";
 import { AuthorityRail, FactRow, IntelligenceSection, MetricStrip, ScreenLead, StateNotice } from "./intelligenceOs";
+import { BUILD_SOURCE_SHA } from "./generatedBuildConfig";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
 export type HomeDestination = "Markets" | "AiSignal" | "Portfolio";
@@ -32,6 +33,8 @@ interface HomeViewProps {
   readonly onNavigate: (destination: HomeDestination) => void;
   readonly onOpenPaperLearning: () => void;
 }
+
+const packagedBuildLabel = /^[0-9a-f]{40}$/i.test(BUILD_SOURCE_SHA) ? BUILD_SOURCE_SHA.slice(0, 8) : "DEV";
 
 function krw(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "—";
@@ -131,6 +134,7 @@ export function HomeView({
         <Text style={[styles.statusText, { color: theme.colors.textMuted }]}>{rail.marketLine} · {rail.systemLine}</Text>
         <Text style={[styles.statusTextStrong, { color: riskTone === "danger" ? theme.colors.danger : riskTone === "warning" ? theme.colors.warning : theme.colors.success }]}>RISK {rail.riskLabel}</Text>
         {rail.freshnessLabel ? <Text style={[styles.statusText, { color: theme.colors.textMuted }]}>{rail.freshnessLabel}</Text> : null}
+        <Text style={[styles.statusText, { color: theme.colors.textMuted }]} testID="home-build-source">BUILD {packagedBuildLabel} · UI INTELLIGENCE OS</Text>
       </View>
       <ScreenLead eyebrow="NOW" title={posture} detail={why} badge={disconnected ? "SETUP REQUIRED" : snapshot?.readyForPaperOperations ? "PAPER ACTIVE" : "OBSERVING"} badgeTone={disconnected ? "warning" : snapshot?.readyForPaperOperations ? "success" : "info"} testID="home-now" />
       {disconnected || readOnlyError ? <Pressable accessibilityRole="button" onPress={onGoSettings} testID="home-operational-notice"><StateNotice title={disconnected ? "PAPER 연결 필요" : "PAPER 연결 오류"} detail={`${disconnected ? "Cloud endpoint와 세션을 검증해야 합니다." : readOnlyError ?? "읽기 상태를 확인할 수 없습니다."} · 설정 열기`} tone="warning" /></Pressable> : null}
@@ -158,4 +162,4 @@ export function HomeView({
   </View>;
 }
 
-const styles = StyleSheet.create({ shell: { flex: 1 }, content: { width: "100%", alignSelf: "center", paddingHorizontal: 18, paddingTop: 14, paddingBottom: 120, gap: 16 }, statusRail: { minHeight: 32, flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap", paddingHorizontal: 2 }, statusText: { fontSize: 10, lineHeight: 15, fontWeight: "700" }, statusTextStrong: { fontSize: 10, lineHeight: 15, fontWeight: "900", letterSpacing: 0.5 }, twoColumn: { gap: 16 }, twoColumnTablet: { flexDirection: "row", alignItems: "stretch" }, half: { flex: 1 }, primaryCopy: { fontSize: 15, lineHeight: 23, fontWeight: "700" }, disclaimer: { fontSize: 10, lineHeight: 16 }, safetyFooter: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 14, alignItems: "center" }, safetyText: { fontSize: 9, lineHeight: 14, fontWeight: "900", letterSpacing: 1.15 } });
+const styles = StyleSheet.create({ shell: { flex: 1 }, content: { width: "100%", alignSelf: "center", paddingHorizontal: 18, paddingTop: 14, paddingBottom: 120, gap: 16 }, statusRail: { minHeight: 32, flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap", paddingHorizontal: 2 }, statusText: { fontSize: 10, lineHeight: 15, fontWeight: "700", fontVariant: ["tabular-nums"] }, statusTextStrong: { fontSize: 10, lineHeight: 15, fontWeight: "900", letterSpacing: 0.5 }, twoColumn: { gap: 16 }, twoColumnTablet: { flexDirection: "row", alignItems: "stretch" }, half: { flex: 1 }, primaryCopy: { fontSize: 15, lineHeight: 23, fontWeight: "700" }, disclaimer: { fontSize: 10, lineHeight: 16 }, safetyFooter: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 14, alignItems: "center" }, safetyText: { fontSize: 9, lineHeight: 14, fontWeight: "900", letterSpacing: 1.15 } });
