@@ -28,7 +28,8 @@ if (!fs.existsSync(backupPath)) fail(`missing backup directory: ${backupPath}`);
 if (!fs.existsSync(servicePath)) fail(`missing systemd unit: ${servicePath}`);
 if (fs.existsSync(currentPath) && !fs.lstatSync(currentPath).isSymbolicLink()) fail("/opt/nusa/current must be an atomic symlink");
 const unit = fs.readFileSync(servicePath, "utf8");
-for (const required of ["User=nusa", "Group=nusa", "NoNewPrivileges=true", "ProtectSystem=strict", "Restart=on-failure", "WorkingDirectory=/opt/nusa/current"]) {
+for (const required of ["User=nusa", "Group=nusa", "NoNewPrivileges=true", "ProtectSystem=strict", "Restart=on-failure", "WorkingDirectory=/opt/nusa/current", "ExecStart=/usr/bin/node /opt/nusa/current/scripts/start-cloud-runtime.js"]) {
   if (!unit.includes(required)) fail(`unit missing ${required}`);
 }
+if (/ExecStart=.*dist\/apps\/cloud\/src\/runtime\.js/.test(unit)) fail("systemd must not bypass the supervised PAPER launcher");
 console.log(JSON.stringify({ status: "PASS", envPath, dbPath: dbAbsolute, backupPath, servicePath, host }));
