@@ -20,23 +20,22 @@ const { buildResearchHypothesis } = require("../dist/apps/desktop/src/cloud/rese
 const { createResearchHypothesis } = require("../dist/packages/contracts/src/researchHypothesisContract.js");
 const { buildResearchRunTimeline } = require("../dist/apps/desktop/src/cloud/researchRunTimeline.js");
 const { buildResearchRunProvenancePlan } = require("../dist/apps/desktop/src/cloud/researchRunFactory.js");
+const { fetchCompletedDailyHistory } = require("./lib/upbit-daily-history.js");
 
 const STRATEGY_FAMILY_ID = "sma-crossover";
-const MARKET = "KRW-BTC";
-const CANDLE_COUNT = 200;
-const REQUEST_PATH = `/v1/candles/days?market=${MARKET}&count=${CANDLE_COUNT}`;
+const PRIMARY_MARKET = "KRW-BTC";
+const RESEARCH_MARKETS = Object.freeze(["KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-SOL", "KRW-DOGE"]);
+const CANDLE_COUNT = 1_000;
+const REQUEST_THROTTLE_MS = 150;
 
 const BACKTEST_CONFIG = {
-  market: MARKET,
+  market: PRIMARY_MARKET,
   initialCash: 10_000_000,
   feeRate: 0.0005,
   orderQuantity: 0.001,
   executionCosts: { spreadBps: 5, slippageBps: 5 }
 };
 
-// Fixed before the dataset is observed: the existing cost-stress engine reruns the same
-// walk-forward plan under a declared baseline/moderate/severe grid. This is sensitivity
-// evidence only; it never changes candidate selection authority or execution policy.
 const COST_STRESS_SCENARIOS = [
   {
     id: "BASE",
@@ -85,6 +84,8 @@ const PBO_EVIDENCE_UNAVAILABLE_CODES = Object.freeze([
   "INSUFFICIENT_OOS_RETURN_POINTS",
   "NO_SYMMETRIC_CSCV_PARTITION"
 ]);
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function isResearchRunPboEvidenceUnavailable(error) {
   return typeof error?.code === "string" && PBO_EVIDENCE_UNAVAILABLE_CODES.includes(error.code);
@@ -179,40 +180,42 @@ async function fetchDayCandlePage(path) {
   if (!response.ok) throw new Error(`Upbit request failed: HTTP ${response.status}`);
   const body = await response.json();
   if (!Array.isArray(body) || body.length === 0) throw new Error("Upbit returned no candles");
+  await sleep(REQUEST_THROTTLE_MS);
   return body;
+}
+
+async function fetchMarketDataset(market, dataAsOf) {
+  const history = await fetchCompletedDailyHistory({
+    market,
+    targetCount: CANDLE_COUNT,
+    completedBy: dataAsOf,
+    fetchPage: fetchDayCandlePage,
+    mapPage: (raw, options) => mapUpbitDayCandlesToResearchCandles(raw, options)
+  });
+  const freshness = evaluateUpbitDailyCandleFreshness(history.candles, dataAsOf);
+  if (!freshness.fresh) {
+    throw new Error(`${market} completed daily candle source is stale by ${freshness.lagDays} UTC day(s)`);
+  }
+  const manifest = createHistoricalDatasetManifest(history.candles, {
+    source: "upbit-public-api",
+    sourceRequest: history.sourceRequests.join(" | "),
+    createdAt: new Date(dataAsOf).toISOString()
+  });
+  return Object.freeze({ market, candles: history.candles, manifest, freshness });
 }
 
 async function main() {
   const dataAsOf = Date.now();
   const timeline = buildResearchRunTimeline(dataAsOf);
-  const primaryRaw = await fetchDayCandlePage(REQUEST_PATH);
-  const sourceRequests = [`GET ${REQUEST_PATH}`];
-  let allRaw = primaryRaw;
-  let candles = mapUpbitDayCandlesToResearchCandles(allRaw, { completedBy: dataAsOf, maxCount: CANDLE_COUNT });
+  const marketDatasets = [];
+  for (const market of RESEARCH_MARKETS) {
+    marketDatasets.push(await fetchMarketDataset(market, dataAsOf));
+  }
+  const primaryDataset = marketDatasets.find((entry) => entry.market === PRIMARY_MARKET);
+  if (primaryDataset == null) throw new Error(`primary research market ${PRIMARY_MARKET} was not loaded`);
+  const { candles, manifest, freshness } = primaryDataset;
+  const regimeInputs = marketDatasets.map((entry) => ({ manifest: entry.manifest, candles: entry.candles }));
 
-  if (candles.length < CANDLE_COUNT) {
-    const missingCount = CANDLE_COUNT - candles.length;
-    const oldestCompletedOpenTime = candles[0]?.openTime;
-    if (oldestCompletedOpenTime == null) throw new Error("Upbit completed-candle backfill has no anchor");
-    const backfillPath = `/v1/candles/days?market=${MARKET}&count=${missingCount}&to=${encodeURIComponent(new Date(oldestCompletedOpenTime).toISOString())}`;
-    const backfillRaw = await fetchDayCandlePage(backfillPath);
-    sourceRequests.push(`GET ${backfillPath}`);
-    allRaw = [...primaryRaw, ...backfillRaw];
-    candles = mapUpbitDayCandlesToResearchCandles(allRaw, { completedBy: dataAsOf, maxCount: CANDLE_COUNT });
-  }
-
-  if (candles.length !== CANDLE_COUNT) {
-    throw new Error(`Upbit returned only ${candles.length} completed daily candles; expected ${CANDLE_COUNT}`);
-  }
-  const freshness = evaluateUpbitDailyCandleFreshness(candles, dataAsOf);
-  if (!freshness.fresh) {
-    throw new Error(`Upbit completed daily candle source is stale by ${freshness.lagDays} UTC day(s)`);
-  }
-  const manifest = createHistoricalDatasetManifest(candles, {
-    source: "upbit-public-api",
-    sourceRequest: sourceRequests.join(" | "),
-    createdAt: new Date(dataAsOf).toISOString()
-  });
   const sourceCommitSha = requiredResearchSourceCommitSha();
   const costModelVersion = requiredResearchCostModelVersion();
   const hypothesis = buildResearchHypothesis({
@@ -246,7 +249,10 @@ async function main() {
       holdingPeriodMs: 86_400_000,
       capacityAssumptions: { maxNotional: BACKTEST_CONFIG.initialCash, maxParticipationRate: 0.05 },
       transactionCostSensitivity: 1,
-      provenance: { author: "nusa-real-market-research", sourceReferences: [`dataset:${manifest.datasetId}`] },
+      provenance: {
+        author: "nusa-real-market-research",
+        sourceReferences: marketDatasets.map((entry) => `dataset:${entry.manifest.datasetId}`)
+      },
       createdAt: timeline.hypothesisGeneratedAt
     })
   }));
@@ -288,18 +294,14 @@ async function main() {
   const parameterRobustnessRequest = buildParameterRobustnessRequest({ candles, manifest });
   const parameterRobustness = runParameterRobustnessRequest(parameterRobustnessRequest);
   if (parameterRobustness.status !== "PASS") {
-    throw new Error(
-      `real parameter robustness failed: ${parameterRobustness.failures.join(", ")}`
-    );
+    throw new Error(`real parameter robustness failed: ${parameterRobustness.failures.join(", ")}`);
   }
   const parameterRobustnessVerification = verifyParameterRobustnessResult(
     parameterRobustnessRequest,
     parameterRobustness
   );
   if (parameterRobustnessVerification.status !== "PASS") {
-    throw new Error(
-      `real parameter robustness verification failed: ${parameterRobustnessVerification.errors.join(", ")}`
-    );
+    throw new Error(`real parameter robustness verification failed: ${parameterRobustnessVerification.errors.join(", ")}`);
   }
   const parameterRobustnessEvidence = {
     ...parameterRobustness,
@@ -339,7 +341,7 @@ async function main() {
     });
     const regimeAwareEvaluation = buildResearchRunRegimeEvaluation(
       experiment,
-      [{ manifest, candles }],
+      regimeInputs,
       { lookbackPeriods: 20 }
     );
     return { id, familyId: STRATEGY_FAMILY_ID, experiment, candidateSpecification, regimeAwareEvaluation };
@@ -389,6 +391,17 @@ async function main() {
         lagDays: freshness.lagDays
       }
     },
+    evidenceDatasets: marketDatasets.map((entry) => ({
+      datasetId: entry.manifest.datasetId,
+      market: entry.manifest.market,
+      interval: entry.manifest.interval,
+      candleCount: entry.manifest.candleCount,
+      startOpenTime: new Date(entry.manifest.startOpenTime).toISOString(),
+      endCloseTime: new Date(entry.manifest.endCloseTime).toISOString(),
+      contentSha256: entry.manifest.contentSha256,
+      sourceRequest: entry.manifest.sourceRequest,
+      freshnessLagDays: entry.freshness.lagDays
+    })),
     windowCount: result.walkForwardResult.windows.length,
     parameterNeighborhood: {
       candidateSelectionCounts: result.walkForwardResult.candidateSelectionCounts,
@@ -462,5 +475,6 @@ if (require.main === module) {
 module.exports = {
   buildParameterRobustnessRequest,
   buildResearchRunTimeline,
+  fetchMarketDataset,
   isResearchRunPboEvidenceUnavailable
 };
