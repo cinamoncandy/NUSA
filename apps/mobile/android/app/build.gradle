@@ -39,6 +39,16 @@ if (nusaReleaseTaskRequested && !nusaReleaseSigningReady) {
     throw new GradleException("NUSA_ANDROID_RELEASE_SIGNING_REQUIRED: release builds require a dedicated protected signing key")
 }
 
+// A release APK stamped versionCode 1 / versionName *-dev is indistinguishable
+// from any other local build. CI always injects a real commit SHA and run
+// number, so requiring both here only blocks accidental unsealed releases.
+if (nusaReleaseTaskRequested && !(nusaBuildSha ==~ /^[0-9a-fA-F]{40}$/)) {
+    throw new GradleException("NUSA_BUILD_SHA_REQUIRED_FOR_RELEASE: release builds require a 40-hex NUSA_BUILD_SHA")
+}
+if (nusaReleaseTaskRequested && nusaBuildNumber < 1) {
+    throw new GradleException("NUSA_BUILD_NUMBER_REQUIRED_FOR_RELEASE: release builds require NUSA_BUILD_NUMBER")
+}
+
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
