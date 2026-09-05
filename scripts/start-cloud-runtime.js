@@ -3,6 +3,7 @@ const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs"
 const os = require("node:os");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
+const { PaperRuntimeProcessSupervisor } = require("./paper-runtime-supervisor.js");
 
 /**
  * Starts the Cloud PAPER runtime with a configuration that actually works out of the box.
@@ -26,6 +27,7 @@ const TOKEN_FILE = path.join(CONFIG_DIR, "dashboard-token");
 const DEFAULT_PORT = "41731";
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PAPER_CAPITAL_KRW = "10000000";
+const SUPERVISOR_CHILD_ENV = "NUSA_PAPER_RUNTIME_SUPERVISOR_CHILD";
 
 /** Environment variables that would hand the runtime real-money authority. Never forwarded. */
 const PRIVATE_CREDENTIAL_PATTERN = /(ACCESS|SECRET|PRIVATE|API[_-]?KEY|TOKEN)/i;
@@ -159,6 +161,45 @@ function start(options = {}) {
   return child;
 }
 
-if (require.main === module) start();
+/**
+ * Production entrypoint: keep PAPER runtime alive across unexpected process exits while preserving
+ * the existing launcher as the supervised child. The child marker prevents recursive supervisors.
+ */
+function runManaged(options = {}) {
+  const baseEnv = options.env ?? process.env;
+  if (baseEnv[SUPERVISOR_CHILD_ENV] === "true") return start(options);
 
-module.exports = { buildRuntimeEnv, resolveDashboardToken, start, stripPrivateExchangeCredentials, TOKEN_FILE };
+  const supervisor = new PaperRuntimeProcessSupervisor({
+    cwd: options.cwd ?? process.cwd(),
+    env: { ...baseEnv, [SUPERVISOR_CHILD_ENV]: "true" },
+    command: process.execPath,
+    args: ["scripts/start-cloud-runtime.js"],
+    write: options.write,
+    spawn: options.spawnSupervisor,
+    setTimer: options.setTimer,
+    clearTimer: options.clearTimer,
+    now: options.now,
+    initialBackoffMs: options.initialBackoffMs,
+    maxBackoffMs: options.maxBackoffMs,
+    stableWindowMs: options.stableWindowMs,
+    maxRestarts: options.maxRestarts,
+    maxRestartWindowMs: options.maxRestartWindowMs,
+  });
+  supervisor.start();
+  for (const signal of ["SIGINT", "SIGTERM"]) {
+    process.on(signal, () => supervisor.stop(signal));
+  }
+  return supervisor;
+}
+
+if (require.main === module) runManaged();
+
+module.exports = {
+  buildRuntimeEnv,
+  resolveDashboardToken,
+  runManaged,
+  start,
+  stripPrivateExchangeCredentials,
+  SUPERVISOR_CHILD_ENV,
+  TOKEN_FILE,
+};
