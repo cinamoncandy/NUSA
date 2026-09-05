@@ -19,13 +19,18 @@ export interface ClosedLearningRolloverResult {
   readonly cycle?: ClosedLearningCycleResult;
 }
 
+export interface ClosedLearningEvidenceWindow {
+  readonly closedPeriod: PersistedPaperPeriodEnvelope;
+  readonly realizedPeriods: readonly PersistedPaperPeriodEnvelope[];
+}
+
 export interface ClosedLearningRolloverPort {
   readonly listOpenPeriods: () => readonly PersistedPaperRealizedPeriodPlan[];
   readonly listRealizedPeriods: () => readonly PersistedPaperPeriodEnvelope[];
   readonly readCanonicalPaperAccount: () => PaperAccountState | undefined;
   readonly closePeriodFromCanonicalAccount: (input: { readonly periodId: string; readonly periodEndAt: number }) => PersistedPaperPeriodEnvelope;
   readonly openPeriodFromCanonicalAccount: (input: PaperRealizedPeriodOpenInput) => PersistedPaperRealizedPeriodPlan;
-  readonly buildEvidenceIdentity: (period: PersistedPaperPeriodEnvelope) => ClosedLearningEvidenceIdentity;
+  readonly buildEvidenceIdentity: (window: ClosedLearningEvidenceWindow) => ClosedLearningEvidenceIdentity;
   readonly runClosedLearningCycle: (identity: ClosedLearningEvidenceIdentity) => ClosedLearningCycleResult;
 }
 
@@ -53,8 +58,9 @@ function stableOpenPeriods(input: readonly PersistedPaperRealizedPeriodPlan[]): 
  * Asia/Seoul trading-day boundary. A period without a real FILLED observation remains open.
  *
  * Evidence identity construction is deliberately injected: source commit, cost model, risk hash,
- * champion identity, and evidence fingerprints must come from authoritative durable provenance.
- * The scheduler refuses to synthesize any of those values itself.
+ * champion identity, evidence fingerprints, and which realized periods belong to one immutable
+ * Research lineage must come from authoritative durable provenance. The scheduler passes the
+ * complete realized denominator to that builder and refuses to synthesize any identity itself.
  */
 export class ClosedLearningRolloverScheduler {
   public constructor(private readonly port: ClosedLearningRolloverPort) {}
@@ -81,16 +87,21 @@ export class ClosedLearningRolloverScheduler {
 
     try {
       const closed = this.port.closePeriodFromCanonicalAccount({ periodId: plan.periodId, periodEndAt: account.updatedAt });
-      const identity = this.port.buildEvidenceIdentity(closed);
+      const realizedPeriods = Object.freeze([...this.port.listRealizedPeriods()]);
+      if (!realizedPeriods.some((item) => item.record.recordId === closed.record.recordId)) {
+        throw new Error("closed PAPER period is missing from the durable realized denominator");
+      }
+      const identity = this.port.buildEvidenceIdentity(Object.freeze({ closedPeriod: closed, realizedPeriods }));
       const cycle = this.port.runClosedLearningCycle(identity);
 
       // A qualified cycle deploys its replacement challenger and opens the next canonical PAPER
       // period through PaperChallengerDeploymentRuntime. Non-qualified outcomes retain the same
       // immutable candidate/advisory and continue accumulating evidence in a new canonical period.
       if (cycle.record.decision.outcome !== "QUALIFIED_FOR_LEAGUE") {
+        const periodIndex = nextPeriodIndex(realizedPeriods);
         this.port.openPeriodFromCanonicalAccount({
-          periodId: `${plan.periodId}:rollover:${account.updatedAt}`,
-          periodIndex: nextPeriodIndex(this.port.listRealizedPeriods()),
+          periodId: `closed-learning-rollover:${periodIndex}:${account.updatedAt}`,
+          periodIndex,
           advisory: plan.advisory,
           candidateProvenance: plan.candidateProvenance,
           ...(plan.market == null ? {} : { market: plan.market }),
