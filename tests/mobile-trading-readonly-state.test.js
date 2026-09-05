@@ -8,8 +8,13 @@ test("Trading permits only PAPER mutation while LIVE remains disabled", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingViewLegacy.tsx"), "utf8");
 
   assert.match(shellSource, /import \{ TradingView as LegacyTradingView \} from "\.\/tradingViewLegacy"/);
-  assert.match(shellSource, /return <LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.match(shellSource, /<AuthorityRail detail="SIMULATED EXECUTION · LIVE NONE · AI ZERO AUTHORITY"/);
+  assert.match(shellSource, /<ScreenLead eyebrow="PAPER"/);
+  assert.match(shellSource, /!cloudPaperConnected \? <StateNotice title="CLOUD PAPER NOT CONNECTED"/);
+  assert.match(shellSource, /cloudPaperConnected \? <CloudPaperPublicChart \/> : null/);
   assert.match(shellSource, /<LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.match(shellSource, /PUBLIC CONTEXT/);
+  assert.match(shellSource, /value: "READ ONLY"/);
 
   assert.match(source, /testID="trading-screen"/);
   assert.match(source, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
