@@ -1,6 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import { NusaButton } from "./components";
 import { useTheme } from "./ThemeProvider";
 import { ChartView } from "./chartView";
 import type { PublicCandle } from "./chartViewModel";
@@ -8,6 +7,7 @@ import { WatchlistView } from "./watchlistView";
 import { parseWatchlistMarkets, type WatchlistRepository } from "./watchlist";
 import { uxLayout } from "./uxLayout";
 import { loadUpbitPublicCandles, UpbitPublicQuotationError, type PublicQuotationDiagnostic } from "./upbitPublicQuotationClient";
+import { AuthorityRail, MetricStrip, ScreenLead, StateNotice } from "./intelligenceOs";
 
 interface MarketsViewProps {
   readonly repository: WatchlistRepository;
@@ -27,6 +27,16 @@ interface MarketsViewProps {
 }
 
 type Panel = "WATCHLIST" | "CHART";
+
+function money(value: number | null): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  return `₩${Math.round(value).toLocaleString("ko-KR")}`;
+}
+function rate(value: number | null): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  const n = value * 100;
+  return `${n > 0 ? "+" : ""}${n.toFixed(2)}%`;
+}
 
 export function MarketsView({ repository, market, rawMarkets, rawCandles, currentPrice, marketConnectionState, stale, marketsStale, chartError, chartErrorDiagnostic, error, refreshing, onRefresh, onPaperTrade }: MarketsViewProps) {
   const { theme } = useTheme();
@@ -51,21 +61,15 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
   const displayedChartError = selectedMarket === market ? chartError : selectedChartError;
   const displayedDiagnostic = selectedMarket === market ? chartErrorDiagnostic : selectedChartDiagnostic;
   const displayedStale = selectedMarket === market ? stale : selectedChartLoading || selectedCandles === null;
+  const sourceState = error ? "ERROR" : marketsStale || displayedStale ? "STALE" : parsedMarkets.length > 0 ? "ACTIVE" : "UNAVAILABLE";
 
   const loadSelectedCandles = useCallback(async (nextMarket: string): Promise<void> => {
     if (nextMarket === market) {
-      setSelectedCandles(null);
-      setSelectedChartError(null);
-      setSelectedChartDiagnostic(null);
-      setSelectedChartLoading(false);
-      return;
+      setSelectedCandles(null); setSelectedChartError(null); setSelectedChartDiagnostic(null); setSelectedChartLoading(false); return;
     }
     const request = selectionRequestRef.current + 1;
     selectionRequestRef.current = request;
-    setSelectedCandles(null);
-    setSelectedChartError(null);
-    setSelectedChartDiagnostic(null);
-    setSelectedChartLoading(true);
+    setSelectedCandles(null); setSelectedChartError(null); setSelectedChartDiagnostic(null); setSelectedChartLoading(true);
     try {
       const candles = await loadUpbitPublicCandles({ market: nextMarket });
       if (selectionRequestRef.current !== request) return;
@@ -80,13 +84,11 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
   }, [market]);
 
   const handleSelectMarket = useCallback((nextMarket: string): void => {
-    if (nextMarket === selectedMarket) {
-      setPanel("CHART");
-      return;
+    if (nextMarket !== selectedMarket) {
+      setSelectedMarket(nextMarket);
+      void loadSelectedCandles(nextMarket);
     }
-    setSelectedMarket(nextMarket);
     setPanel("CHART");
-    void loadSelectedCandles(nextMarket);
   }, [loadSelectedCandles, selectedMarket]);
 
   const refreshMarketView = useCallback((): void => {
@@ -96,59 +98,49 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
 
   const segment = (value: Panel, label: string, testID: string) => {
     const selected = panel === value;
-    return <Pressable
-      accessibilityRole="tab"
-      accessibilityState={{ selected }}
-      accessibilityLabel={label}
-      onPress={() => setPanel(value)}
-      testID={testID}
-      style={({ pressed }) => [styles.segment, {
-        backgroundColor: selected ? theme.colors.surfaceRaised : "transparent",
-        borderColor: selected ? theme.colors.borderStrong : "transparent",
-        opacity: pressed ? theme.interaction.pressedOpacity : 1,
-      }]}
-    ><Text style={[styles.segmentLabel, { color: selected ? theme.colors.text : theme.colors.textMuted, fontWeight: selected ? theme.typography.weights.bold : theme.typography.weights.semibold }]} numberOfLines={1}>{label}</Text></Pressable>;
+    return <Pressable accessibilityRole="tab" accessibilityState={{ selected }} accessibilityLabel={label} onPress={() => setPanel(value)} testID={testID}
+      style={({ pressed }) => [styles.segment, { backgroundColor: selected ? theme.colors.surfaceRaised : "transparent", borderColor: selected ? theme.colors.borderStrong : "transparent", opacity: pressed ? theme.interaction.pressedOpacity : 1 }]}
+    ><Text style={[styles.segmentLabel, { color: selected ? theme.colors.text : theme.colors.textMuted }]}>{label}</Text></Pressable>;
   };
 
   const watchlist = <WatchlistView error={error} onRefresh={refreshMarketView} rawMarkets={rawMarkets} refreshing={refreshing || selectedChartLoading} repository={repository} selectedMarket={selectedMarket} onSelectMarket={handleSelectMarket} stale={marketsStale} />;
   const chart = <View style={styles.detailWorkspace} testID="market-detail-workspace">
     <ChartView changeRate={changeRate} diagnostic={displayedChartError ? displayedDiagnostic : null} error={displayedChartError ?? error} currentPrice={selectedCurrentPrice} market={selectedMarket} marketConnectionState={marketConnectionState} onRefresh={refreshMarketView} rawCandles={displayedCandles === null ? null : [...displayedCandles]} refreshing={refreshing || selectedChartLoading} stale={displayedStale} />
-    <View style={[styles.tradeAction, { borderTopColor: theme.colors.border }]} testID="market-observation-context">
-      <View style={styles.tradeCopy}>
-        <Text style={[styles.tradeEyebrow, { color: theme.colors.textMuted }]}>PUBLIC OBSERVATION</Text>
-        <Text style={[styles.tradeDetail, { color: theme.colors.textMuted }]}>현재 선택 시장은 공개 시세 관찰 컨텍스트입니다. NUSA의 AI 판단 대상이나 PAPER 주문 종목으로 자동 승격되지 않습니다.</Text>
-      </View>
-      <NusaButton label="PAPER 감독 보기" onPress={onPaperTrade} testID="market-paper-trade" />
-    </View>
+    <Pressable accessibilityRole="button" onPress={onPaperTrade} style={[styles.paperContext, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }]} testID="market-observation-context">
+      <View style={styles.paperContextCopy}><Text style={[styles.paperKicker, { color: theme.colors.primary }]}>PAPER CONTEXT</Text><Text style={[styles.paperTitle, { color: theme.colors.text }]}>이 시장은 관찰 데이터입니다</Text><Text style={[styles.paperDetail, { color: theme.colors.textMuted }]}>전략 신호나 주문 권한으로 자동 승격되지 않습니다. PAPER 감독 화면에서 실행 상태를 별도로 확인하세요.</Text></View>
+      <Text style={[styles.chevron, { color: theme.colors.textMuted }]}>›</Text>
+    </Pressable>
   </View>;
 
   return <View style={[styles.workspace, { backgroundColor: theme.colors.background }]} testID="markets-workspace">
-    {tabletWorkspace ? <View style={styles.tabletWorkspace} testID="markets-tablet-workspace">
-      <View style={styles.tabletPanel} testID="markets-tablet-watchlist">{watchlist}</View>
-      <View style={styles.tabletPanel} testID="markets-tablet-chart">{chart}</View>
-    </View> : null}
-    {!tabletWorkspace ? <View style={[styles.segmentOuter, { paddingHorizontal: width < 380 ? 16 : 20 }]}>
-      <View accessibilityRole="tablist" style={[styles.panels, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.border }]} testID="markets-panels"><View testID="markets-panel-segmented-control" style={styles.segmentAlias}>
-        {segment("WATCHLIST", "관찰 목록", "markets-watchlist-tab")}
-        {segment("CHART", "관찰 상세", "markets-chart-tab")}
-      </View></View>
-    </View> : null}
+    <View style={[styles.top, { maxWidth: tabletWorkspace ? 1080 : 680 }]}>
+      <AuthorityRail detail="PUBLIC READ ONLY · PAPER SEPARATE · AI ZERO AUTHORITY" status={sourceState} tone={sourceState === "ACTIVE" ? "success" : sourceState === "ERROR" ? "danger" : "warning"} testID="markets-authority-rail" />
+      <ScreenLead eyebrow="MARKETS" title={selectedMarket} detail="공개 시세를 관찰합니다. 관찰 데이터와 NUSA의 전략 판단을 분리해 표시합니다." badge="OBSERVE" badgeTone="info" />
+      <MetricStrip items={[{ label: "PRICE", value: money(selectedCurrentPrice) }, { label: "CHANGE", value: rate(changeRate), tone: changeRate == null ? "neutral" : changeRate >= 0 ? "success" : "danger" }, { label: "FEED", value: sourceState, tone: sourceState === "ACTIVE" ? "success" : "warning" }]} testID="markets-summary-strip" />
+      {error ? <StateNotice title="PUBLIC FEED ERROR" detail={error} tone="danger" /> : displayedStale ? <StateNotice title="STALE DATA" detail="표시 중인 공개 시장 데이터가 신선도 기준을 벗어났습니다." tone="warning" /> : null}
+    </View>
+
+    {tabletWorkspace ? <View style={styles.tabletWorkspace} testID="markets-tablet-workspace"><View style={styles.tabletPanel} testID="markets-tablet-watchlist">{watchlist}</View><View style={styles.tabletPanel} testID="markets-tablet-chart">{chart}</View></View> : null}
+    {!tabletWorkspace ? <View style={[styles.segmentOuter, { paddingHorizontal: width < 380 ? 16 : 20 }]}><View accessibilityRole="tablist" style={[styles.panels, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.border }]} testID="markets-panels"><View testID="markets-panel-segmented-control" style={styles.segmentAlias}>{segment("CHART", "관찰 상세", "markets-chart-tab")}{segment("WATCHLIST", "관찰 목록", "markets-watchlist-tab")}</View></View></View> : null}
     {!tabletWorkspace ? (panel === "WATCHLIST" ? watchlist : chart) : null}
   </View>;
 }
 
 const styles = StyleSheet.create({
   workspace: { flex: 1, width: "100%", maxWidth: uxLayout.maxWorkspaceWidth, alignSelf: "center" },
-  segmentOuter: { paddingTop: 12, paddingBottom: 2 },
-  tabletWorkspace: { flex: 1, flexDirection: "row", gap: 24, paddingHorizontal: 28, paddingTop: 20 },
+  top: { width: "100%", alignSelf: "center", paddingHorizontal: 20, paddingTop: 14, gap: 14 },
+  segmentOuter: { paddingTop: 14, paddingBottom: 2 },
+  tabletWorkspace: { flex: 1, flexDirection: "row", gap: 24, paddingHorizontal: 28, paddingTop: 18 },
   tabletPanel: { flex: 1, minWidth: 0 },
-  panels: { flexDirection: "row", padding: 4, borderWidth: 1, borderRadius: 999 },
-  segment: { flex: 1, minHeight: 48, alignItems: "center", justifyContent: "center", borderWidth: 1, borderRadius: 999, paddingHorizontal: 12 },
+  panels: { flexDirection: "row", padding: 4, borderWidth: 1, borderRadius: 14 },
+  segment: { flex: 1, minHeight: 48, alignItems: "center", justifyContent: "center", borderWidth: 1, borderRadius: 10, paddingHorizontal: 12 },
   segmentAlias: { flex: 1, flexDirection: "row" },
-  segmentLabel: { fontSize: 13, letterSpacing: -0.15 },
+  segmentLabel: { fontSize: 12, lineHeight: 17, fontWeight: "850" },
   detailWorkspace: { flex: 1, minWidth: 0 },
-  tradeAction: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 20, paddingVertical: 14, gap: 12 },
-  tradeCopy: { gap: 4 },
-  tradeEyebrow: { fontSize: 9, lineHeight: 14, fontWeight: "800", letterSpacing: 1.5 },
-  tradeDetail: { fontSize: 11, lineHeight: 16 },
+  paperContext: { minHeight: 84, borderWidth: 1, borderRadius: 16, marginHorizontal: 20, marginVertical: 14, padding: 14, flexDirection: "row", alignItems: "center", gap: 12 },
+  paperContextCopy: { flex: 1, gap: 3 },
+  paperKicker: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.1 },
+  paperTitle: { fontSize: 14, lineHeight: 19, fontWeight: "850" },
+  paperDetail: { fontSize: 10, lineHeight: 16 },
+  chevron: { fontSize: 24, fontWeight: "700" },
 });

@@ -1,0 +1,76 @@
+import fs from "node:fs";
+import path from "node:path";
+import test from "node:test";
+import assert from "node:assert/strict";
+
+const root = process.cwd();
+const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
+
+const home = read("apps/mobile/src/homeView.tsx");
+const markets = read("apps/mobile/src/marketsView.tsx");
+const paper = read("apps/mobile/src/tradingView.tsx");
+const portfolio = read("apps/mobile/src/portfolioView.tsx");
+const os = read("apps/mobile/src/intelligenceOs.tsx");
+const spec = read("docs/ux/NUSA_INTELLIGENCE_OS_V1.md");
+
+test("Intelligence OS keeps authority and data-integrity boundaries visible", () => {
+  for (const source of [home, markets, paper, portfolio, spec]) {
+    assert.match(source, /PAPER/);
+  }
+  assert.match(home, /LIVE NONE · AI ZERO AUTHORITY/);
+  assert.match(paper, /LIVE NONE · AI ZERO AUTHORITY/);
+  assert.match(portfolio, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
+  assert.match(markets, /PUBLIC READ ONLY/);
+  assert.doesNotMatch(home, /BULLISH|BEARISH|STRONG SIGNAL|WEAK SIGNAL/);
+});
+
+test("HOME follows state -> reason -> capital -> risk -> observation -> execution -> learning", () => {
+  const anchors = [
+    'eyebrow="NOW"',
+    'kicker="WHY · AI INSIGHT"',
+    'testID="account-hero-card"',
+    'kicker="RISK STATUS"',
+    'kicker="SIGNAL TERRAIN"',
+    'kicker="PAPER PERFORMANCE"',
+    'kicker="LEARNING"',
+  ];
+  let cursor = -1;
+  for (const anchor of anchors) {
+    const next = home.indexOf(anchor);
+    assert.ok(next > cursor, `${anchor} must appear after the previous UX stage`);
+    cursor = next;
+  }
+  assert.match(home, /NO QUALIFIED SIGNAL/);
+  assert.match(home, /UNKNOWN 값을 0으로|UNAVAILABLE|—/);
+});
+
+test("primary screens use one shared Intelligence OS grammar", () => {
+  assert.match(home, /AuthorityRail/);
+  assert.match(markets, /AuthorityRail/);
+  assert.match(paper, /AuthorityRail/);
+  assert.match(portfolio, /AuthorityRail/);
+  assert.match(os, /minHeight: 48/);
+  assert.match(os, /fontVariant: \["tabular-nums"\]/);
+  assert.match(spec, /3 seconds/);
+  assert.match(spec, /10 seconds/);
+  assert.match(spec, /30 seconds/);
+});
+
+test("market observation is explicitly separated from strategy and order authority", () => {
+  assert.match(markets, /관찰 데이터와 NUSA의 전략 판단을 분리/);
+  assert.match(markets, /전략 신호나 주문 권한으로 자동 승격되지 않습니다/);
+  assert.match(paper, /공개 시장 관찰은 PAPER 전략 신호가 아니며 실제 주문 권한을 갖지 않습니다/);
+});
+
+test("REAL_READ_ONLY is never presented as PAPER performance", () => {
+  assert.match(portfolio, /REAL_READ_ONLY 잔고는 감독용 기준선이며 PAPER 성과와 절대 합산하지 않습니다/);
+  assert.match(spec, /REAL_READ_ONLY account data is never summed into PAPER performance/);
+});
+
+test("PRODUCT VERIFIED remains a physical-device release gate", () => {
+  assert.match(spec, /protected main merge/);
+  assert.match(spec, /Android Stable target SHA equals protected main/);
+  assert.match(spec, /installed Galaxy build identity equals that SHA/);
+  assert.match(spec, /physical Galaxy screenshot visibly matches the new hierarchy/);
+  assert.match(spec, /PRODUCT VERIFIED = NO/);
+});
