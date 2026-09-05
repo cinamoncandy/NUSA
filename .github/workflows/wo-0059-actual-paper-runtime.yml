@@ -44,13 +44,70 @@ jobs:
         run: |
           test "$NUSA_LIVE_MUTATION" = "PROHIBITED"
           echo 'WO-0059: Upbit PUBLIC market data only; no private exchange credentials or LIVE broker endpoint is configured.'
-      - name: Run actual Cloud PAPER E2E against Upbit PUBLIC ticker
+      - name: Select a naturally actionable Upbit PUBLIC BUY market
+        run: |
+          node <<'NODE'
+          (async () => {
+            const fs = require('node:fs');
+            const BUY_CHANGE_RATE = 0.0105; // Existing CIO score >= 0.35 under CHART_NORMALIZATION_V1.
+            const MIN_TURNOVER_KRW = 1_000_000_000; // Existing full-confidence turnover boundary.
+            const getJson = async (url) => {
+              const response = await fetch(url, { headers: { accept: 'application/json' } });
+              if (!response.ok) throw new Error(`Upbit public request failed ${response.status}`);
+              return await response.json();
+            };
+            const markets = (await getJson('https://api.upbit.com/v1/market/all?is_details=false'))
+              .map((item) => item.market)
+              .filter((market) => /^KRW-[A-Z0-9-]+$/.test(market));
+            const tickers = [];
+            for (let index = 0; index < markets.length; index += 50) {
+              const batch = markets.slice(index, index + 50);
+              const url = `https://api.upbit.com/v1/ticker?markets=${encodeURIComponent(batch.join(','))}`;
+              tickers.push(...await getJson(url));
+            }
+            const candidates = tickers
+              .filter((ticker) => Number(ticker.signed_change_rate) >= BUY_CHANGE_RATE)
+              .filter((ticker) => Number(ticker.acc_trade_price_24h) >= MIN_TURNOVER_KRW)
+              .sort((a, b) => Number(b.signed_change_rate) - Number(a.signed_change_rate));
+            const selected = candidates[0];
+            console.log(JSON.stringify({
+              selector: 'EXISTING_CIO_PUBLIC_CHART_BUY_RULE',
+              buy_change_rate_min: BUY_CHANGE_RATE,
+              turnover_krw_min: MIN_TURNOVER_KRW,
+              krw_markets_scanned: markets.length,
+              actionable_buy_candidates: candidates.slice(0, 10).map((ticker) => ({ market: ticker.market, signed_change_rate: ticker.signed_change_rate, acc_trade_price_24h: ticker.acc_trade_price_24h, trade_price: ticker.trade_price, timestamp: ticker.timestamp }))
+            }));
+            if (!selected) throw new Error('NO_NATURALLY_ACTIONABLE_UPBIT_BUY_MARKET');
+            fs.appendFileSync(process.env.GITHUB_ENV, `NUSA_E2E_MARKET=${selected.market}\n`);
+            console.log(`Selected ${selected.market}; signed_change_rate=${selected.signed_change_rate}; turnover=${selected.acc_trade_price_24h}`);
+          })().catch((error) => {
+            console.error(error);
+            process.exitCode = 1;
+          });
+          NODE
+      - name: Run actual Cloud PAPER E2E against selected Upbit PUBLIC ticker
         env:
           NUSA_MODE: PAPER
           NUSA_LIVE_MUTATION: PROHIBITED
-          NUSA_E2E_MARKET: KRW-BTC
           NUSA_PAPER_CHAOS_E2E_NON_MUTATING: "true"
         run: node scripts/actual-paper-runtime-e2e.js --working-dir "${{ runner.temp }}/nusa-wo-0059" --output artifacts/operational-evidence/actual-paper-runtime-e2e.json
+      - name: Print exact PAPER decision and execution gate evidence
+        env:
+          PAPER_E2E_DB: ${{ runner.temp }}/nusa-wo-0059/state.sqlite
+        run: |
+          node <<'NODE'
+          const { DatabaseSync } = require('node:sqlite');
+          const db = new DatabaseSync(process.env.PAPER_E2E_DB, { readOnly: true });
+          try {
+            const rows = db.prepare("SELECT occurred_at, payload_json FROM paper_learning_observability_events ORDER BY occurred_at ASC, event_id ASC").all();
+            for (const row of rows) {
+              const event = JSON.parse(String(row.payload_json));
+              if (["MARKET_DATA", "DECISION", "PERMISSION", "RISK", "ORDER_INTENT", "FILL", "PNL"].includes(event.stage)) {
+                console.log(JSON.stringify({ stage: event.stage, status: event.status, market: event.market, occurredAt: event.occurredAt, reason: event.reason ?? null, decision: event.decision ?? null, gates: event.gates ?? null, risk: event.risk ?? null, fill: event.fill ?? null, account: event.account ?? null }));
+              }
+            }
+          } finally { db.close(); }
+          NODE
       - name: Classify autonomous PAPER completion without manufacturing a signal
         run: node scripts/classify-actual-paper-runtime-readiness.js artifacts/operational-evidence/actual-paper-runtime-e2e.json
       - name: Upload actual PAPER runtime evidence
