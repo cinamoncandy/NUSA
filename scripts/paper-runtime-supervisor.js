@@ -7,6 +7,7 @@ const DEFAULT_MAX_RESTARTS = 10;
 const DEFAULT_MAX_RESTART_WINDOW_MS = 600_000;
 const PAPER_WRITER_LEASE_CONFLICT_EXIT_CODE = 75;
 const DEFAULT_WRITER_LEASE_RETRY_MS = 31_000;
+const CHILD_STDERR_TAIL_LIMIT = 4_000;
 
 function boundedBackoffMs(attempt, initialMs = DEFAULT_INITIAL_BACKOFF_MS, maxMs = DEFAULT_MAX_BACKOFF_MS) {
   if (!Number.isSafeInteger(attempt) || attempt < 0) throw new Error("supervisor attempt must be a non-negative safe integer");
@@ -42,6 +43,7 @@ class PaperRuntimeProcessSupervisor {
     this.clearTimer = options.clearTimer ?? clearTimeout;
     this.now = options.now ?? Date.now;
     this.write = options.write ?? ((text) => process.stdout.write(text));
+    this.writeError = options.writeError ?? ((text) => process.stderr.write(text));
     this.cwd = options.cwd ?? process.cwd();
     this.env = options.env ?? process.env;
     this.initialBackoffMs = options.initialBackoffMs ?? DEFAULT_INITIAL_BACKOFF_MS;
@@ -59,6 +61,7 @@ class PaperRuntimeProcessSupervisor {
     this.command = options.command ?? process.execPath;
     this.args = options.args ?? ["scripts/start-cloud-runtime.js"];
     this.child = null;
+    this.childStderrTail = "";
     this.restartTimer = null;
     this.stopping = false;
     this.restartAttempt = 0;
@@ -109,14 +112,20 @@ class PaperRuntimeProcessSupervisor {
   launch() {
     if (this.stopping) return;
     this.startedAt = this.now();
+    this.childStderrTail = "";
     const launchSnapshot = this.snapshot();
     const child = this.spawnFn(this.command, this.args, {
       cwd: this.cwd,
       env: supervisorChildEnv(this.env, { ...launchSnapshot, startedAt: this.startedAt }),
-      stdio: "inherit",
+      stdio: ["inherit", "inherit", "pipe"],
       shell: false,
     });
     this.child = child;
+    child.stderr?.on?.("data", (chunk) => {
+      const text = String(chunk);
+      this.childStderrTail = `${this.childStderrTail}${text}`.slice(-CHILD_STDERR_TAIL_LIMIT);
+      this.writeError(text);
+    });
     this.write(`[paper-supervisor] runtime started pid=${child.pid ?? "unknown"}\n`);
     child.once("exit", (code, signal) => this.onExit(code, signal));
     child.once("error", (error) => this.onError(error));
@@ -129,8 +138,10 @@ class PaperRuntimeProcessSupervisor {
   onExit(code, signal) {
     const exitedAt = this.now();
     const uptimeMs = this.startedAt == null ? 0 : Math.max(0, exitedAt - this.startedAt);
+    const leaseConflict = code === PAPER_WRITER_LEASE_CONFLICT_EXIT_CODE || /PAPER_WRITER_ALREADY_ACTIVE/.test(this.childStderrTail);
     this.lastExit = Object.freeze({ code: code ?? null, signal: signal ?? null, exitedAt, uptimeMs });
     this.child = null;
+    this.childStderrTail = "";
     if (this.stopping) return;
 
     // Consecutive unstable exits consume the restart budget; a stable run
@@ -150,7 +161,6 @@ class PaperRuntimeProcessSupervisor {
       return;
     }
 
-    const leaseConflict = code === PAPER_WRITER_LEASE_CONFLICT_EXIT_CODE;
     const delay = leaseConflict
       ? this.writerLeaseRetryMs
       : boundedBackoffMs(this.restartAttempt, this.initialBackoffMs, this.maxBackoffMs);
