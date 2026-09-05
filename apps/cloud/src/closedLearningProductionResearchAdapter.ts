@@ -14,7 +14,7 @@ export interface ClosedLearningResearchReplayInputSource {
 
 export interface ClosedLearningProductionResearchAdapterOptions {
   readonly replayInput: ClosedLearningResearchReplayInputSource;
-  readonly worker: Pick<ClosedLearningResearchWorkerClient, "replay" | "replayAsync">;
+  readonly worker: Pick<ClosedLearningResearchWorkerClient, "replay"> & Partial<Pick<ClosedLearningResearchWorkerClient, "replayAsync">>;
   readonly history: Pick<ClosedLearningResearchDecisionHistory, "persist">;
   readonly artifacts: QualifiedPaperChallengerArtifactWriter;
   readonly now?: () => number;
@@ -99,12 +99,12 @@ export class ClosedLearningProductionResearchAdapter implements ExistingResearch
     );
   }
 
-  /** Production runtime path: Research/League executes in a child process without blocking HTTP. */
+  /** Production runtime path: Research/League executes in a child process without blocking HTTP when supported. */
   public async evaluateAsync(input: ClosedLearningEvidenceIdentity & { readonly cycleId: string }): Promise<ClosedLearningResearchDecision> {
     const replayInput = this.prepare(input);
-    return this.finalize(
-      replayInput.originalRunFingerprintSha256,
-      await this.options.worker.replayAsync(replayInput.originalRunFingerprintSha256, replayInput.paperEvidenceByCandidate),
-    );
+    const result = this.options.worker.replayAsync == null
+      ? this.options.worker.replay(replayInput.originalRunFingerprintSha256, replayInput.paperEvidenceByCandidate)
+      : await this.options.worker.replayAsync(replayInput.originalRunFingerprintSha256, replayInput.paperEvidenceByCandidate);
+    return this.finalize(replayInput.originalRunFingerprintSha256, result);
   }
 }
