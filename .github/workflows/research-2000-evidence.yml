@@ -28,6 +28,37 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build exact source
         run: pnpm run build
+      - name: Diagnose public daily-history availability
+        run: |
+          node <<'NODE'
+          const markets = ["KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-SOL", "KRW-DOGE"];
+          const DAY = 86400000;
+          const completedBy = Date.now();
+          const initialBefore = Math.floor(completedBy / DAY) * DAY;
+          for (const market of markets) {
+            let before = initialBefore;
+            let total = 0;
+            let pages = 0;
+            let oldest = null;
+            while (total < 2000 && pages < 10) {
+              const count = Math.min(200, 2000 - total);
+              const url = `https://api.upbit.com/v1/candles/days?market=${market}&count=${count}&to=${encodeURIComponent(new Date(before).toISOString())}`;
+              const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
+              if (!response.ok) throw new Error(`${market} HTTP ${response.status}`);
+              const rows = await response.json();
+              if (!Array.isArray(rows)) throw new Error(`${market} invalid payload`);
+              pages += 1;
+              total += rows.length;
+              if (rows.length > 0) {
+                oldest = rows.at(-1)?.candle_date_time_utc ?? oldest;
+                before = Date.parse(`${oldest}Z`);
+              }
+              if (rows.length < count) break;
+              await new Promise((resolve) => setTimeout(resolve, 150));
+            }
+            console.log(`HISTORY_AVAILABILITY market=${market} candles=${total} pages=${pages} oldest=${oldest ?? "NONE"}`);
+          }
+          NODE
       - name: Run canonical 2000-day public-market Research
         env:
           NUSA_SOURCE_COMMIT_SHA: e17653254ac5114d8cab4f74855abe1837a261d8
