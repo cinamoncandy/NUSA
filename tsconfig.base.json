@@ -12,6 +12,8 @@
     "declaration": true,
     "sourceMap": true,
     "inlineSources": true,
+    "incremental": true,
+    "tsBuildInfoFile": "node_modules/.cache/nusa/tsconfig.base.tsbuildinfo",
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "strict": true,
