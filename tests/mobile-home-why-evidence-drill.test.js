@@ -8,9 +8,10 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
 test("HOME AI judgment drills into verified evidence without creating a dead control", () => {
   const home = read("apps/mobile/src/homeView.tsx");
-  assert.match(home, /const aiInsightAvailable = ai\?\.status === "AVAILABLE" && Boolean\(ai\.thesis\?\.trim\(\)\) && ai\.evidenceReferences\.length > 0/);
-  assert.match(home, /accessibilityHint="AI 시그널 상세 보기"/);
-  assert.match(home, /onPress=\{\(\) => onNavigate\("AiSignal"\)\}/);
+  assert.match(home, /aiThesis: ai\?\.status === "AVAILABLE" \? ai\.thesis : null/);
+  assert.match(home, /aiEvidenceCount: ai\?\.status === "AVAILABLE" \? ai\.evidenceReferences\.length : 0/);
+  assert.match(home, /const aiInsightAvailable = decisionSurface\.aiInsightAvailable && !disconnected && readOnlyError == null/);
+  assert.match(home, /onPress=\{aiInsightAvailable \? \(\) => onNavigate\("AiSignal"\) : undefined\}/);
   assert.match(home, /testID="ai-card"/);
   assert.match(home, /const judgement = aiInsightAvailable \? \(ai\?\.thesis \?\? fallbackJudgement\) : fallbackJudgement/);
 });
