@@ -122,7 +122,7 @@ export function HomeView({
   const systemTone = disconnected || readOnlyError ? "warning" as const : snapshot?.health === "HEALTHY" ? "success" as const : "warning" as const;
   const position = account?.position ?? null;
   const hasPosition = Boolean(position && Number(position.quantity) > 0);
-  const openOrders = snapshot?.portfolio?.openOrderCount ?? (localPortfolio ? localPortfolio.account.openOrders.length : null);
+  const openOrders = snapshot?.portfolio?.openOrderCount ?? null;
 
   return <View style={[styles.shell, { backgroundColor: theme.colors.background }]} testID="home-screen">
     <ScrollView contentContainerStyle={[styles.content, { maxWidth: tablet ? 980 : 680 }]} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} showsVerticalScrollIndicator={false}>
