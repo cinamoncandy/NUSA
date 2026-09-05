@@ -139,7 +139,13 @@ function launcherExitCode(code, signal, stderrTail) {
 
 function start(options = {}) {
   const baseEnv = options.env ?? process.env;
-  const token = (options.resolveToken ?? resolveDashboardToken)();
+  // A deployment may provide the owner-managed token through its protected environment
+  // (for example systemd). Do not touch the fallback token file in that case: beyond being
+  // unnecessary, a protected HOME can make the launcher fail before the PAPER server listens.
+  const configuredToken = baseEnv.NUSA_CLOUD_DASHBOARD_TOKEN;
+  const token = configuredToken != null && configuredToken.trim() !== ""
+    ? configuredToken
+    : (options.resolveToken ?? resolveDashboardToken)();
   const { env, stripped } = buildRuntimeEnv(baseEnv, token);
   const write = options.write ?? ((text) => process.stdout.write(text));
   write(banner(env, stripped));

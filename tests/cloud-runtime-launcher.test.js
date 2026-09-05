@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { buildRuntimeEnv, resolveDashboardToken, stripPrivateExchangeCredentials } = require("../scripts/start-cloud-runtime.js");
+const { buildRuntimeEnv, resolveDashboardToken, start, stripPrivateExchangeCredentials } = require("../scripts/start-cloud-runtime.js");
 
 const TOKEN = "t".repeat(64);
 
@@ -51,6 +51,30 @@ test("a blank or whitespace-only value is treated as absent rather than as confi
   const { env } = buildRuntimeEnv({ NUSA_CLOUD_DASHBOARD_PORT: "   ", NUSA_CLOUD_UPBIT_PUBLIC_DATA: "" }, TOKEN);
   assert.equal(env.NUSA_CLOUD_DASHBOARD_PORT, "41731");
   assert.equal(env.NUSA_CLOUD_UPBIT_PUBLIC_DATA, "true");
+});
+
+test("a configured dashboard token does not require the fallback token file", () => {
+  const listeners = new Map(["SIGINT", "SIGTERM"].map((signal) => [signal, new Set(process.listeners(signal))]));
+  const child = {
+    exitCode: null,
+    stderr: { on() {} },
+    on() {},
+    kill() {}
+  };
+  let spawnOptions;
+  try {
+    start({
+      env: { NUSA_CLOUD_DASHBOARD_TOKEN: TOKEN },
+      resolveToken: () => { throw new Error("fallback token file must not be touched"); },
+      spawn: (_command, _args, options) => { spawnOptions = options; return child; },
+      write: () => {}
+    });
+    assert.equal(spawnOptions.env.NUSA_CLOUD_DASHBOARD_TOKEN, TOKEN);
+  } finally {
+    for (const [signal, before] of listeners) {
+      for (const listener of process.listeners(signal)) if (!before.has(listener)) process.removeListener(signal, listener);
+    }
+  }
 });
 
 test("private exchange credentials are stripped from the runtime environment, not forwarded", () => {
