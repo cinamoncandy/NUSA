@@ -5,6 +5,8 @@ const DEFAULT_MAX_BACKOFF_MS = 30_000;
 const DEFAULT_STABLE_WINDOW_MS = 60_000;
 const DEFAULT_MAX_RESTARTS = 10;
 const DEFAULT_MAX_RESTART_WINDOW_MS = 600_000;
+const PAPER_WRITER_LEASE_CONFLICT_EXIT_CODE = 75;
+const DEFAULT_WRITER_LEASE_RETRY_MS = 31_000;
 
 function boundedBackoffMs(attempt, initialMs = DEFAULT_INITIAL_BACKOFF_MS, maxMs = DEFAULT_MAX_BACKOFF_MS) {
   if (!Number.isSafeInteger(attempt) || attempt < 0) throw new Error("supervisor attempt must be a non-negative safe integer");
@@ -44,9 +46,11 @@ class PaperRuntimeProcessSupervisor {
     this.env = options.env ?? process.env;
     this.initialBackoffMs = options.initialBackoffMs ?? DEFAULT_INITIAL_BACKOFF_MS;
     this.maxBackoffMs = options.maxBackoffMs ?? DEFAULT_MAX_BACKOFF_MS;
+    this.writerLeaseRetryMs = options.writerLeaseRetryMs ?? DEFAULT_WRITER_LEASE_RETRY_MS;
     this.stableWindowMs = options.stableWindowMs ?? DEFAULT_STABLE_WINDOW_MS;
     this.maxRestarts = options.maxRestarts ?? DEFAULT_MAX_RESTARTS;
     this.maxRestartWindowMs = options.maxRestartWindowMs ?? DEFAULT_MAX_RESTART_WINDOW_MS;
+    if (!Number.isSafeInteger(this.writerLeaseRetryMs) || this.writerLeaseRetryMs < DEFAULT_MAX_BACKOFF_MS) throw new Error("SUPERVISOR_WRITER_LEASE_RETRY_INVALID: writer lease retry must cover the durable lease window");
     if (!Number.isSafeInteger(this.maxRestarts) || this.maxRestarts < 1) throw new Error("SUPERVISOR_RESTART_BUDGET_UNBOUNDED: maxRestarts must be a positive safe integer");
     if (!Number.isSafeInteger(this.maxRestartWindowMs) || this.maxRestartWindowMs < this.initialBackoffMs) throw new Error("SUPERVISOR_RESTART_WINDOW_INVALID: maxRestartWindowMs must cover at least one backoff");
     this.unstableWindowStartMs = null;
@@ -145,10 +149,15 @@ class PaperRuntimeProcessSupervisor {
       this.write(`[paper-supervisor] restart budget exhausted after ${this.restartCount} restarts; FAILED, manual start() required\n`);
       return;
     }
-    const delay = boundedBackoffMs(this.restartAttempt, this.initialBackoffMs, this.maxBackoffMs);
-    this.restartAttempt += 1;
+
+    const leaseConflict = code === PAPER_WRITER_LEASE_CONFLICT_EXIT_CODE;
+    const delay = leaseConflict
+      ? this.writerLeaseRetryMs
+      : boundedBackoffMs(this.restartAttempt, this.initialBackoffMs, this.maxBackoffMs);
+    if (!leaseConflict) this.restartAttempt += 1;
     this.restartCount += 1;
-    this.write(`[paper-supervisor] runtime exited code=${code ?? "null"} signal=${signal ?? "none"}; restart in ${delay}ms\n`);
+    const reason = leaseConflict ? " writer-lease-conflict" : "";
+    this.write(`[paper-supervisor] runtime exited code=${code ?? "null"} signal=${signal ?? "none"};${reason} restart in ${delay}ms\n`);
     this.restartTimer = this.setTimer(() => {
       this.restartTimer = null;
       this.launch();
@@ -169,6 +178,8 @@ function run(options = {}) {
 if (require.main === module) run();
 
 module.exports = {
+  DEFAULT_WRITER_LEASE_RETRY_MS,
+  PAPER_WRITER_LEASE_CONFLICT_EXIT_CODE,
   PaperRuntimeProcessSupervisor,
   boundedBackoffMs,
   run,
