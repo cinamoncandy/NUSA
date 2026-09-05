@@ -136,7 +136,7 @@ describe("ClosedLearningLineageReplayInputSource", () => {
   });
 
   it("fails closed when explicitly referenced periods cross Research lineages", () => {
-    const other = Object.freeze({ ...lineage, replayRunFingerprintSha256: "f".repeat(64), researchDecisionReference: "other-replay" });
+    const other = Object.freeze({ ...lineage, replayRunFingerprintSha256: "f".repeat(64), researchDecisionReference: `research-replay:${"f".repeat(64)}:candidate-a` });
     assert.throws(() => source({ lineageAt: (at) => at >= 3_000 ? other : lineage }).resolve(identity), /multiple Research lineages/);
   });
 
