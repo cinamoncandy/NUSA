@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { upbitTickerToIntelligenceObservation } = require("../dist/apps/cloud/src/upbitTickerObservation.js");
+const { classifyTickerRejectReason, upbitTickerToIntelligenceObservation } = require("../dist/apps/cloud/src/upbitTickerObservation.js");
 
 const ticker = (overrides = {}) => ({
   type: "ticker",
@@ -75,4 +75,42 @@ test("a lagging local clock does not discard the live public feed", () => {
   assert.ok(upbitTickerToIntelligenceObservation(ticker({ trade_timestamp: 10_100 }), { now: 10_000, clockSkewToleranceMs: 100 }));
   assert.equal(upbitTickerToIntelligenceObservation(ticker({ trade_timestamp: 10_101 }), { now: 10_000, clockSkewToleranceMs: 100 }), undefined);
   assert.throws(() => upbitTickerToIntelligenceObservation(ticker(), { now: 10_000, clockSkewToleranceMs: -1 }), /clockSkewToleranceMs/);
+});
+
+test("reject reasons distinguish future, stale, malformed, and foreign ticks", () => {
+  assert.equal(classifyTickerRejectReason(ticker(), { now: 10_000 }), "ACCEPTED");
+  assert.equal(classifyTickerRejectReason(ticker(), { now: 12_001, staleWindowMs: 3_000 }), "FEED_STALE");
+  assert.equal(classifyTickerRejectReason(ticker({ trade_timestamp: 20_000 }), { now: 11_000 }), "FUTURE_MARKET_TIMESTAMP");
+  assert.equal(classifyTickerRejectReason(ticker({ code: "USDT-BTC" }), { now: 10_000 }), "MARKET_MISMATCH");
+  assert.equal(classifyTickerRejectReason(ticker({ type: "trade" }), { now: 10_000 }), "NOT_TICKER");
+  // An 80s-fast host clock (observed sandbox failure) classifies as stale
+  // feed, never as valid — behavior unchanged, diagnosis improved.
+  assert.equal(classifyTickerRejectReason(ticker({ trade_timestamp: 9_000 }), { now: 89_000 }), "FEED_STALE");
+});
+
+test("classifier agrees with the converter on every grid point (failure test)", () => {
+  const timestamps = [0, 1_000, 8_999, 9_000, 9_001, 10_000, 10_670, 15_000, 15_001, 20_000, 100_000];
+  const nows = [0, 9_000, 10_000, 11_000, 12_001, 89_000];
+  const windows = [undefined, 1_000, 3_000, 30_000];
+  const tolerances = [undefined, 0, 100, 5_000];
+  const variants = [
+    {},
+    { type: "trade" },
+    { code: "USDT-BTC" },
+    { signed_change_rate: -0.5 },
+  ];
+  for (const trade_timestamp of timestamps) {
+    for (const now of nows) {
+      for (const staleWindowMs of windows) {
+        for (const clockSkewToleranceMs of tolerances) {
+          for (const variant of variants) {
+            const options = { now, ...(staleWindowMs === undefined ? {} : { staleWindowMs }), ...(clockSkewToleranceMs === undefined ? {} : { clockSkewToleranceMs }) };
+            const reason = classifyTickerRejectReason(ticker({ trade_timestamp, ...variant }), options);
+            const accepted = upbitTickerToIntelligenceObservation(ticker({ trade_timestamp, ...variant }), options) !== undefined;
+            assert.equal(reason === "ACCEPTED", accepted, `mismatch at ts=${trade_timestamp} now=${now} win=${staleWindowMs} tol=${clockSkewToleranceMs} variant=${JSON.stringify(variant)}`);
+          }
+        }
+      }
+    }
+  }
 });
