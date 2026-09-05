@@ -9,6 +9,7 @@ User=nusa
 Group=nusa
 WorkingDirectory=/opt/nusa/current
 EnvironmentFile=/etc/nusa/cloud-runtime.env
+Environment=HOME=/var/lib/nusa
 ExecStart=/usr/bin/node /opt/nusa/current/scripts/run-cloud-research-snapshot.js
 NoNewPrivileges=true
 PrivateTmp=true
