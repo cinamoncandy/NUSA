@@ -12,7 +12,7 @@ function snapshot(generatedAt = "2026-09-05T00:00:00.000Z", fingerprint = ORIGIN
   return { originalRunFingerprintSha256: fingerprint, options: { generatedAt } } as never;
 }
 
-function result(deployable = true): ClosedLearningResearchReplayResult {
+function replayResult(deployable = true): ClosedLearningResearchReplayResult {
   const reference = `closed-learning-replay:${REPLAY}:candidate-a`;
   return {
     schemaVersion: 1,
@@ -74,19 +74,24 @@ function result(deployable = true): ClosedLearningResearchReplayResult {
   };
 }
 
-function options(overrides: Record<string, unknown> = {}) {
+function options(input: {
+  readonly replay?: ClosedLearningResearchReplayResult;
+  readonly snapshots?: readonly unknown[];
+  readonly hasOpen?: boolean;
+  readonly hasRealized?: boolean;
+  readonly failHistory?: boolean;
+} = {}) {
   const events: string[] = [];
-  const replay = result(true);
+  const replay = input.replay ?? replayResult(true);
   const base = {
-    snapshots: { list: () => [snapshot()], read: () => undefined },
+    snapshots: { list: () => input.snapshots ?? [snapshot()], read: () => undefined },
     worker: { replayInitialResearch: () => { events.push("worker"); return replay; } },
-    history: { persist: () => { events.push("history"); return {} as never; } },
+    history: { persist: () => { events.push("history"); if (input.failHistory) throw new Error("history unavailable"); return {} as never; } },
     artifacts: { save: (artifact: never) => { events.push("artifact"); return artifact; } },
-    deployment: { deploy: (input: { decision: { candidateId: string; candidateVersion: string } }) => { events.push("deploy"); return { deploymentId: "initial-period", candidateId: input.decision.candidateId, candidateVersion: input.decision.candidateVersion, authority: "PAPER_RESEARCH_ONLY" as const, liveAuthority: "NONE" as const, productionMutationAllowed: false as const, aiAuthority: "ZERO_AUTHORITY" as const }; } },
-    listOpenPeriods: () => [],
-    listRealizedPeriods: () => [],
+    deployment: { deploy: (deploymentInput: { decision: { candidateId: string; candidateVersion: string } }) => { events.push("deploy"); return { deploymentId: "initial-period", candidateId: deploymentInput.decision.candidateId, candidateVersion: deploymentInput.decision.candidateVersion, authority: "PAPER_RESEARCH_ONLY" as const, liveAuthority: "NONE" as const, productionMutationAllowed: false as const, aiAuthority: "ZERO_AUTHORITY" as const }; } },
+    listOpenPeriods: () => input.hasOpen ? [{}] : [],
+    listRealizedPeriods: () => input.hasRealized ? [{}] : [],
     now: () => 1_725_494_400_000,
-    ...overrides,
   };
   return { base: base as never, events };
 }
@@ -101,17 +106,17 @@ describe("initial PAPER bootstrap", () => {
   });
 
   it("waits for Research and never bootstraps over existing PAPER state", () => {
-    const waiting = options({ snapshots: { list: () => [], read: () => undefined } });
+    const waiting = options({ snapshots: [] });
     assert.equal(new ClosedLearningInitialPaperBootstrap(waiting.base).runOnce().status, "WAITING_RESEARCH_SNAPSHOT");
     assert.deepEqual(waiting.events, []);
 
-    const existing = options({ listOpenPeriods: () => [{}], listRealizedPeriods: () => [] });
+    const existing = options({ hasOpen: true });
     assert.equal(new ClosedLearningInitialPaperBootstrap(existing.base).runOnce().status, "EXISTING_PAPER_STATE");
     assert.deepEqual(existing.events, []);
   });
 
   it("persists non-deployable Research denominator but creates no artifact or period", () => {
-    const { base, events } = options({ worker: { replayInitialResearch: () => { events.push("worker"); return result(false); } } });
+    const { base, events } = options({ replay: replayResult(false) });
     const output = new ClosedLearningInitialPaperBootstrap(base).runOnce();
     assert.equal(output.status, "RESEARCH_NOT_DEPLOYABLE");
     assert.deepEqual(events, ["worker", "history"]);
@@ -119,12 +124,12 @@ describe("initial PAPER bootstrap", () => {
 
   it("fails closed when the newest Research snapshot is timestamp-ambiguous", () => {
     const same = "2026-09-05T00:00:00.000Z";
-    const { base } = options({ snapshots: { list: () => [snapshot(same, ORIGINAL), snapshot(same, "e".repeat(64))], read: () => undefined } });
+    const { base } = options({ snapshots: [snapshot(same, ORIGINAL), snapshot(same, "e".repeat(64))] });
     assert.throws(() => new ClosedLearningInitialPaperBootstrap(base).runOnce(), /ambiguous/);
   });
 
   it("does not materialize an artifact when denominator persistence fails", () => {
-    const { base, events } = options({ history: { persist: () => { events.push("history"); throw new Error("history unavailable"); } } });
+    const { base, events } = options({ failHistory: true });
     assert.throws(() => new ClosedLearningInitialPaperBootstrap(base).runOnce(), /history unavailable/);
     assert.deepEqual(events, ["worker", "history"]);
   });
