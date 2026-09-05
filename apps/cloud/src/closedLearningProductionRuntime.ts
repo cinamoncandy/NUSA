@@ -1,4 +1,5 @@
 import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
+import { FileResearchRunReplaySnapshotStore } from "../../desktop/src/cloud/researchRunReplaySnapshotStore";
 import { readCloudRuntimeConfig } from "./cloudRuntimeConfig";
 import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { SqliteCloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
@@ -15,6 +16,12 @@ import { ClosedLearningProductionResearchAdapter } from "./closedLearningProduct
 import { ClosedLearningEvolutionLedgerRepository } from "./closedLearningEvolutionLedgerRepository";
 import { ClosedLearningLoopCoordinator, type ClosedLearningCycleResult, type ClosedLearningEvidenceIdentity } from "./closedLearningLoopCoordinator";
 import { PaperChallengerDeploymentRuntime } from "./paperChallengerDeploymentRuntime";
+import { ClosedLearningPendingPeriodReader } from "./closedLearningPendingPeriodReader";
+import { ClosedLearningEvidenceIdentitySource } from "./closedLearningEvidenceIdentitySource";
+import { CLOUD_PAPER_RISK_POLICY_FINGERPRINT } from "./cloudPaperRiskPolicyIdentity";
+import { ClosedLearningRolloverScheduler, type ClosedLearningRolloverResult } from "./closedLearningRolloverScheduler";
+
+export const CLOSED_LEARNING_ROLLOVER_POLL_INTERVAL_MS = 30_000;
 
 export interface ClosedLearningProductionComposition {
   readonly handle: CloudRuntimeHandle;
@@ -27,6 +34,8 @@ export interface ClosedLearningProductionComposition {
   readonly readCanonicalPaperAccount: () => PaperAccountState | undefined;
   /** Executes one replay-safe closed-learning cycle over an explicit immutable evidence identity. */
   readonly runClosedLearningCycle: (input: ClosedLearningEvidenceIdentity) => ClosedLearningCycleResult;
+  /** Executes one production rollover decision against the canonical pending/realized ledgers. */
+  readonly runClosedLearningRollover: () => ClosedLearningRolloverResult;
 }
 
 /**
@@ -55,7 +64,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     ? undefined
     : new PaperTradingExecutionLoop({ initialCapital: config.paperInitialCapitalKrw, repository: paperRepository });
 
-  const handle = startCloudRuntime(
+  const baseHandle = startCloudRuntime(
     env,
     undefined,
     dashboardHydrator,
@@ -76,12 +85,17 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     return account;
   };
 
-  // Adapt the exact realized-period producer already owned inside startCloudRuntime. No second
-  // realized-period repository is opened, which preserves the single-writer production boundary.
+  // Read pending plans from the exact persisted ledger owned by startCloudRuntime. This is a
+  // checksum-bound read-only view, not a second PaperRealizedPeriodProducer or writer path.
+  const pendingPeriods = new ClosedLearningPendingPeriodReader(database);
   const periods = Object.freeze({
-    listRealizedPeriods: () => handle.listPaperRealizedPeriods(),
-    openPeriodFromCanonicalAccount: (input: Parameters<CloudRuntimeHandle["openPaperRealizedPeriodFromCanonicalAccount"]>[0]) => handle.openPaperRealizedPeriodFromCanonicalAccount(input),
+    listOpenPeriods: () => pendingPeriods.list(),
+    listRealizedPeriods: () => baseHandle.listPaperRealizedPeriods(),
+    openPeriodFromCanonicalAccount: (input: Parameters<CloudRuntimeHandle["openPaperRealizedPeriodFromCanonicalAccount"]>[0]) => baseHandle.openPaperRealizedPeriodFromCanonicalAccount(input),
+    closePeriodFromCanonicalAccount: (input: Parameters<CloudRuntimeHandle["closePaperRealizedPeriodFromCanonicalAccount"]>[0]) => baseHandle.closePaperRealizedPeriodFromCanonicalAccount(input),
   });
+
+  const replaySnapshots = new FileResearchRunReplaySnapshotStore(closedLearningConfig.researchReplaySnapshotPath);
   const replayInput = new ClosedLearningLineageReplayInputSource({
     periods,
     bindings: challengerBindings,
@@ -100,12 +114,47 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     readCanonicalPaperAccount: requireCanonicalPaperAccount,
   });
   const coordinator = new ClosedLearningLoopCoordinator(cycleRepository, researchFactory, paperDeployment);
+  const runClosedLearningCycle = (input: ClosedLearningEvidenceIdentity): ClosedLearningCycleResult => coordinator.run(input);
+
+  const evidenceIdentity = new ClosedLearningEvidenceIdentitySource({
+    bindings: challengerBindings,
+    replaySnapshots,
+    readRiskConfigHash: () => CLOUD_PAPER_RISK_POLICY_FINGERPRINT,
+  });
+  const rollover = new ClosedLearningRolloverScheduler({
+    listOpenPeriods: periods.listOpenPeriods,
+    listRealizedPeriods: periods.listRealizedPeriods,
+    readCanonicalPaperAccount,
+    closePeriodFromCanonicalAccount: periods.closePeriodFromCanonicalAccount,
+    openPeriodFromCanonicalAccount: periods.openPeriodFromCanonicalAccount,
+    buildEvidenceIdentity: (window) => evidenceIdentity.build(window),
+    runClosedLearningCycle,
+  });
+  const runClosedLearningRollover = (): ClosedLearningRolloverResult => rollover.runOnce();
+
+  // Recovery must not wait for a human or app launch. One immediate pass handles a ready period
+  // after process restart; the bounded timer keeps the same fail-closed decision running 24h.
+  runClosedLearningRollover();
+  const rolloverTimer = setInterval(() => { runClosedLearningRollover(); }, CLOSED_LEARNING_ROLLOVER_POLL_INTERVAL_MS);
+  rolloverTimer.unref?.();
+
+  let stopPromise: Promise<void> | undefined;
+  const handle: CloudRuntimeHandle = Object.freeze({
+    ...baseHandle,
+    stop: () => {
+      if (stopPromise != null) return stopPromise;
+      clearInterval(rolloverTimer);
+      stopPromise = Promise.resolve(baseHandle.stop());
+      return stopPromise;
+    },
+  });
 
   return Object.freeze({
     handle,
     challengerBindings,
     readCanonicalPaperAccount,
-    runClosedLearningCycle: (input: ClosedLearningEvidenceIdentity) => coordinator.run(input),
+    runClosedLearningCycle,
+    runClosedLearningRollover,
   });
 }
 
