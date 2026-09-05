@@ -1,4 +1,10 @@
 version: 1
+current_research_horizon_slice:
+  work_order: WO-ISSUE-1701-RESEARCH-HORIZON
+  status: IN_PROGRESS
+  branch: codex/research-evidence-horizon
+  scope: Bounded completed public history expansion; qualification and trading boundaries unchanged.
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 project: nusa
 updated_at: "2026-09-01T09:33:39.292+09:00"
 current_execution_target:

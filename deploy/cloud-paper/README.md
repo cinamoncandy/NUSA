@@ -52,6 +52,17 @@ systemctl list-timers nusa-research.timer --no-pager
 
 The Research timer is `Persistent=true`, runs shortly after boot, and schedules the canonical public-market Research snapshot daily at 09:15 Asia/Seoul with bounded randomized delay. The Research service writes immutable replay snapshots beside the Cloud state DB. The production closed-learning runtime immediately attempts bootstrap/recovery and retries every 30 seconds; only a uniquely `QUALIFIED_FOR_LEAGUE` candidate can become a PAPER challenger binding.
 
+The canonical Research runner requests 1,000 completed UTC daily candles by default
+(five public Upbit pages, at most 200 candles each). `NUSA_RESEARCH_CANDLE_COUNT`
+may be declared in the existing service environment before a run, from 200 to
+2,000; it must not be tuned after inspecting profitability. Each request uses an
+exclusive UTC cursor and is included in the dataset manifest. Missing days,
+duplicate/overlapping pages, wrong markets and malformed prices fail closed;
+requests time out after 15 seconds and are not blindly retried on rate limits.
+The existing 120/20 walk-forward plan, cost model, DSR/PBO and qualification
+thresholds remain unchanged. More history is not independent forward PAPER
+evidence and does not guarantee that any challenger qualifies.
+
 6. If using a public monitoring origin, install the repository's HTTPS reverse proxy configuration so only the runtime loopback listener is exposed.
 
 ## Production behavior
