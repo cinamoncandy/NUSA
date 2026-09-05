@@ -111,3 +111,14 @@ test("React Native common intelligence components and preset-aware truthful Them
   assert.match(provider, /setPreset/);
   assert.match(provider, /createTheme\(mode, preset\)/);
 });
+
+test("dark success stays visually distinct from the AI signal tone", () => {
+  const { createTheme } = require("../dist/apps/mobile/src/designSystem.js");
+  for (const preset of ["classic", "master"]) {
+    const theme = createTheme("dark", preset);
+    assert.equal(theme.colors.success, "#34D399");
+    assert.notEqual(theme.colors.success.toLowerCase(), theme.colors.aiSignalEnd.toLowerCase());
+  }
+  const light = createTheme("light", "master");
+  assert.notEqual(light.colors.success.toLowerCase(), light.colors.aiSignalEnd.toLowerCase());
+});
