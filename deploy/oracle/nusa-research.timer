@@ -1,0 +1,12 @@
+[Unit]
+Description=Schedule NUSA canonical public-market Research snapshot
+
+[Timer]
+OnBootSec=2min
+OnCalendar=*-*-* 09:15:00 Asia/Seoul
+Persistent=true
+RandomizedDelaySec=5min
+Unit=nusa-research.service
+
+[Install]
+WantedBy=timers.target
