@@ -121,13 +121,13 @@ export class ClosedLearningRolloverScheduler {
   }
 
   public runOnce(): ClosedLearningRolloverResult {
-    let prepared: ClosedLearningRolloverResult | PreparedRollover;
+    let prepared: ClosedLearningRolloverResult | PreparedRollover | undefined;
     try {
       prepared = this.prepare();
       if ("status" in prepared) return prepared;
       return this.finalize(prepared, this.port.runClosedLearningCycle(prepared.identity));
     } catch (error) {
-      const periodId = typeof prepared! === "object" && prepared != null && !("status" in prepared) ? prepared.plan.periodId : undefined;
+      const periodId = prepared != null && !("status" in prepared) ? prepared.plan.periodId : undefined;
       return Object.freeze({
         status: "BLOCKED",
         ...(periodId == null ? {} : { periodId }),
@@ -138,7 +138,7 @@ export class ClosedLearningRolloverScheduler {
 
   /** Async production path yields while Research/League evaluates the closed PAPER evidence. */
   public async runOnceAsync(): Promise<ClosedLearningRolloverResult> {
-    let prepared: ClosedLearningRolloverResult | PreparedRollover;
+    let prepared: ClosedLearningRolloverResult | PreparedRollover | undefined;
     try {
       prepared = this.prepare();
       if ("status" in prepared) return prepared;
@@ -147,7 +147,7 @@ export class ClosedLearningRolloverScheduler {
         : await this.port.runClosedLearningCycleAsync(prepared.identity);
       return this.finalize(prepared, cycle);
     } catch (error) {
-      const periodId = typeof prepared! === "object" && prepared != null && !("status" in prepared) ? prepared.plan.periodId : undefined;
+      const periodId = prepared != null && !("status" in prepared) ? prepared.plan.periodId : undefined;
       return Object.freeze({
         status: "BLOCKED",
         ...(periodId == null ? {} : { periodId }),
