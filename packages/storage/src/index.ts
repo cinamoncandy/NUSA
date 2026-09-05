@@ -136,13 +136,26 @@ export class SqliteDatabase implements TransactionRunner {
   public close(): void { this.connection.close(); }
 }
 
+function samePositionLedgerEntry(a: PositionLedgerEntry, b: PositionLedgerEntry): boolean {
+  return a.id === b.id && a.walletId === b.walletId && (a.strategyId ?? null) === (b.strategyId ?? null) &&
+    a.symbol === b.symbol && a.side === b.side && a.baseQtyRaw === b.baseQtyRaw &&
+    (a.quoteQtyRaw ?? null) === (b.quoteQtyRaw ?? null) && a.ts === b.ts && a.createdAt === b.createdAt &&
+    (a.sourceTradeId ?? null) === (b.sourceTradeId ?? null);
+}
+
 export class SqlitePositionLedgerRepository implements PositionLedgerRepository {
   public constructor(private readonly db: SqliteDatabase) {}
   public append(entry: PositionLedgerEntry): PositionLedgerEntry {
-    this.db.connection.prepare("INSERT INTO position_ledger_entries (id, wallet_id, strategy_id, symbol, side, base_qty_raw, quote_qty_raw, ts, created_at, source_trade_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING").run(entry.id, entry.walletId, entry.strategyId ?? null, entry.symbol, entry.side, raw(entry.baseQtyRaw), raw(entry.quoteQtyRaw), entry.ts, entry.createdAt, entry.sourceTradeId ?? null);
-    const stored = this.getById(entry.id);
-    if (stored == null) throw new Error("ledger append did not persist");
-    return stored;
+    return this.db.transaction(() => {
+      this.db.connection.prepare("INSERT INTO position_ledger_entries (id, wallet_id, strategy_id, symbol, side, base_qty_raw, quote_qty_raw, ts, created_at, source_trade_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING").run(entry.id, entry.walletId, entry.strategyId ?? null, entry.symbol, entry.side, raw(entry.baseQtyRaw), raw(entry.quoteQtyRaw), entry.ts, entry.createdAt, entry.sourceTradeId ?? null);
+      const stored = this.getById(entry.id);
+      if (stored == null) throw new Error("ledger append did not persist");
+      // First-write-wins for replays, but a reused id with different content
+      // must fail closed instead of silently returning someone else's entry.
+      // Mirrors the execution-fill conflict rule (#1652) for ledger entries.
+      if (!samePositionLedgerEntry(stored, entry)) throw new Error("ledger id conflict: entry id already exists with different content");
+      return stored;
+    });
   }
   public getById(id: string): PositionLedgerEntry | undefined {
     const row = this.db.connection.prepare("SELECT * FROM position_ledger_entries WHERE id = ?").get(id) as SqlRow | undefined;
