@@ -3,11 +3,16 @@
 const path = require("node:path");
 
 function requiredSnapshotPath(env) {
-  const value = String(env.NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH || "").trim();
-  if (!value || value === ":memory:" || !path.isAbsolute(value)) {
-    throw new Error("NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH must be an absolute durable path");
+  const explicit = String(env.NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH || "").trim();
+  if (explicit) {
+    if (explicit === ":memory:" || !path.isAbsolute(explicit)) throw new Error("NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH must be an absolute durable path");
+    return path.resolve(explicit);
   }
-  return value;
+  const stateDb = String(env.NUSA_CLOUD_STATE_DB_PATH || "").trim();
+  if (!stateDb || stateDb === ":memory:" || !path.isAbsolute(stateDb)) {
+    throw new Error("NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH or an absolute durable NUSA_CLOUD_STATE_DB_PATH is required");
+  }
+  return path.join(path.dirname(path.resolve(stateDb)), "research-replay-snapshots.json");
 }
 
 function defaultDependencies() {

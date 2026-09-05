@@ -46,10 +46,17 @@ test("fails closed when no canonical League run was captured", () => {
   assert.throws(() => capture.persistCapturedSnapshot(), /no canonical League result/);
 });
 
-test("requires an absolute durable replay snapshot path", () => {
-  assert.throws(() => requiredSnapshotPath({}), /absolute durable path/);
+test("uses the durable Cloud-state sibling path when no explicit replay snapshot path is supplied", () => {
+  const stateDb = path.resolve("/var/lib/nusa/state.sqlite");
+  assert.equal(requiredSnapshotPath({ NUSA_CLOUD_STATE_DB_PATH: stateDb }), path.join(path.dirname(stateDb), "research-replay-snapshots.json"));
+});
+
+test("requires an explicit snapshot path or an absolute durable Cloud state path", () => {
+  assert.throws(() => requiredSnapshotPath({}), /absolute durable NUSA_CLOUD_STATE_DB_PATH/);
   assert.throws(() => requiredSnapshotPath({ NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH: ":memory:" }), /absolute durable path/);
   assert.throws(() => requiredSnapshotPath({ NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH: "relative.json" }), /absolute durable path/);
+  assert.throws(() => requiredSnapshotPath({ NUSA_CLOUD_STATE_DB_PATH: ":memory:" }), /absolute durable NUSA_CLOUD_STATE_DB_PATH/);
+  assert.throws(() => requiredSnapshotPath({ NUSA_CLOUD_STATE_DB_PATH: "relative.sqlite" }), /absolute durable NUSA_CLOUD_STATE_DB_PATH/);
 });
 
 test("the canonical real-market Research command cannot bypass replay snapshot capture", () => {
