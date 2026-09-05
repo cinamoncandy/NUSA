@@ -18,35 +18,40 @@ test("App shell routes the canonical four-tab decision flow and preserves deeper
   assert.match(app, /StatusChip label="LIVE NONE"/);
 });
 
-test("Home uses the approved MASTER board hierarchy and keeps AI read-only", () => {
+test("Home uses the approved autonomous-intelligence hierarchy and keeps AI read-only", () => {
   const source = read("src/homeView.tsx");
   const decisionSurface = read("src/homeDecisionSurface.ts");
 
   assert.match(source, />NUSA<\/Text>/);
+  assert.match(source, /AUTONOMOUS/);
+  assert.match(source, /INVESTMENT/);
+  assert.match(source, /INTELLIGENCE/);
   assert.match(source, />총 자산<\/Text>/);
   assert.match(source, /\{rail\.pnlBasisLabel\}/);
   assert.doesNotMatch(source, />오늘</);
-  assert.match(source, />NUSA AI 판단<\/Text>/);
-  assert.match(source, />신뢰도<\/Text>/);
+  assert.match(source, /AI INSIGHT/);
+  assert.match(source, /label="NOW"/);
+  assert.match(source, /label="WHY"/);
+  assert.match(source, /label="RESULT"/);
+  assert.match(source, /label="RISK"/);
+  assert.match(source, /label="LEARNING"/);
   assert.match(source, /testID="home-signal-trace"/);
-  assert.match(source, />주요 지표<\/Text>/);
+  assert.match(source, /SIGNAL TERRAIN/);
+  assert.match(source, /MARKET PULSE/);
+  assert.match(source, /PAPER PERFORMANCE/);
+  assert.match(source, /RISK STATUS/);
   assert.match(source, /testID="home-reference-navigation"/);
   assert.match(source, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
   assert.match(source, /selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)/);
-  assert.match(source, /calibrationStatus === "CALIBRATED"/);
+  assert.match(source, /const aiInsightAvailable = decisionSurface\.aiInsightAvailable && !disconnected && readOnlyError == null/);
+  assert.match(source, /market == null \? "검증된 신호 없음"/);
 
-  // The fail-closed decision model remains available to the product, but the approved
-  // master-board HOME must not recreate the retired supervisor/terminal composition.
+  // The fail-closed decision model remains authoritative for presentation truth;
+  // HOME may expose rich read-only evidence but must never create LIVE authority.
   assert.match(decisionSurface, /PAPER P&L .*EQUITY/);
-  assert.doesNotMatch(source, /const supervisorResult = decisionSurface\.result/);
-  assert.doesNotMatch(source, /CAPITAL LIMITS/);
-  assert.doesNotMatch(source, /NUSA VIEW/);
-  assert.doesNotMatch(source, /<InsightPanel/);
-  assert.doesNotMatch(source, /<CompactMetric/);
-  assert.doesNotMatch(source, /<SupervisorProgressPanel/);
-  assert.doesNotMatch(source, /AI INSIGHT \/ SIGNAL TERRAIN/);
   assert.doesNotMatch(source, /productionMutationAllowed:\s*true/);
   assert.doesNotMatch(source, /authority:\s*"LIVE"/);
+  assert.doesNotMatch(source, /\/api\/(?:live|withdraw|transfer)/i);
 });
 
 test("Markets, PAPER, Settings and History use shared segmented controls", () => {

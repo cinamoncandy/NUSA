@@ -21,31 +21,36 @@ test("visual redesign has a distinct NUSA surface and financial hierarchy", () =
   assert.match(primitives, /borderRadius: 999, borderWidth: 1, gap: 3/);
 });
 
-test("Home uses the approved AI judgment plus one state-bound terrain primitive", () => {
+test("Home uses the approved autonomous-intelligence judgment and one state-bound terrain primitive", () => {
   const home = read("src/homeView.tsx");
   const decisionSurface = read("src/homeDecisionSurface.ts");
   const components = read("src/components.tsx");
 
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /testID="ai-card"/);
-  assert.match(home, />NUSA AI 판단<\/Text>/);
-  assert.match(home, />신뢰도<\/Text>/);
-  assert.match(home, /const terrainStrength = aiInsightAvailable \? 0\.92 : snapshot \? 0\.62 : 0\.45/);
-  assert.match(home, /<PremiumTerrain[^>]*strength=\{terrainStrength\}/);
+  assert.match(home, />✦ AI INSIGHT<\/Text>/);
+  assert.match(home, />AUTONOMOUS<\/Text>/);
+  assert.match(home, />INVESTMENT<\/Text>/);
+  assert.match(home, />INTELLIGENCE<\/Text>/);
+  assert.match(home, /const terrainStrength = decisionSurface\.signalReady \? 0\.92 : snapshot \? 0\.52 : 0\.28/);
+  assert.match(home, /<TerrainSignal variant="symbolic" signalStrength=\{terrainStrength\}/);
   assert.match(home, /testID="home-signal-trace"/);
   assert.match(home, /testID="home-market-pulse"/);
-  assert.match(home, />주요 지표<\/Text>/);
+  assert.match(home, />NOW<\/Text>|label="NOW"/);
+  assert.match(home, /label="WHY"/);
+  assert.match(home, /label="RESULT"/);
+  assert.match(home, /label="RISK"/);
+  assert.match(home, /label="LEARNING"/);
+  assert.match(home, /PAPER PERFORMANCE/);
+  assert.match(home, /PORTFOLIO/);
+  assert.match(home, /RISK STATUS/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
 
-  assert.doesNotMatch(home, /testID="home-supervisor-summary"/);
-  assert.doesNotMatch(home, /testID="home-supervisor-result"/);
-  assert.doesNotMatch(home, /const supervisorResult = decisionSurface\.result/);
-  assert.doesNotMatch(home, /testID="home-paper-performance"/);
-  assert.doesNotMatch(home, />TOTAL EQUITY</);
-  assert.doesNotMatch(home, />CUMULATIVE PAPER P&L</);
+  assert.match(home, /testID="home-supervisor-result"/);
+  assert.match(home, /testID="home-paper-learning"/);
+  assert.match(home, /testID="home-terminal-grid"/);
 
-  // The fail-closed decision projection remains valid for downstream consumers even though
-  // the approved HOME presentation no longer renders the retired supervisor deck.
+  // The fail-closed decision projection remains valid for downstream consumers.
   assert.match(decisionSurface, /`PAPER P&L .* · EQUITY \$\{krw\(input\.paperEquity\)\}`/s);
   assert.match(components, /accessibilityLabel=\{accessibilityLabel \?\? \(variant === "market" \? "실제 시장 데이터에 연결된 시그널" : "NUSA 상태 시그널"\)/);
 });
