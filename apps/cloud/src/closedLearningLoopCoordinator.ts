@@ -50,6 +50,10 @@ export interface ExistingResearchFactoryAdapter {
   evaluate(input: ClosedLearningEvidenceIdentity & { readonly cycleId: string }): ClosedLearningResearchDecision;
 }
 
+export interface AsyncExistingResearchFactoryAdapter extends ExistingResearchFactoryAdapter {
+  evaluateAsync(input: ClosedLearningEvidenceIdentity & { readonly cycleId: string }): Promise<ClosedLearningResearchDecision>;
+}
+
 export interface PaperChallengerDeploymentAdapter {
   deploy(input: {
     readonly cycleId: string;
@@ -162,19 +166,18 @@ export class ClosedLearningLoopCoordinator {
     return this.repository.append(Object.freeze({ ...record, paperDeployment: receipt }));
   }
 
-  public run(input: ClosedLearningEvidenceIdentity): ClosedLearningCycleResult {
-    const identity = normalizeIdentity(input);
-    const cycleId = closedLearningCycleId(identity);
+  private existing(identity: ClosedLearningEvidenceIdentity, cycleId: string): ClosedLearningCycleResult | undefined {
     const previous = this.repository.get(cycleId);
-    if (previous != null) {
-      if (previous.evidenceId !== identity.evidenceId || previous.evidenceFingerprintSha256 !== identity.evidenceFingerprintSha256) throw new Error("closed learning replay identity conflict");
-      if (previous.decision.outcome === "QUALIFIED_FOR_LEAGUE" && previous.paperDeployment == null) {
-        return Object.freeze({ status: "RESUMED", record: this.deployQualified(previous) });
-      }
-      return Object.freeze({ status: "REPLAYED", record: previous });
+    if (previous == null) return undefined;
+    if (previous.evidenceId !== identity.evidenceId || previous.evidenceFingerprintSha256 !== identity.evidenceFingerprintSha256) throw new Error("closed learning replay identity conflict");
+    if (previous.decision.outcome === "QUALIFIED_FOR_LEAGUE" && previous.paperDeployment == null) {
+      return Object.freeze({ status: "RESUMED", record: this.deployQualified(previous) });
     }
+    return Object.freeze({ status: "REPLAYED", record: previous });
+  }
 
-    const decision = normalizeDecision(this.researchFactory.evaluate(Object.freeze({ ...identity, cycleId })));
+  private persistDecision(identity: ClosedLearningEvidenceIdentity, cycleId: string, decisionInput: ClosedLearningResearchDecision): ClosedLearningCycleResult {
+    const decision = normalizeDecision(decisionInput);
     const recordedAt = this.now();
     if (!Number.isSafeInteger(recordedAt) || recordedAt < 0) throw new Error("closed learning clock is invalid");
 
@@ -188,5 +191,26 @@ export class ClosedLearningLoopCoordinator {
 
     if (decision.outcome !== "QUALIFIED_FOR_LEAGUE") return Object.freeze({ status: "EXECUTED", record: decisionOnly });
     return Object.freeze({ status: "EXECUTED", record: this.deployQualified(decisionOnly) });
+  }
+
+  public run(input: ClosedLearningEvidenceIdentity): ClosedLearningCycleResult {
+    const identity = normalizeIdentity(input);
+    const cycleId = closedLearningCycleId(identity);
+    const replay = this.existing(identity, cycleId);
+    if (replay != null) return replay;
+    return this.persistDecision(identity, cycleId, this.researchFactory.evaluate(Object.freeze({ ...identity, cycleId })));
+  }
+
+  /** Async production path prevents Research/League process execution from starving the HTTP loop. */
+  public async runAsync(input: ClosedLearningEvidenceIdentity): Promise<ClosedLearningCycleResult> {
+    const identity = normalizeIdentity(input);
+    const cycleId = closedLearningCycleId(identity);
+    const replay = this.existing(identity, cycleId);
+    if (replay != null) return replay;
+    const factory = this.researchFactory as ExistingResearchFactoryAdapter & Partial<Pick<AsyncExistingResearchFactoryAdapter, "evaluateAsync">>;
+    const decision = factory.evaluateAsync == null
+      ? factory.evaluate(Object.freeze({ ...identity, cycleId }))
+      : await factory.evaluateAsync(Object.freeze({ ...identity, cycleId }));
+    return this.persistDecision(identity, cycleId, decision);
   }
 }
