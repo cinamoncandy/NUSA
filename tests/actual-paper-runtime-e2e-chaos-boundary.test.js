@@ -23,7 +23,10 @@ test("PAPER chaos restart segment is explicitly non-mutating without weakening w
   assert.match(workflow, /NUSA_PAPER_CHAOS_E2E_NON_MUTATING:\s*"true"/);
   assert.match(supervisor, /baseEnv\.NUSA_PAPER_CHAOS_E2E_NON_MUTATING === "true"/);
   assert.match(supervisor, /NUSA_CLOUD_PAPER_INVESTMENT_PERCENT = "0"/);
-  assert.doesNotMatch(supervisor, /PAPER_WRITER_ALREADY_ACTIVE/);
+  assert.match(supervisor, /PAPER_WRITER_LEASE_CONFLICT_EXIT_CODE = 75/);
+  assert.match(supervisor, /DEFAULT_WRITER_LEASE_RETRY_MS = 31_000/);
+  assert.match(supervisor, /PAPER_WRITER_ALREADY_ACTIVE.*childStderrTail/);
+  assert.match(supervisor, /leaseConflict\s*\?\s*this\.writerLeaseRetryMs/);
 });
 
 test("PAPER chaos E2E keeps fail-closed authority invariants", () => {
