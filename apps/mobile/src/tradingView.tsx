@@ -85,7 +85,7 @@ const styles = StyleSheet.create({
   marketPanel: { borderWidth: 1, borderRadius: 18, padding: 16, gap: 12, marginHorizontal: 20, marginTop: 14, maxWidth: 680, width: "auto", alignSelf: "center" },
   panelHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 },
   stepLabel: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.15 },
-  panelTitle: { marginTop: 4, fontSize: 17, lineHeight: 22, fontWeight: "850" },
+  panelTitle: { marginTop: 4, fontSize: 17, lineHeight: 22, fontWeight: "800" },
   miniChart: { height: 140, flexDirection: "row", alignItems: "stretch", gap: 1, overflow: "hidden", position: "relative" },
   chartColumn: { flex: 1, minWidth: 2, position: "relative" },
   chartWick: { position: "absolute", left: "50%", width: 1 },
