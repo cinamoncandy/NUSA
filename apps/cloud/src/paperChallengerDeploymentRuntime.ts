@@ -37,7 +37,7 @@ export interface CanonicalPaperPeriodPort {
 
 export interface PaperChallengerDeploymentRuntimeOptions {
   readonly artifacts: QualifiedPaperChallengerArtifactReader;
-  readonly bindings: Pick<PaperChallengerBindingLedger, "activate" | "current">;
+  readonly bindings: Pick<PaperChallengerBindingLedger, "activate" | "current" | "revoke">;
   readonly periods: CanonicalPaperPeriodPort;
   readonly readCanonicalPaperAccount: () => PaperAccountState;
 }
@@ -97,9 +97,24 @@ export class PaperChallengerDeploymentRuntime implements PaperChallengerDeployme
     const periodId = `${input.cycleId}:paper:${binding.bindingFingerprintSha256}`;
 
     const prior = this.options.bindings.current(market, periodStartAt);
-    if (prior != null) {
-      if (prior.binding.bindingFingerprintSha256 !== binding.bindingFingerprintSha256 || prior.binding.candidateId !== candidateId) throw new Error("another PAPER challenger is already active for this market");
-      if (prior.researchLineage == null || !samePaperResearchLineage(prior.researchLineage, researchLineage)) throw new Error("existing PAPER challenger Research lineage conflict");
+    if (prior != null && prior.binding.bindingFingerprintSha256 !== binding.bindingFingerprintSha256) {
+      // A qualified challenger is a PAPER-only handoff, not concurrent authority. Revoke the
+      // previous immutable binding at the exact canonical account boundary before activating the
+      // replacement. If the process crashes after revoke or activate, coordinator replay resumes
+      // this same deterministic deployment without rerunning Research.
+      this.options.bindings.revoke(
+        market,
+        prior.binding.bindingFingerprintSha256,
+        prior.binding.candidateId,
+        periodStartAt,
+        `SUPERSEDED_BY_QUALIFIED_CHALLENGER:${candidateId}`,
+      );
+    }
+
+    const active = this.options.bindings.current(market, periodStartAt);
+    if (active != null) {
+      if (active.binding.bindingFingerprintSha256 !== binding.bindingFingerprintSha256 || active.binding.candidateId !== candidateId) throw new Error("another PAPER challenger is already active for this market");
+      if (active.researchLineage == null || !samePaperResearchLineage(active.researchLineage, researchLineage)) throw new Error("existing PAPER challenger Research lineage conflict");
     } else {
       this.options.bindings.activate(market, binding, researchLineage);
     }
