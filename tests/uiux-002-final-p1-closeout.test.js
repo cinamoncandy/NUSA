@@ -42,7 +42,7 @@ test("touch-target policy is truthful: standard controls 48px, compact controls 
   assert.match(watchlist, /favorite: \{[^}]*minWidth: 52, minHeight: 48/);
 });
 
-test("closeout preserves PAPER-only mutation semantics while local PAPER stays independent of cloud runtime", () => {
+test("closeout preserves PAPER-only semantics while production PAPER is supervision-only", () => {
   const app = read("apps/mobile/App.tsx");
   const ai = read("apps/mobile/src/aiView.tsx");
   const tradingShell = read("apps/mobile/src/tradingView.tsx");
@@ -51,7 +51,8 @@ test("closeout preserves PAPER-only mutation semantics while local PAPER stays i
   assert.match(app, /PAPER/);
   assert.match(ai, /READ ONLY/);
   assert.match(tradingShell, /TradingView as LegacyTradingView/);
-  assert.match(tradingShell, /<LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.match(tradingShell, /PaperLearningMonitorView/);
+  assert.doesNotMatch(tradingShell, /<LegacyTradingView \{\.\.\.props\} \/>/);
   assert.match(trading, /Production mutation 금지/);
   assert.match(trading, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
   assert.match(trading, /const cloudPaperSubmitAvailable = runtimeCanSubmit && !usingLocalPaper/);
