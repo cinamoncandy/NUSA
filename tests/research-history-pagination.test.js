@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { fetchResearchCandles, researchCandleCount } = require("../scripts/research-real-market-run.js");
+const { RESEARCH_MARKETS, fetchResearchCandles, researchCandleCount } = require("../scripts/research-real-market-run.js");
 const { createHistoricalDatasetManifest } = require("../dist/apps/desktop/src/cloud/researchDataset.js");
 
 const DAY = 86_400_000;
@@ -8,8 +8,9 @@ const dataAsOf = Date.UTC(2026, 8, 5, 12);
 function pageFor(request) {
   const params = new URL(request, "https://api.upbit.com").searchParams;
   const before = Date.parse(params.get("to"));
+  const market = params.get("market");
   return Array.from({ length: Number(params.get("count")) }, (_, index) => ({
-    market: "KRW-BTC",
+    market,
     candle_date_time_utc: new Date(before - (index + 1) * DAY).toISOString().slice(0, 19),
     opening_price: 100, high_price: 110, low_price: 90, trade_price: 105,
     candle_acc_trade_volume: 10
@@ -22,6 +23,11 @@ test("research horizon is bounded and never selected from performance", () => {
   for (const value of [0, 199, 2001, Infinity, "", "200.5", "1e3", " 200", null]) {
     assert.throws(() => researchCandleCount(value), /integer from 200 to 2000/);
   }
+});
+
+test("independent regime markets are predeclared and immutable", () => {
+  assert.deepEqual(RESEARCH_MARKETS, ["KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-SOL", "KRW-DOGE"]);
+  assert.ok(Object.isFrozen(RESEARCH_MARKETS));
 });
 
 test("five pages restore 1000 completed days with stable request provenance and checksum", async () => {
@@ -38,6 +44,17 @@ test("five pages restore 1000 completed days with stable request provenance and 
     source: "upbit-public-api", sourceRequest: result.sourceRequests.join(" | "), createdAt: new Date(dataAsOf).toISOString()
   });
   assert.equal(manifest(first).contentSha256, manifest(second).contentSha256);
+});
+
+test("market-specific pagination binds request, candles, and provenance to the requested market", async () => {
+  const result = await fetchResearchCandles({ market: "KRW-ETH", dataAsOf, count: 200, fetchPage: pageFor, pause: async () => {} });
+  assert.equal(result.candles.length, 200);
+  assert.ok(result.candles.every((candle) => candle.market === "KRW-ETH"));
+  assert.ok(result.sourceRequests.every((request) => request.includes("market=KRW-ETH")));
+  await assert.rejects(
+    fetchResearchCandles({ market: "KRW-ADA", dataAsOf, count: 200, fetchPage: pageFor }),
+    /unsupported research market/
+  );
 });
 
 test("partial last page requests only the remaining count", async () => {
