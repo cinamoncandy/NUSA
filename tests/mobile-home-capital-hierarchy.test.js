@@ -11,12 +11,12 @@ test("HOME presents truthful PAPER equity and non-daily PnL basis in the canonic
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, />총 자산<\/Text>/);
   assert.match(home, /const equity = account\?\.equity \?\? null/);
-  assert.match(home, /krw\(equity\)/);
+  assert.match(home, /formatKRW\(equity\)/);
   assert.match(home, /const totalPnl = account == null \? null : \(account\.realizedPnl \?\? account\.position\.realizedPnl\) \+ account\.unrealizedPnl/);
   assert.match(home, /const dayPnlRate = equity != null && equity !== 0 && totalPnl != null \? totalPnl \/ equity : null/);
   assert.match(home, /hasDailyPnlBasis: false/);
   assert.match(home, /\{rail\.pnlBasisLabel\}/);
-  assert.match(home, /signedPercent\(dayPnlRate\)/);
+  assert.match(home, /formatSignedPercent\(dayPnlRate\)/);
   assert.match(decisionSurface, /PAPER P&L .*EQUITY/);
   assert.doesNotMatch(home, />오늘<\/Text>/);
   assert.doesNotMatch(home, /const equity\s*=\s*10000000|totalPnl\s*=\s*[+-]?\d+(?:\.\d+)?;/);

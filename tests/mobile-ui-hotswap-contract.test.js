@@ -56,8 +56,8 @@ test("canonical HOME uses verified market and PAPER data without fabricating una
   assert.match(home, /const marketFeed = selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)/);
   assert.match(home, /publicMarkets: readonly WatchlistMarket\[\] \| null/);
   assert.match(home, /const marketRows = \[\.\.\.marketFeed\][^\n]*\.slice\(0, tablet \? 5 : 3\)/);
-  assert.match(home, /krw\(market\.price\)/);
-  assert.match(home, /signedPercent\(market\.changeRate\)/);
+  assert.match(home, /formatKRW\(market\.price\)/);
+  assert.match(home, /formatSignedPercent\(market\.changeRate\)/);
   assert.match(home, /snapshot\?\.portfolio\?\.account \?\? localPortfolio\?\.account \?\? null/);
   assert.match(home, /buildLocalPortfolio\(localTradingSnapshot, localMarkPrice\)/);
   assert.match(home, /testID="home-operational-notice"/);

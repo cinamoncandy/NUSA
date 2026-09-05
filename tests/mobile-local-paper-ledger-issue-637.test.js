@@ -58,8 +58,8 @@ test("#637: Home uses Cloud PAPER when present and otherwise renders shared LOCA
   assert.match(home, /const totalPnl = account == null \? null : \(account\.realizedPnl \?\? account\.position\.realizedPnl\) \+ account\.unrealizedPnl/);
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, />총 자산<\/Text>/);
-  assert.match(home, /\{equity == null \? "—" : krw\(equity\)\}/);
-  assert.match(home, /\{totalPnl == null \? "—" : `\$\{totalPnl >= 0 \? "\+" : ""\}\$\{krw\(totalPnl\)\}`\}/);
+  assert.match(home, /\{equity == null \? "—" : formatKRW\(equity\)\}/);
+  assert.match(home, /\{totalPnl == null \? "—" : `\$\{totalPnl >= 0 \? "\+" : ""\}\$\{formatKRW\(totalPnl\)\}`\}/);
   assert.doesNotMatch(home, /home-supervisor-summary|home-local-paper-note/);
 });
 
