@@ -20,6 +20,7 @@ import { ClosedLearningPendingPeriodReader } from "./closedLearningPendingPeriod
 import { ClosedLearningEvidenceIdentitySource } from "./closedLearningEvidenceIdentitySource";
 import { CLOUD_PAPER_RISK_POLICY_FINGERPRINT } from "./cloudPaperRiskPolicyIdentity";
 import { ClosedLearningRolloverScheduler, type ClosedLearningRolloverResult } from "./closedLearningRolloverScheduler";
+import { ClosedLearningInitialPaperBootstrap, type ClosedLearningInitialPaperBootstrapResult } from "./closedLearningInitialPaperBootstrap";
 
 export const CLOSED_LEARNING_ROLLOVER_POLL_INTERVAL_MS = 30_000;
 
@@ -34,6 +35,8 @@ export interface ClosedLearningProductionComposition {
   readonly readCanonicalPaperAccount: () => PaperAccountState | undefined;
   /** Executes one replay-safe closed-learning cycle over an explicit immutable evidence identity. */
   readonly runClosedLearningCycle: (input: ClosedLearningEvidenceIdentity) => ClosedLearningCycleResult;
+  /** Attempts initial canonical Research→PAPER deployment when no PAPER period has ever existed. */
+  readonly runClosedLearningBootstrap: () => ClosedLearningInitialPaperBootstrapResult;
   /** Executes one production rollover decision against the canonical pending/realized ledgers. */
   readonly runClosedLearningRollover: () => ClosedLearningRolloverResult;
 }
@@ -43,8 +46,8 @@ export interface ClosedLearningProductionComposition {
  *
  * One process owns the canonical SQLite database, PAPER account loop, realized-period producer,
  * Research replay worker boundary, complete denominator history, immutable challenger artifacts,
- * replay-safe cycle ledger, and next-PAPER deployment. No second PAPER writer, Research scoring
- * engine, LIVE route, or production champion mutation is introduced here.
+ * replay-safe cycle ledger, initial PAPER bootstrap, and next-PAPER deployment. No second PAPER
+ * writer, Research scoring engine, LIVE route, or production champion mutation is introduced here.
  */
 export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = process.env): ClosedLearningProductionComposition {
   const config = readCloudRuntimeConfig(env);
@@ -116,6 +119,17 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   const coordinator = new ClosedLearningLoopCoordinator(cycleRepository, researchFactory, paperDeployment);
   const runClosedLearningCycle = (input: ClosedLearningEvidenceIdentity): ClosedLearningCycleResult => coordinator.run(input);
 
+  const bootstrap = new ClosedLearningInitialPaperBootstrap({
+    snapshots: replaySnapshots,
+    worker,
+    history,
+    artifacts,
+    deployment: paperDeployment,
+    listOpenPeriods: periods.listOpenPeriods,
+    listRealizedPeriods: periods.listRealizedPeriods,
+  });
+  const runClosedLearningBootstrap = (): ClosedLearningInitialPaperBootstrapResult => bootstrap.runOnce();
+
   const evidenceIdentity = new ClosedLearningEvidenceIdentitySource({
     bindings: challengerBindings,
     replaySnapshots,
@@ -132,10 +146,14 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   });
   const runClosedLearningRollover = (): ClosedLearningRolloverResult => rollover.runOnce();
 
-  // Recovery must not wait for a human or app launch. One immediate pass handles a ready period
-  // after process restart; the bounded timer keeps the same fail-closed decision running 24h.
+  // Recovery/bootstrap must not wait for a human or app launch. Bootstrap is eligible only before
+  // any PAPER history exists; rollover remains the sole path after the first canonical period.
+  runClosedLearningBootstrap();
   runClosedLearningRollover();
-  const rolloverTimer = setInterval(() => { runClosedLearningRollover(); }, CLOSED_LEARNING_ROLLOVER_POLL_INTERVAL_MS);
+  const rolloverTimer = setInterval(() => {
+    runClosedLearningBootstrap();
+    runClosedLearningRollover();
+  }, CLOSED_LEARNING_ROLLOVER_POLL_INTERVAL_MS);
   rolloverTimer.unref?.();
 
   let stopPromise: Promise<void> | undefined;
@@ -154,6 +172,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     challengerBindings,
     readCanonicalPaperAccount,
     runClosedLearningCycle,
+    runClosedLearningBootstrap,
     runClosedLearningRollover,
   });
 }
