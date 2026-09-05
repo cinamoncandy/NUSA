@@ -90,22 +90,30 @@ test("AI hierarchy prioritizes evidence, uncertainty, calibration, and authority
   assert.doesNotMatch(ai, /ORDER_CREATE|LIVE_EXECUTION|onSubmit/);
 });
 
-test("recoverable states stay actionable while PAPER observation remains truthful", () => {
+test("recoverable states stay actionable while production PAPER observation remains truthful", () => {
   const notifications = read("src/notificationView.tsx");
   const tradingShell = read("src/tradingView.tsx");
+  const monitor = read("src/paperLearningMonitorView.tsx");
   const tradingWorkspace = read("src/tradingViewLegacy.tsx");
   assert.match(notifications, /testID="notifications-paper"/);
   assert.match(notifications, /StatusChip label="미연결"/);
   assert.match(notifications, /DataRow label="현재 상태" value="이벤트 수집 미연결"/);
   assert.match(notifications, /실제 이벤트가 연결되기 전에는 알림 목록이나 동작하지 않는 알림 설정을 제공하지 않습니다/);
   assert.doesNotMatch(notifications, /testID="notifications-error"|NusaButton label="다시 시도"/);
-  assert.match(tradingShell, /import \{ TradingView as LegacyTradingView \} from "\.\/tradingViewLegacy"/);
-  assert.match(tradingShell, /!cloudPaperConnected \? <StateNotice title="CLOUD PAPER NOT CONNECTED"/);
-  assert.match(tradingShell, /cloudPaperConnected \? <CloudPaperPublicChart \/> : null/);
-  assert.match(tradingShell, /<LegacyTradingView \{\.\.\.props\} \/>/);
-  assert.match(tradingShell, /PUBLIC CONTEXT/);
-  assert.match(tradingShell, /value: "READ ONLY"/);
+
+  assert.match(tradingShell, /<PaperLearningMonitorView/);
+  assert.match(tradingShell, /buildPaperLearningScreen\(\[\], "PAUSED", "PROJECTION_ABSENT"\)/);
+  assert.doesNotMatch(tradingShell, /<LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.match(monitor, /testID="paper-learning-monitor"/);
+  assert.match(monitor, /testID="paper-learning-data-source"/);
+  assert.match(monitor, /PAPER 서버가 연결되지 않았습니다/);
+  assert.match(monitor, /PAPER 운영 데이터를 가져오지 못했습니다/);
+  assert.match(monitor, /서버 응답에 PAPER 학습 projection이 없습니다/);
+  assert.match(monitor, /Settings에서 PAPER 서버 연결을 완료해 주세요/);
+  assert.match(monitor, /네트워크와 서버 상태를 확인한 뒤 새로고침해 주세요/);
+
   assert.match(tradingWorkspace, /관찰 가능한 시장이 없습니다[\s\S]*NusaButton label="다시 불러오기"/);
   assert.doesNotMatch(tradingShell, /productionMutationAllowed:\s*true|LIVE_EXECUTION|ORDER_CREATE/);
+  assert.doesNotMatch(monitor, /productionMutationAllowed:\s*true|LIVE_EXECUTION|ORDER_CREATE/);
   assert.doesNotMatch(tradingWorkspace, /productionMutationAllowed:\s*true|LIVE_EXECUTION|ORDER_CREATE/);
 });
