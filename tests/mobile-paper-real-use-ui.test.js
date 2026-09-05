@@ -115,7 +115,7 @@ test("primary mobile workspaces keep bounded tablet widths and intentional respo
     "apps/mobile/src/settingsView.tsx": /maxWidth: 820/,
     "apps/mobile/src/marketsView.tsx": /uxLayout\.maxWorkspaceWidth/,
     "apps/mobile/src/tradingViewLegacy.tsx": /maxWidth: 820/,
-    "apps/mobile/src/portfolioView.tsx": /maxWidth: 1080/,
+    "apps/mobile/src/portfolioView.tsx": /maxWidth: 720/,
     "apps/mobile/src/aiView.tsx": /uxLayout\.maxWorkspaceWidth/,
   };
   for (const [file, contract] of Object.entries(bounded)) assert.match(read(file), contract, `${file} must remain intentionally tablet-bounded`);
@@ -130,15 +130,14 @@ test("primary mobile workspaces keep bounded tablet widths and intentional respo
   assert.doesNotMatch(tradingShell, /productionMutationAllowed: true/);
   assert.match(home, /useWindowDimensions/);
   assert.match(home, /const tablet = width >= 768/);
-  assert.match(home, /contentContainerStyle=\{\[styles\.content, \{ maxWidth: tablet \? 980 : 620 \}\]\}/);
-  assert.match(home, /testID="home-signal-trace"/);
-  assert.match(home, /signalBody: \{ flexDirection: "row", gap: 14, minHeight: 250 \}/);
-  assert.match(home, /terrainWrap: \{ flex: 1\.6, minHeight: 250/);
-  assert.match(home, /testID="home-market-pulse"/);
+  assert.match(home, /contentContainerStyle=\{\[styles\.content, \{ maxWidth: tablet \? 980 : 680 \}\]\}/);
+  assert.match(home, /testID="home-risk-status"/);
+  assert.match(home, /testID="home-decision-stage"/);
+  assert.match(home, /testID="home-paper-performance"/);
+  assert.match(home, /testID="home-paper-learning"/);
   assert.match(home, /testID="home-operational-notice"/);
   assert.match(home, /onPress=\{onGoSettings\}/);
-  assert.match(home, /lowerGrid: \{ flexDirection: "row", flexWrap: "wrap", gap: 10 \}/);
-  assert.match(home, /lowerPanel: \{ width: "48\.5%", minHeight: 155/);
+  assert.match(home, /twoColumnTablet: \{ flexDirection: "row", alignItems: "stretch" \}/);
   assert.doesNotMatch(home, /productionMutationAllowed:\s*true/);
 
   assert.match(markets, /useWindowDimensions/);
