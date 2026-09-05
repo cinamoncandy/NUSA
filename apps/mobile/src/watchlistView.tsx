@@ -4,6 +4,7 @@ import { NusaButton, NusaCard, NusaTextField, StatusChip } from "./components";
 import { SegmentedControl } from "./uxPrimitives";
 import { useTheme } from "./ThemeProvider";
 import { buildWatchlistViewModel, formatFeedAgeMs, freshestObservedAtMs, type WatchlistMarket, type WatchlistRepository, type WatchlistSort } from "./watchlist";
+import { formatKRW, formatSignedPercent } from "./numberFormat";
 
 interface WatchlistViewProps {
   readonly repository: WatchlistRepository;
@@ -18,8 +19,6 @@ interface WatchlistViewProps {
 const sorts: readonly WatchlistSort[] = ["MARKET", "PRICE", "CHANGE", "VOLUME"];
 const sortLabels: Readonly<Record<WatchlistSort, string>> = { MARKET: "시장", PRICE: "가격", CHANGE: "등락", VOLUME: "거래량" };
 const sortItems = sorts.map((key) => ({ key, label: sortLabels[key] }));
-function formatPrice(value: number): string { return `₩${Math.round(value).toLocaleString("ko-KR")}`; }
-function formatChange(value: number | null): string { return value === null ? "-" : `${value >= 0 ? "+" : ""}${(value * 100).toFixed(2)}%`; }
 function formatVolume(value: number | null): string { return value === null ? "-" : value.toLocaleString("ko-KR"); }
 
 function MarketRow({ market, active, selected, onToggle, onSelect }: Readonly<{ market: WatchlistMarket; active: boolean; selected: boolean; onToggle: () => void; onSelect?: () => void }>) {
@@ -37,7 +36,7 @@ function MarketRow({ market, active, selected, onToggle, onSelect }: Readonly<{ 
         testID={`watchlist-select-${market.market}`}
       >
         <View style={styles.marketIdentity}><Text style={[styles.market, { color: selected ? theme.colors.primary : theme.colors.text }]}>{market.market}</Text><Text style={[styles.volumeInline, { color: theme.colors.textMuted }]} numberOfLines={1}>거래량 {formatVolume(market.volume)}</Text></View>
-        <View style={styles.marketNumbers}><Text style={[styles.price, { color: theme.colors.text }]}>{formatPrice(market.price)}</Text><Text style={[styles.change, { color: changeColor }]}>{formatChange(market.changeRate)}</Text></View>
+        <View style={styles.marketNumbers}><Text style={[styles.price, { color: theme.colors.text }]}>{formatKRW(market.price)}</Text><Text style={[styles.change, { color: changeColor }]}>{formatSignedPercent(market.changeRate, "-")}</Text></View>
       </Pressable>
       <Pressable accessibilityLabel={`${market.market} ${active ? "관심시장에서 제거" : "관심시장에 추가"}`} accessibilityRole="button" accessibilityState={{ selected: active }} hitSlop={4} onPress={onToggle} style={[styles.favorite, { backgroundColor: active ? theme.colors.primarySoft : "transparent", borderColor: active ? theme.colors.primary : theme.colors.border }]} testID={`watchlist-toggle-${market.market}`}><Text style={[styles.favoriteLabel, { color: active ? theme.colors.primary : theme.colors.textMuted }]}>{active ? "관심중" : "관심"}</Text></Pressable>
     </View>

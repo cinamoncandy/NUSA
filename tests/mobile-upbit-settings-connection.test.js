@@ -70,7 +70,7 @@ test("real-account monitor remains separate from PAPER and surfaces current trut
   assert.match(portfolio, /snapshot\.cash\.locked/);
   assert.match(portfolio, /asset\.available/);
   assert.match(portfolio, /asset\.locked/);
-  assert.match(portfolio, /money\(asset\.avgBuyPrice\)/);
+  assert.match(portfolio, /formatKRW\(asset\.avgBuyPrice\)/);
   assert.match(portfolio, /AUTH_ERROR/);
   assert.match(portfolio, /RELAY_ERROR/);
   assert.match(portfolio, /STALE/);

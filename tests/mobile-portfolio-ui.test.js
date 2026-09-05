@@ -58,10 +58,10 @@ test("Portfolio screen exposes truthful verified totals without unavailable retu
   assert.match(source, /현재 시장 노출 없음/);
   assert.match(source, /운용 결과를 불러오는 중/);
   assert.match(source, /RefreshControl/);
-  assert.match(source, /<DataRow label="PAPER 평가자산" value=\{money\(model\.totalEquity\)\} \/>/);
+  assert.match(source, /<DataRow label="PAPER 평가자산" value=\{formatKRW\(model\.totalEquity\)\} \/>/);
   assert.match(source, /운용 한도와 계정 집계/);
-  assert.match(source, /<DataRow label="실현 손익" value=\{signedMoney\(model\.position\.realizedPnl\)\}/);
-  assert.match(source, /<DataRow label="미실현 손익" value=\{signedMoney\(model\.position\.unrealizedPnl\)\}/);
+  assert.match(source, /<DataRow label="실현 손익" value=\{formatSignedMoney\(model\.position\.realizedPnl\)\}/);
+  assert.match(source, /<DataRow label="미실현 손익" value=\{formatSignedMoney\(model\.position\.unrealizedPnl\)\}/);
   assert.match(source, /testID="portfolio-upbit-read-only"/);
   assert.match(source, /REAL_READ_ONLY 잔고는 감독용 기준선이며 PAPER 성과와 합산하지 않습니다\./);
   assert.match(source, />현재 시장 노출 없음</);

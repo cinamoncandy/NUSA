@@ -4,6 +4,7 @@ import { NusaButton, NusaTextField, StatusChip } from "./components";
 import { InlineNotice, ScreenHeader, SegmentedControl } from "./uxPrimitives";
 import { useTheme } from "./ThemeProvider";
 import { buildOrderHistoryViewModel, type OrderHistoryFilter, type OrderHistoryPeriod, type OrderHistorySort } from "./orderHistory";
+import { formatKRW } from "./numberFormat";
 
 interface OrderHistoryViewProps { readonly rawOrders: readonly unknown[] | null; readonly error: string | null; readonly refreshing: boolean; readonly onRefresh: () => void; }
 const filters: readonly OrderHistoryFilter[] = ["ALL", "FILLED", "CANCELLED"];
@@ -15,7 +16,6 @@ const periodLabels: Readonly<Record<OrderHistoryPeriod, string>> = { ALL: "전�
 const filterItems = filters.map((key) => ({ key, label: filterLabels[key] }));
 const periodItems = periods.map((key) => ({ key, label: periodLabels[key] }));
 const sortItems = sorts.map((key) => ({ key, label: sortLabels[key] }));
-function money(value: number): string { return `₩${Math.round(value).toLocaleString("ko-KR")}`; }
 
 function OrderRow({ order, last }: Readonly<{ order: ReturnType<typeof buildOrderHistoryViewModel>["orders"][number]; last: boolean }>) {
   const { theme } = useTheme();
@@ -23,9 +23,9 @@ function OrderRow({ order, last }: Readonly<{ order: ReturnType<typeof buildOrde
   const sideTone = order.side === "BUY" ? theme.colors.success : theme.colors.warning;
   return <View testID={`order-history-${order.id}`} style={[styles.orderRow, !last && { borderBottomColor: theme.colors.border, borderBottomWidth: StyleSheet.hairlineWidth }]}>
     <View style={styles.rowHeader}><View style={styles.marketBlock}><View style={styles.marketLine}><Text style={[styles.market, { color: theme.colors.text }]}>{order.market}</Text><Text style={[styles.side, { color: sideTone }]}>{order.side}</Text></View><Text style={[styles.meta, { color: theme.colors.textMuted }]}>{new Date(order.filledAt).toLocaleString("ko-KR")}</Text></View><StatusChip label={order.status} tone={statusTone} /></View>
-    <View style={styles.rowMetrics}><View style={styles.metric}><Text style={[styles.metricLabel, { color: theme.colors.textMuted }]}>수량</Text><Text style={[styles.metricValue, { color: theme.colors.text }]}>{order.quantity}</Text></View><View style={styles.metric}><Text style={[styles.metricLabel, { color: theme.colors.textMuted }]}>체결가</Text><Text style={[styles.metricValue, { color: theme.colors.text }]}>{money(order.price)}</Text></View><View style={styles.metric}><Text style={[styles.metricLabel, { color: theme.colors.textMuted }]}>수수료</Text><Text style={[styles.metricValueSmall, { color: theme.colors.text }]}>{money(order.fee)}</Text></View></View>
+    <View style={styles.rowMetrics}><View style={styles.metric}><Text style={[styles.metricLabel, { color: theme.colors.textMuted }]}>수량</Text><Text style={[styles.metricValue, { color: theme.colors.text }]}>{order.quantity}</Text></View><View style={styles.metric}><Text style={[styles.metricLabel, { color: theme.colors.textMuted }]}>체결가</Text><Text style={[styles.metricValue, { color: theme.colors.text }]}>{formatKRW(order.price)}</Text></View><View style={styles.metric}><Text style={[styles.metricLabel, { color: theme.colors.textMuted }]}>수수료</Text><Text style={[styles.metricValueSmall, { color: theme.colors.text }]}>{formatKRW(order.fee)}</Text></View></View>
     <Text style={[styles.orderId, { color: theme.colors.textMuted }]}>#{order.id}</Text>
-    {order.fills.length > 1 ? <View style={styles.fills}><Text style={[styles.fillLabel, { color: theme.colors.textMuted }]}>체결 {order.fills.length}건</Text>{order.fills.map((fill) => <Text key={fill.id} style={[styles.fill, { color: theme.colors.textMuted }]} testID={`fill-detail-${fill.id}`}>{fill.quantity} @ {money(fill.price)}</Text>)}</View> : null}
+    {order.fills.length > 1 ? <View style={styles.fills}><Text style={[styles.fillLabel, { color: theme.colors.textMuted }]}>체결 {order.fills.length}건</Text>{order.fills.map((fill) => <Text key={fill.id} style={[styles.fill, { color: theme.colors.textMuted }]} testID={`fill-detail-${fill.id}`}>{fill.quantity} @ {formatKRW(fill.price)}</Text>)}</View> : null}
   </View>;
 }
 

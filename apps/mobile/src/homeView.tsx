@@ -11,6 +11,7 @@ import { buildLocalPortfolio, isLocalPaperActive } from "./localPaperLedger";
 import { useLocalPaperMarkPrice, useLocalPaperSnapshot } from "./localPaperLedgerHooks";
 import { buildChartViewModel, type PublicCandle } from "./chartViewModel";
 import { selectHomeMarketData } from "./homeMarketData";
+import { formatKRW, formatSignedPercent } from "./numberFormat";
 import { freshestObservedAtMs, type WatchlistMarket } from "./watchlist";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
@@ -32,16 +33,6 @@ interface HomeViewProps {
   readonly onGoSettings: () => void;
   readonly onNavigate: (destination: HomeDestination) => void;
   readonly onOpenPaperLearning: () => void;
-}
-
-function krw(value: number): string {
-  return `₩${Math.round(value).toLocaleString("ko-KR")}`;
-}
-
-function signedPercent(value: number | null): string {
-  if (value == null) return "—";
-  const percent = value * 100;
-  return `${percent > 0 ? "+" : ""}${percent.toFixed(2)}%`;
 }
 
 function MiniSpark({ values, color, muted }: Readonly<{ values: readonly number[]; color: string; muted: string }>) {
@@ -161,7 +152,7 @@ export function HomeView({
   const position = account?.position;
   const terrainLabels = [0, 1, 2].map((index) => {
     const market = marketRows[index];
-    return market == null ? "검증된 신호 없음" : `${market.market} · ${signedPercent(market.changeRate)}`;
+    return market == null ? "검증된 신호 없음" : `${market.market} · ${formatSignedPercent(market.changeRate)}`;
   });
 
   return <View style={[styles.shell, { backgroundColor: theme.colors.background }]} testID="home-screen">
@@ -193,11 +184,11 @@ export function HomeView({
         <View style={styles.assetTopRow}>
           <View>
             <Text style={[styles.sectionLabel, { color: muted }]}>총 자산</Text>
-            <Text style={[styles.assetValue, { color: theme.colors.text }]} numberOfLines={1} adjustsFontSizeToFit>{equity == null ? "—" : krw(equity)}</Text>
+            <Text style={[styles.assetValue, { color: theme.colors.text }]} numberOfLines={1} adjustsFontSizeToFit>{equity == null ? "—" : formatKRW(equity)}</Text>
             <View style={styles.dayRow}>
               <Text style={[styles.dayLabel, { color: muted }]}>{rail.pnlBasisLabel}</Text>
-              <Text style={[styles.dayValue, { color: totalPnl == null ? muted : totalPnl >= 0 ? terminal : danger }]}>{signedPercent(dayPnlRate)}</Text>
-              <Text style={[styles.dayValue, { color: totalPnl == null ? muted : totalPnl >= 0 ? terminal : danger }]}>{totalPnl == null ? "—" : `${totalPnl >= 0 ? "+" : ""}${krw(totalPnl)}`}</Text>
+              <Text style={[styles.dayValue, { color: totalPnl == null ? muted : totalPnl >= 0 ? terminal : danger }]}>{formatSignedPercent(dayPnlRate)}</Text>
+              <Text style={[styles.dayValue, { color: totalPnl == null ? muted : totalPnl >= 0 ? terminal : danger }]}>{totalPnl == null ? "—" : `${totalPnl >= 0 ? "+" : ""}${formatKRW(totalPnl)}`}</Text>
             </View>
           </View>
           <View style={styles.sparkWrap}>
@@ -248,7 +239,7 @@ export function HomeView({
             <Text style={[styles.topSignalsTitle, { color: muted }]}>TOP SIGNALS</Text>
             {marketRows.length === 0 ? <Text style={[styles.marketEmpty, { color: muted }]}>검증된 시그널 없음</Text> : marketRows.map((market) => <View key={market.market} style={styles.signalRow}>
               <Text style={[styles.signalMarket, { color: theme.colors.text }]} numberOfLines={1}>{market.market}</Text>
-              <Text style={[styles.signalChange, { color: market.changeRate == null ? muted : market.changeRate >= 0 ? terminal : danger }]}>{signedPercent(market.changeRate)}</Text>
+              <Text style={[styles.signalChange, { color: market.changeRate == null ? muted : market.changeRate >= 0 ? terminal : danger }]}>{formatSignedPercent(market.changeRate)}</Text>
             </View>)}
           </View>
         </View>
@@ -260,8 +251,8 @@ export function HomeView({
         <View style={styles.marketPulseGrid}>
           {marketRows.length === 0 ? <Text style={[styles.marketEmpty, { color: muted }]}>NO VERIFIED MARKET SNAPSHOT</Text> : marketRows.map((market) => <View key={market.market} style={[styles.marketTile, { borderColor: softBorder }]}>
             <Text style={[styles.marketName, { color: muted }]}>{market.market}</Text>
-            <Text style={[styles.marketPrice, { color: theme.colors.text }]}>{krw(market.price)}</Text>
-            <Text style={[styles.marketMove, { color: market.changeRate == null ? muted : market.changeRate >= 0 ? terminal : danger }]}>{signedPercent(market.changeRate)}</Text>
+            <Text style={[styles.marketPrice, { color: theme.colors.text }]}>{formatKRW(market.price)}</Text>
+            <Text style={[styles.marketMove, { color: market.changeRate == null ? muted : market.changeRate >= 0 ? terminal : danger }]}>{formatSignedPercent(market.changeRate)}</Text>
           </View>)}
         </View>
       </Pressable>
@@ -269,15 +260,15 @@ export function HomeView({
       <View style={styles.lowerGrid} testID="home-terminal-grid">
         <Pressable onPress={onOpenPaperLearning} style={({ pressed }) => [styles.lowerPanel, { backgroundColor: panel, borderColor: border, opacity: pressed ? 0.76 : 1 }]}>
           <PanelTitle title="◔  PAPER PERFORMANCE" action="자세히 보기 ›" color={terminal} />
-          <Text style={[styles.bigMetric, { color: totalPnl == null ? muted : totalPnl >= 0 ? terminal : danger }]}>{signedPercent(dayPnlRate)}</Text>
-          <Text style={[styles.metricSub, { color: muted }]}>{rail.pnlBasisLabel} · {totalPnl == null ? "PAPER 결과 없음" : `${totalPnl >= 0 ? "+" : ""}${krw(totalPnl)}`}</Text>
-          <Text style={[styles.microMetric, { color: muted }]} testID="home-investable-cash">투자가능 {cashEnvelope == null ? "—" : krw(cashEnvelope.investableCash)}</Text>
-          <Text style={[styles.microMetric, { color: muted }]} testID="home-reserved-cash">예비자금 {cashEnvelope == null ? "—" : krw(cashEnvelope.reservedCash)}</Text>
+          <Text style={[styles.bigMetric, { color: totalPnl == null ? muted : totalPnl >= 0 ? terminal : danger }]}>{formatSignedPercent(dayPnlRate)}</Text>
+          <Text style={[styles.metricSub, { color: muted }]}>{rail.pnlBasisLabel} · {totalPnl == null ? "PAPER 결과 없음" : `${totalPnl >= 0 ? "+" : ""}${formatKRW(totalPnl)}`}</Text>
+          <Text style={[styles.microMetric, { color: muted }]} testID="home-investable-cash">투자가능 {cashEnvelope == null ? "—" : formatKRW(cashEnvelope.investableCash)}</Text>
+          <Text style={[styles.microMetric, { color: muted }]} testID="home-reserved-cash">예비자금 {cashEnvelope == null ? "—" : formatKRW(cashEnvelope.reservedCash)}</Text>
         </Pressable>
 
         <Pressable onPress={() => onNavigate("Portfolio")} style={({ pressed }) => [styles.lowerPanel, { backgroundColor: panel, borderColor: border, opacity: pressed ? 0.76 : 1 }]}>
           <PanelTitle title="◈  PORTFOLIO" action="자세히 보기 ›" color={terminal} />
-          <View style={styles.portfolioRow}><View style={[styles.portfolioDot, { backgroundColor: terminal }]} /><Text style={[styles.portfolioLabel, { color: theme.colors.text }]}>CASH</Text><Text style={[styles.portfolioValue, { color: theme.colors.text }]}>{account == null ? "—" : krw(account.cash)}</Text></View>
+          <View style={styles.portfolioRow}><View style={[styles.portfolioDot, { backgroundColor: terminal }]} /><Text style={[styles.portfolioLabel, { color: theme.colors.text }]}>CASH</Text><Text style={[styles.portfolioValue, { color: theme.colors.text }]}>{account == null ? "—" : formatKRW(account.cash)}</Text></View>
           <View style={styles.portfolioRow}><View style={[styles.portfolioDot, { backgroundColor: theme.colors.primary }]} /><Text style={[styles.portfolioLabel, { color: theme.colors.text }]}>ASSET</Text><Text style={[styles.portfolioValue, { color: theme.colors.text }]}>{position?.market ?? "—"}</Text></View>
           <View style={styles.portfolioRow}><View style={[styles.portfolioDot, { backgroundColor: softBorder }]} /><Text style={[styles.portfolioLabel, { color: theme.colors.text }]}>SOURCE</Text><Text style={[styles.portfolioValue, { color: muted }]}>{accountSource ?? "NONE"}</Text></View>
         </Pressable>
