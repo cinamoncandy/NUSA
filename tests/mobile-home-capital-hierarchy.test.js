@@ -10,7 +10,7 @@ const portfolio = fs.readFileSync(path.join(process.cwd(), "apps/mobile/src/port
 test("HOME presents truthful PAPER equity and cumulative PnL basis in the canonical capital strip", () => {
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /label: "EQUITY"/);
-  assert.match(home, /value: krw\(account\?\.equity \?\? null\)/);
+  assert.match(home, /value: krw\(account\?\.equity\)/);
   assert.match(home, /label: "TOTAL PNL"/);
   assert.match(home, /value: signedMoney\(totalPnl\)/);
   assert.match(home, /label: "CASH"/);
