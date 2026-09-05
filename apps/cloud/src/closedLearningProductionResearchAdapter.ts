@@ -14,7 +14,7 @@ export interface ClosedLearningResearchReplayInputSource {
 
 export interface ClosedLearningProductionResearchAdapterOptions {
   readonly replayInput: ClosedLearningResearchReplayInputSource;
-  readonly worker: Pick<ClosedLearningResearchWorkerClient, "replay">;
+  readonly worker: Pick<ClosedLearningResearchWorkerClient, "replay" | "replayAsync">;
   readonly history: Pick<ClosedLearningResearchDecisionHistory, "persist">;
   readonly artifacts: QualifiedPaperChallengerArtifactWriter;
   readonly now?: () => number;
@@ -44,15 +44,17 @@ export class ClosedLearningProductionResearchAdapter implements ExistingResearch
     this.now = options.now ?? Date.now;
   }
 
-  public evaluate(input: ClosedLearningEvidenceIdentity & { readonly cycleId: string }): ClosedLearningResearchDecision {
+  private prepare(input: ClosedLearningEvidenceIdentity & { readonly cycleId: string }): ClosedLearningResearchReplayInput {
     const replayInput = this.options.replayInput.resolve(input);
     const originalRunFingerprintSha256 = replayInput.originalRunFingerprintSha256.trim().toLowerCase();
     if (!SHA256.test(originalRunFingerprintSha256)) throw new Error("closed learning original Research fingerprint is invalid");
     if (replayInput.paperEvidenceByCandidate == null || typeof replayInput.paperEvidenceByCandidate !== "object" || Array.isArray(replayInput.paperEvidenceByCandidate) || Object.keys(replayInput.paperEvidenceByCandidate).length === 0) {
       throw new Error("closed learning PAPER replay evidence is unavailable");
     }
+    return Object.freeze({ originalRunFingerprintSha256, paperEvidenceByCandidate: replayInput.paperEvidenceByCandidate });
+  }
 
-    const result = this.options.worker.replay(originalRunFingerprintSha256, replayInput.paperEvidenceByCandidate);
+  private finalize(originalRunFingerprintSha256: string, result: ClosedLearningResearchReplayResult): ClosedLearningResearchDecision {
     if (result.originalRunFingerprintSha256 !== originalRunFingerprintSha256) throw new Error("closed learning Research replay provenance conflict");
 
     // This persistence boundary MUST complete before an artifact can become visible to PAPER deployment.
@@ -87,5 +89,22 @@ export class ClosedLearningProductionResearchAdapter implements ExistingResearch
       decisionReference: replayDecisionId(result, "decision"),
       reasons: Object.freeze([...new Set(cycleReasons)].sort()),
     });
+  }
+
+  public evaluate(input: ClosedLearningEvidenceIdentity & { readonly cycleId: string }): ClosedLearningResearchDecision {
+    const replayInput = this.prepare(input);
+    return this.finalize(
+      replayInput.originalRunFingerprintSha256,
+      this.options.worker.replay(replayInput.originalRunFingerprintSha256, replayInput.paperEvidenceByCandidate),
+    );
+  }
+
+  /** Production runtime path: Research/League executes in a child process without blocking HTTP. */
+  public async evaluateAsync(input: ClosedLearningEvidenceIdentity & { readonly cycleId: string }): Promise<ClosedLearningResearchDecision> {
+    const replayInput = this.prepare(input);
+    return this.finalize(
+      replayInput.originalRunFingerprintSha256,
+      await this.options.worker.replayAsync(replayInput.originalRunFingerprintSha256, replayInput.paperEvidenceByCandidate),
+    );
   }
 }
