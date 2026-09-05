@@ -27,9 +27,18 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 );
 `;
 
+const LEGACY_DEPLOYED_MIGRATION_CHECKSUMS: Readonly<Record<string, readonly string[]>> = Object.freeze({
+  "020_evolution_learning_ledger": Object.freeze([
+    "8d008313d114cef09bd9cf3e51cebd32589fd0f99f676bcfc90fceb716c4cafd",
+  ]),
+});
+
 const migrationChecksum = (migration: SqliteMigration): string => createHash("sha256")
   .update(`${migration.id}\\n${migration.sql}`, "utf8")
   .digest("hex");
+
+const isAcceptedAppliedChecksum = (id: string, actual: string, expected: string): boolean =>
+  actual === expected || (LEGACY_DEPLOYED_MIGRATION_CHECKSUMS[id]?.includes(actual) ?? false);
 
 function assertMigrationPlan(migrations: readonly SqliteMigration[]): void {
   const seen = new Set<string>();
@@ -81,7 +90,9 @@ export function runMigrations(
     const migration = migrations.find((item) => item.id === id)!;
     const expected = migrationChecksum(migration);
     if (row.checksum == null) db.prepare("UPDATE schema_migrations SET checksum = ? WHERE id = ?").run(expected, id);
-    else if (String(row.checksum) !== expected) throw new Error(`database migration checksum mismatch: ${id}`);
+    else if (!isAcceptedAppliedChecksum(id, String(row.checksum), expected)) {
+      throw new Error(`database migration checksum mismatch: ${id}`);
+    }
   }
 
   const pending = migrations.filter((migration) => !appliedIds.has(migration.id));
