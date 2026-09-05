@@ -14,7 +14,7 @@ This deployment layer runs the existing `apps/cloud/src/runtime.ts` composition 
 
 ## Host layout
 
-- repository/build: `/opt/nusa`
+- repository/build: `<repo-root>/nusa`
 - protected runtime env: `/etc/nusa/cloud-paper.env` (`0600`)
 - durable SQLite state: `/var/lib/nusa/state.sqlite`
 - durable supervisor state: `/var/lib/nusa/supervisor.json`
@@ -23,7 +23,7 @@ This deployment layer runs the existing `apps/cloud/src/runtime.ts` composition 
 
 ## Install / update from an exact protected-main SHA
 
-1. Check out the exact protected-main SHA into `/opt/nusa` and run `corepack enable`, `corepack prepare pnpm@11.7.0 --activate`, `pnpm install --frozen-lockfile`, then `pnpm run build`.
+1. Check out the exact protected-main SHA into `<repo-root>/nusa` and run `corepack enable`, `corepack prepare pnpm@11.7.0 --activate`, `pnpm install --frozen-lockfile`, then `pnpm run build`.
 2. Create a dedicated unprivileged `nusa` user/group.
 3. Copy `cloud-paper.env.example` to `/etc/nusa/cloud-paper.env`, replace all `CHANGE_ME` values, set `NUSA_SOURCE_COMMIT` to the exact deployed 40-hex protected-main SHA, and `chmod 0600` the file.
 4. Install `nusa-cloud-paper.service`, then run `systemctl daemon-reload && systemctl enable --now nusa-cloud-paper`.
