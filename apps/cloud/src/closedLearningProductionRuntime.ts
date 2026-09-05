@@ -1,12 +1,16 @@
+import { createHash } from "node:crypto";
+import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
 import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
+import { SqlitePersistedPaperPeriodStore } from "../../../packages/storage/src/persistedPaperPeriodStore";
 import { readCloudRuntimeConfig } from "./cloudRuntimeConfig";
 import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { SqliteCloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
+import { CLOUD_PAPER_RISK_LIMITS } from "./cloudPaperCanonicalRiskGateway";
 import { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
 import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, type PaperAccountState } from "./paperTradingExecutionLoop";
 import { createCloudAiRuntime } from "./ai/runtime";
 import { registerGracefulShutdown, startCloudRuntime, type CloudRuntimeHandle } from "./runtime";
-import { readClosedLearningProductionConfig } from "./closedLearningProductionConfig";
+import { CLOSED_LEARNING_COST_MODEL_VERSION_V1, readClosedLearningProductionConfig } from "./closedLearningProductionConfig";
 import { ClosedLearningResearchWorkerClient } from "./closedLearningResearchWorkerClient";
 import { ClosedLearningResearchDecisionHistory } from "./closedLearningResearchDecisionHistory";
 import { FileQualifiedPaperChallengerArtifactStore } from "./qualifiedPaperChallengerArtifactStore";
@@ -15,6 +19,7 @@ import { ClosedLearningProductionResearchAdapter } from "./closedLearningProduct
 import { ClosedLearningEvolutionLedgerRepository } from "./closedLearningEvolutionLedgerRepository";
 import { ClosedLearningLoopCoordinator, type ClosedLearningCycleResult, type ClosedLearningEvidenceIdentity } from "./closedLearningLoopCoordinator";
 import { PaperChallengerDeploymentRuntime } from "./paperChallengerDeploymentRuntime";
+import { ClosedLearningPaperPeriodLifecycleScheduler, type ClosedLearningPaperPeriodLifecycleResult } from "./closedLearningPaperPeriodLifecycleScheduler";
 
 export interface ClosedLearningProductionComposition {
   readonly handle: CloudRuntimeHandle;
@@ -27,6 +32,16 @@ export interface ClosedLearningProductionComposition {
   readonly readCanonicalPaperAccount: () => PaperAccountState | undefined;
   /** Executes one replay-safe closed-learning cycle over an explicit immutable evidence identity. */
   readonly runClosedLearningCycle: (input: ClosedLearningEvidenceIdentity) => ClosedLearningCycleResult;
+  /** Executes one canonical period close/replay/rollover pass without waiting for the timer. */
+  readonly runClosedLearningLifecycleOnce: () => ClosedLearningPaperPeriodLifecycleResult | undefined;
+}
+
+function closedLearningRiskConfigHash(initialCapitalKrw: number): string {
+  return createHash("sha256").update(canonicalResearchJson(Object.freeze({
+    schemaVersion: 1,
+    initialCapitalKrw,
+    limits: CLOUD_PAPER_RISK_LIMITS,
+  })), "utf8").digest("hex");
 }
 
 /**
@@ -34,8 +49,9 @@ export interface ClosedLearningProductionComposition {
  *
  * One process owns the canonical SQLite database, PAPER account loop, realized-period producer,
  * Research replay worker boundary, complete denominator history, immutable challenger artifacts,
- * replay-safe cycle ledger, and next-PAPER deployment. No second PAPER writer, Research scoring
- * engine, LIVE route, or production champion mutation is introduced here.
+ * replay-safe cycle ledger, next-PAPER deployment, and evidence-period rollover scheduler. No
+ * second PAPER writer, Research scoring engine, LIVE route, or production champion mutation is
+ * introduced here.
  */
 export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = process.env): ClosedLearningProductionComposition {
   const config = readCloudRuntimeConfig(env);
@@ -76,10 +92,13 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     return account;
   };
 
-  // Adapt the exact realized-period producer already owned inside startCloudRuntime. No second
-  // realized-period repository is opened, which preserves the single-writer production boundary.
+  // Read pending-period identity from the same canonical SQLite connection. All realized-period
+  // mutations still go through the one producer already owned by startCloudRuntime.
+  const paperPeriodStore = new SqlitePersistedPaperPeriodStore(database);
   const periods = Object.freeze({
+    listOpenPeriods: () => paperPeriodStore.listPending(),
     listRealizedPeriods: () => handle.listPaperRealizedPeriods(),
+    closePeriodFromCanonicalAccount: (input: Parameters<CloudRuntimeHandle["closePaperRealizedPeriodFromCanonicalAccount"]>[0]) => handle.closePaperRealizedPeriodFromCanonicalAccount(input),
     openPeriodFromCanonicalAccount: (input: Parameters<CloudRuntimeHandle["openPaperRealizedPeriodFromCanonicalAccount"]>[0]) => handle.openPaperRealizedPeriodFromCanonicalAccount(input),
   });
   const replayInput = new ClosedLearningLineageReplayInputSource({
@@ -101,11 +120,38 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   });
   const coordinator = new ClosedLearningLoopCoordinator(cycleRepository, researchFactory, paperDeployment);
 
+  const sourceCommitSha = (env.NUSA_SOURCE_COMMIT?.trim() || env.GITHUB_SHA?.trim() || "").toLowerCase();
+  const lifecycle = paperLoop == null || config.paperInitialCapitalKrw === undefined
+    ? undefined
+    : new ClosedLearningPaperPeriodLifecycleScheduler({
+      periods,
+      bindings: challengerBindings,
+      artifacts,
+      coordinator,
+      readCanonicalPaperAccount,
+      sourceCommitSha,
+      costModelVersion: CLOSED_LEARNING_COST_MODEL_VERSION_V1,
+      riskConfigHash: closedLearningRiskConfigHash(config.paperInitialCapitalKrw),
+      periodWindowMs: closedLearningConfig.paperPeriodWindowMs,
+      intervalMs: closedLearningConfig.lifecycleIntervalMs,
+      onError: (error) => console.error("[closed-learning-lifecycle]", error.message),
+    });
+  lifecycle?.start();
+
+  const managedHandle: CloudRuntimeHandle = lifecycle == null ? handle : Object.freeze({
+    ...handle,
+    stop: async () => {
+      lifecycle.stop();
+      await handle.stop();
+    },
+  });
+
   return Object.freeze({
-    handle,
+    handle: managedHandle,
     challengerBindings,
     readCanonicalPaperAccount,
     runClosedLearningCycle: (input: ClosedLearningEvidenceIdentity) => coordinator.run(input),
+    runClosedLearningLifecycleOnce: () => lifecycle?.runOnce(),
   });
 }
 
