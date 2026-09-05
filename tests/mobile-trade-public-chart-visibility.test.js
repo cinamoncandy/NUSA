@@ -4,13 +4,15 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const read = (file) => fs.readFileSync(path.resolve(__dirname, "..", file), "utf8");
+const app = read("apps/mobile/App.tsx");
 const paper = read("apps/mobile/src/tradingView.tsx");
 const markets = read("apps/mobile/src/marketsView.tsx");
 
 test("public quotation stays on the observation surface, not the PAPER execution route", () => {
+  assert.match(app, /loadUpbitPublicMarkets/);
   assert.match(markets, /PUBLIC READ ONLY/);
-  assert.match(markets, /loadUpbitPublicMarkets/);
   assert.match(markets, /loadUpbitPublicCandles/);
+  assert.match(markets, /parseWatchlistMarkets/);
   assert.match(markets, /전략 신호나 주문 권한으로 자동 승격되지 않습니다/);
   assert.doesNotMatch(paper, /loadUpbitPublicMarkets|loadUpbitPublicCandles|CloudPaperPublicChart|paper-upbit-market-panel|paper-upbit-chart/);
 });
