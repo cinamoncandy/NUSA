@@ -27,11 +27,18 @@ test("canonical real-market run builds fixed parameter robustness evidence from 
   assert.equal(first.id, "real-run:upbit-days-example:parameter-robustness");
   assert.equal(first.market, "KRW-BTC");
   assert.strictEqual(first.candles, candles);
-  assert.deepEqual(first.referenceParameters, [{
-    source: "PRODUCTION_DEFAULT",
-    shortWindow: 5,
-    longWindow: 20
-  }]);
+  assert.deepEqual(first.referenceParameters, [
+    {
+      source: "PRODUCTION_DEFAULT",
+      shortWindow: 5,
+      longWindow: 20
+    },
+    {
+      source: "MANUAL_RESEARCH_REFERENCE",
+      shortWindow: 2,
+      longWindow: 8
+    }
+  ]);
   assert.deepEqual(first.neighborhood, {
     shortOffsets: [-2, -1, 0, 1, 2],
     longOffsets: [-5, -2, 0, 2, 5]
