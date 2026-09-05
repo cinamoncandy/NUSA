@@ -26,7 +26,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Reconcile Android stable deployment
+      - name: Reconcile exact-main verification and Android stable deployment
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -36,9 +36,45 @@ jobs:
           MAIN_SHA="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           printf '%s' "$MAIN_SHA" | grep -Eq '^[0-9a-fA-F]{40}$'
 
+          reconcile_exact_main_workflow() {
+            local workflow="$1"
+            local label="$2"
+            local runs_json success_id active_id current_main
+
+            runs_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs?branch=main&per_page=50")"
+            success_id="$(printf '%s' "$runs_json" | jq -r --arg sha "$MAIN_SHA" '[.workflow_runs[] | select(.head_sha == $sha and .status == "completed" and .conclusion == "success")][0].id // empty')"
+            if [ -n "$success_id" ]; then
+              echo "$label already has successful exact-main evidence: run $success_id."
+              return 0
+            fi
+
+            active_id="$(printf '%s' "$runs_json" | jq -r --arg sha "$MAIN_SHA" '[.workflow_runs[] | select(.head_sha == $sha and (.status == "queued" or .status == "in_progress" or .status == "pending"))][0].id // empty')"
+            if [ -n "$active_id" ]; then
+              echo "$label already active for exact main: run $active_id."
+              return 0
+            fi
+
+            current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+            if [ "$current_main" != "$MAIN_SHA" ]; then
+              echo "Main advanced during $label reconciliation; refusing stale dispatch."
+              return 0
+            fi
+
+            echo "$label exact-main evidence is absent; dispatching for $MAIN_SHA."
+            gh api --method POST \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/dispatches" \
+              -f ref=main
+          }
+
+          # GITHUB_TOKEN-authored merges can suppress downstream push workflows. Reconcile
+          # the exact-main evidence explicitly so autonomous merges cannot leave verification gaps.
+          reconcile_exact_main_workflow "ci.yml" "CI"
+          reconcile_exact_main_workflow "wo-0059-actual-paper-runtime.yml" "Actual PAPER"
+          reconcile_exact_main_workflow "mobile-native.yml" "Mobile Native"
+
           CI_CONCLUSION="$(
-            gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$MAIN_SHA&status=completed&per_page=100" \
-              --jq '[.workflow_runs[] | select(.path == ".github/workflows/ci.yml" and .head_sha == "'"$MAIN_SHA"'")][0].conclusion // empty'
+            gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&per_page=100" \
+              --jq '[.workflow_runs[] | select(.head_sha == "'"$MAIN_SHA"'" and .status == "completed")][0].conclusion // empty'
           )"
           if [ "$CI_CONCLUSION" != "success" ]; then
             echo "Exact-main CI is not successful yet; watchdog remains fail-closed."
