@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { bindPaperCandidateForExecution } from "../../../packages/contracts/src/paperCandidateExecutionBinding";
 import type { QualifiedPaperChallengerArtifact, QualifiedPaperChallengerArtifactReader } from "./paperChallengerDeploymentRuntime";
+import { validatePaperResearchLineage } from "./paperResearchLineage";
 
 interface StoredArtifact {
   readonly payload: QualifiedPaperChallengerArtifact;
@@ -30,12 +31,26 @@ function normalizedPayload(artifact: QualifiedPaperChallengerArtifact): Qualifie
   const market = artifact.market.trim().toUpperCase();
   if (artifact.schemaVersion !== 1 || !MARKET.test(market)) throw new Error("qualified PAPER challenger artifact schema or market is invalid");
   if (artifact.liveAuthority !== "NONE" || artifact.productionMutationAllowed !== false || artifact.aiAuthority !== "ZERO_AUTHORITY") throw new Error("qualified PAPER challenger artifact authority is invalid");
-  safeText(artifact.researchDecisionReference, "researchDecisionReference");
+  const researchDecisionReference = safeText(artifact.researchDecisionReference, "researchDecisionReference");
   const advisoryGeneratedAt = Date.parse(artifact.advisory.generatedAt);
   if (!Number.isSafeInteger(advisoryGeneratedAt) || advisoryGeneratedAt < 0 || advisoryGeneratedAt >= Number.MAX_SAFE_INTEGER) throw new Error("qualified PAPER challenger advisory timestamp is invalid");
   // Reuse the canonical candidate binding validator as the artifact provenance admission boundary.
   bindPaperCandidateForExecution(artifact.advisory, artifact.candidateProvenance, candidateId, advisoryGeneratedAt + 1);
-  return Object.freeze({ ...artifact, candidateId, candidateVersion, market, candidateProvenance: Object.freeze([...artifact.candidateProvenance]) });
+  const researchLineage = artifact.researchLineage == null ? undefined : validatePaperResearchLineage(artifact.researchLineage);
+  if (researchLineage != null && (
+    researchLineage.candidateId !== candidateId
+    || researchLineage.candidateVersion !== candidateVersion
+    || researchLineage.researchDecisionReference !== researchDecisionReference
+  )) throw new Error("qualified PAPER challenger Research lineage conflict");
+  return Object.freeze({
+    ...artifact,
+    candidateId,
+    candidateVersion,
+    market,
+    researchDecisionReference,
+    candidateProvenance: Object.freeze([...artifact.candidateProvenance]),
+    ...(researchLineage == null ? {} : { researchLineage }),
+  });
 }
 
 function encode(artifact: QualifiedPaperChallengerArtifact): StoredArtifact {

@@ -4,6 +4,7 @@ import { bindPaperCandidateForExecution } from "../../../packages/contracts/src/
 import type { PaperAccountState } from "./paperTradingExecutionLoop";
 import type { PaperRealizedPeriodOpenInput, PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
 import type { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
+import { samePaperResearchLineage, validatePaperResearchLineage, type PaperResearchLineage } from "./paperResearchLineage";
 import type {
   ClosedLearningPaperDeploymentReceipt,
   ClosedLearningResearchDecision,
@@ -18,6 +19,8 @@ export interface QualifiedPaperChallengerArtifact {
   readonly advisory: LeagueCapitalAllocationAdvisory;
   readonly candidateProvenance: readonly PersistedPaperCandidateProvenance[];
   readonly researchDecisionReference: string;
+  /** Legacy stored artifacts may omit lineage, but autonomous deployment must fail closed on them. */
+  readonly researchLineage?: PaperResearchLineage;
   readonly liveAuthority: "NONE";
   readonly productionMutationAllowed: false;
   readonly aiAuthority: "ZERO_AUTHORITY";
@@ -81,6 +84,9 @@ export class PaperChallengerDeploymentRuntime implements PaperChallengerDeployme
     if (artifact.schemaVersion !== 1 || artifact.candidateId !== candidateId || artifact.candidateVersion !== candidateVersion) throw new Error("qualified PAPER challenger artifact identity conflict");
     if (artifact.liveAuthority !== "NONE" || artifact.productionMutationAllowed !== false || artifact.aiAuthority !== "ZERO_AUTHORITY") throw new Error("qualified PAPER challenger artifact authority is invalid");
     if (artifact.researchDecisionReference !== input.decision.decisionReference) throw new Error("qualified PAPER challenger decision provenance conflict");
+    const researchLineage = artifact.researchLineage == null ? undefined : validatePaperResearchLineage(artifact.researchLineage);
+    if (researchLineage == null) throw new Error("qualified PAPER challenger Research lineage is unavailable");
+    if (researchLineage.candidateId !== candidateId || researchLineage.candidateVersion !== candidateVersion || researchLineage.researchDecisionReference !== input.decision.decisionReference) throw new Error("qualified PAPER challenger Research lineage conflict");
     const market = artifact.market.trim().toUpperCase();
     if (!MARKET.test(market)) throw new Error("qualified PAPER challenger market is invalid");
 
@@ -93,8 +99,9 @@ export class PaperChallengerDeploymentRuntime implements PaperChallengerDeployme
     const prior = this.options.bindings.current(market, periodStartAt);
     if (prior != null) {
       if (prior.binding.bindingFingerprintSha256 !== binding.bindingFingerprintSha256 || prior.binding.candidateId !== candidateId) throw new Error("another PAPER challenger is already active for this market");
+      if (prior.researchLineage == null || !samePaperResearchLineage(prior.researchLineage, researchLineage)) throw new Error("existing PAPER challenger Research lineage conflict");
     } else {
-      this.options.bindings.activate(market, binding);
+      this.options.bindings.activate(market, binding, researchLineage);
     }
 
     const periodIndex = nextPeriodIndex(this.options.periods.listRealizedPeriods());
