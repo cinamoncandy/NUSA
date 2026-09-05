@@ -24,7 +24,8 @@ test("Home uses the approved MASTER board hierarchy and keeps AI read-only", () 
 
   assert.match(source, />NUSA<\/Text>/);
   assert.match(source, />총 자산<\/Text>/);
-  assert.match(source, />오늘<\/Text>/);
+  assert.match(source, /\{rail\.pnlBasisLabel\}/);
+  assert.doesNotMatch(source, />오늘</);
   assert.match(source, />NUSA AI 판단<\/Text>/);
   assert.match(source, />신뢰도<\/Text>/);
   assert.match(source, /testID="home-signal-trace"/);

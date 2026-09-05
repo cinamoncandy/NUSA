@@ -87,7 +87,7 @@ function compareMarkets(left: WatchlistMarket, right: WatchlistMarket, sort: Wat
  * display. Invalid timestamps are skipped, never thrown: an unparseable row
  * must not take down the list. Returns null when nothing parseable exists.
  */
-export function freshestObservedAtMs(markets: readonly WatchlistMarket[]): number | null {
+export function freshestObservedAtMs(markets: readonly { readonly observedAt: string }[]): number | null {
   let latest: number | null = null;
   for (const market of markets) {
     const at = Date.parse(market.observedAt);

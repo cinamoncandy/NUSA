@@ -11,7 +11,8 @@ test("HOME matches the canonical NUSA master design board hierarchy", () => {
 
   assert.match(home, />NUSA<\/Text>/);
   assert.match(home, />총 자산<\/Text>/);
-  assert.match(home, />오늘<\/Text>/);
+  assert.match(home, /\{rail\.pnlBasisLabel\}/);
+  assert.doesNotMatch(home, />오늘</);
   assert.match(home, />NUSA AI 판단<\/Text>/);
   assert.match(home, /"NEUTRAL"/);
   assert.match(home, />신뢰도<\/Text>/);

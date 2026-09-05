@@ -5,6 +5,8 @@ import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperation
 import { buildLocalPortfolio, isLocalPaperActive } from "./localPaperLedger";
 import { useLocalPaperMarkPrice, useLocalPaperSnapshot } from "./localPaperLedgerHooks";
 import { selectHomeMarketData } from "./homeMarketData";
+import { buildHomeStatusRail } from "./homeStatusRail";
+import { freshestObservedAtMs } from "./watchlist";
 import type { WatchlistMarket } from "./watchlist";
 import type { PublicCandle } from "./chartViewModel";
 
@@ -64,6 +66,7 @@ export function HomeView({
   notConfigured,
   refreshing,
   publicMarkets,
+  publicMarketStale,
   onRefresh,
   onGoSettings,
   onNavigate,
@@ -98,6 +101,21 @@ export function HomeView({
   const muted = theme.colors.terrain;
   const positive = theme.colors.success;
   const negative = theme.colors.danger;
+  // First-viewport status rail (domain: homeStatusRail). Props are mapped from
+  // sources already on screen; nothing here invents market data.
+  const rail = buildHomeStatusRail({
+    paperState: snapshot == null ? (notConfigured ? "NOT_CONFIGURED" : "UNAVAILABLE") : snapshot.health === "HEALTHY" ? "READY" : snapshot.health === "DEGRADED" ? "DEGRADED" : "DOWN",
+    paperMode: snapshot?.mode ?? null,
+    killSwitchActive: snapshot?.dashboard.killSwitchActive ?? null,
+    snapshotGeneratedAtMs: snapshot?.generatedAt ?? null,
+    feedStale: publicMarketStale,
+    feedObservedAtMs: freshestObservedAtMs(marketRows),
+    nowMs: Date.now(),
+    // The PAPER contract carries no daily PnL field; the hero row below shows
+    // lifetime basis, so the label must say so (P0: never "오늘" on lifetime data).
+    hasDailyPnlBasis: false,
+  });
+  const riskTone = rail.risk === "HIGH" || rail.risk === "CRITICAL" ? negative : rail.risk === "CAUTION" || rail.risk === "ELEVATED" ? theme.colors.warning : theme.colors.textMuted;
   const fallbackJudgement = notConfigured ? "PAPER 연결이 필요합니다." : readOnlyError ? "연결 상태를 확인하고 있습니다." : "관망이 전략입니다.";
   const judgement = aiInsightAvailable ? (ai?.thesis ?? fallbackJudgement) : fallbackJudgement;
   const terrainStrength = aiInsightAvailable ? 0.92 : snapshot ? 0.62 : 0.45;
@@ -114,15 +132,20 @@ export function HomeView({
         <View style={styles.headerRight}>
           <View style={[styles.liveDot, { backgroundColor: accentMid }]} />
           <Text style={[styles.modeLabel, { color: theme.colors.textMuted }]}>PAPER</Text>
-          <View accessibilityLabel="알림" style={[styles.bell, { borderColor: border }]}><Text style={[styles.bellGlyph, { color: theme.colors.text }]}>⌁</Text></View>
         </View>
+      </View>
+
+      <View style={styles.statusRail} testID="home-status-rail">
+        <Text style={[styles.statusLine, { color: theme.colors.text }]}>{rail.marketLine} · {rail.systemLine}</Text>
+        <Text style={[styles.statusLine, { color: riskTone }]}>위험 {rail.riskLabel}</Text>
+        {rail.freshnessLabel === null ? null : <Text style={[styles.statusLine, { color: theme.colors.textMuted }]}>{rail.freshnessLabel} 업데이트</Text>}
       </View>
 
       <View style={styles.assetBlock} testID="account-hero-card">
         <Text style={[styles.sectionEyebrow, { color: theme.colors.textMuted }]}>총 자산</Text>
         <Text style={[styles.balance, tablet && styles.balanceTablet, { color: theme.colors.text }]} adjustsFontSizeToFit numberOfLines={1}>{equity == null ? "—" : krw(equity)}</Text>
         <View style={styles.dayRow}>
-          <Text style={[styles.dayLabel, { color: theme.colors.textMuted }]}>오늘</Text>
+          <Text style={[styles.dayLabel, { color: theme.colors.textMuted }]}>{rail.pnlBasisLabel}</Text>
           <Text style={[styles.dayChange, { color: totalPnl == null ? theme.colors.textMuted : totalPnl >= 0 ? positive : negative }]}>{signedPercent(dayPnlRate)}</Text>
           <Text style={[styles.dayChange, { color: totalPnl == null ? theme.colors.textMuted : totalPnl >= 0 ? positive : negative }]}>{totalPnl == null ? "—" : `${totalPnl >= 0 ? "+" : ""}${krw(totalPnl)}`}</Text>
         </View>
@@ -191,10 +214,10 @@ const styles = StyleSheet.create({
   header: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   wordmark: { fontSize: 27, lineHeight: 32, fontWeight: "900", letterSpacing: 4.4 },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
+  statusRail: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, paddingVertical: 6 },
+  statusLine: { fontSize: 11, lineHeight: 16, fontWeight: "800", fontVariant: ["tabular-nums"] },
   liveDot: { width: 7, height: 7, borderRadius: 4 },
   modeLabel: { fontSize: 10, lineHeight: 14, fontWeight: "800", letterSpacing: 1.2 },
-  bell: { width: 32, height: 32, borderWidth: StyleSheet.hairlineWidth, borderRadius: 16, alignItems: "center", justifyContent: "center", marginLeft: 4 },
-  bellGlyph: { fontSize: 17, fontWeight: "700" },
   assetBlock: { paddingTop: 4, paddingBottom: 4 },
   sectionEyebrow: { fontSize: 13, lineHeight: 18, fontWeight: "700" },
   balance: { marginTop: 4, fontSize: 42, lineHeight: 50, fontWeight: "900", letterSpacing: -1.8, fontVariant: ["tabular-nums"] },
