@@ -142,8 +142,10 @@ test("primary mobile workspaces keep bounded tablet widths and intentional respo
 
   assert.match(markets, /useWindowDimensions/);
   assert.match(markets, /minHeight: 48/);
-  assert.match(portfolio, /detailGrid: \{ flexDirection: "row", flexWrap: "wrap"/);
-  assert.match(portfolio, /detailCell: \{ flexGrow: 1, flexBasis: 420/);
+  assert.match(portfolio, /testID="portfolio-authority-rail"/);
+  assert.match(portfolio, /testID="portfolio-supervisor-summary"/);
+  assert.match(portfolio, /testID="portfolio-account-breakdown"/);
+  assert.match(portfolio, /maxWidth: 720/);
   assert.match(ai, /detailGrid: \{ flexDirection: "row", flexWrap: "wrap"/);
   assert.match(ai, /detailCell: \{ flexGrow: 1, flexBasis: 440/);
 });
