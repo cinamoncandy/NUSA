@@ -49,24 +49,29 @@ test("not-configured dashboard state is distinct from runtime errors", () => {
   assert.doesNotMatch(app, /error=\{readOnlyError \?\? notConfigured\}/);
 });
 
-test("Home hierarchy follows the approved AI-first master board while preserving verified safety state", () => {
+test("Home hierarchy follows the approved autonomous-intelligence board while preserving verified safety state", () => {
   const home = read("src/homeView.tsx");
+  assert.match(home, /testID="home-master-rail"/);
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /testID="ai-card"/);
   assert.match(home, /testID="home-signal-trace"/);
   assert.match(home, /testID="home-market-pulse"/);
+  assert.match(home, /testID="home-terminal-grid"/);
   assert.match(home, /testID="home-reference-navigation"/);
-  assert.match(home, />NUSA AI 판단<\/Text>/);
-  assert.match(home, />신뢰도<\/Text>/);
-  assert.match(home, />주요 지표<\/Text>/);
+  assert.match(home, />NUSA<\/Text>/);
+  assert.match(home, />AUTONOMOUS<\/Text>/);
+  assert.match(home, />INVESTMENT<\/Text>/);
+  assert.match(home, />INTELLIGENCE<\/Text>/);
+  assert.match(home, /✦ AI INSIGHT/);
+  for (const label of ["NOW", "WHY", "RESULT", "RISK", "LEARNING"]) assert.match(home, new RegExp(`label="${label}"`));
+  assert.match(home, /SIGNAL TERRAIN/);
+  assert.match(home, /PAPER PERFORMANCE/);
+  assert.match(home, /PORTFOLIO/);
+  assert.match(home, /RISK STATUS/);
+  assert.match(home, /testID="home-operational-notice"/);
+  assert.match(home, /buildHomeStatusRail/);
   assert.match(home, /testID="safety-card"/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
-  assert.doesNotMatch(home, /testID="home-supervisor-summary"/);
-  assert.doesNotMatch(home, /AI INSIGHT \/ SIGNAL TERRAIN/);
-  assert.doesNotMatch(home, /testID="home-paper-performance"/);
-  assert.doesNotMatch(home, /testID="home-supervisor-primary-action"/);
-  assert.doesNotMatch(home, /testID="operations-card"/);
-  assert.doesNotMatch(home, /testID="research-card"/);
   assert.doesNotMatch(home, /label="스케줄러"|label="대기 쓰기"|label="Champion"|label="Challenger"/);
   assert.doesNotMatch(home, /productionMutationAllowed:\s*true|authority:\s*"LIVE"/);
 });
