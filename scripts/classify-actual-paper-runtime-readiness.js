@@ -12,7 +12,10 @@ function classify(evidence) {
   const fillCount = Number.isSafeInteger(execution.fill_count)
     ? execution.fill_count
     : execution.fill_id ? 1 : 0;
-  const accountChanged = Number(firstRuntime.realizedPnl || 0) !== 0 || Number(firstRuntime.unrealizedPnl || 0) !== 0 || firstRuntime.position != null;
+  const positionQuantity = Number(firstRuntime?.position?.quantity || 0);
+  const accountChanged = Number(firstRuntime.realizedPnl || 0) !== 0
+    || Number(firstRuntime.unrealizedPnl || 0) !== 0
+    || (Number.isFinite(positionQuantity) && positionQuantity !== 0);
   const automaticExecutionObserved = orderCount > 0 && fillCount > 0;
   const completionStatus = automaticExecutionObserved && accountChanged
     ? "COMPLETE_AUTONOMOUS_EXECUTION_OBSERVED"
