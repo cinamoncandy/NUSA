@@ -83,9 +83,12 @@ function CloudPaperPublicChart() {
   </View>;
 }
 
-export function TradingView(props: TradingViewProps) {
+export function TradingView(props: TradingViewProps & { readonly credentialSession?: InMemoryDashboardCredentialSession }) {
   const { theme } = useTheme();
-  const credentialSession = useMemo(() => new InMemoryDashboardCredentialSession(), []);
+  const fallbackSession = useMemo(() => new InMemoryDashboardCredentialSession(), []);
+  // Prefer the App-owned session so the cloud/legacy branch matches the
+  // verified session elsewhere; the fallback preserves standalone usage.
+  const credentialSession = props.credentialSession ?? fallbackSession;
   const configuredEndpoint = getConfiguredPaperEndpoint();
   const cloudPaperConnected = Boolean(
     configuredEndpoint
