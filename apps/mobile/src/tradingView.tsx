@@ -70,7 +70,7 @@ function CloudPaperPublicChart() {
         <Text style={[styles.stepLabel, { color: theme.colors.textMuted }]}>UPBIT PUBLIC MARKET</Text>
         <Text style={[styles.panelTitle, { color: theme.colors.text }]}>KRW-BTC 1분 차트</Text>
       </View>
-      <StatusChip label={chartModel.state === "READY" ? "차트 LIVE" : "차트 대기"} tone={chartModel.state === "READY" ? "success" : "warning"} />
+      <StatusChip label={chartModel.state === "READY" ? "차트 수신 중" : "차트 대기"} tone={chartModel.state === "READY" ? "success" : "warning"} />
     </View>
     {chartModel.state === "READY" ? <View style={styles.miniChart} testID="paper-upbit-chart">
       {chartBars.map((bar) => <View key={bar.openTime} style={styles.chartColumn}>

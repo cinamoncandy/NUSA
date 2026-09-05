@@ -111,3 +111,12 @@ test("SELL has a holdings-based allocation panel and BUY shows a genuine post-or
   assert.match(source, /label="주문 후 투자 가능 현금" value=\{formatTradingAmount\(remainingInvestableCash,/);
   assert.doesNotMatch(source, /label="주문 후 보호 현금"/);
 });
+
+test("feed status chips never borrow the LIVE word (PAPER-only product)", () => {
+  for (const file of ["apps/mobile/src/tradingView.tsx", "apps/mobile/src/tradingViewLegacy.tsx"]) {
+    const source = fs.readFileSync(path.join(__dirname, "..", file), "utf8");
+    assert.match(source, /수신 중/);
+    assert.doesNotMatch(source, /차트 LIVE/);
+    assert.doesNotMatch(source, /PUBLIC LIVE/);
+  }
+});
