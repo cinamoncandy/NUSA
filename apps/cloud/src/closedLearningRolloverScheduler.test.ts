@@ -55,11 +55,11 @@ function account(updatedAt: number): PaperAccountState {
   });
 }
 
-function envelope(): PersistedPaperPeriodEnvelope {
+function envelope(recordId = "record-0", periodIndex = 0): PersistedPaperPeriodEnvelope {
   return Object.freeze({
     record: Object.freeze({
-      recordId: "record-0",
-      periodIndex: 0,
+      recordId,
+      periodIndex,
       market: "KRW-BTC",
       advisory: advisory(),
       periodStartAt: START,
@@ -67,7 +67,7 @@ function envelope(): PersistedPaperPeriodEnvelope {
       realizedReturns: Object.freeze({ "candidate-a": 0.01 }),
       benchmarkReturn: 0.005,
       turnoverCostRate: 0.001,
-      costEvidence: Object.freeze({ evidenceId: "cost-0", source: "PAPER_EXECUTION_RECEIPT" as const, evidenceKind: "OBSERVED" as const, evidenceFingerprintSha256: HASH, observedAt: NEXT_KST_DAY, feeRate: 0.0005, spreadRate: 0.0002, slippageRate: 0.0003 }),
+      costEvidence: Object.freeze({ evidenceId: `cost-${periodIndex}`, source: "PAPER_EXECUTION_RECEIPT" as const, evidenceKind: "OBSERVED" as const, evidenceFingerprintSha256: HASH, observedAt: NEXT_KST_DAY, feeRate: 0.0005, spreadRate: 0.0002, slippageRate: 0.0003 }),
       status: "COMPLETED" as const,
     }),
     candidateProvenance: Object.freeze([{ candidateId: "candidate-a", datasetId: "dataset-a", datasetContentSha256: HASH }]),
@@ -108,13 +108,21 @@ function cycle(outcome: "INSUFFICIENT" | "REJECTED" | "QUALIFIED_FOR_LEAGUE"): C
   });
 }
 
-function harness(options: { now: number; observation?: "FILLED" | "WAIT"; outcome?: "INSUFFICIENT" | "REJECTED" | "QUALIFIED_FOR_LEAGUE"; closeError?: Error; openPeriods?: readonly PersistedPaperRealizedPeriodPlan[] }) {
+function harness(options: {
+  now: number;
+  observation?: "FILLED" | "WAIT";
+  outcome?: "INSUFFICIENT" | "REJECTED" | "QUALIFIED_FOR_LEAGUE";
+  closeError?: Error;
+  openPeriods?: readonly PersistedPaperRealizedPeriodPlan[];
+  priorRealized?: readonly PersistedPaperPeriodEnvelope[];
+}) {
   const events: string[] = [];
   const closed = envelope();
   const openPeriods = options.openPeriods ?? [plan(options.observation ?? "FILLED")];
+  const realized = Object.freeze([...(options.priorRealized ?? []), closed]);
   const port: ClosedLearningRolloverPort = {
     listOpenPeriods: () => openPeriods,
-    listRealizedPeriods: () => Object.freeze([closed]),
+    listRealizedPeriods: () => realized,
     readCanonicalPaperAccount: () => account(options.now),
     closePeriodFromCanonicalAccount: ({ periodId, periodEndAt }) => {
       events.push(`close:${periodId}:${periodEndAt}`);
@@ -122,7 +130,7 @@ function harness(options: { now: number; observation?: "FILLED" | "WAIT"; outcom
       return closed;
     },
     openPeriodFromCanonicalAccount: (input) => { events.push(`open:${input.periodId}:${input.periodStartAt}:${input.periodIndex}`); return { ...plan("FILLED", input.periodId), ...input } as PersistedPaperRealizedPeriodPlan; },
-    buildEvidenceIdentity: () => { events.push("identity"); return identity(); },
+    buildEvidenceIdentity: (window) => { events.push(`identity:${window.realizedPeriods.map((item) => item.record.recordId).join(",")}`); return identity(); },
     runClosedLearningCycle: () => { events.push("cycle"); return cycle(options.outcome ?? "INSUFFICIENT"); },
   };
   return { scheduler: new ClosedLearningRolloverScheduler(port), events };
@@ -141,18 +149,19 @@ describe("ClosedLearningRolloverScheduler", () => {
     assert.deepEqual(events, []);
   });
 
-  it("closes exactly at canonical account updatedAt, evaluates, then reopens the same candidate after insufficient evidence", () => {
-    const { scheduler, events } = harness({ now: NEXT_KST_DAY, outcome: "INSUFFICIENT" });
+  it("passes the durable multi-period denominator to identity construction and continues the same candidate after insufficient evidence", () => {
+    const prior = envelope("record-prior", 0);
+    const { scheduler, events } = harness({ now: NEXT_KST_DAY, outcome: "INSUFFICIENT", priorRealized: [prior] });
     const result = scheduler.runOnce();
     assert.equal(result.status, "CLOSED_AND_EVALUATED");
-    assert.deepEqual(events.slice(0, 3), [`close:period-0:${NEXT_KST_DAY}`, "identity", "cycle"]);
-    assert.match(events[3]!, new RegExp(`^open:period-0:rollover:${NEXT_KST_DAY}:${NEXT_KST_DAY}:1$`));
+    assert.deepEqual(events.slice(0, 3), [`close:period-0:${NEXT_KST_DAY}`, "identity:record-prior,record-0", "cycle"]);
+    assert.equal(events[3], `open:closed-learning-rollover:1:${NEXT_KST_DAY}:${NEXT_KST_DAY}:1`);
   });
 
   it("does not open a duplicate period when a qualified cycle deploys its replacement challenger", () => {
     const { scheduler, events } = harness({ now: NEXT_KST_DAY, outcome: "QUALIFIED_FOR_LEAGUE" });
     assert.equal(scheduler.runOnce().status, "CLOSED_AND_EVALUATED");
-    assert.deepEqual(events, [`close:period-0:${NEXT_KST_DAY}`, "identity", "cycle"]);
+    assert.deepEqual(events, [`close:period-0:${NEXT_KST_DAY}`, "identity:record-0", "cycle"]);
   });
 
   it("fails closed on multiple open canonical periods", () => {
