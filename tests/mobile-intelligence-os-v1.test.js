@@ -9,14 +9,13 @@ const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 const home = read("apps/mobile/src/homeView.tsx");
 const markets = read("apps/mobile/src/marketsView.tsx");
 const paper = read("apps/mobile/src/tradingView.tsx");
+const paperMonitor = read("apps/mobile/src/paperLearningMonitorView.tsx");
 const portfolio = read("apps/mobile/src/portfolioView.tsx");
 const os = read("apps/mobile/src/intelligenceOs.tsx");
 const spec = read("docs/ux/NUSA_INTELLIGENCE_OS_V1.md");
 
 test("Intelligence OS keeps authority and data-integrity boundaries visible", () => {
-  for (const source of [home, markets, paper, portfolio, spec]) {
-    assert.match(source, /PAPER/);
-  }
+  for (const source of [home, markets, paper, portfolio, spec]) assert.match(source, /PAPER/);
   assert.match(home, /LIVE NONE · AI ZERO AUTHORITY/);
   assert.match(paper, /LIVE NONE · AI ZERO AUTHORITY/);
   assert.match(portfolio, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
@@ -25,30 +24,20 @@ test("Intelligence OS keeps authority and data-integrity boundaries visible", ()
 });
 
 test("HOME follows state -> capital truth -> reason -> risk -> observation -> execution -> learning", () => {
-  const anchors = [
-    'eyebrow="NOW"',
-    'testID="account-hero-card"',
-    'kicker="WHY · AI INSIGHT"',
-    'kicker="RISK STATUS"',
-    'kicker="SIGNAL TERRAIN"',
-    'kicker="PAPER PERFORMANCE"',
-    'kicker="LEARNING"',
-  ];
+  const anchors = ['eyebrow="NOW"','testID="account-hero-card"','kicker="WHY · AI INSIGHT"','kicker="RISK STATUS"','kicker="SIGNAL TERRAIN"','kicker="PAPER PERFORMANCE"','kicker="LEARNING"'];
   let cursor = -1;
-  for (const anchor of anchors) {
-    const next = home.indexOf(anchor);
-    assert.ok(next > cursor, `${anchor} must appear after the previous UX stage`);
-    cursor = next;
-  }
+  for (const anchor of anchors) { const next = home.indexOf(anchor); assert.ok(next > cursor, `${anchor} must appear after the previous UX stage`); cursor = next; }
   assert.match(home, /NO QUALIFIED SIGNAL/);
   assert.match(home, /UNKNOWN 값을 0으로|UNAVAILABLE|—/);
 });
 
-test("primary screens use one shared Intelligence OS grammar", () => {
+test("primary screens share Intelligence OS truth grammar while PAPER specializes as a learning monitor", () => {
   assert.match(home, /AuthorityRail/);
   assert.match(markets, /AuthorityRail/);
-  assert.match(paper, /AuthorityRail/);
   assert.match(portfolio, /AuthorityRail/);
+  assert.match(paper, /PaperLearningMonitorView/);
+  assert.match(paperMonitor, /PAPER LEARNING · READ ONLY/);
+  assert.match(paperMonitor, /DATA SOURCE/);
   assert.match(os, /minHeight: 48/);
   assert.match(os, /fontVariant: \["tabular-nums"\]/);
   assert.match(spec, /3 seconds/);
@@ -59,7 +48,8 @@ test("primary screens use one shared Intelligence OS grammar", () => {
 test("market observation is explicitly separated from strategy and order authority", () => {
   assert.match(markets, /관찰 데이터와 NUSA의 전략 판단을 분리/);
   assert.match(markets, /전략 신호나 주문 권한으로 자동 승격되지 않습니다/);
-  assert.match(paper, /공개 시장 관찰은 PAPER 전략 신호가 아니며 실제 주문 권한을 갖지 않습니다/);
+  assert.doesNotMatch(paper, /loadUpbitPublicMarkets|loadUpbitPublicCandles|CloudPaperPublicChart/);
+  assert.doesNotMatch(paper, /<LegacyTradingView \{\.\.\.props\} \/>/);
 });
 
 test("REAL_READ_ONLY is never presented as PAPER performance", () => {
