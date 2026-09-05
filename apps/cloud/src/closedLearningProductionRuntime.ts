@@ -35,10 +35,13 @@ export interface ClosedLearningProductionComposition {
   readonly readCanonicalPaperAccount: () => PaperAccountState | undefined;
   /** Executes one replay-safe closed-learning cycle over an explicit immutable evidence identity. */
   readonly runClosedLearningCycle: (input: ClosedLearningEvidenceIdentity) => ClosedLearningCycleResult;
+  readonly runClosedLearningCycleAsync: (input: ClosedLearningEvidenceIdentity) => Promise<ClosedLearningCycleResult>;
   /** Attempts initial canonical Research→PAPER deployment when no PAPER period has ever existed. */
   readonly runClosedLearningBootstrap: () => ClosedLearningInitialPaperBootstrapResult;
+  readonly runClosedLearningBootstrapAsync: () => Promise<ClosedLearningInitialPaperBootstrapResult>;
   /** Executes one production rollover decision against the canonical pending/realized ledgers. */
   readonly runClosedLearningRollover: () => ClosedLearningRolloverResult;
+  readonly runClosedLearningRolloverAsync: () => Promise<ClosedLearningRolloverResult>;
 }
 
 /**
@@ -118,6 +121,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   });
   const coordinator = new ClosedLearningLoopCoordinator(cycleRepository, researchFactory, paperDeployment);
   const runClosedLearningCycle = (input: ClosedLearningEvidenceIdentity): ClosedLearningCycleResult => coordinator.run(input);
+  const runClosedLearningCycleAsync = (input: ClosedLearningEvidenceIdentity): Promise<ClosedLearningCycleResult> => coordinator.runAsync(input);
 
   const bootstrap = new ClosedLearningInitialPaperBootstrap({
     snapshots: replaySnapshots,
@@ -129,6 +133,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     listRealizedPeriods: periods.listRealizedPeriods,
   });
   const runClosedLearningBootstrap = (): ClosedLearningInitialPaperBootstrapResult => bootstrap.runOnce();
+  const runClosedLearningBootstrapAsync = (): Promise<ClosedLearningInitialPaperBootstrapResult> => bootstrap.runOnceAsync();
 
   const evidenceIdentity = new ClosedLearningEvidenceIdentitySource({
     bindings: challengerBindings,
@@ -143,37 +148,78 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     openPeriodFromCanonicalAccount: periods.openPeriodFromCanonicalAccount,
     buildEvidenceIdentity: (window) => evidenceIdentity.build(window),
     runClosedLearningCycle,
+    runClosedLearningCycleAsync,
   });
   const runClosedLearningRollover = (): ClosedLearningRolloverResult => rollover.runOnce();
+  const runClosedLearningRolloverAsync = (): Promise<ClosedLearningRolloverResult> => rollover.runOnceAsync();
 
-  // Recovery/bootstrap must not wait for a human or app launch. Bootstrap is eligible only before
-  // any PAPER history exists; rollover remains the sole path after the first canonical period.
-  runClosedLearningBootstrap();
-  runClosedLearningRollover();
-  const rolloverTimer = setInterval(() => {
-    runClosedLearningBootstrap();
-    runClosedLearningRollover();
-  }, CLOSED_LEARNING_ROLLOVER_POLL_INTERVAL_MS);
-  rolloverTimer.unref?.();
-
+  // Closed learning is serialized and asynchronous. Research/League can be CPU-heavy on the
+  // Oracle host, but it must never block the Node HTTP loop that serves /health, /ready, or the
+  // monitoring UI. The async child-process boundary preserves all existing mutation ordering.
+  let stopping = false;
+  let closedLearningTick: Promise<void> | undefined;
+  let initialTimer: ReturnType<typeof setTimeout> | undefined;
+  let rolloverTimer: ReturnType<typeof setInterval> | undefined;
   let stopPromise: Promise<void> | undefined;
+
+  const runClosedLearningTick = (): Promise<void> => {
+    if (stopping) return Promise.resolve();
+    if (closedLearningTick != null) return closedLearningTick;
+    const task = (async () => {
+      await runClosedLearningBootstrapAsync();
+      await runClosedLearningRolloverAsync();
+    })();
+    closedLearningTick = task;
+    task.then(
+      () => { if (closedLearningTick === task) closedLearningTick = undefined; },
+      () => { if (closedLearningTick === task) closedLearningTick = undefined; },
+    );
+    return task;
+  };
+
   const handle: CloudRuntimeHandle = Object.freeze({
     ...baseHandle,
     stop: () => {
       if (stopPromise != null) return stopPromise;
-      clearInterval(rolloverTimer);
-      stopPromise = Promise.resolve(baseHandle.stop());
+      stopping = true;
+      if (initialTimer != null) clearTimeout(initialTimer);
+      if (rolloverTimer != null) clearInterval(rolloverTimer);
+      const pending = closedLearningTick;
+      stopPromise = (async () => {
+        if (pending != null) {
+          try { await pending; } catch { /* fail-closed shutdown continues */ }
+        }
+        await baseHandle.stop();
+      })();
       return stopPromise;
     },
   });
+
+  const failClosedScheduler = (error: unknown): void => {
+    const detail = error instanceof Error && error.message.trim() ? error.message.trim().slice(0, 500) : "CLOSED_LEARNING_SCHEDULER_FAILED";
+    console.error(`[closed-learning] scheduler failed closed: ${detail}`);
+    process.exitCode = 1;
+    void handle.stop();
+  };
+  const scheduleTick = (): void => { void runClosedLearningTick().catch(failClosedScheduler); };
+
+  // Recovery/bootstrap must not wait for a human or app launch. Defer the first async tick just
+  // enough for the HTTP listener to become serviceable, then keep one serialized rollover poll.
+  initialTimer = setTimeout(scheduleTick, 0);
+  initialTimer.unref?.();
+  rolloverTimer = setInterval(scheduleTick, CLOSED_LEARNING_ROLLOVER_POLL_INTERVAL_MS);
+  rolloverTimer.unref?.();
 
   return Object.freeze({
     handle,
     challengerBindings,
     readCanonicalPaperAccount,
     runClosedLearningCycle,
+    runClosedLearningCycleAsync,
     runClosedLearningBootstrap,
+    runClosedLearningBootstrapAsync,
     runClosedLearningRollover,
+    runClosedLearningRolloverAsync,
   });
 }
 
