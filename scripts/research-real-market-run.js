@@ -24,7 +24,7 @@ const { buildResearchRunProvenancePlan } = require("../dist/apps/desktop/src/clo
 const STRATEGY_FAMILY_ID = "sma-crossover";
 const MARKET = "KRW-BTC";
 const RESEARCH_MARKETS = Object.freeze(["KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-SOL", "KRW-DOGE"]);
-const DEFAULT_CANDLE_COUNT = 1000;
+const DEFAULT_CANDLE_COUNT = 2000;
 const DAY_MS = 86_400_000;
 const REQUEST_THROTTLE_MS = 150;
 

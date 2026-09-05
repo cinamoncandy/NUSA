@@ -24,7 +24,7 @@ function pageFor(request) {
 }
 
 test("research horizon is bounded and never selected from performance", () => {
-  assert.equal(researchCandleCount(undefined), 1000);
+  assert.equal(researchCandleCount(undefined), 2000);
   for (const value of [200, 1000, 2000]) assert.equal(researchCandleCount(String(value)), value);
   for (const value of [0, 199, 2001, Infinity, "", "200.5", "1e3", " 200", null]) {
     assert.throws(() => researchCandleCount(value), /integer from 200 to 2000/);
@@ -85,14 +85,14 @@ test("fast SMA cells are covered by a predeclared robustness reference without r
   }
 });
 
-test("five pages restore 1000 completed days with stable request provenance and checksum", async () => {
+test("ten pages restore 2000 completed days with stable request provenance and checksum", async () => {
   const pauses = [];
   const options = { dataAsOf, fetchPage: pageFor, pause: async (ms) => pauses.push(ms) };
   const first = await fetchResearchCandles(options);
   const second = await fetchResearchCandles({ ...options, fetchPage: (request) => pageFor(request).reverse() });
   assert.deepEqual(first, second);
-  assert.equal(first.candles.length, 1000);
-  assert.equal(first.sourceRequests.length, 5);
+  assert.equal(first.candles.length, 2000);
+  assert.equal(first.sourceRequests.length, 10);
   assert.equal(first.candles.at(-1).closeTime, Math.floor(dataAsOf / DAY) * DAY);
   assert.ok(pauses.every((ms) => ms >= 100));
   const manifest = (result) => createHistoricalDatasetManifest(result.candles, {
