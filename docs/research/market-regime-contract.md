@@ -9,7 +9,7 @@ not change any production strategy setting.
 
 ## Scope decision
 
-`apps/desktop/src/marketRegime.ts` **already implements** the trailing-only classifier
+`apps/desktop/src/strategy/marketRegime.ts` **already implements** the trailing-only classifier
 this work order specifies — trend from a trailing log return over `trendLookback`,
 realized volatility from the population standard deviation of trailing log returns over
 `volatilityLookback`, warm-up windows labeled `UNKNOWN`, a SHA-256 classifier id over
@@ -111,7 +111,7 @@ regime. No per-regime cost tuning is possible.
 `scripts/lib/regime-analysis-verifier.js` does not call the runner's segment builder,
 attribution, or assessment functions — **and does not call the production classifier
 either**. It re-implements the trailing-only labeling from the raw candles with its own
-arithmetic, so a bug in `apps/desktop/src/marketRegime.ts` could not hide behind a
+arithmetic, so a bug in `apps/desktop/src/strategy/marketRegime.ts` could not hide behind a
 verifier that simply asked that same module what the answer was. It then independently
 checks segment tiling, coverage, the trade/PnL/fee partition, the rare-regime gate, the
 `STRONG` survival requirement, cost monotonicity, transition ordering, and every hash.

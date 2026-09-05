@@ -98,7 +98,7 @@ async function waitFor(runtime) {
 }
 
 test("N-version comparison is off by default and cannot appear without explicit composition", async () => {
-  let now = observedAt + 100;
+  const now = observedAt + 100;
   const runtime = createCloudAiRuntime({ NUSA_AI_ENABLED: "true" }, primaryProvider, { now: () => now, minimumCadenceMs: 0, maximumResultAgeMs: 10000, nVersionEvaluator: null });
   assert.equal(runtime.schedule(orchestrationInput("default-off")), true);
   await waitFor(runtime);
@@ -107,7 +107,7 @@ test("N-version comparison is off by default and cannot appear without explicit 
 });
 
 test("Cloud runtime runs an injected N-version evaluator on the same evidence and attaches only read-only evidence", async () => {
-  let now = observedAt + 100;
+  const now = observedAt + 100;
   let received = null;
   const evaluator = { run: async (input) => { received = input; return comparison("DISAGREEMENT"); } };
   const runtime = createCloudAiRuntime({ NUSA_AI_ENABLED: "true" }, primaryProvider, { now: () => now, minimumCadenceMs: 0, maximumResultAgeMs: 10000, nVersionEvaluator: evaluator });

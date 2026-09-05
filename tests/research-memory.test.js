@@ -39,7 +39,7 @@ test("research memory transaction rollback preserves prior durable state on writ
 });
 
 test("research memory survives restart and retains dataset-linked experiment", () => {
-  const filename = file(); let first = new SqliteDatabase(filename); let memory = new SqliteResearchMemoryRepository(first); memory.appendHypothesis(hypothesis()); memory.appendExperiment(experiment()); first.close();
+  const filename = file(); const first = new SqliteDatabase(filename); let memory = new SqliteResearchMemoryRepository(first); memory.appendHypothesis(hypothesis()); memory.appendExperiment(experiment()); first.close();
   const reopened = new SqliteDatabase(filename); memory = new SqliteResearchMemoryRepository(reopened);
   assert.equal(memory.getExperiment(experiment().id).contentSha256, "a".repeat(64)); assert.equal(memory.listExperiments(experiment().datasetId).length, 1); reopened.close();
 });

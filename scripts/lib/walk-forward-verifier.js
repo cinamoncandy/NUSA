@@ -8,8 +8,6 @@
  */
 const { canonicalHash } = require("./canonical-hash.js");
 
-function isFiniteNumber(value) { return typeof value === "number" && Number.isFinite(value); }
-
 function rebuildBoundaries(candles, windows) {
   const { trainingCandles, validationCandles, testCandles, stepCandles } = windows;
   const boundaries = [];

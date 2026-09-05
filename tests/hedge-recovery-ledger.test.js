@@ -24,10 +24,10 @@ const appendStored = (store, records, nextEvent) => {
 test("persists and replays partial-fill recovery across restart", () => {
   const db = new SqliteDatabase(":memory:");
   const store = new SqliteHedgeRecoveryStore(db);
-  let records = [];
-  records = appendStored(store, records, event());
-  records = appendStored(store, records, event({ action: "CANCEL_REMAINING", reason: "cancelled open remainder", recordedAt: 1_001 }));
-  records = appendStored(store, records, event({ action: "COMPENSATE", status: "REBALANCING", actualDelta: 0.1, reason: "paper compensation filled", recordedAt: 1_002 }));
+  let _records = [];
+  _records = appendStored(store, _records, event());
+  _records = appendStored(store, _records, event({ action: "CANCEL_REMAINING", reason: "cancelled open remainder", recordedAt: 1_001 }));
+  _records = appendStored(store, _records, event({ action: "COMPENSATE", status: "REBALANCING", actualDelta: 0.1, reason: "paper compensation filled", recordedAt: 1_002 }));
 
   const restarted = new SqliteHedgeRecoveryStore(db);
   const replayed = replayHedgeRecoveryLedger(restarted.list("hedge-1"));
@@ -40,8 +40,8 @@ test("persists and replays partial-fill recovery across restart", () => {
 test("durably records unresolved exposure and kill-switch recommendation", () => {
   const db = new SqliteDatabase(":memory:");
   const store = new SqliteHedgeRecoveryStore(db);
-  let records = appendStored(store, [], event());
-  records = appendStored(store, records, event({ action: "KILL_SWITCH_RECOMMENDED", status: "FAULTED", reason: "unhedged exposure unresolved", recordedAt: 1_001 }));
+  let _records = appendStored(store, [], event());
+  _records = appendStored(store, _records, event({ action: "KILL_SWITCH_RECOMMENDED", status: "FAULTED", reason: "unhedged exposure unresolved", recordedAt: 1_001 }));
   const state = store.loadState("hedge-1");
   assert.equal(state.status, "FAULTED");
   assert.equal(state.killSwitchRecommended, true);

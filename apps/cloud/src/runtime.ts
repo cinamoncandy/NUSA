@@ -14,7 +14,7 @@ import { createShutdownController, type ShutdownController } from "./cloudRuntim
 import { startCloudDashboardServer, type CloudDashboardServerHandle, type CloudReadinessSnapshot } from "./server";
 import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { UpbitWebSocketClient, type UpbitOrderBook, type UpbitTicker, type UpbitWebSocketOptions } from "./upbitWebSocket";
-import { upbitTickerToIntelligenceObservation } from "./upbitTickerObservation";
+import { classifyTickerRejectReason, upbitTickerToIntelligenceObservation } from "./upbitTickerObservation";
 import type { IntelligenceObservation } from "./marketIntelligenceFusion";
 import type { ResearchRuntimeMarketDataTick } from "./researchRuntimeCoordinator";
 import type { ResearchRecoveryResult } from "../../../packages/contracts/src/researchRecovery";
@@ -115,8 +115,12 @@ function buildCloudRuntimeReadiness(durableRepository: CloudDashboardSnapshotRep
   if (!(durableRepository instanceof SqliteCloudDashboardSnapshotRepository)) return failed();
   try {
     const db = durableRepository.database();
-    const quickCheck = db.connection.prepare("PRAGMA quick_check").get() as Record<string, unknown> | undefined;
-    const database = quickCheck != null && Object.values(quickCheck).includes("ok");
+    // Readiness runs on the HTTP event loop. A full-file PRAGMA quick_check can take
+    // seconds on the production ledger and starve even the O(1) /health endpoint.
+    // Probe the already-open canonical connection here; migration/persistence/recovery
+    // checks below still fail closed on an unreadable or inconsistent runtime store.
+    const databaseProbe = db.connection.prepare("SELECT 1 AS ready").get() as Record<string, unknown> | undefined;
+    const database = Number(databaseProbe?.ready ?? 0) === 1;
     const latestMigration = db.connection.prepare("SELECT id FROM schema_migrations ORDER BY id DESC LIMIT 1").get() as Record<string, unknown> | undefined;
     const migrations = db.migrationResult.currentVersion !== undefined && String(latestMigration?.id ?? "") === db.migrationResult.currentVersion;
     const dashboardState = effectiveProvider.read({ userId: "operator", scopes: ["dashboard:read"] });
@@ -285,7 +289,14 @@ export function startCloudRuntime(
     catch { heartbeat.lastError = "PAPER_MARKET_OBSERVATION_REJECTED"; }
     const now = Date.now();
     const observation = upbitTickerToIntelligenceObservation(ticker, { now });
-    if (!observation) { heartbeat.lastError = "PUBLIC_MARKET_EVENT_REJECTED"; safeHydrate([]); return; }
+    if (!observation) {
+      // P2 diagnostic suffix only: an operator can now tell a silent feed
+      // (FEED_STALE / FUTURE_MARKET_TIMESTAMP, e.g. host clock skew) from a
+      // malformed tick. Rejection behavior is unchanged — still fail-closed.
+      heartbeat.lastError = `PUBLIC_MARKET_EVENT_REJECTED:${classifyTickerRejectReason(ticker, { now })}`;
+      safeHydrate([]);
+      return;
+    }
     observations.set(observation.id, observation); while (observations.size > 50) observations.delete(observations.keys().next().value!); safeHydrate([...observations.values()]);
     const researchTick = { market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, now };
     try { effectiveResearchRuntime?.onMarketData(researchTick); } catch { /* isolated */ }

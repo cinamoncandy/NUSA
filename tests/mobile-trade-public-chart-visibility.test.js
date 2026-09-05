@@ -3,28 +3,23 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const tradingViewSource = fs.readFileSync(
-  path.resolve(__dirname, "../apps/mobile/src/tradingView.tsx"),
-  "utf8",
-);
+const read = (file) => fs.readFileSync(path.resolve(__dirname, "..", file), "utf8");
+const app = read("apps/mobile/App.tsx");
+const paper = read("apps/mobile/src/tradingView.tsx");
+const markets = read("apps/mobile/src/marketsView.tsx");
 
-test("TRADE public quotation stays independent from PAPER execution transport", () => {
-  const effectStart = tradingViewSource.indexOf("const refreshTradePublicMarket = async");
-  const effectEnd = tradingViewSource.indexOf("const chartModel = buildChartViewModel");
-  assert.ok(effectStart > 0, "public quotation refresh effect must exist");
-  assert.ok(effectEnd > effectStart, "public quotation refresh effect must complete before chart projection");
-
-  const marketEffect = tradingViewSource.slice(effectStart, effectEnd);
-  assert.match(marketEffect, /loadUpbitPublicMarkets\(\)/);
-  assert.match(marketEffect, /loadUpbitPublicCandles\(/);
-  assert.doesNotMatch(marketEffect, /usingLocalPaper/);
+test("public quotation stays on the observation surface, not the PAPER execution route", () => {
+  assert.match(app, /loadUpbitPublicMarkets/);
+  assert.match(markets, /PUBLIC READ ONLY/);
+  assert.match(markets, /loadUpbitPublicCandles/);
+  assert.match(markets, /parseWatchlistMarkets/);
+  assert.match(markets, /전략 신호나 주문 권한으로 자동 승격되지 않습니다/);
+  assert.doesNotMatch(paper, /loadUpbitPublicMarkets|loadUpbitPublicCandles|CloudPaperPublicChart|paper-upbit-market-panel|paper-upbit-chart/);
 });
 
-test("TRADE public chart is explicitly rendered for verified Cloud PAPER while legacy LOCAL PAPER stays intact", () => {
-  assert.match(tradingViewSource, /cloudPaperConnected/);
-  assert.match(tradingViewSource, /if \(!cloudPaperConnected\) return <LegacyTradingView/);
-  assert.match(tradingViewSource, /<CloudPaperPublicChart \/>/);
-  assert.match(tradingViewSource, /testID="paper-upbit-market-panel"/);
-  assert.match(tradingViewSource, /testID="paper-upbit-chart"/);
-  assert.match(tradingViewSource, /Upbit 공개 시세 · 읽기 전용 · PAPER 실행 경로와 독립/);
+test("production PAPER is a read-only learning monitor and never exposes a manual workspace", () => {
+  assert.match(paper, /PaperLearningMonitorView/);
+  assert.match(paper, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
+  assert.doesNotMatch(paper, /<LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.doesNotMatch(paper, /CLOUD PAPER NOT CONNECTED|EXECUTION WORKSPACE|SIMULATED EXECUTION/);
 });

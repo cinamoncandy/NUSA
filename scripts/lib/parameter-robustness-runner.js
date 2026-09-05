@@ -180,7 +180,6 @@ function runParameterRobustnessRequest(request, options = {}) {
     return { schemaVersion: 1, requestId: request.id, status: "FAIL", references: [], candidates: grid, aggregate: null, warnings: [], failures: ["no valid candidate could be constructed from the declared neighborhood"], hashes: null };
   }
 
-  const baseCost = request.costConditions.find((c) => c.name === "BASE");
   const execConfigFor = (cost) => ({ market: request.market, initialCash: request.execution.initialCash, feeRate: cost.feeRate, orderQuantity: request.execution.orderQuantity, riskPolicy: request.execution.riskPolicy, executionCosts: { spreadBps: request.execution.executionCosts?.spreadBps ?? 0, slippageBps: cost.slippageBps } });
 
   const failures = [];

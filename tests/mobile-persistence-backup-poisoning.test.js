@@ -53,3 +53,15 @@ test("a self-consistent (uncorrupted) current primary is still rotated into the 
   const backup = JSON.parse(s.values["portfolio:backup"]);
   assert.deepEqual(backup.value, { equity: 100 }, "ordinary backup rotation must be unaffected by this fix");
 });
+
+test("a corrupted backup fails with a named error instead of a raw SyntaxError", async () => {
+  const s = storage();
+  const store = new VersionedJsonStore(s, "portfolio", 1, (value) => { if (!value || typeof value !== "object") throw new Error("invalid"); return value; });
+
+  s.values.portfolio = "not-json-garbage";
+  s.values["portfolio:backup"] = "also-not-json{{{";
+  await assert.rejects(() => store.load(), /backup data is invalid/);
+
+  s.values["portfolio:backup"] = JSON.stringify({ version: 1, value: { equity: 50 }, checksum: "wrong" });
+  await assert.rejects(() => store.load(), /backup data is invalid/);
+});

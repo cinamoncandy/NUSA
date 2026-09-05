@@ -10,16 +10,21 @@ function expectTabularStyle(source, styleName) {
   assert.match(source, new RegExp(`${styleName}: \\{[^}]*fontVariant: \\["tabular-nums"\\]`), `${styleName} must use tabular numerals`);
 }
 
-test("primary financial values use stable tabular numerals outside DataRow", () => {
+test("primary financial values use stable tabular numerals through the shared Intelligence OS primitives", () => {
   const home = read("apps/mobile/src/homeView.tsx");
+  const intelligence = read("apps/mobile/src/intelligenceOs.tsx");
   const primitives = read("apps/mobile/src/uxPrimitives.tsx");
   const portfolio = read("apps/mobile/src/portfolioView.tsx");
   const trading = read("apps/mobile/src/tradingViewLegacy.tsx");
   const watchlist = read("apps/mobile/src/watchlistView.tsx");
 
-  for (const style of ["supervisorValue", "cashValue"]) expectTabularStyle(home, style);
+  assert.match(home, /<MetricStrip testID="account-hero-card"/);
+  assert.match(portfolio, /<MetricStrip testID="portfolio-supervisor-summary"/);
+  assert.match(portfolio, /<FactRow label="INVESTMENT LIMIT"/);
+  assert.match(portfolio, /<FactRow label="CURRENT PRICE"/);
+  expectTabularStyle(intelligence, "metricValue");
+  expectTabularStyle(intelligence, "factValue");
   expectTabularStyle(primitives, "compactMetricValue");
-  for (const style of ["allocationValue", "splitValue", "positionValue"]) expectTabularStyle(portfolio, style);
   expectTabularStyle(trading, "price");
   for (const style of ["price", "change", "volumeInline"]) expectTabularStyle(watchlist, style);
 });
@@ -37,7 +42,7 @@ test("touch-target policy is truthful: standard controls 48px, compact controls 
   assert.match(watchlist, /favorite: \{[^}]*minWidth: 52, minHeight: 48/);
 });
 
-test("closeout preserves PAPER-only mutation semantics while local PAPER stays independent of cloud runtime", () => {
+test("closeout preserves PAPER-only semantics while production PAPER is supervision-only", () => {
   const app = read("apps/mobile/App.tsx");
   const ai = read("apps/mobile/src/aiView.tsx");
   const tradingShell = read("apps/mobile/src/tradingView.tsx");
@@ -46,7 +51,8 @@ test("closeout preserves PAPER-only mutation semantics while local PAPER stays i
   assert.match(app, /PAPER/);
   assert.match(ai, /READ ONLY/);
   assert.match(tradingShell, /TradingView as LegacyTradingView/);
-  assert.match(tradingShell, /<LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.match(tradingShell, /PaperLearningMonitorView/);
+  assert.doesNotMatch(tradingShell, /<LegacyTradingView \{\.\.\.props\} \/>/);
   assert.match(trading, /Production mutation 금지/);
   assert.match(trading, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
   assert.match(trading, /const cloudPaperSubmitAvailable = runtimeCanSubmit && !usingLocalPaper/);

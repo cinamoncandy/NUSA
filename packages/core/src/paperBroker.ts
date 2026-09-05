@@ -108,7 +108,19 @@ const LEDGER_REPLAY_SCALE = 100_000_000n;
 
 function toScaledLedgerAmount(amount: number): bigint {
   if (!Number.isFinite(amount)) throw new Error("ledger amount must be finite");
-  return BigInt(Math.round(amount * Number(LEDGER_REPLAY_SCALE)));
+  // Exact decimal conversion, unified with FixedPrecision.toUnits: the
+  // decimal text of the double (12dp) is scaled to 8dp with round-half-up.
+  // The previous `BigInt(Math.round(amount * SCALE))` multiplied in binary
+  // float first, silently losing units once |amount| * 1e8 exceeds 2^53
+  // (around the 9e7 scale — ordinary KRW paper-account territory).
+  const negative = amount < 0;
+  const text = Math.abs(amount).toFixed(12);
+  if (text.includes("e") || text.includes("E")) throw new Error("ledger amount out of exact-decimal range");
+  const [intPart, fracPart = ""] = text.split(".");
+  const digits = (intPart + fracPart.padEnd(12, "0")).replace(/^0+(?=\d)/, "");
+  const raw = BigInt(digits === "" ? "0" : digits);
+  const scaled = (raw + 5000n) / 10000n;
+  return negative ? -scaled : scaled;
 }
 
 function fromScaledLedgerAmount(amount: bigint): number {
@@ -138,6 +150,37 @@ function isAlignedToTick(value: number, tick: number): boolean {
   return Math.abs(units - Math.round(units)) < 1e-6;
 }
 
+/**
+ * Exact scaled-integer replay cursor. `projectFromLedger` rebuilds it from
+ * scratch (restore/verify path); `execute` advances it by exactly one entry
+ * (hot path). Both paths share `applyReplayEntry`, so incremental and full
+ * replay are identical by construction rather than by parallel logic.
+ */
+interface ReplayState {
+  cash: bigint;
+  quantity: bigint;
+  costBasis: bigint;
+  realizedPnl: bigint;
+}
+
+function applyReplayEntry(state: ReplayState, entry: PaperLedgerEntry): void {
+  const entryQuantity = toScaledLedgerAmount(entry.quantity);
+  const entryPrice = toScaledLedgerAmount(entry.price);
+  const entryFee = toScaledLedgerAmount(entry.fee);
+  if (entry.side === "BUY") {
+    state.cash -= (entryQuantity * entryPrice) / LEDGER_REPLAY_SCALE + entryFee;
+    state.costBasis += (entryQuantity * entryPrice) / LEDGER_REPLAY_SCALE;
+    state.quantity += entryQuantity;
+  } else {
+    const averagePrice = state.quantity === 0n ? 0n : (state.costBasis * LEDGER_REPLAY_SCALE) / state.quantity;
+    state.cash += (entryQuantity * entryPrice) / LEDGER_REPLAY_SCALE - entryFee;
+    state.realizedPnl += ((entryPrice - averagePrice) * entryQuantity) / LEDGER_REPLAY_SCALE - entryFee;
+    state.costBasis -= (averagePrice * entryQuantity) / LEDGER_REPLAY_SCALE;
+    state.quantity -= entryQuantity;
+    if (state.quantity === 0n) state.costBasis = 0n;
+  }
+}
+
 export class PaperBroker {
   private cash: number;
   private readonly feeRate: number;
@@ -146,6 +189,8 @@ export class PaperBroker {
   private readonly ledger: PaperLedgerEntry[];
   private readonly riskPolicy: NormalizedPaperRiskPolicy;
   private readonly fillModel: NormalizedPaperFillModel;
+  /** Running replay cursor; always reflects exactly the current ledger. */
+  private replay: ReplayState;
 
   constructor(
     initialCash = 10_000_000,
@@ -204,6 +249,7 @@ export class PaperBroker {
       if (this.position.quantity === 0) this.position.averagePrice = 0;
       this.orders = restoredState.orders.map((order) => ({ ...order }));
       this.ledger = (restoredState.ledger ?? []).map((entry) => ({ ...entry }));
+      this.replay = { cash: toScaledLedgerAmount(restoredState.cash), quantity: 0n, costBasis: 0n, realizedPnl: 0n };
       if (this.ledger.length > 0) this.projectFromLedger(this.ledger[0].cashBefore);
     } else {
       this.cash = initialCash;
@@ -211,6 +257,7 @@ export class PaperBroker {
       this.position = { market, quantity: 0, averagePrice: 0, realizedPnl: 0 };
       this.orders = [];
       this.ledger = [];
+      this.replay = { cash: toScaledLedgerAmount(initialCash), quantity: 0n, costBasis: 0n, realizedPnl: 0n };
     }
   }
 
@@ -225,32 +272,17 @@ export class PaperBroker {
     return floorToStep(quantity, this.riskPolicy.quantityStep);
   }
 
+  private commitReplayState(): void {
+    this.cash = fromScaledLedgerAmount(this.replay.cash);
+    this.position.quantity = this.normalizePositionQuantity(fromScaledLedgerAmount(this.replay.quantity));
+    this.position.averagePrice = this.position.quantity === 0 ? 0 : fromScaledLedgerAmount((this.replay.costBasis * LEDGER_REPLAY_SCALE) / this.replay.quantity);
+    this.position.realizedPnl = fromScaledLedgerAmount(this.replay.realizedPnl);
+  }
+
   private projectFromLedger(initialCash: number): void {
-    let cash = toScaledLedgerAmount(initialCash);
-    let quantity = 0n;
-    let costBasis = 0n;
-    let realizedPnl = 0n;
-    for (const entry of this.ledger) {
-      const entryQuantity = toScaledLedgerAmount(entry.quantity);
-      const entryPrice = toScaledLedgerAmount(entry.price);
-      const entryFee = toScaledLedgerAmount(entry.fee);
-      if (entry.side === "BUY") {
-        cash -= (entryQuantity * entryPrice) / LEDGER_REPLAY_SCALE + entryFee;
-        costBasis += (entryQuantity * entryPrice) / LEDGER_REPLAY_SCALE;
-        quantity += entryQuantity;
-      } else {
-        const averagePrice = quantity === 0n ? 0n : (costBasis * LEDGER_REPLAY_SCALE) / quantity;
-        cash += (entryQuantity * entryPrice) / LEDGER_REPLAY_SCALE - entryFee;
-        realizedPnl += ((entryPrice - averagePrice) * entryQuantity) / LEDGER_REPLAY_SCALE - entryFee;
-        costBasis -= (averagePrice * entryQuantity) / LEDGER_REPLAY_SCALE;
-        quantity -= entryQuantity;
-        if (quantity === 0n) costBasis = 0n;
-      }
-    }
-    this.cash = fromScaledLedgerAmount(cash);
-    this.position.quantity = this.normalizePositionQuantity(fromScaledLedgerAmount(quantity));
-    this.position.averagePrice = this.position.quantity === 0 ? 0 : fromScaledLedgerAmount((costBasis * LEDGER_REPLAY_SCALE) / quantity);
-    this.position.realizedPnl = fromScaledLedgerAmount(realizedPnl);
+    this.replay = { cash: toScaledLedgerAmount(initialCash), quantity: 0n, costBasis: 0n, realizedPnl: 0n };
+    for (const entry of this.ledger) applyReplayEntry(this.replay, entry);
+    this.commitReplayState();
   }
 
   execute(side: PaperSide, quantity: number, price: number, now = new Date(), attribution: Readonly<{ strategyId?: string }> = {}): PaperOrder {
@@ -330,7 +362,20 @@ export class PaperBroker {
     });
     this.orders.unshift(order);
     this.ledger.push(Object.freeze({ sequence: this.ledger.length + 1, orderId: order.id, fillId: `fill:${order.id}`, market: order.market, side: order.side, quantity: order.quantity, price: order.price, fee: order.fee, cashBefore, cashAfter: nextCash, positionQuantityBefore, positionQuantityAfter: nextQuantity, realizedPnlAfter: nextRealizedPnl, occurredAt: order.filledAt }));
-    this.projectFromLedger(this.ledger[0].cashBefore);
+    // Incremental projection: the cursor already reflects every prior entry,
+    // so only the new entry is applied. Full replay remains the restore path.
+    applyReplayEntry(this.replay, this.ledger[this.ledger.length - 1]);
+    this.commitReplayState();
+    // Persist replay-canonical after-values so the ledger is exact-decimal
+    // end to end. The float previews computed above never reach storage;
+    // otherwise the stored entries would drift from canonical state as
+    // magnitudes grow (observed: gate mismatch by the 5th fill at 1e9).
+    this.ledger[this.ledger.length - 1] = Object.freeze({
+      ...this.ledger[this.ledger.length - 1],
+      cashAfter: this.cash,
+      positionQuantityAfter: this.position.quantity,
+      realizedPnlAfter: this.position.realizedPnl,
+    });
     return order;
   }
 

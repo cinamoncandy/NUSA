@@ -23,8 +23,10 @@ const { buildResearchRunProvenancePlan } = require("../dist/apps/desktop/src/clo
 
 const STRATEGY_FAMILY_ID = "sma-crossover";
 const MARKET = "KRW-BTC";
-const CANDLE_COUNT = 200;
-const REQUEST_PATH = `/v1/candles/days?market=${MARKET}&count=${CANDLE_COUNT}`;
+const RESEARCH_MARKETS = Object.freeze(["KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-SOL", "KRW-DOGE"]);
+const DEFAULT_CANDLE_COUNT = 1000;
+const DAY_MS = 86_400_000;
+const REQUEST_THROTTLE_MS = 150;
 
 const BACKTEST_CONFIG = {
   market: MARKET,
@@ -69,14 +71,22 @@ const WALK_FORWARD_CONFIG = {
   selectionPolicy: { minimumClosedTrades: 0 }
 };
 
-const SMA_PARAMETER_NEIGHBORHOOD = [
-  { shortPeriod: 3, longPeriod: 15 },
-  { shortPeriod: 5, longPeriod: 15 },
-  { shortPeriod: 5, longPeriod: 20 },
-  { shortPeriod: 5, longPeriod: 25 },
-  { shortPeriod: 8, longPeriod: 20 },
-  { shortPeriod: 10, longPeriod: 30 }
-];
+// Precommitted before each dataset is observed. The fast crossover cells are not a
+// relaxed qualification path: they remain subject to the exact same OOS, DSR, PBO,
+// regime, cost-stress and League gates. They only widen the already-existing SMA
+// hypothesis to include higher-turnover cells capable of producing non-zero OOS
+// return variance and enough closed-trade observations for those gates to evaluate.
+const SMA_PARAMETER_NEIGHBORHOOD = Object.freeze([
+  Object.freeze({ shortPeriod: 2, longPeriod: 8 }),
+  Object.freeze({ shortPeriod: 3, longPeriod: 10 }),
+  Object.freeze({ shortPeriod: 4, longPeriod: 10 }),
+  Object.freeze({ shortPeriod: 3, longPeriod: 15 }),
+  Object.freeze({ shortPeriod: 5, longPeriod: 15 }),
+  Object.freeze({ shortPeriod: 5, longPeriod: 20 }),
+  Object.freeze({ shortPeriod: 5, longPeriod: 25 }),
+  Object.freeze({ shortPeriod: 8, longPeriod: 20 }),
+  Object.freeze({ shortPeriod: 10, longPeriod: 30 })
+]);
 
 const PBO_EVIDENCE_UNAVAILABLE_CODES = Object.freeze([
   "ZERO_RETURN_VARIANCE",
@@ -108,7 +118,8 @@ function buildParameterRobustnessRequest({ candles, manifest }) {
     market: manifest.market,
     candles,
     referenceParameters: [
-      { source: "PRODUCTION_DEFAULT", shortWindow: 5, longWindow: 20 }
+      { source: "PRODUCTION_DEFAULT", shortWindow: 5, longWindow: 20 },
+      { source: "MANUAL_RESEARCH_REFERENCE", shortWindow: 2, longWindow: 8 }
     ],
     neighborhood: {
       shortOffsets: [-2, -1, 0, 1, 2],
@@ -175,44 +186,81 @@ function runProvenanceBoundExperiment({ id, shortPeriod, longPeriod, candles, ma
 }
 
 async function fetchDayCandlePage(path) {
-  const response = await fetch(`https://api.upbit.com${path}`);
+  const response = await fetch(`https://api.upbit.com${path}`, { signal: AbortSignal.timeout(15_000) });
   if (!response.ok) throw new Error(`Upbit request failed: HTTP ${response.status}`);
   const body = await response.json();
   if (!Array.isArray(body) || body.length === 0) throw new Error("Upbit returned no candles");
   return body;
 }
 
-async function main() {
-  const dataAsOf = Date.now();
-  const timeline = buildResearchRunTimeline(dataAsOf);
-  const primaryRaw = await fetchDayCandlePage(REQUEST_PATH);
-  const sourceRequests = [`GET ${REQUEST_PATH}`];
-  let allRaw = primaryRaw;
-  let candles = mapUpbitDayCandlesToResearchCandles(allRaw, { completedBy: dataAsOf, maxCount: CANDLE_COUNT });
-
-  if (candles.length < CANDLE_COUNT) {
-    const missingCount = CANDLE_COUNT - candles.length;
-    const oldestCompletedOpenTime = candles[0]?.openTime;
-    if (oldestCompletedOpenTime == null) throw new Error("Upbit completed-candle backfill has no anchor");
-    const backfillPath = `/v1/candles/days?market=${MARKET}&count=${missingCount}&to=${encodeURIComponent(new Date(oldestCompletedOpenTime).toISOString())}`;
-    const backfillRaw = await fetchDayCandlePage(backfillPath);
-    sourceRequests.push(`GET ${backfillPath}`);
-    allRaw = [...primaryRaw, ...backfillRaw];
-    candles = mapUpbitDayCandlesToResearchCandles(allRaw, { completedBy: dataAsOf, maxCount: CANDLE_COUNT });
+function researchCandleCount(value = process.env.NUSA_RESEARCH_CANDLE_COUNT) {
+  if (value === undefined) return DEFAULT_CANDLE_COUNT;
+  if (!/^\d+$/.test(String(value)) || !Number.isInteger(Number(value)) || Number(value) < 200 || Number(value) > 2000) {
+    throw new Error("NUSA_RESEARCH_CANDLE_COUNT must be an integer from 200 to 2000");
   }
+  return Number(value);
+}
 
-  if (candles.length !== CANDLE_COUNT) {
-    throw new Error(`Upbit returned only ${candles.length} completed daily candles; expected ${CANDLE_COUNT}`);
+async function fetchResearchCandles({ market = MARKET, dataAsOf, count = DEFAULT_CANDLE_COUNT, fetchPage = fetchDayCandlePage, pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }) {
+  count = researchCandleCount(count);
+  if (!RESEARCH_MARKETS.includes(market)) throw new Error(`unsupported research market: ${market}`);
+  if (!Number.isFinite(dataAsOf)) throw new Error("research dataAsOf must be finite");
+  // Upbit's `to` is exclusive. Anchor every request to completed UTC days,
+  // including the first page, so an in-flight day cannot change the dataset.
+  let before = Math.floor(dataAsOf / DAY_MS) * DAY_MS;
+  const candles = [];
+  const sourceRequests = [];
+  for (let page = 0; page < Math.ceil(count / 200); page += 1) {
+    const pageSize = Math.min(200, count - candles.length);
+    const requestPath = `/v1/candles/days?market=${market}&count=${pageSize}&to=${encodeURIComponent(new Date(before).toISOString())}`;
+    if (page > 0) await pause(REQUEST_THROTTLE_MS);
+    const raw = await fetchPage(requestPath);
+    if (!Array.isArray(raw) || raw.length !== pageSize) throw new Error("Upbit research history is incomplete");
+    const mapped = mapUpbitDayCandlesToResearchCandles(raw, { completedBy: dataAsOf });
+    if (mapped.length !== pageSize) throw new Error("Upbit research page contains incomplete candles");
+    for (let index = 0; index < mapped.length; index += 1) {
+      const candle = mapped[index];
+      const expectedOpenTime = before - (mapped.length - index) * DAY_MS;
+      if (candle.market !== market || candle.openTime !== expectedOpenTime) {
+        throw new Error("Upbit research history has a market, gap, duplicate, or cursor mismatch");
+      }
+    }
+    sourceRequests.push(`GET ${requestPath}`);
+    candles.unshift(...mapped);
+    before = mapped[0].openTime;
   }
+  return { candles, sourceRequests };
+}
+
+function createMarketDataset({ market, dataAsOf, candles, sourceRequests }) {
   const freshness = evaluateUpbitDailyCandleFreshness(candles, dataAsOf);
   if (!freshness.fresh) {
-    throw new Error(`Upbit completed daily candle source is stale by ${freshness.lagDays} UTC day(s)`);
+    throw new Error(`${market} completed daily candle source is stale by ${freshness.lagDays} UTC day(s)`);
   }
   const manifest = createHistoricalDatasetManifest(candles, {
     source: "upbit-public-api",
     sourceRequest: sourceRequests.join(" | "),
     createdAt: new Date(dataAsOf).toISOString()
   });
+  return Object.freeze({ market, candles, sourceRequests, freshness, manifest });
+}
+
+async function main() {
+  const dataAsOf = Date.now();
+  const timeline = buildResearchRunTimeline(dataAsOf);
+  const candleCount = researchCandleCount();
+  const marketDatasets = [];
+  for (let index = 0; index < RESEARCH_MARKETS.length; index += 1) {
+    if (index > 0) await new Promise((resolve) => setTimeout(resolve, REQUEST_THROTTLE_MS));
+    const market = RESEARCH_MARKETS[index];
+    const history = await fetchResearchCandles({ market, dataAsOf, count: candleCount });
+    marketDatasets.push(createMarketDataset({ market, dataAsOf, ...history }));
+  }
+  const primaryDataset = marketDatasets.find((entry) => entry.market === MARKET);
+  if (primaryDataset == null) throw new Error(`primary research market ${MARKET} was not loaded`);
+  const { candles, manifest, freshness } = primaryDataset;
+  const regimeInputs = marketDatasets.map((entry) => ({ manifest: entry.manifest, candles: entry.candles }));
+
   const sourceCommitSha = requiredResearchSourceCommitSha();
   const costModelVersion = requiredResearchCostModelVersion();
   const hypothesis = buildResearchHypothesis({
@@ -246,7 +294,10 @@ async function main() {
       holdingPeriodMs: 86_400_000,
       capacityAssumptions: { maxNotional: BACKTEST_CONFIG.initialCash, maxParticipationRate: 0.05 },
       transactionCostSensitivity: 1,
-      provenance: { author: "nusa-real-market-research", sourceReferences: [`dataset:${manifest.datasetId}`] },
+      provenance: {
+        author: "nusa-real-market-research",
+        sourceReferences: marketDatasets.map((entry) => `dataset:${entry.manifest.datasetId}`)
+      },
       createdAt: timeline.hypothesisGeneratedAt
     })
   }));
@@ -339,7 +390,7 @@ async function main() {
     });
     const regimeAwareEvaluation = buildResearchRunRegimeEvaluation(
       experiment,
-      [{ manifest, candles }],
+      regimeInputs,
       { lookbackPeriods: 20 }
     );
     return { id, familyId: STRATEGY_FAMILY_ID, experiment, candidateSpecification, regimeAwareEvaluation };
@@ -381,6 +432,7 @@ async function main() {
       startOpenTime: new Date(manifest.startOpenTime).toISOString(),
       endCloseTime: new Date(manifest.endCloseTime).toISOString(),
       contentSha256: manifest.contentSha256,
+      sourceRequest: manifest.sourceRequest,
       completedBy: new Date(dataAsOf).toISOString(),
       freshness: {
         status: "FRESH",
@@ -389,6 +441,17 @@ async function main() {
         lagDays: freshness.lagDays
       }
     },
+    evidenceDatasets: marketDatasets.map((entry) => ({
+      datasetId: entry.manifest.datasetId,
+      market: entry.manifest.market,
+      interval: entry.manifest.interval,
+      candleCount: entry.manifest.candleCount,
+      startOpenTime: new Date(entry.manifest.startOpenTime).toISOString(),
+      endCloseTime: new Date(entry.manifest.endCloseTime).toISOString(),
+      contentSha256: entry.manifest.contentSha256,
+      sourceRequest: entry.manifest.sourceRequest,
+      freshnessLagDays: entry.freshness.lagDays
+    })),
     windowCount: result.walkForwardResult.windows.length,
     parameterNeighborhood: {
       candidateSelectionCounts: result.walkForwardResult.candidateSelectionCounts,
@@ -460,6 +523,10 @@ if (require.main === module) {
 }
 
 module.exports = {
+  RESEARCH_MARKETS,
+  SMA_PARAMETER_NEIGHBORHOOD,
+  fetchResearchCandles,
+  researchCandleCount,
   buildParameterRobustnessRequest,
   buildResearchRunTimeline,
   isResearchRunPboEvidenceUnavailable

@@ -21,19 +21,38 @@ test("visual redesign has a distinct NUSA surface and financial hierarchy", () =
   assert.match(primitives, /borderRadius: 999, borderWidth: 1, gap: 3/);
 });
 
-test("Home uses one truthful supervisor result plus one state-bound signal primitive", () => {
+test("Home uses the approved Intelligence OS judgment, risk, observation, result, and learning hierarchy", () => {
   const home = read("src/homeView.tsx");
   const decisionSurface = read("src/homeDecisionSurface.ts");
-  const components = read("src/components.tsx");
-  assert.match(home, /testID="home-supervisor-summary"/);
-  assert.match(home, /testID="home-supervisor-result"/);
-  assert.match(home, /const supervisorResult = decisionSurface\.result/);
+
+  assert.match(home, /testID="home-master-rail"/);
+  assert.match(home, /AUTONOMOUS INVESTMENT INTELLIGENCE · LIVE NONE · AI ZERO AUTHORITY/);
+  assert.match(home, /testID="home-now"/);
+  assert.match(home, /testID="account-hero-card"/);
+  assert.match(home, /testID="ai-card"/);
+  assert.match(home, /kicker="WHY · AI INSIGHT"/);
+  assert.match(home, /testID="home-risk-status"/);
+  assert.match(home, /kicker="RISK STATUS"/);
+  assert.match(home, /testID="home-decision-stage"/);
+  assert.match(home, /kicker="SIGNAL TERRAIN"/);
+  assert.match(home, /PUBLIC READ ONLY/);
+  assert.match(home, /시장 관찰은 전략 신호나 주문 권한으로 자동 승격되지 않습니다/);
+  assert.match(home, /testID="home-paper-performance"/);
+  assert.match(home, /kicker="PAPER PERFORMANCE"/);
+  assert.match(home, /testID="home-paper-learning"/);
+  assert.match(home, /kicker="LEARNING"/);
+  assert.match(home, /label="NOW"/);
+  assert.match(home, /label="RESULT"/);
+  assert.match(home, /label="RISK"/);
+  assert.match(home, /label="LEARNING"/);
+  assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
+
+  assert.doesNotMatch(home, /<TerrainSignal/);
+  assert.doesNotMatch(home, /testID="home-signal-trace"/);
+  assert.doesNotMatch(home, /testID="home-market-pulse"/);
+  assert.doesNotMatch(home, /testID="home-terminal-grid"/);
+
   assert.match(decisionSurface, /`PAPER P&L .* · EQUITY \$\{krw\(input\.paperEquity\)\}`/s);
-  assert.doesNotMatch(home, /testID="account-hero-card"/);
-  assert.match(home, /const terrainStrength = signalReady \? 0\.92 : snapshot \? 0\.45 : 0\.25/);
-  assert.match(home, /const terrainLabel = aiInsightAvailable/);
-  assert.match(home, /<TerrainSignal variant="symbolic" signalStrength=\{terrainStrength\} accessibilityLabel=\{terrainLabel\} testID="home-signal-trace" \/>/);
-  assert.match(components, /accessibilityLabel=\{accessibilityLabel \?\? \(variant === "market" \? "실제 시장 데이터에 연결된 시그널" : "NUSA 상태 시그널"\)/);
 });
 
 test("Markets rows use list rhythm instead of repeated cards", () => {

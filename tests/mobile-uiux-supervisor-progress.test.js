@@ -9,13 +9,21 @@ const panel = fs.readFileSync(path.join(root, "apps/mobile/src/supervisorProgres
 const client = fs.readFileSync(path.join(root, "apps/mobile/src/operationalProgressClient.ts"), "utf8");
 const contract = fs.readFileSync(path.join(root, "packages/contracts/src/operationalProgress.ts"), "utf8");
 
-test("Home mounts canonical Supervisor progress below the evidence-first summary", () => {
-  assert.match(home, /SupervisorProgressPanel/);
-  assert.ok(home.indexOf("home-supervisor-summary") < home.indexOf("<SupervisorProgressPanel"));
-  assert.ok(home.indexOf("<SupervisorProgressPanel") < home.indexOf("home-capital-limits"));
+test("Canonical HOME does not restore the retired Supervisor progress panel", () => {
+  assert.doesNotMatch(home, /<SupervisorProgressPanel/);
+  assert.doesNotMatch(home, /home-supervisor-progress-attention/);
+  assert.match(home, /testID="home-master-rail"/);
+  assert.match(home, /testID="home-now"/);
+  assert.match(home, /testID="account-hero-card"/);
+  assert.match(home, /testID="ai-card"/);
+  assert.match(home, /testID="home-risk-status"/);
+  assert.match(home, /testID="home-decision-stage"/);
+  assert.match(home, /testID="home-paper-performance"/);
+  assert.match(home, /testID="home-paper-learning"/);
+  assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
 });
 
-test("Supervisor progress consumes the existing verified read-only client", () => {
+test("Supervisor progress remains a truthful reusable read-only projection", () => {
   assert.match(panel, /loadOperationalProgress/);
   assert.match(panel, /InMemoryDashboardCredentialSession/);
   assert.match(panel, /getConfiguredPaperEndpoint/);

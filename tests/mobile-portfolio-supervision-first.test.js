@@ -8,25 +8,29 @@ const path = require("node:path");
 const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "portfolioView.tsx"), "utf8");
 
 test("Portfolio is framed as NUSA operating supervision, not a personal trading wallet", () => {
-  assert.match(source, /eyebrow="NUSA SUPERVISION"/);
-  assert.match(source, /title="운용 결과"/);
+  assert.match(source, /testID="portfolio-authority-rail"/);
+  assert.match(source, /detail="PAPER CAPITAL · REAL_READ_ONLY SEPARATE · LIVE NONE"/);
+  assert.match(source, /eyebrow="PORTFOLIO"/);
+  assert.match(source, /title="자본과 노출을 감독합니다"/);
+  assert.match(source, /badge="SUPERVISE"/);
   assert.match(source, /testID="portfolio-supervisor-summary"/);
-  assert.match(source, /NUSA OPERATING RESULT/);
   assert.doesNotMatch(source, /eyebrow="MY ISLAND"/);
 });
 
 test("Portfolio keeps PAPER result and REAL_READ_ONLY reference separate", () => {
+  assert.match(source, /testID="portfolio-account-breakdown"/);
   assert.match(source, /PAPER RESULT/);
+  assert.match(source, /testID="portfolio-upbit-read-only"/);
   assert.match(source, /REAL_READ_ONLY · REFERENCE/);
-  assert.match(source, /REAL_READ_ONLY 기준선은 PAPER 결과와 합산하지 않습니다/);
-  assert.match(source, /REAL_READ_ONLY 잔고는 감독용 기준선이며 PAPER 성과와 합산하지 않습니다/);
+  assert.match(source, /REAL_READ_ONLY 잔고는 감독용 기준선이며 PAPER 성과와 절대 합산하지 않습니다/);
 });
 
 test("Portfolio surfaces supervision facts and learning evidence without inventing authority", () => {
-  assert.match(source, /누적 PAPER 손익/);
-  assert.match(source, /현재 시장 노출/);
-  assert.match(source, /보호 현금/);
-  assert.match(source, /열린 주문/);
+  assert.match(source, /label: "TOTAL PNL"/);
+  assert.match(source, /label="MARKET EXPOSURE"/);
+  assert.match(source, /label="RESERVED CASH"/);
+  assert.match(source, /label="OPEN ORDERS"/);
   assert.match(source, /학습 \/ 평가 근거 보기/);
+  assert.match(source, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
   assert.doesNotMatch(source, /LIVE ENABLED|LIVE ACTIVE|실거래 주문 실행/);
 });

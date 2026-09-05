@@ -51,20 +51,27 @@ test("Release explicitly dispatches canonical main CI after a GITHUB_TOKEN merge
   assert.match(workflow, /merged_main/);
 });
 
-test("Release directly dispatches Cloudflare Deploy after post-merge CI succeeds, since GITHUB_TOKEN-dispatched CI does not fire workflow_run", () => {
-  assert.match(workflow, /Wait for post-merge CI and dispatch Cloudflare Deploy directly/);
-  assert.match(workflow, /does not fire workflow_run listeners/);
-  assert.match(workflow, /actions\/runs\?head_sha=\$MERGED_MAIN&status=completed&per_page=100/);
+test("Release recovers bounded post-merge CI retries before directly dispatching Cloudflare Deploy", () => {
+  assert.match(workflow, /Recover post-merge CI retries and dispatch Cloudflare Deploy/);
+  assert.match(workflow, /does not reliably fan out through workflow_run/);
+  assert.match(workflow, /actions\/runs\?head_sha=\$MERGED_MAIN&per_page=100/);
+  assert.match(workflow, /\.conclusion == "success"/);
+  assert.match(workflow, /rerun-failed-jobs/);
+  assert.match(workflow, /failed_attempt" -ge 3/);
+  assert.match(workflow, /Post-merge CI SUCCESS recovered/);
   assert.match(workflow, /actions\/workflows\/autopilot-cloudflare-deploy\.yml\/dispatches/);
   assert.match(workflow, /inputs\[head_sha\]=\$MERGED_MAIN/);
-  assert.match(workflow, /conclusion" != "success"/);
 });
 
-test("Release directly dispatches Cloudflare Promote, Android Stable Release, and Windows Desktop Stable Release after post-merge CI succeeds", () => {
-  assert.match(workflow, /Dispatch other CI-gated downstream workflows directly/);
+test("Release dispatches exact-main runtime evidence and guarded downstream release workflows after post-merge CI succeeds", () => {
+  assert.match(workflow, /Dispatch exact-main runtime evidence and CI-gated downstream workflows directly/);
+  assert.match(workflow, /CURRENT_MAIN=.*branches\/main/);
+  assert.match(workflow, /CURRENT_MAIN.*MERGED_MAIN/);
+  assert.match(workflow, /actions\/workflows\/wo-0059-actual-paper-runtime\.yml\/dispatches/);
   assert.match(workflow, /actions\/workflows\/autopilot-cloudflare-promote\.yml\/dispatches/);
   assert.match(workflow, /inputs\[head_sha\]=\$MERGED_MAIN/);
-  assert.match(workflow, /actions\/workflows\/android-stable-release\.yml\/dispatches/);
+  assert.match(workflow, /actions\/workflows\/android-stable-release-trigger\.yml\/dispatches/);
+  assert.doesNotMatch(workflow, /actions\/workflows\/android-stable-release\.yml\/dispatches/);
   assert.match(workflow, /actions\/workflows\/windows-desktop-stable-release\.yml\/dispatches/);
 });
 

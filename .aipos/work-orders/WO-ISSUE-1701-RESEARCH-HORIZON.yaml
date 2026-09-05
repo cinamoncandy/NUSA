@@ -1,0 +1,36 @@
+id: WO-ISSUE-1701-RESEARCH-HORIZON
+status: IN_PROGRESS
+local_validation: Focused and Research/closed-learning regression 296/296; typecheck, build, lint, validate:full, security PASS.
+full_isolated: PASS_939_FILES
+runtime_evidence: docs/research/public-history-horizon-2026-09-05.md
+actual_public_run: 1000 completed candles, 44 OOS windows, 6 REJECTED, 0 qualified; durable restart replay PASS. Not forward PAPER evidence.
+authority_impact: none
+base_branch: main
+base_commit: 13363002133bd764494bc3bb4d56f64016971bdf
+implementation_branch: codex/research-evidence-horizon
+objective: Expand canonical public daily history without changing qualification or execution.
+architecture_impact:
+  acknowledged: true
+  analysis: Reuses Upbit candle adapter, manifest, Research Factory and snapshot capture. No new engine or authority.
+  references:
+    - docs/NUSA_INVESTMENT_KNOWLEDGE_PRINCIPLE.md
+    - .aipos/decisions/ADR-0003-hardened-research-validity-boundaries.md
+scope:
+  - Bounded deterministic pagination of completed daily candles; default 1000, range 200-2000.
+  - Preserve source requests and dataset checksum; reject gaps, duplicates and malformed input.
+  - Run actual historical research and closed-learning regression; no fabricated qualified candidate.
+verification:
+  - node --test tests/research-history-pagination.test.js tests/research-real-market-qualification-wiring.test.js
+  - pnpm run preflight
+  - pnpm run typecheck
+  - pnpm run build
+  - pnpm run lint
+  - pnpm run validate:full
+  - pnpm run security:gate
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+acceptance:
+  - More completed public history with exact provenance, unchanged qualification thresholds.
+  - Truthful qualified/rejected/insufficient results; historical research is not forward PAPER.

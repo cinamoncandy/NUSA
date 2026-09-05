@@ -1,0 +1,43 @@
+{
+  "$schema": "nusa-coverage-floors-v1",
+  "note": "Unified-coverage floor gate. Baselines measured from the 2026-09-04 CI coverage-baseline artifact (statements 93.25, branches 77.94, functions 93.73, lines 93.25). Floors sit ~8 points below baseline so genuine regressions fail while normal fluctuation passes. Raise only with a recorded decision, never to greenwash a drop.",
+  "measuredBaseline": {
+    "date": "2026-09-04",
+    "statements": 93.25,
+    "branches": 77.94,
+    "functions": 93.73,
+    "lines": 93.25
+  },
+  "floors": {
+    "statements": 85,
+    "branches": 70,
+    "functions": 85,
+    "lines": 85
+  },
+  "criticalBaseline": {
+    "date": "2026-09-04",
+    "note": "Aggregate over unified-summary.json criticalPathModules (ledger/account/portfolio/reconcil/recover/risk/offline/session/secure/biometric/trusted/market/strategy/execution/order). Measured 97.02/76.86/94.39/97.02; floors ~5 points below.",
+    "statements": 97.02,
+    "branches": 76.86,
+    "functions": 94.39,
+    "lines": 97.02
+  },
+  "criticalFloors": {
+    "statements": 92,
+    "branches": 70,
+    "functions": 89,
+    "lines": 92
+  },
+  "moduleFloors": [
+    { "match": "packages/core/src/strategyEngine", "lines": 93, "branches": 85 },
+    { "match": "packages/core/src/independentRiskGateway", "lines": 95, "branches": 85 },
+    { "match": "apps/desktop/src/recovery/recoveryReconciliation", "lines": 95, "branches": 86 },
+    { "match": "packages/contracts/src/riskGateway", "lines": 95, "branches": 95 },
+    { "match": "apps/execution/src/hard-risk-gateway", "lines": 95, "branches": 74 },
+    { "match": "apps/desktop/src/strategy/strategyRegistry", "lines": 93, "branches": 79 },
+    { "match": "apps/desktop/src/strategy/walkForwardEngine", "lines": 95, "branches": 77 },
+    { "match": "packages/storage/src/hedgeRecoveryStore", "lines": 95, "branches": 59 },
+    { "match": "apps/execution/src/tiny-bounded-live-envelope", "lines": 95, "branches": 66 },
+    { "match": "packages/storage/src/order-idempotency", "lines": 95, "branches": 88 }
+  ]
+}

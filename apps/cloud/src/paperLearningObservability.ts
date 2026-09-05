@@ -157,7 +157,8 @@ export class PaperLearningEventRecorder {
   public record(input: Omit<PaperLearningEvent, "id" | "mode"> & { readonly idSuffix?: string }): PaperLearningEvent {
     this.hydrate();
     const { idSuffix = "", ...rest } = input;
-    const event = freeze({ ...rest, id: stableId(rest.cycleId, rest.stage, idSuffix), mode: "PAPER" as const });
+    const normalized = this.normalizeTruth(rest);
+    const event = freeze({ ...normalized, id: stableId(normalized.cycleId, normalized.stage, idSuffix), mode: "PAPER" as const });
     const existing = this.byId.get(event.id);
     if (existing) return existing;
     this.byId.set(event.id, event);
@@ -174,6 +175,19 @@ export class PaperLearningEventRecorder {
   public close(): void {
     try { this.persistence?.close(); } catch { /* observability close is best-effort */ }
     this.persistence = undefined;
+  }
+
+  private normalizeTruth(input: Omit<PaperLearningEvent, "id" | "mode">): Omit<PaperLearningEvent, "id" | "mode"> {
+    if (input.stage === "DECISION" && input.decision != null && input.reason === `UNSUPPORTED_ACTION:${input.decision.action}` && input.decision.action !== "BUY" && input.decision.action !== "SELL") {
+      return freeze({ ...input, reason: `NO_ACTIONABLE_PAPER_DECISION:${input.decision.action}` });
+    }
+    if (input.stage === "PERMISSION" && input.reason === "NO_CANONICAL_TRADE_PERMISSION_EVIDENCE") {
+      const decision = this.byId.get(stableId(input.cycleId, "DECISION"));
+      if (decision?.decision != null && decision.decision.action !== "BUY" && decision.decision.action !== "SELL") {
+        return freeze({ ...input, reason: "NOT_EVALUATED_NO_ACTIONABLE_DECISION" });
+      }
+    }
+    return input;
   }
 
   private hydrate(): void {
