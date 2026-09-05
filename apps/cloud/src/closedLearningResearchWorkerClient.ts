@@ -237,10 +237,11 @@ export class ClosedLearningResearchWorkerClient {
     this.runProcess = options.process ?? defaultProcess;
   }
 
-  public replay(originalRunFingerprintSha256: string, paperEvidenceByCandidate: Readonly<Record<string, unknown>>): ClosedLearningResearchReplayResult {
+  private execute(originalRunFingerprintSha256: string, paperEvidenceByCandidate: Readonly<Record<string, unknown>>, requirePaperEvidence: boolean): ClosedLearningResearchReplayResult {
     const fingerprint = originalRunFingerprintSha256.trim().toLowerCase();
     if (!SHA256.test(fingerprint)) throw new Error("Research replay fingerprint is invalid");
-    if (paperEvidenceByCandidate == null || typeof paperEvidenceByCandidate !== "object" || Array.isArray(paperEvidenceByCandidate) || Object.keys(paperEvidenceByCandidate).length === 0) throw new Error("Research replay PAPER evidence is empty");
+    if (paperEvidenceByCandidate == null || typeof paperEvidenceByCandidate !== "object" || Array.isArray(paperEvidenceByCandidate)) throw new Error("Research replay PAPER evidence is invalid");
+    if (requirePaperEvidence && Object.keys(paperEvidenceByCandidate).length === 0) throw new Error("Research replay PAPER evidence is empty");
     const request = JSON.stringify({ schemaVersion: 1, operation: "REPLAY_PAPER_EVIDENCE", originalRunFingerprintSha256: fingerprint, paperEvidenceByCandidate });
     const result = this.runProcess({ executable: this.executable, args: [this.workerPath], stdin: request, env: { NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH: this.snapshotPath }, maxBuffer: 8 * 1024 * 1024 });
     if (result.error != null) throw new Error(`Research replay worker failed to start: ${result.error.message}`);
@@ -248,5 +249,14 @@ export class ClosedLearningResearchWorkerClient {
     let parsed: unknown;
     try { parsed = JSON.parse(result.stdout); } catch { throw new Error("Research replay worker returned invalid JSON"); }
     return validateResult(parsed, fingerprint);
+  }
+
+  public replay(originalRunFingerprintSha256: string, paperEvidenceByCandidate: Readonly<Record<string, unknown>>): ClosedLearningResearchReplayResult {
+    return this.execute(originalRunFingerprintSha256, paperEvidenceByCandidate, true);
+  }
+
+  /** Initial PAPER bootstrap replays canonical Research/League without fabricating PAPER evidence. */
+  public replayInitialResearch(originalRunFingerprintSha256: string): ClosedLearningResearchReplayResult {
+    return this.execute(originalRunFingerprintSha256, Object.freeze({}), false);
   }
 }

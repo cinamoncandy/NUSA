@@ -105,6 +105,18 @@ test("sends only the durable Research snapshot path to the worker environment an
   assert.equal(result.deployment.status, "NOT_DEPLOYABLE");
 });
 
+test("initial bootstrap replays canonical Research without fabricating PAPER evidence", () => {
+  let observedRequest = "";
+  const result = client((input) => {
+    observedRequest = input.stdin;
+    return { status: 0, stdout: JSON.stringify(payload()), stderr: "" };
+  }).replayInitialResearch(ORIGINAL);
+  const request = JSON.parse(observedRequest) as { operation: string; paperEvidenceByCandidate: Record<string, unknown> };
+  assert.equal(request.operation, "REPLAY_PAPER_EVIDENCE");
+  assert.deepEqual(request.paperEvidenceByCandidate, {});
+  assert.equal(result.originalRunFingerprintSha256, ORIGINAL);
+});
+
 test("accepts one uniquely qualified deployable artifact only when its immutable Research lineage matches the worker replay", () => {
   const result = client(() => ({ status: 0, stdout: JSON.stringify(deployablePayload()), stderr: "" })).replay(ORIGINAL, { q: {} });
   assert.equal(result.deployment.status, "DEPLOYABLE");
