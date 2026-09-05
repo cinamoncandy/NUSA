@@ -1,4 +1,5 @@
-import type { ResearchRunReplaySnapshot, ResearchRunReplaySnapshotReader } from "../../desktop/src/cloud/researchRunReplaySnapshot";
+import type { ResearchRunReplaySnapshot } from "../../desktop/src/cloud/researchRunReplaySnapshot";
+import type { ResearchRunReplaySnapshotReader } from "../../desktop/src/cloud/researchRunReplaySnapshotStore";
 import type { ClosedLearningResearchDecisionHistory } from "./closedLearningResearchDecisionHistory";
 import type { ClosedLearningResearchReplayResult, ClosedLearningResearchWorkerClient } from "./closedLearningResearchWorkerClient";
 import type { QualifiedPaperChallengerArtifactWriter } from "./qualifiedPaperChallengerArtifactStore";
