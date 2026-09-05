@@ -1,5 +1,5 @@
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import type { QualifiedPaperChallengerArtifact } from "./paperChallengerDeploymentRuntime";
 import { validatePaperResearchLineage } from "./paperResearchLineage";
 
@@ -68,19 +68,23 @@ export interface ClosedLearningResearchWorkerProcessResult {
   readonly error?: Error;
 }
 
-export type ClosedLearningResearchWorkerProcess = (input: {
+export interface ClosedLearningResearchWorkerProcessInput {
   readonly executable: string;
   readonly args: readonly string[];
   readonly stdin: string;
   readonly env: Readonly<Record<string, string>>;
   readonly maxBuffer: number;
-}) => ClosedLearningResearchWorkerProcessResult;
+}
+
+export type ClosedLearningResearchWorkerProcess = (input: ClosedLearningResearchWorkerProcessInput) => ClosedLearningResearchWorkerProcessResult;
+export type ClosedLearningResearchWorkerAsyncProcess = (input: ClosedLearningResearchWorkerProcessInput) => Promise<ClosedLearningResearchWorkerProcessResult>;
 
 export interface ClosedLearningResearchWorkerClientOptions {
   readonly snapshotPath: string;
   readonly workerPath?: string;
   readonly executable?: string;
   readonly process?: ClosedLearningResearchWorkerProcess;
+  readonly asyncProcess?: ClosedLearningResearchWorkerAsyncProcess;
 }
 
 function safeText(value: unknown, field: string, max = 500): string {
@@ -100,7 +104,7 @@ function reasons(value: unknown, field: string): readonly string[] {
   return Object.freeze(value.map((reason) => String(reason).trim()));
 }
 
-function defaultProcess(input: Parameters<ClosedLearningResearchWorkerProcess>[0]): ClosedLearningResearchWorkerProcessResult {
+function defaultProcess(input: ClosedLearningResearchWorkerProcessInput): ClosedLearningResearchWorkerProcessResult {
   const result = spawnSync(input.executable, [...input.args], {
     input: input.stdin,
     encoding: "utf8",
@@ -109,6 +113,47 @@ function defaultProcess(input: Parameters<ClosedLearningResearchWorkerProcess>[0
     windowsHide: true,
   });
   return Object.freeze({ status: result.status, stdout: result.stdout ?? "", stderr: result.stderr ?? "", error: result.error });
+}
+
+function defaultAsyncProcess(input: ClosedLearningResearchWorkerProcessInput): Promise<ClosedLearningResearchWorkerProcessResult> {
+  return new Promise((resolve) => {
+    const child = spawn(input.executable, [...input.args], {
+      env: { ...input.env },
+      stdio: ["pipe", "pipe", "pipe"],
+      windowsHide: true,
+    });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    let overflow = false;
+
+    const finish = (result: ClosedLearningResearchWorkerProcessResult): void => {
+      if (settled) return;
+      settled = true;
+      resolve(Object.freeze(result));
+    };
+    const enforceBuffer = (): void => {
+      if (overflow) return;
+      if (Buffer.byteLength(stdout, "utf8") + Buffer.byteLength(stderr, "utf8") <= input.maxBuffer) return;
+      overflow = true;
+      child.kill("SIGTERM");
+    };
+
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => { stdout += chunk; enforceBuffer(); });
+    child.stderr.on("data", (chunk: string) => { stderr += chunk; enforceBuffer(); });
+    child.once("error", (error) => finish({ status: null, stdout, stderr, error }));
+    child.once("close", (status) => {
+      if (overflow) {
+        finish({ status: null, stdout, stderr, error: new Error("Research replay worker exceeded maxBuffer") });
+        return;
+      }
+      finish({ status, stdout, stderr });
+    });
+    child.stdin.on("error", (error) => finish({ status: null, stdout, stderr, error }));
+    child.stdin.end(input.stdin);
+  });
 }
 
 function validateDeployment(
@@ -221,12 +266,40 @@ function validateResult(value: unknown, expectedFingerprint: string): ClosedLear
   });
 }
 
+function invocation(
+  workerPath: string,
+  executable: string,
+  snapshotPath: string,
+  originalRunFingerprintSha256: string,
+  paperEvidenceByCandidate: Readonly<Record<string, unknown>>,
+  requirePaperEvidence: boolean,
+): { readonly fingerprint: string; readonly input: ClosedLearningResearchWorkerProcessInput } {
+  const fingerprint = originalRunFingerprintSha256.trim().toLowerCase();
+  if (!SHA256.test(fingerprint)) throw new Error("Research replay fingerprint is invalid");
+  if (paperEvidenceByCandidate == null || typeof paperEvidenceByCandidate !== "object" || Array.isArray(paperEvidenceByCandidate)) throw new Error("Research replay PAPER evidence is invalid");
+  if (requirePaperEvidence && Object.keys(paperEvidenceByCandidate).length === 0) throw new Error("Research replay PAPER evidence is empty");
+  const request = JSON.stringify({ schemaVersion: 1, operation: "REPLAY_PAPER_EVIDENCE", originalRunFingerprintSha256: fingerprint, paperEvidenceByCandidate });
+  return Object.freeze({
+    fingerprint,
+    input: Object.freeze({ executable, args: Object.freeze([workerPath]), stdin: request, env: Object.freeze({ NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH: snapshotPath }), maxBuffer: 8 * 1024 * 1024 }),
+  });
+}
+
+function parseProcessResult(result: ClosedLearningResearchWorkerProcessResult, fingerprint: string): ClosedLearningResearchReplayResult {
+  if (result.error != null) throw new Error(`Research replay worker failed to start: ${result.error.message}`);
+  if (result.status !== 0) throw new Error(`Research replay worker failed closed${result.stderr.trim() ? `: ${result.stderr.trim().slice(0, 500)}` : ""}`);
+  let parsed: unknown;
+  try { parsed = JSON.parse(result.stdout); } catch { throw new Error("Research replay worker returned invalid JSON"); }
+  return validateResult(parsed, fingerprint);
+}
+
 /** Cloud-side process boundary to the canonical desktop Research/League replay worker. */
 export class ClosedLearningResearchWorkerClient {
   private readonly snapshotPath: string;
   private readonly workerPath: string;
   private readonly executable: string;
   private readonly runProcess: ClosedLearningResearchWorkerProcess;
+  private readonly runAsyncProcess: ClosedLearningResearchWorkerAsyncProcess;
 
   public constructor(options: ClosedLearningResearchWorkerClientOptions) {
     this.snapshotPath = path.resolve(options.snapshotPath);
@@ -235,28 +308,34 @@ export class ClosedLearningResearchWorkerClient {
     if (!path.isAbsolute(this.workerPath)) throw new Error("Research replay worker path must be absolute");
     this.executable = options.executable ?? process.execPath;
     this.runProcess = options.process ?? defaultProcess;
+    this.runAsyncProcess = options.asyncProcess ?? defaultAsyncProcess;
   }
 
   private execute(originalRunFingerprintSha256: string, paperEvidenceByCandidate: Readonly<Record<string, unknown>>, requirePaperEvidence: boolean): ClosedLearningResearchReplayResult {
-    const fingerprint = originalRunFingerprintSha256.trim().toLowerCase();
-    if (!SHA256.test(fingerprint)) throw new Error("Research replay fingerprint is invalid");
-    if (paperEvidenceByCandidate == null || typeof paperEvidenceByCandidate !== "object" || Array.isArray(paperEvidenceByCandidate)) throw new Error("Research replay PAPER evidence is invalid");
-    if (requirePaperEvidence && Object.keys(paperEvidenceByCandidate).length === 0) throw new Error("Research replay PAPER evidence is empty");
-    const request = JSON.stringify({ schemaVersion: 1, operation: "REPLAY_PAPER_EVIDENCE", originalRunFingerprintSha256: fingerprint, paperEvidenceByCandidate });
-    const result = this.runProcess({ executable: this.executable, args: [this.workerPath], stdin: request, env: { NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH: this.snapshotPath }, maxBuffer: 8 * 1024 * 1024 });
-    if (result.error != null) throw new Error(`Research replay worker failed to start: ${result.error.message}`);
-    if (result.status !== 0) throw new Error(`Research replay worker failed closed${result.stderr.trim() ? `: ${result.stderr.trim().slice(0, 500)}` : ""}`);
-    let parsed: unknown;
-    try { parsed = JSON.parse(result.stdout); } catch { throw new Error("Research replay worker returned invalid JSON"); }
-    return validateResult(parsed, fingerprint);
+    const request = invocation(this.workerPath, this.executable, this.snapshotPath, originalRunFingerprintSha256, paperEvidenceByCandidate, requirePaperEvidence);
+    return parseProcessResult(this.runProcess(request.input), request.fingerprint);
+  }
+
+  private async executeAsync(originalRunFingerprintSha256: string, paperEvidenceByCandidate: Readonly<Record<string, unknown>>, requirePaperEvidence: boolean): Promise<ClosedLearningResearchReplayResult> {
+    const request = invocation(this.workerPath, this.executable, this.snapshotPath, originalRunFingerprintSha256, paperEvidenceByCandidate, requirePaperEvidence);
+    return parseProcessResult(await this.runAsyncProcess(request.input), request.fingerprint);
   }
 
   public replay(originalRunFingerprintSha256: string, paperEvidenceByCandidate: Readonly<Record<string, unknown>>): ClosedLearningResearchReplayResult {
     return this.execute(originalRunFingerprintSha256, paperEvidenceByCandidate, true);
   }
 
+  public replayAsync(originalRunFingerprintSha256: string, paperEvidenceByCandidate: Readonly<Record<string, unknown>>): Promise<ClosedLearningResearchReplayResult> {
+    return this.executeAsync(originalRunFingerprintSha256, paperEvidenceByCandidate, true);
+  }
+
   /** Initial PAPER bootstrap replays canonical Research/League without fabricating PAPER evidence. */
   public replayInitialResearch(originalRunFingerprintSha256: string): ClosedLearningResearchReplayResult {
     return this.execute(originalRunFingerprintSha256, Object.freeze({}), false);
+  }
+
+  /** Async production path keeps the Node HTTP event loop responsive while Research/League runs. */
+  public replayInitialResearchAsync(originalRunFingerprintSha256: string): Promise<ClosedLearningResearchReplayResult> {
+    return this.executeAsync(originalRunFingerprintSha256, Object.freeze({}), false);
   }
 }
