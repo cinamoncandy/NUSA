@@ -22,6 +22,8 @@ test("AI distinguishes error and loading before rendering analysis content", () 
   assert.match(ai, /testID="ai-error"/);
   assert.match(ai, /ZERO AUTHORITY/);
   assert.match(ai, /READ ONLY/);
+  assert.match(ai, /testID="ai-loading-skeleton"/);
+  assert.doesNotMatch(ai, /ActivityIndicator/);
 });
 
 test("Markets keeps chart navigation reachable regardless of verified candles", () => {
