@@ -32,6 +32,7 @@ export interface ClosedLearningRolloverPort {
   readonly openPeriodFromCanonicalAccount: (input: PaperRealizedPeriodOpenInput) => PersistedPaperRealizedPeriodPlan;
   readonly buildEvidenceIdentity: (window: ClosedLearningEvidenceWindow) => ClosedLearningEvidenceIdentity;
   readonly runClosedLearningCycle: (identity: ClosedLearningEvidenceIdentity) => ClosedLearningCycleResult;
+  readonly runClosedLearningCycleAsync?: (identity: ClosedLearningEvidenceIdentity) => Promise<ClosedLearningCycleResult>;
 }
 
 function nextPeriodIndex(periods: readonly PersistedPaperPeriodEnvelope[]): number {
@@ -50,6 +51,13 @@ function stableOpenPeriods(input: readonly PersistedPaperRealizedPeriodPlan[]): 
   return Object.freeze([...input].sort((left, right) => left.periodIndex - right.periodIndex || left.periodId.localeCompare(right.periodId)));
 }
 
+interface PreparedRollover {
+  readonly plan: PersistedPaperRealizedPeriodPlan;
+  readonly account: PaperAccountState;
+  readonly realizedPeriods: readonly PersistedPaperPeriodEnvelope[];
+  readonly identity: ClosedLearningEvidenceIdentity;
+}
+
 /**
  * Production-safe closed-learning rollover boundary.
  *
@@ -65,7 +73,7 @@ function stableOpenPeriods(input: readonly PersistedPaperRealizedPeriodPlan[]): 
 export class ClosedLearningRolloverScheduler {
   public constructor(private readonly port: ClosedLearningRolloverPort) {}
 
-  public runOnce(): ClosedLearningRolloverResult {
+  private prepare(): ClosedLearningRolloverResult | PreparedRollover {
     const periods = stableOpenPeriods(this.port.listOpenPeriods());
     if (periods.length === 0) return Object.freeze({ status: "NO_OPEN_PERIOD" });
     if (periods.length > 1) return Object.freeze({ status: "BLOCKED", reason: "MULTIPLE_OPEN_PAPER_PERIODS" });
@@ -85,35 +93,64 @@ export class ClosedLearningRolloverScheduler {
       return Object.freeze({ status: "WAITING_FOR_REALIZED_FILL", periodId: plan.periodId });
     }
 
+    const closed = this.port.closePeriodFromCanonicalAccount({ periodId: plan.periodId, periodEndAt: account.updatedAt });
+    const realizedPeriods = Object.freeze([...this.port.listRealizedPeriods()]);
+    if (!realizedPeriods.some((item) => item.record.recordId === closed.record.recordId)) {
+      throw new Error("closed PAPER period is missing from the durable realized denominator");
+    }
+    const identity = this.port.buildEvidenceIdentity(Object.freeze({ closedPeriod: closed, realizedPeriods }));
+    return Object.freeze({ plan, account, realizedPeriods, identity });
+  }
+
+  private finalize(prepared: PreparedRollover, cycle: ClosedLearningCycleResult): ClosedLearningRolloverResult {
+    // A qualified cycle deploys its replacement challenger and opens the next canonical PAPER
+    // period through PaperChallengerDeploymentRuntime. Non-qualified outcomes retain the same
+    // immutable candidate/advisory and continue accumulating evidence in a new canonical period.
+    if (cycle.record.decision.outcome !== "QUALIFIED_FOR_LEAGUE") {
+      const periodIndex = nextPeriodIndex(prepared.realizedPeriods);
+      this.port.openPeriodFromCanonicalAccount({
+        periodId: `closed-learning-rollover:${periodIndex}:${prepared.account.updatedAt}`,
+        periodIndex,
+        advisory: prepared.plan.advisory,
+        candidateProvenance: prepared.plan.candidateProvenance,
+        ...(prepared.plan.market == null ? {} : { market: prepared.plan.market }),
+        periodStartAt: prepared.account.updatedAt,
+      });
+    }
+    return Object.freeze({ status: "CLOSED_AND_EVALUATED", periodId: prepared.plan.periodId, cycle });
+  }
+
+  public runOnce(): ClosedLearningRolloverResult {
+    let prepared: ClosedLearningRolloverResult | PreparedRollover;
     try {
-      const closed = this.port.closePeriodFromCanonicalAccount({ periodId: plan.periodId, periodEndAt: account.updatedAt });
-      const realizedPeriods = Object.freeze([...this.port.listRealizedPeriods()]);
-      if (!realizedPeriods.some((item) => item.record.recordId === closed.record.recordId)) {
-        throw new Error("closed PAPER period is missing from the durable realized denominator");
-      }
-      const identity = this.port.buildEvidenceIdentity(Object.freeze({ closedPeriod: closed, realizedPeriods }));
-      const cycle = this.port.runClosedLearningCycle(identity);
-
-      // A qualified cycle deploys its replacement challenger and opens the next canonical PAPER
-      // period through PaperChallengerDeploymentRuntime. Non-qualified outcomes retain the same
-      // immutable candidate/advisory and continue accumulating evidence in a new canonical period.
-      if (cycle.record.decision.outcome !== "QUALIFIED_FOR_LEAGUE") {
-        const periodIndex = nextPeriodIndex(realizedPeriods);
-        this.port.openPeriodFromCanonicalAccount({
-          periodId: `closed-learning-rollover:${periodIndex}:${account.updatedAt}`,
-          periodIndex,
-          advisory: plan.advisory,
-          candidateProvenance: plan.candidateProvenance,
-          ...(plan.market == null ? {} : { market: plan.market }),
-          periodStartAt: account.updatedAt,
-        });
-      }
-
-      return Object.freeze({ status: "CLOSED_AND_EVALUATED", periodId: plan.periodId, cycle });
+      prepared = this.prepare();
+      if ("status" in prepared) return prepared;
+      return this.finalize(prepared, this.port.runClosedLearningCycle(prepared.identity));
     } catch (error) {
+      const periodId = typeof prepared! === "object" && prepared != null && !("status" in prepared) ? prepared.plan.periodId : undefined;
       return Object.freeze({
         status: "BLOCKED",
-        periodId: plan.periodId,
+        ...(periodId == null ? {} : { periodId }),
+        reason: error instanceof Error && error.message.trim() ? error.message : "CLOSED_LEARNING_ROLLOVER_FAILED",
+      });
+    }
+  }
+
+  /** Async production path yields while Research/League evaluates the closed PAPER evidence. */
+  public async runOnceAsync(): Promise<ClosedLearningRolloverResult> {
+    let prepared: ClosedLearningRolloverResult | PreparedRollover;
+    try {
+      prepared = this.prepare();
+      if ("status" in prepared) return prepared;
+      const cycle = this.port.runClosedLearningCycleAsync == null
+        ? this.port.runClosedLearningCycle(prepared.identity)
+        : await this.port.runClosedLearningCycleAsync(prepared.identity);
+      return this.finalize(prepared, cycle);
+    } catch (error) {
+      const periodId = typeof prepared! === "object" && prepared != null && !("status" in prepared) ? prepared.plan.periodId : undefined;
+      return Object.freeze({
+        status: "BLOCKED",
+        ...(periodId == null ? {} : { periodId }),
         reason: error instanceof Error && error.message.trim() ? error.message : "CLOSED_LEARNING_ROLLOVER_FAILED",
       });
     }
