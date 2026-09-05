@@ -37,7 +37,7 @@ function MarketRow({ market, active, selected, onToggle, onSelect }: Readonly<{ 
         testID={`watchlist-select-${market.market}`}
       >
         <View style={styles.marketIdentity}><Text style={[styles.market, { color: selected ? theme.colors.primary : theme.colors.text }]}>{market.market}</Text><Text style={[styles.volumeInline, { color: theme.colors.textMuted }]} numberOfLines={1}>거래량 {formatVolume(market.volume)}</Text></View>
-        <View style={styles.marketNumbers}><Text style={[styles.price, { color: theme.colors.text }]}>{formatPrice(market.price)}</Text><Text style={[styles.change, { color: changeColor }]}>{formatChange(market.changeRate)}</Text></View>
+        <View style={styles.marketNumbers}><Text style={[styles.price, { color: theme.colors.text }]} adjustsFontSizeToFit numberOfLines={1}>{formatPrice(market.price)}</Text><Text style={[styles.change, { color: changeColor }]}>{formatChange(market.changeRate)}</Text></View>
       </Pressable>
       <Pressable accessibilityLabel={`${market.market} ${active ? "관심시장에서 제거" : "관심시장에 추가"}`} accessibilityRole="button" accessibilityState={{ selected: active }} hitSlop={4} onPress={onToggle} style={[styles.favorite, { backgroundColor: active ? theme.colors.primarySoft : "transparent", borderColor: active ? theme.colors.primary : theme.colors.border }]} testID={`watchlist-toggle-${market.market}`}><Text style={[styles.favoriteLabel, { color: active ? theme.colors.primary : theme.colors.textMuted }]}>{active ? "관심중" : "관심"}</Text></Pressable>
     </View>

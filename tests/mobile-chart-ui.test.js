@@ -100,3 +100,14 @@ test("chart exposes the newest candle close for first-class freshness display", 
   assert.match(source, /chart-freshness/);
   assert.match(source, /latestCandleCloseMs/);
 });
+
+test("large-font safety: hero values shrink instead of clipping, status rows wrap", () => {
+  const chart = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "chartView.tsx"), "utf8");
+  assert.match(chart, /adjustsFontSizeToFit numberOfLines=\{1\}>\{formatChartPrice/);
+  const watchlist = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "watchlistView.tsx"), "utf8");
+  assert.match(watchlist, /adjustsFontSizeToFit numberOfLines=\{1\}>\{formatPrice/);
+  const home = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "homeView.tsx"), "utf8");
+  assert.match(home, /adjustsFontSizeToFit numberOfLines=\{1\}/);
+  assert.match(home, /statusRail: \{[^}]*flexWrap/);
+  assert.doesNotMatch(home, /statusLine: \{[^}]*numberOfLines/);
+});

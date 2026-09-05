@@ -68,7 +68,7 @@ function ChartSummary({ model }: Readonly<{ model: ChartViewModel }>) {
     <View style={styles.summaryCopy}>
       <Text style={[styles.label, { color: theme.colors.textMuted }]}>CURRENT PRICE</Text>
       <View style={styles.priceRow}>
-        <Text style={[styles.current, { color: theme.colors.text }]}>{formatChartPrice(model.currentPrice)}</Text>
+        <Text style={[styles.current, { color: theme.colors.text }]} adjustsFontSizeToFit numberOfLines={1}>{formatChartPrice(model.currentPrice)}</Text>
         <Text style={[styles.move, { color: moveColor }]} testID="chart-move">{formatChartMove(model.move)}</Text>
       </View>
       <View style={styles.summaryMeta}>
