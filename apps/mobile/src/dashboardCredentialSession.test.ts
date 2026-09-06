@@ -4,13 +4,11 @@ import { LEGACY_MOBILE_BOOTSTRAP_PREFIX, normalizeMobileBootstrapToken } from ".
 
 describe("mobile PAPER bootstrap token compatibility", () => {
   it("keeps a raw one-time bootstrap token unchanged", () => {
-    const token = "abcdefghijklmnop1234567890";
-    assert.equal(normalizeMobileBootstrapToken(token), token);
+    assert.equal(normalizeMobileBootstrapToken("x".repeat(32)), "x".repeat(32));
   });
 
   it("strips the legacy bootstrap transport marker before exchange", () => {
-    const token = "abcdefghijklmnopqrstuvwxyz123456";
-    assert.equal(normalizeMobileBootstrapToken(`${LEGACY_MOBILE_BOOTSTRAP_PREFIX}${token}`), token);
+    assert.equal(normalizeMobileBootstrapToken(`${LEGACY_MOBILE_BOOTSTRAP_PREFIX}${"y".repeat(32)}`), "y".repeat(32));
   });
 
   it("rejects an empty legacy bootstrap payload", () => {
@@ -18,6 +16,6 @@ describe("mobile PAPER bootstrap token compatibility", () => {
   });
 
   it("rejects whitespace inside the actual bootstrap secret", () => {
-    assert.throws(() => normalizeMobileBootstrapToken(`${LEGACY_MOBILE_BOOTSTRAP_PREFIX}abcdefghijkl mnopqrstuvwxyz`), /invalid/i);
+    assert.throws(() => normalizeMobileBootstrapToken(`${LEGACY_MOBILE_BOOTSTRAP_PREFIX}${"x".repeat(16)} ${"y".repeat(16)}`), /invalid/i);
   });
 });
