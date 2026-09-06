@@ -47,6 +47,7 @@ test("Android product UX acceptance bounds emulator startup and preserves diagno
   assert.match(workflow, /mkdir -p "\$ANDROID_AVD_HOME"/);
   assert.match(workflow, /emulator" -list-avds \| grep -qx nusa_product_qa/);
   assert.match(workflow, /test -f "\$ANDROID_AVD_HOME\/nusa_product_qa\.ini"/);
+  assert.match(workflow, /sudo chmod 666 \/dev\/kvm/);
   assert.match(workflow, /timeout 120 adb wait-for-device/);
   assert.match(workflow, /timeout 300 bash -c/);
   assert.match(workflow, /cat "\$RUNNER_TEMP\/emulator\.log" \|\| true/);

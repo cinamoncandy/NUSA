@@ -58,6 +58,7 @@ jobs:
       - name: Boot and install
         run: |
           set -euo pipefail
+          sudo chmod 666 /dev/kvm
           nohup "$ANDROID_HOME/emulator/emulator" -avd nusa_product_qa -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect > "$RUNNER_TEMP/emulator.log" 2>&1 &
           if ! timeout 120 adb wait-for-device; then
             echo "::error::Android emulator did not register with adb within 120 seconds"
