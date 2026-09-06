@@ -23,6 +23,7 @@ describe("FileResearchRunReplaySnapshotStore", () => {
     try {
       fs.writeFileSync(f.filename, '{"schemaVersion":1,"snapshots":[]}\n', "utf8");
       assert.equal(f.store.read("a".repeat(64)), undefined);
+      assert.equal(f.store.latest(), undefined);
     } finally { f.cleanup(); }
   });
 
@@ -31,6 +32,7 @@ describe("FileResearchRunReplaySnapshotStore", () => {
     try {
       fs.writeFileSync(f.filename, '{"schemaVersion":1,"snapshots":[]}junk', "utf8");
       assert.throws(() => f.store.read("a".repeat(64)), /file is corrupted/);
+      assert.throws(() => f.store.latest(), /file is corrupted/);
     } finally { f.cleanup(); }
   });
 

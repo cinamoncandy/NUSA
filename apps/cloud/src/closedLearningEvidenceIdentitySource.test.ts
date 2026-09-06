@@ -106,6 +106,7 @@ function snapshotReader(candidateId = "candidate-a"): ResearchRunReplaySnapshotR
   });
   return Object.freeze({
     read: (fingerprint: string) => fingerprint === ORIGINAL ? snapshot as never : undefined,
+    latest: () => snapshot as never,
     list: () => Object.freeze([snapshot as never]),
   });
 }

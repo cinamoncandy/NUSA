@@ -83,8 +83,19 @@ function options(input: {
 } = {}) {
   const events: string[] = [];
   const replay = input.replay ?? replayResult(true);
+  const snapshots = input.snapshots ?? [snapshot()];
+  type SnapshotStub = { readonly originalRunFingerprintSha256: string; readonly options: { readonly generatedAt: string } };
+  const latest = () => {
+    const values = snapshots as readonly SnapshotStub[];
+    if (values.length === 0) return undefined;
+    const ordered = [...values]
+      .map((entry) => ({ snapshot: entry, generatedAt: Date.parse(entry.options.generatedAt) }))
+      .sort((left, right) => right.generatedAt - left.generatedAt || left.snapshot.originalRunFingerprintSha256.localeCompare(right.snapshot.originalRunFingerprintSha256));
+    if (ordered.filter((entry) => entry.generatedAt === ordered[0]!.generatedAt).length !== 1) throw new Error("initial PAPER bootstrap latest Research snapshot is ambiguous");
+    return ordered[0]!.snapshot as never;
+  };
   const base = {
-    snapshots: { list: () => input.snapshots ?? [snapshot()], read: () => undefined },
+    snapshots: { latest, list: () => { throw new Error("bootstrap must not materialize the Research snapshot archive"); }, read: () => undefined },
     worker: { replayInitialResearch: () => { events.push("worker"); return replay; } },
     history: { persist: () => { events.push("history"); if (input.failHistory) throw new Error("history unavailable"); return {} as never; } },
     artifacts: { save: (artifact: never) => { events.push("artifact"); return artifact; } },
