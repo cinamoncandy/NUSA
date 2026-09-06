@@ -28,7 +28,8 @@ test("deterministic Audit binds exact PR, protected main, canonical CI, and six 
 });
 
 test("stale Audit requests are NO_ACTION and cannot release", () => {
-  assert.match(workflow, /NO_ACTION stale Audit request/);
+  assert.match(workflow, /NO_ACTION stale\/non-releasable Audit request/);
+  assert.match(workflow, /current_draft/);
   assert.match(workflow, /applicable=false/);
   assert.match(workflow, /authority=NONE/);
   assert.match(workflow, /needs\.audit\.outputs\.applicable == 'true'/);
@@ -39,6 +40,7 @@ test("Release re-verifies exact expected head and audited base before merge", ()
   assert.match(workflow, /Re-verify expected head and audited base/);
   assert.match(workflow, /EXPECTED_HEAD/);
   assert.match(workflow, /AUDITED_BASE/);
+  assert.match(workflow, /final_draft/);
   assert.match(workflow, /-f sha="\$EXPECTED_HEAD"/);
   assert.match(workflow, /\.merged == true/);
 });
