@@ -18,6 +18,22 @@ describe("FileResearchRunReplaySnapshotStore", () => {
     finally { f.cleanup(); }
   });
 
+  it("bounded read accepts an empty canonical archive without materializing a match", () => {
+    const f = fixture();
+    try {
+      fs.writeFileSync(f.filename, '{"schemaVersion":1,"snapshots":[]}\n', "utf8");
+      assert.equal(f.store.read("a".repeat(64)), undefined);
+    } finally { f.cleanup(); }
+  });
+
+  it("bounded read fails closed on trailing archive corruption", () => {
+    const f = fixture();
+    try {
+      fs.writeFileSync(f.filename, '{"schemaVersion":1,"snapshots":[]}junk', "utf8");
+      assert.throws(() => f.store.read("a".repeat(64)), /file is corrupted/);
+    } finally { f.cleanup(); }
+  });
+
   it("fails closed on corrupt persisted archive JSON", () => {
     const f = fixture();
     try {
