@@ -30,7 +30,9 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - name: Apply product v5 convergence
-        run: node scripts/mobile-product-v5-apply.mjs
+        run: |
+          node scripts/mobile-product-v5-apply.mjs
+          node scripts/mobile-product-v5-repair.mjs
       - name: Verify TypeScript build and focused UX contracts
         run: |
           pnpm run build
