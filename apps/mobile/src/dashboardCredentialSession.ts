@@ -16,6 +16,11 @@ export function normalizeMobileBootstrapToken(value: string): string {
   return token;
 }
 
+/** A failed raw bootstrap attempt may be retried as approved-user self-enrollment; an explicit legacy bootstrap must never be reinterpreted as a long-lived credential. */
+export function shouldFallbackToMobileEnrollment(value: string, bootstrapReady: boolean): boolean {
+  return !bootstrapReady && !value.trim().startsWith(LEGACY_MOBILE_BOOTSTRAP_PREFIX);
+}
+
 export function setDashboardCredentialEndpoint(value: string | null): void {
   sharedEndpoint = value?.trim().replace(/\/+$/, "") || null;
 }
