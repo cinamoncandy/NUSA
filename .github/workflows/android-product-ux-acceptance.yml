@@ -52,9 +52,20 @@ jobs:
           ./gradlew :app:assembleDebug -PnusaEmbedDebugBundle
       - name: Boot and install
         run: |
+          set -euo pipefail
           nohup "$ANDROID_HOME/emulator/emulator" -avd nusa_product_qa -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect > "$RUNNER_TEMP/emulator.log" 2>&1 &
-          adb wait-for-device
-          timeout 300 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = "1" ]; do sleep 3; done'
+          if ! timeout 120 adb wait-for-device; then
+            echo "::error::Android emulator did not register with adb within 120 seconds"
+            cat "$RUNNER_TEMP/emulator.log" || true
+            adb devices -l || true
+            exit 1
+          fi
+          if ! timeout 300 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = "1" ]; do sleep 3; done'; then
+            echo "::error::Android emulator did not complete boot within 300 seconds"
+            cat "$RUNNER_TEMP/emulator.log" || true
+            adb devices -l || true
+            exit 1
+          fi
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
