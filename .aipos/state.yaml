@@ -6,7 +6,7 @@ current_mobile_home_command_center_recovery:
   pull_request: 1732
   base_sha: 6479d7ef815d5af8940fa282b667a80a1ccc31e4
   failing_head: 2e7f964aa74b3937c51389c24dc177bc1c915ccd
-  repair_commit: 2cdac277d42488d5e7acdfb673224ef7142a4f16
+  repair_commit: 648b5a3d9185409bd6e1626e716e88e70bfff0c6
   failure_classification: REPOSITORY_CONTROLLED_STRUCTURAL_AND_TEST_FLAKY
   local_validation: "Focused 21/21; risk evidence repeat 5/5; full isolated 947 files; build, lint, preflight, validate:full and diff check PASS."
   exact_head_ci: PENDING

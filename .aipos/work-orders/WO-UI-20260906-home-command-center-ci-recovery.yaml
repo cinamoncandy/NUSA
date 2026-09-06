@@ -8,7 +8,7 @@ base_commit: 6479d7ef815d5af8940fa282b667a80a1ccc31e4
 implementation_branch: design/mobile-home-command-center-v2-20260906
 pull_request: 1732
 failing_head: 2e7f964aa74b3937c51389c24dc177bc1c915ccd
-repair_commit: 2cdac277d42488d5e7acdfb673224ef7142a4f16
+repair_commit: 648b5a3d9185409bd6e1626e716e88e70bfff0c6
 authority_impact: none
 objective: "Restore exact-head CI after the intentional HOME hierarchy redesign without reverting the command-center UX or weakening safety contracts."
 scope:
