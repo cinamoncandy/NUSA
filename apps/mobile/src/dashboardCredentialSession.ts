@@ -1,10 +1,20 @@
 import { mobileApprovedSession } from "./mobileApprovedSessionBoundary";
 
 const MAX_TOKEN_LENGTH = 4096;
+export const LEGACY_MOBILE_BOOTSTRAP_PREFIX = "legacy-bootstrap:";
 let sharedEndpoint: string | null = null;
 let pendingBootstrapToken: string | null = null;
 
 export type DashboardCredentialProvider = () => Promise<string | null>;
+
+export function normalizeMobileBootstrapToken(value: string): string {
+  const raw = value.trim();
+  const token = raw.startsWith(LEGACY_MOBILE_BOOTSTRAP_PREFIX)
+    ? raw.slice(LEGACY_MOBILE_BOOTSTRAP_PREFIX.length).trim()
+    : raw;
+  if (token.length < 16 || token.length > MAX_TOKEN_LENGTH || /\s/.test(token)) throw new Error("Mobile bootstrap token is invalid.");
+  return token;
+}
 
 export function setDashboardCredentialEndpoint(value: string | null): void {
   sharedEndpoint = value?.trim().replace(/\/+$/, "") || null;
@@ -18,14 +28,14 @@ export function clearDashboardCredentialSession(): void {
 
 /**
  * Compatibility boundary used by Settings and PAPER clients.
- * `connect` now accepts an OWNER-issued single-use mobile bootstrap token, never a long-lived bearer.
- * The first credential request exchanges it for an approved-user session. Access stays in memory and
- * the rotating refresh credential is persisted only through the platform SecureStoragePort.
+ * `connect` accepts an OWNER-issued single-use mobile bootstrap token. The Settings legacy-bootstrap
+ * compatibility marker is transport metadata only and is stripped before the secret is exchanged.
+ * The first credential request exchanges the token for an approved-user session. Access stays in
+ * memory and the rotating refresh credential is persisted only through the platform SecureStoragePort.
  */
 export class InMemoryDashboardCredentialSession {
   public connect(value: string): void {
-    const token = value.trim();
-    if (token.length < 16 || token.length > MAX_TOKEN_LENGTH || /\s/.test(token)) throw new Error("Mobile bootstrap token is invalid.");
+    const token = normalizeMobileBootstrapToken(value);
     pendingBootstrapToken = token;
     mobileApprovedSession().clearMemory();
   }
