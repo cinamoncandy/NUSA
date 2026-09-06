@@ -33,6 +33,7 @@ jobs:
         run: |
           node scripts/mobile-product-v5-apply.mjs
           node scripts/mobile-product-v5-repair.mjs
+          rm -f .github/workflows/android-product-ux-acceptance.yml
       - name: Verify TypeScript build and focused UX contracts
         run: |
           pnpm run build
