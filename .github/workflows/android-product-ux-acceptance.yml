@@ -43,6 +43,7 @@ jobs:
           mkdir -p "$ANDROID_AVD_HOME"
           echo no | avdmanager create avd -n nusa_product_qa -k "system-images;android-35;google_apis;x86_64" -d pixel_6 --force
           "$ANDROID_HOME/emulator/emulator" -list-avds | grep -qx nusa_product_qa
+          test -f "$ANDROID_AVD_HOME/nusa_product_qa.ini"
       - name: Build exact debug APK
         env:
           EXPO_PUBLIC_NUSA_API_BASE_URL: ${{ vars.NUSA_MOBILE_API_BASE_URL }}
