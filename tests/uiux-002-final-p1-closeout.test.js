@@ -10,7 +10,7 @@ function expectTabularStyle(source, styleName) {
   assert.match(source, new RegExp(`${styleName}: \\{[^}]*fontVariant: \\["tabular-nums"\\]`), `${styleName} must use tabular numerals`);
 }
 
-test("primary financial values use stable tabular numerals through the shared Intelligence OS primitives", () => {
+test("primary financial values use stable tabular numerals in each canonical presentation grammar", () => {
   const home = read("apps/mobile/src/homeView.tsx");
   const intelligence = read("apps/mobile/src/intelligenceOs.tsx");
   const primitives = read("apps/mobile/src/uxPrimitives.tsx");
@@ -18,7 +18,9 @@ test("primary financial values use stable tabular numerals through the shared In
   const trading = read("apps/mobile/src/tradingViewLegacy.tsx");
   const watchlist = read("apps/mobile/src/watchlistView.tsx");
 
-  assert.match(home, /<MetricStrip testID="account-hero-card"/);
+  assert.match(home, /testID="account-hero-card"/);
+  expectTabularStyle(home, "balanceValue");
+  expectTabularStyle(home, "pnlValue");
   assert.match(portfolio, /<MetricStrip testID="portfolio-supervisor-summary"/);
   assert.match(portfolio, /<FactRow label="INVESTMENT LIMIT"/);
   assert.match(portfolio, /<FactRow label="CURRENT PRICE"/);

@@ -23,7 +23,7 @@ test("HomeView presents the approved autonomous-intelligence composition", () =>
 
   assert.match(home, /useWindowDimensions/);
   assert.match(home, /const tablet = width >= 768/);
-  assert.match(home, /maxWidth: tablet \? 980 : 680/);
+  assert.match(home, /maxWidth: tablet \? 1080 : 720/);
   assert.match(home, /testID="home-screen"/);
   assert.match(home, /testID="home-master-rail"/);
   assert.match(home, /testID="home-status-rail"/);
@@ -34,11 +34,11 @@ test("HomeView presents the approved autonomous-intelligence composition", () =>
   assert.match(home, /testID="home-decision-stage"/);
   assert.match(home, /testID="home-paper-performance"/);
   assert.match(home, /testID="home-paper-learning"/);
-  assert.match(home, /WHY · AI INSIGHT/);
-  assert.match(home, /RISK STATUS/);
-  assert.match(home, /SIGNAL TERRAIN/);
+  assert.match(home, /DECISION BASIS/);
+  assert.match(home, /RISK/);
+  assert.match(home, /OBSERVE/);
   assert.match(home, /PAPER PERFORMANCE/);
-  assert.match(home, /LEARNING/);
+  assert.match(home, /LEARN/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
 
   assert.doesNotMatch(home, /getHomeVisualProfile\(theme\.preset\)/);
@@ -53,7 +53,6 @@ test("canonical HOME uses verified market and PAPER data without fabricating una
 
   assert.match(home, /const marketRows = \[\.\.\.selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)\][\s\S]*?\.slice\(0, tablet \? 5 : 3\)/);
   assert.match(home, /publicMarkets: readonly WatchlistMarket\[\] \| null/);
-  assert.match(home, /krw\(market\.price\)/);
   assert.match(home, /signedPercentFromRate\(market\.changeRate\)/);
   assert.match(home, /const cloudAccount = snapshot\?\.portfolio\?\.account \?\? null/);
   assert.match(home, /const account = cloudAccount \?\? localAccount/);
@@ -75,13 +74,13 @@ test("canonical HOME uses verified market and PAPER data without fabricating una
   assert.doesNotMatch(home, /productionMutationAllowed\s*=\s*true/);
 });
 
-test("HOME rendered financial values keep stable tabular numerals through the shared Intelligence OS grammar", () => {
+test("HOME rendered financial values keep stable tabular numerals in the command-center grammar", () => {
   const home = read("apps/mobile/src/homeView.tsx");
-  const intelligenceOs = read("apps/mobile/src/intelligenceOs.tsx");
-  assert.match(home, /<MetricStrip testID="account-hero-card"/);
-  assert.match(home, /<FactRow key=\{market\.market\}/);
-  assert.match(intelligenceOs, /metricValue:[^\n]*fontVariant:\s*\["tabular-nums"\]/);
-  assert.match(intelligenceOs, /factValue:[^\n]*fontVariant:\s*\["tabular-nums"\]/);
+  for (const style of ["balanceValue", "pnlValue", "factValue", "previewValue"]) {
+    assert.match(home, new RegExp(`${style}: \\{[^}]*fontVariant: \\["tabular-nums"\\]`));
+  }
+  assert.match(home, /\{krw\(account\?\.equity\)\}/);
+  assert.match(home, /\{signedMoney\(totalPnl\)\} TOTAL PNL/);
 });
 
 test("fresh or stale installs converge on the canonical master preset", () => {

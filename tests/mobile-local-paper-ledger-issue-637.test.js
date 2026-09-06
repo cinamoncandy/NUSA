@@ -60,10 +60,9 @@ test("#637: Home gives Cloud PAPER precedence and otherwise renders shared LOCAL
   assert.match(home, /const accountSource = snapshot != null \? "CLOUD" : localPortfolio != null \? "LOCAL" : null/);
   assert.match(home, /const totalPnl = account == null \? null : \(account\.realizedPnl \?\? account\.position\.realizedPnl\) \+ account\.unrealizedPnl/);
   assert.match(home, /testID="account-hero-card"/);
-  assert.match(home, /label: "EQUITY"/);
-  assert.match(home, /value: krw\(account\?\.equity\)/);
-  assert.match(home, /label: "TOTAL PNL"/);
-  assert.match(home, /value: signedMoney\(totalPnl\)/);
+  assert.match(home, /PAPER EQUITY/);
+  assert.match(home, /\{krw\(account\?\.equity\)\}/);
+  assert.match(home, /\{signedMoney\(totalPnl\)\} TOTAL PNL/);
   assert.doesNotMatch(home, /home-local-paper-note/);
 });
 

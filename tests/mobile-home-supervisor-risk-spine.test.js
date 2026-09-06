@@ -6,7 +6,7 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-test("canonical HOME keeps the approved Intelligence OS hierarchy instead of restoring the legacy truth rail", () => {
+test("canonical HOME keeps the content-first command center hierarchy instead of restoring the legacy truth rail", () => {
   const home = read("apps/mobile/src/homeView.tsx");
   const ai = home.indexOf('testID="ai-card"');
   const risk = home.indexOf('testID="home-risk-status"');
@@ -14,7 +14,7 @@ test("canonical HOME keeps the approved Intelligence OS hierarchy instead of res
   const performance = home.indexOf('testID="home-paper-performance"');
   const learning = home.indexOf('testID="home-paper-learning"');
   assert.ok(ai >= 0 && risk >= 0 && terrain >= 0 && performance >= 0 && learning >= 0);
-  assert.ok(ai < risk && risk < terrain && terrain < performance && performance < learning);
+  assert.ok(terrain < performance && performance < learning && learning < ai && ai < risk);
   assert.doesNotMatch(home, /<TruthCell label="(?:NOW|WHY|RESULT|RISK|LEARNING)"/);
 });
 
