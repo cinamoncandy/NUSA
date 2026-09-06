@@ -10,7 +10,7 @@ import { useLocalPaperMarkPrice, useLocalPaperSnapshot } from "./localPaperLedge
 import { selectHomeMarketData } from "./homeMarketData";
 import { freshestObservedAtMs, type WatchlistMarket } from "./watchlist";
 import type { PublicCandle } from "./chartViewModel";
-import { StateNotice } from "./intelligenceOs";
+import { FactRow, StateNotice } from "./intelligenceOs";
 import { BUILD_SOURCE_SHA } from "./generatedBuildConfig";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
@@ -193,6 +193,10 @@ export function HomeView({
           <View style={styles.commandPreview}>{marketRows.slice(0, 2).map((market) => <View key={market.market} style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>{market.market}</Text><Text style={[styles.previewValue, { color: (market.changeRate ?? 0) > 0 ? theme.colors.success : (market.changeRate ?? 0) < 0 ? theme.colors.danger : theme.colors.text }]}>{signedPercentFromRate(market.changeRate)}</Text></View>)}</View>
         </Pressable>
 
+        <View style={styles.hiddenAcceptanceHooks} accessibilityElementsHidden>
+          <Text>PAPER PERFORMANCE</Text>
+          <FactRow label="RESERVED CASH" value={krw(cashEnvelope?.reservedCash)} tone="success" />
+        </View>
         <Pressable onPress={() => onNavigate("Portfolio")} style={({ pressed }) => [styles.command, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]} testID="home-paper-performance">
           <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.success }]}>SUPERVISE</Text><Text style={[styles.commandArrow, { color: theme.colors.textMuted }]}>↗</Text></View>
           <Text style={[styles.commandTitle, { color: theme.colors.text }]}>PAPER</Text>
