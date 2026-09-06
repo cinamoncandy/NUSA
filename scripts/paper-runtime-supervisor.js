@@ -168,11 +168,12 @@ class PaperRuntimeProcessSupervisor {
     this.restartCount += 1;
     const reason = leaseConflict ? " writer-lease-conflict" : "";
     this.write(`[paper-supervisor] runtime exited code=${code ?? "null"} signal=${signal ?? "none"};${reason} restart in ${delay}ms\n`);
+    // Keep the recovery timer referenced. After the child exits this timer can be the
+    // supervisor's only active handle; unref() here lets Node terminate before recovery runs.
     this.restartTimer = this.setTimer(() => {
       this.restartTimer = null;
       this.launch();
     }, delay);
-    this.restartTimer?.unref?.();
   }
 }
 
