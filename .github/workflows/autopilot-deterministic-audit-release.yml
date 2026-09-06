@@ -54,17 +54,20 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/branches/main" > "$RUNNER_TEMP/nusa-deterministic-audit/main.json"
 
           current_state="$(jq -r '.state' "$RUNNER_TEMP/nusa-deterministic-audit/pr.json")"
+          current_draft="$(jq -r '.draft // false' "$RUNNER_TEMP/nusa-deterministic-audit/pr.json")"
           current_head="$(jq -r '.head.sha // empty' "$RUNNER_TEMP/nusa-deterministic-audit/pr.json")"
           current_base="$(jq -r '.base.sha // empty' "$RUNNER_TEMP/nusa-deterministic-audit/pr.json")"
           base_ref="$(jq -r '.base.ref // empty' "$RUNNER_TEMP/nusa-deterministic-audit/pr.json")"
           base_repo="$(jq -r '.base.repo.full_name // empty' "$RUNNER_TEMP/nusa-deterministic-audit/pr.json")"
           current_main="$(jq -r '.commit.sha // empty' "$RUNNER_TEMP/nusa-deterministic-audit/main.json")"
 
-          if [ "$current_state" != "open" ] || [ "$current_head" != "$REQUESTED_HEAD" ] || [ "$base_ref" != "main" ] || [ "$base_repo" != "$GITHUB_REPOSITORY" ] || [ "$current_base" != "$current_main" ]; then
+          # Draft PRs intentionally have no deterministic Release authority. Treat them as
+          # non-applicable instead of emitting a false-red merge failure from GitHub HTTP 405.
+          if [ "$current_state" != "open" ] || [ "$current_draft" = "true" ] || [ "$current_head" != "$REQUESTED_HEAD" ] || [ "$base_ref" != "main" ] || [ "$base_repo" != "$GITHUB_REPOSITORY" ] || [ "$current_base" != "$current_main" ]; then
             echo 'applicable=false' >> "$GITHUB_OUTPUT"
             echo 'authority=NONE' >> "$GITHUB_OUTPUT"
             echo "audited_base=$current_main" >> "$GITHUB_OUTPUT"
-            echo "NO_ACTION stale Audit request: state=$current_state requested_head=$REQUESTED_HEAD current_head=$current_head base=$current_base main=$current_main"
+            echo "NO_ACTION stale/non-releasable Audit request: state=$current_state draft=$current_draft requested_head=$REQUESTED_HEAD current_head=$current_head base=$current_base main=$current_main"
             exit 0
           fi
 
@@ -99,11 +102,14 @@ jobs:
               }
           done
 
+          final_pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
           final_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
-          final_state="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.state')"
-          final_head="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha')"
-          final_base="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.base.sha')"
+          final_state="$(jq -r '.state' <<<"$final_pr")"
+          final_draft="$(jq -r '.draft // false' <<<"$final_pr")"
+          final_head="$(jq -r '.head.sha' <<<"$final_pr")"
+          final_base="$(jq -r '.base.sha' <<<"$final_pr")"
           test "$final_state" = "open"
+          test "$final_draft" = "false"
           test "$final_head" = "$REQUESTED_HEAD"
           test "$final_base" = "$current_main"
           test "$final_main" = "$current_main"
@@ -140,6 +146,7 @@ jobs:
           pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
           main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           test "$(jq -r '.state' <<<"$pr")" = "open"
+          test "$(jq -r '.draft // false' <<<"$pr")" = "false"
           test "$(jq -r '.head.sha' <<<"$pr")" = "$EXPECTED_HEAD"
           test "$(jq -r '.base.ref' <<<"$pr")" = "main"
           test "$(jq -r '.base.sha' <<<"$pr")" = "$AUDITED_BASE"
