@@ -53,13 +53,13 @@ export function MetricStrip({ items, testID }: Readonly<{ items: readonly { labe
 export function IntelligenceSection({ title, kicker, actionLabel, onAction, children, tone = "neutral", testID, style }: Readonly<{ title: string; kicker?: string; actionLabel?: string; onAction?: () => void; children: React.ReactNode; tone?: IntelligenceTone; testID?: string; style?: ViewStyle }>) {
   const { theme } = useTheme();
   const accent = toneColor(theme, tone);
-  return <View style={[styles.section, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface }, style]} testID={testID}>
+  return <View style={[styles.section, { borderColor: theme.colors.border }, style]} testID={testID}>
     <View style={styles.sectionHeader}>
       <View style={styles.sectionTitleWrap}>
         {kicker ? <Text style={[styles.sectionKicker, { color: accent }]}>{kicker}</Text> : null}
         <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{title}</Text>
       </View>
-      {actionLabel && onAction ? <Pressable accessibilityRole="button" onPress={onAction} style={({ pressed }) => [styles.sectionAction, { borderColor: theme.colors.borderStrong, opacity: pressed ? 0.7 : 1 }]}><Text style={[styles.sectionActionText, { color: theme.colors.textMuted }]}>{actionLabel}</Text></Pressable> : null}
+      {actionLabel && onAction ? <Pressable accessibilityRole="button" onPress={onAction} style={({ pressed }) => [styles.sectionAction, { borderColor: theme.colors.borderStrong, backgroundColor: theme.colors.surfaceSunken, opacity: pressed ? 0.7 : 1 }]}><Text style={[styles.sectionActionText, { color: theme.colors.textMuted }]}>{actionLabel}</Text></Pressable> : null}
     </View>
     {children}
   </View>;
@@ -87,38 +87,38 @@ export function StateNotice({ title, detail, tone = "warning", testID }: Readonl
 }
 
 const styles = StyleSheet.create({
-  authorityRail: { minHeight: 64, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, gap: 6 },
+  authorityRail: { minHeight: 60, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, gap: 5 },
   authorityBrandRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   authorityDot: { width: 13, height: 13, borderWidth: 2, borderRadius: 999 },
   authorityBrand: { fontSize: 18, lineHeight: 22, fontWeight: "900", letterSpacing: 1.8 },
   authorityMode: { fontSize: 10, lineHeight: 14, fontWeight: "900", letterSpacing: 1.25 },
-  authorityDetail: { fontSize: 11, lineHeight: 16 },
-  authorityStatus: { position: "absolute", right: 12, top: 12, minHeight: 28, borderWidth: 1, borderRadius: 999, justifyContent: "center", paddingHorizontal: 10 },
-  authorityStatusText: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 0.8 },
-  lead: { gap: 8 },
+  authorityDetail: { fontSize: 11, lineHeight: 16, paddingRight: 98 },
+  authorityStatus: { position: "absolute", right: 12, top: 12, minHeight: 32, borderWidth: 1, borderRadius: 999, justifyContent: "center", paddingHorizontal: 11 },
+  authorityStatusText: { fontSize: 10, lineHeight: 14, fontWeight: "900", letterSpacing: 0.75 },
+  lead: { gap: 7 },
   leadTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 },
-  eyebrow: { fontSize: 10, lineHeight: 14, fontWeight: "900", letterSpacing: 1.45 },
-  leadTitle: { fontSize: 27, lineHeight: 33, fontWeight: "900", letterSpacing: -0.7 },
-  leadDetail: { fontSize: 13, lineHeight: 20 },
+  eyebrow: { fontSize: 10, lineHeight: 14, fontWeight: "900", letterSpacing: 1.4 },
+  leadTitle: { fontSize: 30, lineHeight: 36, fontWeight: "900", letterSpacing: -0.85 },
+  leadDetail: { maxWidth: 720, fontSize: 13, lineHeight: 20 },
   badge: { minHeight: 28, borderRadius: 999, borderWidth: 1, justifyContent: "center", paddingHorizontal: 10 },
   badgeText: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 0.7 },
-  metricStrip: { flexDirection: "row", borderWidth: 1, borderRadius: 18, overflow: "hidden" },
-  metricCell: { flex: 1, minWidth: 0, paddingHorizontal: 11, paddingVertical: 14, gap: 4 },
+  metricStrip: { flexDirection: "row", borderWidth: 1, borderRadius: 14, overflow: "hidden" },
+  metricCell: { flex: 1, minWidth: 0, paddingHorizontal: 11, paddingVertical: 15, gap: 4 },
   metricLabel: { fontSize: 9, lineHeight: 13, fontWeight: "800", letterSpacing: 0.55 },
-  metricValue: { fontSize: 17, lineHeight: 22, fontWeight: "900", fontVariant: ["tabular-nums"] },
-  section: { borderWidth: 1, borderRadius: 18, padding: 16, gap: 12 },
+  metricValue: { fontSize: 18, lineHeight: 23, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  section: { borderTopWidth: StyleSheet.hairlineWidth, borderRadius: 0, paddingHorizontal: 2, paddingTop: 18, paddingBottom: 6, gap: 12 },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 },
   sectionTitleWrap: { flex: 1, gap: 3 },
   sectionKicker: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.1 },
-  sectionTitle: { fontSize: 17, lineHeight: 22, fontWeight: "800" },
-  sectionAction: { minHeight: 38, minWidth: 72, borderWidth: 1, borderRadius: 999, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 },
-  sectionActionText: { fontSize: 10, lineHeight: 14, fontWeight: "800" },
+  sectionTitle: { fontSize: 19, lineHeight: 24, fontWeight: "850" },
+  sectionAction: { minHeight: 48, minWidth: 84, borderWidth: 1, borderRadius: 12, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 },
+  sectionActionText: { fontSize: 11, lineHeight: 15, fontWeight: "800" },
   factRow: { minHeight: 48, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 14 },
   factCopy: { flex: 1, minWidth: 0, gap: 2 },
   factLabel: { fontSize: 11, lineHeight: 16, fontWeight: "800" },
   factNote: { fontSize: 10, lineHeight: 14 },
   factValue: { maxWidth: "52%", textAlign: "right", fontSize: 13, lineHeight: 18, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  notice: { borderWidth: 1, borderRadius: 14, padding: 13, gap: 4 },
+  notice: { borderWidth: 1, borderRadius: 12, padding: 13, gap: 4 },
   noticeTitle: { fontSize: 12, lineHeight: 17, fontWeight: "900" },
   noticeDetail: { fontSize: 11, lineHeight: 17 },
 });
