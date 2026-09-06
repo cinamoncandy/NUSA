@@ -135,3 +135,35 @@ test("heartbeat sends ping and records pong without creating another timer", (t)
   assert.equal(client.activeTimerCount(), 1);
   client.stop();
 });
+
+
+test("stale open public feed closes itself and enters bounded reconnect", (t) => {
+  t.mock.timers.enable({ apis: ["setInterval", "setTimeout"] });
+  const transport = new MockUpbitWebSocketTransport();
+  let now = 1_000;
+  const states = [];
+  const client = new UpbitWebSocketClient("KRW-BTC", () => {}, () => {}, 2, 2_000, {
+    transport,
+    now: () => now,
+    onConnectionState: (diagnostics) => states.push(diagnostics.marketConnectionState)
+  });
+  t.after(() => client.stop());
+  client.start();
+  const first = transport.sockets[0];
+  first.open();
+
+  now = 3_100;
+  t.mock.timers.tick(1_000);
+  assert.equal(first.closed, true, "stale OPEN socket must be closed");
+  assert.equal(states.includes("STALE"), true);
+  assert.equal(states.includes("RECONNECTING"), true);
+  assert.equal(client.activeTimerCount(), 2, "heartbeat plus exactly one reconnect timer");
+
+  t.mock.timers.tick(1_000);
+  assert.equal(transport.sockets.length, 2, "bounded reconnect creates one replacement socket");
+  const replacement = transport.sockets[1];
+  replacement.open();
+  replacement.emitMessage(JSON.stringify(ticker({ trade_timestamp: 3_200 })));
+  assert.equal(client.currentHealth(), "CONNECTED");
+  assert.equal(client.activeTimerCount(), 1, "reconnect timer clears after recovery");
+});
