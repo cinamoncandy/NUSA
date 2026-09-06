@@ -32,6 +32,21 @@ function validate(snapshot: ResearchRunReplaySnapshot): ResearchRunReplaySnapsho
   return snapshot;
 }
 
+function parseValidatedSnapshot(encoded: Buffer): ResearchRunReplaySnapshot {
+  let parsed: ResearchRunReplaySnapshot;
+  try { parsed = JSON.parse(encoded.toString("utf8")) as ResearchRunReplaySnapshot; }
+  catch { throw new Error("research replay snapshot file is corrupted"); }
+  return validate(parsed);
+}
+
+function snapshotGeneratedAt(snapshot: ResearchRunReplaySnapshot): number {
+  const value = snapshot.options.generatedAt;
+  if (typeof value !== "string" || !value.trim()) throw new Error("initial PAPER bootstrap Research generatedAt is unavailable");
+  const timestamp = Date.parse(value);
+  if (!Number.isSafeInteger(timestamp) || timestamp < 0) throw new Error("initial PAPER bootstrap Research generatedAt is invalid");
+  return timestamp;
+}
+
 function isWhitespace(byte: number): boolean {
   return byte === 0x20 || byte === 0x0a || byte === 0x0d || byte === 0x09;
 }
@@ -46,7 +61,7 @@ function isWhitespace(byte: number): boolean {
  * denominator semantics are unchanged. Only the peak number of simultaneously retained snapshots
  * changes from the whole archive to one.
  */
-function forEachValidatedSnapshot(filename: string, visit: (snapshot: ResearchRunReplaySnapshot) => void): void {
+function forEachValidatedSnapshot(filename: string, visit: (snapshot: ResearchRunReplaySnapshot, encoded: Buffer) => void): void {
   if (!fs.existsSync(filename)) return;
   const stat = fs.statSync(filename);
   if (!stat.isFile()) throw new Error("research replay snapshot path is not a file");
@@ -71,15 +86,13 @@ function forEachValidatedSnapshot(filename: string, visit: (snapshot: ResearchRu
     let arrayClosedAt: number | undefined;
 
     const finishObject = (): void => {
-      let parsed: ResearchRunReplaySnapshot;
-      try { parsed = JSON.parse(Buffer.concat(objectParts, objectBytes).toString("utf8")) as ResearchRunReplaySnapshot; }
-      catch { throw new Error("research replay snapshot file is corrupted"); }
-      const checked = validate(parsed);
+      const encoded = Buffer.concat(objectParts, objectBytes);
+      const checked = parseValidatedSnapshot(encoded);
       if (!SHA64.test(checked.originalRunFingerprintSha256) || fingerprints.has(checked.originalRunFingerprintSha256)) {
         throw new Error("research replay snapshot run identity is duplicated or invalid");
       }
       fingerprints.add(checked.originalRunFingerprintSha256);
-      visit(checked);
+      visit(checked, encoded);
       objectParts = [];
       objectBytes = 0;
       started = false;
@@ -153,6 +166,7 @@ function forEachValidatedSnapshot(filename: string, visit: (snapshot: ResearchRu
 
 export interface ResearchRunReplaySnapshotReader {
   read(originalRunFingerprintSha256: string): ResearchRunReplaySnapshot | undefined;
+  latest(): ResearchRunReplaySnapshot | undefined;
   list(): readonly ResearchRunReplaySnapshot[];
 }
 
@@ -199,6 +213,34 @@ export class FileResearchRunReplaySnapshotStore implements ResearchRunReplaySnap
       if (snapshot.originalRunFingerprintSha256 === fingerprint) found = snapshot;
     });
     return found;
+  }
+
+  /**
+   * Selects the unique newest immutable Research snapshot without materializing the archive.
+   * Every entry is still parsed, provenance/checksum validated, and duplicate-identity checked.
+   * Only the current newest raw JSON buffer is retained while scanning, so historical archive
+   * growth does not multiply V8 heap usage in the production bootstrap process.
+   */
+  public latest(): ResearchRunReplaySnapshot | undefined {
+    let latestEncoded: Buffer | undefined;
+    let latestGeneratedAt = -1;
+    let latestTimestampCount = 0;
+    forEachValidatedSnapshot(this.filename, (snapshot, encoded) => {
+      const generatedAt = snapshotGeneratedAt(snapshot);
+      if (generatedAt > latestGeneratedAt) {
+        latestGeneratedAt = generatedAt;
+        latestTimestampCount = 1;
+        latestEncoded = encoded;
+      } else if (generatedAt === latestGeneratedAt) {
+        latestTimestampCount += 1;
+      }
+    });
+    if (latestEncoded == null) return undefined;
+    if (latestTimestampCount !== 1) throw new Error("initial PAPER bootstrap latest Research snapshot is ambiguous");
+    let parsed: ResearchRunReplaySnapshot;
+    try { parsed = JSON.parse(latestEncoded.toString("utf8")) as ResearchRunReplaySnapshot; }
+    catch { throw new Error("research replay snapshot file is corrupted"); }
+    return parsed;
   }
 
   public list(): readonly ResearchRunReplaySnapshot[] {

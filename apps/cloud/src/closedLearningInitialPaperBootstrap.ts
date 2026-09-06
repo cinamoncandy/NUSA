@@ -31,24 +31,6 @@ export interface ClosedLearningInitialPaperBootstrapOptions {
   readonly now?: () => number;
 }
 
-function generatedAt(snapshot: ResearchRunReplaySnapshot): number {
-  const value = snapshot.options.generatedAt;
-  if (typeof value !== "string" || !value.trim()) throw new Error("initial PAPER bootstrap Research generatedAt is unavailable");
-  const timestamp = Date.parse(value);
-  if (!Number.isSafeInteger(timestamp) || timestamp < 0) throw new Error("initial PAPER bootstrap Research generatedAt is invalid");
-  return timestamp;
-}
-
-function latestSnapshot(snapshots: readonly ResearchRunReplaySnapshot[]): ResearchRunReplaySnapshot | undefined {
-  if (snapshots.length === 0) return undefined;
-  const ordered = [...snapshots]
-    .map((snapshot) => ({ snapshot, generatedAt: generatedAt(snapshot) }))
-    .sort((left, right) => right.generatedAt - left.generatedAt || left.snapshot.originalRunFingerprintSha256.localeCompare(right.snapshot.originalRunFingerprintSha256));
-  const latest = ordered[0]!;
-  if (ordered.filter((item) => item.generatedAt === latest.generatedAt).length !== 1) throw new Error("initial PAPER bootstrap latest Research snapshot is ambiguous");
-  return latest.snapshot;
-}
-
 function bootstrapDecision(result: ClosedLearningResearchReplayResult): Parameters<PaperChallengerDeploymentAdapter["deploy"]>[0]["decision"] {
   if (result.deployment.status !== "DEPLOYABLE") throw new Error("initial PAPER bootstrap deployment artifact is unavailable");
   const artifact = result.deployment.artifact;
@@ -85,7 +67,7 @@ export class ClosedLearningInitialPaperBootstrap {
     if (this.options.listOpenPeriods().length > 0 || this.options.listRealizedPeriods().length > 0) {
       return Object.freeze({ early: Object.freeze({ status: "EXISTING_PAPER_STATE" }) });
     }
-    const snapshot = latestSnapshot(this.options.snapshots.list());
+    const snapshot = this.options.snapshots.latest();
     if (snapshot == null) return Object.freeze({ early: Object.freeze({ status: "WAITING_RESEARCH_SNAPSHOT" }) });
     return Object.freeze({ snapshot });
   }
