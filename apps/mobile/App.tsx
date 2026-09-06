@@ -43,8 +43,8 @@ const tabs = ["Home", "Markets", "Paper", "Portfolio"] as const;
 type PrimaryTab = (typeof tabs)[number];
 type Tab = PrimaryTab | "AiSignal" | "Order";
 type UtilityView = "NOTIFICATIONS" | "SETTINGS" | null;
-const tabLabels: Readonly<Record<PrimaryTab, string>> = { Home: "HOME", Markets: "OBSERVE", Paper: "PAPER", Portfolio: "SUPERVISE" };
-const tabDescriptions: Readonly<Record<PrimaryTab, string>> = { Home: "현재 NUSA 상태", Markets: "공개 시장 관찰", Paper: "PAPER 운용", Portfolio: "PAPER 운용 감독" };
+const tabLabels: Readonly<Record<PrimaryTab, string>> = { Home: "HOME", Markets: "MARKETS", Paper: "PAPER", Portfolio: "PORTFOLIO" };
+const tabDescriptions: Readonly<Record<PrimaryTab, string>> = { Home: "현재 NUSA 상태", Markets: "공개 시장 환경", Paper: "PAPER 운용", Portfolio: "PAPER 자산과 결과" };
 const utilityLabels: Readonly<Record<Exclude<UtilityView, null>, string>> = { NOTIFICATIONS: "알림", SETTINGS: "설정" };
 const CHART_MARKET = "KRW-BTC";
 const PAPER_REFRESH_INTERVAL_MS = 5000;
@@ -91,7 +91,7 @@ function DashboardConnectionRequired({ reason, onGoSettings }: Readonly<{ reason
   return <View style={styles.connectionState} testID="dashboard-connection-required"><View style={styles.connectionStateInner}><NusaCard raised>
     <View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: appTheme.colors.warning }]}>PAPER CONNECTION</Text><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>PAPER 서버 연결 필요</Text></View><StatusChip label="연결 안 됨" tone="warning" /></View>
     <Text style={[styles.body, { color: appTheme.colors.textMuted }]}>{reason}</Text>
-    <Text style={[styles.meta, { color: appTheme.colors.textMuted }]}>Settings에서 Cloud endpoint와 메모리 전용 세션 토큰을 검증한 뒤 PAPER 데이터와 주문 기능을 사용할 수 있습니다.</Text>
+    <Text style={[styles.meta, { color: appTheme.colors.textMuted }]}>Settings에서 Cloud endpoint와 메모리 전용 세션 토큰을 검증한 뒤 PAPER 데이터와 운용 감독 기능을 사용할 수 있습니다.</Text>
     <NusaButton label="설정에서 연결" onPress={onGoSettings} testID="dashboard-open-settings" />
   </NusaCard></View></View>;
 }

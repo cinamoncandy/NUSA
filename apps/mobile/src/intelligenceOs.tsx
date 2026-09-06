@@ -110,7 +110,7 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 },
   sectionTitleWrap: { flex: 1, gap: 3 },
   sectionKicker: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.1 },
-  sectionTitle: { fontSize: 19, lineHeight: 24, fontWeight: "850" },
+  sectionTitle: { fontSize: 19, lineHeight: 24, fontWeight: "800" },
   sectionAction: { minHeight: 48, minWidth: 84, borderWidth: 1, borderRadius: 12, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 },
   sectionActionText: { fontSize: 11, lineHeight: 15, fontWeight: "800" },
   factRow: { minHeight: 48, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 14 },

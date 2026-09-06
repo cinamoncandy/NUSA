@@ -15,7 +15,11 @@ test("settings UI exposes local PAPER, optional Cloud, cash allocation, appearan
   assert.match(source, /testID="settings-paper-connect"/);
   assert.match(source, /testID="settings-paper-disconnect"/);
   assert.match(source, /bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);
-  assert.match(source, /LOCAL PAPER 거래에는 사용하지 않습니다/);
+  assert.match(source, /SERVER/);
+  assert.match(source, /SECURE SESSION/);
+  assert.match(source, /VERIFY/);
+  assert.match(source, /연결 다시 시도/);
+  assert.match(source, /LOCAL PAPER에는 사용하지 않습니다/);
   assert.doesNotMatch(source, /iOS 영구 세션 복원/);
 
   assert.match(source, /testID="settings-capital-allocation"/);
