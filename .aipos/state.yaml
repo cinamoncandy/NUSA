@@ -1,4 +1,17 @@
 version: 1
+current_mobile_home_command_center_recovery:
+  work_order: WO-UI-20260906-HOME-COMMAND-CENTER-CI-RECOVERY
+  status: IN_PROGRESS
+  branch: design/mobile-home-command-center-v2-20260906
+  pull_request: 1732
+  base_sha: 6479d7ef815d5af8940fa282b667a80a1ccc31e4
+  failing_head: 2e7f964aa74b3937c51389c24dc177bc1c915ccd
+  repair_commit: 2cdac277d42488d5e7acdfb673224ef7142a4f16
+  failure_classification: REPOSITORY_CONTROLLED_STRUCTURAL_AND_TEST_FLAKY
+  local_validation: "Focused 21/21; risk evidence repeat 5/5; full isolated 947 files; build, lint, preflight, validate:full and diff check PASS."
+  exact_head_ci: PENDING
+  next_permitted_action: "Push validated head and require fresh exact-head CI before Audit, Release, or merge."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_research_horizon_slice:
   work_order: WO-ISSUE-1701-RESEARCH-HORIZON
   status: IN_PROGRESS
@@ -8,7 +21,7 @@ current_research_horizon_slice:
   actual_research: 1000 completed daily candles, 44 OOS windows, 6 REJECTED; no fabricated qualification.
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 project: nusa
-updated_at: "2026-09-01T09:33:39.292+09:00"
+updated_at: "2026-09-06T11:22:00+09:00"
 current_execution_target:
   work_order: WO-0051
   status: IN_PROGRESS

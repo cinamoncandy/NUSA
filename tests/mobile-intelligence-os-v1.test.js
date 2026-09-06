@@ -23,16 +23,17 @@ test("Intelligence OS keeps authority and data-integrity boundaries visible", ()
   assert.doesNotMatch(home, /BULLISH|BEARISH|STRONG SIGNAL|WEAK SIGNAL/);
 });
 
-test("HOME follows state -> capital truth -> reason -> risk -> observation -> execution -> learning", () => {
-  const anchors = ['eyebrow="NOW"','testID="account-hero-card"','kicker="WHY · AI INSIGHT"','kicker="RISK STATUS"','kicker="SIGNAL TERRAIN"','kicker="PAPER PERFORMANCE"','kicker="LEARNING"'];
+test("HOME follows posture -> capital truth -> observation -> supervision -> learning -> decision detail", () => {
+  const anchors = ['testID="home-now"','testID="account-hero-card"','testID="home-decision-stage"','testID="home-paper-performance"','testID="home-paper-learning"','DECISION BASIS','testID="ai-card"','testID="home-risk-status"'];
   let cursor = -1;
   for (const anchor of anchors) { const next = home.indexOf(anchor); assert.ok(next > cursor, `${anchor} must appear after the previous UX stage`); cursor = next; }
-  assert.match(home, /NO QUALIFIED SIGNAL/);
-  assert.match(home, /UNKNOWN 값을 0으로|UNAVAILABLE|—/);
+  assert.match(home, /공개 시장 데이터 대기 중/);
+  assert.match(home, /UNAVAILABLE|—/);
 });
 
 test("primary screens share Intelligence OS truth grammar while PAPER specializes as a learning monitor", () => {
-  assert.match(home, /AuthorityRail/);
+  assert.match(home, /testID="home-status-rail"/);
+  assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
   assert.match(markets, /AuthorityRail/);
   assert.match(portfolio, /AuthorityRail/);
   assert.match(paper, /PaperLearningMonitorView/);

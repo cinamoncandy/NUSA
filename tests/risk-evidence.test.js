@@ -17,9 +17,9 @@ test("every risk result is append-only, queryable, and survives database recover
   const repository = new SqliteRiskEvidenceRepository({ connection: db });
   const gateway = new GlobalRiskGateway(policy, repository);
   const approved = gateway.evaluate("exec-1", context(), "2026-08-01T00:00:00.000Z");
-  const blocked = gateway.evaluate("exec-2", context({ marketData: "DISCONNECTED" }));
-  gateway.evaluate("exec-3", context({ expectedFillExposure: "101" })); // rejected; absence asserted via repository below
-  const unknown = gateway.evaluate("exec-4", context({ expectedFillExposure: "invalid" }));
+  const blocked = gateway.evaluate("exec-2", context({ marketData: "DISCONNECTED" }), "2026-08-01T00:00:00.001Z");
+  gateway.evaluate("exec-3", context({ expectedFillExposure: "101" }), "2026-08-01T00:00:00.002Z"); // rejected; absence asserted via repository below
+  const unknown = gateway.evaluate("exec-4", context({ expectedFillExposure: "invalid" }), "2026-08-01T00:00:00.003Z");
   assert.equal(repository.getByDecisionId(approved.decisionId).result, "APPROVED");
   assert.equal(approved.observedAt, "2026-08-01T00:00:00.000Z");
   assert.equal(approved.ruleId, "risk-v1");
