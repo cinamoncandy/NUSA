@@ -35,3 +35,16 @@ test("Cloud PAPER setup communicates server session verify without changing auth
   assert.doesNotMatch(productionPaper, /<NusaTextField|placeOrder\(|submitOrder\(/);
   assert.match(productionPaper, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
 });
+
+test("Android product UX acceptance bounds emulator startup and preserves diagnostic evidence", () => {
+  const workflow = fs.readFileSync(
+    path.join(__dirname, "..", ".github", "workflows", "android-product-ux-acceptance.yml"),
+    "utf8",
+  );
+  assert.match(workflow, /timeout 120 adb wait-for-device/);
+  assert.match(workflow, /timeout 300 bash -c/);
+  assert.match(workflow, /cat "\$RUNNER_TEMP\/emulator\.log" \|\| true/);
+  assert.doesNotMatch(workflow, /^\s*adb wait-for-device\s*$/m);
+  assert.match(workflow, /grep -q "PAPER ONLY"/);
+  assert.match(workflow, /evidence_disclosure=PASS/);
+});
