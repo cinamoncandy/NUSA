@@ -35,3 +35,13 @@ test("Cloud PAPER setup communicates server session verify without changing auth
   assert.doesNotMatch(productionPaper, /<NusaTextField|placeOrder\(|submitOrder\(/);
   assert.match(productionPaper, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
 });
+
+test("Android product acceptance boots with KVM and bounded diagnostics", () => {
+  const workflow = fs.readFileSync(path.join(__dirname, "..", ".github", "workflows", "android-product-ux-acceptance.yml"), "utf8");
+  assert.match(workflow, /sudo chmod 666 \/dev\/kvm/);
+  assert.match(workflow, /-no-metrics -accel on/);
+  assert.match(workflow, /timeout 180 adb wait-for-device/);
+  assert.match(workflow, /timeout 300 bash -c/);
+  assert.match(workflow, /cat "\$RUNNER_TEMP\/emulator\.log"; exit 1/);
+  assert.doesNotMatch(workflow, /^\s+adb wait-for-device$/m);
+});

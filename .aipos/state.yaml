@@ -6,10 +6,12 @@ current_mobile_product_v5_recovery:
   pull_request: 1744
   base_sha: e7824d0c07dea4aa0b6a26c2f821f744b05a4e50
   failing_head: 1810e2e134d30760e75601d5c5d10400ffda64d8
+  newly_exposed_head: b15d6f7f42dc701da210f3bed8adfc59d0ad1817
+  newly_exposed_run: 34034099910
   failure_classification: REPOSITORY_CONTROLLED_STRUCTURAL
-  local_validation: "Focused 22/22; full isolated 952 files; typecheck, preflight, validate:full and diff check PASS."
+  local_validation: "Prior focused 22/22 and full isolated 952 files PASS; Android workflow contract 4/4 and preflight PASS after bounded KVM boot recovery."
   exact_head_ci: PENDING
-  next_permitted_action: "Push validated head and require fresh exact-head CI before Audit, Release, or merge."
+  next_permitted_action: "Push bounded Android emulator recovery and require fresh exact-head CI before Audit, Release, or merge."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_research_horizon_slice:
   work_order: WO-ISSUE-1701-RESEARCH-HORIZON

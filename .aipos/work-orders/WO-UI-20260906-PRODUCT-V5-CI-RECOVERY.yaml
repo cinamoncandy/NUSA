@@ -8,11 +8,14 @@ base_commit: e7824d0c07dea4aa0b6a26c2f821f744b05a4e50
 implementation_branch: design/mobile-product-v5-20260906
 pull_request: 1744
 failing_head: 1810e2e134d30760e75601d5c5d10400ffda64d8
+newly_exposed_head: b15d6f7f42dc701da210f3bed8adfc59d0ad1817
+newly_exposed_run: 34034099910
 authority_impact: none
 objective: "Restore exact-head CI for the mobile product UX v5 branch without changing product authority or weakening safety contracts."
 scope:
   - "Use a supported warning tone for the optional, not-connected Cloud PAPER state."
   - "Align mobile source-contract regression tests with the current Markets, Portfolio, and Settings hierarchy and labels."
+  - "Make Android acceptance emulator startup KVM-enabled, time-bounded, and diagnostic on failure."
 excluded:
   - "trading, strategy, qualification, risk-policy, accounting, credential, broker, deployment, or production runtime behavior"
   - "LIVE activation, private order APIs, withdrawals, transfers, or mobile credential storage"
@@ -24,6 +27,7 @@ safety:
 validation:
   local_status: PASS
   focused_tests: PASS_22_OF_22
+  android_workflow_contract: PASS_4_OF_4
   full_isolated_suite: PASS_952_FILES
   typecheck: PASS
   preflight: PASS
@@ -31,4 +35,4 @@ validation:
   lint: PASS_WITH_ONE_PREEXISTING_NON_BLOCKING_WARNING
   diff_check: PASS
   exact_head_ci: PENDING
-next_permitted_action: "Push the exact repair head and require fresh protected CI before Audit, Release, or merge."
+next_permitted_action: "Push the bounded Android emulator recovery and require fresh protected CI before Audit, Release, or merge."
