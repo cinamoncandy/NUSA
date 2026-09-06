@@ -61,7 +61,7 @@ test("Android product UX acceptance bounds emulator startup and preserves diagno
   for (const ambiguousLabel of ["MARKETS", "PAPER", "PORTFOLIO", "HOME", "도구", "설정", "설정 닫기"]) {
     assert.doesNotMatch(workflow, new RegExp(`tap "${ambiguousLabel}"`));
   }
-  assert.match(workflow, /ET\\.tostring\\(ET\\.parse\\("\\/tmp\\/window\\.xml"\\)\\.getroot\\(\\), encoding="unicode"\\)/);
+  assert.ok(workflow.includes('print(ET.tostring(ET.parse("/tmp/window.xml").getroot(), encoding="unicode"), file=sys.stderr)'));
   assert.match(workflow, /if: always\(\)/);
   assert.match(workflow, /grep -q "PAPER ONLY"/);
   assert.match(workflow, /evidence_disclosure=PASS/);
