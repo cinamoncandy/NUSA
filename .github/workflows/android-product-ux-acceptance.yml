@@ -19,6 +19,8 @@ jobs:
   touch-visual:
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    env:
+      ANDROID_AVD_HOME: ${{ runner.temp }}/.android/avd
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - run: corepack enable && corepack prepare pnpm@11.7.0 --activate
@@ -38,7 +40,9 @@ jobs:
         run: |
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager "platform-tools" "emulator" "platforms;android-35" "build-tools;35.0.0" "system-images;android-35;google_apis;x86_64"
+          mkdir -p "$ANDROID_AVD_HOME"
           echo no | avdmanager create avd -n nusa_product_qa -k "system-images;android-35;google_apis;x86_64" -d pixel_6 --force
+          "$ANDROID_HOME/emulator/emulator" -list-avds | grep -qx nusa_product_qa
       - name: Build exact debug APK
         env:
           EXPO_PUBLIC_NUSA_API_BASE_URL: ${{ vars.NUSA_MOBILE_API_BASE_URL }}
@@ -57,6 +61,7 @@ jobs:
           if ! timeout 120 adb wait-for-device; then
             echo "::error::Android emulator did not register with adb within 120 seconds"
             cat "$RUNNER_TEMP/emulator.log" || true
+            "$ANDROID_HOME/emulator/emulator" -list-avds || true
             adb devices -l || true
             exit 1
           fi
