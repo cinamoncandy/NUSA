@@ -432,6 +432,14 @@ export class UpbitWebSocketClient {
       if (age > this.policy.staleAfterMs && this.health !== "STALE") {
         this.supervisor.noteStale();
         this.setHealth("STALE", `stale-${age}ms`);
+        // A WebSocket can remain OPEN while no longer delivering public market data.
+        // Marking it STALE without closing it leaves the reconnect supervisor idle forever.
+        // Close the stale socket so its normal close handler enters the existing bounded
+        // reconnect/backoff path. No private exchange capability or execution authority is used.
+        try { this.socket.close(); } catch {
+          this.teardownSocket();
+          if (!this.stopped) this.scheduleReconnect();
+        }
       }
     }, interval);
   }
