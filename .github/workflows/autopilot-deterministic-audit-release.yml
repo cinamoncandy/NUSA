@@ -82,10 +82,6 @@ jobs:
             .repository.full_name == $repo
           ' "$RUNNER_TEMP/nusa-deterministic-audit/ci.json" >/dev/null
 
-          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$REQUESTED_HEAD&event=pull_request&status=completed&per_page=100" \
-            --jq '.workflow_runs[] | select(.conclusion == "success") | [.name, .head_sha, .path, (.id|tostring)] | @tsv' \
-            > "$RUNNER_TEMP/nusa-deterministic-audit/successful-runs.tsv"
-
           required_workflows=(
             "CI"
             "Actual PAPER Public-Market Runtime Evidence"
@@ -94,13 +90,38 @@ jobs:
             "Restricted LIVE Transport Credential Readiness"
             "Restricted LIVE Activation Rehearsal"
           )
-          for required in "${required_workflows[@]}"; do
-            awk -F '\t' -v name="$required" -v head="$REQUESTED_HEAD" '$1 == name && $2 == head { found=1 } END { exit found ? 0 : 1 }' \
-              "$RUNNER_TEMP/nusa-deterministic-audit/successful-runs.tsv" || {
-                echo "required exact-head workflow missing or not successful: $required" >&2
-                exit 1
-              }
+
+          # CI completion can reach Audit before the independent exact-head workflows
+          # finish or before a proven transient run is retried. Wait for evidence to
+          # converge, but authorize Release only when every required workflow is
+          # successful on the unchanged requested head.
+          required_ready=false
+          for poll in $(seq 1 30); do
+            gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$REQUESTED_HEAD&event=pull_request&per_page=100" \
+              > "$RUNNER_TEMP/nusa-deterministic-audit/exact-head-runs.json"
+
+            required_ready=true
+            for required in "${required_workflows[@]}"; do
+              conclusion="$(jq -r --arg name "$required" --arg head "$REQUESTED_HEAD" '
+                [.workflow_runs[] | select(.name == $name and .head_sha == $head)]
+                | sort_by(.updated_at) | reverse | .[0].conclusion // empty
+              ' "$RUNNER_TEMP/nusa-deterministic-audit/exact-head-runs.json")"
+              if [ "$conclusion" != "success" ]; then
+                required_ready=false
+                echo "Waiting for exact-head workflow: $required (conclusion=${conclusion:-pending}, poll $poll/30)"
+              fi
+            done
+
+            if [ "$required_ready" = "true" ]; then
+              break
+            fi
+            sleep 10
           done
+
+          if [ "$required_ready" != "true" ]; then
+            echo "Required exact-head workflows did not converge to success before the bounded Audit deadline." >&2
+            exit 1
+          fi
 
           final_pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
           final_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
