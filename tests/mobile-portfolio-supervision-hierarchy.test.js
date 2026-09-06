@@ -27,7 +27,8 @@ test("SUPERVISE uses one canonical capital strip and keeps REAL_READ_ONLY separa
   assert.match(source, /label: "TOTAL PNL"/);
   assert.match(source, /label: "CASH"/);
   assert.match(source, /label: "EXPOSURE"/);
-  assert.match(source, /kicker="PAPER ACCOUNTING"/);
+  assert.match(source, /title="PAPER 회계"/);
+  assert.match(source, /kicker="ACCOUNTING"/);
   assert.match(source, /REAL_READ_ONLY 잔고는 감독용 기준선이며 PAPER 성과와 절대 합산하지 않습니다\./);
   assert.match(source, /testID="portfolio-upbit-read-only"/);
   assert.match(source, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
