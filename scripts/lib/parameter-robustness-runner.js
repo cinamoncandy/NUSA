@@ -103,7 +103,11 @@ function buildCandidateGrid(referenceParameters, neighborhood, trainingCandleBou
         const shortWindow = ref.shortWindow + shortOffset;
         const longWindow = ref.longWindow + longOffset;
         const key = `${shortWindow}/${longWindow}`;
-        const valid = isPositiveInteger(shortWindow) && isPositiveInteger(longWindow) && longWindow > shortWindow && (trainingCandleBound == null || longWindow < trainingCandleBound);
+        // Keep the research neighborhood aligned with the production
+        // SmaCrossoverStrategy constructor, which requires shortPeriod >= 2.
+        // A positive shortWindow of 1 would otherwise be admitted here and
+        // fail only after the candidate reaches strategy construction.
+        const valid = Number.isInteger(shortWindow) && shortWindow >= 2 && isPositiveInteger(longWindow) && longWindow > shortWindow && (trainingCandleBound == null || longWindow < trainingCandleBound);
         const distances = referenceParameters.map((r) => ({
           source: r.source,
           short: Math.abs(shortWindow - r.shortWindow),
