@@ -6,7 +6,7 @@ import { InlineNotice, ScreenHeader, SegmentedControl } from "./uxPrimitives";
 import { useTheme, type ThemePreference } from "./ThemeProvider";
 import { DEFAULT_SETTINGS, normalizeInvestmentPercent, normalizeSettings, type AppSettings, type SettingsRepository, type ThemeSetting } from "./settings";
 import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
-import { InMemoryDashboardCredentialSession } from "./dashboardCredentialSession";
+import { InMemoryDashboardCredentialSession, shouldFallbackToMobileEnrollment } from "./dashboardCredentialSession";
 import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
 import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, isPaperConnectionVerified, markPaperConnectionVerified, setConfiguredPaperEndpoint } from "./paperConnectionSession";
 import { changeOperatorUserStatus, loadOperatorUsers, type OperatorUserAction, type OperatorUserRecord } from "./operatorUserAccessClient";
@@ -87,13 +87,18 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
       if (!await persist({ ...settings, paperEndpoint: endpointDraft })) return;
       const configuredEndpoint = getConfiguredPaperEndpoint();
       if (!configuredEndpoint) { credentialSession.clear(); clearPaperConnectionVerification(); setConnection({ status: "NOT_CONFIGURED", reason: "Cloud PAPER endpoint is not configured." }); return; }
-      credentialSession.clear(); clearPaperConnectionVerification(); setConnection({ status: "NOT_CONFIGURED", reason: "Cloud PAPER connection verification is in progress." }); credentialSession.connect(tokenDraft);
-      if (!tokenDraft.startsWith("legacy-bootstrap:")) {
+      credentialSession.clear(); clearPaperConnectionVerification(); setConnection({ status: "NOT_CONFIGURED", reason: "Cloud PAPER connection verification is in progress." });
+      // A one-time bootstrap token is opaque and intentionally has no mandatory prefix. Try the
+      // least-authority bootstrap exchange first. If the value is instead an approved user's
+      // credential, bootstrap fails closed without persisting it and we then perform self-enrollment.
+      credentialSession.connect(tokenDraft);
+      let result = await loadPersonalPaperOperations({ baseUrl: configuredEndpoint, credentialProvider: credentialSession.credentialProvider, allowUnverifiedEndpoint: true });
+      if (shouldFallbackToMobileEnrollment(tokenDraft, result.status === "READY")) {
         if (installationId == null) throw new Error("Secure installation identity is unavailable.");
         credentialSession.clear();
         await credentialSession.enroll(tokenDraft, installationId);
+        result = await loadPersonalPaperOperations({ baseUrl: configuredEndpoint, credentialProvider: credentialSession.credentialProvider, allowUnverifiedEndpoint: true });
       }
-      const result = await loadPersonalPaperOperations({ baseUrl: configuredEndpoint, credentialProvider: credentialSession.credentialProvider, allowUnverifiedEndpoint: true });
       if (result.status === "READY") { markPaperConnectionVerified(configuredEndpoint); setTokenDraft(""); } else { credentialSession.clear(); clearPaperConnectionVerification(); }
       setConnection(result);
     } catch (connectionError) { credentialSession.clear(); clearPaperConnectionVerification(); setConnection({ status: "NOT_CONFIGURED", reason: connectionError instanceof Error ? connectionError.message : "Cloud PAPER 최초 인증 또는 보안 세션이 유효하지 않습니다." }); }

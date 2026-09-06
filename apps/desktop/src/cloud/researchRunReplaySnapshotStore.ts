@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { spawn } from "node:child_process";
 import {
   replayResearchRunWithPaperEvidence,
   type ResearchRunReplaySnapshot,
@@ -13,6 +14,11 @@ const STREAM_CHUNK_BYTES = 64 * 1024;
 interface ResearchRunReplaySnapshotFile {
   readonly schemaVersion: 1;
   readonly snapshots: readonly ResearchRunReplaySnapshot[];
+}
+
+export interface ResearchRunReplaySnapshotIdentity {
+  readonly originalRunFingerprintSha256: string;
+  readonly generatedAt: string;
 }
 
 function rejectForbidden(value: unknown, seen = new Set<object>()): void {
@@ -164,9 +170,48 @@ function forEachValidatedSnapshot(filename: string, visit: (snapshot: ResearchRu
   }
 }
 
+
+function runLatestIdentityWorker(filename: string): Promise<ResearchRunReplaySnapshotIdentity | undefined> {
+  const workerPath = path.join(__dirname, "researchRunReplaySnapshotLatestWorker.js");
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [workerPath, filename], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+    let stdout = "";
+    let stderr = "";
+    let overflow = false;
+    const maxBytes = 16 * 1024;
+    const enforceLimit = (): void => {
+      if (Buffer.byteLength(stdout, "utf8") + Buffer.byteLength(stderr, "utf8") <= maxBytes || overflow) return;
+      overflow = true;
+      child.kill("SIGTERM");
+    };
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => { stdout += chunk; enforceLimit(); });
+    child.stderr.on("data", (chunk: string) => { stderr += chunk; enforceLimit(); });
+    child.once("error", () => reject(new Error("research replay snapshot latest worker failed closed")));
+    child.once("close", (status) => {
+      if (overflow || status !== 0) { reject(new Error("research replay snapshot latest worker failed closed")); return; }
+      let parsed: unknown;
+      try { parsed = JSON.parse(stdout.trim()); } catch { reject(new Error("research replay snapshot latest worker response is invalid")); return; }
+      if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) { reject(new Error("research replay snapshot latest worker response is invalid")); return; }
+      const value = parsed as Record<string, unknown>;
+      if (value.status === "NONE") { resolve(undefined); return; }
+      const fingerprint = typeof value.originalRunFingerprintSha256 === "string" ? value.originalRunFingerprintSha256.trim().toLowerCase() : "";
+      const generatedAt = typeof value.generatedAt === "string" ? value.generatedAt.trim() : "";
+      const timestamp = Date.parse(generatedAt);
+      if (value.status !== "FOUND" || !SHA64.test(fingerprint) || !generatedAt || !Number.isSafeInteger(timestamp) || timestamp < 0) {
+        reject(new Error("research replay snapshot latest worker response is invalid"));
+        return;
+      }
+      resolve(Object.freeze({ originalRunFingerprintSha256: fingerprint, generatedAt }));
+    });
+  });
+}
+
 export interface ResearchRunReplaySnapshotReader {
   read(originalRunFingerprintSha256: string): ResearchRunReplaySnapshot | undefined;
   latest(): ResearchRunReplaySnapshot | undefined;
+  latestIdentityAsync?(): Promise<ResearchRunReplaySnapshotIdentity | undefined>;
   list(): readonly ResearchRunReplaySnapshot[];
 }
 
@@ -181,6 +226,9 @@ export interface ResearchRunReplaySnapshotWriter {
  * of an existing run fingerprint fails closed. Writes are atomic and owner-only where supported.
  */
 export class FileResearchRunReplaySnapshotStore implements ResearchRunReplaySnapshotReader, ResearchRunReplaySnapshotWriter {
+  private latestIdentityCache: { readonly key: string; readonly identity: ResearchRunReplaySnapshotIdentity | undefined } | undefined;
+  private latestIdentityPending: { readonly key: string; readonly promise: Promise<ResearchRunReplaySnapshotIdentity | undefined> } | undefined;
+
   public constructor(private readonly filename: string) {
     if (!filename.trim() || filename === ":memory:") throw new Error("research replay snapshot path must be durable");
   }
@@ -241,6 +289,31 @@ export class FileResearchRunReplaySnapshotStore implements ResearchRunReplaySnap
     try { parsed = JSON.parse(latestEncoded.toString("utf8")) as ResearchRunReplaySnapshot; }
     catch { throw new Error("research replay snapshot file is corrupted"); }
     return parsed;
+  }
+
+  /**
+   * Production bootstrap path. The full immutable archive is validated in a separate Node process
+   * so synchronous canonical replay checks never starve /health, /ready, or mobile enrollment.
+   * The small latest identity is cached only while the archive stat fingerprint is unchanged.
+   */
+  public latestIdentityAsync(): Promise<ResearchRunReplaySnapshotIdentity | undefined> {
+    if (!fs.existsSync(this.filename)) {
+      this.latestIdentityCache = Object.freeze({ key: "absent", identity: undefined });
+      return Promise.resolve(undefined);
+    }
+    const stat = fs.statSync(this.filename);
+    if (!stat.isFile()) return Promise.reject(new Error("research replay snapshot path is not a file"));
+    const key = `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeMs}`;
+    if (this.latestIdentityCache?.key === key) return Promise.resolve(this.latestIdentityCache.identity);
+    if (this.latestIdentityPending?.key === key) return this.latestIdentityPending.promise;
+    const promise = runLatestIdentityWorker(this.filename).then((identity) => {
+      this.latestIdentityCache = Object.freeze({ key, identity });
+      return identity;
+    }).finally(() => {
+      if (this.latestIdentityPending?.key === key) this.latestIdentityPending = undefined;
+    });
+    this.latestIdentityPending = Object.freeze({ key, promise });
+    return promise;
   }
 
   public list(): readonly ResearchRunReplaySnapshot[] {
