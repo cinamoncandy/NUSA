@@ -57,6 +57,10 @@ function bootstrapDecision(result: ClosedLearningResearchReplayResult): Paramete
  */
 export class ClosedLearningInitialPaperBootstrap {
   private readonly now: () => number;
+  private lastSuccessfulAttempt?: Readonly<{
+    fingerprint: string;
+    result: ClosedLearningInitialPaperBootstrapResult;
+  }>;
 
   public constructor(private readonly options: ClosedLearningInitialPaperBootstrapOptions) {
     this.now = options.now ?? Date.now;
@@ -117,11 +121,24 @@ export class ClosedLearningInitialPaperBootstrap {
     });
   }
 
+  private cachedResult(fingerprint: string): ClosedLearningInitialPaperBootstrapResult | undefined {
+    return this.lastSuccessfulAttempt?.fingerprint === fingerprint
+      ? this.lastSuccessfulAttempt.result
+      : undefined;
+  }
+
+  private remember(fingerprint: string, result: ClosedLearningInitialPaperBootstrapResult): ClosedLearningInitialPaperBootstrapResult {
+    this.lastSuccessfulAttempt = Object.freeze({ fingerprint, result });
+    return result;
+  }
+
   public runOnce(): ClosedLearningInitialPaperBootstrapResult {
     const eligible = this.eligibleFingerprint();
     if (eligible.early != null) return eligible.early;
     const fingerprint = eligible.fingerprint!;
-    return this.finalize(fingerprint, this.options.worker.replayInitialResearch(fingerprint));
+    const cached = this.cachedResult(fingerprint);
+    if (cached != null) return cached;
+    return this.remember(fingerprint, this.finalize(fingerprint, this.options.worker.replayInitialResearch(fingerprint)));
   }
 
   /** Async production path yields while the isolated Research/League child process executes when supported. */
@@ -129,9 +146,11 @@ export class ClosedLearningInitialPaperBootstrap {
     const eligible = await this.eligibleFingerprintAsync();
     if (eligible.early != null) return eligible.early;
     const fingerprint = eligible.fingerprint!;
+    const cached = this.cachedResult(fingerprint);
+    if (cached != null) return cached;
     const result = this.options.worker.replayInitialResearchAsync == null
       ? this.options.worker.replayInitialResearch(fingerprint)
       : await this.options.worker.replayInitialResearchAsync(fingerprint);
-    return this.finalize(fingerprint, result);
+    return this.remember(fingerprint, this.finalize(fingerprint, result));
   }
 }

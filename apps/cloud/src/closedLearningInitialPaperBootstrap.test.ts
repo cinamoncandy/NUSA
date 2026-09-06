@@ -148,6 +148,16 @@ describe("initial PAPER bootstrap", () => {
     assert.deepEqual(events, ["worker", "history"]);
   });
 
+  it("reuses a successful non-deployable bootstrap result for the same Research fingerprint", async () => {
+    const { base, events } = options({ replay: replayResult(false) });
+    const bootstrap = new ClosedLearningInitialPaperBootstrap(base);
+    const first = await bootstrap.runOnceAsync();
+    const second = await bootstrap.runOnceAsync();
+    assert.equal(first.status, "RESEARCH_NOT_DEPLOYABLE");
+    assert.deepEqual(second, first);
+    assert.deepEqual(events, ["latest-async", "worker-async", "history", "latest-async"]);
+  });
+
   it("fails closed when the newest Research snapshot is timestamp-ambiguous", () => {
     const same = "2026-09-05T00:00:00.000Z";
     const { base } = options({ snapshots: [snapshot(same, ORIGINAL), snapshot(same, "e".repeat(64))] });
