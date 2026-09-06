@@ -27,6 +27,14 @@ test("deterministic Audit binds exact PR, protected main, canonical CI, and six 
   ]) assert.match(workflow, new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 });
 
+test("Audit waits boundedly for independent exact-head evidence convergence", () => {
+  assert.match(workflow, /for poll in \$\(seq 1 30\)/);
+  assert.match(workflow, /head_sha=\$REQUESTED_HEAD&event=pull_request&per_page=100/);
+  assert.match(workflow, /conclusion.*!= "success"/);
+  assert.match(workflow, /required_ready.*true/);
+  assert.match(workflow, /bounded Audit deadline/);
+});
+
 test("stale Audit requests are NO_ACTION and cannot release", () => {
   assert.match(workflow, /NO_ACTION stale\/non-releasable Audit request/);
   assert.match(workflow, /current_draft/);
