@@ -64,5 +64,5 @@ test("Android product UX acceptance bounds emulator startup and preserves diagno
   assert.ok(workflow.includes('print(ET.tostring(ET.parse("/tmp/window.xml").getroot(), encoding="unicode"), file=sys.stderr)'));
   assert.match(workflow, /if: always\(\)/);
   assert.match(workflow, /grep -q "paper-learning-monitor"/);
-  assert.match(workflow, /evidence_disclosure=PASS/);
+  assert.match(workflow, /tap_after_scroll "paper-learning-detail-toggle"; adb shell input swipe 540 1800 540 700 450/);\n  assert.match(workflow, /evidence_disclosure=PASS/);
 });

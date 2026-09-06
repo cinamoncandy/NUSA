@@ -115,7 +115,7 @@ jobs:
 
           tap "tab-Paper"; capture 05-paper
           adb shell input swipe 540 1800 540 500 450; sleep 1; capture 06-paper-scroll
-          tap_after_scroll "paper-learning-detail-toggle"; capture 07-paper-evidence-open
+          tap_after_scroll "paper-learning-detail-toggle"; adb shell input swipe 540 1800 540 700 450; sleep 1; capture 07-paper-evidence-open
 
           tap "tab-Portfolio"; capture 08-portfolio
           tap "header-tools-menu"; tap "header-settings"; capture 09-settings
