@@ -1,8 +1,9 @@
-import React, { useMemo } from "react";
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { NusaButton, NusaCard, StatusChip } from "./components";
+import React, { useMemo, useState } from "react";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { NusaButton } from "./components";
 import { useTheme } from "./ThemeProvider";
 import type { PaperLearningScreenState, PaperLearningUiEvent } from "./paperLearningScreen";
+import { AuthorityRail, FactRow, IntelligenceSection, MetricStrip, ScreenLead, StateNotice, type IntelligenceTone } from "./intelligenceOs";
 
 export interface PaperLearningMonitorViewProps {
   readonly state: PaperLearningScreenState;
@@ -12,12 +13,18 @@ export interface PaperLearningMonitorViewProps {
 }
 
 const formatNumber = (value: number | null | undefined, digits = 2): string => value == null || !Number.isFinite(value)
-  ? "-"
+  ? "—"
   : value.toLocaleString("ko-KR", { maximumFractionDigits: digits });
 
-// Plain-language label for the raw evidence.outcome enum, so RESULT (실제 손익) and LEARNING
-// (검증된 평가 결론) read as two distinct, human-legible concepts rather than one card of
-// technical performance numbers and one card of raw enum/hash tokens.
+const money = (value: number | null | undefined): string => value == null || !Number.isFinite(value)
+  ? "—"
+  : `₩${Math.round(value).toLocaleString("ko-KR")}`;
+
+const signedMoney = (value: number | null | undefined): string => value == null || !Number.isFinite(value)
+  ? "—"
+  : `${value > 0 ? "+" : value < 0 ? "-" : ""}${money(Math.abs(value))}`;
+
+// RESULT (실제 PAPER 손익)와 LEARNING (검증된 평가 결론)을 섞지 않는다.
 const learningOutcomeLabel: Record<string, string> = { PROMOTE: "전략 승격", REJECT: "전략 거부", PAUSE: "일시 중단", UNCHANGED: "변경 없음" };
 function learningOutcomeSummary(evidence: PaperLearningUiEvent["evidence"] | null | undefined): string {
   if (evidence?.outcome == null) return "아직 검증된 학습 평가 결론이 없습니다.";
@@ -27,7 +34,7 @@ function learningOutcomeSummary(evidence: PaperLearningUiEvent["evidence"] | nul
 
 const formatTimestamp = (value: number): string => {
   try { return new Date(value).toLocaleString("ko-KR"); }
-  catch { return "-"; }
+  catch { return "—"; }
 };
 
 const eventSummary = (event: PaperLearningUiEvent): string => {
@@ -43,13 +50,6 @@ const eventSummary = (event: PaperLearningUiEvent): string => {
   return parts.join(" · ") || "관측 세부 정보 없음";
 };
 
-/**
- * Issue #755: an empty PAPER learning screen used to explain itself from `state.status` alone,
- * which meant the four genuinely different upstream conditions -- endpoint not configured, the
- * operations request failing, the server snapshot arriving without a paperLearning projection, and
- * the projection existing but still empty -- all rendered the same guessed sentence. The caller
- * now supplies the observed condition explicitly, so the screen reports what is actually true.
- */
 const dataSourceMessage = (state: PaperLearningScreenState): Readonly<{ title: string; body: string }> | null => {
   switch (state.dataSource) {
     case "NOT_CONFIGURED":
@@ -91,173 +91,217 @@ const dataSourceMessage = (state: PaperLearningScreenState): Readonly<{ title: s
   });
 };
 
+function statusTone(status: PaperLearningScreenState["status"]): IntelligenceTone {
+  if (status === "RUNNING") return "success";
+  if (status === "PAUSED") return "warning";
+  return "danger";
+}
+
+function sourceTone(source: PaperLearningScreenState["dataSource"]): IntelligenceTone {
+  if (source === "SERVER_STREAM") return "success";
+  if (source === "LOCAL_FALLBACK" || source === "PROJECTION_EMPTY") return "warning";
+  return "danger";
+}
+
+function riskTone(status: string | null | undefined): IntelligenceTone {
+  if (status == null) return "neutral";
+  const normalized = status.toUpperCase();
+  if (normalized.includes("PASS") || normalized.includes("OK") || normalized.includes("ALLOW")) return "success";
+  if (normalized.includes("BLOCK") || normalized.includes("HALT") || normalized.includes("FAIL") || normalized.includes("REJECT")) return "danger";
+  return "warning";
+}
+
 export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose }: PaperLearningMonitorViewProps) {
   const { theme } = useTheme();
+  const { width } = useWindowDimensions();
+  const tablet = width >= 768;
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const latestMarketEvent = useMemo(() => state.timeline.find((event) => event.stage === "MARKET_DATA") ?? null, [state.timeline]);
   const latestOrderEvent = useMemo(() => state.timeline.find((event) => event.stage === "ORDER_INTENT") ?? null, [state.timeline]);
   const latestTerminalEvent = useMemo(() => state.timeline.find((event) => event.stage === "HALT" || event.stage === "ERROR" || event.stage === "IDEMPOTENCY") ?? null, [state.timeline]);
   const sourceMessage = useMemo(() => dataSourceMessage(state), [state]);
-  const statusTone = state.status === "RUNNING" ? "primary" : state.status === "PAUSED" ? "warning" : "danger";
+  const runtimeTone = statusTone(state.status);
+  const runtimeLabel = state.status === "RUNNING" ? "PAPER ACTIVE" : state.status === "PAUSED" ? "OBSERVING" : state.status;
+  const totalPnl = state.latestAccount == null ? state.performance.realizedPnL + state.performance.unrealizedPnL : state.latestAccount.realizedPnL + state.latestAccount.unrealizedPnL;
+  const pnlTone: IntelligenceTone = totalPnl > 0 ? "success" : totalPnl < 0 ? "danger" : "neutral";
+  const learningLabel = state.latestEvidence?.outcome == null ? "WAITING" : learningOutcomeLabel[state.latestEvidence.outcome] ?? state.latestEvidence.outcome;
+  const learningTone: IntelligenceTone = state.latestEvidence?.outcome === "PROMOTE" ? "success" : state.latestEvidence?.outcome === "REJECT" ? "danger" : "neutral";
+  const sourceColor = sourceTone(state.dataSource) === "success" ? theme.colors.success : sourceTone(state.dataSource) === "warning" ? theme.colors.warning : theme.colors.danger;
 
   return <ScrollView
     contentContainerStyle={styles.content}
-    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { void onRefresh(); }} />}
+    refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={() => { void onRefresh(); }} />}
     style={[styles.screen, { backgroundColor: theme.colors.background }]}
+    showsVerticalScrollIndicator={false}
     testID="paper-learning-monitor"
   >
-    <View style={styles.titleRow}>
-      <View style={styles.titleText}>
-        <Text style={[styles.eyebrow, { color: theme.colors.primary }]}>PAPER LEARNING · READ ONLY</Text>
-        <Text style={[styles.title, { color: theme.colors.text }]}>자동학습 관제</Text>
-        <Text style={[styles.description, { color: theme.colors.textMuted }]}>시장 입력부터 판단, 권한, 위험, 가상체결, PnL, 학습까지 한 사이클의 현재 진실을 표시합니다.</Text>
+    <AuthorityRail
+      detail="AUTONOMOUS PAPER · LIVE NONE · AI ZERO AUTHORITY"
+      status={runtimeLabel}
+      tone={runtimeTone}
+      testID="paper-learning-authority-rail"
+    />
+    <ScreenLead
+      eyebrow="PAPER LEARNING · READ ONLY"
+      title="운용 상태를 한눈에 감독합니다"
+      detail="판단·위험·가상 실행·손익·학습을 같은 사이클에서 보되, 실행 권한과 평가 근거는 분리해서 표시합니다."
+      badge="READ ONLY"
+      badgeTone="info"
+    />
+    <MetricStrip
+      items={[
+        { label: "EQUITY", value: money(state.latestAccount?.equity), tone: "neutral" },
+        { label: "TOTAL PNL", value: signedMoney(totalPnl), tone: pnlTone },
+        { label: "RISK", value: state.latestRisk?.status ?? "UNKNOWN", tone: riskTone(state.latestRisk?.status) },
+        { label: "LEARNING", value: learningLabel, tone: learningTone },
+      ]}
+      testID="paper-learning-glance-strip"
+    />
+
+    <View style={styles.sourceRow} testID="paper-learning-data-source">
+      <View style={styles.sourceCopy}>
+        <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>DATA SOURCE</Text>
+        <Text style={[styles.sourceValue, { color: theme.colors.text }]}>{state.dataSource}</Text>
       </View>
-      <StatusChip label={state.status} tone={statusTone} />
+      <View style={[styles.sourcePill, { borderColor: sourceColor }]}><Text style={[styles.sourcePillText, { color: sourceColor }]}>{state.dataSource === "SERVER_STREAM" ? "SERVER" : state.dataSource === "LOCAL_FALLBACK" ? "LOCAL" : "CHECK"}</Text></View>
+    </View>
+    {state.dataSource === "LOCAL_FALLBACK" ? <StateNotice
+      title="LOCAL FALLBACK"
+      detail="서버 PAPER 학습 이벤트가 비어 있어 기기 내 공개 시세 기반 관측을 대신 표시합니다. 서버 런타임의 학습 결과가 아닙니다."
+      tone="warning"
+      testID="paper-learning-local-fallback-note"
+    /> : null}
+    {sourceMessage ? <View testID="paper-learning-empty-source">
+      <Text style={styles.hiddenAcceptanceText} testID="paper-learning-empty-source-title">{sourceMessage.title}</Text>
+      <Text style={styles.hiddenAcceptanceText} testID="paper-learning-empty-source-reason">{sourceMessage.body}</Text>
+      <StateNotice title={sourceMessage.title} detail={sourceMessage.body} tone="warning" />
+    </View> : null}
+
+    <View style={tablet ? styles.columns : undefined}>
+      <IntelligenceSection title="현재 사이클" kicker="NOW" tone="primary" style={tablet ? styles.column : undefined} testID="paper-learning-current-cycle">
+        <FactRow label="MARKET" value={state.latestMarket ?? "—"} />
+        <FactRow label="CYCLE" value={state.currentCycle ?? "—"} />
+        <FactRow label="DATA" value={latestMarketEvent == null ? "NO DATA" : `${latestMarketEvent.status} · ${formatTimestamp(latestMarketEvent.occurredAt)}`} />
+        <FactRow label="SIGNAL" value={state.latestSignal == null ? "—" : `${state.latestSignal.action}${state.latestSignal.confidence == null ? "" : ` · ${Math.round(state.latestSignal.confidence * 100)}%`}`} />
+        <FactRow label="DECISION" value={state.latestDecision == null ? "—" : `${state.latestDecision.action} · ${formatNumber(state.latestDecision.allocation * 100, 1)}%`} />
+        {latestMarketEvent?.reason ? <Text style={[styles.note, { color: theme.colors.textMuted }]} testID="paper-learning-freshness-reason">{latestMarketEvent.reason}</Text> : null}
+      </IntelligenceSection>
+      <IntelligenceSection title="권한 / 위험" kicker="AUTHORITY" tone={state.latestRisk == null ? "neutral" : riskTone(state.latestRisk.status)} style={tablet ? styles.column : undefined} testID="paper-learning-authority">
+        <FactRow label="MODE" value="PAPER ONLY" tone="success" />
+        <FactRow label="LIVE" value="NONE" tone="success" />
+        <FactRow label="AI" value="ZERO AUTHORITY" tone="info" />
+        {state.latestGates.length === 0 ? <StateNotice title="PERMISSION GATES" detail="최근 permission gate 관측값이 없습니다." tone="info" /> : state.latestGates.map((gate) => <FactRow key={gate.name} label={gate.name} value={`${gate.status} · ${gate.reason}`} tone={riskTone(gate.status)} testID={`paper-learning-gate-${gate.name}`} />)}
+        <FactRow label="RISK" value={state.latestRisk == null ? "—" : `${state.latestRisk.status} · ${state.latestRisk.reason}`} tone={riskTone(state.latestRisk?.status)} />
+        {state.latestRisk?.limits ? <Text style={[styles.note, { color: theme.colors.textMuted }]}>{Object.entries(state.latestRisk.limits).map(([key, value]) => `${key}=${formatNumber(value, 6)}`).join(" · ")}</Text> : null}
+      </IntelligenceSection>
     </View>
 
-    {/* Always visible, even on the happy path: an operator reading rows needs to know whether they
-        came from the server runtime or from the on-device fallback projection. */}
-    <View style={styles.sourceRow}>
-      <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>DATA SOURCE</Text>
-      <StatusChip
-        label={state.dataSource}
-        tone={state.dataSource === "SERVER_STREAM" ? "primary" : state.dataSource === "LOCAL_FALLBACK" ? "warning" : "danger"}
-        testID="paper-learning-data-source"
-      />
+    <View style={tablet ? styles.columns : undefined}>
+      <IntelligenceSection title="가상 실행 / 계정" kicker="PAPER ACCOUNTING" tone="success" style={tablet ? styles.column : undefined} testID="paper-learning-execution">
+        <FactRow label="ORDER" value={latestOrderEvent == null ? "—" : `${latestOrderEvent.status}${latestOrderEvent.reason ? ` · ${latestOrderEvent.reason}` : ""}`} />
+        <FactRow label="FILL" value={state.latestFill == null ? "—" : `${state.latestFill.side} ${formatNumber(state.latestFill.quantity, 8)} @ ${formatNumber(state.latestFill.price)}`} />
+        <FactRow label="CASH" value={money(state.latestAccount?.cash)} />
+        <FactRow label="EQUITY" value={money(state.latestAccount?.equity)} />
+        <FactRow label="REALIZED PNL" value={signedMoney(state.latestAccount?.realizedPnL)} tone={state.latestAccount?.realizedPnL == null ? "neutral" : state.latestAccount.realizedPnL >= 0 ? "success" : "danger"} />
+        <FactRow label="UNREALIZED PNL" value={signedMoney(state.latestAccount?.unrealizedPnL)} tone={state.latestAccount?.unrealizedPnL == null ? "neutral" : state.latestAccount.unrealizedPnL >= 0 ? "success" : "danger"} />
+        <FactRow label="FEE / SLIPPAGE" value={state.latestFill == null ? "—" : `${formatNumber(state.latestFill.fee)} / ${formatNumber(state.latestFill.slippage, 6)}`} />
+      </IntelligenceSection>
+      <IntelligenceSection title="학습 / 평가" kicker="LEARNING" tone={learningTone} style={tablet ? styles.column : undefined} testID="paper-learning-evaluation-card">
+        <Text style={[styles.learningSummary, { color: theme.colors.textMuted }]} testID="paper-learning-outcome-summary">{learningOutcomeSummary(state.latestEvidence)}</Text>
+        <FactRow label="OUTCOME" value={state.latestEvidence?.outcome ?? "—"} tone={learningTone} />
+        <FactRow label="SCORE" value={formatNumber(state.latestEvidence?.score, 4)} />
+        <FactRow label="EVIDENCE" value={state.latestEvidence?.evidenceId ?? "—"} />
+        <FactRow label="INPUT HASH" value={state.latestEvidence?.inputHash ?? "—"} />
+        {latestTerminalEvent ? <Text style={[styles.note, { color: theme.colors.textMuted }]} testID="paper-learning-terminal-event">{latestTerminalEvent.stage} · {latestTerminalEvent.status} · {latestTerminalEvent.reason ?? "—"}</Text> : null}
+      </IntelligenceSection>
     </View>
-    {state.dataSource === "LOCAL_FALLBACK" ? <Text style={[styles.empty, { color: theme.colors.warning }]} testID="paper-learning-local-fallback-note">
-      서버 PAPER 학습 이벤트가 비어 있어 기기 내 공개 시세 기반 관측을 대신 표시하고 있습니다. 서버 런타임의 학습 결과가 아닙니다.
-    </Text> : null}
 
-    {sourceMessage ? <NusaCard raised>
-      <Text style={[styles.sectionTitle, { color: theme.colors.text }]} testID="paper-learning-empty-source-title">{sourceMessage.title}</Text>
-      <Text style={[styles.empty, { color: theme.colors.textMuted }]} testID="paper-learning-empty-source-reason">{sourceMessage.body}</Text>
-    </NusaCard> : null}
-
-    <NusaCard raised>
-      <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>현재 사이클</Text>
-      <View style={styles.grid}>
-        <Metric label="MARKET" value={state.latestMarket ?? "-"} />
-        <Metric label="CYCLE" value={state.currentCycle ?? "-"} compact />
-        <Metric label="DATA" value={latestMarketEvent == null ? "NO DATA" : `${latestMarketEvent.status} · ${formatTimestamp(latestMarketEvent.occurredAt)}`} />
-        <Metric label="STRATEGY" value={state.latestStrategy.strategyId ?? "-"} />
-        <Metric label="CANDIDATE" value={state.latestStrategy.candidateId ?? "-"} />
-        <Metric label="CHAMPION" value={state.latestStrategy.championId ?? "-"} />
-        <Metric label="SIGNAL" value={state.latestSignal == null ? "-" : `${state.latestSignal.action}${state.latestSignal.confidence == null ? "" : ` · ${Math.round(state.latestSignal.confidence * 100)}%`}`} />
-        <Metric label="DECISION" value={state.latestDecision == null ? "-" : `${state.latestDecision.action} · ${formatNumber(state.latestDecision.allocation * 100, 1)}%`} />
+    <IntelligenceSection title="누적 PAPER 성과" kicker="RESULT" tone={pnlTone} testID="paper-learning-performance">
+      <View style={styles.performanceGrid}>
+        <View style={styles.performanceCell}><Text style={[styles.performanceLabel, { color: theme.colors.textMuted }]}>REALIZED</Text><Text style={[styles.performanceValue, { color: state.performance.realizedPnL >= 0 ? theme.colors.success : theme.colors.danger }]}>{signedMoney(state.performance.realizedPnL)}</Text></View>
+        <View style={styles.performanceCell}><Text style={[styles.performanceLabel, { color: theme.colors.textMuted }]}>UNREALIZED</Text><Text style={[styles.performanceValue, { color: state.performance.unrealizedPnL >= 0 ? theme.colors.success : theme.colors.danger }]}>{signedMoney(state.performance.unrealizedPnL)}</Text></View>
+        <View style={styles.performanceCell}><Text style={[styles.performanceLabel, { color: theme.colors.textMuted }]}>WIN RATE</Text><Text style={[styles.performanceValue, { color: theme.colors.text }]}>{state.performance.winRate == null ? "—" : `${formatNumber(state.performance.winRate * 100, 1)}%`}</Text></View>
+        <View style={styles.performanceCell}><Text style={[styles.performanceLabel, { color: theme.colors.textMuted }]}>MAX DD</Text><Text style={[styles.performanceValue, { color: theme.colors.text }]}>{`${formatNumber(state.performance.maxDrawdown * 100, 2)}%`}</Text></View>
       </View>
-      {latestMarketEvent?.reason ? <Text style={[styles.reason, { color: theme.colors.textMuted }]} testID="paper-learning-freshness-reason">{latestMarketEvent.reason}</Text> : null}
-    </NusaCard>
-
-    <NusaCard>
-      <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>TradePermission / RiskAuthority</Text>
-      {state.latestGates.length === 0 ? <Text style={[styles.empty, { color: theme.colors.textMuted }]}>최근 permission gate 없음</Text> : state.latestGates.map((gate) => <View key={gate.name} style={[styles.row, { borderBottomColor: theme.colors.border }]} testID={`paper-learning-gate-${gate.name}`}>
-        <Text style={[styles.rowLabel, { color: theme.colors.text }]}>{gate.name}</Text>
-        <Text style={[styles.rowValue, { color: theme.colors.textMuted }]}>{gate.status} · {gate.reason}</Text>
-      </View>)}
-      <View style={[styles.row, { borderBottomColor: theme.colors.border }]}>
-        <Text style={[styles.rowLabel, { color: theme.colors.text }]}>RISK</Text>
-        <Text style={[styles.rowValue, { color: theme.colors.textMuted }]}>{state.latestRisk == null ? "-" : `${state.latestRisk.status} · ${state.latestRisk.reason}`}</Text>
-      </View>
-      {state.latestRisk?.limits ? <Text style={[styles.reason, { color: theme.colors.textMuted }]}>{Object.entries(state.latestRisk.limits).map(([key, value]) => `${key}=${formatNumber(value, 6)}`).join(" · ")}</Text> : null}
-    </NusaCard>
-
-    <NusaCard>
-      <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>가상 실행 / 계정 변화</Text>
-      <View style={styles.grid}>
-        <Metric label="ORDER" value={latestOrderEvent == null ? "-" : `${latestOrderEvent.status}${latestOrderEvent.reason ? ` · ${latestOrderEvent.reason}` : ""}`} />
-        <Metric label="FILL" value={state.latestFill == null ? "-" : `${state.latestFill.side} ${formatNumber(state.latestFill.quantity, 8)} @ ${formatNumber(state.latestFill.price)}`} />
-        <Metric label="FEE" value={state.latestFill == null ? "-" : formatNumber(state.latestFill.fee)} />
-        <Metric label="SLIPPAGE" value={state.latestFill == null ? "-" : formatNumber(state.latestFill.slippage, 6)} />
-        <Metric label="CASH" value={formatNumber(state.latestAccount?.cash)} />
-        <Metric label="EQUITY" value={formatNumber(state.latestAccount?.equity)} />
-        <Metric label="REALIZED PnL" value={formatNumber(state.latestAccount?.realizedPnL)} />
-        <Metric label="UNREALIZED PnL" value={formatNumber(state.latestAccount?.unrealizedPnL)} />
-      </View>
-    </NusaCard>
-
-    <NusaCard testID="paper-learning-evaluation-card">
-      <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>학습 / 평가</Text>
-      <Text style={[styles.reason, { color: theme.colors.textMuted }]} testID="paper-learning-outcome-summary">{learningOutcomeSummary(state.latestEvidence)}</Text>
-      <View style={styles.grid}>
-        <Metric label="OUTCOME" value={state.latestEvidence?.outcome ?? "-"} />
-        <Metric label="SCORE" value={formatNumber(state.latestEvidence?.score, 4)} />
-        <Metric label="EVIDENCE" value={state.latestEvidence?.evidenceId ?? "-"} compact />
-        <Metric label="INPUT HASH" value={state.latestEvidence?.inputHash ?? "-"} compact />
-      </View>
-      {latestTerminalEvent ? <Text style={[styles.reason, { color: theme.colors.textMuted }]} testID="paper-learning-terminal-event">{latestTerminalEvent.stage} · {latestTerminalEvent.status} · {latestTerminalEvent.reason ?? "-"}</Text> : null}
-    </NusaCard>
-
-    <NusaCard>
-      <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>누적 PAPER 성과</Text>
-      <View style={styles.grid}>
-        <Metric label="REALIZED" value={formatNumber(state.performance.realizedPnL)} />
-        <Metric label="UNREALIZED" value={formatNumber(state.performance.unrealizedPnL)} />
-        <Metric label="FEES" value={formatNumber(state.performance.fees)} />
-        <Metric label="TURNOVER" value={formatNumber(state.performance.turnover)} />
-        <Metric label="CYCLES" value={String(state.performance.completedCycles)} />
-        <Metric label="FILLED" value={String(state.performance.filledCycles)} />
-        <Metric label="WIN RATE" value={state.performance.winRate == null ? "-" : `${formatNumber(state.performance.winRate * 100, 1)}%`} />
-        <Metric label="EXPECTANCY" value={formatNumber(state.performance.expectancy)} />
-        <Metric label="MAX DRAWDOWN" value={`${formatNumber(state.performance.maxDrawdown * 100, 2)}%`} />
-      </View>
+      <FactRow label="CYCLES / FILLED" value={`${state.performance.completedCycles} / ${state.performance.filledCycles}`} />
+      <FactRow label="FEES" value={money(state.performance.fees)} />
+      <FactRow label="TURNOVER" value={formatNumber(state.performance.turnover)} />
+      <FactRow label="EXPECTANCY" value={formatNumber(state.performance.expectancy)} />
       <Text style={[styles.disclaimer, { color: theme.colors.textMuted }]}>PAPER 성과는 실제 LIVE 성과를 보장하지 않습니다.</Text>
-    </NusaCard>
+    </IntelligenceSection>
 
-    <NusaCard>
-      <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>최근 사이클</Text>
-      {state.recentCycles.length === 0 ? <Text style={[styles.empty, { color: theme.colors.textMuted }]}>아직 완료된 학습 사이클이 없습니다.</Text> : state.recentCycles.map((cycle) => <View key={cycle.cycleId} style={[styles.row, { borderBottomColor: theme.colors.border }]}>
-        <Text style={[styles.rowLabel, { color: theme.colors.text }]}>{cycle.market} · {cycle.status}</Text>
-        <Text style={[styles.rowValue, { color: theme.colors.textMuted }]}>{cycle.decision?.action ?? "NO DECISION"} · {cycle.reason ?? "-"}</Text>
-      </View>)}
-    </NusaCard>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ expanded: detailsOpen }}
+      onPress={() => setDetailsOpen((open) => !open)}
+      style={({ pressed }) => [styles.disclosure, { borderTopColor: theme.colors.border, borderBottomColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]}
+      testID="paper-learning-detail-toggle"
+    >
+      <View style={styles.disclosureCopy}>
+        <Text style={[styles.eyebrow, { color: theme.colors.primary }]}>EVIDENCE DETAIL</Text>
+        <Text style={[styles.disclosureTitle, { color: theme.colors.text }]}>최근 사이클과 이벤트 타임라인</Text>
+      </View>
+      <Text style={[styles.disclosureIcon, { color: theme.colors.textMuted }]}>{detailsOpen ? "−" : "+"}</Text>
+    </Pressable>
 
-    <NusaCard>
-      <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Cycle Timeline</Text>
-      {state.timeline.length === 0 ? <Text style={[styles.empty, { color: theme.colors.textMuted }]}>관측 이벤트 없음</Text> : state.timeline.map((event) => <View key={event.id} style={[styles.timelineItem, { borderLeftColor: theme.colors.border }]} testID={`paper-learning-event-${event.stage}`}>
-        <View style={styles.timelineHeader}>
-          <Text style={[styles.timelineStage, { color: theme.colors.text }]}>{event.stage}</Text>
-          <Text style={[styles.timelineStatus, { color: theme.colors.textMuted }]}>{event.status} · {formatTimestamp(event.occurredAt)}</Text>
-        </View>
-        <Text style={[styles.timelineBody, { color: theme.colors.textMuted }]}>{eventSummary(event)}</Text>
-      </View>)}
-    </NusaCard>
+    {detailsOpen ? <View style={styles.detailStack}>
+      <IntelligenceSection title="최근 사이클" kicker="COMPLETED CYCLES" tone="neutral" testID="paper-learning-recent-cycles">
+        {state.recentCycles.length === 0 ? <StateNotice title="NO COMPLETED CYCLE" detail="아직 완료된 학습 사이클이 없습니다." tone="info" /> : state.recentCycles.map((cycle) => <View key={cycle.cycleId} style={[styles.cycleRow, { borderTopColor: theme.colors.border }]}>
+          <View style={styles.cycleCopy}><Text style={[styles.cycleTitle, { color: theme.colors.text }]}>{cycle.market} · {cycle.status}</Text><Text style={[styles.cycleDetail, { color: theme.colors.textMuted }]}>{cycle.reason ?? "관측 사유 없음"}</Text></View>
+          <Text style={[styles.cycleDecision, { color: theme.colors.textMuted }]}>{cycle.decision?.action ?? "NO DECISION"}</Text>
+        </View>)}
+      </IntelligenceSection>
+
+      <IntelligenceSection title="Cycle Timeline" kicker="AUDIT TRAIL" tone="info" testID="paper-learning-timeline">
+        {state.timeline.length === 0 ? <StateNotice title="NO EVENTS" detail="관측 이벤트가 없습니다." tone="info" /> : state.timeline.map((event) => <View key={event.id} style={[styles.timelineItem, { borderLeftColor: theme.colors.border }]} testID={`paper-learning-event-${event.stage}`}>
+          <View style={styles.timelineHeader}><Text style={[styles.timelineStage, { color: theme.colors.text }]}>{event.stage}</Text><Text style={[styles.timelineStatus, { color: theme.colors.textMuted }]}>{event.status} · {formatTimestamp(event.occurredAt)}</Text></View>
+          <Text style={[styles.timelineBody, { color: theme.colors.textMuted }]}>{eventSummary(event)}</Text>
+        </View>)}
+      </IntelligenceSection>
+    </View> : null}
 
     <View style={styles.actions}>
       <NusaButton label="현재 상태 새로고침" onPress={() => { void onRefresh(); }} testID="paper-learning-refresh" />
-      {onClose ? <NusaButton label="닫기" onPress={onClose} testID="paper-learning-close" /> : null}
+      {onClose ? <NusaButton label="닫기" tone="neutral" onPress={onClose} testID="paper-learning-close" /> : null}
     </View>
+    <Text style={[styles.footer, { color: theme.colors.textMuted }]}>PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY</Text>
   </ScrollView>;
 }
 
-function Metric({ label, value, compact = false }: Readonly<{ label: string; value: string; compact?: boolean }>) {
-  const { theme } = useTheme();
-  return <View style={styles.metric}><Text style={[styles.metricLabel, { color: theme.colors.textMuted }]}>{label}</Text><Text numberOfLines={compact ? 1 : 2} style={[styles.metricValue, { color: theme.colors.text }]}>{value}</Text></View>;
-}
-
 const styles = StyleSheet.create({
-  sourceRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   screen: { flex: 1 },
-  content: { width: "100%", maxWidth: 960, alignSelf: "center", padding: 18, gap: 12, paddingBottom: 32 },
-  titleRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
-  titleText: { flex: 1, gap: 4 },
-  eyebrow: { fontSize: 10, fontWeight: "800", letterSpacing: 1.2 },
-  title: { fontSize: 25, fontWeight: "800", letterSpacing: -0.6 },
-  description: { fontSize: 12, lineHeight: 18 },
-  sectionTitle: { fontSize: 15, fontWeight: "800", marginBottom: 10 },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  metric: { minWidth: 132, flexGrow: 1, flexBasis: "30%", gap: 3, paddingVertical: 5 },
-  metricLabel: { fontSize: 9, fontWeight: "800", letterSpacing: 0.9 },
-  metricValue: { fontSize: 12, fontWeight: "700", lineHeight: 17 },
-  reason: { fontSize: 11, lineHeight: 17, marginTop: 8 },
-  row: { paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, gap: 3 },
-  rowLabel: { fontSize: 11, fontWeight: "800" },
-  rowValue: { fontSize: 11, lineHeight: 16 },
-  empty: { fontSize: 11, lineHeight: 17 },
-  disclaimer: { fontSize: 10, lineHeight: 15, marginTop: 10 },
-  timelineItem: { borderLeftWidth: 2, paddingLeft: 10, paddingVertical: 7, gap: 4 },
+  content: { width: "100%", maxWidth: 1080, alignSelf: "center", paddingHorizontal: 20, paddingTop: 14, paddingBottom: 120, gap: 18 },
+  eyebrow: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.15 },
+  sourceRow: { minHeight: 58, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingHorizontal: 2 },
+  sourceCopy: { flex: 1, minWidth: 0, gap: 3 },
+  sourceValue: { fontSize: 13, lineHeight: 18, fontWeight: "800" },
+  sourcePill: { minHeight: 28, minWidth: 62, borderWidth: 1, borderRadius: 999, alignItems: "center", justifyContent: "center", paddingHorizontal: 10 },
+  sourcePillText: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 0.7 },
+  columns: { flexDirection: "row", alignItems: "stretch", gap: 18 },
+  column: { flex: 1, minWidth: 0 },
+  note: { fontSize: 10, lineHeight: 16 },
+  learningSummary: { fontSize: 12, lineHeight: 18 },
+  performanceGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  performanceCell: { minWidth: 132, flex: 1, flexBasis: "44%", gap: 3, paddingVertical: 4 },
+  performanceLabel: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 0.75 },
+  performanceValue: { fontSize: 18, lineHeight: 23, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  disclaimer: { fontSize: 10, lineHeight: 15 },
+  disclosure: { minHeight: 68, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingVertical: 14 },
+  disclosureCopy: { flex: 1, minWidth: 0, gap: 3 },
+  disclosureTitle: { fontSize: 15, lineHeight: 20, fontWeight: "800" },
+  disclosureIcon: { fontSize: 22, lineHeight: 24, fontWeight: "500" },
+  detailStack: { gap: 14 },
+  cycleRow: { minHeight: 56, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  cycleCopy: { flex: 1, minWidth: 0, gap: 3 },
+  cycleTitle: { fontSize: 12, lineHeight: 17, fontWeight: "800" },
+  cycleDetail: { fontSize: 10, lineHeight: 15 },
+  cycleDecision: { maxWidth: "36%", textAlign: "right", fontSize: 10, lineHeight: 15, fontWeight: "800" },
+  timelineItem: { borderLeftWidth: 2, paddingLeft: 11, paddingVertical: 8, gap: 4 },
   timelineHeader: { flexDirection: "row", justifyContent: "space-between", gap: 8 },
-  timelineStage: { fontSize: 11, fontWeight: "800" },
-  timelineStatus: { fontSize: 10 },
-  timelineBody: { fontSize: 10, lineHeight: 15 },
+  timelineStage: { fontSize: 11, lineHeight: 16, fontWeight: "900" },
+  timelineStatus: { flexShrink: 1, textAlign: "right", fontSize: 9, lineHeight: 14 },
+  timelineBody: { fontSize: 10, lineHeight: 16 },
   actions: { gap: 8 },
+  footer: { textAlign: "center", fontSize: 9, lineHeight: 14, fontWeight: "900", letterSpacing: 1.05, paddingTop: 4 },
+  hiddenAcceptanceText: { position: "absolute", width: 1, height: 1, opacity: 0 },
 });
