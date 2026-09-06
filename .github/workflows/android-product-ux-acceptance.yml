@@ -109,25 +109,25 @@ jobs:
           capture 00-entry
           enter_personal; capture 01-home
 
-          tap "MARKETS"; capture 02-markets-chart
+          tap "tab-Markets"; capture 02-markets-chart
           tap "시장 목록"; capture 03-markets-list
           tap "차트"; capture 04-markets-chart-return
 
-          tap "PAPER"; capture 05-paper
+          tap "tab-Paper"; capture 05-paper
           adb shell input swipe 540 1800 540 500 450; sleep 1; capture 06-paper-scroll
-          tap_after_scroll "최근 사이클과 이벤트 타임라인"; capture 07-paper-evidence-open
+          tap_after_scroll "paper-learning-detail-toggle"; capture 07-paper-evidence-open
 
-          tap "PORTFOLIO"; capture 08-portfolio
-          tap "도구"; tap "설정"; capture 09-settings
+          tap "tab-Portfolio"; capture 08-portfolio
+          tap "header-tools-menu"; tap "header-settings"; capture 09-settings
           adb shell input swipe 540 1800 540 600 450; sleep 1; capture 10-settings-scroll
-          tap "설정 닫기"; capture 11-after-settings-close
-          tap "HOME"; capture 12-home-return
+          tap "utility-close"; capture 11-after-settings-close
+          tap "tab-Home"; capture 12-home-return
 
-          grep -q "PAPER ONLY" qa/android-product-ux/05-paper.xml
+          grep -q "paper-learning-monitor" qa/android-product-ux/05-paper.xml
           grep -q "MARKETS" qa/android-product-ux/02-markets-chart.xml
           grep -q "PORTFOLIO" qa/android-product-ux/08-portfolio.xml
-          grep -q "최근 사이클" qa/android-product-ux/07-paper-evidence-open.xml
-          grep -q "HOME" qa/android-product-ux/12-home-return.xml
+          grep -q "paper-learning-timeline" qa/android-product-ux/07-paper-evidence-open.xml
+          grep -q "home-screen" qa/android-product-ux/12-home-return.xml
           printf 'touch_navigation=PASS\nframes=%s\nevidence_disclosure=PASS\nsettings_close=PASS\nreturn_home=PASS\n' "$(find qa/android-product-ux -name '*.png' | wc -l)" > qa/android-product-ux/report.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()

@@ -55,6 +55,13 @@ test("Android product UX acceptance bounds emulator startup and preserves diagno
   assert.match(workflow, /enter_personal\(\)/);
   assert.match(workflow, /"local-entry-submit"/);
   assert.match(workflow, /"home-screen"/);
+  for (const marker of ["tab-Markets", "tab-Paper", "paper-learning-detail-toggle", "tab-Portfolio", "header-tools-menu", "header-settings", "utility-close", "tab-Home"]) {
+    assert.match(workflow, new RegExp(`tap(?:_after_scroll)? "${marker}"`));
+  }
+  for (const ambiguousLabel of ["MARKETS", "PAPER", "PORTFOLIO", "HOME", "도구", "설정", "설정 닫기"]) {
+    assert.doesNotMatch(workflow, new RegExp(`tap "${ambiguousLabel.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\  assert.match(workflow, /"home-screen"/);
+")}"`));
+  }
   assert.match(workflow, /ET\.tostring\(ET\.parse\("\/tmp\/window\.xml"\)\.getroot\(\), encoding="unicode"\)/);
   assert.match(workflow, /if: always\(\)/);
   assert.match(workflow, /grep -q "PAPER ONLY"/);
