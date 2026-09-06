@@ -23,7 +23,7 @@ test("SUPERVISE uses one canonical capital strip and keeps REAL_READ_ONLY separa
   assert.equal(source.includes('testID="portfolio-summary"'), false, "redundant legacy PAPER hero must stay removed");
   assert.equal(source.includes("MetricTile"), false, "duplicated legacy metric tiles must stay removed");
   assert.match(source, /testID="portfolio-supervisor-summary"/);
-  assert.match(source, /label: "EQUITY"/);
+  assert.match(source, /label: "PAPER EQUITY"/);
   assert.match(source, /label: "TOTAL PNL"/);
   assert.match(source, /label: "CASH"/);
   assert.match(source, /label: "EXPOSURE"/);
