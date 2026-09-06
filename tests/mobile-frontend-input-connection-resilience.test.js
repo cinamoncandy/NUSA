@@ -34,9 +34,21 @@ test("Settings connection mutation is single-flight and probes only the persiste
   assert.match(source, /finally \{[\s\S]*connectionInFlightRef\.current = false;[\s\S]*setConnecting\(false\)/);
 });
 
-test("Settings revokes prior credential verification before testing a replacement token", () => {
+test("Settings revokes prior verification and uses bootstrap-first credential routing", () => {
   const source = read("apps/mobile/src/settingsView.tsx");
-  assert.match(source, /if \(!configuredEndpoint\) \{[\s\S]*return;[\s\S]*\}\s*credentialSession\.clear\(\);\s*clearPaperConnectionVerification\(\);\s*setConnection\(\{ status: "NOT_CONFIGURED", reason: "[^"]*connection verification is in progress\." \}\);\s*credentialSession\.connect\(tokenDraft\)/);
+  const guard = source.indexOf("if (!configuredEndpoint)");
+  const clearSession = source.indexOf("credentialSession.clear();", guard);
+  const clearVerification = source.indexOf("clearPaperConnectionVerification();", clearSession);
+  const inProgress = source.indexOf('reason: "Cloud PAPER connection verification is in progress."', clearVerification);
+  const connectBootstrap = source.indexOf("credentialSession.connect(tokenDraft);", inProgress);
+  const firstProbe = source.indexOf("let result = await loadPersonalPaperOperations", connectBootstrap);
+  const fallbackGate = source.indexOf('shouldFallbackToMobileEnrollment(tokenDraft, result.status === "READY")', firstProbe);
+  const fallbackClear = source.indexOf("credentialSession.clear();", fallbackGate);
+  const enroll = source.indexOf("await credentialSession.enroll(tokenDraft, installationId);", fallbackClear);
+  const secondProbe = source.indexOf("result = await loadPersonalPaperOperations", enroll);
+  assert.ok(guard >= 0 && clearSession > guard && clearVerification > clearSession && inProgress > clearVerification);
+  assert.ok(connectBootstrap > inProgress && firstProbe > connectBootstrap, "raw credential must try one-time bootstrap before enrollment");
+  assert.ok(fallbackGate > firstProbe && fallbackClear > fallbackGate && enroll > fallbackClear && secondProbe > enroll, "user-credential fallback must be fail-closed and re-probed");
   assert.match(source, /if \(result\.status === "READY"\) \{ markPaperConnectionVerified\(configuredEndpoint\); setTokenDraft\(""\); \}/);
 });
 
