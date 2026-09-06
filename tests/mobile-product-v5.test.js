@@ -41,7 +41,9 @@ test("Android product UX acceptance bounds emulator startup and preserves diagno
     path.join(__dirname, "..", ".github", "workflows", "android-product-ux-acceptance.yml"),
     "utf8",
   );
-  assert.match(workflow, /ANDROID_AVD_HOME: \$\{\{ runner\.temp \}\}\/\.android\/avd/);
+  assert.match(workflow, /export ANDROID_AVD_HOME="\$RUNNER_TEMP\/\.android\/avd"/);
+  assert.match(workflow, /echo "ANDROID_AVD_HOME=\$ANDROID_AVD_HOME" >> "\$GITHUB_ENV"/);
+  assert.doesNotMatch(workflow, /ANDROID_AVD_HOME: \$\{\{ runner\.temp/);
   assert.match(workflow, /mkdir -p "\$ANDROID_AVD_HOME"/);
   assert.match(workflow, /emulator" -list-avds \| grep -qx nusa_product_qa/);
   assert.match(workflow, /test -f "\$ANDROID_AVD_HOME\/nusa_product_qa\.ini"/);
