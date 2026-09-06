@@ -60,7 +60,7 @@ test("Home hierarchy follows the Intelligence OS state-to-learning flow while pr
   assert.match(home, /PAPER EQUITY/);
   assert.match(home, /DECISION BASIS/);
   assert.match(home, /QUICK ACCESS/);
-  assert.match(home, />SUPERVISE<\/Text>/);
+  assert.match(home, />PORTFOLIO<\/Text>/);
   assert.match(home, />RISK<\/Text>/);
   assert.match(home, /buildHomeStatusRail/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);

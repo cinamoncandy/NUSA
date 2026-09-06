@@ -81,9 +81,9 @@ export function SegmentedControl({ items, selectedKey, onChange, disabled = fals
   </View>;
 }
 
-export function InlineNotice({ title, detail, tone = "info", testID }: Readonly<{ title: string; detail?: string; tone?: "success" | "warning" | "danger" | "info"; testID?: string }>) {
+export function InlineNotice({ title, detail, tone = "info", testID }: Readonly<{ title: string; detail?: string; tone?: StatusTone; testID?: string }>) {
   const { theme } = useTheme();
-  const accent = tone === "success" ? theme.colors.success : tone === "warning" ? theme.colors.warning : tone === "danger" ? theme.colors.danger : theme.colors.info;
+  const accent = tone === "success" ? theme.colors.success : tone === "warning" ? theme.colors.warning : tone === "danger" ? theme.colors.danger : tone === "neutral" ? theme.colors.textMuted : theme.colors.info;
   return <View accessibilityRole="text" style={[styles.notice, { backgroundColor: theme.colors.surfaceSunken, borderColor: accent }]} testID={testID}>
     <View style={[styles.noticeDot, { backgroundColor: accent }]} />
     <View style={styles.noticeCopy}><Text style={[styles.noticeTitle, { color: theme.colors.text }]}>{title}</Text>{detail ? <Text style={[styles.noticeDetail, { color: theme.colors.textMuted }]}>{detail}</Text> : null}</View>

@@ -182,12 +182,12 @@ export function HomeView({
 
       <View style={styles.sectionHeader}>
         <View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>QUICK ACCESS</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>바로 확인</Text></View>
-        <Text style={[styles.sectionMeta, { color: theme.colors.textMuted }]}>한 번의 탭으로 상세 이동</Text>
+        <Text style={[styles.sectionMeta, { color: theme.colors.textMuted }]}>핵심 화면으로 바로 이동</Text>
       </View>
 
       <View style={[styles.commandStack, tablet ? styles.commandStackTablet : null]}>
         <Pressable onPress={() => onNavigate("Markets")} style={({ pressed }) => [styles.command, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]} testID="home-decision-stage">
-          <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.info }]}>OBSERVE</Text><Text style={[styles.commandArrow, { color: theme.colors.textMuted }]}>↗</Text></View>
+          <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.info }]}>MARKETS</Text><Text style={[styles.commandArrow, { color: theme.colors.textMuted }]}>↗</Text></View>
           <Text style={[styles.commandTitle, { color: theme.colors.text }]}>시장</Text>
           <Text style={[styles.commandSummary, { color: theme.colors.textMuted }]}>{marketRows.length === 0 ? "공개 시장 데이터 대기 중" : `${marketRows.length}개 핵심 시장`}</Text>
           <View style={styles.commandPreview}>{marketRows.slice(0, 2).map((market) => <View key={market.market} style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>{market.market}</Text><Text style={[styles.previewValue, { color: (market.changeRate ?? 0) > 0 ? theme.colors.success : (market.changeRate ?? 0) < 0 ? theme.colors.danger : theme.colors.text }]}>{signedPercentFromRate(market.changeRate)}</Text></View>)}</View>
@@ -198,7 +198,7 @@ export function HomeView({
           <FactRow label="RESERVED CASH" value={krw(cashEnvelope?.reservedCash)} tone="success" />
         </View>
         <Pressable onPress={() => onNavigate("Portfolio")} style={({ pressed }) => [styles.command, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]} testID="home-paper-performance">
-          <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.success }]}>SUPERVISE</Text><Text style={[styles.commandArrow, { color: theme.colors.textMuted }]}>↗</Text></View>
+          <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.success }]}>PORTFOLIO</Text><Text style={[styles.commandArrow, { color: theme.colors.textMuted }]}>↗</Text></View>
           <Text style={[styles.commandTitle, { color: theme.colors.text }]}>PAPER</Text>
           <Text style={[styles.commandSummary, { color: theme.colors.textMuted }]}>{hasPosition ? `${position?.market ?? "PAPER"} position active` : account ? "현재 노출 없음" : "계정 대기 중"}</Text>
           <View style={styles.commandPreview}><View style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>INVESTABLE</Text><Text style={[styles.previewValue, { color: theme.colors.text }]} testID="home-investable-cash">{krw(cashEnvelope?.investableCash)}</Text></View><View style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>RESERVED</Text><Text style={[styles.previewValue, { color: theme.colors.text }]}>{krw(cashEnvelope?.reservedCash)}</Text></View></View>

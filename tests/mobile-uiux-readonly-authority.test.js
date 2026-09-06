@@ -10,11 +10,11 @@ test("UIUX-002 presents the canonical four-tab product navigation while preservi
   const app = read("App.tsx");
   assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio"\] as const/);
   assert.match(app, /Home: "HOME"/);
-  assert.match(app, /Markets: "OBSERVE"/);
+  assert.match(app, /Markets: "MARKETS"/);
   assert.match(app, /Paper: "PAPER"/);
-  assert.match(app, /Portfolio: "SUPERVISE"/);
-  assert.match(app, /Markets: "공개 시장 관찰"/);
-  assert.match(app, /Portfolio: "PAPER 운용 감독"/);
+  assert.match(app, /Portfolio: "PORTFOLIO"/);
+  assert.match(app, /Markets: "공개 시장 환경"/);
+  assert.match(app, /Portfolio: "PAPER 자산과 결과"/);
   assert.match(app, /type Tab = PrimaryTab \| "AiSignal" \| "Order"/);
   assert.match(app, /activeTab === "AiSignal" \? <AiView/);
   assert.doesNotMatch(app, /<MoreView/);
@@ -74,7 +74,7 @@ test("optional Cloud credential flow remains Settings-owned and never gates loca
   assert.match(settings, /credentialSession\.connect\(tokenDraft\)/);
   assert.match(settings, /credentialSession\.clear\(\)/);
   assert.match(settings, /bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);
-  assert.match(settings, /LOCAL PAPER 거래에는 사용하지 않습니다/);
+  assert.match(settings, /LOCAL PAPER에는 사용하지 않습니다/);
   assert.match(settings, /LOCAL PAPER는 연결 없이 즉시 사용할 수 있습니다/);
   assert.match(settings, /testID="settings-paper-connect"/);
   assert.match(settings, /testID="settings-paper-disconnect"/);

@@ -32,7 +32,7 @@ test("Home uses the content-first command center hierarchy and keeps AI read-onl
   assert.match(source, /testID="home-risk-status"/);
   assert.match(source, /testID="home-decision-stage"/);
   assert.match(source, /QUICK ACCESS/);
-  assert.match(source, />SUPERVISE<\/Text>/);
+  assert.match(source, />PORTFOLIO<\/Text>/);
   assert.match(source, />RISK<\/Text>/);
   assert.match(source, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
   assert.match(source, /selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)/);
@@ -65,7 +65,7 @@ test("Portfolio and AI use decision-first v3 information hierarchy", () => {
   assert.match(portfolio, /<AuthorityRail/);
   assert.match(portfolio, /<ScreenLead/);
   assert.match(portfolio, /testID="portfolio-supervisor-summary"/);
-  assert.match(portfolio, /label: "EQUITY"/);
+  assert.match(portfolio, /label: "PAPER EQUITY"/);
   assert.match(portfolio, /testID="portfolio-upbit-read-only"/);
   assert.match(portfolio, /testID="portfolio-allocation-rail"/);
   assert.match(portfolio, /REAL_READ_ONLY 잔고는 감독용 기준선이며 PAPER 성과와 절대 합산하지 않습니다/);

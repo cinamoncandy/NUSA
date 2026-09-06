@@ -54,13 +54,14 @@ test("Settings revokes prior verification and uses bootstrap-first credential ro
 
 test("Settings optional Cloud PAPER fields keep one-time secret bootstrap semantics", () => {
   const source = read("apps/mobile/src/settingsView.tsx");
-  assert.match(source, /keyboardType="url" label="Cloud endpoint \(선택\)"/);
-  assert.match(source, /label="1회용 연결 토큰 \(선택\)"[\s\S]*placeholder="Cloud를 사용할 때만 입력"[\s\S]*secureTextEntry/);
+  assert.match(source, /Cloud 기능은 선택 사항입니다/);
+  assert.match(source, /keyboardType="url" label="Cloud endpoint"/);
+  assert.match(source, /label="1회용 연결 토큰"[\s\S]*placeholder="Cloud를 연결할 때만 입력"[\s\S]*secureTextEntry/);
   assert.match(source, /bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);
-  assert.match(source, /LOCAL PAPER 거래에는 사용하지 않습니다/);
-  assert.match(source, /disabled=\{busy\} label=\{connecting \? "연결 확인 중\.\.\." : "Cloud 연결"\}/);
-  assert.match(source, /disabled=\{busy \|\| connection\.status !== "READY"\} label="Cloud 연결 해제"/);
-  assert.match(source, /const cloudConnectionLabel = connecting \? "확인 중"/);
+  assert.match(source, /LOCAL PAPER에는 사용하지 않습니다/);
+  assert.match(source, /disabled=\{busy\} label=\{connecting \? "검증 중\.\.\." : connectionFailed \? "연결 다시 시도" : "Cloud 연결"\}/);
+  assert.match(source, /disabled=\{busy \|\| connection\.status !== "READY"\} label="연결 해제"/);
+  assert.match(source, /const cloudConnectionLabel = connecting \? "VERIFYING"/);
 });
 
 test("PAPER order inputs are numeric-first and locked during an in-flight submit", () => {

@@ -8,10 +8,10 @@ const navigation = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/m
 
 test("visible mobile navigation exposes supervision jobs while retaining existing screen routes", () => {
   assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio"\]/);
-  assert.match(app, /Home: "HOME", Markets: "OBSERVE", Paper: "PAPER", Portfolio: "SUPERVISE"/);
-  assert.match(app, /Home: "현재 NUSA 상태", Markets: "공개 시장 관찰", Paper: "PAPER 운용", Portfolio: "PAPER 운용 감독"/);
+  assert.match(app, /Home: "HOME", Markets: "MARKETS", Paper: "PAPER", Portfolio: "PORTFOLIO"/);
+  assert.match(app, /Home: "현재 NUSA 상태", Markets: "공개 시장 환경", Paper: "PAPER 운용", Portfolio: "PAPER 자산과 결과"/);
   assert.match(app, /testID="primary-navigation"/);
-  assert.doesNotMatch(app, /Markets: "MARKET", Paper: "TRADE", Portfolio: "PORTFOLIO"/);
+  assert.doesNotMatch(app, /Markets: "MARKET", Paper: "TRADE"/);
 });
 
 test("navigation contract keeps utility navigation secondary instead of a fifth primary tab", () => {

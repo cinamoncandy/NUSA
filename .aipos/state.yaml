@@ -1,14 +1,13 @@
 version: 1
-current_mobile_home_command_center_recovery:
-  work_order: WO-UI-20260906-HOME-COMMAND-CENTER-CI-RECOVERY
+current_mobile_product_v5_recovery:
+  work_order: WO-UI-20260906-PRODUCT-V5-CI-RECOVERY
   status: IN_PROGRESS
-  branch: design/mobile-home-command-center-v2-20260906
-  pull_request: 1732
-  base_sha: 6479d7ef815d5af8940fa282b667a80a1ccc31e4
-  failing_head: 2e7f964aa74b3937c51389c24dc177bc1c915ccd
-  repair_commit: 648b5a3d9185409bd6e1626e716e88e70bfff0c6
-  failure_classification: REPOSITORY_CONTROLLED_STRUCTURAL_AND_TEST_FLAKY
-  local_validation: "Focused 21/21; risk evidence repeat 5/5; full isolated 947 files; build, lint, preflight, validate:full and diff check PASS."
+  branch: design/mobile-product-v5-20260906
+  pull_request: 1744
+  base_sha: e7824d0c07dea4aa0b6a26c2f821f744b05a4e50
+  failing_head: 1810e2e134d30760e75601d5c5d10400ffda64d8
+  failure_classification: REPOSITORY_CONTROLLED_STRUCTURAL
+  local_validation: "Focused 22/22; full isolated 952 files; typecheck, preflight, validate:full and diff check PASS."
   exact_head_ci: PENDING
   next_permitted_action: "Push validated head and require fresh exact-head CI before Audit, Release, or merge."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
