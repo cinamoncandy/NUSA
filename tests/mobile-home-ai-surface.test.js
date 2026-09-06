@@ -10,17 +10,18 @@ test("HOME matches the canonical autonomous-intelligence hierarchy", () => {
   const home = read("apps/mobile/src/homeView.tsx");
   const os = read("apps/mobile/src/intelligenceOs.tsx");
 
-  assert.match(home, /AuthorityRail/);
+  assert.match(home, /testID="home-status-rail"/);
   assert.match(home, /testID="home-master-rail"/);
   assert.match(os, />NUSA<\/Text>/);
-  assert.match(home, /AUTONOMOUS INVESTMENT INTELLIGENCE/);
-  assert.match(home, /eyebrow="NOW"/);
-  assert.match(home, /kicker="WHY · AI INSIGHT"/);
+  assert.match(home, /PAPER EQUITY/);
+  assert.match(home, /TOTAL PNL/);
+  assert.match(home, />NOW<\/Text>/);
+  assert.match(home, /DECISION BASIS/);
   assert.match(home, /testID="account-hero-card"/);
-  assert.match(home, /kicker="RISK STATUS"/);
-  assert.match(home, /kicker="SIGNAL TERRAIN"/);
-  assert.match(home, /kicker="PAPER PERFORMANCE"/);
-  assert.match(home, /kicker="LEARNING"/);
+  assert.match(home, /testID="home-risk-status"/);
+  assert.match(home, /testID="home-decision-stage"/);
+  assert.match(home, /testID="home-paper-performance"/);
+  assert.match(home, /testID="home-paper-learning"/);
 });
 
 test("HOME autonomous-intelligence design uses verified runtime data and preserves authority safety", () => {
@@ -32,7 +33,7 @@ test("HOME autonomous-intelligence design uses verified runtime data and preserv
   assert.match(home, /buildHomeStatusRail/);
   assert.match(home, /freshestObservedAtMs\(marketRows\)/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
-  assert.match(home, /PUBLIC READ ONLY · 시장 관찰은 전략 신호나 주문 권한으로 자동 승격되지 않습니다/);
+  assert.match(home, /PUBLIC READ ONLY/);
   assert.doesNotMatch(home, /productionMutationAllowed\s*=\s*true/);
   assert.doesNotMatch(home, /liveAuthority\s*=\s*["'](?:FULL|LIVE|ENABLED)["']/);
   assert.doesNotMatch(home, /Math\.random\(|synthetic|fake candle|mock candle/i);

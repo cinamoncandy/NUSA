@@ -21,30 +21,32 @@ test("visual redesign has a distinct NUSA surface and financial hierarchy", () =
   assert.match(primitives, /borderRadius: 999, borderWidth: 1, gap: 3/);
 });
 
-test("Home uses the approved Intelligence OS judgment, risk, observation, result, and learning hierarchy", () => {
+test("Home uses the content-first command center hierarchy without weakening authority", () => {
   const home = read("src/homeView.tsx");
   const decisionSurface = read("src/homeDecisionSurface.ts");
 
   assert.match(home, /testID="home-master-rail"/);
-  assert.match(home, /AUTONOMOUS INVESTMENT INTELLIGENCE · LIVE NONE · AI ZERO AUTHORITY/);
+  assert.match(home, /connectionLabel = disconnected \? "SETUP" : readOnlyError \? "DEGRADED"/);
+  assert.match(home, /"ACTIVE" : "OBSERVING"/);
+  assert.match(home, /PAPER EQUITY/);
+  assert.match(home, /TOTAL PNL/);
+  assert.match(home, /QUICK ACCESS/);
+  assert.match(home, />OBSERVE</);
+  assert.match(home, />SUPERVISE</);
+  assert.match(home, />LEARN</);
+  assert.match(home, /DECISION BASIS/);
+  assert.match(home, />RISK</);
+  assert.match(home, />RESULT</);
+  assert.match(home, /paddingBottom: 132/);
+  assert.match(home, /commandStackTablet: \{ flexDirection: "row"/);
   assert.match(home, /testID="home-now"/);
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /testID="ai-card"/);
-  assert.match(home, /kicker="WHY · AI INSIGHT"/);
   assert.match(home, /testID="home-risk-status"/);
-  assert.match(home, /kicker="RISK STATUS"/);
   assert.match(home, /testID="home-decision-stage"/);
-  assert.match(home, /kicker="SIGNAL TERRAIN"/);
   assert.match(home, /PUBLIC READ ONLY/);
-  assert.match(home, /시장 관찰은 전략 신호나 주문 권한으로 자동 승격되지 않습니다/);
   assert.match(home, /testID="home-paper-performance"/);
-  assert.match(home, /kicker="PAPER PERFORMANCE"/);
   assert.match(home, /testID="home-paper-learning"/);
-  assert.match(home, /kicker="LEARNING"/);
-  assert.match(home, /label="NOW"/);
-  assert.match(home, /label="RESULT"/);
-  assert.match(home, /label="RISK"/);
-  assert.match(home, /label="LEARNING"/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
 
   assert.doesNotMatch(home, /<TerrainSignal/);

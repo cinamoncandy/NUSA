@@ -2,10 +2,8 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-
 const root = path.join(__dirname, "..", "apps", "mobile");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
-
 test("App shell routes the canonical four-tab decision flow and preserves deeper jobs", () => {
   const app = read("App.tsx");
   assert.match(app, /import \{ HomeView/);
@@ -17,32 +15,28 @@ test("App shell routes the canonical four-tab decision flow and preserves deeper
   assert.match(app, /StatusChip label="PAPER ONLY"/);
   assert.match(app, /StatusChip label="LIVE NONE"/);
 });
-
-test("Home uses the approved autonomous-intelligence hierarchy and keeps AI read-only", () => {
+test("Home uses the content-first command center hierarchy and keeps AI read-only", () => {
   const source = read("src/homeView.tsx");
   const decisionSurface = read("src/homeDecisionSurface.ts");
-
-  assert.match(source, /AUTONOMOUS INVESTMENT INTELLIGENCE/);
+  assert.match(source, /PAPER EQUITY/);
   assert.match(source, /testID="home-master-rail"/);
   assert.match(source, /testID="home-now"/);
   assert.match(source, /testID="account-hero-card"/);
-  assert.match(source, /label: "EQUITY"/);
-  assert.match(source, /label: "TOTAL PNL"/);
+  assert.match(source, /PAPER EQUITY/);
+  assert.match(source, /TOTAL PNL/);
   assert.doesNotMatch(source, />오늘</);
-  assert.match(source, /WHY · AI INSIGHT/);
-  assert.match(source, /label="NOW"/);
-  assert.match(source, /label="RESULT"/);
-  assert.match(source, /label="RISK"/);
+  assert.match(source, /DECISION BASIS/);
+  assert.match(source, />NOW<\/Text>/);
+  assert.match(source, />RESULT<\/Text>/);
+  assert.match(source, />RISK<\/Text>/);
   assert.match(source, /testID="home-risk-status"/);
   assert.match(source, /testID="home-decision-stage"/);
-  assert.match(source, /SIGNAL TERRAIN/);
-  assert.match(source, /PAPER PERFORMANCE/);
-  assert.match(source, /RISK STATUS/);
+  assert.match(source, /QUICK ACCESS/);
+  assert.match(source, />SUPERVISE<\/Text>/);
+  assert.match(source, />RISK<\/Text>/);
   assert.match(source, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
   assert.match(source, /selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)/);
   assert.match(source, /const aiInsightAvailable = decisionSurface\.aiInsightAvailable && !disconnected && readOnlyError == null/);
-  assert.match(source, /NO QUALIFIED SIGNAL/);
-
   // The fail-closed decision model remains authoritative for presentation truth;
   // HOME may expose rich read-only evidence but must never create LIVE authority.
   assert.match(decisionSurface, /PAPER P&L .*EQUITY/);
@@ -50,7 +44,6 @@ test("Home uses the approved autonomous-intelligence hierarchy and keeps AI read
   assert.doesNotMatch(source, /authority:\s*"LIVE"/);
   assert.doesNotMatch(source, /\/api\/(?:live|withdraw|transfer)/i);
 });
-
 test("Markets, PAPER, Settings and History use shared segmented controls", () => {
   const markets = read("src/marketsView.tsx");
   const trading = read("src/tradingView.tsx");
@@ -66,7 +59,6 @@ test("Markets, PAPER, Settings and History use shared segmented controls", () =>
   assert.match(history, /order-history-periods/);
   assert.match(history, /order-history-sorts/);
 });
-
 test("Portfolio and AI use decision-first v3 information hierarchy", () => {
   const portfolio = read("src/portfolioView.tsx");
   const ai = read("src/aiView.tsx");
@@ -84,14 +76,12 @@ test("Portfolio and AI use decision-first v3 information hierarchy", () => {
   assert.match(ai, /<MetricTile label="검증 신뢰도"/);
   assert.match(ai, /AI ZERO AUTHORITY/);
 });
-
 test("Notification utility is honest about unavailable runtime capability", () => {
   const notifications = read("src/notificationView.tsx");
   assert.match(notifications, /알림 이벤트 수집이 아직 연결되지 않았습니다/);
   assert.match(notifications, /가짜 알림/);
   assert.match(notifications, /READ ONLY/);
 });
-
 test("UI v3 never introduces live execution authority", () => {
   const files = ["App.tsx", "src/homeView.tsx", "src/homeDecisionSurface.ts", "src/marketsView.tsx", "src/tradingView.tsx", "src/tradingViewLegacy.tsx", "src/portfolioView.tsx", "src/aiView.tsx", "src/settingsView.tsx"];
   const source = files.map(read).join("\n");
