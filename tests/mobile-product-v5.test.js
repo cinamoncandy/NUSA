@@ -52,8 +52,10 @@ test("Android product UX acceptance bounds emulator startup and preserves diagno
   assert.match(workflow, /timeout 300 bash -c/);
   assert.match(workflow, /cat "\$RUNNER_TEMP\/emulator\.log" \|\| true/);
   assert.doesNotMatch(workflow, /^\s*adb wait-for-device\s*$/m);
-  assert.match(workflow, /tap "local-entry-submit"/);
-  assert.match(workflow, /ET\.dump\(ET\.parse\("\/tmp\/window\.xml"\)\.getroot\(\)\)/);
+  assert.match(workflow, /enter_personal\(\)/);
+  assert.match(workflow, /"local-entry-submit"/);
+  assert.match(workflow, /"home-screen"/);
+  assert.match(workflow, /ET\.tostring\(ET\.parse\("\/tmp\/window\.xml"\)\.getroot\(\), encoding="unicode"\)/);
   assert.match(workflow, /if: always\(\)/);
   assert.match(workflow, /grep -q "PAPER ONLY"/);
   assert.match(workflow, /evidence_disclosure=PASS/);

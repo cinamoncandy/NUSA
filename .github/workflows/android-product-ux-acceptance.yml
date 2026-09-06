@@ -98,15 +98,16 @@ jobs:
                       x1,y1,x2,y2=map(int,m.groups())
                       print((x1+x2)//2,(y1+y2)//2)
                       sys.exit(0)
-          ET.dump(ET.parse("/tmp/window.xml").getroot())
+          print(ET.tostring(ET.parse("/tmp/window.xml").getroot(), encoding="unicode"), file=sys.stderr)
           sys.exit(2)
           PY
           capture(){ adb exec-out screencap -p > "qa/android-product-ux/$1.png"; adb shell uiautomator dump /sdcard/window.xml >/dev/null; adb pull /sdcard/window.xml "qa/android-product-ux/$1.xml" >/dev/null; }
           tap(){ read x y < <(python3 "$RUNNER_TEMP/tap.py" "$1"); adb shell input tap "$x" "$y"; sleep 2; }
+          enter_personal(){ if coords="$(python3 "$RUNNER_TEMP/tap.py" "local-entry-submit" 2>/dev/null)"; then read x y <<<"$coords"; adb shell input tap "$x" "$y"; sleep 2; elif python3 "$RUNNER_TEMP/tap.py" "home-screen" >/dev/null 2>&1; then return 0; else python3 "$RUNNER_TEMP/tap.py" "local-entry-submit"; return 2; fi; }
           tap_after_scroll(){ local needle="$1"; local tries=0; while [ "$tries" -lt 5 ]; do if coords="$(python3 "$RUNNER_TEMP/tap.py" "$needle" 2>/dev/null)"; then read x y <<<"$coords"; adb shell input tap "$x" "$y"; sleep 2; return 0; fi; adb shell input swipe 540 1750 540 520 450; sleep 1; tries=$((tries+1)); done; echo "required Android control not reachable: $needle" >&2; return 2; }
 
           capture 00-entry
-          tap "local-entry-submit"; capture 01-home
+          enter_personal; capture 01-home
 
           tap "MARKETS"; capture 02-markets-chart
           tap "시장 목록"; capture 03-markets-list
