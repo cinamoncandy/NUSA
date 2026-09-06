@@ -13,6 +13,7 @@ test("Android self updater is foreground-triggered and OS installer mediated", (
   const activity = read(path.join(nativeDir, "MainActivity.kt"));
   const updater = read(path.join(nativeDir, "NusaSelfUpdater.kt"));
   assert.match(activity, /override fun onResume\(\)/);
+  assert.match(activity, /if \(!BuildConfig\.DEBUG\)/);
   assert.match(activity, /NusaSelfUpdater\.checkFrom\(this\)/);
   assert.match(updater, /Intent\.ACTION_VIEW/);
   assert.match(updater, /application\/vnd\.android\.package-archive/);

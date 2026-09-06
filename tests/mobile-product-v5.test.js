@@ -41,10 +41,29 @@ test("Android product UX acceptance bounds emulator startup and preserves diagno
     path.join(__dirname, "..", ".github", "workflows", "android-product-ux-acceptance.yml"),
     "utf8",
   );
+  assert.match(workflow, /export ANDROID_AVD_HOME="\$RUNNER_TEMP\/\.android\/avd"/);
+  assert.match(workflow, /echo "ANDROID_AVD_HOME=\$ANDROID_AVD_HOME" >> "\$GITHUB_ENV"/);
+  assert.doesNotMatch(workflow, /ANDROID_AVD_HOME: \$\{\{ runner\.temp/);
+  assert.match(workflow, /mkdir -p "\$ANDROID_AVD_HOME"/);
+  assert.match(workflow, /emulator" -list-avds \| grep -qx nusa_product_qa/);
+  assert.match(workflow, /test -f "\$ANDROID_AVD_HOME\/nusa_product_qa\.ini"/);
+  assert.match(workflow, /sudo chmod 666 \/dev\/kvm/);
   assert.match(workflow, /timeout 120 adb wait-for-device/);
   assert.match(workflow, /timeout 300 bash -c/);
   assert.match(workflow, /cat "\$RUNNER_TEMP\/emulator\.log" \|\| true/);
   assert.doesNotMatch(workflow, /^\s*adb wait-for-device\s*$/m);
-  assert.match(workflow, /grep -q "PAPER ONLY"/);
+  assert.match(workflow, /enter_personal\(\)/);
+  assert.match(workflow, /"local-entry-submit"/);
+  assert.match(workflow, /"home-screen"/);
+  for (const marker of ["tab-Markets", "tab-Paper", "paper-learning-detail-toggle", "tab-Portfolio", "header-tools-menu", "header-settings", "utility-close", "tab-Home"]) {
+    assert.match(workflow, new RegExp(`(?:tap|tap_after_scroll) "${marker}"`));
+  }
+  for (const ambiguousLabel of ["MARKETS", "PAPER", "PORTFOLIO", "HOME", "도구", "설정", "설정 닫기"]) {
+    assert.doesNotMatch(workflow, new RegExp(`tap "${ambiguousLabel}"`));
+  }
+  assert.ok(workflow.includes('print(ET.tostring(ET.parse("/tmp/window.xml").getroot(), encoding="unicode"), file=sys.stderr)'));
+  assert.match(workflow, /if: always\(\)/);
+  assert.match(workflow, /grep -q "paper-learning-monitor"/);
+  assert.match(workflow, /tap_after_scroll "paper-learning-detail-toggle"; adb shell input swipe 540 1800 540 700 450/);
   assert.match(workflow, /evidence_disclosure=PASS/);
 });
