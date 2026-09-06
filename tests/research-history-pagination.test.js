@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
+  RESEARCH_MARKET_SET_VERSION,
   RESEARCH_MARKETS,
   SMA_PARAMETER_NEIGHBORHOOD,
   fetchResearchCandles,
@@ -31,8 +32,9 @@ test("research horizon is bounded and never selected from performance", () => {
   }
 });
 
-test("independent regime markets are predeclared and immutable", () => {
-  assert.deepEqual(RESEARCH_MARKETS, ["KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-SOL", "KRW-DOGE"]);
+test("independent 2000-day regime market set is versioned, predeclared, and immutable", () => {
+  assert.equal(RESEARCH_MARKET_SET_VERSION, "upbit-public-daily-2000-v2");
+  assert.deepEqual(RESEARCH_MARKETS, ["KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-ADA", "KRW-DOGE"]);
   assert.ok(Object.isFrozen(RESEARCH_MARKETS));
 });
 
@@ -106,8 +108,11 @@ test("market-specific pagination binds request, candles, and provenance to the r
   assert.equal(result.candles.length, 200);
   assert.ok(result.candles.every((candle) => candle.market === "KRW-ETH"));
   assert.ok(result.sourceRequests.every((request) => request.includes("market=KRW-ETH")));
+  const replacement = await fetchResearchCandles({ market: "KRW-ADA", dataAsOf, count: 200, fetchPage: pageFor, pause: async () => {} });
+  assert.ok(replacement.candles.every((candle) => candle.market === "KRW-ADA"));
+  assert.ok(replacement.sourceRequests.every((request) => request.includes("market=KRW-ADA")));
   await assert.rejects(
-    fetchResearchCandles({ market: "KRW-ADA", dataAsOf, count: 200, fetchPage: pageFor }),
+    fetchResearchCandles({ market: "KRW-SOL", dataAsOf, count: 200, fetchPage: pageFor }),
     /unsupported research market/
   );
 });

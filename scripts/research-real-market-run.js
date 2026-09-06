@@ -23,7 +23,10 @@ const { buildResearchRunProvenancePlan } = require("../dist/apps/desktop/src/clo
 
 const STRATEGY_FAMILY_ID = "sma-crossover";
 const MARKET = "KRW-BTC";
-const RESEARCH_MARKETS = Object.freeze(["KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-SOL", "KRW-DOGE"]);
+const RESEARCH_MARKET_SET_VERSION = "upbit-public-daily-2000-v2";
+// Availability-only cohort: each predeclared market had at least 2000 completed public
+// daily candles at v2 declaration time. This identity is never selected from returns.
+const RESEARCH_MARKETS = Object.freeze(["KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-ADA", "KRW-DOGE"]);
 const DEFAULT_CANDLE_COUNT = 2000;
 const DAY_MS = 86_400_000;
 const REQUEST_THROTTLE_MS = 150;
@@ -296,7 +299,10 @@ async function main() {
       transactionCostSensitivity: 1,
       provenance: {
         author: "nusa-real-market-research",
-        sourceReferences: marketDatasets.map((entry) => `dataset:${entry.manifest.datasetId}`)
+        sourceReferences: [
+          `market-set:${RESEARCH_MARKET_SET_VERSION}`,
+          ...marketDatasets.map((entry) => `dataset:${entry.manifest.datasetId}`)
+        ]
       },
       createdAt: timeline.hypothesisGeneratedAt
     })
@@ -423,6 +429,11 @@ async function main() {
   const oos = result.walkForwardResult.combinedOutOfSampleMetrics;
   console.log(JSON.stringify({
     NOTICE: "REAL_MARKET_DATA_RESEARCH_TIER_ONLY -- not operational Paper evidence, does not authorize release",
+    researchMarketSet: {
+      version: RESEARCH_MARKET_SET_VERSION,
+      selectionPolicy: "PREDECLARED_PUBLIC_HISTORY_AVAILABILITY_ONLY_NO_PERFORMANCE_SELECTION",
+      markets: RESEARCH_MARKETS
+    },
     hypothesis: league.hypothesis ?? hypothesis,
     dataset: {
       datasetId: manifest.datasetId,
@@ -523,6 +534,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  RESEARCH_MARKET_SET_VERSION,
   RESEARCH_MARKETS,
   SMA_PARAMETER_NEIGHBORHOOD,
   fetchResearchCandles,
