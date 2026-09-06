@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from "node:crypto";
 import {
   dashboardJsonResponse,
   type DashboardHttpRequest,
@@ -15,7 +16,25 @@ export interface MobileSessionHttpDependencies {
   readonly userAccessRepository: NusaUserAccessRepository;
 }
 
+export const MOBILE_ENROLLMENT_TOKEN_SHA256_ENV = "NUSA_MOBILE_ENROLLMENT_TOKEN_SHA256";
+const SHA256_HEX = /^[a-f0-9]{64}$/;
+
 const bearer = (value: string | undefined): string | undefined => /^Bearer\s+([^\s]+)$/i.exec(value?.trim() ?? "")?.[1];
+
+/**
+ * Optional migration boundary for a high-entropy credential that already exists on a mobile
+ * device. Only its SHA-256 fingerprint is configured on Cloud. A match is accepted solely by
+ * the first-run mobile enrollment route and is immediately exchanged for the normal rotating
+ * PAPER-only mobile session. It never becomes a general dashboard bearer and grants no LIVE,
+ * withdrawal, transfer, or production-mutation authority.
+ */
+export function matchesMobileEnrollmentTokenHash(token: string, configuredHash: string | undefined = process.env[MOBILE_ENROLLMENT_TOKEN_SHA256_ENV]): boolean {
+  const expected = configuredHash?.trim().toLowerCase() ?? "";
+  if (!SHA256_HEX.test(expected) || !token) return false;
+  const actual = createHash("sha256").update(token, "utf8").digest();
+  const expectedBytes = Buffer.from(expected, "hex");
+  return actual.length === expectedBytes.length && timingSafeEqual(actual, expectedBytes);
+}
 
 function jsonObject(body: string | undefined): Record<string, unknown> | undefined {
   if (body == null) return undefined;
@@ -44,7 +63,10 @@ function authorizeOwner(request: DashboardHttpRequest, dependencies: MobileSessi
 function authorizeActiveUser(request: DashboardHttpRequest, dependencies: MobileSessionHttpDependencies): DashboardPrincipal | undefined {
   const token = bearer(request.headers.authorization ?? request.headers.Authorization);
   if (token == null) return undefined;
-  const principal = dependencies.legacyTokenVerifier.verify(token);
+  let principal = dependencies.legacyTokenVerifier.verify(token);
+  if (principal == null && matchesMobileEnrollmentTokenHash(token)) {
+    principal = dependencies.legacyTokenVerifier.ownerPrincipal;
+  }
   if (principal == null || !principal.userId.trim() || !principal.email?.trim()) return undefined;
   const user = dependencies.userAccessRepository.get(principal.userId.trim());
   if (!isUserAllowed(user) || user!.email !== principal.email.trim().toLowerCase()) return undefined;
