@@ -47,7 +47,7 @@ test("real-account monitor remains separate from PAPER and surfaces current trut
   assert.match(portfolio, /upbitSnapshot\?: UpbitReadOnlyAccountSnapshot \| null/);
   assert.match(portfolio, /upbitStatus\?: UpbitReadOnlyConnectionStatus/);
   assert.match(portfolio, /upbitError\?: string \| null/);
-  assert.match(portfolio, /REAL_READ_ONLY · REFERENCE/);
+  assert.match(portfolio, /REAL ACCOUNT · READ ONLY/);
   assert.match(portfolio, /testID="portfolio-upbit-read-only"/);
   assert.match(portfolio, /REAL_READ_ONLY 잔고는 감독용 기준선이며 PAPER 성과와 절대 합산하지 않습니다/);
   assert.match(portfolio, /upbitSnapshot\?\.cash\.available/);

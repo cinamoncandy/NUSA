@@ -13,7 +13,7 @@ test("public quotation stays on the observation surface, not the PAPER execution
   assert.match(markets, /PUBLIC READ ONLY/);
   assert.match(markets, /loadUpbitPublicCandles/);
   assert.match(markets, /parseWatchlistMarkets/);
-  assert.match(markets, /전략 신호나 주문 권한으로 자동 승격되지 않습니다/);
+  assert.match(markets, /공개 시세는 읽기 전용입니다\. 이 데이터만으로 전략 신호나 주문 권한이 생기지 않습니다/);
   assert.doesNotMatch(paper, /loadUpbitPublicMarkets|loadUpbitPublicCandles|CloudPaperPublicChart|paper-upbit-market-panel|paper-upbit-chart/);
 });
 

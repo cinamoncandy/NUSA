@@ -31,8 +31,8 @@ test("Home uses the content-first command center hierarchy without weakening aut
   assert.match(home, /PAPER EQUITY/);
   assert.match(home, /TOTAL PNL/);
   assert.match(home, /QUICK ACCESS/);
-  assert.match(home, />OBSERVE</);
-  assert.match(home, />SUPERVISE</);
+  assert.match(home, />MARKETS</);
+  assert.match(home, />PORTFOLIO</);
   assert.match(home, />LEARN</);
   assert.match(home, /DECISION BASIS/);
   assert.match(home, />RISK</);

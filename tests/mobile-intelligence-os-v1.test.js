@@ -48,7 +48,7 @@ test("primary screens share Intelligence OS truth grammar while PAPER specialize
 
 test("market observation is explicitly separated from strategy and order authority", () => {
   assert.match(markets, /시장 관측과 PAPER 판단은 분리됩니다/);
-  assert.match(markets, /이 데이터만으로 전략 신호나 주문 권한이 생기지 않습니다/);
+  assert.match(markets, /공개 시세는 읽기 전용입니다\. 이 데이터만으로 전략 신호나 주문 권한이 생기지 않습니다/);
   assert.doesNotMatch(paper, /loadUpbitPublicMarkets|loadUpbitPublicCandles|CloudPaperPublicChart/);
   assert.doesNotMatch(paper, /<LegacyTradingView \{\.\.\.props\} \/>/);
 });

@@ -54,6 +54,7 @@ test("Settings revokes prior verification and uses bootstrap-first credential ro
 
 test("Settings optional Cloud PAPER fields keep one-time secret bootstrap semantics", () => {
   const source = read("apps/mobile/src/settingsView.tsx");
+  assert.match(source, /Cloud 기능은 선택 사항입니다/);
   assert.match(source, /keyboardType="url" label="Cloud endpoint"/);
   assert.match(source, /label="1회용 연결 토큰"[\s\S]*placeholder="Cloud를 연결할 때만 입력"[\s\S]*secureTextEntry/);
   assert.match(source, /bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);

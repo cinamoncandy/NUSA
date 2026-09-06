@@ -36,7 +36,7 @@ test("HomeView presents the approved autonomous-intelligence composition", () =>
   assert.match(home, /testID="home-paper-learning"/);
   assert.match(home, /DECISION BASIS/);
   assert.match(home, /RISK/);
-  assert.match(home, /OBSERVE/);
+  assert.match(home, /MARKETS/);
   assert.match(home, /PAPER PERFORMANCE/);
   assert.match(home, /LEARN/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);

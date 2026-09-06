@@ -138,7 +138,7 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
   if (settings === null) return <View style={styles.state} testID="settings-loading"><ActivityIndicator color={theme.colors.primary} /><Text style={[styles.title, { color: theme.colors.text }]}>설정을 불러오는 중</Text></View>;
   const busy = saving || connecting || operatorBusy;
   const connectionFailed = connectionAttempted && !connecting && connection.status !== "READY";
-  const cloudConnectionTone = connecting ? "info" : connection.status === "READY" ? "success" : connectionFailed || connection.status === "UNAVAILABLE" ? "danger" : "neutral";
+  const cloudConnectionTone = connecting ? "info" : connection.status === "READY" ? "success" : connectionFailed || connection.status === "UNAVAILABLE" ? "danger" : "warning";
   const cloudConnectionLabel = connecting ? "VERIFYING" : connection.status === "READY" ? "VERIFIED" : connectionFailed || connection.status === "UNAVAILABLE" ? "RETRY" : "NOT CONNECTED";
   const cloudConnectionDetail = connecting ? "서버, 보안 세션과 PAPER 운영 projection을 검증하고 있습니다." : connection.status === "READY" ? `${connection.snapshot.operations.runtimeState} · ${connection.snapshot.operations.transport}` : connectionFailed ? connection.reason : "Cloud PAPER는 선택 사항입니다. 연결할 때만 서버와 1회용 보안 세션을 검증합니다.";
   const allocationCash = exchangeCash > 0 ? exchangeCash : LOCAL_PAPER_INITIAL_CASH;
@@ -157,7 +157,7 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
     <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
     <View style={styles.sectionBlock} testID="settings-paper-connection">
       <View style={styles.sectionHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>CONNECTIONS · CLOUD PAPER</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>PAPER 서버 연결</Text></View><StatusChip label={cloudConnectionLabel} tone={cloudConnectionTone} /></View>
-      <InlineNotice title={connection.status === "READY" ? "연결 검증 완료" : connectionFailed ? "연결을 다시 확인하세요" : "Cloud PAPER 연결"} detail={cloudConnectionDetail} tone={connection.status === "READY" ? "success" : connectionFailed ? "danger" : connecting ? "info" : "neutral"} testID="settings-connection-summary" />
+      <InlineNotice title={connection.status === "READY" ? "연결 검증 완료" : connectionFailed ? "연결을 다시 확인하세요" : "Cloud PAPER 연결"} detail={cloudConnectionDetail} tone={connection.status === "READY" ? "success" : connectionFailed ? "danger" : "info"} testID="settings-connection-summary" />
       <View style={styles.connectionSteps} testID="settings-connection-steps">
         <ConnectionStep index="1" title="SERVER" detail={canonicalEndpoint ? "Release에 주입된 canonical HTTPS endpoint" : endpointDraft.trim() ? "입력한 HTTPS endpoint" : "Cloud를 사용할 때 endpoint 필요"} state={canonicalEndpoint || endpointDraft.trim() ? "READY" : "NEEDED"} tone={canonicalEndpoint || endpointDraft.trim() ? "success" : "neutral"} />
         <ConnectionStep index="2" title="SECURE SESSION" detail="1회용 토큰은 저장하지 않고 승인된 보안 세션으로 교환" state={connection.status === "READY" ? "SECURE" : tokenDraft.trim() ? "TOKEN READY" : "NEEDED"} tone={connection.status === "READY" ? "success" : tokenDraft.trim() ? "info" : "neutral"} />
