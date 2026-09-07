@@ -35,3 +35,33 @@ Remote exact-head CI and deployment acceptance must be checked separately.
 
 Full canonical isolated suite: 939/939 files passed on the implementation source
 (subsequent changes before publication are evidence/metadata only).
+
+## Canonical 2000-day completion
+
+Follow-up PRs #1706, #1729 and #1731 expanded the canonical run to five
+predeclared public markets and the full bounded 2,000-day default. The market
+set is immutably identified as `upbit-public-daily-2000-v2` and contains
+KRW-BTC, KRW-ETH, KRW-XRP, KRW-ADA and KRW-DOGE. KRW-SOL was replaced because
+it did not have 2,000 completed daily candles; reducing the horizon or accepting
+partial history remained prohibited.
+
+Fresh verification on protected main
+`50467e679cb5d1d145c410f1f7b879d3bf7fa573` observed 2,000 completed candles
+per market with zero freshness lag. The primary KRW-BTC dataset covered
+2021-03-16 through 2026-09-06 UTC, produced 94 OOS windows, and had SHA-256
+`640102f8570ed4369266222643e8f1b94bac9248535d8ac56364509f2ef6abdd`.
+The canonical replay snapshot persisted successfully.
+
+All nine precommitted SMA candidates were truthfully `REJECTED`; none was
+eligible for League allocation. PBO remained explicitly unavailable with
+`NO_SYMMETRIC_CSCV_PARTITION`, while rejection evidence included
+`DEFLATED_SHARPE_BELOW_CONFIDENCE_THRESHOLD`, `LEAGUE_BASELINE_REJECTED` or
+`LEAGUE_BASELINE_INSUFFICIENT`, and `REGIME_FRAGILE_EDGE`. No threshold was
+lowered and no signal, PAPER evidence, qualification, allocation, order, fill,
+or PnL was fabricated.
+
+Build, focused canonical history/qualification/robustness regression (21/21),
+preflight and `validate:full` passed on that source state. Issue #1701 was
+closed through its truthful-negative acceptance branch. Issue #1605 remains
+open for real autonomous PAPER order/fill/accounting and closed-learning
+operational evidence.
