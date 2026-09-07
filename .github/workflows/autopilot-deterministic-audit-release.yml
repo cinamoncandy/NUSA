@@ -291,24 +291,89 @@ jobs:
           test "$main" = "$AUDITED_BASE"
 
       - name: Canonical expected-head merge
+        id: merge
         run: |
           set -euo pipefail
-          result="$(gh api --method PUT "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/merge" -f sha="$EXPECTED_HEAD" -f merge_method=merge)"
-          jq -e '.merged == true' <<<"$result" >/dev/null
-          echo "Canonical deterministic Release merged PR #$PR_NUMBER at expected head $EXPECTED_HEAD"
+
+          # A competing authorized merge path can win the exact same expected-head race
+          # after Release re-verifies the audited base. Never treat the API error itself as
+          # success: accept only a subsequently proven canonical merge commit whose two
+          # parents are exactly AUDITED_BASE and EXPECTED_HEAD and which remains on main.
+          merge_api_ok=false
+          if result="$(gh api --method PUT "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/merge" -f sha="$EXPECTED_HEAD" -f merge_method=merge)"; then
+            if jq -e '.merged == true' <<<"$result" >/dev/null; then
+              merge_api_ok=true
+            else
+              echo "Merge API returned without merged=true; verifying fail-closed whether an equivalent exact-head merge completed concurrently."
+            fi
+          else
+            echo "Merge API failed; verifying fail-closed whether an equivalent exact-head merge completed concurrently."
+          fi
+
+          verified_merge_sha=''
+          for poll in $(seq 1 5); do
+            pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+            merged="$(jq -r '.merged // false' <<<"$pr")"
+            head="$(jq -r '.head.sha // empty' <<<"$pr")"
+            base_ref="$(jq -r '.base.ref // empty' <<<"$pr")"
+            base="$(jq -r '.base.sha // empty' <<<"$pr")"
+            merge_sha="$(jq -r '.merge_commit_sha // empty' <<<"$pr")"
+
+            if [ "$merged" = "true" ] && [ "$head" = "$EXPECTED_HEAD" ] && [ "$base_ref" = "main" ] && [ "$base" = "$AUDITED_BASE" ] && [[ "$merge_sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
+              merge_commit="$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$merge_sha")"
+              parent_count="$(jq -r '.parents | length' <<<"$merge_commit")"
+              parent_base="$(jq -r '.parents[0].sha // empty' <<<"$merge_commit")"
+              parent_head="$(jq -r '.parents[1].sha // empty' <<<"$merge_commit")"
+
+              if [ "$parent_count" = "2" ] && [ "$parent_base" = "$AUDITED_BASE" ] && [ "$parent_head" = "$EXPECTED_HEAD" ]; then
+                current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+                if [ "$current_main" = "$merge_sha" ]; then
+                  verified_merge_sha="$merge_sha"
+                  break
+                fi
+
+                ancestry="$(gh api "repos/$GITHUB_REPOSITORY/compare/$merge_sha...$current_main" --jq '.status' 2>/dev/null || true)"
+                if [ "$ancestry" = "ahead" ]; then
+                  verified_merge_sha="$merge_sha"
+                  break
+                fi
+              fi
+            fi
+
+            echo "Waiting for exact-head merge race to settle (poll $poll/5)..."
+            sleep 1
+          done
+
+          if [ -z "$verified_merge_sha" ]; then
+            if [ "$merge_api_ok" = "true" ]; then
+              echo "::error::Merge API reported success, but the resulting merge could not be bound to audited base $AUDITED_BASE and exact head $EXPECTED_HEAD."
+            else
+              echo "::error::Merge API failed and no equivalent audited exact-head merge could be proven."
+            fi
+            exit 1
+          fi
+
+          echo "merged_main=$verified_merge_sha" >> "$GITHUB_OUTPUT"
+          echo "Canonical deterministic Release bound PR #$PR_NUMBER to merge $verified_merge_sha at exact head $EXPECTED_HEAD and audited base $AUDITED_BASE"
           echo 'liveAuthority=NONE'
           echo 'productionMutationAllowed=false'
           echo 'aiAuthority=ZERO_AUTHORITY'
 
       - name: Start canonical post-merge main CI
         id: ci
+        env:
+          MERGED_MAIN: ${{ steps.merge.outputs.merged_main }}
         run: |
           set -euo pipefail
-          merged_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
-          test "$merged_main" != "$AUDITED_BASE"
+          test -n "$MERGED_MAIN"
+          current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          echo "merged_main=$MERGED_MAIN" >> "$GITHUB_OUTPUT"
+          if [ "$current_main" != "$MERGED_MAIN" ]; then
+            echo "Main advanced from audited merge $MERGED_MAIN to $current_main; newer Release/watchdog owns convergence."
+            exit 0
+          fi
           gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/dispatches" -f ref=main
-          echo "merged_main=$merged_main" >> "$GITHUB_OUTPUT"
-          echo "Dispatched canonical main CI for merged revision $merged_main"
+          echo "Dispatched canonical main CI for merged revision $MERGED_MAIN"
 
       - name: Recover post-merge CI retries and dispatch Cloudflare Deploy
         env:
