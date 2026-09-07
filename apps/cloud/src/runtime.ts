@@ -304,6 +304,10 @@ export function startCloudRuntime(
     try { effectiveResearchRuntime?.onMarketData(researchTick); } catch { /* isolated */ }
     const state = effectiveProvider.read({ userId: "operator", scopes: ["dashboard:read"] });
     if (state != null) {
+      // Hydration samples its own clock while producing decision.decidedAt. Re-sample only after
+      // hydration so PAPER fills cannot predate the exact challenger decision they persist. Any
+      // actual clock regression remains fail-closed in the canonical decision/fill validators.
+      const executionNow = Date.now();
       const dashboard = buildMobileDashboardResponse(state);
       try {
         const p0State = readAiP0State();
@@ -314,7 +318,7 @@ export function startCloudRuntime(
       } catch { /* advisory AI only */ }
       if (effectivePaperLoop != null) {
         const investmentPercent = investmentAllocationSettings.get(config.ownerId)?.investmentPercent ?? config.paperInvestmentPercent;
-        const tick = { now, market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, mode: state.mode, killSwitchActive: state.killSwitchActive, tradingAllowed: dashboard.tradingAllowed, overallHealth: state.overallHealth, decisions: state.decisions, investmentPercent, observedQuote: latestExecutionQuotes.get(ticker.code) };
+        const tick = { now: executionNow, market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, mode: state.mode, killSwitchActive: state.killSwitchActive, tradingAllowed: dashboard.tradingAllowed, overallHealth: state.overallHealth, decisions: state.decisions, investmentPercent, observedQuote: latestExecutionQuotes.get(ticker.code) };
         heartbeat.lastPaperDecisionAt = now;
         heartbeat.decisionCount += state.decisions.length;
         // A supplied loop is a read/recovery fixture unless it is composed behind the
