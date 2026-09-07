@@ -52,15 +52,17 @@ current_rate_limit_availability_hardening:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_authenticated_rate_limit_isolation:
   work_order: WO-20260907-AUTHENTICATED-RATE-LIMIT-ISOLATION
-  status: PR_OPEN_EXACT_HEAD_CI_PENDING
+  status: MERGED_HOST_DEPLOYMENT_UNVERIFIED
   branch: codex/paper-auth-rate-limit-isolation
   base_sha: 8d53cd44f79fc6ece423d0ea29df00264d7a78ac
   scope: "Reserve bounded Cloud PAPER request capacity for an existing verified approved-user session without weakening anonymous limiting or authorization."
   finding: "The public DuckDNS PAPER origin returned repeated unauthenticated /ready HTTP 429 responses. A single pre-auth limiter registry could deny a verified user when anonymous traffic filled capacity."
   validation: "build/typecheck; Cloud dashboard and rate-limit regression 12/12; lint (one unrelated existing warning); security gate; safety invariants; diff check PASS."
-  deployment_evidence: "PENDING: the public Node PAPER host does not report an exact source revision and must be redeployed from a protected main SHA before reachability is claimed."
+  deployment_evidence: "Repository merge commit 7eb91e911fcb4b9f4b56ad7bded22d80eb988baf and all exact-head required workflows passed. The public Node PAPER host does not report an exact source revision and still requires an operator-controlled redeploy plus approved-session verification before authenticated reachability is claimed."
   pull_request: 1760
-  exact_head_ci: PENDING
+  merge_commit: 7eb91e911fcb4b9f4b56ad7bded22d80eb988baf
+  exact_head_ci: PASS
+  remaining: "HUMAN_ENVIRONMENT_ONLY: deploy the exact protected-main merge commit to the DuckDNS/Oracle Node PAPER host and verify its authenticated read-only endpoints without exposing the dashboard token."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_renderer_navigation_containment:
   decision: ADR-0017
