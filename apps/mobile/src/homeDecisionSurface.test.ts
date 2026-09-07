@@ -55,4 +55,17 @@ describe("home decision surface attention", () => {
     assert.equal(surface.now, "RECOVERY REQUIRED");
     assert.equal(surface.risk, "BLOCKED · READ-ONLY RECOVERY REQUIRED");
   });
+
+  it("does not render a retained RUNNING Cloud snapshot as current while disconnected", () => {
+    const surface = buildHomeDecisionSurface(healthyInput({
+      runtimeState: "RUNNING",
+      disconnected: true,
+    }));
+
+    assert.equal(surface.statusLabel, "PAPER · RECOVERY REQUIRED");
+    assert.notEqual(surface.statusLabel, "PAPER · RUNNING");
+    assert.equal(surface.statusTone, "danger");
+    assert.equal(surface.now, "PAPER LINK REQUIRED");
+    assert.equal(surface.risk, "BLOCKED · PAPER LINK REQUIRED");
+  });
 });
