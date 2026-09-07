@@ -1,4 +1,12 @@
 version: 1
+current_oracle_codex_dev_runner:
+  work_order: WO-20260908-ORACLE-CODEX-DEV-RUNNER
+  status: LOCAL_VALIDATED
+  branch: infra/oracle-codex-dev-runner
+  scope: "Isolated Oracle ARM64 Codex Development Plane runner using owner-only manual GitHub dispatch and read-only repository token permissions."
+  blocker: "HUMAN_ENVIRONMENT_ONLY: current Oracle instance principal lacks Compute IAM permission, so A1 VM creation requires the Oracle console or an IAM policy change."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_mobile_porcelain_cobalt:
   work_order: WO-UI-20260907-PORCELAIN-COBALT
   status: IN_PROGRESS

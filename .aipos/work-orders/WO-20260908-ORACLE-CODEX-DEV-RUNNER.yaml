@@ -1,0 +1,56 @@
+id: WO-20260908-ORACLE-CODEX-DEV-RUNNER
+title: "Oracle isolated Codex development runner"
+status: LOCAL_VALIDATED
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: a0eea568a6563ee4962a49430bb27f16bda9f5da
+implementation_branch: infra/oracle-codex-dev-runner
+objective: "Move Codex build/test work off the 1 GB Oracle PAPER host into an isolated Oracle development VM controlled by manual GitHub workflow dispatch, without adding Money Plane authority."
+authority_impact: none
+architecture_impact:
+  acknowledged: true
+  analysis: "Adds Development Plane runner bootstrap and a manual GitHub workflow only. It does not replace the canonical Cloudflare coding runtime, connect to broker credentials, or add production mutation authority."
+  references:
+    - docs/NUSA_CORE_MASTER_INSTRUCTIONS.md
+    - AGENTS.md
+scope:
+  - manual_workflow_dispatch_for_oracle_codex_runner
+  - isolated_arm64_self_hosted_runner_bootstrap
+  - patch_and_log_artifact_return
+prohibited:
+  - production_runtime_credentials
+  - exchange_or_broker_credentials
+  - live_activation
+  - production_mutation
+  - automatic_push_or_pr
+  - automatic_merge_or_deploy
+  - untrusted_event_trigger
+safety:
+  authority: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  github_permissions: CONTENTS_READ_ONLY
+acceptance:
+  - workflow_dispatch_only
+  - owner_actor_guard
+  - self_hosted_arm64_runner_label_required
+  - codex_workspace_write_is_limited_to_actions_workspace
+  - no_commit_push_pr_merge_or_deploy
+  - task_patch_and_log_are_returned_as_short_lived_artifact
+  - bootstrap_installs_no_nusa_or_exchange_credentials
+validation:
+  workflow_yaml_parse: PASS
+  shell_syntax: PASS
+  preflight_direct_node_equivalent: PASS
+  repository_truth: PASS
+  safety_architecture: PASS
+  safety_invariants: PASS
+  ai_zero_authority: PASS
+  aipos_drift: PASS
+  note: "Direct Node execution was used for the three preflight scripts because pnpm attempted a dependency install in the empty worktree and exhausted the 1 GB PAPER host; the exact preflight script bodies all passed under Node 24.18.1."
+remaining:
+  - "HUMAN_ENVIRONMENT_ONLY: create the Oracle A1 Flex development VM because the current instance principal has no Compute IAM permission."
+  - "After the runner is online, execute one device-auth login and one read-only status dispatch before any task dogfood."
+next: "Create the isolated Oracle A1 development VM, register it as nusa-codex-dev, device-auth Codex, then dogfood one low-risk task without push/PR authority."

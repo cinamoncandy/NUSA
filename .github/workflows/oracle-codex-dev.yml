@@ -1,0 +1,120 @@
+name: Oracle Codex Dev Runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "login, status, or task"
+        required: true
+        default: status
+        type: choice
+        options: [status, login, task]
+      task:
+        description: "Stable task identifier for task mode"
+        required: false
+        type: string
+      prompt:
+        description: "OWNER task for Codex; task mode only"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oracle-codex-dev-runner
+  cancel-in-progress: false
+
+jobs:
+  oracle-codex:
+    if: github.actor == 'cinamoncandy'
+    runs-on: [self-hosted, Linux, ARM64, nusa-codex-dev]
+    timeout-minutes: 120
+    steps:
+      - name: Checkout exact dispatch ref
+        if: inputs.mode != 'login'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+
+      - name: Verify runner boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "actor=${GITHUB_ACTOR}"
+          echo "arch=$(uname -m)"
+          echo "node=$(node --version)"
+          echo "pnpm=$(pnpm --version)"
+          echo "codex=$(codex --version | head -n1)"
+          test "${GITHUB_ACTOR}" = "cinamoncandy"
+
+      - name: Codex login status
+        if: inputs.mode == 'status'
+        shell: bash
+        run: codex login status
+
+      - name: Codex device login
+        if: inputs.mode == 'login'
+        timeout-minutes: 20
+        shell: bash
+        run: codex login --device-auth
+
+      - name: Validate task inputs
+        if: inputs.mode == 'task'
+        shell: bash
+        env:
+          NUSA_TASK: ${{ inputs.task }}
+          NUSA_PROMPT: ${{ inputs.prompt }}
+        run: |
+          set -euo pipefail
+          test -n "$NUSA_TASK"
+          test -n "$NUSA_PROMPT"
+          codex login status
+
+      - name: Run Codex in isolated Actions workspace
+        if: inputs.mode == 'task'
+        id: codex
+        shell: bash
+        env:
+          NUSA_TASK: ${{ inputs.task }}
+          NUSA_PROMPT: ${{ inputs.prompt }}
+        run: |
+          set -euo pipefail
+          contract='NUSA ORACLE DEV RUNNER CONTRACT:
+          - Read and obey AGENTS.md, AIPOS recovery, and the CORE master protocol before editing.
+          - Development Plane only. Preserve PAPER-only operation, liveAuthority=NONE, productionMutationAllowed=false, and aiAuthority=ZERO_AUTHORITY.
+          - No production runtime, broker credentials, exchange credentials, runtime databases, or production secrets are present or authorized.
+          - Do not commit, push, open/reopen a PR, merge, deploy, or trigger remote CI.
+          - Leave all proposed changes uncommitted in this isolated workflow workspace.
+          - Run only repository-required and task-relevant local validation; report truthfully what actually ran.'
+          printf '%s\n\nOWNER TASK [%s]:\n%s\n' "$contract" "$NUSA_TASK" "$NUSA_PROMPT" > /tmp/nusa-codex-prompt.txt
+          set +e
+          codex exec -s workspace-write -C "$GITHUB_WORKSPACE" - < /tmp/nusa-codex-prompt.txt 2>&1 | tee /tmp/nusa-codex.log
+          rc=${PIPESTATUS[0]}
+          set -e
+          echo "codex_exit=$rc" >> "$GITHUB_OUTPUT"
+          exit "$rc"
+
+      - name: Collect task evidence
+        if: always() && inputs.mode == 'task'
+        shell: bash
+        run: |
+          set -euo pipefail
+          out=/tmp/nusa-codex-result
+          mkdir -p "$out"
+          git status --short > "$out/status.txt"
+          git diff --stat > "$out/diff-stat.txt"
+          git diff --binary --no-ext-diff > "$out/changes.patch"
+          git ls-files --others --exclude-standard -z > "$out/untracked.zlist"
+          cp /tmp/nusa-codex.log "$out/codex.log" 2>/dev/null || true
+          printf 'head=%s\n' "$(git rev-parse HEAD)" > "$out/revision.txt"
+          printf 'ref=%s\n' "$GITHUB_REF" >> "$out/revision.txt"
+
+      - name: Upload task evidence
+        if: always() && inputs.mode == 'task'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: oracle-codex-${{ inputs.task }}-${{ github.run_id }}
+          path: /tmp/nusa-codex-result
+          if-no-files-found: error
+          retention-days: 7
