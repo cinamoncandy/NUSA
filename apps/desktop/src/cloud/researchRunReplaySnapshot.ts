@@ -93,10 +93,23 @@ export function createResearchRunReplaySnapshot(
   return freeze({ ...payload, snapshotSha256: hash(payload) });
 }
 
-function validateSnapshot(snapshot: ResearchRunReplaySnapshot): ResearchRunReplaySnapshotPayload {
+/**
+ * Verifies the immutable archive envelope without executing Research/League semantics.
+ *
+ * This boundary is intentionally narrower than a replay: bootstrap identity discovery may scan
+ * hundreds of MiB of historical snapshots, so repeating every historical League run there would
+ * turn a tiny identity lookup into unbounded CPU work. The selected snapshot is still subjected to
+ * the existing full semantic replay before any PAPER_RESEARCH_ONLY challenger can be deployed.
+ */
+export function validateResearchRunReplaySnapshotIntegrity(snapshot: ResearchRunReplaySnapshot): ResearchRunReplaySnapshotPayload {
   const { snapshotSha256, ...payload } = snapshot;
   validatePayload(payload);
   if (!SHA64.test(snapshotSha256) || hash(payload) !== snapshotSha256) throw new Error("research replay snapshot checksum mismatch");
+  return payload;
+}
+
+function validateSnapshot(snapshot: ResearchRunReplaySnapshot): ResearchRunReplaySnapshotPayload {
+  const payload = validateResearchRunReplaySnapshotIntegrity(snapshot);
   const reproduced = buildResearchRunLeague(payload.candidates, payload.options);
   if (reproduced.provenance.runFingerprintSha256 !== payload.originalRunFingerprintSha256) {
     throw new Error("research replay snapshot provenance drift");
