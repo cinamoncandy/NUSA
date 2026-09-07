@@ -18,22 +18,28 @@ export interface MobileSessionHttpDependencies {
 
 export const MOBILE_ENROLLMENT_TOKEN_SHA256_ENV = "NUSA_MOBILE_ENROLLMENT_TOKEN_SHA256";
 const SHA256_HEX = /^[a-f0-9]{64}$/;
+const MAX_MOBILE_ENROLLMENT_TOKEN_HASHES = 4;
 
 const bearer = (value: string | undefined): string | undefined => /^Bearer\s+([^\s]+)$/i.exec(value?.trim() ?? "")?.[1];
 
 /**
  * Optional migration boundary for a high-entropy credential that already exists on a mobile
- * device. Only its SHA-256 fingerprint is configured on Cloud. A match is accepted solely by
- * the first-run mobile enrollment route and is immediately exchanged for the normal rotating
- * PAPER-only mobile session. It never becomes a general dashboard bearer and grants no LIVE,
- * withdrawal, transfer, or production-mutation authority.
+ * device. Only a bounded set of SHA-256 fingerprints is configured on Cloud. A match is accepted
+ * solely by the first-run mobile enrollment route and is immediately exchanged for the normal
+ * rotating PAPER-only mobile session. It never becomes a general dashboard bearer and grants no
+ * LIVE, withdrawal, transfer, or production-mutation authority.
  */
 export function matchesMobileEnrollmentTokenHash(token: string, configuredHash: string | undefined = process.env[MOBILE_ENROLLMENT_TOKEN_SHA256_ENV]): boolean {
-  const expected = configuredHash?.trim().toLowerCase() ?? "";
-  if (!SHA256_HEX.test(expected) || !token) return false;
+  if (!token) return false;
+  const expected = (configuredHash ?? "").split(",").map((value) => value.trim().toLowerCase()).filter(Boolean);
+  if (expected.length < 1 || expected.length > MAX_MOBILE_ENROLLMENT_TOKEN_HASHES || expected.some((value) => !SHA256_HEX.test(value)) || new Set(expected).size !== expected.length) return false;
   const actual = createHash("sha256").update(token, "utf8").digest();
-  const expectedBytes = Buffer.from(expected, "hex");
-  return actual.length === expectedBytes.length && timingSafeEqual(actual, expectedBytes);
+  let matched = false;
+  for (const fingerprint of expected) {
+    const expectedBytes = Buffer.from(fingerprint, "hex");
+    matched = (actual.length === expectedBytes.length && timingSafeEqual(actual, expectedBytes)) || matched;
+  }
+  return matched;
 }
 
 function jsonObject(body: string | undefined): Record<string, unknown> | undefined {
