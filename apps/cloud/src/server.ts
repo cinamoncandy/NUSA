@@ -138,10 +138,16 @@ function readRequestBody(req: IncomingMessage): Promise<string> {
   });
 }
 
+// A client-supplied correlation id is echoed into operational logs and keys the rate
+// limiter's idempotency memo, so it is accepted only in a bounded, printable form.
+const MAX_CORRELATION_ID_LENGTH = 128;
+const SAFE_CORRELATION_ID = /^[\w.:-]{1,128}$/;
+
 const correlationId = (req: IncomingMessage): string => {
-  const value = req.headers["x-correlation-id"] ?? req.headers["x-request-id"];
-  if (typeof value === "string" && value.trim()) return value.trim();
-  if (Array.isArray(value) && typeof value[0] === "string" && value[0].trim()) return value[0].trim();
+  const raw = req.headers["x-correlation-id"] ?? req.headers["x-request-id"];
+  const value = typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : undefined;
+  const candidate = value?.trim();
+  if (candidate && candidate.length <= MAX_CORRELATION_ID_LENGTH && SAFE_CORRELATION_ID.test(candidate)) return candidate;
   return randomUUID();
 };
 
@@ -233,7 +239,10 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
   const server: Server = http.createServer(async (req: IncomingMessage, res: ServerResponse) => {
     const requestId = correlationId(req);
     const path = (() => { try { return new URL(req.url ?? "/", "http://localhost").pathname; } catch { return req.url ?? "/"; } })();
-    if (path !== "/health") {
+    // The exemption must be exactly as narrow as the /health handler below, which matches the
+    // raw URL. Exempting the normalized path instead would let "/health?x" skip the limiter
+    // and then fall through to ordinary routing as an unmetered request.
+    if (req.url !== "/health") {
       const authorization = req.headers.authorization ?? req.headers.Authorization;
       const bucket = `${path}|${rateLimitIdentity(typeof authorization === "string" ? authorization : undefined, req.socket.remoteAddress)}`;
       const decision = rateLimiter.evaluate(bucket, requestId, req.method === "POST" || req.method === "PUT" ? 4 : 1);

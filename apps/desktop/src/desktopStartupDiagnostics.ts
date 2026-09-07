@@ -12,7 +12,8 @@ export type DesktopStartupDiagnosticKind =
   | "RENDERER_CONSOLE_ERROR"
   | "RENDERER_UNRESPONSIVE"
   | "RENDERER_RESPONSIVE"
-  | "RENDERER_LOAD_FINISHED";
+  | "RENDERER_LOAD_FINISHED"
+  | "RENDERER_NAVIGATION_BLOCKED";
 
 export interface DesktopStartupDiagnostic {
   readonly kind: DesktopStartupDiagnosticKind;
@@ -60,6 +61,26 @@ export interface RendererLoadFailedInput {
   readonly errorDescription: string;
   readonly validatedUrl: string;
   readonly isMainFrame: boolean;
+}
+
+export interface RendererNavigationBlockedInput {
+  readonly reason: string;
+  readonly url: string;
+}
+
+/**
+ * A blocked top-level navigation, window-open, or webview attachment. Recorded because the
+ * app never attempts any of these itself, so one happening is either a defect or an attempt to
+ * reach the preload bridge from content the renderer was steered to.
+ */
+export function createRendererNavigationBlockedDiagnostic(input: RendererNavigationBlockedInput, now: number = Date.now()): DesktopStartupDiagnostic {
+  const reason = sanitizeMessage(input.reason, 40);
+  return {
+    kind: "RENDERER_NAVIGATION_BLOCKED",
+    timestamp: now,
+    message: `Blocked renderer navigation (${reason})`,
+    details: { reason, url: sanitizeUrl(sanitizeMessage(input.url, 200)) }
+  };
 }
 
 export function createRendererLoadFailedDiagnostic(input: RendererLoadFailedInput, now: number = Date.now()): DesktopStartupDiagnostic {
