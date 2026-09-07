@@ -46,7 +46,6 @@ validation:
 pull_request:
   number: 1760
   url: "https://github.com/cinamoncandy/NUSA/pull/1760"
-  head: 40e246e024618522979d597a166758b1628c1996
   exact_head_ci: PENDING
 remaining:
   - "The public DuckDNS Node PAPER host returned repeated unauthenticated /ready 429 responses on 2026-09-07. Repository code must be deployed and the host verified with an approved read-only session before production reachability can be claimed."
