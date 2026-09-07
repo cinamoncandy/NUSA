@@ -6,12 +6,12 @@ const path = require("node:path");
 const root = path.join(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
-test("mobile presets keep brand actions monochrome and reserve chromatic colors for AI signals", () => {
+test("mobile presets keep classic neutral and apply approved cobalt master actions", () => {
   const source = read("apps/mobile/src/designSystem.ts");
 
-  // Brand action colors are defined by each preset but remain neutral/monochrome.
+  // Master actions use the approved cobalt palette; semantic AI and risk colors remain separate.
   assert.match(source, /classic:[\s\S]*?primary: "#E8F3FF"[\s\S]*?primary: "#11151B"/);
-  assert.match(source, /master:[\s\S]*?primary: "#F2EFE6"[\s\S]*?primary: "#17181B"/);
+  assert.match(source, /master:[\s\S]*?primary: "#9BABFF"[\s\S]*?primary: "#304EE8"/);
   assert.match(source, /primary: palette\.primary/);
 
   // Chromatic accents remain confined to signal/AI semantics rather than brand actions. Each
