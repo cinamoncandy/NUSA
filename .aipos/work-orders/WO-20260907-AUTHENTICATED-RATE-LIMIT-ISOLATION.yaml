@@ -1,0 +1,48 @@
+id: WO-20260907-AUTHENTICATED-RATE-LIMIT-ISOLATION
+title: "Cloud PAPER authenticated rate-limit isolation"
+status: IMPLEMENTATION_VALIDATED_PENDING_PR
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 8d53cd44f79fc6ece423d0ea29df00264d7a78ac
+implementation_branch: codex/paper-auth-rate-limit-isolation
+objective: "Keep verified Cloud PAPER sessions reachable when bounded anonymous request capacity is exhausted, without weakening authentication or rate limiting."
+architecture_impact:
+  acknowledged: true
+  analysis: "Extends the existing Cloud dashboard rate limiter with two bounded lanes selected only after the existing approved-user verifier succeeds. It creates no new session, execution, broker, or authority path."
+  references:
+    - .aipos/decisions/ADR-0016-rate-limit-availability-hardening.md
+    - apps/cloud/src/server.ts
+    - apps/cloud/src/httpRateLimiter.ts
+scope:
+  - authenticated_and_anonymous_bounded_limiter_lanes
+  - verified_user_pre_limit_selection
+  - regression_for_anonymous_exhaustion
+prohibited:
+  - token_bypass
+  - limiter_removal_or_capacity_unbounding
+  - live_activation
+  - order_cancel_withdrawal_or_transfer
+  - broker_or_mobile_credential_persistence
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  authentication: FAIL_CLOSED
+acceptance:
+  - malformed_or_unknown_bearer_uses_anonymous_lane
+  - anonymous_lane_remains_bounded
+  - verified_user_remains_reachable_when_anonymous_lane_is_exhausted
+  - existing_shared_limiter_injection_contract_remains_compatible
+  - no_authority_or_execution_surface_change
+validation:
+  focused_http_regression: PASS_12_OF_12
+  build: PASS
+  typecheck: PASS
+  lint: PASS_WITH_1_PREEXISTING_WARNING
+  security_gate: PASS_SECRETS_0
+  safety_invariants: PASS
+  git_diff_check: PASS
+remaining:
+  - "The public DuckDNS Node PAPER host returned repeated unauthenticated /ready 429 responses on 2026-09-07. Repository code must be deployed and the host verified with an approved read-only session before production reachability can be claimed."
+next: "Commit and open a focused PR; require exact-head CI before deployment or merge."

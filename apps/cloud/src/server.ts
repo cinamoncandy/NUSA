@@ -76,7 +76,12 @@ export interface CloudDashboardServerOptions {
   readonly desktopSessionService?: DesktopSessionService;
   readonly mobileSessionService?: MobileSessionService;
   readonly readiness?: () => CloudReadinessSnapshot;
+  /** Legacy shared limiter override. New callers should inject lanes explicitly. */
   readonly rateLimiter?: BoundedHttpRateLimiter;
+  /** Bounds unauthenticated traffic without consuming authenticated-user capacity. */
+  readonly anonymousRateLimiter?: BoundedHttpRateLimiter;
+  /** Reserved limiter lane for a successfully verified approved-user session. */
+  readonly authenticatedRateLimiter?: BoundedHttpRateLimiter;
 }
 
 export interface CloudDashboardServerHandle {
@@ -151,6 +156,13 @@ const correlationId = (req: IncomingMessage): string => {
   return randomUUID();
 };
 
+/** Only a syntactically valid bearer value is considered for the pre-limit identity check. */
+const bearerToken = (req: IncomingMessage): string | undefined => {
+  const authorization = req.headers.authorization ?? req.headers.Authorization;
+  if (typeof authorization !== "string") return undefined;
+  return /^Bearer\s+([^\s]+)$/i.exec(authorization.trim())?.[1];
+};
+
 const actorRef = (userId: string | undefined): string | undefined => userId == null
   ? undefined
   : createHash("sha256").update(userId, "utf8").digest("hex").slice(0, 16);
@@ -176,7 +188,10 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
   if (!Number.isSafeInteger(options.port) || options.port < 1024 || options.port > 65535) throw new Error("invalid cloud dashboard server port");
   const host = options.host ?? "127.0.0.1";
   if (host !== "127.0.0.1" && host.toLowerCase() !== "localhost") throw new Error("cloud dashboard server must bind to localhost");
-  const rateLimiter = options.rateLimiter ?? new BoundedHttpRateLimiter();
+  // Keep the legacy injection point for existing tests, but production uses separate bounded
+  // lanes. Anonymous scanning must never fill the registry needed by a verified mobile session.
+  const anonymousRateLimiter = options.anonymousRateLimiter ?? options.rateLimiter ?? new BoundedHttpRateLimiter();
+  const authenticatedRateLimiter = options.authenticatedRateLimiter ?? options.rateLimiter ?? new BoundedHttpRateLimiter();
 
   let ownedUserDb: SqliteDatabase | undefined;
   let userAccessRepository = options.userAccessRepository;
@@ -243,9 +258,16 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
     // raw URL. Exempting the normalized path instead would let "/health?x" skip the limiter
     // and then fall through to ordinary routing as an unmetered request.
     if (req.url !== "/health") {
-      const authorization = req.headers.authorization ?? req.headers.Authorization;
-      const bucket = `${path}|${rateLimitIdentity(typeof authorization === "string" ? authorization : undefined, req.socket.remoteAddress)}`;
-      const decision = rateLimiter.evaluate(bucket, requestId, req.method === "POST" || req.method === "PUT" ? 4 : 1);
+      // A malformed or unknown bearer remains in the anonymous lane. Only a verified approved
+      // user can consume the separate authenticated capacity.
+      const presentedToken = bearerToken(req);
+      const authenticatedPrincipal = presentedToken == null ? undefined : accessControlledTokenVerifier.verify(presentedToken);
+      const limiter = authenticatedPrincipal == null ? anonymousRateLimiter : authenticatedRateLimiter;
+      const identity = authenticatedPrincipal == null
+        ? rateLimitIdentity(undefined, req.socket.remoteAddress)
+        : `principal:${actorRef(authenticatedPrincipal.userId)}`;
+      const bucket = `${path}|${identity}`;
+      const decision = limiter.evaluate(bucket, requestId, req.method === "POST" || req.method === "PUT" ? 4 : 1);
       if (!decision.allowed) {
         req.resume();
         operationalLog("WARN", "cloud.rate_limit.blocked", requestId, { path, reason: decision.reason ?? "rate limit exceeded", authority: "PAPER_ONLY" });

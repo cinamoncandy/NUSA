@@ -123,5 +123,23 @@ idleBucketIsReclaimed();
     await bypass.stop();
   }
 
+  const isolated = startCloudDashboardServer({
+    port: 41912,
+    tokenVerifier: { ownerPrincipal: owner, verify: (token) => token === "token" ? owner : undefined },
+    loadDashboard: () => ({ ok: true }),
+    anonymousRateLimiter: new BoundedHttpRateLimiter({ policy: { capacity: 1, refillTokens: 1, refillIntervalMs: 60_000, maximumQueueDelayMs: 0, maximumTrackedRequests: 8 } }),
+    authenticatedRateLimiter: new BoundedHttpRateLimiter({ policy: { capacity: 1, refillTokens: 1, refillIntervalMs: 60_000, maximumQueueDelayMs: 0, maximumTrackedRequests: 8 } })
+  });
+  try {
+    const anonymousFirst = await request(isolated.port, { "x-correlation-id": "anonymous-1" });
+    const anonymousSecond = await request(isolated.port, { "x-correlation-id": "anonymous-2" });
+    const authenticated = await request(isolated.port, { authorization: "Bearer token", "x-correlation-id": "authenticated-1" });
+    assert.equal(anonymousFirst.status, 401);
+    assert.equal(anonymousSecond.status, 429, "anonymous capacity must remain bounded");
+    assert.equal(authenticated.status, 200, "anonymous exhaustion must not deny a verified user");
+  } finally {
+    await isolated.stop();
+  }
+
   console.log("cloud-rate-limit.test.js: PASS");
 })().catch((error) => { console.error(error); process.exitCode = 1; });
