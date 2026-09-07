@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { AppState, Pressable, StyleSheet, Text, View, type AppStateStatus } from "react-native";
+import { AppState, BackHandler, Pressable, StyleSheet, Text, View, type AppStateStatus } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { AuthContext, useAuth, type AuthStatus } from "./src/authContext";
 import { NusaButton, NusaCard, StatusChip, WaveMark } from "./src/components";
@@ -38,6 +38,7 @@ import type { PublicCandle } from "./src/chartViewModel";
 import type { WatchlistMarket } from "./src/watchlist";
 import { emitUxTelemetryEvent } from "./src/uxTelemetryClient";
 import { screenIdForNavigationState, createUxTelemetrySessionId } from "./src/uxTelemetryScreenTracking";
+import { resolveAndroidBackNavigation } from "./src/androidBackNavigation";
 
 const tabs = ["Home", "Markets", "Paper", "Portfolio"] as const;
 type PrimaryTab = (typeof tabs)[number];
@@ -289,6 +290,39 @@ function AuthenticatedApp() {
     const initialPublicState = initialPublicMarketsState(); publicMarketsRef.current = initialPublicState; setPublicMarkets(initialPublicState); liveMarketsKeyRef.current = "";
     setOperations({ status: "NOT_CONFIGURED", reason: "PAPER connection is not configured." }); setShadowOperations({ status: "NOT_CONFIGURED", reason: "SHADOW observability is not configured." }); setRealReadOnlyOperations({ status: "NOT_CONFIGURED", reason: "REAL_READ_ONLY observability is not configured." }); setLiveReadinessOperations({ status: "NOT_CONFIGURED", reason: "LIVE readiness observability is not configured." }); setUtilityMenuOpen(false); setUtilityView(null); setPaperLearningOpen(false); setActiveTab("Home"); signOut();
   }, [credentialSession, signOut]);
+
+  useEffect(() => {
+    if (authStatus !== "SIGNED_IN") return;
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      const action = resolveAndroidBackNavigation({
+        paperLearningOpen,
+        utilityViewOpen: utilityView !== null,
+        utilityMenuOpen,
+        activeTab,
+      });
+      if (action === "CLOSE_PAPER_LEARNING") {
+        setPaperLearningOpen(false);
+        return true;
+      }
+      if (action === "CLOSE_UTILITY_VIEW") {
+        setUtilityView(null);
+        return true;
+      }
+      if (action === "CLOSE_UTILITY_MENU") {
+        setUtilityMenuOpen(false);
+        return true;
+      }
+      if (action === "GO_HOME") {
+        setUtilityMenuOpen(false);
+        setUtilityView(null);
+        setPaperLearningOpen(false);
+        setActiveTab("Home");
+        return true;
+      }
+      return false;
+    });
+    return () => subscription.remove();
+  }, [activeTab, authStatus, paperLearningOpen, utilityMenuOpen, utilityView]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
