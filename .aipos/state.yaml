@@ -54,6 +54,16 @@ current_renderer_navigation_containment:
   local_validation: "tsc PASS; tests/electron-renderer-navigation-policy.test.js 4/4 PASS (new); tests/product-release-readiness.test.js 20/20 PASS after updating one stale exact-shape assertion for the added webviewTag field; per-file sweep of tests/*.test.js identical to baseline (same 3 pre-existing Node-24 environment failures); pnpm run lint 0 errors."
   unverified: "pnpm run preflight and pnpm test could not run here: scripts/check-runtime.js requires Node >= 24 and this environment provides 22.22.2. No Electron GUI smoke was run, so the policy is verified by unit test and static wiring assertion rather than by a live window."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_android_receipt_noise_reduction:
+  status: IMPLEMENTED_LOCAL
+  authority_impact: none
+  branch: claude/nusa-repository-j93sd8
+  scope: "CI notification noise only (.github/workflows/android-stable-release.yml). No application code, safety gate, or authority boundary touched."
+  finding: "Every merge to main that reached Android stable release posted a #558 issue comment on success as well as failure (174 accumulated comments), each triggering an email. The same evidence a successful run comments already ships as durable release assets (NUSA-Android.provenance.txt, NUSA-Android.firebase-success.txt), so the success-path comment was a pure notification duplicate."
+  change: "Every run now records the receipt in $GITHUB_STEP_SUMMARY (durable, no notification). #558 is commented only when job_status != success, where the comment remains the only durable record because a failed run publishes no release."
+  requested_scope: "Owner asked only to address the recurring noise; Firebase Distribution tester email was explicitly left unchanged (owner's stated preference) and is out of scope here."
+  local_validation: "YAML parses (python yaml.safe_load); receipt shell logic simulated standalone for both success and failure paths under set -u, including an unset GITHUB_STEP_SUMMARY, with the expected summary-write/comment behavior confirmed for each. No workflow run was triggered in this environment."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 project: nusa
 updated_at: "2026-09-07T09:05:22+09:00"
 current_execution_target:
