@@ -13,14 +13,21 @@ current_mobile_product_v5_recovery:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_research_horizon_slice:
   work_order: WO-ISSUE-1701-RESEARCH-HORIZON
-  status: IN_PROGRESS
-  branch: codex/research-evidence-horizon
-  scope: Bounded completed public history expansion; qualification and trading boundaries unchanged.
+  status: COMPLETED
+  branch: fix/research-canonical-market-set-v2-e176532
+  pull_requests:
+    - 1704
+    - 1706
+    - 1729
+    - 1731
+  merge_commit: 6479d7ef815d5af8940fa282b667a80a1ccc31e4
+  scope: Canonical 2000-day completed public history and versioned five-market regime evidence; qualification and trading boundaries unchanged.
   evidence: docs/research/public-history-horizon-2026-09-05.md
-  actual_research: 1000 completed daily candles, 44 OOS windows, 6 REJECTED; no fabricated qualification.
+  actual_research: 2000 completed daily candles per market, 94 OOS windows, 9 REJECTED, 0 qualified; no fabricated qualification.
+  next_research_boundary: New strategy hypotheses require separate justification and the unchanged DSR, PBO, regime, OOS and League gates; issue 1605 remains operational-evidence gated.
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 project: nusa
-updated_at: "2026-09-06T11:22:00+09:00"
+updated_at: "2026-09-07T09:05:22+09:00"
 current_execution_target:
   work_order: WO-0051
   status: IN_PROGRESS
