@@ -26,6 +26,21 @@ current_research_horizon_slice:
   actual_research: 2000 completed daily candles per market, 94 OOS windows, 9 REJECTED, 0 qualified; no fabricated qualification.
   next_research_boundary: New strategy hypotheses require separate justification and the unchanged DSR, PBO, regime, OOS and League gates; issue 1605 remains operational-evidence gated.
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_rate_limit_availability_hardening:
+  decision: ADR-0016
+  status: IMPLEMENTED_LOCAL
+  branch: claude/nusa-repository-j93sd8
+  base_sha: 307b535727a209c1b9ed57b6599b579c8e97bad0
+  scope: "Cloud dashboard rate-limit availability hardening; no LIVE, credential, accounting, or production-mutation surface touched."
+  findings:
+    - "Bucket registry never released entries: a few hundred requests with distinct throwaway bearer values permanently denied every new identity, owner included."
+    - "Per-bucket decision memo never expired: ordinary owner traffic reached maximumTrackedRequests and the bucket then blocked permanently regardless of token refill."
+    - "/health metering exemption compared the normalized path while the handler matched the raw URL, so /health?x skipped metering and fell through to ordinary routing unmetered."
+    - "x-correlation-id was accepted unbounded and unvalidated into operational logs and the idempotency memo."
+  remediation: "Idle-only bucket eviction, time-bounded decision retention (decisionRetentionMs), raw-URL /health exemption, bounded printable correlation id."
+  local_validation: "tsc PASS; tests/cloud-rate-limit.test.js PASS with 4 new assertions; tests/connectivity-guards.test.js 4/4 PASS; per-file sweep of tests/*.test.js shows the same 3 failures before and after the change (all Node-24 environment gates, this host has Node 22); pnpm run lint 0 errors."
+  unverified: "pnpm run preflight and pnpm test could not run here: scripts/check-runtime.js requires Node >= 24 and this environment provides 22.22.2. Exact-head CI is required before Audit, Release, or merge."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 project: nusa
 updated_at: "2026-09-07T09:05:22+09:00"
 current_execution_target:

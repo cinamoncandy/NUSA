@@ -47,10 +47,31 @@ export class BoundedHttpRateLimiter {
     if (!Number.isSafeInteger(this.maxBuckets) || this.maxBuckets <= 0) throw new Error("maxBuckets must be a positive safe integer");
   }
 
+  /**
+   * Reclaim registry slots from buckets that have fully refilled and hold no replayable
+   * decision. Only idle buckets are evicted, so a caller that is currently being throttled
+   * cannot reset its own limit by flooding the registry with fresh identities. Returns true
+   * when a slot became available.
+   */
+  private evictIdleBuckets(nowMs: number): boolean {
+    let evicted = false;
+    for (const [key, bucket] of this.buckets) {
+      // A bucket that cannot report its state is retained rather than reclaimed, so an
+      // unexpected fault never widens the limit.
+      let idle = false;
+      try { idle = bucket.isIdle(nowMs); } catch { idle = false; }
+      if (!idle) continue;
+      this.buckets.delete(key);
+      evicted = true;
+    }
+    return evicted;
+  }
+
   public evaluate(bucketKey: string, requestId: string, weight = 1): HttpRateLimitDecision {
     if (!bucketKey.trim() || !requestId.trim()) return Object.freeze({ allowed: false, reason: "invalid rate-limit identity" });
     let bucket = this.buckets.get(bucketKey);
     if (bucket == null) {
+      if (this.buckets.size >= this.maxBuckets) this.evictIdleBuckets(safeNow());
       if (this.buckets.size >= this.maxBuckets) return Object.freeze({ allowed: false, reason: "rate-limit bucket capacity exhausted" });
       bucket = new DeterministicRateLimitManager(this.policy, safeNow());
       this.buckets.set(bucketKey, bucket);
