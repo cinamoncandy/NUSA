@@ -13,6 +13,10 @@ function bindPaperDecision(decision) {
   const candidateId = "sma-5-20";
   return Object.freeze({
     ...decision,
+    // Leave deterministic fee headroom inside the configured PAPER allocation. The fixture must
+    // exercise a real challenger-bound fill without asking the execution loop to spend the full
+    // allocation before fees, which correctly fails closed at the cash-allocation guard.
+    allocation: Math.min(decision.allocation, 0.5),
     paperCandidateBinding: Object.freeze({
       schemaVersion: 1,
       status: "BOUND_UNVERIFIED",
