@@ -64,6 +64,14 @@ current_authenticated_rate_limit_isolation:
   exact_head_ci: PASS
   remaining: "HUMAN_ENVIRONMENT_ONLY: deploy the exact protected-main merge commit to the DuckDNS/Oracle Node PAPER host and verify its authenticated read-only endpoints without exposing the dashboard token."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_mobile_paper_session_reconnect:
+  work_order: WO-20260907-MOBILE-PAPER-SESSION-RECONNECT
+  status: IMPLEMENTED_LOCAL_CI_PENDING
+  branch: codex/mobile-paper-session-reconnect
+  base_sha: 009fcf93a50283c7bc1b191cfa9dddf2837168ab
+  scope: "Retry approved mobile PAPER session restoration after transient server/transport failures while retaining 401/403 fail-closed revocation."
+  validation: "Focused 10/10; full isolated 956 files; build/typecheck/lint; security, architecture, safety, AI zero-authority, AIPOS and diff check PASS."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_renderer_navigation_containment:
   decision: ADR-0017
   status: IMPLEMENTED_LOCAL

@@ -107,6 +107,40 @@ test("mobile runtime fails closed without secure storage and clears endpoint-mis
   assert.equal(await storage.getSecret(SESSION_STORAGE_KEY), null);
 });
 
+test("temporary refresh failure preserves encrypted state and supports a later automatic restore", async () => {
+  const storage = new MemorySecureStorage();
+  const endpoint = "https://cloud.example.com";
+  const initial = tokenSet("initial");
+  const refreshed = tokenSet("refreshed");
+  await storage.setSecret(SESSION_STORAGE_KEY, Buffer.from(JSON.stringify({ endpoint, refreshToken: initial.refreshToken, refreshExpiresAt: initial.refreshExpiresAt }), "ascii"));
+  let attempts = 0;
+  const request = async (url) => {
+    if (url.endsWith("/v1/mobile/session/refresh")) {
+      attempts += 1;
+      return attempts === 1 ? response(url, 429, { error: "RATE_LIMITED" }) : response(url, 200, refreshed);
+    }
+    if (url.endsWith("/v1/mobile/me")) return response(url, 200, { userId: "mobile-user", email: "mobile@example.com", scopes: ["dashboard:read", "paper:trade"] });
+    throw new Error(`unexpected url ${url}`);
+  };
+  const session = new MobileApprovedSession(storage, request);
+  assert.equal(await session.restore(endpoint), null);
+  assert.equal(session.shouldRetryRestore(), true);
+  assert.notEqual(await storage.getSecret(SESSION_STORAGE_KEY), null);
+  assert.equal((await session.restore(endpoint)).userId, "mobile-user");
+  assert.equal(session.shouldRetryRestore(), false);
+});
+
+test("explicit refresh authorization rejection clears encrypted state and remains fail-closed", async () => {
+  const storage = new MemorySecureStorage();
+  const endpoint = "https://cloud.example.com";
+  const initial = tokenSet("initial");
+  await storage.setSecret(SESSION_STORAGE_KEY, Buffer.from(JSON.stringify({ endpoint, refreshToken: initial.refreshToken, refreshExpiresAt: initial.refreshExpiresAt }), "ascii"));
+  const session = new MobileApprovedSession(storage, async (url) => response(url, 401, { error: "UNAUTHORIZED" }));
+  assert.equal(await session.restore(endpoint), null);
+  assert.equal(session.shouldRetryRestore(), false);
+  assert.equal(await storage.getSecret(SESSION_STORAGE_KEY), null);
+});
+
 test("Android secure storage source uses AndroidKeyStore AES-GCM and never AsyncStorage", () => {
   const root = path.resolve(__dirname, "..");
   const native = fs.readFileSync(path.join(root, "apps/mobile/android/app/src/main/java/com/nusa/mobile/NusaSecureStorageModule.java"), "utf8");

@@ -32,6 +32,12 @@ interface MobileBootstrapIssue {
 
 export type MobileApprovedCredentialProvider = () => Promise<string | null>;
 
+class MobileSessionRequestError extends Error {
+  public constructor(readonly status: number) {
+    super(`mobile session request rejected (${status}).`);
+  }
+}
+
 function secureEndpoint(value: string): string {
   const raw = value.trim().replace(/\/+$/, "");
   let url: URL;
@@ -124,8 +130,15 @@ function parsePersisted(value: Uint8Array): PersistedSession {
 async function requestJson(request: typeof fetch, endpoint: string, init: RequestInit): Promise<unknown> {
   const response = await request(endpoint, { ...init, redirect: "error", headers: { accept: "application/json", "content-type": "application/json", ...(init.headers ?? {}) } });
   if (response.redirected === true || (response.url && new URL(response.url).href !== new URL(endpoint).href)) throw new Error("mobile session redirect is prohibited.");
-  if (!response.ok) throw new Error(`mobile session request rejected (${response.status}).`);
+  if (!response.ok) throw new MobileSessionRequestError(response.status);
   return response.json();
+}
+
+/** Only an explicit authorization rejection proves that the rotating session is no longer usable.
+ * Transport faults, overload responses, and 5xx failures must leave the encrypted refresh state
+ * intact so the app can reconnect without asking the user to re-enroll. */
+function isDefinitiveSessionRejection(error: unknown): boolean {
+  return error instanceof MobileSessionRequestError && (error.status === 401 || error.status === 403);
 }
 
 export class MobileApprovedSession {
@@ -135,12 +148,15 @@ export class MobileApprovedSession {
   private deviceId: string | null = null;
   private identity: MobileApprovedSessionIdentity | null = null;
   private refreshInFlight: Promise<string | null> | null = null;
+  private restoreRetryable = false;
 
   public constructor(private readonly storage: SecureStoragePort | null, private readonly request: typeof fetch = fetch) {}
 
   public readonly credentialProvider: MobileApprovedCredentialProvider = async () => this.getAccessToken();
   public currentIdentity(): MobileApprovedSessionIdentity | null { return this.identity; }
   public hasMemoryAccess(): boolean { return this.accessToken !== null; }
+  /** True only after a temporary restore/refresh failure with encrypted refresh state retained. */
+  public shouldRetryRestore(): boolean { return this.restoreRetryable; }
 
   public async connectBootstrap(baseUrl: string, bootstrapToken: string): Promise<MobileApprovedSessionIdentity> {
     return this.connectBootstrapForDevice(baseUrl, bootstrapToken);
@@ -185,6 +201,7 @@ export class MobileApprovedSession {
 
   public async restore(baseUrl: string): Promise<MobileApprovedSessionIdentity | null> {
     const endpoint = secureEndpoint(baseUrl);
+    this.restoreRetryable = false;
     if (this.storage == null) return null;
     let stored: Uint8Array | null;
     try { stored = await this.storage.getSecret(SESSION_STORAGE_KEY); }
@@ -200,8 +217,9 @@ export class MobileApprovedSession {
       const identity = await this.loadIdentity(endpoint, tokens.accessToken);
       this.identity = identity;
       return identity;
-    } catch {
-      await this.clearLocal();
+    } catch (error) {
+      if (isDefinitiveSessionRejection(error)) await this.clearLocal();
+      else this.retainRetryableSession(endpoint, persisted.deviceId);
       return null;
     }
   }
@@ -223,6 +241,7 @@ export class MobileApprovedSession {
     this.endpoint = null;
     this.deviceId = null;
     this.identity = null;
+    this.restoreRetryable = false;
   }
 
   private async getAccessToken(): Promise<string | null> {
@@ -244,7 +263,11 @@ export class MobileApprovedSession {
     } catch { await this.clearLocal(); return null; }
     if (persisted.endpoint !== this.endpoint || persisted.refreshExpiresAt <= Date.now()) { await this.clearLocal(); return null; }
     try { return (await this.refreshWith(this.endpoint, persisted.refreshToken, persisted.deviceId)).accessToken; }
-    catch { await this.clearLocal(); return null; }
+    catch (error) {
+      if (isDefinitiveSessionRejection(error)) await this.clearLocal();
+      else this.retainRetryableSession(persisted.endpoint, persisted.deviceId);
+      return null;
+    }
   }
 
   private async refreshWith(endpoint: string, refreshToken: string, deviceId?: string): Promise<MobileSessionTokens> {
@@ -262,6 +285,14 @@ export class MobileApprovedSession {
     this.endpoint = endpoint;
     this.accessToken = tokens.accessToken;
     this.accessExpiresAt = tokens.accessExpiresAt;
+    this.restoreRetryable = false;
+  }
+
+  private retainRetryableSession(endpoint: string, deviceId?: string): void {
+    this.clearMemory();
+    this.endpoint = endpoint;
+    this.deviceId = deviceId ?? null;
+    this.restoreRetryable = true;
   }
 
   private async persist(endpoint: string, tokens: MobileSessionTokens): Promise<void> {
