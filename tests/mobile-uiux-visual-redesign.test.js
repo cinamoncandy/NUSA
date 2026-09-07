@@ -12,7 +12,7 @@ test("visual redesign has a distinct NUSA surface and financial hierarchy", () =
   const design = read("src/designSystem.ts");
   const primitives = read("src/uxPrimitives.tsx");
   assert.match(design, /classic:[\s\S]*?dark:[\s\S]*?background: "#05070D"/);
-  assert.match(design, /master:[\s\S]*?dark:[\s\S]*?background: "#030607"/);
+  assert.match(design, /master:[\s\S]*?dark:[\s\S]*?background: "#101318"/);
   assert.match(design, /const palette = dark \? preset\.dark : preset\.light/);
   assert.match(design, /background: palette\.background/);
   assert.match(design, /navSurface: palette\.navSurface/);
@@ -37,7 +37,7 @@ test("Home uses the content-first command center hierarchy without weakening aut
   assert.match(home, /DECISION BASIS/);
   assert.match(home, />RISK</);
   assert.match(home, />RESULT</);
-  assert.match(home, /paddingBottom: 132/);
+  assert.match(home, /paddingBottom: 32/);
   assert.match(home, /commandStackTablet: \{ flexDirection: "row"/);
   assert.match(home, /testID="home-now"/);
   assert.match(home, /testID="account-hero-card"/);

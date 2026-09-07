@@ -48,7 +48,7 @@ function StateCard({ title, message, color, onRetry, testID }: Readonly<{ title:
   return <View style={styles.state} testID={testID}><NusaCard><Text style={[styles.stateTitle, { color }]}>{title}</Text><Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>{message}</Text>{onRetry ? <NusaButton label="다시 불러오기" onPress={onRetry} /> : null}</NusaCard></View>;
 }
 
-function CandlePlot({ model }: Readonly<{ model: ChartViewModel }>) {
+export function CandlePlot({ model }: Readonly<{ model: ChartViewModel }>) {
   const { theme } = useTheme();
   const maxVolume = Math.max(...model.candles.map((candle) => candle.volume), Number.EPSILON);
   return <View style={[styles.plot, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.border }]} testID="chart-candles">

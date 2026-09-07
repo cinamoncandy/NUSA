@@ -43,4 +43,16 @@ describe("home decision surface attention", () => {
     assert.equal(surface.risk, "PAPER ONLY · SAFETY GATES READY · LIVE NONE");
     assert.equal(surface.primaryAction, "MARKETS");
   });
+
+  it("does not render a retained healthy Cloud snapshot as current when read-only recovery fails", () => {
+    const surface = buildHomeDecisionSurface(healthyInput({
+      runtimeState: "RUNNING",
+      readOnlyError: true,
+    }));
+
+    assert.equal(surface.statusLabel, "PAPER · RECOVERY REQUIRED");
+    assert.equal(surface.statusTone, "danger");
+    assert.equal(surface.now, "RECOVERY REQUIRED");
+    assert.equal(surface.risk, "BLOCKED · READ-ONLY RECOVERY REQUIRED");
+  });
 });

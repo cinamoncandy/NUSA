@@ -52,6 +52,10 @@ function healthyTone(health: string | undefined): HomeDecisionTone {
 
 export function buildHomeDecisionSurface(input: HomeDecisionSurfaceInput): HomeDecisionSurface {
   const runtimeState = input.runtimeState;
+  // A retained Cloud snapshot is historical evidence, not proof that its current read-only
+  // transport is usable. Connection/recovery failure must therefore outrank a prior RUNNING
+  // runtime state in every visible status projection.
+  const connectionRecoveryRequired = input.disconnected || input.readOnlyError;
   const runtimeActionRequired = runtimeState != null && ACTION_RUNTIME_STATES.has(runtimeState);
   const runtimeWatch = runtimeState != null && WATCH_RUNTIME_STATES.has(runtimeState);
   const runtimeNeedsSupervision = runtimeActionRequired || runtimeWatch;
@@ -68,7 +72,9 @@ export function buildHomeDecisionSurface(input: HomeDecisionSurfaceInput): HomeD
       ? "WATCH"
       : "QUIET";
 
-  const statusLabel = input.accountSource === "CLOUD"
+  const statusLabel = connectionRecoveryRequired
+    ? "PAPER · RECOVERY REQUIRED"
+    : input.accountSource === "CLOUD"
     ? `PAPER · ${runtimeState === "RUNNING" ? "RUNNING" : runtimeState === "DEGRADED" ? "DEGRADED" : runtimeState === "HALTED" ? "HALTED" : runtimeState === "ERROR" ? "ERROR" : runtimeState === "STOPPED" || runtimeState === "STOPPING" ? "STOPPED" : signalReady ? "READY" : "CHECK"}`
     : input.accountSource === "LOCAL"
       ? "PAPER · LOCAL"
@@ -76,7 +82,9 @@ export function buildHomeDecisionSurface(input: HomeDecisionSurfaceInput): HomeD
         ? "PAPER · OFFLINE"
         : "PAPER · STANDBY";
 
-  const statusTone: HomeDecisionTone = input.accountSource === "CLOUD"
+  const statusTone: HomeDecisionTone = connectionRecoveryRequired
+    ? "danger"
+    : input.accountSource === "CLOUD"
     ? runtimeActionRequired
       ? "danger"
       : runtimeWatch
