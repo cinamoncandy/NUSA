@@ -77,9 +77,9 @@ function isWhitespace(byte: number): boolean {
  * single JSON.parse. Production archives contain full walk-forward evidence and can be hundreds
  * of MiB, so that multiplied memory until the isolated Research worker hit its V8 heap limit.
  *
- * The normal path still performs full semantic replay validation. Bootstrap identity discovery can
- * opt into checksum/structure-only validation because the selected snapshot is replayed in full by
- * the Research worker before any challenger deployment.
+ * The normal path still performs full semantic replay validation. Bootstrap identity discovery and
+ * exact-fingerprint lookup can opt into checksum/structure-only validation for unrelated history;
+ * the selected snapshot is still replayed in full before any challenger deployment.
  */
 function forEachValidatedSnapshot(
   filename: string,
@@ -275,8 +275,8 @@ export class FileResearchRunReplaySnapshotStore implements ResearchRunReplaySnap
     if (!SHA64.test(fingerprint)) throw new Error("research replay snapshot run fingerprint is invalid");
     let found: ResearchRunReplaySnapshot | undefined;
     forEachValidatedSnapshot(this.filename, (snapshot) => {
-      if (snapshot.originalRunFingerprintSha256 === fingerprint) found = snapshot;
-    });
+      if (snapshot.originalRunFingerprintSha256 === fingerprint) found = validate(snapshot);
+    }, true);
     return found;
   }
 
