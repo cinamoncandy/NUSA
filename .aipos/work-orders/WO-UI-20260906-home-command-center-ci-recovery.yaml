@@ -1,0 +1,37 @@
+id: WO-UI-20260906-HOME-COMMAND-CENTER-CI-RECOVERY
+title: "HOME command-center exact-head CI recovery"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 6479d7ef815d5af8940fa282b667a80a1ccc31e4
+implementation_branch: design/mobile-home-command-center-v2-20260906
+pull_request: 1732
+failing_head: 2e7f964aa74b3937c51389c24dc177bc1c915ccd
+repair_commit: 648b5a3d9185409bd6e1626e716e88e70bfff0c6
+authority_impact: none
+objective: "Restore exact-head CI after the intentional HOME hierarchy redesign without reverting the command-center UX or weakening safety contracts."
+scope:
+  - "Replace stale source-shape assertions with contracts for the current posture, PAPER capital, Observe, Supervise, Learn, and progressive decision-detail hierarchy."
+  - "Bind bottom-navigation shadow color to the existing theme token instead of a raw literal."
+  - "Make risk-evidence chronology coverage deterministic by supplying explicit monotonic observation timestamps."
+excluded:
+  - "trading, strategy, qualification, risk-policy, accounting, credential, broker, deployment, or production runtime behavior"
+  - "LIVE activation, private order APIs, withdrawals, transfers, or mobile credential storage"
+safety:
+  mode: PAPER_ONLY
+  live_authority: NONE
+  production_mutation_allowed: false
+  ai_authority: ZERO_AUTHORITY
+validation:
+  local_status: PASS
+  focused_tests: PASS_21_OF_21
+  risk_evidence_repeat: PASS_5_OF_5
+  full_isolated_suite: PASS_947_FILES
+  build: PASS
+  lint: PASS_WITH_ONE_PREEXISTING_NON_BLOCKING_WARNING
+  preflight: PASS
+  validate_full: PASS
+  diff_check: PASS
+  exact_head_ci: PENDING
+next_permitted_action: "Push the validated branch head, require fresh exact-head protected CI, and route a green same-head result through independent Audit and Release governance."

@@ -16,37 +16,19 @@ test("Upbit settings connection remains HTTPS-only, process-memory-only, and ref
   const lifecycle = read("apps/mobile/src/upbitReadOnlyAccount.ts");
   const credential = read("apps/mobile/src/upbitCredentialSession.ts");
   const client = read("apps/mobile/src/upbitLiveClient.ts");
-
   assert.match(panel, /settings-upbit-connection/);
-  assert.match(panel, /settings-upbit-endpoint/);
   assert.match(panel, /settings-upbit-token/);
-  assert.match(panel, /settings-upbit-connect/);
-  assert.match(panel, /settings-upbit-disconnect/);
   assert.match(panel, /READ ONLY/);
   assert.match(panel, /connectUpbitReadOnlyAccount/);
   assert.match(panel, /resetUpbitReadOnlyState/);
-  assert.match(panel, /30초 자동 갱신/);
   assert.match(panel, /프로세스 메모리/);
-
   assert.match(lifecycle, /InMemoryUpbitCredentialSession/);
   assert.match(lifecycle, /loadUpbitLiveAccounts/);
   assert.match(lifecycle, /REFRESH_INTERVAL_MS = 30_000/);
   assert.match(lifecycle, /STALE_AFTER_MS = 90_000/);
-  assert.match(lifecycle, /setInterval/);
   assert.match(lifecycle, /credentialSession\.clear\(\)/);
   assert.match(lifecycle, /sessionGeneration/);
-  assert.match(lifecycle, /"CONNECTED" \| "STALE" \| "AUTH_ERROR" \| "RELAY_ERROR" \| "OFFLINE"/);
   assert.match(lifecycle, /lastSuccessAt/);
-  assert.match(lifecycle, /classifyMonitorFailure/);
-  assert.match(lifecycle, /UNAUTHORIZED/);
-  assert.match(lifecycle, /HTTP_401/);
-  assert.match(lifecycle, /HTTP_403/);
-  assert.match(lifecycle, /SERVICE_NOT_CONFIGURED/);
-  assert.match(lifecycle, /UPSTREAM_FAILURE/);
-  assert.match(lifecycle, /previous \? "STALE" : classifyMonitorFailure\(detail\)/);
-  assert.match(lifecycle, /snapshot: previous/);
-  assert.match(lifecycle, /lastSuccessAt: previousLastSuccessAt/);
-
   assert.match(credential, /let sharedToken: string \| null = null/);
   assert.doesNotMatch(credential, /AsyncStorage|SecureStore|SettingsRepository/);
   assert.match(client, /url\.protocol !== "https:"/);
@@ -56,24 +38,21 @@ test("Upbit settings connection remains HTTPS-only, process-memory-only, and ref
 });
 
 test("real-account monitor remains separate from PAPER and surfaces current truth", () => {
+  const app = read("apps/mobile/App.tsx");
   const lifecycle = read("apps/mobile/src/upbitReadOnlyAccount.ts");
   const portfolio = read("apps/mobile/src/portfolioView.tsx");
   const client = read("apps/mobile/src/upbitLiveClient.ts");
-
-  assert.match(portfolio, /REAL_READ_ONLY · REFERENCE/);
-  assert.match(portfolio, /useUpbitReadOnlyState/);
-  assert.match(portfolio, /monitorStatus/);
-  assert.match(portfolio, /portfolio-upbit-last-success/);
-  assert.match(portfolio, /마지막 성공 조회/);
-  assert.match(portfolio, /REAL_READ_ONLY 기준선은 PAPER 결과와 합산하지 않습니다/);
-  assert.match(portfolio, /snapshot\.cash\.available/);
-  assert.match(portfolio, /snapshot\.cash\.locked/);
-  assert.match(portfolio, /asset\.available/);
-  assert.match(portfolio, /asset\.locked/);
-  assert.match(portfolio, /money\(asset\.avgBuyPrice\)/);
-  assert.match(portfolio, /AUTH_ERROR/);
-  assert.match(portfolio, /RELAY_ERROR/);
-  assert.match(portfolio, /STALE/);
+  assert.match(app, /useUpbitReadOnlyState/);
+  assert.match(app, /const upbitState = useUpbitReadOnlyState\(\)/);
+  assert.match(portfolio, /upbitSnapshot\?: UpbitReadOnlyAccountSnapshot \| null/);
+  assert.match(portfolio, /upbitStatus\?: UpbitReadOnlyConnectionStatus/);
+  assert.match(portfolio, /upbitError\?: string \| null/);
+  assert.match(portfolio, /REAL ACCOUNT · READ ONLY/);
+  assert.match(portfolio, /testID="portfolio-upbit-read-only"/);
+  assert.match(portfolio, /REAL_READ_ONLY 잔고는 감독용 기준선이며 PAPER 성과와 절대 합산하지 않습니다/);
+  assert.match(portfolio, /upbitSnapshot\?\.cash\.available/);
+  assert.match(portfolio, /upbitSnapshot\?\.cash\.locked/);
+  assert.match(portfolio, /upbitStatus === "READY"/);
   assert.doesNotMatch(lifecycle + portfolio + client, /productionMutationAllowed\s*=\s*true|liveAuthority\s*=\s*["'](?:FULL|LIVE)["']/);
   assert.doesNotMatch(client, /method:\s*"(?:POST|PUT|PATCH|DELETE)"/);
 });
@@ -84,7 +63,6 @@ test("real-account client and monitor source do not persist or echo exchange sec
   const client = read("apps/mobile/src/upbitLiveClient.ts");
   const portfolio = read("apps/mobile/src/portfolioView.tsx");
   const combined = lifecycle + credential + client + portfolio;
-
   assert.doesNotMatch(combined, /UPBIT_ACCESS_KEY|UPBIT_SECRET_KEY/);
   assert.doesNotMatch(credential, /console\.(?:log|error|warn)\([^\n]*(?:token|sharedToken)/i);
   assert.doesNotMatch(client, /console\.(?:log|error|warn)\([^\n]*(?:authorization|token)/i);

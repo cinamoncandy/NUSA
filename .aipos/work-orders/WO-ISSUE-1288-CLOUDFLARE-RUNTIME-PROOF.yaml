@@ -1,0 +1,59 @@
+id: WO-ISSUE-1288-CLOUDFLARE-RUNTIME-PROOF
+title: "Issue #1288 hourly Cloudflare runtime-proof observability"
+status: VERIFYING
+priority: P1
+owner: nusa
+repository: cinamoncandy/NUSA
+issue: 1288
+base_branch: main
+base_commit: 0167a07021cfda1277124995b862bf9002a2de85
+implementation_branch: codex/1288-runtime-proof-provenance
+implementation_commit: a1f3a0ab6b917cf4fdf22eaf2ae54297997ff5fa
+pull_request: 1301
+objective: "Restore reliable, classified, artifact-backed hourly Cloudflare runtime-proof observability without changing execution authority."
+architecture_impact:
+  acknowledged: true
+  analysis: "Reuse the existing GitHub proof workflow, verifier, Cloudflare runtime receipt, and safety fields; no new control plane, execution, broker, or credential path."
+  references:
+    - .github/workflows/autopilot-cloudflare-runtime-proof.yml
+    - scripts/verify-autopilot-cloudflare-runtime.mjs
+    - tests/autopilot-cloudflare-runtime-proof.test.js
+scope:
+  - hourly_schedule_delivery_observability
+  - proof_failure_classification
+  - bounded_runtime_proof_artifact
+prohibited:
+  - live_execution
+  - broker_mutation
+  - credential_exposure
+  - authority_expansion
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  mutationAllowed: false
+implementation:
+  current_main_contains:
+    - .github/workflows/autopilot-cloudflare-runtime-proof.yml
+    - scripts/verify-autopilot-cloudflare-runtime.mjs
+    - tests/autopilot-cloudflare-runtime-proof.test.js
+  known_truth: "PR #1301 separates actual proof-run provenance from the Worker receipt identity, classifies non-scheduled runs as insufficient evidence, binds scheduled receipts to the source head, and retries only bounded transient failures. Two consecutive post-merge scheduled proof executions remain required before issue closure."
+  next: "After exact-head validation and merge, observe two consecutive fresh scheduled proof executions; keep worker/deployment health and source-head checks fail-closed if unavailable."
+follow_up:
+  status: COMPLETED
+  implementation_branch: test/1288-runtime-proof-classifications
+  implementation_commit: 8604702e83e49a7b8657bca7f50b26f4ba613753
+  pull_request: 1325
+  merge_commit: 5c30e2d401ceb54fedc55cbaa7c021e73e628eb9
+  exact_head_ci: PASS_6_OF_6
+  scope: "Direct regression coverage for proof_not_scheduled and proof_scheduled_late classifications in the existing Cloudflare runtime-proof verifier."
+  validation: "Focused scheduled-classification regressions and all six protected workflows passed on the exact PR head."
+  safety:
+    liveAuthority: NONE
+    productionMutationAllowed: false
+    aiAuthority: ZERO_AUTHORITY
+  known_truth: "GitHub scheduled-event delivery remains external evidence; two consecutive fresh scheduled proofs are still pending."
+
+validation:
+  static_regression: PASS_9_OF_9_LOCAL
+  external_scheduled_proofs: PENDING_TWO_CONSECUTIVE_POST_MERGE_FRESH_EXECUTIONS

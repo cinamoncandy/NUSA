@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { ResearchCostEvidence } from "./researchHardening";
 
 export type ResearchEvaluatorAuthority = "PAPER_ONLY" | "ZERO_AUTHORITY";
 export type ResearchComparisonResult = "CHAMPION_BETTER" | "CHALLENGER_BETTER" | "EQUIVALENT" | "INCONCLUSIVE";
@@ -26,6 +27,7 @@ export interface ResearchInputSnapshot {
   readonly startingCash: number;
   readonly startingPositionQuantity: number;
   readonly provenance?: import("./researchHardening").ResearchProvenance;
+  readonly costEvidence?: ResearchCostEvidence;
 }
 
 export interface ResearchEvaluationContext {
@@ -66,6 +68,7 @@ export interface ResearchComparisonEvidence {
   readonly productionMutationAllowed: false;
   readonly promotionAllowed: false;
   readonly provenance?: import("./researchHardening").ResearchProvenance;
+  readonly costEvidence?: ResearchCostEvidence;
 }
 
 export interface ResearchEvaluationLedger {

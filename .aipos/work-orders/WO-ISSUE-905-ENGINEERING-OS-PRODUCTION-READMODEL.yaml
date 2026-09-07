@@ -1,0 +1,90 @@
+id: WO-ISSUE-905-ENGINEERING-OS-PRODUCTION-READMODEL
+title: "Issue #905 wire the measured Engineering OS read model into production"
+status: FOLLOW_UP_PR_PENDING_EXACT_HEAD_VALIDATION
+owner: nusa
+repository: cinamoncandy/NUSA
+issue: 905
+pull_request: NOT_CREATED
+base_branch: main
+base_commit: e7cfab58eb89cfd6a06359198635dcb13fc7a37b
+implementation_branch: codex/905-outcome-feedback-observability-v2
+objective: "Harden the existing read-only Engineering OS production read-model boundary against malformed nested evidence, duplicate identities, and credential-shaped fields without inventing measurements or adding execution authority."
+architecture_impact:
+  acknowledged: true
+  analysis: "Reuse the existing deterministic opportunity ranking, self-optimizer, adaptive concurrency, execution-origin, outcome-feedback, and #903 queue contracts at one production read-model boundary; no second queue, scheduler, merge engine, or mutation path is introduced."
+  references:
+    - apps/desktop/src/cloud/nusaEngineeringOpportunityDiscovery.ts
+    - apps/desktop/src/cloud/nusaEngineeringPortfolioScheduler.ts
+    - apps/desktop/src/cloud/nusaEngineeringSelfOptimizer.ts
+    - apps/desktop/src/cloud/nusaAdaptiveConcurrency.ts
+    - apps/desktop/src/cloud/nusaEngineeringExecutionOrigin.ts
+    - apps/desktop/src/cloud/nusaEngineeringOutcomeFeedback.ts
+    - apps/desktop/src/cloud/nusaDevelopmentControlPlane.ts
+    - apps/cloud/src/runtime.ts
+scope:
+  - engineering_os_read_only_production_composition
+  - measured_concurrency_and_optimizer_projection
+  - exact_head_outcome_projection
+  - production_runtime_accessor_regression
+  - nested_snapshot_validation_and_redaction_boundary
+  - malformed_opportunity_signal_rejection
+  - duplicate_priority_identity_rejection
+  - canonical_queue_input_shape_validation
+  - independent_pre_post_receipt_provenance
+  - deterministic_outcome_provenance_projection
+prohibited:
+  - live_execution
+  - broker_mutation
+  - withdrawal_or_transfer
+  - automatic_live_activation
+  - queue_claim_or_merge_mutation
+  - synthetic_engineering_metrics
+  - paper_or_real_accounting_mix
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  mutationAllowed: false
+  paper_only: true
+acceptance:
+  - one_canonical_read_only_production_accessor_composes_existing_engines
+  - missing_or_unknown_metrics_remain_insufficient
+  - no_numeric_proxy_is_substituted_for_missing_telemetry
+  - queue_projection_is_read_only_and_reuses_903_contract
+  - exact_head_outcome_requires_distinct_provenance_bound_telemetry
+  - execution_origin_is_projected_only_from_actual_evidence
+  - production_runtime_wires_accessor_without_mutation
+  - nested_snapshot_shape_and_provenance_are_validated_before_serialization
+  - credential-shaped_fields_are_rejected_at_the_read_only_boundary
+  - malformed_opportunity_and_queue_evidence_fails_closed_before_projection
+  - duplicate_priority_identity_fails_closed_before_ranking
+  - pre_and_post_outcome_evidence_must_not_reuse_receipt_provenance
+  - outcome_provenance_is_returned_in_canonical_order
+  - safety_authority_remains_unchanged
+validation:
+  focused: PASS_28_OF_28
+  engineering_os_regression: PASS_81_OF_81
+  control_plane_regression: PASS_39_OF_39
+  production_wiring: PASS
+  full_isolated_suite: PASS_813_FILES
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture_truth: PASS
+  architecture_check: PASS
+  safety: PASS
+  security: PASS
+  aipos: PASS
+  git_diff_check: PASS
+  origin_branch: CURRENT_MAIN_BASE
+  remote_pr: NOT_CREATED
+  integrated_main_commit: e7cfab58eb89cfd6a06359198635dcb13fc7a37b
+  remote_required_checks: PENDING_EXACT_HEAD
+implementation_status: FOLLOW_UP_PR_PENDING_EXACT_HEAD_VALIDATION
+implementation_commit: ae7eeae699fd221132a2f4c78c75f32f42d72773
+known_limitations:
+  - "Production GitHub telemetry, queue persistence, and pre/post optimization observations remain unavailable until their canonical external adapters are connected; the read model must report INSUFFICIENT rather than fabricate values."
+  - "PR #1291 merged as d955cdc0e6d27023a89890b6a5efbf283eab6f09 and PR #1292 merged as e7cfab58eb89cfd6a06359198635dcb13fc7a37b; their exact-head checks were green."
+  - "This follow-up rejects reused immutable receipt provenance across pre/post observations; no independent production telemetry exists, so optimization outcome remains INSUFFICIENT_EVIDENCE."
+next: "Publish the follow-up exact-head PR, validate protected checks, and do not claim a measured speedup without independent pre/post telemetry."

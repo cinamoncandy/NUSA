@@ -1,0 +1,73 @@
+version: 1
+id: WO-ISSUE-880-STRATEGY-LIFECYCLE-REPLAY
+title: "Issue #880 persist and replay strategy lifecycle state"
+status: COMPLETED
+priority: P1
+owner: codex
+repository: cinamoncandy/NUSA
+issue: 880
+base_branch: main
+base_commit: f283358c52e658c0a8ff59b379356731a0e36ef7
+implementation_branch: codex/issue-880-lifecycle-replay
+pull_request: 1038
+published_head: aac3d8037c5e3c0bb5462f9a2bbd3d7d80b9255b
+merge_commit: 3aed04373a6732ce98432b5bbfa0ea1bd67a6fb2
+objective: "Keep the existing strategy governance ledger and SQLite registry projection consistent across transitions and process restart without adding lifecycle or execution authority."
+architecture_impact:
+  acknowledged: true
+  analysis: "Repair the existing governance persistence projection and service recovery path; reuse the existing append-only ledger, registry, and PAPER-only promotion boundary."
+  references:
+    - apps/cloud/src/strategyGovernanceService.ts
+    - apps/cloud/src/strategyRegistry.ts
+    - packages/storage/src/strategyGovernanceStore.ts
+    - packages/contracts/src/strategyGovernanceLedger.ts
+    - docs/NUSA_INVESTMENT_KNOWLEDGE_PRINCIPLE.md
+scope:
+  - strategy_registry_lifecycle_projection
+  - governance_ledger_restart_continuity
+  - snapshot_and_registry_integrity_validation
+  - regression_coverage
+prohibited:
+  - new_strategy_lifecycle_engine
+  - automatic_promotion_or_retirement
+  - paper_or_live_execution
+  - broker_or_order_mutation
+  - risk_limit_mutation
+  - live_activation
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  brokerMutation: NONE
+  paper_only: true
+acceptance:
+  - persisted registry lifecycle matches the authoritative replayed governance ledger
+  - service restores the ledger before accepting post-restart governance events
+  - snapshot and registry lifecycle mismatches fail closed
+  - identity mismatches are not silently coerced into a lifecycle record
+  - existing governance, promotion, rollback, and candidate regressions remain green
+  - no execution, accounting, risk, broker, or LIVE authority changes
+validation:
+  focused: PASS_28_OF_28
+  relevant_regressions: PASS_28_OF_28
+  full_isolated_suite: PASS_731_FILES
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture_truth: PASS
+  architecture_check: PASS
+  safety: PASS
+  security: PASS_SECRETS_0
+  restricted_live: PASS
+  read_only_broker: PASS
+  aipos: PASS_CONFORMANCE_DRIFT_PROVENANCE
+  package_validation: PASS
+  git_diff_check: PASS
+implementation_status: MERGED_EXACT_HEAD_VALIDATED
+implementation_commit: 3830ebed21ed42f9c186c551eb93a4d28d8e8cbd
+validation_head: b27a4bb5759d870fa9b23eaeb70e0505254e5379
+remote_validation: PASS_EXACT_HEAD_REQUIRED_CHECKS
+known_limitations:
+  - "This slice closes restart-safe lifecycle projection; evidence-driven quarantine, demotion, and retirement orchestration remain a separate #880 follow-up."
+next: "Continue Issue #880 with a separate evidence-driven containment decision slice; do not treat this restart-safe projection as the full issue closure."

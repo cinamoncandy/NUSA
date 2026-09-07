@@ -8,6 +8,8 @@ export interface IntelligenceObservation {
   readonly sentiment: number;
   /** Original exchange return, retained as evidence beside the normalized score. */
   readonly rawChangeRate?: number;
+  /** Accepted public-market price used by a bound PAPER strategy evaluator. */
+  readonly price?: number;
   /** Optional deterministic normalization identity for replay/audit. */
   readonly normalizationPolicyId?: string;
   readonly normalizationPolicyFingerprint?: string;

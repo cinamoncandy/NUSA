@@ -67,8 +67,8 @@ test("Portfolio exposes explicit disconnected/loading/ready/stale/error Upbit st
   const source = fs.readFileSync(path.join(mobileSrc, "upbitReadOnlyAccount.ts"), "utf8");
   const portfolio = fs.readFileSync(path.join(mobileSrc, "portfolioView.tsx"), "utf8");
   for (const status of ["DISCONNECTED", "LOADING", "READY", "STALE", "ERROR"]) assert.match(source, new RegExp(`"${status}"`));
-  assert.match(portfolio, /REAL_READ_ONLY · REFERENCE/);
-  assert.match(portfolio, /REAL_READ_ONLY 기준선은 PAPER 결과와 합산하지 않습니다/);
+  assert.match(portfolio, /REAL ACCOUNT · READ ONLY/);
+  assert.match(portfolio, /REAL_READ_ONLY 잔고는 감독용 기준선이며 PAPER 성과와 절대 합산하지 않습니다/);
   assert.doesNotMatch(portfolio, /주문하기|주문 실행|출금/);
 });
 

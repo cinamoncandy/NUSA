@@ -1,6 +1,6 @@
 id: WO-ISSUE-889-PAPER-REALIZED-PERIOD-PRODUCER
 title: "Issue #889 canonical PAPER realized-period producer"
-status: VERIFYING
+status: COMPLETED
 owner: nusa
 repository: cinamoncandy/NUSA
 issue: 889
@@ -77,4 +77,7 @@ remediation_validation: "Focused producer/storage/runtime suite 44/44 PASS; full
 known_limitations:
   - "Remote publication and authenticated exact-head CI are pending."
   - "Real longitudinal PAPER orchestration and non-synthetic performance evidence remain unavailable; research admission must remain fail-closed."
-next: "Validate exact-head PR #973, then record remote evidence. Do not claim full Issue #889 closure until real non-synthetic longitudinal orchestration evidence exists."
+next: "COMPLETE for this slice's scope."
+completion:
+  pull_request: 973
+  reconciled_by: "NUSA session audit, 2026-09-02: work order was stuck at VERIFYING even though parent GitHub issue #889 is CLOSED and PR #973 is merged to current main. Verified apps/cloud/src/paperRealizedPeriodProducer.test.ts still passes 7/7 on current main. Status corrected to reflect actual repository state; no code changed."

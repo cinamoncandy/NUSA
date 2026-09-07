@@ -32,6 +32,40 @@ export interface UpbitTickerObservationOptions {
   readonly clockSkewToleranceMs?: number;
 }
 
+/**
+ * Per-tick rejection reason for operators. ACCEPTED mirrors exactly the cases
+ * where {@link upbitTickerToIntelligenceObservation} returns an observation;
+ * every other code maps 1:1 to a refusal branch (pinned by consistency test).
+ *
+ * HOST_CLOCK_AHEAD / HOST_CLOCK_BEHIND are deliberately absent: a single tick
+ * cannot distinguish a stale feed from a skewed host clock. Only a series of
+ * live-but-stale ticks suggests clock suspect, which needs stateful tracking
+ * outside this pure function. Safety behavior is identical for all rejections.
+ */
+export type TickerRejectReason =
+  | "ACCEPTED"
+  | "NOT_TICKER"
+  | "MARKET_MISMATCH"
+  | "FUTURE_MARKET_TIMESTAMP"
+  | "FEED_STALE";
+
+export function classifyTickerRejectReason(
+  ticker: UpbitTicker,
+  options: UpbitTickerObservationOptions
+): TickerRejectReason {
+  const staleWindowMs = options.staleWindowMs ?? DEFAULT_UPBIT_TICKER_STALE_WINDOW_MS;
+  const skewToleranceMs = options.clockSkewToleranceMs ?? DEFAULT_UPBIT_TICKER_CLOCK_SKEW_TOLERANCE_MS;
+  if (!Number.isSafeInteger(options.now) || options.now < 0) throw new Error("now must be a non-negative safe integer");
+  if (!Number.isSafeInteger(staleWindowMs) || staleWindowMs < 1_000) throw new Error("staleWindowMs must be >= 1000");
+  if (!Number.isSafeInteger(skewToleranceMs) || skewToleranceMs < 0) throw new Error("clockSkewToleranceMs must be a non-negative safe integer");
+  if (ticker.type !== "ticker") return "NOT_TICKER";
+  if (!ticker.code.startsWith("KRW-")) return "MARKET_MISMATCH";
+  if (ticker.trade_timestamp > options.now + skewToleranceMs) return "FUTURE_MARKET_TIMESTAMP";
+  const age = Math.max(0, options.now - ticker.trade_timestamp);
+  if (age > staleWindowMs) return "FEED_STALE";
+  return "ACCEPTED";
+}
+
 /** Converts one accepted public ticker into bounded, read-only intelligence evidence. */
 export function upbitTickerToIntelligenceObservation(
   ticker: UpbitTicker,
@@ -64,6 +98,7 @@ export function upbitTickerToIntelligenceObservation(
     id: `${ticker.code}:${ticker.trade_timestamp}`,
     source: "CHART" as const,
     market: ticker.code,
+    price: ticker.trade_price,
     sentiment: normalizedScore,
     rawChangeRate: signedChangeRate,
     normalizationPolicyId: CHART_NORMALIZATION_V1.id,

@@ -1,0 +1,69 @@
+id: WO-ISSUE-1186-CODING-EXECUTION-EVIDENCE
+title: "Issue #1186 persist safe coding execution evidence"
+status: COMPLETED
+owner: nusa
+repository: cinamoncandy/NUSA
+issue: 1186
+base_branch: main
+base_commit: 781e82f68bcf796f38d6d88b397aff370085a2ba
+implementation_branch: codex/issue-1186-e2e-repair
+objective: "Route unattended coding execution to an optional configured external runner or Cloudflare Workers AI binding only when concrete failure evidence exists, while preserving deterministic evidence and zero mutation authority."
+architecture_impact:
+  acknowledged: true
+  analysis: "Reuse the existing autopilot Worker, ExecutionCoordinator Durable Object, coding runner, sandbox validation, and publisher contracts; keep the Consumer's external rejection path observable and non-fatal without treating an unexecuted repair as success."
+  references:
+    - apps/autopilot/src/index.ts
+    - apps/autopilot/src/codingRunner.ts
+    - apps/autopilot/src/executionCoordinator.ts
+    - apps/autopilot/src/codingExecutionEvidence.ts
+scope:
+  - coding_execution_outcome_evidence
+  - durable_bounded_replay
+  - read_only_worker_projection
+  - redaction_and_identity_validation
+  - external_runner_rejection_observability
+  - optional_external_runner_selection
+prohibited:
+  - live_execution
+  - broker_mutation
+  - GitHub_mutation_from_read_model
+  - credential_or_secret_persistence
+  - AI_execution_authority
+  - workflow_or_branch_protection_bypass
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  mutationAllowed: false
+acceptance:
+  - execution_result_is_sanitized_before_persistence
+  - evidence_identity_is_deterministic_and_integrity_checked
+  - duplicate_and_conflicting_records_fail_closed
+  - replay_is_bounded_and_deterministically_ordered
+  - GET_coding_evidence_is_read_only
+  - no_new_execution_or_broker_authority
+  - external_runner_rejection_does_not_report_false_repair_success
+  - external_runner_is_not_selected_without_repository_configuration
+validation:
+  focused_evidence_tests: PASS_3_OF_3
+  focused_coordinator_tests: PASS_5_OF_5
+  focused_worker_projection: PASS_8_OF_8
+  full_isolated_suite: PASS_799_FILES
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture: PASS
+  safety: PASS
+  security: PASS_SECRETS_0
+  aipos_conformance: PASS
+  aipos_drift: PASS
+  aipos_provenance: PASS
+  exact_head_ci: PASS
+known_limitations:
+  - "Real unattended external coding-runner execution still depends on deployment/runtime configuration and is not fabricated by this evidence boundary."
+  - "The deployed Worker currently rejects the latest main head with CODING_RUNNER_HEAD_SHA_UNVERIFIED; this slice records that boundary as INTERFACE_READY but cannot repair Cloudflare's GitHub credential configuration."
+next: "COMPLETE."
+completion:
+  pull_requests: [1220, 1222, 1226, 1275]
+  reconciled_by: "NUSA session audit, 2026-09-02: work order was stuck at VERIFYING/exact_head_ci=PENDING even though parent GitHub issue #1186 is CLOSED and its four merged PRs (persist coding execution evidence; keep external runner rejection fail-closed; make external runner opt-in; consume requested head after dispatch) are all on current main. Verified apps/autopilot/src/codingExecutionEvidence.test.ts still passes 3/3 on current main. Status corrected to reflect actual repository state; no code changed."

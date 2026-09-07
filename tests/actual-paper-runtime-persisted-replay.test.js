@@ -29,3 +29,26 @@ test("persisted PAPER replay baseline uses the exact newest projection ordering"
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+
+test("chaos receipt state only accepts observed running online runtime identity", () => {
+  const { paperChaosStateFromSnapshot, snapshotObservedAt } = require("../scripts/actual-paper-runtime-e2e.js");
+  const snapshot = {
+    generatedAt: 2_000,
+    operations: { runtimeState: "RUNNING", transport: "ONLINE" },
+    orders: [{ id: "order-b", fills: [{ id: "fill-b" }] }, { id: "order-a", fills: [{ id: "fill-a" }] }],
+  };
+  assert.deepEqual(paperChaosStateFromSnapshot(snapshot, snapshotObservedAt(snapshot)), {
+    runtimeStatus: "RUNNING",
+    persistenceStatus: "AVAILABLE",
+    upstreamStatus: "HEALTHY",
+    chronologyStatus: "UNKNOWN",
+    reconciliationStatus: "UNKNOWN",
+    orderIds: ["order-a", "order-b"],
+    fillIds: ["fill-a", "fill-b"],
+    observedAt: 2_000,
+  });
+  assert.throws(() => paperChaosStateFromSnapshot({ ...snapshot, operations: { runtimeState: "DEGRADED", transport: "ONLINE" } }, 2_000));
+  assert.throws(() => paperChaosStateFromSnapshot({ ...snapshot, orders: [{ id: "order-a", fills: [{ id: "fill-a" }] }, { id: "order-a", fills: [] }] }, 2_000));
+  assert.throws(() => snapshotObservedAt({ ...snapshot, generatedAt: "not-a-time" }));
+});

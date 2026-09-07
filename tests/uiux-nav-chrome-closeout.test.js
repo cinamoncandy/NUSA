@@ -8,9 +8,9 @@ const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.ts
 test("bottom navigation exposes four semantic primary jobs and preserves deeper routes", () => {
   assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio"\] as const/);
   assert.match(app, /Home: "HOME"/);
-  assert.match(app, /Markets: "OBSERVE"/);
+  assert.match(app, /Markets: "MARKETS"/);
   assert.match(app, /Paper: "PAPER"/);
-  assert.match(app, /Portfolio: "SUPERVISE"/);
+  assert.match(app, /Portfolio: "PORTFOLIO"/);
   assert.match(app, /type Tab = PrimaryTab \| "AiSignal" \| "Order"/);
   assert.match(app, /accessibilityRole="tablist"/);
   assert.match(app, /accessibilityRole="tab"/);

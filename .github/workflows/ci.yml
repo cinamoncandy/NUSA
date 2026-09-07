@@ -14,7 +14,7 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   validation:
@@ -94,16 +94,12 @@ jobs:
         run: pnpm run aipos:drift
       - name: AIPOS verified-state evidence integrity
         run: node scripts/validate-aipos-evidence.js
-      - name: AIPOS evidence integrity regression tests
-        run: node --test --test-reporter=spec tests/aipos-evidence-integrity.test.js
+      - name: AIPOS regression tests
+        run: node --test --test-reporter=spec tests/aipos-evidence-integrity.test.js tests/aipos-work-order-provenance.test.js tests/aipos-cross-ai-conformance.test.js
       - name: AIPOS work-order provenance reconciliation
         run: pnpm run aipos:provenance
-      - name: AIPOS work-order provenance regression tests
-        run: node --test --test-reporter=spec tests/aipos-work-order-provenance.test.js
       - name: AIPOS cross-AI handoff conformance
         run: pnpm run aipos:conformance
-      - name: AIPOS cross-AI conformance regression tests
-        run: node --test --test-reporter=spec tests/aipos-cross-ai-conformance.test.js
       - name: Capability contract registry validation
         run: pnpm run capability:check
       - name: Capability contract registry regression tests
@@ -130,14 +126,13 @@ jobs:
         run: node --test --test-reporter=spec tests/shadow-governance.test.js
       - name: Restricted LIVE governance validation
         run: pnpm run restricted-live:check
-      - name: Restricted LIVE governance regression tests
-        run: node --test --test-reporter=spec tests/restricted-live-governance.test.js
-      - name: Restricted LIVE operational readiness regressions
-        run: node --test --test-reporter=spec tests/restricted-live-operational-readiness.test.js
+      - name: Restricted LIVE regression tests
+        run: node --test --test-reporter=spec tests/restricted-live-governance.test.js tests/restricted-live-operational-readiness.test.js
       - name: Restricted LIVE operational readiness verification
+        id: restricted-live-readiness
         run: pnpm run restricted-live:readiness -- --output artifacts/operational-evidence/restricted-live-readiness.json
       - name: Upload Restricted LIVE readiness evidence
-        if: always()
+        if: always() && steps.restricted-live-readiness.conclusion == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: restricted-live-operational-readiness-evidence
@@ -147,9 +142,10 @@ jobs:
       - name: Operational evidence harness regression tests
         run: node --test --test-reporter=spec tests/operational-evidence-harness.test.js
       - name: PAPER runtime operational verification
+        id: paper-runtime-verification
         run: pnpm run verify:paper-runtime -- --output artifacts/operational-evidence/paper-runtime.json
       - name: Upload PAPER runtime operational evidence
-        if: always()
+        if: always() && steps.paper-runtime-verification.conclusion == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: paper-runtime-operational-evidence
@@ -170,20 +166,16 @@ jobs:
         run: node scripts/verify-paper-pilot-evidence.js
       - name: Shadow pilot verification (no real broker mutation)
         run: node scripts/run-shadow-paper-pilot.js --dry-run
-      - name: Runtime persistence atomicity tests
-        run: node --test --test-reporter=spec tests/runtime-command-service.test.js
-      - name: Control audit ledger tests
-        run: node --test --test-reporter=spec tests/control-audit-ledger.test.js
-      - name: Transactional control service tests
-        run: node --test --test-reporter=spec tests/transactional-control-command-service.test.js
-      - name: Funding carry safety tests
-        run: node --test --test-reporter=spec tests/funding-carry-engine.test.js
-      - name: Strategy governance tests
-        run: node --test --test-reporter=spec tests/strategy-governance.test.js
-      - name: Investment committee tests
-        run: node --test --test-reporter=spec tests/investment-committee.test.js
-      - name: Research persistence tests
-        run: node --test --test-reporter=spec tests/research-memory.test.js
+      - name: Runtime/control/research persistence regression tests
+        run: >-
+          node --test --test-reporter=spec
+          tests/runtime-command-service.test.js
+          tests/control-audit-ledger.test.js
+          tests/transactional-control-command-service.test.js
+          tests/funding-carry-engine.test.js
+          tests/strategy-governance.test.js
+          tests/investment-committee.test.js
+          tests/research-memory.test.js
       - name: AI CIO dashboard read-only tests
         run: node --test --test-reporter=spec tests/ai-cio-dashboard.test.js tests/ai-cio-paper-projection.test.js tests/ai-cio-dashboard-ipc.test.js tests/ai-cio-ipc-bridge.test.js tests/ai-cio-renderer.test.js
       - name: Operational completion policy tests
@@ -320,8 +312,6 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Preflight
         run: pnpm run preflight
-      - name: Build for coverage merge
-        run: pnpm run build
       - name: Download precomputed V8 coverage
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
@@ -337,6 +327,8 @@ jobs:
         env:
           NUSA_COVERAGE_COMBINED_V8_DIR: .coverage-v8-all
         run: node scripts/run-coverage.js --prepared --merge-precomputed
+      - name: Enforce coverage floors
+        run: node scripts/check-coverage-floor.js
       - name: Upload coverage baseline
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -363,5 +355,5 @@ jobs:
       - name: Require validation and coverage
         shell: bash
         run: |
-          test "${{ needs.validation.result }}" = "success"
-          test "${{ needs.coverage.result }}" = "success"
+          [ "${{ needs.validation.result }}" = "success" ]
+          [ "${{ needs.coverage.result }}" = "success" ]

@@ -1,0 +1,30 @@
+[Unit]
+Description=NUSA autonomous PAPER trading runtime
+Documentation=https://github.com/cinamoncandy/NUSA
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=nusa
+Group=nusa
+WorkingDirectory=/opt/nusa
+EnvironmentFile=/etc/nusa/cloud-paper.env
+Environment=NUSA_PAPER_SUPERVISOR_STATE_PATH=/var/lib/nusa/supervisor.json
+ExecStart=/usr/bin/node /opt/nusa/scripts/start-cloud-paper-supervisor.js
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=30
+StateDirectory=nusa
+StateDirectoryMode=0700
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/nusa
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

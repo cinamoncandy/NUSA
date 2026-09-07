@@ -22,7 +22,7 @@ const os = require("node:os");
 const fs = require("node:fs");
 
 const RUNTIME_ENTRY = path.join(__dirname, "..", "dist", "apps", "cloud", "src", "runtime.js");
-const STARTUP_TIMEOUT_MS = 5_000;
+const STARTUP_TIMEOUT_MS = process.platform === "win32" ? 15_000 : 5_000;
 const SHUTDOWN_TIMEOUT_MS = 5_000;
 const isWindows = process.platform === "win32";
 const posixOnly = isWindows
@@ -68,7 +68,15 @@ function spawnRuntime(env) {
 function waitForExit(child, deadlineMs) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("process did not exit in time")), deadlineMs);
-    child.once("exit", (code, signal) => { clearTimeout(timer); resolve({ code, signal }); });
+    const finish = (code, signal) => { clearTimeout(timer); resolve({ code, signal }); };
+    child.once("exit", finish);
+    // On Windows, child.kill() may terminate the process before the caller
+    // subscribes to the exit event. Observe the terminal state as well so the
+    // helper cannot wait forever for an event that already fired.
+    if (child.exitCode !== null || child.signalCode !== null) {
+      child.off("exit", finish);
+      finish(child.exitCode, child.signalCode);
+    }
   });
 }
 

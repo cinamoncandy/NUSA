@@ -8,6 +8,7 @@ import {
 import {
   applyNusaDevelopmentEvent,
   createNusaDevelopmentEventOrchestratorState,
+  replayNusaDevelopmentEvents,
 } from "./nusaDevelopmentEventOrchestrator";
 
 const T0 = Date.parse("2026-08-27T12:00:00.000Z");
@@ -37,13 +38,14 @@ function claimedState() {
 }
 
 describe("NUSA development event orchestrator", () => {
-  it("advances the canonical work item through implementation, validation, CI, and merge", () => {
+  it("advances the canonical work item through implementation, validation, CI, independent audit, release, and merge", () => {
     let state = claimedState();
     const events = [
       ["IMPLEMENTATION_STARTED", "IMPLEMENTING", "implement"],
       ["VALIDATION_STARTED", "VALIDATING", "validate"],
       ["CI_STARTED", "CI", "await-exact-head-ci"],
-      ["CI_SUCCEEDED", "MERGE_READY", "merge"],
+      ["CI_SUCCEEDED", "AUDIT", "audit"],
+      ["AUDIT_SUCCEEDED", "MERGE_READY", "release"],
       ["PR_MERGED", "MERGED", "done"],
     ] as const;
 
@@ -63,7 +65,61 @@ describe("NUSA development event orchestrator", () => {
     }
 
     assert.equal(state.queue.items[0]?.claim, null);
-    assert.equal(state.processedEventIds.length, 5);
+    assert.equal(state.processedEventIds.length, 6);
+  });
+
+  it("fails closed when merge is attempted after CI success without an audit verdict", () => {
+    let state = claimedState();
+    for (const [index, type] of ["IMPLEMENTATION_STARTED", "VALIDATION_STARTED", "CI_STARTED", "CI_SUCCEEDED"].entries()) {
+      const result = applyNusaDevelopmentEvent(state, {
+        eventId: `prepare-audit-${index}`,
+        type: type as "IMPLEMENTATION_STARTED" | "VALIDATION_STARTED" | "CI_STARTED" | "CI_SUCCEEDED",
+        workId: "w1",
+        expectedRevision: state.queue.revision,
+        occurredAt: T0 + index + 1,
+      });
+      assert.equal(result.status, "APPLIED");
+      state = result.state;
+    }
+    assert.equal(state.queue.items[0]?.state, "AUDIT");
+    assert.equal(state.queue.items[0]?.nextAction, "audit");
+
+    const bypass = applyNusaDevelopmentEvent(state, {
+      eventId: "merge-without-audit",
+      type: "PR_MERGED",
+      workId: "w1",
+      expectedRevision: state.queue.revision,
+      occurredAt: T0 + 10,
+    });
+    assert.equal(bypass.status, "INVALID_TRANSITION");
+    assert.equal(bypass.item?.state, "AUDIT");
+  });
+
+  it("routes an audit failure back to implementation without granting release readiness", () => {
+    let state = claimedState();
+    for (const [index, type] of ["IMPLEMENTATION_STARTED", "VALIDATION_STARTED", "CI_STARTED", "CI_SUCCEEDED"].entries()) {
+      const result = applyNusaDevelopmentEvent(state, {
+        eventId: `prepare-audit-failure-${index}`,
+        type: type as "IMPLEMENTATION_STARTED" | "VALIDATION_STARTED" | "CI_STARTED" | "CI_SUCCEEDED",
+        workId: "w1",
+        expectedRevision: state.queue.revision,
+        occurredAt: T0 + index + 1,
+      });
+      assert.equal(result.status, "APPLIED");
+      state = result.state;
+    }
+
+    const failed = applyNusaDevelopmentEvent(state, {
+      eventId: "audit-failed",
+      type: "AUDIT_FAILED",
+      workId: "w1",
+      expectedRevision: state.queue.revision,
+      occurredAt: T0 + 10,
+      reason: "architecture-regression",
+    });
+    assert.equal(failed.status, "APPLIED");
+    assert.equal(failed.item?.state, "IMPLEMENTING");
+    assert.equal(failed.item?.nextAction, "repair-audit-failure");
   });
 
   it("makes duplicate delivery replay-safe without incrementing revision", () => {
@@ -171,5 +227,49 @@ describe("NUSA development event orchestrator", () => {
     assert.equal(blocked.item?.state, "BLOCKED_HUMAN");
     assert.equal(blocked.item?.nextAction, "human-blocked:physical-device-evidence");
     assert.equal(blocked.item?.claim, null);
+  });
+
+  it("canonicalizes processed event ids regardless of delivery order", () => {
+    const queue = createNusaDevelopmentQueue([work({ id: "w1" })]);
+    const events = [
+      { eventId: "z-event", type: "IMPLEMENTATION_STARTED" as const, workId: "w1", expectedRevision: 1, occurredAt: T0 + 2 },
+      { eventId: "a-event", type: "VALIDATION_STARTED" as const, workId: "w1", expectedRevision: 2, occurredAt: T0 + 3 },
+    ];
+    assert.deepEqual(
+      createNusaDevelopmentEventOrchestratorState(queue, events).processedEventIds,
+      ["a-event", "z-event"],
+    );
+  });
+
+  it("rejects unsafe event identity, revision, and timestamp values", () => {
+    const state = claimedState();
+    for (const override of [
+      { eventId: "", expectedRevision: state.queue.revision },
+      { eventId: "event with spaces", expectedRevision: state.queue.revision },
+      { eventId: "valid", expectedRevision: -1 },
+      { eventId: "valid", expectedRevision: state.queue.revision, occurredAt: 1.5 },
+    ]) {
+      assert.throws(() => applyNusaDevelopmentEvent(state, {
+        eventId: override.eventId,
+        type: "IMPLEMENTATION_STARTED",
+        workId: "w1",
+        expectedRevision: override.expectedRevision,
+        occurredAt: override.occurredAt ?? T0 + 1,
+      }), /EVENT_(ID_INVALID|EXPECTED_REVISION_INVALID|OCCURRED_AT_INVALID)/);
+    }
+  });
+
+  it("replays a canonical history deterministically and rejects chronology regressions", () => {
+    const initial = createNusaDevelopmentQueue([work({ id: "w1", state: "CLAIMED", canonicalOwner: "development", claim: { owner: "development", requestId: "claim-1", claimedAt: T0, leaseExpiresAt: T0 + 60_000 } })]);
+    const events = [
+      { eventId: "event-1", type: "IMPLEMENTATION_STARTED" as const, workId: "w1", expectedRevision: 0, occurredAt: T0 + 1 },
+      { eventId: "event-2", type: "VALIDATION_STARTED" as const, workId: "w1", expectedRevision: 1, occurredAt: T0 + 2 },
+      { eventId: "event-3", type: "CI_STARTED" as const, workId: "w1", expectedRevision: 2, occurredAt: T0 + 3 },
+    ];
+    const first = replayNusaDevelopmentEvents(initial, events);
+    const second = replayNusaDevelopmentEvents(initial, [...events]);
+    assert.deepEqual(first, second);
+    assert.equal(first.queue.revision, 3);
+    assert.throws(() => replayNusaDevelopmentEvents(initial, [events[1]!, events[0]!]), /EVENT_REPLAY_CHRONOLOGY_INVALID|EVENT_REPLAY_REVISION_CONFLICT/);
   });
 });

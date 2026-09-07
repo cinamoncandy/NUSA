@@ -4,6 +4,7 @@ export type NusaDevelopmentWorkState =
   | "IMPLEMENTING"
   | "VALIDATING"
   | "CI"
+  | "AUDIT"
   | "MERGE_READY"
   | "MERGED"
   | "BLOCKED_HUMAN";
@@ -22,6 +23,22 @@ export interface NusaDevelopmentClaim {
   readonly claimedAt: number;
   readonly leaseExpiresAt: number;
 }
+
+export interface NusaStaleClaimEvidence {
+  readonly claimRequestId: string;
+  readonly sourceSha: string;
+  readonly activeCi: boolean;
+  readonly activePr: boolean;
+  readonly checkpointAvailable: boolean;
+  readonly executionStatus: "RUNNING" | "STOPPED" | "UNKNOWN";
+}
+
+export type NusaStaleClaimRecoveryOutcome =
+  | "CLAIM_VALID"
+  | "CLAIM_STALE_REQUEUE"
+  | "CLAIM_STALE_RESUME"
+  | "CLAIM_BLOCKED_HUMAN"
+  | "CLAIM_FAIL_CLOSED";
 
 export interface NusaDevelopmentWorkItem {
   readonly id: string;
@@ -62,8 +79,33 @@ export type ClaimNextWorkResult =
   | { readonly status: "CLAIMED" | "IDEMPOTENT_REPLAY"; readonly queue: NusaDevelopmentQueue; readonly item: NusaDevelopmentWorkItem }
   | { readonly status: "NO_READY_WORK" | "REVISION_CONFLICT" | "WIP_LIMIT_REACHED"; readonly queue: NusaDevelopmentQueue; readonly item: null };
 
+export interface ClaimNusaDevelopmentPortfolioRequest {
+  readonly owner: string;
+  readonly requestId: string;
+  readonly expectedRevision: number;
+  readonly now: number;
+  readonly leaseMs: number;
+  readonly maximumItems: number;
+  readonly allocationPolicy?: NusaDevelopmentAllocationPolicy;
+}
+
+export type ClaimNusaDevelopmentPortfolioStopReason =
+  | "NO_READY_WORK"
+  | "REVISION_CONFLICT"
+  | "WIP_LIMIT_REACHED"
+  | null;
+
+export interface ClaimNusaDevelopmentPortfolioResult {
+  readonly status: "CLAIMED" | "PARTIAL" | "IDEMPOTENT_REPLAY" | "NO_READY_WORK" | "REVISION_CONFLICT" | "WIP_LIMIT_REACHED";
+  readonly queue: NusaDevelopmentQueue;
+  readonly items: readonly NusaDevelopmentWorkItem[];
+  readonly claimedCount: number;
+  readonly replayedCount: number;
+  readonly stopReason: ClaimNusaDevelopmentPortfolioStopReason;
+}
+
 const PRIORITY_RANK: Readonly<Record<NusaDevelopmentPriority, number>> = Object.freeze({ P0: 0, P1: 1, P2: 2, P3: 3 });
-const ACTIVE_STATES: ReadonlySet<NusaDevelopmentWorkState> = new Set(["CLAIMED", "IMPLEMENTING", "VALIDATING", "CI", "MERGE_READY"]);
+const ACTIVE_STATES: ReadonlySet<NusaDevelopmentWorkState> = new Set(["CLAIMED", "IMPLEMENTING", "VALIDATING", "CI", "AUDIT", "MERGE_READY"]);
 
 const isCanonicalTimestamp = (value: number): boolean => Number.isSafeInteger(value) && value >= 0;
 
@@ -163,7 +205,7 @@ function hasTouchedFileConflict(item: NusaDevelopmentWorkItem, queue: NusaDevelo
     && active.touchedFiles.some((file) => files.has(file)));
 }
 
-export function claimNextNusaDevelopmentWork(queue: NusaDevelopmentQueue, request: ClaimNextWorkRequest): ClaimNextWorkResult {
+function validateClaimRequest(request: ClaimNextWorkRequest): void {
   if (!request.owner.trim()) throw new Error("CLAIM_OWNER_REQUIRED");
   if (!request.requestId.trim()) throw new Error("CLAIM_REQUEST_ID_REQUIRED");
   if (!isCanonicalTimestamp(request.now)) throw new Error("CLAIM_NOW_INVALID");
@@ -171,6 +213,11 @@ export function claimNextNusaDevelopmentWork(queue: NusaDevelopmentQueue, reques
   const leaseExpiresAt = request.now + request.leaseMs;
   if (!isCanonicalTimestamp(leaseExpiresAt) || leaseExpiresAt <= request.now) throw new Error("CLAIM_LEASE_EXPIRES_AT_INVALID");
   validateAllocationPolicy(request.allocationPolicy);
+}
+
+export function claimNextNusaDevelopmentWork(queue: NusaDevelopmentQueue, request: ClaimNextWorkRequest): ClaimNextWorkResult {
+  validateClaimRequest(request);
+  const leaseExpiresAt = request.now + request.leaseMs;
 
   const replay = queue.items.find((item) => item.claim?.requestId === request.requestId && item.claim.owner === request.owner);
   if (replay) return { status: "IDEMPOTENT_REPLAY", queue, item: replay };
@@ -202,6 +249,80 @@ export function claimNextNusaDevelopmentWork(queue: NusaDevelopmentQueue, reques
   return { status: "CLAIMED", queue: next, item: claimed };
 }
 
+/**
+ * Claims a bounded portfolio from the canonical #903 queue. Each child claim
+ * reuses the single-item claim path, so dependency, lease, WIP, touched-file
+ * conflict, revision, and idempotency rules cannot diverge between one-item
+ * and parallel allocation. A partial result is intentional when the safe
+ * queue is exhausted or an allocation guard stops further work.
+ */
+export function claimNusaDevelopmentWorkPortfolio(
+  queue: NusaDevelopmentQueue,
+  request: ClaimNusaDevelopmentPortfolioRequest,
+): ClaimNusaDevelopmentPortfolioResult {
+  if (!Number.isSafeInteger(request.maximumItems) || request.maximumItems <= 0) {
+    throw new Error("CLAIM_PORTFOLIO_MAXIMUM_ITEMS_INVALID");
+  }
+  if (!isCanonicalTimestamp(request.expectedRevision)) throw new Error("CLAIM_EXPECTED_REVISION_INVALID");
+  validateClaimRequest(request);
+
+  let currentQueue = queue;
+  let expectedRevision = request.expectedRevision;
+  let stopReason: ClaimNusaDevelopmentPortfolioStopReason = null;
+  let claimedCount = 0;
+  let replayedCount = 0;
+  const items: NusaDevelopmentWorkItem[] = [];
+  const boundedMaximum = Math.min(request.maximumItems, queue.items.length);
+
+  for (let index = 0; index < boundedMaximum; index += 1) {
+    const result = claimNextNusaDevelopmentWork(currentQueue, {
+      owner: request.owner,
+      requestId: `${request.requestId}:${index}`,
+      expectedRevision,
+      now: request.now,
+      leaseMs: request.leaseMs,
+      allocationPolicy: request.allocationPolicy,
+    });
+
+    if (result.status === "CLAIMED") {
+      claimedCount += 1;
+      items.push(result.item);
+      currentQueue = result.queue;
+      expectedRevision = currentQueue.revision;
+      continue;
+    }
+    if (result.status === "IDEMPOTENT_REPLAY") {
+      replayedCount += 1;
+      items.push(result.item);
+      currentQueue = result.queue;
+      expectedRevision = currentQueue.revision;
+      continue;
+    }
+    stopReason = result.status;
+    currentQueue = result.queue;
+    break;
+  }
+
+  const processedCount = claimedCount + replayedCount;
+  if (stopReason === null && processedCount < request.maximumItems) stopReason = "NO_READY_WORK";
+  const status = processedCount === 0
+    ? stopReason ?? "NO_READY_WORK"
+    : claimedCount === 0 && processedCount === request.maximumItems
+      ? "IDEMPOTENT_REPLAY"
+      : processedCount < request.maximumItems
+        ? "PARTIAL"
+        : "CLAIMED";
+
+  return Object.freeze({
+    status,
+    queue: currentQueue,
+    items: Object.freeze(items),
+    claimedCount,
+    replayedCount,
+    stopReason,
+  });
+}
+
 export function recoverStaleNusaDevelopmentClaims(queue: NusaDevelopmentQueue, now: number): NusaDevelopmentQueue {
   if (!isCanonicalTimestamp(now)) throw new Error("STALE_RECOVERY_NOW_INVALID");
   let changed = false;
@@ -217,4 +338,36 @@ export function recoverStaleNusaDevelopmentClaims(queue: NusaDevelopmentQueue, n
     });
   });
   return changed ? freezeQueue(queue.revision + 1, items) : queue;
+}
+
+export function recoverStaleNusaDevelopmentClaimWithEvidence(
+  queue: NusaDevelopmentQueue,
+  now: number,
+  evidenceByWorkId: Readonly<Record<string, NusaStaleClaimEvidence>>,
+): { readonly queue: NusaDevelopmentQueue; readonly outcomes: Readonly<Record<string, NusaStaleClaimRecoveryOutcome>> } {
+  if (!isCanonicalTimestamp(now)) throw new Error("STALE_RECOVERY_NOW_INVALID");
+  let changed = false;
+  const outcomes: Record<string, NusaStaleClaimRecoveryOutcome> = {};
+  const items = queue.items.map((item) => {
+    if (item.state !== "CLAIMED" || !item.claim) return item;
+    if (item.claim.leaseExpiresAt > now) {
+      outcomes[item.id] = "CLAIM_VALID";
+      return item;
+    }
+    const evidence = evidenceByWorkId[item.id];
+    if (!evidence || evidence.claimRequestId !== item.claim.requestId || !evidence.sourceSha.trim()) {
+      outcomes[item.id] = "CLAIM_FAIL_CLOSED";
+      return item;
+    }
+    if (evidence.activeCi || evidence.activePr || evidence.checkpointAvailable || evidence.executionStatus === "RUNNING") {
+      outcomes[item.id] = evidence.checkpointAvailable || evidence.executionStatus === "RUNNING"
+        ? "CLAIM_STALE_RESUME"
+        : "CLAIM_BLOCKED_HUMAN";
+      return item;
+    }
+    changed = true;
+    outcomes[item.id] = "CLAIM_STALE_REQUEUE";
+    return freezeItem({ ...item, state: "READY", canonicalOwner: null, claim: null, nextAction: "claim" });
+  });
+  return { queue: changed ? freezeQueue(queue.revision + 1, items) : queue, outcomes: Object.freeze(outcomes) };
 }

@@ -1,0 +1,83 @@
+version: 1
+id: WO-ISSUE-1053-LEARNING-PROVENANCE
+title: "Issue #1053 evidence-backed learning provenance"
+status: COMPLETED
+priority: P1
+owner: codex
+repository: cinamoncandy/NUSA
+issue: 1053
+base_branch: main
+base_commit: 233f4bedb741d826ae7efbe8cbf99b15eb10c421
+implementation_branch: codex/issue-1053-provenance-current
+implementation_commit: LOCAL_COMMIT_PENDING_REMOTE
+objective: "Expose explicit runtime/evidence provenance for learning activity in the existing read-only AI projection and mobile LEARNING surface."
+architecture_impact:
+  acknowledged: true
+  analysis: "Extend the existing AiOrchestrationInput/result, projection, and AiView contracts. Reuse the existing orchestration and projection path; do not add a scheduler, queue, engine, or authority."
+  references:
+    - packages/contracts/src/aiInference.ts
+    - apps/cloud/src/ai/multiAgentOrchestrator.ts
+    - apps/cloud/src/ai/projection.ts
+    - apps/cloud/src/runtime.ts
+    - apps/mobile/src/aiView.tsx
+scope:
+  - explicit_learning_provenance
+  - fail_closed_unknown_projection
+  - runtime_background_tick_binding
+  - read_only_mobile_display
+  - regression_coverage
+prohibited:
+  - live_activation
+  - broker_or_order_mutation
+  - risk_authority_change
+  - credential_handling
+  - new_scheduler_or_ai_engine
+  - provenance_inference_from_time_or_ui
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  brokerMutation: NONE
+  paper_only: true
+acceptance:
+  - explicit_auto_background_provenance_is_preserved
+  - missing_or_malformed_provenance_is_unknown
+  - existing_projection_and_learning_hierarchy_are_preserved
+  - provenance_participates_in_deterministic_orchestration_identity
+  - no_authority_or_mutation_changes
+limitations:
+  - "No current production user-triggered AI producer was found; absent/ambiguous callers remain UNKNOWN until a trusted source is wired."
+  - "Physical device visual acceptance is outside this repository slice."
+validation:
+  focused:
+    - tests/ai-learning-provenance.test.js
+    - tests/ai-calibration-projection.test.js
+    - tests/ai-cloud-runtime.test.js
+  commands:
+    - "node --test tests/ai-learning-provenance.test.js"
+    - "node --test tests/ai-calibration-projection.test.js tests/ai-cloud-runtime.test.js"
+    - "pnpm run preflight"
+    - "pnpm run typecheck"
+    - "pnpm run build"
+    - "pnpm run lint"
+    - "pnpm run architecture:check"
+    - "pnpm run ai:architecture"
+    - "pnpm run safety:architecture"
+    - "pnpm run safety:invariants"
+    - "pnpm run shadow:check"
+    - "pnpm run restricted-live:check"
+    - "pnpm run restricted-live:read-only-broker"
+    - "pnpm run security:gate"
+    - "pnpm run firebase:validate"
+    - "pnpm run architecture:truth"
+    - "pnpm run capability:check"
+    - "pnpm run identity:check"
+    - "pnpm test"
+    - "git diff --check"
+  status: SATISFIED
+completion:
+  pull_request: 1066
+  exact_head: 83a85af414f8bf02cd7bb7c123477244eeced4d6
+  merge_commit: 545500550e201c3b09da928550adf7d3497e90ce
+  exact_head_ci: PASS
+  reconciled_by: "NUSA session audit, 2026-09-02: work order was stuck at VERIFYING/PASS_LOCAL_PENDING_EXACT_HEAD_CI after PR #1066 ('feat(ai): expose trusted learning provenance') actually merged on 2026-08-29 with exact-head CI PASS. Verified tests/ai-learning-provenance.test.js still passes 2/2 on current main. Status corrected to reflect actual repository state; no code changed."

@@ -2,7 +2,8 @@ import React, { useMemo, useState } from "react";
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { DataRow, MotionReveal, NusaButton, NusaCard, SectionHeading, StatusChip } from "./components";
 import { useTheme } from "./ThemeProvider";
-import { buildChartViewModel, formatChartMove, formatChartPrice, type ChartInterval, type ChartViewModel } from "./chartViewModel";
+import { buildChartViewModel, formatChartMove, formatChartPrice, latestCandleCloseMs, type ChartInterval, type ChartViewModel } from "./chartViewModel";
+import { formatFeedAgeMs } from "./watchlist";
 import type { PublicQuotationDiagnostic } from "./upbitPublicQuotationClient";
 
 interface ChartViewProps {
@@ -47,7 +48,7 @@ function StateCard({ title, message, color, onRetry, testID }: Readonly<{ title:
   return <View style={styles.state} testID={testID}><NusaCard><Text style={[styles.stateTitle, { color }]}>{title}</Text><Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>{message}</Text>{onRetry ? <NusaButton label="다시 불러오기" onPress={onRetry} /> : null}</NusaCard></View>;
 }
 
-function CandlePlot({ model }: Readonly<{ model: ChartViewModel }>) {
+export function CandlePlot({ model }: Readonly<{ model: ChartViewModel }>) {
   const { theme } = useTheme();
   const maxVolume = Math.max(...model.candles.map((candle) => candle.volume), Number.EPSILON);
   return <View style={[styles.plot, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.border }]} testID="chart-candles">
@@ -86,6 +87,10 @@ export function ChartView({ market, rawCandles, currentPrice, changeRate = null,
   const { theme } = useTheme();
   const [interval, setInterval] = useState<ChartInterval>("1m");
   const model = useMemo(() => buildChartViewModel({ market, interval, rawCandles, currentPrice, connectionState: marketConnectionState, stale, changeRate }), [changeRate, currentPrice, interval, market, marketConnectionState, rawCandles, stale]);
+  const candleAge = useMemo(() => {
+    const latestClose = latestCandleCloseMs(model.candles);
+    return latestClose === null ? null : formatFeedAgeMs(latestClose, Date.now());
+  }, [model]);
 
   if (error) return <>
     <StateCard color={theme.colors.danger} message={error} onRetry={onRefresh} testID="chart-error" title="차트를 표시할 수 없습니다" />
@@ -100,7 +105,7 @@ export function ChartView({ market, rawCandles, currentPrice, changeRate = null,
       <SectionHeading eyebrow="PUBLIC MARKET DATA" title={model.market} description="가격 움직임과 실제 1분 캔들을 확인합니다." />
       <StatusChip label={stale ? "STALE" : "READ ONLY"} tone={stale ? "warning" : "info"} />
     </View>
-    <View style={styles.statusRow}><Text accessibilityRole="text" style={[styles.statusText, { color: marketConnectionState === "CONNECTED" ? theme.colors.success : theme.colors.warning }]}>{marketConnectionState === "CONNECTED" ? "시장 온라인" : "시장 대기"}</Text></View>
+    <View style={styles.statusRow}><Text accessibilityRole="text" style={[styles.statusText, { color: marketConnectionState === "CONNECTED" ? theme.colors.success : theme.colors.warning }]}>{marketConnectionState === "CONNECTED" ? "시장 온라인" : "시장 대기"}</Text>{candleAge === null ? null : <Text style={[styles.statusText, { color: theme.colors.textMuted }]} testID="chart-freshness">{candleAge} 업데이트</Text>}</View>
     <MotionReveal testID="chart-data-reveal">
       <ChartSummary model={model} />
       <View style={styles.intervalRow} testID="chart-intervals">{intervals.map((value) => <NusaButton key={value} label={value} onPress={() => setInterval(value)} tone={interval === value ? "primary" : "neutral"} testID={`chart-interval-${value}`} />)}</View>

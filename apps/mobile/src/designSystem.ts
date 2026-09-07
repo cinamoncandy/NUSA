@@ -94,20 +94,20 @@ export const designPresets: Readonly<Record<DesignPresetName, DesignPreset>> = O
   master: Object.freeze({
     name: "master" as const,
     dark: Object.freeze({
-      background: "#030607", surface: "#07100E", surfaceRaised: "#0B1714", surfaceSunken: "#020807",
-      text: "#F3F7F4", textMuted: "#7F918A", primary: "#F2EFE6", primarySoft: "#17230D", onPrimary: "#030607",
-      navSurface: "#040A08", border: "#14231E", borderStrong: "#2D443A", info: "#B4BAC4", focus: "#F2EFE6",
+      background: "#101318", surface: "#1B2029", surfaceRaised: "#232A36", surfaceSunken: "#151A22",
+      text: "#F1F3FA", textMuted: "#A5AEC0", primary: "#9BABFF", primarySoft: "#29314F", onPrimary: "#101318",
+      navSurface: "#1B2029", border: "#303744", borderStrong: "#66728A", info: "#A5B9E2", focus: "#B6C2FF",
       neonGlow: "rgba(155, 108, 255, 0.14)",
     }),
     light: Object.freeze({
-      background: "#F1F3EE", surface: "#FAFCF7", surfaceRaised: "#E8ECE4", surfaceSunken: "#E1E6DD",
-      text: "#101512", textMuted: "#58645E", primary: "#17181B", primarySoft: "#DDEBCB", onPrimary: "#FAFCF7",
-      navSurface: "#F7F9F4", border: "#CBD3C8", borderStrong: "#87948B", info: "#4D5560", focus: "#17181B",
+      background: "#F4F5F8", surface: "#FFFFFF", surfaceRaised: "#F0F3FA", surfaceSunken: "#EDF0F6",
+      text: "#171D2B", textMuted: "#616B7E", primary: "#304EE8", primarySoft: "#E9EEFF", onPrimary: "#FFFFFF",
+      navSurface: "#FFFFFF", border: "#E3E7EE", borderStrong: "#8994AA", info: "#43567D", focus: "#304EE8",
       neonGlow: "rgba(155, 108, 255, 0.08)",
     }),
-    typography: Object.freeze({ micro: 9, caption: 11, body: 14, title: 20, heading: 29, display: 40, hero: 58 }),
-    layout: Object.freeze({ screenPadding: 14, sectionGap: 12, cardPadding: 16, heroRadius: 8 }),
-    radii: Object.freeze({ sm: 3, md: 5, lg: 8, xl: 12, full: 9999 as const }),
+    typography: Object.freeze({ micro: 11, caption: 12, body: 14, title: 20, heading: 28, display: 36, hero: 46 }),
+    layout: Object.freeze({ screenPadding: 20, sectionGap: 16, cardPadding: 18, heroRadius: 22 }),
+    radii: Object.freeze({ sm: 8, md: 12, lg: 22, xl: 24, full: 9999 as const }),
   }),
 });
 
@@ -150,7 +150,7 @@ export function createTheme(mode: ThemeMode, presetName: DesignPresetName = "mas
       navSurface: palette.navSurface,
       border: palette.border,
       borderStrong: palette.borderStrong,
-      success: dark ? "#36D8CB" : preset.name === "master" ? "#0F6843" : "#147A50",
+      success: dark ? "#34D399" : preset.name === "master" ? "#0F6843" : "#147A50",
       warning: dark ? "#E5C06C" : "#8D681B",
       danger: dark ? "#F17A94" : preset.name === "master" ? "#8F263B" : "#B83249",
       info: palette.info,

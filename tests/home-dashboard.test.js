@@ -70,8 +70,9 @@ test("fails closed on duplicate capital buckets", () => {
   ] })), /duplicate/);
 });
 
-test("live trading requires healthy AI and non-critical risk", () => {
-  assert.equal(buildHomeDashboard(input({ mode: "LIVE" })).canTrade, true);
+test("only PAPER has trading authority in the home projection", () => {
+  assert.equal(buildHomeDashboard(input({ mode: "PAPER" })).canTrade, true);
+  assert.equal(buildHomeDashboard(input({ mode: "LIVE" })).canTrade, false);
   assert.equal(buildHomeDashboard(input({ mode: "LIVE", aiHealth: "DEGRADED" })).canTrade, false);
   assert.equal(buildHomeDashboard(input({ mode: "LIVE", riskLevel: "CRITICAL" })).canTrade, false);
   assert.equal(buildHomeDashboard(input({ mode: "STOPPED" })).canTrade, false);

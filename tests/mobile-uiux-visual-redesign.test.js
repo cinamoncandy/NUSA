@@ -12,7 +12,7 @@ test("visual redesign has a distinct NUSA surface and financial hierarchy", () =
   const design = read("src/designSystem.ts");
   const primitives = read("src/uxPrimitives.tsx");
   assert.match(design, /classic:[\s\S]*?dark:[\s\S]*?background: "#05070D"/);
-  assert.match(design, /master:[\s\S]*?dark:[\s\S]*?background: "#030607"/);
+  assert.match(design, /master:[\s\S]*?dark:[\s\S]*?background: "#101318"/);
   assert.match(design, /const palette = dark \? preset\.dark : preset\.light/);
   assert.match(design, /background: palette\.background/);
   assert.match(design, /navSurface: palette\.navSurface/);
@@ -21,19 +21,40 @@ test("visual redesign has a distinct NUSA surface and financial hierarchy", () =
   assert.match(primitives, /borderRadius: 999, borderWidth: 1, gap: 3/);
 });
 
-test("Home uses one truthful supervisor result plus one state-bound signal primitive", () => {
+test("Home uses the content-first command center hierarchy without weakening authority", () => {
   const home = read("src/homeView.tsx");
   const decisionSurface = read("src/homeDecisionSurface.ts");
-  const components = read("src/components.tsx");
-  assert.match(home, /testID="home-supervisor-summary"/);
-  assert.match(home, /testID="home-supervisor-result"/);
-  assert.match(home, /const supervisorResult = decisionSurface\.result/);
+
+  assert.match(home, /testID="home-master-rail"/);
+  assert.match(home, /connectionLabel = disconnected \? "SETUP" : readOnlyError \? "DEGRADED"/);
+  assert.match(home, /"ACTIVE" : "OBSERVING"/);
+  assert.match(home, /PAPER EQUITY/);
+  assert.match(home, /TOTAL PNL/);
+  assert.match(home, /QUICK ACCESS/);
+  assert.match(home, />MARKETS</);
+  assert.match(home, />PORTFOLIO</);
+  assert.match(home, />LEARN</);
+  assert.match(home, /DECISION BASIS/);
+  assert.match(home, />RISK</);
+  assert.match(home, />RESULT</);
+  assert.match(home, /paddingBottom: 32/);
+  assert.match(home, /commandStackTablet: \{ flexDirection: "row"/);
+  assert.match(home, /testID="home-now"/);
+  assert.match(home, /testID="account-hero-card"/);
+  assert.match(home, /testID="ai-card"/);
+  assert.match(home, /testID="home-risk-status"/);
+  assert.match(home, /testID="home-decision-stage"/);
+  assert.match(home, /PUBLIC READ ONLY/);
+  assert.match(home, /testID="home-paper-performance"/);
+  assert.match(home, /testID="home-paper-learning"/);
+  assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
+
+  assert.doesNotMatch(home, /<TerrainSignal/);
+  assert.doesNotMatch(home, /testID="home-signal-trace"/);
+  assert.doesNotMatch(home, /testID="home-market-pulse"/);
+  assert.doesNotMatch(home, /testID="home-terminal-grid"/);
+
   assert.match(decisionSurface, /`PAPER P&L .* · EQUITY \$\{krw\(input\.paperEquity\)\}`/s);
-  assert.doesNotMatch(home, /testID="account-hero-card"/);
-  assert.match(home, /const terrainStrength = signalReady \? 0\.92 : snapshot \? 0\.45 : 0\.25/);
-  assert.match(home, /const terrainLabel = aiInsightAvailable/);
-  assert.match(home, /<TerrainSignal variant="symbolic" signalStrength=\{terrainStrength\} accessibilityLabel=\{terrainLabel\} testID="home-signal-trace" \/>/);
-  assert.match(components, /accessibilityLabel=\{accessibilityLabel \?\? \(variant === "market" \? "실제 시장 데이터에 연결된 시그널" : "NUSA 상태 시그널"\)/);
 });
 
 test("Markets rows use list rhythm instead of repeated cards", () => {

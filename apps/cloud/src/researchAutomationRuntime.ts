@@ -6,7 +6,8 @@ import type { ResearchHealth, ResearchSessionMetrics, ResearchSessionRecord, Res
 import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
 import type { ResearchExperimentRecord, ResearchHypothesis, SqliteResearchMemoryRepository } from "../../../packages/storage/src/researchMemory";
 import type { ResearchRuntimeCoordinator } from "./researchRuntimeCoordinator";
-import { ResearchCandidateGate } from "./researchCandidateGate";
+import { deriveResearchCandidateId, ResearchCandidateGate } from "./researchCandidateGate";
+import { validateResearchCostEvidence } from "./researchCostEvidence";
 import { ResearchStreamNormalizer } from "./researchStreamNormalizer";
 import { createResearchExperimentManifest, createResearchExperimentResult, researchHardeningHash } from "../../../packages/contracts/src/researchHardening";
 
@@ -53,7 +54,7 @@ export interface ResearchRuntimeMarketDataInput {
 const freeze = <T>(value: T): T => Object.freeze(value);
 const hash = (value: unknown): string => createHash("sha256").update(canonicalResearchJson(value), "utf8").digest("hex");
 const validText = (value: unknown): value is string => typeof value === "string" && value.trim() !== "";
-const zeroMetrics = (): ResearchSessionMetrics => freeze({ experimentCount: 0, positiveEvaluationCount: 0, negativeEvaluationCount: 0, cumulativeNetReturn: 0, averageNetReturn: 0, championBetterCount: 0, challengerBetterCount: 0, equivalentCount: 0, inconclusiveCount: 0, costAdjustedPerformance: 0, unresolvedFaultCount: 0, dataQualityFailureCount: 0, tradeCount: 0, observationDays: 0, executionQuality: 0, riskAdjustedPerformance: 0 });
+const zeroMetrics = (): ResearchSessionMetrics => freeze({ experimentCount: 0, positiveEvaluationCount: 0, negativeEvaluationCount: 0, cumulativeNetReturn: 0, averageNetReturn: 0, championBetterCount: 0, challengerBetterCount: 0, equivalentCount: 0, inconclusiveCount: 0, costAdjustedEvidenceCount: 0, missingCostEvidenceCount: 0, unresolvedFaultCount: 0, dataQualityFailureCount: 0, tradeCount: 0, observationDays: 0, executionQuality: 0, riskAdjustedPerformance: 0 });
 
 function requireStart(input: ResearchSessionStartInput): void {
   for (const [field, value] of Object.entries(input)) if (["deterministicConfig", "maxExperiments", "hypothesis"].includes(field) === false && !validText(value)) throw new Error(`research session ${field} is required`);
@@ -68,6 +69,15 @@ function metric(record: ResearchComparisonEvidence, current: ResearchSessionMetr
   const count = current.experimentCount + 1;
   const nextMaxDrawdown = record.challenger?.metrics.maxDrawdown;
   const costAdjusted = record.challenger?.metrics.costAdjustedReturn;
+  const costEvidence = record.costEvidence;
+  const costDecision = costEvidence == null ? undefined : validateResearchCostEvidence(costEvidence, record.evaluationTimestamp);
+  const hasVerifiedCostAdjustedValue = costEvidence != null
+    && costDecision?.status === "VERIFIED"
+    && costEvidence.evaluationId === record.evaluationId
+    && (record.provenance == null || (costEvidence.datasetId === record.provenance.datasetId && costEvidence.datasetContentSha256 === record.provenance.datasetContentSha256))
+    && typeof costAdjusted === "number"
+    && Number.isFinite(costAdjusted)
+    && Math.abs(costEvidence.netReturn - costAdjusted) <= 1e-12;
   const unresolvedFaultCount = record.challenger?.metrics.unresolvedFaultCount;
   const dataQualityFailureCount = record.challenger?.metrics.dataQualityFailures;
   const tradeCount = record.challenger?.metrics.tradeCount;
@@ -85,7 +95,9 @@ function metric(record: ResearchComparisonEvidence, current: ResearchSessionMetr
     challengerBetterCount: current.challengerBetterCount + (result === "CHALLENGER_BETTER" ? 1 : 0),
     equivalentCount: current.equivalentCount + (result === "EQUIVALENT" ? 1 : 0),
     inconclusiveCount: current.inconclusiveCount + (result === "INCONCLUSIVE" ? 1 : 0),
-    costAdjustedPerformance: current.costAdjustedPerformance + (typeof costAdjusted === "number" && Number.isFinite(costAdjusted) ? costAdjusted : value),
+    ...(hasVerifiedCostAdjustedValue ? { costAdjustedPerformance: (current.costAdjustedPerformance ?? 0) + (costAdjusted as number) } : current.costAdjustedPerformance == null ? {} : { costAdjustedPerformance: current.costAdjustedPerformance }),
+    costAdjustedEvidenceCount: (current.costAdjustedEvidenceCount ?? 0) + (hasVerifiedCostAdjustedValue ? 1 : 0),
+    missingCostEvidenceCount: (current.missingCostEvidenceCount ?? 0) + (hasVerifiedCostAdjustedValue ? 0 : 1),
     unresolvedFaultCount: (current.unresolvedFaultCount ?? 0) + (typeof unresolvedFaultCount === "number" && Number.isFinite(unresolvedFaultCount) ? unresolvedFaultCount : 0),
     dataQualityFailureCount: (current.dataQualityFailureCount ?? 0) + (typeof dataQualityFailureCount === "number" && Number.isFinite(dataQualityFailureCount) ? dataQualityFailureCount : 0),
     tradeCount: (current.tradeCount ?? 0) + (typeof tradeCount === "number" && Number.isFinite(tradeCount) ? tradeCount : 0),
@@ -105,7 +117,7 @@ export class ResearchAutomationRuntime {
   public constructor(private readonly options: ResearchAutomationOptions) {
     this.now = options.now ?? (() => Date.now());
     this.maxEvidenceAgeMs = options.maxEvidenceAgeMs ?? 86_400_000;
-    this.candidateGate = options.candidateGate ?? new ResearchCandidateGate({ nowMs: this.now() });
+    this.candidateGate = options.candidateGate ?? new ResearchCandidateGate({ nowMs: this.now(), clock: this.now });
     this.streamNormalizer = options.streamNormalizer ?? new ResearchStreamNormalizer();
   }
 
@@ -175,7 +187,7 @@ export class ResearchAutomationRuntime {
         ...(session.hypothesisId == null ? {} : { hypothesisId: session.hypothesisId })
       });
       if (evidence.result === "CHALLENGER_BETTER" && evidence.challenger != null) {
-        const decision = this.candidateGate.evaluate({ candidateId: `candidate-${hash({ sessionId: session.sessionId, strategyId: evidence.challenger.strategyId, strategyVersion: evidence.challenger.strategyVersion }).slice(0, 48)}`, evidence: this.options.coordinator.ledgerRecords().filter((item) => item.researchRunId === session.sessionId && item.challenger?.strategyId === evidence.challenger?.strategyId && item.challenger?.strategyVersion === evidence.challenger?.strategyVersion), ledgerIntegrity: true });
+        const decision = this.candidateGate.evaluate({ candidateId: deriveResearchCandidateId(session.sessionId, evidence.challenger.strategyId, evidence.challenger.strategyVersion), evidence: this.options.coordinator.ledgerRecords().filter((item) => item.researchRunId === session.sessionId && item.challenger?.strategyId === evidence.challenger?.strategyId && item.challenger?.strategyVersion === evidence.challenger?.strategyVersion), ledgerIntegrity: true });
         if (decision.status === "ELIGIBLE") this.registerCandidate(session, evidence);
       }
       const next: ResearchSessionRecord = freeze({ ...session, experimentCount: session.experimentCount + 1, evaluationIds: freeze([...session.evaluationIds, evidence.evaluationId]), lastEvaluationId: evidence.evaluationId, lastEvidenceAt: evidence.evaluationTimestamp, updatedAt: this.now(), metrics: metric(evidence, session.metrics), state: session.experimentCount + 1 >= session.maxExperiments ? "COMPLETED" : session.state });

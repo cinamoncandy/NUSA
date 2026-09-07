@@ -34,16 +34,90 @@ describe("NUSA autopilot dispatch planner", () => {
     });
   });
 
-  it("distinguishes canonical CI success and workflow failure", () => {
+  it("preserves canonical main CI success as the coding-cycle edge", () => {
     const success = planGithubWebhookDispatch("workflow_run", {
       action: "completed",
-      workflow_run: { id: 7, name: "CI", head_sha: "c".repeat(40), status: "completed", conclusion: "success" },
+      workflow_run: {
+        id: 7,
+        name: "CI",
+        head_sha: "c".repeat(40),
+        head_branch: "main",
+        status: "completed",
+        conclusion: "success",
+        event: "push",
+      },
+      repository: { full_name: "cinamoncandy/NUSA" },
     });
     assert.equal(success.kind, "CI_SUCCEEDED");
+    assert.equal(success.prNumber, null);
+  });
 
+  it("routes exact PR CI success to an audit request identity", () => {
+    const plan = planGithubWebhookDispatch("workflow_run", {
+      action: "completed",
+      workflow_run: {
+        id: 70,
+        name: "CI",
+        head_sha: "7".repeat(40),
+        head_branch: "feature/pr-audit",
+        status: "completed",
+        conclusion: "success",
+        event: "pull_request",
+        pull_requests: [{ number: 42 }],
+      },
+      repository: { full_name: "cinamoncandy/NUSA" },
+    });
+    assert.equal(plan.kind, "PR_CI_SUCCEEDED");
+    assert.equal(plan.prNumber, 42);
+    assert.equal(plan.workflowRunId, 70);
+    assert.equal(plan.headSha, "7".repeat(40));
+    assert.equal(plan.mutationAllowed, false);
+  });
+
+  it("still surfaces PR_CI_SUCCEEDED (prNumber: null) when workflow_run.pull_requests is empty, so the caller can resolve the PR by exact head SHA instead of the event being silently dropped", () => {
+    const plan = planGithubWebhookDispatch("workflow_run", {
+      action: "completed",
+      workflow_run: {
+        id: 71,
+        name: "CI",
+        head_sha: "8".repeat(40),
+        head_branch: "feature/pr-audit",
+        status: "completed",
+        conclusion: "success",
+        event: "pull_request",
+        pull_requests: [],
+      },
+      repository: { full_name: "cinamoncandy/NUSA" },
+    });
+    assert.equal(plan.kind, "PR_CI_SUCCEEDED");
+    assert.equal(plan.prNumber, null);
+    assert.equal(plan.headSha, "8".repeat(40));
+    assert.equal(plan.reason, "pull-request-ci-success-pr-identity-requires-head-sha-resolution");
+  });
+
+  it("still surfaces PR_CI_SUCCEEDED (prNumber: null) when workflow_run.pull_requests has more than one distinct PR number", () => {
+    const plan = planGithubWebhookDispatch("workflow_run", {
+      action: "completed",
+      workflow_run: {
+        id: 72,
+        name: "CI",
+        head_sha: "9".repeat(40),
+        head_branch: "feature/pr-audit",
+        status: "completed",
+        conclusion: "success",
+        event: "pull_request",
+        pull_requests: [{ number: 10 }, { number: 11 }],
+      },
+      repository: { full_name: "cinamoncandy/NUSA" },
+    });
+    assert.equal(plan.kind, "PR_CI_SUCCEEDED");
+    assert.equal(plan.prNumber, null);
+  });
+
+  it("distinguishes workflow failure", () => {
     const failure = planGithubWebhookDispatch("workflow_run", {
       action: "completed",
-      workflow_run: { id: 8, name: "Actual PAPER Public-Market Runtime Evidence", head_sha: "d".repeat(40), status: "completed", conclusion: "failure" },
+      workflow_run: { id: 8, name: "CI", head_sha: "d".repeat(40), status: "completed", conclusion: "failure" },
     });
     assert.equal(failure.kind, "CI_FAILED");
   });

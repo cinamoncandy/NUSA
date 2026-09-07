@@ -1,0 +1,176 @@
+import { createHash } from "node:crypto";
+
+export interface ResearchCandidateSpecification {
+  readonly schemaVersion: 1;
+  readonly candidateId: string;
+  readonly familyId: string;
+  readonly lineageId: string;
+  readonly parameters: Readonly<Record<string, string | number | boolean>>;
+  readonly codeSha: string;
+  readonly datasetId: string;
+  readonly datasetContentSha256: string;
+  readonly costModelVersion: string;
+  readonly generatedAt: string;
+  readonly evaluationStartedAt: string;
+  readonly evaluationEndedAt: string;
+}
+
+export interface ResearchCandidateSpecificationDecision {
+  readonly status: "VERIFIED" | "REJECTED";
+  readonly reasons: readonly string[];
+  readonly specificationHash: string;
+}
+
+export interface ResearchCandidateSpecificationBinding {
+  readonly candidateId: string;
+  readonly familyId: string;
+  readonly datasetId: string;
+  readonly datasetContentSha256: string;
+  readonly parameters: Readonly<Record<string, string | number | boolean>>;
+  readonly evaluationGeneratedAt: string;
+}
+
+const SHA40 = /^[0-9a-f]{40}$/i;
+const SHA256 = /^[0-9a-f]{64}$/i;
+const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
+
+function isParameterRecord(value: unknown): value is Readonly<Record<string, string | number | boolean>> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function canonicalParameters(parameters: Readonly<Record<string, string | number | boolean>>): Record<string, string | number | boolean> {
+  return Object.fromEntries(Object.entries(parameters).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0));
+}
+
+function canonicalParameterJson(parameters: Readonly<Record<string, string | number | boolean>>): string {
+  return JSON.stringify(canonicalParameters(parameters));
+}
+
+function canonicalSpecification(specification: ResearchCandidateSpecification): Record<string, unknown> {
+  return {
+    schemaVersion: specification.schemaVersion,
+    candidateId: specification.candidateId,
+    familyId: specification.familyId,
+    lineageId: specification.lineageId,
+    parameters: canonicalParameters(specification.parameters),
+    codeSha: specification.codeSha.toLowerCase(),
+    datasetId: specification.datasetId,
+    datasetContentSha256: specification.datasetContentSha256.toLowerCase(),
+    costModelVersion: specification.costModelVersion,
+    generatedAt: specification.generatedAt,
+    evaluationStartedAt: specification.evaluationStartedAt,
+    evaluationEndedAt: specification.evaluationEndedAt,
+  };
+}
+
+function hashSpecification(specification: ResearchCandidateSpecification): string {
+  return createHash("sha256").update(JSON.stringify(canonicalSpecification(specification)), "utf8").digest("hex");
+}
+
+function rejectionHash(reasons: readonly string[]): string {
+  return createHash("sha256")
+    .update(JSON.stringify({ invalidCandidateSpecification: true, reasons }), "utf8")
+    .digest("hex");
+}
+
+function nonEmpty(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function parseTimestamp(value: unknown): number {
+  return typeof value === "string" ? Date.parse(value) : Number.NaN;
+}
+
+export function validateResearchCandidateSpecification(
+  specification: ResearchCandidateSpecification,
+  nowMs: number = Date.now(),
+): ResearchCandidateSpecificationDecision {
+  const reasons: string[] = [];
+  if (specification.schemaVersion !== 1) reasons.push("UNSUPPORTED_SCHEMA_VERSION");
+  if (!nonEmpty(specification.candidateId)) reasons.push("MISSING_CANDIDATE_ID");
+  if (!nonEmpty(specification.familyId)) reasons.push("MISSING_FAMILY_ID");
+  if (!nonEmpty(specification.lineageId)) reasons.push("MISSING_LINEAGE_ID");
+  if (!nonEmpty(specification.codeSha) || !SHA40.test(specification.codeSha)) reasons.push("INVALID_CODE_SHA");
+  if (!nonEmpty(specification.datasetId)) reasons.push("MISSING_DATASET_ID");
+  if (!nonEmpty(specification.datasetContentSha256) || !SHA256.test(specification.datasetContentSha256)) reasons.push("INVALID_DATASET_CONTENT_SHA256");
+  if (!nonEmpty(specification.costModelVersion)) reasons.push("MISSING_COST_MODEL_VERSION");
+  if (!Number.isFinite(nowMs) || nowMs < 0) reasons.push("INVALID_CURRENT_TIME");
+
+  if (!isParameterRecord(specification.parameters)) {
+    reasons.push("INVALID_PARAMETERS");
+  } else {
+    for (const [name, value] of Object.entries(specification.parameters)) {
+      if (!name.trim()) reasons.push("INVALID_PARAMETER_NAME");
+      if (!["string", "number", "boolean"].includes(typeof value)) reasons.push("INVALID_PARAMETER_VALUE");
+      if (typeof value === "number" && !Number.isFinite(value)) reasons.push("NON_FINITE_PARAMETER_VALUE");
+    }
+  }
+
+  const generatedAtMs = parseTimestamp(specification.generatedAt);
+  const evaluationStartedAtMs = parseTimestamp(specification.evaluationStartedAt);
+  const evaluationEndedAtMs = parseTimestamp(specification.evaluationEndedAt);
+  if (!Number.isFinite(generatedAtMs)) reasons.push("INVALID_GENERATED_AT");
+  if (!Number.isFinite(evaluationStartedAtMs)) reasons.push("INVALID_EVALUATION_STARTED_AT");
+  if (!Number.isFinite(evaluationEndedAtMs)) reasons.push("INVALID_EVALUATION_ENDED_AT");
+
+  if (Number.isFinite(generatedAtMs) && Number.isFinite(evaluationStartedAtMs) && generatedAtMs >= evaluationStartedAtMs) {
+    reasons.push("SPECIFICATION_NOT_PRECOMMITTED");
+  }
+  if (Number.isFinite(evaluationStartedAtMs) && Number.isFinite(evaluationEndedAtMs) && evaluationStartedAtMs > evaluationEndedAtMs) {
+    reasons.push("INVALID_EVALUATION_CHRONOLOGY");
+  }
+  if (Number.isFinite(nowMs)) {
+    if (Number.isFinite(generatedAtMs) && generatedAtMs > nowMs) reasons.push("FUTURE_GENERATED_AT");
+    if (Number.isFinite(evaluationStartedAtMs) && evaluationStartedAtMs > nowMs) reasons.push("FUTURE_EVALUATION_START");
+    if (Number.isFinite(evaluationEndedAtMs) && evaluationEndedAtMs > nowMs) reasons.push("FUTURE_EVALUATION_END");
+  }
+
+  const normalizedReasons = Object.freeze([...new Set(reasons)].sort());
+  let specificationHash: string;
+  try {
+    specificationHash = hashSpecification(specification);
+  } catch {
+    specificationHash = rejectionHash(normalizedReasons);
+  }
+  return freeze({
+    status: normalizedReasons.length === 0 ? "VERIFIED" : "REJECTED",
+    reasons: normalizedReasons,
+    specificationHash,
+  });
+}
+
+export function validateResearchCandidateSpecificationBinding(
+  specification: ResearchCandidateSpecification,
+  expected: ResearchCandidateSpecificationBinding,
+): ResearchCandidateSpecificationDecision {
+  const evaluationGeneratedAtMs = parseTimestamp(expected.evaluationGeneratedAt);
+  const base = validateResearchCandidateSpecification(specification, evaluationGeneratedAtMs);
+  const reasons = [...base.reasons];
+
+  if (!nonEmpty(expected.candidateId)) reasons.push("MISSING_EXPECTED_CANDIDATE_ID");
+  if (!nonEmpty(expected.familyId)) reasons.push("MISSING_EXPECTED_FAMILY_ID");
+  if (!nonEmpty(expected.datasetId)) reasons.push("MISSING_EXPECTED_DATASET_ID");
+  if (!SHA256.test(expected.datasetContentSha256)) reasons.push("INVALID_EXPECTED_DATASET_CONTENT_SHA256");
+
+  if (specification.candidateId !== expected.candidateId) reasons.push("SPECIFICATION_CANDIDATE_ID_MISMATCH");
+  if (specification.familyId !== expected.familyId) reasons.push("SPECIFICATION_FAMILY_ID_MISMATCH");
+  if (specification.datasetId !== expected.datasetId) reasons.push("SPECIFICATION_DATASET_ID_MISMATCH");
+  if (specification.datasetContentSha256.toLowerCase() !== expected.datasetContentSha256.toLowerCase()) {
+    reasons.push("SPECIFICATION_DATASET_HASH_MISMATCH");
+  }
+
+  try {
+    if (canonicalParameterJson(specification.parameters) !== canonicalParameterJson(expected.parameters)) {
+      reasons.push("SPECIFICATION_PARAMETERS_MISMATCH");
+    }
+  } catch {
+    reasons.push("SPECIFICATION_PARAMETERS_INVALID");
+  }
+
+  const normalizedReasons = Object.freeze([...new Set(reasons)].sort());
+  return freeze({
+    status: normalizedReasons.length === 0 ? "VERIFIED" : "REJECTED",
+    reasons: normalizedReasons,
+    specificationHash: base.specificationHash,
+  });
+}

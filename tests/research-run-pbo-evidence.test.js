@@ -23,7 +23,11 @@ function equityCurve(candidateIndex, windowIndex) {
 function experiment(id, candidateIndex, overrides = {}) {
   const datasetId = overrides.datasetId ?? "shared-dataset";
   const contentSha256 = overrides.contentSha256 ?? "a".repeat(64);
-  const windows = Array.from({ length: 4 }, (_, windowIndex) => ({
+  const windows = Array.from({ length: 4 }, (_, windowIndex) => {
+    const benchmarkReturn = 0.005;
+    const outperformance = windowIndex < 3 ? 0.006666666666666667 : 0;
+    const strategyReturn = benchmarkReturn + outperformance;
+    return {
     window: {
       index: windowIndex,
       trainStart: 0,
@@ -39,13 +43,22 @@ function experiment(id, candidateIndex, overrides = {}) {
     selectionReason: "fixture",
     testResult: {
       equityCurve: equityCurve(candidateIndex, windowIndex),
-      metrics: { totalReturn: 0.01, maxDrawdown: 0.02, turnover: 1, totalTradingCost: 100 },
+      metrics: {
+        totalReturn: strategyReturn,
+        benchmarkReturn,
+        excessReturn: outperformance,
+        outperformance,
+        maxDrawdown: 0.02,
+        turnover: 1,
+        totalTradingCost: 100,
+      },
       trades: [],
       performance: { expectancy: 1 },
-      benchmark: { buyAndHoldReturn: 0.005, outperformance: 0.005 },
+      benchmark: { strategyReturn, buyAndHoldReturn: benchmarkReturn, outperformance },
       openPosition: { status: "FLAT" }
     }
-  }));
+    };
+  });
 
   return {
     manifest: {
@@ -67,7 +80,7 @@ function experiment(id, candidateIndex, overrides = {}) {
     experimentConfig: {
       walkForward: {},
       candidates: [{ id }],
-      executionCosts: { spreadBps: 5, slippageBps: 5 }
+      executionCosts: { feeRate: 0.0005, spreadBps: 5, slippageBps: 5 }
     },
     generatedAt: "2026-01-01T00:00:00.000Z",
     warnings: [],
@@ -117,11 +130,30 @@ function experiment(id, candidateIndex, overrides = {}) {
 }
 
 function candidates() {
-  return [0, 1, 2].map((index) => ({
-    id: `candidate-${index}`,
-    familyId: `family-${index}`,
-    experiment: experiment(`candidate-${index}`, index)
-  }));
+  return [0, 1, 2].map((index) => {
+    const id = `candidate-${index}`;
+    const familyId = `family-${index}`;
+    const candidateExperiment = experiment(id, index);
+    return {
+      id,
+      familyId,
+      experiment: candidateExperiment,
+      candidateSpecification: {
+        schemaVersion: 1,
+        candidateId: id,
+        familyId,
+        lineageId: `${familyId}-v1`,
+        parameters: {},
+        codeSha: "b".repeat(40),
+        datasetId: candidateExperiment.manifest.datasetId,
+        datasetContentSha256: candidateExperiment.manifest.contentSha256,
+        costModelVersion: "fixture-cost-v1",
+        generatedAt: "2025-12-31T23:00:00.000Z",
+        evaluationStartedAt: "2025-12-31T23:05:00.000Z",
+        evaluationEndedAt: "2025-12-31T23:30:00.000Z"
+      }
+    };
+  });
 }
 
 test("derives CSCV PBO from aligned cost-aware OOS equity returns only", () => {
@@ -183,6 +215,51 @@ test("DSR fails closed on candidate identity and dataset provenance mismatch", (
     () => buildResearchRunDsrEvidence(provenanceMismatch),
     (error) => error instanceof ResearchRunDsrEvidenceError && error.code === "DATASET_PROVENANCE_MISMATCH"
   );
+});
+
+test("DSR records canonical abstention in the search denominator without manufacturing evidence", () => {
+  const input = candidates();
+  input[2] = {
+    ...input[2],
+    abstention: {
+      schemaVersion: 1,
+      asOf: 1,
+      decision: "ABSTAIN",
+      netExpectedEdge: -0.001,
+      effectiveMinimumConfidence: 0.6,
+      reasons: ["INSUFFICIENT_CONFIDENCE"],
+      sourceDatasetIds: ["shared-dataset"]
+    }
+  };
+  const result = buildResearchRunDsrEvidence(input);
+  assert.equal(result.evidenceByCandidate.size, 2);
+  assert.equal(result.unavailableReasons.get(input[2].id), "ABSTENTION_DECISION");
+  assert.equal(result.trialLedgerSummary.abstainedCount, 1);
+  assert.equal(result.evidenceByCandidate.get(input[0].id).searchTrialCount, 3);
+});
+
+test("passes DSR abstention ledger summaries through the League bridge", () => {
+  const input = candidates();
+  input[2] = {
+    ...input[2],
+    abstention: {
+      schemaVersion: 1,
+      asOf: 1,
+      decision: "ABSTAIN",
+      netExpectedEdge: -0.001,
+      effectiveMinimumConfidence: 0.6,
+      reasons: ["INSUFFICIENT_CONFIDENCE"],
+      sourceDatasetIds: ["shared-dataset"]
+    }
+  };
+  const dsr = buildResearchRunDsrEvidence(input);
+  const league = buildResearchRunLeague(input.map((candidate) => ({
+    ...candidate,
+    deflatedSharpe: dsr.evidenceByCandidate.get(candidate.id),
+    trialLedgerSummary: dsr.trialLedgerSummary
+  })));
+  assert.equal(league.standing.entries.length, input.length);
+  assert.equal(dsr.trialLedgerSummary.abstainedCount, 1);
 });
 
 test("DSR preserves a zero-variance candidate as unavailable without inventing evidence", () => {
@@ -255,4 +332,27 @@ test("PBO evidence does not manufacture candidate evidence breadth or execution 
   for (const forbidden of ["liveauthority", "broker", "order", "capitalamount", "credential", "withdraw", "transfer"]) {
     assert.equal(serialized.includes(forbidden), false, forbidden);
   }
+});
+
+test("preserves the DSR search ledger summary and rejected attempts for League projection", () => {
+  const input = candidates();
+  const flat = experiment(input[2].id, 2);
+  for (const window of flat.walkForwardResult.windows) {
+    window.testResult.equityCurve.forEach((point) => { point.equity = 10_000_000; });
+  }
+  input[2] = { ...input[2], experiment: flat };
+
+  const dsr = buildResearchRunDsrEvidence(input);
+  assert.equal(dsr.trialLedgerSummary.trialCount, 3);
+  assert.equal(dsr.trialLedgerSummary.completedCount, 2);
+  assert.equal(dsr.trialLedgerSummary.rejectedCount, 1);
+  assert.equal(dsr.trialLedgerSummary.failedCount, 0);
+
+  const league = buildResearchRunLeague(input.map((candidate) => ({
+    ...candidate,
+    deflatedSharpe: dsr.evidenceByCandidate.get(candidate.id),
+    trialLedgerSummary: dsr.trialLedgerSummary
+  })));
+  const rejectedCandidate = league.standing.entries.find((entry) => entry.id === input[2].id);
+  assert.equal(rejectedCandidate.components.trialFailureRatio, 1 / 3);
 });

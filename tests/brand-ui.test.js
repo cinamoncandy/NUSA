@@ -5,92 +5,56 @@ const path = require("node:path");
 
 const root = path.join(__dirname, "..", "apps", "desktop", "renderer");
 const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-const css = fs.readFileSync(path.join(root, "brand-ui.css"), "utf8");
-const brandScript = fs.readFileSync(path.join(root, "brand-ui.js"), "utf8");
-const renderer = fs.readFileSync(path.join(root, "renderer.js"), "utf8");
-const preload = fs.readFileSync(path.join(__dirname, "..", "apps", "desktop", "src", "preload.ts"), "utf8");
+const css = fs.readFileSync(path.join(root, "app.css"), "utf8");
+const runtime = fs.readFileSync(path.join(root, "app-runtime.js"), "utf8");
 
-test("A4P brand shell exposes stable navigation and preserves safety surfaces", () => {
-  for (const target of ["dashboard", "market", "shadow-session", "orders", "portfolio", "risk", "recovery", "evidence", "diagnostics", "settings", "about"]) {
-    assert.match(html, new RegExp(`data-nav-target="${target}"`));
+test("canonical NUSA shell exposes stable user navigation and explicit safety state", () => {
+  for (const target of ["dashboard", "orders", "positions", "strategy", "logs", "settings"]) {
+    assert.match(html, new RegExp(`data-simple-nav="${target}"`));
+  }
+  for (const page of ["dashboard", "orders", "positions", "strategy", "logs", "settings"]) {
+    assert.match(html, new RegExp(`data-simple-page="${page}"`));
   }
   assert.match(html, /assets\/nusa-a4p-symbol\.svg/);
-  assert.match(html, /assets\/nusa-a4p-lockup\.svg/);
-  assert.match(html, /id="a4-diagnostics"/);
-  assert.match(html, /id="recovery-review"/);
-  assert.match(html, /LIVE TRADING DISABLED/);
+  assert.match(html, /PAPER · 실거래 비활성/);
+  assert.match(html, /실거래 주문을 전송하지 않습니다/);
+  assert.match(html, /실거래 권한은 없으며 REAL\/LIVE 상태를 추론하거나 활성화하지 않습니다/);
 });
 
-test("A4P design tokens cover brand, semantic state, spacing, type, and motion", () => {
-  for (const token of ["--brand-bg", "--brand-surface", "--brand-raised", "--brand-border", "--brand-text", "--brand-secondary", "--brand-muted", "--brand-accent", "--brand-safe", "--brand-warn", "--brand-danger", "--brand-info", "--brand-shadow", "--brand-radius", "--brand-space"]) {
-    assert.match(css, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+test("active renderer converges on one canonical presentation layer", () => {
+  assert.match(html, /href="tokens\.css"/);
+  assert.match(html, /href="components\.css"/);
+  assert.match(html, /href="app\.css"/);
+  assert.match(html, /src="app-runtime\.js"/);
+  assert.match(html, /src="app-adapter\.js"/);
+  assert.match(html, /src="app-accessibility\.js"/);
+  for (const retired of ["brand-ui.js", "workspace.js", "product-screens.js", "control-room.js", "simple-ui.js", "command-palette.js", "renderer.js"]) {
+    assert.doesNotMatch(html, new RegExp(retired.replace(".", "\\.")));
   }
+});
+
+test("canonical navigation is presentation-only and uses declared page routing", () => {
+  assert.match(runtime, /data-simple-nav/);
+  assert.match(runtime, /data-simple-page/);
+  assert.match(runtime, /aria-current/);
+  assert.match(runtime, /history\.replaceState/);
+  assert.doesNotMatch(runtime, /ipcRenderer|shadow:start|recovery:complete|recovery:owner-review/);
+});
+
+test("canonical UI keeps keyboard and reduced-motion accessibility", () => {
+  assert.match(css, /focus-visible/);
   assert.match(css, /prefers-reduced-motion/);
-  assert.match(css, /min-width: 760px|1050px/);
-  assert.match(css, /focus-visible/);
+  assert.match(html, /aria-label="주요 메뉴"/);
+  assert.match(html, /aria-label="작업 공간"/);
+  assert.match(html, /aria-live="polite"/);
+  assert.match(html, /role="dialog"[^>]*aria-modal="true"/);
 });
 
-test("A4P navigation is presentation-only and cannot introduce arbitrary IPC", () => {
-  assert.match(html, /brand-ui\.js/);
-  assert.match(brandScript, /workspace-view/);
-  assert.match(brandScript, /activate\(/);
-  assert.doesNotMatch(brandScript, /scrollIntoView/);
-  assert.doesNotMatch(brandScript, /ipcRenderer|invoke\(|shadow:start|paper:order/);
-  for (const channel of ["paper:order", "shadow:start", "recovery:reconcile", "recovery:complete"]) assert.match(preload, new RegExp(channel.replace(":", "\\:")));
-});
-
-test("A4P keeps evidence and recovery as visible destinations without delete controls", () => {
-  assert.match(html, /data-nav-target="evidence"/);
-  assert.match(html, /data-nav-target="recovery"/);
+test("canonical consumer surface does not expose retired admin authority destinations", () => {
+  for (const retired of ["shadow-session", "recovery", "evidence", "diagnostics"]) {
+    assert.doesNotMatch(html, new RegExp(`data-simple-nav="${retired}"`));
+    assert.doesNotMatch(html, new RegExp(`data-nav-target="${retired}"`));
+  }
   assert.doesNotMatch(html, /delete-evidence|evidence-delete|deleteEvidence/);
-});
-
-test("A4P workspace gives each product screen an independent view and a prioritized dashboard", () => {
-  for (const screen of ["dashboard", "market", "shadow", "orders", "portfolio", "risk", "recovery", "evidence", "diagnostics", "settings", "about"]) {
-    assert.match(brandScript, new RegExp(`${screen}:`));
-  }
-  assert.match(brandScript, /현재 안전 상태/);
-  assert.match(brandScript, /다음 행동/);
-  assert.match(brandScript, /recovery-flow/);
-  assert.match(brandScript, /Evidence 검색/);
-  assert.match(brandScript, /workspace-kpi-grid--two/);
-  assert.match(brandScript, /삭제하거나 덮어쓰지 않는 Paper Evidence 기록/);
-});
-
-test("A4P screen routing is keyboard and accessibility aware", () => {
-  assert.match(brandScript, /aria-hidden/);
-  assert.match(brandScript, /aria-current/);
-  assert.match(brandScript, /preventScroll/);
-  assert.match(brandScript, /data-copy-value/);
-  assert.match(fs.readFileSync(path.join(root, "workspace.css"), "utf8"), /prefers-reduced-motion/);
-  assert.match(fs.readFileSync(path.join(root, "workspace.css"), "utf8"), /focus-visible/);
-});
-
-test("A4P brand assets and status language are explicit", () => {
-  for (const asset of ["nusa-a4p-symbol.svg", "nusa-a4p-lockup.svg", "nusa-a4p-monochrome.svg"]) {
-    assert.ok(fs.existsSync(path.join(root, "assets", asset)), asset);
-  }
-  assert.ok(fs.existsSync(path.join(__dirname, "..", "build", "nusa-a4p.ico")));
-  assert.match(brandScript, /STATUS_PRESENTATION/);
-  for (const code of ["PASS", "RUNNING", "RECONNECTING", "HALT", "REJECT", "BLOCKED", "COMPLETED", "RECOVERY_REQUIRED", "MATCHED", "MISMATCHED", "ERROR", "NOT_RUN"]) {
-    assert.match(brandScript, new RegExp(`${code}:`));
-  }
-  assert.match(css, /overflow-wrap: anywhere/);
-});
-
-test("A4P long session values have a copy affordance and keyboard-visible focus", () => {
-  assert.match(brandScript, /data-copy-value/);
-  assert.match(css, /cr-long-value/);
-  assert.match(css, /focus-visible/);
-  assert.match(html, /aria-label="Primary navigation"/);
-  assert.match(fs.readFileSync(path.join(root, "product-screens.js"), "utf8"), /product-row__copy/);
-});
-test("workspace navigation switches declared screens instead of only scrolling anchors", () => {
-  for (const screen of ["dashboard", "market", "shadow-session", "orders", "portfolio", "risk", "recovery", "evidence", "diagnostics", "settings", "about"]) {
-    assert.match(html, new RegExp(`data-nav-target="${screen}"`));
-    assert.match(renderer, new RegExp(`["']?${screen.replace(/[-]/g, "\\-")}["']?: \\[`));
-  }
-  assert.match(renderer, /setAttribute\("aria-current", "page"\)/);
-  assert.match(renderer, /history\.replaceState/);
-  assert.match(html, /id="orders-panel"/);
+  assert.doesNotMatch(html, /recovery:owner-review|recovery:complete/);
 });

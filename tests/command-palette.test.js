@@ -11,7 +11,7 @@ const storage = (initial = {}) => {
   return { getItem: (key) => values.has(key) ? values.get(key) : null, setItem: (key, value) => values.set(key, value) };
 };
 
-test("command palette searches Korean and English aliases without disabled commands", () => {
+test("historical command palette utilities search Korean and English aliases without disabled commands", () => {
   const commands = [
     { id: "focus", title: "집중 모드 켜기", keywords: ["focus"] },
     { id: "orders", title: "최근 체결로 이동", keywords: ["orders"] },
@@ -22,30 +22,24 @@ test("command palette searches Korean and English aliases without disabled comma
   assert.deepEqual(palette.filterCommands(commands, "strategy"), []);
 });
 
-test("recent commands are bounded, de-duplicated, and tolerate corrupt storage", () => {
+test("historical recent-command storage remains bounded and tolerant of corrupt data", () => {
   const clean = storage();
   ["one", "two", "three", "four", "five", "six", "three"].forEach((id) => palette.writeRecent(clean, id));
   assert.deepEqual(palette.readRecent(clean), ["three", "six", "five", "four", "two"]);
   assert.deepEqual(palette.readRecent(storage({ [palette.RECENT_KEY]: "not json" })), []);
 });
 
-test("renderer contract wires keyboard access without creating order commands", () => {
+test("canonical renderer does not load the retired command palette surface", () => {
   const html = read("apps/desktop/renderer/index.html");
-  const renderer = read("apps/desktop/renderer/renderer.js");
-  const script = read("apps/desktop/renderer/command-palette.js");
-  assert.match(html, /id="command-palette"[^>]*role="dialog"[^>]*aria-modal="true"/);
-  assert.match(html, /id="command-palette-search"[^>]*aria-controls="command-palette-list"/);
-  assert.match(script, /\(event\.ctrlKey \|\| event\.metaKey\).*"k"/);
-  assert.match(script, /event\.key === "Escape"/);
-  assert.match(script, /event\.key === "ArrowDown"/);
-  assert.match(script, /event\.key === "Tab"/);
-  assert.doesNotMatch(renderer, /placeOrder\("BUY"|placeOrder\("SELL"/);
-  assert.match(renderer, /focus-order-quantity/);
-  assert.match(renderer, /byId\("strategy-start"\)\.click\(\)/);
-  assert.match(renderer, /byId\("strategy-stop"\)\.click\(\)/);
+  const runtime = read("apps/desktop/renderer/app-runtime.js");
+  assert.doesNotMatch(html, /command-palette\.js|command-palette\.css|id="command-palette"/);
+  assert.match(html, /src="app-runtime\.js"/);
+  assert.match(runtime, /data-simple-nav/);
+  assert.match(runtime, /data-simple-order/);
+  assert.doesNotMatch(runtime, /ipcRenderer|LIVE TRADING ENABLED|withdraw|transfer/i);
 });
 
-test("palette styles use tokens and preserve reduced motion handling", () => {
+test("historical palette styles remain tokenized and reduced-motion safe while dormant", () => {
   const css = read("apps/desktop/renderer/command-palette.css");
   assert.match(css, /var\(--z-modal\)/);
   assert.match(css, /var\(--color-surface\)/);

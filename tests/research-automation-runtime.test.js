@@ -1,6 +1,5 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const crypto = require("node:crypto");
 const { SqliteDatabase, SqliteResearchEvaluationLedger, SqliteCandidatePromotionRepository, SqliteResearchMemoryRepository, SqliteResearchSessionRepository } = require("../dist/packages/storage/src/index.js");
 const { ResearchRuntimeCoordinator } = require("../dist/apps/cloud/src/researchRuntimeCoordinator.js");
 const { ResearchRecoveryCoordinator } = require("../dist/apps/cloud/src/researchRecoveryCoordinator.js");
@@ -8,13 +7,11 @@ const { CandidatePromotionRuntime } = require("../dist/apps/cloud/src/candidateP
 const { ResearchAutomationRuntime } = require("../dist/apps/cloud/src/researchAutomationRuntime.js");
 const { startCloudRuntime } = require("../dist/apps/cloud/src/runtime.js");
 const { InMemoryCloudDashboardStateProvider } = require("../dist/apps/cloud/src/cloudDashboardStateProvider.js");
-const { canonicalResearchJson } = require("../dist/packages/contracts/src/researchRuntime.js");
 const { mkdtempSync } = require("node:fs");
 const { join } = require("node:path");
 const { tmpdir } = require("node:os");
 
 const NOW = 2_000;
-const hash = (value) => crypto.createHash("sha256").update(canonicalResearchJson(value)).digest("hex");
 const input = (sessionId, evaluationId, overrides = {}) => ({
   researchRunId: sessionId,
   evaluationId,
@@ -65,6 +62,11 @@ test("hypothesis memory is linked to the persisted experiment chain", () => {
 test("multiple experiments flow through evaluation ledger and memory while strict candidate evidence remains gated", () => {
   const state = setup();
   try { state.automation.startSession(startInput("session-1")); const first = state.automation.runExperiment(input("session-1", "evaluation-1")); const second = state.automation.runExperiment(input("session-1", "evaluation-2", { marketDataTimestamp: 1_860 })); assert.equal(first.result, "CHALLENGER_BETTER"); assert.equal(second.result, "CHALLENGER_BETTER"); assert.equal(state.ledger.list().length, 2); assert.equal(state.memory.listExperiments().length, 2); assert.equal(state.candidates.listCandidates().length, 0); const status = state.automation.status("session-1"); assert.equal(status.experimentCount, 2); assert.equal(status.metrics.challengerBetterCount, 2); assert.equal(status.metrics.positiveEvaluationCount, 2); assert.equal(status.health, "HEALTHY"); } finally { state.db.close(); }
+});
+
+test("missing explicit cost evidence is not counted as cost-adjusted performance", () => {
+  const state = setup();
+  try { state.automation.startSession(startInput("session-cost")); state.automation.runExperiment(input("session-cost", "evaluation-cost")); const metrics = state.automation.status("session-cost").metrics; assert.equal(metrics.costAdjustedPerformance, undefined); assert.equal(metrics.costAdjustedEvidenceCount, 0); assert.equal(metrics.missingCostEvidenceCount, 1); } finally { state.db.close(); }
 });
 
 test("candidate registration requires the hardened evidence gate and never promotes", () => {

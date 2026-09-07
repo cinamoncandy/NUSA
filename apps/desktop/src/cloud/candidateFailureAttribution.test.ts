@@ -17,6 +17,7 @@ function entry(id: string, overrides: Partial<LeagueRankedEntry> = {}): LeagueRa
     id,
     familyId: "family-1",
     eligible: true,
+    outcome: "QUALIFIED_FOR_LEAGUE",
     reasons: [],
     evidenceBreadth: 1,
     components: components(),

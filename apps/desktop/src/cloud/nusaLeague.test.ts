@@ -121,6 +121,7 @@ function trialLedgerSummary(overrides: Partial<ResearchTrialLedgerSummary> = {})
     completedCount: 6,
     failedCount: 2,
     rejectedCount: 2,
+    abstainedCount: 0,
     distinctSearchCount: 3,
     distinctFamilyCount: 1,
     maximumSearchAttemptOrdinal: 4,
@@ -238,6 +239,37 @@ describe("evaluateLeague", () => {
     assert.equal(standing.coverage.candidateCount, 2);
   });
 
+  it("exposes explicit research outcomes without changing ranking semantics", () => {
+    const qualified = evaluateLeague([fullCandidate("qualified")]).entries[0]!;
+    assert.equal(qualified.outcome, "QUALIFIED_FOR_LEAGUE");
+    assert.equal(qualified.eligible, true);
+    assert.equal(qualified.rank, 1);
+
+    const insufficient = evaluateLeague([fullCandidate("insufficient", {
+      benchmark: benchmark({
+        id: "insufficient",
+        eligible: false,
+        reasons: ["MINIMUM_OOS_POINTS_NOT_MET"],
+        researchScore: undefined,
+      }),
+    })]).entries[0]!;
+    assert.equal(insufficient.outcome, "INSUFFICIENT");
+    assert.equal(insufficient.eligible, false);
+    assert.equal(insufficient.rank, undefined);
+
+    const rejected = evaluateLeague([fullCandidate("rejected", {
+      benchmark: benchmark({
+        id: "rejected",
+        eligible: false,
+        reasons: ["MAXIMUM_DRAWDOWN_EXCEEDED"],
+        researchScore: undefined,
+      }),
+    })]).entries[0]!;
+    assert.equal(rejected.outcome, "REJECTED");
+    assert.equal(rejected.eligible, false);
+    assert.equal(rejected.rank, undefined);
+  });
+
   it("considers the trial ledger's failed/rejected attempts as a scored component, not hidden evidence", () => {
     const cleanRecord = fullCandidate("candidate-clean", { trialLedgerSummary: trialLedgerSummary({ failedCount: 0, rejectedCount: 0, completedCount: 10, trialCount: 10 }) });
     const messyRecord = fullCandidate("candidate-messy", { benchmark: benchmark({ id: "candidate-messy" }), trialLedgerSummary: trialLedgerSummary({ failedCount: 8, rejectedCount: 1, completedCount: 1, trialCount: 10 }) });
@@ -247,6 +279,22 @@ describe("evaluateLeague", () => {
     assert.equal(clean.components.trialFailureRatio, 0);
     assert.ok(messy.components.trialFailureRatio! > 0.5);
     assert.ok(clean.leagueScore! > messy.leagueScore!);
+  });
+
+  it("accepts complete trial ledgers that include abstained attempts", () => {
+    const standing = evaluateLeague([fullCandidate("candidate-abstained", {
+      trialLedgerSummary: trialLedgerSummary({
+        trialCount: 10,
+        completedCount: 5,
+        failedCount: 2,
+        rejectedCount: 2,
+        abstainedCount: 1,
+      }),
+    })]);
+    const entry = standing.entries[0]!;
+    // Abstentions remain in the denominator, while the existing failure component retains its
+    // documented failed/rejected numerator.
+    assert.equal(entry.components.trialFailureRatio, 0.4);
   });
 
   it("applies one shared probability-of-backtest-overfitting penalty across the whole league", () => {
@@ -264,6 +312,9 @@ describe("evaluateLeague", () => {
     assert.throws(() => evaluateLeague([fullCandidate("candidate-a", { counterfactual: counterfactual({ regret: Number.NaN }) })]), NusaLeagueError);
     assert.throws(() => evaluateLeague([fullCandidate("candidate-a")], { probabilityBacktestOverfitting: pbo({ probabilityBacktestOverfitting: 1.5 }) }), NusaLeagueError);
     assert.throws(() => evaluateLeague([fullCandidate("candidate-a", { trialLedgerSummary: trialLedgerSummary({ completedCount: 20 }) })]), NusaLeagueError);
+    assert.throws(() => evaluateLeague([fullCandidate("candidate-a", { trialLedgerSummary: trialLedgerSummary({ failedCount: -1 }) })]), NusaLeagueError);
+    assert.throws(() => evaluateLeague([fullCandidate("candidate-a", { trialLedgerSummary: trialLedgerSummary({ failedCount: 1.5 }) })]), NusaLeagueError);
+    assert.throws(() => evaluateLeague([fullCandidate("candidate-a", { trialLedgerSummary: trialLedgerSummary({ completedCount: 5 }) })]), NusaLeagueError);
     assert.throws(() => evaluateLeague([fullCandidate("candidate-a", { paperPerformance: paperPerformance({ netReturn: Number.NaN }) })]), NusaLeagueError);
     assert.throws(() => evaluateLeague([fullCandidate("candidate-a", { paperPerformance: paperPerformance({ availabilityRatio: 1.4 }) })]), NusaLeagueError);
     assert.throws(() => evaluateLeague([fullCandidate("candidate-a", { paperPerformance: paperPerformance({ startedAt: 5_000, endedAt: 1_000 }) })]), NusaLeagueError);

@@ -1,0 +1,97 @@
+name: Autopilot Cloudflare Runtime Proof
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'scripts/verify-autopilot-cloudflare-runtime.mjs'
+      - '.github/workflows/autopilot-cloudflare-runtime-proof.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/autopilot/**'
+      - 'scripts/verify-autopilot-cloudflare-runtime.mjs'
+      - '.github/workflows/autopilot-cloudflare-runtime-proof.yml'
+  workflow_run:
+    workflows: [Autopilot Cloudflare Deploy]
+    types: [completed]
+    branches: [main]
+  schedule:
+    # Keep the hourly proof away from the scheduler's common minute boundary.
+    - cron: '37 * * * *'
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: nusa-autopilot-cloudflare-runtime-proof
+  cancel-in-progress: false
+
+jobs:
+  runtime-proof:
+    if: ${{ github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      NUSA_AUTOPILOT_URL: https://nusa-autopilot.desporin12.workers.dev
+      NUSA_AUTOPILOT_MAX_RECEIPT_AGE_MS: '180000'
+      NUSA_RUNTIME_PROOF_EVENT: ${{ github.event_name }}
+      NUSA_RUNTIME_PROOF_RUN_ID: ${{ github.run_id }}
+      NUSA_RUNTIME_PROOF_RUN_ATTEMPT: ${{ github.run_attempt }}
+      NUSA_RUNTIME_PROOF_SOURCE_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+      NUSA_RUNTIME_PROOF_SOURCE_BRANCH: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}
+      NUSA_RUNTIME_PROOF_STARTED_AT: ${{ github.run_started_at }}
+    steps:
+      - name: Prepare proof evidence directory
+        run: mkdir -p artifacts/autopilot
+      - name: Checkout exact revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Verify proof source is current main
+        id: freshness
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          SOURCE_BRANCH: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ "$SOURCE_BRANCH" != "main" ]; then
+            echo 'current=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          current="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          if [ "$current" != "$SOURCE_SHA" ]; then
+            echo 'current=false' >> "$GITHUB_OUTPUT"
+            echo "Skipping stale runtime-proof source ${SOURCE_SHA}; current main is ${current}."
+            exit 0
+          fi
+          echo 'current=true' >> "$GITHUB_OUTPUT"
+          echo "Verified runtime-proof source is current main: $SOURCE_SHA"
+      - name: Verify deployed Worker and fresh scheduled receipt
+        if: steps.freshness.outputs.current == 'true'
+        env:
+          NUSA_RUNTIME_PROOF_OUTPUT: artifacts/autopilot/runtime-proof.json
+        run: node scripts/verify-autopilot-cloudflare-runtime.mjs
+      - name: Dispatch Credential Preflight directly for fresh safety-gate re-verification
+        if: steps.freshness.outputs.current == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # This job may itself have been started via a GITHUB_TOKEN-authenticated
+          # workflow_dispatch call (Autopilot Cloudflare Deploy dispatches Runtime Proof
+          # directly for the same reason), so its own completion does not fire
+          # workflow_run listeners either. Autopilot Cloudflare Credential Preflight -
+          # the safety gate that can reopen the canonical P0 blocker - depends on
+          # exactly that workflow_run:[Autopilot Cloudflare Deploy, Autopilot Cloudflare
+          # Runtime Proof] chain, so dispatch it directly instead of relying on it.
+          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-cloudflare-credential-preflight.yml/dispatches" -f ref=main
+          echo "Dispatched Autopilot Cloudflare Credential Preflight for fresh safety-gate re-verification."
+      - name: Upload runtime proof evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: autopilot-cloudflare-runtime-proof-${{ github.run_id }}
+          path: artifacts/autopilot/runtime-proof.json
+          if-no-files-found: warn
+          retention-days: 7

@@ -5,6 +5,8 @@ import {
   emptyStrategyPositionSnapshot, emptyWalletPositionSnapshot
 } from "../../contracts/src/index";
 import { runMigrations, type MigrationResult, type SqliteMigration } from "./migrationRunner";
+import { cloudPaperAccountHistoryMigration } from "./cloudPaperAccountHistoryMigration";
+import { researchFactoryDecisionHistoryMigration } from "./researchFactoryDecisionHistoryRepository";
 
 export { runMigrations } from "./migrationRunner";
 export type { MigrationResult, SqliteMigration } from "./migrationRunner";
@@ -28,8 +30,12 @@ export { SqliteCandidatePromotionRepository } from "./candidatePromotionReposito
 export type { CandidatePromotionDatabase, PromotionAtomicInput } from "./candidatePromotionRepository";
 export { SqliteResearchSessionRepository } from "./researchAutomation";
 export type { ResearchAutomationDatabase } from "./researchAutomation";
+export { SqliteEvolutionLearningLedger, EvolutionLearningLedgerError } from "./evolutionLearningLedger";
+export type { EvolutionLearningLedgerDatabase, EvolutionLearningLedgerReplay } from "./evolutionLearningLedger";
 export { SqlitePersistedPaperPeriodStore, PersistedPaperPeriodStoreError } from "./persistedPaperPeriodStore";
-export type { PersistedPaperCandidateProvenance, PersistedPaperPeriodEnvelope, PersistedPaperPeriodRecord, PaperPeriodCostEvidence, PaperPeriodLifecycleStatus, PersistedPaperPendingPeriod } from "./persistedPaperPeriodStore";
+export type { PersistedPaperCandidateProvenance, PersistedPaperPeriodEnvelope, PersistedPaperPeriodRecord, PaperPeriodCostEvidence, PaperPeriodCostEvidenceKind, PaperPeriodLifecycleStatus, PersistedPaperPendingPeriod } from "./persistedPaperPeriodStore";
+export { SqlitePaperMarketObservationRepository, PaperMarketObservationStoreError, normalizePaperPublicMarketObservation } from "./paperMarketObservationRepository";
+export type { PaperPublicMarketObservation, PaperPublicMarketObservationInput } from "./paperMarketObservationRepository";
 
 type SqlRow = Record<string, string | number | bigint | null>;
 type LedgerFilter = Pick<PositionLedgerEntry, "walletId" | "strategyId" | "symbol">;
@@ -130,13 +136,26 @@ export class SqliteDatabase implements TransactionRunner {
   public close(): void { this.connection.close(); }
 }
 
+function samePositionLedgerEntry(a: PositionLedgerEntry, b: PositionLedgerEntry): boolean {
+  return a.id === b.id && a.walletId === b.walletId && (a.strategyId ?? null) === (b.strategyId ?? null) &&
+    a.symbol === b.symbol && a.side === b.side && a.baseQtyRaw === b.baseQtyRaw &&
+    (a.quoteQtyRaw ?? null) === (b.quoteQtyRaw ?? null) && a.ts === b.ts && a.createdAt === b.createdAt &&
+    (a.sourceTradeId ?? null) === (b.sourceTradeId ?? null);
+}
+
 export class SqlitePositionLedgerRepository implements PositionLedgerRepository {
   public constructor(private readonly db: SqliteDatabase) {}
   public append(entry: PositionLedgerEntry): PositionLedgerEntry {
-    this.db.connection.prepare("INSERT INTO position_ledger_entries (id, wallet_id, strategy_id, symbol, side, base_qty_raw, quote_qty_raw, ts, created_at, source_trade_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING").run(entry.id, entry.walletId, entry.strategyId ?? null, entry.symbol, entry.side, raw(entry.baseQtyRaw), raw(entry.quoteQtyRaw), entry.ts, entry.createdAt, entry.sourceTradeId ?? null);
-    const stored = this.getById(entry.id);
-    if (stored == null) throw new Error("ledger append did not persist");
-    return stored;
+    return this.db.transaction(() => {
+      this.db.connection.prepare("INSERT INTO position_ledger_entries (id, wallet_id, strategy_id, symbol, side, base_qty_raw, quote_qty_raw, ts, created_at, source_trade_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING").run(entry.id, entry.walletId, entry.strategyId ?? null, entry.symbol, entry.side, raw(entry.baseQtyRaw), raw(entry.quoteQtyRaw), entry.ts, entry.createdAt, entry.sourceTradeId ?? null);
+      const stored = this.getById(entry.id);
+      if (stored == null) throw new Error("ledger append did not persist");
+      // First-write-wins for replays, but a reused id with different content
+      // must fail closed instead of silently returning someone else's entry.
+      // Mirrors the execution-fill conflict rule (#1652) for ledger entries.
+      if (!samePositionLedgerEntry(stored, entry)) throw new Error("ledger id conflict: entry id already exists with different content");
+      return stored;
+    });
   }
   public getById(id: string): PositionLedgerEntry | undefined {
     const row = this.db.connection.prepare("SELECT * FROM position_ledger_entries WHERE id = ?").get(id) as SqlRow | undefined;
@@ -255,7 +274,7 @@ CREATE TABLE IF NOT EXISTS investment_committee_events (sequence INTEGER PRIMARY
 CREATE TABLE IF NOT EXISTS investment_committee_snapshot (id INTEGER PRIMARY KEY CHECK(id = 1), hash TEXT NOT NULL);
 ` }, { id: "004_compliance_control_plane", sql: `
 CREATE TABLE IF NOT EXISTS compliance_events (sequence INTEGER PRIMARY KEY, previous_hash TEXT NOT NULL, event_json TEXT NOT NULL, hash TEXT NOT NULL UNIQUE);
-CREATE TABLE IF NOT EXISTS compliance_state (id INTEGER PRIMARY KEY CHECK(id = 1), ledger_hash TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS compliance_state (id INTEGER PRIMARY KEY CHECK(id=1), ledger_hash TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS compliance_rules (rule_id TEXT NOT NULL, version TEXT NOT NULL, payload_json TEXT NOT NULL, PRIMARY KEY(rule_id, version));
 CREATE TABLE IF NOT EXISTS compliance_decisions (decision_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS surveillance_alerts (alert_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL);
@@ -423,4 +442,34 @@ CREATE TABLE IF NOT EXISTS paper_realized_periods (
 );
 CREATE INDEX IF NOT EXISTS idx_paper_realized_periods_order
   ON paper_realized_periods (lifecycle_state, period_index ASC, period_id ASC);
-` }];
+` }, cloudPaperAccountHistoryMigration, { id: "019_paper_public_market_observations", sql: `
+CREATE TABLE IF NOT EXISTS paper_public_market_observations (
+  observation_id TEXT PRIMARY KEY,
+  market TEXT NOT NULL,
+  observed_at_ms INTEGER NOT NULL,
+  payload_json TEXT NOT NULL,
+  evidence_fingerprint_sha256 TEXT NOT NULL UNIQUE
+);
+CREATE INDEX IF NOT EXISTS idx_paper_public_market_observations_window
+  ON paper_public_market_observations (market, observed_at_ms ASC, observation_id ASC);
+` }, { id: "020_evolution_learning_ledger", sql: `
+CREATE TABLE IF NOT EXISTS evolution_learning_ledger_meta (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  schema_version INTEGER NOT NULL CHECK (schema_version = 1),
+  event_count INTEGER NOT NULL CHECK (event_count >= 0),
+  ledger_hash TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS evolution_learning_ledger_events (
+  sequence INTEGER PRIMARY KEY,
+  opportunity_id TEXT NOT NULL UNIQUE,
+  content_hash TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  recorded_at TEXT NOT NULL,
+  previous_hash TEXT NOT NULL,
+  event_hash TEXT NOT NULL UNIQUE
+);
+CREATE INDEX IF NOT EXISTS idx_evolution_learning_ledger_recorded_at
+  ON evolution_learning_ledger_events (recorded_at ASC, opportunity_id ASC);
+INSERT OR IGNORE INTO evolution_learning_ledger_meta (id, schema_version, event_count, ledger_hash)
+  VALUES (1, 1, 0, '0000000000000000000000000000000000000000000000000000000000000000');
+` }, researchFactoryDecisionHistoryMigration];

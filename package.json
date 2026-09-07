@@ -12,11 +12,13 @@
   },
   "scripts": {
     "postinstall": "node scripts/apply-security-backports.js",
-    "preflight": "node scripts/check-runtime.js && node scripts/validate-repository-portability.js",
+    "preflight": "node scripts/check-runtime.js && node scripts/validate-repository-portability.js && node scripts/validate-android-release-contract.js",
+    "android:release-contract": "node scripts/validate-android-release-contract.js",
     "build": "tsc -p tsconfig.json && node scripts/run-changed-tests-fast.js",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p apps/mobile/tsconfig.json --noEmit",
-    "lint": "pnpm run lint:desktop && pnpm run lint:mobile",
+    "lint": "pnpm run lint:desktop && pnpm run lint:scripts && pnpm run lint:mobile",
     "lint:desktop": "eslint apps/desktop/renderer",
+    "lint:scripts": "eslint scripts services tests",
     "lint:mobile": "node scripts/lint-mobile.js",
     "test": "pnpm run preflight && pnpm run build && node scripts/run-tests-isolated.js",
     "test:ui": "vitest run --config vitest.config.mjs",
@@ -74,36 +76,69 @@
     "opportunity:schedule-import": "pnpm run preflight && pnpm run build && node scripts/import-opportunity-schedule.js",
     "research:evidence-status": "pnpm run preflight && pnpm run build && node scripts/research-evidence-status.js",
     "runtime:diagnostics-validate": "pnpm run preflight && pnpm run build && node scripts/validate-runtime-diagnostics.js",
-    "research:real-run": "pnpm run preflight && pnpm run build && node scripts/research-real-market-run.js"
+    "research:real-run": "pnpm run preflight && pnpm run build && node -r ./scripts/research-replay-snapshot-capture.js scripts/research-real-market-run.js",
+    "validate": "pnpm run preflight && pnpm run architecture:truth && pnpm run safety:architecture && pnpm run ai:architecture",
+    "validate:full": "pnpm run validate && pnpm run architecture:check && pnpm run aipos:drift && pnpm run aipos:conformance && pnpm run safety:invariants && pnpm run safety:inputs",
+    "validate:tier-safety": "node scripts/validate-tiers.js --tier=safety",
+    "validate:tier-architecture": "node scripts/validate-tiers.js --tier=architecture",
+    "validate:tier-aipos": "node scripts/validate-tiers.js --tier=aipos",
+    "validate:tiers": "node scripts/validate-tiers.js --tier=all",
+    "coverage:floor": "node scripts/check-coverage-floor.js"
   },
   "devDependencies": {
+    "@cloudflare/sandbox": "0.13.0-next.751.1",
     "@playwright/test": "1.55.1",
-    "@storybook/addon-a11y": "8.6.17",
-    "@storybook/web-components": "8.6.17",
-    "@storybook/web-components-vite": "8.6.17",
-    "@types/node": "24.0.0",
-    "@types/ws": "8.5.13",
-    "@vitest/coverage-v8": "3.2.6",
+    "@storybook/addon-a11y": "8.6.18",
+    "@storybook/web-components": "8.6.18",
+    "@storybook/web-components-vite": "8.6.18",
+    "@types/node": "24.13.3",
+    "@types/ws": "8.18.1",
+    "@vitest/coverage-v8": "3.2.7",
     "c8": "10.1.3",
-    "electron": "41.10.3",
-    "electron-builder": "26.15.3",
-    "eslint": "9.39.1",
+    "electron": "41.10.7",
+    "electron-builder": "26.16.0",
+    "eslint": "9.39.5",
     "jsdom": "26.0.0",
-    "storybook": "8.6.17",
+    "storybook": "8.6.18",
     "typescript": "5.9.3",
-    "vitest": "3.2.6"
+    "vitest": "3.2.7"
   },
   "dependencies": {
-    "ws": "8.21.0"
+    "ws": "8.21.3"
   },
   "build": {
     "appId": "com.nusa.trader",
     "productName": "NUSA",
     "asar": true,
-    "directories": {"output": "release"},
-    "files": ["dist/**/*","apps/desktop/renderer/**/*","apps/desktop/package.json","package.json","!**/*.ts","!**/*.map","!**/tests{,/**/*}","!**/docs{,/**/*}"],
-    "extraMetadata": {"main": "dist/apps/desktop/src/cloudMain.js"},
-    "win": {"target": "nsis","icon": "build/nusa-a4p.ico","artifactName": "NUSA-${version}-Windows-Setup.${ext}","signAndEditExecutable": false},
-    "nsis": {"oneClick": false,"perMachine": false,"allowToChangeInstallationDirectory": false,"createDesktopShortcut": true,"createStartMenuShortcut": true,"deleteAppDataOnUninstall": false}
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "apps/desktop/renderer/**/*",
+      "apps/desktop/package.json",
+      "package.json",
+      "!**/*.ts",
+      "!**/*.map",
+      "!**/tests{,/**/*}",
+      "!**/docs{,/**/*}"
+    ],
+    "extraMetadata": {
+      "main": "dist/apps/desktop/src/cloudMain.js"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/nusa-a4p.ico",
+      "artifactName": "NUSA-${version}-Windows-Setup.${ext}",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false
+    }
   }
 }

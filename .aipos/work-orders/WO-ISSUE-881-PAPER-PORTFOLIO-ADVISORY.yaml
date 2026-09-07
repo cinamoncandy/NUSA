@@ -1,0 +1,34 @@
+version: 1
+id: WO-ISSUE-881-PAPER-PORTFOLIO-ADVISORY
+title: "Issue #881 evidence-bound PAPER portfolio allocation advisory"
+status: COMPLETED
+priority: P1
+owner: codex
+repository: cinamoncandy/NUSA
+issue: 881
+pull_request: 1040
+base_branch: main
+base_commit: 949b8dd66073baca863a680149c7c62331bbc04c
+implementation_branch: codex/issue-881-paper-portfolio-advisory
+implementation_commit: fa2caa624130e98f8ff7eae1eb766be19f6e1c4f
+merge_commit: adc74b132aea172b9d2e15456be82500b9899e17
+objective: "Project existing League and risk evidence into a deterministic, evidence-bound PAPER portfolio allocation advisory without capital, accounting, broker, or LIVE authority."
+architecture_impact:
+  acknowledged: true
+  analysis: "Reuse League standings, capital-allocation research contracts, and portfolio/risk projections; the advisory emits no executable order, capital mutation, or LIVE capability."
+  references:
+    - apps/cloud/src/paperPortfolioAdvisory.ts
+    - apps/desktop/src/cloud/leagueCapitalAllocation.ts
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  brokerMutation: NONE
+  paper_only: true
+validation:
+  required_checks: PASS_6_OF_6
+  exact_head: fa2caa624130e98f8ff7eae1eb766be19f6e1c4f
+  merge_sha: adc74b132aea172b9d2e15456be82500b9899e17
+known_limitations:
+  - "The output is a research/PAPER advisory; it does not allocate actual capital or change execution authority."
+next: "Continue Issue #865 through the next repository-side evidence durability gap."

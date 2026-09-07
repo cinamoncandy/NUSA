@@ -144,3 +144,18 @@ export function formatChartPrice(value: number | null): string {
 export function formatChartMove(value: number | null): string {
   return value === null ? "-" : `${value >= 0 ? "+" : ""}${(value * 100).toFixed(2)}%`;
 }
+
+/**
+ * Newest candle close across the plotted set, for first-class freshness
+ * display. Defensive max (not last-element): grouping must never let an
+ * out-of-order bucket hide the feed age. Null when nothing is verifiable.
+ */
+export function latestCandleCloseMs(candles: readonly ChartCandle[]): number | null {
+  let latest: number | null = null;
+  for (const candle of candles) {
+    const closeTime = candle.closeTime;
+    if (!Number.isSafeInteger(closeTime) || closeTime <= 0) continue;
+    if (latest === null || closeTime > latest) latest = closeTime;
+  }
+  return latest;
+}

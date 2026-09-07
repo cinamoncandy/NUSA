@@ -34,21 +34,34 @@ test("Settings connection mutation is single-flight and probes only the persiste
   assert.match(source, /finally \{[\s\S]*connectionInFlightRef\.current = false;[\s\S]*setConnecting\(false\)/);
 });
 
-test("Settings revokes prior credential verification before testing a replacement token", () => {
+test("Settings revokes prior verification and uses bootstrap-first credential routing", () => {
   const source = read("apps/mobile/src/settingsView.tsx");
-  assert.match(source, /if \(!configuredEndpoint\) \{[\s\S]*return;[\s\S]*\}\s*credentialSession\.clear\(\);\s*clearPaperConnectionVerification\(\);\s*setConnection\(\{ status: "NOT_CONFIGURED", reason: "[^"]*connection verification is in progress\." \}\);\s*credentialSession\.connect\(tokenDraft\)/);
+  const guard = source.indexOf("if (!configuredEndpoint)");
+  const clearSession = source.indexOf("credentialSession.clear();", guard);
+  const clearVerification = source.indexOf("clearPaperConnectionVerification();", clearSession);
+  const inProgress = source.indexOf('reason: "Cloud PAPER connection verification is in progress."', clearVerification);
+  const connectBootstrap = source.indexOf("credentialSession.connect(tokenDraft);", inProgress);
+  const firstProbe = source.indexOf("let result = await loadPersonalPaperOperations", connectBootstrap);
+  const fallbackGate = source.indexOf('shouldFallbackToMobileEnrollment(tokenDraft, result.status === "READY")', firstProbe);
+  const fallbackClear = source.indexOf("credentialSession.clear();", fallbackGate);
+  const enroll = source.indexOf("await credentialSession.enroll(tokenDraft, installationId);", fallbackClear);
+  const secondProbe = source.indexOf("result = await loadPersonalPaperOperations", enroll);
+  assert.ok(guard >= 0 && clearSession > guard && clearVerification > clearSession && inProgress > clearVerification);
+  assert.ok(connectBootstrap > inProgress && firstProbe > connectBootstrap, "raw credential must try one-time bootstrap before enrollment");
+  assert.ok(fallbackGate > firstProbe && fallbackClear > fallbackGate && enroll > fallbackClear && secondProbe > enroll, "user-credential fallback must be fail-closed and re-probed");
   assert.match(source, /if \(result\.status === "READY"\) \{ markPaperConnectionVerified\(configuredEndpoint\); setTokenDraft\(""\); \}/);
 });
 
 test("Settings optional Cloud PAPER fields keep one-time secret bootstrap semantics", () => {
   const source = read("apps/mobile/src/settingsView.tsx");
-  assert.match(source, /keyboardType="url" label="Cloud endpoint \(선택\)"/);
-  assert.match(source, /label="1회용 연결 토큰 \(선택\)"[\s\S]*placeholder="Cloud를 사용할 때만 입력"[\s\S]*secureTextEntry/);
+  assert.match(source, /Cloud 기능은 선택 사항입니다/);
+  assert.match(source, /keyboardType="url" label="Cloud endpoint"/);
+  assert.match(source, /label="1회용 연결 토큰"[\s\S]*placeholder="Cloud를 연결할 때만 입력"[\s\S]*secureTextEntry/);
   assert.match(source, /bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);
-  assert.match(source, /LOCAL PAPER 거래에는 사용하지 않습니다/);
-  assert.match(source, /disabled=\{busy\} label=\{connecting \? "연결 확인 중\.\.\." : "Cloud 연결"\}/);
-  assert.match(source, /disabled=\{busy \|\| connection\.status !== "READY"\} label="Cloud 연결 해제"/);
-  assert.match(source, /const cloudConnectionLabel = connecting \? "확인 중"/);
+  assert.match(source, /LOCAL PAPER에는 사용하지 않습니다/);
+  assert.match(source, /disabled=\{busy\} label=\{connecting \? "검증 중\.\.\." : connectionFailed \? "연결 다시 시도" : "Cloud 연결"\}/);
+  assert.match(source, /disabled=\{busy \|\| connection\.status !== "READY"\} label="연결 해제"/);
+  assert.match(source, /const cloudConnectionLabel = connecting \? "VERIFYING"/);
 });
 
 test("PAPER order inputs are numeric-first and locked during an in-flight submit", () => {

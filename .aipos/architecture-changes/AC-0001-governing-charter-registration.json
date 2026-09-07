@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "id": "AC-0001-governing-charter-registration",
+  "title": "Register docs/NUSA_GOVERNING_CHARTER.md in .aipos/aipos.yaml",
+  "stage": "APPROVAL",
+  "proposal": {
+    "status": "COMPLETE",
+    "summary": "Add a new top-level docs/NUSA_GOVERNING_CHARTER.md capturing standing product direction (authority hierarchy, CORE/EVOLVE self-improvement mandate, LIVE approval state machine, P0/P1/P2 priority, UI information architecture), and register its path plus one advisory rules entry in .aipos/aipos.yaml so every agent's mandatory AIPOS recovery reads it."
+  },
+  "impact_analysis": {
+    "status": "COMPLETE",
+    "affected_paths": [".aipos/aipos.yaml"],
+    "affected_capabilities": ["aipos_recovery_reading_list"],
+    "safety_sensitive": false,
+    "constitutional_change": false,
+    "protected_boundaries": [],
+    "analysis": "The change adds one paths.governing_charter entry and one rules entry to aipos.yaml. It does not modify docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md (the only constitutional_path), does not touch source_of_truth, recovery.protocol, handoff, or architecture_sync blocks, and does not change any governed_paths, protected_boundaries, or lifecycle policy. The new rules entry is explicitly advisory and self-limiting: it states the referenced charter grants no authority and cannot open, widen, or bypass any .aipos/current-mission.yaml serialization gate. No safety, risk, execution, credential, or LIVE-authority code or config path is touched. Net effect is additive metadata only; removing the two added lines fully reverts the file to its pre-change behavior."
+  },
+  "architecture_review": {
+    "status": "APPROVED",
+    "decision": "APPROVED",
+    "reviewers": ["claude-opus-5-code-session"],
+    "evidence_refs": [
+      "https://github.com/cinamoncandy/NUSA/pull/1293",
+      "docs/NUSA_GOVERNING_CHARTER.md"
+    ]
+  },
+  "migration_plan": {
+    "status": "COMPLETE",
+    "compatibility": "Additive only. No existing aipos.yaml key is removed, renamed, or reordered in a way that changes meaning; every existing consumer of paths.* or rules[] continues to resolve unchanged.",
+    "steps": [
+      "Add docs/NUSA_GOVERNING_CHARTER.md.",
+      "Add paths.governing_charter to .aipos/aipos.yaml pointing at it.",
+      "Add one rules[] entry describing when to read it and its authority limits.",
+      "Verify pnpm run validate, architecture:check, aipos:drift, aipos:conformance, safety:invariants, safety:inputs, and pnpm run build all still PASS."
+    ]
+  },
+  "approval": {
+    "status": "APPROVED",
+    "approved_by": ["claude-opus-5-code-session"],
+    "evidence_refs": ["https://github.com/cinamoncandy/NUSA/pull/1293"],
+    "authority_type": "AI"
+  },
+  "rollback": {
+    "triggers": [
+      "Any future work order or agent finds the governing_charter path entry or its rules line conflicts with .aipos/current-mission.yaml, an ADR, or a constitutional principle."
+    ],
+    "procedure": [
+      "Revert this commit (or delete the paths.governing_charter line and the corresponding rules[] entry from .aipos/aipos.yaml).",
+      "Optionally remove or archive docs/NUSA_GOVERNING_CHARTER.md.",
+      "Re-run pnpm run validate:full to confirm the repository returns to its pre-change validated state."
+    ],
+    "status": "READY"
+  },
+  "verification": {
+    "status": "PASS",
+    "criteria": [
+      "pnpm run validate (preflight, architecture:truth, safety:architecture, ai:architecture)",
+      "pnpm run architecture:check",
+      "pnpm run aipos:drift",
+      "pnpm run aipos:conformance",
+      "pnpm run safety:invariants",
+      "pnpm run safety:inputs",
+      "node scripts/validate-workflow-action-pins.js",
+      "pnpm run build"
+    ],
+    "evidence_refs": ["https://github.com/cinamoncandy/NUSA/pull/1293"]
+  },
+  "history": [
+    { "stage": "PROPOSAL", "observed_at": "2026-08-31T01:10:00Z" },
+    { "stage": "IMPACT_ANALYSIS", "observed_at": "2026-08-31T01:12:00Z" },
+    { "stage": "ARCHITECTURE_REVIEW", "observed_at": "2026-08-31T01:14:00Z" },
+    { "stage": "MIGRATION_PLAN", "observed_at": "2026-08-31T01:16:00Z" },
+    { "stage": "APPROVAL", "observed_at": "2026-08-31T01:18:00Z" }
+  ]
+}

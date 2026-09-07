@@ -6,7 +6,7 @@ const path = require("node:path");
 const root = path.join(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
-test("classic and master presets are materially distinct visual systems", () => {
+test("classic and master presets remain materially distinct visual systems", () => {
   const profile = read("apps/mobile/src/homeVisualProfile.ts");
   assert.match(profile, /classic:[\s\S]*?horizontalPadding:\s*20/);
   assert.match(profile, /master:[\s\S]*?horizontalPadding:\s*14/);
@@ -16,35 +16,71 @@ test("classic and master presets are materially distinct visual systems", () => 
   assert.match(profile, /master:[\s\S]*?radius:\s*6/);
   assert.match(profile, /classic:[\s\S]*?balanceSize:\s*52/);
   assert.match(profile, /master:[\s\S]*?balanceSize:\s*44/);
-  assert.match(profile, /classic:[\s\S]*?contentGap:\s*22/);
-  assert.match(profile, /master:[\s\S]*?contentGap:\s*12/);
-  assert.match(profile, /classic:[\s\S]*?metricGap:\s*10/);
-  assert.match(profile, /master:[\s\S]*?metricGap:\s*6/);
 });
 
-test("HomeView consumes the selected preset for MASTER geometry and current composition", () => {
+test("HomeView presents the approved autonomous-intelligence composition", () => {
   const home = read("apps/mobile/src/homeView.tsx");
-  assert.match(home, /getHomeVisualProfile\(theme\.preset\)/);
-  assert.match(home, /paddingHorizontal:\s*profile\.screen\.horizontalPadding/);
-  assert.match(home, /paddingTop:\s*profile\.screen\.topPadding/);
-  assert.match(home, /gap:\s*tablet \? 24 : 18/);
-  assert.match(home, /paddingBottom:\s*profile\.screen\.bottomPadding/);
-  assert.match(home, /maxWidth:\s*tablet \? Math\.max\(profile\.screen\.maxWidth, 980\) : profile\.screen\.maxWidth/);
+
+  assert.match(home, /useWindowDimensions/);
+  assert.match(home, /const tablet = width >= 768/);
+  assert.match(home, /maxWidth: tablet \? 1080 : 720/);
   assert.match(home, /testID="home-screen"/);
-  assert.match(home, /testID="home-supervisor-summary"/);
-  assert.match(home, /testID="home-signal-trace"/);
-  assert.match(home, /<InsightPanel/);
-  assert.match(home, /<CompactMetric/);
-  assert.match(home, /<OperationalNotice/);
-  assert.match(home, /testID="home-supervisor-result"[\s\S]*onNavigate\("Portfolio"\)[\s\S]*SUPERVISE →/);
-  assert.match(home, /testID="home-supervisor-learning"[\s\S]*onOpenPaperLearning[\s\S]*EVIDENCE →/);
-  assert.doesNotMatch(home, /testID="account-hero-card"/);
-  assert.doesNotMatch(home, /label="PAPER 학습 보기"/);
-  assert.match(home, /AI READ ONLY · ZERO AUTHORITY/);
-  assert.match(home, /02 \/\/ SIGNAL TERRAIN/);
-  assert.match(home, /<TerrainSignal variant="symbolic"[\s\S]*testID="home-signal-trace" \/>/);
-  assert.match(home, /RISK[\s\S]*NEUTRAL[\s\S]*OPPORTUNITY/);
-  assert.doesNotMatch(home, /styles\.grid, \{ gap: profile\.density\.metricGap \}/);
+  assert.match(home, /testID="home-master-rail"/);
+  assert.match(home, /testID="home-status-rail"/);
+  assert.match(home, /testID="home-now"/);
+  assert.match(home, /testID="account-hero-card"/);
+  assert.match(home, /testID="ai-card"/);
+  assert.match(home, /testID="home-risk-status"/);
+  assert.match(home, /testID="home-decision-stage"/);
+  assert.match(home, /testID="home-paper-performance"/);
+  assert.match(home, /testID="home-paper-learning"/);
+  assert.match(home, /DECISION BASIS/);
+  assert.match(home, /RISK/);
+  assert.match(home, /MARKETS/);
+  assert.match(home, /PAPER PERFORMANCE/);
+  assert.match(home, /LEARN/);
+  assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
+
+  assert.doesNotMatch(home, /getHomeVisualProfile\(theme\.preset\)/);
+  assert.doesNotMatch(home, />[^<]*(?:BULLISH|STRONG|WEAK)[^<]*<\/Text>/);
+  assert.doesNotMatch(home, /testID="home-supervisor-summary"/);
+  assert.doesNotMatch(home, /<SupervisorProgressPanel/);
+});
+
+test("canonical HOME uses verified market and PAPER data without fabricating unavailable feeds", () => {
+  const home = read("apps/mobile/src/homeView.tsx");
+  const app = read("apps/mobile/App.tsx");
+
+  assert.match(home, /const marketRows = \[\.\.\.selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)\][\s\S]*?\.slice\(0, tablet \? 5 : 3\)/);
+  assert.match(home, /publicMarkets: readonly WatchlistMarket\[\] \| null/);
+  assert.match(home, /signedPercentFromRate\(market\.changeRate\)/);
+  assert.match(home, /const cloudAccount = snapshot\?\.portfolio\?\.account \?\? null/);
+  assert.match(home, /const account = cloudAccount \?\? localAccount/);
+  assert.match(home, /buildLocalPortfolio\(localTradingSnapshot, localMarkPrice\)/);
+  assert.match(home, /testID="home-operational-notice"/);
+  assert.match(home, /onPress=\{onGoSettings\}/);
+  assert.doesNotMatch(home, /<OperationalNotice/);
+
+  assert.match(app, /publicMarket=\{CHART_MARKET\}/);
+  assert.match(app, /publicMarkets=\{publicMarkets\.markets\}/);
+  assert.match(app, /publicCandles=\{publicMarkets\.candles\}/);
+  assert.match(app, /publicCurrentPrice=\{publicMarkets\.currentPrice\}/);
+  assert.match(app, /publicMarketConnectionState=\{publicMarketConnectionState\}/);
+  assert.match(app, /publicMarketStale=\{publicMarkets\.status !== "READY"\}/);
+
+  assert.doesNotMatch(home, /BTC[^\n]*(65000000|70000000|100000000)/);
+  assert.doesNotMatch(home, /Math\.random\(|synthetic|mock candle|fake candle/i);
+  assert.doesNotMatch(home, /liveAuthority\s*=\s*["'](?:FULL|LIVE|ENABLED)["']/);
+  assert.doesNotMatch(home, /productionMutationAllowed\s*=\s*true/);
+});
+
+test("HOME rendered financial values keep stable tabular numerals in the command-center grammar", () => {
+  const home = read("apps/mobile/src/homeView.tsx");
+  for (const style of ["balanceValue", "pnlValue", "factValue", "previewValue"]) {
+    assert.match(home, new RegExp(`${style}: \\{[^}]*fontVariant: \\["tabular-nums"\\]`));
+  }
+  assert.match(home, /\{krw\(account\?\.equity\)\}/);
+  assert.match(home, /\{signedMoney\(totalPnl\)\} TOTAL PNL/);
 });
 
 test("fresh or stale installs converge on the canonical master preset", () => {

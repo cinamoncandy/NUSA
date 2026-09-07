@@ -3,9 +3,16 @@ import type { LeagueCapitalAllocationAdvisory } from "./leagueCapitalAllocation"
 export type PaperPeriodLifecycleStatus = "COMPLETED" | "REJECTED" | "HALTED";
 
 /** Cost data must be attributable to a canonical PAPER execution receipt. */
+export type PaperPeriodCostEvidenceKind = "OBSERVED" | "CONSERVATIVE_MODEL";
+
+/** Cost data must identify the source evidence without carrying raw execution payloads. */
 export interface PaperPeriodCostEvidence {
   readonly evidenceId: string;
   readonly source: "PAPER_EXECUTION_RECEIPT";
+  /** Whether execution-cost components were observed or came from an approved model. */
+  readonly evidenceKind: PaperPeriodCostEvidenceKind;
+  /** Stable digest of the source evidence set; raw cost payloads never enter the period record. */
+  readonly evidenceFingerprintSha256: string;
   readonly observedAt: number;
   readonly feeRate: number;
   readonly spreadRate: number;
@@ -21,6 +28,8 @@ export interface PersistedPaperCandidateProvenance {
 export interface PersistedPaperPeriodRecord {
   readonly recordId: string;
   readonly periodIndex: number;
+  /** Canonical market identity for benchmark evidence; legacy manual records may omit it. */
+  readonly market?: string;
   readonly advisory: LeagueCapitalAllocationAdvisory;
   readonly periodStartAt: number;
   readonly periodEndAt: number;

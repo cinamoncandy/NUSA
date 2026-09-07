@@ -2,6 +2,26 @@
 
 These rules apply to every human or AI agent working on NUSA.
 
+## NUSA CORE master operating protocol
+
+For autonomous engineering, repository operations, CI/PR handling, deployment
+verification, dogfood, and cross-AI handoff, read and follow
+[`docs/NUSA_CORE_MASTER_INSTRUCTIONS.md`](docs/NUSA_CORE_MASTER_INSTRUCTIONS.md).
+It is the consolidated CORE execution protocol and supplements the AIPOS,
+architecture, and safety rules below; it cannot override them or grant LIVE,
+real-money, credential, broker-mutation, or production authority.
+
+The OWNER shortcuts are `ㅇ` (execute the next safe real action), `ㅂ` (verified
+state), `ㅎ` (diagnose and repair), `ㅈ` (print the master protocol), and
+`/grill-me` (adversarial CORE review).
+
+For `/grill-me`, also read and follow
+[`docs/GRILL_ME_PROTOCOL.md`](docs/GRILL_ME_PROTOCOL.md). That document is the
+canonical detailed execution protocol for the adversarial review summarized in
+section 22 of the CORE master instructions. It remains subordinate to AIPOS,
+architecture, repository-protection, and safety rules, and it is explicitly a
+pre-Audit review rather than independent Audit or Release approval.
+
 ## AIPOS recovery is mandatory
 
 Before planning, editing, or generating code:
@@ -14,6 +34,37 @@ Before planning, editing, or generating code:
 6. Update `.aipos/state.yaml` and the active work order before stopping.
 
 Do not rely on prior conversation history. The repository is the source of truth. Vendor-specific instructions may supplement AIPOS but cannot replace it.
+
+## Lightweight recovery path (authority_impact: none)
+
+Full AIPOS recovery remains the default for any work that can affect authority, risk, execution, accounting, persistence, recovery, credentials, or LIVE boundaries.
+
+A **lightweight path** is allowed only when all of the following are true:
+
+1. The active or proposed work order marks `authority_impact: none` (or equivalent explicit non-authority scope).
+2. The change is limited to docs, presentation/UI copy, non-safety mobile visuals, comments, or packaging that does not alter safety gates.
+3. No LIVE, real-money, credential-execution, production-mutation, risk-policy, or AI-authority behavior changes.
+
+Under the lightweight path:
+
+- Still read `.aipos/state.yaml` and confirm no conflicting active authority work.
+- Prefer `pnpm run validate` for local gates (preflight + architecture:truth + safety:architecture + ai:architecture).
+- Use `pnpm run validate:full` when repository-wide contracts may be affected or when unsure.
+- Full evidence packages are **not** required; a short change note in the PR body is enough.
+- Do **not** skip fail-closed safety rules. If scope is ambiguous, use the full recovery protocol.
+
+## Evidence scope
+
+Require full durable evidence packages for changes that touch:
+
+- authority boundaries
+- risk, execution, or accounting
+- recovery or persistence
+- credentials or LIVE-related surfaces
+
+Allow lighter PR change notes for pure documentation, presentation, and other explicit `authority_impact: none` work.
+
+Physical Android device acceptance remains `HUMAN_ENVIRONMENT_ONLY` and does not block unrelated non-LIVE repository work.
 
 ## Read first
 

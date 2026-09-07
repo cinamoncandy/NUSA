@@ -1,0 +1,49 @@
+id: WO-ISSUE-1701-RESEARCH-HORIZON
+status: COMPLETED
+local_validation: Focused and Research/closed-learning regression 296/296; typecheck, build, lint, validate:full, security PASS.
+full_isolated: PASS_939_FILES
+runtime_evidence: docs/research/public-history-horizon-2026-09-05.md
+actual_public_run: 2000 completed candles per market, 94 OOS windows, 9 REJECTED, 0 qualified; durable replay snapshot persistence PASS. Not forward PAPER evidence.
+authority_impact: none
+base_branch: main
+base_commit: 13363002133bd764494bc3bb4d56f64016971bdf
+implementation_branch: codex/research-evidence-horizon
+completion_pull_requests:
+  - 1704
+  - 1706
+  - 1729
+  - 1731
+completion_merge_commit: 6479d7ef815d5af8940fa282b667a80a1ccc31e4
+objective: Expand canonical public daily history without changing qualification or execution.
+architecture_impact:
+  acknowledged: true
+  analysis: Reuses Upbit candle adapter, manifest, Research Factory and snapshot capture. No new engine or authority.
+  references:
+    - docs/NUSA_INVESTMENT_KNOWLEDGE_PRINCIPLE.md
+    - .aipos/decisions/ADR-0003-hardened-research-validity-boundaries.md
+scope:
+  - Bounded deterministic pagination of completed daily candles; default 2000, range 200-2000.
+  - Versioned availability-only market set `upbit-public-daily-2000-v2` with KRW-BTC, KRW-ETH, KRW-XRP, KRW-ADA and KRW-DOGE.
+  - Preserve source requests and dataset checksum; reject gaps, duplicates and malformed input.
+  - Run actual historical research and closed-learning regression; no fabricated qualified candidate.
+verification:
+  - node --test tests/research-history-pagination.test.js tests/research-real-market-qualification-wiring.test.js
+  - pnpm run preflight
+  - pnpm run typecheck
+  - pnpm run build
+  - pnpm run lint
+  - pnpm run validate:full
+  - pnpm run security:gate
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+acceptance:
+  - More completed public history with exact provenance, unchanged qualification thresholds.
+  - Truthful qualified/rejected/insufficient results; historical research is not forward PAPER.
+completion:
+  issue: 1701
+  issue_state: CLOSED_COMPLETED
+  verified_main: 50467e679cb5d1d145c410f1f7b879d3bf7fa573
+  dataset_sha256: 640102f8570ed4369266222643e8f1b94bac9248535d8ac56364509f2ef6abdd
+  result: TRUTHFUL_NEGATIVE

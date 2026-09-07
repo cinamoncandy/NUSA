@@ -22,6 +22,8 @@ test("AI distinguishes error and loading before rendering analysis content", () 
   assert.match(ai, /testID="ai-error"/);
   assert.match(ai, /ZERO AUTHORITY/);
   assert.match(ai, /READ ONLY/);
+  assert.match(ai, /testID="ai-loading-skeleton"/);
+  assert.doesNotMatch(ai, /ActivityIndicator/);
 });
 
 test("Markets keeps chart navigation reachable regardless of verified candles", () => {
@@ -32,12 +34,18 @@ test("Markets keeps chart navigation reachable regardless of verified candles", 
   assert.match(markets, /const chart = <View[\s\S]*<ChartView/);
 });
 
-test("PAPER exposes independent LOCAL execution while verified CLOUD execution remains runtime-gated", () => {
+test("production PAPER supervises autonomous learning while legacy PAPER execution remains isolated and runtime-gated", () => {
   const tradingShell = source("tradingView.tsx");
   const trading = source("tradingViewLegacy.tsx");
 
+  assert.match(tradingShell, /import \{ PaperLearningMonitorView \} from "\.\/paperLearningMonitorView"/);
+  assert.match(tradingShell, /import \{ buildPaperLearningScreen \} from "\.\/paperLearningScreen"/);
   assert.match(tradingShell, /import \{ TradingView as LegacyTradingView \} from "\.\/tradingViewLegacy"/);
-  assert.match(tradingShell, /<LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.match(tradingShell, /buildPaperLearningScreen\(\[\], "PAUSED", "PROJECTION_ABSENT"\)/);
+  assert.match(tradingShell, /<PaperLearningMonitorView/);
+  assert.doesNotMatch(tradingShell, /<LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.match(tradingShell, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
+
   assert.match(source("localPaperLedger.ts"), /Boolean\(configuredEndpoint && session\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
   assert.match(trading, /const usingLocalPaper = isLocalPaperActive\(\)/);
   assert.match(trading, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);

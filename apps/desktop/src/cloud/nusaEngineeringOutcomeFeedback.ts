@@ -45,7 +45,7 @@ const finiteOrNull = (value: number | null): boolean => value === null || Number
 const SHA_40 = /^[a-f0-9]{40}$/;
 const SHA_64 = /^[a-f0-9]{64}$/;
 
-function validateCiTelemetry(telemetry: NusaCiCriticalPathTelemetry, label: string): void {
+function validateCiTelemetry(telemetry: NusaCiCriticalPathTelemetry, label: string): readonly string[] {
   if (telemetry.schemaVersion !== 1 || !SHA_40.test(telemetry.headSha)) throw new Error(`OUTCOME_${label.toUpperCase()}_HEAD_INVALID`);
   if (!Number.isSafeInteger(telemetry.jobSampleCount) || telemetry.jobSampleCount < 1) throw new Error(`OUTCOME_${label.toUpperCase()}_SAMPLES_MISSING`);
   if (!Number.isFinite(telemetry.workflowP95Ms) || telemetry.workflowP95Ms < 0) throw new Error(`OUTCOME_${label.toUpperCase()}_P95_INVALID`);
@@ -55,6 +55,7 @@ function validateCiTelemetry(telemetry: NusaCiCriticalPathTelemetry, label: stri
     || telemetry.sourceFingerprints.some((fingerprint) => !SHA_64.test(fingerprint))) {
     throw new Error(`OUTCOME_${label.toUpperCase()}_PROVENANCE_INVALID`);
   }
+  return Object.freeze([...telemetry.sourceFingerprints].sort());
 }
 
 export function assessNusaEngineeringOutcome(evidence: NusaEngineeringOutcomeEvidence): NusaEngineeringOutcomeAssessment {
@@ -121,10 +122,13 @@ export function assessNusaCiCriticalPathOutcome(
   if (!Number.isFinite(evidence.minimumMeaningfulChange) || evidence.minimumMeaningfulChange < 0) {
     throw new Error("OUTCOME_THRESHOLD_INVALID");
   }
-  if (baseline != null) validateCiTelemetry(baseline, "baseline");
-  if (postMerge != null) validateCiTelemetry(postMerge, "post_merge");
+  const baselineSourceFingerprints = baseline == null ? Object.freeze([]) : validateCiTelemetry(baseline, "baseline");
+  const postMergeSourceFingerprints = postMerge == null ? Object.freeze([]) : validateCiTelemetry(postMerge, "post_merge");
   if (baseline != null && postMerge != null && baseline.headSha === postMerge.headSha) {
     throw new Error("OUTCOME_HEADS_NOT_DISTINCT");
+  }
+  if (baselineSourceFingerprints.some((fingerprint) => postMergeSourceFingerprints.includes(fingerprint))) {
+    throw new Error("OUTCOME_PROVENANCE_NOT_DISTINCT");
   }
 
   const assessment = assessNusaEngineeringOutcome({
@@ -139,7 +143,7 @@ export function assessNusaCiCriticalPathOutcome(
     metricId: "ci-workflow-p95-ms" as const,
     baselineHeadSha: baseline?.headSha ?? null,
     postMergeHeadSha: postMerge?.headSha ?? null,
-    baselineSourceFingerprints: Object.freeze([...(baseline?.sourceFingerprints ?? [])]),
-    postMergeSourceFingerprints: Object.freeze([...(postMerge?.sourceFingerprints ?? [])]),
+    baselineSourceFingerprints,
+    postMergeSourceFingerprints,
   });
 }

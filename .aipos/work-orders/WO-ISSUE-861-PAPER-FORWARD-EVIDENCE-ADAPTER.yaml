@@ -1,7 +1,7 @@
 version: 1
 id: WO-ISSUE-861-PAPER-FORWARD-EVIDENCE-ADAPTER
 title: "Issue #861 candidate-bound PAPER forward-evidence adapter"
-status: VERIFYING
+status: COMPLETED
 owner: codex
 repository: cinamoncandy/NUSA
 issue: 861
@@ -66,4 +66,7 @@ validation:
 known_limitations:
   - "The current persisted period contract does not contain truthful trade-count, execution-quality, or kill-switch metrics required by PaperPerformanceSummary; this slice must not synthesize them or populate League paperPerformance."
   - "A real Cloud runtime caller that opens/closes candidate-bound longitudinal periods remains a separate integration gap; this adapter consumes only records already persisted by the canonical producer."
-next: "Publish this scoped adapter only; keep League paperPerformance unset until a canonical source supplies every required PaperPerformanceSummary metric."
+next: "COMPLETE. League paperPerformance intentionally remains unset until a canonical source supplies every required PaperPerformanceSummary metric."
+completion:
+  pull_request: 877
+  reconciled_by: "NUSA session audit, 2026-09-02: work order was stuck at VERIFYING even though parent GitHub issue #861 is CLOSED and its closing PR #877 ('point-in-time safe adapter for persisted PAPER periods (#861 step 1)') is on current main. Verified apps/desktop/src/cloud/persistedPaperPeriodAdapter.test.ts still passes 9/9 on current main. Status corrected to reflect actual repository state; no code changed."

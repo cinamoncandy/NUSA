@@ -1,7 +1,7 @@
 import { buildMobileDashboardResponse } from "./mobileDashboardApi";
 import { InMemoryCloudDashboardStateProvider, type CloudDashboardStateProvider } from "./cloudDashboardStateProvider";
 import { readCloudRuntimeConfig, createSharedSecretTokenVerifier } from "./cloudRuntimeConfig";
-import { SqliteDatabase } from "../../../packages/storage/src/index";
+import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
 import { DurableCloudDashboardStateProvider } from "./durableCloudDashboardStateProvider";
 import { SqliteCloudDashboardSnapshotRepository, type CloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
 import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, type PaperAccountRepository } from "./paperTradingExecutionLoop";
@@ -13,8 +13,8 @@ import path from "node:path";
 import { createShutdownController, type ShutdownController } from "./cloudRuntimeShutdown";
 import { startCloudDashboardServer, type CloudDashboardServerHandle, type CloudReadinessSnapshot } from "./server";
 import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
-import { UpbitWebSocketClient, type UpbitTicker, type UpbitWebSocketOptions } from "./upbitWebSocket";
-import { upbitTickerToIntelligenceObservation } from "./upbitTickerObservation";
+import { UpbitWebSocketClient, type UpbitOrderBook, type UpbitTicker, type UpbitWebSocketOptions } from "./upbitWebSocket";
+import { classifyTickerRejectReason, upbitTickerToIntelligenceObservation } from "./upbitTickerObservation";
 import type { IntelligenceObservation } from "./marketIntelligenceFusion";
 import type { ResearchRuntimeMarketDataTick } from "./researchRuntimeCoordinator";
 import type { ResearchRecoveryResult } from "../../../packages/contracts/src/researchRecovery";
@@ -36,6 +36,7 @@ import { buildCloudRuntimeAiEvidence, type CloudRuntimeAiP0State } from "./ai/cl
 import { InMemoryInvestmentAllocationSettingsRepository, SqliteInvestmentAllocationSettingsRepository, type InvestmentAllocationSettingsRepository } from "./cloudInvestmentAllocationSettings";
 import { SqliteNusaUserAccessRepository } from "./operatorUserAccess";
 import { DesktopSessionService } from "./desktopSessionService";
+import { MobileSessionService } from "./mobileSessionService";
 import { PaperLearningEventRecorder, paperLearningCycleId } from "./paperLearningObservability";
 import { buildPaperLearningReadOnlyProjection } from "./paperLearningReadOnlyProjection";
 import { readPaperRuntimeSupervisorProjection } from "./paperRuntimeSupervisorProjection";
@@ -51,18 +52,29 @@ import { RealReadOnlyEventRecorder } from "./realReadOnlyObservabilityPersistenc
 import type { RealReadOnlyEvent, RealReadOnlyObservabilitySnapshot } from "../../../packages/contracts/src/realReadOnlyObservability";
 import { readCloudRuntimeSafety, readPaperAutoLearningReadiness } from "./liveReadinessRuntimeReaders";
 import { paperExecutionObservationId, PaperRealizedPeriodProducer, SqlitePaperRealizedPeriodRepository, type PaperRealizedPeriodCanonicalCloseInput, type PaperRealizedPeriodCloseInput, type PaperRealizedPeriodOpenInput, type PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
+import { readCanonicalPaperTickerBenchmark } from "./paperMarketBenchmark";
+import { buildPaperObservedExecutionQuote, type PaperObservedExecutionQuote } from "./paperRuntimeExecutionCostEvidence";
+import { SqlitePaperMarketObservationRepository } from "../../../packages/storage/src/paperMarketObservationRepository";
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
+import { buildEvolutionLearningSupervisorSnapshot } from "./evolutionLearningSupervisorProjection";
+import {
+  createNusaEngineeringOperatingReadModel,
+  type NusaEngineeringOperatingReadModel,
+  type NusaEngineeringOperatingSnapshot,
+  type NusaEngineeringOperatingSource,
+} from "./engineeringOperatingReadModel";
 
 export interface CloudRuntimeDashboardHydratorLike { hydrate(provider: CloudDashboardStateProvider, observations?: readonly IntelligenceObservation[]): void; }
 export interface CloudRuntimeMarketDataClientLike { subscribe(markets: readonly string[]): void; start(): void; stop(): void; }
 export interface CloudRuntimeResearchRuntimeLike { onMarketData(tick: ResearchRuntimeMarketDataTick): void; }
 export interface CloudRuntimeResearchRecoveryLike { recover(): ResearchRecoveryResult; }
 export interface CloudRuntimeResearchAutomationLike { recover?(): ResearchRecoveryResult; onMarketData(tick: ResearchRuntimeMarketDataTick): void; statusProjection?(): ResearchStatusProjection | null; }
-export type CloudRuntimeMarketDataClientFactory = (markets: readonly string[], onTicker: (ticker: UpbitTicker) => void, onConnectionState: (state: string) => void) => CloudRuntimeMarketDataClientLike;
+export type CloudRuntimeMarketDataClientFactory = (markets: readonly string[], onTicker: (ticker: UpbitTicker) => void, onConnectionState: (state: string) => void, onOrderBook?: (orderBook: UpbitOrderBook) => void) => CloudRuntimeMarketDataClientLike;
 export type CloudRuntimeShadowObservabilityProvider = (principal: DashboardPrincipal) => ShadowObservabilitySnapshot;
 export type CloudRuntimeRealReadOnlyObservabilityProvider = (principal: DashboardPrincipal, events: readonly RealReadOnlyEvent[]) => RealReadOnlyObservabilitySnapshot;
 export interface CloudRuntimeHandle extends CloudDashboardServerHandle {
   readonly getLiveReadinessSourceSnapshot: () => LiveReadinessProductionSourceSnapshot;
+  readonly getEngineeringOperatingSnapshot: () => NusaEngineeringOperatingSnapshot;
   readonly recordRealReadOnlyEvent: (event: RealReadOnlyEvent) => RealReadOnlyEvent;
   readonly openPaperRealizedPeriod: (input: PaperRealizedPeriodOpenInput) => PersistedPaperRealizedPeriodPlan;
   readonly observePaperRealizedExecution: (observation: { readonly observationId: string; readonly observedAt: number; readonly status: "FILLED" | "WAIT" | "BLOCKED" | "REJECTED" | "FAILED" | "DUPLICATE" }) => "RECORDED" | "DUPLICATE" | "NO_ACTIVE_PERIOD";
@@ -104,8 +116,12 @@ function buildCloudRuntimeReadiness(durableRepository: CloudDashboardSnapshotRep
   if (!(durableRepository instanceof SqliteCloudDashboardSnapshotRepository)) return failed();
   try {
     const db = durableRepository.database();
-    const quickCheck = db.connection.prepare("PRAGMA quick_check").get() as Record<string, unknown> | undefined;
-    const database = quickCheck != null && Object.values(quickCheck).includes("ok");
+    // Readiness runs on the HTTP event loop. A full-file PRAGMA quick_check can take
+    // seconds on the production ledger and starve even the O(1) /health endpoint.
+    // Probe the already-open canonical connection here; migration/persistence/recovery
+    // checks below still fail closed on an unreadable or inconsistent runtime store.
+    const databaseProbe = db.connection.prepare("SELECT 1 AS ready").get() as Record<string, unknown> | undefined;
+    const database = Number(databaseProbe?.ready ?? 0) === 1;
     const latestMigration = db.connection.prepare("SELECT id FROM schema_migrations ORDER BY id DESC LIMIT 1").get() as Record<string, unknown> | undefined;
     const migrations = db.migrationResult.currentVersion !== undefined && String(latestMigration?.id ?? "") === db.migrationResult.currentVersion;
     const dashboardState = effectiveProvider.read({ userId: "operator", scopes: ["dashboard:read"] });
@@ -122,7 +138,7 @@ export function startCloudRuntime(
   env: NodeJS.ProcessEnv = process.env,
   stateProvider: CloudDashboardStateProvider = new InMemoryCloudDashboardStateProvider(),
   dashboardHydrator: CloudRuntimeDashboardHydratorLike = new CloudRuntimeDashboardHydrator(),
-  marketDataClientFactory: CloudRuntimeMarketDataClientFactory = (markets, onTicker, onConnectionState) => new UpbitWebSocketClient(markets, onTicker, undefined, undefined, undefined, { onConnectionState: (diagnostics) => onConnectionState(diagnostics.marketConnectionState) } satisfies UpbitWebSocketOptions),
+  marketDataClientFactory: CloudRuntimeMarketDataClientFactory = (markets, onTicker, onConnectionState, onOrderBook) => new UpbitWebSocketClient(markets, onTicker, undefined, undefined, undefined, { onConnectionState: (diagnostics) => onConnectionState(diagnostics.marketConnectionState), onOrderBook } satisfies UpbitWebSocketOptions),
   snapshotRepository?: CloudDashboardSnapshotRepository,
   paperAccountRepository?: PaperAccountRepository,
   paperExecutionLoop?: PaperTradingExecutionLoop,
@@ -132,7 +148,8 @@ export function startCloudRuntime(
   aiRuntime?: CloudAiRuntime,
   shadowObservabilityProvider?: CloudRuntimeShadowObservabilityProvider,
   liveReadinessSourceReaders?: LiveReadinessSourceReaders,
-  realReadOnlyObservabilityProvider?: CloudRuntimeRealReadOnlyObservabilityProvider
+  realReadOnlyObservabilityProvider?: CloudRuntimeRealReadOnlyObservabilityProvider,
+  engineeringOperatingSource?: NusaEngineeringOperatingSource
 ): CloudRuntimeHandle {
   const config = readCloudRuntimeConfig(env);
   const paperSupervisor = readPaperRuntimeSupervisorProjection(env);
@@ -175,6 +192,9 @@ export function startCloudRuntime(
   const realReadOnlyEventRecorder = new RealReadOnlyEventRecorder(
     durableRepository instanceof SqliteCloudDashboardSnapshotRepository ? { persistencePath: config.cloudStateDbPath } : {}
   );
+  const paperMarketObservationRepository = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
+    ? new SqlitePaperMarketObservationRepository(durableRepository.database())
+    : undefined;
   let effectivePaperLoop: PaperTradingExecutionLoop | undefined;
   const paperRealizedPeriodProducer = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new PaperRealizedPeriodProducer(new SqlitePaperRealizedPeriodRepository(durableRepository.database()), {
@@ -191,13 +211,18 @@ export function startCloudRuntime(
         if (loop == null) throw new Error("canonical PAPER account source is unavailable");
         return loop.snapshot();
       },
+      ...(paperMarketObservationRepository == null ? {} : { readCanonicalBenchmarkEvidence: (periodStartAt: number, periodEndAt: number, market?: string) => readCanonicalPaperTickerBenchmark(paperMarketObservationRepository, market, periodStartAt, periodEndAt) }),
     })
     : undefined;
   const effectiveProvider = durableRepository == null ? stateProvider : new DurableCloudDashboardStateProvider(stateProvider, durableRepository, env.NUSA_SOURCE_COMMIT?.trim() || "unknown", env.NUSA_CLOUD_SOURCE_VERSION?.trim() || "unknown");
   const recovered = durableRepository != null && effectiveProvider instanceof DurableCloudDashboardStateProvider && effectiveProvider.recover();
   const durableAuthDatabase = durableRepository instanceof SqliteCloudDashboardSnapshotRepository ? durableRepository.database() : undefined;
+  const loadEvolutionLearning = durableAuthDatabase == null
+    ? undefined
+    : () => buildEvolutionLearningSupervisorSnapshot(new SqliteEvolutionLearningLedger(durableAuthDatabase).replay());
   const userAccessRepository = durableAuthDatabase == null ? undefined : new SqliteNusaUserAccessRepository(durableAuthDatabase);
   const desktopSessionService = durableAuthDatabase == null || userAccessRepository == null ? undefined : new DesktopSessionService(durableAuthDatabase, userAccessRepository);
+  const mobileSessionService = durableAuthDatabase == null || userAccessRepository == null ? undefined : new MobileSessionService(durableAuthDatabase, userAccessRepository);
   const effectiveP0Repository = durableRepository instanceof SqliteCloudDashboardSnapshotRepository ? new SqliteP0AlertRepository(durableRepository.database()) : undefined;
   const investmentAllocationSettings: InvestmentAllocationSettingsRepository = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new SqliteInvestmentAllocationSettingsRepository(durableRepository.database())
@@ -215,6 +240,7 @@ export function startCloudRuntime(
   const operatorPrincipal = Object.freeze({ userId: "operator", scopes: Object.freeze(["dashboard:read"]) });
   const sourceCommit = env.NUSA_SOURCE_COMMIT?.trim() || env.GITHUB_SHA?.trim() || "";
   const sourceVersion = env.NUSA_CLOUD_SOURCE_VERSION?.trim() || "unknown";
+  const engineeringOperatingReadModel: NusaEngineeringOperatingReadModel = createNusaEngineeringOperatingReadModel(engineeringOperatingSource);
   let marketConnectionState = config.upbitPublicDataEnabled ? "DISCONNECTED" : "DISABLED";
   const defaultLiveReadinessReaders: LiveReadinessSourceReaders = {
     ...liveReadinessSourceReaders,
@@ -254,15 +280,25 @@ export function startCloudRuntime(
   try { if (!recovered) dashboardHydrator.hydrate(effectiveProvider); projectPaperAccount(); } catch { clearPaperProjection(); }
   const observations = new Map<string, IntelligenceObservation>();
   const latestTickers = new Map<string, PersonalPaperMarketProjection>();
+  const latestExecutionQuotes = new Map<string, PaperObservedExecutionQuote>();
   const safeHydrate = (next: readonly IntelligenceObservation[]): void => { try { dashboardHydrator.hydrate(effectiveProvider, next); } catch { effectiveProvider.clear(); } };
   const marketDataClient = config.upbitPublicDataEnabled ? marketDataClientFactory(config.upbitMarkets, (ticker) => {
     heartbeat.lastHeartbeatAt = Date.now();
     heartbeat.lastMarketEventAt = ticker.trade_timestamp;
     heartbeat.eventCount += 1;
     latestTickers.set(ticker.code, { market: ticker.code, price: ticker.trade_price, changeRate: ticker.signed_change_rate ?? null, volume: ticker.acc_trade_volume ?? null, observedAt: new Date(ticker.trade_timestamp).toISOString(), source: "UPBIT_PUBLIC_TICKER" });
+    try { paperMarketObservationRepository?.append({ market: ticker.code, observedAt: ticker.trade_timestamp, price: ticker.trade_price, signedChangeRate: ticker.signed_change_rate, accumulatedVolume: ticker.acc_trade_volume, accumulatedPrice: ticker.acc_trade_price_24h }); }
+    catch { heartbeat.lastError = "PAPER_MARKET_OBSERVATION_REJECTED"; }
     const now = Date.now();
     const observation = upbitTickerToIntelligenceObservation(ticker, { now });
-    if (!observation) { heartbeat.lastError = "PUBLIC_MARKET_EVENT_REJECTED"; safeHydrate([]); return; }
+    if (!observation) {
+      // P2 diagnostic suffix only: an operator can now tell a silent feed
+      // (FEED_STALE / FUTURE_MARKET_TIMESTAMP, e.g. host clock skew) from a
+      // malformed tick. Rejection behavior is unchanged — still fail-closed.
+      heartbeat.lastError = `PUBLIC_MARKET_EVENT_REJECTED:${classifyTickerRejectReason(ticker, { now })}`;
+      safeHydrate([]);
+      return;
+    }
     observations.set(observation.id, observation); while (observations.size > 50) observations.delete(observations.keys().next().value!); safeHydrate([...observations.values()]);
     const researchTick = { market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, now };
     try { effectiveResearchRuntime?.onMarketData(researchTick); } catch { /* isolated */ }
@@ -274,11 +310,11 @@ export function startCloudRuntime(
         const lessons = aiRuntime?.applicableLessons(attributionScope({ outcomeDefinitionId: AI_CALIBRATION_OUTCOME_DEFINITION_ID, targetId: ticker.code }), now) ?? [];
         const grounded = buildCloudRuntimeAiEvidence(ticker, { mode: dashboard.mode, killSwitchActive: dashboard.killSwitchActive, tradingAllowed: dashboard.tradingAllowed, overallHealth: dashboard.overallHealth, p0State, observedAt: now }, lessons);
         const orchestrationRunId = `cloud-ai:${ticker.code}:${ticker.trade_timestamp}:${grounded.identityHash.slice(0, 20)}`;
-        aiRuntime?.schedule({ orchestrationRunId, decisionId: `${orchestrationRunId}:decision`, evaluatedAt: now, evidence: grounded.evidence, evidenceMaterializations: grounded.evidenceMaterializations, policyVersionIds: ["AI_ZERO_AUTHORITY_POLICY_V1", "NUSA_DETERMINISTIC_SAFETY_V1"], certificationIds: [], controlPlaneStateId: `cloud:${dashboard.mode}:${dashboard.killSwitchActive ? "KILL" : "ACTIVE"}:${p0State}`, contextValidForMs: 120_000 });
+        aiRuntime?.schedule({ orchestrationRunId, decisionId: `${orchestrationRunId}:decision`, evaluatedAt: now, evidence: grounded.evidence, evidenceMaterializations: grounded.evidenceMaterializations, policyVersionIds: ["AI_ZERO_AUTHORITY_POLICY_V1", "NUSA_DETERMINISTIC_SAFETY_V1"], certificationIds: [], controlPlaneStateId: `cloud:${dashboard.mode}:${dashboard.killSwitchActive ? "KILL" : "ACTIVE"}:${p0State}`, contextValidForMs: 120_000, learningProvenance: "AUTO_BACKGROUND" });
       } catch { /* advisory AI only */ }
       if (effectivePaperLoop != null) {
         const investmentPercent = investmentAllocationSettings.get(config.ownerId)?.investmentPercent ?? config.paperInvestmentPercent;
-        const tick = { now, market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, mode: state.mode, killSwitchActive: state.killSwitchActive, tradingAllowed: dashboard.tradingAllowed, overallHealth: state.overallHealth, decisions: state.decisions, investmentPercent };
+        const tick = { now, market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, mode: state.mode, killSwitchActive: state.killSwitchActive, tradingAllowed: dashboard.tradingAllowed, overallHealth: state.overallHealth, decisions: state.decisions, investmentPercent, observedQuote: latestExecutionQuotes.get(ticker.code) };
         heartbeat.lastPaperDecisionAt = now;
         heartbeat.decisionCount += state.decisions.length;
         // A supplied loop is a read/recovery fixture unless it is composed behind the
@@ -317,7 +353,13 @@ export function startCloudRuntime(
     heartbeat.lastHeartbeatAt = Date.now();
     marketConnectionState = state;
     heartbeat.lastError = state === "CONNECTED" ? null : `PUBLIC_MARKET_${state}`;
-    if (state !== "CONNECTED") { observations.clear(); latestTickers.clear(); safeHydrate([]); }
+    if (state !== "CONNECTED") { observations.clear(); latestTickers.clear(); latestExecutionQuotes.clear(); safeHydrate([]); }
+  }, (orderBook) => {
+    heartbeat.lastHeartbeatAt = Date.now();
+    try {
+      const quote = buildPaperObservedExecutionQuote({ market: orderBook.code, observedAt: Date.now(), totalAskSize: orderBook.total_ask_size, totalBidSize: orderBook.total_bid_size, units: orderBook.orderbook_units.map((unit) => ({ askPrice: unit.ask_price, bidPrice: unit.bid_price, askSize: unit.ask_size, bidSize: unit.bid_size })) });
+      latestExecutionQuotes.set(quote.market, quote);
+    } catch { heartbeat.lastError = "PAPER_ORDERBOOK_OBSERVATION_REJECTED"; }
   }) : undefined;
   if (marketDataClient) { marketDataClient.subscribe(config.upbitMarkets); marketDataClient.start(); }
   const heartbeatTimer = setInterval(() => { heartbeat.lastHeartbeatAt = Date.now(); }, 2_000);
@@ -368,12 +410,15 @@ export function startCloudRuntime(
     tokenVerifier,
     ...(userAccessRepository == null ? {} : { userAccessRepository }),
     ...(desktopSessionService == null ? {} : { desktopSessionService }),
+    ...(mobileSessionService == null ? {} : { mobileSessionService }),
     readiness: () => buildCloudRuntimeReadiness(durableRepository, effectiveProvider),
     loadDashboard: (principal) => { const input = effectiveProvider.read(principal); if (input === undefined) throw new Error("dashboard state is not ready"); return buildMobileDashboardResponse(input); },
     loadPaperOperations,
     ...(shadowObservabilityProvider == null ? {} : { loadShadowOperations: shadowObservabilityProvider }),
     ...(realReadOnlyObservabilityProvider == null ? {} : { loadRealReadOnlyOperations: (principal: DashboardPrincipal) => realReadOnlyObservabilityProvider(principal, realReadOnlyEventRecorder.replay()) }),
     loadLiveReadiness: () => liveReadinessSourceProvider.getSnapshot(),
+    loadEngineeringOperations: () => engineeringOperatingReadModel.getSnapshot(),
+    ...(loadEvolutionLearning == null ? {} : { loadEvolutionLearning }),
     submitPaperOrder,
     investmentAllocationSettings
   });
@@ -385,6 +430,7 @@ export function startCloudRuntime(
   return {
     ...handle,
     getLiveReadinessSourceSnapshot: () => liveReadinessSourceProvider.getSnapshot(),
+    getEngineeringOperatingSnapshot: () => engineeringOperatingReadModel.getSnapshot(),
     recordRealReadOnlyEvent: (event) => realReadOnlyEventRecorder.record(event),
     openPaperRealizedPeriod: (input) => requirePaperRealizedPeriodProducer().openPeriod(input),
     observePaperRealizedExecution: (observation) => requirePaperRealizedPeriodProducer().observeExecution(observation),

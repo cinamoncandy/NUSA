@@ -1,13 +1,19 @@
-import { decideCio, type CioDecision } from "./cioDecisionEngine";
+import { decideCio, type CioDecision, type PaperCandidateExecutionBinding } from "./cioDecisionEngine";
 import { fuseMarketIntelligence } from "./marketIntelligenceFusion";
 import { buildPortfolioPlan } from "./portfolioOrchestrator";
 import type { MobileDashboardApiInput } from "./mobileDashboardApi";
 import type { CloudDashboardStateProvider } from "./cloudDashboardStateProvider";
 import type { IntelligenceObservation } from "./marketIntelligenceFusion";
+import { evaluatePaperCandidateStrategy } from "./paperCandidateStrategy";
+
+export interface PaperCandidateBindingProvider {
+  read(market: string, decisionAt: number): PaperCandidateExecutionBinding | undefined;
+}
 
 export interface CloudRuntimeDashboardHydratorOptions {
   readonly now?: () => number;
   readonly maxPaperAllocation?: number;
+  readonly paperCandidateBindingProvider?: PaperCandidateBindingProvider;
 }
 
 const DEFAULT_MAX_PAPER_ALLOCATION = 0.1;
@@ -17,14 +23,21 @@ const clampUnit = (value: number): number => Math.min(1, Math.max(0, value));
 /**
  * Composes the safe Cloud PAPER runtime state. Market-scoped evidence produces a
  * market-scoped CIO decision; evidence without a market remains advisory only.
+ *
+ * A challenger binding is read-only provenance supplied by the closed-learning
+ * composition root. `decideCio` validates it again at the decision timestamp and
+ * keeps it `BOUND_UNVERIFIED`; this hydrator never creates candidate identity and
+ * never grants LIVE or production-mutation authority.
  */
 export class CloudRuntimeDashboardHydrator {
   private readonly now: () => number;
   private readonly maxPaperAllocation: number;
+  private readonly paperCandidateBindingProvider?: PaperCandidateBindingProvider;
 
   public constructor(options: CloudRuntimeDashboardHydratorOptions = {}) {
     this.now = options.now ?? (() => Date.now());
     this.maxPaperAllocation = options.maxPaperAllocation ?? DEFAULT_MAX_PAPER_ALLOCATION;
+    this.paperCandidateBindingProvider = options.paperCandidateBindingProvider;
     if (!Number.isFinite(this.maxPaperAllocation) || this.maxPaperAllocation <= 0 || this.maxPaperAllocation > 1) {
       throw new Error("maxPaperAllocation must be in (0, 1]");
     }
@@ -65,6 +78,10 @@ export class CloudRuntimeDashboardHydrator {
         const currentAllocation = clampUnit(previous?.portfolio.allocations
           .filter((allocation) => allocation.symbol === market && allocation.instrument === "SPOT")
           .reduce((sum, allocation) => sum + allocation.share, 0) ?? 0);
+        const paperCandidateBinding = this.paperCandidateBindingProvider?.read(market, now);
+        const paperCandidateStrategyDecision = paperCandidateBinding?.candidateStrategy == null
+          ? undefined
+          : evaluatePaperCandidateStrategy(paperCandidateBinding.candidateStrategy, marketGroups.get(market) ?? [], now, market);
         decisions.push(decideCio({
           symbol: market,
           now,
@@ -73,7 +90,9 @@ export class CloudRuntimeDashboardHydrator {
           maxAllocation: Math.max(this.maxPaperAllocation, currentAllocation),
           maxLeverage: 1,
           risk: "MEDIUM",
-          tradingEnabled: true
+          tradingEnabled: true,
+          ...(paperCandidateBinding == null ? {} : { paperCandidateBinding }),
+          ...(paperCandidateStrategyDecision == null ? {} : { paperCandidateStrategyDecision })
         }));
       }
 

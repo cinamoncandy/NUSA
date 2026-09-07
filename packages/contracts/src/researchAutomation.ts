@@ -15,7 +15,12 @@ export interface ResearchSessionMetrics {
   readonly challengerBetterCount: number;
   readonly equivalentCount: number;
   readonly inconclusiveCount: number;
-  readonly costAdjustedPerformance: number;
+  /** Cumulative value from verified explicit cost evidence only. Omitted when no such evidence exists. */
+  readonly costAdjustedPerformance?: number;
+  /** Number of experiments with verified explicit cost evidence. */
+  readonly costAdjustedEvidenceCount?: number;
+  /** Number of experiments whose explicit cost evidence was unavailable or unusable. */
+  readonly missingCostEvidenceCount?: number;
   readonly unresolvedFaultCount?: number;
   readonly dataQualityFailureCount?: number;
   readonly tradeCount?: number;

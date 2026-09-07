@@ -1,20 +1,9 @@
 import { createHash } from "node:crypto";
 import { validatePaperCandidateExecutionBinding } from "./cioDecisionEngine";
 import type { PaperAccountState, PaperFillRecord } from "./paperTradingExecutionLoop";
-
-export interface PaperExecutionCostAttribution {
-  readonly schemaVersion: 1;
-  readonly source: "PAPER_EXECUTION_BOUNDARY";
-  readonly evidenceKind: "OBSERVED" | "CONSERVATIVE_MODEL";
-  readonly evidenceId: string;
-  readonly evidenceFingerprintSha256: string;
-  readonly candidateId: string;
-  readonly quotePrice: number;
-  readonly fillPrice: number;
-  readonly feeAmount: number;
-  readonly spreadAmount: number;
-  readonly slippageAmount: number;
-}
+import type { PaperPeriodCostEvidenceKind } from "../../../packages/contracts/src/persistedPaperPeriod";
+import type { PaperExecutionCostAttribution } from "./paperRuntimeExecutionCostEvidence";
+export type { PaperExecutionCostAttribution } from "./paperRuntimeExecutionCostEvidence";
 
 export interface CanonicalPaperOutcomeReconciliationInput {
   readonly periodStartAt: number;
@@ -39,6 +28,9 @@ export interface CanonicalPaperOutcomeReceipt {
   readonly fillCount: number;
   readonly candidateIds: readonly string[];
   readonly executionCostEvidenceIds: readonly string[];
+  /** Aggregate provenance for the validated execution-cost evidence set; absent only for no-fill intervals. */
+  readonly executionCostEvidenceKind?: PaperPeriodCostEvidenceKind;
+  readonly executionCostEvidenceFingerprint?: string;
   readonly receiptFingerprint: string;
 }
 
@@ -175,6 +167,7 @@ export function reconcileCanonicalPaperOutcomeWindow(input: CanonicalPaperOutcom
 
   const candidateIds = new Set<string>();
   const executionCostEvidenceIds = new Set<string>();
+  const executionCostEvidenceById = new Map<string, { readonly evidenceKind: PaperPeriodCostEvidenceKind; readonly evidenceFingerprintSha256: string }>();
   let turnoverNotional = 0;
   let feeAmount = 0;
   let spreadAmount = 0;
@@ -191,6 +184,11 @@ export function reconcileCanonicalPaperOutcomeWindow(input: CanonicalPaperOutcom
     const attribution = validateCostAttribution(fill, fill.executionCostAttribution);
     candidateIds.add(attribution.candidateId);
     executionCostEvidenceIds.add(attribution.evidenceId);
+    const existingCostEvidence = executionCostEvidenceById.get(attribution.evidenceId);
+    if (existingCostEvidence != null && (existingCostEvidence.evidenceKind !== attribution.evidenceKind || existingCostEvidence.evidenceFingerprintSha256 !== attribution.evidenceFingerprintSha256)) {
+      throw new PaperCanonicalOutcomeReconciliationError("EXECUTION_COST_PROVENANCE_CONFLICT", "execution-cost evidence " + attribution.evidenceId + " was reused with different provenance");
+    }
+    executionCostEvidenceById.set(attribution.evidenceId, { evidenceKind: attribution.evidenceKind, evidenceFingerprintSha256: attribution.evidenceFingerprintSha256 });
     turnoverNotional += fill.quantity * fill.price;
     feeAmount += attribution.feeAmount;
     spreadAmount += attribution.spreadAmount;
@@ -200,6 +198,20 @@ export function reconcileCanonicalPaperOutcomeWindow(input: CanonicalPaperOutcom
   if (![turnoverNotional, feeAmount, spreadAmount, slippageAmount].every(Number.isFinite)) {
     throw new PaperCanonicalOutcomeReconciliationError("NON_FINITE_ACCOUNTING", "realized PAPER execution accounting overflowed");
   }
+
+  const evidenceKinds = new Set([...executionCostEvidenceById.values()].map((item) => item.evidenceKind));
+  if (evidenceKinds.size > 1) throw new PaperCanonicalOutcomeReconciliationError("MIXED_EXECUTION_COST_EVIDENCE", "realized PAPER period mixes observed and modeled execution-cost evidence");
+  const executionCostEvidenceKind = [...evidenceKinds][0];
+  const costEvidenceProvenance = executionCostEvidenceKind === undefined ? {} : {
+    executionCostEvidenceKind,
+    executionCostEvidenceFingerprint: fingerprint({
+      schemaVersion: 1,
+      source: "PAPER_EXECUTION_COST_EVIDENCE_SET",
+      evidenceKind: executionCostEvidenceKind,
+      evidence: [...executionCostEvidenceById.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([evidenceId, value]) => ({ evidenceId, evidenceFingerprintSha256: value.evidenceFingerprintSha256 })),
+    }),
+  };
+  if ("executionCostEvidenceFingerprint" in costEvidenceProvenance && (typeof costEvidenceProvenance.executionCostEvidenceFingerprint !== "string" || !SHA256.test(costEvidenceProvenance.executionCostEvidenceFingerprint))) throw new PaperCanonicalOutcomeReconciliationError("INVALID_EXECUTION_COST_PROVENANCE", "aggregate execution-cost evidence fingerprint is invalid");
 
   const turnover = turnoverNotional / startEquity;
   const feeRate = turnoverNotional === 0 ? 0 : feeAmount / turnoverNotional;
@@ -228,6 +240,7 @@ export function reconcileCanonicalPaperOutcomeWindow(input: CanonicalPaperOutcom
     fillCount: periodFills.length,
     candidateIds: freeze([...candidateIds].sort()),
     executionCostEvidenceIds: freeze([...executionCostEvidenceIds].sort()),
+    ...costEvidenceProvenance,
   });
   const receiptFingerprint = fingerprint(core);
   if (!SHA256.test(receiptFingerprint)) throw new PaperCanonicalOutcomeReconciliationError("INVALID_RECEIPT_FINGERPRINT", "canonical receipt fingerprint is invalid");

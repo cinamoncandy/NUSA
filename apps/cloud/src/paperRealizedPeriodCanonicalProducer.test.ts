@@ -33,6 +33,7 @@ function openInput(): PaperRealizedPeriodOpenInput {
     periodIndex: 0,
     advisory: advisory(BASE - 100),
     candidateProvenance: [{ candidateId: "candidate-a", datasetId: "dataset-a", datasetContentSha256: HASH }],
+    market: "KRW-BTC",
     periodStartAt: BASE,
   };
 }
@@ -127,7 +128,7 @@ describe("canonical PAPER realized-period producer", () => {
     let current = account(BASE, 1_000);
     const options: PaperRealizedPeriodProducerOptions = {
       readCanonicalPaperAccount: () => current,
-      readCanonicalBenchmarkEvidence: (_start, periodEndAt) => ({ evidenceId: "benchmark-canonical", observedAt: periodEndAt, benchmarkReturn: 0.01 }),
+      readCanonicalBenchmarkEvidence: (_start, periodEndAt, market) => ({ evidenceId: "benchmark-canonical", observedAt: periodEndAt, benchmarkReturn: 101 / 100 - 1, market: market ?? "KRW-BTC", source: "UPBIT_PUBLIC_TICKER", startObservedAt: BASE, endObservedAt: periodEndAt, startPrice: 100, endPrice: 101, inputFingerprintSha256: HASH }),
     };
     const first = state(options);
     try {
@@ -138,6 +139,8 @@ describe("canonical PAPER realized-period producer", () => {
       const realized = first.producer.closePeriodFromCanonicalAccount({ periodId: plan.periodId, periodEndAt: END });
       assert.ok(Math.abs(realized.record.realizedReturns["candidate-a"]! - 0.00995) < 1e-12);
       assert.equal(realized.record.turnoverCostRate, 0.0005);
+      assert.equal(realized.record.costEvidence.evidenceKind, "OBSERVED");
+      assert.match(realized.record.costEvidence.evidenceFingerprintSha256, /^[a-f0-9]{64}$/);
       assert.equal(realized.record.benchmarkEvidenceId, "benchmark-canonical");
       assert.match(realized.record.canonicalOutcomeReceiptFingerprint ?? "", /^[a-f0-9]{64}$/);
 

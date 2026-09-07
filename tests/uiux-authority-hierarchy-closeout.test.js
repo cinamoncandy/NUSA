@@ -37,13 +37,14 @@ test("AI presents intelligence before one compact authority summary", () => {
   assert.ok(authorityIndex > zeroAuthorityIndex, "the final authority card must be the last element");
 });
 
-test("PAPER exposes independent local simulation while cloud submit stays authority-gated and LIVE remains forbidden", () => {
+test("production PAPER supervises learning while isolated legacy simulation remains PAPER-only", () => {
   const tradingWrapper = read("tradingView.tsx");
   const trading = read("tradingViewLegacy.tsx");
   const combinedTrading = `${tradingWrapper}\n${trading}`;
 
   assert.match(tradingWrapper, /TradingView as LegacyTradingView/);
-  assert.match(tradingWrapper, /<LegacyTradingView \{\.\.\.props\} \/>/);
+  assert.match(tradingWrapper, /PaperLearningMonitorView/);
+  assert.doesNotMatch(tradingWrapper, /<LegacyTradingView \{\.\.\.props\} \/>/);
   assert.equal(occurrences(trading, 'statusLabel="LIVE NONE"'), 1);
   assert.doesNotMatch(combinedTrading, /<AuthorityBanner/);
   assert.match(read("localPaperLedger.ts"), /Boolean\(configuredEndpoint && session\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
@@ -67,6 +68,7 @@ test("authority hierarchy closeout preserves AI zero-authority and PAPER-only mu
 
   assert.doesNotMatch(ai, /onSubmit|ORDER_CREATE|LIVE_EXECUTION/);
   assert.match(tradingWrapper, /TradingView as LegacyTradingView/);
+  assert.match(tradingWrapper, /PaperLearningMonitorView/);
   assert.match(trading, /authority: "PAPER_ONLY"/);
   assert.match(trading, /productionMutationAllowed: false/);
   assert.match(trading, /liveMutationAllowed: false/);

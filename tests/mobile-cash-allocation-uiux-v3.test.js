@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const read = (relative) => fs.readFileSync(path.join(__dirname, "..", relative), "utf8");
 
-test("cash allocation is a first-class v3 contract from settings to PAPER workspaces", () => {
+test("cash allocation remains a first-class PAPER contract without cluttering canonical HOME", () => {
   const settings = read("apps/mobile/src/settings.ts");
   const guard = read("apps/mobile/src/capitalAllocationGuard.ts");
   const app = read("apps/mobile/App.tsx");
@@ -27,17 +27,18 @@ test("cash allocation is a first-class v3 contract from settings to PAPER worksp
 
   assert.match(app, /const \[investmentPercent, setInvestmentPercent\]/);
   assert.match(app, /onCloudInvestmentPercentSave=\{investmentAllocationClient\.save\}/);
-  // v5 (docs/NUSA_MOBILE_UIUX_V5_OBSIDIAN_FINANCE.md §4): investment allocation is not a
-  // permanent global strip -- it belongs contextually in Home/Portfolio/PAPER/Settings.
   assert.doesNotMatch(app, /StatusChip label=\{`투자 \$\{investmentPercent\}%`\}/);
   assert.match(app, /investmentPercent=\{investmentPercent\}/);
-  assert.match(home, /home-investable-cash/);
-  assert.match(home, /home-reserved-cash/);
+  assert.match(home, /readonly investmentPercent: number/);
+  assert.match(home, /testID="account-hero-card"/);
+  assert.match(home, /PAPER PERFORMANCE/);
+  assert.match(home, /testID="home-investable-cash"/);
+  assert.match(home, /<FactRow label="RESERVED CASH" value=\{krw\(cashEnvelope\?\.reservedCash\)\} tone="success" \/>/);
+  const performanceStart = home.indexOf('PAPER PERFORMANCE');
+  const investable = home.indexOf('testID="home-investable-cash"');
+  const reserved = home.indexOf('label="RESERVED CASH"');
+  assert.ok(performanceStart >= 0 && investable > performanceStart && reserved > performanceStart, "allocation detail must live inside PAPER PERFORMANCE");
   assert.match(portfolio, /portfolio-investable-cash/);
-  // tradingView.tsx is now a public-chart shell; the preserved PAPER execution workspace lives
-  // in tradingViewLegacy.tsx and remains the authority-bearing implementation under that shell.
-  // Trading may source its account from Cloud PAPER or the LOCAL PAPER fallback. In both cases
-  // the effective account is what the allocation envelope and SELL availability must use.
   assert.match(trading, /const cashEnvelope = createCashInvestmentEnvelope\(effectiveSnapshot\.account\.cash, investmentPercent\)/);
   assert.match(trading, /const modelCash = side === "BUY" \? cashEnvelope\.investableCash : effectiveSnapshot\.account\.cash/);
   assert.match(trading, /보호 현금 \{formatTradingAmount\(cashEnvelope\.reservedCash/);

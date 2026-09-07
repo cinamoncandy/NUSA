@@ -9,7 +9,14 @@ import type { PaperLedgerEntry, PaperOrder, PaperSide } from "./paperBroker";
  */
 
 export function tradingDayOf(iso: string): string {
+  if (!Number.isFinite(Date.parse(iso))) throw new Error("INVALID_ORDER_TIMESTAMP");
   return iso.slice(0, 10);
+}
+
+function parsedFillTimestamp(filledAt: string): number {
+  const parsed = Date.parse(filledAt);
+  if (!Number.isFinite(parsed)) throw new Error("INVALID_ORDER_TIMESTAMP");
+  return parsed;
 }
 
 export function computeOrderRateState(
@@ -20,9 +27,12 @@ export function computeOrderRateState(
   let ordersInLastSecond = 0;
   let ordersInLastMinute = 0;
   for (const order of orders) {
-    const age = nowMs - Date.parse(order.filledAt);
-    if (age >= 0 && age < 1_000) ordersInLastSecond += 1;
-    if (age >= 0 && age < 60_000) ordersInLastMinute += 1;
+    // Corrupt timestamps fail closed (loud) instead of evading burst limits;
+    // future timestamps (clock skew) count as recent (conservative) rather
+    // than being ignored.
+    const age = nowMs - parsedFillTimestamp(order.filledAt);
+    if (age < 1_000) ordersInLastSecond += 1;
+    if (age < 60_000) ordersInLastMinute += 1;
   }
   // orders is most-recent-first (PaperBroker.execute unshifts), so a run from the
   // front counts the unbroken streak of the same side leading up to this command.

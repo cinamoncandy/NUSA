@@ -1,0 +1,78 @@
+version: 1
+id: WO-ISSUE-1299-LIVE-CANONICAL-FINAL-CHAIN-AUDIT
+title: "Canonical LIVE final execution chain audit"
+status: COMPLETED
+priority: P0
+owner: nusa
+repository: cinamoncandy/NUSA
+issue: 1299
+base_branch: main
+base_commit: e871a28b8452b6b85a1f438d49d8150df3f8dd7f
+initial_audit_commit: 259b98f21ebe4d28644ac406e26aeb4b3a19648c
+implementation_branch: codex/live-canonical-final-chain-audit
+final_exact_head: 768fb06f702fdb00208461e2b8037fbdd0b838f3
+merge_commit: 9fe44a95bab25ae341e9a47c2a4a41b32fb7a26c
+objective: "Close the repository-controlled fault, concurrency, replay, and bypass-visibility gap around the canonical authoritative LIVE final execution chain without enabling LIVE mutation."
+scope:
+  - canonical_authoritative_session_to_final_reservation_regression
+  - concurrent_duplicate_transport_suppression
+  - persisted_session_revision_race_fail_closed
+  - unknown_transport_outcome_replay_suppression
+  - storage_failure_before_broker_boundary
+  - legacy_direct_broker_boundary_production_reachability_guard
+architecture_impact:
+  acknowledged: true
+  analysis: "Add only executable regression evidence around the existing #1297/#1299 authoritative-session, revision-scoped consume-once, and atomic final-reservation chain. No new execution engine, broker adapter, authority source, queue, accounting path, or activation capability is introduced."
+  references:
+    - apps/cloud/src/liveSessionBrokerAdapterBoundary.ts
+    - apps/cloud/src/liveAuthoritativeSessionTransportChain.ts
+    - apps/cloud/src/liveSessionRevisionAuthorization.ts
+    - apps/cloud/src/liveRuntimeSessionDurableStore.ts
+    - apps/cloud/src/liveExecutionConsumeOnce.ts
+    - apps/cloud/src/liveBrokerTransportBoundaryV3.ts
+    - tests/live-canonical-final-chain.test.js
+    - docs/audits/live-canonical-final-chain-2026-08-31.md
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  brokerMutation: NONE
+  activation: NONE
+  test_transport: INJECTED_RECORDING_OR_THROWING_ONLY
+prohibited:
+  - live_activation
+  - real_broker_mutation
+  - order_cancel_withdrawal_or_transfer
+  - credential_access_or_persistence
+  - bypass_of_authoritative_session_or_final_reservation
+acceptance:
+  - canonical_authoritative_path_reaches_only_explicit_transport_after_persisted_session_checks
+  - concurrent_same_request_reaches_transport_at_most_once
+  - persisted_revision_change_blocks_transport
+  - unknown_transport_outcome_cannot_be_retried_into_second_transport_call
+  - storage_failure_fails_closed_before_transport
+  - legacy_direct_broker_boundary_has_no_production_import
+  - existing_live_safety_and_authority_invariants_remain_unchanged
+validation:
+  focused_canonical_final_chain: PASS_6_OF_6
+  existing_live_regressions: PASS_28_OF_28
+  combined_targeted_live_regressions: PASS_34_OF_34
+  full_isolated_suite: PASS_821_FILES
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture_truth: PASS
+  architecture: PASS
+  safety_inputs: PASS
+  safety: PASS
+  restricted_live: PASS
+  restricted_live_readiness: PASS
+  read_only_broker: PASS
+  ai_zero_authority: PASS
+  security: PASS
+  package_validation: PASS
+  aipos: PASS
+  diff_check: PASS
+  exact_head_remote_validation: PASS_PR_1309_HEAD_768FB06F_MERGED_9FE44A95
+next: "Continue only with WO-0051's existing human/environment gate; keep the canonical chain fail-closed for LIVE and real-money transition."

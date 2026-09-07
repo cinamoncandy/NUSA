@@ -3,6 +3,10 @@ const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs"
 const os = require("node:os");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
+const {
+  PAPER_WRITER_LEASE_CONFLICT_EXIT_CODE,
+  PaperRuntimeProcessSupervisor,
+} = require("./paper-runtime-supervisor.js");
 
 /**
  * Starts the Cloud PAPER runtime with a configuration that actually works out of the box.
@@ -26,6 +30,8 @@ const TOKEN_FILE = path.join(CONFIG_DIR, "dashboard-token");
 const DEFAULT_PORT = "41731";
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PAPER_CAPITAL_KRW = "10000000";
+const SUPERVISOR_CHILD_ENV = "NUSA_PAPER_RUNTIME_SUPERVISOR_CHILD";
+const PRODUCTION_RUNTIME_ENTRYPOINT = "dist/apps/cloud/src/closedLearningProductionRuntime.js";
 
 /** Environment variables that would hand the runtime real-money authority. Never forwarded. */
 const PRIVATE_CREDENTIAL_PATTERN = /(ACCESS|SECRET|PRIVATE|API[_-]?KEY|TOKEN)/i;
@@ -91,7 +97,7 @@ function banner(env, stripped) {
     "",
     "  NUSA Cloud PAPER runtime",
     `  endpoint   ${endpoint}`,
-    `  token      ${env.NUSA_CLOUD_DASHBOARD_TOKEN}`,
+    "  token      [redacted]",
     `  token file ${TOKEN_FILE}`,
     "",
     "  PAPER only - liveAuthority=NONE, productionMutationAllowed=false",
@@ -101,7 +107,7 @@ function banner(env, stripped) {
   lines.push(
     "",
     "  Android emulator: adb reverse tcp:" + env.NUSA_CLOUD_DASHBOARD_PORT + " tcp:" + env.NUSA_CLOUD_DASHBOARD_PORT,
-    "  Then in the app: Settings -> PAPER server -> paste the endpoint and token above.",
+    "  Then in the app: Settings -> PAPER server -> paste the endpoint above and token from the token file.",
     "",
   );
   return lines.join("\n");
@@ -125,18 +131,28 @@ function leaseRecoveryGuidance(stderrTail) {
   ].filter((line) => line !== "").join("\n") + "\n";
 }
 
+function launcherExitCode(code, signal, stderrTail) {
+  if (signal) return 1;
+  if (code !== 0 && /PAPER_WRITER_ALREADY_ACTIVE/.test(stderrTail)) return PAPER_WRITER_LEASE_CONFLICT_EXIT_CODE;
+  return code ?? 0;
+}
+
 function start(options = {}) {
   const baseEnv = options.env ?? process.env;
-  const token = (options.resolveToken ?? resolveDashboardToken)();
+  // A deployment may provide the owner-managed token through its protected environment
+  // (for example systemd). Do not touch the fallback token file in that case: beyond being
+  // unnecessary, a protected HOME can make the launcher fail before the PAPER server listens.
+  const configuredToken = baseEnv.NUSA_CLOUD_DASHBOARD_TOKEN;
+  const token = configuredToken != null && configuredToken.trim() !== ""
+    ? configuredToken
+    : (options.resolveToken ?? resolveDashboardToken)();
   const { env, stripped } = buildRuntimeEnv(baseEnv, token);
   const write = options.write ?? ((text) => process.stdout.write(text));
   write(banner(env, stripped));
   const spawnFn = options.spawn ?? spawn;
-  const child = spawnFn(process.execPath, ["dist/apps/cloud/src/runtime.js"], {
+  const child = spawnFn(process.execPath, [PRODUCTION_RUNTIME_ENTRYPOINT], {
     cwd: options.cwd ?? process.cwd(),
     env,
-    // stderr is piped so a writer-lease failure can be answered with the recovery command
-    // instead of a bare stack trace; it is still echoed through unchanged.
     stdio: ["ignore", "inherit", "pipe"],
     shell: false,
   });
@@ -149,16 +165,56 @@ function start(options = {}) {
     if (code !== 0 && /PAPER_WRITER_CLOCK_ANOMALY|PAPER_WRITER_ALREADY_ACTIVE/.test(stderrTail)) {
       write(leaseRecoveryGuidance(stderrTail));
     }
-    process.exitCode = signal ? 1 : code ?? 0;
+    process.exitCode = launcherExitCode(code, signal, stderrTail);
   });
-  // The runtime installs its own SIGTERM/SIGINT shutdown controller; forward the signal so it
-  // releases the PAPER writer lease instead of being killed underneath its own handler.
   for (const signal of ["SIGINT", "SIGTERM"]) {
     process.on(signal, () => { if (child.exitCode == null) child.kill(signal); });
   }
   return child;
 }
 
-if (require.main === module) start();
+/**
+ * Production entrypoint: keep PAPER runtime alive across unexpected process exits while preserving
+ * the existing launcher as the supervised child. The child marker prevents recursive supervisors.
+ */
+function runManaged(options = {}) {
+  const baseEnv = options.env ?? process.env;
+  if (baseEnv[SUPERVISOR_CHILD_ENV] === "true") return start(options);
 
-module.exports = { buildRuntimeEnv, resolveDashboardToken, start, stripPrivateExchangeCredentials, TOKEN_FILE };
+  const supervisor = new PaperRuntimeProcessSupervisor({
+    cwd: options.cwd ?? process.cwd(),
+    env: { ...baseEnv, [SUPERVISOR_CHILD_ENV]: "true" },
+    command: process.execPath,
+    args: ["scripts/start-cloud-runtime.js"],
+    write: options.write,
+    spawn: options.spawnSupervisor,
+    setTimer: options.setTimer,
+    clearTimer: options.clearTimer,
+    now: options.now,
+    initialBackoffMs: options.initialBackoffMs,
+    maxBackoffMs: options.maxBackoffMs,
+    writerLeaseRetryMs: options.writerLeaseRetryMs,
+    stableWindowMs: options.stableWindowMs,
+    maxRestarts: options.maxRestarts,
+    maxRestartWindowMs: options.maxRestartWindowMs,
+  });
+  supervisor.start();
+  for (const signal of ["SIGINT", "SIGTERM"]) {
+    process.on(signal, () => supervisor.stop(signal));
+  }
+  return supervisor;
+}
+
+if (require.main === module) runManaged();
+
+module.exports = {
+  buildRuntimeEnv,
+  launcherExitCode,
+  PRODUCTION_RUNTIME_ENTRYPOINT,
+  resolveDashboardToken,
+  runManaged,
+  start,
+  stripPrivateExchangeCredentials,
+  SUPERVISOR_CHILD_ENV,
+  TOKEN_FILE,
+};

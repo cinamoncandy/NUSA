@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { PersistedPaperPeriodEnvelope, PersistedPaperPeriodRecord } from "../../contracts/src/persistedPaperPeriod";
 import type { SqliteDatabase } from "./index";
 
-export type { PersistedPaperCandidateProvenance, PersistedPaperPeriodEnvelope, PersistedPaperPeriodRecord, PaperPeriodCostEvidence, PaperPeriodLifecycleStatus } from "../../contracts/src/persistedPaperPeriod";
+export type { PersistedPaperCandidateProvenance, PersistedPaperPeriodEnvelope, PersistedPaperPeriodRecord, PaperPeriodCostEvidence, PaperPeriodCostEvidenceKind, PaperPeriodLifecycleStatus } from "../../contracts/src/persistedPaperPeriod";
 
 export interface PersistedPaperPendingPeriod {
   readonly periodId: string;
@@ -22,6 +22,7 @@ export class PersistedPaperPeriodStoreError extends Error {
 const TABLE = "research_paper_forward_periods";
 const PENDING_TABLE = "research_paper_forward_period_pending";
 const SHA256 = /^[a-f0-9]{64}$/;
+const MARKET = /^KRW-[A-Z0-9-]+$/;
 const FORBIDDEN_KEY = /(authorization|bearer|token|secret|password|api[_-]?key|access[_-]?key|private[_-]?key|cookie|jwt|nonce|signature|account[_-]?id|order[_-]?id|fill[_-]?id)/i;
 const checksum = (payload: string): string => createHash("sha256").update(payload, "utf8").digest("hex");
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
@@ -60,13 +61,14 @@ function validateEnvelope(envelope: PersistedPaperPeriodEnvelope): void {
   if (record == null || typeof record !== "object" || typeof record.recordId !== "string" || !record.recordId.trim()) throw new PersistedPaperPeriodStoreError("INVALID_RECORD_ID", "PAPER period recordId is required");
   if (!Number.isSafeInteger(record.periodIndex) || record.periodIndex < 0) throw new PersistedPaperPeriodStoreError("INVALID_PERIOD_INDEX", "PAPER periodIndex must be a non-negative integer", record.recordId);
   if (![record.periodStartAt, record.periodEndAt].every((value) => Number.isSafeInteger(value) && value >= 0) || record.periodEndAt <= record.periodStartAt) throw new PersistedPaperPeriodStoreError("INVALID_PERIOD_BOUNDS", "PAPER period bounds are invalid", record.recordId);
+  if (record.market !== undefined && (typeof record.market !== "string" || !MARKET.test(record.market.trim().toUpperCase()))) throw new PersistedPaperPeriodStoreError("INVALID_MARKET", "PAPER period market is invalid", record.recordId);
   const advisoryAt = Date.parse(record.advisory.generatedAt);
   if (!Number.isFinite(advisoryAt)) throw new PersistedPaperPeriodStoreError("INVALID_ADVISORY_TIMESTAMP", "PAPER advisory.generatedAt must be a valid timestamp", record.recordId);
   if (advisoryAt >= record.periodStartAt) throw new PersistedPaperPeriodStoreError("LOOKAHEAD_ADVISORY_SNAPSHOT", "PAPER advisory must predate the realized period it is persisted against", record.recordId);
   if (!(record.status === "COMPLETED" || record.status === "REJECTED" || record.status === "HALTED")) throw new PersistedPaperPeriodStoreError("INVALID_STATUS", "PAPER period status is unsupported", record.recordId);
   if (record.benchmarkEvidenceId !== undefined && (typeof record.benchmarkEvidenceId !== "string" || !record.benchmarkEvidenceId.trim() || FORBIDDEN_KEY.test(record.benchmarkEvidenceId))) throw new PersistedPaperPeriodStoreError("INVALID_BENCHMARK_PROVENANCE", "benchmark evidence identity is invalid", record.recordId);
   if (record.canonicalOutcomeReceiptFingerprint !== undefined && !SHA256.test(record.canonicalOutcomeReceiptFingerprint)) throw new PersistedPaperPeriodStoreError("INVALID_OUTCOME_PROVENANCE", "canonical PAPER outcome fingerprint is invalid", record.recordId);
-  if (record.costEvidence?.source !== "PAPER_EXECUTION_RECEIPT" || typeof record.costEvidence.evidenceId !== "string" || !record.costEvidence.evidenceId.trim() || !Number.isSafeInteger(record.costEvidence.observedAt) || record.costEvidence.observedAt < record.periodStartAt) throw new PersistedPaperPeriodStoreError("MISSING_COST_PROVENANCE", "PAPER period requires attributable execution cost evidence", record.recordId);
+  if (record.costEvidence?.source !== "PAPER_EXECUTION_RECEIPT" || typeof record.costEvidence.evidenceId !== "string" || !record.costEvidence.evidenceId.trim() || (record.costEvidence.evidenceKind !== "OBSERVED" && record.costEvidence.evidenceKind !== "CONSERVATIVE_MODEL") || !SHA256.test(record.costEvidence.evidenceFingerprintSha256) || !Number.isSafeInteger(record.costEvidence.observedAt) || record.costEvidence.observedAt < record.periodStartAt) throw new PersistedPaperPeriodStoreError("MISSING_COST_PROVENANCE", "PAPER period requires attributable execution cost evidence", record.recordId);
   for (const [field, value] of Object.entries({ benchmarkReturn: record.benchmarkReturn, turnoverCostRate: record.turnoverCostRate, ...record.realizedReturns, "costEvidence.feeRate": record.costEvidence.feeRate, "costEvidence.spreadRate": record.costEvidence.spreadRate, "costEvidence.slippageRate": record.costEvidence.slippageRate })) {
     if (typeof value !== "number" || !Number.isFinite(value)) throw new PersistedPaperPeriodStoreError("NON_FINITE_VALUE", `${field} must be finite`, record.recordId);
   }

@@ -11,6 +11,9 @@ const root = path.resolve(__dirname, "..");
 const reportDir = path.join(root, "docs", "audits");
 const date = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" });
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+const AUDIT_MAX_ATTEMPTS = 3;
+const AUDIT_RETRY_DELAY_MS = 2_000;
+const AUDIT_ATTEMPT_TIMEOUT_MS = 120_000;
 
 const COMPENSATED = Object.freeze({
   "1138808": { package: "image-size", ghsa: "GHSA-w3rx-r6r6-pgpr" },
@@ -42,13 +45,46 @@ function audit() {
     const windows = os.platform() === "win32";
     const executable = windows ? (process.env.ComSpec ?? "cmd.exe") : "pnpm";
     const args = windows ? ["/d", "/s", "/c", "pnpm audit --json"] : ["audit", "--json"];
-    const output = execFileSync(executable, args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    const output = execFileSync(executable, args, {
+      cwd: root,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: AUDIT_ATTEMPT_TIMEOUT_MS,
+      killSignal: "SIGTERM"
+    });
     return parseAuditResult(output);
   } catch (error) {
     const output = String(error.stdout ?? "");
-    if (!output.includes("{")) throw error;
-    return parseAuditResult(output);
+    if (output.includes("{")) return parseAuditResult(output);
+    if (error?.code === "ETIMEDOUT" || error?.signal === "SIGTERM") throw new Error("AUDIT_UNAVAILABLE:timeout");
+    throw error;
   }
+}
+
+function sleepSync(milliseconds) {
+  if (milliseconds <= 0) return;
+  const waitBuffer = new Int32Array(new SharedArrayBuffer(4));
+  Atomics.wait(waitBuffer, 0, 0, milliseconds);
+}
+
+function auditWithRetry(auditFn = audit, options = {}) {
+  const maxAttempts = Number(options.maxAttempts ?? AUDIT_MAX_ATTEMPTS);
+  const retryDelayMs = Number(options.retryDelayMs ?? AUDIT_RETRY_DELAY_MS);
+  if (!Number.isInteger(maxAttempts) || maxAttempts < 1) throw new Error("AUDIT_RETRY_ATTEMPTS_INVALID");
+  let lastError;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return auditFn();
+    } catch (error) {
+      lastError = error;
+      const message = String(error?.message ?? error);
+      const transient = message.startsWith("AUDIT_UNAVAILABLE:");
+      if (!transient || attempt === maxAttempts) throw error;
+      console.warn(`[security-gate] dependency audit transient failure ${attempt}/${maxAttempts}: ${message}; retrying`);
+      sleepSync(retryDelayMs);
+    }
+  }
+  throw lastError ?? new Error("AUDIT_UNAVAILABLE:unknown");
 }
 
 function trackedSecrets() {
@@ -60,6 +96,7 @@ function trackedSecrets() {
   for (const relative of files) {
     if (ignored.test(relative) || !extensions.has(path.extname(relative).toLowerCase())) continue;
     const full = path.join(root, relative);
+    if (!fs.existsSync(full)) continue;
     const bytes = fs.readFileSync(full);
     if (bytes.includes(0)) continue;
     findings.push(...core.scanText(bytes.toString("utf8"), relative));
@@ -103,7 +140,7 @@ function main() {
   const secrets = trackedSecrets();
   const artifacts = core.verifyArtifacts(process.argv.includes("--artifacts") ? path.resolve(process.argv[process.argv.indexOf("--artifacts") + 1] ?? path.join(root, "release")) : null);
   let rawAudit;
-  try { rawAudit = audit(); } catch (error) { console.error(`[security-gate] dependency audit unavailable: ${error.message}`); process.exit(1); }
+  try { rawAudit = auditWithRetry(); } catch (error) { console.error(`[security-gate] dependency audit unavailable after ${AUDIT_MAX_ATTEMPTS} bounded attempts: ${error.message}`); process.exit(1); }
   const auditResult = evaluateAudit(rawAudit, backports);
   const result = { backports, integrity, licenses, secrets, artifacts, audit: auditResult };
   writeReports(result);
@@ -120,4 +157,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { parseJsonObject, parseAuditResult, evaluateAudit };
+module.exports = { parseJsonObject, parseAuditResult, evaluateAudit, auditWithRetry };

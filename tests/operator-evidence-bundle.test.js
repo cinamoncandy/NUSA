@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { appendPaperScenarioEvent } = require("../dist/apps/cloud/src/paperScenarioEvidenceLedger.js");
 const { exportOperatorEvidenceBundle, verifyOperatorEvidenceBundle } = require("../dist/apps/cloud/src/operatorEvidenceBundle.js");
-const { createResearchRunManifest, validateWalkForward, validateCostStress, validateIntegrity } = require("../dist/apps/cloud/src/researchRunValidation.js");
+const { createResearchRunManifest } = require("../dist/apps/cloud/src/researchRunValidation.js");
 
 const now = Date.UTC(2026, 6, 15);
 const event = (eventId, type, extra = {}) => ({ eventId, type, occurredAt: now, sessionId: "session-1", ...extra });

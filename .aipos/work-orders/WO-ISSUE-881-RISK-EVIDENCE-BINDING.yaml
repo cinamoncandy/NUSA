@@ -1,0 +1,73 @@
+version: 1
+id: WO-ISSUE-881-RISK-EVIDENCE-BINDING
+title: "Issue #881 bind canonical portfolio risk evidence to PAPER advisory"
+status: COMPLETED
+priority: P1
+owner: codex
+repository: cinamoncandy/NUSA
+issue: 881
+base_branch: main
+base_commit: 545b3286a39ef72ef1872521ace37127142929dd
+implementation_branch: codex/issue-881-risk-evidence-binding
+objective: "Require the existing canonical PaperPortfolioRiskEvidence evaluator to be accepted, provenance-matched, and fresh before the existing PaperPortfolioAdvisory can issue an allocation recommendation."
+architecture_impact:
+  acknowledged: true
+  analysis: "Extend the existing PaperPortfolioAdvisory consumer with the existing PaperPortfolioRiskEvidence evaluator. Do not add a second risk engine, capital allocator, accounting path, broker path, or LIVE capability."
+  references:
+    - apps/cloud/src/paperPortfolioAdvisory.ts
+    - apps/cloud/src/paperPortfolioRiskEvidence.ts
+    - tests/paper-portfolio-advisory.test.js
+scope:
+  - canonical_risk_evidence_consumption
+  - provenance_binding
+  - freshness_validation
+  - fail_closed_advisory
+prohibited:
+  - actual_capital_allocation
+  - paper_or_live_execution
+  - broker_or_order_mutation
+  - risk_authority_replacement
+  - live_activation
+  - credential_handling
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  brokerMutation: NONE
+  paper_only: true
+acceptance:
+  - existing_advisory_consumes_canonical_portfolio_risk_evidence
+  - missing_or_rejected_risk_evidence_abstains
+  - risk_evidence_candidate_dataset_and_hash_must_match_advisory_evidence
+  - future_or_stale_risk_evaluation_abstains
+  - existing_portfolio_advisory_and_risk_regressions_remain_green
+  - no_capital_accounting_execution_risk_broker_or_live_authority_changes
+implementation_status: IMPLEMENTED_REMOTE_PENDING_EXACT_HEAD_CI
+implementation_commit: eff5f306d1cb69da48c75872b9c41b4356eb207f
+pull_request: 1051
+published_head: eff5f306d1cb69da48c75872b9c41b4356eb207f
+merge_commit: PENDING
+remote_validation: PENDING_EXACT_HEAD_CI
+validation:
+  focused: PASS_11_OF_11
+  relevant_regressions: PASS_31_OF_31_TARGETED
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture_truth: PASS
+  architecture_check: PASS
+  safety: PASS
+  security: PASS
+  restricted_live: PASS
+  read_only_broker: PASS
+  aipos: PASS
+  package_validation: PASS
+  git_diff_check: PASS
+known_limitations:
+  - "This slice only binds existing portfolio risk evidence to the advisory; it does not create longitudinal PAPER performance evidence or actual capital execution."
+  - "Issue #881 broader acceptance remains open for correlation, concentration, cost, performance, and runtime evidence integration beyond this consumer binding."
+next: "COMPLETE for this slice's scope."
+completion:
+  pull_request: 1051
+  reconciled_by: "NUSA session audit, 2026-09-02: work order was stuck at VERIFYING even though parent GitHub issue #881 is CLOSED and PR #1051 is merged to current main. Verified tests/paper-portfolio-advisory.test.js still passes 13/13 on current main. Status corrected to reflect actual repository state; no code changed."

@@ -11,6 +11,38 @@ function experiment(overrides = {}) {
   const market = overrides.market ?? "KRW-BTC";
   const interval = overrides.interval ?? "1d";
   const id = overrides.datasetId ?? `${market}-${interval}`;
+  const averageBenchmarkReturn = overrides.averageBenchmarkReturn ?? 0.02;
+  const averageOutperformance = overrides.averageOutperformance ?? 0.01;
+  const targetOutperformanceRatio = overrides.benchmarkOutperformanceWindowRatio ?? 0.75;
+  const windowCount = overrides.windowCount ?? (() => {
+    if (targetOutperformanceRatio === 0 || targetOutperformanceRatio === 1) return 4;
+    for (let count = 2; count <= 100; count += 1) {
+      if (Math.abs(targetOutperformanceRatio * count - Math.round(targetOutperformanceRatio * count)) < 1e-9) return count;
+    }
+    return 4;
+  })();
+  const positiveWindows = Math.round(targetOutperformanceRatio * windowCount);
+  const windowOutperformance = Array.from({ length: windowCount }, (_, index) => {
+    if (positiveWindows === 0) return averageOutperformance;
+    if (averageOutperformance >= 0) return index < positiveWindows ? averageOutperformance / targetOutperformanceRatio : 0;
+    if (index < positiveWindows) return 1e-6;
+    return (averageOutperformance * windowCount - positiveWindows * 1e-6) / (windowCount - positiveWindows);
+  });
+  const windows = windowOutperformance.map((outperformance) => ({
+    testResult: {
+      metrics: {
+        totalReturn: averageBenchmarkReturn + outperformance,
+        benchmarkReturn: averageBenchmarkReturn,
+        excessReturn: outperformance,
+        outperformance,
+      },
+      benchmark: {
+        strategyReturn: averageBenchmarkReturn + outperformance,
+        buyAndHoldReturn: averageBenchmarkReturn,
+        outperformance,
+      },
+    },
+  }));
   return {
     manifest: {
       schemaVersion: 1,
@@ -26,13 +58,13 @@ function experiment(overrides = {}) {
       missingCandlePolicy: "REJECT",
       missingCandleCount: 0,
       createdAt: "2026-01-01T00:00:00.000Z",
-      contentSha256: overrides.contentSha256 ?? `sha-${id}`
+      contentSha256: overrides.contentSha256 ?? "c".repeat(64)
     },
-    experimentConfig: { walkForward: {}, candidates: [], executionCosts: {} },
+    experimentConfig: { walkForward: {}, candidates: [], executionCosts: { feeRate: 0.0005, spreadBps: 5, slippageBps: 5 } },
     generatedAt: "2026-01-01T00:00:00.000Z",
     warnings: [],
     walkForwardResult: {
-      windows: [],
+      windows,
       candidateSelectionCounts: {},
       warnings: [],
       stabilityDiagnostics: {
@@ -44,7 +76,7 @@ function experiment(overrides = {}) {
         closedTradeNetProfit: 0,
         markedTotalReturn: overrides.totalReturn ?? 0.12,
         markedMaximumDrawdown: overrides.maximumDrawdown ?? 0.1,
-        windowCount: overrides.windowCount ?? 4,
+        windowCount,
         totalOosPoints: overrides.totalOosPoints ?? 80,
         totalOosClosedTrades: overrides.totalOosClosedTrades ?? 8,
         netProfit: 0,
@@ -59,11 +91,11 @@ function experiment(overrides = {}) {
         totalTradingCost: overrides.totalTradingCost ?? 3000,
         profitableWindowRatio: overrides.profitableWindowRatio ?? 0.75,
         positiveExpectancyWindowRatio: 0.75,
-        benchmarkOutperformanceWindowRatio: overrides.benchmarkOutperformanceWindowRatio ?? 0.75,
+        benchmarkOutperformanceWindowRatio: targetOutperformanceRatio,
         equalWeight: {
-          averageReturn: 0.03,
-          averageBenchmarkReturn: overrides.averageBenchmarkReturn ?? 0.02,
-          averageOutperformance: overrides.averageOutperformance ?? 0.01
+          averageReturn: averageBenchmarkReturn + averageOutperformance,
+          averageBenchmarkReturn,
+          averageOutperformance
         },
         sequentialCompounded: {
           initialEquity: overrides.initialEquity ?? 10_000_000,
@@ -76,11 +108,29 @@ function experiment(overrides = {}) {
   };
 }
 
-const candidate = (id, familyId, overrides = {}) => ({
-  id,
-  familyId,
-  experiment: experiment({ datasetId: `ds-${id}`, ...overrides })
-});
+const candidate = (id, familyId, overrides = {}) => {
+  const result = experiment({ datasetId: `ds-${id}`, ...overrides });
+  result.experimentConfig.candidates = [{ id }];
+  return {
+    id,
+    familyId,
+    experiment: result,
+    candidateSpecification: {
+      schemaVersion: 1,
+      candidateId: id,
+      familyId,
+      lineageId: `${familyId}-v1`,
+      parameters: {},
+      codeSha: "a".repeat(40),
+      datasetId: result.manifest.datasetId,
+      datasetContentSha256: result.manifest.contentSha256,
+      costModelVersion: "fixture-cost-v1",
+      generatedAt: "2025-12-31T23:00:00.000Z",
+      evaluationStartedAt: "2025-12-31T23:05:00.000Z",
+      evaluationEndedAt: "2025-12-31T23:30:00.000Z"
+    }
+  };
+};
 
 
 function regimeEvaluation(datasetId, overrides = {}) {
@@ -102,6 +152,35 @@ function regimeEvaluation(datasetId, overrides = {}) {
 
 const entryOf = (result, id) => result.standing.entries.find((entry) => entry.id === id);
 
+test("rejects candidate experiment identity mismatches before ranking aggregate evidence", () => {
+  const mismatched = candidate("bridge-id", "family-a");
+  mismatched.experiment.experimentConfig.candidates = [{ id: "different-candidate" }];
+
+  assert.throws(
+    () => buildResearchRunLeague([mismatched, candidate("other", "family-b")]),
+    (error) => error instanceof ResearchRunLeagueBridgeError
+      && error.code === "CANDIDATE_EXPERIMENT_IDENTITY_MISMATCH"
+  );
+});
+
+test("rejects a missing or mismatched bound candidate specification before ranking", () => {
+  const missing = candidate("missing-spec", "family-a");
+  delete missing.candidateSpecification;
+  assert.throws(
+    () => buildResearchRunLeague([missing, candidate("other", "family-b")]),
+    (error) => error instanceof ResearchRunLeagueBridgeError
+      && error.code === "INVALID_CANDIDATE_SPECIFICATION"
+  );
+
+  const mismatched = candidate("mismatched-spec", "family-a");
+  mismatched.candidateSpecification.datasetId = "another-dataset";
+  assert.throws(
+    () => buildResearchRunLeague([mismatched, candidate("other-2", "family-b")]),
+    (error) => error instanceof ResearchRunLeagueBridgeError
+      && error.code === "INVALID_CANDIDATE_SPECIFICATION"
+  );
+});
+
 test("bridges a real research run through benchmark scorecard, League ranking, and allocation", () => {
   const result = buildResearchRunLeague([
     candidate("sma-5-20", "sma-crossover"),
@@ -109,12 +188,51 @@ test("bridges a real research run through benchmark scorecard, League ranking, a
   ], { generatedAt: "2026-08-26T06:00:00.000Z" });
 
   assert.equal(result.evidenceMode, "RESEARCH_TIER_ONLY");
+  assert.equal(result.evidenceReport.length, 2);
+  assert.ok(result.evidenceReport.every((report) => report.summary.includes("Candidate")));
+  assert.ok(result.evidenceReport.every((report) => report.missingEvidence.includes("PBO_EVIDENCE_MISSING")));
+  assert.equal(result.evidenceReport[0].costSensitivity.status, "AVAILABLE");
   // The League ranking is genuinely produced -- the pipeline is no longer dead code.
   assert.equal(result.standing.entries.length, 2);
   assert.ok(result.standing.entries.every((entry) => entry.leagueScore != null || !entry.eligible));
   // Research tier must never be mistaken for PAPER or LIVE evidence.
   assert.ok(result.reasons.includes("NOT_PAPER_EVIDENCE"));
   assert.ok(result.reasons.includes("RESEARCH_TIER_ONLY"));
+});
+
+test("emits a deterministic run provenance identity for the complete research evidence set", () => {
+  const first = buildResearchRunLeague([
+    candidate("identity-a", "family-a"),
+    candidate("identity-b", "family-b", { totalReturn: 0.09 }),
+  ]);
+  const second = buildResearchRunLeague([
+    candidate("identity-b", "family-b", { totalReturn: 0.09 }),
+    candidate("identity-a", "family-a"),
+  ]);
+
+  assert.equal(first.provenance.runFingerprintSha256, second.provenance.runFingerprintSha256);
+  assert.equal(first.provenance.benchmarkIdentity.kind, "BUY_AND_HOLD");
+  assert.equal(first.provenance.candidateBindings.length, 2);
+  assert.ok(Object.isFrozen(first.provenance));
+  assert.ok(Object.isFrozen(first.provenance.candidateBindings));
+});
+
+test("rejects mixed source commits or cost model identities before ranking", () => {
+  const sourceMismatch = candidate("source-a", "family-a");
+  const sourceOther = candidate("source-b", "family-b");
+  sourceOther.candidateSpecification.codeSha = "b".repeat(40);
+  assert.throws(
+    () => buildResearchRunLeague([sourceMismatch, sourceOther]),
+    (error) => error instanceof ResearchRunLeagueBridgeError && error.code === "CANDIDATE_SOURCE_MISMATCH",
+  );
+
+  const costMismatch = candidate("cost-a", "family-a");
+  const costOther = candidate("cost-b", "family-b");
+  costOther.candidateSpecification.costModelVersion = "different-cost-v1";
+  assert.throws(
+    () => buildResearchRunLeague([costMismatch, costOther]),
+    (error) => error instanceof ResearchRunLeagueBridgeError && error.code === "COST_MODEL_IDENTITY_MISMATCH",
+  );
 });
 
 test("refuses to allocate across candidates that carry only benchmark evidence", () => {
@@ -312,4 +430,104 @@ test("never introduces execution, broker, capital, or LIVE authority fields", ()
   for (const forbidden of ["liveauthority", "productionmutationallowed", "broker", "withdraw", "transfer", "notional", "capitalamount", "credential"]) {
     assert.equal(serialized.includes(forbidden), false, forbidden);
   }
+});
+
+test("projects existing contextual research evidence instead of dropping it at the real-run bridge", () => {
+  const contextual = candidate("contextual", "family-context");
+  const datasetId = contextual.experiment.manifest.datasetId;
+  contextual.abstention = {
+    schemaVersion: 1,
+    asOf: 1_000,
+    decision: "PROCEED_RESEARCH",
+    netExpectedEdge: 0.01,
+    effectiveMinimumConfidence: 0.6,
+    reasons: [],
+    sourceDatasetIds: [datasetId]
+  };
+  contextual.ghostExecution = {
+    schemaVersion: 1,
+    status: "SIMULATED",
+    side: "LONG",
+    entryTime: 1,
+    exitTime: 2,
+    holdingPeriodMs: 1,
+    modeledEntryPrice: 100,
+    modeledExitPrice: 102,
+    grossReturn: 0.02,
+    totalCostRate: 0.002,
+    netReturn: 0.018,
+    reasons: [],
+    sourceDatasetIds: [datasetId]
+  };
+  contextual.counterfactual = {
+    schemaVersion: 1,
+    actualLabel: "ACTUAL_DECISION",
+    actualNetReturn: 0.018,
+    bestAlternativeLabel: "HOLD",
+    bestAlternativeNetReturn: 0,
+    regret: 0,
+    relativeRank: 1,
+    evaluatedOutcomeCount: 2,
+    reasons: ["ACTUAL_WAS_BEST_OR_TIED"],
+    sourceDatasetIds: [datasetId]
+  };
+  contextual.trialLedgerSummary = {
+    trialCount: 4,
+    completedCount: 3,
+    failedCount: 1,
+    rejectedCount: 0,
+    abstainedCount: 0,
+    distinctSearchCount: 1,
+    distinctFamilyCount: 1,
+    maximumSearchAttemptOrdinal: 4,
+    terminalRecordHash: "a".repeat(64)
+  };
+
+  const result = buildResearchRunLeague([contextual, candidate("bare", "family-bare")]);
+  const contextualEntry = entryOf(result, "contextual");
+  const bareEntry = entryOf(result, "bare");
+
+  assert.equal(contextualEntry.components.abstentionQuality, 1);
+  assert.equal(contextualEntry.components.costAdjustedGhostReturn, 0.018);
+  assert.equal(contextualEntry.components.counterfactualRegret, 0);
+  assert.equal(contextualEntry.components.trialFailureRatio, 0.25);
+  assert.ok(contextualEntry.evidenceBreadth > bareEntry.evidenceBreadth);
+  assert.equal(bareEntry.components.costAdjustedGhostReturn, undefined);
+});
+
+test("fails closed when canonical OOS observations are malformed", () => {
+  const invalid = candidate("invalid-oos", "family-invalid");
+  invalid.experiment.experimentConfig.candidates = [{ id: "invalid-oos" }];
+  invalid.experiment.walkForwardResult.combinedOutOfSampleMetrics.windowCount = 1;
+  invalid.experiment.walkForwardResult.combinedOutOfSampleMetrics.benchmarkOutperformanceWindowRatio = 1;
+  invalid.experiment.walkForwardResult.windows = [{
+    window: {
+      index: 0,
+      testPoints: [{ timestamp: 1, close: 100 }]
+    },
+    testResult: {
+      metrics: {
+        totalReturn: 0.03,
+        benchmarkReturn: 0.02,
+        excessReturn: 0.01,
+        outperformance: 0.01,
+      },
+      benchmark: { strategyReturn: 0.03, buyAndHoldReturn: 0.02, outperformance: 0.01 },
+      decisions: [{
+        timestamp: 1,
+        market: "KRW-ETH",
+        price: 100,
+        signal: { type: "BUY", reason: "malformed-fixture", confidence: 0.8, timestamp: 1 },
+        outcome: "FILLED",
+        equityBefore: 10_000,
+        equityAfter: 10_000,
+        executionPrice: 100
+      }]
+    }
+  }];
+
+  assert.throws(
+    () => buildResearchRunLeague([invalid, candidate("other-oos", "family-other")]),
+    (error) => error instanceof ResearchRunLeagueBridgeError && error.code === "INVALID_OOS_OBSERVATION_EVIDENCE"
+  );
 });

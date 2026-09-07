@@ -43,6 +43,10 @@ import {
 } from "./mobileSessionHttp";
 import { handlePublicUpbitQuotationHttp, isPublicUpbitQuotationPath } from "./publicUpbitQuotationHttp";
 import { handleLiveReadinessHttp, type LiveReadinessHttpDependencies } from "./liveReadinessHttp";
+import { handleEngineeringOperationsHttp, type EngineeringOperationsHttpDependencies } from "./engineeringOperationsHttp";
+import { handleEvolutionLearningSupervisorHttp, type EvolutionLearningSupervisorHttpDependencies } from "./evolutionLearningSupervisorHttp";
+import { handleUxTelemetryEventHttp } from "./uxTelemetryHttp";
+import type { UxTelemetryStorage } from "./uxTelemetryJournal";
 
 export interface CloudReadinessSnapshot {
   readonly ok: boolean;
@@ -63,8 +67,11 @@ export interface CloudDashboardServerOptions {
   readonly loadShadowOperations?: ShadowOperationsHttpDependencies["loadSnapshot"];
   readonly loadRealReadOnlyOperations?: RealReadOnlyOperationsHttpDependencies["loadSnapshot"];
   readonly loadLiveReadiness?: LiveReadinessHttpDependencies["loadSnapshot"];
+  readonly loadEngineeringOperations?: EngineeringOperationsHttpDependencies["loadSnapshot"];
+  readonly loadEvolutionLearning?: EvolutionLearningSupervisorHttpDependencies["loadSnapshot"];
   readonly submitPaperOrder?: PersonalPaperOrderHttpDependencies["submitOrder"];
   readonly investmentAllocationSettings?: InvestmentAllocationSettingsRepository;
+  readonly uxTelemetryStorage?: UxTelemetryStorage;
   readonly userAccessRepository?: NusaUserAccessRepository;
   readonly desktopSessionService?: DesktopSessionService;
   readonly mobileSessionService?: MobileSessionService;
@@ -348,10 +355,24 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
         }));
         return;
       }
+      if (req.url === "/api/ux-telemetry" && options.uxTelemetryStorage != null) {
+        let payload: unknown = null;
+        if ((req.method ?? "GET").toUpperCase() === "POST") {
+          try { payload = JSON.parse(body ?? ""); }
+          catch { respond("ux_telemetry", dashboardJsonResponse(400, { error: "INVALID_JSON" })); return; }
+        }
+        respond("ux_telemetry", await handleUxTelemetryEventHttp(dashboardRequest, payload, {
+          tokenVerifier: requestTokenVerifier,
+          storage: options.uxTelemetryStorage
+        }));
+        return;
+      }
       if (req.url === "/api/paper-operations") { respond("paper_operations", handlePersonalPaperOperationsHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadPaperOperations ?? (() => { throw new Error("PAPER operations snapshot not configured"); }) })); return; }
       if (req.url === "/api/shadow-operations") { respond("shadow_operations", handleShadowOperationsHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadShadowOperations ?? (() => { throw new Error("SHADOW operations snapshot not configured"); }) })); return; }
       if (req.url === "/api/real-readonly-operations") { respond("real_readonly_operations", handleRealReadOnlyOperationsHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadRealReadOnlyOperations ?? (() => { throw new Error("REAL_READ_ONLY operations snapshot not configured"); }) })); return; }
       if (req.url === "/api/live-readiness") { respond("live_readiness", handleLiveReadinessHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadLiveReadiness ?? (() => { throw new Error("LIVE readiness source not configured"); }) })); return; }
+      if (req.url === "/api/engineering-operations") { respond("engineering_operations", handleEngineeringOperationsHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadEngineeringOperations ?? (() => { throw new Error("Engineering OS snapshot not configured"); }) })); return; }
+      if (req.url === "/api/evolution-learning") { respond("evolution_learning", handleEvolutionLearningSupervisorHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadEvolutionLearning ?? (() => { throw new Error("Evolution learning snapshot not configured"); }) })); return; }
       if (req.url === "/api/dashboard") { respond("dashboard", handleMobileDashboardHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadDashboard: options.loadDashboard })); return; }
       if (req.url === "/api/operator/users") { respond("operator_users", handleOperatorUserAccessHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, repository: userAccessRepository })); return; }
       if (req.url === "/api/settings/investment-allocation" && options.investmentAllocationSettings != null) {

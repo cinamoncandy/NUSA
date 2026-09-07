@@ -4,6 +4,9 @@ export type ThemeSetting = "LIGHT" | "DARK" | "SYSTEM";
 export type LocaleSetting = "ko-KR" | "en-US";
 export interface NotificationSettings { readonly enabled: boolean; readonly riskAlerts: boolean; readonly orderUpdates: boolean; }
 export interface CapitalAllocationSettings { readonly investmentPercent: number; }
+/** Opt-in UX observability (see apps/mobile/src/uxTelemetryClient.ts). Off by default: this
+ * module invents no consent of its own, so the user must explicitly turn it on. */
+export interface UsageTelemetrySettings { readonly enabled: boolean; }
 export interface AppSettings {
   readonly theme: ThemeSetting;
   readonly locale: LocaleSetting;
@@ -11,6 +14,7 @@ export interface AppSettings {
   readonly capitalAllocation: CapitalAllocationSettings;
   /** Explicit personal Cloud/PAPER endpoint. Empty means not configured; there is no magic localhost fallback. */
   readonly paperEndpoint: string;
+  readonly usageTelemetry: UsageTelemetrySettings;
 }
 export interface EnvironmentConfiguration { readonly apiBaseUrl: string; readonly authMode: string; readonly monitorUrl: string; }
 export interface SettingsRepository { load(): Promise<AppSettings | null>; save(settings: AppSettings): Promise<void>; }
@@ -20,7 +24,8 @@ export const DEFAULT_SETTINGS: AppSettings = Object.freeze({
   locale: "ko-KR",
   notifications: Object.freeze({ enabled: true, riskAlerts: true, orderUpdates: true }),
   capitalAllocation: Object.freeze({ investmentPercent: 100 }),
-  paperEndpoint: ""
+  paperEndpoint: "",
+  usageTelemetry: Object.freeze({ enabled: false })
 });
 const text = (value: string, field: string): string => { const normalized = value.trim(); if (!normalized) throw new Error(`${field} must not be empty`); return normalized; };
 const normalizeEndpoint = (value: string | undefined): string => {
@@ -50,7 +55,9 @@ export const normalizeSettings = (input: Partial<AppSettings>): AppSettings => {
   for (const field of ["enabled", "riskAlerts", "orderUpdates"] as const) if (typeof notifications[field] !== "boolean") throw new Error(`notifications.${field} is invalid`);
   const capitalAllocation = input.capitalAllocation ?? DEFAULT_SETTINGS.capitalAllocation;
   const investmentPercent = normalizeInvestmentPercent(capitalAllocation.investmentPercent);
-  return Object.freeze({ theme, locale, notifications: Object.freeze({ ...notifications }), capitalAllocation: Object.freeze({ investmentPercent }), paperEndpoint: normalizeEndpoint(input.paperEndpoint) });
+  const usageTelemetry = input.usageTelemetry ?? DEFAULT_SETTINGS.usageTelemetry;
+  if (typeof usageTelemetry.enabled !== "boolean") throw new Error("usageTelemetry.enabled is invalid");
+  return Object.freeze({ theme, locale, notifications: Object.freeze({ ...notifications }), capitalAllocation: Object.freeze({ investmentPercent }), paperEndpoint: normalizeEndpoint(input.paperEndpoint), usageTelemetry: Object.freeze({ enabled: usageTelemetry.enabled }) });
 };
 
 /** Environment configuration is fail-closed: endpoint variables must be explicitly supplied by the caller. */

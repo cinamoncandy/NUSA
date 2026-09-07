@@ -44,12 +44,18 @@ jobs:
         run: |
           test "$NUSA_LIVE_MUTATION" = "PROHIBITED"
           echo 'WO-0059: Upbit PUBLIC market data only; no private exchange credentials or LIVE broker endpoint is configured.'
+      - name: Select a naturally actionable Upbit PUBLIC market when one exists
+        id: paper-market
+        run: node scripts/select-actual-paper-e2e-market.js >> "$GITHUB_OUTPUT"
       - name: Run actual Cloud PAPER E2E against Upbit PUBLIC ticker
         env:
           NUSA_MODE: PAPER
           NUSA_LIVE_MUTATION: PROHIBITED
-          NUSA_E2E_MARKET: KRW-BTC
+          NUSA_E2E_MARKET: ${{ steps.paper-market.outputs.market }}
+          NUSA_PAPER_CHAOS_E2E_NON_MUTATING: "true"
         run: node scripts/actual-paper-runtime-e2e.js --working-dir "${{ runner.temp }}/nusa-wo-0059" --output artifacts/operational-evidence/actual-paper-runtime-e2e.json
+      - name: Classify autonomous PAPER completion without manufacturing a signal
+        run: node scripts/classify-actual-paper-runtime-readiness.js artifacts/operational-evidence/actual-paper-runtime-e2e.json
       - name: Upload actual PAPER runtime evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

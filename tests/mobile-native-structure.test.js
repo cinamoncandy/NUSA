@@ -79,7 +79,7 @@ test("mobile foundation exposes a Home screen, theme, and four primary decision-
   assert.match(app, /useState<Tab>\("Home"\)/);
   assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio"\]/);
   assert.match(app, /type Tab = PrimaryTab \| "AiSignal" \| "Order"/);
-  assert.match(app, /Home: "HOME", Markets: "OBSERVE", Paper: "PAPER", Portfolio: "SUPERVISE"/);
+  assert.match(app, /Home: "HOME", Markets: "MARKETS", Paper: "PAPER", Portfolio: "PORTFOLIO"/);
   assert.match(app, /const theme =/);
   assert.match(app, /accessibilityRole="button"/);
 });
@@ -120,32 +120,15 @@ test("mobile release workflow validates Android candidates and explicitly skips 
 });
 
 test("Android networking layer replaces (not appends) the User-Agent so Upbit's public API stops rejecting requests with HTTP 400", () => {
-  // Two prior JS-only fixes oscillated on this exact symptom: bd51b4a5 added a custom
-  // "user-agent" fetch header because Upbit rejected OkHttp's generic default; 5bc750f2 later
-  // removed it again because Upbit then rejected the duplicate that produced. Neither fix
-  // could work reliably because React Native's Android bridge does not guarantee a fetch()
-  // header replaces OkHttp's own rather than being sent alongside it. The single fix that
-  // actually guarantees one non-generic header is a native OkHttp interceptor using `.header()`
-  // (replace) instead of `.addHeader()` (append), registered before any request can be sent.
-  const mainApplication = fs.readFileSync(
-    path.join(mobile, "android", "app", "src", "main", "java", "com", "nusa", "mobile", "MainApplication.kt"),
-    "utf8"
-  );
+  const mainApplication = fs.readFileSync(path.join(mobile, "android", "app", "src", "main", "java", "com", "nusa", "mobile", "MainApplication.kt"), "utf8");
   assert.match(mainApplication, /import com\.facebook\.react\.modules\.network\.OkHttpClientProvider/);
   assert.match(mainApplication, /class NusaUserAgentInterceptor : Interceptor/);
   assert.match(mainApplication, /\.header\("User-Agent", "nusa-mobile\/0\.1"\)/);
   assert.doesNotMatch(mainApplication, /\.addHeader\("User-Agent"/);
-  // setOkHttpClient(OkHttpClient) does not exist on this API -- only the factory registration
-  // does; getting this wrong compiles in an IDE with stale caches but fails Gradle's real
-  // Kotlin compiler, which is exactly what happened here before this test existed.
   assert.match(mainApplication, /OkHttpClientProvider\.setOkHttpClientFactory/);
   assert.doesNotMatch(mainApplication, /OkHttpClientProvider\.setOkHttpClient\(/);
   const onCreate = mainApplication.slice(mainApplication.indexOf("override fun onCreate"));
-  assert.ok(
-    onCreate.indexOf("OkHttpClientProvider.setOkHttpClientFactory") < onCreate.indexOf("loadReactNative(this)"),
-    "the patched OkHttp client factory must be installed before loadReactNative(this) starts the networking stack"
-  );
-
+  assert.ok(onCreate.indexOf("OkHttpClientProvider.setOkHttpClientFactory") < onCreate.indexOf("loadReactNative(this)"), "the patched OkHttp client factory must be installed before loadReactNative(this) starts the networking stack");
   const quotationClient = fs.readFileSync(path.join(mobile, "src", "upbitPublicQuotationClient.ts"), "utf8");
   assert.doesNotMatch(quotationClient, /"user-agent"\s*:/);
 });
@@ -155,35 +138,14 @@ test("native network diagnostics capture only URL/method/User-Agent, read-only, 
   const diagnosticsKt = fs.readFileSync(path.join(nativeDir, "NusaNetworkDiagnostics.kt"), "utf8");
   const diagnosticsModule = fs.readFileSync(path.join(nativeDir, "NusaNetworkDiagnosticsModule.java"), "utf8");
   const mainApplication = fs.readFileSync(path.join(nativeDir, "MainApplication.kt"), "utf8");
-
-  // The interceptor must capture the request it is about to send -- URL, method, the
-  // already-replaced User-Agent -- and nothing else. Real-device diagnosis needs to be able to
-  // tell "the interceptor never ran" (finalUserAgent comes back as OkHttp's own default, e.g.
-  // "okhttp/...") apart from "the interceptor ran but Upbit still rejected it" (finalUserAgent
-  // is "nusa-mobile/0.1" and the request still 400s) -- neither is possible without this.
   assert.match(mainApplication, /NusaNetworkDiagnostics\.record\(request\.url\.toString\(\), request\.method, request\.header\("User-Agent"\)\)/);
   assert.match(mainApplication, /add\(NusaNetworkDiagnosticsPackage\(\)\)/);
-
-  // Only a request-side snapshot exists; there is no method here that could be used to write,
-  // clear, or otherwise let JS influence what gets captured.
   assert.match(diagnosticsKt, /fun record\(requestUrl: String, method: String, userAgent: String\?\)/);
   assert.doesNotMatch(diagnosticsKt, /fun\s+(?!record|snapshot)\w+\(/);
-
-  // The bridge module is read-only (a getter, no setter) and only ever names the three
-  // non-secret fields -- it has no code path that could forward an arbitrary header map.
   assert.match(diagnosticsModule, /@ReactMethod[\s\S]*?public void getLastRequest\(Promise promise\)/);
   assert.doesNotMatch(diagnosticsModule, /@ReactMethod[\s\S]*?public void set\w*\(/i);
-  for (const source of [diagnosticsKt, diagnosticsModule, mainApplication]) {
-    assert.doesNotMatch(source, /Authorization|Cookie|Set-Cookie/i);
-  }
-
-  // The interceptor must return chain.proceed(request) directly -- reading the response body
-  // here (e.g. response.body?.string()) would consume the one-shot stream the JS fetch() caller
-  // still needs, breaking every successful request to add a diagnostic for failed ones.
-  const interceptorBody = mainApplication.slice(
-    mainApplication.indexOf("class NusaUserAgentInterceptor"),
-    mainApplication.indexOf("class MainApplication")
-  );
+  for (const source of [diagnosticsKt, diagnosticsModule, mainApplication]) assert.doesNotMatch(source, /Authorization|Cookie|Set-Cookie/i);
+  const interceptorBody = mainApplication.slice(mainApplication.indexOf("class NusaUserAgentInterceptor"), mainApplication.indexOf("class MainApplication"));
   assert.doesNotMatch(interceptorBody, /\.body\b/);
   assert.match(interceptorBody, /return chain\.proceed\(request\)/);
 });

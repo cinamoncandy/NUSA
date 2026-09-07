@@ -1,0 +1,78 @@
+version: 1
+id: WO-ISSUE-865-EVOLUTION-LEARNING-LEDGER
+title: "Issue #865 durable evolution learning ledger"
+status: COMPLETED
+priority: P1
+owner: codex
+repository: cinamoncandy/NUSA
+issue: 865
+base_branch: main
+base_commit: adc74b132aea172b9d2e15456be82500b9899e17
+implementation_branch: codex/issue-865-evolution-learning-ledger
+pull_request: 1043
+implementation_commit: ffead4811f5f60848c7574cee1e36ea626792d7e
+merge_commit: bfd7af3f2748fe7c499b489a1cf32ffb0f812ba5
+objective: "Persist the existing bounded zero-authority EvolutionLearningRecord output through one canonical SQLite ledger so evolution evidence survives restart and cannot be double-counted or silently conflicted."
+architecture_impact:
+  acknowledged: true
+  analysis: "Extend the existing evolution learning memory with a storage adapter and the existing SQLite migration plan. The ledger is evidence persistence only; evaluateEvolutionOutcome, confidence, promotion, rollback, risk, execution, and LIVE authority remain in their existing boundaries."
+  references:
+    - apps/autopilot/src/evolveLearningMemory.ts
+    - apps/autopilot/src/evolveLifecycle.ts
+    - packages/storage/src/index.ts
+    - packages/storage/src/evolutionLearningLedger.ts
+    - packages/contracts/src/researchRuntime.ts
+scope:
+  - durable_evolution_learning_records
+  - restart_replay_and_integrity_verification
+  - deterministic_canonical_serialization
+  - idempotent_duplicate_and_conflict_rejection
+  - bounded_append_only_history
+prohibited:
+  - second_evolution_engine
+  - automatic_strategy_promotion
+  - automatic_strategy_retirement
+  - confidence_policy_mutation
+  - paper_or_live_execution
+  - broker_or_order_mutation
+  - risk_limit_mutation
+  - live_activation
+  - credential_persistence
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  brokerMutation: NONE
+  paper_only: true
+acceptance:
+  - existing_evolution_learning_record_contract_is_reused
+  - records_are_persisted_in_canonical_sqlite_storage
+  - restart_replay_reconstructs_identical_records
+  - same_identity_and_payload_is_idempotent
+  - same_identity_and_different_payload_fails_closed
+  - hash_chain_and_payload_integrity_are_verified
+  - malformed_or_secret_like_records_are_rejected_before_persistence
+  - timestamp_regression_and_capacity_overflow_fail_closed
+  - no_execution_risk_promotion_or_live_authority_is_exposed
+implementation_status: MERGED_PR_1043
+validation:
+  focused_autopilot: PASS_147_OF_147
+  focused_storage: PASS_26_OF_26
+  full_isolated_suite: PASS_734_OF_734
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture: PASS
+  safety: PASS
+  security: PASS
+  ai_zero_authority: PASS
+  restricted_live: PASS
+  read_only_broker: PASS
+  aipos: PASS
+  package_validation: PASS
+  git_diff_check: PASS
+remote_validation: "PR #1043 exact head ffead4811f5f60848c7574cee1e36ea626792d7e passed required CI and merged to main as bfd7af3f2748fe7c499b489a1cf32ffb0f812ba5."
+known_limitations:
+  - "This slice persists the existing learning record shape; richer candidate/dataset/regime lineage must be supplied by canonical upstream evidence before it can be claimed."
+next: "Harden the Level 7 composition boundary so a selected cycle cannot complete without the existing durable learning sink."

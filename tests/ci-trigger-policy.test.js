@@ -17,8 +17,8 @@ test("CI runs once for agent PR changes and still validates main", () => {
   assert.match(triggerBlock, /workflow_dispatch:/);
 });
 
-test("CI keeps cancellation of obsolete runs", () => {
+test("CI cancels obsolete PR runs but preserves main verification", () => {
   const workflow = readWorkflow();
   assert.match(workflow, /group: ci-\$\{\{ github\.workflow \}\}-\$\{\{ github\.event\.pull_request\.number \|\| github\.ref \}\}/);
-  assert.match(workflow, /cancel-in-progress: true/);
+  assert.match(workflow, /cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}/);
 });

@@ -1,0 +1,79 @@
+version: 1
+id: WO-ISSUE-880-HUMAN-CONTAINMENT-COMMAND
+title: "Issue #880 apply containment only through an evidence-bound human approval command"
+status: COMPLETED
+priority: P1
+owner: codex
+repository: cinamoncandy/NUSA
+issue: 880
+base_branch: main
+base_commit: 0091c870fc8e8f81fbe87c6609991b2a48b9c3e8
+implementation_branch: codex/issue-880-lifecycle-boundary
+objective: "Close the remaining governance boundary between read-only containment advice and an explicit human-approved lifecycle event while preserving deterministic replay and fail-closed stale-decision handling."
+architecture_impact:
+  acknowledged: true
+  analysis: "Extend the existing StrategyGovernanceService, append-only governance ledger, and SQLite command claims with an explicit human approval binding. Do not add a lifecycle evaluator, execution path, risk authority, broker path, or LIVE capability."
+  references:
+    - apps/cloud/src/strategyRollbackEngine.ts
+    - apps/cloud/src/strategyGovernanceService.ts
+    - apps/cloud/src/strategyGovernanceLedger.ts
+    - packages/contracts/src/strategyGovernance.ts
+    - packages/contracts/src/strategyGovernanceLedger.ts
+    - packages/storage/src/strategyGovernanceStore.ts
+    - docs/NUSA_INVESTMENT_KNOWLEDGE_PRINCIPLE.md
+scope:
+  - explicit_human_approval_binding
+  - containment_decision_fingerprint
+  - stale_decision_rejection
+  - restart_idempotent_application
+  - approval_integrity_chain
+prohibited:
+  - automatic_lifecycle_mutation
+  - automatic_promotion_or_retirement
+  - second_strategy_lifecycle_engine
+  - paper_or_live_execution
+  - broker_or_order_mutation
+  - risk_limit_mutation
+  - live_activation
+  - credential_handling
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  brokerMutation: NONE
+  paper_only: true
+acceptance:
+  - containment_decision_includes_current_lifecycle_and_stable_fingerprint
+  - only_human_approval_with_exact_decision_fingerprint_can_apply_containment
+  - stale_decisions_fail_closed_without_lifecycle_mutation
+  - same_command_replay_after_restart_is_idempotent
+  - approval_metadata_is_persisted_and_integrity_verified
+  - existing_containment_governance_promotion_rollback_and_restart_regressions_remain_green
+  - no_execution_accounting_risk_broker_or_live_authority_changes
+implementation_status: MERGED_PR_1049
+implementation_commit: 352f1853dc6f1b3b0821ce5c39d3996ba6226c64
+pull_request: 1049
+merge_commit: 51376cd6415c8b3fde9816edcd029279f49402cd
+published_head: 352f1853dc6f1b3b0821ce5c39d3996ba6226c64
+remote_validation: PASS_6_OF_6_EXACT_HEAD
+validation:
+  focused: PASS_13_OF_13
+  relevant_regressions: PASS_38_OF_38_TARGETED
+  full_isolated_suite: PASS_REMOTE_EXACT_HEAD
+  preflight: PASS
+  typecheck: PASS
+  build: PASS
+  lint: PASS
+  architecture_truth: PASS
+  architecture_check: PASS
+  safety: PASS
+  security: PASS_SECRETS_0
+  restricted_live: PASS
+  read_only_broker: PASS
+  aipos: PASS_CONFORMANCE_DRIFT_PROVENANCE
+  package_validation: PASS
+  git_diff_check: PASS
+known_limitations:
+  - "This slice does not fabricate missing calibration, regime, cost, or long-horizon PAPER evidence; those remain fail-closed until canonical producers exist."
+  - "The approval command records a human approval binding but does not grant LIVE or real-money authority."
+next: "Keep broader Issue #880 evidence producers open; continue with the next evidence-bound portfolio gap."

@@ -24,7 +24,7 @@ function advisory(generatedAt: string): LeagueCapitalAllocationAdvisory {
 
 function record(index = 0, id = `record-${index}`): PersistedPaperPeriodRecord {
   const start = BASE + index * DAY;
-  return { recordId: id, periodIndex: index, advisory: advisory(new Date(start - DAY).toISOString()), periodStartAt: start, periodEndAt: start + DAY, realizedReturns: { a: 0.01, b: -0.02 }, benchmarkReturn: 0.005, turnoverCostRate: 0.001, costEvidence: { evidenceId: `cost-${id}`, source: "PAPER_EXECUTION_RECEIPT", observedAt: start + 1, feeRate: 0.001, spreadRate: 0, slippageRate: 0 }, status: "COMPLETED" };
+  return { recordId: id, periodIndex: index, advisory: advisory(new Date(start - DAY).toISOString()), periodStartAt: start, periodEndAt: start + DAY, realizedReturns: { a: 0.01, b: -0.02 }, benchmarkReturn: 0.005, turnoverCostRate: 0.001, costEvidence: { evidenceId: `cost-${id}`, source: "PAPER_EXECUTION_RECEIPT", evidenceKind: "CONSERVATIVE_MODEL", evidenceFingerprintSha256: HASH_A, observedAt: start + 1, feeRate: 0.001, spreadRate: 0, slippageRate: 0 }, status: "COMPLETED" };
 }
 
 function envelope(index = 0, id?: string): PersistedPaperPeriodEnvelope {
@@ -48,6 +48,8 @@ describe("SqlitePersistedPaperPeriodStore", () => {
       const stored = restarted.list();
       assert.deepEqual(stored.map((item) => item.record.periodIndex), [0, 1]);
       assert.equal(stored[0]!.candidateProvenance[0]!.datasetContentSha256, HASH_A);
+      assert.equal(stored[0]!.record.costEvidence.evidenceKind, "CONSERVATIVE_MODEL");
+      assert.equal(stored[0]!.record.costEvidence.evidenceFingerprintSha256, HASH_A);
       const adapted = adaptPersistedPaperPeriods(restarted.listRecords());
       assert.deepEqual(adapted.appliedRecordIds, ["record-0", "record-1"]);
       assert.equal(adapted.periods.length, 2);
@@ -73,6 +75,17 @@ describe("SqlitePersistedPaperPeriodStore", () => {
       const store = new SqlitePersistedPaperPeriodStore(db);
       assert.throws(() => store.append({ ...envelope(), candidateProvenance: [{ candidateId: "a", datasetId: "dataset-a", datasetContentSha256: HASH_A }] }), (error) => error instanceof PersistedPaperPeriodStoreError && error.code === "MISSING_CANDIDATE_PROVENANCE");
       assert.throws(() => store.append({ ...envelope(), candidateProvenance: [...envelope().candidateProvenance, { candidateId: "ghost", datasetId: "dataset-ghost", datasetContentSha256: "c".repeat(64) }] }), (error) => error instanceof PersistedPaperPeriodStoreError && error.code === "UNKNOWN_CANDIDATE_PROVENANCE");
+    } finally { db.close(); }
+  });
+
+  it("rejects malformed cost provenance before writing", () => {
+    const db = new SqliteDatabase(":memory:");
+    try {
+      const store = new SqlitePersistedPaperPeriodStore(db);
+      const source = envelope();
+      const malformed = { ...source, record: { ...source.record, costEvidence: { ...source.record.costEvidence, evidenceFingerprintSha256: "invalid" } } };
+      assert.throws(() => store.append(malformed), (error) => error instanceof PersistedPaperPeriodStoreError && error.code === "MISSING_COST_PROVENANCE");
+      assert.equal(store.list().length, 0);
     } finally { db.close(); }
   });
 

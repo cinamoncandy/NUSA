@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "workOrder": "WO-ISSUE-1258-EVOLVE-CLOUD-DISPATCH-DEDUPE",
+  "status": "MERGED_PENDING_RUNTIME",
+  "baseSha": "888746b909a16239ce71c58eaa888bccdf75631e",
+  "branch": "codex/evolve-1258-dispatch-dedupe",
+  "pullRequest": 1262,
+  "implementationCommit": "f6fa1fd3c46f8958f6f0c5dbdadfd923de9a0c80",
+  "observedAt": "2026-08-30T17:27:28.131Z",
+  "scope": {
+    "canonicalWorkflowConsumer": "autopilot-execution-consumer.yml",
+    "duplicateBridgeRemoved": true,
+    "durableCoordinatorDedupe": true,
+    "executionTelemetry": true,
+    "hourlyAggregation": true,
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY"
+  },
+  "verification": {
+    "focusedAutopilotRegression": "PASS_34_OF_34",
+    "workflowDispatchTopology": "PASS_1_OF_1",
+    "targetedTypecheck": "PASS",
+    "repositoryTypecheck": "BLOCKED_LOCAL_DEPENDENCIES_REACT_AND_NODE_TYPES",
+    "build": "BLOCKED_SAME_REPOSITORY_TYPECHECK_DEPENDENCY_GAP",
+    "lint": "PASS_DESKTOP_AND_MOBILE",
+    "architectureTruth": "PASS",
+    "architectureCheck": "PASS",
+    "safetyArchitecture": "PASS",
+    "safetyInvariants": "PASS",
+    "aiZeroAuthority": "PASS",
+    "securityGateLocal": "INCOMPLETE_LOCAL_LICENSE_VERIFICATION_AFTER_DEPENDENCY_AUDIT",
+    "remoteMainCi": "PASS_RUN_33307067410_AT_39F98FB",
+    "remoteAutopilotConsumer": "PASS_WORKFLOW_33306974517_AT_888746B_WORKER_HTTP_400_CODING_RUNNER_HEAD_SHA_UNVERIFIED",
+    "remotePromotion": "PASS_RUN_33307251744_AT_39F98FB_DEPLOYMENT_REPORTED",
+    "remoteCiCurrentChanges": "PASS_PROTECTED_MERGE_COMMIT_CHECKS_13_OF_13_7CB0F706",
+    "runtimeEvidence": "PARTIAL_HEALTH_200_SCHEDULED_STATUS_200_CODING_TELEMETRY_404_DEPLOYED_49595D",
+    "oneMinuteLoopEvidence": "PASS_120_RECEIPTS_EXACT_60S_GAPS_STATUS_57_ABSTAINED_63_DUPLICATE_SUPPRESSED",
+    "prHead": "24a55cb6344aecab00494d39a1e21d6b86314d84"
+  },
+  "dedupeProof": {
+    "coordinatorLeaseSequence": "PASS_ACQUIRE_LEASE_ACTIVE_DISPATCHED_ALREADY_DISPATCHED",
+    "codingBoundaryDogfood": "PASS_FIRST_CALL_ONLY_RUNTIME_ONCE_SECOND_CALL_DUPLICATE_SUPPRESSED",
+    "telemetryHistory": "PASS_IDEMPOTENT_BOUNDED_HOURLY_SUMMARY"
+  },
+  "blockers": [
+    "DEPLOYED_WORKER_CODING_TELEMETRY_404",
+    "DEPLOYED_WORKER_HEAD_SHA_UNVERIFIED",
+    "RUNTIME_DOGFOOD_REQUIRED"
+  ],
+  "safety": {
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY",
+    "paperOnly": true,
+    "protectedAuthorityChanged": false
+  },
+  "remoteHeadSha": "24a55cb6344aecab00494d39a1e21d6b86314d84",
+  "mergeCommitSha": "7cb0f70620ab50fe8488b899744fe3ed6231302c",
+  "next": "Retain deployment/runtime gaps as external evidence work; audit Issue #1094 on current main without synthesizing missing PAPER history."
+}

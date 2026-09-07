@@ -3,8 +3,57 @@ import { describe, it } from "node:test";
 import worker, {
   classifyGithubEvent,
   computeGithubWebhookSignature,
+  handleCodingExecute,
   verifyGithubWebhookSignature,
 } from "./index";
+import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
+import type { CodingRuntime } from "./codingRunner";
+import { ExecutionCoordinator, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+
+class MemoryStorage {
+  private readonly values = new Map<string, unknown>();
+
+  async get<T>(key: string): Promise<T | undefined> {
+    return this.values.get(key) as T | undefined;
+  }
+
+  async put<T>(key: string, value: T): Promise<void> {
+    this.values.set(key, value);
+  }
+}
+
+function evidenceFixture() {
+  const result = createCodingExecutionEvidence({
+    kind: "REPOSITORY_AUTOPILOT",
+    repository: "cinamoncandy/NUSA",
+    headSha: "a".repeat(40),
+    workflowRunId: 44,
+    reason: "gha:CI:success",
+    executionId: "github:delivery-44",
+    dedupeKey: `ci:44:${"a".repeat(40)}`,
+    mutationAllowed: false,
+    liveAuthority: "NONE",
+    productionMutationAllowed: false,
+    aiAuthority: "ZERO_AUTHORITY",
+  }, { status: "EXECUTION_ACCEPTED", reason: "validated", backend: "cloudflare-sandbox", checkpointId: "checkpoint:44", workspaceVerified: true }, 44);
+  assert.equal(result.status, "RECORDED");
+  if (result.status !== "RECORDED") throw new Error("fixture evidence was not recorded");
+  return result.evidence;
+}
+
+const codingRequest = {
+  kind: "REPOSITORY_AUTOPILOT" as const,
+  repository: "cinamoncandy/NUSA",
+  headSha: "a".repeat(40),
+  workflowRunId: 1258,
+  reason: "continue-from:ci_succeeded",
+  executionId: "github:delivery-1258",
+  dedupeKey: `ci:1258:${"a".repeat(40)}`,
+  mutationAllowed: false as const,
+  liveAuthority: "NONE" as const,
+  productionMutationAllowed: false as const,
+  aiAuthority: "ZERO_AUTHORITY" as const,
+};
 
 describe("NUSA autopilot GitHub webhook", () => {
   it("classifies only the bounded event surface", () => {
@@ -19,7 +68,9 @@ describe("NUSA autopilot GitHub webhook", () => {
   it("exposes a fail-closed deployment revision health signal", async () => {
     const unverified = await worker.fetch(new Request("https://example.test/health"), {});
     assert.equal(unverified.status, 200);
-    assert.equal((await unverified.json() as { deploymentRevision: string }).deploymentRevision, "UNVERIFIED");
+    const unverifiedPayload = await unverified.json() as { deploymentRevision: string; executionTelemetry: string };
+    assert.equal(unverifiedPayload.deploymentRevision, "UNVERIFIED");
+    assert.equal(unverifiedPayload.executionTelemetry, "INTERFACE_READY");
 
     const verified = await worker.fetch(new Request("https://example.test/health"), { NUSA_DEPLOYMENT_REVISION: "a".repeat(40) });
     assert.equal((await verified.json() as { deploymentRevision: string }).deploymentRevision, "a".repeat(40));
@@ -93,6 +144,7 @@ describe("NUSA autopilot GitHub webhook", () => {
         kind: string;
         repository: string | null;
         headSha: string | null;
+        prNumber: number | null;
         workflowRunId: number | null;
         reason: string;
         mutationAllowed: boolean;
@@ -107,6 +159,7 @@ describe("NUSA autopilot GitHub webhook", () => {
       kind: "REPOSITORY_AUTOPILOT",
       repository: "cinamoncandy/NUSA",
       headSha: "a".repeat(40),
+      prNumber: null,
       workflowRunId: null,
       reason: "continue-from:main_push",
       mutationAllowed: false,
@@ -126,5 +179,138 @@ describe("NUSA autopilot GitHub webhook", () => {
       body,
     }), { NUSA_WEBHOOK_SECRET: "secret" });
     assert.equal(response.status, 400);
+  });
+
+  it("projects persisted coding evidence through a read-only safety boundary", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const evidence = evidenceFixture();
+    await coordinator.fetch(new Request("https://execution-coordinator/coding-evidence", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ evidence }),
+    }));
+    const namespace: ExecutionCoordinatorNamespace = {
+      idFromName: () => ({}),
+      get: () => ({ fetch: (input: RequestInfo | URL, init?: RequestInit) => coordinator.fetch(new Request(input, init)) }),
+    };
+    const response = await worker.fetch(new Request("https://example.test/coding/evidence"), { NUSA_EXECUTION_COORDINATOR: namespace });
+    assert.equal(response.status, 200);
+    const payload = await response.json() as { status: string; history: readonly unknown[]; liveAuthority: string; productionMutationAllowed: boolean; aiAuthority: string };
+    assert.equal(payload.status, "OBSERVED");
+    assert.equal(payload.history.length, 1);
+    assert.equal(payload.liveAuthority, "NONE");
+    assert.equal(payload.productionMutationAllowed, false);
+    assert.equal(payload.aiAuthority, "ZERO_AUTHORITY");
+  });
+
+  it("suppresses duplicate cloud coding calls at the execution boundary", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const namespace: ExecutionCoordinatorNamespace = {
+      idFromName: () => ({}),
+      get: () => ({ fetch: (input: RequestInfo | URL, init?: RequestInit) => coordinator.fetch(new Request(input, init)) }),
+    };
+    let runtimeCalls = 0;
+    const runtime: CodingRuntime = {
+      name: "fake-cloud-runtime",
+      async execute() {
+        runtimeCalls += 1;
+        return {
+          backend: "fake-cloud-runtime",
+          checkpointId: "checkpoint:1258",
+          workspaceVerified: true,
+          proposalValidated: true,
+          changedFiles: ["apps/autopilot/src/index.ts"],
+        };
+      },
+    };
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/commits/")) return new Response(JSON.stringify({ sha: codingRequest.headSha }), { status: 200 });
+      if (url.includes("/actions/runs/")) return new Response(JSON.stringify({
+        id: codingRequest.workflowRunId,
+        head_sha: codingRequest.headSha,
+        head_branch: "main",
+        status: "completed",
+        conclusion: "success",
+        repository: { full_name: codingRequest.repository },
+      }), { status: 200 });
+      return new Response(JSON.stringify({ patch: "diff --git a/apps/autopilot/src/codingRunner.ts b/apps/autopilot/src/codingRunner.ts\n--- a/apps/autopilot/src/codingRunner.ts\n+++ b/apps/autopilot/src/codingRunner.ts\n" }), { status: 200 });
+    }) as typeof fetch;
+    try {
+      const request = () => new Request("https://example.test/coding/execute", {
+        method: "POST",
+        headers: { authorization: "Bearer runner-token", "content-type": "application/json" },
+        body: JSON.stringify(codingRequest),
+      });
+      const env = {
+        NUSA_CODING_RUNNER_TOKEN: "runner-token",
+        NUSA_GITHUB_TOKEN: "github-token",
+        NUSA_AI_CODING_ENDPOINT: "https://coding.example.test/execute",
+        NUSA_AI_CODING_TOKEN: "ai-token",
+        NUSA_EXECUTION_COORDINATOR: namespace,
+      };
+      const first = await handleCodingExecute(request(), env, runtime);
+      const second = await handleCodingExecute(request(), env, runtime);
+      assert.equal(first.status, 202);
+      assert.equal((await first.clone().json() as { status: string }).status, "EXECUTION_ACCEPTED");
+      assert.equal(second.status, 202);
+      assert.equal((await second.json() as { status: string }).status, "DUPLICATE_EXECUTION_SUPPRESSED");
+      assert.equal(runtimeCalls, 1);
+      const telemetry = await coordinator.fetch(new Request("https://execution-coordinator/execution-telemetry"));
+      const telemetryBody = await telemetry.json() as { history: readonly unknown[]; summary: { duplicateSuppressedCount: number } };
+      assert.equal(telemetryBody.history.length, 2);
+      assert.equal(telemetryBody.summary.duplicateSuppressedCount, 1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("releases a failed coding lease so the bounded retry can reach the Worker again", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const namespace: ExecutionCoordinatorNamespace = {
+      idFromName: () => ({}),
+      get: () => ({ fetch: (input: RequestInfo | URL, init?: RequestInit) => coordinator.fetch(new Request(input, init)) }),
+    };
+    let codingEngineCalls = 0;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/commits/")) return new Response(JSON.stringify({ sha: codingRequest.headSha }), { status: 200 });
+      if (url.includes("/actions/runs/")) return new Response(JSON.stringify({
+        id: codingRequest.workflowRunId,
+        head_sha: codingRequest.headSha,
+        head_branch: "main",
+        status: "completed",
+        conclusion: "success",
+        repository: { full_name: codingRequest.repository },
+      }), { status: 200 });
+      codingEngineCalls += 1;
+      return new Response(JSON.stringify({ error: "temporary" }), { status: 503 });
+    }) as typeof fetch;
+    try {
+      const request = () => new Request("https://example.test/coding/execute", {
+        method: "POST",
+        headers: { authorization: "Bearer runner-token", "content-type": "application/json" },
+        body: JSON.stringify(codingRequest),
+      });
+      const env = {
+        NUSA_CODING_RUNNER_TOKEN: "runner-token",
+        NUSA_GITHUB_TOKEN: "github-token",
+        NUSA_AI_CODING_ENDPOINT: "https://coding.example.test/execute",
+        NUSA_AI_CODING_TOKEN: "ai-token",
+        NUSA_EXECUTION_COORDINATOR: namespace,
+      };
+      const first = await handleCodingExecute(request(), env);
+      const second = await handleCodingExecute(request(), env);
+      assert.equal(first.status, 502);
+      assert.equal(second.status, 502);
+      assert.equal(codingEngineCalls, 2);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

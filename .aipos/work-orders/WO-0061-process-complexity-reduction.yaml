@@ -1,0 +1,87 @@
+id: WO-0061
+title: "Process Complexity Reduction — Validation Consolidation & Lightweight Recovery Path"
+status: IMPLEMENTED_PARTIAL
+implementation_notes_runtime:
+  - "2026-08-30: pnpm validate and validate:full added on main (PR #1231)"
+  - "2026-08-30: AGENTS.md lightweight recovery path and evidence scope present on main"
+  - "Remaining: owner acceptance to mark COMPLETED; optional deeper script consolidation beyond entrypoints"
+
+priority: P2
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+proposal_reference: COMPLEXITY_REDUCTION_PROPOSAL.md
+objective: >-
+  Reduce day-to-day maintenance and agent friction for non-authority work while
+  preserving every safety invariant: fail-closed behavior, AI zero-authority,
+  PAPER-only default, risk veto, deterministic recovery, and AIPOS cross-AI
+  handoff continuity.
+authority:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  authority_impact: none
+scope:
+  - "Add a single developer entrypoint `pnpm validate` that runs a prioritized subset of existing gates"
+  - "Keep `architecture:truth` and `safety:architecture` as hard gates inside the default path"
+  - "Move deep/rare audits behind `pnpm validate:full` (or equivalent) without deleting them"
+  - "Document an AIPOS fast-path recovery for pure docs/UI/non-authority changes"
+  - "Allow work orders marked authority_impact: none to skip deep architecture re-validation when safe"
+  - "Narrow full evidence packages to authority, risk, execution, accounting, recovery, and persistence changes"
+  - "Allow lighter change notes for pure presentation, docs, and non-safety mobile UI"
+  - "Clarify that physical Android acceptance remains HUMAN_ENVIRONMENT_ONLY and non-blocking for other streams"
+out_of_scope:
+  - Weakening fail-closed startup or recovery
+  - Any LIVE, real-money, credential-execution, or production-mutation authority
+  - Removing Risk Governor, kill switch, or AI zero-authority enforcement
+  - Changing Paper vs Live mutable-state isolation
+  - Renderer sandbox / preload restriction changes
+  - Deleting historical audit evidence
+  - Standalone process framework unrelated to NUSA safety
+architecture_impact:
+  acknowledged: true
+  analysis: >-
+    This work order changes process ergonomics and validation packaging only.
+    It does not alter trading authority, risk, execution, accounting semantics,
+    or the constitutional HUMAN_ENVIRONMENT_ONLY gate (WO-0051). All existing
+    hard safety scripts remain available; only the default local feedback path
+    is consolidated. AIPOS remains the cross-AI source of truth.
+  references:
+    - COMPLEXITY_REDUCTION_PROPOSAL.md
+    - .aipos/architecture.md
+    - AGENTS.md
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+    - .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
+selection_rationale:
+  - Single-owner project carries high process density relative to change velocity
+  - Safe consolidation improves agent and human throughput without touching authority boundaries
+  - Proposal already merged on main as documentation; this WO implements the approved slice only after owner acceptance
+acceptance_criteria:
+  - `pnpm validate` exists and runs a documented prioritized subset including architecture:truth and safety:architecture
+  - `pnpm validate:full` (or equivalent) still exposes deep audits
+  - No existing safety gate is deleted; only packaging/defaults change
+  - AGENTS.md and AIPOS recovery docs describe a fast path for authority_impact: none work
+  - Full evidence packages remain mandatory for authority/risk/execution/accounting/recovery/persistence changes
+  - Lighter change notes are allowed only for pure docs/UI/non-authority presentation work
+  - architecture:truth, safety:architecture, and AI zero-authority checks still PASS on main
+  - No LIVE/real-money/credential-execution path is introduced or enabled
+  - Physical Android acceptance remains explicitly HUMAN_ENVIRONMENT_ONLY and non-blocking
+  - Durable evidence of validation packaging change is recorded under .aipos/evidence/
+non_goals:
+  - Faster LIVE promotion
+  - Fewer safety invariants
+  - Removing AIPOS
+implementation_notes:
+  - Prefer additive scripts and documentation over destructive deletion in the first slice
+  - Keep changes reviewable and reversible
+  - Update .aipos/state.yaml and handoff only after owner marks this DRAFT as ready
+safety:
+  PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+definition_of_done:
+  - implementation present
+  - relevant tests or script smoke checks present
+  - validation status truthful
+  - safety boundaries preserved
+  - documentation and AIPOS state updated when activated
+  - no known critical issue hidden
