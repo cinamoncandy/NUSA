@@ -1,0 +1,44 @@
+id: WO-20260907-MOBILE-REFRESH-RATE-LIMIT-ISOLATION
+title: "Mobile PAPER refresh rate-limit isolation"
+status: IMPLEMENTED_LOCAL_CI_PENDING
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 10574ccfec26713642995537a21595b4d8a6d136
+implementation_branch: fix/mobile-refresh-rate-limit-isolation
+objective: "Keep an existing mobile PAPER refresh session recoverable when generic anonymous Cloud traffic exhausts its bounded limiter, without pre-reading refresh secrets or broadening authority."
+architecture_impact:
+  acknowledged: true
+  analysis: "Adds one bounded HTTP limiter lane inside the existing Cloud dashboard server for the exact POST /v1/mobile/session/refresh route. The refresh token remains body-authenticated by the existing MobileSessionService after metering; no new session, execution, broker, or authority path is created."
+scope:
+  - exact_mobile_refresh_route_bounded_limiter_lane
+  - anonymous_exhaustion_regression
+  - refresh_lane_boundedness_regression
+prohibited:
+  - refresh_token_pre_read_before_metering
+  - authentication_bypass
+  - limiter_removal_or_unbounded_capacity
+  - live_activation
+  - broker_or_money_mutation
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  authentication: FAIL_CLOSED
+acceptance:
+  - generic_anonymous_exhaustion_does_not_consume_mobile_refresh_capacity
+  - exact_mobile_refresh_lane_remains_bounded
+  - malformed_or_invalid_refresh_still_reaches_existing_fail_closed_handler_only_after_metering
+  - no_order_or_live_authority_change
+validation:
+  focused: PENDING_EXACT_HEAD_CI
+  typecheck: PENDING_EXACT_HEAD_CI
+  build: PENDING_EXACT_HEAD_CI
+  security_gate: PENDING_EXACT_HEAD_CI
+  architecture: PENDING_EXACT_HEAD_CI
+  safety: PENDING_EXACT_HEAD_CI
+  ai_zero_authority: PENDING_EXACT_HEAD_CI
+  aipos: PENDING_EXACT_HEAD_CI
+remaining:
+  - "External DuckDNS/Oracle Node PAPER deployment and approved-session read-only verification remain HUMAN_ENVIRONMENT_ONLY after merge."
+next: "Open the PR and require fresh exact-head CI before merge or host deployment."

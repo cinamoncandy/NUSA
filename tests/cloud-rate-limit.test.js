@@ -4,14 +4,16 @@ const { BoundedHttpRateLimiter } = require("../dist/apps/cloud/src/httpRateLimit
 const { startCloudDashboardServer } = require("../dist/apps/cloud/src/server.js");
 const { DeterministicRateLimitManager, RateLimitDecisionType } = require("../dist/apps/execution/src/rate-limit-manager.js");
 
-function request(port, headers = {}, path = "/api/dashboard") {
+function request(port, headers = {}, path = "/api/dashboard", method = "GET", requestBody) {
   return new Promise((resolve, reject) => {
-    const req = http.request({ host: "127.0.0.1", port, path, method: "GET", headers: { ...headers, connection: "close" } }, (res) => {
+    const bodyHeaders = requestBody == null ? {} : { "content-type": "application/json", "content-length": Buffer.byteLength(requestBody) };
+    const req = http.request({ host: "127.0.0.1", port, path, method, headers: { ...headers, ...bodyHeaders, connection: "close" } }, (res) => {
       let body = "";
       res.on("data", (chunk) => { body += chunk; });
       res.on("end", () => resolve({ status: res.statusCode, headers: res.headers, body }));
     });
     req.on("error", reject);
+    if (requestBody != null) req.write(requestBody);
     req.end();
   });
 }
@@ -127,16 +129,32 @@ idleBucketIsReclaimed();
     port: 41912,
     tokenVerifier: { ownerPrincipal: owner, verify: (token) => token === "token" ? owner : undefined },
     loadDashboard: () => ({ ok: true }),
+    mobileSessionService: {
+      verifyAccess: () => undefined,
+      refresh: (token) => token === "mobile-refresh-token" ? {
+        accessToken: "mobile-access-token",
+        accessExpiresAt: Date.now() + 60_000,
+        refreshToken: "mobile-refresh-token-next",
+        refreshExpiresAt: Date.now() + 120_000,
+        scopes: ["dashboard:read", "paper:trade"]
+      } : undefined
+    },
     anonymousRateLimiter: new BoundedHttpRateLimiter({ policy: { capacity: 1, refillTokens: 1, refillIntervalMs: 60_000, maximumQueueDelayMs: 0, maximumTrackedRequests: 8 } }),
-    authenticatedRateLimiter: new BoundedHttpRateLimiter({ policy: { capacity: 1, refillTokens: 1, refillIntervalMs: 60_000, maximumQueueDelayMs: 0, maximumTrackedRequests: 8 } })
+    authenticatedRateLimiter: new BoundedHttpRateLimiter({ policy: { capacity: 1, refillTokens: 1, refillIntervalMs: 60_000, maximumQueueDelayMs: 0, maximumTrackedRequests: 8 } }),
+    mobileSessionRefreshRateLimiter: new BoundedHttpRateLimiter({ policy: { capacity: 4, refillTokens: 4, refillIntervalMs: 60_000, maximumQueueDelayMs: 0, maximumTrackedRequests: 8 } })
   });
   try {
     const anonymousFirst = await request(isolated.port, { "x-correlation-id": "anonymous-1" });
     const anonymousSecond = await request(isolated.port, { "x-correlation-id": "anonymous-2" });
     const authenticated = await request(isolated.port, { authorization: "Bearer token", "x-correlation-id": "authenticated-1" });
+    const refreshBody = JSON.stringify({ refreshToken: "mobile-refresh-token" });
+    const refresh = await request(isolated.port, { "x-correlation-id": "refresh-1" }, "/v1/mobile/session/refresh", "POST", refreshBody);
+    const refreshLimited = await request(isolated.port, { "x-correlation-id": "refresh-2" }, "/v1/mobile/session/refresh", "POST", refreshBody);
     assert.equal(anonymousFirst.status, 401);
     assert.equal(anonymousSecond.status, 429, "anonymous capacity must remain bounded");
     assert.equal(authenticated.status, 200, "anonymous exhaustion must not deny a verified user");
+    assert.equal(refresh.status, 200, "anonymous exhaustion must not deny an existing mobile refresh session");
+    assert.equal(refreshLimited.status, 429, "the isolated mobile refresh lane must remain bounded");
   } finally {
     await isolated.stop();
   }

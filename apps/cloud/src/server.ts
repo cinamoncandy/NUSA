@@ -82,6 +82,8 @@ export interface CloudDashboardServerOptions {
   readonly anonymousRateLimiter?: BoundedHttpRateLimiter;
   /** Reserved limiter lane for a successfully verified approved-user session. */
   readonly authenticatedRateLimiter?: BoundedHttpRateLimiter;
+  /** Reserved bounded lane for exact mobile refresh requests, which authenticate in the body after metering. */
+  readonly mobileSessionRefreshRateLimiter?: BoundedHttpRateLimiter;
 }
 
 export interface CloudDashboardServerHandle {
@@ -192,6 +194,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
   // lanes. Anonymous scanning must never fill the registry needed by a verified mobile session.
   const anonymousRateLimiter = options.anonymousRateLimiter ?? options.rateLimiter ?? new BoundedHttpRateLimiter();
   const authenticatedRateLimiter = options.authenticatedRateLimiter ?? options.rateLimiter ?? new BoundedHttpRateLimiter();
+  const mobileSessionRefreshRateLimiter = options.mobileSessionRefreshRateLimiter ?? options.rateLimiter ?? new BoundedHttpRateLimiter();
 
   let ownedUserDb: SqliteDatabase | undefined;
   let userAccessRepository = options.userAccessRepository;
@@ -259,10 +262,16 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
     // and then fall through to ordinary routing as an unmetered request.
     if (req.url !== "/health") {
       // A malformed or unknown bearer remains in the anonymous lane. Only a verified approved
-      // user can consume the separate authenticated capacity.
+      // user can consume authenticated capacity. Exact mobile refresh requests authenticate in
+      // the body after metering, so they get their own bounded lane without pre-reading secrets.
       const presentedToken = bearerToken(req);
       const authenticatedPrincipal = presentedToken == null ? undefined : accessControlledTokenVerifier.verify(presentedToken);
-      const limiter = authenticatedPrincipal == null ? anonymousRateLimiter : authenticatedRateLimiter;
+      const mobileSessionRefresh = req.url === "/v1/mobile/session/refresh" && (req.method ?? "GET").toUpperCase() === "POST";
+      const limiter = authenticatedPrincipal != null
+        ? authenticatedRateLimiter
+        : mobileSessionRefresh
+          ? mobileSessionRefreshRateLimiter
+          : anonymousRateLimiter;
       const identity = authenticatedPrincipal == null
         ? rateLimitIdentity(undefined, req.socket.remoteAddress)
         : `principal:${actorRef(authenticatedPrincipal.userId)}`;
