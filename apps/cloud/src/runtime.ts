@@ -294,9 +294,15 @@ export function startCloudRuntime(
     if (!observation) {
       // P2 diagnostic suffix only: an operator can now tell a silent feed
       // (FEED_STALE / FUTURE_MARKET_TIMESTAMP, e.g. host clock skew) from a
-      // malformed tick. Rejection behavior is unchanged — still fail-closed.
+      // malformed tick. Acceptance thresholds are unchanged; a rejected tick never enters trusted observations.
       heartbeat.lastError = `PUBLIC_MARKET_EVENT_REJECTED:${classifyTickerRejectReason(ticker, { now })}`;
-      safeHydrate([]);
+      // Reject only the untrusted tick. Previously one stale/invalid market event cleared every
+      // already-accepted market observation, so a quiet market (for example a >30s DOGE last-trade
+      // timestamp) could latch the whole multi-market PAPER dashboard into NO_MARKET_DATA even while
+      // BTC/ETH/etc. remained fresh. The hydrator re-checks every cached observation's expiresAt, so
+      // retaining the accepted set preserves per-market fail-closed freshness without widening any
+      // timestamp gate; if no accepted observation is still fresh, it still closes the kill switch.
+      safeHydrate([...observations.values()]);
       return;
     }
     observations.set(observation.id, observation); while (observations.size > 50) observations.delete(observations.keys().next().value!); safeHydrate([...observations.values()]);
