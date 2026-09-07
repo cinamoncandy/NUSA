@@ -1,0 +1,44 @@
+id: WO-REDESIGN-TRUTHFUL-HOME-001
+schema_version: 1
+title: "Fail closed HOME status when retained Cloud evidence cannot be refreshed"
+status: VERIFYING
+priority: 90
+owner: nusa-development
+base_branch: main
+base_commit: 3276364dbdb81bb3354e6d57b8900ea4e080eedc
+implementation_branch: codex/truthful-home-operating-states
+authorization: "Explicit owner request to implement the first approved NUSA redesign slice."
+objective: "Prevent a retained healthy Cloud PAPER snapshot from being displayed as current when the read-only connection requires recovery."
+scope:
+  - "Canonical HOME decision-surface status projection only."
+  - "Regression tests for recovery precedence over prior Cloud RUNNING state."
+  - "Restore the existing fast-uri security override and make audit transport errors fail closed."
+exclusions:
+  - "No runtime, server, account, order, broker, credential, risk-policy or LIVE changes."
+  - "No replacement UI, telemetry, readiness or authority subsystem."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  order_cancel_withdraw_transfer: NONE
+  unknown_or_failed_read_only_state: fail_closed
+acceptance_criteria:
+  - "readOnlyError or disconnected state outranks a retained Cloud runtime label and healthy color."
+  - "The HOME surface reports PAPER · RECOVERY REQUIRED with danger tone."
+  - "Existing recovery, runtime-state, safety-spine and authority tests remain green."
+verification:
+  focused: "PASS 15/15: mobile HOME decision/runtime/supervision tests"
+  mobile_typecheck: PASS
+  mobile_lint: PASS
+  architecture_check: PASS
+  safety_invariants: PASS
+  ai_zero_authority: PASS
+  preflight: PASS
+  build: PASS
+  security_gate: PASS
+  aipos_conformance: PASS
+  aipos_drift: PASS
+  diff_check: PASS
+  remaining:
+    - "Integrate current main and repeat affected validation before publication."
+next_action: "Commit the focused UI/security repair, integrate current main safely, then verify the resulting exact head."

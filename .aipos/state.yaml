@@ -804,3 +804,22 @@ issue_661_live_ready_observability:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   protected_checks: "CI PASS; Mobile Native PASS; Actual PAPER Runtime PASS; Restricted LIVE Activation/Capability/Transport PASS; Read-only Broker PASS; Android Release Candidate SKIPPED_NOT_APPLICABLE"
   next: "PR #770 is eligible for merge under repository policy. After merge, verify main and continue the Issue #661 acceptance audit; Android promotion remains post-merge only."
+
+redesign_truthful_home_state:
+  work_order: WO-REDESIGN-TRUTHFUL-HOME-001
+  status: VERIFYING
+  branch: codex/truthful-home-operating-states
+  base_sha: 3276364dbdb81bb3354e6d57b8900ea4e080eedc
+  scope: "Fail-close mobile HOME status when retained Cloud PAPER evidence cannot be refreshed; no runtime or authority change."
+  focused_validation: PASS_15_OF_15
+  mobile_typecheck: PASS
+  mobile_lint: PASS
+  architecture: PASS
+  preflight: PASS
+  build: PASS
+  security_gate: PASS
+  aipos_conformance: PASS
+  aipos_drift: PASS
+  diff_check: PASS
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  next: "Commit the focused repair, integrate current main a3291d808361e80b60908b1b21e634c423f8ff34, and rerun affected validation."
