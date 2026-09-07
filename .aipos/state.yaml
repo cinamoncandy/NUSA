@@ -1,10 +1,26 @@
 version: 1
 current_oracle_codex_dev_runner:
   work_order: WO-20260908-ORACLE-CODEX-DEV-RUNNER
-  status: LOCAL_VALIDATED
+  status: MERGED_VM_CREATION_HUMAN_ENVIRONMENT_ONLY
   branch: infra/oracle-codex-dev-runner
+  pull_request: 1775
+  exact_head: 152e1d57c359fe3cff6a8a3e56e8e2fb0ec4f7b8
+  merge_commit: 0d80c01277e183ec02aac93d393d655a03f3a09c
+  exact_head_ci: PASS_6_OF_6
   scope: "Isolated Oracle ARM64 Codex Development Plane runner using owner-only manual GitHub dispatch and read-only repository token permissions."
   blocker: "HUMAN_ENVIRONMENT_ONLY: current Oracle instance principal lacks Compute IAM permission, so A1 VM creation requires the Oracle console or an IAM policy change."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_research_source_commit_identity_guard:
+  work_order: WO-20260908-RESEARCH-SOURCE-COMMIT-MISMATCH
+  status: LOCAL_VALIDATED_CI_PENDING
+  branch: fix/research-source-commit-mismatch
+  base_sha: 2cbb07f989a7c278790e218c25a8b08904348c04
+  finding: "Cloud Research accepted NUSA_SOURCE_COMMIT_SHA by precedence even when it contradicted NUSA_SOURCE_COMMIT, allowing stale source provenance to be recorded."
+  remediation: "Reject contradictory dual source identities before the canonical Research process is spawned; preserve either single exact SHA input."
+  production_environment_mutation: NONE
+  local_validation: "Focused Research snapshot 6/6; Node 24 runtime/preflight scripts; repository truth; safety architecture/invariants; AI zero-authority; AIPOS drift/provenance; diff check PASS."
+  next_permitted_action: "Publish one PR from current main and require fresh exact-head protected CI before merge."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_mobile_porcelain_cobalt:

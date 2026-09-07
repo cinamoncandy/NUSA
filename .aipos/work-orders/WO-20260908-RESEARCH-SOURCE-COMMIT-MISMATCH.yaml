@@ -1,0 +1,55 @@
+version: 1
+id: WO-20260908-RESEARCH-SOURCE-COMMIT-MISMATCH
+title: "Fail closed on conflicting Research source commit identities"
+status: LOCAL_VALIDATED_CI_PENDING
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 2cbb07f989a7c278790e218c25a8b08904348c04
+implementation_branch: fix/research-source-commit-mismatch
+objective: "Prevent canonical Cloud Research snapshots from accepting contradictory deployed source commit identities and recording stale provenance."
+authority_impact: none
+architecture_impact:
+  acknowledged: true
+  analysis: "Tightens the existing Research provenance input boundary only. It adds no new runtime, research engine, broker path, production mutation, or trading authority."
+  references:
+    - docs/NUSA_INVESTMENT_KNOWLEDGE_PRINCIPLE.md
+    - .aipos/decisions/ADR-0003-hardened-research-validity-boundaries.md
+    - scripts/run-cloud-research-snapshot.js
+knowledge_contract:
+  class: LEARNED_KNOWLEDGE_PROVENANCE
+  provenance_required: true
+  contradictory_identity: FAIL_CLOSED
+scope:
+  - normalize_existing_source_commit_inputs
+  - reject_conflicting_source_commit_identities_before_research_spawn
+  - focused_regression_coverage
+prohibited:
+  - production_environment_mutation
+  - timer_or_service_mutation
+  - deployment
+  - live_activation
+  - broker_or_exchange_mutation
+  - research_provenance_guessing
+safety:
+  authority: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+acceptance:
+  - either_single_exact_sha_source_remains_supported
+  - matching_dual_source_identities_remain_supported
+  - conflicting_dual_source_identities_fail_before_spawn
+  - no_production_configuration_is_changed
+validation:
+  focused_test: PASS_6_OF_6
+  preflight_direct_node: PASS
+  repository_truth: PASS
+  safety_architecture: PASS
+  safety_invariants: PASS
+  ai_zero_authority: PASS
+  aipos_drift: PASS
+  aipos_provenance: PASS
+  diff_check: PASS
+observed_gap: "The Oracle PAPER host exposed different values for NUSA_SOURCE_COMMIT and NUSA_SOURCE_COMMIT_SHA while the Research wrapper preferred the latter. Runtime trading mode remained PAPER-only; this work order changes repository fail-closed behavior only."
+next: "Run focused and repository contract validation locally, then require exact-head protected CI before merge. Production environment reconciliation remains a separate human/environment operation."
