@@ -983,11 +983,11 @@ issue_661_live_ready_observability:
 
 redesign_truthful_home_state:
   work_order: WO-REDESIGN-TRUTHFUL-HOME-001
-  status: VERIFYING
+  status: LOCAL_VALIDATED_PENDING_PUBLICATION
   branch: codex/truthful-home-operating-states
-  base_sha: 3276364dbdb81bb3354e6d57b8900ea4e080eedc
+  base_sha: a3291d808361e80b60908b1b21e634c423f8ff34
   scope: "Fail-close mobile HOME status when retained Cloud PAPER evidence cannot be refreshed; no runtime or authority change."
-  focused_validation: PASS_15_OF_15
+  focused_validation: PASS_29_OF_29_AFTER_LATEST_MAIN_INTEGRATION
   mobile_typecheck: PASS
   mobile_lint: PASS
   architecture: PASS
@@ -998,7 +998,8 @@ redesign_truthful_home_state:
   aipos_drift: PASS
   diff_check: PASS
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  next: "Commit the focused repair, integrate current main a3291d808361e80b60908b1b21e634c423f8ff34, and rerun affected validation."
+  latest_main_integration: PASS
+  next: "Push exact local head and require fresh exact-head CI before review or merge."
 issue_1288_cloudflare_runtime_proof:
   issue: 1288
   work_order: WO-ISSUE-1288-CLOUDFLARE-RUNTIME-PROOF
