@@ -7,6 +7,7 @@ import {
   type PaperManualOrderContext
 } from "./paperTradingExecutionLoop";
 import type { CloudPaperRiskGate, CloudPaperRiskRequest } from "./cloudPaperCanonicalRiskGateway";
+import { validatePaperCandidateExecutionBinding } from "./cioDecisionEngine";
 
 export interface CloudPaperExecutionBoundaryOptions {
   readonly loop: PaperTradingExecutionLoop;
@@ -98,8 +99,28 @@ export class CloudPaperExecutionBoundary {
     const investmentPercent = tick.investmentPercent ?? 100;
     if (!Number.isFinite(investmentPercent) || investmentPercent < 0 || investmentPercent > 100) return this.blocked("INVALID_INVESTMENT_ALLOCATION");
     for (const decision of actionable) {
+      // Generic CIO decisions remain advisory. Automatic PAPER mutation is allowed only when the
+      // action is the exact output of an immutable, currently bound Research/League challenger.
+      if (decision.paperCandidateBinding == null || decision.paperCandidateStrategyDecision == null) {
+        return this.blocked("PAPER_CANDIDATE_BINDING_REQUIRED");
+      }
+      let candidateBinding;
+      try { candidateBinding = validatePaperCandidateExecutionBinding(decision.paperCandidateBinding, decision.decidedAt); }
+      catch { return this.blocked("PAPER_CANDIDATE_BINDING_INVALID"); }
+      const candidateDecision = decision.paperCandidateStrategyDecision;
+      if (candidateBinding.candidateStrategy == null ||
+          candidateDecision.action !== decision.action ||
+          candidateDecision.score !== decision.score ||
+          candidateDecision.confidence !== decision.confidence ||
+          !Number.isSafeInteger(candidateDecision.observedAt) ||
+          candidateDecision.observedAt < candidateBinding.periodStartAt ||
+          candidateDecision.observedAt > decision.decidedAt ||
+          !candidateDecision.reason.trim()) {
+        return this.blocked("PAPER_CANDIDATE_STRATEGY_DECISION_INVALID");
+      }
+
       // Cloud automatic strategy authority is deliberately PAPER-only and spot-only. An actionable
-      // CIO decision must be self-consistent before it is even presented to the canonical risk gate.
+      // challenger decision must be self-consistent before it is even presented to the canonical risk gate.
       if (tick.mode !== "PAPER" || decision.leverage !== 1 || decision.risk === "HIGH" || decision.risk === "CRITICAL" ||
           !Number.isFinite(decision.confidence) || decision.confidence < 0.55 || decision.confidence > 1 ||
           !Number.isFinite(decision.allocation) || decision.allocation < 0 || decision.allocation > 1 ||
@@ -133,7 +154,7 @@ export class CloudPaperExecutionBoundary {
       if (risk.status !== "ALLOW") return this.riskResult(risk.status, risk.reasonCodes);
     }
 
-    // Canonical risk ALLOW plus the deterministic PAPER-only strategy checks above form the
+    // Canonical risk ALLOW plus the deterministic PAPER-only challenger checks above form the
     // strategy approval boundary. LIVE/production mutation authority is still absent by design.
     return this.withRisk(this.options.loop.processTick(tick), { status: "ALLOW", reasonCodes: Object.freeze([]) });
   }

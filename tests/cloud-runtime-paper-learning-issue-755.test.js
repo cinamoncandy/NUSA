@@ -4,6 +4,63 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { startCloudRuntime } = require("../dist/apps/cloud/src/runtime.js");
+const { CloudRuntimeDashboardHydrator } = require("../dist/apps/cloud/src/cloudRuntimeDashboardHydrator.js");
+
+const principal = Object.freeze({ userId: "operator", scopes: Object.freeze(["dashboard:read"]) });
+
+function bindPaperDecision(decision) {
+  if (decision.action !== "BUY" && decision.action !== "SELL") return decision;
+  const candidateId = "sma-5-20";
+  return Object.freeze({
+    ...decision,
+    // Leave deterministic fee headroom inside the configured PAPER allocation. The fixture must
+    // exercise a real challenger-bound fill without asking the execution loop to spend the full
+    // allocation before fees, which correctly fails closed at the cash-allocation guard.
+    allocation: Math.min(decision.allocation, 0.5),
+    paperCandidateBinding: Object.freeze({
+      schemaVersion: 1,
+      status: "BOUND_UNVERIFIED",
+      authority: "PAPER_RESEARCH_ONLY",
+      liveAuthority: "NONE",
+      productionMutationAllowed: false,
+      candidateId,
+      datasetId: "fixture-dataset",
+      datasetContentSha256: "a".repeat(64),
+      advisoryGeneratedAt: decision.decidedAt - 2,
+      periodStartAt: decision.decidedAt - 1,
+      advisoryFingerprintSha256: "b".repeat(64),
+      bindingFingerprintSha256: "c".repeat(64),
+      candidateStrategy: Object.freeze({
+        candidateId,
+        familyId: "sma-crossover",
+        lineageId: "fixture-lineage",
+        specificationHash: "d".repeat(64),
+        codeSha: "e".repeat(40),
+        costModelVersion: "fixture-cost-v1",
+        parameters: Object.freeze({ shortPeriod: 5, longPeriod: 20 })
+      })
+    }),
+    paperCandidateStrategyDecision: Object.freeze({
+      action: decision.action,
+      score: decision.score,
+      confidence: decision.confidence,
+      reason: "candidate-bound production fixture",
+      observedAt: decision.decidedAt
+    })
+  });
+}
+
+function candidateBoundDashboardHydrator() {
+  const base = new CloudRuntimeDashboardHydrator();
+  return {
+    hydrate(provider, observations = []) {
+      base.hydrate(provider, observations);
+      const state = provider.read(principal);
+      if (state == null) return;
+      provider.set(Object.freeze({ ...state, decisions: Object.freeze(state.decisions.map(bindPaperDecision)) }));
+    }
+  };
+}
 
 // Issue #755: the real device symptom was an always-empty PAPER learning timeline. The pieces
 // (recorder, durable replay, read-only projection) already had unit coverage in isolation, but
@@ -77,7 +134,7 @@ test("#755: a deterministic PAPER cycle exposes MARKET_DATA -> DECISION -> ... -
   let handle;
   try {
     const capture = capturingFactory();
-    handle = startCloudRuntime(testEnv(token, port, filename), undefined, undefined, capture.factory);
+    handle = startCloudRuntime(testEnv(token, port, filename), undefined, candidateBoundDashboardHydrator(), capture.factory);
     capture.fire(buyTicker());
 
     const first = await loadOperations(port, token);
@@ -106,7 +163,7 @@ test("#755: a deterministic PAPER cycle exposes MARKET_DATA -> DECISION -> ... -
     // Restart against the same durable state with public ingestion paused: no new tick can occur,
     // so an identical, deduplicated timeline is the only correct outcome (acceptance: "restart/replay
     // 동일, dedupe PASS").
-    handle = startCloudRuntime(testEnv(token, port, filename, { NUSA_CLOUD_UPBIT_PUBLIC_DATA: "false" }), undefined, undefined, capturingFactory().factory);
+    handle = startCloudRuntime(testEnv(token, port, filename, { NUSA_CLOUD_UPBIT_PUBLIC_DATA: "false" }), undefined, candidateBoundDashboardHydrator(), capturingFactory().factory);
     const second = await loadOperations(port, token);
     const secondIds = second.paperLearning.events.map((event) => event.id).sort();
     assert.deepEqual(secondIds, firstIds);
@@ -129,7 +186,7 @@ test("#661: a rejected PAPER trade exposes its real gate rejection reason throug
   let handle;
   try {
     const capture = capturingFactory();
-    handle = startCloudRuntime(testEnv(token, port, filename, { NUSA_CLOUD_PAPER_INVESTMENT_PERCENT: "0" }), undefined, undefined, capture.factory);
+    handle = startCloudRuntime(testEnv(token, port, filename, { NUSA_CLOUD_PAPER_INVESTMENT_PERCENT: "0" }), undefined, candidateBoundDashboardHydrator(), capture.factory);
     capture.fire(buyTicker());
 
     const snapshot = await loadOperations(port, token);
