@@ -1,4 +1,13 @@
 version: 1
+current_mobile_porcelain_cobalt:
+  work_order: WO-UI-20260907-PORCELAIN-COBALT
+  status: IN_PROGRESS
+  branch: codex/mobile-porcelain-cobalt
+  base_sha: 307b535727a209c1b9ed57b6599b579c8e97bad0
+  scope: "Owner-approved Study 03 presentation with canonical market chart; no mock data or authority change."
+  validation: "402/402 mobile tests; build/typecheck/lint/validate:full/security PASS. Lint has one pre-existing warning."
+  next_permitted_action: "Local validation then exact-head protected CI and existing Android stable release."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_product_v5_recovery:
   work_order: WO-UI-20260906-PRODUCT-V5-CI-RECOVERY
   status: IN_PROGRESS
