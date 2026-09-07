@@ -123,6 +123,123 @@ jobs:
             exit 1
           fi
 
+          # Workflow SUCCESS is only a transport-level signal. Bind deterministic Release
+          # authority to the immutable exact-head PAPER artifact and verify the semantic
+          # autonomous order + fill + accounting/PnL proof before merge.
+          paper_run_id="$(jq -r --arg head "$REQUESTED_HEAD" '
+            [.workflow_runs[] | select(
+              .name == "Actual PAPER Public-Market Runtime Evidence" and
+              .path == ".github/workflows/wo-0059-actual-paper-runtime.yml" and
+              .head_sha == $head and
+              .event == "pull_request" and
+              .status == "completed" and
+              .conclusion == "success"
+            )] | sort_by(.updated_at) | reverse | .[0].id // empty
+          ' "$RUNNER_TEMP/nusa-deterministic-audit/exact-head-runs.json")"
+          test -n "$paper_run_id"
+
+          paper_run="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$paper_run_id")"
+          jq -e --arg head "$REQUESTED_HEAD" --arg repo "$GITHUB_REPOSITORY" '
+            .name == "Actual PAPER Public-Market Runtime Evidence" and
+            .path == ".github/workflows/wo-0059-actual-paper-runtime.yml" and
+            .event == "pull_request" and
+            .status == "completed" and
+            .conclusion == "success" and
+            .head_sha == $head and
+            .repository.full_name == $repo
+          ' <<<"$paper_run" >/dev/null
+
+          paper_artifact_name="wo-0059-actual-paper-runtime-evidence-$REQUESTED_HEAD"
+          paper_artifacts="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$paper_run_id/artifacts?per_page=100")"
+          paper_artifact="$(jq -c --arg name "$paper_artifact_name" --arg head "$REQUESTED_HEAD" '
+            [.artifacts[] | select(
+              .name == $name and
+              .expired == false and
+              .workflow_run.head_sha == $head and
+              (.digest | type == "string" and test("^sha256:[a-fA-F0-9]{64}$"))
+            )] | sort_by(.updated_at) | reverse | .[0] // empty
+          ' <<<"$paper_artifacts")"
+          test -n "$paper_artifact"
+          paper_artifact_id="$(jq -r '.id' <<<"$paper_artifact")"
+          paper_artifact_digest="$(jq -r '.digest' <<<"$paper_artifact")"
+
+          mkdir -p "$RUNNER_TEMP/nusa-deterministic-audit/paper"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$paper_artifact_id/zip" > "$RUNNER_TEMP/nusa-deterministic-audit/paper.zip"
+          unzip -q "$RUNNER_TEMP/nusa-deterministic-audit/paper.zip" -d "$RUNNER_TEMP/nusa-deterministic-audit/paper"
+          paper_evidence="$(find "$RUNNER_TEMP/nusa-deterministic-audit/paper" -type f -name 'actual-paper-runtime-e2e.json' -print -quit)"
+          test -n "$paper_evidence"
+
+          node - "$paper_evidence" "$REQUESTED_HEAD" "$paper_run_id" "$paper_artifact_id" "$paper_artifact_name" "$paper_artifact_digest" <<'NODE'
+          const { createHash } = require('node:crypto');
+          const { readFileSync } = require('node:fs');
+          const [evidencePath, requestedHead, runId, artifactId, artifactName, artifactDigest] = process.argv.slice(2);
+          const evidence = JSON.parse(readFileSync(evidencePath, 'utf8'));
+          const fail = (m) => { console.error(`EXACT_HEAD_PAPER_AUDIT_REJECTED:${m}`); process.exit(1); };
+          const requireCondition = (c, m) => { if (!c) fail(m); };
+          const canonical = (value) => Array.isArray(value)
+            ? `[${value.map(canonical).join(',')}]`
+            : value && typeof value === 'object'
+              ? `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`
+              : JSON.stringify(value);
+          const sha256 = (value) => createHash('sha256').update(value).digest('hex');
+          const COMPLETE = 'COMPLETE_AUTONOMOUS_EXECUTION_OBSERVED';
+          const head = requestedHead.toLowerCase();
+
+          requireCondition(/^[a-f0-9]{40}$/.test(head), 'HEAD_INVALID');
+          requireCondition(evidence?.evidence_type === 'nusa.actual-paper-runtime-e2e', 'EVIDENCE_TYPE_MISMATCH');
+          requireCondition(evidence?.result === 'PASS', 'EVIDENCE_RESULT_NOT_PASS');
+          requireCondition(String(evidence?.source_commit || '').toLowerCase() === head, 'SOURCE_COMMIT_MISMATCH');
+          requireCondition(Number.isSafeInteger(Number(runId)) && Number(runId) > 0, 'RUN_ID_INVALID');
+          requireCondition(Number.isSafeInteger(Number(artifactId)) && Number(artifactId) > 0, 'ARTIFACT_ID_INVALID');
+          requireCondition(artifactName === `wo-0059-actual-paper-runtime-evidence-${head}`, 'ARTIFACT_NAME_MISMATCH');
+          requireCondition(/^sha256:[a-f0-9]{64}$/i.test(artifactDigest), 'ARTIFACT_DIGEST_INVALID');
+
+          const hash = evidence?.artifact_hash;
+          requireCondition(hash?.algorithm === 'sha256', 'EVIDENCE_HASH_ALGORITHM');
+          requireCondition(/^[a-f0-9]{64}$/i.test(String(hash?.value || '')), 'EVIDENCE_HASH_MISSING');
+          const { artifact_hash: _ignored, ...withoutHash } = evidence;
+          requireCondition(sha256(canonical(withoutHash)) === hash.value, 'EVIDENCE_HASH_MISMATCH');
+
+          requireCondition(evidence?.authority?.mode === 'PAPER_ONLY', 'MODE_NOT_PAPER_ONLY');
+          requireCondition(evidence?.authority?.liveAuthority === 'NONE', 'LIVE_AUTHORITY_NOT_NONE');
+          requireCondition(evidence?.authority?.productionMutationAllowed === false, 'PRODUCTION_MUTATION_ALLOWED');
+          requireCondition(evidence?.authority?.aiAuthority === 'ZERO_AUTHORITY', 'AI_AUTHORITY_NOT_ZERO');
+          requireCondition(evidence?.market_data?.provider === 'UPBIT', 'PUBLIC_MARKET_PROVIDER_MISMATCH');
+          requireCondition(evidence?.market_data?.channel === 'PUBLIC_TICKER', 'PUBLIC_MARKET_CHANNEL_MISMATCH');
+          requireCondition(evidence?.market_data?.private_credentials_used === false, 'PRIVATE_CREDENTIALS_USED');
+          requireCondition(evidence?.prohibited_capabilities?.upbit_private_credentials === false, 'PRIVATE_EXCHANGE_CAPABILITY_PRESENT');
+          requireCondition(evidence?.prohibited_capabilities?.live_order_endpoint === false, 'LIVE_ORDER_ENDPOINT_PRESENT');
+          requireCondition(evidence?.prohibited_capabilities?.withdrawal_transfer === false, 'WITHDRAWAL_TRANSFER_PRESENT');
+          requireCondition(evidence?.prohibited_capabilities?.real_money_mutation === false, 'REAL_MONEY_MUTATION_OBSERVED');
+          requireCondition(evidence?.runtime_safety_smoke?.status === 'PASS', 'RUNTIME_SAFETY_SMOKE_NOT_PASS');
+          requireCondition(evidence?.runtime_safety_smoke?.public_market_runtime_observed === true, 'PUBLIC_MARKET_RUNTIME_NOT_OBSERVED');
+          requireCondition(evidence?.runtime_safety_smoke?.live_authority === 'NONE', 'SMOKE_LIVE_AUTHORITY_NOT_NONE');
+          requireCondition(evidence?.runtime_safety_smoke?.production_mutation_allowed === false, 'SMOKE_PRODUCTION_MUTATION_ALLOWED');
+          requireCondition(evidence?.autonomous_trading_certification?.status === COMPLETE, 'AUTONOMOUS_EXECUTION_INCOMPLETE');
+          requireCondition(evidence?.autonomous_trading_certification?.automatic_order_observed === true, 'AUTOMATIC_ORDER_NOT_OBSERVED');
+          requireCondition(evidence?.autonomous_trading_certification?.automatic_fill_observed === true, 'AUTOMATIC_FILL_NOT_OBSERVED');
+          requireCondition(evidence?.autonomous_trading_certification?.account_or_pnl_change_observed === true, 'ACCOUNT_PNL_CHANGE_NOT_OBSERVED');
+          requireCondition(evidence?.production_readiness?.status === COMPLETE, 'PRODUCTION_READINESS_INCOMPLETE');
+          requireCondition(evidence?.production_readiness?.runtime_safety_smoke_passed === true, 'PRODUCTION_SAFETY_SMOKE_NOT_PASS');
+          requireCondition(evidence?.production_readiness?.automatic_order_observed === true, 'READINESS_ORDER_NOT_OBSERVED');
+          requireCondition(evidence?.production_readiness?.automatic_fill_observed === true, 'READINESS_FILL_NOT_OBSERVED');
+          requireCondition(evidence?.production_readiness?.account_or_pnl_change_observed === true, 'READINESS_ACCOUNT_PNL_NOT_OBSERVED');
+          requireCondition(evidence?.production_readiness?.live_mutation_observed === false, 'READINESS_LIVE_MUTATION_OBSERVED');
+          requireCondition(evidence?.production_readiness?.completion_claim_allowed === true, 'COMPLETION_CLAIM_NOT_ALLOWED');
+
+          console.log(JSON.stringify({
+            status: 'EXACT_HEAD_PAPER_SEMANTIC_PASS',
+            head,
+            source_run_id: Number(runId),
+            artifact_id: Number(artifactId),
+            artifact_name: artifactName,
+            artifact_digest: artifactDigest,
+            liveAuthority: 'NONE',
+            productionMutationAllowed: false,
+            aiAuthority: 'ZERO_AUTHORITY'
+          }));
+          NODE
+
           final_pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
           final_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           final_state="$(jq -r '.state' <<<"$final_pr")"
@@ -138,7 +255,7 @@ jobs:
           echo 'applicable=true' >> "$GITHUB_OUTPUT"
           echo 'authority=DETERMINISTIC_AUDIT_PASS' >> "$GITHUB_OUTPUT"
           echo "audited_base=$current_main" >> "$GITHUB_OUTPUT"
-          echo "Deterministic Audit PASS: pr=$PR_NUMBER head=$REQUESTED_HEAD base=$current_main ci=$WORKFLOW_RUN_ID"
+          echo "Deterministic Audit PASS: pr=$PR_NUMBER head=$REQUESTED_HEAD base=$current_main ci=$WORKFLOW_RUN_ID paper_run=$paper_run_id paper_artifact=$paper_artifact_id"
           echo 'liveAuthority=NONE'
           echo 'productionMutationAllowed=false'
           echo 'aiAuthority=ZERO_AUTHORITY'
