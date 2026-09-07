@@ -1,9 +1,37 @@
 import { mobileApprovedSession } from "./mobileApprovedSessionBoundary";
+import { MobileSessionRequestError } from "./mobileApprovedSession";
 
 const MAX_TOKEN_LENGTH = 4096;
 export const LEGACY_MOBILE_BOOTSTRAP_PREFIX = "legacy-bootstrap:";
 let sharedEndpoint: string | null = null;
 let pendingBootstrapToken: string | null = null;
+let lastCredentialFailure: string | null = null;
+const MAX_FAILURE_REASON_LENGTH = 300;
+
+/**
+ * A credential exchange that fails has exactly one chance to say why: the provider contract
+ * returns `null`, so without this the caller can only report "no credential", which reads as a
+ * configuration problem even when the real cause was an expired token or a throttled server.
+ * The token itself is never part of a reason -- every message below is a fixed string or an
+ * HTTP status.
+ */
+export function describeCredentialFailure(error: unknown): string {
+  if (error instanceof MobileSessionRequestError) {
+    if (error.status === 401 || error.status === 403) return "연결 토큰이 만료되었거나 이미 사용되었습니다. 새 토큰을 발급받아 다시 입력하세요.";
+    if (error.status === 429) return "서버가 요청을 일시적으로 제한하고 있습니다. 잠시 후 다시 시도하세요.";
+    if (error.status >= 500) return `서버가 응답하지 못했습니다 (HTTP ${error.status}). 잠시 후 다시 시도하세요.`;
+    return `서버가 연결 요청을 거부했습니다 (HTTP ${error.status}).`;
+  }
+  const message = error instanceof Error ? error.message.trim() : "";
+  return message ? message.slice(0, MAX_FAILURE_REASON_LENGTH) : "보안 세션 교환에 실패했습니다.";
+}
+
+/** Reads and clears the reason the most recent credential exchange failed. */
+export function takeLastCredentialFailure(): string | null {
+  const reason = lastCredentialFailure;
+  lastCredentialFailure = null;
+  return reason;
+}
 
 export type DashboardCredentialProvider = () => Promise<string | null>;
 
@@ -70,11 +98,16 @@ export class InMemoryDashboardCredentialSession {
     const pending = pendingBootstrapToken;
     if (pending != null) {
       pendingBootstrapToken = null;
-      try { await session.connectBootstrap(endpoint, pending); }
-      catch { session.clearMemory(); return null; }
+      try { lastCredentialFailure = null; await session.connectBootstrap(endpoint, pending); }
+      catch (error) { lastCredentialFailure = describeCredentialFailure(error); session.clearMemory(); return null; }
     } else if (!session.hasMemoryAccess()) {
-      const restored = await session.restore(endpoint);
-      if (restored == null) return null;
+      let restored: Awaited<ReturnType<typeof session.restore>>;
+      try { lastCredentialFailure = null; restored = await session.restore(endpoint); }
+      catch (error) { lastCredentialFailure = describeCredentialFailure(error); return null; }
+      if (restored == null) {
+        lastCredentialFailure = "저장된 보안 세션이 없거나 만료되었습니다. 연결 토큰을 다시 입력하세요.";
+        return null;
+      }
     }
     return session.credentialProvider();
   };
