@@ -50,6 +50,18 @@ current_rate_limit_availability_hardening:
   local_validation: "tsc PASS; tests/cloud-rate-limit.test.js PASS with 4 new assertions; tests/connectivity-guards.test.js 4/4 PASS; per-file sweep of tests/*.test.js shows the same 3 failures before and after the change (all Node-24 environment gates, this host has Node 22); pnpm run lint 0 errors."
   unverified: "pnpm run preflight and pnpm test could not run here: scripts/check-runtime.js requires Node >= 24 and this environment provides 22.22.2. Exact-head CI is required before Audit, Release, or merge."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_authenticated_rate_limit_isolation:
+  work_order: WO-20260907-AUTHENTICATED-RATE-LIMIT-ISOLATION
+  status: PR_OPEN_EXACT_HEAD_CI_PENDING
+  branch: codex/paper-auth-rate-limit-isolation
+  base_sha: 8d53cd44f79fc6ece423d0ea29df00264d7a78ac
+  scope: "Reserve bounded Cloud PAPER request capacity for an existing verified approved-user session without weakening anonymous limiting or authorization."
+  finding: "The public DuckDNS PAPER origin returned repeated unauthenticated /ready HTTP 429 responses. A single pre-auth limiter registry could deny a verified user when anonymous traffic filled capacity."
+  validation: "build/typecheck; Cloud dashboard and rate-limit regression 12/12; lint (one unrelated existing warning); security gate; safety invariants; diff check PASS."
+  deployment_evidence: "PENDING: the public Node PAPER host does not report an exact source revision and must be redeployed from a protected main SHA before reachability is claimed."
+  pull_request: 1760
+  exact_head_ci: PENDING
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_renderer_navigation_containment:
   decision: ADR-0017
   status: IMPLEMENTED_LOCAL
