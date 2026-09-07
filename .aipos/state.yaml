@@ -981,6 +981,26 @@ issue_661_live_ready_observability:
   protected_checks: "CI PASS; Mobile Native PASS; Actual PAPER Runtime PASS; Restricted LIVE Activation/Capability/Transport PASS; Read-only Broker PASS; Android Release Candidate SKIPPED_NOT_APPLICABLE"
   next: "PR #770 is eligible for merge under repository policy. After merge, verify main and continue the Issue #661 acceptance audit; Android promotion remains post-merge only."
 
+redesign_truthful_home_state:
+  work_order: WO-REDESIGN-TRUTHFUL-HOME-001
+  status: LOCAL_VALIDATED_PENDING_PUBLICATION
+  branch: codex/truthful-home-operating-states
+  base_sha: a3291d808361e80b60908b1b21e634c423f8ff34
+  scope: "Fail-close mobile HOME status when retained Cloud PAPER evidence cannot be refreshed; no runtime or authority change."
+  focused_validation: PASS_29_OF_29_PLUS_CI_SHARD_UI_CONTRACT_AFTER_LATEST_MAIN_INTEGRATION
+  ci_shard_regression: PASS_SHARD_2_OF_4_AFTER_UI_CONTRACT_UPDATE
+  mobile_typecheck: PASS
+  mobile_lint: PASS
+  architecture: PASS
+  preflight: PASS
+  build: PASS
+  security_gate: PASS
+  aipos_conformance: PASS
+  aipos_drift: PASS
+  diff_check: PASS
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  latest_main_integration: PASS
+  next: "Push exact local head and require fresh exact-head CI before review or merge."
 issue_1288_cloudflare_runtime_proof:
   issue: 1288
   work_order: WO-ISSUE-1288-CLOUDFLARE-RUNTIME-PROOF
