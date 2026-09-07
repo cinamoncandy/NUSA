@@ -987,7 +987,8 @@ redesign_truthful_home_state:
   branch: codex/truthful-home-operating-states
   base_sha: a3291d808361e80b60908b1b21e634c423f8ff34
   scope: "Fail-close mobile HOME status when retained Cloud PAPER evidence cannot be refreshed; no runtime or authority change."
-  focused_validation: PASS_29_OF_29_AFTER_LATEST_MAIN_INTEGRATION
+  focused_validation: PASS_29_OF_29_PLUS_CI_SHARD_UI_CONTRACT_AFTER_LATEST_MAIN_INTEGRATION
+  ci_shard_regression: PASS_SHARD_2_OF_4_AFTER_UI_CONTRACT_UPDATE
   mobile_typecheck: PASS
   mobile_lint: PASS
   architecture: PASS

@@ -26,7 +26,8 @@ acceptance_criteria:
   - "The HOME surface reports PAPER · RECOVERY REQUIRED with danger tone."
   - "Existing recovery, runtime-state, safety-spine and authority tests remain green."
 verification:
-  focused: "PASS 29/29: mobile HOME decision/runtime/supervision plus security audit regression tests after latest-main integration"
+  focused: "PASS 29/29 plus the CI-shard UI contract regression after latest-main integration"
+  ci_shard_regression: "PASS: NUSA_TEST_SHARD_INDEX=1 / 4, including mobile-uiux-min-path"
   mobile_typecheck: PASS
   mobile_lint: PASS
   architecture_check: PASS
