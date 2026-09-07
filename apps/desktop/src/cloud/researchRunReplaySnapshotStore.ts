@@ -3,6 +3,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import {
   replayResearchRunWithPaperEvidence,
+  validateResearchRunReplaySnapshotIntegrity,
   type ResearchRunReplaySnapshot,
 } from "./researchRunReplaySnapshot";
 
@@ -38,11 +39,24 @@ function validate(snapshot: ResearchRunReplaySnapshot): ResearchRunReplaySnapsho
   return snapshot;
 }
 
+function validateIntegrity(snapshot: ResearchRunReplaySnapshot): ResearchRunReplaySnapshot {
+  rejectForbidden(snapshot);
+  validateResearchRunReplaySnapshotIntegrity(snapshot);
+  return snapshot;
+}
+
 function parseValidatedSnapshot(encoded: Buffer): ResearchRunReplaySnapshot {
   let parsed: ResearchRunReplaySnapshot;
   try { parsed = JSON.parse(encoded.toString("utf8")) as ResearchRunReplaySnapshot; }
   catch { throw new Error("research replay snapshot file is corrupted"); }
   return validate(parsed);
+}
+
+function parseIntegrityValidatedSnapshot(encoded: Buffer): ResearchRunReplaySnapshot {
+  let parsed: ResearchRunReplaySnapshot;
+  try { parsed = JSON.parse(encoded.toString("utf8")) as ResearchRunReplaySnapshot; }
+  catch { throw new Error("research replay snapshot file is corrupted"); }
+  return validateIntegrity(parsed);
 }
 
 function snapshotGeneratedAt(snapshot: ResearchRunReplaySnapshot): number {
@@ -63,11 +77,15 @@ function isWhitespace(byte: number): boolean {
  * single JSON.parse. Production archives contain full walk-forward evidence and can be hundreds
  * of MiB, so that multiplied memory until the isolated Research worker hit its V8 heap limit.
  *
- * The scan still validates every archived snapshot and rejects duplicate identities; integrity and
- * denominator semantics are unchanged. Only the peak number of simultaneously retained snapshots
- * changes from the whole archive to one.
+ * The normal path still performs full semantic replay validation. Bootstrap identity discovery can
+ * opt into checksum/structure-only validation because the selected snapshot is replayed in full by
+ * the Research worker before any challenger deployment.
  */
-function forEachValidatedSnapshot(filename: string, visit: (snapshot: ResearchRunReplaySnapshot, encoded: Buffer) => void): void {
+function forEachValidatedSnapshot(
+  filename: string,
+  visit: (snapshot: ResearchRunReplaySnapshot, encoded: Buffer) => void,
+  integrityOnly = false,
+): void {
   if (!fs.existsSync(filename)) return;
   const stat = fs.statSync(filename);
   if (!stat.isFile()) throw new Error("research replay snapshot path is not a file");
@@ -93,7 +111,7 @@ function forEachValidatedSnapshot(filename: string, visit: (snapshot: ResearchRu
 
     const finishObject = (): void => {
       const encoded = Buffer.concat(objectParts, objectBytes);
-      const checked = parseValidatedSnapshot(encoded);
+      const checked = integrityOnly ? parseIntegrityValidatedSnapshot(encoded) : parseValidatedSnapshot(encoded);
       if (!SHA64.test(checked.originalRunFingerprintSha256) || fingerprints.has(checked.originalRunFingerprintSha256)) {
         throw new Error("research replay snapshot run identity is duplicated or invalid");
       }
@@ -169,7 +187,6 @@ function forEachValidatedSnapshot(filename: string, visit: (snapshot: ResearchRu
     fs.closeSync(fd);
   }
 }
-
 
 function runLatestIdentityWorker(filename: string): Promise<ResearchRunReplaySnapshotIdentity | undefined> {
   const workerPath = path.join(__dirname, "researchRunReplaySnapshotLatestWorker.js");
@@ -292,9 +309,37 @@ export class FileResearchRunReplaySnapshotStore implements ResearchRunReplaySnap
   }
 
   /**
-   * Production bootstrap path. The full immutable archive is validated in a separate Node process
-   * so synchronous canonical replay checks never starve /health, /ready, or mobile enrollment.
-   * The small latest identity is cached only while the archive stat fingerprint is unchanged.
+   * Selects the newest checksum-bound archive identity without re-running every historical League.
+   * Full semantic replay remains mandatory when the selected fingerprint is read for Research and
+   * before its candidate can acquire PAPER_RESEARCH_ONLY authority.
+   */
+  public latestIdentity(): ResearchRunReplaySnapshotIdentity | undefined {
+    let latest: ResearchRunReplaySnapshotIdentity | undefined;
+    let latestGeneratedAt = -1;
+    let latestTimestampCount = 0;
+    forEachValidatedSnapshot(this.filename, (snapshot) => {
+      const generatedAt = snapshotGeneratedAt(snapshot);
+      if (generatedAt > latestGeneratedAt) {
+        latestGeneratedAt = generatedAt;
+        latestTimestampCount = 1;
+        latest = Object.freeze({
+          originalRunFingerprintSha256: snapshot.originalRunFingerprintSha256,
+          generatedAt: snapshot.options.generatedAt!,
+        });
+      } else if (generatedAt === latestGeneratedAt) {
+        latestTimestampCount += 1;
+      }
+    }, true);
+    if (latest == null) return undefined;
+    if (latestTimestampCount !== 1) throw new Error("initial PAPER bootstrap latest Research snapshot is ambiguous");
+    return latest;
+  }
+
+  /**
+   * Production bootstrap path. The full immutable archive envelope is validated in a separate Node
+   * process so synchronous canonical replay checks never starve /health, /ready, or mobile
+   * enrollment. Historical League semantics are not re-executed during identity discovery; the
+   * selected fingerprint still passes the existing full replay boundary before deployment.
    */
   public latestIdentityAsync(): Promise<ResearchRunReplaySnapshotIdentity | undefined> {
     if (!fs.existsSync(this.filename)) {
