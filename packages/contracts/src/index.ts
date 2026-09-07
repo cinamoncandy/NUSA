@@ -29,6 +29,7 @@ export * from "./candidatePromotion";
 export * from "./researchRecovery";
 export * from "./researchAutomation";
 export * from "./researchHardening";
+export * from "./polymarketResearchEvidence";
 export * from "./researchMemoryLifecycle";
 export * from "./personalPaperOperations";
 export * from "./operationalProgress";
