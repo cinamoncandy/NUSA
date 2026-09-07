@@ -3,15 +3,15 @@ import { FileResearchRunReplaySnapshotStore } from "./researchRunReplaySnapshotS
 function main(): void {
   const filename = process.argv[2]?.trim();
   if (!filename) throw new Error("research replay snapshot latest worker path is required");
-  const snapshot = new FileResearchRunReplaySnapshotStore(filename).latest();
-  if (snapshot == null) {
+  const identity = new FileResearchRunReplaySnapshotStore(filename).latestIdentity();
+  if (identity == null) {
     process.stdout.write(`${JSON.stringify({ status: "NONE" })}\n`);
     return;
   }
   process.stdout.write(`${JSON.stringify({
     status: "FOUND",
-    originalRunFingerprintSha256: snapshot.originalRunFingerprintSha256,
-    generatedAt: snapshot.options.generatedAt,
+    originalRunFingerprintSha256: identity.originalRunFingerprintSha256,
+    generatedAt: identity.generatedAt,
   })}\n`);
 }
 
