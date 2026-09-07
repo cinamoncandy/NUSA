@@ -18,6 +18,7 @@ import {
   createRendererConsoleErrorDiagnostic,
   createRendererLoadFailedDiagnostic,
   createRendererLoadFinishedDiagnostic,
+  createRendererNavigationBlockedDiagnostic,
   createRendererProcessGoneDiagnostic,
   createRendererResponsiveDiagnostic,
   createRendererUnresponsiveDiagnostic,
@@ -59,7 +60,7 @@ import { AppSettingsStore, type AppSettings, type LogLevel } from "./appSettings
 import { FirstRunNoticeStore } from "./firstRunNotice";
 import { AppLogger } from "./appLogger";
 import { buildAboutInfo, type AboutInfo } from "./aboutInfo";
-import { browserWindowSecurityOptions, clampLogLevel, resolveProductionPolicy, type ProductionPolicy } from "./productionHardening";
+import { applyRendererNavigationPolicy, browserWindowSecurityOptions, clampLogLevel, resolveProductionPolicy, type ProductionPolicy } from "./productionHardening";
 import { ShutdownSequence, type ShutdownProgress } from "./shutdownSequence";
 import { mkdirSync } from "node:fs";
 import os from "node:os";
@@ -1119,6 +1120,16 @@ registerShadowIpcHandlers(runtimeContext);
 registerRecoveryIpcHandlers(runtimeContext);
 registerAppIpcHandlers(runtimeContext);
 registerDiagnosticsIpcHandlers(runtimeContext);
+
+// Registered before any window exists so it covers every webContents the app ever creates,
+// including one added by a later feature. The preload bridge is re-injected on each
+// navigation, so a renderer that reached remote content would hand that content the whole
+// IPC surface; nothing in this app navigates away from its own document or opens a window.
+app.on("web-contents-created", (_event, contents) => {
+  applyRendererNavigationPolicy(contents, (reason, url) => {
+    console.warn(formatDesktopStartupDiagnostic(createRendererNavigationBlockedDiagnostic({ reason, url })));
+  });
+});
 
 app.whenReady().then(() => {
   // First, before any subsystem asks for a path of its own.

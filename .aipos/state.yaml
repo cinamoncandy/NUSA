@@ -41,6 +41,19 @@ current_rate_limit_availability_hardening:
   local_validation: "tsc PASS; tests/cloud-rate-limit.test.js PASS with 4 new assertions; tests/connectivity-guards.test.js 4/4 PASS; per-file sweep of tests/*.test.js shows the same 3 failures before and after the change (all Node-24 environment gates, this host has Node 22); pnpm run lint 0 errors."
   unverified: "pnpm run preflight and pnpm test could not run here: scripts/check-runtime.js requires Node >= 24 and this environment provides 22.22.2. Exact-head CI is required before Audit, Release, or merge."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_renderer_navigation_containment:
+  decision: ADR-0017
+  status: IMPLEMENTED_LOCAL
+  branch: claude/nusa-repository-j93sd8
+  scope: "Electron renderer navigation containment; defense-in-depth on the existing preload boundary. No LIVE, credential, accounting, or production-mutation surface touched."
+  findings:
+    - "No will-navigate handler, no setWindowOpenHandler, and no explicit webviewTag:false anywhere in apps/desktop. A preload is re-injected on every navigation, so a renderer reaching remote content would hand that content all eight contextBridge surfaces, including activateKillSwitch, placeOrder, openFolder, exportDiagnostics and recoveryReview.ownerReview."
+    - "The renderer meta CSP does not survive such a navigation (the new document carries the remote server's headers) and does not restrict top-level navigation in the first place."
+  reachability: "LATENT_NOT_LIVE. No exploit path is currently reachable: the renderer uses createElement/replaceChildren throughout, no innerHTML, and contains no anchors or window.open calls. The gap is what would turn any future link or HTML-string rendering into full bridge disclosure."
+  remediation: "isAllowedRendererNavigation same-document file:// check; applyRendererNavigationPolicy preventing will-navigate, will-attach-webview and window.open; registered on app.on(web-contents-created) so later surfaces are covered by default; webviewTag:false; RENDERER_NAVIGATION_BLOCKED diagnostic with sanitized bounded URL."
+  local_validation: "tsc PASS; tests/electron-renderer-navigation-policy.test.js 4/4 PASS (new); tests/product-release-readiness.test.js 20/20 PASS after updating one stale exact-shape assertion for the added webviewTag field; per-file sweep of tests/*.test.js identical to baseline (same 3 pre-existing Node-24 environment failures); pnpm run lint 0 errors."
+  unverified: "pnpm run preflight and pnpm test could not run here: scripts/check-runtime.js requires Node >= 24 and this environment provides 22.22.2. No Electron GUI smoke was run, so the policy is verified by unit test and static wiring assertion rather than by a live window."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 project: nusa
 updated_at: "2026-09-07T09:05:22+09:00"
 current_execution_target:
