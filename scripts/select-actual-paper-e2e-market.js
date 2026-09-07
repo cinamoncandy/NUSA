@@ -11,8 +11,8 @@ function asTicker(row) {
   const tradePrice = Number(row.trade_price);
   const signedChangeRate = Number(row.signed_change_rate);
   const turnover = Number(row.acc_trade_price_24h);
-  const timestamp = Number(row.timestamp);
-  if (!Number.isFinite(tradePrice) || tradePrice <= 0 || !Number.isFinite(signedChangeRate) || !Number.isFinite(turnover) || turnover < 0 || !Number.isSafeInteger(timestamp) || timestamp < 0) return null;
+  const tradeTimestamp = Number(row.trade_timestamp);
+  if (!Number.isFinite(tradePrice) || tradePrice <= 0 || !Number.isFinite(signedChangeRate) || !Number.isFinite(turnover) || turnover < 0 || !Number.isSafeInteger(tradeTimestamp) || tradeTimestamp < 0) return null;
   return {
     type: "ticker",
     code: market,
@@ -20,7 +20,7 @@ function asTicker(row) {
     signed_change_rate: signedChangeRate,
     acc_trade_price_24h: turnover,
     acc_trade_volume: Number.isFinite(Number(row.acc_trade_volume_24h)) ? Number(row.acc_trade_volume_24h) : 0,
-    trade_timestamp: timestamp,
+    trade_timestamp: tradeTimestamp,
   };
 }
 
@@ -46,7 +46,10 @@ function selectActionablePaperMarket(rows, now = Date.now()) {
     if (decision.action !== "BUY") continue;
     candidates.push({ market: ticker.code, score: decision.score, confidence: decision.confidence, turnover: ticker.acc_trade_price_24h });
   }
-  candidates.sort((a, b) => b.score - a.score || b.confidence - a.confidence || b.turnover - a.turnover || a.market.localeCompare(b.market));
+  // Every candidate has already cleared the canonical natural BUY threshold. For a realtime
+  // evidence harness, prefer the candidate most likely to emit another public ticker promptly;
+  // 24h quote turnover is the bounded public liveness proxy. Signal strength remains a tie-breaker.
+  candidates.sort((a, b) => b.turnover - a.turnover || b.confidence - a.confidence || b.score - a.score || a.market.localeCompare(b.market));
   const selected = candidates[0];
   return selected == null
     ? Object.freeze({ market: DEFAULT_MARKET, status: "NO_NATURALLY_ACTIONABLE_MARKET", actionableCount: 0 })
