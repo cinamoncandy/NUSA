@@ -32,9 +32,15 @@ interface MobileBootstrapIssue {
 
 export type MobileApprovedCredentialProvider = () => Promise<string | null>;
 
-class MobileSessionRequestError extends Error {
+/**
+ * Carries the upstream HTTP status so a caller can tell an expired or already-used token
+ * (401/403) apart from a throttled server (429) or a transport fault, instead of collapsing
+ * every rejection into one indistinguishable failure.
+ */
+export class MobileSessionRequestError extends Error {
   public constructor(readonly status: number) {
     super(`mobile session request rejected (${status}).`);
+    this.name = "MobileSessionRequestError";
   }
 }
 

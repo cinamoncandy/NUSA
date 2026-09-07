@@ -3,6 +3,7 @@ import {
   type PersonalPaperOperationsSnapshot
 } from "../../../packages/contracts/src/personalPaperOperations";
 import { getConfiguredPaperEndpoint, isPaperConnectionVerified } from "./paperConnectionSession";
+import { takeLastCredentialFailure } from "./dashboardCredentialSession";
 
 export type DashboardCredentialProvider = () => Promise<string | null>;
 
@@ -56,7 +57,15 @@ export async function loadPersonalPaperOperations(options: PersonalPaperOperatio
   try { timeoutMs = readTimeoutMs(options.timeoutMs); }
   catch (error) { return Object.freeze({ status: "UNAVAILABLE", reason: error instanceof Error ? error.message : "PAPER operations timeout is invalid." }); }
   const token = await options.credentialProvider();
-  if (token == null || !token.trim()) return Object.freeze({ status: "NOT_CONFIGURED", reason: "Secure dashboard credential is not configured." });
+  if (token == null || !token.trim()) {
+    // The provider signals every failure the same way, so a recorded reason distinguishes a
+    // rejected exchange from a genuinely unconfigured credential. Without it an expired token
+    // reported itself as a configuration problem.
+    const failure = takeLastCredentialFailure();
+    return failure == null
+      ? Object.freeze({ status: "NOT_CONFIGURED", reason: "Secure dashboard credential is not configured." })
+      : Object.freeze({ status: "UNAVAILABLE", reason: failure });
+  }
   const requestToken = token.trim();
 
   const endpoint = new URL(`${configured}/api/paper-operations`).href;
