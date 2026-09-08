@@ -42,9 +42,10 @@ test("HOME terminal fold prioritizes dense truthful evidence without synthetic f
   assert.match(chart, /compact = false/);
   assert.match(chart, /plotCompact/);
   assert.match(chart, /const terminal = compact \? createHomeTerminalVisualProfile\(theme\) : null/);
-  assert.match(visual, /canvas: "#030503"/);
-  assert.match(visual, /signal: "#C8FF46"/);
-  assert.doesNotMatch(designSystem, /#C8FF46/);
+  assert.match(visual, /homeTerminalColors/);
+  assert.doesNotMatch(visual, /#[0-9A-Fa-f]{6}/);
+  assert.match(designSystem, /canvas: "rgb\\(3, 5, 3\\)"/);
+  assert.match(designSystem, /signal: "rgb\\(200, 255, 70\\)"/);
   assert.match(home, /ORDER FLOW/);
   assert.match(home, /NO VERIFIED ORDERBOOK FEED/);
   assert.match(home, /NEWS \/ ECON/);
