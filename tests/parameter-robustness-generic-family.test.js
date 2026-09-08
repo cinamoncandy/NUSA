@@ -55,3 +55,29 @@ test("generic robustness fails closed on asymmetric or post-hoc adjacency", () =
   assert.equal(result.status, "FAIL");
   assert.ok(result.failures.some((failure) => failure.includes("adjacency must be symmetric")));
 });
+
+function donchianRequest() {
+  const input = request();
+  input.id = "DONCHIAN-ROBUST-001";
+  input.strategyFamily = "donchian-breakout";
+  input.candidateGrid = [10, 20, 30, 40, 55].map((channelPeriod, index, periods) => ({
+    key: `donchian-${channelPeriod}`,
+    parameters: { channelPeriod },
+    neighbors: [index > 0 ? `donchian-${periods[index - 1]}` : null, index + 1 < periods.length ? `donchian-${periods[index + 1]}` : null].filter(Boolean),
+  }));
+  input.referenceParameters = [
+    { source: "PRODUCTION_DEFAULT", candidateKey: "donchian-20", parameters: { channelPeriod: 20 } },
+    { source: "MANUAL_RESEARCH_REFERENCE", candidateKey: "donchian-55", parameters: { channelPeriod: 55 } },
+  ];
+  return input;
+}
+
+test("generic robustness evaluates the exact precommitted Donchian grid and verifies independently", () => {
+  const input = donchianRequest();
+  const result = runParameterRobustnessRequest(input);
+  assert.equal(result.status, "PASS", result.failures.join(","));
+  assert.equal(result.strategyFamily, "donchian-breakout");
+  assert.equal(result.candidates.length, 5);
+  assert.deepEqual(result.candidates.map((candidate) => candidate.candidateKey), ["donchian-10", "donchian-20", "donchian-30", "donchian-40", "donchian-55"]);
+  assert.equal(verifyParameterRobustnessResult(input, result).status, "PASS");
+});
