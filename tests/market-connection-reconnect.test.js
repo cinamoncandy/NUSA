@@ -247,6 +247,13 @@ test("A4L: reconnecting releases the previous socket instead of stacking listene
   t.mock.timers.tick(1_000);
   assert.equal(sockets.length, 2, "exactly one new socket per retry");
   sockets[1].emit("open");
+  assert.equal(client.connectionDiagnostics().marketConnectionState, "RECOVERED");
+  sockets[1].emit("message", JSON.stringify({
+    type: "ticker", code: SYMBOL, trade_price: 100_000_000, trade_timestamp: 2_000,
+    signed_change_rate: 0.01, acc_trade_volume: 1, acc_trade_price_24h: 1_000_000_000
+  }));
+  assert.equal(client.connectionDiagnostics().marketConnectionState, "CONNECTED");
+  assert.equal(states.at(-1).marketConnectionState, "CONNECTED", "the first recovered payload is propagated to Cloud as CONNECTED");
 
   assert.equal(sockets[0].listenerCount("message"), 0, "the replaced socket keeps no listener that would deliver each ticker twice");
   assert.equal(sockets[0].closed, true, "the replaced socket is closed, not merely forgotten");
@@ -312,6 +319,52 @@ test("A4L: active orderbook/trade traffic cannot mask a stalled ticker stream", 
   assert.equal(client.connectionDiagnostics().reconnectTimerCount, 1);
   t.mock.timers.tick(1_000);
   assert.equal(sockets.length, 2, "the existing bounded reconnect path creates exactly one replacement socket");
+  client.stop();
+});
+
+test("A4L: duplicate ticker frames cannot refresh accepted ticker evidence liveness", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "setInterval"] });
+  let now = 1_000;
+  const sockets = [];
+  const statuses = [];
+  class DuplicateTickerSocket extends EventEmitter {
+    constructor() { super(); this.readyState = 1; this.sent = []; this.closed = false; }
+    send(payload) { this.sent.push(payload); }
+    ping() {}
+    close() {
+      if (this.closed) return;
+      this.closed = true;
+      this.readyState = 3;
+      this.emit("close");
+    }
+    removeAllListeners() { super.removeAllListeners(); return this; }
+  }
+  const ticker = {
+    type: "ticker", code: "KRW-BTC", trade_price: 100_000_000, trade_timestamp: 1_000,
+    signed_change_rate: 0.01, acc_trade_volume: 1, acc_trade_price_24h: 1_000_000_000
+  };
+  const client = new UpbitWebSocketClient(
+    "KRW-BTC",
+    () => undefined,
+    (status) => statuses.push(status),
+    5,
+    30_000,
+    { now: () => now, createSocket: () => { const socket = new DuplicateTickerSocket(); sockets.push(socket); return socket; } }
+  );
+  client.start();
+  sockets[0].emit("open");
+  sockets[0].emit("message", JSON.stringify(ticker));
+
+  // Repeated frames with the same trade_timestamp are not new trusted ticker evidence.
+  now = 20_000;
+  sockets[0].emit("message", JSON.stringify(ticker));
+  now = 32_001;
+  sockets[0].emit("message", JSON.stringify(ticker));
+  t.mock.timers.tick(5_000);
+
+  assert.equal(sockets[0].closed, true, "duplicate ticker frames cannot postpone the 30s stale boundary");
+  assert.ok(statuses.some((status) => status.startsWith("stale-") || status.startsWith("ticker-stale-")));
+  assert.equal(client.connectionDiagnostics().reconnectTimerCount, 1);
   client.stop();
 });
 
