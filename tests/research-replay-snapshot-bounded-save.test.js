@@ -100,3 +100,56 @@ test("Research replay save is a byte-preserving append instead of a whole-archiv
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test("Research replay save publishes a stat-bound latest identity sidecar without changing archive bytes", async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-research-latest-sidecar-"));
+  const filename = path.join(directory, "snapshots.json");
+  const sidecar = `${filename}.latest-identity.json`;
+  const store = new FileResearchRunReplaySnapshotStore(filename);
+  try {
+    const first = snapshot("sidecar-one");
+    // Make the second run uniquely newer without changing any qualification threshold.
+    const secondCandidate = candidate("sidecar-two");
+    const secondOptions = { generatedAt: "2026-01-02T00:00:00.000Z" };
+    const secondRun = buildResearchRunLeague([secondCandidate], secondOptions);
+    const second = createResearchRunReplaySnapshot([secondCandidate], secondOptions, secondRun);
+
+    store.save(first);
+    store.save(second);
+    assert.equal(fs.existsSync(sidecar), true);
+    const archiveBeforeIdentity = fs.readFileSync(filename);
+    const cached = JSON.parse(fs.readFileSync(sidecar, "utf8"));
+    assert.equal(cached.schemaVersion, 1);
+    assert.equal(cached.originalRunFingerprintSha256, second.originalRunFingerprintSha256);
+    assert.equal(cached.snapshotSha256, second.snapshotSha256);
+    assert.equal(cached.generatedAt, second.options.generatedAt);
+    assert.ok(Number.isSafeInteger(cached.offset) && cached.offset > 0);
+    assert.ok(Number.isSafeInteger(cached.length) && cached.length > 0);
+
+    assert.deepEqual(await store.latestIdentityAsync(), {
+      originalRunFingerprintSha256: second.originalRunFingerprintSha256,
+      generatedAt: second.options.generatedAt,
+    });
+    assert.equal(store.read(second.originalRunFingerprintSha256)?.snapshotSha256, second.snapshotSha256);
+    assert.ok(fs.readFileSync(filename).equals(archiveBeforeIdentity), "identity cache never mutates the immutable archive");
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("stale latest identity sidecar never hides archive mutation", async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-research-stale-sidecar-"));
+  const filename = path.join(directory, "snapshots.json");
+  const store = new FileResearchRunReplaySnapshotStore(filename);
+  try {
+    const entry = snapshot("stale-sidecar");
+    store.save(entry);
+    assert.equal(fs.existsSync(`${filename}.latest-identity.json`), true);
+    // Change the canonical archive after sidecar publication. The stat-bound sidecar must be ignored,
+    // forcing canonical validation instead of returning a stale cached identity.
+    fs.appendFileSync(filename, "x");
+    await assert.rejects(store.latestIdentityAsync(), /corrupted|worker failed closed/i);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
