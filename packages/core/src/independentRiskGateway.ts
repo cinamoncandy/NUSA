@@ -215,7 +215,13 @@ export function evaluatePreTradeRisk(
 
   // A reference price far from the observed market price means the caller is pricing off
   // something stale or wrong, even when the feed reports itself healthy.
+  //
+  // A feed that reports itself HEALTHY while carrying no price is contradicting itself, and
+  // the band is the check that would have caught a mispriced order. Skipping it for want of
+  // a comparand is exactly the failure this gateway refuses, so an absent price under a
+  // HEALTHY status is treated as what it is: an unusable feed.
   const marketPrice = request.marketDataState.price;
+  if (marketStatus === "HEALTHY" && marketPrice == null) reasons.add("MARKET_DATA_INVALID");
   if (marketPrice != null && Math.abs(request.referencePrice - marketPrice) / marketPrice > limits.maxPriceDeviationRatio) {
     reasons.add("PRICE_DEVIATION_LIMIT");
   }
