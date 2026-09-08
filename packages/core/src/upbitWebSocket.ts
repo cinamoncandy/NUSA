@@ -227,6 +227,7 @@ export class UpbitWebSocketClient {
   private markets: string[];
   private health: UpbitStreamHealth = "DISCONNECTED";
   private lastMessageAt?: number;
+  private lastTickerMessageAt?: number;
   private lastPongAt?: number;
   private readonly latestTickers = new Map<string, UpbitTicker>();
   private readonly lastTradeTimestamp = new Map<string, number>();
@@ -362,6 +363,7 @@ export class UpbitWebSocketClient {
     socket.on("open", () => {
       if (this.socket !== socket) return;
       this.lastMessageAt = this.now();
+      this.lastTickerMessageAt = this.lastMessageAt;
       this.supervisor.noteOpened();
       this.setHealth("CONNECTED", "connected");
       this.sendSubscription();
@@ -374,6 +376,7 @@ export class UpbitWebSocketClient {
         const message = parseUpbitPublicMessage(typeof data === "string" ? data : data instanceof Uint8Array ? data : String(data));
         if (!this.markets.includes(message.code)) return;
         if (message.type === "ticker") {
+          this.lastTickerMessageAt = this.now();
           const previousTimestamp = this.lastTradeTimestamp.get(message.code);
           if (!shouldAcceptUpbitTicker(message, this.markets, previousTimestamp)) return;
           this.lastTradeTimestamp.set(message.code, message.trade_timestamp);
@@ -428,14 +431,20 @@ export class UpbitWebSocketClient {
       if (this.stopped || !this.socket || this.socket.readyState !== UPBIT_WEBSOCKET_OPEN) return;
       this.socket.ping?.();
       if (!this.lastMessageAt) return;
-      const age = this.now() - this.lastMessageAt;
-      if (age > this.policy.staleAfterMs && this.health !== "STALE") {
+      const now = this.now();
+      const messageAge = now - this.lastMessageAt;
+      const tickerAge = now - (this.lastTickerMessageAt ?? this.lastMessageAt);
+      if ((messageAge > this.policy.staleAfterMs || tickerAge > this.policy.staleAfterMs) && this.health !== "STALE") {
         this.supervisor.noteStale();
-        this.setHealth("STALE", `stale-${age}ms`);
-        // A WebSocket can remain OPEN while no longer delivering public market data.
-        // Marking it STALE without closing it leaves the reconnect supervisor idle forever.
-        // Close the stale socket so its normal close handler enters the existing bounded
-        // reconnect/backoff path. No private exchange capability or execution authority is used.
+        const status = tickerAge > this.policy.staleAfterMs && messageAge <= this.policy.staleAfterMs
+          ? `ticker-stale-${tickerAge}ms`
+          : `stale-${messageAge}ms`;
+        this.setHealth("STALE", status);
+        // A WebSocket can remain OPEN while either the whole socket or specifically the ticker
+        // stream stops delivering market evidence. Orderbook/trade traffic must not mask a dead
+        // ticker stream because PAPER freshness and CIO decisions are ticker-bound. Close the
+        // stale socket so its normal close handler enters the existing bounded reconnect/backoff
+        // path. No private exchange capability or execution authority is used.
         try { this.socket.close(); } catch {
           this.teardownSocket();
           if (!this.stopped) this.scheduleReconnect();
