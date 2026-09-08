@@ -1,6 +1,6 @@
 id: WO-20260907-MOBILE-PAPER-SESSION-RECONNECT
 title: "Mobile PAPER session transient-reconnect recovery"
-status: IMPLEMENTED_LOCAL_CI_PENDING
+status: VERIFIED
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -38,5 +38,20 @@ validation:
   ai_zero_authority: PASS
   aipos: PASS
   git_diff_check: PASS
-remaining:
-  - "External DuckDNS Node PAPER deployment remains separately HUMAN_ENVIRONMENT_ONLY."
+deployment_verification:
+  protected_main_sha: 523372d262a99fa5c8fcfb6c6417915db13830d1
+  current_main_ci: PASS_34178491758
+  current_main_actual_paper: PASS_34178491718
+  oracle_release: "/opt/nusa/releases/523372d262a99fa5c8fcfb6c6417915db13830d1"
+  oracle_static_validator: PASS
+  authenticated_ready_http: 200
+  dashboard_mode: PAPER
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  session_recovery_contract: "Retryable transport/429 preserves secure refresh state; explicit 401/403 remains revocation/fail-closed."
+network_evidence_limit:
+  outside_in_public_dns_vantage: NOT_INDEPENDENTLY_PROVEN
+  note: "Host deployment and authenticated PAPER read-only operation are verified; independent public-DNS reachability remains a separate network evidence item."
+remaining: []
+next: "No code or Oracle deployment blocker remains for transient mobile PAPER reconnect recovery."

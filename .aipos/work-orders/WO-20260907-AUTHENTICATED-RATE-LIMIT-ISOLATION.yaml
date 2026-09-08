@@ -1,6 +1,6 @@
 id: WO-20260907-AUTHENTICATED-RATE-LIMIT-ISOLATION
 title: "Cloud PAPER authenticated rate-limit isolation"
-status: VERIFYING
+status: VERIFIED
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -47,14 +47,33 @@ validation:
   safety_invariants: PASS
   git_diff_check: PASS
   focused_prelimit_purity_regression: PASS_LOCAL
-  exact_head_ci_refresh: PENDING
+  exact_head_ci_refresh: PASS_PR_1780_HEAD_6955267D_AND_POST_MERGE_MAIN_523372D2
 pull_request:
   number: 1760
   url: "https://github.com/cinamoncandy/NUSA/pull/1760"
   exact_head: 678ca15c3ce053a50aff48289bf1d55348c87808
   merge_commit: 7eb91e911fcb4b9f4b56ad7bded22d80eb988baf
   exact_head_ci: PASS
-remaining:
-  - "Fresh exact-head CI for side-effect-free pre-limit classification."
-  - "Redeploy the resulting protected-main descendant to Oracle and re-verify authenticated PAPER read-only safety projections."
-next: "Require fresh exact-head CI, merge only the verified head, then redeploy Oracle and promote this work-order to VERIFIED with durable deployment evidence."
+deployment_verification:
+  protected_main_sha: 523372d262a99fa5c8fcfb6c6417915db13830d1
+  hardening_pull_request: 1780
+  hardening_exact_head: 6955267dae2aca4695506fab4eacbb5698b2d932
+  hardening_exact_head_ci: PASS
+  post_merge_ci_run: 34178491758
+  post_merge_actual_paper_run: 34178491718
+  exact_head_readiness_convergence_run: 34178586873
+  oracle_release: "/opt/nusa/releases/523372d262a99fa5c8fcfb6c6417915db13830d1"
+  oracle_static_validator: PASS
+  authenticated_ready_http: 200
+  authenticated_dashboard_mode: PAPER
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  local_caddy_tls_sni_health_http: 200
+  invalid_mobile_refresh: FAIL_CLOSED_401
+  source_identity_fields_match_release: true
+network_evidence_limit:
+  outside_in_public_dns_vantage: NOT_INDEPENDENTLY_PROVEN
+  note: "Oracle-local runtime, authenticated read-only projections, and Caddy TLS/SNI are proven. The available independent execution environments could not resolve/fetch the DuckDNS hostname directly, so outside-in public DNS reachability is not claimed by this work-order."
+remaining: []
+next: "No code or Oracle deployment blocker remains for authenticated rate-limit isolation. Treat independent outside-in public DNS reachability as a separate network evidence item."
