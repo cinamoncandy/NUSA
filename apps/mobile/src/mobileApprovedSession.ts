@@ -38,9 +38,12 @@ export type MobileApprovedCredentialProvider = () => Promise<string | null>;
  * every rejection into one indistinguishable failure.
  */
 export class MobileSessionRequestError extends Error {
-  public constructor(readonly status: number) {
+  /** Server-named reason, when the response carried one. Never a credential or request detail. */
+  public readonly refusal: string | undefined;
+  public constructor(readonly status: number, refusal?: string) {
     super(`mobile session request rejected (${status}).`);
     this.name = "MobileSessionRequestError";
+    this.refusal = refusal;
   }
 }
 
@@ -133,10 +136,25 @@ function parsePersisted(value: Uint8Array): PersistedSession {
   return Object.freeze({ endpoint: secureEndpoint(String(record.endpoint ?? "")), refreshToken: readToken(record.refreshToken, "refresh token"), refreshExpiresAt: readTime(record.refreshExpiresAt, "refresh expiry"), ...(deviceId ? { deviceId } : {}) });
 }
 
+/**
+ * Reads the server's own refusal code from an error response. Bounded and character-restricted
+ * because it is rendered to the operator: only a short SCREAMING_SNAKE code is accepted, so an
+ * error body can never carry arbitrary text into the UI.
+ */
+async function readRefusal(response: Response): Promise<string | undefined> {
+  try {
+    const body: unknown = await response.clone().json();
+    const code = body != null && typeof body === "object" && !Array.isArray(body)
+      ? (body as Record<string, unknown>).error
+      : undefined;
+    return typeof code === "string" && /^[A-Z_]{1,64}$/.test(code) ? code : undefined;
+  } catch { return undefined; }
+}
+
 async function requestJson(request: typeof fetch, endpoint: string, init: RequestInit): Promise<unknown> {
   const response = await request(endpoint, { ...init, redirect: "error", headers: { accept: "application/json", "content-type": "application/json", ...(init.headers ?? {}) } });
   if (response.redirected === true || (response.url && new URL(response.url).href !== new URL(endpoint).href)) throw new Error("mobile session redirect is prohibited.");
-  if (!response.ok) throw new MobileSessionRequestError(response.status);
+  if (!response.ok) throw new MobileSessionRequestError(response.status, await readRefusal(response));
   return response.json();
 }
 
