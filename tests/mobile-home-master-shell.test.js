@@ -25,17 +25,26 @@ test("HOME uses one canonical Intelligence OS authority rail instead of the lega
 test("HOME terminal fold prioritizes dense truthful evidence without synthetic feeds", () => {
   const home = read("apps/mobile/src/homeView.tsx");
   const chart = read("apps/mobile/src/chartView.tsx");
+  const visual = read("apps/mobile/src/homeTerminalVisual.ts");
+  const designSystem = read("apps/mobile/src/designSystem.ts");
 
   assert.match(home, /testID="home-terminal-grid"/);
-  assert.match(home, /PUBLIC MARKET/);
+  assert.match(home, /MARKET PULSE/);
   assert.match(home, /PAPER EQUITY/);
   assert.match(home, /TOTAL PNL/);
   assert.match(home, /RISK \/ AUTHORITY/);
+  assert.match(home, /MARKET WAVE/);
+  assert.match(home, /WATCHLIST \/ SNAPSHOT/);
   assert.match(home, /testID="home-market-snapshot"/);
   assert.match(home, /selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)/);
   assert.match(home, /<CandlePlot model=\{marketChart\} compact \/>/);
+  assert.match(home, /createHomeTerminalVisualProfile\(theme\)/);
   assert.match(chart, /compact = false/);
   assert.match(chart, /plotCompact/);
+  assert.match(chart, /const terminal = compact \? createHomeTerminalVisualProfile\(theme\) : null/);
+  assert.match(visual, /canvas: "#030503"/);
+  assert.match(visual, /signal: "#C8FF46"/);
+  assert.doesNotMatch(designSystem, /#C8FF46/);
   assert.match(home, /ORDER FLOW/);
   assert.match(home, /NO VERIFIED ORDERBOOK FEED/);
   assert.match(home, /NEWS \/ ECON/);
