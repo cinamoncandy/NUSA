@@ -26,7 +26,7 @@ import { loadShadowOperations, type ShadowOperationsLoadResult } from "./src/sha
 import { loadRealReadOnlyOperations, type RealReadOnlyOperationsLoadResult } from "./src/realReadOnlyOperationsClient";
 import { loadLiveReadinessOperations, type LiveReadinessOperationsLoadResult } from "./src/liveReadinessOperationsClient";
 import { MobileRuntimeCoordinator, initialMobileRuntimeSnapshot, type MobileRuntimeEvent, type MobileRuntimeSnapshot } from "./src/mobileRuntime";
-import { resetUpbitReadOnlyState, restoreUpbitReadOnlyAccount, useUpbitReadOnlyState } from "./src/upbitReadOnlyAccount";
+import { resetUpbitReadOnlyState, useUpbitReadOnlyState } from "./src/upbitReadOnlyAccount";
 import { loadUpbitPublicCandles, loadUpbitPublicMarkets, UpbitPublicQuotationError, type PublicQuotationDiagnostic } from "./src/upbitPublicQuotationClient";
 import { UpbitPublicWebSocketClient } from "./src/upbitPublicWebSocketClient";
 import { PaperShadowMonitorView } from "./src/paperShadowMonitorView";
@@ -168,12 +168,6 @@ function AuthenticatedApp() {
     void settingsRepository.load().then((stored) => { if (active) setUsageTelemetryEnabled(normalizeSettings(stored ?? DEFAULT_SETTINGS).usageTelemetry.enabled); }).catch(() => { if (active) setUsageTelemetryEnabled(false); });
     return () => { active = false; };
   }, []);
-
-  // The Upbit READ_ONLY credential outlives the process in secure storage, but its base URL
-  // and refresh timer do not, so a relaunch has to reattach them or the restored credential
-  // goes unused and the connection looks like it dropped itself. Failure is silent: the panel
-  // simply stays disconnected and the owner can reconnect by hand.
-  useEffect(() => { void restoreUpbitReadOnlyAccount().catch(() => { /* stays disconnected */ }); }, []);
 
   useEffect(() => {
     const screenId = screenIdForNavigationState(activeTab, utilityView);
