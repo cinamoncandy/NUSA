@@ -5,7 +5,7 @@ const {
   mapUpbitDayCandlesToResearchCandles
 } = require("../dist/apps/desktop/src/exchange/upbitCandleAdapter.js");
 const { createHistoricalDatasetManifest, candlesToBacktestPoints, runWalkForwardExperiment } = require("../dist/apps/desktop/src/cloud/researchDataset.js");
-const { SmaCrossoverStrategy } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
+const { SmaCrossoverStrategy, RsiMeanReversionStrategy } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
 const { buildResearchRunLeague } = require("../dist/apps/desktop/src/cloud/researchRunLeagueBridge.js");
 const { qualifyResearchFactoryRun } = require("../dist/apps/desktop/src/cloud/researchFactoryQualification.js");
 const { buildResearchRunRegimeEvaluation } = require("../dist/apps/desktop/src/cloud/researchRunRegimeEvidence.js");
@@ -21,7 +21,9 @@ const { createResearchHypothesis } = require("../dist/packages/contracts/src/res
 const { buildResearchRunTimeline } = require("../dist/apps/desktop/src/cloud/researchRunTimeline.js");
 const { buildResearchRunProvenancePlan } = require("../dist/apps/desktop/src/cloud/researchRunFactory.js");
 
-const STRATEGY_FAMILY_ID = "sma-crossover";
+const SMA_FAMILY_ID = "sma-crossover";
+const RSI_FAMILY_ID = "rsi-mean-reversion";
+const STRATEGY_FAMILY_ID = SMA_FAMILY_ID; // legacy export/default identity
 const MARKET = "KRW-BTC";
 const RESEARCH_MARKET_SET_VERSION = "upbit-public-daily-2000-v2";
 // Availability-only cohort: each predeclared market had at least 2000 completed public
@@ -91,6 +93,72 @@ const SMA_PARAMETER_NEIGHBORHOOD = Object.freeze([
   Object.freeze({ shortPeriod: 10, longPeriod: 30 })
 ]);
 
+// Precommitted in #1791 before canonical RSI OOS results were observed. This is a fixed
+// 3x3 family trial: period {7,14,21} x paired bands {25/75,30/70,35/65}.
+const RSI_PARAMETER_NEIGHBORHOOD = Object.freeze([
+  ...[7, 14, 21].flatMap((period) => [
+    Object.freeze({ period, oversold: 25, overbought: 75 }),
+    Object.freeze({ period, oversold: 30, overbought: 70 }),
+    Object.freeze({ period, oversold: 35, overbought: 65 })
+  ])
+]);
+
+function researchStrategyFamily(value = process.env.NUSA_RESEARCH_STRATEGY_FAMILY) {
+  const normalized = String(value ?? SMA_FAMILY_ID).trim() || SMA_FAMILY_ID;
+  if (![SMA_FAMILY_ID, RSI_FAMILY_ID].includes(normalized)) throw new Error(`unsupported NUSA_RESEARCH_STRATEGY_FAMILY: ${normalized}`);
+  return normalized;
+}
+
+function candidateIdFor(familyId, parameters) {
+  if (familyId === SMA_FAMILY_ID) return `sma-${parameters.shortPeriod}-${parameters.longPeriod}`;
+  if (familyId === RSI_FAMILY_ID) return `rsi-${parameters.period}-${parameters.oversold}-${parameters.overbought}`;
+  throw new Error(`unsupported strategy family: ${familyId}`);
+}
+
+function strategyFactoryFor(familyId, parameters) {
+  if (familyId === SMA_FAMILY_ID) return () => new SmaCrossoverStrategy(Number(parameters.shortPeriod), Number(parameters.longPeriod));
+  if (familyId === RSI_FAMILY_ID) return () => new RsiMeanReversionStrategy(Number(parameters.period), Number(parameters.oversold), Number(parameters.overbought));
+  throw new Error(`unsupported strategy family: ${familyId}`);
+}
+
+function familyDefinition(familyId) {
+  if (familyId === SMA_FAMILY_ID) return Object.freeze({
+    familyId, lineageId: `${familyId}-v1`, canonicalFamily: "MOMENTUM", parameters: SMA_PARAMETER_NEIGHBORHOOD,
+    thesis: "A short/long SMA crossover may identify a reproducible directional edge after explicit execution costs.",
+    mechanism: "A moving-average crossover represents a precommitted persistence hypothesis whose directional signal is evaluated only on later candles.",
+  });
+  if (familyId === RSI_FAMILY_ID) return Object.freeze({
+    familyId, lineageId: `${familyId}-v1`, canonicalFamily: "MEAN_REVERSION", parameters: RSI_PARAMETER_NEIGHBORHOOD,
+    thesis: "An RSI recovery from precommitted oversold/overbought bands may identify a reproducible mean-reversion edge after explicit execution costs.",
+    mechanism: "The strategy waits for an extreme RSI state and trades only after the indicator crosses back inside its precommitted band, testing short-horizon mean reversion without lookahead.",
+  });
+  throw new Error(`unsupported strategy family: ${familyId}`);
+}
+
+function buildRsiRobustnessGrid() {
+  const entries = RSI_PARAMETER_NEIGHBORHOOD.map((parameters) => ({
+    key: candidateIdFor(RSI_FAMILY_ID, parameters),
+    parameters,
+    neighbors: []
+  }));
+  const by = (period, oversold) => entries.find((entry) => entry.parameters.period === period && entry.parameters.oversold === oversold);
+  const periods = [7, 14, 21];
+  const bands = [25, 30, 35];
+  for (let pi = 0; pi < periods.length; pi += 1) {
+    for (let bi = 0; bi < bands.length; bi += 1) {
+      const entry = by(periods[pi], bands[bi]);
+      for (const [dp, db] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+        const neighbor = by(periods[pi + dp], bands[bi + db]);
+        if (neighbor) entry.neighbors.push(neighbor.key);
+      }
+      entry.neighbors.sort();
+      Object.freeze(entry.neighbors);
+      Object.freeze(entry);
+    }
+  }
+  return Object.freeze(entries);
+}
+
 const PBO_EVIDENCE_UNAVAILABLE_CODES = Object.freeze([
   "ZERO_RETURN_VARIANCE",
   "INSUFFICIENT_CANDIDATES",
@@ -103,7 +171,7 @@ function isResearchRunPboEvidenceUnavailable(error) {
   return typeof error?.code === "string" && PBO_EVIDENCE_UNAVAILABLE_CODES.includes(error.code);
 }
 
-function buildParameterRobustnessRequest({ candles, manifest }) {
+function buildParameterRobustnessRequest({ candles, manifest, strategyFamily = SMA_FAMILY_ID }) {
   if (!Array.isArray(candles) || candles.length === 0) {
     throw new Error("real parameter robustness requires canonical candles");
   }
@@ -115,43 +183,47 @@ function buildParameterRobustnessRequest({ candles, manifest }) {
   ) {
     throw new Error("real parameter robustness requires a canonical dataset manifest");
   }
-  return {
+  const common = {
     schemaVersion: 1,
-    id: `real-run:${manifest.datasetId}:parameter-robustness`,
+    id: `real-run:${manifest.datasetId}:${strategyFamily}:parameter-robustness`,
     market: manifest.market,
     candles,
-    referenceParameters: [
-      { source: "PRODUCTION_DEFAULT", shortWindow: 5, longWindow: 20 },
-      { source: "MANUAL_RESEARCH_REFERENCE", shortWindow: 2, longWindow: 8 }
-    ],
-    neighborhood: {
-      shortOffsets: [-2, -1, 0, 1, 2],
-      longOffsets: [-5, -2, 0, 2, 5]
-    },
     minimumTrades: 0,
     execution: {
       initialCash: BACKTEST_CONFIG.initialCash,
       orderQuantity: BACKTEST_CONFIG.orderQuantity,
-      executionCosts: {
-        spreadBps: BACKTEST_CONFIG.executionCosts.spreadBps
-      },
+      executionCosts: { spreadBps: BACKTEST_CONFIG.executionCosts.spreadBps },
       latencyCandles: 0,
       riskPolicy: {}
     },
     evaluation: {
       mode: "BOTH",
-      oosWindows: {
-        trainingCandles: WALK_FORWARD_CONFIG.trainSize,
-        testCandles: WALK_FORWARD_CONFIG.testSize,
-        stepCandles: WALK_FORWARD_CONFIG.testSize
-      }
+      oosWindows: { trainingCandles: WALK_FORWARD_CONFIG.trainSize, testCandles: WALK_FORWARD_CONFIG.testSize, stepCandles: WALK_FORWARD_CONFIG.testSize }
     },
-    costConditions: COST_STRESS_SCENARIOS.map(({ id, feeRate, slippageBps }) => ({
-      name: id,
-      feeRate,
-      slippageBps
-    }))
+    costConditions: COST_STRESS_SCENARIOS.map(({ id, feeRate, slippageBps }) => ({ name: id, feeRate, slippageBps }))
   };
+  if (strategyFamily === SMA_FAMILY_ID) return {
+    ...common,
+    id: `real-run:${manifest.datasetId}:parameter-robustness`,
+    referenceParameters: [
+      { source: "PRODUCTION_DEFAULT", shortWindow: 5, longWindow: 20 },
+      { source: "MANUAL_RESEARCH_REFERENCE", shortWindow: 2, longWindow: 8 }
+    ],
+    neighborhood: { shortOffsets: [-2, -1, 0, 1, 2], longOffsets: [-5, -2, 0, 2, 5] }
+  };
+  if (strategyFamily === RSI_FAMILY_ID) {
+    const candidateGrid = buildRsiRobustnessGrid();
+    return {
+      ...common,
+      strategyFamily,
+      candidateGrid,
+      referenceParameters: [
+        { source: "PRODUCTION_DEFAULT", candidateKey: "rsi-14-30-70", parameters: { period: 14, oversold: 30, overbought: 70 } },
+        { source: "MANUAL_RESEARCH_REFERENCE", candidateKey: "rsi-7-25-75", parameters: { period: 7, oversold: 25, overbought: 75 } }
+      ]
+    };
+  }
+  throw new Error(`unsupported parameter robustness family: ${strategyFamily}`);
 }
 
 function requiredResearchSourceCommitSha() {
@@ -170,21 +242,14 @@ function requiredResearchCostModelVersion() {
   return value.trim();
 }
 
-function runProvenanceBoundExperiment({ id, shortPeriod, longPeriod, candles, manifest, candidateSpecification }) {
+function runProvenanceBoundExperiment({ id, familyId, parameters, candles, manifest, candidateSpecification }) {
   const rawExperiment = runWalkForwardExperiment(
     { candles, manifest },
-    [{
-      id,
-      strategyFactory: () => new SmaCrossoverStrategy(shortPeriod, longPeriod),
-      parameters: { shortPeriod, longPeriod }
-    }],
+    [{ id, strategyFactory: strategyFactoryFor(familyId, parameters), parameters }],
     WALK_FORWARD_CONFIG,
     { generatedAt: candidateSpecification.evaluationStartedAt }
   );
-  const experiment = Object.freeze({
-    ...rawExperiment,
-    generatedAt: candidateSpecification.evaluationEndedAt
-  });
+  const experiment = Object.freeze({ ...rawExperiment, generatedAt: candidateSpecification.evaluationEndedAt });
   return { experiment, candidateSpecification };
 }
 
@@ -266,63 +331,58 @@ async function main() {
 
   const sourceCommitSha = requiredResearchSourceCommitSha();
   const costModelVersion = requiredResearchCostModelVersion();
+  const selectedFamily = researchStrategyFamily();
+  const definition = familyDefinition(selectedFamily);
   const hypothesis = buildResearchHypothesis({
-    hypothesisId: `real-run:${manifest.datasetId}:sma-crossover`,
-    familyId: STRATEGY_FAMILY_ID,
+    hypothesisId: `real-run:${manifest.datasetId}:${definition.familyId}`,
+    familyId: definition.familyId,
     market: manifest.market,
     interval: manifest.interval,
     direction: "LONG",
-    thesis: "A short/long SMA crossover may identify a reproducible directional edge after explicit execution costs.",
+    thesis: definition.thesis,
     sourceDatasetId: manifest.datasetId,
     sourceObservationAsOf: manifest.endCloseTime,
     generatedAt: timeline.hypothesisGeneratedAt
   });
 
-  const candidateSeeds = SMA_PARAMETER_NEIGHBORHOOD.map(({ shortPeriod, longPeriod }) => ({
-    candidateId: `sma-${shortPeriod}-${longPeriod}`,
-    familyId: STRATEGY_FAMILY_ID,
-    lineageId: `${STRATEGY_FAMILY_ID}-v1`,
-    parameters: { shortPeriod, longPeriod },
-    codeSha: sourceCommitSha,
-    costModelVersion,
-    canonicalHypothesis: createResearchHypothesis({
-      hypothesisId: `${hypothesis.hypothesisId}:${shortPeriod}-${longPeriod}`,
-      candidateId: `sma-${shortPeriod}-${longPeriod}`,
-      family: "MOMENTUM",
-      rationale: hypothesis.thesis,
-      mechanism: "A moving-average crossover represents a precommitted persistence hypothesis whose directional signal is evaluated only on later candles.",
-      targetMarket: manifest.market,
-      expectedRegime: "UNKNOWN",
-      invalidationCondition: "The cost-adjusted out-of-sample edge is not reproducible across the declared walk-forward windows.",
-      holdingPeriodMs: 86_400_000,
-      capacityAssumptions: { maxNotional: BACKTEST_CONFIG.initialCash, maxParticipationRate: 0.05 },
-      transactionCostSensitivity: 1,
-      provenance: {
-        author: "nusa-real-market-research",
-        sourceReferences: [
-          `market-set:${RESEARCH_MARKET_SET_VERSION}`,
-          ...marketDatasets.map((entry) => `dataset:${entry.manifest.datasetId}`)
-        ]
-      },
-      createdAt: timeline.hypothesisGeneratedAt
-    })
-  }));
-  const provenancePlan = buildResearchRunProvenancePlan({
-    manifest,
-    hypothesis,
-    timeline,
-    sourceCommitSha,
-    candidates: candidateSeeds
+  const candidateSeeds = definition.parameters.map((parameters) => {
+    const candidateId = candidateIdFor(definition.familyId, parameters);
+    return {
+      candidateId,
+      familyId: definition.familyId,
+      lineageId: definition.lineageId,
+      parameters,
+      codeSha: sourceCommitSha,
+      costModelVersion,
+      canonicalHypothesis: createResearchHypothesis({
+        hypothesisId: `${hypothesis.hypothesisId}:${candidateId}`,
+        candidateId,
+        family: definition.canonicalFamily,
+        rationale: hypothesis.thesis,
+        mechanism: definition.mechanism,
+        targetMarket: manifest.market,
+        expectedRegime: "UNKNOWN",
+        invalidationCondition: "The cost-adjusted out-of-sample edge is not reproducible across the declared walk-forward windows.",
+        holdingPeriodMs: 86_400_000,
+        capacityAssumptions: { maxNotional: BACKTEST_CONFIG.initialCash, maxParticipationRate: 0.05 },
+        transactionCostSensitivity: 1,
+        provenance: {
+          author: "nusa-real-market-research",
+          sourceReferences: [
+            `market-set:${RESEARCH_MARKET_SET_VERSION}`,
+            `precommit:#1791:${definition.familyId}`,
+            ...marketDatasets.map((entry) => `dataset:${entry.manifest.datasetId}`)
+          ]
+        },
+        createdAt: timeline.hypothesisGeneratedAt
+      })
+    };
   });
-  const candidateSpecifications = new Map(
-    provenancePlan.candidates.map((candidate) => [candidate.candidateId, candidate.specification])
-  );
+  const provenancePlan = buildResearchRunProvenancePlan({ manifest, hypothesis, timeline, sourceCommitSha, candidates: candidateSeeds });
+  const candidateSpecifications = new Map(provenancePlan.candidates.map((candidate) => [candidate.candidateId, candidate.specification]));
   const candidates = provenancePlan.candidates.map((candidate) => ({
     id: candidate.candidateId,
-    strategyFactory: () => new SmaCrossoverStrategy(
-      Number(candidate.parameters.shortPeriod),
-      Number(candidate.parameters.longPeriod)
-    ),
+    strategyFactory: strategyFactoryFor(definition.familyId, candidate.parameters),
     parameters: candidate.parameters,
     canonicalHypothesis: candidate.canonicalHypothesis
   }));
@@ -337,12 +397,12 @@ async function main() {
       candidateSelectionMode: "FIX_BASELINE_SELECTION"
     },
     {
-      sourceExperimentSha: `real-run:${manifest.datasetId}`,
+      sourceExperimentSha: `real-run:${manifest.datasetId}:${definition.familyId}`,
       datasetSha256: manifest.contentSha256
     }
   );
 
-  const parameterRobustnessRequest = buildParameterRobustnessRequest({ candles, manifest });
+  const parameterRobustnessRequest = buildParameterRobustnessRequest({ candles, manifest, strategyFamily: definition.familyId });
   const parameterRobustness = runParameterRobustnessRequest(parameterRobustnessRequest);
   if (parameterRobustness.status !== "PASS") {
     throw new Error(
@@ -384,22 +444,13 @@ async function main() {
     { generatedAt }
   );
 
-  const leagueCandidates = SMA_PARAMETER_NEIGHBORHOOD.map(({ shortPeriod, longPeriod }) => {
-    const id = `sma-${shortPeriod}-${longPeriod}`;
+  const leagueCandidates = definition.parameters.map((parameters) => {
+    const id = candidateIdFor(definition.familyId, parameters);
     const { experiment, candidateSpecification } = runProvenanceBoundExperiment({
-      id,
-      shortPeriod,
-      longPeriod,
-      candles,
-      manifest,
-      candidateSpecification: candidateSpecifications.get(id)
+      id, familyId: definition.familyId, parameters, candles, manifest, candidateSpecification: candidateSpecifications.get(id)
     });
-    const regimeAwareEvaluation = buildResearchRunRegimeEvaluation(
-      experiment,
-      regimeInputs,
-      { lookbackPeriods: 20 }
-    );
-    return { id, familyId: STRATEGY_FAMILY_ID, experiment, candidateSpecification, regimeAwareEvaluation };
+    const regimeAwareEvaluation = buildResearchRunRegimeEvaluation(experiment, regimeInputs, { lookbackPeriods: 20 });
+    return { id, familyId: definition.familyId, experiment, candidateSpecification, regimeAwareEvaluation };
   });
 
   const deflatedSharpe = buildResearchRunDsrEvidence(leagueCandidates);
@@ -429,6 +480,7 @@ async function main() {
   const oos = result.walkForwardResult.combinedOutOfSampleMetrics;
   console.log(JSON.stringify({
     NOTICE: "REAL_MARKET_DATA_RESEARCH_TIER_ONLY -- not operational Paper evidence, does not authorize release",
+    strategyFamily: definition.familyId,
     researchMarketSet: {
       version: RESEARCH_MARKET_SET_VERSION,
       selectionPolicy: "PREDECLARED_PUBLIC_HISTORY_AVAILABILITY_ONLY_NO_PERFORMANCE_SELECTION",
@@ -537,6 +589,8 @@ module.exports = {
   RESEARCH_MARKET_SET_VERSION,
   RESEARCH_MARKETS,
   SMA_PARAMETER_NEIGHBORHOOD,
+  RSI_PARAMETER_NEIGHBORHOOD,
+  researchStrategyFamily,
   fetchResearchCandles,
   researchCandleCount,
   buildParameterRobustnessRequest,
