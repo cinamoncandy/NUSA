@@ -150,8 +150,9 @@ export class InMemoryDashboardCredentialSession {
         lastAuthenticatedBootstrapToken = pending;
       } catch (error) {
         lastCredentialFailure = describeCredentialFailure(error);
-        lastAuthenticatedBootstrapToken = null;
-        projectionFailureProtectedSession = false;
+        const retryable = session.shouldRetryRestore();
+        lastAuthenticatedBootstrapToken = retryable ? pending : null;
+        projectionFailureProtectedSession = retryable;
         session.clearMemory();
         return null;
       }
