@@ -136,6 +136,7 @@ export function HomeView({
   const hasPosition = Boolean(position && Number(position.quantity) > 0);
   const openOrders = snapshot?.portfolio?.openOrderCount ?? null;
   const pnlColor = totalPnl == null ? theme.colors.text : totalPnl >= 0 ? theme.colors.success : theme.colors.danger;
+  const pnlSourceLabel = totalPnl != null && Number.isFinite(totalPnl) && accountSource ? `${accountSource} PAPER` : "UNAVAILABLE";
   const connectionLabel = disconnected ? "SETUP" : readOnlyError ? "DEGRADED" : snapshot?.readyForPaperOperations ? "ACTIVE" : "OBSERVING";
 
   return <View style={[styles.shell, { backgroundColor: theme.colors.background }]} testID="home-screen">
@@ -174,7 +175,7 @@ export function HomeView({
         <View style={[styles.terminalCell, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
           <Text style={[styles.terminalLabel, { color: theme.colors.textMuted }]}>TOTAL PNL</Text>
           <Text style={[styles.terminalValue, { color: pnlColor }]} numberOfLines={1} adjustsFontSizeToFit>{signedMoney(totalPnl)}</Text>
-          <Text style={[styles.terminalMeta, { color: theme.colors.textMuted }]}>VERIFIED PAPER ONLY</Text>
+          <Text style={[styles.terminalMeta, { color: theme.colors.textMuted }]}>{pnlSourceLabel}</Text>
         </View>
         <View style={[styles.terminalCell, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
           <Text style={[styles.terminalLabel, { color: theme.colors.textMuted }]}>RISK / AUTHORITY</Text>
