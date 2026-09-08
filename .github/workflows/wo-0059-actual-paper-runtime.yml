@@ -57,6 +57,7 @@ jobs:
       - name: Classify autonomous PAPER completion without manufacturing a signal
         run: node scripts/classify-actual-paper-runtime-readiness.js artifacts/operational-evidence/actual-paper-runtime-e2e.json
       - name: Upload actual PAPER runtime evidence
+        id: evidence-upload
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -64,3 +65,30 @@ jobs:
           path: artifacts/operational-evidence/actual-paper-runtime-e2e.json
           if-no-files-found: error
           retention-days: 14
+      - name: Require exact-head semantic PAPER readiness for pull requests
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          TARGET_SHA: ${{ github.event.pull_request.head.sha }}
+          SOURCE_RUN_ID: ${{ github.run_id }}
+          ARTIFACT_ID: ${{ steps.evidence-upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST_RAW: ${{ steps.evidence-upload.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          test -n "$TARGET_SHA"
+          test -n "$ARTIFACT_ID"
+          test -n "$ARTIFACT_DIGEST_RAW"
+          artifact_digest="$ARTIFACT_DIGEST_RAW"
+          case "$artifact_digest" in
+            sha256:*) ;;
+            *) artifact_digest="sha256:$artifact_digest" ;;
+          esac
+          artifact_name="wo-0059-actual-paper-runtime-evidence-$TARGET_SHA"
+          node scripts/certify-exact-head-paper-readiness.js \
+            artifacts/operational-evidence/actual-paper-runtime-e2e.json \
+            "$TARGET_SHA" \
+            "$SOURCE_RUN_ID" \
+            "$TARGET_SHA" \
+            "$ARTIFACT_ID" \
+            "$artifact_name" \
+            "$artifact_digest" \
+            "${{ runner.temp }}/pr-exact-head-paper-readiness.json"
