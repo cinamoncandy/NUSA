@@ -76,25 +76,27 @@ current_rate_limit_availability_hardening:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_authenticated_rate_limit_isolation:
   work_order: WO-20260907-AUTHENTICATED-RATE-LIMIT-ISOLATION
-  status: VERIFYING
+  status: VERIFIED
   branch: codex/paper-auth-rate-limit-isolation
   base_sha: 8d53cd44f79fc6ece423d0ea29df00264d7a78ac
   scope: "Reserve bounded Cloud PAPER request capacity for an existing verified approved-user session without weakening anonymous limiting or authorization; pre-limit identity classification must remain side-effect free."
   finding: "The public DuckDNS PAPER origin returned repeated unauthenticated /ready HTTP 429 responses. A single pre-auth limiter registry could deny a verified user when anonymous traffic filled capacity."
-  validation: "Prior build/typecheck and rate-limit regressions PASS; side-effect-free pre-limit purity regression PASS locally; fresh exact-head CI pending."
-  deployment_evidence: "Repository merge commit 7eb91e911fcb4b9f4b56ad7bded22d80eb988baf and all exact-head required workflows passed. The public Node PAPER host does not report an exact source revision and still requires an operator-controlled redeploy plus approved-session verification before authenticated reachability is claimed."
+  validation: "PR #1780 exact-head CI, Actual PAPER, Restricted LIVE capability/transport/activation, and broker read-only checks PASS; post-merge main CI 34178491758 and Actual PAPER 34178491718 PASS."
+  deployment_evidence: "Oracle atomically deployed protected main 523372d262a99fa5c8fcfb6c6417915db13830d1; /ready 200; dashboard PAPER; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY; static oracle validator PASS; local Caddy TLS/SNI health 200."
   pull_request: 1760
   merge_commit: 7eb91e911fcb4b9f4b56ad7bded22d80eb988baf
   exact_head_ci: PASS
-  remaining: "Fresh exact-head CI, merge, Oracle descendant redeploy, then durable VERIFIED evidence."
+  remaining: "Independent outside-in public DNS reachability is not proven by the available external vantage and remains a separate network evidence item; no code or Oracle runtime blocker remains."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_paper_session_reconnect:
   work_order: WO-20260907-MOBILE-PAPER-SESSION-RECONNECT
-  status: IMPLEMENTED_LOCAL_CI_PENDING
+  status: VERIFIED
   branch: codex/mobile-paper-session-reconnect
   base_sha: 009fcf93a50283c7bc1b191cfa9dddf2837168ab
   scope: "Retry approved mobile PAPER session restoration after transient server/transport failures while retaining 401/403 fail-closed revocation."
-  validation: "Focused 10/10; full isolated 956 files; build/typecheck/lint; security, architecture, safety, AI zero-authority, AIPOS and diff check PASS."
+  validation: "Focused 10/10 and full isolated suite PASS; current protected main 523372d262a99fa5c8fcfb6c6417915db13830d1 CI and Actual PAPER PASS; Oracle authenticated PAPER deployment verified."
+  deployment_evidence: "Oracle release 523372d262a99fa5c8fcfb6c6417915db13830d1; /ready 200; dashboard PAPER; invalid refresh fail-closed; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+  remaining: "Independent outside-in public DNS reachability remains a separate network evidence item; no code or Oracle runtime blocker remains."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_renderer_navigation_containment:
   decision: ADR-0017

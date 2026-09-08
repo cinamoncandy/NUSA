@@ -1,6 +1,6 @@
 id: WO-20260907-MOBILE-REFRESH-RATE-LIMIT-ISOLATION
 title: "Mobile PAPER refresh rate-limit isolation"
-status: IMPLEMENTED_LOCAL_CI_PENDING
+status: VERIFIED
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -31,14 +31,29 @@ acceptance:
   - malformed_or_invalid_refresh_still_reaches_existing_fail_closed_handler_only_after_metering
   - no_order_or_live_authority_change
 validation:
-  focused: PENDING_EXACT_HEAD_CI
-  typecheck: PENDING_EXACT_HEAD_CI
-  build: PENDING_EXACT_HEAD_CI
-  security_gate: PENDING_EXACT_HEAD_CI
-  architecture: PENDING_EXACT_HEAD_CI
-  safety: PENDING_EXACT_HEAD_CI
-  ai_zero_authority: PENDING_EXACT_HEAD_CI
-  aipos: PENDING_EXACT_HEAD_CI
-remaining:
-  - "External DuckDNS/Oracle Node PAPER deployment and approved-session read-only verification remain HUMAN_ENVIRONMENT_ONLY after merge."
-next: "Open the PR and require fresh exact-head CI before merge or host deployment."
+  focused: PASS_CURRENT_COMPILED_RUNTIME_REGRESSION
+  typecheck: PASS_PROTECTED_MAIN_CI
+  build: PASS_PROTECTED_MAIN_CI
+  security_gate: PASS_PROTECTED_MAIN_CI
+  architecture: PASS_PROTECTED_MAIN_CI
+  safety: PASS_PROTECTED_MAIN_CI
+  ai_zero_authority: PASS_PROTECTED_MAIN_CI
+  aipos: PASS_PROTECTED_MAIN_CI
+deployment_verification:
+  original_merge_commit: 0654e146ef065bedebfc9f6570a81607d9b37319
+  protected_main_descendant: 523372d262a99fa5c8fcfb6c6417915db13830d1
+  current_main_ci: PASS_34178491758
+  current_main_actual_paper: PASS_34178491718
+  oracle_release: "/opt/nusa/releases/523372d262a99fa5c8fcfb6c6417915db13830d1"
+  focused_compiled_runtime_regression: PASS
+  anonymous_exhaustion_does_not_deny_mobile_refresh: PASS
+  mobile_refresh_lane_remains_bounded: PASS
+  invalid_refresh_on_oracle: FAIL_CLOSED_401
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+network_evidence_limit:
+  outside_in_public_dns_vantage: NOT_INDEPENDENTLY_PROVEN
+  note: "Oracle deployment and authenticated PAPER path are verified; independent outside-in public DNS reachability is tracked separately."
+remaining: []
+next: "No code or Oracle deployment blocker remains for mobile refresh rate-limit isolation."
