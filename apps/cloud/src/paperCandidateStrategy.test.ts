@@ -45,7 +45,6 @@ describe("PAPER candidate strategy semantics", () => {
     assert.match(result.reason, /^INSUFFICIENT_SMA_OBSERVATIONS:/);
   });
 
-
   it("replays exact RSI mean-reversion crossing semantics from the immutable binding", () => {
     const rsiSpec: PaperCandidateStrategySpec = Object.freeze({
       ...spec,
@@ -69,7 +68,6 @@ describe("PAPER candidate strategy semantics", () => {
     assert.equal(result.action, "WAIT");
     assert.match(result.reason, /^INSUFFICIENT_RSI_OBSERVATIONS:/);
   });
-
 
   it("replays exact Donchian breakout transition semantics from the immutable binding", () => {
     const donchianSpec: PaperCandidateStrategySpec = Object.freeze({
@@ -97,6 +95,15 @@ describe("PAPER candidate strategy semantics", () => {
     assert.equal(short.action, "WAIT");
     assert.match(short.reason, /^INSUFFICIENT_DONCHIAN_OBSERVATIONS:/);
     assert.equal(selfExtension.action, "HOLD", "the first breakout-shaped close establishes baseline instead of self-confirming a trade");
+  });
+
+  it("fails closed for invalid Donchian parameters", () => {
+    for (const channelPeriod of [1, 501, 2.5, Number.NaN]) {
+      assert.throws(
+        () => evaluatePaperCandidateStrategy({ ...spec, familyId: "donchian-breakout", parameters: { channelPeriod } }, observations([100, 101, 102, 103]), 10, "KRW-BTC"),
+        /PAPER Donchian candidate parameters are invalid/,
+      );
+    }
   });
 
   it("fails closed for an unsupported candidate family", () => {

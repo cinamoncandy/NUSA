@@ -315,6 +315,8 @@ async function fetchResearchCandles({ market = MARKET, dataAsOf, count = DEFAULT
   count = researchCandleCount(count);
   if (!RESEARCH_MARKETS.includes(market)) throw new Error(`unsupported research market: ${market}`);
   if (!Number.isFinite(dataAsOf)) throw new Error("research dataAsOf must be finite");
+  // Upbit's `to` is exclusive. Anchor every request to completed UTC days,
+  // including the first page, so an in-flight day cannot change the dataset.
   let before = Math.floor(dataAsOf / DAY_MS) * DAY_MS;
   const candles = [];
   const sourceRequests = [];
@@ -445,11 +447,18 @@ async function main() {
   const parameterRobustnessRequest = buildParameterRobustnessRequest({ candles, manifest, strategyFamily: definition.familyId });
   const parameterRobustness = runParameterRobustnessRequest(parameterRobustnessRequest);
   if (parameterRobustness.status !== "PASS") {
-    throw new Error(`real parameter robustness failed: ${parameterRobustness.failures.join(", ")}`);
+    throw new Error(
+      `real parameter robustness failed: ${parameterRobustness.failures.join(", ")}`
+    );
   }
-  const parameterRobustnessVerification = verifyParameterRobustnessResult(parameterRobustnessRequest, parameterRobustness);
+  const parameterRobustnessVerification = verifyParameterRobustnessResult(
+    parameterRobustnessRequest,
+    parameterRobustness
+  );
   if (parameterRobustnessVerification.status !== "PASS") {
-    throw new Error(`real parameter robustness verification failed: ${parameterRobustnessVerification.errors.join(", ")}`);
+    throw new Error(
+      `real parameter robustness verification failed: ${parameterRobustnessVerification.errors.join(", ")}`
+    );
   }
   const parameterRobustnessEvidence = {
     ...parameterRobustness,
@@ -470,7 +479,12 @@ async function main() {
   });
 
   const generatedAt = timeline.generatedAt;
-  const result = runWalkForwardExperiment({ candles, manifest }, candidates, WALK_FORWARD_CONFIG, { generatedAt });
+  const result = runWalkForwardExperiment(
+    { candles, manifest },
+    candidates,
+    WALK_FORWARD_CONFIG,
+    { generatedAt }
+  );
 
   const leagueCandidates = definition.parameters.map((parameters) => {
     const id = candidateIdFor(definition.familyId, parameters);
