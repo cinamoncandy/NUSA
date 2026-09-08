@@ -227,7 +227,7 @@ export class UpbitWebSocketClient {
   private markets: string[];
   private health: UpbitStreamHealth = "DISCONNECTED";
   private lastMessageAt?: number;
-  private lastTickerMessageAt?: number;
+  private lastTickerEvidenceAt?: number;
   private lastPongAt?: number;
   private readonly latestTickers = new Map<string, UpbitTicker>();
   private readonly lastTradeTimestamp = new Map<string, number>();
@@ -363,7 +363,7 @@ export class UpbitWebSocketClient {
     socket.on("open", () => {
       if (this.socket !== socket) return;
       this.lastMessageAt = this.now();
-      this.lastTickerMessageAt = this.lastMessageAt;
+      this.lastTickerEvidenceAt = this.lastMessageAt;
       this.supervisor.noteOpened();
       this.setHealth("CONNECTED", "connected");
       this.sendSubscription();
@@ -376,15 +376,21 @@ export class UpbitWebSocketClient {
         const message = parseUpbitPublicMessage(typeof data === "string" ? data : data instanceof Uint8Array ? data : String(data));
         if (!this.markets.includes(message.code)) return;
         if (message.type === "ticker") {
-          this.lastTickerMessageAt = this.now();
           const previousTimestamp = this.lastTradeTimestamp.get(message.code);
           if (!shouldAcceptUpbitTicker(message, this.markets, previousTimestamp)) return;
+          // Liveness is evidence-based, not frame-based. Upbit can repeat ticker frames whose
+          // trade_timestamp has not advanced; those frames cannot make stale PAPER evidence fresh.
+          this.lastTickerEvidenceAt = Math.max(this.lastTickerEvidenceAt ?? 0, message.trade_timestamp);
           this.lastTradeTimestamp.set(message.code, message.trade_timestamp);
           this.latestTickers.set(message.code, message);
         }
         this.lastMessageAt = this.now();
+        const connectionStateBeforeMessage = this.supervisor.state();
         this.supervisor.noteMessage();
-        if (this.health !== "CONNECTED") this.setHealth("CONNECTED", "connected");
+        // `open` reports RECOVERED after a reconnect. The first real payload is what settles the
+        // supervisor to CONNECTED, so emit that transition even though transport health is already
+        // the string CONNECTED from the socket-open event.
+        if (this.health !== "CONNECTED" || connectionStateBeforeMessage !== "CONNECTED") this.setHealth("CONNECTED", "connected");
         if (message.type === "ticker") this.onTicker(message);
         if (message.type === "trade") this.onTrade?.(message);
         if (message.type === "orderbook") this.onOrderBook?.(message);
@@ -433,7 +439,7 @@ export class UpbitWebSocketClient {
       if (!this.lastMessageAt) return;
       const now = this.now();
       const messageAge = now - this.lastMessageAt;
-      const tickerAge = now - (this.lastTickerMessageAt ?? this.lastMessageAt);
+      const tickerAge = now - (this.lastTickerEvidenceAt ?? this.lastMessageAt);
       if ((messageAge > this.policy.staleAfterMs || tickerAge > this.policy.staleAfterMs) && this.health !== "STALE") {
         this.supervisor.noteStale();
         const status = tickerAge > this.policy.staleAfterMs && messageAge <= this.policy.staleAfterMs
