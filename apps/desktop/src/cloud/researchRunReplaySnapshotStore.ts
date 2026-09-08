@@ -367,20 +367,79 @@ export class FileResearchRunReplaySnapshotStore implements ResearchRunReplaySnap
 
   public save(snapshot: ResearchRunReplaySnapshot): ResearchRunReplaySnapshot {
     const next = validate(snapshot);
-    const current = this.readFile();
-    const existing = current.snapshots.find((entry) => entry.originalRunFingerprintSha256 === next.originalRunFingerprintSha256);
-    if (existing != null) {
-      if (existing.snapshotSha256 !== next.snapshotSha256) throw new Error("research replay snapshot immutable run identity conflict");
-      return existing;
+    let existing: ResearchRunReplaySnapshot | undefined;
+    let existingCount = 0;
+
+    // The production archive contains full walk-forward evidence and is already hundreds of MiB.
+    // Never materialize or semantically replay every historical snapshot on a write. Scan one
+    // immutable envelope at a time, checksum/provenance-validate it, and replay only an exact
+    // duplicate identity before returning it. The new snapshot above still receives the full
+    // semantic replay validation before any byte is written.
+    if (fs.existsSync(this.filename)) {
+      forEachValidatedSnapshot(this.filename, (entry) => {
+        existingCount += 1;
+        if (entry.originalRunFingerprintSha256 !== next.originalRunFingerprintSha256) return;
+        if (entry.snapshotSha256 !== next.snapshotSha256) {
+          throw new Error("research replay snapshot immutable run identity conflict");
+        }
+        existing = validate(entry);
+      }, true);
     }
-    const snapshots = Object.freeze([...current.snapshots, next].sort((left, right) => left.originalRunFingerprintSha256.localeCompare(right.originalRunFingerprintSha256)));
-    const payload: ResearchRunReplaySnapshotFile = Object.freeze({ schemaVersion: 1, snapshots });
+    if (existing != null) return existing;
+
     const directory = path.dirname(path.resolve(this.filename));
     fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
     const temporary = `${this.filename}.${process.pid}.tmp`;
-    fs.writeFileSync(temporary, `${JSON.stringify(payload)}\n`, { encoding: "utf8", mode: 0o600, flag: "w" });
-    fs.renameSync(temporary, this.filename);
-    try { fs.chmodSync(this.filename, 0o600); } catch { /* integrity remains checksum/provenance bound */ }
-    return next;
+    const encodedNext = Buffer.from(JSON.stringify(next), "utf8");
+
+    try {
+      if (!fs.existsSync(this.filename)) {
+        fs.writeFileSync(
+          temporary,
+          Buffer.concat([CANONICAL_ARCHIVE_PREFIX, encodedNext, Buffer.from("]}\n")]),
+          { mode: 0o600, flag: "wx" },
+        );
+      } else {
+        // Copy the already-validated archive first so every historical snapshot byte remains
+        // immutable. Only the final array/object suffix is replaced in the temporary copy.
+        fs.copyFileSync(this.filename, temporary, fs.constants.COPYFILE_EXCL);
+        const fd = fs.openSync(temporary, "r+");
+        try {
+          const stat = fs.fstatSync(fd);
+          const tailLength = Math.min(stat.size, STREAM_CHUNK_BYTES);
+          const tail = Buffer.alloc(tailLength);
+          if (fs.readSync(fd, tail, 0, tailLength, stat.size - tailLength) !== tailLength) {
+            throw new Error("research replay snapshot file is corrupted");
+          }
+          let cursor = tail.length - 1;
+          while (cursor >= 0 && isWhitespace(tail[cursor]!)) cursor -= 1;
+          if (cursor < 0 || tail[cursor] !== 0x7d) throw new Error("research replay snapshot file is corrupted");
+          cursor -= 1;
+          while (cursor >= 0 && isWhitespace(tail[cursor]!)) cursor -= 1;
+          if (cursor < 0 || tail[cursor] !== 0x5d) throw new Error("research replay snapshot file is corrupted");
+
+          const arrayCloseOffset = stat.size - tailLength + cursor;
+          fs.ftruncateSync(fd, arrayCloseOffset);
+          const suffix = Buffer.concat([
+            Buffer.from(existingCount > 0 ? "," : ""),
+            encodedNext,
+            Buffer.from("]}\n"),
+          ]);
+          if (fs.writeSync(fd, suffix, 0, suffix.length, arrayCloseOffset) !== suffix.length) {
+            throw new Error("research replay snapshot atomic append was incomplete");
+          }
+        } finally {
+          fs.closeSync(fd);
+        }
+      }
+      fs.renameSync(temporary, this.filename);
+      this.latestIdentityCache = undefined;
+      this.latestIdentityPending = undefined;
+      try { fs.chmodSync(this.filename, 0o600); } catch { /* integrity remains checksum/provenance bound */ }
+      return next;
+    } catch (error) {
+      try { fs.rmSync(temporary, { force: true }); } catch { /* preserve original archive */ }
+      throw error;
+    }
   }
 }
