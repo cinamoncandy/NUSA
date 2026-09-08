@@ -12,8 +12,8 @@ permissions:
   actions: write
 
 concurrency:
-  group: android-stable-release-trigger
-  cancel-in-progress: true
+  group: android-stable-release-dispatch-controller
+  cancel-in-progress: false
 
 jobs:
   dispatch:
