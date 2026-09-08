@@ -52,7 +52,7 @@ test("Home uses the content-first command center hierarchy without weakening aut
   assert.doesNotMatch(home, /<TerrainSignal/);
   assert.doesNotMatch(home, /testID="home-signal-trace"/);
   assert.doesNotMatch(home, /testID="home-market-pulse"/);
-  assert.doesNotMatch(home, /testID="home-terminal-grid"/);
+  assert.match(home, /testID="home-terminal-grid"/);
 
   assert.match(decisionSurface, /`PAPER P&L .* · EQUITY \$\{krw\(input\.paperEquity\)\}`/s);
 });
