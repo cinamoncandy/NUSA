@@ -216,41 +216,65 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
     });
   }
 
+  const resolveTokenPrincipal = (token: string): DashboardPrincipal | undefined => {
+    try {
+      // Session verifiers intentionally fail closed by throwing for malformed or
+      // unknown session material. Keep the legacy shared-secret verifier reachable
+      // when no mobile/desktop session matches, without treating a verifier error
+      // as permission to bypass the remaining checks. This phase is identity-only:
+      // it must not register/touch user state because it is also used before metering.
+      let principal: DashboardPrincipal | undefined;
+      try { principal = mobileSessionService?.verifyAccess(token); } catch { principal = undefined; }
+      if (principal == null) {
+        try { principal = desktopSessionService?.verifyAccess(token); } catch { principal = undefined; }
+      }
+      if (principal == null) {
+        try { principal = options.tokenVerifier.verify(token); } catch { principal = undefined; }
+      }
+      const userId = principal?.userId.trim();
+      const email = principal?.email?.trim().toLowerCase();
+      if (!principal || !userId || !email) return undefined;
+      return Object.freeze({
+        ...principal,
+        userId,
+        email,
+        ...(principal.displayName?.trim() ? { displayName: principal.displayName.trim() } : {})
+      });
+    } catch {
+      return undefined;
+    }
+  };
+
+  const authorizeResolvedPrincipal = (principal: DashboardPrincipal, mutateUserState: boolean): DashboardPrincipal | undefined => {
+    try {
+      const principalEmail = principal.email?.trim().toLowerCase();
+      if (!principal.userId.trim() || !principalEmail) return undefined;
+      let actor = userAccessRepository.get(principal.userId.trim());
+      if (actor == null) {
+        if (!mutateUserState) return undefined;
+        actor = userAccessRepository.registerUser({
+          id: principal.userId.trim(),
+          email: principalEmail,
+          ...(principal.displayName?.trim() ? { displayName: principal.displayName.trim() } : {})
+        });
+      } else if (actor.email !== principalEmail) {
+        return undefined;
+      }
+      if (!isUserAllowed(actor)) return undefined;
+      if (mutateUserState) {
+        try { userAccessRepository.markSeen(actor.id); } catch { return undefined; }
+      }
+      return principal;
+    } catch {
+      return undefined;
+    }
+  };
+
   const accessControlledTokenVerifier: DashboardTokenVerifier = Object.freeze({
     ...(ownerPrincipal == null ? {} : { ownerPrincipal }),
     verify(token: string) {
-      try {
-        // Session verifiers intentionally fail closed by throwing for malformed or
-        // unknown session material. Keep the legacy shared-secret verifier reachable
-        // when no mobile/desktop session matches, without treating a verifier error
-        // as permission to bypass the remaining checks.
-        let principal: DashboardPrincipal | undefined;
-        try { principal = mobileSessionService?.verifyAccess(token); } catch { principal = undefined; }
-        if (principal == null) {
-          try { principal = desktopSessionService?.verifyAccess(token); } catch { principal = undefined; }
-        }
-        if (principal == null) {
-          try { principal = options.tokenVerifier.verify(token); } catch { principal = undefined; }
-        }
-        if (principal == null || !principal.userId.trim()) return undefined;
-        const principalEmail = principal.email?.trim().toLowerCase();
-        if (!principalEmail) return undefined;
-        let actor = userAccessRepository.get(principal.userId.trim());
-        if (actor == null) {
-          actor = userAccessRepository.registerUser({
-            id: principal.userId.trim(),
-            email: principalEmail,
-            ...(principal.displayName?.trim() ? { displayName: principal.displayName.trim() } : {})
-          });
-        } else if (actor.email !== principalEmail) {
-          return undefined;
-        }
-        if (!isUserAllowed(actor)) return undefined;
-        try { userAccessRepository.markSeen(actor.id); } catch { return undefined; }
-        return principal;
-      } catch {
-        return undefined;
-      }
+      const principal = resolveTokenPrincipal(token);
+      return principal == null ? undefined : authorizeResolvedPrincipal(principal, true);
     }
   });
 
@@ -260,12 +284,21 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
     // The exemption must be exactly as narrow as the /health handler below, which matches the
     // raw URL. Exempting the normalized path instead would let "/health?x" skip the limiter
     // and then fall through to ordinary routing as an unmetered request.
+    let preverifiedBearerToken: string | undefined;
+    let preverifiedBearerPrincipal: DashboardPrincipal | undefined;
     if (req.url !== "/health") {
-      // A malformed or unknown bearer remains in the anonymous lane. Only a verified approved
-      // user can consume authenticated capacity. Exact mobile refresh requests authenticate in
-      // the body after metering, so they get their own bounded lane without pre-reading secrets.
+      // A malformed or unknown bearer remains in the anonymous lane. Pre-limit classification
+      // is deliberately side-effect free: it may read/verify an existing approved identity, but
+      // user registration and markSeen happen only inside the authenticated handler path. Exact
+      // mobile refresh requests authenticate in the body after metering, so they keep a separate
+      // bounded lane without pre-reading refresh secrets.
       const presentedToken = bearerToken(req);
-      const authenticatedPrincipal = presentedToken == null ? undefined : accessControlledTokenVerifier.verify(presentedToken);
+      const resolvedPrincipal = presentedToken == null ? undefined : resolveTokenPrincipal(presentedToken);
+      const authenticatedPrincipal = resolvedPrincipal == null ? undefined : authorizeResolvedPrincipal(resolvedPrincipal, false);
+      if (authenticatedPrincipal != null && presentedToken != null) {
+        preverifiedBearerToken = presentedToken;
+        preverifiedBearerPrincipal = authenticatedPrincipal;
+      }
       const mobileSessionRefresh = req.url === "/v1/mobile/session/refresh" && (req.method ?? "GET").toUpperCase() === "POST";
       const limiter = authenticatedPrincipal != null
         ? authenticatedRateLimiter
@@ -289,7 +322,9 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
     const requestTokenVerifier: DashboardTokenVerifier = Object.freeze({
       ...(ownerPrincipal == null ? {} : { ownerPrincipal }),
       verify(token: string) {
-        const principal = accessControlledTokenVerifier.verify(token);
+        const principal = preverifiedBearerToken === token && preverifiedBearerPrincipal != null
+          ? authorizeResolvedPrincipal(preverifiedBearerPrincipal, true)
+          : accessControlledTokenVerifier.verify(token);
         requestPrincipal = principal;
         return principal;
       }

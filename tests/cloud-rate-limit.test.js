@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const http = require("node:http");
 const { BoundedHttpRateLimiter } = require("../dist/apps/cloud/src/httpRateLimiter.js");
+const { InMemoryNusaUserAccessRepository } = require("../dist/apps/cloud/src/operatorUserAccess.js");
 const { startCloudDashboardServer } = require("../dist/apps/cloud/src/server.js");
 const { DeterministicRateLimitManager, RateLimitDecisionType } = require("../dist/apps/execution/src/rate-limit-manager.js");
 
@@ -157,6 +158,73 @@ idleBucketIsReclaimed();
     assert.equal(refreshLimited.status, 429, "the isolated mobile refresh lane must remain bounded");
   } finally {
     await isolated.stop();
+  }
+
+  // Pre-limit bearer classification must be observational only. A principal that has never
+  // been registered must still use anonymous capacity, and registration can happen only when
+  // the authenticated handler actually evaluates the request.
+  const pendingRepository = new InMemoryNusaUserAccessRepository();
+  const pendingPrincipal = { userId: "prelimit-new-user", email: "prelimit-new-user@example.com", scopes: ["dashboard:read"] };
+  let preLimitUserCount = -1;
+  const purePrelimit = startCloudDashboardServer({
+    port: 41913,
+    tokenVerifier: { verify: (token) => token === "pending-token" ? pendingPrincipal : undefined },
+    loadDashboard: () => ({ ok: true }),
+    userAccessRepository: pendingRepository,
+    anonymousRateLimiter: {
+      evaluate() {
+        preLimitUserCount = pendingRepository.list().length;
+        return { allowed: true };
+      }
+    },
+    authenticatedRateLimiter: new BoundedHttpRateLimiter({ policy: { capacity: 1, refillTokens: 1, refillIntervalMs: 60_000, maximumQueueDelayMs: 0, maximumTrackedRequests: 8 } })
+  });
+  try {
+    const response = await request(purePrelimit.port, { authorization: "Bearer pending-token", "x-correlation-id": "pure-prelimit-pending" });
+    assert.equal(response.status, 401, "a newly discovered user remains pending/fail-closed");
+    assert.equal(preLimitUserCount, 0, "pre-limit classification must not register user state");
+    assert.equal(pendingRepository.get(pendingPrincipal.userId)?.status, "PENDING", "handler auth may register the pending user after metering");
+  } finally {
+    await purePrelimit.stop();
+  }
+
+  // An already-approved bearer can use authenticated capacity, but markSeen belongs to the
+  // handler authorization path and must occur exactly once rather than once before and once
+  // after rate limiting.
+  const approvedRepositoryInner = new InMemoryNusaUserAccessRepository();
+  const approvedPrincipal = { userId: "prelimit-approved-owner", email: "prelimit-approved-owner@nusa.local", scopes: ["dashboard:read"] };
+  approvedRepositoryInner.ensureOwner({ id: approvedPrincipal.userId, email: approvedPrincipal.email }, 1);
+  let markSeenCalls = 0;
+  const approvedRepository = new Proxy(approvedRepositoryInner, {
+    get(target, property) {
+      if (property === "markSeen") {
+        return (...args) => { markSeenCalls += 1; return target.markSeen(...args); };
+      }
+      const value = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    }
+  });
+  let lastSeenDuringLimit;
+  const pureApproved = startCloudDashboardServer({
+    port: 41914,
+    tokenVerifier: { ownerPrincipal: approvedPrincipal, verify: (token) => token === "approved-token" ? approvedPrincipal : undefined },
+    loadDashboard: () => ({ ok: true }),
+    userAccessRepository: approvedRepository,
+    anonymousRateLimiter: new BoundedHttpRateLimiter({ policy: { capacity: 1, refillTokens: 1, refillIntervalMs: 60_000, maximumQueueDelayMs: 0, maximumTrackedRequests: 8 } }),
+    authenticatedRateLimiter: {
+      evaluate() {
+        lastSeenDuringLimit = approvedRepositoryInner.get(approvedPrincipal.userId)?.lastSeenAt;
+        return { allowed: true };
+      }
+    }
+  });
+  try {
+    const response = await request(pureApproved.port, { authorization: "Bearer approved-token", "x-correlation-id": "pure-prelimit-approved" });
+    assert.equal(response.status, 200);
+    assert.equal(lastSeenDuringLimit, 1, "pre-limit classification must not touch lastSeenAt");
+    assert.equal(markSeenCalls, 1, "approved bearer state is touched exactly once in handler auth");
+  } finally {
+    await pureApproved.stop();
   }
 
   console.log("cloud-rate-limit.test.js: PASS");
