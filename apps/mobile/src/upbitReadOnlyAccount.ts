@@ -149,8 +149,8 @@ export async function connectUpbitReadOnlyAccount(token: string, baseUrl: string
   const generation = sessionGeneration;
   const next = await refreshUpbitReadOnlyAccount();
   if (generation !== sessionGeneration) return currentState;
-  if (next.status === "READY" || next.status === "STALE") startRefreshTimer();
-  else credentialSession.clear();
+  if (next.monitorStatus === "AUTH_ERROR") credentialSession.clear();
+  else startRefreshTimer();
   return next;
 }
 
