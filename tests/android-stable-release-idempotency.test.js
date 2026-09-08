@@ -7,7 +7,7 @@ const triggerPath = join(process.cwd(), ".github", "workflows", "android-stable-
 const watchdogPath = join(process.cwd(), ".github", "workflows", "android-stable-release-watchdog.yml");
 
 function readConcurrencyBlock(filePath) {
-  const workflow = readFileSync(filePath, "utf8");
+  const workflow = readFileSync(filePath, "utf8").replace(/\r\n/g, "\n");
   const start = workflow.indexOf("concurrency:\n");
   const end = workflow.indexOf("\n\njobs:", start);
   assert.notEqual(start, -1, `${filePath} must define concurrency`);
