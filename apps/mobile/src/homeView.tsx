@@ -8,6 +8,7 @@ import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
 import { buildLocalPortfolio, isLocalPaperActive } from "./localPaperLedger";
 import { useLocalPaperMarkPrice, useLocalPaperSnapshot } from "./localPaperLedgerHooks";
 import { selectHomeMarketData } from "./homeMarketData";
+import { createHomeTerminalVisualProfile } from "./homeTerminalVisual";
 import { freshestObservedAtMs, type WatchlistMarket } from "./watchlist";
 import { buildChartViewModel, type PublicCandle } from "./chartViewModel";
 import { CandlePlot } from "./chartView";
@@ -77,6 +78,7 @@ export function HomeView({
   onOpenPaperLearning,
 }: HomeViewProps) {
   const { theme } = useTheme();
+  const terminal = createHomeTerminalVisualProfile(theme);
   const { width } = useWindowDimensions();
   const tablet = width >= 768;
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -130,19 +132,19 @@ export function HomeView({
   const why = aiInsightAvailable ? decisionSurface.why : disconnected ? "Cloud PAPER 상태가 연결되기 전에는 판단 근거를 확정하지 않습니다." : decisionSurface.why;
   const riskHigh = rail.risk === "HIGH" || rail.risk === "CRITICAL";
   const riskWarn = rail.risk === "CAUTION" || rail.risk === "ELEVATED";
-  const riskColor = riskHigh ? theme.colors.danger : riskWarn ? theme.colors.warning : theme.colors.success;
-  const systemColor = disconnected || readOnlyError ? theme.colors.warning : snapshot?.health === "HEALTHY" ? theme.colors.success : theme.colors.info;
+  const riskColor = riskHigh ? theme.colors.danger : riskWarn ? theme.colors.warning : terminal.signal;
+  const systemColor = disconnected || readOnlyError ? theme.colors.warning : snapshot?.health === "HEALTHY" ? terminal.signal : theme.colors.info;
   const position = account?.position ?? null;
   const hasPosition = Boolean(position && Number(position.quantity) > 0);
   const openOrders = snapshot?.portfolio?.openOrderCount ?? null;
-  const pnlColor = totalPnl == null ? theme.colors.text : totalPnl >= 0 ? theme.colors.success : theme.colors.danger;
+  const pnlColor = totalPnl == null ? theme.colors.text : totalPnl >= 0 ? terminal.signal : theme.colors.danger;
   const pnlSourceLabel = totalPnl != null && Number.isFinite(totalPnl) && accountSource ? `${accountSource} PAPER` : "UNAVAILABLE";
   const connectionLabel = disconnected ? "SETUP" : readOnlyError ? "DEGRADED" : snapshot?.readyForPaperOperations ? "ACTIVE" : "OBSERVING";
 
-  return <View style={[styles.shell, { backgroundColor: theme.colors.background }]} testID="home-screen">
+  return <View style={[styles.shell, { backgroundColor: terminal.canvas }]} testID="home-screen">
     <ScrollView
       contentContainerStyle={[styles.content, { maxWidth: tablet ? 1080 : 720 }]}
-      refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />}
+      refreshControl={<RefreshControl tintColor={terminal.signal} refreshing={refreshing} onRefresh={onRefresh} />}
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.appBar} testID="home-master-rail">
@@ -150,7 +152,7 @@ export function HomeView({
           <View style={[styles.liveDot, { backgroundColor: systemColor }]} />
           <Text style={[styles.brand, { color: theme.colors.text }]}>NUSA</Text>
         </View>
-        <View style={[styles.statusCapsule, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.border }]}>
+        <View style={[styles.statusCapsule, { backgroundColor: terminal.sunken, borderColor: terminal.border }]}>
           <Text style={[styles.statusCapsuleText, { color: systemColor }]}>{connectionLabel}</Text>
         </View>
       </View>
@@ -162,77 +164,78 @@ export function HomeView({
       </View>
 
       <View style={styles.terminalGrid} testID="home-terminal-grid">
-        <View style={[styles.terminalCell, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-          <Text style={[styles.terminalLabel, { color: theme.colors.textMuted }]}>PUBLIC MARKET</Text>
+        <View style={[styles.terminalCell, { backgroundColor: terminal.surface, borderColor: terminal.border }]}>
+          <Text style={[styles.terminalLabel, { color: theme.colors.textMuted }]}>MARKET PULSE</Text>
           <Text style={[styles.terminalValue, { color: theme.colors.text }]} numberOfLines={1} adjustsFontSizeToFit>{krw(marketChart.currentPrice)}</Text>
-          <Text style={[styles.terminalMeta, { color: publicMarketStale ? theme.colors.warning : theme.colors.success }]}>{publicMarket} · {publicMarketStale ? "STALE" : "READ ONLY"}</Text>
+          <Text style={[styles.terminalMeta, { color: publicMarketStale ? theme.colors.warning : terminal.signal }]}>{publicMarket} · {publicMarketStale ? "STALE" : "PUBLIC READ ONLY"}</Text>
         </View>
-        <View style={[styles.terminalCell, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+        <View style={[styles.terminalCell, { backgroundColor: terminal.surface, borderColor: terminal.border }]}>
           <Text style={[styles.terminalLabel, { color: theme.colors.textMuted }]}>PAPER EQUITY</Text>
           <Text style={[styles.terminalValue, { color: theme.colors.text }]} numberOfLines={1} adjustsFontSizeToFit>{krw(account?.equity)}</Text>
           <Text style={[styles.terminalMeta, { color: theme.colors.textMuted }]}>{accountSource ? `${accountSource} PAPER` : "UNAVAILABLE"}</Text>
         </View>
-        <View style={[styles.terminalCell, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+        <View style={[styles.terminalCell, { backgroundColor: terminal.surface, borderColor: terminal.border }]}>
           <Text style={[styles.terminalLabel, { color: theme.colors.textMuted }]}>TOTAL PNL</Text>
           <Text style={[styles.terminalValue, { color: pnlColor }]} numberOfLines={1} adjustsFontSizeToFit>{signedMoney(totalPnl)}</Text>
           <Text style={[styles.terminalMeta, { color: theme.colors.textMuted }]}>{pnlSourceLabel}</Text>
         </View>
-        <View style={[styles.terminalCell, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+        <View style={[styles.terminalCell, { backgroundColor: terminal.surface, borderColor: terminal.border }]}>
           <Text style={[styles.terminalLabel, { color: theme.colors.textMuted }]}>RISK / AUTHORITY</Text>
           <Text style={[styles.terminalValue, { color: riskColor }]} numberOfLines={1} adjustsFontSizeToFit>{rail.riskLabel}</Text>
-          <Text style={[styles.terminalMeta, { color: theme.colors.success }]}>LIVE NONE · AI ZERO</Text>
+          <Text style={[styles.terminalMeta, { color: terminal.signal }]}>LIVE NONE · AI ZERO</Text>
         </View>
       </View>
 
       <View style={styles.hero} testID="home-now">
         <View style={styles.heroHeader}>
-          <Text style={[styles.eyebrow, { color: theme.colors.primary }]}>NOW</Text>
+          <Text style={[styles.eyebrow, { color: terminal.signal }]}>NOW</Text>
           <Text style={[styles.heroState, { color: systemColor }]}>{connectionLabel}</Text>
         </View>
         <Text style={[styles.nowHeadline, { color: systemColor }]}>{posture}</Text>
         <Text style={[styles.heroDetail, { color: theme.colors.textMuted }]} numberOfLines={2}>{why}</Text>
         <View style={styles.heroChips}>
-          <View style={[styles.chip, { backgroundColor: theme.colors.surfaceSunken }]}><Text style={[styles.chipLabel, { color: theme.colors.textMuted }]}>PAPER ONLY</Text></View>
-          <View style={[styles.chip, { backgroundColor: theme.colors.surfaceSunken }]}><Text style={[styles.chipLabel, { color: theme.colors.textMuted }]}>LIVE NONE</Text></View>
-          <View style={[styles.chip, { backgroundColor: theme.colors.surfaceSunken }]}><Text style={[styles.chipLabel, { color: theme.colors.info }]}>AI ZERO</Text></View>
+          <View style={[styles.chip, { backgroundColor: terminal.sunken }]}><Text style={[styles.chipLabel, { color: theme.colors.textMuted }]}>PAPER ONLY</Text></View>
+          <View style={[styles.chip, { backgroundColor: terminal.sunken }]}><Text style={[styles.chipLabel, { color: theme.colors.textMuted }]}>LIVE NONE</Text></View>
+          <View style={[styles.chip, { backgroundColor: terminal.sunken }]}><Text style={[styles.chipLabel, { color: theme.colors.info }]}>AI ZERO</Text></View>
         </View>
       </View>
 
       {disconnected || readOnlyError ? <Pressable accessibilityRole="button" onPress={onGoSettings} testID="home-operational-notice"><StateNotice title={disconnected ? "PAPER 연결 필요" : "PAPER 연결 오류"} detail={`${disconnected ? "Cloud endpoint와 세션을 검증해야 합니다." : readOnlyError ?? "읽기 상태를 확인할 수 없습니다."} · 설정 열기`} tone="warning" /></Pressable> : null}
 
-      <View style={[styles.marketHero, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]} testID="home-public-market-chart">
-        <View style={styles.commandTop}><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{publicMarket}</Text><Text style={[styles.sectionMeta, { color: theme.colors.textMuted }]}>UPBIT · 공개 시세</Text></View>
+      <View style={[styles.marketHero, { backgroundColor: terminal.surface, borderColor: terminal.border }]} testID="home-public-market-chart">
+        <View style={styles.commandTop}><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>MARKET WAVE</Text><Text style={[styles.sectionMeta, { color: theme.colors.textMuted }]}>{publicMarket} · UPBIT READ ONLY</Text></View>
         <Text style={[styles.marketPrice, { color: theme.colors.text }]} adjustsFontSizeToFit numberOfLines={1}>{krw(marketChart.currentPrice)}</Text>
-        <View style={styles.marketSnapshot} testID="home-market-snapshot">
+        <Text style={[styles.terminalLabel, { color: theme.colors.textMuted }]}>WATCHLIST / SNAPSHOT</Text>
+        <View style={[styles.marketSnapshot, { borderColor: terminal.border }]} testID="home-market-snapshot">
           {marketRows.length === 0 ? <Text style={[styles.marketSnapshotEmpty, { color: theme.colors.textMuted }]}>PUBLIC SNAPSHOT WAITING</Text> : marketRows.map((market) => <View key={market.market} style={styles.marketSnapshotItem}>
             <Text style={[styles.marketSnapshotLabel, { color: theme.colors.textMuted }]}>{market.market}</Text>
-            <Text style={[styles.marketSnapshotValue, { color: (market.changeRate ?? 0) > 0 ? theme.colors.success : (market.changeRate ?? 0) < 0 ? theme.colors.danger : theme.colors.text }]}>{signedPercentFromRate(market.changeRate)}</Text>
+            <Text style={[styles.marketSnapshotValue, { color: (market.changeRate ?? 0) > 0 ? terminal.signal : (market.changeRate ?? 0) < 0 ? theme.colors.danger : theme.colors.text }]}>{signedPercentFromRate(market.changeRate)}</Text>
           </View>)}
         </View>
         {marketChart.state === "READY" ? <CandlePlot model={marketChart} compact /> : <Text style={[styles.marketEmpty, { color: theme.colors.textMuted }]}>{publicMarketStale ? "시세가 지연되었거나 연결되지 않았습니다." : "검증된 차트 데이터를 기다리고 있습니다."}</Text>}
-        <Pressable accessibilityRole="button" onPress={() => onNavigate("Markets")} style={[styles.marketLink, { borderTopColor: theme.colors.border }]}><Text style={[styles.inlineLink, { color: theme.colors.primary }]}>시장 차트 자세히 보기 →</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => onNavigate("Markets")} style={[styles.marketLink, { borderTopColor: terminal.border }]}><Text style={[styles.inlineLink, { color: terminal.signal }]}>시장 차트 자세히 보기 →</Text></Pressable>
       </View>
 
       <View style={styles.contextGrid} testID="home-data-availability">
-        <View style={[styles.contextCell, { borderColor: theme.colors.border }]}>
+        <View style={[styles.contextCell, { borderColor: terminal.border }]}>
           <Text style={[styles.contextTitle, { color: theme.colors.textMuted }]}>ORDER FLOW</Text>
           <Text style={[styles.contextState, { color: theme.colors.text }]}>UNAVAILABLE</Text>
           <Text style={[styles.contextMeta, { color: theme.colors.textMuted }]}>NO VERIFIED ORDERBOOK FEED</Text>
         </View>
-        <View style={[styles.contextCell, { borderColor: theme.colors.border }]}>
+        <View style={[styles.contextCell, { borderColor: terminal.border }]}>
           <Text style={[styles.contextTitle, { color: theme.colors.textMuted }]}>NEWS / ECON</Text>
           <Text style={[styles.contextState, { color: theme.colors.text }]}>UNAVAILABLE</Text>
           <Text style={[styles.contextMeta, { color: theme.colors.textMuted }]}>NO VERIFIED FEED</Text>
         </View>
       </View>
 
-      <View style={[styles.balanceStage, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }, tablet ? styles.balanceStageTablet : null]} testID="account-hero-card">
+      <View style={[styles.balanceStage, { backgroundColor: terminal.surface, borderColor: terminal.border }, tablet ? styles.balanceStageTablet : null]} testID="account-hero-card">
         <View style={styles.balancePrimary}>
           <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>PAPER EQUITY</Text>
           <Text style={[styles.balanceValue, { color: theme.colors.text }]} numberOfLines={1} adjustsFontSizeToFit>{krw(account?.equity)}</Text>
           <Text style={[styles.pnlValue, { color: pnlColor }]}>{signedMoney(totalPnl)} TOTAL PNL</Text>
         </View>
-        <View style={[styles.balanceFacts, { borderColor: theme.colors.border }]}>
+        <View style={[styles.balanceFacts, { borderColor: terminal.border }]}>
           <View style={styles.balanceFact}><Text style={[styles.factLabel, { color: theme.colors.textMuted }]}>CASH</Text><Text style={[styles.factValue, { color: theme.colors.text }]}>{krw(account?.cash)}</Text></View>
           <View style={styles.balanceFact}><Text style={[styles.factLabel, { color: theme.colors.textMuted }]}>EXPOSURE</Text><Text style={[styles.factValue, { color: theme.colors.text }]}>{krw(exposure)}</Text></View>
           <View style={styles.balanceFact}><Text style={[styles.factLabel, { color: theme.colors.textMuted }]}>OPEN</Text><Text style={[styles.factValue, { color: theme.colors.text }]}>{openOrders == null ? "—" : String(openOrders)}</Text></View>
@@ -245,25 +248,25 @@ export function HomeView({
       </View>
 
       <View style={[styles.commandStack, tablet ? styles.commandStackTablet : null]}>
-        <Pressable onPress={() => onNavigate("Markets")} style={({ pressed }) => [styles.command, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]} testID="home-decision-stage">
-          <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.info }]}>MARKETS</Text><Text style={[styles.commandArrow, { color: theme.colors.textMuted }]}>↗</Text></View>
+        <Pressable onPress={() => onNavigate("Markets")} style={({ pressed }) => [styles.command, { backgroundColor: terminal.surface, borderColor: terminal.border, opacity: pressed ? 0.72 : 1 }]} testID="home-decision-stage">
+          <View style={styles.commandTop}><Text style={[styles.commandCode, { color: terminal.signal }]}>MARKETS</Text><Text style={[styles.commandArrow, { color: theme.colors.textMuted }]}>↗</Text></View>
           <Text style={[styles.commandTitle, { color: theme.colors.text }]}>시장</Text>
           <Text style={[styles.commandSummary, { color: theme.colors.textMuted }]}>{marketRows.length === 0 ? "공개 시장 데이터 대기 중" : `${marketRows.length}개 핵심 시장`}</Text>
-          <View style={styles.commandPreview}>{marketRows.slice(0, 2).map((market) => <View key={market.market} style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>{market.market}</Text><Text style={[styles.previewValue, { color: (market.changeRate ?? 0) > 0 ? theme.colors.success : (market.changeRate ?? 0) < 0 ? theme.colors.danger : theme.colors.text }]}>{signedPercentFromRate(market.changeRate)}</Text></View>)}</View>
+          <View style={styles.commandPreview}>{marketRows.slice(0, 2).map((market) => <View key={market.market} style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>{market.market}</Text><Text style={[styles.previewValue, { color: (market.changeRate ?? 0) > 0 ? terminal.signal : (market.changeRate ?? 0) < 0 ? theme.colors.danger : theme.colors.text }]}>{signedPercentFromRate(market.changeRate)}</Text></View>)}</View>
         </Pressable>
 
         <View style={styles.hiddenAcceptanceHooks} accessibilityElementsHidden>
           <Text>PAPER PERFORMANCE</Text>
           <FactRow label="RESERVED CASH" value={krw(cashEnvelope?.reservedCash)} tone="success" />
         </View>
-        <Pressable onPress={() => onNavigate("Portfolio")} style={({ pressed }) => [styles.command, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]} testID="home-paper-performance">
-          <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.success }]}>PORTFOLIO</Text><Text style={[styles.commandArrow, { color: theme.colors.textMuted }]}>↗</Text></View>
+        <Pressable onPress={() => onNavigate("Portfolio")} style={({ pressed }) => [styles.command, { backgroundColor: terminal.surface, borderColor: terminal.border, opacity: pressed ? 0.72 : 1 }]} testID="home-paper-performance">
+          <View style={styles.commandTop}><Text style={[styles.commandCode, { color: terminal.signal }]}>PORTFOLIO</Text><Text style={[styles.commandArrow, { color: theme.colors.textMuted }]}>↗</Text></View>
           <Text style={[styles.commandTitle, { color: theme.colors.text }]}>PAPER</Text>
           <Text style={[styles.commandSummary, { color: theme.colors.textMuted }]}>{hasPosition ? `${position?.market ?? "PAPER"} position active` : account ? "현재 노출 없음" : "계정 대기 중"}</Text>
           <View style={styles.commandPreview}><View style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>INVESTABLE</Text><Text style={[styles.previewValue, { color: theme.colors.text }]} testID="home-investable-cash">{krw(cashEnvelope?.investableCash)}</Text></View><View style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>RESERVED</Text><Text style={[styles.previewValue, { color: theme.colors.text }]}>{krw(cashEnvelope?.reservedCash)}</Text></View></View>
         </Pressable>
 
-        <Pressable disabled={disconnected} onPress={onOpenPaperLearning} style={({ pressed }) => [styles.command, { backgroundColor: theme.colors.surface, borderColor: theme.colors.primary, opacity: disconnected ? 0.58 : pressed ? 0.72 : 1 }]} testID="home-paper-learning">
+        <Pressable disabled={disconnected} onPress={onOpenPaperLearning} style={({ pressed }) => [styles.command, { backgroundColor: terminal.surface, borderColor: theme.colors.primary, opacity: disconnected ? 0.58 : pressed ? 0.72 : 1 }]} testID="home-paper-learning">
           <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.primary }]}>LEARN</Text><Text style={[styles.commandArrow, { color: theme.colors.primary }]}>↗</Text></View>
           <Text style={[styles.commandTitle, { color: theme.colors.text }]}>학습 & 검증</Text>
           <Text style={[styles.commandSummary, { color: theme.colors.textMuted }]} numberOfLines={2}>{decisionSurface.learning}</Text>
@@ -275,10 +278,10 @@ export function HomeView({
         accessibilityRole="button"
         accessibilityState={{ expanded: detailsOpen }}
         onPress={() => setDetailsOpen((open) => !open)}
-        style={({ pressed }) => [styles.disclosure, { borderTopColor: theme.colors.border, borderBottomColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]}
+        style={({ pressed }) => [styles.disclosure, { borderTopColor: terminal.border, borderBottomColor: terminal.border, opacity: pressed ? 0.72 : 1 }]}
       >
         <View>
-          <Text style={[styles.eyebrow, { color: theme.colors.primary }]}>DECISION BASIS</Text>
+          <Text style={[styles.eyebrow, { color: terminal.signal }]}>DECISION BASIS</Text>
           <Text style={[styles.disclosureTitle, { color: theme.colors.text }]}>왜 지금 이 상태인가</Text>
         </View>
         <Text style={[styles.disclosureIcon, { color: theme.colors.textMuted }]}>{detailsOpen ? "−" : "+"}</Text>
@@ -289,16 +292,16 @@ export function HomeView({
           <Text style={[styles.detailCopy, { color: theme.colors.textMuted }]}>{why}</Text>
           {aiInsightAvailable ? <Pressable onPress={() => onNavigate("AiSignal")}><Text style={[styles.inlineLink, { color: theme.colors.primary }]}>AI 근거 상세 보기 →</Text></Pressable> : null}
         </View>
-        <View style={[styles.detailFacts, { borderColor: theme.colors.border }]} testID="home-risk-status">
+        <View style={[styles.detailFacts, { borderColor: terminal.border }]} testID="home-risk-status">
           <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>RISK</Text><Text style={[styles.detailValue, { color: riskColor }]}>{decisionSurface.risk}</Text></View>
           <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>RESULT</Text><Text style={[styles.detailValue, { color: theme.colors.text }]}>{decisionSurface.result}</Text></View>
           <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>SOURCE</Text><Text style={[styles.detailValue, { color: theme.colors.text }]}>{accountSource ? `${accountSource} PAPER` : "UNAVAILABLE"}</Text></View>
-          <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>AUTHORITY</Text><Text style={[styles.detailValue, { color: theme.colors.success }]}>LIVE NONE · AI ZERO</Text></View>
+          <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>AUTHORITY</Text><Text style={[styles.detailValue, { color: terminal.signal }]}>LIVE NONE · AI ZERO</Text></View>
         </View>
       </View> : <View style={styles.hiddenAcceptanceHooks}><View testID="ai-card" /><View testID="home-risk-status" /></View>}
 
       <Text style={[styles.disclaimer, { color: theme.colors.textMuted }]}>PUBLIC READ ONLY 데이터는 전략 신호가 아니며, PAPER 결과와 REAL_READ_ONLY 자산은 합산하지 않습니다.</Text>
-      <View style={[styles.safetyFooter, { borderTopColor: theme.colors.border }]}><Text style={[styles.safetyText, { color: theme.colors.textMuted }]}>PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY</Text></View>
+      <View style={[styles.safetyFooter, { borderTopColor: terminal.border }]}><Text style={[styles.safetyText, { color: theme.colors.textMuted }]}>PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY</Text></View>
     </ScrollView>
   </View>;
 }
@@ -332,7 +335,7 @@ const styles = StyleSheet.create({
   chipLabel: { fontSize: 8, lineHeight: 12, fontWeight: "900", letterSpacing: 0.7 },
   marketHero: { borderRadius: 10, padding: 12, borderWidth: StyleSheet.hairlineWidth, gap: 8 },
   marketPrice: { fontSize: 27, lineHeight: 33, fontWeight: "700", letterSpacing: -0.9, fontVariant: ["tabular-nums"] },
-  marketSnapshot: { flexDirection: "row", gap: 6, flexWrap: "wrap", borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.08)", paddingVertical: 6 },
+  marketSnapshot: { flexDirection: "row", gap: 6, flexWrap: "wrap", borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 6 },
   marketSnapshotEmpty: { fontSize: 8, lineHeight: 12, fontWeight: "800", letterSpacing: 0.7 },
   marketSnapshotItem: { minWidth: 82, flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 5 },
   marketSnapshotLabel: { fontSize: 8, lineHeight: 12, fontWeight: "800" },
@@ -355,7 +358,7 @@ const styles = StyleSheet.create({
   factValue: { fontSize: 12, lineHeight: 17, fontWeight: "900", fontVariant: ["tabular-nums"] },
   sectionHeader: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 12 },
   sectionTitle: { marginTop: 2, fontSize: 18, lineHeight: 23, fontWeight: "900", letterSpacing: -0.35 },
-  sectionMeta: { maxWidth: 150, textAlign: "right", fontSize: 8, lineHeight: 13, fontWeight: "700" },
+  sectionMeta: { maxWidth: 180, textAlign: "right", fontSize: 8, lineHeight: 13, fontWeight: "700" },
   commandStack: { gap: 8 },
   commandStackTablet: { flexDirection: "row", alignItems: "stretch" },
   command: { flex: 1, minHeight: 118, borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, padding: 12, gap: 5 },
