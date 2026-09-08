@@ -49,6 +49,22 @@ function readTimeoutMs(value: number | undefined): number {
   return timeoutMs;
 }
 
+const MAX_PROJECTION_REASON_LENGTH = 300;
+
+/**
+ * Turns a projection validation failure into something the operator can act on. The staleness
+ * and future-dated checks compare a server-generated timestamp against this device's clock, so
+ * they fail whenever the two disagree by more than the contract's window -- which reads as a
+ * broken connection even though the credential and the data are both fine.
+ */
+export function describeProjectionRejection(error: unknown): string {
+  const message = error instanceof Error ? error.message.trim() : "";
+  if (message.includes("stale")) return "서버가 보낸 PAPER 상태가 기기 시계 기준으로 너무 오래되었습니다. 기기와 서버의 시간이 맞는지 확인하세요.";
+  if (message.includes("from the future")) return "서버가 보낸 PAPER 상태의 시각이 기기 시계보다 앞서 있습니다. 기기와 서버의 시간이 맞는지 확인하세요.";
+  if (!message) return "PAPER 운영 projection을 해석할 수 없습니다.";
+  return `PAPER 운영 projection이 유효하지 않습니다: ${message.slice(0, MAX_PROJECTION_REASON_LENGTH)}`;
+}
+
 /** Uses only the explicitly saved endpoint. Normal reads require that exact endpoint to be verified before credential access. */
 export async function loadPersonalPaperOperations(options: PersonalPaperOperationsClientOptions): Promise<PersonalPaperOperationsLoadResult> {
   const configured = getConfiguredPaperEndpoint();
@@ -110,9 +126,13 @@ export async function loadPersonalPaperOperations(options: PersonalPaperOperatio
       const snapshot = validatePersonalPaperOperationsSnapshot(payload as PersonalPaperOperationsSnapshot);
       noteProjectionResult(options.credentialProvider, "READY");
       return Object.freeze({ status: "READY", snapshot });
-    } catch {
+    } catch (error) {
       noteProjectionResult(options.credentialProvider, "PROJECTION_UNAVAILABLE");
-      return Object.freeze({ status: "UNAVAILABLE", reason: "Invalid or stale PAPER operations snapshot." });
+      // The validator distinguishes a stale snapshot, one dated in the future, a health
+      // mismatch and a malformed projection, and each points somewhere different -- a snapshot
+      // judged stale or future-dated usually means the device and server clocks disagree, not
+      // that anything is wrong with the data. Collapsing them into one sentence hid that.
+      return Object.freeze({ status: "UNAVAILABLE", reason: describeProjectionRejection(error) });
     }
   } catch (error) {
     noteProjectionResult(options.credentialProvider, "PROJECTION_UNAVAILABLE");
