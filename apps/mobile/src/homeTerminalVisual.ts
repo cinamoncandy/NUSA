@@ -1,4 +1,4 @@
-import type { Theme } from "./designSystem";
+import { homeTerminalColors, type Theme } from "./designSystem";
 
 export interface HomeTerminalVisualProfile {
   readonly canvas: string;
@@ -19,11 +19,5 @@ export function createHomeTerminalVisualProfile(theme: Theme): HomeTerminalVisua
     });
   }
 
-  return Object.freeze({
-    canvas: "#030503",
-    surface: "#080D08",
-    sunken: "#050805",
-    border: "#263226",
-    signal: "#C8FF46",
-  });
+  return homeTerminalColors;
 }
