@@ -22,6 +22,27 @@ test("HOME uses one canonical Intelligence OS authority rail instead of the lega
   assert.match(os, />PAPER ONLY<\/Text>/);
 });
 
+test("HOME terminal fold prioritizes dense truthful evidence without synthetic feeds", () => {
+  const home = read("apps/mobile/src/homeView.tsx");
+  const chart = read("apps/mobile/src/chartView.tsx");
+
+  assert.match(home, /testID="home-terminal-grid"/);
+  assert.match(home, /PUBLIC MARKET/);
+  assert.match(home, /PAPER EQUITY/);
+  assert.match(home, /TOTAL PNL/);
+  assert.match(home, /RISK \/ AUTHORITY/);
+  assert.match(home, /testID="home-market-snapshot"/);
+  assert.match(home, /selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)/);
+  assert.match(home, /<CandlePlot model=\{marketChart\} compact \/>/);
+  assert.match(chart, /compact = false/);
+  assert.match(chart, /plotCompact/);
+  assert.match(home, /ORDER FLOW/);
+  assert.match(home, /NO VERIFIED ORDERBOOK FEED/);
+  assert.match(home, /NEWS \/ ECON/);
+  assert.match(home, /NO VERIFIED FEED/);
+  assert.doesNotMatch(home, /fake|fabricated|synthetic/i);
+});
+
 test("bottom navigation is restrained and does not restore the legacy neon pill shell", () => {
   const app = read("apps/mobile/App.tsx");
 

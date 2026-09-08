@@ -160,11 +160,36 @@ export function HomeView({
         <Text style={[styles.glanceBuild, { color: theme.colors.textMuted }]} testID="home-build-source">BUILD {packagedBuildLabel} · UI INTELLIGENCE OS</Text>
       </View>
 
+      <View style={styles.terminalGrid} testID="home-terminal-grid">
+        <View style={[styles.terminalCell, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+          <Text style={[styles.terminalLabel, { color: theme.colors.textMuted }]}>PUBLIC MARKET</Text>
+          <Text style={[styles.terminalValue, { color: theme.colors.text }]} numberOfLines={1} adjustsFontSizeToFit>{krw(marketChart.currentPrice)}</Text>
+          <Text style={[styles.terminalMeta, { color: publicMarketStale ? theme.colors.warning : theme.colors.success }]}>{publicMarket} · {publicMarketStale ? "STALE" : "READ ONLY"}</Text>
+        </View>
+        <View style={[styles.terminalCell, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+          <Text style={[styles.terminalLabel, { color: theme.colors.textMuted }]}>PAPER EQUITY</Text>
+          <Text style={[styles.terminalValue, { color: theme.colors.text }]} numberOfLines={1} adjustsFontSizeToFit>{krw(account?.equity)}</Text>
+          <Text style={[styles.terminalMeta, { color: theme.colors.textMuted }]}>{accountSource ? `${accountSource} PAPER` : "UNAVAILABLE"}</Text>
+        </View>
+        <View style={[styles.terminalCell, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+          <Text style={[styles.terminalLabel, { color: theme.colors.textMuted }]}>TOTAL PNL</Text>
+          <Text style={[styles.terminalValue, { color: pnlColor }]} numberOfLines={1} adjustsFontSizeToFit>{signedMoney(totalPnl)}</Text>
+          <Text style={[styles.terminalMeta, { color: theme.colors.textMuted }]}>VERIFIED PAPER ONLY</Text>
+        </View>
+        <View style={[styles.terminalCell, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+          <Text style={[styles.terminalLabel, { color: theme.colors.textMuted }]}>RISK / AUTHORITY</Text>
+          <Text style={[styles.terminalValue, { color: riskColor }]} numberOfLines={1} adjustsFontSizeToFit>{rail.riskLabel}</Text>
+          <Text style={[styles.terminalMeta, { color: theme.colors.success }]}>LIVE NONE · AI ZERO</Text>
+        </View>
+      </View>
+
       <View style={styles.hero} testID="home-now">
-        <Text style={[styles.eyebrow, { color: theme.colors.primary }]}>NOW</Text>
-        <Text style={[styles.heroTitle, { color: theme.colors.text }]}>오늘의 오버뷰</Text>
-        <Text style={[styles.heroDetail, { color: systemColor }]}>{posture}</Text>
-        <Text style={[styles.heroDetail, { color: theme.colors.textMuted }]} numberOfLines={3}>{why}</Text>
+        <View style={styles.heroHeader}>
+          <Text style={[styles.eyebrow, { color: theme.colors.primary }]}>NOW · OPERATIONS</Text>
+          <Text style={[styles.heroState, { color: systemColor }]}>{connectionLabel}</Text>
+        </View>
+        <Text style={[styles.heroTitle, { color: systemColor }]}>{posture}</Text>
+        <Text style={[styles.heroDetail, { color: theme.colors.textMuted }]} numberOfLines={2}>{why}</Text>
         <View style={styles.heroChips}>
           <View style={[styles.chip, { backgroundColor: theme.colors.surfaceSunken }]}><Text style={[styles.chipLabel, { color: theme.colors.textMuted }]}>PAPER ONLY</Text></View>
           <View style={[styles.chip, { backgroundColor: theme.colors.surfaceSunken }]}><Text style={[styles.chipLabel, { color: theme.colors.textMuted }]}>LIVE NONE</Text></View>
@@ -172,14 +197,33 @@ export function HomeView({
         </View>
       </View>
 
+      {disconnected || readOnlyError ? <Pressable accessibilityRole="button" onPress={onGoSettings} testID="home-operational-notice"><StateNotice title={disconnected ? "PAPER 연결 필요" : "PAPER 연결 오류"} detail={`${disconnected ? "Cloud endpoint와 세션을 검증해야 합니다." : readOnlyError ?? "읽기 상태를 확인할 수 없습니다."} · 설정 열기`} tone="warning" /></Pressable> : null}
+
       <View style={[styles.marketHero, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]} testID="home-public-market-chart">
         <View style={styles.commandTop}><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{publicMarket}</Text><Text style={[styles.sectionMeta, { color: theme.colors.textMuted }]}>UPBIT · 공개 시세</Text></View>
         <Text style={[styles.marketPrice, { color: theme.colors.text }]} adjustsFontSizeToFit numberOfLines={1}>{krw(marketChart.currentPrice)}</Text>
-        {marketChart.state === "READY" ? <CandlePlot model={marketChart} /> : <Text style={[styles.marketEmpty, { color: theme.colors.textMuted }]}>{publicMarketStale ? "시세가 지연되었거나 연결되지 않았습니다." : "검증된 차트 데이터를 기다리고 있습니다."}</Text>}
-        <Pressable accessibilityRole="button" onPress={() => onNavigate("Markets")} style={[styles.marketLink, { backgroundColor: theme.colors.primarySoft }]}><Text style={[styles.inlineLink, { color: theme.colors.primary }]}>시장 차트 자세히 보기 →</Text></Pressable>
+        <View style={styles.marketSnapshot} testID="home-market-snapshot">
+          {marketRows.length === 0 ? <Text style={[styles.marketSnapshotEmpty, { color: theme.colors.textMuted }]}>PUBLIC SNAPSHOT WAITING</Text> : marketRows.map((market) => <View key={market.market} style={styles.marketSnapshotItem}>
+            <Text style={[styles.marketSnapshotLabel, { color: theme.colors.textMuted }]}>{market.market}</Text>
+            <Text style={[styles.marketSnapshotValue, { color: (market.changeRate ?? 0) > 0 ? theme.colors.success : (market.changeRate ?? 0) < 0 ? theme.colors.danger : theme.colors.text }]}>{signedPercentFromRate(market.changeRate)}</Text>
+          </View>)}
+        </View>
+        {marketChart.state === "READY" ? <CandlePlot model={marketChart} compact /> : <Text style={[styles.marketEmpty, { color: theme.colors.textMuted }]}>{publicMarketStale ? "시세가 지연되었거나 연결되지 않았습니다." : "검증된 차트 데이터를 기다리고 있습니다."}</Text>}
+        <Pressable accessibilityRole="button" onPress={() => onNavigate("Markets")} style={[styles.marketLink, { borderTopColor: theme.colors.border }]}><Text style={[styles.inlineLink, { color: theme.colors.primary }]}>시장 차트 자세히 보기 →</Text></Pressable>
       </View>
 
-      {disconnected || readOnlyError ? <Pressable accessibilityRole="button" onPress={onGoSettings} testID="home-operational-notice"><StateNotice title={disconnected ? "PAPER 연결 필요" : "PAPER 연결 오류"} detail={`${disconnected ? "Cloud endpoint와 세션을 검증해야 합니다." : readOnlyError ?? "읽기 상태를 확인할 수 없습니다."} · 설정 열기`} tone="warning" /></Pressable> : null}
+      <View style={styles.contextGrid} testID="home-data-availability">
+        <View style={[styles.contextCell, { borderColor: theme.colors.border }]}>
+          <Text style={[styles.contextTitle, { color: theme.colors.textMuted }]}>ORDER FLOW</Text>
+          <Text style={[styles.contextState, { color: theme.colors.text }]}>UNAVAILABLE</Text>
+          <Text style={[styles.contextMeta, { color: theme.colors.textMuted }]}>NO VERIFIED ORDERBOOK FEED</Text>
+        </View>
+        <View style={[styles.contextCell, { borderColor: theme.colors.border }]}>
+          <Text style={[styles.contextTitle, { color: theme.colors.textMuted }]}>NEWS / ECON</Text>
+          <Text style={[styles.contextState, { color: theme.colors.text }]}>UNAVAILABLE</Text>
+          <Text style={[styles.contextMeta, { color: theme.colors.textMuted }]}>NO VERIFIED FEED</Text>
+        </View>
+      </View>
 
       <View style={[styles.balanceStage, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }, tablet ? styles.balanceStageTablet : null]} testID="account-hero-card">
         <View style={styles.balancePrimary}>
@@ -218,11 +262,11 @@ export function HomeView({
           <View style={styles.commandPreview}><View style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>INVESTABLE</Text><Text style={[styles.previewValue, { color: theme.colors.text }]} testID="home-investable-cash">{krw(cashEnvelope?.investableCash)}</Text></View><View style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>RESERVED</Text><Text style={[styles.previewValue, { color: theme.colors.text }]}>{krw(cashEnvelope?.reservedCash)}</Text></View></View>
         </Pressable>
 
-        <Pressable disabled={disconnected} onPress={onOpenPaperLearning} style={({ pressed }) => [styles.command, { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary, opacity: disconnected ? 0.65 : pressed ? 0.72 : 1 }]} testID="home-paper-learning">
-          <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.onPrimary }]}>LEARN</Text><Text style={[styles.commandArrow, { color: theme.colors.onPrimary }]}>↗</Text></View>
-          <Text style={[styles.commandTitle, { color: theme.colors.onPrimary }]}>학습 & 검증</Text>
-          <Text style={[styles.commandSummary, { color: theme.colors.onPrimary }]} numberOfLines={2}>{decisionSurface.learning}</Text>
-          <Text style={[styles.learningResult, { color: theme.colors.onPrimary }]} numberOfLines={1} testID="home-supervisor-learning">{decisionSurface.result}</Text>
+        <Pressable disabled={disconnected} onPress={onOpenPaperLearning} style={({ pressed }) => [styles.command, { backgroundColor: theme.colors.surface, borderColor: theme.colors.primary, opacity: disconnected ? 0.58 : pressed ? 0.72 : 1 }]} testID="home-paper-learning">
+          <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.primary }]}>LEARN</Text><Text style={[styles.commandArrow, { color: theme.colors.primary }]}>↗</Text></View>
+          <Text style={[styles.commandTitle, { color: theme.colors.text }]}>학습 & 검증</Text>
+          <Text style={[styles.commandSummary, { color: theme.colors.textMuted }]} numberOfLines={2}>{decisionSurface.learning}</Text>
+          <Text style={[styles.learningResult, { color: theme.colors.primary }]} numberOfLines={1} testID="home-supervisor-learning">{decisionSurface.result}</Text>
         </Pressable>
       </View>
 
@@ -260,66 +304,83 @@ export function HomeView({
 
 const styles = StyleSheet.create({
   shell: { flex: 1 },
-  content: { width: "100%", alignSelf: "center", paddingHorizontal: 20, paddingTop: 10, paddingBottom: 32, gap: 16 },
-  appBar: { minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  content: { width: "100%", alignSelf: "center", paddingHorizontal: 16, paddingTop: 6, paddingBottom: 28, gap: 12 },
+  appBar: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   brandLockup: { flexDirection: "row", alignItems: "center", gap: 9 },
-  liveDot: { width: 8, height: 8, borderRadius: 999 },
-  brand: { fontSize: 19, lineHeight: 22, fontWeight: "900", letterSpacing: 2.3 },
-  statusCapsule: { minHeight: 30, borderWidth: StyleSheet.hairlineWidth, borderRadius: 999, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
+  liveDot: { width: 7, height: 7, borderRadius: 999 },
+  brand: { fontSize: 18, lineHeight: 21, fontWeight: "900", letterSpacing: 2.3 },
+  statusCapsule: { minHeight: 28, borderWidth: StyleSheet.hairlineWidth, borderRadius: 999, paddingHorizontal: 11, alignItems: "center", justifyContent: "center" },
   statusCapsuleText: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 0.8 },
-  glanceRail: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: -8 },
-  glancePrimary: { flex: 1, minWidth: 180, fontSize: 10, lineHeight: 15, fontWeight: "700" },
-  glanceRisk: { fontSize: 10, lineHeight: 15, fontWeight: "900", letterSpacing: 0.45 },
-  glanceBuild: { fontSize: 9, lineHeight: 14, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  hero: { gap: 9, paddingVertical: 8 },
+  glanceRail: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: -6 },
+  glancePrimary: { flex: 1, minWidth: 180, fontSize: 9, lineHeight: 14, fontWeight: "700" },
+  glanceRisk: { fontSize: 9, lineHeight: 14, fontWeight: "900", letterSpacing: 0.45 },
+  glanceBuild: { fontSize: 8, lineHeight: 13, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  terminalGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  terminalCell: { flexGrow: 1, flexBasis: "47%", minWidth: 140, minHeight: 76, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 10, paddingVertical: 9, gap: 3 },
+  terminalLabel: { fontSize: 8, lineHeight: 12, fontWeight: "900", letterSpacing: 0.95 },
+  terminalValue: { fontSize: 18, lineHeight: 22, fontWeight: "800", letterSpacing: -0.55, fontVariant: ["tabular-nums"] },
+  terminalMeta: { fontSize: 8, lineHeight: 12, fontWeight: "800", letterSpacing: 0.35 },
+  hero: { gap: 6, paddingVertical: 3 },
+  heroHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  heroState: { fontSize: 8, lineHeight: 12, fontWeight: "900", letterSpacing: 0.85 },
   eyebrow: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.45 },
-  heroTitle: { maxWidth: 720, fontSize: 28, lineHeight: 36, fontWeight: "700", letterSpacing: -1.15 },
-  heroDetail: { maxWidth: 760, fontSize: 14, lineHeight: 21, fontWeight: "600" },
-  heroChips: { flexDirection: "row", gap: 7, flexWrap: "wrap", paddingTop: 3 },
-  chip: { minHeight: 26, borderRadius: 999, paddingHorizontal: 9, alignItems: "center", justifyContent: "center" },
+  heroTitle: { maxWidth: 720, fontSize: 20, lineHeight: 27, fontWeight: "800", letterSpacing: -0.55 },
+  heroDetail: { maxWidth: 760, fontSize: 12, lineHeight: 18, fontWeight: "600" },
+  heroChips: { flexDirection: "row", gap: 6, flexWrap: "wrap", paddingTop: 1 },
+  chip: { minHeight: 23, borderRadius: 999, paddingHorizontal: 8, alignItems: "center", justifyContent: "center" },
   chipLabel: { fontSize: 8, lineHeight: 12, fontWeight: "900", letterSpacing: 0.7 },
-  marketHero: { borderRadius: 22, padding: 18, borderWidth: StyleSheet.hairlineWidth, gap: 12 },
-  marketPrice: { fontSize: 34, lineHeight: 42, fontWeight: "600", letterSpacing: -1.2, fontVariant: ["tabular-nums"] },
-  marketEmpty: { minHeight: 100, paddingVertical: 32, fontSize: 13, lineHeight: 20 },
-  marketLink: { minHeight: 48, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  balanceStage: { gap: 16, padding: 18, borderRadius: 22, borderWidth: StyleSheet.hairlineWidth },
+  marketHero: { borderRadius: 10, padding: 12, borderWidth: StyleSheet.hairlineWidth, gap: 8 },
+  marketPrice: { fontSize: 27, lineHeight: 33, fontWeight: "700", letterSpacing: -0.9, fontVariant: ["tabular-nums"] },
+  marketSnapshot: { flexDirection: "row", gap: 6, flexWrap: "wrap", borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.08)", paddingVertical: 6 },
+  marketSnapshotEmpty: { fontSize: 8, lineHeight: 12, fontWeight: "800", letterSpacing: 0.7 },
+  marketSnapshotItem: { minWidth: 82, flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 5 },
+  marketSnapshotLabel: { fontSize: 8, lineHeight: 12, fontWeight: "800" },
+  marketSnapshotValue: { fontSize: 9, lineHeight: 13, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  marketEmpty: { minHeight: 80, paddingVertical: 22, fontSize: 12, lineHeight: 18 },
+  marketLink: { minHeight: 32, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 7, alignItems: "flex-start", justifyContent: "center" },
+  contextGrid: { flexDirection: "row", gap: 8 },
+  contextCell: { flex: 1, minWidth: 0, borderWidth: StyleSheet.hairlineWidth, padding: 9, gap: 2 },
+  contextTitle: { fontSize: 8, lineHeight: 12, fontWeight: "900", letterSpacing: 0.8 },
+  contextState: { fontSize: 11, lineHeight: 15, fontWeight: "900" },
+  contextMeta: { fontSize: 7, lineHeight: 11, fontWeight: "700" },
+  balanceStage: { gap: 12, padding: 13, borderRadius: 10, borderWidth: StyleSheet.hairlineWidth },
   balanceStageTablet: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" },
-  balancePrimary: { flex: 1, minWidth: 0, gap: 5 },
-  balanceValue: { fontSize: 34, lineHeight: 42, fontWeight: "600", letterSpacing: -1.2, fontVariant: ["tabular-nums"] },
-  pnlValue: { fontSize: 13, lineHeight: 18, fontWeight: "900", letterSpacing: 0.2, fontVariant: ["tabular-nums"] },
-  balanceFacts: { minWidth: 240, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, flexDirection: "row", gap: 20, flexWrap: "wrap" },
-  balanceFact: { minWidth: 66, gap: 3 },
+  balancePrimary: { flex: 1, minWidth: 0, gap: 4 },
+  balanceValue: { fontSize: 28, lineHeight: 34, fontWeight: "700", letterSpacing: -0.9, fontVariant: ["tabular-nums"] },
+  pnlValue: { fontSize: 12, lineHeight: 17, fontWeight: "900", letterSpacing: 0.2, fontVariant: ["tabular-nums"] },
+  balanceFacts: { minWidth: 240, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 9, flexDirection: "row", gap: 16, flexWrap: "wrap" },
+  balanceFact: { minWidth: 66, gap: 2 },
   factLabel: { fontSize: 8, lineHeight: 12, fontWeight: "800", letterSpacing: 0.7 },
-  factValue: { fontSize: 13, lineHeight: 18, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  factValue: { fontSize: 12, lineHeight: 17, fontWeight: "900", fontVariant: ["tabular-nums"] },
   sectionHeader: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 12 },
-  sectionTitle: { marginTop: 3, fontSize: 22, lineHeight: 27, fontWeight: "900", letterSpacing: -0.45 },
-  sectionMeta: { maxWidth: 150, textAlign: "right", fontSize: 9, lineHeight: 14, fontWeight: "700" },
-  commandStack: { gap: 10 },
+  sectionTitle: { marginTop: 2, fontSize: 18, lineHeight: 23, fontWeight: "900", letterSpacing: -0.35 },
+  sectionMeta: { maxWidth: 150, textAlign: "right", fontSize: 8, lineHeight: 13, fontWeight: "700" },
+  commandStack: { gap: 8 },
   commandStackTablet: { flexDirection: "row", alignItems: "stretch" },
-  command: { flex: 1, minHeight: 152, borderWidth: StyleSheet.hairlineWidth, borderRadius: 24, padding: 17, gap: 7 },
+  command: { flex: 1, minHeight: 118, borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, padding: 12, gap: 5 },
   commandTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  commandCode: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.1 },
-  commandArrow: { fontSize: 16, lineHeight: 18, fontWeight: "700" },
-  commandTitle: { fontSize: 21, lineHeight: 26, fontWeight: "900", letterSpacing: -0.45 },
-  commandSummary: { fontSize: 11, lineHeight: 17, fontWeight: "600" },
-  commandPreview: { marginTop: "auto", gap: 3, paddingTop: 5 },
-  previewRow: { minHeight: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  previewLabel: { fontSize: 9, lineHeight: 14, fontWeight: "800" },
-  previewValue: { fontSize: 10, lineHeight: 15, fontWeight: "900", fontVariant: ["tabular-nums"] },
-  learningResult: { marginTop: "auto", fontSize: 10, lineHeight: 15, fontWeight: "900" },
-  disclosure: { minHeight: 68, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 14, paddingVertical: 12 },
-  disclosureTitle: { marginTop: 3, fontSize: 19, lineHeight: 24, fontWeight: "900", letterSpacing: -0.35 },
-  disclosureIcon: { fontSize: 27, lineHeight: 30, fontWeight: "300" },
-  details: { gap: 16 },
-  detailNarrative: { gap: 8 },
-  detailCopy: { maxWidth: 780, fontSize: 13, lineHeight: 21, fontWeight: "600" },
-  inlineLink: { fontSize: 11, lineHeight: 16, fontWeight: "900" },
+  commandCode: { fontSize: 8, lineHeight: 12, fontWeight: "900", letterSpacing: 1.05 },
+  commandArrow: { fontSize: 14, lineHeight: 17, fontWeight: "700" },
+  commandTitle: { fontSize: 18, lineHeight: 23, fontWeight: "900", letterSpacing: -0.35 },
+  commandSummary: { fontSize: 10, lineHeight: 15, fontWeight: "600" },
+  commandPreview: { marginTop: "auto", gap: 2, paddingTop: 3 },
+  previewRow: { minHeight: 18, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  previewLabel: { fontSize: 8, lineHeight: 12, fontWeight: "800" },
+  previewValue: { fontSize: 9, lineHeight: 13, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  learningResult: { marginTop: "auto", fontSize: 9, lineHeight: 13, fontWeight: "900" },
+  disclosure: { minHeight: 56, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 14, paddingVertical: 9 },
+  disclosureTitle: { marginTop: 2, fontSize: 17, lineHeight: 22, fontWeight: "900", letterSpacing: -0.3 },
+  disclosureIcon: { fontSize: 24, lineHeight: 27, fontWeight: "300" },
+  details: { gap: 12 },
+  detailNarrative: { gap: 6 },
+  detailCopy: { maxWidth: 780, fontSize: 12, lineHeight: 19, fontWeight: "600" },
+  inlineLink: { fontSize: 10, lineHeight: 15, fontWeight: "900" },
   detailFacts: { borderTopWidth: StyleSheet.hairlineWidth },
-  detailRow: { minHeight: 45, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 18 },
-  detailLabel: { flexShrink: 0, fontSize: 9, lineHeight: 14, fontWeight: "900", letterSpacing: 0.7 },
-  detailValue: { flex: 1, textAlign: "right", fontSize: 11, lineHeight: 17, fontWeight: "800" },
+  detailRow: { minHeight: 40, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 18 },
+  detailLabel: { flexShrink: 0, fontSize: 8, lineHeight: 13, fontWeight: "900", letterSpacing: 0.7 },
+  detailValue: { flex: 1, textAlign: "right", fontSize: 10, lineHeight: 16, fontWeight: "800" },
   hiddenAcceptanceHooks: { position: "absolute", width: 1, height: 1, opacity: 0 },
-  disclaimer: { fontSize: 9, lineHeight: 15, fontWeight: "600" },
-  safetyFooter: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 14, alignItems: "center" },
-  safetyText: { fontSize: 9, lineHeight: 14, fontWeight: "900", letterSpacing: 1.1 },
+  disclaimer: { fontSize: 8, lineHeight: 13, fontWeight: "600" },
+  safetyFooter: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 11, alignItems: "center" },
+  safetyText: { fontSize: 8, lineHeight: 13, fontWeight: "900", letterSpacing: 1.05 },
 });

@@ -48,10 +48,10 @@ function StateCard({ title, message, color, onRetry, testID }: Readonly<{ title:
   return <View style={styles.state} testID={testID}><NusaCard><Text style={[styles.stateTitle, { color }]}>{title}</Text><Text style={[styles.stateMessage, { color: theme.colors.textMuted }]}>{message}</Text>{onRetry ? <NusaButton label="다시 불러오기" onPress={onRetry} /> : null}</NusaCard></View>;
 }
 
-export function CandlePlot({ model }: Readonly<{ model: ChartViewModel }>) {
+export function CandlePlot({ model, compact = false }: Readonly<{ model: ChartViewModel; compact?: boolean }>) {
   const { theme } = useTheme();
   const maxVolume = Math.max(...model.candles.map((candle) => candle.volume), Number.EPSILON);
-  return <View style={[styles.plot, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.border }]} testID="chart-candles">
+  return <View style={[styles.plot, compact ? styles.plotCompact : null, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.border }]} testID="chart-candles">
     {model.priceLine === null ? null : <View testID="chart-price-line" style={[styles.priceLine, { backgroundColor: theme.colors.warning, top: `${model.priceLine}%` }]} />}
     <View style={styles.candleRow}>{model.bars.map((bar) => <View key={`${bar.openTime}-${bar.interval}`} style={styles.candleColumn} testID="chart-candle">
       <View style={[styles.wick, { backgroundColor: bar.up ? theme.colors.success : theme.colors.danger, top: `${bar.wickTop}%`, height: `${bar.wickHeight}%` }]} />
@@ -139,6 +139,7 @@ const styles = StyleSheet.create({
   dataSource: { fontSize: 11, fontWeight: "600" },
   plotEyebrow: { fontSize: 10, fontWeight: "800", letterSpacing: 1.4, marginBottom: 8 },
   plot: { height: 260, position: "relative", overflow: "hidden", borderRadius: 14, padding: 8, borderWidth: 1 },
+  plotCompact: { height: 172, borderRadius: 10, padding: 6 },
   candleRow: { flex: 1, flexDirection: "row", alignItems: "stretch", gap: 2, paddingBottom: 32 },
   candleColumn: { flex: 1, position: "relative", minWidth: 3 },
   wick: { position: "absolute", width: 1, left: "50%" },
