@@ -44,6 +44,7 @@ test("HOME terminal fold prioritizes dense truthful evidence without synthetic f
   assert.match(chart, /const terminal = compact \? createHomeTerminalVisualProfile\(theme\) : null/);
   assert.match(visual, /homeTerminalColors/);
   assert.doesNotMatch(visual, /#[0-9A-Fa-f]{6}/);
+  assert.match(designSystem, /export const homeTerminalColors = Object.freeze/);
   assert.match(designSystem, /canvas: "rgb\\(3, 5, 3\\)"/);
   assert.match(designSystem, /signal: "rgb\\(200, 255, 70\\)"/);
   assert.match(home, /ORDER FLOW/);
