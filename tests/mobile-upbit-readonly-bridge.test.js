@@ -8,23 +8,10 @@ const credentialSource = fs.readFileSync(path.join(mobileSrc, "upbitCredentialSe
 const clientSource = fs.readFileSync(path.join(mobileSrc, "upbitLiveClient.ts"), "utf8");
 const { normalizeUpbitReadOnlySnapshot } = require("../dist/apps/mobile/src/upbitReadOnlyAccountModel.js");
 
-// The credential was process-memory-only until ADR-0018. Android reclaims a backgrounded
-// process freely, so that silently dropped the READ_ONLY connection on every relaunch. It now
-// persists only through the platform secure storage port the approved PAPER session already
-// uses -- never AsyncStorage, a plaintext file, or the Upbit API keys themselves.
-test("Upbit bridge credential persists only through platform secure storage", () => {
+test("Upbit bridge credential stays process-memory-only", () => {
   assert.match(credentialSource, /let sharedToken: string \| null = null/);
   assert.match(credentialSource, /credentialProvider/);
-  assert.match(credentialSource, /createMobileSecureStorage/);
-  assert.match(credentialSource, /SecureStoragePort/);
-  assert.doesNotMatch(credentialSource, /AsyncStorage|setItem\s*\(|writeFile|writeFileSync|UPBIT_ACCESS_KEY|UPBIT_SECRET_KEY/);
-});
-
-// An explicit disconnect must not leave a credential the next launch would reconnect with.
-test("clearing the Upbit bridge credential deletes the stored secret", () => {
-  assert.match(credentialSource, /export function clearUpbitCredentialSession/);
-  assert.match(credentialSource, /deleteSecret\(STORAGE_KEY\)/);
-  assert.match(credentialSource, /sharedToken = null/);
+  assert.doesNotMatch(credentialSource, /AsyncStorage|SecureStorage|setItem\s*\(|writeFile|writeFileSync|UPBIT_ACCESS_KEY|UPBIT_SECRET_KEY/);
 });
 
 test("Upbit bridge is HTTPS-only and read-only", () => {
