@@ -1883,7 +1883,7 @@ packages:
     resolution: {integrity: sha512-NIxF55hv4nSqQswkAeiOi1r83xy8JldOFDTWiug55KBu9Jnblncd2U6ViHmYgHf01TPZS77NJBhBMKdWj9HQMQ==}
     engines: {node: '>=8'}
 
-  ci-info@4.3.2:
+  ci-info@4.3.1:
     resolution: {integrity: sha512-Wdy2Igu8OcBpI2pZePZ5oWjPC38tmDVx5WKUXKwlLYkA0ozo85sLsLvkBbBn/sZaSCMFOGZJ14fvW9t5/d7kdA==}
     engines: {node: '>=8'}
 
@@ -2056,7 +2056,7 @@ packages:
   deep-is@0.1.4:
     resolution: {integrity: sha512-oIPzksmTg4/MriiaYGO+okXDT7ztn/w3Eptv/+gSIdMdKsJo0u4CfYNFJPy+4SKMuCqGw2wxnA+URMg3t8a/bQ==}
 
-  deepmerge@4.3.2:
+  deepmerge@4.3.1:
     resolution: {integrity: sha512-3sUqbMEc77XqpdNO7FRyRog+eW3ph+GYCbj+rK+uYyRMuwsVy0rMiVtPn+QJlKFvWP/1PYpapqYn0Me2knFn+A==}
     engines: {node: '>=0.10.0'}
 
@@ -5191,7 +5191,7 @@ snapshots:
     dependencies:
       '@react-native-community/cli-tools': 20.1.0
       cosmiconfig: 9.0.2(typescript@5.9.3)
-      deepmerge: 4.3.2
+      deepmerge: 4.3.1
       fast-glob: 3.3.3
       joi: 17.13.6
       picocolors: 1.1.1
@@ -5206,7 +5206,7 @@ snapshots:
       '@react-native-community/cli-platform-ios': 20.1.0
       '@react-native-community/cli-tools': 20.1.0
       command-exists: 1.2.9
-      deepmerge: 4.3.2
+      deepmerge: 4.3.1
       envinfo: 7.21.0
       execa: 5.1.1
       node-stream-zip: 1.16.0
@@ -5281,7 +5281,7 @@ snapshots:
       '@react-native-community/cli-tools': 20.1.0
       '@react-native-community/cli-types': 20.1.0
       commander: 9.5.0
-      deepmerge: 4.3.2
+      deepmerge: 4.3.1
       execa: 5.1.1
       find-up: 5.0.0
       fs-extra: 8.1.0
@@ -5918,7 +5918,7 @@ snapshots:
       builder-util: 26.16.0
       builder-util-runtime: 9.7.0
       chromium-pickle-js: 0.2.0
-      ci-info: 4.3.2
+      ci-info: 4.3.1
       debug: 4.4.3
       dmg-builder: 26.16.0(electron-builder-squirrel-windows@26.16.0)
       dotenv: 16.6.1
@@ -6243,7 +6243,7 @@ snapshots:
 
   ci-info@3.9.0: {}
 
-  ci-info@4.3.2: {}
+  ci-info@4.3.1: {}
 
   ci-info@4.4.0: {}
 
@@ -6394,7 +6394,7 @@ snapshots:
 
   deep-is@0.1.4: {}
 
-  deepmerge@4.3.2: {}
+  deepmerge@4.3.1: {}
 
   defaults@1.0.4:
     dependencies:
