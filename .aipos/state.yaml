@@ -121,6 +121,19 @@ current_android_receipt_noise_reduction:
   requested_scope: "Owner asked only to address the recurring noise; Firebase Distribution tester email was explicitly left unchanged (owner's stated preference) and is out of scope here."
   local_validation: "YAML parses (python yaml.safe_load); receipt shell logic simulated standalone for both success and failure paths under set -u, including an unset GITHUB_STEP_SUMMARY, with the expected summary-write/comment behavior confirmed for each. No workflow run was triggered in this environment."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_upbit_bridge_credential_persistence:
+  decision: ADR-0018
+  status: IMPLEMENTED_LOCAL
+  branch: claude/nusa-repository-j93sd8
+  scope: "Mobile Upbit READ_ONLY bridge credential persistence. No LIVE, order, transfer, or production-mutation surface touched."
+  reported_symptom: "Owner reported the Upbit READ_ONLY connection authenticating successfully and then coming undone by itself."
+  root_cause: "upbitCredentialSession.ts held the credential in a module-level variable and nowhere else. Android reclaims a backgrounded process freely, so the next launch found isConfigured() false and refreshUpbitReadOnlyAccount short-circuited with 'credential is not configured'. The connection was never revoked; its credential did not outlive the process."
+  change: "Persist through the same SecureStoragePort (Android Keystore) the approved PAPER session uses; restore when memory is empty; delete the stored secret on explicit disconnect; best-effort so a runtime without secure storage still connects for that session. Added restoreUpbitReadOnlyAccount() called once at app start, because the base URL and refresh timer do not survive the process either."
+  superseded_contract: "tests/mobile-upbit-readonly-bridge.test.js asserted process-memory-only; updated to assert the new contract (secure-storage-only persistence, no AsyncStorage/plaintext/API keys, disconnect deletes) rather than removed."
+  owner_decision: "Owner explicitly chose Keystore persistence over memory-only when presented with the tradeoff."
+  local_validation: "tsc PASS; new tests/mobile-upbit-credential-persistence.test.js 5/5 PASS including a process-restart case reproducing the reported symptom; tests/mobile-upbit-readonly-bridge.test.js 8/8 PASS; pnpm run lint 0 errors; full per-file sweep of tests/*.test.js leaves only tests/evidence-cli-contract.test.js, verified failing on a clean tree at the same base."
+  unverified: "pnpm run preflight and pnpm test could not run here (Node >= 24 required, environment provides 22.22.2). No Android device run: persistence is verified against a stubbed SecureStoragePort, not the real Keystore."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 project: nusa
 updated_at: "2026-09-07T09:05:22+09:00"
 current_execution_target:
