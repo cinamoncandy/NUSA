@@ -66,6 +66,27 @@ export function resetUpbitReadOnlyState(): void {
   setUpbitReadOnlyState(initialUpbitReadOnlyState);
 }
 
+/**
+ * Restores a previously connected READ_ONLY session at app start.
+ *
+ * The credential now survives a relaunch in platform secure storage, but the module's own
+ * base URL and refresh timer do not, so without this the restored credential would sit unused
+ * and the panel would report "not configured" -- which is what made an authenticated Upbit
+ * connection appear to drop itself on every restart. The endpoint is the canonical default,
+ * matching what the connection panel itself offers.
+ */
+export async function restoreUpbitReadOnlyAccount(baseUrl: string = UPBIT_LIVE_BASE_URL): Promise<UpbitReadOnlyState> {
+  if (activeBaseUrl != null) return currentState;
+  const token = await credentialSession.restore();
+  if (token == null || activeBaseUrl != null) return currentState;
+  activeBaseUrl = baseUrl.trim() || UPBIT_LIVE_BASE_URL;
+  const generation = sessionGeneration;
+  const next = await refreshUpbitReadOnlyAccount();
+  if (generation !== sessionGeneration) return currentState;
+  if (next.status === "READY" || next.status === "STALE") startRefreshTimer();
+  return next;
+}
+
 export async function refreshUpbitReadOnlyAccount(): Promise<UpbitReadOnlyState> {
   if (refreshInFlight) return refreshInFlight;
   if (!activeBaseUrl || !credentialSession.isConfigured()) {
