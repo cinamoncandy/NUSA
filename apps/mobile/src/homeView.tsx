@@ -304,7 +304,7 @@ export function HomeView({
 
 const styles = StyleSheet.create({
   shell: { flex: 1 },
-  content: { width: "100%", alignSelf: "center", paddingHorizontal: 16, paddingTop: 6, paddingBottom: 28, gap: 12 },
+  content: { width: "100%", alignSelf: "center", paddingHorizontal: 16, paddingTop: 6, paddingBottom: 32, gap: 12 },
   appBar: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   brandLockup: { flexDirection: "row", alignItems: "center", gap: 9 },
   liveDot: { width: 7, height: 7, borderRadius: 999 },
