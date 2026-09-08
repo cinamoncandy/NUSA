@@ -1,6 +1,6 @@
 id: WO-20260907-AUTHENTICATED-RATE-LIMIT-ISOLATION
 title: "Cloud PAPER authenticated rate-limit isolation"
-status: MERGED_HOST_DEPLOYMENT_UNVERIFIED
+status: VERIFYING
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -17,6 +17,7 @@ architecture_impact:
 scope:
   - authenticated_and_anonymous_bounded_limiter_lanes
   - verified_user_pre_limit_selection
+  - side_effect_free_pre_limit_identity_classification
   - regression_for_anonymous_exhaustion
 prohibited:
   - token_bypass
@@ -35,6 +36,8 @@ acceptance:
   - verified_user_remains_reachable_when_anonymous_lane_is_exhausted
   - existing_shared_limiter_injection_contract_remains_compatible
   - no_authority_or_execution_surface_change
+  - pre_limit_classification_does_not_register_or_touch_user_state
+  - approved_bearer_mark_seen_occurs_once_in_handler_authorization
 validation:
   focused_http_regression: PASS_12_OF_12
   build: PASS
@@ -43,6 +46,8 @@ validation:
   security_gate: PASS_SECRETS_0
   safety_invariants: PASS
   git_diff_check: PASS
+  focused_prelimit_purity_regression: PASS_LOCAL
+  exact_head_ci_refresh: PENDING
 pull_request:
   number: 1760
   url: "https://github.com/cinamoncandy/NUSA/pull/1760"
@@ -50,5 +55,6 @@ pull_request:
   merge_commit: 7eb91e911fcb4b9f4b56ad7bded22d80eb988baf
   exact_head_ci: PASS
 remaining:
-  - "HUMAN_ENVIRONMENT_ONLY: The public DuckDNS Node PAPER host returned repeated unauthenticated /ready 429 responses on 2026-09-07 and does not expose an exact source revision. An authorized host operator must deploy merge commit 7eb91e911fcb4b9f4b56ad7bded22d80eb988baf and verify authenticated read-only reachability without exposing the dashboard token."
-next: "Keep the repository rate-limit isolation in force. Do not claim public-host remediation until the external Node PAPER host has been atomically redeployed and read-only verified."
+  - "Fresh exact-head CI for side-effect-free pre-limit classification."
+  - "Redeploy the resulting protected-main descendant to Oracle and re-verify authenticated PAPER read-only safety projections."
+next: "Require fresh exact-head CI, merge only the verified head, then redeploy Oracle and promote this work-order to VERIFIED with durable deployment evidence."
