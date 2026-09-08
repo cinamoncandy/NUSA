@@ -61,8 +61,6 @@ jobs:
           base_repo="$(jq -r '.base.repo.full_name // empty' "$RUNNER_TEMP/nusa-deterministic-audit/pr.json")"
           current_main="$(jq -r '.commit.sha // empty' "$RUNNER_TEMP/nusa-deterministic-audit/main.json")"
 
-          # Draft PRs intentionally have no deterministic Release authority. Treat them as
-          # non-applicable instead of emitting a false-red merge failure from GitHub HTTP 405.
           if [ "$current_state" != "open" ] || [ "$current_draft" = "true" ] || [ "$current_head" != "$REQUESTED_HEAD" ] || [ "$base_ref" != "main" ] || [ "$base_repo" != "$GITHUB_REPOSITORY" ] || [ "$current_base" != "$current_main" ]; then
             echo 'applicable=false' >> "$GITHUB_OUTPUT"
             echo 'authority=NONE' >> "$GITHUB_OUTPUT"
@@ -91,15 +89,9 @@ jobs:
             "Restricted LIVE Activation Rehearsal"
           )
 
-          # CI completion can reach Audit before the independent exact-head workflows
-          # finish or before a proven transient run is retried. Wait for evidence to
-          # converge, but authorize Release only when every required workflow is
-          # successful on the unchanged requested head.
           required_ready=false
           for poll in $(seq 1 30); do
-            gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$REQUESTED_HEAD&event=pull_request&per_page=100" \
-              > "$RUNNER_TEMP/nusa-deterministic-audit/exact-head-runs.json"
-
+            gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$REQUESTED_HEAD&event=pull_request&per_page=100" > "$RUNNER_TEMP/nusa-deterministic-audit/exact-head-runs.json"
             required_ready=true
             for required in "${required_workflows[@]}"; do
               conclusion="$(jq -r --arg name "$required" --arg head "$REQUESTED_HEAD" '
@@ -111,21 +103,17 @@ jobs:
                 echo "Waiting for exact-head workflow: $required (conclusion=${conclusion:-pending}, poll $poll/30)"
               fi
             done
-
-            if [ "$required_ready" = "true" ]; then
-              break
-            fi
+            if [ "$required_ready" = "true" ]; then break; fi
             sleep 10
           done
-
           if [ "$required_ready" != "true" ]; then
             echo "Required exact-head workflows did not converge to success before the bounded Audit deadline." >&2
             exit 1
           fi
 
-          # Workflow SUCCESS is only a transport-level signal. Bind deterministic Release
-          # authority to immutable exact-head PAPER evidence, but keep runtime safety
-          # independent from stochastic autonomous order/fill/PnL completion.
+          # Workflow SUCCESS is transport-level only. Release remains bound to immutable
+          # exact-head PAPER safety/provenance evidence; stochastic order/fill/PnL completion
+          # remains a separate readiness certification and is never manufactured here.
           paper_run_id="$(jq -r --arg head "$REQUESTED_HEAD" '
             [.workflow_runs[] | select(
               .name == "Actual PAPER Public-Market Runtime Evidence" and
@@ -169,23 +157,18 @@ jobs:
           paper_evidence="$(find "$RUNNER_TEMP/nusa-deterministic-audit/paper" -type f -name 'actual-paper-runtime-e2e.json' -print -quit)"
           test -n "$paper_evidence"
 
-          # Never execute validator code from the PR head. Fetch the validator from the
-          # already-bound audited base so a PR cannot self-authorize by weakening checks.
+          # Validator is always fetched from the already-bound audited main base. PR-head
+          # code can never weaken this validation and self-authorize Release.
           paper_validator="$RUNNER_TEMP/nusa-deterministic-audit/validate-deterministic-paper-audit-evidence.js"
-          gh api "repos/$GITHUB_REPOSITORY/contents/scripts/validate-deterministic-paper-audit-evidence.js?ref=$current_main" --jq '.content' \
-            | base64 --decode > "$paper_validator"
+          gh api "repos/$GITHUB_REPOSITORY/contents/scripts/validate-deterministic-paper-audit-evidence.js?ref=$current_main" --jq '.content' | base64 --decode > "$paper_validator"
           node "$paper_validator" "$paper_evidence" "$REQUESTED_HEAD" "$paper_run_id" "$paper_artifact_id" "$paper_artifact_name" "$paper_artifact_digest"
 
           final_pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
           final_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
-          final_state="$(jq -r '.state' <<<"$final_pr")"
-          final_draft="$(jq -r '.draft // false' <<<"$final_pr")"
-          final_head="$(jq -r '.head.sha' <<<"$final_pr")"
-          final_base="$(jq -r '.base.sha' <<<"$final_pr")"
-          test "$final_state" = "open"
-          test "$final_draft" = "false"
-          test "$final_head" = "$REQUESTED_HEAD"
-          test "$final_base" = "$current_main"
+          test "$(jq -r '.state' <<<"$final_pr")" = "open"
+          test "$(jq -r '.draft // false' <<<"$final_pr")" = "false"
+          test "$(jq -r '.head.sha' <<<"$final_pr")" = "$REQUESTED_HEAD"
+          test "$(jq -r '.base.sha' <<<"$final_pr")" = "$current_main"
           test "$final_main" = "$current_main"
 
           echo 'applicable=true' >> "$GITHUB_OUTPUT"
@@ -201,6 +184,7 @@ jobs:
     if: ${{ needs.audit.result == 'success' && needs.audit.outputs.applicable == 'true' && needs.audit.outputs.authority == 'DETERMINISTIC_AUDIT_PASS' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    environment: nusa-release-authority
     concurrency:
       group: deterministic-release-main
       cancel-in-progress: false
@@ -213,6 +197,9 @@ jobs:
       PR_NUMBER: ${{ github.event.client_payload.pr_number }}
       EXPECTED_HEAD: ${{ github.event.client_payload.head_sha }}
       AUDITED_BASE: ${{ needs.audit.outputs.audited_base }}
+      NUSA_RELEASE_AUTHORITY_APP_ID: ${{ secrets.NUSA_RELEASE_AUTHORITY_APP_ID }}
+      NUSA_RELEASE_AUTHORITY_PRIVATE_KEY: ${{ secrets.NUSA_RELEASE_AUTHORITY_PRIVATE_KEY }}
+      RELEASE_AUTHORITY_TARGET_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
       - name: Re-verify expected head and audited base
         run: |
@@ -226,15 +213,60 @@ jobs:
           test "$(jq -r '.base.sha' <<<"$pr")" = "$AUDITED_BASE"
           test "$main" = "$AUDITED_BASE"
 
+      - name: Publish dedicated-App exact-head merge authorization
+        id: release_authority
+        run: |
+          set -euo pipefail
+          app_id="$(printf '%s' "${NUSA_RELEASE_AUTHORITY_APP_ID:-}" | tr -d '[:space:]')"
+          private_key="${NUSA_RELEASE_AUTHORITY_PRIVATE_KEY:-}"
+          if [ -z "$app_id" ] && [ -z "$private_key" ]; then
+            echo 'configured=false' >> "$GITHUB_OUTPUT"
+            echo 'Release authority App is not configured yet; canonical Release continues in bootstrap mode.'
+            exit 0
+          fi
+          if [ -z "$app_id" ] || [ -z "$private_key" ]; then
+            echo '::error::Release authority GitHub App configuration is partial.'
+            exit 1
+          fi
+
+          # Recheck immediately before issuing the status that repository protection will trust.
+          pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          test "$(jq -r '.state' <<<"$pr")" = "open"
+          test "$(jq -r '.draft // false' <<<"$pr")" = "false"
+          test "$(jq -r '.head.sha' <<<"$pr")" = "$EXPECTED_HEAD"
+          test "$(jq -r '.base.ref' <<<"$pr")" = "main"
+          test "$(jq -r '.base.sha' <<<"$pr")" = "$AUDITED_BASE"
+          test "$main" = "$AUDITED_BASE"
+
+          helper="$RUNNER_TEMP/publish-release-authority-status.js"
+          gh api "repos/$GITHUB_REPOSITORY/contents/scripts/publish-release-authority-status.js?ref=$AUDITED_BASE" --jq '.content' | base64 --decode > "$helper"
+          node "$helper" \
+            --repo "$GITHUB_REPOSITORY" \
+            --sha "$EXPECTED_HEAD" \
+            --state success \
+            --audited-base "$AUDITED_BASE" \
+            --pr "$PR_NUMBER" \
+            --target-url "$RELEASE_AUTHORITY_TARGET_URL"
+          echo 'configured=true' >> "$GITHUB_OUTPUT"
+          echo "Dedicated release authority published for exact head $EXPECTED_HEAD and audited base $AUDITED_BASE."
+
       - name: Canonical expected-head merge
         id: merge
         run: |
           set -euo pipefail
 
-          # A competing authorized merge path can win the exact same expected-head race
-          # after Release re-verifies the audited base. Never treat the API error itself as
-          # success: accept only a subsequently proven canonical merge commit whose two
-          # parents are exactly AUDITED_BASE and EXPECTED_HEAD and which remains on main.
+          # One final no-stale-head/no-stale-base recheck closes the race between status
+          # publication and the SHA-bound merge API call.
+          premerge_pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          premerge_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          test "$(jq -r '.state' <<<"$premerge_pr")" = "open"
+          test "$(jq -r '.draft // false' <<<"$premerge_pr")" = "false"
+          test "$(jq -r '.head.sha' <<<"$premerge_pr")" = "$EXPECTED_HEAD"
+          test "$(jq -r '.base.ref' <<<"$premerge_pr")" = "main"
+          test "$(jq -r '.base.sha' <<<"$premerge_pr")" = "$AUDITED_BASE"
+          test "$premerge_main" = "$AUDITED_BASE"
+
           merge_api_ok=false
           if result="$(gh api --method PUT "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/merge" -f sha="$EXPECTED_HEAD" -f merge_method=merge)"; then
             if jq -e '.merged == true' <<<"$result" >/dev/null; then
@@ -260,14 +292,12 @@ jobs:
               parent_count="$(jq -r '.parents | length' <<<"$merge_commit")"
               parent_base="$(jq -r '.parents[0].sha // empty' <<<"$merge_commit")"
               parent_head="$(jq -r '.parents[1].sha // empty' <<<"$merge_commit")"
-
               if [ "$parent_count" = "2" ] && [ "$parent_base" = "$AUDITED_BASE" ] && [ "$parent_head" = "$EXPECTED_HEAD" ]; then
                 current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
                 if [ "$current_main" = "$merge_sha" ]; then
                   verified_merge_sha="$merge_sha"
                   break
                 fi
-
                 ancestry="$(gh api "repos/$GITHUB_REPOSITORY/compare/$merge_sha...$current_main" --jq '.status' 2>/dev/null || true)"
                 if [ "$ancestry" = "ahead" ]; then
                   verified_merge_sha="$merge_sha"
@@ -275,7 +305,6 @@ jobs:
                 fi
               fi
             fi
-
             echo "Waiting for exact-head merge race to settle (poll $poll/5)..."
             sleep 1
           done
@@ -294,6 +323,23 @@ jobs:
           echo 'liveAuthority=NONE'
           echo 'productionMutationAllowed=false'
           echo 'aiAuthority=ZERO_AUTHORITY'
+
+      - name: Revoke dedicated-App authorization if canonical merge failed
+        if: ${{ failure() && steps.release_authority.outputs.configured == 'true' && steps.merge.outcome == 'failure' }}
+        run: |
+          set -euo pipefail
+          helper="$RUNNER_TEMP/publish-release-authority-status.js"
+          if [ ! -f "$helper" ]; then
+            gh api "repos/$GITHUB_REPOSITORY/contents/scripts/publish-release-authority-status.js?ref=$AUDITED_BASE" --jq '.content' | base64 --decode > "$helper"
+          fi
+          node "$helper" \
+            --repo "$GITHUB_REPOSITORY" \
+            --sha "$EXPECTED_HEAD" \
+            --state error \
+            --audited-base "$AUDITED_BASE" \
+            --pr "$PR_NUMBER" \
+            --target-url "$RELEASE_AUTHORITY_TARGET_URL"
+          echo "Revoked dedicated release authorization after canonical merge failure."
 
       - name: Start canonical post-merge main CI
         id: ci
@@ -316,11 +362,6 @@ jobs:
           MERGED_MAIN: ${{ steps.ci.outputs.merged_main }}
         run: |
           set -euo pipefail
-          # A GITHUB_TOKEN-dispatched CI does not reliably fan out through workflow_run.
-          # Treat CI attempts as a retryable exact-head state machine: any successful
-          # attempt authorizes deployment, while a failed attempt is rerun in-place up to
-          # three total attempts. This prevents a transient first failure from permanently
-          # severing the canonical Release handoff.
           success=false
           for poll in $(seq 1 40); do
             current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
@@ -346,7 +387,6 @@ jobs:
 
             failed_run_id="$(jq -r --arg sha "$MERGED_MAIN" '[.workflow_runs[] | select(.name == "CI" and .path == ".github/workflows/ci.yml" and .head_sha == $sha and .status == "completed" and (.conclusion == "failure" or .conclusion == "timed_out" or .conclusion == "cancelled"))] | sort_by(.updated_at) | reverse | .[0].id // empty' <<<"$runs")"
             failed_attempt="$(jq -r --arg sha "$MERGED_MAIN" '[.workflow_runs[] | select(.name == "CI" and .path == ".github/workflows/ci.yml" and .head_sha == $sha and .status == "completed" and (.conclusion == "failure" or .conclusion == "timed_out" or .conclusion == "cancelled"))] | sort_by(.updated_at) | reverse | .[0].run_attempt // 0' <<<"$runs")"
-
             if [ -n "$failed_run_id" ]; then
               if [ "$failed_attempt" -ge 3 ]; then
                 echo "::error::Post-merge CI retry budget exhausted for $MERGED_MAIN after attempt $failed_attempt."
@@ -359,7 +399,6 @@ jobs:
               sleep 20
               continue
             fi
-
             echo "Waiting for post-merge CI run creation on $MERGED_MAIN (poll $poll/40)..."
             sleep 20
           done
@@ -368,13 +407,11 @@ jobs:
             echo "::error::Post-merge CI for $MERGED_MAIN produced no successful attempt before timeout."
             exit 1
           fi
-
           current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           if [ "$current_main" != "$MERGED_MAIN" ]; then
             echo "Main advanced after CI recovery; newer convergence chain owns deployment."
             exit 0
           fi
-
           echo "Post-merge CI verified for $MERGED_MAIN; dispatching Cloudflare Deploy directly."
           gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-cloudflare-deploy.yml/dispatches" -f ref=main -f "inputs[head_sha]=$MERGED_MAIN"
 
@@ -388,17 +425,8 @@ jobs:
             echo "Main advanced from $MERGED_MAIN to $CURRENT_MAIN; newer Release chain owns post-merge evidence."
             exit 0
           fi
-
-          # GITHUB_TOKEN-created merge/dispatch events do not reliably trigger downstream
-          # push/workflow_run listeners. Dispatch the canonical runtime proof explicitly.
           gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/wo-0059-actual-paper-runtime.yml/dispatches" -f ref=main
-
           gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-cloudflare-promote.yml/dispatches" -f ref=main -f "inputs[head_sha]=$MERGED_MAIN"
-
-          # Route Android through the bounded exact-main CI trigger instead of calling the
-          # stable-release workflow directly. The trigger polls CI, detects main drift,
-          # deduplicates active releases, and fails closed before promotion.
           gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/android-stable-release-trigger.yml/dispatches" -f ref=main
           gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/windows-desktop-stable-release.yml/dispatches" -f ref=main
-
           echo "Dispatched Actual PAPER runtime evidence, Cloudflare Promote, Android stable trigger, and Windows Desktop Stable Release for $MERGED_MAIN."
