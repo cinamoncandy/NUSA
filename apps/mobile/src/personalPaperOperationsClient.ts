@@ -5,7 +5,12 @@ import {
 import { getConfiguredPaperEndpoint, isPaperConnectionVerified } from "./paperConnectionSession";
 import { takeLastCredentialFailure } from "./dashboardCredentialSession";
 
-export type DashboardCredentialProvider = () => Promise<string | null>;
+export type DashboardProjectionOutcome = "READY" | "PROJECTION_UNAVAILABLE" | "AUTH_REJECTED";
+
+export interface DashboardCredentialProvider {
+  (): Promise<string | null>;
+  noteProjectionResult?: (outcome: DashboardProjectionOutcome) => void;
+}
 
 export type PersonalPaperOperationsLoadResult =
   | { readonly status: "READY"; readonly snapshot: PersonalPaperOperationsSnapshot }
@@ -22,6 +27,10 @@ export interface PersonalPaperOperationsClientOptions {
 }
 
 export const unavailableDashboardCredentialProvider: DashboardCredentialProvider = async () => null;
+
+function noteProjectionResult(provider: DashboardCredentialProvider, outcome: DashboardProjectionOutcome): void {
+  provider.noteProjectionResult?.(outcome);
+}
 
 function normalizeEndpoint(value: string): string { return value.trim().replace(/\/+$/, ""); }
 function isSecureDashboardEndpoint(baseUrl: string): boolean {
@@ -85,17 +94,28 @@ export async function loadPersonalPaperOperations(options: PersonalPaperOperatio
     })();
     const timeout = new Promise<never>((_, reject) => { timeoutHandle = setTimeout(() => { controller.abort(); reject(new Error("PAPER operations request timed out.")); }, timeoutMs); });
     const response = await Promise.race([operation, timeout]);
-    if (!response.ok) return Object.freeze({ status: "UNAVAILABLE", reason: `PAPER operations unavailable (${response.status}).` });
+    if (!response.ok) {
+      noteProjectionResult(options.credentialProvider, response.status === 401 || response.status === 403 ? "AUTH_REJECTED" : "PROJECTION_UNAVAILABLE");
+      return Object.freeze({ status: "UNAVAILABLE", reason: `PAPER operations unavailable (${response.status}).` });
+    }
     const payload: unknown = await response.json();
     const currentToken = await options.credentialProvider();
     const endpointStillCurrent = getConfiguredPaperEndpoint() === configured;
     const verificationStillCurrent = options.allowUnverifiedEndpoint === true || isPaperConnectionVerified(configured);
     if (!endpointStillCurrent || !verificationStillCurrent || currentToken == null || currentToken.trim() !== requestToken) {
+      noteProjectionResult(options.credentialProvider, "PROJECTION_UNAVAILABLE");
       return Object.freeze({ status: "UNAVAILABLE", reason: "PAPER connection changed while the request was in flight." });
     }
-    try { return Object.freeze({ status: "READY", snapshot: validatePersonalPaperOperationsSnapshot(payload as PersonalPaperOperationsSnapshot) }); }
-    catch { return Object.freeze({ status: "UNAVAILABLE", reason: "Invalid or stale PAPER operations snapshot." }); }
+    try {
+      const snapshot = validatePersonalPaperOperationsSnapshot(payload as PersonalPaperOperationsSnapshot);
+      noteProjectionResult(options.credentialProvider, "READY");
+      return Object.freeze({ status: "READY", snapshot });
+    } catch {
+      noteProjectionResult(options.credentialProvider, "PROJECTION_UNAVAILABLE");
+      return Object.freeze({ status: "UNAVAILABLE", reason: "Invalid or stale PAPER operations snapshot." });
+    }
   } catch (error) {
+    noteProjectionResult(options.credentialProvider, "PROJECTION_UNAVAILABLE");
     return Object.freeze({ status: "UNAVAILABLE", reason: error instanceof Error ? error.message : "PAPER operations connection is unavailable." });
   } finally {
     if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);

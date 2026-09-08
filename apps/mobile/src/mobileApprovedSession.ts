@@ -231,10 +231,14 @@ export class MobileApprovedSession {
   }
 
   public async disconnect(baseUrl?: string): Promise<void> {
-    const endpoint = baseUrl == null ? this.endpoint : secureEndpoint(baseUrl);
+    // Credential destruction is authoritative and must not depend on whether a caller supplied a
+    // malformed/insecure historical endpoint. Capture the candidate first, destroy local state,
+    // then validate only for the optional best-effort remote revoke.
+    const candidateEndpoint = baseUrl == null ? this.endpoint : baseUrl;
     const access = this.accessToken;
     await this.clearLocal();
     try {
+      const endpoint = candidateEndpoint == null ? null : secureEndpoint(candidateEndpoint);
       if (endpoint != null && access != null) {
         await requestJson(this.request, `${endpoint}/v1/mobile/session/revoke`, { method: "POST", headers: { authorization: `Bearer ${access}` }, body: "{}" });
       }
