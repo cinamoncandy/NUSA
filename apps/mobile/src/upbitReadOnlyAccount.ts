@@ -105,7 +105,12 @@ export async function refreshUpbitReadOnlyAccount(): Promise<UpbitReadOnlyState>
     } catch (error) {
       if (generation !== sessionGeneration) return currentState;
       const detail = error instanceof Error ? error.message : "Upbit bridge connection failed.";
-      const monitorStatus = previous ? "STALE" : classifyMonitorFailure(detail);
+      const classified = classifyMonitorFailure(detail);
+      const monitorStatus = classified === "AUTH_ERROR" ? "AUTH_ERROR" : previous ? "STALE" : classified;
+      if (monitorStatus === "AUTH_ERROR") {
+        credentialSession.clear();
+        stopRefreshTimer();
+      }
       const next: UpbitReadOnlyState = {
         status: previous ? "STALE" : "ERROR",
         monitorStatus,
