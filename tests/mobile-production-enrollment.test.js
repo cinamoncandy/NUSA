@@ -56,10 +56,16 @@ test("enrollment rejects unauthenticated, inactive, malformed, and non-POST requ
   try {
     const dependencies = { sessionService: service, legacyTokenVerifier, userAccessRepository: users };
     assert.equal(handleMobileEnrollmentHttp({ method: "GET", headers: {} }, dependencies).status, 405);
-    assert.equal(handleMobileEnrollmentHttp({ method: "POST", headers: {} , body: "{}" }, dependencies).status, 403);
+    // A request with no credential is unauthenticated, not forbidden. These were one
+    // indistinguishable 403 until enrollment began naming which refusal applied.
+    const anonymous = handleMobileEnrollmentHttp({ method: "POST", headers: {} , body: "{}" }, dependencies);
+    assert.equal(anonymous.status, 401);
+    assert.equal(JSON.parse(anonymous.body).error, "NO_CREDENTIAL");
     assert.equal(handleMobileEnrollmentHttp({ method: "POST", headers: { authorization: "Bearer approved-user-token-1234567890" }, body: JSON.stringify({ deviceId: "bad" }) }, dependencies).status, 400);
     users.changeStatus({ actorUserId: "owner", targetUserId: "user", action: "SUSPEND" });
-    assert.equal(handleMobileEnrollmentHttp({ method: "POST", headers: { authorization: "Bearer approved-user-token-1234567890" }, body: JSON.stringify({ deviceId: "nusa-install-test-device-1234" }) }, dependencies).status, 403);
+    const suspended = handleMobileEnrollmentHttp({ method: "POST", headers: { authorization: "Bearer approved-user-token-1234567890" }, body: JSON.stringify({ deviceId: "nusa-install-test-device-1234" }) }, dependencies);
+    assert.equal(suspended.status, 403, "an authenticated but suspended account is forbidden");
+    assert.equal(JSON.parse(suspended.body).error, "USER_NOT_ACTIVE");
   } finally { db.close(); }
 });
 

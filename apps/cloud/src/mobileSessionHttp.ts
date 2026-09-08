@@ -60,18 +60,38 @@ function authorizeOwner(request: DashboardHttpRequest, dependencies: MobileSessi
   return principal;
 }
 
-function authorizeActiveUser(request: DashboardHttpRequest, dependencies: MobileSessionHttpDependencies): DashboardPrincipal | undefined {
+/**
+ * Why enrollment was refused. Every one of these used to collapse into a single
+ * `USER_NOT_ACTIVE`, which made a rejected credential, an unregistered account, an account
+ * awaiting approval, and a mismatched identity indistinguishable from outside -- including in
+ * the operator's own logs. Each names a state of the caller's own account, so none of them
+ * tells an unauthenticated caller anything about the server it could not already attempt.
+ */
+export type MobileEnrollmentRefusal =
+  | "NO_CREDENTIAL"
+  | "CREDENTIAL_REJECTED"
+  | "USER_NOT_REGISTERED"
+  | "USER_NOT_ACTIVE"
+  | "USER_IDENTITY_MISMATCH";
+
+export function authorizeActiveUserResult(
+  request: DashboardHttpRequest,
+  dependencies: MobileSessionHttpDependencies
+): { readonly principal: DashboardPrincipal } | { readonly refusal: MobileEnrollmentRefusal } {
   const token = bearer(request.headers.authorization ?? request.headers.Authorization);
-  if (token == null) return undefined;
+  if (token == null) return { refusal: "NO_CREDENTIAL" };
   let principal = dependencies.legacyTokenVerifier.verify(token);
   if (principal == null && matchesMobileEnrollmentTokenHash(token)) {
     principal = dependencies.legacyTokenVerifier.ownerPrincipal;
   }
-  if (principal == null || !principal.userId.trim() || !principal.email?.trim()) return undefined;
+  if (principal == null || !principal.userId.trim() || !principal.email?.trim()) return { refusal: "CREDENTIAL_REJECTED" };
   const user = dependencies.userAccessRepository.get(principal.userId.trim());
-  if (!isUserAllowed(user) || user!.email !== principal.email.trim().toLowerCase()) return undefined;
-  return principal;
+  if (user == null) return { refusal: "USER_NOT_REGISTERED" };
+  if (!isUserAllowed(user)) return { refusal: "USER_NOT_ACTIVE" };
+  if (user.email !== principal.email.trim().toLowerCase()) return { refusal: "USER_IDENTITY_MISMATCH" };
+  return { principal };
 }
+
 
 /**
  * First-run enrollment for an already authenticated, approved user. The
@@ -81,9 +101,15 @@ function authorizeActiveUser(request: DashboardHttpRequest, dependencies: Mobile
 export function handleMobileEnrollmentHttp(request: DashboardHttpRequest & { readonly body?: string }, dependencies: MobileSessionHttpDependencies): DashboardHttpResponse {
   const methodError = methodOnly(request, "POST");
   if (methodError) return methodError;
-  let principal: DashboardPrincipal | undefined;
-  try { principal = authorizeActiveUser(request, dependencies); } catch { return dashboardJsonResponse(401, { error: "UNAUTHORIZED" }); }
-  if (principal == null) return dashboardJsonResponse(403, { error: "USER_NOT_ACTIVE" });
+  let outcome: ReturnType<typeof authorizeActiveUserResult>;
+  try { outcome = authorizeActiveUserResult(request, dependencies); } catch { return dashboardJsonResponse(401, { error: "UNAUTHORIZED" }); }
+  if (!("principal" in outcome)) {
+    // A missing or rejected credential is 401; a credential that authenticated but whose account
+    // cannot enroll is 403, and says which state that is.
+    const unauthenticated = outcome.refusal === "NO_CREDENTIAL" || outcome.refusal === "CREDENTIAL_REJECTED";
+    return dashboardJsonResponse(unauthenticated ? 401 : 403, { error: outcome.refusal });
+  }
+  const principal = outcome.principal;
   const input = jsonObject(request.body);
   const deviceId = typeof input?.deviceId === "string" ? input.deviceId.trim() : "";
   if (deviceId.length < 8 || deviceId.length > 256 || /[\r\n]/.test(deviceId)) return dashboardJsonResponse(400, { error: "INVALID_MOBILE_ENROLLMENT_REQUEST" });

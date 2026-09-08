@@ -10,6 +10,7 @@ let pendingBootstrapToken: string | null = null;
 let lastAuthenticatedBootstrapToken: string | null = null;
 let projectionFailureProtectedSession = false;
 let lastCredentialFailure: string | null = null;
+let pendingDisconnect: Promise<void> | null = null;
 const MAX_FAILURE_REASON_LENGTH = 300;
 
 /**
@@ -21,6 +22,11 @@ const MAX_FAILURE_REASON_LENGTH = 300;
  */
 export function describeCredentialFailure(error: unknown): string {
   if (error instanceof MobileSessionRequestError) {
+    // The server names which account state refused enrollment, so the operator is pointed at the
+    // account rather than at the token when the token was in fact accepted.
+    if (error.refusal === "USER_NOT_REGISTERED") return "서버에 이 소유자 계정이 등록되어 있지 않습니다. 서버의 소유자 설정을 확인하세요.";
+    if (error.refusal === "USER_NOT_ACTIVE") return "소유자 계정이 ACTIVE 상태가 아닙니다. 서버에서 계정을 승인해야 합니다.";
+    if (error.refusal === "USER_IDENTITY_MISMATCH") return "토큰의 소유자 정보가 서버에 저장된 계정과 일치하지 않습니다.";
     if (error.status === 401 || error.status === 403) return "연결 토큰이 만료되었거나 이미 사용되었습니다. 새 토큰을 발급받아 다시 입력하세요.";
     if (error.status === 429) return "서버가 요청을 일시적으로 제한하고 있습니다. 잠시 후 다시 시도하세요.";
     if (error.status >= 500) return `서버가 응답하지 못했습니다 (HTTP ${error.status}). 잠시 후 다시 시도하세요.`;
@@ -123,7 +129,10 @@ export class InMemoryDashboardCredentialSession {
       return;
     }
     lastAuthenticatedBootstrapToken = null;
-    void session.disconnect(endpoint ?? undefined);
+    // Tracked so a caller that immediately re-establishes a session can wait for the wipe to
+    // finish. Left unawaited, the pending deleteSecret could land after a fresh session was
+    // persisted and erase it.
+    pendingDisconnect = session.disconnect(endpoint ?? undefined).catch(() => { /* local state is already cleared */ });
     session.clearMemory();
   }
 
@@ -131,6 +140,9 @@ export class InMemoryDashboardCredentialSession {
     const endpoint = sharedEndpoint;
     if (endpoint == null) throw new Error("Cloud PAPER origin is not configured for this build.");
     pendingBootstrapToken = null;
+    // Enrollment normally follows clear(), whose secure-storage wipe is still in flight. Waiting
+    // for it keeps that wipe from deleting the session this enrollment is about to persist.
+    if (pendingDisconnect != null) { const inFlight = pendingDisconnect; pendingDisconnect = null; await inFlight; }
     const session = mobileApprovedSession();
     await session.enroll(endpoint, userCredential, deviceId);
   }
