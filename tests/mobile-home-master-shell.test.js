@@ -40,6 +40,9 @@ test("HOME terminal fold prioritizes dense truthful evidence without synthetic f
   assert.match(home, /NO VERIFIED ORDERBOOK FEED/);
   assert.match(home, /NEWS \/ ECON/);
   assert.match(home, /NO VERIFIED FEED/);
+  assert.match(home, /const pnlSourceLabel = totalPnl != null && Number\.isFinite\(totalPnl\) && accountSource/);
+  assert.match(home, />\{pnlSourceLabel\}<\/Text>/);
+  assert.doesNotMatch(home, />VERIFIED PAPER ONLY<\/Text>/);
   assert.doesNotMatch(home, /fake|fabricated|synthetic/i);
 });
 
