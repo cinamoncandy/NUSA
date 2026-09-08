@@ -185,10 +185,10 @@ export function HomeView({
 
       <View style={styles.hero} testID="home-now">
         <View style={styles.heroHeader}>
-          <Text style={[styles.eyebrow, { color: theme.colors.primary }]}>NOW · OPERATIONS</Text>
+          <Text style={[styles.eyebrow, { color: theme.colors.primary }]}>NOW</Text>
           <Text style={[styles.heroState, { color: systemColor }]}>{connectionLabel}</Text>
         </View>
-        <Text style={[styles.heroTitle, { color: systemColor }]}>{posture}</Text>
+        <Text style={[styles.nowHeadline, { color: systemColor }]}>{posture}</Text>
         <Text style={[styles.heroDetail, { color: theme.colors.textMuted }]} numberOfLines={2}>{why}</Text>
         <View style={styles.heroChips}>
           <View style={[styles.chip, { backgroundColor: theme.colors.surfaceSunken }]}><Text style={[styles.chipLabel, { color: theme.colors.textMuted }]}>PAPER ONLY</Text></View>
@@ -324,7 +324,7 @@ const styles = StyleSheet.create({
   heroHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
   heroState: { fontSize: 8, lineHeight: 12, fontWeight: "900", letterSpacing: 0.85 },
   eyebrow: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.45 },
-  heroTitle: { maxWidth: 720, fontSize: 20, lineHeight: 27, fontWeight: "800", letterSpacing: -0.55 },
+  nowHeadline: { maxWidth: 720, fontSize: 20, lineHeight: 27, fontWeight: "800", letterSpacing: -0.55 },
   heroDetail: { maxWidth: 760, fontSize: 12, lineHeight: 18, fontWeight: "600" },
   heroChips: { flexDirection: "row", gap: 6, flexWrap: "wrap", paddingTop: 1 },
   chip: { minHeight: 23, borderRadius: 999, paddingHorizontal: 8, alignItems: "center", justifyContent: "center" },
