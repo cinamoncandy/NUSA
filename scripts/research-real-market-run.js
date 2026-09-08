@@ -27,8 +27,6 @@ const DONCHIAN_FAMILY_ID = "donchian-breakout";
 const STRATEGY_FAMILY_ID = SMA_FAMILY_ID; // legacy export/default identity
 const MARKET = "KRW-BTC";
 const RESEARCH_MARKET_SET_VERSION = "upbit-public-daily-2000-v2";
-// Availability-only cohort: each predeclared market had at least 2000 completed public
-// daily candles at v2 declaration time. This identity is never selected from returns.
 const RESEARCH_MARKETS = Object.freeze(["KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-ADA", "KRW-DOGE"]);
 const DEFAULT_CANDLE_COUNT = 2000;
 const DAY_MS = 86_400_000;
@@ -57,9 +55,15 @@ const WALK_FORWARD_CONFIG = {
 };
 
 const SMA_PARAMETER_NEIGHBORHOOD = Object.freeze([
-  Object.freeze({ shortPeriod: 2, longPeriod: 8 }), Object.freeze({ shortPeriod: 3, longPeriod: 10 }), Object.freeze({ shortPeriod: 4, longPeriod: 10 }),
-  Object.freeze({ shortPeriod: 3, longPeriod: 15 }), Object.freeze({ shortPeriod: 5, longPeriod: 15 }), Object.freeze({ shortPeriod: 5, longPeriod: 20 }),
-  Object.freeze({ shortPeriod: 5, longPeriod: 25 }), Object.freeze({ shortPeriod: 8, longPeriod: 20 }), Object.freeze({ shortPeriod: 10, longPeriod: 30 })
+  Object.freeze({ shortPeriod: 2, longPeriod: 8 }),
+  Object.freeze({ shortPeriod: 3, longPeriod: 10 }),
+  Object.freeze({ shortPeriod: 4, longPeriod: 10 }),
+  Object.freeze({ shortPeriod: 3, longPeriod: 15 }),
+  Object.freeze({ shortPeriod: 5, longPeriod: 15 }),
+  Object.freeze({ shortPeriod: 5, longPeriod: 20 }),
+  Object.freeze({ shortPeriod: 5, longPeriod: 25 }),
+  Object.freeze({ shortPeriod: 8, longPeriod: 20 }),
+  Object.freeze({ shortPeriod: 10, longPeriod: 30 })
 ]);
 
 const RSI_PARAMETER_NEIGHBORHOOD = Object.freeze([
@@ -70,8 +74,9 @@ const RSI_PARAMETER_NEIGHBORHOOD = Object.freeze([
   ])
 ]);
 
-// Precommitted in #1799 before canonical Donchian OOS results were observed.
-const DONCHIAN_PARAMETER_NEIGHBORHOOD = Object.freeze([10, 20, 30, 40, 55].map((channelPeriod) => Object.freeze({ channelPeriod })));
+const DONCHIAN_PARAMETER_NEIGHBORHOOD = Object.freeze(
+  [10, 20, 30, 40, 55].map((channelPeriod) => Object.freeze({ channelPeriod }))
+);
 
 function researchStrategyFamily(value = process.env.NUSA_RESEARCH_STRATEGY_FAMILY) {
   const normalized = String(value ?? SMA_FAMILY_ID).trim() || SMA_FAMILY_ID;
@@ -94,9 +99,21 @@ function strategyFactoryFor(familyId, parameters) {
 }
 
 function familyDefinition(familyId) {
-  if (familyId === SMA_FAMILY_ID) return Object.freeze({ familyId, lineageId: `${familyId}-v1`, canonicalFamily: "MOMENTUM", parameters: SMA_PARAMETER_NEIGHBORHOOD, thesis: "A short/long SMA crossover may identify a reproducible directional edge after explicit execution costs.", mechanism: "A moving-average crossover represents a precommitted persistence hypothesis whose directional signal is evaluated only on later candles." });
-  if (familyId === RSI_FAMILY_ID) return Object.freeze({ familyId, lineageId: `${familyId}-v1`, canonicalFamily: "MEAN_REVERSION", parameters: RSI_PARAMETER_NEIGHBORHOOD, thesis: "An RSI recovery from precommitted oversold/overbought bands may identify a reproducible mean-reversion edge after explicit execution costs.", mechanism: "The strategy waits for an extreme RSI state and trades only after the indicator crosses back inside its precommitted band, testing short-horizon mean reversion without lookahead." });
-  if (familyId === DONCHIAN_FAMILY_ID) return Object.freeze({ familyId, lineageId: `${familyId}-v1`, canonicalFamily: "MOMENTUM", parameters: DONCHIAN_PARAMETER_NEIGHBORHOOD, thesis: "A close breaking a precommitted prior-price channel may identify a reproducible directional persistence edge after explicit execution costs.", mechanism: "The strategy measures each close against a channel formed only from prior closes and trades only when state transitions into a new above-channel or below-channel breakout, preventing current-tick self-confirmation and lookahead." });
+  if (familyId === SMA_FAMILY_ID) return Object.freeze({
+    familyId, lineageId: `${familyId}-v1`, canonicalFamily: "MOMENTUM", parameters: SMA_PARAMETER_NEIGHBORHOOD,
+    thesis: "A short/long SMA crossover may identify a reproducible directional edge after explicit execution costs.",
+    mechanism: "A moving-average crossover represents a precommitted persistence hypothesis whose directional signal is evaluated only on later candles.",
+  });
+  if (familyId === RSI_FAMILY_ID) return Object.freeze({
+    familyId, lineageId: `${familyId}-v1`, canonicalFamily: "MEAN_REVERSION", parameters: RSI_PARAMETER_NEIGHBORHOOD,
+    thesis: "An RSI recovery from precommitted oversold/overbought bands may identify a reproducible mean-reversion edge after explicit execution costs.",
+    mechanism: "The strategy waits for an extreme RSI state and trades only after the indicator crosses back inside its precommitted band, testing short-horizon mean reversion without lookahead.",
+  });
+  if (familyId === DONCHIAN_FAMILY_ID) return Object.freeze({
+    familyId, lineageId: `${familyId}-v1`, canonicalFamily: "MOMENTUM", parameters: DONCHIAN_PARAMETER_NEIGHBORHOOD,
+    thesis: "A close breaking a precommitted prior-price channel may identify a reproducible directional persistence edge after explicit execution costs.",
+    mechanism: "The strategy measures each close against a channel formed only from prior closes and trades only when state transitions into a new above-channel or below-channel breakout, preventing current-tick self-confirmation and lookahead.",
+  });
   throw new Error(`unsupported strategy family: ${familyId}`);
 }
 
@@ -135,35 +152,70 @@ function buildParameterRobustnessRequest({ candles, manifest, strategyFamily = S
   throw new Error(`unsupported parameter robustness family: ${strategyFamily}`);
 }
 
-function requiredResearchSourceCommitSha() { const value = process.env.NUSA_SOURCE_COMMIT_SHA ?? process.env.GITHUB_SHA ?? ""; if (!/^[a-f0-9]{40}$/i.test(value)) throw new Error("real research run requires NUSA_SOURCE_COMMIT_SHA or GITHUB_SHA"); return value.toLowerCase(); }
-function requiredResearchCostModelVersion() { const value = process.env.NUSA_RESEARCH_COST_MODEL_VERSION ?? ""; if (!value.trim()) throw new Error("real research run requires NUSA_RESEARCH_COST_MODEL_VERSION"); return value.trim(); }
-function runProvenanceBoundExperiment({ id, familyId, parameters, candles, manifest, candidateSpecification }) { const rawExperiment = runWalkForwardExperiment({ candles, manifest }, [{ id, strategyFactory: strategyFactoryFor(familyId, parameters), parameters }], WALK_FORWARD_CONFIG, { generatedAt: candidateSpecification.evaluationStartedAt }); return { experiment: Object.freeze({ ...rawExperiment, generatedAt: candidateSpecification.evaluationEndedAt }), candidateSpecification }; }
-async function fetchDayCandlePage(path) { const response = await fetch(`https://api.upbit.com${path}`, { signal: AbortSignal.timeout(15_000) }); if (!response.ok) throw new Error(`Upbit request failed: HTTP ${response.status}`); const body = await response.json(); if (!Array.isArray(body) || body.length === 0) throw new Error("Upbit returned no candles"); return body; }
-function researchCandleCount(value = process.env.NUSA_RESEARCH_CANDLE_COUNT) { if (value === undefined) return DEFAULT_CANDLE_COUNT; if (!/^\d+$/.test(String(value)) || !Number.isInteger(Number(value)) || Number(value) < 200 || Number(value) > 2000) throw new Error("NUSA_RESEARCH_CANDLE_COUNT must be an integer from 200 to 2000"); return Number(value); }
-
+function requiredResearchSourceCommitSha() {
+  const value = process.env.NUSA_SOURCE_COMMIT_SHA ?? process.env.GITHUB_SHA ?? "";
+  if (!/^[a-f0-9]{40}$/i.test(value)) throw new Error("real research run requires NUSA_SOURCE_COMMIT_SHA or GITHUB_SHA");
+  return value.toLowerCase();
+}
+function requiredResearchCostModelVersion() {
+  const value = process.env.NUSA_RESEARCH_COST_MODEL_VERSION ?? "";
+  if (!value.trim()) throw new Error("real research run requires NUSA_RESEARCH_COST_MODEL_VERSION");
+  return value.trim();
+}
+function runProvenanceBoundExperiment({ id, familyId, parameters, candles, manifest, candidateSpecification }) {
+  const rawExperiment = runWalkForwardExperiment({ candles, manifest }, [{ id, strategyFactory: strategyFactoryFor(familyId, parameters), parameters }], WALK_FORWARD_CONFIG, { generatedAt: candidateSpecification.evaluationStartedAt });
+  return { experiment: Object.freeze({ ...rawExperiment, generatedAt: candidateSpecification.evaluationEndedAt }), candidateSpecification };
+}
+async function fetchDayCandlePage(path) {
+  const response = await fetch(`https://api.upbit.com${path}`, { signal: AbortSignal.timeout(15_000) });
+  if (!response.ok) throw new Error(`Upbit request failed: HTTP ${response.status}`);
+  const body = await response.json(); if (!Array.isArray(body) || body.length === 0) throw new Error("Upbit returned no candles"); return body;
+}
+function researchCandleCount(value = process.env.NUSA_RESEARCH_CANDLE_COUNT) {
+  if (value === undefined) return DEFAULT_CANDLE_COUNT;
+  if (!/^\d+$/.test(String(value)) || !Number.isInteger(Number(value)) || Number(value) < 200 || Number(value) > 2000) throw new Error("NUSA_RESEARCH_CANDLE_COUNT must be an integer from 200 to 2000");
+  return Number(value);
+}
 async function fetchResearchCandles({ market = MARKET, dataAsOf, count = DEFAULT_CANDLE_COUNT, fetchPage = fetchDayCandlePage, pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }) {
-  count = researchCandleCount(count); if (!RESEARCH_MARKETS.includes(market)) throw new Error(`unsupported research market: ${market}`); if (!Number.isFinite(dataAsOf)) throw new Error("research dataAsOf must be finite");
+  count = researchCandleCount(count);
+  if (!RESEARCH_MARKETS.includes(market)) throw new Error(`unsupported research market: ${market}`);
+  if (!Number.isFinite(dataAsOf)) throw new Error("research dataAsOf must be finite");
   let before = Math.floor(dataAsOf / DAY_MS) * DAY_MS; const candles = []; const sourceRequests = [];
   for (let page = 0; page < Math.ceil(count / 200); page += 1) {
-    const pageSize = Math.min(200, count - candles.length); const requestPath = `/v1/candles/days?market=${market}&count=${pageSize}&to=${encodeURIComponent(new Date(before).toISOString())}`; if (page > 0) await pause(REQUEST_THROTTLE_MS); const raw = await fetchPage(requestPath); if (!Array.isArray(raw) || raw.length !== pageSize) throw new Error("Upbit research history is incomplete"); const mapped = mapUpbitDayCandlesToResearchCandles(raw, { completedBy: dataAsOf }); if (mapped.length !== pageSize) throw new Error("Upbit research page contains incomplete candles");
+    const pageSize = Math.min(200, count - candles.length); const requestPath = `/v1/candles/days?market=${market}&count=${pageSize}&to=${encodeURIComponent(new Date(before).toISOString())}`;
+    if (page > 0) await pause(REQUEST_THROTTLE_MS);
+    const raw = await fetchPage(requestPath); if (!Array.isArray(raw) || raw.length !== pageSize) throw new Error("Upbit research history is incomplete");
+    const mapped = mapUpbitDayCandlesToResearchCandles(raw, { completedBy: dataAsOf }); if (mapped.length !== pageSize) throw new Error("Upbit research page contains incomplete candles");
     for (let index = 0; index < mapped.length; index += 1) { const candle = mapped[index]; const expectedOpenTime = before - (mapped.length - index) * DAY_MS; if (candle.market !== market || candle.openTime !== expectedOpenTime) throw new Error("Upbit research history has a market, gap, duplicate, or cursor mismatch"); }
     sourceRequests.push(`GET ${requestPath}`); candles.unshift(...mapped); before = mapped[0].openTime;
   }
   return { candles, sourceRequests };
 }
-
-function createMarketDataset({ market, dataAsOf, candles, sourceRequests }) { const freshness = evaluateUpbitDailyCandleFreshness(candles, dataAsOf); if (!freshness.fresh) throw new Error(`${market} completed daily candle source is stale by ${freshness.lagDays} UTC day(s)`); const manifest = createHistoricalDatasetManifest(candles, { source: "upbit-public-api", sourceRequest: sourceRequests.join(" | "), createdAt: new Date(dataAsOf).toISOString() }); return Object.freeze({ market, candles, sourceRequests, freshness, manifest }); }
+function createMarketDataset({ market, dataAsOf, candles, sourceRequests }) {
+  const freshness = evaluateUpbitDailyCandleFreshness(candles, dataAsOf); if (!freshness.fresh) throw new Error(`${market} completed daily candle source is stale by ${freshness.lagDays} UTC day(s)`);
+  const manifest = createHistoricalDatasetManifest(candles, { source: "upbit-public-api", sourceRequest: sourceRequests.join(" | "), createdAt: new Date(dataAsOf).toISOString() }); return Object.freeze({ market, candles, sourceRequests, freshness, manifest });
+}
 
 async function main() {
   const dataAsOf = Date.now(); const timeline = buildResearchRunTimeline(dataAsOf); const candleCount = researchCandleCount(); const marketDatasets = [];
-  for (let index = 0; index < RESEARCH_MARKETS.length; index += 1) { if (index > 0) await new Promise((resolve) => setTimeout(resolve, REQUEST_THROTTLE_MS)); const market = RESEARCH_MARKETS[index]; const history = await fetchResearchCandles({ market, dataAsOf, count: candleCount }); marketDatasets.push(createMarketDataset({ market, dataAsOf, ...history })); }
-  const primaryDataset = marketDatasets.find((entry) => entry.market === MARKET); if (primaryDataset == null) throw new Error(`primary research market ${MARKET} was not loaded`); const { candles, manifest, freshness } = primaryDataset; const regimeInputs = marketDatasets.map((entry) => ({ manifest: entry.manifest, candles: entry.candles }));
+  for (let index = 0; index < RESEARCH_MARKETS.length; index += 1) {
+    if (index > 0) await new Promise((resolve) => setTimeout(resolve, REQUEST_THROTTLE_MS)); const market = RESEARCH_MARKETS[index]; const history = await fetchResearchCandles({ market, dataAsOf, count: candleCount }); marketDatasets.push(createMarketDataset({ market, dataAsOf, ...history }));
+  }
+  const primaryDataset = marketDatasets.find((entry) => entry.market === MARKET); if (primaryDataset == null) throw new Error(`primary research market ${MARKET} was not loaded`);
+  const { candles, manifest, freshness } = primaryDataset; const regimeInputs = marketDatasets.map((entry) => ({ manifest: entry.manifest, candles: entry.candles }));
   const sourceCommitSha = requiredResearchSourceCommitSha(); const costModelVersion = requiredResearchCostModelVersion(); const selectedFamily = researchStrategyFamily(); const definition = familyDefinition(selectedFamily);
   const hypothesis = buildResearchHypothesis({ hypothesisId: `real-run:${manifest.datasetId}:${definition.familyId}`, familyId: definition.familyId, market: manifest.market, interval: manifest.interval, direction: "LONG", thesis: definition.thesis, sourceDatasetId: manifest.datasetId, sourceObservationAsOf: manifest.endCloseTime, generatedAt: timeline.hypothesisGeneratedAt });
-  const candidateSeeds = definition.parameters.map((parameters) => { const candidateId = candidateIdFor(definition.familyId, parameters); return { candidateId, familyId: definition.familyId, lineageId: definition.lineageId, parameters, codeSha: sourceCommitSha, costModelVersion, canonicalHypothesis: createResearchHypothesis({ hypothesisId: `${hypothesis.hypothesisId}:${candidateId}`, candidateId, family: definition.canonicalFamily, rationale: hypothesis.thesis, mechanism: definition.mechanism, targetMarket: manifest.market, expectedRegime: "UNKNOWN", invalidationCondition: "The cost-adjusted out-of-sample edge is not reproducible across the declared walk-forward windows.", holdingPeriodMs: 86_400_000, capacityAssumptions: { maxNotional: BACKTEST_CONFIG.initialCash, maxParticipationRate: 0.05 }, transactionCostSensitivity: 1, provenance: { author: "nusa-real-market-research", sourceReferences: [`market-set:${RESEARCH_MARKET_SET_VERSION}`, `precommit:#1799:${definition.familyId}`, ...marketDatasets.map((entry) => `dataset:${entry.manifest.datasetId}`)] }, createdAt: timeline.hypothesisGeneratedAt }) }; });
+  const candidateSeeds = definition.parameters.map((parameters) => {
+    const candidateId = candidateIdFor(definition.familyId, parameters);
+    return { candidateId, familyId: definition.familyId, lineageId: definition.lineageId, parameters, codeSha: sourceCommitSha, costModelVersion, canonicalHypothesis: createResearchHypothesis({
+      hypothesisId: `${hypothesis.hypothesisId}:${candidateId}`, candidateId, family: definition.canonicalFamily, rationale: hypothesis.thesis, mechanism: definition.mechanism, targetMarket: manifest.market, expectedRegime: "UNKNOWN", invalidationCondition: "The cost-adjusted out-of-sample edge is not reproducible across the declared walk-forward windows.", holdingPeriodMs: 86_400_000, capacityAssumptions: { maxNotional: BACKTEST_CONFIG.initialCash, maxParticipationRate: 0.05 }, transactionCostSensitivity: 1,
+      provenance: { author: "nusa-real-market-research", sourceReferences: [`market-set:${RESEARCH_MARKET_SET_VERSION}`, `precommit:#${definition.familyId === DONCHIAN_FAMILY_ID ? 1799 : 1791}:${definition.familyId}`, ...marketDatasets.map((entry) => `dataset:${entry.manifest.datasetId}`)] }, createdAt: timeline.hypothesisGeneratedAt
+    }) };
+  });
   const provenancePlan = buildResearchRunProvenancePlan({ manifest, hypothesis, timeline, sourceCommitSha, candidates: candidateSeeds }); const candidateSpecifications = new Map(provenancePlan.candidates.map((candidate) => [candidate.candidateId, candidate.specification])); const candidates = provenancePlan.candidates.map((candidate) => ({ id: candidate.candidateId, strategyFactory: strategyFactoryFor(definition.familyId, candidate.parameters), parameters: candidate.parameters, canonicalHypothesis: candidate.canonicalHypothesis }));
   const costStress = runExecutionCostStress(candlesToBacktestPoints(candles), candidates, WALK_FORWARD_CONFIG, { scenarios: COST_STRESS_SCENARIOS, baselineScenarioId: "BASE", candidateSelectionMode: "FIX_BASELINE_SELECTION" }, { sourceExperimentSha: `real-run:${manifest.datasetId}:${definition.familyId}`, datasetSha256: manifest.contentSha256 });
-  const parameterRobustnessRequest = buildParameterRobustnessRequest({ candles, manifest, strategyFamily: definition.familyId }); const parameterRobustness = runParameterRobustnessRequest(parameterRobustnessRequest); if (parameterRobustness.status !== "PASS") throw new Error(`real parameter robustness failed: ${parameterRobustness.failures.join(", ")}`); const parameterRobustnessVerification = verifyParameterRobustnessResult(parameterRobustnessRequest, parameterRobustness); if (parameterRobustnessVerification.status !== "PASS") throw new Error(`real parameter robustness verification failed: ${parameterRobustnessVerification.errors.join(", ")}`);
+  const parameterRobustnessRequest = buildParameterRobustnessRequest({ candles, manifest, strategyFamily: definition.familyId }); const parameterRobustness = runParameterRobustnessRequest(parameterRobustnessRequest); if (parameterRobustness.status !== "PASS") throw new Error(`real parameter robustness failed: ${parameterRobustness.failures.join(", ")}`);
+  const parameterRobustnessVerification = verifyParameterRobustnessResult(parameterRobustnessRequest, parameterRobustness); if (parameterRobustnessVerification.status !== "PASS") throw new Error(`real parameter robustness verification failed: ${parameterRobustnessVerification.errors.join(", ")}`);
   const parameterRobustnessEvidence = { ...parameterRobustness, verification: { status: parameterRobustnessVerification.status }, provenance: { sourceCommitSha, costModelVersion, datasetId: manifest.datasetId, datasetContentSha256: manifest.contentSha256 } }; const costStressEvidence = projectExecutionCostStress(costStress); const robustnessEvidence = buildResearchRunRobustnessEvidence({ datasetId: manifest.datasetId, datasetContentSha256: manifest.contentSha256, parameterRobustness: parameterRobustnessEvidence, costStress: costStressEvidence });
   const generatedAt = timeline.generatedAt; const result = runWalkForwardExperiment({ candles, manifest }, candidates, WALK_FORWARD_CONFIG, { generatedAt });
   const leagueCandidates = definition.parameters.map((parameters) => { const id = candidateIdFor(definition.familyId, parameters); const { experiment, candidateSpecification } = runProvenanceBoundExperiment({ id, familyId: definition.familyId, parameters, candles, manifest, candidateSpecification: candidateSpecifications.get(id) }); const regimeAwareEvaluation = buildResearchRunRegimeEvaluation(experiment, regimeInputs, { lookbackPeriods: 20 }); return { id, familyId: definition.familyId, experiment, candidateSpecification, regimeAwareEvaluation }; });
