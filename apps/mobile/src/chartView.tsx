@@ -3,6 +3,7 @@ import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View }
 import { DataRow, MotionReveal, NusaButton, NusaCard, SectionHeading, StatusChip } from "./components";
 import { useTheme } from "./ThemeProvider";
 import { buildChartViewModel, formatChartMove, formatChartPrice, latestCandleCloseMs, type ChartInterval, type ChartViewModel } from "./chartViewModel";
+import { createHomeTerminalVisualProfile } from "./homeTerminalVisual";
 import { formatFeedAgeMs } from "./watchlist";
 import type { PublicQuotationDiagnostic } from "./upbitPublicQuotationClient";
 
@@ -50,13 +51,17 @@ function StateCard({ title, message, color, onRetry, testID }: Readonly<{ title:
 
 export function CandlePlot({ model, compact = false }: Readonly<{ model: ChartViewModel; compact?: boolean }>) {
   const { theme } = useTheme();
+  const terminal = compact ? createHomeTerminalVisualProfile(theme) : null;
+  const upColor = terminal?.signal ?? theme.colors.success;
+  const plotBackground = terminal?.sunken ?? theme.colors.surfaceSunken;
+  const plotBorder = terminal?.border ?? theme.colors.border;
   const maxVolume = Math.max(...model.candles.map((candle) => candle.volume), Number.EPSILON);
-  return <View style={[styles.plot, compact ? styles.plotCompact : null, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.border }]} testID="chart-candles">
+  return <View style={[styles.plot, compact ? styles.plotCompact : null, { backgroundColor: plotBackground, borderColor: plotBorder }]} testID="chart-candles">
     {model.priceLine === null ? null : <View testID="chart-price-line" style={[styles.priceLine, { backgroundColor: theme.colors.warning, top: `${model.priceLine}%` }]} />}
     <View style={styles.candleRow}>{model.bars.map((bar) => <View key={`${bar.openTime}-${bar.interval}`} style={styles.candleColumn} testID="chart-candle">
-      <View style={[styles.wick, { backgroundColor: bar.up ? theme.colors.success : theme.colors.danger, top: `${bar.wickTop}%`, height: `${bar.wickHeight}%` }]} />
-      <View style={[styles.body, { backgroundColor: bar.up ? theme.colors.success : theme.colors.danger, top: `${bar.bodyTop}%`, height: `${bar.bodyHeight}%` }]} />
-      <View style={styles.volumeTrack}><View style={[styles.volumeBar, { backgroundColor: bar.up ? theme.colors.success : theme.colors.danger, height: Math.max(3, (bar.volume / maxVolume) * 42) }]} /></View>
+      <View style={[styles.wick, { backgroundColor: bar.up ? upColor : theme.colors.danger, top: `${bar.wickTop}%`, height: `${bar.wickHeight}%` }]} />
+      <View style={[styles.body, { backgroundColor: bar.up ? upColor : theme.colors.danger, top: `${bar.bodyTop}%`, height: `${bar.bodyHeight}%` }]} />
+      <View style={styles.volumeTrack}><View style={[styles.volumeBar, { backgroundColor: bar.up ? upColor : theme.colors.danger, height: Math.max(3, (bar.volume / maxVolume) * 42) }]} /></View>
     </View>)}</View>
   </View>;
 }
