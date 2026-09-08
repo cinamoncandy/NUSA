@@ -85,3 +85,19 @@ test("canonical RSI robustness request is the precommitted 3x3 grid with explici
   assert.deepEqual(center.neighbors, ["rsi-14-25-75", "rsi-14-35-65", "rsi-21-30-70", "rsi-7-30-70"]);
   assert.ok(request.candidateGrid.every(Object.isFrozen));
 });
+
+
+test("canonical Donchian robustness request is the precommitted five-period line with explicit adjacency", () => {
+  const request = buildParameterRobustnessRequest({ candles, manifest, strategyFamily: "donchian-breakout" });
+  assert.equal(request.strategyFamily, "donchian-breakout");
+  assert.deepEqual(request.candidateGrid.map((entry) => entry.key), [
+    "donchian-10", "donchian-20", "donchian-30", "donchian-40", "donchian-55"
+  ]);
+  assert.deepEqual(request.referenceParameters, [
+    { source: "PRODUCTION_DEFAULT", candidateKey: "donchian-20", parameters: { channelPeriod: 20 } },
+    { source: "MANUAL_RESEARCH_REFERENCE", candidateKey: "donchian-55", parameters: { channelPeriod: 55 } }
+  ]);
+  assert.deepEqual(request.candidateGrid.find((entry) => entry.key === "donchian-20").neighbors, ["donchian-10", "donchian-30"]);
+  assert.deepEqual(request.candidateGrid.find((entry) => entry.key === "donchian-55").neighbors, ["donchian-40"]);
+  assert.ok(request.candidateGrid.every(Object.isFrozen));
+});

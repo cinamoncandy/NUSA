@@ -4,6 +4,7 @@ import type { IntelligenceObservation } from "./marketIntelligenceFusion";
 
 const SMA_FAMILY = "sma-crossover";
 const RSI_FAMILY = "rsi-mean-reversion";
+const DONCHIAN_FAMILY = "donchian-breakout";
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
 const round4 = (value: number): number => Math.round(value * 10_000) / 10_000;
 
@@ -19,6 +20,14 @@ function parseSmaParameters(spec: PaperCandidateStrategySpec): { shortPeriod: nu
     throw new Error("PAPER SMA candidate parameters are invalid");
   }
   return { shortPeriod, longPeriod };
+}
+
+function parseDonchianParameters(spec: PaperCandidateStrategySpec): { channelPeriod: number } {
+  const channelPeriod = spec.parameters.channelPeriod;
+  if (!finitePositiveInteger(channelPeriod) || channelPeriod < 2 || channelPeriod > 500) {
+    throw new Error("PAPER Donchian candidate parameters are invalid");
+  }
+  return { channelPeriod };
 }
 
 function parseRsiParameters(spec: PaperCandidateStrategySpec): { period: number; oversold: number; overbought: number } {
@@ -90,6 +99,45 @@ function evaluateSma(
   return Object.freeze({ action, score, confidence, observedAt, reason: `SMA_CROSSOVER:${shortPeriod}/${longPeriod}:short=${round4(short)}:long=${round4(long)}` });
 }
 
+function donchianPosition(closes: readonly number[], channelPeriod: number): { position: -1 | 0 | 1; highest: number; lowest: number } | undefined {
+  if (closes.length < channelPeriod + 1) return undefined;
+  const current = closes.at(-1)!;
+  const channel = closes.slice(-(channelPeriod + 1), -1);
+  const highest = Math.max(...channel);
+  const lowest = Math.min(...channel);
+  const position: -1 | 0 | 1 = current > highest ? 1 : current < lowest ? -1 : 0;
+  return { position, highest, lowest };
+}
+
+function evaluateDonchian(
+  spec: PaperCandidateStrategySpec,
+  prices: readonly (readonly [number, number])[],
+  now: number,
+): PaperCandidateStrategyDecision {
+  const { channelPeriod } = parseDonchianParameters(spec);
+  const closes = prices.map(([, price]) => price);
+  const current = donchianPosition(closes, channelPeriod);
+  if (current === undefined) {
+    return Object.freeze({ action: "WAIT", score: 0, confidence: 0, observedAt: prices.at(-1)?.[0] ?? now, reason: `INSUFFICIENT_DONCHIAN_OBSERVATIONS:${prices.length}/${channelPeriod + 1}` });
+  }
+  const observedAt = prices.at(-1)?.[0] ?? now;
+  const prior = donchianPosition(closes.slice(0, -1), channelPeriod);
+  if (prior === undefined) {
+    return Object.freeze({ action: "HOLD", score: 0, confidence: 0, observedAt, reason: `DONCHIAN_BREAKOUT:${channelPeriod}:baseline=${current.position}:high=${round4(current.highest)}:low=${round4(current.lowest)}` });
+  }
+  const range = current.highest - current.lowest;
+  const latest = closes.at(-1)!;
+  const confidence = round4(range > 0 ? clamp(Math.abs(latest - (current.highest + current.lowest) / 2) / range, 0, 1) : 0);
+  let action: PaperCandidateStrategyDecision["action"] = "HOLD";
+  if (prior.position <= 0 && current.position === 1) action = "BUY";
+  else if (prior.position >= 0 && current.position === -1) action = "SELL";
+  const score = action === "BUY" ? confidence : action === "SELL" ? -confidence : 0;
+  return Object.freeze({
+    action, score, confidence, observedAt,
+    reason: `DONCHIAN_BREAKOUT:${channelPeriod}:prior=${prior.position}:current=${current.position}:high=${round4(current.highest)}:low=${round4(current.lowest)}`,
+  });
+}
+
 function evaluateRsi(
   spec: PaperCandidateStrategySpec,
   prices: readonly (readonly [number, number])[],
@@ -130,5 +178,6 @@ export function evaluatePaperCandidateStrategy(
   const prices = canonicalPrices(observations, now, market);
   if (spec.familyId === SMA_FAMILY) return evaluateSma(spec, prices, now);
   if (spec.familyId === RSI_FAMILY) return evaluateRsi(spec, prices, now);
+  if (spec.familyId === DONCHIAN_FAMILY) return evaluateDonchian(spec, prices, now);
   throw new Error(`unsupported PAPER candidate strategy family: ${spec.familyId}`);
 }

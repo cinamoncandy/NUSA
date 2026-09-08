@@ -45,7 +45,6 @@ describe("PAPER candidate strategy semantics", () => {
     assert.match(result.reason, /^INSUFFICIENT_SMA_OBSERVATIONS:/);
   });
 
-
   it("replays exact RSI mean-reversion crossing semantics from the immutable binding", () => {
     const rsiSpec: PaperCandidateStrategySpec = Object.freeze({
       ...spec,
@@ -68,6 +67,43 @@ describe("PAPER candidate strategy semantics", () => {
     const result = evaluatePaperCandidateStrategy(rsiSpec, observations([100, 99, 98]), 10, "KRW-BTC");
     assert.equal(result.action, "WAIT");
     assert.match(result.reason, /^INSUFFICIENT_RSI_OBSERVATIONS:/);
+  });
+
+  it("replays exact Donchian breakout transition semantics from the immutable binding", () => {
+    const donchianSpec: PaperCandidateStrategySpec = Object.freeze({
+      ...spec,
+      candidateId: "donchian-2",
+      familyId: "donchian-breakout",
+      lineageId: "donchian-breakout-v1",
+      parameters: Object.freeze({ channelPeriod: 2 }),
+    });
+    const baseline = evaluatePaperCandidateStrategy(donchianSpec, observations([100, 101, 102]), 10, "KRW-BTC");
+    const breakout = evaluatePaperCandidateStrategy(donchianSpec, observations([100, 101, 101, 103]), 10, "KRW-BTC");
+    const breakdown = evaluatePaperCandidateStrategy(donchianSpec, observations([103, 102, 102, 100]), 10, "KRW-BTC");
+    assert.equal(baseline.action, "HOLD", "first eligible observation establishes the same stateful baseline as the core strategy");
+    assert.equal(breakout.action, "BUY");
+    assert.equal(breakdown.action, "SELL");
+    assert.match(breakout.reason, /^DONCHIAN_BREAKOUT:2:prior=0:current=1:/);
+  });
+
+  it("Donchian excludes the current observation from its channel and waits before a baseline exists", () => {
+    const donchianSpec: PaperCandidateStrategySpec = Object.freeze({
+      ...spec, familyId: "donchian-breakout", parameters: Object.freeze({ channelPeriod: 3 }),
+    });
+    const short = evaluatePaperCandidateStrategy(donchianSpec, observations([100, 101, 102]), 10, "KRW-BTC");
+    const selfExtension = evaluatePaperCandidateStrategy(donchianSpec, observations([100, 101, 102, 103]), 10, "KRW-BTC");
+    assert.equal(short.action, "WAIT");
+    assert.match(short.reason, /^INSUFFICIENT_DONCHIAN_OBSERVATIONS:/);
+    assert.equal(selfExtension.action, "HOLD", "the first breakout-shaped close establishes baseline instead of self-confirming a trade");
+  });
+
+  it("fails closed for invalid Donchian parameters", () => {
+    for (const channelPeriod of [1, 501, 2.5, Number.NaN]) {
+      assert.throws(
+        () => evaluatePaperCandidateStrategy({ ...spec, familyId: "donchian-breakout", parameters: { channelPeriod } }, observations([100, 101, 102, 103]), 10, "KRW-BTC"),
+        /PAPER Donchian candidate parameters are invalid/,
+      );
+    }
   });
 
   it("fails closed for an unsupported candidate family", () => {

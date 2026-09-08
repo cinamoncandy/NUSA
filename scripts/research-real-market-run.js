@@ -5,7 +5,7 @@ const {
   mapUpbitDayCandlesToResearchCandles
 } = require("../dist/apps/desktop/src/exchange/upbitCandleAdapter.js");
 const { createHistoricalDatasetManifest, candlesToBacktestPoints, runWalkForwardExperiment } = require("../dist/apps/desktop/src/cloud/researchDataset.js");
-const { SmaCrossoverStrategy, RsiMeanReversionStrategy } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
+const { SmaCrossoverStrategy, RsiMeanReversionStrategy, DonchianBreakoutStrategy } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
 const { buildResearchRunLeague } = require("../dist/apps/desktop/src/cloud/researchRunLeagueBridge.js");
 const { qualifyResearchFactoryRun } = require("../dist/apps/desktop/src/cloud/researchFactoryQualification.js");
 const { buildResearchRunRegimeEvaluation } = require("../dist/apps/desktop/src/cloud/researchRunRegimeEvidence.js");
@@ -23,6 +23,7 @@ const { buildResearchRunProvenancePlan } = require("../dist/apps/desktop/src/clo
 
 const SMA_FAMILY_ID = "sma-crossover";
 const RSI_FAMILY_ID = "rsi-mean-reversion";
+const DONCHIAN_FAMILY_ID = "donchian-breakout";
 const STRATEGY_FAMILY_ID = SMA_FAMILY_ID; // legacy export/default identity
 const MARKET = "KRW-BTC";
 const RESEARCH_MARKET_SET_VERSION = "upbit-public-daily-2000-v2";
@@ -103,21 +104,29 @@ const RSI_PARAMETER_NEIGHBORHOOD = Object.freeze([
   ])
 ]);
 
+// Precommitted in #1799 before canonical Donchian OOS results were observed. The family
+// uses the existing core price-channel breakout semantics with one immutable lookback.
+const DONCHIAN_PARAMETER_NEIGHBORHOOD = Object.freeze(
+  [10, 20, 30, 40, 55].map((channelPeriod) => Object.freeze({ channelPeriod }))
+);
+
 function researchStrategyFamily(value = process.env.NUSA_RESEARCH_STRATEGY_FAMILY) {
   const normalized = String(value ?? SMA_FAMILY_ID).trim() || SMA_FAMILY_ID;
-  if (![SMA_FAMILY_ID, RSI_FAMILY_ID].includes(normalized)) throw new Error(`unsupported NUSA_RESEARCH_STRATEGY_FAMILY: ${normalized}`);
+  if (![SMA_FAMILY_ID, RSI_FAMILY_ID, DONCHIAN_FAMILY_ID].includes(normalized)) throw new Error(`unsupported NUSA_RESEARCH_STRATEGY_FAMILY: ${normalized}`);
   return normalized;
 }
 
 function candidateIdFor(familyId, parameters) {
   if (familyId === SMA_FAMILY_ID) return `sma-${parameters.shortPeriod}-${parameters.longPeriod}`;
   if (familyId === RSI_FAMILY_ID) return `rsi-${parameters.period}-${parameters.oversold}-${parameters.overbought}`;
+  if (familyId === DONCHIAN_FAMILY_ID) return `donchian-${parameters.channelPeriod}`;
   throw new Error(`unsupported strategy family: ${familyId}`);
 }
 
 function strategyFactoryFor(familyId, parameters) {
   if (familyId === SMA_FAMILY_ID) return () => new SmaCrossoverStrategy(Number(parameters.shortPeriod), Number(parameters.longPeriod));
   if (familyId === RSI_FAMILY_ID) return () => new RsiMeanReversionStrategy(Number(parameters.period), Number(parameters.oversold), Number(parameters.overbought));
+  if (familyId === DONCHIAN_FAMILY_ID) return () => new DonchianBreakoutStrategy(Number(parameters.channelPeriod));
   throw new Error(`unsupported strategy family: ${familyId}`);
 }
 
@@ -131,6 +140,11 @@ function familyDefinition(familyId) {
     familyId, lineageId: `${familyId}-v1`, canonicalFamily: "MEAN_REVERSION", parameters: RSI_PARAMETER_NEIGHBORHOOD,
     thesis: "An RSI recovery from precommitted oversold/overbought bands may identify a reproducible mean-reversion edge after explicit execution costs.",
     mechanism: "The strategy waits for an extreme RSI state and trades only after the indicator crosses back inside its precommitted band, testing short-horizon mean reversion without lookahead.",
+  });
+  if (familyId === DONCHIAN_FAMILY_ID) return Object.freeze({
+    familyId, lineageId: `${familyId}-v1`, canonicalFamily: "MOMENTUM", parameters: DONCHIAN_PARAMETER_NEIGHBORHOOD,
+    thesis: "A close breaking a precommitted prior-price channel may identify a reproducible directional persistence edge after explicit execution costs.",
+    mechanism: "The strategy measures each close against a channel formed only from prior closes and trades only when state transitions into a new above-channel or below-channel breakout, preventing current-tick self-confirmation and lookahead.",
   });
   throw new Error(`unsupported strategy family: ${familyId}`);
 }
@@ -155,6 +169,22 @@ function buildRsiRobustnessGrid() {
       Object.freeze(entry.neighbors);
       Object.freeze(entry);
     }
+  }
+  return Object.freeze(entries);
+}
+
+function buildDonchianRobustnessGrid() {
+  const entries = DONCHIAN_PARAMETER_NEIGHBORHOOD.map((parameters) => ({
+    key: candidateIdFor(DONCHIAN_FAMILY_ID, parameters),
+    parameters,
+    neighbors: []
+  }));
+  for (let index = 0; index < entries.length; index += 1) {
+    if (index > 0) entries[index].neighbors.push(entries[index - 1].key);
+    if (index + 1 < entries.length) entries[index].neighbors.push(entries[index + 1].key);
+    entries[index].neighbors.sort();
+    Object.freeze(entries[index].neighbors);
+    Object.freeze(entries[index]);
   }
   return Object.freeze(entries);
 }
@@ -220,6 +250,18 @@ function buildParameterRobustnessRequest({ candles, manifest, strategyFamily = S
       referenceParameters: [
         { source: "PRODUCTION_DEFAULT", candidateKey: "rsi-14-30-70", parameters: { period: 14, oversold: 30, overbought: 70 } },
         { source: "MANUAL_RESEARCH_REFERENCE", candidateKey: "rsi-7-25-75", parameters: { period: 7, oversold: 25, overbought: 75 } }
+      ]
+    };
+  }
+  if (strategyFamily === DONCHIAN_FAMILY_ID) {
+    const candidateGrid = buildDonchianRobustnessGrid();
+    return {
+      ...common,
+      strategyFamily,
+      candidateGrid,
+      referenceParameters: [
+        { source: "PRODUCTION_DEFAULT", candidateKey: "donchian-20", parameters: { channelPeriod: 20 } },
+        { source: "MANUAL_RESEARCH_REFERENCE", candidateKey: "donchian-55", parameters: { channelPeriod: 55 } }
       ]
     };
   }
@@ -370,7 +412,7 @@ async function main() {
           author: "nusa-real-market-research",
           sourceReferences: [
             `market-set:${RESEARCH_MARKET_SET_VERSION}`,
-            `precommit:#1791:${definition.familyId}`,
+            `precommit:#${definition.familyId === DONCHIAN_FAMILY_ID ? 1799 : 1791}:${definition.familyId}`,
             ...marketDatasets.map((entry) => `dataset:${entry.manifest.datasetId}`)
           ]
         },
@@ -590,6 +632,7 @@ module.exports = {
   RESEARCH_MARKETS,
   SMA_PARAMETER_NEIGHBORHOOD,
   RSI_PARAMETER_NEIGHBORHOOD,
+  DONCHIAN_PARAMETER_NEIGHBORHOOD,
   researchStrategyFamily,
   fetchResearchCandles,
   researchCandleCount,

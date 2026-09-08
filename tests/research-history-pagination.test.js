@@ -5,6 +5,7 @@ const {
   RESEARCH_MARKETS,
   SMA_PARAMETER_NEIGHBORHOOD,
   RSI_PARAMETER_NEIGHBORHOOD,
+  DONCHIAN_PARAMETER_NEIGHBORHOOD,
   researchStrategyFamily,
   fetchResearchCandles,
   researchCandleCount,
@@ -74,6 +75,19 @@ test("RSI candidate neighborhood is precommitted, immutable, and selected only b
   assert.equal(researchStrategyFamily(undefined), "sma-crossover");
   assert.equal(researchStrategyFamily("rsi-mean-reversion"), "rsi-mean-reversion");
   assert.throws(() => researchStrategyFamily("unknown"), /unsupported NUSA_RESEARCH_STRATEGY_FAMILY/);
+});
+
+test("Donchian candidate neighborhood is the immutable precommitted five-period family", () => {
+  assert.deepEqual(DONCHIAN_PARAMETER_NEIGHBORHOOD, [
+    { channelPeriod: 10 },
+    { channelPeriod: 20 },
+    { channelPeriod: 30 },
+    { channelPeriod: 40 },
+    { channelPeriod: 55 }
+  ]);
+  assert.ok(Object.isFrozen(DONCHIAN_PARAMETER_NEIGHBORHOOD));
+  assert.ok(DONCHIAN_PARAMETER_NEIGHBORHOOD.every(Object.isFrozen));
+  assert.equal(researchStrategyFamily("donchian-breakout"), "donchian-breakout");
 });
 
 test("fast SMA cells are covered by a predeclared robustness reference without relaxing gates", () => {
