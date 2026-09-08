@@ -22,7 +22,10 @@ test("projection outcome is separated from mobile authentication lifecycle", () 
 test("explicit endpoint change still destroys the old encrypted session", () => {
   const session = read("apps/mobile/src/dashboardCredentialSession.ts");
   assert.match(session, /if \(previous != null && previous !== next\) \{[\s\S]*void mobileApprovedSession\(\)\.disconnect\(previous\);[\s\S]*\}/);
-  assert.match(session, /public clear\(\): void \{[\s\S]*void session\.disconnect\(endpoint \?\? undefined\);/);
+  // The disconnect is now retained rather than fired and forgotten, so an enrollment that
+  // immediately follows can await the wipe instead of racing it. It still always runs.
+  assert.match(session, /public clear\(\): void \{[\s\S]*pendingDisconnect = session\.disconnect\(endpoint \?\? undefined\)/);
+  assert.match(session, /if \(pendingDisconnect != null\) \{[^}]*await inFlight; \}/, "enrollment waits for a pending wipe");
   const approved = read("apps/mobile/src/mobileApprovedSession.ts");
   assert.match(approved, /const candidateEndpoint = baseUrl == null \? this\.endpoint : baseUrl;[\s\S]*await this\.clearLocal\(\);[\s\S]*secureEndpoint\(candidateEndpoint\)/);
 });
