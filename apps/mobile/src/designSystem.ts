@@ -63,6 +63,14 @@ export interface Theme {
   }>;
 }
 
+export const homeTerminalColors = Object.freeze({
+  canvas: "rgb(3, 5, 3)",
+  surface: "rgb(8, 13, 8)",
+  sunken: "rgb(5, 8, 5)",
+  border: "rgb(38, 50, 38)",
+  signal: "rgb(200, 255, 70)",
+});
+
 const interaction = Object.freeze({
   touchTarget: 48 as const,
   controlHeight: 48 as const,
