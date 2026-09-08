@@ -45,6 +45,31 @@ describe("PAPER candidate strategy semantics", () => {
     assert.match(result.reason, /^INSUFFICIENT_SMA_OBSERVATIONS:/);
   });
 
+
+  it("replays exact RSI mean-reversion crossing semantics from the immutable binding", () => {
+    const rsiSpec: PaperCandidateStrategySpec = Object.freeze({
+      ...spec,
+      candidateId: "rsi-2-40-60",
+      familyId: "rsi-mean-reversion",
+      lineageId: "rsi-v1",
+      parameters: Object.freeze({ period: 2, oversold: 40, overbought: 60 }),
+    });
+    const recovered = evaluatePaperCandidateStrategy(rsiSpec, observations([100, 90, 80, 100]), 10, "KRW-BTC");
+    const rejected = evaluatePaperCandidateStrategy(rsiSpec, observations([100, 110, 120, 100]), 10, "KRW-BTC");
+    assert.equal(recovered.action, "BUY");
+    assert.equal(rejected.action, "SELL");
+    assert.match(recovered.reason, /^RSI_MEAN_REVERSION:2:40\/60:/);
+  });
+
+  it("RSI waits until enough point-in-time observations exist", () => {
+    const rsiSpec: PaperCandidateStrategySpec = Object.freeze({
+      ...spec, familyId: "rsi-mean-reversion", parameters: Object.freeze({ period: 14, oversold: 30, overbought: 70 }),
+    });
+    const result = evaluatePaperCandidateStrategy(rsiSpec, observations([100, 99, 98]), 10, "KRW-BTC");
+    assert.equal(result.action, "WAIT");
+    assert.match(result.reason, /^INSUFFICIENT_RSI_OBSERVATIONS:/);
+  });
+
   it("fails closed for an unsupported candidate family", () => {
     assert.throws(() => evaluatePaperCandidateStrategy({ ...spec, familyId: "unknown-family" }, observations([100, 101, 103]), 10, "KRW-BTC"), /unsupported PAPER candidate strategy family/);
   });
