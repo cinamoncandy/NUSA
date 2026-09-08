@@ -257,6 +257,64 @@ test("A4L: reconnecting releases the previous socket instead of stacking listene
   client.stop();
 });
 
+
+
+test("A4L: active orderbook/trade traffic cannot mask a stalled ticker stream", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "setInterval"] });
+  let now = 1_000;
+  const sockets = [];
+  const statuses = [];
+  class TickerLivenessSocket extends EventEmitter {
+    constructor() { super(); this.readyState = 1; this.sent = []; this.closed = false; }
+    send(payload) { this.sent.push(payload); }
+    ping() {}
+    close() {
+      if (this.closed) return;
+      this.closed = true;
+      this.readyState = 3;
+      this.emit("close");
+    }
+    removeAllListeners() { super.removeAllListeners(); return this; }
+  }
+  const client = new UpbitWebSocketClient(
+    ["KRW-BTC", "KRW-DOGE"],
+    () => undefined,
+    (status) => statuses.push(status),
+    5,
+    30_000,
+    {
+      now: () => now,
+      createSocket: () => { const socket = new TickerLivenessSocket(); sockets.push(socket); return socket; }
+    }
+  );
+  client.start();
+  sockets[0].emit("open");
+  sockets[0].emit("message", JSON.stringify({
+    type: "ticker", code: "KRW-BTC", trade_price: 100_000_000, trade_timestamp: 1_000,
+    signed_change_rate: 0.01, acc_trade_volume: 1, acc_trade_price_24h: 1_000_000_000
+  }));
+
+  // Keep the socket globally active with orderbook traffic while the ticker stream is silent.
+  now = 20_000;
+  sockets[0].emit("message", JSON.stringify({
+    type: "orderbook", code: "KRW-BTC", total_ask_size: 1, total_bid_size: 1,
+    orderbook_units: [{ ask_price: 101, bid_price: 99, ask_size: 1, bid_size: 1 }]
+  }));
+  now = 32_001;
+  sockets[0].emit("message", JSON.stringify({
+    type: "orderbook", code: "KRW-BTC", total_ask_size: 1, total_bid_size: 1,
+    orderbook_units: [{ ask_price: 101, bid_price: 99, ask_size: 1, bid_size: 1 }]
+  }));
+  t.mock.timers.tick(5_000);
+
+  assert.equal(sockets[0].closed, true, "ticker silence closes an otherwise active socket");
+  assert.ok(statuses.some((status) => status.startsWith("ticker-stale-")));
+  assert.equal(client.connectionDiagnostics().reconnectTimerCount, 1);
+  t.mock.timers.tick(1_000);
+  assert.equal(sockets.length, 2, "the existing bounded reconnect path creates exactly one replacement socket");
+  client.stop();
+});
+
 test("A4L: exactly one reconnect timer exists at a time, and it is cleared once it fires", (t) => {
   const { client, sockets } = makeClient(t);
   client.start();
