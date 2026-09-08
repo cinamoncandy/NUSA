@@ -5,6 +5,10 @@ const MAX_TOKEN_LENGTH = 4096;
 export const LEGACY_MOBILE_BOOTSTRAP_PREFIX = "legacy-bootstrap:";
 let sharedEndpoint: string | null = null;
 let pendingBootstrapToken: string | null = null;
+// A successfully consumed bootstrap may be kept transiently only long enough to distinguish a
+// projection retry from a new credential. It is already single-use and is never persisted.
+let lastAuthenticatedBootstrapToken: string | null = null;
+let projectionFailureProtectedSession = false;
 let lastCredentialFailure: string | null = null;
 const MAX_FAILURE_REASON_LENGTH = 300;
 
@@ -33,7 +37,13 @@ export function takeLastCredentialFailure(): string | null {
   return reason;
 }
 
-export type DashboardCredentialProvider = () => Promise<string | null>;
+export type DashboardProjectionOutcome = "READY" | "PROJECTION_UNAVAILABLE" | "AUTH_REJECTED";
+
+export interface DashboardCredentialProvider {
+  (): Promise<string | null>;
+  /** Projection health is reported separately from authentication so a stale read cannot revoke auth. */
+  noteProjectionResult?: (outcome: DashboardProjectionOutcome) => void;
+}
 
 export function normalizeMobileBootstrapToken(value: string): string {
   const raw = value.trim();
@@ -46,11 +56,26 @@ export function normalizeMobileBootstrapToken(value: string): string {
 
 /** A failed raw bootstrap attempt may be retried as approved-user self-enrollment; an explicit legacy bootstrap must never be reinterpreted as a long-lived credential. */
 export function shouldFallbackToMobileEnrollment(value: string, bootstrapReady: boolean): boolean {
-  return !bootstrapReady && !value.trim().startsWith(LEGACY_MOBILE_BOOTSTRAP_PREFIX);
+  const token = value.trim();
+  return Boolean(token)
+    && !bootstrapReady
+    && token !== lastAuthenticatedBootstrapToken
+    && !projectionFailureProtectedSession
+    && !token.startsWith(LEGACY_MOBILE_BOOTSTRAP_PREFIX);
 }
 
 export function setDashboardCredentialEndpoint(value: string | null): void {
-  sharedEndpoint = value?.trim().replace(/\/+$/, "") || null;
+  const next = value?.trim().replace(/\/+$/, "") || null;
+  const previous = sharedEndpoint;
+  sharedEndpoint = next;
+  if (previous != null && previous !== next) {
+    pendingBootstrapToken = null;
+    lastAuthenticatedBootstrapToken = null;
+    projectionFailureProtectedSession = false;
+    // Endpoint identity changes are explicit configuration changes. Destroy the old encrypted
+    // refresh state; if an access token is still live, best-effort remote revoke remains intact.
+    void mobileApprovedSession().disconnect(previous);
+  }
 }
 
 /** Revokes process-memory credentials. Persistent refresh state is removed by explicit disconnect or rejected on endpoint mismatch. */
@@ -68,15 +93,36 @@ export function clearDashboardCredentialSession(): void {
  */
 export class InMemoryDashboardCredentialSession {
   public connect(value: string): void {
+    const raw = value.trim();
+    const session = mobileApprovedSession();
+    if (projectionFailureProtectedSession && !raw) {
+      pendingBootstrapToken = null;
+      session.clearMemory();
+      return;
+    }
     const token = normalizeMobileBootstrapToken(value);
+    if (projectionFailureProtectedSession && token === lastAuthenticatedBootstrapToken) {
+      pendingBootstrapToken = null;
+      session.clearMemory();
+      return;
+    }
+    projectionFailureProtectedSession = false;
+    lastAuthenticatedBootstrapToken = null;
     pendingBootstrapToken = token;
-    mobileApprovedSession().clearMemory();
+    session.clearMemory();
   }
 
   public clear(): void {
     const endpoint = sharedEndpoint;
     pendingBootstrapToken = null;
     const session = mobileApprovedSession();
+    if (projectionFailureProtectedSession) {
+      // Settings historically calls clear() after any non-READY PAPER projection. Authentication
+      // already succeeded, so preserve encrypted refresh state and only drop ephemeral access.
+      session.clearMemory();
+      return;
+    }
+    lastAuthenticatedBootstrapToken = null;
     void session.disconnect(endpoint ?? undefined);
     session.clearMemory();
   }
@@ -91,15 +137,24 @@ export class InMemoryDashboardCredentialSession {
 
   public isConfigured(): boolean { return sharedEndpoint !== null; }
 
-  public readonly credentialProvider: DashboardCredentialProvider = async () => {
+  public readonly credentialProvider: DashboardCredentialProvider = Object.assign(async () => {
     const endpoint = sharedEndpoint;
     if (endpoint == null) return null;
     const session = mobileApprovedSession();
     const pending = pendingBootstrapToken;
     if (pending != null) {
       pendingBootstrapToken = null;
-      try { lastCredentialFailure = null; await session.connectBootstrap(endpoint, pending); }
-      catch (error) { lastCredentialFailure = describeCredentialFailure(error); session.clearMemory(); return null; }
+      try {
+        lastCredentialFailure = null;
+        await session.connectBootstrap(endpoint, pending);
+        lastAuthenticatedBootstrapToken = pending;
+      } catch (error) {
+        lastCredentialFailure = describeCredentialFailure(error);
+        lastAuthenticatedBootstrapToken = null;
+        projectionFailureProtectedSession = false;
+        session.clearMemory();
+        return null;
+      }
     } else if (!session.hasMemoryAccess()) {
       let restored: Awaited<ReturnType<typeof session.restore>>;
       try { lastCredentialFailure = null; restored = await session.restore(endpoint); }
@@ -110,5 +165,19 @@ export class InMemoryDashboardCredentialSession {
       }
     }
     return session.credentialProvider();
-  };
+  }, {
+    noteProjectionResult: (outcome: DashboardProjectionOutcome): void => {
+      const session = mobileApprovedSession();
+      if (outcome === "READY") {
+        projectionFailureProtectedSession = false;
+        lastAuthenticatedBootstrapToken = null;
+        return;
+      }
+      if (outcome === "AUTH_REJECTED") {
+        projectionFailureProtectedSession = false;
+        return;
+      }
+      if (session.hasMemoryAccess() || session.shouldRetryRestore()) projectionFailureProtectedSession = true;
+    }
+  });
 }
