@@ -7,6 +7,14 @@ current_mobile_self_service_paper_upbit_readonly:
   local_validation: "Upbit relay 19/19 PASS, including real handler 405 assertions for non-GET account and order routes; mobile/source contracts 12/12 PASS; changed non-TSX TypeScript syntax checks PASS; direct mobile lint PASS (132 files). The baseline client-revoke recovery and compiled pairing/session tests remain unrun because this checkout has no emitted dist and direct TypeScript compiler children entered uninterruptible shared-VM I/O wait."
   remaining: "Run the baseline client-revoke recovery plus compiled pairing/session regressions and repository typecheck in a stable Node 24 environment; configure NUSA_MOBILE_INTROSPECTION_ORIGIN to the Cloud loopback runtime before deployment."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY
+current_volatility_compression_research_family:
+  work_order: WO-ISSUE-1813-VOLATILITY-COMPRESSION-RESEARCH-FAMILY
+  status: IMPLEMENTED_LOCAL
+  branch: research/volatility-compression-1813
+  base_sha: 724588f266a96806f9db7e587c27f5701c269c6d
+  scope: "Frozen issue #1813 volatility-compression breakout 3x3 family; implementation and tests only, no canonical OOS."
+  evaluation: "NOT_RUN_PROHIBITED: no real-market/OOS evaluation and no market-data fetch."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_first_read_connection_recovery:
   work_order: WO-20260908-CONNECTION-FIRST-READ-RECOVERY
   status: IMPLEMENTED_LOCAL
