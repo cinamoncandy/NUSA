@@ -142,7 +142,7 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
       testID="paper-learning-authority-rail"
     />
     <ScreenLead
-      eyebrow="TEST · PAPER LEARNING"
+      eyebrow="PAPER LEARNING · READ ONLY"
       title="PAPER 학습 상태"
       detail="AI 판단이 PAPER에서 어떻게 검증되고 학습되는지 한 사이클로 확인합니다."
       badge="READ ONLY"
