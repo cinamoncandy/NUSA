@@ -85,5 +85,13 @@ price, quantity, or submit controls". The refusal record therefore went to the
 connection step in Settings — the surface where the 403 that motivated this work
 actually lands — and a test asserts the trading route stays free of it.
 
+Inheritance is applied where it is literally true rather than everywhere a number
+appears. Unrealized PNL is quantity x current price, so an expired quote drops it
+to a neutral tone with a note saying the figure cannot be trusted — left in
+profit green it states a gain nobody can act on. Realized PNL is exempt: it is
+booked, not derived from a live quote, and dimming it would misreport a
+settled fact. On the LOCAL PAPER path there is no server clock, so no stamp is
+shown at all; inventing an age would be worse than admitting there is none.
+
 A value from the future is `STALE`, not `FRESH`: a negative age means the clocks
 disagree, and reading it as fresh would hide exactly the condition worth showing.

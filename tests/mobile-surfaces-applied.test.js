@@ -29,6 +29,29 @@ test("a stale refusal never outlives the attempt that produced it", () => {
   assert.equal(SETTINGS.match(/setConnectionRefusal\(null\)/g)?.length, 2);
 });
 
+test("a derived figure ages with the price it was computed from", () => {
+  const PORTFOLIO = src("portfolioView.tsx");
+  // Unrealized PNL is quantity x current price. Left in profit green off an expired quote it
+  // states a gain nobody can act on, so a stale price drops it to neutral and says why.
+  assert.match(PORTFOLIO, /priceStale = priceStage === "STALE"/);
+  assert.match(PORTFOLIO, /note=\{priceStale \? "현재가가 만료되어 이 값은 신뢰할 수 없습니다"/);
+  assert.match(PORTFOLIO, /tone=\{priceStale \? "neutral" : position\.unrealizedPnl >= 0/);
+});
+
+test("realized PNL is exempt, because it is booked rather than derived", () => {
+  const PORTFOLIO = src("portfolioView.tsx");
+  const realized = PORTFOLIO.slice(PORTFOLIO.indexOf('label="REALIZED PNL"'));
+  const row = realized.slice(0, realized.indexOf("/>"));
+  assert.doesNotMatch(row, /priceStale/, "a booked figure must not dim with a live quote");
+});
+
+test("LOCAL PAPER carries no server stamp rather than a borrowed one", () => {
+  const PORTFOLIO = src("portfolioView.tsx");
+  // No server clock exists on that path, and inventing an age would be worse than showing none.
+  assert.match(PORTFOLIO, /generatedAtMs == null \? null : freshnessStage/);
+  assert.match(PORTFOLIO, /generatedAtMs == null \? undefined : describeAge/);
+});
+
 test("production PAPER stays a supervision surface with no manual ticket", () => {
   // The refusal record deliberately did NOT go onto an order ticket: this route has none, and
   // adding one would contradict the documented safety contract rather than implement a design.
