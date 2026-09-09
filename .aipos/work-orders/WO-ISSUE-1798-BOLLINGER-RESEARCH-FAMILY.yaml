@@ -1,0 +1,31 @@
+id: WO-ISSUE-1798-BOLLINGER-RESEARCH-FAMILY
+title: Precommitted Bollinger Breakout Research Family
+status: READY_FOR_PR
+authority_impact: none
+branch: research/bollinger-family-1798
+base_sha: bd70d30132f5b585d48cf67dffc36b3d3f1ff0f0
+issue: 1798
+scope: "Add the frozen Bollinger breakout 3x3 candidate family to the existing canonical Research and exact PAPER candidate paths; implementation and tests only."
+precommit:
+  family_id: bollinger-breakout
+  periods: [10, 20, 30]
+  multipliers: [1.5, 2.0, 2.5]
+  candidate_count: 9
+constraints:
+  canonical_real_market_evaluation: prohibited
+  market_data_fetch: prohibited
+  threshold_changes: prohibited
+  fabricated_evidence: prohibited
+  second_engine: prohibited
+validation:
+  focused_research: "PASS 22/22"
+  focused_paper_semantics: "PASS 8/8 via Node 24 strip-types runner"
+  runtime_preflight: PASS
+  research_architecture: PASS
+  repository_architecture_truth: PASS
+  safety_architecture: PASS
+  ai_zero_authority: PASS
+  typecheck: "HOST_RESOURCE_LIMIT: root tsc was terminated without a diagnostic on the 1GB host"
+  note: "No research:real-run, canonical OOS evaluation, Upbit market-data request, production mutation, or authority change was performed. Dependency installation was used only for local validation."
+safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+next_permitted_action: "Commit and open an exact-head PR for canonical CI/Audit. Canonical real-market evaluation remains a separate prohibited action for this work order."

@@ -6,6 +6,9 @@ const {
   SMA_PARAMETER_NEIGHBORHOOD,
   RSI_PARAMETER_NEIGHBORHOOD,
   DONCHIAN_PARAMETER_NEIGHBORHOOD,
+  BOLLINGER_PARAMETER_NEIGHBORHOOD,
+  precommitReferenceFor,
+
   researchStrategyFamily,
   fetchResearchCandles,
   researchCandleCount,
@@ -88,6 +91,21 @@ test("Donchian candidate neighborhood is the immutable precommitted five-period 
   assert.ok(Object.isFrozen(DONCHIAN_PARAMETER_NEIGHBORHOOD));
   assert.ok(DONCHIAN_PARAMETER_NEIGHBORHOOD.every(Object.isFrozen));
   assert.equal(researchStrategyFamily("donchian-breakout"), "donchian-breakout");
+  assert.equal(precommitReferenceFor("donchian-breakout"), "precommit:#1799:donchian-breakout");
+});
+
+test("Bollinger candidate neighborhood is the immutable precommitted 3x3 family", () => {
+  assert.deepEqual(BOLLINGER_PARAMETER_NEIGHBORHOOD, [
+    { period: 10, multiplier: 1.5 }, { period: 10, multiplier: 2 }, { period: 10, multiplier: 2.5 },
+    { period: 20, multiplier: 1.5 }, { period: 20, multiplier: 2 }, { period: 20, multiplier: 2.5 },
+    { period: 30, multiplier: 1.5 }, { period: 30, multiplier: 2 }, { period: 30, multiplier: 2.5 }
+  ]);
+  assert.ok(Object.isFrozen(BOLLINGER_PARAMETER_NEIGHBORHOOD));
+  assert.ok(BOLLINGER_PARAMETER_NEIGHBORHOOD.every(Object.isFrozen));
+  assert.equal(researchStrategyFamily("bollinger-breakout"), "bollinger-breakout");
+  assert.equal(precommitReferenceFor("bollinger-breakout"), "precommit:#1798:bollinger-breakout");
+  assert.equal(precommitReferenceFor("rsi-mean-reversion"), "precommit:#1791:rsi-mean-reversion");
+
 });
 
 test("fast SMA cells are covered by a predeclared robustness reference without relaxing gates", () => {
