@@ -4,6 +4,9 @@ const {
   RESEARCH_MARKET_SET_VERSION,
   RESEARCH_MARKETS,
   SMA_PARAMETER_NEIGHBORHOOD,
+  RSI_PARAMETER_NEIGHBORHOOD,
+  DONCHIAN_PARAMETER_NEIGHBORHOOD,
+  researchStrategyFamily,
   fetchResearchCandles,
   researchCandleCount,
   buildParameterRobustnessRequest
@@ -52,6 +55,39 @@ test("SMA candidate neighborhood is predeclared, immutable, and includes fast ev
   ]);
   assert.ok(Object.isFrozen(SMA_PARAMETER_NEIGHBORHOOD));
   assert.ok(SMA_PARAMETER_NEIGHBORHOOD.every(Object.isFrozen));
+});
+
+
+test("RSI candidate neighborhood is precommitted, immutable, and selected only by explicit family config", () => {
+  assert.deepEqual(RSI_PARAMETER_NEIGHBORHOOD, [
+    { period: 7, oversold: 25, overbought: 75 },
+    { period: 7, oversold: 30, overbought: 70 },
+    { period: 7, oversold: 35, overbought: 65 },
+    { period: 14, oversold: 25, overbought: 75 },
+    { period: 14, oversold: 30, overbought: 70 },
+    { period: 14, oversold: 35, overbought: 65 },
+    { period: 21, oversold: 25, overbought: 75 },
+    { period: 21, oversold: 30, overbought: 70 },
+    { period: 21, oversold: 35, overbought: 65 }
+  ]);
+  assert.ok(Object.isFrozen(RSI_PARAMETER_NEIGHBORHOOD));
+  assert.ok(RSI_PARAMETER_NEIGHBORHOOD.every(Object.isFrozen));
+  assert.equal(researchStrategyFamily(undefined), "sma-crossover");
+  assert.equal(researchStrategyFamily("rsi-mean-reversion"), "rsi-mean-reversion");
+  assert.throws(() => researchStrategyFamily("unknown"), /unsupported NUSA_RESEARCH_STRATEGY_FAMILY/);
+});
+
+test("Donchian candidate neighborhood is the immutable precommitted five-period family", () => {
+  assert.deepEqual(DONCHIAN_PARAMETER_NEIGHBORHOOD, [
+    { channelPeriod: 10 },
+    { channelPeriod: 20 },
+    { channelPeriod: 30 },
+    { channelPeriod: 40 },
+    { channelPeriod: 55 }
+  ]);
+  assert.ok(Object.isFrozen(DONCHIAN_PARAMETER_NEIGHBORHOOD));
+  assert.ok(DONCHIAN_PARAMETER_NEIGHBORHOOD.every(Object.isFrozen));
+  assert.equal(researchStrategyFamily("donchian-breakout"), "donchian-breakout");
 });
 
 test("fast SMA cells are covered by a predeclared robustness reference without relaxing gates", () => {

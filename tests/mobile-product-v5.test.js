@@ -19,7 +19,8 @@ test("product v5 uses flatter secondary sections and Android-sized actions", () 
   const intelligence = read("src/intelligenceOs.tsx");
   assert.match(intelligence, /section: { borderTopWidth: StyleSheet.hairlineWidth, borderRadius: 0/);
   assert.match(intelligence, /sectionAction: { minHeight: 48/);
-  assert.match(intelligence, /leadTitle: { fontSize: 30/);
+  assert.match(intelligence, /leadTitle: { fontSize: 24, lineHeight: 30/);
+  assert.match(intelligence, /leadDetail: { maxWidth: 720, fontSize: 11, lineHeight: 17/);
 });
 
 test("Cloud PAPER setup communicates server session verify without changing authority", () => {
@@ -64,6 +65,8 @@ test("Android product UX acceptance bounds emulator startup and preserves diagno
   assert.ok(workflow.includes('print(ET.tostring(ET.parse("/tmp/window.xml").getroot(), encoding="unicode"), file=sys.stderr)'));
   assert.match(workflow, /if: always\(\)/);
   assert.match(workflow, /grep -q "paper-learning-monitor"/);
-  assert.match(workflow, /tap_after_scroll "paper-learning-detail-toggle"; adb shell input swipe 540 1800 540 700 450/);
+  assert.match(workflow, /scroll_until_visible\(\)/);
+  assert.match(workflow, /tap_after_scroll "paper-learning-detail-toggle"; scroll_until_visible "paper-learning-timeline"; capture 07-paper-evidence-open/);
+  assert.match(workflow, /grep -q "paper-learning-timeline" qa\/android-product-ux\/07-paper-evidence-open\.xml/);
   assert.match(workflow, /evidence_disclosure=PASS/);
 });

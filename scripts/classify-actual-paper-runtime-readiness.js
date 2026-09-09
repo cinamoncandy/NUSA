@@ -2,20 +2,55 @@ const { readFileSync, writeFileSync } = require("node:fs");
 const { resolve } = require("node:path");
 const { canonical, sha256 } = require("./actual-paper-runtime-e2e.js");
 
+function safeCount(value) {
+  return Number.isSafeInteger(value) && value >= 0 ? value : 0;
+}
+
+function runtimeSnapshots(evidence) {
+  return [
+    evidence?.first_runtime,
+    evidence?.restart_recovery,
+    evidence?.automatic_restart,
+    evidence?.supervisor?.first_cycle,
+    evidence?.supervisor?.second_cycle,
+    evidence?.supervisor?.recovered,
+  ].filter((snapshot) => snapshot != null && typeof snapshot === "object");
+}
+
+function snapshotOrderCount(snapshot) {
+  return Math.max(
+    safeCount(snapshot?.orderCount),
+    safeCount(snapshot?.heartbeat?.paperOrderCount),
+  );
+}
+
+function snapshotFillCount(snapshot) {
+  return Math.max(
+    safeCount(snapshot?.fillCount),
+    safeCount(snapshot?.heartbeat?.paperFillCount),
+  );
+}
+
+function snapshotAccountChanged(snapshot) {
+  const positionQuantity = Number(snapshot?.position?.quantity || 0);
+  return Number(snapshot?.realizedPnl || 0) !== 0
+    || Number(snapshot?.unrealizedPnl || 0) !== 0
+    || (Number.isFinite(positionQuantity) && positionQuantity !== 0);
+}
+
 function classify(evidence) {
   if (evidence == null || typeof evidence !== "object") throw new Error("actual PAPER evidence must be an object");
   const execution = evidence.execution || {};
-  const firstRuntime = evidence.first_runtime || {};
-  const orderCount = Number.isSafeInteger(firstRuntime.orderCount)
-    ? firstRuntime.orderCount
-    : Number.isSafeInteger(execution.order_count) ? execution.order_count : execution.order_id ? 1 : 0;
-  const fillCount = Number.isSafeInteger(execution.fill_count)
-    ? execution.fill_count
+  const snapshots = runtimeSnapshots(evidence);
+  const executionOrderCount = Number.isSafeInteger(execution.order_count)
+    ? safeCount(execution.order_count)
+    : execution.order_id ? 1 : 0;
+  const executionFillCount = Number.isSafeInteger(execution.fill_count)
+    ? safeCount(execution.fill_count)
     : execution.fill_id ? 1 : 0;
-  const positionQuantity = Number(firstRuntime?.position?.quantity || 0);
-  const accountChanged = Number(firstRuntime.realizedPnl || 0) !== 0
-    || Number(firstRuntime.unrealizedPnl || 0) !== 0
-    || (Number.isFinite(positionQuantity) && positionQuantity !== 0);
+  const orderCount = Math.max(executionOrderCount, ...snapshots.map(snapshotOrderCount), 0);
+  const fillCount = Math.max(executionFillCount, ...snapshots.map(snapshotFillCount), 0);
+  const accountChanged = snapshots.some(snapshotAccountChanged);
   const smokePassed = evidence.result === "PASS"
     && evidence?.authority?.liveAuthority === "NONE"
     && evidence?.authority?.productionMutationAllowed === false
@@ -73,4 +108,4 @@ if (require.main === module) {
   process.stdout.write(`${JSON.stringify({ result: evidence.result, runtime_safety_smoke: evidence.runtime_safety_smoke, autonomous_trading_certification: evidence.autonomous_trading_certification, production_readiness: evidence.production_readiness })}\n`);
 }
 
-module.exports = { classify, rewrite };
+module.exports = { classify, rewrite, runtimeSnapshots, snapshotAccountChanged, snapshotFillCount, snapshotOrderCount };

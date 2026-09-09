@@ -11,6 +11,18 @@ const FORBIDDEN_KEY = /(authorization|bearer|token|secret|password|api[_-]?key|a
 const SHA64 = /^[0-9a-f]{64}$/;
 const CANONICAL_ARCHIVE_PREFIX = Buffer.from('{"schemaVersion":1,"snapshots":[');
 const STREAM_CHUNK_BYTES = 64 * 1024;
+const LATEST_IDENTITY_SIDECAR_SUFFIX = ".latest-identity.json";
+
+interface ResearchRunReplaySnapshotLocation {
+  readonly offset: number;
+  readonly length: number;
+}
+
+interface ResearchRunReplaySnapshotLatestIdentitySidecar extends ResearchRunReplaySnapshotIdentity, ResearchRunReplaySnapshotLocation {
+  readonly schemaVersion: 1;
+  readonly archiveKey: string;
+  readonly snapshotSha256: string;
+}
 
 interface ResearchRunReplaySnapshotFile {
   readonly schemaVersion: 1;
@@ -83,7 +95,7 @@ function isWhitespace(byte: number): boolean {
  */
 function forEachValidatedSnapshot(
   filename: string,
-  visit: (snapshot: ResearchRunReplaySnapshot, encoded: Buffer) => void,
+  visit: (snapshot: ResearchRunReplaySnapshot, encoded: Buffer, location: ResearchRunReplaySnapshotLocation) => void,
   integrityOnly = false,
 ): void {
   if (!fs.existsSync(filename)) return;
@@ -108,6 +120,7 @@ function forEachValidatedSnapshot(
     let started = false;
     let expectSeparator = false;
     let arrayClosedAt: number | undefined;
+    let objectStartOffset = -1;
 
     const finishObject = (): void => {
       const encoded = Buffer.concat(objectParts, objectBytes);
@@ -116,10 +129,14 @@ function forEachValidatedSnapshot(
         throw new Error("research replay snapshot run identity is duplicated or invalid");
       }
       fingerprints.add(checked.originalRunFingerprintSha256);
-      visit(checked, encoded);
+      if (!Number.isSafeInteger(objectStartOffset) || objectStartOffset < CANONICAL_ARCHIVE_PREFIX.length) {
+        throw new Error("research replay snapshot file is corrupted");
+      }
+      visit(checked, encoded, Object.freeze({ offset: objectStartOffset, length: encoded.length }));
       objectParts = [];
       objectBytes = 0;
       started = false;
+      objectStartOffset = -1;
       expectSeparator = true;
     };
 
@@ -143,6 +160,7 @@ function forEachValidatedSnapshot(
           if (isWhitespace(byte)) continue;
           if (byte !== 0x7b) throw new Error("research replay snapshot file is corrupted");
           started = true;
+          objectStartOffset = chunkStart + index;
           depth = 1;
           inString = false;
           escaped = false;
@@ -186,6 +204,111 @@ function forEachValidatedSnapshot(
   } finally {
     fs.closeSync(fd);
   }
+}
+
+function archiveIdentityKey(stat: fs.Stats): string {
+  return `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeMs}`;
+}
+
+function latestIdentitySidecarPath(filename: string): string {
+  return `${filename}${LATEST_IDENTITY_SIDECAR_SUFFIX}`;
+}
+
+function readLatestIdentitySidecar(filename: string): ResearchRunReplaySnapshotLatestIdentitySidecar | undefined {
+  if (!fs.existsSync(filename)) return undefined;
+  const archiveStat = fs.statSync(filename);
+  if (!archiveStat.isFile()) throw new Error("research replay snapshot path is not a file");
+  const sidecar = latestIdentitySidecarPath(filename);
+  if (!fs.existsSync(sidecar)) return undefined;
+  let parsed: ResearchRunReplaySnapshotLatestIdentitySidecar;
+  try { parsed = JSON.parse(fs.readFileSync(sidecar, "utf8")) as ResearchRunReplaySnapshotLatestIdentitySidecar; }
+  catch { throw new Error("research replay snapshot latest identity sidecar is corrupted"); }
+  if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("research replay snapshot latest identity sidecar is corrupted");
+  }
+  const generatedAt = typeof parsed.generatedAt === "string" ? parsed.generatedAt.trim() : "";
+  const timestamp = Date.parse(generatedAt);
+  if (
+    parsed.schemaVersion !== 1
+    || parsed.archiveKey !== archiveIdentityKey(archiveStat)
+    || !SHA64.test(parsed.originalRunFingerprintSha256)
+    || !SHA64.test(parsed.snapshotSha256)
+    || !generatedAt
+    || !Number.isSafeInteger(timestamp)
+    || timestamp < 0
+    || !Number.isSafeInteger(parsed.offset)
+    || parsed.offset < CANONICAL_ARCHIVE_PREFIX.length
+    || !Number.isSafeInteger(parsed.length)
+    || parsed.length <= 0
+    || parsed.offset + parsed.length > archiveStat.size
+  ) {
+    // A stat mismatch means the archive changed after this cache was committed. Ignore that stale
+    // cache and fall back to the canonical scan. A cache claiming the current archive must be valid.
+    if (parsed?.archiveKey !== archiveIdentityKey(archiveStat)) return undefined;
+    throw new Error("research replay snapshot latest identity sidecar is invalid");
+  }
+  return Object.freeze({
+    schemaVersion: 1,
+    archiveKey: parsed.archiveKey,
+    originalRunFingerprintSha256: parsed.originalRunFingerprintSha256,
+    generatedAt,
+    snapshotSha256: parsed.snapshotSha256,
+    offset: parsed.offset,
+    length: parsed.length,
+  });
+}
+
+function readSnapshotAtSidecar(filename: string, sidecar: ResearchRunReplaySnapshotLatestIdentitySidecar): ResearchRunReplaySnapshot {
+  const fd = fs.openSync(filename, "r");
+  try {
+    const encoded = Buffer.alloc(sidecar.length);
+    if (fs.readSync(fd, encoded, 0, encoded.length, sidecar.offset) !== encoded.length) {
+      throw new Error("research replay snapshot latest identity sidecar points outside the archive");
+    }
+    const snapshot = parseIntegrityValidatedSnapshot(encoded);
+    if (
+      snapshot.originalRunFingerprintSha256 !== sidecar.originalRunFingerprintSha256
+      || snapshot.options.generatedAt !== sidecar.generatedAt
+      || snapshot.snapshotSha256 !== sidecar.snapshotSha256
+    ) throw new Error("research replay snapshot latest identity sidecar provenance mismatch");
+    return snapshot;
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function writeLatestIdentitySidecar(
+  filename: string,
+  snapshot: ResearchRunReplaySnapshot,
+  location: ResearchRunReplaySnapshotLocation,
+): void {
+  const archiveStat = fs.statSync(filename);
+  if (!archiveStat.isFile()) throw new Error("research replay snapshot path is not a file");
+  const generatedAt = snapshot.options.generatedAt;
+  if (typeof generatedAt !== "string" || !generatedAt.trim()) throw new Error("initial PAPER bootstrap Research generatedAt is unavailable");
+  const sidecar = latestIdentitySidecarPath(filename);
+  const temporary = `${sidecar}.${process.pid}.tmp`;
+  const payload: ResearchRunReplaySnapshotLatestIdentitySidecar = Object.freeze({
+    schemaVersion: 1,
+    archiveKey: archiveIdentityKey(archiveStat),
+    originalRunFingerprintSha256: snapshot.originalRunFingerprintSha256,
+    generatedAt,
+    snapshotSha256: snapshot.snapshotSha256,
+    offset: location.offset,
+    length: location.length,
+  });
+  try {
+    fs.writeFileSync(temporary, `${JSON.stringify(payload)}\n`, { mode: 0o600, flag: "wx" });
+    fs.renameSync(temporary, sidecar);
+    try { fs.chmodSync(sidecar, 0o600); } catch { /* cache is still bound to the immutable archive stat */ }
+  } catch (error) {
+    try { fs.rmSync(temporary, { force: true }); } catch { /* preserve canonical archive */ }
+    throw error;
+  }
+}
+
+function removeLatestIdentitySidecar(filename: string): void {
+  try { fs.rmSync(latestIdentitySidecarPath(filename), { force: true }); } catch { /* stale cache is ignored by archive key */ }
 }
 
 function runLatestIdentityWorker(filename: string): Promise<ResearchRunReplaySnapshotIdentity | undefined> {
@@ -273,6 +396,8 @@ export class FileResearchRunReplaySnapshotStore implements ResearchRunReplaySnap
   public read(originalRunFingerprintSha256: string): ResearchRunReplaySnapshot | undefined {
     const fingerprint = originalRunFingerprintSha256.trim().toLowerCase();
     if (!SHA64.test(fingerprint)) throw new Error("research replay snapshot run fingerprint is invalid");
+    const sidecar = readLatestIdentitySidecar(this.filename);
+    if (sidecar?.originalRunFingerprintSha256 === fingerprint) return validate(readSnapshotAtSidecar(this.filename, sidecar));
     let found: ResearchRunReplaySnapshot | undefined;
     forEachValidatedSnapshot(this.filename, (snapshot) => {
       if (snapshot.originalRunFingerprintSha256 === fingerprint) found = validate(snapshot);
@@ -314,25 +439,39 @@ export class FileResearchRunReplaySnapshotStore implements ResearchRunReplaySnap
    * before its candidate can acquire PAPER_RESEARCH_ONLY authority.
    */
   public latestIdentity(): ResearchRunReplaySnapshotIdentity | undefined {
-    let latest: ResearchRunReplaySnapshotIdentity | undefined;
+    const cached = readLatestIdentitySidecar(this.filename);
+    if (cached != null) return Object.freeze({
+      originalRunFingerprintSha256: cached.originalRunFingerprintSha256,
+      generatedAt: cached.generatedAt,
+    });
+    let latestSnapshot: ResearchRunReplaySnapshot | undefined;
+    let latestLocation: ResearchRunReplaySnapshotLocation | undefined;
     let latestGeneratedAt = -1;
     let latestTimestampCount = 0;
-    forEachValidatedSnapshot(this.filename, (snapshot) => {
+    forEachValidatedSnapshot(this.filename, (snapshot, _encoded, location) => {
       const generatedAt = snapshotGeneratedAt(snapshot);
       if (generatedAt > latestGeneratedAt) {
         latestGeneratedAt = generatedAt;
         latestTimestampCount = 1;
-        latest = Object.freeze({
-          originalRunFingerprintSha256: snapshot.originalRunFingerprintSha256,
-          generatedAt: snapshot.options.generatedAt!,
-        });
+        latestSnapshot = snapshot;
+        latestLocation = location;
       } else if (generatedAt === latestGeneratedAt) {
         latestTimestampCount += 1;
       }
     }, true);
-    if (latest == null) return undefined;
-    if (latestTimestampCount !== 1) throw new Error("initial PAPER bootstrap latest Research snapshot is ambiguous");
-    return latest;
+    if (latestSnapshot == null || latestLocation == null) return undefined;
+    if (latestTimestampCount !== 1) {
+      removeLatestIdentitySidecar(this.filename);
+      throw new Error("initial PAPER bootstrap latest Research snapshot is ambiguous");
+    }
+    // One legacy scan seeds an owner-only stat-bound cache. Future bootstrap cycles are O(1); the
+    // selected snapshot still receives full semantic replay in read(). Cache failure is not an
+    // archive failure, so leave the immutable source untouched and fall back next time.
+    try { writeLatestIdentitySidecar(this.filename, latestSnapshot, latestLocation); } catch { removeLatestIdentitySidecar(this.filename); }
+    return Object.freeze({
+      originalRunFingerprintSha256: latestSnapshot.originalRunFingerprintSha256,
+      generatedAt: latestSnapshot.options.generatedAt!,
+    });
   }
 
   /**
@@ -348,7 +487,16 @@ export class FileResearchRunReplaySnapshotStore implements ResearchRunReplaySnap
     }
     const stat = fs.statSync(this.filename);
     if (!stat.isFile()) return Promise.reject(new Error("research replay snapshot path is not a file"));
-    const key = `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeMs}`;
+    const sidecar = readLatestIdentitySidecar(this.filename);
+    const key = archiveIdentityKey(stat);
+    if (sidecar != null) {
+      const identity = Object.freeze({
+        originalRunFingerprintSha256: sidecar.originalRunFingerprintSha256,
+        generatedAt: sidecar.generatedAt,
+      });
+      this.latestIdentityCache = Object.freeze({ key, identity });
+      return Promise.resolve(identity);
+    }
     if (this.latestIdentityCache?.key === key) return Promise.resolve(this.latestIdentityCache.identity);
     if (this.latestIdentityPending?.key === key) return this.latestIdentityPending.promise;
     const promise = runLatestIdentityWorker(this.filename).then((identity) => {
@@ -369,6 +517,10 @@ export class FileResearchRunReplaySnapshotStore implements ResearchRunReplaySnap
     const next = validate(snapshot);
     let existing: ResearchRunReplaySnapshot | undefined;
     let existingCount = 0;
+    let latestSnapshot: ResearchRunReplaySnapshot | undefined;
+    let latestLocation: ResearchRunReplaySnapshotLocation | undefined;
+    let latestGeneratedAt = -1;
+    let latestTimestampCount = 0;
 
     // The production archive contains full walk-forward evidence and is already hundreds of MiB.
     // Never materialize or semantically replay every historical snapshot on a write. Scan one
@@ -376,8 +528,17 @@ export class FileResearchRunReplaySnapshotStore implements ResearchRunReplaySnap
     // duplicate identity before returning it. The new snapshot above still receives the full
     // semantic replay validation before any byte is written.
     if (fs.existsSync(this.filename)) {
-      forEachValidatedSnapshot(this.filename, (entry) => {
+      forEachValidatedSnapshot(this.filename, (entry, _encoded, location) => {
         existingCount += 1;
+        const generatedAt = snapshotGeneratedAt(entry);
+        if (generatedAt > latestGeneratedAt) {
+          latestGeneratedAt = generatedAt;
+          latestTimestampCount = 1;
+          latestSnapshot = entry;
+          latestLocation = location;
+        } else if (generatedAt === latestGeneratedAt) {
+          latestTimestampCount += 1;
+        }
         if (entry.originalRunFingerprintSha256 !== next.originalRunFingerprintSha256) return;
         if (entry.snapshotSha256 !== next.snapshotSha256) {
           throw new Error("research replay snapshot immutable run identity conflict");
@@ -385,12 +546,18 @@ export class FileResearchRunReplaySnapshotStore implements ResearchRunReplaySnap
         existing = validate(entry);
       }, true);
     }
-    if (existing != null) return existing;
+    if (existing != null) {
+      if (latestSnapshot != null && latestLocation != null && latestTimestampCount === 1) {
+        try { writeLatestIdentitySidecar(this.filename, latestSnapshot, latestLocation); } catch { removeLatestIdentitySidecar(this.filename); }
+      }
+      return existing;
+    }
 
     const directory = path.dirname(path.resolve(this.filename));
     fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
     const temporary = `${this.filename}.${process.pid}.tmp`;
     const encodedNext = Buffer.from(JSON.stringify(next), "utf8");
+    let nextLocation: ResearchRunReplaySnapshotLocation | undefined;
 
     try {
       if (!fs.existsSync(this.filename)) {
@@ -399,6 +566,7 @@ export class FileResearchRunReplaySnapshotStore implements ResearchRunReplaySnap
           Buffer.concat([CANONICAL_ARCHIVE_PREFIX, encodedNext, Buffer.from("]}\n")]),
           { mode: 0o600, flag: "wx" },
         );
+        nextLocation = Object.freeze({ offset: CANONICAL_ARCHIVE_PREFIX.length, length: encodedNext.length });
       } else {
         // Copy the already-validated archive first so every historical snapshot byte remains
         // immutable. Only the final array/object suffix is replaced in the temporary copy.
@@ -420,6 +588,8 @@ export class FileResearchRunReplaySnapshotStore implements ResearchRunReplaySnap
 
           const arrayCloseOffset = stat.size - tailLength + cursor;
           fs.ftruncateSync(fd, arrayCloseOffset);
+          const separatorLength = existingCount > 0 ? 1 : 0;
+          nextLocation = Object.freeze({ offset: arrayCloseOffset + separatorLength, length: encodedNext.length });
           const suffix = Buffer.concat([
             Buffer.from(existingCount > 0 ? "," : ""),
             encodedNext,
@@ -436,6 +606,21 @@ export class FileResearchRunReplaySnapshotStore implements ResearchRunReplaySnap
       this.latestIdentityCache = undefined;
       this.latestIdentityPending = undefined;
       try { fs.chmodSync(this.filename, 0o600); } catch { /* integrity remains checksum/provenance bound */ }
+
+      const nextGeneratedAt = snapshotGeneratedAt(next);
+      if (nextGeneratedAt > latestGeneratedAt) {
+        latestGeneratedAt = nextGeneratedAt;
+        latestTimestampCount = 1;
+        latestSnapshot = next;
+        latestLocation = nextLocation;
+      } else if (nextGeneratedAt === latestGeneratedAt) {
+        latestTimestampCount += 1;
+      }
+      if (latestSnapshot != null && latestLocation != null && latestTimestampCount === 1) {
+        try { writeLatestIdentitySidecar(this.filename, latestSnapshot, latestLocation); } catch { removeLatestIdentitySidecar(this.filename); }
+      } else {
+        removeLatestIdentitySidecar(this.filename);
+      }
       return next;
     } catch (error) {
       try { fs.rmSync(temporary, { force: true }); } catch { /* preserve original archive */ }

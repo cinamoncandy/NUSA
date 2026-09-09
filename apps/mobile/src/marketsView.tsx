@@ -115,7 +115,7 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
   return <View style={[styles.workspace, { backgroundColor: theme.colors.background }]} testID="markets-workspace">
     <View style={[styles.top, { maxWidth: tabletWorkspace ? 1080 : 680 }]}>
       <AuthorityRail detail="PUBLIC READ ONLY · PAPER SEPARATE · AI ZERO AUTHORITY" status={sourceState} tone={sourceState === "ACTIVE" ? "success" : sourceState === "ERROR" ? "danger" : "warning"} testID="markets-authority-rail" />
-      <ScreenLead eyebrow="MARKETS" title={selectedMarket} detail="NUSA가 참고하는 공개 시장 환경입니다. 가격·변화·데이터 신선도를 먼저 확인합니다." badge="MARKETS" badgeTone="info" />
+      <ScreenLead eyebrow="MARKETS" title={selectedMarket} detail="NUSA가 관측하는 공개 가격 흐름과 데이터 신선도입니다." badge="MARKETS" badgeTone="info" />
       <MetricStrip items={[{ label: "PRICE", value: money(selectedCurrentPrice) }, { label: "CHANGE", value: rate(changeRate), tone: changeRate == null ? "neutral" : changeRate >= 0 ? "success" : "danger" }, { label: "DATA", value: sourceState, tone: sourceState === "ACTIVE" ? "success" : "warning" }]} testID="markets-summary-strip" />
       {error ? <StateNotice title="PUBLIC FEED ERROR" detail={error} tone="danger" /> : displayedStale ? <StateNotice title="STALE DATA" detail="표시 중인 공개 시장 데이터가 신선도 기준을 벗어났습니다." tone="warning" /> : null}
     </View>
@@ -128,8 +128,8 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
 
 const styles = StyleSheet.create({
   workspace: { flex: 1, width: "100%", maxWidth: uxLayout.maxWorkspaceWidth, alignSelf: "center" },
-  top: { width: "100%", alignSelf: "center", paddingHorizontal: 20, paddingTop: 14, gap: 14 },
-  segmentOuter: { paddingTop: 14, paddingBottom: 2 },
+  top: { width: "100%", alignSelf: "center", paddingHorizontal: 20, paddingTop: 8, gap: 8 },
+  segmentOuter: { paddingTop: 9, paddingBottom: 2 },
   tabletWorkspace: { flex: 1, flexDirection: "row", gap: 24, paddingHorizontal: 28, paddingTop: 18 },
   tabletPanel: { flex: 1, minWidth: 0 },
   panels: { flexDirection: "row", padding: 4, borderWidth: 1, borderRadius: 14 },
@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
   segmentAlias: { flex: 1, flexDirection: "row" },
   segmentLabel: { fontSize: 12, lineHeight: 17, fontWeight: "800" },
   detailWorkspace: { flex: 1, minWidth: 0 },
-  paperContext: { minHeight: 84, borderTopWidth: StyleSheet.hairlineWidth, marginHorizontal: 20, marginVertical: 14, paddingVertical: 16, flexDirection: "row", alignItems: "center", gap: 12 },
+  paperContext: { minHeight: 72, borderTopWidth: StyleSheet.hairlineWidth, marginHorizontal: 20, marginVertical: 10, paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 12 },
   paperContextCopy: { flex: 1, gap: 3 },
   paperKicker: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.1 },
   paperTitle: { fontSize: 15, lineHeight: 20, fontWeight: "800" },

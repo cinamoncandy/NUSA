@@ -1,6 +1,8 @@
 "use strict";
 /**
- * Deterministic SMA parameter-neighborhood robustness runner (WO-0028).
+ * Deterministic parameter-neighborhood robustness runner (WO-0028).
+ * Legacy SMA requests retain their original grid semantics. Family-generic requests use an
+ * explicit, precommitted candidateGrid + adjacency graph so no parameter search is introduced.
  *
  * SCOPE NOTE: same situation as WO-0027 (see docs/research/walk-forward-contract.md).
  * No MarketCandle/HistoricalDatasetDescriptor contract exists in this repository, so
@@ -33,6 +35,74 @@ function isPositiveInteger(value) { return Number.isInteger(value) && value > 0;
 function isNonNegativeInteger(value) { return Number.isInteger(value) && value >= 0; }
 function isFiniteNonNegative(value) { return typeof value === "number" && Number.isFinite(value) && value >= 0; }
 
+function isPlainObject(value) { return value != null && typeof value === "object" && !Array.isArray(value); }
+function isGenericFamilyRequest(request) { return typeof request?.strategyFamily === "string" || Array.isArray(request?.candidateGrid); }
+function canonicalParameters(value) {
+  if (!isPlainObject(value)) throw new Error("strategy parameters must be an object");
+  const entries = Object.entries(value).sort(([a], [b]) => a.localeCompare(b));
+  if (entries.length === 0) throw new Error("strategy parameters must not be empty");
+  const normalized = {};
+  for (const [name, parameter] of entries) {
+    if (!name.trim() || typeof parameter !== "number" || !Number.isFinite(parameter)) throw new Error("strategy parameters must be finite numeric values");
+    normalized[name.trim()] = parameter;
+  }
+  return normalized;
+}
+function strategyFactoryFor(modules, familyId, parameters) {
+  if (familyId === "sma-crossover") {
+    const shortPeriod = parameters.shortPeriod ?? parameters.shortWindow;
+    const longPeriod = parameters.longPeriod ?? parameters.longWindow;
+    return () => new modules.strategyEngine.SmaCrossoverStrategy(shortPeriod, longPeriod);
+  }
+  if (familyId === "rsi-mean-reversion") {
+    return () => new modules.strategyEngine.RsiMeanReversionStrategy(parameters.period, parameters.oversold, parameters.overbought);
+  }
+  if (familyId === "donchian-breakout") {
+    return () => new modules.strategyEngine.DonchianBreakoutStrategy(parameters.channelPeriod);
+  }
+  throw new Error(`unsupported parameter robustness strategy family: ${familyId}`);
+}
+function validateGenericCandidateGrid(request, modules) {
+  const errors = [];
+  if (!["sma-crossover", "rsi-mean-reversion", "donchian-breakout"].includes(request.strategyFamily)) errors.push(`unsupported strategyFamily: ${request.strategyFamily}`);
+  if (!Array.isArray(request.candidateGrid) || request.candidateGrid.length === 0) {
+    errors.push("request.candidateGrid must be a non-empty precommitted array");
+    return errors;
+  }
+  const keys = new Set();
+  const candidates = new Map();
+  for (const candidate of request.candidateGrid) {
+    const key = typeof candidate?.key === "string" ? candidate.key.trim() : "";
+    if (!key) { errors.push("candidateGrid entry requires a key"); continue; }
+    if (keys.has(key)) errors.push(`candidateGrid contains duplicate key: ${key}`);
+    keys.add(key);
+    let parameters;
+    try { parameters = canonicalParameters(candidate.parameters); strategyFactoryFor(modules, request.strategyFamily, parameters)(); }
+    catch (error) { errors.push(`candidateGrid ${key} is invalid: ${error instanceof Error ? error.message : String(error)}`); continue; }
+    candidates.set(key, parameters);
+    if (!Array.isArray(candidate.neighbors)) errors.push(`candidateGrid ${key} requires an explicit neighbors array`);
+  }
+  for (const candidate of request.candidateGrid) {
+    if (!Array.isArray(candidate?.neighbors)) continue;
+    const key = String(candidate.key || "").trim();
+    const seen = new Set();
+    for (const neighbor of candidate.neighbors) {
+      if (typeof neighbor !== "string" || !keys.has(neighbor)) errors.push(`candidateGrid ${key} references unknown neighbor: ${String(neighbor)}`);
+      if (neighbor === key) errors.push(`candidateGrid ${key} cannot neighbor itself`);
+      if (seen.has(neighbor)) errors.push(`candidateGrid ${key} contains duplicate neighbor: ${neighbor}`);
+      seen.add(neighbor);
+    }
+  }
+  for (const candidate of request.candidateGrid) {
+    if (!Array.isArray(candidate?.neighbors)) continue;
+    for (const neighbor of candidate.neighbors) {
+      const reverse = request.candidateGrid.find((entry) => entry.key === neighbor);
+      if (reverse && Array.isArray(reverse.neighbors) && !reverse.neighbors.includes(candidate.key)) errors.push(`candidateGrid adjacency must be symmetric: ${candidate.key}<->${neighbor}`);
+    }
+  }
+  return errors;
+}
+
 function validateRequest(request, modules) {
   const errors = [];
   if (request == null || typeof request !== "object") { errors.push("request must be an object"); return errors; }
@@ -49,17 +119,27 @@ function validateRequest(request, modules) {
 
   const references = request.referenceParameters;
   if (!Array.isArray(references) || references.length === 0) errors.push("request.referenceParameters must be a non-empty array");
-  else {
+  else if (isGenericFamilyRequest(request)) {
+    errors.push(...validateGenericCandidateGrid(request, modules));
+    const gridByKey = new Map((request.candidateGrid ?? []).map((candidate) => [candidate.key, candidate]));
+    for (const ref of references) {
+      if (!["PRODUCTION_DEFAULT", "WALK_FORWARD_SELECTED", "MANUAL_RESEARCH_REFERENCE"].includes(ref?.source)) errors.push(`referenceParameters entry has an invalid source: ${ref?.source}`);
+      if (typeof ref?.candidateKey !== "string" || !gridByKey.has(ref.candidateKey)) errors.push(`referenceParameters entry has an unknown candidateKey: ${ref?.candidateKey}`);
+      try {
+        const expected = gridByKey.get(ref?.candidateKey)?.parameters;
+        if (canonicalHash(canonicalParameters(ref?.parameters)) !== canonicalHash(canonicalParameters(expected))) errors.push(`referenceParameters ${ref?.source} parameters do not match candidateGrid`);
+      } catch (error) { errors.push(`referenceParameters ${ref?.source} parameters are invalid`); }
+    }
+  } else {
     for (const ref of references) {
       if (!["PRODUCTION_DEFAULT", "WALK_FORWARD_SELECTED", "MANUAL_RESEARCH_REFERENCE"].includes(ref?.source)) errors.push(`referenceParameters entry has an invalid source: ${ref?.source}`);
       if (!isPositiveInteger(ref?.shortWindow)) errors.push("referenceParameters entry needs a positive integer shortWindow");
       if (!isPositiveInteger(ref?.longWindow) || ref.longWindow <= ref.shortWindow) errors.push(`referenceParameters entry ${ref?.shortWindow}/${ref?.longWindow} must have longWindow > shortWindow`);
     }
+    const neighborhood = request.neighborhood ?? {};
+    if (!Array.isArray(neighborhood.shortOffsets) || neighborhood.shortOffsets.length === 0 || !neighborhood.shortOffsets.every(Number.isInteger)) errors.push("neighborhood.shortOffsets must be a non-empty array of integers");
+    if (!Array.isArray(neighborhood.longOffsets) || neighborhood.longOffsets.length === 0 || !neighborhood.longOffsets.every(Number.isInteger)) errors.push("neighborhood.longOffsets must be a non-empty array of integers");
   }
-
-  const neighborhood = request.neighborhood ?? {};
-  if (!Array.isArray(neighborhood.shortOffsets) || neighborhood.shortOffsets.length === 0 || !neighborhood.shortOffsets.every(Number.isInteger)) errors.push("neighborhood.shortOffsets must be a non-empty array of integers");
-  if (!Array.isArray(neighborhood.longOffsets) || neighborhood.longOffsets.length === 0 || !neighborhood.longOffsets.every(Number.isInteger)) errors.push("neighborhood.longOffsets must be a non-empty array of integers");
 
   if (!isNonNegativeInteger(request.minimumTrades)) errors.push("request.minimumTrades must be a non-negative integer");
 
@@ -166,6 +246,88 @@ function summarizeFullSample(result) {
   return { totalReturn: result.metrics.totalReturn, maxDrawdown: result.metrics.maxDrawdown, profitFactor: result.performance.profitFactor ?? null, tradeCount: result.performance.trades, benchmarkExcessReturn: result.benchmark.outperformance };
 }
 
+function runGenericParameterRobustnessRequest(request, modules, candles, points) {
+  const grid = request.candidateGrid.map((candidate) => ({
+    candidateKey: candidate.key,
+    familyId: request.strategyFamily,
+    parameters: canonicalParameters(candidate.parameters),
+    neighbors: [...candidate.neighbors].sort(),
+    valid: true,
+    isReference: request.referenceParameters.some((ref) => ref.candidateKey === candidate.key)
+  })).sort((a, b) => a.candidateKey.localeCompare(b.candidateKey));
+  const execConfigFor = (cost) => ({ market: request.market, initialCash: request.execution.initialCash, feeRate: cost.feeRate, orderQuantity: request.execution.orderQuantity, riskPolicy: request.execution.riskPolicy, executionCosts: { spreadBps: request.execution.executionCosts?.spreadBps ?? 0, slippageBps: cost.slippageBps } });
+  const runCandidate = (candidate, execConfig, oosWindows) => {
+    const factory = strategyFactoryFor(modules, candidate.familyId, candidate.parameters);
+    const fullSampleResult = request.evaluation.mode !== "WALK_FORWARD_OOS_WINDOWS" ? modules.backtestEngine.runBacktest(points, factory, execConfig) : null;
+    let oosResult = null;
+    if (request.evaluation.mode === "WALK_FORWARD_OOS_WINDOWS" || request.evaluation.mode === "BOTH") {
+      const plan = buildWindowPlan(points.map((p) => ({ market: execConfig.market, interval: "1m", openTime: p.timestamp - 1, closeTime: p.timestamp, open: p.close, high: p.close, low: p.close, close: p.close, volume: 1 })), { trainingCandles: oosWindows.trainingCandles, validationCandles: 0, testCandles: oosWindows.testCandles, stepCandles: oosWindows.stepCandles });
+      if (plan.length > 0) {
+        const testResults = plan.map((boundary) => modules.backtestEngine.runBacktest(points.slice(boundary.testStartIndex, boundary.testEndIndex + 1), factory, execConfig));
+        const compoundedReturn = compoundedSequence(testResults.map((result) => result.metrics.totalReturn));
+        let base = execConfig.initialCash;
+        const curve = [];
+        for (const result of testResults) {
+          const windowInitial = result.metrics.initialEquity;
+          for (const point of result.equityCurve) curve.push({ timestamp: point.timestamp, equity: base * (point.equity / windowInitial) });
+          base *= (1 + result.metrics.totalReturn);
+        }
+        oosResult = { windowCount: plan.length, compoundedReturn, maxDrawdown: curve.length ? computeMaxDrawdownFromCurve(curve) : 0, profitableWindowRatio: plan.length ? testResults.filter((result) => result.metrics.totalReturn > 0).length / plan.length : 0, totalTrades: testResults.reduce((sum, result) => sum + result.performance.trades, 0) };
+      }
+    }
+    return { fullSample: fullSampleResult ? summarizeFullSample(fullSampleResult) : null, oos: oosResult };
+  };
+  const candidateResults = grid.map((candidate) => {
+    const costResults = {};
+    for (const cost of request.costConditions) costResults[cost.name] = runCandidate(candidate, execConfigFor(cost), request.evaluation.oosWindows);
+    const base = costResults.BASE.fullSample;
+    const eligible = base ? base.tradeCount >= request.minimumTrades : (costResults.BASE.oos ? costResults.BASE.oos.totalTrades >= request.minimumTrades : false);
+    return { ...candidate, status: "EVALUATED", eligible, costResults };
+  });
+  const byKey = new Map(candidateResults.map((candidate) => [candidate.candidateKey, candidate]));
+  const baseReturn = (candidate) => candidate.costResults.BASE.fullSample?.totalReturn ?? candidate.costResults.BASE.oos?.compoundedReturn ?? 0;
+  const benchmarkExcess = (candidate) => candidate.costResults.BASE.fullSample?.benchmarkExcessReturn ?? 0;
+  const uniqueEdges = [];
+  for (const candidate of grid) for (const neighbor of candidate.neighbors) if (candidate.candidateKey < neighbor) uniqueEdges.push([candidate.candidateKey, neighbor]);
+  let signReversals = 0;
+  for (const [leftKey, rightKey] of uniqueEdges) if ((baseReturn(byKey.get(leftKey)) > 0) !== (baseReturn(byKey.get(rightKey)) > 0)) signReversals += 1;
+  const signReversalRatio = uniqueEdges.length ? signReversals / uniqueEdges.length : 0;
+  const allReturns = candidateResults.map(baseReturn);
+  const positiveRatioAll = allReturns.length ? allReturns.filter((value) => value > 0).length / allReturns.length : 0;
+  const failures = [];
+  const references = request.referenceParameters.map((ref) => {
+    const referenceCandidate = byKey.get(ref.candidateKey);
+    if (!referenceCandidate) {
+      failures.push(`reference ${ref.source} (${ref.candidateKey}) could not be evaluated`);
+      return { source: ref.source, familyId: request.strategyFamily, candidateKey: ref.candidateKey, parameters: canonicalParameters(ref.parameters), assessment: "INVALID" };
+    }
+    const neighbors = referenceCandidate.neighbors.map((key) => byKey.get(key)).filter(Boolean);
+    const referenceReturn = baseReturn(referenceCandidate);
+    const matchingDirectionRatio = neighbors.length ? neighbors.filter((candidate) => (baseReturn(candidate) > 0) === (referenceReturn > 0)).length / neighbors.length : 0;
+    const benchmarkOutperformRatio = neighbors.length ? neighbors.filter((candidate) => benchmarkExcess(candidate) > 0).length / neighbors.length : 0;
+    let assessment;
+    if (signReversalRatio >= 0.5) assessment = "UNSTABLE";
+    else if (referenceReturn <= 0) assessment = "FLAT_WEAK";
+    else if (matchingDirectionRatio >= 0.75 && benchmarkOutperformRatio >= 0.5) assessment = "BROAD_PLATEAU";
+    else if (matchingDirectionRatio >= 0.5) assessment = "NARROW_PLATEAU";
+    else assessment = "ISOLATED_PEAK";
+    return { source: ref.source, familyId: request.strategyFamily, candidateKey: ref.candidateKey, parameters: canonicalParameters(ref.parameters), referenceReturn, immediateNeighborCount: neighbors.length, immediateNeighborPositiveRatio: matchingDirectionRatio, immediateNeighborBenchmarkOutperformRatio: benchmarkOutperformRatio, allCandidatePositiveRatio: positiveRatioAll, signReversalRatio, assessment };
+  });
+  const validReturns = [...allReturns].sort((a, b) => a - b);
+  const median = validReturns.length ? (validReturns.length % 2 === 1 ? validReturns[(validReturns.length - 1) / 2] : (validReturns[validReturns.length / 2 - 1] + validReturns[validReturns.length / 2]) / 2) : 0;
+  const q1 = validReturns.length ? validReturns[Math.floor((validReturns.length - 1) * 0.25)] : 0;
+  const q3 = validReturns.length ? validReturns[Math.floor((validReturns.length - 1) * 0.75)] : 0;
+  const survivorsByCondition = Object.fromEntries(REQUIRED_COST_CONDITIONS.map((name) => [name, candidateResults.filter((candidate) => (candidate.costResults[name].fullSample?.totalReturn ?? candidate.costResults[name].oos?.compoundedReturn ?? 0) > 0).length]));
+  const aggregate = { candidateCount: grid.length, validCandidateCount: grid.length, invalidCandidateCount: 0, positiveRatio: positiveRatioAll, medianReturn: median, returnIqr: q3 - q1, worstReturn: validReturns[0] ?? 0, bestReturn: validReturns.at(-1) ?? 0, costSurvivorCounts: survivorsByCondition };
+  const warnings = [];
+  if (references.some((reference) => reference.assessment === "ISOLATED_PEAK")) warnings.push("REFERENCE_ISOLATED_PEAK");
+  if (references.some((reference) => reference.assessment === "UNSTABLE")) warnings.push("UNSTABLE_LOCAL_SURFACE");
+  if (survivorsByCondition.SEVERE < survivorsByCondition.BASE * 0.5) warnings.push("SEVERE_COST_COLLAPSE_MAJORITY");
+  const result = { schemaVersion: 1, requestId: request.id, status: failures.length === 0 ? "PASS" : "FAIL", strategyFamily: request.strategyFamily, dataset: { market: request.market, candleCount: candles.length, datasetContentSha256: modules.researchDataset.calculateCandleSha256(candles) }, referenceParameters: request.referenceParameters, candidateGrid: request.candidateGrid, costConditions: request.costConditions, references, candidates: candidateResults, aggregate, warnings, failures };
+  result.hashes = { requestSha256: canonicalHash(request), datasetContentSha256: result.dataset.datasetContentSha256, referenceParametersSha256: canonicalHash(request.referenceParameters), neighborhoodGridSha256: canonicalHash(request.candidateGrid), candidateResultsSha256: canonicalHash(candidateResults), aggregateResultSha256: canonicalHash(aggregate) };
+  return result;
+}
+
 function runParameterRobustnessRequest(request, options = {}) {
   const repositoryRoot = options.repositoryRoot || path.resolve(__dirname, "..", "..");
   const modules = loadProductionModules(repositoryRoot);
@@ -177,6 +339,7 @@ function runParameterRobustnessRequest(request, options = {}) {
 
   const candles = request.candles;
   const points = modules.researchDataset.candlesToBacktestPoints(candles);
+  if (isGenericFamilyRequest(request)) return runGenericParameterRobustnessRequest(request, modules, candles, points);
   const trainingBound = request.evaluation.mode === "FULL_SAMPLE" ? candles.length : request.evaluation.oosWindows.trainingCandles;
   const grid = buildCandidateGrid(request.referenceParameters, request.neighborhood, trainingBound);
   const validCandidates = grid.filter((c) => c.valid);

@@ -105,6 +105,7 @@ jobs:
           tap(){ read x y < <(python3 "$RUNNER_TEMP/tap.py" "$1"); adb shell input tap "$x" "$y"; sleep 2; }
           enter_personal(){ if coords="$(python3 "$RUNNER_TEMP/tap.py" "local-entry-submit" 2>/dev/null)"; then read x y <<<"$coords"; adb shell input tap "$x" "$y"; sleep 2; elif python3 "$RUNNER_TEMP/tap.py" "home-screen" >/dev/null 2>&1; then return 0; else python3 "$RUNNER_TEMP/tap.py" "local-entry-submit"; return 2; fi; }
           tap_after_scroll(){ local needle="$1"; local tries=0; while [ "$tries" -lt 5 ]; do if coords="$(python3 "$RUNNER_TEMP/tap.py" "$needle" 2>/dev/null)"; then read x y <<<"$coords"; adb shell input tap "$x" "$y"; sleep 2; return 0; fi; adb shell input swipe 540 1750 540 520 450; sleep 1; tries=$((tries+1)); done; echo "required Android control not reachable: $needle" >&2; return 2; }
+          scroll_until_visible(){ local needle="$1"; local tries=0; while [ "$tries" -lt 5 ]; do if python3 "$RUNNER_TEMP/tap.py" "$needle" >/dev/null 2>&1; then return 0; fi; adb shell input swipe 540 1750 540 700 450; sleep 1; tries=$((tries+1)); done; echo "required Android evidence not reachable: $needle" >&2; python3 "$RUNNER_TEMP/tap.py" "$needle"; return 2; }
 
           capture 00-entry
           enter_personal; capture 01-home
@@ -115,7 +116,7 @@ jobs:
 
           tap "tab-Paper"; capture 05-paper
           adb shell input swipe 540 1800 540 500 450; sleep 1; capture 06-paper-scroll
-          tap_after_scroll "paper-learning-detail-toggle"; adb shell input swipe 540 1800 540 700 450; sleep 1; capture 07-paper-evidence-open
+          tap_after_scroll "paper-learning-detail-toggle"; scroll_until_visible "paper-learning-timeline"; capture 07-paper-evidence-open
 
           tap "tab-Portfolio"; capture 08-portfolio
           tap "header-tools-menu"; tap "header-settings"; capture 09-settings
