@@ -143,8 +143,8 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
     />
     <ScreenLead
       eyebrow="PAPER LEARNING · READ ONLY"
-      title="운용 상태를 한눈에 감독합니다"
-      detail="판단·위험·가상 실행·손익·학습을 같은 사이클에서 보되, 실행 권한과 평가 근거는 분리해서 표시합니다."
+      title="PAPER 학습 상태"
+      detail="AI 판단이 PAPER에서 어떻게 검증되고 학습되는지 한 사이클로 확인합니다."
       badge="READ ONLY"
       badgeTone="info"
     />
@@ -270,14 +270,14 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  content: { width: "100%", maxWidth: 1080, alignSelf: "center", paddingHorizontal: 20, paddingTop: 14, paddingBottom: 120, gap: 18 },
+  content: { width: "100%", maxWidth: 1080, alignSelf: "center", paddingHorizontal: 20, paddingTop: 10, paddingBottom: 96, gap: 14 },
   eyebrow: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.15 },
-  sourceRow: { minHeight: 58, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingHorizontal: 2 },
+  sourceRow: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingHorizontal: 2 },
   sourceCopy: { flex: 1, minWidth: 0, gap: 3 },
   sourceValue: { fontSize: 13, lineHeight: 18, fontWeight: "800" },
   sourcePill: { minHeight: 28, minWidth: 62, borderWidth: 1, borderRadius: 999, alignItems: "center", justifyContent: "center", paddingHorizontal: 10 },
   sourcePillText: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 0.7 },
-  columns: { flexDirection: "row", alignItems: "stretch", gap: 18 },
+  columns: { flexDirection: "row", alignItems: "stretch", gap: 14 },
   column: { flex: 1, minWidth: 0 },
   note: { fontSize: 10, lineHeight: 16 },
   learningSummary: { fontSize: 12, lineHeight: 18 },

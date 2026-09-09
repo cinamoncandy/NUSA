@@ -63,6 +63,19 @@ export interface Theme {
   }>;
 }
 
+export const intelligenceFieldColors = Object.freeze({
+  surface: "#070A12",
+  border: "#26324A",
+  ambientPurple: "#17122B",
+  ambientTeal: "#081E2A",
+  textMuted: "#8E9AB1",
+  textSubtle: "#68758D",
+  grid: "#273149",
+  text: "#F7F9FF",
+  heroBorder: "#222C40",
+  heroMuted: "#9AA6BA",
+});
+
 const interaction = Object.freeze({
   touchTarget: 48 as const,
   controlHeight: 48 as const,

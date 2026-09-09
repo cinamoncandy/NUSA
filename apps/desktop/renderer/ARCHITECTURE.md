@@ -27,6 +27,15 @@ This avoids multiple mount systems and keeps the DOM inspectable, deterministic 
 
 ## User-first product hierarchy
 
+The product visual system follows these additional rules:
+
+- **Outcome before machinery:** capital truth is the largest object; runtime mechanics are secondary.
+- **One dominant surface per viewport:** avoid grids of equally weighted cards and keep secondary information quiet.
+- **Short labels, deep hierarchy:** user-facing Korean labels lead; technical English is limited to compact provenance/status markers.
+- **NUSA has a recognizable pulse:** automation state uses a restrained orbital/pulse motif, never decorative trading signals.
+- **Color is scarce:** primary violet-blue identifies product/action, green/red remain outcome/state semantics, and surfaces stay neutral.
+- **No fake intelligence theatre:** no decorative confidence meters, synthetic market heat, invented risk gates, or terminal-style noise.
+
 The visible information architecture is organized around user jobs, while the stable route IDs above remain unchanged:
 
 - First viewport answers, in order: **what happened to my PAPER assets, is NUSA healthy, what can I do next**.

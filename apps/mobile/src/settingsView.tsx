@@ -141,7 +141,7 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
     catch (actionError) { setOperatorError(actionError instanceof Error ? actionError.message : "사용자 상태를 변경할 수 없습니다."); }
     finally { setOperatorBusy(false); }
   };
-  const resetSettings = () => { if (!settings || isBusyNow()) return; const previousTheme = settings.theme; credentialSession.clear(); clearPaperConnectionVerification(); resetUpbitReadOnlyState(); setConnectionAttempted(false); setTokenDraft(""); setOperatorToken(""); setOperatorUsers([]); setOperatorError(null); setMode("system"); void persist(DEFAULT_SETTINGS).then((saved) => { if (!saved) setMode(themePreference(previousTheme)); else setConnection({ status: "NOT_CONFIGURED", reason: "Cloud PAPER는 선택 사항입니다." }); }); };
+  const resetSettings = () => { if (!settings || isBusyNow()) return; const previousTheme = settings.theme; credentialSession.clear(); clearPaperConnectionVerification(); resetUpbitReadOnlyState(); setConnectionAttempted(false); setTokenDraft(""); setOperatorToken(""); setOperatorUsers([]); setOperatorError(null); setMode("dark"); void persist(DEFAULT_SETTINGS).then((saved) => { if (!saved) setMode(themePreference(previousTheme)); else setConnection({ status: "NOT_CONFIGURED", reason: "Cloud PAPER는 선택 사항입니다." }); }); };
   const signOutLocal = () => { if (!isBusyNow()) { setOperatorToken(""); onSignOut?.(); } };
 
   if (error && settings === null) return <View style={styles.state} testID="settings-error"><InlineNotice title="설정을 불러올 수 없습니다" detail={error} tone="danger" /></View>;
