@@ -91,6 +91,7 @@ export function HomeView({
   const localAccount = localPortfolio?.account ?? null;
   const account = cloudAccount ?? localAccount;
   const accountSource = snapshot != null ? "CLOUD" : localPortfolio != null ? "LOCAL" : null;
+  const capitalLabel = accountSource === "LOCAL" ? "LOCAL PAPER CAPITAL" : accountSource === "CLOUD" ? "CLOUD PAPER CAPITAL" : "PAPER CAPITAL";
   const totalPnl = account == null ? null : (account.realizedPnl ?? account.position.realizedPnl) + account.unrealizedPnl;
   const exposure = cloudAccount != null ? cloudExposure(cloudAccount) : localAccount?.assetValue ?? null;
   const cashEnvelope = account == null ? null : createCashInvestmentEnvelope(account.cash, investmentPercent);
@@ -188,7 +189,7 @@ export function HomeView({
       <MotionReveal testID="home-capital-reveal">
         <View style={[styles.capitalRail, { borderColor: theme.colors.border }]} testID="account-hero-card">
           <View style={styles.capitalPrimary}>
-            <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>PAPER CAPITAL</Text>
+            <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>{capitalLabel}</Text>
             <Text style={[styles.capitalValue, { color: theme.colors.text }]} numberOfLines={1} adjustsFontSizeToFit>{krw(account?.equity)}</Text>
             <Text style={[styles.pnlValue, { color: pnlColor }]}>{signedMoney(totalPnl)} TOTAL PNL</Text>
           </View>
@@ -208,7 +209,7 @@ export function HomeView({
             <View><Text style={[styles.eyebrow, { color: theme.colors.aiSignalMid }]}>MARKET CANVAS</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{publicMarket}</Text></View>
             <View style={styles.canvasQuote}><Text style={[styles.marketPrice, { color: theme.colors.text }]} adjustsFontSizeToFit numberOfLines={1}>{krw(marketChart.currentPrice)}</Text><Text style={[styles.sectionMeta, { color: theme.colors.textMuted }]}>UPBIT · PUBLIC READ ONLY</Text></View>
           </View>
-          <View style={[styles.canvasChart, { borderColor: theme.colors.border }]}>
+          <View style={[styles.canvasChart, { borderColor: theme.colors.border }]}> 
             {marketChart.state === "READY" ? <CandlePlot model={marketChart} /> : <Text style={[styles.marketEmpty, { color: theme.colors.textMuted }]}>{publicMarketStale ? "시세가 지연되었거나 연결되지 않았습니다." : "검증된 차트 데이터를 기다리고 있습니다."}</Text>}
           </View>
           <Pressable accessibilityRole="button" onPress={() => onNavigate("Markets")} style={styles.canvasAction}><Text style={[styles.inlineLink, { color: theme.colors.aiSignalEnd }]}>시장 환경 확장하기 ↗</Text></Pressable>
