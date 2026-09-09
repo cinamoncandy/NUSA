@@ -209,7 +209,7 @@ export function HomeView({
             <View><Text style={[styles.eyebrow, { color: theme.colors.aiSignalMid }]}>MARKET CANVAS</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{publicMarket}</Text></View>
             <View style={styles.canvasQuote}><Text style={[styles.marketPrice, { color: theme.colors.text }]} adjustsFontSizeToFit numberOfLines={1}>{krw(marketChart.currentPrice)}</Text><Text style={[styles.sectionMeta, { color: theme.colors.textMuted }]}>UPBIT · PUBLIC READ ONLY</Text></View>
           </View>
-          <View style={[styles.canvasChart, { borderColor: theme.colors.border }]}> 
+          <View style={[styles.canvasChart, { borderColor: theme.colors.border }]}>
             {marketChart.state === "READY" ? <CandlePlot model={marketChart} /> : <Text style={[styles.marketEmpty, { color: theme.colors.textMuted }]}>{publicMarketStale ? "시세가 지연되었거나 연결되지 않았습니다." : "검증된 차트 데이터를 기다리고 있습니다."}</Text>}
           </View>
           <Pressable accessibilityRole="button" onPress={() => onNavigate("Markets")} style={styles.canvasAction}><Text style={[styles.inlineLink, { color: theme.colors.aiSignalEnd }]}>시장 환경 확장하기 ↗</Text></Pressable>
