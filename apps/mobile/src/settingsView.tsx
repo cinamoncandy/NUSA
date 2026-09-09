@@ -6,7 +6,7 @@ import { InlineNotice, ScreenHeader, SegmentedControl } from "./uxPrimitives";
 import { useTheme, type ThemePreference } from "./ThemeProvider";
 import { DEFAULT_SETTINGS, normalizeInvestmentPercent, normalizeSettings, type AppSettings, type SettingsRepository, type ThemeSetting } from "./settings";
 import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
-import { InMemoryDashboardCredentialSession, shouldFallbackToMobileEnrollment } from "./dashboardCredentialSession";
+import { InMemoryDashboardCredentialSession, describeCredentialFailure, shouldFallbackToMobileEnrollment } from "./dashboardCredentialSession";
 import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
 import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, isPaperConnectionVerified, markPaperConnectionVerified, setConfiguredPaperEndpoint } from "./paperConnectionSession";
 import { changeOperatorUserStatus, loadOperatorUsers, type OperatorUserAction, type OperatorUserRecord } from "./operatorUserAccessClient";
@@ -121,7 +121,10 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
       }
       if (result.status === "READY") { markPaperConnectionVerified(configuredEndpoint); setTokenDraft(""); } else { credentialSession.clear(); clearPaperConnectionVerification(); }
       setConnection(result);
-    } catch (connectionError) { credentialSession.clear(); clearPaperConnectionVerification(); setConnection({ status: "NOT_CONFIGURED", reason: connectionError instanceof Error ? connectionError.message : "Cloud PAPER 최초 인증 또는 보안 세션이 유효하지 않습니다." }); }
+    // Enrollment failures arrive as MobileSessionRequestError carrying the server's own refusal
+    // code. Rendering `.message` raw discarded it and showed a bare "(403)", which points the
+    // operator at the token even when the token was accepted and the account was the problem.
+    } catch (connectionError) { credentialSession.clear(); clearPaperConnectionVerification(); setConnection({ status: "NOT_CONFIGURED", reason: connectionError == null ? "Cloud PAPER 최초 인증 또는 보안 세션이 유효하지 않습니다." : describeCredentialFailure(connectionError) }); }
     finally { connectionInFlightRef.current = false; setConnecting(false); }
   };
   const disconnect = () => { if (isBusyNow()) return; credentialSession.clear(); clearPaperConnectionVerification(); setConnectionAttempted(false); setTokenDraft(""); setConnection({ status: "NOT_CONFIGURED", reason: "Cloud PAPER 보안 세션을 해제했습니다. LOCAL PAPER는 계속 사용할 수 있습니다." }); };

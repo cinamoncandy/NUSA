@@ -41,7 +41,10 @@ export class MobileSessionRequestError extends Error {
   /** Server-named reason, when the response carried one. Never a credential or request detail. */
   public readonly refusal: string | undefined;
   public constructor(readonly status: number, refusal?: string) {
-    super(`mobile session request rejected (${status}).`);
+    // The refusal code names which account state refused the request. It is carried in the
+    // message as well as the field, so a surface that renders `.message` raw still shows the
+    // actionable state rather than a bare status number.
+    super(refusal == null ? `mobile session request rejected (${status}).` : `mobile session request rejected (${status}: ${refusal}).`);
     this.name = "MobileSessionRequestError";
     this.refusal = refusal;
   }
