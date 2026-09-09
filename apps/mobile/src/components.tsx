@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
-import { buttonTokens, cardTokens, fieldTokens, type ButtonTone } from "./designSystem";
+import { buttonTokens, cardTokens, fieldTokens, intelligenceFieldColors, type ButtonTone } from "./designSystem";
 import { useTheme } from "./ThemeProvider";
 
 export interface NusaButtonProps {
@@ -274,19 +274,19 @@ const styles = StyleSheet.create({
   dataRow: { minHeight: 36, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 14 },
   dataLabel: { flex: 1, fontSize: 13, lineHeight: 19 },
   skeleton: { opacity: 0.85 },
-  intelligenceField: { height: 236, minWidth: 220, flex: 1, overflow: "hidden", borderWidth: 1, borderColor: "#26324A", borderRadius: 26, position: "relative", alignItems: "center", justifyContent: "center", backgroundColor: "#070A12" },
-  intelligenceAmbientOne: { position: "absolute", width: 230, height: 230, borderRadius: 115, backgroundColor: "#17122B", opacity: 0.72, top: -86, right: -46 },
-  intelligenceAmbientTwo: { position: "absolute", width: 190, height: 190, borderRadius: 95, backgroundColor: "#081E2A", opacity: 0.56, bottom: -82, left: -48 },
-  intelligenceFieldKicker: { position: "absolute", left: 16, top: 14, color: "#8E9AB1", fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1.25 },
-  intelligenceFieldFooter: { position: "absolute", right: 16, bottom: 14, color: "#68758D", fontSize: 7, lineHeight: 10, fontWeight: "900", letterSpacing: 1.05 },
-  intelligenceGrid: { position: "absolute", width: 170, height: 170, borderWidth: StyleSheet.hairlineWidth, borderColor: "#273149", borderRadius: 85, opacity: 0.72 },
+  intelligenceField: { height: 236, minWidth: 220, flex: 1, overflow: "hidden", borderWidth: 1, borderColor: intelligenceFieldColors.border, borderRadius: 26, position: "relative", alignItems: "center", justifyContent: "center", backgroundColor: intelligenceFieldColors.surface },
+  intelligenceAmbientOne: { position: "absolute", width: 230, height: 230, borderRadius: 115, backgroundColor: intelligenceFieldColors.ambientPurple, opacity: 0.72, top: -86, right: -46 },
+  intelligenceAmbientTwo: { position: "absolute", width: 190, height: 190, borderRadius: 95, backgroundColor: intelligenceFieldColors.ambientTeal, opacity: 0.56, bottom: -82, left: -48 },
+  intelligenceFieldKicker: { position: "absolute", left: 16, top: 14, color: intelligenceFieldColors.textMuted, fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1.25 },
+  intelligenceFieldFooter: { position: "absolute", right: 16, bottom: 14, color: intelligenceFieldColors.textSubtle, fontSize: 7, lineHeight: 10, fontWeight: "900", letterSpacing: 1.05 },
+  intelligenceGrid: { position: "absolute", width: 170, height: 170, borderWidth: StyleSheet.hairlineWidth, borderColor: intelligenceFieldColors.grid, borderRadius: 85, opacity: 0.72 },
   intelligenceLattice: { position: "absolute", width: 210, height: 150 },
   latticeLine: { position: "absolute", height: 1, borderRadius: 1, opacity: 0.34 },
   latticeLineA: { width: 118, left: 21, top: 54, transform: [{ rotate: "17deg" }] },
   latticeLineB: { width: 106, right: 20, top: 80, transform: [{ rotate: "-23deg" }] },
   latticeLineC: { width: 78, left: 52, bottom: 28, transform: [{ rotate: "-38deg" }] },
   latticeLineD: { width: 88, right: 48, top: 34, transform: [{ rotate: "42deg" }] },
-  latticeNode: { position: "absolute", width: 8, height: 8, borderRadius: 4, borderWidth: 1.5, backgroundColor: "#070A12" },
+  latticeNode: { position: "absolute", width: 8, height: 8, borderRadius: 4, borderWidth: 1.5, backgroundColor: intelligenceFieldColors.surface },
   latticeNodeA: { left: 14, top: 42 },
   latticeNodeB: { right: 9, top: 44 },
   latticeNodeC: { left: 34, bottom: 14 },
@@ -299,8 +299,8 @@ const styles = StyleSheet.create({
   intelligenceCore: { position: "absolute", width: 16, height: 16, borderRadius: 8, shadowOpacity: 0.95, shadowRadius: 22, elevation: 6 },
   intelligenceScan: { position: "absolute", width: 128, height: 1.5, borderRadius: 1 },
   intelligenceLegend: { position: "absolute", left: 16, bottom: 13, flexDirection: "row", alignItems: "baseline", gap: 6 },
-  intelligenceLegendLabel: { color: "#8E9AB1", fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1.05 },
-  intelligenceLegendValue: { color: "#F7F9FF", fontSize: 14, lineHeight: 17, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  intelligenceLegendLabel: { color: intelligenceFieldColors.textMuted, fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1.05 },
+  intelligenceLegendValue: { color: intelligenceFieldColors.text, fontSize: 14, lineHeight: 17, fontWeight: "900", fontVariant: ["tabular-nums"] },
   dataValue: { flexShrink: 1, textAlign: "right", fontSize: 13, lineHeight: 19, fontVariant: ["tabular-nums"] },
   dataValueEmphasis: { fontSize: 14 },
   // Issue #536's MASTER VISUAL REFERENCE names this centerpiece the visual hero of HOME, not a

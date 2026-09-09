@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useTheme } from "./ThemeProvider";
+import { intelligenceFieldColors } from "./designSystem";
 import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
 import { buildHomeDecisionSurface } from "./homeDecisionSurface";
 import { buildHomeStatusRail } from "./homeStatusRail";
@@ -138,10 +139,10 @@ export function HomeView({
   const openOrders = snapshot?.portfolio?.openOrderCount ?? null;
   const pnlColor = totalPnl == null ? theme.colors.text : totalPnl >= 0 ? theme.colors.success : theme.colors.danger;
   const connectionLabel = disconnected ? "SETUP" : readOnlyError ? "DEGRADED" : snapshot?.readyForPaperOperations ? "ACTIVE" : "OBSERVING";
-  const intelligenceSurface = "#070A12";
-  const intelligenceBorder = "#222C40";
-  const intelligenceText = "#F7F9FF";
-  const intelligenceMuted = "#9AA6BA";
+  const intelligenceSurface = intelligenceFieldColors.surface;
+  const intelligenceBorder = intelligenceFieldColors.heroBorder;
+  const intelligenceText = intelligenceFieldColors.text;
+  const intelligenceMuted = intelligenceFieldColors.heroMuted;
 
   return <View style={[styles.shell, { backgroundColor: theme.colors.background }]} testID="home-screen">
     <ScrollView
