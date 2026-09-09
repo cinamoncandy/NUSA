@@ -55,6 +55,18 @@ const GATE_LABELS: Readonly<Record<LampId, string>> = Object.freeze({
  * the translation layer and not a second source of truth about what is enforced.
  */
 const REFUSALS: Readonly<Record<string, RefusalSeed>> = Object.freeze({
+  NO_CREDENTIAL: {
+    gate: "LINK", severity: "REJECT",
+    title: "요청에 자격 증명이 없습니다",
+    detail: "서버로 보낸 요청에 연결 토큰이 실려 있지 않았습니다.",
+    action: "설정에서 1회용 연결 토큰을 입력하세요."
+  },
+  CREDENTIAL_REJECTED: {
+    gate: "LINK", severity: "REJECT",
+    title: "연결 토큰이 만료되었거나 이미 사용되었습니다",
+    detail: "토큰 자체가 서버에서 거부되었습니다. 1회용 토큰은 한 번만 쓸 수 있습니다.",
+    action: "새 토큰을 발급받아 다시 입력하세요."
+  },
   USER_NOT_REGISTERED: {
     gate: "LINK", severity: "REJECT",
     title: "서버에 이 소유자 계정이 등록되어 있지 않습니다",
@@ -69,7 +81,7 @@ const REFUSALS: Readonly<Record<string, RefusalSeed>> = Object.freeze({
   },
   USER_IDENTITY_MISMATCH: {
     gate: "LINK", severity: "REJECT",
-    title: "토큰의 소유자 정보가 저장된 계정과 다릅니다",
+    title: "토큰의 소유자 정보가 서버에 저장된 계정과 일치하지 않습니다",
     detail: "인증은 통과했지만 토큰이 밝힌 신원과 서버 기록이 일치하지 않습니다.",
     action: "서버의 소유자 이메일 설정을 확인하세요."
   },
@@ -128,17 +140,27 @@ export function describeRefusal(code: unknown, status?: number): RefusalDescript
   if (seed != null && normalized != null) {
     return Object.freeze({ code: normalized, gate: seed.gate, gateLabel: GATE_LABELS[seed.gate], severity: seed.severity, title: seed.title, detail: seed.detail, action: seed.action });
   }
-  const authenticated = status === 403;
+  // The status alone still separates the two cases the operator most needs told apart: 401 is
+  // the credential being refused, 403 is the credential passing and the account state refusing.
+  // Collapsing them is what sent the operator back to a token that had already authenticated.
+  const credentialRefused = status === 401;
+  const accountRefused = status === 403;
   return Object.freeze({
     code: normalized ?? (Number.isInteger(status) ? `HTTP_${status}` : "UNKNOWN"),
     gate: "LINK",
     gateLabel: GATE_LABELS.LINK,
     severity: "REJECT",
-    title: authenticated ? "계정 상태 때문에 요청이 거부되었습니다" : "서버가 요청을 거부했습니다",
-    detail: authenticated
+    title: accountRefused ? "계정 상태 때문에 요청이 거부되었습니다"
+      : credentialRefused ? "연결 토큰이 만료되었거나 이미 사용되었습니다"
+      : "서버가 요청을 거부했습니다",
+    detail: accountRefused
       ? "자격 증명은 통과했으므로 토큰 문제는 아닙니다. 서버가 이유를 밝히지 않았습니다."
-      : "서버가 거부 사유를 밝히지 않았습니다.",
-    action: "아래 기계 근거를 그대로 담아 운영자에게 문의하세요."
+      : credentialRefused
+        ? "토큰이 만료되었거나 이미 사용되었을 수 있습니다."
+        : "서버가 거부 사유를 밝히지 않았습니다.",
+    action: accountRefused ? "아래 기계 근거를 그대로 담아 운영자에게 문의하세요."
+      : credentialRefused ? "새 토큰을 발급받아 다시 입력하세요."
+      : "아래 기계 근거를 그대로 담아 운영자에게 문의하세요."
   });
 }
 

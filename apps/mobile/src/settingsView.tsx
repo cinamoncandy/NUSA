@@ -7,6 +7,9 @@ import { useTheme, type ThemePreference } from "./ThemeProvider";
 import { DEFAULT_SETTINGS, normalizeInvestmentPercent, normalizeSettings, type AppSettings, type SettingsRepository, type ThemeSetting } from "./settings";
 import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
 import { InMemoryDashboardCredentialSession, describeCredentialFailure, shouldFallbackToMobileEnrollment } from "./dashboardCredentialSession";
+import { MobileSessionRequestError } from "./mobileApprovedSession";
+import { describeRefusal, type RefusalDescriptor } from "./instrumentState";
+import { RefusalRecord } from "./instrumentSurfaces";
 import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
 import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, isPaperConnectionVerified, markPaperConnectionVerified, setConfiguredPaperEndpoint } from "./paperConnectionSession";
 import { changeOperatorUserStatus, loadOperatorUsers, type OperatorUserAction, type OperatorUserRecord } from "./operatorUserAccessClient";
@@ -54,6 +57,10 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
   const [tokenDraft, setTokenDraft] = useState("");
   const [investmentPercentDraft, setInvestmentPercentDraft] = useState(String(DEFAULT_SETTINGS.capitalAllocation.investmentPercent));
   const [connection, setConnection] = useState<PersonalPaperOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "Cloud PAPER connection is not configured." });
+  // The structured refusal is kept beside the flattened reason. The one-line reason answers
+  // "what went wrong"; the record answers "which gate, and what do I do now" -- and keeps the
+  // machine evidence on screen where it can be copied into a support request.
+  const [connectionRefusal, setConnectionRefusal] = useState<RefusalDescriptor | null>(null);
   const [operatorToken, setOperatorToken] = useState("");
   const [operatorUsers, setOperatorUsers] = useState<readonly OperatorUserRecord[]>([]);
   const [operatorError, setOperatorError] = useState<string | null>(null);
@@ -102,7 +109,7 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
   const saveInvestmentPercent = async (raw = investmentPercentDraft) => { if (!settings || isBusyNow()) return; try { const value = normalizeInvestmentPercent(Number(raw)); setInvestmentPercentDraft(String(value)); await persist({ ...settings, capitalAllocation: { investmentPercent: value } }); } catch (allocationError) { setError(allocationError instanceof Error ? allocationError.message : "Investment allocation is invalid."); } };
   const testConnection = async () => {
     if (settings == null || isBusyNow()) return;
-    connectionInFlightRef.current = true; setConnectionAttempted(true); setConnecting(true); setError(null);
+    connectionInFlightRef.current = true; setConnectionAttempted(true); setConnecting(true); setError(null); setConnectionRefusal(null);
     try {
       if (!await persist({ ...settings, paperEndpoint: endpointDraft })) return;
       const configuredEndpoint = getConfiguredPaperEndpoint();
@@ -124,10 +131,14 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
     // Enrollment failures arrive as MobileSessionRequestError carrying the server's own refusal
     // code. Rendering `.message` raw discarded it and showed a bare "(403)", which points the
     // operator at the token even when the token was accepted and the account was the problem.
-    } catch (connectionError) { credentialSession.clear(); clearPaperConnectionVerification(); setConnection({ status: "NOT_CONFIGURED", reason: connectionError == null ? "Cloud PAPER 최초 인증 또는 보안 세션이 유효하지 않습니다." : describeCredentialFailure(connectionError) }); }
+    } catch (connectionError) {
+      credentialSession.clear(); clearPaperConnectionVerification();
+      setConnectionRefusal(connectionError instanceof MobileSessionRequestError ? describeRefusal(connectionError.refusal, connectionError.status) : null);
+      setConnection({ status: "NOT_CONFIGURED", reason: connectionError == null ? "Cloud PAPER 최초 인증 또는 보안 세션이 유효하지 않습니다." : describeCredentialFailure(connectionError) });
+    }
     finally { connectionInFlightRef.current = false; setConnecting(false); }
   };
-  const disconnect = () => { if (isBusyNow()) return; credentialSession.clear(); clearPaperConnectionVerification(); setConnectionAttempted(false); setTokenDraft(""); setConnection({ status: "NOT_CONFIGURED", reason: "Cloud PAPER 보안 세션을 해제했습니다. LOCAL PAPER는 계속 사용할 수 있습니다." }); };
+  const disconnect = () => { if (isBusyNow()) return; credentialSession.clear(); clearPaperConnectionVerification(); setConnectionAttempted(false); setTokenDraft(""); setConnectionRefusal(null); setConnection({ status: "NOT_CONFIGURED", reason: "Cloud PAPER 보안 세션을 해제했습니다. LOCAL PAPER는 계속 사용할 수 있습니다." }); };
   const refreshOperatorUsers = async (): Promise<void> => {
     const baseUrl = getConfiguredPaperEndpoint() ?? endpointDraft.trim();
     if (!baseUrl) { setOperatorError("운영자 기능을 쓰려면 Cloud endpoint를 먼저 설정하세요."); return; }
@@ -176,6 +187,7 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
         <ConnectionStep index="2" title="SECURE SESSION" detail="1회용 토큰은 저장하지 않고 승인된 보안 세션으로 교환" state={connection.status === "READY" ? "SECURE" : tokenDraft.trim() ? "TOKEN READY" : "NEEDED"} tone={connection.status === "READY" ? "success" : tokenDraft.trim() ? "info" : "neutral"} />
         <ConnectionStep index="3" title="VERIFY" detail="PAPER 운영 projection까지 읽힌 경우에만 연결 완료" state={connecting ? "CHECKING" : connection.status === "READY" ? "VERIFIED" : connectionFailed ? "ERROR" : "WAITING"} tone={connecting ? "info" : connection.status === "READY" ? "success" : connectionFailed ? "danger" : "neutral"} {...(connectionFailed ? { errorDetail: connection.reason } : {})} />
       </View>
+      {connectionRefusal == null ? null : <RefusalRecord refusal={connectionRefusal} testID="settings-connection-refusal" />}
       <NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy && !canonicalEndpoint} keyboardType="url" label="Cloud endpoint" value={endpointDraft} onChangeText={setEndpointDraft} placeholder="https://..." returnKeyType="done" testID="settings-paper-endpoint" />
       <NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} label="1회용 연결 토큰" value={tokenDraft} onChangeText={setTokenDraft} placeholder="Cloud를 연결할 때만 입력" returnKeyType="done" secureTextEntry testID="settings-paper-token" />
       <Text style={[styles.hint, { color: theme.colors.textMuted }]}>bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다. LOCAL PAPER에는 사용하지 않습니다. 인증 후 Android Secure Storage의 회전 refresh 세션으로 복구합니다.</Text>

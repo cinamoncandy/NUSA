@@ -26,15 +26,24 @@ test("every refusal resolves to a gate, a sentence and a next action", () => {
 
 test("the taxonomy covers the server's whole refusal set", () => {
   assert.deepEqual(knownRefusalCodes(), [
-    "DAILY_LOSS_LIMIT", "KILL_SWITCH_ACTIVE", "MARKET_DATA_STALE", "MAX_ORDER_NOTIONAL",
-    "PRICE_DEVIATION_LIMIT", "SESSION_DRAWDOWN_LIMIT", "USER_IDENTITY_MISMATCH",
-    "USER_NOT_ACTIVE", "USER_NOT_REGISTERED"
+    "CREDENTIAL_REJECTED", "DAILY_LOSS_LIMIT", "KILL_SWITCH_ACTIVE", "MARKET_DATA_STALE",
+    "MAX_ORDER_NOTIONAL", "NO_CREDENTIAL", "PRICE_DEVIATION_LIMIT", "SESSION_DRAWDOWN_LIMIT",
+    "USER_IDENTITY_MISMATCH", "USER_NOT_ACTIVE", "USER_NOT_REGISTERED"
   ]);
 });
 
-test("the three session states stay distinguishable from each other", () => {
-  const titles = new Set(["USER_NOT_REGISTERED", "USER_NOT_ACTIVE", "USER_IDENTITY_MISMATCH"].map((code) => describeRefusal(code).title));
-  assert.equal(titles.size, 3);
+test("every session-gate state stays distinguishable from the others", () => {
+  const session = ["NO_CREDENTIAL", "CREDENTIAL_REJECTED", "USER_NOT_REGISTERED", "USER_NOT_ACTIVE", "USER_IDENTITY_MISMATCH"];
+  assert.equal(new Set(session.map((code) => describeRefusal(code).title)).size, session.length);
+  for (const code of session) assert.equal(describeRefusal(code).gate, "LINK");
+});
+
+test("a bare 401 blames the credential and a bare 403 clears it", () => {
+  // The two used to share one "token expired" sentence. That is right for 401 and wrong for
+  // 403, and the wrong half is what sent the operator back to a token that had authenticated.
+  assert.match(describeRefusal(undefined, 401).title, /만료되었거나 이미 사용/);
+  assert.match(describeRefusal(undefined, 403).detail, /토큰 문제는 아닙니다/);
+  assert.notEqual(describeRefusal(undefined, 401).title, describeRefusal(undefined, 403).title);
 });
 
 test("an unknown code still yields an actionable record, never a bare status", () => {

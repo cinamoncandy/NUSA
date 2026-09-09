@@ -12,6 +12,7 @@ import { freshestObservedAtMs, type WatchlistMarket } from "./watchlist";
 import { buildChartViewModel, type PublicCandle } from "./chartViewModel";
 import { CandlePlot } from "./chartView";
 import { FactRow, StateNotice } from "./intelligenceOs";
+import { describeAge, freshnessStage } from "./instrumentState";
 import { BUILD_SOURCE_SHA } from "./generatedBuildConfig";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
@@ -121,6 +122,18 @@ export function HomeView({
     nowMs: Date.now(),
     hasDailyPnlBasis: false,
   });
+  // The hero number carries its own age. An equity figure with no timestamp is a claim without
+  // evidence, and the stage thresholds are the operations contract's own window, so what this
+  // dims is what the server would refuse to price off.
+  const equityGeneratedAtMs = snapshot?.generatedAt ?? null;
+  const equityNowMs = Date.now();
+  const equityStageValue = equityGeneratedAtMs == null ? null : freshnessStage(equityGeneratedAtMs, equityNowMs);
+  const equityStale = equityStageValue === "STALE";
+  const equityAge = equityGeneratedAtMs == null ? "" : describeAge(equityGeneratedAtMs, equityNowMs);
+  const equityTone = equityStale ? theme.colors.danger
+    : equityStageValue === "EXPIRING" ? theme.colors.warning
+    : equityStageValue === "AGING" ? theme.colors.info
+    : theme.colors.success;
   const aiInsightAvailable = decisionSurface.aiInsightAvailable && !disconnected && readOnlyError == null;
   const posture = disconnected
     ? "PAPER 서버 연결이 필요합니다."
@@ -184,8 +197,14 @@ export function HomeView({
       <View style={[styles.balanceStage, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }, tablet ? styles.balanceStageTablet : null]} testID="account-hero-card">
         <View style={styles.balancePrimary}>
           <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>PAPER EQUITY</Text>
-          <Text style={[styles.balanceValue, { color: theme.colors.text }]} numberOfLines={1} adjustsFontSizeToFit>{krw(account?.equity)}</Text>
-          <Text style={[styles.pnlValue, { color: pnlColor }]}>{signedMoney(totalPnl)} TOTAL PNL</Text>
+          <Text style={[styles.balanceValue, { color: theme.colors.text, opacity: equityStale ? 0.55 : 1 }, equityStale ? styles.balanceValueStale : null]} numberOfLines={1} adjustsFontSizeToFit>{krw(account?.equity)}</Text>
+          <Text style={[styles.pnlValue, { color: pnlColor, opacity: equityStale ? 0.55 : 1 }]}>{signedMoney(totalPnl)} TOTAL PNL</Text>
+          {equityGeneratedAtMs == null ? null : (
+            <View accessibilityLabel={`${krw(account?.equity)}, ${equityAge}${equityStale ? ", 만료됨" : ""}`} style={styles.balanceStamp} testID="account-hero-freshness">
+              <View style={[styles.balanceStampDot, { backgroundColor: equityTone }]} />
+              <Text style={[styles.balanceStampText, { color: equityTone, fontFamily: theme.typography.monoFamily }]}>{equityStale ? `${equityAge} · 만료됨` : equityAge}</Text>
+            </View>
+          )}
         </View>
         <View style={[styles.balanceFacts, { borderColor: theme.colors.border }]}>
           <View style={styles.balanceFact}><Text style={[styles.factLabel, { color: theme.colors.textMuted }]}>CASH</Text><Text style={[styles.factValue, { color: theme.colors.text }]}>{krw(account?.cash)}</Text></View>
@@ -287,6 +306,10 @@ const styles = StyleSheet.create({
   balancePrimary: { flex: 1, minWidth: 0, gap: 5 },
   balanceValue: { fontSize: 34, lineHeight: 42, fontWeight: "600", letterSpacing: -1.2, fontVariant: ["tabular-nums"] },
   pnlValue: { fontSize: 13, lineHeight: 18, fontWeight: "900", letterSpacing: 0.2, fontVariant: ["tabular-nums"] },
+  balanceValueStale: { textDecorationLine: "line-through" },
+  balanceStamp: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
+  balanceStampDot: { width: 5, height: 5, borderRadius: 2.5 },
+  balanceStampText: { fontSize: 10, lineHeight: 14 },
   balanceFacts: { minWidth: 240, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, flexDirection: "row", gap: 20, flexWrap: "wrap" },
   balanceFact: { minWidth: 66, gap: 3 },
   factLabel: { fontSize: 8, lineHeight: 12, fontWeight: "800", letterSpacing: 0.7 },

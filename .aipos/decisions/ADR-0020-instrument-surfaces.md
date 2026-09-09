@@ -67,11 +67,23 @@ Two details are load-bearing and easy to undo by accident:
   of unlit lamps, where the 3:1 non-text threshold applies. Meta text uses
   `textMuted` (`#A5AEC0`, 8.4:1).
 
-`describeRefusal` and `describeCredentialFailure`
-(`dashboardCredentialSession.ts`) now both translate the three session codes.
-That overlap is deliberate for this change — the credential path was corrected
-first and is covered by its own tests — but the two should converge on this
-module rather than drift.
+`describeCredentialFailure` (`dashboardCredentialSession.ts`) now delegates to
+`describeRefusal` rather than carrying its own copy of the session vocabulary, so
+the taxonomy has one home. Converging them exposed a residual defect: that
+function answered 401 and 403 with the same "the token expired, get a new one"
+sentence. It is right for 401 and wrong for 403 — a 403 means the credential
+authenticated and the account state refused it — and the wrong half is exactly
+what sent the operator back to a token that was already correct. `NO_CREDENTIAL`
+and `CREDENTIAL_REJECTED` joined the table so the session gate is complete, and a
+status the gate does not speak in (a 418, say) still returns its number, since
+that is the only evidence the operator can hand on.
+
+The order ticket the design drew does not exist and must not be built.
+`tradingView.tsx` states that production PAPER is a supervision surface: the
+cloud runtime owns orchestration and mobile "never exposes manual BUY/SELL,
+price, quantity, or submit controls". The refusal record therefore went to the
+connection step in Settings — the surface where the 403 that motivated this work
+actually lands — and a test asserts the trading route stays free of it.
 
 A value from the future is `STALE`, not `FRESH`: a negative age means the clocks
 disagree, and reading it as fresh would hide exactly the condition worth showing.
