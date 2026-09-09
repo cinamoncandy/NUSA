@@ -19,7 +19,8 @@ test("product v5 uses flatter secondary sections and Android-sized actions", () 
   const intelligence = read("src/intelligenceOs.tsx");
   assert.match(intelligence, /section: { borderTopWidth: StyleSheet.hairlineWidth, borderRadius: 0/);
   assert.match(intelligence, /sectionAction: { minHeight: 48/);
-  assert.match(intelligence, /leadTitle: { fontSize: 30/);
+  assert.match(intelligence, /leadTitle: { fontSize: 24, lineHeight: 30/);
+  assert.match(intelligence, /leadDetail: { maxWidth: 720, fontSize: 11, lineHeight: 17/);
 });
 
 test("Cloud PAPER setup communicates server session verify without changing authority", () => {
