@@ -7,6 +7,52 @@
  */
 const { canonicalHash } = require("./canonical-hash.js");
 
+function isGenericFamilyRequest(request) { return typeof request?.strategyFamily === "string" || Array.isArray(request?.candidateGrid); }
+
+function verifyGenericParameterRobustnessResult(request, result) {
+  const errors = [];
+  const expected = new Map((request.candidateGrid ?? []).map((candidate) => [candidate.key, candidate]));
+  const actual = new Map((result.candidates ?? []).map((candidate) => [candidate.candidateKey, candidate]));
+  if (expected.size !== request.candidateGrid.length) errors.push("request.candidateGrid contains duplicate keys");
+  if (actual.size !== result.candidates.length) errors.push("result.candidates contains duplicate candidateKey values");
+  if (expected.size !== actual.size) errors.push(`candidate grid size mismatch: expected ${expected.size}, result has ${actual.size}`);
+  for (const [key, candidate] of expected) {
+    const recorded = actual.get(key);
+    if (!recorded) { errors.push(`missing candidate in result: ${key}`); continue; }
+    if (canonicalHash(candidate.parameters) !== canonicalHash(recorded.parameters)) errors.push(`candidate ${key} parameter mismatch`);
+    if (canonicalHash([...candidate.neighbors].sort()) !== canonicalHash([...(recorded.neighbors ?? [])].sort())) errors.push(`candidate ${key} adjacency mismatch`);
+    if (recorded.familyId !== request.strategyFamily) errors.push(`candidate ${key} family mismatch`);
+  }
+  for (const ref of request.referenceParameters ?? []) {
+    if (!expected.has(ref.candidateKey)) errors.push(`reference ${ref.source} (${ref.candidateKey}) is not present in candidateGrid`);
+    const reported = (result.references ?? []).find((entry) => entry.source === ref.source);
+    if (!reported) errors.push(`reference result missing: ${ref.source}`);
+    else {
+      if (reported.candidateKey !== ref.candidateKey) errors.push(`reference ${ref.source} candidateKey mismatch`);
+      if (canonicalHash(reported.parameters) !== canonicalHash(ref.parameters)) errors.push(`reference ${ref.source} parameters mismatch`);
+      if (reported.assessment === "BROAD_PLATEAU" && !(reported.referenceReturn > 0)) errors.push(`reference ${ref.source}: BROAD_PLATEAU requires a positive referenceReturn`);
+      if (reported.assessment === "FLAT_WEAK" && reported.referenceReturn > 0) errors.push(`reference ${ref.source}: FLAT_WEAK should not have a positive referenceReturn`);
+    }
+  }
+  const byName = Object.fromEntries((result.costConditions ?? []).map((condition) => [condition.name, condition]));
+  if (byName.BASE && byName.MODERATE && (byName.MODERATE.feeRate < byName.BASE.feeRate || byName.MODERATE.slippageBps < byName.BASE.slippageBps)) errors.push("recorded costConditions.MODERATE is less stressful than BASE");
+  if (byName.MODERATE && byName.SEVERE && (byName.SEVERE.feeRate < byName.MODERATE.feeRate || byName.SEVERE.slippageBps < byName.MODERATE.slippageBps)) errors.push("recorded costConditions.SEVERE is less stressful than MODERATE");
+  const validCandidates = (result.candidates ?? []).filter((candidate) => candidate.status === "EVALUATED");
+  const returns = validCandidates.map((candidate) => candidate.costResults.BASE.fullSample?.totalReturn ?? candidate.costResults.BASE.oos?.compoundedReturn ?? 0).sort((a, b) => a - b);
+  const positiveRatio = returns.length ? returns.filter((value) => value > 0).length / returns.length : 0;
+  if (result.aggregate && Math.abs(positiveRatio - result.aggregate.positiveRatio) > 1e-9) errors.push(`aggregate.positiveRatio mismatch: recomputed ${positiveRatio}, result reports ${result.aggregate.positiveRatio}`);
+  if (result.aggregate && returns.length && Math.abs(returns[0] - result.aggregate.worstReturn) > 1e-9) errors.push("aggregate.worstReturn mismatch");
+  if (result.aggregate && returns.length && Math.abs(returns[returns.length - 1] - result.aggregate.bestReturn) > 1e-9) errors.push("aggregate.bestReturn mismatch");
+  if (result.hashes) {
+    if (canonicalHash(request) !== result.hashes.requestSha256) errors.push("requestSha256 mismatch");
+    if (canonicalHash(request.referenceParameters) !== result.hashes.referenceParametersSha256) errors.push("referenceParametersSha256 mismatch");
+    if (canonicalHash(request.candidateGrid) !== result.hashes.neighborhoodGridSha256) errors.push("neighborhoodGridSha256 mismatch");
+    if (canonicalHash(result.candidates) !== result.hashes.candidateResultsSha256) errors.push("candidateResultsSha256 mismatch");
+    if (canonicalHash(result.aggregate) !== result.hashes.aggregateResultSha256) errors.push("aggregateResultSha256 mismatch");
+  } else errors.push("result.hashes is missing");
+  return { status: errors.length === 0 ? "PASS" : "FAIL", errors };
+}
+
 function rebuildGridKeys(referenceParameters, neighborhood) {
   const keys = new Set();
   for (const ref of referenceParameters) {
@@ -23,6 +69,7 @@ function verifyParameterRobustnessResult(request, result) {
   const errors = [];
   if (!result || result.status === undefined) { errors.push("result is missing a status field"); return { status: "FAIL", errors }; }
   if (result.status === "FAIL" && result.candidates.length === 0) return { status: "PASS", errors: [], note: "request-level validation failure; nothing further to verify" };
+  if (isGenericFamilyRequest(request)) return verifyGenericParameterRobustnessResult(request, result);
 
   // Grid completeness + tuple uniqueness, rebuilt independently from the raw request.
   const expectedKeys = rebuildGridKeys(request.referenceParameters, request.neighborhood);

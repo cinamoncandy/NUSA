@@ -186,9 +186,11 @@ export class InMemoryDashboardCredentialSession {
         await session.connectBootstrap(endpoint, pending);
         lastAuthenticatedBootstrapToken = pending;
       } catch (error) {
-        lastCredentialFailure = describeCredentialFailure(error); lastCredentialRefusal = describeCredentialRefusal(error);
-        lastAuthenticatedBootstrapToken = null;
-        projectionFailureProtectedSession = false;
+        lastCredentialFailure = describeCredentialFailure(error);
+        lastCredentialRefusal = describeCredentialRefusal(error);
+        const retryable = session.shouldRetryRestore();
+        lastAuthenticatedBootstrapToken = retryable ? pending : null;
+        projectionFailureProtectedSession = retryable;
         session.clearMemory();
         return null;
       }

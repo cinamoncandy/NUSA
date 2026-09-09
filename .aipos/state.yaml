@@ -1,4 +1,10 @@
 version: 1
+current_first_read_connection_recovery:
+  work_order: WO-20260908-CONNECTION-FIRST-READ-RECOVERY
+  status: IMPLEMENTED_LOCAL
+  branch: codex/session-connect-recovery
+  validation: "22 focused/regression tests; typecheck/lint/security/architecture/safety/AI guard PASS. CI pending."
+  remaining: "Independent CI/Audit/Release and actual device verification; Upbit persistence policy handled by PR 1786."
 current_oracle_codex_dev_runner:
   work_order: WO-20260908-ORACLE-CODEX-DEV-RUNNER
   status: MERGED_VM_CREATION_HUMAN_ENVIRONMENT_ONLY

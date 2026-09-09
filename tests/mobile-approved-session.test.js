@@ -63,6 +63,30 @@ function tokenSet(prefix, now = Date.now()) {
   return { accessToken: `${prefix}-access-token-1234567890`, accessExpiresAt: now + 600000, refreshToken: `${prefix}-refresh-token-1234567890`, refreshExpiresAt: now + 86400000, scopes: ["dashboard:read", "paper:trade"] };
 }
 
+test("bootstrap identity outage retains single-use session for restart recovery", async () => {
+  for (const status of [429, 503, 401, 403]) {
+    const storage = new MemorySecureStorage();
+    let unavailable = true;
+    let bootstrapCalls = 0;
+    const request = async (url) => {
+      if (url.endsWith("/bootstrap")) { bootstrapCalls += 1; return response(url, 200, tokenSet("initial")); }
+      if (url.endsWith("/refresh")) return response(url, 200, tokenSet("rotated"));
+      return unavailable ? response(url, status, {}) : response(url, 200, { userId: "mobile-user", email: "mobile@example.com", scopes: ["dashboard:read", "paper:trade"] });
+    };
+    const session = new MobileApprovedSession(storage, request);
+    await assert.rejects(session.connectBootstrap("https://cloud.example.com", "bootstrap-token-1234567890"));
+    assert.equal(session.hasMemoryAccess(), false);
+    assert.equal((await storage.getSecret(SESSION_STORAGE_KEY)) !== null, status === 429 || status === 503);
+    if (status === 429 || status === 503) {
+      assert.equal(session.shouldRetryRestore(), true);
+      unavailable = false;
+      const restored = new MobileApprovedSession(storage, request);
+      assert.equal((await restored.restore("https://cloud.example.com")).userId, "mobile-user");
+      assert.equal(bootstrapCalls, 1);
+    }
+  }
+});
+
 test("mobile runtime persists refresh only, keeps access in memory, and rotates on restore", async () => {
   const storage = new MemorySecureStorage();
   const endpoint = "https://cloud.example.com";

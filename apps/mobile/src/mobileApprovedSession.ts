@@ -203,7 +203,14 @@ export class MobileApprovedSession {
       this.identity = identity;
       return identity;
     } catch (error) {
-      await this.clearLocal();
+      if (isDefinitiveSessionRejection(error)) {
+        await this.clearLocal();
+      } else {
+        // Bootstrap is single-use. Retain the already-issued refresh session when
+        // the identity read fails temporarily; the next restore revalidates it.
+        this.clearMemory();
+        this.restoreRetryable = true;
+      }
       throw error;
     }
   }

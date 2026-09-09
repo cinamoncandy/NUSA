@@ -48,6 +48,49 @@ test("autonomous fill plus account change can be classified complete while LIVE 
   assert.equal(result.production_readiness.completion_claim_allowed, true);
 });
 
+test("later supervised lifecycle fill is certified when the first snapshot preceded the fill", () => {
+  const result = classify({
+    ...base,
+    supervisor: {
+      restart_count: 1,
+      first_cycle: {
+        heartbeat: { paperOrderCount: 0, paperFillCount: 0 },
+        realizedPnl: 0,
+        unrealizedPnl: 0,
+        position: null,
+      },
+      second_cycle: {
+        heartbeat: { paperOrderCount: 1, paperFillCount: 1 },
+        realizedPnl: 0,
+        unrealizedPnl: 0,
+        position: { market: "KRW-SOPH", quantity: 12.5 },
+      },
+    },
+  });
+  assert.equal(result.result, "PASS");
+  assert.equal(result.autonomous_trading_certification.automatic_order_observed, true);
+  assert.equal(result.autonomous_trading_certification.automatic_fill_observed, true);
+  assert.equal(result.autonomous_trading_certification.account_or_pnl_change_observed, true);
+  assert.equal(result.production_readiness.completion_claim_allowed, true);
+});
+
+test("later lifecycle order and fill counters cannot certify without an account or PnL change", () => {
+  const result = classify({
+    ...base,
+    automatic_restart: {
+      heartbeat: { paperOrderCount: 1, paperFillCount: 1 },
+      realizedPnl: 0,
+      unrealizedPnl: 0,
+      position: null,
+    },
+  });
+  assert.equal(result.autonomous_trading_certification.automatic_order_observed, true);
+  assert.equal(result.autonomous_trading_certification.automatic_fill_observed, true);
+  assert.equal(result.production_readiness.account_or_pnl_change_observed, false);
+  assert.equal(result.production_readiness.completion_claim_allowed, false);
+  assert.equal(result.result, "INCOMPLETE");
+});
+
 test("LIVE mutation evidence can never authorize a completion claim", () => {
   const result = classify({
     ...base,

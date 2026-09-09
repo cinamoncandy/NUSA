@@ -2,8 +2,13 @@ import type { CandidateSelectionMode } from "../strategy/executionCostStress";
 
 export interface ResearchRunParameterRobustnessReference {
   readonly source: string;
-  readonly shortWindow: number;
-  readonly longWindow: number;
+  /** Legacy SMA tuple, retained for replay compatibility. */
+  readonly shortWindow?: number;
+  readonly longWindow?: number;
+  /** Family-generic immutable parameter identity. */
+  readonly familyId?: string;
+  readonly candidateKey?: string;
+  readonly parameters?: Readonly<Record<string, number>>;
   readonly assessment: string;
 }
 
@@ -76,6 +81,9 @@ interface ParameterRobustnessResultInput {
     readonly source?: unknown;
     readonly shortWindow?: unknown;
     readonly longWindow?: unknown;
+    readonly familyId?: unknown;
+    readonly candidateKey?: unknown;
+    readonly parameters?: unknown;
     readonly assessment?: unknown;
   }[];
   readonly aggregate?: {
@@ -175,6 +183,23 @@ function ratio(value: unknown, code: string, name: string): number {
   return normalized;
 }
 
+function parameterRecord(value: unknown): Readonly<Record<string, number>> {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) {
+    throw new ResearchRunRobustnessEvidenceError("PARAMETER_ROBUSTNESS_REFERENCE_INVALID", "generic robustness parameters must be an object");
+  }
+  const normalized: Record<string, number> = {};
+  for (const [key, parameter] of Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b))) {
+    if (!key.trim() || typeof parameter !== "number" || !Number.isFinite(parameter)) {
+      throw new ResearchRunRobustnessEvidenceError("PARAMETER_ROBUSTNESS_REFERENCE_INVALID", "generic robustness parameters must be finite numeric values");
+    }
+    normalized[key.trim()] = parameter;
+  }
+  if (Object.keys(normalized).length === 0) {
+    throw new ResearchRunRobustnessEvidenceError("PARAMETER_ROBUSTNESS_REFERENCE_INVALID", "generic robustness parameters must not be empty");
+  }
+  return freeze(normalized);
+}
+
 function uniqueSorted(values: readonly string[], code: string): readonly string[] {
   if (values.some((value) => value.length === 0)) {
     throw new ResearchRunRobustnessEvidenceError(code, "robustness evidence contains an empty value");
@@ -206,12 +231,28 @@ function parseParameterRobustness(
   if (!Array.isArray(referencesInput) || referencesInput.length === 0) {
     throw new ResearchRunRobustnessEvidenceError("PARAMETER_ROBUSTNESS_REFERENCES_MISSING", "parameter robustness references are required");
   }
-  const references = referencesInput.map((reference) => ({
-    source: requiredText(reference.source, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID"),
-    shortWindow: nonNegativeInteger(reference.shortWindow, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID", "shortWindow"),
-    longWindow: nonNegativeInteger(reference.longWindow, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID", "longWindow"),
-    assessment: requiredText(reference.assessment, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID"),
-  })).sort((left, right) => left.source.localeCompare(right.source) || left.shortWindow - right.shortWindow || left.longWindow - right.longWindow);
+  const references = referencesInput.map((reference): ResearchRunParameterRobustnessReference => {
+    const source = requiredText(reference.source, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID");
+    const assessment = requiredText(reference.assessment, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID");
+    if (reference.parameters !== undefined || reference.familyId !== undefined || reference.candidateKey !== undefined) {
+      return freeze({
+        source,
+        familyId: requiredText(reference.familyId, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID"),
+        candidateKey: requiredText(reference.candidateKey, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID"),
+        parameters: parameterRecord(reference.parameters),
+        assessment,
+      });
+    }
+    return freeze({
+      source,
+      shortWindow: nonNegativeInteger(reference.shortWindow, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID", "shortWindow"),
+      longWindow: nonNegativeInteger(reference.longWindow, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID", "longWindow"),
+      assessment,
+    });
+  }).sort((left, right) => left.source.localeCompare(right.source)
+    || (left.candidateKey ?? "").localeCompare(right.candidateKey ?? "")
+    || (left.shortWindow ?? 0) - (right.shortWindow ?? 0)
+    || (left.longWindow ?? 0) - (right.longWindow ?? 0));
   const aggregateInput = input.aggregate;
   if (aggregateInput == null || typeof aggregateInput !== "object") {
     throw new ResearchRunRobustnessEvidenceError("PARAMETER_ROBUSTNESS_AGGREGATE_MISSING", "parameter robustness aggregate is required");

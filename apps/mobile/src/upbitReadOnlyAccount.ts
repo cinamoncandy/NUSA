@@ -66,27 +66,6 @@ export function resetUpbitReadOnlyState(): void {
   setUpbitReadOnlyState(initialUpbitReadOnlyState);
 }
 
-/**
- * Restores a previously connected READ_ONLY session at app start.
- *
- * The credential now survives a relaunch in platform secure storage, but the module's own
- * base URL and refresh timer do not, so without this the restored credential would sit unused
- * and the panel would report "not configured" -- which is what made an authenticated Upbit
- * connection appear to drop itself on every restart. The endpoint is the canonical default,
- * matching what the connection panel itself offers.
- */
-export async function restoreUpbitReadOnlyAccount(baseUrl: string = UPBIT_LIVE_BASE_URL): Promise<UpbitReadOnlyState> {
-  if (activeBaseUrl != null) return currentState;
-  const token = await credentialSession.restore();
-  if (token == null || activeBaseUrl != null) return currentState;
-  activeBaseUrl = baseUrl.trim() || UPBIT_LIVE_BASE_URL;
-  const generation = sessionGeneration;
-  const next = await refreshUpbitReadOnlyAccount();
-  if (generation !== sessionGeneration) return currentState;
-  if (next.status === "READY" || next.status === "STALE") startRefreshTimer();
-  return next;
-}
-
 export async function refreshUpbitReadOnlyAccount(): Promise<UpbitReadOnlyState> {
   if (refreshInFlight) return refreshInFlight;
   if (!activeBaseUrl || !credentialSession.isConfigured()) {
@@ -126,7 +105,12 @@ export async function refreshUpbitReadOnlyAccount(): Promise<UpbitReadOnlyState>
     } catch (error) {
       if (generation !== sessionGeneration) return currentState;
       const detail = error instanceof Error ? error.message : "Upbit bridge connection failed.";
-      const monitorStatus = previous ? "STALE" : classifyMonitorFailure(detail);
+      const classified = classifyMonitorFailure(detail);
+      const monitorStatus = classified === "AUTH_ERROR" ? "AUTH_ERROR" : previous ? "STALE" : classified;
+      if (monitorStatus === "AUTH_ERROR") {
+        credentialSession.clear();
+        stopRefreshTimer();
+      }
       const next: UpbitReadOnlyState = {
         status: previous ? "STALE" : "ERROR",
         monitorStatus,
@@ -170,8 +154,8 @@ export async function connectUpbitReadOnlyAccount(token: string, baseUrl: string
   const generation = sessionGeneration;
   const next = await refreshUpbitReadOnlyAccount();
   if (generation !== sessionGeneration) return currentState;
-  if (next.status === "READY" || next.status === "STALE") startRefreshTimer();
-  else credentialSession.clear();
+  if (next.monitorStatus === "AUTH_ERROR") credentialSession.clear();
+  else startRefreshTimer();
   return next;
 }
 
