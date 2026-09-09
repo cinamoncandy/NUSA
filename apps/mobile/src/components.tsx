@@ -174,14 +174,28 @@ export function IntelligenceMotionField({ active = true, evidenceCount = 0, labe
   const scanX = scan.interpolate({ inputRange: [0, 1], outputRange: [-64, 64] });
   const boundedEvidence = Math.max(0, Math.min(99, Math.round(evidenceCount)));
 
-  return <View accessible accessibilityRole="image" accessibilityLabel={label} style={[styles.intelligenceField, { backgroundColor: theme.colors.aiSignalSoft, borderColor: theme.colors.borderStrong }]} testID="nusa-intelligence-motion">
-    <View style={[styles.intelligenceGrid, { borderColor: theme.colors.border }]} />
+  return <View accessible accessibilityRole="image" accessibilityLabel={label} style={styles.intelligenceField} testID="nusa-intelligence-motion">
+    <View style={styles.intelligenceAmbientOne} />
+    <View style={styles.intelligenceAmbientTwo} />
+    <Text style={styles.intelligenceFieldKicker}>NUSA · EVIDENCE FIELD</Text>
+    <Animated.View style={[styles.intelligenceLattice, { opacity: coreOpacity }]}>
+      <View style={[styles.latticeLine, styles.latticeLineA, { backgroundColor: theme.colors.aiSignalMid }]} />
+      <View style={[styles.latticeLine, styles.latticeLineB, { backgroundColor: theme.colors.aiSignalStart }]} />
+      <View style={[styles.latticeLine, styles.latticeLineC, { backgroundColor: theme.colors.aiSignalEnd }]} />
+      <View style={[styles.latticeLine, styles.latticeLineD, { backgroundColor: theme.colors.aiSignalMid }]} />
+      <View style={[styles.latticeNode, styles.latticeNodeA, { borderColor: theme.colors.aiSignalMid }]} />
+      <View style={[styles.latticeNode, styles.latticeNodeB, { borderColor: theme.colors.aiSignalStart }]} />
+      <View style={[styles.latticeNode, styles.latticeNodeC, { borderColor: theme.colors.aiSignalEnd }]} />
+      <View style={[styles.latticeNode, styles.latticeNodeD, { borderColor: theme.colors.aiSignalMid }]} />
+    </Animated.View>
+    <View style={styles.intelligenceGrid} />
     <Animated.View style={[styles.intelligenceOrbitOuter, { borderColor: theme.colors.aiSignalStart, transform: [{ rotate: rotation }] }]}><View style={[styles.intelligenceOrbitNode, { backgroundColor: theme.colors.aiSignalEnd }]} /></Animated.View>
     <Animated.View style={[styles.intelligenceOrbitInner, { borderColor: theme.colors.aiSignalMid, transform: [{ rotate: rotation }] }]}><View style={[styles.intelligenceOrbitNodeSmall, { backgroundColor: theme.colors.aiSignalStart }]} /></Animated.View>
     <Animated.View style={[styles.intelligenceCoreHalo, { borderColor: theme.colors.aiSignalMid, opacity: coreOpacity, transform: [{ scale: coreScale }] }]} />
     <Animated.View style={[styles.intelligenceCore, { backgroundColor: theme.colors.aiSignalEnd, shadowColor: theme.colors.aiSignalEnd, opacity: coreOpacity, transform: [{ scale: coreScale }] }]} />
     <Animated.View style={[styles.intelligenceScan, { backgroundColor: theme.colors.aiSignalMid, opacity: coreOpacity, transform: [{ translateX: scanX }, { rotate: "-18deg" }] }]} />
-    <View style={styles.intelligenceLegend}><Text style={[styles.intelligenceLegendLabel, { color: theme.colors.textMuted }]}>EVIDENCE</Text><Text style={[styles.intelligenceLegendValue, { color: theme.colors.text }]}>{boundedEvidence}</Text></View>
+    <View style={styles.intelligenceLegend}><Text style={styles.intelligenceLegendLabel}>EVIDENCE</Text><Text style={styles.intelligenceLegendValue}>{boundedEvidence}</Text></View>
+    <Text style={styles.intelligenceFieldFooter}>OBSERVE · VERIFY · LEARN</Text>
   </View>;
 }
 
@@ -260,18 +274,33 @@ const styles = StyleSheet.create({
   dataRow: { minHeight: 36, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 14 },
   dataLabel: { flex: 1, fontSize: 13, lineHeight: 19 },
   skeleton: { opacity: 0.85 },
-  intelligenceField: { height: 178, minWidth: 220, flex: 1, overflow: "hidden", borderWidth: 1, borderRadius: 24, position: "relative", alignItems: "center", justifyContent: "center" },
-  intelligenceGrid: { position: "absolute", width: "76%", height: "76%", borderWidth: StyleSheet.hairlineWidth, borderRadius: 999, opacity: 0.45 },
-  intelligenceOrbitOuter: { position: "absolute", width: 132, height: 132, borderRadius: 66, borderWidth: 1.2 },
-  intelligenceOrbitInner: { position: "absolute", width: 86, height: 86, borderRadius: 43, borderWidth: 1 },
-  intelligenceOrbitNode: { position: "absolute", width: 8, height: 8, borderRadius: 4, left: 12, top: 14 },
-  intelligenceOrbitNodeSmall: { position: "absolute", width: 6, height: 6, borderRadius: 3, right: 8, bottom: 13 },
-  intelligenceCoreHalo: { position: "absolute", width: 50, height: 50, borderRadius: 25, borderWidth: 1.2 },
-  intelligenceCore: { position: "absolute", width: 14, height: 14, borderRadius: 7, shadowOpacity: 0.9, shadowRadius: 18, elevation: 5 },
-  intelligenceScan: { position: "absolute", width: 96, height: 1.5, borderRadius: 1 },
-  intelligenceLegend: { position: "absolute", left: 14, bottom: 12, flexDirection: "row", alignItems: "baseline", gap: 6 },
-  intelligenceLegendLabel: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1.05 },
-  intelligenceLegendValue: { fontSize: 14, lineHeight: 17, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  intelligenceField: { height: 236, minWidth: 220, flex: 1, overflow: "hidden", borderWidth: 1, borderColor: "#26324A", borderRadius: 26, position: "relative", alignItems: "center", justifyContent: "center", backgroundColor: "#070A12" },
+  intelligenceAmbientOne: { position: "absolute", width: 230, height: 230, borderRadius: 115, backgroundColor: "#17122B", opacity: 0.72, top: -86, right: -46 },
+  intelligenceAmbientTwo: { position: "absolute", width: 190, height: 190, borderRadius: 95, backgroundColor: "#081E2A", opacity: 0.56, bottom: -82, left: -48 },
+  intelligenceFieldKicker: { position: "absolute", left: 16, top: 14, color: "#8E9AB1", fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1.25 },
+  intelligenceFieldFooter: { position: "absolute", right: 16, bottom: 14, color: "#68758D", fontSize: 7, lineHeight: 10, fontWeight: "900", letterSpacing: 1.05 },
+  intelligenceGrid: { position: "absolute", width: 170, height: 170, borderWidth: StyleSheet.hairlineWidth, borderColor: "#273149", borderRadius: 85, opacity: 0.72 },
+  intelligenceLattice: { position: "absolute", width: 210, height: 150 },
+  latticeLine: { position: "absolute", height: 1, borderRadius: 1, opacity: 0.34 },
+  latticeLineA: { width: 118, left: 21, top: 54, transform: [{ rotate: "17deg" }] },
+  latticeLineB: { width: 106, right: 20, top: 80, transform: [{ rotate: "-23deg" }] },
+  latticeLineC: { width: 78, left: 52, bottom: 28, transform: [{ rotate: "-38deg" }] },
+  latticeLineD: { width: 88, right: 48, top: 34, transform: [{ rotate: "42deg" }] },
+  latticeNode: { position: "absolute", width: 8, height: 8, borderRadius: 4, borderWidth: 1.5, backgroundColor: "#070A12" },
+  latticeNodeA: { left: 14, top: 42 },
+  latticeNodeB: { right: 9, top: 44 },
+  latticeNodeC: { left: 34, bottom: 14 },
+  latticeNodeD: { right: 34, bottom: 22 },
+  intelligenceOrbitOuter: { position: "absolute", width: 148, height: 148, borderRadius: 74, borderWidth: 1.2, opacity: 0.92 },
+  intelligenceOrbitInner: { position: "absolute", width: 94, height: 94, borderRadius: 47, borderWidth: 1, opacity: 0.86 },
+  intelligenceOrbitNode: { position: "absolute", width: 8, height: 8, borderRadius: 4, left: 13, top: 16 },
+  intelligenceOrbitNodeSmall: { position: "absolute", width: 6, height: 6, borderRadius: 3, right: 9, bottom: 14 },
+  intelligenceCoreHalo: { position: "absolute", width: 58, height: 58, borderRadius: 29, borderWidth: 1.2 },
+  intelligenceCore: { position: "absolute", width: 16, height: 16, borderRadius: 8, shadowOpacity: 0.95, shadowRadius: 22, elevation: 6 },
+  intelligenceScan: { position: "absolute", width: 128, height: 1.5, borderRadius: 1 },
+  intelligenceLegend: { position: "absolute", left: 16, bottom: 13, flexDirection: "row", alignItems: "baseline", gap: 6 },
+  intelligenceLegendLabel: { color: "#8E9AB1", fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1.05 },
+  intelligenceLegendValue: { color: "#F7F9FF", fontSize: 14, lineHeight: 17, fontWeight: "900", fontVariant: ["tabular-nums"] },
   dataValue: { flexShrink: 1, textAlign: "right", fontSize: 13, lineHeight: 19, fontVariant: ["tabular-nums"] },
   dataValueEmphasis: { fontSize: 14 },
   // Issue #536's MASTER VISUAL REFERENCE names this centerpiece the visual hero of HOME, not a

@@ -138,6 +138,10 @@ export function HomeView({
   const openOrders = snapshot?.portfolio?.openOrderCount ?? null;
   const pnlColor = totalPnl == null ? theme.colors.text : totalPnl >= 0 ? theme.colors.success : theme.colors.danger;
   const connectionLabel = disconnected ? "SETUP" : readOnlyError ? "DEGRADED" : snapshot?.readyForPaperOperations ? "ACTIVE" : "OBSERVING";
+  const intelligenceSurface = "#070A12";
+  const intelligenceBorder = "#222C40";
+  const intelligenceText = "#F7F9FF";
+  const intelligenceMuted = "#9AA6BA";
 
   return <View style={[styles.shell, { backgroundColor: theme.colors.background }]} testID="home-screen">
     <ScrollView
@@ -162,18 +166,18 @@ export function HomeView({
       </View>
 
       <MotionReveal testID="home-intelligence-reveal">
-        <View style={[styles.intelligenceHero, tablet ? styles.intelligenceHeroTablet : null, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.borderStrong }]} testID="home-now">
+        <View style={[styles.intelligenceHero, tablet ? styles.intelligenceHeroTablet : null, { backgroundColor: intelligenceSurface, borderColor: intelligenceBorder }]} testID="home-now">
           <View style={styles.intelligenceCopy}>
             <View style={styles.heroTop}>
               <View style={styles.liveIntelligenceLabel}><View style={[styles.heroStatusDot, { backgroundColor: systemColor }]} /><Text style={[styles.eyebrow, { color: theme.colors.aiSignalEnd }]}>LIVE INTELLIGENCE</Text></View>
               <Text style={[styles.statusCapsuleText, { color: systemColor }]}>{connectionLabel}</Text>
             </View>
-            <Text style={[styles.heroTitle, { color: theme.colors.text }]}>{posture}</Text>
-            <Text style={[styles.heroDetail, { color: theme.colors.textMuted }]} numberOfLines={3}>{why}</Text>
+            <Text style={[styles.heroTitle, { color: intelligenceText }]}>{posture}</Text>
+            <Text style={[styles.heroDetail, { color: intelligenceMuted }]} numberOfLines={3}>{why}</Text>
             <View style={styles.intelligenceMeta}>
-              <View><Text style={[styles.metaLabel, { color: theme.colors.textMuted }]}>EVIDENCE</Text><Text style={[styles.metaValue, { color: theme.colors.text }]}>{ai?.status === "AVAILABLE" ? String(ai.evidenceReferences.length) : "—"}</Text></View>
-              <View><Text style={[styles.metaLabel, { color: theme.colors.textMuted }]}>RISK</Text><Text style={[styles.metaValue, { color: riskColor }]}>{rail.riskLabel}</Text></View>
-              <View><Text style={[styles.metaLabel, { color: theme.colors.textMuted }]}>MODE</Text><Text style={[styles.metaValue, { color: theme.colors.text }]}>PAPER</Text></View>
+              <View><Text style={[styles.metaLabel, { color: intelligenceMuted }]}>EVIDENCE</Text><Text style={[styles.metaValue, { color: intelligenceText }]}>{ai?.status === "AVAILABLE" ? String(ai.evidenceReferences.length) : "—"}</Text></View>
+              <View><Text style={[styles.metaLabel, { color: intelligenceMuted }]}>RISK</Text><Text style={[styles.metaValue, { color: riskColor }]}>{rail.riskLabel}</Text></View>
+              <View><Text style={[styles.metaLabel, { color: intelligenceMuted }]}>MODE</Text><Text style={[styles.metaValue, { color: intelligenceText }]}>PAPER</Text></View>
             </View>
           </View>
           <IntelligenceMotionField active={!disconnected && readOnlyError == null} evidenceCount={ai?.status === "AVAILABLE" ? ai.evidenceReferences.length : 0} label="NUSA intelligence evidence motion" />
@@ -293,16 +297,16 @@ const styles = StyleSheet.create({
   glancePrimary: { flex: 1, minWidth: 180, fontSize: 10, lineHeight: 15, fontWeight: "700" },
   glanceRisk: { fontSize: 10, lineHeight: 15, fontWeight: "900", letterSpacing: 0.45 },
   glanceBuild: { fontSize: 9, lineHeight: 14, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  intelligenceHero: { overflow: "hidden", borderWidth: StyleSheet.hairlineWidth, borderRadius: 28, padding: 16, gap: 16 },
+  intelligenceHero: { overflow: "hidden", borderWidth: 1, borderRadius: 30, padding: 20, gap: 20, minHeight: 310 },
   intelligenceHeroTablet: { flexDirection: "row", alignItems: "stretch" },
-  intelligenceCopy: { flex: 1.15, minWidth: 0, gap: 11, justifyContent: "center" },
+  intelligenceCopy: { flex: 1.05, minWidth: 0, gap: 12, justifyContent: "center" },
   liveIntelligenceLabel: { flexDirection: "row", alignItems: "center", gap: 7 },
   intelligenceMeta: { flexDirection: "row", gap: 24, flexWrap: "wrap", paddingTop: 4 },
   metaLabel: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1 },
   metaValue: { marginTop: 2, fontSize: 13, lineHeight: 17, fontWeight: "900", fontVariant: ["tabular-nums"] },
-  capitalRail: { borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 16, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 18, flexWrap: "wrap" },
+  capitalRail: { borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 13, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 14, flexWrap: "wrap" },
   capitalPrimary: { flex: 1, minWidth: 210, gap: 3 },
-  capitalValue: { fontSize: 34, lineHeight: 40, fontWeight: "700", letterSpacing: -1.2, fontVariant: ["tabular-nums"] },
+  capitalValue: { fontSize: 30, lineHeight: 36, fontWeight: "700", letterSpacing: -1.05, fontVariant: ["tabular-nums"] },
   capitalFacts: { flexDirection: "row", alignItems: "flex-end", gap: 18, flexWrap: "wrap" },
   capitalFact: { minWidth: 64, gap: 2 },
   marketCanvas: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 26, padding: 16, gap: 12 },
@@ -315,7 +319,7 @@ const styles = StyleSheet.create({
   heroTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   heroStatusDot: { width: 8, height: 8, borderRadius: 999 },
   eyebrow: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.45 },
-  heroTitle: { maxWidth: 720, fontSize: 26, lineHeight: 34, fontWeight: "800", letterSpacing: -0.8 },
+  heroTitle: { maxWidth: 720, fontSize: 28, lineHeight: 36, fontWeight: "800", letterSpacing: -0.9 },
   heroDetail: { maxWidth: 760, fontSize: 12, lineHeight: 19, fontWeight: "600" },
   heroChips: { flexDirection: "row", gap: 7, flexWrap: "wrap", paddingTop: 3 },
   chip: { minHeight: 26, borderRadius: 999, paddingHorizontal: 9, alignItems: "center", justifyContent: "center" },

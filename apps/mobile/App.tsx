@@ -82,7 +82,7 @@ function PersistedThemeBridge({ children }: Readonly<{ children: React.ReactNode
       setConfiguredPaperEndpoint(settings.paperEndpoint);
       if (!settings.paperEndpoint && canonical.status === "READY") setConfiguredPaperEndpoint(canonical.origin);
       setMode(themePreference(settings.theme));
-    }).catch(() => { if (active) { setConfiguredPaperEndpoint(""); setMode("system"); } });
+    }).catch(() => { if (active) { setConfiguredPaperEndpoint(""); setMode("dark"); } });
     return () => { active = false; };
   }, [setMode]);
   return <>{children}</>;

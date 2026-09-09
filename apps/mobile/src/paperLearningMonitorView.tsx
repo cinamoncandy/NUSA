@@ -142,9 +142,9 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
       testID="paper-learning-authority-rail"
     />
     <ScreenLead
-      eyebrow="PAPER LEARNING · READ ONLY"
-      title="운용 상태를 한눈에 감독합니다"
-      detail="판단·위험·가상 실행·손익·학습을 같은 사이클에서 보되, 실행 권한과 평가 근거는 분리해서 표시합니다."
+      eyebrow="TEST · PAPER LEARNING"
+      title="PAPER 학습 상태"
+      detail="AI 판단이 PAPER에서 어떻게 검증되고 학습되는지 한 사이클로 확인합니다."
       badge="READ ONLY"
       badgeTone="info"
     />
