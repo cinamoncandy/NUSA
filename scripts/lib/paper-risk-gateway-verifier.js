@@ -140,6 +140,7 @@ function derivePreTradeReasons(request, identity, limits) {
 
   if (request.marketDataState.status !== "HEALTHY") found.add(MARKET_REASON[request.marketDataState.status]);
   const price = request.marketDataState.price;
+  if (request.marketDataState.status === "HEALTHY" && price == null) found.add("MARKET_DATA_INVALID");
   if (price != null && Math.abs(request.referencePrice - price) / price > limits.maxPriceDeviationRatio) found.add("PRICE_DEVIATION_LIMIT");
 
   if (has(identity.seenSignalIds, request.signalId)) found.add("DUPLICATE_SIGNAL");
