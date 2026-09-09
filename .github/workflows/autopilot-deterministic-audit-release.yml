@@ -229,7 +229,7 @@ jobs:
 
       - name: Mint dedicated release authority token
         id: release_authority_token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
         with:
           app-id: ${{ secrets.NUSA_RELEASE_AUTH_APP_ID }}
           private-key: ${{ secrets.NUSA_RELEASE_AUTH_APP_PRIVATE_KEY }}
