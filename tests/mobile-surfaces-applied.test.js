@@ -95,6 +95,43 @@ test("the token field states the ten-minute rule instead of only calling it one-
   assert.match(SETTINGS, /부트스트랩 토큰\(발급 후 10분, 1회용\)/);
 });
 
+test("a refusal record reaches every surface a gate can refuse", () => {
+  const PORTFOLIO = src("portfolioView.tsx");
+  const AI = src("aiView.tsx");
+  assert.match(PORTFOLIO, /<RefusalRecord refusal=\{refusal\}/);
+  assert.match(AI, /<RefusalRecord refusal=\{refusal\}/);
+  // The one-line notice stays as the fallback: a client-side condition has no gate to name.
+  assert.match(PORTFOLIO, /: error \? <StateNotice/);
+  assert.match(AI, /if \(error\) return <AiState/);
+});
+
+test("only a named gate produces a record; a client-side condition does not", () => {
+  const CLIENT = src("personalPaperOperationsClient.ts");
+  // Inventing a gate for "the endpoint is unverified" would claim a diagnosis nobody made.
+  assert.match(CLIENT, /readonly refusal\?: RefusalDescriptor/);
+  assert.match(CLIENT, /\.\.\.\(refusal == null \? \{\} : \{ refusal \}\)/);
+});
+
+test("the AI proposal carries the signature that makes it auditable", () => {
+  const AI = src("aiView.tsx");
+  assert.match(AI, /model \$\{ai\?\.modelVersion/);
+  assert.match(AI, /prompt \$\{ai\?\.promptVersion/);
+  assert.match(AI, /testID="ai-signature"/);
+  // And states plainly that it cannot act.
+  assert.match(AI, /AI는 제안만 합니다\. 주문·이체·출금 실행 권한이 없습니다/);
+});
+
+test("no dead surface is left behind", () => {
+  const SURFACES = src("instrumentSurfaces.tsx");
+  // FreshValue presumed a governed staleness window. Only the PAPER operations contract defines
+  // one; public quotes have none, so it had no honest home and was removed rather than given a
+  // threshold nobody specified.
+  assert.doesNotMatch(SURFACES, /FreshValue/);
+  for (const exported of ["AuthoritySpine", "RefusalRecord", "AgingValue", "useNowMs"]) {
+    assert.match(SURFACES, new RegExp(`export function ${exported}`), exported);
+  }
+});
+
 test("production PAPER stays a supervision surface with no manual ticket", () => {
   // The refusal record deliberately did NOT go onto an order ticket: this route has none, and
   // adding one would contradict the documented safety contract rather than implement a design.

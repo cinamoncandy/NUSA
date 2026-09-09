@@ -1,6 +1,6 @@
 import { mobileApprovedSession } from "./mobileApprovedSessionBoundary";
 import { MobileSessionRequestError } from "./mobileApprovedSession";
-import { describeRefusal } from "./instrumentState";
+import { describeRefusal, type RefusalDescriptor } from "./instrumentState";
 
 const MAX_TOKEN_LENGTH = 4096;
 export const LEGACY_MOBILE_BOOTSTRAP_PREFIX = "legacy-bootstrap:";
@@ -11,6 +11,9 @@ let pendingBootstrapToken: string | null = null;
 let lastAuthenticatedBootstrapToken: string | null = null;
 let projectionFailureProtectedSession = false;
 let lastCredentialFailure: string | null = null;
+// The sentence is what a one-line surface shows; the descriptor is what a refusal record needs.
+// They are recorded together so the two can never describe different failures.
+let lastCredentialRefusal: RefusalDescriptor | null = null;
 let pendingDisconnect: Promise<void> | null = null;
 const MAX_FAILURE_REASON_LENGTH = 300;
 
@@ -21,6 +24,21 @@ const MAX_FAILURE_REASON_LENGTH = 300;
  * The token itself is never part of a reason -- every message below is a fixed string or an
  * HTTP status.
  */
+/** The structured form of the most recent credential failure, when the server named one. */
+export function describeCredentialRefusal(error: unknown): RefusalDescriptor | null {
+  if (!(error instanceof MobileSessionRequestError)) return null;
+  // 429 and 5xx are transport conditions; no gate refused them and no code describes them.
+  if (error.status === 429 || error.status >= 500) return null;
+  if (error.refusal == null && error.status !== 401 && error.status !== 403) return null;
+  return describeRefusal(error.refusal, error.status);
+}
+
+export function takeLastCredentialRefusal(): RefusalDescriptor | null {
+  const refusal = lastCredentialRefusal;
+  lastCredentialRefusal = null;
+  return refusal;
+}
+
 export function describeCredentialFailure(error: unknown): string {
   if (error instanceof MobileSessionRequestError) {
     // Throttling and server faults are transport conditions, not gate refusals: no account
@@ -168,7 +186,7 @@ export class InMemoryDashboardCredentialSession {
         await session.connectBootstrap(endpoint, pending);
         lastAuthenticatedBootstrapToken = pending;
       } catch (error) {
-        lastCredentialFailure = describeCredentialFailure(error);
+        lastCredentialFailure = describeCredentialFailure(error); lastCredentialRefusal = describeCredentialRefusal(error);
         lastAuthenticatedBootstrapToken = null;
         projectionFailureProtectedSession = false;
         session.clearMemory();
@@ -176,8 +194,8 @@ export class InMemoryDashboardCredentialSession {
       }
     } else if (!session.hasMemoryAccess()) {
       let restored: Awaited<ReturnType<typeof session.restore>>;
-      try { lastCredentialFailure = null; restored = await session.restore(endpoint); }
-      catch (error) { lastCredentialFailure = describeCredentialFailure(error); return null; }
+      try { lastCredentialFailure = null; lastCredentialRefusal = null; restored = await session.restore(endpoint); }
+      catch (error) { lastCredentialFailure = describeCredentialFailure(error); lastCredentialRefusal = describeCredentialRefusal(error); return null; }
       if (restored == null) {
         lastCredentialFailure = "저장된 보안 세션이 없거나 만료되었습니다. 연결 토큰을 다시 입력하세요.";
         return null;

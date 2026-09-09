@@ -93,6 +93,31 @@ booked, not derived from a live quote, and dimming it would misreport a
 settled fact. On the LOCAL PAPER path there is no server clock, so no stamp is
 shown at all; inventing an age would be worse than admitting there is none.
 
+Three surfaces shipped; a fourth was removed. `FreshValue` rendered a value with a
+staleness stage, which presumes a governed window. Only the PAPER operations
+contract defines one — public quotes have no such threshold anywhere in the
+repository — so using it on MARKETS would have meant inventing a number nobody
+specified, the same error as naming a stale quote from `health`. It was deleted
+rather than given a fabricated threshold; `AgingValue` and the pure helpers cover
+the surfaces that do have a contract.
+
+The refusal record reaches Portfolio and AI as well as Settings, carried on the
+operations result as an optional `refusal`. It is populated only where a gate
+named the cause: a client-side condition (an unverified endpoint, an invalid
+timeout) keeps its one-line notice, because attaching a gate to it would claim a
+diagnosis nobody made.
+
+The AI screen shows the signature on a proposal — model version, prompt version,
+run time — beside the standing statement that the AI cannot act. Two answers that
+differ while those match came from the same reasoning on different inputs; two
+that match while they differ came from a build that changed underneath the
+operator. Without them a proposal is an assertion with no way to audit it.
+
+Motion discipline is now pinned by tests rather than only described: nothing
+loops, a loading placeholder is a still block, motion asks the device before it
+moves, and a figure is replaced rather than rolled — a number mid-roll is a value
+that was never true.
+
 A refusal must reach the control that clears it. `USER_NOT_ACTIVE` and
 `USER_NOT_REGISTERED` are account state, and the owner-scoped user list in
 Settings can read and change exactly that state — it lists every account with its

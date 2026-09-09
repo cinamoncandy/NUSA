@@ -166,45 +166,6 @@ export function RefusalRecord({ refusal, occurredAtLabel, evidence, actionLabel,
   );
 }
 
-const STAGE_OPACITY: Readonly<Record<FreshnessStage, number>> = Object.freeze({ FRESH: 1, AGING: 0.78, EXPIRING: 0.6, STALE: 0.55 });
-
-/**
- * A number with its age attached. The two are one accessibility label, never two: read apart,
- * a screen-reader user hears a price and, separately, a duration with nothing binding them.
- *
- * Expiry is struck through rather than only recolored, so the state survives greyscale and
- * color-blind vision.
- */
-export function FreshValue({ value, generatedAtMs, nowMs, source, unit, windowMs, testID }: Readonly<{ value: string; generatedAtMs: number; nowMs: number; source?: string; unit?: string; windowMs?: number; testID?: string }>) {
-  const { theme } = useTheme();
-  const stage = freshnessStage(generatedAtMs, nowMs, windowMs);
-  const progress = freshnessProgress(generatedAtMs, nowMs, windowMs);
-  const age = describeAge(generatedAtMs, nowMs);
-  const stale = stage === "STALE";
-  const tone = stale ? theme.colors.danger : stage === "EXPIRING" ? theme.colors.warning : stage === "AGING" ? theme.colors.info : theme.colors.success;
-  return (
-    <View
-      accessibilityLabel={`${value}${unit == null ? "" : ` ${unit}`}, ${age}${stale ? ", 만료됨" : ""}`}
-      accessibilityRole="text"
-      style={styles.fresh}
-      testID={testID ?? "fresh-value"}
-    >
-      <View style={styles.freshRow}>
-        <Text style={[styles.freshValue, { color: stale ? theme.colors.textMuted : theme.colors.text, fontFamily: theme.typography.monoFamily, opacity: STAGE_OPACITY[stage] }, stale && styles.freshValueStale]}>{value}</Text>
-        {unit == null ? null : <Text style={[styles.freshUnit, { color: theme.colors.textMuted }]}>{unit}</Text>}
-      </View>
-      <View style={styles.freshMeta}>
-        <View style={[styles.freshDot, { backgroundColor: tone }]} />
-        <Text style={[styles.freshAge, { color: tone, fontFamily: theme.typography.monoFamily }]}>{stale ? `${age} · 만료됨` : age}</Text>
-      </View>
-      <View style={[styles.freshTrack, { backgroundColor: theme.colors.surfaceSunken }]}>
-        <View style={[styles.freshFill, { backgroundColor: tone, width: `${Math.round(progress * 100)}%` }]} />
-      </View>
-      {source == null ? null : <Text style={[styles.freshSource, { color: theme.colors.textMuted, fontFamily: theme.typography.monoFamily }]}>{source}</Text>}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   spine: { flexDirection: "row", alignItems: "stretch", borderBottomWidth: 1 },
   spineAuthority: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderRightWidth: 1 },
@@ -228,16 +189,5 @@ const styles = StyleSheet.create({
   refusalButton: { minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: 16 },
   refusalButtonLabel: { fontSize: 14, fontWeight: "700" },
   refusalEvidenceLabel: { fontSize: 10, letterSpacing: 1.1 },
-  refusalEvidence: { fontSize: 11, lineHeight: 18 },
-  fresh: { gap: 6 },
-  freshRow: { flexDirection: "row", alignItems: "baseline", gap: 6 },
-  freshValue: { fontSize: 26, fontWeight: "700", letterSpacing: -0.4, fontVariant: ["tabular-nums"] },
-  freshValueStale: { textDecorationLine: "line-through" },
-  freshUnit: { fontSize: 14 },
-  freshMeta: { flexDirection: "row", alignItems: "center", gap: 6 },
-  freshDot: { width: 5, height: 5, borderRadius: 2.5 },
-  freshAge: { fontSize: 10 },
-  freshTrack: { height: 3, borderRadius: 2, overflow: "hidden" },
-  freshFill: { height: 3, borderRadius: 2 },
-  freshSource: { fontSize: 10, lineHeight: 16 }
+  refusalEvidence: { fontSize: 11, lineHeight: 18 }
 });
