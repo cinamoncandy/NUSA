@@ -11,11 +11,11 @@ current_bollinger_research_family:
   work_order: WO-ISSUE-1798-BOLLINGER-RESEARCH-FAMILY
   status: READY_FOR_PR
   branch: research/bollinger-family-1798
-  base_sha: bd70d30132f5b585d48cf67dffc36b3d3f1ff0f0
+  base_sha: 724588f266a96806f9db7e587c27f5701c269c6d
   scope: "Frozen issue #1798 Bollinger breakout 3x3 Research family and exact PAPER semantics; implementation and tests only."
-  validation: "Focused Research 22/22 and PAPER semantics 8/8 PASS; runtime preflight, Research architecture, repository truth, safety architecture, and AI zero-authority guards PASS. Root typecheck was host-resource-limited."
+  validation: "Prior-base focused Research 22/22 and PAPER semantics 8/8 PASS; exact-head canonical CI/Audit pending after rebase. Root typecheck was host-resource-limited."
   evaluation: "NOT_RUN_PROHIBITED: no real-market/OOS evaluation and no market-data fetch."
-  next_permitted_action: "Commit and open an exact-head PR for canonical CI/Audit; canonical real-market evaluation remains separate."
+  next_permitted_action: "Open exact-head PR and require canonical CI/Audit before merge; canonical real-market evaluation remains separate."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_first_read_connection_recovery:
   work_order: WO-20260908-CONNECTION-FIRST-READ-RECOVERY
