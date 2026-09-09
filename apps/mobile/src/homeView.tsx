@@ -160,26 +160,19 @@ export function HomeView({
         <Text style={[styles.glanceBuild, { color: theme.colors.textMuted }]} testID="home-build-source">BUILD {packagedBuildLabel} · UI INTELLIGENCE OS</Text>
       </View>
 
-      <View style={styles.hero} testID="home-now">
-        <Text style={[styles.eyebrow, { color: theme.colors.primary }]}>NOW</Text>
-        <Text style={[styles.heroTitle, { color: theme.colors.text }]}>오늘의 오버뷰</Text>
-        <Text style={[styles.heroDetail, { color: systemColor }]}>{posture}</Text>
-        <Text style={[styles.heroDetail, { color: theme.colors.textMuted }]} numberOfLines={3}>{why}</Text>
+      <View style={[styles.hero, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.border }]} testID="home-now">
+        <View style={styles.heroTop}>
+          <Text style={[styles.eyebrow, { color: theme.colors.primary }]}>NOW</Text>
+          <View style={[styles.heroStatusDot, { backgroundColor: systemColor }]} />
+        </View>
+        <Text style={[styles.heroTitle, { color: theme.colors.text }]}>{posture}</Text>
+        <Text style={[styles.heroDetail, { color: theme.colors.textMuted }]} numberOfLines={2}>{why}</Text>
         <View style={styles.heroChips}>
-          <View style={[styles.chip, { backgroundColor: theme.colors.surfaceSunken }]}><Text style={[styles.chipLabel, { color: theme.colors.textMuted }]}>PAPER ONLY</Text></View>
-          <View style={[styles.chip, { backgroundColor: theme.colors.surfaceSunken }]}><Text style={[styles.chipLabel, { color: theme.colors.textMuted }]}>LIVE NONE</Text></View>
-          <View style={[styles.chip, { backgroundColor: theme.colors.surfaceSunken }]}><Text style={[styles.chipLabel, { color: theme.colors.info }]}>AI ZERO</Text></View>
+          <View style={[styles.chip, { backgroundColor: theme.colors.surface }]}><Text style={[styles.chipLabel, { color: theme.colors.textMuted }]}>PAPER ONLY</Text></View>
+          <View style={[styles.chip, { backgroundColor: theme.colors.surface }]}><Text style={[styles.chipLabel, { color: theme.colors.textMuted }]}>LIVE NONE</Text></View>
+          <View style={[styles.chip, { backgroundColor: theme.colors.surface }]}><Text style={[styles.chipLabel, { color: theme.colors.info }]}>AI ZERO</Text></View>
         </View>
       </View>
-
-      <View style={[styles.marketHero, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]} testID="home-public-market-chart">
-        <View style={styles.commandTop}><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{publicMarket}</Text><Text style={[styles.sectionMeta, { color: theme.colors.textMuted }]}>UPBIT · 공개 시세</Text></View>
-        <Text style={[styles.marketPrice, { color: theme.colors.text }]} adjustsFontSizeToFit numberOfLines={1}>{krw(marketChart.currentPrice)}</Text>
-        {marketChart.state === "READY" ? <CandlePlot model={marketChart} /> : <Text style={[styles.marketEmpty, { color: theme.colors.textMuted }]}>{publicMarketStale ? "시세가 지연되었거나 연결되지 않았습니다." : "검증된 차트 데이터를 기다리고 있습니다."}</Text>}
-        <Pressable accessibilityRole="button" onPress={() => onNavigate("Markets")} style={[styles.marketLink, { backgroundColor: theme.colors.primarySoft }]}><Text style={[styles.inlineLink, { color: theme.colors.primary }]}>시장 차트 자세히 보기 →</Text></Pressable>
-      </View>
-
-      {disconnected || readOnlyError ? <Pressable accessibilityRole="button" onPress={onGoSettings} testID="home-operational-notice"><StateNotice title={disconnected ? "PAPER 연결 필요" : "PAPER 연결 오류"} detail={`${disconnected ? "Cloud endpoint와 세션을 검증해야 합니다." : readOnlyError ?? "읽기 상태를 확인할 수 없습니다."} · 설정 열기`} tone="warning" /></Pressable> : null}
 
       <View style={[styles.balanceStage, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }, tablet ? styles.balanceStageTablet : null]} testID="account-hero-card">
         <View style={styles.balancePrimary}>
@@ -192,6 +185,15 @@ export function HomeView({
           <View style={styles.balanceFact}><Text style={[styles.factLabel, { color: theme.colors.textMuted }]}>노출</Text><Text style={[styles.factValue, { color: theme.colors.text }]}>{krw(exposure)}</Text></View>
           <View style={styles.balanceFact}><Text style={[styles.factLabel, { color: theme.colors.textMuted }]}>주문</Text><Text style={[styles.factValue, { color: theme.colors.text }]}>{openOrders == null ? "—" : String(openOrders)}</Text></View>
         </View>
+      </View>
+
+      {disconnected || readOnlyError ? <Pressable accessibilityRole="button" onPress={onGoSettings} testID="home-operational-notice"><StateNotice title={disconnected ? "PAPER 연결 필요" : "PAPER 연결 오류"} detail={`${disconnected ? "Cloud endpoint와 세션을 검증해야 합니다." : readOnlyError ?? "읽기 상태를 확인할 수 없습니다."} · 설정 열기`} tone="warning" /></Pressable> : null}
+
+      <View style={[styles.marketHero, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]} testID="home-public-market-chart">
+        <View style={styles.commandTop}><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{publicMarket}</Text><Text style={[styles.sectionMeta, { color: theme.colors.textMuted }]}>UPBIT · 공개 시세</Text></View>
+        <Text style={[styles.marketPrice, { color: theme.colors.text }]} adjustsFontSizeToFit numberOfLines={1}>{krw(marketChart.currentPrice)}</Text>
+        {marketChart.state === "READY" ? <CandlePlot model={marketChart} /> : <Text style={[styles.marketEmpty, { color: theme.colors.textMuted }]}>{publicMarketStale ? "시세가 지연되었거나 연결되지 않았습니다." : "검증된 차트 데이터를 기다리고 있습니다."}</Text>}
+        <Pressable accessibilityRole="button" onPress={() => onNavigate("Markets")} style={[styles.marketLink, { backgroundColor: theme.colors.primarySoft }]}><Text style={[styles.inlineLink, { color: theme.colors.primary }]}>시장 차트 자세히 보기 →</Text></Pressable>
       </View>
 
       <View style={styles.sectionHeader}>
@@ -272,21 +274,23 @@ const styles = StyleSheet.create({
   glancePrimary: { flex: 1, minWidth: 180, fontSize: 10, lineHeight: 15, fontWeight: "700" },
   glanceRisk: { fontSize: 10, lineHeight: 15, fontWeight: "900", letterSpacing: 0.45 },
   glanceBuild: { fontSize: 9, lineHeight: 14, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  hero: { gap: 9, paddingVertical: 8 },
+  hero: { gap: 9, padding: 16, borderWidth: StyleSheet.hairlineWidth, borderRadius: 18 },
+  heroTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  heroStatusDot: { width: 8, height: 8, borderRadius: 999 },
   eyebrow: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.45 },
-  heroTitle: { maxWidth: 720, fontSize: 28, lineHeight: 36, fontWeight: "700", letterSpacing: -1.15 },
-  heroDetail: { maxWidth: 760, fontSize: 14, lineHeight: 21, fontWeight: "600" },
+  heroTitle: { maxWidth: 720, fontSize: 21, lineHeight: 28, fontWeight: "800", letterSpacing: -0.65 },
+  heroDetail: { maxWidth: 760, fontSize: 12, lineHeight: 19, fontWeight: "600" },
   heroChips: { flexDirection: "row", gap: 7, flexWrap: "wrap", paddingTop: 3 },
   chip: { minHeight: 26, borderRadius: 999, paddingHorizontal: 9, alignItems: "center", justifyContent: "center" },
   chipLabel: { fontSize: 8, lineHeight: 12, fontWeight: "900", letterSpacing: 0.7 },
-  marketHero: { borderRadius: 22, padding: 18, borderWidth: StyleSheet.hairlineWidth, gap: 12 },
+  marketHero: { borderRadius: 18, padding: 16, borderWidth: StyleSheet.hairlineWidth, gap: 12 },
   marketPrice: { fontSize: 34, lineHeight: 42, fontWeight: "600", letterSpacing: -1.2, fontVariant: ["tabular-nums"] },
   marketEmpty: { minHeight: 100, paddingVertical: 32, fontSize: 13, lineHeight: 20 },
   marketLink: { minHeight: 48, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  balanceStage: { gap: 16, padding: 18, borderRadius: 22, borderWidth: StyleSheet.hairlineWidth },
+  balanceStage: { gap: 18, padding: 20, borderRadius: 22, borderWidth: StyleSheet.hairlineWidth },
   balanceStageTablet: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" },
   balancePrimary: { flex: 1, minWidth: 0, gap: 5 },
-  balanceValue: { fontSize: 34, lineHeight: 42, fontWeight: "600", letterSpacing: -1.2, fontVariant: ["tabular-nums"] },
+  balanceValue: { fontSize: 40, lineHeight: 48, fontWeight: "700", letterSpacing: -1.6, fontVariant: ["tabular-nums"] },
   pnlValue: { fontSize: 13, lineHeight: 18, fontWeight: "900", letterSpacing: 0.2, fontVariant: ["tabular-nums"] },
   balanceFacts: { minWidth: 240, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, flexDirection: "row", gap: 20, flexWrap: "wrap" },
   balanceFact: { minWidth: 66, gap: 3 },
