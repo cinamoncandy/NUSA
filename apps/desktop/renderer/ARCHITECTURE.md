@@ -25,6 +25,17 @@ The framework-neutral renderer intentionally keeps view markup as semantic secti
 
 This avoids multiple mount systems and keeps the DOM inspectable, deterministic and accessible. View behavior belongs in `app-runtime.js`; reusable visual primitives belong in `components.css`.
 
+## User-first product hierarchy
+
+The visible information architecture is organized around user jobs, while the stable route IDs above remain unchanged:
+
+- First viewport answers, in order: **what happened to my PAPER assets, is NUSA healthy, what can I do next**.
+- Primary navigation uses user-facing jobs: summary, PAPER trading, assets, automation, and activity.
+- Technical provenance, diagnostics, and advanced evidence stay progressive rather than competing with primary financial outcomes.
+- Trading keeps market context, NUSA status, order inputs, confirmation, and recent results in one continuous workflow.
+- Mobile may localize visible labels independently from internal route/accessibility identifiers; route and authority contracts must not change for presentation reasons.
+- Presentation must never manufacture confidence, risk, market, or authority state when runtime evidence is absent.
+
 ## Runtime invariants
 
 - PAPER is explicit and persistent.

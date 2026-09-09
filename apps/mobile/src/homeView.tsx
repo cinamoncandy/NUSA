@@ -188,9 +188,9 @@ export function HomeView({
           <Text style={[styles.pnlValue, { color: pnlColor }]}>{signedMoney(totalPnl)} TOTAL PNL</Text>
         </View>
         <View style={[styles.balanceFacts, { borderColor: theme.colors.border }]}>
-          <View style={styles.balanceFact}><Text style={[styles.factLabel, { color: theme.colors.textMuted }]}>CASH</Text><Text style={[styles.factValue, { color: theme.colors.text }]}>{krw(account?.cash)}</Text></View>
-          <View style={styles.balanceFact}><Text style={[styles.factLabel, { color: theme.colors.textMuted }]}>EXPOSURE</Text><Text style={[styles.factValue, { color: theme.colors.text }]}>{krw(exposure)}</Text></View>
-          <View style={styles.balanceFact}><Text style={[styles.factLabel, { color: theme.colors.textMuted }]}>OPEN</Text><Text style={[styles.factValue, { color: theme.colors.text }]}>{openOrders == null ? "—" : String(openOrders)}</Text></View>
+          <View style={styles.balanceFact}><Text style={[styles.factLabel, { color: theme.colors.textMuted }]}>현금</Text><Text style={[styles.factValue, { color: theme.colors.text }]}>{krw(account?.cash)}</Text></View>
+          <View style={styles.balanceFact}><Text style={[styles.factLabel, { color: theme.colors.textMuted }]}>노출</Text><Text style={[styles.factValue, { color: theme.colors.text }]}>{krw(exposure)}</Text></View>
+          <View style={styles.balanceFact}><Text style={[styles.factLabel, { color: theme.colors.textMuted }]}>주문</Text><Text style={[styles.factValue, { color: theme.colors.text }]}>{openOrders == null ? "—" : String(openOrders)}</Text></View>
         </View>
       </View>
 
@@ -209,11 +209,12 @@ export function HomeView({
 
         <View style={styles.hiddenAcceptanceHooks} accessibilityElementsHidden>
           <Text>PAPER PERFORMANCE</Text>
+          <Text>CASH EXPOSURE</Text>
           <FactRow label="RESERVED CASH" value={krw(cashEnvelope?.reservedCash)} tone="success" />
         </View>
         <Pressable onPress={() => onNavigate("Portfolio")} style={({ pressed }) => [styles.command, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]} testID="home-paper-performance">
           <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.success }]}>PORTFOLIO</Text><Text style={[styles.commandArrow, { color: theme.colors.textMuted }]}>↗</Text></View>
-          <Text style={[styles.commandTitle, { color: theme.colors.text }]}>PAPER</Text>
+          <Text style={[styles.commandTitle, { color: theme.colors.text }]}>내 자산</Text>
           <Text style={[styles.commandSummary, { color: theme.colors.textMuted }]}>{hasPosition ? `${position?.market ?? "PAPER"} position active` : account ? "현재 노출 없음" : "계정 대기 중"}</Text>
           <View style={styles.commandPreview}><View style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>INVESTABLE</Text><Text style={[styles.previewValue, { color: theme.colors.text }]} testID="home-investable-cash">{krw(cashEnvelope?.investableCash)}</Text></View><View style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>RESERVED</Text><Text style={[styles.previewValue, { color: theme.colors.text }]}>{krw(cashEnvelope?.reservedCash)}</Text></View></View>
         </Pressable>
