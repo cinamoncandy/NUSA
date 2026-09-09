@@ -217,7 +217,7 @@ export function HomeView({
       </View>
 
       <View style={[styles.commandStack, tablet ? styles.commandStackTablet : null]}>
-        <Pressable onPress={() => onNavigate("Markets")} style={({ pressed }) => [styles.command, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]} testID="home-decision-stage">
+        <Pressable accessibilityLabel={`시장으로 이동. ${marketRows.length === 0 ? "공개 시장 데이터 대기 중" : `${marketRows.length}개 핵심 시장`}`} accessibilityRole="button" onPress={() => onNavigate("Markets")} style={({ pressed }) => [styles.command, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]} testID="home-decision-stage">
           <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.info }]}>MARKETS</Text><Text style={[styles.commandArrow, { color: theme.colors.textMuted }]}>↗</Text></View>
           <Text style={[styles.commandTitle, { color: theme.colors.text }]}>시장</Text>
           <Text style={[styles.commandSummary, { color: theme.colors.textMuted }]}>{marketRows.length === 0 ? "공개 시장 데이터 대기 중" : `${marketRows.length}개 핵심 시장`}</Text>
@@ -228,14 +228,14 @@ export function HomeView({
           <Text>PAPER PERFORMANCE</Text>
           <FactRow label="RESERVED CASH" value={krw(cashEnvelope?.reservedCash)} tone="success" />
         </View>
-        <Pressable onPress={() => onNavigate("Portfolio")} style={({ pressed }) => [styles.command, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]} testID="home-paper-performance">
+        <Pressable accessibilityLabel={`PAPER 자산으로 이동. ${hasPosition ? `${position?.market ?? "PAPER"} 노출 있음` : account ? "현재 노출 없음" : "계정 대기 중"}`} accessibilityRole="button" onPress={() => onNavigate("Portfolio")} style={({ pressed }) => [styles.command, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]} testID="home-paper-performance">
           <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.success }]}>PORTFOLIO</Text><Text style={[styles.commandArrow, { color: theme.colors.textMuted }]}>↗</Text></View>
           <Text style={[styles.commandTitle, { color: theme.colors.text }]}>PAPER</Text>
           <Text style={[styles.commandSummary, { color: theme.colors.textMuted }]}>{hasPosition ? `${position?.market ?? "PAPER"} position active` : account ? "현재 노출 없음" : "계정 대기 중"}</Text>
           <View style={styles.commandPreview}><View style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>INVESTABLE</Text><Text style={[styles.previewValue, { color: theme.colors.text }]} testID="home-investable-cash">{krw(cashEnvelope?.investableCash)}</Text></View><View style={styles.previewRow}><Text style={[styles.previewLabel, { color: theme.colors.textMuted }]}>RESERVED</Text><Text style={[styles.previewValue, { color: theme.colors.text }]}>{krw(cashEnvelope?.reservedCash)}</Text></View></View>
         </Pressable>
 
-        <Pressable disabled={disconnected} onPress={onOpenPaperLearning} style={({ pressed }) => [styles.command, { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary, opacity: disconnected ? 0.65 : pressed ? 0.72 : 1 }]} testID="home-paper-learning">
+        <Pressable accessibilityHint={disconnected ? "PAPER 서버에 연결되어야 열 수 있습니다" : undefined} accessibilityLabel="학습 및 검증 근거 열기" accessibilityRole="button" accessibilityState={{ disabled: disconnected }} disabled={disconnected} onPress={onOpenPaperLearning} style={({ pressed }) => [styles.command, { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary, opacity: disconnected ? 0.65 : pressed ? 0.72 : 1 }]} testID="home-paper-learning">
           <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.onPrimary }]}>LEARN</Text><Text style={[styles.commandArrow, { color: theme.colors.onPrimary }]}>↗</Text></View>
           <Text style={[styles.commandTitle, { color: theme.colors.onPrimary }]}>학습 & 검증</Text>
           <Text style={[styles.commandSummary, { color: theme.colors.onPrimary }]} numberOfLines={2}>{decisionSurface.learning}</Text>
@@ -259,7 +259,7 @@ export function HomeView({
       {detailsOpen ? <View style={styles.details}>
         <View style={styles.detailNarrative} testID="ai-card">
           <Text style={[styles.detailCopy, { color: theme.colors.textMuted }]}>{why}</Text>
-          {aiInsightAvailable ? <Pressable onPress={() => onNavigate("AiSignal")}><Text style={[styles.inlineLink, { color: theme.colors.primary }]}>AI 근거 상세 보기 →</Text></Pressable> : null}
+          {aiInsightAvailable ? <Pressable accessibilityLabel="AI 근거 상세 보기" accessibilityRole="button" onPress={() => onNavigate("AiSignal")} style={styles.inlineLinkTarget}><Text style={[styles.inlineLink, { color: theme.colors.primary }]}>AI 근거 상세 보기 →</Text></Pressable> : null}
         </View>
         <View style={[styles.detailFacts, { borderColor: theme.colors.border }]} testID="home-risk-status">
           <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>RISK</Text><Text style={[styles.detailValue, { color: riskColor }]}>{decisionSurface.risk}</Text></View>
@@ -335,6 +335,8 @@ const styles = StyleSheet.create({
   detailNarrative: { gap: 8 },
   detailCopy: { maxWidth: 780, fontSize: 13, lineHeight: 21, fontWeight: "600" },
   inlineLink: { fontSize: 11, lineHeight: 16, fontWeight: "900" },
+  // An 11px line of text is not a hit target. The label keeps its size; the target does not.
+  inlineLinkTarget: { minHeight: 44, justifyContent: "center" },
   detailFacts: { borderTopWidth: StyleSheet.hairlineWidth },
   detailRow: { minHeight: 45, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 18 },
   detailLabel: { flexShrink: 0, fontSize: 9, lineHeight: 14, fontWeight: "900", letterSpacing: 0.7 },

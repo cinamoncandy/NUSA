@@ -79,6 +79,9 @@ export function AuthoritySpine({ refusals = [], snapshotGeneratedAtMs = null, on
               accessibilityRole="button"
               accessibilityState={{ disabled: !lit || onSelectGate == null }}
               disabled={!lit || onSelectGate == null}
+              // The lamp stays small because the spine is a band, not a toolbar. The target does not:
+              // hitSlop carries it past the 44px floor without changing what is drawn.
+              hitSlop={{ top: 11, bottom: 11, left: 4, right: 4 }}
               key={lamp}
               onPress={() => onSelectGate?.(lamp)}
               style={({ pressed }) => [styles.lamp, { borderColor: lit ? color : theme.colors.border, backgroundColor: lit ? theme.colors.surfaceRaised : "transparent", opacity: pressed ? 0.72 : 1 }]}

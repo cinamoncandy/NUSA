@@ -128,6 +128,20 @@ solvable state read as an unsolvable one for days. Both now name the in-app pane
 and carry a button that scrolls to it, using the section's own measured offset
 rather than a guessed constant.
 
+The accessibility floor is enforced by tests rather than reviewed by eye. Three
+gaps existed in screens this work did not write: HOME's three QUICK ACCESS tiles
+were tappable with no role and no label, its disabled LEARN tile only dimmed
+without announcing that it was disabled, and its "AI 근거 상세 보기" link was an
+11px line of text acting as its own hit target. Two more interactive styles sat
+at 40px. The tests now walk every `<Pressable`, brace-aware so a style callback
+cannot truncate the tag, and require a role, a `accessibilityState` wherever
+`disabled` appears, and a 44px target.
+
+A control that is small on purpose widens its target rather than its drawing: the
+spine's lamps stay 22px, because a 44px lamp would turn a band into a toolbar,
+and carry `hitSlop` past the floor instead. The floor test found those lamps in
+this work's own code, which is the point of writing it as a test.
+
 Two rules govern what a lamp or a stamp is allowed to claim.
 
 **Only say what the field carries.** `health` collapses kill switches, halted
