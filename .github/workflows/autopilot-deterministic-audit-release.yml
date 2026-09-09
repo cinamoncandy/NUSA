@@ -200,6 +200,7 @@ jobs:
     needs: audit
     if: ${{ needs.audit.result == 'success' && needs.audit.outputs.applicable == 'true' && needs.audit.outputs.authority == 'DETERMINISTIC_AUDIT_PASS' }}
     runs-on: ubuntu-latest
+    environment: nusa-release-authority
     timeout-minutes: 20
     concurrency:
       group: deterministic-release-main
@@ -223,6 +224,57 @@ jobs:
           test "$(jq -r '.draft // false' <<<"$pr")" = "false"
           test "$(jq -r '.head.sha' <<<"$pr")" = "$EXPECTED_HEAD"
           test "$(jq -r '.base.ref' <<<"$pr")" = "main"
+          test "$(jq -r '.base.sha' <<<"$pr")" = "$AUDITED_BASE"
+          test "$main" = "$AUDITED_BASE"
+
+      - name: Mint dedicated release authority token
+        id: release_authority_token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.NUSA_RELEASE_AUTH_APP_ID }}
+          private-key: ${{ secrets.NUSA_RELEASE_AUTH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+
+      - name: Publish exact-head release authorization
+        id: authorize
+        env:
+          AUTH_GH_TOKEN: ${{ steps.release_authority_token.outputs.token }}
+          AUTH_CONTEXT: nusa/release-authorized
+        run: |
+          set -euo pipefail
+
+          pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          test "$(jq -r '.state' <<<"$pr")" = "open"
+          test "$(jq -r '.draft // false' <<<"$pr")" = "false"
+          test "$(jq -r '.head.sha' <<<"$pr")" = "$EXPECTED_HEAD"
+          test "$(jq -r '.base.ref' <<<"$pr")" = "main"
+          test "$(jq -r '.base.repo.full_name' <<<"$pr")" = "$GITHUB_REPOSITORY"
+          test "$(jq -r '.base.sha' <<<"$pr")" = "$AUDITED_BASE"
+          test "$main" = "$AUDITED_BASE"
+
+          status="$(GH_TOKEN="$AUTH_GH_TOKEN" gh api --method POST \
+            "repos/$GITHUB_REPOSITORY/statuses/$EXPECTED_HEAD" \
+            -f state=success \
+            -f context="$AUTH_CONTEXT" \
+            -f description="canonical Audit PASS; pr=$PR_NUMBER; base=$AUDITED_BASE" \
+            -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID")"
+          jq -e --arg context "$AUTH_CONTEXT" --arg head "$EXPECTED_HEAD" \
+            '.state == "success" and .context == $context and .sha == $head' <<<"$status" >/dev/null
+          echo 'published=true' >> "$GITHUB_OUTPUT"
+          echo "Dedicated release authority published $AUTH_CONTEXT on exact head $EXPECTED_HEAD for audited base $AUDITED_BASE"
+
+      - name: Re-verify authorization is still current before merge
+        run: |
+          set -euo pipefail
+          pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          test "$(jq -r '.state' <<<"$pr")" = "open"
+          test "$(jq -r '.draft // false' <<<"$pr")" = "false"
+          test "$(jq -r '.head.sha' <<<"$pr")" = "$EXPECTED_HEAD"
+          test "$(jq -r '.base.ref' <<<"$pr")" = "main"
+          test "$(jq -r '.base.repo.full_name' <<<"$pr")" = "$GITHUB_REPOSITORY"
           test "$(jq -r '.base.sha' <<<"$pr")" = "$AUDITED_BASE"
           test "$main" = "$AUDITED_BASE"
 
@@ -294,6 +346,21 @@ jobs:
           echo 'liveAuthority=NONE'
           echo 'productionMutationAllowed=false'
           echo 'aiAuthority=ZERO_AUTHORITY'
+
+      - name: Revoke authorization if exact-head merge did not complete
+        if: ${{ failure() && steps.authorize.outputs.published == 'true' }}
+        env:
+          AUTH_GH_TOKEN: ${{ steps.release_authority_token.outputs.token }}
+          AUTH_CONTEXT: nusa/release-authorized
+        run: |
+          set -euo pipefail
+          GH_TOKEN="$AUTH_GH_TOKEN" gh api --method POST \
+            "repos/$GITHUB_REPOSITORY/statuses/$EXPECTED_HEAD" \
+            -f state=failure \
+            -f context="$AUTH_CONTEXT" \
+            -f description="canonical Release invalidated before verified merge" \
+            -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null
+          echo "Invalidated $AUTH_CONTEXT on $EXPECTED_HEAD after release-path failure."
 
       - name: Start canonical post-merge main CI
         id: ci
