@@ -1,8 +1,27 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { describeAge, freshnessProgress, freshnessStage, lampLevels, type FreshnessStage, type LampId, type LampLevel, type RefusalDescriptor } from "./instrumentState";
+import { describeAge, describeRefusal, freshnessProgress, freshnessStage, lampLevels, type FreshnessStage, type LampId, type LampLevel, type RefusalDescriptor } from "./instrumentState";
 import { useTheme } from "./ThemeProvider";
 import type { Theme } from "./designSystem";
+
+/**
+ * A clock that advances on its own.
+ *
+ * Reading `Date.now()` during render freezes the age at whatever the last render happened to
+ * see: a screen left open keeps saying "2초 전" while the data behind it ages out. That is
+ * worse than showing no age at all, because it asserts a freshness the data no longer has.
+ * One shared tick per second is enough -- the smallest thing the surfaces display is a whole
+ * second -- and it stops when the component unmounts.
+ */
+export function useNowMs(intervalMs = 1_000): number {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!Number.isFinite(intervalMs) || intervalMs <= 0) return undefined;
+    const timer = setInterval(() => { setNowMs(Date.now()); }, intervalMs);
+    return () => { clearInterval(timer); };
+  }, [intervalMs]);
+  return nowMs;
+}
 
 const LAMP_ORDER: readonly LampId[] = Object.freeze(["DATA", "LINK", "GATE"]);
 const LAMP_MEANING: Readonly<Record<LampId, string>> = Object.freeze({ DATA: "시세", LINK: "세션", GATE: "리스크" });
@@ -24,9 +43,13 @@ function lampColor(theme: Theme, level: LampLevel): string {
  * the on/off distinction is already carried by color, fill and weight without borrowing
  * contrast to say it.
  */
-export function AuthoritySpine({ refusals = [], onSelectGate, testID }: Readonly<{ refusals?: readonly RefusalDescriptor[]; onSelectGate?: (gate: LampId) => void; testID?: string }>) {
+export function AuthoritySpine({ refusals = [], snapshotGeneratedAtMs = null, onSelectGate, testID }: Readonly<{ refusals?: readonly RefusalDescriptor[]; snapshotGeneratedAtMs?: number | null; onSelectGate?: (gate: LampId) => void; testID?: string }>) {
   const { theme } = useTheme();
-  const levels = lampLevels(refusals);
+  // Data staleness is measured here rather than passed in, because it changes with the clock
+  // and not with the parent's render. The spine is a leaf, so its own tick is cheap.
+  const nowMs = useNowMs();
+  const dataStale = snapshotGeneratedAtMs != null && freshnessStage(snapshotGeneratedAtMs, nowMs) === "STALE";
+  const levels = lampLevels(dataStale ? [...refusals, describeRefusal("MARKET_DATA_STALE")] : refusals);
   return (
     <View
       accessibilityRole="header"
@@ -67,6 +90,32 @@ export function AuthoritySpine({ refusals = [], onSelectGate, testID }: Readonly
           );
         })}
       </View>
+    </View>
+  );
+}
+
+/**
+ * Wraps a value that must age without dragging its screen along.
+ *
+ * The tick lives here rather than in the parent on purpose: HOME renders a chart that is not
+ * memoized, so a clock in that component would re-render the whole screen every second to
+ * move one line of text. Keeping it in a leaf means the second-by-second work is confined to
+ * the few nodes that actually change.
+ *
+ * `children` receives the derived state so a caller can apply the staleness treatment to its
+ * own typography -- a hero number keeps its hero styling and still gets struck through.
+ */
+export function AgingValue({ generatedAtMs, windowMs, children, testID }: Readonly<{ generatedAtMs: number | null; windowMs?: number; children: (state: Readonly<{ stage: FreshnessStage | null; stale: boolean; age: string; progress: number }>) => React.ReactNode; testID?: string }>) {
+  const nowMs = useNowMs();
+  const stage = generatedAtMs == null ? null : freshnessStage(generatedAtMs, nowMs, windowMs);
+  return (
+    <View testID={testID}>
+      {children({
+        stage,
+        stale: stage === "STALE",
+        age: generatedAtMs == null ? "" : describeAge(generatedAtMs, nowMs),
+        progress: generatedAtMs == null ? 0 : freshnessProgress(generatedAtMs, nowMs, windowMs)
+      })}
     </View>
   );
 }

@@ -19,7 +19,7 @@ import { DEFAULT_SETTINGS, normalizeSettings, type ThemeSetting } from "./src/se
 import { VersionedSettingsRepository } from "./src/persistenceRepositories";
 import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";
 import { AuthoritySpine } from "./src/instrumentSurfaces";
-import { describeRefusal, sessionNotLinkedRefusal, type RefusalDescriptor } from "./src/instrumentState";
+import { describeRefusal, runtimeDegradedRefusal, sessionNotLinkedRefusal, type RefusalDescriptor } from "./src/instrumentState";
 import { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllocationClient";
 import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, isPaperConnectionVerified, restoreConfiguredPaperSession, setConfiguredPaperEndpoint } from "./src/paperConnectionSession";
 import { mobileApprovedSession } from "./src/mobileApprovedSessionBoundary";
@@ -410,14 +410,20 @@ function AuthenticatedApp() {
   // The spine states this build's standing authority and lights a lamp per unhappy gate. It is
   // derived from live state rather than stored, so it cannot drift out of step with what the
   // screens below it are showing.
+  // `health` collapses kill switches, halted runtimes, offline transport and pending writes
+  // into two values, so it is reported as what it is -- a degraded runtime -- rather than
+  // translated into a specific cause the field does not carry. Data staleness is measured
+  // separately from the snapshot's own timestamp, inside the spine, because it moves with the
+  // clock rather than with this render.
   const spineRefusals: readonly RefusalDescriptor[] = [
     ...(snapshot?.dashboard.killSwitchActive === true ? [describeRefusal("KILL_SWITCH_ACTIVE")] : []),
     ...(requiresDashboardConnection ? [sessionNotLinkedRefusal(notConfigured ?? undefined)] : []),
-    ...(!requiresDashboardConnection && stale ? [describeRefusal("MARKET_DATA_STALE")] : [])
+    ...(!requiresDashboardConnection && snapshot != null && snapshot.health !== "HEALTHY"
+      ? [runtimeDegradedRefusal(snapshot.health === "FAIL_CLOSED")] : [])
   ];
 
   return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}>
-    <AuthoritySpine onSelectGate={(gate) => { if (gate === "LINK") goSettings(); }} refusals={spineRefusals} />
+    <AuthoritySpine onSelectGate={(gate) => { if (gate === "LINK") goSettings(); }} refusals={spineRefusals} snapshotGeneratedAtMs={snapshot?.generatedAt ?? null} />
     {!homeShellActive ? <View style={[styles.header, { borderBottomColor: appTheme.colors.border }]}><View style={styles.headerInner}><View style={styles.headerBrand}><WaveMark compact /><View><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.eyebrow, { color: appTheme.colors.primary }]}>PERSONAL PAPER</Text></View></View><Pressable accessibilityLabel="도구" accessibilityRole="button" accessibilityState={{ expanded: utilityMenuOpen, selected: utilityMenuOpen || utilityView !== null }} onPress={() => { if (utilityView !== null) { setUtilityView(null); setUtilityMenuOpen(true); return; } setUtilityMenuOpen((current) => !current); }} style={[styles.utilityButton, { borderColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : appTheme.colors.border, backgroundColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primarySoft : appTheme.colors.surfaceSunken }]} testID="header-tools-menu"><Text style={[styles.utilityText, { color: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : appTheme.colors.textMuted }]}>도구</Text></Pressable></View></View> : null}
     {!homeShellActive && utilityMenuOpen ? <View style={[styles.utilityMenu, { backgroundColor: appTheme.colors.surface, borderBottomColor: appTheme.colors.border }]} testID="header-tools-tray"><View style={styles.utilityMenuInner}>{(["NOTIFICATIONS", "SETTINGS"] as const).map((view) => <Pressable key={view} accessibilityLabel={utilityLabels[view]} accessibilityRole="button" onPress={() => { setUtilityMenuOpen(false); setUtilityView(view); }} style={[styles.utilityMenuButton, { borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceSunken }]} testID={view === "NOTIFICATIONS" ? "header-notifications" : "header-settings"}><Text style={[styles.utilityText, { color: appTheme.colors.text }]}>{view === "NOTIFICATIONS" ? "알림" : "설정"}</Text></Pressable>)}</View></View> : null}
     {utilityView ? <View style={[styles.utilityNavigation, { borderBottomColor: appTheme.colors.border }]} testID="utility-navigation"><View style={styles.utilityNavigationInner}><Text style={[styles.utilityTitle, { color: appTheme.colors.text }]}>{utilityLabels[utilityView]}</Text><Pressable accessibilityLabel={`${utilityLabels[utilityView]} 닫기`} accessibilityRole="button" onPress={closeUtility} style={[styles.utilityClose, { borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceSunken }]} testID="utility-close"><Text style={[styles.utilityText, { color: appTheme.colors.textMuted }]}>닫기</Text></Pressable></View></View> : null}

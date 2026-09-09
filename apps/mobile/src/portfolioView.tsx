@@ -9,6 +9,7 @@ import { buildLocalPortfolio, isLocalPaperActive } from "./localPaperLedger";
 import { useLocalPaperMarkPrice, useLocalPaperSnapshot } from "./localPaperLedgerHooks";
 import { AuthorityRail, FactRow, IntelligenceSection, MetricStrip, ScreenLead, StateNotice } from "./intelligenceOs";
 import { describeAge, freshnessStage } from "./instrumentState";
+import { useNowMs } from "./instrumentSurfaces";
 
 export type { PortfolioAccountResponse } from "./portfolioViewModel";
 export interface PortfolioViewProps {
@@ -55,9 +56,11 @@ export function PortfolioView({ snapshot, investmentPercent, error, refreshing, 
   // priced off. When that price has aged out of the operations window the derived figure ages
   // with it -- showing it in profit green off a three-minute-old quote states a gain nobody
   // can act on. Realized PNL is exempt: it is booked, not derived from a live quote.
-  const priceStage = generatedAtMs == null ? null : freshnessStage(generatedAtMs, Date.now());
+  // One instant for both, so the stage and the age can never describe different moments.
+  const nowMs = useNowMs();
+  const priceStage = generatedAtMs == null ? null : freshnessStage(generatedAtMs, nowMs);
   const priceStale = priceStage === "STALE";
-  const priceAge = generatedAtMs == null ? undefined : describeAge(generatedAtMs, Date.now());
+  const priceAge = generatedAtMs == null ? undefined : describeAge(generatedAtMs, nowMs);
   const upbitConnected = upbitStatus === "READY" && upbitSnapshot != null && upbitError == null;
 
   return <ScrollView style={{ backgroundColor: theme.colors.background }} contentContainerStyle={[styles.content, { maxWidth: tablet ? 1080 : 720 }]} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} showsVerticalScrollIndicator={false} testID="portfolio-screen">

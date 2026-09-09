@@ -105,6 +105,23 @@ test("no refusals leaves every lamp dark, and a halt outranks a reject on the sa
   assert.equal(both.DATA, "OFF");
 });
 
+test("an observed runtime state is reported without inventing a cause", () => {
+  const { runtimeDegradedRefusal } = require("../dist/apps/mobile/src/instrumentState.js");
+  const degraded = runtimeDegradedRefusal(false);
+  const halted = runtimeDegradedRefusal(true);
+  assert.equal(degraded.severity, "REJECT");
+  assert.equal(halted.severity, "HALT");
+  assert.equal(degraded.gate, "GATE");
+  // It must not claim a specific fault, because `health` does not carry one.
+  for (const record of [degraded, halted]) {
+    assert.doesNotMatch(record.title, /시세|토큰|네트워크/);
+    assert.ok(record.action.length > 0);
+  }
+  // Neither observed-state helper may leak into the server's own vocabulary table.
+  assert.equal(knownRefusalCodes().includes("RUNTIME_DEGRADED"), false);
+  assert.equal(knownRefusalCodes().includes("SESSION_NOT_LINKED"), false);
+});
+
 test("age reads in the operator's units", () => {
   const base = 1_000_000;
   assert.equal(describeAge(base, base + 500), "방금");

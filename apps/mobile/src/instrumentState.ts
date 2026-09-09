@@ -136,7 +136,9 @@ const CODE_PATTERN = /^[A-Z][A-Z0-9_]{0,63}$/;
  */
 export function describeRefusal(code: unknown, status?: number): RefusalDescriptor {
   const normalized = typeof code === "string" && CODE_PATTERN.test(code.trim()) ? code.trim() : undefined;
-  const seed = normalized == null ? undefined : REFUSALS[normalized];
+  // Own-property only. The code pattern already excludes every inherited key (they are all
+  // lowercase), but the guard keeps that true if the pattern is ever loosened.
+  const seed = normalized != null && Object.prototype.hasOwnProperty.call(REFUSALS, normalized) ? REFUSALS[normalized] : undefined;
   if (seed != null && normalized != null) {
     return Object.freeze({ code: normalized, gate: seed.gate, gateLabel: GATE_LABELS[seed.gate], severity: seed.severity, title: seed.title, detail: seed.detail, action: seed.action });
   }
@@ -239,6 +241,27 @@ export function sessionNotLinkedRefusal(detail?: string): RefusalDescriptor {
     title: "PAPER 서버와 연결되어 있지 않습니다",
     detail: detail?.trim() ? detail.trim() : "보안 세션이 없어 서버 데이터를 읽을 수 없습니다.",
     action: "설정에서 1회용 연결 토큰으로 연결하세요."
+  });
+}
+
+/**
+ * The runtime reporting itself unhealthy. Like `sessionNotLinkedRefusal` this is an observed
+ * state rather than a code the server refused with, and it deliberately does NOT name a cause:
+ * `health` collapses kill switches, halted runtimes, offline transport, pending writes and
+ * failed research into two values, so claiming any single one of them would assert more than
+ * the field supports.
+ */
+export function runtimeDegradedRefusal(failClosed: boolean): RefusalDescriptor {
+  return Object.freeze({
+    code: failClosed ? "RUNTIME_FAIL_CLOSED" : "RUNTIME_DEGRADED",
+    gate: "GATE",
+    gateLabel: GATE_LABELS.GATE,
+    severity: failClosed ? "HALT" : "REJECT",
+    title: failClosed ? "PAPER 런타임이 정지 상태입니다" : "PAPER 런타임이 저하 상태입니다",
+    detail: failClosed
+      ? "서버가 운영을 중단했습니다. 킬스위치, 계정 정지, 런타임 중단 중 하나입니다."
+      : "서버가 저하 상태를 보고했습니다. 전송, 런타임 준비, 대기 중인 쓰기 중 하나일 수 있습니다.",
+    action: "모니터에서 어느 항목이 저하되었는지 확인하세요."
   });
 }
 

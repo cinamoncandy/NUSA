@@ -93,5 +93,23 @@ booked, not derived from a live quote, and dimming it would misreport a
 settled fact. On the LOCAL PAPER path there is no server clock, so no stamp is
 shown at all; inventing an age would be worse than admitting there is none.
 
+Two rules govern what a lamp or a stamp is allowed to claim.
+
+**Only say what the field carries.** `health` collapses kill switches, halted
+runtimes, offline transport, pending writes and failed research into
+`FAIL_CLOSED` / `DEGRADED` / `HEALTHY`. Reporting any one of those as the cause —
+an early draft of this work lit the DATA lamp with "the quote is stale" whenever
+health was not HEALTHY — asserts more than the field supports, which is the same
+error as answering a 403 with "your token expired". A degraded runtime is
+reported as a degraded runtime, and staleness is measured separately from the
+snapshot's own timestamp.
+
+**The clock has to run.** Reading `Date.now()` during render freezes the age at
+the last render, so a screen left open keeps saying "2초 전" while the data ages
+out — worse than showing no age, because it asserts a freshness the data no
+longer has. The tick lives in leaves (`AgingValue`, `AuthoritySpine`) rather than
+in the screens: HOME renders a chart that is not memoized, and a clock in that
+component would redraw the whole screen every second to move one line of text.
+
 A value from the future is `STALE`, not `FRESH`: a negative age means the clocks
 disagree, and reading it as fresh would hide exactly the condition worth showing.

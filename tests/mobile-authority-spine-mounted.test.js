@@ -27,7 +27,16 @@ test("it sits above the screen switch, not inside a tab", () => {
 test("lamps are derived from live state, not a stored flag", () => {
   assert.match(APP, /killSwitchActive === true \? \[describeRefusal\("KILL_SWITCH_ACTIVE"\)\]/);
   assert.match(APP, /requiresDashboardConnection \? \[sessionNotLinkedRefusal\(/);
-  assert.match(APP, /stale \? \[describeRefusal\("MARKET_DATA_STALE"\)\]/);
+  assert.match(APP, /runtimeDegradedRefusal\(snapshot\.health === "FAIL_CLOSED"\)/);
+});
+
+test("a degraded runtime is not reported as a stale quote", () => {
+  // `health` collapses kill switches, halted runtimes, offline transport and pending writes
+  // into two values. Naming any one of them from that field asserts more than it carries --
+  // the same error as answering a 403 with "your token expired".
+  assert.doesNotMatch(APP, /health !== "HEALTHY"[\s\S]{0,120}MARKET_DATA_STALE/);
+  // Staleness is measured from the snapshot's own timestamp instead.
+  assert.match(APP, /snapshotGeneratedAtMs=\{snapshot\?\.generatedAt \?\? null\}/);
 });
 
 test("a lit link lamp routes to the screen that can fix it", () => {

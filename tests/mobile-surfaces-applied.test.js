@@ -10,12 +10,28 @@ const SETTINGS = src("settingsView.tsx");
 const TRADING = src("tradingView.tsx");
 
 test("the equity hero carries its own age and is struck through when stale", () => {
-  assert.match(HOME, /freshnessStage\(equityGeneratedAtMs, equityNowMs\)/);
-  assert.match(HOME, /equityStale = equityStageValue === "STALE"/);
+  assert.match(HOME, /<AgingValue generatedAtMs=\{equityGeneratedAtMs\}/);
   assert.match(HOME, /balanceValueStale/);
   assert.match(HOME, /testID="account-hero-freshness"/);
   // The age must be read as part of the value, not as a separate unlabelled duration.
-  assert.match(HOME, /accessibilityLabel=\{`\$\{krw\(account\?\.equity\)\}, \$\{equityAge\}/);
+  assert.match(HOME, /accessibilityLabel=\{`\$\{krw\(account\?\.equity\)\}, \$\{age\}/);
+});
+
+test("the age advances on its own instead of freezing at the last render", () => {
+  const SURFACES = src("instrumentSurfaces.tsx");
+  // Reading Date.now() during render leaves a screen saying "2초 전" while the data ages out,
+  // which asserts a freshness the data no longer has -- worse than showing no age at all.
+  assert.match(SURFACES, /setInterval\(\(\) => \{ setNowMs\(Date\.now\(\)\); \}, intervalMs\)/);
+  assert.match(SURFACES, /return \(\) => \{ clearInterval\(timer\); \};/);
+  assert.doesNotMatch(HOME, /Date\.now\(\)[^)]*equity/i);
+});
+
+test("the clock sits in a leaf so ticking it does not re-render the chart", () => {
+  const SURFACES = src("instrumentSurfaces.tsx");
+  assert.match(SURFACES, /export function AgingValue/);
+  // AgingValue owns the tick; HOME must not hold one itself, or the whole screen redraws.
+  assert.doesNotMatch(HOME, /useNowMs\(/);
+  assert.match(HOME, /<CandlePlot/);
 });
 
 test("the connection flow renders the structured refusal, not only a flattened sentence", () => {
