@@ -132,6 +132,59 @@ export function MotionReveal({ children, testID }: Readonly<{ children: React.Re
   return <Animated.View testID={testID} style={{ opacity: reducedMotion === null ? 1 : opacity, transform: [{ translateY: reducedMotion === null ? 0 : translateY }] }}>{children}</Animated.View>;
 }
 
+
+export function IntelligenceMotionField({ active = true, evidenceCount = 0, label = "NUSA intelligence field" }: Readonly<{ active?: boolean; evidenceCount?: number; label?: string }>) {
+  const { theme } = useTheme();
+  const [reducedMotion, setReducedMotion] = useState<boolean | null>(null);
+  const orbit = useRef(new Animated.Value(0)).current;
+  const pulse = useRef(new Animated.Value(0)).current;
+  const scan = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    let mounted = true;
+    AccessibilityInfo.isReduceMotionEnabled().then((enabled) => { if (mounted) setReducedMotion(enabled); }).catch(() => { if (mounted) setReducedMotion(false); });
+    const subscription = AccessibilityInfo.addEventListener("reduceMotionChanged", setReducedMotion);
+    return () => { mounted = false; subscription.remove(); };
+  }, []);
+
+  useEffect(() => {
+    orbit.stopAnimation(); pulse.stopAnimation(); scan.stopAnimation();
+    if (!active || reducedMotion == null || reducedMotion) {
+      orbit.setValue(0.2); pulse.setValue(active ? 0.55 : 0.15); scan.setValue(0.25);
+      return undefined;
+    }
+    const animation = Animated.loop(Animated.parallel([
+      Animated.timing(orbit, { toValue: 1, duration: 6200, useNativeDriver: true }),
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 1200, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 1200, useNativeDriver: true }),
+      ]),
+      Animated.sequence([
+        Animated.timing(scan, { toValue: 1, duration: 2100, useNativeDriver: true }),
+        Animated.timing(scan, { toValue: 0, duration: 2100, useNativeDriver: true }),
+      ]),
+    ]));
+    animation.start();
+    return () => animation.stop();
+  }, [active, orbit, pulse, reducedMotion, scan]);
+
+  const rotation = orbit.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
+  const coreScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.08] });
+  const coreOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] });
+  const scanX = scan.interpolate({ inputRange: [0, 1], outputRange: [-64, 64] });
+  const boundedEvidence = Math.max(0, Math.min(99, Math.round(evidenceCount)));
+
+  return <View accessible accessibilityRole="image" accessibilityLabel={label} style={[styles.intelligenceField, { backgroundColor: theme.colors.aiSignalSoft, borderColor: theme.colors.borderStrong }]} testID="nusa-intelligence-motion">
+    <View style={[styles.intelligenceGrid, { borderColor: theme.colors.border }]} />
+    <Animated.View style={[styles.intelligenceOrbitOuter, { borderColor: theme.colors.aiSignalStart, transform: [{ rotate: rotation }] }]}><View style={[styles.intelligenceOrbitNode, { backgroundColor: theme.colors.aiSignalEnd }]} /></Animated.View>
+    <Animated.View style={[styles.intelligenceOrbitInner, { borderColor: theme.colors.aiSignalMid, transform: [{ rotate: rotation }] }]}><View style={[styles.intelligenceOrbitNodeSmall, { backgroundColor: theme.colors.aiSignalStart }]} /></Animated.View>
+    <Animated.View style={[styles.intelligenceCoreHalo, { borderColor: theme.colors.aiSignalMid, opacity: coreOpacity, transform: [{ scale: coreScale }] }]} />
+    <Animated.View style={[styles.intelligenceCore, { backgroundColor: theme.colors.aiSignalEnd, shadowColor: theme.colors.aiSignalEnd, opacity: coreOpacity, transform: [{ scale: coreScale }] }]} />
+    <Animated.View style={[styles.intelligenceScan, { backgroundColor: theme.colors.aiSignalMid, opacity: coreOpacity, transform: [{ translateX: scanX }, { rotate: "-18deg" }] }]} />
+    <View style={styles.intelligenceLegend}><Text style={[styles.intelligenceLegendLabel, { color: theme.colors.textMuted }]}>EVIDENCE</Text><Text style={[styles.intelligenceLegendValue, { color: theme.colors.text }]}>{boundedEvidence}</Text></View>
+  </View>;
+}
+
 export function TerrainSignal({ variant = "symbolic", signalStrength = 0.6, accessibilityLabel, testID }: Readonly<{ variant?: "symbolic" | "market"; signalStrength?: number; accessibilityLabel?: string; testID?: string }>) {
   const { theme } = useTheme();
   const boundedStrength = Math.max(0.25, Math.min(1, signalStrength));
@@ -207,6 +260,18 @@ const styles = StyleSheet.create({
   dataRow: { minHeight: 36, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 14 },
   dataLabel: { flex: 1, fontSize: 13, lineHeight: 19 },
   skeleton: { opacity: 0.85 },
+  intelligenceField: { height: 178, minWidth: 220, flex: 1, overflow: "hidden", borderWidth: 1, borderRadius: 24, position: "relative", alignItems: "center", justifyContent: "center" },
+  intelligenceGrid: { position: "absolute", width: "76%", height: "76%", borderWidth: StyleSheet.hairlineWidth, borderRadius: 999, opacity: 0.45 },
+  intelligenceOrbitOuter: { position: "absolute", width: 132, height: 132, borderRadius: 66, borderWidth: 1.2 },
+  intelligenceOrbitInner: { position: "absolute", width: 86, height: 86, borderRadius: 43, borderWidth: 1 },
+  intelligenceOrbitNode: { position: "absolute", width: 8, height: 8, borderRadius: 4, left: 12, top: 14 },
+  intelligenceOrbitNodeSmall: { position: "absolute", width: 6, height: 6, borderRadius: 3, right: 8, bottom: 13 },
+  intelligenceCoreHalo: { position: "absolute", width: 50, height: 50, borderRadius: 25, borderWidth: 1.2 },
+  intelligenceCore: { position: "absolute", width: 14, height: 14, borderRadius: 7, shadowOpacity: 0.9, shadowRadius: 18, elevation: 5 },
+  intelligenceScan: { position: "absolute", width: 96, height: 1.5, borderRadius: 1 },
+  intelligenceLegend: { position: "absolute", left: 14, bottom: 12, flexDirection: "row", alignItems: "baseline", gap: 6 },
+  intelligenceLegendLabel: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1.05 },
+  intelligenceLegendValue: { fontSize: 14, lineHeight: 17, fontWeight: "900", fontVariant: ["tabular-nums"] },
   dataValue: { flexShrink: 1, textAlign: "right", fontSize: 13, lineHeight: 19, fontVariant: ["tabular-nums"] },
   dataValueEmphasis: { fontSize: 14 },
   // Issue #536's MASTER VISUAL REFERENCE names this centerpiece the visual hero of HOME, not a
