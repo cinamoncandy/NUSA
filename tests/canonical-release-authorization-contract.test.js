@@ -14,7 +14,7 @@ function position(label, needle) {
 
 test("release authorization uses a dedicated protected GitHub App boundary", () => {
   assert.match(workflow, /environment:\s+nusa-release-authority/);
-  assert.match(workflow, /uses:\s+actions\/create-github-app-token@v2/);
+  assert.match(workflow, /uses:\s+actions\/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349\s+# v2/);
   assert.match(workflow, /secrets\.NUSA_RELEASE_AUTH_APP_ID/);
   assert.match(workflow, /secrets\.NUSA_RELEASE_AUTH_APP_PRIVATE_KEY/);
   assert.match(workflow, /AUTH_CONTEXT:\s+nusa\/release-authorized/);
