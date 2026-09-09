@@ -128,8 +128,8 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
 
 const styles = StyleSheet.create({
   workspace: { flex: 1, width: "100%", maxWidth: uxLayout.maxWorkspaceWidth, alignSelf: "center" },
-  top: { width: "100%", alignSelf: "center", paddingHorizontal: 20, paddingTop: 14, gap: 14 },
-  segmentOuter: { paddingTop: 14, paddingBottom: 2 },
+  top: { width: "100%", alignSelf: "center", paddingHorizontal: 20, paddingTop: 10, gap: 10 },
+  segmentOuter: { paddingTop: 9, paddingBottom: 2 },
   tabletWorkspace: { flex: 1, flexDirection: "row", gap: 24, paddingHorizontal: 28, paddingTop: 18 },
   tabletPanel: { flex: 1, minWidth: 0 },
   panels: { flexDirection: "row", padding: 4, borderWidth: 1, borderRadius: 14 },
@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
   segmentAlias: { flex: 1, flexDirection: "row" },
   segmentLabel: { fontSize: 12, lineHeight: 17, fontWeight: "800" },
   detailWorkspace: { flex: 1, minWidth: 0 },
-  paperContext: { minHeight: 84, borderTopWidth: StyleSheet.hairlineWidth, marginHorizontal: 20, marginVertical: 14, paddingVertical: 16, flexDirection: "row", alignItems: "center", gap: 12 },
+  paperContext: { minHeight: 72, borderTopWidth: StyleSheet.hairlineWidth, marginHorizontal: 20, marginVertical: 10, paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 12 },
   paperContextCopy: { flex: 1, gap: 3 },
   paperKicker: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.1 },
   paperTitle: { fontSize: 15, lineHeight: 20, fontWeight: "800" },

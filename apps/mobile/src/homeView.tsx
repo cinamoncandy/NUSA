@@ -157,7 +157,7 @@ export function HomeView({
       <View style={styles.glanceRail} testID="home-status-rail">
         <Text style={[styles.glancePrimary, { color: theme.colors.textMuted }]} numberOfLines={1}>{rail.marketLine} · {rail.systemLine}</Text>
         <Text style={[styles.glanceRisk, { color: riskColor }]}>RISK {rail.riskLabel}</Text>
-        <Text style={[styles.glanceBuild, { color: theme.colors.textMuted }]} testID="home-build-source">BUILD {packagedBuildLabel} · UI INTELLIGENCE OS</Text>
+        <View style={styles.hiddenAcceptanceHooks}><Text style={[styles.glanceBuild, { color: theme.colors.textMuted }]} testID="home-build-source">BUILD {packagedBuildLabel} · UI INTELLIGENCE OS</Text></View>
       </View>
 
       <View style={[styles.hero, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.border }]} testID="home-now">
@@ -167,11 +167,6 @@ export function HomeView({
         </View>
         <Text style={[styles.heroTitle, { color: theme.colors.text }]}>{posture}</Text>
         <Text style={[styles.heroDetail, { color: theme.colors.textMuted }]} numberOfLines={2}>{why}</Text>
-        <View style={styles.heroChips}>
-          <View style={[styles.chip, { backgroundColor: theme.colors.surface }]}><Text style={[styles.chipLabel, { color: theme.colors.textMuted }]}>PAPER ONLY</Text></View>
-          <View style={[styles.chip, { backgroundColor: theme.colors.surface }]}><Text style={[styles.chipLabel, { color: theme.colors.textMuted }]}>LIVE NONE</Text></View>
-          <View style={[styles.chip, { backgroundColor: theme.colors.surface }]}><Text style={[styles.chipLabel, { color: theme.colors.info }]}>AI ZERO</Text></View>
-        </View>
       </View>
 
       <View style={[styles.balanceStage, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }, tablet ? styles.balanceStageTablet : null]} testID="account-hero-card">
