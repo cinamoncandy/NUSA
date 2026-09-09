@@ -139,6 +139,7 @@ export function HomeView({
   const openOrders = snapshot?.portfolio?.openOrderCount ?? null;
   const pnlColor = totalPnl == null ? theme.colors.text : totalPnl >= 0 ? theme.colors.success : theme.colors.danger;
   const connectionLabel = disconnected ? "SETUP" : readOnlyError ? "DEGRADED" : snapshot?.readyForPaperOperations ? "ACTIVE" : "OBSERVING";
+  const postureDisplay = disconnected ? "PAPER 연결 필요" : posture;
   const intelligenceSurface = intelligenceFieldColors.surface;
   const intelligenceBorder = intelligenceFieldColors.heroBorder;
   const intelligenceText = intelligenceFieldColors.text;
@@ -155,9 +156,9 @@ export function HomeView({
           <View style={[styles.liveDot, { backgroundColor: systemColor }]} />
           <Text style={[styles.brand, { color: theme.colors.text }]}>NUSA</Text>
         </View>
-        <View style={[styles.statusCapsule, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.border }]}>
+        <Pressable accessibilityRole="button" onPress={onGoSettings} style={({ pressed }) => [styles.statusCapsule, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]}>
           <Text style={[styles.statusCapsuleText, { color: systemColor }]}>{connectionLabel}</Text>
-        </View>
+        </Pressable>
       </View>
 
       <View style={styles.glanceRail} testID="home-status-rail">
@@ -171,9 +172,8 @@ export function HomeView({
           <View style={styles.intelligenceCopy}>
             <View style={styles.heroTop}>
               <View style={styles.liveIntelligenceLabel}><View style={[styles.heroStatusDot, { backgroundColor: systemColor }]} /><Text style={[styles.eyebrow, { color: theme.colors.aiSignalEnd }]}>LIVE INTELLIGENCE</Text></View>
-              <Text style={[styles.statusCapsuleText, { color: systemColor }]}>{connectionLabel}</Text>
             </View>
-            <Text style={[styles.heroTitle, { color: intelligenceText }]}>{posture}</Text>
+            <Text style={[styles.heroTitle, { color: intelligenceText }]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.82}>{postureDisplay}</Text>
             <Text style={[styles.heroDetail, { color: intelligenceMuted }]} numberOfLines={3}>{why}</Text>
             <View style={styles.intelligenceMeta}>
               <View><Text style={[styles.metaLabel, { color: intelligenceMuted }]}>EVIDENCE</Text><Text style={[styles.metaValue, { color: intelligenceText }]}>{ai?.status === "AVAILABLE" ? String(ai.evidenceReferences.length) : "—"}</Text></View>
@@ -298,9 +298,9 @@ const styles = StyleSheet.create({
   glancePrimary: { flex: 1, minWidth: 180, fontSize: 10, lineHeight: 15, fontWeight: "700" },
   glanceRisk: { fontSize: 10, lineHeight: 15, fontWeight: "900", letterSpacing: 0.45 },
   glanceBuild: { fontSize: 9, lineHeight: 14, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  intelligenceHero: { overflow: "hidden", borderWidth: 1, borderRadius: 30, padding: 20, gap: 20, minHeight: 310 },
+  intelligenceHero: { overflow: "hidden", borderWidth: 1, borderRadius: 28, padding: 16, gap: 16, minHeight: 280 },
   intelligenceHeroTablet: { flexDirection: "row", alignItems: "stretch" },
-  intelligenceCopy: { flex: 1.05, minWidth: 0, gap: 12, justifyContent: "center" },
+  intelligenceCopy: { flex: 1.05, minWidth: 0, gap: 10, justifyContent: "center" },
   liveIntelligenceLabel: { flexDirection: "row", alignItems: "center", gap: 7 },
   intelligenceMeta: { flexDirection: "row", gap: 24, flexWrap: "wrap", paddingTop: 4 },
   metaLabel: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1 },
@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
   heroTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   heroStatusDot: { width: 8, height: 8, borderRadius: 999 },
   eyebrow: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.45 },
-  heroTitle: { maxWidth: 720, fontSize: 28, lineHeight: 36, fontWeight: "800", letterSpacing: -0.9 },
+  heroTitle: { maxWidth: 720, fontSize: 26, lineHeight: 32, fontWeight: "800", letterSpacing: -0.8 },
   heroDetail: { maxWidth: 760, fontSize: 12, lineHeight: 19, fontWeight: "600" },
   heroChips: { flexDirection: "row", gap: 7, flexWrap: "wrap", paddingTop: 3 },
   chip: { minHeight: 26, borderRadius: 999, paddingHorizontal: 9, alignItems: "center", justifyContent: "center" },

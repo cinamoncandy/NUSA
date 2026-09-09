@@ -274,7 +274,7 @@ const styles = StyleSheet.create({
   dataRow: { minHeight: 36, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 14 },
   dataLabel: { flex: 1, fontSize: 13, lineHeight: 19 },
   skeleton: { opacity: 0.85 },
-  intelligenceField: { height: 236, minWidth: 220, flex: 1, overflow: "hidden", borderWidth: 1, borderColor: intelligenceFieldColors.border, borderRadius: 26, position: "relative", alignItems: "center", justifyContent: "center", backgroundColor: intelligenceFieldColors.surface },
+  intelligenceField: { height: 210, minWidth: 220, flex: 1, overflow: "hidden", borderWidth: 1, borderColor: intelligenceFieldColors.border, borderRadius: 26, position: "relative", alignItems: "center", justifyContent: "center", backgroundColor: intelligenceFieldColors.surface },
   intelligenceAmbientOne: { position: "absolute", width: 230, height: 230, borderRadius: 115, backgroundColor: intelligenceFieldColors.ambientPurple, opacity: 0.72, top: -86, right: -46 },
   intelligenceAmbientTwo: { position: "absolute", width: 190, height: 190, borderRadius: 95, backgroundColor: intelligenceFieldColors.ambientTeal, opacity: 0.56, bottom: -82, left: -48 },
   intelligenceFieldKicker: { position: "absolute", left: 16, top: 14, color: intelligenceFieldColors.textMuted, fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1.25 },

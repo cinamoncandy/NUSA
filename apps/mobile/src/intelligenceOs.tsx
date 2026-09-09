@@ -16,7 +16,7 @@ function toneColor(theme: ReturnType<typeof useTheme>["theme"], tone: Intelligen
 export function AuthorityRail({ detail, status, tone = "success", testID }: Readonly<{ detail: string; status: string; tone?: IntelligenceTone; testID?: string }>) {
   const { theme } = useTheme();
   const color = toneColor(theme, tone);
-  return <View style={[styles.authorityRail, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceSunken }]} testID={testID}>
+  return <View style={[styles.authorityRail, { borderColor: theme.colors.border, backgroundColor: theme.colors.background }]} testID={testID}>
     <View style={styles.authorityBrandRow}>
       <View style={[styles.authorityDot, { borderColor: color }]} />
       <Text style={[styles.authorityBrand, { color: theme.colors.text }]}>NUSA</Text>
@@ -87,14 +87,14 @@ export function StateNotice({ title, detail, tone = "warning", testID }: Readonl
 }
 
 const styles = StyleSheet.create({
-  authorityRail: { minHeight: 42, borderWidth: StyleSheet.hairlineWidth, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 7, justifyContent: "center" },
-  authorityBrandRow: { flexDirection: "row", alignItems: "center", gap: 7, paddingRight: 82 },
-  authorityDot: { width: 8, height: 8, borderWidth: 1.5, borderRadius: 999 },
-  authorityBrand: { fontSize: 12, lineHeight: 16, fontWeight: "900", letterSpacing: 1.6 },
-  authorityMode: { fontSize: 8, lineHeight: 12, fontWeight: "900", letterSpacing: 0.9 },
-  authorityDetail: { flex: 1, minWidth: 0, fontSize: 8, lineHeight: 12 },
-  authorityStatus: { position: "absolute", right: 9, top: 7, minHeight: 28, borderWidth: 1, borderRadius: 999, justifyContent: "center", paddingHorizontal: 9 },
-  authorityStatusText: { fontSize: 8, lineHeight: 12, fontWeight: "900", letterSpacing: 0.55 },
+  authorityRail: { minHeight: 32, borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 2, paddingVertical: 4, justifyContent: "center" },
+  authorityBrandRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingRight: 72 },
+  authorityDot: { width: 6, height: 6, borderWidth: 1.2, borderRadius: 999 },
+  authorityBrand: { fontSize: 10, lineHeight: 14, fontWeight: "900", letterSpacing: 1.45 },
+  authorityMode: { fontSize: 7, lineHeight: 10, fontWeight: "900", letterSpacing: 0.8 },
+  authorityDetail: { flex: 1, minWidth: 0, fontSize: 7, lineHeight: 10 },
+  authorityStatus: { position: "absolute", right: 0, top: 4, minHeight: 24, borderWidth: StyleSheet.hairlineWidth, borderRadius: 999, justifyContent: "center", paddingHorizontal: 8 },
+  authorityStatusText: { fontSize: 7, lineHeight: 10, fontWeight: "900", letterSpacing: 0.5 },
   lead: { gap: 4, paddingTop: 2 },
   leadTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 },
   eyebrow: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.15 },
