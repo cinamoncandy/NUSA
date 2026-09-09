@@ -93,6 +93,16 @@ booked, not derived from a live quote, and dimming it would misreport a
 settled fact. On the LOCAL PAPER path there is no server clock, so no stamp is
 shown at all; inventing an age would be worse than admitting there is none.
 
+A refusal must reach the control that clears it. `USER_NOT_ACTIVE` and
+`USER_NOT_REGISTERED` are account state, and the owner-scoped user list in
+Settings can read and change exactly that state — it lists every account with its
+status and approves a pending one. The app nevertheless answered both with "이
+계정을 서버에서 승인하세요", pointing at a machine the operator may not be able to
+reach, while the control sat two sections below on the same screen. That is why a
+solvable state read as an unsolvable one for days. Both now name the in-app panel
+and carry a button that scrolls to it, using the section's own measured offset
+rather than a guessed constant.
+
 Two rules govern what a lamp or a stamp is allowed to claim.
 
 **Only say what the field carries.** `health` collapses kill switches, halted

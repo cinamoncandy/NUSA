@@ -71,13 +71,13 @@ const REFUSALS: Readonly<Record<string, RefusalSeed>> = Object.freeze({
     gate: "LINK", severity: "REJECT",
     title: "서버에 이 소유자 계정이 등록되어 있지 않습니다",
     detail: "토큰은 인증되었지만 그 토큰이 가리키는 계정이 서버에 없습니다.",
-    action: "서버의 소유자 설정을 확인하세요."
+    action: "아래 '운영자 사용자 승인'에서 소유자 토큰으로 사용자 목록을 확인하세요."
   },
   USER_NOT_ACTIVE: {
     gate: "LINK", severity: "REJECT",
     title: "소유자 계정이 ACTIVE 상태가 아닙니다",
     detail: "토큰은 정상적으로 인증되었습니다. 계정이 아직 승인되지 않아 세션을 만들 수 없습니다.",
-    action: "서버에서 이 계정을 승인하세요."
+    action: "아래 '운영자 사용자 승인'에서 소유자 토큰으로 이 계정을 승인하세요. 서버에 접속할 필요는 없습니다."
   },
   USER_IDENTITY_MISMATCH: {
     gate: "LINK", severity: "REJECT",
@@ -164,6 +164,18 @@ export function describeRefusal(code: unknown, status?: number): RefusalDescript
       : credentialRefused ? "새 토큰을 발급받아 다시 입력하세요."
       : "아래 기계 근거를 그대로 담아 운영자에게 문의하세요."
   });
+}
+
+/**
+ * Whether the operator can clear this refusal from inside the app.
+ *
+ * These two are account-state problems, and the owner-scoped user list in Settings can read
+ * and change that state. Telling the operator to "approve it on the server" when the control
+ * is two sections below on the same screen is what turned a solvable state into days of
+ * suspecting the token.
+ */
+export function isResolvableInOperatorPanel(refusal: RefusalDescriptor): boolean {
+  return refusal.code === "USER_NOT_ACTIVE" || refusal.code === "USER_NOT_REGISTERED";
 }
 
 /** Every code this module can translate, so a test can prove the table covers the server's set. */

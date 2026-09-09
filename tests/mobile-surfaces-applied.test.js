@@ -68,6 +68,28 @@ test("LOCAL PAPER carries no server stamp rather than a borrowed one", () => {
   assert.match(PORTFOLIO, /generatedAtMs == null \? undefined : describeAge/);
 });
 
+test("an account-state refusal routes to the control that clears it", () => {
+  const { describeRefusal, isResolvableInOperatorPanel } = require("../dist/apps/mobile/src/instrumentState.js");
+  // These two are account state, and the owner-scoped user list on this same screen can change
+  // it. Sending the operator to "the server" for a control two sections below is what turned a
+  // solvable state into days of suspecting the token.
+  assert.equal(isResolvableInOperatorPanel(describeRefusal("USER_NOT_ACTIVE")), true);
+  assert.equal(isResolvableInOperatorPanel(describeRefusal("USER_NOT_REGISTERED")), true);
+  assert.equal(isResolvableInOperatorPanel(describeRefusal("USER_IDENTITY_MISMATCH")), false);
+  assert.equal(isResolvableInOperatorPanel(describeRefusal("KILL_SWITCH_ACTIVE")), false);
+  // The action must name the in-app control, not a server login.
+  assert.match(describeRefusal("USER_NOT_ACTIVE").action, /운영자 사용자 승인/);
+  assert.doesNotMatch(describeRefusal("USER_NOT_ACTIVE").action, /^서버에서/);
+});
+
+test("the record's button scrolls to the operator panel it names", () => {
+  assert.match(SETTINGS, /isResolvableInOperatorPanel\(connectionRefusal\)/);
+  assert.match(SETTINGS, /actionLabel: "운영자 승인으로 이동"/);
+  assert.match(SETTINGS, /scrollRef\.current\?\.scrollTo\(\{ y: Math\.max\(0, operatorSectionYRef\.current/);
+  // The offset has to come from the section's own layout, not a guessed constant.
+  assert.match(SETTINGS, /onLayout=\{\(event\) => \{ operatorSectionYRef\.current = event\.nativeEvent\.layout\.y; \}\}/);
+});
+
 test("production PAPER stays a supervision surface with no manual ticket", () => {
   // The refusal record deliberately did NOT go onto an order ticket: this route has none, and
   // adding one would contradict the documented safety contract rather than implement a design.
