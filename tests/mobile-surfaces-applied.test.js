@@ -90,6 +90,11 @@ test("the record's button scrolls to the operator panel it names", () => {
   assert.match(SETTINGS, /onLayout=\{\(event\) => \{ operatorSectionYRef\.current = event\.nativeEvent\.layout\.y; \}\}/);
 });
 
+test("the token field states the ten-minute rule instead of only calling it one-time", () => {
+  assert.match(SETTINGS, /소유자 대시보드 토큰\(만료 없음, 권장\)/);
+  assert.match(SETTINGS, /부트스트랩 토큰\(발급 후 10분, 1회용\)/);
+});
+
 test("production PAPER stays a supervision surface with no manual ticket", () => {
   // The refusal record deliberately did NOT go onto an order ticket: this route has none, and
   // adding one would contradict the documented safety contract rather than implement a design.

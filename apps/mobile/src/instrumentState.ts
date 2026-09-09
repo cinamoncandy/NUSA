@@ -58,14 +58,14 @@ const REFUSALS: Readonly<Record<string, RefusalSeed>> = Object.freeze({
   NO_CREDENTIAL: {
     gate: "LINK", severity: "REJECT",
     title: "요청에 자격 증명이 없습니다",
-    detail: "서버로 보낸 요청에 연결 토큰이 실려 있지 않았습니다.",
-    action: "설정에서 1회용 연결 토큰을 입력하세요."
+    detail: "서버가 Authorization 헤더를 받지 못했습니다. 토큰을 비워 두었거나, 앞단 프록시가 그 헤더를 서버로 넘기지 않고 있습니다.",
+    action: "토큰을 입력했는데도 이 상태라면 프록시의 Authorization 헤더 전달 설정을 확인하세요."
   },
   CREDENTIAL_REJECTED: {
     gate: "LINK", severity: "REJECT",
     title: "연결 토큰이 만료되었거나 이미 사용되었습니다",
-    detail: "토큰 자체가 서버에서 거부되었습니다. 1회용 토큰은 한 번만 쓸 수 있습니다.",
-    action: "새 토큰을 발급받아 다시 입력하세요."
+    detail: "서버가 이 값을 알아보지 못했습니다. 부트스트랩 토큰은 발급 후 10분만 살아 있고 한 번만 쓸 수 있어, 며칠 전에 받아둔 값은 반드시 거부됩니다.",
+    action: "만료되지 않는 소유자 대시보드 토큰을 대신 넣으세요. 새 부트스트랩 토큰을 쓰려면 발급 후 10분 안에 입력해야 합니다."
   },
   USER_NOT_REGISTERED: {
     gate: "LINK", severity: "REJECT",

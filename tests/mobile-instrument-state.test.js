@@ -129,3 +129,15 @@ test("age reads in the operator's units", () => {
   assert.equal(describeAge(base, base + 120_000), "2분 전");
   assert.equal(describeAge(base, base + 7_200_000), "2시간 전");
 });
+
+test("a 401 names the token rules the server actually enforces", () => {
+  // The field is labelled "1회용" but nothing said the bootstrap token dies in ten minutes, so a
+  // value retrieved carefully days earlier was refused every time with no way to know why.
+  const rejected = describeRefusal("CREDENTIAL_REJECTED");
+  assert.match(rejected.detail, /10분/);
+  assert.match(rejected.action, /소유자 대시보드 토큰/);
+  // NO_CREDENTIAL is the other 401 and has a different cause: the header never arrived.
+  const missing = describeRefusal("NO_CREDENTIAL");
+  assert.match(missing.detail, /Authorization/);
+  assert.notEqual(missing.action, rejected.action);
+});
