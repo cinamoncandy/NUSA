@@ -128,7 +128,7 @@ test("approved pairing survives a process restart only in secure storage and is 
   const requests = [];
   const request = async (url, init) => {
     requests.push({ url, init });
-    if (url.endsWith("/pairing/start")) return response(url, 201, { requestId: "pairing-request-id-0123456789", verificationCode: "123456", expiresAt: Date.now() + 600000, state: "PENDING" });
+    if (url.endsWith("/pairing/start")) return response(url, 201, { requestId: "pairing-request-id-0123456789", verificationCode: "804251", expiresAt: Date.now() + 600000, state: "PENDING" });
     if (url.endsWith("/pairing/exchange")) return response(url, 200, issued);
     if (url.endsWith("/session/refresh")) return response(url, 200, rotated);
     if (url.endsWith("/mobile/me")) return response(url, 200, { userId: "mobile-user", email: "mobile@example.com", scopes: ["dashboard:read", "paper:trade"] });
@@ -136,7 +136,7 @@ test("approved pairing survives a process restart only in secure storage and is 
   };
   const session = new MobileApprovedSession(storage, request);
   const pairing = await session.startPairing(endpoint, deviceId);
-  assert.equal(pairing.verificationCode, "123456");
+  assert.equal(pairing.verificationCode, "804251");
   assert.equal(await storage.getSecret(SESSION_STORAGE_KEY), null);
   assert.notEqual(await storage.getSecret(PAIRING_STORAGE_KEY), null);
   const restartedBeforeApproval = new MobileApprovedSession(storage, request);
