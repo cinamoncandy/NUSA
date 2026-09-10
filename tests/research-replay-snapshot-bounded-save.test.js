@@ -64,74 +64,159 @@ function snapshot(id) {
   return createResearchRunReplaySnapshot([c], options, run);
 }
 
-test("Research replay save is a byte-preserving append instead of a whole-archive re-sort", () => {
+test("Research replay save freezes the legacy archive and persists later runs as immutable bounded segments", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-research-bounded-save-"));
   const filename = path.join(directory, "snapshots.json");
   const store = new FileResearchRunReplaySnapshotStore(filename);
   try {
     const left = snapshot("one");
     const right = snapshot("two");
-    // Save the lexicographically larger identity first. The legacy writer sorted the full
-    // materialized archive by fingerprint, so the second save would move historical bytes.
     const [first, second] = left.originalRunFingerprintSha256 > right.originalRunFingerprintSha256
       ? [left, right]
       : [right, left];
 
     store.save(first);
     const firstArchive = fs.readFileSync(filename);
+    const firstStat = fs.statSync(filename);
     assert.ok(firstArchive.subarray(firstArchive.length - 3).equals(Buffer.from("]}\n")));
-    const immutablePrefix = firstArchive.subarray(0, firstArchive.length - 3);
 
     store.save(second);
-    const appendedArchive = fs.readFileSync(filename);
-    assert.ok(appendedArchive.subarray(0, immutablePrefix.length).equals(immutablePrefix), "historical snapshot bytes stay unchanged");
-    const parsed = JSON.parse(appendedArchive.toString("utf8"));
-    assert.deepEqual(
-      parsed.snapshots.map((entry) => entry.originalRunFingerprintSha256),
-      [first.originalRunFingerprintSha256, second.originalRunFingerprintSha256],
-      "new snapshots append in durable arrival order instead of re-sorting the archive",
-    );
+    assert.ok(fs.readFileSync(filename).equals(firstArchive), "legacy archive bytes never change after the first bounded snapshot");
+    const secondStat = fs.statSync(filename);
+    assert.equal(secondStat.ino, firstStat.ino, "legacy archive inode is not replaced by a whole-file copy");
+    assert.equal(secondStat.size, firstStat.size, "legacy archive size stays fixed");
+
+    const segment = path.join(`${filename}.segments`, `${second.originalRunFingerprintSha256}.json`);
+    assert.equal(fs.existsSync(segment), true);
+    assert.equal(JSON.parse(fs.readFileSync(segment, "utf8")).snapshotSha256, second.snapshotSha256);
     assert.equal(store.read(second.originalRunFingerprintSha256)?.snapshotSha256, second.snapshotSha256);
 
-    const beforeDuplicate = fs.readFileSync(filename);
+    const beforeDuplicateArchive = fs.readFileSync(filename);
+    const beforeDuplicateSegment = fs.readFileSync(segment);
     store.save(second);
-    assert.ok(fs.readFileSync(filename).equals(beforeDuplicate), "exact replay save is idempotent and performs no rewrite");
+    assert.ok(fs.readFileSync(filename).equals(beforeDuplicateArchive), "exact replay never rewrites the legacy archive");
+    assert.ok(fs.readFileSync(segment).equals(beforeDuplicateSegment), "exact replay never rewrites its immutable segment");
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
 
-test("Research replay save publishes a stat-bound latest identity sidecar without changing archive bytes", async () => {
+test("Research replay save publishes a stat-bound catalog while keeping the legacy archive byte-stable", async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-research-latest-sidecar-"));
   const filename = path.join(directory, "snapshots.json");
   const sidecar = `${filename}.latest-identity.json`;
+  const catalogPath = `${filename}.catalog.json`;
   const store = new FileResearchRunReplaySnapshotStore(filename);
   try {
     const first = snapshot("sidecar-one");
-    // Make the second run uniquely newer without changing any qualification threshold.
     const secondCandidate = candidate("sidecar-two");
     const secondOptions = { generatedAt: "2026-01-02T00:00:00.000Z" };
     const secondRun = buildResearchRunLeague([secondCandidate], secondOptions);
     const second = createResearchRunReplaySnapshot([secondCandidate], secondOptions, secondRun);
 
     store.save(first);
+    const archiveAfterFirst = fs.readFileSync(filename);
     store.save(second);
-    assert.equal(fs.existsSync(sidecar), true);
-    const archiveBeforeIdentity = fs.readFileSync(filename);
-    const cached = JSON.parse(fs.readFileSync(sidecar, "utf8"));
-    assert.equal(cached.schemaVersion, 1);
-    assert.equal(cached.originalRunFingerprintSha256, second.originalRunFingerprintSha256);
-    assert.equal(cached.snapshotSha256, second.snapshotSha256);
-    assert.equal(cached.generatedAt, second.options.generatedAt);
-    assert.ok(Number.isSafeInteger(cached.offset) && cached.offset > 0);
-    assert.ok(Number.isSafeInteger(cached.length) && cached.length > 0);
+    assert.equal(fs.existsSync(sidecar), true, "segmented state publishes a downgrade fail-closed guard");
+    const rollbackGuard = JSON.parse(fs.readFileSync(sidecar, "utf8"));
+    const archiveStat = fs.statSync(filename);
+    assert.equal(rollbackGuard.archiveKey, `${archiveStat.dev}:${archiveStat.ino}:${archiveStat.size}:${archiveStat.mtimeMs}`);
+    assert.equal(rollbackGuard.migrationGuard, "SEGMENTED_PERSISTENCE_REQUIRES_NEW_READER");
+    assert.doesNotMatch(rollbackGuard.originalRunFingerprintSha256, /^[0-9a-f]{64}$/);
+    assert.equal(fs.existsSync(catalogPath), true);
+    assert.ok(fs.readFileSync(filename).equals(archiveAfterFirst), "catalog publication never mutates the legacy archive");
+
+    const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
+    assert.equal(catalog.schemaVersion, 1);
+    assert.equal(catalog.entries.length, 2);
+    const secondEntry = catalog.entries.find((entry) => entry.originalRunFingerprintSha256 === second.originalRunFingerprintSha256);
+    assert.equal(secondEntry.source, "segment");
+    assert.equal(secondEntry.snapshotSha256, second.snapshotSha256);
+    assert.equal(secondEntry.generatedAt, second.options.generatedAt);
 
     assert.deepEqual(await store.latestIdentityAsync(), {
       originalRunFingerprintSha256: second.originalRunFingerprintSha256,
       generatedAt: second.options.generatedAt,
     });
     assert.equal(store.read(second.originalRunFingerprintSha256)?.snapshotSha256, second.snapshotSha256);
-    assert.ok(fs.readFileSync(filename).equals(archiveBeforeIdentity), "identity cache never mutates the immutable archive");
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("legacy single-file archives migrate once without rewriting historical bytes", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-research-legacy-migrate-"));
+  const filename = path.join(directory, "snapshots.json");
+  const store = new FileResearchRunReplaySnapshotStore(filename);
+  try {
+    const first = snapshot("legacy-one");
+    const second = snapshot("legacy-two");
+    fs.writeFileSync(filename, `${JSON.stringify({ schemaVersion: 1, snapshots: [first] })}\n`, { mode: 0o600 });
+    const legacyBytes = fs.readFileSync(filename);
+    const legacyStat = fs.statSync(filename);
+
+    store.save(second);
+    assert.ok(fs.readFileSync(filename).equals(legacyBytes), "legacy archive is frozen during migration");
+    assert.equal(fs.statSync(filename).ino, legacyStat.ino);
+    assert.equal(fs.existsSync(`${filename}.catalog.json`), true);
+    assert.equal(fs.existsSync(path.join(`${filename}.segments`, `${second.originalRunFingerprintSha256}.json`)), true);
+    assert.equal(store.read(first.originalRunFingerprintSha256)?.snapshotSha256, first.snapshotSha256);
+    assert.equal(store.read(second.originalRunFingerprintSha256)?.snapshotSha256, second.snapshotSha256);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+
+test("segmented migration rebuilds catalog and downgrade guard after metadata loss", async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-research-segment-recovery-"));
+  const filename = path.join(directory, "snapshots.json");
+  const store = new FileResearchRunReplaySnapshotStore(filename);
+  try {
+    const first = snapshot("recovery-one");
+    const secondCandidate = candidate("recovery-two");
+    const secondOptions = { generatedAt: "2026-01-03T00:00:00.000Z" };
+    const secondRun = buildResearchRunLeague([secondCandidate], secondOptions);
+    const second = createResearchRunReplaySnapshot([secondCandidate], secondOptions, secondRun);
+
+    store.save(first);
+    store.save(second);
+    fs.rmSync(`${filename}.catalog.json`, { force: true });
+    fs.writeFileSync(`${filename}.latest-identity.json`, JSON.stringify({
+      schemaVersion: 1,
+      archiveKey: "stale",
+      originalRunFingerprintSha256: first.originalRunFingerprintSha256,
+      generatedAt: first.options.generatedAt,
+      snapshotSha256: first.snapshotSha256,
+      offset: 1,
+      length: 1,
+    }), "utf8");
+
+    assert.deepEqual(await store.latestIdentityAsync(), {
+      originalRunFingerprintSha256: second.originalRunFingerprintSha256,
+      generatedAt: second.options.generatedAt,
+    });
+    assert.equal(fs.existsSync(`${filename}.catalog.json`), true);
+    const guard = JSON.parse(fs.readFileSync(`${filename}.latest-identity.json`, "utf8"));
+    assert.equal(guard.migrationGuard, "SEGMENTED_PERSISTENCE_REQUIRES_NEW_READER");
+    assert.doesNotMatch(guard.originalRunFingerprintSha256, /^[0-9a-f]{64}$/);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("tampered immutable segment fails closed instead of becoming trusted recovery state", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-research-segment-tamper-"));
+  const filename = path.join(directory, "snapshots.json");
+  const store = new FileResearchRunReplaySnapshotStore(filename);
+  try {
+    const first = snapshot("tamper-one");
+    const second = snapshot("tamper-two");
+    store.save(first);
+    store.save(second);
+    const segment = path.join(`${filename}.segments`, `${second.originalRunFingerprintSha256}.json`);
+    fs.appendFileSync(segment, "x");
+    assert.throws(() => store.read(second.originalRunFingerprintSha256), /corrupted|checksum|segment|catalog/i);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
