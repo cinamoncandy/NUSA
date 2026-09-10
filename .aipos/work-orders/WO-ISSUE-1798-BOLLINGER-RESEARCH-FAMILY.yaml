@@ -3,7 +3,7 @@ title: Precommitted Bollinger Breakout Research Family
 status: READY_FOR_PR
 authority_impact: none
 branch: research/bollinger-family-1798
-base_sha: 724588f266a96806f9db7e587c27f5701c269c6d
+base_sha: c8095fe38d2ea097fbe167819ccf19f4260a7271
 issue: 1798
 scope: "Add the frozen Bollinger breakout 3x3 candidate family to the existing canonical Research and exact PAPER candidate paths; implementation and tests only."
 precommit:

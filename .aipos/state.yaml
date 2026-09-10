@@ -11,7 +11,7 @@ current_bollinger_research_family:
   work_order: WO-ISSUE-1798-BOLLINGER-RESEARCH-FAMILY
   status: READY_FOR_PR
   branch: research/bollinger-family-1798
-  base_sha: 724588f266a96806f9db7e587c27f5701c269c6d
+  base_sha: c8095fe38d2ea097fbe167819ccf19f4260a7271
   scope: "Frozen issue #1798 Bollinger breakout 3x3 Research family and exact PAPER semantics; implementation and tests only."
   validation: "Prior-base focused Research 22/22 and PAPER semantics 8/8 PASS; exact-head canonical CI/Audit pending after rebase. Root typecheck was host-resource-limited."
   evaluation: "NOT_RUN_PROHIBITED: no real-market/OOS evaluation and no market-data fetch."
