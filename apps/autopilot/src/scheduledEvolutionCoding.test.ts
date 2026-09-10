@@ -32,6 +32,15 @@ const candidates = [{
   completed_at: new Date(NOW - 60_000).toISOString(),
 }];
 
+const safeBacklogIssue = {
+  number: 903,
+  title: "P1: Autonomous Development Control Plane for maximum verified merge throughput",
+  body: "Autopilot improvement. Safety invariants: liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY. No LIVE activation or real broker mutation.",
+  state: "open",
+  author_association: "OWNER",
+  updated_at: new Date(NOW - 30_000).toISOString(),
+};
+
 test("scheduled evolution coding abstains without GitHub transport", async () => {
   const outcome = await runScheduledEvolutionCoding({ NUSA_EXECUTION_COORDINATOR: namespace() }, {
     candidates,
@@ -88,6 +97,71 @@ test("scheduled evolution coding routes fresh evidence through existing reposito
   assert.equal(outcome.status, "EXECUTION_ACCEPTED");
   assert.equal(outcome.reason, "github-coding-dispatch-accepted");
   assert.equal(outcome.selectedSignalIds.length, 1);
+});
+
+test("scheduled evolution coding selects safe owner backlog when main has no failure signal", async () => {
+  let reason = "";
+  const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url.endsWith("/branches/main")) {
+      return new Response(JSON.stringify({ commit: { sha: MAIN_SHA } }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (url.endsWith("/dispatches")) {
+      const body = JSON.parse(String(init?.body));
+      reason = body.client_payload.reason;
+      return new Response(null, { status: 204 });
+    }
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+
+  const outcome = await runScheduledEvolutionCoding({
+    NUSA_GITHUB_TOKEN: "token",
+    NUSA_EXECUTION_COORDINATOR: namespace(),
+  }, {
+    candidates: [{ id: RUN_ID, name: "CI", conclusion: "success", head_branch: "main", head_sha: MAIN_SHA, event: "push" }],
+    backlogIssues: [safeBacklogIssue],
+    now: NOW,
+    repository: "cinamoncandy/NUSA",
+    mainSha: MAIN_SHA,
+    workflowRunId: RUN_ID,
+  }, fetchImpl);
+
+  assert.equal(outcome.status, "EXECUTION_ACCEPTED");
+  assert.deepEqual(outcome.selectedSignalIds, ["github-issue-903"]);
+  assert.match(reason, /GitHub issue #903/);
+  assert.equal(outcome.liveAuthority, "NONE");
+  assert.equal(outcome.productionMutationAllowed, false);
+  assert.equal(outcome.aiAuthority, "ZERO_AUTHORITY");
+});
+
+test("scheduled evolution coding keeps workflow failure recovery ahead of backlog", async () => {
+  let reason = "";
+  const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url.endsWith("/branches/main")) return new Response(JSON.stringify({ commit: { sha: MAIN_SHA } }), { status: 200, headers: { "content-type": "application/json" } });
+    if (url.endsWith("/dispatches")) {
+      reason = JSON.parse(String(init?.body)).client_payload.reason;
+      return new Response(null, { status: 204 });
+    }
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+
+  const outcome = await runScheduledEvolutionCoding({
+    NUSA_GITHUB_TOKEN: "token",
+    NUSA_EXECUTION_COORDINATOR: namespace(),
+  }, {
+    candidates,
+    backlogIssues: [safeBacklogIssue],
+    now: NOW,
+    repository: "cinamoncandy/NUSA",
+    mainSha: MAIN_SHA,
+    workflowRunId: RUN_ID,
+  }, fetchImpl);
+
+  assert.equal(outcome.status, "EXECUTION_ACCEPTED");
+  assert.equal(outcome.selectedSignalIds.includes("github-issue-903"), false);
+  assert.equal(outcome.selectedSignalIds.length, 1);
+  assert.doesNotMatch(reason, /GitHub issue #903/);
 });
 
 test("scheduled evolution coding suppresses duplicate coding dispatch", async () => {
