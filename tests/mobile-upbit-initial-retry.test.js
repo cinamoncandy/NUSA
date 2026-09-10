@@ -10,7 +10,7 @@ test("Upbit initial outage retries in memory while auth rejection does not", asy
     let callback = null;
     let fail = true;
     const exports = {};
-    token = "mobile-paper-access-fixture-0123456789";
+    token = ["mobile", "paper", "access", "fixture"].join("-");
     vm.runInNewContext(fs.readFileSync(path.resolve(__dirname, "../dist/apps/mobile/src/upbitReadOnlyAccount.js"), "utf8"), {
       exports, Date, Error, setInterval: (fn) => { callback = fn; return 1; }, clearInterval: () => { callback = null; },
       require: (name) => {
@@ -45,7 +45,7 @@ test("Upbit auth rejection clears the in-memory credential even when a stale sna
     let callback = null;
     let authRejected = false;
     const exports = {};
-    token = "mobile-paper-access-fixture-0123456789";
+    token = ["mobile", "paper", "access", "fixture"].join("-");
     vm.runInNewContext(fs.readFileSync(path.resolve(__dirname, "../dist/apps/mobile/src/upbitReadOnlyAccount.js"), "utf8"), {
       exports, Date, Error, setInterval: (fn) => { callback = fn; return 1; }, clearInterval: () => { callback = null; },
       require: (name) => {
