@@ -75,11 +75,13 @@ test("Chart prioritizes real candles and removes decorative market context", () 
   assert.doesNotMatch(chart, /signal data:/);
 });
 
-test("Bottom navigation uses a restrained active rail without changing route contracts", () => {
+test("Bottom navigation uses a restrained active rail with the five-destination route contract", () => {
   const app = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/App.tsx"), "utf8");
   assert.match(app, /backgroundColor: appTheme\.colors\.navSurface/);
   assert.match(app, /backgroundColor: active \? appTheme\.colors\.aiSignalEnd/);
-  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio"\]/);
+  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\]/);
+  assert.match(app, /AiSignal: "AI"/);
+  assert.match(app, /AiSignal: "AI 판단과 근거"/);
 });
 
 test("visual redesign keeps the authority boundary unchanged", () => {
