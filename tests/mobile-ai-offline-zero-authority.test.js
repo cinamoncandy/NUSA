@@ -16,6 +16,18 @@ test("AI supervision remains visible without a verified PAPER dashboard connecti
   assert.match(aiSource, /testID="ai-zero-authority-status"/);
 });
 
+test("AI loading and error states preserve an explicit zero-authority boundary", () => {
+  const stateStart = aiSource.indexOf("function AiState(");
+  const stateEnd = aiSource.indexOf("export function AiView", stateStart);
+  assert.ok(stateStart >= 0 && stateEnd > stateStart, "AiState source boundary must remain discoverable");
+  const stateSource = aiSource.slice(stateStart, stateEnd);
+  assert.match(stateSource, /testID="ai-zero-authority-status"/);
+  assert.match(stateSource, /AI ZERO AUTHORITY/);
+  assert.match(stateSource, /PAPER·LIVE 주문, 이체, 출금 또는 운영 변경 권한이 없습니다/);
+  assert.match(aiSource, /if \(error\) return <AiState/);
+  assert.match(aiSource, /if \(ai === null && research === null\) return <AiState/);
+});
+
 test("offline AI visibility does not add execution authority", () => {
   assert.doesNotMatch(aiSource, /placeOrder\(|submitOrder\(|cancelOrder\(|withdraw\(/);
   assert.match(aiSource, /AI ZERO AUTHORITY/);
