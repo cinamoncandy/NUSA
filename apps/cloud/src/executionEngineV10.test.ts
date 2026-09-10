@@ -7,9 +7,10 @@ import { PaperTradingExecutionLoop, type PaperExecutionTick } from "./paperTradi
 const HASH = "a".repeat(64);
 
 function risk(status: PreTradeRiskDecision["status"]): PreTradeRiskDecision {
+  const reasonCodes: PreTradeRiskDecision["reasonCodes"] = status === "ALLOW" ? [] : ["MAX_ORDER_NOTIONAL"];
   return Object.freeze({
     status,
-    reasonCodes: Object.freeze(status === "ALLOW" ? [] : ["MAX_ORDER_NOTIONAL"]),
+    reasonCodes: Object.freeze(reasonCodes),
     evaluatedAt: 1_000,
     requestSha256: HASH,
     decisionSha256: HASH,
