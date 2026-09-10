@@ -91,7 +91,7 @@ describe("PipelineOrchestratorV10", () => {
     assert.equal(result.status, "FAILED_CLOSED");
     assert.equal(result.haltedAt, "PORTFOLIO");
     assert.deepEqual(result.evidence.map((item) => item.stage), [
-      "MARKET_DATA", "INTELLIGENCE", "STRATEGY", "DECISION", "RISK", "PORTFOLIO"
+      "MARKET_DATA", "INTELLIGENCE", "STRATEGY", "DECISION", "PORTFOLIO"
     ]);
   });
 });

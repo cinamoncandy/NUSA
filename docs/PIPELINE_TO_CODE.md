@@ -3,7 +3,7 @@
 The canonical pipeline (`README.md`, `nusa.md`):
 
 ```
-Market Data → Intelligence → Strategy → Decision → Risk → Portfolio → Execution → Paper Adapter → Review → Memory
+Market Data → Intelligence → Strategy → Decision → Portfolio → Risk → Execution → Paper Adapter → Review → Memory
 ```
 
 The level-10 module layer is defined by `apps/cloud/src/moduleLevel10.ts`, the canonical
@@ -26,8 +26,8 @@ system.
 | Intelligence | V10 ENGINE | `apps/cloud/src/intelligenceEngineV10.ts` unifies `marketIntelligenceFusion.ts` + `marketRegimeEngine.ts`; existing scanners remain evidence sources |
 | Strategy | V10 REGISTERED | `packages/core/src/strategyEngine.ts`: SMA, RSI, Bollinger, MACD, Stochastic, Donchian + `RegimeGatedStrategy`, registry, backtest and walk-forward tooling |
 | Decision | V10 REGISTERED | `apps/cloud/src/cioDecisionEngine.ts` (`decideCio`) plus shared decision contracts |
-| Risk | V10 REGISTERED | `apps/cloud/src/independentRiskGateway.ts` with desktop parity, pre-trade/hard-risk/safety gates |
 | Portfolio | V10 ENGINE | `apps/cloud/src/portfolioEngineV10.ts` composes `capitalAllocationEngine.ts` and `portfolioOrchestrator.ts` and re-checks gross/futures/deployable-capital invariants |
+| Risk | V10 REGISTERED | `apps/cloud/src/independentRiskGateway.ts` with desktop parity, pre-trade/hard-risk/safety gates |
 | Execution | V10 ENGINE | `apps/cloud/src/executionEngineV10.ts` is PAPER-only and delegates to `paperTradingExecutionLoop.ts`; non-PAPER mode is blocked |
 | Paper Adapter | V10 REGISTERED | `apps/cloud/src/paperTradingExecutionLoop.ts`; paper brokers remain state-isolated and parity/killswitch/fill-model tested |
 | Review | V10 ENGINE | `apps/cloud/src/reviewEngineV10.ts` combines investment-committee output with deterministic review checks and never emits LIVE authority |

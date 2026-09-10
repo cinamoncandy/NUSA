@@ -8,46 +8,47 @@ const { PaperTradingExecutionLoop } = require("../dist/apps/cloud/src/paperTradi
 const { CloudPaperExecutionBoundary } = require("../dist/apps/cloud/src/cloudPaperExecutionBoundary.js");
 
 /**
- * This repository carries two canonical module maps, and they disagree.
+ * This repository carried two canonical module maps that disagreed about where risk sits:
  *
  *   platformTopology.ts:  MARKET > PROBABILITY > ALPHA > PORTFOLIO > RISK > EXECUTION > RUNTIME
- *   moduleLevel10.ts:     MARKET_DATA > INTELLIGENCE > STRATEGY > DECISION > RISK > PORTFOLIO >
- *                         EXECUTION > PAPER_ADAPTER > REVIEW > MEMORY
+ *   moduleLevel10.ts:     ... > DECISION > RISK > PORTFOLIO > EXECUTION > ...
  *
- * Both freeze their order and both throw if it "changed unexpectedly", so each is defended
- * against drift on its own while contradicting the other about where risk sits. The
- * disagreement is not cosmetic: sizing before gating means risk judges the order that will
- * actually be sent, and gating before sizing means it judges an intent whose quantity is
- * decided afterwards.
+ * Each froze its own order and threw if that order "changed unexpectedly", so both were defended
+ * against drift in isolation while contradicting each other, and nothing compared them.
  *
- * The running system answers this today, and it answers with the older map:
- * `cloudPaperExecutionBoundary` computes `quantity` from the decision's allocation and the
- * operator's investment percent, then passes that quantity into `riskGate.evaluate`. The V10
- * order is not wired to anything (see `pipelineWiringV10.ts`), so nothing is broken right now --
- * but wiring the V10 orchestrator as declared would move the gate to before sizing and quietly
- * change what risk is allowed to see.
+ * The disagreement was not cosmetic. Sizing before gating means risk judges the order that will
+ * actually be sent; gating before sizing means it judges an intent whose quantity is decided
+ * afterwards, and a limit expressed in notional cannot bind at all. The running system already
+ * answered it: `cloudPaperExecutionBoundary` computes `quantity` from the decision's allocation
+ * and the operator's investment percent, then hands that quantity to `riskGate.evaluate`. The
+ * repository's own rule that risk may "reject, resize, pause, or halt any intent" points the same
+ * way -- resizing presupposes a size.
  *
- * These tests do not pick a winner; that is an owner's decision, not a test's. They keep the
- * disagreement from being resolved by accident in either direction, and they pin the behavior
- * the live path currently depends on.
+ * The owner resolved it toward the running behavior, and `MODULE_STAGE_ORDER` now places
+ * PORTFOLIO before RISK. These tests keep the two maps agreeing from here on, and pin the
+ * behavior that makes the ordering mean something.
  */
 
 const indexOfStage = (order, name) => order.findIndex((stage) => stage.toUpperCase().startsWith(name));
 
-test("the two canonical maps still disagree about where risk sits, and neither moved on its own", () => {
+test("the two canonical maps agree about where risk sits", () => {
   const topology = createDefaultPlatformTopology().corePipeline;
   const v10 = MODULE_STAGE_ORDER;
 
-  assert.ok(indexOfStage(topology, "PORTFOLIO") < indexOfStage(topology, "RISK"), "platformTopology sizes before it gates");
-  assert.ok(indexOfStage(v10, "RISK") < indexOfStage(v10, "PORTFOLIO"), "moduleLevel10 gates before it sizes");
+  assert.ok(indexOfStage(topology, "PORTFOLIO") < indexOfStage(topology, "RISK"), "platformTopology must size before it gates");
+  assert.ok(
+    indexOfStage(v10, "PORTFOLIO") < indexOfStage(v10, "RISK"),
+    "moduleLevel10 gates before it sizes again -- risk would judge an intent with no quantity, " +
+      "and the notional limits below could not bind"
+  );
 
-  // If this fails, one of the two maps was changed. That is allowed -- it may even be the
-  // resolution this repository needs -- but it must be a decision someone made on purpose, with
-  // the execution boundary below moved to match, not a rename that slipped through.
+  // Both maps are frozen and each throws on unexpected reordering, so a change here is always
+  // deliberate. It must stay deliberate on both sides at once, together with the execution
+  // boundary that implements it.
   assert.deepEqual([...topology], ["MARKET", "PROBABILITY", "ALPHA", "PORTFOLIO", "RISK", "EXECUTION", "RUNTIME"]);
   assert.deepEqual(
     [...v10],
-    ["MARKET_DATA", "INTELLIGENCE", "STRATEGY", "DECISION", "RISK", "PORTFOLIO", "EXECUTION", "PAPER_ADAPTER", "REVIEW", "MEMORY"]
+    ["MARKET_DATA", "INTELLIGENCE", "STRATEGY", "DECISION", "PORTFOLIO", "RISK", "EXECUTION", "PAPER_ADAPTER", "REVIEW", "MEMORY"]
   );
 });
 
