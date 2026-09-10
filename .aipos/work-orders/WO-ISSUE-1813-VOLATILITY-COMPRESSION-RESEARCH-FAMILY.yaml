@@ -3,7 +3,7 @@ title: Precommitted Volatility Compression Breakout Research Family
 status: IMPLEMENTED_LOCAL
 authority_impact: none
 branch: research/volatility-compression-1813
-base_sha: 4fe488ebfc7706406a86f29185e4b110fb9abec4
+base_sha: c8095fe38d2ea097fbe167819ccf19f4260a7271
 issue: 1813
 scope: "Add the frozen volatility-compression breakout 3x3 family to the existing core strategy, canonical Research, robustness, and exact PAPER candidate paths; no canonical OOS evaluation."
 precommit:
