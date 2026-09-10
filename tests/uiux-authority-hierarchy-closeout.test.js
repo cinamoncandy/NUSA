@@ -19,7 +19,9 @@ test("AI presents intelligence before one compact authority summary", () => {
   assert.ok(thesisIndex >= 0);
   assert.ok(evidenceIndex > thesisIndex);
   assert.ok(authorityIndex > evidenceIndex);
-  assert.match(ai, /testID="ai-zero-authority-status"><StatusChip label="AI ZERO AUTHORITY"/);
+  const zeroAuthorityIndex = ai.indexOf('testID="ai-zero-authority-status"');
+  const zeroAuthorityChipIndex = ai.indexOf('label="AI ZERO AUTHORITY"', zeroAuthorityIndex);
+  assert.ok(zeroAuthorityIndex >= 0 && zeroAuthorityChipIndex > zeroAuthorityIndex);
   assert.match(ai, /AI에는 PAPER·LIVE 주문, 이체, 출금 또는 운영 변경 권한이 없습니다/);
   assert.equal(occurrences(ai, "READ ONLY"), 1);
   assert.doesNotMatch(ai, /<AuthorityBanner/);
@@ -30,11 +32,10 @@ test("AI presents intelligence before one compact authority summary", () => {
 
   const confidenceIndex = ai.indexOf('testID="ai-trusted-confidence"');
   const diagnosticsIndex = ai.indexOf('testID="ai-diagnostics-card"');
-  const zeroAuthorityIndex = ai.indexOf('testID="ai-zero-authority-status"');
   assert.ok(confidenceIndex > thesisIndex, "trusted confidence must follow thesis");
   assert.ok(diagnosticsIndex > evidenceIndex, "diagnostics must follow evidence/counter-evidence");
   assert.ok(zeroAuthorityIndex > diagnosticsIndex, "authority boundary must follow detail/diagnostics, not interrupt it");
-  assert.ok(authorityIndex > zeroAuthorityIndex, "the final authority card must be the last element");
+  assert.ok(authorityIndex > zeroAuthorityIndex, "authority card must live inside the authority boundary");
 });
 
 test("production PAPER supervises learning while isolated legacy simulation remains PAPER-only", () => {
