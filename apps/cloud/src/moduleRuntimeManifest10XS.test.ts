@@ -15,8 +15,10 @@ describe("10X-S runtime truth manifest", () => {
       assert.equal(existsSync(resolve(process.cwd(), binding.canonicalEntrypoint)), true, binding.canonicalEntrypoint);
       assert.equal(existsSync(resolve(process.cwd(), binding.runtimeEntrypoint)), true, binding.runtimeEntrypoint);
       assert.match(binding.lastKnownGoodRef, /^[0-9a-f]{40}$/);
-      assert.notEqual(binding.evidenceRefs, MODULE_RUNTIME_MANIFEST_10XS[0]?.evidenceRefs, `${binding.stage} must own its evidence collection`);
       for (const ref of binding.evidenceRefs) assert.equal(existsSync(resolve(process.cwd(), ref)), true, `${binding.stage}:${ref}`);
+    }
+    for (let index = 1; index < MODULE_RUNTIME_MANIFEST_10XS.length; index += 1) {
+      assert.notEqual(MODULE_RUNTIME_MANIFEST_10XS[index]?.evidenceRefs, MODULE_RUNTIME_MANIFEST_10XS[index - 1]?.evidenceRefs, "each stage must own its evidence collection");
     }
   });
 
