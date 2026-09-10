@@ -71,41 +71,81 @@ function snapshot(id, minute) {
   return createResearchRunReplaySnapshot([c], options, run);
 }
 
+function byteLength(value) {
+  if (Buffer.isBuffer(value)) return value.length;
+  if (typeof value === "string") return Buffer.byteLength(value, "utf8");
+  if (ArrayBuffer.isView(value)) return value.byteLength;
+  if (value instanceof ArrayBuffer) return value.byteLength;
+  return 0;
+}
+
+/**
+ * Counts payload bytes exposed through the Node fs APIs used by the persistence paths. This is
+ * intentionally API-level evidence, not a claim about filesystem cache hits or physical device
+ * sectors. A copyFileSync source byte is reported separately because the kernel performs the copy;
+ * `estimatedDataMovementBytes` conservatively treats each copied byte as one read + one write.
+ */
 function measure(operation) {
   const original = {
     readSync: fs.readSync,
+    readFileSync: fs.readFileSync,
     copyFileSync: fs.copyFileSync,
     writeSync: fs.writeSync,
     writeFileSync: fs.writeFileSync,
   };
-  const io = { readBytes: 0, copiedBytes: 0, writeBytes: 0, copyCalls: 0 };
+  const io = {
+    explicitReadBytes: 0,
+    explicitWriteBytes: 0,
+    logicalCopyBytes: 0,
+    readCalls: 0,
+    writeCalls: 0,
+    copyCalls: 0,
+  };
   fs.readSync = (...args) => {
     const bytes = original.readSync(...args);
-    if (typeof bytes === "number") io.readBytes += bytes;
+    if (typeof bytes === "number") {
+      io.readCalls += 1;
+      io.explicitReadBytes += bytes;
+    }
     return bytes;
+  };
+  fs.readFileSync = (...args) => {
+    const result = original.readFileSync(...args);
+    io.readCalls += 1;
+    io.explicitReadBytes += byteLength(result);
+    return result;
   };
   fs.copyFileSync = (...args) => {
     io.copyCalls += 1;
-    try { io.copiedBytes += fs.statSync(args[0]).size; } catch { /* report only measurable bytes */ }
+    try { io.logicalCopyBytes += fs.statSync(args[0]).size; } catch { /* only count measurable copy payload */ }
     return original.copyFileSync(...args);
   };
   fs.writeSync = (...args) => {
     const bytes = original.writeSync(...args);
-    if (typeof bytes === "number") io.writeBytes += bytes;
+    if (typeof bytes === "number") {
+      io.writeCalls += 1;
+      io.explicitWriteBytes += bytes;
+    }
     return bytes;
   };
   fs.writeFileSync = (file, data, ...rest) => {
-    if (typeof data === "string" || Buffer.isBuffer(data) || ArrayBuffer.isView(data)) {
-      io.writeBytes += Buffer.byteLength(Buffer.isBuffer(data) ? data : String(data));
-    }
+    io.writeCalls += 1;
+    io.explicitWriteBytes += byteLength(data);
     return original.writeFileSync(file, data, ...rest);
   };
   const started = performance.now();
   try {
     operation();
-    return { durationMs: Number((performance.now() - started).toFixed(3)), ...io };
+    const durationMs = Number((performance.now() - started).toFixed(3));
+    return {
+      durationMs,
+      ...io,
+      estimatedDataMovementBytes:
+        io.explicitReadBytes + io.explicitWriteBytes + (2 * io.logicalCopyBytes),
+    };
   } finally {
     fs.readSync = original.readSync;
+    fs.readFileSync = original.readFileSync;
     fs.copyFileSync = original.copyFileSync;
     fs.writeSync = original.writeSync;
     fs.writeFileSync = original.writeFileSync;
@@ -129,15 +169,21 @@ try {
   const v2Measurement = measure(() => v2.save(next));
 
   process.stdout.write(`${JSON.stringify({
-    schemaVersion: 1,
+    schemaVersion: 2,
+    measurementSemantics: {
+      explicitReadBytes: "payload bytes returned by fs.readSync/fs.readFileSync",
+      explicitWriteBytes: "payload bytes passed through fs.writeSync/fs.writeFileSync",
+      logicalCopyBytes: "source file size passed to fs.copyFileSync; zero means no whole-file copy",
+      estimatedDataMovementBytes: "explicitReadBytes + explicitWriteBytes + 2 * logicalCopyBytes; API-level estimate, not physical disk sectors",
+      durationMs: "single-run wall-clock observation; not a CI performance threshold",
+    },
     baselineSnapshots: baselineCount,
     legacyArchiveBytesBefore: archiveBytesBefore,
     v1: v1Measurement,
     v2: v2Measurement,
-    copiedByteReduction: v1Measurement.copiedBytes - v2Measurement.copiedBytes,
-    measuredIoByteReduction:
-      (v1Measurement.readBytes + v1Measurement.copiedBytes + v1Measurement.writeBytes)
-      - (v2Measurement.readBytes + v2Measurement.copiedBytes + v2Measurement.writeBytes),
+    logicalCopyByteReduction: v1Measurement.logicalCopyBytes - v2Measurement.logicalCopyBytes,
+    estimatedDataMovementByteReduction:
+      v1Measurement.estimatedDataMovementBytes - v2Measurement.estimatedDataMovementBytes,
   }, null, 2)}\n`);
 } finally {
   fs.rmSync(directory, { recursive: true, force: true });
