@@ -7,7 +7,8 @@ base_sha: 724588f266a96806f9db7e587c27f5701c269c6d
 issue: 1815
 scope: "Add deterministic OOS dependence evidence and a correlation gate around the existing League allocation advisory; Research only."
 constraints:
-  maximum_absolute_correlation: 0.7
+  maximum_absolute_correlation_source: caller-provided canonical policy
+  current_contract_fixture: 0.7
   canonical_weighting_engine: adviseLeagueCapitalAllocation
   market_data_fetch: prohibited
   qualification_threshold_changes: prohibited
