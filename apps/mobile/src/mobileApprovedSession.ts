@@ -186,6 +186,7 @@ export class MobileApprovedSession {
     const credential = readToken(userCredential, "user credential");
     const device = readDeviceId(deviceId);
     if (device == null) throw new Error("device enrollment identifier is invalid.");
+    await this.destroyLegacyPersistedCredentials();
     const issue = parseBootstrapIssue(await requestJson(this.request, `${endpoint}/v1/mobile/enroll`, {
       method: "POST",
       headers: { authorization: `Bearer ${credential}` },
