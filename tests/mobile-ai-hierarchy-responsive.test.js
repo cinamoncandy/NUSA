@@ -76,7 +76,8 @@ test("Android acceptance physically enters AI and verifies zero authority before
   const workflow = readRepo(".github/workflows/android-product-ux-acceptance.yml");
   assert.match(workflow, /tap "tab-AiSignal"; capture 12-ai/);
   assert.match(workflow, /scroll_until_visible "ai-zero-authority-status"; capture 13-ai-authority/);
-  assert.match(workflow, /grep -q "ai-screen" qa\/android-product-ux\/12-ai\.xml/);
+  assert.match(workflow, /grep -Eq "ai-\(screen\|loading\)" qa\/android-product-ux\/12-ai\.xml/);
+  assert.doesNotMatch(workflow, /ai-\(screen\|loading\|error\)/);
   assert.match(workflow, /grep -q "ai-zero-authority-status" qa\/android-product-ux\/13-ai-authority\.xml/);
   assert.match(workflow, /tap "tab-Home"; capture 14-home-return/);
   assert.match(workflow, /ai_navigation=PASS/);
