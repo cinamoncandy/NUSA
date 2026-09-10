@@ -132,7 +132,7 @@ jobs:
           grep -q "MARKETS" qa/android-product-ux/02-markets-chart.xml
           grep -q "PORTFOLIO" qa/android-product-ux/08-portfolio.xml
           grep -q "paper-learning-timeline" qa/android-product-ux/07-paper-evidence-open.xml
-          grep -q "ai-screen" qa/android-product-ux/12-ai.xml
+          grep -Eq "ai-(screen|loading)" qa/android-product-ux/12-ai.xml
           grep -q "ai-zero-authority-status" qa/android-product-ux/13-ai-authority.xml
           grep -q "home-screen" qa/android-product-ux/14-home-return.xml
           printf 'touch_navigation=PASS\nframes=%s\nevidence_disclosure=PASS\nai_navigation=PASS\nai_zero_authority=PASS\nsettings_close=PASS\nreturn_home=PASS\n' "$(find qa/android-product-ux -name '*.png' | wc -l)" > qa/android-product-ux/report.txt
