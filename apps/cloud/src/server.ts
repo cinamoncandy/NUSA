@@ -33,7 +33,7 @@ import {
   handleDesktopSessionRevokeHttp
 } from "./desktopSessionHttp";
 import { MobileSessionService } from "./mobileSessionService";
-import { deploymentHealthPayload } from "./deploymentHealth";
+import { deploymentHealthPayload } from "./health/deploymentHealth";
 import {
   handleMobileBootstrapHttp,
   handleMobileBootstrapIssueHttp,

@@ -13,7 +13,7 @@ per-stage evidence. Runtime callers still provide the concrete stage adapters an
 orchestrator never grants LIVE authority and accepts only PAPER/SHADOW execution context.
 
 Which of these stages runtime code actually reaches is declared in
-`apps/cloud/src/pipelineWiringV10.ts` and checked against the import graph by
+`apps/cloud/src/architecture/pipelineWiringV10.ts` and checked against the import graph by
 `tests/pipeline-wiring-v10.test.js`. Today the V10 engines are reached only from the V10
 registry, the retained implementations underneath carry the running pipeline, and the
 Intelligence stage additionally has no producer for the `MarketRegimeFeatures` its gate

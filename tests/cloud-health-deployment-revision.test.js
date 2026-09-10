@@ -2,7 +2,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { deployedRevision, deploymentHealthPayload, UNVERIFIED_REVISION } = require("../dist/apps/cloud/src/deploymentHealth.js");
+const { deployedRevision, deploymentHealthPayload, UNVERIFIED_REVISION } = require("../dist/apps/cloud/src/health/deploymentHealth.js");
 
 /**
  * The point of this endpoint is that an operator holding no credential -- on a phone, in a

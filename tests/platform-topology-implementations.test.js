@@ -5,7 +5,7 @@ const { existsSync } = require("node:fs");
 const { join } = require("node:path");
 
 const { createDefaultPlatformTopology } = require("../dist/apps/cloud/src/platformTopology.js");
-const { TOPOLOGY_IMPLEMENTATIONS, modulesWithoutImplementation } = require("../dist/apps/cloud/src/platformTopologyImplementations.js");
+const { TOPOLOGY_IMPLEMENTATIONS, modulesWithoutImplementation } = require("../dist/apps/cloud/src/architecture/platformTopologyImplementations.js");
 
 const ROOT = join(__dirname, "..");
 

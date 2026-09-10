@@ -11,7 +11,7 @@ const {
   isPipelineFullyWiredV10,
   stagesNotOnRuntimePath,
   stagesWithoutInputProducer
-} = require("../dist/apps/cloud/src/pipelineWiringV10.js");
+} = require("../dist/apps/cloud/src/architecture/pipelineWiringV10.js");
 
 const ROOT = join(__dirname, "..");
 
@@ -38,7 +38,10 @@ function runtimeCallers(symbol, ownPathPrefix) {
     if (path.startsWith(ownPathPrefix)) return false;
     if (path.includes(".test.")) return false;
     // The wiring declaration names each entrypoint as a string. Naming is not calling.
-    if (path.endsWith("pipelineWiringV10.ts")) return false;
+    // Everything under apps/cloud/src/architecture/ is a declaration *about* the tree: it names
+    // modules and paths as strings. Naming is not calling -- the same trap alphaReadiness.ts hit,
+    // one directory over -- so the whole directory is excluded from the caller count.
+    if (path.startsWith("apps/cloud/src/architecture/")) return false;
     return !V10_DECLARATION_FILES.includes(path);
   });
 }
@@ -118,6 +121,6 @@ test("the layer does not claim to be wired while stages are unreached or unfed",
 });
 
 test("no stage declaration grants authority beyond PAPER", () => {
-  const declaration = execFileSync("cat", ["apps/cloud/src/pipelineWiringV10.ts"], { cwd: ROOT, encoding: "utf8" });
+  const declaration = execFileSync("cat", ["apps/cloud/src/architecture/pipelineWiringV10.ts"], { cwd: ROOT, encoding: "utf8" });
   assert.equal(/\bLIVE_AUTHORITY|liveAuthority\s*[:=]\s*["']?(?!NONE)/.test(declaration), false);
 });
