@@ -134,6 +134,10 @@ function computeBenchmarkReturn(
   return finalEquity / initialCash - 1;
 }
 
+function noPriorSignal(timestamp: number): StrategySignal {
+  return Object.freeze({ type: "HOLD", reason: "awaiting-prior-observation", confidence: 0, timestamp });
+}
+
 export function runBacktest(
   points: readonly BacktestPoint[],
   strategyFactory: () => TradingStrategy,
@@ -161,13 +165,11 @@ export function runBacktest(
   let feesPaid = 0;
   let spreadCost = 0;
   let slippageCost = 0;
+  let pendingSignal: StrategySignal | undefined;
 
   for (const point of points) {
     const beforeSnapshot = broker.snapshot(point.close);
-    const signal = engine.onTick(
-      { market, price: point.close, timestamp: point.timestamp },
-      beforeSnapshot.position.quantity
-    );
+    const signal = pendingSignal ?? noPriorSignal(point.timestamp);
     let outcome: BacktestDecisionOutcome = "HOLD";
     let order: PaperOrder | undefined;
     let rejectionReason: string | undefined;
@@ -199,7 +201,8 @@ export function runBacktest(
       }
     }
 
-    const equityAfter = broker.snapshot(point.close).equity;
+    const afterSnapshot = broker.snapshot(point.close);
+    const equityAfter = afterSnapshot.equity;
     decisions.push(Object.freeze({
       timestamp: point.timestamp,
       market,
@@ -213,6 +216,11 @@ export function runBacktest(
       rejectionReason
     }));
     equityCurve.push(Object.freeze({ timestamp: point.timestamp, equity: equityAfter }));
+
+    pendingSignal = engine.onTick(
+      { market, price: point.close, timestamp: point.timestamp },
+      afterSnapshot.position.quantity
+    );
   }
 
   const finalEquity = equityCurve[equityCurve.length - 1]?.equity ?? initialCash;
