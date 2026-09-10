@@ -3,7 +3,7 @@ title: Bounded investment learning over sealed Research evidence
 status: IMPLEMENTED_LOCAL
 authority_impact: none
 branch: research/investment-learning-1820
-base_sha: f22897c1f11f172e3abbcc4b81aae140e53262fa
+base_sha: 4fe488ebfc7706406a86f29185e4b110fb9abec4
 issue: 1820
 scope: "Compose existing sealed Research feedback and League failure attribution into deterministic next-cycle Research-attention guidance."
 constraints:
