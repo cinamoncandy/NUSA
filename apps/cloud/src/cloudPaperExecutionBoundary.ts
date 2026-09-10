@@ -8,6 +8,7 @@ import {
 } from "./paperTradingExecutionLoop";
 import type { CloudPaperRiskGate, CloudPaperRiskRequest } from "./cloudPaperCanonicalRiskGateway";
 import { validatePaperCandidateExecutionBinding } from "./cioDecisionEngine";
+import { blockNonPaperExecutionV10 } from "./executionEngineV10";
 
 export interface CloudPaperExecutionBoundaryOptions {
   readonly loop: PaperTradingExecutionLoop;
@@ -88,6 +89,9 @@ export class CloudPaperExecutionBoundary {
   }
 
   public processTick(tick: PaperExecutionTick & { readonly investmentPercent?: number }): PaperExecutionResult {
+    const authorityBlock = blockNonPaperExecutionV10(tick, () => this.options.loop.snapshot());
+    if (authorityBlock != null) return authorityBlock;
+
     const actionable = tick.decisions
       .filter((decision) => decision.symbol === tick.market && (decision.action === "BUY" || decision.action === "SELL"))
       .sort((left, right) => left.symbol.localeCompare(right.symbol) || left.action.localeCompare(right.action));
@@ -121,7 +125,7 @@ export class CloudPaperExecutionBoundary {
 
       // Cloud automatic strategy authority is deliberately PAPER-only and spot-only. An actionable
       // challenger decision must be self-consistent before it is even presented to the canonical risk gate.
-      if (tick.mode !== "PAPER" || decision.leverage !== 1 || decision.risk === "HIGH" || decision.risk === "CRITICAL" ||
+      if (decision.leverage !== 1 || decision.risk === "HIGH" || decision.risk === "CRITICAL" ||
           !Number.isFinite(decision.confidence) || decision.confidence < 0.55 || decision.confidence > 1 ||
           !Number.isFinite(decision.allocation) || decision.allocation < 0 || decision.allocation > 1 ||
           (decision.action === "BUY" && decision.allocation <= 0)) {
