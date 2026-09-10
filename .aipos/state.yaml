@@ -11,7 +11,7 @@ current_correlation_aware_research_portfolio:
   work_order: WO-ISSUE-1815-CORRELATION-AWARE-RESEARCH-PORTFOLIO
   status: READY_FOR_PR
   branch: research/correlation-aware-portfolio-1815
-  base_sha: 724588f266a96806f9db7e587c27f5701c269c6d
+  base_sha: 4fe488ebfc7706406a86f29185e4b110fb9abec4
   scope: "Research-only OOS correlation/drawdown-overlap evidence and dependence gate reusing canonical League allocation."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_first_read_connection_recovery:

@@ -3,7 +3,7 @@ title: Correlation-aware cross-family Research portfolio evidence
 status: READY_FOR_PR
 authority_impact: none
 branch: research/correlation-aware-portfolio-1815
-base_sha: 724588f266a96806f9db7e587c27f5701c269c6d
+base_sha: 4fe488ebfc7706406a86f29185e4b110fb9abec4
 issue: 1815
 scope: "Add deterministic OOS dependence evidence and a correlation gate around the existing League allocation advisory; Research only."
 constraints:
