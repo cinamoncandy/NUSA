@@ -6,14 +6,16 @@ const path = require("node:path");
 const root = path.join(__dirname, "..", "apps", "mobile");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-test("product navigation promotes PAPER learning supervision through the canonical four-tab shell", () => {
+test("product navigation promotes PAPER learning supervision and AI through the canonical five-tab shell", () => {
   const app = read("App.tsx");
   const tradingShell = read("src/tradingView.tsx");
   const tradingWorkspace = read("src/tradingViewLegacy.tsx");
   const home = read("src/homeView.tsx");
-  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio"\] as const/);
+  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\] as const/);
   assert.match(app, /Paper: "PAPER"/);
-  assert.match(app, /type Tab = PrimaryTab \| "AiSignal" \| "Order"/);
+  assert.match(app, /AiSignal: "AI"/);
+  assert.match(app, /AiSignal: "AI 판단과 근거"/);
+  assert.match(app, /type Tab = PrimaryTab \| "Order"/);
   assert.match(app, /activeTab === "AiSignal" \? <AiView/);
   assert.doesNotMatch(app, /<MoreView/);
   assert.match(app, /activeTab === "Order" \? <OrderHistoryView/);
