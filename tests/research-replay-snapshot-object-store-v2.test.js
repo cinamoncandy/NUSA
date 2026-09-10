@@ -245,3 +245,40 @@ test("corrupted legacy archive never publishes a v2 migration root", () => {
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test("v2 preserves the legacy forbidden-field secrecy boundary", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-replay-v2-forbidden-"));
+  const root = path.join(directory, "replay-v2");
+  const store = new FileResearchRunReplaySnapshotObjectStoreV2(root);
+  try {
+    const entry = snapshot("v2-forbidden");
+    const contaminated = { ...entry, bearerToken: "must-not-be-persisted" };
+    assert.throws(() => store.save(contaminated), /forbidden field/i);
+    assert.equal(fs.existsSync(root), false, "rejected secret-bearing snapshots publish no durable state");
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("v2 repairs a post-HEAD missing fingerprint link from the committed chain head even when latest is ambiguous", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-replay-v2-index-repair-"));
+  const root = path.join(directory, "replay-v2");
+  const store = new FileResearchRunReplaySnapshotObjectStoreV2(root);
+  try {
+    const first = snapshot("v2-index-first", "2026-01-01T00:00:00.000Z");
+    const second = snapshot("v2-index-second", "2026-01-01T00:00:00.000Z");
+    store.save(first);
+    store.save(second);
+    const secondIndex = path.join(root, "by-fingerprint", `${second.originalRunFingerprintSha256}.json`);
+    assert.equal(fs.existsSync(secondIndex), true);
+    fs.rmSync(secondIndex);
+    assert.equal(fs.existsSync(secondIndex), false, "simulate process loss after committed HEAD but before index publication");
+
+    const restarted = new FileResearchRunReplaySnapshotObjectStoreV2(root);
+    assert.equal(restarted.read(second.originalRunFingerprintSha256).snapshotSha256, second.snapshotSha256);
+    assert.equal(fs.existsSync(secondIndex), true, "committed chain head repairs its missing lookup link");
+    assert.throws(() => restarted.latestIdentity(), /ambiguous/i, "repair never weakens latest-timestamp ambiguity");
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
