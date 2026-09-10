@@ -175,6 +175,48 @@ test("v2 stale or tampered HEAD fails closed", () => {
   }
 });
 
+test("v2 rejects byte-for-byte rollback to a previously valid HEAD", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-replay-v2-valid-stale-head-"));
+  const root = path.join(directory, "replay-v2");
+  const store = new FileResearchRunReplaySnapshotObjectStoreV2(root);
+  try {
+    store.save(snapshot("v2-stale-first", "2026-01-01T00:00:00.000Z"));
+    const priorHead = fs.readFileSync(path.join(root, "HEAD.json"));
+    store.save(snapshot("v2-stale-second", "2026-01-02T00:00:00.000Z"));
+    fs.writeFileSync(path.join(root, "HEAD.json"), priorHead);
+
+    const restarted = new FileResearchRunReplaySnapshotObjectStoreV2(root);
+    assert.throws(() => restarted.recordCount(), /stale/i);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("v2 repairs a missing current commit marker from committed HEAD without mutating record bytes", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-replay-v2-marker-repair-"));
+  const root = path.join(directory, "replay-v2");
+  const store = new FileResearchRunReplaySnapshotObjectStoreV2(root);
+  try {
+    const entry = snapshot("v2-marker-repair");
+    store.save(entry);
+    const marker = path.join(root, "commits", "0.json");
+    const recordName = sortedNames(path.join(root, "records"))[0];
+    const recordPath = path.join(root, "records", recordName);
+    const recordBefore = fs.readFileSync(recordPath);
+    assert.equal(fs.existsSync(marker), true);
+
+    fs.rmSync(marker);
+    assert.equal(fs.existsSync(marker), false, "simulate process loss after HEAD commit but before marker publication");
+    const restarted = new FileResearchRunReplaySnapshotObjectStoreV2(root);
+    assert.equal(restarted.recordCount(), 1);
+    assert.equal(fs.existsSync(marker), true, "committed HEAD repairs its derived ordinal marker");
+    assert.ok(fs.readFileSync(recordPath).equals(recordBefore), "marker repair does not rewrite committed record bytes");
+    assert.equal(restarted.read(entry.originalRunFingerprintSha256).snapshotSha256, entry.snapshotSha256);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("v2 preserves legacy ambiguous-latest fail-closed semantics", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-replay-v2-latest-ambiguous-"));
   const store = new FileResearchRunReplaySnapshotObjectStoreV2(path.join(directory, "replay-v2"));
