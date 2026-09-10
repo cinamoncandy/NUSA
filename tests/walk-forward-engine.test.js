@@ -1,12 +1,15 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { createWalkForwardWindows, runWalkForward } = require("../dist/apps/desktop/src/strategy/walkForwardEngine.js");
+const { runBacktest } = require("../dist/apps/desktop/src/strategy/backtestEngine.js");
 
 class FirstBuy { constructor() { this.id = "first-buy"; this.name = "First Buy"; this.index = 0; } onTick(tick) { this.index += 1; return { type: this.index === 1 ? "BUY" : "HOLD", reason: "first", confidence: 0, timestamp: tick.timestamp }; } reset() { this.index = 0; } }
 class FirstRoundTrip { constructor() { this.id = "round-trip"; this.name = "Round Trip"; this.index = 0; } onTick(tick) { this.index += 1; return { type: this.index === 1 ? "BUY" : this.index === 2 ? "SELL" : "HOLD", reason: "round", confidence: 0, timestamp: tick.timestamp }; } reset() { this.index = 0; } }
 class LateRoundTrip { constructor() { this.id = "late-round-trip"; this.name = "Late Round Trip"; this.index = 0; } onTick(tick) { this.index += 1; return { type: this.index === 2 ? "BUY" : this.index === 3 ? "SELL" : "HOLD", reason: "late", confidence: 0, timestamp: tick.timestamp }; } reset() { this.index = 0; } }
 class Flat { constructor() { this.id = "flat"; this.name = "Flat"; } onTick(tick) { return { type: "HOLD", reason: "flat", confidence: 0, timestamp: tick.timestamp }; } reset() {} }
 class Invalid { reset() {} }
+class SeenCount { constructor() { this.id = "seen-count"; this.name = "Seen Count"; this.seen = 0; } onTick(tick) { this.seen += 1; return { type: "HOLD", reason: `seen-${this.seen}`, confidence: 0, timestamp: tick.timestamp }; } reset() { this.seen = 0; } }
+class WarmupBuyer { constructor() { this.id = "warmup-buyer"; this.name = "Warmup Buyer"; } onTick(tick) { return { type: tick.timestamp < 4 ? "BUY" : "HOLD", reason: tick.timestamp < 4 ? "warmup-buy" : "scored-hold", confidence: 0, timestamp: tick.timestamp }; } reset() {} }
 
 const points = (values) => values.map((close, index) => ({ timestamp: index + 1, close }));
 const candidates = () => [{ id: "buyer", strategyFactory: () => new FirstBuy() }, { id: "flat", strategyFactory: () => new Flat() }, { id: "round", strategyFactory: () => new FirstRoundTrip() }];
@@ -32,3 +35,34 @@ test("17 timestamp regressions are rejected", () => { assert.throws(() => create
 test("18 duplicate candidate ids are rejected", () => { assert.throws(() => runWalkForward(points([1,2,3,4,5]), [{ id: "x", strategyFactory: () => new Flat() }, { id: "x", strategyFactory: () => new Flat() }], config), /unique/); });
 test("19 invalid candidate factories fail with candidate id", () => { assert.throws(() => runWalkForward(points([1,2,3,4,5]), [{ id: "bad", strategyFactory: () => new Invalid() }], config), /candidate bad failed/); });
 test("20 overlapping OOS windows are rejected", () => { assert.throws(() => createWalkForwardWindows(points([1,2,3,4,5,6]), { ...config, stepSize: 1 }), /must not overlap/); });
+
+
+test("21 OOS first tick has continuous point-in-time strategy state", () => {
+  const input = points([10,11,12,13,14,15,16]);
+  const result = runWalkForward(input, [{ id: "seen", strategyFactory: () => new SeenCount() }], { ...config, selectionPolicy: { minimumClosedTrades: 0 } });
+  assert.equal(result.windows[0].testResult.decisions[0].signal.reason, "seen-4");
+  assert.equal(result.windows[1].testResult.decisions[0].signal.reason, "seen-6");
+  assert.equal(result.windows[1].window.warmupPoints.length, 5);
+  assert.ok(result.windows[1].window.warmupPoints.every((point) => point.timestamp < result.windows[1].window.testPoints[0].timestamp));
+});
+
+test("22 warm-up signals cannot create OOS trades costs PnL or alter benchmark denominator", () => {
+  const input = points([10,11,12,13,14]);
+  const cfg = { ...config, selectionPolicy: { minimumClosedTrades: 0 }, backtestConfig: { initialCash: 1000, feeRate: 0.01, orderQuantity: 1, executionCosts: { spreadBps: 20, slippageBps: 30 } } };
+  const result = runWalkForward(input, [{ id: "warmup", strategyFactory: () => new WarmupBuyer() }], cfg);
+  const oos = result.windows[0].testResult;
+  const baseline = runBacktest(result.windows[0].window.testPoints, () => new Flat(), cfg.backtestConfig);
+  assert.equal(oos.metrics.fillCount, 0);
+  assert.equal(oos.metrics.turnover, 0);
+  assert.equal(oos.metrics.feesPaid, 0);
+  assert.equal(oos.metrics.spreadCost, 0);
+  assert.equal(oos.metrics.slippageCost, 0);
+  assert.equal(oos.metrics.totalReturn, 0);
+  assert.equal(oos.finalPaperState.orders.length, 0);
+  assert.equal(oos.benchmark.buyAndHoldReturn, baseline.benchmark.buyAndHoldReturn);
+  assert.equal(oos.equityCurve[0].timestamp, result.windows[0].window.testPoints[0].timestamp);
+});
+
+test("23 backtest rejects warm-up that reaches into scored interval", () => {
+  assert.throws(() => runBacktest(points([3,4]), () => new Flat(), { warmupPoints: points([1,2,3]) }), /strictly before scored points/);
+});
