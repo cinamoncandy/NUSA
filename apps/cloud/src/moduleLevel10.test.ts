@@ -32,8 +32,8 @@ function moduleFor(stage: ModuleStage, fail = false): Level10Module<unknown, unk
   });
 }
 
-function bundle(failingStage?: ModuleStage): Level10ModuleBundle {
-  return Object.fromEntries(MODULE_STAGE_ORDER.map((stage) => [stage, moduleFor(stage, stage === failingStage)])) as Level10ModuleBundle;
+function bundle(failingStage?: ModuleStage): Level10ModuleBundle<unknown, unknown, unknown, unknown> {
+  return Object.fromEntries(MODULE_STAGE_ORDER.map((stage) => [stage, moduleFor(stage, stage === failingStage)])) as Level10ModuleBundle<unknown, unknown, unknown, unknown>;
 }
 
 describe("level-10/10X-S module contract", () => {
@@ -91,7 +91,56 @@ describe("PipelineOrchestratorV10", () => {
     assert.equal(result.status, "FAILED_CLOSED");
     assert.equal(result.haltedAt, "PORTFOLIO");
     assert.deepEqual(result.evidence.map((item) => item.stage), [
-      "MARKET_DATA", "INTELLIGENCE", "STRATEGY", "DECISION", "RISK", "PORTFOLIO"
+      "MARKET_DATA", "INTELLIGENCE", "STRATEGY", "DECISION", "PORTFOLIO"
     ]);
+  });
+
+  it("passes bounded portfolio quantity to risk before execution", async () => {
+    type Decision = Readonly<{ requestedQuantity: number; price: number }>;
+    type Sized = Readonly<{ quantity: number; price: number; notional: number }>;
+    type Risked = Readonly<{ quantity: number; price: number; notional: number; risk: "ALLOW" }>;
+    type Executed = Readonly<{ submittedQuantity: number }>;
+
+    const observedRiskQuantities: number[] = [];
+    const modules = bundle() as Level10ModuleBundle<Decision, Sized, Risked, Executed>;
+    const typedModules: Level10ModuleBundle<Decision, Sized, Risked, Executed> = Object.freeze({
+      ...modules,
+      DECISION: Object.freeze({
+        stage: "DECISION" as const,
+        version: "10" as const,
+        tier: "10X-S" as const,
+        execute: () => Object.freeze({ requestedQuantity: 10, price: 100 })
+      }),
+      PORTFOLIO: Object.freeze({
+        stage: "PORTFOLIO" as const,
+        version: "10" as const,
+        tier: "10X-S" as const,
+        execute: (decision: Decision) => {
+          const quantity = Math.min(decision.requestedQuantity, 2);
+          return Object.freeze({ quantity, price: decision.price, notional: quantity * decision.price });
+        }
+      }),
+      RISK: Object.freeze({
+        stage: "RISK" as const,
+        version: "10" as const,
+        tier: "10X-S" as const,
+        execute: (sized: Sized) => {
+          observedRiskQuantities.push(sized.quantity);
+          if (sized.notional > 200) throw new Error("NOTIONAL_LIMIT_EXCEEDED");
+          return Object.freeze({ ...sized, risk: "ALLOW" as const });
+        }
+      }),
+      EXECUTION: Object.freeze({
+        stage: "EXECUTION" as const,
+        version: "10" as const,
+        tier: "10X-S" as const,
+        execute: (risked: Risked) => Object.freeze({ submittedQuantity: risked.quantity })
+      })
+    });
+
+    const result = await new PipelineOrchestratorV10(typedModules).run({ seed: true }, context);
+    assert.equal(result.status, "COMPLETED");
+    assert.deepEqual(observedRiskQuantities, [2]);
+    assert.deepEqual(result.evidence.slice(3, 7).map((item) => item.stage), ["DECISION", "PORTFOLIO", "RISK", "EXECUTION"]);
   });
 });
