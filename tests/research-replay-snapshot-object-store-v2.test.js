@@ -2,6 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { createHash } = require("node:crypto");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -70,6 +71,26 @@ function snapshot(id, generatedAt = "2026-01-01T00:00:00.000Z") {
 
 function sortedNames(directory) {
   return fs.existsSync(directory) ? fs.readdirSync(directory).sort() : [];
+}
+
+function hashJson(value) {
+  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+}
+
+function rewriteHeadWithValidChecksum(root, mutate) {
+  const filename = path.join(root, "HEAD.json");
+  const head = JSON.parse(fs.readFileSync(filename, "utf8"));
+  mutate(head);
+  const payload = {
+    schemaVersion: head.schemaVersion,
+    format: head.format,
+    count: head.count,
+    chainHeadSha256: head.chainHeadSha256,
+    latest: head.latest,
+    latestTimestampCount: head.latestTimestampCount,
+  };
+  head.headSha256 = hashJson(payload);
+  fs.writeFileSync(filename, `${JSON.stringify(head)}\n`);
 }
 
 test("v2 steady-state save writes one immutable record and tiny HEAD without whole-archive copy", () => {
@@ -212,6 +233,64 @@ test("v2 repairs a missing current commit marker from committed HEAD without mut
     assert.equal(fs.existsSync(marker), true, "committed HEAD repairs its derived ordinal marker");
     assert.ok(fs.readFileSync(recordPath).equals(recordBefore), "marker repair does not rewrite committed record bytes");
     assert.equal(restarted.read(entry.originalRunFingerprintSha256).snapshotSha256, entry.snapshotSha256);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("v2 rejects a checksum-valid HEAD whose chain head reorders committed ordinals", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-replay-v2-reordered-chain-"));
+  const root = path.join(directory, "replay-v2");
+  const store = new FileResearchRunReplaySnapshotObjectStoreV2(root);
+  try {
+    store.save(snapshot("v2-order-first", "2026-01-01T00:00:00.000Z"));
+    store.save(snapshot("v2-order-second", "2026-01-02T00:00:00.000Z"));
+    const records = sortedNames(path.join(root, "records"))
+      .map((name) => JSON.parse(fs.readFileSync(path.join(root, "records", name), "utf8")));
+    const firstRecord = records.find((record) => record.ordinal === 0);
+    assert.ok(firstRecord);
+
+    rewriteHeadWithValidChecksum(root, (head) => {
+      head.chainHeadSha256 = firstRecord.recordSha256;
+    });
+    const restarted = new FileResearchRunReplaySnapshotObjectStoreV2(root);
+    assert.throws(() => restarted.recordCount(), /chain head ordinal|commit marker|stale/i);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("v2 full verification rejects a checksum-valid duplicate replay identity in the committed chain", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-replay-v2-duplicate-chain-"));
+  const root = path.join(directory, "replay-v2");
+  const store = new FileResearchRunReplaySnapshotObjectStoreV2(root);
+  try {
+    store.save(snapshot("v2-duplicate-source", "2026-01-01T00:00:00.000Z"));
+    const recordName = sortedNames(path.join(root, "records"))[0];
+    const firstRecord = JSON.parse(fs.readFileSync(path.join(root, "records", recordName), "utf8"));
+    const duplicatePayload = {
+      schemaVersion: 2,
+      ordinal: 1,
+      previousRecordSha256: firstRecord.recordSha256,
+      snapshot: firstRecord.snapshot,
+    };
+    const duplicateRecord = {
+      ...duplicatePayload,
+      recordSha256: hashJson(duplicatePayload),
+    };
+    fs.writeFileSync(
+      path.join(root, "records", `${duplicateRecord.recordSha256}.json`),
+      `${JSON.stringify(duplicateRecord)}\n`,
+      { mode: 0o400 },
+    );
+    rewriteHeadWithValidChecksum(root, (head) => {
+      head.count = 2;
+      head.chainHeadSha256 = duplicateRecord.recordSha256;
+      head.latestTimestampCount = 2;
+    });
+
+    const restarted = new FileResearchRunReplaySnapshotObjectStoreV2(root);
+    assert.throws(() => restarted.verifyAll(), /duplicate replay identity/i);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
