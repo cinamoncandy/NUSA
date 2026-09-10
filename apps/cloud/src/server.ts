@@ -33,6 +33,7 @@ import {
   handleDesktopSessionRevokeHttp
 } from "./desktopSessionHttp";
 import { MobileSessionService } from "./mobileSessionService";
+import { deploymentHealthPayload } from "./deploymentHealth";
 import {
   handleMobileBootstrapHttp,
   handleMobileBootstrapIssueHttp,
@@ -336,7 +337,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
     try {
       if (req.url === "/health") {
         if (req.method !== "GET") { respond("health", dashboardJsonResponse(405, { error: "METHOD_NOT_ALLOWED" })); return; }
-        respond("health", dashboardJsonResponse(200, { ok: true, observedAt: new Date().toISOString() }));
+        respond("health", dashboardJsonResponse(200, deploymentHealthPayload(new Date().toISOString())));
         return;
       }
 
