@@ -19,7 +19,10 @@ function assertOrdered(source, markers) {
 
 test("AI screen keeps decision trust evidence risk authority action research learning hierarchy", () => {
   const ai = readMobile("src/aiView.tsx");
-  assertOrdered(ai, [
+  const fullScreenStart = ai.indexOf('testID="ai-screen"');
+  assert.ok(fullScreenStart >= 0, "full AI screen source boundary must remain discoverable");
+  const fullScreen = ai.slice(fullScreenStart);
+  assertOrdered(fullScreen, [
     'testID="ai-now"',
     'testID="ai-confidence"',
     'testID="ai-why"',
