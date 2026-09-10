@@ -58,7 +58,7 @@ jobs:
           cat artifacts/research-replay-v2/benchmark-large.json
       - name: Validate benchmark invariants
         run: >-
-          node -e "const fs=require('node:fs'); for (const name of ['small','large']) { const r=JSON.parse(fs.readFileSync('artifacts/research-replay-v2/benchmark-'+name+'.json','utf8')); if (r.v2.copyCalls !== 0 || r.v2.copiedBytes !== 0) throw new Error(name+': v2 performed whole-file copy'); if (!(r.v1.copiedBytes > 0)) throw new Error(name+': v1 copy baseline missing'); if (!(r.measuredIoByteReduction > 0)) throw new Error(name+': measured I/O reduction missing'); }"
+          node -e "const fs=require('node:fs'); for (const name of ['small','large']) { const r=JSON.parse(fs.readFileSync('artifacts/research-replay-v2/benchmark-'+name+'.json','utf8')); if (r.schemaVersion !== 2) throw new Error(name+': benchmark schema mismatch'); if (r.v2.copyCalls !== 0 || r.v2.logicalCopyBytes !== 0) throw new Error(name+': v2 performed whole-file copy'); if (r.v1.copyCalls !== 1 || r.v1.logicalCopyBytes !== r.legacyArchiveBytesBefore) throw new Error(name+': v1 whole-archive copy baseline mismatch'); if (!(r.v1.explicitReadBytes >= r.legacyArchiveBytesBefore)) throw new Error(name+': v1 full-history read baseline missing'); if (!(r.v2.explicitReadBytes < r.legacyArchiveBytesBefore)) throw new Error(name+': v2 read work is not bounded below archive size'); if (!(r.estimatedDataMovementByteReduction > 0)) throw new Error(name+': API-level data movement reduction missing'); }"
       - name: Upload benchmark evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
