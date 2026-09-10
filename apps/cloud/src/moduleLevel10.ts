@@ -57,15 +57,15 @@ export interface ModuleExecutionEvidence {
   readonly idempotencyKey: string;
   readonly mode: NonLiveOperatingMode;
   readonly observedAt: number;
-  readonly inputSha256?: string;
-  readonly outputSha256?: string;
+  readonly inputSha256?: string | undefined;
+  readonly outputSha256?: string | undefined;
   readonly status: "COMPLETED" | "FAILED_CLOSED";
-  readonly error?: string;
+  readonly error?: string | undefined;
 }
 
 export interface ModuleExecutionResult<Output> {
   readonly status: "COMPLETED" | "FAILED_CLOSED";
-  readonly output?: Output;
+  readonly output?: Output | undefined;
   readonly evidence: ModuleExecutionEvidence;
 }
 
