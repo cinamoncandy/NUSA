@@ -77,3 +77,13 @@ test("a failed exchange surfaces its real cause through the client", async () =>
   assert.equal(result.reason.includes(TOKEN_FIXTURE), false, "the reason must never contain the token");
   clearConfiguredPaperEndpoint();
 });
+
+
+test("Settings maps fallback enrollment rejection through the safe credential failure formatter", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const settings = fs.readFileSync(path.join(__dirname, "..", "apps/mobile/src/settingsView.tsx"), "utf8");
+  assert.match(settings, /describeCredentialFailure/);
+  assert.match(settings, /reason: describeCredentialFailure\(connectionError\)/);
+  assert.doesNotMatch(settings, /reason: connectionError instanceof Error \? connectionError\.message/);
+});
