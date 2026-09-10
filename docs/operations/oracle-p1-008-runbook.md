@@ -69,6 +69,35 @@ sudo node scripts/oracle-validate.js
 
 `oracle-validate` fails closed if the environment file, backup directory, service unit, localhost binding, token strength, persistent database location, or current symlink contract is invalid.
 
+## Read-only release identity observation
+
+Before changing a release, and again after readiness succeeds, observe the Oracle release identity from the host itself:
+
+```bash
+sudo -u nusa env NUSA_EXPECTED_SHA=<full-40-char-protected-main-sha> \
+  node scripts/oracle-release-observation.js
+```
+
+The observer is read-only. It never changes `/opt/nusa/current`, releases, services, databases, credentials, or trading authority. It emits one JSON record and exits non-zero unless the `current` symlink resolves to the exact expected immutable release directory.
+
+Interpret its `status` as follows:
+
+- `CURRENT`: observed SHA exactly equals the expected SHA and the release is staged under `/opt/nusa/releases`.
+- `STALE`: `current` resolves to a valid older/different release. The record also distinguishes whether the expected release is already staged.
+- `BLOCKED`: deployment identity cannot be trusted, for example because the expected SHA is malformed, `current` is missing/not a symlink, or the target is unreadable/invalid.
+
+Do not label Oracle current or globally converged when the observer reports `STALE` or `BLOCKED`.
+
+Until a dedicated trusted Oracle evidence publisher exists, the protected deployment convergence receipt accepts the SHA from this local read-only observation as an explicit operator-provided input. This is an auditable handoff, not a substitute for the authenticated readiness check. Dispatch only after capturing the host observation:
+
+```bash
+gh workflow run deployment-convergence-receipt.yml \
+  -f source_sha=<full-40-char-protected-main-sha> \
+  -f oracle_observed_sha=<observer-observed-sha>
+```
+
+If `oracle_observed_sha` is absent, malformed, or different from `source_sha`, the global convergence receipt remains fail-closed.
+
 ## Atomic release switch
 
 Stage and verify the complete release at `/opt/nusa/releases/<full-sha>` first. Then switch only the symlink:
@@ -81,6 +110,8 @@ sudo systemctl restart nusa.service
 
 The switch records the prior release path and reports `readinessRequired=true`. It does not restart services itself and does not touch persistent data.
 
+A repeated convergence request for a SHA that already observes as `CURRENT` must not run the switch again. Record the observation as already converged and continue with receipt publication only. This keeps same-SHA convergence idempotent and avoids unnecessary service restarts.
+
 ## Acceptance check
 
 Check process liveness locally, then run the authenticated readiness probe. The readiness script reads the bearer token from `/etc/nusa/cloud-runtime.env`, so the secret is not passed on the command line or printed.
@@ -90,7 +121,7 @@ curl --fail --silent http://127.0.0.1:3000/health
 sudo node scripts/oracle-readiness-check.js
 ```
 
-Accept the release only when `/ready` returns HTTP 200 and all four checks are true: database, migrations, dashboard persistence, and runtime recovery.
+Accept the release only when `/ready` returns HTTP 200 and all four checks are true: database, migrations, dashboard persistence, and runtime recovery. Then run the read-only release identity observation again and require `status=CURRENT` for the exact protected-main SHA.
 
 ## Failed readiness: rollback
 
@@ -101,6 +132,8 @@ sudo env NUSA_DEPLOY_ACTION=rollback node scripts/atomic-deploy.js
 sudo systemctl restart nusa.service
 sudo node scripts/oracle-readiness-check.js
 ```
+
+After rollback, run `scripts/oracle-release-observation.js` again against the attempted target SHA. It must report non-current (`STALE`) and global deployment convergence must remain failed for that target. Preserve the failed readiness output, rollback output, and observer output as incident evidence.
 
 If rollback readiness also fails, stop the service and investigate the persistent state and logs. Do not bypass readiness, relax localhost binding, shorten the token, or enable LIVE/private mutation to recover service.
 
@@ -113,6 +146,8 @@ Use journald as the host transport:
 ```bash
 journalctl -u nusa.service --since today --output=cat
 ```
+
+Treat any staging, filesystem access, validation, readiness, or rollback failure as a durable deployment-blocked state. Preserve the corresponding command output and do not clear the state merely because Cloudflare, Android, Windows, or PAPER evidence is green.
 
 ## Restore policy
 
