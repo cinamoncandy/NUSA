@@ -94,7 +94,7 @@ export function buildHomeStatusRail(input: HomeStatusInput): HomeStatusRail {
         ? input.paperState === "NOT_CONFIGURED"
           ? "CHECK · PAPER 미연결"
           : "CHECK · PAPER 확인 불가"
-        : "PAPER · PAPER 정상";
+        : "PAPER · 정상";
   const risk: HomeRiskLevel = halted
     ? "HIGH"
     : degraded
