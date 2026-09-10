@@ -8,9 +8,9 @@
 
 - `LEVEL_10`: canonical, deterministic, typed, fail-closed, observable, recoverable, tested, and architecture-validated.
 - `10X`: Level 10 plus self-diagnostics, rollback readiness, and evidence-based promotion support.
-- `10X-S`: 10X plus shadow comparability, regression guarding, automatic quarantine capability, and continuous evidence that the module remains the best validated candidate.
+- `10X-S`: 10X plus shadow comparability, regression guarding, automatic quarantine capability, recovery evidence, and continuous proof that the module remains the best validated candidate.
 
-A tier is not a permanent label. Evidence loss or regression demotes the effective tier. Safety-boundary failure, loss of the last-known-good rollback reference, or failure of the Level 10 baseline quarantines the module.
+A tier is not permanent. Evidence loss or regression demotes the effective tier. Safety-boundary failure, invalid evidence identity, invalid last-known-good state, or failure of the Level 10 baseline quarantines the module.
 
 ## Mandatory 10X-S capabilities
 
@@ -23,29 +23,58 @@ Every canonical stage targets all of the following:
 5. `ROLLBACK_READY`
 6. `EVIDENCE_PROMOTION`
 
-Promotion and retention at `10X-S` require CI/runtime evidence. Registry metadata alone cannot certify a module.
+Registry metadata is only a requirement declaration. It cannot certify a module by itself.
 
-## Replacement rule
+## Operational certification evidence
 
-A candidate may replace the current canonical module only when it:
+`evaluateTenXSCertification` requires a valid source commit, a deterministic evidence fingerprint,
+deterministic-replay success, shadow-comparison success, recovery-drill success, regression-budget
+success, an intact safety boundary, the Level-10 baseline and stage-scoped evidence references.
+Certification is therefore based on an evidence snapshot rather than a permanent label.
 
-- preserves all safety and authority invariants;
-- passes the Level 10 baseline;
-- passes all 10X-S capabilities;
-- is regression-free against the incumbent under the governed comparison window;
-- has a valid last-known-good rollback reference;
-- produces durable evidence sufficient to reproduce the promotion decision.
+## Runtime truth
 
-If the candidate fails, the incumbent remains canonical. If an active module later violates a safety-critical condition, it is quarantined and the last-known-good version is selected. This process never grants LIVE trading authority.
+`apps/cloud/src/moduleRuntimeManifest10XS.ts` is the authoritative map from each canonical module to
+the concrete Cloud PAPER runtime binding. Canonical and runtime entrypoints are stored separately so
+architecture drift is visible instead of being hidden behind a single path. Each stage owns a
+separate evidence collection and last-known-good reference, even when several stages currently share
+the same known-good release commit.
+
+`apps/cloud/src/moduleRuntimeManifest10XS.test.ts` verifies the binding files and critical composition
+rules, including canonical Intelligence/Portfolio facades and the PAPER Risk → Execution boundary.
+
+## Replacement and rollback
+
+`apps/cloud/src/moduleReplacementPolicy10XS.ts` governs module selection. A candidate can replace the
+incumbent only when it is independently `10X-S` certified and the governed challenger comparison says
+`BETTER`. `UNVERIFIED`, `NOT_BETTER`, demoted or quarantined candidates cannot replace the incumbent.
+If the incumbent is quarantined, the stage-specific last-known-good ref is selected.
+
+This policy is selection-only. It does not dynamically download code, mutate production, enable LIVE
+trading, or bypass the normal deployment and review path.
 
 ## Authority invariants
 
-`10X-S` is a software-quality and resilience tier, not trading authority. PAPER/SHADOW restrictions, AI zero authority, `liveAuthority=NONE`, and `productionMutationAllowed=false` remain unchanged unless a separately approved architecture/work-order change explicitly modifies them.
+`10X-S` is a software-quality and resilience tier, not trading authority. PAPER/SHADOW restrictions,
+AI zero authority, `liveAuthority=NONE`, and `productionMutationAllowed=false` remain unchanged.
 
-## Execution boundary
+## Cloud PAPER execution boundary
 
-The canonical execution engine must not accept a raw execution loop. It accepts only the risk-enforcing execution port, and that port executes a PAPER tick only after an independent risk decision returns `ALLOW`. A rejected or halted risk decision cannot reach order processing.
+The canonical Cloud PAPER execution path is:
+
+```
+runtime.ts
+  → CloudPaperExecutionBoundary
+    → CloudPaperCanonicalRiskGateway
+      → PaperTradingExecutionLoop
+```
+
+Actionable strategy ticks cannot reach the simulator mutation path until challenger provenance,
+allocation/health/P0 checks and canonical risk approval succeed. A rejected or halted risk decision
+cannot reach order processing.
 
 ## Canonical registry
 
-`apps/cloud/src/canonicalModuleRegistryV10.ts` retains its historical filename for API compatibility but exports `CANONICAL_MODULE_REGISTRY_10XS` as the authoritative tier target for all ten canonical stages. The prior `CANONICAL_MODULE_REGISTRY_V10` name is an alias during migration.
+`apps/cloud/src/canonicalModuleRegistryV10.ts` retains its historical filename for API compatibility
+but exports `CANONICAL_MODULE_REGISTRY_10XS` as the authoritative tier target for all ten stages. The
+registry consumes the runtime manifest instead of maintaining a second, drifting path table.
