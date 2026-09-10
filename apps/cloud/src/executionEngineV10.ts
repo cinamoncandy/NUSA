@@ -1,12 +1,15 @@
-import {
-  PaperTradingExecutionLoop,
-  type PaperExecutionResult,
-  type PaperExecutionTick
+import type { CloudPaperExecutionBoundary } from "./cloudPaperExecutionBoundary";
+import type {
+  PaperExecutionResult,
+  PaperExecutionTick,
+  PaperTradingExecutionLoop
 } from "./paperTradingExecutionLoop";
 
 export interface ExecutionEngineV10Input {
-  readonly loop: PaperTradingExecutionLoop;
-  readonly tick: PaperExecutionTick;
+  /** Canonical risk-enforcing mutation boundary. The raw loop is intentionally not accepted. */
+  readonly boundary: Pick<CloudPaperExecutionBoundary, "processTick">;
+  readonly readState: () => ReturnType<PaperTradingExecutionLoop["snapshot"]>;
+  readonly tick: PaperExecutionTick & { readonly investmentPercent?: number };
 }
 
 export interface ExecutionEngineV10Output {
@@ -25,12 +28,12 @@ export function runExecutionEngineV10(input: ExecutionEngineV10Input): Execution
         reason: "LEVEL10_EXECUTION_PAPER_ONLY",
         orders: Object.freeze([]),
         fills: Object.freeze([]),
-        state: input.loop.snapshot()
+        state: input.readState()
       })
     });
   }
 
-  const result = input.loop.processTick(input.tick);
+  const result = input.boundary.processTick(input.tick);
   return Object.freeze({
     authority: "PAPER_ONLY",
     productionMutationAllowed: false,
