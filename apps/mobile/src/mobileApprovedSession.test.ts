@@ -76,7 +76,9 @@ describe("mobile approved session restore", () => {
 
     assert.equal(await session.restore("https://paper.example"), null);
     assert.equal(session.shouldRetryRestore(), false);
-    assert.equal(storage.deleteCount, 1);
+    // A definitive authorization rejection destroys both secure-state namespaces:
+    // the rotating session and any pending device pairing capability.
+    assert.equal(storage.deleteCount, 2);
     assert.equal(await storage.getSecret(SESSION_STORAGE_KEY), null);
   });
 
@@ -87,7 +89,8 @@ describe("mobile approved session restore", () => {
 
     assert.equal(await session.restore("https://paper.example"), null);
     assert.equal(session.shouldRetryRestore(), false);
-    assert.equal(storage.deleteCount, 1);
+    // Keep the fail-closed cleanup contract symmetric with 401.
+    assert.equal(storage.deleteCount, 2);
     assert.equal(await storage.getSecret(SESSION_STORAGE_KEY), null);
   });
 });
