@@ -19,6 +19,9 @@ test("Upbit settings connection remains HTTPS-only, process-memory-only, and ref
   assert.match(panel, /settings-upbit-connection/);
   assert.match(panel, /settings-upbit-token/);
   assert.match(panel, /READ ONLY/);
+  assert.match(panel, /UPBIT READ ONLY/);
+  assert.doesNotMatch(panel, />UPBIT LIVE<\/Text>/);
+  assert.match(panel, /조회 전용 bridge가 아직 연결되지 않았습니다/);
   assert.match(panel, /connectUpbitReadOnlyAccount/);
   assert.match(panel, /resetUpbitReadOnlyState/);
   assert.match(panel, /프로세스 메모리/);

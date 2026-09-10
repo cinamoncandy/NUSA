@@ -23,7 +23,7 @@ export function UpbitConnectionPanel() {
       ? `READ ONLY · ${state.snapshot.assets.length + 1} assets · 30초 자동 갱신`
       : state.status === "ERROR"
         ? state.error ?? "Upbit bridge connection failed."
-        : "Upbit bridge credential is not configured.";
+        : "Upbit 조회 전용 bridge가 아직 연결되지 않았습니다.";
 
   const connect = async (): Promise<void> => {
     if (busy) return;
@@ -41,7 +41,7 @@ export function UpbitConnectionPanel() {
     <View style={styles.sectionHeader}>
       <View>
         <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>02 · UPBIT CONNECTION</Text>
-        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>UPBIT LIVE</Text>
+        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>UPBIT READ ONLY</Text>
       </View>
       <StatusChip label="READ ONLY" tone="info" />
     </View>
