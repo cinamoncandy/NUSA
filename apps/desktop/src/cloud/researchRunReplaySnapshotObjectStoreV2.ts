@@ -8,6 +8,7 @@ import {
 } from "./researchRunReplaySnapshot";
 
 const SHA64 = /^[0-9a-f]{64}$/;
+const FORBIDDEN_KEY = /(authorization|bearer|token|secret|password|api[_-]?key|access[_-]?key|private[_-]?key|cookie|jwt|credential)/i;
 const FORMAT = "NUSA_RESEARCH_REPLAY_OBJECT_CHAIN_V2" as const;
 const ZERO_SHA256 = "0".repeat(64);
 const STREAM_CHUNK_BYTES = 64 * 1024;
@@ -77,6 +78,17 @@ function isSafeOrdinal(value: unknown): value is number {
   return Number.isSafeInteger(value) && Number(value) >= 0;
 }
 
+function rejectForbidden(value: unknown, seen = new Set<object>()): void {
+  if (value == null || typeof value !== "object") return;
+  if (seen.has(value)) throw new Error("research replay v2 snapshot must be acyclic");
+  seen.add(value);
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (FORBIDDEN_KEY.test(key)) throw new Error("research replay v2 snapshot contains a forbidden field");
+    rejectForbidden(child, seen);
+  }
+  seen.delete(value);
+}
+
 function generatedAtOf(snapshot: ResearchRunReplaySnapshot): string {
   const generatedAt = snapshot.options.generatedAt;
   if (typeof generatedAt !== "string" || !generatedAt.trim()) {
@@ -90,6 +102,7 @@ function generatedAtOf(snapshot: ResearchRunReplaySnapshot): string {
 }
 
 function validateSnapshotIntegrity(snapshot: ResearchRunReplaySnapshot): ResearchRunReplaySnapshot {
+  rejectForbidden(snapshot);
   validateResearchRunReplaySnapshotIntegrity(snapshot);
   return snapshot;
 }
@@ -200,6 +213,7 @@ function validateHead(value: unknown): ReplayHeadV2 {
       throw new Error("research replay v2 empty HEAD is inconsistent");
     }
   } else {
+    const latestTimestamp = latest == null ? Number.NaN : Date.parse(latest.generatedAt);
     if (latest == null || parsed.chainHeadSha256 === ZERO_SHA256 || parsed.latestTimestampCount < 1) {
       throw new Error("research replay v2 HEAD is inconsistent");
     }
@@ -208,7 +222,8 @@ function validateHead(value: unknown): ReplayHeadV2 {
       || !SHA64.test(latest.snapshotSha256)
       || !SHA64.test(latest.recordSha256)
       || !latest.generatedAt.trim()
-      || !Number.isSafeInteger(Date.parse(latest.generatedAt))
+      || !Number.isSafeInteger(latestTimestamp)
+      || latestTimestamp < 0
     ) {
       throw new Error("research replay v2 latest identity is invalid");
     }
@@ -350,34 +365,6 @@ export class FileResearchRunReplaySnapshotObjectStoreV2 {
     return validateRecord(parseJsonFile<ReplayRecordV2>(filename, "research replay v2 fingerprint record is corrupted"));
   }
 
-  private ensureLatestFingerprintLink(head: ReplayHeadV2): void {
-    if (head.count === 0 || head.latest == null || head.latestTimestampCount !== 1) return;
-    const latestRecord = this.readRecordBySha(head.latest.recordSha256);
-    if (
-      latestRecord.snapshot.originalRunFingerprintSha256 !== head.latest.originalRunFingerprintSha256
-      || latestRecord.snapshot.snapshotSha256 !== head.latest.snapshotSha256
-      || generatedAtOf(latestRecord.snapshot) !== head.latest.generatedAt
-    ) {
-      throw new Error("research replay v2 HEAD latest provenance mismatch");
-    }
-    const fingerprintFilename = this.fingerprintFilename(head.latest.originalRunFingerprintSha256);
-    if (!fs.existsSync(fingerprintFilename)) {
-      fs.mkdirSync(this.fingerprintsDirectory, { recursive: true, mode: 0o700 });
-      try {
-        fs.linkSync(this.recordFilename(latestRecord.recordSha256), fingerprintFilename);
-        fsyncDirectory(this.fingerprintsDirectory);
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-      }
-    }
-  }
-
-  private assertChainHead(head: ReplayHeadV2): void {
-    if (head.count === 0) return;
-    const record = this.readRecordBySha(head.chainHeadSha256);
-    if (record.ordinal !== head.count - 1) throw new Error("research replay v2 chain head ordinal mismatch");
-  }
-
   private publishFingerprintLink(record: ReplayRecordV2): void {
     const fingerprint = record.snapshot.originalRunFingerprintSha256;
     const destination = this.fingerprintFilename(fingerprint);
@@ -399,6 +386,25 @@ export class FileResearchRunReplaySnapshotObjectStoreV2 {
         throw new Error("research replay v2 immutable fingerprint conflict");
       }
     }
+  }
+
+  /**
+   * HEAD is the commit point; the fingerprint hardlink is intentionally published afterwards.
+   * If the process dies between those steps, the next operation repairs only the committed chain
+   * head from checksum-bound HEAD. Pre-HEAD orphan objects never receive a fingerprint link.
+   */
+  private ensureChainHeadFingerprintLink(head: ReplayHeadV2): ReplayRecordV2 | undefined {
+    if (head.count === 0) return undefined;
+    const record = this.readRecordBySha(head.chainHeadSha256);
+    if (record.ordinal !== head.count - 1) throw new Error("research replay v2 chain head ordinal mismatch");
+    this.publishFingerprintLink(record);
+    return record;
+  }
+
+  private assertChainHead(head: ReplayHeadV2): void {
+    if (head.count === 0) return;
+    const record = this.readRecordBySha(head.chainHeadSha256);
+    if (record.ordinal !== head.count - 1) throw new Error("research replay v2 chain head ordinal mismatch");
   }
 
   private orderedRecords(integrityOnly: boolean): readonly ReplayRecordV2[] {
@@ -442,20 +448,15 @@ export class FileResearchRunReplaySnapshotObjectStoreV2 {
   }
 
   public verifyAll(): number {
-    const records = this.orderedRecords(false);
-    return records.length;
+    return this.orderedRecords(false).length;
   }
 
   public read(originalRunFingerprintSha256: string): ResearchRunReplaySnapshot | undefined {
     const fingerprint = originalRunFingerprintSha256.trim().toLowerCase();
     if (!SHA64.test(fingerprint)) throw new Error("research replay v2 fingerprint is invalid");
     const head = this.readHead();
-    this.assertChainHead(head);
-    let record = this.readRecordByFingerprint(fingerprint);
-    if (record == null && head.latest?.originalRunFingerprintSha256 === fingerprint && head.latestTimestampCount === 1) {
-      this.ensureLatestFingerprintLink(head);
-      record = this.readRecordByFingerprint(fingerprint);
-    }
+    this.ensureChainHeadFingerprintLink(head);
+    const record = this.readRecordByFingerprint(fingerprint);
     if (record == null) return undefined;
     if (record.ordinal >= head.count) throw new Error("research replay v2 fingerprint points to uncommitted record");
     validateSnapshotSemantics(record.snapshot);
@@ -500,8 +501,7 @@ export class FileResearchRunReplaySnapshotObjectStoreV2 {
   public save(snapshot: ResearchRunReplaySnapshot): ResearchRunReplaySnapshot {
     const next = validateSnapshotSemantics(snapshot);
     const head = this.readHead();
-    this.assertChainHead(head);
-    this.ensureLatestFingerprintLink(head);
+    this.ensureChainHeadFingerprintLink(head);
 
     const fingerprint = next.originalRunFingerprintSha256;
     const existing = this.readRecordByFingerprint(fingerprint);
@@ -518,8 +518,7 @@ export class FileResearchRunReplaySnapshotObjectStoreV2 {
 
     const previousRecordSha256 = head.count === 0 ? ZERO_SHA256 : head.chainHeadSha256;
     const record = buildRecord(head.count, previousRecordSha256, next);
-    const recordFilename = this.recordFilename(record.recordSha256);
-    writeImmutableJson(recordFilename, record);
+    writeImmutableJson(this.recordFilename(record.recordSha256), record);
     const publishedRecord = this.readRecordBySha(record.recordSha256);
     if (
       publishedRecord.ordinal !== head.count
@@ -742,7 +741,7 @@ export function migrateLegacyResearchRunReplayArchiveToV2(
   const store = new FileResearchRunReplaySnapshotObjectStoreV2(stagingRoot);
   const existingIdentities = store.identities();
   const logicalHasher = createHash("sha256");
-  let resumed = existingIdentities.length > 0;
+  const resumed = existingIdentities.length > 0;
   let visited = 0;
 
   const legacyCount = streamLegacyArchive(legacyFilename, (snapshot, ordinal) => {
