@@ -323,6 +323,7 @@ export class FileResearchRunReplaySnapshotObjectStoreV2 {
   private readonly headFilename: string;
   private readonly recordsDirectory: string;
   private readonly fingerprintsDirectory: string;
+  private readonly commitMarkersDirectory: string;
 
   public constructor(rootDirectory: string) {
     if (!rootDirectory.trim() || rootDirectory === ":memory:") {
@@ -331,11 +332,15 @@ export class FileResearchRunReplaySnapshotObjectStoreV2 {
     this.headFilename = path.join(rootDirectory, "HEAD.json");
     this.recordsDirectory = path.join(rootDirectory, "records");
     this.fingerprintsDirectory = path.join(rootDirectory, "by-fingerprint");
+    this.commitMarkersDirectory = path.join(rootDirectory, "commits");
   }
 
   private readHead(): ReplayHeadV2 {
-    if (!fs.existsSync(this.headFilename)) return buildHead(emptyHeadPayload());
-    return validateHead(parseJsonFile<ReplayHeadV2>(this.headFilename, "research replay v2 HEAD is corrupted"));
+    const head = fs.existsSync(this.headFilename)
+      ? validateHead(parseJsonFile<ReplayHeadV2>(this.headFilename, "research replay v2 HEAD is corrupted"))
+      : buildHead(emptyHeadPayload());
+    this.ensureHeadCommitMarker(head);
+    return head;
   }
 
   private recordFilename(recordSha256: string): string {
@@ -348,6 +353,11 @@ export class FileResearchRunReplaySnapshotObjectStoreV2 {
       throw new Error("research replay v2 fingerprint is invalid");
     }
     return path.join(this.fingerprintsDirectory, `${originalRunFingerprintSha256}.json`);
+  }
+
+  private commitMarkerFilename(ordinal: number): string {
+    if (!isSafeOrdinal(ordinal)) throw new Error("research replay v2 commit ordinal is invalid");
+    return path.join(this.commitMarkersDirectory, `${ordinal}.json`);
   }
 
   private readRecordBySha(recordSha256: string): ReplayRecordV2 {
@@ -366,6 +376,14 @@ export class FileResearchRunReplaySnapshotObjectStoreV2 {
     if (record.snapshot.originalRunFingerprintSha256 !== originalRunFingerprintSha256) {
       throw new Error("research replay v2 fingerprint index provenance mismatch");
     }
+    return record;
+  }
+
+  private readCommitMarker(ordinal: number): ReplayRecordV2 | undefined {
+    const filename = this.commitMarkerFilename(ordinal);
+    if (!fs.existsSync(filename)) return undefined;
+    const record = validateRecord(parseJsonFile<ReplayRecordV2>(filename, "research replay v2 commit marker is corrupted"));
+    if (record.ordinal !== ordinal) throw new Error("research replay v2 commit marker ordinal mismatch");
     return record;
   }
 
@@ -389,6 +407,55 @@ export class FileResearchRunReplaySnapshotObjectStoreV2 {
       if (existing?.recordSha256 !== record.recordSha256) {
         throw new Error("research replay v2 immutable fingerprint conflict");
       }
+    }
+  }
+
+  private publishCommitMarker(record: ReplayRecordV2): void {
+    const destination = this.commitMarkerFilename(record.ordinal);
+    fs.mkdirSync(this.commitMarkersDirectory, { recursive: true, mode: 0o700 });
+    if (fs.existsSync(destination)) {
+      const existing = this.readCommitMarker(record.ordinal);
+      if (existing?.recordSha256 !== record.recordSha256) {
+        throw new Error("research replay v2 immutable commit marker conflict");
+      }
+      return;
+    }
+    try {
+      fs.linkSync(this.recordFilename(record.recordSha256), destination);
+      fsyncDirectory(this.commitMarkersDirectory);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      const existing = this.readCommitMarker(record.ordinal);
+      if (existing?.recordSha256 !== record.recordSha256) {
+        throw new Error("research replay v2 immutable commit marker conflict");
+      }
+    }
+  }
+
+  /**
+   * HEAD remains the atomic commit point. The ordinal marker is immutable derived metadata that
+   * makes a byte-for-byte rollback to a previously valid HEAD detectable in O(1): a restored HEAD
+   * at count N cannot hide the already-published marker N. If a process dies after HEAD rename but
+   * before marker publication, the committed chain head deterministically repairs only its own
+   * missing marker. A pre-HEAD orphan record has no marker and remains uncommitted.
+   */
+  private ensureHeadCommitMarker(head: ReplayHeadV2): void {
+    if (head.count === 0) {
+      if (this.readCommitMarker(0) != null) throw new Error("research replay v2 HEAD is stale");
+      return;
+    }
+
+    const headRecord = this.readRecordBySha(head.chainHeadSha256);
+    if (headRecord.ordinal !== head.count - 1) throw new Error("research replay v2 chain head ordinal mismatch");
+    const currentMarker = this.readCommitMarker(head.count - 1);
+    if (currentMarker == null) {
+      this.publishCommitMarker(headRecord);
+    } else if (currentMarker.recordSha256 !== headRecord.recordSha256) {
+      throw new Error("research replay v2 HEAD commit marker mismatch");
+    }
+
+    if (this.readCommitMarker(head.count) != null) {
+      throw new Error("research replay v2 HEAD is stale");
     }
   }
 
@@ -557,6 +624,7 @@ export class FileResearchRunReplaySnapshotObjectStoreV2 {
       latestTimestampCount,
     }));
     atomicReplaceJson(this.headFilename, nextHead);
+    this.publishCommitMarker(record);
     this.publishFingerprintLink(record);
     return next;
   }
