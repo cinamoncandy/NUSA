@@ -19,6 +19,8 @@ export interface BacktestConfig {
   readonly orderQuantity?: number;
   readonly riskPolicy?: PaperRiskPolicy;
   readonly executionCosts?: BacktestExecutionCosts;
+  /** Historical observations used only to initialize Strategy state before scored points begin. */
+  readonly warmupPoints?: readonly BacktestPoint[];
 }
 
 export type BacktestDecisionOutcome = "HOLD" | "FILLED" | "REJECTED" | "UNFILLED";
@@ -171,6 +173,13 @@ export function runBacktest(
   config: BacktestConfig = {}
 ): BacktestResult {
   validatePoints(points);
+  const warmupPoints = config.warmupPoints ?? [];
+  if (warmupPoints.length > 0) {
+    validatePoints(warmupPoints);
+    if (warmupPoints[warmupPoints.length - 1]!.timestamp >= points[0]!.timestamp) {
+      throw new Error("backtest warm-up points must be strictly before scored points");
+    }
+  }
   const market = config.market ?? DEFAULT_MARKET;
   const initialCash = config.initialCash ?? DEFAULT_INITIAL_CASH;
   const feeRate = config.feeRate ?? DEFAULT_FEE_RATE;
@@ -184,6 +193,13 @@ export function runBacktest(
   const broker = new PaperBroker(initialCash, market, feeRate, config.riskPolicy ?? {});
   const engine = new StrategyEngine(strategyFactory());
   engine.start();
+
+  // Warm-up initializes Strategy state only. Its signals are discarded before any
+  // broker, order, cost, PnL, benchmark, or pending-execution state can exist.
+  for (const point of warmupPoints) {
+    engine.onTick({ market, price: point.close, timestamp: point.timestamp }, 0);
+  }
+
   const decisions: MutableBacktestDecision[] = [];
   const equityCurve: Array<{ timestamp: number; equity: number }> = [];
   let pendingExecution: PendingExecution | undefined;
