@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { InMemoryUpbitCredentialSession } from "./upbitCredentialSession";
+import { mobileApprovedSession } from "./mobileApprovedSessionBoundary";
 import { loadUpbitLiveAccounts, UPBIT_LIVE_BASE_URL } from "./upbitLiveClient";
 import { normalizeUpbitReadOnlySnapshot, type UpbitReadOnlyAccountSnapshot } from "./upbitReadOnlyAccountModel";
 export type { UpbitReadOnlyAccountSnapshot, UpbitReadOnlyAsset } from "./upbitReadOnlyAccountModel";
@@ -25,7 +24,6 @@ export const initialUpbitReadOnlyState: UpbitReadOnlyState = Object.freeze({
 
 const REFRESH_INTERVAL_MS = 30_000;
 const STALE_AFTER_MS = 90_000;
-const credentialSession = new InMemoryUpbitCredentialSession();
 let currentState: UpbitReadOnlyState = initialUpbitReadOnlyState;
 let activeBaseUrl: string | null = null;
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
@@ -62,15 +60,14 @@ export function resetUpbitReadOnlyState(): void {
   stopRefreshTimer();
   refreshInFlight = null;
   activeBaseUrl = null;
-  credentialSession.clear();
   setUpbitReadOnlyState(initialUpbitReadOnlyState);
 }
 
 export async function refreshUpbitReadOnlyAccount(): Promise<UpbitReadOnlyState> {
   if (refreshInFlight) return refreshInFlight;
-  if (!activeBaseUrl || !credentialSession.isConfigured()) {
+  if (!activeBaseUrl) {
     const next: UpbitReadOnlyState = currentState.snapshot
-      ? { status: "STALE", monitorStatus: "STALE", snapshot: currentState.snapshot, lastSuccessAt: currentState.lastSuccessAt, error: "Upbit bridge credential is not configured." }
+      ? { status: "STALE", monitorStatus: "STALE", snapshot: currentState.snapshot, lastSuccessAt: currentState.lastSuccessAt, error: "PAPER 보안 세션을 사용할 수 없습니다." }
       : initialUpbitReadOnlyState;
     setUpbitReadOnlyState(next);
     return next;
@@ -90,7 +87,7 @@ export async function refreshUpbitReadOnlyAccount(): Promise<UpbitReadOnlyState>
 
   const request = (async (): Promise<UpbitReadOnlyState> => {
     try {
-      const snapshot = normalizeUpbitReadOnlySnapshot(await loadUpbitLiveAccounts({ credentialProvider: credentialSession.credentialProvider, baseUrl }));
+      const snapshot = normalizeUpbitReadOnlySnapshot(await loadUpbitLiveAccounts({ credentialProvider: mobileApprovedSession().credentialProvider, baseUrl }));
       if (generation !== sessionGeneration) return currentState;
       const stale = Date.now() - snapshot.fetchedAt > STALE_AFTER_MS;
       const next: UpbitReadOnlyState = {
@@ -108,7 +105,6 @@ export async function refreshUpbitReadOnlyAccount(): Promise<UpbitReadOnlyState>
       const classified = classifyMonitorFailure(detail);
       const monitorStatus = classified === "AUTH_ERROR" ? "AUTH_ERROR" : previous ? "STALE" : classified;
       if (monitorStatus === "AUTH_ERROR") {
-        credentialSession.clear();
         stopRefreshTimer();
       }
       const next: UpbitReadOnlyState = {
@@ -130,17 +126,14 @@ export async function refreshUpbitReadOnlyAccount(): Promise<UpbitReadOnlyState>
   return request;
 }
 
-export async function connectUpbitReadOnlyAccount(token: string, baseUrl: string = UPBIT_LIVE_BASE_URL): Promise<UpbitReadOnlyState> {
+export async function connectUpbitReadOnlyAccount(baseUrl: string = UPBIT_LIVE_BASE_URL): Promise<UpbitReadOnlyState> {
   sessionGeneration += 1;
   stopRefreshTimer();
   refreshInFlight = null;
-  credentialSession.clear();
   activeBaseUrl = baseUrl.trim() || UPBIT_LIVE_BASE_URL;
-  try {
-    credentialSession.connect(token);
-  } catch (error) {
+  if ((await mobileApprovedSession().credentialProvider()) == null) {
     activeBaseUrl = null;
-    const detail = error instanceof Error ? error.message : "Upbit bridge credential is invalid.";
+    const detail = "PAPER 보안 세션이 유효할 때 Upbit READ ONLY가 자동 연결됩니다.";
     const next: UpbitReadOnlyState = {
       status: "ERROR",
       monitorStatus: "AUTH_ERROR",
@@ -154,12 +147,14 @@ export async function connectUpbitReadOnlyAccount(token: string, baseUrl: string
   const generation = sessionGeneration;
   const next = await refreshUpbitReadOnlyAccount();
   if (generation !== sessionGeneration) return currentState;
-  if (next.monitorStatus === "AUTH_ERROR") credentialSession.clear();
-  else startRefreshTimer();
+  if (next.monitorStatus !== "AUTH_ERROR") startRefreshTimer();
   return next;
 }
 
 export function useUpbitReadOnlyState(): UpbitReadOnlyState {
+  // Keep the read-only account core importable by non-React runtime/tests. React
+  // is loaded only when the UI hook is actually invoked by the mobile app.
+  const { useEffect, useState } = require("react") as typeof import("react");
   const [state, setState] = useState(currentState);
   useEffect(() => { const update = () => setState(currentState); return subscribeUpbitReadOnlyState(update); }, []);
   return state;

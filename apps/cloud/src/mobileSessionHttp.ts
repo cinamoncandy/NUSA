@@ -158,6 +158,58 @@ export function handleMobileBootstrapHttp(request: DashboardHttpRequest & { read
   } catch { return dashboardJsonResponse(401, { error: "MOBILE_BOOTSTRAP_REJECTED" }); }
 }
 
+export function handleMobilePairingStartHttp(request: DashboardHttpRequest & { readonly body?: string }, dependencies: MobileSessionHttpDependencies): DashboardHttpResponse {
+  const methodError = methodOnly(request, "POST");
+  if (methodError) return methodError;
+  const input = jsonObject(request.body);
+  const deviceId = typeof input?.deviceId === "string" ? input.deviceId.trim() : "";
+  try { return dashboardJsonResponse(201, dependencies.sessionService.startPairing(deviceId)); }
+  catch (error) {
+    return dashboardJsonResponse(error instanceof Error && error.message.includes("limit") ? 429 : 400, { error: "PAIRING_START_REJECTED" });
+  }
+}
+
+export function handleMobilePairingStatusHttp(request: DashboardHttpRequest & { readonly body?: string }, dependencies: MobileSessionHttpDependencies): DashboardHttpResponse {
+  const methodError = methodOnly(request, "POST");
+  if (methodError) return methodError;
+  const input = jsonObject(request.body);
+  try {
+    const status = dependencies.sessionService.pairingStatus(String(input?.requestId ?? ""), String(input?.deviceId ?? ""));
+    return status == null ? dashboardJsonResponse(404, { error: "PAIRING_NOT_FOUND" }) : dashboardJsonResponse(200, status);
+  } catch { return dashboardJsonResponse(400, { error: "INVALID_PAIRING_REQUEST" }); }
+}
+
+export function handleMobilePairingApproveHttp(request: DashboardHttpRequest & { readonly body?: string }, dependencies: MobileSessionHttpDependencies): DashboardHttpResponse {
+  const methodError = methodOnly(request, "POST");
+  if (methodError) return methodError;
+  const principal = authorizeOwner(request, dependencies);
+  if (principal == null) return dashboardJsonResponse(403, { error: "FORBIDDEN" });
+  const input = jsonObject(request.body);
+  try {
+    const requestId = typeof input?.requestId === "string" && input.requestId.trim() ? input.requestId : undefined;
+    const targetUserId = typeof input?.targetUserId === "string" && input.targetUserId.trim() ? input.targetUserId.trim() : principal.userId;
+    const approved = dependencies.sessionService.approvePairing({ actorUserId: principal.userId, actorScopes: principal.scopes, targetUserId, ...(requestId ? { requestId } : {}), verificationCode: String(input?.verificationCode ?? "") });
+    return approved ? dashboardJsonResponse(200, { state: "APPROVED" }) : dashboardJsonResponse(409, { error: "PAIRING_APPROVAL_REJECTED" });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    return message.includes("target user must be ACTIVE")
+      ? dashboardJsonResponse(409, { error: "TARGET_USER_NOT_ACTIVE" })
+      : dashboardJsonResponse(403, { error: "FORBIDDEN" });
+  }
+}
+
+export function handleMobilePairingExchangeHttp(request: DashboardHttpRequest & { readonly body?: string }, dependencies: MobileSessionHttpDependencies): DashboardHttpResponse {
+  const methodError = methodOnly(request, "POST");
+  if (methodError) return methodError;
+  const input = jsonObject(request.body);
+  const requestId = String(input?.requestId ?? "");
+  const deviceId = String(input?.deviceId ?? "");
+  try {
+    const tokens = dependencies.sessionService.exchangePairing(requestId, deviceId);
+    return tokens == null ? dashboardJsonResponse(401, { error: "PAIRING_EXCHANGE_REJECTED" }) : dashboardJsonResponse(200, tokens);
+  } catch { return dashboardJsonResponse(401, { error: "PAIRING_EXCHANGE_REJECTED" }); }
+}
+
 export function handleMobileSessionRefreshHttp(request: DashboardHttpRequest & { readonly body?: string }, dependencies: MobileSessionHttpDependencies): DashboardHttpResponse {
   const methodError = methodOnly(request, "POST");
   if (methodError) return methodError;

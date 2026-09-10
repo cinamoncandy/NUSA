@@ -5,7 +5,7 @@ const path = require("node:path");
 const { SqliteDatabase } = require("../dist/packages/storage/src/index.js");
 const { SqliteNusaUserAccessRepository } = require("../dist/apps/cloud/src/operatorUserAccess.js");
 const { MobileSessionService, MOBILE_ACCESS_TTL_MS } = require("../dist/apps/cloud/src/mobileSessionService.js");
-const { MobileApprovedSession, SESSION_STORAGE_KEY } = require("../dist/apps/mobile/src/mobileApprovedSession.js");
+const { MobileApprovedSession, PAIRING_STORAGE_KEY, SESSION_STORAGE_KEY } = require("../dist/apps/mobile/src/mobileApprovedSession.js");
 
 function fixture() {
   const db = new SqliteDatabase(":memory:");
@@ -26,7 +26,7 @@ test("mobile session uses isolated namespace and exact PAPER scopes", () => {
     assert.equal(tokens.accessExpiresAt, 101 + MOBILE_ACCESS_TTL_MS);
     assert.equal(service.bootstrap(issued.token, 102), undefined);
     const tables = db.connection.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'mobile_%' ORDER BY name").all().map((row) => row.name);
-    assert.deepEqual(tables, ["mobile_access_tokens", "mobile_bootstrap_tokens", "mobile_refresh_tokens", "mobile_session_audit", "mobile_session_families"]);
+    assert.deepEqual(tables, ["mobile_access_tokens", "mobile_bootstrap_tokens", "mobile_pairing_requests", "mobile_refresh_tokens", "mobile_session_audit", "mobile_session_families"]);
   } finally { db.close(); }
 });
 
@@ -49,9 +49,9 @@ test("mobile refresh reuse revokes the session family and ACTIVE status is reval
 });
 
 class MemorySecureStorage {
-  constructor() { this.values = new Map(); }
-  async setSecret(key, value) { this.values.set(key, new Uint8Array(value)); }
-  async getSecret(key) { const value = this.values.get(key); return value == null ? null : new Uint8Array(value); }
+  constructor() { this.values = new Map(); this.setCalls = 0; this.getCalls = 0; }
+  async setSecret(key, value) { this.setCalls += 1; this.values.set(key, new Uint8Array(value)); }
+  async getSecret(key) { this.getCalls += 1; const value = this.values.get(key); return value == null ? null : new Uint8Array(value); }
   async deleteSecret(key) { this.values.delete(key); }
 }
 
@@ -59,122 +59,162 @@ function response(url, status, payload) {
   return { ok: status >= 200 && status < 300, status, redirected: false, url, async json() { return payload; } };
 }
 
-function tokenSet(prefix, now = Date.now()) {
-  return { accessToken: `${prefix}-access-token-1234567890`, accessExpiresAt: now + 600000, refreshToken: `${prefix}-refresh-token-1234567890`, refreshExpiresAt: now + 86400000, scopes: ["dashboard:read", "paper:trade"] };
+function tokenSet(prefix, options = {}) {
+  const now = Date.now();
+  return {
+    accessToken: `${prefix}-access-token-1234567890`,
+    accessExpiresAt: options.accessExpiresAt ?? now + 600000,
+    refreshToken: `${prefix}-refresh-token-1234567890`,
+    refreshExpiresAt: options.refreshExpiresAt ?? now + 86400000,
+    scopes: ["dashboard:read", "paper:trade"],
+    ...(options.deviceId ? { deviceId: options.deviceId } : {}),
+  };
 }
 
-test("bootstrap identity outage retains single-use session for restart recovery", async () => {
-  for (const status of [429, 503, 401, 403]) {
-    const storage = new MemorySecureStorage();
-    let unavailable = true;
-    let bootstrapCalls = 0;
-    const request = async (url) => {
-      if (url.endsWith("/bootstrap")) { bootstrapCalls += 1; return response(url, 200, tokenSet("initial")); }
-      if (url.endsWith("/refresh")) return response(url, 200, tokenSet("rotated"));
-      return unavailable ? response(url, status, {}) : response(url, 200, { userId: "mobile-user", email: "mobile@example.com", scopes: ["dashboard:read", "paper:trade"] });
-    };
-    const session = new MobileApprovedSession(storage, request);
-    await assert.rejects(session.connectBootstrap("https://cloud.example.com", "bootstrap-token-1234567890"));
-    assert.equal(session.hasMemoryAccess(), false);
-    assert.equal((await storage.getSecret(SESSION_STORAGE_KEY)) !== null, status === 429 || status === 503);
-    if (status === 429 || status === 503) {
-      assert.equal(session.shouldRetryRestore(), true);
-      unavailable = false;
-      const restored = new MobileApprovedSession(storage, request);
-      assert.equal((await restored.restore("https://cloud.example.com")).userId, "mobile-user");
-      assert.equal(bootstrapCalls, 1);
-    }
-  }
-});
+function identityPayload() {
+  return { userId: "mobile-user", email: "mobile@example.com", scopes: ["dashboard:read", "paper:trade"] };
+}
 
-test("mobile runtime persists refresh only, keeps access in memory, and rotates on restore", async () => {
+test("mobile credentials remain process-memory-only and are never written to secure storage", async () => {
   const storage = new MemorySecureStorage();
   const endpoint = "https://cloud.example.com";
-  const first = tokenSet("first");
+  const first = tokenSet("first", { accessExpiresAt: Date.now() + 1000 });
   const second = tokenSet("second");
-  const calls = [];
-  const request = async (url, init) => {
-    calls.push({ url, init });
+  let refreshCalls = 0;
+  const request = async (url) => {
     if (url.endsWith("/v1/mobile/bootstrap")) return response(url, 200, first);
-    if (url.endsWith("/v1/mobile/session/refresh")) return response(url, 200, second);
-    if (url.endsWith("/v1/mobile/me")) return response(url, 200, { userId: "mobile-user", email: "mobile@example.com", scopes: ["dashboard:read", "paper:trade"] });
+    if (url.endsWith("/v1/mobile/session/refresh")) { refreshCalls += 1; return response(url, 200, second); }
+    if (url.endsWith("/v1/mobile/me")) return response(url, 200, identityPayload());
     throw new Error(`unexpected url ${url}`);
   };
 
-  const initial = new MobileApprovedSession(storage, request);
-  const identity = await initial.connectBootstrap(endpoint, "bootstrap-token-1234567890");
-  assert.equal(identity.userId, "mobile-user");
-  assert.equal(await initial.credentialProvider(), first.accessToken);
-  const storedFirst = Buffer.from(await storage.getSecret(SESSION_STORAGE_KEY)).toString("ascii");
-  assert.equal(storedFirst.includes(first.refreshToken), true);
-  assert.equal(storedFirst.includes(first.accessToken), false);
-  initial.clearMemory();
-
-  const restored = new MobileApprovedSession(storage, request);
-  assert.equal((await restored.restore(endpoint)).userId, "mobile-user");
-  assert.equal(await restored.credentialProvider(), second.accessToken);
-  const storedSecond = Buffer.from(await storage.getSecret(SESSION_STORAGE_KEY)).toString("ascii");
-  assert.equal(storedSecond.includes(second.refreshToken), true);
-  assert.equal(storedSecond.includes(first.refreshToken), false);
-  assert.equal(calls.some((call) => call.url.endsWith("/v1/mobile/session/refresh")), true);
-});
-
-test("mobile runtime fails closed without secure storage and clears endpoint-mismatched refresh state", async () => {
-  const endpoint = "https://cloud.example.com";
-  const noStorage = new MobileApprovedSession(null, async () => { throw new Error("network must not be reached"); });
-  await assert.rejects(noStorage.connectBootstrap(endpoint, "bootstrap-token-1234567890"), /secure storage is unavailable/i);
-
-  const storage = new MemorySecureStorage();
-  await storage.setSecret(SESSION_STORAGE_KEY, Buffer.from(JSON.stringify({ endpoint, refreshToken: "refresh-token-1234567890", refreshExpiresAt: Date.now() + 600000 }), "ascii"));
-  const session = new MobileApprovedSession(storage, async () => { throw new Error("network must not be reached"); });
-  assert.equal(await session.restore("https://other.example.com"), null);
+  const session = new MobileApprovedSession(storage, request);
+  assert.equal((await session.connectBootstrap(endpoint, "bootstrap-token-1234567890")).userId, "mobile-user");
+  assert.equal(await session.credentialProvider(), second.accessToken);
+  assert.equal(refreshCalls, 1);
+  assert.equal(storage.setCalls, 0);
+  assert.equal(storage.getCalls, 0);
   assert.equal(await storage.getSecret(SESSION_STORAGE_KEY), null);
+  assert.equal(await storage.getSecret(PAIRING_STORAGE_KEY), null);
 });
 
-test("temporary refresh failure preserves encrypted state and supports a later automatic restore", async () => {
+test("process restart cannot restore a mobile credential", async () => {
   const storage = new MemorySecureStorage();
   const endpoint = "https://cloud.example.com";
-  const initial = tokenSet("initial");
+  const request = async (url) => {
+    if (url.endsWith("/v1/mobile/bootstrap")) return response(url, 200, tokenSet("initial"));
+    if (url.endsWith("/v1/mobile/me")) return response(url, 200, identityPayload());
+    throw new Error(`unexpected url ${url}`);
+  };
+  const first = new MobileApprovedSession(storage, request);
+  await first.connectBootstrap(endpoint, "bootstrap-token-1234567890");
+  assert.equal(first.hasMemoryAccess(), true);
+  const restarted = new MobileApprovedSession(storage, request);
+  assert.equal(await restarted.restore(endpoint), null);
+  assert.equal(restarted.hasMemoryAccess(), false);
+  assert.equal(storage.setCalls, 0);
+});
+
+test("temporary refresh failure retries only inside the same process", async () => {
+  const storage = new MemorySecureStorage();
+  const endpoint = "https://cloud.example.com";
+  const first = tokenSet("first", { accessExpiresAt: Date.now() + 1000 });
   const refreshed = tokenSet("refreshed");
-  await storage.setSecret(SESSION_STORAGE_KEY, Buffer.from(JSON.stringify({ endpoint, refreshToken: initial.refreshToken, refreshExpiresAt: initial.refreshExpiresAt }), "ascii"));
   let attempts = 0;
   const request = async (url) => {
+    if (url.endsWith("/v1/mobile/bootstrap")) return response(url, 200, first);
     if (url.endsWith("/v1/mobile/session/refresh")) {
       attempts += 1;
       return attempts === 1 ? response(url, 429, { error: "RATE_LIMITED" }) : response(url, 200, refreshed);
     }
-    if (url.endsWith("/v1/mobile/me")) return response(url, 200, { userId: "mobile-user", email: "mobile@example.com", scopes: ["dashboard:read", "paper:trade"] });
+    if (url.endsWith("/v1/mobile/me")) return response(url, 200, identityPayload());
     throw new Error(`unexpected url ${url}`);
   };
   const session = new MobileApprovedSession(storage, request);
-  assert.equal(await session.restore(endpoint), null);
+  await session.connectBootstrap(endpoint, "bootstrap-token-1234567890");
+  assert.equal(await session.credentialProvider(), null);
   assert.equal(session.shouldRetryRestore(), true);
-  assert.notEqual(await storage.getSecret(SESSION_STORAGE_KEY), null);
-  assert.equal((await session.restore(endpoint)).userId, "mobile-user");
+  assert.equal(await session.credentialProvider(), refreshed.accessToken);
   assert.equal(session.shouldRetryRestore(), false);
+  assert.equal(storage.setCalls, 0);
 });
 
-test("explicit refresh authorization rejection clears encrypted state and remains fail-closed", async () => {
+test("definitive refresh rejection destroys all in-memory credential authority", async () => {
   const storage = new MemorySecureStorage();
   const endpoint = "https://cloud.example.com";
-  const initial = tokenSet("initial");
-  await storage.setSecret(SESSION_STORAGE_KEY, Buffer.from(JSON.stringify({ endpoint, refreshToken: initial.refreshToken, refreshExpiresAt: initial.refreshExpiresAt }), "ascii"));
-  const session = new MobileApprovedSession(storage, async (url) => response(url, 401, { error: "UNAUTHORIZED" }));
-  assert.equal(await session.restore(endpoint), null);
+  const first = tokenSet("first", { accessExpiresAt: Date.now() + 1000 });
+  const request = async (url) => {
+    if (url.endsWith("/v1/mobile/bootstrap")) return response(url, 200, first);
+    if (url.endsWith("/v1/mobile/session/refresh")) return response(url, 401, { error: "UNAUTHORIZED" });
+    if (url.endsWith("/v1/mobile/me")) return response(url, 200, identityPayload());
+    throw new Error(`unexpected url ${url}`);
+  };
+  const session = new MobileApprovedSession(storage, request);
+  await session.connectBootstrap(endpoint, "bootstrap-token-1234567890");
+  assert.equal(await session.credentialProvider(), null);
+  assert.equal(session.hasMemoryAccess(), false);
   assert.equal(session.shouldRetryRestore(), false);
-  assert.equal(await storage.getSecret(SESSION_STORAGE_KEY), null);
+  assert.equal(storage.setCalls, 0);
 });
 
-test("Android secure storage source uses AndroidKeyStore AES-GCM and never AsyncStorage", () => {
+test("pairing capability is process-memory-only and restart requires a fresh pairing", async () => {
+  const storage = new MemorySecureStorage();
+  const endpoint = "https://cloud.example.com";
+  const deviceId = "nusa-install-device-0001";
+  const expiresAt = Date.now() + 600000;
+  const request = async (url) => {
+    if (url.endsWith("/pairing/start")) return response(url, 201, { requestId: "pairing-request-id-0123456789", verificationCode: "804251", expiresAt, state: "PENDING" });
+    throw new Error(`unexpected url ${url}`);
+  };
+  const session = new MobileApprovedSession(storage, request);
+  const pairing = await session.startPairing(endpoint, deviceId);
+  assert.equal(pairing.verificationCode, "804251");
+  assert.deepEqual(await session.restorePendingPairing(endpoint, deviceId), pairing);
+  assert.equal(storage.setCalls, 0);
+
+  const restarted = new MobileApprovedSession(storage, request);
+  assert.equal(await restarted.restorePendingPairing(endpoint, deviceId), null);
+  assert.equal(storage.setCalls, 0);
+});
+
+test("pairing exchange keeps issued credentials in memory and never persists them", async () => {
+  const storage = new MemorySecureStorage();
+  const endpoint = "https://cloud.example.com";
+  const deviceId = "nusa-install-device-0001";
+  const issued = tokenSet("paired", { deviceId });
+  const request = async (url) => {
+    if (url.endsWith("/pairing/start")) return response(url, 201, { requestId: "pairing-request-id-0123456789", verificationCode: "804251", expiresAt: Date.now() + 600000, state: "PENDING" });
+    if (url.endsWith("/pairing/exchange")) return response(url, 200, issued);
+    if (url.endsWith("/mobile/me")) return response(url, 200, identityPayload());
+    throw new Error(`unexpected url ${url}`);
+  };
+  const session = new MobileApprovedSession(storage, request);
+  const pairing = await session.startPairing(endpoint, deviceId);
+  assert.equal((await session.exchangePairing(endpoint, pairing.requestId, deviceId)).userId, "mobile-user");
+  assert.equal(await session.credentialProvider(), issued.accessToken);
+  assert.equal(await session.restorePendingPairing(endpoint, deviceId), null);
+  assert.equal(storage.setCalls, 0);
+  assert.equal(await storage.getSecret(SESSION_STORAGE_KEY), null);
+  assert.equal(await storage.getSecret(PAIRING_STORAGE_KEY), null);
+});
+
+test("legacy persisted credential material is deleted but never read or restored", async () => {
+  const storage = new MemorySecureStorage();
+  storage.values.set(SESSION_STORAGE_KEY, new Uint8Array([1, 2, 3]));
+  storage.values.set(PAIRING_STORAGE_KEY, new Uint8Array([4, 5, 6]));
+  const session = new MobileApprovedSession(storage, async () => { throw new Error("network must not be reached"); });
+  assert.equal(await session.restore("https://cloud.example.com"), null);
+  assert.equal(storage.values.has(SESSION_STORAGE_KEY), false);
+  assert.equal(storage.values.has(PAIRING_STORAGE_KEY), false);
+  assert.equal(storage.getCalls, 0);
+});
+
+test("mobile approved session source cannot persist credentials", () => {
   const root = path.resolve(__dirname, "..");
-  const native = fs.readFileSync(path.join(root, "apps/mobile/android/app/src/main/java/com/nusa/mobile/NusaSecureStorageModule.java"), "utf8");
-  const adapter = fs.readFileSync(path.join(root, "apps/mobile/src/androidSecureStorage.ts"), "utf8");
-  assert.match(native, /AndroidKeyStore/);
-  assert.match(native, /AES\/GCM\/NoPadding/);
-  assert.match(native, /updateAAD/);
-  assert.match(native, /SharedPreferences/);
-  assert.doesNotMatch(native, /AsyncStorage/);
-  assert.doesNotMatch(adapter, /AsyncStorage/);
-  assert.match(adapter, /bridge\.Platform\.OS !== "android"/);
-  assert.doesNotMatch(adapter, /from "react-native"/);
+  const source = fs.readFileSync(path.join(root, "apps/mobile/src/mobileApprovedSession.ts"), "utf8");
+  assert.match(source, /process-memory-only/);
+  assert.match(source, /destroyLegacyPersistedCredentials/);
+  assert.doesNotMatch(source, /\.setSecret\(/);
+  assert.doesNotMatch(source, /\.getSecret\(/);
+  assert.doesNotMatch(source, /PersistedSession|PersistedPairing|persistPendingPairing|refreshFromStorage/);
 });

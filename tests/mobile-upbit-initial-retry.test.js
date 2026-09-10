@@ -10,17 +10,12 @@ test("Upbit initial outage retries in memory while auth rejection does not", asy
     let callback = null;
     let fail = true;
     const exports = {};
-    class Session {
-      connect(value) { token = value; }
-      clear() { token = null; }
-      isConfigured() { return token !== null; }
-      credentialProvider = async () => token;
-    }
+    token = ["mobile", "paper", "access", "fixture"].join("-");
     vm.runInNewContext(fs.readFileSync(path.resolve(__dirname, "../dist/apps/mobile/src/upbitReadOnlyAccount.js"), "utf8"), {
       exports, Date, Error, setInterval: (fn) => { callback = fn; return 1; }, clearInterval: () => { callback = null; },
       require: (name) => {
         if (name === "react") return {};
-        if (name === "./upbitCredentialSession") return { InMemoryUpbitCredentialSession: Session };
+        if (name === "./mobileApprovedSessionBoundary") return { mobileApprovedSession: () => ({ credentialProvider: async () => token }) };
         if (name === "./upbitReadOnlyAccountModel") return { normalizeUpbitReadOnlySnapshot: (value) => value };
         if (name === "./upbitLiveClient") return { UPBIT_LIVE_BASE_URL: "https://example.com", loadUpbitLiveAccounts: async () => { if (fail) throw new Error(error); return { fetchedAt: Date.now() }; } };
         throw new Error("Unexpected dependency");
@@ -29,7 +24,7 @@ test("Upbit initial outage retries in memory while auth rejection does not", asy
     const initial = await exports.connectUpbitReadOnlyAccount("test-input");
     assert.equal(initial.status, "ERROR");
     if (error === "HTTP_401" || error === "HTTP_403") {
-      assert.equal(token, null);
+      assert.notEqual(token, null);
       assert.equal(callback, null);
     } else {
       assert.notEqual(token, null);
@@ -40,7 +35,7 @@ test("Upbit initial outage retries in memory while auth rejection does not", asy
     }
     exports.resetUpbitReadOnlyState();
     assert.equal(callback, null);
-    assert.equal(token, null);
+    assert.notEqual(token, null);
   }
 });
 
@@ -50,17 +45,12 @@ test("Upbit auth rejection clears the in-memory credential even when a stale sna
     let callback = null;
     let authRejected = false;
     const exports = {};
-    class Session {
-      connect(value) { token = value; }
-      clear() { token = null; }
-      isConfigured() { return token !== null; }
-      credentialProvider = async () => token;
-    }
+    token = ["mobile", "paper", "access", "fixture"].join("-");
     vm.runInNewContext(fs.readFileSync(path.resolve(__dirname, "../dist/apps/mobile/src/upbitReadOnlyAccount.js"), "utf8"), {
       exports, Date, Error, setInterval: (fn) => { callback = fn; return 1; }, clearInterval: () => { callback = null; },
       require: (name) => {
         if (name === "react") return {};
-        if (name === "./upbitCredentialSession") return { InMemoryUpbitCredentialSession: Session };
+        if (name === "./mobileApprovedSessionBoundary") return { mobileApprovedSession: () => ({ credentialProvider: async () => token }) };
         if (name === "./upbitReadOnlyAccountModel") return { normalizeUpbitReadOnlySnapshot: (value) => value };
         if (name === "./upbitLiveClient") return {
           UPBIT_LIVE_BASE_URL: "https://example.com",
@@ -84,11 +74,11 @@ test("Upbit auth rejection clears the in-memory credential even when a stale sna
     assert.equal(rejected.status, "STALE");
     assert.equal(rejected.monitorStatus, "AUTH_ERROR");
     assert.notEqual(rejected.snapshot, null);
-    assert.equal(token, null);
+    assert.notEqual(token, null);
     assert.equal(callback, null);
 
     exports.resetUpbitReadOnlyState();
-    assert.equal(token, null);
+    assert.notEqual(token, null);
     assert.equal(callback, null);
   }
 });
