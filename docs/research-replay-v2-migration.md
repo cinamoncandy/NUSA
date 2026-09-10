@@ -15,11 +15,20 @@ The legacy `FileResearchRunReplaySnapshotStore.save()` preserves immutable histo
 - the unchanged v1 `ResearchRunReplaySnapshot`, including its existing `snapshotSha256`, and
 - a record SHA-256 over the record payload.
 
-`HEAD.json` is the only mutable publication point. It is written to a temporary file, fsynced, and atomically renamed after the new immutable record is durable. A record object that exists without a matching HEAD update is uncommitted and is not returned by the store. The fingerprint hardlink index is published only after HEAD, so an interruption before HEAD cannot expose an uncommitted snapshot through normal lookup.
+`HEAD.json` is the only mutable publication point. It is written to a temporary file, fsynced, and atomically renamed after the new immutable record is durable. A record object that exists without a matching HEAD update is uncommitted and is not returned by the store.
+
+Two derived hardlink indexes are published after HEAD:
+
+- `by-fingerprint/<fingerprint>.json` gives O(1) lookup and is provenance-bound back to the replay fingerprint;
+- `commits/<ordinal>.json` binds each published ordinal to its immutable record and makes a byte-for-byte rollback to an older, otherwise checksum-valid HEAD detectable in O(1).
+
+If the process dies after atomic HEAD publication but before either derived hardlink is published, a restart may reconstruct only the missing marker for the checksum-bound committed chain head. A pre-HEAD orphan record has neither a committed HEAD nor an ordinal marker and remains uncommitted. If HEAD is restored to an older count while the next ordinal marker already exists, the store fails closed as stale rather than silently accepting the rollback.
+
+The ordinal-marker guard is corruption/stale-state detection for the repository persistence contract. It is **not** a cryptographic anti-rollback mechanism against a fully privileged filesystem administrator who can deliberately rewrite or delete every file in the store.
 
 The committed order is the SHA-256 back-chain rooted at `HEAD.chainHeadSha256`; it does not depend on filesystem enumeration order. Full chain verification rejects missing records, ordinal gaps, duplicate replay identities, hash mismatch, corrupted snapshots, or a non-zero chain root.
 
-Steady-state `save()` validates the new snapshot, validates HEAD and the current chain head, performs an O(1) fingerprint-path lookup, writes one new immutable record, replaces the small HEAD, and publishes one fingerprint hardlink. It does **not** scan, semantically replay, copy, rewrite, or sort the historical archive.
+Steady-state `save()` validates the new snapshot, validates HEAD and the current chain head, performs O(1) fingerprint/ordinal marker checks, writes one new immutable record, replaces the small HEAD, and publishes the two derived hardlinks. It does **not** scan, semantically replay, copy, rewrite, or sort the historical archive.
 
 ## Explicit legacy migration
 
@@ -39,22 +48,24 @@ If the final v2 root already exists, a repeated migration is idempotent: it vali
 
 Before any Oracle migration, attach to #1822:
 
-- focused adversarial test results,
-- full exact-head CI/Audit results,
-- benchmark output from `node scripts/benchmark-research-replay-v2.js`,
-- a large-fixture or copied-production-shape benchmark showing before/after save latency and filesystem I/O,
-- legacy-v2 ordered fingerprint/snapshot-hash equivalence,
-- interrupted-migration resume evidence,
-- second-run idempotence evidence, and
+- focused adversarial test results, including corrupt/truncated record, checksum-invalid HEAD, byte-for-byte valid stale-HEAD rollback, post-HEAD marker repair, duplicate identity, ambiguous latest, and interrupted migration cases;
+- full exact-head CI/Audit results;
+- benchmark output from `node scripts/benchmark-research-replay-v2.js`;
+- a large-fixture or copied-production-shape benchmark showing before/after save latency and filesystem I/O;
+- legacy-v2 ordered fingerprint/snapshot-hash equivalence;
+- interrupted-migration resume evidence;
+- second-run idempotence evidence; and
 - a read-only verification of the migrated v2 tree.
 
-For larger synthetic benchmarks set `NUSA_REPLAY_BENCH_SNAPSHOTS`; the benchmark prints measured v1/v2 duration, read bytes, copied bytes and write bytes. Timing is observational only; no performance claim should be made from a single noisy runner.
+For larger synthetic benchmarks set `NUSA_REPLAY_BENCH_SNAPSHOTS`. The benchmark reports API-level explicit read/write payload bytes, `copyFileSync` source bytes, an estimated data-movement total, and wall-clock duration. The byte counters are not physical-disk-sector measurements, and timing is observational only; no production latency claim should be made from one noisy hosted runner or a synthetic fixture.
 
 ## Rollback / recovery
 
 The v1 archive remains unchanged throughout migration and is the rollback source of truth until an explicit later rollout retires it. If v2 validation fails before cutover, do not repair or delete v1 evidence; discard or quarantine only the uncommitted/staging v2 tree and continue using the legacy reader.
 
-After any future cutover, rollback is configuration/reader selection back to the untouched v1 archive. Do not synthesize missing snapshots, compact the legacy archive, or rewrite corrupted committed v2 objects. Any checksum, chain, migration-marker, ordinal, or fingerprint mismatch is fail-closed and requires operator review.
+After any future cutover, rollback is configuration/reader selection back to the untouched v1 archive. Do not synthesize missing snapshots, compact the legacy archive, or rewrite corrupted committed v2 objects. Any checksum, chain, commit-marker, stale-HEAD, migration-marker, ordinal, or fingerprint mismatch is fail-closed and requires operator review.
+
+A missing current ordinal marker or fingerprint link may be reconstructed only when it is derivable from the checksum-valid committed HEAD and its immutable chain-head record. A conflicting or future marker is not repairable automatically.
 
 ## Authority boundary
 
