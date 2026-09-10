@@ -87,6 +87,38 @@ months across three majors cannot tell the difference between this signal and
 none, and that the shape of what looked positive — fat tails, sub-50% win rates,
 sign reversal between halves — is the shape of noise rather than of edge.
 
+## Strengthened with longer history
+
+The four-month window above was itself too short, in a way the window could not
+reveal. Re-measured over 12,000 hourly candles per market (2025-04-27 to
+2026-09-10, ~500 days) across five KRW majors, with a time-ordered holdout of the
+newest 30%. The rule was fixed before any of it ran, so nothing is fitted on the
+older segment.
+
+In-sample, the older ~350 days:
+
+| Market | IC | `STRONG_UP` median | Share up |
+|---|---|---|---|
+| BTC | +0.0151 | −0.069% | 0.479 |
+| ETH | +0.0467 | −0.120% | 0.479 |
+| XRP | −0.0352 | −0.364% | 0.440 |
+| SOL | −0.0012 | −0.216% | 0.469 |
+| ADA | −0.0172 | −0.510% | 0.425 |
+| **mean** | **+0.0016** | **−0.256%** | **0.458** |
+
+Mean IC is indistinguishable from zero and three of five are negative. The
+`STRONG_UP` bucket has a **negative median in five markets out of five**, and
+loses more often than it wins in **five out of five**. Its positive means, where
+they occur, are carried entirely by tails.
+
+The holdout looks better everywhere — mean IC +0.0455, all five positive. That
+uniformity is the tell rather than a validation: a real forecast does not
+strengthen out-of-sample in every market at once. It is a regime.
+
+And the four-month measurement recorded above sits INSIDE that holdout period.
+The encouraging first read was measuring the favourable regime, and could not
+have known it from within.
+
 ## Consequences
 
 `calibrationStatus` staying `UNVERIFIED` in the AI view is now known to be

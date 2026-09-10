@@ -144,8 +144,37 @@ function analyse(closes, horizon) {
   };
 }
 
+/**
+ * A time-ordered holdout. The rule under test was fixed before any of this ran -- the signal as
+ * implemented, the STRONG_UP bucket, a 24h horizon -- so there is nothing to fit on the older
+ * segment and the newer one is a genuine out-of-sample read rather than a second look.
+ */
+function holdoutReport(closes, horizon, holdoutFraction) {
+  const cut = Math.floor(closes.length * (1 - holdoutFraction));
+  const segment = (slice, label) => {
+    const analysis = analyse(slice, horizon);
+    const strongUp = analysis.buckets.find((bucket) => bucket.bucket === "STRONG_UP") ?? null;
+    return {
+      label,
+      candles: slice.length,
+      effectiveIndependentSamples: analysis.effectiveIndependentSamples,
+      informationCoefficient: analysis.informationCoefficient,
+      unconditionalForwardPercent: analysis.unconditionalForwardPercent,
+      strongUp: strongUp == null ? null : {
+        count: strongUp.count,
+        meanPercent: strongUp.meanForwardPercent,
+        medianPercent: strongUp.medianForwardPercent,
+        excessPercent: strongUp.excessOverBaselinePercent,
+        shareUp: strongUp.shareUp
+      }
+    };
+  };
+  return { inSample: segment(closes.slice(0, cut), "in-sample (older)"), holdout: segment(closes.slice(cut), "holdout (newer)") };
+}
+
 async function main() {
   const markets = argument("markets", "KRW-BTC,KRW-ETH,KRW-XRP,KRW-SOL,KRW-DOGE").split(",");
+  const holdoutFraction = Number(argument("holdout", "0"));
   const wanted = Number(argument("candles", "5000"));
   const horizons = argument("horizons", "8,24").split(",").map(Number);
 
@@ -165,6 +194,9 @@ async function main() {
         const found = analyse(slice, horizon).buckets.find((bucket) => bucket.bucket === "STRONG_UP");
         return found == null ? null : { n: found.count, excess: found.excessOverBaselinePercent, shareUp: found.shareUp };
       };
+      if (holdoutFraction > 0 && holdoutFraction < 1) {
+        entry.horizons[`${horizon}h`].holdout = holdoutReport(closes, horizon, holdoutFraction);
+      }
       entry.horizons[`${horizon}h`].strongUpSplitHalf = {
         firstHalf: half(closes.slice(0, cut)),
         secondHalf: half(closes.slice(cut))
