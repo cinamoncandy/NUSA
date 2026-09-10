@@ -22,6 +22,7 @@ export class PipelineOrchestratorV10 {
       const module = modules[stage];
       if (module.stage !== stage) throw new Error(`module stage mismatch: expected ${stage}, received ${module.stage}`);
       if (module.version !== "10") throw new Error(`${stage} module version must be 10`);
+      if (module.tier !== "10X-S") throw new Error(`${stage} module must be certified for 10X-S orchestration`);
     }
   }
 
@@ -36,7 +37,7 @@ export class PipelineOrchestratorV10 {
       });
       const result = await runLevel10Module(this.modules[stage], value, stageContext);
       evidence.push(result.evidence);
-      if (result.status !== "COMPLETED") {
+      if (result.status !== "COMPLETED" || result.evidence.moduleTier !== "10X-S") {
         return Object.freeze({
           status: "FAILED_CLOSED",
           haltedAt: stage,
