@@ -15,10 +15,19 @@ function parsePositiveInt(name, fallback) {
   return value;
 }
 
+function minutesBefore(iso, minutes) {
+  const millis = Date.parse(iso);
+  if (!Number.isFinite(millis)) throw new Error("generatedAt must be a valid ISO timestamp");
+  return new Date(millis - minutes * 60_000).toISOString();
+}
+
 function candidate(id, generatedAt) {
   const market = "KRW-BTC";
   const datasetId = `bench-ds-${id}`;
   const contentSha256 = "c".repeat(64);
+  const specificationGeneratedAt = minutesBefore(generatedAt, 60);
+  const evaluationStartedAt = minutesBefore(generatedAt, 55);
+  const evaluationEndedAt = minutesBefore(generatedAt, 30);
   const windows = Array.from({ length: 4 }, () => ({
     testResult: {
       metrics: { totalReturn: 0.03, benchmarkReturn: 0.02, excessReturn: 0.01, outperformance: 0.01 },
@@ -56,8 +65,8 @@ function candidate(id, generatedAt) {
     candidateSpecification: {
       schemaVersion: 1, candidateId: id, familyId: "sma-crossover", lineageId: "sma-crossover-v1",
       parameters: {}, codeSha: "a".repeat(40), datasetId, datasetContentSha256: contentSha256,
-      costModelVersion: "benchmark-cost-v1", generatedAt,
-      evaluationStartedAt: generatedAt, evaluationEndedAt: generatedAt,
+      costModelVersion: "benchmark-cost-v1", generatedAt: specificationGeneratedAt,
+      evaluationStartedAt, evaluationEndedAt,
     },
   };
 }
