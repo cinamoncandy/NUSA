@@ -11,7 +11,7 @@ current_volatility_compression_research_family:
   work_order: WO-ISSUE-1813-VOLATILITY-COMPRESSION-RESEARCH-FAMILY
   status: IMPLEMENTED_LOCAL
   branch: research/volatility-compression-1813
-  base_sha: 724588f266a96806f9db7e587c27f5701c269c6d
+  base_sha: 4fe488ebfc7706406a86f29185e4b110fb9abec4
   scope: "Frozen issue #1813 volatility-compression breakout 3x3 family; implementation and tests only, no canonical OOS."
   evaluation: "NOT_RUN_PROHIBITED: no real-market/OOS evaluation and no market-data fetch."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
