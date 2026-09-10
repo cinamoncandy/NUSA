@@ -66,6 +66,17 @@ describe("buildResearchFeedbackDigest", () => {
     assert.equal(family.failureRatio, 0.5);
   });
 
+  it("counts abstentions in the failure ratio even while history is below the learning minimum", () => {
+    const family = buildResearchFeedbackDigest(ledgerOf(
+      ["momentum", "COMPLETED"],
+      ["momentum", "ABSTAINED"],
+    )).families[0]!;
+    assert.equal(family.priorTrialCount, 2);
+    assert.equal(family.failureRatio, 0.5);
+    assert.equal(family.priorAdjustment, 0);
+    assert.ok(family.reasons.includes("INSUFFICIENT_PRIOR_HISTORY"));
+  });
+
   it("never lets a trial influence the prior applied to itself", () => {
     const ledger = ledgerOf(...Array.from({ length: 6 }, () => ["momentum", "COMPLETED"] as const));
     // Evaluating at sequence 1 means no record precedes it: nothing can justify itself.

@@ -1,5 +1,6 @@
 "use strict";
 
+const path = require("node:path");
 const {
   evaluateUpbitDailyCandleFreshness,
   mapUpbitDayCandlesToResearchCandles
@@ -20,10 +21,13 @@ const { buildResearchHypothesis } = require("../dist/apps/desktop/src/cloud/rese
 const { createResearchHypothesis } = require("../dist/packages/contracts/src/researchHypothesisContract.js");
 const { buildResearchRunTimeline } = require("../dist/apps/desktop/src/cloud/researchRunTimeline.js");
 const { buildResearchRunProvenancePlan } = require("../dist/apps/desktop/src/cloud/researchRunFactory.js");
+const { buildInvestmentLearningEvidence, orderResearchFamiliesByLearning } = require("../dist/apps/desktop/src/cloud/investmentLearningEvidence.js");
+const { FileResearchInvestmentLearningLedgerStore } = require("../dist/apps/desktop/src/cloud/researchInvestmentLearningLedger.js");
 
 const SMA_FAMILY_ID = "sma-crossover";
 const RSI_FAMILY_ID = "rsi-mean-reversion";
 const DONCHIAN_FAMILY_ID = "donchian-breakout";
+const SUPPORTED_RESEARCH_FAMILIES = Object.freeze([SMA_FAMILY_ID, RSI_FAMILY_ID, DONCHIAN_FAMILY_ID]);
 const STRATEGY_FAMILY_ID = SMA_FAMILY_ID; // legacy export/default identity
 const MARKET = "KRW-BTC";
 const RESEARCH_MARKET_SET_VERSION = "upbit-public-daily-2000-v2";
@@ -112,8 +116,26 @@ const DONCHIAN_PARAMETER_NEIGHBORHOOD = Object.freeze(
 
 function researchStrategyFamily(value = process.env.NUSA_RESEARCH_STRATEGY_FAMILY) {
   const normalized = String(value ?? SMA_FAMILY_ID).trim() || SMA_FAMILY_ID;
-  if (![SMA_FAMILY_ID, RSI_FAMILY_ID, DONCHIAN_FAMILY_ID].includes(normalized)) throw new Error(`unsupported NUSA_RESEARCH_STRATEGY_FAMILY: ${normalized}`);
+  if (!SUPPORTED_RESEARCH_FAMILIES.includes(normalized)) throw new Error(`unsupported NUSA_RESEARCH_STRATEGY_FAMILY: ${normalized}`);
   return normalized;
+}
+
+function researchLearningLedgerPath(env = process.env) {
+  const explicit = String(env.NUSA_RESEARCH_LEARNING_LEDGER_PATH || "").trim();
+  if (explicit) {
+    if (explicit === ":memory:" || !path.isAbsolute(explicit)) throw new Error("NUSA_RESEARCH_LEARNING_LEDGER_PATH must be an absolute durable path");
+    return path.resolve(explicit);
+  }
+  const replayPath = String(env.NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH || "").trim();
+  if (replayPath) {
+    if (replayPath === ":memory:" || !path.isAbsolute(replayPath)) throw new Error("NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH must be an absolute durable path");
+    return path.join(path.dirname(path.resolve(replayPath)), "research-investment-learning.jsonl");
+  }
+  const stateDbPath = String(env.NUSA_CLOUD_STATE_DB_PATH || "").trim();
+  if (!stateDbPath || stateDbPath === ":memory:" || !path.isAbsolute(stateDbPath)) {
+    throw new Error("investment learning requires an explicit ledger path, durable Research replay path, or durable Cloud state path");
+  }
+  return path.join(path.dirname(path.resolve(stateDbPath)), "research-investment-learning.jsonl");
 }
 
 function candidateIdFor(familyId, parameters) {
@@ -518,6 +540,15 @@ async function main() {
     }
   );
   const factoryQualification = qualifyResearchFactoryRun(league);
+  const learningStore = new FileResearchInvestmentLearningLedgerStore(researchLearningLedgerPath());
+  const cumulativeLearningLedger = learningStore.appendRun(league, factoryQualification);
+  const investmentLearningEvidence = buildInvestmentLearningEvidence({
+    ledger: cumulativeLearningLedger,
+    standing: league.standing,
+    declaredFamilyIds: SUPPORTED_RESEARCH_FAMILIES,
+    evaluatedSequence: cumulativeLearningLedger.length + 1
+  });
+  const nextResearchAttention = orderResearchFamiliesByLearning(SUPPORTED_RESEARCH_FAMILIES, investmentLearningEvidence);
 
   const oos = result.walkForwardResult.combinedOutOfSampleMetrics;
   console.log(JSON.stringify({
@@ -616,6 +647,14 @@ async function main() {
         researchWeight: entry.researchWeight
       }))
     },
+    investmentLearning: {
+      status: "ADVISORY_ONLY",
+      appliesTo: "NEXT_RESEARCH_CYCLE_ATTENTION_ONLY",
+      automaticFamilySelectionAllowed: false,
+      qualificationThresholdMutationAllowed: false,
+      evidence: investmentLearningEvidence,
+      nextResearchAttention
+    },
     warnings: result.warnings
   }, null, 2));
 }
@@ -633,7 +672,9 @@ module.exports = {
   SMA_PARAMETER_NEIGHBORHOOD,
   RSI_PARAMETER_NEIGHBORHOOD,
   DONCHIAN_PARAMETER_NEIGHBORHOOD,
+  SUPPORTED_RESEARCH_FAMILIES,
   researchStrategyFamily,
+  researchLearningLedgerPath,
   fetchResearchCandles,
   researchCandleCount,
   buildParameterRobustnessRequest,

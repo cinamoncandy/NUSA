@@ -1,0 +1,244 @@
+import { createHash } from "node:crypto";
+import {
+  attributeCandidateFailures,
+  type CandidateFailureAttributionPolicy,
+  type CandidateFailureCategory,
+} from "./candidateFailureAttribution";
+import {
+  buildResearchFeedbackDigest,
+  type ResearchFeedbackPolicy,
+} from "./researchFeedbackDigest";
+import type { LeagueStanding } from "./nusaLeague";
+import type { ResearchTrialRecord } from "./researchTrialLedger";
+
+export type InvestmentLearningGuidance = "EXPLORE" | "HOLD" | "DEPRIORITIZE";
+
+export interface InvestmentLearningFamilyEvidence {
+  readonly familyId: string;
+  readonly guidance: InvestmentLearningGuidance;
+  readonly priorTrialCount: number;
+  readonly historicalFailureRatio: number;
+  readonly boundedPriorAdjustment: number;
+  readonly currentCandidateCount: number;
+  readonly currentFailureCategories: readonly CandidateFailureCategory[];
+  readonly failureCategoryCounts: Readonly<Partial<Record<CandidateFailureCategory, number>>>;
+  readonly recurringFailureCategories: readonly CandidateFailureCategory[];
+  readonly insufficientEvidenceFor: readonly CandidateFailureCategory[];
+  readonly reasons: readonly string[];
+}
+
+export interface InvestmentLearningEvidence {
+  readonly schemaVersion: 1;
+  readonly evidenceMode: "SEALED_RESEARCH_HISTORY_AND_CURRENT_LEAGUE";
+  readonly ledgerTerminalHash: string;
+  readonly evaluatedSequence: number;
+  readonly leagueGeneratedAt: string;
+  readonly leagueSourceDatasetIds: readonly string[];
+  readonly families: readonly InvestmentLearningFamilyEvidence[];
+  readonly evidenceFingerprintSha256: string;
+  readonly authority: Readonly<{
+    researchAdvisoryOnly: true;
+    qualificationMutationAllowed: false;
+    scoreMutationAllowed: false;
+    portfolioWeightMutationAllowed: false;
+    capitalMutationAllowed: false;
+    executionAuthority: "NONE";
+    liveAuthority: "NONE";
+    productionMutationAllowed: false;
+    aiAuthority: "ZERO_AUTHORITY";
+  }>;
+}
+
+export class InvestmentLearningEvidenceError extends Error {
+  constructor(readonly code: string, message: string) {
+    super(message);
+    this.name = "InvestmentLearningEvidenceError";
+  }
+}
+
+const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
+const sortedUnique = <T extends string>(values: readonly T[]): readonly T[] => freeze([...new Set(values)].sort()) as readonly T[];
+
+function canonical(value: unknown): string {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return JSON.stringify(value);
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new InvestmentLearningEvidenceError("NON_FINITE_EVIDENCE", "investment learning evidence contains a non-finite number");
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (typeof value === "object") {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
+      .join(",")}}`;
+  }
+  throw new InvestmentLearningEvidenceError("UNSUPPORTED_EVIDENCE", "investment learning evidence contains an unsupported value");
+}
+
+const sha256 = (value: unknown): string => createHash("sha256").update(canonical(value), "utf8").digest("hex");
+
+function validateStanding(standing: LeagueStanding): void {
+  if (standing.schemaVersion !== 1) throw new InvestmentLearningEvidenceError("UNSUPPORTED_LEAGUE_SCHEMA", "League standing schema is unsupported");
+  if (!Number.isFinite(Date.parse(standing.generatedAt))) throw new InvestmentLearningEvidenceError("INVALID_LEAGUE_TIME", "League generatedAt is invalid");
+  const candidateIds = new Set<string>();
+  const familyIds = new Set<string>();
+  for (const entry of standing.entries) {
+    if (!entry.id.trim() || !entry.familyId.trim()) throw new InvestmentLearningEvidenceError("INVALID_LEAGUE_IDENTITY", "League candidate and family identity are required");
+    if (candidateIds.has(entry.id)) throw new InvestmentLearningEvidenceError("DUPLICATE_CANDIDATE_ID", `League candidate ${entry.id} is duplicated`);
+    candidateIds.add(entry.id);
+    familyIds.add(entry.familyId);
+    for (const value of Object.values(entry.components)) {
+      if (value != null && typeof value === "number" && !Number.isFinite(value)) {
+        throw new InvestmentLearningEvidenceError("NON_FINITE_LEAGUE_EVIDENCE", `League candidate ${entry.id} contains non-finite evidence`);
+      }
+    }
+  }
+  if (standing.coverage.candidateCount !== standing.entries.length
+    || standing.coverage.eligibleCount !== standing.entries.filter((entry) => entry.eligible).length
+    || standing.coverage.familyCount !== familyIds.size) {
+    throw new InvestmentLearningEvidenceError("LEAGUE_COVERAGE_MISMATCH", "League coverage does not match entries");
+  }
+  if (standing.provenance.sourceDatasetIds.some((id) => !id.trim())) {
+    throw new InvestmentLearningEvidenceError("INVALID_DATASET_PROVENANCE", "League dataset provenance contains an empty identity");
+  }
+}
+
+function guidanceFor(input: {
+  readonly priorTrialCount: number;
+  readonly minimumPriorTrials: number;
+  readonly boundedPriorAdjustment: number;
+  readonly recurringFailureCategories: readonly CandidateFailureCategory[];
+}): InvestmentLearningGuidance {
+  if (input.priorTrialCount < input.minimumPriorTrials) return "EXPLORE";
+  if (input.boundedPriorAdjustment < 0 && input.recurringFailureCategories.length > 0) return "DEPRIORITIZE";
+  return "HOLD";
+}
+
+/**
+ * Composes the existing sealed-history feedback and League failure attribution into one bounded
+ * investment-learning record. Positive history is intentionally never promoted into a higher
+ * qualification score or stronger execution authority: it can only remain HOLD. Under-explored
+ * families may move earlier in research attention, while repeatedly weak families may move later.
+ * All canonical qualification gates remain untouched.
+ */
+export function buildInvestmentLearningEvidence(input: {
+  readonly ledger: readonly ResearchTrialRecord[];
+  readonly standing: LeagueStanding;
+  readonly evaluatedSequence?: number;
+  readonly declaredFamilyIds?: readonly string[];
+  readonly feedbackPolicy?: Partial<ResearchFeedbackPolicy>;
+  readonly failurePolicy?: Partial<CandidateFailureAttributionPolicy>;
+}): InvestmentLearningEvidence {
+  validateStanding(input.standing);
+  const feedback = buildResearchFeedbackDigest(input.ledger, {
+    evaluatedSequence: input.evaluatedSequence,
+    policy: input.feedbackPolicy,
+  });
+  const attributions = attributeCandidateFailures(input.standing, input.failurePolicy);
+  const declaredFamilyIds = input.declaredFamilyIds ?? freeze([]);
+  if (new Set(declaredFamilyIds).size !== declaredFamilyIds.length || declaredFamilyIds.some((id) => !id.trim())) {
+    throw new InvestmentLearningEvidenceError("INVALID_DECLARED_FAMILIES", "declared research families must be unique non-empty identities");
+  }
+
+  const currentByFamily = new Map<string, typeof attributions>();
+  for (const item of attributions) {
+    const current = currentByFamily.get(item.familyId) ?? freeze([]);
+    currentByFamily.set(item.familyId, freeze([...current, item]));
+  }
+  const feedbackByFamily = new Map(feedback.families.map((family) => [family.familyId, family] as const));
+  const familyIds = sortedUnique([
+    ...declaredFamilyIds,
+    ...feedback.families.map((family) => family.familyId),
+    ...input.standing.entries.map((entry) => entry.familyId),
+  ]);
+
+  const families = familyIds.map((familyId) => {
+    const historical = feedbackByFamily.get(familyId);
+    const current = currentByFamily.get(familyId) ?? freeze([]);
+    const currentFailureCategories = sortedUnique(current.flatMap((item) => item.categories));
+    const failureCategoryCounts = Object.fromEntries(currentFailureCategories.map((category) => [
+      category,
+      current.filter((item) => item.categories.includes(category)).length,
+    ])) as Partial<Record<CandidateFailureCategory, number>>;
+    const recurringFailureCategories = current.length >= 2
+      ? sortedUnique(currentFailureCategories.filter((category) => failureCategoryCounts[category] === current.length))
+      : freeze([]) as readonly CandidateFailureCategory[];
+    const insufficientEvidenceFor = sortedUnique(current.flatMap((item) => item.insufficientEvidenceFor));
+    const priorTrialCount = historical?.priorTrialCount ?? 0;
+    const historicalFailureRatio = historical?.failureRatio ?? 0;
+    const boundedPriorAdjustment = historical?.priorAdjustment ?? 0;
+    const guidance = guidanceFor({
+      priorTrialCount,
+      minimumPriorTrials: feedback.policy.minimumPriorTrials,
+      boundedPriorAdjustment,
+      recurringFailureCategories,
+    });
+    const reasons: string[] = ["CANONICAL_GATES_UNCHANGED", "POSITIVE_HISTORY_CANNOT_AUTO_PROMOTE"];
+    if (guidance === "EXPLORE") reasons.push("INSUFFICIENT_SEALED_HISTORY_EXPLORE_FOR_EVIDENCE");
+    if (guidance === "DEPRIORITIZE") reasons.push("NEGATIVE_SEALED_HISTORY_WITH_RECURRING_CURRENT_FAILURE_EVIDENCE");
+    if (guidance === "HOLD") reasons.push("NO_BOUNDED_REASON_TO_CHANGE_RESEARCH_ATTENTION");
+    if (current.length === 0) reasons.push("NO_CURRENT_LEAGUE_CANDIDATES_FOR_FAMILY");
+    if (currentFailureCategories.length > 0) reasons.push(...currentFailureCategories.map((category) => `CURRENT_${category}`));
+    if (recurringFailureCategories.length > 0) reasons.push("RECURRING_FAILURE_MECHANISM_ACROSS_CURRENT_CANDIDATES");
+    if (insufficientEvidenceFor.length > 0) reasons.push("CURRENT_FAILURE_ATTRIBUTION_INCOMPLETE");
+    return freeze({
+      familyId,
+      guidance,
+      priorTrialCount,
+      historicalFailureRatio,
+      boundedPriorAdjustment,
+      currentCandidateCount: current.length,
+      currentFailureCategories,
+      failureCategoryCounts: freeze(failureCategoryCounts),
+      recurringFailureCategories,
+      insufficientEvidenceFor,
+      reasons: sortedUnique(reasons),
+    });
+  });
+
+  const authority = freeze({
+    researchAdvisoryOnly: true as const,
+    qualificationMutationAllowed: false as const,
+    scoreMutationAllowed: false as const,
+    portfolioWeightMutationAllowed: false as const,
+    capitalMutationAllowed: false as const,
+    executionAuthority: "NONE" as const,
+    liveAuthority: "NONE" as const,
+    productionMutationAllowed: false as const,
+    aiAuthority: "ZERO_AUTHORITY" as const,
+  });
+  const body = {
+    schemaVersion: 1 as const,
+    evidenceMode: "SEALED_RESEARCH_HISTORY_AND_CURRENT_LEAGUE" as const,
+    ledgerTerminalHash: feedback.ledgerTerminalHash,
+    evaluatedSequence: feedback.evaluatedSequence,
+    leagueGeneratedAt: new Date(Date.parse(input.standing.generatedAt)).toISOString(),
+    leagueSourceDatasetIds: sortedUnique(input.standing.provenance.sourceDatasetIds),
+    families: freeze(families),
+    authority,
+  };
+  return freeze({ ...body, evidenceFingerprintSha256: sha256(body) });
+}
+
+/**
+ * Applies learning only to the order in which already-declared families receive research
+ * attention. It never adds/removes a family and never changes candidate parameters or gates.
+ */
+export function orderResearchFamiliesByLearning(
+  declaredFamilyIds: readonly string[],
+  evidence: InvestmentLearningEvidence,
+): readonly string[] {
+  if (new Set(declaredFamilyIds).size !== declaredFamilyIds.length || declaredFamilyIds.some((id) => !id.trim())) {
+    throw new InvestmentLearningEvidenceError("INVALID_DECLARED_FAMILIES", "declared research families must be unique non-empty identities");
+  }
+  const byFamily = new Map(evidence.families.map((family) => [family.familyId, family] as const));
+  for (const familyId of declaredFamilyIds) {
+    if (!byFamily.has(familyId)) throw new InvestmentLearningEvidenceError("MISSING_FAMILY_LEARNING_EVIDENCE", `learning evidence is missing family ${familyId}`);
+  }
+  const priority: Readonly<Record<InvestmentLearningGuidance, number>> = freeze({ EXPLORE: 0, HOLD: 1, DEPRIORITIZE: 2 });
+  return freeze([...declaredFamilyIds].sort((left, right) => {
+    const a = byFamily.get(left)!;
+    const b = byFamily.get(right)!;
+    return priority[a.guidance] - priority[b.guidance] || left.localeCompare(right);
+  }));
+}

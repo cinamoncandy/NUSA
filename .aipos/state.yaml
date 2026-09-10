@@ -7,6 +7,13 @@ current_mobile_self_service_paper_upbit_readonly:
   local_validation: "Upbit relay 19/19 PASS, including real handler 405 assertions for non-GET account and order routes; mobile/source contracts 12/12 PASS; changed non-TSX TypeScript syntax checks PASS; direct mobile lint PASS (132 files). The baseline client-revoke recovery and compiled pairing/session tests remain unrun because this checkout has no emitted dist and direct TypeScript compiler children entered uninterruptible shared-VM I/O wait."
   remaining: "Run the baseline client-revoke recovery plus compiled pairing/session regressions and repository typecheck in a stable Node 24 environment; configure NUSA_MOBILE_INTROSPECTION_ORIGIN to the Cloud loopback runtime before deployment."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY
+current_bounded_investment_learning:
+  work_order: WO-ISSUE-1820-BOUNDED-INVESTMENT-LEARNING
+  status: IMPLEMENTED_LOCAL
+  branch: research/investment-learning-1820
+  base_sha: f22897c1f11f172e3abbcc4b81aae140e53262fa
+  scope: "Bounded sealed-history investment learning that orders Research attention without changing qualification, scores, capital, or execution authority."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_first_read_connection_recovery:
   work_order: WO-20260908-CONNECTION-FIRST-READ-RECOVERY
   status: IMPLEMENTED_LOCAL

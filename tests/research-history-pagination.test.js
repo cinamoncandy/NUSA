@@ -1,12 +1,15 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const path = require("node:path");
 const {
   RESEARCH_MARKET_SET_VERSION,
   RESEARCH_MARKETS,
   SMA_PARAMETER_NEIGHBORHOOD,
   RSI_PARAMETER_NEIGHBORHOOD,
   DONCHIAN_PARAMETER_NEIGHBORHOOD,
+  SUPPORTED_RESEARCH_FAMILIES,
   researchStrategyFamily,
+  researchLearningLedgerPath,
   fetchResearchCandles,
   researchCandleCount,
   buildParameterRobustnessRequest
@@ -88,6 +91,16 @@ test("Donchian candidate neighborhood is the immutable precommitted five-period 
   assert.ok(Object.isFrozen(DONCHIAN_PARAMETER_NEIGHBORHOOD));
   assert.ok(DONCHIAN_PARAMETER_NEIGHBORHOOD.every(Object.isFrozen));
   assert.equal(researchStrategyFamily("donchian-breakout"), "donchian-breakout");
+  assert.deepEqual(SUPPORTED_RESEARCH_FAMILIES, ["sma-crossover", "rsi-mean-reversion", "donchian-breakout"]);
+  assert.equal(
+    researchLearningLedgerPath({ NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH: path.resolve("/var/lib/nusa/research-replay-snapshots.json") }),
+    path.resolve("/var/lib/nusa/research-investment-learning.jsonl")
+  );
+  assert.equal(
+    researchLearningLedgerPath({ NUSA_CLOUD_STATE_DB_PATH: path.resolve("/var/lib/nusa/state.sqlite") }),
+    path.resolve("/var/lib/nusa/research-investment-learning.jsonl")
+  );
+  assert.throws(() => researchLearningLedgerPath({ NUSA_RESEARCH_LEARNING_LEDGER_PATH: "relative.jsonl" }), /absolute durable path/);
 });
 
 test("fast SMA cells are covered by a predeclared robustness reference without relaxing gates", () => {

@@ -1,0 +1,30 @@
+id: WO-ISSUE-1820-BOUNDED-INVESTMENT-LEARNING
+title: Bounded investment learning over sealed Research evidence
+status: IMPLEMENTED_LOCAL
+authority_impact: none
+branch: research/investment-learning-1820
+base_sha: f22897c1f11f172e3abbcc4b81aae140e53262fa
+issue: 1820
+scope: "Compose existing sealed Research feedback and League failure attribution into deterministic next-cycle Research-attention guidance."
+constraints:
+  canonical_research_engine: existing Research Factory / NUSA League
+  historical_feedback: buildResearchFeedbackDigest
+  failure_attribution: attributeCandidateFailures
+  market_data_fetch: prohibited
+  qualification_threshold_changes: prohibited
+  league_score_changes: prohibited
+  portfolio_weight_changes: prohibited
+  capital_or_execution_authority: prohibited
+  positive_history_auto_promotion: prohibited
+  history_rewrite: prohibited
+validation:
+  focused_typescript: "PENDING"
+  focused_investment_learning_tests: "PENDING"
+  research_architecture: "PASS"
+  repository_architecture_truth: "PASS"
+  safety_architecture: "PASS"
+  ai_zero_authority: "PASS"
+  aipos_work_order_provenance: "PENDING"
+  canonical_oos_or_market_fetch: "NOT_RUN_BY_DESIGN"
+safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+next_permitted_action: "Complete focused validation, exact-head PR CI/Audit, then merge only through canonical Release authority."

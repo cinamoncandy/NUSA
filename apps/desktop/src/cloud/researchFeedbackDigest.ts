@@ -115,7 +115,7 @@ function familyPrior(
   const reasons: string[] = [];
   if (priorTrialCount < policy.minimumPriorTrials) {
     // Too little sealed history to say anything: neutral, and say why.
-    return { failureRatio: priorTrialCount === 0 ? 0 : (failedCount + rejectedCount) / priorTrialCount, priorAdjustment: 0, reasons: sortedUnique(["INSUFFICIENT_PRIOR_HISTORY"]) };
+    return { failureRatio: priorTrialCount === 0 ? 0 : (failedCount + rejectedCount + abstainedCount) / priorTrialCount, priorAdjustment: 0, reasons: sortedUnique(["INSUFFICIENT_PRIOR_HISTORY"]) };
   }
 
   const failureRatio = (failedCount + rejectedCount + abstainedCount) / priorTrialCount;
