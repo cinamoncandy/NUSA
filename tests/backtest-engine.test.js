@@ -34,7 +34,7 @@ test("backtest reuses Paper accounting and records replayable causal decisions",
   assert.deepEqual(first.decisions.map((decision) => decision.signal.type), ["HOLD", "BUY", "HOLD"]);
   assert.equal(first.decisions[0].signal.reason, "awaiting-prior-observation");
   assert.equal(first.decisions[1].timestamp, points[1].timestamp);
-  assert.equal(first.decisions[1].order.timestamp, new Date(points[1].timestamp).toISOString());
+  assert.equal(first.decisions[1].order.filledAt, new Date(points[1].timestamp).toISOString());
   assert.equal(first.decisions[1].executionPrice, points[1].close);
   assert.equal(first.finalPaperState.orders.length, 1);
   assert.equal(first.finalPaperState.position.quantity, 1);
