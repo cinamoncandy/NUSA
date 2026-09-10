@@ -16,6 +16,9 @@ export const MODULE_STAGE_ORDER = Object.freeze([
 export type ModuleStage = (typeof MODULE_STAGE_ORDER)[number];
 export type NonLiveOperatingMode = "PAPER" | "SHADOW";
 
+export const MODULE_TIER_ORDER = Object.freeze(["LEVEL_10", "10X", "10X-S"] as const);
+export type ModuleTier = (typeof MODULE_TIER_ORDER)[number];
+
 export const LEVEL_10_CRITERIA = Object.freeze([
   "CANONICAL_ENTRYPOINT",
   "DETERMINISTIC_IO",
@@ -41,6 +44,7 @@ export interface ModuleExecutionContext {
 export interface Level10Module<Input = unknown, Output = unknown> {
   readonly stage: ModuleStage;
   readonly version: "10";
+  readonly tier?: ModuleTier;
   readonly execute: (input: Input, context: ModuleExecutionContext) => Output | Promise<Output>;
 }
 
@@ -48,19 +52,20 @@ export interface ModuleExecutionEvidence {
   readonly schemaVersion: 1;
   readonly stage: ModuleStage;
   readonly moduleVersion: "10";
+  readonly moduleTier: ModuleTier;
   readonly traceId: string;
   readonly idempotencyKey: string;
   readonly mode: NonLiveOperatingMode;
   readonly observedAt: number;
-  readonly inputSha256: string;
-  readonly outputSha256?: string;
+  readonly inputSha256?: string | undefined;
+  readonly outputSha256?: string | undefined;
   readonly status: "COMPLETED" | "FAILED_CLOSED";
-  readonly error?: string;
+  readonly error?: string | undefined;
 }
 
 export interface ModuleExecutionResult<Output> {
   readonly status: "COMPLETED" | "FAILED_CLOSED";
-  readonly output?: Output;
+  readonly output?: Output | undefined;
   readonly evidence: ModuleExecutionEvidence;
 }
 
@@ -68,6 +73,10 @@ export interface Level10ModuleDefinition {
   readonly stage: ModuleStage;
   readonly canonicalEntrypoint: string;
   readonly criteria: Readonly<Record<Level10Criterion, boolean>>;
+  readonly criterionEvidence: Readonly<Record<Level10Criterion, readonly string[]>>;
+  readonly targetTier: ModuleTier;
+  readonly certificationMode: "EVIDENCE_GATED";
+  readonly rollbackRef: string;
 }
 
 function canonicalize(value: unknown, seen: Set<object>): unknown {
@@ -110,15 +119,24 @@ function assertContext(context: ModuleExecutionContext): void {
   if (context.mode !== "PAPER" && context.mode !== "SHADOW") throw new Error("LIVE authority is forbidden for level-10 modules");
 }
 
+function normalizeTier(tier: ModuleTier | undefined): ModuleTier {
+  const resolved = tier ?? "LEVEL_10";
+  if (!MODULE_TIER_ORDER.includes(resolved)) throw new Error(`unsupported module tier: ${resolved}`);
+  return resolved;
+}
+
 export async function runLevel10Module<Input, Output>(
   module: Level10Module<Input, Output>,
   input: Input,
   context: ModuleExecutionContext
 ): Promise<ModuleExecutionResult<Output>> {
-  assertContext(context);
-  if (module.version !== "10") throw new Error("module version must be 10");
-  const inputSha256 = deterministicSha256(input);
+  let inputSha256: string | undefined;
+  let moduleTier: ModuleTier = "LEVEL_10";
   try {
+    assertContext(context);
+    if (module.version !== "10") throw new Error("module version must be 10");
+    moduleTier = normalizeTier(module.tier);
+    inputSha256 = deterministicSha256(input);
     const output = await module.execute(input, context);
     if (output === undefined) throw new Error("module output is undefined");
     const outputSha256 = deterministicSha256(output);
@@ -129,6 +147,7 @@ export async function runLevel10Module<Input, Output>(
         schemaVersion: 1,
         stage: module.stage,
         moduleVersion: "10",
+        moduleTier,
         traceId: context.traceId,
         idempotencyKey: context.idempotencyKey,
         mode: context.mode,
@@ -140,16 +159,21 @@ export async function runLevel10Module<Input, Output>(
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown module failure";
+    const safeTraceId = typeof context?.traceId === "string" ? context.traceId : "INVALID";
+    const safeIdempotencyKey = typeof context?.idempotencyKey === "string" ? context.idempotencyKey : "INVALID";
+    const safeMode = context?.mode === "SHADOW" ? "SHADOW" : "PAPER";
+    const safeObservedAt = Number.isSafeInteger(context?.now) && context.now >= 0 ? context.now : 0;
     return Object.freeze({
       status: "FAILED_CLOSED",
       evidence: Object.freeze({
         schemaVersion: 1,
         stage: module.stage,
         moduleVersion: "10",
-        traceId: context.traceId,
-        idempotencyKey: context.idempotencyKey,
-        mode: context.mode,
-        observedAt: context.now,
+        moduleTier,
+        traceId: safeTraceId,
+        idempotencyKey: safeIdempotencyKey,
+        mode: safeMode,
+        observedAt: safeObservedAt,
         inputSha256,
         status: "FAILED_CLOSED",
         error: message
@@ -160,7 +184,14 @@ export async function runLevel10Module<Input, Output>(
 
 export function assertLevel10Definition(definition: Level10ModuleDefinition): void {
   if (!definition.canonicalEntrypoint.trim()) throw new Error(`${definition.stage} canonical entrypoint is required`);
+  if (!definition.rollbackRef.trim()) throw new Error(`${definition.stage} rollback ref is required`);
+  if (definition.certificationMode !== "EVIDENCE_GATED") throw new Error(`${definition.stage} certification must be evidence-gated`);
+  if (!MODULE_TIER_ORDER.includes(definition.targetTier)) throw new Error(`${definition.stage} target tier is invalid`);
   for (const criterion of LEVEL_10_CRITERIA) {
     if (definition.criteria[criterion] !== true) throw new Error(`${definition.stage} is not level-10: ${criterion}`);
+    const refs = definition.criterionEvidence[criterion];
+    if (!refs || refs.length === 0 || refs.some((ref) => !ref.trim())) {
+      throw new Error(`${definition.stage} criterion lacks evidence: ${criterion}`);
+    }
   }
 }

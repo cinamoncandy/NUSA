@@ -40,13 +40,13 @@ import { emitUxTelemetryEvent } from "./src/uxTelemetryClient";
 import { screenIdForNavigationState, createUxTelemetrySessionId } from "./src/uxTelemetryScreenTracking";
 import { resolveAndroidBackNavigation } from "./src/androidBackNavigation";
 
-const tabs = ["Home", "Markets", "Paper", "Portfolio"] as const;
+const tabs = ["Home", "Markets", "Paper", "Portfolio", "AiSignal"] as const;
 type PrimaryTab = (typeof tabs)[number];
-type Tab = PrimaryTab | "AiSignal" | "Order";
+type Tab = PrimaryTab | "Order";
 type UtilityView = "NOTIFICATIONS" | "SETTINGS" | null;
-const tabLabels: Readonly<Record<PrimaryTab, string>> = { Home: "HOME", Markets: "MARKETS", Paper: "PAPER", Portfolio: "PORTFOLIO" };
-const tabDisplayLabels: Readonly<Record<PrimaryTab, string>> = { Home: "NUSA", Markets: "시장", Paper: "PAPER", Portfolio: "자산" };
-const tabDescriptions: Readonly<Record<PrimaryTab, string>> = { Home: "현재 NUSA 상태", Markets: "공개 시장 환경", Paper: "PAPER 운용", Portfolio: "PAPER 자산과 결과" };
+const tabLabels: Readonly<Record<PrimaryTab, string>> = { Home: "HOME", Markets: "MARKETS", Paper: "PAPER", Portfolio: "PORTFOLIO", AiSignal: "AI" };
+const tabDisplayLabels: Readonly<Record<PrimaryTab, string>> = { Home: "NUSA", Markets: "시장", Paper: "PAPER", Portfolio: "자산", AiSignal: "AI" };
+const tabDescriptions: Readonly<Record<PrimaryTab, string>> = { Home: "현재 NUSA 상태", Markets: "공개 시장 환경", Paper: "PAPER 운용", Portfolio: "PAPER 자산과 결과", AiSignal: "AI 판단과 근거" };
 const utilityLabels: Readonly<Record<Exclude<UtilityView, null>, string>> = { NOTIFICATIONS: "알림", SETTINGS: "설정" };
 const CHART_MARKET = "KRW-BTC";
 const PAPER_REFRESH_INTERVAL_MS = 5000;
