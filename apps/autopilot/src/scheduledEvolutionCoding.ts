@@ -1,6 +1,7 @@
 import { executeGithubDispatch } from "./githubExecutor";
 import { prepareDiscoveredCodingRequest } from "./evolveCodingBridge";
 import { deriveWorkflowFailureOpportunities, type WorkflowFailureEvidence } from "./evolveEvidenceOpportunitySource";
+import { deriveGithubIssueBacklogSignals } from "./evolveGithubIssueBacklog";
 import type { EvolutionDiscoverySignal } from "./evolveOpportunityDiscovery";
 import { acquirePersistentExecution, markPersistentExecutionDispatched, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
@@ -79,14 +80,23 @@ function signalsFromRuns(candidates: readonly unknown[], now: number): readonly 
 }
 
 /**
- * Thin scheduled composition: authenticated read-only workflow evidence -> existing
- * discovery/selector bridge -> existing GitHub dispatch spine. Coding is delegated to
- * the single repository_dispatch consumer, which may use a configured external runner
- * or the bounded provider-neutral Workers AI runtime. No direct production mutation authority exists.
+ * Thin scheduled composition: authenticated read-only GitHub evidence -> existing
+ * discovery/selector bridge -> existing GitHub dispatch spine. Fresh workflow
+ * failures always take precedence. When main is healthy, a narrowly filtered,
+ * owner-authored P0/P1 Autopilot issue may supply one bounded proactive task.
+ * Coding is delegated to the single repository_dispatch consumer; no direct
+ * production mutation authority exists.
  */
 export async function runScheduledEvolutionCoding(
   env: ScheduledEvolutionCodingEnv,
-  input: { readonly candidates: readonly unknown[]; readonly now: number; readonly repository: string; readonly mainSha: string; readonly workflowRunId: number },
+  input: {
+    readonly candidates: readonly unknown[];
+    readonly backlogIssues?: readonly unknown[];
+    readonly now: number;
+    readonly repository: string;
+    readonly mainSha: string;
+    readonly workflowRunId: number;
+  },
   fetchImpl: typeof fetch = fetch,
 ): Promise<ScheduledEvolutionCodingResult> {
   const token = env.NUSA_GITHUB_TOKEN?.trim();
@@ -97,8 +107,12 @@ export async function runScheduledEvolutionCoding(
     return result("ABSTAINED", "scheduled-coding-input-invalid");
   }
 
-  const signals = signalsFromRuns(input.candidates, input.now);
-  const freshSignalCount = signals.filter((signal) => input.now - Date.parse(signal.observedAt) <= 60 * 60 * 1000).length;
+  const failureSignals = signalsFromRuns(input.candidates, input.now);
+  const backlogSignals = failureSignals.length === 0
+    ? deriveGithubIssueBacklogSignals(input.backlogIssues ?? [], new Date(input.now))
+    : Object.freeze([] as EvolutionDiscoverySignal[]);
+  const signals = failureSignals.length > 0 ? failureSignals : backlogSignals;
+  const freshFailureCount = failureSignals.filter((signal) => input.now - Date.parse(signal.observedAt) <= 60 * 60 * 1000).length;
   const executionId = `evolve-coding:${input.workflowRunId}:${input.mainSha.slice(0, 16)}`;
   const dedupeKey = `evolve-coding:${input.workflowRunId}:${input.mainSha}`;
   const bridge = prepareDiscoveredCodingRequest({
@@ -109,9 +123,9 @@ export async function runScheduledEvolutionCoding(
     workflowRunId: input.workflowRunId,
     executionId,
     dedupeKey,
-    circuit: freshSignalCount >= 3
-      ? { state: "OPEN", consecutiveFailures: freshSignalCount, openedAt: new Date(input.now).toISOString() }
-      : { state: "CLOSED", consecutiveFailures: freshSignalCount },
+    circuit: freshFailureCount >= 3
+      ? { state: "OPEN", consecutiveFailures: freshFailureCount, openedAt: new Date(input.now).toISOString() }
+      : { state: "CLOSED", consecutiveFailures: freshFailureCount },
     schedulePolicy: { mode: "AUTONOMOUS", minIntervalSeconds: 60, maxConcurrent: 1 },
     activeExecutions: 0,
     elapsedSecondsSinceLastRun: 60,
