@@ -7,6 +7,13 @@ current_mobile_self_service_paper_upbit_readonly:
   local_validation: "Upbit relay 19/19 PASS, including real handler 405 assertions for non-GET account and order routes; mobile/source contracts 12/12 PASS; changed non-TSX TypeScript syntax checks PASS; direct mobile lint PASS (132 files). The baseline client-revoke recovery and compiled pairing/session tests remain unrun because this checkout has no emitted dist and direct TypeScript compiler children entered uninterruptible shared-VM I/O wait."
   remaining: "Run the baseline client-revoke recovery plus compiled pairing/session regressions and repository typecheck in a stable Node 24 environment; configure NUSA_MOBILE_INTROSPECTION_ORIGIN to the Cloud loopback runtime before deployment."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY
+current_strategy_signal_runtime_boundary:
+  work_order: WO-ISSUE-1840-STRATEGY-SIGNAL-BOUNDARY
+  status: READY_FOR_EXACT_HEAD_CI
+  branch: fix/strategy-signal-boundary-1840
+  base_sha: c8095fe38d2ea097fbe167819ccf19f4260a7271
+  scope: "Canonical StrategyEngine dynamic signal validation; malformed BUY/SELL outputs fail closed to HOLD before downstream modules."
+  safety: PAPER_SHADOW_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_first_read_connection_recovery:
   work_order: WO-20260908-CONNECTION-FIRST-READ-RECOVERY
   status: IMPLEMENTED_LOCAL

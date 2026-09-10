@@ -29,6 +29,37 @@ export interface TradingStrategy {
   reset(): void;
 }
 
+const STRATEGY_SIGNAL_TYPES: ReadonlySet<string> = new Set(["BUY", "SELL", "HOLD"]);
+
+/**
+ * Runtime trust boundary for strategy plug-ins. A malformed signal must never become an
+ * actionable BUY/SELL merely because the TypeScript contract says the implementation should be
+ * well behaved. Invalid output is converted to a deterministic HOLD. Regime metadata is not
+ * accepted from the strategy implementation; StrategyEngine derives it from canonical prices.
+ */
+function validateStrategySignalAtBoundary(value: unknown, tick: MarketTick): StrategySignal {
+  const failClosed = (reason: string): StrategySignal => ({
+    type: "HOLD",
+    reason: `strategy-signal-invalid:${reason}`,
+    confidence: 0,
+    timestamp: tick.timestamp,
+  });
+  if (value == null || typeof value !== "object") return failClosed("shape");
+  const signal = value as Partial<StrategySignal>;
+  if (typeof signal.type !== "string" || !STRATEGY_SIGNAL_TYPES.has(signal.type)) return failClosed("type");
+  if (typeof signal.reason !== "string" || signal.reason.trim().length === 0) return failClosed("reason");
+  if (typeof signal.confidence !== "number" || !Number.isFinite(signal.confidence) || signal.confidence < 0 || signal.confidence > 1) {
+    return failClosed("confidence");
+  }
+  if (signal.timestamp !== tick.timestamp) return failClosed("timestamp");
+  return {
+    type: signal.type as StrategySignalType,
+    reason: signal.reason.trim(),
+    confidence: signal.confidence,
+    timestamp: tick.timestamp,
+  };
+}
+
 const averageLastIncludingTick = (prices: readonly number[], tickPrice: number, count: number): number => {
   const start = Math.max(0, prices.length - (count - 1));
   let total = 0;
@@ -420,7 +451,10 @@ export class StrategyEngine {
     // out of the full array, so behavior is unchanged.
     const regime = classifyPriceRegime(this.prices.slice(-DEFAULT_REGIME_CONFIG.trendLookback).concat(tick.price), tick.timestamp);
     const signal = this.running
-      ? this.strategy.onTick(tick, { market: tick.market, prices: this.prices, positionQuantity })
+      ? validateStrategySignalAtBoundary(
+          this.strategy.onTick(tick, { market: tick.market, prices: this.prices, positionQuantity }),
+          tick,
+        )
       : { type: "HOLD" as const, reason: "strategy-stopped", confidence: 0, timestamp: tick.timestamp };
     const signalWithRegime = regime === undefined ? signal : { ...signal, regime };
     this.prices.push(tick.price);
