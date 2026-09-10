@@ -1,10 +1,10 @@
 id: WO-20260910-MOBILE-SELF-SERVICE-PAPER-UPBIT-READONLY
-title: "Device-bound mobile PAPER recovery and Upbit READ_ONLY session mediation"
-status: IMPLEMENTED_LOCAL_VALIDATION_PARTIAL
+title: "Device-bound mobile PAPER pairing and Upbit READ_ONLY session mediation"
+status: CI_VALIDATION_PENDING
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
-objective: "Restore an existing Android secure mobile PAPER session automatically; when absent or rejected, allow only a zero-authority, owner-approved device pairing that atomically issues the existing rotating session. Reuse that session for GET-only Upbit account/order observation."
+objective: "When no in-process PAPER session exists, allow only a zero-authority, owner-approved device pairing that atomically issues the existing rotating session. Keep all mobile access, refresh, pairing request, and verification capabilities process-memory-only. Reuse the in-process session for GET-only Upbit account/order observation."
 authority:
   mode: PAPER_ONLY
   liveAuthority: NONE
@@ -14,41 +14,43 @@ authority:
   aiAuthority: ZERO_AUTHORITY
 architecture_impact:
   acknowledged: true
-  analysis: "Pairing remains inside the existing ApprovedUserSessionService and its mobile namespace. It creates no new identity provider, execution path, mutable Upbit adapter, credential delivery path, or authority model. The Upbit relay remains loopback-only and validates a mobile access token only by GET /v1/mobile/me Cloud introspection."
+  analysis: "Pairing remains inside the existing ApprovedUserSessionService and its mobile namespace. It creates no new identity provider, execution path, mutable Upbit adapter, credential delivery path, or authority model. The Upbit relay remains loopback-only and validates a process-memory mobile access token only by GET /v1/mobile/me Cloud introspection."
   references:
     - .aipos/architecture.md
     - docs/NUSA_USER_EXPERIENCE_PRINCIPLE.md
     - .aipos/work-orders/WO-0060A-android-approved-user-session.yaml
-    - .aipos/work-orders/WO-20260907-MOBILE-PAPER-SESSION-RECONNECT.yaml
 scope:
-  - Android Secure Storage rotating-session restore with bounded retry
-  - short-lived device-bound pairing request, ACTIVE OWNER plus users:manage approval, expiry/replay/race/flood bounds
+  - process-memory-only rotating mobile PAPER session
+  - process-memory-only short-lived device pairing request, ACTIVE OWNER plus users:manage approval, expiry/replay/race/flood bounds
   - direct atomic approved-pairing session issuance with no pairing-row credential storage
-  - mobile Settings primary PAPER connection request/status flow and secondary legacy-token compatibility
+  - legacy mobile credential storage cleanup without reading or restoring stored material
+  - mobile Settings tokenless PAPER connection/status flow
   - authenticated PAPER session mediation for GET-only Upbit account/order observation
 prohibited:
   - pairing self-authorization
-  - plaintext bootstrap/access/refresh credentials in pairing rows, UI, or audit logs
+  - mobile persistence of bootstrap/access/refresh credentials, pairing request IDs, or verification codes
+  - plaintext credentials in pairing rows, UI, audit logs, SharedPreferences, AsyncStorage, SecureStore, or Android Keystore-backed storage
   - independent Upbit credential persistence in normal mobile flow
   - Upbit POST/PUT/PATCH/DELETE, order mutation, cancellation, transfer, withdrawal, or LIVE imports
   - LIVE authority, production mutation, or AI authority change
 acceptance:
-  - routine secure-session restore precedes pairing and retains retryable secure state only for transient failure
-  - definitive 401/403 clears secure session and pairing can only begin zero-authority
+  - mobile process restart restores no credential or pairing capability and requires a fresh zero-authority pairing
+  - transient refresh failures may retry only while the same process retains the in-memory refresh capability
+  - definitive 401/403 destroys in-memory session authority
   - pairing approval requires an ACTIVE OWNER principal with users:manage and an ACTIVE target
   - pairing exchange is device-bound, expiry-bounded, atomic, and single-use
   - pairing DB and audit records contain hashes/lifecycle metadata only, never bootstrap/access/refresh credentials or verification codes
-  - mobile Upbit routes use PAPER session credentials and relay validation is strict loopback GET introspection
+  - mobile Upbit routes use the in-process PAPER session credential and relay validation is strict loopback GET introspection
   - relay account/order routes reject all non-GET methods
+  - exact-head CI, independent deterministic Audit, and Release governance pass before merge
 validation:
   completed:
-    - "node --test services/upbit-readonly/test/server.test.js: PASS 19/19"
-    - "node --test tests/mobile-pairing-source-contract.test.js tests/mobile-settings-ui.test.js tests/mobile-frontend-input-connection-resilience.test.js tests/mobile-upbit-paper-session-boundary.test.js tests/upbit-readonly-backend-source.test.js: PASS 12/12"
-    - "node --experimental-strip-types --check for changed non-TSX Cloud/mobile TypeScript modules: PASS"
-    - "NODE_PATH=/srv/nusa-dev/NUSA-donchian-1799/node_modules node scripts/lint-mobile.js: PASS 132 files"
-  blocked:
-    - "Baseline client-revoke recovery and compiled pairing/session tests require dist. This checkout has no emitted dist; direct TypeScript compiler children entered uninterruptible shared-VM I/O wait, so typecheck was not completed and no concurrent compiler retry was used."
+    - "Upbit relay contract previously PASS 19/19"
+    - "no-mobile-credential-storage regression added: source cannot call setSecret/getSecret for approved session or pairing capabilities"
+    - "legacy stored credential keys are delete-only and never restored"
+  pending:
+    - "fresh exact-head CI for the current PR head"
+    - "independent exact-head Audit/Release governance"
 remaining:
-  - "Run tests/mobile-session-client-revoke-recovery.test.js, tests/mobile-paper-pairing.test.js, tests/mobile-approved-session.test.js, and repository typecheck in a stable Node 24 environment with a completed dist build."
-  - "Deployment owner must configure NUSA_MOBILE_INTROSPECTION_ORIGIN as the Cloud runtime loopback origin; retain NUSA_API_TOKEN only for non-mobile bridge compatibility. No deployment action was taken here."
-safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY
+  - "Configure NUSA_MOBILE_INTROSPECTION_ORIGIN as the Cloud runtime loopback origin only after approved merge/deployment governance."
+safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY_NO_MOBILE_CREDENTIAL_STORAGE
