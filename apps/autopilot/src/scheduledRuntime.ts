@@ -2,6 +2,7 @@ import type { AutopilotDispatchPlan } from "./dispatchPlanner";
 import { executeGithubDispatch, type GithubExecutorResult } from "./githubExecutor";
 import { prepareProductionExecution } from "./productionExecutionSpine";
 import { deriveWorkflowFailureOpportunities, type WorkflowFailureEvidence } from "./evolveEvidenceOpportunitySource";
+import { deriveGithubIssueBacklogSignals } from "./evolveGithubIssueBacklog";
 import { runScheduledEvolutionCoding } from "./scheduledEvolutionCoding";
 import {
   acquirePersistentExecution,
@@ -69,19 +70,29 @@ function result(
   });
 }
 
+function githubHeaders(token: string): Record<string, string> {
+  return {
+    accept: "application/vnd.github+json",
+    authorization: `Bearer ${token}`,
+    "user-agent": "nusa-autopilot-scheduler",
+    "x-github-api-version": "2022-11-28",
+  };
+}
+
 async function githubJson(url: string, token: string, fetchImpl: typeof fetch): Promise<JsonObject> {
-  const response = await fetchImpl(url, {
-    headers: {
-      accept: "application/vnd.github+json",
-      authorization: `Bearer ${token}`,
-      "user-agent": "nusa-autopilot-scheduler",
-      "x-github-api-version": "2022-11-28",
-    },
-  });
+  const response = await fetchImpl(url, { headers: githubHeaders(token) });
   if (!response.ok) throw new Error(`GITHUB_HTTP_${response.status}`);
   const body = object(await response.json());
   if (!body) throw new Error("GITHUB_JSON_INVALID");
   return body;
+}
+
+async function githubArray(url: string, token: string, fetchImpl: typeof fetch): Promise<readonly unknown[]> {
+  const response = await fetchImpl(url, { headers: githubHeaders(token) });
+  if (!response.ok) throw new Error(`GITHUB_HTTP_${response.status}`);
+  const body: unknown = await response.json();
+  if (!Array.isArray(body)) throw new Error("GITHUB_JSON_ARRAY_INVALID");
+  return Object.freeze([...body]);
 }
 
 function workflowCompletedAt(run: JsonObject): string | null {
@@ -241,24 +252,47 @@ export async function runScheduledAutopilot(
     }
     workflowRunId = resolvedRunId;
 
-    if (
-      previousReceipt
-      && previousReceipt.headSha === mainSha
-      && previousReceipt.workflowRunId === workflowRunId
-      && !hasFreshWorkflowFailureSince(candidates, previousReceipt.observedAt)
-    ) {
-      return result("DUPLICATE_EXECUTION_SUPPRESSED", "scheduled-state-unchanged", mainSha, workflowRunId, null, discoveredOpportunityIds);
+    let backlogIssues: readonly unknown[] = Object.freeze([]);
+    try {
+      backlogIssues = await githubArray(
+        `https://api.github.com/repos/${repository}/issues?state=open&sort=updated&direction=desc&per_page=100`,
+        token,
+        fetchImpl,
+      );
+      const backlogSignals = deriveGithubIssueBacklogSignals(backlogIssues, new Date(now));
+      discoveredOpportunityIds = Object.freeze([
+        ...discoveredOpportunityIds,
+        ...backlogSignals.map((signal) => signal.id),
+      ]);
+    } catch (error) {
+      console.error(JSON.stringify({
+        event: "NUSA_SCHEDULED_BACKLOG_QUERY_FAILED",
+        reason: error instanceof Error ? error.message : "UNKNOWN",
+        liveAuthority: "NONE",
+        productionMutationAllowed: false,
+        aiAuthority: "ZERO_AUTHORITY",
+      }));
     }
 
     try {
       const coding = await runScheduledEvolutionCoding(env, {
         candidates,
+        backlogIssues,
         now,
         repository,
         mainSha,
         workflowRunId,
       }, fetchImpl);
       console.log(JSON.stringify({ event: "NUSA_SCHEDULED_EVOLVE_CODING", ...coding }));
+      if (coding.status === "EXECUTION_ACCEPTED") {
+        return result("EXECUTION_DISPATCHED", coding.reason, mainSha, workflowRunId, null, discoveredOpportunityIds);
+      }
+      if (coding.status === "DUPLICATE_SUPPRESSED") {
+        return result("DUPLICATE_EXECUTION_SUPPRESSED", coding.reason, mainSha, workflowRunId, null, discoveredOpportunityIds);
+      }
+      if (coding.status === "INTERFACE_READY" || coding.status === "EXECUTION_FAILED") {
+        return result("EXECUTION_NOT_DISPATCHED", coding.reason, mainSha, workflowRunId, null, discoveredOpportunityIds);
+      }
     } catch (error) {
       console.error(JSON.stringify({
         event: "NUSA_SCHEDULED_EVOLVE_CODING_FAILED",
@@ -267,6 +301,15 @@ export async function runScheduledAutopilot(
         productionMutationAllowed: false,
         aiAuthority: "ZERO_AUTHORITY",
       }));
+    }
+
+    if (
+      previousReceipt
+      && previousReceipt.headSha === mainSha
+      && previousReceipt.workflowRunId === workflowRunId
+      && !hasFreshWorkflowFailureSince(candidates, previousReceipt.observedAt)
+    ) {
+      return result("DUPLICATE_EXECUTION_SUPPRESSED", "scheduled-state-unchanged", mainSha, workflowRunId, null, discoveredOpportunityIds);
     }
   } catch (error) {
     return result("ABSTAINED", error instanceof Error ? error.message : "scheduled-evidence-query-failed");
