@@ -1,6 +1,7 @@
 import type { SecureStoragePort } from "./mobileSecurity";
 
 const SESSION_STORAGE_KEY = "nusa.mobile.approved-session.v1";
+const PAIRING_STORAGE_KEY = "nusa.mobile.pending-pairing.v1";
 const ACCESS_REFRESH_SKEW_MS = 30_000;
 const MAX_TOKEN_LENGTH = 4096;
 
@@ -17,6 +18,7 @@ interface MobileSessionTokens {
   readonly refreshToken: string;
   readonly refreshExpiresAt: number;
   readonly scopes: readonly string[];
+  readonly deviceId?: string;
 }
 
 interface PersistedSession {
@@ -25,10 +27,19 @@ interface PersistedSession {
   readonly refreshExpiresAt: number;
   readonly deviceId?: string;
 }
+interface PersistedPairing {
+  readonly endpoint: string;
+  readonly requestId: string;
+  readonly verificationCode: string;
+  readonly expiresAt: number;
+  readonly deviceId: string;
+}
 
 interface MobileBootstrapIssue {
   readonly token: string;
 }
+export interface MobilePairingRequest { readonly requestId: string; readonly verificationCode: string; readonly expiresAt: number; readonly state: "PENDING"; }
+export interface MobilePairingStatus { readonly state: "PENDING" | "APPROVED" | "CONSUMED" | "EXPIRED"; readonly expiresAt: number; }
 
 export type MobileApprovedCredentialProvider = () => Promise<string | null>;
 
@@ -85,7 +96,8 @@ function parseTokens(value: unknown): MobileSessionTokens {
     accessExpiresAt: readTime(record.accessExpiresAt, "access expiry"),
     refreshToken: readToken(record.refreshToken, "refresh token"),
     refreshExpiresAt: readTime(record.refreshExpiresAt, "refresh expiry"),
-    scopes: readScopes(record.scopes)
+    scopes: readScopes(record.scopes),
+    ...(record.deviceId == null ? {} : { deviceId: readDeviceId(record.deviceId) })
   });
 }
 
@@ -134,6 +146,22 @@ function parsePersisted(value: Uint8Array): PersistedSession {
   const record = decoded as Record<string, unknown>;
   const deviceId = readDeviceId(record.deviceId);
   return Object.freeze({ endpoint: secureEndpoint(String(record.endpoint ?? "")), refreshToken: readToken(record.refreshToken, "refresh token"), refreshExpiresAt: readTime(record.refreshExpiresAt, "refresh expiry"), ...(deviceId ? { deviceId } : {}) });
+}
+
+function parsePersistedPairing(value: Uint8Array): PersistedPairing {
+  const decoded: unknown = JSON.parse(decodeAscii(value));
+  if (decoded == null || typeof decoded !== "object" || Array.isArray(decoded)) throw new Error("secure pairing state is invalid");
+  const record = decoded as Record<string, unknown>;
+  const verificationCode = typeof record.verificationCode === "string" && /^\d{6}$/.test(record.verificationCode) ? record.verificationCode : "";
+  const deviceId = readDeviceId(record.deviceId);
+  if (!verificationCode || deviceId == null) throw new Error("secure pairing state is invalid");
+  return Object.freeze({
+    endpoint: secureEndpoint(String(record.endpoint ?? "")),
+    requestId: readToken(record.requestId, "pairing request id"),
+    verificationCode,
+    expiresAt: readTime(record.expiresAt, "pairing expiry"),
+    deviceId,
+  });
 }
 
 /**
@@ -228,6 +256,85 @@ export class MobileApprovedSession {
       body: JSON.stringify({ deviceId: device })
     }));
     return this.connectBootstrapForDevice(endpoint, issue.token, device);
+  }
+
+  public async startPairing(baseUrl: string, deviceId: string): Promise<MobilePairingRequest> {
+    const endpoint = secureEndpoint(baseUrl);
+    const device = readDeviceId(deviceId);
+    if (device == null) throw new Error("device enrollment identifier is invalid.");
+    if (this.storage == null) throw new Error("OS secure storage is unavailable on this mobile runtime.");
+    const value = await requestJson(this.request, `${endpoint}/v1/mobile/pairing/start`, { method: "POST", body: JSON.stringify({ deviceId: device }) });
+    if (value == null || typeof value !== "object" || Array.isArray(value)) throw new Error("pairing response is invalid.");
+    const row = value as Record<string, unknown>;
+    const requestId = readToken(row.requestId, "pairing request id");
+    const verificationCode = typeof row.verificationCode === "string" && /^\d{6}$/.test(row.verificationCode) ? row.verificationCode : "";
+    if (!verificationCode || row.state !== "PENDING") throw new Error("pairing response is invalid.");
+    const pairing = Object.freeze({ requestId, verificationCode, expiresAt: readTime(row.expiresAt, "pairing expiry"), state: "PENDING" as const });
+    await this.persistPendingPairing(endpoint, device, pairing);
+    return pairing;
+  }
+
+  /** Restores only an unexpired, endpoint- and device-bound pairing request from Android Keystore. */
+  public async restorePendingPairing(baseUrl: string, deviceId: string): Promise<MobilePairingRequest | null> {
+    const endpoint = secureEndpoint(baseUrl);
+    const device = readDeviceId(deviceId);
+    if (device == null || this.storage == null) return null;
+    let stored: Uint8Array | null;
+    try { stored = await this.storage.getSecret(PAIRING_STORAGE_KEY); }
+    catch { await this.clearPendingPairing(); return null; }
+    if (stored == null) return null;
+    let pairing: PersistedPairing;
+    try { pairing = parsePersistedPairing(stored); }
+    catch { await this.clearPendingPairing(); return null; }
+    if (pairing.endpoint !== endpoint || pairing.deviceId !== device || pairing.expiresAt <= Date.now()) {
+      await this.clearPendingPairing();
+      return null;
+    }
+    return Object.freeze({ requestId: pairing.requestId, verificationCode: pairing.verificationCode, expiresAt: pairing.expiresAt, state: "PENDING" });
+  }
+
+  public async clearPendingPairing(): Promise<void> {
+    if (this.storage != null) {
+      try { await this.storage.deleteSecret(PAIRING_STORAGE_KEY); } catch { /* pairing state remains unusable without its storage adapter */ }
+    }
+  }
+
+  public async pairingStatus(baseUrl: string, requestId: string, deviceId: string): Promise<MobilePairingStatus> {
+    const endpoint = secureEndpoint(baseUrl);
+    const value = await requestJson(this.request, `${endpoint}/v1/mobile/pairing/status`, { method: "POST", body: JSON.stringify({ requestId: readToken(requestId, "pairing request id"), deviceId: readDeviceId(deviceId) }) });
+    if (value == null || typeof value !== "object" || Array.isArray(value)) throw new Error("pairing status is invalid.");
+    const row = value as Record<string, unknown>;
+    if (!["PENDING", "APPROVED", "CONSUMED", "EXPIRED"].includes(String(row.state))) throw new Error("pairing status is invalid.");
+    return Object.freeze({ state: row.state as MobilePairingStatus["state"], expiresAt: readTime(row.expiresAt, "pairing expiry") });
+  }
+
+  public async exchangePairing(baseUrl: string, requestId: string, deviceId: string): Promise<MobileApprovedSessionIdentity> {
+    const endpoint = secureEndpoint(baseUrl);
+    if (this.storage == null) throw new Error("OS secure storage is unavailable on this mobile runtime.");
+    const normalizedRequestId = readToken(requestId, "pairing request id");
+    const device = readDeviceId(deviceId);
+    try {
+      const tokens = parseTokens(await requestJson(this.request, `${endpoint}/v1/mobile/pairing/exchange`, { method: "POST", body: JSON.stringify({ requestId: normalizedRequestId, deviceId: device }) }));
+      this.deviceId = tokens.deviceId ?? device ?? null;
+      await this.persist(endpoint, tokens);
+      this.acceptAccess(endpoint, tokens);
+      try {
+        const identity = await this.loadIdentity(endpoint, tokens.accessToken);
+        this.identity = identity;
+        return identity;
+      } catch (error) {
+        if (isDefinitiveSessionRejection(error)) await this.clearLocal();
+        else {
+          this.clearMemory();
+          this.restoreRetryable = true;
+        }
+        throw error;
+      }
+    } finally {
+      // An exchange attempt is one-use at the server. Do not retain an exchange-capable request
+      // locally when its result is ambiguous, rejected, or already persisted as a rotating session.
+      await this.clearPendingPairing();
+    }
   }
 
   public async restore(baseUrl: string): Promise<MobileApprovedSessionIdentity | null> {
@@ -336,12 +443,19 @@ export class MobileApprovedSession {
     await this.storage.setSecret(SESSION_STORAGE_KEY, encodeAscii(JSON.stringify(value)));
   }
 
+  private async persistPendingPairing(endpoint: string, deviceId: string, pairing: MobilePairingRequest): Promise<void> {
+    if (this.storage == null) throw new Error("OS secure storage is unavailable on this mobile runtime.");
+    const value: PersistedPairing = Object.freeze({ endpoint, requestId: pairing.requestId, verificationCode: pairing.verificationCode, expiresAt: pairing.expiresAt, deviceId });
+    await this.storage.setSecret(PAIRING_STORAGE_KEY, encodeAscii(JSON.stringify(value)));
+  }
+
   private async clearLocal(): Promise<void> {
     this.clearMemory();
     if (this.storage != null) {
       try { await this.storage.deleteSecret(SESSION_STORAGE_KEY); } catch { /* memory is already cleared; storage adapter remains fail-closed */ }
+      try { await this.storage.deleteSecret(PAIRING_STORAGE_KEY); } catch { /* memory is already cleared; storage adapter remains fail-closed */ }
     }
   }
 }
 
-export { SESSION_STORAGE_KEY };
+export { PAIRING_STORAGE_KEY, SESSION_STORAGE_KEY };

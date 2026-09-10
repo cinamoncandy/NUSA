@@ -1,0 +1,112 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const { SqliteDatabase } = require("../dist/packages/storage/src/index.js");
+const { SqliteNusaUserAccessRepository } = require("../dist/apps/cloud/src/operatorUserAccess.js");
+const { MobileSessionService, MOBILE_PAIRING_TTL_MS } = require("../dist/apps/cloud/src/mobileSessionService.js");
+const pairingHttp = require("../dist/apps/cloud/src/mobileSessionHttp.js");
+
+const DEVICE = "nusa-install-device-0001";
+const OTHER_DEVICE = "nusa-install-device-0002";
+const OWNER = Object.freeze({ userId: "owner", email: "owner@nusa.local", scopes: ["users:manage"] });
+const OWNER_TOKEN = ["owner", "pairing", "fixture", "0123456789"].join("-");
+
+function fixture() {
+  const db = new SqliteDatabase(":memory:");
+  const users = new SqliteNusaUserAccessRepository(db);
+  users.ensureOwner({ id: OWNER.userId, email: OWNER.email }, 1);
+  users.registerUser({ id: "mobile-user", email: "mobile@example.com" }, 2);
+  users.changeStatus({ actorUserId: OWNER.userId, targetUserId: "mobile-user", action: "APPROVE", now: 3 });
+  const service = new MobileSessionService(db, users);
+  const deps = Object.freeze({
+    sessionService: service,
+    legacyTokenVerifier: Object.freeze({ ownerPrincipal: OWNER, verify: (value) => value === OWNER_TOKEN ? OWNER : undefined }),
+    userAccessRepository: users,
+  });
+  return { db, users, service, deps };
+}
+
+function request(method, body, authorization) {
+  return Object.freeze({ method, body: JSON.stringify(body), headers: Object.freeze(authorization ? { authorization } : {}) });
+}
+
+test("approved pairing atomically issues a device-bound session without storing a bootstrap secret", () => {
+  const { db, service } = fixture();
+  try {
+    const started = service.startPairing(DEVICE, 100);
+    assert.equal(started.state, "PENDING");
+    assert.match(started.verificationCode, /^\d{6}$/);
+    assert.equal(service.approvePairing({ actorUserId: OWNER.userId, actorScopes: OWNER.scopes, targetUserId: "mobile-user", requestId: started.requestId, verificationCode: started.verificationCode, now: 101 }), true);
+    const tokens = service.exchangePairing(started.requestId, DEVICE, 102);
+    assert.ok(tokens);
+    assert.ok(service.verifyAccess(tokens.accessToken, 103));
+    assert.equal(service.refresh(tokens.refreshToken, 104, DEVICE).accessToken.length > 16, true);
+    assert.equal(service.exchangePairing(started.requestId, DEVICE, 105), undefined, "exchange is one use");
+    const schema = db.connection.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='mobile_pairing_requests'").get().sql;
+    const rows = db.connection.prepare("SELECT * FROM mobile_pairing_requests").all();
+    const serialized = JSON.stringify(rows);
+    assert.doesNotMatch(schema, /bootstrap_token/i);
+    assert.equal(serialized.includes(started.requestId), false);
+    assert.equal(serialized.includes(started.verificationCode), false);
+    assert.equal(serialized.includes(tokens.accessToken), false);
+    assert.equal(serialized.includes(tokens.refreshToken), false);
+    const audit = JSON.stringify(db.connection.prepare("SELECT event,reason FROM mobile_session_audit").all());
+    assert.equal(audit.includes(started.requestId), false);
+    assert.equal(audit.includes(started.verificationCode), false);
+  } finally { db.close(); }
+});
+
+test("pairing approval requires active OWNER users:manage, target activity, matching device, expiry, and bounded starts", () => {
+  const { db, users, service, deps } = fixture();
+  try {
+    const started = service.startPairing(DEVICE, 1_000);
+    const forbidden = pairingHttp.handleMobilePairingApproveHttp(request("POST", { requestId: started.requestId, verificationCode: started.verificationCode, targetUserId: "mobile-user" }), deps);
+    assert.equal(forbidden.status, 403);
+    assert.equal(service.exchangePairing(started.requestId, OTHER_DEVICE, 1_001), undefined);
+    users.changeStatus({ actorUserId: OWNER.userId, targetUserId: "mobile-user", action: "SUSPEND", now: 1_002 });
+    const inactive = pairingHttp.handleMobilePairingApproveHttp(request("POST", { requestId: started.requestId, verificationCode: started.verificationCode, targetUserId: "mobile-user" }, `Bearer ${OWNER_TOKEN}`), deps);
+    assert.equal(inactive.status, 409);
+    assert.equal(JSON.parse(inactive.body).error, "TARGET_USER_NOT_ACTIVE");
+    assert.equal(service.pairingStatus(started.requestId, DEVICE, 1_000 + MOBILE_PAIRING_TTL_MS).state, "EXPIRED");
+    assert.equal(db.connection.prepare("SELECT state FROM mobile_pairing_requests WHERE request_id_hash=?").get(require("node:crypto").createHash("sha256").update(started.requestId).digest("hex")).state, "EXPIRED");
+    for (let index = 0; index < 1; index += 1) assert.ok(service.startPairing(OTHER_DEVICE, 2_000 + index));
+    assert.throws(() => service.startPairing(OTHER_DEVICE, 2_100), /limit reached/);
+  } finally { db.close(); }
+});
+
+test("ACTIVE OWNER users:manage may approve by a unique verification code, while scope-less and ambiguous approvals fail closed", () => {
+  const { db, service, deps } = fixture();
+  try {
+    const unique = service.startPairing(DEVICE, 10_000);
+    assert.throws(() => service.approvePairing({ actorUserId: OWNER.userId, actorScopes: [], targetUserId: "mobile-user", verificationCode: unique.verificationCode, now: 10_001 }), /owner authority required/);
+    const approved = pairingHttp.handleMobilePairingApproveHttp(request("POST", { verificationCode: unique.verificationCode, targetUserId: "mobile-user" }, `Bearer ${OWNER_TOKEN}`), deps);
+    assert.equal(approved.status, 200);
+    assert.equal(service.exchangePairing(unique.requestId, DEVICE, 10_002)?.accessToken.length > 16, true);
+
+    const first = service.startPairing(DEVICE, 20_000);
+    const second = service.startPairing(OTHER_DEVICE, 20_001);
+    const hash = require("node:crypto").createHash("sha256").update(first.verificationCode).digest("hex");
+    db.connection.prepare("UPDATE mobile_pairing_requests SET verification_code_hash=? WHERE request_id_hash=?")
+      .run(hash, require("node:crypto").createHash("sha256").update(second.requestId).digest("hex"));
+    const ambiguous = pairingHttp.handleMobilePairingApproveHttp(request("POST", { verificationCode: first.verificationCode, targetUserId: "mobile-user" }, `Bearer ${OWNER_TOKEN}`), deps);
+    assert.equal(ambiguous.status, 409);
+    assert.equal(service.pairingStatus(first.requestId, DEVICE, 20_002).state, "PENDING");
+    assert.equal(service.pairingStatus(second.requestId, OTHER_DEVICE, 20_002).state, "PENDING");
+  } finally { db.close(); }
+});
+
+test("pairing HTTP returns only status and rotating session tokens, never a bootstrap credential", () => {
+  const { db, service, deps } = fixture();
+  try {
+    const startedResponse = pairingHttp.handleMobilePairingStartHttp(request("POST", { deviceId: DEVICE }), deps);
+    const started = JSON.parse(startedResponse.body);
+    const approval = pairingHttp.handleMobilePairingApproveHttp(request("POST", { requestId: started.requestId, verificationCode: started.verificationCode, targetUserId: "mobile-user" }, `Bearer ${OWNER_TOKEN}`), deps);
+    assert.equal(approval.status, 200);
+    const exchange = pairingHttp.handleMobilePairingExchangeHttp(request("POST", { requestId: started.requestId, deviceId: DEVICE }), deps);
+    assert.equal(exchange.status, 200);
+    const payload = JSON.parse(exchange.body);
+    assert.equal("bootstrapToken" in payload, false);
+    assert.equal("bootstrap_token" in payload, false);
+    assert.ok(payload.accessToken);
+    assert.ok(payload.refreshToken);
+  } finally { db.close(); }
+});

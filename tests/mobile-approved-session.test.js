@@ -5,7 +5,7 @@ const path = require("node:path");
 const { SqliteDatabase } = require("../dist/packages/storage/src/index.js");
 const { SqliteNusaUserAccessRepository } = require("../dist/apps/cloud/src/operatorUserAccess.js");
 const { MobileSessionService, MOBILE_ACCESS_TTL_MS } = require("../dist/apps/cloud/src/mobileSessionService.js");
-const { MobileApprovedSession, SESSION_STORAGE_KEY } = require("../dist/apps/mobile/src/mobileApprovedSession.js");
+const { MobileApprovedSession, PAIRING_STORAGE_KEY, SESSION_STORAGE_KEY } = require("../dist/apps/mobile/src/mobileApprovedSession.js");
 
 function fixture() {
   const db = new SqliteDatabase(":memory:");
@@ -26,7 +26,7 @@ test("mobile session uses isolated namespace and exact PAPER scopes", () => {
     assert.equal(tokens.accessExpiresAt, 101 + MOBILE_ACCESS_TTL_MS);
     assert.equal(service.bootstrap(issued.token, 102), undefined);
     const tables = db.connection.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'mobile_%' ORDER BY name").all().map((row) => row.name);
-    assert.deepEqual(tables, ["mobile_access_tokens", "mobile_bootstrap_tokens", "mobile_refresh_tokens", "mobile_session_audit", "mobile_session_families"]);
+    assert.deepEqual(tables, ["mobile_access_tokens", "mobile_bootstrap_tokens", "mobile_pairing_requests", "mobile_refresh_tokens", "mobile_session_audit", "mobile_session_families"]);
   } finally { db.close(); }
 });
 
@@ -117,6 +117,75 @@ test("mobile runtime persists refresh only, keeps access in memory, and rotates 
   assert.equal(storedSecond.includes(second.refreshToken), true);
   assert.equal(storedSecond.includes(first.refreshToken), false);
   assert.equal(calls.some((call) => call.url.endsWith("/v1/mobile/session/refresh")), true);
+});
+
+test("approved pairing survives a process restart only in secure storage and is erased after exchange", async () => {
+  const storage = new MemorySecureStorage();
+  const endpoint = "https://cloud.example.com";
+  const deviceId = "nusa-install-device-0001";
+  const issued = tokenSet("paired");
+  const rotated = tokenSet("paired-rotated");
+  const requests = [];
+  const request = async (url, init) => {
+    requests.push({ url, init });
+    if (url.endsWith("/pairing/start")) return response(url, 201, { requestId: "pairing-request-id-0123456789", verificationCode: "123456", expiresAt: Date.now() + 600000, state: "PENDING" });
+    if (url.endsWith("/pairing/exchange")) return response(url, 200, issued);
+    if (url.endsWith("/session/refresh")) return response(url, 200, rotated);
+    if (url.endsWith("/mobile/me")) return response(url, 200, { userId: "mobile-user", email: "mobile@example.com", scopes: ["dashboard:read", "paper:trade"] });
+    throw new Error(`unexpected url ${url}`);
+  };
+  const session = new MobileApprovedSession(storage, request);
+  const pairing = await session.startPairing(endpoint, deviceId);
+  assert.equal(pairing.verificationCode, "123456");
+  assert.equal(await storage.getSecret(SESSION_STORAGE_KEY), null);
+  assert.notEqual(await storage.getSecret(PAIRING_STORAGE_KEY), null);
+  const restartedBeforeApproval = new MobileApprovedSession(storage, request);
+  assert.deepEqual(await restartedBeforeApproval.restorePendingPairing(endpoint, deviceId), pairing);
+  await restartedBeforeApproval.exchangePairing(endpoint, pairing.requestId, deviceId);
+  assert.equal(await storage.getSecret(PAIRING_STORAGE_KEY), null);
+  const stored = Buffer.from(await storage.getSecret(SESSION_STORAGE_KEY)).toString("ascii");
+  assert.equal(stored.includes(issued.refreshToken), true);
+  assert.equal(stored.includes(issued.accessToken), false);
+  assert.equal(stored.includes(pairing.requestId), false);
+  assert.equal(stored.includes(pairing.verificationCode), false);
+  const restored = new MobileApprovedSession(storage, request);
+  assert.equal((await restored.restore(endpoint)).userId, "mobile-user");
+  assert.equal(requests.some((item) => item.url.endsWith("/session/refresh")), true);
+});
+
+test("pending pairing is cleared when expired or restored against a different endpoint or device", async () => {
+  const storage = new MemorySecureStorage();
+  const endpoint = "https://cloud.example.com";
+  const deviceId = "nusa-install-device-0001";
+  const request = async (url) => response(url, 201, { requestId: "pairing-request-id-0123456789", verificationCode: "123456", expiresAt: Date.now() + 600000, state: "PENDING" });
+  const session = new MobileApprovedSession(storage, request);
+  await session.startPairing(endpoint, deviceId);
+  assert.equal(await session.restorePendingPairing("https://other.example.com", deviceId), null);
+  assert.equal(await storage.getSecret(PAIRING_STORAGE_KEY), null);
+
+  await session.startPairing(endpoint, deviceId);
+  await storage.setSecret(PAIRING_STORAGE_KEY, Buffer.from(JSON.stringify({ endpoint, requestId: "pairing-request-id-0123456789", verificationCode: "123456", expiresAt: 1, deviceId }), "ascii"));
+  assert.equal(await session.restorePendingPairing(endpoint, deviceId), null);
+  assert.equal(await storage.getSecret(PAIRING_STORAGE_KEY), null);
+});
+
+test("pairing exchange clears its pending capability and mirrors bootstrap identity failure handling", async () => {
+  for (const status of [429, 503, 401, 403]) {
+    const storage = new MemorySecureStorage();
+    const endpoint = "https://cloud.example.com";
+    const deviceId = "nusa-install-device-0001";
+    const request = async (url) => {
+      if (url.endsWith("/pairing/start")) return response(url, 201, { requestId: "pairing-request-id-0123456789", verificationCode: "123456", expiresAt: Date.now() + 600000, state: "PENDING" });
+      if (url.endsWith("/pairing/exchange")) return response(url, 200, tokenSet("paired"));
+      return response(url, status, { error: "UNAUTHORIZED" });
+    };
+    const session = new MobileApprovedSession(storage, request);
+    const pairing = await session.startPairing(endpoint, deviceId);
+    await assert.rejects(session.exchangePairing(endpoint, pairing.requestId, deviceId));
+    assert.equal(await storage.getSecret(PAIRING_STORAGE_KEY), null);
+    assert.equal((await storage.getSecret(SESSION_STORAGE_KEY)) !== null, status === 429 || status === 503);
+    assert.equal(session.shouldRetryRestore(), status === 429 || status === 503);
+  }
 });
 
 test("mobile runtime fails closed without secure storage and clears endpoint-mismatched refresh state", async () => {
