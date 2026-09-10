@@ -187,7 +187,8 @@ export function handleMobilePairingApproveHttp(request: DashboardHttpRequest & {
   const input = jsonObject(request.body);
   try {
     const requestId = typeof input?.requestId === "string" && input.requestId.trim() ? input.requestId : undefined;
-    const approved = dependencies.sessionService.approvePairing({ actorUserId: principal.userId, actorScopes: principal.scopes, targetUserId: String(input?.targetUserId ?? ""), ...(requestId ? { requestId } : {}), verificationCode: String(input?.verificationCode ?? "") });
+    const targetUserId = typeof input?.targetUserId === "string" && input.targetUserId.trim() ? input.targetUserId.trim() : principal.userId;
+    const approved = dependencies.sessionService.approvePairing({ actorUserId: principal.userId, actorScopes: principal.scopes, targetUserId, ...(requestId ? { requestId } : {}), verificationCode: String(input?.verificationCode ?? "") });
     return approved ? dashboardJsonResponse(200, { state: "APPROVED" }) : dashboardJsonResponse(409, { error: "PAIRING_APPROVAL_REJECTED" });
   } catch (error) {
     const message = error instanceof Error ? error.message : "";

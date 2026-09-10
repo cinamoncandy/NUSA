@@ -94,6 +94,21 @@ test("ACTIVE OWNER users:manage may approve by a unique verification code, while
   } finally { db.close(); }
 });
 
+test("OWNER can approve their own unique pairing with the six-digit code only", () => {
+  const { db, service, deps } = fixture();
+  try {
+    const started = service.startPairing(DEVICE, 5_000);
+    const approval = pairingHttp.handleMobilePairingApproveHttp(
+      request("POST", { verificationCode: started.verificationCode }, `Bearer ${OWNER_TOKEN}`),
+      deps
+    );
+    assert.equal(approval.status, 200);
+    const tokens = service.exchangePairing(started.requestId, DEVICE, 5_001);
+    assert.ok(tokens);
+    assert.equal(service.me(tokens.accessToken, 5_002)?.userId, OWNER.userId);
+  } finally { db.close(); }
+});
+
 test("pairing HTTP returns only status and rotating session tokens, never a bootstrap credential", () => {
   const { db, service, deps } = fixture();
   try {
