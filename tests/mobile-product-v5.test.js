@@ -28,7 +28,7 @@ test("Cloud PAPER setup communicates server session verify without changing auth
   assert.match(settings, /title="SERVER"/);
   assert.match(settings, /title="SECURE SESSION"/);
   assert.match(settings, /title="VERIFY"/);
-  assert.match(settings, /연결 다시 시도/);
+  assert.match(settings, /PAPER 연결 요청 다시 시도/);
   assert.doesNotMatch(settings, /placeOrder|cancelOrder|withdraw/);
   const productionPaper = read("src/tradingView.tsx");
   assert.match(productionPaper, /<PaperLearningMonitorView/);
