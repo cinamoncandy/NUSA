@@ -85,6 +85,9 @@ function AiState({ title, detail, testID, retry, loading = false }: Readonly<{
         <Skeleton width="82%" height={13} />
       </View> : null}
       <InlineNotice title={title} detail={detail} tone={retry ? "danger" : "info"} />
+      <View testID="ai-zero-authority-status">
+        <InlineNotice title="AI ZERO AUTHORITY" detail="AI는 읽기 전용이며 PAPER·LIVE 주문, 이체, 출금 또는 운영 변경 권한이 없습니다." tone="info" />
+      </View>
       {retry ? <NusaButton label="다시 불러오기" onPress={retry} /> : null}
     </View>
   </View>;
