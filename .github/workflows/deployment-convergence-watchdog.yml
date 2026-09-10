@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
+    inputs:
+      oracle_observed_sha:
+        description: Read-only SHA observed from /opt/nusa/current on the Oracle PAPER host; omit when unavailable
+        required: false
+        type: string
 
 permissions:
   actions: write
@@ -30,6 +35,7 @@ jobs:
       - name: Reconcile exact-main deployment chain
         env:
           GH_TOKEN: ${{ github.token }}
+          ORACLE_OBSERVED_SHA: ${{ inputs.oracle_observed_sha }}
         shell: bash
         run: |
           set -euo pipefail
@@ -224,11 +230,20 @@ jobs:
             && workflow_success "Windows Desktop Stable Release" \
             && [ "$ANDROID_TARGET" = "$MAIN_SHA" ] \
             && [ "$WINDOWS_TARGET" = "$MAIN_SHA" ]; then
-            dispatch_bounded \
-              "Deployment Receipt" \
-              "Deployment Convergence Receipt" \
-              "deployment-convergence-receipt.yml" \
-              -f "inputs[source_sha]=$MAIN_SHA"
+            if [ -z "$ORACLE_OBSERVED_SHA" ]; then
+              echo "Convergence receipt waits for a read-only Oracle PAPER release observation; scheduled cycles never invent host evidence."
+            elif ! printf '%s' "$ORACLE_OBSERVED_SHA" | grep -Eq '^[0-9a-fA-F]{40}$'; then
+              echo "Oracle PAPER observation is malformed; refusing to dispatch a convergence receipt."
+            elif [ "${ORACLE_OBSERVED_SHA,,}" != "${MAIN_SHA,,}" ]; then
+              echo "Oracle PAPER release ${ORACLE_OBSERVED_SHA:0:8} is stale against exact main ${MAIN_SHA:0:8}; global convergence remains fail-closed."
+            else
+              dispatch_bounded \
+                "Deployment Receipt" \
+                "Deployment Convergence Receipt" \
+                "deployment-convergence-receipt.yml" \
+                -f "inputs[source_sha]=$MAIN_SHA" \
+                -f "inputs[oracle_observed_sha]=$ORACLE_OBSERVED_SHA"
+            fi
           else
             echo "Convergence receipt waits for all exact-main runtime and stable distribution proofs."
           fi
