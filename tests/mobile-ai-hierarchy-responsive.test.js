@@ -58,7 +58,7 @@ test("operational status text has redundant non-color semantics", () => {
     "DEGRADED · PAPER 저하",
     "CHECK · PAPER 미연결",
     "CHECK · PAPER 확인 불가",
-    "PAPER · PAPER 정상",
+    "PAPER · 정상",
   ]) {
     assert.ok(rail.includes(cue), `missing semantic status cue: ${cue}`);
   }
