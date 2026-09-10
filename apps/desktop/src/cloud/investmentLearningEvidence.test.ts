@@ -5,7 +5,7 @@ import type { LeagueRankedEntry, LeagueStanding } from "./nusaLeague";
 import { buildInvestmentLearningEvidence, orderResearchFamiliesByLearning } from "./investmentLearningEvidence";
 
 const HASH = "a".repeat(64);
-function ledgerOf(...rows: readonly [string, ResearchTrialOutcome][]): readonly ResearchTrialRecord[] {
+function ledgerOf(...rows: readonly (readonly [string, ResearchTrialOutcome])[]): readonly ResearchTrialRecord[] {
   let ledger: readonly ResearchTrialRecord[] = [];
   rows.forEach(([familyId, outcome], index) => {
     ledger = appendResearchTrial(ledger, {
