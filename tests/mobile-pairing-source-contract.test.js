@@ -23,8 +23,11 @@ test("mobile pairing source uses direct atomic session issuance and retains no p
   assert.doesNotMatch(http, /bootstrapToken[\s\S]{0,300}pairing\/exchange/);
   assert.match(mobile, /\/v1\/mobile\/pairing\/exchange/);
   assert.match(mobile, /PAIRING_STORAGE_KEY/);
+  assert.match(mobile, /private pendingPairing: PendingPairingMemory \| null = null/);
   assert.match(mobile, /restorePendingPairing/);
-  assert.match(mobile, /persistPendingPairing/);
+  assert.doesNotMatch(mobile, /persistPendingPairing/);
+  assert.doesNotMatch(mobile, /setSecret\(PAIRING_STORAGE_KEY/);
+  assert.doesNotMatch(mobile, /getSecret\(PAIRING_STORAGE_KEY/);
   assert.doesNotMatch(mobile, /AsyncStorage/);
   assert.match(ui, /PAPER 연결 요청/);
   assert.match(ui, /PAPER 연결 승인 대기/);
