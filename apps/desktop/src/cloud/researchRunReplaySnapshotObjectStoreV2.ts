@@ -324,7 +324,7 @@ export class FileResearchRunReplaySnapshotObjectStoreV2 {
   private readonly recordsDirectory: string;
   private readonly fingerprintsDirectory: string;
 
-  public constructor(private readonly rootDirectory: string) {
+  public constructor(rootDirectory: string) {
     if (!rootDirectory.trim() || rootDirectory === ":memory:") {
       throw new Error("research replay v2 path must be durable");
     }
