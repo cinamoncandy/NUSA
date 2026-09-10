@@ -21,6 +21,8 @@ export interface ScheduledEvolutionCodingResult {
 
 const SHA40 = /^[0-9a-f]{40}$/i;
 const MAX_SOURCE_AGE_SECONDS = 24 * 60 * 60;
+const DISCOVERY_MAX_AGE_MS = 60 * 60 * 1000;
+const DISCOVERY_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
 const CODING_LEASE_MS = 5 * 60 * 1000;
 const AUTHORITY = Object.freeze({ liveAuthority: "NONE" as const, productionMutationAllowed: false as const, aiAuthority: "ZERO_AUTHORITY" as const });
 
@@ -79,13 +81,23 @@ function signalsFromRuns(candidates: readonly unknown[], now: number): readonly 
   })));
 }
 
+function freshDiscoverySignals(signals: readonly EvolutionDiscoverySignal[], now: number): readonly EvolutionDiscoverySignal[] {
+  return Object.freeze(signals.filter((signal) => {
+    const observedAt = Date.parse(signal.observedAt);
+    if (!Number.isFinite(observedAt)) return false;
+    const age = now - observedAt;
+    return age <= DISCOVERY_MAX_AGE_MS && age >= -DISCOVERY_MAX_FUTURE_SKEW_MS;
+  }));
+}
+
 /**
  * Thin scheduled composition: authenticated read-only GitHub evidence -> existing
  * discovery/selector bridge -> existing GitHub dispatch spine. Fresh workflow
  * failures always take precedence. When main is healthy, a narrowly filtered,
  * owner-authored P0/P1 Autopilot issue may supply one bounded proactive task.
- * Coding is delegated to the single repository_dispatch consumer; no direct
- * production mutation authority exists.
+ * Stale workflow failures cannot shadow a fresh backlog candidate. Coding is
+ * delegated to the single repository_dispatch consumer; no direct production
+ * mutation authority exists.
  */
 export async function runScheduledEvolutionCoding(
   env: ScheduledEvolutionCodingEnv,
@@ -107,12 +119,12 @@ export async function runScheduledEvolutionCoding(
     return result("ABSTAINED", "scheduled-coding-input-invalid");
   }
 
-  const failureSignals = signalsFromRuns(input.candidates, input.now);
+  const failureSignals = freshDiscoverySignals(signalsFromRuns(input.candidates, input.now), input.now);
   const backlogSignals = failureSignals.length === 0
     ? deriveGithubIssueBacklogSignals(input.backlogIssues ?? [], new Date(input.now))
     : Object.freeze([] as EvolutionDiscoverySignal[]);
   const signals = failureSignals.length > 0 ? failureSignals : backlogSignals;
-  const freshFailureCount = failureSignals.filter((signal) => input.now - Date.parse(signal.observedAt) <= 60 * 60 * 1000).length;
+  const freshFailureCount = failureSignals.length;
   const executionId = `evolve-coding:${input.workflowRunId}:${input.mainSha.slice(0, 16)}`;
   const dedupeKey = `evolve-coding:${input.workflowRunId}:${input.mainSha}`;
   const bridge = prepareDiscoveredCodingRequest({
