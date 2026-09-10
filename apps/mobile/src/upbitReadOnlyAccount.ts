@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { mobileApprovedSession } from "./mobileApprovedSessionBoundary";
 import { loadUpbitLiveAccounts, UPBIT_LIVE_BASE_URL } from "./upbitLiveClient";
 import { normalizeUpbitReadOnlySnapshot, type UpbitReadOnlyAccountSnapshot } from "./upbitReadOnlyAccountModel";
@@ -153,6 +152,9 @@ export async function connectUpbitReadOnlyAccount(baseUrl: string = UPBIT_LIVE_B
 }
 
 export function useUpbitReadOnlyState(): UpbitReadOnlyState {
+  // Keep the read-only account core importable by non-React runtime/tests. React
+  // is loaded only when the UI hook is actually invoked by the mobile app.
+  const { useEffect, useState } = require("react") as typeof import("react");
   const [state, setState] = useState(currentState);
   useEffect(() => { const update = () => setState(currentState); return subscribeUpbitReadOnlyState(update); }, []);
   return state;
