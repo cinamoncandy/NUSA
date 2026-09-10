@@ -77,7 +77,6 @@ export class ResearchPortfolioDiversificationError extends Error {
   }
 }
 
-export const DEFAULT_MAXIMUM_ABSOLUTE_CORRELATION = 0.7;
 const SHA256 = /^[a-f0-9]{64}$/;
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 
@@ -349,8 +348,8 @@ function pairKey(left: string, right: string): string {
 export function adviseCorrelationAwareLeagueCapitalAllocation(
   standing: LeagueStanding,
   evidence: ResearchPortfolioDiversificationEvidence,
-  allocationPolicy: Partial<LeagueCapitalAllocationPolicy> = {},
-  maximumAllowedAbsoluteCorrelation = DEFAULT_MAXIMUM_ABSOLUTE_CORRELATION,
+  allocationPolicy: Partial<LeagueCapitalAllocationPolicy>,
+  maximumAllowedAbsoluteCorrelation: number,
 ): CorrelationAwareLeagueAllocationResult {
   validateEvidence(evidence);
   assertFinite(maximumAllowedAbsoluteCorrelation, "INVALID_CORRELATION_LIMIT", "maximumAllowedAbsoluteCorrelation must be finite");

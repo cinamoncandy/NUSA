@@ -146,7 +146,7 @@ describe("Research portfolio diversification evidence", () => {
     const evidence = buildResearchPortfolioDiversificationEvidence([series("a", "trend", a), series("b", "breakout", sameDirection)]);
     const tampered = { ...evidence, pairs: Object.freeze([]) };
     assert.throws(
-      () => adviseCorrelationAwareLeagueCapitalAllocation(standing([entry("a", "trend", 1, 120), entry("b", "breakout", 2, 100)]), tampered, { maximumCandidateWeight: 0.5 }),
+      () => adviseCorrelationAwareLeagueCapitalAllocation(standing([entry("a", "trend", 1, 120), entry("b", "breakout", 2, 100)]), tampered, { maximumCandidateWeight: 0.5 }, 0.7),
       (error) => error instanceof ResearchPortfolioDiversificationError && error.code === "DIVERSIFICATION_EVIDENCE_FINGERPRINT_MISMATCH",
     );
   });
