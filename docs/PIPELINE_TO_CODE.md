@@ -12,6 +12,14 @@ entrypoints are registered in `apps/cloud/src/canonicalModuleRegistryV10.ts`, an
 per-stage evidence. Runtime callers still provide the concrete stage adapters and inputs; the
 orchestrator never grants LIVE authority and accepts only PAPER/SHADOW execution context.
 
+Which of these stages runtime code actually reaches is declared in
+`apps/cloud/src/pipelineWiringV10.ts` and checked against the import graph by
+`tests/pipeline-wiring-v10.test.js`. Today the V10 engines are reached only from the V10
+registry, the retained implementations underneath carry the running pipeline, and the
+Intelligence stage additionally has no producer for the `MarketRegimeFeatures` its gate
+reads. Read that declaration before treating a row below as a description of a running
+system.
+
 | Stage | Canonical status | Canonical entrypoint and retained implementations |
 |-------|------------------|---------------------------------------------------|
 | Market Data | V10 REGISTERED | `packages/core/src/upbitWebSocket.ts`; desktop websocket, connection supervisor and closed-candle adapter remain the acquisition implementations |

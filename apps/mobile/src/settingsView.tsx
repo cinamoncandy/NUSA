@@ -138,7 +138,7 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
     } catch (connectionError) {
       credentialSession.clear(); clearPaperConnectionVerification();
       setConnectionRefusal(connectionError instanceof MobileSessionRequestError ? describeRefusal(connectionError.refusal, connectionError.status) : null);
-      setConnection({ status: "NOT_CONFIGURED", reason: connectionError == null ? "Cloud PAPER 최초 인증 또는 보안 세션이 유효하지 않습니다." : describeCredentialFailure(connectionError) });
+      setConnection({ status: "NOT_CONFIGURED", reason: describeCredentialFailure(connectionError) });
     }
     finally { connectionInFlightRef.current = false; setConnecting(false); }
   };
