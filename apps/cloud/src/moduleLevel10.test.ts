@@ -24,6 +24,7 @@ function moduleFor(stage: ModuleStage, fail = false): Level10Module<unknown, unk
   return Object.freeze({
     stage,
     version: "10",
+    tier: "10X-S",
     execute: (input: unknown) => {
       if (fail) throw new Error(`${stage}_FAILURE`);
       return Object.freeze({ stage, previous: input });
@@ -35,7 +36,7 @@ function bundle(failingStage?: ModuleStage): Level10ModuleBundle {
   return Object.fromEntries(MODULE_STAGE_ORDER.map((stage) => [stage, moduleFor(stage, stage === failingStage)])) as Level10ModuleBundle;
 }
 
-describe("level-10 module contract", () => {
+describe("level-10/10X-S module contract", () => {
   it("hashes equivalent objects deterministically regardless of key order", () => {
     assert.equal(deterministicSha256({ b: 2, a: 1 }), deterministicSha256({ a: 1, b: 2 }));
   });
@@ -44,17 +45,28 @@ describe("level-10 module contract", () => {
     const result = await runLevel10Module(moduleFor("RISK", true), { intent: "BUY" }, context);
     assert.equal(result.status, "FAILED_CLOSED");
     assert.equal(result.evidence.stage, "RISK");
+    assert.equal(result.evidence.moduleTier, "10X-S");
     assert.equal(result.evidence.error, "RISK_FAILURE");
     assert.equal(result.output, undefined);
   });
 
-  it("rejects any runtime mode outside PAPER/SHADOW", async () => {
+  it("fails closed for any runtime mode outside PAPER/SHADOW", async () => {
     const invalid = { ...context, mode: "LIVE" } as unknown as ModuleExecutionContext;
-    await assert.rejects(runLevel10Module(moduleFor("EXECUTION"), {}, invalid), /LIVE authority is forbidden/);
+    const result = await runLevel10Module(moduleFor("EXECUTION"), {}, invalid);
+    assert.equal(result.status, "FAILED_CLOSED");
+    assert.match(result.evidence.error ?? "", /LIVE authority is forbidden/);
+  });
+
+  it("fails closed when evidence input cannot be deterministically serialized", async () => {
+    const cyclic: { self?: unknown } = {};
+    cyclic.self = cyclic;
+    const result = await runLevel10Module(moduleFor("MARKET_DATA"), cyclic, context);
+    assert.equal(result.status, "FAILED_CLOSED");
+    assert.match(result.evidence.error ?? "", /cyclic/);
   });
 });
 
-describe("canonical v10 registry", () => {
+describe("canonical v10 compatibility registry", () => {
   it("contains every stage exactly once and points at real source files", () => {
     validateCanonicalModuleRegistryV10();
     assert.deepEqual(CANONICAL_MODULE_REGISTRY_V10.map((definition) => definition.stage), [...MODULE_STAGE_ORDER]);
@@ -65,12 +77,13 @@ describe("canonical v10 registry", () => {
 });
 
 describe("PipelineOrchestratorV10", () => {
-  it("runs all ten stages in canonical order with evidence", async () => {
+  it("runs all ten stages in canonical order with 10X-S evidence", async () => {
     const result = await new PipelineOrchestratorV10(bundle()).run({ seed: true }, context);
     assert.equal(result.status, "COMPLETED");
     assert.equal(result.evidence.length, MODULE_STAGE_ORDER.length);
     assert.deepEqual(result.evidence.map((item) => item.stage), [...MODULE_STAGE_ORDER]);
     assert.equal(result.evidence.every((item) => item.status === "COMPLETED"), true);
+    assert.equal(result.evidence.every((item) => item.moduleTier === "10X-S"), true);
   });
 
   it("halts immediately at the first failed-closed module", async () => {
