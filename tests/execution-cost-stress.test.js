@@ -11,7 +11,9 @@ const scenarios = () => [
   { id: "baseline", feeRate: 0, spreadBps: 0, slippageBps: 0 },
   { id: "medium", feeRate: 0.05, spreadBps: 20, slippageBps: 20 }
 ];
-const walk = { trainSize: 3, testSize: 2, stepSize: 2, backtestConfig: { initialCash: 1000, orderQuantity: 1 } };
+// Three OOS observations are the causal minimum for a two-signal round trip:
+// observe BUY -> fill BUY while observing SELL -> fill SELL on the next observation.
+const walk = { trainSize: 3, testSize: 3, stepSize: 3, backtestConfig: { initialCash: 1000, orderQuantity: 1 } };
 const identity = { sourceExperimentSha: "source-experiment-sha", datasetSha256: "a".repeat(64) };
 const run = (overrides = {}) => runExecutionCostStress(points(), candidates(), walk, { scenarios: scenarios(), baselineScenarioId: "baseline", ...overrides }, identity);
 
@@ -29,4 +31,3 @@ test("19 OOS metrics remain separate from 20 open-position marked policy", () =>
 test("21 candidate churn is surfaced through scenario warnings", () => { const result = run(); assert.ok(result.scenarios.every(x => Array.isArray(x.warnings))); });
 test("22 Research Memory identity is deterministic and 23 record insertion is idempotent", () => { const result = run(); const records = new Map(); const adapter = { appendExperiment(record) { const existing = records.get(record.id); if (existing) { assert.deepEqual(existing, record); return existing; } records.set(record.id, record); return record; } }; assert.deepEqual(result.identity, run().identity); assert.deepEqual(recordStressExperiment(adapter, result, { datasetId: "dataset", manifestSchemaVersion: 1, market: "KRW-BTC", interval: "1m", startOpenTime: 0, endCloseTime: 60_000 }), recordStressExperiment(adapter, result, { datasetId: "dataset", manifestSchemaVersion: 1, market: "KRW-BTC", interval: "1m", startOpenTime: 0, endCloseTime: 60_000 })); });
 test("24 invalid non-finite scenario fails closed", () => { assert.throws(() => run({ scenarios: [{ id: "baseline", feeRate: 0, spreadBps: 0, slippageBps: 0 }, { id: "bad", feeRate: NaN, spreadBps: 0, slippageBps: 0 }] }), /invalid cost/); });
-
