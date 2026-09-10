@@ -12,7 +12,7 @@ current_bounded_investment_learning:
   status: IMPLEMENTED_LOCAL
   branch: research/investment-learning-1820
   base_sha: 4fe488ebfc7706406a86f29185e4b110fb9abec4
-  scope: "Bounded sealed-history investment learning that orders Research attention without changing qualification, scores, capital, or execution authority."
+  scope: "Bounded sealed-history investment learning with distinct canonical-search guard and explicit next-cycle Strategy Research queue; no qualification, score, runtime-strategy, capital, or execution mutation."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_first_read_connection_recovery:
   work_order: WO-20260908-CONNECTION-FIRST-READ-RECOVERY

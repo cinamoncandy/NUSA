@@ -17,13 +17,26 @@ export interface InvestmentLearningFamilyEvidence {
   readonly familyId: string;
   readonly guidance: InvestmentLearningGuidance;
   readonly priorTrialCount: number;
+  readonly priorDistinctSearchCount: number;
   readonly historicalFailureRatio: number;
   readonly boundedPriorAdjustment: number;
   readonly currentCandidateCount: number;
   readonly currentFailureCategories: readonly CandidateFailureCategory[];
   readonly failureCategoryCounts: Readonly<Partial<Record<CandidateFailureCategory, number>>>;
   readonly recurringFailureCategories: readonly CandidateFailureCategory[];
+  /** Rejection/abstention reason counts deduplicated by distinct canonical search. */
+  readonly historicalFailureReasonSearchCounts: Readonly<Record<string, number>>;
+  readonly recurringHistoricalFailureReasons: readonly string[];
   readonly insufficientEvidenceFor: readonly CandidateFailureCategory[];
+  readonly reasons: readonly string[];
+}
+
+export interface InvestmentResearchAttentionEntry {
+  readonly rank: number;
+  readonly familyId: string;
+  readonly guidance: InvestmentLearningGuidance;
+  readonly priorTrialCount: number;
+  readonly priorDistinctSearchCount: number;
   readonly reasons: readonly string[];
 }
 
@@ -106,12 +119,38 @@ function validateStanding(standing: LeagueStanding): void {
 function guidanceFor(input: {
   readonly priorTrialCount: number;
   readonly minimumPriorTrials: number;
+  readonly priorDistinctSearchCount: number;
+  readonly minimumDistinctSearches: number;
   readonly boundedPriorAdjustment: number;
   readonly recurringFailureCategories: readonly CandidateFailureCategory[];
+  readonly recurringHistoricalFailureReasons: readonly string[];
 }): InvestmentLearningGuidance {
-  if (input.priorTrialCount < input.minimumPriorTrials) return "EXPLORE";
-  if (input.boundedPriorAdjustment < 0 && input.recurringFailureCategories.length > 0) return "DEPRIORITIZE";
+  if (input.priorTrialCount < input.minimumPriorTrials || input.priorDistinctSearchCount < input.minimumDistinctSearches) return "EXPLORE";
+  if (input.boundedPriorAdjustment < 0
+    && input.recurringFailureCategories.length > 0
+    && input.recurringHistoricalFailureReasons.length > 0) return "DEPRIORITIZE";
   return "HOLD";
+}
+
+function failureReasonSearchCounts(
+  ledger: readonly ResearchTrialRecord[],
+  evaluatedSequence: number,
+  familyId: string,
+): Readonly<Record<string, number>> {
+  const searchesByReason = new Map<string, Set<string>>();
+  for (const record of ledger) {
+    if (record.sequence >= evaluatedSequence || record.familyId !== familyId) continue;
+    const reasons = record.outcome === "REJECTED" ? (record.rejectionReasons ?? [])
+      : record.outcome === "ABSTAINED" ? (record.abstentionReasons ?? []) : [];
+    for (const reason of reasons) {
+      const searches = searchesByReason.get(reason) ?? new Set<string>();
+      searches.add(record.search.searchId);
+      searchesByReason.set(reason, searches);
+    }
+  }
+  return freeze(Object.fromEntries([...searchesByReason.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([reason, searches]) => [reason, searches.size])));
 }
 
 /**
@@ -165,32 +204,44 @@ export function buildInvestmentLearningEvidence(input: {
       : freeze([]) as readonly CandidateFailureCategory[];
     const insufficientEvidenceFor = sortedUnique(current.flatMap((item) => item.insufficientEvidenceFor));
     const priorTrialCount = historical?.priorTrialCount ?? 0;
+    const priorDistinctSearchCount = historical?.distinctSearchCount ?? 0;
     const historicalFailureRatio = historical?.failureRatio ?? 0;
     const boundedPriorAdjustment = historical?.priorAdjustment ?? 0;
+    const historicalFailureReasonSearchCounts = failureReasonSearchCounts(input.ledger, feedback.evaluatedSequence, familyId);
+    const recurringHistoricalFailureReasons = sortedUnique(Object.entries(historicalFailureReasonSearchCounts)
+      .filter(([, count]) => count >= feedback.policy.minimumDistinctSearches)
+      .map(([reason]) => reason));
     const guidance = guidanceFor({
       priorTrialCount,
       minimumPriorTrials: feedback.policy.minimumPriorTrials,
+      priorDistinctSearchCount,
+      minimumDistinctSearches: feedback.policy.minimumDistinctSearches,
       boundedPriorAdjustment,
       recurringFailureCategories,
+      recurringHistoricalFailureReasons,
     });
     const reasons: string[] = ["CANONICAL_GATES_UNCHANGED", "POSITIVE_HISTORY_CANNOT_AUTO_PROMOTE"];
-    if (guidance === "EXPLORE") reasons.push("INSUFFICIENT_SEALED_HISTORY_EXPLORE_FOR_EVIDENCE");
-    if (guidance === "DEPRIORITIZE") reasons.push("NEGATIVE_SEALED_HISTORY_WITH_RECURRING_CURRENT_FAILURE_EVIDENCE");
+    if (guidance === "EXPLORE") reasons.push("INSUFFICIENT_DISTINCT_SEALED_HISTORY_EXPLORE_FOR_EVIDENCE");
+    if (guidance === "DEPRIORITIZE") reasons.push("NEGATIVE_SEALED_HISTORY_WITH_DISTINCT_SEARCH_RECURRING_FAILURE_EVIDENCE");
     if (guidance === "HOLD") reasons.push("NO_BOUNDED_REASON_TO_CHANGE_RESEARCH_ATTENTION");
     if (current.length === 0) reasons.push("NO_CURRENT_LEAGUE_CANDIDATES_FOR_FAMILY");
     if (currentFailureCategories.length > 0) reasons.push(...currentFailureCategories.map((category) => `CURRENT_${category}`));
     if (recurringFailureCategories.length > 0) reasons.push("RECURRING_FAILURE_MECHANISM_ACROSS_CURRENT_CANDIDATES");
+    if (recurringHistoricalFailureReasons.length > 0) reasons.push("RECURRING_FAILURE_REASON_ACROSS_DISTINCT_SEARCHES");
     if (insufficientEvidenceFor.length > 0) reasons.push("CURRENT_FAILURE_ATTRIBUTION_INCOMPLETE");
     return freeze({
       familyId,
       guidance,
       priorTrialCount,
+      priorDistinctSearchCount,
       historicalFailureRatio,
       boundedPriorAdjustment,
       currentCandidateCount: current.length,
       currentFailureCategories,
       failureCategoryCounts: freeze(failureCategoryCounts),
       recurringFailureCategories,
+      historicalFailureReasonSearchCounts,
+      recurringHistoricalFailureReasons,
       insufficientEvidenceFor,
       reasons: sortedUnique(reasons),
     });
@@ -239,6 +290,31 @@ export function orderResearchFamiliesByLearning(
   return freeze([...declaredFamilyIds].sort((left, right) => {
     const a = byFamily.get(left)!;
     const b = byFamily.get(right)!;
-    return priority[a.guidance] - priority[b.guidance] || left.localeCompare(right);
+    return priority[a.guidance] - priority[b.guidance]
+      || a.priorDistinctSearchCount - b.priorDistinctSearchCount
+      || a.priorTrialCount - b.priorTrialCount
+      || left.localeCompare(right);
+  }));
+}
+
+/**
+ * Produces the explicit next-cycle Strategy Research queue. This is advisory scheduling only:
+ * it cannot invent a family, alter its parameters, change qualification, or deploy a strategy.
+ */
+export function buildInvestmentResearchAttentionPlan(
+  declaredFamilyIds: readonly string[],
+  evidence: InvestmentLearningEvidence,
+): readonly InvestmentResearchAttentionEntry[] {
+  const byFamily = new Map(evidence.families.map((family) => [family.familyId, family] as const));
+  return freeze(orderResearchFamiliesByLearning(declaredFamilyIds, evidence).map((familyId, index) => {
+    const family = byFamily.get(familyId)!;
+    return freeze({
+      rank: index + 1,
+      familyId,
+      guidance: family.guidance,
+      priorTrialCount: family.priorTrialCount,
+      priorDistinctSearchCount: family.priorDistinctSearchCount,
+      reasons: family.reasons,
+    });
   }));
 }

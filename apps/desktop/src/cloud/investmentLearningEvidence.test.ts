@@ -2,12 +2,13 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { appendResearchTrial, type ResearchTrialRecord, type ResearchTrialOutcome } from "./researchTrialLedger";
 import type { LeagueRankedEntry, LeagueStanding } from "./nusaLeague";
-import { buildInvestmentLearningEvidence, orderResearchFamiliesByLearning } from "./investmentLearningEvidence";
+import { buildInvestmentLearningEvidence, buildInvestmentResearchAttentionPlan, orderResearchFamiliesByLearning } from "./investmentLearningEvidence";
 
 const HASH = "a".repeat(64);
-function ledgerOf(...rows: readonly (readonly [string, ResearchTrialOutcome])[]): readonly ResearchTrialRecord[] {
+function ledgerOf(...rows: readonly (readonly [string, ResearchTrialOutcome, string?])[]): readonly ResearchTrialRecord[] {
   let ledger: readonly ResearchTrialRecord[] = [];
-  rows.forEach(([familyId, outcome], index) => {
+  rows.forEach(([familyId, outcome, searchId], index) => {
+    const resolvedSearchId = searchId ?? `search-${index + 1}`;
     ledger = appendResearchTrial(ledger, {
       trialId: `trial-${index + 1}`,
       familyId,
@@ -15,7 +16,7 @@ function ledgerOf(...rows: readonly (readonly [string, ResearchTrialOutcome])[])
       createdAt: new Date(index * 1_000).toISOString(),
       dataset: { datasetId: "dataset-a", contentSha256: HASH, market: "KRW-BTC", interval: "1d" },
       candidateIds: [`candidate-${index + 1}`],
-      search: { searchId: "search-a", attemptOrdinal: index + 1 },
+      search: { searchId: resolvedSearchId, attemptOrdinal: ledger.filter((record) => record.search.searchId === resolvedSearchId).length + 1 },
       outcome,
       ...(outcome === "REJECTED" ? { rejectionReasons: ["gate"] } : {}),
       ...(outcome === "ABSTAINED" ? { abstentionReasons: ["risk"] } : {}),
@@ -49,12 +50,27 @@ function standing(entries: readonly LeagueRankedEntry[]): LeagueStanding {
 
 describe("bounded investment learning evidence", () => {
   it("keeps rejected and abstained trials in the learning denominator", () => {
-    const ledger = ledgerOf(["trend", "COMPLETED"], ["trend", "REJECTED"], ["trend", "ABSTAINED"], ["trend", "FAILED"], ["trend", "FAILED"]);
+    const ledger = ledgerOf(["trend", "COMPLETED"], ["trend", "REJECTED"], ["trend", "ABSTAINED"], ["trend", "REJECTED"], ["trend", "ABSTAINED"]);
     const family = buildInvestmentLearningEvidence({ ledger, standing: standing([entry("a", "trend"), entry("b", "trend")]) }).families[0]!;
     assert.equal(family.priorTrialCount, 5);
     assert.equal(family.historicalFailureRatio, 0.8);
     assert.ok(family.boundedPriorAdjustment < 0);
+    assert.equal(family.priorDistinctSearchCount, 5);
+    assert.ok(family.recurringHistoricalFailureReasons.includes("gate"));
+    assert.ok(family.recurringHistoricalFailureReasons.includes("risk"));
     assert.equal(family.guidance, "DEPRIORITIZE");
+  });
+
+  it("does not learn nine times from one nine-cell canonical search", () => {
+    const ledger = ledgerOf(...Array.from({ length: 9 }, () => ["trend", "REJECTED", "one-grid"] as const));
+    const family = buildInvestmentLearningEvidence({
+      ledger,
+      standing: standing([entry("a", "trend"), entry("b", "trend")]),
+    }).families[0]!;
+    assert.equal(family.priorTrialCount, 9);
+    assert.equal(family.priorDistinctSearchCount, 1);
+    assert.equal(family.boundedPriorAdjustment, 0);
+    assert.equal(family.guidance, "EXPLORE");
   });
 
   it("prevents the current trial from influencing guidance applied to itself", () => {
@@ -107,6 +123,32 @@ describe("bounded investment learning evidence", () => {
     assert.equal(family.boundedPriorAdjustment < 0, true);
     assert.deepEqual(family.recurringFailureCategories, []);
     assert.equal(family.guidance, "HOLD");
+  });
+
+  it("balances research attention toward families with fewer distinct searches", () => {
+    const ledger = ledgerOf(
+      ["trend", "COMPLETED", "trend-1"], ["trend", "COMPLETED", "trend-2"],
+      ["mean", "COMPLETED", "mean-1"],
+    );
+    const evidence = buildInvestmentLearningEvidence({
+      ledger,
+      standing: standing([]),
+      declaredFamilyIds: ["trend", "mean"],
+      feedbackPolicy: { minimumPriorTrials: 1 },
+    });
+    assert.deepEqual(orderResearchFamiliesByLearning(["trend", "mean"], evidence), ["mean", "trend"]);
+  });
+
+  it("builds an explicit advisory Strategy Research queue without inventing families", () => {
+    const evidence = buildInvestmentLearningEvidence({
+      ledger: ledgerOf(["trend", "FAILED"], ["mean", "FAILED"]),
+      standing: standing([]),
+      declaredFamilyIds: ["trend", "mean"],
+    });
+    const plan = buildInvestmentResearchAttentionPlan(["trend", "mean"], evidence);
+    assert.deepEqual(plan.map((item) => item.rank), [1, 2]);
+    assert.deepEqual(new Set(plan.map((item) => item.familyId)), new Set(["trend", "mean"]));
+    assert.ok(plan.every((item) => item.priorDistinctSearchCount >= 0));
   });
 
   it("is deterministic under League entry permutation", () => {

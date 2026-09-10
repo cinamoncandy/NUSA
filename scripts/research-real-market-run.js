@@ -21,7 +21,7 @@ const { buildResearchHypothesis } = require("../dist/apps/desktop/src/cloud/rese
 const { createResearchHypothesis } = require("../dist/packages/contracts/src/researchHypothesisContract.js");
 const { buildResearchRunTimeline } = require("../dist/apps/desktop/src/cloud/researchRunTimeline.js");
 const { buildResearchRunProvenancePlan } = require("../dist/apps/desktop/src/cloud/researchRunFactory.js");
-const { buildInvestmentLearningEvidence, orderResearchFamiliesByLearning } = require("../dist/apps/desktop/src/cloud/investmentLearningEvidence.js");
+const { buildInvestmentLearningEvidence, buildInvestmentResearchAttentionPlan, orderResearchFamiliesByLearning } = require("../dist/apps/desktop/src/cloud/investmentLearningEvidence.js");
 const { FileResearchInvestmentLearningLedgerStore } = require("../dist/apps/desktop/src/cloud/researchInvestmentLearningLedger.js");
 
 const SMA_FAMILY_ID = "sma-crossover";
@@ -549,6 +549,7 @@ async function main() {
     evaluatedSequence: cumulativeLearningLedger.length + 1
   });
   const nextResearchAttention = orderResearchFamiliesByLearning(SUPPORTED_RESEARCH_FAMILIES, investmentLearningEvidence);
+  const researchAttentionPlan = buildInvestmentResearchAttentionPlan(SUPPORTED_RESEARCH_FAMILIES, investmentLearningEvidence);
 
   const oos = result.walkForwardResult.combinedOutOfSampleMetrics;
   console.log(JSON.stringify({
@@ -653,7 +654,8 @@ async function main() {
       automaticFamilySelectionAllowed: false,
       qualificationThresholdMutationAllowed: false,
       evidence: investmentLearningEvidence,
-      nextResearchAttention
+      nextResearchAttention,
+      researchAttentionPlan
     },
     warnings: result.warnings
   }, null, 2));
