@@ -1,0 +1,26 @@
+id: WO-ISSUE-1815-CORRELATION-AWARE-RESEARCH-PORTFOLIO
+title: Correlation-aware cross-family Research portfolio evidence
+status: READY_FOR_PR
+authority_impact: none
+branch: research/correlation-aware-portfolio-1815
+base_sha: 724588f266a96806f9db7e587c27f5701c269c6d
+issue: 1815
+scope: "Add deterministic OOS dependence evidence and a correlation gate around the existing League allocation advisory; Research only."
+constraints:
+  maximum_absolute_correlation: 0.7
+  canonical_weighting_engine: adviseLeagueCapitalAllocation
+  market_data_fetch: prohibited
+  qualification_threshold_changes: prohibited
+  fabricated_evidence: prohibited
+  second_allocation_engine: prohibited
+validation:
+  focused_typescript: "PASS"
+  focused_diversification_tests: "PASS 8/8"
+  research_architecture: "PASS"
+  repository_architecture_truth: "PASS"
+  safety_architecture: "PASS"
+  ai_zero_authority: "PASS"
+  aipos_work_order_provenance: "PASS"
+  canonical_oos_or_market_fetch: "NOT_RUN_BY_DESIGN"
+safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+next_permitted_action: "Open exact-head PR and require CI/Audit. No production portfolio mutation is permitted."
