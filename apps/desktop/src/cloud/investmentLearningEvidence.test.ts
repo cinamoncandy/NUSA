@@ -151,6 +151,49 @@ describe("bounded investment learning evidence", () => {
     assert.ok(plan.every((item) => item.priorDistinctSearchCount >= 0));
   });
 
+  it("attaches PAPER Review research focus without changing family order", () => {
+    const evidence = buildInvestmentLearningEvidence({
+      ledger: ledgerOf(["trend", "FAILED"], ["mean", "FAILED"]),
+      standing: standing([]),
+      declaredFamilyIds: ["trend", "mean"],
+    });
+    const baseline = buildInvestmentResearchAttentionPlan(["trend", "mean"], evidence);
+    const withReview = buildInvestmentResearchAttentionPlan(["trend", "mean"], evidence, [{
+      feedbackId: "review-1",
+      candidateId: "candidate-review",
+      strategyFamilyId: "trend",
+      regime: "TREND_UP",
+      actions: ["PRIORITIZE_COST_ROBUSTNESS", "PRIORITIZE_DRAWDOWN_CONTROL"],
+      reasons: ["COST_EROSION", "DRAWDOWN_DETERIORATION"],
+      researchPriorityMutationAllowed: false,
+      liveAuthority: "NONE",
+      productionMutationAllowed: false,
+      aiAuthority: "ZERO_AUTHORITY",
+    }]);
+    assert.deepEqual(withReview.map((item) => item.familyId), baseline.map((item) => item.familyId));
+    assert.deepEqual(
+      withReview.find((item) => item.familyId === "trend")?.reviewResearchFocusActions,
+      ["PRIORITIZE_COST_ROBUSTNESS", "PRIORITIZE_DRAWDOWN_CONTROL"],
+    );
+    assert.deepEqual(withReview.find((item) => item.familyId === "mean")?.reviewResearchFocusActions, []);
+  });
+
+  it("fails closed on Review feedback that tries to gain mutation authority or inject a family", () => {
+    const evidence = buildInvestmentLearningEvidence({
+      ledger: ledgerOf(["trend", "FAILED"]),
+      standing: standing([]),
+      declaredFamilyIds: ["trend"],
+    });
+    const base = {
+      feedbackId: "review-1", candidateId: "candidate-review", strategyFamilyId: "trend", regime: "TREND_UP",
+      actions: ["PRIORITIZE_REGIME_ROBUSTNESS"] as const, reasons: ["REGIME_DEGRADATION"],
+      researchPriorityMutationAllowed: false as const, liveAuthority: "NONE" as const,
+      productionMutationAllowed: false as const, aiAuthority: "ZERO_AUTHORITY" as const,
+    };
+    assert.throws(() => buildInvestmentResearchAttentionPlan(["trend"], evidence, [{ ...base, researchPriorityMutationAllowed: true } as never]));
+    assert.throws(() => buildInvestmentResearchAttentionPlan(["trend"], evidence, [{ ...base, strategyFamilyId: "injected" }]));
+  });
+
   it("is deterministic under League entry permutation", () => {
     const ledger = ledgerOf(["trend", "FAILED"], ["mean", "FAILED"]);
     const a = buildInvestmentLearningEvidence({ ledger, standing: standing([entry("a", "trend"), entry("b", "mean")]) });

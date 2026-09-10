@@ -10,6 +10,7 @@ import {
 } from "./researchFeedbackDigest";
 import type { LeagueStanding } from "./nusaLeague";
 import type { ResearchTrialRecord } from "./researchTrialLedger";
+import type { ResearchEvolutionFeedbackResult, ResearchFeedbackAction } from "../../../cloud/src/researchEvolutionFeedback";
 
 export type InvestmentLearningGuidance = "EXPLORE" | "HOLD" | "DEPRIORITIZE";
 
@@ -37,6 +38,8 @@ export interface InvestmentResearchAttentionEntry {
   readonly guidance: InvestmentLearningGuidance;
   readonly priorTrialCount: number;
   readonly priorDistinctSearchCount: number;
+  /** PAPER Review/evolution findings to investigate; never changes ordering or runtime strategy state. */
+  readonly reviewResearchFocusActions: readonly ResearchFeedbackAction[];
   readonly reasons: readonly string[];
 }
 
@@ -297,15 +300,62 @@ export function orderResearchFamiliesByLearning(
   }));
 }
 
+const RESEARCH_FEEDBACK_ACTIONS: ReadonlySet<ResearchFeedbackAction> = new Set([
+  "PRIORITIZE_CALIBRATION",
+  "PRIORITIZE_REGIME_ROBUSTNESS",
+  "PRIORITIZE_COST_ROBUSTNESS",
+  "PRIORITIZE_DRAWDOWN_CONTROL",
+  "PRIORITIZE_PROVENANCE_REPAIR",
+  "PRIORITIZE_INFRASTRUCTURE_REPAIR",
+  "PRIORITIZE_REPLACEMENT_RESEARCH",
+  "MAINTAIN_CURRENT_RESEARCH",
+]);
+
+function reviewFocusByFamily(
+  declaredFamilyIds: readonly string[],
+  feedback: readonly ResearchEvolutionFeedbackResult[],
+): ReadonlyMap<string, readonly ResearchFeedbackAction[]> {
+  const declared = new Set(declaredFamilyIds);
+  const feedbackIds = new Set<string>();
+  const actions = new Map<string, Set<ResearchFeedbackAction>>();
+  for (const item of feedback) {
+    if (!item.feedbackId.trim() || feedbackIds.has(item.feedbackId)) {
+      throw new InvestmentLearningEvidenceError("INVALID_REVIEW_FEEDBACK_ID", "Review feedback identities must be unique and non-empty");
+    }
+    feedbackIds.add(item.feedbackId);
+    if (!declared.has(item.strategyFamilyId)) {
+      throw new InvestmentLearningEvidenceError("UNDECLARED_REVIEW_FEEDBACK_FAMILY", `Review feedback references undeclared family ${item.strategyFamilyId}`);
+    }
+    if (!item.candidateId.trim() || !item.regime.trim() || item.actions.length === 0
+      || item.researchPriorityMutationAllowed !== false || item.liveAuthority !== "NONE"
+      || item.productionMutationAllowed !== false || item.aiAuthority !== "ZERO_AUTHORITY") {
+      throw new InvestmentLearningEvidenceError("INVALID_REVIEW_FEEDBACK_AUTHORITY", `Review feedback ${item.feedbackId} violates the advisory-only contract`);
+    }
+    const bucket = actions.get(item.strategyFamilyId) ?? new Set<ResearchFeedbackAction>();
+    for (const action of item.actions) {
+      if (!RESEARCH_FEEDBACK_ACTIONS.has(action)) {
+        throw new InvestmentLearningEvidenceError("INVALID_REVIEW_FEEDBACK_ACTION", `Review feedback ${item.feedbackId} contains an unsupported research action`);
+      }
+      bucket.add(action);
+    }
+    actions.set(item.strategyFamilyId, bucket);
+  }
+  return new Map([...actions.entries()].map(([familyId, values]) => [familyId, freeze([...values].sort())]));
+}
+
 /**
- * Produces the explicit next-cycle Strategy Research queue. This is advisory scheduling only:
- * it cannot invent a family, alter its parameters, change qualification, or deploy a strategy.
+ * Produces the explicit next-cycle Strategy Research queue. Sealed Research history determines
+ * ordering. Optional PAPER Review/evolution feedback only annotates what robustness dimension to
+ * investigate; it cannot change rank, invent a family, alter parameters, change qualification,
+ * or deploy a strategy.
  */
 export function buildInvestmentResearchAttentionPlan(
   declaredFamilyIds: readonly string[],
   evidence: InvestmentLearningEvidence,
+  reviewFeedback: readonly ResearchEvolutionFeedbackResult[] = freeze([]),
 ): readonly InvestmentResearchAttentionEntry[] {
   const byFamily = new Map(evidence.families.map((family) => [family.familyId, family] as const));
+  const reviewFocus = reviewFocusByFamily(declaredFamilyIds, reviewFeedback);
   return freeze(orderResearchFamiliesByLearning(declaredFamilyIds, evidence).map((familyId, index) => {
     const family = byFamily.get(familyId)!;
     return freeze({
@@ -314,6 +364,7 @@ export function buildInvestmentResearchAttentionPlan(
       guidance: family.guidance,
       priorTrialCount: family.priorTrialCount,
       priorDistinctSearchCount: family.priorDistinctSearchCount,
+      reviewResearchFocusActions: reviewFocus.get(familyId) ?? freeze([]),
       reasons: family.reasons,
     });
   }));

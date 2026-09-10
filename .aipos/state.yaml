@@ -9,9 +9,9 @@ current_mobile_self_service_paper_upbit_readonly:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY
 current_bounded_investment_learning:
   work_order: WO-ISSUE-1820-BOUNDED-INVESTMENT-LEARNING
-  status: IMPLEMENTED_LOCAL
+  status: READY_FOR_EXACT_HEAD_CI
   branch: research/investment-learning-1820
-  base_sha: 4fe488ebfc7706406a86f29185e4b110fb9abec4
+  base_sha: c8095fe38d2ea097fbe167819ccf19f4260a7271
   scope: "Bounded sealed-history investment learning with distinct canonical-search guard and explicit next-cycle Strategy Research queue; no qualification, score, runtime-strategy, capital, or execution mutation."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_first_read_connection_recovery:

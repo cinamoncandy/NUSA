@@ -1,9 +1,9 @@
 id: WO-ISSUE-1820-BOUNDED-INVESTMENT-LEARNING
 title: Bounded investment learning over sealed Research evidence
-status: IMPLEMENTED_LOCAL
+status: READY_FOR_EXACT_HEAD_CI
 authority_impact: none
 branch: research/investment-learning-1820
-base_sha: 4fe488ebfc7706406a86f29185e4b110fb9abec4
+base_sha: c8095fe38d2ea097fbe167819ccf19f4260a7271
 issue: 1820
 scope: "Compose sealed Research feedback and League failure attribution into deterministic next-cycle Strategy Research attention, guarded by distinct canonical-search evidence so one parameter grid cannot masquerade as repeated learning."
 constraints:
@@ -20,13 +20,13 @@ constraints:
   correlated_parameter_cells_as_independent_replications: prohibited
   runtime_strategy_mutation_from_learning: prohibited
 validation:
-  focused_typescript: "PENDING"
-  focused_investment_learning_tests: "PENDING"
+  focused_typescript: "PASS targeted noEmit on latest main"
+  focused_investment_learning_tests: "PASS 30/30 across learning evidence, sealed feedback, and cumulative ledger"
   research_architecture: "PASS after distinct-search and Strategy Research attention hardening"
   repository_architecture_truth: "PASS"
   safety_architecture: "PASS"
   ai_zero_authority: "PASS"
-  aipos_work_order_provenance: "PENDING"
+  aipos_work_order_provenance: "PASS"
   canonical_oos_or_market_fetch: "NOT_RUN_BY_DESIGN"
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-next_permitted_action: "Complete focused validation and exact-head CI/Audit. Learning may only reorder already-declared next-cycle Research attention; runtime strategy parameters and downstream authority remain untouched."
+next_permitted_action: "Run exact-head CI/Audit. Learning may only reorder already-declared next-cycle Research attention; PAPER Review feedback may annotate research focus only; runtime strategy parameters and downstream authority remain untouched."
