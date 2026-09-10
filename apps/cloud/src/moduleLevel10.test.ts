@@ -102,9 +102,8 @@ describe("PipelineOrchestratorV10", () => {
     type Executed = Readonly<{ submittedQuantity: number }>;
 
     const observedRiskQuantities: number[] = [];
-    const modules = bundle() as Level10ModuleBundle<Decision, Sized, Risked, Executed>;
     const typedModules: Level10ModuleBundle<Decision, Sized, Risked, Executed> = Object.freeze({
-      ...modules,
+      ...bundle(),
       DECISION: Object.freeze({
         stage: "DECISION" as const,
         version: "10" as const,
