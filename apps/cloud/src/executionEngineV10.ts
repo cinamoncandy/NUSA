@@ -39,8 +39,13 @@ export class RiskEnforcingPaperExecutionPort {
       return this.blocked("LEVEL10_EXECUTION_RISK_REQUEST_BINDING_MISMATCH");
     }
     const tickQuantity = input.tick.quantity;
+    const actionable = input.tick.decisions.filter((decision) =>
+      decision.symbol === input.tick.market && (decision.action === "BUY" || decision.action === "SELL")
+    );
     if (
       input.tick.market !== input.riskRequest.symbol ||
+      actionable.length !== 1 ||
+      actionable[0]?.action !== input.riskRequest.side ||
       tickQuantity == null ||
       !sameNumber(tickQuantity, input.riskRequest.quantity) ||
       !sameNumber(input.tick.price, input.riskRequest.referencePrice)
