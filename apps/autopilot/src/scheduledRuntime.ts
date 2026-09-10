@@ -40,6 +40,7 @@ type JsonObject = Record<string, unknown>;
 
 const DEFAULT_REPOSITORY = "cinamoncandy/NUSA";
 const WORKFLOW_FAILURE_MAX_AGE_SECONDS = 24 * 60 * 60;
+const CODING_FAILURE_MAX_AGE_SECONDS = 60 * 60;
 const SHA40 = /^[0-9a-f]{40}$/i;
 const object = (value: unknown): JsonObject | null => value !== null && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : null;
 const text = (value: unknown): string | null => typeof value === "string" && value.trim() ? value.trim() : null;
@@ -142,7 +143,7 @@ function currentMainFailureRunId(candidates: readonly unknown[], mainSha: string
     if (!runId || !completedAt) continue;
     const completedAtMs = Date.parse(completedAt);
     const ageSeconds = (now - completedAtMs) / 1000;
-    if (ageSeconds < 0 || ageSeconds > WORKFLOW_FAILURE_MAX_AGE_SECONDS) continue;
+    if (ageSeconds < 0 || ageSeconds > CODING_FAILURE_MAX_AGE_SECONDS) continue;
     return runId;
   }
   return null;
