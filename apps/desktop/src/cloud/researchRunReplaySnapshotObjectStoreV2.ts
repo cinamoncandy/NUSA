@@ -362,7 +362,11 @@ export class FileResearchRunReplaySnapshotObjectStoreV2 {
   private readRecordByFingerprint(originalRunFingerprintSha256: string): ReplayRecordV2 | undefined {
     const filename = this.fingerprintFilename(originalRunFingerprintSha256);
     if (!fs.existsSync(filename)) return undefined;
-    return validateRecord(parseJsonFile<ReplayRecordV2>(filename, "research replay v2 fingerprint record is corrupted"));
+    const record = validateRecord(parseJsonFile<ReplayRecordV2>(filename, "research replay v2 fingerprint record is corrupted"));
+    if (record.snapshot.originalRunFingerprintSha256 !== originalRunFingerprintSha256) {
+      throw new Error("research replay v2 fingerprint index provenance mismatch");
+    }
+    return record;
   }
 
   private publishFingerprintLink(record: ReplayRecordV2): void {
