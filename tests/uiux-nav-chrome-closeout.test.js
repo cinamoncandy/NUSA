@@ -5,13 +5,16 @@ const path = require("node:path");
 
 const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
 
-test("bottom navigation exposes four semantic primary jobs and preserves deeper routes", () => {
-  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio"\] as const/);
+test("bottom navigation exposes five semantic primary jobs and preserves deeper routes", () => {
+  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\] as const/);
   assert.match(app, /Home: "HOME"/);
   assert.match(app, /Markets: "MARKETS"/);
   assert.match(app, /Paper: "PAPER"/);
   assert.match(app, /Portfolio: "PORTFOLIO"/);
-  assert.match(app, /type Tab = PrimaryTab \| "AiSignal" \| "Order"/);
+  assert.match(app, /AiSignal: "AI"/);
+  assert.match(app, /AiSignal: "AI 판단과 근거"/);
+  assert.match(app, /type Tab = PrimaryTab \| "Order"/);
+  assert.match(app, /activeTab === "AiSignal" \? <AiView/);
   assert.match(app, /accessibilityRole="tablist"/);
   assert.match(app, /accessibilityRole="tab"/);
   assert.match(app, /accessibilityState=\{\{ selected: active \}\}/);
