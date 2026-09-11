@@ -32,6 +32,13 @@ const candidates = [{
   completed_at: new Date(NOW - 60_000).toISOString(),
 }];
 
+function jobs(stepName: string) {
+  return new Response(JSON.stringify({ jobs: [{ steps: [{ name: stepName, conclusion: "failure" }] }] }), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+}
+
 test("scheduled evolution coding abstains without GitHub transport", async () => {
   const outcome = await runScheduledEvolutionCoding({ NUSA_EXECUTION_COORDINATOR: namespace() }, {
     candidates,
@@ -47,10 +54,11 @@ test("scheduled evolution coding abstains without GitHub transport", async () =>
   assert.equal(outcome.aiAuthority, "ZERO_AUTHORITY");
 });
 
-test("scheduled evolution coding routes fresh evidence through existing repository dispatch spine", async () => {
+test("scheduled evolution coding routes deterministic code failure through existing repository dispatch spine", async () => {
   let posted = false;
   const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
+    if (url.includes(`/actions/runs/${RUN_ID}/jobs?`)) return jobs("Run unit tests");
     if (url.endsWith("/branches/main")) {
       return new Response(JSON.stringify({ commit: { sha: MAIN_SHA } }), {
         status: 200,
@@ -90,7 +98,78 @@ test("scheduled evolution coding routes fresh evidence through existing reposito
   assert.equal(outcome.selectedSignalIds.length, 1);
 });
 
+test("scheduled evolution coding classifies exact-main deployment wait as evidence missing and does not dispatch", async () => {
+  let posted = false;
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes(`/actions/runs/${RUN_ID}/jobs?`)) return jobs("Require successful exact-main Cloudflare deployment");
+    if (url.endsWith("/dispatches")) posted = true;
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+
+  const outcome = await runScheduledEvolutionCoding({ NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace() }, {
+    candidates,
+    now: NOW,
+    repository: "cinamoncandy/NUSA",
+    mainSha: MAIN_SHA,
+    workflowRunId: RUN_ID,
+  }, fetchImpl);
+
+  assert.equal(outcome.status, "ABSTAINED");
+  assert.equal(outcome.reason, "workflow-not-code-actionable:EVIDENCE_MISSING");
+  assert.equal(posted, false);
+});
+
+test("scheduled evolution coding routes credential failures to human-only and does not dispatch", async () => {
+  let posted = false;
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes(`/actions/runs/${RUN_ID}/jobs?`)) return jobs("Validate Cloudflare credential inputs");
+    if (url.endsWith("/dispatches")) posted = true;
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+
+  const outcome = await runScheduledEvolutionCoding({ NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace() }, {
+    candidates,
+    now: NOW,
+    repository: "cinamoncandy/NUSA",
+    mainSha: MAIN_SHA,
+    workflowRunId: RUN_ID,
+  }, fetchImpl);
+
+  assert.equal(outcome.status, "ABSTAINED");
+  assert.equal(outcome.reason, "workflow-not-code-actionable:HUMAN_ONLY");
+  assert.equal(posted, false);
+});
+
+test("scheduled evolution coding fails closed when raw workflow failure has no causal failed-step evidence", async () => {
+  let posted = false;
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes(`/actions/runs/${RUN_ID}/jobs?`)) return new Response(JSON.stringify({ jobs: [] }), { status: 200 });
+    if (url.endsWith("/dispatches")) posted = true;
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+
+  const outcome = await runScheduledEvolutionCoding({ NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace() }, {
+    candidates,
+    now: NOW,
+    repository: "cinamoncandy/NUSA",
+    mainSha: MAIN_SHA,
+    workflowRunId: RUN_ID,
+  }, fetchImpl);
+
+  assert.equal(outcome.status, "ABSTAINED");
+  assert.equal(outcome.reason, "workflow-not-code-actionable:UNKNOWN");
+  assert.equal(posted, false);
+});
+
 test("scheduled evolution coding suppresses duplicate coding dispatch", async () => {
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes(`/actions/runs/${RUN_ID}/jobs?`)) return jobs("Run unit tests");
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
   const outcome = await runScheduledEvolutionCoding({
     NUSA_GITHUB_TOKEN: "token",
     NUSA_EXECUTION_COORDINATOR: namespace(false),
@@ -100,7 +179,7 @@ test("scheduled evolution coding suppresses duplicate coding dispatch", async ()
     repository: "cinamoncandy/NUSA",
     mainSha: MAIN_SHA,
     workflowRunId: RUN_ID,
-  });
+  }, fetchImpl);
   assert.equal(outcome.status, "DUPLICATE_SUPPRESSED");
   assert.equal(outcome.reason, "ALREADY_DISPATCHED");
 });
