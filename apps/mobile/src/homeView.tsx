@@ -140,10 +140,10 @@ export function HomeView({
   const pnlColor = totalPnl == null ? theme.colors.text : totalPnl >= 0 ? theme.colors.success : theme.colors.danger;
   const connectionLabel = disconnected ? "SETUP" : readOnlyError ? "DEGRADED" : snapshot?.readyForPaperOperations ? "ACTIVE" : "OBSERVING";
   const postureDisplay = disconnected ? "PAPER 연결 필요" : posture;
-  const intelligenceSurface = "#172322";
-  const intelligenceBorder = "#344540";
-  const intelligenceText = "#F2F0E9";
-  const intelligenceMuted = "#ADBAB3";
+  const intelligenceSurface = theme.colors.surface;
+  const intelligenceBorder = theme.colors.border;
+  const intelligenceText = theme.colors.text;
+  const intelligenceMuted = theme.colors.textMuted;
 
   return <View style={[styles.shell, { backgroundColor: theme.colors.background }]} testID="home-screen">
     <ScrollView
@@ -174,7 +174,7 @@ export function HomeView({
         <View style={[styles.intelligenceHero, tablet ? styles.intelligenceHeroTablet : null, { backgroundColor: intelligenceSurface, borderColor: intelligenceBorder }]} testID="home-now">
           <View style={styles.intelligenceCopy}>
             <View style={styles.heroTop}>
-              <View style={styles.liveIntelligenceLabel}><Text style={[styles.eyebrow, { color: "#D8EE76" }]}>NUSA · 관찰과 검증</Text></View>
+              <View style={styles.liveIntelligenceLabel}><Text style={[styles.eyebrow, { color: theme.colors.primary }]}>NUSA · 관찰과 검증</Text></View>
             </View>
             <Text style={[styles.heroTitle, { color: intelligenceText }]}>{postureDisplay}</Text>
             <Text style={[styles.heroDetail, { color: intelligenceMuted }]}>{why}</Text>
@@ -208,7 +208,7 @@ export function HomeView({
             <View><Text style={[styles.eyebrow, { color: theme.colors.aiSignalMid }]}>MARKET CANVAS</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{publicMarket}</Text></View>
             <View style={styles.canvasQuote}><Text style={[styles.marketPrice, { color: theme.colors.text }]} adjustsFontSizeToFit numberOfLines={1}>{krw(marketChart.currentPrice)}</Text><Text style={[styles.sectionMeta, { color: theme.colors.textMuted }]}>UPBIT · PUBLIC READ ONLY</Text></View>
           </View>
-          <View style={[styles.canvasChart, { borderColor: theme.colors.border }]}> 
+          <View style={[styles.canvasChart, { borderColor: theme.colors.border }]}>
             {marketChart.state === "READY" ? <CandlePlot model={marketChart} /> : <Text style={[styles.marketEmpty, { color: theme.colors.textMuted }]}>{publicMarketStale ? "시세가 지연되었거나 연결되지 않았습니다." : "검증된 차트 데이터를 기다리고 있습니다."}</Text>}
           </View>
           <Pressable accessibilityRole="button" onPress={() => onNavigate("Markets")} style={styles.canvasAction}><Text style={[styles.inlineLink, { color: theme.colors.aiSignalEnd }]}>시장 환경 확장하기 ↗</Text></Pressable>
