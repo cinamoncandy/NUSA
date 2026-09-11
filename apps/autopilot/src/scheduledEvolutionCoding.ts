@@ -24,6 +24,7 @@ const CODING_LEASE_MS = 5 * 60 * 1000;
 const AUTHORITY = Object.freeze({ liveAuthority: "NONE" as const, productionMutationAllowed: false as const, aiAuthority: "ZERO_AUTHORITY" as const });
 
 type JsonObject = Record<string, unknown>;
+type WorkflowActionability = "CODE_ACTIONABLE" | "DEPENDENCY_WAIT" | "EVIDENCE_MISSING" | "INFRA" | "CREDENTIAL" | "EXTERNAL" | "HUMAN_ONLY" | "UNKNOWN";
 const object = (value: unknown): JsonObject | null => value !== null && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : null;
 const text = (value: unknown): string | null => typeof value === "string" && value.trim() ? value.trim() : null;
 const positiveInteger = (value: unknown): number | null => Number.isSafeInteger(value) && Number(value) > 0 ? Number(value) : null;
@@ -78,6 +79,54 @@ function signalsFromRuns(candidates: readonly unknown[], now: number): readonly 
   })));
 }
 
+function classifyFailedStepNames(names: readonly string[]): WorkflowActionability {
+  if (names.length === 0) return "UNKNOWN";
+  const normalized = names.map((name) => name.toLowerCase());
+  if (normalized.some((name) => /credential|secret|token|account|authenticat|authoriz|permission|github app|app id|private key/.test(name))) return "HUMAN_ONLY";
+  if (normalized.some((name) => /exact-main|deployment|runtime verification|live worker revision|provenance|evidence/.test(name))) return "EVIDENCE_MISSING";
+  if (normalized.some((name) => /dependency wait|waiting for|upstream|prerequisite/.test(name))) return "DEPENDENCY_WAIT";
+  if (normalized.some((name) => /runner|network|service outage|rate limit|download artifact|upload artifact/.test(name))) return "INFRA";
+  if (normalized.some((name) => /external/.test(name))) return "EXTERNAL";
+  if (normalized.every((name) => /test|lint|typecheck|type check|compile|build|coverage|contract|guard/.test(name))) return "CODE_ACTIONABLE";
+  return "UNKNOWN";
+}
+
+async function classifyWorkflowActionability(
+  repository: string,
+  workflowRunId: number,
+  token: string,
+  fetchImpl: typeof fetch,
+): Promise<WorkflowActionability> {
+  let response: Response;
+  try {
+    response = await fetchImpl(`https://api.github.com/repos/${repository}/actions/runs/${workflowRunId}/jobs?per_page=100`, {
+      headers: {
+        accept: "application/vnd.github+json",
+        authorization: `Bearer ${token}`,
+        "user-agent": "nusa-autopilot-actionability",
+        "x-github-api-version": "2022-11-28",
+      },
+    });
+  } catch {
+    return "UNKNOWN";
+  }
+  if (!response.ok) return "UNKNOWN";
+  const payload = object(await response.json().catch(() => null));
+  const jobs = Array.isArray(payload?.jobs) ? payload.jobs : [];
+  const failedStepNames: string[] = [];
+  for (const candidate of jobs) {
+    const job = object(candidate);
+    if (!job || !Array.isArray(job.steps)) continue;
+    for (const stepCandidate of job.steps) {
+      const step = object(stepCandidate);
+      if (!step || text(step.conclusion) !== "failure") continue;
+      const name = text(step.name);
+      if (name) failedStepNames.push(name);
+    }
+  }
+  return classifyFailedStepNames(failedStepNames);
+}
+
 /**
  * Thin scheduled composition: authenticated read-only workflow evidence -> existing
  * discovery/selector bridge -> existing GitHub dispatch spine. Coding is delegated to
@@ -117,6 +166,11 @@ export async function runScheduledEvolutionCoding(
     elapsedSecondsSinceLastRun: 60,
   });
   if (bridge.status !== "READY" || !bridge.request) return result("ABSTAINED", bridge.reason);
+
+  const actionability = await classifyWorkflowActionability(input.repository, input.workflowRunId, token, fetchImpl);
+  if (actionability !== "CODE_ACTIONABLE") {
+    return result("ABSTAINED", `workflow-not-code-actionable:${actionability}`, signals.map((signal) => signal.id));
+  }
 
   const persistent = await acquirePersistentExecution(coordinator, {
     dedupeKey: bridge.request.dedupeKey,
