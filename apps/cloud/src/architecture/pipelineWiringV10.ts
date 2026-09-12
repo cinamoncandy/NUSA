@@ -68,12 +68,10 @@ export const PIPELINE_WIRING_V10: readonly StageWiring[] = Object.freeze([
   Object.freeze({
     stage: "Intelligence",
     canonicalEntrypoint: "apps/cloud/src/intelligenceEngineV10",
-    reach: "REGISTRY_ONLY",
+    reach: "ON_RUNTIME_PATH",
     inputs: "NO_PRODUCER_IN_TREE",
     requiredInputType: "MarketRegimeFeatures",
-    blocker:
-      "No caller outside the V10 registry, and no code builds MarketRegimeFeatures from live " +
-      "data, so the regime confidence/stability gate has nothing to read."
+    blocker: ""
   }),
   Object.freeze({
     stage: "Strategy",
@@ -102,12 +100,10 @@ export const PIPELINE_WIRING_V10: readonly StageWiring[] = Object.freeze([
   Object.freeze({
     stage: "Portfolio",
     canonicalEntrypoint: "apps/cloud/src/portfolioEngineV10",
-    reach: "REGISTRY_ONLY",
+    reach: "ON_RUNTIME_PATH",
     inputs: "PRODUCED_IN_TREE",
     requiredInputType: "",
-    blocker:
-      "Composes capitalAllocationEngine and portfolioOrchestrator, which the runtime calls " +
-      "directly; the composing engine itself is called only by the V10 registry."
+    blocker: ""
   }),
   Object.freeze({
     stage: "Execution",

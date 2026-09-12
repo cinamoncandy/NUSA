@@ -49,8 +49,13 @@ test("the debt is counted, and counted honestly", () => {
   // The first count of this directory in review said 253, which quietly included .vitest.ts
   // files. Same shape of error as counting 46 live* modules when 27 exist. The filter above is
   // the corrected one; this pins what it measures.
+  //
+  // The baseline moved from 233 to 235 when main added moduleReplacementPolicy10XS.ts and
+  // moduleRuntimeManifest10XS.ts. Those are grandfathered rather than rejected: the ratchet is
+  // not merged yet, so nobody was asked to place them in a directory. Once it is merged, a
+  // rising number here is a rule being broken, not a baseline being refreshed.
   assert.equal(new Set(FLAT_MODULE_DEBT).size, FLAT_MODULE_DEBT.length, "duplicate entry");
-  assert.equal(FLAT_MODULE_DEBT.length, 233);
+  assert.equal(FLAT_MODULE_DEBT.length, 235);
   assert.ok(FLAT_MODULE_DEBT.every((name) => name.endsWith(".ts") && !name.includes("/")), "entries are bare filenames");
 });
 

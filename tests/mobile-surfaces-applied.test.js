@@ -90,9 +90,13 @@ test("the record's button scrolls to the operator panel it names", () => {
   assert.match(SETTINGS, /onLayout=\{\(event\) => \{ operatorSectionYRef\.current = event\.nativeEvent\.layout\.y; \}\}/);
 });
 
-test("the token field states the ten-minute rule instead of only calling it one-time", () => {
-  assert.match(SETTINGS, /소유자 대시보드 토큰\(만료 없음, 권장\)/);
+test("the compatibility token path states the ten-minute rule instead of only calling it one-time", () => {
+  // Pairing is the primary path now, and this field is the fallback for a token someone already
+  // holds -- which is exactly the person who pastes a bootstrap token issued days ago and reads a
+  // bare 401. "One-time" does not tell them that; the expiry rule does.
+  assert.match(SETTINGS, /소유자 대시보드 토큰\(만료 없음\)/);
   assert.match(SETTINGS, /부트스트랩 토큰\(발급 후 10분, 1회용\)/);
+  assert.match(SETTINGS, /며칠 전에 받아둔 부트스트랩 토큰은 반드시 거부됩니다/);
 });
 
 test("a refusal record reaches every surface a gate can refuse", () => {

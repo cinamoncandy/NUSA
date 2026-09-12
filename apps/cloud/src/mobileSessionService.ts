@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomInt, randomUUID } from "node:crypto";
 import type { SqliteDatabase } from "../../../packages/storage/src/index";
 import { isUserAllowed, type NusaUserAccessRepository } from "./operatorUserAccess";
 import {
@@ -17,6 +17,10 @@ export type MobileScope = (typeof MOBILE_ALLOWED_SCOPES)[number];
 export type MobileSessionTokens = ApprovedUserSessionTokens<MobileScope>;
 export type MobileBootstrapIssue = ApprovedUserBootstrapIssue<MobileScope>;
 export type MobileSessionMe = ApprovedUserSessionMe<MobileScope>;
+export const MOBILE_PAIRING_TTL_MS = 10 * 60 * 1000;
+const MAX_ACTIVE_PAIRINGS = 100;
+const MAX_ACTIVE_PAIRINGS_PER_DEVICE = 1;
+export type MobilePairingState = "PENDING" | "APPROVED" | "CONSUMED" | "EXPIRED";
 
 const MOBILE_SESSION_PROFILE = Object.freeze({
   namespace: "mobile",
@@ -34,6 +38,24 @@ const hashToken = (value: string): string => createHash("sha256").update(value, 
 export class MobileSessionService extends ApprovedUserSessionService<MobileScope> {
   public constructor(private readonly mobileDb: SqliteDatabase, private readonly mobileUsers: NusaUserAccessRepository) {
     super(mobileDb, mobileUsers, MOBILE_SESSION_PROFILE);
+    this.mobileDb.connection.exec(`
+      CREATE TABLE IF NOT EXISTS mobile_pairing_requests (
+        request_id_hash TEXT PRIMARY KEY,
+        verification_code_hash TEXT NOT NULL,
+        device_id_hash TEXT NOT NULL,
+        state TEXT NOT NULL CHECK(state IN ('PENDING','APPROVED','CONSUMED','EXPIRED')),
+        created_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL,
+        approved_at INTEGER,
+        approved_by_user_id TEXT,
+        target_user_id TEXT,
+        consumed_at INTEGER
+      );
+    `);
+    this.mobileDb.connection.exec(`
+      CREATE INDEX IF NOT EXISTS idx_mobile_pairing_expiry ON mobile_pairing_requests(expires_at);
+      CREATE INDEX IF NOT EXISTS idx_mobile_pairing_device ON mobile_pairing_requests(device_id_hash,state,expires_at);
+    `);
   }
 
   public override bootstrap(token: string, now = Date.now(), deviceId?: string): MobileSessionTokens | undefined {
@@ -75,4 +97,100 @@ export class MobileSessionService extends ApprovedUserSessionService<MobileScope
     });
     return recovered;
   }
+
+  public startPairing(deviceId: string, now = Date.now()): Readonly<{ requestId: string; verificationCode: string; expiresAt: number; state: "PENDING" }> {
+    const deviceHash = hashToken(this.validateDeviceId(deviceId));
+    const requestId = randomBytes(32).toString("base64url");
+    const verificationCode = String(randomInt(0, 1_000_000)).padStart(6, "0");
+    const expiresAt = now + MOBILE_PAIRING_TTL_MS;
+    return this.mobileDb.transaction(() => {
+      this.mobileDb.connection.prepare("UPDATE mobile_pairing_requests SET state='EXPIRED' WHERE expires_at<=? AND state IN ('PENDING','APPROVED')").run(now);
+      const superseded = this.mobileDb.connection.prepare("UPDATE mobile_pairing_requests SET state='EXPIRED',expires_at=? WHERE device_id_hash=? AND state IN ('PENDING','APPROVED') AND expires_at>?")
+        .run(now, deviceHash, now);
+      const active = Number((this.mobileDb.connection.prepare("SELECT COUNT(*) AS count FROM mobile_pairing_requests WHERE state IN ('PENDING','APPROVED') AND expires_at>?").get(now) as Record<string, unknown>).count);
+      const deviceActive = Number((this.mobileDb.connection.prepare("SELECT COUNT(*) AS count FROM mobile_pairing_requests WHERE device_id_hash=? AND state IN ('PENDING','APPROVED') AND expires_at>?").get(deviceHash, now) as Record<string, unknown>).count);
+      if (deviceActive >= MAX_ACTIVE_PAIRINGS_PER_DEVICE) throw new Error("pairing request limit reached");
+      // The global cap bounds the table, but refusing on it hands an unauthenticated caller a
+      // lockout. /v1/mobile/pairing/start takes no credential and deviceId is self-chosen --
+      // installationIdentity.ts generates it locally -- so one caller inventing
+      // MAX_ACTIVE_PAIRINGS device ids refuses the owner's real phone for the whole TTL, and can
+      // hold it there indefinitely. Ordinary reinstall churn does the same thing more slowly, and
+      // what it locks out is the only way onto the account. Evicting the oldest PENDING request
+      // keeps the bound and keeps the newest request -- the one a human is looking at right now.
+      // APPROVED requests are never evicted: an owner already acted on them and they are seconds
+      // from being consumed.
+      if (active >= MAX_ACTIVE_PAIRINGS) {
+        const evicted = this.mobileDb.connection.prepare("UPDATE mobile_pairing_requests SET state='EXPIRED' WHERE request_id_hash IN (SELECT request_id_hash FROM mobile_pairing_requests WHERE state='PENDING' AND expires_at>? ORDER BY created_at ASC LIMIT ?)")
+          .run(now, active - MAX_ACTIVE_PAIRINGS + 1);
+        if (Number(evicted.changes) === 0) throw new Error("pairing request limit reached");
+      }
+      this.mobileDb.connection.prepare("INSERT INTO mobile_pairing_requests(request_id_hash,verification_code_hash,device_id_hash,state,created_at,expires_at) VALUES(?,?,?,?,?,?)")
+        .run(hashToken(requestId), hashToken(verificationCode), deviceHash, "PENDING", now, expiresAt);
+      if (Number(superseded.changes) > 0) this.auditPairing("PAIRING_SUPERSEDED", undefined, undefined, "SAME_DEVICE_RETRY", now);
+      this.auditPairing("PAIRING_STARTED", undefined, undefined, "PENDING", now);
+      return Object.freeze({ requestId, verificationCode, expiresAt, state: "PENDING" as const });
+    });
+  }
+
+  public pairingStatus(requestId: string, deviceId: string, now = Date.now()): Readonly<{ state: MobilePairingState; expiresAt: number }> | undefined {
+    this.expirePairings(now);
+    const row = this.pairingRow(requestId, deviceId);
+    if (row == null) return undefined;
+    return Object.freeze({ state: String(row.state) as MobilePairingState, expiresAt: Number(row.expires_at) });
+  }
+
+  public approvePairing(input: Readonly<{ actorUserId: string; actorScopes: readonly string[]; targetUserId: string; requestId?: string; verificationCode: string; now?: number }>): boolean {
+    const now = input.now ?? Date.now();
+    this.expirePairings(now);
+    const actor = this.mobileUsers.get(input.actorUserId.trim());
+    if (actor?.role !== "OWNER" || !isUserAllowed(actor) || !input.actorScopes.includes("users:manage")) throw new Error("owner authority required");
+    const requestId = input.requestId?.trim() ?? "";
+    const row = requestId
+      ? this.mobileDb.connection.prepare("SELECT * FROM mobile_pairing_requests WHERE request_id_hash=?").get(hashToken(requestId)) as Record<string, unknown> | undefined
+      : this.mobileDb.connection.prepare("SELECT * FROM mobile_pairing_requests WHERE verification_code_hash=? AND state='PENDING' AND expires_at>? LIMIT 2").all(hashToken(input.verificationCode.trim()), now) as Record<string, unknown>[];
+    const selected = Array.isArray(row) ? (row.length === 1 ? row[0] : undefined) : row;
+    if (selected == null || selected.state !== "PENDING" || Number(selected.expires_at) <= now || hashToken(input.verificationCode.trim()) !== selected.verification_code_hash) return false;
+    const target = this.mobileUsers.get(input.targetUserId.trim());
+    if (!isUserAllowed(target)) throw new Error("target user must be ACTIVE");
+    this.mobileDb.transaction(() => {
+      const updated = this.mobileDb.connection.prepare("UPDATE mobile_pairing_requests SET state='APPROVED',approved_at=?,approved_by_user_id=?,target_user_id=? WHERE request_id_hash=? AND state='PENDING' AND expires_at>?")
+        .run(now, actor.id, target!.id, String(selected.request_id_hash), now);
+      if (Number(updated.changes) !== 1) throw new Error("pairing approval race");
+      this.auditPairing("PAIRING_APPROVED", actor.id, target!.id, "APPROVED", now);
+    });
+    return true;
+  }
+
+  public exchangePairing(requestId: string, deviceId: string, now = Date.now()): MobileSessionTokens | undefined {
+    this.expirePairings(now);
+    const row = this.pairingRow(requestId, deviceId);
+    if (row == null || row.state !== "APPROVED" || Number(row.expires_at) <= now || typeof row.target_user_id !== "string") return undefined;
+    return this.mobileDb.transaction(() => {
+      const updated = this.mobileDb.connection.prepare("UPDATE mobile_pairing_requests SET state='CONSUMED',consumed_at=? WHERE request_id_hash=? AND device_id_hash=? AND state='APPROVED' AND expires_at>?")
+        .run(now, hashToken(requestId), hashToken(this.validateDeviceId(deviceId)), now);
+      if (Number(updated.changes) !== 1) return undefined;
+      const tokens = this.createDeviceBoundSession({ targetUserId: String(row.target_user_id), deviceId: this.validateDeviceId(deviceId), now, auditEvent: "PAIRING_SESSION_ISSUED" });
+      this.auditPairing("PAIRING_CONSUMED", String(row.approved_by_user_id ?? ""), String(row.target_user_id), "CONSUMED", now);
+      return tokens;
+    });
+  }
+
+  private validateDeviceId(deviceId: string): string {
+    const value = deviceId.trim();
+    if (value.length < 8 || value.length > 256 || /[\r\n]/.test(value)) throw new Error("device enrollment identifier is invalid");
+    return value;
+  }
+  private pairingRow(requestId: string, deviceId: string): Record<string, unknown> | undefined {
+    if (!/^[A-Za-z0-9_-]{32,128}$/.test(requestId)) return undefined;
+    const deviceHash = hashToken(this.validateDeviceId(deviceId));
+    return this.mobileDb.connection.prepare("SELECT * FROM mobile_pairing_requests WHERE request_id_hash=? AND device_id_hash=?").get(hashToken(requestId), deviceHash) as Record<string, unknown> | undefined;
+  }
+  private expirePairings(now: number): void {
+    this.mobileDb.connection.prepare("UPDATE mobile_pairing_requests SET state='EXPIRED' WHERE expires_at<=? AND state IN ('PENDING','APPROVED')").run(now);
+  }
+  private auditPairing(event: string, actor: string | undefined, target: string | undefined, reason: string, now: number): void {
+    this.mobileDb.connection.prepare("INSERT INTO mobile_session_audit(id,event,actor_user_id,target_user_id,family_id,reason,created_at) VALUES(?,?,?,?,?,?,?)")
+      .run(randomUUID(), event, actor ?? null, target ?? null, null, reason, now);
+  }
+
 }

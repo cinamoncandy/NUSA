@@ -1,5 +1,6 @@
 import { clearDashboardCredentialSession, setDashboardCredentialEndpoint } from "./dashboardCredentialSession";
 import { clearMobileApprovedSessionMemory, mobileApprovedSession } from "./mobileApprovedSessionBoundary";
+import { connectUpbitReadOnlyAccount, resetUpbitReadOnlyState } from "./upbitReadOnlyAccount";
 
 let configuredEndpoint: string | null = null;
 let verifiedEndpoint: string | null = null;
@@ -43,6 +44,9 @@ function restoreApprovedSession(endpoint: string): Promise<void> {
     if (identity != null) {
       verifiedEndpoint = endpoint;
       cancelRestoreRetry();
+      // The Upbit relay uses this same PAPER session and has no separate mobile
+      // credential. Re-establish its GET-only monitor after a cold-start restore.
+      void connectUpbitReadOnlyAccount(endpoint);
     } else if (mobileApprovedSession().shouldRetryRestore()) {
       scheduleRestoreRetry(endpoint);
     }
@@ -75,6 +79,7 @@ export function markPaperConnectionVerified(value: string): void {
   const endpoint = normalizeEndpoint(value);
   if (endpoint == null || endpoint !== configuredEndpoint) throw new Error("PAPER endpoint verification mismatch.");
   verifiedEndpoint = endpoint;
+  void connectUpbitReadOnlyAccount(endpoint);
 }
 
 export function clearPaperConnectionVerification(): void { verifiedEndpoint = null; restoreGeneration += 1; cancelRestoreRetry(); }
@@ -102,4 +107,5 @@ export function clearConfiguredPaperEndpoint(): void {
   cancelRestoreRetry();
   setDashboardCredentialEndpoint(null);
   clearCredentialMemory();
+  resetUpbitReadOnlyState();
 }

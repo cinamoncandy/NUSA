@@ -5,7 +5,7 @@ const { InMemoryNusaUserAccessRepository } = require("../dist/apps/cloud/src/ope
 const { MobileSessionService } = require("../dist/apps/cloud/src/mobileSessionService.js");
 const { handleMobileEnrollmentHttp } = require("../dist/apps/cloud/src/mobileSessionHttp.js");
 const { resolveCanonicalCloudOrigin } = require("../dist/apps/mobile/src/canonicalOrigin.js");
-const { MobileApprovedSession, SESSION_STORAGE_KEY } = require("../dist/apps/mobile/src/mobileApprovedSession.js");
+const { MobileApprovedSession } = require("../dist/apps/mobile/src/mobileApprovedSession.js");
 
 function setup() {
   const db = new SqliteDatabase(":memory:");
@@ -69,9 +69,15 @@ test("enrollment rejects unauthenticated, inactive, malformed, and non-POST requ
   } finally { db.close(); }
 });
 
-test("mobile enrollment sends the first credential once and persists only the rotated refresh material", async () => {
-  const values = new Map();
-  const storage = { async setSecret(key, value) { values.set(key, new Uint8Array(value)); }, async getSecret(key) { return values.get(key) ?? null; }, async deleteSecret(key) { values.delete(key); } };
+test("mobile enrollment sends the first credential once and keeps all issued credentials process-memory-only", async () => {
+  const writes = [];
+  const reads = [];
+  const deletes = [];
+  const storage = {
+    async setSecret(key, value) { writes.push({ key, value: new Uint8Array(value) }); },
+    async getSecret(key) { reads.push(key); return null; },
+    async deleteSecret(key) { deletes.push(key); }
+  };
   const calls = [];
   const tokens = { accessToken: "access-token-enrollment-123456", accessExpiresAt: Date.now() + 600000, refreshToken: "refresh-token-enrollment-123456", refreshExpiresAt: Date.now() + 86400000, scopes: ["dashboard:read", "paper:trade"] };
   const request = async (url, init) => {
@@ -86,8 +92,7 @@ test("mobile enrollment sends the first credential once and persists only the ro
   assert.match(calls[0].init.headers.authorization, /^Bearer first-user-credential/);
   assert.deepEqual(JSON.parse(calls[0].init.body), { deviceId: "nusa-install-device-1234" });
   assert.deepEqual(JSON.parse(calls[1].init.body), { bootstrapToken: "bootstrap-token-enrollment-123456", deviceId: "nusa-install-device-1234" });
-  const persisted = Buffer.from(values.get(SESSION_STORAGE_KEY)).toString("ascii");
-  assert.equal(persisted.includes("first-user-credential"), false);
-  assert.equal(persisted.includes(tokens.accessToken), false);
-  assert.equal(persisted.includes(tokens.refreshToken), true);
+  assert.equal(writes.length, 0, "mobile credential material must never be persisted");
+  assert.equal(reads.length, 0, "mobile credential material must never be restored from persistence");
+  assert.ok(deletes.length > 0, "legacy persisted credential slots should be erased without reading them");
 });

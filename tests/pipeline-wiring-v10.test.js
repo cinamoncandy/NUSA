@@ -21,13 +21,22 @@ const ROOT = join(__dirname, "..");
  * nothing calls looks like from the outside.
  */
 
-/** Non-test files referencing a symbol, excluding the module itself and the V10 declaration layer. */
-function runtimeCallers(symbol, ownPathPrefix) {
+/**
+ * Files that actually import a module, as opposed to naming it.
+ *
+ * Counting bare word matches was wrong twice: architecture declarations and, later,
+ * moduleRuntimeManifest10XS.ts list canonical entrypoints as string paths, and both were read as
+ * callers. Requiring a real import or require of the module's path makes the question answerable
+ * without a growing list of files to excuse -- a declaration names, a caller imports.
+ */
+function runtimeCallers(moduleName, ownPathPrefix) {
   let output = "";
   try {
     output = execFileSync(
       "grep",
-      ["-rln", "--include=*.ts", "--include=*.tsx", `\\b${symbol}\\b`, "apps", "packages", "scripts"],
+      ["-rlE", "--include=*.ts", "--include=*.tsx", "--include=*.js",
+        `(from|require\\()[ ]*["'][^"']*/${moduleName}["']`,
+        "apps", "packages", "scripts", "services"],
       { cwd: ROOT, encoding: "utf8" }
     );
   } catch {
@@ -36,13 +45,7 @@ function runtimeCallers(symbol, ownPathPrefix) {
   return output.split("\n").filter((path) => {
     if (!path.trim()) return false;
     if (path.startsWith(ownPathPrefix)) return false;
-    if (path.includes(".test.")) return false;
-    // The wiring declaration names each entrypoint as a string. Naming is not calling.
-    // Everything under apps/cloud/src/architecture/ is a declaration *about* the tree: it names
-    // modules and paths as strings. Naming is not calling -- the same trap alphaReadiness.ts hit,
-    // one directory over -- so the whole directory is excluded from the caller count.
-    if (path.startsWith("apps/cloud/src/architecture/")) return false;
-    return !V10_DECLARATION_FILES.includes(path);
+    return !path.includes(".test.") && !path.includes(".vitest.");
   });
 }
 

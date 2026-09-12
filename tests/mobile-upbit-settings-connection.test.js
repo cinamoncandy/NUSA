@@ -11,29 +11,36 @@ test("settings mounts a dedicated Upbit read-only connection panel", () => {
   assert.match(settings, /<UpbitConnectionPanel\s*\/>/);
 });
 
-test("Upbit settings connection remains HTTPS-only, process-memory-only, and refreshes globally", () => {
+test("Upbit settings connection is tokenless, HTTPS-only, process-memory-only, and refreshes globally", () => {
   const panel = read("apps/mobile/src/upbitConnectionPanel.tsx");
   const lifecycle = read("apps/mobile/src/upbitReadOnlyAccount.ts");
-  const credential = read("apps/mobile/src/upbitCredentialSession.ts");
+  const approvedSession = read("apps/mobile/src/mobileApprovedSession.ts");
   const client = read("apps/mobile/src/upbitLiveClient.ts");
+
   assert.match(panel, /settings-upbit-connection/);
-  assert.match(panel, /settings-upbit-token/);
+  assert.doesNotMatch(panel, /settings-upbit-token|TextInput|SecureStore|AsyncStorage/);
   assert.match(panel, /READ ONLY/);
   assert.match(panel, /UPBIT READ ONLY/);
   assert.doesNotMatch(panel, />UPBIT LIVE<\/Text>/);
-  assert.match(panel, /조회 전용 bridge가 아직 연결되지 않았습니다/);
+  assert.match(panel, /별도 토큰 없이 인증된 PAPER 보안 세션/);
   assert.match(panel, /connectUpbitReadOnlyAccount/);
   assert.match(panel, /resetUpbitReadOnlyState/);
-  assert.match(panel, /프로세스 메모리/);
-  assert.match(lifecycle, /InMemoryUpbitCredentialSession/);
+
+  assert.match(lifecycle, /mobileApprovedSession\(\)\.credentialProvider/);
   assert.match(lifecycle, /loadUpbitLiveAccounts/);
   assert.match(lifecycle, /REFRESH_INTERVAL_MS = 30_000/);
   assert.match(lifecycle, /STALE_AFTER_MS = 90_000/);
-  assert.match(lifecycle, /credentialSession\.clear\(\)/);
   assert.match(lifecycle, /sessionGeneration/);
   assert.match(lifecycle, /lastSuccessAt/);
-  assert.match(credential, /let sharedToken: string \| null = null/);
-  assert.doesNotMatch(credential, /AsyncStorage|SecureStore|SettingsRepository/);
+  assert.doesNotMatch(lifecycle, /upbitCredentialSession|setSecret|getSecret|AsyncStorage|SecureStore/);
+
+  // Mobile PAPER credentials may exist only in process memory. The storage port
+  // is used solely to delete legacy keys left by older builds.
+  assert.match(approvedSession, /private refreshToken: string \| null = null/);
+  assert.match(approvedSession, /destroyLegacyPersistedCredentials/);
+  assert.doesNotMatch(approvedSession, /\.setSecret\(/);
+  assert.doesNotMatch(approvedSession, /\.getSecret\(/);
+
   assert.match(client, /url\.protocol !== "https:"/);
   assert.match(client, /\/api\/v1\/account\/summary/);
   assert.doesNotMatch(panel + lifecycle + client, /placeOrder|cancelOrder|withdraw/);
@@ -62,12 +69,12 @@ test("real-account monitor remains separate from PAPER and surfaces current trut
 
 test("real-account client and monitor source do not persist or echo exchange secrets", () => {
   const lifecycle = read("apps/mobile/src/upbitReadOnlyAccount.ts");
-  const credential = read("apps/mobile/src/upbitCredentialSession.ts");
+  const approvedSession = read("apps/mobile/src/mobileApprovedSession.ts");
   const client = read("apps/mobile/src/upbitLiveClient.ts");
   const portfolio = read("apps/mobile/src/portfolioView.tsx");
-  const combined = lifecycle + credential + client + portfolio;
+  const combined = lifecycle + approvedSession + client + portfolio;
   assert.doesNotMatch(combined, /UPBIT_ACCESS_KEY|UPBIT_SECRET_KEY/);
-  assert.doesNotMatch(credential, /console\.(?:log|error|warn)\([^\n]*(?:token|sharedToken)/i);
+  assert.doesNotMatch(approvedSession, /console\.(?:log|error|warn)\([^\n]*(?:authorization|token)/i);
   assert.doesNotMatch(client, /console\.(?:log|error|warn)\([^\n]*(?:authorization|token)/i);
-  assert.match(credential, /sharedToken = null/);
+  assert.doesNotMatch(approvedSession, /\.setSecret\(|\.getSecret\(/);
 });

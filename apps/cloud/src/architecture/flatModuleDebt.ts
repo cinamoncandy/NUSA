@@ -1,5 +1,5 @@
 /**
- * The 233 source files still sitting directly in `apps/cloud/src`, and a ratchet that stops the number
+ * The 235 source files still sitting directly in `apps/cloud/src`, and a ratchet that stops the number
  * from growing.
  *
  * Module boundaries in this app exist only as filename prefixes -- twenty-seven `live*`,
@@ -135,6 +135,8 @@ export const FLAT_MODULE_DEBT: readonly string[] = Object.freeze([
   "mobileSessionService.ts",
   "module10XS.ts",
   "moduleLevel10.ts",
+  "moduleReplacementPolicy10XS.ts",
+  "moduleRuntimeManifest10XS.ts",
   "monteCarloResearch.ts",
   "multiAgentGovernance.ts",
   "operationalCompletionGate.ts",
