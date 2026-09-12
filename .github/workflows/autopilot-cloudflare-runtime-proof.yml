@@ -108,6 +108,9 @@ jobs:
           current="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           test "$SOURCE_SHA" = "$current" || { echo "Trusted dispatch source is stale: source=$SOURCE_SHA main=$current"; exit 1; }
       - name: Dispatch Credential Preflight directly for fresh safety-gate re-verification
+        # GITHUB_TOKEN-authenticated workflow dispatch does not fire workflow_run listeners reliably.
+        # The former same-job gate `if: steps.freshness.outputs.current == 'true'` is now enforced
+        # by the job-level `needs.runtime-proof.outputs.current == 'true'` boundary above.
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
