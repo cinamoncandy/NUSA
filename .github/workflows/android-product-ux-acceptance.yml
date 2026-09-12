@@ -5,6 +5,7 @@ on:
     paths:
       - "apps/mobile/**"
       - "tests/mobile-product-v5.test.js"
+      - "tests/mobile-ai-hierarchy-responsive.test.js"
       - ".github/workflows/android-product-ux-acceptance.yml"
   workflow_dispatch: {}
 
@@ -122,14 +123,19 @@ jobs:
           tap "header-tools-menu"; tap "header-settings"; capture 09-settings
           adb shell input swipe 540 1800 540 600 450; sleep 1; capture 10-settings-scroll
           tap "utility-close"; capture 11-after-settings-close
-          tap "tab-Home"; capture 12-home-return
+
+          tap "tab-AiSignal"; capture 12-ai
+          scroll_until_visible "ai-zero-authority-status"; capture 13-ai-authority
+          tap "tab-Home"; capture 14-home-return
 
           grep -q "paper-learning-monitor" qa/android-product-ux/05-paper.xml
           grep -q "MARKETS" qa/android-product-ux/02-markets-chart.xml
           grep -q "PORTFOLIO" qa/android-product-ux/08-portfolio.xml
           grep -q "paper-learning-timeline" qa/android-product-ux/07-paper-evidence-open.xml
-          grep -q "home-screen" qa/android-product-ux/12-home-return.xml
-          printf 'touch_navigation=PASS\nframes=%s\nevidence_disclosure=PASS\nsettings_close=PASS\nreturn_home=PASS\n' "$(find qa/android-product-ux -name '*.png' | wc -l)" > qa/android-product-ux/report.txt
+          grep -Eq "ai-(screen|loading)" qa/android-product-ux/12-ai.xml
+          grep -q "ai-zero-authority-status" qa/android-product-ux/13-ai-authority.xml
+          grep -q "home-screen" qa/android-product-ux/14-home-return.xml
+          printf 'touch_navigation=PASS\nframes=%s\nevidence_disclosure=PASS\nai_navigation=PASS\nai_zero_authority=PASS\nsettings_close=PASS\nreturn_home=PASS\n' "$(find qa/android-product-ux -name '*.png' | wc -l)" > qa/android-product-ux/report.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

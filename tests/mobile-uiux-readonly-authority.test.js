@@ -28,7 +28,9 @@ test("mobile intelligence shell displays real AI projection and truthful scoped 
   const components = read("src/components.tsx");
   assert.match(app, /const ai = snapshot\?\.ai \?\? null/);
   assert.match(aiView, /ai\?\.thesis \?\? "현재 표시할 검증된 AI 분석이 없습니다\."/);
-  assert.match(aiView, /testID="ai-zero-authority-status"><StatusChip label="AI ZERO AUTHORITY"/);
+  const authority = aiView.indexOf('testID="ai-zero-authority-status"');
+  const zeroAuthorityChip = aiView.indexOf('label="AI ZERO AUTHORITY"', authority);
+  assert.ok(authority >= 0 && zeroAuthorityChip > authority);
   assert.match(components, /AI는 주문, 이체, 출금 또는 운영 상태를 변경할 권한이 없습니다/);
   assert.match(components, /AI는 읽기 전용이며 PAPER 주문은 별도의 사용자 승인·PAPER 실행 경로에서만 처리됩니다/);
   assert.match(aiView, /AI에는 PAPER·LIVE 주문, 이체, 출금 또는 운영 변경 권한이 없습니다/);

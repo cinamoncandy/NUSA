@@ -20,6 +20,10 @@ import { formatFeedAgeMs } from "./watchlist";
  * - What-changed: UNSUPPORTED — no snapshot-history source exists on
  *   device. Exposed explicitly as `changesSupported: false` instead of a
  *   fabricated delta list.
+ *
+ * Status text deliberately includes a semantic prefix (LIVE / STALE /
+ * BLOCKED / DEGRADED / CHECK / PAPER) so operational meaning never depends
+ * on color alone.
  */
 
 export type HomePaperState = "READY" | "DEGRADED" | "DOWN" | "NOT_CONFIGURED" | "UNAVAILABLE";
@@ -82,15 +86,15 @@ export function buildHomeStatusRail(input: HomeStatusInput): HomeStatusRail {
 
   const systemLine = halted
     ? input.killSwitchActive === true && input.paperState !== "DOWN" && input.paperMode !== "FAULTED"
-      ? "PAPER 중단(킬 스위치)"
-      : "PAPER 중단"
+      ? "BLOCKED · PAPER 중단(킬 스위치)"
+      : "BLOCKED · PAPER 중단"
     : degraded
-      ? "PAPER 저하"
+      ? "DEGRADED · PAPER 저하"
       : unconfigured
         ? input.paperState === "NOT_CONFIGURED"
-          ? "PAPER 미연결"
-          : "PAPER 확인 불가"
-        : "PAPER 정상";
+          ? "CHECK · PAPER 미연결"
+          : "CHECK · PAPER 확인 불가"
+        : "PAPER · 정상";
   const risk: HomeRiskLevel = halted
     ? "HIGH"
     : degraded
@@ -101,7 +105,7 @@ export function buildHomeStatusRail(input: HomeStatusInput): HomeStatusRail {
           ? "CAUTION"
           : "NORMAL";
 
-  const marketLine = input.feedStale ? "시장 대기" : "시장 온라인";
+  const marketLine = input.feedStale ? "STALE · 시장 대기" : "LIVE · 시장 온라인";
 
   const stamp = validInstant(input.snapshotGeneratedAtMs)
     ? input.snapshotGeneratedAtMs
