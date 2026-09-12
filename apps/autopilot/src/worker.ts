@@ -1,5 +1,5 @@
 import baseWorker, { handleCodingExecute, type Env as BaseEnv } from "./index";
-import { acquirePersistentExecution, ExecutionCoordinator, releasePersistentExecution } from "./executionCoordinator";
+import { acquirePersistentExecution, ExecutionCoordinator, markPersistentExecutionDispatched, releasePersistentExecution } from "./executionCoordinator";
 import {
   executeCodingRunner,
   validateCodingRunnerRequest,
@@ -12,6 +12,7 @@ import {
 import { GithubValidatedPatchPublisher } from "./githubValidatedPatchPublisher";
 import { verifyGithubActionsOidcToken } from "./githubActionsOidc";
 import { executeIndependentAudit, validateAuditRunnerRequest } from "./auditRunner";
+import { canonicalAuditDedupeKey, isRetryableAuditExecutionError } from "./auditExecutionIdentity";
 
 export { ExecutionCoordinator };
 
@@ -193,30 +194,64 @@ async function handleAuditExecute(request: Request, env: WorkerEnv): Promise<Res
     return json({ accepted: false, status: "AUDIT_FAILED_CLOSED", error: error instanceof Error ? error.message : "AUDIT_RUNNER_REQUEST_INVALID", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 400);
   }
 
+  const canonicalDedupeKey = canonicalAuditDedupeKey(auditRequest);
   const startedAt = Date.now();
   const lease = await acquirePersistentExecution(env.NUSA_EXECUTION_COORDINATOR, {
-    dedupeKey: auditRequest.dedupeKey,
+    dedupeKey: canonicalDedupeKey,
     executionId: auditRequest.executionId,
     now: startedAt,
     leaseExpiresAt: startedAt + AUDIT_EXECUTION_LEASE_MS,
   });
   if (!lease.acquired) {
+    console.log(JSON.stringify({
+      event: "NUSA_AUDIT_DUPLICATE_SUPPRESSED",
+      repository: auditRequest.repository,
+      prNumber: auditRequest.prNumber,
+      headSha: auditRequest.headSha,
+      baseSha: auditRequest.baseSha,
+      workflowRunId: auditRequest.workflowRunId,
+      canonicalDedupeKey,
+      reason: lease.reason ?? "DUPLICATE_EXECUTION",
+      liveAuthority: "NONE",
+      productionMutationAllowed: false,
+      aiAuthority: "ZERO_AUTHORITY",
+    }));
     return json({
       accepted: false,
       status: "DUPLICATE_AUDIT_REQUEST",
+      duplicateSuppressed: true,
       reason: lease.reason ?? "DUPLICATE_EXECUTION",
       executionId: auditRequest.executionId,
-      dedupeKey: auditRequest.dedupeKey,
+      dedupeKey: canonicalDedupeKey,
       liveAuthority: "NONE",
       productionMutationAllowed: false,
       aiAuthority: "ZERO_AUTHORITY",
     }, 409);
   }
 
+  let terminal = false;
   try {
     const result = await executeIndependentAudit(auditRequest, env);
+    await markPersistentExecutionDispatched(env.NUSA_EXECUTION_COORDINATOR, {
+      dedupeKey: canonicalDedupeKey,
+      executionId: auditRequest.executionId,
+      now: Date.now(),
+    });
+    terminal = true;
     return json({ accepted: true, ...result }, 200);
   } catch (error) {
+    if (!isRetryableAuditExecutionError(error)) {
+      try {
+        await markPersistentExecutionDispatched(env.NUSA_EXECUTION_COORDINATOR, {
+          dedupeKey: canonicalDedupeKey,
+          executionId: auditRequest.executionId,
+          now: Date.now(),
+        });
+        terminal = true;
+      } catch {
+        console.error(JSON.stringify({ event: "NUSA_AUDIT_TERMINAL_DEDUPE_PERSIST_FAILED", executionId: auditRequest.executionId, canonicalDedupeKey, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }));
+      }
+    }
     return json({
       accepted: false,
       status: "AUDIT_FAILED_CLOSED",
@@ -224,19 +259,22 @@ async function handleAuditExecute(request: Request, env: WorkerEnv): Promise<Res
       reviewedHeadSha: auditRequest.headSha,
       baseSha: auditRequest.baseSha,
       workflowRunId: auditRequest.workflowRunId,
+      retryable: isRetryableAuditExecutionError(error),
       liveAuthority: "NONE",
       productionMutationAllowed: false,
       aiAuthority: "ZERO_AUTHORITY",
     }, 409);
   } finally {
-    try {
-      await releasePersistentExecution(env.NUSA_EXECUTION_COORDINATOR, {
-        dedupeKey: auditRequest.dedupeKey,
-        executionId: auditRequest.executionId,
-        now: Date.now(),
-      });
-    } catch {
-      console.error(JSON.stringify({ event: "NUSA_AUDIT_LEASE_RELEASE_FAILED", executionId: auditRequest.executionId, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }));
+    if (!terminal) {
+      try {
+        await releasePersistentExecution(env.NUSA_EXECUTION_COORDINATOR, {
+          dedupeKey: canonicalDedupeKey,
+          executionId: auditRequest.executionId,
+          now: Date.now(),
+        });
+      } catch {
+        console.error(JSON.stringify({ event: "NUSA_AUDIT_LEASE_RELEASE_FAILED", executionId: auditRequest.executionId, canonicalDedupeKey, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }));
+      }
     }
   }
 }
