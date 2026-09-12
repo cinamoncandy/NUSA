@@ -123,9 +123,8 @@ export async function runScheduledEvolutionCoding(
     : Object.freeze([] as EvolutionDiscoverySignal[]);
   const signals = failureSignals.length > 0 ? failureSignals : backlogSignals;
   const freshFailureCount = failureSignals.length;
-  const selectedIdentity = signals[0]?.id ?? "none";
-  const executionId = `evolve-coding:${input.workflowRunId}:${input.mainSha.slice(0, 16)}:${selectedIdentity}`;
-  const dedupeKey = `evolve-coding:${input.workflowRunId}:${input.mainSha}:${selectedIdentity}`;
+  const executionId = `evolve-coding:${input.workflowRunId}:${input.mainSha.slice(0, 16)}`;
+  const dedupeKey = `evolve-coding:${input.workflowRunId}:${input.mainSha}`;
   const bridge = prepareDiscoveredCodingRequest({
     signals,
     now: new Date(input.now),
