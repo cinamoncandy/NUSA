@@ -1,18 +1,18 @@
-# NUSA Product UX Contract — 2026-09-11
+# NUSA Product UX Contract — 2026-09-12
 
-Status: Core review required before broad implementation  
+Status: `CANONICAL_CONTRACT_OWNER / DRAFT_HOLD`  
 Owner: UI/UX  
 Scope: Mobile + Desktop presentation only
 
-## Product UX goal
+## Product definition
 
-NUSA is an AI trading intelligence system, not a generic brokerage dashboard. The interface must let a user understand the important truth without hunting through screens, then move to the smallest safe next action.
+NUSA is an AI trading intelligence system, not a generic brokerage dashboard. The interface is an observable decision system: it shows what NUSA can truthfully conclude, the evidence and uncertainty behind that conclusion, the operational state that makes the conclusion trustworthy or unavailable, and the smallest safe human action.
 
-Primary loop:
+Canonical product loop:
 
 `OBSERVE -> REASON -> DECIDE -> VALIDATE -> LEARN`
 
-`SIMULATE` may appear only when an authoritative simulation projection actually exists. The UI must not invent a simulation or execution capability.
+This is an information architecture, not a claim that the runtime exposes five live execution stages. The UI MUST NOT animate or label internal progress unless an authoritative runtime state explicitly exposes that progress.
 
 ## Non-negotiable authority truth
 
@@ -21,273 +21,248 @@ Primary loop:
 - `productionMutationAllowed=false`
 - `aiAuthority=ZERO_AUTHORITY`
 
-PAPER must never visually resemble LIVE. AI insight must never look like autonomous execution. Missing evidence must never become a success state.
+AI judgement is read-only decision support. A directional judgement must always retain the visible meaning `AI 판단 · 실행 권한 없음`.
 
-## Current capability boundary discovered in repository audit
+## Canonical judgment source
 
-The current production mobile `PAPER` route is a supervision/learning surface. It intentionally does not expose manual BUY/SELL, quantity, price or submit controls. Therefore:
+`packages/contracts/src/aiTradingJudgment.ts` is the authoritative rendering contract for an integrated AI trading judgement. A valid `AiTradingJudgment` contains:
 
-- the UX contract does not require a manual PAPER order flow;
-- a Decision may deep-link to PAPER supervision/validation evidence, not to a fabricated order ticket;
-- portfolio-impact or scenario simulation is `UNAVAILABLE` until an authoritative projection exists;
-- any future user-triggered PAPER mutation requires separate Core/authority/product approval and is outside this UI/UX contract.
+- `judgmentId`, `strategyId`, `market`, `generatedAt`
+- `thesis`
+- evidence AND counter-evidence
+- epistemic status per evidence item: `KNOWN | UNKNOWN | ESTIMATE | ASSUMPTION | RISK | INVALIDATION`
+- calibrated `confidence`
+- separate `uncertainty` — never render it as `1-confidence`
+- `marketRegime`
+- normalized scenarios with probability, expected return and narrative
+- expected return and downside
+- risk budget
+- time horizon
+- explicit invalidation condition
+- action: `LONG | SHORT | EXIT | HOLD | ABSTAIN`
+
+The UI does not invent any of these values. Invalid or absent judgement data renders `UNAVAILABLE`.
+
+`AiReadOnlyProjection` remains a secondary diagnostic/trust source for calibration diagnostics, critic severity, disagreements, explanation verdict, scenario robustness, learning provenance and ZERO_AUTHORITY truth. It must not override a canonical `AiTradingJudgment` with an inferred recommendation.
+
+## Runtime delivery boundary
+
+The existence of `AiTradingJudgment` as a contract does not itself prove that the active mobile runtime currently delivers a fresh judgement object to a screen. Product UI may present a judgement as current only when the implementation has an authoritative runtime delivery path and freshness semantics. Otherwise render the judgment surface as `UNAVAILABLE` rather than using fixture/demo values.
+
+## PAPER boundary
+
+The current production mobile PAPER route is supervision/learning only. It intentionally does not expose manual BUY/SELL, quantity, price or submit controls.
+
+Therefore:
+
+- no manual order ticket is introduced by this contract;
+- a judgement may link to PAPER evidence/supervision only when the runtime provides a truthful relationship;
+- scenarios in `AiTradingJudgment` are explanation/scenario evidence, not an execution simulator;
+- any future user-triggered PAPER mutation requires a separate canonical product/authority decision.
 
 ## Information priority
 
-Every primary surface uses this hierarchy:
+Primary surfaces use this order:
 
-1. Immediate judgement — what matters now.
-2. Operational truth — system/data/PAPER/strategy/risk/autopilot state.
-3. Decision evidence — why, counter-evidence, uncertainty, invalidation when authoritative.
-4. Safe next action — review, inspect, validate, recover, or open PAPER supervision.
-5. Detail — raw market, portfolio, history, diagnostics.
+1. current judgement or truthful absence of judgement;
+2. system/data/PAPER/risk operational truth;
+3. evidence, counter-evidence, uncertainty, scenarios and invalidation;
+4. safe human action;
+5. portfolio/market/detail/diagnostics.
 
-Developer diagnostics do not compete with the first viewport.
+Developer diagnostics and raw prices never compete with the first viewport unless they are the active blocker.
 
-## First-glance status contract
+## Mobile IA
 
-Without opening another screen the user must be able to determine:
+Five primary destinations maximum:
 
-- System state
-- Data state and freshness
-- PAPER state
-- Strategy state
-- Risk state
-- Autopilot state when an authoritative projection exists
-- Most recent meaningful activity
-- Active warning/failure
-- Whether human action is required
+- `NUSA` — current judgement + operational truth + attention/action;
+- `판단` — full canonical judgement and trust detail;
+- `시장` — public read-only market observation used as context;
+- `PAPER` — supervision/learning/validation evidence;
+- `자산` — PAPER portfolio/result plus strict REAL_READ_ONLY separation.
 
-Unknown is a first-class state. No observed data is not success.
+Internal route IDs may remain compatible during migration. The visible end-state label is `판단`, not generic `AI`, because AI is the intelligence layer across the product.
 
-## Primary information architecture
+## Home first viewport
 
-### Mobile
+Home answers without navigation:
 
-Use five destinations maximum.
+1. Is a validated/current judgement available?
+2. What is the action/posture and thesis, if available?
+3. How confident and uncertain is it?
+4. What operational state can invalidate trust in it?
+5. Does the human need to do anything?
 
-- `NUSA` — current brief: judgement + system truth + available change evidence + safe next action.
-- `판단` — AI decision ledger: current observations, evidence, counter-evidence, confidence provenance, uncertainty and decision history when available.
-- `시장` — market intelligence: important observed changes and data evidence; raw quotes are subordinate.
-- `PAPER` — PAPER supervision, validation and learning evidence. PAPER identity remains persistent.
-- `자산` — PAPER portfolio exposure, PnL, capital allocation and read-only account separation.
+Priority composition:
 
-Do not create a generic visible `AI` destination as the end-state IA. AI is the intelligence layer across NUSA. Existing route IDs may remain during compatibility migration.
+- compact authority/truth rail;
+- one dominant judgement/runtime canvas;
+- confidence + uncertainty pair;
+- evidence/counter-evidence tension summary;
+- invalidation/risk summary;
+- one safe action or `no action required`;
+- portfolio/result only below the judgement hierarchy.
 
-### Desktop
+Do not lead with giant capital, a watchlist, raw chart tiles, news, decorative AI sphere, globe, orbit, scan field or synthetic progress animation.
 
-Desktop keeps higher density but uses the same user jobs and state semantics. Secondary operational/diagnostic navigation is progressive. Current desktop documentation that makes capital the universal dominant object conflicts with this product hierarchy when judgement, failure or user action is materially more important.
+## What Changed
 
-## NUSA Home / Live Brief
+`homeStatusRail.changesSupported === false` means the active Home status source does not support a truthful snapshot-history delta. Do not fabricate a `What Changed` feed from that source.
 
-The first viewport answers:
+A new canonical judgement may visually transition when its authoritative `judgmentId`/`generatedAt` changes, but this is not a substitute for a persisted decision-history ledger.
 
-1. What can NUSA truthfully say now?
-2. Is the system/data/PAPER path healthy enough to trust that statement?
-3. What evidence and uncertainty matter?
-4. Does anything require user attention?
+## Runtime Canvas
 
-Composition:
+The visual differentiator is an observable AI runtime canvas, not a conventional finance dashboard.
 
-- compact global truth rail
-- one dominant Decision/Observation Object
-- current evidence + counter-evidence summary
-- risk/uncertainty or `UNKNOWN`
-- one safe next action
-- compact portfolio impact/result only when authoritative
+The canvas is backed only by real state:
 
-Do not lead with giant account value, decorative AI objects, raw quote cards, or news.
+- JUDGEMENT: `action`, `thesis`, `market`, `marketRegime`;
+- EVIDENCE: actual evidence items and epistemic statuses;
+- COUNTER: actual counter-evidence items;
+- UNCERTAINTY: canonical uncertainty;
+- SCENARIOS: canonical scenario set;
+- RISK: downside, risk budget, invalidation;
+- TRUST: calibration/critic/disagreement details only when provided;
+- AUTHORITY: PAPER ONLY / LIVE NONE / AI ZERO AUTHORITY.
 
-### What changed
+### Motion semantics
 
-Current mobile status code explicitly reports `changesSupported: false`; no device snapshot-history source currently supports a truthful change ledger. Therefore the first viewport must show `변화 이력 없음/미지원` or omit the delta section until an authoritative history source exists. It must never synthesize “what changed”.
+Motion is telemetry, never theatre.
 
-## Decision / Observation Object
+Allowed:
 
-This is the primary reusable AI-trading UX primitive. Fields are rendered only when their source exists.
+- subtle opacity/position transition when a new canonical snapshot arrives;
+- brief emphasis on the exact field whose authoritative value changed;
+- calm pulse for an explicitly provided RUNNING/LOADING state;
+- STOP at the exact BLOCKED/STALE/ERROR node when that state is authoritative;
+- reduced-motion fallback to instant state change.
 
-- subject / scope
-- thesis / current observation
-- calibration state
-- calibrated confidence only when verified `CALIBRATED`
-- evidence FOR
-- evidence AGAINST
-- uncertainty
-- critic severity / disagreements
-- last model run/freshness
-- invalidation condition only if an authoritative field exists
-- portfolio impact only if an authoritative projection exists
-- safe next action
-- `PAPER ONLY · AI ZERO AUTHORITY` context where execution could otherwise be misunderstood
+Forbidden:
 
-The current `AiReadOnlyProjection` has evidence, counter-evidence, uncertainty, critic severity, disagreements, calibration, scenario robustness and authority truth. It does not provide a canonical stance enum, portfolio impact, invalidation condition, or decision-history ledger. UI must not invent those fields.
+- pretending OBSERVE/REASON/VERIFY/DECIDE are live sequential stages without runtime stage evidence;
+- perpetual orbit/particle/scan motion implying intelligence activity;
+- random data pulses;
+- fake percentages, source counts or progress;
+- motion that makes UNKNOWN look healthy.
 
-## Autopilot state UX
+When no stage telemetry exists, the runtime canvas displays a snapshot topology, not a progress tracker.
 
-Target semantic states:
-
-`NO_WORK | READY | CLAIMED | RUNNING | VALIDATING | BLOCKED | HUMAN_ONLY | FAILED | STARVATION | DONE`
-
-The summary should expose active/queued work, blocker, human-only action, latest successful work, last healthy run, recent failure and subsystem health — but only from an authoritative projection. Observation failure is never `0` or `NO_WORK`.
-
-Until those fields are available to the product surface, render `UNKNOWN/UNAVAILABLE`; do not infer queue truth from unrelated runtime state.
-
-## State model
+## State semantics
 
 Data-backed modules distinguish:
 
-`LOADING | READY | STALE | EMPTY | DEGRADED | BLOCKED | ERROR | UNKNOWN`
+`LOADING | READY | STALE | EMPTY | DEGRADED | BLOCKED | ERROR | UNKNOWN | UNAVAILABLE`
 
-`EMPTY`, `ERROR`, `UNKNOWN`, `UNAVAILABLE`, and `NO_WORK` are not interchangeable. Every non-ready state explains what happened, user impact, last-known-good/freshness when available, and the smallest corrective action.
+Autopilot semantic target remains:
 
-## Dark Glass visual direction
+`NO_WORK | READY | CLAIMED | RUNNING | VALIDATING | BLOCKED | HUMAN_ONLY | FAILED | STARVATION | DONE`
 
-Premium dark + restrained glassmorphism. Not neon, cyberpunk, or game HUD.
+Autopilot states appear only when an authoritative product projection exists. Observation failure is never `0` or `NO_WORK`.
 
-### Foundation
+## Dark Glass implementation contract
 
-- near-black neutral background with subtle tonal depth
-- glass only where layer hierarchy is meaningful
-- restrained blur; never blur dense chart/table content
-- thin low-contrast boundaries
-- high-contrast primary text, quiet secondary text
-- tabular numerals for financial values
-- typography and spacing create hierarchy before color/effects
+Visual direction: premium dark + restrained glassmorphism, non-neon.
 
-### Glass tiers
+Current mobile dependencies are React Native + safe-area + AsyncStorage; there is no approved blur package. Therefore the first implementation MUST be achievable without adding a dependency:
 
-- `glass.base` — navigation/persistent shell
-- `glass.raised` — dominant judgement, modal, urgent foreground
-- `glass.overlay` — transient sheet/dialog
+- near-black/graphite base;
+- translucent RGBA surfaces;
+- subtle tonal depth and thin low-contrast boundaries;
+- max two competing surface elevations per viewport;
+- high-contrast text and quiet secondary typography;
+- one low-saturation intelligence accent;
+- green/red/amber reserved for semantics;
+- tabular financial numerals;
+- no glow shadow as a primary hierarchy device.
 
-No more than two glass depths compete in one viewport.
+A future true backdrop blur requires a separate dependency/compatibility decision. The approved mockup must not rely on effects unavailable in the current RN stack.
 
-### Color and motion
+## Market
 
-- remove active neon vocabulary from product presentation
-- no rainbow AI gradients
-- one restrained intelligence accent
-- green/red only for semantic positive/negative or safe/danger
-- amber for caution/stale/human attention
-- state is never color-only
-- no orbit/particle/scan/glowing-sphere/evidence-field theatre
-- motion communicates transition/change and respects reduced-motion
+Market remains public read-only observation. Price/chart/watchlist are useful evidence context but do not create strategy authority. STALE/ERROR state is rendered directly on the affected data surface.
 
-## Data visualisation
+## PAPER
 
-- chart title states subject and timeframe
-- stale/error/partial data appears on the chart itself
-- no sparkline without a real series
-- comparative bars use meaningful scale
-- confidence always includes calibration/provenance meaning
-- tables order information by subject -> state/change -> impact/action
-- raw prices do not outrank system truth or judgement
+PAPER is supervision/learning. It answers:
 
-## Interaction and accessibility
+- is PAPER operating/observable;
+- what learning/validation evidence exists;
+- what completed/failed/blocked evidence exists when projected;
+- what the user may safely inspect next.
 
-- mobile target >= 48px where practical; never below existing platform contract
-- visible desktop focus
-- critical state uses text/icon + color
-- text expansion must not hide risk/authority truth
-- mobile acceptance: 360 / 390 / 430px
-- desktop keyboard/horizontal-region accessibility
-- reduced-motion honored
+No production order ticket is implied.
 
-## Critical task flows
+## Assets
 
-### Understand current state
+PAPER capital/result and REAL_READ_ONLY balances remain separate. Never sum them. Missing values are `—/UNAVAILABLE`, not zero.
 
-Launch -> NUSA -> identify current observation, PAPER/system state, data freshness and risk without navigation.
+## Responsive and accessibility
 
-Target: 0 additional taps.
+- 360px: single column, no clipped authority/state labels;
+- 390px: canonical mobile composition;
+- 430px: more spacing, not more card count;
+- >=768px: two-column detail only when scan order remains obvious;
+- touch target >=48px where practical;
+- state meaning is never color-only;
+- dynamic text must not hide risk/authority;
+- reduced-motion honored.
 
-### Inspect AI reasoning
+## Drift findings
 
-NUSA -> 판단 -> evidence / counter-evidence / uncertainty / calibration / scenario robustness.
+Current active implementation still has debt against this contract:
 
-Target: <= 1 primary navigation transition.
-
-### Validate a judgement
-
-판단 -> PAPER supervision/learning evidence where the runtime provides a relationship.
-
-Target: no fabricated simulation or order action. If linkage is unavailable, explain that validation evidence is unavailable rather than offering a dead control.
-
-### Resolve a blocker
-
-Truth rail/notice -> exact recovery destination where authority permits.
-
-Target: one tap from surfaced blocker to corrective control when such a control exists.
-
-## Responsive rules
-
-- 360: single-column; evidence/counter-evidence stack; status text never clips
-- 390: canonical mobile composition
-- 430: more breathing room, not more card count
-- tablet: two-column detail only when scan order remains obvious
-- desktop: density increases; semantic hierarchy stays stable
-
-## Design debt / drift findings on main
-
-1. Mobile Home leads with `LIVE INTELLIGENCE`, decorative `IntelligenceMotionField`, and a large capital rail.
-2. Mobile design system exposes neon token/API vocabulary including `NusaCard(neon)`.
-3. Desktop canonical architecture states capital truth is the largest object, conflicting with judgement/system-truth priority.
-4. Mobile visible navigation still uses `AI`, while target IA uses the user job `판단`.
-5. AI detail already has valuable evidence/calibration/uncertainty content; recompose rather than duplicate it.
-6. `homeStatusRail` explicitly has no snapshot-history source (`changesSupported: false`).
-7. Production mobile PAPER is supervision/learning only; earlier “Decision -> simulation -> confirm PAPER action” language exceeded actual capability and is superseded by this revision.
-8. Current `AiReadOnlyProjection` cannot truthfully supply every aspirational Decision Object field. Missing fields remain unavailable until their canonical owners expose them.
+1. visible primary nav uses `AI` rather than `판단`;
+2. the design system retains neon token/API vocabulary;
+3. existing Home hierarchy has historical decorative-intelligence/capital-first influence;
+4. desktop architecture documents universal capital-first dominance;
+5. active `AiView` primarily consumes `AiReadOnlyProjection`; the integrated `AiTradingJudgment` delivery/rendering path must be proven before the new judgement canvas is activated;
+6. Home history remains unsupported by its current status source;
+7. production PAPER is supervision/learning and must stay so.
 
 ## Implementation sequence
 
-### P0 — truth and hierarchy
+P0 — truth wiring
 
-- global first-glance state semantics
-- Home judgement/observation hierarchy
-- remove decorative intelligence dominance
-- preserve authority wording
-- unknown/error/stale distinction
+- prove canonical `AiTradingJudgment` runtime delivery path or keep judgement unavailable;
+- define freshness semantics;
+- unify READY/STALE/ERROR/UNKNOWN/UNAVAILABLE presentation;
+- preserve authority truth.
 
-### P1 — navigation and reasoning
+P1 — runtime canvas + IA
 
-- visible `AI` -> `판단` migration with route compatibility
-- reorganize existing AI evidence into Decision/Observation Object
-- PAPER supervision linkage only where backed by runtime evidence
-- blocker deep links
+- implement Judgment Object / Runtime Canvas from canonical fields;
+- visible `AI` -> `판단` label migration with route compatibility;
+- evidence/counter-evidence/scenarios/invalidation progressive disclosure;
+- no synthetic live-stage progression.
 
-### P2 — Dark Glass system
+P2 — Dark Glass
 
-- semantic glass surface tokens
-- retire active neon/decorative motion presentation
-- charts/tables/KPI hierarchy cleanup
-- responsive parity
+- semantic translucent surface tokens;
+- remove active neon/glow/decorative-motion usage;
+- responsive typography/spacing/chart cleanup.
 
-### P3 — parity and drift prevention
+P3 — parity
 
-- screenshot acceptance at 360/390/430
-- desktop responsive/accessibility checks
-- design-doc <-> implementation contract tests
-- active-renderer import/load guards
+- approved 390px implementation-ready visual contract;
+- 360/390/430 device screenshots;
+- screenshot parity review;
+- accessibility and reduced-motion checks;
+- doc/code drift guards.
 
-## Acceptance metrics
+## Acceptance
 
-Measure where telemetry/evidence exists:
+A UI change is not complete because CI is green. Completion requires:
 
-- taps/clicks
-- navigation transitions
-- time to identify failure/stale data
-- time to identify current NUSA observation/risk
-- task completion steps
-- authority misunderstanding risk
-- mobile overflow/clipping
-- accessibility failures
-- screenshot parity against approved implementation-ready mockup
+- correct authority semantics;
+- no fabricated evidence/state/progress;
+- critical task scan order meets the hierarchy above;
+- no clipping at 360/390/430;
+- accessibility acceptance;
+- real device screenshot parity with the approved implementation-ready mockup;
+- fresh exact-head CI/safety evidence under repository governance.
 
-## Core decisions required
+## Core ownership disposition
 
-1. Approve visible mobile IA migration `AI` -> `판단` while retaining route compatibility.
-2. Approve judgement/system truth over universal capital-first hierarchy.
-3. Approve Dark Glass/non-neon product direction.
-4. Decide Autopilot exposure boundary on mobile.
-5. Decide whether new canonical projections should be created for: decision history/change, stance, invalidation, portfolio impact, and Autopilot detail. UI will not infer them.
-6. Decide whether PR #1838 is reworked into this contract or superseded.
+Core has fixed PR #1850 as the canonical UI/UX product-contract/governance owner. PRs #1838 and #1849 are implementation inputs/HOLD, not independent merge candidates. After this contract stabilizes, implementation must be routed through one clean reconciliation work item. Global Release freeze / #1803 remains independently blocking.
