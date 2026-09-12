@@ -1,10 +1,12 @@
 export type GithubIssueWorkSupplyStatus = "OBSERVED" | "UNKNOWN";
+export type GithubReadyWorkScope = "AUTOPILOT_CODING_RUNNER" | "UNKNOWN";
 
 export interface GithubIssueWorkSupplySnapshot {
   readonly status: GithubIssueWorkSupplyStatus;
   readonly rawOpenIssueCount: number | null;
   readonly readyWorkCount: number | null;
   readonly readyWorkStatus: "OBSERVED" | "UNKNOWN";
+  readonly readyWorkScope: GithubReadyWorkScope;
   readonly reason: string;
 }
 
@@ -13,6 +15,7 @@ export const UNKNOWN_GITHUB_ISSUE_WORK_SUPPLY: GithubIssueWorkSupplySnapshot = O
   rawOpenIssueCount: null,
   readyWorkCount: null,
   readyWorkStatus: "UNKNOWN",
+  readyWorkScope: "UNKNOWN",
   reason: "github-open-issue-supply-unobserved",
 });
 
@@ -37,7 +40,8 @@ export function deriveGithubIssueWorkSupply(value: unknown): GithubIssueWorkSupp
     rawOpenIssueCount: Number(totalCount),
     readyWorkCount: null,
     readyWorkStatus: "UNKNOWN",
-    reason: "github-open-issue-backlog-observed-readiness-not-proven",
+    readyWorkScope: "UNKNOWN",
+    reason: "github-open-issue-backlog-observed-current-executor-readiness-not-proven",
   });
 }
 
@@ -47,13 +51,14 @@ export function withObservedReadyWork(
 ): GithubIssueWorkSupplySnapshot {
   if (supply.status !== "OBSERVED" || !Number.isSafeInteger(readyWorkCount) || readyWorkCount < 0) {
     return supply.status === "OBSERVED"
-      ? Object.freeze({ ...supply, readyWorkCount: null, readyWorkStatus: "UNKNOWN", reason: "github-ready-work-count-invalid" })
+      ? Object.freeze({ ...supply, readyWorkCount: null, readyWorkStatus: "UNKNOWN" as const, readyWorkScope: "UNKNOWN" as const, reason: "github-current-executor-ready-work-count-invalid" })
       : supply;
   }
   return Object.freeze({
     ...supply,
     readyWorkCount,
-    readyWorkStatus: "OBSERVED",
-    reason: "github-open-issue-backlog-and-ready-work-observed",
+    readyWorkStatus: "OBSERVED" as const,
+    readyWorkScope: "AUTOPILOT_CODING_RUNNER" as const,
+    reason: "github-open-issue-backlog-and-current-executor-ready-work-observed",
   });
 }
