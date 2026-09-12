@@ -6,6 +6,7 @@ const {
   SMA_PARAMETER_NEIGHBORHOOD,
   RSI_PARAMETER_NEIGHBORHOOD,
   DONCHIAN_PARAMETER_NEIGHBORHOOD,
+  VOLATILITY_COMPRESSION_PARAMETER_NEIGHBORHOOD,
   researchStrategyFamily,
   fetchResearchCandles,
   researchCandleCount,
@@ -88,6 +89,17 @@ test("Donchian candidate neighborhood is the immutable precommitted five-period 
   assert.ok(Object.isFrozen(DONCHIAN_PARAMETER_NEIGHBORHOOD));
   assert.ok(DONCHIAN_PARAMETER_NEIGHBORHOOD.every(Object.isFrozen));
   assert.equal(researchStrategyFamily("donchian-breakout"), "donchian-breakout");
+});
+
+test("volatility compression candidate neighborhood is immutable and precommitted", () => {
+  assert.deepEqual(VOLATILITY_COMPRESSION_PARAMETER_NEIGHBORHOOD, [
+    { breakoutLookback: 10, compressionRatio: 0.5 }, { breakoutLookback: 10, compressionRatio: 0.7 }, { breakoutLookback: 10, compressionRatio: 0.9 },
+    { breakoutLookback: 20, compressionRatio: 0.5 }, { breakoutLookback: 20, compressionRatio: 0.7 }, { breakoutLookback: 20, compressionRatio: 0.9 },
+    { breakoutLookback: 30, compressionRatio: 0.5 }, { breakoutLookback: 30, compressionRatio: 0.7 }, { breakoutLookback: 30, compressionRatio: 0.9 }
+  ]);
+  assert.ok(Object.isFrozen(VOLATILITY_COMPRESSION_PARAMETER_NEIGHBORHOOD));
+  assert.ok(VOLATILITY_COMPRESSION_PARAMETER_NEIGHBORHOOD.every(Object.isFrozen));
+  assert.equal(researchStrategyFamily("volatility-compression-breakout"), "volatility-compression-breakout");
 });
 
 test("fast SMA cells are covered by a predeclared robustness reference without relaxing gates", () => {
