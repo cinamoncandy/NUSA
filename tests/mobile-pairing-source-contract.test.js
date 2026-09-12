@@ -15,12 +15,17 @@ test("mobile pairing source uses direct atomic session issuance and retains no p
   assert.match(service, /state='CONSUMED'[\s\S]*createDeviceBoundSession/);
   assert.match(service, /MAX_ACTIVE_PAIRINGS = 100/);
   assert.match(service, /MAX_ACTIVE_PAIRINGS_PER_DEVICE = 1/);
+  assert.match(service, /PAIRING_SUPERSEDED/);
+  assert.match(service, /SAME_DEVICE_RETRY/);
+  assert.match(service, /transaction\(\(\) => \{[\s\S]*device_id_hash=\?[\s\S]*MAX_ACTIVE_PAIRINGS[\s\S]*INSERT INTO mobile_pairing_requests/);
   assert.match(service, /CLIENT_REVOKED_RECOVERY_ISSUED_BEFORE/);
   assert.match(service, /BOOTSTRAP_RECOVERED_AFTER_CLIENT_REVOKE/);
   assert.match(service, /state TEXT NOT NULL CHECK\(state IN \('PENDING','APPROVED','CONSUMED','EXPIRED'\)\)/);
   assert.match(core, /protected createDeviceBoundSession/);
   assert.doesNotMatch(service, /SET state='APPROVED'[\s\S]{0,300}bootstrap_token/);
   assert.doesNotMatch(http, /bootstrapToken[\s\S]{0,300}pairing\/exchange/);
+  assert.match(http, /authorizeOwner[\s\S]*users:manage[\s\S]*isUserAllowed/);
+  assert.match(http, /handleMobilePairingApproveHttp[\s\S]*authorizeOwner/);
   assert.match(mobile, /\/v1\/mobile\/pairing\/exchange/);
   assert.match(mobile, /PAIRING_STORAGE_KEY/);
   assert.match(mobile, /private pendingPairing: PendingPairingMemory \| null = null/);

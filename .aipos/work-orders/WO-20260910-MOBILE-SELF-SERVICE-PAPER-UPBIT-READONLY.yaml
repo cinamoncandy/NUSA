@@ -48,7 +48,9 @@ validation:
     - "Upbit relay contract previously PASS 19/19"
     - "no-mobile-credential-storage regression added: source cannot call setSecret/getSecret for approved session or pairing capabilities"
     - "legacy stored credential keys are delete-only and never restored"
+    - "same-device pairing retry source contract PASS: an atomic transaction expires prior PENDING/APPROVED rows, preserves global/per-device bounds, retains OWNER users:manage approval, and records metadata-only PAIRING_SUPERSEDED audit evidence"
   pending:
+    - "compiled mobile pairing regressions PASS 9/9 and incremental repository TypeScript typecheck PASS on the Oracle validation checkout"
     - "fresh exact-head CI for the current PR head"
     - "independent exact-head Audit/Release governance"
 remaining:

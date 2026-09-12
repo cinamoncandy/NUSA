@@ -69,8 +69,54 @@ test("pairing approval requires active OWNER users:manage, target activity, matc
     assert.equal(JSON.parse(inactive.body).error, "TARGET_USER_NOT_ACTIVE");
     assert.equal(service.pairingStatus(started.requestId, DEVICE, now + MOBILE_PAIRING_TTL_MS).state, "EXPIRED");
     assert.equal(db.connection.prepare("SELECT state FROM mobile_pairing_requests WHERE request_id_hash=?").get(require("node:crypto").createHash("sha256").update(started.requestId).digest("hex")).state, "EXPIRED");
-    for (let index = 0; index < 1; index += 1) assert.ok(service.startPairing(OTHER_DEVICE, now + 2_000 + index));
-    assert.throws(() => service.startPairing(OTHER_DEVICE, now + 2_100), /limit reached/);
+  } finally { db.close(); }
+});
+
+test("same-device retry supersedes a pending request before TTL without preserving approval or exchange capability", () => {
+  const { db, service, deps } = fixture();
+  try {
+    const firstResponse = pairingHttp.handleMobilePairingStartHttp(request("POST", { deviceId: DEVICE }), deps);
+    const replacementResponse = pairingHttp.handleMobilePairingStartHttp(request("POST", { deviceId: DEVICE }), deps);
+    assert.equal(firstResponse.status, 201);
+    assert.equal(replacementResponse.status, 201);
+    const first = JSON.parse(firstResponse.body);
+    const replacement = JSON.parse(replacementResponse.body);
+    const now = Date.now();
+
+    assert.notEqual(replacement.requestId, first.requestId);
+    assert.equal(service.pairingStatus(first.requestId, DEVICE, now)?.state, "EXPIRED");
+    assert.equal(service.approvePairing({ actorUserId: OWNER.userId, actorScopes: OWNER.scopes, targetUserId: "mobile-user", requestId: first.requestId, verificationCode: first.verificationCode, now }), false);
+    assert.equal(service.exchangePairing(first.requestId, DEVICE, now), undefined);
+    assert.equal(service.pairingStatus(replacement.requestId, DEVICE, now)?.state, "PENDING");
+    const audit = JSON.stringify(db.connection.prepare("SELECT event,reason FROM mobile_session_audit WHERE event='PAIRING_SUPERSEDED'").all());
+    assert.match(audit, /SAME_DEVICE_RETRY/);
+    assert.equal(audit.includes(first.requestId), false);
+    assert.equal(audit.includes(first.verificationCode), false);
+  } finally { db.close(); }
+});
+
+test("same-device retry expires an approved request so its old exchange cannot issue a session", () => {
+  const { db, service } = fixture();
+  try {
+    const now = 2_000_000;
+    const approved = service.startPairing(DEVICE, now);
+    assert.equal(service.approvePairing({ actorUserId: OWNER.userId, actorScopes: OWNER.scopes, targetUserId: "mobile-user", requestId: approved.requestId, verificationCode: approved.verificationCode, now: now + 1 }), true);
+
+    const replacement = service.startPairing(DEVICE, now + 2);
+    assert.equal(service.pairingStatus(approved.requestId, DEVICE, now + 2)?.state, "EXPIRED");
+    assert.equal(service.exchangePairing(approved.requestId, DEVICE, now + 2), undefined);
+    assert.equal(service.pairingStatus(replacement.requestId, DEVICE, now + 2)?.state, "PENDING");
+  } finally { db.close(); }
+});
+
+test("same-device supersession preserves the global active-pairing cap for other devices", () => {
+  const { db, service } = fixture();
+  try {
+    const now = 3_000_000;
+    const firstDevice = "nusa-global-device-000";
+    for (let index = 0; index < 100; index += 1) assert.ok(service.startPairing(`${firstDevice}${index}`, now));
+    assert.ok(service.startPairing(`${firstDevice}0`, now + 1), "the same device may replace its own pending request at the global cap");
+    assert.throws(() => service.startPairing("nusa-global-device-overflow", now + 1), /limit reached/);
   } finally { db.close(); }
 });
 
