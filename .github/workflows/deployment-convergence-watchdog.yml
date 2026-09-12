@@ -139,8 +139,6 @@ jobs:
           assert_still_current
           RUNS_JSON="$(runs_for_main)"
 
-          # Repair the canonical one-shot handoff failure mode first. Each downstream
-          # workflow independently re-verifies current main and exact-head CI.
           dispatch_bounded \
             "Cloudflare Deploy" \
             "Autopilot Cloudflare Deploy" \
@@ -152,8 +150,13 @@ jobs:
             "Actual PAPER Public-Market Runtime Evidence" \
             "wo-0059-actual-paper-runtime.yml"
 
-          # Refresh observations after dispatches so later components do not race a
-          # just-started prerequisite.
+          # Credential validation is a first-class fail-closed deployment prerequisite.
+          # Preflight also confirms the live Worker is serving this exact main revision.
+          dispatch_bounded \
+            "Credential Preflight" \
+            "Autopilot Cloudflare Credential Preflight" \
+            "autopilot-cloudflare-credential-preflight.yml"
+
           RUNS_JSON="$(runs_for_main)"
 
           if workflow_success "Autopilot Cloudflare Deploy"; then
@@ -210,8 +213,8 @@ jobs:
             echo "Windows stable already targets exact main."
           fi
 
-          # A single machine-readable convergence receipt is emitted only after all
-          # exact-main runtime and distribution surfaces independently prove success.
+          # Emit a machine-readable receipt only when every required exact-main
+          # deployment, credential, runtime, and distribution surface has proved success.
           RUNS_JSON="$(runs_for_main)"
           ANDROID_TARGET="$(gh release view nusa-android --json targetCommitish --jq '.targetCommitish' 2>/dev/null || true)"
           WINDOWS_TARGET="$(gh release view nusa-windows --json targetCommitish --jq '.targetCommitish' 2>/dev/null || true)"
@@ -219,6 +222,7 @@ jobs:
           if workflow_success "Autopilot Cloudflare Deploy" \
             && workflow_success "Autopilot Cloudflare Promote" \
             && workflow_success "Autopilot Cloudflare Runtime Proof" \
+            && workflow_success "Autopilot Cloudflare Credential Preflight" \
             && workflow_success "Actual PAPER Public-Market Runtime Evidence" \
             && workflow_success "Android Stable Release" \
             && workflow_success "Windows Desktop Stable Release" \
@@ -230,7 +234,7 @@ jobs:
               "deployment-convergence-receipt.yml" \
               -f "inputs[source_sha]=$MAIN_SHA"
           else
-            echo "Convergence receipt waits for all exact-main runtime and stable distribution proofs."
+            echo "Convergence receipt waits for exact-main deploy, promote, runtime proof, credential preflight, PAPER runtime, and stable distribution proofs."
           fi
 
           assert_still_current
