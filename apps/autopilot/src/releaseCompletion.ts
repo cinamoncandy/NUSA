@@ -35,10 +35,7 @@ export interface ReleaseCompletionEvidence {
 const SHA40 = /^[0-9a-f]{40}$/i;
 
 export function evaluateReleaseCompletion(evidence: ReleaseCompletionEvidence): ReleaseCompletionStatus {
-  if (!evidence.applicable || evidence.auditAuthority === "NONE" || evidence.releaseJobConclusion === "skipped") {
-    return "RELEASE_NOT_APPLICABLE";
-  }
-
+  if (!evidence.applicable || evidence.auditAuthority === "NONE") return "RELEASE_NOT_APPLICABLE";
   if (evidence.auditAuthority !== "DETERMINISTIC_AUDIT_PASS") return "NOT_RELEASED";
   if (evidence.releaseJobConclusion !== "success") return "NOT_RELEASED";
 
