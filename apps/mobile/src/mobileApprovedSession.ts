@@ -1,4 +1,5 @@
 import type { SecureStoragePort } from "./mobileSecurity";
+import type { OwnerDeviceCredentialNative } from "./ownerDeviceCredential";
 
 // Legacy keys are retained only so upgraded clients can destroy credentials that
 // older builds may have persisted. New builds never write either key.
@@ -25,6 +26,13 @@ interface MobileSessionTokens {
 
 interface MobileBootstrapIssue {
   readonly token: string;
+}
+
+interface OwnerDeviceChallenge {
+  readonly challengeId: string;
+  readonly challenge: string;
+  readonly purpose: "REGISTRATION" | "AUTHENTICATION";
+  readonly expiresAt: number;
 }
 
 export interface MobilePairingRequest {
@@ -82,7 +90,7 @@ function readTime(value: unknown, field: string): number {
 function readScopes(value: unknown): readonly string[] {
   if (!Array.isArray(value) || value.length === 0 || value.some((scope) => typeof scope !== "string")) throw new Error("mobile session scopes are invalid.");
   const scopes = value.map((scope) => scope.trim());
-  if (scopes.some((scope) => !["dashboard:read", "paper:trade"].includes(scope))) throw new Error("mobile session scopes are invalid.");
+  if (scopes.some((scope) => !["dashboard:read", "paper:trade", "users:manage"].includes(scope))) throw new Error("mobile session scopes are invalid.");
   return Object.freeze(scopes);
 }
 
@@ -108,6 +116,21 @@ function parseTokens(value: unknown): MobileSessionTokens {
 function parseBootstrapIssue(value: unknown): MobileBootstrapIssue {
   if (value == null || typeof value !== "object" || Array.isArray(value)) throw new Error("mobile enrollment response is invalid.");
   return Object.freeze({ token: readToken((value as Record<string, unknown>).token, "bootstrap token") });
+}
+
+function parseOwnerDeviceChallenge(value: unknown, purpose: OwnerDeviceChallenge["purpose"]): OwnerDeviceChallenge {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) throw new Error("owner device challenge is invalid.");
+  const row = value as Record<string, unknown>;
+  const challengeId = readToken(row.challengeId, "owner device challenge id");
+  const challenge = readToken(row.challenge, "owner device challenge");
+  if (row.purpose !== purpose) throw new Error("owner device challenge purpose is invalid.");
+  return Object.freeze({ challengeId, challenge, purpose, expiresAt: readTime(row.expiresAt, "owner device challenge expiry") });
+}
+
+function readProof(value: string): string {
+  const proof = value.trim();
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(proof) || proof.length < 8 || proof.length > 1024) throw new Error("owner device signature is invalid.");
+  return proof;
 }
 
 function parseIdentity(value: unknown): MobileApprovedSessionIdentity {
@@ -193,6 +216,81 @@ export class MobileApprovedSession {
       body: JSON.stringify({ deviceId: device })
     }));
     return this.connectBootstrapForDevice(endpoint, issue.token, device);
+  }
+
+  /**
+   * This one-time setup needs a pre-existing ACTIVE OWNER users:manage session.
+   * It never treats local biometrics as initial identity proof and never persists
+   * that owner bearer; later authentication uses only the hardware key signature.
+   */
+  public async signInWithOwnerPasswordAndEnrollDeviceCredential(baseUrl: string, password: string, deviceId: string, native: OwnerDeviceCredentialNative): Promise<MobileApprovedSessionIdentity> {
+    const endpoint = secureEndpoint(baseUrl);
+    const device = readDeviceId(deviceId);
+    if (device == null) throw new Error("device enrollment identifier is invalid.");
+    if (typeof password !== "string" || password.length === 0 || password.length > 1024) throw new Error("owner password is invalid.");
+    const passwordTokens = parseTokens(await requestJson(this.request, `${endpoint}/v1/mobile/session/password`, {
+      method: "POST", body: JSON.stringify({ password, deviceId: device })
+    }));
+    // The newly issued existing mobile session is the only registration bearer.
+    // It stays in memory and is cleared immediately if enrollment cannot complete.
+    const ownerBearer = passwordTokens.accessToken;
+    this.deviceId = passwordTokens.deviceId ?? device;
+    this.acceptTokens(endpoint, passwordTokens);
+    const created = await native.createCredential();
+    const credentialId = readToken(created.credentialId, "owner device credential id");
+    const publicKeySpki = readProof(created.publicKeySpki);
+    if (created.hardwareBacked !== true) { await native.deleteCredential(credentialId); throw new Error("hardware-backed owner credential is unavailable."); }
+    try {
+      const challenge = parseOwnerDeviceChallenge(await requestJson(this.request, `${endpoint}/v1/mobile/owner-device/registration/challenge`, {
+        method: "POST", headers: { authorization: `Bearer ${ownerBearer}` }, body: JSON.stringify({ credentialId, deviceId: device, publicKeySpki })
+      }), "REGISTRATION");
+      const proof = readProof(await native.signChallenge(credentialId, challenge.challenge, "이 휴대폰을 NUSA 소유자 기기로 등록"));
+      await requestJson(this.request, `${endpoint}/v1/mobile/owner-device/registration/activate`, {
+        method: "POST", headers: { authorization: `Bearer ${ownerBearer}` }, body: JSON.stringify({ credentialId, deviceId: device, challengeId: challenge.challengeId, signature: proof })
+      });
+      return this.authenticateOwnerDeviceCredential(endpoint, device, native, credentialId);
+    } catch (error) {
+      this.clearMemory();
+      try { await native.deleteCredential(credentialId); } catch { /* remove unusable local registration material */ }
+      throw error;
+    }
+  }
+
+  public async authenticateOwnerDeviceCredential(baseUrl: string, deviceId: string, native: OwnerDeviceCredentialNative, credentialId?: string): Promise<MobileApprovedSessionIdentity> {
+    const endpoint = secureEndpoint(baseUrl);
+    const device = readDeviceId(deviceId);
+    if (device == null) throw new Error("device enrollment identifier is invalid.");
+    const status = await native.getStatus();
+    const id = readToken(credentialId ?? status.credentialId ?? "", "owner device credential id");
+    if (status.available !== true || status.hardwareBacked !== true) throw new Error("hardware-backed owner credential is unavailable.");
+    const challenge = parseOwnerDeviceChallenge(await requestJson(this.request, `${endpoint}/v1/mobile/owner-device/authentication/challenge`, {
+      method: "POST", body: JSON.stringify({ credentialId: id, deviceId: device })
+    }), "AUTHENTICATION");
+    const proof = readProof(await native.signChallenge(id, challenge.challenge, "NUSA 소유자 인증"));
+    const tokens = parseTokens(await requestJson(this.request, `${endpoint}/v1/mobile/owner-device/authentication/complete`, {
+      method: "POST", body: JSON.stringify({ credentialId: id, deviceId: device, challengeId: challenge.challengeId, signature: proof })
+    }));
+    this.deviceId = tokens.deviceId ?? device;
+    this.acceptTokens(endpoint, tokens);
+    try {
+      const identity = await this.loadIdentity(endpoint, tokens.accessToken);
+      this.identity = identity;
+      return identity;
+    } catch (error) {
+      if (isDefinitiveSessionRejection(error)) this.clearMemory(); else this.restoreRetryable = true;
+      throw error;
+    }
+  }
+
+  public async changeOwnerPassword(baseUrl: string, currentPassword: string, newPassword: string): Promise<void> {
+    const endpoint = secureEndpoint(baseUrl);
+    const accessToken = await this.getAccessToken();
+    if (accessToken == null || !currentPassword || !newPassword) throw new Error("owner authentication is required.");
+    await requestJson(this.request, `${endpoint}/v1/mobile/session/password/change`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ currentPassword, newPassword })
+    });
   }
 
   public async startPairing(baseUrl: string, deviceId: string): Promise<MobilePairingRequest> {
