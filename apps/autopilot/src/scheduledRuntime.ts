@@ -4,6 +4,12 @@ import { prepareProductionExecution } from "./productionExecutionSpine";
 import { deriveWorkflowFailureOpportunities, type WorkflowFailureEvidence } from "./evolveEvidenceOpportunitySource";
 import { runScheduledEvolutionCoding } from "./scheduledEvolutionCoding";
 import {
+  UNKNOWN_GITHUB_ISSUE_WORK_SUPPLY,
+  deriveGithubIssueWorkSupply,
+  unknownGithubIssueWorkSupply,
+  type GithubIssueWorkSupplySnapshot,
+} from "./githubIssueWorkSupply";
+import {
   acquirePersistentExecution,
   markPersistentExecutionDispatched,
   readScheduledRuntimeReceipt,
@@ -30,6 +36,8 @@ export interface ScheduledRuntimeResult {
   readonly workflowRunId: number | null;
   readonly executor: GithubExecutorResult | null;
   readonly discoveredOpportunityIds: readonly string[];
+  readonly workflowFailureOpportunityCount: number;
+  readonly workSupply: GithubIssueWorkSupplySnapshot;
   readonly liveAuthority: "NONE";
   readonly productionMutationAllowed: false;
   readonly aiAuthority: "ZERO_AUTHORITY";
@@ -57,6 +65,7 @@ function result(
   workflowRunId: number | null = null,
   executor: GithubExecutorResult | null = null,
   discoveredOpportunityIds: readonly string[] = Object.freeze([]),
+  workSupply: GithubIssueWorkSupplySnapshot = UNKNOWN_GITHUB_ISSUE_WORK_SUPPLY,
 ): ScheduledRuntimeResult {
   return Object.freeze({
     status,
@@ -65,6 +74,8 @@ function result(
     workflowRunId,
     executor,
     discoveredOpportunityIds: Object.freeze([...discoveredOpportunityIds]),
+    workflowFailureOpportunityCount: discoveredOpportunityIds.length,
+    workSupply,
     ...authority,
   });
 }
@@ -82,6 +93,20 @@ async function githubJson(url: string, token: string, fetchImpl: typeof fetch): 
   const body = object(await response.json());
   if (!body) throw new Error("GITHUB_JSON_INVALID");
   return body;
+}
+
+async function observeGithubIssueWorkSupply(
+  repository: string,
+  token: string,
+  fetchImpl: typeof fetch,
+): Promise<GithubIssueWorkSupplySnapshot> {
+  try {
+    const query = encodeURIComponent(`repo:${repository} is:issue is:open`);
+    const search = await githubJson(`https://api.github.com/search/issues?q=${query}&per_page=1`, token, fetchImpl);
+    return deriveGithubIssueWorkSupply(search);
+  } catch (error) {
+    return unknownGithubIssueWorkSupply(error instanceof Error ? error.message : "github-open-issue-search-failed");
+  }
 }
 
 function workflowCompletedAt(run: JsonObject): string | null {
@@ -167,6 +192,8 @@ export async function runScheduledAutopilot(
   const repository = env.NUSA_GITHUB_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) return result("ABSTAINED", "repository-invalid");
 
+  const workSupply = await observeGithubIssueWorkSupply(repository, token, fetchImpl);
+
   let previousReceipt: ScheduledRuntimeReceipt | null = null;
   try {
     previousReceipt = await readScheduledRuntimeReceipt(coordinator);
@@ -181,7 +208,7 @@ export async function runScheduledAutopilot(
     const main = await githubJson(`https://api.github.com/repos/${repository}/branches/main`, token, fetchImpl);
     const commit = object(main.commit);
     const resolvedMainSha = text(commit?.sha);
-    if (!resolvedMainSha || !SHA40.test(resolvedMainSha)) return result("ABSTAINED", "main-sha-invalid");
+    if (!resolvedMainSha || !SHA40.test(resolvedMainSha)) return result("ABSTAINED", "main-sha-invalid", null, null, null, discoveredOpportunityIds, workSupply);
     mainSha = resolvedMainSha;
 
     const runs = await githubJson(
@@ -204,15 +231,15 @@ export async function runScheduledAutopilot(
         }, fetchImpl);
         console.log(JSON.stringify({ event: "NUSA_SCHEDULED_EVOLVE_CODING", ...coding }));
         if (coding.status === "EXECUTION_ACCEPTED") {
-          return result("EXECUTION_DISPATCHED", coding.reason, mainSha, failedRunId, null, discoveredOpportunityIds);
+          return result("EXECUTION_DISPATCHED", coding.reason, mainSha, failedRunId, null, discoveredOpportunityIds, workSupply);
         }
         if (coding.status === "DUPLICATE_SUPPRESSED") {
-          return result("DUPLICATE_EXECUTION_SUPPRESSED", coding.reason, mainSha, failedRunId, null, discoveredOpportunityIds);
+          return result("DUPLICATE_EXECUTION_SUPPRESSED", coding.reason, mainSha, failedRunId, null, discoveredOpportunityIds, workSupply);
         }
         if (coding.status === "INTERFACE_READY" || coding.status === "EXECUTION_FAILED") {
-          return result("EXECUTION_NOT_DISPATCHED", coding.reason, mainSha, failedRunId, null, discoveredOpportunityIds);
+          return result("EXECUTION_NOT_DISPATCHED", coding.reason, mainSha, failedRunId, null, discoveredOpportunityIds, workSupply);
         }
-        return result("ABSTAINED", coding.reason, mainSha, failedRunId, null, discoveredOpportunityIds);
+        return result("ABSTAINED", coding.reason, mainSha, failedRunId, null, discoveredOpportunityIds, workSupply);
       } catch (error) {
         return result(
           "EXECUTION_NOT_DISPATCHED",
@@ -221,6 +248,7 @@ export async function runScheduledAutopilot(
           failedRunId,
           null,
           discoveredOpportunityIds,
+          workSupply,
         );
       }
     }
@@ -237,7 +265,7 @@ export async function runScheduledAutopilot(
       );
     const resolvedRunId = positiveInteger(canonical?.id);
     if (!canonical || !resolvedRunId) {
-      return result("ABSTAINED", "exact-main-canonical-ci-not-found", mainSha, null, null, discoveredOpportunityIds);
+      return result("ABSTAINED", "exact-main-canonical-ci-not-found", mainSha, null, null, discoveredOpportunityIds, workSupply);
     }
     workflowRunId = resolvedRunId;
 
@@ -247,7 +275,7 @@ export async function runScheduledAutopilot(
       && previousReceipt.workflowRunId === workflowRunId
       && !hasFreshWorkflowFailureSince(candidates, previousReceipt.observedAt)
     ) {
-      return result("DUPLICATE_EXECUTION_SUPPRESSED", "scheduled-state-unchanged", mainSha, workflowRunId, null, discoveredOpportunityIds);
+      return result("DUPLICATE_EXECUTION_SUPPRESSED", "scheduled-state-unchanged", mainSha, workflowRunId, null, discoveredOpportunityIds, workSupply);
     }
 
     try {
@@ -269,7 +297,7 @@ export async function runScheduledAutopilot(
       }));
     }
   } catch (error) {
-    return result("ABSTAINED", error instanceof Error ? error.message : "scheduled-evidence-query-failed");
+    return result("ABSTAINED", error instanceof Error ? error.message : "scheduled-evidence-query-failed", null, null, null, discoveredOpportunityIds, workSupply);
   }
 
   const dispatch: AutopilotDispatchPlan = Object.freeze({
@@ -288,7 +316,7 @@ export async function runScheduledAutopilot(
     allowedRepository: repository,
   });
   if (!prepared?.state.lease) {
-    return result("ABSTAINED", "production-execution-boundary-unavailable", mainSha, workflowRunId, null, discoveredOpportunityIds);
+    return result("ABSTAINED", "production-execution-boundary-unavailable", mainSha, workflowRunId, null, discoveredOpportunityIds, workSupply);
   }
 
   const persistent = await acquirePersistentExecution(coordinator, {
@@ -298,7 +326,7 @@ export async function runScheduledAutopilot(
     leaseExpiresAt: prepared.state.lease.expiresAt,
   });
   if (!persistent.acquired) {
-    return result("DUPLICATE_EXECUTION_SUPPRESSED", persistent.reason ?? "DUPLICATE_EXECUTION", mainSha, workflowRunId, null, discoveredOpportunityIds);
+    return result("DUPLICATE_EXECUTION_SUPPRESSED", persistent.reason ?? "DUPLICATE_EXECUTION", mainSha, workflowRunId, null, discoveredOpportunityIds, workSupply);
   }
 
   const executor = await executeGithubDispatch(prepared.request, { token, allowedRepository: repository }, fetchImpl);
@@ -308,7 +336,7 @@ export async function runScheduledAutopilot(
       executionId: prepared.envelope.executionId,
       now,
     });
-    return result("EXECUTION_DISPATCHED", executor.reason, mainSha, workflowRunId, executor, discoveredOpportunityIds);
+    return result("EXECUTION_DISPATCHED", executor.reason, mainSha, workflowRunId, executor, discoveredOpportunityIds, workSupply);
   }
-  return result("EXECUTION_NOT_DISPATCHED", executor.reason, mainSha, workflowRunId, executor, discoveredOpportunityIds);
+  return result("EXECUTION_NOT_DISPATCHED", executor.reason, mainSha, workflowRunId, executor, discoveredOpportunityIds, workSupply);
 }
