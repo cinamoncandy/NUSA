@@ -22,6 +22,7 @@ const SHA40 = /^[0-9a-f]{40}$/i;
 const MAX_SOURCE_AGE_SECONDS = 24 * 60 * 60;
 const CODING_LEASE_MS = 5 * 60 * 1000;
 const AUTHORITY = Object.freeze({ liveAuthority: "NONE" as const, productionMutationAllowed: false as const, aiAuthority: "ZERO_AUTHORITY" as const });
+const TRUSTED_CI_WORKFLOW = ".github/workflows/ci.yml";
 
 type JsonObject = Record<string, unknown>;
 type WorkflowActionability = "CODE_ACTIONABLE" | "DEPENDENCY_WAIT" | "EVIDENCE_MISSING" | "INFRA" | "CREDENTIAL" | "EXTERNAL" | "HUMAN_ONLY" | "UNKNOWN";
@@ -87,19 +88,46 @@ function classifyFailedStepNames(names: readonly string[]): WorkflowActionabilit
   if (normalized.some((name) => /dependency wait|waiting for|upstream|prerequisite/.test(name))) return "DEPENDENCY_WAIT";
   if (normalized.some((name) => /runner|network|service outage|rate limit|download artifact|upload artifact/.test(name))) return "INFRA";
   if (normalized.some((name) => /external/.test(name))) return "EXTERNAL";
-  if (normalized.every((name) => /test|lint|typecheck|type check|compile|build|coverage|contract|guard/.test(name))) return "CODE_ACTIONABLE";
   return "UNKNOWN";
 }
 
-async function classifyWorkflowActionability(
-  repository: string,
-  workflowRunId: number,
-  token: string,
-  fetchImpl: typeof fetch,
-): Promise<WorkflowActionability> {
+function stepConclusion(job: JsonObject, stepName: string): string | null {
+  if (!Array.isArray(job.steps)) return null;
+  for (const candidate of job.steps) {
+    const step = object(candidate);
+    if (step && text(step.name) === stepName) return text(step.conclusion);
+  }
+  return null;
+}
+
+function hasTrustedCodeFailure(workflowPath: string | null, jobs: readonly unknown[]): boolean {
+  if (workflowPath !== TRUSTED_CI_WORKFLOW) return false;
+
+  for (const candidate of jobs) {
+    const job = object(candidate);
+    if (!job) continue;
+    const jobName = text(job.name);
+    if (!jobName) continue;
+
+    if (jobName === "validation") {
+      const prerequisites = ["Install locked dependencies", "Preflight", "Build"];
+      const prerequisitesPassed = prerequisites.every((name) => stepConclusion(job, name) === "success");
+      if (prerequisitesPassed && stepConclusion(job, "Read-only MCP gateway regression") === "failure") return true;
+    }
+
+    if (/^coverage-core-[0-3]$/.test(jobName)) {
+      const prerequisites = ["Install locked dependencies", "Preflight", "Build for core coverage"];
+      const prerequisitesPassed = prerequisites.every((name) => stepConclusion(job, name) === "success");
+      if (prerequisitesPassed && stepConclusion(job, "Core isolated coverage shard") === "failure") return true;
+    }
+  }
+  return false;
+}
+
+async function githubJson(url: string, token: string, fetchImpl: typeof fetch): Promise<JsonObject | null> {
   let response: Response;
   try {
-    response = await fetchImpl(`https://api.github.com/repos/${repository}/actions/runs/${workflowRunId}/jobs?per_page=100`, {
+    response = await fetchImpl(url, {
       headers: {
         accept: "application/vnd.github+json",
         authorization: `Bearer ${token}`,
@@ -108,11 +136,26 @@ async function classifyWorkflowActionability(
       },
     });
   } catch {
-    return "UNKNOWN";
+    return null;
   }
-  if (!response.ok) return "UNKNOWN";
-  const payload = object(await response.json().catch(() => null));
-  const jobs = Array.isArray(payload?.jobs) ? payload.jobs : [];
+  if (!response.ok) return null;
+  return object(await response.json().catch(() => null));
+}
+
+async function classifyWorkflowActionability(
+  repository: string,
+  workflowRunId: number,
+  token: string,
+  fetchImpl: typeof fetch,
+): Promise<WorkflowActionability> {
+  const run = await githubJson(`https://api.github.com/repos/${repository}/actions/runs/${workflowRunId}`, token, fetchImpl);
+  if (!run) return "UNKNOWN";
+  const workflowPath = text(run.path);
+  if (text(run.head_branch) !== "main" || text(run.event) === "repository_dispatch") return "UNKNOWN";
+
+  const payload = await githubJson(`https://api.github.com/repos/${repository}/actions/runs/${workflowRunId}/jobs?per_page=100`, token, fetchImpl);
+  if (!payload) return "UNKNOWN";
+  const jobs = Array.isArray(payload.jobs) ? payload.jobs : [];
   const failedStepNames: string[] = [];
   for (const candidate of jobs) {
     const job = object(candidate);
@@ -124,7 +167,10 @@ async function classifyWorkflowActionability(
       if (name) failedStepNames.push(name);
     }
   }
-  return classifyFailedStepNames(failedStepNames);
+
+  const negative = classifyFailedStepNames(failedStepNames);
+  if (negative !== "UNKNOWN") return negative;
+  return hasTrustedCodeFailure(workflowPath, jobs) ? "CODE_ACTIONABLE" : "UNKNOWN";
 }
 
 /**
