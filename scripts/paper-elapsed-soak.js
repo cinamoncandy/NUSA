@@ -36,14 +36,41 @@ function positiveInteger(value, fallback, name) {
   return parsed;
 }
 
+function haltReasons(snapshot) {
+  const reasons = [];
+  if (snapshot?.dashboard?.mode === "FAULTED") reasons.push("DASHBOARD_FAULTED");
+  if (snapshot?.dashboard?.overallHealth === "DOWN") reasons.push("DASHBOARD_HEALTH_DOWN");
+  if (snapshot?.dashboard?.killSwitchActive === true) reasons.push("DASHBOARD_KILL_SWITCH_ACTIVE");
+  if (snapshot?.operations?.killSwitchActive === true) reasons.push("OPERATIONS_KILL_SWITCH_ACTIVE");
+  if (snapshot?.operations?.accountHalted === true) reasons.push("ACCOUNT_HALTED");
+  if (snapshot?.research?.health === "FAIL_CLOSED") reasons.push("RESEARCH_FAIL_CLOSED");
+  if (snapshot?.research?.recoveryStatus === "FAIL_CLOSED") reasons.push("RESEARCH_RECOVERY_FAIL_CLOSED");
+  if (snapshot?.operations?.runtimeState === "HALTED" && reasons.length === 0) reasons.push("HALTED_CAUSE_UNATTRIBUTED");
+  return Object.freeze(reasons);
+}
+
 function summarizeSnapshot(snapshot, monotonicElapsedMs = null) {
   const heartbeat = snapshot?.operations?.heartbeat;
   return Object.freeze({
     observedAt: new Date().toISOString(),
     monotonicElapsedMs,
     generatedAt: snapshot?.generatedAt ?? null,
+    health: snapshot?.health ?? null,
+    mode: snapshot?.mode ?? null,
+    readyForPaperOperations: snapshot?.readyForPaperOperations === true,
+    dashboardMode: snapshot?.dashboard?.mode ?? null,
+    dashboardHealth: snapshot?.dashboard?.overallHealth ?? null,
+    dashboardKillSwitchActive: snapshot?.dashboard?.killSwitchActive === true,
     runtimeState: snapshot?.operations?.runtimeState ?? null,
     schedulerRunning: snapshot?.operations?.schedulerRunning === true,
+    schedulerMode: snapshot?.operations?.schedulerMode ?? null,
+    pipelineStage: snapshot?.operations?.pipelineStage ?? null,
+    transport: snapshot?.operations?.transport ?? null,
+    operationsKillSwitchActive: snapshot?.operations?.killSwitchActive === true,
+    accountHalted: snapshot?.operations?.accountHalted === true,
+    pendingWrites: Number(snapshot?.operations?.pendingWrites ?? 0),
+    haltReasons: haltReasons(snapshot),
+    heartbeatErrorPresent: typeof heartbeat?.lastError === "string" && heartbeat.lastError.trim().length > 0,
     eventCount: Number(heartbeat?.eventCount ?? 0),
     decisionCount: Number(heartbeat?.decisionCount ?? 0),
     lastHeartbeatAt: heartbeat?.lastHeartbeatAt ?? null,
