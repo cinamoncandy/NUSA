@@ -16,6 +16,7 @@ import { changeOperatorUserStatus, loadOperatorUsers, type OperatorUserAction, t
 import { UpbitConnectionPanel } from "./upbitConnectionPanel";
 import { resetUpbitReadOnlyState } from "./upbitReadOnlyAccount";
 import { getOrCreateInstallationId } from "./installationIdentity";
+import { readServerCapabilities, UNKNOWN_CAPABILITIES, type ServerCapabilities } from "./serverCapabilities";
 import { mobileApprovedSession, type MobilePairingRequest } from "./mobileApprovedSessionBoundary";
 
 interface SettingsViewProps { readonly repository: SettingsRepository; readonly onSignOut?: () => void; readonly exchangeCash?: number; readonly onCloudInvestmentPercentSave?: (investmentPercent: number) => Promise<void>; readonly onInvestmentPercentChanged?: (investmentPercent: number) => void; readonly credentialSession?: InMemoryDashboardCredentialSession; readonly canonicalEndpoint?: string | null; }
@@ -72,6 +73,11 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
   const [operatorBusy, setOperatorBusy] = useState(false);
   const [installationId, setInstallationId] = useState<string | null>(null);
   const [pairing, setPairing] = useState<MobilePairingRequest | null>(null);
+  // The password lives in component state for one request and is cleared the moment it is used or
+  // the screen is left. Nothing writes it to storage; what persists is the session the server issues.
+  const [userIdDraft, setUserIdDraft] = useState("");
+  const [passwordDraft, setPasswordDraft] = useState("");
+  const [capabilities, setCapabilities] = useState<ServerCapabilities>(UNKNOWN_CAPABILITIES);
   const localCredentialSession = useMemo(() => new InMemoryDashboardCredentialSession(), []);
   const credentialSession = sharedCredentialSession ?? localCredentialSession;
   const savingRef = useRef(false);
@@ -170,6 +176,16 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
   const updateTheme = (next: ThemeSetting) => { if (!settings || isBusyNow()) return; const previousTheme = settings.theme; setMode(themePreference(next)); void persist({ ...settings, theme: next }).then((saved) => { if (!saved) setMode(themePreference(previousTheme)); }); };
   const updateUsageTelemetry = (next: "OFF" | "ON") => { if (!settings || isBusyNow()) return; void persist({ ...settings, usageTelemetry: { enabled: next === "ON" } }); };
   const saveInvestmentPercent = async (raw = investmentPercentDraft) => { if (!settings || isBusyNow()) return; try { const value = normalizeInvestmentPercent(Number(raw)); setInvestmentPercentDraft(String(value)); await persist({ ...settings, capitalAllocation: { investmentPercent: value } }); } catch (allocationError) { setError(allocationError instanceof Error ? allocationError.message : "Investment allocation is invalid."); } };
+  useEffect(() => {
+    // Asking the server what it supports is not a connection attempt and must never block one:
+    // readServerCapabilities reports UNKNOWN for anything it cannot read.
+    let cancelled = false;
+    const endpoint = getConfiguredPaperEndpoint() ?? (canonicalEndpoint ?? "");
+    if (!endpoint) { setCapabilities(UNKNOWN_CAPABILITIES); return; }
+    void readServerCapabilities(endpoint).then((next) => { if (!cancelled) setCapabilities(next); });
+    return () => { cancelled = true; };
+  }, [canonicalEndpoint, connection.status]);
+
   const requestPaperConnection = async () => {
     if (settings == null || isBusyNow()) return;
     connectionInFlightRef.current = true; setConnectionAttempted(true); setConnecting(true); setError(null);
@@ -182,6 +198,34 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
       setPairing(request);
       setConnection({ status: "NOT_CONFIGURED", reason: "소유자 승인을 기다리고 있습니다." });
     } catch (connectionError) { setConnection({ status: "NOT_CONFIGURED", reason: describeCredentialFailure(connectionError) }); }
+    finally { connectionInFlightRef.current = false; setConnecting(false); }
+  };
+  const signInWithPassword = async () => {
+    if (settings == null || isBusyNow()) return;
+    connectionInFlightRef.current = true; setConnectionAttempted(true); setConnecting(true); setError(null); setConnectionRefusal(null);
+    // Read once here rather than from state below: the field is cleared before the await resolves,
+    // so a later read would send an empty password.
+    const password = passwordDraft;
+    try {
+      if (!await persist({ ...settings, paperEndpoint: endpointDraft })) return;
+      const configuredEndpoint = getConfiguredPaperEndpoint();
+      if (!configuredEndpoint) throw new Error("Cloud PAPER endpoint is not configured.");
+      if (installationId == null) throw new Error("Secure installation identity is unavailable.");
+      await mobileApprovedSession().signInWithPassword(configuredEndpoint, userIdDraft.trim(), password, installationId);
+      setPasswordDraft("");
+      // A session is not a connection. The pairing path proves the endpoint by reading the PAPER
+      // operations projection before it claims READY, and so does this one -- announcing success
+      // on the token alone is the invented confidence this app already removed once.
+      const result = await loadPersonalPaperOperations({ baseUrl: configuredEndpoint, credentialProvider: credentialSession.credentialProvider, allowUnverifiedEndpoint: true });
+      if (result.status !== "READY") throw new Error(result.reason);
+      markPaperConnectionVerified(configuredEndpoint);
+      setConnection(result);
+    } catch (signInError) {
+      setPasswordDraft("");
+      credentialSession.clear(); clearPaperConnectionVerification();
+      setConnectionRefusal(signInError instanceof MobileSessionRequestError ? describeRefusal(signInError.refusal, signInError.status) : null);
+      setConnection({ status: "NOT_CONFIGURED", reason: describeCredentialFailure(signInError) });
+    }
     finally { connectionInFlightRef.current = false; setConnecting(false); }
   };
   /** Secondary compatibility path for previously issued one-time credentials. */
@@ -267,6 +311,14 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
       </View>
       {connectionRefusal == null ? null : <RefusalRecord refusal={connectionRefusal} testID="settings-connection-refusal" {...(isResolvableInOperatorPanel(connectionRefusal) ? { actionLabel: "운영자 승인으로 이동", onAction: () => scrollRef.current?.scrollTo({ y: Math.max(0, operatorSectionYRef.current - 12), animated: true }) } : {})} />}
       <NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy && !canonicalEndpoint} keyboardType="url" label="Cloud endpoint" value={endpointDraft} onChangeText={setEndpointDraft} placeholder="https://..." returnKeyType="done" testID="settings-paper-endpoint" />
+      {capabilities.passwordSignIn === "NOT_CONFIGURED"
+        ? <InlineNotice title="서버에 비밀번호가 아직 없습니다" detail="이 서버에서 set-owner-password 스크립트를 한 번 실행해야 비밀번호 로그인이 열립니다. 비밀번호를 아무리 정확히 입력해도 그전에는 거부됩니다." tone="warning" testID="settings-password-not-configured" />
+        : null}
+      <Text style={[styles.hint, { color: theme.colors.textMuted }]}>소유자 비밀번호로 로그인하면 이 기기 전용 회전 세션이 발급됩니다. 비밀번호는 이 요청에만 쓰이고 저장되지 않으며, 이후에는 지문으로 세션을 엽니다. 잃어버린 폰이나 지운 앱에서도 기억하는 것만으로 다시 들어올 수 있는 유일한 경로입니다.</Text>
+      <NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} label="사용자 ID" value={userIdDraft} onChangeText={setUserIdDraft} placeholder="소유자 계정 id" returnKeyType="next" testID="settings-password-user-id" />
+      <NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} label="비밀번호" value={passwordDraft} onChangeText={setPasswordDraft} placeholder="기억하는 비밀번호" returnKeyType="done" secureTextEntry testID="settings-password-value" />
+      <NusaButton disabled={busy || !userIdDraft.trim() || !passwordDraft} label={connecting ? "확인 중..." : "비밀번호로 연결"} onPress={() => void signInWithPassword()} testID="settings-password-connect" />
+
       {pairing != null ? <InlineNotice title="PAPER 연결 승인 대기" detail={`소유자에게 이 확인 코드를 전달하세요: ${pairing.verificationCode}. 승인 후 이 기기가 자동으로 연결됩니다.`} tone="info" testID="settings-paper-pairing-status" /> : null}
       <Text style={[styles.hint, { color: theme.colors.textMuted }]}>PAPER 연결 요청은 권한을 부여하지 않습니다. ACTIVE OWNER의 users:manage 승인이 있어야만 이 기기 전용 회전 세션이 발급됩니다. 코드·요청·세션 자격 증명은 로그나 일반 저장소에 보관하지 않습니다.</Text>
       <View style={styles.row}><NusaButton disabled={busy || pairing != null} label={connecting ? "요청 중..." : pairing != null ? "승인 대기 중" : connectionFailed ? "PAPER 연결 요청 다시 시도" : "PAPER 연결 요청"} onPress={() => void requestPaperConnection()} testID="settings-paper-connect" /><NusaButton disabled={busy || connection.status !== "READY"} label="연결 해제" onPress={disconnect} tone="neutral" testID="settings-paper-disconnect" /></View>

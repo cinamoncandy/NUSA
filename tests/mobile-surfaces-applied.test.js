@@ -40,9 +40,18 @@ test("the connection flow renders the structured refusal, not only a flattened s
 });
 
 test("a stale refusal never outlives the attempt that produced it", () => {
-  // Cleared when a new attempt starts and when the session is dropped, so the screen cannot
-  // show a refusal from a previous token next to a fresh result.
-  assert.equal(SETTINGS.match(/setConnectionRefusal\(null\)/g)?.length, 2);
+  // Every path that begins a connection attempt, and the one that drops the session, must clear
+  // the previous refusal -- otherwise the screen shows a refusal from an old credential beside a
+  // fresh result. Asserted per function rather than by counting: adding a third way to connect
+  // should oblige the new path to clear too, not fail a total.
+  const body = (name) => {
+    const start = SETTINGS.indexOf(`const ${name} =`);
+    assert.notEqual(start, -1, `${name} is gone; this contract needs rewriting, not deleting`);
+    return SETTINGS.slice(start, start + 1_800);
+  };
+  for (const attempt of ["signInWithPassword", "testConnection", "disconnect"]) {
+    assert.match(body(attempt), /setConnectionRefusal\(null\)/, `${attempt} can leave a stale refusal on screen`);
+  }
 });
 
 test("a derived figure ages with the price it was computed from", () => {

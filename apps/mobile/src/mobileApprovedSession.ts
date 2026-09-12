@@ -184,6 +184,38 @@ export class MobileApprovedSession {
     }
   }
 
+  /**
+   * Signs in with the owner's password. The password is used for exactly this request and is never
+   * stored, retried from storage, or held after the call returns -- what persists is the rotating
+   * refresh session the server issues, in the same secure storage every other path uses.
+   *
+   * This is the only credential that survives a lost phone, because it is the only one the owner
+   * carries rather than retrieves.
+   */
+  public async signInWithPassword(baseUrl: string, userId: string, password: string, deviceId: string): Promise<MobileApprovedSessionIdentity> {
+    const endpoint = secureEndpoint(baseUrl);
+    const account = readToken(userId, "user id");
+    const device = readDeviceId(deviceId);
+    if (device == null) throw new Error("device enrollment identifier is invalid.");
+    if (typeof password !== "string" || password.length === 0) throw new Error("password is required.");
+    await this.destroyLegacyPersistedCredentials();
+    const tokens = parseTokens(await requestJson(this.request, `${endpoint}/v1/mobile/session/password`, {
+      method: "POST",
+      body: JSON.stringify({ userId: account, password, deviceId: device })
+    }));
+    this.deviceId = device;
+    this.acceptTokens(endpoint, tokens);
+    try {
+      const identity = await this.loadIdentity(endpoint, tokens.accessToken);
+      this.identity = identity;
+      return identity;
+    } catch (error) {
+      if (isDefinitiveSessionRejection(error)) this.clearMemory();
+      else this.restoreRetryable = true;
+      throw error;
+    }
+  }
+
   public async enroll(baseUrl: string, userCredential: string, deviceId: string): Promise<MobileApprovedSessionIdentity> {
     const endpoint = secureEndpoint(baseUrl);
     const credential = readToken(userCredential, "user credential");
