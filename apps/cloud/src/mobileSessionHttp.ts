@@ -210,6 +210,40 @@ export function handleMobilePairingExchangeHttp(request: DashboardHttpRequest & 
   } catch { return dashboardJsonResponse(401, { error: "PAIRING_EXCHANGE_REJECTED" }); }
 }
 
+/**
+ * Password sign-in. The only route on this server that accepts a credential a person remembers.
+ *
+ * A locked account answers 429 with Retry-After, so an honest owner who mistyped four times is
+ * told to wait rather than left guessing; a wrong password and an unconfigured server both answer
+ * 401 with the same body, because distinguishing them would tell an unauthenticated caller which
+ * servers are worth claiming. Whether password sign-in exists at all is published on /health,
+ * which is a question about the deployment rather than about an account.
+ */
+export function handleOwnerPasswordSignInHttp(request: DashboardHttpRequest & { readonly body?: string }, dependencies: MobileSessionHttpDependencies): DashboardHttpResponse {
+  const methodError = methodOnly(request, "POST");
+  if (methodError) return methodError;
+  const input = jsonObject(request.body);
+  const userId = typeof input?.userId === "string" ? input.userId.trim() : "";
+  const deviceId = typeof input?.deviceId === "string" ? input.deviceId.trim() : "";
+  if (!userId || deviceId.length < 8 || deviceId.length > 256 || /[\r\n]/.test(deviceId)) {
+    return dashboardJsonResponse(400, { error: "INVALID_PASSWORD_SIGN_IN_REQUEST" });
+  }
+  let outcome;
+  try {
+    outcome = dependencies.sessionService.signInWithOwnerPassword({ userId, password: input?.password, deviceId });
+  } catch {
+    // Never surface an internal message here: it is reached by an unauthenticated caller and the
+    // input it reflects on is a password.
+    return dashboardJsonResponse(401, { error: "PASSWORD_REJECTED" });
+  }
+  if (outcome.status === "LOCKED") {
+    const response = dashboardJsonResponse(429, { error: "PASSWORD_ATTEMPTS_THROTTLED", retryAfterMs: outcome.retryAfterMs });
+    return Object.freeze({ ...response, headers: Object.freeze({ ...response.headers, "retry-after": String(Math.ceil(outcome.retryAfterMs / 1000)) }) });
+  }
+  if (outcome.status !== "ISSUED") return dashboardJsonResponse(401, { error: "PASSWORD_REJECTED" });
+  return dashboardJsonResponse(200, outcome.tokens);
+}
+
 export function handleMobileSessionRefreshHttp(request: DashboardHttpRequest & { readonly body?: string }, dependencies: MobileSessionHttpDependencies): DashboardHttpResponse {
   const methodError = methodOnly(request, "POST");
   if (methodError) return methodError;

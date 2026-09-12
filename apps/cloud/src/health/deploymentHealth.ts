@@ -27,6 +27,13 @@ export interface DeploymentHealthPayload {
   readonly liveAuthority: "NONE";
   readonly productionMutationAllowed: false;
   readonly aiAuthority: "ZERO_AUTHORITY";
+  /**
+   * Whether an owner password has been set on this deployment. A fact about the server, not about
+   * any account: sign-in itself answers the same 401 for a wrong password and an unconfigured one,
+   * so without this an owner typing into a server that was never set up would read an opaque
+   * rejection -- the failure this endpoint exists to prevent.
+   */
+  readonly passwordSignIn: "CONFIGURED" | "NOT_CONFIGURED";
 }
 
 /** The deployed revision a host may claim, or UNVERIFIED. Never echoes an unrecognized value. */
@@ -37,7 +44,8 @@ export function deployedRevision(env: NodeJS.ProcessEnv = process.env): string {
 
 export function deploymentHealthPayload(
   observedAt: string,
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
+  passwordSignInConfigured = false
 ): DeploymentHealthPayload {
   return Object.freeze({
     ok: true,
@@ -45,6 +53,7 @@ export function deploymentHealthPayload(
     deploymentRevision: deployedRevision(env),
     liveAuthority: "NONE",
     productionMutationAllowed: false,
-    aiAuthority: "ZERO_AUTHORITY"
+    aiAuthority: "ZERO_AUTHORITY",
+    passwordSignIn: passwordSignInConfigured ? "CONFIGURED" : "NOT_CONFIGURED"
   });
 }

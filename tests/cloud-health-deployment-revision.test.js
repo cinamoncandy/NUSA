@@ -55,7 +55,7 @@ test("health discloses nothing beyond the revision and the invariants", () => {
   });
   assert.deepEqual(
     Object.keys(payload).sort(),
-    ["aiAuthority", "deploymentRevision", "liveAuthority", "observedAt", "ok", "productionMutationAllowed"]
+    ["aiAuthority", "deploymentRevision", "liveAuthority", "observedAt", "ok", "passwordSignIn", "productionMutationAllowed"]
   );
   assert.equal(JSON.stringify(payload).includes("must-never-appear"), false);
 });
@@ -92,5 +92,19 @@ test("a running server answers /health with the recorded revision, unauthenticat
   } finally {
     await handle.stop();
     if (previous === undefined) delete process.env.NUSA_SOURCE_COMMIT; else process.env.NUSA_SOURCE_COMMIT = previous;
+  }
+});
+
+test("health says whether password sign-in exists, without saying anything about an account", () => {
+  // Sign-in answers the same 401 for a wrong password and a server that was never set up, so an
+  // owner needs this to tell "I typed it wrong" from "nobody has run the setup script yet". It is
+  // a fact about the deployment: it names no user and changes with no account's state.
+  const configured = deploymentHealthPayload("2026-09-12T00:00:00.000Z", { NUSA_SOURCE_COMMIT: SHA }, true);
+  const absent = deploymentHealthPayload("2026-09-12T00:00:00.000Z", { NUSA_SOURCE_COMMIT: SHA }, false);
+  assert.equal(configured.passwordSignIn, "CONFIGURED");
+  assert.equal(absent.passwordSignIn, "NOT_CONFIGURED");
+  assert.equal(deploymentHealthPayload("2026-09-12T00:00:00.000Z", {}).passwordSignIn, "NOT_CONFIGURED", "the default must not claim a credential exists");
+  for (const payload of [configured, absent]) {
+    assert.equal(JSON.stringify(payload).toLowerCase().includes("user"), false, "health must not name an account");
   }
 });

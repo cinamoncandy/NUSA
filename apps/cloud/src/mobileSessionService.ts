@@ -1,6 +1,13 @@
 import { createHash, randomBytes, randomInt, randomUUID } from "node:crypto";
 import type { SqliteDatabase } from "../../../packages/storage/src/index";
 import { isUserAllowed, type NusaUserAccessRepository } from "./operatorUserAccess";
+import { hashOwnerPassword, verifyOwnerPassword } from "./ownerCredential/ownerPassword";
+import {
+  mayAttempt,
+  recordFailure,
+  recordSuccess,
+  type AttemptRecord
+} from "./ownerCredential/ownerPasswordThrottle";
 import {
   ApprovedUserSessionService,
   type ApprovedUserBootstrapIssue,
@@ -21,6 +28,10 @@ export const MOBILE_PAIRING_TTL_MS = 10 * 60 * 1000;
 const MAX_ACTIVE_PAIRINGS = 100;
 const MAX_ACTIVE_PAIRINGS_PER_DEVICE = 1;
 export type MobilePairingState = "PENDING" | "APPROVED" | "CONSUMED" | "EXPIRED";
+export type OwnerPasswordSignIn =
+  | { readonly status: "ISSUED"; readonly tokens: MobileSessionTokens }
+  | { readonly status: "REJECTED" }
+  | { readonly status: "LOCKED"; readonly retryAfterMs: number };
 
 const MOBILE_SESSION_PROFILE = Object.freeze({
   namespace: "mobile",
@@ -50,6 +61,16 @@ export class MobileSessionService extends ApprovedUserSessionService<MobileScope
         approved_by_user_id TEXT,
         target_user_id TEXT,
         consumed_at INTEGER
+      );
+    `);
+    this.mobileDb.connection.exec(`
+      CREATE TABLE IF NOT EXISTS nusa_owner_password (
+        user_id TEXT PRIMARY KEY,
+        password_hash TEXT NOT NULL,
+        updated_at INTEGER NOT NULL,
+        failures INTEGER NOT NULL DEFAULT 0,
+        locked_until INTEGER,
+        last_failure_at INTEGER
       );
     `);
     this.mobileDb.connection.exec(`
@@ -173,6 +194,97 @@ export class MobileSessionService extends ApprovedUserSessionService<MobileScope
       this.auditPairing("PAIRING_CONSUMED", String(row.approved_by_user_id ?? ""), String(row.target_user_id), "CONSUMED", now);
       return tokens;
     });
+  }
+
+  /**
+   * Signs in with the owner's password and issues a device-bound rotating session.
+   *
+   * This is the credential a person can carry in their head, so it is the one an attacker can
+   * reach from the open internet. Order matters here: the throttle is consulted before the
+   * password is, so a locked account costs an attacker a refusal rather than a scrypt derivation,
+   * and a wrong password costs the same work whether or not the account has a password at all.
+   *
+   * Not configured is reported as rejected. Telling an unauthenticated caller "no password is set
+   * here" hands them the one moment the server is easiest to claim; the owner learns it from
+   * `/health`, which answers a question about the deployment rather than about an account.
+   */
+  public signInWithOwnerPassword(input: Readonly<{
+    userId: string;
+    password: unknown;
+    deviceId: string;
+    now?: number;
+  }>): OwnerPasswordSignIn {
+    const now = input.now ?? Date.now();
+    const userId = input.userId.trim();
+    const deviceId = this.validateDeviceId(input.deviceId);
+    const record = this.attemptRecord(userId);
+    const decision = mayAttempt(record, now);
+    if (!decision.allowed) return Object.freeze({ status: "LOCKED", retryAfterMs: decision.retryAfterMs });
+
+    const stored = this.storedPasswordHash(userId);
+    const outcome = verifyOwnerPassword(stored, input.password);
+    if (outcome.status !== "ACCEPTED") {
+      this.writeAttempt(userId, recordFailure(record, now));
+      return Object.freeze({ status: "REJECTED" });
+    }
+
+    const user = this.mobileUsers.get(userId);
+    // A correct password on a suspended or unregistered account is still not a way in. Checked
+    // after verification so the answer does not depend on which of the two failed.
+    if (user == null || !isUserAllowed(user) || user.role !== "OWNER") {
+      this.writeAttempt(userId, recordFailure(record, now));
+      return Object.freeze({ status: "REJECTED" });
+    }
+
+    return this.mobileDb.transaction(() => {
+      this.writeAttempt(userId, recordSuccess());
+      // Raising the cost policy must not lock the owner out, so the hash is replaced on the next
+      // successful sign-in rather than at deploy time.
+      if (outcome.needsRehash && typeof input.password === "string") {
+        this.mobileDb.connection.prepare("UPDATE nusa_owner_password SET password_hash=?,updated_at=? WHERE user_id=?")
+          .run(hashOwnerPassword(input.password), now, userId);
+      }
+      const tokens = this.createDeviceBoundSession({ targetUserId: user.id, deviceId, now, auditEvent: "OWNER_PASSWORD_SESSION_ISSUED" });
+      return Object.freeze({ status: "ISSUED" as const, tokens });
+    });
+  }
+
+  /** Sets or replaces the owner's password. Called by the one-time setup script, never over HTTP. */
+  public setOwnerPassword(userId: string, password: string, now = Date.now()): void {
+    const user = this.mobileUsers.get(userId.trim());
+    if (user == null || user.role !== "OWNER") throw new Error("owner account required");
+    const hash = hashOwnerPassword(password);
+    this.mobileDb.transaction(() => {
+      this.mobileDb.connection.prepare("INSERT INTO nusa_owner_password(user_id,password_hash,updated_at,failures,locked_until,last_failure_at) VALUES(?,?,?,0,NULL,NULL) ON CONFLICT(user_id) DO UPDATE SET password_hash=excluded.password_hash,updated_at=excluded.updated_at,failures=0,locked_until=NULL,last_failure_at=NULL")
+        .run(user.id, hash, now);
+      this.auditPairing("OWNER_PASSWORD_SET", user.id, user.id, "OWNER_PASSWORD", now);
+    });
+  }
+
+  /** Whether password sign-in is usable at all. A fact about the deployment, not about an account. */
+  public ownerPasswordConfigured(): boolean {
+    const row = this.mobileDb.connection.prepare("SELECT COUNT(*) AS count FROM nusa_owner_password").get() as Record<string, unknown>;
+    return Number(row.count) > 0;
+  }
+
+  private storedPasswordHash(userId: string): string | undefined {
+    const row = this.mobileDb.connection.prepare("SELECT password_hash FROM nusa_owner_password WHERE user_id=?").get(userId) as Record<string, unknown> | undefined;
+    return row == null ? undefined : String(row.password_hash);
+  }
+
+  private attemptRecord(userId: string): AttemptRecord | undefined {
+    const row = this.mobileDb.connection.prepare("SELECT failures,locked_until,last_failure_at FROM nusa_owner_password WHERE user_id=?").get(userId) as Record<string, unknown> | undefined;
+    if (row == null) return undefined;
+    return Object.freeze({
+      failures: Number(row.failures),
+      lockedUntilMs: row.locked_until == null ? null : Number(row.locked_until),
+      lastFailureAtMs: row.last_failure_at == null ? null : Number(row.last_failure_at)
+    });
+  }
+
+  private writeAttempt(userId: string, record: AttemptRecord): void {
+    this.mobileDb.connection.prepare("UPDATE nusa_owner_password SET failures=?,locked_until=?,last_failure_at=? WHERE user_id=?")
+      .run(record.failures, record.lockedUntilMs, record.lastFailureAtMs, userId);
   }
 
   private validateDeviceId(deviceId: string): string {
