@@ -230,9 +230,9 @@ export function HomeView({
           <Row label="EQUITY" value={money(account?.equity)} valueColor={theme.colors.text} borderColor={theme.colors.border} />
           <Row label="CASH" value={money(account?.cash)} valueColor={theme.colors.text} borderColor={theme.colors.border} />
           <Row label="ALLOCATION POLICY" value={Number.isFinite(investmentPercent) ? `${investmentPercent}%` : "—"} valueColor={theme.colors.text} borderColor={theme.colors.border} />
-          <View style={styles.secondaryActions}>
+          <View style={styles.secondaryActions} testID="home-supervisor-learning">
             <Pressable accessibilityRole="button" onPress={() => onNavigate("Portfolio")} style={styles.textAction}><Text style={[styles.textActionLabel, { color: theme.colors.text }]}>PAPER 자산  →</Text></Pressable>
-            <Pressable accessibilityRole="button" onPress={onOpenPaperLearning} style={styles.textAction}><Text style={[styles.textActionLabel, { color: theme.colors.text }]}>학습 근거  →</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={onOpenPaperLearning} style={styles.textAction} testID="home-paper-learning"><Text style={[styles.textActionLabel, { color: theme.colors.text }]}>학습 근거  →</Text></Pressable>
           </View>
         </View>
       </View>
