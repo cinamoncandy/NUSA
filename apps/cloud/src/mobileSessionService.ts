@@ -100,19 +100,22 @@ export class MobileSessionService extends ApprovedUserSessionService<MobileScope
 
   public startPairing(deviceId: string, now = Date.now()): Readonly<{ requestId: string; verificationCode: string; expiresAt: number; state: "PENDING" }> {
     const deviceHash = hashToken(this.validateDeviceId(deviceId));
-    this.expirePairings(now);
-    const active = Number((this.mobileDb.connection.prepare("SELECT COUNT(*) AS count FROM mobile_pairing_requests WHERE state IN ('PENDING','APPROVED') AND expires_at>?").get(now) as Record<string, unknown>).count);
-    const deviceActive = Number((this.mobileDb.connection.prepare("SELECT COUNT(*) AS count FROM mobile_pairing_requests WHERE device_id_hash=? AND state IN ('PENDING','APPROVED') AND expires_at>?").get(deviceHash, now) as Record<string, unknown>).count);
-    if (active >= MAX_ACTIVE_PAIRINGS || deviceActive >= MAX_ACTIVE_PAIRINGS_PER_DEVICE) throw new Error("pairing request limit reached");
     const requestId = randomBytes(32).toString("base64url");
     const verificationCode = String(randomInt(0, 1_000_000)).padStart(6, "0");
     const expiresAt = now + MOBILE_PAIRING_TTL_MS;
-    this.mobileDb.transaction(() => {
+    return this.mobileDb.transaction(() => {
+      this.mobileDb.connection.prepare("UPDATE mobile_pairing_requests SET state='EXPIRED' WHERE expires_at<=? AND state IN ('PENDING','APPROVED')").run(now);
+      const superseded = this.mobileDb.connection.prepare("UPDATE mobile_pairing_requests SET state='EXPIRED',expires_at=? WHERE device_id_hash=? AND state IN ('PENDING','APPROVED') AND expires_at>?")
+        .run(now, deviceHash, now);
+      const active = Number((this.mobileDb.connection.prepare("SELECT COUNT(*) AS count FROM mobile_pairing_requests WHERE state IN ('PENDING','APPROVED') AND expires_at>?").get(now) as Record<string, unknown>).count);
+      const deviceActive = Number((this.mobileDb.connection.prepare("SELECT COUNT(*) AS count FROM mobile_pairing_requests WHERE device_id_hash=? AND state IN ('PENDING','APPROVED') AND expires_at>?").get(deviceHash, now) as Record<string, unknown>).count);
+      if (active >= MAX_ACTIVE_PAIRINGS || deviceActive >= MAX_ACTIVE_PAIRINGS_PER_DEVICE) throw new Error("pairing request limit reached");
       this.mobileDb.connection.prepare("INSERT INTO mobile_pairing_requests(request_id_hash,verification_code_hash,device_id_hash,state,created_at,expires_at) VALUES(?,?,?,?,?,?)")
         .run(hashToken(requestId), hashToken(verificationCode), deviceHash, "PENDING", now, expiresAt);
+      if (Number(superseded.changes) > 0) this.auditPairing("PAIRING_SUPERSEDED", undefined, undefined, "SAME_DEVICE_RETRY", now);
       this.auditPairing("PAIRING_STARTED", undefined, undefined, "PENDING", now);
+      return Object.freeze({ requestId, verificationCode, expiresAt, state: "PENDING" as const });
     });
-    return Object.freeze({ requestId, verificationCode, expiresAt, state: "PENDING" });
   }
 
   public pairingStatus(requestId: string, deviceId: string, now = Date.now()): Readonly<{ state: MobilePairingState; expiresAt: number }> | undefined {
