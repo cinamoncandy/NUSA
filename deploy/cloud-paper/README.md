@@ -71,6 +71,23 @@ evidence and does not guarantee that any challenger qualifies.
 
 Both Oracle services set `HOME=/var/lib/nusa` while retaining `ProtectHome=true` and `ProtectSystem=strict`, so owner-only runtime state stays inside the already-authorized StateDirectory rather than requiring writable access to `the service account home`.
 
+## Verifying which build is answering
+
+`GET /health` needs no credential and reports the deployed commit:
+
+```bash
+curl -s https://<paper-host>/health
+# {"ok":true,"observedAt":"...","deploymentRevision":"<40-hex>",
+#  "liveAuthority":"NONE","productionMutationAllowed":false,"aiAuthority":"ZERO_AUTHORITY"}
+```
+
+`deploymentRevision` echoes `NUSA_SOURCE_COMMIT` only when it is an exact 40-hex commit, and
+reports `UNVERIFIED` otherwise, so a host deployed without recording what it deployed cannot be
+mistaken for one running the expected build. Compare it against the SHA you deployed after every
+update; a mismatch means the unit is still running the previous release. This is the check that
+makes a redeploy verifiable by whoever performed it, including from a phone with no credential
+to hand.
+
 ## Production evidence
 
 Run the read-only verifier from a separate machine/process:

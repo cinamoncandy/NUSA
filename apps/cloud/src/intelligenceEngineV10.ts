@@ -30,8 +30,15 @@ export function runIntelligenceEngineV10(input: IntelligenceEngineV10Input): Int
   if (fused.signals.length < minimumFreshSignals) reasons.push("INSUFFICIENT_FRESH_INTELLIGENCE");
 
   if (input.regimeFeatures == null) {
+    // Without regime features the three checks below cannot run, and the one that matters most is
+    // `allowNewExposure`: it is the regime that grants exposure, so when the regime is unknown
+    // nobody has granted it. Reporting READY here would make "no regime data" indistinguishable
+    // from "the regime is fine", in a repository whose stated rule is to fail closed on
+    // uncertainty (README.md, docs/PIPELINE_TO_CODE.md). Nothing in the tree produces a
+    // MarketRegimeFeatures today, so this is the live path, not an edge case.
+    reasons.push("REGIME_UNKNOWN");
     return Object.freeze({
-      status: reasons.length === 0 ? "READY" : "ABSTAIN",
+      status: "ABSTAIN",
       fused,
       reasons: Object.freeze(reasons.sort()),
       generatedAt: input.now

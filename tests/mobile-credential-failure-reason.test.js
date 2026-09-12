@@ -25,7 +25,11 @@ function verifiedEndpoint() {
 
 test("a rejected exchange is described by its cause, not as a configuration problem", () => {
   assert.match(describeCredentialFailure(new MobileSessionRequestError(401)), /만료되었거나 이미 사용/);
-  assert.match(describeCredentialFailure(new MobileSessionRequestError(403)), /만료되었거나 이미 사용/);
+  // A 403 means the credential authenticated and the account state refused it. Answering it
+  // with the token sentence is what sent the operator back to a token that was already correct.
+  const forbidden = describeCredentialFailure(new MobileSessionRequestError(403));
+  assert.doesNotMatch(forbidden, /만료되었거나 이미 사용/);
+  assert.match(forbidden, /계정 상태/);
   assert.match(describeCredentialFailure(new MobileSessionRequestError(429)), /일시적으로 제한/);
   assert.match(describeCredentialFailure(new MobileSessionRequestError(503)), /HTTP 503/);
   assert.match(describeCredentialFailure(new MobileSessionRequestError(418)), /HTTP 418/);

@@ -1,5 +1,7 @@
 import React from "react";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { RefusalRecord } from "./instrumentSurfaces";
+import type { RefusalDescriptor } from "./instrumentState";
 import type { AiReadOnlyProjection } from "../../../packages/contracts/src/aiInference";
 import type { ResearchStatusProjection } from "../../../packages/contracts/src/researchAutomation";
 import { DataRow, NusaButton, NusaCard, Skeleton, StatusChip } from "./components";
@@ -7,7 +9,7 @@ import { InlineNotice, MetricTile, ScreenHeader } from "./uxPrimitives";
 import { useTheme } from "./ThemeProvider";
 import { uxLayout } from "./uxLayout";
 
-interface AiViewProps { readonly ai: AiReadOnlyProjection | null; readonly research: ResearchStatusProjection | null; readonly health: string | null; readonly liveAuthority: "NONE" | null; readonly productionMutationAllowed: false | null; readonly killSwitchActive: boolean | null; readonly error: string | null; readonly refreshing: boolean; readonly onRefresh: () => void; }
+interface AiViewProps { readonly ai: AiReadOnlyProjection | null; readonly research: ResearchStatusProjection | null; readonly health: string | null; readonly liveAuthority: "NONE" | null; readonly productionMutationAllowed: false | null; readonly killSwitchActive: boolean | null; readonly error: string | null; readonly refusal?: RefusalDescriptor | null; readonly refreshing: boolean; readonly onRefresh: () => void; }
 function statusTone(status: AiReadOnlyProjection["status"] | undefined): "success" | "warning" | "neutral" { return status === "AVAILABLE" ? "success" : status === "INCOMPLETE" ? "warning" : "neutral"; }
 function severityTone(severity: AiReadOnlyProjection["criticSeverity"]): "danger" | "warning" | "default" { if (severity === "critical" || severity === "high") return "danger"; if (severity === "medium") return "warning"; return "default"; }
 function percent(value: number | null | undefined): string { return value == null || !Number.isFinite(value) ? "-" : `${Math.round(value * 100)}%`; }
@@ -22,8 +24,9 @@ const learningProvenanceLabel: Record<string, string> = { AUTO_BACKGROUND: "백�
 function labelOf(map: Record<string, string>, value: string | null | undefined): string { return value == null ? "-" : (map[value] ?? value); }
 function AiState({ title, detail, testID, retry, loading = false }: Readonly<{ title: string; detail: string; testID: string; retry?: () => void; loading?: boolean }>) { return <View style={styles.state} testID={testID}><View style={styles.stateInner}>{loading ? <View style={styles.skeletonGroup} testID="ai-loading-skeleton"><Skeleton width="58%" height={20} testID="ai-loading-skeleton-title" /><Skeleton width="100%" height={13} /><Skeleton width="82%" height={13} /></View> : null}<InlineNotice title={title} detail={detail} tone={retry ? "danger" : "info"} />{retry ? <NusaButton label="다시 불러오기" onPress={retry} /> : null}</View></View>; }
 
-export function AiView({ ai, research, health, liveAuthority, productionMutationAllowed, killSwitchActive, error, refreshing, onRefresh }: AiViewProps) {
+export function AiView({ ai, research, health, liveAuthority, productionMutationAllowed, killSwitchActive, error, refusal = null, refreshing, onRefresh }: AiViewProps) {
   const { theme } = useTheme();
+  if (refusal != null) return <View style={{ padding: 20 }} testID="ai-refusal"><RefusalRecord refusal={refusal} /></View>;
   if (error) return <AiState title="AI 상태를 표시할 수 없습니다" detail={error} testID="ai-error" retry={onRefresh} />;
   if (ai === null && research === null) return <AiState title="AI 상태를 불러오는 중" detail="검증된 읽기 전용 AI·리서치 스냅샷을 기다리고 있습니다." testID="ai-loading" loading />;
 
@@ -34,6 +37,15 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
   const analysisTone = statusTone(ai?.status);
   const evidenceCount = ai?.evidenceReferences.length ?? 0;
   const counterCount = ai?.counterEvidence.length ?? 0;
+  // The signature on a proposal: which model, which prompt, run when. Two answers that differ
+  // while these three match came from the same reasoning on different inputs; two that match
+  // while these differ came from a build that changed underneath the operator. Without them a
+  // proposal is an assertion with no way to audit why it says what it says.
+  const signature = [
+    `model ${ai?.modelVersion?.trim() || "미상"}`,
+    `prompt ${ai?.promptVersion?.trim() || "미상"}`,
+    `run ${ai?.lastModelRun == null ? "미상" : new Date(ai.lastModelRun).toISOString().replace("T", " ").slice(0, 19)}`
+  ].join("\n");
   const learningProvenance = ai?.learningProvenance ?? "UNKNOWN";
   const learningProvenanceDetail = learningProvenance === "AUTO_BACKGROUND"
     ? "검증된 실행 근거에 따라 백그라운드 자동 실행으로 분류되었습니다."
@@ -77,8 +89,20 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
       <View style={styles.sectionHeader}><View><Text accessibilityRole="header" style={[styles.eyebrow, { color: theme.colors.textMuted }]}>LEARNING</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>실제 판단에 사용된 학습 근거</Text></View></View>
       <NusaCard testID="ai-learning-card"><DataRow label="참고한 과거 사례" value={ai?.recentLessonCount == null ? "-" : String(ai.recentLessonCount)} /><DataRow label="시나리오 강건성" value={labelOf(scenarioRobustnessLabel, ai?.scenarioRobustnessState ?? "NOT_EVALUATED")} tone={ai?.scenarioRobustnessState === "ROBUST" ? "default" : ai?.scenarioRobustnessState === "SENSITIVE" || ai?.scenarioRobustnessState === "CONTRADICTORY" ? "warning" : "default"} /><View testID="ai-learning-provenance" accessible accessibilityRole="text" accessibilityLabel={`학습 근거 출처 ${labelOf(learningProvenanceLabel, learningProvenance)}`}><DataRow label="학습 근거 출처" value={labelOf(learningProvenanceLabel, learningProvenance)} /></View></NusaCard>
       <InlineNotice title="학습 근거 출처" detail={learningProvenanceDetail} tone="info" />
+      <NusaCard testID="ai-signature-card">
+        <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>제안 서명</Text>
+        <Text
+          accessibilityLabel={`제안 서명. ${signature.split("\n").join(", ")}`}
+          selectable
+          style={[styles.signature, { color: theme.colors.textMuted, fontFamily: theme.typography.monoFamily }]}
+          testID="ai-signature"
+        >{signature}</Text>
+        <Text style={[styles.signatureNote, { color: theme.colors.textMuted }]}>
+          AI는 제안만 합니다. 주문·이체·출금 실행 권한이 없습니다. 같은 입력에 같은 모델·프롬프트면 같은 결론이 나오므로, 값이 달라졌다면 무언가 바뀐 것입니다.
+        </Text>
+      </NusaCard>
     </View>
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({ content: { paddingHorizontal: 20, paddingTop: 20, gap: 20, paddingBottom: 44, width: "100%", maxWidth: uxLayout.maxWorkspaceWidth, alignSelf: "center" }, state: { flex: 1, justifyContent: "center", padding: 20, alignItems: "center" }, stateInner: { width: "100%", maxWidth: 720, gap: 12 }, skeletonGroup: { width: "100%", gap: 8, paddingVertical: 4 }, hero: { paddingVertical: 10, gap: 13 }, heroTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }, eyebrow: { fontSize: 10, lineHeight: 15, fontWeight: "800", letterSpacing: 1.1 }, heroTitle: { marginTop: 4, fontSize: 20, lineHeight: 26, fontWeight: "800", letterSpacing: -0.4 }, thesis: { fontSize: 25, lineHeight: 35, fontWeight: "700", letterSpacing: -0.75 }, heroMeta: { flexDirection: "row", flexWrap: "wrap", gap: 12 }, meta: { fontSize: 11, lineHeight: 17, fontWeight: "600" }, metricGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 }, evidenceSection: { gap: 14, paddingVertical: 4 }, decisionSection: { gap: 14, paddingVertical: 4 }, sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }, sectionTitle: { marginTop: 4, fontSize: 19, lineHeight: 25, fontWeight: "800", letterSpacing: -0.4 }, evidenceGrid: { flexDirection: "row", flexWrap: "wrap", gap: 20 }, evidenceColumn: { flexGrow: 1, flexBasis: 300 }, columnLabel: { fontSize: 11, lineHeight: 16, fontWeight: "800", letterSpacing: 0.7, marginBottom: 7 }, evidence: { fontSize: 13, lineHeight: 20, marginBottom: 6 }, disagreement: { paddingTop: 4 }, detailGrid: { flexDirection: "row", flexWrap: "wrap", gap: 14, alignItems: "flex-start" }, detailCell: { flexGrow: 1, flexBasis: 440, gap: 14 }, cardHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10 }, cardTitle: { marginTop: 4, fontSize: 18, fontWeight: "700", letterSpacing: -0.4 }, body: { fontSize: 13, lineHeight: 20, marginTop: 8 } });
+const styles = StyleSheet.create({ content: { paddingHorizontal: 20, paddingTop: 20, gap: 20, paddingBottom: 44, width: "100%", maxWidth: uxLayout.maxWorkspaceWidth, alignSelf: "center" }, state: { flex: 1, justifyContent: "center", padding: 20, alignItems: "center" }, stateInner: { width: "100%", maxWidth: 720, gap: 12 }, skeletonGroup: { width: "100%", gap: 8, paddingVertical: 4 }, hero: { paddingVertical: 10, gap: 13 }, heroTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }, eyebrow: { fontSize: 10, lineHeight: 15, fontWeight: "800", letterSpacing: 1.1 }, heroTitle: { marginTop: 4, fontSize: 20, lineHeight: 26, fontWeight: "800", letterSpacing: -0.4 }, thesis: { fontSize: 25, lineHeight: 35, fontWeight: "700", letterSpacing: -0.75 }, heroMeta: { flexDirection: "row", flexWrap: "wrap", gap: 12 }, meta: { fontSize: 11, lineHeight: 17, fontWeight: "600" }, metricGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 }, evidenceSection: { gap: 14, paddingVertical: 4 }, decisionSection: { gap: 14, paddingVertical: 4 }, sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }, sectionTitle: { marginTop: 4, fontSize: 19, lineHeight: 25, fontWeight: "800", letterSpacing: -0.4 }, evidenceGrid: { flexDirection: "row", flexWrap: "wrap", gap: 20 }, evidenceColumn: { flexGrow: 1, flexBasis: 300 }, columnLabel: { fontSize: 11, lineHeight: 16, fontWeight: "800", letterSpacing: 0.7, marginBottom: 7 }, evidence: { fontSize: 13, lineHeight: 20, marginBottom: 6 }, disagreement: { paddingTop: 4 }, detailGrid: { flexDirection: "row", flexWrap: "wrap", gap: 14, alignItems: "flex-start" }, detailCell: { flexGrow: 1, flexBasis: 440, gap: 14 }, cardHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10 }, cardTitle: { marginTop: 4, fontSize: 18, fontWeight: "700", letterSpacing: -0.4 }, body: { fontSize: 13, lineHeight: 20, marginTop: 8 }, signature: { fontSize: 11, lineHeight: 18, marginTop: 6 }, signatureNote: { fontSize: 12, lineHeight: 19, marginTop: 8 } });

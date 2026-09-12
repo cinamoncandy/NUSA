@@ -33,6 +33,7 @@ import {
   handleDesktopSessionRevokeHttp
 } from "./desktopSessionHttp";
 import { MobileSessionService } from "./mobileSessionService";
+import { deploymentHealthPayload } from "./health/deploymentHealth";
 import {
   handleMobileBootstrapHttp,
   handleMobileBootstrapIssueHttp,
@@ -43,6 +44,7 @@ import {
   handleMobilePairingStartHttp,
   handleMobilePairingStatusHttp,
   handleMobileSessionRefreshHttp,
+  handleOwnerPasswordSignInHttp,
   handleMobileSessionRevokeHttp
 } from "./mobileSessionHttp";
 import { handlePublicUpbitQuotationHttp, isPublicUpbitQuotationPath } from "./publicUpbitQuotationHttp";
@@ -340,7 +342,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
     try {
       if (req.url === "/health") {
         if (req.method !== "GET") { respond("health", dashboardJsonResponse(405, { error: "METHOD_NOT_ALLOWED" })); return; }
-        respond("health", dashboardJsonResponse(200, { ok: true, observedAt: new Date().toISOString() }));
+        respond("health", dashboardJsonResponse(200, deploymentHealthPayload(new Date().toISOString(), process.env, mobileSessionService?.ownerPasswordConfigured() === true)));
         return;
       }
 
@@ -401,6 +403,9 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
       }
       if (mobileSessionService != null && req.url === "/api/operator/mobile-pairing/approve") {
         respond("mobile_pairing_approve", handleMobilePairingApproveHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository })); return;
+      }
+      if (mobileSessionService != null && req.url === "/v1/mobile/session/password") {
+        respond("mobile_session_password", handleOwnerPasswordSignInHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository })); return;
       }
       if (mobileSessionService != null && req.url === "/v1/mobile/session/refresh") {
         respond("mobile_session_refresh", handleMobileSessionRefreshHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository }));

@@ -43,6 +43,6 @@ export function PaperShadowMonitorView({ paper, shadow, shadowReason, real, real
 const styles = StyleSheet.create({
   wrapper: { flex: 1 },
   switcher: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 20, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
-  switch: { flexGrow: 1, minWidth: 112, minHeight: 40, borderWidth: 1, borderRadius: 10, alignItems: "center", justifyContent: "center", paddingHorizontal: 8 },
+  switch: { flexGrow: 1, minWidth: 112, minHeight: 44, borderWidth: 1, borderRadius: 10, alignItems: "center", justifyContent: "center", paddingHorizontal: 8 },
   switchText: { fontSize: 10, fontWeight: "800", letterSpacing: 0.6, textAlign: "center" }
 });

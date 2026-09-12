@@ -3,7 +3,8 @@ import {
   type PersonalPaperOperationsSnapshot
 } from "../../../packages/contracts/src/personalPaperOperations";
 import { getConfiguredPaperEndpoint, isPaperConnectionVerified } from "./paperConnectionSession";
-import { takeLastCredentialFailure } from "./dashboardCredentialSession";
+import { takeLastCredentialFailure, takeLastCredentialRefusal } from "./dashboardCredentialSession";
+import type { RefusalDescriptor } from "./instrumentState";
 
 export type DashboardProjectionOutcome = "READY" | "PROJECTION_UNAVAILABLE" | "AUTH_REJECTED";
 
@@ -15,7 +16,12 @@ export interface DashboardCredentialProvider {
 export type PersonalPaperOperationsLoadResult =
   | { readonly status: "READY"; readonly snapshot: PersonalPaperOperationsSnapshot }
   | { readonly status: "NOT_CONFIGURED"; readonly reason: string }
-  | { readonly status: "UNAVAILABLE"; readonly reason: string };
+  /**
+   * `refusal` is present only when a gate named the cause. Client-side conditions -- an
+   * unverified endpoint, an invalid timeout -- carry a sentence and nothing more, because
+   * inventing a gate for them would claim a diagnosis nobody made.
+   */
+  | { readonly status: "UNAVAILABLE"; readonly reason: string; readonly refusal?: RefusalDescriptor };
 
 export interface PersonalPaperOperationsClientOptions {
   readonly baseUrl: string;
@@ -87,9 +93,10 @@ export async function loadPersonalPaperOperations(options: PersonalPaperOperatio
     // rejected exchange from a genuinely unconfigured credential. Without it an expired token
     // reported itself as a configuration problem.
     const failure = takeLastCredentialFailure();
+    const refusal = takeLastCredentialRefusal();
     return failure == null
       ? Object.freeze({ status: "NOT_CONFIGURED", reason: "Secure dashboard credential is not configured." })
-      : Object.freeze({ status: "UNAVAILABLE", reason: failure });
+      : Object.freeze({ status: "UNAVAILABLE", reason: failure, ...(refusal == null ? {} : { refusal }) });
   }
   const requestToken = token.trim();
 

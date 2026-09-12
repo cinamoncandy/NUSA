@@ -1,5 +1,6 @@
 import { mobileApprovedSession } from "./mobileApprovedSessionBoundary";
 import { MobileSessionRequestError } from "./mobileApprovedSession";
+import { describeRefusal, type RefusalDescriptor } from "./instrumentState";
 
 const MAX_TOKEN_LENGTH = 4096;
 export const LEGACY_MOBILE_BOOTSTRAP_PREFIX = "legacy-bootstrap:";
@@ -10,6 +11,9 @@ let pendingBootstrapToken: string | null = null;
 let lastAuthenticatedBootstrapToken: string | null = null;
 let projectionFailureProtectedSession = false;
 let lastCredentialFailure: string | null = null;
+// The sentence is what a one-line surface shows; the descriptor is what a refusal record needs.
+// They are recorded together so the two can never describe different failures.
+let lastCredentialRefusal: RefusalDescriptor | null = null;
 let pendingDisconnect: Promise<void> | null = null;
 const MAX_FAILURE_REASON_LENGTH = 300;
 
@@ -20,17 +24,38 @@ const MAX_FAILURE_REASON_LENGTH = 300;
  * The token itself is never part of a reason -- every message below is a fixed string or an
  * HTTP status.
  */
+/** The structured form of the most recent credential failure, when the server named one. */
+export function describeCredentialRefusal(error: unknown): RefusalDescriptor | null {
+  if (!(error instanceof MobileSessionRequestError)) return null;
+  // 429 and 5xx are transport conditions; no gate refused them and no code describes them.
+  if (error.status === 429 || error.status >= 500) return null;
+  if (error.refusal == null && error.status !== 401 && error.status !== 403) return null;
+  return describeRefusal(error.refusal, error.status);
+}
+
+export function takeLastCredentialRefusal(): RefusalDescriptor | null {
+  const refusal = lastCredentialRefusal;
+  lastCredentialRefusal = null;
+  return refusal;
+}
+
 export function describeCredentialFailure(error: unknown): string {
   if (error instanceof MobileSessionRequestError) {
-    // The server names which account state refused enrollment, so the operator is pointed at the
-    // account rather than at the token when the token was in fact accepted.
-    if (error.refusal === "USER_NOT_REGISTERED") return "서버에 이 소유자 계정이 등록되어 있지 않습니다. 서버의 소유자 설정을 확인하세요.";
-    if (error.refusal === "USER_NOT_ACTIVE") return "소유자 계정이 ACTIVE 상태가 아닙니다. 서버에서 계정을 승인해야 합니다.";
-    if (error.refusal === "USER_IDENTITY_MISMATCH") return "토큰의 소유자 정보가 서버에 저장된 계정과 일치하지 않습니다.";
-    if (error.status === 401 || error.status === 403) return "연결 토큰이 만료되었거나 이미 사용되었습니다. 새 토큰을 발급받아 다시 입력하세요.";
+    // Throttling and server faults are transport conditions, not gate refusals: no account
+    // state produced them and no refusal code describes them.
     if (error.status === 429) return "서버가 요청을 일시적으로 제한하고 있습니다. 잠시 후 다시 시도하세요.";
     if (error.status >= 500) return `서버가 응답하지 못했습니다 (HTTP ${error.status}). 잠시 후 다시 시도하세요.`;
-    return `서버가 연결 요청을 거부했습니다 (HTTP ${error.status}).`;
+    // Everything else is the session gate speaking, so it is translated in one place. This
+    // previously answered 401 and 403 with the same "token expired" sentence, which is right
+    // for 401 and wrong for 403 -- a 403 means the token authenticated and the account state
+    // refused, and sending the operator back to the token is what cost days of diagnosis.
+    // A status the session gate does not speak in keeps the number visible: it is the only
+    // evidence the operator has to hand on with.
+    if (error.refusal == null && error.status !== 401 && error.status !== 403) {
+      return `서버가 연결 요청을 거부했습니다 (HTTP ${error.status}).`;
+    }
+    const refusal = describeRefusal(error.refusal, error.status);
+    return `${refusal.title}. ${refusal.action}`;
   }
   const message = error instanceof Error ? error.message.trim() : "";
   return message ? message.slice(0, MAX_FAILURE_REASON_LENGTH) : "보안 세션 교환에 실패했습니다.";
@@ -162,6 +187,7 @@ export class InMemoryDashboardCredentialSession {
         lastAuthenticatedBootstrapToken = pending;
       } catch (error) {
         lastCredentialFailure = describeCredentialFailure(error);
+        lastCredentialRefusal = describeCredentialRefusal(error);
         const retryable = session.shouldRetryRestore();
         lastAuthenticatedBootstrapToken = retryable ? pending : null;
         projectionFailureProtectedSession = retryable;
@@ -170,8 +196,8 @@ export class InMemoryDashboardCredentialSession {
       }
     } else if (!session.hasMemoryAccess()) {
       let restored: Awaited<ReturnType<typeof session.restore>>;
-      try { lastCredentialFailure = null; restored = await session.restore(endpoint); }
-      catch (error) { lastCredentialFailure = describeCredentialFailure(error); return null; }
+      try { lastCredentialFailure = null; lastCredentialRefusal = null; restored = await session.restore(endpoint); }
+      catch (error) { lastCredentialFailure = describeCredentialFailure(error); lastCredentialRefusal = describeCredentialRefusal(error); return null; }
       if (restored == null) {
         lastCredentialFailure = "저장된 보안 세션이 없거나 만료되었습니다. 설정에서 PAPER 연결 요청을 시작하세요.";
         return null;

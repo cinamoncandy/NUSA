@@ -109,14 +109,21 @@ test("same-device retry expires an approved request so its old exchange cannot i
   } finally { db.close(); }
 });
 
-test("same-device supersession preserves the global active-pairing cap for other devices", () => {
+test("same-device supersession preserves the global active-pairing bound for other devices", () => {
   const { db, service } = fixture();
   try {
     const now = 3_000_000;
     const firstDevice = "nusa-global-device-000";
     for (let index = 0; index < 100; index += 1) assert.ok(service.startPairing(`${firstDevice}${index}`, now));
     assert.ok(service.startPairing(`${firstDevice}0`, now + 1), "the same device may replace its own pending request at the global cap");
-    assert.throws(() => service.startPairing("nusa-global-device-overflow", now + 1), /limit reached/);
+
+    // At the cap a new device is admitted by evicting the oldest PENDING request, not refused.
+    // Refusing bounded the table but handed an unauthenticated caller a lockout: pairing/start
+    // needs no credential and deviceId is self-chosen, so one caller inventing a hundred ids kept
+    // the owner's own phone off the account for the whole TTL. See tests/mobile-pairing-capacity.
+    assert.ok(service.startPairing("nusa-global-device-overflow", now + 1), "a new device must not be refused because of other devices");
+    const live = Number(db.connection.prepare("SELECT COUNT(*) AS count FROM mobile_pairing_requests WHERE state IN ('PENDING','APPROVED') AND expires_at>?").get(now + 1).count);
+    assert.ok(live <= 100, `the global bound still holds, got ${live}`);
   } finally { db.close(); }
 });
 

@@ -5,8 +5,13 @@ export const MODULE_STAGE_ORDER = Object.freeze([
   "INTELLIGENCE",
   "STRATEGY",
   "DECISION",
-  "RISK",
+  // Portfolio precedes Risk because risk gates the order that will actually be sent: notional,
+  // position and buying-power limits cannot be evaluated without a quantity, and the risk gate is
+  // permitted to resize an intent, which likewise requires one. This matches both
+  // platformTopology.ts and the running path in cloudPaperExecutionBoundary.ts, which sizes from
+  // the decision's allocation and then hands that quantity to riskGate.evaluate.
   "PORTFOLIO",
+  "RISK",
   "EXECUTION",
   "PAPER_ADAPTER",
   "REVIEW",

@@ -1,0 +1,196 @@
+import React, { useEffect, useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { describeAge, describeRefusal, freshnessProgress, freshnessStage, lampLevels, type FreshnessStage, type LampId, type LampLevel, type RefusalDescriptor } from "./instrumentState";
+import { useTheme } from "./ThemeProvider";
+import type { Theme } from "./designSystem";
+
+/**
+ * A clock that advances on its own.
+ *
+ * Reading `Date.now()` during render freezes the age at whatever the last render happened to
+ * see: a screen left open keeps saying "2초 전" while the data behind it ages out. That is
+ * worse than showing no age at all, because it asserts a freshness the data no longer has.
+ * One shared tick per second is enough -- the smallest thing the surfaces display is a whole
+ * second -- and it stops when the component unmounts.
+ */
+export function useNowMs(intervalMs = 1_000): number {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!Number.isFinite(intervalMs) || intervalMs <= 0) return undefined;
+    const timer = setInterval(() => { setNowMs(Date.now()); }, intervalMs);
+    return () => { clearInterval(timer); };
+  }, [intervalMs]);
+  return nowMs;
+}
+
+const LAMP_ORDER: readonly LampId[] = Object.freeze(["DATA", "LINK", "GATE"]);
+const LAMP_MEANING: Readonly<Record<LampId, string>> = Object.freeze({ DATA: "시세", LINK: "세션", GATE: "리스크" });
+
+function lampColor(theme: Theme, level: LampLevel): string {
+  return level === "DANGER" ? theme.colors.danger : level === "WARNING" ? theme.colors.warning : theme.colors.textMuted;
+}
+
+/**
+ * The authority spine. Fixed to the top of every screen, never dismissible, identical
+ * everywhere.
+ *
+ * Two zones. The left states what this build may do and is the same on every run: it is not
+ * a warning, so it carries no color and reads as background the operator can still resolve.
+ * The right is annunciator lamps under the aviation "dark cockpit" rule -- dark is nominal,
+ * and a lit lamp is itself the information.
+ *
+ * Off lamps are NOT dimmed with opacity. A 9px label behind 35% opacity is unreadable, and
+ * the on/off distinction is already carried by color, fill and weight without borrowing
+ * contrast to say it.
+ */
+export function AuthoritySpine({ refusals = [], snapshotGeneratedAtMs = null, onSelectGate, testID }: Readonly<{ refusals?: readonly RefusalDescriptor[]; snapshotGeneratedAtMs?: number | null; onSelectGate?: (gate: LampId) => void; testID?: string }>) {
+  const { theme } = useTheme();
+  // Data staleness is measured here rather than passed in, because it changes with the clock
+  // and not with the parent's render. The spine is a leaf, so its own tick is cheap.
+  const nowMs = useNowMs();
+  const dataStale = snapshotGeneratedAtMs != null && freshnessStage(snapshotGeneratedAtMs, nowMs) === "STALE";
+  const levels = lampLevels(dataStale ? [...refusals, describeRefusal("MARKET_DATA_STALE")] : refusals);
+  return (
+    <View
+      accessibilityRole="header"
+      style={[styles.spine, { backgroundColor: theme.colors.surfaceSunken, borderBottomColor: theme.colors.border }]}
+      testID={testID ?? "authority-spine"}
+    >
+      <View
+        accessibilityLabel="PAPER 전용, 실거래 권한 없음, AI 권한 없음"
+        style={[styles.spineAuthority, { borderRightColor: theme.colors.border }]}
+      >
+        <Text style={[styles.spineAuthorityLabel, { color: theme.colors.textMuted, fontFamily: theme.typography.monoFamily }]}>PAPER</Text>
+        <View style={[styles.spineDivider, { backgroundColor: theme.colors.border }]} />
+        <Text style={[styles.spineAuthorityLabel, { color: theme.colors.textMuted, fontFamily: theme.typography.monoFamily }]}>LIVE NONE</Text>
+        <View style={[styles.spineDivider, { backgroundColor: theme.colors.border }]} />
+        <Text style={[styles.spineAuthorityLabel, { color: theme.colors.textMuted, fontFamily: theme.typography.monoFamily }]}>AI ZERO</Text>
+      </View>
+      <View style={styles.spineLamps}>
+        {LAMP_ORDER.map((lamp) => {
+          const level = levels[lamp];
+          const lit = level !== "OFF";
+          const color = lampColor(theme, level);
+          const state = level === "DANGER" ? "정지" : level === "WARNING" ? "경고" : "정상";
+          return (
+            <Pressable
+              accessibilityHint={lit && onSelectGate != null ? "두 번 눌러 거부 기록 열기" : undefined}
+              accessibilityLabel={`${lamp} ${LAMP_MEANING[lamp]} ${state}`}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !lit || onSelectGate == null }}
+              disabled={!lit || onSelectGate == null}
+              // The lamp stays small because the spine is a band, not a toolbar. The target does not:
+              // hitSlop carries it past the 44px floor without changing what is drawn.
+              hitSlop={{ top: 11, bottom: 11, left: 4, right: 4 }}
+              key={lamp}
+              onPress={() => onSelectGate?.(lamp)}
+              style={({ pressed }) => [styles.lamp, { borderColor: lit ? color : theme.colors.border, backgroundColor: lit ? theme.colors.surfaceRaised : "transparent", opacity: pressed ? 0.72 : 1 }]}
+              testID={`authority-lamp-${lamp}`}
+            >
+              <View style={[styles.lampDot, { backgroundColor: color }]} />
+              <Text style={[styles.lampLabel, { color, fontFamily: theme.typography.monoFamily }, lit && styles.lampLabelLit]}>{lamp}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Wraps a value that must age without dragging its screen along.
+ *
+ * The tick lives here rather than in the parent on purpose: HOME renders a chart that is not
+ * memoized, so a clock in that component would re-render the whole screen every second to
+ * move one line of text. Keeping it in a leaf means the second-by-second work is confined to
+ * the few nodes that actually change.
+ *
+ * `children` receives the derived state so a caller can apply the staleness treatment to its
+ * own typography -- a hero number keeps its hero styling and still gets struck through.
+ */
+export function AgingValue({ generatedAtMs, windowMs, children, testID }: Readonly<{ generatedAtMs: number | null; windowMs?: number; children: (state: Readonly<{ stage: FreshnessStage | null; stale: boolean; age: string; progress: number }>) => React.ReactNode; testID?: string }>) {
+  const nowMs = useNowMs();
+  const stage = generatedAtMs == null ? null : freshnessStage(generatedAtMs, nowMs, windowMs);
+  return (
+    <View testID={testID}>
+      {children({
+        stage,
+        stale: stage === "STALE",
+        age: generatedAtMs == null ? "" : describeAge(generatedAtMs, nowMs),
+        progress: generatedAtMs == null ? 0 : freshnessProgress(generatedAtMs, nowMs, windowMs)
+      })}
+    </View>
+  );
+}
+
+/**
+ * A refusal rendered as a record rather than a status. Four layers, none optional: the gate
+ * that refused, one sentence of what is true, what happens next, and the machine evidence
+ * left visible so it can be copied into a support request instead of retyped from memory.
+ */
+export function RefusalRecord({ refusal, occurredAtLabel, evidence, actionLabel, onAction, testID }: Readonly<{ refusal: RefusalDescriptor; occurredAtLabel?: string; evidence?: readonly string[]; actionLabel?: string; onAction?: () => void; testID?: string }>) {
+  const { theme } = useTheme();
+  const accent = refusal.severity === "HALT" ? theme.colors.danger : theme.colors.warning;
+  return (
+    <View
+      accessibilityLabel={`${refusal.gateLabel} ${refusal.severity === "HALT" ? "봉쇄" : "거절"}. ${refusal.title}. ${refusal.action}`}
+      accessibilityRole="alert"
+      style={[styles.refusal, { backgroundColor: theme.colors.surface, borderColor: accent, borderRadius: theme.radii.md }]}
+      testID={testID ?? "refusal-record"}
+    >
+      <View style={[styles.refusalHead, { borderBottomColor: theme.colors.border }]}>
+        <Text style={[styles.refusalGate, { color: accent, fontFamily: theme.typography.monoFamily }]}>{refusal.gateLabel}</Text>
+        <Text style={[styles.refusalSeverity, { color: accent, borderColor: accent, fontFamily: theme.typography.monoFamily }]}>{refusal.severity}</Text>
+      </View>
+      <View style={styles.refusalBody}>
+        <Text style={[styles.refusalTitle, { color: theme.colors.text }]}>{refusal.title}</Text>
+        <Text style={[styles.refusalDetail, { color: theme.colors.textMuted }]}>{refusal.detail}</Text>
+        <View style={[styles.refusalRule, { backgroundColor: theme.colors.border }]} />
+        <Text style={[styles.refusalActionLabel, { color: theme.colors.success, fontFamily: theme.typography.monoFamily }]}>다음 행동</Text>
+        <Text style={[styles.refusalAction, { color: theme.colors.text }]}>{refusal.action}</Text>
+        {actionLabel != null && onAction != null ? (
+          <Pressable
+            accessibilityLabel={actionLabel}
+            accessibilityRole="button"
+            onPress={onAction}
+            style={({ pressed }) => [styles.refusalButton, { backgroundColor: theme.colors.primary, borderRadius: theme.radii.sm, opacity: pressed ? 0.72 : 1 }]}
+            testID="refusal-record-action"
+          >
+            <Text style={[styles.refusalButtonLabel, { color: theme.colors.onPrimary }]}>{actionLabel}</Text>
+          </Pressable>
+        ) : null}
+        <View style={[styles.refusalRule, { backgroundColor: theme.colors.border }]} />
+        <Text style={[styles.refusalEvidenceLabel, { color: theme.colors.textMuted, fontFamily: theme.typography.monoFamily }]}>기계 근거</Text>
+        <Text selectable style={[styles.refusalEvidence, { color: theme.colors.textMuted, fontFamily: theme.typography.monoFamily }]} testID="refusal-record-evidence">
+          {[refusal.code, ...(occurredAtLabel == null ? [] : [occurredAtLabel]), ...(evidence ?? [])].join("\n")}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  spine: { flexDirection: "row", alignItems: "stretch", borderBottomWidth: 1 },
+  spineAuthority: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderRightWidth: 1 },
+  spineAuthorityLabel: { fontSize: 9, fontWeight: "700", letterSpacing: 0.8 },
+  spineDivider: { width: 1, height: 9 },
+  spineLamps: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 5, paddingHorizontal: 12, paddingVertical: 10 },
+  lamp: { flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 3, minHeight: 22 },
+  lampDot: { width: 4, height: 4, borderRadius: 2 },
+  lampLabel: { fontSize: 9, letterSpacing: 0.4 },
+  lampLabelLit: { fontWeight: "700" },
+  refusal: { borderWidth: 1, overflow: "hidden" },
+  refusalHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, paddingHorizontal: 16, paddingVertical: 11, borderBottomWidth: 1 },
+  refusalGate: { fontSize: 10, fontWeight: "700", letterSpacing: 1.1 },
+  refusalSeverity: { fontSize: 9, borderWidth: 1, borderRadius: 3, paddingHorizontal: 6, paddingVertical: 2, overflow: "hidden" },
+  refusalBody: { padding: 16, gap: 10 },
+  refusalTitle: { fontSize: 16, fontWeight: "700", lineHeight: 22 },
+  refusalDetail: { fontSize: 13, lineHeight: 21 },
+  refusalRule: { height: 1 },
+  refusalActionLabel: { fontSize: 10, letterSpacing: 1.1 },
+  refusalAction: { fontSize: 13, lineHeight: 20 },
+  refusalButton: { minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: 16 },
+  refusalButtonLabel: { fontSize: 14, fontWeight: "700" },
+  refusalEvidenceLabel: { fontSize: 10, letterSpacing: 1.1 },
+  refusalEvidence: { fontSize: 11, lineHeight: 18 }
+});
