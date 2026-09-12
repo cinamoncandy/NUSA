@@ -1,0 +1,123 @@
+name: Autopilot Cloudflare Deploy Convergence
+
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: nusa-autopilot-cloudflare-deploy-convergence
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    name: Reconcile exact-main Cloudflare deploy provenance
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Resolve protected main and require exact-main CI success
+        id: main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          test "$current_main" != ""
+          echo "sha=$current_main" >> "$GITHUB_OUTPUT"
+          conclusion="$(CURRENT_MAIN="$current_main" gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$current_main&status=completed&per_page=100" --jq '[.workflow_runs[] | select(.name == "CI" and .path == ".github/workflows/ci.yml" and .head_sha == env.CURRENT_MAIN)][0].conclusion // empty')"
+          if [ "$conclusion" != "success" ]; then
+            echo "Exact-main CI is not successful for $current_main; failing closed without dispatch. conclusion=${conclusion:-missing}"
+            exit 1
+          fi
+          echo "Exact-main CI verified: $current_main"
+
+      - name: Detect executed exact-main deploy evidence or an active convergence run
+        id: evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CURRENT_MAIN: ${{ steps.main.outputs.sha }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$CURRENT_MAIN&per_page=100" > /tmp/nusa-main-runs.json
+
+          active="$(CURRENT_MAIN="$CURRENT_MAIN" node - <<'NODE'
+          const fs = require('fs');
+          const payload = JSON.parse(fs.readFileSync('/tmp/nusa-main-runs.json', 'utf8'));
+          const expected = process.env.CURRENT_MAIN.toLowerCase();
+          const found = (payload.workflow_runs || []).some((run) =>
+            run?.name === 'Autopilot Cloudflare Deploy'
+            && run?.path === '.github/workflows/autopilot-cloudflare-deploy.yml'
+            && String(run?.head_sha || '').toLowerCase() === expected
+            && ['queued', 'in_progress', 'pending', 'waiting', 'requested'].includes(run?.status));
+          process.stdout.write(found ? 'true' : 'false');
+          NODE
+          )"
+          if [ "$active" = "true" ]; then
+            echo 'state=active' >> "$GITHUB_OUTPUT"
+            echo "Exact-main Cloudflare Deploy is already active; no duplicate dispatch."
+            exit 0
+          fi
+
+          mapfile -t candidates < <(CURRENT_MAIN="$CURRENT_MAIN" node - <<'NODE'
+          const fs = require('fs');
+          const payload = JSON.parse(fs.readFileSync('/tmp/nusa-main-runs.json', 'utf8'));
+          const expected = process.env.CURRENT_MAIN.toLowerCase();
+          const runs = (payload.workflow_runs || [])
+            .filter((run) => run?.name === 'Autopilot Cloudflare Deploy'
+              && run?.path === '.github/workflows/autopilot-cloudflare-deploy.yml'
+              && String(run?.head_sha || '').toLowerCase() === expected
+              && run?.conclusion === 'success')
+            .sort((a, b) => Number(b?.id || 0) - Number(a?.id || 0));
+          for (const run of runs) console.log(run.id);
+          NODE
+          )
+
+          for run_id in "${candidates[@]}"; do
+            [ -n "$run_id" ] || continue
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100" > /tmp/nusa-deploy-jobs.json
+            if node - <<'NODE'
+          const fs = require('fs');
+          const payload = JSON.parse(fs.readFileSync('/tmp/nusa-deploy-jobs.json', 'utf8'));
+          const job = (payload.jobs || []).find((entry) => entry?.name === 'Deploy exact CI-verified Worker revision');
+          const steps = job?.steps || [];
+          const deploy = steps.find((step) => step?.name === 'Deploy exact CI-verified revision to Cloudflare Workers Free-compatible runtime');
+          const verify = steps.find((step) => step?.name === 'Verify deployed Worker reports the exact-head revision and fail-closed authority');
+          process.exit(job?.conclusion === 'success' && deploy?.conclusion === 'success' && verify?.conclusion === 'success' ? 0 : 1);
+          NODE
+            then
+              echo 'state=complete' >> "$GITHUB_OUTPUT"
+              echo "Executed exact-main Cloudflare deploy evidence already exists: run_id=$run_id"
+              exit 0
+            fi
+          done
+
+          echo 'state=missing' >> "$GITHUB_OUTPUT"
+          echo "Executed exact-main Cloudflare deploy evidence is missing for $CURRENT_MAIN."
+
+      - name: Dispatch canonical exact-main Cloudflare Deploy recovery
+        if: steps.evidence.outputs.state == 'missing'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CURRENT_MAIN: ${{ steps.main.outputs.sha }}
+        run: |
+          set -euo pipefail
+          latest_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          if [ "$latest_main" != "$CURRENT_MAIN" ]; then
+            echo "Main advanced from $CURRENT_MAIN to $latest_main; refusing stale dispatch."
+            exit 1
+          fi
+          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-cloudflare-deploy.yml/dispatches" \
+            -f ref=main \
+            -f "inputs[head_sha]=$CURRENT_MAIN"
+          echo "Dispatched canonical Cloudflare Deploy recovery for exact main $CURRENT_MAIN."
+
+      - name: Record fail-closed authority boundary
+        if: always()
+        run: |
+          echo 'liveAuthority=NONE'
+          echo 'productionMutationAllowed=false'
+          echo 'AI authority=ZERO_AUTHORITY'
