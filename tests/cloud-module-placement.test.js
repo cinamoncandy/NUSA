@@ -61,5 +61,5 @@ test("the debt is counted, and counted honestly", () => {
 
 test("directories are the intended destination and already work", () => {
   const directories = readdirSync(CLOUD_SRC, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
-  assert.deepEqual(directories, ["ai", "alpha", "architecture", "health"], "a new directory is progress -- update this list deliberately");
+  assert.deepEqual(directories, ["ai", "alpha", "architecture", "health", "ownerCredential"], "a new directory is progress -- update this list deliberately");
 });
