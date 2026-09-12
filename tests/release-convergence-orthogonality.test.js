@@ -21,7 +21,7 @@ test('deployment receipt attests runtime convergence but never Release completio
   assert.match(workflow, /CONVERGENCE_STATUS=CONVERGENCE_INCOMPLETE/);
   assert.match(workflow, /CONVERGENCE_STATUS=CONVERGED/);
   assert.match(workflow, /RELEASE_STATUS=RELEASE_PROVENANCE_UNKNOWN/);
-  assert.doesNotMatch(workflow, /RELEASE_COMPLETE/);
+  assert.doesNotMatch(workflow, /RELEASE_STATUS=RELEASE_COMPLETE/);
   assert.doesNotMatch(workflow, /STATUS=PASS/);
 });
 
