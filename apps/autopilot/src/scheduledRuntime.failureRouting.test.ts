@@ -66,8 +66,15 @@ test("scheduled runtime does not route an exact-main deployment evidence wait in
         headers: { "content-type": "application/json" },
       });
     }
+    if (url.endsWith(`/actions/runs/${FAILURE_RUN_ID}`)) {
+      return new Response(JSON.stringify({
+        path: ".github/workflows/autopilot-cloudflare-credential-preflight.yml",
+        head_branch: "main",
+        event: "push",
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
     if (url.includes(`/actions/runs/${FAILURE_RUN_ID}/jobs?`)) {
-      return new Response(JSON.stringify({ jobs: [{ steps: [
+      return new Response(JSON.stringify({ jobs: [{ name: "preflight", steps: [
         { name: "Validate Cloudflare credential inputs", conclusion: "success" },
         { name: "Verify configured Cloudflare account is accessible", conclusion: "success" },
         { name: "Verify Wrangler account authentication", conclusion: "success" },
