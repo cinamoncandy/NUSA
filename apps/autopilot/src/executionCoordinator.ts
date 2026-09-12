@@ -527,7 +527,9 @@ export class ExecutionCoordinator {
   private async applyControlPlaneHold(value: unknown): Promise<Response> {
     if (!value || typeof value !== "object") return json({ error: "CONTROL_PLANE_HOLD_REQUEST_INVALID" }, 400);
     const candidate = value as Partial<ApplyControlPlaneHoldRequest>;
-    if (!validControlPlaneHoldIdentity(candidate) || !validExecutionHold(candidate.hold, candidate) || !validSafeTimestamp(candidate.now)) {
+    if (!validControlPlaneHoldIdentity(candidate)) return json({ error: "CONTROL_PLANE_HOLD_REQUEST_INVALID" }, 400);
+    const boundedCandidate = value as Partial<ApplyControlPlaneHoldRequest> & ControlPlaneHoldIdentity;
+    if (!validExecutionHold(boundedCandidate.hold, boundedCandidate) || !validSafeTimestamp(boundedCandidate.now)) {
       return json({ error: "CONTROL_PLANE_HOLD_REQUEST_INVALID" }, 400);
     }
     const request = value as ApplyControlPlaneHoldRequest;
@@ -555,7 +557,9 @@ export class ExecutionCoordinator {
   private async clearControlPlaneHold(value: unknown): Promise<Response> {
     if (!value || typeof value !== "object") return json({ error: "CONTROL_PLANE_HOLD_REQUEST_INVALID" }, 400);
     const candidate = value as Partial<ClearControlPlaneHoldRequest>;
-    if (!validControlPlaneHoldIdentity(candidate) || !validHoldClearance(candidate.clearance, candidate) || !validSafeTimestamp(candidate.now)) {
+    if (!validControlPlaneHoldIdentity(candidate)) return json({ error: "CONTROL_PLANE_HOLD_REQUEST_INVALID" }, 400);
+    const boundedCandidate = value as Partial<ClearControlPlaneHoldRequest> & ControlPlaneHoldIdentity;
+    if (!validHoldClearance(boundedCandidate.clearance, boundedCandidate) || !validSafeTimestamp(boundedCandidate.now)) {
       return json({ error: "CONTROL_PLANE_HOLD_REQUEST_INVALID" }, 400);
     }
     const request = value as ClearControlPlaneHoldRequest;
