@@ -2,7 +2,6 @@ import {
   LEVEL_10_CRITERIA,
   MODULE_STAGE_ORDER,
   assertLevel10Definition,
-  type Level10Criterion,
   type Level10ModuleDefinition,
   type ModuleStage
 } from "./moduleLevel10";
