@@ -136,7 +136,9 @@ export class GithubValidatedPatchPublisher implements CodingPublisher {
         title: "chore(autopilot): validated autonomous coding proposal",
         head: branch,
         base: "main",
-        draft: false,
+        // Autonomous publication is always Draft. Ready-for-review requires a separate,
+        // explicit control-plane transition after canonical HOLD/freeze clearance.
+        draft: true,
         body: [
           "Autonomously proposed repository change validated in Cloudflare Sandbox before publication.",
           "",
