@@ -1,7 +1,7 @@
 # NUSA Product UX Contract — 2026-09-11
 
-Status: Core review required before broad implementation
-Owner: UI/UX
+Status: Core review required before broad implementation  
+Owner: UI/UX  
 Scope: Mobile + Desktop presentation only
 
 ## Product UX goal
@@ -10,13 +10,11 @@ NUSA is an AI trading intelligence system, not a generic brokerage dashboard. Th
 
 Primary loop:
 
-`OBSERVE -> REASON -> DECIDE -> SIMULATE -> LEARN`
+`OBSERVE -> REASON -> DECIDE -> VALIDATE -> LEARN`
 
-The visual product must surface AI reasoning and system truth without implying execution authority that does not exist.
+`SIMULATE` may appear only when an authoritative simulation projection actually exists. The UI must not invent a simulation or execution capability.
 
 ## Non-negotiable authority truth
-
-Every implementation preserves these facts unless an authoritative runtime source explicitly changes them:
 
 - `PAPER_ONLY`
 - `liveAuthority=NONE`
@@ -25,14 +23,23 @@ Every implementation preserves these facts unless an authoritative runtime sourc
 
 PAPER must never visually resemble LIVE. AI insight must never look like autonomous execution. Missing evidence must never become a success state.
 
+## Current capability boundary discovered in repository audit
+
+The current production mobile `PAPER` route is a supervision/learning surface. It intentionally does not expose manual BUY/SELL, quantity, price or submit controls. Therefore:
+
+- the UX contract does not require a manual PAPER order flow;
+- a Decision may deep-link to PAPER supervision/validation evidence, not to a fabricated order ticket;
+- portfolio-impact or scenario simulation is `UNAVAILABLE` until an authoritative projection exists;
+- any future user-triggered PAPER mutation requires separate Core/authority/product approval and is outside this UI/UX contract.
+
 ## Information priority
 
 Every primary surface uses this hierarchy:
 
 1. Immediate judgement — what matters now.
 2. Operational truth — system/data/PAPER/strategy/risk/autopilot state.
-3. Decision evidence — why, counter-evidence, uncertainty, invalidation.
-4. Safe next action — review, inspect, simulate, or PAPER action.
+3. Decision evidence — why, counter-evidence, uncertainty, invalidation when authoritative.
+4. Safe next action — review, inspect, validate, recover, or open PAPER supervision.
 5. Detail — raw market, portfolio, history, diagnostics.
 
 Developer diagnostics do not compete with the first viewport.
@@ -46,7 +53,7 @@ Without opening another screen the user must be able to determine:
 - PAPER state
 - Strategy state
 - Risk state
-- Autopilot state
+- Autopilot state when an authoritative projection exists
 - Most recent meaningful activity
 - Active warning/failure
 - Whether human action is required
@@ -59,226 +66,203 @@ Unknown is a first-class state. No observed data is not success.
 
 Use five destinations maximum.
 
-- `NUSA` — current brief: decision + system truth + change since last judgement + safe next action.
-- `판단` — AI decision ledger: current decisions, evidence, counter-evidence, confidence provenance, invalidation and decision history.
-- `시장` — market intelligence: regime, important changes, themes and evidence; raw quotes are subordinate.
-- `PAPER` — simulation/validation/action flow. PAPER identity remains persistent.
-- `자산` — portfolio exposure, risk budget, PnL and position detail.
+- `NUSA` — current brief: judgement + system truth + available change evidence + safe next action.
+- `판단` — AI decision ledger: current observations, evidence, counter-evidence, confidence provenance, uncertainty and decision history when available.
+- `시장` — market intelligence: important observed changes and data evidence; raw quotes are subordinate.
+- `PAPER` — PAPER supervision, validation and learning evidence. PAPER identity remains persistent.
+- `자산` — PAPER portfolio exposure, PnL, capital allocation and read-only account separation.
 
-Do not create a separate generic `AI` destination: AI is the intelligence layer across NUSA. Existing route IDs may remain temporarily for compatibility, but visible IA must converge on the product jobs above after Core approval.
+Do not create a generic visible `AI` destination as the end-state IA. AI is the intelligence layer across NUSA. Existing route IDs may remain during compatibility migration.
 
 ### Desktop
 
-Desktop keeps higher density but uses the same user jobs and status semantics. It may expose secondary operational/diagnostic navigation progressively. Desktop must not use a contradictory product hierarchy such as making account capital the universal dominant object when current judgement or a failure requires attention.
+Desktop keeps higher density but uses the same user jobs and state semantics. Secondary operational/diagnostic navigation is progressive. Current desktop documentation that makes capital the universal dominant object conflicts with this product hierarchy when judgement, failure or user action is materially more important.
 
-## NUSA home / Live Brief
+## NUSA Home / Live Brief
 
-The first viewport answers four questions in order:
+The first viewport answers:
 
-1. What is NUSA's current validated posture?
-2. What changed since the previous posture?
-3. What can invalidate this posture / what is the current risk?
-4. Is there a safe action that needs me now?
+1. What can NUSA truthfully say now?
+2. Is the system/data/PAPER path healthy enough to trust that statement?
+3. What evidence and uncertainty matter?
+4. Does anything require user attention?
 
-Recommended first viewport composition:
+Composition:
 
 - compact global truth rail
-- one dominant `Decision Object`
-- `What changed` delta
-- risk / invalidation condition
+- one dominant Decision/Observation Object
+- current evidence + counter-evidence summary
+- risk/uncertainty or `UNKNOWN`
 - one safe next action
-- portfolio impact summary only when meaningful
+- compact portfolio impact/result only when authoritative
 
-Do not lead with giant account value, a decorative AI object, raw quote cards, or a news feed.
+Do not lead with giant account value, decorative AI objects, raw quote cards, or news.
 
-## Decision Object
+### What changed
 
-This is the primary reusable AI-trading UX primitive.
+Current mobile status code explicitly reports `changesSupported: false`; no device snapshot-history source currently supports a truthful change ledger. Therefore the first viewport must show `변화 이력 없음/미지원` or omit the delta section until an authoritative history source exists. It must never synthesize “what changed”.
 
-Required fields when evidence exists:
+## Decision / Observation Object
 
-- stance: `BUY | HOLD | REDUCE | EXIT | NO_TRADE | OBSERVE`
+This is the primary reusable AI-trading UX primitive. Fields are rendered only when their source exists.
+
 - subject / scope
-- horizon
-- thesis
-- confidence provenance (never fabricate calibrated confidence)
+- thesis / current observation
+- calibration state
+- calibrated confidence only when verified `CALIBRATED`
 - evidence FOR
 - evidence AGAINST
 - uncertainty
-- invalidation condition
-- risk
-- portfolio impact when calculable
-- last material change
+- critic severity / disagreements
+- last model run/freshness
+- invalidation condition only if an authoritative field exists
+- portfolio impact only if an authoritative projection exists
 - safe next action
+- `PAPER ONLY · AI ZERO AUTHORITY` context where execution could otherwise be misunderstood
 
-When fields are unavailable, show unavailable/unknown rather than generating substitute values.
+The current `AiReadOnlyProjection` has evidence, counter-evidence, uncertainty, critic severity, disagreements, calibration, scenario robustness and authority truth. It does not provide a canonical stance enum, portfolio impact, invalidation condition, or decision-history ledger. UI must not invent those fields.
 
 ## Autopilot state UX
 
-Autopilot must distinguish at least:
+Target semantic states:
 
-- `NO_WORK` — observed successfully; no eligible work
-- `READY` — work exists and is dispatchable
-- `CLAIMED` — owner/lease assigned
-- `RUNNING` — implementation/execution in progress
-- `VALIDATING` — verification in progress
-- `BLOCKED` — work exists but cannot progress; blocker required
-- `HUMAN_ONLY` — explicit human action required
-- `FAILED` — execution/validation failed
-- `STARVATION` — work exists but is not being claimed/progressed within policy
-- `DONE` — latest work completed
+`NO_WORK | READY | CLAIMED | RUNNING | VALIDATING | BLOCKED | HUMAN_ONLY | FAILED | STARVATION | DONE`
 
-The primary Autopilot summary must expose:
+The summary should expose active/queued work, blocker, human-only action, latest successful work, last healthy run, recent failure and subsystem health — but only from an authoritative projection. Observation failure is never `0` or `NO_WORK`.
 
-- active work yes/no
-- queued work yes/no
-- blocker summary
-- human-only count/action
-- last successful work
-- last healthy run timestamp
-- most recent failure reason
-- automation subsystem health
-
-Observation failure is never rendered as `0` or `NO_WORK`.
+Until those fields are available to the product surface, render `UNKNOWN/UNAVAILABLE`; do not infer queue truth from unrelated runtime state.
 
 ## State model
 
-Every data-backed module supports these presentation states as applicable:
+Data-backed modules distinguish:
 
-- `LOADING` — first observation pending
-- `READY` — valid current evidence
-- `STALE` — last valid evidence exists but freshness threshold exceeded
-- `EMPTY` — successful observation, valid empty result
-- `DEGRADED` — partial evidence / reduced capability
-- `BLOCKED` — known prerequisite prevents progress
-- `ERROR` — observation/request failed
-- `UNKNOWN` — semantic state cannot be derived from available evidence
+`LOADING | READY | STALE | EMPTY | DEGRADED | BLOCKED | ERROR | UNKNOWN`
 
-`EMPTY`, `ERROR`, `UNKNOWN`, and `NO_WORK` are never interchangeable.
-
-Each non-ready state answers: what happened, impact, last-known-good/freshness when available, and the smallest corrective action.
+`EMPTY`, `ERROR`, `UNKNOWN`, `UNAVAILABLE`, and `NO_WORK` are not interchangeable. Every non-ready state explains what happened, user impact, last-known-good/freshness when available, and the smallest corrective action.
 
 ## Dark Glass visual direction
 
-The user-approved direction is premium dark theme + restrained glassmorphism. It is not neon/cyberpunk/game HUD.
+Premium dark + restrained glassmorphism. Not neon, cyberpunk, or game HUD.
 
 ### Foundation
 
-- near-black neutral background with subtle depth
-- translucent surfaces only when layering communicates hierarchy
-- restrained background blur; never blur dense table/chart content
-- thin low-contrast borders + selective stronger boundary for focus/critical state
-- high-contrast primary text and quiet secondary text
+- near-black neutral background with subtle tonal depth
+- glass only where layer hierarchy is meaningful
+- restrained blur; never blur dense chart/table content
+- thin low-contrast boundaries
+- high-contrast primary text, quiet secondary text
 - tabular numerals for financial values
-- typography and spacing carry the hierarchy before color/effects
+- typography and spacing create hierarchy before color/effects
 
 ### Glass tiers
 
-- `glass.base`: navigation and persistent shell
-- `glass.raised`: decision / modal / urgent foreground surface
-- `glass.overlay`: transient sheet/dialog only
+- `glass.base` — navigation/persistent shell
+- `glass.raised` — dominant judgement, modal, urgent foreground
+- `glass.overlay` — transient sheet/dialog
 
-No more than two glass depth levels should visually compete in one viewport.
+No more than two glass depths compete in one viewport.
 
-### Color
+### Color and motion
 
-- no neon palette
+- remove active neon vocabulary from product presentation
 - no rainbow AI gradients
 - one restrained intelligence accent
-- green/red reserved for semantic positive/negative or safe/danger meaning
-- amber reserved for caution/stale/human-attention
-- state never communicated by color alone
-
-### Motion
-
-Motion communicates transition/change, never intelligence theatre. Respect reduced-motion. No orbit, particle field, scanning beam, glowing AI sphere, or decorative evidence animation on product surfaces.
+- green/red only for semantic positive/negative or safe/danger
+- amber for caution/stale/human attention
+- state is never color-only
+- no orbit/particle/scan/glowing-sphere/evidence-field theatre
+- motion communicates transition/change and respects reduced-motion
 
 ## Data visualisation
 
-- chart title must state subject and timeframe
-- stale/error/partial data is explicit on the chart itself
-- no sparkline if the underlying series is unavailable
-- comparative bars share meaningful scale
-- risk and confidence include provenance/meaning, not just percentage decoration
-- tables prioritize symbol/name -> state/change -> impact/action
+- chart title states subject and timeframe
+- stale/error/partial data appears on the chart itself
+- no sparkline without a real series
+- comparative bars use meaningful scale
+- confidence always includes calibration/provenance meaning
+- tables order information by subject -> state/change -> impact/action
+- raw prices do not outrank system truth or judgement
 
 ## Interaction and accessibility
 
-- mobile touch target >= 48px where practical; never below existing platform contract
-- visible focus on desktop
-- critical state includes text/iconography, not color only
-- dynamic type / text expansion must not hide authority or risk text
-- 360 / 390 / 430px mobile acceptance widths
-- keyboard operation and horizontal table accessibility on desktop
+- mobile target >= 48px where practical; never below existing platform contract
+- visible desktop focus
+- critical state uses text/icon + color
+- text expansion must not hide risk/authority truth
+- mobile acceptance: 360 / 390 / 430px
+- desktop keyboard/horizontal-region accessibility
 - reduced-motion honored
 
-## Mobile task flows
+## Critical task flows
 
 ### Understand current state
 
-Launch -> NUSA Live Brief -> answer current posture / risk / system truth without navigation.
+Launch -> NUSA -> identify current observation, PAPER/system state, data freshness and risk without navigation.
 
 Target: 0 additional taps.
 
-### Inspect a decision
+### Inspect AI reasoning
 
-NUSA -> Decision Object -> evidence/counter-evidence/invalidation/history.
+NUSA -> 판단 -> evidence / counter-evidence / uncertainty / calibration / scenario robustness.
 
-Target: <= 1 navigation transition from Home.
+Target: <= 1 primary navigation transition.
 
-### Validate an idea
+### Validate a judgement
 
-Decision -> PAPER simulation -> before/after portfolio impact -> confirm PAPER action.
+판단 -> PAPER supervision/learning evidence where the runtime provides a relationship.
 
-Target: one continuous workflow; no unrelated screen detour.
+Target: no fabricated simulation or order action. If linkage is unavailable, explain that validation evidence is unavailable rather than offering a dead control.
 
 ### Resolve a blocker
 
-Global truth rail / notice -> exact recovery destination.
+Truth rail/notice -> exact recovery destination where authority permits.
 
-Target: one tap from surfaced blocker to corrective control where authority permits.
+Target: one tap from surfaced blocker to corrective control when such a control exists.
 
 ## Responsive rules
 
-- 360: single-column, evidence FOR/AGAINST stacks, no clipped status semantics
+- 360: single-column; evidence/counter-evidence stack; status text never clips
 - 390: canonical mobile composition
-- 430: increase breathing room; do not inflate card count
-- tablet: max content width and two-column detail only when scan order remains obvious
-- desktop: density increases, hierarchy does not change
+- 430: more breathing room, not more card count
+- tablet: two-column detail only when scan order remains obvious
+- desktop: density increases; semantic hierarchy stays stable
 
 ## Design debt / drift findings on main
 
-1. Mobile Home currently leads with `LIVE INTELLIGENCE`, a decorative IntelligenceMotionField, and a large capital rail. This conflicts with the Decision Object-first product hierarchy.
-2. Mobile design tokens expose `neonPurple`, `neonBlue`, `neonTeal`, `neonGlow`; card API exposes a `neon` presentation. This conflicts with the approved non-neon visual direction.
-3. Desktop canonical architecture says `capital truth is the largest object`, while the current NUSA product requirement is judgement/system truth first. Cross-platform hierarchy is inconsistent.
-4. Mobile has a dedicated visible `AI` destination while the target IA makes AI the intelligence layer and uses `판단` as the user job.
-5. Existing AI detail is evidence-rich, but the primary hierarchy needs Decision -> trust -> evidence -> risk/invalidation -> safe action, with diagnostics progressively disclosed.
-6. Historical renderer theme files remain in-repo; they are permitted by architecture but require drift tests so inactive visuals cannot re-enter the active renderer.
+1. Mobile Home leads with `LIVE INTELLIGENCE`, decorative `IntelligenceMotionField`, and a large capital rail.
+2. Mobile design system exposes neon token/API vocabulary including `NusaCard(neon)`.
+3. Desktop canonical architecture states capital truth is the largest object, conflicting with judgement/system-truth priority.
+4. Mobile visible navigation still uses `AI`, while target IA uses the user job `판단`.
+5. AI detail already has valuable evidence/calibration/uncertainty content; recompose rather than duplicate it.
+6. `homeStatusRail` explicitly has no snapshot-history source (`changesSupported: false`).
+7. Production mobile PAPER is supervision/learning only; earlier “Decision -> simulation -> confirm PAPER action” language exceeded actual capability and is superseded by this revision.
+8. Current `AiReadOnlyProjection` cannot truthfully supply every aspirational Decision Object field. Missing fields remain unavailable until their canonical owners expose them.
 
 ## Implementation sequence
 
-P0 — information/state truth
+### P0 — truth and hierarchy
 
-- global first-glance status contract
-- state semantic components and unknown/error/stale distinctions
-- Home Decision Object hierarchy
-- authority wording/persistence
+- global first-glance state semantics
+- Home judgement/observation hierarchy
+- remove decorative intelligence dominance
+- preserve authority wording
+- unknown/error/stale distinction
 
-P1 — navigation and flows
+### P1 — navigation and reasoning
 
-- visible mobile IA convergence
-- Decision ledger/history
-- continuous Decision -> PAPER simulation flow
+- visible `AI` -> `판단` migration with route compatibility
+- reorganize existing AI evidence into Decision/Observation Object
+- PAPER supervision linkage only where backed by runtime evidence
 - blocker deep links
 
-P2 — Dark Glass visual system
+### P2 — Dark Glass system
 
-- semantic glass tokens and components
-- eliminate active neon/decorative intelligence surfaces
-- charts/tables/KPI hierarchy
+- semantic glass surface tokens
+- retire active neon/decorative motion presentation
+- charts/tables/KPI hierarchy cleanup
 - responsive parity
 
-P3 — parity and debt prevention
+### P3 — parity and drift prevention
 
 - screenshot acceptance at 360/390/430
 - desktop responsive/accessibility checks
@@ -287,21 +271,23 @@ P3 — parity and debt prevention
 
 ## Acceptance metrics
 
-For critical tasks, measure before/after where telemetry/evidence exists:
+Measure where telemetry/evidence exists:
 
-- taps / clicks
+- taps/clicks
 - navigation transitions
-- time to identify failure or stale data
-- time to identify current NUSA posture/risk
+- time to identify failure/stale data
+- time to identify current NUSA observation/risk
 - task completion steps
 - authority misunderstanding risk
 - mobile overflow/clipping
-- accessibility violations
+- accessibility failures
 - screenshot parity against approved implementation-ready mockup
 
 ## Core decisions required
 
-1. Approve visible mobile IA rename/convergence from `AI` to `판단` while retaining route compatibility during migration.
-2. Approve judgement/system truth as the cross-platform first-viewport priority over universal capital-first hierarchy.
-3. Approve Dark Glass as product visual direction and deprecate active neon/decorative intelligence motifs.
-4. Confirm whether Autopilot is a desktop-only operational surface or should gain a progressive mobile status/detail surface. Do not expose operational mutation controls by presentation alone.
+1. Approve visible mobile IA migration `AI` -> `판단` while retaining route compatibility.
+2. Approve judgement/system truth over universal capital-first hierarchy.
+3. Approve Dark Glass/non-neon product direction.
+4. Decide Autopilot exposure boundary on mobile.
+5. Decide whether new canonical projections should be created for: decision history/change, stance, invalidation, portfolio impact, and Autopilot detail. UI will not infer them.
+6. Decide whether PR #1838 is reworked into this contract or superseded.
