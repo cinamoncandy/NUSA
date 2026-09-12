@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { canonicalAuditDedupeKey, isRetryableAuditExecutionError } from "./auditExecutionIdentity";
 
 const base = {
@@ -14,24 +15,24 @@ describe("canonicalAuditDedupeKey", () => {
     const firstRun = { ...base, auditExecutionRunId: 34541568889, callerDedupeKey: "audit:34541568889" };
     const secondRun = { ...base, auditExecutionRunId: 34541579411, callerDedupeKey: "audit:34541579411" };
 
-    expect(canonicalAuditDedupeKey(firstRun)).toBe(canonicalAuditDedupeKey(secondRun));
+    assert.equal(canonicalAuditDedupeKey(firstRun), canonicalAuditDedupeKey(secondRun));
   });
 
   it("treats a new exact head or canonical CI run as a new identity", () => {
-    expect(canonicalAuditDedupeKey({ ...base, workflowRunId: base.workflowRunId + 1 })).not.toBe(canonicalAuditDedupeKey(base));
-    expect(canonicalAuditDedupeKey({ ...base, headSha: "b".repeat(40) })).not.toBe(canonicalAuditDedupeKey(base));
+    assert.notEqual(canonicalAuditDedupeKey({ ...base, workflowRunId: base.workflowRunId + 1 }), canonicalAuditDedupeKey(base));
+    assert.notEqual(canonicalAuditDedupeKey({ ...base, headSha: "b".repeat(40) }), canonicalAuditDedupeKey(base));
   });
 
   it("binds base SHA as a stronger stale-base boundary", () => {
-    expect(canonicalAuditDedupeKey({ ...base, baseSha: "d".repeat(40) })).not.toBe(canonicalAuditDedupeKey(base));
+    assert.notEqual(canonicalAuditDedupeKey({ ...base, baseSha: "d".repeat(40) }), canonicalAuditDedupeKey(base));
   });
 });
 
 describe("isRetryableAuditExecutionError", () => {
   it("allows only transient transport/service failures to reopen the lease", () => {
-    expect(isRetryableAuditExecutionError(new Error("HTTP 503 upstream unavailable"))).toBe(true);
-    expect(isRetryableAuditExecutionError(new Error("network timeout"))).toBe(true);
-    expect(isRetryableAuditExecutionError(new Error("AUDIT_VERDICT_JSON_INVALID"))).toBe(false);
-    expect(isRetryableAuditExecutionError(new Error("AUDIT_PR_HEAD_MISMATCH"))).toBe(false);
+    assert.equal(isRetryableAuditExecutionError(new Error("HTTP 503 upstream unavailable")), true);
+    assert.equal(isRetryableAuditExecutionError(new Error("network timeout")), true);
+    assert.equal(isRetryableAuditExecutionError(new Error("AUDIT_VERDICT_JSON_INVALID")), false);
+    assert.equal(isRetryableAuditExecutionError(new Error("AUDIT_PR_HEAD_MISMATCH")), false);
   });
 });
