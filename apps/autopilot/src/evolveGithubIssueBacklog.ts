@@ -60,8 +60,7 @@ function linkedIssueNumbers(openPulls: readonly unknown[]): ReadonlySet<number> 
     const pull = object(value);
     if (!pull) continue;
     const haystack = `${text(pull.title) ?? ""}\n${text(pull.body) ?? ""}`;
-    const matcher = /(?:fix(?:e[sd])?|close[sd]?|resolve[sd]?|related(?:\s+to)?|for|issue)\s*:?[\s#]*(\d+)/gi;
-    for (const match of haystack.matchAll(matcher)) {
+    for (const match of haystack.matchAll(/#(\d+)/g)) {
       const issueNumber = Number(match[1]);
       if (Number.isSafeInteger(issueNumber) && issueNumber > 0) linked.add(issueNumber);
     }
@@ -91,8 +90,8 @@ function eligibleIssue(value: unknown, linked: ReadonlySet<number>): EligibleIss
  * Read-only adapter from canonical GitHub backlog evidence into the existing
  * #903/#905 discovery path. It does not claim work or mutate GitHub. Only
  * owner-authored, safety-bounded P0/P1 Autopilot issues with no blocking label
- * and no linked open PR become READY candidates. Dispatch remains bounded to
- * one signal per scheduler pass; the full eligible count remains observable.
+ * and no reference from an open PR become READY candidates. Dispatch remains
+ * bounded to one signal per scheduler pass; the full eligible count is visible.
  */
 export function deriveGithubIssueBacklogReadiness(
   issues: readonly unknown[],
