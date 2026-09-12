@@ -19,7 +19,7 @@ test("mobile pairing source uses direct atomic session issuance and retains no p
   assert.match(service, /PAIRING_SUPERSEDED/);
   assert.match(service, /SAME_DEVICE_RETRY/);
   assert.match(service, /state='APPROVED'[\s\S]*approved pairing already active[\s\S]*state='PENDING'/);
-  assert.doesNotMatch(service, /device_id_hash=\? AND state IN \('PENDING','APPROVED'\) AND expires_at>\?/);
+  assert.doesNotMatch(service, /UPDATE mobile_pairing_requests SET state='EXPIRED',expires_at=\? WHERE device_id_hash=\? AND state IN \('PENDING','APPROVED'\)/);
   assert.match(service, /transaction\(\(\) => \{[\s\S]*device_id_hash=\?[\s\S]*MAX_ACTIVE_PAIRINGS[\s\S]*INSERT INTO mobile_pairing_requests/);
   assert.match(service, /CLIENT_REVOKED_RECOVERY_ISSUED_BEFORE/);
   assert.match(service, /BOOTSTRAP_RECOVERED_AFTER_CLIENT_REVOKE/);
