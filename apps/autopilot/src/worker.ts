@@ -1,5 +1,5 @@
-import baseWorker, { handleCodingExecute, type Env as BaseEnv } from "./index";
-import { acquirePersistentExecution, ExecutionCoordinator, releasePersistentExecution } from "./executionCoordinator";
+import baseWorker, { globalReleaseFreezeActive, handleCodingExecute, type Env as BaseEnv } from "./index";
+import { acquirePersistentExecution, ExecutionCoordinator, readPersistentControlPlaneHold, releasePersistentExecution } from "./executionCoordinator";
 import {
   executeCodingRunner,
   validateCodingRunnerRequest,
@@ -191,6 +191,19 @@ async function handleAuditExecute(request: Request, env: WorkerEnv): Promise<Res
     auditRequest = validateAuditRunnerRequest(await request.json(), allowedRepository);
   } catch (error) {
     return json({ accepted: false, status: "AUDIT_FAILED_CLOSED", error: error instanceof Error ? error.message : "AUDIT_RUNNER_REQUEST_INVALID", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 400);
+  }
+
+  if (globalReleaseFreezeActive(env)) {
+    return json({ accepted: false, status: "AUDIT_FAILED_CLOSED", error: "GLOBAL_RELEASE_FREEZE_ACTIVE", reviewedHeadSha: auditRequest.headSha, baseSha: auditRequest.baseSha, workflowRunId: auditRequest.workflowRunId, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 409);
+  }
+  let persistedHold;
+  try {
+    persistedHold = await readPersistentControlPlaneHold(env.NUSA_EXECUTION_COORDINATOR, { repository: auditRequest.repository, prNumber: auditRequest.prNumber, headSha: auditRequest.headSha, baseSha: auditRequest.baseSha });
+  } catch {
+    return json({ accepted: false, status: "AUDIT_FAILED_CLOSED", error: "CONTROL_PLANE_HOLD_READ_FAILED", reviewedHeadSha: auditRequest.headSha, baseSha: auditRequest.baseSha, workflowRunId: auditRequest.workflowRunId, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 409);
+  }
+  if (persistedHold?.state === "ACTIVE") {
+    return json({ accepted: false, status: "AUDIT_FAILED_CLOSED", error: "CONTROL_PLANE_HOLD_ACTIVE", reviewedHeadSha: auditRequest.headSha, baseSha: auditRequest.baseSha, workflowRunId: auditRequest.workflowRunId, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 409);
   }
 
   const startedAt = Date.now();
