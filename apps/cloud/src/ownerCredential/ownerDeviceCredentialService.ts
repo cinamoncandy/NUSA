@@ -1,4 +1,4 @@
-import { createHash, createPublicKey, randomBytes, randomUUID, verify } from "node:crypto";
+import { createHash, createPublicKey, randomBytes, verify } from "node:crypto";
 import type { SqliteDatabase } from "../../../../packages/storage/src/index";
 import { isUserAllowed, type NusaUserAccessRepository } from "../operatorUserAccess";
 import type { MobileSessionService, MobileSessionTokens } from "../mobileSessionService";
