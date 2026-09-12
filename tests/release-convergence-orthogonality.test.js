@@ -32,3 +32,26 @@ test('deployment watchdog stays a runtime repair loop and cannot assert Release 
   assert.doesNotMatch(workflow, /nusa\/release-authorized/);
   assert.doesNotMatch(workflow, /DETERMINISTIC_AUDIT_PASS/);
 });
+
+
+test('RELEASE_COMPLETE has one production classifier and outer workflow success cannot mint it elsewhere', () => {
+  const productionRoots = ['apps/autopilot/src', '.github/workflows'];
+  const offenders = [];
+  const walk = (relative) => {
+    const absolute = path.join(root, relative);
+    for (const entry of fs.readdirSync(absolute, { withFileTypes: true })) {
+      const child = path.join(relative, entry.name);
+      if (entry.isDirectory()) walk(child);
+      else if (/\.(?:ts|ya?ml)$/i.test(entry.name) && !/\.test\.ts$/i.test(entry.name)) {
+        const text = read(child);
+        const canMint = /(?:return\s+[\"']RELEASE_COMPLETE[\"']|RELEASE_STATUS\s*=\s*RELEASE_COMPLETE|release_status\s*:\s*[\"']?RELEASE_COMPLETE)/.test(text);
+        if (canMint && child !== 'apps/autopilot/src/releaseCompletion.ts') offenders.push(child);
+      }
+    }
+  };
+  productionRoots.forEach(walk);
+  assert.deepEqual(offenders, []);
+  const evaluator = read('apps/autopilot/src/releaseCompletion.ts');
+  assert.match(evaluator, /TrustedReleaseAuthorityPolicy/);
+  assert.doesNotMatch(evaluator, /authorization\.expectedAppId/);
+});

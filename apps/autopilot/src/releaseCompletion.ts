@@ -16,7 +16,6 @@ export interface ReleaseCompletionEvidence {
     present: boolean;
     headSha: string | null;
     appId: string | null;
-    expectedAppId: string | null;
   }>;
   readonly merge: Readonly<{
     succeeded: boolean;
@@ -32,9 +31,18 @@ export interface ReleaseCompletionEvidence {
   }>;
 }
 
-const SHA40 = /^[0-9a-f]{40}$/i;
+export interface TrustedReleaseAuthorityPolicy {
+  /** Dedicated GitHub App ID from protected Release-authority configuration, never caller evidence. */
+  readonly appId: string;
+}
 
-export function evaluateReleaseCompletion(evidence: ReleaseCompletionEvidence): ReleaseCompletionStatus {
+const SHA40 = /^[0-9a-f]{40}$/i;
+const APP_ID = /^[1-9][0-9]*$/;
+
+export function evaluateReleaseCompletion(
+  evidence: ReleaseCompletionEvidence,
+  policy: TrustedReleaseAuthorityPolicy,
+): ReleaseCompletionStatus {
   if (!evidence.applicable || evidence.auditAuthority === "NONE") return "RELEASE_NOT_APPLICABLE";
   if (evidence.auditAuthority !== "DETERMINISTIC_AUDIT_PASS") return "NOT_RELEASED";
   if (evidence.releaseJobConclusion !== "success") return "NOT_RELEASED";
@@ -45,8 +53,8 @@ export function evaluateReleaseCompletion(evidence: ReleaseCompletionEvidence): 
   if (!SHA40.test(expectedHead) || !SHA40.test(expectedBase)
     || !evidence.authorization.present
     || authorizationHead !== expectedHead
-    || !evidence.authorization.expectedAppId
-    || evidence.authorization.appId !== evidence.authorization.expectedAppId) {
+    || !APP_ID.test(policy.appId)
+    || evidence.authorization.appId !== policy.appId) {
     return "RELEASE_PROVENANCE_MISSING";
   }
 
