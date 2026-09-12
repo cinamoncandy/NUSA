@@ -207,8 +207,9 @@ jobs:
       cancel-in-progress: false
     permissions:
       actions: write
-      contents: write
-      pull-requests: write
+      contents: read
+      issues: read
+      pull-requests: read
     env:
       GH_TOKEN: ${{ github.token }}
       PR_NUMBER: ${{ github.event.client_payload.pr_number }}
@@ -226,6 +227,31 @@ jobs:
           test "$(jq -r '.base.ref' <<<"$pr")" = "main"
           test "$(jq -r '.base.sha' <<<"$pr")" = "$AUDITED_BASE"
           test "$main" = "$AUDITED_BASE"
+
+      - name: Enforce canonical P0 Release serialization
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues?state=open&per_page=100" > "$RUNNER_TEMP/nusa-release-open-issues-pages.json"
+          pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          PR_JSON="$pr" node - <<'NODE'
+          const fs = require('fs');
+          const fail = (message) => { console.error(message); process.exit(1); };
+          const pages = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/nusa-release-open-issues-pages.json`, 'utf8'));
+          const pull = JSON.parse(process.env.PR_JSON);
+          const openIssues = Array.isArray(pages) ? pages.flat() : [];
+          const critical = openIssues
+            .filter((issue) => !issue?.pull_request && issue?.state === 'open'
+              && /^P0(?:\s|:)/i.test(String(issue?.title || ''))
+              && /\bRefs\s+#903\b/i.test(String(issue?.body || '')))
+            .sort((a, b) => String(a?.created_at || '').localeCompare(String(b?.created_at || '')) || Number(a?.number || 0) - Number(b?.number || 0));
+          if (critical.length === 0) process.exit(0);
+          const active = critical[0];
+          const closesActive = new RegExp(`(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\\s+#${active.number}\\b`, 'i').test(String(pull.body || ''));
+          if (!closesActive) fail(`Release serialized behind canonical P0 #903 repair #${active.number}`);
+          console.log(`Canonical P0 #903 serialization permits PR #${pull.number} to close active repair #${active.number}`);
+          NODE
 
       - name: Mint dedicated release authority token
         id: release_authority_token
@@ -280,6 +306,8 @@ jobs:
 
       - name: Canonical expected-head merge
         id: merge
+        env:
+          GH_TOKEN: ${{ steps.release_authority_token.outputs.token }}
         run: |
           set -euo pipefail
 
