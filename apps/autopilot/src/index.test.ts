@@ -168,14 +168,17 @@ describe("NUSA autopilot GitHub webhook", () => {
 
 
   it("persists global freeze HOLD before replayed Ready-for-review can advance", async () => {
-    const coordinators = new Map<string, ExecutionCoordinator>();
+    const storages = new Map<string, MemoryStorage>();
     const namespace: ExecutionCoordinatorNamespace = {
       idFromName: (name) => ({ name }),
       get: (id) => {
         const name = String((id as { name?: unknown }).name ?? "");
-        let coordinator = coordinators.get(name);
-        if (!coordinator) { coordinator = new ExecutionCoordinator({ storage: new MemoryStorage() }); coordinators.set(name, coordinator); }
-        return { fetch: (input: RequestInfo | URL, init?: RequestInit) => coordinator!.fetch(new Request(input, init)) };
+        let storage = storages.get(name);
+        if (!storage) { storage = new MemoryStorage(); storages.set(name, storage); }
+        // Recreate the coordinator for every stub lookup. Durable storage is the only shared
+        // state, proving a delayed/replayed event cannot rely on process-local HOLD memory.
+        const coordinator = new ExecutionCoordinator({ storage });
+        return { fetch: (input: RequestInfo | URL, init?: RequestInit) => coordinator.fetch(new Request(input, init)) };
       },
     };
     const headSha = "a".repeat(40);
@@ -199,9 +202,11 @@ describe("NUSA autopilot GitHub webhook", () => {
     assert.equal(replay.status, 202);
     assert.equal((await first.json() as { status: string; reason: string }).reason, "CONTROL_PLANE_HOLD_ACTIVE");
     assert.equal((await replay.json() as { status: string; reason: string }).reason, "CONTROL_PLANE_HOLD_ACTIVE");
-    const holdCoordinator = [...coordinators.entries()].find(([name]) => name.startsWith("control-plane-hold:"))?.[1];
-    assert.ok(holdCoordinator);
-    const persisted = await holdCoordinator.fetch(new Request("https://execution-coordinator/control-plane-hold"));
+    const holdStorage = [...storages.entries()].find(([name]) => name.startsWith("control-plane-hold:"))?.[1];
+    assert.ok(holdStorage);
+    // New coordinator instance simulates Worker/DO object recreation after the first event.
+    const restored = new ExecutionCoordinator({ storage: holdStorage });
+    const persisted = await restored.fetch(new Request("https://execution-coordinator/control-plane-hold"));
     const record = await persisted.json() as { hold: { state: string; prNumber: number; headSha: string; baseSha: string } };
     assert.deepEqual({ state: record.hold.state, prNumber: record.hold.prNumber, headSha: record.hold.headSha, baseSha: record.hold.baseSha }, { state: "ACTIVE", prNumber: 1854, headSha, baseSha });
   });
