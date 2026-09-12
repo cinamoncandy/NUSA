@@ -42,11 +42,15 @@ test("backlog readiness excludes HOLD, BLOCKED_HUMAN and REWORK labels", () => {
   assert.equal(deriveGithubIssueBacklogReadiness(blocked, [], NOW).eligibleIssueCount, 0);
 });
 
-test("backlog readiness excludes issue already represented by an open PR", () => {
-  const pulls = [{ title: "fix: sticky hold", body: "Fixes #903" }];
-  const result = deriveGithubIssueBacklogReadiness([issue()], pulls, NOW);
-  assert.equal(result.eligibleIssueCount, 0);
-  assert.deepEqual(result.signals, []);
+test("backlog readiness excludes issue referenced by any open PR", () => {
+  for (const pull of [
+    { title: "fix: sticky hold", body: "Fixes #903" },
+    { title: "control-plane containment #903", body: "No closing keyword." },
+  ]) {
+    const result = deriveGithubIssueBacklogReadiness([issue()], [pull], NOW);
+    assert.equal(result.eligibleIssueCount, 0);
+    assert.deepEqual(result.signals, []);
+  }
 });
 
 test("backlog readiness fails closed for PR wrappers, untrusted authors, unsafe and unrelated work", () => {
