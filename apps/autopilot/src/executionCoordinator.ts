@@ -172,10 +172,10 @@ function validHoldClearance(value: unknown, identity?: ControlPlaneHoldIdentity)
 
 function validPersistedControlPlaneHold(value: unknown): value is PersistedControlPlaneHold {
   if (!value || typeof value !== "object") return false;
-  const record = value as Partial<PersistedControlPlaneHold>;
-  return record.schemaVersion === 1
-    && validControlPlaneHoldIdentity(record)
-    && validExecutionHold(record.hold, record as ControlPlaneHoldIdentity)
+  const candidate = value as Partial<PersistedControlPlaneHold>;
+  if (candidate.schemaVersion !== 1 || !validControlPlaneHoldIdentity(candidate)) return false;
+  const record = value as Partial<PersistedControlPlaneHold> & ControlPlaneHoldIdentity;
+  return validExecutionHold(record.hold, record)
     && (record.state === "ACTIVE" || record.state === "CLEARED")
     && validSafeTimestamp(record.updatedAt);
 }
@@ -526,10 +526,11 @@ export class ExecutionCoordinator {
 
   private async applyControlPlaneHold(value: unknown): Promise<Response> {
     if (!value || typeof value !== "object") return json({ error: "CONTROL_PLANE_HOLD_REQUEST_INVALID" }, 400);
-    const request = value as Partial<ApplyControlPlaneHoldRequest>;
-    if (!validControlPlaneHoldIdentity(request) || !validExecutionHold(request.hold, request as ControlPlaneHoldIdentity) || !validSafeTimestamp(request.now)) {
+    const candidate = value as Partial<ApplyControlPlaneHoldRequest>;
+    if (!validControlPlaneHoldIdentity(candidate) || !validExecutionHold(candidate.hold, candidate) || !validSafeTimestamp(candidate.now)) {
       return json({ error: "CONTROL_PLANE_HOLD_REQUEST_INVALID" }, 400);
     }
+    const request = value as ApplyControlPlaneHoldRequest;
     const existing = await this.ctx.storage.get<unknown>(CONTROL_PLANE_HOLD_STORAGE_KEY);
     if (existing != null && !validPersistedControlPlaneHold(existing)) return json({ error: "CONTROL_PLANE_HOLD_CORRUPT" }, 500);
     if (existing) {
@@ -553,10 +554,11 @@ export class ExecutionCoordinator {
 
   private async clearControlPlaneHold(value: unknown): Promise<Response> {
     if (!value || typeof value !== "object") return json({ error: "CONTROL_PLANE_HOLD_REQUEST_INVALID" }, 400);
-    const request = value as Partial<ClearControlPlaneHoldRequest>;
-    if (!validControlPlaneHoldIdentity(request) || !validHoldClearance(request.clearance, request as ControlPlaneHoldIdentity) || !validSafeTimestamp(request.now)) {
+    const candidate = value as Partial<ClearControlPlaneHoldRequest>;
+    if (!validControlPlaneHoldIdentity(candidate) || !validHoldClearance(candidate.clearance, candidate) || !validSafeTimestamp(candidate.now)) {
       return json({ error: "CONTROL_PLANE_HOLD_REQUEST_INVALID" }, 400);
     }
+    const request = value as ClearControlPlaneHoldRequest;
     if (request.clearance.globalReleaseFreeze || request.clearance.blockedHuman || request.clearance.reworkRequired) {
       return json({ error: "CONTROL_PLANE_HOLD_CLEAR_BLOCKED" }, 409);
     }
