@@ -1,0 +1,22 @@
+id: WO-ISSUE-1840-STRATEGY-SIGNAL-BOUNDARY
+title: Harden canonical Strategy signal runtime boundary
+status: READY_FOR_EXACT_HEAD_CI
+authority_impact: none
+branch: fix/strategy-signal-boundary-1840
+base_sha: c8095fe38d2ea097fbe167819ccf19f4260a7271
+issue: 1840
+scope: "Validate dynamic Strategy signal outputs at the canonical StrategyEngine runtime boundary and convert malformed outputs to deterministic HOLD before downstream decision/risk/execution processing."
+constraints:
+  canonical_strategy_engine: packages/core/src/strategyEngine.ts
+  second_strategy_engine: prohibited
+  market_or_oos_evaluation: prohibited
+  parameter_retuning: prohibited
+  qualification_threshold_changes: prohibited
+  capital_or_execution_authority: prohibited
+validation:
+  focused_strategy_boundary_tests: "PASS targeted compile plus malformed/valid runtime assertions; CI regression file added"
+  typecheck_build: "PASS targeted TypeScript emit; repository-wide exact-head CI pending"
+  architecture_safety_ai_zero_authority: "PASS"
+  aipos_work_order_provenance: "PASS"
+safety: PAPER_SHADOW_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+next_permitted_action: "Complete focused validation and exact-head CI/Audit; merge only through canonical Release authority."
