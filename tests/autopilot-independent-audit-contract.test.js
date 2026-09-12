@@ -16,10 +16,8 @@ function auditJobSlice() {
 
 function auditRecoveryJobSlice() {
   const start = workflow.indexOf("  audit-recovery:");
-  const end = workflow.indexOf("\n  release:", start);
   assert.ok(start >= 0, "Audit recovery job must exist");
-  assert.ok(end > start, "Audit recovery job must end before release");
-  return workflow.slice(start, end);
+  return workflow.slice(start);
 }
 
 test("execution consumer removes workflow-wide mutation permissions", () => {
@@ -88,14 +86,17 @@ test("Audit always executes independently and exposes trusted same-workflow Rele
   assert.match(auditJob, /authorization source: \*\*same-workflow trusted output; this comment has no authority\*\*/);
 });
 
-test("Audit recovery is bounded to classified transient executor failures", () => {
+test("Audit recovery is bounded to classified transient executor failures and stale requests fail closed", () => {
   const auditJob = auditJobSlice();
+  const recovery = auditRecoveryJobSlice();
   assert.match(auditJob, /Classify Audit failure boundary/);
   assert.match(auditJob, /4006\|daily free allocation\|neurons\|quota/);
   assert.match(auditJob, /failureClass = 'executor_unavailable'/);
   assert.match(auditJob, /recovery = 'retry'/);
   assert.match(workflow, /needs\.audit-request\.outputs\.recovery == 'retry'/);
-  assert.match(workflow, /needs\.audit-request\.outputs\.applicable == 'true'/);
+  assert.match(recovery, /state.*!=.*open/);
+  assert.match(recovery, /current_head.*!=.*REQUESTED_HEAD/);
+  assert.match(recovery, /Audit recovery suppressed: PR is closed or head moved/);
 });
 
 test("only clean PASS automatically authorizes Release", () => {
