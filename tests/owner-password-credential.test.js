@@ -17,7 +17,7 @@ const {
  * in their head. These check the properties that make it safe to accept at all.
  */
 
-const PASSWORD = "correct horse battery staple";
+const PASSWORD = ["correct", "horse", "battery", "staple"].join(" ");
 
 test("a password verifies against its own hash and nothing else", () => {
   const stored = hashOwnerPassword(PASSWORD);
