@@ -1,0 +1,24 @@
+id: WO-UI-20260911-IDENTITY-07
+title: Apply owner-approved NUSA identity 07
+status: IN_PROGRESS
+authority_impact: none
+base_commit: c8095fe38d2ea097fbe167819ccf19f4260a7271
+implementation_branch: codex/mobile-identity-07
+scope:
+  - Ink, ivory and chartreuse master theme using existing tokens.
+  - Readable HOME evidence-first presentation with connection recovery before judgment.
+exclusions:
+  - No auth, trading, persistence, navigation or AI-policy changes.
+  - Preserve independent PR 1838 AI hierarchy work.
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run typecheck
+  - pnpm run build
+  - pnpm run lint
+  - pnpm run validate:full
+  - pnpm run security:gate
+  - node --test tests/mobile-identity-07.test.js tests/mobile-design-system-v1.test.js tests/mobile-porcelain-cobalt.test.js
+next_permitted_action: Implement and validate; independent Audit/Release before deployment.

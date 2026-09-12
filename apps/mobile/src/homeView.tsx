@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useTheme } from "./ThemeProvider";
-import { intelligenceFieldColors } from "./designSystem";
 import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
 import { buildHomeDecisionSurface } from "./homeDecisionSurface";
 import { buildHomeStatusRail } from "./homeStatusRail";
@@ -13,7 +12,7 @@ import { freshestObservedAtMs, type WatchlistMarket } from "./watchlist";
 import { buildChartViewModel, type PublicCandle } from "./chartViewModel";
 import { CandlePlot } from "./chartView";
 import { FactRow, StateNotice } from "./intelligenceOs";
-import { IntelligenceMotionField, MotionReveal } from "./components";
+import { MotionReveal } from "./components";
 import { BUILD_SOURCE_SHA } from "./generatedBuildConfig";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
@@ -141,10 +140,10 @@ export function HomeView({
   const pnlColor = totalPnl == null ? theme.colors.text : totalPnl >= 0 ? theme.colors.success : theme.colors.danger;
   const connectionLabel = disconnected ? "SETUP" : readOnlyError ? "DEGRADED" : snapshot?.readyForPaperOperations ? "ACTIVE" : "OBSERVING";
   const postureDisplay = disconnected ? "PAPER 연결 필요" : posture;
-  const intelligenceSurface = intelligenceFieldColors.surface;
-  const intelligenceBorder = intelligenceFieldColors.heroBorder;
-  const intelligenceText = intelligenceFieldColors.text;
-  const intelligenceMuted = intelligenceFieldColors.heroMuted;
+  const intelligenceSurface = theme.colors.surface;
+  const intelligenceBorder = theme.colors.border;
+  const intelligenceText = theme.colors.text;
+  const intelligenceMuted = theme.colors.textMuted;
 
   return <View style={[styles.shell, { backgroundColor: theme.colors.background }]} testID="home-screen">
     <ScrollView
@@ -168,21 +167,23 @@ export function HomeView({
         <View style={styles.hiddenAcceptanceHooks}><Text style={[styles.glanceBuild, { color: theme.colors.textMuted }]} testID="home-build-source">BUILD {packagedBuildLabel} · UI INTELLIGENCE OS</Text></View>
       </View>
 
+      <Text style={[styles.identityLine, { color: theme.colors.textMuted }]}>판단은 검증으로 쌓인다.</Text>
+      {disconnected || readOnlyError ? <Pressable accessibilityRole="button" onPress={onGoSettings} style={{ minHeight: 48 }} testID="home-operational-notice"><StateNotice title={disconnected ? "PAPER 연결 필요" : "PAPER 연결 오류"} detail={`${disconnected ? "Cloud endpoint와 세션을 검증해야 합니다." : readOnlyError ?? "읽기 상태를 확인할 수 없습니다."} · 설정 열기`} tone="warning" /></Pressable> : null}
+
       <MotionReveal testID="home-intelligence-reveal">
         <View style={[styles.intelligenceHero, tablet ? styles.intelligenceHeroTablet : null, { backgroundColor: intelligenceSurface, borderColor: intelligenceBorder }]} testID="home-now">
           <View style={styles.intelligenceCopy}>
             <View style={styles.heroTop}>
-              <View style={styles.liveIntelligenceLabel}><View style={[styles.heroStatusDot, { backgroundColor: systemColor }]} /><Text style={[styles.eyebrow, { color: theme.colors.aiSignalEnd }]}>LIVE INTELLIGENCE</Text></View>
+              <View style={styles.liveIntelligenceLabel}><Text style={[styles.eyebrow, { color: theme.colors.primary }]}>NUSA · 관찰과 검증</Text></View>
             </View>
-            <Text style={[styles.heroTitle, { color: intelligenceText }]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.82}>{postureDisplay}</Text>
-            <Text style={[styles.heroDetail, { color: intelligenceMuted }]} numberOfLines={3}>{why}</Text>
+            <Text style={[styles.heroTitle, { color: intelligenceText }]}>{postureDisplay}</Text>
+            <Text style={[styles.heroDetail, { color: intelligenceMuted }]}>{why}</Text>
             <View style={styles.intelligenceMeta}>
               <View><Text style={[styles.metaLabel, { color: intelligenceMuted }]}>EVIDENCE</Text><Text style={[styles.metaValue, { color: intelligenceText }]}>{ai?.status === "AVAILABLE" ? String(ai.evidenceReferences.length) : "—"}</Text></View>
               <View><Text style={[styles.metaLabel, { color: intelligenceMuted }]}>RISK</Text><Text style={[styles.metaValue, { color: riskColor }]}>{rail.riskLabel}</Text></View>
               <View><Text style={[styles.metaLabel, { color: intelligenceMuted }]}>MODE</Text><Text style={[styles.metaValue, { color: intelligenceText }]}>PAPER</Text></View>
             </View>
           </View>
-          <IntelligenceMotionField active={!disconnected && readOnlyError == null} evidenceCount={ai?.status === "AVAILABLE" ? ai.evidenceReferences.length : 0} label="NUSA intelligence evidence motion" />
         </View>
       </MotionReveal>
 
@@ -200,8 +201,6 @@ export function HomeView({
           </View>
         </View>
       </MotionReveal>
-
-      {disconnected || readOnlyError ? <Pressable accessibilityRole="button" onPress={onGoSettings} testID="home-operational-notice"><StateNotice title={disconnected ? "PAPER 연결 필요" : "PAPER 연결 오류"} detail={`${disconnected ? "Cloud endpoint와 세션을 검증해야 합니다." : readOnlyError ?? "읽기 상태를 확인할 수 없습니다."} · 설정 열기`} tone="warning" /></Pressable> : null}
 
       <MotionReveal testID="home-market-canvas-reveal">
         <View style={[styles.marketCanvas, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]} testID="home-public-market-chart">
@@ -293,13 +292,14 @@ const styles = StyleSheet.create({
   brandLockup: { flexDirection: "row", alignItems: "center", gap: 9 },
   liveDot: { width: 8, height: 8, borderRadius: 999 },
   brand: { fontSize: 19, lineHeight: 22, fontWeight: "900", letterSpacing: 2.3 },
-  statusCapsule: { minHeight: 30, borderWidth: StyleSheet.hairlineWidth, borderRadius: 999, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
+  identityLine: { fontSize: 16, lineHeight: 24, marginBottom: 8 },
+  statusCapsule: { minHeight: 48, borderWidth: StyleSheet.hairlineWidth, borderRadius: 999, paddingHorizontal: 16, alignItems: "center", justifyContent: "center" },
   statusCapsuleText: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 0.8 },
   glanceRail: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: -8 },
   glancePrimary: { flex: 1, minWidth: 180, fontSize: 10, lineHeight: 15, fontWeight: "700" },
   glanceRisk: { fontSize: 10, lineHeight: 15, fontWeight: "900", letterSpacing: 0.45 },
   glanceBuild: { fontSize: 9, lineHeight: 14, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  intelligenceHero: { overflow: "hidden", borderWidth: 1, borderRadius: 28, padding: 16, gap: 16, minHeight: 280 },
+  intelligenceHero: { borderWidth: 1, borderRadius: 22, padding: 24, gap: 16 },
   intelligenceHeroTablet: { flexDirection: "row", alignItems: "stretch" },
   intelligenceCopy: { flex: 1.05, minWidth: 0, gap: 10, justifyContent: "center" },
   liveIntelligenceLabel: { flexDirection: "row", alignItems: "center", gap: 7 },
@@ -322,7 +322,7 @@ const styles = StyleSheet.create({
   heroStatusDot: { width: 8, height: 8, borderRadius: 999 },
   eyebrow: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.45 },
   heroTitle: { maxWidth: 720, fontSize: 26, lineHeight: 32, fontWeight: "800", letterSpacing: -0.8 },
-  heroDetail: { maxWidth: 760, fontSize: 12, lineHeight: 19, fontWeight: "600" },
+  heroDetail: { maxWidth: 760, fontSize: 16, lineHeight: 25, fontWeight: "400" },
   heroChips: { flexDirection: "row", gap: 7, flexWrap: "wrap", paddingTop: 3 },
   chip: { minHeight: 26, borderRadius: 999, paddingHorizontal: 9, alignItems: "center", justifyContent: "center" },
   chipLabel: { fontSize: 8, lineHeight: 12, fontWeight: "900", letterSpacing: 0.7 },
