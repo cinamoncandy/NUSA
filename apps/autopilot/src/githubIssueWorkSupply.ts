@@ -3,8 +3,8 @@ export type GithubIssueWorkSupplyStatus = "OBSERVED" | "UNKNOWN";
 export interface GithubIssueWorkSupplySnapshot {
   readonly status: GithubIssueWorkSupplyStatus;
   readonly rawOpenIssueCount: number | null;
-  readonly readyWorkCount: null;
-  readonly readyWorkStatus: "UNKNOWN";
+  readonly readyWorkCount: number | null;
+  readonly readyWorkStatus: "OBSERVED" | "UNKNOWN";
   readonly reason: string;
 }
 
@@ -38,5 +38,22 @@ export function deriveGithubIssueWorkSupply(value: unknown): GithubIssueWorkSupp
     readyWorkCount: null,
     readyWorkStatus: "UNKNOWN",
     reason: "github-open-issue-backlog-observed-readiness-not-proven",
+  });
+}
+
+export function withObservedReadyWork(
+  supply: GithubIssueWorkSupplySnapshot,
+  readyWorkCount: number,
+): GithubIssueWorkSupplySnapshot {
+  if (supply.status !== "OBSERVED" || !Number.isSafeInteger(readyWorkCount) || readyWorkCount < 0) {
+    return supply.status === "OBSERVED"
+      ? Object.freeze({ ...supply, readyWorkCount: null, readyWorkStatus: "UNKNOWN", reason: "github-ready-work-count-invalid" })
+      : supply;
+  }
+  return Object.freeze({
+    ...supply,
+    readyWorkCount,
+    readyWorkStatus: "OBSERVED",
+    reason: "github-open-issue-backlog-and-ready-work-observed",
   });
 }
