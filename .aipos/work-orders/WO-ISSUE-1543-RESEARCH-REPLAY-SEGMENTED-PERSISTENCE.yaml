@@ -1,0 +1,67 @@
+version: 1
+id: WO-ISSUE-1543-RESEARCH-REPLAY-SEGMENTED-PERSISTENCE
+title: "Bound Research replay persistence growth without weakening immutable evidence"
+status: LOCAL_VALIDATED_PENDING_PR
+owner: nusa-development
+repository: cinamoncandy/NUSA
+issue: 1543
+base_branch: main
+base_commit: 5fd273babb2919578e428691aa9955a58644360c
+implementation_branch: fix/research-replay-segmented-persistence-1543
+authorization: "Explicit owner instruction in the NUSA pipeline-integration session to continue all remaining PAPER-only pipeline tasks after the segmented-persistence design and safety boundary were reported."
+objective: "Remove O(total historical archive bytes) rewrite growth from each canonical Research replay snapshot save while preserving immutable evidence, deterministic replay, provenance validation, duplicate detection, and fail-closed corruption handling."
+scope:
+  - "Freeze an existing canonical single-file replay archive as an immutable legacy base."
+  - "Persist subsequent immutable Research replay snapshots as fingerprint-addressed companion segments."
+  - "Maintain a small stat-bound catalog for bounded latest/read/save lookup after one validated legacy migration scan."
+  - "Preserve selected-snapshot full semantic replay before PAPER Research authority can be derived."
+  - "Add migration, idempotency, latest-identity, corruption, and duplicate-identity regressions."
+architecture_impact:
+  acknowledged: true
+  analysis: "Persistence layout only. Existing Research Factory, League, PAPER challenger, worker boundary, lineage identities, and authority model remain canonical; no second engine, scheduler, queue, service container, or execution path is introduced."
+  reused:
+    - apps/desktop/src/cloud/researchRunReplaySnapshotStore.ts
+    - apps/desktop/src/cloud/researchRunReplaySnapshotLatestWorker.ts
+constraints:
+  - "Legacy archive bytes must never be rewritten during migration."
+  - "New snapshot identity conflicts fail closed."
+  - "Once any segment exists, downgrade to the legacy single-file reader fails closed instead of silently selecting stale legacy evidence."
+  - "Catalog/segment corruption must not be treated as valid evidence."
+  - "No qualification threshold, DSR/PBO/OOS/regime/League rule, or candidate semantics may change."
+  - "No production deployment is performed by this work order."
+safety:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  brokerMutation: NONE
+  realMoneyMutation: NONE
+acceptance:
+  - "Existing single-file archives remain readable and byte-stable."
+  - "First migration scan validates the legacy archive and writes only companion metadata/segments."
+  - "Subsequent saves do not copy the complete historical archive."
+  - "Exact replay save remains idempotent."
+  - "Changed evidence under an existing immutable run fingerprint fails closed."
+  - "Latest identity remains deterministic and ambiguity fails closed."
+  - "Selected snapshots still undergo full semantic replay validation."
+  - "AI zero-authority and safety invariants remain green."
+verification_commands:
+  - "targeted TypeScript typecheck for replay store, replay snapshot, League bridge, and latest worker"
+  - "node --test tests/research-replay-snapshot-bounded-save.test.js"
+  - "node --test tests/research-replay-snapshot-latest-identity.test.js"
+  - "node scripts/validate-ai-zero-authority.js"
+  - "node scripts/validate-safety-invariants.js"
+  - "node scripts/validate-aipos-work-order-provenance.js"
+  - "node scripts/validate-aipos-cross-ai-conformance.js"
+  - "git diff --check"
+validation:
+  focused_bounded_save: PASS_6_OF_6
+  focused_latest_identity: PASS_4_OF_4
+  targeted_typecheck: PASS
+  ai_zero_authority: PASS
+  safety_invariants: PASS
+  full_project_typecheck: PENDING_EXACT_HEAD_CI
+  exact_head_ci: PENDING
+known_environment_limitations:
+  - "The low-memory Oracle development host has ~954 MiB RAM; a full-repository local tsc run exceeded the default Node heap before test execution. Targeted strict typecheck passed; exact-head CI remains the required full-project validation boundary."
+next_permitted_action: "Run AIPOS conformance/provenance checks, publish one focused PR, then require exact-head CI before merge."
