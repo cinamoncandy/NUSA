@@ -44,8 +44,9 @@ test('RELEASE_COMPLETE has one production classifier and outer workflow success 
       if (entry.isDirectory()) walk(child);
       else if (/\.(?:ts|ya?ml)$/i.test(entry.name) && !/\.test\.ts$/i.test(entry.name)) {
         const text = read(child);
+        const normalizedChild = child.split(path.sep).join('/');
         const canMint = /(?:return\s+[\"']RELEASE_COMPLETE[\"']|RELEASE_STATUS\s*=\s*RELEASE_COMPLETE|release_status\s*:\s*[\"']?RELEASE_COMPLETE)/.test(text);
-        if (canMint && child !== 'apps/autopilot/src/releaseCompletion.ts') offenders.push(child);
+        if (canMint && normalizedChild !== 'apps/autopilot/src/releaseCompletion.ts') offenders.push(normalizedChild);
       }
     }
   };
