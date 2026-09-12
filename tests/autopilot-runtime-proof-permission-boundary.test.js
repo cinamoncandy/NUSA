@@ -13,7 +13,7 @@ const trustedDispatch = workflow.slice(dispatchStart);
 test('#1860 PR-executed runtime proof has read-only token authority', () => {
   assert.ok(runtimeStart >= 0 && dispatchStart > runtimeStart);
   assert.match(workflow, /pull_request:/);
-  assert.match(runtimeProof, /permissions:\n\s+contents: read/);
+  assert.match(runtimeProof, /permissions:\r?\n\s+contents: read/);
   assert.doesNotMatch(runtimeProof, /actions: write/);
   assert.match(runtimeProof, /actions\/checkout@[0-9a-f]{40}/);
   assert.match(runtimeProof, /node scripts\/verify-autopilot-cloudflare-runtime\.mjs/);
@@ -21,7 +21,7 @@ test('#1860 PR-executed runtime proof has read-only token authority', () => {
 });
 
 test('#1860 Actions-write token is isolated in trusted no-checkout dispatch job', () => {
-  assert.match(trustedDispatch, /permissions:\n\s+contents: read\n\s+actions: write/);
+  assert.match(trustedDispatch, /permissions:\r?\n\s+contents: read\r?\n\s+actions: write/);
   assert.match(trustedDispatch, /github\.event_name != 'pull_request'/);
   assert.match(trustedDispatch, /github\.event_name != 'workflow_dispatch' \|\| github\.ref == 'refs\/heads\/main'/);
   assert.match(trustedDispatch, /test \"\$SOURCE_BRANCH\" = 'main'/);
