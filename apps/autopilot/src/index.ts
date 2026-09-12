@@ -7,6 +7,7 @@ import { executeCodingRunner, validateCodingRunnerRequest, type CodingPublisher,
 import { prepareProductionExecution } from "./productionExecutionSpine";
 import {
   acquirePersistentExecution,
+  applyPersistentControlPlaneHold,
   markPersistentExecutionDispatched,
   recordAutopilotExecutionTelemetry,
   readAutopilotExecutionTelemetry,
@@ -33,6 +34,8 @@ export interface Env {
   NUSA_AI_CODING_MODEL?: string;
   AI?: WorkersAiBinding;
   NUSA_DEPLOYMENT_REVISION?: string;
+  /** Fail closed by default; only an explicit deployment configuration may clear the global Release freeze. */
+  NUSA_GLOBAL_RELEASE_FREEZE?: string;
   NUSA_EXECUTION_COORDINATOR?: ExecutionCoordinatorNamespace;
 }
 
@@ -40,6 +43,10 @@ const DEFAULT_REPOSITORY = "cinamoncandy/NUSA";
 const CODING_EXECUTION_LEASE_MS = 20 * 60 * 1000;
 const json = (body: unknown, status = 200): Response => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8" } });
 const encoder = new TextEncoder();
+
+export function globalReleaseFreezeActive(env: Pick<Env, "NUSA_GLOBAL_RELEASE_FREEZE">): boolean {
+  return env.NUSA_GLOBAL_RELEASE_FREEZE?.trim().toLowerCase() !== "false";
+}
 
 async function persistCodingTelemetry(env: Env, input: AutopilotExecutionTelemetryInput): Promise<void> {
   if (!env.NUSA_EXECUTION_COORDINATOR) return;
@@ -298,8 +305,35 @@ export default {
     const body = await request.text();
     if (!await verifyGithubWebhookAuthorization(request, env, body, allowedRepository)) return json({ error: "GITHUB_WEBHOOK_UNAUTHORIZED" }, 401);
     let dispatch;
-    try { dispatch = planGithubWebhookDispatch(event, parseGithubWebhookPayload(body)); }
-    catch (error) { return json({ error: error instanceof Error ? error.message : "GITHUB_WEBHOOK_PAYLOAD_INVALID" }, 400); }
+    let payload: Record<string, unknown>;
+    try {
+      payload = parseGithubWebhookPayload(body);
+      dispatch = planGithubWebhookDispatch(event, payload);
+    } catch (error) { return json({ error: error instanceof Error ? error.message : "GITHUB_WEBHOOK_PAYLOAD_INVALID" }, 400); }
+
+    // During a global Release freeze, every observed PR identity is bound to one durable exact
+    // PR/head/base HOLD in the existing execution coordinator. Duplicate/replayed deliveries are
+    // idempotent; they can never clear the HOLD. A ready_for_review event is treated as evidence
+    // of an attempted promotion, not as authority to advance the pipeline.
+    if (event === "pull_request" && dispatch.kind === "PR_CHANGED" && dispatch.prNumber && dispatch.headSha && globalReleaseFreezeActive(env)) {
+      if (!env.NUSA_EXECUTION_COORDINATOR) return json({ error: "PERSISTENT_EXECUTION_COORDINATOR_REQUIRED", status: "CONTROL_PLANE_HOLD_REQUIRED" }, 503);
+      const pull = payload.pull_request && typeof payload.pull_request === "object" && !Array.isArray(payload.pull_request) ? payload.pull_request as Record<string, unknown> : null;
+      const base = pull?.base && typeof pull.base === "object" && !Array.isArray(pull.base) ? pull.base as Record<string, unknown> : null;
+      const baseSha = typeof base?.sha === "string" ? base.sha : "";
+      if (!/^[0-9a-f]{40}$/i.test(baseSha)) return json({ error: "CONTROL_PLANE_HOLD_BASE_SHA_REQUIRED" }, 409);
+      const holdId = `global-release-freeze:${dispatch.prNumber}:${dispatch.headSha.toLowerCase()}:${baseSha.toLowerCase()}`;
+      try {
+        await applyPersistentControlPlaneHold(env.NUSA_EXECUTION_COORDINATOR, {
+          repository: allowedRepository, prNumber: dispatch.prNumber, headSha: dispatch.headSha, baseSha, now: Date.now(),
+          hold: { holdId, prNumber: dispatch.prNumber, headSha: dispatch.headSha, baseSha, reason: "GLOBAL_RELEASE_FREEZE", source: "#1803/#1861" },
+        });
+      } catch (error) {
+        return json({ error: error instanceof Error ? error.message : "CONTROL_PLANE_HOLD_PERSIST_FAILED", status: "CONTROL_PLANE_HOLD_FAILED_CLOSED" }, 409);
+      }
+      if (dispatch.reason === "pull-request:ready_for_review") {
+        return json({ accepted: true, status: "NO_ACTION", reason: "CONTROL_PLANE_HOLD_ACTIVE", deliveryId, event, dispatch, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 202);
+      }
+    }
 
     // workflow_run.pull_requests is empty for cross-repository PRs, restricted forks, and some
     // pull_request_target runs -- not a reliable "no PR" signal. dispatchPlanner.ts still surfaces

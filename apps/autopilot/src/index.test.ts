@@ -166,6 +166,46 @@ describe("NUSA autopilot GitHub webhook", () => {
     });
   });
 
+
+  it("persists global freeze HOLD before replayed Ready-for-review can advance", async () => {
+    const coordinators = new Map<string, ExecutionCoordinator>();
+    const namespace: ExecutionCoordinatorNamespace = {
+      idFromName: (name) => ({ name }),
+      get: (id) => {
+        const name = String((id as { name?: unknown }).name ?? "");
+        let coordinator = coordinators.get(name);
+        if (!coordinator) { coordinator = new ExecutionCoordinator({ storage: new MemoryStorage() }); coordinators.set(name, coordinator); }
+        return { fetch: (input: RequestInfo | URL, init?: RequestInit) => coordinator!.fetch(new Request(input, init)) };
+      },
+    };
+    const headSha = "a".repeat(40);
+    const baseSha = "b".repeat(40);
+    const body = JSON.stringify({
+      action: "ready_for_review",
+      number: 1854,
+      repository: { full_name: "cinamoncandy/NUSA" },
+      pull_request: { head: { sha: headSha }, base: { sha: baseSha } },
+    });
+    const signature = await computeGithubWebhookSignature("secret", body);
+    const request = (delivery: string) => new Request("https://example.test/github/webhook", {
+      method: "POST",
+      headers: { "x-github-delivery": delivery, "x-github-event": "pull_request", "x-hub-signature-256": signature },
+      body,
+    });
+    const env = { NUSA_WEBHOOK_SECRET: "secret", NUSA_EXECUTION_COORDINATOR: namespace, NUSA_GLOBAL_RELEASE_FREEZE: "true" };
+    const first = await worker.fetch(request("ready-1"), env);
+    const replay = await worker.fetch(request("ready-2"), env);
+    assert.equal(first.status, 202);
+    assert.equal(replay.status, 202);
+    assert.equal((await first.json() as { status: string; reason: string }).reason, "CONTROL_PLANE_HOLD_ACTIVE");
+    assert.equal((await replay.json() as { status: string; reason: string }).reason, "CONTROL_PLANE_HOLD_ACTIVE");
+    const holdCoordinator = [...coordinators.entries()].find(([name]) => name.startsWith("control-plane-hold:"))?.[1];
+    assert.ok(holdCoordinator);
+    const persisted = await holdCoordinator.fetch(new Request("https://execution-coordinator/control-plane-hold"));
+    const record = await persisted.json() as { hold: { state: string; prNumber: number; headSha: string; baseSha: string } };
+    assert.deepEqual({ state: record.hold.state, prNumber: record.hold.prNumber, headSha: record.hold.headSha, baseSha: record.hold.baseSha }, { state: "ACTIVE", prNumber: 1854, headSha, baseSha });
+  });
+
   it("rejects malformed signed JSON instead of planning from partial data", async () => {
     const body = "{";
     const signature = await computeGithubWebhookSignature("secret", body);

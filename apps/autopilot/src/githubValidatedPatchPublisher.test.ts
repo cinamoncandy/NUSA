@@ -85,5 +85,6 @@ describe("github validated patch publisher", () => {
     const pullBody = JSON.parse(String(pullCall?.init?.body));
     assert.equal(pullBody.base, "main");
     assert.equal(pullBody.head, result.branch);
+    assert.equal(pullBody.draft, true, "autonomous publication must remain Draft until explicit HOLD clearance");
   });
 });
