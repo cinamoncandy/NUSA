@@ -1,120 +1,86 @@
-# NUSA UI/UX -> Core Handoff — 2026-09-11
+# NUSA UI/UX -> Core Handoff — 2026-09-12
 
 ## 현재 UX 판정
 
-`REDESIGN_REQUIRED` — authority safety is comparatively strong, but product hierarchy, cross-platform IA, and visual language do not yet match the intended AI trading intelligence experience.
+`CONTRACT_STABILIZING / IMPLEMENTATION_HOLD`
+
+Core has fixed PR #1850 as the canonical UI/UX product-contract/governance owner. #1838 and #1849 are noncanonical implementation inputs/HOLD. Broad active implementation waits for one clean reconciliation work item after this contract stabilizes.
 
 ## 가장 큰 UX 문제
 
-Mobile first-viewport hierarchy overweights decorative intelligence presentation and capital. NUSA needs current judgement/observation, system/data/PAPER/strategy/risk truth, blocker and safe next action first — without presenting capabilities the runtime does not actually expose.
+The active product still reads too much like a conventional finance dashboard and does not yet make NUSA's actual AI judgment structure the primary interaction model. At the same time, motion must not imply internal progress the runtime does not expose.
 
 ## 사용자 영향
 
-- NUSA의 현재 판단과 근거를 이해하는 시간이 길다.
-- 운영 상태를 재구성하려면 화면 이동이 필요하다.
-- 장식적 AI 표현이 실제 evidence보다 더 강한 권한/확신처럼 보일 수 있다.
-- mobile/desktop 정보 계층이 다르다.
-- neon 중심 token/API vocabulary가 승인된 Dark Glass 방향과 충돌한다.
-- UX가 aspirational capability를 실제 capability처럼 설계할 위험이 확인됐다.
+- AI 판단 구조보다 일반 금융 UI 패턴이 먼저 읽힌다.
+- current judgment/trust/uncertainty requires too much reconstruction.
+- neon/decorative vocabulary can make the system look theatrical rather than trustworthy.
+- static screens do not communicate authoritative state transitions well, while fabricated process animation would be worse.
 
 ## 개선 완료
 
-- cross-platform information priority 정의
-- mobile 5-destination target IA 정의
-- evidence-first Decision/Observation Object 정의
-- Autopilot semantic state target 정의
-- loading/ready/stale/empty/degraded/blocked/error/unknown 구분
-- Dark Glass/non-neon constraints 정의
-- 360/390/430 responsive acceptance 정의
-- current runtime capability 재감사 및 contract 교정
+- canonical cross-platform UX hierarchy fixed in #1850;
+- target mobile IA: `NUSA / 판단 / 시장 / PAPER / 자산`;
+- Dark Glass/non-neon direction;
+- 360/390/430 acceptance;
+- explicit UNKNOWN/ERROR/EMPTY/NO_WORK distinction;
+- PAPER supervision/learning boundary preserved;
+- runtime-motion rule: observable snapshot/state change only;
+- canonical `AiTradingJudgment` re-audited and bound to the UX contract;
+- implementation-ready Runtime Canvas field/motion mapping added.
 
-## 개선 후보
+## 중요한 교정
 
-P0
-- decorative Home hero 제거/축소
-- Decision/Observation + global truth rail 우선
-- non-ready state 언어/복구 행동 통일
-- UNKNOWN을 정상/0으로 치환하는 경로 차단
+Earlier UI/UX notes inspected only `AiReadOnlyProjection` and incorrectly concluded that canonical action/invalidation/scenario/risk fields were absent.
 
-P1
-- visible `AI` -> `판단` migration with route compatibility
-- 현재 존재하는 AI evidence/counter-evidence/calibration/uncertainty 재구성
-- PAPER supervision/learning으로의 진입은 실제 runtime linkage가 있을 때만 제공
+Repository truth: `packages/contracts/src/aiTradingJudgment.ts` already provides an authoritative integrated judgment contract with action, thesis, evidence/counter-evidence, confidence/uncertainty, market regime, scenarios, expected return/downside, risk budget, time horizon and invalidation condition.
 
-P2
-- semantic glass tokens/components
-- active neon/orbit/particle/scan presentation 제거
-- chart/table/KPI hierarchy cleanup
+UI must use that object when an authoritative current runtime delivery path is proven. `AiReadOnlyProjection` remains trust/diagnostic detail.
 
-P3
-- mockup-to-device screenshot parity
-- documentation/implementation drift guards
-- active renderer load/import guards
+## 현재 실제 구현 경계
 
-## 개발 필요 항목
+- active mobile nav still displays `AI` rather than `판단`;
+- active `AiView` primarily consumes `AiReadOnlyProjection`;
+- production PAPER is supervision/learning only;
+- Home status source still declares `changesSupported: false`;
+- mobile package has no backdrop-blur dependency;
+- design system still contains neon token/API vocabulary;
+- PAPER and REAL_READ_ONLY portfolio truth remain separate.
 
-UI-only after Core approval:
-- navigation visible-label migration
-- mobile Home composition
-- Decision/Observation primitives
-- Dark Glass token migration
-- semantic state primitives/tests
+## 다음 구현 순서
 
-Cross-module projection work requires canonical owner decision:
-- strategy state projection
-- Autopilot queue/claim/run/validate/block/failure projection
-- last-success / last-healthy timestamps
-- blocker / human-action reason projection
-- decision history/change projection
-- stance/invalidation projection if product requires them
-- validated portfolio-impact/scenario projection if product requires simulation
+P0 — prove/wire authoritative `AiTradingJudgment` runtime delivery + freshness; otherwise render UNAVAILABLE.
 
-## 데이터/관측 필요 항목
+P1 — implement Runtime Canvas / Judgment Object and visible `AI` -> `판단` migration under one clean implementation owner.
 
-UI consumes; it does not infer:
-- data freshness / observed time
-- strategy runtime state
-- Autopilot evidence
-- calibrated confidence provenance
-- risk/invalidation evidence
-- last successful meaningful action
-- decision-history delta
+P2 — implement native-RN Dark Glass tokens/surfaces, remove active neon/glow/decorative intelligence presentation.
 
-No evidence -> `UNKNOWN/UNAVAILABLE`.
+P3 — actual device screenshot parity at 360/390/430, accessibility, reduced-motion and drift guards.
 
-## 충돌 여부
+## Runtime Canvas rule
 
-Yes.
+The runtime canvas may animate only:
 
-1. Desktop canonical architecture says capital truth is universally dominant; proposed AI-trading hierarchy makes judgement/system truth dominant when material.
-2. Mobile active implementation contains `IntelligenceMotionField` and neon vocabulary; approved direction is non-neon Dark Glass.
-3. PR #1838 is green but represents an intermediate hierarchy/IA and is now draft; do not merge from CI alone.
-4. Current production mobile PAPER route is deliberately supervision/learning only. It exposes no manual BUY/SELL/price/quantity/submit controls. A UI contract requiring “confirm PAPER action” would exceed current capability.
-5. `homeStatusRail` explicitly reports `changesSupported: false`; the UI cannot truthfully show “what changed” until history evidence exists.
-6. `AiReadOnlyProjection` provides thesis/evidence/counter-evidence/uncertainty/calibration/scenario robustness, but not canonical stance, invalidation, portfolio impact or decision history.
+- arrival/change of a canonical judgment snapshot;
+- a field whose authoritative value changed;
+- an explicit runtime LOADING/RUNNING/STALE/BLOCKED/ERROR state.
 
-## 검증 결과
-
-Repository audit confirmed:
-- main mobile navigation has five primary destinations including visible `AI`.
-- Home still renders `LIVE INTELLIGENCE`, `IntelligenceMotionField`, and a large capital rail.
-- mobile design system exposes neon tokens and `NusaCard(neon)` behavior.
-- existing AI view already contains strong evidence, calibration, uncertainty, scenario robustness and ZERO_AUTHORITY truth.
-- market surface correctly separates public read-only observations from PAPER authority.
-- portfolio surface explicitly separates PAPER capital from REAL_READ_ONLY balances.
-- production PAPER surface is a supervision/learning surface, not an order ticket.
-- current branch PR #1850 is docs-only/draft; all workflows on its prior head completed successfully, but Core review remains required.
+It must not animate fake OBSERVE->REASON->VERIFY->DECIDE progression, fake agents, fake source counts, fake ingestion, or perpetual intelligence effects.
 
 ## Core 판단 필요 사항
 
-- Approve target IA and visible `AI` -> `판단` migration.
-- Approve judgement/system truth priority over universal capital-first hierarchy.
-- Approve Dark Glass / non-neon direction.
-- Decide Autopilot exposure boundary on mobile.
-- Decide canonical ownership for missing decision-history/stance/invalidation/portfolio-impact projections.
-- Decide whether #1838 is reworked or superseded.
-- Keep PAPER supervision boundary unless a separate canonical product/authority decision changes it.
+- confirm visible `AI` -> `판단` migration;
+- confirm judgement/system truth over universal capital-first desktop hierarchy;
+- confirm Dark Glass/non-neon direction;
+- define mobile Autopilot exposure boundary;
+- identify/prove the active runtime delivery owner for canonical `AiTradingJudgment`;
+- retain #1850 as contract owner and create exactly one implementation reconciliation item after stabilization.
 
-## UI/UX merge policy
+## 안전
 
-UI/UX will not merge broad product changes or alter trading/backend authority. After Core approval, implementation lands in small reviewable slices with exact state-semantic and device screenshot acceptance.
+`PAPER_ONLY`  
+`liveAuthority=NONE`  
+`productionMutationAllowed=false`  
+`aiAuthority=ZERO_AUTHORITY`
+
+No UI change may expand authority.
