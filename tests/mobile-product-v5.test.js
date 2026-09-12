@@ -53,6 +53,10 @@ test("Android product UX acceptance bounds emulator startup and preserves diagno
   assert.match(workflow, /timeout 300 bash -c/);
   assert.match(workflow, /cat "\$RUNNER_TEMP\/emulator\.log" \|\| true/);
   assert.doesNotMatch(workflow, /^\s*adb wait-for-device\s*$/m);
+  assert.match(workflow, /for attempt in range\(10\)/);
+  assert.match(workflow, /UiAutomator did not produce a valid hierarchy after 10 attempts/);
+  assert.match(workflow, /dump_ui\(\).*tries=0.*"\$tries" -lt 10/s);
+  assert.doesNotMatch(workflow, /capture\(\)\{[^\n]*adb shell uiautomator dump \/sdcard\/window\.xml >\/dev\/null; adb pull/s);
   assert.match(workflow, /enter_personal\(\)/);
   assert.match(workflow, /"local-entry-submit"/);
   assert.match(workflow, /"home-screen"/);
@@ -62,7 +66,7 @@ test("Android product UX acceptance bounds emulator startup and preserves diagno
   for (const ambiguousLabel of ["MARKETS", "PAPER", "PORTFOLIO", "HOME", "도구", "설정", "설정 닫기"]) {
     assert.doesNotMatch(workflow, new RegExp(`tap "${ambiguousLabel}"`));
   }
-  assert.ok(workflow.includes('print(ET.tostring(ET.parse("/tmp/window.xml").getroot(), encoding="unicode"), file=sys.stderr)'));
+  assert.match(workflow, /print\(ET\.tostring\(root, encoding="unicode"\), file=sys\.stderr\)/);
   assert.match(workflow, /if: always\(\)/);
   assert.match(workflow, /grep -q "paper-learning-monitor"/);
   assert.match(workflow, /scroll_until_visible\(\)/);
