@@ -5,3 +5,4 @@ export * from "./recovery";
 export * from "./plugin";
 export * from "./architectureChangeLifecycle";
 export * from "./crossAiConformance";
+export * from "./autonomousWork";
