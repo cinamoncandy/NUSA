@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { AccessibilityInfo, Animated, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import React, { useMemo } from "react";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useTheme } from "./ThemeProvider";
 import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
 import type { WatchlistMarket } from "./watchlist";
@@ -48,32 +48,8 @@ function probability(value: number | null | undefined): string {
 }
 
 function RuntimeActivityTrace({ active, color, mutedColor }: Readonly<{ active: boolean; color: string; mutedColor: string }>) {
-  const pulse = useRef(new Animated.Value(0.35)).current;
-  const [reduceMotion, setReduceMotion] = useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-    void AccessibilityInfo.isReduceMotionEnabled().then((value) => { if (mounted) setReduceMotion(value); });
-    const subscription = AccessibilityInfo.addEventListener("reduceMotionChanged", setReduceMotion);
-    return () => { mounted = false; subscription.remove(); };
-  }, []);
-
-  useEffect(() => {
-    pulse.stopAnimation();
-    if (!active || reduceMotion) {
-      pulse.setValue(active ? 0.8 : 0.28);
-      return undefined;
-    }
-    const loop = Animated.loop(Animated.sequence([
-      Animated.timing(pulse, { toValue: 0.95, duration: 720, useNativeDriver: true }),
-      Animated.timing(pulse, { toValue: 0.35, duration: 720, useNativeDriver: true }),
-    ]));
-    loop.start();
-    return () => loop.stop();
-  }, [active, pulse, reduceMotion]);
-
   return <View style={[styles.activityTrack, { backgroundColor: mutedColor }]} accessibilityLabel={active ? "PAPER runtime is running" : "PAPER runtime is not running"}>
-    <Animated.View style={[styles.activitySignal, { backgroundColor: color, opacity: pulse }]} />
+    <View style={[styles.activitySignal, { backgroundColor: color, opacity: active ? 0.8 : 0.28 }]} />
   </View>;
 }
 
