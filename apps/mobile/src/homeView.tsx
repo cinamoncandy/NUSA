@@ -54,8 +54,9 @@ function RuntimeActivityTrace({ active, color, mutedColor }: Readonly<{ active: 
 }
 
 function Row({ label, value, valueColor, borderColor }: Readonly<{ label: string; value: string; valueColor: string; borderColor: string }>) {
+  const { theme } = useTheme();
   return <View style={[styles.row, { borderBottomColor: borderColor }]}>
-    <Text style={styles.rowLabel}>{label}</Text>
+    <Text style={[styles.rowLabel, { color: theme.colors.textMuted }]}>{label}</Text>
     <Text style={[styles.rowValue, { color: valueColor }]} numberOfLines={2}>{value}</Text>
   </View>;
 }
@@ -248,7 +249,7 @@ const styles = StyleSheet.create({
   provenance: { fontSize: 11, lineHeight: 17 },
   emptyText: { fontSize: 14, lineHeight: 22, marginBottom: 6 },
   row: { minHeight: 42, paddingVertical: 9, flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 16, borderBottomWidth: StyleSheet.hairlineWidth },
-  rowLabel: { flexShrink: 0, color: "#8B8D93", fontSize: 10, fontWeight: "700", letterSpacing: 0.72, lineHeight: 18 },
+  rowLabel: { flexShrink: 0, fontSize: 10, fontWeight: "700", letterSpacing: 0.72, lineHeight: 18 },
   rowValue: { flex: 1, textAlign: "right", fontSize: 12, fontWeight: "600", lineHeight: 18 },
   evidenceLine: { fontSize: 11, lineHeight: 17, paddingTop: 6 },
   uncertainty: { fontSize: 15, lineHeight: 23, fontWeight: "500", marginBottom: 8 },
