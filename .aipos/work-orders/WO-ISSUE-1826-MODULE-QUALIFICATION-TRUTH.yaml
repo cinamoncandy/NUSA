@@ -1,0 +1,27 @@
+id: WO-ISSUE-1826-MODULE-QUALIFICATION-TRUTH
+title: Replace declarative Level-10 claims with evidence-earned qualification
+status: IN_PROGRESS
+issue: 1826
+implementation_branch: fix/module-qualification-truth-20260912
+base_commit: 79289f9f33f63e6b699bdbc42863c3e458f782a4
+authority_impact: none
+scope:
+  - Separate the 10X-S target tier from earned Level-10 qualification.
+  - Bind qualification records to the audited source commit and canonical source reference.
+  - Default all unproven criteria to UNVERIFIED and expose TARGET_ONLY unless every criterion has independent evidence.
+  - Preserve current runtime behavior; this work changes maturity truthfulness only.
+acceptance_criteria:
+  - The registry cannot self-certify all Level-10 criteria.
+  - Every QUALIFIED criterion has non-empty independent evidence tied to the source record.
+  - Missing evidence remains TARGET_ONLY rather than PASS.
+  - No execution, risk, qualification mutation, broker, credential, production mutation, or LIVE authority is added.
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification:
+  - pnpm run build
+  - compiled module qualification regression tests
+  - pnpm run validate:full
+  - fresh exact-head CI
+next: Revalidate the stale PR on the current protected main; do not claim the modules are Level 10 until independent evidence is attached.

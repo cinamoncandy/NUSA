@@ -1253,3 +1253,12 @@ latest_paper_chaos_bound_runtime_evidence_slice:
   implementation_branch: codex/paper-chaos-bound-runtime-evidence
   scope: "Emit only BOUND_UNVERIFIED restart-recovery evidence from the canonical actual PAPER runtime harness; external workflow verification remains separate."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_module_qualification_truth_slice:
+  status: IN_PROGRESS
+  issue: 1826
+  work_order: .aipos/work-orders/WO-ISSUE-1826-MODULE-QUALIFICATION-TRUTH.yaml
+  implementation_branch: fix/module-qualification-truth-20260912
+  base_commit: 79289f9f33f63e6b699bdbc42863c3e458f782a4
+  scope: "Evidence-earned module maturity qualification. All evidence gaps remain TARGET_ONLY; no self-certified Level-10 claim is allowed."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
