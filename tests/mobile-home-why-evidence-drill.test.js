@@ -11,7 +11,10 @@ test("HOME AI judgment drills into verified evidence without creating a dead con
   assert.match(home, /aiThesis: ai\?\.status === "AVAILABLE" \? ai\.thesis : null/);
   assert.match(home, /aiEvidenceCount: ai\?\.status === "AVAILABLE" \? ai\.evidenceReferences\.length : 0/);
   assert.match(home, /const aiInsightAvailable = decisionSurface\.aiInsightAvailable && !disconnected && readOnlyError == null/);
-  assert.match(home, /aiInsightAvailable \? <Pressable onPress=\{\(\) => onNavigate\("AiSignal"\)\}/);
+  // Matched on the invariant -- the drill-in exists and is gated on verified insight -- rather
+  // than on the tag's exact attribute order, so adding accessibility props cannot fail it.
+  assert.match(home, /aiInsightAvailable \? <Pressable\b/);
+  assert.match(home, /onPress=\{\(\) => onNavigate\("AiSignal"\)\}/);
   assert.match(home, /testID="ai-card"/);
   assert.match(home, /DECISION BASIS/);
   assert.match(home, /\{why\}/);

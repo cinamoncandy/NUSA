@@ -85,11 +85,25 @@ jobs:
           set -euo pipefail
           mkdir -p qa/android-product-ux
           cat > "$RUNNER_TEMP/tap.py" <<'PY'
-          import re, subprocess, sys, xml.etree.ElementTree as ET
+          import re, subprocess, sys, time, xml.etree.ElementTree as ET
           needle=sys.argv[1]
-          subprocess.run(["adb","shell","uiautomator","dump","/sdcard/window.xml"],check=True,stdout=subprocess.DEVNULL)
-          subprocess.run(["adb","pull","/sdcard/window.xml","/tmp/window.xml"],check=True,stdout=subprocess.DEVNULL)
-          for n in ET.parse("/tmp/window.xml").getroot().iter("node"):
+          root=None
+          for attempt in range(10):
+              subprocess.run(["adb","shell","rm","-f","/sdcard/window.xml"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+              dumped=subprocess.run(["adb","shell","uiautomator","dump","/sdcard/window.xml"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+              pulled=subprocess.run(["adb","pull","/sdcard/window.xml","/tmp/window.xml"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+              if dumped.returncode == 0 and pulled.returncode == 0:
+                  try:
+                      root=ET.parse("/tmp/window.xml").getroot()
+                      break
+                  except (ET.ParseError, OSError):
+                      pass
+              if attempt < 9:
+                  time.sleep(1)
+          if root is None:
+              print("UiAutomator did not produce a valid hierarchy after 10 attempts", file=sys.stderr)
+              sys.exit(3)
+          for n in root.iter("node"):
               a=n.attrib
               hay=" | ".join((a.get("text",""),a.get("content-desc",""),a.get("resource-id","")))
               if needle in hay:
@@ -98,10 +112,11 @@ jobs:
                       x1,y1,x2,y2=map(int,m.groups())
                       print((x1+x2)//2,(y1+y2)//2)
                       sys.exit(0)
-          print(ET.tostring(ET.parse("/tmp/window.xml").getroot(), encoding="unicode"), file=sys.stderr)
+          print(ET.tostring(root, encoding="unicode"), file=sys.stderr)
           sys.exit(2)
           PY
-          capture(){ adb exec-out screencap -p > "qa/android-product-ux/$1.png"; adb shell uiautomator dump /sdcard/window.xml >/dev/null; adb pull /sdcard/window.xml "qa/android-product-ux/$1.xml" >/dev/null; }
+          dump_ui(){ local out="$1"; local tries=0; while [ "$tries" -lt 10 ]; do adb shell rm -f /sdcard/window.xml >/dev/null 2>&1 || true; if adb shell uiautomator dump /sdcard/window.xml >/dev/null 2>&1 && adb pull /sdcard/window.xml "$out" >/dev/null 2>&1 && grep -q '<hierarchy' "$out"; then return 0; fi; tries=$((tries+1)); sleep 1; done; echo "::error::UiAutomator did not produce a valid hierarchy after 10 attempts" >&2; return 1; }
+          capture(){ adb exec-out screencap -p > "qa/android-product-ux/$1.png"; dump_ui "qa/android-product-ux/$1.xml"; }
           tap(){ read x y < <(python3 "$RUNNER_TEMP/tap.py" "$1"); adb shell input tap "$x" "$y"; sleep 2; }
           enter_personal(){ if coords="$(python3 "$RUNNER_TEMP/tap.py" "local-entry-submit" 2>/dev/null)"; then read x y <<<"$coords"; adb shell input tap "$x" "$y"; sleep 2; elif python3 "$RUNNER_TEMP/tap.py" "home-screen" >/dev/null 2>&1; then return 0; else python3 "$RUNNER_TEMP/tap.py" "local-entry-submit"; return 2; fi; }
           tap_after_scroll(){ local needle="$1"; local tries=0; while [ "$tries" -lt 5 ]; do if coords="$(python3 "$RUNNER_TEMP/tap.py" "$needle" 2>/dev/null)"; then read x y <<<"$coords"; adb shell input tap "$x" "$y"; sleep 2; return 0; fi; adb shell input swipe 540 1750 540 520 450; sleep 1; tries=$((tries+1)); done; echo "required Android control not reachable: $needle" >&2; return 2; }

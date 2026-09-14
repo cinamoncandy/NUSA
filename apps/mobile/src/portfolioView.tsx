@@ -8,17 +8,23 @@ import type { UpbitReadOnlyAccountSnapshot, UpbitReadOnlyConnectionStatus } from
 import { buildLocalPortfolio, isLocalPaperActive } from "./localPaperLedger";
 import { useLocalPaperMarkPrice, useLocalPaperSnapshot } from "./localPaperLedgerHooks";
 import { AuthorityRail, FactRow, IntelligenceSection, MetricStrip, ScreenLead, StateNotice } from "./intelligenceOs";
+import { describeAge, freshnessStage, type RefusalDescriptor } from "./instrumentState";
+import { RefusalRecord, useNowMs } from "./instrumentSurfaces";
 
 export type { PortfolioAccountResponse } from "./portfolioViewModel";
 export interface PortfolioViewProps {
   readonly snapshot: PortfolioAccountResponse | null;
   readonly investmentPercent: number;
   readonly error: string | null;
+  /** Present only when a gate named the cause; a client-side condition carries only `error`. */
+  readonly refusal?: RefusalDescriptor | null;
   readonly refreshing: boolean;
   readonly onRefresh: () => void;
   readonly upbitSnapshot?: UpbitReadOnlyAccountSnapshot | null;
   readonly upbitStatus?: UpbitReadOnlyConnectionStatus;
   readonly upbitError?: string | null;
+  /** When the server built this snapshot. Absent for LOCAL PAPER, which has no server clock. */
+  readonly generatedAtMs?: number | null;
   readonly onOpenPaperLearning?: () => void;
 }
 
@@ -35,7 +41,7 @@ function buildModel(snapshot: PortfolioAccountResponse | null): PortfolioViewMod
   try { return buildPortfolioViewModel(snapshot); } catch { return null; }
 }
 
-export function PortfolioView({ snapshot, investmentPercent, error, refreshing, onRefresh, upbitSnapshot = null, upbitStatus = "DISCONNECTED", upbitError = null, onOpenPaperLearning }: PortfolioViewProps) {
+export function PortfolioView({ snapshot, investmentPercent, error, refreshing, onRefresh, upbitSnapshot = null, upbitStatus = "DISCONNECTED", upbitError = null, onOpenPaperLearning, generatedAtMs = null, refusal = null }: PortfolioViewProps) {
   const { theme } = useTheme();
   const { width } = useWindowDimensions();
   const tablet = width >= 768;
@@ -48,12 +54,21 @@ export function PortfolioView({ snapshot, investmentPercent, error, refreshing, 
   const model = buildModel(effectiveSnapshot);
   const allocation = model == null ? null : createCashInvestmentEnvelope(model.cash, investmentPercent);
   const position = model?.position ?? null;
+  // Unrealized PNL is quantity x current price, so it is only as fresh as the price it was
+  // priced off. When that price has aged out of the operations window the derived figure ages
+  // with it -- showing it in profit green off a three-minute-old quote states a gain nobody
+  // can act on. Realized PNL is exempt: it is booked, not derived from a live quote.
+  // One instant for both, so the stage and the age can never describe different moments.
+  const nowMs = useNowMs();
+  const priceStage = generatedAtMs == null ? null : freshnessStage(generatedAtMs, nowMs);
+  const priceStale = priceStage === "STALE";
+  const priceAge = generatedAtMs == null ? undefined : describeAge(generatedAtMs, nowMs);
   const upbitConnected = upbitStatus === "READY" && upbitSnapshot != null && upbitError == null;
 
   return <ScrollView style={{ backgroundColor: theme.colors.background }} contentContainerStyle={[styles.content, { maxWidth: tablet ? 1080 : 720 }]} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} showsVerticalScrollIndicator={false} testID="portfolio-screen">
     <AuthorityRail detail="PAPER CAPITAL · REAL ACCOUNT SEPARATE · LIVE NONE" status={model ? (usingLocalPaper ? "LOCAL PAPER" : "PAPER READY") : error ? "DEGRADED" : "UNAVAILABLE"} tone={model ? "success" : "warning"} testID="portfolio-authority-rail" />
     <ScreenLead eyebrow="PORTFOLIO" title="PAPER 자산과 결과" detail="Equity와 누적 손익을 먼저 보고, 자본 배분·노출·회계 근거를 아래에서 확인합니다." badge="PORTFOLIO" badgeTone="primary" />
-    {error ? <StateNotice title="PAPER PORTFOLIO DEGRADED" detail={error} tone="danger" /> : null}
+    {refusal != null ? <RefusalRecord refusal={refusal} testID="portfolio-refusal" /> : error ? <StateNotice title="PAPER PORTFOLIO DEGRADED" detail={error} tone="danger" /> : null}
     {!model ? <StateNotice title="PAPER DATA UNAVAILABLE" detail="PAPER 서버에 연결하거나 LOCAL PAPER 결과가 생성되면 자산과 손익을 표시합니다. UNKNOWN 값을 0으로 표시하지 않습니다." tone="warning" /> : null}
     <MetricStrip testID="portfolio-supervisor-summary" items={[{ label: "PAPER EQUITY", value: money(model?.totalEquity) }, { label: "TOTAL PNL", value: signedMoney(model?.totalPnl), tone: model == null ? "neutral" : model.totalPnl >= 0 ? "success" : "danger" }, { label: "CASH", value: money(model?.cash) }, { label: "EXPOSURE", value: money(model?.assetValue) }]} />
     <View style={tablet ? styles.columns : styles.stack}>
@@ -62,7 +77,7 @@ export function PortfolioView({ snapshot, investmentPercent, error, refreshing, 
       <View style={[styles.allocationRail, { backgroundColor: theme.colors.surfaceRaised }]}><View style={[styles.allocationFill, { backgroundColor: theme.colors.primary, width: `${allocation.investmentPercent}%` as `${number}%` }]} /></View><Text style={[styles.note, { color: theme.colors.textMuted }]}>보호 현금은 신규 PAPER 매수 한도에서 제외됩니다.</Text>
     </IntelligenceSection> : null}
     <IntelligenceSection style={tablet ? styles.column : undefined} title="현재 노출" kicker="PAPER EXPOSURE" tone={position ? "info" : "neutral"} testID={position ? "portfolio-position" : "portfolio-empty"}>
-      {position ? <><FactRow label="MARKET" value={position.market} /><FactRow label="QUANTITY" value={String(position.quantity)} /><FactRow label="AVERAGE PRICE" value={money(position.averagePrice)} /><FactRow label="CURRENT PRICE" value={money(position.currentPrice)} /><FactRow label="UNREALIZED PNL" value={signedMoney(position.unrealizedPnl)} tone={position.unrealizedPnl >= 0 ? "success" : "danger"} /><FactRow label="REALIZED PNL" value={signedMoney(position.realizedPnl)} tone={position.realizedPnl >= 0 ? "success" : "danger"} /></> : <StateNotice title="NO EXPOSURE" detail={model ? "현재 PAPER 시장 노출이 없습니다. 현금 대기 상태입니다." : "포지션 데이터를 확인할 수 없습니다."} tone="info" />}
+      {position ? <><FactRow label="MARKET" value={position.market} /><FactRow label="QUANTITY" value={String(position.quantity)} /><FactRow label="AVERAGE PRICE" value={money(position.averagePrice)} /><FactRow label="CURRENT PRICE" value={money(position.currentPrice)} note={priceStale ? `${priceAge} · 만료됨` : priceAge} tone={priceStale ? "danger" : "neutral"} testID="portfolio-current-price" /><FactRow label="UNREALIZED PNL" value={signedMoney(position.unrealizedPnl)} note={priceStale ? "현재가가 만료되어 이 값은 신뢰할 수 없습니다" : undefined} tone={priceStale ? "neutral" : position.unrealizedPnl >= 0 ? "success" : "danger"} testID="portfolio-unrealized-pnl" /><FactRow label="REALIZED PNL" value={signedMoney(position.realizedPnl)} tone={position.realizedPnl >= 0 ? "success" : "danger"} /></> : <StateNotice title="NO EXPOSURE" detail={model ? "현재 PAPER 시장 노출이 없습니다. 현금 대기 상태입니다." : "포지션 데이터를 확인할 수 없습니다."} tone="info" />}
     </IntelligenceSection>
     </View>
     <View style={tablet ? styles.columns : styles.stack}>

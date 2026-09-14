@@ -153,17 +153,17 @@ export function IntelligenceMotionField({ active = true, evidenceCount = 0, labe
       orbit.setValue(0.2); pulse.setValue(active ? 0.55 : 0.15); scan.setValue(0.25);
       return undefined;
     }
-    const animation = Animated.loop(Animated.parallel([
-      Animated.timing(orbit, { toValue: 1, duration: 6200, useNativeDriver: true }),
+    const animation = Animated.parallel([
+      Animated.timing(orbit, { toValue: 1, duration: 180, useNativeDriver: true }),
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 1200, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 1200, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 90, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 90, useNativeDriver: true }),
       ]),
       Animated.sequence([
-        Animated.timing(scan, { toValue: 1, duration: 2100, useNativeDriver: true }),
-        Animated.timing(scan, { toValue: 0, duration: 2100, useNativeDriver: true }),
+        Animated.timing(scan, { toValue: 1, duration: 90, useNativeDriver: true }),
+        Animated.timing(scan, { toValue: 0, duration: 90, useNativeDriver: true }),
       ]),
-    ]));
+    ]);
     animation.start();
     return () => animation.stop();
   }, [active, orbit, pulse, reducedMotion, scan]);

@@ -6,6 +6,7 @@ import { isUserAllowed, type NusaUserAccessRepository } from "./operatorUserAcce
 export interface ApprovedUserSessionProfile<Scope extends string> {
   readonly namespace: string;
   readonly allowedScopes: readonly Scope[];
+  readonly defaultScopes?: readonly Scope[];
   readonly accessTtlMs: number;
   readonly refreshTtlMs: number;
   readonly bootstrapTtlMs: number;
@@ -294,6 +295,7 @@ export class ApprovedUserSessionService<Scope extends string> {
   protected createDeviceBoundSession(input: Readonly<{
     targetUserId: string;
     deviceId: string;
+    scopes?: readonly string[];
     now?: number;
     auditEvent?: string;
   }>): ApprovedUserSessionTokens<Scope> {
@@ -302,7 +304,7 @@ export class ApprovedUserSessionService<Scope extends string> {
     if (!isUserAllowed(user)) throw new Error("target user must be ACTIVE");
     const familyId = randomUUID();
     const refreshExpiresAt = now + this.profile.refreshTtlMs;
-    const scopes = this.normalizeScopes(undefined);
+    const scopes = this.normalizeScopes(input.scopes);
     const tokens = this.createTokens(scopes, now, refreshExpiresAt);
     this.db.connection.prepare(`INSERT INTO ${this.prefix}_session_families(id,user_id,scopes_json,created_at,expires_at,device_id_hash) VALUES(?,?,?,?,?,?)`)
       .run(familyId, user!.id, JSON.stringify(scopes), now, refreshExpiresAt, deviceDigest(input.deviceId));
@@ -324,7 +326,7 @@ export class ApprovedUserSessionService<Scope extends string> {
   }
 
   private normalizeScopes(scopes: readonly string[] | undefined): readonly Scope[] {
-    const requested = scopes ?? this.profile.allowedScopes;
+    const requested = scopes ?? this.profile.defaultScopes ?? this.profile.allowedScopes;
     const unique = [...new Set(requested.map((scope) => scope.trim()).filter(Boolean))];
     if (unique.length === 0 || unique.some((scope) => !this.profile.allowedScopes.includes(scope as Scope))) {
       throw new Error("session scopes are invalid");

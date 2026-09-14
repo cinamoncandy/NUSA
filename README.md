@@ -117,7 +117,7 @@ pnpm coverage:floor   # after pnpm coverage; fails closed below config/coverage/
 ## Architecture Principles
 
 ```
-Market Data → Intelligence → Strategy → Decision → Risk → Portfolio → Execution → Paper Adapter → Review → Memory
+Market Data → Intelligence → Strategy → Decision → Portfolio → Risk → Execution → Paper Adapter → Review → Memory
 ```
 
 - Strategy emits signals only (never places orders)
