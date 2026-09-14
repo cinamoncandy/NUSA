@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const root = path.join(__dirname, "..", "apps", "mobile");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
+
 test("App shell routes the canonical five-tab decision flow and preserves deeper jobs", () => {
   const app = read("App.tsx");
   assert.match(app, /import \{ HomeView/);
@@ -19,43 +20,38 @@ test("App shell routes the canonical five-tab decision flow and preserves deeper
   assert.match(app, /StatusChip label="PAPER ONLY"/);
   assert.match(app, /StatusChip label="LIVE NONE"/);
 });
-test("Home uses the content-first command center hierarchy and keeps AI read-only", () => {
+
+test("Home uses the truth-bound Runtime Canvas hierarchy and keeps AI read-only", () => {
   const source = read("src/homeView.tsx");
   const decisionSurface = read("src/homeDecisionSurface.ts");
-  assert.match(source, /PAPER EQUITY/);
-  assert.match(source, /testID="home-master-rail"/);
-  assert.match(source, /testID="home-now"/);
-  assert.match(source, /testID="account-hero-card"/);
+  for (const marker of ["home-master-rail", "home-status-rail", "home-intelligence-reveal", "home-now", "home-judgment-proof", "ai-card", "home-confidence-evidence-quality", "home-market-canvas-reveal", "account-hero-card", "home-paper-performance", "home-paper-learning"]) {
+    assert.match(source, new RegExp(`testID="${marker}"`));
+  }
   assert.match(source, /PAPER EQUITY/);
   assert.match(source, /TOTAL PNL/);
   assert.doesNotMatch(source, />오늘</);
-  assert.match(source, /DECISION BASIS/);
-  assert.match(source, />NOW<\/Text>/);
-  assert.match(source, />RESULT<\/Text>/);
-  assert.match(source, />RISK<\/Text>/);
-  assert.match(source, /testID="home-risk-status"/);
-  assert.match(source, /testID="home-decision-stage"/);
-  assert.match(source, /QUICK ACCESS/);
-  assert.match(source, />PORTFOLIO<\/Text>/);
-  assert.match(source, />RISK<\/Text>/);
-  assert.match(source, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
-  assert.match(source, /selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)/);
-  assert.match(source, /const aiInsightAvailable = decisionSurface\.aiInsightAvailable && !disconnected && readOnlyError == null/);
-  // The fail-closed decision model remains authoritative for presentation truth;
-  // HOME may expose rich read-only evidence but must never create LIVE authority.
+  assert.match(source, /OBSERVATION CONTEXT/);
+  assert.match(source, /PAPER CONTEXT · SECONDARY/);
+  assert.match(source, /const ai = snapshot\?\.ai \?\? null/);
+  assert.match(source, /const aiAvailable = !unavailable && ai\?\.status === "AVAILABLE"/);
+  assert.match(source, /const calibrated = aiAvailable && ai\.calibrationStatus === "CALIBRATED"/);
+  assert.match(source, /calibrated \? probability\(ai\.confidence\) : "표시 안 함"/);
+  assert.match(source, /const publicState = publicMarketStale \? "STALE"/);
+  assert.match(source, /PAPER ONLY · LIVE NONE · MUTATION FALSE · AI ZERO AUTHORITY/);
+  assert.doesNotMatch(source, /selectHomeMarketData\(|home-risk-status|home-decision-stage|DECISION BASIS|QUICK ACCESS/);
   assert.match(decisionSurface, /PAPER P&L .*EQUITY/);
-  assert.doesNotMatch(source, /productionMutationAllowed:\s*true/);
-  assert.doesNotMatch(source, /authority:\s*"LIVE"/);
-  assert.doesNotMatch(source, /\/api\/(?:live|withdraw|transfer)/i);
+  assert.doesNotMatch(source, /productionMutationAllowed:\s*true|authority:\s*"LIVE"|\/api\/(?:live|withdraw|transfer)/i);
 });
-test("Markets, PAPER, Settings and History use shared segmented controls", () => {
+
+test("Markets, PAPER, Settings and History retain their canonical interaction contracts", () => {
   const markets = read("src/marketsView.tsx");
   const trading = read("src/tradingView.tsx");
   const tradingLegacy = read("src/tradingViewLegacy.tsx");
   const settings = read("src/settingsView.tsx");
   const history = read("src/orderHistoryView.tsx");
   assert.match(markets, /markets-panel-segmented-control/);
-  assert.match(trading, /LegacyTradingView/);
+  assert.match(trading, /PaperLearningMonitorView/);
+  assert.doesNotMatch(trading, /<LegacyTradingView \{\.\.\.props\} \/>/);
   assert.match(tradingLegacy, /paper-side-segmented-control/);
   assert.match(tradingLegacy, /paper-type-segmented-control/);
   assert.match(settings, /settings-theme-segmented-control/);
@@ -63,6 +59,7 @@ test("Markets, PAPER, Settings and History use shared segmented controls", () =>
   assert.match(history, /order-history-periods/);
   assert.match(history, /order-history-sorts/);
 });
+
 test("Portfolio and AI use decision-first v3 information hierarchy", () => {
   const portfolio = read("src/portfolioView.tsx");
   const ai = read("src/aiView.tsx");
@@ -73,19 +70,20 @@ test("Portfolio and AI use decision-first v3 information hierarchy", () => {
   assert.match(portfolio, /testID="portfolio-upbit-read-only"/);
   assert.match(portfolio, /testID="portfolio-allocation-rail"/);
   assert.match(portfolio, /REAL_READ_ONLY 잔고는 감독용 기준선이며 PAPER 성과와 절대 합산하지 않습니다/);
-  assert.doesNotMatch(portfolio, /testID="portfolio-summary"/);
-  assert.doesNotMatch(portfolio, /<MetricTile/);
+  assert.doesNotMatch(portfolio, /testID="portfolio-summary"|<MetricTile/);
   assert.match(ai, /<ScreenHeader/);
   assert.match(ai, /<DataRow label="원시 모델 확률 \(미보정\)"/);
   assert.match(ai, /<MetricTile label="검증 신뢰도"/);
   assert.match(ai, /AI ZERO AUTHORITY/);
 });
+
 test("Notification utility is honest about unavailable runtime capability", () => {
   const notifications = read("src/notificationView.tsx");
   assert.match(notifications, /알림 이벤트 수집이 아직 연결되지 않았습니다/);
   assert.match(notifications, /가짜 알림/);
   assert.match(notifications, /READ ONLY/);
 });
+
 test("UI v3 never introduces live execution authority", () => {
   const files = ["App.tsx", "src/homeView.tsx", "src/homeDecisionSurface.ts", "src/marketsView.tsx", "src/tradingView.tsx", "src/tradingViewLegacy.tsx", "src/portfolioView.tsx", "src/aiView.tsx", "src/settingsView.tsx"];
   const source = files.map(read).join("\n");

@@ -4,9 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const read = (file) => fs.readFileSync(path.resolve(__dirname, "../apps/mobile", file), "utf8");
-const withoutComments = (source) => source
-  .replace(/\/\*[\s\S]*?\*\//g, "")
-  .replace(/^\s*\/\/.*$/gm, "");
+const withoutComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 
 test("visual redesign has a distinct NUSA surface and financial hierarchy", () => {
   const design = read("src/designSystem.ts");
@@ -21,39 +19,30 @@ test("visual redesign has a distinct NUSA surface and financial hierarchy", () =
   assert.match(primitives, /borderRadius: 999, borderWidth: 1, gap: 3/);
 });
 
-test("Home uses the content-first command center hierarchy without weakening authority", () => {
+test("Home uses the truth-bound Runtime Canvas hierarchy without weakening authority", () => {
   const home = read("src/homeView.tsx");
   const decisionSurface = read("src/homeDecisionSurface.ts");
 
   assert.match(home, /testID="home-master-rail"/);
-  assert.match(home, /connectionLabel = disconnected \? "SETUP" : readOnlyError \? "DEGRADED"/);
-  assert.match(home, /"ACTIVE" : "OBSERVING"/);
-  assert.match(home, /PAPER EQUITY/);
-  assert.match(home, /TOTAL PNL/);
-  assert.match(home, /QUICK ACCESS/);
-  assert.match(home, />MARKETS</);
-  assert.match(home, />PORTFOLIO</);
-  assert.match(home, />LEARN</);
-  assert.match(home, /DECISION BASIS/);
-  assert.match(home, />RISK</);
-  assert.match(home, />RESULT</);
-  assert.match(home, /paddingBottom: 32/);
-  assert.match(home, /commandStackTablet: \{ flexDirection: "row"/);
-  assert.match(home, /testID="home-now"/);
-  assert.match(home, /testID="account-hero-card"/);
+  assert.match(home, /testID="home-status-rail"/);
+  assert.match(home, /testID="home-intelligence-reveal"/);
+  assert.match(home, /testID="home-judgment-proof"/);
   assert.match(home, /testID="ai-card"/);
-  assert.match(home, /testID="home-risk-status"/);
-  assert.match(home, /testID="home-decision-stage"/);
-  assert.match(home, /PUBLIC READ ONLY/);
+  assert.match(home, /testID="home-confidence-evidence-quality"/);
+  assert.match(home, /testID="home-market-canvas-reveal"/);
   assert.match(home, /testID="home-paper-performance"/);
   assert.match(home, /testID="home-paper-learning"/);
-  assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
+  assert.match(home, /PAPER EQUITY/);
+  assert.match(home, /TOTAL PNL/);
+  assert.match(home, /OBSERVATION CONTEXT/);
+  assert.match(home, /PAPER CONTEXT · SECONDARY/);
+  assert.match(home, /const publicState = publicMarketStale \? "STALE"/);
+  assert.match(home, /const capitalLabel = account == null \? "PAPER CAPITAL UNAVAILABLE" : "CLOUD PAPER CAPITAL"/);
+  assert.match(home, /contentTablet: \{ maxWidth: 1080 \}/);
+  assert.match(home, /PAPER ONLY · LIVE NONE · MUTATION FALSE · AI ZERO AUTHORITY/);
 
-  assert.doesNotMatch(home, /<TerrainSignal/);
-  assert.doesNotMatch(home, /testID="home-signal-trace"/);
-  assert.doesNotMatch(home, /testID="home-market-pulse"/);
-  assert.doesNotMatch(home, /testID="home-terminal-grid"/);
-
+  assert.doesNotMatch(home, /home-risk-status|home-decision-stage|RISK VETO|DECISION BASIS|QUICK ACCESS/);
+  assert.doesNotMatch(home, /<TerrainSignal|testID="home-signal-trace"|testID="home-market-pulse"|testID="home-terminal-grid"/);
   assert.match(decisionSurface, /`PAPER P&L .* · EQUITY \$\{krw\(input\.paperEquity\)\}`/s);
 });
 
@@ -70,9 +59,7 @@ test("Chart prioritizes real candles and removes decorative market context", () 
   assert.match(chart, /<CandlePlot/);
   assert.match(chart, /label=\{stale \? "STALE" : "READ ONLY"\}/);
   assert.match(chart, /<NusaCard testID="chart-plot-card">[\s\S]*?REAL CANDLES[\s\S]*?<CandlePlot/);
-  assert.doesNotMatch(chart, /<TerrainSignal/);
-  assert.doesNotMatch(chart, /<MarketHeatmap/);
-  assert.doesNotMatch(chart, /signal data:/);
+  assert.doesNotMatch(chart, /<TerrainSignal|<MarketHeatmap|signal data:/);
 });
 
 test("Bottom navigation uses a restrained active rail with the five-destination route contract", () => {
