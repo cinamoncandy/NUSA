@@ -14,13 +14,13 @@ const market = (name, price) => ({
   source: "UPBIT_PUBLIC_TICKER",
 });
 
-test("Home prefers the independently loaded public market feed", () => {
+test("Home market selector prefers the independently loaded public market feed", () => {
   const publicMarkets = [market("KRW-BTC", 100)];
   const snapshotMarkets = [market("KRW-ETH", 200)];
   assert.strictEqual(selectHomeMarketData(publicMarkets, snapshotMarkets), publicMarkets);
 });
 
-test("Home uses the validated Cloud snapshot only while the public feed is unresolved", () => {
+test("Home market selector can use the validated Cloud snapshot while the public feed is unresolved", () => {
   const snapshotMarkets = [market("KRW-ETH", 200)];
   assert.strictEqual(selectHomeMarketData(null, snapshotMarkets), snapshotMarkets);
 });
@@ -31,9 +31,12 @@ test("an empty public result is authoritative and does not fall back to stale sn
   assert.strictEqual(selectHomeMarketData(publicMarkets, snapshotMarkets), publicMarkets);
 });
 
-test("App forwards public quotation markets to Home and Home selects the source explicitly", () => {
+test("Runtime Canvas consumes App's independently loaded public quotation feed directly", () => {
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
   const home = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "homeView.tsx"), "utf8");
   assert.match(app, /<HomeView[\s\S]*publicMarkets=\{publicMarkets\.markets\}/);
-  assert.match(home, /selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)/);
+  assert.match(home, /const observedMarketCount = publicMarkets\?\.length \?\? 0/);
+  assert.match(home, /const publicState = publicMarketStale \? "STALE"/);
+  assert.match(home, /publicMarketConnectionState \|\| "UNKNOWN"/);
+  assert.doesNotMatch(home, /snapshot\?\.markets|selectHomeMarketData\(/);
 });

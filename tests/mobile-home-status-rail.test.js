@@ -1,7 +1,7 @@
 "use strict";
 
-// STEP-3B: HOME status-rail domain tests. Pure functions only — fixed
-// timestamps, no wall-clock, no network, no credentials.
+// STEP-3B: legacy HOME status-rail domain tests. The pure projection remains useful to
+// downstream consumers even though canonical Runtime Canvas reads delivered runtime truth directly.
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -90,15 +90,15 @@ test("오늘 is only allowed with proven daily basis", () => {
   assert.equal(buildHomeStatusRail(input({ hasDailyPnlBasis: false })).pnlBasisLabel, "누적");
 });
 
-test("production HomeView wires the status rail and keeps cumulative PnL truth explicit", () => {
+test("production Runtime Canvas uses delivered runtime/public truth and keeps cumulative PnL explicit", () => {
   const home = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "homeView.tsx"), "utf8");
   assert.match(home, /testID="home-status-rail"/);
-  assert.match(home, /buildHomeStatusRail\(/);
-  assert.match(home, /hasDailyPnlBasis:\s*false/);
-  assert.match(home, /\{rail\.marketLine\} · \{rail\.systemLine\}/);
-  assert.match(home, /RISK \{rail\.riskLabel\}/);
-  assert.match(home, /\{rail\.marketLine\} · \{rail\.systemLine\}/);
-  assert.match(home, /TOTAL PNL/);
+  assert.match(home, /const runtime = snapshot\?\.operations \?\? null/);
+  assert.match(home, /runtime\?\.runtimeState === "RUNNING" && runtime\.transport === "ONLINE"/);
+  assert.match(home, /runtime\?\.pipelineStage \|\| "UNAVAILABLE"/);
+  assert.match(home, /const publicState = publicMarketStale \? "STALE"/);
+  assert.match(home, /label="TOTAL PNL"/);
+  assert.doesNotMatch(home, /buildHomeStatusRail\(|RISK \{rail\.riskLabel\}/);
   assert.doesNotMatch(home, />오늘</);
   assert.doesNotMatch(home, /accessibilityLabel="알림"/);
 });

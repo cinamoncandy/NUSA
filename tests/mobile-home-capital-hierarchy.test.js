@@ -7,29 +7,29 @@ const home = fs.readFileSync(path.join(process.cwd(), "apps/mobile/src/homeView.
 const decisionSurface = fs.readFileSync(path.join(process.cwd(), "apps/mobile/src/homeDecisionSurface.ts"), "utf8");
 const portfolio = fs.readFileSync(path.join(process.cwd(), "apps/mobile/src/portfolioView.tsx"), "utf8");
 
-test("HOME presents truthful PAPER equity and cumulative PnL basis in the canonical capital strip", () => {
-  assert.match(home, /testID="account-hero-card"/);
-  assert.match(home, /PAPER EQUITY/);
-  assert.match(home, /krw\(account\?\.equity\)/);
-  assert.match(home, /TOTAL PNL/);
+test("HOME keeps truthful PAPER performance as secondary Runtime Canvas context", () => {
+  assert.match(home, /testID="home-capital-reveal"/);
+  assert.match(home, /testID="home-paper-performance"/);
+  assert.match(home, /PAPER CONTEXT · SECONDARY/);
+  assert.match(home, /CLOUD PAPER CAPITAL/);
+  assert.match(home, /label="PAPER EQUITY"/);
+  assert.match(home, /money\(account\?\.equity\)/);
+  assert.match(home, /label="TOTAL PNL"/);
   assert.match(home, /signedMoney\(totalPnl\)/);
-  assert.match(home, /CASH/);
-  assert.match(home, /EXPOSURE/);
+  assert.match(home, /label="CASH"/);
+  assert.match(home, /label="EXPOSURE"/);
   assert.match(home, /const totalPnl = account == null \? null : \(account\.realizedPnl \?\? account\.position\.realizedPnl\) \+ account\.unrealizedPnl/);
-  assert.match(home, /hasDailyPnlBasis: false/);
   assert.match(decisionSurface, /PAPER P&L .*EQUITY/);
   assert.doesNotMatch(home, />오늘<\/Text>/);
   assert.doesNotMatch(home, /const equity\s*=\s*10000000|totalPnl\s*=\s*[+-]?\d+(?:\.\d+)?;/);
 });
 
-test("capital allocation constraints remain actionable in PAPER portfolio/trading while canonical HOME stays truthful", () => {
-  assert.doesNotMatch(home, /testID="home-capital-limits"/);
+test("detailed capital allocation stays in Portfolio while HOME shows only the allocation policy", () => {
   assert.match(portfolio, /portfolio-investable-cash/);
   assert.match(home, /readonly investmentPercent: number/);
-  assert.match(home, /createCashInvestmentEnvelope\(account\.cash, investmentPercent\)/);
-  assert.match(home, /testID="home-investable-cash"/);
-  assert.match(home, /label="RESERVED CASH"/);
-  assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
+  assert.match(home, /label="ALLOCATION POLICY"/);
+  assert.doesNotMatch(home, /home-investable-cash|RESERVED CASH|createCashInvestmentEnvelope/);
+  assert.match(home, /PAPER ONLY · LIVE NONE · MUTATION FALSE · AI ZERO AUTHORITY/);
   assert.doesNotMatch(home, /productionMutationAllowed\s*=\s*true/);
   assert.doesNotMatch(home, /liveAuthority\s*=\s*["'](?!NONE)/);
 });

@@ -30,14 +30,14 @@ test("cash allocation remains a first-class PAPER contract without cluttering ca
   assert.doesNotMatch(app, /StatusChip label=\{`투자 \$\{investmentPercent\}%`\}/);
   assert.match(app, /investmentPercent=\{investmentPercent\}/);
   assert.match(home, /readonly investmentPercent: number/);
-  assert.match(home, /testID="account-hero-card"/);
-  assert.match(home, /PAPER PERFORMANCE/);
-  assert.match(home, /testID="home-investable-cash"/);
-  assert.match(home, /<FactRow label="RESERVED CASH" value=\{krw\(cashEnvelope\?\.reservedCash\)\} tone="success" \/>/);
-  const performanceStart = home.indexOf('PAPER PERFORMANCE');
-  const investable = home.indexOf('testID="home-investable-cash"');
-  const reserved = home.indexOf('label="RESERVED CASH"');
-  assert.ok(performanceStart >= 0 && investable > performanceStart && reserved > performanceStart, "allocation detail must live inside PAPER PERFORMANCE");
+  assert.match(home, /testID="home-capital-reveal"/);
+  assert.match(home, /PAPER CONTEXT · SECONDARY/);
+  assert.match(home, /label="ALLOCATION POLICY"/);
+  assert.doesNotMatch(home, /home-investable-cash|RESERVED CASH|createCashInvestmentEnvelope/);
+  const paperContext = home.indexOf('PAPER CONTEXT · SECONDARY');
+  const allocationPolicy = home.indexOf('label="ALLOCATION POLICY"');
+  assert.ok(paperContext >= 0 && allocationPolicy > paperContext, "HOME keeps allocation as secondary PAPER context only");
+
   assert.match(portfolio, /portfolio-investable-cash/);
   assert.match(trading, /const cashEnvelope = createCashInvestmentEnvelope\(effectiveSnapshot\.account\.cash, investmentPercent\)/);
   assert.match(trading, /const modelCash = side === "BUY" \? cashEnvelope\.investableCash : effectiveSnapshot\.account\.cash/);

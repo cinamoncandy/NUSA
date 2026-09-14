@@ -18,45 +18,34 @@ test("classic and master presets remain materially distinct visual systems", () 
   assert.match(profile, /master:[\s\S]*?balanceSize:\s*44/);
 });
 
-test("HomeView presents the approved autonomous-intelligence composition", () => {
+test("HomeView presents the approved truth-bound Runtime Canvas composition", () => {
   const home = read("apps/mobile/src/homeView.tsx");
 
   assert.match(home, /useWindowDimensions/);
   assert.match(home, /const tablet = width >= 768/);
-  assert.match(home, /maxWidth: tablet \? 1080 : 720/);
-  assert.match(home, /testID="home-screen"/);
-  assert.match(home, /testID="home-master-rail"/);
-  assert.match(home, /testID="home-status-rail"/);
-  assert.match(home, /testID="home-now"/);
-  assert.match(home, /testID="account-hero-card"/);
-  assert.match(home, /testID="ai-card"/);
-  assert.match(home, /testID="home-risk-status"/);
-  assert.match(home, /testID="home-decision-stage"/);
-  assert.match(home, /testID="home-paper-performance"/);
-  assert.match(home, /testID="home-paper-learning"/);
-  assert.match(home, /DECISION BASIS/);
-  assert.match(home, /RISK/);
-  assert.match(home, /MARKETS/);
-  assert.match(home, /PAPER PERFORMANCE/);
-  assert.match(home, /LEARN/);
-  assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
-
+  assert.match(home, /content: \{ width: "100%", maxWidth: 720/);
+  assert.match(home, /contentTablet: \{ maxWidth: 1080 \}/);
+  for (const id of ["home-screen", "home-master-rail", "home-status-rail", "home-now", "home-judgment-proof", "ai-card", "home-confidence-evidence-quality", "home-market-canvas-reveal", "home-paper-performance", "home-paper-learning"]) {
+    assert.match(home, new RegExp(`testID="${id}"`));
+  }
+  assert.match(home, /PAPER CONTEXT · SECONDARY/);
+  assert.match(home, /PAPER ONLY · LIVE NONE · MUTATION FALSE · AI ZERO AUTHORITY/);
+  assert.doesNotMatch(home, /RISK VETO|SIGNAL FUNNEL|REJECTED SIGNALS|testID="home-risk-status"|testID="home-decision-stage"/);
   assert.doesNotMatch(home, /getHomeVisualProfile\(theme\.preset\)/);
   assert.doesNotMatch(home, />[^<]*(?:BULLISH|STRONG|WEAK)[^<]*<\/Text>/);
-  assert.doesNotMatch(home, /testID="home-supervisor-summary"/);
-  assert.doesNotMatch(home, /<SupervisorProgressPanel/);
+  assert.doesNotMatch(home, /testID="home-supervisor-summary"|<SupervisorProgressPanel/);
 });
 
-test("canonical HOME uses verified market and PAPER data without fabricating unavailable feeds", () => {
+test("canonical HOME uses verified public observation and Cloud PAPER projection without fabricating feeds", () => {
   const home = read("apps/mobile/src/homeView.tsx");
   const app = read("apps/mobile/App.tsx");
 
-  assert.match(home, /const marketRows = \[\.\.\.selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)\][\s\S]*?\.slice\(0, tablet \? 5 : 3\)/);
   assert.match(home, /publicMarkets: readonly WatchlistMarket\[\] \| null/);
-  assert.match(home, /signedPercentFromRate\(market\.changeRate\)/);
-  assert.match(home, /const cloudAccount = snapshot\?\.portfolio\?\.account \?\? null/);
-  assert.match(home, /const account = cloudAccount \?\? localAccount/);
-  assert.match(home, /buildLocalPortfolio\(localTradingSnapshot, localMarkPrice\)/);
+  assert.match(home, /const observedMarketCount = publicMarkets\?\.length \?\? 0/);
+  assert.match(home, /const publicState = publicMarketStale \? "STALE"/);
+  assert.match(home, /const account = snapshot\?\.portfolio\?\.account \?\? null/);
+  assert.match(home, /CLOUD PAPER CAPITAL/);
+  assert.doesNotMatch(home, /buildLocalPortfolio|useLocalPaperSnapshot|selectHomeMarketData\(/);
   assert.match(home, /testID="home-operational-notice"/);
   assert.match(home, /onPress=\{onGoSettings\}/);
   assert.doesNotMatch(home, /<OperationalNotice/);
@@ -74,13 +63,14 @@ test("canonical HOME uses verified market and PAPER data without fabricating una
   assert.doesNotMatch(home, /productionMutationAllowed\s*=\s*true/);
 });
 
-test("HOME rendered financial values keep stable tabular numerals in the command-center grammar", () => {
+test("HOME rendered financial values share one explicit formatting grammar", () => {
   const home = read("apps/mobile/src/homeView.tsx");
-  for (const style of ["balanceValue", "pnlValue", "factValue", "previewValue"]) {
-    assert.match(home, new RegExp(`${style}: \\{[^}]*fontVariant: \\["tabular-nums"\\]`));
-  }
-  assert.match(home, /\{krw\(account\?\.equity\)\}/);
-  assert.match(home, /\{signedMoney\(totalPnl\)\} TOTAL PNL/);
+  assert.match(home, /function money\(value: number \| null \| undefined\): string/);
+  assert.match(home, /function signedMoney\(value: number \| null \| undefined\): string/);
+  assert.match(home, /label="PAPER EQUITY" value=\{money\(account\?\.equity\)\}/);
+  assert.match(home, /label="TOTAL PNL" value=\{signedMoney\(totalPnl\)\}/);
+  assert.match(home, /label="CASH" value=\{money\(account\?\.cash\)\}/);
+  assert.match(home, /label="EXPOSURE" value=\{money\(exposure\)\}/);
 });
 
 test("fresh or stale installs converge on the canonical master preset", () => {

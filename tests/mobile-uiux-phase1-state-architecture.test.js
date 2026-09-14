@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const root = path.join(__dirname, "..", "apps", "mobile");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
+
 test("system theme follows device preference and persisted settings are applied", () => {
   const provider = read("src/ThemeProvider.tsx");
   const app = read("App.tsx");
@@ -20,6 +21,7 @@ test("system theme follows device preference and persisted settings are applied"
   assert.match(settings, /if \(!saved\) setMode\(themePreference\(previousTheme\)\)/);
   assert.doesNotMatch(settings, /settings-locale-|언어 선택/);
 });
+
 test("utility navigation has an explicit close path and local settings expose guarded real sign-out", () => {
   const app = read("App.tsx");
   const settings = read("src/settingsView.tsx");
@@ -33,6 +35,7 @@ test("utility navigation has an explicit close path and local settings expose gu
   assert.match(app, /credentialSession\.clear\(\)/);
   assert.match(app, /signOut\(\)/);
 });
+
 test("not-configured dashboard state is distinct from runtime errors", () => {
   const app = read("App.tsx");
   assert.match(app, /testID="dashboard-connection-required"/);
@@ -44,29 +47,35 @@ test("not-configured dashboard state is distinct from runtime errors", () => {
   assert.match(app, /<AiView ai=\{ai\} error=\{readOnlyError\}/);
   assert.doesNotMatch(app, /error=\{readOnlyError \?\? notConfigured\}/);
 });
-test("Home hierarchy follows the Intelligence OS state-to-learning flow while preserving verified safety", () => {
+
+test("Home hierarchy follows truth-bound Runtime Canvas state-to-learning flow while preserving verified safety", () => {
   const home = read("src/homeView.tsx");
   const markers = [
     'testID="home-master-rail"',
     'testID="home-status-rail"',
+    'testID="home-intelligence-reveal"',
     'testID="home-now"',
-    'testID="account-hero-card"',
+    'testID="home-judgment-proof"',
     'testID="ai-card"',
-    'testID="home-risk-status"',
-    'testID="home-decision-stage"',
+    'testID="home-confidence-evidence-quality"',
+    'testID="home-market-canvas-reveal"',
+    'testID="home-paper-performance"',
+    'testID="home-paper-learning"',
     'testID="home-operational-notice"',
   ];
   for (const marker of markers) assert.match(home, new RegExp(marker));
   assert.match(home, /PAPER EQUITY/);
-  assert.match(home, /DECISION BASIS/);
-  assert.match(home, /QUICK ACCESS/);
-  assert.match(home, />PORTFOLIO<\/Text>/);
-  assert.match(home, />RISK<\/Text>/);
-  assert.match(home, /buildHomeStatusRail/);
-  assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
+  assert.match(home, /TOTAL PNL/);
+  assert.match(home, /OBSERVATION CONTEXT/);
+  assert.match(home, /PAPER CONTEXT · SECONDARY/);
+  assert.match(home, /const runtime = snapshot\?\.operations \?\? null/);
+  assert.match(home, /const calibrated = aiAvailable && ai\.calibrationStatus === "CALIBRATED"/);
+  assert.match(home, /PAPER ONLY · LIVE NONE · MUTATION FALSE · AI ZERO AUTHORITY/);
+  assert.doesNotMatch(home, /home-risk-status|home-decision-stage|RISK VETO|SIGNAL FUNNEL|REJECTED SIGNALS|buildHomeStatusRail/);
   assert.doesNotMatch(home, /label="스케줄러"|label="대기 쓰기"|label="Champion"|label="Challenger"/);
   assert.doesNotMatch(home, /productionMutationAllowed:\s*true|authority:\s*"LIVE"/);
 });
+
 test("AI hierarchy prioritizes evidence, uncertainty, calibration, and authority", () => {
   const ai = read("src/aiView.tsx");
   assert.match(ai, /testID="ai-loading"/);
@@ -82,6 +91,7 @@ test("AI hierarchy prioritizes evidence, uncertainty, calibration, and authority
   assert.doesNotMatch(ai, /label="모델"|label="프롬프트"/);
   assert.doesNotMatch(ai, /ORDER_CREATE|LIVE_EXECUTION|onSubmit/);
 });
+
 test("recoverable states stay actionable while production PAPER observation remains truthful", () => {
   const notifications = read("src/notificationView.tsx");
   const tradingShell = read("src/tradingView.tsx");
@@ -103,7 +113,5 @@ test("recoverable states stay actionable while production PAPER observation rema
   assert.match(monitor, /Settings에서 PAPER 서버 연결을 완료해 주세요/);
   assert.match(monitor, /네트워크와 서버 상태를 확인한 뒤 새로고침해 주세요/);
   assert.match(tradingWorkspace, /관찰 가능한 시장이 없습니다[\s\S]*NusaButton label="다시 불러오기"/);
-  assert.doesNotMatch(tradingShell, /productionMutationAllowed:\s*true|LIVE_EXECUTION|ORDER_CREATE/);
-  assert.doesNotMatch(monitor, /productionMutationAllowed:\s*true|LIVE_EXECUTION|ORDER_CREATE/);
-  assert.doesNotMatch(tradingWorkspace, /productionMutationAllowed:\s*true|LIVE_EXECUTION|ORDER_CREATE/);
+  for (const source of [tradingShell, monitor, tradingWorkspace]) assert.doesNotMatch(source, /productionMutationAllowed:\s*true|LIVE_EXECUTION|ORDER_CREATE/);
 });

@@ -6,26 +6,31 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-test("HOME AI judgment drills into verified evidence without creating a dead control", () => {
+test("HOME AI judgment drills into delivered verified evidence without creating a dead control", () => {
   const home = read("apps/mobile/src/homeView.tsx");
-  assert.match(home, /aiThesis: ai\?\.status === "AVAILABLE" \? ai\.thesis : null/);
-  assert.match(home, /aiEvidenceCount: ai\?\.status === "AVAILABLE" \? ai\.evidenceReferences\.length : 0/);
-  assert.match(home, /const aiInsightAvailable = decisionSurface\.aiInsightAvailable && !disconnected && readOnlyError == null/);
-  assert.match(home, /aiInsightAvailable \? <Pressable onPress=\{\(\) => onNavigate\("AiSignal"\)\}/);
-  assert.match(home, /testID="ai-card"/);
-  assert.match(home, /DECISION BASIS/);
-  assert.match(home, /\{why\}/);
+  assert.match(home, /const aiAvailable = !unavailable && ai\?\.status === "AVAILABLE"/);
+  assert.match(home, /ai\.evidenceReferences\.slice\(0, 2\)/);
+  assert.match(home, /ai\.counterEvidence\.slice\(0, 2\)/);
+  assert.match(home, /testID="home-ai-detail-action"/);
+  assert.match(home, /onPress=\{\(\) => onNavigate\("AiSignal"\)\}/);
+  assert.match(home, />판단 근거 상세 보기  →<\/Text>/);
+  assert.match(home, />근거<\/Text>/);
+  assert.match(home, /검증된 AI projection이 없어 근거를 표시하지 않습니다/);
 });
 
-test("HOME keeps glanceable workspaces ahead of progressive AI judgment and risk detail", () => {
+test("HOME orders runtime truth, judgment, evidence validation, then secondary contexts", () => {
   const home = read("apps/mobile/src/homeView.tsx");
-  const ai = home.indexOf('testID="ai-card"');
-  const risk = home.indexOf('testID="home-risk-status"');
-  const terrain = home.indexOf('testID="home-decision-stage"');
-  const paperPerformance = home.indexOf('testID="home-paper-performance"');
+  const runtime = home.indexOf('testID="home-status-rail"');
+  const judgment = home.indexOf('testID="home-intelligence-reveal"');
+  const evidence = home.indexOf('>근거</Text>');
+  const validation = home.indexOf('>불확실성 / 검증</Text>');
+  const market = home.indexOf('testID="home-market-canvas-reveal"');
+  const paper = home.indexOf('testID="home-capital-reveal"');
   const learning = home.indexOf('testID="home-paper-learning"');
-  assert.ok(ai >= 0 && risk >= 0 && terrain >= 0 && paperPerformance >= 0 && learning >= 0, "canonical Intelligence OS decision flow must exist");
-  assert.ok(terrain < paperPerformance && paperPerformance < learning && learning < ai && ai < risk, "HOME scan order must remain observe → supervise → learn → decision basis → risk detail");
-  assert.doesNotMatch(home, /<TruthCell label="WHY"/);
-  assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
+
+  assert.ok(runtime >= 0 && judgment >= 0 && evidence >= 0 && validation >= 0 && market >= 0 && paper >= 0 && learning >= 0, "canonical Runtime Canvas decision flow must exist");
+  assert.ok(runtime < judgment && judgment < evidence && evidence < validation && validation < market && market < paper && paper < learning, "HOME scan order must remain runtime truth → judgment → evidence → validation → market → PAPER → learning");
+  assert.match(home, /PAPER ONLY/);
+  assert.match(home, /LIVE NONE · MUTATION FALSE · AI ZERO AUTHORITY/);
+  assert.doesNotMatch(home, /OBSERVE → REASON → VERIFY → DECIDE/);
 });
