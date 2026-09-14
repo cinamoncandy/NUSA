@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted on `docs/nusa-ai-evolution-principle`.
+Accepted on `docs/NUSA_AI_EVOLUTION_PRINCIPLE.md`.
 
 ## Context
 
