@@ -280,23 +280,32 @@ jobs:
           test "$(jq -r '.base.sha' <<<"$pr")" = "$AUDITED_BASE"
           test "$main" = "$AUDITED_BASE"
 
+          expected_target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          expected_status_url="$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/statuses/$EXPECTED_HEAD"
+          expected_creator='nusa-release-authority[bot]'
           status="$(GH_TOKEN="$AUTH_GH_TOKEN" gh api --method POST \
             "repos/$GITHUB_REPOSITORY/statuses/$EXPECTED_HEAD" \
             -f state=success \
             -f context="$AUTH_CONTEXT" \
             -f description="canonical Audit PASS; pr=$PR_NUMBER; base=$AUDITED_BASE" \
-            -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID")"
-          expected_commit_url="$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/commits/$EXPECTED_HEAD"
-          status_id="$(jq -r '.id // empty' <<<"$status")"
-          jq -e --arg context "$AUTH_CONTEXT" --arg commit_url "$expected_commit_url" \
-            '.state == "success" and .context == $context and .commit_url == $commit_url and (.id | type == "number")' \
-            <<<"$status" >/dev/null
-          GH_TOKEN="$AUTH_GH_TOKEN" gh api \
-            "repos/$GITHUB_REPOSITORY/commits/$EXPECTED_HEAD/statuses" \
-            --jq ".[] | select(.id == $status_id and .state == \"success\" and .context == \"$AUTH_CONTEXT\")" \
-            | jq -e --arg commit_url "$expected_commit_url" '.commit_url == $commit_url' >/dev/null
+            -f target_url="$expected_target_url")"
+          # The authorization now exists. Publish this output before any self-verification
+          # so every later failure enters the fail-closed invalidation step.
           echo 'published=true' >> "$GITHUB_OUTPUT"
-          echo "Dedicated release authority published $AUTH_CONTEXT on exact head $EXPECTED_HEAD for audited base $AUDITED_BASE"
+
+          status_id="$(jq -r '.id // empty' <<<"$status")"
+          jq -e --arg context "$AUTH_CONTEXT" --arg target "$expected_target_url" \
+            --arg status_url "$expected_status_url" --arg creator "$expected_creator" \
+            '.state == "success" and .context == $context and .target_url == $target and .url == $status_url and .creator.login == $creator and (.id | type == "number")' \
+            <<<"$status" >/dev/null
+          observed_status="$(GH_TOKEN="$AUTH_GH_TOKEN" gh api \
+            "repos/$GITHUB_REPOSITORY/commits/$EXPECTED_HEAD/statuses" \
+            --jq ".[] | select(.id == $status_id)")"
+          jq -e --argjson id "$status_id" --arg context "$AUTH_CONTEXT" --arg target "$expected_target_url" \
+            --arg status_url "$expected_status_url" --arg creator "$expected_creator" \
+            '.id == $id and .state == "success" and .context == $context and .target_url == $target and .url == $status_url and .creator.login == $creator' \
+            <<<"$observed_status" >/dev/null
+          echo "Dedicated release authority published and re-read $AUTH_CONTEXT on exact head $EXPECTED_HEAD for audited base $AUDITED_BASE"
 
       - name: Re-verify authorization is still current before merge
         run: |

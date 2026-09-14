@@ -84,11 +84,20 @@ test('authorization, merge proof, and invalidation remain fail-closed and ordere
   assert.ok(mint >= 0 && authorize > mint && reverify > authorize && merge > reverify && revoke > merge);
   assert.match(release, /AUTH_GH_TOKEN:\s*\$\{\{ steps\.release_authority_token\.outputs\.token \}\}/);
   assert.match(release, /statuses\/\$EXPECTED_HEAD/);
-  assert.match(release, /expected_commit_url="\$GITHUB_API_URL\/repos\/\$GITHUB_REPOSITORY\/commits\/\$EXPECTED_HEAD"/);
+  assert.match(release, /expected_status_url="\$GITHUB_API_URL\/repos\/\$GITHUB_REPOSITORY\/statuses\/\$EXPECTED_HEAD"/);
+  assert.match(release, /expected_target_url="\$GITHUB_SERVER_URL\/\$GITHUB_REPOSITORY\/actions\/runs\/\$GITHUB_RUN_ID"/);
+  assert.match(release, /expected_creator='nusa-release-authority\[bot\]'/);
   assert.match(release, /commits\/\$EXPECTED_HEAD\/statuses/);
-  assert.doesNotMatch(release, /\.sha == \$head/,
-    'GitHub commit-status responses may omit sha; exact-head proof must use the bound endpoint and commit URL');
+  assert.doesNotMatch(release, /\.sha == \$head|\.commit_url/,
+    'exact-head proof must use the SHA-bound status endpoints and real GitHub status fields');
+  assert.match(release, /\.target_url == \$target/);
+  assert.match(release, /\.url == \$status_url/);
+  assert.match(release, /\.creator\.login == \$creator/);
   assert.match(release, /context=\"\$AUTH_CONTEXT\"/);
+  const published = release.indexOf("echo 'published=true' >> \"$GITHUB_OUTPUT\"");
+  const selfVerify = release.indexOf('status_id="$(jq -r');
+  assert.ok(published > authorize && published < selfVerify,
+    'published output must be persisted before self-verification so failure always revokes');
   assert.match(release, /if:\s*\$\{\{ failure\(\) && steps\.authorize\.outputs\.published == 'true' \}\}/);
   assert.match(release, /parent_count/);
   assert.match(release, /parent_base/);
