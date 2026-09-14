@@ -1253,3 +1253,12 @@ latest_paper_chaos_bound_runtime_evidence_slice:
   implementation_branch: codex/paper-chaos-bound-runtime-evidence
   scope: "Emit only BOUND_UNVERIFIED restart-recovery evidence from the canonical actual PAPER runtime harness; external workflow verification remains separate."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+issue_1888_strategy_ownership:
+  work_order: WO-ISSUE-1888-CLOUD-PAPER-STRATEGY-OWNERSHIP
+  status: IMPLEMENTED_LOCAL_VALIDATION_PENDING_PR
+  branch: codex/issue-1888-strategy-ownership
+  base_sha: 79289f9f33f63e6b699bdbc42863c3e458f782a4
+  scope: "Align STRATEGY qualification provenance to the immutable Cloud PAPER candidate evaluator already used by the runtime; generic core strategy remains a reusable non-canonical primitive for this stage."
+  validation: "typecheck PASS; build PASS; focused runtime-truth and candidate strategy tests PASS 13/13."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
