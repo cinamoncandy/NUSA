@@ -10,7 +10,7 @@ function expectTabularStyle(source, styleName) {
   assert.match(source, new RegExp(`${styleName}: \\{[^}]*fontVariant: \\["tabular-nums"\\]`), `${styleName} must use tabular numerals`);
 }
 
-test("primary financial values use stable tabular numerals in each canonical presentation grammar", () => {
+test("primary financial values use the canonical presentation grammar without restoring retired Home value styles", () => {
   const home = read("apps/mobile/src/homeView.tsx");
   const intelligence = read("apps/mobile/src/intelligenceOs.tsx");
   const primitives = read("apps/mobile/src/uxPrimitives.tsx");
@@ -19,8 +19,13 @@ test("primary financial values use stable tabular numerals in each canonical pre
   const watchlist = read("apps/mobile/src/watchlistView.tsx");
 
   assert.match(home, /testID="account-hero-card"/);
-  expectTabularStyle(home, "balanceValue");
-  expectTabularStyle(home, "pnlValue");
+  assert.match(home, /function money\(value: number \| null \| undefined\): string/);
+  assert.match(home, /function signedMoney\(value: number \| null \| undefined\): string/);
+  assert.match(home, /label="PAPER EQUITY" value=\{money\(account\?\.equity\)\}/);
+  assert.match(home, /label="TOTAL PNL" value=\{signedMoney\(totalPnl\)\}/);
+  assert.match(home, /label="CASH" value=\{money\(account\?\.cash\)\}/);
+  assert.match(home, /label="EXPOSURE" value=\{money\(exposure\)\}/);
+  assert.doesNotMatch(home, /balanceValue:|pnlValue:|factValue:|previewValue:/);
   assert.match(portfolio, /<MetricStrip testID="portfolio-supervisor-summary"/);
   assert.match(portfolio, /<FactRow label="INVESTMENT LIMIT"/);
   assert.match(portfolio, /<FactRow label="CURRENT PRICE"/);
