@@ -42,6 +42,11 @@ function money(value: number | null | undefined): string {
   return `₩${Math.round(value).toLocaleString("ko-KR")}`;
 }
 
+function signedMoney(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  return `${value > 0 ? "+" : value < 0 ? "-" : ""}${money(Math.abs(value))}`;
+}
+
 function probability(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "—";
   return `${Math.round(value * 100)}%`;
@@ -80,6 +85,7 @@ export function HomeView({
 }: HomeViewProps) {
   const { theme } = useTheme();
   const { width } = useWindowDimensions();
+  const tablet = width >= 768;
   const compact = width < 380;
   const ai = snapshot?.ai ?? null;
   const runtime = snapshot?.operations ?? null;
@@ -98,7 +104,13 @@ export function HomeView({
   const counterPreview = aiAvailable ? ai.counterEvidence.slice(0, 2) : [];
   const disagreementCount = aiAvailable ? ai.disagreements.length : 0;
   const account = snapshot?.portfolio?.account ?? null;
-  const authority = "LIVE NONE · MUTATION FALSE · AI ZERO AUTHORITY";
+  const totalPnl = account == null ? null : (account.realizedPnl ?? account.position.realizedPnl) + account.unrealizedPnl;
+  const exposure = account == null ? null : (account.assetValue ?? Math.max(0, account.equity - account.cash));
+  const capitalLabel = account == null ? "PAPER CAPITAL UNAVAILABLE" : "CLOUD PAPER CAPITAL";
+  const authority = "PAPER ONLY · LIVE NONE · MUTATION FALSE · AI ZERO AUTHORITY";
+  const proofLine = aiAvailable
+    ? `CONFIDENCE ${calibrated ? probability(ai.confidence) : "HIDDEN"} · EVIDENCE ${ai.evidenceReferences.length} · COUNTER ${ai.counterEvidence.length} · DISAGREEMENT ${disagreementCount}`
+    : "CONFIDENCE HIDDEN · EVIDENCE UNAVAILABLE";
 
   const primaryStatement = useMemo(() => {
     if (disconnected) return "PAPER 연결이 없어 판단을 확정하지 않습니다.";
@@ -113,7 +125,7 @@ export function HomeView({
 
   return <View style={[styles.shell, { backgroundColor: theme.colors.background }]} testID="home-screen">
     <ScrollView
-      contentContainerStyle={[styles.content, compact ? styles.contentCompact : null]}
+      contentContainerStyle={[styles.content, tablet ? styles.contentTablet : null, compact ? styles.contentCompact : null]}
       refreshControl={<RefreshControl tintColor={theme.colors.textMuted} refreshing={refreshing} onRefresh={onRefresh} />}
       showsVerticalScrollIndicator={false}
     >
@@ -147,11 +159,12 @@ export function HomeView({
         <View style={styles.documentBody} testID="home-now">
           <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>판단 상태 · {stateLabel}</Text>
           <Text style={[styles.statement, { color: theme.colors.text }]}>{primaryStatement}</Text>
+          <Text style={[styles.proofLine, { color: theme.colors.text }]} testID="home-judgment-proof">{proofLine}</Text>
           <Text style={[styles.provenance, { color: theme.colors.textMuted }]}>마지막 AI 관측 {ageLabel(lastModelRun)} · {ai?.learningProvenance ?? "UNKNOWN"}</Text>
         </View>
       </View>
 
-      <View style={styles.intelligenceDocument}>
+      <View style={styles.intelligenceDocument} testID="ai-card">
         <View style={styles.sectionIndex}><Text style={[styles.indexText, { color: theme.colors.textMuted }]}>02</Text><View style={[styles.indexRule, { backgroundColor: theme.colors.border }]} /></View>
         <View style={styles.documentBody}>
           <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>근거</Text>
@@ -168,7 +181,7 @@ export function HomeView({
         </View>
       </View>
 
-      <View style={styles.intelligenceDocument}>
+      <View style={styles.intelligenceDocument} testID="home-confidence-evidence-quality">
         <View style={styles.sectionIndex}><Text style={[styles.indexText, { color: theme.colors.textMuted }]}>03</Text><View style={[styles.indexRule, { backgroundColor: theme.colors.border }]} /></View>
         <View style={styles.documentBody}>
           <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>불확실성 / 검증</Text>
@@ -203,10 +216,14 @@ export function HomeView({
 
       <View style={[styles.contextPanel, { borderColor: theme.colors.border }]} testID="home-capital-reveal">
         <View testID="account-hero-card">
-          <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>PAPER CONTEXT · SECONDARY</Text>
-          <Row label="EQUITY" value={money(account?.equity)} valueColor={theme.colors.text} borderColor={theme.colors.border} />
-          <Row label="CASH" value={money(account?.cash)} valueColor={theme.colors.text} borderColor={theme.colors.border} />
-          <Row label="ALLOCATION POLICY" value={Number.isFinite(investmentPercent) ? `${investmentPercent}%` : "—"} valueColor={theme.colors.text} borderColor={theme.colors.border} />
+          <View testID="home-paper-performance">
+            <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>PAPER CONTEXT · SECONDARY · {capitalLabel}</Text>
+            <Row label="PAPER EQUITY" value={money(account?.equity)} valueColor={theme.colors.text} borderColor={theme.colors.border} />
+            <Row label="TOTAL PNL" value={signedMoney(totalPnl)} valueColor={theme.colors.text} borderColor={theme.colors.border} />
+            <Row label="CASH" value={money(account?.cash)} valueColor={theme.colors.text} borderColor={theme.colors.border} />
+            <Row label="EXPOSURE" value={money(exposure)} valueColor={theme.colors.text} borderColor={theme.colors.border} />
+            <Row label="ALLOCATION POLICY" value={Number.isFinite(investmentPercent) ? `${investmentPercent}%` : "—"} valueColor={theme.colors.text} borderColor={theme.colors.border} />
+          </View>
           <View style={styles.secondaryActions} testID="home-supervisor-learning">
             <Pressable accessibilityRole="button" onPress={() => onNavigate("Portfolio")} style={styles.textAction}><Text style={[styles.textActionLabel, { color: theme.colors.text }]}>PAPER 자산  →</Text></Pressable>
             <Pressable accessibilityRole="button" onPress={onOpenPaperLearning} style={styles.textAction} testID="home-paper-learning"><Text style={[styles.textActionLabel, { color: theme.colors.text }]}>학습 근거  →</Text></Pressable>
@@ -225,6 +242,7 @@ export function HomeView({
 const styles = StyleSheet.create({
   shell: { flex: 1 },
   content: { width: "100%", maxWidth: 720, alignSelf: "center", paddingHorizontal: 20, paddingTop: 18, paddingBottom: 48, gap: 22 },
+  contentTablet: { maxWidth: 1080 },
   contentCompact: { paddingHorizontal: 16, gap: 18 },
   appBar: { minHeight: 50, flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
   brand: { fontSize: 20, fontWeight: "800", letterSpacing: 1.6 },
@@ -245,7 +263,8 @@ const styles = StyleSheet.create({
   indexRule: { width: 1, flex: 1, minHeight: 28, marginTop: 8 },
   documentBody: { flex: 1, minWidth: 0, paddingBottom: 4 },
   kicker: { fontSize: 10, fontWeight: "700", letterSpacing: 1.05, marginBottom: 10 },
-  statement: { fontSize: 25, lineHeight: 34, fontWeight: "600", letterSpacing: -0.55, marginBottom: 12 },
+  statement: { fontSize: 25, lineHeight: 34, fontWeight: "600", letterSpacing: -0.55, marginBottom: 10 },
+  proofLine: { fontSize: 10, lineHeight: 16, fontWeight: "700", letterSpacing: 0.45, marginBottom: 6 },
   provenance: { fontSize: 11, lineHeight: 17 },
   emptyText: { fontSize: 14, lineHeight: 22, marginBottom: 6 },
   row: { minHeight: 42, paddingVertical: 9, flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 16, borderBottomWidth: StyleSheet.hairlineWidth },

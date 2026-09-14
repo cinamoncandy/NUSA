@@ -90,10 +90,11 @@ test("primary mobile workspaces remain intentionally bounded and supervision-fir
 
   assert.match(home, /useWindowDimensions/);
   assert.match(home, /const tablet = width >= 768/);
-  assert.match(home, /testID="home-risk-status"/);
+  assert.match(home, /testID="home-intelligence-reveal"/);
+  assert.match(home, /testID="home-confidence-evidence-quality"/);
   assert.match(home, /testID="home-paper-performance"/);
   assert.match(home, /testID="home-paper-learning"/);
-  assert.doesNotMatch(home, /productionMutationAllowed:\s*true/);
+  assert.doesNotMatch(home, /RISK VETO|productionMutationAllowed:\s*true/);
 
   assert.match(markets, /useWindowDimensions/);
   assert.match(markets, /minHeight: 48/);
