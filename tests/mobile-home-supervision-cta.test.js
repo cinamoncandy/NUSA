@@ -6,32 +6,32 @@ const path = require("node:path");
 const home = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "homeView.tsx"), "utf8");
 const decisionSurface = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "homeDecisionSurface.ts"), "utf8");
 
-test("HOME surfaces degraded PAPER connection states before exploration without restoring legacy supervisor chrome", () => {
+test("HOME surfaces degraded PAPER connection truth before market/PAPER exploration without restoring supervisor chrome", () => {
   const notice = home.indexOf('testID="home-operational-notice"');
-  const ai = home.indexOf('testID="ai-card"');
-  const terrain = home.indexOf('testID="home-decision-stage"');
+  const runtime = home.indexOf('testID="home-status-rail"');
+  const judgment = home.indexOf('testID="home-intelligence-reveal"');
+  const validation = home.indexOf('testID="home-confidence-evidence-quality"');
+  const market = home.indexOf('testID="home-market-canvas-reveal"');
   const paperPerformance = home.indexOf('testID="home-paper-performance"');
   const learning = home.indexOf('testID="home-paper-learning"');
 
   assert.ok(notice >= 0, "PAPER operational notice must exist");
-  assert.ok(ai >= 0 && terrain >= 0 && paperPerformance >= 0 && learning >= 0, "canonical HOME intelligence flow must exist");
-  assert.ok(terrain < paperPerformance && paperPerformance < learning && learning < ai, "workspace actions must stay glanceable before progressive AI detail");
-  assert.ok(notice < ai, "connection recovery notice must remain visible before progressive AI detail");
-  assert.match(home, /"PAPER 연결 오류"/);
-  assert.match(home, /"PAPER 연결 필요"/);
+  assert.ok(runtime >= 0 && judgment >= 0 && validation >= 0 && market >= 0 && paperPerformance >= 0 && learning >= 0, "canonical Runtime Canvas flow must exist");
+  assert.ok(runtime < judgment && judgment < validation && validation < notice && notice < market && market < paperPerformance && paperPerformance < learning);
+  assert.match(home, /Cloud PAPER 연결을 검증해야 합니다/);
+  assert.match(home, /관측 오류로 현재 판단을 확정하지 않습니다/);
   assert.match(home, /onPress=\{onGoSettings\}/);
-  assert.doesNotMatch(home, /testID="home-supervisor-primary-action"/);
+  assert.doesNotMatch(home, /testID="home-supervisor-primary-action"|testID="home-risk-status"|testID="home-decision-stage"/);
 
   assert.match(decisionSurface, /const WATCH_RUNTIME_STATES = new Set\(\["DEGRADED", "STOPPED", "STOPPING"\]\)/);
   assert.match(decisionSurface, /runtimeNeedsSupervision\s*\n\s*\? "SUPERVISE PAPER"/);
 });
 
-test("HOME connection failure copy wins over stale AI output while fail-closed supervisor logic remains available", () => {
+test("HOME connection failure copy wins over stale AI output while fail-closed decision logic remains reusable", () => {
   assert.match(home, /const disconnected = notConfigured != null/);
-  assert.match(home, /const decisionSurface = buildHomeDecisionSurface\(\{[\s\S]*disconnected,[\s\S]*readOnlyError: readOnlyError != null/);
-  assert.match(home, /const aiInsightAvailable = decisionSurface\.aiInsightAvailable && !disconnected && readOnlyError == null/);
-  assert.match(home, /const posture = disconnected[\s\S]*\? "PAPER 서버 연결이 필요합니다\."[\s\S]*: readOnlyError[\s\S]*\? "PAPER 상태를 확인하고 있습니다\."/);
-  assert.match(home, /const why = aiInsightAvailable \? decisionSurface\.why : disconnected \? "Cloud PAPER 상태가 연결되기 전에는 판단 근거를 확정하지 않습니다\." : decisionSurface\.why/);
+  assert.match(home, /if \(disconnected\) return "PAPER 연결이 없어 판단을 확정하지 않습니다\."/);
+  assert.match(home, /if \(readOnlyError != null\) return "관측 오류로 현재 판단을 확정하지 않습니다\."/);
+  assert.match(home, /const aiAvailable = !unavailable && ai\?\.status === "AVAILABLE"/);
 
   const whyStart = decisionSurface.indexOf("const why = input.disconnected");
   const degradedIndex = decisionSurface.indexOf(': runtimeState === "DEGRADED"', whyStart);
@@ -41,5 +41,5 @@ test("HOME connection failure copy wins over stale AI output while fail-closed s
   assert.notEqual(aiInsightIndex, -1);
   assert.ok(degradedIndex < aiInsightIndex, "runtime failure WHY must win before AI thesis in the safety model");
   assert.match(decisionSurface, /PAPER runtime 상태가 저하되어 감독자의 확인이 필요합니다/);
-  assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
+  assert.match(home, /PAPER ONLY · LIVE NONE · MUTATION FALSE · AI ZERO AUTHORITY/);
 });
