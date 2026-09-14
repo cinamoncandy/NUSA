@@ -85,3 +85,64 @@ test("an in-memory database is refused before anything is read", () => {
   }
   assert.match(output, /in-memory/);
 });
+
+test("the credential the script writes is one the server will actually accept", () => {
+  // Everything above reads the script's source. None of it proves the file it writes is a
+  // credential sign-in can verify -- and this script runs once, on a host the owner may only be
+  // able to reach with difficulty, as the single server touch the whole design depends on. A
+  // wrong schema or a hash written to the wrong table would surface as "password rejected" on a
+  // phone, with nothing to distinguish it from a typo.
+  //
+  // The script itself needs a TTY, so this drives the same service call it makes, against a real
+  // database file rather than :memory:, and then signs in through the HTTP route.
+  const { mkdtempSync, rmSync } = require("node:fs");
+  const { tmpdir } = require("node:os");
+  const { SqliteDatabase } = require("../dist/packages/storage/src/index.js");
+  const { SqliteNusaUserAccessRepository } = require("../dist/apps/cloud/src/operatorUserAccess.js");
+  const { MobileSessionService } = require("../dist/apps/cloud/src/mobileSessionService.js");
+  const { handleOwnerPasswordSignInHttp } = require("../dist/apps/cloud/src/mobileSessionHttp.js");
+
+  const directory = mkdtempSync(join(tmpdir(), "nusa-owner-password-"));
+  const databasePath = join(directory, "state.sqlite");
+  const phrase = ["correct", "horse", "battery", "staple", "2026"].join("-");
+  try {
+    // Setup, in one process.
+    {
+      const db = new SqliteDatabase(databasePath);
+      try {
+        const users = new SqliteNusaUserAccessRepository(db);
+        users.ensureOwner({ id: "owner", email: "owner@nusa.local" }, Date.now());
+        const service = new MobileSessionService(db, users);
+        assert.equal(service.ownerPasswordConfigured(), false);
+        service.setOwnerPassword("owner", phrase, Date.now());
+        assert.equal(service.ownerPasswordConfigured(), true);
+      } finally {
+        db.close();
+      }
+    }
+
+    // Sign-in, in another: the runtime reads this from disk, not from the setup process's memory.
+    {
+      const db = new SqliteDatabase(databasePath);
+      try {
+        const users = new SqliteNusaUserAccessRepository(db);
+        const service = new MobileSessionService(db, users);
+        assert.equal(service.ownerPasswordConfigured(), true, "the password did not survive the process that set it");
+        const dependencies = {
+          sessionService: service,
+          legacyTokenVerifier: { verify: () => undefined },
+          userAccessRepository: users
+        };
+        const request = (password) => ({ method: "POST", headers: {}, body: JSON.stringify({ password, deviceId: "nusa-install-owners-phone" }) });
+        const accepted = handleOwnerPasswordSignInHttp(request(phrase), dependencies);
+        assert.equal(accepted.status, 200, accepted.body);
+        assert.ok(JSON.parse(accepted.body).accessToken);
+        assert.equal(handleOwnerPasswordSignInHttp(request(`${phrase}x`), dependencies).status, 401);
+      } finally {
+        db.close();
+      }
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
