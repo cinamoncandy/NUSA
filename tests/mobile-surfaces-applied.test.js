@@ -49,7 +49,7 @@ test("a stale refusal never outlives the attempt that produced it", () => {
     assert.notEqual(start, -1, `${name} is gone; this contract needs rewriting, not deleting`);
     return SETTINGS.slice(start, start + 1_800);
   };
-  for (const attempt of ["signInWithPassword", "testConnection", "disconnect"]) {
+  for (const attempt of ["enrollThisPhone", "testConnection", "disconnect"]) {
     assert.match(body(attempt), /setConnectionRefusal\(null\)/, `${attempt} can leave a stale refusal on screen`);
   }
 });

@@ -26,9 +26,9 @@ test("product v5 uses flatter secondary sections and Android-sized actions", () 
 test("Cloud PAPER setup communicates server session verify without changing authority", () => {
   const settings = read("src/settingsView.tsx");
   assert.match(settings, /title="SERVER"/);
-  assert.match(settings, /title="SECURE SESSION"/);
+  assert.match(settings, /testID="settings-owner-device-enroll"/);
   assert.match(settings, /title="VERIFY"/);
-  assert.match(settings, /PAPER 연결 요청 다시 시도/);
+  assert.match(settings, /호환 승인 대기 중/);
   assert.doesNotMatch(settings, /placeOrder|cancelOrder|withdraw/);
   const productionPaper = read("src/tradingView.tsx");
   assert.match(productionPaper, /<PaperLearningMonitorView/);

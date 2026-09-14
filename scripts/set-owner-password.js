@@ -88,7 +88,7 @@ async function main() {
     service.setOwnerPassword(owner.id, password, Date.now());
     // Deliberately reports only that it happened. Printing any part of the password, or a
     // fingerprint of it, would put it in a scrollback buffer someone else can read.
-    process.stdout.write(`Done. Sign in from the app with user id ${owner.id} and this password.\n`);
+    process.stdout.write("Done. Sign in from the app with this password.\n");
     process.stdout.write("Restart is not required; the runtime reads this from the database.\n");
   } catch (error) {
     fail(error instanceof Error ? error.message : "failed to set the owner password");

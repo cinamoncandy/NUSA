@@ -59,11 +59,11 @@ test("Settings makes owner-approved device pairing the primary Cloud PAPER flow"
   assert.match(source, /startPairing\(configuredEndpoint, installationId\)/);
   assert.match(source, /pairingStatus\(endpoint, pairing\.requestId, installationId\)/);
   assert.match(source, /exchangePairing\(endpoint, pairing\.requestId, installationId\)/);
-  assert.match(source, /PAPER 연결 요청/);
+  assert.match(source, /호환 코드 연결/);
   assert.match(source, /label="1회용 연결 토큰 \(호환용\)"[\s\S]*secureTextEntry/);
   assert.match(source, /bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);
   assert.match(source, /LOCAL PAPER에는 사용하지 않습니다/);
-  assert.match(source, /connectionFailed \? "PAPER 연결 요청 다시 시도" : "PAPER 연결 요청"/);
+  assert.match(source, /pairing != null \? "호환 승인 대기 중" : "호환 코드 연결"/);
   assert.match(source, /disabled=\{busy \|\| connection\.status !== "READY"\} label="연결 해제"/);
   assert.match(source, /const cloudConnectionLabel = connecting \? "VERIFYING"/);
 });

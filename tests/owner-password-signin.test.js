@@ -37,7 +37,7 @@ test("the owner's password issues a device-bound session, with no token anywhere
   const { db, service } = fixture();
   try {
     service.setOwnerPassword(OWNER.userId, TEST_PHRASE, 100);
-    const outcome = service.signInWithOwnerPassword({ userId: OWNER.userId, password: TEST_PHRASE, deviceId: DEVICE, now: 101 });
+    const outcome = service.signInWithOwnerPassword({ password: TEST_PHRASE, deviceId: DEVICE, now: 101 });
     assert.equal(outcome.status, "ISSUED");
     assert.ok(outcome.tokens.accessToken);
     assert.ok(outcome.tokens.refreshToken);
@@ -60,10 +60,10 @@ test("a wrong password is refused, and an unconfigured server refuses identicall
   const { db, service } = fixture();
   try {
     // Nothing set up yet.
-    assert.equal(service.signInWithOwnerPassword({ userId: OWNER.userId, password: TEST_PHRASE, deviceId: DEVICE, now: 100 }).status, "REJECTED");
+    assert.equal(service.signInWithOwnerPassword({ password: TEST_PHRASE, deviceId: DEVICE, now: 100 }).status, "REJECTED");
     service.setOwnerPassword(OWNER.userId, TEST_PHRASE, 101);
-    assert.equal(service.signInWithOwnerPassword({ userId: OWNER.userId, password: ["wrong", "password", "entirely"].join("-"), deviceId: DEVICE, now: 102 }).status, "REJECTED");
-    assert.equal(service.signInWithOwnerPassword({ userId: "member", password: TEST_PHRASE, deviceId: DEVICE, now: 103 }).status, "REJECTED");
+    assert.equal(service.signInWithOwnerPassword({ password: ["wrong", "password", "entirely"].join("-"), deviceId: DEVICE, now: 102 }).status, "REJECTED");
+    assert.equal(service.signInWithOwnerPassword({ userId: "member", password: TEST_PHRASE, deviceId: DEVICE, now: 103 }).status, "INVALID_OWNER");
   } finally { db.close(); }
 });
 
@@ -75,7 +75,7 @@ test("a password row that outlived its account grants nothing", () => {
   try {
     service.setOwnerPassword(OWNER.userId, TEST_PHRASE, 100);
     db.connection.prepare("UPDATE nusa_owner_password SET user_id=? WHERE user_id=?").run("deleted-owner", OWNER.userId);
-    assert.equal(service.signInWithOwnerPassword({ userId: "deleted-owner", password: TEST_PHRASE, deviceId: DEVICE, now: 101 }).status, "REJECTED");
+    assert.equal(service.signInWithOwnerPassword({ userId: "deleted-owner", password: TEST_PHRASE, deviceId: DEVICE, now: 101 }).status, "INVALID_OWNER");
   } finally { db.close(); }
 });
 
@@ -86,7 +86,7 @@ test("a non-owner account cannot sign in even holding a valid hash", () => {
     const hash = db.connection.prepare("SELECT password_hash FROM nusa_owner_password WHERE user_id=?").get(OWNER.userId).password_hash;
     db.connection.prepare("INSERT INTO nusa_owner_password(user_id,password_hash,updated_at,failures,locked_until,last_failure_at) VALUES(?,?,?,0,NULL,NULL)")
       .run("member", hash, 100);
-    assert.equal(service.signInWithOwnerPassword({ userId: "member", password: TEST_PHRASE, deviceId: DEVICE, now: 101 }).status, "REJECTED");
+    assert.equal(service.signInWithOwnerPassword({ userId: "member", password: TEST_PHRASE, deviceId: DEVICE, now: 101 }).status, "INVALID_OWNER");
   } finally { db.close(); }
 });
 
@@ -109,9 +109,9 @@ test("a successful sign-in clears the penalty", () => {
   try {
     service.setOwnerPassword(OWNER.userId, TEST_PHRASE, 100);
     for (let attempt = 0; attempt < FREE_ATTEMPTS; attempt += 1) {
-      service.signInWithOwnerPassword({ userId: OWNER.userId, password: "guess", deviceId: DEVICE, now: 101 });
+      service.signInWithOwnerPassword({ password: "guess", deviceId: DEVICE, now: 101 });
     }
-    assert.equal(service.signInWithOwnerPassword({ userId: OWNER.userId, password: TEST_PHRASE, deviceId: DEVICE, now: 102 }).status, "ISSUED");
+    assert.equal(service.signInWithOwnerPassword({ password: TEST_PHRASE, deviceId: DEVICE, now: 102 }).status, "ISSUED");
     const row = db.connection.prepare("SELECT failures,locked_until FROM nusa_owner_password WHERE user_id=?").get(OWNER.userId);
     assert.equal(Number(row.failures), 0);
     assert.equal(row.locked_until, null);
@@ -122,7 +122,9 @@ test("the route refuses a malformed request before touching the password", () =>
   const { db, service, deps } = fixture();
   try {
     service.setOwnerPassword(OWNER.userId, TEST_PHRASE, 100);
-    for (const body of [{ password: TEST_PHRASE, deviceId: DEVICE }, { userId: OWNER.userId, password: TEST_PHRASE }, { userId: OWNER.userId, password: TEST_PHRASE, deviceId: "short" }, { userId: OWNER.userId, password: TEST_PHRASE, deviceId: "bad\nid-with-newline" }]) {
+    // The route no longer takes a user id -- the server picks its single owner -- so only the
+    // device identifier is still shape-checked before the password is touched.
+    for (const body of [{ password: TEST_PHRASE }, { password: TEST_PHRASE, deviceId: "short" }, { password: TEST_PHRASE, deviceId: "bad\nid-with-newline" }]) {
       assert.equal(handleOwnerPasswordSignInHttp(post(body), deps).status, 400, `${JSON.stringify(body)} was not refused`);
     }
     // A refused request must not have cost the owner an attempt.
@@ -165,11 +167,11 @@ test("replacing the password invalidates the old one and clears any lock", () =>
   try {
     service.setOwnerPassword(OWNER.userId, TEST_PHRASE, 100);
     for (let attempt = 0; attempt <= FREE_ATTEMPTS; attempt += 1) {
-      service.signInWithOwnerPassword({ userId: OWNER.userId, password: "guess", deviceId: DEVICE, now: 101 });
+      service.signInWithOwnerPassword({ password: "guess", deviceId: DEVICE, now: 101 });
     }
     const replacement = ["a", "different", "passphrase", "entirely"].join(" ");
     service.setOwnerPassword(OWNER.userId, replacement, 200);
-    assert.equal(service.signInWithOwnerPassword({ userId: OWNER.userId, password: TEST_PHRASE, deviceId: DEVICE, now: 201 }).status, "REJECTED");
-    assert.equal(service.signInWithOwnerPassword({ userId: OWNER.userId, password: replacement, deviceId: DEVICE, now: 202 }).status, "ISSUED");
+    assert.equal(service.signInWithOwnerPassword({ password: TEST_PHRASE, deviceId: DEVICE, now: 201 }).status, "REJECTED");
+    assert.equal(service.signInWithOwnerPassword({ password: replacement, deviceId: DEVICE, now: 202 }).status, "ISSUED");
   } finally { db.close(); }
 });

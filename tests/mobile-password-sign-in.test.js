@@ -18,30 +18,31 @@ const { readServerCapabilities, UNKNOWN_CAPABILITIES } = require("../dist/apps/m
  */
 
 test("the password is never persisted, only sent", () => {
-  assert.match(SESSION, /signInWithPassword/);
-  const start = SESSION.indexOf("public async signInWithPassword");
-  const body = SESSION.slice(start, SESSION.indexOf("public async enroll"));
+  assert.match(SESSION, /signInWithOwnerPasswordAndEnrollDeviceCredential/);
+  const start = SESSION.indexOf("signInWithOwnerPasswordAndEnrollDeviceCredential");
+  const body = SESSION.slice(start, start + 2_400);
   assert.match(body, /destroyLegacyPersistedCredentials/, "a stale persisted credential must be purged first");
   // Purging old credentials is the one storage call allowed here; anything else would be a write.
   const withoutPurge = body.replace(/destroyLegacyPersistedCredentials/g, "");
-  assert.equal(/storage|setItem|AsyncStorage|persist/i.test(withoutPurge), false, "the sign-in path wrote to storage");
+  assert.equal(/setSecret|setItem|AsyncStorage/i.test(withoutPurge), false, "the sign-in path wrote the password to storage");
 });
 
 test("the field is cleared on success and on failure alike", () => {
-  const start = SETTINGS.indexOf("const signInWithPassword");
+  const start = SETTINGS.indexOf("const enrollThisPhone");
   const body = SETTINGS.slice(start, start + 2_000);
-  assert.equal((body.match(/setPasswordDraft\(""\)/g) ?? []).length, 2, "a failed attempt must not leave the password on screen");
-  // Read once before the awaits: the field is cleared while the request is still in flight.
-  assert.match(body, /const password = passwordDraft;/);
+  // Success, catch, and finally: a password left in component state outlives the request that
+  // needed it, and this screen stays mounted.
+  assert.ok((body.match(/setOwnerPassword\(""\)/g) ?? []).length >= 2, "a failed attempt must not leave the password on screen");
+  assert.match(body, /finally \{ setOwnerPassword\(""\)/);
 });
 
 test("a session is not announced as a connection until the projection is actually read", () => {
-  const start = SETTINGS.indexOf("const signInWithPassword");
+  const start = SETTINGS.indexOf("const enrollThisPhone");
   const body = SETTINGS.slice(start, start + 2_000);
   assert.match(body, /loadPersonalPaperOperations/);
   const verifyAt = body.indexOf("loadPersonalPaperOperations");
   const claimAt = body.indexOf("markPaperConnectionVerified");
-  assert.ok(verifyAt > 0 && verifyAt < claimAt, "READY was claimed on the token alone");
+  assert.ok(verifyAt > 0 && verifyAt < claimAt, "READY was claimed on the issued token alone");
 });
 
 test("an unconfigured server is named, so the owner is not told their password is wrong", () => {
