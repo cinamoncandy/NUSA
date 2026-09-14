@@ -438,9 +438,6 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
       if (mobileSessionService != null && req.url === "/api/operator/mobile-pairing/approve") {
         respond("mobile_pairing_approve", handleMobilePairingApproveHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository })); return;
       }
-      if (mobileSessionService != null && req.url === "/v1/mobile/session/password") {
-        respond("mobile_session_password", handleOwnerPasswordSignInHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository })); return;
-      }
       if (mobileSessionService != null && req.url === "/v1/mobile/session/refresh") {
         respond("mobile_session_refresh", handleMobileSessionRefreshHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository }));
         return;
