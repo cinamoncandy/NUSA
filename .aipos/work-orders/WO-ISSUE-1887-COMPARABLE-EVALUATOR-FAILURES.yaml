@@ -1,0 +1,31 @@
+id: WO-ISSUE-1887-COMPARABLE-EVALUATOR-FAILURES
+title: Bind repeated lifecycle failures to current comparable evaluator semantics
+status: LOCAL_VALIDATED
+issue: 1887
+base_commit: 79289f9f33f63e6b699bdbc42863c3e458f782a4
+implementation_branch: codex/issue-1887-comparable-evaluator
+authority_impact: none
+scope:
+  - Replace an unproven repeated failure count with immutable failure evidence bound to candidate, family, canonical search, evaluator semantics, and validity.
+  - Count at most one current comparable failure per canonical search.
+  - Preserve legacy results as historical evidence while fail-closing lifecycle advice pending revalidation.
+acceptance_criteria:
+  - Three legacy or superseded failures cannot trigger RETIRE for current evaluator semantics.
+  - Three current comparable independent search failures can still trigger advisory-only RETIRE.
+  - Mixed, missing, malformed, or conflicting failure provenance returns HOLD rather than RETIRE.
+  - Replay or multiple cells from one canonical search count once.
+  - No lifecycle, qualification, portfolio, Risk, order, credential, production mutation, or LIVE authority is added.
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  execution: prohibited
+verification:
+  - pnpm run build
+  - node --test tests/strategy-evolution-advisory.test.js
+  - pnpm run validate:full
+next: Run focused tests and full validation; record exact-head CI before any merge consideration.
+evidence:
+  focused_build_and_advisory_tests: PASS_13_OF_13
+  validate_full: PASS
+  pending: "Commit, push, PR, and exact-head CI evidence."

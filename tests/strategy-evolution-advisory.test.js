@@ -38,7 +38,12 @@ const input = (overrides = {}) => ({
     drawdownEvidence: "VERIFIED",
     provenanceEvidence: "VERIFIED",
     infrastructureEvidence: "VERIFIED",
-    repeatedFailureCount: 0,
+    currentEvaluatorSemantics: {
+      dataCostProvenanceId: "dataset-cost-v2",
+      backtestExecutionSemanticsId: "next-open-v2",
+      walkForwardWarmupSemanticsId: "pretest-warmup-v2",
+    },
+    repeatedFailureEvidence: [],
     structurallyDominated: false,
     independentEvidenceCount: 5,
     minimumIndependentEvidenceForPromotion: 4,
@@ -94,11 +99,69 @@ test("insufficient stale or conflicting evidence fails closed", () => {
   }
 });
 
-test("repeated independent failures or structural domination retire the strategy", () => {
-  const failures = evaluateStrategyEvolutionAdvisory(withEvidence({ repeatedFailureCount: 3 }, "DEMOTED"));
+const failure = (id, searchId, overrides = {}) => ({
+  evidenceId: id,
+  candidateId: "candidate-865",
+  strategyFamilyId: "family-865",
+  canonicalSearchRunId: searchId,
+  evaluatorSemantics: {
+    dataCostProvenanceId: "dataset-cost-v2",
+    backtestExecutionSemanticsId: "next-open-v2",
+    walkForwardWarmupSemanticsId: "pretest-warmup-v2",
+  },
+  validity: "CURRENT",
+  ...overrides,
+});
+
+test("three independent current comparable failures retire the strategy", () => {
+  const failures = evaluateStrategyEvolutionAdvisory(withEvidence({
+    repeatedFailureEvidence: [failure("failure-a", "search-a"), failure("failure-b", "search-b"), failure("failure-c", "search-c")],
+  }, "DEMOTED"));
   assert.equal(failures.recommendation, "RETIRE");
+  assert.ok(failures.reasons.includes("REPEATED_INDEPENDENT_FAILURES"));
+});
+
+test("structural domination can retire independently of lifecycle failure evidence", () => {
   const dominated = evaluateStrategyEvolutionAdvisory(withEvidence({ structurallyDominated: true }, "WATCH"));
   assert.equal(dominated.recommendation, "RETIRE");
+});
+
+test("legacy or superseded evaluator failures cannot retire a post-fix lifecycle decision", () => {
+  const legacy = evaluateStrategyEvolutionAdvisory(withEvidence({
+    repeatedFailureEvidence: [
+      failure("legacy-a", "search-a", { validity: "REVALIDATION_REQUIRED", evaluatorSemantics: { dataCostProvenanceId: "dataset-cost-v1", backtestExecutionSemanticsId: "same-close-v1", walkForwardWarmupSemanticsId: "reset-v1" } }),
+      failure("legacy-b", "search-b", { validity: "SUPERSEDED", evaluatorSemantics: { dataCostProvenanceId: "dataset-cost-v1", backtestExecutionSemanticsId: "same-close-v1", walkForwardWarmupSemanticsId: "reset-v1" } }),
+      failure("legacy-c", "search-c", { validity: "REVALIDATION_REQUIRED", evaluatorSemantics: { dataCostProvenanceId: "dataset-cost-v1", backtestExecutionSemanticsId: "same-close-v1", walkForwardWarmupSemanticsId: "reset-v1" } }),
+    ],
+  }, "DEMOTED"));
+  assert.equal(legacy.recommendation, "HOLD");
+  assert.ok(legacy.reasons.includes("REPEATED_FAILURE_EVIDENCE_NOT_CURRENT"));
+  assert.ok(!legacy.reasons.includes("REPEATED_INDEPENDENT_FAILURES"));
+});
+
+test("mixed, missing, or conflicting failure provenance fails closed to HOLD", () => {
+  for (const failures of [
+    [failure("current", "search-a"), failure("legacy", "search-b", { validity: "SUPERSEDED" })],
+    [failure("missing", "search-a", { evaluatorSemantics: null })],
+    [failure("conflict", "search-a", { validity: "CONFLICTING" })],
+    [null],
+  ]) {
+    const result = evaluateStrategyEvolutionAdvisory(withEvidence({ repeatedFailureEvidence: failures }, "DEMOTED"));
+    assert.equal(result.recommendation, "HOLD");
+    assert.ok(result.reasons.includes("REPEATED_FAILURE_EVIDENCE_NOT_CURRENT"));
+  }
+});
+
+test("replay and multiple cells in one canonical search count as one failure", () => {
+  const result = evaluateStrategyEvolutionAdvisory(withEvidence({
+    repeatedFailureEvidence: [
+      failure("first-cell", "search-a"),
+      failure("replay-of-first-cell", "search-a"),
+      failure("second-cell", "search-a"),
+    ],
+  }, "DEMOTED"));
+  assert.equal(result.recommendation, "PROMOTE");
+  assert.ok(!result.reasons.includes("REPEATED_INDEPENDENT_FAILURES"));
 });
 
 test("retired state is terminal and never self-revives", () => {
