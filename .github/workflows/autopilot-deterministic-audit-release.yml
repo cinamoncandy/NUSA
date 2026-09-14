@@ -286,8 +286,15 @@ jobs:
             -f context="$AUTH_CONTEXT" \
             -f description="canonical Audit PASS; pr=$PR_NUMBER; base=$AUDITED_BASE" \
             -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID")"
-          jq -e --arg context "$AUTH_CONTEXT" --arg head "$EXPECTED_HEAD" \
-            '.state == "success" and .context == $context and .sha == $head' <<<"$status" >/dev/null
+          expected_commit_url="$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/commits/$EXPECTED_HEAD"
+          status_id="$(jq -r '.id // empty' <<<"$status")"
+          jq -e --arg context "$AUTH_CONTEXT" --arg commit_url "$expected_commit_url" \
+            '.state == "success" and .context == $context and .commit_url == $commit_url and (.id | type == "number")' \
+            <<<"$status" >/dev/null
+          GH_TOKEN="$AUTH_GH_TOKEN" gh api \
+            "repos/$GITHUB_REPOSITORY/commits/$EXPECTED_HEAD/statuses" \
+            --jq ".[] | select(.id == $status_id and .state == \"success\" and .context == \"$AUTH_CONTEXT\")" \
+            | jq -e --arg commit_url "$expected_commit_url" '.commit_url == $commit_url' >/dev/null
           echo 'published=true' >> "$GITHUB_OUTPUT"
           echo "Dedicated release authority published $AUTH_CONTEXT on exact head $EXPECTED_HEAD for audited base $AUDITED_BASE"
 

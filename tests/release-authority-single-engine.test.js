@@ -84,6 +84,10 @@ test('authorization, merge proof, and invalidation remain fail-closed and ordere
   assert.ok(mint >= 0 && authorize > mint && reverify > authorize && merge > reverify && revoke > merge);
   assert.match(release, /AUTH_GH_TOKEN:\s*\$\{\{ steps\.release_authority_token\.outputs\.token \}\}/);
   assert.match(release, /statuses\/\$EXPECTED_HEAD/);
+  assert.match(release, /expected_commit_url="\$GITHUB_API_URL\/repos\/\$GITHUB_REPOSITORY\/commits\/\$EXPECTED_HEAD"/);
+  assert.match(release, /commits\/\$EXPECTED_HEAD\/statuses/);
+  assert.doesNotMatch(release, /\.sha == \$head/,
+    'GitHub commit-status responses may omit sha; exact-head proof must use the bound endpoint and commit URL');
   assert.match(release, /context=\"\$AUTH_CONTEXT\"/);
   assert.match(release, /if:\s*\$\{\{ failure\(\) && steps\.authorize\.outputs\.published == 'true' \}\}/);
   assert.match(release, /parent_count/);
