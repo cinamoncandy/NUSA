@@ -47,17 +47,19 @@ test("Home preserves the canonical Intelligence OS safety-first actions without 
 test("AI separates uncalibrated raw probability from trusted calibrated confidence", () => {
   const app = read("apps/mobile/App.tsx");
   const ai = read("apps/mobile/src/aiView.tsx");
-  assert.match(app, /<AiView ai=\{ai\} error=\{readOnlyError\}/);
+  assert.match(app, /<AiView ai=\{ai\} judgment=\{snapshot\?\.aiTradingJudgment \?\? null\} error=\{readOnlyError\}/);
   assert.match(app, /<HomeView snapshot=\{snapshot\}/);
   for (const source of [ai]) {
     assert.match(source, /원시 모델 확률 \(미보정\)/);
     assert.match(source, /검증 신뢰도/);
     assert.match(source, /보정 상태/);
-    assert.doesNotMatch(source, /<DataRow label="신뢰도"/);
+    // Canonical judgments carry their own evidence-bound confidence. The raw model
+    // diagnostics below remain explicitly labelled as uncalibrated probability.
+    assert.match(source, /testID="ai-canonical-judgment-card"[\s\S]*<DataRow label="신뢰도"/);
     assert.doesNotMatch(source, /모델 점수 \(미보정\)/);
   }
   assert.match(app, /const ai = snapshot\?\.ai \?\? null/);
-  assert.match(app, /<AiView ai=\{ai\} error=\{readOnlyError\}/);
+  assert.match(app, /<AiView ai=\{ai\} judgment=\{snapshot\?\.aiTradingJudgment \?\? null\} error=\{readOnlyError\}/);
   assert.match(ai, /calibrationStatus === "CALIBRATED"/);
   assert.match(ai, /보정 확률/);
   assert.match(ai, /원시 모델 확률은 미보정 모델 출력/);

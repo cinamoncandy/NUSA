@@ -1,13 +1,15 @@
 import React from "react";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { AiReadOnlyProjection } from "../../../packages/contracts/src/aiInference";
+import type { AiTradingJudgment } from "../../../packages/contracts/src/aiTradingJudgment";
 import type { ResearchStatusProjection } from "../../../packages/contracts/src/researchAutomation";
 import { DataRow, NusaButton, NusaCard, Skeleton, StatusChip } from "./components";
 import { InlineNotice, MetricTile, ScreenHeader } from "./uxPrimitives";
 import { useTheme } from "./ThemeProvider";
 import { uxLayout } from "./uxLayout";
+import { presentAiTradingJudgment } from "./aiTradingJudgmentPresentation";
 
-interface AiViewProps { readonly ai: AiReadOnlyProjection | null; readonly research: ResearchStatusProjection | null; readonly health: string | null; readonly liveAuthority: "NONE" | null; readonly productionMutationAllowed: false | null; readonly killSwitchActive: boolean | null; readonly error: string | null; readonly refreshing: boolean; readonly onRefresh: () => void; }
+interface AiViewProps { readonly ai: AiReadOnlyProjection | null; readonly judgment: AiTradingJudgment | null; readonly research: ResearchStatusProjection | null; readonly health: string | null; readonly liveAuthority: "NONE" | null; readonly productionMutationAllowed: false | null; readonly killSwitchActive: boolean | null; readonly error: string | null; readonly refreshing: boolean; readonly onRefresh: () => void; }
 function statusTone(status: AiReadOnlyProjection["status"] | undefined): "success" | "warning" | "neutral" { return status === "AVAILABLE" ? "success" : status === "INCOMPLETE" ? "warning" : "neutral"; }
 function severityTone(severity: AiReadOnlyProjection["criticSeverity"]): "danger" | "warning" | "default" { if (severity === "critical" || severity === "high") return "danger"; if (severity === "medium") return "warning"; return "default"; }
 function percent(value: number | null | undefined): string { return value == null || !Number.isFinite(value) ? "-" : `${Math.round(value * 100)}%`; }
@@ -22,7 +24,7 @@ const learningProvenanceLabel: Record<string, string> = { AUTO_BACKGROUND: "백�
 function labelOf(map: Record<string, string>, value: string | null | undefined): string { return value == null ? "-" : (map[value] ?? value); }
 function AiState({ title, detail, testID, retry, loading = false }: Readonly<{ title: string; detail: string; testID: string; retry?: () => void; loading?: boolean }>) { return <View style={styles.state} testID={testID}><View style={styles.stateInner}>{loading ? <View style={styles.skeletonGroup} testID="ai-loading-skeleton"><Skeleton width="58%" height={20} testID="ai-loading-skeleton-title" /><Skeleton width="100%" height={13} /><Skeleton width="82%" height={13} /></View> : null}<InlineNotice title={title} detail={detail} tone={retry ? "danger" : "info"} />{retry ? <NusaButton label="다시 불러오기" onPress={retry} /> : null}</View></View>; }
 
-export function AiView({ ai, research, health, liveAuthority, productionMutationAllowed, killSwitchActive, error, refreshing, onRefresh }: AiViewProps) {
+export function AiView({ ai, judgment, research, health, liveAuthority, productionMutationAllowed, killSwitchActive, error, refreshing, onRefresh }: AiViewProps) {
   const { theme } = useTheme();
   if (error) return <AiState title="AI 상태를 표시할 수 없습니다" detail={error} testID="ai-error" retry={onRefresh} />;
   if (ai === null && research === null) return <AiState title="AI 상태를 불러오는 중" detail="검증된 읽기 전용 AI·리서치 스냅샷을 기다리고 있습니다." testID="ai-loading" loading />;
@@ -40,6 +42,7 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
     : learningProvenance === "USER_TRIGGERED"
       ? "검증된 실행 근거에 따라 사용자 요청으로 분류되었습니다."
       : "실행 근거가 확인되지 않아 출처를 분류하지 않습니다.";
+  const canonicalJudgment = presentAiTradingJudgment(judgment);
 
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="ai-screen">
     <ScreenHeader eyebrow="NUSA INTELLIGENCE" title="AI" description="현재 관찰과 근거를 읽기 전용으로 제공합니다. AI는 주문 권한이 없습니다." statusLabel="READ ONLY" statusTone="primary" />
@@ -50,6 +53,7 @@ export function AiView({ ai, research, health, liveAuthority, productionMutation
         <Text style={[styles.thesis, { color: ai?.thesis ? theme.colors.text : theme.colors.textMuted }]}>{ai?.thesis ?? "현재 표시할 검증된 AI 분석이 없습니다."}</Text>
         <View style={styles.heroMeta}><Text style={[styles.meta, { color: theme.colors.textMuted }]}>신뢰 수준 {trustedConfidence}</Text><Text style={[styles.meta, { color: theme.colors.textMuted }]}>근거 {evidenceCount} · 반대 {counterCount}</Text><Text style={[styles.meta, { color: theme.colors.textMuted }]}>최근 분석 {lastRun}</Text></View>
       </View>
+      <NusaCard testID="ai-canonical-judgment-card"><View style={styles.cardHeader}><View><Text style={[styles.cardTitle, { color: theme.colors.text }]}>Canonical 판단</Text></View><StatusChip label={canonicalJudgment.status} tone={canonicalJudgment.status === "AVAILABLE" ? "success" : "neutral"} /></View><DataRow label="시장" value={canonicalJudgment.market} /><DataRow label="판단" value={canonicalJudgment.actionLabel} /><DataRow label="신뢰도" value={canonicalJudgment.confidenceLabel} /><DataRow label="불확실성" value={canonicalJudgment.uncertaintyLabel} /><Text style={[styles.body, { color: theme.colors.textMuted }]}>{canonicalJudgment.thesis}</Text><Text style={[styles.meta, { color: theme.colors.textMuted }]}>{canonicalJudgment.actionAuthorityLabel}</Text></NusaCard>
     </View>
 
     <View testID="ai-why"><View style={styles.evidenceSection} testID="ai-evidence-card"><View style={styles.sectionHeader}><View><Text accessibilityRole="header" style={[styles.eyebrow, { color: theme.colors.textMuted }]}>WHY</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>근거와 반대 신호</Text></View></View><View style={styles.evidenceGrid}><View style={styles.evidenceColumn}><Text style={[styles.columnLabel, { color: theme.colors.success }]}>핵심 근거</Text>{ai && ai.evidenceReferences.length > 0 ? ai.evidenceReferences.slice(0, 4).map((item) => <Text key={item} style={[styles.evidence, { color: theme.colors.text }]} numberOfLines={3}>• {item}</Text>) : <Text style={[styles.body, { color: theme.colors.textMuted }]}>검증된 근거 참조가 없습니다.</Text>}</View><View style={styles.evidenceColumn}><Text style={[styles.columnLabel, { color: theme.colors.warning }]}>반대 신호</Text>{ai && ai.counterEvidence.length > 0 ? ai.counterEvidence.slice(0, 4).map((item, index) => <Text key={`${index}-${item}`} style={[styles.evidence, { color: theme.colors.text }]} numberOfLines={3}>• {item}</Text>) : <Text style={[styles.body, { color: theme.colors.textMuted }]}>등록된 반대 근거가 없습니다.</Text>}</View></View>{ai && ai.disagreements.length > 0 ? <View style={styles.disagreement}><Text style={[styles.columnLabel, { color: theme.colors.warning }]}>분석 간 불일치</Text>{ai.disagreements.slice(0, 3).map((item, index) => <Text key={`${index}-${item}`} style={[styles.evidence, { color: theme.colors.warning }]} numberOfLines={3}>• {item}</Text>)}</View> : null}{ai && ai.evidenceReferences.length > 4 ? <Text style={[styles.body, { color: theme.colors.textMuted }]}>외 {ai.evidenceReferences.length - 4}개 근거</Text> : null}</View></View>

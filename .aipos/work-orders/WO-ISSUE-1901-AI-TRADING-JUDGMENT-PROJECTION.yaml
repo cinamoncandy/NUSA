@@ -1,0 +1,38 @@
+id: WO-ISSUE-1901-AI-TRADING-JUDGMENT-PROJECTION
+title: Canonical AI Trading Judgment Read-Only Projection
+status: CI_RECOVERY_LOCAL_VALIDATED
+issue: 1901
+base_commit: 79289f9f33f63e6b699bdbc42863c3e458f782a4
+branch: codex/issue-1901-ai-judgment-projection
+authority_impact: none
+objective: >-
+  Deliver a canonical, evidence-bound AiTradingJudgment to the existing Personal PAPER
+  operations projection only when a complete authoritative source is present.
+scope:
+  - Canonical builder-only judgment construction in the Cloud AI orchestration path.
+  - Freshness-guarded Personal PAPER read-only projection and mobile presentation consumption.
+  - No inference, execution, credential, account, or LIVE authority changes.
+constraints:
+  - Missing producer facts remain null; no synthetic HOLD, ABSTAIN, confidence, scenario, or risk values.
+  - Every non-null judgment must pass the existing canonical validator and evidence-bundle binding.
+  - Invalid, future-dated, or stale values fail closed before mobile presentation.
+  - Preserve evidence, counter-evidence, epistemic status, scenarios, and authority invariants.
+verification:
+  - pnpm run typecheck
+  - pnpm run build
+  - node --test tests/ai-cloud-runtime.test.js tests/personal-paper-operations.test.js
+  - pnpm run validate:full
+validation_evidence:
+  - "pnpm run typecheck PASS"
+  - "pnpm run build PASS"
+  - "node --test tests/ai-cloud-runtime.test.js tests/personal-paper-operations.test.js PASS (16/16)"
+  - "pnpm run validate:full PASS"
+  - "CI run 34817044717 failure classified as stale source assertions in mobile-uiux-phase1-state-architecture and mobile-uiux-final-residual; no production behavior or safety gate failure."
+  - "Focused mobile UI plus AI/PAPER projection tests PASS (25/25) after canonical judgment-card assertion update."
+next_permitted_action: "Commit and push the CI recovery, then require fresh exact-head CI and independent Audit/Release."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  realOrderAuthority: false
+  realTransferAuthority: false
