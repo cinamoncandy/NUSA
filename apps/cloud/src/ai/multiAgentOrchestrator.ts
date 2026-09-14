@@ -19,11 +19,13 @@ import {
 } from "../../../../packages/contracts/src/multiAgentGovernance";
 import { aiSha256, normalizeAiLearningProvenance, type AiAgentRole, type AiEvidenceMaterialization, type ModelFailure, type ModelProvider, type ModelRequest, type StructuredAgentOutput } from "../../../../packages/contracts/src/aiInference";
 import type { AiInferenceBudgetPolicy, AiInferenceResourceSnapshot } from "../../../../packages/contracts/src/aiInferenceResources";
+import type { AiTradingJudgment } from "../../../../packages/contracts/src/aiTradingJudgment";
 import { assessAgentIndependence, createAgentDefinition, evaluateMultiAgentDecision } from "../multiAgentGovernance";
 import { AgentExecutor } from "./agentExecutor";
-import { buildEvidenceBundle } from "./evidenceBundleBuilder";
+import { buildEvidenceBundle, type EvidenceBundle } from "./evidenceBundleBuilder";
 import { aiInferenceBudgetIdentity, InferenceResourceLedger, normalizeAiInferenceBudgetPolicy } from "./inferenceResourceLedger";
 import { createDefaultPromptArtifactRegistry, type PromptArtifactRegistry } from "./promptArtifactRegistry";
+import { buildAiTradingJudgment, type AiTradingJudgmentBridgeInput } from "./aiTradingJudgmentBridge";
 
 export interface GovernanceEventSink { append(event: MultiAgentGovernanceEvent): unknown; }
 
@@ -40,6 +42,13 @@ export interface AiOrchestrationInput {
   readonly contextValidForMs?: number;
   /** Explicit trusted trigger evidence. Omitted or malformed values remain UNKNOWN. */
   readonly learningProvenance?: import("../../../../packages/contracts/src/aiInference").AiLearningProvenance;
+  /**
+   * Optional full judgment facts supplied by an existing authoritative producer. This is not a
+   * model-output shortcut: the canonical bridge below still binds every displayed evidence ref
+   * to this run's verified EvidenceBundle and validates the final contract. Missing facts remain
+   * unavailable rather than being inferred for presentation.
+   */
+  readonly canonicalTradingJudgment?: Omit<AiTradingJudgmentBridgeInput, "generatedAt" | "evidenceBundle">;
 }
 
 export interface AiOrchestrationResult {
@@ -54,6 +63,8 @@ export interface AiOrchestrationResult {
   readonly failureCodes: readonly ModelFailure["code"][];
   readonly outputHashes: readonly string[];
   readonly structuredOutputs: readonly StructuredAgentOutput[];
+  /** Full canonical judgment only when an authoritative source supplied every required fact. */
+  readonly tradingJudgment: AiTradingJudgment | null;
   /** Provider-neutral read-only run resource evidence. Older synthetic fixtures may omit it. */
   readonly inferenceResources?: AiInferenceResourceSnapshot;
   readonly liveAuthority: "NONE";
@@ -118,7 +129,7 @@ const validateRoleOutput = (role: AiAgentRole, value: unknown): StructuredAgentO
 
 const contract = (role: AgentRole, output: string, id: string): AgentRoleContract => Object.freeze({ contractId: `ai-contract-${id}`, role, requiredInputs: ["evidence_context"], permittedOutputs: [output], prohibitedOutputs: ["order", "cancel", "transfer", "withdraw", "credential", "secret", "production_mutation", "live_execution"], evidenceRequirements: ["verified"], timeoutBehavior: "incomplete", fallbackPolicyId: "AI_ZERO_AUTHORITY_FAIL_CLOSED_V1", status: "active" });
 
-const failureResult = (input: AiOrchestrationInput, status: "UNAVAILABLE" | "INCOMPLETE", agents: readonly AgentDefinition[] = [], contexts: readonly AgentContextSnapshot[] = [], runs: readonly AgentRun[] = [], failureCodes: readonly ModelFailure["code"][] = [], inferenceResources?: AiInferenceResourceSnapshot): AiOrchestrationResult => Object.freeze({ status, orchestrationRunId: input.orchestrationRunId, learningProvenance: normalizeAiLearningProvenance(input.learningProvenance), governanceDecision: null, independence: agents.length ? assessAgentIndependence(agents) : null, agents, contexts, runs, failureCodes: Object.freeze([...failureCodes]), outputHashes: Object.freeze([]), structuredOutputs: Object.freeze([]), ...(inferenceResources == null ? {} : { inferenceResources }), liveAuthority: "NONE", realOrderAuthority: false, realTransferAuthority: false, productionMutationAllowed: false });
+const failureResult = (input: AiOrchestrationInput, status: "UNAVAILABLE" | "INCOMPLETE", agents: readonly AgentDefinition[] = [], contexts: readonly AgentContextSnapshot[] = [], runs: readonly AgentRun[] = [], failureCodes: readonly ModelFailure["code"][] = [], inferenceResources?: AiInferenceResourceSnapshot): AiOrchestrationResult => Object.freeze({ status, orchestrationRunId: input.orchestrationRunId, learningProvenance: normalizeAiLearningProvenance(input.learningProvenance), governanceDecision: null, independence: agents.length ? assessAgentIndependence(agents) : null, agents, contexts, runs, failureCodes: Object.freeze([...failureCodes]), outputHashes: Object.freeze([]), structuredOutputs: Object.freeze([]), tradingJudgment: null, ...(inferenceResources == null ? {} : { inferenceResources }), liveAuthority: "NONE", realOrderAuthority: false, realTransferAuthority: false, productionMutationAllowed: false });
 
 const evidenceFailureCode = (error: unknown): ModelFailure["code"] => {
   const message = error instanceof Error ? error.message : String(error);
@@ -185,6 +196,7 @@ export class MultiAgentOrchestrator {
     const outputHashes: string[] = [];
     const failures: ModelFailure["code"][] = [];
     const outputs = new Map<AiAgentRole, StructuredAgentOutput>();
+    let canonicalJudgmentEvidenceBundle: EvidenceBundle | null = null;
     const contextValidForMs = input.contextValidForMs ?? 60_000;
     for (const role of roles) {
       const definition = agents.find((agent) => agent.role === roleMap[role])!;
@@ -197,6 +209,7 @@ export class MultiAgentOrchestrator {
       try {
         bundle = buildEvidenceBundle({ contextSnapshotId: `${input.orchestrationRunId}:context:${role}`, agentId: definition.agentId, evidence: input.evidence, evidenceMaterializations: input.evidenceMaterializations ?? [], allowedEvidenceClasses: definition.allowedEvidenceClasses, evaluatedAt: input.evaluatedAt, validUntil: input.evaluatedAt + contextValidForMs, policyVersionIds: input.policyVersionIds ?? ["AI_ZERO_AUTHORITY_POLICY_V1"], certificationIds: input.certificationIds ?? [], controlPlaneStateId: input.controlPlaneStateId ?? "AI_CONTROL_PLANE_UNAVAILABLE" });
       } catch (error) { return this.cacheAndReturn(input, inputHash, failureResult(input, "INCOMPLETE", agents, contexts, runs, [evidenceFailureCode(error)], resourceSnapshot())); }
+      if (role === "EVIDENCE_PRODUCER") canonicalJudgmentEvidenceBundle = bundle;
       contexts.push(bundle.context);
       let artifact;
       try { artifact = this.registry.assertDefinition(definition.promptArtifactId, definition.definitionVersion, definition.promptArtifactDigest); } catch { return this.cacheAndReturn(input, inputHash, failureResult(input, "INCOMPLETE", agents, contexts, runs, ["PROMPT_DIGEST_MISMATCH"], resourceSnapshot())); }
@@ -220,7 +233,20 @@ export class MultiAgentOrchestrator {
     const governanceEvaluatedAt = runs.reduce((latest, run) => run.completedAt == null ? latest : Math.max(latest, run.completedAt), input.evaluatedAt);
     const decision = evaluateMultiAgentDecision({ decisionId: input.decisionId, evaluatedAt: governanceEvaluatedAt, agents, roleContracts: roles.map((role) => contract(roleMap[role], outputName[role], role.toLowerCase())), evidence: input.evidence, contexts, runs, evidenceAssessment: assessment, proposal, adversarialReview: review, riskVerification: risk, disagreements: [], controlVetoReasons: [] });
     this.eventSink?.append({ eventId: `${input.orchestrationRunId}:decision`, type: decision.result === "deny" ? MultiAgentGovernanceEventType.MULTI_AGENT_DECISION_DENIED : MultiAgentGovernanceEventType.MULTI_AGENT_DECISION_EVALUATED, occurredAt: governanceEvaluatedAt, payload: { decision, independence }, evidenceHash: aiSha256({ decision, independence }) });
-    return this.cacheAndReturn(input, inputHash, Object.freeze({ status: "COMPLETED", orchestrationRunId: input.orchestrationRunId, learningProvenance: normalizeAiLearningProvenance(input.learningProvenance), governanceDecision: decision, independence, agents: Object.freeze(agents), contexts: Object.freeze(contexts), runs: Object.freeze(runs), failureCodes: Object.freeze(failures), outputHashes: Object.freeze(outputHashes), structuredOutputs: Object.freeze([...outputs.values()]), inferenceResources: resourceSnapshot(), liveAuthority: "NONE", realOrderAuthority: false, realTransferAuthority: false, productionMutationAllowed: false }));
+    let tradingJudgment: AiTradingJudgment | null = null;
+    if (input.canonicalTradingJudgment != null && canonicalJudgmentEvidenceBundle != null) {
+      try {
+        tradingJudgment = buildAiTradingJudgment({
+          ...input.canonicalTradingJudgment,
+          generatedAt: new Date(governanceEvaluatedAt).toISOString(),
+          evidenceBundle: canonicalJudgmentEvidenceBundle,
+        });
+      } catch {
+        // An incomplete, stale, or evidence-unbound source must never become a display judgment.
+        tradingJudgment = null;
+      }
+    }
+    return this.cacheAndReturn(input, inputHash, Object.freeze({ status: "COMPLETED", orchestrationRunId: input.orchestrationRunId, learningProvenance: normalizeAiLearningProvenance(input.learningProvenance), governanceDecision: decision, independence, agents: Object.freeze(agents), contexts: Object.freeze(contexts), runs: Object.freeze(runs), failureCodes: Object.freeze(failures), outputHashes: Object.freeze(outputHashes), structuredOutputs: Object.freeze([...outputs.values()]), tradingJudgment, inferenceResources: resourceSnapshot(), liveAuthority: "NONE", realOrderAuthority: false, realTransferAuthority: false, productionMutationAllowed: false }));
   }
 
   private definition(role: AiAgentRole): AgentDefinition {

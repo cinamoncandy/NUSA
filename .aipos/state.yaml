@@ -1,4 +1,14 @@
 version: 1
+current_ai_trading_judgment_projection:
+  work_order: WO-ISSUE-1901-AI-TRADING-JUDGMENT-PROJECTION
+  status: IMPLEMENTED_LOCAL_VALIDATION
+  issue: 1901
+  branch: codex/issue-1901-ai-judgment-projection
+  base_commit: 79289f9f33f63e6b699bdbc42863c3e458f782a4
+  scope: "Canonical AI judgment delivery to the existing Personal PAPER read-only projection; absent upstream facts remain null."
+  validation: "typecheck PASS; build PASS; focused AI/PAPER projection tests 16/16 PASS; validate:full PASS."
+  authority: READ_ONLY
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_self_service_paper_upbit_readonly:
   work_order: WO-20260910-MOBILE-SELF-SERVICE-PAPER-UPBIT-READONLY
   status: IMPLEMENTED_LOCAL_VALIDATION_PARTIAL
