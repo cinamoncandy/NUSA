@@ -41,7 +41,7 @@ test("not-configured dashboard state is distinct from runtime errors", () => {
   assert.match(app, /<PortfolioView error=\{readOnlyError\}/);
   assert.match(app, /<TradingView error=\{readOnlyError\}/);
   assert.match(app, /<MarketsView chartError=\{publicMarkets\.chartError\}/);
-  assert.match(app, /<AiView ai=\{ai\} error=\{readOnlyError\}/);
+  assert.match(app, /<AiView ai=\{ai\} judgment=\{snapshot\?\.aiTradingJudgment \?\? null\} error=\{readOnlyError\}/);
   assert.doesNotMatch(app, /error=\{readOnlyError \?\? notConfigured\}/);
 });
 test("Home hierarchy follows the Intelligence OS state-to-learning flow while preserving verified safety", () => {

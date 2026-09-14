@@ -1,6 +1,6 @@
 id: WO-ISSUE-1901-AI-TRADING-JUDGMENT-PROJECTION
 title: Canonical AI Trading Judgment Read-Only Projection
-status: IMPLEMENTED_LOCAL_VALIDATION
+status: CI_RECOVERY_LOCAL_VALIDATED
 issue: 1901
 base_commit: 79289f9f33f63e6b699bdbc42863c3e458f782a4
 branch: codex/issue-1901-ai-judgment-projection
@@ -27,7 +27,9 @@ validation_evidence:
   - "pnpm run build PASS"
   - "node --test tests/ai-cloud-runtime.test.js tests/personal-paper-operations.test.js PASS (16/16)"
   - "pnpm run validate:full PASS"
-next_permitted_action: "Commit, push, create PR, then require fresh exact-head CI and independent Audit/Release."
+  - "CI run 34817044717 failure classified as stale source assertions in mobile-uiux-phase1-state-architecture and mobile-uiux-final-residual; no production behavior or safety gate failure."
+  - "Focused mobile UI plus AI/PAPER projection tests PASS (25/25) after canonical judgment-card assertion update."
+next_permitted_action: "Commit and push the CI recovery, then require fresh exact-head CI and independent Audit/Release."
 safety:
   liveAuthority: NONE
   productionMutationAllowed: false
