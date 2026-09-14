@@ -5,6 +5,10 @@ const test = require('node:test');
 
 const workflowsDir = path.join(__dirname, '..', '.github', 'workflows');
 const canonicalName = 'autopilot-deterministic-audit-release.yml';
+const realCreateStatusFixture = JSON.parse(fs.readFileSync(
+  path.join(__dirname, 'fixtures', 'github-create-commit-status-response.json'),
+  'utf8',
+));
 
 function workflowFiles() {
   return fs.readdirSync(workflowsDir)
@@ -17,6 +21,24 @@ function canonicalReleaseJob() {
   const release = canonical.match(/\r?\n  release:\r?\n[\s\S]*?(?=\r?\n  [A-Za-z0-9_-]+:\r?\n|$)/)?.[0] || '';
   assert.notEqual(release, '', 'missing canonical release job');
   return release;
+}
+
+function simulatePostSuccessThenFailure({ verificationPass, mergePass }) {
+  let published = false;
+  let merged = false;
+  let latestAuthorizationState = 'none';
+
+  latestAuthorizationState = 'success';
+  published = true;
+
+  if (!verificationPass) {
+    if (published && !merged) latestAuthorizationState = 'failure';
+    return { published, merged, latestAuthorizationState };
+  }
+
+  if (mergePass) merged = true;
+  if (published && !merged) latestAuthorizationState = 'failure';
+  return { published, merged, latestAuthorizationState };
 }
 
 test('PR merge API exists only in the canonical deterministic Release workflow', () => {
@@ -61,7 +83,6 @@ test('execution consumer remains non-Release and keeps safety invariants', () =>
   assert.match(consumer, /ai_authority !== 'ZERO_AUTHORITY'/);
 });
 
-
 test('canonical Release preserves P0 #903 serialization before authority mint', () => {
   const release = canonicalReleaseJob();
   const serialization = release.indexOf('- name: Enforce canonical P0 Release serialization');
@@ -72,6 +93,48 @@ test('canonical Release preserves P0 #903 serialization before authority mint', 
   assert.match(release, /issues\?state=open&per_page=100/);
   assert.match(release, /Refs\\s\+#903/);
   assert.match(release, /Release serialized behind canonical P0 #903 repair/);
+});
+
+test('real GitHub Create Commit Status response is verified without nonexistent sha or commit_url fields', () => {
+  assert.equal(realCreateStatusFixture.state, 'success');
+  assert.equal(realCreateStatusFixture.context, 'nusa/release-authorized');
+  assert.equal(realCreateStatusFixture.target_url, 'https://github.com/cinamoncandy/NUSA/actions/runs/34813290255');
+  assert.equal(realCreateStatusFixture.url,
+    'https://api.github.com/repos/cinamoncandy/NUSA/statuses/4f2a0402b1ba96b0dfaac0554f0d03c566e1e4f6');
+  assert.equal(realCreateStatusFixture.creator.login, 'nusa-release-authority[bot]');
+  assert.equal(typeof realCreateStatusFixture.id, 'number');
+  assert.equal(Object.hasOwn(realCreateStatusFixture, 'sha'), false);
+  assert.equal(Object.hasOwn(realCreateStatusFixture, 'commit_url'), false);
+
+  const release = canonicalReleaseJob();
+  assert.match(release, /commits\/\$EXPECTED_HEAD\/statuses/,
+    'exact SHA must be established by the SHA-bound status-list endpoint');
+  assert.match(release, /select\(\.id == \$status_id\)/,
+    'the SHA-bound re-read must select the exact POST-returned status id');
+  assert.doesNotMatch(release, /\.sha == \$head|\.commit_url/);
+});
+
+test('POST success -> verify failure -> no merge -> latest authorization non-success', () => {
+  const release = canonicalReleaseJob();
+  const authorize = release.indexOf('- name: Publish exact-head release authorization');
+  const published = release.indexOf("echo 'published=true' >> \"$GITHUB_OUTPUT\"");
+  const selfVerify = release.indexOf('status_id="$(jq -r');
+  const merge = release.indexOf('- name: Canonical expected-head merge');
+  const revoke = release.indexOf('- name: Revoke authorization if exact-head merge did not complete');
+
+  assert.ok(authorize >= 0 && published > authorize && selfVerify > published && merge > selfVerify && revoke > merge);
+  assert.match(release, /if:\s*\$\{\{ failure\(\) && steps\.authorize\.outputs\.published == 'true' \}\}/);
+  const revokeStep = release.slice(revoke);
+  assert.match(revokeStep, /statuses\/\$EXPECTED_HEAD/);
+  assert.match(revokeStep, /-f state=failure/);
+  assert.match(revokeStep, /GH_TOKEN:\s*\$\{\{ steps\.release_authority_token\.outputs\.token \}\}/);
+
+  const outcome = simulatePostSuccessThenFailure({ verificationPass: false, mergePass: false });
+  assert.deepEqual(outcome, {
+    published: true,
+    merged: false,
+    latestAuthorizationState: 'failure',
+  });
 });
 
 test('authorization, merge proof, and invalidation remain fail-closed and ordered', () => {
