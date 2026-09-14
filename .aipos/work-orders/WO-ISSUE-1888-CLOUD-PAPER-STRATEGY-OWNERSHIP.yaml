@@ -1,0 +1,35 @@
+id: WO-ISSUE-1888-CLOUD-PAPER-STRATEGY-OWNERSHIP
+title: "Align Cloud PAPER STRATEGY canonical ownership"
+status: IMPLEMENTED_LOCAL_VALIDATION_PENDING_PR
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 79289f9f33f63e6b699bdbc42863c3e458f782a4
+implementation_branch: codex/issue-1888-strategy-ownership
+objective: "Make the immutable candidate-bound evaluator already used by Cloud PAPER the sole STRATEGY qualification entrypoint, without changing strategy algorithms or execution authority."
+authority:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+scope:
+  - align module manifest canonical STRATEGY provenance with Cloud PAPER runtime
+  - retain generic core strategy engine as non-canonical reusable primitive
+  - add runtime-truth regression for immutable candidate evaluator binding
+prohibited:
+  - new strategy engine or duplicate authority
+  - strategy algorithm, accounting, execution, credential, or LIVE change
+acceptance:
+  - canonical and runtime STRATEGY entrypoints are the same immutable Cloud PAPER evaluator
+  - runtime truth test proves the dashboard hydrator invokes that evaluator
+  - malformed and insufficient candidate evidence remains fail-closed in existing evaluator tests
+  - exact-head CI passes before Audit or Release
+validation:
+  completed:
+    - "pnpm exec tsc --noEmit PASS"
+    - "pnpm run build PASS"
+    - "compiled focused runtime-truth and candidate-strategy tests PASS 13/13"
+  pending:
+    - "pnpm run validate:full"
+    - "fresh exact-head CI and independent Audit/Release"
+safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
