@@ -1258,7 +1258,7 @@ current_android_sdk_setup_blocker:
   work_order: WO-20260915-ANDROID-SDK-TOOLS-BLOCKER
   status: LOCAL_VALIDATED_PR_PENDING
   branch: codex/android-sdk-tools-blocker
-  base_sha: c8095fe38d2ea097fbe167819ccf19f4260a7271
+  base_sha: 79289f9f33f63e6b699bdbc42863c3e458f782a4
   scope: "Prevent Android CI setup from requesting the retired tools package; preserve existing Android build, release, signing, and safety contracts."
   failure_evidence: "PR #1916 exact head 05c80b2d5f3ad587f7789e8c0e851e795bf5204e failed Mobile Native run 34941237343 and Android Release Pipeline Guard run 34941237352 during setup-android because the action default requested unavailable package tools."
   changed_files:
