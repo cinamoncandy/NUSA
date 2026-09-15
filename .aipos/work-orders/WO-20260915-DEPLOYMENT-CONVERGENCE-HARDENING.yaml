@@ -34,7 +34,7 @@ verification:
     - "pnpm run validate:full"
     - "git diff --check"
   observed:
-    focused_tests: "15/15 PASS"
+    focused_tests: "23/23 PASS including credential-preflight exact-main provenance assertions"
     validate_full: "PASS on Node 24.18.0 with architecture, AIPOS, safety, and AI zero-authority gates"
     security_gate: "PASS; raw high/critical 0; secrets 0"
     diff_check: PASS

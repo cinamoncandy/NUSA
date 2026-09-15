@@ -7,7 +7,7 @@ current_deployment_convergence_hardening:
   scope: "Harden the canonical deployment convergence owner with paginated exact-main evidence, event-driven wakeups, bounded aggregate Android retries, credential preflight, and step-verified Cloudflare deployment receipts."
   finding: "Repository-wide first-100 Actions queries caused false credential/deployment failures after valid exact-main runs aged beyond the response window; convergence receipts also trusted workflow-level success without requiring the canonical deploy and runtime verification steps."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  validation: "Focused deployment regressions 15/15 PASS; validate:full PASS on Node 24.18.0; security gate PASS with zero secrets/high-critical findings; git diff --check PASS."
+  validation: "Focused deployment regressions 23/23 PASS including paginated credential-preflight provenance; validate:full PASS on Node 24.18.0; security gate PASS with zero secrets/high-critical findings; git diff --check PASS."
   next_permitted_action: "Publish one reviewable PR and require fresh exact-head CI, independent Audit, and Release before merge."
 current_mobile_self_service_paper_upbit_readonly:
   work_order: WO-20260910-MOBILE-SELF-SERVICE-PAPER-UPBIT-READONLY
