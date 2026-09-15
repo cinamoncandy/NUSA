@@ -149,7 +149,7 @@ current_upbit_bridge_credential_persistence:
   unverified: "pnpm run preflight and pnpm test could not run here (Node >= 24 required, environment provides 22.22.2). No Android device run: persistence is verified against a stubbed SecureStoragePort, not the real Keystore."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 project: nusa
-updated_at: "2026-09-15T16:33:42+09:00"
+updated_at: "2026-09-15T16:46:03+09:00"
 current_execution_target:
   work_order: WO-0051
   status: IN_PROGRESS
@@ -1256,9 +1256,11 @@ latest_paper_chaos_bound_runtime_evidence_slice:
 
 current_android_sdk_setup_blocker:
   work_order: WO-20260915-ANDROID-SDK-TOOLS-BLOCKER
-  status: LOCAL_VALIDATED_PR_PENDING
+  status: PRE_AUDIT_READY_RELEASE_AUTH_PENDING
   branch: codex/android-sdk-tools-blocker
   base_sha: 79289f9f33f63e6b699bdbc42863c3e458f782a4
+  pull_request: 1917
+  exact_head: 035c921e9779727ad9e786f31d3fb4611ab60216
   scope: "Prevent Android CI setup from requesting the retired tools package; preserve existing Android build, release, signing, and safety contracts."
   failure_evidence: "PR #1916 exact head 05c80b2d5f3ad587f7789e8c0e851e795bf5204e failed Mobile Native run 34941237343 and Android Release Pipeline Guard run 34941237352 during setup-android because the action default requested unavailable package tools."
   changed_files:
@@ -1267,6 +1269,7 @@ current_android_sdk_setup_blocker:
     - .github/workflows/android-stable-release.yml
     - .github/workflows/mobile-native.yml
     - tests/android-release-pipeline-hardening.test.js
-  validation: "Focused Android workflow regression 6/6 PASS; pnpm run validate:full PASS; typecheck PASS; build PASS; lint PASS (0 errors, 4 pre-existing warnings); security gate PASS (0 high/critical, 0 secrets); git diff --check PASS. Python/PyYAML YAML helper unavailable on this host."
+  validation: "Focused Android workflow regression 6/6 PASS; pnpm run validate:full PASS; typecheck PASS; build PASS; lint PASS (0 errors, 4 pre-existing warnings); security gate PASS (0 high/critical, 0 secrets); git diff --check PASS; exact-head CI/PAPER/safety/Android acceptance all PASS (PR #1917 head 035c921e9779727ad9e786f31d3fb4611ab60216). Python/PyYAML YAML helper unavailable on this host."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
-  next_action: "Commit and publish a fresh exact-head PR; do not modify PR #1916 or its dependency changes."
+  release_boundary: "WAITING_APP_BOUND_AUTHORIZATION: protected main requires nusa/release-authorized from App ID 4935691; no PAT/GITHUB_TOKEN/bypass or Development merge."
+  next_action: "Independent Audit/Release exact-head handoff; Development must not merge or alter PR #1916."

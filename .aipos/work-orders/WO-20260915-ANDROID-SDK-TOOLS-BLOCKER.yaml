@@ -1,7 +1,7 @@
 id: WO-20260915-ANDROID-SDK-TOOLS-BLOCKER
 schema_version: 1
 title: "Remove retired Android SDK tools default from CI setup"
-status: READY_FOR_PR
+status: PRE_AUDIT_READY
 priority: 100
 owner: nusa-engineering
 repository: cinamoncandy/NUSA
@@ -62,5 +62,25 @@ validation:
   security: "pnpm run security:gate — PASS (0 high/critical, 0 secrets)"
   yaml_static_contract: "Focused workflow contract test PASS; Python/PyYAML unavailable on this host"
   diff_check: "git diff --check — PASS"
-next_action: "Commit and publish a PR from this exact main-based branch for fresh exact-head CI; do not alter PR #1916."
+pull_request: 1917
+exact_head: 035c921e9779727ad9e786f31d3fb4611ab60216
+exact_head_ci:
+  canonical_ci: 34942602833
+  android_product_ux_acceptance: 34942602614
+  mobile_native: 34942602389
+  android_release_pipeline_guard: 34942602591
+  actual_paper_runtime: 34942602506
+  restricted_live_transport: 34942602543
+  restricted_live_activation: 34942602522
+  restricted_live_capability: 34942602537
+  read_only_broker: 34942602576
+  bridge: 34942602622
+  result: "All listed workflows SUCCESS; expected iOS/release-candidate skips remain SKIPPED."
+release_boundary:
+  status: WAITING_APP_BOUND_AUTHORIZATION
+  required_status: nusa/release-authorized
+  required_status_app_id: 4935691
+  development_merge: prohibited
+  reason: "Protected main requires a dedicated App-bound authorization status; Development cannot mint it, use PAT/GITHUB_TOKEN, or bypass Release/Audit ownership."
+next_action: "Independent Audit and canonical Release must verify this exact head and obtain App-bound nusa/release-authorized before any merge; do not alter PR #1916."
 blockers: []
