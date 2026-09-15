@@ -1,6 +1,19 @@
 name: Deployment Convergence Watchdog
 
 on:
+  workflow_run:
+    workflows:
+      - CI
+      - Autopilot Cloudflare Deploy
+      - Autopilot Cloudflare Promote
+      - Autopilot Cloudflare Runtime Proof
+      - Autopilot Cloudflare Credential Preflight
+      - Actual PAPER Public-Market Runtime Evidence
+      - Android Stable Release Trigger
+      - Android Stable Release
+      - Windows Desktop Stable Release
+    types: [completed]
+    branches: [main]
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
@@ -52,11 +65,43 @@ jobs:
           }
 
           runs_for_main() {
-            gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$MAIN_SHA&per_page=100"
+            gh api --paginate \
+              "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$MAIN_SHA&per_page=100" \
+              --jq '.workflow_runs[]' \
+              | jq -s '{workflow_runs: .}'
+          }
+
+          verified_cloudflare_deploy() {
+            local run_id
+            while read -r run_id; do
+              [ -n "$run_id" ] || continue
+              if gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100" \
+                --jq '.jobs[]' \
+                | jq -se '
+                  [.[] | select(.name == "Deploy exact CI-verified Worker revision")][0] as $job |
+                  ($job.conclusion == "success") and
+                  (any($job.steps[]?; .name == "Deploy exact CI-verified revision to Cloudflare Workers Free-compatible runtime" and .conclusion == "success")) and
+                  (any($job.steps[]?; .name == "Verify deployed Worker reports the exact-head revision and fail-closed authority" and .conclusion == "success"))
+                ' >/dev/null; then
+                echo "$run_id"
+                return 0
+              fi
+            done < <(
+              gh api --paginate \
+                "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-cloudflare-deploy.yml/runs?branch=main&status=completed&per_page=100" \
+                --jq '.workflow_runs[]' \
+                | jq -sr --arg sha "$MAIN_SHA" \
+                  '[.[] | select(.path == ".github/workflows/autopilot-cloudflare-deploy.yml" and .head_sha == $sha and .conclusion == "success")] | sort_by(.id) | reverse | .[].id'
+            )
+            return 1
           }
 
           workflow_success() {
             local workflow_name="$1"
+            if [ "$workflow_name" = "Autopilot Cloudflare Deploy" ]; then
+              verified_cloudflare_deploy >/dev/null
+              return
+            fi
             printf '%s' "$RUNS_JSON" | jq -e --arg name "$workflow_name" --arg sha "$MAIN_SHA" '
               any(.workflow_runs[];
                 .name == $name and .head_sha == $sha and
@@ -127,10 +172,10 @@ jobs:
               -f ref=main "$@"
           }
 
-          CI_CONCLUSION="$(
-            gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$MAIN_SHA&status=completed&per_page=100" \
-              --jq '[.workflow_runs[] | select(.name == "CI" and .path == ".github/workflows/ci.yml" and .head_sha == "'"$MAIN_SHA"'" and .conclusion == "success")][0].conclusion // empty'
-          )"
+          CI_CONCLUSION="$(gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$MAIN_SHA&status=completed&per_page=100" \
+            --jq '.workflow_runs[]' \
+            | jq -sr --arg sha "$MAIN_SHA" '[.[] | select(.path == ".github/workflows/ci.yml" and .head_sha == $sha and .conclusion == "success")][0].conclusion // empty')"
           if [ "$CI_CONCLUSION" != "success" ]; then
             echo "Exact-main CI has no successful attempt yet; deployment convergence remains fail-closed."
             exit 0
@@ -151,6 +196,11 @@ jobs:
             "Actual PAPER Runtime" \
             "Actual PAPER Public-Market Runtime Evidence" \
             "wo-0059-actual-paper-runtime.yml"
+
+          dispatch_bounded \
+            "Credential Preflight" \
+            "Autopilot Cloudflare Credential Preflight" \
+            "autopilot-cloudflare-credential-preflight.yml"
 
           # Refresh observations after dispatches so later components do not race a
           # just-started prerequisite.
@@ -182,13 +232,15 @@ jobs:
             if workflow_active "Android Stable Release" || workflow_active "Android Stable Release Trigger"; then
               echo "Android exact-main convergence already active."
             else
-              ANDROID_FAILURES="$(workflow_failures "Android Stable Release")"
+              ANDROID_RELEASE_FAILURES="$(workflow_failures "Android Stable Release")"
+              ANDROID_TRIGGER_FAILURES="$(workflow_failures "Android Stable Release Trigger")"
+              ANDROID_FAILURES="$((ANDROID_RELEASE_FAILURES + ANDROID_TRIGGER_FAILURES))"
               if [ "$ANDROID_FAILURES" -ge 3 ]; then
-                surface_incident "Android Stable" "Observed $ANDROID_FAILURES failed/timed-out/cancelled exact-main stable runs."
-                echo "Android retry budget exhausted; remaining fail-closed."
+                surface_incident "Android Stable" "Observed $ANDROID_FAILURES aggregate failed/timed-out/cancelled exact-main Android trigger/release runs (trigger=$ANDROID_TRIGGER_FAILURES, release=$ANDROID_RELEASE_FAILURES)."
+                echo "Android aggregate retry budget exhausted; remaining fail-closed."
               else
                 assert_still_current
-                echo "Android stable target ${ANDROID_TARGET:-none} is stale; dispatching convergence trigger within stable retry budget $((ANDROID_FAILURES + 1))/3."
+                echo "Android stable target ${ANDROID_TARGET:-none} is stale; dispatching convergence trigger within aggregate Android retry budget $((ANDROID_FAILURES + 1))/3."
                 gh api --method POST \
                   "repos/$GITHUB_REPOSITORY/actions/workflows/android-stable-release-trigger.yml/dispatches" \
                   -f ref=main
@@ -219,6 +271,7 @@ jobs:
           if workflow_success "Autopilot Cloudflare Deploy" \
             && workflow_success "Autopilot Cloudflare Promote" \
             && workflow_success "Autopilot Cloudflare Runtime Proof" \
+            && workflow_success "Autopilot Cloudflare Credential Preflight" \
             && workflow_success "Actual PAPER Public-Market Runtime Evidence" \
             && workflow_success "Android Stable Release" \
             && workflow_success "Windows Desktop Stable Release" \
@@ -230,11 +283,11 @@ jobs:
               "deployment-convergence-receipt.yml" \
               -f "inputs[source_sha]=$MAIN_SHA"
           else
-            echo "Convergence receipt waits for all exact-main runtime and stable distribution proofs."
+            echo "Convergence receipt waits for exact-main deploy, promote, runtime proof, credential preflight, PAPER runtime, and stable distribution proofs."
           fi
 
           assert_still_current
-          echo "Convergence pass complete for $MAIN_SHA. Any newly dispatched prerequisite is verified on the next bounded cycle."
+          echo "Convergence pass complete for $MAIN_SHA. Any newly dispatched prerequisite is verified by event-driven wakeup or the next bounded schedule cycle."
           echo 'liveAuthority=NONE'
           echo 'productionMutationAllowed=false'
           echo 'aiAuthority=ZERO_AUTHORITY'

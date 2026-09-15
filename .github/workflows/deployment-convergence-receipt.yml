@@ -44,21 +44,23 @@ jobs:
 
           success_run_id() {
             local workflow_name="$1"
-            jq -r --arg name "$workflow_name" --arg sha "$EXPECTED_SHA" '
+            local workflow_path="$2"
+            jq -r --arg name "$workflow_name" --arg path "$workflow_path" --arg sha "$EXPECTED_SHA" '
               [.workflow_runs[] |
-                select(.name == $name and .head_sha == $sha and
+                select(.name == $name and .path == $path and .head_sha == $sha and
                   .status == "completed" and .conclusion == "success")] |
               sort_by(.created_at) | reverse | .[0].id // empty
             ' "$RUNNER_TEMP/runs.json"
           }
 
-          CI_RUN_ID="$(success_run_id "CI")"
-          DEPLOY_RUN_ID="$(success_run_id "Autopilot Cloudflare Deploy")"
-          PROMOTE_RUN_ID="$(success_run_id "Autopilot Cloudflare Promote")"
-          RUNTIME_PROOF_RUN_ID="$(success_run_id "Autopilot Cloudflare Runtime Proof")"
-          PAPER_RUN_ID="$(success_run_id "Actual PAPER Public-Market Runtime Evidence")"
-          ANDROID_RUN_ID="$(success_run_id "Android Stable Release")"
-          WINDOWS_RUN_ID="$(success_run_id "Windows Desktop Stable Release")"
+          CI_RUN_ID="$(success_run_id "CI" ".github/workflows/ci.yml")"
+          DEPLOY_RUN_ID="$(success_run_id "Autopilot Cloudflare Deploy" ".github/workflows/autopilot-cloudflare-deploy.yml")"
+          PROMOTE_RUN_ID="$(success_run_id "Autopilot Cloudflare Promote" ".github/workflows/autopilot-cloudflare-promote.yml")"
+          RUNTIME_PROOF_RUN_ID="$(success_run_id "Autopilot Cloudflare Runtime Proof" ".github/workflows/autopilot-cloudflare-runtime-proof.yml")"
+          CREDENTIAL_RUN_ID="$(success_run_id "Autopilot Cloudflare Credential Preflight" ".github/workflows/autopilot-cloudflare-credential-preflight.yml")"
+          PAPER_RUN_ID="$(success_run_id "Actual PAPER Public-Market Runtime Evidence" ".github/workflows/wo-0059-actual-paper-runtime.yml")"
+          ANDROID_RUN_ID="$(success_run_id "Android Stable Release" ".github/workflows/android-stable-release.yml")"
+          WINDOWS_RUN_ID="$(success_run_id "Windows Desktop Stable Release" ".github/workflows/windows-desktop-stable-release.yml")"
 
           ANDROID_TARGET="$(gh release view nusa-android --repo "$GITHUB_REPOSITORY" --json targetCommitish --jq '.targetCommitish' 2>/dev/null || true)"
           WINDOWS_TARGET="$(gh release view nusa-windows --repo "$GITHUB_REPOSITORY" --json targetCommitish --jq '.targetCommitish' 2>/dev/null || true)"
@@ -68,21 +70,30 @@ jobs:
           deploy_ok=false
           promote_ok=false
           runtime_proof_ok=false
+          credential_ok=false
           paper_ok=false
           android_ok=false
           windows_ok=false
 
           [ "$CURRENT_MAIN" = "$EXPECTED_SHA" ] && main_exact=true
           [ -n "$CI_RUN_ID" ] && ci_ok=true
-          [ -n "$DEPLOY_RUN_ID" ] && deploy_ok=true
+          if [ -n "$DEPLOY_RUN_ID" ] && gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$DEPLOY_RUN_ID/jobs?per_page=100" \
+            --jq '.jobs[]' \
+            | jq -se '
+              [.[] | select(.name == "Deploy exact CI-verified Worker revision")][0] as $job |
+              ($job.conclusion == "success") and
+              (any($job.steps[]?; .name == "Deploy exact CI-verified revision to Cloudflare Workers Free-compatible runtime" and .conclusion == "success")) and
+              (any($job.steps[]?; .name == "Verify deployed Worker reports the exact-head revision and fail-closed authority" and .conclusion == "success"))
+            ' >/dev/null; then deploy_ok=true; fi
           [ -n "$PROMOTE_RUN_ID" ] && promote_ok=true
           [ -n "$RUNTIME_PROOF_RUN_ID" ] && runtime_proof_ok=true
+          [ -n "$CREDENTIAL_RUN_ID" ] && credential_ok=true
           [ -n "$PAPER_RUN_ID" ] && paper_ok=true
           if [ -n "$ANDROID_RUN_ID" ] && [ "$ANDROID_TARGET" = "$EXPECTED_SHA" ]; then android_ok=true; fi
           if [ -n "$WINDOWS_RUN_ID" ] && [ "$WINDOWS_TARGET" = "$EXPECTED_SHA" ]; then windows_ok=true; fi
 
           STATUS=FAIL
-          if $main_exact && $ci_ok && $deploy_ok && $promote_ok && $runtime_proof_ok && $paper_ok && $android_ok && $windows_ok; then
+          if $main_exact && $ci_ok && $deploy_ok && $promote_ok && $runtime_proof_ok && $credential_ok && $paper_ok && $android_ok && $windows_ok; then
             STATUS=PASS
           fi
 
@@ -97,6 +108,7 @@ jobs:
             --arg deploy_run_id "$DEPLOY_RUN_ID" \
             --arg promote_run_id "$PROMOTE_RUN_ID" \
             --arg runtime_proof_run_id "$RUNTIME_PROOF_RUN_ID" \
+            --arg credential_run_id "$CREDENTIAL_RUN_ID" \
             --arg paper_run_id "$PAPER_RUN_ID" \
             --arg android_run_id "$ANDROID_RUN_ID" \
             --arg windows_run_id "$WINDOWS_RUN_ID" \
@@ -107,6 +119,7 @@ jobs:
             --argjson deploy_ok "$deploy_ok" \
             --argjson promote_ok "$promote_ok" \
             --argjson runtime_proof_ok "$runtime_proof_ok" \
+            --argjson credential_ok "$credential_ok" \
             --argjson paper_ok "$paper_ok" \
             --argjson android_ok "$android_ok" \
             --argjson windows_ok "$windows_ok" \
@@ -128,6 +141,7 @@ jobs:
                 cloudflare_deploy: { pass: $deploy_ok, run_id: $deploy_run_id },
                 cloudflare_promote: { pass: $promote_ok, run_id: $promote_run_id },
                 runtime_proof: { pass: $runtime_proof_ok, run_id: $runtime_proof_run_id },
+                credential_preflight: { pass: $credential_ok, run_id: $credential_run_id },
                 actual_paper_runtime: { pass: $paper_ok, run_id: $paper_run_id },
                 android_stable: { pass: $android_ok, run_id: $android_run_id, target_sha: $android_target },
                 windows_stable: { pass: $windows_ok, run_id: $windows_run_id, target_sha: $windows_target }

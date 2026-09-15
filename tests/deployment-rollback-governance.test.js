@@ -72,6 +72,7 @@ test("deployment convergence receipt requires every exact-main proof surface", (
     "Autopilot Cloudflare Deploy",
     "Autopilot Cloudflare Promote",
     "Autopilot Cloudflare Runtime Proof",
+    "Autopilot Cloudflare Credential Preflight",
     "Actual PAPER Public-Market Runtime Evidence",
     "Android Stable Release",
     "Windows Desktop Stable Release",
