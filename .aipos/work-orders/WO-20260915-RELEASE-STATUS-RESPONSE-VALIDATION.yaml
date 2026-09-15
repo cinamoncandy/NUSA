@@ -1,7 +1,7 @@
 id: WO-20260915-RELEASE-STATUS-RESPONSE-VALIDATION
 schema_version: 1
 title: "Validate exact-head release status without trusting create-status response shape"
-status: IN_PROGRESS
+status: PRE_AUDIT_READY_RELEASE_BOOTSTRAP_PENDING
 priority: 100
 owner: nusa-engineering
 repository: cinamoncandy/NUSA
@@ -41,4 +41,15 @@ safety:
 release_boundary:
   required_status: nusa/release-authorized
   development_merge: prohibited
-  next_action: "Fresh exact-head CI and independent Audit/Release evaluation; do not merge from Development."
+  next_action: "Release must merge this exact-head workflow fix through the canonical App-bound path; do not merge from Development."
+exact_head: d66b997141f578c2e90ebdc038bac296be349e61
+exact_head_ci:
+  canonical_ci: 34945699784
+  actual_paper_runtime: 34945699836
+  restricted_live_transport: 34945700005
+  restricted_live_activation: 34945699872
+  restricted_live_capability: 34945699868
+  read_only_broker: 34945700057
+  bridge: 34945699814
+  required_status: "nusa/release-authorized SUCCESS on exact head; protected main required context is satisfied."
+  result: "All exact-head required CI and safety workflows SUCCESS. Canonical Release runs 34946128347 and 34946137858 reached Audit PASS but failed in the old main workflow at the obsolete create-status .sha assertion; the corrected workflow is not active until this PR is merged."

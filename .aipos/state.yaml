@@ -1255,9 +1255,11 @@ latest_paper_chaos_bound_runtime_evidence_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_release_status_response_validation:
   work_order: WO-20260915-RELEASE-STATUS-RESPONSE-VALIDATION
-  status: IMPLEMENTED_LOCAL_VALIDATION_PENDING_CI
+  status: PRE_AUDIT_READY_RELEASE_BOOTSTRAP_PENDING
   branch: codex/release-status-response-validation
   base_sha: 79289f9f33f63e6b699bdbc42863c3e458f782a4
+  pull_request: 1918
+  exact_head: d66b997141f578c2e90ebdc038bac296be349e61
   scope: "Harden canonical Release status publication against the GitHub create-status response shape while preserving exact-head verification and fail-closed cleanup."
   root_cause: "GitHub create commit-status responses do not include sha; asserting it caused Release failure after a positive status was created, while published=true was not recorded and revocation was skipped."
   changed_files:
@@ -1265,7 +1267,7 @@ current_release_status_response_validation:
     - tests/canonical-release-authorization-contract.test.js
     - .aipos/state.yaml
     - .aipos/work-orders/WO-20260915-RELEASE-STATUS-RESPONSE-VALIDATION.yaml
-  validation: "Focused canonical release authorization contract 3/3 PASS; git diff --check PASS. Full local gates pending."
+  validation: "Focused canonical release authorization contract 3/3 PASS; pnpm run validate:full PASS; typecheck PASS; build PASS; lint PASS (0 errors, 4 pre-existing warnings); security gate PASS (0 high/critical, 0 secrets); git diff --check PASS; exact-head CI, PAPER, Read-only Broker, Restricted LIVE and bridge workflows PASS; nusa/release-authorized SUCCESS. Canonical Release runs 34946128347 and 34946137858 reached Audit PASS but failed before merge because protected main still executed the pre-fix workflow asserting .sha on the GitHub create-status response."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   release_boundary: "nusa/release-authorized remains dedicated App-bound; no PAT/GITHUB_TOKEN fallback, bypass, or Development merge."
-  next_action: "Run full local gates, push one coherent PR, inspect exact-head CI, then hand off to independent Audit/Release."
+  next_action: "Hand PR #1918 exact head to independent Audit/Release; Release must merge the fix through the dedicated App-bound path before the corrected workflow can be active on main. Development must not generic-token merge."
