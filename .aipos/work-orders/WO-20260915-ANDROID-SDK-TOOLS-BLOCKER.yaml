@@ -1,0 +1,66 @@
+id: WO-20260915-ANDROID-SDK-TOOLS-BLOCKER
+schema_version: 1
+title: "Remove retired Android SDK tools default from CI setup"
+status: READY_FOR_PR
+priority: 100
+owner: nusa-engineering
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: c8095fe38d2ea097fbe167819ccf19f4260a7271
+implementation_branch: codex/android-sdk-tools-blocker
+objective: "Restore Android CI setup by preventing android-actions/setup-android from requesting the retired tools package while preserving the existing platform/build/emulator installation and release safety gates."
+scope:
+  - "Make supported Android SDK package selection explicit in every repository Android setup action."
+  - "Add a regression contract covering all Android setup action blocks."
+  - "Record the exact external CI failure and local validation evidence."
+exclusions:
+  - "No application, trading, accounting, credential, broker, or LIVE behavior changes."
+  - "No required-check removal, assertion weakening, or Android release signing relaxation."
+  - "No changes outside Android CI setup contracts, focused regression coverage, and AIPOS evidence."
+architecture_impact:
+  acknowledged: true
+  analysis: "CI configuration only; Android build and release contracts remain unchanged and all existing safety gates remain authoritative."
+  references:
+    - .aipos/architecture.md
+    - .aipos/context.md
+    - .aipos/work-orders/WO-0051-constitutional-production-human-environment-gate.yaml
+safety_boundaries:
+  - "PAPER_ONLY; liveAuthority remains NONE; productionMutationAllowed remains false."
+  - "AI remains ZERO_AUTHORITY."
+  - "No production mutation, order, withdrawal, transfer, or credential handling is introduced."
+failure_evidence:
+  workflow_run: 34941237352
+  related_mobile_run: 34941237343
+  exact_head: 05c80b2d5f3ad587f7789e8c0e851e795bf5204e
+  classification: REPOSITORY_CONTROLLED_CI_CONFIGURATION
+  root_cause: "android-actions/setup-android defaulted to packages 'tools platform-tools'; current SDK repositories no longer provide the retired 'tools' package, so setup exited with code 1 before the Android build."
+implementation:
+  changed_files:
+    - .github/workflows/android-product-ux-acceptance.yml
+    - .github/workflows/android-release-pipeline-guard.yml
+    - .github/workflows/android-stable-release.yml
+    - .github/workflows/mobile-native.yml
+    - tests/android-release-pipeline-hardening.test.js
+acceptance:
+  - "Every android-actions/setup-android invocation explicitly requests supported platform-tools and never the retired tools package."
+  - "Android release pipeline guard retains ephemeral CI-only signing and Gradle compatibility checks."
+  - "Android build and release workflows retain existing platform/build-tools installation and exact-source/safety gates."
+  - "Focused regression passes and exact-head CI is green."
+verification_commands:
+  - "node --test tests/android-release-pipeline-hardening.test.js"
+  - "pnpm run validate:full"
+  - "pnpm run typecheck"
+  - "pnpm run lint"
+  - "pnpm run security:gate"
+  - "git diff --check"
+validation:
+  focused_regression: "node --test tests/android-release-pipeline-hardening.test.js — 6/6 PASS"
+  validate_full: "pnpm run validate:full — PASS"
+  typecheck: "pnpm run typecheck — PASS"
+  build: "pnpm run build — PASS"
+  lint: "pnpm run lint — PASS (0 errors; 4 pre-existing warnings)"
+  security: "pnpm run security:gate — PASS (0 high/critical, 0 secrets)"
+  yaml_static_contract: "Focused workflow contract test PASS; Python/PyYAML unavailable on this host"
+  diff_check: "git diff --check — PASS"
+next_action: "Commit and publish a PR from this exact main-based branch for fresh exact-head CI; do not alter PR #1916."
+blockers: []
