@@ -84,3 +84,30 @@ runtime_truth_observed_20260915:
     aged out valid evidence as scheduled runs accumulated against a stationary main. This is an
     engineering defect, not BLOCKED_HUMAN, and #1461 must not be closed on this observation alone:
     closure still requires a trusted-main Credential Preflight PASS.
+scheduled_recovery_slo_measurement_20260915:
+  claim_under_test: >-
+    The canonical watchdog declares cron "*/5 * * * *" and the absorbed #1841 scope keeps that
+    five-minute schedule as a safety net behind event-driven wakeup. This measures whether the
+    five-minute schedule is actually a safety net.
+  method: >-
+    Read created_at for the ten most recent Deployment Convergence Watchdog runs and compute the
+    gap between consecutive runs. One workflow_dispatch run is present and excluded from the
+    scheduled-cadence reading.
+  observed_gaps_minutes: [73, 173, 238, 357, 330, 292, 123, 136]
+  declared_interval_minutes: 5
+  observed_median_minutes: 205
+  observed_minimum_minutes: 73
+  finding: >-
+    No observed gap is close to the declared interval. The minimum observed gap is 73 minutes,
+    roughly fifteen times the declared interval, and the median is roughly forty times it. GitHub
+    schedules are best-effort and are throttled or dropped on busy repositories, so the declared
+    five-minute cadence is not a recovery guarantee.
+  consequence: >-
+    Convergence recovery latency after main advances is governed by an unbounded best-effort
+    schedule, not by five minutes. A stalled or missed prerequisite can therefore sit unreconciled
+    for hours with no signal. This is the measured justification for the absorbed #1841
+    event-driven workflow_run wakeup: the schedule is a weak fallback, not the primary path.
+  status_note: >-
+    Recorded as measurement only. No change is made to the cron here, because lowering or raising
+    a best-effort interval does not make it reliable; the event-driven wakeup already in this work
+    item is the actual remedy.
