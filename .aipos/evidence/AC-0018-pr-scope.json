@@ -1,0 +1,22 @@
+{
+  "issue": 1921,
+  "scope": "architecture_only",
+  "expected_paths": [
+    ".aipos/decisions/ADR-0018-structured-agentic-quant-harness.md",
+    ".aipos/architecture-changes/AC-0018-structured-agentic-quant-harness.json",
+    ".aipos/evidence/AC-0018-gap-matrix.md",
+    ".aipos/evidence/AC-0018-component-ownership.md",
+    ".aipos/evidence/AC-0018-state-machine.md",
+    ".aipos/evidence/AC-0018-acceptance-plan.md",
+    ".aipos/evidence/AC-0018-implementation-slices.md",
+    ".aipos/evidence/AC-0018-core-handoff.md",
+    ".aipos/evidence/AC-0018-external-claims-boundary.md",
+    ".aipos/evidence/AC-0018-validation.json",
+    ".aipos/evidence/AC-0018-review-checklist.md",
+    ".aipos/evidence/AC-0018-pr-scope.json"
+  ],
+  "runtime_code_changes_expected": false,
+  "merge_requires_exact_head_ci": true,
+  "merge_requires_core_review": true,
+  "post_merge_exact_main_verification": true
+}

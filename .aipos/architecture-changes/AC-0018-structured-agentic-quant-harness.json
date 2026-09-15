@@ -1,0 +1,58 @@
+{
+  "id": "AC-0018",
+  "title": "Structured Agentic Quant Harness",
+  "status": "PROPOSED",
+  "date": "2026-09-15",
+  "issue": 1921,
+  "decision": ".aipos/decisions/ADR-0018-structured-agentic-quant-harness.md",
+  "extends": [
+    ".aipos/decisions/ADR-0003-hardened-research-validity-boundaries.md",
+    ".aipos/decisions/ADR-0006-real-provider-challenger-runtime.md"
+  ],
+  "existing_building_blocks": [1605, 1906],
+  "principles": [
+    "single canonical lifecycle over existing owners",
+    "immutable precommit before protected validation",
+    "test-first invariants",
+    "implementer and qualification authority separation",
+    "deterministic evidence adjudication",
+    "comparable champion-challenger provenance",
+    "fail-closed failure survival",
+    "degradation creates new research rather than direct retuning",
+    "provider pluggability without authority drift"
+  ],
+  "implementation_order": {
+    "P0": [
+      "precommit and protected-OOS correctness",
+      "deterministic evaluator and risk semantics",
+      "failure-survival and replay idempotency",
+      "role and authority separation"
+    ],
+    "P1": [
+      "production PAPER closed-loop composition",
+      "comparable champion-challenger evaluation",
+      "shadow/readiness evidence",
+      "degradation-triggered revalidation",
+      "bounded autonomous investment scientist"
+    ],
+    "P2": [
+      "versioned mathematical strategy-family challengers",
+      "provider/model optimization"
+    ]
+  },
+  "forbidden_parallel_owners": [
+    "research factory",
+    "league",
+    "portfolio engine",
+    "execution engine",
+    "service container",
+    "plugin system",
+    "lifecycle engine"
+  ],
+  "authority": {
+    "mode": "PAPER_ONLY",
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY"
+  }
+}
