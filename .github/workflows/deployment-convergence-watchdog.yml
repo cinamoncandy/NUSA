@@ -197,11 +197,6 @@ jobs:
             "Actual PAPER Public-Market Runtime Evidence" \
             "wo-0059-actual-paper-runtime.yml"
 
-          dispatch_bounded \
-            "Credential Preflight" \
-            "Autopilot Cloudflare Credential Preflight" \
-            "autopilot-cloudflare-credential-preflight.yml"
-
           # Refresh observations after dispatches so later components do not race a
           # just-started prerequisite.
           RUNS_JSON="$(runs_for_main)"
@@ -224,6 +219,23 @@ jobs:
               "autopilot-cloudflare-runtime-proof.yml"
           else
             echo "Runtime Proof waits for exact-main Deploy + Promote success."
+          fi
+
+          # Credential Preflight is a dependent, not a peer. It fails unless an exact-main
+          # Cloudflare Deploy run has already executed BOTH its deploy and runtime-verification
+          # steps, so dispatching it alongside Deploy guarantees a failure that is about
+          # ordering rather than about credentials. Those false failures consume the shared
+          # bounded retry budget and then surface a credential incident that is not real,
+          # which is the precise false-red this gate exists to prevent. Gate it on the same
+          # evidence it will look for.
+          RUNS_JSON="$(runs_for_main)"
+          if workflow_success "Autopilot Cloudflare Deploy"; then
+            dispatch_bounded \
+              "Credential Preflight" \
+              "Autopilot Cloudflare Credential Preflight" \
+              "autopilot-cloudflare-credential-preflight.yml"
+          else
+            echo "Credential Preflight waits for exact-main Cloudflare Deploy success."
           fi
 
           ANDROID_TARGET="$(gh release view nusa-android --json targetCommitish --jq '.targetCommitish' 2>/dev/null || true)"
