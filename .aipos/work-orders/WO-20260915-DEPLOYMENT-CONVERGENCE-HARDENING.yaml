@@ -1,0 +1,113 @@
+id: WO-20260915-DEPLOYMENT-CONVERGENCE-HARDENING
+title: "Canonical deployment convergence evidence hardening"
+status: LOCAL_VALIDATED_CI_PENDING
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 79289f9f33f63e6b699bdbc42863c3e458f782a4
+implementation_branch: codex/deployment-convergence-hardening
+authority_impact: none
+objective: "Remove repository-controlled false deployment failures and require exact-main, step-verified runtime evidence before publishing CONVERGED."
+impact:
+  profit: "No direct investment-performance claim; restores reliable deployment of verified PAPER/read-only product changes."
+  safety: "Fail-closed receipts cannot treat workflow-level success, stale provenance, or missing credential preflight as deployed runtime proof."
+  efficiency: "Event-driven wakeups reduce idle convergence latency while a five-minute bounded schedule remains as recovery fallback."
+  convenience: "Repository-controlled evidence aging no longer requires manual reruns when valid exact-main runs exceed the first Actions page."
+scope:
+  - "Use workflow-specific paginated exact-main CI and Cloudflare Deploy evidence."
+  - "Wake the existing canonical watchdog on prerequisite workflow completion."
+  - "Require credential preflight before final convergence receipt."
+  - "Require successful canonical deploy and runtime verification steps, not workflow conclusion alone."
+  - "Apply one aggregate retry budget across Android trigger and stable-release failures."
+exclusions:
+  - "No second queue, scheduler, deployment owner, control plane, or durable journal."
+  - "No credential values, account identifiers, LIVE activation, broker mutation, withdrawal, or transfer."
+safety:
+  operating_mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+verification:
+  required:
+    - "node --test tests/deployment-convergence-watchdog.test.js tests/deployment-rollback-governance.test.js"
+    - "pnpm run validate:full"
+    - "git diff --check"
+  observed:
+    focused_tests: "23/23 PASS including credential-preflight exact-main provenance assertions"
+    validate_full: "PASS on Node 24.18.0 with architecture, AIPOS, safety, and AI zero-authority gates"
+    security_gate: "PASS; raw high/critical 0; secrets 0"
+    diff_check: PASS
+completion_rule: "Fresh exact-head CI, independent Audit, and Release are required before canonical merge; runtime convergence requires a PASS receipt bound to the protected-main SHA."
+follow_up_findings:
+  - id: EAGER_CREDENTIAL_PREFLIGHT_DISPATCH
+    severity: HIGH
+    summary: >-
+      Credential Preflight was dispatched in the same ungated batch as Cloudflare Deploy, while
+      Promote and Runtime Proof were correctly gated on exact-main deploy success. Preflight is a
+      dependent, not a peer: it refuses unless an exact-main Deploy run has already executed both
+      its deploy and runtime-verification steps. Every cycle before Deploy succeeded therefore
+      dispatched a Preflight that could only fail, on ordering rather than on credentials.
+    consequence: >-
+      Those guaranteed failures consume the shared bounded retry budget and then surface a
+      credential incident that is not real, which is the precise false-red the credential gate
+      exists to prevent and a false HUMAN_ONLY signal on an engineering defect.
+    resolution: "Preflight is gated on the same exact-main deploy evidence it goes looking for."
+    tests:
+      - "credential preflight is dispatched only after exact-main deploy evidence exists"
+      - "credential preflight is not dispatched in the same ungated batch as deploy"
+    test_validation: "Both assertions fail against the pre-fix workflow and pass against the fixed one."
+runtime_truth_observed_20260915:
+  protected_main: 79289f9f33f63e6b699bdbc42863c3e458f782a4
+  cloudflare_worker:
+    source: "live GET /health"
+    deploymentRevision: 79289f9f33f63e6b699bdbc42863c3e458f782a4
+    matches_exact_main: true
+    liveAuthority: NONE
+    productionMutationAllowed: false
+    aiAuthority: ZERO_AUTHORITY
+  android_release:
+    target_commitish: 79289f9f33f63e6b699bdbc42863c3e458f782a4
+    apk_digest: "sha256:55f0a54b768599e88f16e4a3f0bcffe33f4d82d6e229dba7da88cae6883f5d8d"
+  windows_release:
+    target_commitish: 79289f9f33f63e6b699bdbc42863c3e458f782a4
+    setup_digest: "sha256:8741d9eb174d7663c6fbe0f6166e9cf6b12781cd4046899cccdd1b49e4c2693e"
+  installed_client_runtime: UNKNOWN
+  installed_client_note: >-
+    No telemetry binds an installed binary on any user device to this source SHA. UNKNOWN is not
+    PASS and is recorded as UNKNOWN rather than inferred from release provenance.
+  interpretation: >-
+    The deployed runtime was already at exact protected main. Issue #1461 reported an unhealthy
+    Cloudflare baseline, but the credential steps passed and the failure was the provenance search
+    failing to find a deploy run that demonstrably exists (run 34673162847, deploy and
+    runtime-verification steps both success on exact main). Repository-wide first-page enumeration
+    aged out valid evidence as scheduled runs accumulated against a stationary main. This is an
+    engineering defect, not BLOCKED_HUMAN, and #1461 must not be closed on this observation alone:
+    closure still requires a trusted-main Credential Preflight PASS.
+scheduled_recovery_slo_measurement_20260915:
+  claim_under_test: >-
+    The canonical watchdog declares cron "*/5 * * * *" and the absorbed #1841 scope keeps that
+    five-minute schedule as a safety net behind event-driven wakeup. This measures whether the
+    five-minute schedule is actually a safety net.
+  method: >-
+    Read created_at for the ten most recent Deployment Convergence Watchdog runs and compute the
+    gap between consecutive runs. One workflow_dispatch run is present and excluded from the
+    scheduled-cadence reading.
+  observed_gaps_minutes: [73, 173, 238, 357, 330, 292, 123, 136]
+  declared_interval_minutes: 5
+  observed_median_minutes: 205
+  observed_minimum_minutes: 73
+  finding: >-
+    No observed gap is close to the declared interval. The minimum observed gap is 73 minutes,
+    roughly fifteen times the declared interval, and the median is roughly forty times it. GitHub
+    schedules are best-effort and are throttled or dropped on busy repositories, so the declared
+    five-minute cadence is not a recovery guarantee.
+  consequence: >-
+    Convergence recovery latency after main advances is governed by an unbounded best-effort
+    schedule, not by five minutes. A stalled or missed prerequisite can therefore sit unreconciled
+    for hours with no signal. This is the measured justification for the absorbed #1841
+    event-driven workflow_run wakeup: the schedule is a weak fallback, not the primary path.
+  status_note: >-
+    Recorded as measurement only. No change is made to the cron here, because lowering or raising
+    a best-effort interval does not make it reliable; the event-driven wakeup already in this work
+    item is the actual remedy.
