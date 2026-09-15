@@ -1,0 +1,44 @@
+id: WO-20260915-RELEASE-STATUS-RESPONSE-VALIDATION
+schema_version: 1
+title: "Validate exact-head release status without trusting create-status response shape"
+status: IN_PROGRESS
+priority: 100
+owner: nusa-engineering
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 79289f9f33f63e6b699bdbc42863c3e458f782a4
+implementation_branch: codex/release-status-response-validation
+authority_impact: none
+objective: "Prevent the canonical Release workflow from failing after publishing a valid exact-head authorization status because the GitHub create-status response omits sha, and ensure any partial publication is fail-closed and revoked."
+root_cause: "The workflow asserted .sha on the create commit-status response. GitHub's response shape has state/context but does not include sha, so validation failed after status publication and the existing published output was never set; the failure cleanup step then skipped."
+scope:
+  - .github/workflows/autopilot-deterministic-audit-release.yml
+  - tests/canonical-release-authorization-contract.test.js
+  - .aipos/state.yaml
+  - .aipos/work-orders/WO-20260915-RELEASE-STATUS-RESPONSE-VALIDATION.yaml
+acceptance:
+  - "Validate create-status state/context only."
+  - "Verify the status collection through the exact /commits/$EXPECTED_HEAD/status endpoint and require the canonical context to be success."
+  - "Record publish_attempted before the network call so partial publication is revoked on any later failure."
+  - "Preserve dedicated App, exact head/base, fail-closed, PAPER-only, and zero-authority boundaries."
+  - "Do not add a second queue, scheduler, release path, or generic token authority."
+verification_commands:
+  - "node --test tests/canonical-release-authorization-contract.test.js"
+  - "pnpm run validate:full"
+  - "pnpm run typecheck"
+  - "pnpm run build"
+  - "pnpm run lint"
+  - "pnpm run security:gate"
+  - "git diff --check"
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  live_activation: prohibited
+  real_money_mutation: prohibited
+  generic_token_fallback: prohibited
+  secret_logging: prohibited
+release_boundary:
+  required_status: nusa/release-authorized
+  development_merge: prohibited
+  next_action: "Fresh exact-head CI and independent Audit/Release evaluation; do not merge from Development."

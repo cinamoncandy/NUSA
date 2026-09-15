@@ -1253,3 +1253,19 @@ latest_paper_chaos_bound_runtime_evidence_slice:
   implementation_branch: codex/paper-chaos-bound-runtime-evidence
   scope: "Emit only BOUND_UNVERIFIED restart-recovery evidence from the canonical actual PAPER runtime harness; external workflow verification remains separate."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_release_status_response_validation:
+  work_order: WO-20260915-RELEASE-STATUS-RESPONSE-VALIDATION
+  status: IMPLEMENTED_LOCAL_VALIDATION_PENDING_CI
+  branch: codex/release-status-response-validation
+  base_sha: 79289f9f33f63e6b699bdbc42863c3e458f782a4
+  scope: "Harden canonical Release status publication against the GitHub create-status response shape while preserving exact-head verification and fail-closed cleanup."
+  root_cause: "GitHub create commit-status responses do not include sha; asserting it caused Release failure after a positive status was created, while published=true was not recorded and revocation was skipped."
+  changed_files:
+    - .github/workflows/autopilot-deterministic-audit-release.yml
+    - tests/canonical-release-authorization-contract.test.js
+    - .aipos/state.yaml
+    - .aipos/work-orders/WO-20260915-RELEASE-STATUS-RESPONSE-VALIDATION.yaml
+  validation: "Focused canonical release authorization contract 3/3 PASS; git diff --check PASS. Full local gates pending."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  release_boundary: "nusa/release-authorized remains dedicated App-bound; no PAT/GITHUB_TOKEN fallback, bypass, or Development merge."
+  next_action: "Run full local gates, push one coherent PR, inspect exact-head CI, then hand off to independent Audit/Release."

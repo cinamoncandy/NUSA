@@ -47,8 +47,14 @@ test("authorization is exact-head, exact-base, fail-closed, and immediately rech
   }
 
   assert.match(workflow, /-f state=success/);
-  assert.match(workflow, /failure\(\).*steps\.authorize\.outputs\.published == 'true'/s);
+  assert.match(workflow, /echo 'publish_attempted=true' >> "\$GITHUB_OUTPUT"/);
+  assert.match(workflow, /\.state == "success" and \.context == \$context/);
+  assert.match(workflow, /commits\/\$EXPECTED_HEAD\/status/);
+  assert.match(workflow, /any\(\.statuses\[\]\?; \.context == \$context and \.state == "success"\)/);
+  assert.match(workflow, /failure\(\)[\s\S]*steps\.authorize\.outputs\.publish_attempted == 'true'/s);
   assert.match(workflow, /-f state=failure/);
+  assert.doesNotMatch(workflow, /\.sha == \$head/,
+    "create-status response must not be treated as exact-head proof; verify the bound status collection instead");
 });
 
 test("canonical release keeps PAPER and zero-authority invariants", () => {
