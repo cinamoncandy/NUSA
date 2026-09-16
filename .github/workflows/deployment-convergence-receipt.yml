@@ -7,6 +7,10 @@ on:
         description: Exact protected-main SHA to attest
         required: true
         type: string
+      oracle_observed_sha:
+        description: Read-only SHA observed from /opt/nusa/current on the Oracle PAPER host; leave empty when unavailable
+        required: false
+        type: string
 
 permissions:
   actions: read
@@ -29,6 +33,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           EXPECTED_SHA: ${{ inputs.source_sha }}
+          ORACLE_OBSERVED_SHA: ${{ inputs.oracle_observed_sha }}
         shell: bash
         run: |
           set -euo pipefail
@@ -71,6 +76,9 @@ jobs:
           paper_ok=false
           android_ok=false
           windows_ok=false
+          oracle_ok=false
+          oracle_observed_valid=false
+          oracle_status="UNOBSERVED"
 
           [ "$CURRENT_MAIN" = "$EXPECTED_SHA" ] && main_exact=true
           [ -n "$CI_RUN_ID" ] && ci_ok=true
@@ -81,13 +89,27 @@ jobs:
           if [ -n "$ANDROID_RUN_ID" ] && [ "$ANDROID_TARGET" = "$EXPECTED_SHA" ]; then android_ok=true; fi
           if [ -n "$WINDOWS_RUN_ID" ] && [ "$WINDOWS_TARGET" = "$EXPECTED_SHA" ]; then windows_ok=true; fi
 
+          if [ -n "$ORACLE_OBSERVED_SHA" ]; then
+            if printf '%s' "$ORACLE_OBSERVED_SHA" | grep -Eq '^[0-9a-fA-F]{40}$'; then
+              oracle_observed_valid=true
+              if [ "${ORACLE_OBSERVED_SHA,,}" = "${EXPECTED_SHA,,}" ]; then
+                oracle_status="CURRENT"
+                oracle_ok=true
+              else
+                oracle_status="STALE"
+              fi
+            else
+              oracle_status="BLOCKED"
+            fi
+          fi
+
           STATUS=FAIL
-          if $main_exact && $ci_ok && $deploy_ok && $promote_ok && $runtime_proof_ok && $paper_ok && $android_ok && $windows_ok; then
+          if $main_exact && $ci_ok && $deploy_ok && $promote_ok && $runtime_proof_ok && $paper_ok && $android_ok && $windows_ok && $oracle_ok; then
             STATUS=PASS
           fi
 
           jq -n \
-            --arg schema_version "1" \
+            --arg schema_version "2" \
             --arg status "$STATUS" \
             --arg repository "$GITHUB_REPOSITORY" \
             --arg source_sha "$EXPECTED_SHA" \
@@ -102,6 +124,9 @@ jobs:
             --arg windows_run_id "$WINDOWS_RUN_ID" \
             --arg android_target "$ANDROID_TARGET" \
             --arg windows_target "$WINDOWS_TARGET" \
+            --arg oracle_status "$oracle_status" \
+            --arg oracle_observed_sha "$ORACLE_OBSERVED_SHA" \
+            --arg oracle_target_sha "$EXPECTED_SHA" \
             --argjson main_exact "$main_exact" \
             --argjson ci_ok "$ci_ok" \
             --argjson deploy_ok "$deploy_ok" \
@@ -110,6 +135,8 @@ jobs:
             --argjson paper_ok "$paper_ok" \
             --argjson android_ok "$android_ok" \
             --argjson windows_ok "$windows_ok" \
+            --argjson oracle_ok "$oracle_ok" \
+            --argjson oracle_observed_valid "$oracle_observed_valid" \
             '{
               schema_version: ($schema_version | tonumber),
               status: $status,
@@ -130,7 +157,15 @@ jobs:
                 runtime_proof: { pass: $runtime_proof_ok, run_id: $runtime_proof_run_id },
                 actual_paper_runtime: { pass: $paper_ok, run_id: $paper_run_id },
                 android_stable: { pass: $android_ok, run_id: $android_run_id, target_sha: $android_target },
-                windows_stable: { pass: $windows_ok, run_id: $windows_run_id, target_sha: $windows_target }
+                windows_stable: { pass: $windows_ok, run_id: $windows_run_id, target_sha: $windows_target },
+                oracle_paper: {
+                  pass: $oracle_ok,
+                  status: $oracle_status,
+                  observed_sha_valid: $oracle_observed_valid,
+                  observed_sha: $oracle_observed_sha,
+                  target_sha: $oracle_target_sha,
+                  evidence: "operator-provided read-only observation from scripts/oracle-release-observation.js"
+                }
               }
             }' > artifacts/deployment-convergence/receipt.json
 
