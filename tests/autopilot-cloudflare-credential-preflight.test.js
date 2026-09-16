@@ -50,7 +50,14 @@ test('preflight verifies the free-tier Worker has no paid Container or Sandbox b
 });
 
 test('preflight waits boundedly for executed exact-main deploy evidence and live Worker revision', () => {
-  assert.match(workflow, /actions\/runs\?head_sha=\$CURRENT_MAIN&status=completed&per_page=100/);
+  // Deploy evidence must be found by a workflow-specific, paginated lookup. The previous
+  // repository-wide first-page query aged out: as scheduled runs accumulate against a stationary
+  // main, a real exact-main deploy falls past the first 100 results and the preflight fails while
+  // the evidence exists. That reopened canonical P0 #1461 and serialized all Release behind it.
+  assert.match(workflow, /--paginate/);
+  assert.match(workflow, /actions\/workflows\/autopilot-cloudflare-deploy\.yml\/runs/);
+  assert.doesNotMatch(workflow, /actions\/runs\?head_sha=\$CURRENT_MAIN/,
+    'repository-wide first-page run lookups age out and must not return');
   assert.match(workflow, /Autopilot Cloudflare Deploy/);
   assert.match(workflow, /autopilot-cloudflare-deploy\.yml/);
   assert.match(workflow, /actions\/runs\/\$run_id\/jobs\?per_page=100/);
