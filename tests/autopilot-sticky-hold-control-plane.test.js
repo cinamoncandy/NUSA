@@ -53,5 +53,8 @@ test('Release checks the same durable exact-bound HOLD before authorization and 
   const publish = release.indexOf('- name: Publish exact-head release authorization');
   const secondCheck = release.indexOf('- name: Re-verify durable control-plane clearance before merge');
   const merge = release.indexOf('- name: Canonical expected-head merge');
-  assert.ok(firstCheck >= 0 && firstCheck < mint && mint < publish && publish < secondCheck && secondCheck < merge);
+  const revoke = release.indexOf('- name: Revoke authorization if exact-head merge did not complete');
+  assert.ok(firstCheck >= 0 && firstCheck < mint && mint < publish && publish < secondCheck && secondCheck < merge && merge < revoke);
+  assert.match(release, /failure\(\) && steps\.authorize\.outputs\.published == 'true'/);
+  assert.match(release, /state=failure/);
 });
