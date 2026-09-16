@@ -108,6 +108,28 @@ safety:
   credential_execution_use: prohibited_until_separate_human_authority
   real_money_execution: prohibited_until_separate_constitutional_human_decision
 completion_rule: "Human/environment evidence + explicit constitutional human decision only. This work order MUST NOT be auto-completed by CI, AI, chat shorthand, or repository automation."
+cloudflare_credential_preflight_pagination_slice:
+  status: IMPLEMENTED_BRANCH_VALIDATED_BASE_BOOTSTRAP_PENDING
+  issue: 1862
+  pull_request: 1923
+  base_commit: 79289f9f33f63e6b699bdbc42863c3e458f782a4
+  implementation_branch: fix/1862-cloudflare-protected-environment
+  implementation_head: 53836388d2be1bf7e6a4be2e34ad8d2abcac837a
+  finding: "The preflight run lookup read only the first 100 completed Actions runs and missed valid exact-main deployment evidence beyond that page."
+  remediation: "Paginate and slurp the Actions run response, flatten all workflow-run pages, then preserve exact workflow path, head SHA, and successful deploy/verification-step checks."
+  evidence:
+    focused_test: PASS_4_OF_4
+    validate_full: PASS
+    typecheck: PASS
+    build: PASS
+    lint: PASS_0_ERRORS_4_EXISTING_WARNINGS
+    security: PASS
+    architecture: PASS
+    safety: PASS
+    aipos: PASS
+    branch_workflow_dispatch: PASS_RUN_35046463789
+  remaining: "The PR-targeted required check executes the pre-fix workflow from protected base main until this remediation is integrated; owner-controlled deployment-environment protection evidence and Release integration remain required."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 hardened_research_slice:
   status: COMPLETE
   completion_evidence:
