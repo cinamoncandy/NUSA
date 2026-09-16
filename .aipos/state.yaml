@@ -1256,7 +1256,7 @@ latest_paper_chaos_bound_runtime_evidence_slice:
 
 current_android_firebase_distribution_recovery:
   status: IMPLEMENTED_LOCAL_VALIDATION_AND_TARGETED_CI_FIX_PENDING_EXACT_HEAD_CI
-  source_main_sha: c5f64fb24f98a1a04249d283534a070f8cbd67cd
+  source_main_sha: 04830f377954dd98417118fe4870287950c143cb
   failed_run: 35050593242
   failure_family: REPOSITORY_CONTROLLED_WORKFLOW_CONFIGURATION
   root_cause: "android-actions/setup-android received its obsolete default tools package request; current Android repositories reject package 'tools' before APK build and Firebase distribution."

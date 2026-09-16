@@ -35,7 +35,6 @@ jobs:
         with:
           packages: platform-tools
           cmdline-tools-version: 11076708
-          packages: platform-tools
       - name: Prepare Pixel 6 Android 15 emulator
         run: |
           yes | sdkmanager --licenses >/dev/null || true

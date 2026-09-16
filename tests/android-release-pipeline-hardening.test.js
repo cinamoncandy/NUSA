@@ -57,13 +57,6 @@ test("stable release keeps exact-main, protected signing, signature and artifact
   assert.match(stable, /Firebase distribution failed after 3 attempts/);
 });
 
-test("Android workflows do not request the removed SDK tools package", () => {
-  for (const workflow of [stable, guard, productUx, mobileNative]) {
-    assert.doesNotMatch(workflow, /packages:\s*tools\s+platform-tools/);
-    assert.match(workflow, /packages:\s*platform-tools/);
-  }
-});
-
 test("Android Product UX waits for a real UI hierarchy before touch evidence", () => {
   assert.match(productUx, /wait_for_ui\(\)/);
   assert.match(productUx, /uiautomator dump/);

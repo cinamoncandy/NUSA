@@ -110,7 +110,7 @@ safety:
 completion_rule: "Human/environment evidence + explicit constitutional human decision only. This work order MUST NOT be auto-completed by CI, AI, chat shorthand, or repository automation."
 latest_repository_deployment_recovery:
   status: IMPLEMENTED_LOCAL_VALIDATION_PENDING_EXACT_HEAD_CI
-  source_main_sha: c5f64fb24f98a1a04249d283534a070f8cbd67cd
+  source_main_sha: 04830f377954dd98417118fe4870287950c143cb
   failed_run: 35050593242
   failure_family: REPOSITORY_CONTROLLED_WORKFLOW_CONFIGURATION
   root_cause: "android-actions/setup-android received its obsolete default tools package request; current Android repositories reject package 'tools' before APK build and Firebase distribution."
@@ -270,7 +270,7 @@ latest_repository_portfolio_risk_current_drawdown_slice:
 
 latest_android_firebase_distribution_recovery_slice:
   status: IN_PROGRESS
-  base_commit: c5f64fb24f98a1a04249d283534a070f8cbd67cd
+  base_commit: 04830f377954dd98417118fe4870287950c143cb
   implementation_branch: codex/firebase-android-sdk-fix
   implementation_head: 6d8ba1433a8ed402ed8e4a4cf57f080aae83348c
   scope: "Unblock the canonical Android Stable Release path to Firebase App Distribution on current runners by removing the obsolete Android SDK tools package request and making Product UX UI-hierarchy capture bounded and diagnostic-preserving."
