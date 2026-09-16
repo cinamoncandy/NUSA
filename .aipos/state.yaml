@@ -1253,3 +1253,15 @@ latest_paper_chaos_bound_runtime_evidence_slice:
   implementation_branch: codex/paper-chaos-bound-runtime-evidence
   scope: "Emit only BOUND_UNVERIFIED restart-recovery evidence from the canonical actual PAPER runtime harness; external workflow verification remains separate."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_android_firebase_distribution_recovery:
+  status: IMPLEMENTED_LOCAL_VALIDATION_PENDING_EXACT_HEAD_CI
+  source_main_sha: 45e4c653e89644f176c2398a007ca26b99014bda
+  failed_run: 35050593242
+  failure_family: REPOSITORY_CONTROLLED_WORKFLOW_CONFIGURATION
+  root_cause: "android-actions/setup-android received its obsolete default tools package request; current Android repositories reject package 'tools' before APK build and Firebase distribution."
+  remediation: "Explicitly request only platform-tools in the stable release, release guard, Mobile Native, and Android Product UX workflows; preserve later explicit platform/emulator package installation."
+  scope: "Android SDK setup resilience for exact-source Android release and Firebase App Distribution; no application, credential, authority, or trading behavior change."
+  branch: codex/firebase-android-sdk-fix
+  next_permitted_action: "Push the validated branch, require fresh exact-head CI, then rerun the canonical Android Stable Release and verify Firebase distribution evidence for the same main SHA."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

@@ -6,6 +6,8 @@ const stable = fs.readFileSync(".github/workflows/android-stable-release.yml", "
 const trigger = fs.readFileSync(".github/workflows/android-stable-release-trigger.yml", "utf8");
 const watchdog = fs.readFileSync(".github/workflows/android-stable-release-watchdog.yml", "utf8");
 const guard = fs.readFileSync(".github/workflows/android-release-pipeline-guard.yml", "utf8");
+const productUx = fs.readFileSync(".github/workflows/android-product-ux-acceptance.yml", "utf8");
+const mobileNative = fs.readFileSync(".github/workflows/mobile-native.yml", "utf8");
 const gradle = fs.readFileSync("apps/mobile/android/app/build.gradle", "utf8");
 
 function assertFailClosedSafety(text) {
@@ -21,6 +23,13 @@ test("stable release keeps exact-main, protected signing, signature and artifact
   assert.match(stable, /apksigner/);
   assert.match(stable, /Verify stable GitHub asset download integrity/);
   assert.match(stable, /Firebase distribution failed after 3 attempts/);
+});
+
+test("Android workflows do not request the removed SDK tools package", () => {
+  for (const workflow of [stable, guard, productUx, mobileNative]) {
+    assert.doesNotMatch(workflow, /packages:\s*tools\s+platform-tools/);
+    assert.match(workflow, /packages:\s*platform-tools/);
+  }
 });
 
 test("release trigger is exact-main, idempotent and bounded", () => {

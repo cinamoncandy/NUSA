@@ -108,6 +108,16 @@ safety:
   credential_execution_use: prohibited_until_separate_human_authority
   real_money_execution: prohibited_until_separate_constitutional_human_decision
 completion_rule: "Human/environment evidence + explicit constitutional human decision only. This work order MUST NOT be auto-completed by CI, AI, chat shorthand, or repository automation."
+latest_repository_deployment_recovery:
+  status: IMPLEMENTED_LOCAL_VALIDATION_PENDING_EXACT_HEAD_CI
+  source_main_sha: 45e4c653e89644f176c2398a007ca26b99014bda
+  failed_run: 35050593242
+  failure_family: REPOSITORY_CONTROLLED_WORKFLOW_CONFIGURATION
+  root_cause: "android-actions/setup-android received its obsolete default tools package request; current Android repositories reject package 'tools' before APK build and Firebase distribution."
+  remediation: "Explicitly request only platform-tools in the stable release, release guard, Mobile Native, and Android Product UX workflows; preserve later explicit platform/emulator package installation."
+  branch: codex/firebase-android-sdk-fix
+  next_permitted_action: "Fresh exact-head CI followed by a same-SHA Android Stable Release run and Firebase App Distribution verification."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 hardened_research_slice:
   status: COMPLETE
   completion_evidence:
