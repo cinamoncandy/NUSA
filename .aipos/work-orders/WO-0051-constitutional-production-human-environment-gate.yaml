@@ -257,3 +257,15 @@ latest_repository_portfolio_risk_current_drawdown_slice:
   merge_commit: aaa82d526d0439c7b7de0dcc1533d6c959dcb9e9
   evidence: "Focused recovery regression and all observed exact-head workflow checks passed; no execution, credential, accounting, or LIVE boundary changed."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+latest_repository_audit_recovery:
+  status: IMPLEMENTED_LOCAL_VALIDATION_PENDING_EXACT_HEAD_CI
+  base_commit: 45e4c653e89644f176c2398a007ca26b99014bda
+  implementation_branch: codex/audit-json-output-hardening
+  scope: "Repair the provider-facing independent Audit JSON contract without widening Audit, Release, execution, credential, or LIVE authority."
+  finding: "Fresh independent Audit execution run 35057987820 failed closed at the strict safety result normalizer with AUDIT_VERDICT_SAFETY_INVALID."
+  remediation: "Remove the provider-unreliable complex anyOf branches, keep the flat required schema, make the prompt explicit about the literal safety string, and preserve strict local semantic validation and exact-head revalidation."
+  local_validation: "Targeted Audit tests 24/24; full isolated suite 986/986; typecheck/build; validate:full; lint; security:gate; architecture:check; diff check all PASS."
+  unverified: "Fresh protected exact-head CI, exact merged-main Cloudflare deployment, and a new independent Audit verdict are not yet proven."
+  next_permitted_action: "Publish the fix for exact-head CI; after merge, use the existing Cloudflare promotion path and request a new exact-head independent Audit."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

@@ -61,9 +61,11 @@ function fetchSequence() {
 }
 
 test("requests JSON Schema output and accepts a structured verdict object", async () => {
+  let capturedPrompt = "";
   let capturedResponseFormat: unknown;
   const AI: WorkersAiBinding = {
     async run(_model, input) {
+      capturedPrompt = input.prompt;
       capturedResponseFormat = input.response_format;
       return {
         response: {
@@ -91,4 +93,6 @@ test("requests JSON Schema output and accepts a structured verdict object", asyn
   assert.equal(schema.type, "object");
   assert.equal(schema.additionalProperties, false);
   assert.deepEqual(schema.required, ["verdict", "findings", "blockers", "safetyInvariantResult"]);
+  assert.match(capturedPrompt, /safetyInvariantResult MUST be a JSON string/);
+  assert.match(capturedPrompt, /never use a boolean, object, null/);
 });
