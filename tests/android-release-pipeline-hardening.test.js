@@ -15,6 +15,38 @@ function assertFailClosedSafety(text) {
   assert.match(text, /Android Stable Release|android-stable-release/);
 }
 
+function androidSetupBlocks(workflow) {
+  const lines = workflow.replace(/\r\n/g, "\n").split("\n");
+  const blocks = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!lines[index].includes("android-actions/setup-android@")) continue;
+    const block = [];
+    for (let cursor = index; cursor < lines.length; cursor += 1) {
+      if (cursor > index && /^\s{6}- /.test(lines[cursor])) break;
+      block.push(lines[cursor]);
+    }
+    blocks.push(block.join("\n"));
+  }
+  return blocks;
+}
+
+test("Android setup never requests the retired tools package", () => {
+  const workflows = [
+    ["android-product-ux-acceptance", productUx, 1],
+    ["android-release-pipeline-guard", guard, 1],
+    ["android-stable-release", stable, 1],
+    ["mobile-native", mobileNative, 2],
+  ];
+  for (const [name, workflow, expectedCount] of workflows) {
+    const blocks = androidSetupBlocks(workflow);
+    assert.equal(blocks.length, expectedCount, `${name} setup action count changed`);
+    for (const block of blocks) {
+      assert.match(block, /^\s+packages: platform-tools$/m, `${name} must explicitly select supported packages`);
+      assert.doesNotMatch(block, /^\s+packages: tools(?:\s|$)/m, `${name} must not request retired tools`);
+    }
+  }
+});
+
 test("stable release keeps exact-main, protected signing, signature and artifact integrity gates", () => {
   assert.match(stable, /Refusing stale manual Android release source/);
   assert.match(stable, /Android release signing readiness/);
