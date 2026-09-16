@@ -99,6 +99,29 @@ export async function restoreConfiguredPaperSession(value = configuredEndpoint):
   }
   return true;
 }
+/**
+ * Re-establishes the PAPER session when the app returns to the foreground.
+ *
+ * The restore retry backs off to 30 seconds, and Android suspends timers while the app is
+ * backgrounded, so a device that spends hours in the background comes back with either a timer the
+ * OS never fired or one that is capped at its slowest interval. The owner then opens the app to a
+ * disconnected PAPER server and has no action available except reconnecting by hand, which is the
+ * thing the paired session exists to avoid.
+ *
+ * Resuming resets the backoff and asks for a restore immediately. It needs no token and no owner
+ * interaction: the device already holds an approved, rotating session in Android secure storage,
+ * and this only exchanges it again. A session that has genuinely lapsed still fails closed, and the
+ * device must be re-approved by an ACTIVE OWNER exactly as before.
+ */
+export function resumePaperConnection(): void {
+  const endpoint = configuredEndpoint;
+  if (endpoint == null) return;
+  if (isPaperConnectionVerified(endpoint)) return;
+  // Drop the slow timer first so the resume attempt is immediate rather than queued behind it.
+  cancelRestoreRetry();
+  if (restoreInFlight == null) void restoreApprovedSession(endpoint);
+}
+
 export function clearConfiguredPaperEndpoint(): void {
   configuredEndpoint = null;
   verifiedEndpoint = null;
