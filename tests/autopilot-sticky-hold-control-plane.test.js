@@ -37,3 +37,21 @@ test('Audit fails closed under global freeze or active exact HOLD', () => {
   assert.match(source, /persistedHold\?\.state === "ACTIVE"/);
   assert.match(source, /CONTROL_PLANE_HOLD_ACTIVE/);
 });
+
+test('Release checks the same durable exact-bound HOLD before authorization and merge', () => {
+  const worker = read('apps/autopilot/src/worker.ts');
+  const release = read('.github/workflows/autopilot-deterministic-audit-release.yml');
+  assert.match(worker, /\/control-plane\/release-check/);
+  assert.match(worker, /RELEASE_CONTROL_CLEAR/);
+  assert.match(worker, /globalReleaseFreezeActive/);
+  assert.match(worker, /readPersistentControlPlaneHold/);
+  assert.match(release, /id-token:\s*write/);
+  assert.match(release, /\/control-plane\/release-check/);
+  assert.match(release, /RELEASE_CONTROL_CLEAR/);
+  const firstCheck = release.indexOf('- name: Verify durable control-plane Release clearance');
+  const mint = release.indexOf('- name: Mint dedicated release authority token');
+  const publish = release.indexOf('- name: Publish exact-head release authorization');
+  const secondCheck = release.indexOf('- name: Re-verify durable control-plane clearance before merge');
+  const merge = release.indexOf('- name: Canonical expected-head merge');
+  assert.ok(firstCheck >= 0 && firstCheck < mint && mint < publish && publish < secondCheck && secondCheck < merge);
+});
