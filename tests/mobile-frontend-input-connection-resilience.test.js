@@ -52,18 +52,21 @@ test("Settings revokes prior verification and uses bootstrap-first credential ro
   assert.match(source, /if \(result\.status === "READY"\) \{ markPaperConnectionVerified\(configuredEndpoint\); setTokenDraft\(""\); \}/);
 });
 
-test("Settings makes owner-approved device pairing the primary Cloud PAPER flow", () => {
+test("Settings makes registered owner-device authentication primary and retains pairing only as recovery", () => {
   const source = read("apps/mobile/src/settingsView.tsx");
   assert.match(source, /Cloud 기능은 선택 사항입니다/);
   assert.match(source, /keyboardType="url" label="Cloud endpoint"/);
+  assert.match(source, /authenticateOwnerDeviceCredential\(configuredEndpoint, installationId, native, status\.credentialId\)/);
+  assert.match(source, /label=\{ownerDeviceBusy \|\| connecting \? "인증 중\.\.\." : "소유자 인증"\}/);
+  assert.match(source, /로그인 및 이 휴대폰 등록/);
   assert.match(source, /startPairing\(configuredEndpoint, installationId\)/);
   assert.match(source, /pairingStatus\(endpoint, pairing\.requestId, installationId\)/);
   assert.match(source, /exchangePairing\(endpoint, pairing\.requestId, installationId\)/);
-  assert.match(source, /PAPER 연결 요청/);
+  assert.match(source, /호환\/복구 소유자 승인을 기다리고 있습니다/);
   assert.match(source, /label="1회용 연결 토큰 \(호환용\)"[\s\S]*secureTextEntry/);
   assert.match(source, /bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);
-  assert.match(source, /LOCAL PAPER에는 사용하지 않습니다/);
-  assert.match(source, /connectionFailed \? "PAPER 연결 요청 다시 시도" : "PAPER 연결 요청"/);
+  assert.match(source, /LOCAL PAPER는 계속 사용할 수 있습니다/);
+  assert.doesNotMatch(source, /setSecret\(SESSION_STORAGE_KEY|setSecret\(PAIRING_STORAGE_KEY/);
   assert.match(source, /disabled=\{busy \|\| connection\.status !== "READY"\} label="연결 해제"/);
   assert.match(source, /const cloudConnectionLabel = connecting \? "VERIFYING"/);
 });

@@ -23,12 +23,13 @@ test("product v5 uses flatter secondary sections and Android-sized actions", () 
   assert.match(intelligence, /leadDetail: { maxWidth: 720, fontSize: 11, lineHeight: 17/);
 });
 
-test("Cloud PAPER setup communicates server session verify without changing authority", () => {
+test("Cloud PAPER setup communicates device-bound session verification without changing authority", () => {
   const settings = read("src/settingsView.tsx");
   assert.match(settings, /title="SERVER"/);
-  assert.match(settings, /title="SECURE SESSION"/);
+  assert.match(settings, /title="OWNER DEVICE"/);
   assert.match(settings, /title="VERIFY"/);
-  assert.match(settings, /PAPER 연결 요청 다시 시도/);
+  assert.match(settings, /소유자 인증/);
+  assert.match(settings, /호환\/복구 연결 승인 대기/);
   assert.doesNotMatch(settings, /placeOrder|cancelOrder|withdraw/);
   const productionPaper = read("src/tradingView.tsx");
   assert.match(productionPaper, /<PaperLearningMonitorView/);

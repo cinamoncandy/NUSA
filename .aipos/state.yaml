@@ -9,10 +9,10 @@ current_mobile_self_service_paper_upbit_readonly:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY
 current_owner_authentication:
   work_order: WO-20260910-MOBILE-SELF-SERVICE-PAPER-UPBIT-READONLY
-  status: IMPLEMENTED_LOCAL_VALIDATION_PARTIAL
-  base_sha: 79289f9f33f63e6b699bdbc42863c3e458f782a4
+  status: EXACT_HEAD_CI_PENDING
+  base_sha: 7730ccb66d64c524520b3fa2a5e9b22be8fd5a84
   scope: "OWNER password recovery and Android hardware-backed biometric proof issuing only existing process-memory mobile PAPER sessions."
-  validation: "OWNER auth/pairing focused runtime+source regressions 18/18 PASS; mobile lint PASS (133 files); git diff --check PASS. Full repository typecheck entered Oracle shared-VM I/O wait after emitting changed owner modules; Android local compile is unavailable because this host has no Java. Exact-head Node 24/Android CI remains authoritative."
+  validation: "Focused owner-device/pairing/resume/Settings/product regressions 26/26 PASS; pnpm test PASS (991 isolated test files); pnpm run build, typecheck, validate:full, security:gate, aipos:drift and aipos:conformance PASS; git diff --check PASS. Lint exited 0 with six warnings, so no warning-free claim is made. Android local compile remains unavailable because this host has no Java; fresh exact-head protected CI remains required."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY
 current_first_read_connection_recovery:
   work_order: WO-20260908-CONNECTION-FIRST-READ-RECOVERY

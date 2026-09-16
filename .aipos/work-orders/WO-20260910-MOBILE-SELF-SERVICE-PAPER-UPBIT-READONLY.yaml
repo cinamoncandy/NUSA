@@ -1,8 +1,8 @@
 id: WO-20260910-MOBILE-SELF-SERVICE-PAPER-UPBIT-READONLY
 title: "Device-bound mobile PAPER pairing and Upbit READ_ONLY session mediation"
-status: CI_VALIDATION_PENDING
+status: EXACT_HEAD_CI_PENDING
 owner_authentication_addendum:
-  status: IMPLEMENTED_LOCAL_VALIDATION_PARTIAL
+  status: IMPLEMENTED_LOCAL_VALIDATION_COMPLETE
   scope: "Canonical OWNER password recovery plus Android hardware-backed P-256 biometric proof, using only the existing process-memory mobile rotating session."
   user_value: "First/recovery sign-in needs one OWNER password; a registered Android phone then resumes PAPER access with one biometric confirmation."
   safety: "PAPER_ONLY; hardware proof has no exchange, order, cancellation, transfer, withdrawal, LIVE, production-mutation, or AI authority; access and refresh credentials remain process-memory-only."
@@ -12,13 +12,16 @@ owner_authentication_addendum:
     - "AndroidKeyStore P-256 private key is non-exportable, hardware-backed, and signs only BIOMETRIC_STRONG CryptoObject challenges."
     - "Legacy pairing/bootstrap flows are retained as compatibility/recovery paths and their supersession/global-cap behavior is unchanged."
   local_validation:
-    - "OWNER auth plus pairing focused runtime/source regressions PASS 18/18"
-    - "mobile lint PASS (133 files)"
+    - "OWNER device, pairing, resume, Settings, and product source/runtime regressions PASS 26/26"
+    - "pnpm test PASS (991 isolated test files)"
+    - "pnpm run validate:full PASS"
+    - "pnpm run security:gate PASS (0 raw high/critical, 0 secrets)"
+    - "pnpm run typecheck PASS; pnpm run build PASS"
+    - "pnpm run lint exited 0 with six warnings; no error-free claim is made"
     - "git diff --check PASS"
-    - "full repository TypeScript compiler emitted changed owner modules but entered shared Oracle VM I/O wait before clean termination; no PASS claimed"
     - "local Android compile unavailable because this Oracle host has no Java runtime; no PASS claimed"
   remaining:
-    - "Run exact-head Node 24 typecheck/build, Android native build, security scan, and protected CI before merge."
+    - "Push the coherent latest-main branch, then require fresh exact-head protected CI and Android native validation before independent Audit/Release."
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
