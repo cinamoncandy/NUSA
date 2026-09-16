@@ -31,4 +31,11 @@ test("normalizes semantic audit safety enum casing without weakening fail-closed
     blockers: [],
     safetyInvariantResult: "UNKNOWN",
   }), /AUDIT_VERDICT_SAFETY_INVALID/);
+
+  assert.throws(() => validateAuditModelVerdict({
+    verdict: "PASS",
+    findings: [],
+    blockers: [],
+    safetyInvariantResult: true,
+  }), /AUDIT_VERDICT_SAFETY_INVALID/);
 });

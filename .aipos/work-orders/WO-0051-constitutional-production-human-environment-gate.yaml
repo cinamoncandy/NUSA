@@ -108,28 +108,6 @@ safety:
   credential_execution_use: prohibited_until_separate_human_authority
   real_money_execution: prohibited_until_separate_constitutional_human_decision
 completion_rule: "Human/environment evidence + explicit constitutional human decision only. This work order MUST NOT be auto-completed by CI, AI, chat shorthand, or repository automation."
-cloudflare_credential_preflight_pagination_slice:
-  status: IMPLEMENTED_BRANCH_VALIDATED_BASE_BOOTSTRAP_PENDING
-  issue: 1862
-  pull_request: 1923
-  base_commit: 79289f9f33f63e6b699bdbc42863c3e458f782a4
-  implementation_branch: fix/1862-cloudflare-protected-environment
-  implementation_head: 53836388d2be1bf7e6a4be2e34ad8d2abcac837a
-  finding: "The preflight run lookup read only the first 100 completed Actions runs and missed valid exact-main deployment evidence beyond that page."
-  remediation: "Paginate and slurp the Actions run response, flatten all workflow-run pages, then preserve exact workflow path, head SHA, and successful deploy/verification-step checks."
-  evidence:
-    focused_test: PASS_4_OF_4
-    validate_full: PASS
-    typecheck: PASS
-    build: PASS
-    lint: PASS_0_ERRORS_4_EXISTING_WARNINGS
-    security: PASS
-    architecture: PASS
-    safety: PASS
-    aipos: PASS
-    branch_workflow_dispatch: PASS_RUN_35046463789
-  remaining: "The PR-targeted required check executes the pre-fix workflow from protected base main until this remediation is integrated; owner-controlled deployment-environment protection evidence and Release integration remain required."
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 hardened_research_slice:
   status: COMPLETE
   completion_evidence:
@@ -278,4 +256,25 @@ latest_repository_portfolio_risk_current_drawdown_slice:
   implementation_head: bc218ee8a6e7e2d42e410ee0202c5beb33303b79
   merge_commit: aaa82d526d0439c7b7de0dcc1533d6c959dcb9e9
   evidence: "Focused recovery regression and all observed exact-head workflow checks passed; no execution, credential, accounting, or LIVE boundary changed."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+latest_repository_audit_recovery:
+  status: EXACT_HEAD_CI_PASS_PENDING_MERGED_MAIN_DEPLOYMENT_AND_FRESH_AUDIT
+  base_commit: 45e4c653e89644f176c2398a007ca26b99014bda
+  implementation_branch: codex/audit-json-output-hardening
+  implementation_head: 8748cd6cc203fd80de3ec7d3f34dbeffe6497047
+  scope: "Repair the provider-facing independent Audit JSON contract without widening Audit, Release, execution, credential, or LIVE authority."
+  finding: "Fresh independent Audit execution run 35057987820 failed closed at the strict safety result normalizer with AUDIT_VERDICT_SAFETY_INVALID."
+  remediation: "Remove the provider-unreliable complex anyOf branches, keep the flat required schema, make the prompt explicit about the literal safety string, and preserve strict local semantic validation and exact-head revalidation."
+  local_validation: "Targeted Audit tests 24/24; full isolated suite 986/986; typecheck/build; validate:full; lint; security:gate; architecture:check; diff check all PASS."
+  unverified: "Fresh protected exact-head CI, exact merged-main Cloudflare deployment, and a new independent Audit verdict are not yet proven."
+  exact_head_ci: "PR #1928 exact head 8748cd6cc203fd80de3ec7d3f34dbeffe6497047; canonical CI 35059260683 and required PAPER/read-only/Restricted LIVE workflows 35059260664, 35059260672, 35059260684, 35059260766, 35059260795, plus Cloudflare preflight 35059260699 and bridge 35059260690 all completed success."
+  follow_up_finding: "Exact-head preflight 35060300788 failed closed because its non-paginated first page contained 141 completed runs and omitted successful deploy run 35050583254; credential, Wrangler, account, and Worker safety checks were already successful."
+  follow_up_remediation: "Read all exact-main Actions-run pages with gh api --paginate --slurp and flatten workflow_runs before selecting the newest successful deploy evidence; retain bounded polling and fail-closed behavior."
+  follow_up_status: BRANCH_PREFLIGHT_PASS_PENDING_TRUSTED_MAIN_PROMOTION_AND_FRESH_AUDIT
+  follow_up_branch: codex/audit-json-output-hardening
+  follow_up_exact_head: 92eb62d62ec9a4ee438e51f562c79e5e116cc11f
+  follow_up_exact_head_ci: "Canonical CI 35061465031 and required PAPER/read-only/Restricted LIVE workflows 35061463863, 35061465021, 35061465014, 35061465038, 35061465064, 35061465020 all PASS. Protected pull_request_target preflight 35061463878 used the trusted main workflow and failed because main still has the pre-pagination selector; branch workflow_dispatch preflight 35061869720 executed the pagination fix at this exact head and PASSed credential, account, Wrangler, Free-tier, exact-main deploy, and runtime revision checks."
+  follow_up_next_permitted_action: "Promote the pagination fix through the existing protected Release path; only after the trusted main workflow contains it may the protected pull_request_target preflight be expected to PASS. Then deploy the exact merged main revision and request a fresh independent Audit."
+  next_permitted_action: "Obtain the existing owner-controlled nusa/release-authorized gate without bypassing Audit, merge through the canonical Release path, deploy the exact merged main revision through the existing Cloudflare promotion workflow, then request a fresh independent Audit."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

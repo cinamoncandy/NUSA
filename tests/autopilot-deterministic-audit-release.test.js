@@ -38,6 +38,10 @@ test("Audit waits boundedly for independent exact-head evidence convergence", ()
 test("stale Audit requests are NO_ACTION and cannot release", () => {
   assert.match(workflow, /NO_ACTION stale\/non-releasable Audit request/);
   assert.match(workflow, /current_draft/);
+  assert.match(workflow, /current_hold/);
+  assert.match(workflow, /Draft or HOLD PRs intentionally have no deterministic Release authority/);
+  assert.match(workflow, /\.labels \| type\) != "array"/);
+  assert.match(workflow, /any\(\.labels\[\]; \(\.name \| ascii_downcase\) == "hold"\)/);
   assert.match(workflow, /applicable=false/);
   assert.match(workflow, /authority=NONE/);
   assert.match(workflow, /needs\.audit\.outputs\.applicable == 'true'/);
@@ -49,6 +53,12 @@ test("Release re-verifies exact expected head and audited base before merge", ()
   assert.match(workflow, /EXPECTED_HEAD/);
   assert.match(workflow, /AUDITED_BASE/);
   assert.match(workflow, /final_draft/);
+  assert.match(workflow, /final_hold/);
+  assert.match(workflow, /test "\$final_hold" = "false"/);
+  assert.match(workflow, /release_hold/);
+  assert.match(workflow, /test "\$release_hold" = "false"/);
+  assert.ok((workflow.match(/test "\$release_hold" = "false"/g) || []).length >= 3,
+    "Release must re-check HOLD before each authority-sensitive transition");
   assert.match(workflow, /-f sha="\$EXPECTED_HEAD"/);
   assert.match(workflow, /\.merged == true/);
 });
