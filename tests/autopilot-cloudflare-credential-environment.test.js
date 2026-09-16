@@ -48,3 +48,14 @@ test('#1862 trusted-main and fail-closed authority boundaries remain intact', ()
   assert.match(workflow, /productionMutationAllowed=false/);
   assert.match(workflow, /AI authority=ZERO_AUTHORITY/);
 });
+
+test('#1862 exact-main deployment evidence lookup paginates and flattens all workflow-run pages', () => {
+  const deploymentLookup = step('Require successful exact-main Cloudflare deployment');
+  assert.match(deploymentLookup, /gh api --paginate --slurp/);
+  assert.match(deploymentLookup, /const response = JSON\.parse/);
+  assert.match(deploymentLookup, /const pages = Array\.isArray\(response\) \? response : \[response\]/);
+  assert.match(deploymentLookup, /pages\.flatMap\(\(page\) => Array\.isArray\(page\?\.workflow_runs\)/);
+  assert.match(deploymentLookup, /run\?\.path === '\.github\/workflows\/autopilot-cloudflare-deploy\.yml'/);
+  assert.match(deploymentLookup, /String\(run\?\.head_sha \|\| ''\)\.toLowerCase\(\) === expected/);
+  assert.match(deploymentLookup, /run\?\.conclusion === 'success'/);
+});
