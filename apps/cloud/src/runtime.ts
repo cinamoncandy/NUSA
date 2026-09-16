@@ -416,6 +416,22 @@ export function startCloudRuntime(
 
   const handle = startCloudDashboardServer({
     port: config.port,
+    // The PAPER loop runs off a persistent ticker subscription, so its liveness is only visible
+    // from these counters. Publishing them makes 24-hour operation something that can be checked
+    // rather than assumed from the process being up.
+    runtimeLiveness: () => Object.freeze({
+      startedAt: heartbeat.startedAt,
+      lastHeartbeatAt: heartbeat.lastHeartbeatAt,
+      lastMarketEventAt: heartbeat.lastMarketEventAt,
+      lastPaperDecisionAt: heartbeat.lastPaperDecisionAt,
+      lastPaperOrderAt: heartbeat.lastPaperOrderAt,
+      lastPaperFillAt: heartbeat.lastPaperFillAt,
+      eventCount: heartbeat.eventCount,
+      decisionCount: heartbeat.decisionCount,
+      paperOrderCount: heartbeat.paperOrderCount,
+      paperFillCount: heartbeat.paperFillCount,
+      lastError: heartbeat.lastError
+    }),
     ...(config.host ? { host: config.host } : {}),
     tokenVerifier,
     ...(userAccessRepository == null ? {} : { userAccessRepository }),

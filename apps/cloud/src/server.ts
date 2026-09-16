@@ -52,6 +52,32 @@ import { handleEvolutionLearningSupervisorHttp, type EvolutionLearningSupervisor
 import { handleUxTelemetryEventHttp } from "./uxTelemetryHttp";
 import type { UxTelemetryStorage } from "./uxTelemetryJournal";
 
+/**
+ * Evidence that the continuous PAPER runtime is alive, not merely that the process answers HTTP.
+ *
+ * The PAPER execution loop is driven by a persistent Upbit public ticker subscription, so it either
+ * runs continuously or it does not run at all. Nothing exposed that distinction: `/health` said
+ * `{ok:true}` whenever the HTTP listener was up, and `/ready` reports database and migration
+ * readiness. A stalled market feed, a loop that had stopped deciding, or a runtime that had been
+ * serving for hours without a single tick all looked identical from outside.
+ *
+ * Only timestamps, counters and a coded error are carried. No price, balance, position, order
+ * detail or credential appears here, because `/health` is unauthenticated by design.
+ */
+export interface CloudRuntimeLivenessSnapshot {
+  readonly startedAt: number;
+  readonly lastHeartbeatAt: number;
+  readonly lastMarketEventAt: number | null;
+  readonly lastPaperDecisionAt: number | null;
+  readonly lastPaperOrderAt: number | null;
+  readonly lastPaperFillAt: number | null;
+  readonly eventCount: number;
+  readonly decisionCount: number;
+  readonly paperOrderCount: number;
+  readonly paperFillCount: number;
+  readonly lastError: string | null;
+}
+
 export interface CloudReadinessSnapshot {
   readonly ok: boolean;
   readonly checks: Readonly<{
@@ -80,6 +106,8 @@ export interface CloudDashboardServerOptions {
   readonly desktopSessionService?: DesktopSessionService;
   readonly mobileSessionService?: MobileSessionService;
   readonly readiness?: () => CloudReadinessSnapshot;
+  /** Continuous PAPER runtime liveness, surfaced on /health so 24-hour operation is observable. */
+  readonly runtimeLiveness?: () => CloudRuntimeLivenessSnapshot;
   /** Legacy shared limiter override. New callers should inject lanes explicitly. */
   readonly rateLimiter?: BoundedHttpRateLimiter;
   /** Bounds unauthenticated traffic without consuming authenticated-user capacity. */
@@ -340,7 +368,15 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
     try {
       if (req.url === "/health") {
         if (req.method !== "GET") { respond("health", dashboardJsonResponse(405, { error: "METHOD_NOT_ALLOWED" })); return; }
-        respond("health", dashboardJsonResponse(200, { ok: true, observedAt: new Date().toISOString() }));
+        // `ok` keeps its existing meaning -- the HTTP listener answers -- so existing probes are
+        // unaffected. `runtime` is added only when a liveness source is wired, and carries the
+        // counters that show whether the continuous PAPER loop is actually ticking.
+        const liveness = options.runtimeLiveness?.();
+        respond("health", dashboardJsonResponse(200, {
+          ok: true,
+          observedAt: new Date().toISOString(),
+          ...(liveness === undefined ? {} : { runtime: liveness })
+        }));
         return;
       }
 
