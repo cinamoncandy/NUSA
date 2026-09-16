@@ -259,13 +259,15 @@ latest_repository_portfolio_risk_current_drawdown_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 latest_repository_audit_recovery:
-  status: IMPLEMENTED_LOCAL_VALIDATION_PENDING_EXACT_HEAD_CI
+  status: EXACT_HEAD_CI_PASS_PENDING_MERGED_MAIN_DEPLOYMENT_AND_FRESH_AUDIT
   base_commit: 45e4c653e89644f176c2398a007ca26b99014bda
   implementation_branch: codex/audit-json-output-hardening
+  implementation_head: 8748cd6cc203fd80de3ec7d3f34dbeffe6497047
   scope: "Repair the provider-facing independent Audit JSON contract without widening Audit, Release, execution, credential, or LIVE authority."
   finding: "Fresh independent Audit execution run 35057987820 failed closed at the strict safety result normalizer with AUDIT_VERDICT_SAFETY_INVALID."
   remediation: "Remove the provider-unreliable complex anyOf branches, keep the flat required schema, make the prompt explicit about the literal safety string, and preserve strict local semantic validation and exact-head revalidation."
   local_validation: "Targeted Audit tests 24/24; full isolated suite 986/986; typecheck/build; validate:full; lint; security:gate; architecture:check; diff check all PASS."
   unverified: "Fresh protected exact-head CI, exact merged-main Cloudflare deployment, and a new independent Audit verdict are not yet proven."
-  next_permitted_action: "Publish the fix for exact-head CI; after merge, use the existing Cloudflare promotion path and request a new exact-head independent Audit."
+  exact_head_ci: "PR #1928 exact head 8748cd6cc203fd80de3ec7d3f34dbeffe6497047; canonical CI 35059260683 and required PAPER/read-only/Restricted LIVE workflows 35059260664, 35059260672, 35059260684, 35059260766, 35059260795, plus Cloudflare preflight 35059260699 and bridge 35059260690 all completed success."
+  next_permitted_action: "Obtain the existing owner-controlled nusa/release-authorized gate without bypassing Audit, merge through the canonical Release path, deploy the exact merged main revision through the existing Cloudflare promotion workflow, then request a fresh independent Audit."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
