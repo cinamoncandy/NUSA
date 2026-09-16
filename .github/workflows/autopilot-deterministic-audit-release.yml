@@ -480,7 +480,8 @@ jobs:
               exit 0
             fi
 
-            runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$MERGED_MAIN&per_page=100")"
+            runs="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$MERGED_MAIN&per_page=100" \
+              --jq '.workflow_runs[]' | jq -s '{workflow_runs: .}')"
             successful_run="$(jq -r --arg sha "$MERGED_MAIN" '[.workflow_runs[] | select(.name == "CI" and .path == ".github/workflows/ci.yml" and .head_sha == $sha and .status == "completed" and .conclusion == "success")][0].id // empty' <<<"$runs")"
             if [ -n "$successful_run" ]; then
               echo "Post-merge CI SUCCESS recovered for $MERGED_MAIN via run $successful_run."

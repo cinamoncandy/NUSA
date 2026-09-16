@@ -129,7 +129,8 @@ jobs:
               exit 0
             fi
 
-            runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$MAIN_SHA&per_page=100")"
+            runs="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$MAIN_SHA&per_page=100" \
+              --jq '.workflow_runs[]' | jq -s '{workflow_runs: .}')"
             success_id="$(jq -r --arg sha "$MAIN_SHA" '[.workflow_runs[] | select(.name == "CI" and .path == ".github/workflows/ci.yml" and .head_sha == $sha and .status == "completed" and .conclusion == "success")][0].id // empty' <<<"$runs")"
             if [ -n "$success_id" ]; then
               echo "Exact-main CI SUCCESS for $MAIN_SHA via run $success_id."
