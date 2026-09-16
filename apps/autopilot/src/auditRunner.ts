@@ -107,18 +107,9 @@ const AUDIT_FINDING_SCHEMA = Object.freeze({
   required: Object.freeze(["code", "severity", "message", "evidenceRef"]),
 });
 
-const AUDIT_NOTE_FINDING_SCHEMA = Object.freeze({
-  type: "object",
-  additionalProperties: false,
-  properties: Object.freeze({
-    code: Object.freeze({ type: "string" }),
-    severity: Object.freeze({ type: "string", enum: Object.freeze(["NOTE"]) }),
-    message: Object.freeze({ type: "string" }),
-    evidenceRef: Object.freeze({ anyOf: Object.freeze([{ type: "string" }, { type: "null" }]) }),
-  }),
-  required: Object.freeze(["code", "severity", "message", "evidenceRef"]),
-});
-
+// Keep the provider-facing schema flat. Workers AI documents that complex JSON
+// schemas are not guaranteed to be met; the strict semantic validator below
+// remains authoritative for PASS/FAIL consistency and safety.
 const AUDIT_RESPONSE_FORMAT = Object.freeze({
   type: "json_schema",
   json_schema: Object.freeze({
@@ -135,30 +126,6 @@ const AUDIT_RESPONSE_FORMAT = Object.freeze({
       safetyInvariantResult: Object.freeze({ type: "string", enum: Object.freeze(["PASS", "FAIL"]) }),
     }),
     required: Object.freeze(["verdict", "findings", "blockers", "safetyInvariantResult"]),
-    anyOf: Object.freeze([
-      Object.freeze({
-        properties: Object.freeze({
-          verdict: Object.freeze({ enum: Object.freeze(["PASS"]) }),
-          findings: Object.freeze({ type: "array", maxItems: 0 }),
-          blockers: Object.freeze({ type: "array", maxItems: 0 }),
-          safetyInvariantResult: Object.freeze({ enum: Object.freeze(["PASS"]) }),
-        }),
-      }),
-      Object.freeze({
-        properties: Object.freeze({
-          verdict: Object.freeze({ enum: Object.freeze(["PASS_WITH_NOTES"]) }),
-          findings: Object.freeze({ type: "array", minItems: 1, maxItems: MAX_FINDINGS, items: AUDIT_NOTE_FINDING_SCHEMA }),
-          blockers: Object.freeze({ type: "array", maxItems: 0 }),
-          safetyInvariantResult: Object.freeze({ enum: Object.freeze(["PASS"]) }),
-        }),
-      }),
-      Object.freeze({
-        properties: Object.freeze({
-          verdict: Object.freeze({ enum: Object.freeze(["FAIL"]) }),
-          blockers: Object.freeze({ type: "array", minItems: 1, maxItems: MAX_BLOCKERS, items: Object.freeze({ type: "string" }) }),
-        }),
-      }),
-    ]),
   }),
 });
 
@@ -375,7 +342,8 @@ function auditPrompt(request: AuditRunnerRequest, diff: string): string {
     "Evaluate the exact pull-request diff below against correctness, regressions, architecture consistency, evidence integrity, test integrity, and NUSA safety invariants.",
     "Fail closed on ambiguity, missing evidence, weakened assertions/checks, synthetic evidence presented as actual evidence, duplicate control-plane/queue/scheduler/merge engines, stale-head assumptions, or unsafe authority changes.",
     "Safety invariants: liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY; no AI self-grant; no automatic LIVE activation; no withdrawals/transfers; no mobile credential storage; PAPER/REAL separation; fail-closed; actual evidence must not be fabricated.",
-    "Return only the structured verdict requested by response_format.",
+    'Return only JSON matching response_format. safetyInvariantResult MUST be a JSON string whose exact value is "PASS" or "FAIL"; never use a boolean, object, null, or another spelling.',
+    "The top-level JSON object MUST contain exactly these four keys: verdict, findings, blockers, safetyInvariantResult. findings and blockers MUST always be arrays.",
     "Rules: PASS requires zero findings and zero blockers. PASS_WITH_NOTES requires one or more NOTE findings and zero blockers and is not automatically merge-authorizing. FAIL requires at least one blocker. Any BLOCKER finding, safety failure, test weakening, evidence integrity issue, or material uncertainty requires FAIL.",
     `Repository: ${request.repository}`,
     `PR: #${request.prNumber}`,
