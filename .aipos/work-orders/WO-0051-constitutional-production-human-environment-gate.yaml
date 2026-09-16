@@ -269,5 +269,10 @@ latest_repository_audit_recovery:
   local_validation: "Targeted Audit tests 24/24; full isolated suite 986/986; typecheck/build; validate:full; lint; security:gate; architecture:check; diff check all PASS."
   unverified: "Fresh protected exact-head CI, exact merged-main Cloudflare deployment, and a new independent Audit verdict are not yet proven."
   exact_head_ci: "PR #1928 exact head 8748cd6cc203fd80de3ec7d3f34dbeffe6497047; canonical CI 35059260683 and required PAPER/read-only/Restricted LIVE workflows 35059260664, 35059260672, 35059260684, 35059260766, 35059260795, plus Cloudflare preflight 35059260699 and bridge 35059260690 all completed success."
+  follow_up_finding: "Exact-head preflight 35060300788 failed closed because its non-paginated first page contained 141 completed runs and omitted successful deploy run 35050583254; credential, Wrangler, account, and Worker safety checks were already successful."
+  follow_up_remediation: "Read all exact-main Actions-run pages with gh api --paginate --slurp and flatten workflow_runs before selecting the newest successful deploy evidence; retain bounded polling and fail-closed behavior."
+  follow_up_status: IMPLEMENTED_LOCAL_VALIDATION_PENDING_EXACT_HEAD_CI
+  follow_up_branch: codex/audit-json-output-hardening
+  follow_up_next_permitted_action: "Publish the pagination fix, require fresh exact-head protected CI and Cloudflare preflight, then re-check the current main deployment baseline before any fresh independent Audit."
   next_permitted_action: "Obtain the existing owner-controlled nusa/release-authorized gate without bypassing Audit, merge through the canonical Release path, deploy the exact merged main revision through the existing Cloudflare promotion workflow, then request a fresh independent Audit."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
