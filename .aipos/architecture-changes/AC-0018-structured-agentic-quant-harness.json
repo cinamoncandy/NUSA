@@ -1,58 +1,80 @@
 {
-  "id": "AC-0018",
+  "version": 1,
+  "id": "AC-0018-structured-agentic-quant-harness",
   "title": "Structured Agentic Quant Harness",
-  "status": "PROPOSED",
-  "date": "2026-09-15",
-  "issue": 1921,
-  "decision": ".aipos/decisions/ADR-0018-structured-agentic-quant-harness.md",
-  "extends": [
-    ".aipos/decisions/ADR-0003-hardened-research-validity-boundaries.md",
-    ".aipos/decisions/ADR-0006-real-provider-challenger-runtime.md"
-  ],
-  "existing_building_blocks": [1605, 1906],
-  "principles": [
-    "single canonical lifecycle over existing owners",
-    "immutable precommit before protected validation",
-    "test-first invariants",
-    "implementer and qualification authority separation",
-    "deterministic evidence adjudication",
-    "comparable champion-challenger provenance",
-    "fail-closed failure survival",
-    "degradation creates new research rather than direct retuning",
-    "provider pluggability without authority drift"
-  ],
-  "implementation_order": {
-    "P0": [
-      "precommit and protected-OOS correctness",
-      "deterministic evaluator and risk semantics",
-      "failure-survival and replay idempotency",
-      "role and authority separation"
+  "stage": "ARCHITECTURE_REVIEW",
+  "proposal": {
+    "status": "COMPLETE",
+    "summary": "Codify the useful structured-agent engineering pattern as a cross-cutting orchestration contract over existing NUSA Research, League, Risk, PAPER, Release, AIPOS, and AI-provider owners without creating a parallel runtime authority."
+  },
+  "impact_analysis": {
+    "status": "COMPLETE",
+    "affected_paths": [
+      ".aipos/decisions/ADR-0018-structured-agentic-quant-harness.md",
+      ".aipos/evidence/AC-0018-gap-matrix.md",
+      ".aipos/evidence/AC-0018-component-ownership.md",
+      ".aipos/evidence/AC-0018-state-machine.md",
+      ".aipos/evidence/AC-0018-acceptance-plan.md",
+      ".aipos/evidence/AC-0018-implementation-slices.md"
     ],
-    "P1": [
-      "production PAPER closed-loop composition",
-      "comparable champion-challenger evaluation",
-      "shadow/readiness evidence",
-      "degradation-triggered revalidation",
-      "bounded autonomous investment scientist"
-    ],
-    "P2": [
-      "versioned mathematical strategy-family challengers",
-      "provider/model optimization"
+    "affected_capabilities": ["research_governance", "paper_challenger_governance", "ai_zero_authority"],
+    "safety_sensitive": true,
+    "constitutional_change": false,
+    "protected_boundaries": ["Risk", "Audit", "Release", "LIVE authority", "AI zero authority"],
+    "analysis": "Architecture/AIPOS metadata only. The decision preserves ADR-0003 and ADR-0006, reuses #1605 and #1906, creates no Research Factory/League/execution/portfolio/lifecycle engine, and does not modify runtime code or grant AI, PAPER, Risk, Release, credential, transfer, or LIVE authority."
+  },
+  "architecture_review": {
+    "status": "PENDING",
+    "decision": "PENDING",
+    "reviewers": [],
+    "evidence_refs": [
+      "https://github.com/cinamoncandy/NUSA/pull/1922",
+      "https://github.com/cinamoncandy/NUSA/issues/1921"
     ]
   },
-  "forbidden_parallel_owners": [
-    "research factory",
-    "league",
-    "portfolio engine",
-    "execution engine",
-    "service container",
-    "plugin system",
-    "lifecycle engine"
-  ],
-  "authority": {
-    "mode": "PAPER_ONLY",
-    "liveAuthority": "NONE",
-    "productionMutationAllowed": false,
-    "aiAuthority": "ZERO_AUTHORITY"
-  }
+  "migration_plan": {
+    "status": "COMPLETE",
+    "compatibility": "Additive architecture documentation only. Existing canonical owners and runtime behavior are unchanged. Any future implementation must extend existing owners rather than introduce parallel engines.",
+    "steps": [
+      "Review ADR-0018 and repository-grounded gap matrix.",
+      "Confirm canonical component ownership and dependency ordering.",
+      "Run exact-head repository CI and architecture lifecycle validation.",
+      "After architecture approval, split only confirmed missing P0/P1/P2 work into existing canonical owners."
+    ]
+  },
+  "approval": {
+    "status": "PENDING",
+    "approved_by": [],
+    "evidence_refs": [],
+    "authority_type": "AI"
+  },
+  "rollback": {
+    "triggers": [
+      "Core identifies a conflicting canonical authority or duplicate-owner risk.",
+      "Repository lifecycle or architecture validation cannot be satisfied without weakening existing governance.",
+      "The decision is found to expand AI, Risk, Release, execution, credential, transfer, or LIVE authority."
+    ],
+    "procedure": [
+      "Revert the AC-0018 architecture-only PR.",
+      "Retain issue #1921 as the durable problem statement and gap-analysis record.",
+      "Reconcile the proposal against the conflicting canonical owner before any replacement change."
+    ],
+    "status": "READY"
+  },
+  "verification": {
+    "status": "PENDING",
+    "criteria": [
+      "pnpm run architecture:check",
+      "pnpm run architecture:truth",
+      "pnpm run ai:architecture",
+      "pnpm run architecture:lifecycle",
+      "exact-head CI"
+    ],
+    "evidence_refs": ["https://github.com/cinamoncandy/NUSA/pull/1922"]
+  },
+  "history": [
+    { "stage": "PROPOSAL", "observed_at": "2026-09-15T14:20:00Z" },
+    { "stage": "IMPACT_ANALYSIS", "observed_at": "2026-09-15T14:30:00Z" },
+    { "stage": "ARCHITECTURE_REVIEW", "observed_at": "2026-09-15T14:38:13Z" }
+  ]
 }
