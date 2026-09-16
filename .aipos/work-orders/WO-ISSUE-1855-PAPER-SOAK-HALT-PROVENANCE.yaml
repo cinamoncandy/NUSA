@@ -1,0 +1,26 @@
+id: WO-ISSUE-1855-PAPER-SOAK-HALT-PROVENANCE
+title: Preserve fail-closed PAPER elapsed-soak HALT provenance
+status: IN_PROGRESS
+issue: 1855
+implementation_branch: fix/paper-soak-halt-provenance-1855
+base_commit: 79289f9f33f63e6b699bdbc42863c3e458f782a4
+authority_impact: none
+scope:
+  - Preserve bounded structured HALT reasons in the existing elapsed-soak receipt.
+  - Retain strict rejection of any HALTED or STOPPED observation.
+  - Do not persist raw heartbeat errors or sensitive runtime details.
+acceptance_criteria:
+  - A HALTED observation records available dashboard, kill-switch, account, or research fail-closed causes.
+  - An unattributed HALT remains explicit and rejects the receipt.
+  - No single inactive observation can be ignored, smoothed, or accepted.
+  - No private exchange credential, order, transfer, production mutation, or LIVE authority is added.
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification:
+  - pnpm run build
+  - node --test tests/paper-elapsed-soak-halt-provenance.test.js
+  - pnpm run validate:full
+  - fresh exact-head CI
+next: Gather a new real elapsed soak only after this provenance contract is protected-main verified; it must still show no inactive observations before acceptance.
