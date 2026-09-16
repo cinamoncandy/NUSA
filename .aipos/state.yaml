@@ -1253,3 +1253,13 @@ latest_paper_chaos_bound_runtime_evidence_slice:
   implementation_branch: codex/paper-chaos-bound-runtime-evidence
   scope: "Emit only BOUND_UNVERIFIED restart-recovery evidence from the canonical actual PAPER runtime harness; external workflow verification remains separate."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_comparable_evaluator_failure_slice:
+  status: IN_PROGRESS
+  issue: 1887
+  base_commit: 79289f9f33f63e6b699bdbc42863c3e458f782a4
+  implementation_branch: codex/issue-1887-comparable-evaluator
+  work_order: .aipos/work-orders/WO-ISSUE-1887-COMPARABLE-EVALUATOR-FAILURES.yaml
+  scope: "Bind advisory repeated lifecycle failures to immutable current comparable evaluator semantics and canonical-search dedupe; legacy failure history remains preserved but cannot trigger current RETIRE."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  validation: "pnpm run build plus focused strategy-evolution advisory tests: PASS 13/13; pnpm run validate:full: PASS. Commit, PR, and exact-head CI remain pending."
