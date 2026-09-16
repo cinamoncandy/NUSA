@@ -34,6 +34,8 @@ jobs:
           cache: pnpm
       - name: Workflow action supply-chain pins
         run: node scripts/validate-workflow-action-pins.js
+      - name: Workflow action input policy
+        run: node scripts/validate-workflow-action-inputs.js
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
       - name: Preflight
@@ -212,6 +214,8 @@ jobs:
           cache: pnpm
       - name: Workflow action supply-chain pins
         run: node scripts/validate-workflow-action-pins.js
+      - name: Workflow action input policy
+        run: node scripts/validate-workflow-action-inputs.js
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
       - name: Preflight
@@ -261,6 +265,8 @@ jobs:
           cache: pnpm
       - name: Workflow action supply-chain pins
         run: node scripts/validate-workflow-action-pins.js
+      - name: Workflow action input policy
+        run: node scripts/validate-workflow-action-inputs.js
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
       - name: Preflight
@@ -308,6 +314,8 @@ jobs:
           cache: pnpm
       - name: Workflow action supply-chain pins
         run: node scripts/validate-workflow-action-pins.js
+      - name: Workflow action input policy
+        run: node scripts/validate-workflow-action-inputs.js
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
       - name: Preflight
