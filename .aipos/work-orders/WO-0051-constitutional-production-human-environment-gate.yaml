@@ -278,3 +278,18 @@ latest_repository_audit_recovery:
   follow_up_next_permitted_action: "Promote the pagination fix through the existing protected Release path; only after the trusted main workflow contains it may the protected pull_request_target preflight be expected to PASS. Then deploy the exact merged main revision and request a fresh independent Audit."
   next_permitted_action: "Obtain the existing owner-controlled nusa/release-authorized gate without bypassing Audit, merge through the canonical Release path, deploy the exact merged main revision through the existing Cloudflare promotion workflow, then request a fresh independent Audit."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+latest_approval_safety_guard:
+  status: IMPLEMENTED_LOCAL_PR_OPEN
+  base_commit: 04830f377954dd98417118fe4870287950c143cb
+  implementation_branch: codex/approval-safety-guard
+  implementation_head: 422f333ed037e3568955aaf8cd31c3b341fe8cbb
+  pull_request: 1930
+  scope: "Existing canonical Audit/Release control plane rejects Draft/HOLD pull requests and malformed label metadata before Audit authority and again before Release authorization and merge."
+  local_validation: "Targeted Release contract tests 20/20; release candidate/evidence tests 14/14; pnpm run build/typecheck/validate:full/security:gate PASS; pnpm run lint PASS with 0 errors and 4 existing warnings; pnpm test PASS across 987 isolated test files; git diff --check PASS."
+  exact_head_ci: PENDING_PR_1930
+  next_permitted_action: "Fresh exact-head protected CI, then independent Audit; canonical Release remains the only merge authority."
+  safety:
+    live_authority: NONE
+    production_mutation_allowed: false
+    ai_authority: ZERO_AUTHORITY

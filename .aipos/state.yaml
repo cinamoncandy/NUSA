@@ -1273,3 +1273,17 @@ current_audit_structured_output_recovery:
   follow_up_next_permitted_action: "Promote the pagination fix through the existing protected Release path; only after the trusted main workflow contains it may the protected pull_request_target preflight be expected to PASS. Then deploy the exact merged main revision and request a fresh independent Audit."
   next_permitted_action: "Obtain the existing owner-controlled nusa/release-authorized gate without bypassing Audit, merge through the canonical Release path, deploy the exact merged main revision through the existing Cloudflare promotion workflow, then request a fresh independent Audit."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+latest_approval_safety_guard:
+  status: IMPLEMENTED_LOCAL_PR_OPEN
+  base_commit: 04830f377954dd98417118fe4870287950c143cb
+  implementation_branch: codex/approval-safety-guard
+  implementation_head: 422f333ed037e3568955aaf8cd31c3b341fe8cbb
+  pull_request: 1930
+  scope: "Existing canonical Audit/Release control plane now fails closed for Draft or HOLD pull requests and malformed label metadata at every authority-sensitive transition; no second queue, scheduler, dispatcher, Audit lane, runtime, trading, credential, or LIVE authority added."
+  finding: "A held Draft PR was explicitly required to remain non-actionable, but the canonical Release workflow did not directly bind the HOLD label into its exact-head eligibility checks."
+  remediation: "Reject Draft/HOLD or malformed-label PR state as NO_ACTION during Audit eligibility and re-check the same condition before Release re-verification, authorization publication, and merge."
+  local_validation: "Targeted Release contract tests 20/20; release candidate/evidence tests 14/14; pnpm run build PASS; pnpm run typecheck PASS; pnpm run lint PASS with 0 errors and 4 existing warnings; pnpm run validate:full PASS; pnpm run security:gate PASS; pnpm test PASS across 987 isolated test files; git diff --check PASS."
+  exact_head_ci: PENDING_PR_1930
+  next_permitted_action: "Keep PR #1930 open for fresh exact-head CI and independent Audit; do not merge or clear any unrelated Draft/HOLD work."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
