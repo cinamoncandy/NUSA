@@ -59,7 +59,7 @@ test('Release checks the same durable exact-bound HOLD before authorization and 
   assert.match(release, /id-token:\s*write/);
   assert.match(release, /ACTIONS_ID_TOKEN_REQUEST_URL/);
   assert.match(release, /audience.*nusa-autopilot/);
-  assert.match(release, /\/control-plane\/release-check/);
+  assert.match(release, /\/control-plane\/release-check/g);
   assert.match(release, /RELEASE_CONTROL_CLEAR/);
   assert.match(release, /prNumber: Number\(process\.env\.PR_NUMBER\)/);
   assert.match(release, /headSha: process\.env\.EXPECTED_HEAD/);
