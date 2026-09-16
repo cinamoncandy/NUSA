@@ -1,0 +1,312 @@
+{
+  "jobs": {
+    "android-product-ux-acceptance.yml:touch-visual": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "android-release-pipeline-guard.yml:release-configuration-smoke": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "android-stable-release-trigger.yml:dispatch": {
+      "write": [
+        "actions"
+      ],
+      "secrets": false,
+      "environment": null
+    },
+    "android-stable-release-watchdog.yml:reconcile": {
+      "write": [
+        "actions",
+        "issues"
+      ],
+      "secrets": false,
+      "environment": null
+    },
+    "android-stable-release.yml:resolve": {
+      "write": [
+        "contents",
+        "issues"
+      ],
+      "secrets": false,
+      "environment": null
+    },
+    "android-stable-release.yml:signing-readiness": {
+      "write": [
+        "contents",
+        "issues"
+      ],
+      "secrets": true,
+      "environment": null
+    },
+    "android-stable-release.yml:build-and-publish": {
+      "write": [
+        "contents",
+        "issues"
+      ],
+      "secrets": true,
+      "environment": null
+    },
+    "autopilot-already-merged-audit-convergence.yml:reconcile": {
+      "write": [
+        "actions"
+      ],
+      "secrets": false,
+      "environment": null
+    },
+    "autopilot-cloudflare-credential-preflight.yml:preflight": {
+      "write": [
+        "issues"
+      ],
+      "secrets": true,
+      "environment": null
+    },
+    "autopilot-cloudflare-deploy.yml:deploy": {
+      "write": [
+        "actions"
+      ],
+      "secrets": true,
+      "environment": null
+    },
+    "autopilot-cloudflare-promote.yml:promote": {
+      "write": [
+        "contents"
+      ],
+      "secrets": false,
+      "environment": null
+    },
+    "autopilot-cloudflare-runtime-proof.yml:runtime-proof": {
+      "write": [
+        "actions"
+      ],
+      "secrets": false,
+      "environment": null
+    },
+    "autopilot-deterministic-audit-release.yml:audit": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "autopilot-deterministic-audit-release.yml:release": {
+      "write": [
+        "actions",
+        "contents",
+        "pull-requests"
+      ],
+      "secrets": true,
+      "environment": "nusa-release-authority"
+    },
+    "autopilot-execution-consumer.yml:consume": {
+      "write": [
+        "id-token"
+      ],
+      "secrets": false,
+      "environment": null
+    },
+    "autopilot-execution-consumer.yml:audit-request": {
+      "write": [
+        "id-token",
+        "pull-requests"
+      ],
+      "secrets": false,
+      "environment": null
+    },
+    "autopilot-execution-consumer.yml:audit-recovery": {
+      "write": [
+        "contents"
+      ],
+      "secrets": false,
+      "environment": null
+    },
+    "autopilot-execution-consumer.yml:release": {
+      "write": [
+        "contents",
+        "issues",
+        "pull-requests"
+      ],
+      "secrets": false,
+      "environment": null
+    },
+    "autopilot-execution-consumer.yml:release-recovery": {
+      "write": [
+        "contents"
+      ],
+      "secrets": false,
+      "environment": null
+    },
+    "autopilot-github-event-bridge.yml:bridge": {
+      "write": [
+        "id-token"
+      ],
+      "secrets": true,
+      "environment": null
+    },
+    "autopilot-github-event-bridge.yml:audit-dispatch-fallback": {
+      "write": [
+        "contents"
+      ],
+      "secrets": false,
+      "environment": null
+    },
+    "autopilot-runner-progress-consumer.yml:validate": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "autopilot-sandbox-new-file-guard.yml:new-file-validation": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "ci.yml:validation": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "ci.yml:coverage-core": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "ci.yml:coverage-ui-e2e": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "ci.yml:coverage": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "ci.yml:test": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "cloudflare-deployment-readiness.yml:readiness": {
+      "write": [],
+      "secrets": true,
+      "environment": null
+    },
+    "control-plane-ci-rework-observer.yml:observe": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "deployment-convergence-receipt.yml:receipt": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "deployment-convergence-watchdog.yml:reconcile": {
+      "write": [
+        "actions",
+        "issues"
+      ],
+      "secrets": false,
+      "environment": null
+    },
+    "exact-head-paper-readiness-convergence.yml:converge": {
+      "write": [
+        "actions"
+      ],
+      "secrets": false,
+      "environment": null
+    },
+    "ios-testflight.yml:upload-testflight": {
+      "write": [],
+      "secrets": true,
+      "environment": "testflight"
+    },
+    "mobile-native.yml:foundation-smoke": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "mobile-native.yml:android-debug": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "mobile-native.yml:ios-debug": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "mobile-native.yml:android-release-candidate": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "mobile-native.yml:ios-release-candidate": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "oracle-codex-dev.yml:oracle-codex": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "paper-real-elapsed-soak.yml:paper-real-elapsed-soak": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "read-only-broker-credential-integration.yml:verify": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "restricted-live-activation-rehearsal.yml:rehearsal": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "restricted-live-capability-surface.yml:guard": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "restricted-live-transport-credential-readiness.yml:readiness": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "windows-desktop-stable-release.yml:resolve": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "windows-desktop-stable-release.yml:release": {
+      "write": [
+        "contents"
+      ],
+      "secrets": false,
+      "environment": null
+    },
+    "wo-0059-actual-paper-runtime.yml:actual-paper-runtime": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    }
+  },
+  "acknowledgedDebt": {
+    "alternateMergeEngine": [
+      {
+        "job": "autopilot-execution-consumer.yml:release",
+        "issue": "#1861",
+        "note": "Generic GITHUB_TOKEN alternate merge engine. PR #1875 removes it; delete this entry when it lands."
+      }
+    ],
+    "prSecretWrite": [
+      {
+        "job": "autopilot-cloudflare-credential-preflight.yml:preflight",
+        "issue": "#1871",
+        "note": "Secret-bearing pull_request_target validation also carries issues:write to maintain the canonical blocker. Split validation from issue mutation, then delete this entry."
+      }
+    ]
+  }
+}

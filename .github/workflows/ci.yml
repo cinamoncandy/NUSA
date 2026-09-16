@@ -80,6 +80,10 @@ jobs:
         run: pnpm run firebase:validate
       - name: High-signal regression fast gate
         run: node --test --test-reporter=spec tests/mobile-order-history.test.js tests/mobile-watchlist.test.js tests/p8-private-readonly-runtime-session.test.js tests/p8-open-representative-position.test.js
+      - name: Workflow authority map
+        run: node scripts/validate-workflow-authority-map.js
+      - name: Workflow authority map regression
+        run: node --test tests/workflow-authority-map.test.js
       - name: Architecture validation
         run: pnpm run architecture:check
       - name: Repository architecture truth validation
