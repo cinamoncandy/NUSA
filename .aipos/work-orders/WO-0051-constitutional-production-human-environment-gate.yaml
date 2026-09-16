@@ -267,3 +267,17 @@ latest_repository_portfolio_risk_current_drawdown_slice:
   merge_commit: aaa82d526d0439c7b7de0dcc1533d6c959dcb9e9
   evidence: "Focused recovery regression and all observed exact-head workflow checks passed; no execution, credential, accounting, or LIVE boundary changed."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+latest_android_firebase_distribution_recovery_slice:
+  status: IN_PROGRESS
+  base_commit: 45e4c653e89644f176c2398a007ca26b99014bda
+  implementation_branch: codex/firebase-android-sdk-fix
+  implementation_head: 6d8ba1433a8ed402ed8e4a4cf57f080aae83348c
+  scope: "Unblock the canonical Android Stable Release path to Firebase App Distribution on current runners by removing the obsolete Android SDK tools package request and making Product UX UI-hierarchy capture bounded and diagnostic-preserving."
+  local_validation: "Targeted Android workflow regressions 11/11 PASS; pnpm run validate:full PASS; no secret, authority, trading, or application behavior change."
+  exact_head_ci: "35051661975 exposed a pre-existing mobile-product-v5 diagnostic assertion after the bounded UI retry; fix is locally validated and requires fresh exact-head CI."
+  next_permitted_action: "Push the diagnostic-preservation fix, verify fresh exact-head CI, then run the exact-main Android Stable Release workflow and inspect Firebase App Distribution success evidence."
+  safety:
+    live_authority: NONE
+    production_mutation_allowed: false
+    ai_authority: ZERO_AUTHORITY

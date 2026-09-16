@@ -1255,12 +1255,17 @@ latest_paper_chaos_bound_runtime_evidence_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_android_firebase_distribution_recovery:
-  status: IMPLEMENTED_LOCAL_VALIDATION_PENDING_EXACT_HEAD_CI
+  status: IMPLEMENTED_LOCAL_VALIDATION_AND_TARGETED_CI_FIX_PENDING_EXACT_HEAD_CI
   source_main_sha: 45e4c653e89644f176c2398a007ca26b99014bda
   failed_run: 35050593242
   failure_family: REPOSITORY_CONTROLLED_WORKFLOW_CONFIGURATION
   root_cause: "android-actions/setup-android received its obsolete default tools package request; current Android repositories reject package 'tools' before APK build and Firebase distribution."
   remediation: "Explicitly request only platform-tools in the stable release, release guard, Mobile Native, and Android Product UX workflows; preserve later explicit platform/emulator package installation."
+  latest_exact_head: 6d8ba1433a8ed402ed8e4a4cf57f080aae83348c
+  latest_ci_run: 35051661975
+  latest_failure_family: TEST_REGRESSION
+  latest_failure: "coverage-core-1 exposed the pre-existing mobile-product-v5 diagnostic contract after the bounded UI retry moved the original XML diagnostic; the workflow now preserves that diagnostic on bounded startup failure."
+  latest_targeted_validation: "node --test tests/mobile-product-v5.test.js tests/android-release-pipeline-hardening.test.js; pnpm run validate:full; git diff --check (PASS)"
   scope: "Android SDK setup resilience for exact-source Android release and Firebase App Distribution; no application, credential, authority, or trading behavior change."
   branch: codex/firebase-android-sdk-fix
   next_permitted_action: "Push the validated branch, require fresh exact-head CI, then rerun the canonical Android Stable Release and verify Firebase distribution evidence for the same main SHA."

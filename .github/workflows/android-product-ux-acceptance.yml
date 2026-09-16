@@ -102,6 +102,10 @@ jobs:
                       pass
               time.sleep(1)
           if root is None:
+              try:
+                  print(ET.tostring(ET.parse("/tmp/window.xml").getroot(), encoding="unicode"), file=sys.stderr)
+              except (ET.ParseError, OSError):
+                  pass
               print("Android UI hierarchy was not ready after bounded retries", file=sys.stderr)
               sys.exit(3)
           for n in root.iter("node"):
