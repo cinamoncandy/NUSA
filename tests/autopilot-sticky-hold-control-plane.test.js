@@ -45,9 +45,15 @@ test('Release checks the same durable exact-bound HOLD before authorization and 
   assert.match(worker, /RELEASE_CONTROL_CLEAR/);
   assert.match(worker, /globalReleaseFreezeActive/);
   assert.match(worker, /readPersistentControlPlaneHold/);
+  assert.match(worker, /repository: request\.repository/);
+  assert.match(worker, /headSha: request\.headSha\.toLowerCase\(\)/);
+  assert.match(worker, /baseSha: request\.baseSha\.toLowerCase\(\)/);
   assert.match(release, /id-token:\s*write/);
   assert.match(release, /\/control-plane\/release-check/);
   assert.match(release, /RELEASE_CONTROL_CLEAR/);
+  assert.match(release, /prNumber: Number\(process\.env\.PR_NUMBER\)/);
+  assert.match(release, /headSha: process\.env\.EXPECTED_HEAD/);
+  assert.match(release, /baseSha: process\.env\.AUDITED_BASE/);
   const firstCheck = release.indexOf('- name: Verify durable control-plane Release clearance');
   const mint = release.indexOf('- name: Mint dedicated release authority token');
   const publish = release.indexOf('- name: Publish exact-head release authorization');
