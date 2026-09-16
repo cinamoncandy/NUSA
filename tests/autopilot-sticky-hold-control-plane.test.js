@@ -43,6 +43,10 @@ test('Release checks the same durable exact-bound HOLD before authorization and 
   const release = read('.github/workflows/autopilot-deterministic-audit-release.yml');
   assert.match(worker, /\/control-plane\/release-check/);
   assert.match(worker, /RELEASE_CONTROL_CLEAR/);
+  assert.match(worker, /RELEASE_CONTROL_FAILED_CLOSED/);
+  assert.match(worker, /GLOBAL_RELEASE_FREEZE_ACTIVE/);
+  assert.match(worker, /CONTROL_PLANE_HOLD_READ_FAILED/);
+  assert.match(worker, /CONTROL_PLANE_HOLD_ACTIVE/);
   assert.match(worker, /globalReleaseFreezeActive/);
   assert.match(worker, /readPersistentControlPlaneHold/);
   assert.match(worker, /repository: request\.repository/);
