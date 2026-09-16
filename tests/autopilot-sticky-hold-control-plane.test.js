@@ -53,6 +53,9 @@ test('Release checks the same durable exact-bound HOLD before authorization and 
   assert.match(worker, /repository: request\.repository/);
   assert.match(worker, /headSha: request\.headSha\.toLowerCase\(\)/);
   assert.match(worker, /baseSha: request\.baseSha\.toLowerCase\(\)/);
+  assert.match(worker, /liveAuthority:\s*"NONE"/);
+  assert.match(worker, /productionMutationAllowed:\s*false/);
+  assert.match(worker, /aiAuthority:\s*"ZERO_AUTHORITY"/);
   assert.match(release, /id-token:\s*write/);
   assert.match(release, /ACTIONS_ID_TOKEN_REQUEST_URL/);
   assert.match(release, /audience.*nusa-autopilot/);
