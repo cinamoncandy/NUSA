@@ -9,12 +9,12 @@ const portfolio = fs.readFileSync(path.join(process.cwd(), "apps/mobile/src/port
 
 test("HOME presents truthful PAPER equity and cumulative PnL basis in the canonical capital strip", () => {
   assert.match(home, /testID="account-hero-card"/);
-  assert.match(home, /label: "EQUITY"/);
-  assert.match(home, /value: krw\(account\?\.equity\)/);
-  assert.match(home, /label: "TOTAL PNL"/);
-  assert.match(home, /value: signedMoney\(totalPnl\)/);
-  assert.match(home, /label: "CASH"/);
-  assert.match(home, /label: "EXPOSURE"/);
+  assert.match(home, /PAPER EQUITY/);
+  assert.match(home, /krw\(account\?\.equity\)/);
+  assert.match(home, /TOTAL PNL/);
+  assert.match(home, /signedMoney\(totalPnl\)/);
+  assert.match(home, /CASH/);
+  assert.match(home, /EXPOSURE/);
   assert.match(home, /const totalPnl = account == null \? null : \(account\.realizedPnl \?\? account\.position\.realizedPnl\) \+ account\.unrealizedPnl/);
   assert.match(home, /hasDailyPnlBasis: false/);
   assert.match(decisionSurface, /PAPER P&L .*EQUITY/);

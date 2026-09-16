@@ -12,6 +12,7 @@ const {
   loadUpbitAccounts,
   normalizeUpbitAccountSummary,
   safeTokenMatch,
+  mobileIntrospectionUrl,
 } = require("../server");
 
 const env = { UPBIT_ACCESS_KEY: "access-key", UPBIT_SECRET_KEY: "secret-key" };
@@ -161,6 +162,38 @@ test("summary endpoint rejects unauthorized and non-GET requests", async () => {
   const method = response();
   await handler({ method: "POST", url: ACCOUNT_SUMMARY_PATH, headers: { authorization: "Bearer bridge-token" } }, method);
   assert.equal(method.statusCode, 405);
+});
+
+test("mobile PAPER access is accepted only through loopback GET introspection", async () => {
+  const calls = [];
+  const handler = require("../server").createRequestHandler({
+    env: { ...env, NUSA_MOBILE_INTROSPECTION_ORIGIN: "http://127.0.0.1:3000" },
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      if (url === "http://127.0.0.1:3000/v1/mobile/me") {
+        return { ok: true, redirected: false, json: async () => ({ userId: "mobile-user", email: "mobile@example.com", scopes: ["dashboard:read", "paper:trade"] }) };
+      }
+      return { ok: true, status: 200, json: async () => [{ currency: "KRW", balance: "1", locked: "0" }] };
+    },
+  });
+  const response = { statusCode: 0, writeHead(status) { this.statusCode = status; }, end(body) { this.body = body; } };
+  await handler({ method: "GET", url: ACCOUNT_SUMMARY_PATH, headers: { authorization: "Bearer mobile-paper-access-fixture-0123456789" } }, response);
+  assert.equal(response.statusCode, 200);
+  assert.equal(calls[0].url, "http://127.0.0.1:3000/v1/mobile/me");
+  assert.equal(calls[0].options.method, "GET");
+  assert.equal(calls[0].options.headers.authorization, "Bearer mobile-paper-access-fixture-0123456789");
+  assert.equal(calls[1].options.method, "GET");
+  assert.throws(() => mobileIntrospectionUrl({ NUSA_MOBILE_INTROSPECTION_ORIGIN: "https://cloud.example.com" }), /loopback/);
+});
+
+test("mobile introspection rejects a session without dashboard read scope", async () => {
+  const handler = require("../server").createRequestHandler({
+    env: { ...env, NUSA_MOBILE_INTROSPECTION_ORIGIN: "http://127.0.0.1:3000" },
+    fetchImpl: async () => ({ ok: true, redirected: false, json: async () => ({ scopes: ["paper:trade"] }) }),
+  });
+  const response = { statusCode: 0, writeHead(status) { this.statusCode = status; }, end(body) { this.body = body; } };
+  await handler({ method: "GET", url: ACCOUNT_SUMMARY_PATH, headers: { authorization: "Bearer mobile-paper-access-fixture-0123456789" } }, response);
+  assert.equal(response.statusCode, 401);
 });
 
 test("provider failures return generic upstream errors", async () => {

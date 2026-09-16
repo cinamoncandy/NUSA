@@ -6,6 +6,7 @@ const test = require("node:test");
 const { buildResearchEnv, DEFAULT_COST_MODEL_VERSION, run } = require("./run-cloud-research-snapshot.js");
 
 const SHA = "a".repeat(40);
+const OTHER_SHA = "b".repeat(40);
 
 test("maps exact deployed source SHA and durable snapshot path into canonical Research env", () => {
   const env = buildResearchEnv({
@@ -17,6 +18,15 @@ test("maps exact deployed source SHA and durable snapshot path into canonical Re
   assert.equal(env.NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH, path.resolve("/var/lib/nusa/research-replay-snapshots.json"));
 });
 
+test("accepts matching deployed source commit identities", () => {
+  const env = buildResearchEnv({
+    NUSA_SOURCE_COMMIT: SHA.toUpperCase(),
+    NUSA_SOURCE_COMMIT_SHA: ` ${SHA} `,
+    NUSA_CLOUD_STATE_DB_PATH: path.resolve("/var/lib/nusa/state.sqlite"),
+  });
+  assert.equal(env.NUSA_SOURCE_COMMIT_SHA, SHA);
+});
+
 test("preserves an explicit cost-model identity and absolute snapshot path", () => {
   const env = buildResearchEnv({
     NUSA_SOURCE_COMMIT_SHA: SHA,
@@ -26,6 +36,14 @@ test("preserves an explicit cost-model identity and absolute snapshot path", () 
   });
   assert.equal(env.NUSA_RESEARCH_COST_MODEL_VERSION, "declared-cost-v9");
   assert.equal(env.NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH, path.resolve("/srv/nusa/research.json"));
+});
+
+test("fails closed when deployed source commit identities disagree", () => {
+  assert.throws(() => buildResearchEnv({
+    NUSA_SOURCE_COMMIT: SHA,
+    NUSA_SOURCE_COMMIT_SHA: OTHER_SHA,
+    NUSA_CLOUD_STATE_DB_PATH: path.resolve("/var/lib/nusa/state.sqlite"),
+  }), /NUSA_SOURCE_COMMIT and NUSA_SOURCE_COMMIT_SHA disagree/);
 });
 
 test("fails closed on missing source identity or non-durable state", () => {

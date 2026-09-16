@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { LedgerSide, RiskDecisionType, type RiskReasonCode } from "../../../packages/contracts/src/index";
 import { evaluatePreTradeRisk, type PreTradeRiskContext, type PreTradeRiskPolicy } from "./pre-trade-risk";
 import type { OrderOperationalRestrictionRepository } from "./order-restriction";
@@ -79,14 +80,28 @@ function assertNonEmpty(value: string, name: string): void {
   if (typeof value !== "string" || value.trim() === "") throw new Error(`${name} is required`);
 }
 
+/**
+ * Length-prefixed encoding of the economic content of an intent. A plain delimiter join is
+ * ambiguous: an account id ending in the delimiter and a strategy id beginning with the
+ * rest of one produce the same string as a different pair of fields, so two economically
+ * distinct orders would share a payload hash. Prefixing each field with its own length
+ * makes the encoding injective for any field content.
+ */
 function stablePayload(intent: OrderIntent): string {
-  return [intent.intentId, intent.environment, intent.accountId, intent.strategyId, intent.symbol, intent.side, intent.orderType, intent.baseQtyRaw.toString(), intent.quoteQtyRaw?.toString() ?? "", intent.createdAtMs.toString()].join("|");
+  const fields = [intent.intentId, intent.environment, intent.accountId, intent.strategyId, intent.symbol, intent.side, intent.orderType, intent.baseQtyRaw.toString(), intent.quoteQtyRaw?.toString() ?? "", intent.createdAtMs.toString()];
+  return fields.map(field => `${field.length}:${field}`).join("");
 }
 
+/**
+ * The payload hash decides whether a resubmission is the same economic order (replay,
+ * answered with DUPLICATE) or a different one sent under a reused key (BLOCK). A collision
+ * therefore does not merely mislabel: it silently drops a real, different order. The
+ * previous 32-bit FNV-1a offered ~50% collision odds across roughly 77k intents by the
+ * birthday bound, and no resistance at all to a chosen-payload collision. SHA-256 makes
+ * both the accidental and the crafted case unreachable.
+ */
 export function hashOrderIntent(intent: OrderIntent): string {
-  let hash = 2166136261;
-  for (const character of stablePayload(intent)) { hash ^= character.charCodeAt(0); hash = Math.imul(hash, 16777619); }
-  return (hash >>> 0).toString(16).padStart(8, "0");
+  return createHash("sha256").update(stablePayload(intent), "utf8").digest("hex");
 }
 
 export function admitOrder(intent: OrderIntent, context: OrderAdmissionContext, idempotencyStore: IdempotencyStore): OrderAdmissionDecision {

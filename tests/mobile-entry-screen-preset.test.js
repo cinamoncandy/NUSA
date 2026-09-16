@@ -15,7 +15,7 @@ test("the launch entry screen follows the active design preset instead of fixed 
   assert.match(app, /getHomeVisualProfile/, "entry screen must consult the shared visual profile");
   assert.match(app, /const entryProfile = getHomeVisualProfile\(appTheme\.preset\)/);
 
-  const entryScreen = app.split('if (authStatus !== "SIGNED_IN")')[1] ?? "";
+  const entryScreen = app.slice(app.lastIndexOf('if (authStatus !== "SIGNED_IN")'));
   assert.ok(entryScreen, "entry screen render branch must exist");
   for (const token of [
     "entryProfile.screen.horizontalPadding",
@@ -30,7 +30,7 @@ test("the launch entry screen follows the active design preset instead of fixed 
 
 test("the entry screen keeps its PAPER-only disclosure while following the preset", () => {
   const app = read("apps/mobile/App.tsx");
-  const entryScreen = app.split('if (authStatus !== "SIGNED_IN")')[1] ?? "";
+  const entryScreen = app.slice(app.lastIndexOf('if (authStatus !== "SIGNED_IN")'));
   // Restyling must not quietly drop the boundary this screen exists to state.
   assert.match(entryScreen, /PAPER ONLY/);
   assert.match(entryScreen, /LIVE NONE/);

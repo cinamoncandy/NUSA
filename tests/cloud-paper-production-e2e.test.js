@@ -15,6 +15,48 @@ const { CloudPaperExecutionBoundary } = require("../dist/apps/cloud/src/cloudPap
 
 const principal = Object.freeze({ userId: "operator", scopes: Object.freeze(["dashboard:read"]) });
 
+function bindPaperDecision(decision) {
+  if (decision.action !== "BUY" && decision.action !== "SELL") return decision;
+  const candidateId = "sma-5-20";
+  return Object.freeze({
+    ...decision,
+    paperCandidateBinding: Object.freeze({
+      schemaVersion: 1,
+      status: "BOUND_UNVERIFIED",
+      authority: "PAPER_RESEARCH_ONLY",
+      liveAuthority: "NONE",
+      productionMutationAllowed: false,
+      candidateId,
+      datasetId: "fixture-dataset",
+      datasetContentSha256: "a".repeat(64),
+      advisoryGeneratedAt: decision.decidedAt - 2,
+      periodStartAt: decision.decidedAt - 1,
+      advisoryFingerprintSha256: "b".repeat(64),
+      bindingFingerprintSha256: "c".repeat(64),
+      candidateStrategy: Object.freeze({
+        candidateId,
+        familyId: "sma-crossover",
+        lineageId: "fixture-lineage",
+        specificationHash: "d".repeat(64),
+        codeSha: "e".repeat(40),
+        costModelVersion: "fixture-cost-v1",
+        parameters: Object.freeze({ shortPeriod: 5, longPeriod: 20 })
+      })
+    }),
+    paperCandidateStrategyDecision: Object.freeze({
+      action: decision.action,
+      score: decision.score,
+      confidence: decision.confidence,
+      reason: "candidate-bound production fixture",
+      observedAt: decision.decidedAt
+    })
+  });
+}
+
+function bindDashboard(dashboard) {
+  return Object.freeze({ ...dashboard, decisions: Object.freeze(dashboard.decisions.map(bindPaperDecision)) });
+}
+
 function createHarness() {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-cloud-paper-e2e-"));
   const databasePath = path.join(directory, "paper.sqlite");
@@ -42,7 +84,7 @@ function createHarness() {
     hydrator.hydrate(provider, [observation]);
     const dashboard = provider.read(principal);
     assert.ok(dashboard);
-    return dashboard;
+    return bindDashboard(dashboard);
   };
 
   const tick = (dashboard, price, overrides = {}) => Object.freeze({
@@ -124,7 +166,7 @@ function projectPortfolio(state) {
   };
 }
 
-test("production PAPER path executes BUY then SELL through real CIO, canonical risk, accounting, SQLite reopen, and mobile operations authority", () => {
+test("production PAPER path executes BUY then SELL through challenger-bound decision, canonical risk, accounting, SQLite reopen, and mobile operations authority", () => {
   const harness = createHarness();
   try {
     const buyDashboard = harness.hydrate(0.03, 50_000);

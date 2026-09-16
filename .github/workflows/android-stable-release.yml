@@ -581,4 +581,16 @@ jobs:
           - run: ${RUN_URL}
           EOF
           )
-          gh issue comment 558 --body "$BODY"
+          # Every run records the receipt on the run itself, which is durable and notifies
+          # nobody.
+          printf '%s\n' "$BODY" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
+          # A successful run already stores this same evidence as release assets
+          # (NUSA-Android.provenance.txt and NUSA-Android.firebase-success.txt), so
+          # commenting on #558 as well only duplicated it into an email per merge to main.
+          # A failed run publishes no release, so there the comment is the only durable
+          # record and is still posted.
+          if [ "${JOB_STATUS}" = "success" ]; then
+            echo "Receipt recorded in the job summary; #558 is not commented on a successful release."
+          else
+            gh issue comment 558 --body "$BODY"
+          fi

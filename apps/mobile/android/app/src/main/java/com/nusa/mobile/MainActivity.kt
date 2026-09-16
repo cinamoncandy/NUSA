@@ -14,6 +14,8 @@ class MainActivity : ReactActivity() {
 
   override fun onResume() {
     super.onResume()
-    NusaSelfUpdater.checkFrom(this)
+    if (!BuildConfig.DEBUG) {
+      NusaSelfUpdater.checkFrom(this)
+    }
   }
 }

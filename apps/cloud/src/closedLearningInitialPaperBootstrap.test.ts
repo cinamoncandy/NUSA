@@ -83,9 +83,28 @@ function options(input: {
 } = {}) {
   const events: string[] = [];
   const replay = input.replay ?? replayResult(true);
+  const snapshots = input.snapshots ?? [snapshot()];
+  type SnapshotStub = { readonly originalRunFingerprintSha256: string; readonly options: { readonly generatedAt: string } };
+  const latest = () => {
+    const values = snapshots as readonly SnapshotStub[];
+    if (values.length === 0) return undefined;
+    const ordered = [...values]
+      .map((entry) => ({ snapshot: entry, generatedAt: Date.parse(entry.options.generatedAt) }))
+      .sort((left, right) => right.generatedAt - left.generatedAt || left.snapshot.originalRunFingerprintSha256.localeCompare(right.snapshot.originalRunFingerprintSha256));
+    if (ordered.filter((entry) => entry.generatedAt === ordered[0]!.generatedAt).length !== 1) throw new Error("initial PAPER bootstrap latest Research snapshot is ambiguous");
+    return ordered[0]!.snapshot as never;
+  };
+  const latestIdentityAsync = async () => {
+    events.push("latest-async");
+    const entry = latest() as SnapshotStub | undefined;
+    return entry == null ? undefined : Object.freeze({ originalRunFingerprintSha256: entry.originalRunFingerprintSha256, generatedAt: entry.options.generatedAt });
+  };
   const base = {
-    snapshots: { list: () => input.snapshots ?? [snapshot()], read: () => undefined },
-    worker: { replayInitialResearch: () => { events.push("worker"); return replay; } },
+    snapshots: { latest, latestIdentityAsync, list: () => { throw new Error("bootstrap must not materialize the Research snapshot archive"); }, read: () => undefined },
+    worker: {
+      replayInitialResearch: () => { events.push("worker"); return replay; },
+      replayInitialResearchAsync: async () => { events.push("worker-async"); return replay; },
+    },
     history: { persist: () => { events.push("history"); if (input.failHistory) throw new Error("history unavailable"); return {} as never; } },
     artifacts: { save: (artifact: never) => { events.push("artifact"); return artifact; } },
     deployment: { deploy: (deploymentInput: { decision: { candidateId: string; candidateVersion: string } }) => { events.push("deploy"); return { deploymentId: "initial-period", candidateId: deploymentInput.decision.candidateId, candidateVersion: deploymentInput.decision.candidateVersion, authority: "PAPER_RESEARCH_ONLY" as const, liveAuthority: "NONE" as const, productionMutationAllowed: false as const, aiAuthority: "ZERO_AUTHORITY" as const }; } },
@@ -105,6 +124,13 @@ describe("initial PAPER bootstrap", () => {
     assert.equal(output.deployment?.candidateId, "candidate-a");
   });
 
+  it("keeps async production bootstrap off the synchronous latest path", async () => {
+    const { base, events } = options();
+    const output = await new ClosedLearningInitialPaperBootstrap(base).runOnceAsync();
+    assert.equal(output.status, "DEPLOYED");
+    assert.deepEqual(events, ["latest-async", "worker-async", "history", "artifact", "deploy"]);
+  });
+
   it("waits for Research and never bootstraps over existing PAPER state", () => {
     const waiting = options({ snapshots: [] });
     assert.equal(new ClosedLearningInitialPaperBootstrap(waiting.base).runOnce().status, "WAITING_RESEARCH_SNAPSHOT");
@@ -120,6 +146,16 @@ describe("initial PAPER bootstrap", () => {
     const output = new ClosedLearningInitialPaperBootstrap(base).runOnce();
     assert.equal(output.status, "RESEARCH_NOT_DEPLOYABLE");
     assert.deepEqual(events, ["worker", "history"]);
+  });
+
+  it("reuses a successful non-deployable bootstrap result for the same Research fingerprint", async () => {
+    const { base, events } = options({ replay: replayResult(false) });
+    const bootstrap = new ClosedLearningInitialPaperBootstrap(base);
+    const first = await bootstrap.runOnceAsync();
+    const second = await bootstrap.runOnceAsync();
+    assert.equal(first.status, "RESEARCH_NOT_DEPLOYABLE");
+    assert.deepEqual(second, first);
+    assert.deepEqual(events, ["latest-async", "worker-async", "history", "latest-async"]);
   });
 
   it("fails closed when the newest Research snapshot is timestamp-ambiguous", () => {

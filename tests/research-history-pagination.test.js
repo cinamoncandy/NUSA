@@ -1,8 +1,12 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
+  RESEARCH_MARKET_SET_VERSION,
   RESEARCH_MARKETS,
   SMA_PARAMETER_NEIGHBORHOOD,
+  RSI_PARAMETER_NEIGHBORHOOD,
+  DONCHIAN_PARAMETER_NEIGHBORHOOD,
+  researchStrategyFamily,
   fetchResearchCandles,
   researchCandleCount,
   buildParameterRobustnessRequest
@@ -24,15 +28,16 @@ function pageFor(request) {
 }
 
 test("research horizon is bounded and never selected from performance", () => {
-  assert.equal(researchCandleCount(undefined), 1000);
+  assert.equal(researchCandleCount(undefined), 2000);
   for (const value of [200, 1000, 2000]) assert.equal(researchCandleCount(String(value)), value);
   for (const value of [0, 199, 2001, Infinity, "", "200.5", "1e3", " 200", null]) {
     assert.throws(() => researchCandleCount(value), /integer from 200 to 2000/);
   }
 });
 
-test("independent regime markets are predeclared and immutable", () => {
-  assert.deepEqual(RESEARCH_MARKETS, ["KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-SOL", "KRW-DOGE"]);
+test("independent 2000-day regime market set is versioned, predeclared, and immutable", () => {
+  assert.equal(RESEARCH_MARKET_SET_VERSION, "upbit-public-daily-2000-v2");
+  assert.deepEqual(RESEARCH_MARKETS, ["KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-ADA", "KRW-DOGE"]);
   assert.ok(Object.isFrozen(RESEARCH_MARKETS));
 });
 
@@ -50,6 +55,39 @@ test("SMA candidate neighborhood is predeclared, immutable, and includes fast ev
   ]);
   assert.ok(Object.isFrozen(SMA_PARAMETER_NEIGHBORHOOD));
   assert.ok(SMA_PARAMETER_NEIGHBORHOOD.every(Object.isFrozen));
+});
+
+
+test("RSI candidate neighborhood is precommitted, immutable, and selected only by explicit family config", () => {
+  assert.deepEqual(RSI_PARAMETER_NEIGHBORHOOD, [
+    { period: 7, oversold: 25, overbought: 75 },
+    { period: 7, oversold: 30, overbought: 70 },
+    { period: 7, oversold: 35, overbought: 65 },
+    { period: 14, oversold: 25, overbought: 75 },
+    { period: 14, oversold: 30, overbought: 70 },
+    { period: 14, oversold: 35, overbought: 65 },
+    { period: 21, oversold: 25, overbought: 75 },
+    { period: 21, oversold: 30, overbought: 70 },
+    { period: 21, oversold: 35, overbought: 65 }
+  ]);
+  assert.ok(Object.isFrozen(RSI_PARAMETER_NEIGHBORHOOD));
+  assert.ok(RSI_PARAMETER_NEIGHBORHOOD.every(Object.isFrozen));
+  assert.equal(researchStrategyFamily(undefined), "sma-crossover");
+  assert.equal(researchStrategyFamily("rsi-mean-reversion"), "rsi-mean-reversion");
+  assert.throws(() => researchStrategyFamily("unknown"), /unsupported NUSA_RESEARCH_STRATEGY_FAMILY/);
+});
+
+test("Donchian candidate neighborhood is the immutable precommitted five-period family", () => {
+  assert.deepEqual(DONCHIAN_PARAMETER_NEIGHBORHOOD, [
+    { channelPeriod: 10 },
+    { channelPeriod: 20 },
+    { channelPeriod: 30 },
+    { channelPeriod: 40 },
+    { channelPeriod: 55 }
+  ]);
+  assert.ok(Object.isFrozen(DONCHIAN_PARAMETER_NEIGHBORHOOD));
+  assert.ok(DONCHIAN_PARAMETER_NEIGHBORHOOD.every(Object.isFrozen));
+  assert.equal(researchStrategyFamily("donchian-breakout"), "donchian-breakout");
 });
 
 test("fast SMA cells are covered by a predeclared robustness reference without relaxing gates", () => {
@@ -85,14 +123,14 @@ test("fast SMA cells are covered by a predeclared robustness reference without r
   }
 });
 
-test("five pages restore 1000 completed days with stable request provenance and checksum", async () => {
+test("ten pages restore 2000 completed days with stable request provenance and checksum", async () => {
   const pauses = [];
   const options = { dataAsOf, fetchPage: pageFor, pause: async (ms) => pauses.push(ms) };
   const first = await fetchResearchCandles(options);
   const second = await fetchResearchCandles({ ...options, fetchPage: (request) => pageFor(request).reverse() });
   assert.deepEqual(first, second);
-  assert.equal(first.candles.length, 1000);
-  assert.equal(first.sourceRequests.length, 5);
+  assert.equal(first.candles.length, 2000);
+  assert.equal(first.sourceRequests.length, 10);
   assert.equal(first.candles.at(-1).closeTime, Math.floor(dataAsOf / DAY) * DAY);
   assert.ok(pauses.every((ms) => ms >= 100));
   const manifest = (result) => createHistoricalDatasetManifest(result.candles, {
@@ -106,8 +144,11 @@ test("market-specific pagination binds request, candles, and provenance to the r
   assert.equal(result.candles.length, 200);
   assert.ok(result.candles.every((candle) => candle.market === "KRW-ETH"));
   assert.ok(result.sourceRequests.every((request) => request.includes("market=KRW-ETH")));
+  const replacement = await fetchResearchCandles({ market: "KRW-ADA", dataAsOf, count: 200, fetchPage: pageFor, pause: async () => {} });
+  assert.ok(replacement.candles.every((candle) => candle.market === "KRW-ADA"));
+  assert.ok(replacement.sourceRequests.every((request) => request.includes("market=KRW-ADA")));
   await assert.rejects(
-    fetchResearchCandles({ market: "KRW-ADA", dataAsOf, count: 200, fetchPage: pageFor }),
+    fetchResearchCandles({ market: "KRW-SOL", dataAsOf, count: 200, fetchPage: pageFor }),
     /unsupported research market/
   );
 });

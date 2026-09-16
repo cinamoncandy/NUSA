@@ -55,6 +55,7 @@ function artifact(): QualifiedPaperChallengerArtifact {
     market: "KRW-BTC",
     advisory,
     candidateProvenance: Object.freeze([{ candidateId: "candidate-q", datasetId: "dataset-q", datasetContentSha256: DATASET_HASH }]),
+    candidateStrategy: Object.freeze({ candidateId: "candidate-q", familyId: "sma-crossover", lineageId: "sma-v1", specificationHash: VERSION, codeSha: "1".repeat(40), costModelVersion: "cost-v1", parameters: Object.freeze({ shortPeriod: 2, longPeriod: 3 }) }),
     researchDecisionReference,
     researchLineage: Object.freeze({
       schemaVersion: 1,

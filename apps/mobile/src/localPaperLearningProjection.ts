@@ -28,8 +28,8 @@ function boundedAppend(events: readonly PaperLearningUiEvent[]): void {
 /**
  * Records only validated public-market observations that already passed the canonical Upbit
  * quotation parser. This is a read-only LOCAL PAPER projection, not a second execution engine.
- * It deliberately emits HOLD/SKIP when no governed PAPER decision exists instead of inventing
- * candidates, fills, PnL, or confidence.
+ * It deliberately emits SKIP when no governed PAPER decision exists instead of inventing
+ * a decision, allocation, confidence, candidates, fills, or PnL.
  */
 export function recordLocalPaperPublicMarkets(markets: readonly WatchlistMarket[]): void {
   const market = markets.find((candidate) => candidate.market === LOCAL_PAPER_MARKET);
@@ -47,7 +47,6 @@ export function recordLocalPaperPublicMarkets(markets: readonly WatchlistMarket[
     Object.freeze({
       id: `${identity}:decision`, cycleId, stage: "DECISION", occurredAt: occurredAt + 1, market: market.market, status: "SKIP",
       reason: "LOCAL_PUBLIC_INPUT_READY_NO_GOVERNED_DECISION", strategyId: LOCAL_OBSERVER_STRATEGY,
-      decision: Object.freeze({ action: "HOLD", allocation: 0, confidence: 1 }),
     }),
     Object.freeze({
       id: `${identity}:learning`, cycleId, stage: "LEARNING", occurredAt: occurredAt + 2, market: market.market, status: "SKIP",

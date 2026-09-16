@@ -16,19 +16,19 @@ test("classic and master themes are frozen, semantic, and geometrically distinct
   assert.notEqual(masterLight.colors.background, masterDark.colors.background);
 
   assert.equal(classicDark.radii.md, 12);
-  assert.equal(masterDark.radii.md, 5);
+  assert.equal(masterDark.radii.md, 12);
   assert.equal(classicDark.layout.cardPadding, 20);
-  assert.equal(masterDark.layout.cardPadding, 16);
+  assert.equal(masterDark.layout.cardPadding, 18);
   assert.equal(classicDark.layout.heroRadius, 22);
-  assert.equal(masterDark.layout.heroRadius, 8);
+  assert.equal(masterDark.layout.heroRadius, 22);
   assert.equal(classicDark.typography.hero, 50);
-  assert.equal(masterDark.typography.hero, 58);
+  assert.equal(masterDark.typography.hero, 46);
   assert.notEqual(classicDark.colors.background, masterDark.colors.background);
 
-  assert.equal(masterDark.colors.surfaceSunken, "#020807");
-  assert.equal(masterDark.colors.primarySoft, "#17230D");
-  assert.equal(masterDark.colors.borderStrong, "#2D443A");
-  assert.equal(masterDark.colors.info, "#B4BAC4");
+  assert.equal(masterDark.colors.surfaceSunken, "#151A22");
+  assert.equal(masterDark.colors.primarySoft, "#29314F");
+  assert.equal(masterDark.colors.borderStrong, "#66728A");
+  assert.equal(masterDark.colors.info, "#A5B9E2");
   assert.equal(masterDark.colors.aiSignalStart, "#9B6CFF");
   assert.equal(masterDark.colors.aiSignalMid, "#5B8CFF");
   assert.equal(masterDark.colors.aiSignalEnd, "#36D8CB");

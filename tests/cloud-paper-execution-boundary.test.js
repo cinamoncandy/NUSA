@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const { PaperTradingExecutionLoop } = require("../dist/apps/cloud/src/paperTradingExecutionLoop.js");
 const { CloudPaperExecutionBoundary } = require("../dist/apps/cloud/src/cloudPaperExecutionBoundary.js");
 
-const decision = Object.freeze({
+const genericDecision = Object.freeze({
   symbol: "KRW-BTC",
   action: "BUY",
   confidence: 1,
@@ -13,6 +13,42 @@ const decision = Object.freeze({
   score: 1,
   reasons: Object.freeze(["fixture"]),
   decidedAt: 1_000
+});
+
+const candidateBinding = Object.freeze({
+  schemaVersion: 1,
+  status: "BOUND_UNVERIFIED",
+  authority: "PAPER_RESEARCH_ONLY",
+  liveAuthority: "NONE",
+  productionMutationAllowed: false,
+  candidateId: "sma-5-20",
+  datasetId: "fixture-dataset",
+  datasetContentSha256: "a".repeat(64),
+  advisoryGeneratedAt: 500,
+  periodStartAt: 900,
+  advisoryFingerprintSha256: "b".repeat(64),
+  bindingFingerprintSha256: "c".repeat(64),
+  candidateStrategy: Object.freeze({
+    candidateId: "sma-5-20",
+    familyId: "sma-crossover",
+    lineageId: "fixture-lineage",
+    specificationHash: "d".repeat(64),
+    codeSha: "e".repeat(40),
+    costModelVersion: "fixture-cost-v1",
+    parameters: Object.freeze({ shortPeriod: 5, longPeriod: 20 })
+  })
+});
+
+const decision = Object.freeze({
+  ...genericDecision,
+  paperCandidateBinding: candidateBinding,
+  paperCandidateStrategyDecision: Object.freeze({
+    action: "BUY",
+    score: 1,
+    confidence: 1,
+    reason: "SMA_CROSSOVER:5/20:fixture",
+    observedAt: 950
+  })
 });
 
 const tick = Object.freeze({
@@ -56,7 +92,7 @@ for (const status of ["HALT", "REJECT"]) {
   });
 }
 
-test("canonical ALLOW executes an approved PAPER-only CIO strategy tick", () => {
+test("canonical ALLOW executes an immutable Research/League-bound PAPER challenger tick", () => {
   const { loop, boundary, evaluations } = build("ALLOW");
   const result = boundary.processTick(tick);
   const after = loop.snapshot();
@@ -64,13 +100,38 @@ test("canonical ALLOW executes an approved PAPER-only CIO strategy tick", () => 
   assert.equal(result.status, "FILLED");
   assert.equal(after.orders.length, 1);
   assert.equal(after.fills.length, 1);
+  assert.equal(after.fills[0].candidateProvenance.binding.candidateId, "sma-5-20");
   assert.equal(after.positions.length, 1);
   assert.equal(after.positions[0].market, "KRW-BTC");
   assert.equal(after.positions[0].quantity, 0.02);
   assert.equal(after.cash, 9_000_000);
 });
 
-test("automatic strategy approval rejects non-spot or high-risk CIO mutations before risk evaluation", () => {
+test("generic CIO action remains advisory and cannot mutate PAPER without a challenger binding", () => {
+  const { loop, boundary, evaluations } = build("ALLOW");
+  const before = loop.snapshot();
+  const result = boundary.processTick(Object.freeze({ ...tick, decisions: Object.freeze([genericDecision]) }));
+  assert.equal(result.status, "BLOCKED");
+  assert.equal(result.reason, "PAPER_CANDIDATE_BINDING_REQUIRED");
+  assert.equal(evaluations(), 0);
+  assert.deepEqual(loop.snapshot(), before);
+});
+
+test("candidate-bound action fails closed when it does not match exact strategy semantics", () => {
+  const { loop, boundary, evaluations } = build("ALLOW");
+  const before = loop.snapshot();
+  const mismatched = Object.freeze({
+    ...decision,
+    paperCandidateStrategyDecision: Object.freeze({ ...decision.paperCandidateStrategyDecision, action: "SELL" })
+  });
+  const result = boundary.processTick(Object.freeze({ ...tick, decisions: Object.freeze([mismatched]) }));
+  assert.equal(result.status, "BLOCKED");
+  assert.equal(result.reason, "PAPER_CANDIDATE_STRATEGY_DECISION_INVALID");
+  assert.equal(evaluations(), 0);
+  assert.deepEqual(loop.snapshot(), before);
+});
+
+test("automatic strategy approval rejects non-spot or high-risk challenger mutations before risk evaluation", () => {
   const { loop, boundary, evaluations } = build("ALLOW");
   const unsafe = Object.freeze({ ...decision, leverage: 2, risk: "HIGH" });
   const before = loop.snapshot();

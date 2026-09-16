@@ -9,6 +9,7 @@ import type { PaperResearchLineage } from "./paperResearchLineage";
 
 type EvolutionRecord = Parameters<SqliteEvolutionLearningLedger["append"]>[0];
 const HASH = "a".repeat(64);
+const SPECIFICATION_HASH = "b".repeat(64);
 
 class MemoryLedger {
   public readonly records: EvolutionRecord[] = [];
@@ -34,7 +35,7 @@ const advisory: LeagueCapitalAllocationAdvisory = Object.freeze({
 const researchLineage: PaperResearchLineage = Object.freeze({
   schemaVersion: 1,
   candidateId: "challenger-a",
-  candidateVersion: "immutable-v9",
+  candidateVersion: SPECIFICATION_HASH,
   originalRunFingerprintSha256: "b".repeat(64),
   replayRunFingerprintSha256: "c".repeat(64),
   researchDecisionReference: "research-decision:1",
@@ -47,10 +48,11 @@ const researchLineage: PaperResearchLineage = Object.freeze({
 const artifact: QualifiedPaperChallengerArtifact = Object.freeze({
   schemaVersion: 1,
   candidateId: "challenger-a",
-  candidateVersion: "immutable-v9",
+  candidateVersion: SPECIFICATION_HASH,
   market: "KRW-BTC",
   advisory,
   candidateProvenance: Object.freeze([{ candidateId: "challenger-a", datasetId: "dataset-a", datasetContentSha256: HASH }]),
+  candidateStrategy: Object.freeze({ candidateId: "challenger-a", familyId: "sma-crossover", lineageId: "sma-v1", specificationHash: SPECIFICATION_HASH, codeSha: "c".repeat(40), costModelVersion: "cost-v1", parameters: Object.freeze({ shortPeriod: 2, longPeriod: 3 }) }),
   researchDecisionReference: "research-decision:1",
   researchLineage,
   liveAuthority: "NONE",
@@ -62,7 +64,7 @@ const decision = Object.freeze({
   decisionId: "decision-1",
   outcome: "QUALIFIED_FOR_LEAGUE" as const,
   candidateId: "challenger-a",
-  candidateVersion: "immutable-v9",
+  candidateVersion: SPECIFICATION_HASH,
   decisionReference: "research-decision:1",
   reasons: Object.freeze(["qualified"]),
 });
@@ -98,6 +100,7 @@ describe("PaperChallengerDeploymentRuntime", () => {
     const active = bindings.current("KRW-BTC", 2_000);
     assert.equal(active?.binding.candidateId, "challenger-a");
     assert.equal(active?.binding.datasetContentSha256, HASH);
+    assert.deepEqual(active?.binding.candidateStrategy?.parameters, { shortPeriod: 2, longPeriod: 3 });
     assert.deepEqual(active?.researchLineage, researchLineage);
     assert.deepEqual(new PaperChallengerBindingLedger(ledger).lineage("KRW-BTC", 2_000), researchLineage);
   });
@@ -120,6 +123,16 @@ describe("PaperChallengerDeploymentRuntime", () => {
       readCanonicalPaperAccount: () => account(),
     });
     assert.throws(() => runtime.deploy({ cycleId: `closed-learning:${"b".repeat(64)}`, decision, authority: "PAPER_RESEARCH_ONLY", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }), /decision provenance conflict/);
+  });
+
+  it("fails closed when a qualified artifact has no executable strategy semantics", () => {
+    const runtime = new PaperChallengerDeploymentRuntime({
+      artifacts: { read: () => Object.freeze({ ...artifact, candidateStrategy: undefined }) },
+      bindings: new PaperChallengerBindingLedger(new MemoryLedger()),
+      periods: { listRealizedPeriods: () => [], openPeriodFromCanonicalAccount: () => { throw new Error("must not open"); } },
+      readCanonicalPaperAccount: () => account(),
+    });
+    assert.throws(() => runtime.deploy({ cycleId: `closed-learning:${"b".repeat(64)}`, decision, authority: "PAPER_RESEARCH_ONLY", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }), /strategy semantics are unavailable/);
   });
 
   it("fails closed on a legacy artifact that cannot identify the original Research snapshot", () => {

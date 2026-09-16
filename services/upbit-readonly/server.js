@@ -16,6 +16,7 @@ const ORDERS_OPEN_PATH = "/api/v1/orders/open";
 const ORDERS_HISTORY_PATH = "/api/v1/orders/history";
 const ORDER_DETAIL_PREFIX = "/api/v1/orders/";
 const UPSTREAM_TIMEOUT_MS = 10_000;
+const MOBILE_INTROSPECTION_ENV = "NUSA_MOBILE_INTROSPECTION_ORIGIN";
 
 function encodeJson(value) {
   return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
@@ -45,6 +46,32 @@ function safeTokenMatch(authorization, expectedToken) {
   const supplied = Buffer.from(authorization.slice("Bearer ".length), "utf8");
   const expected = Buffer.from(expectedToken, "utf8");
   return supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected);
+}
+
+function mobileIntrospectionUrl(env) {
+  const raw = typeof env[MOBILE_INTROSPECTION_ENV] === "string" ? env[MOBILE_INTROSPECTION_ENV].trim() : "";
+  if (!raw) return null;
+  const url = new URL(raw);
+  if (url.protocol !== "http:" || !["127.0.0.1", "::1", "[::1]", "localhost"].includes(url.hostname) || url.username || url.password || url.search || url.hash || (url.pathname !== "/" && url.pathname !== "")) {
+    throw new Error("mobile introspection origin must be an HTTP loopback origin");
+  }
+  return new URL("/v1/mobile/me", url).href;
+}
+
+async function authorizeReadOnlyRequest(authorization, { env, fetchImpl }) {
+  let bridgeToken = "";
+  try { bridgeToken = requiredEnv(env, "NUSA_API_TOKEN"); } catch { /* mobile auth may still be configured */ }
+  if (bridgeToken && safeTokenMatch(authorization, bridgeToken)) return true;
+  if (typeof authorization !== "string" || !/^Bearer [^\s]+$/.test(authorization)) return false;
+  let url;
+  try { url = mobileIntrospectionUrl(env); } catch { return false; }
+  if (!url) return false;
+  try {
+    const response = await fetchImpl(url, { method: "GET", headers: { authorization, accept: "application/json" }, redirect: "error", signal: AbortSignal.timeout(3_000) });
+    if (!response.ok || response.redirected) return false;
+    const identity = await response.json();
+    return identity && typeof identity === "object" && Array.isArray(identity.scopes) && identity.scopes.includes("dashboard:read");
+  } catch { return false; }
 }
 
 function sendJson(response, statusCode, value) {
@@ -253,15 +280,12 @@ function createRequestHandler({ env = process.env, fetchImpl = globalThis.fetch,
         return;
       }
 
-      let bridgeToken;
-      try {
-        bridgeToken = requiredEnv(env, "NUSA_API_TOKEN");
-      } catch {
+      const authConfigured = Boolean((env.NUSA_API_TOKEN || "").trim() || (env[MOBILE_INTROSPECTION_ENV] || "").trim());
+      if (!authConfigured) {
         sendJson(response, 503, { ok: false, error: "SERVICE_NOT_CONFIGURED" });
         return;
       }
-
-      if (!safeTokenMatch(request.headers.authorization, bridgeToken)) {
+      if (!await authorizeReadOnlyRequest(request.headers.authorization, { env, fetchImpl })) {
         sendJson(response, 401, { ok: false, error: "UNAUTHORIZED" });
         return;
       }
@@ -290,14 +314,12 @@ function createRequestHandler({ env = process.env, fetchImpl = globalThis.fetch,
         sendJson(response, 405, { ok: false, error: "METHOD_NOT_ALLOWED" });
         return;
       }
-      let bridgeToken;
-      try {
-        bridgeToken = requiredEnv(env, "NUSA_API_TOKEN");
-      } catch {
+      const authConfigured = Boolean((env.NUSA_API_TOKEN || "").trim() || (env[MOBILE_INTROSPECTION_ENV] || "").trim());
+      if (!authConfigured) {
         sendJson(response, 503, { ok: false, error: "SERVICE_NOT_CONFIGURED" });
         return;
       }
-      if (!safeTokenMatch(request.headers.authorization, bridgeToken)) {
+      if (!await authorizeReadOnlyRequest(request.headers.authorization, { env, fetchImpl })) {
         sendJson(response, 401, { ok: false, error: "UNAUTHORIZED" });
         return;
       }
@@ -359,6 +381,8 @@ module.exports = {
   normalizeUpbitAccount,
   normalizeUpbitAccountSummary,
   normalizeUpbitOrder,
+  authorizeReadOnlyRequest,
+  mobileIntrospectionUrl,
   safeTokenMatch,
   startServer,
 };

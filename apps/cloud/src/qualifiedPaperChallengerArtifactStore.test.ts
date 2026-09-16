@@ -9,6 +9,7 @@ import type { PaperResearchLineage } from "./paperResearchLineage";
 import { FileQualifiedPaperChallengerArtifactStore } from "./qualifiedPaperChallengerArtifactStore";
 
 const HASH = "a".repeat(64);
+const SPECIFICATION_HASH = "b".repeat(64);
 const advisory: LeagueCapitalAllocationAdvisory = Object.freeze({
   schemaVersion: 1,
   generatedAt: new Date(1_000).toISOString(),
@@ -19,7 +20,7 @@ const advisory: LeagueCapitalAllocationAdvisory = Object.freeze({
   provenance: Object.freeze({ sourceDatasetIds: Object.freeze(["dataset-a"]) }),
 });
 const researchLineage: PaperResearchLineage = Object.freeze({ schemaVersion: 1, candidateId: "challenger-a", candidateVersion: "immutable-v9", originalRunFingerprintSha256: "b".repeat(64), replayRunFingerprintSha256: "c".repeat(64), researchDecisionReference: "research-decision:1", authority: "PAPER_RESEARCH_ONLY", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
-const artifact: QualifiedPaperChallengerArtifact = Object.freeze({ schemaVersion: 1, candidateId: "challenger-a", candidateVersion: "immutable-v9", market: "KRW-BTC", advisory, candidateProvenance: Object.freeze([{ candidateId: "challenger-a", datasetId: "dataset-a", datasetContentSha256: HASH }]), researchDecisionReference: "research-decision:1", researchLineage, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+const artifact: QualifiedPaperChallengerArtifact = Object.freeze({ schemaVersion: 1, candidateId: "challenger-a", candidateVersion: "immutable-v9", market: "KRW-BTC", advisory, candidateProvenance: Object.freeze([{ candidateId: "challenger-a", datasetId: "dataset-a", datasetContentSha256: HASH }]), candidateStrategy: Object.freeze({ candidateId: "challenger-a", familyId: "sma-crossover", lineageId: "sma-v1", specificationHash: SPECIFICATION_HASH, codeSha: "c".repeat(40), costModelVersion: "cost-v1", parameters: Object.freeze({ shortPeriod: 2, longPeriod: 3 }) }), researchDecisionReference: "research-decision:1", researchLineage, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
 
 function temporaryStore(): { store: FileQualifiedPaperChallengerArtifactStore; filename: string; cleanup: () => void } {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-paper-artifact-"));

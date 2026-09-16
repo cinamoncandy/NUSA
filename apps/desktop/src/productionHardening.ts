@@ -69,13 +69,69 @@ export function clampLogLevel(requested: LogLevel, policy: ProductionPolicy): Lo
  * so the values can be asserted without constructing an Electron window.
  */
 export function browserWindowSecurityOptions(policy: ProductionPolicy): Readonly<{
-  devTools: boolean; contextIsolation: true; nodeIntegration: false; sandbox: true; webSecurity: true;
+  devTools: boolean; contextIsolation: true; nodeIntegration: false; sandbox: true; webSecurity: true; webviewTag: false;
 }> {
   return Object.freeze({
     devTools: policy.devToolsEnabled,
     contextIsolation: true,
     nodeIntegration: false,
     sandbox: true,
-    webSecurity: true
+    webSecurity: true,
+    // A <webview> would get its own webContents outside the navigation policy below.
+    webviewTag: false
+  });
+}
+
+/**
+ * Whether the renderer may navigate itself to `target`.
+ *
+ * The preload bridge is re-injected on every navigation in a webContents, so a renderer that
+ * reaches remote content hands that content `window.nusa`, `window.nusaApp` and the rest of
+ * the bridge. The renderer's meta CSP does not survive such a navigation either, because the
+ * new document carries the remote server's headers instead. The window is therefore pinned to
+ * the local file it was loaded with: the app never navigates anywhere else on its own, so any
+ * attempt to is either a defect or an attack.
+ */
+export function isAllowedRendererNavigation(currentUrl: string, target: string): boolean {
+  let parsed: URL;
+  try { parsed = new URL(target); } catch { return false; }
+  if (parsed.protocol !== "file:") return false;
+  let current: URL;
+  try { current = new URL(currentUrl); } catch { return false; }
+  if (current.protocol !== "file:") return false;
+  // Compare the document path only. A reload or in-page fragment stays; a different file,
+  // and anything carrying a query, does not.
+  return parsed.pathname === current.pathname && parsed.search === "";
+}
+
+/** The minimal webContents surface the navigation policy needs, so it is testable without Electron. */
+export interface NavigablewebContents {
+  getURL(): string;
+  on(event: "will-navigate", listener: (event: { preventDefault(): void }, url: string) => void): unknown;
+  on(event: "will-attach-webview", listener: (event: { preventDefault(): void }) => void): unknown;
+  setWindowOpenHandler(handler: (details: { url: string }) => { action: "deny" }): unknown;
+}
+
+/**
+ * Pins a webContents to the document it already has: no top-level navigation away from it, no
+ * new windows, no webview attachment. Applied to every webContents the app creates rather than
+ * to one window, so a surface added later is covered by default instead of by remembering to.
+ */
+export function applyRendererNavigationPolicy(
+  contents: NavigablewebContents,
+  onBlocked: (reason: string, url: string) => void = () => {}
+): void {
+  contents.on("will-navigate", (event, url) => {
+    if (isAllowedRendererNavigation(contents.getURL(), url)) return;
+    event.preventDefault();
+    onBlocked("WILL_NAVIGATE", url);
+  });
+  contents.on("will-attach-webview", (event) => {
+    event.preventDefault();
+    onBlocked("WILL_ATTACH_WEBVIEW", "");
+  });
+  contents.setWindowOpenHandler((details) => {
+    onBlocked("WINDOW_OPEN", details.url);
+    return { action: "deny" };
   });
 }

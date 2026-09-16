@@ -17,7 +17,7 @@ const market = (timestamp = 1_700_000_000_000) => Object.freeze({
   source: "UPBIT_PUBLIC_TICKER",
 });
 
-test("LOCAL PAPER trusted public market input leaves PAUSED/NO DATA without inventing fills", () => {
+test("LOCAL PAPER trusted public market input stays observation-only without inventing a governed decision", () => {
   resetLocalPaperLearningEventsForTest();
   const observedAt = 1_700_000_000_000;
   recordLocalPaperPublicMarkets([market(observedAt)]);
@@ -27,6 +27,12 @@ test("LOCAL PAPER trusted public market input leaves PAUSED/NO DATA without inve
   assert.deepEqual(new Set(events.map((event) => event.stage)), new Set(["MARKET_DATA", "DECISION", "LEARNING"]));
   assert.ok(events.every((event) => event.market === "KRW-BTC"));
   assert.ok(events.every((event) => event.strategyId === "LOCAL_PUBLIC_OBSERVER_V1"));
+  const decisionEvent = events.find((event) => event.stage === "DECISION");
+  assert.ok(decisionEvent);
+  assert.equal(decisionEvent.status, "SKIP");
+  assert.equal(decisionEvent.reason, "LOCAL_PUBLIC_INPUT_READY_NO_GOVERNED_DECISION");
+  assert.equal(decisionEvent.decision, undefined);
+  assert.equal(JSON.stringify(events).includes("confidence"), false);
 
   const readiness = getLocalPaperLearningReadiness(observedAt + 3);
   assert.deepEqual(readiness, { dataReady: true, status: "RUNNING", reason: "LOCAL_PUBLIC_MARKET_DATA_READY", lastObservedAt: observedAt });
@@ -36,8 +42,7 @@ test("LOCAL PAPER trusted public market input leaves PAUSED/NO DATA without inve
   assert.equal(screen.recentCycles.length, 1);
   assert.equal(screen.performance.completedCycles, 0);
   assert.ok(screen.timeline.some((event) => event.stage === "LEARNING"));
-  assert.equal(screen.latestDecision.action, "HOLD");
-  assert.equal(screen.latestDecision.allocation, 0);
+  assert.equal(screen.latestDecision, null);
   assert.equal(screen.latestFill, null);
   assert.equal(screen.latestAccount, null);
 });

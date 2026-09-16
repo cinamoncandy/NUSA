@@ -1,6 +1,9 @@
 import type { SecureStoragePort } from "./mobileSecurity";
 
+// Legacy keys are retained only so upgraded clients can destroy credentials that
+// older builds may have persisted. New builds never write either key.
 const SESSION_STORAGE_KEY = "nusa.mobile.approved-session.v1";
+const PAIRING_STORAGE_KEY = "nusa.mobile.pending-pairing.v1";
 const ACCESS_REFRESH_SKEW_MS = 30_000;
 const MAX_TOKEN_LENGTH = 4096;
 
@@ -17,12 +20,6 @@ interface MobileSessionTokens {
   readonly refreshToken: string;
   readonly refreshExpiresAt: number;
   readonly scopes: readonly string[];
-}
-
-interface PersistedSession {
-  readonly endpoint: string;
-  readonly refreshToken: string;
-  readonly refreshExpiresAt: number;
   readonly deviceId?: string;
 }
 
@@ -30,7 +27,34 @@ interface MobileBootstrapIssue {
   readonly token: string;
 }
 
+export interface MobilePairingRequest {
+  readonly requestId: string;
+  readonly verificationCode: string;
+  readonly expiresAt: number;
+  readonly state: "PENDING";
+}
+
+export interface MobilePairingStatus {
+  readonly state: "PENDING" | "APPROVED" | "CONSUMED" | "EXPIRED";
+  readonly expiresAt: number;
+}
+
+interface PendingPairingMemory {
+  readonly endpoint: string;
+  readonly deviceId: string;
+  readonly request: MobilePairingRequest;
+}
+
 export type MobileApprovedCredentialProvider = () => Promise<string | null>;
+
+export class MobileSessionRequestError extends Error {
+  public readonly refusal: string | undefined;
+  public constructor(readonly status: number, refusal?: string) {
+    super(`mobile session request rejected (${status}).`);
+    this.name = "MobileSessionRequestError";
+    this.refusal = refusal;
+  }
+}
 
 function secureEndpoint(value: string): string {
   const raw = value.trim().replace(/\/+$/, "");
@@ -62,6 +86,12 @@ function readScopes(value: unknown): readonly string[] {
   return Object.freeze(scopes);
 }
 
+function readDeviceId(value: unknown): string | undefined {
+  if (value == null) return undefined;
+  if (typeof value !== "string" || value.trim().length < 8 || value.trim().length > 256 || /[\r\n]/.test(value)) throw new Error("device enrollment identifier is invalid.");
+  return value.trim();
+}
+
 function parseTokens(value: unknown): MobileSessionTokens {
   if (value == null || typeof value !== "object" || Array.isArray(value)) throw new Error("mobile session response is invalid.");
   const record = value as Record<string, unknown>;
@@ -70,20 +100,14 @@ function parseTokens(value: unknown): MobileSessionTokens {
     accessExpiresAt: readTime(record.accessExpiresAt, "access expiry"),
     refreshToken: readToken(record.refreshToken, "refresh token"),
     refreshExpiresAt: readTime(record.refreshExpiresAt, "refresh expiry"),
-    scopes: readScopes(record.scopes)
+    scopes: readScopes(record.scopes),
+    ...(record.deviceId == null ? {} : { deviceId: readDeviceId(record.deviceId) })
   });
-}
-
-function readDeviceId(value: unknown): string | undefined {
-  if (value == null) return undefined;
-  if (typeof value !== "string" || value.trim().length < 8 || value.trim().length > 256 || /[\r\n]/.test(value)) throw new Error("device enrollment identifier is invalid.");
-  return value.trim();
 }
 
 function parseBootstrapIssue(value: unknown): MobileBootstrapIssue {
   if (value == null || typeof value !== "object" || Array.isArray(value)) throw new Error("mobile enrollment response is invalid.");
-  const token = readToken((value as Record<string, unknown>).token, "bootstrap token");
-  return Object.freeze({ token });
+  return Object.freeze({ token: readToken((value as Record<string, unknown>).token, "bootstrap token") });
 }
 
 function parseIdentity(value: unknown): MobileApprovedSessionIdentity {
@@ -94,53 +118,46 @@ function parseIdentity(value: unknown): MobileApprovedSessionIdentity {
   return Object.freeze({ userId: record.userId.trim(), email: record.email.trim(), ...(displayName ? { displayName } : {}), scopes: readScopes(record.scopes) });
 }
 
-function encodeAscii(value: string): Uint8Array {
-  const bytes = new Uint8Array(value.length);
-  for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
-    if (code > 0x7f) throw new Error("secure session state is not ASCII-safe");
-    bytes[index] = code;
-  }
-  return bytes;
-}
-
-function decodeAscii(value: Uint8Array): string {
-  let result = "";
-  for (const byte of value) {
-    if (byte > 0x7f) throw new Error("secure session state is invalid");
-    result += String.fromCharCode(byte);
-  }
-  return result;
-}
-
-function parsePersisted(value: Uint8Array): PersistedSession {
-  const decoded: unknown = JSON.parse(decodeAscii(value));
-  if (decoded == null || typeof decoded !== "object" || Array.isArray(decoded)) throw new Error("secure session state is invalid");
-  const record = decoded as Record<string, unknown>;
-  const deviceId = readDeviceId(record.deviceId);
-  return Object.freeze({ endpoint: secureEndpoint(String(record.endpoint ?? "")), refreshToken: readToken(record.refreshToken, "refresh token"), refreshExpiresAt: readTime(record.refreshExpiresAt, "refresh expiry"), ...(deviceId ? { deviceId } : {}) });
+async function readRefusal(response: Response): Promise<string | undefined> {
+  try {
+    const body: unknown = await response.clone().json();
+    const code = body != null && typeof body === "object" && !Array.isArray(body)
+      ? (body as Record<string, unknown>).error
+      : undefined;
+    return typeof code === "string" && /^[A-Z_]{1,64}$/.test(code) ? code : undefined;
+  } catch { return undefined; }
 }
 
 async function requestJson(request: typeof fetch, endpoint: string, init: RequestInit): Promise<unknown> {
   const response = await request(endpoint, { ...init, redirect: "error", headers: { accept: "application/json", "content-type": "application/json", ...(init.headers ?? {}) } });
   if (response.redirected === true || (response.url && new URL(response.url).href !== new URL(endpoint).href)) throw new Error("mobile session redirect is prohibited.");
-  if (!response.ok) throw new Error(`mobile session request rejected (${response.status}).`);
+  if (!response.ok) throw new MobileSessionRequestError(response.status, await readRefusal(response));
   return response.json();
+}
+
+function isDefinitiveSessionRejection(error: unknown): boolean {
+  return error instanceof MobileSessionRequestError && (error.status === 401 || error.status === 403);
 }
 
 export class MobileApprovedSession {
   private accessToken: string | null = null;
   private accessExpiresAt = 0;
+  private refreshToken: string | null = null;
+  private refreshExpiresAt = 0;
   private endpoint: string | null = null;
   private deviceId: string | null = null;
   private identity: MobileApprovedSessionIdentity | null = null;
+  private pendingPairing: PendingPairingMemory | null = null;
   private refreshInFlight: Promise<string | null> | null = null;
+  private restoreRetryable = false;
 
   public constructor(private readonly storage: SecureStoragePort | null, private readonly request: typeof fetch = fetch) {}
 
   public readonly credentialProvider: MobileApprovedCredentialProvider = async () => this.getAccessToken();
   public currentIdentity(): MobileApprovedSessionIdentity | null { return this.identity; }
   public hasMemoryAccess(): boolean { return this.accessToken !== null; }
+  /** Retry is process-local only; credentials are never persisted for restart recovery. */
+  public shouldRetryRestore(): boolean { return this.restoreRetryable; }
 
   public async connectBootstrap(baseUrl: string, bootstrapToken: string): Promise<MobileApprovedSessionIdentity> {
     return this.connectBootstrapForDevice(baseUrl, bootstrapToken);
@@ -148,33 +165,28 @@ export class MobileApprovedSession {
 
   private async connectBootstrapForDevice(baseUrl: string, bootstrapToken: string, deviceId?: string): Promise<MobileApprovedSessionIdentity> {
     const endpoint = secureEndpoint(baseUrl);
-    if (this.storage == null) throw new Error("OS secure storage is unavailable on this mobile runtime.");
     const token = readToken(bootstrapToken, "bootstrap token");
     const normalizedDevice = deviceId == null ? undefined : readDeviceId(deviceId);
     const tokens = parseTokens(await requestJson(this.request, `${endpoint}/v1/mobile/bootstrap`, { method: "POST", body: JSON.stringify({ bootstrapToken: token, ...(normalizedDevice ? { deviceId: normalizedDevice } : {}) }) }));
     this.deviceId = normalizedDevice ?? null;
-    await this.persist(endpoint, tokens);
-    this.acceptAccess(endpoint, tokens);
+    this.acceptTokens(endpoint, tokens);
     try {
       const identity = await this.loadIdentity(endpoint, tokens.accessToken);
       this.identity = identity;
       return identity;
     } catch (error) {
-      await this.clearLocal();
+      if (isDefinitiveSessionRejection(error)) this.clearMemory();
+      else this.restoreRetryable = true;
       throw error;
     }
   }
 
-  /**
-   * Performs first-run enrollment with a user-provided credential. The
-   * credential is sent once, never persisted, and is exchanged immediately
-   * for the normal rotating mobile session.
-   */
   public async enroll(baseUrl: string, userCredential: string, deviceId: string): Promise<MobileApprovedSessionIdentity> {
     const endpoint = secureEndpoint(baseUrl);
     const credential = readToken(userCredential, "user credential");
-    const device = deviceId.trim();
-    if (device.length < 8 || device.length > 256 || /[\r\n]/.test(device)) throw new Error("device enrollment identifier is invalid.");
+    const device = readDeviceId(deviceId);
+    if (device == null) throw new Error("device enrollment identifier is invalid.");
+    await this.destroyLegacyPersistedCredentials();
     const issue = parseBootstrapIssue(await requestJson(this.request, `${endpoint}/v1/mobile/enroll`, {
       method: "POST",
       headers: { authorization: `Bearer ${credential}` },
@@ -183,34 +195,90 @@ export class MobileApprovedSession {
     return this.connectBootstrapForDevice(endpoint, issue.token, device);
   }
 
-  public async restore(baseUrl: string): Promise<MobileApprovedSessionIdentity | null> {
+  public async startPairing(baseUrl: string, deviceId: string): Promise<MobilePairingRequest> {
     const endpoint = secureEndpoint(baseUrl);
-    if (this.storage == null) return null;
-    let stored: Uint8Array | null;
-    try { stored = await this.storage.getSecret(SESSION_STORAGE_KEY); }
-    catch { await this.clearLocal(); return null; }
-    if (stored == null) return null;
-    let persisted: PersistedSession;
-    try { persisted = parsePersisted(stored); }
-    catch { await this.clearLocal(); return null; }
-    if (persisted.endpoint !== endpoint || persisted.refreshExpiresAt <= Date.now()) { await this.clearLocal(); return null; }
-    try {
-      this.deviceId = persisted.deviceId ?? null;
-      const tokens = await this.refreshWith(endpoint, persisted.refreshToken, this.deviceId ?? undefined);
-      const identity = await this.loadIdentity(endpoint, tokens.accessToken);
-      this.identity = identity;
-      return identity;
-    } catch {
-      await this.clearLocal();
+    const device = readDeviceId(deviceId);
+    if (device == null) throw new Error("device enrollment identifier is invalid.");
+    const value = await requestJson(this.request, `${endpoint}/v1/mobile/pairing/start`, { method: "POST", body: JSON.stringify({ deviceId: device }) });
+    if (value == null || typeof value !== "object" || Array.isArray(value)) throw new Error("pairing response is invalid.");
+    const row = value as Record<string, unknown>;
+    const requestId = readToken(row.requestId, "pairing request id");
+    const verificationCode = typeof row.verificationCode === "string" && /^\d{6}$/.test(row.verificationCode) ? row.verificationCode : "";
+    if (!verificationCode || row.state !== "PENDING") throw new Error("pairing response is invalid.");
+    const pairing = Object.freeze({ requestId, verificationCode, expiresAt: readTime(row.expiresAt, "pairing expiry"), state: "PENDING" as const });
+    this.pendingPairing = Object.freeze({ endpoint, deviceId: device, request: pairing });
+    return pairing;
+  }
+
+  /** Pairing capabilities are process-memory-only; a process restart requires a fresh pairing. */
+  public async restorePendingPairing(baseUrl: string, deviceId: string): Promise<MobilePairingRequest | null> {
+    await this.destroyLegacyPersistedCredentials();
+    const endpoint = secureEndpoint(baseUrl);
+    const device = readDeviceId(deviceId);
+    const pending = this.pendingPairing;
+    if (device == null || pending == null) return null;
+    if (pending.endpoint !== endpoint || pending.deviceId !== device || pending.request.expiresAt <= Date.now()) {
+      this.pendingPairing = null;
       return null;
+    }
+    return pending.request;
+  }
+
+  public async clearPendingPairing(): Promise<void> {
+    this.pendingPairing = null;
+    if (this.storage != null) {
+      try { await this.storage.deleteSecret(PAIRING_STORAGE_KEY); } catch { /* legacy storage is never trusted for use */ }
     }
   }
 
+  public async pairingStatus(baseUrl: string, requestId: string, deviceId: string): Promise<MobilePairingStatus> {
+    const endpoint = secureEndpoint(baseUrl);
+    const value = await requestJson(this.request, `${endpoint}/v1/mobile/pairing/status`, { method: "POST", body: JSON.stringify({ requestId: readToken(requestId, "pairing request id"), deviceId: readDeviceId(deviceId) }) });
+    if (value == null || typeof value !== "object" || Array.isArray(value)) throw new Error("pairing status is invalid.");
+    const row = value as Record<string, unknown>;
+    if (!["PENDING", "APPROVED", "CONSUMED", "EXPIRED"].includes(String(row.state))) throw new Error("pairing status is invalid.");
+    return Object.freeze({ state: row.state as MobilePairingStatus["state"], expiresAt: readTime(row.expiresAt, "pairing expiry") });
+  }
+
+  public async exchangePairing(baseUrl: string, requestId: string, deviceId: string): Promise<MobileApprovedSessionIdentity> {
+    const endpoint = secureEndpoint(baseUrl);
+    const normalizedRequestId = readToken(requestId, "pairing request id");
+    const device = readDeviceId(deviceId);
+    try {
+      const tokens = parseTokens(await requestJson(this.request, `${endpoint}/v1/mobile/pairing/exchange`, { method: "POST", body: JSON.stringify({ requestId: normalizedRequestId, deviceId: device }) }));
+      this.deviceId = tokens.deviceId ?? device ?? null;
+      this.acceptTokens(endpoint, tokens);
+      try {
+        const identity = await this.loadIdentity(endpoint, tokens.accessToken);
+        this.identity = identity;
+        return identity;
+      } catch (error) {
+        if (isDefinitiveSessionRejection(error)) this.clearMemory();
+        else this.restoreRetryable = true;
+        throw error;
+      }
+    } finally {
+      await this.clearPendingPairing();
+    }
+  }
+
+  /**
+   * Restart recovery intentionally returns no session. Any legacy persisted
+   * credential is destroyed, and the user may initiate a fresh zero-authority pairing.
+   */
+  public async restore(baseUrl: string): Promise<MobileApprovedSessionIdentity | null> {
+    secureEndpoint(baseUrl);
+    this.clearMemory();
+    await this.destroyLegacyPersistedCredentials();
+    return null;
+  }
+
   public async disconnect(baseUrl?: string): Promise<void> {
-    const endpoint = baseUrl == null ? this.endpoint : secureEndpoint(baseUrl);
+    const candidateEndpoint = baseUrl == null ? this.endpoint : baseUrl;
     const access = this.accessToken;
     await this.clearLocal();
     try {
+      const endpoint = candidateEndpoint == null ? null : secureEndpoint(candidateEndpoint);
       if (endpoint != null && access != null) {
         await requestJson(this.request, `${endpoint}/v1/mobile/session/revoke`, { method: "POST", headers: { authorization: `Bearer ${access}` }, body: "{}" });
       }
@@ -220,37 +288,42 @@ export class MobileApprovedSession {
   public clearMemory(): void {
     this.accessToken = null;
     this.accessExpiresAt = 0;
+    this.refreshToken = null;
+    this.refreshExpiresAt = 0;
     this.endpoint = null;
     this.deviceId = null;
     this.identity = null;
+    this.pendingPairing = null;
+    this.restoreRetryable = false;
   }
 
   private async getAccessToken(): Promise<string | null> {
     if (this.accessToken != null && Date.now() + ACCESS_REFRESH_SKEW_MS < this.accessExpiresAt) return this.accessToken;
     if (this.refreshInFlight != null) return this.refreshInFlight;
-    const operation = this.refreshFromStorage();
+    const operation = this.refreshFromMemory();
     this.refreshInFlight = operation;
     try { return await operation; }
     finally { if (this.refreshInFlight === operation) this.refreshInFlight = null; }
   }
 
-  private async refreshFromStorage(): Promise<string | null> {
-    if (this.storage == null || this.endpoint == null) return null;
-    let persisted: PersistedSession;
-    try {
-      const stored = await this.storage.getSecret(SESSION_STORAGE_KEY);
-      if (stored == null) return null;
-      persisted = parsePersisted(stored);
-    } catch { await this.clearLocal(); return null; }
-    if (persisted.endpoint !== this.endpoint || persisted.refreshExpiresAt <= Date.now()) { await this.clearLocal(); return null; }
-    try { return (await this.refreshWith(this.endpoint, persisted.refreshToken, persisted.deviceId)).accessToken; }
-    catch { await this.clearLocal(); return null; }
+  private async refreshFromMemory(): Promise<string | null> {
+    const endpoint = this.endpoint;
+    const refreshToken = this.refreshToken;
+    if (endpoint == null || refreshToken == null || Date.now() + ACCESS_REFRESH_SKEW_MS >= this.refreshExpiresAt) {
+      this.clearMemory();
+      return null;
+    }
+    try { return (await this.refreshWith(endpoint, refreshToken, this.deviceId ?? undefined)).accessToken; }
+    catch (error) {
+      if (isDefinitiveSessionRejection(error)) this.clearMemory();
+      else this.restoreRetryable = true;
+      return null;
+    }
   }
 
   private async refreshWith(endpoint: string, refreshToken: string, deviceId?: string): Promise<MobileSessionTokens> {
     const tokens = parseTokens(await requestJson(this.request, `${endpoint}/v1/mobile/session/refresh`, { method: "POST", body: JSON.stringify({ refreshToken, ...(deviceId ? { deviceId } : {}) }) }));
-    await this.persist(endpoint, tokens);
-    this.acceptAccess(endpoint, tokens);
+    this.acceptTokens(endpoint, tokens);
     return tokens;
   }
 
@@ -258,24 +331,26 @@ export class MobileApprovedSession {
     return parseIdentity(await requestJson(this.request, `${endpoint}/v1/mobile/me`, { method: "GET", headers: { authorization: `Bearer ${accessToken}` } }));
   }
 
-  private acceptAccess(endpoint: string, tokens: MobileSessionTokens): void {
+  private acceptTokens(endpoint: string, tokens: MobileSessionTokens): void {
     this.endpoint = endpoint;
     this.accessToken = tokens.accessToken;
     this.accessExpiresAt = tokens.accessExpiresAt;
+    this.refreshToken = tokens.refreshToken;
+    this.refreshExpiresAt = tokens.refreshExpiresAt;
+    this.deviceId = tokens.deviceId ?? this.deviceId;
+    this.restoreRetryable = false;
   }
 
-  private async persist(endpoint: string, tokens: MobileSessionTokens): Promise<void> {
-    if (this.storage == null) throw new Error("OS secure storage is unavailable on this mobile runtime.");
-    const value: PersistedSession = Object.freeze({ endpoint, refreshToken: tokens.refreshToken, refreshExpiresAt: tokens.refreshExpiresAt, ...(this.deviceId ? { deviceId: this.deviceId } : {}) });
-    await this.storage.setSecret(SESSION_STORAGE_KEY, encodeAscii(JSON.stringify(value)));
+  private async destroyLegacyPersistedCredentials(): Promise<void> {
+    if (this.storage == null) return;
+    try { await this.storage.deleteSecret(SESSION_STORAGE_KEY); } catch { /* legacy state remains unusable because it is never read */ }
+    try { await this.storage.deleteSecret(PAIRING_STORAGE_KEY); } catch { /* legacy state remains unusable because it is never read */ }
   }
 
   private async clearLocal(): Promise<void> {
     this.clearMemory();
-    if (this.storage != null) {
-      try { await this.storage.deleteSecret(SESSION_STORAGE_KEY); } catch { /* memory is already cleared; storage adapter remains fail-closed */ }
-    }
+    await this.destroyLegacyPersistedCredentials();
   }
 }
 
-export { SESSION_STORAGE_KEY };
+export { PAIRING_STORAGE_KEY, SESSION_STORAGE_KEY };

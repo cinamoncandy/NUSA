@@ -57,6 +57,7 @@ function deployablePayload() {
         market: "KRW-BTC",
         advisory: { schemaVersion: 1, entries: [{ id: "q", researchWeight: 1 }] },
         candidateProvenance: [{ candidateId: "q", datasetId: "dataset-q", datasetContentSha256: DATASET_HASH }],
+        candidateStrategy: { candidateId: "q", familyId: "sma-crossover", lineageId: "sma-v1", specificationHash: VERSION, codeSha: "e".repeat(40), costModelVersion: "cost-v1", parameters: { shortPeriod: 2, longPeriod: 3 } },
         researchDecisionReference,
         researchLineage: {
           schemaVersion: 1,

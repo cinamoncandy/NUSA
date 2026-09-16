@@ -59,8 +59,8 @@ test("Portfolio screen exposes truthful verified totals without unavailable retu
   assert.match(source, /NO EXPOSURE/);
   assert.match(source, /RefreshControl/);
   assert.match(source, /testID="portfolio-supervisor-summary"/);
-  assert.match(source, /label: "EQUITY", value: money\(model\?\.totalEquity\)/);
-  assert.match(source, /kicker="CAPITAL LIMITS"/);
+  assert.match(source, /label: "PAPER EQUITY", value: money\(model\?\.totalEquity\)/);
+  assert.match(source, /kicker="CAPITAL"/);
   assert.match(source, /label="REALIZED PNL" value=\{signedMoney\(position\.realizedPnl\)\}/);
   assert.match(source, /label="UNREALIZED PNL" value=\{signedMoney\(position\.unrealizedPnl\)\}/);
   assert.match(source, /testID="portfolio-upbit-read-only"/);

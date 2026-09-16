@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { AppState, Pressable, StyleSheet, Text, View, type AppStateStatus } from "react-native";
+import { AppState, BackHandler, Pressable, StyleSheet, Text, View, type AppStateStatus } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { AuthContext, useAuth, type AuthStatus } from "./src/authContext";
 import { NusaButton, NusaCard, StatusChip, WaveMark } from "./src/components";
@@ -38,13 +38,15 @@ import type { PublicCandle } from "./src/chartViewModel";
 import type { WatchlistMarket } from "./src/watchlist";
 import { emitUxTelemetryEvent } from "./src/uxTelemetryClient";
 import { screenIdForNavigationState, createUxTelemetrySessionId } from "./src/uxTelemetryScreenTracking";
+import { resolveAndroidBackNavigation } from "./src/androidBackNavigation";
 
-const tabs = ["Home", "Markets", "Paper", "Portfolio"] as const;
+const tabs = ["Home", "Markets", "Paper", "Portfolio", "AiSignal"] as const;
 type PrimaryTab = (typeof tabs)[number];
-type Tab = PrimaryTab | "AiSignal" | "Order";
+type Tab = PrimaryTab | "Order";
 type UtilityView = "NOTIFICATIONS" | "SETTINGS" | null;
-const tabLabels: Readonly<Record<PrimaryTab, string>> = { Home: "HOME", Markets: "OBSERVE", Paper: "PAPER", Portfolio: "SUPERVISE" };
-const tabDescriptions: Readonly<Record<PrimaryTab, string>> = { Home: "현재 NUSA 상태", Markets: "공개 시장 관찰", Paper: "PAPER 운용", Portfolio: "PAPER 운용 감독" };
+const tabLabels: Readonly<Record<PrimaryTab, string>> = { Home: "HOME", Markets: "MARKETS", Paper: "PAPER", Portfolio: "PORTFOLIO", AiSignal: "AI" };
+const tabDisplayLabels: Readonly<Record<PrimaryTab, string>> = { Home: "NUSA", Markets: "시장", Paper: "PAPER", Portfolio: "자산", AiSignal: "AI" };
+const tabDescriptions: Readonly<Record<PrimaryTab, string>> = { Home: "현재 NUSA 상태", Markets: "공개 시장 환경", Paper: "PAPER 운용", Portfolio: "PAPER 자산과 결과", AiSignal: "AI 판단과 근거" };
 const utilityLabels: Readonly<Record<Exclude<UtilityView, null>, string>> = { NOTIFICATIONS: "알림", SETTINGS: "설정" };
 const CHART_MARKET = "KRW-BTC";
 const PAPER_REFRESH_INTERVAL_MS = 5000;
@@ -80,7 +82,7 @@ function PersistedThemeBridge({ children }: Readonly<{ children: React.ReactNode
       setConfiguredPaperEndpoint(settings.paperEndpoint);
       if (!settings.paperEndpoint && canonical.status === "READY") setConfiguredPaperEndpoint(canonical.origin);
       setMode(themePreference(settings.theme));
-    }).catch(() => { if (active) { setConfiguredPaperEndpoint(""); setMode("system"); } });
+    }).catch(() => { if (active) { setConfiguredPaperEndpoint(""); setMode("dark"); } });
     return () => { active = false; };
   }, [setMode]);
   return <>{children}</>;
@@ -91,7 +93,7 @@ function DashboardConnectionRequired({ reason, onGoSettings }: Readonly<{ reason
   return <View style={styles.connectionState} testID="dashboard-connection-required"><View style={styles.connectionStateInner}><NusaCard raised>
     <View style={styles.cardHeader}><View><Text style={[styles.cardEyebrow, { color: appTheme.colors.warning }]}>PAPER CONNECTION</Text><Text style={[styles.cardTitle, { color: appTheme.colors.text }]}>PAPER 서버 연결 필요</Text></View><StatusChip label="연결 안 됨" tone="warning" /></View>
     <Text style={[styles.body, { color: appTheme.colors.textMuted }]}>{reason}</Text>
-    <Text style={[styles.meta, { color: appTheme.colors.textMuted }]}>Settings에서 Cloud endpoint와 메모리 전용 세션 토큰을 검증한 뒤 PAPER 데이터와 주문 기능을 사용할 수 있습니다.</Text>
+    <Text style={[styles.meta, { color: appTheme.colors.textMuted }]}>Settings에서 Cloud endpoint와 메모리 전용 세션 토큰을 검증한 뒤 PAPER 데이터와 운용 감독 기능을 사용할 수 있습니다.</Text>
     <NusaButton label="설정에서 연결" onPress={onGoSettings} testID="dashboard-open-settings" />
   </NusaCard></View></View>;
 }
@@ -291,6 +293,39 @@ function AuthenticatedApp() {
   }, [credentialSession, signOut]);
 
   useEffect(() => {
+    if (authStatus !== "SIGNED_IN") return;
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      const action = resolveAndroidBackNavigation({
+        paperLearningOpen,
+        utilityViewOpen: utilityView !== null,
+        utilityMenuOpen,
+        activeTab,
+      });
+      if (action === "CLOSE_PAPER_LEARNING") {
+        setPaperLearningOpen(false);
+        return true;
+      }
+      if (action === "CLOSE_UTILITY_VIEW") {
+        setUtilityView(null);
+        return true;
+      }
+      if (action === "CLOSE_UTILITY_MENU") {
+        setUtilityMenuOpen(false);
+        return true;
+      }
+      if (action === "GO_HOME") {
+        setUtilityMenuOpen(false);
+        setUtilityView(null);
+        setPaperLearningOpen(false);
+        setActiveTab("Home");
+        return true;
+      }
+      return false;
+    });
+    return () => subscription.remove();
+  }, [activeTab, authStatus, paperLearningOpen, utilityMenuOpen, utilityView]);
+
+  useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
       setAppState(nextState);
       dispatchRuntime({ type: nextState === "active" ? "APP_FOREGROUND" : "APP_BACKGROUND" });
@@ -366,7 +401,7 @@ function AuthenticatedApp() {
   const paperLearningState = buildPaperLearningScreen(snapshot?.paperLearning?.events ?? [], paperLearningRuntimeStatus, paperLearningServerSource);
 
   return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}>
-    {!homeShellActive ? <View style={[styles.header, { borderBottomColor: appTheme.colors.border }]}><View style={styles.headerInner}><View style={styles.headerBrand}><WaveMark compact /><View><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.eyebrow, { color: appTheme.colors.primary }]}>PERSONAL PAPER</Text></View></View><Pressable accessibilityLabel="도구" accessibilityRole="button" accessibilityState={{ expanded: utilityMenuOpen, selected: utilityMenuOpen || utilityView !== null }} onPress={() => { if (utilityView !== null) { setUtilityView(null); setUtilityMenuOpen(true); return; } setUtilityMenuOpen((current) => !current); }} style={[styles.utilityButton, { borderColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : appTheme.colors.border, backgroundColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primarySoft : appTheme.colors.surfaceSunken }]} testID="header-tools-menu"><Text style={[styles.utilityText, { color: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : appTheme.colors.textMuted }]}>도구</Text></Pressable></View></View> : null}
+    {!homeShellActive ? <View style={[styles.header, { borderBottomColor: appTheme.colors.border }]}><View style={styles.headerInner}><View style={styles.headerBrand}><WaveMark compact /><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text></View><Pressable accessibilityLabel="도구" accessibilityRole="button" accessibilityState={{ expanded: utilityMenuOpen, selected: utilityMenuOpen || utilityView !== null }} onPress={() => { if (utilityView !== null) { setUtilityView(null); setUtilityMenuOpen(true); return; } setUtilityMenuOpen((current) => !current); }} style={[styles.utilityButton, { borderColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : "transparent", backgroundColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primarySoft : "transparent" }]} testID="header-tools-menu"><Text style={[styles.utilityText, { color: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : appTheme.colors.textMuted }]}>도구</Text></Pressable></View></View> : null}
     {!homeShellActive && utilityMenuOpen ? <View style={[styles.utilityMenu, { backgroundColor: appTheme.colors.surface, borderBottomColor: appTheme.colors.border }]} testID="header-tools-tray"><View style={styles.utilityMenuInner}>{(["NOTIFICATIONS", "SETTINGS"] as const).map((view) => <Pressable key={view} accessibilityLabel={utilityLabels[view]} accessibilityRole="button" onPress={() => { setUtilityMenuOpen(false); setUtilityView(view); }} style={[styles.utilityMenuButton, { borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceSunken }]} testID={view === "NOTIFICATIONS" ? "header-notifications" : "header-settings"}><Text style={[styles.utilityText, { color: appTheme.colors.text }]}>{view === "NOTIFICATIONS" ? "알림" : "설정"}</Text></Pressable>)}</View></View> : null}
     {utilityView ? <View style={[styles.utilityNavigation, { borderBottomColor: appTheme.colors.border }]} testID="utility-navigation"><View style={styles.utilityNavigationInner}><Text style={[styles.utilityTitle, { color: appTheme.colors.text }]}>{utilityLabels[utilityView]}</Text><Pressable accessibilityLabel={`${utilityLabels[utilityView]} 닫기`} accessibilityRole="button" onPress={closeUtility} style={[styles.utilityClose, { borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceSunken }]} testID="utility-close"><Text style={[styles.utilityText, { color: appTheme.colors.textMuted }]}>닫기</Text></Pressable></View></View> : null}
 
@@ -381,15 +416,19 @@ function AuthenticatedApp() {
       : activeTab === "Order" ? <OrderHistoryView error={readOnlyError} onRefresh={onRefresh} rawOrders={snapshot?.orders ?? null} refreshing={refreshing} />
       : <HomeView snapshot={snapshot} investmentPercent={investmentPercent} readOnlyError={readOnlyError} notConfigured={notConfigured} refreshing={refreshing} publicMarket={CHART_MARKET} publicMarkets={publicMarkets.markets} publicCandles={publicMarkets.candles} publicCurrentPrice={publicMarkets.currentPrice} publicMarketConnectionState={publicMarketConnectionState} publicMarketStale={publicMarkets.status !== "READY"} onRefresh={onRefresh} onGoSettings={goSettings} onNavigate={navigateHome} onOpenPaperLearning={openPaperLearning} />}
 
-    <View style={[styles.navigation, { backgroundColor: appTheme.colors.navSurface, borderTopColor: appTheme.colors.border }]}><View accessibilityRole="tablist" style={styles.navigationInner} testID="primary-navigation">{tabs.map((tab) => { const active = !paperLearningOpen && utilityView === null && activeTab === tab; return <Pressable key={tab} accessibilityLabel={tabLabels[tab]} accessibilityHint={tabDescriptions[tab]} accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={() => { setUtilityMenuOpen(false); setUtilityView(null); setActiveTab(tab); setPaperLearningOpen(false); }} style={[styles.navItem, { opacity: active ? 1 : 0.72 }]} testID={`tab-${tab}`}><View style={[styles.navIndicator, { backgroundColor: active ? appTheme.colors.aiSignalEnd : appTheme.colors.border, width: active ? 22 : 4, opacity: active ? 0.95 : 0.35 }]} /><Text style={[styles.navLabel, { color: active ? appTheme.colors.text : appTheme.colors.textMuted }, active && styles.navLabelActive]}>{tabLabels[tab]}</Text></Pressable>; })}</View></View>
+    <View style={styles.navigationFrame} pointerEvents="box-none">
+      <View style={[styles.navigation, { backgroundColor: appTheme.colors.navSurface, borderColor: appTheme.colors.border, shadowColor: appTheme.shadows.md.color }]}>
+        <View accessibilityRole="tablist" style={styles.navigationInner} testID="primary-navigation">{tabs.map((tab) => { const active = !paperLearningOpen && utilityView === null && activeTab === tab; return <Pressable key={tab} accessibilityLabel={tabLabels[tab]} accessibilityHint={tabDescriptions[tab]} accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={() => { setUtilityMenuOpen(false); setUtilityView(null); setActiveTab(tab); setPaperLearningOpen(false); }} style={({ pressed }) => [styles.navItem, { backgroundColor: active ? appTheme.colors.primarySoft : "transparent", opacity: pressed ? 0.72 : active ? 1 : 0.82 }]} testID={`tab-${tab}`}><View style={[styles.navIndicator, { backgroundColor: active ? appTheme.colors.aiSignalEnd : appTheme.colors.border, opacity: active ? 1 : 0.3 }]} /><Text style={[styles.navLabel, { color: active ? appTheme.colors.text : appTheme.colors.textMuted }, active && styles.navLabelActive]}>{tabDisplayLabels[tab]}</Text></Pressable>; })}</View>
+      </View>
+    </View>
   </SafeAreaView>;
 }
 
 const styles = StyleSheet.create({
   container: theme.container,
   authContent: { flex: 1, justifyContent: "center", padding: 24, alignItems: "center" }, authPanel: { width: "100%", maxWidth: 640, gap: 16 }, authBrand: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 }, authHeading: { fontSize: 29, fontWeight: "700", letterSpacing: -0.8 }, subtitle: { fontSize: 14, lineHeight: 21 }, entryBadges: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
-  header: { minHeight: 64, borderBottomWidth: 1, alignItems: "center" }, headerInner: { width: "100%", maxWidth: 1080, paddingHorizontal: 20, paddingVertical: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, headerBrand: { flexDirection: "row", alignItems: "center", gap: 10 }, brand: { fontSize: 23, fontWeight: "800", letterSpacing: 1.6 }, eyebrow: { fontSize: 9, fontWeight: "800", letterSpacing: 1.7, marginTop: -1 },
-  utilityButton: { minWidth: 48, minHeight: 48, paddingHorizontal: 12, borderRadius: 14, borderWidth: 1, alignItems: "center", justifyContent: "center" }, utilityText: { fontSize: 12, fontWeight: "700" }, utilityMenu: { minHeight: 52, borderBottomWidth: 1, alignItems: "center" }, utilityMenuInner: { width: "100%", maxWidth: 1080, paddingHorizontal: 20, paddingVertical: 6, flexDirection: "row", gap: 8, alignItems: "center" }, utilityMenuButton: { flex: 1, minHeight: 48, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" }, utilityNavigation: { minHeight: 48, borderBottomWidth: 1, alignItems: "center" }, utilityNavigationInner: { width: "100%", maxWidth: 1080, paddingHorizontal: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, utilityTitle: { fontSize: 14, fontWeight: "700" }, utilityClose: { minWidth: 48, minHeight: 48, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  header: { minHeight: 50, borderBottomWidth: StyleSheet.hairlineWidth, alignItems: "center" }, headerInner: { width: "100%", maxWidth: 1080, paddingHorizontal: 18, paddingVertical: 3, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, headerBrand: { flexDirection: "row", alignItems: "center", gap: 8 }, brand: { fontSize: 18, fontWeight: "900", letterSpacing: 1.8 }, eyebrow: { fontSize: 8, fontWeight: "800", letterSpacing: 1.35, marginTop: -1 },
+  utilityButton: { minWidth: 48, minHeight: 48, paddingHorizontal: 10, borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, alignItems: "center", justifyContent: "center" }, utilityText: { fontSize: 11, fontWeight: "800" }, utilityMenu: { minHeight: 52, borderBottomWidth: 1, alignItems: "center" }, utilityMenuInner: { width: "100%", maxWidth: 1080, paddingHorizontal: 20, paddingVertical: 6, flexDirection: "row", gap: 8, alignItems: "center" }, utilityMenuButton: { flex: 1, minHeight: 48, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" }, utilityNavigation: { minHeight: 48, borderBottomWidth: 1, alignItems: "center" }, utilityNavigationInner: { width: "100%", maxWidth: 1080, paddingHorizontal: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, utilityTitle: { fontSize: 14, fontWeight: "700" }, utilityClose: { minWidth: 48, minHeight: 48, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   connectionState: { flex: 1, justifyContent: "center", padding: 20, alignItems: "center" }, connectionStateInner: { width: "100%", maxWidth: 720 }, cardHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10 }, cardEyebrow: { fontSize: 10, fontWeight: "800", letterSpacing: 1.2, marginBottom: 4 }, cardTitle: { fontSize: 18, fontWeight: "700", letterSpacing: -0.4 }, body: { fontSize: 13, lineHeight: 20 }, meta: { fontSize: 12, lineHeight: 18 },
-  navigation: { borderTopWidth: StyleSheet.hairlineWidth, alignItems: "center" }, navigationInner: { width: "100%", maxWidth: 1080, flexDirection: "row", paddingTop: 5, paddingBottom: 7, paddingHorizontal: 6 }, navItem: { flex: 1, minHeight: 50, alignItems: "center", justifyContent: "center", gap: 5, marginHorizontal: 1 }, navIndicator: { height: 2, borderRadius: 1 }, navLabel: { fontSize: 9, fontWeight: "600", letterSpacing: 0.45 }, navLabelActive: { fontWeight: "800", letterSpacing: 0.65 },
+  navigationFrame: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, alignItems: "center" }, navigation: { width: "100%", maxWidth: 720, borderTopWidth: StyleSheet.hairlineWidth, borderWidth: 0, borderRadius: 0, alignItems: "center", shadowOpacity: 0, shadowRadius: 0, shadowOffset: { width: 0, height: 0 }, elevation: 0 }, navigationInner: { width: "100%", flexDirection: "row", padding: 0, gap: 0 }, navItem: { flex: 1, minHeight: 50, borderRadius: 0, alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 4 }, navIndicator: { height: 2, width: 20, borderRadius: 999 }, navLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 0 }, navLabelActive: { fontWeight: "900", letterSpacing: 0 },
 });

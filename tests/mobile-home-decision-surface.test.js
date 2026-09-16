@@ -83,6 +83,8 @@ test("insufficient evidence stays explicit and never invents confidence", () => 
 test("READ_ONLY recovery failure outranks prior healthy runtime and PAPER result", () => {
   const projection = buildHomeDecisionSurface(fixture({ readOnlyError: true }));
   assert.equal(projection.attention, "ACTION REQUIRED");
+  assert.equal(projection.statusLabel, "PAPER · RECOVERY REQUIRED");
+  assert.equal(projection.statusTone, "danger");
   assert.equal(projection.now, "RECOVERY REQUIRED");
   assert.equal(projection.risk, "BLOCKED · READ-ONLY RECOVERY REQUIRED");
   assert.equal(projection.primaryAction, "SETTINGS");

@@ -36,6 +36,7 @@ import { buildCloudRuntimeAiEvidence, type CloudRuntimeAiP0State } from "./ai/cl
 import { InMemoryInvestmentAllocationSettingsRepository, SqliteInvestmentAllocationSettingsRepository, type InvestmentAllocationSettingsRepository } from "./cloudInvestmentAllocationSettings";
 import { SqliteNusaUserAccessRepository } from "./operatorUserAccess";
 import { DesktopSessionService } from "./desktopSessionService";
+import { MobileSessionService } from "./mobileSessionService";
 import { PaperLearningEventRecorder, paperLearningCycleId } from "./paperLearningObservability";
 import { buildPaperLearningReadOnlyProjection } from "./paperLearningReadOnlyProjection";
 import { readPaperRuntimeSupervisorProjection } from "./paperRuntimeSupervisorProjection";
@@ -221,6 +222,7 @@ export function startCloudRuntime(
     : () => buildEvolutionLearningSupervisorSnapshot(new SqliteEvolutionLearningLedger(durableAuthDatabase).replay());
   const userAccessRepository = durableAuthDatabase == null ? undefined : new SqliteNusaUserAccessRepository(durableAuthDatabase);
   const desktopSessionService = durableAuthDatabase == null || userAccessRepository == null ? undefined : new DesktopSessionService(durableAuthDatabase, userAccessRepository);
+  const mobileSessionService = durableAuthDatabase == null || userAccessRepository == null ? undefined : new MobileSessionService(durableAuthDatabase, userAccessRepository);
   const effectiveP0Repository = durableRepository instanceof SqliteCloudDashboardSnapshotRepository ? new SqliteP0AlertRepository(durableRepository.database()) : undefined;
   const investmentAllocationSettings: InvestmentAllocationSettingsRepository = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new SqliteInvestmentAllocationSettingsRepository(durableRepository.database())
@@ -292,9 +294,15 @@ export function startCloudRuntime(
     if (!observation) {
       // P2 diagnostic suffix only: an operator can now tell a silent feed
       // (FEED_STALE / FUTURE_MARKET_TIMESTAMP, e.g. host clock skew) from a
-      // malformed tick. Rejection behavior is unchanged — still fail-closed.
+      // malformed tick. Acceptance thresholds are unchanged; a rejected tick never enters trusted observations.
       heartbeat.lastError = `PUBLIC_MARKET_EVENT_REJECTED:${classifyTickerRejectReason(ticker, { now })}`;
-      safeHydrate([]);
+      // Reject only the untrusted tick. Previously one stale/invalid market event cleared every
+      // already-accepted market observation, so a quiet market (for example a >30s DOGE last-trade
+      // timestamp) could latch the whole multi-market PAPER dashboard into NO_MARKET_DATA even while
+      // BTC/ETH/etc. remained fresh. The hydrator re-checks every cached observation's expiresAt, so
+      // retaining the accepted set preserves per-market fail-closed freshness without widening any
+      // timestamp gate; if no accepted observation is still fresh, it still closes the kill switch.
+      safeHydrate([...observations.values()]);
       return;
     }
     observations.set(observation.id, observation); while (observations.size > 50) observations.delete(observations.keys().next().value!); safeHydrate([...observations.values()]);
@@ -302,6 +310,10 @@ export function startCloudRuntime(
     try { effectiveResearchRuntime?.onMarketData(researchTick); } catch { /* isolated */ }
     const state = effectiveProvider.read({ userId: "operator", scopes: ["dashboard:read"] });
     if (state != null) {
+      // Hydration samples its own clock while producing decision.decidedAt. Re-sample only after
+      // hydration so PAPER fills cannot predate the exact challenger decision they persist. Any
+      // actual clock regression remains fail-closed in the canonical decision/fill validators.
+      const executionNow = Date.now();
       const dashboard = buildMobileDashboardResponse(state);
       try {
         const p0State = readAiP0State();
@@ -312,7 +324,7 @@ export function startCloudRuntime(
       } catch { /* advisory AI only */ }
       if (effectivePaperLoop != null) {
         const investmentPercent = investmentAllocationSettings.get(config.ownerId)?.investmentPercent ?? config.paperInvestmentPercent;
-        const tick = { now, market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, mode: state.mode, killSwitchActive: state.killSwitchActive, tradingAllowed: dashboard.tradingAllowed, overallHealth: state.overallHealth, decisions: state.decisions, investmentPercent, observedQuote: latestExecutionQuotes.get(ticker.code) };
+        const tick = { now: executionNow, market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, mode: state.mode, killSwitchActive: state.killSwitchActive, tradingAllowed: dashboard.tradingAllowed, overallHealth: state.overallHealth, decisions: state.decisions, investmentPercent, observedQuote: latestExecutionQuotes.get(ticker.code) };
         heartbeat.lastPaperDecisionAt = now;
         heartbeat.decisionCount += state.decisions.length;
         // A supplied loop is a read/recovery fixture unless it is composed behind the
@@ -408,6 +420,7 @@ export function startCloudRuntime(
     tokenVerifier,
     ...(userAccessRepository == null ? {} : { userAccessRepository }),
     ...(desktopSessionService == null ? {} : { desktopSessionService }),
+    ...(mobileSessionService == null ? {} : { mobileSessionService }),
     readiness: () => buildCloudRuntimeReadiness(durableRepository, effectiveProvider),
     loadDashboard: (principal) => { const input = effectiveProvider.read(principal); if (input === undefined) throw new Error("dashboard state is not ready"); return buildMobileDashboardResponse(input); },
     loadPaperOperations,

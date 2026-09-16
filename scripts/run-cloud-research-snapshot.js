@@ -8,9 +8,14 @@ const DEFAULT_COST_MODEL_VERSION = "nusa-paper-cost-v1";
 
 function buildResearchEnv(source = process.env) {
   const env = { ...source };
-  const sourceCommit = String(env.NUSA_SOURCE_COMMIT_SHA || env.NUSA_SOURCE_COMMIT || "").trim().toLowerCase();
-  if (!SHA40.test(sourceCommit)) throw new Error("cloud Research snapshot requires exact NUSA_SOURCE_COMMIT(_SHA)");
-  env.NUSA_SOURCE_COMMIT_SHA = sourceCommit;
+  const sourceCommitSha = String(env.NUSA_SOURCE_COMMIT_SHA || "").trim().toLowerCase();
+  const sourceCommit = String(env.NUSA_SOURCE_COMMIT || "").trim().toLowerCase();
+  if (sourceCommitSha && sourceCommit && sourceCommitSha !== sourceCommit) {
+    throw new Error("NUSA_SOURCE_COMMIT and NUSA_SOURCE_COMMIT_SHA disagree");
+  }
+  const resolvedSourceCommit = sourceCommitSha || sourceCommit;
+  if (!SHA40.test(resolvedSourceCommit)) throw new Error("cloud Research snapshot requires exact NUSA_SOURCE_COMMIT(_SHA)");
+  env.NUSA_SOURCE_COMMIT_SHA = resolvedSourceCommit;
   if (!String(env.NUSA_RESEARCH_COST_MODEL_VERSION || "").trim()) {
     env.NUSA_RESEARCH_COST_MODEL_VERSION = DEFAULT_COST_MODEL_VERSION;
   }

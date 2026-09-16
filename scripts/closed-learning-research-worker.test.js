@@ -40,7 +40,8 @@ function deployableFixture(candidateId = "qualified", market = "KRW-BTC") {
   const replayQualification = Object.freeze({ ...qualification, candidates: Object.freeze([{ candidateId, outcome: "QUALIFIED_FOR_LEAGUE", reasons: Object.freeze([]), summary: "qualified" }]), coverage: Object.freeze({ candidateCount: 1, qualifiedCount: 1, insufficientCount: 0, rejectedCount: 0 }) });
   const snapshot = Object.freeze({
     originalRunFingerprintSha256: HASH,
-    candidates: Object.freeze([{ id: candidateId, experiment: Object.freeze({ manifest: Object.freeze({ market, datasetId: "dataset-a", contentSha256: DATASET_HASH }) }) }]),
+    sourceCommitSha: "e".repeat(40),
+    candidates: Object.freeze([{ id: candidateId, candidateSpecification: Object.freeze({ familyId: "sma-crossover", lineageId: "sma-v1", codeSha: "e".repeat(40), costModelVersion: "cost-v1", parameters: Object.freeze({ shortPeriod: 2, longPeriod: 3 }), candidateId }), experiment: Object.freeze({ manifest: Object.freeze({ market, datasetId: "dataset-a", contentSha256: DATASET_HASH }) }) }]),
   });
   const replay = Object.freeze({
     qualification: replayQualification,
@@ -128,7 +129,7 @@ test("keeps non-KRW research valid but non-deployable to the current PAPER runti
 
 test("fails closed on immutable candidate provenance drift", () => {
   const fixture = deployableFixture();
-  const drifted = Object.freeze({ ...fixture.snapshot, candidates: Object.freeze([{ id: "qualified", experiment: Object.freeze({ manifest: Object.freeze({ market: "KRW-BTC", datasetId: "dataset-a", contentSha256: "e".repeat(64) }) }) }]) });
+  const drifted = Object.freeze({ ...fixture.snapshot, candidates: Object.freeze([{ id: "qualified", candidateSpecification: Object.freeze({ familyId: "sma-crossover", lineageId: "sma-v1", codeSha: "e".repeat(40), costModelVersion: "cost-v1", parameters: Object.freeze({ shortPeriod: 2, longPeriod: 3 }), candidateId: "qualified" }), experiment: Object.freeze({ manifest: Object.freeze({ market: "KRW-BTC", datasetId: "dataset-a", contentSha256: "e".repeat(64) }) }) }]) });
   assert.throws(() => projectPaperDeployment(drifted, fixture.replay, HASH), /dataset provenance drifted/);
 });
 

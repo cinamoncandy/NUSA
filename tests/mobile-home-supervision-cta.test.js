@@ -15,7 +15,8 @@ test("HOME surfaces degraded PAPER connection states before exploration without 
 
   assert.ok(notice >= 0, "PAPER operational notice must exist");
   assert.ok(ai >= 0 && terrain >= 0 && paperPerformance >= 0 && learning >= 0, "canonical HOME intelligence flow must exist");
-  assert.ok(notice < ai && ai < terrain && terrain < paperPerformance && paperPerformance < learning, "connection truth must lead the canonical intelligence flow");
+  assert.ok(terrain < paperPerformance && paperPerformance < learning && learning < ai, "workspace actions must stay glanceable before progressive AI detail");
+  assert.ok(notice < ai, "connection recovery notice must remain visible before progressive AI detail");
   assert.match(home, /"PAPER 연결 오류"/);
   assert.match(home, /"PAPER 연결 필요"/);
   assert.match(home, /onPress=\{onGoSettings\}/);

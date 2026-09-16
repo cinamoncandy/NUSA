@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from "node:crypto";
 import {
   dashboardJsonResponse,
   type DashboardHttpRequest,
@@ -15,7 +16,25 @@ export interface MobileSessionHttpDependencies {
   readonly userAccessRepository: NusaUserAccessRepository;
 }
 
+export const MOBILE_ENROLLMENT_TOKEN_SHA256_ENV = "NUSA_MOBILE_ENROLLMENT_TOKEN_SHA256";
+const SHA256_HEX = /^[a-f0-9]{64}$/;
+
 const bearer = (value: string | undefined): string | undefined => /^Bearer\s+([^\s]+)$/i.exec(value?.trim() ?? "")?.[1];
+
+/**
+ * Optional migration boundary for a high-entropy credential that already exists on a mobile
+ * device. Only its SHA-256 fingerprint is configured on Cloud. A match is accepted solely by
+ * the first-run mobile enrollment route and is immediately exchanged for the normal rotating
+ * PAPER-only mobile session. It never becomes a general dashboard bearer and grants no LIVE,
+ * withdrawal, transfer, or production-mutation authority.
+ */
+export function matchesMobileEnrollmentTokenHash(token: string, configuredHash: string | undefined = process.env[MOBILE_ENROLLMENT_TOKEN_SHA256_ENV]): boolean {
+  const expected = configuredHash?.trim().toLowerCase() ?? "";
+  if (!SHA256_HEX.test(expected) || !token) return false;
+  const actual = createHash("sha256").update(token, "utf8").digest();
+  const expectedBytes = Buffer.from(expected, "hex");
+  return actual.length === expectedBytes.length && timingSafeEqual(actual, expectedBytes);
+}
 
 function jsonObject(body: string | undefined): Record<string, unknown> | undefined {
   if (body == null) return undefined;
@@ -41,15 +60,38 @@ function authorizeOwner(request: DashboardHttpRequest, dependencies: MobileSessi
   return principal;
 }
 
-function authorizeActiveUser(request: DashboardHttpRequest, dependencies: MobileSessionHttpDependencies): DashboardPrincipal | undefined {
+/**
+ * Why enrollment was refused. Every one of these used to collapse into a single
+ * `USER_NOT_ACTIVE`, which made a rejected credential, an unregistered account, an account
+ * awaiting approval, and a mismatched identity indistinguishable from outside -- including in
+ * the operator's own logs. Each names a state of the caller's own account, so none of them
+ * tells an unauthenticated caller anything about the server it could not already attempt.
+ */
+export type MobileEnrollmentRefusal =
+  | "NO_CREDENTIAL"
+  | "CREDENTIAL_REJECTED"
+  | "USER_NOT_REGISTERED"
+  | "USER_NOT_ACTIVE"
+  | "USER_IDENTITY_MISMATCH";
+
+export function authorizeActiveUserResult(
+  request: DashboardHttpRequest,
+  dependencies: MobileSessionHttpDependencies
+): { readonly principal: DashboardPrincipal } | { readonly refusal: MobileEnrollmentRefusal } {
   const token = bearer(request.headers.authorization ?? request.headers.Authorization);
-  if (token == null) return undefined;
-  const principal = dependencies.legacyTokenVerifier.verify(token);
-  if (principal == null || !principal.userId.trim() || !principal.email?.trim()) return undefined;
+  if (token == null) return { refusal: "NO_CREDENTIAL" };
+  let principal = dependencies.legacyTokenVerifier.verify(token);
+  if (principal == null && matchesMobileEnrollmentTokenHash(token)) {
+    principal = dependencies.legacyTokenVerifier.ownerPrincipal;
+  }
+  if (principal == null || !principal.userId.trim() || !principal.email?.trim()) return { refusal: "CREDENTIAL_REJECTED" };
   const user = dependencies.userAccessRepository.get(principal.userId.trim());
-  if (!isUserAllowed(user) || user!.email !== principal.email.trim().toLowerCase()) return undefined;
-  return principal;
+  if (user == null) return { refusal: "USER_NOT_REGISTERED" };
+  if (!isUserAllowed(user)) return { refusal: "USER_NOT_ACTIVE" };
+  if (user.email !== principal.email.trim().toLowerCase()) return { refusal: "USER_IDENTITY_MISMATCH" };
+  return { principal };
 }
+
 
 /**
  * First-run enrollment for an already authenticated, approved user. The
@@ -59,9 +101,15 @@ function authorizeActiveUser(request: DashboardHttpRequest, dependencies: Mobile
 export function handleMobileEnrollmentHttp(request: DashboardHttpRequest & { readonly body?: string }, dependencies: MobileSessionHttpDependencies): DashboardHttpResponse {
   const methodError = methodOnly(request, "POST");
   if (methodError) return methodError;
-  let principal: DashboardPrincipal | undefined;
-  try { principal = authorizeActiveUser(request, dependencies); } catch { return dashboardJsonResponse(401, { error: "UNAUTHORIZED" }); }
-  if (principal == null) return dashboardJsonResponse(403, { error: "USER_NOT_ACTIVE" });
+  let outcome: ReturnType<typeof authorizeActiveUserResult>;
+  try { outcome = authorizeActiveUserResult(request, dependencies); } catch { return dashboardJsonResponse(401, { error: "UNAUTHORIZED" }); }
+  if (!("principal" in outcome)) {
+    // A missing or rejected credential is 401; a credential that authenticated but whose account
+    // cannot enroll is 403, and says which state that is.
+    const unauthenticated = outcome.refusal === "NO_CREDENTIAL" || outcome.refusal === "CREDENTIAL_REJECTED";
+    return dashboardJsonResponse(unauthenticated ? 401 : 403, { error: outcome.refusal });
+  }
+  const principal = outcome.principal;
   const input = jsonObject(request.body);
   const deviceId = typeof input?.deviceId === "string" ? input.deviceId.trim() : "";
   if (deviceId.length < 8 || deviceId.length > 256 || /[\r\n]/.test(deviceId)) return dashboardJsonResponse(400, { error: "INVALID_MOBILE_ENROLLMENT_REQUEST" });
@@ -108,6 +156,58 @@ export function handleMobileBootstrapHttp(request: DashboardHttpRequest & { read
     const tokens = dependencies.sessionService.bootstrap(bootstrapToken, Date.now(), deviceId);
     return tokens == null ? dashboardJsonResponse(401, { error: "MOBILE_BOOTSTRAP_REJECTED" }) : dashboardJsonResponse(200, tokens);
   } catch { return dashboardJsonResponse(401, { error: "MOBILE_BOOTSTRAP_REJECTED" }); }
+}
+
+export function handleMobilePairingStartHttp(request: DashboardHttpRequest & { readonly body?: string }, dependencies: MobileSessionHttpDependencies): DashboardHttpResponse {
+  const methodError = methodOnly(request, "POST");
+  if (methodError) return methodError;
+  const input = jsonObject(request.body);
+  const deviceId = typeof input?.deviceId === "string" ? input.deviceId.trim() : "";
+  try { return dashboardJsonResponse(201, dependencies.sessionService.startPairing(deviceId)); }
+  catch (error) {
+    return dashboardJsonResponse(error instanceof Error && error.message.includes("limit") ? 429 : 400, { error: "PAIRING_START_REJECTED" });
+  }
+}
+
+export function handleMobilePairingStatusHttp(request: DashboardHttpRequest & { readonly body?: string }, dependencies: MobileSessionHttpDependencies): DashboardHttpResponse {
+  const methodError = methodOnly(request, "POST");
+  if (methodError) return methodError;
+  const input = jsonObject(request.body);
+  try {
+    const status = dependencies.sessionService.pairingStatus(String(input?.requestId ?? ""), String(input?.deviceId ?? ""));
+    return status == null ? dashboardJsonResponse(404, { error: "PAIRING_NOT_FOUND" }) : dashboardJsonResponse(200, status);
+  } catch { return dashboardJsonResponse(400, { error: "INVALID_PAIRING_REQUEST" }); }
+}
+
+export function handleMobilePairingApproveHttp(request: DashboardHttpRequest & { readonly body?: string }, dependencies: MobileSessionHttpDependencies): DashboardHttpResponse {
+  const methodError = methodOnly(request, "POST");
+  if (methodError) return methodError;
+  const principal = authorizeOwner(request, dependencies);
+  if (principal == null) return dashboardJsonResponse(403, { error: "FORBIDDEN" });
+  const input = jsonObject(request.body);
+  try {
+    const requestId = typeof input?.requestId === "string" && input.requestId.trim() ? input.requestId : undefined;
+    const targetUserId = typeof input?.targetUserId === "string" && input.targetUserId.trim() ? input.targetUserId.trim() : principal.userId;
+    const approved = dependencies.sessionService.approvePairing({ actorUserId: principal.userId, actorScopes: principal.scopes, targetUserId, ...(requestId ? { requestId } : {}), verificationCode: String(input?.verificationCode ?? "") });
+    return approved ? dashboardJsonResponse(200, { state: "APPROVED" }) : dashboardJsonResponse(409, { error: "PAIRING_APPROVAL_REJECTED" });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    return message.includes("target user must be ACTIVE")
+      ? dashboardJsonResponse(409, { error: "TARGET_USER_NOT_ACTIVE" })
+      : dashboardJsonResponse(403, { error: "FORBIDDEN" });
+  }
+}
+
+export function handleMobilePairingExchangeHttp(request: DashboardHttpRequest & { readonly body?: string }, dependencies: MobileSessionHttpDependencies): DashboardHttpResponse {
+  const methodError = methodOnly(request, "POST");
+  if (methodError) return methodError;
+  const input = jsonObject(request.body);
+  const requestId = String(input?.requestId ?? "");
+  const deviceId = String(input?.deviceId ?? "");
+  try {
+    const tokens = dependencies.sessionService.exchangePairing(requestId, deviceId);
+    return tokens == null ? dashboardJsonResponse(401, { error: "PAIRING_EXCHANGE_REJECTED" }) : dashboardJsonResponse(200, tokens);
+  } catch { return dashboardJsonResponse(401, { error: "PAIRING_EXCHANGE_REJECTED" }); }
 }
 
 export function handleMobileSessionRefreshHttp(request: DashboardHttpRequest & { readonly body?: string }, dependencies: MobileSessionHttpDependencies): DashboardHttpResponse {

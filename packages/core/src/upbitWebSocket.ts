@@ -227,6 +227,7 @@ export class UpbitWebSocketClient {
   private markets: string[];
   private health: UpbitStreamHealth = "DISCONNECTED";
   private lastMessageAt?: number;
+  private lastTickerEvidenceAt?: number;
   private lastPongAt?: number;
   private readonly latestTickers = new Map<string, UpbitTicker>();
   private readonly lastTradeTimestamp = new Map<string, number>();
@@ -362,6 +363,7 @@ export class UpbitWebSocketClient {
     socket.on("open", () => {
       if (this.socket !== socket) return;
       this.lastMessageAt = this.now();
+      this.lastTickerEvidenceAt = this.lastMessageAt;
       this.supervisor.noteOpened();
       this.setHealth("CONNECTED", "connected");
       this.sendSubscription();
@@ -376,12 +378,19 @@ export class UpbitWebSocketClient {
         if (message.type === "ticker") {
           const previousTimestamp = this.lastTradeTimestamp.get(message.code);
           if (!shouldAcceptUpbitTicker(message, this.markets, previousTimestamp)) return;
+          // Liveness is evidence-based, not frame-based. Upbit can repeat ticker frames whose
+          // trade_timestamp has not advanced; those frames cannot make stale PAPER evidence fresh.
+          this.lastTickerEvidenceAt = Math.max(this.lastTickerEvidenceAt ?? 0, message.trade_timestamp);
           this.lastTradeTimestamp.set(message.code, message.trade_timestamp);
           this.latestTickers.set(message.code, message);
         }
         this.lastMessageAt = this.now();
+        const connectionStateBeforeMessage = this.supervisor.state();
         this.supervisor.noteMessage();
-        if (this.health !== "CONNECTED") this.setHealth("CONNECTED", "connected");
+        // `open` reports RECOVERED after a reconnect. The first real payload is what settles the
+        // supervisor to CONNECTED, so emit that transition even though transport health is already
+        // the string CONNECTED from the socket-open event.
+        if (this.health !== "CONNECTED" || connectionStateBeforeMessage !== "CONNECTED") this.setHealth("CONNECTED", "connected");
         if (message.type === "ticker") this.onTicker(message);
         if (message.type === "trade") this.onTrade?.(message);
         if (message.type === "orderbook") this.onOrderBook?.(message);
@@ -428,10 +437,24 @@ export class UpbitWebSocketClient {
       if (this.stopped || !this.socket || this.socket.readyState !== UPBIT_WEBSOCKET_OPEN) return;
       this.socket.ping?.();
       if (!this.lastMessageAt) return;
-      const age = this.now() - this.lastMessageAt;
-      if (age > this.policy.staleAfterMs && this.health !== "STALE") {
+      const now = this.now();
+      const messageAge = now - this.lastMessageAt;
+      const tickerAge = now - (this.lastTickerEvidenceAt ?? this.lastMessageAt);
+      if ((messageAge > this.policy.staleAfterMs || tickerAge > this.policy.staleAfterMs) && this.health !== "STALE") {
         this.supervisor.noteStale();
-        this.setHealth("STALE", `stale-${age}ms`);
+        const status = tickerAge > this.policy.staleAfterMs && messageAge <= this.policy.staleAfterMs
+          ? `ticker-stale-${tickerAge}ms`
+          : `stale-${messageAge}ms`;
+        this.setHealth("STALE", status);
+        // A WebSocket can remain OPEN while either the whole socket or specifically the ticker
+        // stream stops delivering market evidence. Orderbook/trade traffic must not mask a dead
+        // ticker stream because PAPER freshness and CIO decisions are ticker-bound. Close the
+        // stale socket so its normal close handler enters the existing bounded reconnect/backoff
+        // path. No private exchange capability or execution authority is used.
+        try { this.socket.close(); } catch {
+          this.teardownSocket();
+          if (!this.stopped) this.scheduleReconnect();
+        }
       }
     }, interval);
   }

@@ -1,0 +1,26 @@
+id: WO-20260908-CONNECTION-FIRST-READ-RECOVERY
+status: IMPLEMENTED_LOCAL
+base_commit: d53607772513c203f15297f2019d3203f834ef9a
+branch: codex/session-connect-recovery
+objective: Preserve approved PAPER session recovery and retry temporary initial Upbit read failures.
+scope:
+  - Preserve already-issued PAPER refresh state if bootstrap identity read temporarily fails.
+  - Reuse that refresh state rather than consume the same bootstrap again.
+  - Retry initial Upbit read failures with existing interval and in-memory provider.
+validation:
+  focused: PASS_9_OF_9
+  regression: PASS_13_OF_13
+  typecheck: PASS
+  lint: PASS_WITH_EXISTING_WARNING
+  security: PASS_SECRETS_0
+  architecture: PASS
+  safety: PASS
+  ci: PENDING
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+remaining:
+  - Independent CI and Audit/Release required.
+  - Actual installed APK and authenticated device connection unverified.
+  - PR 1786 separately removes Upbit credential persistence; no persistence added here.

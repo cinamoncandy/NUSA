@@ -35,7 +35,9 @@ function normalizedPayload(artifact: QualifiedPaperChallengerArtifact): Qualifie
   const advisoryGeneratedAt = Date.parse(artifact.advisory.generatedAt);
   if (!Number.isSafeInteger(advisoryGeneratedAt) || advisoryGeneratedAt < 0 || advisoryGeneratedAt >= Number.MAX_SAFE_INTEGER) throw new Error("qualified PAPER challenger advisory timestamp is invalid");
   // Reuse the canonical candidate binding validator as the artifact provenance admission boundary.
-  bindPaperCandidateForExecution(artifact.advisory, artifact.candidateProvenance, candidateId, advisoryGeneratedAt + 1);
+  if (artifact.candidateStrategy != null) {
+    bindPaperCandidateForExecution(artifact.advisory, artifact.candidateProvenance, candidateId, advisoryGeneratedAt + 1, artifact.candidateStrategy);
+  }
   const researchLineage = artifact.researchLineage == null ? undefined : validatePaperResearchLineage(artifact.researchLineage);
   if (researchLineage != null && (
     researchLineage.candidateId !== candidateId

@@ -23,16 +23,17 @@ test("Intelligence OS keeps authority and data-integrity boundaries visible", ()
   assert.doesNotMatch(home, /BULLISH|BEARISH|STRONG SIGNAL|WEAK SIGNAL/);
 });
 
-test("HOME follows state -> capital truth -> reason -> risk -> observation -> execution -> learning", () => {
-  const anchors = ['eyebrow="NOW"','testID="account-hero-card"','kicker="WHY · AI INSIGHT"','kicker="RISK STATUS"','kicker="SIGNAL TERRAIN"','kicker="PAPER PERFORMANCE"','kicker="LEARNING"'];
+test("HOME follows posture -> capital truth -> observation -> supervision -> learning -> decision detail", () => {
+  const anchors = ['testID="home-now"','testID="account-hero-card"','testID="home-decision-stage"','testID="home-paper-performance"','testID="home-paper-learning"','DECISION BASIS','testID="ai-card"','testID="home-risk-status"'];
   let cursor = -1;
   for (const anchor of anchors) { const next = home.indexOf(anchor); assert.ok(next > cursor, `${anchor} must appear after the previous UX stage`); cursor = next; }
-  assert.match(home, /NO QUALIFIED SIGNAL/);
-  assert.match(home, /UNKNOWN 값을 0으로|UNAVAILABLE|—/);
+  assert.match(home, /공개 시장 데이터 대기 중/);
+  assert.match(home, /UNAVAILABLE|—/);
 });
 
 test("primary screens share Intelligence OS truth grammar while PAPER specializes as a learning monitor", () => {
-  assert.match(home, /AuthorityRail/);
+  assert.match(home, /testID="home-status-rail"/);
+  assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
   assert.match(markets, /AuthorityRail/);
   assert.match(portfolio, /AuthorityRail/);
   assert.match(paper, /PaperLearningMonitorView/);
@@ -46,8 +47,8 @@ test("primary screens share Intelligence OS truth grammar while PAPER specialize
 });
 
 test("market observation is explicitly separated from strategy and order authority", () => {
-  assert.match(markets, /관찰 데이터와 NUSA의 전략 판단을 분리/);
-  assert.match(markets, /전략 신호나 주문 권한으로 자동 승격되지 않습니다/);
+  assert.match(markets, /시장 관측과 PAPER 판단은 분리됩니다/);
+  assert.match(markets, /공개 시세는 읽기 전용입니다\. 이 데이터만으로 전략 신호나 주문 권한이 생기지 않습니다/);
   assert.doesNotMatch(paper, /loadUpbitPublicMarkets|loadUpbitPublicCandles|CloudPaperPublicChart/);
   assert.doesNotMatch(paper, /<LegacyTradingView \{\.\.\.props\} \/>/);
 });

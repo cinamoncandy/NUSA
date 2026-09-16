@@ -38,6 +38,10 @@ import {
   handleMobileBootstrapIssueHttp,
   handleMobileEnrollmentHttp,
   handleMobileMeHttp,
+  handleMobilePairingApproveHttp,
+  handleMobilePairingExchangeHttp,
+  handleMobilePairingStartHttp,
+  handleMobilePairingStatusHttp,
   handleMobileSessionRefreshHttp,
   handleMobileSessionRevokeHttp
 } from "./mobileSessionHttp";
@@ -76,7 +80,14 @@ export interface CloudDashboardServerOptions {
   readonly desktopSessionService?: DesktopSessionService;
   readonly mobileSessionService?: MobileSessionService;
   readonly readiness?: () => CloudReadinessSnapshot;
+  /** Legacy shared limiter override. New callers should inject lanes explicitly. */
   readonly rateLimiter?: BoundedHttpRateLimiter;
+  /** Bounds unauthenticated traffic without consuming authenticated-user capacity. */
+  readonly anonymousRateLimiter?: BoundedHttpRateLimiter;
+  /** Reserved limiter lane for a successfully verified approved-user session. */
+  readonly authenticatedRateLimiter?: BoundedHttpRateLimiter;
+  /** Reserved bounded lane for exact mobile refresh requests, which authenticate in the body after metering. */
+  readonly mobileSessionRefreshRateLimiter?: BoundedHttpRateLimiter;
 }
 
 export interface CloudDashboardServerHandle {
@@ -138,11 +149,24 @@ function readRequestBody(req: IncomingMessage): Promise<string> {
   });
 }
 
+// A client-supplied correlation id is echoed into operational logs and keys the rate
+// limiter's idempotency memo, so it is accepted only in a bounded, printable form.
+const MAX_CORRELATION_ID_LENGTH = 128;
+const SAFE_CORRELATION_ID = /^[\w.:-]{1,128}$/;
+
 const correlationId = (req: IncomingMessage): string => {
-  const value = req.headers["x-correlation-id"] ?? req.headers["x-request-id"];
-  if (typeof value === "string" && value.trim()) return value.trim();
-  if (Array.isArray(value) && typeof value[0] === "string" && value[0].trim()) return value[0].trim();
+  const raw = req.headers["x-correlation-id"] ?? req.headers["x-request-id"];
+  const value = typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : undefined;
+  const candidate = value?.trim();
+  if (candidate && candidate.length <= MAX_CORRELATION_ID_LENGTH && SAFE_CORRELATION_ID.test(candidate)) return candidate;
   return randomUUID();
+};
+
+/** Only a syntactically valid bearer value is considered for the pre-limit identity check. */
+const bearerToken = (req: IncomingMessage): string | undefined => {
+  const authorization = req.headers.authorization ?? req.headers.Authorization;
+  if (typeof authorization !== "string") return undefined;
+  return /^Bearer\s+([^\s]+)$/i.exec(authorization.trim())?.[1];
 };
 
 const actorRef = (userId: string | undefined): string | undefined => userId == null
@@ -170,7 +194,11 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
   if (!Number.isSafeInteger(options.port) || options.port < 1024 || options.port > 65535) throw new Error("invalid cloud dashboard server port");
   const host = options.host ?? "127.0.0.1";
   if (host !== "127.0.0.1" && host.toLowerCase() !== "localhost") throw new Error("cloud dashboard server must bind to localhost");
-  const rateLimiter = options.rateLimiter ?? new BoundedHttpRateLimiter();
+  // Keep the legacy injection point for existing tests, but production uses separate bounded
+  // lanes. Anonymous scanning must never fill the registry needed by a verified mobile session.
+  const anonymousRateLimiter = options.anonymousRateLimiter ?? options.rateLimiter ?? new BoundedHttpRateLimiter();
+  const authenticatedRateLimiter = options.authenticatedRateLimiter ?? options.rateLimiter ?? new BoundedHttpRateLimiter();
+  const mobileSessionRefreshRateLimiter = options.mobileSessionRefreshRateLimiter ?? options.rateLimiter ?? new BoundedHttpRateLimiter();
 
   let ownedUserDb: SqliteDatabase | undefined;
   let userAccessRepository = options.userAccessRepository;
@@ -192,51 +220,100 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
     });
   }
 
+  const resolveTokenPrincipal = (token: string): DashboardPrincipal | undefined => {
+    try {
+      // Session verifiers intentionally fail closed by throwing for malformed or
+      // unknown session material. Keep the legacy shared-secret verifier reachable
+      // when no mobile/desktop session matches, without treating a verifier error
+      // as permission to bypass the remaining checks. This phase is identity-only:
+      // it must not register/touch user state because it is also used before metering.
+      let principal: DashboardPrincipal | undefined;
+      try { principal = mobileSessionService?.verifyAccess(token); } catch { principal = undefined; }
+      if (principal == null) {
+        try { principal = desktopSessionService?.verifyAccess(token); } catch { principal = undefined; }
+      }
+      if (principal == null) {
+        try { principal = options.tokenVerifier.verify(token); } catch { principal = undefined; }
+      }
+      const userId = principal?.userId.trim();
+      const email = principal?.email?.trim().toLowerCase();
+      if (!principal || !userId || !email) return undefined;
+      return Object.freeze({
+        ...principal,
+        userId,
+        email,
+        ...(principal.displayName?.trim() ? { displayName: principal.displayName.trim() } : {})
+      });
+    } catch {
+      return undefined;
+    }
+  };
+
+  const authorizeResolvedPrincipal = (principal: DashboardPrincipal, mutateUserState: boolean): DashboardPrincipal | undefined => {
+    try {
+      const principalEmail = principal.email?.trim().toLowerCase();
+      if (!principal.userId.trim() || !principalEmail) return undefined;
+      let actor = userAccessRepository.get(principal.userId.trim());
+      if (actor == null) {
+        if (!mutateUserState) return undefined;
+        actor = userAccessRepository.registerUser({
+          id: principal.userId.trim(),
+          email: principalEmail,
+          ...(principal.displayName?.trim() ? { displayName: principal.displayName.trim() } : {})
+        });
+      } else if (actor.email !== principalEmail) {
+        return undefined;
+      }
+      if (!isUserAllowed(actor)) return undefined;
+      if (mutateUserState) {
+        try { userAccessRepository.markSeen(actor.id); } catch { return undefined; }
+      }
+      return principal;
+    } catch {
+      return undefined;
+    }
+  };
+
   const accessControlledTokenVerifier: DashboardTokenVerifier = Object.freeze({
     ...(ownerPrincipal == null ? {} : { ownerPrincipal }),
     verify(token: string) {
-      try {
-        // Session verifiers intentionally fail closed by throwing for malformed or
-        // unknown session material. Keep the legacy shared-secret verifier reachable
-        // when no mobile/desktop session matches, without treating a verifier error
-        // as permission to bypass the remaining checks.
-        let principal: DashboardPrincipal | undefined;
-        try { principal = mobileSessionService?.verifyAccess(token); } catch { principal = undefined; }
-        if (principal == null) {
-          try { principal = desktopSessionService?.verifyAccess(token); } catch { principal = undefined; }
-        }
-        if (principal == null) {
-          try { principal = options.tokenVerifier.verify(token); } catch { principal = undefined; }
-        }
-        if (principal == null || !principal.userId.trim()) return undefined;
-        const principalEmail = principal.email?.trim().toLowerCase();
-        if (!principalEmail) return undefined;
-        let actor = userAccessRepository.get(principal.userId.trim());
-        if (actor == null) {
-          actor = userAccessRepository.registerUser({
-            id: principal.userId.trim(),
-            email: principalEmail,
-            ...(principal.displayName?.trim() ? { displayName: principal.displayName.trim() } : {})
-          });
-        } else if (actor.email !== principalEmail) {
-          return undefined;
-        }
-        if (!isUserAllowed(actor)) return undefined;
-        try { userAccessRepository.markSeen(actor.id); } catch { return undefined; }
-        return principal;
-      } catch {
-        return undefined;
-      }
+      const principal = resolveTokenPrincipal(token);
+      return principal == null ? undefined : authorizeResolvedPrincipal(principal, true);
     }
   });
 
   const server: Server = http.createServer(async (req: IncomingMessage, res: ServerResponse) => {
     const requestId = correlationId(req);
     const path = (() => { try { return new URL(req.url ?? "/", "http://localhost").pathname; } catch { return req.url ?? "/"; } })();
-    if (path !== "/health") {
-      const authorization = req.headers.authorization ?? req.headers.Authorization;
-      const bucket = `${path}|${rateLimitIdentity(typeof authorization === "string" ? authorization : undefined, req.socket.remoteAddress)}`;
-      const decision = rateLimiter.evaluate(bucket, requestId, req.method === "POST" || req.method === "PUT" ? 4 : 1);
+    // The exemption must be exactly as narrow as the /health handler below, which matches the
+    // raw URL. Exempting the normalized path instead would let "/health?x" skip the limiter
+    // and then fall through to ordinary routing as an unmetered request.
+    let preverifiedBearerToken: string | undefined;
+    let preverifiedBearerPrincipal: DashboardPrincipal | undefined;
+    if (req.url !== "/health") {
+      // A malformed or unknown bearer remains in the anonymous lane. Pre-limit classification
+      // is deliberately side-effect free: it may read/verify an existing approved identity, but
+      // user registration and markSeen happen only inside the authenticated handler path. Exact
+      // mobile refresh requests authenticate in the body after metering, so they keep a separate
+      // bounded lane without pre-reading refresh secrets.
+      const presentedToken = bearerToken(req);
+      const resolvedPrincipal = presentedToken == null ? undefined : resolveTokenPrincipal(presentedToken);
+      const authenticatedPrincipal = resolvedPrincipal == null ? undefined : authorizeResolvedPrincipal(resolvedPrincipal, false);
+      if (authenticatedPrincipal != null && presentedToken != null) {
+        preverifiedBearerToken = presentedToken;
+        preverifiedBearerPrincipal = authenticatedPrincipal;
+      }
+      const mobileSessionRefresh = req.url === "/v1/mobile/session/refresh" && (req.method ?? "GET").toUpperCase() === "POST";
+      const limiter = authenticatedPrincipal != null
+        ? authenticatedRateLimiter
+        : mobileSessionRefresh
+          ? mobileSessionRefreshRateLimiter
+          : anonymousRateLimiter;
+      const identity = authenticatedPrincipal == null
+        ? rateLimitIdentity(undefined, req.socket.remoteAddress)
+        : `principal:${actorRef(authenticatedPrincipal.userId)}`;
+      const bucket = `${path}|${identity}`;
+      const decision = limiter.evaluate(bucket, requestId, req.method === "POST" || req.method === "PUT" ? 4 : 1);
       if (!decision.allowed) {
         req.resume();
         operationalLog("WARN", "cloud.rate_limit.blocked", requestId, { path, reason: decision.reason ?? "rate limit exceeded", authority: "PAPER_ONLY" });
@@ -249,7 +326,9 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
     const requestTokenVerifier: DashboardTokenVerifier = Object.freeze({
       ...(ownerPrincipal == null ? {} : { ownerPrincipal }),
       verify(token: string) {
-        const principal = accessControlledTokenVerifier.verify(token);
+        const principal = preverifiedBearerToken === token && preverifiedBearerPrincipal != null
+          ? authorizeResolvedPrincipal(preverifiedBearerPrincipal, true)
+          : accessControlledTokenVerifier.verify(token);
         requestPrincipal = principal;
         return principal;
       }
@@ -310,6 +389,18 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
       if (mobileSessionService != null && req.url === "/v1/mobile/enroll") {
         respond("mobile_enroll", handleMobileEnrollmentHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository }));
         return;
+      }
+      if (mobileSessionService != null && req.url === "/v1/mobile/pairing/start") {
+        respond("mobile_pairing_start", handleMobilePairingStartHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository })); return;
+      }
+      if (mobileSessionService != null && req.url === "/v1/mobile/pairing/status") {
+        respond("mobile_pairing_status", handleMobilePairingStatusHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository })); return;
+      }
+      if (mobileSessionService != null && req.url === "/v1/mobile/pairing/exchange") {
+        respond("mobile_pairing_exchange", handleMobilePairingExchangeHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository })); return;
+      }
+      if (mobileSessionService != null && req.url === "/api/operator/mobile-pairing/approve") {
+        respond("mobile_pairing_approve", handleMobilePairingApproveHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository })); return;
       }
       if (mobileSessionService != null && req.url === "/v1/mobile/session/refresh") {
         respond("mobile_session_refresh", handleMobileSessionRefreshHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository }));

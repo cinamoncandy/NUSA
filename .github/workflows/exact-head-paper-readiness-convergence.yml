@@ -1,0 +1,197 @@
+name: Exact-Head PAPER Readiness Convergence
+
+on:
+  workflow_run:
+    workflows:
+      - Actual PAPER Public-Market Runtime Evidence
+    branches:
+      - main
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: Optional protected-main SHA; blank means current main
+        required: false
+        type: string
+  schedule:
+    - cron: "17 * * * *"
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: exact-head-paper-readiness-main
+  cancel-in-progress: false
+
+jobs:
+  converge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 1
+      - name: Resolve exact protected-main PAPER evidence
+        id: source
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_SOURCE_RUN_ID: ${{ github.event.workflow_run.id }}
+          EVENT_SOURCE_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          EVENT_SOURCE_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          INPUT_TARGET_SHA: ${{ inputs.target_sha }}
+        run: |
+          set -euo pipefail
+          current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          target_sha="$current_main"
+          source_run_id=""
+
+          dispatch_fresh_evidence() {
+            local active_count
+            active_count="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$current_main&per_page=100" --jq '[.workflow_runs[] | select(.name == "Actual PAPER Public-Market Runtime Evidence" and .path == ".github/workflows/wo-0059-actual-paper-runtime.yml" and (.status == "queued" or .status == "in_progress" or .status == "pending"))] | length')"
+            if [ "$active_count" -eq 0 ]; then
+              gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/wo-0059-actual-paper-runtime.yml/dispatches" -f ref=main
+              echo "Dispatched fresh exact-main Actual PAPER evidence for $current_main"
+            else
+              echo "Exact-main Actual PAPER evidence is already active for $current_main"
+            fi
+          }
+
+          if [ "$EVENT_NAME" = "workflow_run" ]; then
+            if [ "$EVENT_SOURCE_CONCLUSION" != "success" ]; then
+              echo "READINESS_PENDING source workflow conclusion=$EVENT_SOURCE_CONCLUSION"
+              echo "eligible=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            target_sha="$EVENT_SOURCE_HEAD_SHA"
+            source_run_id="$EVENT_SOURCE_RUN_ID"
+            if [ "$target_sha" != "$current_main" ]; then
+              echo "NO_ACTION stale PAPER source head=$target_sha current_main=$current_main"
+              echo "eligible=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          else
+            if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ -n "$INPUT_TARGET_SHA" ]; then
+              target_sha="${INPUT_TARGET_SHA,,}"
+              if [ "$target_sha" != "$current_main" ]; then
+                echo "::error::Requested readiness SHA $target_sha is not current protected main $current_main"
+                exit 1
+              fi
+            fi
+
+            certified_count="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=exact-head-paper-readiness-$target_sha&per_page=100" --jq '[.artifacts[] | select(.expired == false and .name == "exact-head-paper-readiness-'"$target_sha"'")] | length')"
+            if [ "$certified_count" -gt 0 ]; then
+              echo "Exact-head PAPER readiness receipt already exists for $target_sha"
+              echo "eligible=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$target_sha&per_page=100")"
+            source_run_id="$(jq -r '[.workflow_runs[] | select(.name == "Actual PAPER Public-Market Runtime Evidence" and .path == ".github/workflows/wo-0059-actual-paper-runtime.yml" and .head_sha == "'"$target_sha"'" and .status == "completed" and .conclusion == "success")] | sort_by(.created_at) | reverse | .[0].id // empty' <<<"$runs")"
+            if [ -z "$source_run_id" ]; then
+              echo "READINESS_PENDING no successful exact-main Actual PAPER run for $target_sha"
+              dispatch_fresh_evidence
+              echo "eligible=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+
+          source_run="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$source_run_id")"
+          source_head="$(jq -r '.head_sha // empty' <<<"$source_run")"
+          source_name="$(jq -r '.name // empty' <<<"$source_run")"
+          source_path="$(jq -r '.path // empty' <<<"$source_run")"
+          source_status="$(jq -r '.status // empty' <<<"$source_run")"
+          source_conclusion="$(jq -r '.conclusion // empty' <<<"$source_run")"
+          test "$source_head" = "$target_sha"
+          test "$source_name" = "Actual PAPER Public-Market Runtime Evidence"
+          test "$source_path" = ".github/workflows/wo-0059-actual-paper-runtime.yml"
+          test "$source_status" = "completed"
+          test "$source_conclusion" = "success"
+
+          artifact_name="wo-0059-actual-paper-runtime-evidence-$target_sha"
+          artifact=""
+          for poll in $(seq 1 6); do
+            artifacts="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$source_run_id/artifacts?per_page=100")"
+            artifact="$(jq -c --arg name "$artifact_name" '[.artifacts[] | select(.name == $name and .expired == false)][0] // empty' <<<"$artifacts")"
+            [ -n "$artifact" ] && break
+            sleep 5
+          done
+          if [ -z "$artifact" ]; then
+            echo "READINESS_PENDING exact-head evidence artifact not available for source run $source_run_id"
+            if [ "$EVENT_NAME" != "workflow_run" ]; then dispatch_fresh_evidence; fi
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          artifact_id="$(jq -r '.id' <<<"$artifact")"
+          artifact_digest="$(jq -r '.digest // empty' <<<"$artifact")"
+          artifact_run_head="$(jq -r '.workflow_run.head_sha // empty' <<<"$artifact")"
+          test "$artifact_run_head" = "$target_sha"
+          test "$artifact_digest" != ""
+
+          echo "eligible=true" >> "$GITHUB_OUTPUT"
+          echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
+          echo "source_run_id=$source_run_id" >> "$GITHUB_OUTPUT"
+          echo "source_run_head_sha=$source_head" >> "$GITHUB_OUTPUT"
+          echo "artifact_id=$artifact_id" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"
+          echo "artifact_digest=$artifact_digest" >> "$GITHUB_OUTPUT"
+
+      - name: Validate semantic order-fill-PnL proof and issue receipt
+        id: certify
+        if: steps.source.outputs.eligible == 'true'
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          TARGET_SHA: ${{ steps.source.outputs.target_sha }}
+          SOURCE_RUN_ID: ${{ steps.source.outputs.source_run_id }}
+          SOURCE_RUN_HEAD_SHA: ${{ steps.source.outputs.source_run_head_sha }}
+          ARTIFACT_ID: ${{ steps.source.outputs.artifact_id }}
+          ARTIFACT_NAME: ${{ steps.source.outputs.artifact_name }}
+          ARTIFACT_DIGEST: ${{ steps.source.outputs.artifact_digest }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/exact-head-paper-source" artifacts/operational-evidence
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip" > "$RUNNER_TEMP/source.zip"
+          unzip -q "$RUNNER_TEMP/source.zip" -d "$RUNNER_TEMP/exact-head-paper-source"
+          evidence_path="$(find "$RUNNER_TEMP/exact-head-paper-source" -type f -name 'actual-paper-runtime-e2e.json' -print -quit)"
+          test -n "$evidence_path"
+          receipt_path="artifacts/operational-evidence/exact-head-paper-readiness-$TARGET_SHA.json"
+
+          if node scripts/certify-exact-head-paper-readiness.js \
+            "$evidence_path" \
+            "$TARGET_SHA" \
+            "$SOURCE_RUN_ID" \
+            "$SOURCE_RUN_HEAD_SHA" \
+            "$ARTIFACT_ID" \
+            "$ARTIFACT_NAME" \
+            "$ARTIFACT_DIGEST" \
+            "$receipt_path"; then
+            echo "certified=true" >> "$GITHUB_OUTPUT"
+            echo "EXACT_HEAD_PAPER_READINESS_CERTIFIED target=$TARGET_SHA source_run=$SOURCE_RUN_ID"
+            echo "liveAuthority=NONE"
+            echo "productionMutationAllowed=false"
+            echo "aiAuthority=ZERO_AUTHORITY"
+            echo "liveTradingAuthorityGranted=false"
+          else
+            echo "certified=false" >> "$GITHUB_OUTPUT"
+            echo "READINESS_PENDING exact-head workflow succeeded but semantic automatic order+fill+PnL proof is incomplete"
+            if [ "$EVENT_NAME" != "workflow_run" ]; then
+              active_count="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$TARGET_SHA&per_page=100" --jq '[.workflow_runs[] | select(.name == "Actual PAPER Public-Market Runtime Evidence" and .path == ".github/workflows/wo-0059-actual-paper-runtime.yml" and (.status == "queued" or .status == "in_progress" or .status == "pending"))] | length')"
+              if [ "$active_count" -eq 0 ]; then
+                gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/wo-0059-actual-paper-runtime.yml/dispatches" -f ref=main
+                echo "Scheduled a fresh natural-market PAPER observation; no signal or threshold was manufactured."
+              fi
+            fi
+          fi
+
+      - name: Upload immutable exact-head PAPER readiness receipt
+        if: steps.certify.outputs.certified == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: exact-head-paper-readiness-${{ steps.source.outputs.target_sha }}
+          path: artifacts/operational-evidence/exact-head-paper-readiness-${{ steps.source.outputs.target_sha }}.json
+          if-no-files-found: error
+          retention-days: 30

@@ -353,7 +353,7 @@ test("A4O: a packaged build disables DevTools, developer UI, mock data, and verb
   assert.equal(clampLogLevel("ERROR", production), "ERROR");
 
   const options = browserWindowSecurityOptions(production);
-  assert.deepEqual(options, { devTools: false, contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true });
+  assert.deepEqual(options, { devTools: false, contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true, webviewTag: false });
 
   const development = resolveProductionPolicy(false);
   assert.equal(development.devToolsEnabled, true);

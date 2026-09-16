@@ -1,0 +1,34 @@
+id: WO-UI-20260906-PRODUCT-V5-CI-RECOVERY
+title: "Mobile product UX v5 exact-head CI recovery"
+status: IN_PROGRESS
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: e7824d0c07dea4aa0b6a26c2f821f744b05a4e50
+implementation_branch: design/mobile-product-v5-20260906
+pull_request: 1744
+failing_head: 1810e2e134d30760e75601d5c5d10400ffda64d8
+authority_impact: none
+objective: "Restore exact-head CI for the mobile product UX v5 branch without changing product authority or weakening safety contracts."
+scope:
+  - "Use a supported warning tone for the optional, not-connected Cloud PAPER state."
+  - "Align mobile source-contract regression tests with the current Markets, Portfolio, and Settings hierarchy and labels."
+excluded:
+  - "trading, strategy, qualification, risk-policy, accounting, credential, broker, deployment, or production runtime behavior"
+  - "LIVE activation, private order APIs, withdrawals, transfers, or mobile credential storage"
+safety:
+  mode: PAPER_ONLY
+  live_authority: NONE
+  production_mutation_allowed: false
+  ai_authority: ZERO_AUTHORITY
+validation:
+  local_status: PASS
+  focused_tests: PASS_22_OF_22
+  full_isolated_suite: PASS_952_FILES
+  typecheck: PASS
+  preflight: PASS
+  validate_full: PASS
+  lint: PASS_WITH_ONE_PREEXISTING_NON_BLOCKING_WARNING
+  diff_check: PASS
+  exact_head_ci: PENDING
+next_permitted_action: "Push the exact repair head and require fresh protected CI before Audit, Release, or merge."

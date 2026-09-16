@@ -1,0 +1,43 @@
+id: WO-UI-20260907-PORCELAIN-COBALT
+title: "Apply approved porcelain/cobalt mobile design and release Android"
+status: IN_PROGRESS
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 307b535727a209c1b9ed57b6599b579c8e97bad0
+implementation_branch: codex/mobile-porcelain-cobalt
+authority_impact: none
+objective: "Apply the owner-approved Study 03 visual language with canonical real data, no mock values, and deliver through existing Android stable release."
+scope:
+  - "Master theme porcelain/cobalt surfaces, readable navigation and home hierarchy."
+  - "Reuse the canonical public chart model and renderer on Home; preserve unavailable/stale semantics."
+  - "Preserve current PAPER/REAL, account, learning, auth, refresh and navigation contracts."
+exclusions:
+  - "No new server, learning engine, connection or activation implementation."
+  - "No sample prices, sample performance, synthetic learning state or credential handling changes."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run preflight
+  - pnpm run build
+  - pnpm run typecheck
+  - pnpm run lint
+  - pnpm run validate:full
+  - pnpm run security:gate
+  - node --test tests/mobile-porcelain-cobalt.test.js
+  - git diff --check
+validation:
+  local: PASS
+  focused_and_mobile_regression: PASS_402_OF_402
+  build: PASS
+  typecheck: PASS
+  lint: PASS_ONE_PREEXISTING_WARNING
+  validate_full: PASS
+  security: PASS
+  diff_check: PASS
+  exact_head_ci: PENDING
+  android_release: PENDING
+  physical_device: HUMAN_ENVIRONMENT_ONLY
+next_permitted_action: "Implement visual-only changes, validate locally, then protected CI and canonical Audit/Release; verify APK provenance and Firebase outcome."

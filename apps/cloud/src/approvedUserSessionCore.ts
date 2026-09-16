@@ -285,6 +285,33 @@ export class ApprovedUserSessionService<Scope extends string> {
     return Object.freeze({ userId: principal.userId, email: principal.email, ...(principal.displayName ? { displayName: principal.displayName } : {}), scopes: this.normalizeScopes(principal.scopes) });
   }
 
+  /**
+   * Creates a device-bound rotating session without materialising a bootstrap
+   * credential.  Pairing callers must invoke this inside their own durable
+   * compare-and-set transaction so approval consumption and session issuance
+   * are one atomic operation.
+   */
+  protected createDeviceBoundSession(input: Readonly<{
+    targetUserId: string;
+    deviceId: string;
+    now?: number;
+    auditEvent?: string;
+  }>): ApprovedUserSessionTokens<Scope> {
+    const now = input.now ?? Date.now();
+    const user = this.users.get(input.targetUserId.trim());
+    if (!isUserAllowed(user)) throw new Error("target user must be ACTIVE");
+    const familyId = randomUUID();
+    const refreshExpiresAt = now + this.profile.refreshTtlMs;
+    const scopes = this.normalizeScopes(undefined);
+    const tokens = this.createTokens(scopes, now, refreshExpiresAt);
+    this.db.connection.prepare(`INSERT INTO ${this.prefix}_session_families(id,user_id,scopes_json,created_at,expires_at,device_id_hash) VALUES(?,?,?,?,?,?)`)
+      .run(familyId, user!.id, JSON.stringify(scopes), now, refreshExpiresAt, deviceDigest(input.deviceId));
+    this.persistTokens(tokens, familyId, 0, now);
+    this.audit(input.auditEvent ?? "DEVICE_SESSION_ISSUED", user!.id, user!.id, familyId, undefined, now);
+    this.users.markLogin(user!.id, now);
+    return tokens;
+  }
+
   public revokeAccess(accessToken: string, now = Date.now()): boolean {
     if (!accessToken) return false;
     const row = this.db.connection.prepare(`SELECT family_id FROM ${this.prefix}_access_tokens WHERE token_hash=?`).get(tokenHash(accessToken)) as Record<string, unknown> | undefined;

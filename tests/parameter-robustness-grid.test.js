@@ -38,6 +38,16 @@ test("shortWindow <= 0 is marked invalid, not silently dropped", () => {
   assert.equal(candidate.valid, false);
 });
 
+test("shortWindow 1 is marked invalid to match the production SMA constructor", () => {
+  const grid = buildCandidateGrid(
+    [{ source: "MANUAL_RESEARCH_REFERENCE", shortWindow: 2, longWindow: 8 }],
+    { shortOffsets: [-1, 0], longOffsets: [0] },
+    100
+  );
+  assert.equal(grid.find((candidate) => candidate.shortWindow === 1)?.valid, false);
+  assert.equal(grid.find((candidate) => candidate.shortWindow === 2)?.valid, true);
+});
+
 test("longWindow >= the training bound is marked invalid", () => {
   const grid = buildCandidateGrid(
     [{ source: "PRODUCTION_DEFAULT", shortWindow: 5, longWindow: 20 }],

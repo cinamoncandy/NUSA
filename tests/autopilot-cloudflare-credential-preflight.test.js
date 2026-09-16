@@ -49,15 +49,20 @@ test('preflight verifies the free-tier Worker has no paid Container or Sandbox b
   assert.doesNotMatch(workflow, /wrangler@4\.127\.1 deploy/);
 });
 
-test('preflight waits boundedly for exact-main deploy and live Worker revision', () => {
+test('preflight waits boundedly for executed exact-main deploy evidence and live Worker revision', () => {
   assert.match(workflow, /actions\/runs\?head_sha=\$CURRENT_MAIN&status=completed&per_page=100/);
   assert.match(workflow, /Autopilot Cloudflare Deploy/);
   assert.match(workflow, /autopilot-cloudflare-deploy\.yml/);
+  assert.match(workflow, /actions\/runs\/\$run_id\/jobs\?per_page=100/);
+  assert.match(workflow, /Deploy exact CI-verified Worker revision/);
+  assert.match(workflow, /Deploy exact CI-verified revision to Cloudflare Workers Free-compatible runtime/);
+  assert.match(workflow, /Verify deployed Worker reports the exact-head revision and fail-closed authority/);
+  assert.match(workflow, /deployStep\?\.conclusion !== 'success'/);
+  assert.match(workflow, /verifyStep\?\.conclusion !== 'success'/);
   assert.match(workflow, /for attempt in \$\(seq 1 18\); do/);
-  assert.match(workflow, /waiting for exact-main deploy visibility\/success/);
+  assert.match(workflow, /waiting for executed exact-main deploy evidence/);
   assert.match(workflow, /waiting for Worker deployment revision/);
   assert.match(workflow, /if \[\[ "\$attempt" -lt 18 \]\]; then sleep 10; fi/);
-  assert.match(workflow, /DEPLOY_CONCLUSION.*success/s);
   assert.match(workflow, /deploymentRevision mismatch/);
   assert.match(workflow, /health\.liveAuthority !== 'NONE'/);
   assert.match(workflow, /health\.productionMutationAllowed !== false/);

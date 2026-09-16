@@ -244,3 +244,23 @@ test("League rejects robustness evidence when candidate datasets are not one sha
     (error) => error instanceof ResearchRunLeagueBridgeError && error.code === "ROBUSTNESS_PROVENANCE_MISMATCH",
   );
 });
+
+
+test("robustness evidence preserves family-generic parameter references", () => {
+  const input = rawEvidence();
+  input.parameterRobustness.references = [{
+    source: "PRODUCTION_DEFAULT",
+    familyId: "rsi-mean-reversion",
+    candidateKey: "rsi-14-30-70",
+    parameters: { period: 14, oversold: 30, overbought: 70 },
+    assessment: "BROAD_PLATEAU",
+  }];
+  const evidence = buildResearchRunRobustnessEvidence(input);
+  assert.deepEqual(evidence.parameterRobustness.references, [{
+    source: "PRODUCTION_DEFAULT",
+    familyId: "rsi-mean-reversion",
+    candidateKey: "rsi-14-30-70",
+    parameters: { overbought: 70, oversold: 30, period: 14 },
+    assessment: "BROAD_PLATEAU",
+  }]);
+});

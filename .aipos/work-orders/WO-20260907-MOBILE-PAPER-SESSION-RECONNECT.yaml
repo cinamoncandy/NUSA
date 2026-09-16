@@ -1,0 +1,57 @@
+id: WO-20260907-MOBILE-PAPER-SESSION-RECONNECT
+title: "Mobile PAPER session transient-reconnect recovery"
+status: VERIFIED
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 009fcf93a50283c7bc1b191cfa9dddf2837168ab
+objective: "Preserve the existing approved mobile PAPER refresh session across temporary transport failures and reconnect automatically without broadening authority."
+scope:
+  - encrypted_refresh_state_preserved_for_retryable_failures
+  - bounded_mobile_restore_backoff
+  - explicit_401_403_session_revocation
+prohibited:
+  - credential_persistence_outside_platform_secure_storage
+  - token_logging
+  - authentication_bypass
+  - live_activation
+  - broker_or_money_mutation
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  authentication: FAIL_CLOSED
+acceptance:
+  - temporary_429_or_transport_failure_preserves_encrypted_refresh_state
+  - automatic_restore_uses_bounded_backoff
+  - explicit_401_or_403_clears_session_state
+  - no_order_or_live_authority_change
+validation:
+  focused: PASS_10_OF_10
+  full_isolated_suite: PASS_956_FILES
+  typecheck: PASS
+  build: PASS
+  lint: PASS_WITH_1_PREEXISTING_WARNING
+  security_gate: PASS_SECRETS_0
+  architecture: PASS
+  safety: PASS
+  ai_zero_authority: PASS
+  aipos: PASS
+  git_diff_check: PASS
+deployment_verification:
+  protected_main_sha: 523372d262a99fa5c8fcfb6c6417915db13830d1
+  current_main_ci: PASS_34178491758
+  current_main_actual_paper: PASS_34178491718
+  oracle_release: "/opt/nusa/releases/523372d262a99fa5c8fcfb6c6417915db13830d1"
+  oracle_static_validator: PASS
+  authenticated_ready_http: 200
+  dashboard_mode: PAPER
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  session_recovery_contract: "Retryable transport/429 preserves secure refresh state; explicit 401/403 remains revocation/fail-closed."
+network_evidence_limit:
+  outside_in_public_dns_vantage: NOT_INDEPENDENTLY_PROVEN
+  note: "Host deployment and authenticated PAPER read-only operation are verified; independent public-DNS reachability remains a separate network evidence item."
+remaining: []
+next: "No code or Oracle deployment blocker remains for transient mobile PAPER reconnect recovery."

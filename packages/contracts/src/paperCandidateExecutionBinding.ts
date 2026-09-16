@@ -15,6 +15,21 @@ export interface PaperCandidateExecutionBindingReceipt {
   readonly periodStartAt: number;
   readonly advisoryFingerprintSha256: string;
   readonly bindingFingerprintSha256: string;
+  /**
+   * Immutable strategy semantics copied from the validated Research candidate specification.
+   * Legacy receipts may omit this field, but a production challenger deployment must provide it.
+   */
+  readonly candidateStrategy?: PaperCandidateStrategySpec;
+}
+
+export interface PaperCandidateStrategySpec {
+  readonly candidateId: string;
+  readonly familyId: string;
+  readonly lineageId: string;
+  readonly specificationHash: string;
+  readonly codeSha: string;
+  readonly costModelVersion: string;
+  readonly parameters: Readonly<Record<string, string | number | boolean>>;
 }
 
 export class PaperCandidateExecutionBindingError extends Error {
@@ -25,6 +40,7 @@ export class PaperCandidateExecutionBindingError extends Error {
 }
 
 const SHA256 = /^[a-f0-9]{64}$/;
+const SHA40 = /^[a-f0-9]{40}$/;
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
 
 function canonical(value: unknown): string {
@@ -50,6 +66,43 @@ function safeTimestamp(value: number, field: string): number {
   return value;
 }
 
+export function normalizePaperCandidateStrategy(
+  value: PaperCandidateStrategySpec,
+  candidateId: string,
+): PaperCandidateStrategySpec {
+  if (value == null || typeof value !== "object" || value.candidateId !== candidateId) {
+    throw new PaperCandidateExecutionBindingError("CANDIDATE_STRATEGY_IDENTITY_INVALID", "candidate strategy identity does not match the binding", candidateId);
+  }
+  const text = (input: unknown, field: string): string => {
+    if (typeof input !== "string" || !input.trim() || input.trim().length > 240) {
+      throw new PaperCandidateExecutionBindingError("CANDIDATE_STRATEGY_FIELD_INVALID", `${field} is invalid`, candidateId);
+    }
+    return input.trim();
+  };
+  const familyId = text(value.familyId, "candidate strategy familyId");
+  const lineageId = text(value.lineageId, "candidate strategy lineageId");
+  const specificationHash = text(value.specificationHash, "candidate strategy specificationHash").toLowerCase();
+  const codeSha = text(value.codeSha, "candidate strategy codeSha").toLowerCase();
+  const costModelVersion = text(value.costModelVersion, "candidate strategy costModelVersion");
+  if (!SHA256.test(specificationHash) || !SHA40.test(codeSha)) {
+    throw new PaperCandidateExecutionBindingError("CANDIDATE_STRATEGY_HASH_INVALID", "candidate strategy hashes are invalid", candidateId);
+  }
+  if (value.parameters == null || typeof value.parameters !== "object" || Array.isArray(value.parameters)) {
+    throw new PaperCandidateExecutionBindingError("CANDIDATE_STRATEGY_PARAMETERS_INVALID", "candidate strategy parameters are invalid", candidateId);
+  }
+  const parameters: Record<string, string | number | boolean> = {};
+  for (const [name, parameter] of Object.entries(value.parameters)) {
+    if (!name.trim() || !["string", "number", "boolean"].includes(typeof parameter) || (typeof parameter === "number" && !Number.isFinite(parameter))) {
+      throw new PaperCandidateExecutionBindingError("CANDIDATE_STRATEGY_PARAMETERS_INVALID", "candidate strategy parameters are invalid", candidateId);
+    }
+    parameters[name.trim()] = parameter;
+  }
+  if (Object.keys(parameters).length === 0) {
+    throw new PaperCandidateExecutionBindingError("CANDIDATE_STRATEGY_PARAMETERS_INVALID", "candidate strategy parameters are empty", candidateId);
+  }
+  return freeze({ candidateId, familyId, lineageId, specificationHash, codeSha, costModelVersion, parameters: freeze(Object.fromEntries(Object.entries(parameters).sort(([a], [b]) => a.localeCompare(b)))) });
+}
+
 /**
  * Canonical shared boundary that binds one existing NUSA League advisory entry to the exact
  * persisted candidate/dataset provenance that may later be carried by autonomous PAPER execution.
@@ -62,6 +115,7 @@ export function bindPaperCandidateForExecution(
   candidateProvenance: readonly PersistedPaperCandidateProvenance[],
   candidateId: string,
   periodStartAt: number,
+  candidateStrategy?: PaperCandidateStrategySpec,
 ): PaperCandidateExecutionBindingReceipt {
   const normalizedCandidateId = candidateId.trim();
   if (!normalizedCandidateId) throw new PaperCandidateExecutionBindingError("INVALID_CANDIDATE_ID", "candidateId is required");
@@ -121,6 +175,7 @@ export function bindPaperCandidateForExecution(
     advisoryGeneratedAt,
     periodStartAt: startAt,
     advisoryFingerprintSha256,
+    ...(candidateStrategy == null ? {} : { candidateStrategy: normalizePaperCandidateStrategy(candidateStrategy, normalizedCandidateId) }),
   };
   return freeze({ ...bound, bindingFingerprintSha256: digest(bound) });
 }

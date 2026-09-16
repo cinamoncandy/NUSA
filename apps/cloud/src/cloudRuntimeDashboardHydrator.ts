@@ -1,9 +1,10 @@
 import { decideCio, type CioDecision, type PaperCandidateExecutionBinding } from "./cioDecisionEngine";
-import { fuseMarketIntelligence } from "./marketIntelligenceFusion";
-import { buildPortfolioPlan } from "./portfolioOrchestrator";
+import { runIntelligenceEngineV10 } from "./intelligenceEngineV10";
+import { runPortfolioEngineV10 } from "./portfolioEngineV10";
 import type { MobileDashboardApiInput } from "./mobileDashboardApi";
 import type { CloudDashboardStateProvider } from "./cloudDashboardStateProvider";
 import type { IntelligenceObservation } from "./marketIntelligenceFusion";
+import { evaluatePaperCandidateStrategy } from "./paperCandidateStrategy";
 
 export interface PaperCandidateBindingProvider {
   read(market: string, decisionAt: number): PaperCandidateExecutionBinding | undefined;
@@ -20,8 +21,9 @@ const operatorPrincipal = Object.freeze({ userId: "operator", scopes: Object.fre
 const clampUnit = (value: number): number => Math.min(1, Math.max(0, value));
 
 /**
- * Composes the safe Cloud PAPER runtime state. Market-scoped evidence produces a
- * market-scoped CIO decision; evidence without a market remains advisory only.
+ * Composes the safe Cloud PAPER runtime state through the canonical 10X-S module entrypoints.
+ * Market-scoped evidence produces a market-scoped CIO decision; evidence without a market
+ * remains advisory only.
  *
  * A challenger binding is read-only provenance supplied by the closed-learning
  * composition root. `decideCio` validates it again at the decision timestamp and
@@ -47,17 +49,20 @@ export class CloudRuntimeDashboardHydrator {
       const now = this.now();
       if (!Number.isSafeInteger(now) || now < 0) throw new Error("runtime clock is invalid");
       const validObservations = observations.filter((observation) => observation.expiresAt >= now && observation.observedAt <= now);
-      const intelligence = validObservations.length > 0
-        ? fuseMarketIntelligence(now, validObservations)
-        : fuseMarketIntelligence(now, [{
-          id: "runtime-no-market-data",
-          source: "RISK",
-          sentiment: 0,
-          confidence: 0,
-          observedAt: now,
-          expiresAt: now,
-          summary: "No market data available"
-        }]);
+      const intelligence = runIntelligenceEngineV10({
+        now,
+        observations: validObservations.length > 0
+          ? validObservations
+          : [{
+            id: "runtime-no-market-data",
+            source: "RISK",
+            sentiment: 0,
+            confidence: 0,
+            observedAt: now,
+            expiresAt: now,
+            summary: "No market data available"
+          }]
+      }).fused;
 
       const previous = provider.read(operatorPrincipal);
       const marketGroups = new Map<string, IntelligenceObservation[]>();
@@ -72,12 +77,18 @@ export class CloudRuntimeDashboardHydrator {
 
       const decisions: CioDecision[] = [];
       for (const market of [...marketGroups.keys()].sort()) {
-        const marketIntelligence = fuseMarketIntelligence(now, [...globalObservations, ...marketGroups.get(market)!]);
+        const marketIntelligence = runIntelligenceEngineV10({
+          now,
+          observations: [...globalObservations, ...marketGroups.get(market)!]
+        }).fused;
         if (marketIntelligence.signals.length === 0) continue;
         const currentAllocation = clampUnit(previous?.portfolio.allocations
           .filter((allocation) => allocation.symbol === market && allocation.instrument === "SPOT")
           .reduce((sum, allocation) => sum + allocation.share, 0) ?? 0);
         const paperCandidateBinding = this.paperCandidateBindingProvider?.read(market, now);
+        const paperCandidateStrategyDecision = paperCandidateBinding?.candidateStrategy == null
+          ? undefined
+          : evaluatePaperCandidateStrategy(paperCandidateBinding.candidateStrategy, marketGroups.get(market) ?? [], now, market);
         decisions.push(decideCio({
           symbol: market,
           now,
@@ -87,7 +98,8 @@ export class CloudRuntimeDashboardHydrator {
           maxLeverage: 1,
           risk: "MEDIUM",
           tradingEnabled: true,
-          ...(paperCandidateBinding == null ? {} : { paperCandidateBinding })
+          ...(paperCandidateBinding == null ? {} : { paperCandidateBinding }),
+          ...(paperCandidateStrategyDecision == null ? {} : { paperCandidateStrategyDecision })
         }));
       }
 
@@ -107,14 +119,16 @@ export class CloudRuntimeDashboardHydrator {
 
       const deployableCapital = previous == null ? 0 : previous.portfolio.deployedCapital + previous.portfolio.cashCapital;
       const reservedCapital = previous?.portfolio.reservedCapital ?? 0;
-      const portfolio = buildPortfolioPlan({
-        now,
-        deployableCapital,
-        reservedCapital,
-        candidates: decisions.map((decision) => ({ decision, instrument: "SPOT" as const })),
-        maxFuturesShare: 0,
-        maxGrossShare: 1
-      });
+      const portfolio = runPortfolioEngineV10({
+        plan: {
+          now,
+          deployableCapital,
+          reservedCapital,
+          candidates: decisions.map((decision) => ({ decision, instrument: "SPOT" as const })),
+          maxFuturesShare: 0,
+          maxGrossShare: 1
+        }
+      }).plan;
       const state: MobileDashboardApiInput = Object.freeze({
         now,
         mode: "PAPER",

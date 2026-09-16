@@ -36,6 +36,14 @@ const observation = Object.freeze({
   summary: "point-in-time market signal",
 });
 
+const pricedObservations = Object.freeze([100, 101, 103].map((price, index) => Object.freeze({
+  ...observation,
+  id: `priced-${index}`,
+  price,
+  observedAt: 2_900 + index,
+  expiresAt: 4_000,
+})));
+
 describe("CloudRuntimeDashboardHydrator PAPER challenger composition", () => {
   it("carries the active immutable PAPER binding into the production CIO decision", () => {
     const provider = new InMemoryCloudDashboardStateProvider();
@@ -55,6 +63,22 @@ describe("CloudRuntimeDashboardHydrator PAPER challenger composition", () => {
     assert.equal(state.decisions[0]?.paperCandidateBinding?.status, "BOUND_UNVERIFIED");
     assert.equal(state.decisions[0]?.paperCandidateBinding?.liveAuthority, "NONE");
     assert.equal(state.decisions[0]?.paperCandidateBinding?.productionMutationAllowed, false);
+  });
+
+  it("uses the bound candidate strategy semantics instead of the generic market score", () => {
+    const provider = new InMemoryCloudDashboardStateProvider();
+    const hydrator = new CloudRuntimeDashboardHydrator({
+      now: () => 3_000,
+      paperCandidateBindingProvider: { read: () => binding({
+        candidateStrategy: Object.freeze({ candidateId: "challenger-immutable-v9", familyId: "sma-crossover", lineageId: "sma-v1", specificationHash: HASH, codeSha: "b".repeat(40), costModelVersion: "cost-v1", parameters: Object.freeze({ shortPeriod: 2, longPeriod: 3 }) }),
+      }) },
+    });
+    hydrator.hydrate(provider, pricedObservations);
+    const state = provider.read(principal);
+    assert.ok(state);
+    assert.equal(state.decisions[0]?.action, "BUY");
+    assert.equal(state.decisions[0]?.paperCandidateStrategyDecision?.action, "BUY");
+    assert.match(state.decisions[0]?.reasons[0] ?? "", /^PAPER_CANDIDATE:sma-crossover:/);
   });
 
   it("keeps ordinary champion PAPER decisions unbound when no challenger is active", () => {

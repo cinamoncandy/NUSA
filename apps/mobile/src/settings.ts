@@ -20,7 +20,7 @@ export interface EnvironmentConfiguration { readonly apiBaseUrl: string; readonl
 export interface SettingsRepository { load(): Promise<AppSettings | null>; save(settings: AppSettings): Promise<void>; }
 
 export const DEFAULT_SETTINGS: AppSettings = Object.freeze({
-  theme: "SYSTEM",
+  theme: "DARK",
   locale: "ko-KR",
   notifications: Object.freeze({ enabled: true, riskAlerts: true, orderUpdates: true }),
   capitalAllocation: Object.freeze({ investmentPercent: 100 }),
