@@ -87,6 +87,7 @@ const snapshot = (overrides = {}) => buildPersonalPaperOperationsSnapshot({
   dashboard: dashboard(overrides.dashboard),
   research: overrides.research === null ? null : research(overrides.research),
   operations: operations(overrides.operations),
+  aiTradingJudgment: overrides.aiTradingJudgment ?? null,
   paperLearning: overrides.paperLearning ?? null
 }, 1_000);
 
@@ -137,6 +138,27 @@ test("validates freshness and rejects authority tampering", () => {
   assert.equal(validatePersonalPaperOperationsSnapshot(result, 1_100, 500).schemaVersion, 1);
   assert.throws(() => validatePersonalPaperOperationsSnapshot(result, 1_501, 500), /stale/);
   assert.throws(() => validatePersonalPaperOperationsSnapshot({ ...result, liveAuthority: "LIVE" }, 1_100, 500), /authority/);
+});
+
+test("canonical AI judgment is delivered read-only only while valid, fresh, and receipt-bounded", () => {
+  const judgment = {
+    schemaVersion: 1, judgmentId: "judgment-1", strategyId: "strategy-1", market: "KRW-BTC", generatedAt: new Date(900).toISOString(), thesis: "Verified observation.",
+    evidence: [{ id: "support", statement: "Verified market input.", status: "KNOWN", evidenceRefs: ["market-1"] }],
+    counterEvidence: [{ id: "risk", statement: "Risk input.", status: "RISK", evidenceRefs: ["risk-1"] }],
+    confidence: 0.6, uncertainty: 0.4, marketRegime: "UNKNOWN", scenarios: [{ id: "base", label: "Base", probability: 1, expectedReturn: 0, narrative: "No performance promise." }],
+    expectedReturn: 0, downside: 0, riskBudget: 0, timeHorizonMs: 60_000, invalidationCondition: "Safety evidence becomes unavailable.", action: "HOLD"
+  };
+  const result = snapshot({ aiTradingJudgment: judgment });
+  assert.equal(result.aiTradingJudgment.judgmentId, "judgment-1");
+  assert.equal(result.aiTradingJudgment.counterEvidence[0].status, "RISK");
+  const newer = snapshot({ aiTradingJudgment: { ...judgment, judgmentId: "judgment-2", generatedAt: new Date(950).toISOString() } });
+  assert.equal(newer.aiTradingJudgment.judgmentId, "judgment-2", "a newer validated receipt replaces the previous projection without merging evidence");
+  assert.equal(result.liveAuthority, "NONE");
+  assert.equal(result.productionMutationAllowed, false);
+  assert.equal(snapshot({ aiTradingJudgment: { ...judgment, generatedAt: new Date(1_001).toISOString() } }).aiTradingJudgment, null, "future judgment becomes unavailable");
+  assert.equal(snapshot({ aiTradingJudgment: { ...judgment, generatedAt: new Date(-200_000).toISOString() } }).aiTradingJudgment, null, "stale judgment becomes unavailable");
+  assert.equal(snapshot({ aiTradingJudgment: { ...judgment, evidence: [] } }).aiTradingJudgment, null, "malformed judgment becomes unavailable");
+  assert.throws(() => validatePersonalPaperOperationsSnapshot({ ...result, aiTradingJudgment: { ...judgment, evidence: [] } }, 1_100, 500), /invalid canonical AI trading judgment/);
 });
 
 test("authenticated endpoint is GET-only, scope-bound, and read-only", () => {

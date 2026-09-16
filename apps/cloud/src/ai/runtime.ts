@@ -1,4 +1,5 @@
 import { aiSha256, type AiCalibrationPrediction, type AiCalibrationProfile, type AiReadOnlyProjection, type ModelProvider } from "../../../../packages/contracts/src/aiInference";
+import { validateAiTradingJudgment, type AiTradingJudgment } from "../../../../packages/contracts/src/aiTradingJudgment";
 import type { AiCalibrationDurabilityHealth, AiCalibrationDurableStore } from "../../../../packages/contracts/src/aiCalibrationDurability";
 import type { AiProviderComparisonResult, AiProviderPoolPolicy } from "../../../../packages/contracts/src/aiProviderDiversity";
 import type { AiExplanationVerificationResult } from "../../../../packages/contracts/src/aiExplanationFaithfulness";
@@ -88,6 +89,8 @@ export interface CloudAiRuntime {
   schedule(input: AiOrchestrationInput): boolean;
   latest(now?: number): CloudAiOrchestrationResult | null;
   latestProjection(now?: number): AiReadOnlyProjection | null;
+  /** Canonical, evidence-bound judgment for read-only delivery; null when not explicitly produced. */
+  latestTradingJudgment(now?: number): AiTradingJudgment | null;
   latestProviderComparison(now?: number): AiProviderComparisonResult | null;
   latestExplanationVerification(now?: number): AiExplanationVerificationResult | null;
   /** Prior structural lessons for this exact target/outcome scope, advisory-only, never authority. */
@@ -636,6 +639,16 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
     return result == null ? null : projectAiReadOnly(result);
   };
 
+  const latestTradingJudgment = (at = now()): AiTradingJudgment | null => {
+    const result = latest(at);
+    const judgment = result?.tradingJudgment ?? null;
+    if (judgment == null || !Number.isSafeInteger(at) || at <= 0) return null;
+    const validation = validateAiTradingJudgment(judgment);
+    const generatedAt = Date.parse(judgment.generatedAt);
+    if (!validation.valid || !Number.isFinite(generatedAt) || generatedAt > at || at - generatedAt > maximumResultAgeMs) return null;
+    return judgment;
+  };
+
   const applicableLessons = (scope: string, at = now()): readonly AiLessonProjection[] => {
     if (attributionMemory == null) return Object.freeze([]);
     try { return attributionMemory.applicableLessons(scope, at); }
@@ -648,6 +661,7 @@ export function createCloudAiRuntime(env: NodeJS.ProcessEnv = process.env, provi
     schedule,
     latest,
     latestProjection,
+    latestTradingJudgment,
     latestProviderComparison,
     latestExplanationVerification,
     applicableLessons,

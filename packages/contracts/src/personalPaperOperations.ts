@@ -1,6 +1,7 @@
 import type { DashboardHealth, DashboardMode, MobileDashboardResponse } from "./mobileDashboard";
 import type { ResearchStatusProjection } from "./researchAutomation";
 import type { AiReadOnlyProjection } from "./aiInference";
+import { validateAiTradingJudgment, type AiTradingJudgment } from "./aiTradingJudgment";
 import { validatePaperLearningReadOnlySnapshot, type PaperLearningReadOnlySnapshot } from "./paperLearningReadOnly";
 
 export type PersonalPaperOperationsHealth = "HEALTHY" | "DEGRADED" | "FAIL_CLOSED";
@@ -110,6 +111,8 @@ export interface PersonalPaperOperationsSnapshot {
   readonly dashboard: MobileDashboardResponse;
   readonly research: ResearchStatusProjection | null;
   readonly ai: AiReadOnlyProjection | null;
+  /** Full canonical AI judgment, when its producer supplied complete verified facts; otherwise null. */
+  readonly aiTradingJudgment: AiTradingJudgment | null;
   readonly operations: PersonalPaperRuntimeProjection;
   readonly portfolio: PersonalPaperPortfolioProjection | null;
   readonly orders: readonly PersonalPaperOrderProjection[];
@@ -124,6 +127,7 @@ export interface PersonalPaperOperationsInput {
   readonly dashboard: MobileDashboardResponse;
   readonly research: ResearchStatusProjection | null;
   readonly ai?: AiReadOnlyProjection | null;
+  readonly aiTradingJudgment?: AiTradingJudgment | null;
   readonly operations: PersonalPaperRuntimeProjection;
   readonly portfolio?: PersonalPaperPortfolioProjection | null;
   readonly orders?: readonly PersonalPaperOrderProjection[];
@@ -158,6 +162,27 @@ function validateAi(ai: AiReadOnlyProjection | null): void {
   if (ai == null) return;
   if (ai.liveAuthority !== "NONE" || ai.productionMutationAllowed !== false) throw new Error("AI authority invariant violated");
   if (ai.confidence < 0 || ai.confidence > 1 || !Number.isFinite(ai.confidence)) throw new Error("AI confidence must be between zero and one");
+}
+
+/** The Cloud runtime's canonical AI freshness policy. It is intentionally independent of the
+ * short operations-snapshot transport window so valid judgment provenance remains explicit. */
+export const AI_TRADING_JUDGMENT_MAXIMUM_AGE_MS = 120_000;
+
+function projectAiTradingJudgment(value: AiTradingJudgment | null | undefined, receiptGeneratedAt: number): AiTradingJudgment | null {
+  if (value == null) return null;
+  const validation = validateAiTradingJudgment(value);
+  const generatedAt = Date.parse(value.generatedAt);
+  if (!validation.valid || !Number.isFinite(generatedAt) || generatedAt > receiptGeneratedAt || receiptGeneratedAt - generatedAt > AI_TRADING_JUDGMENT_MAXIMUM_AGE_MS) return null;
+  return value;
+}
+
+function validateAiTradingJudgmentProjection(value: AiTradingJudgment | null, receiptGeneratedAt: number): void {
+  if (value == null) return;
+  const validation = validateAiTradingJudgment(value);
+  if (!validation.valid) throw new Error(`invalid canonical AI trading judgment: ${validation.errors.join(",")}`);
+  const generatedAt = Date.parse(value.generatedAt);
+  if (!Number.isFinite(generatedAt) || generatedAt > receiptGeneratedAt) throw new Error("canonical AI trading judgment is from the future");
+  if (receiptGeneratedAt - generatedAt > AI_TRADING_JUDGMENT_MAXIMUM_AGE_MS) throw new Error("canonical AI trading judgment is stale");
 }
 
 function validateOperations(operations: PersonalPaperRuntimeProjection): void {
@@ -248,6 +273,7 @@ export function buildPersonalPaperOperationsSnapshot(input: PersonalPaperOperati
     validatePaperLearningReadOnlySnapshot(input.paperLearning);
   }
   finite(generatedAt, "generatedAt");
+  const aiTradingJudgment = projectAiTradingJudgment(input.aiTradingJudgment, generatedAt);
   const health = deriveHealth(input);
   const readyForPaperOperations = health !== "FAIL_CLOSED" && input.dashboard.mode === "PAPER" && input.dashboard.tradingAllowed && !input.dashboard.killSwitchActive && !input.operations.killSwitchActive && !input.operations.accountHalted && (input.operations.runtimeState === "READY" || input.operations.runtimeState === "RUNNING" || input.operations.runtimeState === "READY_OFFLINE");
   const snapshot = {
@@ -259,6 +285,7 @@ export function buildPersonalPaperOperationsSnapshot(input: PersonalPaperOperati
     dashboard: input.dashboard,
     research: input.research,
     ai: input.ai ?? null,
+    aiTradingJudgment,
     operations: input.operations,
     portfolio: input.portfolio ?? null,
     orders: input.orders ?? [],
@@ -282,6 +309,7 @@ export function validatePersonalPaperOperationsSnapshot(snapshot: PersonalPaperO
   validateDashboard(snapshot.dashboard);
   validateResearch(snapshot.research);
   validateAi(snapshot.ai);
+  validateAiTradingJudgmentProjection(snapshot.aiTradingJudgment, snapshot.generatedAt);
   validateOperations(snapshot.operations);
   if (snapshot.paperLearning != null) {
     validatePaperLearningReadOnlySnapshot(snapshot.paperLearning);

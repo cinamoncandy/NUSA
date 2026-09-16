@@ -19,6 +19,23 @@ function input(at = 1_000, id = "cloud-ai-test") {
   return { orchestrationRunId: id, decisionId: `${id}:decision`, evaluatedAt: at, evidence: bundle.evidence, evidenceMaterializations: bundle.evidenceMaterializations, policyVersionIds: ["AI_ZERO_AUTHORITY_POLICY_V1", "NUSA_DETERMINISTIC_SAFETY_V1"], certificationIds: [], controlPlaneStateId: "cloud:PAPER:ACTIVE:CLOSED", contextValidForMs: 120_000 };
 }
 
+function inputWithCanonicalJudgment(at = 1_000, id = "cloud-ai-judgment") {
+  const value = input(at, id);
+  const refs = value.evidence.map((item) => item.evidenceId);
+  return {
+    ...value,
+    canonicalTradingJudgment: {
+      judgmentId: `${id}:judgment`, strategyId: "cloud-paper-preview", market: "KRW-BTC", thesis: "Grounded public-market evidence supports a bounded PAPER observation.",
+      evidence: [{ id: "support", statement: "Verified ticker evidence is present.", status: "KNOWN", evidenceRefs: [refs[0]] }],
+      counterEvidence: [{ id: "risk", statement: "Safety evidence can invalidate the observation.", status: "RISK", evidenceRefs: [refs[1]] }],
+      confidence: 0.6, uncertainty: 0.4, marketRegime: "UNKNOWN",
+      scenarios: [{ id: "base", label: "Base", probability: 1, expectedReturn: 0, narrative: "No execution or return promise." }],
+      expectedReturn: 0, downside: 0, riskBudget: 0, timeHorizonMs: 300000, invalidationCondition: "Verified safety or market evidence becomes unavailable.",
+      decision: { state: "APPROVED_PAPER_ACTION", action: "HOLD", respondingMembers: 1, countedMembers: 1, agreementCount: 1, agreementRatio: 1, reasons: [], ballots: [{ memberId: "member-1", memberVersion: "1", family: "independent", action: "HOLD", support: 1, evidenceRefs: refs, evaluatedAt: new Date(at).toISOString() }], gates: [], policyId: "test-policy", policyVersion: "1" }
+    }
+  };
+}
+
 function providerWithClock(clock) {
   return new TransportModelProvider("cloud-fixture", "model-1", async (request) => {
     const startedAt = clock.advance(5);
@@ -77,6 +94,22 @@ test("Cloud AI scheduler suppresses overlap and cadence, retains only fresh vali
   await settle(runtime);
   clock.advance(120_001);
   assert.equal(runtime.latest(clock.value), null);
+});
+
+test("Cloud AI delivers a judgment only through the canonical evidence-bound builder and expires it with the runtime result", async () => {
+  const clock = { value: 40_000, advance(step) { this.value += step; return this.value; } };
+  const runtime = createCloudAiRuntime({ NUSA_AI_ENABLED: "true" }, providerWithClock(clock), { now: () => clock.value, minimumCadenceMs: 0, maximumResultAgeMs: 120_000 });
+  assert.equal(runtime.schedule(inputWithCanonicalJudgment(clock.value, "canonical-judgment")), true);
+  await settle(runtime);
+  const judgment = runtime.latestTradingJudgment(clock.value);
+  assert.ok(judgment);
+  assert.equal(judgment.action, "HOLD");
+  assert.equal(judgment.evidence[0].status, "KNOWN");
+  assert.equal(judgment.counterEvidence[0].evidenceRefs.length, 1);
+  assert.equal(runtime.liveAuthority, "NONE");
+  assert.equal(runtime.productionMutationAllowed, false);
+  clock.advance(120_001);
+  assert.equal(runtime.latestTradingJudgment(clock.value), null);
 });
 
 test("provider failure never becomes a latest validated result", async () => {
