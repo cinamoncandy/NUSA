@@ -111,8 +111,10 @@ export function HomeView({
   const localMarkPrice = useLocalPaperMarkPrice(localPaperActive);
   const localPortfolio = localPaperActive ? buildLocalPortfolio(localTradingSnapshot, localMarkPrice) : null;
 
-  const account = snapshot?.portfolio?.account ?? localPortfolio?.account ?? null;
-  const accountSource = snapshot != null ? "CLOUD" : localPortfolio != null ? "LOCAL" : null;
+  const cloudAccount = snapshot?.portfolio?.account ?? null;
+  const localAccount = localPortfolio?.account ?? null;
+  const account = cloudAccount ?? localAccount;
+  const accountSource = cloudAccount != null ? "CLOUD" : localAccount != null ? "LOCAL" : null;
   const cashEnvelope = account == null ? null : createCashInvestmentEnvelope(account.cash, investmentPercent);
   const totalPnl = account == null ? null : (account.realizedPnl ?? account.position.realizedPnl) + account.unrealizedPnl;
   const assetValue = account == null ? null : account.assetValue ?? Math.max(0, account.equity - account.cash);
