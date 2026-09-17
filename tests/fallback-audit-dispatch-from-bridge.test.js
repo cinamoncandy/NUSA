@@ -116,13 +116,13 @@ test("explicit Worker token-missing evidence dispatches exactly one bounded AUDI
   assert.equal(dispatches.length, 1);
   const body = JSON.parse(dispatches[0].init.body);
   assert.equal(body.event_type, "nusa_autopilot_execution");
+  assert.equal(Object.keys(body.client_payload).length, 10, "GitHub repository_dispatch accepts at most ten client payload properties");
   assert.deepEqual(body.client_payload, {
     kind: "AUDIT_REQUEST",
     repository,
     head_sha: headSha,
     pr_number: prNumber,
     workflow_run_id: runId,
-    reason: `audit:pr:${prNumber}:ci:${runId}:${headSha}`,
     execution_id: `audit:${prNumber}:${runId}`,
     dedupe_key: `audit:${prNumber}:${runId}:${headSha}`,
     live_authority: "NONE",
