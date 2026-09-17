@@ -4,18 +4,21 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const source = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/watchlistView.tsx"), "utf8");
+const marketsSource = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/marketsView.tsx"), "utf8");
 
 test("market rows keep authority messaging at screen level instead of repeating it per row", () => {
   assert.doesNotMatch(source, /PUBLIC · READ ONLY/);
-  assert.equal((source.match(/READ ONLY/g) ?? []).length, 1);
-  assert.match(source, /StatusChip label="READ ONLY"/);
+  assert.equal((source.match(/READ ONLY/g) ?? []).length, 0);
+  assert.doesNotMatch(source, /StatusChip label="READ ONLY"/);
+  assert.match(marketsSource, /markets-authority-rail/);
+  assert.match(marketsSource, /PUBLIC READ ONLY · PAPER SEPARATE · AI ZERO AUTHORITY/);
 });
 
 test("watchlist favorite action uses explicit text instead of unicode star glyphs", () => {
   assert.doesNotMatch(source, /★|☆/);
-  assert.match(source, /active \? "관심중" : "관심"/);
+  assert.match(source, /active \? "저장됨" : "저장"/);
   assert.match(source, /accessibilityState=\{\{ selected: active \}\}/);
-  assert.match(source, /favorite: \{[^}]*minWidth: 52, minHeight: 48/);
+  assert.match(source, /favorite: \{[^}]*minWidth: 48, minHeight: 48/);
 });
 
 test("market rows keep price change and volume scannable without a separate metadata row", () => {
@@ -30,8 +33,8 @@ test("market rows keep price change and volume scannable without a separate meta
 
 test("market data remains explicitly public and read only at the screen boundary", () => {
   assert.match(source, /workspaceHeader/);
-  assert.match(source, /StatusChip label="READ ONLY"/);
-  assert.match(source, /readOnlyNote/);
+  assert.doesNotMatch(source, /StatusChip label="READ ONLY"/);
+  assert.match(marketsSource, /AuthorityRail/);
+  assert.match(marketsSource, /PUBLIC READ ONLY · PAPER SEPARATE · AI ZERO AUTHORITY/);
   assert.doesNotMatch(source, /ORDER_CREATE|LIVE_EXECUTION|productionMutationAllowed/);
-  assert.match(source, /계좌·주문 권한과 연결되지 않습니다/);
 });
