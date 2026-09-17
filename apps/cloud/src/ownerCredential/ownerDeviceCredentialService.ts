@@ -110,7 +110,7 @@ export class OwnerDeviceCredentialService {
 
   public startRegistration(input: Readonly<{ actorUserId: string; actorScopes: readonly string[]; credentialId: string; deviceId: string; publicKeySpki: string; now?: number }>): OwnerDeviceCredentialChallenge {
     const actor = this.users.get(input.actorUserId.trim());
-    if (actor?.role !== "OWNER" || !isUserAllowed(actor) || !input.actorScopes.includes("users:manage")) throw new Error("active owner users:manage authority required");
+    if (actor?.role !== "OWNER" || !isUserAllowed(actor) || !(input.actorScopes.includes("owner-device:manage") || input.actorScopes.includes("users:manage"))) throw new Error("active owner owner-device:manage authority required");
     const credential = identifier(input.credentialId, "credential id");
     const device = deviceId(input.deviceId);
     const key = publicKey(input.publicKeySpki);
@@ -121,7 +121,7 @@ export class OwnerDeviceCredentialService {
   public activateRegistration(input: Readonly<{ actorUserId: string; actorScopes: readonly string[]; challengeId: string; credentialId: string; deviceId: string; signature: string; now?: number }>): boolean {
     const now = input.now ?? Date.now();
     const actor = this.users.get(input.actorUserId.trim());
-    if (actor?.role !== "OWNER" || !isUserAllowed(actor) || !input.actorScopes.includes("users:manage")) throw new Error("active owner users:manage authority required");
+    if (actor?.role !== "OWNER" || !isUserAllowed(actor) || !(input.actorScopes.includes("owner-device:manage") || input.actorScopes.includes("users:manage"))) throw new Error("active owner owner-device:manage authority required");
     const row = this.consumeVerifiedChallenge("REGISTRATION", input.challengeId, input.credentialId, input.deviceId, input.signature, now, actor.id);
     if (row == null) return false;
     if (row.actor_owner_user_id !== actor.id) return false;
@@ -153,7 +153,7 @@ export class OwnerDeviceCredentialService {
 
   public revoke(input: Readonly<{ actorUserId: string; actorScopes: readonly string[]; credentialId: string; now?: number }>): boolean {
     const actor = this.users.get(input.actorUserId.trim());
-    if (actor?.role !== "OWNER" || !isUserAllowed(actor) || !input.actorScopes.includes("users:manage")) throw new Error("active owner users:manage authority required");
+    if (actor?.role !== "OWNER" || !isUserAllowed(actor) || !(input.actorScopes.includes("owner-device:manage") || input.actorScopes.includes("users:manage"))) throw new Error("active owner owner-device:manage authority required");
     const updated = this.db.connection.prepare("UPDATE nusa_owner_device_credentials SET revoked_at=?,revoke_reason='OWNER_REVOKED' WHERE credential_id=? AND owner_user_id=? AND revoked_at IS NULL")
       .run(input.now ?? Date.now(), identifier(input.credentialId, "credential id"), actor.id);
     return Number(updated.changes) === 1;

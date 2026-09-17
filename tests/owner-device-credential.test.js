@@ -8,6 +8,7 @@ const { InMemoryNusaUserAccessRepository } = require("../dist/apps/cloud/src/ope
 const { MobileSessionService } = require("../dist/apps/cloud/src/mobileSessionService.js");
 const { OwnerDeviceCredentialService, ownerDeviceCredentialChallengeBytes, OWNER_DEVICE_CREDENTIAL_CHALLENGE_TTL_MS } = require("../dist/apps/cloud/src/ownerCredential/ownerDeviceCredentialService.js");
 const http = require("../dist/apps/cloud/src/mobileSessionHttp.js");
+const { handleOperatorUserAccessHttp } = require("../dist/apps/cloud/src/operatorUserAccessHttp.js");
 
 const ownerBearerValue = ["owner", "device", "credential", "test", "token"].join("-");
 const DEVICE = "nusa-install-owner-device-0001";
@@ -29,11 +30,11 @@ function setup() {
 }
 
 function register(service, pair, now = 10, credentialId = CREDENTIAL_ID) {
-  const started = service.startRegistration({ actorUserId: "owner", actorScopes: ["users:manage"], credentialId, deviceId: DEVICE, publicKeySpki: publicKeySpki(pair), now });
-  assert.equal(service.activateRegistration({ actorUserId: "owner", actorScopes: ["users:manage"], credentialId, deviceId: DEVICE, challengeId: started.challengeId, signature: sign(pair, started.challenge), now: now + 1 }), true);
+  const started = service.startRegistration({ actorUserId: "owner", actorScopes: ["owner-device:manage"], credentialId, deviceId: DEVICE, publicKeySpki: publicKeySpki(pair), now });
+  assert.equal(service.activateRegistration({ actorUserId: "owner", actorScopes: ["owner-device:manage"], credentialId, deviceId: DEVICE, challengeId: started.challengeId, signature: sign(pair, started.challenge), now: now + 1 }), true);
 }
 
-test("registration is ACTIVE OWNER users:manage-only and requires P-256 possession proof", () => {
+test("registration is ACTIVE OWNER owner-device:manage-only and requires P-256 possession proof", () => {
   const { db, credentials, dependencies } = setup();
   try {
     const pair = keyPair();
@@ -56,8 +57,8 @@ test("registration activation is bound to the same active owner that created its
   try {
     users.ensureOwner({ id: "other-owner", email: "other@nusa.local" }, 2);
     const pair = keyPair();
-    const started = credentials.startRegistration({ actorUserId: "owner", actorScopes: ["users:manage"], credentialId: CREDENTIAL_ID, deviceId: DEVICE, publicKeySpki: publicKeySpki(pair), now: 10 });
-    assert.equal(credentials.activateRegistration({ actorUserId: "other-owner", actorScopes: ["users:manage"], credentialId: CREDENTIAL_ID, deviceId: DEVICE, challengeId: started.challengeId, signature: sign(pair, started.challenge), now: 11 }), false);
+    const started = credentials.startRegistration({ actorUserId: "owner", actorScopes: ["owner-device:manage"], credentialId: CREDENTIAL_ID, deviceId: DEVICE, publicKeySpki: publicKeySpki(pair), now: 10 });
+    assert.equal(credentials.activateRegistration({ actorUserId: "other-owner", actorScopes: ["owner-device:manage"], credentialId: CREDENTIAL_ID, deviceId: DEVICE, challengeId: started.challengeId, signature: sign(pair, started.challenge), now: 11 }), false);
     assert.equal(db.connection.prepare("SELECT COUNT(*) AS count FROM nusa_owner_device_credentials").get().count, 0);
   } finally { db.close(); }
 });
@@ -86,8 +87,32 @@ test("authentication rejects replay, wrong device, and revoked credentials, then
     const tokens = credentials.authenticate({ credentialId: CREDENTIAL_ID, deviceId: DEVICE, challengeId: challenge.challengeId, signature: sign(pair, challenge.challenge), now: 52 });
     assert.ok(tokens); assert.equal(mobile.verifyAccess(tokens.accessToken, 53).userId, "owner");
     assert.equal(credentials.authenticate({ credentialId: CREDENTIAL_ID, deviceId: DEVICE, challengeId: challenge.challengeId, signature: sign(pair, challenge.challenge), now: 54 }), undefined);
-    assert.equal(credentials.revoke({ actorUserId: "owner", actorScopes: ["users:manage"], credentialId: CREDENTIAL_ID, now: 55 }), true);
+    assert.equal(credentials.revoke({ actorUserId: "owner", actorScopes: ["owner-device:manage"], credentialId: CREDENTIAL_ID, now: 55 }), true);
     assert.equal(credentials.startAuthentication({ credentialId: CREDENTIAL_ID, deviceId: DEVICE, now: 56 }), undefined);
+  } finally { db.close(); }
+});
+
+test("password and biometric device sessions cannot read or mutate operator users", () => {
+  const { db, users, credentials, mobile } = setup();
+  try {
+    const now = Date.now();
+    const fixturePassphrase = "testing-fixture";
+    users.registerUser({ id: "pending", email: "pending@nusa.local" }, 2);
+    mobile.setOwnerPassword("owner", fixturePassphrase, now);
+    const passwordSession = mobile.signInWithOwnerPassword({ password: fixturePassphrase, deviceId: DEVICE, now: now + 1 });
+    assert.equal(passwordSession.status, "ISSUED");
+    const pair = keyPair(); register(credentials, pair, now + 2);
+    const challenge = credentials.startAuthentication({ credentialId: CREDENTIAL_ID, deviceId: DEVICE, now: now + 4 });
+    assert.ok(challenge);
+    const biometricSession = credentials.authenticate({ credentialId: CREDENTIAL_ID, deviceId: DEVICE, challengeId: challenge.challengeId, signature: sign(pair, challenge.challenge), now: now + 5 });
+    assert.ok(biometricSession);
+    for (const token of [passwordSession.tokens.accessToken, biometricSession.accessToken]) {
+      const get = handleOperatorUserAccessHttp({ method: "GET", headers: { authorization: `Bearer ${token}` } }, { tokenVerifier: mobile.tokenVerifier(), repository: users });
+      const post = handleOperatorUserAccessHttp({ method: "POST", headers: { authorization: `Bearer ${token}` }, body: JSON.stringify({ targetUserId: "pending", action: "APPROVE" }) }, { tokenVerifier: mobile.tokenVerifier(), repository: users });
+      assert.equal(get.status, 403);
+      assert.equal(post.status, 403);
+    }
+    assert.equal(users.get("pending").status, "PENDING");
   } finally { db.close(); }
 });
 

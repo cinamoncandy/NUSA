@@ -18,7 +18,7 @@ import {
 export const MOBILE_ACCESS_TTL_MS = 10 * 60 * 1000;
 export const MOBILE_REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 export const MOBILE_BOOTSTRAP_TTL_MS = 10 * 60 * 1000;
-export const MOBILE_ALLOWED_SCOPES = Object.freeze(["dashboard:read", "paper:trade", "users:manage"] as const);
+export const MOBILE_ALLOWED_SCOPES = Object.freeze(["dashboard:read", "paper:trade", "owner-device:manage"] as const);
 
 export type MobileScope = (typeof MOBILE_ALLOWED_SCOPES)[number];
 export type MobileSessionTokens = ApprovedUserSessionTokens<MobileScope>;
@@ -222,7 +222,7 @@ export class MobileSessionService extends ApprovedUserSessionService<MobileScope
       }
       return Object.freeze({
         status: "ISSUED" as const,
-        tokens: this.createDeviceBoundSession({ targetUserId: user.id, deviceId, scopes: ["dashboard:read", "paper:trade", "users:manage"], now, auditEvent: "OWNER_PASSWORD_SESSION_ISSUED" })
+        tokens: this.createDeviceBoundSession({ targetUserId: user.id, deviceId, scopes: ["dashboard:read", "paper:trade", "owner-device:manage"], now, auditEvent: "OWNER_PASSWORD_SESSION_ISSUED" })
       });
     });
   }
@@ -271,7 +271,7 @@ export class MobileSessionService extends ApprovedUserSessionService<MobileScope
   public issueOwnerDeviceCredentialSession(input: Readonly<{ userId: string; deviceId: string; now?: number }>): MobileSessionTokens {
     const user = this.mobileUsers.get(input.userId.trim());
     if (user?.role !== "OWNER" || !isUserAllowed(user)) throw new Error("active owner required");
-    return this.createDeviceBoundSession({ targetUserId: user.id, deviceId: this.validateDeviceId(input.deviceId), scopes: ["dashboard:read", "paper:trade", "users:manage"], now: input.now, auditEvent: "OWNER_DEVICE_CREDENTIAL_SESSION_ISSUED" });
+    return this.createDeviceBoundSession({ targetUserId: user.id, deviceId: this.validateDeviceId(input.deviceId), scopes: ["dashboard:read", "paper:trade", "owner-device:manage"], now: input.now, auditEvent: "OWNER_DEVICE_CREDENTIAL_SESSION_ISSUED" });
   }
 
   private ownerForPasswordSignIn(explicitUserId: string | undefined): string | "AMBIGUOUS_OWNER" | "INVALID_OWNER" {

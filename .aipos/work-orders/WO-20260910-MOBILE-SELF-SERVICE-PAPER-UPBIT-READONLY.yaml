@@ -3,13 +3,15 @@ title: "Device-bound mobile PAPER pairing and Upbit READ_ONLY session mediation"
 status: EXACT_HEAD_CI_PENDING
 owner_authentication_addendum:
   status: IMPLEMENTED_LOCAL_VALIDATION_COMPLETE
-  scope: "Canonical OWNER password recovery plus Android hardware-backed P-256 biometric proof, using only the existing process-memory mobile rotating session."
+  scope: "Canonical OWNER password recovery plus Android hardware-backed P-256 biometric proof, using only the existing process-memory mobile rotating session and a narrow owner-device management capability."
   user_value: "First/recovery sign-in needs one OWNER password; a registered Android phone then resumes PAPER access with one biometric confirmation."
   safety: "PAPER_ONLY; hardware proof has no exchange, order, cancellation, transfer, withdrawal, LIVE, production-mutation, or AI authority; access and refresh credentials remain process-memory-only."
   contracts:
     - "Normal password sign-in infers only a unique durable OWNER and never accepts a user id over HTTP."
     - "Password registration and change require ACTIVE OWNER authority; device registration activation is bound to the same owner actor that started it."
     - "AndroidKeyStore P-256 private key is non-exportable, hardware-backed, and signs only BIOMETRIC_STRONG CryptoObject challenges."
+    - "Password and biometric device sessions carry dashboard:read, paper:trade, and owner-device:manage only; they never receive users:manage."
+    - "Generic operator-user GET and POST endpoints require users:manage and reject password or biometric device sessions."
     - "Legacy pairing/bootstrap flows are retained as compatibility/recovery paths and their supersession/global-cap behavior is unchanged."
   local_validation:
     - "OWNER device, pairing, resume, Settings, and product source/runtime regressions PASS 26/26"
@@ -42,6 +44,7 @@ architecture_impact:
     - .aipos/work-orders/WO-0060A-android-approved-user-session.yaml
 scope:
   - process-memory-only rotating mobile PAPER session
+  - narrowly-scoped owner-device credential registration, activation, and revocation without generic operator-user authority
   - process-memory-only short-lived device pairing request, ACTIVE OWNER plus users:manage approval, expiry/replay/race/flood bounds
   - direct atomic approved-pairing session issuance with no pairing-row credential storage
   - legacy mobile credential storage cleanup without reading or restoring stored material
@@ -59,6 +62,7 @@ acceptance:
   - transient refresh failures may retry only while the same process retains the in-memory refresh capability
   - definitive 401/403 destroys in-memory session authority
   - pairing approval requires an ACTIVE OWNER principal with users:manage and an ACTIVE target
+  - password and biometric device sessions use owner-device:manage only and cannot read or mutate generic operator-user access
   - pairing exchange is device-bound, expiry-bounded, atomic, and single-use
   - pairing DB and audit records contain hashes/lifecycle metadata only, never bootstrap/access/refresh credentials or verification codes
   - mobile Upbit routes use the in-process PAPER session credential and relay validation is strict loopback GET introspection

@@ -58,6 +58,18 @@ function methodOnly(request: DashboardHttpRequest, method: "GET" | "POST"): Dash
   return Object.freeze({ ...response, headers: Object.freeze({ ...response.headers, allow: method }) });
 }
 
+function authorizeOwnerDeviceCredential(request: DashboardHttpRequest, dependencies: MobileSessionHttpDependencies): DashboardPrincipal | undefined {
+  const token = bearer(request.headers.authorization ?? request.headers.Authorization);
+  if (token == null) return undefined;
+  const mobilePrincipal = dependencies.sessionService.verifyAccess(token);
+  const principal = mobilePrincipal ?? dependencies.legacyTokenVerifier.verify(token);
+  if (principal == null || !(mobilePrincipal?.scopes.includes("owner-device:manage") ?? principal.scopes.includes("users:manage"))) return undefined;
+  const actor = dependencies.userAccessRepository.get(principal.userId);
+  if (actor?.role !== "OWNER" || !isUserAllowed(actor)) return undefined;
+  return principal;
+}
+
+/** General owner administration stays separate from the narrow device-credential capability. */
 function authorizeOwner(request: DashboardHttpRequest, dependencies: MobileSessionHttpDependencies): DashboardPrincipal | undefined {
   const token = bearer(request.headers.authorization ?? request.headers.Authorization);
   if (token == null) return undefined;
@@ -70,7 +82,7 @@ function authorizeOwner(request: DashboardHttpRequest, dependencies: MobileSessi
 
 export function handleOwnerDeviceCredentialRegistrationChallengeHttp(request: DashboardHttpRequest & { readonly body?: string }, dependencies: MobileSessionHttpDependencies): DashboardHttpResponse {
   const methodError = methodOnly(request, "POST"); if (methodError) return methodError;
-  const principal = authorizeOwner(request, dependencies);
+  const principal = authorizeOwnerDeviceCredential(request, dependencies);
   if (principal == null) return dashboardJsonResponse(403, { error: "OWNER_AUTHENTICATION_REQUIRED" });
   if (dependencies.ownerDeviceCredentialService == null) return dashboardJsonResponse(503, { error: "OWNER_DEVICE_CREDENTIAL_UNAVAILABLE" });
   const input = jsonObject(request.body); const binding = ownerDeviceInput(input);
@@ -86,7 +98,7 @@ export function handleOwnerDeviceCredentialRegistrationChallengeHttp(request: Da
 
 export function handleOwnerDeviceCredentialRegistrationActivateHttp(request: DashboardHttpRequest & { readonly body?: string }, dependencies: MobileSessionHttpDependencies): DashboardHttpResponse {
   const methodError = methodOnly(request, "POST"); if (methodError) return methodError;
-  const principal = authorizeOwner(request, dependencies);
+  const principal = authorizeOwnerDeviceCredential(request, dependencies);
   if (principal == null) return dashboardJsonResponse(403, { error: "OWNER_AUTHENTICATION_REQUIRED" });
   if (dependencies.ownerDeviceCredentialService == null) return dashboardJsonResponse(503, { error: "OWNER_DEVICE_CREDENTIAL_UNAVAILABLE" });
   const input = jsonObject(request.body); const binding = ownerDeviceInput(input);
@@ -128,7 +140,7 @@ export function handleOwnerDeviceCredentialAuthenticationCompleteHttp(request: D
 
 export function handleOwnerDeviceCredentialRevokeHttp(request: DashboardHttpRequest & { readonly body?: string }, dependencies: MobileSessionHttpDependencies): DashboardHttpResponse {
   const methodError = methodOnly(request, "POST"); if (methodError) return methodError;
-  const principal = authorizeOwner(request, dependencies);
+  const principal = authorizeOwnerDeviceCredential(request, dependencies);
   if (principal == null) return dashboardJsonResponse(403, { error: "OWNER_AUTHENTICATION_REQUIRED" });
   if (dependencies.ownerDeviceCredentialService == null) return dashboardJsonResponse(503, { error: "OWNER_DEVICE_CREDENTIAL_UNAVAILABLE" });
   const input = jsonObject(request.body);
