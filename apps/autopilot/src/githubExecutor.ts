@@ -79,6 +79,14 @@ async function resolveCurrentMainSha(
   return sha.toLowerCase();
 }
 
+function hasHoldLabel(pr: Record<string, unknown>): boolean {
+  const labels = Array.isArray(pr.labels) ? pr.labels : [];
+  return labels.some((label) => {
+    const name = object(label)?.name;
+    return typeof name === "string" && name.trim().toUpperCase() === "HOLD";
+  });
+}
+
 async function resolveCurrentPullRequestHead(
   base: string,
   repository: string,
@@ -97,8 +105,11 @@ async function resolveCurrentPullRequestHead(
     return result("FAILED", "github-executor-pr-head-invalid", response.status);
   }
   const pr = object(payload);
-  const sha = object(pr?.head)?.sha;
-  if (pr?.state !== "open") return result("REJECTED", "github-executor-pr-not-open", response.status);
+  if (!pr) return result("FAILED", "github-executor-pr-head-invalid", response.status);
+  const sha = object(pr.head)?.sha;
+  if (pr.state !== "open") return result("REJECTED", "github-executor-pr-not-open", response.status);
+  if (pr.draft === true) return result("REJECTED", "github-executor-pr-draft-hold-active", response.status);
+  if (hasHoldLabel(pr)) return result("REJECTED", "github-executor-pr-hold-label-active", response.status);
   if (typeof sha !== "string" || !SHA40.test(sha)) return result("FAILED", "github-executor-pr-head-invalid", response.status);
   return sha.toLowerCase();
 }
