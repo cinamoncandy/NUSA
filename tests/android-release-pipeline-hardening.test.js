@@ -98,7 +98,9 @@ test("Android release signing DSL stays compatible and never falls back to debug
 // now lives in the single job that publishes, so a defect in the other two cannot reach the
 // repository.
 test("release write authority is scoped to the job that actually publishes", () => {
-  const body = stable.split("\n").filter((line) => !/^\s*#/.test(line)).join("\n");
+  // Windows checkouts land CRLF, and a lookahead for `name:\n` never matches a `\r` that is
+  // still there. Normalise before splitting, the way the assertions above this one already do.
+  const body = stable.replace(/\r\n/g, "\n").split("\n").filter((line) => !/^\s*#/.test(line)).join("\n");
   const jobs = body.split(/\n  (?=[A-Za-z0-9_-]+:\n)/);
   const find = (name) => jobs.find((job) => job.startsWith(`${name}:`));
 
