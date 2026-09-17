@@ -49,7 +49,7 @@ function safeIssue(number: number): Record<string, unknown> {
 }
 
 function fetchFor(issues: readonly unknown[], pulls: readonly unknown[] = []): typeof fetch {
-  return (async (input: RequestInfo | URL, init?: RequestInit) => {
+  return (async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url.includes("/search/issues") && url.includes("is%3Aissue")) return new Response(JSON.stringify({ total_count: issues.length, items: issues }), { status: 200, headers: { "content-type": "application/json" } });
     if (url.includes("/search/issues") && url.includes("is%3Apr")) return new Response(JSON.stringify({ total_count: pulls.length, items: pulls }), { status: 200, headers: { "content-type": "application/json" } });
