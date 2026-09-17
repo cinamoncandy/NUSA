@@ -8,7 +8,7 @@ const settings = read("apps/mobile/src/settingsView.tsx");
 const experience = read("apps/mobile/src/ownerConnectionExperience.tsx");
 
 test("a failed PAPER connection is projected as BLOCKED with the real reason", () => {
-  assert.match(settings, /const connectionFailed = connectionAttempted && connection\.status !== "READY"/);
+  assert.match(settings, /const connectionFailed = connectionAttempted && !connecting && connection\.status !== "READY"/);
   assert.match(settings, /connectionFailed \? "BLOCKED"/);
   assert.match(settings, /connectionFailed \? connection\.reason/);
   assert.match(settings, /detail=\{connection\.status === "READY" \? undefined : cloudConnectionDetail\}/);
