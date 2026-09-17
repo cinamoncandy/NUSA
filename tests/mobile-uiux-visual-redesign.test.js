@@ -60,8 +60,10 @@ test("Home uses the content-first command center hierarchy without weakening aut
 test("Markets rows use list rhythm instead of repeated cards", () => {
   const watchlist = read("src/watchlistView.tsx");
   assert.match(watchlist, /marketRow: \{ borderBottomWidth: StyleSheet\.hairlineWidth/);
-  assert.match(watchlist, /marketNumbers: \{ minWidth: 112/);
-  assert.match(watchlist, /fontVariant: \["tabular-nums"\]/);
+  assert.match(watchlist, /marketNumbers: \{ minWidth: 116, alignItems: "flex-end"/);
+  assert.match(watchlist, /price: \{[^}]*fontVariant: \["tabular-nums"\]/);
+  assert.match(watchlist, /change: \{[^}]*fontVariant: \["tabular-nums"\]/);
+  assert.match(watchlist, /volumeInline: \{[^}]*fontVariant: \["tabular-nums"\]/);
 });
 
 test("Chart prioritizes real candles and removes decorative market context", () => {
