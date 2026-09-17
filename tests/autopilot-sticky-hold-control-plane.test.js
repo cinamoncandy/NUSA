@@ -30,6 +30,13 @@ test('global freeze persists HOLD before a Ready event can advance', () => {
   assert.match(source, /NUSA_GLOBAL_RELEASE_FREEZE/);
 });
 
+test('post-#1803 deployment explicitly clears the global release freeze while code defaults fail closed', () => {
+  const source = read('apps/autopilot/src/index.ts');
+  const wrangler = read('apps/autopilot/wrangler.jsonc');
+  assert.match(source, /NUSA_GLOBAL_RELEASE_FREEZE\?\.trim\(\)\.toLowerCase\(\) !== "false"/);
+  assert.match(wrangler, /"NUSA_GLOBAL_RELEASE_FREEZE"\s*:\s*"false"/);
+});
+
 test('Audit fails closed under global freeze or active exact HOLD', () => {
   const source = read('apps/autopilot/src/worker.ts');
   assert.match(source, /GLOBAL_RELEASE_FREEZE_ACTIVE/);
@@ -48,7 +55,7 @@ test('Release checks the same durable exact-bound HOLD before authorization and 
   assert.match(worker, /GLOBAL_RELEASE_FREEZE_ACTIVE/);
   assert.match(worker, /CONTROL_PLANE_HOLD_READ_FAILED/);
   assert.match(worker, /CONTROL_PLANE_HOLD_ACTIVE/);
-  assert.match(worker, /verifyAuditAuthorization/);
+  assert.match(worker, /verifyGithubReleaseControlOidcToken/);
   assert.match(worker, /readPersistentControlPlaneHold/);
   assert.match(worker, /repository: request\.repository/);
   assert.match(worker, /headSha: request\.headSha\.toLowerCase\(\)/);
