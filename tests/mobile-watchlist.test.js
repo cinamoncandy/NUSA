@@ -81,7 +81,7 @@ test("watchlist UI remains read-only and is wired into the markets workspace", (
   assert.doesNotMatch(source, /StatusChip label="READ ONLY"/);
   assert.doesNotMatch(source, /PUBLIC · READ ONLY/);
   assert.match(source, /SegmentedControl/);
-  assert.match(source, /favorite: \{ minWidth: 52, minHeight: 48/);
+  assert.match(source, /favorite: \{ minWidth: 48, minHeight: 44/);
   assert.doesNotMatch(source, /placeOrder|cancelOrder|withdraw|fetch\(/);
 
   const primitives = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "uxPrimitives.tsx"), "utf8");
