@@ -16,12 +16,13 @@ current_first_read_connection_recovery:
 current_audit_dispatch_payload_limit:
   work_order: WO-ISSUE-903-EVENT-REPLAY-HARDENING
   status: AUDIT_EVIDENCE_HARDENING_LOCAL_VALIDATION_COMPLETE
-  base_sha: e8f66ef0b5057564179a6a4160ff01bb872c505f
+  base_sha: 849fca669804cbd40f8dd7b5efe6145d5afe1cae
   finding: "GitHub repository_dispatch enforces a ten-property client_payload limit; the fallback Audit dispatch carried an unused eleventh reason property and failed closed with HTTP 422."
   remediation: "Emit only the ten canonical Audit consumer fields; exact CI/PR/dedupe identity and NONE/false/ZERO_AUTHORITY invariants are unchanged."
   audit_followup: "Exact-head CI 35168377327 PASS, but independent Audit 35168788582 incorrectly classified the removed reason line as a current blocker. BLOCKER findings now require an exact current added-diff evidenceRef (path:+line); invalid model findings are retried only against the same immutable evidence and remain fail-closed after the bounded limit."
   validation: "Typecheck PASS; build PASS; Audit runner regression PASS 23/23 including stale removed-line retry and persistent invalid-evidence fail-closed; security gate PASS; git diff --check PASS."
-  next: "Commit and push the bounded Audit evidence hardening, require fresh exact-head CI, then request a new independent Audit. No Release or merge authority is added."
+  freshness: "PR #1945 Release correctly failed closed when main moved from audited base 03119c0 to 849fca66 before merge. The implementation branch was merged with 849fca66; all prior exact-head CI/Audit evidence is invalidated."
+  next: "Push the latest-main merge, run full exact-head validation and CI, then request a new independent Audit. No Release or merge authority is added."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_oracle_codex_dev_runner:
   work_order: WO-20260908-ORACLE-CODEX-DEV-RUNNER

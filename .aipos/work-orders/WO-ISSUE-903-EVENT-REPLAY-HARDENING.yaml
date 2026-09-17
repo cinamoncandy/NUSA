@@ -96,7 +96,8 @@ audit_dispatch_payload_limit_remediation:
   authority_impact: none
   audit_followup: "Independent Audit run 35168788582 returned FAIL by citing the removed reason property as current behavior. Audit model BLOCKER findings must now cite a current added diff line in path:+line form; stale/removed/non-current citations are retried at most three times against unchanged evidence, then fail closed."
   validation: "Typecheck PASS; build PASS; auditRunner regression PASS 23/23 including stale removed-line rejection/retry and bounded persistent invalid evidence failure; security gate PASS; git diff --check PASS."
-  next: "Commit/push the narrow evidence-binding correction, require fresh exact-head CI, then fresh independent Audit/Release governance; no merge authority is added."
+  freshness: "PR #1945 Release correctly failed closed when protected main moved from audited base 03119c0 to 849fca66 before merge. The implementation branch is synchronized with 849fca66 and every prior exact-head CI/Audit result is invalid."
+  next: "Push the latest-main synchronization, require fresh exact-head validation/CI, then fresh independent Audit/Release governance; no merge authority is added."
 
 current_main_audit:
   audited_at: "2026-08-31"
