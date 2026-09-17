@@ -4,6 +4,7 @@ import { TerrainSignal } from "./components";
 import { CompactMetric, InsightPanel, OperationalNotice, QuietStatus } from "./uxPrimitives";
 import { useTheme } from "./ThemeProvider";
 import { intelligenceFieldColors } from "./designSystem";
+import { BUILD_SOURCE_SHA } from "./generatedBuildConfig";
 import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
 import { getHomeVisualProfile } from "./homeVisualProfile";
 import { buildHomeDecisionSurface } from "./homeDecisionSurface";
@@ -35,6 +36,8 @@ interface HomeViewProps {
   readonly onNavigate: (destination: HomeDestination) => void;
   readonly onOpenPaperLearning: () => void;
 }
+
+const packagedBuildLabel = /^[0-9a-f]{40}$/i.test(BUILD_SOURCE_SHA) ? BUILD_SOURCE_SHA.slice(0, 8) : "DEV";
 
 function krw(value: number): string {
   return `₩${Math.round(value).toLocaleString("ko-KR")}`;
@@ -204,7 +207,7 @@ export function HomeView({
         <Text style={[styles.wordmark, { color: theme.colors.text }]}>NUSA</Text>
         <Text style={[styles.brandMeta, { color: terminalSignal }]}>AUTONOMOUS INVESTMENT INTELLIGENCE</Text>
       </View>
-      <QuietStatus label={statusLabel} tone={statusTone} testID="home-paper-status" />
+      <View testID="home-status-rail"><QuietStatus label={statusLabel} tone={statusTone} testID="home-paper-status" /></View>
     </View>
 
     <View style={[styles.intelligenceHero, { borderColor: attentionLevel === "QUIET" ? theme.colors.borderStrong : attentionColor }]} testID="home-supervisor-summary">
@@ -391,7 +394,7 @@ export function HomeView({
 
     <View style={[styles.secondaryDiagnostics, { borderTopColor: theme.colors.border }]}>
       <Pressable accessibilityRole="button" accessibilityState={{ expanded: diagnosticsOpen }} onPress={() => setDiagnosticsOpen((open) => !open)} style={({ pressed }) => [styles.diagnosticsToggle, { opacity: pressed ? theme.interaction.pressedOpacity : 1 }]} testID="home-diagnostics-toggle">
-        <Text style={[styles.kicker, { color: theme.colors.textMuted }]}>SYSTEM / SAFETY</Text><Text style={[styles.diagnosticsToggleLabel, { color: theme.colors.text }]}>{diagnosticsOpen ? "CLOSE" : "OPEN"}</Text>
+        <View><Text style={[styles.kicker, { color: theme.colors.textMuted }]}>SYSTEM / SAFETY</Text><Text style={[styles.buildSource, { color: theme.colors.textMuted }]} testID="home-build-source">BUILD {packagedBuildLabel} · UI INTELLIGENCE OS</Text></View><Text style={[styles.diagnosticsToggleLabel, { color: theme.colors.text }]}>{diagnosticsOpen ? "CLOSE" : "OPEN"}</Text>
       </Pressable>
       {diagnosticsOpen ? <View testID="home-secondary-diagnostics">
         <CompactMetric label="PAPER 연결" value={snapshot ? "연결됨" : accountSource === "LOCAL" ? "LOCAL PAPER" : notConfigured ? "연결 필요" : "대기"} detail={statusLabel} tone={snapshot ? "success" : accountSource === "LOCAL" ? "info" : "warning"} />
@@ -479,4 +482,5 @@ const styles = StyleSheet.create({
   secondaryDiagnostics: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8, gap: 8 },
   diagnosticsToggle: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   diagnosticsToggleLabel: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1 },
+  buildSource: { marginTop: 2, fontSize: 7, lineHeight: 10, fontWeight: "700", letterSpacing: 0.45, fontVariant: ["tabular-nums"] },
 });
