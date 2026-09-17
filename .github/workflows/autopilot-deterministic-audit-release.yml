@@ -68,9 +68,6 @@ jobs:
             end
           ' "$RUNNER_TEMP/nusa-deterministic-audit/pr.json")"
 
-          # Draft or HOLD PRs intentionally have no deterministic Release authority. Treat
-          # them as non-applicable instead of allowing a stale or administratively held
-          # change to enter Audit/Release. Malformed label metadata also fails closed.
           if [ "$current_state" != "open" ] || [ "$current_draft" = "true" ] || [ "$current_hold" != "false" ] || [ "$current_head" != "$REQUESTED_HEAD" ] || [ "$base_ref" != "main" ] || [ "$base_repo" != "$GITHUB_REPOSITORY" ] || [ "$current_base" != "$current_main" ]; then
             echo 'applicable=false' >> "$GITHUB_OUTPUT"
             echo 'authority=NONE' >> "$GITHUB_OUTPUT"
@@ -81,13 +78,8 @@ jobs:
 
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$WORKFLOW_RUN_ID" > "$RUNNER_TEMP/nusa-deterministic-audit/ci.json"
           jq -e --arg head "$REQUESTED_HEAD" --arg repo "$GITHUB_REPOSITORY" '
-            .name == "CI" and
-            .path == ".github/workflows/ci.yml" and
-            .event == "pull_request" and
-            .status == "completed" and
-            .conclusion == "success" and
-            .head_sha == $head and
-            .repository.full_name == $repo
+            .name == "CI" and .path == ".github/workflows/ci.yml" and .event == "pull_request" and
+            .status == "completed" and .conclusion == "success" and .head_sha == $head and .repository.full_name == $repo
           ' "$RUNNER_TEMP/nusa-deterministic-audit/ci.json" >/dev/null
 
           required_workflows=(
@@ -98,90 +90,43 @@ jobs:
             "Restricted LIVE Transport Credential Readiness"
             "Restricted LIVE Activation Rehearsal"
           )
-
-          # CI completion can reach Audit before the independent exact-head workflows
-          # finish or before a proven transient run is retried. Wait for evidence to
-          # converge, but authorize Release only when every required workflow is
-          # successful on the unchanged requested head.
           required_ready=false
           for poll in $(seq 1 30); do
-            gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$REQUESTED_HEAD&event=pull_request&per_page=100" \
-              > "$RUNNER_TEMP/nusa-deterministic-audit/exact-head-runs.json"
-
+            gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$REQUESTED_HEAD&event=pull_request&per_page=100" > "$RUNNER_TEMP/nusa-deterministic-audit/exact-head-runs.json"
             required_ready=true
             for required in "${required_workflows[@]}"; do
-              conclusion="$(jq -r --arg name "$required" --arg head "$REQUESTED_HEAD" '
-                [.workflow_runs[] | select(.name == $name and .head_sha == $head)]
-                | sort_by(.updated_at) | reverse | .[0].conclusion // empty
-              ' "$RUNNER_TEMP/nusa-deterministic-audit/exact-head-runs.json")"
+              conclusion="$(jq -r --arg name "$required" --arg head "$REQUESTED_HEAD" '[.workflow_runs[] | select(.name == $name and .head_sha == $head)] | sort_by(.updated_at) | reverse | .[0].conclusion // empty' "$RUNNER_TEMP/nusa-deterministic-audit/exact-head-runs.json")"
               if [ "$conclusion" != "success" ]; then
                 required_ready=false
                 echo "Waiting for exact-head workflow: $required (conclusion=${conclusion:-pending}, poll $poll/30)"
               fi
             done
-
-            if [ "$required_ready" = "true" ]; then
-              break
-            fi
+            if [ "$required_ready" = "true" ]; then break; fi
             sleep 10
           done
-
           if [ "$required_ready" != "true" ]; then
             echo "Required exact-head workflows did not converge to success before the bounded Audit deadline." >&2
             exit 1
           fi
 
-          # Workflow SUCCESS is only a transport-level signal. Bind deterministic Release
-          # authority to immutable exact-head PAPER evidence, but keep runtime safety
-          # independent from stochastic autonomous order/fill/PnL completion.
-          paper_run_id="$(jq -r --arg head "$REQUESTED_HEAD" '
-            [.workflow_runs[] | select(
-              .name == "Actual PAPER Public-Market Runtime Evidence" and
-              .path == ".github/workflows/wo-0059-actual-paper-runtime.yml" and
-              .head_sha == $head and
-              .event == "pull_request" and
-              .status == "completed" and
-              .conclusion == "success"
-            )] | sort_by(.updated_at) | reverse | .[0].id // empty
-          ' "$RUNNER_TEMP/nusa-deterministic-audit/exact-head-runs.json")"
+          paper_run_id="$(jq -r --arg head "$REQUESTED_HEAD" '[.workflow_runs[] | select(.name == "Actual PAPER Public-Market Runtime Evidence" and .path == ".github/workflows/wo-0059-actual-paper-runtime.yml" and .head_sha == $head and .event == "pull_request" and .status == "completed" and .conclusion == "success")] | sort_by(.updated_at) | reverse | .[0].id // empty' "$RUNNER_TEMP/nusa-deterministic-audit/exact-head-runs.json")"
           test -n "$paper_run_id"
-
           paper_run="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$paper_run_id")"
-          jq -e --arg head "$REQUESTED_HEAD" --arg repo "$GITHUB_REPOSITORY" '
-            .name == "Actual PAPER Public-Market Runtime Evidence" and
-            .path == ".github/workflows/wo-0059-actual-paper-runtime.yml" and
-            .event == "pull_request" and
-            .status == "completed" and
-            .conclusion == "success" and
-            .head_sha == $head and
-            .repository.full_name == $repo
-          ' <<<"$paper_run" >/dev/null
+          jq -e --arg head "$REQUESTED_HEAD" --arg repo "$GITHUB_REPOSITORY" '.name == "Actual PAPER Public-Market Runtime Evidence" and .path == ".github/workflows/wo-0059-actual-paper-runtime.yml" and .event == "pull_request" and .status == "completed" and .conclusion == "success" and .head_sha == $head and .repository.full_name == $repo' <<<"$paper_run" >/dev/null
 
           paper_artifact_name="wo-0059-actual-paper-runtime-evidence-$REQUESTED_HEAD"
           paper_artifacts="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$paper_run_id/artifacts?per_page=100")"
-          paper_artifact="$(jq -c --arg name "$paper_artifact_name" --arg head "$REQUESTED_HEAD" '
-            [.artifacts[] | select(
-              .name == $name and
-              .expired == false and
-              .workflow_run.head_sha == $head and
-              (.digest | type == "string" and test("^sha256:[a-fA-F0-9]{64}$"))
-            )] | sort_by(.updated_at) | reverse | .[0] // empty
-          ' <<<"$paper_artifacts")"
+          paper_artifact="$(jq -c --arg name "$paper_artifact_name" --arg head "$REQUESTED_HEAD" '[.artifacts[] | select(.name == $name and .expired == false and .workflow_run.head_sha == $head and (.digest | type == "string" and test("^sha256:[a-fA-F0-9]{64}$")))] | sort_by(.updated_at) | reverse | .[0] // empty' <<<"$paper_artifacts")"
           test -n "$paper_artifact"
           paper_artifact_id="$(jq -r '.id' <<<"$paper_artifact")"
           paper_artifact_digest="$(jq -r '.digest' <<<"$paper_artifact")"
-
           mkdir -p "$RUNNER_TEMP/nusa-deterministic-audit/paper"
           gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$paper_artifact_id/zip" > "$RUNNER_TEMP/nusa-deterministic-audit/paper.zip"
           unzip -q "$RUNNER_TEMP/nusa-deterministic-audit/paper.zip" -d "$RUNNER_TEMP/nusa-deterministic-audit/paper"
           paper_evidence="$(find "$RUNNER_TEMP/nusa-deterministic-audit/paper" -type f -name 'actual-paper-runtime-e2e.json' -print -quit)"
           test -n "$paper_evidence"
-
-          # Never execute validator code from the PR head. Fetch the validator from the
-          # already-bound audited base so a PR cannot self-authorize by weakening checks.
           paper_validator="$RUNNER_TEMP/nusa-deterministic-audit/validate-deterministic-paper-audit-evidence.js"
-          gh api "repos/$GITHUB_REPOSITORY/contents/scripts/validate-deterministic-paper-audit-evidence.js?ref=$current_main" --jq '.content' \
-            | base64 --decode > "$paper_validator"
+          gh api "repos/$GITHUB_REPOSITORY/contents/scripts/validate-deterministic-paper-audit-evidence.js?ref=$current_main" --jq '.content' | base64 --decode > "$paper_validator"
           node "$paper_validator" "$paper_evidence" "$REQUESTED_HEAD" "$paper_run_id" "$paper_artifact_id" "$paper_artifact_name" "$paper_artifact_digest"
 
           final_pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
@@ -190,20 +135,13 @@ jobs:
           final_draft="$(jq -r '.draft // false' <<<"$final_pr")"
           final_head="$(jq -r '.head.sha' <<<"$final_pr")"
           final_base="$(jq -r '.base.sha' <<<"$final_pr")"
-          final_hold="$(jq -r '
-            if (.labels | type) != "array" then "invalid"
-            elif any(.labels[]; (.name | type) != "string") then "invalid"
-            elif any(.labels[]; (.name | ascii_downcase) == "hold") then "true"
-            else "false"
-            end
-          ' <<<"$final_pr")"
+          final_hold="$(jq -r 'if (.labels | type) != "array" then "invalid" elif any(.labels[]; (.name | type) != "string") then "invalid" elif any(.labels[]; (.name | ascii_downcase) == "hold") then "true" else "false" end' <<<"$final_pr")"
           test "$final_state" = "open"
           test "$final_draft" = "false"
           test "$final_hold" = "false"
           test "$final_head" = "$REQUESTED_HEAD"
           test "$final_base" = "$current_main"
           test "$final_main" = "$current_main"
-
           echo 'applicable=true' >> "$GITHUB_OUTPUT"
           echo 'authority=DETERMINISTIC_AUDIT_PASS' >> "$GITHUB_OUTPUT"
           echo "audited_base=$current_main" >> "$GITHUB_OUTPUT"
@@ -226,6 +164,7 @@ jobs:
       contents: read
       issues: read
       pull-requests: read
+      id-token: write
     env:
       GH_TOKEN: ${{ github.token }}
       PR_NUMBER: ${{ github.event.client_payload.pr_number }}
@@ -237,13 +176,7 @@ jobs:
           set -euo pipefail
           pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
           main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
-          release_hold="$(jq -r '
-            if (.labels | type) != "array" then "invalid"
-            elif any(.labels[]; (.name | type) != "string") then "invalid"
-            elif any(.labels[]; (.name | ascii_downcase) == "hold") then "true"
-            else "false"
-            end
-          ' <<<"$pr")"
+          release_hold="$(jq -r 'if (.labels | type) != "array" then "invalid" elif any(.labels[]; (.name | type) != "string") then "invalid" elif any(.labels[]; (.name | ascii_downcase) == "hold") then "true" else "false" end' <<<"$pr")"
           test "$(jq -r '.state' <<<"$pr")" = "open"
           test "$(jq -r '.draft // false' <<<"$pr")" = "false"
           test "$release_hold" = "false"
@@ -265,17 +198,38 @@ jobs:
           const pages = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/nusa-release-open-issues-pages.json`, 'utf8'));
           const pull = JSON.parse(process.env.PR_JSON);
           const openIssues = Array.isArray(pages) ? pages.flat() : [];
-          const critical = openIssues
-            .filter((issue) => !issue?.pull_request && issue?.state === 'open'
-              && /^P0(?:\s|:)/i.test(String(issue?.title || ''))
-              && /\bRefs\s+#903\b/i.test(String(issue?.body || '')))
-            .sort((a, b) => String(a?.created_at || '').localeCompare(String(b?.created_at || '')) || Number(a?.number || 0) - Number(b?.number || 0));
+          const critical = openIssues.filter((issue) => !issue?.pull_request && issue?.state === 'open' && /^P0(?:\s|:)/i.test(String(issue?.title || '')) && /\bRefs\s+#903\b/i.test(String(issue?.body || ''))).sort((a, b) => String(a?.created_at || '').localeCompare(String(b?.created_at || '')) || Number(a?.number || 0) - Number(b?.number || 0));
           if (critical.length === 0) process.exit(0);
           const active = critical[0];
           const closesActive = new RegExp(`(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\\s+#${active.number}\\b`, 'i').test(String(pull.body || ''));
           if (!closesActive) fail(`Release serialized behind canonical P0 #903 repair #${active.number}`);
           console.log(`Canonical P0 #903 serialization permits PR #${pull.number} to close active repair #${active.number}`);
           NODE
+
+      - name: Verify durable control-plane Release clearance
+        env:
+          NUSA_RELEASE_CONTROL_URL: https://nusa-autopilot.desporin12.workers.dev/control-plane/release-check
+        run: |
+          cat > "$RUNNER_TEMP/nusa-release-control-check.mjs" <<'NODE'
+          const fail = (message) => { console.error(message); process.exit(1); };
+          const oidcUrl = process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
+          const oidcRequestToken = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
+          if (!oidcUrl || !oidcRequestToken) fail('GitHub OIDC environment is unavailable');
+          const tokenUrl = new URL(oidcUrl);
+          tokenUrl.searchParams.set('audience', 'nusa-autopilot');
+          const oidcResponse = await fetch(tokenUrl, { headers: { authorization: `Bearer ${oidcRequestToken}`, accept: 'application/json' } });
+          if (!oidcResponse.ok) fail(`OIDC token request failed: ${oidcResponse.status}`);
+          const oidcBody = await oidcResponse.json();
+          if (typeof oidcBody.value !== 'string' || !oidcBody.value) fail('OIDC token missing');
+          const payload = { repository: process.env.GITHUB_REPOSITORY, prNumber: Number(process.env.PR_NUMBER), headSha: process.env.EXPECTED_HEAD, baseSha: process.env.AUDITED_BASE };
+          const response = await fetch(process.env.NUSA_RELEASE_CONTROL_URL, { method: 'POST', headers: { authorization: `Bearer ${oidcBody.value}`, 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+          const body = await response.json().catch(() => ({}));
+          if (!response.ok) fail(`Durable Release control rejected: ${response.status} ${body.error || 'UNKNOWN'}`);
+          if (body.accepted !== true || body.status !== 'RELEASE_CONTROL_CLEAR' || body.repository !== payload.repository || body.prNumber !== payload.prNumber || String(body.headSha || '').toLowerCase() !== payload.headSha.toLowerCase() || String(body.baseSha || '').toLowerCase() !== payload.baseSha.toLowerCase() || body.globalReleaseFreeze !== false || !['NONE', 'CLEARED'].includes(body.holdState)) fail('Durable Release control proof invalid');
+          if (body.liveAuthority !== 'NONE' || body.productionMutationAllowed !== false || body.aiAuthority !== 'ZERO_AUTHORITY') fail('Durable Release control safety invariant mismatch');
+          console.log(`Durable Release control CLEAR: pr=${payload.prNumber} head=${payload.headSha} base=${payload.baseSha} hold=${body.holdState}`);
+          NODE
+          node "$RUNNER_TEMP/nusa-release-control-check.mjs"
 
       - name: Mint dedicated release authority token
         id: release_authority_token
@@ -293,16 +247,9 @@ jobs:
           AUTH_CONTEXT: nusa/release-authorized
         run: |
           set -euo pipefail
-
           pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
           main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
-          release_hold="$(jq -r '
-            if (.labels | type) != "array" then "invalid"
-            elif any(.labels[]; (.name | type) != "string") then "invalid"
-            elif any(.labels[]; (.name | ascii_downcase) == "hold") then "true"
-            else "false"
-            end
-          ' <<<"$pr")"
+          release_hold="$(jq -r 'if (.labels | type) != "array" then "invalid" elif any(.labels[]; (.name | type) != "string") then "invalid" elif any(.labels[]; (.name | ascii_downcase) == "hold") then "true" else "false" end' <<<"$pr")"
           test "$(jq -r '.state' <<<"$pr")" = "open"
           test "$(jq -r '.draft // false' <<<"$pr")" = "false"
           test "$release_hold" = "false"
@@ -311,46 +258,28 @@ jobs:
           test "$(jq -r '.base.repo.full_name' <<<"$pr")" = "$GITHUB_REPOSITORY"
           test "$(jq -r '.base.sha' <<<"$pr")" = "$AUDITED_BASE"
           test "$main" = "$AUDITED_BASE"
-
           expected_target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           expected_status_url="$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/statuses/$EXPECTED_HEAD"
           expected_creator='nusa-release-authority[bot]'
-          status="$(GH_TOKEN="$AUTH_GH_TOKEN" gh api --method POST \
-            "repos/$GITHUB_REPOSITORY/statuses/$EXPECTED_HEAD" \
-            -f state=success \
-            -f context="$AUTH_CONTEXT" \
-            -f description="canonical Audit PASS; pr=$PR_NUMBER; base=$AUDITED_BASE" \
-            -f target_url="$expected_target_url")"
-          # The authorization now exists. Publish this output before any self-verification
-          # so every later failure enters the fail-closed invalidation step.
+          status="$(GH_TOKEN="$AUTH_GH_TOKEN" gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$EXPECTED_HEAD" -f state=success -f context="$AUTH_CONTEXT" -f description="canonical Audit PASS; pr=$PR_NUMBER; base=$AUDITED_BASE" -f target_url="$expected_target_url")"
           echo 'published=true' >> "$GITHUB_OUTPUT"
-
           status_id="$(jq -r '.id // empty' <<<"$status")"
-          jq -e --arg context "$AUTH_CONTEXT" --arg target "$expected_target_url" \
-            --arg status_url "$expected_status_url" --arg creator "$expected_creator" \
-            '.state == "success" and .context == $context and .target_url == $target and .url == $status_url and .creator.login == $creator and (.id | type == "number")' \
-            <<<"$status" >/dev/null
-          observed_status="$(GH_TOKEN="$AUTH_GH_TOKEN" gh api \
-            "repos/$GITHUB_REPOSITORY/commits/$EXPECTED_HEAD/statuses" \
-            --jq ".[] | select(.id == $status_id)")"
-          jq -e --argjson id "$status_id" --arg context "$AUTH_CONTEXT" --arg target "$expected_target_url" \
-            --arg status_url "$expected_status_url" --arg creator "$expected_creator" \
-            '.id == $id and .state == "success" and .context == $context and .target_url == $target and .url == $status_url and .creator.login == $creator' \
-            <<<"$observed_status" >/dev/null
+          jq -e --arg context "$AUTH_CONTEXT" --arg target "$expected_target_url" --arg status_url "$expected_status_url" --arg creator "$expected_creator" '.state == "success" and .context == $context and .target_url == $target and .url == $status_url and .creator.login == $creator and (.id | type == "number")' <<<"$status" >/dev/null
+          observed_status="$(GH_TOKEN="$AUTH_GH_TOKEN" gh api "repos/$GITHUB_REPOSITORY/commits/$EXPECTED_HEAD/statuses" --jq ".[] | select(.id == $status_id)")"
+          jq -e --argjson id "$status_id" --arg context "$AUTH_CONTEXT" --arg target "$expected_target_url" --arg status_url "$expected_status_url" --arg creator "$expected_creator" '.id == $id and .state == "success" and .context == $context and .target_url == $target and .url == $status_url and .creator.login == $creator' <<<"$observed_status" >/dev/null
           echo "Dedicated release authority published and re-read $AUTH_CONTEXT on exact head $EXPECTED_HEAD for audited base $AUDITED_BASE"
+
+      - name: Re-verify durable control-plane clearance before merge
+        env:
+          NUSA_RELEASE_CONTROL_URL: https://nusa-autopilot.desporin12.workers.dev/control-plane/release-check
+        run: node "$RUNNER_TEMP/nusa-release-control-check.mjs"
 
       - name: Re-verify authorization is still current before merge
         run: |
           set -euo pipefail
           pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
           main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
-          release_hold="$(jq -r '
-            if (.labels | type) != "array" then "invalid"
-            elif any(.labels[]; (.name | type) != "string") then "invalid"
-            elif any(.labels[]; (.name | ascii_downcase) == "hold") then "true"
-            else "false"
-            end
-          ' <<<"$pr")"
+          release_hold="$(jq -r 'if (.labels | type) != "array" then "invalid" elif any(.labels[]; (.name | type) != "string") then "invalid" elif any(.labels[]; (.name | ascii_downcase) == "hold") then "true" else "false" end' <<<"$pr")"
           test "$(jq -r '.state' <<<"$pr")" = "open"
           test "$(jq -r '.draft // false' <<<"$pr")" = "false"
           test "$release_hold" = "false"
@@ -366,22 +295,12 @@ jobs:
           GH_TOKEN: ${{ steps.release_authority_token.outputs.token }}
         run: |
           set -euo pipefail
-
-          # A competing authorized merge path can win the exact same expected-head race
-          # after Release re-verifies the audited base. Never treat the API error itself as
-          # success: accept only a subsequently proven canonical merge commit whose two
-          # parents are exactly AUDITED_BASE and EXPECTED_HEAD and which remains on main.
           merge_api_ok=false
           if result="$(gh api --method PUT "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/merge" -f sha="$EXPECTED_HEAD" -f merge_method=merge)"; then
-            if jq -e '.merged == true' <<<"$result" >/dev/null; then
-              merge_api_ok=true
-            else
-              echo "Merge API returned without merged=true; verifying fail-closed whether an equivalent exact-head merge completed concurrently."
-            fi
+            if jq -e '.merged == true' <<<"$result" >/dev/null; then merge_api_ok=true; else echo "Merge API returned without merged=true; verifying fail-closed whether an equivalent exact-head merge completed concurrently."; fi
           else
             echo "Merge API failed; verifying fail-closed whether an equivalent exact-head merge completed concurrently."
           fi
-
           verified_merge_sha=''
           for poll in $(seq 1 5); do
             pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
@@ -390,41 +309,25 @@ jobs:
             base_ref="$(jq -r '.base.ref // empty' <<<"$pr")"
             base="$(jq -r '.base.sha // empty' <<<"$pr")"
             merge_sha="$(jq -r '.merge_commit_sha // empty' <<<"$pr")"
-
             if [ "$merged" = "true" ] && [ "$head" = "$EXPECTED_HEAD" ] && [ "$base_ref" = "main" ] && [ "$base" = "$AUDITED_BASE" ] && [[ "$merge_sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
               merge_commit="$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$merge_sha")"
               parent_count="$(jq -r '.parents | length' <<<"$merge_commit")"
               parent_base="$(jq -r '.parents[0].sha // empty' <<<"$merge_commit")"
               parent_head="$(jq -r '.parents[1].sha // empty' <<<"$merge_commit")"
-
               if [ "$parent_count" = "2" ] && [ "$parent_base" = "$AUDITED_BASE" ] && [ "$parent_head" = "$EXPECTED_HEAD" ]; then
                 current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
-                if [ "$current_main" = "$merge_sha" ]; then
-                  verified_merge_sha="$merge_sha"
-                  break
-                fi
-
+                if [ "$current_main" = "$merge_sha" ]; then verified_merge_sha="$merge_sha"; break; fi
                 ancestry="$(gh api "repos/$GITHUB_REPOSITORY/compare/$merge_sha...$current_main" --jq '.status' 2>/dev/null || true)"
-                if [ "$ancestry" = "ahead" ]; then
-                  verified_merge_sha="$merge_sha"
-                  break
-                fi
+                if [ "$ancestry" = "ahead" ]; then verified_merge_sha="$merge_sha"; break; fi
               fi
             fi
-
             echo "Waiting for exact-head merge race to settle (poll $poll/5)..."
             sleep 1
           done
-
           if [ -z "$verified_merge_sha" ]; then
-            if [ "$merge_api_ok" = "true" ]; then
-              echo "::error::Merge API reported success, but the resulting merge could not be bound to audited base $AUDITED_BASE and exact head $EXPECTED_HEAD."
-            else
-              echo "::error::Merge API failed and no equivalent audited exact-head merge could be proven."
-            fi
+            if [ "$merge_api_ok" = "true" ]; then echo "::error::Merge API reported success, but the resulting merge could not be bound to audited base $AUDITED_BASE and exact head $EXPECTED_HEAD."; else echo "::error::Merge API failed and no equivalent audited exact-head merge could be proven."; fi
             exit 1
           fi
-
           echo "merged_main=$verified_merge_sha" >> "$GITHUB_OUTPUT"
           echo "Canonical deterministic Release bound PR #$PR_NUMBER to merge $verified_merge_sha at exact head $EXPECTED_HEAD and audited base $AUDITED_BASE"
           echo 'liveAuthority=NONE'
@@ -438,12 +341,7 @@ jobs:
           AUTH_CONTEXT: nusa/release-authorized
         run: |
           set -euo pipefail
-          GH_TOKEN="$AUTH_GH_TOKEN" gh api --method POST \
-            "repos/$GITHUB_REPOSITORY/statuses/$EXPECTED_HEAD" \
-            -f state=failure \
-            -f context="$AUTH_CONTEXT" \
-            -f description="canonical Release invalidated before verified merge" \
-            -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null
+          GH_TOKEN="$AUTH_GH_TOKEN" gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$EXPECTED_HEAD" -f state=failure -f context="$AUTH_CONTEXT" -f description="canonical Release invalidated before verified merge" -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null
           echo "Invalidated $AUTH_CONTEXT on $EXPECTED_HEAD after release-path failure."
 
       - name: Start canonical post-merge main CI
@@ -455,10 +353,7 @@ jobs:
           test -n "$MERGED_MAIN"
           current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           echo "merged_main=$MERGED_MAIN" >> "$GITHUB_OUTPUT"
-          if [ "$current_main" != "$MERGED_MAIN" ]; then
-            echo "Main advanced from audited merge $MERGED_MAIN to $current_main; newer Release/watchdog owns convergence."
-            exit 0
-          fi
+          if [ "$current_main" != "$MERGED_MAIN" ]; then echo "Main advanced from audited merge $MERGED_MAIN to $current_main; newer Release/watchdog owns convergence."; exit 0; fi
           gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/dispatches" -f ref=main
           echo "Dispatched canonical main CI for merged revision $MERGED_MAIN"
 
@@ -467,65 +362,30 @@ jobs:
           MERGED_MAIN: ${{ steps.ci.outputs.merged_main }}
         run: |
           set -euo pipefail
-          # A GITHUB_TOKEN-dispatched CI does not reliably fan out through workflow_run.
-          # Treat CI attempts as a retryable exact-head state machine: any successful
-          # attempt authorizes deployment, while a failed attempt is rerun in-place up to
-          # three total attempts. This prevents a transient first failure from permanently
-          # severing the canonical Release handoff.
           success=false
           for poll in $(seq 1 40); do
             current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
-            if [ "$current_main" != "$MERGED_MAIN" ]; then
-              echo "Main advanced from $MERGED_MAIN to $current_main; newer Release/watchdog owns convergence."
-              exit 0
-            fi
-
+            if [ "$current_main" != "$MERGED_MAIN" ]; then echo "Main advanced from $MERGED_MAIN to $current_main; newer Release/watchdog owns convergence."; exit 0; fi
             runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$MERGED_MAIN&per_page=100")"
             successful_run="$(jq -r --arg sha "$MERGED_MAIN" '[.workflow_runs[] | select(.name == "CI" and .path == ".github/workflows/ci.yml" and .head_sha == $sha and .status == "completed" and .conclusion == "success")][0].id // empty' <<<"$runs")"
-            if [ -n "$successful_run" ]; then
-              echo "Post-merge CI SUCCESS recovered for $MERGED_MAIN via run $successful_run."
-              success=true
-              break
-            fi
-
+            if [ -n "$successful_run" ]; then echo "Post-merge CI SUCCESS recovered for $MERGED_MAIN via run $successful_run."; success=true; break; fi
             active_count="$(jq -r --arg sha "$MERGED_MAIN" '[.workflow_runs[] | select(.name == "CI" and .path == ".github/workflows/ci.yml" and .head_sha == $sha and (.status == "queued" or .status == "in_progress" or .status == "pending"))] | length' <<<"$runs")"
-            if [ "$active_count" -gt 0 ]; then
-              echo "Waiting for active post-merge CI on $MERGED_MAIN (poll $poll/40)..."
-              sleep 20
-              continue
-            fi
-
+            if [ "$active_count" -gt 0 ]; then echo "Waiting for active post-merge CI on $MERGED_MAIN (poll $poll/40)..."; sleep 20; continue; fi
             failed_run_id="$(jq -r --arg sha "$MERGED_MAIN" '[.workflow_runs[] | select(.name == "CI" and .path == ".github/workflows/ci.yml" and .head_sha == $sha and .status == "completed" and (.conclusion == "failure" or .conclusion == "timed_out" or .conclusion == "cancelled"))] | sort_by(.updated_at) | reverse | .[0].id // empty' <<<"$runs")"
             failed_attempt="$(jq -r --arg sha "$MERGED_MAIN" '[.workflow_runs[] | select(.name == "CI" and .path == ".github/workflows/ci.yml" and .head_sha == $sha and .status == "completed" and (.conclusion == "failure" or .conclusion == "timed_out" or .conclusion == "cancelled"))] | sort_by(.updated_at) | reverse | .[0].run_attempt // 0' <<<"$runs")"
-
             if [ -n "$failed_run_id" ]; then
-              if [ "$failed_attempt" -ge 3 ]; then
-                echo "::error::Post-merge CI retry budget exhausted for $MERGED_MAIN after attempt $failed_attempt."
-                exit 1
-              fi
+              if [ "$failed_attempt" -ge 3 ]; then echo "::error::Post-merge CI retry budget exhausted for $MERGED_MAIN after attempt $failed_attempt."; exit 1; fi
               echo "Post-merge CI attempt $failed_attempt failed; requesting bounded rerun for run $failed_run_id."
-              if ! gh api --method POST "repos/$GITHUB_REPOSITORY/actions/runs/$failed_run_id/rerun-failed-jobs" >/dev/null; then
-                gh api --method POST "repos/$GITHUB_REPOSITORY/actions/runs/$failed_run_id/rerun" >/dev/null
-              fi
+              if ! gh api --method POST "repos/$GITHUB_REPOSITORY/actions/runs/$failed_run_id/rerun-failed-jobs" >/dev/null; then gh api --method POST "repos/$GITHUB_REPOSITORY/actions/runs/$failed_run_id/rerun" >/dev/null; fi
               sleep 20
               continue
             fi
-
             echo "Waiting for post-merge CI run creation on $MERGED_MAIN (poll $poll/40)..."
             sleep 20
           done
-
-          if [ "$success" != "true" ]; then
-            echo "::error::Post-merge CI for $MERGED_MAIN produced no successful attempt before timeout."
-            exit 1
-          fi
-
+          if [ "$success" != "true" ]; then echo "::error::Post-merge CI for $MERGED_MAIN produced no successful attempt before timeout."; exit 1; fi
           current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
-          if [ "$current_main" != "$MERGED_MAIN" ]; then
-            echo "Main advanced after CI recovery; newer convergence chain owns deployment."
-            exit 0
-          fi
-
+          if [ "$current_main" != "$MERGED_MAIN" ]; then echo "Main advanced after CI recovery; newer convergence chain owns deployment."; exit 0; fi
           echo "Post-merge CI verified for $MERGED_MAIN; dispatching Cloudflare Deploy directly."
           gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-cloudflare-deploy.yml/dispatches" -f ref=main -f "inputs[head_sha]=$MERGED_MAIN"
 
@@ -535,21 +395,9 @@ jobs:
         run: |
           set -euo pipefail
           CURRENT_MAIN="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
-          if [ "$CURRENT_MAIN" != "$MERGED_MAIN" ]; then
-            echo "Main advanced from $MERGED_MAIN to $CURRENT_MAIN; newer Release chain owns post-merge evidence."
-            exit 0
-          fi
-
-          # GITHUB_TOKEN-created merge/dispatch events do not reliably trigger downstream
-          # push/workflow_run listeners. Dispatch the canonical runtime proof explicitly.
+          if [ "$CURRENT_MAIN" != "$MERGED_MAIN" ]; then echo "Main advanced from $MERGED_MAIN to $CURRENT_MAIN; newer Release chain owns post-merge evidence."; exit 0; fi
           gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/wo-0059-actual-paper-runtime.yml/dispatches" -f ref=main
-
           gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-cloudflare-promote.yml/dispatches" -f ref=main -f "inputs[head_sha]=$MERGED_MAIN"
-
-          # Route Android through the bounded exact-main CI trigger instead of calling the
-          # stable-release workflow directly. The trigger polls CI, detects main drift,
-          # deduplicates active releases, and fails closed before promotion.
           gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/android-stable-release-trigger.yml/dispatches" -f ref=main
           gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/windows-desktop-stable-release.yml/dispatches" -f ref=main
-
           echo "Dispatched Actual PAPER runtime evidence, Cloudflare Promote, Android stable trigger, and Windows Desktop Stable Release for $MERGED_MAIN."
