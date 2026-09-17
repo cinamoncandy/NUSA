@@ -69,7 +69,7 @@ test("enrollment rejects unauthenticated, inactive, malformed, and non-POST requ
   } finally { db.close(); }
 });
 
-test("mobile enrollment sends the first credential once and keeps all issued credentials process-memory-only", async () => {
+test("mobile enrollment sends the first credential once and persists only the rotating refresh capability", async () => {
   const writes = [];
   const reads = [];
   const deletes = [];
@@ -92,7 +92,10 @@ test("mobile enrollment sends the first credential once and keeps all issued cre
   assert.match(calls[0].init.headers.authorization, /^Bearer first-user-credential/);
   assert.deepEqual(JSON.parse(calls[0].init.body), { deviceId: "nusa-install-device-1234" });
   assert.deepEqual(JSON.parse(calls[1].init.body), { bootstrapToken: "bootstrap-token-enrollment-123456", deviceId: "nusa-install-device-1234" });
-  assert.equal(writes.length, 0, "mobile credential material must never be persisted");
+  assert.equal(writes.length, 1, "only the approved device refresh capability is persisted");
+  const persisted = new TextDecoder().decode(writes[0].value);
+  assert.match(persisted, /refresh-token-enrollment-123456/);
+  assert.doesNotMatch(persisted, /access-token-enrollment|bootstrap-token-enrollment|first-user-credential|user@nusa\.local/);
   assert.equal(reads.length, 0, "mobile credential material must never be restored from persistence");
   assert.ok(deletes.length > 0, "legacy persisted credential slots should be erased without reading them");
 });
