@@ -33,6 +33,8 @@ const PR_TRIGGERS = /^\s{0,4}(pull_request|pull_request_target):/;
 // workflows that take one re-verify it against current protected main before doing any work.
 const PR_HEAD_REF = /github\.event\.pull_request\.head\.(sha|ref)|client_payload\.head_sha/;
 const CHECKOUT = /uses:\s*actions\/checkout@/;
+const EXPLICIT_REF = /^ref:\s*\S/;
+const STEP_START = /^-\s/;
 const SECRET_REF = /\$\{\{\s*secrets\./;
 
 const indentOf = (line) => line.length - line.trimStart().length;
@@ -48,6 +50,8 @@ function parseWorkflow(name, text) {
   let current = null;
   let permTarget = null;
   let permIndent = -1;
+  let checkoutStep = null;
+  let checkoutSteps = [];
 
   for (const line of lines) {
     if (line.trim() === "" || line.trimStart().startsWith("#")) continue;
@@ -85,7 +89,9 @@ function parseWorkflow(name, text) {
 
     if (inJobs && indent === jobsIndent + 2 && /^[A-Za-z0-9_-]+:$/.test(trimmed)) {
       current = trimmed.slice(0, -1);
-      workflow.jobs[current] = { permissions: {}, environment: null, usesSecrets: false, prCodeExecution: false, mutates: false, merges: false };
+      workflow.jobs[current] = { permissions: {}, environment: null, usesSecrets: false, prCodeExecution: false, mutates: false, merges: false, defaultRefCheckout: false };
+      checkoutStep = null;
+      checkoutSteps = workflow.jobs[current].checkoutSteps = [];
       continue;
     }
 
@@ -95,8 +101,26 @@ function parseWorkflow(name, text) {
     if (SECRET_REF.test(line)) job.usesSecrets = true;
     if (MERGE_CALL.test(line)) job.merges = true;
     if (/--method\s+(PUT|POST|PATCH|DELETE)|git\s+push|\/dispatches|\/statuses\//.test(line)) job.mutates = true;
-    if (CHECKOUT.test(line)) job.checkout = true;
+    // A checkout that names no `ref` takes the event's default revision. On a pull_request or
+    // pull_request_target event that revision is the pull request's own merge commit, so such a
+    // step runs PR-controlled code just as surely as one that spells out `head.sha` - it simply
+    // says so less visibly. Track it per step: a job may check out trusted main in one step and
+    // default-ref somewhere else.
+    if (CHECKOUT.test(line)) {
+      job.checkout = true;
+      checkoutStep = { explicitRef: false };
+      checkoutSteps.push(checkoutStep);
+    } else if (checkoutStep != null && STEP_START.test(trimmed)) {
+      checkoutStep = null;
+    } else if (checkoutStep != null && EXPLICIT_REF.test(trimmed)) {
+      checkoutStep.explicitRef = true;
+    }
     if (PR_HEAD_REF.test(line) && job.checkout) job.prCodeExecution = true;
+  }
+
+  for (const job of Object.values(workflow.jobs)) {
+    job.defaultRefCheckout = (job.checkoutSteps ?? []).some((step) => !step.explicitRef);
+    delete job.checkoutSteps;
   }
 
   return workflow;
@@ -138,6 +162,7 @@ function collect(root = process.cwd()) {
         environment: job.environment,
         secrets: job.usesSecrets,
         prCode: job.prCodeExecution,
+        defaultRefCheckout: job.defaultRefCheckout,
         merges: job.merges
       };
     }
@@ -169,10 +194,15 @@ function validateWorkflowAuthorityMap(root = process.cwd()) {
 
       // Rule 2: PR-controlled code must not run while a write token is available.
       const mutating = job.write.filter((scope) => MUTATION_SCOPES.has(scope));
-      if (job.prCode && mutating.length > 0) observed.prCodeWithWrite.add(id);
+      // A PR-triggered checkout with no `ref` is the pull request's own revision. It runs PR code
+      // exactly like an explicit `head.sha` does, so it counts the same way here.
+      const implicitPrCode = prTriggered && job.defaultRefCheckout;
+      const runsPrCode = job.prCode || implicitPrCode;
+      if (runsPrCode && mutating.length > 0) observed.prCodeWithWrite.add(id);
       if (prTriggered && job.secrets && mutating.length > 0) observed.prSecretWrite.add(id);
-      if (job.prCode && mutating.length > 0 && !acknowledged(baseline, "prCodeWithWrite", id)) {
-        failures.push(`PR_CODE_EXECUTION_WITH_WRITE_AUTHORITY:${id}:${mutating.join(",")}`);
+      if (runsPrCode && mutating.length > 0 && !acknowledged(baseline, "prCodeWithWrite", id)) {
+        const how = job.prCode ? "explicit-pr-head" : "default-ref-checkout";
+        failures.push(`PR_CODE_EXECUTION_WITH_WRITE_AUTHORITY:${id}:${how}:${mutating.join(",")}`);
       }
       if (prTriggered && job.secrets && mutating.length > 0 && !acknowledged(baseline, "prSecretWrite", id)) {
         failures.push(`PR_TRIGGERED_SECRET_JOB_WITH_WRITE_AUTHORITY:${id}:${mutating.join(",")}`);
