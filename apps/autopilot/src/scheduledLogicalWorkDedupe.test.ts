@@ -40,16 +40,27 @@ function namespace(seen: Set<string>, acquiredKeys: string[]): ExecutionCoordina
   };
 }
 
+function githubFetch(dispatchedReasons?: string[]): typeof fetch {
+  return (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url.endsWith("/branches/main")) return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200, headers: { "content-type": "application/json" } });
+    if (url.endsWith("/dispatches")) {
+      if (dispatchedReasons) {
+        const body = JSON.parse(String(init?.body)) as { client_payload?: { reason?: string } };
+        dispatchedReasons.push(body.client_payload?.reason ?? "");
+      }
+      return new Response(null, { status: 204 });
+    }
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+}
+
 test("same main dispatches B after A gains an open PR because dedupe is logical-work-bound", async () => {
   const seen = new Set<string>();
   const acquiredKeys: string[] = [];
   const coordinator = namespace(seen, acquiredKeys);
   const dispatchedReasons: string[] = [];
-  const fetchImpl = (async (_input: RequestInfo | URL, init?: RequestInit) => {
-    const body = JSON.parse(String(init?.body)) as { client_payload?: { reason?: string } };
-    dispatchedReasons.push(body.client_payload?.reason ?? "");
-    return new Response(null, { status: 204 });
-  }) as typeof fetch;
+  const fetchImpl = githubFetch(dispatchedReasons);
 
   const first = await runScheduledEvolutionCoding(
     { NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: coordinator },
@@ -78,7 +89,7 @@ test("same logical work on same main remains persistently deduplicated", async (
   const seen = new Set<string>();
   const acquiredKeys: string[] = [];
   const coordinator = namespace(seen, acquiredKeys);
-  const fetchImpl = (async () => new Response(null, { status: 204 })) as typeof fetch;
+  const fetchImpl = githubFetch();
   const input = { candidates: [], backlogIssues: [issue(1901)], openPulls: [], now: NOW, repository: "cinamoncandy/NUSA", mainSha: SHA, workflowRunId: RUN_ID } as const;
 
   assert.equal((await runScheduledEvolutionCoding({ NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: coordinator }, input, fetchImpl)).status, "EXECUTION_ACCEPTED");
