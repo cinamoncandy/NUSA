@@ -95,6 +95,35 @@ test("fails closed when an Audit request is accepted without a dispatch or appro
   await assert.rejects(() => dispatchGithubEvent({ secret: "bridge-test-secret", body, event: "workflow_run", repository: "cinamoncandy/NUSA", runId: "18", runAttempt: "1", fetchImpl: async () => new Response(JSON.stringify(safetyPayload({ execution: { kind: "AUDIT_REQUEST" }, executor: { status: "FAILED", reason: "github-executor-http-500", httpStatus: 500 } })), { status: 202 }), retryDelayMs: 0, timeoutMs: 100 }), /WEBHOOK_AUDIT_NOT_DISPATCHED:FAILED:github-executor-http-500:500/);
 });
 
+// #1876's sticky HOLD gave the executor legitimate reasons to decline an Audit request. Those are
+// the control plane working, not a delivery failure, and the bridge must not report them as one -
+// otherwise every held pull request paints main red and real delivery failures hide in the noise.
+for (const reason of ["github-executor-pr-not-open", "github-executor-pr-draft-hold-active", "github-executor-pr-hold-label-active"]) {
+  test(`a state-based executor decline is a delivered event, not a bridge failure (${reason})`, async () => {
+    const result = await dispatchGithubEvent({
+      secret: "bridge-test-secret", body, event: "workflow_run", repository: "cinamoncandy/NUSA", runId: "19", runAttempt: "1",
+      fetchImpl: async () => new Response(JSON.stringify(safetyPayload({ execution: { kind: "AUDIT_REQUEST" }, executor: { status: "REJECTED", reason, httpStatus: 200 } })), { status: 202 }),
+      retryDelayMs: 0, timeoutMs: 100
+    });
+    assert.equal(result.status, "DELIVERED");
+    assert.equal(result.executorStatus, "REJECTED");
+    assert.equal(result.executorReason, reason);
+  });
+}
+
+// A malformed request is also REJECTED, but it is a defect rather than a state decision, so it must
+// stay loud. This is the boundary the allowlist has to hold.
+test("a malformed Audit request still fails closed even though it is also REJECTED", async () => {
+  await assert.rejects(
+    () => dispatchGithubEvent({
+      secret: "bridge-test-secret", body, event: "workflow_run", repository: "cinamoncandy/NUSA", runId: "20", runAttempt: "1",
+      fetchImpl: async () => new Response(JSON.stringify(safetyPayload({ execution: { kind: "AUDIT_REQUEST" }, executor: { status: "REJECTED", reason: "github-executor-pr-number-required", httpStatus: 200 } })), { status: 202 }),
+      retryDelayMs: 0, timeoutMs: 100
+    }),
+    /WEBHOOK_AUDIT_NOT_DISPATCHED:REJECTED:github-executor-pr-number-required/
+  );
+});
+
 test("the primary bridge remains read-only and fallback write authority is isolated", () => {
   const normalized = workflow.replace(/\r\n/g, "\n");
   const bridgeStart = normalized.indexOf("  bridge:\n");
