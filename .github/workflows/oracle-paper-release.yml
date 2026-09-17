@@ -34,6 +34,9 @@ jobs:
     env:
       SOURCE_SHA: ${{ inputs.source_sha }}
       NUSA_DEPLOY_ROOT: /opt/nusa
+      # One privileged entry point, installed outside the release tree so a release cannot rewrite
+      # the helper that runs as root. sudoers grants exactly this command and nothing else.
+      STEP: /opt/nusa/bin/nusa-release-step
     steps:
       - name: Verify the requested source is exact protected main
         env:
@@ -74,38 +77,19 @@ jobs:
           pnpm run build
 
       - name: Back up persistent state before touching the release
-        run: sudo -u nusa node scripts/sqlite-backup.js
-
-      - name: Preflight host and security contract
-        run: |
-          set -euo pipefail
-          node scripts/host-security-validate.js
-          sudo node scripts/oracle-validate.js
+        run: sudo "$STEP" backup
 
       - name: Stage the immutable release directory
-        run: |
-          set -euo pipefail
-          RELEASE="$NUSA_DEPLOY_ROOT/releases/$SOURCE_SHA"
-          # A release directory is immutable once staged. Re-staging over a live release would
-          # mutate what `current` points at, so an existing path is replaced only while it is not
-          # the active release.
-          if [ -e "$RELEASE" ]; then
-            ACTIVE="$(readlink -f "$NUSA_DEPLOY_ROOT/current" || true)"
-            [ "$ACTIVE" = "$(readlink -f "$RELEASE")" ] && { echo "::error::Refusing to restage the active release"; exit 1; }
-            sudo rm -rf "$RELEASE"
-          fi
-          sudo install -d -o nusa -g nusa -m 0755 "$RELEASE"
-          sudo tar -cf - --exclude=.git . | sudo tar -xf - -C "$RELEASE"
-          sudo chown -R nusa:nusa "$RELEASE"
+        run: sudo "$STEP" stage "$SOURCE_SHA" "$GITHUB_WORKSPACE"
+
+      - name: Preflight host and security contract
+        run: sudo "$STEP" preflight "$SOURCE_SHA"
 
       - name: Switch the release symlink atomically
-        run: sudo env NUSA_COMMIT_SHA="$SOURCE_SHA" node scripts/atomic-deploy.js
+        run: sudo "$STEP" switch "$SOURCE_SHA"
 
       - name: Restart the PAPER service
-        run: |
-          set -euo pipefail
-          sudo systemctl daemon-reload
-          sudo systemctl restart nusa.service
+        run: sudo "$STEP" restart
 
       - name: Prove readiness, and roll back if it fails
         id: readiness
@@ -114,14 +98,14 @@ jobs:
           # Readiness is the acceptance gate. A release that cannot prove it is rolled back here
           # rather than left serving, because the runbook's failure path is a symlink rollback and
           # never an automatic data restore.
-          if sudo node scripts/oracle-readiness-check.js; then
+          if sudo "$STEP" readiness; then
             echo "Release $SOURCE_SHA accepted."
             exit 0
           fi
           echo "::error::Readiness failed for $SOURCE_SHA; rolling back."
-          sudo env NUSA_DEPLOY_ACTION=rollback node scripts/atomic-deploy.js
-          sudo systemctl restart nusa.service
-          sudo node scripts/oracle-readiness-check.js || { echo "::error::Rollback readiness also failed. Service left for investigation; do not bypass readiness."; exit 1; }
+          sudo "$STEP" rollback
+          sudo "$STEP" restart
+          sudo "$STEP" readiness || { echo "::error::Rollback readiness also failed. Service left for investigation; do not bypass readiness."; exit 1; }
           echo "::error::Rolled back to the prior release, which is ready."
           exit 1
 
