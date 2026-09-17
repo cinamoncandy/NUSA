@@ -33,11 +33,13 @@ test("cash allocation remains a first-class PAPER contract without cluttering ca
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /PAPER PERFORMANCE/);
   assert.match(home, /testID="home-investable-cash"/);
-  assert.match(home, /<FactRow label="RESERVED CASH" value=\{krw\(cashEnvelope\?\.reservedCash\)\} tone="success" \/>/);
+  assert.match(home, /testID="home-reserved-cash"/);
+  assert.match(home, /\{krw\(cashEnvelope\.reservedCash\)\}/);
   const performanceStart = home.indexOf('PAPER PERFORMANCE');
   const investable = home.indexOf('testID="home-investable-cash"');
-  const reserved = home.indexOf('label="RESERVED CASH"');
-  assert.ok(performanceStart >= 0 && investable > performanceStart && reserved > performanceStart, "allocation detail must live inside PAPER PERFORMANCE");
+  const reserved = home.indexOf('testID="home-reserved-cash"');
+  const limits = home.indexOf('testID="home-capital-limits"');
+  assert.ok(performanceStart >= 0 && limits > performanceStart && investable > limits && reserved > limits, "allocation detail must live in the HOME MASTER capital-limits section after PAPER PERFORMANCE");
   assert.match(portfolio, /portfolio-investable-cash/);
   assert.match(trading, /const cashEnvelope = createCashInvestmentEnvelope\(effectiveSnapshot\.account\.cash, investmentPercent\)/);
   assert.match(trading, /const modelCash = side === "BUY" \? cashEnvelope\.investableCash : effectiveSnapshot\.account\.cash/);
