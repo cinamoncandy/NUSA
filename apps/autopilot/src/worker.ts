@@ -10,7 +10,7 @@ import {
   type CodingRunnerRequest,
 } from "./codingRunner";
 import { GithubValidatedPatchPublisher } from "./githubValidatedPatchPublisher";
-import { verifyGithubActionsOidcToken } from "./githubActionsOidc";
+import { verifyGithubActionsOidcToken, verifyGithubReleaseControlOidcToken } from "./githubActionsOidc";
 import { executeIndependentAudit, validateAuditRunnerRequest } from "./auditRunner";
 
 export { ExecutionCoordinator };
@@ -204,7 +204,12 @@ async function handleCodingPublish(request: Request, env: WorkerEnv): Promise<Re
 async function handleReleaseControlPlaneCheck(request: Request, env: WorkerEnv): Promise<Response> {
   const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || "cinamoncandy/NUSA";
   const provided = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
-  if (!await verifyAuditAuthorization(provided, allowedRepository)) {
+  if (!provided) {
+    return json({ accepted: false, status: "RELEASE_CONTROL_FAILED_CLOSED", error: "RELEASE_CONTROL_UNAUTHORIZED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 401);
+  }
+  try {
+    await verifyGithubReleaseControlOidcToken(provided, allowedRepository);
+  } catch {
     return json({ accepted: false, status: "RELEASE_CONTROL_FAILED_CLOSED", error: "RELEASE_CONTROL_UNAUTHORIZED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 401);
   }
   if (!env.NUSA_EXECUTION_COORDINATOR) {
