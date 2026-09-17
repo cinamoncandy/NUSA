@@ -1,0 +1,120 @@
+name: Oracle PAPER Release
+
+# Deploys the Cloud PAPER runtime to the Oracle host by running the procedure that
+# docs/operations/oracle-p1-008-runbook.md already defines. Every step it performs already
+# existed as a script; what was missing was anything that ran them in order, which is why the
+# host drifted behind protected main with no workflow able to observe or correct it (#1816).
+#
+# Deliberately manual. This is the first automated writer to a production host, so it is
+# dispatch-only rather than firing on every merge to main. Nothing here grants LIVE authority:
+# the release switch moves a symlink and restarts a service that stays PAPER_ONLY.
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Full 40-character commit SHA to release. Must be current protected main.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oracle-paper-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release exact-main Cloud PAPER runtime
+    # A dedicated label, not the Codex development runner: that runner's own contract forbids
+    # deploying, and a release writer must not share an identity with an agent sandbox.
+    runs-on: [self-hosted, Linux, nusa-paper-host]
+    timeout-minutes: 30
+    env:
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      NUSA_DEPLOY_ROOT: /opt/nusa
+      # One privileged entry point, installed outside the release tree so a release cannot rewrite
+      # the helper that runs as root. sudoers grants exactly this command and nothing else.
+      STEP: /opt/nusa/bin/nusa-release-step
+    steps:
+      - name: Verify the requested source is exact protected main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$SOURCE_SHA" | grep -Eq '^[0-9a-f]{40}$' || { echo "::error::source_sha must be a full lowercase commit SHA"; exit 1; }
+          MAIN_SHA="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [ "$MAIN_SHA" = "$SOURCE_SHA" ] || { echo "::error::Refusing stale Oracle release: requested $SOURCE_SHA, protected main is $MAIN_SHA"; exit 1; }
+
+      - name: Require successful exact-source CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          conclusion="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$SOURCE_SHA&status=completed&per_page=100" --jq '.workflow_runs[]' \
+            | jq -sr --arg sha "$SOURCE_SHA" '[.[] | select(.path == ".github/workflows/ci.yml" and .head_sha == $sha and .conclusion == "success")][0].conclusion // empty')"
+          [ "$conclusion" = "success" ] || { echo "::error::Exact-source $SOURCE_SHA has no successful canonical CI run"; exit 1; }
+
+      - name: Checkout exact source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Enable pnpm via Corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+
+      - name: Install locked dependencies and build
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+          pnpm run build
+
+      - name: Back up persistent state before touching the release
+        run: sudo "$STEP" backup
+
+      - name: Stage the immutable release directory
+        run: sudo "$STEP" stage "$SOURCE_SHA" "$GITHUB_WORKSPACE"
+
+      - name: Preflight host and security contract
+        run: sudo "$STEP" preflight "$SOURCE_SHA"
+
+      - name: Switch the release symlink atomically
+        run: sudo "$STEP" switch "$SOURCE_SHA"
+
+      - name: Restart the PAPER service
+        run: sudo "$STEP" restart
+
+      - name: Prove readiness, and roll back if it fails
+        id: readiness
+        run: |
+          set -euo pipefail
+          # Readiness is the acceptance gate. A release that cannot prove it is rolled back here
+          # rather than left serving, because the runbook's failure path is a symlink rollback and
+          # never an automatic data restore.
+          if sudo "$STEP" readiness; then
+            echo "Release $SOURCE_SHA accepted."
+            exit 0
+          fi
+          echo "::error::Readiness failed for $SOURCE_SHA; rolling back."
+          sudo "$STEP" rollback
+          sudo "$STEP" restart
+          sudo "$STEP" readiness || { echo "::error::Rollback readiness also failed. Service left for investigation; do not bypass readiness."; exit 1; }
+          echo "::error::Rolled back to the prior release, which is ready."
+          exit 1
+
+      - name: Record deployed identity and fail-closed authority
+        if: always()
+        run: |
+          set -euo pipefail
+          echo "requestedSource=$SOURCE_SHA"
+          echo "currentRelease=$(readlink -f "$NUSA_DEPLOY_ROOT/current" || echo UNKNOWN)"
+          echo 'liveAuthority=NONE'
+          echo 'productionMutationAllowed=false'
+          echo 'aiAuthority=ZERO_AUTHORITY'
