@@ -173,7 +173,9 @@ export class InMemoryDashboardCredentialSession {
       try { lastCredentialFailure = null; restored = await session.restore(endpoint); }
       catch (error) { lastCredentialFailure = describeCredentialFailure(error); return null; }
       if (restored == null) {
-        lastCredentialFailure = "저장된 보안 세션이 없거나 만료되었습니다. 설정에서 PAPER 연결 요청을 시작하세요.";
+        lastCredentialFailure = session.requiresDeviceAuthentication()
+          ? "휴대전화의 지문·얼굴 또는 화면 PIN으로 잠금을 해제한 뒤 PAPER 자동 연결을 다시 누르세요."
+          : "저장된 보안 세션이 없거나 만료되었습니다. 설정에서 PAPER 연결 요청을 시작하세요.";
         return null;
       }
     }

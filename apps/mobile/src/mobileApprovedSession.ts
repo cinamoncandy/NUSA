@@ -1,5 +1,6 @@
 import type { SecureStoragePort } from "./mobileSecurity";
 import type { OwnerDeviceCredentialNative } from "./ownerDeviceCredential";
+import { MobileSecureStorageAuthenticationRequiredError } from "./androidSecureStorage";
 
 // v1 was deliberately delete-only. v2 contains only a device-bound rotating
 // refresh capability, and only when Android Keystore is available.
@@ -202,12 +203,14 @@ export class MobileApprovedSession {
   private pendingPairing: PendingPairingMemory | null = null;
   private refreshInFlight: Promise<string | null> | null = null;
   private restoreRetryable = false;
+  private deviceAuthenticationRequired = false;
 
   public constructor(private readonly storage: SecureStoragePort | null, private readonly request: typeof fetch = fetch) {}
 
   public readonly credentialProvider: MobileApprovedCredentialProvider = async () => this.getAccessToken();
   public currentIdentity(): MobileApprovedSessionIdentity | null { return this.identity; }
   public hasMemoryAccess(): boolean { return this.accessToken !== null; }
+  public requiresDeviceAuthentication(): boolean { return this.deviceAuthenticationRequired; }
   /** Transient restore failures may retry while the device-bound refresh session remains valid. */
   public shouldRetryRestore(): boolean { return this.restoreRetryable; }
 
@@ -415,6 +418,10 @@ export class MobileApprovedSession {
       this.identity = identity;
       return identity;
     } catch (error) {
+      if (error instanceof MobileSecureStorageAuthenticationRequiredError) {
+        this.deviceAuthenticationRequired = true;
+        return null;
+      }
       if (!this.shouldRetryRestore()) await this.clearLocal();
       return null;
     }
@@ -442,6 +449,7 @@ export class MobileApprovedSession {
     this.identity = null;
     this.pendingPairing = null;
     this.restoreRetryable = false;
+    this.deviceAuthenticationRequired = false;
   }
 
   private async getAccessToken(): Promise<string | null> {

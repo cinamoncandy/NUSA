@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
+import android.security.keystore.UserNotAuthenticatedException;
 import android.util.Base64;
 
 import androidx.annotation.NonNull;
@@ -25,7 +26,10 @@ import javax.crypto.spec.GCMParameterSpec;
 public final class NusaSecureStorageModule extends ReactContextBaseJavaModule {
   public static final String NAME = "NusaSecureStorage";
   private static final String KEY_ALIAS = "nusa_mobile_secure_storage_v1";
+  private static final String PAPER_SESSION_KEY_ALIAS = "nusa_mobile_paper_session_v2";
   private static final String STORE_NAME = "nusa_secure_storage_v1";
+  private static final String PAPER_SESSION_STORAGE_KEY = "nusa.mobile.approved-session.v2";
+  private static final int PAPER_SESSION_AUTH_VALIDITY_SECONDS = 30 * 24 * 60 * 60;
   private static final String TRANSFORMATION = "AES/GCM/NoPadding";
   private static final int GCM_TAG_BITS = 128;
   private static final int MAX_KEY_LENGTH = 160;
@@ -49,7 +53,7 @@ public final class NusaSecureStorageModule extends ReactContextBaseJavaModule {
     try {
       String normalizedKey = normalizeKey(key);
       byte[] plaintext = decodeSecret(valueBase64);
-      SecretKey secretKey = getOrCreateKey();
+      SecretKey secretKey = getOrCreateKey(normalizedKey);
       Cipher cipher = Cipher.getInstance(TRANSFORMATION);
       cipher.init(Cipher.ENCRYPT_MODE, secretKey, new SecureRandom());
       cipher.updateAAD(normalizedKey.getBytes(StandardCharsets.UTF_8));
@@ -61,6 +65,8 @@ public final class NusaSecureStorageModule extends ReactContextBaseJavaModule {
         throw new IllegalStateException("secure storage write failed");
       }
       promise.resolve(null);
+    } catch (UserNotAuthenticatedException error) {
+      promise.reject("E_NUSA_SECURE_STORAGE_AUTH_REQUIRED", "device authentication is required", error);
     } catch (Exception error) {
       promise.reject("E_NUSA_SECURE_STORAGE_WRITE", "secure storage write failed", error);
     }
@@ -87,12 +93,16 @@ public final class NusaSecureStorageModule extends ReactContextBaseJavaModule {
       }
       byte[] iv = Base64.decode(payload.substring(0, separator), Base64.NO_WRAP);
       byte[] ciphertext = Base64.decode(payload.substring(separator + 1), Base64.NO_WRAP);
-      SecretKey secretKey = getOrCreateKey();
+      SecretKey secretKey = getOrCreateKey(normalizedKey);
       Cipher cipher = Cipher.getInstance(TRANSFORMATION);
       cipher.init(Cipher.DECRYPT_MODE, secretKey, new GCMParameterSpec(GCM_TAG_BITS, iv));
       cipher.updateAAD(normalizedKey.getBytes(StandardCharsets.UTF_8));
       byte[] plaintext = cipher.doFinal(ciphertext);
       promise.resolve(Base64.encodeToString(plaintext, Base64.NO_WRAP));
+    } catch (UserNotAuthenticatedException error) {
+      // This is not corruption or expiry: retain the encrypted session until the
+      // owner unlocks the already-approved device with Android biometrics/PIN.
+      promise.reject("E_NUSA_SECURE_STORAGE_AUTH_REQUIRED", "device authentication is required", error);
     } catch (Exception error) {
       preferences.edit().remove(normalizedKey).commit();
       promise.reject("E_NUSA_SECURE_STORAGE_CORRUPTED", "secure storage payload could not be authenticated", error);
@@ -128,20 +138,28 @@ public final class NusaSecureStorageModule extends ReactContextBaseJavaModule {
     return value;
   }
 
-  private static SecretKey getOrCreateKey() throws Exception {
+  private static SecretKey getOrCreateKey(String storageKey) throws Exception {
+    final String alias = PAPER_SESSION_STORAGE_KEY.equals(storageKey) ? PAPER_SESSION_KEY_ALIAS : KEY_ALIAS;
     KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
     keyStore.load(null);
-    java.security.Key existing = keyStore.getKey(KEY_ALIAS, null);
+    java.security.Key existing = keyStore.getKey(alias, null);
     if (existing instanceof SecretKey) return (SecretKey) existing;
 
     KeyGenerator generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
-    generator.init(new KeyGenParameterSpec.Builder(
-      KEY_ALIAS,
+    KeyGenParameterSpec.Builder builder = new KeyGenParameterSpec.Builder(
+      alias,
       KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
       .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
       .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-      .setKeySize(256)
-      .build());
+      .setKeySize(256);
+    if (PAPER_SESSION_STORAGE_KEY.equals(storageKey)) {
+      // Android's system credential (strong biometric or lock-screen PIN) unlocks
+      // this key. It is device-local, expires after a bounded interval, and never
+      // adds Cloud, Upbit, or LIVE authority.
+      builder.setUserAuthenticationRequired(true)
+        .setUserAuthenticationValidityDurationSeconds(PAPER_SESSION_AUTH_VALIDITY_SECONDS);
+    }
+    generator.init(builder.build());
     return generator.generateKey();
   }
 }

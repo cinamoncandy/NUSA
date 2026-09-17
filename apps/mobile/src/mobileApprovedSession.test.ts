@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { LEGACY_SESSION_STORAGE_KEY, MobileApprovedSession, PAIRING_STORAGE_KEY, SESSION_STORAGE_KEY } from "./mobileApprovedSession";
 import type { SecureStoragePort } from "./mobileSecurity";
+import { MobileSecureStorageAuthenticationRequiredError } from "./androidSecureStorage";
 
 class MemorySecureStorage implements SecureStoragePort {
   readonly values = new Map<string, Uint8Array>();
@@ -91,6 +92,19 @@ describe("mobile approved session restart recovery", () => {
     assert.equal(await session.restore(endpoint), null);
     assert.equal(session.shouldRetryRestore(), false);
     assert.equal(storage.values.has(SESSION_STORAGE_KEY), false);
+  });
+
+  it("retains the approved refresh record while Android asks the owner to unlock the device", async () => {
+    const storage = new MemorySecureStorage();
+    storage.values.set(SESSION_STORAGE_KEY, new TextEncoder().encode(JSON.stringify({ endpoint: "https://paper.example", refreshToken: "refresh-token-0123456789", refreshExpiresAt: Date.now() + 600_000 })));
+    storage.getSecret = async (key: string): Promise<Uint8Array | null> => {
+      if (key === SESSION_STORAGE_KEY) throw new MobileSecureStorageAuthenticationRequiredError();
+      return null;
+    };
+    const session = new MobileApprovedSession(storage, (async () => { throw new Error("network must not be reached"); }) as typeof fetch);
+    assert.equal(await session.restore("https://paper.example"), null);
+    assert.equal(session.requiresDeviceAuthentication(), true);
+    assert.equal(storage.values.has(SESSION_STORAGE_KEY), true);
   });
 
   it("destroys v1 and pairing legacy material without reading it", async () => {
