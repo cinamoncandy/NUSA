@@ -35,7 +35,9 @@ test("successful runtime proof directly dispatches Credential Preflight instead 
 // #1860. `actions: write` while a pull request's own copy of the verification script executes lets
 // PR-controlled code dispatch workflows. The dispatch is a separate, checkout-free job now.
 test("the job that runs repository code never holds dispatch authority", () => {
-  const body = workflow.split("\n").filter((line) => !/^\s*#/.test(line)).join("\n");
+  // Windows checkouts land CRLF, and a lookahead for `name:\n` never matches a `\r` that is
+  // still there. Normalise before splitting, the way the assertions above this one already do.
+  const body = workflow.replace(/\r\n/g, "\n").split("\n").filter((line) => !/^\s*#/.test(line)).join("\n");
   const jobs = body.split(/\n  (?=[A-Za-z0-9_-]+:\n)/);
   const proof = jobs.find((job) => job.startsWith("runtime-proof:"));
   const dispatch = jobs.find((job) => job.startsWith("refresh-safety-gate:"));
