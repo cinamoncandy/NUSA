@@ -34,6 +34,7 @@ test("mobile pairing source uses direct atomic session issuance and retains no p
   assert.doesNotMatch(mobile, /setSecret\(PAIRING_STORAGE_KEY/);
   assert.doesNotMatch(mobile, /getSecret\(PAIRING_STORAGE_KEY/);
   assert.doesNotMatch(mobile, /AsyncStorage/);
-  assert.match(ui, /PAPER 연결 요청/);
-  assert.match(ui, /PAPER 연결 승인 대기/);
+  assert.match(ui, /호환 코드 연결/);
+  assert.match(ui, /호환\/복구 연결 승인 대기/);
+  assert.match(ui, /소유자 인증/);
 });
