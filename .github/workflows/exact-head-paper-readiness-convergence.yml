@@ -51,7 +51,7 @@ jobs:
 
           dispatch_fresh_evidence() {
             local active_count
-            active_count="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$current_main&per_page=100" --jq '[.workflow_runs[] | select(.name == "Actual PAPER Public-Market Runtime Evidence" and .path == ".github/workflows/wo-0059-actual-paper-runtime.yml" and (.status == "queued" or .status == "in_progress" or .status == "pending"))] | length')"
+            active_count="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows/wo-0059-actual-paper-runtime.yml/runs?head_sha=$current_main&per_page=100" --jq '.workflow_runs[]' | jq -s '[.[] | select(.status == "queued" or .status == "in_progress" or .status == "pending")] | length')"
             if [ "$active_count" -eq 0 ]; then
               gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/wo-0059-actual-paper-runtime.yml/dispatches" -f ref=main
               echo "Dispatched fresh exact-main Actual PAPER evidence for $current_main"
@@ -89,7 +89,8 @@ jobs:
               exit 0
             fi
 
-            runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$target_sha&per_page=100")"
+            runs="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows/wo-0059-actual-paper-runtime.yml/runs?head_sha=$target_sha&per_page=100" \
+              --jq '.workflow_runs[]' | jq -s '{workflow_runs: .}')"
             source_run_id="$(jq -r '[.workflow_runs[] | select(.name == "Actual PAPER Public-Market Runtime Evidence" and .path == ".github/workflows/wo-0059-actual-paper-runtime.yml" and .head_sha == "'"$target_sha"'" and .status == "completed" and .conclusion == "success")] | sort_by(.created_at) | reverse | .[0].id // empty' <<<"$runs")"
             if [ -z "$source_run_id" ]; then
               echo "READINESS_PENDING no successful exact-main Actual PAPER run for $target_sha"
@@ -179,7 +180,7 @@ jobs:
             echo "certified=false" >> "$GITHUB_OUTPUT"
             echo "READINESS_PENDING exact-head workflow succeeded but semantic automatic order+fill+PnL proof is incomplete"
             if [ "$EVENT_NAME" != "workflow_run" ]; then
-              active_count="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$TARGET_SHA&per_page=100" --jq '[.workflow_runs[] | select(.name == "Actual PAPER Public-Market Runtime Evidence" and .path == ".github/workflows/wo-0059-actual-paper-runtime.yml" and (.status == "queued" or .status == "in_progress" or .status == "pending"))] | length')"
+              active_count="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows/wo-0059-actual-paper-runtime.yml/runs?head_sha=$TARGET_SHA&per_page=100" --jq '.workflow_runs[]' | jq -s '[.[] | select(.status == "queued" or .status == "in_progress" or .status == "pending")] | length')"
               if [ "$active_count" -eq 0 ]; then
                 gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/wo-0059-actual-paper-runtime.yml/dispatches" -f ref=main
                 echo "Scheduled a fresh natural-market PAPER observation; no signal or threshold was manufactured."

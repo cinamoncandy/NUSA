@@ -36,6 +36,8 @@ jobs:
         run: node scripts/validate-workflow-action-pins.js
       - name: Workflow action input policy
         run: node scripts/validate-workflow-action-inputs.js
+      - name: Workflow run lookup policy
+        run: node scripts/validate-workflow-run-lookups.js
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
       - name: Preflight
@@ -220,6 +222,8 @@ jobs:
         run: node scripts/validate-workflow-action-pins.js
       - name: Workflow action input policy
         run: node scripts/validate-workflow-action-inputs.js
+      - name: Workflow run lookup policy
+        run: node scripts/validate-workflow-run-lookups.js
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
       - name: Preflight
@@ -271,6 +275,8 @@ jobs:
         run: node scripts/validate-workflow-action-pins.js
       - name: Workflow action input policy
         run: node scripts/validate-workflow-action-inputs.js
+      - name: Workflow run lookup policy
+        run: node scripts/validate-workflow-run-lookups.js
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
       - name: Preflight
@@ -320,6 +326,8 @@ jobs:
         run: node scripts/validate-workflow-action-pins.js
       - name: Workflow action input policy
         run: node scripts/validate-workflow-action-inputs.js
+      - name: Workflow run lookup policy
+        run: node scripts/validate-workflow-run-lookups.js
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
       - name: Preflight
