@@ -294,13 +294,6 @@
     }
   },
   "acknowledgedDebt": {
-    "alternateMergeEngine": [
-      {
-        "job": "autopilot-execution-consumer.yml:release",
-        "issue": "#1861",
-        "note": "Generic GITHUB_TOKEN alternate merge engine. PR #1875 removes it; delete this entry when it lands."
-      }
-    ],
     "prSecretWrite": [
       {
         "job": "autopilot-cloudflare-credential-preflight.yml:preflight",
