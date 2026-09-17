@@ -72,14 +72,20 @@ test("production PAPER is supervision-only while legacy PAPER execution remains 
 test("optional Cloud credential flow remains Settings-owned and never gates local PAPER", () => {
   const app = read("App.tsx");
   const settings = read("src/settingsView.tsx");
+  const experience = read("src/ownerConnectionExperience.tsx");
   assert.match(settings, /InMemoryDashboardCredentialSession/);
   assert.match(settings, /credentialSession\.connect\(tokenDraft\)/);
   assert.match(settings, /credentialSession\.clear\(\)/);
-  assert.match(settings, /bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);
+  assert.match(settings, /showRecoveryOptions/);
+  assert.match(settings, /testID="settings-paper-recovery-toggle"/);
+  assert.match(settings, /label="1회용 복구 키"/);
+  assert.match(settings, /6자리 코드로 복구 연결/);
+  assert.doesNotMatch(experience, /bootstrap token|users:manage/);
   assert.match(settings, /LOCAL PAPER는 연결 없이 즉시 사용할 수 있습니다/);
   assert.match(settings, /testID="settings-local-paper"/);
-  assert.match(settings, /title="OWNER DEVICE"/);
-  assert.match(settings, /testID="settings-paper-connect"/);
+  assert.match(settings, /<OwnerConnectionExperience/);
+  assert.match(settings, /onAuthenticateOwner=\{\(\) => \{ void requestPaperConnection\(\); \}\}/);
+  assert.match(settings, /onRecoverWithPairing=\{\(\) => \{ void requestRecoveryPairing\(\); \}\}/);
   assert.match(settings, /testID="settings-paper-disconnect"/);
   assert.doesNotMatch(settings, /iOS 영구 세션 복원/);
   assert.match(app, /getConfiguredPaperEndpoint/);
