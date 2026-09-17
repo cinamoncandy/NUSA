@@ -100,7 +100,9 @@ test('preflight preserves fail-closed authority invariants', () => {
 test('the secret-bearing job and the issue-mutating job never share authority', () => {
   // Comment lines are dropped first: a comment that merely names an authority sits next to the
   // job it describes and would otherwise read as that authority being granted.
-  const body = workflow.split('\n').filter((line) => !/^\s*#/.test(line)).join('\n');
+  // Windows checkouts land CRLF, and a lookahead for `name:\n` never matches a `\r` that is
+  // still there. Normalise before splitting, the way the assertions above this one already do.
+  const body = workflow.replace(/\r\n/g, "\n").split("\n").filter((line) => !/^\s*#/.test(line)).join("\n");
   const jobs = body.split(/\n  (?=[A-Za-z0-9_-]+:\n)/);
   const preflight = jobs.find((job) => job.startsWith('preflight:'));
   const blocker = jobs.find((job) => job.startsWith('blocker:'));
