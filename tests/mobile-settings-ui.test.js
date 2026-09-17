@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-test("settings UI exposes local PAPER, optional Cloud, cash allocation, appearance, safety and local management", () => {
+test("settings UI exposes local PAPER, secure owner-device Cloud, cash allocation, appearance, safety and local management", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "settingsView.tsx"), "utf8");
   assert.match(source, /testID="settings-screen"/);
   assert.match(source, /<ScreenHeader/);
@@ -11,20 +11,23 @@ test("settings UI exposes local PAPER, optional Cloud, cash allocation, appearan
   assert.match(source, /LOCAL PAPER는 연결 없이 즉시 사용할 수 있습니다/);
   assert.match(source, /testID="settings-paper-connection"/);
   assert.match(source, /testID="settings-paper-endpoint"/);
-  assert.match(source, /testID="settings-paper-token"/);
   assert.match(source, /testID="settings-paper-connect"/);
-  assert.match(source, /PAPER 연결 요청/);
-  assert.match(source, /PAPER 연결 승인 대기/);
-  assert.match(source, /ACTIVE OWNER/);
+  assert.match(source, /title="OWNER DEVICE"/);
+  assert.match(source, /소유자 인증/);
+  assert.match(source, /ownerCredentialReady/);
+  assert.match(source, /authenticateOwnerDeviceCredential/);
+  assert.match(source, /testID="settings-owner-device-enroll"/);
+  assert.match(source, /로그인 및 이 휴대폰 등록/);
+  assert.match(source, /testID="settings-paper-legacy-pairing"/);
+  assert.match(source, /호환 코드 연결/);
+  assert.match(source, /호환\/복구 연결 승인 대기/);
   assert.match(source, /startPairing/);
   assert.match(source, /exchangePairing/);
   assert.match(source, /testID="settings-paper-disconnect"/);
-  assert.match(source, /bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);
+  assert.match(source, /testID="settings-paper-token"/);
+  assert.match(source, /1회용 연결 토큰 \(호환용\)/);
   assert.match(source, /SERVER/);
-  assert.match(source, /SECURE SESSION/);
   assert.match(source, /VERIFY/);
-  assert.match(source, /연결 요청 다시 시도/);
-  assert.match(source, /LOCAL PAPER에는 사용하지 않습니다/);
   assert.doesNotMatch(source, /iOS 영구 세션 복원/);
 
   assert.match(source, /testID="settings-capital-allocation"/);

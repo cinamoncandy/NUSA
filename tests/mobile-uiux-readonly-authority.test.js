@@ -76,8 +76,9 @@ test("optional Cloud credential flow remains Settings-owned and never gates loca
   assert.match(settings, /credentialSession\.connect\(tokenDraft\)/);
   assert.match(settings, /credentialSession\.clear\(\)/);
   assert.match(settings, /bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);
-  assert.match(settings, /LOCAL PAPER에는 사용하지 않습니다/);
   assert.match(settings, /LOCAL PAPER는 연결 없이 즉시 사용할 수 있습니다/);
+  assert.match(settings, /testID="settings-local-paper"/);
+  assert.match(settings, /title="OWNER DEVICE"/);
   assert.match(settings, /testID="settings-paper-connect"/);
   assert.match(settings, /testID="settings-paper-disconnect"/);
   assert.doesNotMatch(settings, /iOS 영구 세션 복원/);
