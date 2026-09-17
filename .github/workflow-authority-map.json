@@ -93,6 +93,7 @@
       "write": [
         "actions",
         "contents",
+        "id-token",
         "pull-requests"
       ],
       "secrets": true,
