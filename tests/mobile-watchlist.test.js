@@ -73,16 +73,15 @@ test("watchlist header exposes feed freshness without weakening read-only contra
 test("watchlist UI remains read-only and is wired into the markets workspace", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "watchlistView.tsx"), "utf8");
   assert.match(source, /시장 검색/);
-  assert.match(source, /관심시장/);
-  assert.match(source, /전체 결과/);
+  assert.match(source, /저장한 시장/);
+  assert.match(source, /전체 시장/);
   assert.match(source, /watchlist-toggle-/);
   assert.match(source, /watchlist-loading/);
   assert.match(source, /watchlist-error/);
-  assert.match(source, /StatusChip label="READ ONLY"/);
+  assert.doesNotMatch(source, /StatusChip label="READ ONLY"/);
   assert.doesNotMatch(source, /PUBLIC · READ ONLY/);
-  assert.match(source, /계좌·주문 권한과 연결되지 않습니다/);
   assert.match(source, /SegmentedControl/);
-  assert.match(source, /favorite: \{ minWidth: 52, minHeight: 48/);
+  assert.match(source, /favorite: \{ minWidth: 48, minHeight: 48/);
   assert.doesNotMatch(source, /placeOrder|cancelOrder|withdraw|fetch\(/);
 
   const primitives = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "uxPrimitives.tsx"), "utf8");
@@ -91,6 +90,8 @@ test("watchlist UI remains read-only and is wired into the markets workspace", (
   const marketsView = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "marketsView.tsx"), "utf8");
   assert.match(marketsView, /WatchlistView/);
   assert.match(marketsView, /ChartView/);
+  assert.match(marketsView, /markets-authority-rail/);
+  assert.match(marketsView, /PUBLIC READ ONLY · PAPER SEPARATE · AI ZERO AUTHORITY/);
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
   const client = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "personalPaperOperationsClient.ts"), "utf8");
   assert.match(app, /AsyncStorage/);
