@@ -18,7 +18,8 @@ test("watchlist favorite action uses explicit text instead of unicode star glyph
   assert.doesNotMatch(source, /★|☆/);
   assert.match(source, /active \? "저장됨" : "저장"/);
   assert.match(source, /accessibilityState=\{\{ selected: active \}\}/);
-  assert.match(source, /favorite: \{[^}]*minWidth: 48, minHeight: 48/);
+  assert.match(source, /hitSlop=\{4\}/);
+  assert.match(source, /favorite: \{[^}]*minWidth: 48, minHeight: 44/);
 });
 
 test("market rows keep price change and volume scannable without a separate metadata row", () => {
