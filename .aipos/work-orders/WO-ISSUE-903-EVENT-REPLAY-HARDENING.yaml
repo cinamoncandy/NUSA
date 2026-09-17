@@ -90,14 +90,15 @@ verification:
 next_on_pass: "Publish through a normal exact-head PR; keep runtime activation and throughput claims fail-closed until artifact-backed event delivery is observed."
 
 audit_dispatch_payload_limit_remediation:
-  status: AUDIT_EVIDENCE_HARDENING_LOCAL_VALIDATION_COMPLETE
+  status: MERGED_VERIFIED
   finding: "GitHub repository_dispatch rejects client_payload objects with more than ten properties; the token-missing Audit fallback sent an unused eleventh reason property and received HTTP 422."
   remediation: "Keep the ten fields validated by the canonical Audit consumer and omit the non-consumed reason field; preserve exact head, PR, CI, dedupe, and all authority invariants."
   authority_impact: none
   audit_followup: "Independent Audit run 35168788582 returned FAIL by citing the removed reason property as current behavior. Audit model BLOCKER findings must now cite a current added diff line in path:+line form; stale/removed/non-current citations are retried at most three times against unchanged evidence, then fail closed."
   validation: "Typecheck PASS; build PASS; auditRunner regression PASS 23/23 including stale removed-line rejection/retry and bounded persistent invalid evidence failure; security gate PASS; git diff --check PASS."
   freshness: "PR #1945 Release correctly failed closed when protected main moved from audited base 03119c0 to 849fca66 before merge. The implementation branch is synchronized with 849fca66 and every prior exact-head CI/Audit result is invalid."
-  next: "Push the latest-main synchronization, require fresh exact-head validation/CI, then fresh independent Audit/Release governance; no merge authority is added."
+  completion: "PR #1945 exact head 3f2219467d48439ae8cf7b63cf43fae5b5e0dea3 passed CI 35188124813, PAPER/READ_ONLY/Restricted LIVE safety workflows, and independent Audit/Release 35188428151 before canonical merge cabe68df11d95cd4212d09c1045c9aff7cd769b2."
+  next: "Completed; select the next ready source-of-truth work order. No merge or financial authority is added by this record."
 
 current_main_audit:
   audited_at: "2026-08-31"
