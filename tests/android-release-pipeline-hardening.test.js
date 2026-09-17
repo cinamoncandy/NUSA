@@ -92,3 +92,32 @@ test("Android release signing DSL stays compatible and never falls back to debug
   assert.doesNotMatch(gradle, /signingConfig\s+signingConfigs\.debug/);
   assert.match(gradle, /NUSA_ANDROID_RELEASE_SIGNING_REQUIRED/);
 });
+
+// #1867. The stable release workflow granted `contents: write` and `issues: write` to every job,
+// including the one that handles the release keystore and the one that only reads. Write authority
+// now lives in the single job that publishes, so a defect in the other two cannot reach the
+// repository.
+test("release write authority is scoped to the job that actually publishes", () => {
+  const body = stable.split("\n").filter((line) => !/^\s*#/.test(line)).join("\n");
+  const jobs = body.split(/\n  (?=[A-Za-z0-9_-]+:\n)/);
+  const find = (name) => jobs.find((job) => job.startsWith(`${name}:`));
+
+  assert.match(body, /^permissions: \{\}$/m, "no authority may be granted workflow-wide");
+
+  const resolve = find("resolve");
+  assert.ok(resolve, "the candidate resolver must exist");
+  assert.match(resolve, /permissions:\s*\n\s*contents: read\s*\n/, "the resolver only reads");
+  assert.doesNotMatch(resolve, /contents: write|issues: write/);
+
+  const signing = find("signing-readiness");
+  assert.ok(signing, "the signing readiness job must exist");
+  assert.match(signing, /secrets\.NUSA_ANDROID_RELEASE_KEYSTORE_B64/, "this is the keystore-bearing job");
+  assert.match(signing, /permissions: \{\}/, "and it must hold no token authority at all");
+
+  const publish = find("build-and-publish");
+  assert.ok(publish, "the publishing job must exist");
+  assert.match(publish, /contents: write/, "publishing a release asset needs contents:write");
+  assert.match(publish, /issues: write/, "the failure receipt on #558 needs issues:write");
+  assert.match(publish, /gh release (create|upload)/, "and it is the only job that uses them");
+  assert.match(publish, /gh issue comment 558/);
+});

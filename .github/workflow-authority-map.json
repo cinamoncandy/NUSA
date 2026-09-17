@@ -26,18 +26,12 @@
       "environment": null
     },
     "android-stable-release.yml:resolve": {
-      "write": [
-        "contents",
-        "issues"
-      ],
+      "write": [],
       "secrets": false,
       "environment": null
     },
     "android-stable-release.yml:signing-readiness": {
-      "write": [
-        "contents",
-        "issues"
-      ],
+      "write": [],
       "secrets": true,
       "environment": null
     },

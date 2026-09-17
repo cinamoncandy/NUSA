@@ -12,9 +12,10 @@ on:
         required: false
         type: string
 
-permissions:
-  contents: write
-  issues: write
+# No workflow-level authority. Only the job that actually publishes the release holds write
+# authority; the candidate resolver reads, and the signing-readiness job - the one that handles the
+# release keystore - holds none at all.
+permissions: {}
 
 concurrency:
   group: android-stable-release
@@ -39,6 +40,8 @@ jobs:
         )
       }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       release: ${{ steps.release.outputs.release }}
       sha: ${{ steps.release.outputs.sha }}
@@ -136,6 +139,9 @@ jobs:
     needs: resolve
     if: needs.resolve.outputs.release == 'true'
     runs-on: ubuntu-latest
+    # This job reads the signing keystore and mutates nothing. It needs no token authority at all,
+    # so a defect in it cannot reach the repository.
+    permissions: {}
     outputs:
       ready: ${{ steps.readiness.outputs.ready }}
       reason: ${{ steps.readiness.outputs.reason }}
@@ -246,6 +252,11 @@ jobs:
     needs: [resolve, signing-readiness]
     if: needs.resolve.outputs.release == 'true' && needs.signing-readiness.outputs.ready == 'true'
     runs-on: ubuntu-latest
+    # Publishing the release asset needs contents:write; the failure receipt on #558 needs
+    # issues:write. Both are used in this job and nowhere else in the workflow.
+    permissions:
+      contents: write
+      issues: write
     steps:
       - name: Checkout exact release source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
