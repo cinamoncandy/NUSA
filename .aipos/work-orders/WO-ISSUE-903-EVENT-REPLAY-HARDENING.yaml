@@ -89,6 +89,14 @@ verification:
   - node --test tests/autopilot-github-event-bridge.test.js
 next_on_pass: "Publish through a normal exact-head PR; keep runtime activation and throughput claims fail-closed until artifact-backed event delivery is observed."
 
+audit_dispatch_payload_limit_remediation:
+  status: IMPLEMENTED_LOCAL_VALIDATION_COMPLETE
+  finding: "GitHub repository_dispatch rejects client_payload objects with more than ten properties; the token-missing Audit fallback sent an unused eleventh reason property and received HTTP 422."
+  remediation: "Keep the ten fields validated by the canonical Audit consumer and omit the non-consumed reason field; preserve exact head, PR, CI, dedupe, and all authority invariants."
+  authority_impact: none
+  validation: "Fallback and bridge regressions PASS 22/22; security gate PASS; validate:full PASS; git diff --check PASS."
+  next: "Require fresh exact-head CI, then independent Audit/Release governance; no merge authority is added."
+
 current_main_audit:
   audited_at: "2026-08-31"
   current_main: db9067754e12c2e462579f5b39b0ebc99a182d19
