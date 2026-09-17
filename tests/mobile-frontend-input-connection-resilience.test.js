@@ -34,7 +34,7 @@ test("Settings connection mutation is single-flight and probes only the persiste
   assert.match(source, /finally \{[\s\S]*connectionInFlightRef\.current = false;[\s\S]*setConnecting\(false\)/);
 });
 
-test("Settings revokes prior verification and uses bootstrap-first credential routing", () => {
+test("Settings revokes prior verification and keeps compatibility token routing fail-closed", () => {
   const source = read("apps/mobile/src/settingsView.tsx");
   const guard = source.indexOf("if (!configuredEndpoint)");
   const clearSession = source.indexOf("credentialSession.clear();", guard);
@@ -47,23 +47,25 @@ test("Settings revokes prior verification and uses bootstrap-first credential ro
   const enroll = source.indexOf("await credentialSession.enroll(tokenDraft, installationId);", fallbackClear);
   const secondProbe = source.indexOf("result = await loadPersonalPaperOperations", enroll);
   assert.ok(guard >= 0 && clearSession > guard && clearVerification > clearSession && inProgress > clearVerification);
-  assert.ok(connectBootstrap > inProgress && firstProbe > connectBootstrap, "raw credential must try one-time bootstrap before enrollment");
-  assert.ok(fallbackGate > firstProbe && fallbackClear > fallbackGate && enroll > fallbackClear && secondProbe > enroll, "user-credential fallback must be fail-closed and re-probed");
+  assert.ok(connectBootstrap > inProgress && firstProbe > connectBootstrap, "compatibility credential must still fail closed before enrollment");
+  assert.ok(fallbackGate > firstProbe && fallbackClear > fallbackGate && enroll > fallbackClear && secondProbe > enroll, "compatibility fallback must clear stale state and re-probe");
   assert.match(source, /if \(result\.status === "READY"\) \{ markPaperConnectionVerified\(configuredEndpoint\); setTokenDraft\(""\); \}/);
 });
 
-test("Settings makes owner-approved device pairing the primary Cloud PAPER flow", () => {
+test("Settings makes server-verified owner device authentication primary and pairing recovery-only", () => {
   const source = read("apps/mobile/src/settingsView.tsx");
   assert.match(source, /Cloud 기능은 선택 사항입니다/);
-  assert.match(source, /keyboardType="url" label="Cloud endpoint"/);
+  assert.match(source, /ownerCredentialReady/);
+  assert.match(source, /authenticateOwnerDeviceCredential/);
+  assert.match(source, /label=\{ownerDeviceBusy \|\| connecting \? "인증 중\.\.\." : "소유자 인증"\}/);
+  assert.match(source, /testID="settings-owner-device-enroll"/);
+  assert.match(source, /로그인 및 이 휴대폰 등록/);
   assert.match(source, /startPairing\(configuredEndpoint, installationId\)/);
   assert.match(source, /pairingStatus\(endpoint, pairing\.requestId, installationId\)/);
   assert.match(source, /exchangePairing\(endpoint, pairing\.requestId, installationId\)/);
-  assert.match(source, /PAPER 연결 요청/);
+  assert.match(source, /testID="settings-paper-legacy-pairing"/);
+  assert.match(source, /호환 코드 연결/);
   assert.match(source, /label="1회용 연결 토큰 \(호환용\)"[\s\S]*secureTextEntry/);
-  assert.match(source, /bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);
-  assert.match(source, /LOCAL PAPER에는 사용하지 않습니다/);
-  assert.match(source, /connectionFailed \? "PAPER 연결 요청 다시 시도" : "PAPER 연결 요청"/);
   assert.match(source, /disabled=\{busy \|\| connection\.status !== "READY"\} label="연결 해제"/);
   assert.match(source, /const cloudConnectionLabel = connecting \? "VERIFYING"/);
 });

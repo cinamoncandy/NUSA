@@ -37,6 +37,7 @@ import { InMemoryInvestmentAllocationSettingsRepository, SqliteInvestmentAllocat
 import { SqliteNusaUserAccessRepository } from "./operatorUserAccess";
 import { DesktopSessionService } from "./desktopSessionService";
 import { MobileSessionService } from "./mobileSessionService";
+import { OwnerDeviceCredentialService } from "./ownerCredential/ownerDeviceCredentialService";
 import { PaperLearningEventRecorder, paperLearningCycleId } from "./paperLearningObservability";
 import { buildPaperLearningReadOnlyProjection } from "./paperLearningReadOnlyProjection";
 import { readPaperRuntimeSupervisorProjection } from "./paperRuntimeSupervisorProjection";
@@ -223,6 +224,9 @@ export function startCloudRuntime(
   const userAccessRepository = durableAuthDatabase == null ? undefined : new SqliteNusaUserAccessRepository(durableAuthDatabase);
   const desktopSessionService = durableAuthDatabase == null || userAccessRepository == null ? undefined : new DesktopSessionService(durableAuthDatabase, userAccessRepository);
   const mobileSessionService = durableAuthDatabase == null || userAccessRepository == null ? undefined : new MobileSessionService(durableAuthDatabase, userAccessRepository);
+  const ownerDeviceCredentialService = durableAuthDatabase == null || userAccessRepository == null || mobileSessionService == null
+    ? undefined
+    : new OwnerDeviceCredentialService(durableAuthDatabase, userAccessRepository, mobileSessionService);
   const effectiveP0Repository = durableRepository instanceof SqliteCloudDashboardSnapshotRepository ? new SqliteP0AlertRepository(durableRepository.database()) : undefined;
   const investmentAllocationSettings: InvestmentAllocationSettingsRepository = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new SqliteInvestmentAllocationSettingsRepository(durableRepository.database())
@@ -421,6 +425,7 @@ export function startCloudRuntime(
     ...(userAccessRepository == null ? {} : { userAccessRepository }),
     ...(desktopSessionService == null ? {} : { desktopSessionService }),
     ...(mobileSessionService == null ? {} : { mobileSessionService }),
+    ...(ownerDeviceCredentialService == null ? {} : { ownerDeviceCredentialService }),
     readiness: () => buildCloudRuntimeReadiness(durableRepository, effectiveProvider),
     loadDashboard: (principal) => { const input = effectiveProvider.read(principal); if (input === undefined) throw new Error("dashboard state is not ready"); return buildMobileDashboardResponse(input); },
     loadPaperOperations,
