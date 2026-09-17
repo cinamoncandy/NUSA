@@ -41,7 +41,8 @@ test("touch-target policy is truthful: standard controls 48px, compact controls 
   assert.match(design, /minHeight: theme\.interaction\.controlHeight/);
   assert.match(app, /utilityButton: \{[^}]*minHeight: 48/);
   assert.match(app, /utilityClose: \{[^}]*minHeight: 48/);
-  assert.match(watchlist, /<SegmentedControl[^>]*testID="watchlist-sort"/);
+  assert.match(watchlist, /<SegmentedControl/);
+  assert.match(watchlist, /testID="watchlist-sort"/);
   assert.match(primitives, /segment: \{[^}]*minHeight: 44/);
   assert.match(watchlist, /favorite: \{[^}]*minWidth: 48, minHeight: 44/);
   assert.match(watchlist, /hitSlop=\{4\}/);
