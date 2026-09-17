@@ -15,12 +15,18 @@ current_first_read_connection_recovery:
   remaining: "Independent CI/Audit/Release and actual device verification; Upbit persistence policy handled by PR 1786."
 current_audit_dispatch_payload_limit:
   work_order: WO-ISSUE-903-EVENT-REPLAY-HARDENING
-  status: LOCAL_VALIDATION_COMPLETE
-  base_sha: 745cc66e6c94a34a0bb40252680987155fa8f509
+  status: MERGED_VERIFIED
+  base_sha: 849fca669804cbd40f8dd7b5efe6145d5afe1cae
+  exact_head: 3f2219467d48439ae8cf7b63cf43fae5b5e0dea3
+  pull_request: 1945
+  merge_commit: cabe68df11d95cd4212d09c1045c9aff7cd769b2
   finding: "GitHub repository_dispatch enforces a ten-property client_payload limit; the fallback Audit dispatch carried an unused eleventh reason property and failed closed with HTTP 422."
   remediation: "Emit only the ten canonical Audit consumer fields; exact CI/PR/dedupe identity and NONE/false/ZERO_AUTHORITY invariants are unchanged."
-  validation: "Fallback and bridge regressions PASS 22/22; security gate and validate:full PASS; git diff --check PASS."
-  next: "Push one narrow PR and require fresh exact-head CI before independent Audit/Release governance."
+  audit_followup: "Exact-head CI 35168377327 PASS, but independent Audit 35168788582 incorrectly classified the removed reason line as a current blocker. BLOCKER findings now require an exact current added-diff evidenceRef (path:+line); invalid model findings are retried only against the same immutable evidence and remain fail-closed after the bounded limit."
+  validation: "Typecheck PASS; build PASS; Audit runner regression PASS 23/23 including stale removed-line retry and persistent invalid-evidence fail-closed; security gate PASS; git diff --check PASS."
+  freshness: "PR #1945 Release correctly failed closed when main moved from audited base 03119c0 to 849fca66 before merge. The implementation branch was merged with 849fca66; all prior exact-head CI/Audit evidence is invalidated."
+  completion: "Exact-head CI 35188124813 PASS; PAPER runtime, READ_ONLY broker, and Restricted LIVE safety workflows PASS; canonical independent Audit/Release run 35188428151 PASS; protected main re-read as cabe68df11d95cd4212d09c1045c9aff7cd769b2."
+  next: "Completed. Select the next ready work order from current source-of-truth state; no financial authority is granted."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_oracle_codex_dev_runner:
   work_order: WO-20260908-ORACLE-CODEX-DEV-RUNNER

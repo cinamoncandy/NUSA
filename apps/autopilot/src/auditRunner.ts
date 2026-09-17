@@ -240,6 +240,39 @@ function parseAuditModelResponse(value: unknown): AuditModelVerdict {
   throw new Error("AUDIT_MODEL_RESPONSE_INVALID");
 }
 
+function currentDiffEvidenceRefs(diff: string): ReadonlySet<string> {
+  const refs = new Set<string>();
+  let currentFile: string | undefined;
+  let currentLine: number | undefined;
+  for (const line of diff.split("\n")) {
+    if (line.startsWith("+++ b/")) {
+      currentFile = line.slice("+++ b/".length);
+      currentLine = undefined;
+      continue;
+    }
+    const hunk = line.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+    if (hunk) {
+      currentLine = Number(hunk[1]);
+      continue;
+    }
+    if (!currentFile || currentLine === undefined || line.startsWith("\\")) continue;
+    if (line.startsWith("+")) refs.add(`${currentFile}:+${currentLine}`);
+    if (!line.startsWith("-")) currentLine += 1;
+  }
+  return refs;
+}
+
+function validateBlockerEvidenceAgainstCurrentDiff(verdict: AuditModelVerdict, diff: string): AuditModelVerdict {
+  const currentRefs = currentDiffEvidenceRefs(diff);
+  for (const finding of verdict.findings) {
+    if (finding.severity !== "BLOCKER") continue;
+    if (finding.evidenceRef === null || !currentRefs.has(finding.evidenceRef)) {
+      throw new Error("AUDIT_VERDICT_BLOCKER_EVIDENCE_NOT_CURRENT");
+    }
+  }
+  return verdict;
+}
+
 function githubHeaders(accept = "application/vnd.github+json", token: string): Record<string, string> {
   return {
     Accept: accept,
@@ -345,6 +378,7 @@ function auditPrompt(request: AuditRunnerRequest, diff: string): string {
     'Return only JSON matching response_format. safetyInvariantResult MUST be a JSON string whose exact value is "PASS" or "FAIL"; never use a boolean, object, null, or another spelling.',
     "The top-level JSON object MUST contain exactly these four keys: verdict, findings, blockers, safetyInvariantResult. findings and blockers MUST always be arrays.",
     "Rules: PASS requires zero findings and zero blockers. PASS_WITH_NOTES requires one or more NOTE findings and zero blockers and is not automatically merge-authorizing. FAIL requires at least one blocker. Any BLOCKER finding, safety failure, test weakening, evidence integrity issue, or material uncertainty requires FAIL.",
+    "For every BLOCKER, evidenceRef MUST be exactly `path/to/file:+newLine` for a current added line in this diff. A `-` line is removed code, never current behavior; do not report it as a blocker. If a concern depends only on removed code, it is not a current blocker.",
     `Repository: ${request.repository}`,
     `PR: #${request.prNumber}`,
     `Exact head: ${request.headSha}`,
@@ -377,7 +411,7 @@ export async function executeIndependentAudit(
   for (let attempt = 1; attempt <= MAX_AUDIT_MODEL_ATTEMPTS; attempt += 1) {
     const rawModelResponse = await env.AI.run(model, modelRequest);
     try {
-      modelResult = parseAuditModelResponse(rawModelResponse);
+      modelResult = validateBlockerEvidenceAgainstCurrentDiff(parseAuditModelResponse(rawModelResponse), diff);
       break;
     } catch (error) {
       lastModelError = error;
