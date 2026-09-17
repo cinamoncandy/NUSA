@@ -57,16 +57,17 @@ test("Settings makes server-verified owner device authentication primary and pai
   assert.match(source, /Cloud 기능은 선택 사항입니다/);
   assert.match(source, /ownerCredentialReady/);
   assert.match(source, /authenticateOwnerDeviceCredential/);
-  assert.match(source, /label=\{ownerDeviceBusy \|\| connecting \? "인증 중\.\.\." : "소유자 인증"\}/);
+  assert.match(source, /<OwnerConnectionExperience/);
+  assert.match(source, /onAuthenticateOwner=\{\(\) => \{ void requestPaperConnection\(\); \}\}/);
   assert.match(source, /testID="settings-owner-device-enroll"/);
-  assert.match(source, /로그인 및 이 휴대폰 등록/);
+  assert.match(source, /소유자 확인 및 이 휴대폰 등록/);
   assert.match(source, /startPairing\(configuredEndpoint, installationId\)/);
   assert.match(source, /pairingStatus\(endpoint, pairing\.requestId, installationId\)/);
   assert.match(source, /exchangePairing\(endpoint, pairing\.requestId, installationId\)/);
   assert.match(source, /testID="settings-paper-legacy-pairing"/);
-  assert.match(source, /호환 코드 연결/);
-  assert.match(source, /label="1회용 연결 토큰 \(호환용\)"[\s\S]*secureTextEntry/);
-  assert.match(source, /disabled=\{busy \|\| connection\.status !== "READY"\} label="연결 해제"/);
+  assert.match(source, /6자리 코드로 복구 연결/);
+  assert.match(source, /label="1회용 복구 키"[\s\S]*secureTextEntry/);
+  assert.match(source, /connection\.status === "READY"[\s\S]*label="연결 해제"/);
   assert.match(source, /const cloudConnectionLabel = connecting \? "VERIFYING"/);
 });
 
