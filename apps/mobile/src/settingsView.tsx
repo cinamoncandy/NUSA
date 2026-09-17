@@ -14,6 +14,7 @@ import { UpbitConnectionPanel } from "./upbitConnectionPanel";
 import { resetUpbitReadOnlyState } from "./upbitReadOnlyAccount";
 import { getOrCreateInstallationId } from "./installationIdentity";
 import { mobileApprovedSession, type MobilePairingRequest } from "./mobileApprovedSessionBoundary";
+import { ownerDeviceCredential, type OwnerDeviceCredentialNative, type OwnerDeviceCredentialStatus } from "./ownerDeviceCredential";
 
 interface SettingsViewProps { readonly repository: SettingsRepository; readonly onSignOut?: () => void; readonly exchangeCash?: number; readonly onCloudInvestmentPercentSave?: (investmentPercent: number) => Promise<void>; readonly onInvestmentPercentChanged?: (investmentPercent: number) => void; readonly credentialSession?: InMemoryDashboardCredentialSession; readonly canonicalEndpoint?: string | null; }
 const themeItems = Object.freeze([{ key: "SYSTEM", label: "시스템" }, { key: "LIGHT", label: "라이트" }, { key: "DARK", label: "다크" }]);
@@ -61,6 +62,14 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
   const [operatorBusy, setOperatorBusy] = useState(false);
   const [installationId, setInstallationId] = useState<string | null>(null);
   const [pairing, setPairing] = useState<MobilePairingRequest | null>(null);
+  const [ownerDeviceStatus, setOwnerDeviceStatus] = useState<OwnerDeviceCredentialStatus | null>(null);
+  const [ownerDeviceBusy, setOwnerDeviceBusy] = useState(false);
+  const [ownerAuthenticationFallback, setOwnerAuthenticationFallback] = useState(false);
+  const [ownerPassword, setOwnerPassword] = useState("");
+  const [currentOwnerPassword, setCurrentOwnerPassword] = useState("");
+  const [newOwnerPassword, setNewOwnerPassword] = useState("");
+  const [ownerPasswordChangeBusy, setOwnerPasswordChangeBusy] = useState(false);
+  const [ownerPasswordChangeMessage, setOwnerPasswordChangeMessage] = useState<string | null>(null);
   const localCredentialSession = useMemo(() => new InMemoryDashboardCredentialSession(), []);
   const credentialSession = sharedCredentialSession ?? localCredentialSession;
   const savingRef = useRef(false);
@@ -83,6 +92,13 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
   }, [canonicalEndpoint, credentialSession, onInvestmentPercentChanged, repository, setMode]);
 
   useEffect(() => { let active = true; void getOrCreateInstallationId(AsyncStorage).then((value) => { if (active) setInstallationId(value); }).catch(() => { if (active) setInstallationId(null); }); return () => { active = false; }; }, []);
+  const refreshOwnerDeviceStatus = async (): Promise<OwnerDeviceCredentialStatus | null> => {
+    const native = ownerDeviceCredential();
+    if (native == null) { setOwnerDeviceStatus(null); return null; }
+    try { const status = await native.getStatus(); setOwnerDeviceStatus(status); return status; }
+    catch { setOwnerDeviceStatus(null); return null; }
+  };
+  useEffect(() => { void refreshOwnerDeviceStatus(); }, []);
 
   useEffect(() => {
     if (pairing != null || installationId == null) return;
@@ -155,7 +171,7 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "Settings could not be saved."); return false; }
     finally { savingRef.current = false; setSaving(false); }
   };
-  const isBusyNow = () => savingRef.current || connectionInFlightRef.current || operatorBusy;
+  const isBusyNow = () => savingRef.current || connectionInFlightRef.current || operatorBusy || ownerDeviceBusy;
   const updateTheme = (next: ThemeSetting) => { if (!settings || isBusyNow()) return; const previousTheme = settings.theme; setMode(themePreference(next)); void persist({ ...settings, theme: next }).then((saved) => { if (!saved) setMode(themePreference(previousTheme)); }); };
   const updateUsageTelemetry = (next: "OFF" | "ON") => { if (!settings || isBusyNow()) return; void persist({ ...settings, usageTelemetry: { enabled: next === "ON" } }); };
   const saveInvestmentPercent = async (raw = investmentPercentDraft) => { if (!settings || isBusyNow()) return; try { const value = normalizeInvestmentPercent(Number(raw)); setInvestmentPercentDraft(String(value)); await persist({ ...settings, capitalAllocation: { investmentPercent: value } }); } catch (allocationError) { setError(allocationError instanceof Error ? allocationError.message : "Investment allocation is invalid."); } };
@@ -167,11 +183,47 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
       const configuredEndpoint = getConfiguredPaperEndpoint();
       if (!configuredEndpoint) throw new Error("Cloud PAPER endpoint is not configured.");
       if (installationId == null) throw new Error("Secure installation identity is unavailable.");
+      const native = ownerDeviceCredential();
+      const status = await refreshOwnerDeviceStatus();
+      if (native != null && status?.available === true && status.credentialId != null) {
+        await mobileApprovedSession().authenticateOwnerDeviceCredential(configuredEndpoint, installationId, native, status.credentialId);
+        const result = await loadPersonalPaperOperations({ baseUrl: configuredEndpoint, credentialProvider: credentialSession.credentialProvider, allowUnverifiedEndpoint: true });
+        if (result.status !== "READY") throw new Error(result.reason);
+        markPaperConnectionVerified(configuredEndpoint); setConnection(result); setPairing(null); setOwnerAuthenticationFallback(false);
+        return;
+      }
+      // Compatibility/recovery only: a phone with no registered device credential still needs
+      // an existing OWNER to approve the legacy pairing path. It is not the normal UX.
       const request = await mobileApprovedSession().startPairing(configuredEndpoint, installationId);
-      setPairing(request);
-      setConnection({ status: "NOT_CONFIGURED", reason: "소유자 승인을 기다리고 있습니다." });
-    } catch (connectionError) { setConnection({ status: "NOT_CONFIGURED", reason: describeCredentialFailure(connectionError) }); }
+      setPairing(request); setConnection({ status: "NOT_CONFIGURED", reason: "호환/복구 소유자 승인을 기다리고 있습니다." });
+    } catch (connectionError) { setOwnerAuthenticationFallback(true); setConnection({ status: "NOT_CONFIGURED", reason: "소유자 인증을 완료하지 못했습니다. 다시 시도하거나 비밀번호로 로그인하세요." }); }
     finally { connectionInFlightRef.current = false; setConnecting(false); }
+  };
+  const enrollThisPhone = async () => {
+    if (settings == null || isBusyNow()) return;
+    connectionInFlightRef.current = true; setOwnerDeviceBusy(true); setConnectionAttempted(true); setError(null);
+    try {
+      if (!await persist({ ...settings, paperEndpoint: endpointDraft })) return;
+      const configuredEndpoint = getConfiguredPaperEndpoint();
+      const native: OwnerDeviceCredentialNative | null = ownerDeviceCredential();
+      if (!configuredEndpoint) throw new Error("Cloud PAPER endpoint is not configured.");
+      if (installationId == null || native == null) throw new Error("이 기기에서는 소유자 기기 자격 증명을 사용할 수 없습니다.");
+      await mobileApprovedSession().signInWithOwnerPasswordAndEnrollDeviceCredential(configuredEndpoint, ownerPassword, installationId, native);
+      const result = await loadPersonalPaperOperations({ baseUrl: configuredEndpoint, credentialProvider: credentialSession.credentialProvider, allowUnverifiedEndpoint: true });
+      if (result.status !== "READY") throw new Error(result.reason);
+      markPaperConnectionVerified(configuredEndpoint); setConnection(result); setOwnerPassword(""); setOwnerAuthenticationFallback(false); await refreshOwnerDeviceStatus();
+    } catch (connectionError) { setOwnerPassword(""); setConnection({ status: "NOT_CONFIGURED", reason: describeCredentialFailure(connectionError) }); }
+    finally { setOwnerPassword(""); connectionInFlightRef.current = false; setOwnerDeviceBusy(false); }
+  };
+  const changeOwnerPassword = async () => {
+    const endpoint = getConfiguredPaperEndpoint();
+    if (endpoint == null || ownerPasswordChangeBusy) return;
+    setOwnerPasswordChangeBusy(true); setOwnerPasswordChangeMessage(null);
+    try {
+      await mobileApprovedSession().changeOwnerPassword(endpoint, currentOwnerPassword, newOwnerPassword);
+      setCurrentOwnerPassword(""); setNewOwnerPassword(""); setOwnerPasswordChangeMessage("비밀번호를 변경했습니다.");
+    } catch { setCurrentOwnerPassword(""); setNewOwnerPassword(""); setOwnerPasswordChangeMessage("현재 비밀번호를 확인한 뒤 다시 시도하세요."); }
+    finally { setOwnerPasswordChangeBusy(false); }
   };
   /** Secondary compatibility path for previously issued one-time credentials. */
   const testConnection = async () => {
@@ -220,11 +272,12 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
 
   if (error && settings === null) return <View style={styles.state} testID="settings-error"><InlineNotice title="설정을 불러올 수 없습니다" detail={error} tone="danger" /></View>;
   if (settings === null) return <View style={styles.state} testID="settings-loading"><ActivityIndicator color={theme.colors.primary} /><Text style={[styles.title, { color: theme.colors.text }]}>설정을 불러오는 중</Text></View>;
-  const busy = saving || connecting || operatorBusy;
+  const busy = saving || connecting || operatorBusy || ownerDeviceBusy;
   const connectionFailed = connectionAttempted && !connecting && connection.status !== "READY";
   const cloudConnectionTone = connecting ? "info" : connection.status === "READY" ? "success" : connectionFailed || connection.status === "UNAVAILABLE" ? "danger" : "warning";
   const cloudConnectionLabel = connecting ? "VERIFYING" : connection.status === "READY" ? "VERIFIED" : connectionFailed || connection.status === "UNAVAILABLE" ? "RETRY" : "NOT CONNECTED";
-  const cloudConnectionDetail = connecting ? "서버, 보안 세션과 PAPER 운영 projection을 검증하고 있습니다." : connection.status === "READY" ? `${connection.snapshot.operations.runtimeState} · ${connection.snapshot.operations.transport}` : connectionFailed ? connection.reason : "Cloud PAPER는 선택 사항입니다. 연결할 때만 서버와 1회용 보안 세션을 검증합니다.";
+  const ownerCredentialReady = ownerDeviceStatus?.available === true && ownerDeviceStatus.credentialId != null;
+  const cloudConnectionDetail = connecting || ownerDeviceBusy ? "서버, 소유자 기기 인증과 PAPER 운영 projection을 검증하고 있습니다." : connection.status === "READY" ? `${connection.snapshot.operations.runtimeState} · ${connection.snapshot.operations.transport}` : connectionFailed ? connection.reason : ownerCredentialReady ? "소유자 인증 한 번으로 이 기기의 PAPER 보안 세션을 시작합니다." : "이 휴대폰 등록 뒤에는 소유자 인증만으로 연결합니다.";
   const allocationCash = exchangeCash > 0 ? exchangeCash : LOCAL_PAPER_INITIAL_CASH;
   const allocation = createCashInvestmentEnvelope(allocationCash, settings.capitalAllocation.investmentPercent);
   const selectedPreset = allocationPresets.some((item) => item.key === String(settings.capitalAllocation.investmentPercent)) ? String(settings.capitalAllocation.investmentPercent) : "";
@@ -244,17 +297,21 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
       <InlineNotice title={connection.status === "READY" ? "연결 검증 완료" : connectionFailed ? "연결을 다시 확인하세요" : "Cloud PAPER 연결"} detail={cloudConnectionDetail} tone={connection.status === "READY" ? "success" : connectionFailed ? "danger" : "info"} testID="settings-connection-summary" />
       <View style={styles.connectionSteps} testID="settings-connection-steps">
         <ConnectionStep index="1" title="SERVER" detail={canonicalEndpoint ? "Release에 주입된 canonical HTTPS endpoint" : endpointDraft.trim() ? "입력한 HTTPS endpoint" : "Cloud를 사용할 때 endpoint 필요"} state={canonicalEndpoint || endpointDraft.trim() ? "READY" : "NEEDED"} tone={canonicalEndpoint || endpointDraft.trim() ? "success" : "neutral"} />
-        <ConnectionStep index="2" title="SECURE SESSION" detail="기기 연결 요청은 소유자 승인 후 Android Secure Storage의 회전 세션으로 바뀝니다" state={connection.status === "READY" ? "SECURE" : pairing != null ? "APPROVAL" : "NEEDED"} tone={connection.status === "READY" ? "success" : pairing != null ? "info" : "neutral"} />
+        <ConnectionStep index="2" title="OWNER DEVICE" detail={ownerCredentialReady ? "지문·얼굴·기기 잠금으로 이 기기의 비공개 키가 인증합니다" : "최초 1회 ACTIVE OWNER로 이 휴대폰을 등록하세요"} state={connection.status === "READY" ? "SECURE" : ownerCredentialReady ? "READY" : pairing != null ? "RECOVERY" : "NEEDED"} tone={connection.status === "READY" ? "success" : ownerCredentialReady ? "info" : pairing != null ? "warning" : "neutral"} />
         <ConnectionStep index="3" title="VERIFY" detail="PAPER 운영 projection까지 읽힌 경우에만 연결 완료" state={connecting ? "CHECKING" : connection.status === "READY" ? "VERIFIED" : connectionFailed ? "ERROR" : "WAITING"} tone={connecting ? "info" : connection.status === "READY" ? "success" : connectionFailed ? "danger" : "neutral"} {...(connectionFailed ? { errorDetail: connection.reason } : {})} />
       </View>
-      <NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy && !canonicalEndpoint} keyboardType="url" label="Cloud endpoint" value={endpointDraft} onChangeText={setEndpointDraft} placeholder="https://..." returnKeyType="done" testID="settings-paper-endpoint" />
-      {pairing != null ? <InlineNotice title="PAPER 연결 승인 대기" detail={`소유자에게 이 확인 코드를 전달하세요: ${pairing.verificationCode}. 승인 후 이 기기가 자동으로 연결됩니다.`} tone="info" testID="settings-paper-pairing-status" /> : null}
-      <Text style={[styles.hint, { color: theme.colors.textMuted }]}>PAPER 연결 요청은 권한을 부여하지 않습니다. ACTIVE OWNER의 users:manage 승인이 있어야만 이 기기 전용 회전 세션이 발급됩니다. 코드·요청·세션 자격 증명은 로그나 일반 저장소에 보관하지 않습니다.</Text>
-      <View style={styles.row}><NusaButton disabled={busy || pairing != null} label={connecting ? "요청 중..." : pairing != null ? "승인 대기 중" : connectionFailed ? "PAPER 연결 요청 다시 시도" : "PAPER 연결 요청"} onPress={() => void requestPaperConnection()} testID="settings-paper-connect" /><NusaButton disabled={busy || connection.status !== "READY"} label="연결 해제" onPress={disconnect} tone="neutral" testID="settings-paper-disconnect" /></View>
-      <Text style={[styles.hint, { color: theme.colors.textMuted }]}>호환용 1회 연결 토큰(보조 경로): 기존에 발급된 토큰만 사용할 수 있으며 bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다. LOCAL PAPER에는 사용하지 않습니다.</Text>
+      {canonicalEndpoint ? <Text style={[styles.hint, { color: theme.colors.textMuted }]} testID="settings-paper-endpoint">이 릴리스의 안전한 Cloud endpoint를 사용합니다.</Text> : <NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} keyboardType="url" label="Cloud endpoint" value={endpointDraft} onChangeText={setEndpointDraft} placeholder="https://..." returnKeyType="done" testID="settings-paper-endpoint" />}
+      {pairing != null ? <InlineNotice title="호환/복구 연결 승인 대기" detail={`등록된 소유자 기기가 없는 경우에만 이 확인 코드를 기존 소유자에게 전달하세요: ${pairing.verificationCode}.`} tone="warning" testID="settings-paper-pairing-status" /> : null}
+      <Text style={[styles.hint, { color: theme.colors.textMuted }]}>등록 후에는 지문·얼굴 인증만 사용합니다. 개인키·거래소 키·세션 비밀은 JavaScript, 로그, 일반 저장소에 들어가지 않습니다.</Text>
+      {ownerCredentialReady ? <View style={styles.row}><NusaButton disabled={busy || pairing != null} label={ownerDeviceBusy || connecting ? "인증 중..." : "소유자 인증"} onPress={() => void requestPaperConnection()} testID="settings-paper-connect" /><NusaButton disabled={busy || connection.status !== "READY"} label="연결 해제" onPress={disconnect} tone="neutral" testID="settings-paper-disconnect" /></View> : null}
+      {!ownerCredentialReady || ownerAuthenticationFallback ? <View style={styles.compatibilityBlock} testID="settings-owner-device-enrollment"><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>INITIAL / RECOVERY ONLY</Text><Text style={[styles.hint, { color: theme.colors.textMuted }]}>{ownerAuthenticationFallback ? "생체 인증을 취소하거나 완료하지 못했습니다. 기기 자격 증명은 그대로 유지됩니다. 다시 시도하거나 비밀번호로 복구할 수 있습니다." : "처음 또는 복구 시에는 OWNER 비밀번호로 로그인한 뒤 이 휴대폰을 등록합니다. 비밀번호는 이 한 번의 요청 뒤 바로 지워지며 저장하지 않습니다."}</Text><NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy && pairing == null} label="비밀번호" value={ownerPassword} onChangeText={setOwnerPassword} placeholder="초기/복구에서만 사용" secureTextEntry testID="settings-owner-password" /><NusaButton disabled={busy || pairing != null || !ownerPassword} label={ownerDeviceBusy ? "등록 중..." : "로그인 및 이 휴대폰 등록"} onPress={() => void enrollThisPhone()} tone="primary" testID="settings-owner-device-enroll" /></View> : null}
+      <Text style={[styles.hint, { color: theme.colors.textMuted }]}>호환용 1회 연결 토큰(보조 경로): 기존에 발급된 토큰만 사용할 수 있으며 bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다. 등록된 소유자 기기가 없는 초기·복구 상황에서만 사용합니다.</Text>
       <NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy && pairing == null} label="1회용 연결 토큰 (호환용)" value={tokenDraft} onChangeText={setTokenDraft} placeholder="기존 토큰이 있는 경우에만 입력" returnKeyType="done" secureTextEntry testID="settings-paper-token" />
       <NusaButton disabled={busy || pairing != null || !tokenDraft.trim()} label={connecting ? "검증 중..." : "호환 토큰으로 연결"} onPress={() => void testConnection()} tone="neutral" testID="settings-paper-legacy-connect" />
+      <NusaButton disabled={busy || pairing != null || ownerCredentialReady} label={pairing != null ? "호환 승인 대기 중" : "호환 코드 연결"} onPress={() => void requestPaperConnection()} tone="neutral" testID="settings-paper-legacy-pairing" />
     </View>
+
+    {connection.status === "READY" ? <><View style={[styles.divider, { backgroundColor: theme.colors.border }]} /><View style={styles.sectionBlock} testID="settings-owner-password-change"><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>OWNER · SECURITY</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>비밀번호 변경</Text><Text style={[styles.hint, { color: theme.colors.textMuted }]}>현재 비밀번호를 다시 확인해야 변경할 수 있습니다.</Text><NusaTextField secureTextEntry autoCorrect={false} editable={!ownerPasswordChangeBusy} label="현재 비밀번호" value={currentOwnerPassword} onChangeText={setCurrentOwnerPassword} testID="settings-owner-current-password" /><NusaTextField secureTextEntry autoCorrect={false} editable={!ownerPasswordChangeBusy} label="새 비밀번호" value={newOwnerPassword} onChangeText={setNewOwnerPassword} testID="settings-owner-new-password" /><NusaButton disabled={ownerPasswordChangeBusy || !currentOwnerPassword || !newOwnerPassword} label={ownerPasswordChangeBusy ? "변경 중..." : "비밀번호 변경"} onPress={() => void changeOwnerPassword()} testID="settings-owner-password-change-submit" />{ownerPasswordChangeMessage ? <Text style={[styles.hint, { color: theme.colors.textMuted }]}>{ownerPasswordChangeMessage}</Text> : null}</View></> : null}
 
     <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
     <UpbitConnectionPanel />
@@ -279,4 +336,4 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({ content: { paddingHorizontal: 20, paddingTop: 20, gap: 18, paddingBottom: 40, width: "100%", maxWidth: 820, alignSelf: "center" }, state: { flex: 1, justifyContent: "center", padding: 20, gap: 14 }, title: { fontSize: 18, fontWeight: "700" }, sectionBlock: { gap: 12 }, connectionSteps: { gap: 0 }, connectionStep: { minHeight: 64, borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 10 }, connectionIndex: { width: 30, height: 30, borderRadius: 999, borderWidth: 1, alignItems: "center", justifyContent: "center" }, connectionIndexText: { fontSize: 11, fontWeight: "900" }, connectionCopy: { flex: 1, minWidth: 0, gap: 2 }, connectionTitle: { fontSize: 13, lineHeight: 18, fontWeight: "900" }, connectionDetail: { fontSize: 11, lineHeight: 16 }, connectionError: { marginTop: 3, fontSize: 11, lineHeight: 16, fontWeight: "700" }, sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }, eyebrow: { fontSize: 10, lineHeight: 15, fontWeight: "800", letterSpacing: 1.1 }, sectionTitle: { marginTop: 4, fontSize: 21, lineHeight: 27, fontWeight: "800", letterSpacing: -0.5 }, hint: { fontSize: 13, lineHeight: 20 }, userName: { fontSize: 15, lineHeight: 21, fontWeight: "700" }, row: { flexDirection: "row", gap: 10, flexWrap: "wrap" }, settingRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 }, divider: { height: StyleSheet.hairlineWidth }, allocationPercent: { fontSize: 22, lineHeight: 28, fontWeight: "800", fontVariant: ["tabular-nums"] }, allocationTrack: { height: 8, borderRadius: 999, overflow: "hidden" }, allocationFill: { height: "100%", borderRadius: 999 }, allocationAmounts: { flexDirection: "row", justifyContent: "space-between", gap: 18 }, amountRight: { alignItems: "flex-end" }, amountLabel: { fontSize: 11, lineHeight: 16, fontWeight: "700" }, amountValue: { marginTop: 3, fontSize: 18, lineHeight: 24, fontWeight: "800", fontVariant: ["tabular-nums"] } });
+const styles = StyleSheet.create({ content: { paddingHorizontal: 20, paddingTop: 20, gap: 18, paddingBottom: 40, width: "100%", maxWidth: 820, alignSelf: "center" }, state: { flex: 1, justifyContent: "center", padding: 20, gap: 14 }, title: { fontSize: 18, fontWeight: "700" }, sectionBlock: { gap: 12 }, compatibilityBlock: { gap: 10, paddingTop: 8 }, connectionSteps: { gap: 0 }, connectionStep: { minHeight: 64, borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 10 }, connectionIndex: { width: 30, height: 30, borderRadius: 999, borderWidth: 1, alignItems: "center", justifyContent: "center" }, connectionIndexText: { fontSize: 11, fontWeight: "900" }, connectionCopy: { flex: 1, minWidth: 0, gap: 2 }, connectionTitle: { fontSize: 13, lineHeight: 18, fontWeight: "900" }, connectionDetail: { fontSize: 11, lineHeight: 16 }, connectionError: { marginTop: 3, fontSize: 11, lineHeight: 16, fontWeight: "700" }, sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }, eyebrow: { fontSize: 10, lineHeight: 15, fontWeight: "800", letterSpacing: 1.1 }, sectionTitle: { marginTop: 4, fontSize: 21, lineHeight: 27, fontWeight: "800", letterSpacing: -0.5 }, hint: { fontSize: 13, lineHeight: 20 }, userName: { fontSize: 15, lineHeight: 21, fontWeight: "700" }, row: { flexDirection: "row", gap: 10, flexWrap: "wrap" }, settingRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 }, divider: { height: StyleSheet.hairlineWidth }, allocationPercent: { fontSize: 22, lineHeight: 28, fontWeight: "800", fontVariant: ["tabular-nums"] }, allocationTrack: { height: 8, borderRadius: 999, overflow: "hidden" }, allocationFill: { height: "100%", borderRadius: 999 }, allocationAmounts: { flexDirection: "row", justifyContent: "space-between", gap: 18 }, amountRight: { alignItems: "flex-end" }, amountLabel: { fontSize: 11, lineHeight: 16, fontWeight: "700" }, amountValue: { marginTop: 3, fontSize: 18, lineHeight: 24, fontWeight: "800", fontVariant: ["tabular-nums"] } });
