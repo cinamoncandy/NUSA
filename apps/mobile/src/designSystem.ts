@@ -74,6 +74,7 @@ export const intelligenceFieldColors = Object.freeze({
   text: "#F7F9FF",
   heroBorder: "#222C40",
   heroMuted: "#9AA6BA",
+  terminalSignal: "#D8EE76",
 });
 
 const interaction = Object.freeze({
