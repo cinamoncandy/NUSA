@@ -1,9 +1,10 @@
 import type { SecureStoragePort } from "./mobileSecurity";
 import type { OwnerDeviceCredentialNative } from "./ownerDeviceCredential";
 
-// Legacy keys are retained only so upgraded clients can destroy credentials that
-// older builds may have persisted. New builds never write either key.
-const SESSION_STORAGE_KEY = "nusa.mobile.approved-session.v1";
+// v1 was deliberately delete-only. v2 contains only a device-bound rotating
+// refresh capability, and only when Android Keystore is available.
+const LEGACY_SESSION_STORAGE_KEY = "nusa.mobile.approved-session.v1";
+const SESSION_STORAGE_KEY = "nusa.mobile.approved-session.v2";
 const PAIRING_STORAGE_KEY = "nusa.mobile.pending-pairing.v1";
 const ACCESS_REFRESH_SKEW_MS = 30_000;
 const MAX_TOKEN_LENGTH = 4096;
@@ -33,6 +34,13 @@ interface OwnerDeviceChallenge {
   readonly challenge: string;
   readonly purpose: "REGISTRATION" | "AUTHENTICATION";
   readonly expiresAt: number;
+}
+
+interface PersistedRefreshSession {
+  readonly endpoint: string;
+  readonly refreshToken: string;
+  readonly refreshExpiresAt: number;
+  readonly deviceId?: string;
 }
 
 export interface MobilePairingRequest {
@@ -113,6 +121,27 @@ function parseTokens(value: unknown): MobileSessionTokens {
   });
 }
 
+function parsePersistedRefreshSession(value: unknown): PersistedRefreshSession {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) throw new Error("persisted mobile session is invalid.");
+  const record = value as Record<string, unknown>;
+  const endpoint = secureEndpoint(typeof record.endpoint === "string" ? record.endpoint : "");
+  return Object.freeze({
+    endpoint,
+    refreshToken: readToken(record.refreshToken, "persisted refresh token"),
+    refreshExpiresAt: readTime(record.refreshExpiresAt, "persisted refresh expiry"),
+    ...(record.deviceId == null ? {} : { deviceId: readDeviceId(record.deviceId) })
+  });
+}
+
+function encodePersistedRefreshSession(value: PersistedRefreshSession): Uint8Array {
+  return new TextEncoder().encode(JSON.stringify(value));
+}
+
+function decodePersistedRefreshSession(value: Uint8Array): PersistedRefreshSession {
+  try { return parsePersistedRefreshSession(JSON.parse(new TextDecoder().decode(value)) as unknown); }
+  catch { throw new Error("persisted mobile session is invalid."); }
+}
+
 function parseBootstrapIssue(value: unknown): MobileBootstrapIssue {
   if (value == null || typeof value !== "object" || Array.isArray(value)) throw new Error("mobile enrollment response is invalid.");
   return Object.freeze({ token: readToken((value as Record<string, unknown>).token, "bootstrap token") });
@@ -179,7 +208,7 @@ export class MobileApprovedSession {
   public readonly credentialProvider: MobileApprovedCredentialProvider = async () => this.getAccessToken();
   public currentIdentity(): MobileApprovedSessionIdentity | null { return this.identity; }
   public hasMemoryAccess(): boolean { return this.accessToken !== null; }
-  /** Retry is process-local only; credentials are never persisted for restart recovery. */
+  /** Transient restore failures may retry while the device-bound refresh session remains valid. */
   public shouldRetryRestore(): boolean { return this.restoreRetryable; }
 
   public async connectBootstrap(baseUrl: string, bootstrapToken: string): Promise<MobileApprovedSessionIdentity> {
@@ -196,6 +225,7 @@ export class MobileApprovedSession {
     try {
       const identity = await this.loadIdentity(endpoint, tokens.accessToken);
       this.identity = identity;
+      await this.persistRefreshSession();
       return identity;
     } catch (error) {
       if (isDefinitiveSessionRejection(error)) this.clearMemory();
@@ -349,6 +379,7 @@ export class MobileApprovedSession {
       try {
         const identity = await this.loadIdentity(endpoint, tokens.accessToken);
         this.identity = identity;
+        await this.persistRefreshSession();
         return identity;
       } catch (error) {
         if (isDefinitiveSessionRejection(error)) this.clearMemory();
@@ -360,15 +391,33 @@ export class MobileApprovedSession {
     }
   }
 
-  /**
-   * Restart recovery intentionally returns no session. Any legacy persisted
-   * credential is destroyed, and the user may initiate a fresh zero-authority pairing.
-   */
+  /** Restores only the device-bound rotating refresh capability from Android Keystore. */
   public async restore(baseUrl: string): Promise<MobileApprovedSessionIdentity | null> {
-    secureEndpoint(baseUrl);
+    const endpoint = secureEndpoint(baseUrl);
     this.clearMemory();
     await this.destroyLegacyPersistedCredentials();
-    return null;
+    if (this.storage == null) return null;
+    try {
+      const stored = await this.storage.getSecret(SESSION_STORAGE_KEY);
+      if (stored == null) return null;
+      const persisted = decodePersistedRefreshSession(stored);
+      if (persisted.endpoint !== endpoint || persisted.refreshExpiresAt <= Date.now() + ACCESS_REFRESH_SKEW_MS) throw new Error("persisted mobile session is expired or for a different endpoint.");
+      this.endpoint = persisted.endpoint;
+      this.refreshToken = persisted.refreshToken;
+      this.refreshExpiresAt = persisted.refreshExpiresAt;
+      this.deviceId = persisted.deviceId ?? null;
+      const accessToken = await this.refreshFromMemory();
+      if (accessToken == null) {
+        if (!this.shouldRetryRestore()) await this.clearLocal();
+        return null;
+      }
+      const identity = await this.loadIdentity(endpoint, accessToken);
+      this.identity = identity;
+      return identity;
+    } catch (error) {
+      if (!this.shouldRetryRestore()) await this.clearLocal();
+      return null;
+    }
   }
 
   public async disconnect(baseUrl?: string): Promise<void> {
@@ -413,7 +462,7 @@ export class MobileApprovedSession {
     }
     try { return (await this.refreshWith(endpoint, refreshToken, this.deviceId ?? undefined)).accessToken; }
     catch (error) {
-      if (isDefinitiveSessionRejection(error)) this.clearMemory();
+      if (isDefinitiveSessionRejection(error)) await this.clearLocal();
       else this.restoreRetryable = true;
       return null;
     }
@@ -422,6 +471,7 @@ export class MobileApprovedSession {
   private async refreshWith(endpoint: string, refreshToken: string, deviceId?: string): Promise<MobileSessionTokens> {
     const tokens = parseTokens(await requestJson(this.request, `${endpoint}/v1/mobile/session/refresh`, { method: "POST", body: JSON.stringify({ refreshToken, ...(deviceId ? { deviceId } : {}) }) }));
     this.acceptTokens(endpoint, tokens);
+    await this.persistRefreshSession();
     return tokens;
   }
 
@@ -441,14 +491,29 @@ export class MobileApprovedSession {
 
   private async destroyLegacyPersistedCredentials(): Promise<void> {
     if (this.storage == null) return;
-    try { await this.storage.deleteSecret(SESSION_STORAGE_KEY); } catch { /* legacy state remains unusable because it is never read */ }
+    try { await this.storage.deleteSecret(LEGACY_SESSION_STORAGE_KEY); } catch { /* legacy state remains unusable because it is never read */ }
     try { await this.storage.deleteSecret(PAIRING_STORAGE_KEY); } catch { /* legacy state remains unusable because it is never read */ }
+  }
+
+  private async persistRefreshSession(): Promise<void> {
+    if (this.storage == null || this.endpoint == null || this.refreshToken == null) return;
+    const refreshExpiresAt = this.refreshExpiresAt;
+    if (refreshExpiresAt <= Date.now() + ACCESS_REFRESH_SKEW_MS) throw new Error("mobile refresh session is expired.");
+    await this.storage.setSecret(SESSION_STORAGE_KEY, encodePersistedRefreshSession(Object.freeze({
+      endpoint: this.endpoint,
+      refreshToken: this.refreshToken,
+      refreshExpiresAt,
+      ...(this.deviceId == null ? {} : { deviceId: this.deviceId })
+    })));
   }
 
   private async clearLocal(): Promise<void> {
     this.clearMemory();
+    if (this.storage != null) {
+      try { await this.storage.deleteSecret(SESSION_STORAGE_KEY); } catch { /* local memory is already fail-closed */ }
+    }
     await this.destroyLegacyPersistedCredentials();
   }
 }
 
-export { PAIRING_STORAGE_KEY, SESSION_STORAGE_KEY };
+export { LEGACY_SESSION_STORAGE_KEY, PAIRING_STORAGE_KEY, SESSION_STORAGE_KEY };

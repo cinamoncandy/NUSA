@@ -1,4 +1,12 @@
 version: 1
+current_mobile_paper_session_recovery:
+  work_order: WO-20260917-MOBILE-PAPER-SESSION-RECOVERY
+  status: LOCAL_VALIDATED_CI_PENDING
+  owner_authorization: "Owner explicitly approved Android Keystore persistence of a device-bound rotating Cloud PAPER refresh session for restart recovery."
+  scope: "PAPER and GET-only Upbit READ_ONLY reconnect only; no access/bootstrap/Upbit credential persistence and no LIVE authority."
+  validation: "typecheck PASS; build PASS; focused mobile PAPER/Upbit/recovery contracts PASS 26/26; compiled restart contracts PASS 4/4; security gate PASS; validate:full PASS; diff check PASS."
+  next: "Create a focused PR from exact base 008ad16d1714c32a1d424e5ccf9b1b34bb63faba and require fresh exact-head CI, Audit, and Release."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_self_service_paper_upbit_readonly:
   work_order: WO-20260910-MOBILE-SELF-SERVICE-PAPER-UPBIT-READONLY
   status: IMPLEMENTED_LOCAL_VALIDATION_PARTIAL

@@ -1,0 +1,42 @@
+project: nusa
+id: WO-20260917-MOBILE-PAPER-SESSION-RECOVERY
+title: "Restore device-bound Cloud PAPER session after Android restart"
+status: LOCAL_VALIDATED_CI_PENDING
+priority: P0
+owner: codex
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 008ad16d1714c32a1d424e5ccf9b1b34bb63faba
+objective: "Persist only the device-bound rotating Cloud PAPER refresh session in Android Keystore so an approved device can restore PAPER and GET-only Upbit READ_ONLY after restart."
+owner_authorization: "Explicit owner approval in this task authorizes this narrow Android Keystore exception."
+scope:
+  - persist no access token, bootstrap token, Upbit API credential, account data, or LIVE authority
+  - bind persisted record to its exact HTTPS endpoint and optional device id
+  - rotate the refresh credential on restore and delete it on expiry, rejection, endpoint change, or explicit disconnect
+  - preserve LOCAL PAPER without authentication and all NONE/false/ZERO_AUTHORITY invariants
+prohibited:
+  - live_activation
+  - order_or_transfer_mutation
+  - plaintext_or_async_storage_credentials
+  - Upbit_API_credential_persistence
+  - fail_open_restore
+verification:
+  - pnpm run typecheck
+  - pnpm run build
+  - node --test dist/apps/mobile/src/mobileApprovedSession.test.js
+  - pnpm run security:gate
+  - pnpm run validate:full
+  - git diff --check
+verification_result:
+  - "pnpm run typecheck PASS"
+  - "pnpm run build PASS"
+  - "Focused mobile PAPER/Upbit/recovery contracts PASS 26/26"
+  - "Compiled mobileApprovedSession restart contracts PASS 4/4"
+  - "pnpm run security:gate PASS"
+  - "pnpm run validate:full PASS"
+  - "git diff --check PASS"
+next_permitted_action: "Commit, push, create one focused PR, then require fresh exact-head CI, independent Audit, and Release."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
