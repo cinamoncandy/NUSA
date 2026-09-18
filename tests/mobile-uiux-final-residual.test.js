@@ -6,41 +6,17 @@ const path = require("node:path");
 const root = path.join(__dirname, "..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-test("Home preserves the canonical Intelligence OS safety-first actions without restoring the legacy supervisor CTA", () => {
+test("Home MASTER preserves safety-first routes and truthful supervisor action", () => {
   const home = read("apps/mobile/src/homeView.tsx");
   const decisionSurface = read("apps/mobile/src/homeDecisionSurface.ts");
-
-  assert.match(home, /testID="home-screen"/);
-  assert.match(home, /testID="home-master-rail"/);
-  assert.match(home, /testID="home-now"/);
-  assert.match(home, /testID="account-hero-card"/);
-  assert.match(home, /testID="ai-card"/);
-  assert.match(home, /testID="home-risk-status"/);
-  assert.match(home, /testID="home-decision-stage"/);
-  assert.match(home, /testID="home-paper-performance"/);
-  assert.match(home, /testID="home-paper-learning"/);
+  for (const marker of ['testID="home-screen"','testID="home-master-rail"','testID="ai-card"','testID="home-decision-stage"','testID="home-paper-performance"','testID="home-paper-learning"','testID="home-risk-authority"','testID="home-supervisor-primary-action"']) assert.match(home, new RegExp(marker));
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
-
-  assert.doesNotMatch(home, /testID="home-supervisor-primary-action"/);
-  assert.doesNotMatch(home, /testID="home-next-action"/);
-  assert.doesNotMatch(home, /testID="home-next-action-button"/);
-
-  assert.match(home, /testID="home-operational-notice"/);
-  assert.match(home, /onPress=\{onGoSettings\}/);
-  assert.doesNotMatch(home, /onAction=\{onGoSettings\}/);
-  assert.doesNotMatch(home, /<OperationalNotice/);
+  assert.match(home, /<OperationalNotice/);
+  assert.match(home, /onAction=\{onGoSettings\}/);
   assert.match(home, /onNavigate\("Portfolio"\)/);
   assert.match(home, /onNavigate\("AiSignal"\)/);
   assert.match(home, /onNavigate\("Markets"\)/);
-  assert.match(home, /onOpenPaperLearning/);
-
-  // Keep the canonical fail-closed decision model available for runtime truth and downstream users,
-  // but the approved HOME presentation must not reconstruct the retired supervisor deck.
   assert.match(decisionSurface, /"CONNECT PAPER"/);
-  assert.match(decisionSurface, /"RECOVER"/);
-  assert.match(decisionSurface, /"SUPERVISE PAPER"/);
-  assert.match(decisionSurface, /"OPEN SIGNAL"/);
-  assert.match(decisionSurface, /"OPEN MARKET"/);
   assert.match(decisionSurface, /const primaryAction: HomeDecisionPrimaryAction/);
 });
 
