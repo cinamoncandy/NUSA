@@ -32,6 +32,18 @@ function unresolved(reason: string): GithubCanonicalPrCiResolution {
   return Object.freeze({ resolved: false, dispatch: null, reason });
 }
 
+function matchesExactPullRequest(run: Record<string, unknown>, prNumber: number, headSha: string): boolean {
+  const pullRequests = run.pull_requests;
+  if (!Array.isArray(pullRequests) || pullRequests.length !== 1) return false;
+  const pullRequest = object(pullRequests[0]);
+  const head = object(pullRequest?.head);
+  const base = object(pullRequest?.base);
+  return pullRequest?.number === prNumber
+    && typeof head?.sha === "string"
+    && head.sha.toLowerCase() === headSha
+    && base?.ref === "main";
+}
+
 function githubHeaders(token: string): Record<string, string> {
   return {
     accept: "application/vnd.github+json",
@@ -112,7 +124,8 @@ export async function resolveCanonicalPrCiForReady(
       && run.status === "completed"
       && typeof run.head_sha === "string"
       && run.head_sha.toLowerCase() === headSha
-      && runRepository?.full_name === repository;
+      && runRepository?.full_name === repository
+      && matchesExactPullRequest(run, prNumber!, headSha);
   });
   if (canonical.length === 0) return unresolved("canonical-ci-run-identity-invalid");
   if (canonical.length !== 1 || runs.length !== 1) return unresolved("canonical-ci-run-ambiguous");
