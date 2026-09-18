@@ -8,11 +8,11 @@ const decisionSurface = fs.readFileSync(path.join(__dirname, "..", "apps", "mobi
 
 test("HOME MASTER keeps connection recovery and supervisor action truthful", () => {
   assert.match(home, /testID="home-operational-notice"/);
-  assert.match(home, /testID="home-supervisor-primary-action"/);
-  assert.match(home, /actionLabel="PAPER 연결"/);
-  assert.match(home, /onAction=\{onGoSettings\}/);
-  assert.match(home, /const disconnected = notConfigured != null && !localPaperActive/);
-  assert.match(home, /const decisionSurface = buildHomeDecisionSurface\(\{[\s\S]*disconnected,[\s\S]*readOnlyError: readOnlyError != null/);
+  assert.match(home, /PAPER CONNECTION REQUIRED/);
+  assert.match(home, /OPEN SETTINGS →/);
+  assert.match(home, /onPress=\{props\.onGoSettings\}/);
+  assert.match(home, /const disconnected = props\.notConfigured != null && !localPaperActive/);
+  assert.match(home, /const decision = buildHomeDecisionSurface\(\{[\s\S]*disconnected,[\s\S]*readOnlyError: props\.readOnlyError != null/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
   assert.match(decisionSurface, /const WATCH_RUNTIME_STATES = new Set\(\["DEGRADED", "STOPPED", "STOPPING"\]\)/);
   assert.match(decisionSurface, /PAPER runtime 상태가 저하되어 감독자의 확인이 필요합니다/);
