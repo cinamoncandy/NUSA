@@ -115,15 +115,11 @@ export function HomeView(props: HomeViewProps) {
     <View style={styles.hero}>
       <View style={styles.heroCopy}>
         <Text style={styles.heroLine}>DISCIPLINE</Text><Text style={styles.heroLine}>COMPOUNDS</Text><Text style={styles.heroAccent}>FREEDOM.</Text>
-        <Text style={styles.heroKorean}>더 나은 오늘이,{"
-"}더 큰 자유를 만든다.</Text>
+        <Text style={styles.heroKorean}>더 나은 오늘이,{"\\n"}더 큰 자유를 만든다.</Text>
       </View>
       <View style={styles.orbit} accessibilityLabel="global market intelligence visual">
         <View style={styles.orbitOuter} /><View style={styles.orbitMid} /><View style={styles.orbitCore} />
-        <Text style={styles.orbitText}>GLOBAL{"
-"}MARKETS{"
-"}REAL-TIME{"
-"}WITH AI</Text>
+        <Text style={styles.orbitText}>GLOBAL{"\\n"}MARKETS{"\\n"}REAL-TIME{"\\n"}WITH AI</Text>
       </View>
     </View>
 
