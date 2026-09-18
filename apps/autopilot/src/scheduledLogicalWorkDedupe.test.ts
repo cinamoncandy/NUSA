@@ -44,6 +44,8 @@ function githubFetch(dispatchedReasons?: string[]): typeof fetch {
   return (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.endsWith("/branches/main")) return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200, headers: { "content-type": "application/json" } });
+    const issueMatch = url.match(/\/issues\/([1-9][0-9]*)$/);
+    if (issueMatch) return new Response(JSON.stringify(issue(Number(issueMatch[1]))), { status: 200, headers: { "content-type": "application/json" } });
     if (url.endsWith("/dispatches")) {
       if (dispatchedReasons) {
         const body = JSON.parse(String(init?.body)) as { client_payload?: { reason?: string } };
@@ -95,4 +97,59 @@ test("same logical work on same main remains persistently deduplicated", async (
   assert.equal((await runScheduledEvolutionCoding({ NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: coordinator }, input, fetchImpl)).status, "EXECUTION_ACCEPTED");
   assert.equal((await runScheduledEvolutionCoding({ NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: coordinator }, { ...input, now: NOW + 1000 }, fetchImpl)).status, "DUPLICATE_SUPPRESSED");
   assert.equal(acquiredKeys[0], acquiredKeys[1]);
+});
+
+
+test("closed issue discovered from a stale backlog snapshot is suppressed before lease or dispatch", async () => {
+  const acquiredKeys: string[] = [];
+  let dispatches = 0;
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith("/issues/1955")) {
+      return new Response(JSON.stringify(issue(1955) && { ...issue(1955), state: "closed" }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (url.endsWith("/dispatches")) {
+      dispatches += 1;
+      return new Response(null, { status: 204 });
+    }
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+  const value = await runScheduledEvolutionCoding(
+    { NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace(new Set<string>(), acquiredKeys) },
+    { candidates: [], backlogIssues: [issue(1955)], openPulls: [], now: NOW, repository: "cinamoncandy/NUSA", mainSha: SHA, workflowRunId: RUN_ID },
+    fetchImpl,
+  );
+  assert.equal(value.status, "ABSTAINED");
+  assert.equal(value.reason, "github-issue-no-longer-actionable");
+  assert.deepEqual(value.selectedSignalIds, ["github-issue-1955"]);
+  assert.equal(acquiredKeys.length, 0);
+  assert.equal(dispatches, 0);
+});
+
+test("issue actionability revalidation fails closed when GitHub evidence is unavailable", async () => {
+  const acquiredKeys: string[] = [];
+  const value = await runScheduledEvolutionCoding(
+    { NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace(new Set<string>(), acquiredKeys) },
+    { candidates: [], backlogIssues: [issue(1960)], openPulls: [], now: NOW, repository: "cinamoncandy/NUSA", mainSha: SHA, workflowRunId: RUN_ID },
+    (async () => new Response("unavailable", { status: 503 })) as typeof fetch,
+  );
+  assert.equal(value.status, "ABSTAINED");
+  assert.equal(value.reason, "github-issue-actionability-revalidation-unavailable");
+  assert.equal(acquiredKeys.length, 0);
+});
+
+test("concurrent same-main logical issue work dispatches once and suppresses the duplicate", async () => {
+  const seen = new Set<string>();
+  const acquiredKeys: string[] = [];
+  const dispatchedReasons: string[] = [];
+  const coordinator = namespace(seen, acquiredKeys);
+  const fetchImpl = githubFetch(dispatchedReasons);
+  const input = { candidates: [], backlogIssues: [issue(1960)], openPulls: [], now: NOW, repository: "cinamoncandy/NUSA", mainSha: SHA, workflowRunId: RUN_ID } as const;
+  const [first, second] = await Promise.all([
+    runScheduledEvolutionCoding({ NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: coordinator }, input, fetchImpl),
+    runScheduledEvolutionCoding({ NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: coordinator }, input, fetchImpl),
+  ]);
+  assert.deepEqual([first.status, second.status].sort(), ["DUPLICATE_SUPPRESSED", "EXECUTION_ACCEPTED"]);
+  assert.equal(dispatchedReasons.length, 1);
+  assert.equal(new Set(acquiredKeys).size, 1);
 });
