@@ -18,10 +18,9 @@ test('Cloudflare credential preflight never executes untrusted PR head code', ()
   assert.doesNotMatch(workflow, /github\.head_ref/);
 });
 
-test('preflight reuses existing runtime cadence instead of adding a scheduler', () => {
-  assert.match(workflow, /workflow_run:/);
-  assert.match(workflow, /Autopilot Cloudflare Deploy/);
-  assert.match(workflow, /Autopilot Cloudflare Runtime Proof/);
+test('preflight has one canonical post-runtime ingress and no stale workflow_run listener', () => {
+  assert.doesNotMatch(workflow, /^\s*workflow_run:/m);
+  assert.match(workflow, /workflow_dispatch:/);
   assert.doesNotMatch(workflow, /^\s*schedule:/m);
   assert.doesNotMatch(workflow, /cron:/);
 });

@@ -1,4 +1,15 @@
 version: 1
+current_cloudflare_runtime_preflight_sequencing:
+  work_order: WO-PIPELINE-20260918-CLOUDFLARE-PREFLIGHT-SEQUENCING
+  status: IMPLEMENTED_LOCAL_VALIDATED
+  branch: fix/1461-runtime-proof-preflight-gate
+  base_sha: 25f695885b8fb505156c0bb37b5df5769e7d69a0
+  finding: "Credential Preflight has two premature ingress races: INSUFFICIENT push Runtime Proof could dispatch it, and its workflow_run listener could replay a prior-main Deploy/Runtime-Proof completion after main advanced; both rebind to the new main before deployment convergence and reopen #1461."
+  remediation: "Credential Preflight now has one canonical post-runtime ingress: direct dispatch from Runtime Proof only after exactHeadVerified=true and deploymentRevision equals the proof source SHA; the stale workflow_run ingress is removed."
+  validation: "Focused runtime-proof/preflight 22/22 PASS; workflow authority/input/pin validators PASS; AIPOS drift/conformance/provenance PASS; git diff --check PASS."
+  next_permitted_action: "Publish one Draft PR; require fresh exact-head CI and canonical Audit/Release."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_mobile_self_service_paper_upbit_readonly:
   work_order: WO-20260910-MOBILE-SELF-SERVICE-PAPER-UPBIT-READONLY
   status: IMPLEMENTED_LOCAL_VALIDATION_PARTIAL
@@ -189,7 +200,7 @@ objective: "Make repository event-driven development transitions deterministic a
 latest_research_slice:
   work_order: WO-MARKET-INTELLIGENCE-REGIME-POINT-IN-TIME-001
   status: COMPLETED
-  base_commit: d9b162e72df75675a950478ed5ab3a980e9488fb
+  base_commit: 25f695885b8fb505156c0bb37b5df5769e7d69a0
   implementation_branch: feat/research-real-run-regime-evidence
   implementation_head: 7692c4258be0382f60b799e9fe1a7ab13a036c1a
   pull_request: 854

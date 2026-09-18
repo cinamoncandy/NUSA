@@ -1,0 +1,41 @@
+id: WO-PIPELINE-20260918-CLOUDFLARE-PREFLIGHT-SEQUENCING
+schema_version: 1
+title: "Gate Cloudflare Credential Preflight on exact-current runtime convergence"
+status: READY
+priority: 100
+owner: nusa-pipeline
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 25f695885b8fb505156c0bb37b5df5769e7d69a0
+issue: 1461
+authority_impact: none
+objective: "Prevent an observational/INSUFFICIENT Runtime Proof from dispatching Credential Preflight before the exact-main Worker deployment has converged."
+scope:
+  - ".github/workflows/autopilot-cloudflare-runtime-proof.yml"
+  - "tests/autopilot-cloudflare-runtime-proof.test.js"
+exclusions:
+  - "No credential changes."
+  - "No Release, broker, trading, or LIVE authority changes."
+  - "No second deploy, preflight, runtime-proof, scheduler, or convergence engine."
+safety:
+  PAPER_ONLY: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+execution_sequence:
+  - "Bind work to exact current protected main."
+  - "Require exactHeadVerified and deploymentRevision == source SHA before direct Credential Preflight dispatch."
+  - "Preserve observational INSUFFICIENT_EVIDENCE behavior for push/manual proof runs."
+  - "Run focused runtime-proof/preflight and repository policy validation."
+  - "Publish one Draft PR; require exact-head CI and canonical Audit/Release."
+verification:
+  - "node --test tests/autopilot-cloudflare-runtime-proof.test.js tests/autopilot-cloudflare-credential-preflight.test.js"
+  - "node scripts/validate-workflow-authority-map.js"
+  - "node scripts/validate-workflow-action-inputs.js"
+  - "git diff --check"
+completion_criteria:
+  - "Push-time stale runtime proof cannot dispatch Credential Preflight."
+  - "Exact-current runtime proof retains the direct preflight recovery edge."
+  - "No safety or authority boundary changes."
+blockers: []
+next_action: "Validate locally and publish one current-main Draft PR."
