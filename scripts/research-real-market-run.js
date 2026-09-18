@@ -2,7 +2,10 @@
 
 const {
   evaluateUpbitDailyCandleFreshness,
-  mapUpbitDayCandlesToResearchCandles
+  mapUpbitDayCandlesToResearchCandles,
+  UPBIT_INTERVAL_MS,
+  upbitCandleRequestPath,
+  evaluateUpbitCandleFreshness,
 } = require("../dist/apps/desktop/src/exchange/upbitCandleAdapter.js");
 const { createHistoricalDatasetManifest, candlesToBacktestPoints, runWalkForwardExperiment } = require("../dist/apps/desktop/src/cloud/researchDataset.js");
 const { SmaCrossoverStrategy, RsiMeanReversionStrategy, DonchianBreakoutStrategy } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
@@ -26,7 +29,6 @@ const RSI_FAMILY_ID = "rsi-mean-reversion";
 const DONCHIAN_FAMILY_ID = "donchian-breakout";
 const STRATEGY_FAMILY_ID = SMA_FAMILY_ID; // legacy export/default identity
 const DEFAULT_PRIMARY_MARKET = "KRW-BTC";
-const RESEARCH_MARKET_SET_VERSION = "upbit-public-daily-2000-v2";
 // Availability-only cohort: each predeclared market had at least 2000 completed public
 // daily candles at v2 declaration time. This identity is never selected from returns.
 const RESEARCH_MARKETS = Object.freeze(["KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-ADA", "KRW-DOGE"]);
@@ -52,8 +54,49 @@ function researchPrimaryMarket(value = process.env.NUSA_RESEARCH_PRIMARY_MARKET)
 }
 
 const MARKET = researchPrimaryMarket();
-const DEFAULT_CANDLE_COUNT = 2000;
-const DAY_MS = 86_400_000;
+
+/**
+ * Timeframes whose availability across the entire cohort was verified before any return was
+ * observed, with the market-set identity and contiguous depth each one runs under.
+ *
+ * Verified 2026-09-18 against the live public API, by walking the same paginated cursor this
+ * script uses and requiring strict interval contiguity for every cohort member:
+ *
+ *   1d    2000 candles  -- pre-existing declaration (upbit-public-daily-2000-v2)
+ *   60m   1500 candles  -- 1700 was contiguous for all five markets at verification time;
+ *                          1500 is declared to leave headroom. KRW-BTC has a real 4-hour hole
+ *                          at 2026-07-05T17:00Z..21:00Z, so 2000 60m candles are *reachable*
+ *                          but not contiguous. Reachability is not availability.
+ *   240m  400 candles   -- 400 x 4h spans the same window as the verified 60m depth.
+ *
+ * The identity is derived from the timeframe rather than shared, because
+ * "upbit-public-daily-2000-v2" is an availability claim about daily candles. Reusing it for a
+ * minute run would attach that claim to evidence it was never made about.
+ *
+ * These depths are anchored to a verification date, exactly like the daily cohort. An exchange
+ * outage inside a future window will fail closed on the contiguity check rather than silently
+ * backtesting across a hole.
+ */
+const RESEARCH_TIMEFRAMES = Object.freeze({
+  "1d": Object.freeze({ marketSetVersion: "upbit-public-daily-2000-v2", candleCount: 2000 }),
+  "60m": Object.freeze({ marketSetVersion: "upbit-public-minute60-1500-v1", candleCount: 1500 }),
+  "240m": Object.freeze({ marketSetVersion: "upbit-public-minute240-400-v1", candleCount: 400 }),
+});
+const DEFAULT_TIMEFRAME = "1d";
+
+function researchTimeframe(value = process.env.NUSA_RESEARCH_TIMEFRAME) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (!normalized) return DEFAULT_TIMEFRAME;
+  if (!Object.prototype.hasOwnProperty.call(RESEARCH_TIMEFRAMES, normalized)) {
+    throw new Error(`NUSA_RESEARCH_TIMEFRAME must be one of: ${Object.keys(RESEARCH_TIMEFRAMES).join(", ")}`);
+  }
+  return normalized;
+}
+
+const TIMEFRAME = researchTimeframe();
+const INTERVAL_MS = UPBIT_INTERVAL_MS[TIMEFRAME];
+const RESEARCH_MARKET_SET_VERSION = RESEARCH_TIMEFRAMES[TIMEFRAME].marketSetVersion;
+const DEFAULT_CANDLE_COUNT = RESEARCH_TIMEFRAMES[TIMEFRAME].candleCount;
 const REQUEST_THROTTLE_MS = 150;
 
 const BACKTEST_CONFIG = {
@@ -339,20 +382,20 @@ async function fetchResearchCandles({ market = MARKET, dataAsOf, count = DEFAULT
   if (!Number.isFinite(dataAsOf)) throw new Error("research dataAsOf must be finite");
   // Upbit's `to` is exclusive. Anchor every request to completed UTC days,
   // including the first page, so an in-flight day cannot change the dataset.
-  let before = Math.floor(dataAsOf / DAY_MS) * DAY_MS;
+  let before = Math.floor(dataAsOf / INTERVAL_MS) * INTERVAL_MS;
   const candles = [];
   const sourceRequests = [];
   for (let page = 0; page < Math.ceil(count / 200); page += 1) {
     const pageSize = Math.min(200, count - candles.length);
-    const requestPath = `/v1/candles/days?market=${market}&count=${pageSize}&to=${encodeURIComponent(new Date(before).toISOString())}`;
+    const requestPath = `${upbitCandleRequestPath(TIMEFRAME)}?market=${market}&count=${pageSize}&to=${encodeURIComponent(new Date(before).toISOString())}`;
     if (page > 0) await pause(REQUEST_THROTTLE_MS);
     const raw = await fetchPage(requestPath);
     if (!Array.isArray(raw) || raw.length !== pageSize) throw new Error("Upbit research history is incomplete");
-    const mapped = mapUpbitDayCandlesToResearchCandles(raw, { completedBy: dataAsOf });
+    const mapped = mapUpbitDayCandlesToResearchCandles(raw, { completedBy: dataAsOf, interval: TIMEFRAME });
     if (mapped.length !== pageSize) throw new Error("Upbit research page contains incomplete candles");
     for (let index = 0; index < mapped.length; index += 1) {
       const candle = mapped[index];
-      const expectedOpenTime = before - (mapped.length - index) * DAY_MS;
+      const expectedOpenTime = before - (mapped.length - index) * INTERVAL_MS;
       if (candle.market !== market || candle.openTime !== expectedOpenTime) {
         throw new Error("Upbit research history has a market, gap, duplicate, or cursor mismatch");
       }
@@ -365,9 +408,9 @@ async function fetchResearchCandles({ market = MARKET, dataAsOf, count = DEFAULT
 }
 
 function createMarketDataset({ market, dataAsOf, candles, sourceRequests }) {
-  const freshness = evaluateUpbitDailyCandleFreshness(candles, dataAsOf);
+  const freshness = evaluateUpbitCandleFreshness(candles, dataAsOf, TIMEFRAME);
   if (!freshness.fresh) {
-    throw new Error(`${market} completed daily candle source is stale by ${freshness.lagDays} UTC day(s)`);
+    throw new Error(`${market} completed ${TIMEFRAME} candle source is stale by ${freshness.lagIntervals} interval(s)`);
   }
   const manifest = createHistoricalDatasetManifest(candles, {
     source: "upbit-public-api",
@@ -427,7 +470,7 @@ async function main() {
         targetMarket: manifest.market,
         expectedRegime: "UNKNOWN",
         invalidationCondition: "The cost-adjusted out-of-sample edge is not reproducible across the declared walk-forward windows.",
-        holdingPeriodMs: 86_400_000,
+        holdingPeriodMs: INTERVAL_MS,
         capacityAssumptions: { maxNotional: BACKTEST_CONFIG.initialCash, maxParticipationRate: 0.05 },
         transactionCostSensitivity: 1,
         provenance: {
@@ -653,6 +696,8 @@ module.exports = {
   RESEARCH_MARKET_SET_VERSION,
   RESEARCH_MARKETS,
   researchPrimaryMarket,
+  researchTimeframe,
+  RESEARCH_TIMEFRAMES,
   SMA_PARAMETER_NEIGHBORHOOD,
   RSI_PARAMETER_NEIGHBORHOOD,
   DONCHIAN_PARAMETER_NEIGHBORHOOD,
