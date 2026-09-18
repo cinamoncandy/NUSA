@@ -1,5 +1,5 @@
 import React from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { TerrainSignal } from "./components";
 import { useTheme } from "./ThemeProvider";
 import { intelligenceFieldColors } from "./designSystem";
@@ -93,7 +93,11 @@ export function HomeView(props: HomeViewProps) {
   const ai = props.snapshot?.ai ?? null;
   const disconnected = props.notConfigured != null && !localPaperActive;
   const marketFeed = selectHomeMarketData(props.publicMarkets, props.snapshot?.markets ?? []);
-  const marketRows = [...marketFeed].sort((a, b) => Math.abs(b.changeRate ?? 0) - Math.abs(a.changeRate ?? 0)).slice(0, 4);
+  // A tablet has the width to carry more verified observation without crowding, and the rebuilt
+  // HOME lost that. The phone layout stays at the four market tiles the approved design specifies.
+  const { width } = useWindowDimensions();
+  const tablet = width >= 768;
+  const marketRows = [...marketFeed].sort((a, b) => Math.abs(b.changeRate ?? 0) - Math.abs(a.changeRate ?? 0)).slice(0, tablet ? 6 : 4);
   const marketWave = buildChartViewModel({ market: props.publicMarket, interval: "1m", rawCandles: props.publicCandles === null ? null : [...props.publicCandles], currentPrice: props.publicCurrentPrice, connectionState: props.publicMarketConnectionState, stale: props.publicMarketStale });
   const decision = buildHomeDecisionSurface({
     runtimeState: props.snapshot?.operations.runtimeState,
@@ -115,7 +119,7 @@ export function HomeView(props: HomeViewProps) {
 
   return <ScrollView
     style={{ backgroundColor: INK }}
-    contentContainerStyle={styles.content}
+    contentContainerStyle={[styles.content, { maxWidth: tablet ? 980 : 720 }]}
     refreshControl={<RefreshControl tintColor={LIME} refreshing={props.refreshing} onRefresh={props.onRefresh} />}
     testID="home-screen"
   >
@@ -135,8 +139,16 @@ export function HomeView(props: HomeViewProps) {
       <GlobeVisual />
     </View>
 
-    <View style={styles.marketStrip} testID="home-market-pulse">
-      {[0,1,2,3].map((i) => <MarketTile key={marketRows[i]?.market ?? i} market={marketRows[i] ?? null} />)}
+    <View testID="home-market-pulse">
+      <View style={styles.marketStripHead}>
+        <Text style={styles.marketStripTitle}>MARKET PULSE</Text>
+        {/* Public market numbers carry their source on screen. A price with no stated origin is
+            indistinguishable from a fabricated one, and PAPER PERFORMANCE already names its own. */}
+        <Text style={styles.source}>{marketRows.length === 0 ? "UNAVAILABLE" : "UPBIT PUBLIC"}</Text>
+      </View>
+      <View style={styles.marketStrip}>
+        {(tablet ? [0,1,2,3,4,5] : [0,1,2,3]).map((i) => <MarketTile key={marketRows[i]?.market ?? i} market={marketRows[i] ?? null} />)}
+      </View>
     </View>
 
     <Pressable onPress={() => props.onNavigate("AiSignal")} style={({ pressed }) => [styles.signalPanel, { opacity: pressed ? 0.84 : 1 }]} testID="ai-card">
@@ -157,7 +169,7 @@ export function HomeView(props: HomeViewProps) {
 
     <View style={styles.panel} testID="home-top-signals">
       <View style={styles.panelTitleRow}><Text style={styles.panelTitle}>TODAY'S TOP SIGNALS</Text><Text style={styles.count}>{marketRows.length}</Text></View>
-      {marketRows.length === 0 ? <Text style={styles.empty}>검증된 public market signal이 없습니다.</Text> : marketRows.slice(0,3).map((market, index) => {
+      {marketRows.length === 0 ? <Text style={styles.empty}>검증된 public market signal이 없습니다.</Text> : marketRows.slice(0, tablet ? 5 : 3).map((market, index) => {
         const up = (market.changeRate ?? 0) >= 0;
         return <Pressable key={market.market} onPress={() => props.onNavigate("Markets")} style={styles.signalRow}>
           <Text style={styles.rank}>{index + 1}</Text>
@@ -210,7 +222,7 @@ export function HomeView(props: HomeViewProps) {
 }
 
 const styles = StyleSheet.create({
-  content:{paddingHorizontal:16,paddingTop:12,paddingBottom:34,gap:14,width:"100%",maxWidth:720,alignSelf:"center",backgroundColor:INK},
+  content:{paddingHorizontal:16,paddingTop:12,paddingBottom:34,gap:14,width:"100%",alignSelf:"center",backgroundColor:INK},
   topbar:{minHeight:60,flexDirection:"row",alignItems:"center",justifyContent:"space-between",borderBottomWidth:1,borderBottomColor:BORDER,paddingBottom:10},
   logo:{color:"#F5F8F6",fontSize:27,fontWeight:"900",letterSpacing:2.7},tagline:{color:MUTED,fontSize:7,fontWeight:"700",letterSpacing:1.4,marginTop:-2},
   modeWrap:{flexDirection:"row",alignItems:"center",gap:7},modeDot:{width:9,height:9,borderRadius:9,backgroundColor:LIME,shadowColor:LIME,shadowOpacity:.6,shadowRadius:8},
@@ -225,6 +237,8 @@ const styles = StyleSheet.create({
   signalPanel:{borderWidth:1,borderColor:"#285E3C",borderRadius:9,backgroundColor:"#070A08",overflow:"hidden"},
   panel:{borderWidth:1,borderColor:BORDER,borderRadius:9,backgroundColor:PANEL,overflow:"hidden"},
   panelTitleRow:{height:44,paddingHorizontal:14,flexDirection:"row",alignItems:"center",justifyContent:"space-between",borderBottomWidth:1,borderBottomColor:BORDER},
+  marketStripHead:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",paddingHorizontal:2,paddingBottom:6},
+  marketStripTitle:{color:"#E9F0EC",fontSize:11,fontWeight:"800",letterSpacing:1.1},
   panelTitle:{color:"#E9F0EC",fontSize:13,fontWeight:"800",letterSpacing:1},arrow:{color:LIME,fontSize:25,fontWeight:"300"},count:{color:"#C7D3CC",fontSize:13},source:{color:"#71877B",fontSize:9,fontWeight:"800"},
   terrain:{height:190,position:"relative",justifyContent:"center",overflow:"hidden",backgroundColor:"#050806"},gridH1:{position:"absolute",left:0,right:0,top:"33%",height:1,backgroundColor:"#112219"},gridH2:{position:"absolute",left:0,right:0,top:"66%",height:1,backgroundColor:"#112219"},gridV1:{position:"absolute",top:0,bottom:0,left:"33%",width:1,backgroundColor:"#112219"},gridV2:{position:"absolute",top:0,bottom:0,left:"66%",width:1,backgroundColor:"#112219"},
   signalPin:{position:"absolute",left:"43%",top:"42%",alignItems:"center"},pinDot:{width:14,height:14,borderRadius:14,backgroundColor:LIME,borderWidth:4,borderColor:"#A0CF52",shadowColor:LIME,shadowOpacity:.9,shadowRadius:12},pinLabel:{marginTop:5,color:LIME,fontSize:8,fontWeight:"900",backgroundColor:"#0D2114",paddingHorizontal:6,paddingVertical:4,borderRadius:4,borderWidth:1,borderColor:"#2C703F"},
