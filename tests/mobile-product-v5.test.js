@@ -10,9 +10,9 @@ test("product v5 keeps the four primary jobs literal and glanceable", () => {
   assert.match(app, /Home: "HOME", Markets: "MARKETS", Paper: "PAPER", Portfolio: "PORTFOLIO"/);
   const home = read("src/homeView.tsx");
   assert.match(home, /MARKET PULSE/);
-  assert.match(home, /PORTFOLIO \/ ALLOCATION/);
+  assert.match(home, /CAPITAL LIMITS/);
   assert.match(home, /PAPER PERFORMANCE/);
-  assert.match(home, />P&L<\/Text>/);
+  assert.match(home, /TOTAL P&L/);
 });
 
 test("product v5 uses flatter secondary sections and Android-sized actions", () => {
