@@ -11,6 +11,7 @@ const {
   readDispatchRequest,
   assertGithubRunnerWorkspaceClean,
   filterGithubRunnerWorkspacePaths,
+  boundedWorkerFailureEvidence,
 } = require("../scripts/autopilot-dispatch-retry.js");
 
 const request = Object.freeze({
@@ -226,4 +227,33 @@ test("normalizes a UTF-8 BOM and rejects malformed dispatch events with bounded 
     else process.env.GITHUB_EVENT_PATH = previousEventPath;
     fs.rmSync(eventPath, { force: true });
   }
+});
+
+
+test("preserves only bounded structured Worker workflow evidence", () => {
+  const evidence = boundedWorkerFailureEvidence({
+    error: "CODING_RUNNER_WORKFLOW_NOT_SUCCESSFUL",
+    failureEvidence: {
+      code: "CODING_RUNNER_WORKFLOW_NOT_SUCCESSFUL",
+      workflowRunId: 35336423782,
+      workflowName: "Scheduled Autopilot",
+      workflowEvent: "schedule",
+      workflowStatus: "completed",
+      workflowConclusion: "failure",
+      headSha: "b".repeat(40),
+      secret: "must-not-propagate",
+    },
+  }, "https://nusa-autopilot.example/coding/propose", 409);
+  assert.deepEqual(evidence, {
+    code: "CODING_RUNNER_WORKFLOW_NOT_SUCCESSFUL",
+    endpoint: "/coding/propose",
+    httpStatus: 409,
+    workflowRunId: 35336423782,
+    workflowName: "Scheduled Autopilot",
+    workflowEvent: "schedule",
+    workflowStatus: "completed",
+    workflowConclusion: "failure",
+    headSha: "b".repeat(40),
+  });
+  assert.equal(boundedWorkerFailureEvidence({ failureEvidence: { code: "BAD secret" } }, "https://example.test/coding/propose", 409), null);
 });
