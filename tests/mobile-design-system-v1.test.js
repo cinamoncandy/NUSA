@@ -9,15 +9,15 @@ const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 test("mobile presets keep classic neutral while approved wealth-product colors are centralized", () => {
   const source = read("apps/mobile/src/designSystem.ts");
 
-  assert.match(source, /classic:[\\s\\S]*?primary: "#E8F3FF"[\\s\\S]*?primary: "#11151B"/);
-  assert.match(source, /export const wealthProductColors = Object\\.freeze/);
-  assert.match(source, /master:[\\s\\S]*?primary: "#D8EE76"[\\s\\S]*?primary: "#304EE8"/);
-  assert.match(source, /primary: palette\\.primary/);
+  assert.match(source, /classic:[\s\S]*?primary: "#E8F3FF"[\s\S]*?primary: "#11151B"/);
+  assert.match(source, /export const wealthProductColors = Object\.freeze/);
+  assert.match(source, /master:[\s\S]*?primary: "#D8EE76"[\s\S]*?primary: "#304EE8"/);
+  assert.match(source, /primary: palette\.primary/);
 
   // Signal semantics use the approved wealth terrain in dark mode while light mode remains accessible.
-  assert.match(source, /aiSignalStart: dark \\? "#91C74F" : "#7C3AED"/);
-  assert.match(source, /aiSignalMid: dark \\? "#B7E35C" : "#2563EB"/);
-  assert.match(source, /aiSignalEnd: dark \\? "#D8EE76" : "#0B6B60"/);
+  assert.match(source, /aiSignalStart: dark \? "#91C74F" : "#7C3AED"/);
+  assert.match(source, /aiSignalMid: dark \? "#B7E35C" : "#2563EB"/);
+  assert.match(source, /aiSignalEnd: dark \? "#D8EE76" : "#0B6B60"/);
   assert.match(source, /aiSignalSoft/);
 });
 
