@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, it } from "node:test";
 import { CANONICAL_MODULE_REGISTRY_10XS, validateCanonicalModuleRegistry10XS } from "./canonicalModuleRegistryV10";
@@ -14,6 +15,14 @@ import { MODULE_QUALIFICATION_RECORDS_V1, isLevel10Qualified } from "./moduleQua
 
 const SOURCE_SHA = "1d538db896e9db58f925ebade464f2d8be7ae13e";
 const EVIDENCE_SHA = "a".repeat(64);
+
+function gitBlobSha(path: string): string {
+  const content = readFileSync(path);
+  return createHash("sha1")
+    .update(`blob ${content.length}\0`)
+    .update(content)
+    .digest("hex");
+}
 
 function capabilities(value = true): Readonly<Record<TenXSCapability, boolean>> {
   return Object.fromEntries(TEN_X_S_CAPABILITIES.map((capability) => [capability, value])) as Record<TenXSCapability, boolean>;
@@ -47,10 +56,26 @@ describe("10X-S canonical registry", () => {
     assert.equal(CANONICAL_MODULE_REGISTRY_10XS.every((definition) => definition.targetTier === "10X-S"), true);
     assert.equal(CANONICAL_MODULE_REGISTRY_10XS.every((definition) => definition.qualificationStatus === "TARGET_ONLY"), true);
     for (const definition of CANONICAL_MODULE_REGISTRY_10XS) {
-      assert.equal(existsSync(resolve(process.cwd(), definition.canonicalEntrypoint)), true, definition.canonicalEntrypoint);
+      const canonicalPath = resolve(process.cwd(), definition.canonicalEntrypoint);
+      assert.equal(existsSync(canonicalPath), true, definition.canonicalEntrypoint);
       assert.equal(existsSync(resolve(process.cwd(), definition.runtimeEntrypoint)), true, definition.runtimeEntrypoint);
       assert.match(definition.rollbackRef, /^[0-9a-f]{40}$/);
-      assert.equal(isLevel10Qualified(MODULE_QUALIFICATION_RECORDS_V1[definition.stage]), false);
+      const qualification = MODULE_QUALIFICATION_RECORDS_V1[definition.stage];
+      assert.equal(isLevel10Qualified(qualification), false);
+      assert.match(qualification.sourceCommitSha, /^[0-9a-f]{40}$/);
+      assert.match(qualification.sourceBlobSha, /^[0-9a-f]{40}$/);
+      assert.equal(
+        gitBlobSha(canonicalPath),
+        qualification.sourceBlobSha,
+        `${definition.stage} canonical source changed without re-qualification`
+      );
+      assert.equal(
+        definition.criterionEvidence.CANONICAL_ENTRYPOINT.includes(
+          `gitblob:${qualification.sourceBlobSha}:${definition.canonicalEntrypoint}`
+        ),
+        true,
+        `${definition.stage} canonical entrypoint evidence must bind the exact source blob`
+      );
       assert.equal(definition.criteria.CANONICAL_ENTRYPOINT, true);
       for (const criterion of LEVEL_10_CRITERIA.filter((item) => item !== "CANONICAL_ENTRYPOINT")) {
         assert.equal(definition.criteria[criterion], false, `${definition.stage}:${criterion}`);
