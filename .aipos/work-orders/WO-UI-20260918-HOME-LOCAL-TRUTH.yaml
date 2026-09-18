@@ -5,7 +5,7 @@ priority: P1
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: 3e6c6c16bd225f8719e3973ddeb1e02533586105
+base_commit: 8f244858dd3ebcd2e7ef31a2d1f5f7f877fc8b05
 implementation_branch: uiux/home-master-terminal-20260918
 pull_request: 1951
 authority_impact: none
@@ -18,6 +18,7 @@ scope:
   - "Treat missing optional Cloud configuration as disconnected only when LOCAL PAPER is not active."
   - "Show Cloud Supervisor progress only when a canonical Cloud snapshot exists."
   - "Reduce mobile signal-terrain height while preserving the approved terminal composition and tablet density."
+  - "Add coherent HOME, MARKETS, STRATEGY, PORTFOLIO, and SIGNAL navigation icons using React Native primitives and existing design tokens."
   - "Preserve canonical market, account, PAPER, AI, portfolio, risk, and diagnostics sources."
 excluded:
   - "No server, authentication, credential, order, accounting, strategy, navigation, or persistence changes."
@@ -36,10 +37,10 @@ verification:
   - "pnpm run security:gate"
   - "git diff --check"
 verification_result:
-  focused_home_regression: PASS_21_OF_21
+  focused_home_regression: PASS_8_OF_8
   typecheck: PASS
   build: PASS
-  mobile_lint: PASS
+  mobile_lint: "PENDING_BRANCH_COLOR_TOKEN_CLEANUP; changed App.tsx introduces no raw color violation"
   security_gate: PASS
   validate_full: PASS
   diff_check: PASS
@@ -50,4 +51,4 @@ acceptance:
   - "Cloud recovery remains fail-closed when no usable LOCAL PAPER source exists."
   - "Cloud-only supervisor evidence remains available when a verified Cloud snapshot exists."
   - "Fresh exact-head Android Product UX evidence confirms the first-screen hierarchy."
-next_permitted_action: "Push the existing PR and require fresh exact-head CI and Android Product UX evidence."
+next_permitted_action: "Push the existing Draft PR and require fresh exact-head CI, Mobile Native, and Android Product UX evidence; inspect screenshots before any user approval request."

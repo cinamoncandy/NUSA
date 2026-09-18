@@ -4,10 +4,10 @@ current_home_master_local_truth:
   status: LOCAL_VALIDATED_CI_PENDING
   branch: uiux/home-master-terminal-20260918
   pull_request: 1951
-  base_sha: 3e6c6c16bd225f8719e3973ddeb1e02533586105
-  scope: "Treat active LOCAL PAPER as a usable learning mode on HOME, hide unavailable Cloud-only supervisor detail, and shorten the mobile signal hero without changing canonical data or authority."
-  validation: "Focused HOME regression PASS 21/21; typecheck PASS; build PASS; mobile lint PASS; security gate PASS; validate:full PASS; diff check PASS. Fresh exact-head CI and Android Product UX evidence pending."
-  next_permitted_action: "Update PR #1951, then require fresh exact-head CI, Android Product UX evidence, and independent review."
+  base_sha: 8f244858dd3ebcd2e7ef31a2d1f5f7f877fc8b05
+  scope: "Treat active LOCAL PAPER as usable, preserve truthful Cloud/LOCAL provenance, and establish the approved acid-lime HOME/Signal identity with a dependency-free icon navigation system."
+  validation: "Focused HOME/provenance/navigation regression PASS 8/8; typecheck PASS; build PASS; security gate PASS; validate:full PASS. The e158aadd CI failure was one stale source-variable assertion and has been corrected without weakening provenance semantics. Fresh exact-head CI and Android Product UX evidence pending."
+  next_permitted_action: "Push the existing Draft PR, require fresh exact-head CI/Mobile Native/Android Product UX, then inspect the generated screenshots. User visual approval remains required before Draft removal or Release."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_self_service_paper_upbit_readonly:
   work_order: WO-20260910-MOBILE-SELF-SERVICE-PAPER-UPBIT-READONLY
