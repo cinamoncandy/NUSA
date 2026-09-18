@@ -21,12 +21,16 @@ export interface BacktestConfig {
   readonly executionCosts?: BacktestExecutionCosts;
 }
 
-export type BacktestDecisionOutcome = "HOLD" | "FILLED" | "REJECTED";
+export type BacktestDecisionOutcome = "HOLD" | "FILLED" | "REJECTED" | "UNFILLED";
+export type BacktestUnfilledReason = "NO_NEXT_OBSERVATION";
 
 export interface BacktestDecision {
   readonly timestamp: number;
+  readonly signalTimestamp: number;
+  readonly executionTimestamp?: number;
   readonly market: string;
   readonly price: number;
+  readonly executionMarketPrice?: number;
   readonly executionPrice?: number;
   readonly signal: StrategySignal;
   readonly outcome: BacktestDecisionOutcome;
@@ -34,6 +38,7 @@ export interface BacktestDecision {
   readonly equityAfter: number;
   readonly order?: PaperOrder;
   readonly rejectionReason?: string;
+  readonly unfilledReason?: BacktestUnfilledReason;
 }
 
 export interface BacktestMetrics {
@@ -69,6 +74,29 @@ export interface BacktestResult {
   readonly benchmark: BacktestBenchmark;
   readonly openPosition: OpenPositionAnalysis;
   readonly finalPaperState: ReturnType<PaperBroker["exportState"]>;
+}
+
+interface MutableBacktestDecision {
+  timestamp: number;
+  signalTimestamp: number;
+  executionTimestamp?: number;
+  market: string;
+  price: number;
+  executionMarketPrice?: number;
+  executionPrice?: number;
+  signal: StrategySignal;
+  outcome: BacktestDecisionOutcome;
+  equityBefore: number;
+  equityAfter: number;
+  order?: PaperOrder;
+  rejectionReason?: string;
+  unfilledReason?: BacktestUnfilledReason;
+}
+
+interface PendingExecution {
+  readonly decisionIndex: number;
+  readonly side: Exclude<PaperSide, "HOLD">;
+  readonly quantity: number;
 }
 
 const DEFAULT_MARKET = "KRW-BTC";
@@ -128,6 +156,9 @@ function computeBenchmarkReturn(
   finalPrice: number,
   costs: Required<BacktestExecutionCosts>
 ): number {
+  // The benchmark entry is precommitted at the first observation and does not
+  // depend on a strategy signal formed from that observation. Strategy signals,
+  // by contrast, execute no earlier than the next eligible observation below.
   const entryPrice = executionPrice("BUY", firstPrice, costs);
   const quantity = initialCash / (entryPrice * (1 + feeRate));
   const finalEquity = quantity * finalPrice;
@@ -153,8 +184,9 @@ export function runBacktest(
   const broker = new PaperBroker(initialCash, market, feeRate, config.riskPolicy ?? {});
   const engine = new StrategyEngine(strategyFactory());
   engine.start();
-  const decisions: BacktestDecision[] = [];
+  const decisions: MutableBacktestDecision[] = [];
   const equityCurve: Array<{ timestamp: number; equity: number }> = [];
+  let pendingExecution: PendingExecution | undefined;
   let tradedNotional = 0;
   let fillCount = 0;
   let rejectionCount = 0;
@@ -163,35 +195,64 @@ export function runBacktest(
   let slippageCost = 0;
 
   for (const point of points) {
+    // A signal formed from completed observation t is only eligible to execute
+    // when observation t+1 arrives. With close-only BacktestPoint data, the next
+    // observation close is the explicit post-signal execution model. This
+    // prevents close(t) from being both the information that creates a signal
+    // and the fill price for that same signal.
+    if (pendingExecution != null) {
+      const pendingDecision = decisions[pendingExecution.decisionIndex];
+      if (pendingDecision == null) throw new Error("backtest pending execution decision is unavailable");
+      const attemptedPrice = executionPrice(pendingExecution.side, point.close, costs);
+      pendingDecision.executionTimestamp = point.timestamp;
+      pendingDecision.executionMarketPrice = point.close;
+      pendingDecision.executionPrice = attemptedPrice;
+      delete pendingDecision.unfilledReason;
+      try {
+        const order = broker.execute(
+          pendingExecution.side,
+          pendingExecution.quantity,
+          attemptedPrice,
+          new Date(point.timestamp)
+        );
+        pendingDecision.order = order;
+        pendingDecision.outcome = "FILLED";
+        tradedNotional += order.quantity * order.price;
+        feesPaid += order.fee;
+        spreadCost += point.close * order.quantity * costs.spreadBps / 20_000;
+        slippageCost += point.close * order.quantity * costs.slippageBps / 10_000;
+        fillCount += 1;
+      } catch (error) {
+        pendingDecision.rejectionReason = error instanceof Error ? error.message : String(error);
+        pendingDecision.outcome = "REJECTED";
+        rejectionCount += 1;
+      }
+      pendingDecision.equityAfter = broker.snapshot(point.close).equity;
+      pendingExecution = undefined;
+    }
+
     const beforeSnapshot = broker.snapshot(point.close);
     const signal = engine.onTick(
       { market, price: point.close, timestamp: point.timestamp },
       beforeSnapshot.position.quantity
     );
+    const decisionIndex = decisions.length;
     let outcome: BacktestDecisionOutcome = "HOLD";
-    let order: PaperOrder | undefined;
     let rejectionReason: string | undefined;
-    let filledPrice: number | undefined;
+    let unfilledReason: BacktestUnfilledReason | undefined;
 
     if (signal.type !== "HOLD") {
       const quantity = signal.type === "SELL"
         ? Math.min(orderQuantity, beforeSnapshot.position.quantity)
         : orderQuantity;
       if (quantity > 0) {
-        try {
-          filledPrice = executionPrice(signal.type, point.close, costs);
-          order = broker.execute(signal.type, quantity, filledPrice, new Date(point.timestamp));
-          tradedNotional += order.quantity * order.price;
-          feesPaid += order.fee;
-          spreadCost += point.close * order.quantity * costs.spreadBps / 20_000;
-          slippageCost += point.close * order.quantity * costs.slippageBps / 10_000;
-          fillCount += 1;
-          outcome = "FILLED";
-        } catch (error) {
-          rejectionReason = error instanceof Error ? error.message : String(error);
-          rejectionCount += 1;
-          outcome = "REJECTED";
-        }
+        outcome = "UNFILLED";
+        unfilledReason = "NO_NEXT_OBSERVATION";
+        pendingExecution = Object.freeze({
+          decisionIndex,
+          side: signal.type,
+          quantity
+        });
       } else {
         rejectionReason = "insufficient paper position";
         rejectionCount += 1;
@@ -200,21 +261,22 @@ export function runBacktest(
     }
 
     const equityAfter = broker.snapshot(point.close).equity;
-    decisions.push(Object.freeze({
+    decisions.push({
       timestamp: point.timestamp,
+      signalTimestamp: point.timestamp,
       market,
       price: point.close,
-      executionPrice: filledPrice,
       signal: Object.freeze({ ...signal }),
       outcome,
       equityBefore: beforeSnapshot.equity,
       equityAfter,
-      order,
-      rejectionReason
-    }));
+      rejectionReason,
+      unfilledReason
+    });
     equityCurve.push(Object.freeze({ timestamp: point.timestamp, equity: equityAfter }));
   }
 
+  const frozenDecisions: readonly BacktestDecision[] = Object.freeze(decisions.map((decision) => Object.freeze({ ...decision })));
   const finalEquity = equityCurve[equityCurve.length - 1]?.equity ?? initialCash;
   const totalReturn = finalEquity / initialCash - 1;
   const benchmarkReturn = computeBenchmarkReturn(
@@ -224,8 +286,9 @@ export function runBacktest(
     points[points.length - 1]!.close,
     costs
   );
-  const matched = matchTrades(decisions.flatMap((decision) => decision.order == null ? [] : [decision.order]));
-  const exposure = calculateExposure(decisions.flatMap((decision) => decision.order == null ? [] : [decision.order]), points[0]!.timestamp, points[points.length - 1]!.timestamp);
+  const orders = frozenDecisions.flatMap((decision) => decision.order == null ? [] : [decision.order]);
+  const matched = matchTrades(orders);
+  const exposure = calculateExposure(orders, points[0]!.timestamp, points[points.length - 1]!.timestamp);
   const performance = calculatePerformanceMetrics(matched.trades, exposure);
   const equityAnalytics = analyzeEquityCurve(equityCurve, performance.netProfit);
   const benchmark = Object.freeze({ strategyReturn: totalReturn, buyAndHoldReturn: benchmarkReturn, outperformance: totalReturn - benchmarkReturn });
@@ -248,7 +311,7 @@ export function runBacktest(
 
   return Object.freeze({
     metrics,
-    decisions: Object.freeze(decisions),
+    decisions: frozenDecisions,
     equityCurve: Object.freeze(equityCurve),
     trades: matched.trades,
     performance,
