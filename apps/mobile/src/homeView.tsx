@@ -2,7 +2,7 @@ import React from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { TerrainSignal } from "./components";
 import { useTheme } from "./ThemeProvider";
-import { intelligenceFieldColors } from "./designSystem";
+import { intelligenceFieldColors, wealthProductColors } from "./designSystem";
 import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
 import { buildHomeDecisionSurface } from "./homeDecisionSurface";
 import { buildLocalPortfolio, isLocalPaperActive } from "./localPaperLedger";
@@ -35,11 +35,11 @@ interface HomeViewProps {
 }
 
 const LIME = intelligenceFieldColors.terminalSignal;
-const INK = "#050706";
-const PANEL = "#0A0E0C";
-const BORDER = "#1A2A21";
-const MUTED = "#819087";
-const RED = "#FF6464";
+const INK = wealthProductColors.c01;
+const PANEL = wealthProductColors.c02;
+const BORDER = wealthProductColors.c03;
+const MUTED = wealthProductColors.c04;
+const RED = wealthProductColors.c05;
 
 function won(value: number | null | undefined): string {
   return value == null || !Number.isFinite(value) ? "—" : `₩${Math.round(value).toLocaleString("ko-KR")}`;
@@ -59,7 +59,7 @@ function MarketTile({ market }: Readonly<{ market: WatchlistMarket | null }>) {
   </View>;
 }
 function EvidenceRow({ label, value, tone = "neutral" }: Readonly<{ label: string; value: string; tone?: "lime" | "danger" | "neutral" }>) {
-  return <View style={styles.evidenceRow}><Text style={[styles.evidenceLabel, { color: tone === "lime" ? LIME : tone === "danger" ? RED : "#E9F0EC" }]}>{label}</Text><Text style={styles.evidenceValue} numberOfLines={3}>{value}</Text></View>;
+  return <View style={styles.evidenceRow}><Text style={[styles.evidenceLabel, { color: tone === "lime" ? LIME : tone === "danger" ? RED : wealthProductColors.c06 }]}>{label}</Text><Text style={styles.evidenceValue} numberOfLines={3}>{value}</Text></View>;
 }
 function GlobeVisual() {
   return <View style={styles.globeWrap} accessible accessibilityRole="image" accessibilityLabel="NUSA global market intelligence globe">
@@ -186,7 +186,7 @@ export function HomeView(props: HomeViewProps) {
         {marketWave.state === "READY" ? marketWave.bars.slice(-22).map((bar,index) => {
           const range = Math.max(0.000001, bar.high - bar.low);
           const rise = bar.close >= bar.open;
-          return <View key={bar.openTime} style={[styles.waveBar,{height:12+Math.min(38, range/Math.max(1,bar.close)*8000), backgroundColor:rise?LIME:"#406A54", opacity:0.55 + index/50}]}/>;
+          return <View key={bar.openTime} style={[styles.waveBar,{height:12+Math.min(38, range/Math.max(1,bar.close)*8000), backgroundColor:rise?LIME:wealthProductColors.c07, opacity:0.55 + index/50}]}/>;
         }) : <Text style={styles.empty}>VERIFIED PERFORMANCE WAVE UNAVAILABLE</Text>}
       </View>
       <View style={styles.performanceMetrics} testID="account-hero-card">
@@ -224,30 +224,30 @@ export function HomeView(props: HomeViewProps) {
 const styles = StyleSheet.create({
   content:{paddingHorizontal:16,paddingTop:12,paddingBottom:34,gap:14,width:"100%",alignSelf:"center",backgroundColor:INK},
   topbar:{minHeight:60,flexDirection:"row",alignItems:"center",justifyContent:"space-between",borderBottomWidth:1,borderBottomColor:BORDER,paddingBottom:10},
-  logo:{color:"#F5F8F6",fontSize:27,fontWeight:"900",letterSpacing:2.7},tagline:{color:MUTED,fontSize:7,fontWeight:"700",letterSpacing:1.4,marginTop:-2},
+  logo:{color:wealthProductColors.c08,fontSize:27,fontWeight:"900",letterSpacing:2.7},tagline:{color:MUTED,fontSize:7,fontWeight:"700",letterSpacing:1.4,marginTop:-2},
   modeWrap:{flexDirection:"row",alignItems:"center",gap:7},modeDot:{width:9,height:9,borderRadius:9,backgroundColor:LIME,shadowColor:LIME,shadowOpacity:.6,shadowRadius:8},
-  modeText:{color:"#CDEDD9",fontSize:10,fontWeight:"800",letterSpacing:.7},modeSub:{color:"#739386",fontSize:8,marginTop:2},
+  modeText:{color:wealthProductColors.c09,fontSize:10,fontWeight:"800",letterSpacing:.7},modeSub:{color:wealthProductColors.c10,fontSize:8,marginTop:2},
   hero:{minHeight:178,flexDirection:"row",alignItems:"center",justifyContent:"space-between",overflow:"hidden"},
-  heroCopy:{zIndex:2,flex:1},heroLine:{color:"#EAF2EE",fontSize:27,lineHeight:31,fontWeight:"500",letterSpacing:2.2},heroAccent:{color:LIME,fontSize:27,lineHeight:32,fontWeight:"900",letterSpacing:2.1},
-  heroKorean:{color:"#A4B3AB",fontSize:13,lineHeight:20,marginTop:16},
-  globeWrap:{width:160,height:164,marginRight:-4,alignItems:"center",justifyContent:"center",position:"relative"},globeGlow:{position:"absolute",width:142,height:142,borderRadius:142,backgroundColor:"#0B1810",opacity:.72,shadowColor:LIME,shadowOpacity:.22,shadowRadius:28},globeSphere:{width:142,height:142,borderRadius:142,borderWidth:1,borderColor:"#355943",backgroundColor:"#07100B",overflow:"hidden",position:"relative"},globeLongitude:{position:"absolute",top:-2,bottom:-2,left:"50%",width:56,marginLeft:-28,borderRadius:56,borderWidth:1,borderColor:"#183A26"},globeLongitudeA:{transform:[{scaleX:.55}]},globeLongitudeB:{transform:[{scaleX:1.45}]},globeLatitude:{position:"absolute",left:-4,right:-4,height:46,borderRadius:80,borderWidth:1,borderColor:"#173823"},globeLatitudeA:{top:15},globeLatitudeB:{top:48},globeLatitudeC:{top:81},globeLandA:{position:"absolute",left:77,top:35,width:34,height:18,borderRadius:8,backgroundColor:"#173923",transform:[{rotate:"-18deg"}]},globeLandB:{position:"absolute",left:67,top:54,width:20,height:35,borderRadius:7,backgroundColor:"#204C2D",transform:[{rotate:"17deg"}]},globeLandC:{position:"absolute",left:98,top:77,width:17,height:12,borderRadius:6,backgroundColor:"#285D36"},globeNode:{position:"absolute",width:4,height:4,borderRadius:4,backgroundColor:LIME,shadowColor:LIME,shadowOpacity:.9,shadowRadius:5},globeNodeA:{left:84,top:47},globeNodeB:{left:99,top:82},globeNodeC:{left:71,top:69},
-  orbitText:{position:"absolute",right:2,bottom:8,color:"#82998B",fontSize:7,lineHeight:10,fontWeight:"800",letterSpacing:.55,textAlign:"right"},
+  heroCopy:{zIndex:2,flex:1},heroLine:{color:wealthProductColors.c11,fontSize:27,lineHeight:31,fontWeight:"500",letterSpacing:2.2},heroAccent:{color:LIME,fontSize:27,lineHeight:32,fontWeight:"900",letterSpacing:2.1},
+  heroKorean:{color:wealthProductColors.c12,fontSize:13,lineHeight:20,marginTop:16},
+  globeWrap:{width:160,height:164,marginRight:-4,alignItems:"center",justifyContent:"center",position:"relative"},globeGlow:{position:"absolute",width:142,height:142,borderRadius:142,backgroundColor:wealthProductColors.c13,opacity:.72,shadowColor:LIME,shadowOpacity:.22,shadowRadius:28},globeSphere:{width:142,height:142,borderRadius:142,borderWidth:1,borderColor:wealthProductColors.c14,backgroundColor:wealthProductColors.c15,overflow:"hidden",position:"relative"},globeLongitude:{position:"absolute",top:-2,bottom:-2,left:"50%",width:56,marginLeft:-28,borderRadius:56,borderWidth:1,borderColor:wealthProductColors.c16},globeLongitudeA:{transform:[{scaleX:.55}]},globeLongitudeB:{transform:[{scaleX:1.45}]},globeLatitude:{position:"absolute",left:-4,right:-4,height:46,borderRadius:80,borderWidth:1,borderColor:wealthProductColors.c17},globeLatitudeA:{top:15},globeLatitudeB:{top:48},globeLatitudeC:{top:81},globeLandA:{position:"absolute",left:77,top:35,width:34,height:18,borderRadius:8,backgroundColor:wealthProductColors.c18,transform:[{rotate:"-18deg"}]},globeLandB:{position:"absolute",left:67,top:54,width:20,height:35,borderRadius:7,backgroundColor:wealthProductColors.c19,transform:[{rotate:"17deg"}]},globeLandC:{position:"absolute",left:98,top:77,width:17,height:12,borderRadius:6,backgroundColor:wealthProductColors.c20},globeNode:{position:"absolute",width:4,height:4,borderRadius:4,backgroundColor:LIME,shadowColor:LIME,shadowOpacity:.9,shadowRadius:5},globeNodeA:{left:84,top:47},globeNodeB:{left:99,top:82},globeNodeC:{left:71,top:69},
+  orbitText:{position:"absolute",right:2,bottom:8,color:wealthProductColors.c21,fontSize:7,lineHeight:10,fontWeight:"800",letterSpacing:.55,textAlign:"right"},
   marketStrip:{flexDirection:"row",gap:7},marketTile:{flex:1,minWidth:0,padding:10,borderWidth:1,borderColor:BORDER,borderRadius:7,backgroundColor:PANEL},
-  marketSymbol:{color:"#E7EEE9",fontSize:11,fontWeight:"800"},marketChange:{fontSize:14,fontWeight:"800",marginTop:7},marketPrice:{color:"#89988F",fontSize:8,marginTop:5,fontVariant:["tabular-nums"]},
-  signalPanel:{borderWidth:1,borderColor:"#285E3C",borderRadius:9,backgroundColor:"#070A08",overflow:"hidden"},
+  marketSymbol:{color:wealthProductColors.c22,fontSize:11,fontWeight:"800"},marketChange:{fontSize:14,fontWeight:"800",marginTop:7},marketPrice:{color:wealthProductColors.c23,fontSize:8,marginTop:5,fontVariant:["tabular-nums"]},
+  signalPanel:{borderWidth:1,borderColor:wealthProductColors.c24,borderRadius:9,backgroundColor:wealthProductColors.c25,overflow:"hidden"},
   panel:{borderWidth:1,borderColor:BORDER,borderRadius:9,backgroundColor:PANEL,overflow:"hidden"},
   panelTitleRow:{height:44,paddingHorizontal:14,flexDirection:"row",alignItems:"center",justifyContent:"space-between",borderBottomWidth:1,borderBottomColor:BORDER},
   marketStripHead:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",paddingHorizontal:2,paddingBottom:6},
-  marketStripTitle:{color:"#E9F0EC",fontSize:11,fontWeight:"800",letterSpacing:1.1},
-  panelTitle:{color:"#E9F0EC",fontSize:13,fontWeight:"800",letterSpacing:1},arrow:{color:LIME,fontSize:25,fontWeight:"300"},count:{color:"#C7D3CC",fontSize:13},source:{color:"#71877B",fontSize:9,fontWeight:"800"},
-  terrain:{height:190,position:"relative",justifyContent:"center",overflow:"hidden",backgroundColor:"#050806"},gridH1:{position:"absolute",left:0,right:0,top:"33%",height:1,backgroundColor:"#112219"},gridH2:{position:"absolute",left:0,right:0,top:"66%",height:1,backgroundColor:"#112219"},gridV1:{position:"absolute",top:0,bottom:0,left:"33%",width:1,backgroundColor:"#112219"},gridV2:{position:"absolute",top:0,bottom:0,left:"66%",width:1,backgroundColor:"#112219"},
-  signalPin:{position:"absolute",left:"43%",top:"42%",alignItems:"center"},pinDot:{width:14,height:14,borderRadius:14,backgroundColor:LIME,borderWidth:4,borderColor:"#A0CF52",shadowColor:LIME,shadowOpacity:.9,shadowRadius:12},pinLabel:{marginTop:5,color:LIME,fontSize:8,fontWeight:"900",backgroundColor:"#0D2114",paddingHorizontal:6,paddingVertical:4,borderRadius:4,borderWidth:1,borderColor:"#2C703F"},
-  signalThesis:{color:"#DDE9E2",fontSize:15,lineHeight:21,fontWeight:"700",paddingHorizontal:14,paddingVertical:11,borderTopWidth:1,borderTopColor:BORDER},
-  evidenceRail:{borderTopWidth:1,borderTopColor:BORDER},evidenceRow:{flexDirection:"row",gap:10,paddingHorizontal:14,paddingVertical:10,borderBottomWidth:1,borderBottomColor:"#121D17"},evidenceLabel:{width:60,fontSize:9,fontWeight:"900",letterSpacing:.8},evidenceValue:{flex:1,color:"#A9B7AF",fontSize:10,lineHeight:15},
-  signalRow:{minHeight:48,flexDirection:"row",alignItems:"center",paddingHorizontal:13,gap:10,borderBottomWidth:1,borderBottomColor:"#121D17"},rank:{width:22,height:22,borderRadius:22,borderWidth:1,borderColor:"#3A4C42",color:"#DDE7E1",textAlign:"center",lineHeight:20,fontSize:9},asset:{color:"#EEF5F1",fontSize:13,fontWeight:"800",width:54},signalBadge:{borderWidth:1,borderRadius:5,paddingHorizontal:7,paddingVertical:4},signalBadgeText:{fontSize:8,fontWeight:"900"},rowChange:{marginLeft:"auto",fontSize:11,fontWeight:"800",fontVariant:["tabular-nums"]},
+  marketStripTitle:{color:wealthProductColors.c06,fontSize:11,fontWeight:"800",letterSpacing:1.1},
+  panelTitle:{color:wealthProductColors.c06,fontSize:13,fontWeight:"800",letterSpacing:1},arrow:{color:LIME,fontSize:25,fontWeight:"300"},count:{color:wealthProductColors.c26,fontSize:13},source:{color:wealthProductColors.c27,fontSize:9,fontWeight:"800"},
+  terrain:{height:190,position:"relative",justifyContent:"center",overflow:"hidden",backgroundColor:wealthProductColors.c28},gridH1:{position:"absolute",left:0,right:0,top:"33%",height:1,backgroundColor:wealthProductColors.c29},gridH2:{position:"absolute",left:0,right:0,top:"66%",height:1,backgroundColor:wealthProductColors.c29},gridV1:{position:"absolute",top:0,bottom:0,left:"33%",width:1,backgroundColor:wealthProductColors.c29},gridV2:{position:"absolute",top:0,bottom:0,left:"66%",width:1,backgroundColor:wealthProductColors.c29},
+  signalPin:{position:"absolute",left:"43%",top:"42%",alignItems:"center"},pinDot:{width:14,height:14,borderRadius:14,backgroundColor:LIME,borderWidth:4,borderColor:wealthProductColors.c30,shadowColor:LIME,shadowOpacity:.9,shadowRadius:12},pinLabel:{marginTop:5,color:LIME,fontSize:8,fontWeight:"900",backgroundColor:wealthProductColors.c31,paddingHorizontal:6,paddingVertical:4,borderRadius:4,borderWidth:1,borderColor:wealthProductColors.c32},
+  signalThesis:{color:wealthProductColors.c33,fontSize:15,lineHeight:21,fontWeight:"700",paddingHorizontal:14,paddingVertical:11,borderTopWidth:1,borderTopColor:BORDER},
+  evidenceRail:{borderTopWidth:1,borderTopColor:BORDER},evidenceRow:{flexDirection:"row",gap:10,paddingHorizontal:14,paddingVertical:10,borderBottomWidth:1,borderBottomColor:wealthProductColors.c34},evidenceLabel:{width:60,fontSize:9,fontWeight:"900",letterSpacing:.8},evidenceValue:{flex:1,color:wealthProductColors.c35,fontSize:10,lineHeight:15},
+  signalRow:{minHeight:48,flexDirection:"row",alignItems:"center",paddingHorizontal:13,gap:10,borderBottomWidth:1,borderBottomColor:wealthProductColors.c34},rank:{width:22,height:22,borderRadius:22,borderWidth:1,borderColor:wealthProductColors.c36,color:wealthProductColors.c37,textAlign:"center",lineHeight:20,fontSize:9},asset:{color:wealthProductColors.c38,fontSize:13,fontWeight:"800",width:54},signalBadge:{borderWidth:1,borderRadius:5,paddingHorizontal:7,paddingVertical:4},signalBadgeText:{fontSize:8,fontWeight:"900"},rowChange:{marginLeft:"auto",fontSize:11,fontWeight:"800",fontVariant:["tabular-nums"]},
   empty:{color:MUTED,fontSize:10,padding:14},performanceGraph:{height:74,flexDirection:"row",alignItems:"flex-end",gap:3,paddingHorizontal:14,paddingTop:12,borderBottomWidth:1,borderBottomColor:BORDER},waveBar:{flex:1,minWidth:2,borderRadius:2},
-  performanceMetrics:{flexDirection:"row",justifyContent:"space-between",paddingHorizontal:14,paddingVertical:14,gap:10},metricValue:{color:"#EDF4F0",fontSize:13,fontWeight:"800",fontVariant:["tabular-nums"]},metricLabel:{color:"#66786E",fontSize:8,fontWeight:"700",marginTop:5},
-  capitalLimits:{padding:13,borderWidth:1,borderColor:BORDER,borderRadius:8,backgroundColor:"#080C0A",flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:12},capitalLabel:{color:"#C9D5CE",fontSize:9,fontWeight:"900",letterSpacing:.8},capitalMeta:{color:"#5F7468",fontSize:8,marginTop:4},capitalValues:{flexDirection:"row",gap:18},capitalValue:{color:"#DFE8E3",fontSize:10,fontWeight:"800",textAlign:"right"},capitalKey:{color:"#5F7468",fontSize:7,fontWeight:"800",marginTop:4,textAlign:"right"},
-  connectionNotice:{padding:13,borderWidth:1,borderColor:"#57342F",borderRadius:8,backgroundColor:"#140B09"},connectionTitle:{color:RED,fontSize:10,fontWeight:"900"},connectionBody:{color:"#B8A7A3",fontSize:10,lineHeight:15,marginTop:5},connectionAction:{color:"#E4B3A9",fontSize:9,fontWeight:"800",marginTop:8},
-  hiddenContract:{paddingHorizontal:6,paddingVertical:5},learningLink:{color:"#82978B",fontSize:9,fontWeight:"700",letterSpacing:.55},safety:{color:"#81988B",fontSize:9,textAlign:"center",fontWeight:"700",letterSpacing:.65},
+  performanceMetrics:{flexDirection:"row",justifyContent:"space-between",paddingHorizontal:14,paddingVertical:14,gap:10},metricValue:{color:wealthProductColors.c39,fontSize:13,fontWeight:"800",fontVariant:["tabular-nums"]},metricLabel:{color:wealthProductColors.c40,fontSize:8,fontWeight:"700",marginTop:5},
+  capitalLimits:{padding:13,borderWidth:1,borderColor:BORDER,borderRadius:8,backgroundColor:wealthProductColors.c41,flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:12},capitalLabel:{color:wealthProductColors.c42,fontSize:9,fontWeight:"900",letterSpacing:.8},capitalMeta:{color:wealthProductColors.c43,fontSize:8,marginTop:4},capitalValues:{flexDirection:"row",gap:18},capitalValue:{color:wealthProductColors.c44,fontSize:10,fontWeight:"800",textAlign:"right"},capitalKey:{color:wealthProductColors.c43,fontSize:7,fontWeight:"800",marginTop:4,textAlign:"right"},
+  connectionNotice:{padding:13,borderWidth:1,borderColor:wealthProductColors.c45,borderRadius:8,backgroundColor:wealthProductColors.c46},connectionTitle:{color:RED,fontSize:10,fontWeight:"900"},connectionBody:{color:wealthProductColors.c47,fontSize:10,lineHeight:15,marginTop:5},connectionAction:{color:wealthProductColors.c48,fontSize:9,fontWeight:"800",marginTop:8},
+  hiddenContract:{paddingHorizontal:6,paddingVertical:5},learningLink:{color:wealthProductColors.c49,fontSize:9,fontWeight:"700",letterSpacing:.55},safety:{color:wealthProductColors.c50,fontSize:9,textAlign:"center",fontWeight:"700",letterSpacing:.65},
 });
