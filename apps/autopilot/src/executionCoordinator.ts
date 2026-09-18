@@ -6,7 +6,10 @@ import type { ExecutionHold, HoldClearance } from "./autonomousExecutionState";
 interface DurableObjectStorageLike {
   get<T>(key: string): Promise<T | undefined>;
   put<T>(key: string, value: T): Promise<void>;
-  transaction?<T>(closure: (storage: DurableObjectStorageLike) => Promise<T>): Promise<T>;
+}
+
+interface TransactionalDurableObjectStorageLike extends DurableObjectStorageLike {
+  transaction<T>(closure: (storage: DurableObjectStorageLike) => Promise<T>): Promise<T>;
 }
 
 interface DurableObjectStateLike {
@@ -267,7 +270,8 @@ export class ExecutionCoordinator {
   constructor(private readonly ctx: DurableObjectStateLike) {}
 
   private async mutateExecutionAtomically<T>(operation: (storage: DurableObjectStorageLike) => Promise<T>): Promise<T> {
-    if (this.ctx.storage.transaction) return this.ctx.storage.transaction(operation);
+    const transactional = this.ctx.storage as DurableObjectStorageLike & Partial<TransactionalDurableObjectStorageLike>;
+    if (typeof transactional.transaction === "function") return transactional.transaction(operation);
 
     let releaseQueue: (() => void) | undefined;
     const previous = this.executionMutationQueue;
