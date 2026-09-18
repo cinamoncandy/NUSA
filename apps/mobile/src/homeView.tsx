@@ -173,6 +173,23 @@ export function HomeView(props: HomeViewProps) {
       </View>
     </Pressable>
 
+    <View style={styles.capitalLimits} testID="home-capital-limits">
+      <View>
+        <Text style={styles.capitalLabel}>CAPITAL LIMITS</Text>
+        <Text style={styles.capitalMeta}>PAPER BUY ENVELOPE · {props.investmentPercent}%</Text>
+      </View>
+      <View style={styles.capitalValues}>
+        <View testID="home-investable-cash">
+          <Text style={styles.capitalValue}>{cashEnvelope == null ? "—" : won(cashEnvelope.investableCash)}</Text>
+          <Text style={styles.capitalKey}>INVESTABLE</Text>
+        </View>
+        <View testID="home-reserved-cash">
+          <Text style={styles.capitalValue}>{cashEnvelope == null ? "—" : won(cashEnvelope.reservedCash)}</Text>
+          <Text style={styles.capitalKey}>RESERVED</Text>
+        </View>
+      </View>
+    </View>
+
     {disconnected || props.readOnlyError ? <Pressable onPress={props.onGoSettings} style={styles.connectionNotice} testID="home-operational-notice"><Text style={styles.connectionTitle}>{disconnected ? "PAPER CONNECTION REQUIRED" : "PAPER READ-ONLY ERROR"}</Text><Text style={styles.connectionBody}>{props.notConfigured ?? props.readOnlyError}</Text><Text style={styles.connectionAction}>OPEN SETTINGS →</Text></Pressable> : null}
 
     <View style={styles.hiddenContract} testID="home-paper-learning"><Pressable onPress={props.onOpenPaperLearning}><Text style={styles.learningLink}>PAPER LEARNING EVIDENCE →</Text></Pressable></View>
