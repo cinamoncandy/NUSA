@@ -21,40 +21,34 @@ test("visual redesign has a distinct NUSA surface and financial hierarchy", () =
   assert.match(primitives, /borderRadius: 999, borderWidth: 1, gap: 3/);
 });
 
-test("Home uses the content-first command center hierarchy without weakening authority", () => {
+test("Home uses the approved HOME MASTER terminal hierarchy without weakening authority", () => {
   const home = read("src/homeView.tsx");
   const decisionSurface = read("src/homeDecisionSurface.ts");
 
   assert.match(home, /testID="home-master-rail"/);
-  assert.match(home, /connectionLabel = disconnected \? "SETUP" : readOnlyError \? "DEGRADED"/);
-  assert.match(home, /"ACTIVE" : "OBSERVING"/);
-  assert.match(home, /PAPER EQUITY/);
-  assert.match(home, /TOTAL PNL/);
-  assert.match(home, /QUICK ACCESS/);
-  assert.match(home, />MARKETS</);
-  assert.match(home, />PORTFOLIO</);
-  assert.match(home, />LEARN</);
-  assert.match(home, /DECISION BASIS/);
-  assert.match(home, />RISK</);
-  assert.match(home, />RESULT</);
-  assert.match(home, /paddingBottom: 32/);
-  assert.match(home, /commandStackTablet: \{ flexDirection: "row"/);
-  assert.match(home, /testID="home-now"/);
+  assert.match(home, /testID="home-status-rail"/);
+  assert.match(home, /testID="home-supervisor-now"/);
   assert.match(home, /testID="account-hero-card"/);
-  assert.match(home, /testID="ai-card"/);
-  assert.match(home, /testID="home-risk-status"/);
+  assert.match(home, /PAPER PERFORMANCE/);
+  assert.match(home, /CAPITAL LIMITS/);
+  assert.match(home, /<TruthCell label="WHY"/);
+  assert.match(home, /<TruthCell label="RESULT"/);
+  assert.match(home, /<TruthCell label="RISK"/);
+  assert.match(home, /testID="home-risk-authority"/);
   assert.match(home, /testID="home-decision-stage"/);
-  assert.match(home, /PUBLIC READ ONLY/);
+  assert.match(home, /UPBIT PUBLIC/);
   assert.match(home, /testID="home-paper-performance"/);
   assert.match(home, /testID="home-paper-learning"/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
 
-  assert.doesNotMatch(home, /<TerrainSignal/);
-  assert.doesNotMatch(home, /testID="home-signal-trace"/);
-  assert.doesNotMatch(home, /testID="home-market-pulse"/);
-  assert.doesNotMatch(home, /testID="home-terminal-grid"/);
-
-  assert.match(decisionSurface, /`PAPER P&L .* · EQUITY \$\{krw\(input\.paperEquity\)\}`/s);
+  assert.match(home, /<TerrainSignal/);
+  assert.match(home, /testID="home-signal-trace"/);
+  assert.match(home, /testID="home-market-pulse"/);
+  assert.match(home, /testID="home-terminal-grid"/);
+  assert.match(home, /terminalSignal = intelligenceFieldColors\.terminalSignal/);
+  assert.match(decisionSurface, /`PAPER P&L .* · EQUITY \${krw\(input\.paperEquity\)}`/s);
+  assert.doesNotMatch(home, /productionMutationAllowed:\s*true/);
+  assert.doesNotMatch(home, /authority:\s*"LIVE"/);
 });
 
 test("Markets rows use list rhythm instead of repeated cards", () => {
