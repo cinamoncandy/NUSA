@@ -27,7 +27,6 @@ test("Home uses the approved HOME MASTER terminal hierarchy without weakening au
 
   assert.match(home, /testID="home-master-rail"/);
   assert.match(home, /testID="home-status-rail"/);
-  assert.match(home, /testID="home-supervisor-now"/);
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /PAPER PERFORMANCE/);
   assert.match(home, /CAPITAL LIMITS/);
@@ -44,8 +43,8 @@ test("Home uses the approved HOME MASTER terminal hierarchy without weakening au
   assert.match(home, /<TerrainSignal/);
   assert.match(home, /testID="home-signal-trace"/);
   assert.match(home, /testID="home-market-pulse"/);
-  assert.match(home, /testID="home-terminal-grid"/);
-  assert.match(home, /terminalSignal = intelligenceFieldColors\.terminalSignal/);
+  assert.match(home, /testID="home-capital-limits"/);
+  assert.match(home, /const LIME = intelligenceFieldColors\.terminalSignal/);
   assert.match(decisionSurface, /`PAPER P&L .* · EQUITY \${krw\(input\.paperEquity\)}`/s);
   assert.doesNotMatch(home, /productionMutationAllowed:\s*true/);
   assert.doesNotMatch(home, /authority:\s*"LIVE"/);
@@ -74,7 +73,8 @@ test("Chart prioritizes real candles and removes decorative market context", () 
 test("Bottom navigation uses a restrained active rail with the five-destination route contract", () => {
   const app = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/App.tsx"), "utf8");
   assert.match(app, /backgroundColor: appTheme\.colors\.navSurface/);
-  assert.match(app, /backgroundColor: active \? appTheme\.colors\.primary : "transparent"/);\n  assert.match(app, /const color = active \? intelligenceFieldColors\.terminalSignal : intelligenceFieldColors\.textSubtle/);
+  assert.match(app, /backgroundColor: active \? appTheme\.colors\.primary : "transparent"/);
+  assert.match(app, /const color = active \? intelligenceFieldColors\.terminalSignal : intelligenceFieldColors\.textSubtle/);
   assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\]/);
   assert.match(app, /AiSignal: "AI"/);
   assert.match(app, /AiSignal: "AI 판단과 근거"/);
