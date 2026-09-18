@@ -238,15 +238,22 @@ describe("NUSA autopilot GitHub webhook", () => {
         NUSA_GLOBAL_RELEASE_FREEZE: "false",
       });
       assert.equal(response.status, 202);
-      const payload = await response.json() as { status: string; reason: string };
+      const payload = await response.json() as { status: string; reason: string; executor: { status: string; reason: string } };
       assert.equal(payload.status, "NOOP");
       assert.equal(payload.reason, "canonical-ci-run-not-found");
+      assert.deepEqual(payload.executor, {
+        status: "NOOP",
+        reason: "github-executor-ready-ci-replay-unresolved",
+        httpStatus: null,
+        requestedHeadSha: headSha,
+        observedHeadSha: null,
+      });
     } finally {
       globalThis.fetch = originalFetch;
     }
   });
 
-  it("replays Ready-for-review through the existing exact-run Audit identity", async () => {
+  it("releases a Draft CI Audit lease so Ready replay dispatches exactly once", async () => {
     const storage = new MemoryStorage();
     const coordinator = new ExecutionCoordinator({ storage });
     const namespace: ExecutionCoordinatorNamespace = {
@@ -255,15 +262,29 @@ describe("NUSA autopilot GitHub webhook", () => {
     };
     const headSha = "c".repeat(40);
     const workflowRunId = 35195500001;
-    const body = JSON.stringify({
+    const readyBody = JSON.stringify({
       action: "ready_for_review",
       number: 1955,
       repository: { full_name: "cinamoncandy/NUSA" },
       pull_request: { head: { sha: headSha }, base: { sha: "b".repeat(40) } },
     });
-    const signature = await computeGithubWebhookSignature("secret", body);
+    const workflowBody = JSON.stringify({
+      action: "completed",
+      workflow_run: {
+        id: workflowRunId,
+        name: "CI",
+        head_sha: headSha,
+        head_branch: "feature/ready-replay",
+        status: "completed",
+        conclusion: "success",
+        event: "pull_request",
+        pull_requests: [{ number: 1955 }],
+      },
+      repository: { full_name: "cinamoncandy/NUSA" },
+    });
     const originalFetch = globalThis.fetch;
     const dispatched: unknown[] = [];
+    let draft = true;
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.includes("/actions/workflows/ci.yml/runs?")) return new Response(JSON.stringify({
@@ -286,7 +307,7 @@ describe("NUSA autopilot GitHub webhook", () => {
       }), { status: 200 });
       if (url.endsWith("/pulls/1955")) return new Response(JSON.stringify({
         state: "open",
-        draft: false,
+        draft,
         labels: [],
         head: { sha: headSha },
       }), { status: 200 });
@@ -297,23 +318,28 @@ describe("NUSA autopilot GitHub webhook", () => {
       return new Response(null, { status: 404 });
     }) as typeof fetch;
     try {
-      const request = (delivery: string) => new Request("https://example.test/github/webhook", {
-        method: "POST",
-        headers: { "x-github-delivery": delivery, "x-github-event": "pull_request", "x-hub-signature-256": signature },
-        body,
-      });
+      const request = async (delivery: string, event: "workflow_run" | "pull_request", body: string) => {
+        const signature = await computeGithubWebhookSignature("secret", body);
+        return new Request("https://example.test/github/webhook", {
+          method: "POST",
+          headers: { "x-github-delivery": delivery, "x-github-event": event, "x-hub-signature-256": signature },
+          body,
+        });
+      };
       const env = { NUSA_WEBHOOK_SECRET: "secret", NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace, NUSA_GLOBAL_RELEASE_FREEZE: "false" };
-      const unavailable = await worker.fetch(request("ready-no-coordinator"), {
-        NUSA_WEBHOOK_SECRET: "secret",
-        NUSA_GITHUB_TOKEN: "token",
-        NUSA_GLOBAL_RELEASE_FREEZE: "false",
-      });
-      const first = await worker.fetch(request("ready-1"), env);
-      const replay = await worker.fetch(request("ready-2"), env);
-      assert.equal(unavailable.status, 409);
-      assert.equal((await unavailable.json() as { error: string }).error, "PERSISTENT_EXECUTION_COORDINATOR_REQUIRED");
-      const firstPayload = await first.json() as { dispatch: { kind: string; workflowRunId: number }; execution: { kind: string; workflowRunId: number; executionId: string; dedupeKey: string }; executor: { status: string } };
-      const replayPayload = await replay.json() as { status: string; executionBoundary: { dedupeKey: string } };
+
+      const draftCi = await worker.fetch(await request("draft-ci", "workflow_run", workflowBody), env);
+      const draftPayload = await draftCi.json() as { executor: { status: string; reason: string } };
+      assert.equal(draftCi.status, 202);
+      assert.equal(draftPayload.executor.status, "REJECTED");
+      assert.equal(draftPayload.executor.reason, "github-executor-pr-draft-hold-active");
+      assert.equal(dispatched.length, 0);
+
+      draft = false;
+      const first = await worker.fetch(await request("ready-1", "pull_request", readyBody), env);
+      const replay = await worker.fetch(await request("ready-2", "pull_request", readyBody), env);
+      const firstPayload = await first.json() as { dispatch: { kind: string; workflowRunId: number }; execution: { kind: string; workflowRunId: number; dedupeKey: string }; executor: { status: string } };
+      const replayPayload = await replay.json() as { status: string; executionBoundary: { dedupeKey: string }; executor: { status: string; reason: string } };
 
       assert.equal(firstPayload.dispatch.kind, "PR_CI_SUCCEEDED");
       assert.equal(firstPayload.dispatch.workflowRunId, workflowRunId);
@@ -322,6 +348,13 @@ describe("NUSA autopilot GitHub webhook", () => {
       assert.equal(firstPayload.executor.status, "DISPATCHED");
       assert.equal(replayPayload.status, "DUPLICATE_EXECUTION_SUPPRESSED");
       assert.equal(replayPayload.executionBoundary.dedupeKey, firstPayload.execution.dedupeKey);
+      assert.deepEqual(replayPayload.executor, {
+        status: "REJECTED",
+        reason: "github-executor-duplicate-execution-suppressed",
+        httpStatus: null,
+        requestedHeadSha: headSha,
+        observedHeadSha: null,
+      });
       assert.equal(dispatched.length, 1);
     } finally {
       globalThis.fetch = originalFetch;
