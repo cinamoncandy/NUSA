@@ -137,7 +137,7 @@ export function HomeView(props: HomeViewProps) {
         <EvidenceRow label="WHY" value={decision.why} tone="lime" />
         <EvidenceRow label="RESULT" value={decision.result} tone="lime" />
         <EvidenceRow label="RISK" value={decision.risk} tone={decision.attention === "ACTION REQUIRED" ? "danger" : "neutral"} />
-        <EvidenceRow label="LEARNING" value={decision.learning} />
+        <View testID="home-supervisor-learning"><EvidenceRow label="LEARNING" value={decision.learning} /></View>
       </View>
     </Pressable>
 
