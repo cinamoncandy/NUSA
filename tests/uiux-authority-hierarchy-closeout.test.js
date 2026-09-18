@@ -13,32 +13,6 @@ function occurrences(source, value) {
 test("AI presents intelligence before one compact authority summary", () => {
   const ai = read("aiView.tsx");
   const thesisIndex = ai.indexOf('testID="ai-thesis-card"');
-  const authorityIndex = ai.indexOf('<View style={styles.authority}>');
-  assert.ok(thesisIndex >= 0);
-  assert.ok(authorityIndex > thesisIndex);
-  assert.match(ai, /testID="ai-why"/);
-  assert.match(ai, /testID="ai-result"/);
-  assert.match(ai, /testID="ai-risk"/);
-  assert.match(ai, /testID="ai-learning"/);
-  assert.match(ai, /AI ZERO AUTHORITY/);
-  assert.match(ai, /PUBLIC READ ONLY/);
-  assert.doesNotMatch(ai, /<AuthorityBanner/);
-});
-const test = require("node:test");
-const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
-
-const mobile = path.resolve(__dirname, "../apps/mobile/src");
-const read = (file) => fs.readFileSync(path.join(mobile, file), "utf8");
-
-function occurrences(source, value) {
-  return source.split(value).length - 1;
-}
-
-test("AI presents intelligence before one compact authority summary", () => {
-  const ai = read("aiView.tsx");
-  const thesisIndex = ai.indexOf('testID="ai-thesis-card"');
   const authorityIndex = ai.indexOf('testID="ai-authority-card"');
   const evidenceIndex = ai.indexOf('testID="ai-evidence-card"');
 
