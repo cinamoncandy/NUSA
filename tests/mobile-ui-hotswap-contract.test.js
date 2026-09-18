@@ -49,7 +49,7 @@ test("HOME MASTER uses verified market and PAPER data without fabricating unavai
 
 test("HOME MASTER rendered financial values keep stable tabular numerals", () => {
   const home = read("apps/mobile/src/homeView.tsx");
-  for (const style of ["marketPrice","rowChange","metricValue"]) assert.match(home, new RegExp(`${style}: \\{[^}]*fontVariant: \\["tabular-nums"\\]`));
+  for (const style of ["marketPrice","rowChange","metricValue"]) assert.match(home, new RegExp(`${style}:\\s*\\{[^}]*fontVariant:\\s*\\["tabular-nums"\\]`));
   assert.match(home, /won\(account\?\.equity\)/);
 });
 
