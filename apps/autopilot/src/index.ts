@@ -1,5 +1,6 @@
 import { parseGithubWebhookPayload, planGithubWebhookDispatch, type SupportedGithubEvent } from "./dispatchPlanner";
 import { resolveOpenPullRequestByHeadSha } from "./githubPrHeadShaResolver";
+import { resolveCanonicalPrCiForReady } from "./githubCanonicalPrCiResolver";
 import { planAutopilotExecution } from "./executionPlanner";
 import { executeGithubDispatch } from "./githubExecutor";
 import { resolveGithubReleaseCompletion } from "./githubReleaseCompletionResolver";
@@ -341,6 +342,18 @@ export default {
       if (dispatch.reason === "pull-request:ready_for_review") {
         return json({ accepted: true, status: "NO_ACTION", reason: "CONTROL_PLANE_HOLD_ACTIVE", deliveryId, event, dispatch, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 202);
       }
+    }
+
+    // A PR may finish canonical CI while still Draft. GitHub later sends ready_for_review as a
+    // PR_CHANGED event without a workflow-run identity, so recover only the one already-completed
+    // canonical pull_request CI run for this exact immutable head. The resulting dispatch is the
+    // existing PR_CI_SUCCEEDED identity; planning, dedupe, and executor revalidation stay shared.
+    if (dispatch.kind === "PR_CHANGED" && dispatch.reason === "pull-request:ready_for_review") {
+      const resolution = await resolveCanonicalPrCiForReady(dispatch, {
+        token: env.NUSA_GITHUB_TOKEN,
+        allowedRepository,
+      });
+      if (resolution.resolved && resolution.dispatch) dispatch = resolution.dispatch;
     }
 
     // workflow_run.pull_requests is empty for cross-repository PRs, restricted forks, and some

@@ -211,6 +211,71 @@ describe("NUSA autopilot GitHub webhook", () => {
     assert.deepEqual({ state: record.hold.state, prNumber: record.hold.prNumber, headSha: record.hold.headSha, baseSha: record.hold.baseSha }, { state: "ACTIVE", prNumber: 1854, headSha, baseSha });
   });
 
+  it("replays Ready-for-review through the existing exact-run Audit identity", async () => {
+    const headSha = "c".repeat(40);
+    const workflowRunId = 35195500001;
+    const body = JSON.stringify({
+      action: "ready_for_review",
+      number: 1955,
+      repository: { full_name: "cinamoncandy/NUSA" },
+      pull_request: { head: { sha: headSha }, base: { sha: "b".repeat(40) } },
+    });
+    const signature = await computeGithubWebhookSignature("secret", body);
+    const originalFetch = globalThis.fetch;
+    const dispatched: unknown[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/actions/workflows/ci.yml/runs?")) return new Response(JSON.stringify({
+        total_count: 1,
+        workflow_runs: [{
+          id: workflowRunId,
+          name: "CI",
+          path: ".github/workflows/ci.yml",
+          event: "pull_request",
+          status: "completed",
+          conclusion: "success",
+          head_sha: headSha,
+          repository: { full_name: "cinamoncandy/NUSA" },
+        }],
+      }), { status: 200 });
+      if (url.endsWith("/pulls/1955")) return new Response(JSON.stringify({
+        state: "open",
+        draft: false,
+        labels: [],
+        head: { sha: headSha },
+      }), { status: 200 });
+      if (url.endsWith("/dispatches")) {
+        dispatched.push(JSON.parse(String(init?.body)));
+        return new Response(null, { status: 204 });
+      }
+      return new Response(null, { status: 404 });
+    }) as typeof fetch;
+    try {
+      const request = (delivery: string) => new Request("https://example.test/github/webhook", {
+        method: "POST",
+        headers: { "x-github-delivery": delivery, "x-github-event": "pull_request", "x-hub-signature-256": signature },
+        body,
+      });
+      const env = { NUSA_WEBHOOK_SECRET: "secret", NUSA_GITHUB_TOKEN: "token", NUSA_GLOBAL_RELEASE_FREEZE: "false" };
+      const first = await worker.fetch(request("ready-1"), env);
+      const replay = await worker.fetch(request("ready-2"), env);
+      const firstPayload = await first.json() as { dispatch: { kind: string; workflowRunId: number }; execution: { kind: string; workflowRunId: number; executionId: string; dedupeKey: string }; executor: { status: string } };
+      const replayPayload = await replay.json() as typeof firstPayload;
+
+      assert.equal(firstPayload.dispatch.kind, "PR_CI_SUCCEEDED");
+      assert.equal(firstPayload.dispatch.workflowRunId, workflowRunId);
+      assert.equal(firstPayload.execution.kind, "AUDIT_REQUEST");
+      assert.equal(firstPayload.execution.workflowRunId, workflowRunId);
+      assert.equal(firstPayload.executor.status, "DISPATCHED");
+      assert.equal(replayPayload.execution.executionId, firstPayload.execution.executionId);
+      assert.equal(replayPayload.execution.dedupeKey, firstPayload.execution.dedupeKey);
+      assert.equal(dispatched.length, 2);
+      assert.deepEqual(dispatched[1], dispatched[0]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("rejects malformed signed JSON instead of planning from partial data", async () => {
     const body = "{";
     const signature = await computeGithubWebhookSignature("secret", body);
