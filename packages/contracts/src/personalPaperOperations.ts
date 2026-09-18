@@ -38,6 +38,12 @@ export interface PersonalPaperSupervisorProjection {
   readonly aiAuthority: "ZERO_AUTHORITY";
 }
 
+export type PersonalPaperRuntimeHaltReason =
+  | "DASHBOARD_FAULTED"
+  | "KILL_SWITCH_ACTIVE"
+  | "AI_P0_OPEN"
+  | "AI_P0_UNVERIFIABLE";
+
 export interface PersonalPaperRuntimeProjection {
   readonly runtimeState: PersonalPaperRuntimeState;
   readonly schedulerRunning: boolean;
@@ -46,6 +52,14 @@ export interface PersonalPaperRuntimeProjection {
   readonly transport: "ONLINE" | "OFFLINE";
   readonly killSwitchActive: boolean;
   readonly accountHalted: boolean;
+  /**
+   * Which fail-closed inputs asserted HALTED, when any did.
+   *
+   * `runtimeState` alone cannot be traced back to a cause, and `accountHalted` merges two
+   * different ones (a FAULTED dashboard and an open/unverifiable AI P0), so a HALTED observation
+   * in long-soak evidence could not be attributed. Present only while `runtimeState` is HALTED.
+   */
+  readonly runtimeHaltReasons?: readonly PersonalPaperRuntimeHaltReason[];
   readonly pendingWrites: number;
   readonly lastEventAt?: number;
   readonly updatedAt: number;
