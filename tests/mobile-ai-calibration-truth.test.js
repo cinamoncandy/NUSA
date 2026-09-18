@@ -4,46 +4,34 @@ const fs = require("node:fs");
 
 const source = () => fs.readFileSync("apps/mobile/src/aiView.tsx", "utf8");
 
-test("mobile AI separates uncalibrated raw probability from trusted calibrated confidence", () => {
+test("Signal Detail exposes confidence only when calibrated", () => {
   const code = source();
-  assert.match(code, /원시 모델 확률 \(미보정\)/);
+  assert.match(code, /const calibrated=ai\?\.calibrationStatus==="CALIBRATED"/);
+  assert.match(code, /const trusted=calibrated\?percent\(ai\?\.confidence\):"UNVERIFIED"/);
   assert.match(code, /검증 신뢰도/);
-  assert.match(code, /보정 확률/);
-  assert.match(code, /ai\?\.calibrationStatus === "CALIBRATED" \? percent\(ai\.confidence\) : "-"/);
-  assert.match(code, /ai\?\.calibrationStatus === "CALIBRATED" \? percent\(ai\.calibratedProbability\) : "-"/);
-  assert.doesNotMatch(code, /모델 점수 \(미보정\)/);
+  assert.match(code, /UNVERIFIED/);
 });
 
-test("mobile AI explains that raw probability is not a verified probability or performance guarantee", () => {
+test("uncalibrated output is never presented as profit probability", () => {
   const code = source();
-  assert.match(code, /원시 모델 확률은 미보정 모델 출력/);
-  assert.match(code, /검증된 성공 확률이나 성과 보장이 아닙니다/);
-  assert.match(code, /CALIBRATED일 때만 별도의 검증 신뢰도/);
+  assert.match(code, /보정되지 않은 출력입니다\. 수익 확률로 표시하지 않습니다\./);
+  assert.doesNotMatch(code, /성과 보장/);
 });
 
-test("mobile AI translates verdict/status enums to plain Korean instead of raw English tokens", () => {
-  // calibrationStatus/explanationVerdict/scenarioRobustnessState reach the UI as raw English
-  // enum values (e.g. "ABSTAIN", "NOT_EVALUATED") -- exactly the fields meant to build the
-  // user's trust in the AI, so leaving them untranslated undercuts explainability even though
-  // the rest of the screen is fully Korean.
+test("Signal Detail keeps evidence and counter-evidence visible", () => {
   const code = source();
-  assert.match(code, /calibrationStatusLabel/);
-  assert.match(code, /explanationVerdictLabel/);
-  assert.match(code, /scenarioRobustnessLabel/);
-  assert.match(code, /ABSTAIN: "판단 보류"/);
-  assert.match(code, /CALIBRATED: "보정 완료"/);
-  assert.match(code, /SENSITIVE: "민감함"/);
-  assert.doesNotMatch(code, /value=\{ai\?\.calibrationStatus \?\? "UNKNOWN"\}/);
-  assert.doesNotMatch(code, /value=\{ai\?\.explanationVerdict \?\? "NOT_EVALUATED"\}/);
-  assert.doesNotMatch(code, /value=\{ai\?\.scenarioRobustnessState \?\? "NOT_EVALUATED"\}/);
+  assert.match(code, /EVIDENCE \{evidence\.length\}/);
+  assert.match(code, /COUNTER \{counter\.length\}/);
+  assert.match(code, /WHY/);
+  assert.match(code, /RESULT/);
+  assert.match(code, /RISK/);
+  assert.match(code, /LEARNING/);
 });
 
-test("mobile AI exposes calibration evidence without adding execution authority", () => {
+test("Signal Detail remains read-only and zero-authority", () => {
   const code = source();
-  assert.match(code, /보정 표본/);
-  assert.match(code, /label="ECE"/);
-  assert.match(code, /label="Brier"/);
-  assert.match(code, /ZERO AUTHORITY/);
-  assert.match(code, /READ ONLY/);
+  assert.match(code, /AI ZERO AUTHORITY/);
+  assert.match(code, /PUBLIC READ ONLY/);
+  assert.match(code, /PRODUCTION MUTATION/);
   assert.doesNotMatch(code, /submitOrder\s*\(|cancelOrder\s*\(|withdraw\s*\(|transfer\s*\(/i);
 });
