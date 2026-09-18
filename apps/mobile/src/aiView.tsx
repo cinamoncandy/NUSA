@@ -3,7 +3,7 @@ import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native
 import type { AiReadOnlyProjection } from "../../../packages/contracts/src/aiInference";
 import type { ResearchStatusProjection } from "../../../packages/contracts/src/researchAutomation";
 import { useTheme } from "./ThemeProvider";
-import { intelligenceFieldColors } from "./designSystem";
+import { intelligenceFieldColors, wealthProductColors } from "./designSystem";
 import { buildChartViewModel, type PublicCandle } from "./chartViewModel";
 
 interface AiViewProps {
@@ -13,10 +13,10 @@ interface AiViewProps {
   readonly market?: string; readonly currentPrice?: number | null; readonly rawCandles?: readonly PublicCandle[] | null;
   readonly marketConnectionState?: string; readonly stale?: boolean;
 }
-const LIME=intelligenceFieldColors.terminalSignal, INK="#050706", PANEL="#0A0E0C", BORDER="#1A2A21", MUTED="#819087", RED="#FF6464";
+const LIME=intelligenceFieldColors.terminalSignal, INK=wealthProductColors.c01, PANEL=wealthProductColors.c02, BORDER=wealthProductColors.c03, MUTED=wealthProductColors.c04, RED=wealthProductColors.c05;
 const percent=(v:number|null|undefined)=>v==null||!Number.isFinite(v)?"—":`${Math.round(v*100)}%`;
 function AnalysisRow({label,value,tone="lime"}:Readonly<{label:string;value:string;tone?:"lime"|"danger"|"neutral"}>){
-  return <View style={styles.analysisRow}><Text style={[styles.analysisLabel,{color:tone==="lime"?LIME:tone==="danger"?RED:"#D6E0DA"}]}>{label}</Text><Text style={styles.analysisValue}>{value}</Text></View>;
+  return <View style={styles.analysisRow}><Text style={[styles.analysisLabel,{color:tone==="lime"?LIME:tone==="danger"?RED:wealthProductColors.c51}]}>{label}</Text><Text style={styles.analysisValue}>{value}</Text></View>;
 }
 export function AiView({ai,research,health,liveAuthority,productionMutationAllowed,killSwitchActive,error,refreshing,onRefresh,market="KRW-BTC",currentPrice=null,rawCandles=null,marketConnectionState="UNKNOWN",stale=true}:AiViewProps){
   const {theme}=useTheme();
@@ -39,7 +39,7 @@ export function AiView({ai,research,health,liveAuthority,productionMutationAllow
       <View style={styles.quote}><Text style={styles.price}>{currentPrice==null?"—":`₩${Math.round(currentPrice).toLocaleString("ko-KR")}`}</Text><Text style={styles.readOnly}>PUBLIC READ ONLY</Text></View>
     </View>
 
-    <View style={styles.chips}><View style={[styles.chip,{backgroundColor:calibrated?"#183B1F":"#191E1B"}]}><Text style={[styles.chipText,{color:calibrated?LIME:MUTED}]}>{calibrated?"CALIBRATED":"UNVERIFIED"}</Text></View><View style={styles.chip}><Text style={styles.chipText}>EVIDENCE {evidence.length}</Text></View><View style={styles.chip}><Text style={styles.chipText}>COUNTER {counter.length}</Text></View></View>
+    <View style={styles.chips}><View style={[styles.chip,{backgroundColor:calibrated?wealthProductColors.c52:wealthProductColors.c53}]}><Text style={[styles.chipText,{color:calibrated?LIME:MUTED}]}>{calibrated?"CALIBRATED":"UNVERIFIED"}</Text></View><View style={styles.chip}><Text style={styles.chipText}>EVIDENCE {evidence.length}</Text></View><View style={styles.chip}><Text style={styles.chipText}>COUNTER {counter.length}</Text></View></View>
 
     <View style={styles.analysis} testID="ai-thesis-card">
       <View style={styles.analysisHeader}><Text style={styles.sectionTitle}>AI ANALYSIS</Text><Text style={styles.chevron}>›</Text></View>
@@ -54,7 +54,7 @@ export function AiView({ai,research,health,liveAuthority,productionMutationAllow
       <View style={styles.chart}>
         {chart.state==="READY"?chart.bars.slice(-38).map((bar,i)=>{
           const base=chart.currentPrice??bar.close; const delta=(bar.close-base)/Math.max(1,base); const h=18+Math.min(90,Math.abs(delta)*5000+i*1.2);
-          return <View key={bar.openTime} style={[styles.chartBar,{height:h,backgroundColor:bar.close>=bar.open?LIME:"#365A47"}]}/>;
+          return <View key={bar.openTime} style={[styles.chartBar,{height:h,backgroundColor:bar.close>=bar.open?LIME:wealthProductColors.c54}]}/>;
         }):<View style={styles.chartEmpty}><Text style={styles.emptyTitle}>VERIFIED CHART UNAVAILABLE</Text><Text style={styles.emptyText}>실제 public candle이 확인될 때만 차트를 표시합니다.</Text></View>}
       </View>
     </View>
@@ -71,15 +71,15 @@ export function AiView({ai,research,health,liveAuthority,productionMutationAllow
 }
 const styles=StyleSheet.create({
  content:{paddingHorizontal:16,paddingTop:10,paddingBottom:34,gap:14,width:"100%",maxWidth:720,alignSelf:"center",backgroundColor:INK},
- topbar:{minHeight:56,flexDirection:"row",alignItems:"center",borderBottomWidth:1,borderBottomColor:BORDER,gap:12},back:{color:"#B9CCC1",fontSize:34,fontWeight:"200"},logo:{color:"#F2F7F4",fontSize:23,fontWeight:"900",letterSpacing:2.4},mode:{marginLeft:"auto",flexDirection:"row",alignItems:"center",gap:6},dot:{width:8,height:8,borderRadius:8,backgroundColor:LIME},modeText:{color:"#C8E8D4",fontSize:9,fontWeight:"800"},modeSub:{color:"#6D8879",fontSize:8,marginTop:2},
- titleRow:{height:55,flexDirection:"row",alignItems:"center",justifyContent:"space-between",borderBottomWidth:1,borderBottomColor:BORDER},pageTitle:{color:"#EAF2ED",fontSize:18,fontWeight:"800",letterSpacing:1.4},time:{color:MUTED,fontSize:8},
- assetHead:{flexDirection:"row",alignItems:"center",paddingVertical:2,gap:11},coin:{width:42,height:42,borderRadius:42,backgroundColor:"#FF9718",alignItems:"center",justifyContent:"center"},coinText:{color:"#FFF",fontSize:20,fontWeight:"900"},assetName:{flex:1},symbol:{color:"#F1F5F2",fontSize:19,fontWeight:"800"},assetSub:{color:MUTED,fontSize:9,marginTop:3},quote:{alignItems:"flex-end"},price:{color:"#EAF2ED",fontSize:18,fontWeight:"800",fontVariant:["tabular-nums"]},readOnly:{color:LIME,fontSize:8,fontWeight:"800",marginTop:4},
- chips:{flexDirection:"row",gap:7,flexWrap:"wrap"},chip:{borderWidth:1,borderColor:"#20402D",borderRadius:6,paddingHorizontal:10,paddingVertical:7,backgroundColor:"#09100C"},chipText:{color:"#8EB69D",fontSize:8,fontWeight:"900",letterSpacing:.5},
- analysis:{borderWidth:1,borderColor:BORDER,borderRadius:9,backgroundColor:PANEL,overflow:"hidden"},analysisHeader:{height:48,paddingHorizontal:14,flexDirection:"row",alignItems:"center",justifyContent:"space-between",borderBottomWidth:1,borderBottomColor:BORDER},sectionTitle:{color:"#EAF2ED",fontSize:14,fontWeight:"900",letterSpacing:1},chevron:{color:MUTED,fontSize:22},
- analysisRow:{minHeight:76,flexDirection:"row",gap:15,paddingHorizontal:14,paddingVertical:14,borderBottomWidth:1,borderBottomColor:"#152119"},analysisLabel:{width:66,fontSize:11,fontWeight:"900",letterSpacing:.7},analysisValue:{flex:1,color:"#B5C2BB",fontSize:11,lineHeight:17},
+ topbar:{minHeight:56,flexDirection:"row",alignItems:"center",borderBottomWidth:1,borderBottomColor:BORDER,gap:12},back:{color:wealthProductColors.c55,fontSize:34,fontWeight:"200"},logo:{color:wealthProductColors.c56,fontSize:23,fontWeight:"900",letterSpacing:2.4},mode:{marginLeft:"auto",flexDirection:"row",alignItems:"center",gap:6},dot:{width:8,height:8,borderRadius:8,backgroundColor:LIME},modeText:{color:wealthProductColors.c57,fontSize:9,fontWeight:"800"},modeSub:{color:wealthProductColors.c58,fontSize:8,marginTop:2},
+ titleRow:{height:55,flexDirection:"row",alignItems:"center",justifyContent:"space-between",borderBottomWidth:1,borderBottomColor:BORDER},pageTitle:{color:wealthProductColors.c59,fontSize:18,fontWeight:"800",letterSpacing:1.4},time:{color:MUTED,fontSize:8},
+ assetHead:{flexDirection:"row",alignItems:"center",paddingVertical:2,gap:11},coin:{width:42,height:42,borderRadius:42,backgroundColor:wealthProductColors.c60,alignItems:"center",justifyContent:"center"},coinText:{color:"#FFF",fontSize:20,fontWeight:"900"},assetName:{flex:1},symbol:{color:wealthProductColors.c61,fontSize:19,fontWeight:"800"},assetSub:{color:MUTED,fontSize:9,marginTop:3},quote:{alignItems:"flex-end"},price:{color:wealthProductColors.c59,fontSize:18,fontWeight:"800",fontVariant:["tabular-nums"]},readOnly:{color:LIME,fontSize:8,fontWeight:"800",marginTop:4},
+ chips:{flexDirection:"row",gap:7,flexWrap:"wrap"},chip:{borderWidth:1,borderColor:wealthProductColors.c62,borderRadius:6,paddingHorizontal:10,paddingVertical:7,backgroundColor:wealthProductColors.c63},chipText:{color:wealthProductColors.c64,fontSize:8,fontWeight:"900",letterSpacing:.5},
+ analysis:{borderWidth:1,borderColor:BORDER,borderRadius:9,backgroundColor:PANEL,overflow:"hidden"},analysisHeader:{height:48,paddingHorizontal:14,flexDirection:"row",alignItems:"center",justifyContent:"space-between",borderBottomWidth:1,borderBottomColor:BORDER},sectionTitle:{color:wealthProductColors.c59,fontSize:14,fontWeight:"900",letterSpacing:1},chevron:{color:MUTED,fontSize:22},
+ analysisRow:{minHeight:76,flexDirection:"row",gap:15,paddingHorizontal:14,paddingVertical:14,borderBottomWidth:1,borderBottomColor:wealthProductColors.c65},analysisLabel:{width:66,fontSize:11,fontWeight:"900",letterSpacing:.7},analysisValue:{flex:1,color:wealthProductColors.c66,fontSize:11,lineHeight:17},
  chartPanel:{borderTopWidth:1,borderTopColor:BORDER},periods:{height:45,flexDirection:"row",alignItems:"center",gap:25},period:{height:45,lineHeight:44,borderBottomWidth:2,borderBottomColor:"transparent",color:MUTED,fontSize:9,fontWeight:"800"},
- chart:{height:180,borderTopWidth:1,borderTopColor:"#102017",borderBottomWidth:1,borderBottomColor:"#102017",flexDirection:"row",alignItems:"flex-end",gap:2,paddingHorizontal:4,paddingBottom:10,overflow:"hidden"},chartBar:{flex:1,minWidth:2,opacity:.78,borderRadius:1},
- chartEmpty:{flex:1,alignItems:"center",justifyContent:"center"},emptyTitle:{color:MUTED,fontSize:10,fontWeight:"900"},emptyText:{color:"#56675E",fontSize:9,marginTop:7},
- authority:{borderWidth:1,borderColor:BORDER,borderRadius:8,padding:12,backgroundColor:"#080C0A"},authorityTitle:{color:LIME,fontSize:9,fontWeight:"900",letterSpacing:.8},authorityText:{color:"#687B70",fontSize:8,lineHeight:13,marginTop:5},
- watchButton:{minHeight:56,borderRadius:8,backgroundColor:LIME,alignItems:"center",justifyContent:"center"},watchText:{color:"#0B100C",fontSize:12,fontWeight:"900",letterSpacing:.8},error:{color:RED,fontSize:9},
+ chart:{height:180,borderTopWidth:1,borderTopColor:wealthProductColors.c67,borderBottomWidth:1,borderBottomColor:wealthProductColors.c67,flexDirection:"row",alignItems:"flex-end",gap:2,paddingHorizontal:4,paddingBottom:10,overflow:"hidden"},chartBar:{flex:1,minWidth:2,opacity:.78,borderRadius:1},
+ chartEmpty:{flex:1,alignItems:"center",justifyContent:"center"},emptyTitle:{color:MUTED,fontSize:10,fontWeight:"900"},emptyText:{color:wealthProductColors.c68,fontSize:9,marginTop:7},
+ authority:{borderWidth:1,borderColor:BORDER,borderRadius:8,padding:12,backgroundColor:wealthProductColors.c41},authorityTitle:{color:LIME,fontSize:9,fontWeight:"900",letterSpacing:.8},authorityText:{color:wealthProductColors.c69,fontSize:8,lineHeight:13,marginTop:5},
+ watchButton:{minHeight:56,borderRadius:8,backgroundColor:LIME,alignItems:"center",justifyContent:"center"},watchText:{color:wealthProductColors.c70,fontSize:12,fontWeight:"900",letterSpacing:.8},error:{color:RED,fontSize:9},
 });
