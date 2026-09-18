@@ -41,6 +41,19 @@ test("the release requires successful exact-source CI, found by a paginated look
   assert.match(workflow, /actions\/workflows\/ci\.yml\/runs/);
 });
 
+test("the small PAPER host receives a sealed build instead of installing or building dependencies", () => {
+  const prepare = workflow.slice(workflow.indexOf("  prepare:"), workflow.indexOf("  release:"));
+  const release = workflow.slice(workflow.indexOf("  release:"));
+  assert.match(prepare, /runs-on: ubuntu-latest/);
+  assert.match(prepare, /pnpm install --frozen-lockfile/);
+  assert.match(prepare, /pnpm run build/);
+  assert.match(release, /needs: prepare/);
+  assert.match(release, /runs-on: \[self-hosted, Linux, nusa-paper-host\]/);
+  assert.match(release, /sha256sum --check --status/);
+  assert.ok(release.indexOf("sha256sum --check --status") < release.indexOf('"$STEP" backup'));
+  assert.doesNotMatch(release, /pnpm install|pnpm run build/);
+});
+
 test("the workflow runs the release verbs in the runbook's order", () => {
   // Staging precedes preflight because the runbook runs both checks *from the release tree*,
   // which has to exist first.
