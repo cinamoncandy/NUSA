@@ -19,26 +19,19 @@ test("App shell routes the canonical five-tab decision flow and preserves deeper
   assert.match(app, /StatusChip label="PAPER ONLY"/);
   assert.match(app, /StatusChip label="LIVE NONE"/);
 });
-test("Home MASTER uses the approved terminal hierarchy and keeps AI read-only", () => {
+test("approved HOME uses the product hierarchy and keeps AI read-only", () => {
   const source = read("src/homeView.tsx");
   const decisionSurface = read("src/homeDecisionSurface.ts");
-  assert.match(source, /testID="home-master-rail"/);
-  assert.match(source, /testID="home-supervisor-now"/);
-  assert.match(source, /testID="account-hero-card"/);
-  assert.match(source, /PAPER PERFORMANCE/);
-  assert.doesNotMatch(source, />오늘</);
-  assert.match(source, /<TruthCell label="WHY"/);
-  assert.match(source, />NOW<\/Text>/);
-  assert.match(source, /<TruthCell label="RESULT"/);
-  assert.match(source, /<TruthCell label="RISK"/);
-  assert.match(source, /testID="home-risk-authority"/);
-  assert.match(source, /testID="home-decision-stage"/);
+  for (const marker of ['testID="home-master-rail"','testID="home-status-rail"','testID="account-hero-card"','testID="ai-card"','testID="home-decision-stage"','testID="home-market-pulse"','testID="home-paper-performance"','testID="home-capital-limits"','testID="home-risk-authority"']) assert.match(source, new RegExp(marker));
+  assert.match(source, /<EvidenceRow label="WHY"/);
+  assert.match(source, /<EvidenceRow label="RESULT"/);
+  assert.match(source, /<EvidenceRow label="RISK"/);
   assert.match(source, /MARKET PULSE/);
-  assert.match(source, /PORTFOLIO \/ ALLOCATION/);
   assert.match(source, /CAPITAL LIMITS/);
+  assert.match(source, /PAPER PERFORMANCE/);
   assert.match(source, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
-  assert.match(source, /selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)/);
-  assert.match(source, /aiInsightAvailable,/);
+  assert.match(source, /selectHomeMarketData\(props\.publicMarkets, props\.snapshot\?\.markets \?\? \[\]\)/);
+  assert.match(source, /const signalAvailable = decision\.aiInsightAvailable/);
   assert.match(decisionSurface, /PAPER P&L .*EQUITY/);
   assert.doesNotMatch(source, /productionMutationAllowed:\s*true/);
   assert.doesNotMatch(source, /authority:\s*"LIVE"/);
@@ -59,7 +52,7 @@ test("Markets, PAPER, Settings and History use shared segmented controls", () =>
   assert.match(history, /order-history-periods/);
   assert.match(history, /order-history-sorts/);
 });
-test("Portfolio and AI use decision-first v3 information hierarchy", () => {
+test("Portfolio and Signal Detail use decision-first product hierarchy", () => {
   const portfolio = read("src/portfolioView.tsx");
   const ai = read("src/aiView.tsx");
   assert.match(portfolio, /<AuthorityRail/);
@@ -71,9 +64,13 @@ test("Portfolio and AI use decision-first v3 information hierarchy", () => {
   assert.match(portfolio, /REAL_READ_ONLY 잔고는 감독용 기준선이며 PAPER 성과와 절대 합산하지 않습니다/);
   assert.doesNotMatch(portfolio, /testID="portfolio-summary"/);
   assert.doesNotMatch(portfolio, /<MetricTile/);
-  assert.match(ai, /<ScreenHeader/);
-  assert.match(ai, /<DataRow label="원시 모델 확률 \(미보정\)"/);
-  assert.match(ai, /<MetricTile label="검증 신뢰도"/);
+  assert.match(ai, /SIGNAL DETAIL/);
+  assert.match(ai, /testID="ai-thesis-card"/);
+  assert.match(ai, /testID="ai-why"/);
+  assert.match(ai, /testID="ai-result"/);
+  assert.match(ai, /testID="ai-risk"/);
+  assert.match(ai, /UNVERIFIED/);
+  assert.match(ai, /수익 확률로 표시하지 않습니다/);
   assert.match(ai, /AI ZERO AUTHORITY/);
 });
 test("Notification utility is honest about unavailable runtime capability", () => {
