@@ -23,8 +23,8 @@ test("Intelligence OS keeps authority and data-integrity boundaries visible", ()
   assert.doesNotMatch(home, /BULLISH|BEARISH|STRONG SIGNAL|WEAK SIGNAL/);
 });
 
-test("HOME MASTER follows AI terrain -> evidence -> market/PAPER -> risk authority", () => {
-  const anchors = ['testID="ai-card"','label="WHY"','testID="home-market-pulse"','testID="home-paper-performance"','testID="home-risk-authority"'];
+test("approved HOME follows market pulse -> AI terrain/evidence -> PAPER -> risk authority", () => {
+  const anchors = ['testID="home-market-pulse"','testID="ai-card"','label="WHY"','testID="home-paper-performance"','testID="home-risk-authority"'];
   let cursor = -1;
   for (const anchor of anchors) { const next = home.indexOf(anchor); assert.ok(next > cursor, `${anchor} must appear after the previous UX stage`); cursor = next; }
   assert.match(home, /NO VERIFIED MARKET SNAPSHOT|UNAVAILABLE|—/);
