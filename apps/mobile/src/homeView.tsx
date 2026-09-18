@@ -6,6 +6,7 @@ import { intelligenceFieldColors } from "./designSystem";
 import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
 import { buildHomeDecisionSurface } from "./homeDecisionSurface";
 import { buildLocalPortfolio, isLocalPaperActive } from "./localPaperLedger";
+import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
 import { useLocalPaperMarkPrice, useLocalPaperSnapshot } from "./localPaperLedgerHooks";
 import { selectHomeMarketData } from "./homeMarketData";
 import type { WatchlistMarket } from "./watchlist";
@@ -72,6 +73,7 @@ export function HomeView(props: HomeViewProps) {
   const account = cloudAccount ?? localAccount;
   const accountSource = cloudAccount != null ? "CLOUD" : localAccount != null ? "LOCAL" : null;
   const totalPnl = account == null ? null : (account.realizedPnl ?? account.position.realizedPnl) + account.unrealizedPnl;
+  const cashEnvelope = account == null ? null : createCashInvestmentEnvelope(account.cash, props.investmentPercent);
   const heartbeat = props.snapshot?.operations.heartbeat;
   const ai = props.snapshot?.ai ?? null;
   const disconnected = props.notConfigured != null && !localPaperActive;
@@ -202,6 +204,6 @@ const styles = StyleSheet.create({
   signalRow:{minHeight:48,flexDirection:"row",alignItems:"center",paddingHorizontal:13,gap:10,borderBottomWidth:1,borderBottomColor:"#121D17"},rank:{width:22,height:22,borderRadius:22,borderWidth:1,borderColor:"#3A4C42",color:"#DDE7E1",textAlign:"center",lineHeight:20,fontSize:9},asset:{color:"#EEF5F1",fontSize:13,fontWeight:"800",width:54},signalBadge:{borderWidth:1,borderRadius:5,paddingHorizontal:7,paddingVertical:4},signalBadgeText:{fontSize:8,fontWeight:"900"},rowChange:{marginLeft:"auto",fontSize:11,fontWeight:"800",fontVariant:["tabular-nums"]},
   empty:{color:MUTED,fontSize:10,padding:14},performanceGraph:{height:74,flexDirection:"row",alignItems:"flex-end",gap:3,paddingHorizontal:14,paddingTop:12,borderBottomWidth:1,borderBottomColor:BORDER},waveBar:{flex:1,minWidth:2,borderRadius:2},
   performanceMetrics:{flexDirection:"row",justifyContent:"space-between",paddingHorizontal:14,paddingVertical:14,gap:10},metricValue:{color:"#EDF4F0",fontSize:13,fontWeight:"800",fontVariant:["tabular-nums"]},metricLabel:{color:"#66786E",fontSize:8,fontWeight:"700",marginTop:5},
-  connectionNotice:{padding:13,borderWidth:1,borderColor:"#57342F",borderRadius:8,backgroundColor:"#140B09"},connectionTitle:{color:RED,fontSize:10,fontWeight:"900"},connectionBody:{color:"#B8A7A3",fontSize:10,lineHeight:15,marginTop:5},connectionAction:{color:"#E4B3A9",fontSize:9,fontWeight:"800",marginTop:8},
+  capitalLimits:{padding:13,borderWidth:1,borderColor:BORDER,borderRadius:8,backgroundColor:"#080C0A",flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:12},capitalLabel:{color:"#C9D5CE",fontSize:9,fontWeight:"900",letterSpacing:.8},capitalMeta:{color:"#5F7468",fontSize:8,marginTop:4},capitalValues:{flexDirection:"row",gap:18},capitalValue:{color:"#DFE8E3",fontSize:10,fontWeight:"800",textAlign:"right"},capitalKey:{color:"#5F7468",fontSize:7,fontWeight:"800",marginTop:4,textAlign:"right"},\n  connectionNotice:{padding:13,borderWidth:1,borderColor:"#57342F",borderRadius:8,backgroundColor:"#140B09"},connectionTitle:{color:RED,fontSize:10,fontWeight:"900"},connectionBody:{color:"#B8A7A3",fontSize:10,lineHeight:15,marginTop:5},connectionAction:{color:"#E4B3A9",fontSize:9,fontWeight:"800",marginTop:8},
   hiddenContract:{paddingHorizontal:4,paddingVertical:3},learningLink:{color:"#61756A",fontSize:8,fontWeight:"700",letterSpacing:.6},safety:{color:"#4E6458",fontSize:8,textAlign:"center",letterSpacing:.7},
 });
