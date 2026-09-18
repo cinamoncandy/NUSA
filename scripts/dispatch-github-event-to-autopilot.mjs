@@ -22,7 +22,8 @@ const TRANSIENT_STATUSES = new Set([429, 500, 502, 503, 504]);
 const EXECUTOR_STATE_DECLINES = new Set([
   "github-executor-pr-not-open",
   "github-executor-pr-draft-hold-active",
-  "github-executor-pr-hold-label-active"
+  "github-executor-pr-hold-label-active",
+  "github-executor-duplicate-execution-suppressed"
 ]);
 
 const MAX_ATTEMPTS = 2;
