@@ -6,12 +6,11 @@ const homeView = fs.readFileSync("apps/mobile/src/homeView.tsx", "utf8");
 const moreView = fs.readFileSync("apps/mobile/src/moreView.tsx", "utf8");
 const generatedConfig = fs.readFileSync("apps/mobile/src/generatedBuildConfig.ts", "utf8");
 
-test("production HOME exposes exact packaged build source identity and UI family", () => {
+test("production HOME keeps build provenance generated while consumer HOME stays free of developer build metadata", () => {
   assert.match(generatedConfig, /export const BUILD_SOURCE_SHA/);
-  assert.match(homeView, /BUILD_SOURCE_SHA/);
-  assert.match(homeView, /BUILD_SOURCE_SHA\.slice\(0, 8\)/);
-  assert.match(homeView, /testID="home-build-source"/);
-  assert.match(homeView, /BUILD \{packagedBuildLabel\} · UI INTELLIGENCE OS/);
+  assert.doesNotMatch(homeView, /BUILD_SOURCE_SHA|home-build-source|packagedBuildLabel|UI INTELLIGENCE OS/);
+  assert.match(homeView, /AI FOR A WEALTHIER YOU/);
+  assert.match(homeView, /PAPER MODE/);
 });
 
 test("legacy More surface retains exact packaged build source identity and stale release detection", () => {
