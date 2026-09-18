@@ -9,17 +9,15 @@ const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 test("mobile presets keep classic neutral while approved wealth-product colors are centralized", () => {
   const source = read("apps/mobile/src/designSystem.ts");
 
-  // Master actions use the approved cobalt palette; semantic AI and risk colors remain separate.
-  assert.match(source, /classic:[\s\S]*?primary: "#E8F3FF"[\s\S]*?primary: "#11151B"/);
-  assert.match(source, /master:[\s\S]*?primary: "#9BABFF"[\s\S]*?primary: "#304EE8"/);
-  assert.match(source, /primary: palette\.primary/);
+  assert.match(source, /classic:[\\s\\S]*?primary: "#E8F3FF"[\\s\\S]*?primary: "#11151B"/);
+  assert.match(source, /export const wealthProductColors = Object\\.freeze/);
+  assert.match(source, /master:[\\s\\S]*?primary: "#D8EE76"[\\s\\S]*?primary: "#304EE8"/);
+  assert.match(source, /primary: palette\\.primary/);
 
-  // Chromatic accents remain confined to signal/AI semantics rather than brand actions. Each
-  // resolves per mode -- the dark-tuned hues fall to as little as ~1.5:1 contrast on a light
-  // surface, so a light-mode variant exists for each rather than one value used unconditionally.
-  assert.match(source, /aiSignalStart: dark \? "#9B6CFF" : "#[0-9A-F]{6}"/);
-  assert.match(source, /aiSignalMid: dark \? "#5B8CFF" : "#[0-9A-F]{6}"/);
-  assert.match(source, /aiSignalEnd: dark \? "#36D8CB" : "#[0-9A-F]{6}"/);
+  // Signal semantics use the approved wealth terrain in dark mode while light mode remains accessible.
+  assert.match(source, /aiSignalStart: dark \\? "#91C74F" : "#7C3AED"/);
+  assert.match(source, /aiSignalMid: dark \\? "#B7E35C" : "#2563EB"/);
+  assert.match(source, /aiSignalEnd: dark \\? "#D8EE76" : "#0B6B60"/);
   assert.match(source, /aiSignalSoft/);
 });
 
