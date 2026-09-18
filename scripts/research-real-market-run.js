@@ -25,11 +25,33 @@ const SMA_FAMILY_ID = "sma-crossover";
 const RSI_FAMILY_ID = "rsi-mean-reversion";
 const DONCHIAN_FAMILY_ID = "donchian-breakout";
 const STRATEGY_FAMILY_ID = SMA_FAMILY_ID; // legacy export/default identity
-const MARKET = "KRW-BTC";
+const DEFAULT_PRIMARY_MARKET = "KRW-BTC";
 const RESEARCH_MARKET_SET_VERSION = "upbit-public-daily-2000-v2";
 // Availability-only cohort: each predeclared market had at least 2000 completed public
 // daily candles at v2 declaration time. This identity is never selected from returns.
 const RESEARCH_MARKETS = Object.freeze(["KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-ADA", "KRW-DOGE"]);
+
+/**
+ * The market whose dataset the candidates are actually evaluated on. Every cohort member is
+ * fetched regardless; this selects which one drives the walk-forward backtest instead of the
+ * remaining four, which stay regime-robustness inputs.
+ *
+ * Restricted to the precommitted cohort so a run cannot reach for a market that was never
+ * declared available. The selection is not a free parameter: sweeping markets until one
+ * qualifies is multiple comparison, and the deflated Sharpe correction applied here accounts
+ * for parameter trials within a family, not for markets tried across runs. Report every market
+ * run, not the one that passed.
+ */
+function researchPrimaryMarket(value = process.env.NUSA_RESEARCH_PRIMARY_MARKET) {
+  const normalized = String(value ?? "").trim().toUpperCase();
+  if (!normalized) return DEFAULT_PRIMARY_MARKET;
+  if (!RESEARCH_MARKETS.includes(normalized)) {
+    throw new Error(`NUSA_RESEARCH_PRIMARY_MARKET must be one of the precommitted cohort: ${RESEARCH_MARKETS.join(", ")}`);
+  }
+  return normalized;
+}
+
+const MARKET = researchPrimaryMarket();
 const DEFAULT_CANDLE_COUNT = 2000;
 const DAY_MS = 86_400_000;
 const REQUEST_THROTTLE_MS = 150;
@@ -630,6 +652,7 @@ if (require.main === module) {
 module.exports = {
   RESEARCH_MARKET_SET_VERSION,
   RESEARCH_MARKETS,
+  researchPrimaryMarket,
   SMA_PARAMETER_NEIGHBORHOOD,
   RSI_PARAMETER_NEIGHBORHOOD,
   DONCHIAN_PARAMETER_NEIGHBORHOOD,
