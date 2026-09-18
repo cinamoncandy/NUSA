@@ -9,6 +9,8 @@ export interface WalkForwardWindow {
   readonly testStart: number;
   readonly testEnd: number;
   readonly trainPoints: readonly BacktestPoint[];
+  /** All observations strictly before testStart, used only for OOS Strategy state warm-up. */
+  readonly warmupPoints: readonly BacktestPoint[];
   readonly testPoints: readonly BacktestPoint[];
 }
 
@@ -167,7 +169,7 @@ export function createWalkForwardWindows(points: readonly BacktestPoint[], confi
     if (testEnd >= points.length) { warnings.push("INCOMPLETE_TEST_WINDOW_EXCLUDED"); break; }
     const trainStart = config.anchored ? 0 : testStart - config.trainSize;
     const trainEnd = testStart - 1;
-    windows.push(freeze({ index, trainStart, trainEnd, testStart, testEnd, trainPoints: Object.freeze(points.slice(trainStart, testStart)), testPoints: Object.freeze(points.slice(testStart, testEnd + 1)) }));
+    windows.push(freeze({ index, trainStart, trainEnd, testStart, testEnd, trainPoints: Object.freeze(points.slice(trainStart, testStart)), warmupPoints: Object.freeze(points.slice(0, testStart)), testPoints: Object.freeze(points.slice(testStart, testEnd + 1)) }));
   }
   if (windows.length < (config.minimumWindows ?? 1)) throw new Error("walk forward does not have the minimum complete windows");
   return freeze({ windows: Object.freeze(windows), warnings: Object.freeze(warnings) });
@@ -184,8 +186,8 @@ export function scoreCandidateTrainResult(candidateId: string, result: BacktestR
   return freeze({ candidateId, score, eligible: true, reasons: Object.freeze(reasons), result });
 }
 
-function candidateResult(candidate: WalkForwardCandidate, points: readonly BacktestPoint[], config: BacktestConfig): BacktestResult {
-  try { return runBacktest(points, candidate.strategyFactory, config); }
+function candidateResult(candidate: WalkForwardCandidate, points: readonly BacktestPoint[], config: BacktestConfig, warmupPoints: readonly BacktestPoint[] = []): BacktestResult {
+  try { return runBacktest(points, candidate.strategyFactory, { ...config, warmupPoints }); }
   catch (error) { throw new Error(`candidate ${candidate.id} failed: ${error instanceof Error ? error.message : String(error)}`, { cause: error }); }
 }
 
@@ -255,7 +257,7 @@ export function runWalkForward(points: readonly BacktestPoint[], candidates: rea
   const windows = plan.windows.map((window) => {
     const selection = selectCandidate(normalizedCandidates, window.trainPoints, config);
     const candidate = normalizedCandidates.find((item) => item.id === selection.selected.candidateId)!;
-    const testResult = candidateResult(candidate, window.testPoints, config.backtestConfig ?? {});
+    const testResult = candidateResult(candidate, window.testPoints, config.backtestConfig ?? {}, window.warmupPoints);
     return freeze({ window, selectedCandidateId: candidate.id, trainResult: selection.selected.result, testResult, candidateTrainScores: selection.all, selectionReason: `highest eligible train-only score: ${selection.selected.score}` });
   });
   const combinedOutOfSampleMetrics = combinedMetrics(windows); const stabilityDiagnostics = diagnostics(normalizedCandidates, windows);
@@ -271,7 +273,7 @@ export function runWalkForwardFixedSelection(points: readonly BacktestPoint[], c
     const candidate = normalizedCandidates.find((item) => item.id === selectedCandidateId);
     if (!candidate) throw new Error(`fixed selection candidate does not exist: ${selectedCandidateId}`);
     const trainResult = candidateResult(candidate, window.trainPoints, config.backtestConfig ?? {});
-    const testResult = candidateResult(candidate, window.testPoints, config.backtestConfig ?? {});
+    const testResult = candidateResult(candidate, window.testPoints, config.backtestConfig ?? {}, window.warmupPoints);
     const score = scoreCandidateTrainResult(candidate.id, trainResult, config.selectionPolicy);
     return freeze({ window, selectedCandidateId: candidate.id, trainResult, testResult, candidateTrainScores: Object.freeze([score]), selectionReason: "fixed baseline train selection" });
   });
