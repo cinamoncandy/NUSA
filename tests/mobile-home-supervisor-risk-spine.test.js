@@ -16,10 +16,10 @@ test("HOME MASTER leads with AI terrain and evidence rail before terminal superv
   const learning = home.indexOf('testID="home-paper-learning"');
   assert.ok(ai >= 0 && terrain >= 0 && why >= 0 && performance >= 0 && learning >= 0 && risk >= 0);
   assert.ok(ai <= terrain && terrain < why && why < performance && performance < risk);
-  assert.match(home, /<TruthCell label="WHY"/);
-  assert.match(home, /<TruthCell label="RESULT"/);
-  assert.match(home, /<TruthCell label="RISK"/);
-  assert.match(home, /<TruthCell label="LEARNING"/);
+  assert.match(home, /<EvidenceRow label="WHY"/);
+  assert.match(home, /<EvidenceRow label="RESULT"/);
+  assert.match(home, /<EvidenceRow label="RISK"/);
+  assert.match(home, /<EvidenceRow label="LEARNING"/);
 });
 
 test("canonical decision risk remains fail-closed and derives only from PAPER runtime/safety evidence", () => {
