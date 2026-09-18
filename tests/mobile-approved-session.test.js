@@ -5,7 +5,7 @@ const path = require("node:path");
 const { SqliteDatabase } = require("../dist/packages/storage/src/index.js");
 const { SqliteNusaUserAccessRepository } = require("../dist/apps/cloud/src/operatorUserAccess.js");
 const { MobileSessionService, MOBILE_ACCESS_TTL_MS } = require("../dist/apps/cloud/src/mobileSessionService.js");
-const { MobileApprovedSession, PAIRING_STORAGE_KEY, SESSION_STORAGE_KEY } = require("../dist/apps/mobile/src/mobileApprovedSession.js");
+const { LEGACY_SESSION_STORAGE_KEY, MobileApprovedSession, PAIRING_STORAGE_KEY, SESSION_STORAGE_KEY } = require("../dist/apps/mobile/src/mobileApprovedSession.js");
 
 function fixture() {
   const db = new SqliteDatabase(":memory:");
@@ -75,7 +75,7 @@ function identityPayload() {
   return { userId: "mobile-user", email: "mobile@example.com", scopes: ["dashboard:read", "paper:trade"] };
 }
 
-test("mobile credentials remain process-memory-only and are never written to secure storage", async () => {
+test("Android Keystore stores only the rotating device-bound PAPER refresh capability", async () => {
   const storage = new MemorySecureStorage();
   const endpoint = "https://cloud.example.com";
   const first = tokenSet("first", { accessExpiresAt: Date.now() + 1000 });
@@ -92,17 +92,20 @@ test("mobile credentials remain process-memory-only and are never written to sec
   assert.equal((await session.connectBootstrap(endpoint, "bootstrap-token-1234567890")).userId, "mobile-user");
   assert.equal(await session.credentialProvider(), second.accessToken);
   assert.equal(refreshCalls, 1);
-  assert.equal(storage.setCalls, 0);
+  assert.equal(storage.setCalls, 2);
   assert.equal(storage.getCalls, 0);
-  assert.equal(await storage.getSecret(SESSION_STORAGE_KEY), null);
+  const stored = new TextDecoder().decode(await storage.getSecret(SESSION_STORAGE_KEY));
+  assert.match(stored, /second-refresh-token-1234567890/);
+  assert.doesNotMatch(stored, /access-token|bootstrap-token|mobile-user|mobile@example\.com/);
   assert.equal(await storage.getSecret(PAIRING_STORAGE_KEY), null);
 });
 
-test("process restart cannot restore a mobile credential", async () => {
+test("process restart restores only by rotating the stored PAPER refresh capability", async () => {
   const storage = new MemorySecureStorage();
   const endpoint = "https://cloud.example.com";
   const request = async (url) => {
     if (url.endsWith("/v1/mobile/bootstrap")) return response(url, 200, tokenSet("initial"));
+    if (url.endsWith("/v1/mobile/session/refresh")) return response(url, 200, tokenSet("restarted"));
     if (url.endsWith("/v1/mobile/me")) return response(url, 200, identityPayload());
     throw new Error(`unexpected url ${url}`);
   };
@@ -110,12 +113,15 @@ test("process restart cannot restore a mobile credential", async () => {
   await first.connectBootstrap(endpoint, "bootstrap-token-1234567890");
   assert.equal(first.hasMemoryAccess(), true);
   const restarted = new MobileApprovedSession(storage, request);
-  assert.equal(await restarted.restore(endpoint), null);
-  assert.equal(restarted.hasMemoryAccess(), false);
-  assert.equal(storage.setCalls, 0);
+  assert.equal((await restarted.restore(endpoint)).userId, "mobile-user");
+  assert.equal(restarted.hasMemoryAccess(), true);
+  assert.equal(storage.setCalls, 2);
+  const stored = new TextDecoder().decode(await storage.getSecret(SESSION_STORAGE_KEY));
+  assert.match(stored, /restarted-refresh-token-1234567890/);
+  assert.doesNotMatch(stored, /restarted-access-token|mobile-user|mobile@example\.com/);
 });
 
-test("temporary refresh failure retries only inside the same process", async () => {
+test("temporary refresh failure retains the Keystore capability for bounded retry", async () => {
   const storage = new MemorySecureStorage();
   const endpoint = "https://cloud.example.com";
   const first = tokenSet("first", { accessExpiresAt: Date.now() + 1000 });
@@ -136,7 +142,7 @@ test("temporary refresh failure retries only inside the same process", async () 
   assert.equal(session.shouldRetryRestore(), true);
   assert.equal(await session.credentialProvider(), refreshed.accessToken);
   assert.equal(session.shouldRetryRestore(), false);
-  assert.equal(storage.setCalls, 0);
+  assert.equal(storage.setCalls, 2);
 });
 
 test("definitive refresh rejection destroys all in-memory credential authority", async () => {
@@ -154,7 +160,7 @@ test("definitive refresh rejection destroys all in-memory credential authority",
   assert.equal(await session.credentialProvider(), null);
   assert.equal(session.hasMemoryAccess(), false);
   assert.equal(session.shouldRetryRestore(), false);
-  assert.equal(storage.setCalls, 0);
+  assert.equal(await storage.getSecret(SESSION_STORAGE_KEY), null);
 });
 
 test("pairing capability is process-memory-only and restart requires a fresh pairing", async () => {
@@ -177,7 +183,7 @@ test("pairing capability is process-memory-only and restart requires a fresh pai
   assert.equal(storage.setCalls, 0);
 });
 
-test("pairing exchange keeps issued credentials in memory and never persists them", async () => {
+test("pairing exchange persists only the rotating refresh capability, never pairing data", async () => {
   const storage = new MemorySecureStorage();
   const endpoint = "https://cloud.example.com";
   const deviceId = "nusa-install-device-0001";
@@ -193,28 +199,31 @@ test("pairing exchange keeps issued credentials in memory and never persists the
   assert.equal((await session.exchangePairing(endpoint, pairing.requestId, deviceId)).userId, "mobile-user");
   assert.equal(await session.credentialProvider(), issued.accessToken);
   assert.equal(await session.restorePendingPairing(endpoint, deviceId), null);
-  assert.equal(storage.setCalls, 0);
-  assert.equal(await storage.getSecret(SESSION_STORAGE_KEY), null);
+  assert.equal(storage.setCalls, 1);
+  const stored = new TextDecoder().decode(await storage.getSecret(SESSION_STORAGE_KEY));
+  assert.match(stored, /paired-refresh-token-1234567890/);
+  assert.doesNotMatch(stored, /paired-access-token|pairing-request-id|804251|mobile-user|mobile@example\.com/);
   assert.equal(await storage.getSecret(PAIRING_STORAGE_KEY), null);
 });
 
-test("legacy persisted credential material is deleted but never read or restored", async () => {
+test("legacy v1 and pairing material are deleted without being read or restored", async () => {
   const storage = new MemorySecureStorage();
-  storage.values.set(SESSION_STORAGE_KEY, new Uint8Array([1, 2, 3]));
+  storage.values.set(LEGACY_SESSION_STORAGE_KEY, new Uint8Array([1, 2, 3]));
   storage.values.set(PAIRING_STORAGE_KEY, new Uint8Array([4, 5, 6]));
   const session = new MobileApprovedSession(storage, async () => { throw new Error("network must not be reached"); });
   assert.equal(await session.restore("https://cloud.example.com"), null);
-  assert.equal(storage.values.has(SESSION_STORAGE_KEY), false);
+  assert.equal(storage.values.has(LEGACY_SESSION_STORAGE_KEY), false);
   assert.equal(storage.values.has(PAIRING_STORAGE_KEY), false);
-  assert.equal(storage.getCalls, 0);
+  assert.equal(storage.getCalls, 1);
 });
 
-test("mobile approved session source cannot persist credentials", () => {
+test("mobile approved session persistence is limited to a rotating PAPER refresh record", () => {
   const root = path.resolve(__dirname, "..");
   const source = fs.readFileSync(path.join(root, "apps/mobile/src/mobileApprovedSession.ts"), "utf8");
-  assert.match(source, /process-memory-only/);
+  assert.match(source, /PersistedRefreshSession/);
+  assert.match(source, /SESSION_STORAGE_KEY = "nusa\.mobile\.approved-session\.v2"/);
+  assert.match(source, /persistRefreshSession/);
   assert.match(source, /destroyLegacyPersistedCredentials/);
-  assert.doesNotMatch(source, /\.setSecret\(/);
-  assert.doesNotMatch(source, /\.getSecret\(/);
-  assert.doesNotMatch(source, /PersistedSession|PersistedPairing|persistPendingPairing|refreshFromStorage/);
+  assert.doesNotMatch(source, /AsyncStorage|upbitCredential|bootstrapToken:\s*this\.refreshToken|accessToken:\s*this\.accessToken/);
+  assert.doesNotMatch(source, /persistPendingPairing|verificationCode.*setSecret|requestId.*setSecret/);
 });

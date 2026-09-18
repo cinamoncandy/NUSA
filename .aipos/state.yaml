@@ -1,4 +1,12 @@
 version: 1
+current_mobile_paper_session_recovery:
+  work_order: WO-20260917-MOBILE-PAPER-SESSION-RECOVERY
+  status: LOCAL_VALIDATED_NATIVE_CI_PENDING
+  owner_authorization: "Owner explicitly approved Android Keystore persistence of a device-bound rotating Cloud PAPER refresh session for restart recovery."
+  scope: "PAPER and GET-only Upbit READ_ONLY reconnect only; no access/bootstrap/Upbit credential persistence and no LIVE authority."
+  validation: "Rebased onto 3e6c6c16bd225f8719e3973ddeb1e02533586105: typecheck PASS; build PASS; Android system-auth storage/session/enrollment/Upbit contracts PASS 15/15; security gate PASS; validate:full PASS; diff check PASS. Local Android Java compile is unavailable because JAVA_HOME is absent; exact-head Mobile Native CI is required."
+  next: "Push the focused update to existing PR #1947, then require fresh exact-head CI, Audit, and Release."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_self_service_paper_upbit_readonly:
   work_order: WO-20260910-MOBILE-SELF-SERVICE-PAPER-UPBIT-READONLY
   status: IMPLEMENTED_LOCAL_VALIDATION_PARTIAL

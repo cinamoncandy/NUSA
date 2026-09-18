@@ -1,0 +1,47 @@
+project: nusa
+id: WO-20260917-MOBILE-PAPER-SESSION-RECOVERY
+title: "Restore device-bound Cloud PAPER session after Android restart"
+status: LOCAL_VALIDATED_NATIVE_CI_PENDING
+priority: P0
+owner: codex
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 3e6c6c16bd225f8719e3973ddeb1e02533586105
+objective: "Persist only the device-bound rotating Cloud PAPER refresh session in Android Keystore so an approved device can restore PAPER and GET-only Upbit READ_ONLY after restart."
+owner_authorization: "Explicit owner approval in this task authorizes this narrow Android Keystore exception."
+scope:
+  - persist no access token, bootstrap token, Upbit API credential, account data, or LIVE authority
+  - bind persisted record to its exact HTTPS endpoint and optional device id
+  - protect the Android Keystore PAPER-session key with the device's system biometric/PIN credential and retain the record when that local prompt is required
+  - rotate the refresh credential on restore and delete it on expiry, rejection, endpoint change, or explicit disconnect
+  - preserve LOCAL PAPER without authentication and all NONE/false/ZERO_AUTHORITY invariants
+prohibited:
+  - live_activation
+  - order_or_transfer_mutation
+  - plaintext_or_async_storage_credentials
+  - Upbit_API_credential_persistence
+  - fail_open_restore
+verification:
+  - pnpm run typecheck
+  - pnpm run build
+  - node --test dist/apps/mobile/src/mobileApprovedSession.test.js
+  - node --test dist/apps/mobile/src/androidSecureStorage.test.js
+  - node --test tests/mobile-paper-device-auth-contract.test.js
+  - pnpm run security:gate
+  - pnpm run validate:full
+  - git diff --check
+verification_result:
+  - "Rebased exact-head local validation: pnpm run typecheck PASS; pnpm run build PASS; Android system-auth storage/session/enrollment/Upbit contracts PASS 15/15; pnpm run security:gate PASS; pnpm run validate:full PASS; git diff --check PASS."
+  - "pnpm run build PASS"
+  - "Focused mobile PAPER/Upbit/recovery contracts PASS 26/26"
+  - "Compiled mobileApprovedSession restart contracts PASS 4/4"
+  - "pnpm run security:gate PASS"
+  - "pnpm run validate:full PASS"
+  - "git diff --check PASS"
+  - "Android system-auth storage regression PASS 2/2 plus session/enrollment/Upbit contracts PASS 13/13"
+  - "Local Android Java compile not available: JAVA_HOME is absent; exact-head Mobile Native CI is required evidence."
+next_permitted_action: "Commit and push the focused update to existing PR #1947, then require fresh exact-head CI, independent Audit, and Release."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY

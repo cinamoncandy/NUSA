@@ -11,6 +11,17 @@ interface ReactNativeBridge {
   readonly Platform: Readonly<{ OS: string }>;
 }
 
+export class MobileSecureStorageAuthenticationRequiredError extends Error {
+  public constructor() {
+    super("Device authentication is required before restoring the PAPER session.");
+    this.name = "MobileSecureStorageAuthenticationRequiredError";
+  }
+}
+
+function isAuthenticationRequired(error: unknown): boolean {
+  return error != null && typeof error === "object" && (error as { code?: unknown }).code === "E_NUSA_SECURE_STORAGE_AUTH_REQUIRED";
+}
+
 const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 function encodeBase64(value: Uint8Array): string {
@@ -71,8 +82,13 @@ export class AndroidKeystoreSecureStorage implements SecureStoragePort {
   }
 
   public async getSecret(key: string): Promise<Uint8Array | null> {
-    const value = await this.native.getSecret(key);
-    return value == null ? null : decodeBase64(value);
+    try {
+      const value = await this.native.getSecret(key);
+      return value == null ? null : decodeBase64(value);
+    } catch (error) {
+      if (isAuthenticationRequired(error)) throw new MobileSecureStorageAuthenticationRequiredError();
+      throw error;
+    }
   }
 
   public async deleteSecret(key: string): Promise<void> {
