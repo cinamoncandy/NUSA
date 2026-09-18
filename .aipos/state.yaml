@@ -1,4 +1,14 @@
 version: 1
+current_home_master_local_truth:
+  work_order: WO-UI-20260918-HOME-LOCAL-TRUTH
+  status: LOCAL_VALIDATED_CI_PENDING
+  branch: uiux/home-master-terminal-20260918
+  pull_request: 1951
+  base_sha: 3e6c6c16bd225f8719e3973ddeb1e02533586105
+  scope: "Treat active LOCAL PAPER as a usable learning mode on HOME, hide unavailable Cloud-only supervisor detail, and shorten the mobile signal hero without changing canonical data or authority."
+  validation: "Focused HOME regression PASS 21/21; typecheck PASS; build PASS; mobile lint PASS; security gate PASS; validate:full PASS; diff check PASS. Fresh exact-head CI and Android Product UX evidence pending."
+  next_permitted_action: "Update PR #1951, then require fresh exact-head CI, Android Product UX evidence, and independent review."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_self_service_paper_upbit_readonly:
   work_order: WO-20260910-MOBILE-SELF-SERVICE-PAPER-UPBIT-READONLY
   status: IMPLEMENTED_LOCAL_VALIDATION_PARTIAL

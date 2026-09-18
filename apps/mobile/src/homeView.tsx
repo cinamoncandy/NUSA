@@ -119,7 +119,9 @@ export function HomeView({
   const totalPnl = account == null ? null : (account.realizedPnl ?? account.position.realizedPnl) + account.unrealizedPnl;
   const assetValue = account == null ? null : account.assetValue ?? Math.max(0, account.equity - account.cash);
   const ai = snapshot?.ai ?? null;
-  const disconnected = notConfigured != null;
+  // LOCAL PAPER is a complete device-local learning mode. A missing optional
+  // Cloud endpoint must not turn that usable mode into a recovery failure.
+  const disconnected = notConfigured != null && !localPaperActive;
   const runtimeState = snapshot?.operations.runtimeState;
   const heartbeat = snapshot?.operations.heartbeat;
   const marketFeed = selectHomeMarketData(publicMarkets, snapshot?.markets ?? []);
@@ -222,7 +224,7 @@ export function HomeView({
       <Text style={[styles.authorityMode, { color: theme.colors.textMuted }]}>PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY</Text>
 
       <View style={styles.heroSignalWrap} testID="ai-card">
-        <View style={[styles.heroSignal, { borderColor: theme.colors.border }]} testID="home-decision-stage">
+        <View style={[styles.heroSignal, { borderColor: theme.colors.border, height: tablet ? 154 : 116 }]} testID="home-decision-stage">
           <View style={[styles.signalAxisH, { backgroundColor: theme.colors.border }]} />
           <View style={[styles.signalAxisV, { backgroundColor: theme.colors.border }]} />
           <View style={[styles.signalPulse, { borderColor: terminalSignal }]} />
@@ -256,7 +258,7 @@ export function HomeView({
       </View>
     </View>
 
-    <SupervisorProgressPanel refreshing={refreshing} />
+    {snapshot ? <SupervisorProgressPanel refreshing={refreshing} /> : null}
 
     <View style={styles.terminalGrid} testID="home-terminal-grid">
       <Pressable onPress={() => onNavigate("Markets")} style={({ pressed }) => [styles.terminalPanel, terminalBorder, { opacity: pressed ? 0.72 : 1 }]} testID="home-market-pulse">
@@ -425,7 +427,7 @@ const styles = StyleSheet.create({
   nowValue: { fontSize: 20, lineHeight: 24, fontWeight: "900", letterSpacing: -0.45, maxWidth: 720 },
   authorityMode: { fontSize: 8, lineHeight: 11, fontWeight: "800", letterSpacing: 0.8 },
   heroSignalWrap: { gap: 0 },
-  heroSignal: { height: 142, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden", position: "relative", justifyContent: "center" },
+  heroSignal: { borderWidth: StyleSheet.hairlineWidth, overflow: "hidden", position: "relative", justifyContent: "center" },
   signalAxisH: { position: "absolute", left: 0, right: 0, top: "50%", height: StyleSheet.hairlineWidth },
   signalAxisV: { position: "absolute", top: 0, bottom: 0, left: "50%", width: StyleSheet.hairlineWidth },
   signalPulse: { position: "absolute", width: 72, height: 72, borderRadius: 36, borderWidth: StyleSheet.hairlineWidth, left: "50%", top: "50%", marginLeft: -36, marginTop: -36, opacity: 0.42 },

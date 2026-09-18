@@ -11,7 +11,7 @@ test("HOME MASTER keeps connection recovery and supervisor action truthful", () 
   assert.match(home, /testID="home-supervisor-primary-action"/);
   assert.match(home, /actionLabel="PAPER 연결"/);
   assert.match(home, /onAction=\{onGoSettings\}/);
-  assert.match(home, /const disconnected = notConfigured != null/);
+  assert.match(home, /const disconnected = notConfigured != null && !localPaperActive/);
   assert.match(home, /const decisionSurface = buildHomeDecisionSurface\(\{[\s\S]*disconnected,[\s\S]*readOnlyError: readOnlyError != null/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
   assert.match(decisionSurface, /const WATCH_RUNTIME_STATES = new Set\(\["DEGRADED", "STOPPED", "STOPPING"\]\)/);

@@ -10,7 +10,7 @@ const client = fs.readFileSync(path.join(root, "apps/mobile/src/operationalProgr
 const contract = fs.readFileSync(path.join(root, "packages/contracts/src/operationalProgress.ts"), "utf8");
 
 test("HOME MASTER embeds the truthful read-only Supervisor progress panel", () => {
-  assert.match(home, /<SupervisorProgressPanel/);
+  assert.match(home, /snapshot \? <SupervisorProgressPanel/);
   assert.doesNotMatch(home, /home-supervisor-progress-attention/);
   assert.match(home, /testID="home-master-rail"/);
   assert.match(home, /testID="home-supervisor-now"/);
