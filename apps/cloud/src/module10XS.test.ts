@@ -16,8 +16,8 @@ import { MODULE_QUALIFICATION_RECORDS_V1, isLevel10Qualified } from "./moduleQua
 const SOURCE_SHA = "1d538db896e9db58f925ebade464f2d8be7ae13e";
 const EVIDENCE_SHA = "a".repeat(64);
 
-function gitBlobSha(path: string): string {
-  return execFileSync("git", ["hash-object", "--path", path, path], {
+function committedGitBlobSha(path: string): string {
+  return execFileSync("git", ["rev-parse", `HEAD:${path}`], {
     cwd: process.cwd(),
     encoding: "utf8"
   }).trim();
@@ -64,7 +64,7 @@ describe("10X-S canonical registry", () => {
       assert.match(qualification.sourceCommitSha, /^[0-9a-f]{40}$/);
       assert.match(qualification.sourceBlobSha, /^[0-9a-f]{40}$/);
       assert.equal(
-        gitBlobSha(definition.canonicalEntrypoint),
+        committedGitBlobSha(definition.canonicalEntrypoint),
         qualification.sourceBlobSha,
         `${definition.stage} canonical source changed without re-qualification`
       );
