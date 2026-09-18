@@ -105,3 +105,16 @@ test("safety invariants remain fail-closed", () => {
   assert.match(workflow, /productionMutationAllowed=false/);
   assert.match(workflow, /aiAuthority=ZERO_AUTHORITY/);
 });
+
+
+test("already-merged convergence is non-applicable for an open PR but preserves merged-provenance failure", () => {
+  const convergence = fs.readFileSync(".github/workflows/autopilot-already-merged-audit-convergence.yml", "utf8");
+  assert.match(convergence, /pulls\/\$PR_NUMBER/);
+  assert.match(convergence, /if \[ "\$pr_state" = "open" \]/);
+  assert.match(convergence, /NO_ACTION Audit convergence is not applicable to an open PR/);
+  assert.match(convergence, /RELEASE_PROVENANCE_MISSING: already-merged PRs cannot be post-facto upgraded/);
+  const noActionIndex = convergence.indexOf("NO_ACTION Audit convergence is not applicable to an open PR");
+  const provenanceFailureIndex = convergence.indexOf("RELEASE_PROVENANCE_MISSING: already-merged PRs cannot be post-facto upgraded");
+  assert.ok(noActionIndex >= 0 && provenanceFailureIndex > noActionIndex);
+  assert.match(convergence.slice(provenanceFailureIndex), /exit 1/);
+});
