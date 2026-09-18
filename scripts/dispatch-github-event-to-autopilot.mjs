@@ -7,6 +7,24 @@ const DEFAULT_WEBHOOK_URL = "https://nusa-autopilot.desporin12.workers.dev/githu
 const DEFAULT_OIDC_AUDIENCE = "nusa-autopilot";
 const SUPPORTED_EVENTS = new Set(["push", "pull_request", "workflow_run", "ping"]);
 const TRANSIENT_STATUSES = new Set([429, 500, 502, 503, 504]);
+/**
+ * Executor decisions that are the control plane working, not a delivery problem.
+ *
+ * The webhook itself succeeded; the executor then looked at the pull request's current state and
+ * correctly declined to request an Audit for it. Sticky HOLD (#1876) exists precisely so a closed,
+ * Draft or HOLD-labelled pull request cannot be advanced by an event, so treating that refusal as a
+ * bridge failure reports the guard doing its job as a red run on main - and real delivery failures
+ * then hide among the noise.
+ *
+ * Every other non-dispatch outcome still throws. In particular `github-executor-pr-number-required`
+ * is also REJECTED but means the request was malformed, which is a defect and must stay loud.
+ */
+const EXECUTOR_STATE_DECLINES = new Set([
+  "github-executor-pr-not-open",
+  "github-executor-pr-draft-hold-active",
+  "github-executor-pr-hold-label-active"
+]);
+
 const MAX_ATTEMPTS = 2;
 const REQUEST_TIMEOUT_MS = 20_000;
 const AUDIT_CREDENTIAL_FAILURES = new Set([
@@ -191,7 +209,8 @@ export async function dispatchGithubEvent({
       const { payload, executor } = await responseSafety(response);
       const fallbackEligible = isAuditFallbackEligible(payload);
       const execution = object(payload.execution);
-      if (execution?.kind === "AUDIT_REQUEST" && executor.status !== "DISPATCHED" && !fallbackEligible) {
+      const declined = executor.status === "REJECTED" && EXECUTOR_STATE_DECLINES.has(String(executor.reason ?? ""));
+      if (execution?.kind === "AUDIT_REQUEST" && executor.status !== "DISPATCHED" && !fallbackEligible && !declined) {
         throw new Error(`WEBHOOK_AUDIT_NOT_DISPATCHED:${executor.status}:${executor.reason ?? "none"}:${executor.httpStatus ?? "none"}`);
       }
       return Object.freeze({

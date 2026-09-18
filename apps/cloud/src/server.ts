@@ -33,7 +33,15 @@ import {
   handleDesktopSessionRevokeHttp
 } from "./desktopSessionHttp";
 import { MobileSessionService } from "./mobileSessionService";
+import { OwnerDeviceCredentialService } from "./ownerCredential/ownerDeviceCredentialService";
 import {
+  handleOwnerDeviceCredentialAuthenticationChallengeHttp,
+  handleOwnerDeviceCredentialAuthenticationCompleteHttp,
+  handleOwnerDeviceCredentialRegistrationActivateHttp,
+  handleOwnerDeviceCredentialRegistrationChallengeHttp,
+  handleOwnerDeviceCredentialRevokeHttp,
+  handleOwnerPasswordChangeHttp,
+  handleOwnerPasswordSignInHttp,
   handleMobileBootstrapHttp,
   handleMobileBootstrapIssueHttp,
   handleMobileEnrollmentHttp,
@@ -105,6 +113,7 @@ export interface CloudDashboardServerOptions {
   readonly userAccessRepository?: NusaUserAccessRepository;
   readonly desktopSessionService?: DesktopSessionService;
   readonly mobileSessionService?: MobileSessionService;
+  readonly ownerDeviceCredentialService?: OwnerDeviceCredentialService;
   readonly readiness?: () => CloudReadinessSnapshot;
   /** Continuous PAPER runtime liveness, surfaced on /health so 24-hour operation is observable. */
   readonly runtimeLiveness?: () => CloudRuntimeLivenessSnapshot;
@@ -237,6 +246,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
   }
   const desktopSessionService = options.desktopSessionService ?? (ownedUserDb == null ? undefined : new DesktopSessionService(ownedUserDb, userAccessRepository));
   const mobileSessionService = options.mobileSessionService ?? (ownedUserDb == null ? undefined : new MobileSessionService(ownedUserDb, userAccessRepository));
+  const ownerDeviceCredentialService = options.ownerDeviceCredentialService ?? (ownedUserDb == null || mobileSessionService == null ? undefined : new OwnerDeviceCredentialService(ownedUserDb, userAccessRepository, mobileSessionService));
 
   const ownerPrincipal = options.tokenVerifier.ownerPrincipal;
   if (ownerPrincipal != null) {
@@ -369,12 +379,15 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
       if (req.url === "/health") {
         if (req.method !== "GET") { respond("health", dashboardJsonResponse(405, { error: "METHOD_NOT_ALLOWED" })); return; }
         // `ok` keeps its existing meaning -- the HTTP listener answers -- so existing probes are
-        // unaffected. `runtime` is added only when a liveness source is wired, and carries the
-        // counters that show whether the continuous PAPER loop is actually ticking.
+        // unaffected. `capabilities` and `runtime` are both additive: neither replaces a field the
+        // other side introduced, so the merge keeps both rather than choosing between them.
+        // `runtime` appears only when a liveness source is wired, and carries the counters that
+        // show whether the continuous PAPER loop is actually ticking.
         const liveness = options.runtimeLiveness?.();
         respond("health", dashboardJsonResponse(200, {
           ok: true,
           observedAt: new Date().toISOString(),
+          capabilities: { passwordSignIn: mobileSessionService?.ownerPasswordConfigured() === true },
           ...(liveness === undefined ? {} : { runtime: liveness })
         }));
         return;
@@ -425,6 +438,27 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
       if (mobileSessionService != null && req.url === "/v1/mobile/enroll") {
         respond("mobile_enroll", handleMobileEnrollmentHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository }));
         return;
+      }
+      if (mobileSessionService != null && req.url === "/v1/mobile/session/password") {
+        respond("mobile_session_password", handleOwnerPasswordSignInHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository })); return;
+      }
+      if (mobileSessionService != null && req.url === "/v1/mobile/session/password/change") {
+        respond("mobile_session_password_change", handleOwnerPasswordChangeHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository })); return;
+      }
+      if (mobileSessionService != null && req.url === "/v1/mobile/owner-device/registration/challenge") {
+        respond("owner_device_registration_challenge", handleOwnerDeviceCredentialRegistrationChallengeHttp(dashboardRequest, { sessionService: mobileSessionService, ownerDeviceCredentialService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository })); return;
+      }
+      if (mobileSessionService != null && req.url === "/v1/mobile/owner-device/registration/activate") {
+        respond("owner_device_registration_activate", handleOwnerDeviceCredentialRegistrationActivateHttp(dashboardRequest, { sessionService: mobileSessionService, ownerDeviceCredentialService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository })); return;
+      }
+      if (mobileSessionService != null && req.url === "/v1/mobile/owner-device/authentication/challenge") {
+        respond("owner_device_authentication_challenge", handleOwnerDeviceCredentialAuthenticationChallengeHttp(dashboardRequest, { sessionService: mobileSessionService, ownerDeviceCredentialService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository })); return;
+      }
+      if (mobileSessionService != null && req.url === "/v1/mobile/owner-device/authentication/complete") {
+        respond("owner_device_authentication_complete", handleOwnerDeviceCredentialAuthenticationCompleteHttp(dashboardRequest, { sessionService: mobileSessionService, ownerDeviceCredentialService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository })); return;
+      }
+      if (mobileSessionService != null && req.url === "/v1/mobile/owner-device/revoke") {
+        respond("owner_device_revoke", handleOwnerDeviceCredentialRevokeHttp(dashboardRequest, { sessionService: mobileSessionService, ownerDeviceCredentialService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository })); return;
       }
       if (mobileSessionService != null && req.url === "/v1/mobile/pairing/start") {
         respond("mobile_pairing_start", handleMobilePairingStartHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository })); return;
