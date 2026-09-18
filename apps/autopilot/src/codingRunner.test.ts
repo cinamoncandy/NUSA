@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { executeCodingRunner, validateCodingRunnerRequest, verifyCodingRunnerRequestAgainstGitHub, type CodingRuntime, type WorkersAiBinding } from "./codingRunner";
+import { CodingRunnerEvidenceError, executeCodingRunner, validateCodingRunnerRequest, verifyCodingRunnerRequestAgainstGitHub, type CodingRuntime, type WorkersAiBinding } from "./codingRunner";
 
 const request = {
   kind: "REPOSITORY_AUTOPILOT" as const,
@@ -551,5 +551,40 @@ describe("coding runner", () => {
     assert.equal(result.status, "INTERFACE_READY");
     assert.equal(result.reason, "ai-coding-engine-not-configured");
     assert.deepEqual(seenAuthorization, [undefined, undefined]);
+  });
+});
+
+
+describe("coding runner workflow failure evidence", () => {
+  it("preserves bounded terminal workflow identity when non-repair evidence is not successful", async () => {
+    await assert.rejects(
+      () => verifyCodingRunnerRequestAgainstGitHub(request, "github-token", (async (url: string) => {
+        if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+        return response(200, {
+          id: request.workflowRunId,
+          name: "Scheduled Autopilot",
+          event: "schedule",
+          head_sha: request.headSha,
+          head_branch: "main",
+          status: "completed",
+          conclusion: "failure",
+          repository: { full_name: request.repository },
+        });
+      }) as typeof verifiedGithubFetch),
+      (error: unknown) => {
+        assert.ok(error instanceof CodingRunnerEvidenceError);
+        assert.equal(error.message, "CODING_RUNNER_WORKFLOW_NOT_SUCCESSFUL");
+        assert.deepEqual(error.evidence, {
+          code: "CODING_RUNNER_WORKFLOW_NOT_SUCCESSFUL",
+          workflowRunId: request.workflowRunId,
+          workflowName: "Scheduled Autopilot",
+          workflowEvent: "schedule",
+          workflowStatus: "completed",
+          workflowConclusion: "failure",
+          headSha: request.headSha,
+        });
+        return true;
+      },
+    );
   });
 });
