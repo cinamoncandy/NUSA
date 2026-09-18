@@ -38,7 +38,7 @@ test("runtime brand placeholder stays suppressed while signal color remains sema
   assert.doesNotMatch(waveMark, /aiSignalStart|aiSignalMid|aiSignalEnd|neonBlue/);
 });
 
-test("Android APEX launcher and splash assets remain monochrome", () => {
+test("Android NUSA launcher and splash assets use the approved wealth identity", () => {
   for (const file of [
     "apps/mobile/android/app/src/main/res/drawable/ic_nusa_logo.xml",
     "apps/mobile/android/app/src/main/res/drawable/ic_nusa_logo_foreground.xml",
@@ -48,6 +48,6 @@ test("Android APEX launcher and splash assets remain monochrome", () => {
   ]) {
     const source = read(file);
     assert.doesNotMatch(source, /#6D8DFF|#87A0F7|#9B6CFF|#5B8CFF|#36D8CB/);
-    assert.match(source, /#FFFFFFFF/);
+    assert.match(source, /#D8EE76|#FFD8EE76|#FFFFFFFF/);
   }
 });
