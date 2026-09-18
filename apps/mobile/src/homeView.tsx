@@ -115,11 +115,15 @@ export function HomeView(props: HomeViewProps) {
     <View style={styles.hero}>
       <View style={styles.heroCopy}>
         <Text style={styles.heroLine}>DISCIPLINE</Text><Text style={styles.heroLine}>COMPOUNDS</Text><Text style={styles.heroAccent}>FREEDOM.</Text>
-        <Text style={styles.heroKorean}>더 나은 오늘이,{"\n"}더 큰 자유를 만든다.</Text>
+        <Text style={styles.heroKorean}>더 나은 오늘이,{"
+"}더 큰 자유를 만든다.</Text>
       </View>
       <View style={styles.orbit} accessibilityLabel="global market intelligence visual">
         <View style={styles.orbitOuter} /><View style={styles.orbitMid} /><View style={styles.orbitCore} />
-        <Text style={styles.orbitText}>GLOBAL{"\n"}MARKETS{"\n"}REAL-TIME{"\n"}WITH AI</Text>
+        <Text style={styles.orbitText}>GLOBAL{"
+"}MARKETS{"
+"}REAL-TIME{"
+"}WITH AI</Text>
       </View>
     </View>
 
@@ -204,6 +208,7 @@ const styles = StyleSheet.create({
   signalRow:{minHeight:48,flexDirection:"row",alignItems:"center",paddingHorizontal:13,gap:10,borderBottomWidth:1,borderBottomColor:"#121D17"},rank:{width:22,height:22,borderRadius:22,borderWidth:1,borderColor:"#3A4C42",color:"#DDE7E1",textAlign:"center",lineHeight:20,fontSize:9},asset:{color:"#EEF5F1",fontSize:13,fontWeight:"800",width:54},signalBadge:{borderWidth:1,borderRadius:5,paddingHorizontal:7,paddingVertical:4},signalBadgeText:{fontSize:8,fontWeight:"900"},rowChange:{marginLeft:"auto",fontSize:11,fontWeight:"800",fontVariant:["tabular-nums"]},
   empty:{color:MUTED,fontSize:10,padding:14},performanceGraph:{height:74,flexDirection:"row",alignItems:"flex-end",gap:3,paddingHorizontal:14,paddingTop:12,borderBottomWidth:1,borderBottomColor:BORDER},waveBar:{flex:1,minWidth:2,borderRadius:2},
   performanceMetrics:{flexDirection:"row",justifyContent:"space-between",paddingHorizontal:14,paddingVertical:14,gap:10},metricValue:{color:"#EDF4F0",fontSize:13,fontWeight:"800",fontVariant:["tabular-nums"]},metricLabel:{color:"#66786E",fontSize:8,fontWeight:"700",marginTop:5},
-  capitalLimits:{padding:13,borderWidth:1,borderColor:BORDER,borderRadius:8,backgroundColor:"#080C0A",flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:12},capitalLabel:{color:"#C9D5CE",fontSize:9,fontWeight:"900",letterSpacing:.8},capitalMeta:{color:"#5F7468",fontSize:8,marginTop:4},capitalValues:{flexDirection:"row",gap:18},capitalValue:{color:"#DFE8E3",fontSize:10,fontWeight:"800",textAlign:"right"},capitalKey:{color:"#5F7468",fontSize:7,fontWeight:"800",marginTop:4,textAlign:"right"},\n  connectionNotice:{padding:13,borderWidth:1,borderColor:"#57342F",borderRadius:8,backgroundColor:"#140B09"},connectionTitle:{color:RED,fontSize:10,fontWeight:"900"},connectionBody:{color:"#B8A7A3",fontSize:10,lineHeight:15,marginTop:5},connectionAction:{color:"#E4B3A9",fontSize:9,fontWeight:"800",marginTop:8},
+  capitalLimits:{padding:13,borderWidth:1,borderColor:BORDER,borderRadius:8,backgroundColor:"#080C0A",flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:12},capitalLabel:{color:"#C9D5CE",fontSize:9,fontWeight:"900",letterSpacing:.8},capitalMeta:{color:"#5F7468",fontSize:8,marginTop:4},capitalValues:{flexDirection:"row",gap:18},capitalValue:{color:"#DFE8E3",fontSize:10,fontWeight:"800",textAlign:"right"},capitalKey:{color:"#5F7468",fontSize:7,fontWeight:"800",marginTop:4,textAlign:"right"},
+  connectionNotice:{padding:13,borderWidth:1,borderColor:"#57342F",borderRadius:8,backgroundColor:"#140B09"},connectionTitle:{color:RED,fontSize:10,fontWeight:"900"},connectionBody:{color:"#B8A7A3",fontSize:10,lineHeight:15,marginTop:5},connectionAction:{color:"#E4B3A9",fontSize:9,fontWeight:"800",marginTop:8},
   hiddenContract:{paddingHorizontal:4,paddingVertical:3},learningLink:{color:"#61756A",fontSize:8,fontWeight:"700",letterSpacing:.6},safety:{color:"#4E6458",fontSize:8,textAlign:"center",letterSpacing:.7},
 });
