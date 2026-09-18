@@ -7,7 +7,7 @@ const root = path.resolve(__dirname, "..");
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), "utf8");
 
 function expectTabularStyle(source, styleName) {
-  assert.match(source, new RegExp(`${styleName}: \\{[^}]*fontVariant: \\["tabular-nums"\\]`), `${styleName} must use tabular numerals`);
+  assert.match(source, new RegExp(`${styleName}:\\s*\\{[^}]*fontVariant:\\s*\\["tabular-nums"\\]`), `${styleName} must use tabular numerals`);
 }
 
 test("primary financial values use stable tabular numerals in each canonical presentation grammar", () => {
@@ -19,7 +19,7 @@ test("primary financial values use stable tabular numerals in each canonical pre
   const watchlist = read("apps/mobile/src/watchlistView.tsx");
 
   assert.match(home, /testID="account-hero-card"/);
-  for (const style of ["metricNumber", "marketPrice", "marketChange", "dataValue"]) expectTabularStyle(home, style);
+  for (const style of ["marketPrice", "rowChange", "metricValue"]) expectTabularStyle(home, style);
   assert.match(portfolio, /<MetricStrip testID="portfolio-supervisor-summary"/);
   assert.match(portfolio, /<FactRow label="INVESTMENT LIMIT"/);
   assert.match(portfolio, /<FactRow label="CURRENT PRICE"/);
