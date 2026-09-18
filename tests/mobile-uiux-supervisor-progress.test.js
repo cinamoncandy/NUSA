@@ -9,11 +9,10 @@ const panel = fs.readFileSync(path.join(root, "apps/mobile/src/supervisorProgres
 const client = fs.readFileSync(path.join(root, "apps/mobile/src/operationalProgressClient.ts"), "utf8");
 const contract = fs.readFileSync(path.join(root, "packages/contracts/src/operationalProgress.ts"), "utf8");
 
-test("HOME MASTER embeds the truthful read-only Supervisor progress panel", () => {
-  assert.match(home, /snapshot \? <SupervisorProgressPanel/);
+test("approved HOME keeps supervision truth without embedding the developer progress panel", () => {
+  assert.doesNotMatch(home, /<SupervisorProgressPanel/);
   assert.doesNotMatch(home, /home-supervisor-progress-attention/);
   assert.match(home, /testID="home-master-rail"/);
-  assert.match(home, /testID="home-supervisor-now"/);
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /testID="ai-card"/);
   assert.match(home, /testID="home-risk-authority"/);
