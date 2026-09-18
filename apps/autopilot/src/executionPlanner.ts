@@ -8,6 +8,7 @@ export interface AutopilotExecutionRequest {
   readonly headSha: string | null;
   readonly prNumber?: number | null;
   readonly workflowRunId: number | null;
+  readonly workflowRunAttempt?: number | null;
   readonly reason: string;
   readonly executionId?: string | null;
   readonly dedupeKey?: string | null;
@@ -28,6 +29,11 @@ export function planAutopilotExecution(dispatch: AutopilotDispatchPlan): Autopil
     const workflowRunId = dispatch.workflowRunId;
     const headSha = dispatch.headSha;
     const prNumber = dispatch.prNumber;
+    // A re-run reuses workflowRunId, so attempt is part of the execution's identity. Without it a
+    // retry of a CI run whose Audit reached no verdict (release job failed, cancelled, or was
+    // serialized behind an unrelated blocker) collides with the first attempt's dedupe key and is
+    // suppressed as a duplicate -- the head is then starved of an Audit for good.
+    const workflowRunAttempt = dispatch.workflowRunAttempt ?? 1;
     if (!workflowRunId || !headSha || !SHA40.test(headSha) || !prNumber || !Number.isSafeInteger(prNumber) || prNumber <= 0) {
       return freeze({
         kind: "NOOP",
@@ -35,6 +41,7 @@ export function planAutopilotExecution(dispatch: AutopilotDispatchPlan): Autopil
         headSha,
         prNumber,
         workflowRunId,
+        workflowRunAttempt,
         reason: "pr-ci-success-missing-bounded-identity",
         mutationAllowed: false,
       });
@@ -46,9 +53,10 @@ export function planAutopilotExecution(dispatch: AutopilotDispatchPlan): Autopil
       headSha: normalizedHead,
       prNumber,
       workflowRunId,
+      workflowRunAttempt,
       reason: `audit:pr:${prNumber}:ci:${workflowRunId}:${normalizedHead}`,
-      executionId: `audit:${prNumber}:${workflowRunId}`,
-      dedupeKey: `audit:${prNumber}:${workflowRunId}:${normalizedHead}`,
+      executionId: `audit:${prNumber}:${workflowRunId}:${workflowRunAttempt}`,
+      dedupeKey: `audit:${prNumber}:${workflowRunId}:${workflowRunAttempt}:${normalizedHead}`,
       mutationAllowed: false,
     });
   }
@@ -56,6 +64,7 @@ export function planAutopilotExecution(dispatch: AutopilotDispatchPlan): Autopil
   if (dispatch.kind === "CI_FAILED") {
     const workflowRunId = dispatch.workflowRunId;
     const headSha = dispatch.headSha;
+    const workflowRunAttempt = dispatch.workflowRunAttempt ?? 1;
     if (!workflowRunId || !headSha || !SHA40.test(headSha)) {
       return freeze({
         kind: "NOOP",
@@ -63,6 +72,7 @@ export function planAutopilotExecution(dispatch: AutopilotDispatchPlan): Autopil
         headSha,
         prNumber: dispatch.prNumber,
         workflowRunId,
+        workflowRunAttempt,
         reason: "ci-failure-missing-bounded-identity",
         mutationAllowed: false,
       });
@@ -75,6 +85,7 @@ export function planAutopilotExecution(dispatch: AutopilotDispatchPlan): Autopil
       headSha,
       prNumber: dispatch.prNumber,
       workflowRunId,
+      workflowRunAttempt,
       reason: `gha:${workflowRunId}:${headSha.toLowerCase()}:${conclusion}`,
       executionId: `ci-failure:${workflowRunId}`,
       dedupeKey: `ci-failure:${workflowRunId}:${headSha.toLowerCase()}`,
@@ -89,6 +100,7 @@ export function planAutopilotExecution(dispatch: AutopilotDispatchPlan): Autopil
       headSha: dispatch.headSha,
       prNumber: dispatch.prNumber,
       workflowRunId: dispatch.workflowRunId,
+      workflowRunAttempt: dispatch.workflowRunAttempt,
       reason: `continue-from:${dispatch.kind.toLowerCase()}`,
       mutationAllowed: false,
     });
@@ -100,6 +112,7 @@ export function planAutopilotExecution(dispatch: AutopilotDispatchPlan): Autopil
     headSha: dispatch.headSha,
     prNumber: dispatch.prNumber,
     workflowRunId: dispatch.workflowRunId,
+    workflowRunAttempt: dispatch.workflowRunAttempt,
     reason: dispatch.reason,
     mutationAllowed: false,
   });

@@ -15,6 +15,11 @@ export interface AutopilotDispatchPlan {
   readonly headSha: string | null;
   readonly prNumber: number | null;
   readonly workflowRunId: number | null;
+  // The CI run attempt that produced this plan. A re-run keeps the same workflowRunId but is a
+  // distinct execution producing distinct evidence, so downstream execution identity must carry
+  // it -- otherwise a re-run collides with the first attempt's dedupe key and is suppressed as a
+  // duplicate, permanently starving any head whose first Audit attempt reached no verdict.
+  readonly workflowRunAttempt?: number | null;
   readonly reason: string;
   readonly mutationAllowed: false;
 }
@@ -33,7 +38,7 @@ function repositoryName(payload: JsonObject): string | null {
 }
 
 function ignored(payload: JsonObject, reason: string): AutopilotDispatchPlan {
-  return freeze({ kind: "IGNORED", repository: repositoryName(payload), headSha: null, prNumber: null, workflowRunId: null, reason, mutationAllowed: false });
+  return freeze({ kind: "IGNORED", repository: repositoryName(payload), headSha: null, prNumber: null, workflowRunId: null, workflowRunAttempt: null, reason, mutationAllowed: false });
 }
 
 function workflowRunPullRequestNumber(run: JsonObject): number | null {
@@ -58,14 +63,14 @@ export function parseGithubWebhookPayload(body: string): JsonObject {
 export function planGithubWebhookDispatch(event: SupportedGithubEvent, payload: JsonObject): AutopilotDispatchPlan {
   const repository = repositoryName(payload);
   if (event === "ping") {
-    return freeze({ kind: "PING_ACK", repository, headSha: null, prNumber: null, workflowRunId: null, reason: "webhook-connectivity-verified", mutationAllowed: false });
+    return freeze({ kind: "PING_ACK", repository, headSha: null, prNumber: null, workflowRunId: null, workflowRunAttempt: null, reason: "webhook-connectivity-verified", mutationAllowed: false });
   }
 
   if (event === "push") {
     if (text(payload.ref) !== "refs/heads/main") return ignored(payload, "non-main-push");
     const headSha = text(payload.after);
     if (!headSha) return ignored(payload, "main-push-missing-head");
-    return freeze({ kind: "MAIN_PUSH", repository, headSha, prNumber: null, workflowRunId: null, reason: "main-changed", mutationAllowed: false });
+    return freeze({ kind: "MAIN_PUSH", repository, headSha, prNumber: null, workflowRunId: null, workflowRunAttempt: null, reason: "main-changed", mutationAllowed: false });
   }
 
   if (event === "pull_request") {
@@ -75,7 +80,7 @@ export function planGithubWebhookDispatch(event: SupportedGithubEvent, payload: 
     const headSha = text(object(pr?.head)?.sha);
     const allowed = new Set(["opened", "reopened", "synchronize", "ready_for_review", "closed"]);
     if (!action || !allowed.has(action) || !pr || !prNumber || !headSha) return ignored(payload, "pull-request-event-not-actionable");
-    return freeze({ kind: "PR_CHANGED", repository, headSha, prNumber, workflowRunId: null, reason: `pull-request:${action}`, mutationAllowed: false });
+    return freeze({ kind: "PR_CHANGED", repository, headSha, prNumber, workflowRunId: null, workflowRunAttempt: null, reason: `pull-request:${action}`, mutationAllowed: false });
   }
 
   const action = text(payload.action);
@@ -86,6 +91,8 @@ export function planGithubWebhookDispatch(event: SupportedGithubEvent, payload: 
   const conclusion = text(run?.conclusion);
   const workflowName = text(run?.name);
   const runEvent = text(run?.event);
+  // GitHub omits run_attempt on some historical payloads; absent means "first attempt".
+  const workflowRunAttempt = run ? (positiveInteger(run.run_attempt) ?? 1) : null;
   if (action !== "completed" || !run || !workflowRunId || !headSha || status !== "completed") return ignored(payload, "workflow-run-not-completed");
 
   // repository_dispatch is the output edge of this autopilot. Dispatching again when the
@@ -112,6 +119,7 @@ export function planGithubWebhookDispatch(event: SupportedGithubEvent, payload: 
         headSha,
         prNumber,
         workflowRunId,
+        workflowRunAttempt,
         reason: prNumber ? "pull-request-ci-success" : "pull-request-ci-success-pr-identity-requires-head-sha-resolution",
         mutationAllowed: false,
       });
@@ -120,10 +128,10 @@ export function planGithubWebhookDispatch(event: SupportedGithubEvent, payload: 
     if (runEvent !== "push" || text(run.head_branch) !== "main") {
       return ignored(payload, "canonical-ci-success-origin-not-actionable");
     }
-    return freeze({ kind: "CI_SUCCEEDED", repository, headSha, prNumber: null, workflowRunId, reason: "workflow-run-success", mutationAllowed: false });
+    return freeze({ kind: "CI_SUCCEEDED", repository, headSha, prNumber: null, workflowRunId, workflowRunAttempt, reason: "workflow-run-success", mutationAllowed: false });
   }
   if (["failure", "cancelled", "timed_out", "action_required", "startup_failure", "stale"].includes(conclusion ?? "")) {
-    return freeze({ kind: "CI_FAILED", repository, headSha, prNumber: workflowRunPullRequestNumber(run), workflowRunId, reason: `workflow-run:${conclusion}`, mutationAllowed: false });
+    return freeze({ kind: "CI_FAILED", repository, headSha, prNumber: workflowRunPullRequestNumber(run), workflowRunId, workflowRunAttempt, reason: `workflow-run:${conclusion}`, mutationAllowed: false });
   }
   return ignored(payload, `workflow-run-conclusion:${conclusion ?? "unknown"}`);
 }

@@ -134,6 +134,9 @@ export async function resolveCanonicalPrCiForReady(
   if (run.conclusion !== "success") return unresolved("canonical-ci-run-not-successful");
   const workflowRunId = positiveInteger(run.id);
   if (!workflowRunId) return unresolved("canonical-ci-run-id-invalid");
+  // Carry the attempt so a replayed Audit for a re-run is a distinct execution identity rather
+  // than a duplicate of the first attempt. Absent run_attempt means the first attempt.
+  const workflowRunAttempt = positiveInteger(run.run_attempt) ?? 1;
 
   return Object.freeze({
     resolved: true,
@@ -143,6 +146,7 @@ export async function resolveCanonicalPrCiForReady(
       repository,
       headSha,
       prNumber: prNumber!,
+      workflowRunAttempt,
       workflowRunId,
       reason: "pull-request-ci-success:ready-for-review-replay",
       mutationAllowed: false,

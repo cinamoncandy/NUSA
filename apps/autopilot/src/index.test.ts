@@ -161,6 +161,7 @@ describe("NUSA autopilot GitHub webhook", () => {
       headSha: "a".repeat(40),
       prNumber: null,
       workflowRunId: null,
+      workflowRunAttempt: null,
       reason: "continue-from:main_push",
       mutationAllowed: false,
     });
