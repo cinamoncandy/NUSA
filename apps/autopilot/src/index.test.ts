@@ -212,6 +212,12 @@ describe("NUSA autopilot GitHub webhook", () => {
   });
 
   it("replays Ready-for-review through the existing exact-run Audit identity", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const namespace: ExecutionCoordinatorNamespace = {
+      idFromName: () => ({}),
+      get: () => ({ fetch: (input: RequestInfo | URL, init?: RequestInit) => coordinator.fetch(new Request(input, init)) }),
+    };
     const headSha = "c".repeat(40);
     const workflowRunId = 35195500001;
     const body = JSON.stringify({
@@ -256,21 +262,27 @@ describe("NUSA autopilot GitHub webhook", () => {
         headers: { "x-github-delivery": delivery, "x-github-event": "pull_request", "x-hub-signature-256": signature },
         body,
       });
-      const env = { NUSA_WEBHOOK_SECRET: "secret", NUSA_GITHUB_TOKEN: "token", NUSA_GLOBAL_RELEASE_FREEZE: "false" };
+      const env = { NUSA_WEBHOOK_SECRET: "secret", NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace, NUSA_GLOBAL_RELEASE_FREEZE: "false" };
+      const unavailable = await worker.fetch(request("ready-no-coordinator"), {
+        NUSA_WEBHOOK_SECRET: "secret",
+        NUSA_GITHUB_TOKEN: "token",
+        NUSA_GLOBAL_RELEASE_FREEZE: "false",
+      });
       const first = await worker.fetch(request("ready-1"), env);
       const replay = await worker.fetch(request("ready-2"), env);
+      assert.equal(unavailable.status, 409);
+      assert.equal((await unavailable.json() as { error: string }).error, "PERSISTENT_EXECUTION_COORDINATOR_REQUIRED");
       const firstPayload = await first.json() as { dispatch: { kind: string; workflowRunId: number }; execution: { kind: string; workflowRunId: number; executionId: string; dedupeKey: string }; executor: { status: string } };
-      const replayPayload = await replay.json() as typeof firstPayload;
+      const replayPayload = await replay.json() as { status: string; executionBoundary: { dedupeKey: string } };
 
       assert.equal(firstPayload.dispatch.kind, "PR_CI_SUCCEEDED");
       assert.equal(firstPayload.dispatch.workflowRunId, workflowRunId);
       assert.equal(firstPayload.execution.kind, "AUDIT_REQUEST");
       assert.equal(firstPayload.execution.workflowRunId, workflowRunId);
       assert.equal(firstPayload.executor.status, "DISPATCHED");
-      assert.equal(replayPayload.execution.executionId, firstPayload.execution.executionId);
-      assert.equal(replayPayload.execution.dedupeKey, firstPayload.execution.dedupeKey);
-      assert.equal(dispatched.length, 2);
-      assert.deepEqual(dispatched[1], dispatched[0]);
+      assert.equal(replayPayload.status, "DUPLICATE_EXECUTION_SUPPRESSED");
+      assert.equal(replayPayload.executionBoundary.dedupeKey, firstPayload.execution.dedupeKey);
+      assert.equal(dispatched.length, 1);
     } finally {
       globalThis.fetch = originalFetch;
     }

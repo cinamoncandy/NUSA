@@ -43,6 +43,7 @@ export interface Env {
 
 const DEFAULT_REPOSITORY = "cinamoncandy/NUSA";
 const CODING_EXECUTION_LEASE_MS = 20 * 60 * 1000;
+const WEBHOOK_EXECUTION_LEASE_MS = 5 * 60 * 1000;
 const json = (body: unknown, status = 200): Response => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8" } });
 const encoder = new TextEncoder();
 
@@ -372,6 +373,7 @@ export default {
     const planned = planAutopilotExecution(dispatch);
     let execution = planned;
     let boundedExecution = null;
+    let persistentExecutionIdentity: { readonly dedupeKey: string; readonly executionId: string } | null = null;
     try {
       boundedExecution = prepareProductionExecution(dispatch, {
         deliveryId,
@@ -379,29 +381,37 @@ export default {
         now: Date.now(),
         allowedRepository,
       });
-      if (dispatch.kind === "CI_SUCCEEDED") {
-        if (!boundedExecution) throw new Error("PRODUCTION_EXECUTION_BOUNDARY_REQUIRED");
+      if (dispatch.kind === "CI_SUCCEEDED" || dispatch.kind === "PR_CI_SUCCEEDED") {
         if (!env.NUSA_EXECUTION_COORDINATOR) throw new Error("PERSISTENT_EXECUTION_COORDINATOR_REQUIRED");
-        const lease = boundedExecution.state.lease;
-        if (!lease) throw new Error("PERSISTENT_EXECUTION_LEASE_REQUIRED");
+        if (dispatch.kind === "CI_SUCCEEDED") {
+          if (!boundedExecution) throw new Error("PRODUCTION_EXECUTION_BOUNDARY_REQUIRED");
+          const lease = boundedExecution.state.lease;
+          if (!lease) throw new Error("PERSISTENT_EXECUTION_LEASE_REQUIRED");
+          execution = boundedExecution.request;
+          persistentExecutionIdentity = boundedExecution.envelope;
+        } else {
+          if (planned.kind !== "AUDIT_REQUEST" || !planned.dedupeKey || !planned.executionId) {
+            throw new Error("PERSISTENT_EXECUTION_IDENTITY_REQUIRED");
+          }
+          persistentExecutionIdentity = { dedupeKey: planned.dedupeKey, executionId: planned.executionId };
+        }
         const persistent = await acquirePersistentExecution(env.NUSA_EXECUTION_COORDINATOR, {
-          dedupeKey: boundedExecution.envelope.dedupeKey,
-          executionId: boundedExecution.envelope.executionId,
+          dedupeKey: persistentExecutionIdentity.dedupeKey,
+          executionId: persistentExecutionIdentity.executionId,
           now: Date.now(),
-          leaseExpiresAt: lease.expiresAt,
+          leaseExpiresAt: boundedExecution?.state.lease?.expiresAt ?? Date.now() + WEBHOOK_EXECUTION_LEASE_MS,
         });
-        if (!persistent.acquired) return json({ accepted: true, status: "DUPLICATE_EXECUTION_SUPPRESSED", reason: persistent.reason, deliveryId, event, dispatch, executionBoundary: { dedupeKey: boundedExecution.envelope.dedupeKey, origin: boundedExecution.envelope.origin }, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 202);
-        execution = boundedExecution.request;
+        if (!persistent.acquired) return json({ accepted: true, status: "DUPLICATE_EXECUTION_SUPPRESSED", reason: persistent.reason, deliveryId, event, dispatch, executionBoundary: { dedupeKey: persistentExecutionIdentity.dedupeKey, origin: boundedExecution?.envelope.origin ?? "AUTO_BACKGROUND" }, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 202);
       }
     } catch (error) {
       return json({ error: error instanceof Error ? error.message : "PRODUCTION_EXECUTION_INVALID", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 409);
     }
 
     const executor = await executeGithubDispatch(execution, { token: env.NUSA_GITHUB_TOKEN, allowedRepository });
-    if (boundedExecution && executor.status === "DISPATCHED" && env.NUSA_EXECUTION_COORDINATOR) {
+    if (persistentExecutionIdentity && executor.status === "DISPATCHED" && env.NUSA_EXECUTION_COORDINATOR) {
       await markPersistentExecutionDispatched(env.NUSA_EXECUTION_COORDINATOR, {
-        dedupeKey: boundedExecution.envelope.dedupeKey,
-        executionId: boundedExecution.envelope.executionId,
+        dedupeKey: persistentExecutionIdentity.dedupeKey,
+        executionId: persistentExecutionIdentity.executionId,
         now: Date.now(),
       });
     }

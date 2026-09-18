@@ -28,6 +28,17 @@ current_audit_dispatch_payload_limit:
   completion: "Exact-head CI 35188124813 PASS; PAPER runtime, READ_ONLY broker, and Restricted LIVE safety workflows PASS; canonical independent Audit/Release run 35188428151 PASS; protected main re-read as cabe68df11d95cd4212d09c1045c9aff7cd769b2."
   next: "Completed. Select the next ready work order from current source-of-truth state; no financial authority is granted."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_ready_for_review_audit_dedupe_repair:
+  work_order: WO-ISSUE-903-EVENT-REPLAY-HARDENING
+  status: IMPLEMENTED_LOCAL
+  branch: codex/issue-1955
+  pull_request: 1956
+  base_head: d9b707a64be4dfea29d04e17eb6f95e7cd543931
+  finding: "PR_CI_SUCCEEDED Audit dispatches did not acquire the existing persistent execution identity, allowing two ready_for_review delivery IDs to create duplicate Audit chains."
+  remediation: "Use NUSA_EXECUTION_COORDINATOR for the unchanged audit:<pr>:<workflowRunId>:<exactHead> identity, suppress duplicate/replayed/concurrent deliveries, and fail closed without the coordinator."
+  local_validation: "TypeScript compile/typecheck PASS; focused Autopilot regressions PASS; minimal preflight checks PASS; git diff --check PASS."
+  next: "Local commit only on the existing PR #1956 branch; no push, Ready transition, new PR, or remote CI."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_oracle_codex_dev_runner:
   work_order: WO-20260908-ORACLE-CODEX-DEV-RUNNER
   status: MERGED_VM_CREATION_HUMAN_ENVIRONMENT_ONLY
