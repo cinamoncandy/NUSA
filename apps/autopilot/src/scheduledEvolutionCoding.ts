@@ -95,6 +95,75 @@ function logicalWorkIdentity(signals: readonly EvolutionDiscoverySignal[]): stri
   return selected.replace(/[^A-Za-z0-9_.:-]+/g, "-").slice(0, 180) || "no-signal";
 }
 
+function backlogIssueNumber(signal: EvolutionDiscoverySignal | undefined): number | null {
+  if (signal?.source !== "github-issue-backlog") return null;
+  const match = signal.id.match(/^github-issue-([1-9][0-9]*)$/);
+  if (!match) return null;
+  const value = Number(match[1]);
+  return Number.isSafeInteger(value) && value > 0 ? value : null;
+}
+
+async function revalidateBacklogSignal(
+  signal: EvolutionDiscoverySignal | undefined,
+  input: { readonly repository: string; readonly openPulls?: readonly unknown[]; readonly now: number },
+  token: string,
+  fetchImpl: typeof fetch,
+): Promise<"ACTIONABLE" | "STALE" | "UNAVAILABLE"> {
+  const issueNumber = backlogIssueNumber(signal);
+  if (issueNumber === null) return signal?.source === "github-issue-backlog" ? "STALE" : "ACTIONABLE";
+  let response: Response;
+  try {
+    response = await fetchImpl(`https://api.github.com/repos/${input.repository}/issues/${issueNumber}`, {
+      headers: {
+        accept: "application/vnd.github+json",
+        authorization: `Bearer ${token}`,
+        "user-agent": "nusa-autopilot-worker",
+        "x-github-api-version": "2022-11-28",
+      },
+    });
+  } catch {
+    return "UNAVAILABLE";
+  }
+  if (!response.ok) return "UNAVAILABLE";
+  let issue: unknown;
+  try {
+    issue = await response.json();
+  } catch {
+    return "UNAVAILABLE";
+  }
+  const issueRecord = object(issue);
+  if (!issueRecord || text(issueRecord.state)?.toLowerCase() !== "open") return "STALE";
+
+  const query = new URLSearchParams({ q: `repo:${input.repository} is:pr is:open ${issueNumber}`, per_page: "100", page: "1" });
+  let pullsResponse: Response;
+  try {
+    pullsResponse = await fetchImpl(`https://api.github.com/search/issues?${query.toString()}`, {
+      headers: {
+        accept: "application/vnd.github+json",
+        authorization: `Bearer ${token}`,
+        "user-agent": "nusa-autopilot-worker",
+        "x-github-api-version": "2022-11-28",
+      },
+    });
+  } catch {
+    return "UNAVAILABLE";
+  }
+  if (!pullsResponse.ok) return "UNAVAILABLE";
+  let pullsPayload: unknown;
+  try {
+    pullsPayload = await pullsResponse.json();
+  } catch {
+    return "UNAVAILABLE";
+  }
+  const pullsBody = object(pullsPayload);
+  const items = pullsBody?.items;
+  const totalCount = pullsBody?.total_count;
+  if (!Array.isArray(items) || !Number.isSafeInteger(totalCount) || Number(totalCount) < 0 || Number(totalCount) > items.length) return "UNAVAILABLE";
+
+  const current = deriveGithubIssueBacklogSignals([issue], items, new Date(input.now));
+  return current.some((candidate) => candidate.id === signal?.id) ? "ACTIONABLE" : "STALE";
+}
+
 /**
  * Existing #903/#905 composition: read-only repository evidence -> existing
  * discovery/selector -> existing CodingRunner dispatch spine. Fresh workflow
@@ -129,6 +198,11 @@ export async function runScheduledEvolutionCoding(
   const signals = failureSignals.length > 0 ? failureSignals : backlogSignals;
   const freshFailureCount = failureSignals.length;
   const workIdentity = logicalWorkIdentity(signals);
+  if (signals[0]?.source === "github-issue-backlog") {
+    const freshness = await revalidateBacklogSignal(signals[0], input, token, fetchImpl);
+    if (freshness === "UNAVAILABLE") return result("ABSTAINED", "github-issue-actionability-revalidation-unavailable", signals.map((signal) => signal.id));
+    if (freshness !== "ACTIONABLE") return result("ABSTAINED", "github-issue-no-longer-actionable", signals.map((signal) => signal.id));
+  }
   const executionId = `evolve-coding:${input.mainSha.slice(0, 16)}:${workIdentity.slice(0, 100)}`;
   const dedupeKey = `evolve-coding:${input.mainSha}:${workIdentity}`;
   const bridge = prepareDiscoveredCodingRequest({
