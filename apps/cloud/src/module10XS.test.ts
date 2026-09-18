@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, it } from "node:test";
 import { CANONICAL_MODULE_REGISTRY_10XS, validateCanonicalModuleRegistry10XS } from "./canonicalModuleRegistryV10";
@@ -17,15 +17,10 @@ const SOURCE_SHA = "1d538db896e9db58f925ebade464f2d8be7ae13e";
 const EVIDENCE_SHA = "a".repeat(64);
 
 function gitBlobSha(path: string): string {
-  // GitHub stores these TypeScript sources as LF-normalized text. Windows
-  // checkout may materialize CRLF, so normalize the working-tree view before
-  // reconstructing the canonical Git blob object identity.
-  const normalized = readFileSync(path, "utf8").replace(/\r\n/g, "\n");
-  const content = Buffer.from(normalized, "utf8");
-  return createHash("sha1")
-    .update(`blob ${content.length}\0`)
-    .update(content)
-    .digest("hex");
+  return execFileSync("git", ["hash-object", "--path", path, path], {
+    cwd: process.cwd(),
+    encoding: "utf8"
+  }).trim();
 }
 
 function capabilities(value = true): Readonly<Record<TenXSCapability, boolean>> {
@@ -69,7 +64,7 @@ describe("10X-S canonical registry", () => {
       assert.match(qualification.sourceCommitSha, /^[0-9a-f]{40}$/);
       assert.match(qualification.sourceBlobSha, /^[0-9a-f]{40}$/);
       assert.equal(
-        gitBlobSha(canonicalPath),
+        gitBlobSha(definition.canonicalEntrypoint),
         qualification.sourceBlobSha,
         `${definition.stage} canonical source changed without re-qualification`
       );
