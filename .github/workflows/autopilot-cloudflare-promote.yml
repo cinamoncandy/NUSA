@@ -12,16 +12,17 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: write
+# No workflow-level authority. Validation reads; only the job that pushes the production branch
+# holds write, and it re-proves the revision before using it.
+permissions: {}
 
 concurrency:
   group: nusa-autopilot-cloudflare-promote
   cancel-in-progress: false
 
 jobs:
-  promote:
-    name: Promote exact CI-verified Worker revision
+  verify:
+    name: Verify exact CI-verified Worker revision
     if: >-
       ${{
         github.event_name == 'workflow_dispatch' ||
@@ -31,6 +32,12 @@ jobs:
       }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      head_sha: ${{ steps.revision.outputs.head_sha }}
+      current: ${{ steps.revision.outputs.current }}
+      deploy: ${{ steps.changes.outputs.deploy }}
     steps:
       - name: Checkout exact CI-verified commit
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -53,6 +60,7 @@ jobs:
             exit 0
           fi
           echo 'current=true' >> "$GITHUB_OUTPUT"
+          echo "head_sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
           echo "Verified CI revision is current main: $HEAD_SHA"
 
       - name: Verify autopilot deployment-relevant change
@@ -71,11 +79,35 @@ jobs:
             echo 'deploy=true' >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Record fail-closed authority invariants
+        run: |
+          echo 'liveAuthority=NONE'
+          echo 'productionMutationAllowed=false'
+          echo 'AI authority=ZERO_AUTHORITY'
+
+  # The push is the only thing here that needs write authority. It runs in its own job so the two
+  # validation steps above - and the checkout that feeds them - never hold a token that can move a
+  # branch. The revision is re-proved against current main inside this job as well: the verify job
+  # can only speak for the moment it ran, and main may advance between the two.
+  promote:
+    name: Promote exact CI-verified Worker revision
+    needs: verify
+    if: ${{ needs.verify.outputs.current == 'true' && needs.verify.outputs.deploy == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout verified main revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ needs.verify.outputs.head_sha }}
+          fetch-depth: 2
+
       - name: Promote exact verified revision to Cloudflare production branch
-        if: steps.revision.outputs.current == 'true' && steps.changes.outputs.deploy == 'true'
         shell: bash
         env:
-          HEAD_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.event.workflow_run.head_sha }}
+          HEAD_SHA: ${{ needs.verify.outputs.head_sha }}
         run: |
           set -euo pipefail
           git fetch --unshallow --no-tags origin main
@@ -110,9 +142,3 @@ jobs:
 
           git push origin "${target_sha}:refs/heads/cloudflare-production"
           echo "Promoted CI-verified tree from ${HEAD_SHA} as ${target_sha}."
-
-      - name: Record fail-closed authority invariants
-        run: |
-          echo 'liveAuthority=NONE'
-          echo 'productionMutationAllowed=false'
-          echo 'AI authority=ZERO_AUTHORITY'
