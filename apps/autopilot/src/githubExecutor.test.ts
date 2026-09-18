@@ -36,6 +36,11 @@ const prResponse = (sha = auditRequest.headSha!, state = "open") => new Response
   headers: { "content-type": "application/json" },
 });
 
+const draftPrResponse = () => new Response(JSON.stringify({ state: "open", draft: true, head: { sha: auditRequest.headSha } }), {
+  status: 200,
+  headers: { "content-type": "application/json" },
+});
+
 describe("executeGithubDispatch", () => {
   it("stays interface-ready when no executor token is configured", async () => {
     const value = await executeGithubDispatch(request, { allowedRepository: "cinamoncandy/NUSA" });
@@ -119,6 +124,22 @@ describe("executeGithubDispatch", () => {
     assert.equal(value.reason, "github-executor-stale-pr-head-suppressed");
     assert.equal(value.requestedHeadSha, "c".repeat(40));
     assert.equal(value.observedHeadSha, "d".repeat(40));
+    assert.deepEqual(calls, ["https://api.example.test/repos/cinamoncandy/NUSA/pulls/42"]);
+  });
+
+  it("does not Audit when canonical CI succeeds while the PR is still Draft", async () => {
+    const calls: string[] = [];
+    const value = await executeGithubDispatch(auditRequest, {
+      token: "secret",
+      allowedRepository: "cinamoncandy/NUSA",
+      apiBaseUrl: "https://api.example.test/",
+    }, (async (url: string | URL | Request) => {
+      calls.push(String(url));
+      return draftPrResponse();
+    }) as typeof fetch);
+
+    assert.equal(value.status, "REJECTED");
+    assert.equal(value.reason, "github-executor-pr-draft-hold-active");
     assert.deepEqual(calls, ["https://api.example.test/repos/cinamoncandy/NUSA/pulls/42"]);
   });
 
