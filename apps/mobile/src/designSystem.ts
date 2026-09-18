@@ -108,7 +108,10 @@ export const designPresets: Readonly<Record<DesignPresetName, DesignPreset>> = O
   master: Object.freeze({
     name: "master" as const,
     dark: Object.freeze({
-      background: "#050706", surface: "#0A0E0C", surfaceRaised: "#101712", surfaceSunken: "#070A08",\n      text: "#F2F7F4", textMuted: "#819087", primary: "#D8EE76", primarySoft: "#172414", onPrimary: "#071008",\n      navSurface: "#060907", border: "#1A2A21", borderStrong: "#34513F", info: "#8FB2A0", focus: "#D8EE76",\n      neonGlow: "rgba(216, 238, 118, 0.18)",
+      background: "#050706", surface: "#0A0E0C", surfaceRaised: "#101712", surfaceSunken: "#070A08",
+      text: "#F2F7F4", textMuted: "#819087", primary: "#D8EE76", primarySoft: "#172414", onPrimary: "#071008",
+      navSurface: "#060907", border: "#1A2A21", borderStrong: "#34513F", info: "#8FB2A0", focus: "#D8EE76",
+      neonGlow: "rgba(216, 238, 118, 0.18)",
     }),
     light: Object.freeze({
       background: "#F4F5F8", surface: "#FFFFFF", surfaceRaised: "#F0F3FA", surfaceSunken: "#EDF0F6",
@@ -151,7 +154,12 @@ export function createTheme(mode: ThemeMode, presetName: DesignPresetName = "mas
       primary: palette.primary,
       primarySoft: palette.primarySoft,
       onPrimary: palette.onPrimary,
-      aiSignalStart: dark ? "#91C74F" : "#7C3AED",\n      aiSignalMid: dark ? "#B7E35C" : "#2563EB",\n      aiSignalEnd: dark ? "#D8EE76" : "#0B6B60",\n      aiSignalSoft: dark ? "#101A0E" : "#F2EAFE",\n      terrain: dark ? "#D8EE76" : "#23334A",\n      chartUp: dark ? "#D8EE76" : "#147A50",
+      aiSignalStart: dark ? "#91C74F" : "#7C3AED",
+      aiSignalMid: dark ? "#B7E35C" : "#2563EB",
+      aiSignalEnd: dark ? "#D8EE76" : "#0B6B60",
+      aiSignalSoft: dark ? "#101A0E" : "#F2EAFE",
+      terrain: dark ? "#D8EE76" : "#23334A",
+      chartUp: dark ? "#D8EE76" : "#147A50",
       chartDown: dark ? "#F17A94" : "#B83249",
       navSurface: palette.navSurface,
       border: palette.border,
