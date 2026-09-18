@@ -17,7 +17,9 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
+      pull-requests: read
     env:
+      GH_TOKEN: ${{ github.token }}
       PR_NUMBER: ${{ github.event.client_payload.pr_number }}
       EXPECTED_HEAD: ${{ github.event.client_payload.head_sha }}
       WORKFLOW_RUN_ID: ${{ github.event.client_payload.workflow_run_id }}
@@ -41,6 +43,17 @@ jobs:
           if (p.production_mutation_allowed !== false) fail('productionMutationAllowed must remain false');
           if (p.ai_authority !== 'ZERO_AUTHORITY') fail('aiAuthority must remain ZERO_AUTHORITY');
           NODE
+
+          pr_json="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          pr_state="$(jq -r '.state // empty' <<<"$pr_json")"
+          pr_head="$(jq -r '.head.sha // empty' <<<"$pr_json")"
+          if [ "$pr_state" = "open" ]; then
+            echo "NO_ACTION Audit convergence is not applicable to an open PR: pr=$PR_NUMBER requested_head=$EXPECTED_HEAD current_head=$pr_head ci=$WORKFLOW_RUN_ID"
+            echo 'liveAuthority=NONE'
+            echo 'productionMutationAllowed=false'
+            echo 'aiAuthority=ZERO_AUTHORITY'
+            exit 0
+          fi
 
           echo "::error::RELEASE_PROVENANCE_MISSING: already-merged PRs cannot be post-facto upgraded to deterministic Audit/Release PASS."
           echo "pr=$PR_NUMBER head=$EXPECTED_HEAD ci=$WORKFLOW_RUN_ID"

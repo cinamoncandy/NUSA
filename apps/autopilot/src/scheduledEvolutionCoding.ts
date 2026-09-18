@@ -1,6 +1,7 @@
 import { executeGithubDispatch } from "./githubExecutor";
 import { prepareDiscoveredCodingRequest } from "./evolveCodingBridge";
 import { deriveWorkflowFailureOpportunities, type WorkflowFailureEvidence } from "./evolveEvidenceOpportunitySource";
+import { deriveGithubIssueBacklogSignals } from "./evolveGithubIssueBacklog";
 import type { EvolutionDiscoverySignal } from "./evolveOpportunityDiscovery";
 import { acquirePersistentExecution, markPersistentExecutionDispatched, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
@@ -20,6 +21,8 @@ export interface ScheduledEvolutionCodingResult {
 
 const SHA40 = /^[0-9a-f]{40}$/i;
 const MAX_SOURCE_AGE_SECONDS = 24 * 60 * 60;
+const DISCOVERY_MAX_AGE_MS = 60 * 60 * 1000;
+const DISCOVERY_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
 const CODING_LEASE_MS = 5 * 60 * 1000;
 const AUTHORITY = Object.freeze({ liveAuthority: "NONE" as const, productionMutationAllowed: false as const, aiAuthority: "ZERO_AUTHORITY" as const });
 
@@ -78,15 +81,106 @@ function signalsFromRuns(candidates: readonly unknown[], now: number): readonly 
   })));
 }
 
+function freshDiscoverySignals(signals: readonly EvolutionDiscoverySignal[], now: number): readonly EvolutionDiscoverySignal[] {
+  return Object.freeze(signals.filter((signal) => {
+    const observedAt = Date.parse(signal.observedAt);
+    if (!Number.isFinite(observedAt)) return false;
+    const age = now - observedAt;
+    return age <= DISCOVERY_MAX_AGE_MS && age >= -DISCOVERY_MAX_FUTURE_SKEW_MS;
+  }));
+}
+
+function logicalWorkIdentity(signals: readonly EvolutionDiscoverySignal[]): string {
+  const selected = signals[0]?.id ?? "no-signal";
+  return selected.replace(/[^A-Za-z0-9_.:-]+/g, "-").slice(0, 180) || "no-signal";
+}
+
+function backlogIssueNumber(signal: EvolutionDiscoverySignal | undefined): number | null {
+  if (signal?.source !== "github-issue-backlog") return null;
+  const match = signal.id.match(/^github-issue-([1-9][0-9]*)$/);
+  if (!match) return null;
+  const value = Number(match[1]);
+  return Number.isSafeInteger(value) && value > 0 ? value : null;
+}
+
+async function revalidateBacklogSignal(
+  signal: EvolutionDiscoverySignal | undefined,
+  input: { readonly repository: string; readonly openPulls?: readonly unknown[]; readonly now: number },
+  token: string,
+  fetchImpl: typeof fetch,
+): Promise<"ACTIONABLE" | "STALE" | "UNAVAILABLE"> {
+  const issueNumber = backlogIssueNumber(signal);
+  if (issueNumber === null) return signal?.source === "github-issue-backlog" ? "STALE" : "ACTIONABLE";
+  let response: Response;
+  try {
+    response = await fetchImpl(`https://api.github.com/repos/${input.repository}/issues/${issueNumber}`, {
+      headers: {
+        accept: "application/vnd.github+json",
+        authorization: `Bearer ${token}`,
+        "user-agent": "nusa-autopilot-worker",
+        "x-github-api-version": "2022-11-28",
+      },
+    });
+  } catch {
+    return "UNAVAILABLE";
+  }
+  if (!response.ok) return "UNAVAILABLE";
+  let issue: unknown;
+  try {
+    issue = await response.json();
+  } catch {
+    return "UNAVAILABLE";
+  }
+  const issueRecord = object(issue);
+  if (!issueRecord || text(issueRecord.state)?.toLowerCase() !== "open") return "STALE";
+
+  const query = new URLSearchParams({ q: `repo:${input.repository} is:pr is:open ${issueNumber}`, per_page: "100", page: "1" });
+  let pullsResponse: Response;
+  try {
+    pullsResponse = await fetchImpl(`https://api.github.com/search/issues?${query.toString()}`, {
+      headers: {
+        accept: "application/vnd.github+json",
+        authorization: `Bearer ${token}`,
+        "user-agent": "nusa-autopilot-worker",
+        "x-github-api-version": "2022-11-28",
+      },
+    });
+  } catch {
+    return "UNAVAILABLE";
+  }
+  if (!pullsResponse.ok) return "UNAVAILABLE";
+  let pullsPayload: unknown;
+  try {
+    pullsPayload = await pullsResponse.json();
+  } catch {
+    return "UNAVAILABLE";
+  }
+  const pullsBody = object(pullsPayload);
+  const items = pullsBody?.items;
+  const totalCount = pullsBody?.total_count;
+  if (!Array.isArray(items) || !Number.isSafeInteger(totalCount) || Number(totalCount) < 0 || Number(totalCount) > items.length) return "UNAVAILABLE";
+
+  const current = deriveGithubIssueBacklogSignals([issue], items, new Date(input.now));
+  return current.some((candidate) => candidate.id === signal?.id) ? "ACTIONABLE" : "STALE";
+}
+
 /**
- * Thin scheduled composition: authenticated read-only workflow evidence -> existing
- * discovery/selector bridge -> existing GitHub dispatch spine. Coding is delegated to
- * the single repository_dispatch consumer, which may use a configured external runner
- * or the bounded provider-neutral Workers AI runtime. No direct production mutation authority exists.
+ * Existing #903/#905 composition: read-only repository evidence -> existing
+ * discovery/selector -> existing CodingRunner dispatch spine. Fresh workflow
+ * failures keep priority. When main is healthy, one proven-ready canonical issue
+ * may flow into the same selector. No second queue/scheduler/orchestrator exists.
  */
 export async function runScheduledEvolutionCoding(
   env: ScheduledEvolutionCodingEnv,
-  input: { readonly candidates: readonly unknown[]; readonly now: number; readonly repository: string; readonly mainSha: string; readonly workflowRunId: number },
+  input: {
+    readonly candidates: readonly unknown[];
+    readonly backlogIssues?: readonly unknown[];
+    readonly openPulls?: readonly unknown[];
+    readonly now: number;
+    readonly repository: string;
+    readonly mainSha: string;
+    readonly workflowRunId: number;
+  },
   fetchImpl: typeof fetch = fetch,
 ): Promise<ScheduledEvolutionCodingResult> {
   const token = env.NUSA_GITHUB_TOKEN?.trim();
@@ -97,10 +191,20 @@ export async function runScheduledEvolutionCoding(
     return result("ABSTAINED", "scheduled-coding-input-invalid");
   }
 
-  const signals = signalsFromRuns(input.candidates, input.now);
-  const freshSignalCount = signals.filter((signal) => input.now - Date.parse(signal.observedAt) <= 60 * 60 * 1000).length;
-  const executionId = `evolve-coding:${input.workflowRunId}:${input.mainSha.slice(0, 16)}`;
-  const dedupeKey = `evolve-coding:${input.workflowRunId}:${input.mainSha}`;
+  const failureSignals = freshDiscoverySignals(signalsFromRuns(input.candidates, input.now), input.now);
+  const backlogSignals = failureSignals.length === 0
+    ? deriveGithubIssueBacklogSignals(input.backlogIssues ?? [], input.openPulls ?? [], new Date(input.now))
+    : Object.freeze([] as EvolutionDiscoverySignal[]);
+  const signals = failureSignals.length > 0 ? failureSignals : backlogSignals;
+  const freshFailureCount = failureSignals.length;
+  const workIdentity = logicalWorkIdentity(signals);
+  if (signals[0]?.source === "github-issue-backlog") {
+    const freshness = await revalidateBacklogSignal(signals[0], input, token, fetchImpl);
+    if (freshness === "UNAVAILABLE") return result("ABSTAINED", "github-issue-actionability-revalidation-unavailable", signals.map((signal) => signal.id));
+    if (freshness !== "ACTIONABLE") return result("ABSTAINED", "github-issue-no-longer-actionable", signals.map((signal) => signal.id));
+  }
+  const executionId = `evolve-coding:${input.mainSha.slice(0, 16)}:${workIdentity.slice(0, 100)}`;
+  const dedupeKey = `evolve-coding:${input.mainSha}:${workIdentity}`;
   const bridge = prepareDiscoveredCodingRequest({
     signals,
     now: new Date(input.now),
@@ -109,9 +213,9 @@ export async function runScheduledEvolutionCoding(
     workflowRunId: input.workflowRunId,
     executionId,
     dedupeKey,
-    circuit: freshSignalCount >= 3
-      ? { state: "OPEN", consecutiveFailures: freshSignalCount, openedAt: new Date(input.now).toISOString() }
-      : { state: "CLOSED", consecutiveFailures: freshSignalCount },
+    circuit: freshFailureCount >= 3
+      ? { state: "OPEN", consecutiveFailures: freshFailureCount, openedAt: new Date(input.now).toISOString() }
+      : { state: "CLOSED", consecutiveFailures: freshFailureCount },
     schedulePolicy: { mode: "AUTONOMOUS", minIntervalSeconds: 60, maxConcurrent: 1 },
     activeExecutions: 0,
     elapsedSecondsSinceLastRun: 60,

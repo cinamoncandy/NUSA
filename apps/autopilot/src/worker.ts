@@ -1,6 +1,7 @@
 import baseWorker, { globalReleaseFreezeActive, handleCodingExecute, type Env as BaseEnv } from "./index";
 import { acquirePersistentExecution, ExecutionCoordinator, readPersistentControlPlaneHold, releasePersistentExecution } from "./executionCoordinator";
 import {
+  CodingRunnerEvidenceError,
   executeCodingRunner,
   validateCodingRunnerRequest,
   verifyCodingRunnerRequestAgainstGitHub,
@@ -147,6 +148,7 @@ async function handleCodingProposal(request: Request, env: WorkerEnv): Promise<R
       accepted: false,
       status: "CODING_PROPOSAL_FAILED_CLOSED",
       error: error instanceof Error ? error.message : "CODING_PROPOSAL_FAILED",
+      failureEvidence: error instanceof CodingRunnerEvidenceError ? error.evidence : null,
       liveAuthority: "NONE",
       productionMutationAllowed: false,
       aiAuthority: "ZERO_AUTHORITY",
@@ -194,6 +196,7 @@ async function handleCodingPublish(request: Request, env: WorkerEnv): Promise<Re
       accepted: false,
       status: "CODING_PUBLISH_FAILED_CLOSED",
       error: error instanceof Error ? error.message : "CODING_PUBLISH_FAILED",
+      failureEvidence: error instanceof CodingRunnerEvidenceError ? error.evidence : null,
       liveAuthority: "NONE",
       productionMutationAllowed: false,
       aiAuthority: "ZERO_AUTHORITY",
