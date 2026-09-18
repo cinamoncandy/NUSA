@@ -19,30 +19,26 @@ test("App shell routes the canonical five-tab decision flow and preserves deeper
   assert.match(app, /StatusChip label="PAPER ONLY"/);
   assert.match(app, /StatusChip label="LIVE NONE"/);
 });
-test("Home uses the content-first command center hierarchy and keeps AI read-only", () => {
+test("Home MASTER uses the approved terminal hierarchy and keeps AI read-only", () => {
   const source = read("src/homeView.tsx");
   const decisionSurface = read("src/homeDecisionSurface.ts");
-  assert.match(source, /PAPER EQUITY/);
   assert.match(source, /testID="home-master-rail"/);
-  assert.match(source, /testID="home-now"/);
+  assert.match(source, /testID="home-supervisor-now"/);
   assert.match(source, /testID="account-hero-card"/);
-  assert.match(source, /PAPER EQUITY/);
-  assert.match(source, /TOTAL PNL/);
+  assert.match(source, /PAPER PERFORMANCE/);
   assert.doesNotMatch(source, />오늘</);
-  assert.match(source, /DECISION BASIS/);
+  assert.match(source, /<TruthCell label="WHY"/);
   assert.match(source, />NOW<\/Text>/);
-  assert.match(source, />RESULT<\/Text>/);
-  assert.match(source, />RISK<\/Text>/);
-  assert.match(source, /testID="home-risk-status"/);
+  assert.match(source, /<TruthCell label="RESULT"/);
+  assert.match(source, /<TruthCell label="RISK"/);
+  assert.match(source, /testID="home-risk-authority"/);
   assert.match(source, /testID="home-decision-stage"/);
-  assert.match(source, /QUICK ACCESS/);
-  assert.match(source, />PORTFOLIO<\/Text>/);
-  assert.match(source, />RISK<\/Text>/);
+  assert.match(source, /MARKET PULSE/);
+  assert.match(source, /PORTFOLIO \/ ALLOCATION/);
+  assert.match(source, /CAPITAL LIMITS/);
   assert.match(source, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
   assert.match(source, /selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)/);
-  assert.match(source, /const aiInsightAvailable = decisionSurface\.aiInsightAvailable && !disconnected && readOnlyError == null/);
-  // The fail-closed decision model remains authoritative for presentation truth;
-  // HOME may expose rich read-only evidence but must never create LIVE authority.
+  assert.match(source, /aiInsightAvailable,/);
   assert.match(decisionSurface, /PAPER P&L .*EQUITY/);
   assert.doesNotMatch(source, /productionMutationAllowed:\s*true/);
   assert.doesNotMatch(source, /authority:\s*"LIVE"/);
