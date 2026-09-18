@@ -183,15 +183,15 @@ export function IntelligenceMotionField({ active = true, evidenceCount = 0, labe
       <View style={[styles.latticeLine, styles.latticeLineB, { backgroundColor: theme.colors.aiSignalStart }]} />
       <View style={[styles.latticeLine, styles.latticeLineC, { backgroundColor: theme.colors.aiSignalEnd }]} />
       <View style={[styles.latticeLine, styles.latticeLineD, { backgroundColor: theme.colors.aiSignalMid }]} />
-      <View style={[styles.latticeNode, styles.latticeNodeA, { borderColor: theme.colors.aiSignalMid }]} />
-      <View style={[styles.latticeNode, styles.latticeNodeB, { borderColor: theme.colors.aiSignalStart }]} />
-      <View style={[styles.latticeNode, styles.latticeNodeC, { borderColor: theme.colors.aiSignalEnd }]} />
-      <View style={[styles.latticeNode, styles.latticeNodeD, { borderColor: theme.colors.aiSignalMid }]} />
+      <View style={[styles.latticeNode, styles.latticeNodeA, { backgroundColor: theme.colors.aiSignalMid }]} />
+      <View style={[styles.latticeNode, styles.latticeNodeB, { backgroundColor: theme.colors.aiSignalStart }]} />
+      <View style={[styles.latticeNode, styles.latticeNodeC, { backgroundColor: theme.colors.aiSignalEnd }]} />
+      <View style={[styles.latticeNode, styles.latticeNodeD, { backgroundColor: theme.colors.aiSignalMid }]} />
     </Animated.View>
     <View style={styles.intelligenceGrid} />
-    <Animated.View style={[styles.intelligenceOrbitOuter, { borderColor: theme.colors.aiSignalStart, transform: [{ rotate: rotation }] }]}><View style={[styles.intelligenceOrbitNode, { backgroundColor: theme.colors.aiSignalEnd }]} /></Animated.View>
-    <Animated.View style={[styles.intelligenceOrbitInner, { borderColor: theme.colors.aiSignalMid, transform: [{ rotate: rotation }] }]}><View style={[styles.intelligenceOrbitNodeSmall, { backgroundColor: theme.colors.aiSignalStart }]} /></Animated.View>
-    <Animated.View style={[styles.intelligenceCoreHalo, { borderColor: theme.colors.aiSignalMid, opacity: coreOpacity, transform: [{ scale: coreScale }] }]} />
+    <Animated.View style={[styles.intelligenceOrbitOuter, { backgroundColor: theme.colors.aiSignalStart, transform: [{ rotate: rotation }] }]}><View style={[styles.intelligenceOrbitNode, { backgroundColor: theme.colors.aiSignalEnd }]} /></Animated.View>
+    <Animated.View style={[styles.intelligenceOrbitInner, { backgroundColor: theme.colors.aiSignalMid, transform: [{ rotate: rotation }] }]}><View style={[styles.intelligenceOrbitNodeSmall, { backgroundColor: theme.colors.aiSignalStart }]} /></Animated.View>
+    <Animated.View style={[styles.intelligenceCoreHalo, { backgroundColor: theme.colors.aiSignalMid, opacity: coreOpacity, transform: [{ scale: coreScale }] }]} />
     <Animated.View style={[styles.intelligenceCore, { backgroundColor: theme.colors.aiSignalEnd, shadowColor: theme.colors.aiSignalEnd, opacity: coreOpacity, transform: [{ scale: coreScale }] }]} />
     <Animated.View style={[styles.intelligenceScan, { backgroundColor: theme.colors.aiSignalMid, opacity: coreOpacity, transform: [{ translateX: scanX }, { rotate: "-18deg" }] }]} />
     <View style={styles.intelligenceLegend}><Text style={styles.intelligenceLegendLabel}>EVIDENCE</Text><Text style={styles.intelligenceLegendValue}>{boundedEvidence}</Text></View>
@@ -212,16 +212,16 @@ export function TerrainSignal({ variant = "symbolic", signalStrength = 0.6, acce
     <View style={[styles.terrainGridLine, styles.terrainGridLineTop, { backgroundColor: theme.colors.borderStrong, opacity: 0.5 }]} />
     <View style={[styles.terrainGridLine, styles.terrainGridLineMid, { backgroundColor: theme.colors.borderStrong, opacity: 0.62 }]} />
     <View style={[styles.terrainGridLine, styles.terrainGridLineLow, { backgroundColor: theme.colors.borderStrong, opacity: 0.4 }]} />
-    <View style={[styles.terrainPlane, styles.terrainPlaneFar, { width: secondaryWidth, borderColor: theme.colors.terrain, opacity: signalOpacity * 0.5 }]} />
-    <View style={[styles.terrainPlane, styles.terrainPlaneFarB, { width: "58%", borderColor: theme.colors.aiSignalStart, opacity: signalOpacity * 0.48 }]} />
-    <View style={[styles.terrainPlane, styles.terrainPlaneMid, { width: primaryWidth, borderColor: theme.colors.aiSignalStart, opacity: signalOpacity * 0.7 }]} />
-    <View style={[styles.terrainPlane, styles.terrainPlaneMidB, { width: "66%", borderColor: theme.colors.aiSignalMid, opacity: signalOpacity * 0.68 }]} />
-    <View style={[styles.terrainPlane, styles.terrainPlaneNear, { width: "76%", borderColor: theme.colors.aiSignalMid, opacity: signalOpacity * 0.86 }]} />
-    <View style={[styles.terrainPlane, styles.terrainPlaneNearB, { width: "82%", borderColor: theme.colors.aiSignalEnd, opacity: signalOpacity * 0.8 }]} />
-    <View style={[styles.terrainPlane, styles.terrainPlaneGround, { width: "92%", borderColor: theme.colors.terrain, opacity: signalOpacity }]} />
+    <View style={[styles.terrainPlane, styles.terrainPlaneFar, { width: secondaryWidth, backgroundColor: theme.colors.terrain, opacity: signalOpacity * 0.5 }]} />
+    <View style={[styles.terrainPlane, styles.terrainPlaneFarB, { width: "58%", backgroundColor: theme.colors.aiSignalStart, opacity: signalOpacity * 0.48 }]} />
+    <View style={[styles.terrainPlane, styles.terrainPlaneMid, { width: primaryWidth, backgroundColor: theme.colors.aiSignalStart, opacity: signalOpacity * 0.7 }]} />
+    <View style={[styles.terrainPlane, styles.terrainPlaneMidB, { width: "66%", backgroundColor: theme.colors.aiSignalMid, opacity: signalOpacity * 0.68 }]} />
+    <View style={[styles.terrainPlane, styles.terrainPlaneNear, { width: "76%", backgroundColor: theme.colors.aiSignalMid, opacity: signalOpacity * 0.86 }]} />
+    <View style={[styles.terrainPlane, styles.terrainPlaneNearB, { width: "82%", backgroundColor: theme.colors.aiSignalEnd, opacity: signalOpacity * 0.8 }]} />
+    <View style={[styles.terrainPlane, styles.terrainPlaneGround, { width: "92%", backgroundColor: theme.colors.terrain, opacity: signalOpacity }]} />
     <View style={[styles.terrainConvergenceBeam, { left: convergenceLeft, backgroundColor: theme.colors.aiSignalEnd, opacity: 0.35 + boundedStrength * 0.25 }]} />
-    <View style={[styles.terrainConvergenceHaloOuter, { left: convergenceLeft, borderColor: theme.colors.aiSignalMid, opacity: 0.3 + boundedStrength * 0.2 }]} />
-    <View style={[styles.terrainConvergenceHalo, { left: convergenceLeft, borderColor: theme.colors.aiSignalEnd, opacity: 0.5 + boundedStrength * 0.25 }]} />
+    <View style={[styles.terrainConvergenceHaloOuter, { left: convergenceLeft, backgroundColor: theme.colors.aiSignalMid, opacity: 0.3 + boundedStrength * 0.2 }]} />
+    <View style={[styles.terrainConvergenceHalo, { left: convergenceLeft, backgroundColor: theme.colors.aiSignalEnd, opacity: 0.5 + boundedStrength * 0.25 }]} />
     <View style={[styles.terrainConvergence, { left: convergenceLeft, backgroundColor: theme.colors.aiSignalEnd, shadowColor: theme.colors.aiSignalEnd, opacity: 0.9 + boundedStrength * 0.1 }]} />
   </View>;
 }
@@ -318,14 +318,14 @@ const styles = StyleSheet.create({
   terrainGridLineTop: { top: "27%" },
   terrainGridLineMid: { top: "50%" },
   terrainGridLineLow: { top: "73%" },
-  terrainPlane: { position: "absolute", height: 42, borderRadius: 60, borderWidth: 1.2, backgroundColor: "transparent" },
-  terrainPlaneFar: { left: "22%", top: "17%", transform: [{ rotate: "-2deg" }, { skewX: "-8deg" }, { scaleY: 0.32 }] },
-  terrainPlaneFarB: { left: "18%", top: "25%", transform: [{ rotate: "2deg" }, { skewX: "7deg" }, { scaleY: 0.38 }] },
-  terrainPlaneMid: { left: "14%", top: "34%", transform: [{ rotate: "-3deg" }, { skewX: "-6deg" }, { scaleY: 0.44 }] },
-  terrainPlaneMidB: { left: "11%", top: "43%", transform: [{ rotate: "2deg" }, { skewX: "5deg" }, { scaleY: 0.5 }] },
-  terrainPlaneNear: { left: "8%", top: "53%", transform: [{ rotate: "-2deg" }, { skewX: "-4deg" }, { scaleY: 0.56 }] },
-  terrainPlaneNearB: { left: "5%", top: "63%", transform: [{ rotate: "2deg" }, { skewX: "4deg" }, { scaleY: 0.62 }] },
-  terrainPlaneGround: { left: "3%", top: "73%", transform: [{ rotate: "-1deg" }, { skewX: "-3deg" }, { scaleY: 0.68 }] },
+  terrainPlane: { position: "absolute", height: 3, borderRadius: 4 },
+  terrainPlaneFar: { left: "22%", top: "20%", transform: [{ rotate: "-3deg" }] },
+  terrainPlaneFarB: { left: "20%", top: "29%", transform: [{ rotate: "3deg" }] },
+  terrainPlaneMid: { left: "14%", top: "39%", transform: [{ rotate: "-4deg" }] },
+  terrainPlaneMidB: { left: "17%", top: "49%", transform: [{ rotate: "3deg" }] },
+  terrainPlaneNear: { left: "8%", top: "59%", transform: [{ rotate: "-4deg" }] },
+  terrainPlaneNearB: { left: "12%", top: "69%", transform: [{ rotate: "3deg" }] },
+  terrainPlaneGround: { left: "3%", top: "79%", transform: [{ rotate: "-2deg" }] },
   terrainConvergenceBeam: { position: "absolute", top: "24%", bottom: "16%", width: 1.5, marginLeft: -0.75 },
   terrainConvergence: { position: "absolute", top: "48%", width: 16, height: 16, borderRadius: 8, marginLeft: -8, shadowOpacity: 0.85, shadowRadius: 18, elevation: 4 },
   terrainConvergenceHalo: { position: "absolute", top: "40%", width: 48, height: 48, borderRadius: 24, borderWidth: 1.5, marginLeft: -24 },
