@@ -3,13 +3,14 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, it } from "node:test";
 import { CANONICAL_MODULE_REGISTRY_10XS, validateCanonicalModuleRegistry10XS } from "./canonicalModuleRegistryV10";
-import { MODULE_STAGE_ORDER } from "./moduleLevel10";
+import { LEVEL_10_CRITERIA, MODULE_STAGE_ORDER } from "./moduleLevel10";
 import {
   TEN_X_S_CAPABILITIES,
   evaluateTenXSCertification,
   type TenXSCapability,
   type TenXSCertificationEvidence
 } from "./module10XS";
+import { MODULE_QUALIFICATION_RECORDS_V1, isLevel10Qualified } from "./moduleQualificationV1";
 
 const SOURCE_SHA = "1d538db896e9db58f925ebade464f2d8be7ae13e";
 const EVIDENCE_SHA = "a".repeat(64);
@@ -40,21 +41,28 @@ function evidence(overrides: Partial<TenXSCertificationEvidence> = {}): TenXSCer
 }
 
 describe("10X-S canonical registry", () => {
-  it("targets every canonical module at the single highest tier with real canonical/runtime evidence paths", () => {
+  it("keeps 10X-S as a target without converting missing evidence into qualification", () => {
     validateCanonicalModuleRegistry10XS();
     assert.deepEqual(CANONICAL_MODULE_REGISTRY_10XS.map((definition) => definition.stage), [...MODULE_STAGE_ORDER]);
     assert.equal(CANONICAL_MODULE_REGISTRY_10XS.every((definition) => definition.targetTier === "10X-S"), true);
+    assert.equal(CANONICAL_MODULE_REGISTRY_10XS.every((definition) => definition.qualificationStatus === "TARGET_ONLY"), true);
     for (const definition of CANONICAL_MODULE_REGISTRY_10XS) {
       assert.equal(existsSync(resolve(process.cwd(), definition.canonicalEntrypoint)), true, definition.canonicalEntrypoint);
       assert.equal(existsSync(resolve(process.cwd(), definition.runtimeEntrypoint)), true, definition.runtimeEntrypoint);
       assert.match(definition.rollbackRef, /^[0-9a-f]{40}$/);
+      assert.equal(isLevel10Qualified(MODULE_QUALIFICATION_RECORDS_V1[definition.stage]), false);
+      assert.equal(definition.criteria.CANONICAL_ENTRYPOINT, true);
+      for (const criterion of LEVEL_10_CRITERIA.filter((item) => item !== "CANONICAL_ENTRYPOINT")) {
+        assert.equal(definition.criteria[criterion], false, `${definition.stage}:${criterion}`);
+        assert.deepEqual(definition.criterionEvidence[criterion], [], `${definition.stage}:${criterion}`);
+      }
       for (const ref of definition.tenXSEvidenceRefs) assert.equal(existsSync(resolve(process.cwd(), ref)), true, ref);
     }
   });
 });
 
-describe("10X-S evidence gate", () => {
-  it("certifies only complete operational, regression-free evidence", () => {
+describe("10X-S evidence evaluator", () => {
+  it("certifies a supplied complete operational evidence object", () => {
     const result = evaluateTenXSCertification(evidence());
     assert.equal(result.status, "CERTIFIED");
     assert.equal(result.effectiveTier, "10X-S");
