@@ -17,6 +17,12 @@ const prCiSuccess = (workflowRunAttempt: number | null): AutopilotDispatchPlan =
   mutationAllowed: false,
 });
 
+test("attempt 1 preserves the deployed pre-fix Audit identity byte-for-byte", () => {
+  const first = planAutopilotExecution(prCiSuccess(1));
+  assert.equal(first.executionId, "audit:1843:35327752994");
+  assert.equal(first.dedupeKey, `audit:1843:35327752994:${HEAD}`);
+});
+
 test("a CI re-run of the same run id is a distinct Audit execution identity", () => {
   const first = planAutopilotExecution(prCiSuccess(1));
   const retry = planAutopilotExecution(prCiSuccess(2));

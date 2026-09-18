@@ -47,6 +47,10 @@ export function planAutopilotExecution(dispatch: AutopilotDispatchPlan): Autopil
       });
     }
     const normalizedHead = headSha.toLowerCase();
+    // Keep attempt 1 byte-identical to the already-deployed identity so a replay that crosses
+    // the deployment boundary cannot evade an existing persistent dedupe record. Only re-runs
+    // (attempt > 1) extend the identity.
+    const attemptSuffix = workflowRunAttempt > 1 ? `:${workflowRunAttempt}` : "";
     return freeze({
       kind: "AUDIT_REQUEST",
       repository: dispatch.repository,
@@ -55,8 +59,8 @@ export function planAutopilotExecution(dispatch: AutopilotDispatchPlan): Autopil
       workflowRunId,
       workflowRunAttempt,
       reason: `audit:pr:${prNumber}:ci:${workflowRunId}:${normalizedHead}`,
-      executionId: `audit:${prNumber}:${workflowRunId}:${workflowRunAttempt}`,
-      dedupeKey: `audit:${prNumber}:${workflowRunId}:${workflowRunAttempt}:${normalizedHead}`,
+      executionId: `audit:${prNumber}:${workflowRunId}${attemptSuffix}`,
+      dedupeKey: `audit:${prNumber}:${workflowRunId}${attemptSuffix}:${normalizedHead}`,
       mutationAllowed: false,
     });
   }

@@ -20,8 +20,8 @@ test("PR_CI_SUCCEEDED becomes a bounded exact-head audit request", () => {
   assert.equal(result.prNumber, 42);
   assert.equal(result.headSha, headSha);
   assert.equal(result.workflowRunId, workflowRunId);
-  assert.equal(result.executionId, `audit:42:${workflowRunId}:1`);
-  assert.equal(result.dedupeKey, `audit:42:${workflowRunId}:1:${headSha}`);
+  assert.equal(result.executionId, `audit:42:${workflowRunId}`);
+  assert.equal(result.dedupeKey, `audit:42:${workflowRunId}:${headSha}`);
   assert.equal(result.mutationAllowed, false);
 });
 
