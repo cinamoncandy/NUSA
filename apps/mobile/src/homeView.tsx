@@ -61,6 +61,21 @@ function MarketTile({ market }: Readonly<{ market: WatchlistMarket | null }>) {
 function EvidenceRow({ label, value, tone = "neutral" }: Readonly<{ label: string; value: string; tone?: "lime" | "danger" | "neutral" }>) {
   return <View style={styles.evidenceRow}><Text style={[styles.evidenceLabel, { color: tone === "lime" ? LIME : tone === "danger" ? RED : "#E9F0EC" }]}>{label}</Text><Text style={styles.evidenceValue} numberOfLines={3}>{value}</Text></View>;
 }
+function GlobeVisual() {
+  return <View style={styles.globeWrap} accessible accessibilityRole="image" accessibilityLabel="NUSA global market intelligence globe">
+    <View style={styles.globeGlow} />
+    <View style={styles.globeSphere}>
+      <View style={[styles.globeLongitude, styles.globeLongitudeA]} />
+      <View style={[styles.globeLongitude, styles.globeLongitudeB]} />
+      <View style={[styles.globeLatitude, styles.globeLatitudeA]} />
+      <View style={[styles.globeLatitude, styles.globeLatitudeB]} />
+      <View style={[styles.globeLatitude, styles.globeLatitudeC]} />
+      <View style={styles.globeLandA} /><View style={styles.globeLandB} /><View style={styles.globeLandC} />
+      <View style={[styles.globeNode, styles.globeNodeA]} /><View style={[styles.globeNode, styles.globeNodeB]} /><View style={[styles.globeNode, styles.globeNodeC]} />
+    </View>
+    <Text style={styles.orbitText}>GLOBAL{String.fromCharCode(10)}MARKETS{String.fromCharCode(10)}REAL-TIME{String.fromCharCode(10)}WITH AI</Text>
+  </View>;
+}
 
 export function HomeView(props: HomeViewProps) {
   const { theme } = useTheme();
@@ -117,10 +132,7 @@ export function HomeView(props: HomeViewProps) {
         <Text style={styles.heroLine}>DISCIPLINE</Text><Text style={styles.heroLine}>COMPOUNDS</Text><Text style={styles.heroAccent}>FREEDOM.</Text>
         <Text style={styles.heroKorean}>더 나은 오늘이,{String.fromCharCode(10)}더 큰 자유를 만든다.</Text>
       </View>
-      <View style={styles.orbit} accessibilityLabel="global market intelligence visual">
-        <View style={styles.orbitOuter} /><View style={styles.orbitMid} /><View style={styles.orbitCore} />
-        <Text style={styles.orbitText}>GLOBAL{String.fromCharCode(10)}MARKETS{String.fromCharCode(10)}REAL-TIME{String.fromCharCode(10)}WITH AI</Text>
-      </View>
+      <GlobeVisual />
     </View>
 
     <View style={styles.marketStrip} testID="home-market-pulse">
@@ -203,10 +215,10 @@ const styles = StyleSheet.create({
   logo:{color:"#F5F8F6",fontSize:27,fontWeight:"900",letterSpacing:2.7},tagline:{color:MUTED,fontSize:7,fontWeight:"700",letterSpacing:1.4,marginTop:-2},
   modeWrap:{flexDirection:"row",alignItems:"center",gap:7},modeDot:{width:9,height:9,borderRadius:9,backgroundColor:LIME,shadowColor:LIME,shadowOpacity:.6,shadowRadius:8},
   modeText:{color:"#CDEDD9",fontSize:10,fontWeight:"800",letterSpacing:.7},modeSub:{color:"#739386",fontSize:8,marginTop:2},
-  hero:{minHeight:190,flexDirection:"row",alignItems:"center",justifyContent:"space-between",overflow:"hidden"},
-  heroCopy:{zIndex:2,flex:1},heroLine:{color:"#EAF2EE",fontSize:29,lineHeight:34,fontWeight:"500",letterSpacing:2.2},heroAccent:{color:LIME,fontSize:29,lineHeight:35,fontWeight:"900",letterSpacing:2.1},
+  hero:{minHeight:178,flexDirection:"row",alignItems:"center",justifyContent:"space-between",overflow:"hidden"},
+  heroCopy:{zIndex:2,flex:1},heroLine:{color:"#EAF2EE",fontSize:27,lineHeight:31,fontWeight:"500",letterSpacing:2.2},heroAccent:{color:LIME,fontSize:27,lineHeight:32,fontWeight:"900",letterSpacing:2.1},
   heroKorean:{color:"#A4B3AB",fontSize:13,lineHeight:20,marginTop:16},
-  orbit:{width:160,height:160,marginRight:-28,alignItems:"center",justifyContent:"center"},orbitOuter:{position:"absolute",width:148,height:148,borderRadius:148,borderWidth:1,borderColor:"#294D38"},orbitMid:{position:"absolute",width:112,height:112,borderRadius:112,borderWidth:1,borderColor:"#1D392A",transform:[{scaleY:.55}]},orbitCore:{position:"absolute",width:76,height:76,borderRadius:76,backgroundColor:"#0C1711",borderWidth:1,borderColor:LIME,opacity:.5},
+  globeWrap:{width:178,height:164,marginRight:-34,alignItems:"center",justifyContent:"center",position:"relative"},globeGlow:{position:"absolute",width:142,height:142,borderRadius:142,backgroundColor:"#0B1810",opacity:.72,shadowColor:LIME,shadowOpacity:.22,shadowRadius:28},globeSphere:{width:142,height:142,borderRadius:142,borderWidth:1,borderColor:"#355943",backgroundColor:"#07100B",overflow:"hidden",position:"relative"},globeLongitude:{position:"absolute",top:-2,bottom:-2,left:"50%",width:56,marginLeft:-28,borderRadius:56,borderWidth:1,borderColor:"#183A26"},globeLongitudeA:{transform:[{scaleX:.55}]},globeLongitudeB:{transform:[{scaleX:1.45}]},globeLatitude:{position:"absolute",left:-4,right:-4,height:46,borderRadius:80,borderWidth:1,borderColor:"#173823"},globeLatitudeA:{top:15},globeLatitudeB:{top:48},globeLatitudeC:{top:81},globeLandA:{position:"absolute",left:77,top:35,width:34,height:18,borderRadius:8,backgroundColor:"#173923",transform:[{rotate:"-18deg"}]},globeLandB:{position:"absolute",left:67,top:54,width:20,height:35,borderRadius:7,backgroundColor:"#204C2D",transform:[{rotate:"17deg"}]},globeLandC:{position:"absolute",left:98,top:77,width:17,height:12,borderRadius:6,backgroundColor:"#285D36"},globeNode:{position:"absolute",width:4,height:4,borderRadius:4,backgroundColor:LIME,shadowColor:LIME,shadowOpacity:.9,shadowRadius:5},globeNodeA:{left:84,top:47},globeNodeB:{left:99,top:82},globeNodeC:{left:71,top:69},
   orbitText:{position:"absolute",right:8,bottom:18,color:"#6F8D7C",fontSize:8,lineHeight:12,fontWeight:"700",letterSpacing:.7},
   marketStrip:{flexDirection:"row",gap:7},marketTile:{flex:1,minWidth:0,padding:10,borderWidth:1,borderColor:BORDER,borderRadius:7,backgroundColor:PANEL},
   marketSymbol:{color:"#E7EEE9",fontSize:11,fontWeight:"800"},marketChange:{fontSize:14,fontWeight:"800",marginTop:7},marketPrice:{color:"#89988F",fontSize:8,marginTop:5,fontVariant:["tabular-nums"]},
