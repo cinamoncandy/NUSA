@@ -25,6 +25,42 @@ test("UIUX-002 presents the canonical five-tab product navigation while preservi
 test("mobile intelligence shell displays real AI projection and truthful scoped authority state", () => {
   const app = read("App.tsx");
   const aiView = read("src/aiView.tsx");
+  assert.match(app, /const ai = snapshot\\?\\.ai \\?\\? null/);
+  assert.match(aiView, /const thesis=ai\\?\\.status==="AVAILABLE"&&ai\\.thesis\\?ai\\.thesis/);
+  assert.match(aiView, /AI ZERO AUTHORITY/);
+  assert.match(aiView, /PUBLIC READ ONLY/);
+  assert.match(aiView, /LIVE \\{liveAuthority\\?\\?"NONE"\\}/);
+  assert.match(aiView, /productionMutationAllowed===false\\?"BLOCKED":"UNVERIFIED"/);
+  assert.doesNotMatch(aiView, /submitOrder|withdraw\\s*\\(|transfer\\s*\\(/i);
+  assert.doesNotMatch(app, /94%/);
+});
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+
+const mobile = path.resolve(__dirname, "../apps/mobile");
+const read = (file) => fs.readFileSync(path.join(mobile, file), "utf8");
+
+test("UIUX-002 presents the canonical five-tab product navigation while preserving deeper routes", () => {
+  const app = read("App.tsx");
+  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\] as const/);
+  assert.match(app, /Home: "HOME"/);
+  assert.match(app, /Markets: "MARKETS"/);
+  assert.match(app, /Paper: "PAPER"/);
+  assert.match(app, /Portfolio: "PORTFOLIO"/);
+  assert.match(app, /AiSignal: "AI"/);
+  assert.match(app, /Markets: "공개 시장 환경"/);
+  assert.match(app, /Portfolio: "PAPER 자산과 결과"/);
+  assert.match(app, /AiSignal: "AI 판단과 근거"/);
+  assert.match(app, /type Tab = PrimaryTab \| "Order"/);
+  assert.match(app, /activeTab === "AiSignal" \? <AiView/);
+  assert.doesNotMatch(app, /<MoreView/);
+});
+
+test("mobile intelligence shell displays real AI projection and truthful scoped authority state", () => {
+  const app = read("App.tsx");
+  const aiView = read("src/aiView.tsx");
   const components = read("src/components.tsx");
   assert.match(app, /const ai = snapshot\?\.ai \?\? null/);
   assert.match(aiView, /ai\?\.thesis \?\? "현재 표시할 검증된 AI 분석이 없습니다\."/);
