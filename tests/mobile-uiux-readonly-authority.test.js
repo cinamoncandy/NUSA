@@ -33,7 +33,7 @@ test("mobile intelligence shell displays real AI projection and truthful scoped 
   assert.match(components, /AI는 읽기 전용이며 PAPER 주문은 별도의 사용자 승인·PAPER 실행 경로에서만 처리됩니다/);
   assert.match(aiView, /SIGNAL IS READ ONLY/);
   assert.match(aiView, /PUBLIC READ ONLY/);
-  assert.match(aiView, /productionMutationAllowed===false\\?"BLOCKED":"UNVERIFIED"/);
+  assert.match(aiView, /productionMutationAllowed===false\?"BLOCKED":"UNVERIFIED"/);
   assert.doesNotMatch(components, /UI 주문 경로 없음/);
   assert.doesNotMatch(app, /94%/);
 });
