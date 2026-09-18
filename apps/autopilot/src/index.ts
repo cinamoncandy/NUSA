@@ -5,7 +5,7 @@ import { planAutopilotExecution } from "./executionPlanner";
 import { executeGithubDispatch } from "./githubExecutor";
 import { resolveGithubReleaseCompletion } from "./githubReleaseCompletionResolver";
 import { verifyGithubActionsOidcToken, verifyGithubEventBridgeOidcToken } from "./githubActionsOidc";
-import { executeCodingRunner, validateCodingRunnerRequest, type CodingPublisher, type CodingRuntime, type WorkersAiBinding } from "./codingRunner";
+import { CodingRunnerEvidenceError, executeCodingRunner, validateCodingRunnerRequest, type CodingPublisher, type CodingRuntime, type WorkersAiBinding } from "./codingRunner";
 import { prepareProductionExecution } from "./productionExecutionSpine";
 import {
   acquirePersistentExecution,
@@ -203,7 +203,14 @@ export async function handleCodingExecute(
         productionMutationAllowed: false,
         aiAuthority: "ZERO_AUTHORITY",
       });
-      return json({ error: failureReason, status: "EXECUTION_FAILED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 400);
+      return json({
+        error: failureReason,
+        status: "EXECUTION_FAILED",
+        failureEvidence: error instanceof CodingRunnerEvidenceError ? error.evidence : null,
+        liveAuthority: "NONE",
+        productionMutationAllowed: false,
+        aiAuthority: "ZERO_AUTHORITY",
+      }, 400);
     }
 
     if (result.status === "EXECUTION_ACCEPTED") {
