@@ -183,15 +183,15 @@ export function IntelligenceMotionField({ active = true, evidenceCount = 0, labe
       <View style={[styles.latticeLine, styles.latticeLineB, { backgroundColor: theme.colors.aiSignalStart }]} />
       <View style={[styles.latticeLine, styles.latticeLineC, { backgroundColor: theme.colors.aiSignalEnd }]} />
       <View style={[styles.latticeLine, styles.latticeLineD, { backgroundColor: theme.colors.aiSignalMid }]} />
-      <View style={[styles.latticeNode, styles.latticeNodeA, { backgroundColor: theme.colors.aiSignalMid }]} />
-      <View style={[styles.latticeNode, styles.latticeNodeB, { backgroundColor: theme.colors.aiSignalStart }]} />
-      <View style={[styles.latticeNode, styles.latticeNodeC, { backgroundColor: theme.colors.aiSignalEnd }]} />
-      <View style={[styles.latticeNode, styles.latticeNodeD, { backgroundColor: theme.colors.aiSignalMid }]} />
+      <View style={[styles.latticeNode, styles.latticeNodeA, { borderColor: theme.colors.aiSignalMid }]} />
+      <View style={[styles.latticeNode, styles.latticeNodeB, { borderColor: theme.colors.aiSignalStart }]} />
+      <View style={[styles.latticeNode, styles.latticeNodeC, { borderColor: theme.colors.aiSignalEnd }]} />
+      <View style={[styles.latticeNode, styles.latticeNodeD, { borderColor: theme.colors.aiSignalMid }]} />
     </Animated.View>
     <View style={styles.intelligenceGrid} />
-    <Animated.View style={[styles.intelligenceOrbitOuter, { backgroundColor: theme.colors.aiSignalStart, transform: [{ rotate: rotation }] }]}><View style={[styles.intelligenceOrbitNode, { backgroundColor: theme.colors.aiSignalEnd }]} /></Animated.View>
-    <Animated.View style={[styles.intelligenceOrbitInner, { backgroundColor: theme.colors.aiSignalMid, transform: [{ rotate: rotation }] }]}><View style={[styles.intelligenceOrbitNodeSmall, { backgroundColor: theme.colors.aiSignalStart }]} /></Animated.View>
-    <Animated.View style={[styles.intelligenceCoreHalo, { backgroundColor: theme.colors.aiSignalMid, opacity: coreOpacity, transform: [{ scale: coreScale }] }]} />
+    <Animated.View style={[styles.intelligenceOrbitOuter, { borderColor: theme.colors.aiSignalStart, transform: [{ rotate: rotation }] }]}><View style={[styles.intelligenceOrbitNode, { backgroundColor: theme.colors.aiSignalEnd }]} /></Animated.View>
+    <Animated.View style={[styles.intelligenceOrbitInner, { borderColor: theme.colors.aiSignalMid, transform: [{ rotate: rotation }] }]}><View style={[styles.intelligenceOrbitNodeSmall, { backgroundColor: theme.colors.aiSignalStart }]} /></Animated.View>
+    <Animated.View style={[styles.intelligenceCoreHalo, { borderColor: theme.colors.aiSignalMid, opacity: coreOpacity, transform: [{ scale: coreScale }] }]} />
     <Animated.View style={[styles.intelligenceCore, { backgroundColor: theme.colors.aiSignalEnd, shadowColor: theme.colors.aiSignalEnd, opacity: coreOpacity, transform: [{ scale: coreScale }] }]} />
     <Animated.View style={[styles.intelligenceScan, { backgroundColor: theme.colors.aiSignalMid, opacity: coreOpacity, transform: [{ translateX: scanX }, { rotate: "-18deg" }] }]} />
     <View style={styles.intelligenceLegend}><Text style={styles.intelligenceLegendLabel}>EVIDENCE</Text><Text style={styles.intelligenceLegendValue}>{boundedEvidence}</Text></View>
@@ -220,8 +220,8 @@ export function TerrainSignal({ variant = "symbolic", signalStrength = 0.6, acce
     <View style={[styles.terrainPlane, styles.terrainPlaneNearB, { width: "82%", backgroundColor: theme.colors.aiSignalEnd, opacity: signalOpacity * 0.8 }]} />
     <View style={[styles.terrainPlane, styles.terrainPlaneGround, { width: "92%", backgroundColor: theme.colors.terrain, opacity: signalOpacity }]} />
     <View style={[styles.terrainConvergenceBeam, { left: convergenceLeft, backgroundColor: theme.colors.aiSignalEnd, opacity: 0.35 + boundedStrength * 0.25 }]} />
-    <View style={[styles.terrainConvergenceHaloOuter, { left: convergenceLeft, backgroundColor: theme.colors.aiSignalMid, opacity: 0.3 + boundedStrength * 0.2 }]} />
-    <View style={[styles.terrainConvergenceHalo, { left: convergenceLeft, backgroundColor: theme.colors.aiSignalEnd, opacity: 0.5 + boundedStrength * 0.25 }]} />
+    <View style={[styles.terrainConvergenceHaloOuter, { left: convergenceLeft, borderColor: theme.colors.aiSignalMid, opacity: 0.3 + boundedStrength * 0.2 }]} />
+    <View style={[styles.terrainConvergenceHalo, { left: convergenceLeft, borderColor: theme.colors.aiSignalEnd, opacity: 0.5 + boundedStrength * 0.25 }]} />
     <View style={[styles.terrainConvergence, { left: convergenceLeft, backgroundColor: theme.colors.aiSignalEnd, shadowColor: theme.colors.aiSignalEnd, opacity: 0.9 + boundedStrength * 0.1 }]} />
   </View>;
 }
