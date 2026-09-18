@@ -7,7 +7,10 @@ const homePath = path.join(__dirname, "..", "apps", "mobile", "src", "homeView.t
 
 test("HOME visibly distinguishes CLOUD PAPER from LOCAL PAPER capital", () => {
   const home = fs.readFileSync(homePath, "utf8");
-  assert.match(home, /const accountSource = snapshot != null \? "CLOUD" : localPortfolio != null \? "LOCAL" : null/);
+  assert.match(home, /const cloudAccount = snapshot\?\.portfolio\?\.account \?\? null/);
+  assert.match(home, /const localAccount = localPortfolio\?\.account \?\? null/);
+  assert.match(home, /const account = cloudAccount \?\? localAccount/);
+  assert.match(home, /const accountSource = cloudAccount != null \? "CLOUD" : localAccount != null \? "LOCAL" : null/);
   assert.match(home, /accountSource === "LOCAL"/);
   assert.match(home, /LOCAL PAPER · 실제 계좌\/Cloud PAPER와 합산하지 않음/);
   assert.match(home, /CLOUD PAPER · REAL account not blended/);
