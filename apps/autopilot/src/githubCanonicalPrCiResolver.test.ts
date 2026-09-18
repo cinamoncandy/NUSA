@@ -24,6 +24,11 @@ function run(overrides: Record<string, unknown> = {}) {
     conclusion: "success",
     head_sha: HEAD,
     repository: { full_name: "cinamoncandy/NUSA" },
+    pull_requests: [{
+      number: 1955,
+      head: { sha: HEAD },
+      base: { ref: "main" },
+    }],
     ...overrides,
   };
 }
@@ -88,6 +93,14 @@ describe("resolveCanonicalPrCiForReady", () => {
       ["wrong event", { event: "push" }],
       ["not completed", { status: "in_progress" }],
       ["wrong repository", { repository: { full_name: "other/repo" } }],
+      ["wrong PR", { pull_requests: [{ number: 1956, head: { sha: HEAD }, base: { ref: "main" } }] }],
+      ["wrong PR head", { pull_requests: [{ number: 1955, head: { sha: "b".repeat(40) }, base: { ref: "main" } }] }],
+      ["wrong PR base", { pull_requests: [{ number: 1955, head: { sha: HEAD }, base: { ref: "develop" } }] }],
+      ["missing PR association", { pull_requests: [] }],
+      ["ambiguous PR association", { pull_requests: [
+        { number: 1955, head: { sha: HEAD }, base: { ref: "main" } },
+        { number: 1956, head: { sha: HEAD }, base: { ref: "main" } },
+      ] }],
     ];
     for (const [label, overrides] of cases) {
       const result = await resolveCanonicalPrCiForReady(ready, configWith(async () => response([run(overrides)])));
