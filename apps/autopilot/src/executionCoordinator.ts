@@ -8,6 +8,10 @@ interface DurableObjectStorageLike {
   put<T>(key: string, value: T): Promise<void>;
 }
 
+interface TransactionalDurableObjectStorageLike extends DurableObjectStorageLike {
+  transaction<T>(closure: (storage: DurableObjectStorageLike) => Promise<T>): Promise<T>;
+}
+
 interface DurableObjectStateLike {
   storage: DurableObjectStorageLike;
 }
@@ -261,7 +265,24 @@ function validScheduledRuntimeSummary(value: unknown): value is ScheduledRuntime
 }
 
 export class ExecutionCoordinator {
+  private executionMutationQueue: Promise<void> = Promise.resolve();
+
   constructor(private readonly ctx: DurableObjectStateLike) {}
+
+  private async mutateExecutionAtomically<T>(operation: (storage: DurableObjectStorageLike) => Promise<T>): Promise<T> {
+    const transactional = this.ctx.storage as DurableObjectStorageLike & Partial<TransactionalDurableObjectStorageLike>;
+    if (typeof transactional.transaction === "function") return transactional.transaction(operation);
+
+    let releaseQueue: (() => void) | undefined;
+    const previous = this.executionMutationQueue;
+    this.executionMutationQueue = new Promise<void>((resolve) => { releaseQueue = resolve; });
+    await previous;
+    try {
+      return await operation(this.ctx.storage);
+    } finally {
+      releaseQueue?.();
+    }
+  }
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
@@ -287,22 +308,24 @@ export class ExecutionCoordinator {
   private async acquire(value: unknown): Promise<Response> {
     if (!validAcquire(value)) return json({ error: "EXECUTION_COORDINATION_REQUEST_INVALID" }, 400);
     const request = value;
-    const current = await this.ctx.storage.get<ExecutionRecord>("execution");
+    return this.mutateExecutionAtomically(async (storage) => {
+      const current = await storage.get<ExecutionRecord>("execution");
 
-    if (current?.dedupeKey === request.dedupeKey) {
-      if (current.state === "DISPATCHED") return json({ acquired: false, reason: "ALREADY_DISPATCHED", record: current }, 409);
-      if (current.state === "LEASED" && current.leaseExpiresAt > request.now) return json({ acquired: false, reason: "LEASE_ACTIVE", record: current }, 409);
-    }
+      if (current?.dedupeKey === request.dedupeKey) {
+        if (current.state === "DISPATCHED") return json({ acquired: false, reason: "ALREADY_DISPATCHED", record: current }, 409);
+        if (current.state === "LEASED" && current.leaseExpiresAt > request.now) return json({ acquired: false, reason: "LEASE_ACTIVE", record: current }, 409);
+      }
 
-    const record: ExecutionRecord = Object.freeze({
-      dedupeKey: request.dedupeKey,
-      executionId: request.executionId,
-      state: "LEASED",
-      leaseExpiresAt: request.leaseExpiresAt,
-      updatedAt: request.now,
+      const record: ExecutionRecord = Object.freeze({
+        dedupeKey: request.dedupeKey,
+        executionId: request.executionId,
+        state: "LEASED",
+        leaseExpiresAt: request.leaseExpiresAt,
+        updatedAt: request.now,
+      });
+      await storage.put("execution", record);
+      return json({ acquired: true, record }, 201);
     });
-    await this.ctx.storage.put("execution", record);
-    return json({ acquired: true, record }, 201);
   }
 
   private async markDispatched(value: unknown): Promise<Response> {
