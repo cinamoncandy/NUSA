@@ -211,6 +211,41 @@ describe("NUSA autopilot GitHub webhook", () => {
     assert.deepEqual({ state: record.hold.state, prNumber: record.hold.prNumber, headSha: record.hold.headSha, baseSha: record.hold.baseSha }, { state: "ACTIVE", prNumber: 1854, headSha, baseSha });
   });
 
+  it("NOOPs Ready-for-review when exact canonical CI replay evidence is absent", async () => {
+    const headSha = "d".repeat(40);
+    const body = JSON.stringify({
+      action: "ready_for_review",
+      number: 1955,
+      repository: { full_name: "cinamoncandy/NUSA" },
+      pull_request: { head: { sha: headSha }, base: { sha: "b".repeat(40) } },
+    });
+    const signature = await computeGithubWebhookSignature("secret", body);
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      if (String(input).includes("/actions/workflows/ci.yml/runs?")) {
+        return new Response(JSON.stringify({ total_count: 0, workflow_runs: [] }), { status: 200 });
+      }
+      throw new Error("unexpected network call after unresolved Ready replay");
+    }) as typeof fetch;
+    try {
+      const response = await worker.fetch(new Request("https://example.test/github/webhook", {
+        method: "POST",
+        headers: { "x-github-delivery": "ready-no-ci", "x-github-event": "pull_request", "x-hub-signature-256": signature },
+        body,
+      }), {
+        NUSA_WEBHOOK_SECRET: "secret",
+        NUSA_GITHUB_TOKEN: "token",
+        NUSA_GLOBAL_RELEASE_FREEZE: "false",
+      });
+      assert.equal(response.status, 202);
+      const payload = await response.json() as { status: string; reason: string };
+      assert.equal(payload.status, "NOOP");
+      assert.equal(payload.reason, "canonical-ci-run-not-found");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("replays Ready-for-review through the existing exact-run Audit identity", async () => {
     const storage = new MemoryStorage();
     const coordinator = new ExecutionCoordinator({ storage });
