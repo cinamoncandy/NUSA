@@ -34,7 +34,7 @@ test("AI separates uncalibrated raw probability from trusted calibrated confiden
   }
   assert.match(app, /const ai = snapshot\?\.ai \?\? null/);
   assert.match(app, /<AiView ai=\{ai\} error=\{readOnlyError\}/);
-  assert.match(ai, /calibrationStatus === "CALIBRATED"/);
+  assert.match(ai, /calibrationStatus\s*===\s*"CALIBRATED"/);
   assert.match(ai, /calibrated\?percent\(ai\?\.confidence\):"UNVERIFIED"/);
   assert.match(ai, /calibrated\?`검증 신뢰도/);
   assert.match(ai, /수익 확률로 표시하지 않습니다/);
