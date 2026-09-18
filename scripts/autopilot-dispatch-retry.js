@@ -261,6 +261,28 @@ function endpointFor(runnerUrl, suffix) {
   return url.toString();
 }
 
+function boundedWorkerFailureEvidence(payload, url, httpStatus) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  const evidence = payload.failureEvidence;
+  if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) return null;
+  const code = typeof evidence.code === "string" && /^[A-Z0-9_]{1,128}$/.test(evidence.code) ? evidence.code : null;
+  const workflowRunId = Number.isSafeInteger(evidence.workflowRunId) && evidence.workflowRunId > 0 ? evidence.workflowRunId : null;
+  const headSha = typeof evidence.headSha === "string" && /^[0-9a-f]{40}$/i.test(evidence.headSha) ? evidence.headSha.toLowerCase() : null;
+  if (!code || !workflowRunId || !headSha) return null;
+  const bounded = (value, pattern = /^[A-Za-z0-9_.:/ -]{1,128}$/) => typeof value === "string" && pattern.test(value) ? value : null;
+  return Object.freeze({
+    code,
+    endpoint: new URL(url).pathname,
+    httpStatus: Number.isInteger(httpStatus) ? httpStatus : null,
+    workflowRunId,
+    workflowName: bounded(evidence.workflowName),
+    workflowEvent: bounded(evidence.workflowEvent, /^[A-Za-z0-9_.:-]{1,64}$/),
+    workflowStatus: bounded(evidence.workflowStatus, /^[A-Za-z0-9_.:-]{1,64}$/),
+    workflowConclusion: bounded(evidence.workflowConclusion, /^[A-Za-z0-9_.:-]{1,64}$/),
+    headSha,
+  });
+}
+
 async function authorizedJsonPost(url, body, fetchImpl = fetch) {
   const token = await oidcToken({ fetchImpl });
   if (!token.ok) throw new Error(token.reason);
@@ -271,7 +293,11 @@ async function authorizedJsonPost(url, body, fetchImpl = fetch) {
   });
   let payload = {};
   try { payload = await response.json(); } catch { /* fail below */ }
-  if (!response.ok) throw new Error(typeof payload.error === "string" ? payload.error : `AUTOPILOT_WORKER_HTTP_${response.status}`);
+  if (!response.ok) {
+    const error = new Error(typeof payload.error === "string" ? payload.error : `AUTOPILOT_WORKER_HTTP_${response.status}`);
+    error.failureEvidence = boundedWorkerFailureEvidence(payload, url, response.status);
+    throw error;
+  }
   return payload;
 }
 
@@ -443,7 +469,10 @@ async function main() {
       reason: safeProposalFailure || reason,
       now: () => Date.now(),
     })];
-    const result = resultSummary(request, attempts, safeProposalFailure ? "NO_ACTION" : "FAILED_CLOSED", safeProposalFailure || reason, null, safeProposalFailure ? "PROPOSAL_REJECTED" : "FAILED_CLOSED");
+    const result = {
+      ...resultSummary(request, attempts, safeProposalFailure ? "NO_ACTION" : "FAILED_CLOSED", safeProposalFailure || reason, null, safeProposalFailure ? "PROPOSAL_REJECTED" : "FAILED_CLOSED"),
+      failureEvidence: error && typeof error === "object" ? (error.failureEvidence ?? null) : null,
+    };
     writeArtifacts(request, result);
     if (safeProposalFailure) {
       console.log(`execution=NO_ACTION backend=github-actions-runner reason=${safeProposalFailure}`);
@@ -475,4 +504,5 @@ module.exports = {
   filterGithubRunnerWorkspacePaths,
   validatePatchOnGithubRunner,
   endpointFor,
+  boundedWorkerFailureEvidence,
 };
