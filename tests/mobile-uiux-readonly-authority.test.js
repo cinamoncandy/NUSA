@@ -31,7 +31,7 @@ test("mobile intelligence shell displays real AI projection and truthful scoped 
   assert.match(aiView, /PUBLIC READ ONLY/);
   assert.match(aiView, /LIVE \\{liveAuthority\\?\\?"NONE"\\}/);
   assert.match(aiView, /productionMutationAllowed===false\\?"BLOCKED":"UNVERIFIED"/);
-  assert.doesNotMatch(aiView, /submitOrder|withdraw\\s*\\(|transfer\\s*\\(/i);
+  assert.doesNotMatch(aiView, /submitOrder|withdraw\s*\(|transfer\s*\(/i);
   assert.doesNotMatch(app, /94%/);
 });
 const test = require("node:test");
