@@ -74,7 +74,7 @@ test('preflight waits boundedly for executed exact-main deploy evidence and live
 test('failed preflight freezes existing Release through canonical P0 serialization', () => {
   assert.match(workflow, /issues: write/);
   assert.match(workflow, /actions: read/);
-  assert.match(workflow, /if: \$\{\{ failure\(\) \}\}/);
+  assert.match(workflow, /if: \$\{\{ needs\.preflight\.result != 'success' \}\}/);
   assert.match(workflow, /P0: Cloudflare deployment credential\/runtime baseline unhealthy/);
   assert.match(workflow, /Refs #903/);
   assert.match(workflow, /nusa-cloudflare-credential-preflight-p0/);
@@ -83,7 +83,7 @@ test('failed preflight freezes existing Release through canonical P0 serializati
 });
 
 test('pull_request_target can never clear the canonical P0 freeze', () => {
-  assert.match(workflow, /if: \$\{\{ success\(\) && github\.event_name != 'pull_request_target' \}\}/);
+  assert.match(workflow, /if: \$\{\{ needs\.preflight\.result == 'success' && github\.event_name != 'pull_request_target' \}\}/);
   assert.match(workflow, /state='closed'/);
 });
 
@@ -92,4 +92,35 @@ test('preflight preserves fail-closed authority invariants', () => {
   assert.match(workflow, /liveAuthority=NONE/);
   assert.match(workflow, /productionMutationAllowed=false/);
   assert.match(workflow, /AI authority=ZERO_AUTHORITY/);
+});
+
+// #1871. A pull_request_target run that both reads Cloudflare credentials and holds repository
+// write authority is one bug away from letting PR-triggered work mutate the repository. The two
+// concerns are separate jobs now, and these assertions are what keeps them separate.
+test('the secret-bearing job and the issue-mutating job never share authority', () => {
+  // Comment lines are dropped first: a comment that merely names an authority sits next to the
+  // job it describes and would otherwise read as that authority being granted.
+  // Windows checkouts land CRLF, and a lookahead for `name:\n` never matches a `\r` that is
+  // still there. Normalise before splitting, the way the assertions above this one already do.
+  const body = workflow.replace(/\r\n/g, "\n").split("\n").filter((line) => !/^\s*#/.test(line)).join("\n");
+  const jobs = body.split(/\n  (?=[A-Za-z0-9_-]+:\n)/);
+  const preflight = jobs.find((job) => job.startsWith('preflight:'));
+  const blocker = jobs.find((job) => job.startsWith('blocker:'));
+  assert.ok(preflight, 'the validation job must exist');
+  assert.ok(blocker, 'the blocker job must be separate from validation');
+
+  assert.match(preflight, /secrets\.CLOUDFLARE_API_TOKEN/, 'validation is the job that holds the credentials');
+  assert.doesNotMatch(preflight, /issues: write/, 'the credential-bearing job must hold no write authority');
+  assert.doesNotMatch(preflight, /\/issues\b/, 'the credential-bearing job must not mutate issues');
+
+  assert.match(blocker, /issues: write/, 'the blocker job is where issue authority lives');
+  assert.doesNotMatch(blocker, /\$\{\{\s*secrets\./, 'the issue-mutating job must never see a secret');
+
+  assert.match(workflow, /^permissions: \{\}$/m, 'no authority may be granted workflow-wide');
+});
+
+test('the blocker job still reports on every preflight outcome', () => {
+  assert.match(workflow, /needs: preflight/);
+  assert.match(workflow, /if: \$\{\{ !cancelled\(\) \}\}/, 'a failed preflight must still open the blocker');
+  assert.match(workflow, /CURRENT_MAIN: \$\{\{ needs\.preflight\.outputs\.current_main \}\}/, 'the verdict comes from the trusted job, never from the PR');
 });
