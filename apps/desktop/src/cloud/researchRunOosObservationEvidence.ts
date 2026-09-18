@@ -28,7 +28,7 @@ function validateDecision(decision: BacktestDecision, datasetMarket: string, can
   if (decision.market !== datasetMarket) {
     throw new ResearchRunOosObservationError("MARKET_IDENTITY_MISMATCH", `candidate ${candidateId} OOS decision market does not match its dataset`);
   }
-  if (!["HOLD", "FILLED", "REJECTED"].includes(decision.outcome)) {
+  if (!["HOLD", "FILLED", "REJECTED", "UNFILLED"].includes(decision.outcome)) {
     throw new ResearchRunOosObservationError("INVALID_DECISION_OUTCOME", `candidate ${candidateId} OOS decision outcome is unsupported`);
   }
   if (!["BUY", "SELL", "HOLD"].includes(decision.signal.type)) {
@@ -52,9 +52,12 @@ function validateDecision(decision: BacktestDecision, datasetMarket: string, can
     if (decision.executionPrice == null || !Number.isFinite(decision.executionPrice) || decision.executionPrice <= 0) {
       throw new ResearchRunOosObservationError("INVALID_FILLED_DECISION", `candidate ${candidateId} filled OOS decisions require a positive execution price`);
     }
-  } else if (decision.executionPrice != null) {
-    throw new ResearchRunOosObservationError("INVALID_EXECUTION_PRICE", `candidate ${candidateId} non-filled OOS decisions cannot carry an execution price`);
+  } else if (decision.outcome !== "REJECTED" && decision.executionPrice != null) {
+    throw new ResearchRunOosObservationError("INVALID_EXECUTION_PRICE", `candidate ${candidateId} non-executed OOS decisions cannot carry an execution price`);
   }
+  // A rejected next-observation order may retain the modeled attempted price as
+  // evidence of the broker/risk decision. It is not a fill: order remains absent
+  // and a non-empty rejection reason is still mandatory.
   if (decision.outcome === "REJECTED" && (typeof decision.rejectionReason !== "string" || !decision.rejectionReason.trim())) {
     throw new ResearchRunOosObservationError("MISSING_REJECTION_REASON", `candidate ${candidateId} rejected OOS decisions require a reason`);
   }
