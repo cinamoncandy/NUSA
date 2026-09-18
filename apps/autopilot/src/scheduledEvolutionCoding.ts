@@ -131,7 +131,36 @@ async function revalidateBacklogSignal(
   } catch {
     return "UNAVAILABLE";
   }
-  const current = deriveGithubIssueBacklogSignals([issue], input.openPulls ?? [], new Date(input.now));
+  const issueRecord = object(issue);
+  if (!issueRecord || text(issueRecord.state)?.toLowerCase() !== "open") return "STALE";
+
+  const query = new URLSearchParams({ q: `repo:${input.repository} is:pr is:open ${issueNumber}`, per_page: "100", page: "1" });
+  let pullsResponse: Response;
+  try {
+    pullsResponse = await fetchImpl(`https://api.github.com/search/issues?${query.toString()}`, {
+      headers: {
+        accept: "application/vnd.github+json",
+        authorization: `Bearer ${token}`,
+        "user-agent": "nusa-autopilot-worker",
+        "x-github-api-version": "2022-11-28",
+      },
+    });
+  } catch {
+    return "UNAVAILABLE";
+  }
+  if (!pullsResponse.ok) return "UNAVAILABLE";
+  let pullsPayload: unknown;
+  try {
+    pullsPayload = await pullsResponse.json();
+  } catch {
+    return "UNAVAILABLE";
+  }
+  const pullsBody = object(pullsPayload);
+  const items = pullsBody?.items;
+  const totalCount = pullsBody?.total_count;
+  if (!Array.isArray(items) || !Number.isSafeInteger(totalCount) || Number(totalCount) < 0 || Number(totalCount) > items.length) return "UNAVAILABLE";
+
+  const current = deriveGithubIssueBacklogSignals([issue], items, new Date(input.now));
   return current.some((candidate) => candidate.id === signal?.id) ? "ACTIONABLE" : "STALE";
 }
 
