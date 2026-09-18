@@ -56,17 +56,38 @@ jobs:
           HEAD_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.event_name == 'workflow_dispatch' && inputs.head_sha || github.sha }}
         run: |
           set -euo pipefail
+          # One exact head can carry several CI runs: the push-triggered one and the
+          # GITHUB_TOKEN-dispatched one that exists because a token-dispatched run fires no
+          # workflow_run listeners. Concurrency cancels whichever loses the race. Reading a single
+          # arbitrary run and failing closed on it therefore lets a cancelled duplicate veto a
+          # deployment whose exact head did pass CI - which is what blocked e29be261.
+          #
+          # A cancelled run is the absence of a verdict, not a negative one. A failure still is one.
           for attempt in $(seq 1 30); do
-            conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$HEAD_SHA&status=completed&per_page=100" --jq '[.workflow_runs[] | select(.name == "CI" and .path == ".github/workflows/ci.yml" and .head_sha == env.HEAD_SHA)][0].conclusion // empty')"
-            if [ "$conclusion" = "success" ]; then
+            gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$HEAD_SHA&status=completed&per_page=100" > /tmp/nusa-exact-head-ci.json
+            verdict="$(HEAD_SHA="$HEAD_SHA" node - <<'NODE'
+          const fs = require('fs');
+          const pages = JSON.parse(fs.readFileSync('/tmp/nusa-exact-head-ci.json', 'utf8'));
+          const expected = String(process.env.HEAD_SHA).toLowerCase();
+          const runs = (Array.isArray(pages) ? pages.flatMap((page) => page?.workflow_runs || []) : [])
+            .filter((run) => run?.name === 'CI'
+              && run?.path === '.github/workflows/ci.yml'
+              && String(run?.head_sha || '').toLowerCase() === expected);
+          const conclusions = new Set(runs.map((run) => run?.conclusion));
+          if (conclusions.has('success')) { console.log('success'); process.exit(0); }
+          if (conclusions.has('failure') || conclusions.has('timed_out')) { console.log('failed'); process.exit(0); }
+          console.log('pending');
+          NODE
+          )"
+            if [ "$verdict" = "success" ]; then
               echo "Exact-head CI verified: $HEAD_SHA"
               exit 0
             fi
-            if [ -n "$conclusion" ]; then
-              echo "Exact-head CI did not succeed for $HEAD_SHA: $conclusion"
+            if [ "$verdict" = "failed" ]; then
+              echo "Exact-head CI failed for $HEAD_SHA"
               exit 1
             fi
-            echo "Waiting for exact-head CI on $HEAD_SHA (attempt $attempt/30)..."
+            echo "Waiting for a decisive exact-head CI verdict on $HEAD_SHA (attempt $attempt/30)..."
             sleep 20
           done
           echo "Timed out waiting for exact-head CI on $HEAD_SHA"
