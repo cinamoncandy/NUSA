@@ -46,6 +46,7 @@ function githubFetch(dispatchedReasons?: string[]): typeof fetch {
     if (url.endsWith("/branches/main")) return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200, headers: { "content-type": "application/json" } });
     const issueMatch = url.match(/\/issues\/([1-9][0-9]*)$/);
     if (issueMatch) return new Response(JSON.stringify(issue(Number(issueMatch[1]))), { status: 200, headers: { "content-type": "application/json" } });
+    if (url.includes("/search/issues?") && url.includes("is%3Apr")) return new Response(JSON.stringify({ total_count: 0, items: [] }), { status: 200, headers: { "content-type": "application/json" } });
     if (url.endsWith("/dispatches")) {
       if (dispatchedReasons) {
         const body = JSON.parse(String(init?.body)) as { client_payload?: { reason?: string } };
@@ -152,4 +153,31 @@ test("concurrent same-main logical issue work dispatches once and suppresses the
   assert.deepEqual([first.status, second.status].sort(), ["DUPLICATE_SUPPRESSED", "EXECUTION_ACCEPTED"]);
   assert.equal(dispatchedReasons.length, 1);
   assert.equal(new Set(acquiredKeys).size, 1);
+});
+
+
+test("issue that gained an open PR after discovery is suppressed by the dispatch-time re-read", async () => {
+  const acquiredKeys: string[] = [];
+  let dispatches = 0;
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith("/issues/1960")) return new Response(JSON.stringify(issue(1960)), { status: 200, headers: { "content-type": "application/json" } });
+    if (url.includes("/search/issues?") && url.includes("is%3Apr")) {
+      return new Response(JSON.stringify({ total_count: 1, items: [{ title: "fix autopilot #1960", body: "Fixes #1960" }] }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (url.endsWith("/dispatches")) {
+      dispatches += 1;
+      return new Response(null, { status: 204 });
+    }
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+  const value = await runScheduledEvolutionCoding(
+    { NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace(new Set<string>(), acquiredKeys) },
+    { candidates: [], backlogIssues: [issue(1960)], openPulls: [], now: NOW, repository: "cinamoncandy/NUSA", mainSha: SHA, workflowRunId: RUN_ID },
+    fetchImpl,
+  );
+  assert.equal(value.status, "ABSTAINED");
+  assert.equal(value.reason, "github-issue-no-longer-actionable");
+  assert.equal(acquiredKeys.length, 0);
+  assert.equal(dispatches, 0);
 });
