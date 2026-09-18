@@ -79,3 +79,33 @@ test("successful deploy directly dispatches Runtime Proof instead of relying on 
   assert.ok(dispatchIndex > 0);
   assert.match(workflow.slice(dispatchIndex, dispatchIndex + 400), /if: steps\.revision\.outputs\.current == 'true'/);
 });
+
+// An exact head can carry more than one CI run: the push-triggered one and the
+// GITHUB_TOKEN-dispatched one that exists because a token-dispatched run fires no workflow_run
+// listeners. Concurrency cancels whichever loses the race. Reading one arbitrary run and failing
+// closed on it let a cancelled duplicate veto a deployment whose exact head had passed CI, which
+// is what stalled e29be261 and, through the credential preflight, reopened the canonical P0.
+test("the exact-head CI wait reads every run for that head, not one arbitrary run", () => {
+  const start = workflow.indexOf("Wait for exact-head CI success before deploying");
+  assert.ok(start > 0, "the wait step must exist");
+  const step = workflow.slice(start, workflow.indexOf("Verify exact current main revision", start));
+
+  assert.doesNotMatch(step, /\]\[0\]\.conclusion/, "a single indexed run is not evidence about the head");
+  assert.match(step, /--paginate/, "one page of repository-wide runs can bury the matching run");
+  assert.match(step, /run\?\.name === 'CI'/);
+  assert.match(step, /run\?\.path === '\.github\/workflows\/ci\.yml'/);
+  assert.match(step, /String\(run\?\.head_sha \|\| ''\)\.toLowerCase\(\) === expected/);
+});
+
+test("a cancelled duplicate does not count as a failed verdict, a real failure still does", () => {
+  const start = workflow.indexOf("Wait for exact-head CI success before deploying");
+  const step = workflow.slice(start, workflow.indexOf("Verify exact current main revision", start));
+
+  assert.match(step, /conclusions\.has\('success'\)/, "any successful exact-head CI clears the gate");
+  assert.match(step, /conclusions\.has\('failure'\) \|\| conclusions\.has\('timed_out'\)/, "a real negative verdict still fails closed");
+  assert.doesNotMatch(step, /conclusions\.has\('cancelled'\)/, "a cancelled run is the absence of a verdict, not a negative one");
+  // Absence of a decisive verdict keeps waiting rather than deploying.
+  assert.match(step, /console\.log\('pending'\)/);
+  assert.match(step, /Timed out waiting for exact-head CI/);
+  assert.match(step, /exit 1/);
+});
