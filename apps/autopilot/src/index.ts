@@ -44,6 +44,10 @@ export interface Env {
 const DEFAULT_REPOSITORY = "cinamoncandy/NUSA";
 const CODING_EXECUTION_LEASE_MS = 20 * 60 * 1000;
 const WEBHOOK_EXECUTION_LEASE_MS = 5 * 60 * 1000;
+const RELEASABLE_AUDIT_STATE_DECLINES = new Set([
+  "github-executor-pr-draft-hold-active",
+  "github-executor-pr-hold-label-active",
+]);
 const json = (body: unknown, status = 200): Response => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8" } });
 const encoder = new TextEncoder();
 
@@ -362,6 +366,13 @@ export default {
           deliveryId,
           event,
           dispatch,
+          executor: {
+            status: "NOOP",
+            reason: "github-executor-ready-ci-replay-unresolved",
+            httpStatus: null,
+            requestedHeadSha: dispatch.headSha,
+            observedHeadSha: null,
+          },
           liveAuthority: "NONE",
           productionMutationAllowed: false,
           aiAuthority: "ZERO_AUTHORITY",
@@ -414,13 +425,54 @@ export default {
           now: Date.now(),
           leaseExpiresAt: boundedExecution?.state.lease?.expiresAt ?? Date.now() + WEBHOOK_EXECUTION_LEASE_MS,
         });
-        if (!persistent.acquired) return json({ accepted: true, status: "DUPLICATE_EXECUTION_SUPPRESSED", reason: persistent.reason, deliveryId, event, dispatch, executionBoundary: { dedupeKey: persistentExecutionIdentity.dedupeKey, origin: boundedExecution?.envelope.origin ?? "AUTO_BACKGROUND" }, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 202);
+        if (!persistent.acquired) return json({
+          accepted: true,
+          status: "DUPLICATE_EXECUTION_SUPPRESSED",
+          reason: persistent.reason,
+          deliveryId,
+          event,
+          dispatch,
+          execution,
+          executor: {
+            status: "REJECTED",
+            reason: "github-executor-duplicate-execution-suppressed",
+            httpStatus: null,
+            requestedHeadSha: dispatch.headSha,
+            observedHeadSha: null,
+          },
+          executionBoundary: { dedupeKey: persistentExecutionIdentity.dedupeKey, origin: boundedExecution?.envelope.origin ?? "AUTO_BACKGROUND" },
+          liveAuthority: "NONE",
+          productionMutationAllowed: false,
+          aiAuthority: "ZERO_AUTHORITY",
+        }, 202);
       }
     } catch (error) {
       return json({ error: error instanceof Error ? error.message : "PRODUCTION_EXECUTION_INVALID", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 409);
     }
 
     const executor = await executeGithubDispatch(execution, { token: env.NUSA_GITHUB_TOKEN, allowedRepository });
+    if (
+      persistentExecutionIdentity
+      && dispatch.kind === "PR_CI_SUCCEEDED"
+      && executor.status === "REJECTED"
+      && RELEASABLE_AUDIT_STATE_DECLINES.has(executor.reason ?? "")
+      && env.NUSA_EXECUTION_COORDINATOR
+    ) {
+      try {
+        await releasePersistentExecution(env.NUSA_EXECUTION_COORDINATOR, {
+          dedupeKey: persistentExecutionIdentity.dedupeKey,
+          executionId: persistentExecutionIdentity.executionId,
+          now: Date.now(),
+        });
+      } catch {
+        return json({
+          error: "PERSISTENT_AUDIT_EXECUTION_RELEASE_FAILED",
+          liveAuthority: "NONE",
+          productionMutationAllowed: false,
+          aiAuthority: "ZERO_AUTHORITY",
+        }, 409);
+      }
+    }
     if (persistentExecutionIdentity && executor.status === "DISPATCHED" && env.NUSA_EXECUTION_COORDINATOR) {
       await markPersistentExecutionDispatched(env.NUSA_EXECUTION_COORDINATOR, {
         dedupeKey: persistentExecutionIdentity.dedupeKey,
