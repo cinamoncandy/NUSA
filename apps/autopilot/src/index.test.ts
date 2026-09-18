@@ -242,6 +242,11 @@ describe("NUSA autopilot GitHub webhook", () => {
           conclusion: "success",
           head_sha: headSha,
           repository: { full_name: "cinamoncandy/NUSA" },
+          pull_requests: [{
+            number: 1955,
+            head: { sha: headSha },
+            base: { ref: "main" },
+          }],
         }],
       }), { status: 200 });
       if (url.endsWith("/pulls/1955")) return new Response(JSON.stringify({
