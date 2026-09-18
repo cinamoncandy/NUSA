@@ -10,8 +10,8 @@ const portfolio = fs.readFileSync(path.join(process.cwd(), "apps/mobile/src/port
 test("HOME presents truthful PAPER equity and cumulative PnL in the MASTER terminal performance panel", () => {
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /PAPER PERFORMANCE/);
-  assert.match(home, /\{account \? krw\(account\.equity\) : "—"\}/);
-  assert.match(home, />P&L<\/Text>/);
+  assert.match(home, /won\(account\?\.equity\)/);
+  assert.match(home, /TOTAL P&L/);
   assert.match(home, /const totalPnl = account == null \? null : \(account\.realizedPnl \?\? account\.position\.realizedPnl\) \+ account\.unrealizedPnl/);
   assert.match(decisionSurface, /PAPER P&L .*EQUITY/);
   assert.doesNotMatch(home, />오늘<\/Text>/);
@@ -22,7 +22,7 @@ test("capital allocation remains visible and truthful in HOME MASTER CAPITAL LIM
   assert.match(home, /testID="home-capital-limits"/);
   assert.match(portfolio, /portfolio-investable-cash/);
   assert.match(home, /readonly investmentPercent: number/);
-  assert.match(home, /createCashInvestmentEnvelope\(account\.cash, investmentPercent\)/);
+  assert.match(home, /createCashInvestmentEnvelope\(account\.cash, props\.investmentPercent\)/);
   assert.match(home, /testID="home-investable-cash"/);
   assert.match(home, /testID="home-reserved-cash"/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
