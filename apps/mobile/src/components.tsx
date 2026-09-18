@@ -212,10 +212,13 @@ export function TerrainSignal({ variant = "symbolic", signalStrength = 0.6, acce
     <View style={[styles.terrainGridLine, styles.terrainGridLineTop, { backgroundColor: theme.colors.borderStrong, opacity: 0.5 }]} />
     <View style={[styles.terrainGridLine, styles.terrainGridLineMid, { backgroundColor: theme.colors.borderStrong, opacity: 0.62 }]} />
     <View style={[styles.terrainGridLine, styles.terrainGridLineLow, { backgroundColor: theme.colors.borderStrong, opacity: 0.4 }]} />
-    <View style={[styles.terrainPlane, styles.terrainPlaneFar, { width: secondaryWidth, backgroundColor: theme.colors.terrain, opacity: signalOpacity * 0.6 }]} />
-    <View style={[styles.terrainPlane, styles.terrainPlaneMid, { width: primaryWidth, backgroundColor: theme.colors.aiSignalStart, opacity: signalOpacity * 0.78 }]} />
-    <View style={[styles.terrainPlane, styles.terrainPlaneNear, { width: "72%", backgroundColor: theme.colors.aiSignalMid, opacity: signalOpacity * 0.9 }]} />
-    <View style={[styles.terrainPlane, styles.terrainPlaneGround, { width: "88%", backgroundColor: theme.colors.terrain, opacity: signalOpacity }]} />
+    <View style={[styles.terrainPlane, styles.terrainPlaneFar, { width: secondaryWidth, borderColor: theme.colors.terrain, opacity: signalOpacity * 0.5 }]} />
+    <View style={[styles.terrainPlane, styles.terrainPlaneFarB, { width: "58%", borderColor: theme.colors.aiSignalStart, opacity: signalOpacity * 0.48 }]} />
+    <View style={[styles.terrainPlane, styles.terrainPlaneMid, { width: primaryWidth, borderColor: theme.colors.aiSignalStart, opacity: signalOpacity * 0.7 }]} />
+    <View style={[styles.terrainPlane, styles.terrainPlaneMidB, { width: "66%", borderColor: theme.colors.aiSignalMid, opacity: signalOpacity * 0.68 }]} />
+    <View style={[styles.terrainPlane, styles.terrainPlaneNear, { width: "76%", borderColor: theme.colors.aiSignalMid, opacity: signalOpacity * 0.86 }]} />
+    <View style={[styles.terrainPlane, styles.terrainPlaneNearB, { width: "82%", borderColor: theme.colors.aiSignalEnd, opacity: signalOpacity * 0.8 }]} />
+    <View style={[styles.terrainPlane, styles.terrainPlaneGround, { width: "92%", borderColor: theme.colors.terrain, opacity: signalOpacity }]} />
     <View style={[styles.terrainConvergenceBeam, { left: convergenceLeft, backgroundColor: theme.colors.aiSignalEnd, opacity: 0.35 + boundedStrength * 0.25 }]} />
     <View style={[styles.terrainConvergenceHaloOuter, { left: convergenceLeft, borderColor: theme.colors.aiSignalMid, opacity: 0.3 + boundedStrength * 0.2 }]} />
     <View style={[styles.terrainConvergenceHalo, { left: convergenceLeft, borderColor: theme.colors.aiSignalEnd, opacity: 0.5 + boundedStrength * 0.25 }]} />
@@ -310,16 +313,16 @@ const styles = StyleSheet.create({
   // changed" on device. Strokes stay thin and precise per the reference language; what changes is
   // that they are now thick and contrasted enough to actually register as a hero graphic rather
   // than disappearing into the surface behind them.
-  terrainSignal: { height: 240, width: "100%", overflow: "hidden", justifyContent: "center", position: "relative" },
+  terrainSignal: { height: 190, width: "100%", overflow: "hidden", justifyContent: "center", position: "relative" },
   terrainGridLine: { position: "absolute", left: "2%", right: "2%", height: 1 },
   terrainGridLineTop: { top: "27%" },
   terrainGridLineMid: { top: "50%" },
   terrainGridLineLow: { top: "73%" },
-  terrainPlane: { position: "absolute", height: 2, borderRadius: 1 },
-  terrainPlaneFar: { left: "6%", top: "30%", transform: [{ rotate: "6deg" }] },
-  terrainPlaneMid: { left: "10%", top: "45%", transform: [{ rotate: "-8deg" }] },
-  terrainPlaneNear: { left: "18%", top: "61%", transform: [{ rotate: "9deg" }] },
-  terrainPlaneGround: { left: "4%", top: "77%", transform: [{ rotate: "-3deg" }] },
+  terrainPlane: { position: "absolute", height: 42, borderRadius: 60, borderWidth: 1.2, backgroundColor: "transparent" },
+  terrainPlaneFar: { left: "4%", top: "18%", transform: [{ rotate: "6deg" }, { skewX: "-18deg" }, { scaleY: 0.36 }] },\n  terrainPlaneFarB: { left: "32%", top: "25%", transform: [{ rotate: "-12deg" }, { skewX: "12deg" }, { scaleY: 0.42 }] },
+  terrainPlaneMid: { left: "3%", top: "36%", transform: [{ rotate: "-8deg" }, { skewX: "15deg" }, { scaleY: 0.45 }] },\n  terrainPlaneMidB: { left: "27%", top: "44%", transform: [{ rotate: "13deg" }, { skewX: "-12deg" }, { scaleY: 0.5 }] },
+  terrainPlaneNear: { left: "12%", top: "56%", transform: [{ rotate: "8deg" }, { skewX: "-14deg" }, { scaleY: 0.58 }] },\n  terrainPlaneNearB: { left: "2%", top: "66%", transform: [{ rotate: "-5deg" }, { skewX: "10deg" }, { scaleY: 0.62 }] },
+  terrainPlaneGround: { left: "2%", top: "73%", transform: [{ rotate: "-2deg" }, { skewX: "-8deg" }, { scaleY: 0.68 }] },
   terrainConvergenceBeam: { position: "absolute", top: "24%", bottom: "16%", width: 1.5, marginLeft: -0.75 },
   terrainConvergence: { position: "absolute", top: "48%", width: 16, height: 16, borderRadius: 8, marginLeft: -8, shadowOpacity: 0.85, shadowRadius: 18, elevation: 4 },
   terrainConvergenceHalo: { position: "absolute", top: "40%", width: 48, height: 48, borderRadius: 24, borderWidth: 1.5, marginLeft: -24 },
