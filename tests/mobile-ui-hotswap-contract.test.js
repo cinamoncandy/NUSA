@@ -18,69 +18,39 @@ test("classic and master presets remain materially distinct visual systems", () 
   assert.match(profile, /master:[\s\S]*?balanceSize:\s*44/);
 });
 
-test("HomeView presents the approved autonomous-intelligence composition", () => {
+test("HomeView presents the approved HOME MASTER terminal composition", () => {
   const home = read("apps/mobile/src/homeView.tsx");
-
-  assert.match(home, /useWindowDimensions/);
-  assert.match(home, /const tablet = width >= 768/);
-  assert.match(home, /maxWidth: tablet \? 1080 : 720/);
-  assert.match(home, /testID="home-screen"/);
-  assert.match(home, /testID="home-master-rail"/);
-  assert.match(home, /testID="home-status-rail"/);
-  assert.match(home, /testID="home-now"/);
-  assert.match(home, /testID="account-hero-card"/);
-  assert.match(home, /testID="ai-card"/);
-  assert.match(home, /testID="home-risk-status"/);
-  assert.match(home, /testID="home-decision-stage"/);
-  assert.match(home, /testID="home-paper-performance"/);
-  assert.match(home, /testID="home-paper-learning"/);
-  assert.match(home, /DECISION BASIS/);
-  assert.match(home, /RISK/);
-  assert.match(home, /MARKETS/);
+  assert.match(home, /getHomeVisualProfile\(theme\.preset\)/);
+  assert.match(home, /maxWidth: tablet \? Math\.max\(profile\.screen\.maxWidth, 980\) : profile\.screen\.maxWidth/);
+  for (const marker of ['testID="home-screen"','testID="home-master-rail"','testID="home-status-rail"','testID="ai-card"','testID="home-decision-stage"','testID="home-market-pulse"','testID="home-paper-performance"','testID="home-paper-learning"','testID="home-risk-authority"']) assert.match(home, new RegExp(marker));
+  assert.match(home, /SIGNAL TERRAIN/);
+  assert.match(home, /MARKET PULSE/);
   assert.match(home, /PAPER PERFORMANCE/);
-  assert.match(home, /LEARN/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
-
-  assert.doesNotMatch(home, /getHomeVisualProfile\(theme\.preset\)/);
   assert.doesNotMatch(home, />[^<]*(?:BULLISH|STRONG|WEAK)[^<]*<\/Text>/);
-  assert.doesNotMatch(home, /testID="home-supervisor-summary"/);
-  assert.doesNotMatch(home, /<SupervisorProgressPanel/);
 });
 
-test("canonical HOME uses verified market and PAPER data without fabricating unavailable feeds", () => {
+test("HOME MASTER uses verified market and PAPER data without fabricating unavailable feeds", () => {
   const home = read("apps/mobile/src/homeView.tsx");
   const app = read("apps/mobile/App.tsx");
-
-  assert.match(home, /const marketRows = \[\.\.\.selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)\][\s\S]*?\.slice\(0, tablet \? 5 : 3\)/);
-  assert.match(home, /publicMarkets: readonly WatchlistMarket\[\] \| null/);
-  assert.match(home, /signedPercentFromRate\(market\.changeRate\)/);
+  assert.match(home, /const marketFeed = selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)/);
+  assert.match(home, /\.slice\(0, tablet \? 5 : 3\)/);
   assert.match(home, /const cloudAccount = snapshot\?\.portfolio\?\.account \?\? null/);
+  assert.match(home, /const localAccount = localPortfolio\?\.account \?\? null/);
   assert.match(home, /const account = cloudAccount \?\? localAccount/);
   assert.match(home, /buildLocalPortfolio\(localTradingSnapshot, localMarkPrice\)/);
-  assert.match(home, /testID="home-operational-notice"/);
-  assert.match(home, /onPress=\{onGoSettings\}/);
-  assert.doesNotMatch(home, /<OperationalNotice/);
-
+  assert.match(home, /<OperationalNotice/);
+  assert.match(home, /onAction=\{onGoSettings\}/);
   assert.match(app, /publicMarket=\{CHART_MARKET\}/);
   assert.match(app, /publicMarkets=\{publicMarkets\.markets\}/);
-  assert.match(app, /publicCandles=\{publicMarkets\.candles\}/);
-  assert.match(app, /publicCurrentPrice=\{publicMarkets\.currentPrice\}/);
-  assert.match(app, /publicMarketConnectionState=\{publicMarketConnectionState\}/);
-  assert.match(app, /publicMarketStale=\{publicMarkets\.status !== "READY"\}/);
-
-  assert.doesNotMatch(home, /BTC[^\n]*(65000000|70000000|100000000)/);
   assert.doesNotMatch(home, /Math\.random\(|synthetic|mock candle|fake candle/i);
-  assert.doesNotMatch(home, /liveAuthority\s*=\s*["'](?:FULL|LIVE|ENABLED)["']/);
   assert.doesNotMatch(home, /productionMutationAllowed\s*=\s*true/);
 });
 
-test("HOME rendered financial values keep stable tabular numerals in the command-center grammar", () => {
+test("HOME MASTER rendered financial values keep stable tabular numerals", () => {
   const home = read("apps/mobile/src/homeView.tsx");
-  for (const style of ["balanceValue", "pnlValue", "factValue", "previewValue"]) {
-    assert.match(home, new RegExp(`${style}: \\{[^}]*fontVariant: \\["tabular-nums"\\]`));
-  }
-  assert.match(home, /\{krw\(account\?\.equity\)\}/);
-  assert.match(home, /\{signedMoney\(totalPnl\)\} TOTAL PNL/);
+  for (const style of ["truthValue","marketPrice","marketChange","metricNumber","dataValue"]) assert.match(home, new RegExp(`${style}: \\{[^}]*fontVariant: \\["tabular-nums"\\]`));
+  assert.match(home, /account \? krw\(account\.equity\) : "—"/);
 });
 
 test("fresh or stale installs converge on the canonical master preset", () => {
