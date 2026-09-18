@@ -124,6 +124,54 @@ test("a malformed Audit request still fails closed even though it is also REJECT
   );
 });
 
+// A control-plane decision that consulted no executor carries no executor evidence. #1955's Ready
+// replay returns exactly that shape when it resolves no canonical CI identity, and rejecting it as
+// malformed is how the reason stops reaching anyone: a red bridge run saying EVIDENCE_INVALID when
+// the truth was a specific, designed NOOP.
+for (const status of ["NOOP", "NO_ACTION", "DUPLICATE_EXECUTION_SUPPRESSED"]) {
+  test(`a terminal control-plane decision without executor evidence is delivered, not rejected (${status})`, async () => {
+    const result = await dispatchGithubEvent({
+      secret: "bridge-test-secret", body, event: "pull_request_target", repository: "cinamoncandy/NUSA", runId: "21", runAttempt: "1",
+      fetchImpl: async () => new Response(JSON.stringify({
+        accepted: true, status, reason: "ready-replay-unresolved-ci",
+        liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY"
+      }), { status: 202 }),
+      retryDelayMs: 0, timeoutMs: 100
+    });
+    assert.equal(result.status, "DELIVERED");
+    assert.equal(result.executorStatus, "NOOP");
+    assert.equal(result.executorReason, "ready-replay-unresolved-ci", "the control plane's reason must survive to the run log");
+  });
+}
+
+test("a response claiming execution still requires executor evidence", async () => {
+  await assert.rejects(
+    () => dispatchGithubEvent({
+      secret: "bridge-test-secret", body, event: "pull_request_target", repository: "cinamoncandy/NUSA", runId: "22", runAttempt: "1",
+      fetchImpl: async () => new Response(JSON.stringify({
+        accepted: true, status: "EXECUTION_DISPATCHED",
+        liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY"
+      }), { status: 202 }),
+      retryDelayMs: 0, timeoutMs: 100
+    }),
+    /WEBHOOK_EXECUTOR_EVIDENCE_INVALID/
+  );
+});
+
+test("a malformed control-plane reason still fails closed", async () => {
+  await assert.rejects(
+    () => dispatchGithubEvent({
+      secret: "bridge-test-secret", body, event: "pull_request_target", repository: "cinamoncandy/NUSA", runId: "23", runAttempt: "1",
+      fetchImpl: async () => new Response(JSON.stringify({
+        accepted: true, status: "NOOP", reason: "bad reason with spaces",
+        liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY"
+      }), { status: 202 }),
+      retryDelayMs: 0, timeoutMs: 100
+    }),
+    /WEBHOOK_CONTROL_PLANE_REASON_INVALID/
+  );
+});
+
 test("the primary bridge remains read-only and fallback write authority is isolated", () => {
   const normalized = workflow.replace(/\r\n/g, "\n");
   const bridgeStart = normalized.indexOf("  bridge:\n");
