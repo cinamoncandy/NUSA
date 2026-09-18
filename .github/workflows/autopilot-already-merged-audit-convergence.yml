@@ -42,6 +42,20 @@ jobs:
           if (p.ai_authority !== 'ZERO_AUTHORITY') fail('aiAuthority must remain ZERO_AUTHORITY');
           NODE
 
+          pr_json="$(curl --fail --silent --show-error --location \
+            --header 'Accept: application/vnd.github+json' \
+            --header 'X-GitHub-Api-Version: 2022-11-28' \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          pr_state="$(jq -r '.state // empty' <<<"$pr_json")"
+          pr_head="$(jq -r '.head.sha // empty' <<<"$pr_json")"
+          if [ "$pr_state" = "open" ]; then
+            echo "NO_ACTION Audit convergence is not applicable to an open PR: pr=$PR_NUMBER requested_head=$EXPECTED_HEAD current_head=$pr_head ci=$WORKFLOW_RUN_ID"
+            echo 'liveAuthority=NONE'
+            echo 'productionMutationAllowed=false'
+            echo 'aiAuthority=ZERO_AUTHORITY'
+            exit 0
+          fi
+
           echo "::error::RELEASE_PROVENANCE_MISSING: already-merged PRs cannot be post-facto upgraded to deterministic Audit/Release PASS."
           echo "pr=$PR_NUMBER head=$EXPECTED_HEAD ci=$WORKFLOW_RUN_ID"
           echo "Canonical Release completion requires exact-head Audit authority, App-bound nusa/release-authorized, canonical expected-head/base merge, post-merge CI, and exact merged-SHA runtime/deployment provenance."
