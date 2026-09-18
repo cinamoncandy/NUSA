@@ -6,7 +6,7 @@ const path = require("node:path");
 const root = path.join(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
-test("mobile presets keep classic neutral and apply approved cobalt master actions", () => {
+test("mobile presets keep classic neutral while approved wealth-product colors are centralized", () => {
   const source = read("apps/mobile/src/designSystem.ts");
 
   // Master actions use the approved cobalt palette; semantic AI and risk colors remain separate.
