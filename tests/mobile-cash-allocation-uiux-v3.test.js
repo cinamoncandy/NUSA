@@ -34,7 +34,7 @@ test("cash allocation remains a first-class PAPER contract without cluttering ca
   assert.match(home, /PAPER PERFORMANCE/);
   assert.match(home, /testID="home-investable-cash"/);
   assert.match(home, /testID="home-reserved-cash"/);
-  assert.match(home, /won\\(cashEnvelope\\.reservedCash\\)/);
+  assert.ok(home.includes("won(cashEnvelope.reservedCash)"), "HOME must render the canonical reserved PAPER cash value");
   const performanceStart = home.indexOf('PAPER PERFORMANCE');
   const investable = home.indexOf('testID="home-investable-cash"');
   const reserved = home.indexOf('testID="home-reserved-cash"');
