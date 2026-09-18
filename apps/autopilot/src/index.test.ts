@@ -328,6 +328,7 @@ describe("NUSA autopilot GitHub webhook", () => {
       };
       const env = { NUSA_WEBHOOK_SECRET: "secret", NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace, NUSA_GLOBAL_RELEASE_FREEZE: "false" };
 
+      // The Draft CI path must release this exact Audit lease so Ready can reacquire it later.
       const draftCi = await worker.fetch(await request("draft-ci", "workflow_run", workflowBody), env);
       const draftPayload = await draftCi.json() as { executor: { status: string; reason: string } };
       assert.equal(draftCi.status, 202);
