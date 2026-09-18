@@ -212,7 +212,7 @@ export function HomeView({
       <View testID="home-status-rail"><QuietStatus label={statusLabel} tone={statusTone} testID="home-paper-status" /></View>
     </View>
 
-    <View style={[styles.intelligenceHero, { borderColor: attentionLevel === "QUIET" ? theme.colors.borderStrong : attentionColor }]} testID="home-supervisor-summary">
+    <View style={[styles.intelligenceHero, { borderColor: theme.colors.borderStrong }]} testID="home-supervisor-summary">
       <View style={styles.heroTopline}>
         <Text style={[styles.kicker, { color: terminalSignal }]}>AI INSIGHT / SIGNAL TERRAIN</Text>
         <Text style={[styles.attentionLabel, { color: attentionColor }]} testID="home-supervisor-attention">{attentionLevel}</Text>
@@ -240,8 +240,8 @@ export function HomeView({
       </View>
 
       <View style={styles.heroFooter}>
-        <Text style={[styles.meta, { color: theme.colors.textMuted }]}>AI ZERO AUTHORITY · productionMutationAllowed=false · liveAuthority=NONE</Text>
-        <Pressable accessibilityRole="button" onPress={runPrimaryAction} style={({ pressed }) => [styles.primaryButton, { borderColor: attentionLevel === "ACTION REQUIRED" ? attentionColor : terminalSignal, opacity: pressed ? theme.interaction.pressedOpacity : 1 }]} testID="home-supervisor-primary-action">
+        <Text style={[styles.meta, { color: theme.colors.textMuted }]}>READ ONLY INTELLIGENCE · PAPER EXECUTION ONLY</Text>
+        <Pressable accessibilityRole="button" onPress={runPrimaryAction} style={({ pressed }) => [styles.primaryButton, { borderColor: theme.colors.borderStrong, opacity: pressed ? theme.interaction.pressedOpacity : 1 }]} testID="home-supervisor-primary-action">
           <Text style={[styles.primaryLabel, { color: attentionLevel === "ACTION REQUIRED" ? attentionColor : terminalSignal }]}>{primaryLabel}</Text>
         </Pressable>
       </View>
@@ -415,36 +415,36 @@ const styles = StyleSheet.create({
   content: { width: "100%", alignSelf: "center" },
   masterRail: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", paddingTop: 2, paddingBottom: 4 },
   brandLockup: { gap: 1 },
-  wordmark: { fontSize: 32, lineHeight: 34, fontWeight: "900", letterSpacing: 2.2 },
+  wordmark: { fontSize: 26, lineHeight: 29, fontWeight: "900", letterSpacing: 2 },
   brandMeta: { fontSize: 7, lineHeight: 10, fontWeight: "900", letterSpacing: 1.35 },
-  intelligenceHero: { borderTopWidth: 1, borderBottomWidth: 1, paddingVertical: 16, gap: 10 },
+  intelligenceHero: { borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 10, gap: 7 },
   heroTopline: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
   kicker: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1.35 },
   attentionLabel: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1.4 },
   nowLabel: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 2.2, marginTop: 4 },
-  nowValue: { fontSize: 28, lineHeight: 33, fontWeight: "900", letterSpacing: -0.8, maxWidth: 720 },
+  nowValue: { fontSize: 20, lineHeight: 24, fontWeight: "900", letterSpacing: -0.45, maxWidth: 720 },
   authorityMode: { fontSize: 8, lineHeight: 11, fontWeight: "800", letterSpacing: 0.8 },
   heroSignalWrap: { gap: 0 },
-  heroSignal: { height: 228, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden", position: "relative", justifyContent: "center" },
+  heroSignal: { height: 142, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden", position: "relative", justifyContent: "center" },
   signalAxisH: { position: "absolute", left: 0, right: 0, top: "50%", height: StyleSheet.hairlineWidth },
   signalAxisV: { position: "absolute", top: 0, bottom: 0, left: "50%", width: StyleSheet.hairlineWidth },
-  signalPulse: { position: "absolute", width: 104, height: 104, borderRadius: 52, borderWidth: StyleSheet.hairlineWidth, left: "50%", top: "50%", marginLeft: -52, marginTop: -52, opacity: 0.55 },
+  signalPulse: { position: "absolute", width: 72, height: 72, borderRadius: 36, borderWidth: StyleSheet.hairlineWidth, left: "50%", top: "50%", marginLeft: -36, marginTop: -36, opacity: 0.42 },
   signalAnchors: { position: "absolute", left: 10, right: 10, bottom: 8, flexDirection: "row", justifyContent: "space-between" },
   signalAnchor: { fontSize: 7, lineHeight: 10, fontWeight: "900", letterSpacing: 1.1 },
-  decisionCopy: { borderTopWidth: 1, paddingTop: 10, gap: 5 },
-  judgement: { fontSize: 15, lineHeight: 21, fontWeight: "800", letterSpacing: -0.2 },
+  decisionCopy: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 7, gap: 3 },
+  judgement: { fontSize: 12, lineHeight: 16, fontWeight: "800", letterSpacing: -0.1 },
   meta: { fontSize: 8, lineHeight: 12, fontWeight: "700", letterSpacing: 0.25 },
   heroFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" },
-  primaryButton: { minHeight: 48, minWidth: 132, borderWidth: 1, paddingHorizontal: 14, alignItems: "center", justifyContent: "center" },
+  primaryButton: { minHeight: 44, minWidth: 112, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
   primaryLabel: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 1.05 },
-  truthRail: { borderWidth: 1, paddingHorizontal: 11 },
-  truthCell: { borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: 9, gap: 4 },
+  truthRail: { borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 9 },
+  truthCell: { borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: 6, gap: 2 },
   truthCellHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
   truthLabel: { fontSize: 7, lineHeight: 10, fontWeight: "900", letterSpacing: 1.35 },
   truthAction: { fontSize: 7, lineHeight: 10, fontWeight: "900", letterSpacing: 0.8 },
-  truthValue: { fontSize: 10, lineHeight: 15, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  truthValue: { fontSize: 9, lineHeight: 13, fontWeight: "700", fontVariant: ["tabular-nums"] },
   terminalGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  terminalPanel: { flexGrow: 1, flexBasis: 154, minHeight: 142, borderWidth: StyleSheet.hairlineWidth, padding: 11, gap: 8 },
+  terminalPanel: { flexGrow: 1, flexBasis: 154, minHeight: 126, borderWidth: StyleSheet.hairlineWidth, padding: 9, gap: 6 },
   panelHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   panelTitle: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 0.7 },
   panelCode: { fontSize: 7, lineHeight: 10, fontWeight: "900", letterSpacing: 0.8 },
