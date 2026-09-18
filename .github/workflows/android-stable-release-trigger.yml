@@ -44,23 +44,41 @@ jobs:
               exit 0
             fi
 
-            CI_CONCLUSION="$(
-              gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$MAIN_SHA&status=completed&per_page=100" \
-                --jq '[.workflow_runs[] | select(.path == ".github/workflows/ci.yml" and .head_sha == "'"$MAIN_SHA"'")][0].conclusion // empty'
-            )"
-            if [ "$CI_CONCLUSION" = "success" ]; then
+            CI_SUCCESS=false
+            for page in $(seq 1 10); do
+              PAGE_RESULT="$(
+                gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$MAIN_SHA&status=completed&per_page=100&page=$page" \
+                  --jq '[.workflow_runs | length, ([.workflow_runs[] | select(.path == ".github/workflows/ci.yml" and .head_sha == "'"$MAIN_SHA"'" and .status == "completed" and .conclusion == "success")] | length)] | @tsv'
+              )"
+              PAGE_COUNT="$(printf '%s' "$PAGE_RESULT" | cut -f1)"
+              PAGE_SUCCESS_COUNT="$(printf '%s' "$PAGE_RESULT" | cut -f2)"
+              if [ "$PAGE_SUCCESS_COUNT" -gt 0 ]; then
+                CI_SUCCESS=true
+                break
+              fi
+              if [ "$PAGE_COUNT" -lt 100 ]; then
+                break
+              fi
+              if [ "$page" -eq 10 ]; then
+                echo "::error::Canonical CI evidence exceeded the bounded 1000-run scan for exact main $MAIN_SHA; failing closed."
+                exit 1
+              fi
+            done
+            if [ "$CI_SUCCESS" = "true" ]; then
+              CI_CONCLUSION="success"
               break
-            fi
-            if [ -n "$CI_CONCLUSION" ] && [ "$CI_CONCLUSION" != "success" ]; then
-              echo "Exact-main CI concluded $CI_CONCLUSION; refusing Android stable release."
-              exit 0
             fi
             sleep 10
           done
 
           if [ "$CI_CONCLUSION" != "success" ]; then
-            echo "Exact-main CI did not complete successfully within the bounded wait; fail closed."
-            exit 0
+            CURRENT_MAIN="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+            if [ "$CURRENT_MAIN" != "$MAIN_SHA" ]; then
+              echo "Main advanced from $MAIN_SHA to $CURRENT_MAIN; newer trigger will own promotion."
+              exit 0
+            fi
+            echo "::error::Exact-main CI did not complete successfully within the bounded wait; fail closed."
+            exit 1
           fi
 
           # A workflow_run Android release may already be active for this SHA. It is allowed to
