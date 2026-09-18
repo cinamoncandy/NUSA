@@ -17,7 +17,11 @@ const SOURCE_SHA = "1d538db896e9db58f925ebade464f2d8be7ae13e";
 const EVIDENCE_SHA = "a".repeat(64);
 
 function gitBlobSha(path: string): string {
-  const content = readFileSync(path);
+  // GitHub stores these TypeScript sources as LF-normalized text. Windows
+  // checkout may materialize CRLF, so normalize the working-tree view before
+  // reconstructing the canonical Git blob object identity.
+  const normalized = readFileSync(path, "utf8").replace(/\r\n/g, "\n");
+  const content = Buffer.from(normalized, "utf8");
   return createHash("sha1")
     .update(`blob ${content.length}\0`)
     .update(content)
