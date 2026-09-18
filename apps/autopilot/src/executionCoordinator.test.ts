@@ -15,6 +15,35 @@ class MemoryStorage {
   }
 }
 
+class TransactionalRacyStorage {
+  private readonly values = new Map<string, unknown>();
+  private queue: Promise<void> = Promise.resolve();
+  transactionCount = 0;
+
+  async get<T>(key: string): Promise<T | undefined> {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    return this.values.get(key) as T | undefined;
+  }
+
+  async put<T>(key: string, value: T): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    this.values.set(key, value);
+  }
+
+  async transaction<T>(closure: (storage: TransactionalRacyStorage) => Promise<T>): Promise<T> {
+    this.transactionCount += 1;
+    let release: (() => void) | undefined;
+    const previous = this.queue;
+    this.queue = new Promise<void>((resolve) => { release = resolve; });
+    await previous;
+    try {
+      return await closure(this);
+    } finally {
+      release?.();
+    }
+  }
+}
+
 function codingEvidence(recordedAtMs: number) {
   const decision = createCodingExecutionEvidence({
     kind: "REPOSITORY_AUTOPILOT",
@@ -86,6 +115,24 @@ describe("persistent execution coordination", () => {
       }),
       /PERSISTENT_EXECUTION_COORDINATION_FAILED/,
     );
+  });
+
+  it("atomically suppresses concurrent acquire requests for one immutable dedupe key", async () => {
+    const storage = new TransactionalRacyStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const acquire = (executionId: string) => coordinator.fetch(new Request("https://execution-coordinator/acquire", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ dedupeKey: "audit:1965:35345529340:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", executionId, now: 100, leaseExpiresAt: 1_000 }),
+    }));
+
+    const [first, second] = await Promise.all([acquire("audit:1965:35345529340"), acquire("audit:1965:35345529340:redelivery")]);
+    assert.deepEqual([first.status, second.status].sort(), [201, 409]);
+    const duplicate = first.status === 409 ? first : second;
+    const body = await duplicate.json() as { acquired: boolean; reason: string };
+    assert.equal(body.acquired, false);
+    assert.equal(body.reason, "LEASE_ACTIVE");
+    assert.equal(storage.transactionCount, 2);
   });
 
   it("releases a failed lease so a bounded retry can reacquire it", async () => {
