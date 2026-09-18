@@ -93,10 +93,11 @@ test("오늘 is only allowed with proven daily basis", () => {
 test("production HOME MASTER keeps a visible status rail and cumulative PnL truth explicit", () => {
   const home = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "homeView.tsx"), "utf8");
   assert.match(home, /testID="home-status-rail"/);
-  assert.match(home, /QuietStatus label=\{statusLabel\}/);
+  assert.match(home, /PAPER MODE/);
+  assert.match(home, /LIVE: RESTRICTED/);
   assert.match(home, /PAPER PERFORMANCE/);
-  assert.match(home, />P&L<\/Text>/);
-  assert.match(home, /RISK \/ AUTHORITY/);
+  assert.match(home, /TOTAL P&L/);
+  assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
   assert.doesNotMatch(home, />오늘</);
   assert.doesNotMatch(home, /accessibilityLabel="알림"/);
 });
