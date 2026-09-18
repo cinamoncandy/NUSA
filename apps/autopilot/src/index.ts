@@ -354,7 +354,20 @@ export default {
         token: env.NUSA_GITHUB_TOKEN,
         allowedRepository,
       });
-      if (resolution.resolved && resolution.dispatch) dispatch = resolution.dispatch;
+      if (!resolution.resolved || !resolution.dispatch) {
+        return json({
+          accepted: true,
+          status: "NOOP",
+          reason: resolution.reason,
+          deliveryId,
+          event,
+          dispatch,
+          liveAuthority: "NONE",
+          productionMutationAllowed: false,
+          aiAuthority: "ZERO_AUTHORITY",
+        }, 202);
+      }
+      dispatch = resolution.dispatch;
     }
 
     // workflow_run.pull_requests is empty for cross-repository PRs, restricted forks, and some
