@@ -53,6 +53,13 @@ function fetchFor(issues: readonly unknown[], pulls: readonly unknown[] = []): t
     const url = String(input);
     if (url.includes("/search/issues") && url.includes("is%3Aissue")) return new Response(JSON.stringify({ total_count: issues.length, items: issues }), { status: 200, headers: { "content-type": "application/json" } });
     if (url.includes("/search/issues") && url.includes("is%3Apr")) return new Response(JSON.stringify({ total_count: pulls.length, items: pulls }), { status: 200, headers: { "content-type": "application/json" } });
+    const issueMatch = url.match(/\/issues\/([1-9][0-9]*)$/);
+    if (issueMatch) {
+      const selected = issues.find((value) => Number((value as Record<string, unknown>)?.number) === Number(issueMatch[1]));
+      return selected
+        ? new Response(JSON.stringify(selected), { status: 200, headers: { "content-type": "application/json" } })
+        : new Response("not found", { status: 404 });
+    }
     if (url.endsWith("/branches/main")) return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200, headers: { "content-type": "application/json" } });
     if (url.includes("/actions/runs?")) return new Response(JSON.stringify({ workflow_runs: [{ id: RUN_ID, name: "CI", conclusion: "success", head_branch: "main", head_sha: SHA, event: "push" }] }), { status: 200, headers: { "content-type": "application/json" } });
     if (url.endsWith("/dispatches")) return new Response(null, { status: 204 });
