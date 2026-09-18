@@ -10,31 +10,20 @@ function occurrences(source, value) {
   return source.split(value).length - 1;
 }
 
-test("AI presents intelligence before one compact authority summary", () => {
+test("AI presents signal reasoning before an explicit zero-authority boundary", () => {
   const ai = read("aiView.tsx");
   const thesisIndex = ai.indexOf('testID="ai-thesis-card"');
-  const authorityIndex = ai.indexOf('testID="ai-authority-card"');
-  const evidenceIndex = ai.indexOf('testID="ai-evidence-card"');
-
-  assert.ok(thesisIndex >= 0);
-  assert.ok(evidenceIndex > thesisIndex);
-  assert.ok(authorityIndex > evidenceIndex);
-  assert.match(ai, /testID="ai-zero-authority-status"><StatusChip label="AI ZERO AUTHORITY"/);
-  assert.match(ai, /AI에는 PAPER·LIVE 주문, 이체, 출금 또는 운영 변경 권한이 없습니다/);
-  assert.equal(occurrences(ai, "READ ONLY"), 1);
-  assert.doesNotMatch(ai, /<AuthorityBanner/);
-  assert.match(ai, /testID="ai-authority-card"/);
-  assert.match(ai, /DataRow label="AI LIVE 권한" value=\{liveAuthority \?\? "-"\}/);
-  assert.match(ai, /DataRow label="Production mutation" value=\{productionMutationAllowed == null \? "-"/);
-  assert.match(ai, /DataRow label="킬 스위치" value=\{killSwitchActive == null \? "-"/);
-
-  const confidenceIndex = ai.indexOf('testID="ai-trusted-confidence"');
-  const diagnosticsIndex = ai.indexOf('testID="ai-diagnostics-card"');
   const zeroAuthorityIndex = ai.indexOf('testID="ai-zero-authority-status"');
-  assert.ok(confidenceIndex > thesisIndex, "trusted confidence must follow thesis");
-  assert.ok(diagnosticsIndex > evidenceIndex, "diagnostics must follow evidence/counter-evidence");
-  assert.ok(zeroAuthorityIndex > diagnosticsIndex, "authority boundary must follow detail/diagnostics, not interrupt it");
-  assert.ok(authorityIndex > zeroAuthorityIndex, "the final authority card must be the last element");
+  assert.ok(thesisIndex >= 0);
+  assert.ok(zeroAuthorityIndex > thesisIndex, "zero-authority boundary must follow signal reasoning");
+  assert.match(ai, /testID="ai-why"/);
+  assert.match(ai, /testID="ai-result"/);
+  assert.match(ai, /testID="ai-risk"/);
+  assert.match(ai, /testID="ai-learning"/);
+  assert.match(ai, /AI ZERO AUTHORITY/);
+  assert.match(ai, /PUBLIC READ ONLY/);
+  assert.match(ai, /SIGNAL IS READ ONLY/);
+  assert.doesNotMatch(ai, /<AuthorityBanner/);
 });
 
 test("production PAPER supervises learning while isolated legacy simulation remains PAPER-only", () => {
