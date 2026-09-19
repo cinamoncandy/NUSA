@@ -21,3 +21,14 @@ export function assertPaperPerformanceComparable(
     throw new Error("PAPER_PERFORMANCE_AUTHORITY_MISMATCH");
   }
 }
+
+export function assertPaperPerformanceFresh(
+  evidence: PaperPerformanceEvidence,
+  now: number,
+  maxAgeMs: number,
+): void {
+  if (!Number.isSafeInteger(now) || !Number.isSafeInteger(maxAgeMs) || maxAgeMs < 0 || now < evidence.generatedAt) {
+    throw new Error("PAPER_PERFORMANCE_FRESHNESS_POLICY_INVALID");
+  }
+  if (now - evidence.generatedAt > maxAgeMs) throw new Error("PAPER_PERFORMANCE_EVIDENCE_STALE");
+}
