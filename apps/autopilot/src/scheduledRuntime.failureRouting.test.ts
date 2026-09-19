@@ -7,7 +7,7 @@ const SHA = "c".repeat(40);
 const FAILURE_RUN_ID = 5151;
 const NOW = 1_787_968_000_000;
 
-function namespace(): ExecutionCoordinatorNamespace {
+function namespace(): ExecutionCoordinatorNamespace {\n  let developmentQueue: unknown = null;
   let developmentQueue: unknown = null;
   return {
     idFromName: (name: string) => ({ name }),
@@ -22,7 +22,7 @@ function namespace(): ExecutionCoordinatorNamespace {
           }
           return new Response(JSON.stringify({ queue: developmentQueue }), { status: 200, headers: { "content-type": "application/json" } });
         }
-        if (url.endsWith("/scheduled-receipt")) return new Response("not found", { status: 404 });
+        if (url.endsWith("/scheduled-receipt")) return new Response("not found", { status: 404 });\n        if (url.endsWith("/development-queue") && input.method === "GET") {\n          return new Response(JSON.stringify({ queue: developmentQueue }), { status: 200, headers: { "content-type": "application/json" } });\n        }\n        if (url.endsWith("/development-queue") && input.method === "POST") {\n          const body = await new Response(input.body).text();\n          developmentQueue = JSON.parse(body).queue ?? null;\n          return new Response(JSON.stringify({ queue: developmentQueue }), { status: 200, headers: { "content-type": "application/json" } });\n        }
         if (url.endsWith("/acquire")) {
           return new Response(JSON.stringify({ acquired: true }), {
             status: 201,
