@@ -6,8 +6,18 @@ const { tmpdir } = require("node:os");
 const { spawnSync } = require("node:child_process");
 const { DatabaseSync } = require("node:sqlite");
 
+/**
+ * Node emits the SQLite experimental warning together with a companion "(Use
+ * `node --trace-warnings ...`)" line, printed once per process for the first warning of any
+ * kind. Stripping only the first line left the companion behind, so this contract failed on
+ * runtimes where `node:sqlite` is still experimental and passed where it is not. Both lines
+ * come from the runtime, never from the CLI, so both are filtered; anything else the CLI
+ * writes to stderr still fails the assertion.
+ */
 function withoutKnownRuntimeWarnings(stderr) {
-  return stderr.replace(/^\(node:\d+\) ExperimentalWarning: SQLite is an experimental feature and might change at any time\r?\n?/gm, "");
+  return stderr
+    .replace(/^\(node:\d+\) ExperimentalWarning: SQLite is an experimental feature and might change at any time\r?\n?/gm, "")
+    .replace(/^\(Use `node --trace-warnings \.\.\.` to show where the warning was created\)\r?\n?/gm, "");
 }
 
 function assertNoUnexpectedStderr(stderr) {

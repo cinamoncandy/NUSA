@@ -81,13 +81,19 @@ async function withServer(run, port = 41799) {
   }
 }
 
-test("/health responds without authentication and reports liveness only", async () => {
+test("/health responds without authentication, reporting liveness, the deployed build and the standing invariants", async () => {
   await withServer(async (handle) => {
     const res = await request(handle.port, "/health");
     assert.equal(res.status, 200);
     const body = JSON.parse(res.body);
     assert.equal(body.ok, true);
     assert.ok(typeof body.observedAt === "string" && body.observedAt.length > 0);
+    // Liveness alone could not distinguish this build from one months old, which left a redeploy
+    // unverifiable by whoever performed it. See tests/cloud-health-deployment-revision.test.js.
+    assert.ok(typeof body.deploymentRevision === "string" && body.deploymentRevision.length > 0);
+    assert.equal(body.liveAuthority, "NONE");
+    assert.equal(body.productionMutationAllowed, false);
+    assert.equal(body.aiAuthority, "ZERO_AUTHORITY");
   }, 41801);
 });
 

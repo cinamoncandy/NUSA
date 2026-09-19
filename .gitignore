@@ -26,3 +26,7 @@ storybook-static/
 # workspace-clean validation and must not be mistaken for code mutations.
 /artifacts/autopilot-execution/cited-run.json
 /artifacts/autopilot-execution/dispatch-freshness.json
+
+# Test-runner diagnostic: written by scripts/run-tests-isolated.js and uploaded by CI on
+# failure. It is a per-run artifact, never source.
+isolated-test-failure.txt

@@ -13,6 +13,10 @@ import { changeOperatorUserStatus, loadOperatorUsers, type OperatorUserAction, t
 import { UpbitConnectionPanel } from "./upbitConnectionPanel";
 import { resetUpbitReadOnlyState } from "./upbitReadOnlyAccount";
 import { getOrCreateInstallationId } from "./installationIdentity";
+import { readServerCapabilities, UNKNOWN_CAPABILITIES, type ServerCapabilities } from "./serverCapabilities";
+import { MobileSessionRequestError } from "./mobileApprovedSession";
+import { describeRefusal, isResolvableInOperatorPanel, type RefusalDescriptor } from "./instrumentState";
+import { RefusalRecord } from "./instrumentSurfaces";
 import { mobileApprovedSession, type MobilePairingRequest } from "./mobileApprovedSessionBoundary";
 import { ownerDeviceCredential, type OwnerDeviceCredentialNative, type OwnerDeviceCredentialStatus } from "./ownerDeviceCredential";
 import { OwnerConnectionExperience, type OwnerConnectionStage } from "./ownerConnectionExperience";
@@ -63,6 +67,12 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
   const [operatorBusy, setOperatorBusy] = useState(false);
   const [installationId, setInstallationId] = useState<string | null>(null);
   const [pairing, setPairing] = useState<MobilePairingRequest | null>(null);
+  const [capabilities, setCapabilities] = useState<ServerCapabilities>(UNKNOWN_CAPABILITIES);
+  const [connectionRefusal, setConnectionRefusal] = useState<RefusalDescriptor | null>(null);
+  // The refusal record's action jumps to the operator panel. The offset comes from that section's
+  // own layout rather than a guessed constant, so it stays correct as the screen above it changes.
+  const scrollRef = useRef<ScrollView>(null);
+  const operatorSectionYRef = useRef(0);
   const [ownerDeviceStatus, setOwnerDeviceStatus] = useState<OwnerDeviceCredentialStatus | null>(null);
   const [ownerDeviceBusy, setOwnerDeviceBusy] = useState(false);
   const [ownerAuthenticationFallback, setOwnerAuthenticationFallback] = useState(false);
@@ -72,6 +82,17 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
   const [newOwnerPassword, setNewOwnerPassword] = useState("");
   const [ownerPasswordChangeBusy, setOwnerPasswordChangeBusy] = useState(false);
   const [ownerPasswordChangeMessage, setOwnerPasswordChangeMessage] = useState<string | null>(null);
+  useEffect(() => {
+    // Asking the server what it supports is not a connection attempt and must never block one:
+    // readServerCapabilities reports UNKNOWN for anything it cannot read, including a build too old
+    // to answer -- calling that NOT_CONFIGURED would send the owner to run a script it does not have.
+    let cancelled = false;
+    const probeEndpoint = getConfiguredPaperEndpoint() ?? (canonicalEndpoint ?? "");
+    if (!probeEndpoint) { setCapabilities(UNKNOWN_CAPABILITIES); return; }
+    void readServerCapabilities(probeEndpoint).then((next) => { if (!cancelled) setCapabilities(next); });
+    return () => { cancelled = true; };
+  }, [canonicalEndpoint, connection.status]);
+
   const localCredentialSession = useMemo(() => new InMemoryDashboardCredentialSession(), []);
   const credentialSession = sharedCredentialSession ?? localCredentialSession;
   const savingRef = useRef(false);
@@ -214,7 +235,7 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
   };
   const enrollThisPhone = async () => {
     if (settings == null || isBusyNow()) return;
-    connectionInFlightRef.current = true; setOwnerDeviceBusy(true); setConnectionAttempted(true); setError(null);
+    connectionInFlightRef.current = true; setOwnerDeviceBusy(true); setConnectionAttempted(true); setError(null); setConnectionRefusal(null);
     try {
       if (!await persist({ ...settings, paperEndpoint: endpointDraft })) return;
       const configuredEndpoint = getConfiguredPaperEndpoint();
@@ -225,7 +246,13 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
       const result = await loadPersonalPaperOperations({ baseUrl: configuredEndpoint, credentialProvider: credentialSession.credentialProvider, allowUnverifiedEndpoint: true });
       if (result.status !== "READY") throw new Error(result.reason);
       markPaperConnectionVerified(configuredEndpoint); setConnection(result); setOwnerPassword(""); setOwnerAuthenticationFallback(false); await refreshOwnerDeviceStatus();
-    } catch (connectionError) { setOwnerPassword(""); setConnection({ status: "NOT_CONFIGURED", reason: describeCredentialFailure(connectionError) }); }
+    } catch (connectionError) {
+      // The server names why it refused -- USER_NOT_ACTIVE is not a wrong password -- and that code
+      // is lost if only the flattened sentence is rendered.
+      setOwnerPassword("");
+      setConnectionRefusal(connectionError instanceof MobileSessionRequestError ? describeRefusal(connectionError.refusal, connectionError.status) : null);
+      setConnection({ status: "NOT_CONFIGURED", reason: describeCredentialFailure(connectionError) });
+    }
     finally { setOwnerPassword(""); connectionInFlightRef.current = false; setOwnerDeviceBusy(false); }
   };
   const changeOwnerPassword = async () => {
@@ -241,7 +268,7 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
   /** Secondary compatibility path for previously issued one-time credentials. */
   const testConnection = async () => {
     if (settings == null || isBusyNow()) return;
-    connectionInFlightRef.current = true; setConnectionAttempted(true); setConnecting(true); setError(null);
+    connectionInFlightRef.current = true; setConnectionAttempted(true); setConnecting(true); setError(null); setConnectionRefusal(null);
     try {
       if (!await persist({ ...settings, paperEndpoint: endpointDraft })) return;
       const configuredEndpoint = getConfiguredPaperEndpoint();
@@ -263,7 +290,7 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
     } catch (connectionError) { credentialSession.clear(); clearPaperConnectionVerification(); setConnection({ status: "NOT_CONFIGURED", reason: describeCredentialFailure(connectionError) }); }
     finally { connectionInFlightRef.current = false; setConnecting(false); }
   };
-  const disconnect = () => { if (isBusyNow()) return; setPairing(null); void mobileApprovedSession().clearPendingPairing(); credentialSession.clear(); clearPaperConnectionVerification(); setConnectionAttempted(false); setTokenDraft(""); setConnection({ status: "NOT_CONFIGURED", reason: "Cloud PAPER 보안 세션을 해제했습니다. LOCAL PAPER는 계속 사용할 수 있습니다." }); };
+  const disconnect = () => { if (isBusyNow()) return; setPairing(null); void mobileApprovedSession().clearPendingPairing(); credentialSession.clear(); clearPaperConnectionVerification(); setConnectionAttempted(false); setTokenDraft(""); setConnectionRefusal(null); setConnection({ status: "NOT_CONFIGURED", reason: "Cloud PAPER 보안 세션을 해제했습니다. LOCAL PAPER는 계속 사용할 수 있습니다." }); };
   const refreshOperatorUsers = async (): Promise<void> => {
     const baseUrl = getConfiguredPaperEndpoint() ?? endpointDraft.trim();
     if (!baseUrl) { setOperatorError("운영자 기능을 쓰려면 Cloud endpoint를 먼저 설정하세요."); return; }
@@ -299,7 +326,7 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
   const pendingUsers = operatorUsers.filter((user) => user.status === "PENDING").length;
   const activeUsers = operatorUsers.filter((user) => user.status === "ACTIVE").length;
 
-  return <ScrollView contentContainerStyle={styles.content} testID="settings-screen">
+  return <ScrollView ref={scrollRef} contentContainerStyle={styles.content} testID="settings-screen">
     <ScreenHeader eyebrow="APPLICATION" title="설정" description="LOCAL PAPER는 연결 없이 즉시 사용할 수 있습니다. Cloud 기능은 선택 사항입니다." statusLabel="LOCAL 준비됨" statusTone="success" />
     {error ? <InlineNotice title="설정 저장 오류" detail={error} tone="danger" /> : null}
 
@@ -316,12 +343,13 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
         onRecoverWithPairing={() => { void requestRecoveryPairing(); }}
       />
       {canonicalEndpoint ? <Text style={[styles.hint, { color: theme.colors.textMuted }]} testID="settings-paper-endpoint">이 릴리스의 안전한 PAPER 서버를 사용합니다.</Text> : <NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} keyboardType="url" label="PAPER 서버 주소" value={endpointDraft} onChangeText={setEndpointDraft} placeholder="https://..." returnKeyType="done" testID="settings-paper-endpoint" />}
-      {!ownerCredentialReady ? <View style={styles.compatibilityBlock} testID="settings-owner-device-enrollment"><Text style={[styles.hint, { color: theme.colors.textMuted }]}>최초 연결에서는 소유자 확인 후 이 휴대폰을 등록합니다. 확인 정보는 저장하지 않습니다.</Text><NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy && pairing == null} label="소유자 비밀번호" value={ownerPassword} onChangeText={setOwnerPassword} placeholder="최초 기기 승인" secureTextEntry testID="settings-owner-password" /><NusaButton disabled={busy || pairing != null || !ownerPassword} label={ownerDeviceBusy ? "등록 중..." : "소유자 확인 및 이 휴대폰 등록"} onPress={() => void enrollThisPhone()} tone="primary" testID="settings-owner-device-enroll" /></View> : null}
+      {!ownerCredentialReady ? <View style={styles.compatibilityBlock} testID="settings-owner-device-enrollment">{connectionRefusal == null ? null : <RefusalRecord refusal={connectionRefusal} testID="settings-connection-refusal" {...(isResolvableInOperatorPanel(connectionRefusal) ? { actionLabel: "운영자 승인으로 이동", onAction: () => scrollRef.current?.scrollTo({ y: Math.max(0, operatorSectionYRef.current - 12), animated: true }) } : {})} />}{capabilities.passwordSignIn === "NOT_CONFIGURED" ? <InlineNotice title="서버에 비밀번호가 아직 없습니다" detail="이 서버에서 set-owner-password 스크립트를 한 번 실행해야 비밀번호 로그인이 열립니다. 그전에는 어떤 비밀번호도 거부됩니다." tone="warning" testID="settings-password-not-configured" /> : null}<Text style={[styles.hint, { color: theme.colors.textMuted }]}>최초 연결에서는 소유자 확인 후 이 휴대폰을 등록합니다. 확인 정보는 저장하지 않습니다.</Text><NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy && pairing == null} label="소유자 비밀번호" value={ownerPassword} onChangeText={setOwnerPassword} placeholder="최초 기기 승인" secureTextEntry testID="settings-owner-password" /><NusaButton disabled={busy || pairing != null || !ownerPassword} label={ownerDeviceBusy ? "등록 중..." : "소유자 확인 및 이 휴대폰 등록"} onPress={() => void enrollThisPhone()} tone="primary" testID="settings-owner-device-enroll" /></View> : null}
       {ownerAuthenticationFallback && ownerCredentialReady ? <InlineNotice title="기기 확인을 완료하지 못했습니다" detail="취소하거나 인증에 실패해 PAPER 변경 권한은 발급되지 않았습니다. 다시 시도하거나 필요할 때만 복구 옵션을 여세요." tone="warning" testID="settings-owner-auth-failed" /> : null}
       <NusaButton disabled={busy} label={showRecoveryOptions ? "복구 옵션 닫기" : "복구 옵션"} onPress={() => setShowRecoveryOptions((value) => !value)} tone="neutral" testID="settings-paper-recovery-toggle" />
       {showRecoveryOptions ? <View style={styles.compatibilityBlock} testID="settings-paper-recovery-options">
         <Text style={[styles.hint, { color: theme.colors.textMuted }]}>기존 승인 기기를 사용할 수 없을 때만 복구 경로를 사용합니다. 일반 PAPER 연결은 이 정보를 요구하지 않습니다.</Text>
         {pairing != null ? <InlineNotice title="6자리 코드 승인 대기" detail={`기존 소유자 기기에서 다음 코드를 확인하세요: ${pairing.verificationCode}`} tone="warning" testID="settings-paper-pairing-status" /> : <NusaButton disabled={busy || pairing != null} label="6자리 코드로 복구 연결" onPress={() => void requestRecoveryPairing()} tone="neutral" testID="settings-paper-legacy-pairing" />}
+        <Text style={[styles.hint, { color: theme.colors.textMuted }]}>서버가 받는 복구 키는 셋입니다 — ① 소유자 대시보드 토큰(만료 없음) ② 등록 토큰(설정된 경우, 만료 없음) ③ 부트스트랩 토큰(발급 후 10분, 1회용). 며칠 전에 받아둔 부트스트랩 토큰은 반드시 거부됩니다.</Text>
         <NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy && pairing == null} label="1회용 복구 키" value={tokenDraft} onChangeText={setTokenDraft} placeholder="기존 복구 키가 있는 경우" returnKeyType="done" secureTextEntry testID="settings-paper-token" />
         <NusaButton disabled={busy || pairing != null || !tokenDraft.trim()} label={connecting ? "검증 중..." : "복구 키로 연결"} onPress={() => void testConnection()} tone="neutral" testID="settings-paper-legacy-connect" />
       </View> : null}
@@ -349,7 +377,7 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
     <View style={styles.sectionBlock} testID="settings-mode"><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>ADVANCED · LOCAL</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>로컬과 개인 모드 관리</Text><NusaCard testID="settings-about"><DataRow label="클라이언트" value="NUSA Mobile 0.1.0" /><DataRow label="용도" value="LOCAL PAPER / Read Only" /></NusaCard><View style={styles.row} testID="settings-reset"><NusaButton label={busy ? "작업 중..." : "설정 초기화"} disabled={busy} onPress={resetSettings} tone="danger" /></View>{onSignOut ? <View testID="settings-session"><NusaButton disabled={busy} label="개인 모드 종료" onPress={signOutLocal} tone="neutral" testID="settings-sign-out" /></View> : null}</View>
 
     <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-    <View style={styles.sectionBlock} testID="settings-operator-users"><View style={styles.sectionHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>ADVANCED · USER ACCESS</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>운영자 사용자 승인</Text></View><StatusChip label="CLOUD ONLY" tone="neutral" /></View><Text style={[styles.hint, { color: theme.colors.textMuted }]}>이 기능만 Cloud 연결이 필요합니다. LOCAL PAPER 거래와는 무관합니다.</Text><NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} label="운영자 토큰" value={operatorToken} onChangeText={setOperatorToken} placeholder="메모리에만 유지" secureTextEntry testID="operator-user-token" /><View style={styles.row}><NusaButton disabled={busy} label={operatorBusy ? "불러오는 중..." : "사용자 목록 불러오기"} onPress={() => void refreshOperatorUsers()} testID="operator-user-refresh" /><NusaButton disabled={busy && !operatorToken} label="토큰 지우기" tone="neutral" onPress={() => { setOperatorToken(""); setOperatorUsers([]); setOperatorError(null); }} /></View>{operatorError ? <InlineNotice title="사용자 관리 오류" detail={operatorError} tone="danger" testID="operator-user-error" /> : null}{operatorUsers.length > 0 ? <><DataRow label="전체 사용자" value={String(operatorUsers.length)} emphasis /><DataRow label="승인 대기" value={String(pendingUsers)} /><DataRow label="활성" value={String(activeUsers)} />{operatorUsers.map((user) => <NusaCard key={user.id} testID={`operator-user-${user.id}`}><View style={styles.sectionHeader}><View><Text style={[styles.userName, { color: theme.colors.text }]}>{user.displayName || user.email}</Text><Text style={[styles.hint, { color: theme.colors.textMuted }]}>{user.email} · {user.role}</Text></View><StatusChip label={user.status} tone={user.status === "ACTIVE" ? "success" : user.status === "PENDING" ? "warning" : "danger"} /></View>{user.lastSeenAt ? <Text style={[styles.hint, { color: theme.colors.textMuted }]}>최근 활동: {new Date(user.lastSeenAt).toLocaleString("ko-KR")}</Text> : null}{user.role !== "OWNER" ? <View style={styles.row}>{actionFor(user).map((action) => <NusaButton key={action} disabled={busy} label={actionLabel[action]} onPress={() => void applyOperatorAction(user, action)} tone={action === "REJECT" || action === "SUSPEND" ? "danger" : "primary"} testID={`operator-user-${user.id}-${action.toLowerCase()}`} />)}</View> : null}</NusaCard>)}</> : null}</View>
+    <View style={styles.sectionBlock} testID="settings-operator-users" onLayout={(event) => { operatorSectionYRef.current = event.nativeEvent.layout.y; }}><View style={styles.sectionHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>ADVANCED · USER ACCESS</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>운영자 사용자 승인</Text></View><StatusChip label="CLOUD ONLY" tone="neutral" /></View><Text style={[styles.hint, { color: theme.colors.textMuted }]}>이 기능만 Cloud 연결이 필요합니다. LOCAL PAPER 거래와는 무관합니다.</Text><NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} label="운영자 토큰" value={operatorToken} onChangeText={setOperatorToken} placeholder="메모리에만 유지" secureTextEntry testID="operator-user-token" /><View style={styles.row}><NusaButton disabled={busy} label={operatorBusy ? "불러오는 중..." : "사용자 목록 불러오기"} onPress={() => void refreshOperatorUsers()} testID="operator-user-refresh" /><NusaButton disabled={busy && !operatorToken} label="토큰 지우기" tone="neutral" onPress={() => { setOperatorToken(""); setOperatorUsers([]); setOperatorError(null); }} /></View>{operatorError ? <InlineNotice title="사용자 관리 오류" detail={operatorError} tone="danger" testID="operator-user-error" /> : null}{operatorUsers.length > 0 ? <><DataRow label="전체 사용자" value={String(operatorUsers.length)} emphasis /><DataRow label="승인 대기" value={String(pendingUsers)} /><DataRow label="활성" value={String(activeUsers)} />{operatorUsers.map((user) => <NusaCard key={user.id} testID={`operator-user-${user.id}`}><View style={styles.sectionHeader}><View><Text style={[styles.userName, { color: theme.colors.text }]}>{user.displayName || user.email}</Text><Text style={[styles.hint, { color: theme.colors.textMuted }]}>{user.email} · {user.role}</Text></View><StatusChip label={user.status} tone={user.status === "ACTIVE" ? "success" : user.status === "PENDING" ? "warning" : "danger"} /></View>{user.lastSeenAt ? <Text style={[styles.hint, { color: theme.colors.textMuted }]}>최근 활동: {new Date(user.lastSeenAt).toLocaleString("ko-KR")}</Text> : null}{user.role !== "OWNER" ? <View style={styles.row}>{actionFor(user).map((action) => <NusaButton key={action} disabled={busy} label={actionLabel[action]} onPress={() => void applyOperatorAction(user, action)} tone={action === "REJECT" || action === "SUSPEND" ? "danger" : "primary"} testID={`operator-user-${user.id}-${action.toLowerCase()}`} />)}</View> : null}</NusaCard>)}</> : null}</View>
   </ScrollView>;
 }
 

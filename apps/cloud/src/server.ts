@@ -33,6 +33,7 @@ import {
   handleDesktopSessionRevokeHttp
 } from "./desktopSessionHttp";
 import { MobileSessionService } from "./mobileSessionService";
+import { deploymentHealthPayload } from "./health/deploymentHealth";
 import { OwnerDeviceCredentialService } from "./ownerCredential/ownerDeviceCredentialService";
 import {
   handleOwnerDeviceCredentialAuthenticationChallengeHttp,
@@ -54,6 +55,7 @@ import {
   handleMobileSessionRevokeHttp
 } from "./mobileSessionHttp";
 import { handlePublicUpbitQuotationHttp, isPublicUpbitQuotationPath } from "./publicUpbitQuotationHttp";
+import { anonymousObservationEnabled, createAnonymousObservationScope, hasBearerToken, isAnonymousObservationRoute, type AnonymousObservationScope } from "./observation/anonymousObservationScope";
 import { handleLiveReadinessHttp, type LiveReadinessHttpDependencies } from "./liveReadinessHttp";
 import { handleEngineeringOperationsHttp, type EngineeringOperationsHttpDependencies } from "./engineeringOperationsHttp";
 import { handleEvolutionLearningSupervisorHttp, type EvolutionLearningSupervisorHttpDependencies } from "./evolutionLearningSupervisorHttp";
@@ -220,6 +222,10 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
   const mobileSessionService = options.mobileSessionService ?? (ownedUserDb == null ? undefined : new MobileSessionService(ownedUserDb, userAccessRepository));
   const ownerDeviceCredentialService = options.ownerDeviceCredentialService ?? (ownedUserDb == null || mobileSessionService == null ? undefined : new OwnerDeviceCredentialService(ownedUserDb, userAccessRepository, mobileSessionService));
 
+  // Opt-in (NUSA_CLOUD_ANONYMOUS_OBSERVATION=1) and off by default, so no existing deployment
+  // changes behaviour. It only relaxes the read-only projection routes in the allowlist.
+  const anonymousObservation: AnonymousObservationScope | null = anonymousObservationEnabled() ? createAnonymousObservationScope() : null;
+
   const ownerPrincipal = options.tokenVerifier.ownerPrincipal;
   if (ownerPrincipal != null) {
     if (!ownerPrincipal.userId.trim() || !ownerPrincipal.email?.trim()) throw new Error("owner principal identity is incomplete");
@@ -350,7 +356,11 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
     try {
       if (req.url === "/health") {
         if (req.method !== "GET") { respond("health", dashboardJsonResponse(405, { error: "METHOD_NOT_ALLOWED" })); return; }
-        respond("health", dashboardJsonResponse(200, { ok: true, observedAt: new Date().toISOString(), capabilities: { passwordSignIn: mobileSessionService?.ownerPasswordConfigured() === true } }));
+        // Both branches added a password-availability signal here. This shape is the superset: it
+        // carries the deployed revision and the standing authority invariants alongside it, and is
+        // the one apps/mobile/src/serverCapabilities.ts already reads. The nested
+        // `capabilities.passwordSignIn` boolean had no consumer.
+        respond("health", dashboardJsonResponse(200, deploymentHealthPayload(new Date().toISOString(), process.env, mobileSessionService?.ownerPasswordConfigured() === true)));
         return;
       }
 
@@ -361,6 +371,26 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
 
       const body = req.method === "POST" || req.method === "PUT" ? await readRequestBody(req) : undefined;
       const dashboardRequest: DashboardHttpRequest & { readonly body?: string } = Object.freeze({ method: req.method ?? "GET", headers: Object.freeze({ ...req.headers } as Record<string, string | undefined>), ...(body === undefined ? {} : { body }) });
+
+      // An allowlisted read-only route with no Authorization header is served under the anonymous
+      // observation principal. A request that does carry a token keeps its normal path, and no other
+      // route is given this verifier, so the sentinel grants nothing beyond dashboard:read here.
+      const servedAnonymously = anonymousObservation != null
+        && isAnonymousObservationRoute(req.url)
+        && !hasBearerToken(dashboardRequest.headers);
+      const observationRequest: DashboardHttpRequest = servedAnonymously && anonymousObservation != null
+        ? Object.freeze({ ...dashboardRequest, headers: Object.freeze({ ...dashboardRequest.headers, authorization: `Bearer ${anonymousObservation.sentinel}` }) })
+        : dashboardRequest;
+      const observationTokenVerifier: DashboardTokenVerifier = Object.freeze({
+        ...(ownerPrincipal == null ? {} : { ownerPrincipal }),
+        verify(token: string) {
+          if (servedAnonymously && anonymousObservation != null && token === anonymousObservation.sentinel) {
+            requestPrincipal = anonymousObservation.principal;
+            return anonymousObservation.principal;
+          }
+          return requestTokenVerifier.verify(token);
+        }
+      });
 
       if (desktopSessionService != null && req.url === "/api/operator/desktop-bootstrap") {
         respond("desktop_bootstrap_issue", handleDesktopBootstrapIssueHttp(dashboardRequest, { sessionService: desktopSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository }));
@@ -489,13 +519,13 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
         }));
         return;
       }
-      if (req.url === "/api/paper-operations") { respond("paper_operations", handlePersonalPaperOperationsHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadPaperOperations ?? (() => { throw new Error("PAPER operations snapshot not configured"); }) })); return; }
-      if (req.url === "/api/shadow-operations") { respond("shadow_operations", handleShadowOperationsHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadShadowOperations ?? (() => { throw new Error("SHADOW operations snapshot not configured"); }) })); return; }
+      if (req.url === "/api/paper-operations") { respond("paper_operations", handlePersonalPaperOperationsHttp(observationRequest, { tokenVerifier: observationTokenVerifier, loadSnapshot: options.loadPaperOperations ?? (() => { throw new Error("PAPER operations snapshot not configured"); }) })); return; }
+      if (req.url === "/api/shadow-operations") { respond("shadow_operations", handleShadowOperationsHttp(observationRequest, { tokenVerifier: observationTokenVerifier, loadSnapshot: options.loadShadowOperations ?? (() => { throw new Error("SHADOW operations snapshot not configured"); }) })); return; }
       if (req.url === "/api/real-readonly-operations") { respond("real_readonly_operations", handleRealReadOnlyOperationsHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadRealReadOnlyOperations ?? (() => { throw new Error("REAL_READ_ONLY operations snapshot not configured"); }) })); return; }
-      if (req.url === "/api/live-readiness") { respond("live_readiness", handleLiveReadinessHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadLiveReadiness ?? (() => { throw new Error("LIVE readiness source not configured"); }) })); return; }
-      if (req.url === "/api/engineering-operations") { respond("engineering_operations", handleEngineeringOperationsHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadEngineeringOperations ?? (() => { throw new Error("Engineering OS snapshot not configured"); }) })); return; }
-      if (req.url === "/api/evolution-learning") { respond("evolution_learning", handleEvolutionLearningSupervisorHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadSnapshot: options.loadEvolutionLearning ?? (() => { throw new Error("Evolution learning snapshot not configured"); }) })); return; }
-      if (req.url === "/api/dashboard") { respond("dashboard", handleMobileDashboardHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, loadDashboard: options.loadDashboard })); return; }
+      if (req.url === "/api/live-readiness") { respond("live_readiness", handleLiveReadinessHttp(observationRequest, { tokenVerifier: observationTokenVerifier, loadSnapshot: options.loadLiveReadiness ?? (() => { throw new Error("LIVE readiness source not configured"); }) })); return; }
+      if (req.url === "/api/engineering-operations") { respond("engineering_operations", handleEngineeringOperationsHttp(observationRequest, { tokenVerifier: observationTokenVerifier, loadSnapshot: options.loadEngineeringOperations ?? (() => { throw new Error("Engineering OS snapshot not configured"); }) })); return; }
+      if (req.url === "/api/evolution-learning") { respond("evolution_learning", handleEvolutionLearningSupervisorHttp(observationRequest, { tokenVerifier: observationTokenVerifier, loadSnapshot: options.loadEvolutionLearning ?? (() => { throw new Error("Evolution learning snapshot not configured"); }) })); return; }
+      if (req.url === "/api/dashboard") { respond("dashboard", handleMobileDashboardHttp(observationRequest, { tokenVerifier: observationTokenVerifier, loadDashboard: options.loadDashboard })); return; }
       if (req.url === "/api/operator/users") { respond("operator_users", handleOperatorUserAccessHttp(dashboardRequest, { tokenVerifier: requestTokenVerifier, repository: userAccessRepository })); return; }
       if (req.url === "/api/settings/investment-allocation" && options.investmentAllocationSettings != null) {
         let payload: unknown = null;

@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
   progressValue: { marginTop: 2, fontSize: 30, lineHeight: 34, fontWeight: "900", fontVariant: ["tabular-nums"] },
   counts: { alignItems: "flex-end", gap: 4 },
   count: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 1 },
-  toggle: { minHeight: 40, borderTopWidth: 1, paddingTop: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  toggle: { minHeight: 44, borderTopWidth: 1, paddingTop: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   toggleLabel: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 1 },
   evidence: { borderTopWidth: 1, paddingTop: 10, gap: 8 },
   domainRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },

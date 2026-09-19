@@ -19,10 +19,13 @@ import { DEFAULT_SETTINGS, normalizeSettings, type ThemeSetting } from "./src/se
 import { VersionedSettingsRepository } from "./src/persistenceRepositories";
 import { resumePaperConnection } from "./src/paperConnectionSession";
 import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";
+import { AuthoritySpine } from "./src/instrumentSurfaces";
+import { describeRefusal, runtimeDegradedRefusal, sessionNotLinkedRefusal, type RefusalDescriptor } from "./src/instrumentState";
 import { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllocationClient";
 import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, isPaperConnectionVerified, restoreConfiguredPaperSession, setConfiguredPaperEndpoint } from "./src/paperConnectionSession";
 import { mobileApprovedSession } from "./src/mobileApprovedSessionBoundary";
 import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./src/personalPaperOperationsClient";
+import { loadAnonymousPaperObservation } from "./src/observation/anonymousObservationClient";
 import { loadShadowOperations, type ShadowOperationsLoadResult } from "./src/shadowOperationsClient";
 import { loadRealReadOnlyOperations, type RealReadOnlyOperationsLoadResult } from "./src/realReadOnlyOperationsClient";
 import { loadLiveReadinessOperations, type LiveReadinessOperationsLoadResult } from "./src/liveReadinessOperationsClient";
@@ -186,11 +189,26 @@ function AuthenticatedApp() {
     const generation = refreshGenerationRef.current;
     const endpoint = getConfiguredPaperEndpoint();
     if (endpoint == null || !isPaperConnectionVerified(endpoint)) {
+      // Without a verified session the credentialed reads cannot run. Rather than showing nothing
+      // until enrollment is finished, try the server's anonymous read-only observation. It carries
+      // no credential, so it is safe here, and a server that has it disabled just answers 401 and
+      // leaves the original NOT_CONFIGURED message in place.
       setOperations({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified in Settings before dashboard credentials can be used." });
       setShadowOperations({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified before SHADOW reads." });
       setRealReadOnlyOperations({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified before REAL_READ_ONLY reads." });
       setLiveReadinessOperations({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified before LIVE readiness reads." });
-      return Promise.resolve();
+      const observation = (async () => {
+        const result = await loadAnonymousPaperObservation();
+        if (generation !== refreshGenerationRef.current) return;
+        // A session established while this was in flight owns the projection; do not overwrite it.
+        const stillUnverified = (() => { const current = getConfiguredPaperEndpoint(); return current == null || !isPaperConnectionVerified(current); })();
+        if (!stillUnverified) return;
+        if (result.status === "READY") setOperations({ status: "READY", snapshot: result.snapshot });
+      })();
+      const clearObservation = () => { if (refreshInFlightRef.current === observation) refreshInFlightRef.current = null; };
+      refreshInFlightRef.current = observation;
+      void observation.then(clearObservation, clearObservation);
+      return observation;
     }
     dispatchRuntime({ type: "RECOVERY_STARTED" });
     const request = (async () => {
@@ -392,6 +410,7 @@ function AuthenticatedApp() {
 
   const snapshot = operations.status === "READY" ? operations.snapshot : null;
   const readOnlyError = operations.status === "UNAVAILABLE" ? operations.reason : null;
+  const readOnlyRefusal = operations.status === "UNAVAILABLE" ? operations.refusal ?? null : null;
   const notConfigured = operations.status === "NOT_CONFIGURED" ? operations.reason : null;
   const marketConnectionState = snapshot?.operations.transport === "ONLINE" ? "CONNECTED" : "UNKNOWN";
   const publicMarketConnectionState = publicMarkets.status === "READY" || publicMarkets.status === "STALE" ? "CONNECTED" : "UNKNOWN";
@@ -406,7 +425,23 @@ function AuthenticatedApp() {
   const paperLearningServerSource = operations.status === "NOT_CONFIGURED" ? "NOT_CONFIGURED" as const : operations.status === "UNAVAILABLE" ? "UNAVAILABLE" as const : snapshot?.paperLearning == null ? "PROJECTION_ABSENT" as const : (snapshot.paperLearning.events?.length ?? 0) > 0 ? "SERVER_STREAM" as const : "PROJECTION_EMPTY" as const;
   const paperLearningState = buildPaperLearningScreen(snapshot?.paperLearning?.events ?? [], paperLearningRuntimeStatus, paperLearningServerSource);
 
+  // The spine states this build's standing authority and lights a lamp per unhappy gate. It is
+  // derived from live state rather than stored, so it cannot drift out of step with what the
+  // screens below it are showing.
+  // `health` collapses kill switches, halted runtimes, offline transport and pending writes
+  // into two values, so it is reported as what it is -- a degraded runtime -- rather than
+  // translated into a specific cause the field does not carry. Data staleness is measured
+  // separately from the snapshot's own timestamp, inside the spine, because it moves with the
+  // clock rather than with this render.
+  const spineRefusals: readonly RefusalDescriptor[] = [
+    ...(snapshot?.dashboard.killSwitchActive === true ? [describeRefusal("KILL_SWITCH_ACTIVE")] : []),
+    ...(requiresDashboardConnection ? [sessionNotLinkedRefusal(notConfigured ?? undefined)] : []),
+    ...(!requiresDashboardConnection && snapshot != null && snapshot.health !== "HEALTHY"
+      ? [runtimeDegradedRefusal(snapshot.health === "FAIL_CLOSED")] : [])
+  ];
+
   return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}>
+    <AuthoritySpine onSelectGate={(gate) => { if (gate === "LINK") goSettings(); }} refusals={spineRefusals} snapshotGeneratedAtMs={snapshot?.generatedAt ?? null} />
     {!homeShellActive ? <View style={[styles.header, { borderBottomColor: appTheme.colors.border }]}><View style={styles.headerInner}><View style={styles.headerBrand}><WaveMark compact /><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text></View><Pressable accessibilityLabel="도구" accessibilityRole="button" accessibilityState={{ expanded: utilityMenuOpen, selected: utilityMenuOpen || utilityView !== null }} onPress={() => { if (utilityView !== null) { setUtilityView(null); setUtilityMenuOpen(true); return; } setUtilityMenuOpen((current) => !current); }} style={[styles.utilityButton, { borderColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : "transparent", backgroundColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primarySoft : "transparent" }]} testID="header-tools-menu"><Text style={[styles.utilityText, { color: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : appTheme.colors.textMuted }]}>도구</Text></Pressable></View></View> : null}
     {!homeShellActive && utilityMenuOpen ? <View style={[styles.utilityMenu, { backgroundColor: appTheme.colors.surface, borderBottomColor: appTheme.colors.border }]} testID="header-tools-tray"><View style={styles.utilityMenuInner}>{(["NOTIFICATIONS", "SETTINGS"] as const).map((view) => <Pressable key={view} accessibilityLabel={utilityLabels[view]} accessibilityRole="button" onPress={() => { setUtilityMenuOpen(false); setUtilityView(view); }} style={[styles.utilityMenuButton, { borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceSunken }]} testID={view === "NOTIFICATIONS" ? "header-notifications" : "header-settings"}><Text style={[styles.utilityText, { color: appTheme.colors.text }]}>{view === "NOTIFICATIONS" ? "알림" : "설정"}</Text></Pressable>)}</View></View> : null}
     {utilityView ? <View style={[styles.utilityNavigation, { borderBottomColor: appTheme.colors.border }]} testID="utility-navigation"><View style={styles.utilityNavigationInner}><Text style={[styles.utilityTitle, { color: appTheme.colors.text }]}>{utilityLabels[utilityView]}</Text><Pressable accessibilityLabel={`${utilityLabels[utilityView]} 닫기`} accessibilityRole="button" onPress={closeUtility} style={[styles.utilityClose, { borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceSunken }]} testID="utility-close"><Text style={[styles.utilityText, { color: appTheme.colors.textMuted }]}>닫기</Text></Pressable></View></View> : null}
@@ -415,10 +450,10 @@ function AuthenticatedApp() {
       : requiresDashboardConnection ? <DashboardConnectionRequired reason={notConfigured ?? "PAPER 서버 연결이 필요합니다."} onGoSettings={goSettings} />
       : utilityView === "NOTIFICATIONS" ? <NotificationView repository={settingsRepository} />
       : utilityView === "SETTINGS" ? <SettingsView canonicalEndpoint={getConfiguredPaperEndpoint()} credentialSession={credentialSession} exchangeCash={accountCash} onCloudInvestmentPercentSave={investmentAllocationClient.save} onInvestmentPercentChanged={setInvestmentPercent} onSignOut={handleSignOut} repository={settingsRepository} />
-      : activeTab === "Portfolio" ? <PortfolioView error={readOnlyError} investmentPercent={investmentPercent} onOpenPaperLearning={openPaperLearning} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} upbitError={upbitState.error} upbitSnapshot={upbitState.snapshot} upbitStatus={upbitState.status} />
+      : activeTab === "Portfolio" ? <PortfolioView error={readOnlyError} refusal={readOnlyRefusal} generatedAtMs={snapshot?.generatedAt ?? null} investmentPercent={investmentPercent} onOpenPaperLearning={openPaperLearning} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} upbitError={upbitState.error} upbitSnapshot={upbitState.snapshot} upbitStatus={upbitState.status} />
       : activeTab === "Paper" ? <TradingView error={readOnlyError} credentialSession={credentialSession} investmentPercent={investmentPercent} marketConnectionState={marketConnectionState} onOpenPaperLearning={openPaperLearning} onRefresh={onRefresh} paperLearning={paperLearningState} refreshing={refreshing} runtimeCanSubmit={runtimeCanSubmit} snapshot={snapshot?.portfolio ?? null} stale={stale} />
       : activeTab === "Markets" ? <MarketsView chartError={publicMarkets.chartError} chartErrorDiagnostic={publicMarkets.chartErrorDiagnostic} error={publicMarkets.status === "ERROR" ? publicMarkets.error : null} currentPrice={publicMarkets.currentPrice} market={CHART_MARKET} marketConnectionState={publicMarketConnectionState} marketsStale={publicMarkets.status === "STALE"} onPaperTrade={openPaperTrade} onRefresh={refreshPublicMarkets} rawCandles={publicMarkets.candles === null ? null : [...publicMarkets.candles]} rawMarkets={publicMarkets.markets === null ? null : [...publicMarkets.markets]} refreshing={publicRefreshing} repository={watchlistRepository} stale={publicMarkets.status !== "READY"} />
-      : activeTab === "AiSignal" ? <AiView ai={ai} error={readOnlyError} health={snapshot?.health ?? null} killSwitchActive={snapshot?.dashboard.killSwitchActive ?? null} liveAuthority={snapshot?.liveAuthority ?? null} onRefresh={onRefresh} productionMutationAllowed={snapshot?.productionMutationAllowed ?? null} refreshing={refreshing} research={snapshot?.research ?? null} />
+      : activeTab === "AiSignal" ? <AiView ai={ai} error={readOnlyError} refusal={readOnlyRefusal} health={snapshot?.health ?? null} killSwitchActive={snapshot?.dashboard.killSwitchActive ?? null} liveAuthority={snapshot?.liveAuthority ?? null} onRefresh={onRefresh} productionMutationAllowed={snapshot?.productionMutationAllowed ?? null} refreshing={refreshing} research={snapshot?.research ?? null} />
       : activeTab === "Order" ? <OrderHistoryView error={readOnlyError} onRefresh={onRefresh} rawOrders={snapshot?.orders ?? null} refreshing={refreshing} />
       : <HomeView snapshot={snapshot} investmentPercent={investmentPercent} readOnlyError={readOnlyError} notConfigured={notConfigured} refreshing={refreshing} publicMarket={CHART_MARKET} publicMarkets={publicMarkets.markets} publicCandles={publicMarkets.candles} publicCurrentPrice={publicMarkets.currentPrice} publicMarketConnectionState={publicMarketConnectionState} publicMarketStale={publicMarkets.status !== "READY"} onRefresh={onRefresh} onGoSettings={goSettings} onNavigate={navigateHome} onOpenPaperLearning={openPaperLearning} />}
 

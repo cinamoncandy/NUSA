@@ -133,7 +133,17 @@ export class MobileSessionService extends ApprovedUserSessionService<MobileScope
         .run(now, deviceHash, now);
       const active = Number((this.mobileDb.connection.prepare("SELECT COUNT(*) AS count FROM mobile_pairing_requests WHERE state IN ('PENDING','APPROVED') AND expires_at>?").get(now) as Record<string, unknown>).count);
       const deviceActive = Number((this.mobileDb.connection.prepare("SELECT COUNT(*) AS count FROM mobile_pairing_requests WHERE device_id_hash=? AND state IN ('PENDING','APPROVED') AND expires_at>?").get(deviceHash, now) as Record<string, unknown>).count);
-      if (active >= MAX_ACTIVE_PAIRINGS || deviceActive >= MAX_ACTIVE_PAIRINGS_PER_DEVICE) throw new Error("pairing request limit reached");
+      if (deviceActive >= MAX_ACTIVE_PAIRINGS_PER_DEVICE) throw new Error("pairing request limit reached");
+      // The global cap bounds the table, but refusing on it hands an unauthenticated caller a
+      // lockout: /v1/mobile/pairing/start takes no credential and deviceId is self-chosen, so one
+      // caller inventing MAX_ACTIVE_PAIRINGS device ids refuses the owner's real phone for the
+      // whole TTL and can hold it there. Evicting the oldest PENDING request keeps the bound and
+      // keeps the newest request alive. APPROVED is never evicted: an owner already acted on it.
+      if (active >= MAX_ACTIVE_PAIRINGS) {
+        const evicted = this.mobileDb.connection.prepare("UPDATE mobile_pairing_requests SET state='EXPIRED' WHERE request_id_hash IN (SELECT request_id_hash FROM mobile_pairing_requests WHERE state='PENDING' AND expires_at>? ORDER BY created_at ASC LIMIT ?)")
+          .run(now, active - MAX_ACTIVE_PAIRINGS + 1);
+        if (Number(evicted.changes) === 0) throw new Error("pairing request limit reached");
+      }
       this.mobileDb.connection.prepare("INSERT INTO mobile_pairing_requests(request_id_hash,verification_code_hash,device_id_hash,state,created_at,expires_at) VALUES(?,?,?,?,?,?)")
         .run(hashToken(requestId), hashToken(verificationCode), deviceHash, "PENDING", now, expiresAt);
       if (Number(superseded.changes) > 0) this.auditPairing("PAIRING_SUPERSEDED", undefined, undefined, "SAME_DEVICE_RETRY", now);

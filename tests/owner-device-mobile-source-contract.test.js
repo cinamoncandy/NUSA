@@ -35,7 +35,11 @@ test("primary owner flow is password enrollment then biometric authentication; p
   assert.doesNotMatch(source, /ChatGPT/);
   assert.match(http, /signInWithOwnerPassword\(\{ password: input\?\.password, deviceId \}\)/);
   assert.doesNotMatch(http, /signInWithOwnerPassword\(\{ userId:/);
-  assert.match(server, /capabilities: \{ passwordSignIn:/);
+  // The merge kept this branch's flat /health payload over main's nested
+  // `capabilities: { passwordSignIn }`, because the flat one is what has a consumer:
+  // apps/mobile/src/serverCapabilities.ts reads `body.passwordSignIn`, and it carries the deployed
+  // revision alongside. The nested boolean was read by nothing.
+  assert.match(server, /deploymentHealthPayload\(new Date\(\)\.toISOString\(\), process\.env, mobileSessionService\?\.ownerPasswordConfigured\(\) === true\)/);
 });
 
 test("mobile owner-auth endpoint contract is present in client, server, and Oracle readiness", () => {

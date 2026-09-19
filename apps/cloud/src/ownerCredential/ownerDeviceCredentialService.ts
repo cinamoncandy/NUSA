@@ -163,7 +163,19 @@ export class OwnerDeviceCredentialService {
     this.expireChallenges(now);
     const active = Number((this.db.connection.prepare("SELECT COUNT(*) AS count FROM nusa_owner_device_credential_challenges WHERE consumed_at IS NULL AND expires_at>?").get(now) as Record<string, unknown>).count);
     const perCredential = Number((this.db.connection.prepare("SELECT COUNT(*) AS count FROM nusa_owner_device_credential_challenges WHERE credential_id=? AND purpose=? AND consumed_at IS NULL AND expires_at>?").get(credentialId, purpose, now) as Record<string, unknown>).count);
-    if (active >= MAX_ACTIVE_CHALLENGES || perCredential >= MAX_ACTIVE_CHALLENGES_PER_CREDENTIAL) throw new Error("owner device credential challenge limit reached");
+    // Refusing at either cap hands the caller a lockout rather than a bound. The authentication
+    // challenge route needs no credential, and a credential id is an identifier rather than a
+    // secret -- it is generated on the phone, sent to the server, and kept in SharedPreferences --
+    // so anyone who learns one can spend this credential's two slots and refuse the owner's own
+    // fingerprint for the whole TTL, refilling to hold it there. Evicting the oldest unconsumed
+    // challenge keeps the bound and keeps the newest request, which is the one a person is waiting
+    // on; an evicted challenge only costs that attempt a restart, because every challenge is
+    // single-use and worthless without a signature over it.
+    if (perCredential >= MAX_ACTIVE_CHALLENGES_PER_CREDENTIAL) this.evictOldest(now, credentialId, purpose, perCredential - MAX_ACTIVE_CHALLENGES_PER_CREDENTIAL + 1);
+    if (active >= MAX_ACTIVE_CHALLENGES) {
+      const evicted = this.evictOldest(now, undefined, undefined, active - MAX_ACTIVE_CHALLENGES + 1);
+      if (evicted === 0) throw new Error("owner device credential challenge limit reached");
+    }
     const challengeId = base64url(randomBytes(32));
     const nonce = base64url(randomBytes(32));
     const expiresAt = now + OWNER_DEVICE_CREDENTIAL_CHALLENGE_TTL_MS;
@@ -188,6 +200,17 @@ export class OwnerDeviceCredentialService {
       .run(now, challengeId, purpose, credentialId, hash(normalizedDevice), now, expectedActorOwnerUserId ?? null);
     if (Number(consumed.changes) !== 1) return undefined;
     return Object.freeze({ credential_id: String(row.credential_id), device_id_hash: String(row.device_id_hash), public_key_spki: String(row.public_key_spki), actor_owner_user_id: row.actor_owner_user_id == null ? "" : String(row.actor_owner_user_id) });
+  }
+
+  /** Deletes the oldest unconsumed challenges, optionally within one credential and purpose. */
+  private evictOldest(now: number, credentialId: string | undefined, purpose: OwnerDeviceCredentialPurpose | undefined, count: number): number {
+    if (count <= 0) return 0;
+    const scoped = credentialId != null && purpose != null;
+    const statement = scoped
+      ? this.db.connection.prepare("DELETE FROM nusa_owner_device_credential_challenges WHERE challenge_id IN (SELECT challenge_id FROM nusa_owner_device_credential_challenges WHERE credential_id=? AND purpose=? AND consumed_at IS NULL AND expires_at>? ORDER BY created_at ASC, challenge_id ASC LIMIT ?)")
+      : this.db.connection.prepare("DELETE FROM nusa_owner_device_credential_challenges WHERE challenge_id IN (SELECT challenge_id FROM nusa_owner_device_credential_challenges WHERE consumed_at IS NULL AND expires_at>? ORDER BY created_at ASC, challenge_id ASC LIMIT ?)");
+    const result = scoped ? statement.run(credentialId, purpose, now, count) : statement.run(now, count);
+    return Number(result.changes);
   }
 
   private expireChallenges(now: number): void { this.db.connection.prepare("DELETE FROM nusa_owner_device_credential_challenges WHERE expires_at<=? OR consumed_at IS NOT NULL").run(now); }
