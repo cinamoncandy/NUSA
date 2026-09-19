@@ -99,3 +99,59 @@ export const validateResearchTimeline = (records: readonly ResearchMemoryRecord[
   }
   return Object.freeze([...records].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt)));
 };
+
+
+import type {
+  ResearchMemoryAttribution,
+  ResearchMemoryEvidenceOrigin,
+  ResearchMemorySemanticInput,
+  ResearchMemoryValidity
+} from "@nusa/contracts";
+
+export interface ResearchMemorySemanticProjectionContext {
+  readonly artifactSha256: string;
+  readonly evaluatorSemanticsId: string;
+  readonly semanticIdentity: string;
+  readonly independenceGroupId: string;
+  readonly validity: ResearchMemoryValidity;
+  readonly attribution: ResearchMemoryAttribution;
+  readonly evidenceOrigin: ResearchMemoryEvidenceOrigin;
+  readonly source: string;
+  readonly reason: string;
+}
+
+/**
+ * Projection only: converts cloud memory records into the canonical semantic contract.
+ * Persistence remains owned exclusively by packages/storage.
+ */
+export const projectResearchMemorySemanticInput = (
+  record: ResearchMemoryRecord,
+  context: ResearchMemorySemanticProjectionContext
+): ResearchMemorySemanticInput => {
+  if (record.stage === "EVIDENCE" && context.evidenceOrigin === "AI_ADVISORY") {
+    throw new Error("AI-authored EVIDENCE cannot project as canonical empirical evidence");
+  }
+  const semanticClass =
+    record.stage === "HYPOTHESIS" ? "HYPOTHESIS" :
+    record.stage === "EVIDENCE" ? "EVIDENCE" :
+    record.stage === "LESSON" ? "LESSON" :
+    "OBSERVATION";
+  return Object.freeze({
+    artifactSha256: context.artifactSha256,
+    semanticClass,
+    validity: context.validity,
+    attribution: context.attribution,
+    evidenceOrigin: context.evidenceOrigin,
+    evaluatorSemanticsId: context.evaluatorSemanticsId,
+    semanticIdentity: context.semanticIdentity,
+    independenceGroupId: context.independenceGroupId,
+    actor: record.author,
+    source: context.source,
+    reason: context.reason,
+    occurredAt: record.createdAt,
+    links: Object.freeze(record.parentRecordIds.map((targetArtifactSha256) => Object.freeze({
+      type: "SUPPORTS" as const,
+      targetArtifactSha256
+    })))
+  });
+};
