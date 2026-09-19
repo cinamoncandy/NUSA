@@ -96,7 +96,7 @@ describe("PAPER working-order execution invariants", () => {
 
   it("persists terminal cancellation evidence after a partial fill", () => {
     const loop = new PaperTradingExecutionLoop({ initialCapital: 1_000_000, maxFillRatio: 0.5 });
-    const opened = loop.openLimitOrder(limitOrder("partial-cancel", 2, 100), context(100));
+    const opened = loop.openLimitOrder(limitOrder("partial-cancel-0001", 2, 100), context(100));
     const orderId = opened.state.workingOrders?.[0]?.id;
     assert.ok(orderId);
     const partial = loop.fillWorkingOrder(orderId, 2, context(100, 1_001), "partial-before-cancel");
@@ -120,7 +120,7 @@ describe("PAPER working-order execution invariants", () => {
       clear: () => { persisted = undefined; },
     };
     const firstLoop = new PaperTradingExecutionLoop({ initialCapital: 1_000_000, latencyTicks: 2, repository });
-    const opened = firstLoop.openLimitOrder(limitOrder("restart-latency", 1, 100), context(100));
+    const opened = firstLoop.openLimitOrder(limitOrder("restart-latency-01", 1, 100), context(100));
     const orderId = opened.state.workingOrders?.[0]?.id;
     assert.ok(orderId);
     const firstTick = firstLoop.fillWorkingOrder(orderId, 1, context(100, 1_001), "restart-fill");
