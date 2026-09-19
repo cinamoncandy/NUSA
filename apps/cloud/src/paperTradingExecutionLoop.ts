@@ -22,6 +22,30 @@ function divideRound8(numerator: bigint, denominator: bigint): number {
 const finiteNonNegative = (value: number, name: string): void => { if (!Number.isFinite(value) || value < 0) throw new Error(`${name} must be non-negative`); };
 const SHA256 = /^[a-f0-9]{64}$/;
 
+export interface PaperExecutionProfile {
+  readonly schemaVersion: 1;
+  readonly engineVersion: "cloud-paper-execution-v1";
+  readonly feeRate: number;
+  readonly slippageBps: number;
+  readonly spreadBps: number;
+  readonly maxFillRatio: number;
+  readonly latencyTicks: number;
+  readonly fingerprintSha256: string;
+}
+function buildExecutionProfile(input: Omit<PaperExecutionProfile, "schemaVersion" | "engineVersion" | "fingerprintSha256">): PaperExecutionProfile {
+  for (const [name, value] of [["feeRate", input.feeRate], ["slippageBps", input.slippageBps], ["spreadBps", input.spreadBps]] as const) finiteNonNegative(value, name);
+  if (!Number.isFinite(input.maxFillRatio) || input.maxFillRatio <= 0 || input.maxFillRatio > 1) throw new Error("maxFillRatio must be in (0, 1]");
+  if (!Number.isSafeInteger(input.latencyTicks) || input.latencyTicks < 0) throw new Error("latencyTicks must be a non-negative integer");
+  const canonical = Object.freeze({ schemaVersion: 1 as const, engineVersion: "cloud-paper-execution-v1" as const, ...input });
+  const fingerprintSha256 = createHash("sha256").update(JSON.stringify(canonical), "utf8").digest("hex");
+  return Object.freeze({ ...canonical, fingerprintSha256 });
+}
+function validateExecutionProfile(profile: PaperExecutionProfile): PaperExecutionProfile {
+  const rebuilt = buildExecutionProfile({ feeRate: profile.feeRate, slippageBps: profile.slippageBps, spreadBps: profile.spreadBps, maxFillRatio: profile.maxFillRatio, latencyTicks: profile.latencyTicks });
+  if (profile.schemaVersion !== 1 || profile.engineVersion !== "cloud-paper-execution-v1" || JSON.stringify(profile) !== JSON.stringify(rebuilt)) throw new Error("paper execution profile is invalid");
+  return profile;
+}
+
 export interface PaperAccountPosition {
   readonly market: string;
   readonly quantity: number;
@@ -44,6 +68,7 @@ export interface PaperOrderRecord {
   readonly requestFingerprint?: string;
   /** Canonical lifecycle evidence. Optional only for persisted schema-v1 compatibility. */
   readonly lifecycle?: PaperOrderLifecycleState;
+  readonly executionProfile?: PaperExecutionProfile;
 }
 export interface PaperWorkingOrderRecord {
   readonly id: string;
@@ -56,6 +81,7 @@ export interface PaperWorkingOrderRecord {
   readonly createdAt: number;
   readonly requestFingerprint: string;
   readonly lifecycle: PaperOrderLifecycleState;
+  readonly executionProfile: PaperExecutionProfile;
 }
 export interface PaperFillCandidateProvenance {
   readonly schemaVersion: 1;
@@ -280,8 +306,10 @@ function validateState(state: PaperAccountState): void {
     if (order.requestFingerprint !== undefined && !/^[a-f0-9]{64}$/.test(order.requestFingerprint)) throw new Error("paper order request fingerprint is invalid");
     if (order.lifecycle !== undefined) {
       const lifecycle = validatePaperOrderLifecycle(order.lifecycle);
+    validateExecutionProfile(order.executionProfile);
       if (lifecycle.status !== order.status || lifecycle.requestedQuantity !== order.quantity || lifecycle.filledQuantity !== order.quantity || lifecycle.remainingQuantity !== 0 || lifecycle.lastTransitionAt !== order.filledAt) throw new Error("paper order lifecycle reconciliation mismatch");
     }
+    if (order.executionProfile !== undefined) validateExecutionProfile(order.executionProfile);
   }
   const workingOrderIds = new Set<string>();
   const workingIdempotencyKeys = new Set<string>();
@@ -383,6 +411,10 @@ export interface PaperExecutionSafetyState { readonly openP0: boolean; }
 export interface PaperTradingExecutionLoopOptions {
   readonly initialCapital: number;
   readonly feeRate?: number;
+  readonly slippageBps?: number;
+  readonly spreadBps?: number;
+  readonly maxFillRatio?: number;
+  readonly latencyTicks?: number;
   readonly staleWindowMs?: number;
   readonly repository?: PaperAccountRepository;
   readonly restoredState?: PaperAccountState;
@@ -392,6 +424,7 @@ export interface PaperTradingExecutionLoopOptions {
 export class PaperTradingExecutionLoop {
   private state: PaperAccountState;
   private readonly feeRate: number;
+  private readonly executionProfile: PaperExecutionProfile;
   private readonly staleWindowMs: number;
   private readonly repository?: PaperAccountRepository;
   private readonly readP0State?: () => PaperExecutionSafetyState;
@@ -399,6 +432,7 @@ export class PaperTradingExecutionLoop {
   public constructor(options: PaperTradingExecutionLoopOptions) {
     if (!Number.isFinite(options.initialCapital) || options.initialCapital <= 0) throw new Error("paper initial capital must be positive");
     this.feeRate = options.feeRate ?? 0.0005;
+    this.executionProfile = buildExecutionProfile({ feeRate: this.feeRate, slippageBps: options.slippageBps ?? 0, spreadBps: options.spreadBps ?? 0, maxFillRatio: options.maxFillRatio ?? 1, latencyTicks: options.latencyTicks ?? 0 });
     this.staleWindowMs = options.staleWindowMs ?? 30_000;
     if (!Number.isFinite(this.feeRate) || this.feeRate < 0) throw new Error("paper fee rate must be non-negative");
     if (!Number.isSafeInteger(this.staleWindowMs) || this.staleWindowMs < 1_000) throw new Error("paper stale window is invalid");
@@ -432,7 +466,7 @@ export class PaperTradingExecutionLoop {
     const order: PaperWorkingOrderRecord = Object.freeze({
       id, idempotencyKey: validated.idempotencyKey, market: validated.market, side: validated.side,
       orderType: "LIMIT", requestedQuantity: validated.quantity, limitPrice: validated.limitPrice,
-      createdAt: context.now, requestFingerprint: fingerprint, lifecycle,
+      createdAt: context.now, requestFingerprint: fingerprint, lifecycle, executionProfile: this.executionProfile,
     });
     const working = Object.freeze({ ...this.state, workingOrders: Object.freeze([order, ...(this.state.workingOrders ?? [])].slice(0, 1_000)), processedIdempotencyKeys: Object.freeze([validated.idempotencyKey, ...this.state.processedIdempotencyKeys]), updatedAt: context.now });
     try { this.repository?.save(working); } catch { return this.result("FAILED", "paper account persistence failed"); }
@@ -492,7 +526,7 @@ export class PaperTradingExecutionLoop {
       const totalQuantity = round8(orderFills.reduce((sum, item) => sum + item.quantity, 0));
       const totalFee = round8(orderFills.reduce((sum, item) => sum + item.fee, 0));
       const averagePrice = round8(orderFills.reduce((sum, item) => sum + item.quantity * item.price, 0) / totalQuantity);
-      const completed: PaperOrderRecord = Object.freeze({ id: current.id, idempotencyKey: current.idempotencyKey, market: current.market, side: current.side, quantity: totalQuantity, price: averagePrice, fee: totalFee, status: "FILLED", createdAt: current.createdAt, filledAt: context.now, requestFingerprint: current.requestFingerprint, lifecycle });
+      const completed: PaperOrderRecord = Object.freeze({ id: current.id, idempotencyKey: current.idempotencyKey, market: current.market, side: current.side, quantity: totalQuantity, price: averagePrice, fee: totalFee, status: "FILLED", createdAt: current.createdAt, filledAt: context.now, requestFingerprint: current.requestFingerprint, lifecycle, executionProfile: current.executionProfile });
       orders = Object.freeze([completed, ...orders].slice(0, 1_000));
     } else {
       workingOrders[index] = Object.freeze({ ...current, lifecycle });
