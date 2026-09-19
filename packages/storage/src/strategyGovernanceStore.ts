@@ -51,7 +51,8 @@ export class SqliteStrategyGovernanceStore {
       this.db.connection.prepare("INSERT INTO strategy_governance_events(sequence,previous_hash,event_json,hash) VALUES(?,?,?,?)").run(record.sequence, record.previousHash, JSON.stringify(record.event), record.hash);
       const snapshot = JSON.stringify({ hash: replay.hash, lifecycles: [...replay.lifecycles], champions: [...replay.champions] });
       this.db.connection.prepare("INSERT INTO strategy_governance_state(id,snapshot_json) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET snapshot_json=excluded.snapshot_json").run(snapshot);
-      for (const [family, strategyKeyValue] of replay.champions) this.db.connection.prepare("INSERT INTO champion_assignments(family,strategy_key) VALUES(?,?) ON CONFLICT(family) DO UPDATE SET strategy_key=excluded.strategy_key").run(family, strategyKeyValue);
+      this.db.connection.prepare("DELETE FROM champion_assignments").run();
+      for (const [family, strategyKeyValue] of replay.champions) this.db.connection.prepare("INSERT INTO champion_assignments(family,strategy_key) VALUES(?,?)").run(family, strategyKeyValue);
     });
   }
 
@@ -82,6 +83,9 @@ export class SqliteStrategyGovernanceStore {
     }
     const expectedSnapshot = JSON.stringify({ hash: replay.hash, lifecycles: [...replay.lifecycles], champions: [...replay.champions] });
     if (row.snapshot_json !== expectedSnapshot) throw new Error("governance snapshot mismatch");
+    const persistedChampions = this.db.connection.prepare("SELECT family,strategy_key FROM champion_assignments ORDER BY family ASC").all() as Array<{ family: string; strategy_key: string }>;
+    const expectedChampions = [...replay.champions].sort(([a], [b]) => a.localeCompare(b));
+    if (JSON.stringify(persistedChampions.map((item) => [item.family, item.strategy_key])) !== JSON.stringify(expectedChampions)) throw new Error("governance champion assignment mismatch");
     for (const strategy of this.listRegistryRows()) {
       const expectedLifecycle = replay.lifecycles.get(strategyKey(strategy));
       if (!expectedLifecycle || strategy.lifecycle !== expectedLifecycle) throw new Error("governance registry lifecycle mismatch");
