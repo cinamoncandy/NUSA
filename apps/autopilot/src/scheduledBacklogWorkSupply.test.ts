@@ -8,7 +8,9 @@ const RUN_ID = 4242;
 const NOW = Date.parse("2026-09-17T08:00:00.000Z");
 const SAFETY = "Safety invariants: liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY. No LIVE activation or real broker mutation.";
 
-function namespace(withPreviousReceipt = false): ExecutionCoordinatorNamespace {\n  let developmentQueue: unknown = null;\n  return {
+function namespace(withPreviousReceipt = false): ExecutionCoordinatorNamespace {
+  let developmentQueue: unknown = null;
+  return {
     idFromName: (name: string) => ({ name }),
     get: () => ({
       async fetch(input: RequestInfo | URL, init?: RequestInit) {
