@@ -35,6 +35,20 @@ recorded with `status: "INVALID_CANDIDATE"`, never silently dropped.
 `abs(shortWindow - reference.shortWindow) + abs(longWindow - reference.longWindow)` --
 used only for locality analysis, never as a performance score.
 
+## Generic family identity
+
+For family-generic requests, candidate names are labels, not independent strategy evidence.
+The grid rejects repeated effective parameter tuples even under different names or SMA aliases.
+SMA accepts `shortPeriod`/`longPeriod` and their legacy `shortWindow`/`longWindow` aliases;
+RSI requires `period`, `oversold`, `overbought`; Donchian requires `channelPeriod`.
+Each consumed parameter must be explicit. Unknown keys, conflicting aliases, whitespace keys,
+and non-finite values fail before evaluation; constructor defaults cannot silently define a trial.
+New families must extend the shared parameter input contract as well as the canonical factory.
+Independent verification shares only that input contract, not performance calculations.
+References bind by `(source, candidateKey)` and must match exactly one grid candidate.
+Duplicate, missing, extra, or mismatched reference receipts fail verification. Existing evidence
+is not rewritten: requests violating these rules require revalidation, not retrospective repair.
+
 ## Evaluation modes
 
 - `FULL_SAMPLE`: every candidate runs once over the entire candle array via the real

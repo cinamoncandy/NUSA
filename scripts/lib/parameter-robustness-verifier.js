@@ -6,13 +6,26 @@
  * the result's own recorded numbers, using separate arithmetic.
  */
 const { canonicalHash } = require("./canonical-hash.js");
+const { canonicalFamilyParameters } = require("./strategy-family-parameters.js");
 
 function isGenericFamilyRequest(request) { return typeof request?.strategyFamily === "string" || Array.isArray(request?.candidateGrid); }
 
 function verifyGenericParameterRobustnessResult(request, result) {
   const errors = [];
+  if (![request.candidateGrid, request.referenceParameters, result.candidates, result.references, result.costConditions].every(Array.isArray)) {
+    return { status: "FAIL", errors: ["generic family evidence arrays are missing or malformed"] };
+  }
+  if (result.strategyFamily !== request.strategyFamily) errors.push("result strategyFamily mismatch");
+  if (result.requestId !== request.id || result.schemaVersion !== request.schemaVersion) errors.push("result request identity mismatch");
+  if (canonicalHash(result.costConditions) !== canonicalHash(request.costConditions)) errors.push("costConditions request mismatch");
   const expected = new Map((request.candidateGrid ?? []).map((candidate) => [candidate.key, candidate]));
   const actual = new Map((result.candidates ?? []).map((candidate) => [candidate.candidateKey, candidate]));
+  const parameterIdentities = new Set();
+  for (const candidate of request.candidateGrid) {
+    const identity = canonicalHash(canonicalFamilyParameters(request.strategyFamily, candidate.parameters));
+    if (parameterIdentities.has(identity)) errors.push("request contains duplicate strategy parameters");
+    parameterIdentities.add(identity);
+  }
   if (expected.size !== request.candidateGrid.length) errors.push("request.candidateGrid contains duplicate keys");
   if (actual.size !== result.candidates.length) errors.push("result.candidates contains duplicate candidateKey values");
   if (expected.size !== actual.size) errors.push(`candidate grid size mismatch: expected ${expected.size}, result has ${actual.size}`);
@@ -23,11 +36,19 @@ function verifyGenericParameterRobustnessResult(request, result) {
     if (canonicalHash([...candidate.neighbors].sort()) !== canonicalHash([...(recorded.neighbors ?? [])].sort())) errors.push(`candidate ${key} adjacency mismatch`);
     if (recorded.familyId !== request.strategyFamily) errors.push(`candidate ${key} family mismatch`);
   }
+  const referenceIdentity = (ref) => JSON.stringify([ref.source, ref.candidateKey]);
+  const expectedReferences = new Set(request.referenceParameters.map(referenceIdentity));
+  const actualReferences = new Map(result.references.map((ref) => [referenceIdentity(ref), ref]));
+  if (expectedReferences.size !== request.referenceParameters.length) errors.push("request contains duplicate reference identity");
+  if (actualReferences.size !== result.references.length) errors.push("result contains duplicate reference identity");
+  if (expectedReferences.size !== actualReferences.size || [...actualReferences.keys()].some((key) => !expectedReferences.has(key))) errors.push("reference identity set mismatch");
   for (const ref of request.referenceParameters ?? []) {
     if (!expected.has(ref.candidateKey)) errors.push(`reference ${ref.source} (${ref.candidateKey}) is not present in candidateGrid`);
-    const reported = (result.references ?? []).find((entry) => entry.source === ref.source);
+    else if (canonicalHash(ref.parameters) !== canonicalHash(expected.get(ref.candidateKey).parameters)) errors.push("reference parameters do not match its candidate");
+    const reported = actualReferences.get(referenceIdentity(ref));
     if (!reported) errors.push(`reference result missing: ${ref.source}`);
     else {
+      if (reported.familyId !== request.strategyFamily) errors.push("reference family mismatch");
       if (reported.candidateKey !== ref.candidateKey) errors.push(`reference ${ref.source} candidateKey mismatch`);
       if (canonicalHash(reported.parameters) !== canonicalHash(ref.parameters)) errors.push(`reference ${ref.source} parameters mismatch`);
       if (reported.assessment === "BROAD_PLATEAU" && !(reported.referenceReturn > 0)) errors.push(`reference ${ref.source}: BROAD_PLATEAU requires a positive referenceReturn`);
@@ -68,8 +89,11 @@ function rebuildGridKeys(referenceParameters, neighborhood) {
 function verifyParameterRobustnessResult(request, result) {
   const errors = [];
   if (!result || result.status === undefined) { errors.push("result is missing a status field"); return { status: "FAIL", errors }; }
-  if (result.status === "FAIL" && result.candidates.length === 0) return { status: "PASS", errors: [], note: "request-level validation failure; nothing further to verify" };
-  if (isGenericFamilyRequest(request)) return verifyGenericParameterRobustnessResult(request, result);
+  if (result.status === "FAIL" && Array.isArray(result.candidates) && result.candidates.length === 0) return { status: "PASS", errors: [], note: "request-level validation failure; nothing further to verify" };
+  if (isGenericFamilyRequest(request)) {
+    try { return verifyGenericParameterRobustnessResult(request, result); }
+    catch { return { status: "FAIL", errors: ["generic family evidence is malformed"] }; }
+  }
 
   // Grid completeness + tuple uniqueness, rebuilt independently from the raw request.
   const expectedKeys = rebuildGridKeys(request.referenceParameters, request.neighborhood);

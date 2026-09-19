@@ -1,4 +1,13 @@
 version: 1
+current_strategy_family_identity:
+  work_order: WO-20260919-STRATEGY-FAMILY-IDENTITY
+  status: IMPLEMENTED_LOCAL
+  branch: codex/strategy-family-integrity
+  scope: "Existing generic robustness family inputs and independent evidence identity; no new strategy or qualification policy."
+  findings: "Duplicate parameter tuples under distinct names inflated the grid; whitespace parameter aliases overwrote values; malformed grids threw; references sharing a source were conflated."
+  validation: "Focused regressions 88/88 and full isolated suite 1011 files PASS; typecheck/build/lint/preflight/validate:full/security (0 secrets)/diff check PASS."
+  next: "Independent PR/CI governance; preserve the existing qualification hold."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_self_service_paper_upbit_readonly:
   work_order: WO-20260910-MOBILE-SELF-SERVICE-PAPER-UPBIT-READONLY
   status: IMPLEMENTED_LOCAL_VALIDATION_PARTIAL

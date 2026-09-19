@@ -1,0 +1,33 @@
+id: WO-20260919-STRATEGY-FAMILY-IDENTITY
+title: Strategy family parameter and evidence identity integrity
+status: IMPLEMENTED_LOCAL
+authority_impact: none
+scope: "Existing research robustness input validation and independent evidence verification only."
+owner_request: "Implement strategy families to a high standard; preserve existing canonical engines."
+acceptance:
+  - Reject semantic duplicate parameter tuples before evaluation.
+  - Require explicit family parameters; reject unknown, ambiguous, or whitespace keys.
+  - Return FAIL for malformed grids without invoking backtests.
+  - Bind references by source and candidate identity; reject duplicate receipts.
+  - Preserve deterministic valid results and existing SMA alias compatibility.
+constraints:
+  - No new family or protected OOS run while qualification governance remains on hold.
+  - Do not modify the qualification policy owned by PR 1991.
+  - No threshold changes or performance claims from synthetic regression fixtures.
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - node --test tests/parameter-robustness-*.test.js
+  - pnpm run preflight
+  - pnpm run validate:full
+  - pnpm run typecheck
+  - pnpm run build
+  - pnpm run lint
+  - pnpm run security:gate
+results:
+  focused: "88/88 PASS"
+  full_isolated: "1011 test files PASS"
+  local_gates: "typecheck, build, lint, preflight, validate:full, security (0 secrets), diff check PASS"
+  remote_ci: PENDING
