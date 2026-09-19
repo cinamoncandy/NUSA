@@ -23,7 +23,6 @@ describe("RISK re-qualification source delta", () => {
       maxSymbolExposureNotional: 2_000_000,
       maxDailyBuyNotional: 2_000_000,
       maxDailySellNotional: 2_000_000,
-      maxSymbolExposureNotional: 2_000_000,
       maxPortfolioExposureNotional: 2_000_000,
       maxDailyLoss: 1_000_000,
       maxConsecutiveLosses: 3,
