@@ -5,10 +5,12 @@ import test from "node:test";
 const runtimeSource = readFileSync(new URL("../apps/cloud/src/runtime.ts", import.meta.url), "utf8");
 
 test("production Cloud runtime must not silently omit canonical closed-learning composition", () => {
-  const mainMatch = runtimeSource.match(/function main\(\): void \{([\s\S]*?)\n\}/);
-  assert.ok(mainMatch, "production Cloud runtime main() must remain inspectable by the Integration/E2E gate");
+  const mainStart = runtimeSource.indexOf("function main(): void {");
+  assert.ok(mainStart >= 0, "production Cloud runtime main() must remain inspectable by the Integration/E2E gate");
 
-  const mainSource = mainMatch[1];
+  const mainEnd = runtimeSource.indexOf("if (require.main === module)", mainStart);
+  assert.ok(mainEnd > mainStart, "production Cloud runtime main() boundary must remain inspectable");
+  const mainSource = runtimeSource.slice(mainStart, mainEnd);
   assert.match(mainSource, /startCloudRuntime\(/, "production main() must compose the canonical Cloud runtime");
 
   const callMatch = mainSource.match(/startCloudRuntime\(([\s\S]*?)\);/);
