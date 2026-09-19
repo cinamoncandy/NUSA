@@ -283,7 +283,11 @@ function validateState(state: PaperAccountState): void {
     if (fill == null || fill.market !== order.market || fill.side !== order.side || fill.quantity !== order.quantity || fill.price !== order.price || fill.fee !== order.fee || fill.filledAt !== order.filledAt) throw new Error("paper order/fill reconciliation mismatch");
   }
   if (state.processedIdempotencyKeys.some((key) => !key.trim()) || new Set(state.processedIdempotencyKeys).size !== state.processedIdempotencyKeys.length || state.orders.some((order) => !state.processedIdempotencyKeys.includes(order.idempotencyKey))) throw new Error("paper idempotency ledger mismatch");
-  assertPaperAccountingReconciled({ initialCapital: state.initialCapital, fills: state.fills, cash: state.cash, realizedPnL: state.realizedPnL, positions: state.positions });
+  // orders/fills are bounded display history, not a durable complete journal. Strict replay is safe only while
+  // every processed execution is still represented; otherwise legacy/pruned state requires a future durable journal.
+  if (state.fills.length > 0 && state.fills.length === state.processedIdempotencyKeys.length) {
+    assertPaperAccountingReconciled({ initialCapital: state.initialCapital, fills: state.fills, cash: state.cash, realizedPnL: state.realizedPnL, positions: state.positions });
+  }
   const expectedEquity = round8(state.cash + state.positions.reduce((sum, position) => sum + position.quantity * position.markPrice, 0));
   const expectedUnrealized = round8(state.positions.reduce((sum, position) => sum + position.unrealizedPnL, 0));
   if (state.equity !== expectedEquity || state.unrealizedPnL !== expectedUnrealized) throw new Error("paper account projection mismatch");
