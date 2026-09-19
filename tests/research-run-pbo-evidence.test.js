@@ -384,3 +384,23 @@ test("preserves the DSR search ledger summary and rejected attempts for League p
   const rejectedCandidate = league.standing.entries.find((entry) => entry.id === input[2].id);
   assert.equal(rejectedCandidate.components.trialFailureRatio, 1 / 3);
 });
+
+
+test("malformed PBO provenance is ignored rather than promoted or crashing the bridge", () => {
+  const input = candidates();
+  const valid = buildResearchRunPboEvidence(input);
+  const malformed = {
+    ...valid,
+    provenance: {
+      ...valid.provenance,
+      candidateIds: undefined,
+    },
+  };
+  const result = buildResearchRunLeague(input, {
+    probabilityBacktestOverfitting: malformed,
+    allocationPolicy: { minimumEvidenceBreadth: 0 },
+  });
+  assert.equal(result.standing.probabilityBacktestOverfitting, undefined);
+  assert.ok(result.reasons.includes("SEARCH_OVERFITTING_EVIDENCE_PROVENANCE_MISMATCH"));
+  assert.ok(result.evidenceReport.every((report) => report.missingEvidence.includes("PBO_EVIDENCE_MISSING")));
+});
