@@ -5,6 +5,8 @@ import type { IntelligenceObservation } from "./marketIntelligenceFusion";
 const SMA_FAMILY = "sma-crossover";
 const RSI_FAMILY = "rsi-mean-reversion";
 const DONCHIAN_FAMILY = "donchian-breakout";
+const BOLLINGER_FAMILY = "bollinger-breakout";
+
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
 const round4 = (value: number): number => Math.round(value * 10_000) / 10_000;
 
@@ -44,6 +46,14 @@ function parseRsiParameters(spec: PaperCandidateStrategySpec): { period: number;
     throw new Error("PAPER RSI candidate parameters are invalid");
   }
   return { period, oversold, overbought };
+}
+
+function parseBollingerParameters(spec: PaperCandidateStrategySpec): { period: number; multiplier: number } {
+  const { period, multiplier } = spec.parameters;
+  if (!finitePositiveInteger(period) || period < 2 || period > 500 || typeof multiplier !== "number" || !Number.isFinite(multiplier) || multiplier <= 0) {
+    throw new Error("PAPER Bollinger candidate parameters are invalid");
+  }
+  return { period, multiplier };
 }
 
 function canonicalPrices(
@@ -165,6 +175,42 @@ function evaluateRsi(
   });
 }
 
+function bollingerPosition(closes: readonly number[], period: number, multiplier: number): { position: -1 | 0 | 1; upper: number; lower: number } {
+  const window = closes.slice(-period);
+  const mean = window.reduce((total, price) => total + price, 0) / window.length;
+  const variance = window.reduce((total, price) => total + (price - mean) ** 2, 0) / window.length;
+  const deviation = Math.sqrt(variance);
+  const upper = mean + multiplier * deviation;
+  const lower = mean - multiplier * deviation;
+  const close = window.at(-1)!;
+  return { position: close > upper ? 1 : close < lower ? -1 : 0, upper, lower };
+}
+
+function evaluateBollinger(spec: PaperCandidateStrategySpec, prices: readonly (readonly [number, number])[], now: number): PaperCandidateStrategyDecision {
+  const { period, multiplier } = parseBollingerParameters(spec);
+  if (prices.length < period) {
+    return Object.freeze({ action: "WAIT", score: 0, confidence: 0, observedAt: prices.at(-1)?.[0] ?? now, reason: `INSUFFICIENT_BOLLINGER_OBSERVATIONS:${prices.length}/${period}` });
+  }
+  const closes = prices.map(([, price]) => price);
+  const current = bollingerPosition(closes, period, multiplier);
+  const observedAt = prices.at(-1)![0];
+  if (prices.length === period) {
+    return Object.freeze({ action: "HOLD", score: 0, confidence: 0, observedAt, reason: `BOLLINGER_BREAKOUT:${period}/${round4(multiplier)}:baseline-established` });
+  }
+  const prior = bollingerPosition(closes.slice(0, -1), period, multiplier);
+  let action: PaperCandidateStrategyDecision["action"] = "HOLD";
+  let confidence = 0;
+  if (prior.position <= 0 && current.position === 1) {
+    action = "BUY";
+    confidence = current.upper > 0 ? clamp((closes.at(-1)! - current.upper) / current.upper, 0, 1) : 1;
+  } else if (prior.position >= 0 && current.position === -1) {
+    action = "SELL";
+    confidence = current.lower > 0 ? clamp((current.lower - closes.at(-1)!) / current.lower, 0, 1) : 1;
+  }
+  confidence = round4(confidence);
+  return Object.freeze({ action, score: action === "BUY" ? confidence : action === "SELL" ? -confidence : 0, confidence, observedAt, reason: `BOLLINGER_BREAKOUT:${period}/${round4(multiplier)}:prior=${prior.position}:current=${current.position}` });
+}
+
 /**
  * Evaluates exact immutable Research candidate semantics over already accepted public ticker
  * observations. It is deterministic and read-only: generic CIO scoring is never a fallback.
@@ -179,5 +225,7 @@ export function evaluatePaperCandidateStrategy(
   if (spec.familyId === SMA_FAMILY) return evaluateSma(spec, prices, now);
   if (spec.familyId === RSI_FAMILY) return evaluateRsi(spec, prices, now);
   if (spec.familyId === DONCHIAN_FAMILY) return evaluateDonchian(spec, prices, now);
+  if (spec.familyId === BOLLINGER_FAMILY) return evaluateBollinger(spec, prices, now);
+
   throw new Error(`unsupported PAPER candidate strategy family: ${spec.familyId}`);
 }
