@@ -73,7 +73,7 @@ export interface PaperOrderRecord {
   readonly quantity: number;
   readonly price: number;
   readonly fee: number;
-  readonly status: "FILLED";
+  readonly status: "FILLED" | "CANCELLED";
   readonly createdAt: number;
   readonly filledAt: number;
   readonly requestFingerprint?: string;
