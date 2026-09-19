@@ -128,6 +128,7 @@ export interface ResearchRunProvenance {
     readonly source: string;
     readonly market: string;
     readonly interval: string;
+    readonly candleCount: number;
     readonly startOpenTime: number;
     readonly endCloseTime: number;
   }>;
@@ -557,6 +558,7 @@ export function buildResearchRunLeague(
     source: canonicalManifest.source,
     market: canonicalManifest.market,
     interval: canonicalManifest.interval,
+    candleCount: canonicalManifest.candleCount,
     startOpenTime: canonicalManifest.startOpenTime,
     endCloseTime: canonicalManifest.endCloseTime,
   });
