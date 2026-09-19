@@ -77,3 +77,72 @@ export function selectNextEvolutionOpportunity(
     authority: AUTHORITY,
   });
 }
+
+
+export interface EvolutionBoundedSelectionInput extends EvolutionAutonomousSelectionInput {
+  readonly maxSelections: number;
+  readonly activeConflictKeys?: readonly string[];
+}
+
+const CONFLICT_KEY = /^[A-Za-z0-9_.:/-]{1,200}$/;
+const MAX_ACTIVE_CONFLICT_KEYS = 128;
+
+export interface EvolutionBoundedSelection {
+  readonly selectedOpportunities: readonly EvolutionOpportunity[];
+  readonly priorities: readonly EvolutionPriority[];
+  readonly reason: string;
+  readonly authority: typeof AUTHORITY;
+}
+
+/**
+ * Selects a deterministic, bounded set of mutually non-conflicting opportunities.
+ * Missing conflict metadata is fail-closed for multi-selection: such work may still
+ * be selected alone by selectNextEvolutionOpportunity, but never in parallel here.
+ */
+export function selectNonConflictingEvolutionOpportunities(
+  input: EvolutionBoundedSelectionInput,
+): EvolutionBoundedSelection {
+  if (input == null || typeof input !== "object") throw new Error("EVOLVE_SELECTION_INPUT_INVALID");
+  if (input.circuit == null || typeof input.circuit !== "object") throw new Error("EVOLVE_SELECTION_CIRCUIT_INVALID");
+  validateCircuitBreakerState(input.circuit);
+  if (input.schedulePolicy == null || typeof input.schedulePolicy !== "object") throw new Error("EVOLVE_SELECTION_SCHEDULE_POLICY_INVALID");
+  if (!Array.isArray(input.opportunities)) throw new Error("EVOLVE_SELECTION_OPPORTUNITIES_INVALID");
+  if (!Number.isSafeInteger(input.maxSelections) || input.maxSelections <= 0) {
+    throw new Error("EVOLVE_SELECTION_MAX_INVALID");
+  }
+  const schedule = decideEvolutionSchedule(input.schedulePolicy, input.activeExecutions, input.elapsedSecondsSinceLastRun);
+  if (input.circuit.state !== "CLOSED") return Object.freeze({ selectedOpportunities: Object.freeze([]), priorities: Object.freeze([]), reason: "circuit-open", authority: AUTHORITY });
+  if (!schedule.allowed) return Object.freeze({ selectedOpportunities: Object.freeze([]), priorities: Object.freeze([]), reason: schedule.reason, authority: AUTHORITY });
+  for (const opportunity of input.opportunities) validateEvolutionOpportunity(opportunity);
+
+  const activeConflictKeys: readonly string[] = input.activeConflictKeys ?? [];
+  if (!Array.isArray(activeConflictKeys) || activeConflictKeys.length > MAX_ACTIVE_CONFLICT_KEYS) {
+    throw new Error("EVOLVE_SELECTION_ACTIVE_CONFLICT_KEYS_INVALID");
+  }
+  const occupied = new Set<string>();
+  for (const key of activeConflictKeys) {
+    if (typeof key !== "string" || !CONFLICT_KEY.test(key) || occupied.has(key)) {
+      throw new Error("EVOLVE_SELECTION_ACTIVE_CONFLICT_KEYS_INVALID");
+    }
+    occupied.add(key);
+  }
+  const availableCapacity = input.schedulePolicy.maxConcurrent - input.activeExecutions;
+  const selectionLimit = Math.min(input.maxSelections, availableCapacity);
+  const selected: EvolutionOpportunity[] = [];
+  const priorities: EvolutionPriority[] = [];
+  for (const priority of rankEvolutionOpportunities(input.opportunities)) {
+    if (!priority.eligible || priority.score <= 0 || selected.length >= selectionLimit) continue;
+    const opportunity = input.opportunities.find((candidate) => candidate.id === priority.opportunityId);
+    if (!opportunity?.canonicalOwner || !opportunity.conflictKeys?.length) continue;
+    if (opportunity.conflictKeys.some((key: string) => occupied.has(key))) continue;
+    selected.push(opportunity);
+    priorities.push(priority);
+    opportunity.conflictKeys.forEach((key: string) => occupied.add(key));
+  }
+  return Object.freeze({
+    selectedOpportunities: Object.freeze(selected),
+    priorities: Object.freeze(priorities),
+    reason: selected.length > 0 ? "bounded-non-conflicting-selection" : "no-non-conflicting-opportunity",
+    authority: AUTHORITY,
+  });
+}
