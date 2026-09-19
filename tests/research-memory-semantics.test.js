@@ -4,7 +4,7 @@ import {
   appendResearchMemorySemanticEvent,
   isCanonicalEmpiricalResearchMemoryEvidence,
   replayResearchMemorySemanticEvents
-} from "../packages/contracts/dist/researchMemorySemantics.js";
+} from "../dist/packages/contracts/src/researchMemorySemantics.js";
 
 const artifact = "a".repeat(64);
 const base = {
