@@ -140,6 +140,26 @@ test("systemd template remains non-root and least-privilege", () => {
   assert.match(unit, /ReadWritePaths=\/var\/lib\/nusa \/var\/backups\/nusa/);
 });
 
+test("host security validation is independent of the caller cwd", () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-host-security-cwd-"));
+  try {
+    const script = path.resolve(__dirname, "..", "scripts", "host-security-validate.js");
+    const result = spawnSync(process.execPath, [script], {
+      cwd,
+      env: { ...process.env },
+      encoding: "utf8"
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.status, "PASS");
+    assert.equal(output.rootExecution, false);
+    assert.equal(path.isAbsolute(output.unit), true);
+    assert.match(output.unit, /deploy[\\/]oracle[\\/]nusa\.service$/);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
 test("operator scripts expose safe dry-run paths without emitting generated secrets", () => {
   const tokenResult = run("scripts/generate-dashboard-token.js", { NUSA_DRY_RUN: "1", NUSA_ENV_FILE: path.join(os.tmpdir(), "nusa-do-not-write.env") });
   assert.equal(tokenResult.status, 0, tokenResult.stderr);
