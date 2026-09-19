@@ -3,7 +3,7 @@ import { canonicalResearchJson } from "../../../../packages/contracts/src/resear
 import { createResearchBenchmarkScorecard, type ResearchBenchmarkPolicy, type ResearchBenchmarkSlice } from "./researchBenchmarkScorecard";
 import type { ResearchExperimentResult } from "./researchDataset";
 import type { PboCscvEvidence } from "./researchSearchAdjustedEvidence";
-import type { ResearchRunPboEvidence } from "./researchRunPboEvidence";
+import { researchRunOosReturns, type ResearchRunPboEvidence } from "./researchRunPboEvidence";
 import type { DeflatedSharpeEvidence } from "./researchSearchAdjustedEvidence";
 import type { RegimeAwareStrategyEvaluation } from "./regimeAwareStrategyEvaluation";
 import type { RegimeHealthAssessment } from "./regimeHealth";
@@ -169,6 +169,7 @@ export interface ResearchRunProvenance {
     readonly candidateConfigurationSha256: string;
     readonly evaluationSha256: string;
     readonly oosTimestampSha256: string;
+    readonly oosReturnMatrixSha256: string;
   }>;
 }
 
@@ -451,20 +452,23 @@ export function buildResearchRunLeague(
       walkForward: firstPboCandidate.experiment.experimentConfig.walkForward,
       executionCosts: firstPboCandidate.experiment.experimentConfig.executionCosts,
     });
-    const firstPboCurveTimestamps = firstPboCandidate.experiment.walkForwardResult.windows.flatMap((window) => (
-      window.testResult?.equityCurve?.slice(1).map((point) => point.timestamp) ?? []
-    ));
+    const currentPboReturnSeries = candidates
+      .map((candidate) => ({
+        candidateId: candidate.id,
+        returns: researchRunOosReturns(candidate).map((entry) => ({ timestamp: entry.timestamp, value: entry.value })),
+      }))
+      .sort((left, right) => left.candidateId.localeCompare(right.candidateId));
+    const firstPboCurveTimestamps = currentPboReturnSeries[0]?.returns.map((entry) => entry.timestamp) ?? [];
     const expectedPboTimestampSha256 = hashCanonical(firstPboCurveTimestamps);
+    const expectedPboReturnMatrixSha256 = hashCanonical(currentPboReturnSeries);
     const currentPboEvaluationAligned = candidates.every((candidate) => (
       hashCanonical({
         walkForward: candidate.experiment.experimentConfig.walkForward,
         executionCosts: candidate.experiment.experimentConfig.executionCosts,
       }) === expectedPboEvaluationSha256
     ));
-    const currentPboTimestampsAligned = candidates.every((candidate) => (
-      hashCanonical(candidate.experiment.walkForwardResult.windows.flatMap((window) => (
-        window.testResult?.equityCurve?.slice(1).map((point) => point.timestamp) ?? []
-      ))) === expectedPboTimestampSha256
+    const currentPboTimestampsAligned = currentPboReturnSeries.every((candidate) => (
+      hashCanonical(candidate.returns.map((entry) => entry.timestamp)) === expectedPboTimestampSha256
     ));
     pboProvenanceVerified = suppliedPboProvenance.schemaVersion === 1
       && Array.isArray(suppliedPboProvenance.candidateIds)
@@ -472,6 +476,7 @@ export function buildResearchRunLeague(
       && /^[0-9a-f]{64}$/i.test(String(suppliedPboProvenance.candidateConfigurationSha256 ?? ""))
       && /^[0-9a-f]{64}$/i.test(String(suppliedPboProvenance.evaluationSha256 ?? ""))
       && /^[0-9a-f]{64}$/i.test(String(suppliedPboProvenance.oosTimestampSha256 ?? ""))
+      && /^[0-9a-f]{64}$/i.test(String(suppliedPboProvenance.oosReturnMatrixSha256 ?? ""))
       && suppliedPboProvenance.datasetId === expectedPboManifest.datasetId
       && suppliedPboProvenance.datasetContentSha256 === expectedPboManifest.contentSha256
       && suppliedPboProvenance.market === expectedPboManifest.market
@@ -483,6 +488,7 @@ export function buildResearchRunLeague(
       && suppliedPboProvenance.candidateConfigurationSha256 === expectedPboCandidateConfigurationSha256
       && suppliedPboProvenance.evaluationSha256 === expectedPboEvaluationSha256
       && suppliedPboProvenance.oosTimestampSha256 === expectedPboTimestampSha256
+      && suppliedPboProvenance.oosReturnMatrixSha256 === expectedPboReturnMatrixSha256
       && firstPboCurveTimestamps.length > 0
       && currentPboEvaluationAligned
       && currentPboTimestampsAligned;
@@ -629,6 +635,7 @@ export function buildResearchRunLeague(
       candidateConfigurationSha256: suppliedPboProvenance.candidateConfigurationSha256,
       evaluationSha256: suppliedPboProvenance.evaluationSha256,
       oosTimestampSha256: suppliedPboProvenance.oosTimestampSha256,
+      oosReturnMatrixSha256: suppliedPboProvenance.oosReturnMatrixSha256,
     });
   const provenancePayload = {
     schemaVersion: 1 as const,
