@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import { canonicalResearchJson } from "../../../../packages/contracts/src/researchRuntime";
 import type { ResearchExperimentResult } from "./researchDataset";
+import {
+  validateResearchCandidateSpecification,
+  type ResearchCandidateSpecification,
+} from "./researchCandidateSpecification";
 import { estimateProbabilityBacktestOverfitting, type PboCscvEvidence } from "./researchSearchAdjustedEvidence";
 
 export class ResearchRunPboEvidenceError extends Error {
@@ -12,7 +16,9 @@ export class ResearchRunPboEvidenceError extends Error {
 
 export interface ResearchRunPboCandidate {
   readonly id: string;
+  readonly familyId: string;
   readonly experiment: ResearchExperimentResult;
+  readonly candidateSpecification: ResearchCandidateSpecification;
 }
 
 export interface ResearchRunOosReturn {
@@ -31,6 +37,8 @@ export interface ResearchRunPboEvidence extends PboCscvEvidence {
     readonly startOpenTime: number;
     readonly endCloseTime: number;
     readonly candidateIds: readonly string[];
+    readonly familyIds: readonly string[];
+    readonly candidateSpecificationHashes: readonly string[];
     readonly candidateConfigurationSha256: string;
     readonly evaluationSha256: string;
     readonly oosTimestampSha256: string;
@@ -109,6 +117,36 @@ export function buildResearchRunPboEvidence(candidates: readonly ResearchRunPboC
     throw new ResearchRunPboEvidenceError("INVALID_CANDIDATE_IDS", "candidate ids must be unique and non-empty");
   }
 
+  const specificationHashes = new Map<string, string>();
+  for (const candidate of candidates) {
+    if (!candidate.familyId.trim()) {
+      throw new ResearchRunPboEvidenceError("INVALID_FAMILY_ID", `candidate ${candidate.id} family id is required`);
+    }
+    const specification = candidate.candidateSpecification;
+    const decision = validateResearchCandidateSpecification(
+      specification,
+      Date.parse(specification.evaluationEndedAt),
+    );
+    const configured = candidate.experiment.experimentConfig.candidates;
+    const manifest = candidate.experiment.manifest;
+    if (
+      decision.status !== "VERIFIED"
+      || specification.candidateId !== candidate.id
+      || specification.familyId !== candidate.familyId
+      || specification.datasetId !== manifest.datasetId
+      || specification.datasetContentSha256.toLowerCase() !== manifest.contentSha256.toLowerCase()
+      || configured.length !== 1
+      || configured[0]?.id !== candidate.id
+      || canonicalResearchJson(configured[0]?.parameters ?? {}) !== canonicalResearchJson(specification.parameters)
+    ) {
+      throw new ResearchRunPboEvidenceError(
+        "CANDIDATE_SPECIFICATION_MISMATCH",
+        `candidate ${candidate.id} PBO evidence must bind to its verified canonical specification`,
+      );
+    }
+    specificationHashes.set(candidate.id, decision.specificationHash);
+  }
+
   const firstManifest = candidates[0]!.experiment.manifest;
   const firstEvaluationSha256 = hashCanonical({
     walkForward: candidates[0]!.experiment.experimentConfig.walkForward,
@@ -153,6 +191,8 @@ export function buildResearchRunPboEvidence(candidates: readonly ResearchRunPboC
     candidates
       .map((candidate) => ({
         candidateId: candidate.id,
+        familyId: candidate.familyId,
+        specificationHash: specificationHashes.get(candidate.id),
         parameters: candidate.experiment.experimentConfig.candidates[0]?.parameters ?? null,
       }))
       .sort((left, right) => left.candidateId.localeCompare(right.candidateId)),
@@ -177,6 +217,10 @@ export function buildResearchRunPboEvidence(candidates: readonly ResearchRunPboC
       startOpenTime: firstManifest.startOpenTime,
       endCloseTime: firstManifest.endCloseTime,
       candidateIds: freeze([...ids].sort()),
+      familyIds: freeze([...new Set(candidates.map((candidate) => candidate.familyId))].sort()),
+      candidateSpecificationHashes: freeze(
+        candidates.map((candidate) => specificationHashes.get(candidate.id)!).sort(),
+      ),
       candidateConfigurationSha256,
       evaluationSha256: firstEvaluationSha256,
       oosTimestampSha256: hashCanonical(reference.map((entry) => entry.timestamp)),
