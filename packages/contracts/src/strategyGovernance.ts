@@ -10,7 +10,7 @@ export interface StrategyIdentity {
 export interface StrategyValidationSummary {
   readonly deflatedSharpeRatio: number; readonly outOfSampleSharpe: number; readonly inSampleSharpe: number; readonly outOfSampleToInSampleRatio: number;
   readonly profitFactor: number; readonly maximumDrawdown: number; readonly walkForwardPositiveWindowRatio: number; readonly monteCarloRuinProbability: number;
-  readonly worstCostStressReturn: number; readonly outOfSampleTradeCount: number; readonly dataFingerprint: string; readonly validatedAt: number;
+  readonly worstCostStressReturn: number; readonly outOfSampleTradeCount: number; readonly dataFingerprint: string; readonly featureFingerprint: string; readonly strategyVersion: string; readonly gitCommitSha: string; readonly engineVersion: string; readonly validatedAt: number;
 }
 export interface PaperPerformanceSummary {
   readonly startedAt: number; readonly endedAt?: number; readonly observationDays: number; readonly tradeCount: number; readonly netReturn: number;
