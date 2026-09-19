@@ -139,7 +139,8 @@ test("App keeps public Markets state independent from PAPER configuration and ex
   assert.match(app, /loadUpbitPublicCandles/);
   assert.match(app, /status: "STALE"/);
   assert.match(app, /PUBLIC_REFRESH_INTERVAL_MS = 30_000/);
-  assert.match(app, /activeTab !== "Markets"/);
+  assert.match(app, /if \(authStatus === "CHECKING" \|\| appState !== "active"\) return/);
+  assert.match(app, /\}, \[appState, authStatus, refreshPublicMarkets\]\);/);
   assert.match(app, /publicMarkets.status === "ERROR"/);
   assert.match(app, /marketsStale={publicMarkets.status === "STALE"}/);
   assert.match(app, /refreshing={publicRefreshing}/);

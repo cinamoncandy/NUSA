@@ -38,8 +38,10 @@ test('AI hierarchy presents calibrated confidence before raw model probability',
   const source = read('apps/mobile/src/aiView.tsx');
   const trusted = source.indexOf('label="검증 신뢰도"');
   const raw = source.indexOf('label="원시 모델 확률 (미보정)"');
+  const authority = source.indexOf('testID="ai-zero-authority-status"');
+  const zeroAuthorityChip = source.indexOf('label="AI ZERO AUTHORITY"', authority);
   assert.ok(trusted >= 0 && raw >= 0 && trusted < raw);
-  assert.match(source, /testID="ai-zero-authority-status"><StatusChip label="AI ZERO AUTHORITY"/);
+  assert.ok(authority >= 0 && zeroAuthorityChip > authority);
   assert.match(source, /READ ONLY/);
 });
 

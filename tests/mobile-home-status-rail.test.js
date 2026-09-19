@@ -29,8 +29,8 @@ function input(overrides = {}) {
 
 test("ready fresh feed reports normal risk with live freshness", () => {
   const rail = buildHomeStatusRail(input());
-  assert.equal(rail.marketLine, "시장 온라인");
-  assert.equal(rail.systemLine, "PAPER 정상");
+  assert.equal(rail.marketLine, "LIVE · 시장 온라인");
+  assert.equal(rail.systemLine, "PAPER · 정상");
   assert.equal(rail.risk, "NORMAL");
   assert.equal(rail.riskLabel, "정상");
   assert.equal(rail.freshnessLabel, "12초 전");
@@ -41,7 +41,7 @@ test("ready fresh feed reports normal risk with live freshness", () => {
 
 test("degraded and stopped states elevate risk without hiding it", () => {
   assert.equal(buildHomeStatusRail(input({ paperState: "DEGRADED" })).risk, "ELEVATED");
-  assert.equal(buildHomeStatusRail(input({ paperState: "DEGRADED" })).systemLine, "PAPER 저하");
+  assert.equal(buildHomeStatusRail(input({ paperState: "DEGRADED" })).systemLine, "DEGRADED · PAPER 저하");
   assert.equal(buildHomeStatusRail(input({ paperMode: "STOPPED" })).risk, "ELEVATED");
 });
 
@@ -50,22 +50,23 @@ test("halted states report HIGH risk, never normal", () => {
   assert.equal(buildHomeStatusRail(input({ paperMode: "FAULTED" })).risk, "HIGH");
   const kill = buildHomeStatusRail(input({ killSwitchActive: true }));
   assert.equal(kill.risk, "HIGH");
-  assert.equal(kill.systemLine, "PAPER 중단(킬 스위치)");
+  assert.equal(kill.systemLine, "BLOCKED · PAPER 중단(킬 스위치)");
 });
 
 test("unknown stays unknown — never rendered as low risk (failure tests)", () => {
   const unconfigured = buildHomeStatusRail(input({ paperState: "NOT_CONFIGURED", paperMode: null }));
   assert.equal(unconfigured.risk, "UNKNOWN");
   assert.equal(unconfigured.riskLabel, "확인 불가");
-  assert.equal(unconfigured.systemLine, "PAPER 미연결");
+  assert.equal(unconfigured.systemLine, "CHECK · PAPER 미연결");
   const unavailable = buildHomeStatusRail(input({ paperState: "UNAVAILABLE", paperMode: null }));
   assert.equal(unavailable.risk, "UNKNOWN");
+  assert.equal(unavailable.systemLine, "CHECK · PAPER 확인 불가");
   assert.notEqual(unavailable.risk, "NORMAL");
 });
 
 test("stale feed keeps its age visible with stale tone", () => {
   const rail = buildHomeStatusRail(input({ feedStale: true, snapshotGeneratedAtMs: NOW - 300_000 }));
-  assert.equal(rail.marketLine, "시장 대기");
+  assert.equal(rail.marketLine, "STALE · 시장 대기");
   assert.equal(rail.risk, "CAUTION");
   assert.equal(rail.freshnessLabel, "5분 전");
   assert.equal(rail.freshnessTone, "stale");
@@ -97,7 +98,6 @@ test("production HomeView wires the status rail and keeps cumulative PnL truth e
   assert.match(home, /hasDailyPnlBasis:\s*false/);
   assert.match(home, /\{rail\.marketLine\} · \{rail\.systemLine\}/);
   assert.match(home, /RISK \{rail\.riskLabel\}/);
-  assert.match(home, /\{rail\.marketLine\} · \{rail\.systemLine\}/);
   assert.match(home, /TOTAL PNL/);
   assert.doesNotMatch(home, />오늘</);
   assert.doesNotMatch(home, /accessibilityLabel="알림"/);
