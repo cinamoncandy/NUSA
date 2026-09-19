@@ -323,6 +323,35 @@ export function claimNusaDevelopmentWorkPortfolio(
   });
 }
 
+export type NusaDevelopmentTransitionState = Exclude<NusaDevelopmentWorkState, "READY">;
+
+const ALLOWED_TRANSITIONS: Readonly<Record<NusaDevelopmentWorkState, readonly NusaDevelopmentWorkState[]>> = Object.freeze({
+  READY: ["CLAIMED"],
+  CLAIMED: ["IMPLEMENTING", "READY", "BLOCKED_HUMAN"],
+  IMPLEMENTING: ["VALIDATING", "READY", "BLOCKED_HUMAN"],
+  VALIDATING: ["CI", "READY", "BLOCKED_HUMAN"],
+  CI: ["AUDIT", "READY", "BLOCKED_HUMAN"],
+  AUDIT: ["MERGE_READY", "IMPLEMENTING", "BLOCKED_HUMAN"],
+  MERGE_READY: ["MERGED", "IMPLEMENTING", "BLOCKED_HUMAN"],
+  MERGED: [],
+  BLOCKED_HUMAN: ["READY"],
+});
+
+export function transitionNusaDevelopmentWork(
+  queue: NusaDevelopmentQueue,
+  workId: string,
+  nextState: NusaDevelopmentWorkState,
+  now: number,
+): NusaDevelopmentQueue {
+  if (!isCanonicalTimestamp(now)) throw new Error("WORK_TRANSITION_NOW_INVALID");
+  const item = queue.items.find((candidate) => candidate.id === workId);
+  if (!item) throw new Error("WORK_TRANSITION_UNKNOWN_ID");
+  if (!ALLOWED_TRANSITIONS[item.state].includes(nextState)) throw new Error(`WORK_TRANSITION_INVALID:${item.state}->${nextState}`);
+  const next = nextState === "READY" || nextState === "BLOCKED_HUMAN"
+    ? { ...item, state: nextState, canonicalOwner: nextState === "BLOCKED_HUMAN" ? item.canonicalOwner : null, claim: nextState === "BLOCKED_HUMAN" ? item.claim : null }
+    : { ...item, state: nextState };
+  return freezeQueue(queue.revision + 1, queue.items.map((candidate) => candidate.id === workId ? freezeItem(next) : candidate));
+}
 export function recoverStaleNusaDevelopmentClaims(queue: NusaDevelopmentQueue, now: number): NusaDevelopmentQueue {
   if (!isCanonicalTimestamp(now)) throw new Error("STALE_RECOVERY_NOW_INVALID");
   let changed = false;
