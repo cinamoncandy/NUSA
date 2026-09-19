@@ -45,6 +45,18 @@ export interface PaperOrderRecord {
   /** Canonical lifecycle evidence. Optional only for persisted schema-v1 compatibility. */
   readonly lifecycle?: PaperOrderLifecycleState;
 }
+export interface PaperWorkingOrderRecord {
+  readonly id: string;
+  readonly idempotencyKey: string;
+  readonly market: string;
+  readonly side: "BUY" | "SELL";
+  readonly orderType: "MARKET" | "LIMIT";
+  readonly requestedQuantity: number;
+  readonly limitPrice?: number;
+  readonly createdAt: number;
+  readonly requestFingerprint: string;
+  readonly lifecycle: PaperOrderLifecycleState;
+}
 export interface PaperFillCandidateProvenance {
   readonly schemaVersion: 1;
   readonly source: "CIO_DECISION_BINDING";
@@ -84,6 +96,8 @@ export interface PaperAccountState {
   readonly orders: readonly PaperOrderRecord[];
   readonly fills: readonly PaperFillRecord[];
   readonly processedIdempotencyKeys: readonly string[];
+  /** Restart-safe non-terminal orders. Optional only for persisted schema-v1 compatibility. */
+  readonly workingOrders?: readonly PaperWorkingOrderRecord[];
   readonly updatedAt: number;
 }
 export interface PaperAccountRepository { save(state: PaperAccountState): void; loadLatest(): PaperAccountState | undefined; clear(): void; close?: () => void; }
@@ -269,6 +283,17 @@ function validateState(state: PaperAccountState): void {
       if (lifecycle.status !== order.status || lifecycle.requestedQuantity !== order.quantity || lifecycle.filledQuantity !== order.quantity || lifecycle.remainingQuantity !== 0 || lifecycle.lastTransitionAt !== order.filledAt) throw new Error("paper order lifecycle reconciliation mismatch");
     }
   }
+  const workingOrderIds = new Set<string>();
+  const workingIdempotencyKeys = new Set<string>();
+  for (const order of state.workingOrders ?? []) {
+    if (!order.id.trim() || orderIds.has(order.id) || workingOrderIds.has(order.id) || !order.idempotencyKey.trim() || idempotencyKeys.has(order.idempotencyKey) || workingIdempotencyKeys.has(order.idempotencyKey) || !order.market.trim()) throw new Error("paper working order identity is invalid");
+    if (order.orderType !== "MARKET" && order.orderType !== "LIMIT") throw new Error("paper working order type is invalid");
+    if (!Number.isFinite(order.requestedQuantity) || order.requestedQuantity <= 0 || !Number.isSafeInteger(order.createdAt) || order.createdAt < 0 || !SHA256.test(order.requestFingerprint)) throw new Error("paper working order fields are invalid");
+    if (order.orderType === "LIMIT" && (!Number.isFinite(order.limitPrice) || (order.limitPrice ?? 0) <= 0)) throw new Error("paper working limit price is invalid");
+    const lifecycle = validatePaperOrderLifecycle(order.lifecycle);
+    if (lifecycle.requestedQuantity !== order.requestedQuantity || lifecycle.status === "FILLED" || lifecycle.status === "CANCELLED" || lifecycle.status === "REJECTED") throw new Error("paper working order lifecycle is terminal or mismatched");
+    workingOrderIds.add(order.id); workingIdempotencyKeys.add(order.idempotencyKey);
+  }
   const fillIds = new Set<string>();
   const fillsByOrder = new Map<string, PaperFillRecord>();
   for (const fill of state.fills) {
@@ -288,7 +313,7 @@ function validateState(state: PaperAccountState): void {
     const fill = fillsByOrder.get(order.id);
     if (fill == null || fill.market !== order.market || fill.side !== order.side || fill.quantity !== order.quantity || fill.price !== order.price || fill.fee !== order.fee || fill.filledAt !== order.filledAt) throw new Error("paper order/fill reconciliation mismatch");
   }
-  if (state.processedIdempotencyKeys.some((key) => !key.trim()) || new Set(state.processedIdempotencyKeys).size !== state.processedIdempotencyKeys.length || state.orders.some((order) => !state.processedIdempotencyKeys.includes(order.idempotencyKey))) throw new Error("paper idempotency ledger mismatch");
+  if (state.processedIdempotencyKeys.some((key) => !key.trim()) || new Set(state.processedIdempotencyKeys).size !== state.processedIdempotencyKeys.length || state.orders.some((order) => !state.processedIdempotencyKeys.includes(order.idempotencyKey)) || (state.workingOrders ?? []).some((order) => !state.processedIdempotencyKeys.includes(order.idempotencyKey))) throw new Error("paper idempotency ledger mismatch");
   const expectedEquity = round8(state.cash + state.positions.reduce((sum, position) => sum + position.quantity * position.markPrice, 0));
   const expectedUnrealized = round8(state.positions.reduce((sum, position) => sum + position.unrealizedPnL, 0));
   if (state.equity !== expectedEquity || state.unrealizedPnL !== expectedUnrealized) throw new Error("paper account projection mismatch");
@@ -467,7 +492,7 @@ export class PaperTradingExecutionLoop {
 }
 
 function initialState(initialCapital: number): PaperAccountState { return Object.freeze({ version: 1, initialCapital, cash: initialCapital, equity: initialCapital, realizedPnL: 0, unrealizedPnL: 0, positions: Object.freeze([]), orders: Object.freeze([]), fills: Object.freeze([]), processedIdempotencyKeys: Object.freeze([]), updatedAt: 0 }); }
-function cloneState(state: PaperAccountState): PaperAccountState { return { ...state, positions: state.positions.map((item) => ({ ...item })), orders: [...state.orders], fills: [...state.fills], processedIdempotencyKeys: [...state.processedIdempotencyKeys] }; }
+function cloneState(state: PaperAccountState): PaperAccountState { return { ...state, positions: state.positions.map((item) => ({ ...item })), orders: [...state.orders], fills: [...state.fills], processedIdempotencyKeys: [...state.processedIdempotencyKeys], ...(state.workingOrders === undefined ? {} : { workingOrders: [...state.workingOrders] }) }; }
 
 function executeOrder(state: PaperAccountState, key: string, market: string, side: "BUY" | "SELL", quantity: number, price: number, now: number, feeRate: number, requestFingerprint?: string, candidateProvenance?: PaperFillCandidateProvenance, quotePrice?: number, observedQuote?: PaperObservedExecutionQuote): { state: PaperAccountState; order: PaperOrderRecord; fill: PaperFillRecord } {
   const canonicalObservedQuote = observedQuote == null ? undefined : validatePaperObservedExecutionQuote(observedQuote, market, now);
