@@ -31,6 +31,7 @@ export * from "./researchAutomation";
 export * from "./researchHardening";
 export * from "./polymarketResearchEvidence";
 export * from "./researchMemoryLifecycle";
+export * from "./researchMemorySemantic";
 export * from "./personalPaperOperations";
 export * from "./operationalProgress";
 export * from "./evolutionLearningSupervisor";

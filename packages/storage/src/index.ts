@@ -7,6 +7,7 @@ import {
 import { runMigrations, type MigrationResult, type SqliteMigration } from "./migrationRunner";
 import { cloudPaperAccountHistoryMigration } from "./cloudPaperAccountHistoryMigration";
 import { researchFactoryDecisionHistoryMigration } from "./researchFactoryDecisionHistoryRepository";
+import { researchMemorySemanticOverlayMigration } from "./researchMemorySemanticOverlay";
 
 export { runMigrations } from "./migrationRunner";
 export type { MigrationResult, SqliteMigration } from "./migrationRunner";
@@ -26,6 +27,8 @@ export { SqliteResearchEvaluationLedger } from "./researchEvaluationLedger";
 export type { ResearchEvaluationDatabase } from "./researchEvaluationLedger";
 export { SqliteResearchHypothesisLifecycleRepository } from "./researchHypothesisLifecycle";
 export type { ResearchHypothesisLifecycleDatabase } from "./researchHypothesisLifecycle";
+export { SqliteResearchMemorySemanticOverlayRepository } from "./researchMemorySemanticOverlay";
+export type { ResearchMemorySemanticOverlayDatabase } from "./researchMemorySemanticOverlay";
 export { SqliteCandidatePromotionRepository } from "./candidatePromotionRepository";
 export type { CandidatePromotionDatabase, PromotionAtomicInput } from "./candidatePromotionRepository";
 export { SqliteResearchSessionRepository } from "./researchAutomation";
@@ -472,4 +475,4 @@ CREATE INDEX IF NOT EXISTS idx_evolution_learning_ledger_recorded_at
   ON evolution_learning_ledger_events (recorded_at ASC, opportunity_id ASC);
 INSERT OR IGNORE INTO evolution_learning_ledger_meta (id, schema_version, event_count, ledger_hash)
   VALUES (1, 1, 0, '0000000000000000000000000000000000000000000000000000000000000000');
-` }, researchFactoryDecisionHistoryMigration];
+` }, researchFactoryDecisionHistoryMigration, researchMemorySemanticOverlayMigration];

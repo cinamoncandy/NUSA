@@ -1,3 +1,4 @@
+import type { ResearchMemoryEvidenceOrigin, ResearchMemoryEvidenceValidity, ResearchMemorySemanticClass } from "../../../packages/contracts/src/researchMemorySemantic";
 import { createHash } from "node:crypto";
 
 export type ResearchStage = "QUESTION" | "HYPOTHESIS" | "EXPERIMENT" | "EVIDENCE" | "DECISION" | "OUTCOME" | "LESSON";
@@ -98,4 +99,35 @@ export const validateResearchTimeline = (records: readonly ResearchMemoryRecord[
     }
   }
   return Object.freeze([...records].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt)));
+};
+
+
+export interface LegacyResearchMemorySemanticProjection {
+  readonly semanticClass: ResearchMemorySemanticClass;
+  readonly validity: ResearchMemoryEvidenceValidity;
+  readonly evidenceOrigin: ResearchMemoryEvidenceOrigin;
+  readonly causalAttribution: "MIXED_UNRESOLVED";
+}
+
+/**
+ * Legacy cloud memory is projection-only. It never upgrades persisted stage labels to
+ * CURRENT empirical truth without a canonical typed overlay event.
+ */
+export const projectLegacyResearchMemoryRecordSemantics = (
+  record: ResearchMemoryRecord,
+): LegacyResearchMemorySemanticProjection => {
+  const semanticClass: ResearchMemorySemanticClass =
+    record.stage === "HYPOTHESIS" || record.stage === "QUESTION"
+      ? "HYPOTHESIS"
+      : record.stage === "EVIDENCE"
+        ? "EVIDENCE"
+        : record.stage === "LESSON"
+          ? "LESSON"
+          : "OBSERVATION";
+  return Object.freeze({
+    semanticClass,
+    validity: "REVALIDATION_REQUIRED",
+    evidenceOrigin: record.author === "ai-zero-authority" ? "AI_ADVISORY" : "UNKNOWN_UNTRUSTED",
+    causalAttribution: "MIXED_UNRESOLVED",
+  });
 };
