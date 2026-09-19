@@ -26,10 +26,13 @@ const bindings: Readonly<Record<ModuleStage, Omit<ModuleRuntimeBinding10XS, "sta
     evidenceRefs: Object.freeze(["apps/cloud/src/intelligenceEngineV10.ts", "apps/cloud/src/cloudRuntimeDashboardHydrator.ts", RUNTIME_TRUTH_TEST, CI])
   }),
   STRATEGY: Object.freeze({
-    canonicalEntrypoint: "packages/core/src/strategyEngine.ts",
+    // Cloud PAPER executes immutable candidate-bound semantics here. The generic core
+    // StrategyEngine remains a reusable legacy/research primitive, not this stage's
+    // qualification authority.
+    canonicalEntrypoint: "apps/cloud/src/paperCandidateStrategy.ts",
     runtimeEntrypoint: "apps/cloud/src/paperCandidateStrategy.ts",
     lastKnownGoodRef: LKG,
-    evidenceRefs: Object.freeze(["packages/core/src/strategyEngine.ts", "apps/cloud/src/paperCandidateStrategy.ts", RUNTIME_TRUTH_TEST, CI])
+    evidenceRefs: Object.freeze(["apps/cloud/src/paperCandidateStrategy.ts", "apps/cloud/src/cloudRuntimeDashboardHydrator.ts", RUNTIME_TRUTH_TEST, CI])
   }),
   DECISION: Object.freeze({
     canonicalEntrypoint: "apps/cloud/src/cioDecisionEngine.ts",
