@@ -25,7 +25,7 @@ test("classic and master themes are frozen, semantic, and geometrically distinct
   assert.equal(masterDark.typography.hero, 46);
   assert.notEqual(classicDark.colors.background, masterDark.colors.background);
 
-  assert.equal(masterDark.colors.surfaceSunken, "#151A22");
+  assert.equal(masterDark.colors.surfaceSunken, #070A08);
   assert.equal(masterDark.colors.primarySoft, "#29314F");
   assert.equal(masterDark.colors.borderStrong, "#66728A");
   assert.equal(masterDark.colors.info, "#A5B9E2");
@@ -116,7 +116,7 @@ test("dark success stays visually distinct from the AI signal tone", () => {
   const { createTheme } = require("../dist/apps/mobile/src/designSystem.js");
   for (const preset of ["classic", "master"]) {
     const theme = createTheme("dark", preset);
-    assert.equal(theme.colors.success, "#34D399");
+    assert.equal(theme.colors.success, #59C88A);
     assert.notEqual(theme.colors.success.toLowerCase(), theme.colors.aiSignalEnd.toLowerCase());
   }
   const light = createTheme("light", "master");
