@@ -16,7 +16,6 @@ import {
   markPersistentExecutionDispatched,
   readScheduledRuntimeReceipt,
   type ExecutionCoordinatorNamespace,
-  type ScheduledRuntimeReceipt,
 } from "./executionCoordinator";
 
 export interface ScheduledRuntimeEnv {
