@@ -69,15 +69,14 @@ test("deployment workflow remains read-only toward GitHub contents and cannot mu
   assert.match(workflow, /Failing closed/);
 });
 
-test("successful deploy directly dispatches Runtime Proof instead of relying on workflow_run chaining", () => {
+test("only a token-dispatched fallback deploy directly dispatches Runtime Proof", () => {
   assert.match(workflow, /permissions:[^]*actions: write/);
-  assert.match(workflow, /Dispatch Runtime Proof directly for fresh observability/);
-  assert.match(workflow, /does not fire workflow_run listeners/);
+  assert.match(workflow, /Dispatch Runtime Proof directly for token-dispatched fallback deploy/);
+  assert.match(workflow, /github\.event_name == 'workflow_dispatch'/);
+  assert.match(workflow, /github\.actor == 'github-actions\[bot\]'/);
+  assert.match(workflow, /Normal push\/workflow_run Deploy completions already feed Runtime Proof/);
   assert.match(workflow, /actions\/workflows\/autopilot-cloudflare-runtime-proof\.yml\/dispatches/);
   assert.match(workflow, /-f ref=main/);
-  const dispatchIndex = workflow.indexOf("Dispatch Runtime Proof directly");
-  assert.ok(dispatchIndex > 0);
-  assert.match(workflow.slice(dispatchIndex, dispatchIndex + 400), /if: steps\.revision\.outputs\.current == 'true'/);
 });
 
 // An exact head can carry more than one CI run: the push-triggered one and the
