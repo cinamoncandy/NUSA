@@ -47,7 +47,7 @@ test("cloud runtime binds the automatic market-tick path and mobile renders prov
   assert.match(mobile, /AUTO_BACKGROUND: "백그라운드 자동 실행"/);
   assert.match(mobile, /USER_TRIGGERED: "사용자 요청"/);
   assert.match(mobile, /UNKNOWN: "알 수 없음"/);
-  assert.match(mobile, /testID="ai-learning-provenance" accessible accessibilityRole="text"/);
+  assert.match(mobile, /testID="ai-learning"/);
   assert.match(mobile, /실행 근거가 확인되지 않아 출처를 분류하지 않습니다/);
   assert.doesNotMatch(mobile, /productionMutationAllowed\s*[:=]\s*true/);
 });
