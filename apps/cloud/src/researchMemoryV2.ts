@@ -106,7 +106,7 @@ import type {
   ResearchMemoryEvidenceOrigin,
   ResearchMemorySemanticInput,
   ResearchMemoryValidity
-} from "@nusa/contracts";
+} from "../../../packages/contracts/src/researchMemorySemantics";
 
 export interface ResearchMemorySemanticProjectionContext {
   readonly artifactSha256: string;
