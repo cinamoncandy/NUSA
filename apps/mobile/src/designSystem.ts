@@ -147,7 +147,7 @@ export const intelligenceFieldColors = Object.freeze({
   text: "#F7F9FF",
   heroBorder: "#222C40",
   heroMuted: "#9AA6BA",
-  terminalSignal: "#D8EE76",
+  terminalSignal: "#BFE85A",
 });
 
 const interaction = Object.freeze({
@@ -182,9 +182,9 @@ export const designPresets: Readonly<Record<DesignPresetName, DesignPreset>> = O
     name: "master" as const,
     dark: Object.freeze({
       background: "#050706", surface: "#0A0E0C", surfaceRaised: "#101712", surfaceSunken: "#070A08",
-      text: "#F2F7F4", textMuted: "#819087", primary: "#D8EE76", primarySoft: "#172414", onPrimary: "#071008",
-      navSurface: "#060907", border: "#1A2A21", borderStrong: "#34513F", info: "#8FB2A0", focus: "#D8EE76",
-      neonGlow: "rgba(216, 238, 118, 0.18)",
+      text: "#F2F7F4", textMuted: "#819087", primary: "#BFE85A", primarySoft: "#172414", onPrimary: "#071008",
+      navSurface: "#060907", border: "#1A2A21", borderStrong: "#34513F", info: "#8FB2A0", focus: "#BFE85A",
+      neonGlow: "rgba(191, 232, 90, 0.14)",
     }),
     light: Object.freeze({
       background: "#F4F5F8", surface: "#FFFFFF", surfaceRaised: "#F0F3FA", surfaceSunken: "#EDF0F6",
@@ -229,10 +229,10 @@ export function createTheme(mode: ThemeMode, presetName: DesignPresetName = "mas
       onPrimary: palette.onPrimary,
       aiSignalStart: dark ? "#91C74F" : "#7C3AED",
       aiSignalMid: dark ? "#B7E35C" : "#2563EB",
-      aiSignalEnd: dark ? "#D8EE76" : "#0B6B60",
+      aiSignalEnd: dark ? "#BFE85A" : "#0B6B60",
       aiSignalSoft: dark ? "#101A0E" : "#F2EAFE",
-      terrain: dark ? "#D8EE76" : "#23334A",
-      chartUp: dark ? "#D8EE76" : "#147A50",
+      terrain: dark ? "#BFE85A" : "#23334A",
+      chartUp: dark ? "#BFE85A" : "#147A50",
       chartDown: dark ? "#F17A94" : "#B83249",
       navSurface: palette.navSurface,
       border: palette.border,
@@ -260,7 +260,7 @@ export function createTheme(mode: ThemeMode, presetName: DesignPresetName = "mas
       sm: { color: dark ? "#02040A" : "#000000", offset: { width: 0, height: 3 }, opacity: dark ? 0.2 : 0.04, radius: 10, elevation: 1 },
       md: { color: dark ? "#02040A" : "#000000", offset: { width: 0, height: 10 }, opacity: dark ? 0.3 : 0.07, radius: 22, elevation: 3 },
       focus: { color: palette.focus, offset: { width: 0, height: 0 }, opacity: 0.24, radius: 4, elevation: 0 },
-      glow: { color: "#D8EE76", offset: { width: 0, height: 0 }, opacity: dark ? 0.4 : 0.2, radius: 24, elevation: 2 },
+      glow: { color: "#BFE85A", offset: { width: 0, height: 0 }, opacity: dark ? 0.4 : 0.2, radius: 24, elevation: 2 },
     },
     icons: { sm: 16, md: 20, lg: 24, xl: 32 },
     interaction,
