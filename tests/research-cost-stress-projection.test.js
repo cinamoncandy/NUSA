@@ -19,6 +19,7 @@ const scenario = {
   closedTradeProfitFactor: 1.4,
   totalTradingCost: 120,
   benchmarkOutperformance: 0.03,
+  walkForwardResult: { combinedOutOfSampleMetrics: { totalOosClosedTrades: 4 } },
   warnings: []
 };
 
@@ -48,6 +49,7 @@ test("projects compact cost-stress evidence without leaking the full walk-forwar
   assert.equal(projected.identity.id, "stress-id");
   assert.equal(projected.baseline.totalTradingCost, 120);
   assert.equal(projected.scenarios.length, 1);
+  assert.equal(projected.baseline.totalOosClosedTrades, 4);
   assert.equal("walkForwardResult" in projected.baseline, false);
   assert.deepEqual(projected.breakEvenEstimate, { status: "NOT_FOUND", label: "BREAK_EVEN_NOT_FOUND" });
 });
