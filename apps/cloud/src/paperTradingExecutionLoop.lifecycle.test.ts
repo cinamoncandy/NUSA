@@ -94,6 +94,24 @@ describe("PAPER working-order execution invariants", () => {
     assert.equal(tick3.fills[0]?.id, "fill-event:latency-fill");
   });
 
+  it("persists terminal cancellation evidence after a partial fill", () => {
+    const loop = new PaperTradingExecutionLoop({ initialCapital: 1_000_000, maxFillRatio: 0.5 });
+    const opened = loop.openLimitOrder(limitOrder("partial-cancel", 2, 100), context(100));
+    const orderId = opened.state.workingOrders?.[0]?.id;
+    assert.ok(orderId);
+    const partial = loop.fillWorkingOrder(orderId, 2, context(100, 1_001), "partial-before-cancel");
+    assert.equal(partial.status, "WAIT");
+
+    const cancelled = loop.cancelWorkingOrder(orderId, 1_002);
+    assert.equal(cancelled.status, "WAIT");
+    assert.equal(cancelled.state.workingOrders?.length ?? 0, 0);
+    assert.equal(cancelled.orders[0]?.status, "CANCELLED");
+    assert.equal(cancelled.orders[0]?.lifecycle?.status, "CANCELLED");
+    assert.equal(cancelled.orders[0]?.quantity, 1);
+    assert.equal(cancelled.fills[0]?.id, "fill-event:partial-before-cancel");
+    assert.equal(cancelled.state.orders[0]?.id, orderId);
+  });
+
   it("does not fill a BUY limit when adverse modeled execution price breaches the limit", () => {
     const loop = new PaperTradingExecutionLoop({ initialCapital: 1_000_000, slippageBps: 20, spreadBps: 20 });
     const opened = loop.openLimitOrder(limitOrder("limit-protection", 1, 100), context(100));
