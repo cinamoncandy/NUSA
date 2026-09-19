@@ -484,10 +484,15 @@ export class PaperTradingExecutionLoop {
     return Object.freeze({ status: "WAIT", reason: "PAPER_LIMIT_OPEN", orders: Object.freeze([]), fills: Object.freeze([]), state: this.state });
   }
 
-  public fillWorkingOrder(orderId: string, fillQuantity: number, context: PaperManualOrderContext): PaperExecutionResult {
+  public fillWorkingOrder(orderId: string, fillQuantity: number, context: PaperManualOrderContext, fillEventId?: string): PaperExecutionResult {
     const gate = this.executionGate(context);
     if (gate != null) return this.result("BLOCKED", gate);
-    if (!orderId.trim() || !Number.isFinite(fillQuantity) || fillQuantity <= 0) return this.result("FAILED", "invalid PAPER working fill request");
+    if (!orderId.trim() || !Number.isFinite(fillQuantity) || fillQuantity <= 0 || (fillEventId !== undefined && !fillEventId.trim())) return this.result("FAILED", "invalid PAPER working fill request");
+    const eventId = fillEventId?.trim();
+    if (eventId != null) {
+      const priorEventFill = this.state.fills.find((fill) => fill.id === `fill-event:${eventId}`);
+      if (priorEventFill != null) return Object.freeze({ status: "DUPLICATE", reason: eventId, orders: Object.freeze([]), fills: Object.freeze([priorEventFill]), state: this.state });
+    }
     const workingOrders = [...(this.state.workingOrders ?? [])];
     const index = workingOrders.findIndex((order) => order.id === orderId);
     if (index < 0) return this.result("REJECTED", "PAPER_WORKING_ORDER_NOT_FOUND");
@@ -534,7 +539,7 @@ export class PaperTradingExecutionLoop {
     try { lifecycle = transitionPaperOrderLifecycle(current.lifecycle, terminal ? "FILLED" : "PARTIALLY_FILLED", context.now, fillQuantity); }
     catch (error) { return this.result("REJECTED", error instanceof Error ? error.message : "paper working fill rejected"); }
     const priorFills = this.state.fills.filter((fill) => fill.orderId === current.id);
-    const fill: PaperFillRecord = Object.freeze({ id: `fill:${current.id}:${priorFills.length + 1}`, orderId: current.id, market: current.market, side: current.side, quantity: fillQuantity, price: fillPrice, fee, filledAt: context.now });
+    const fill: PaperFillRecord = Object.freeze({ id: eventId == null ? `fill:${current.id}:${priorFills.length + 1}` : `fill-event:${eventId}`, orderId: current.id, market: current.market, side: current.side, quantity: fillQuantity, price: fillPrice, fee, filledAt: context.now });
     const fills = Object.freeze([fill, ...this.state.fills].slice(0, 1_000));
 
     let orders = this.state.orders;
