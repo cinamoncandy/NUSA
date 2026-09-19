@@ -20,6 +20,9 @@ export interface PaperPerformanceEvidenceInput {
   readonly feeAmount: number;
   readonly fillCount: number;
   readonly sourceLedgerFingerprintSha256: string;
+  readonly benchmarkId: string;
+  readonly calculationVersion: string;
+  readonly generatedAt: number;
 }
 
 export interface PaperPerformanceEvidence {
@@ -45,6 +48,9 @@ export interface PaperPerformanceEvidence {
   readonly feeAmount: number;
   readonly fillCount: number;
   readonly sourceLedgerFingerprintSha256: string;
+  readonly benchmarkId: string;
+  readonly calculationVersion: string;
+  readonly generatedAt: number;
   readonly evidenceFingerprintSha256: string;
 }
 
@@ -70,7 +76,7 @@ function maxDrawdown(curve: readonly PaperEquityObservation[]): number {
 }
 
 function assertInput(input: PaperPerformanceEvidenceInput): readonly PaperEquityObservation[] {
-  for (const [name, value] of [["candidateId", input.candidateId], ["strategyId", input.strategyId], ["strategyVersion", input.strategyVersion]] as const) {
+  for (const [name, value] of [["candidateId", input.candidateId], ["strategyId", input.strategyId], ["strategyVersion", input.strategyVersion], ["benchmarkId", input.benchmarkId], ["calculationVersion", input.calculationVersion]] as const) {
     if (typeof value !== "string" || !value.trim() || value !== value.trim()) throw new Error(`paper performance ${name} is invalid`);
   }
   if (!Number.isSafeInteger(input.periodStartAt) || !Number.isSafeInteger(input.periodEndAt) || input.periodStartAt < 0 || input.periodEndAt <= input.periodStartAt) throw new Error("paper performance period is invalid");
@@ -80,6 +86,7 @@ function assertInput(input: PaperPerformanceEvidenceInput): readonly PaperEquity
   if (input.feeAmount < 0) throw new Error("paper performance feeAmount is invalid");
   if (!Number.isSafeInteger(input.fillCount) || input.fillCount < 0) throw new Error("paper performance fillCount is invalid");
   if (!SHA256.test(input.sourceLedgerFingerprintSha256)) throw new Error("paper performance ledger fingerprint is invalid");
+  if (!Number.isSafeInteger(input.generatedAt) || input.generatedAt < input.periodEndAt) throw new Error("paper performance generatedAt is invalid");
   const curve = canonicalCurve(input);
   if (curve[0].observedAt !== input.periodStartAt || curve.at(-1)!.observedAt !== input.periodEndAt || curve[0].equity <= 0) throw new Error("paper performance equity window is incomplete");
   return curve;
@@ -103,6 +110,7 @@ export function buildPaperPerformanceEvidence(input: PaperPerformanceEvidenceInp
     returnRate: round8((finalEquity - initialEquity) / initialEquity), maxDrawdownRate: maxDrawdown(curve),
     feeAmount: round8(input.feeAmount), fillCount: input.fillCount,
     sourceLedgerFingerprintSha256: input.sourceLedgerFingerprintSha256,
+    benchmarkId: input.benchmarkId, calculationVersion: input.calculationVersion, generatedAt: input.generatedAt,
   });
   return Object.freeze({ ...body, evidenceFingerprintSha256: fingerprint(body) });
 }
