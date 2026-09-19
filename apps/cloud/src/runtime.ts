@@ -59,6 +59,7 @@ import { buildPaperObservedExecutionQuote, type PaperObservedExecutionQuote } fr
 import { SqlitePaperMarketObservationRepository } from "../../../packages/storage/src/paperMarketObservationRepository";
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import { buildEvolutionLearningSupervisorSnapshot } from "./evolutionLearningSupervisorProjection";
+import { createProductionResearchComposition } from "./cloudResearchProductionComposition";
 import {
   createNusaEngineeringOperatingReadModel,
   type NusaEngineeringOperatingReadModel,
@@ -485,5 +486,5 @@ export function registerGracefulShutdown(handle: CloudDashboardServerHandle, exi
 
   return controller;
 }
-function main(): void { const config = readCloudRuntimeConfig(process.env); const handle = startCloudRuntime(process.env, undefined, undefined, undefined, createSnapshotRepository(config.cloudStateDbPath), undefined, undefined, undefined, undefined, undefined, createCloudAiRuntime(process.env)); registerGracefulShutdown(handle); }
+function main(): void { const config = readCloudRuntimeConfig(process.env); const research = createProductionResearchComposition(); const handle = startCloudRuntime(process.env, undefined, undefined, undefined, createSnapshotRepository(config.cloudStateDbPath), undefined, undefined, research.researchRuntime, research.researchRecoveryCoordinator, research.researchAutomation, createCloudAiRuntime(process.env)); registerGracefulShutdown(handle); }
 if (require.main === module) main();
