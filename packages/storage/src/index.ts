@@ -476,14 +476,19 @@ INSERT OR IGNORE INTO evolution_learning_ledger_meta (id, schema_version, event_
 ` }, researchFactoryDecisionHistoryMigration, { id: "022_research_memory_semantic_overlay", sql: `
 CREATE TABLE IF NOT EXISTS research_memory_semantic_events (
   sequence INTEGER PRIMARY KEY,
+  event_kind TEXT NOT NULL CHECK (event_kind IN ('SEMANTIC','RELATION')),
   identity TEXT NOT NULL UNIQUE,
+  artifact_kind TEXT NOT NULL,
+  artifact_id TEXT NOT NULL,
   artifact_sha256 TEXT NOT NULL,
-  semantic_identity TEXT NOT NULL,
-  independence_group_id TEXT NOT NULL,
+  semantic_identity TEXT,
+  independence_group_id TEXT,
   previous_hash TEXT NOT NULL,
   event_json TEXT NOT NULL,
   hash TEXT NOT NULL UNIQUE
 );
-CREATE INDEX IF NOT EXISTS idx_research_memory_semantic_artifact ON research_memory_semantic_events (artifact_sha256, sequence);
-CREATE INDEX IF NOT EXISTS idx_research_memory_semantic_identity ON research_memory_semantic_events (semantic_identity, independence_group_id, sequence);
+CREATE INDEX IF NOT EXISTS idx_research_memory_semantic_artifact
+  ON research_memory_semantic_events (artifact_kind, artifact_id, artifact_sha256, sequence);
+CREATE INDEX IF NOT EXISTS idx_research_memory_semantic_identity
+  ON research_memory_semantic_events (semantic_identity, independence_group_id, sequence);
 ` }];
