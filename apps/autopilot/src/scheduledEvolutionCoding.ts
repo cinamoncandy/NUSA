@@ -1,9 +1,8 @@
-import { executeGithubDispatch } from "./githubExecutor";
-import { prepareDiscoveredCodingRequest } from "./evolveCodingBridge";
 import { deriveWorkflowFailureOpportunities, type WorkflowFailureEvidence } from "./evolveEvidenceOpportunitySource";
 import { deriveGithubIssueBacklogSignals } from "./evolveGithubIssueBacklog";
 import type { EvolutionDiscoverySignal } from "./evolveOpportunityDiscovery";
-import { acquirePersistentExecution, readPersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { dispatchDevelopmentPortfolio } from "./developmentPortfolioDispatcher";
+import { type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
 export interface ScheduledEvolutionCodingEnv {
   readonly NUSA_GITHUB_TOKEN?: string;
@@ -90,10 +89,6 @@ function freshDiscoverySignals(signals: readonly EvolutionDiscoverySignal[], now
   }));
 }
 
-function logicalWorkIdentity(signals: readonly EvolutionDiscoverySignal[]): string {
-  const selected = signals[0]?.id ?? "no-signal";
-  return selected.replace(/[^A-Za-z0-9_.:-]+/g, "-").slice(0, 180) || "no-signal";
-}
 
 function backlogIssueNumber(signal: EvolutionDiscoverySignal | undefined): number | null {
   if (signal?.source !== "github-issue-backlog") return null;
@@ -190,58 +185,24 @@ export async function runScheduledEvolutionCoding(
     ? deriveGithubIssueBacklogSignals(input.backlogIssues ?? [], input.openPulls ?? [], new Date(input.now))
     : Object.freeze([] as EvolutionDiscoverySignal[]);
   const signals = failureSignals.length > 0 ? failureSignals : backlogSignals;
-  const freshFailureCount = failureSignals.length;
-  const workIdentity = logicalWorkIdentity(signals);
   if (signals[0]?.source === "github-issue-backlog") {
     const freshness = await revalidateBacklogSignal(signals[0], input, token, fetchImpl);
     if (freshness === "UNAVAILABLE") return result("ABSTAINED", "github-issue-actionability-revalidation-unavailable", signals.map((signal) => signal.id));
     if (freshness !== "ACTIONABLE") return result("ABSTAINED", "github-issue-no-longer-actionable", signals.map((signal) => signal.id));
   }
-  const executionId = `evolve-coding:${input.mainSha.slice(0, 16)}:${workIdentity.slice(0, 100)}`;
-  const dedupeKey = `evolve-coding:${input.mainSha}:${workIdentity}`;
-  let currentExecution;
-  try {
-    currentExecution = await readPersistentExecution(coordinator, dedupeKey);
-  } catch {
-    return result("ABSTAINED", "persistent-execution-state-unavailable", signals.map((signal) => signal.id));
-  }
-  const activeExecutions = currentExecution
-    && (currentExecution.state === "LEASED" || currentExecution.state === "HANDED_OFF")
-    && currentExecution.leaseExpiresAt > input.now
-    ? 1
-    : 0;
-  const elapsedSecondsSinceLastRun = currentExecution
-    ? Math.max(0, Math.floor((input.now - currentExecution.updatedAt) / 1000))
-    : Number.MAX_SAFE_INTEGER;
-  const bridge = prepareDiscoveredCodingRequest({
-    signals,
-    now: new Date(input.now),
+  const dispatched = await dispatchDevelopmentPortfolio({
     repository: input.repository,
-    headSha: input.mainSha,
+    mainSha: input.mainSha,
     workflowRunId: input.workflowRunId,
-    executionId,
-    dedupeKey,
-    circuit: freshFailureCount >= 3
-      ? { state: "OPEN", consecutiveFailures: freshFailureCount, openedAt: new Date(input.now).toISOString() }
-      : { state: "CLOSED", consecutiveFailures: freshFailureCount },
-    schedulePolicy: { mode: "AUTONOMOUS", minIntervalSeconds: 60, maxConcurrent: 1 },
-    activeExecutions,
-    elapsedSecondsSinceLastRun,
-  });
-  if (bridge.status !== "READY" || !bridge.request) return result("ABSTAINED", bridge.reason);
-
-  const persistent = await acquirePersistentExecution(coordinator, {
-    dedupeKey: bridge.request.dedupeKey,
-    executionId: bridge.request.executionId,
     now: input.now,
-    leaseExpiresAt: input.now + CODING_LEASE_MS,
+    signals,
+    token,
+    coordinator,
+    fetchImpl,
   });
-  if (!persistent.acquired) return result("DUPLICATE_SUPPRESSED", persistent.reason ?? "DUPLICATE_EXECUTION", signals.map((signal) => signal.id));
-
-  const dispatched = await executeGithubDispatch(bridge.request, { token, allowedRepository: input.repository }, fetchImpl);
-  if (dispatched.status === "DISPATCHED") {
-    return result("EXECUTION_ACCEPTED", "github-coding-dispatch-accepted", signals.map((signal) => signal.id));
-  }
-  if (dispatched.status === "INTERFACE_READY") return result("INTERFACE_READY", dispatched.reason, signals.map((signal) => signal.id));
-  return result("EXECUTION_FAILED", dispatched.reason, signals.map((signal) => signal.id));
+  if (dispatched.status === "EXECUTION_ACCEPTED") return result("EXECUTION_ACCEPTED", dispatched.reason, dispatched.selectedSignalIds);
+  if (dispatched.status === "NO_READY_WORK") return result("ABSTAINED", dispatched.reason, dispatched.selectedSignalIds);
+  if (dispatched.status === "ABSTAINED") return result("ABSTAINED", dispatched.reason, dispatched.selectedSignalIds);
+  if (dispatched.status === "DUPLICATE_SUPPRESSED") return result("DUPLICATE_SUPPRESSED", dispatched.reason, dispatched.selectedSignalIds);
+  return result("EXECUTION_FAILED", dispatched.reason, dispatched.selectedSignalIds);
 }
