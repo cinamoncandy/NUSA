@@ -5,6 +5,10 @@ import test from "node:test";
 const workflow = fs.readFileSync(".github/workflows/autopilot-deterministic-audit-release.yml", "utf8");
 const auditWorkflow = workflow.split(/\r?\n  release:\r?\n/, 1)[0];
 
+test("Audit workflow exposes immutable dispatch identity as the GitHub run name", () => {
+  assert.match(workflow, /run-name:\s*\$\{\{ github\.event\.client_payload\.dedupe_key/);
+});
+
 test("deterministic Audit has no Cloudflare or AI merge dependency", () => {
   assert.match(auditWorkflow, /Autopilot Deterministic Audit Release/);
   assert.match(auditWorkflow, /github\.event\.client_payload\.kind == 'AUDIT_REQUEST'/);

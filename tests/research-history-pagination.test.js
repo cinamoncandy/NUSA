@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const {
   RESEARCH_MARKET_SET_VERSION,
   RESEARCH_MARKETS,
+  RESEARCH_TIMEFRAMES,
   SMA_PARAMETER_NEIGHBORHOOD,
   RSI_PARAMETER_NEIGHBORHOOD,
   DONCHIAN_PARAMETER_NEIGHBORHOOD,
@@ -28,10 +29,16 @@ function pageFor(request) {
 }
 
 test("research horizon is bounded and never selected from performance", () => {
+  // The default stays the daily declaration. The accepted ceiling tracks the deepest DECLARED
+  // timeframe, so an explicit override can never be rejected for a depth the defaults already
+  // use -- and it stays bounded, so no run can widen its own horizon. Every declared depth is
+  // fixed by verified contiguity before any return is observed, never by what performed well.
   assert.equal(researchCandleCount(undefined), 2000);
-  for (const value of [200, 1000, 2000]) assert.equal(researchCandleCount(String(value)), value);
-  for (const value of [0, 199, 2001, Infinity, "", "200.5", "1e3", " 200", null]) {
-    assert.throws(() => researchCandleCount(value), /integer from 200 to 2000/);
+  const ceiling = Math.max(...Object.values(RESEARCH_TIMEFRAMES).map((entry) => entry.candleCount));
+  assert.ok(Number.isInteger(ceiling) && ceiling >= 2000, "ceiling must remain a finite declared bound");
+  for (const value of [200, 1000, 2000, ceiling]) assert.equal(researchCandleCount(String(value)), Number(value));
+  for (const value of [0, 199, ceiling + 1, Infinity, "", "200.5", "1e3", " 200", null]) {
+    assert.throws(() => researchCandleCount(value), /integer from 200 to/);
   }
 });
 
