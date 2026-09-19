@@ -46,6 +46,27 @@ describe("PAPER working-order execution invariants", () => {
     assert.equal(second.state.workingOrders?.length ?? 0, 0);
   });
 
+  it("treats a replayed fill event as a duplicate without mutating cash, fills, or lifecycle", () => {
+    const loop = new PaperTradingExecutionLoop({ initialCapital: 1_000_000, maxFillRatio: 0.5 });
+    const opened = loop.openLimitOrder(limitOrder("fill-idempotency", 2, 100), context(100));
+    const orderId = opened.state.workingOrders?.[0]?.id;
+    assert.ok(orderId);
+
+    const first = loop.fillWorkingOrder(orderId, 2, context(100, 1_001), "exchange-event-1");
+    assert.equal(first.status, "WAIT");
+    const cashAfterFirst = first.state.cash;
+    const filledAfterFirst = first.state.workingOrders?.[0]?.lifecycle.filledQuantity;
+    const fillCountAfterFirst = first.state.fills.length;
+
+    const replay = loop.fillWorkingOrder(orderId, 2, context(100, 1_002), "exchange-event-1");
+    assert.equal(replay.status, "DUPLICATE");
+    assert.equal(replay.reason, "exchange-event-1");
+    assert.equal(replay.state.cash, cashAfterFirst);
+    assert.equal(replay.state.fills.length, fillCountAfterFirst);
+    assert.equal(replay.state.workingOrders?.[0]?.lifecycle.filledQuantity, filledAfterFirst);
+    assert.equal(replay.fills[0]?.id, "fill-event:exchange-event-1");
+  });
+
   it("does not fill a BUY limit when adverse modeled execution price breaches the limit", () => {
     const loop = new PaperTradingExecutionLoop({ initialCapital: 1_000_000, slippageBps: 20, spreadBps: 20 });
     const opened = loop.openLimitOrder(limitOrder("limit-protection", 1, 100), context(100));
