@@ -145,6 +145,13 @@ function pboGate(run: ResearchRunLeagueResult): GateDecision {
   ) {
     return gate("UNKNOWN", ["PBO_SURVIVAL_EVIDENCE_REQUIRED"]);
   }
+  if (
+    !Array.isArray(identity.candidateIds)
+    || !Array.isArray(identity.familyIds)
+    || !Array.isArray(identity.candidateSpecificationHashes)
+  ) {
+    return gate("UNKNOWN", ["PBO_PROVENANCE_MISMATCH"]);
+  }
   const bindings = run.provenance.candidateBindings;
   const expectedCandidateIds = bindings.map((binding) => binding.candidateId);
   const expectedFamilyIds = [...new Set(bindings.map((binding) => binding.familyId))];
@@ -187,6 +194,9 @@ function costGate(entry: LeagueRankedEntry, run: ResearchRunLeagueResult): GateD
     || evidence.parameterRobustness.provenance.costModelVersion !== run.provenance.costModelVersion
   ) {
     return gate("UNKNOWN", ["COST_STRESS_PROVENANCE_MISMATCH"]);
+  }
+  if (!Array.isArray(evidence.candidateCostStress)) {
+    return gate("UNKNOWN", ["COST_STRESS_CANDIDATE_BINDING_REQUIRED"]);
   }
   const binding = run.provenance.candidateBindings.find((candidate) => candidate.candidateId === entry.id);
   const matches = evidence.candidateCostStress.filter((candidate) => candidate.candidateId === entry.id);
@@ -261,6 +271,9 @@ function parameterGate(entry: LeagueRankedEntry, run: ResearchRunLeagueResult): 
     || evidence.parameterRobustness.provenance.costModelVersion !== run.provenance.costModelVersion
   ) {
     return gate("UNKNOWN", ["PARAMETER_ROBUSTNESS_PROVENANCE_MISMATCH"]);
+  }
+  if (!Array.isArray(evidence.parameterRobustness.references)) {
+    return gate("UNKNOWN", ["PARAMETER_ROBUSTNESS_CANDIDATE_BINDING_REQUIRED"]);
   }
   const references = evidence.parameterRobustness.references.filter((reference) => (
     reference.candidateKey === entry.id && reference.familyId === entry.familyId
