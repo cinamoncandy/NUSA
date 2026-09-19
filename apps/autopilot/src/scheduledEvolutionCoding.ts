@@ -180,6 +180,8 @@ export async function runScheduledEvolutionCoding(
     readonly repository: string;
     readonly mainSha: string;
     readonly workflowRunId: number;
+    /** Exact-main successful canonical CI run, cited by non-repair (e.g. backlog issue) work. */
+    readonly successWorkflowRunId?: number | null;
   },
   fetchImpl: typeof fetch = fetch,
 ): Promise<ScheduledEvolutionCodingResult> {
@@ -211,6 +213,7 @@ export async function runScheduledEvolutionCoding(
     repository: input.repository,
     headSha: input.mainSha,
     workflowRunId: input.workflowRunId,
+    successWorkflowRunId: input.successWorkflowRunId ?? null,
     executionId,
     dedupeKey,
     circuit: freshFailureCount >= 3
