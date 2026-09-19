@@ -62,9 +62,9 @@ function close(server) {
   return new Promise((resolve) => server.close(() => resolve()));
 }
 
-function runReadiness(envFile) {
+function runReadiness(envFile, environment = {}) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [script], { env: { ...process.env, NUSA_ENV_FILE: envFile } });
+    const child = spawn(process.execPath, [script], { env: { ...process.env, NUSA_ENV_FILE: envFile, ...environment } });
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (chunk) => { stdout += chunk; });
@@ -72,6 +72,63 @@ function runReadiness(envFile) {
     child.on("close", (status) => resolve({ status, stdout, stderr }));
   });
 }
+
+async function reservePort() {
+  const reservation = http.createServer();
+  const port = await listen(reservation);
+  await close(reservation);
+  return port;
+}
+
+test("Oracle readiness waits a bounded interval for the supervised runtime to become ready", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-ready-startup-"));
+  let readinessCalls = 0;
+  const server = http.createServer((request, response) => {
+    if (request.url === "/ready") {
+      readinessCalls += 1;
+      if (readinessCalls === 1) {
+        response.writeHead(503, { "content-type": "application/json" });
+        response.end(JSON.stringify({ ok: false, checks: { database: false, migrations: false, dashboardPersistence: false, runtimeRecovery: false } }));
+        return;
+      }
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ ok: true, checks: { database: true, migrations: true, dashboardPersistence: true, runtimeRecovery: true } }));
+      return;
+    }
+    if (request.url === "/v1/mobile/session/password" || request.url === "/v1/mobile/session/password/change") {
+      response.writeHead(405);
+      response.end();
+      return;
+    }
+    response.writeHead(404);
+    response.end();
+  });
+  const port = await listen(server);
+  const envFile = writeReadinessEnv(root, port);
+  try {
+    const result = await runReadiness(envFile, { NUSA_READY_STARTUP_WAIT_MS: "600", NUSA_READY_RETRY_DELAY_MS: "25" });
+    assert.equal(result.status, 0, result.stderr);
+    assert.ok(JSON.parse(result.stdout).startupAttempts > 1);
+  } finally {
+    await close(server);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("Oracle readiness remains fail-closed after its bounded startup window", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-ready-timeout-"));
+  const port = await reservePort();
+  const envFile = writeReadinessEnv(root, port);
+  try {
+    const result = await runReadiness(envFile, { NUSA_READY_STARTUP_WAIT_MS: "80", NUSA_READY_RETRY_DELAY_MS: "20" });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /startup_readiness/);
+    assert.match(result.stderr, /ECONNREFUSED/);
+    assert.ok(JSON.parse(result.stderr).attempts > 1);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test("Oracle readiness proves the mobile owner-auth routes exist in the deployed release", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-ready-routes-"));

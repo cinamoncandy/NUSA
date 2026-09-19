@@ -1,4 +1,13 @@
 version: 1
+current_oracle_paper_startup_readiness:
+  work_order: WO-20260919-ORACLE-READINESS-STARTUP
+  status: IMPLEMENTED_LOCAL
+  branch: codex/paper-server-readiness
+  base_sha: a89ab75e3d590f1c13198a504abaaf482c26fc2d
+  finding: "The Oracle release readiness probe ran before the supervised Cloud PAPER runtime bound localhost:41731, causing a false rollback despite the process reaching listen state moments later."
+  remediation: "Bounded 30-second startup readiness retry with a one-second maximum interval; malformed, unavailable, or unhealthy readiness remains fail-closed."
+  local_validation: "Oracle release/readiness suite 20/20 PASS, including delayed bind acceptance, bounded refusal, stale mobile-route rejection, secret non-disclosure, workflow ordering, and systemd entrypoint."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_self_service_paper_upbit_readonly:
   work_order: WO-20260910-MOBILE-SELF-SERVICE-PAPER-UPBIT-READONLY
   status: IMPLEMENTED_LOCAL_VALIDATION_PARTIAL
