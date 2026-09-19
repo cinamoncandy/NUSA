@@ -163,6 +163,13 @@ test("derives CSCV PBO from aligned cost-aware OOS equity returns only", () => {
   assert.equal(evidence.partitions, 4);
   assert.ok(evidence.splitCount > 0);
   assert.ok(evidence.probabilityBacktestOverfitting >= 0 && evidence.probabilityBacktestOverfitting <= 1);
+  assert.equal(evidence.provenance.datasetId, "shared-dataset");
+  assert.equal(evidence.provenance.market, "KRW-BTC");
+  assert.equal(evidence.provenance.interval, "1d");
+  assert.equal(evidence.provenance.candleCount, 200);
+  assert.deepEqual(evidence.provenance.candidateIds, ["candidate-0", "candidate-1", "candidate-2"]);
+  assert.match(evidence.provenance.evaluationSha256, /^[0-9a-f]{64}$/);
+  assert.match(evidence.provenance.oosTimestampSha256, /^[0-9a-f]{64}$/);
 });
 
 test("threads search-overfitting evidence through the real-run League bridge", () => {
@@ -175,6 +182,27 @@ test("threads search-overfitting evidence through the real-run League bridge", (
   });
   assert.equal(result.standing.probabilityBacktestOverfitting, pbo.probabilityBacktestOverfitting);
   assert.ok(result.reasons.includes("SEARCH_OVERFITTING_EVIDENCE_PRESENT"));
+});
+
+test("League refuses numerically valid PBO whose source provenance belongs to another search", () => {
+  const input = candidates();
+  const valid = buildResearchRunPboEvidence(input);
+  const forged = {
+    ...valid,
+    provenance: {
+      ...valid.provenance,
+      interval: "60m",
+    },
+  };
+  const result = buildResearchRunLeague(input, {
+    probabilityBacktestOverfitting: forged,
+    allocationPolicy: { minimumEvidenceBreadth: 0 },
+  });
+  assert.equal(result.standing.probabilityBacktestOverfitting, undefined);
+  assert.equal(result.provenance.evidenceIdentity.pboSha256, undefined);
+  assert.equal(result.provenance.searchOverfittingIdentity, undefined);
+  assert.ok(result.reasons.includes("SEARCH_OVERFITTING_EVIDENCE_PROVENANCE_MISMATCH"));
+  assert.ok(result.evidenceReport.every((report) => report.missingEvidence.includes("PBO_EVIDENCE_MISSING")));
 });
 
 test("derives candidate-specific DSR from the real cost-aware OOS search ledger", () => {
