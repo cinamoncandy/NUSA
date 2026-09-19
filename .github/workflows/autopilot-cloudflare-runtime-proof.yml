@@ -20,9 +20,9 @@ on:
     # Keep the hourly proof away from the scheduler's common minute boundary.
     - cron: '37 * * * *'
 
-permissions:
-  contents: read
-  actions: write
+# No workflow-level authority. The job that checks out and runs repository code holds read
+# authority only; `actions: write` lives in a separate job that checks nothing out.
+permissions: {}
 
 concurrency:
   group: nusa-autopilot-cloudflare-runtime-proof
@@ -33,6 +33,10 @@ jobs:
     if: ${{ github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository) }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      current: ${{ steps.freshness.outputs.current }}
     env:
       NUSA_AUTOPILOT_URL: https://nusa-autopilot.desporin12.workers.dev
       NUSA_AUTOPILOT_MAX_RECEIPT_AGE_MS: '180000'
@@ -72,8 +76,29 @@ jobs:
         env:
           NUSA_RUNTIME_PROOF_OUTPUT: artifacts/autopilot/runtime-proof.json
         run: node scripts/verify-autopilot-cloudflare-runtime.mjs
+      - name: Upload runtime proof evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: autopilot-cloudflare-runtime-proof-${{ github.run_id }}
+          path: artifacts/autopilot/runtime-proof.json
+          if-no-files-found: warn
+          retention-days: 7
+
+  # Dispatching the safety gate is the only thing here that needs `actions: write`, and it needs no
+  # repository code to do it. Keeping it in its own checkout-free job means the write token is never
+  # present while `scripts/verify-autopilot-cloudflare-runtime.mjs` executes - on a pull_request
+  # event that script is the pull request's own copy. A pull request also has no business
+  # dispatching a workflow against main, so this job does not run for one at all.
+  refresh-safety-gate:
+    needs: runtime-proof
+    if: ${{ needs.runtime-proof.result == 'success' && needs.runtime-proof.outputs.current == 'true' && github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
       - name: Dispatch Credential Preflight directly for fresh safety-gate re-verification
-        if: steps.freshness.outputs.current == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -87,11 +112,3 @@ jobs:
           # Runtime Proof] chain, so dispatch it directly instead of relying on it.
           gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-cloudflare-credential-preflight.yml/dispatches" -f ref=main
           echo "Dispatched Autopilot Cloudflare Credential Preflight for fresh safety-gate re-verification."
-      - name: Upload runtime proof evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: autopilot-cloudflare-runtime-proof-${{ github.run_id }}
-          path: artifacts/autopilot/runtime-proof.json
-          if-no-files-found: warn
-          retention-days: 7
