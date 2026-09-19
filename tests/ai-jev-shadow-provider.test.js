@@ -10,7 +10,8 @@ const response = (body, ok = true, status = 200) => ({ ok, status, async text() 
 test("Jev provider is optional and disabled/missing credentials preserve existing path", () => {
   assert.equal(createJevShadowProviderFromEnvironment({}), null);
   assert.equal(createJevShadowProviderFromEnvironment({ NUSA_JEV_SHADOW_ENABLED: "true" }), null);
-  assert.equal(createJevShadowProviderFromEnvironment({ NUSA_JEV_SHADOW_ENABLED: "true", NUSA_JEV_API_KEY: secret(), NUSA_JEV_TIMEOUT_MS: "bad" }), null);
+  assert.equal(createJevShadowProviderFromEnvironment({ NUSA_JEV_SHADOW_ENABLED: "true", NUSA_JEV_API_KEY: secret() }), null);
+  assert.equal(createJevShadowProviderFromEnvironment({ NUSA_JEV_SHADOW_ENABLED: "true", NUSA_JEV_API_KEY: secret(), NUSA_JEV_ENDPOINT: "https://jev.invalid/classify", NUSA_JEV_TIMEOUT_MS: "bad" }), null);
 });
 
 test("Jev provider sends shadow zero-authority input without putting secret in body", async () => {
