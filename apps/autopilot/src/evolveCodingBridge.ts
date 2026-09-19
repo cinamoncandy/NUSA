@@ -1,4 +1,4 @@
-import { validateCodingRunnerRequest, type CodingRunnerRequest } from "./codingRunner";
+import { isFailureRepairReason, validateCodingRunnerRequest, type CodingRunnerRequest } from "./codingRunner";
 import { selectNextEvolutionOpportunity, type EvolutionAutonomousSelectionInput } from "./evolveAutonomousSelector";
 import { discoverEvolutionOpportunities, type EvolutionDiscoverySignal } from "./evolveOpportunityDiscovery";
 
@@ -7,7 +7,14 @@ export interface EvolutionCodingBridgeInput extends Omit<EvolutionAutonomousSele
   readonly now: Date;
   readonly repository: string;
   readonly headSha: string;
+  /** Provenance for failure-repair work: the failed run being repaired. */
   readonly workflowRunId: number;
+  /**
+   * Provenance for every other kind of work: the successful canonical CI run for the exact head.
+   * Non-repair work must cite a successful run, so when none exists this bridge abstains rather
+   * than citing an unrelated failed run that the verifier would reject.
+   */
+  readonly successWorkflowRunId?: number | null;
   readonly executionId: string;
   readonly dedupeKey: string;
 }
@@ -59,12 +66,29 @@ export function prepareDiscoveredCodingRequest(input: EvolutionCodingBridgeInput
     });
   }
 
+  const reason = `evolve:${selection.selectedOpportunity.id}:${selection.selectedOpportunity.problem}`;
+  // The selected opportunity decides which run is this work's provenance -- not the caller. A
+  // failure-repair cites the failed run; anything else cites the exact head's successful canonical
+  // CI run. Binding the run id before the opportunity was chosen is what let issue-driven work
+  // inherit a failed run and fail closed as CODING_RUNNER_WORKFLOW_NOT_SUCCESSFUL.
+  const failureRepair = isFailureRepairReason(reason);
+  const workflowRunId = failureRepair ? input.workflowRunId : (input.successWorkflowRunId ?? null);
+  if (workflowRunId === null) {
+    return Object.freeze({
+      status: "ABSTAINED",
+      reason: "exact-head-successful-ci-required-for-non-repair-work",
+      rejectedSignalIds: discovery.rejectedSignalIds,
+      request: null,
+      authority: AUTHORITY,
+    });
+  }
+
   const request = validateCodingRunnerRequest({
     kind: "REPOSITORY_AUTOPILOT",
     repository: input.repository,
     headSha: input.headSha,
-    workflowRunId: input.workflowRunId,
-    reason: `evolve:${selection.selectedOpportunity.id}:${selection.selectedOpportunity.problem}`,
+    workflowRunId,
+    reason,
     executionId: input.executionId,
     dedupeKey: input.dedupeKey,
     mutationAllowed: false,
