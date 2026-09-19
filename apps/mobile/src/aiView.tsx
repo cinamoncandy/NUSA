@@ -14,6 +14,7 @@ interface AiViewProps {
   readonly marketConnectionState?: string; readonly stale?: boolean;
 }
 const LIME=intelligenceFieldColors.terminalSignal, INK=wealthProductColors.c01, PANEL=wealthProductColors.c02, BORDER=wealthProductColors.c03, MUTED=wealthProductColors.c04, RED=wealthProductColors.c05;
+const learningProvenanceLabel: Record<string, string> = { AUTO_BACKGROUND: "백그라운드 자동 실행", USER_TRIGGERED: "사용자 요청", UNKNOWN: "알 수 없음" };
 const percent=(v:number|null|undefined)=>v==null||!Number.isFinite(v)?"—":`${Math.round(v*100)}%`;
 function AnalysisRow({label,value,tone="lime"}:Readonly<{label:string;value:string;tone?:"lime"|"danger"|"neutral"}>){
   return <View style={styles.analysisRow}><Text style={[styles.analysisLabel,{color:tone==="lime"?LIME:tone==="danger"?RED:wealthProductColors.c51}]}>{label}</Text><Text style={styles.analysisValue}>{value}</Text></View>;
@@ -28,6 +29,7 @@ export function AiView({ai,research,health,liveAuthority,productionMutationAllow
   const counter=ai?.counterEvidence ?? [];
   const thesis=ai?.status==="AVAILABLE"&&ai.thesis?ai.thesis:"검증된 AI 판단이 아직 없습니다.";
   const risk=counter.length>0?counter.slice(0,2).join(" · "):"검증된 반대 근거가 없습니다.";
+  const learningProvenance = ai?.learningProvenance ?? "UNKNOWN";
   const learning=ai?.recentLessonCount==null?"학습 근거를 확인할 수 없습니다.":`검증된 과거 사례 ${ai.recentLessonCount}건을 현재 판단에 참고했습니다.`;
   return <ScrollView style={{backgroundColor:INK}} contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={LIME} refreshing={refreshing} onRefresh={onRefresh}/>} testID="ai-screen">
     <View style={styles.topbar}><Text style={styles.back}>‹</Text><Text style={styles.logo}>NUSA</Text><View style={styles.mode}><View style={styles.dot}/><View><Text style={styles.modeText}>PAPER MODE</Text><Text style={styles.modeSub}>LIVE: RESTRICTED</Text></View></View></View>
@@ -46,7 +48,7 @@ export function AiView({ai,research,health,liveAuthority,productionMutationAllow
       <View testID="ai-why"><AnalysisRow label="WHY" value={thesis}/></View>
       <View testID="ai-result"><AnalysisRow label="RESULT" value={calibrated?`검증 신뢰도 ${trusted} · 근거 ${evidence.length}건`:"보정되지 않은 출력입니다. 수익 확률로 표시하지 않습니다."}/></View>
       <View testID="ai-risk"><AnalysisRow label="RISK" value={risk} tone="danger"/></View>
-      <View testID="ai-learning"><AnalysisRow label="LEARNING" value={learning}/></View>
+      <View testID="ai-learning"><AnalysisRow label="LEARNING" value={learning}/><AnalysisRow label="PROVENANCE" value={learningProvenanceLabel[learningProvenance] ?? learningProvenanceLabel.UNKNOWN}/></View>
     </View>
 
     <View style={styles.chartPanel}>
