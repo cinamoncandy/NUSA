@@ -181,19 +181,18 @@ jobs:
           echo "::error::Worker health never reported the exact safe deployed revision ${HEAD_SHA}. Failing closed."
           exit 1
 
-      - name: Dispatch Runtime Proof directly for fresh observability
-        if: steps.revision.outputs.current == 'true'
+      - name: Dispatch Runtime Proof directly for token-dispatched fallback deploy
+        if: steps.revision.outputs.current == 'true' && github.event_name == 'workflow_dispatch' && github.actor == 'github-actions[bot]'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          # This job itself may have been started via a GITHUB_TOKEN-authenticated
-          # workflow_dispatch call (see the Release workflow), whose completion does not fire workflow_run listeners on other workflows.
-          # Autopilot Cloudflare Runtime Proof depends on exactly that workflow_run:[Autopilot Cloudflare Deploy]
-          # chain for its post-deploy freshness check, so dispatch it directly instead
-          # of relying on the chain (same pattern as the CI -> Deploy fix).
+          # Normal push/workflow_run Deploy completions already feed Runtime Proof through its
+          # workflow_run ingress. Only a GITHUB_TOKEN-authenticated workflow_dispatch needs the
+          # direct fallback because that token-originated completion does not reliably create a
+          # downstream workflow_run. Keep exactly one producer for the normal convergence path.
           gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-cloudflare-runtime-proof.yml/dispatches" -f ref=main
-          echo "Dispatched Autopilot Cloudflare Runtime Proof for exact-main deploy verification."
+          echo "Dispatched Autopilot Cloudflare Runtime Proof for token-dispatched exact-main deploy fallback."
 
       - name: Record fail-closed authority invariants
         if: always()
