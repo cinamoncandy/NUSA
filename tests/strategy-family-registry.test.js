@@ -37,3 +37,10 @@ test("canonical independent alpha families are explicit and research-only", () =
   assert.deepEqual(CANONICAL_INDEPENDENT_ALPHA_FAMILIES.map(x=>x.familyId),["derivatives.funding-persistence","microstructure.orderbook-imbalance"]);
   assert.ok(CANONICAL_INDEPENDENT_ALPHA_FAMILIES.every(x=>x.lifecycle==="RESEARCHING"));
 });
+
+test("governance boundary requires exact canonical family membership", () => {
+  const r=new StrategyFamilyRegistry(); r.registerFamily(family); r.registerFamily(fundingFamily); r.registerMember(member);
+  assert.deepEqual(r.requireMembership(member.strategyId,member.version,family.familyId),member);
+  assert.throws(()=>r.requireMembership(member.strategyId,member.version,fundingFamily.familyId), e=>e.code==="MEMBER_CONFLICT");
+  assert.throws(()=>r.requireMembership(member.strategyId,member.version,"unknown.family"), e=>e.code==="UNKNOWN_FAMILY");
+});
