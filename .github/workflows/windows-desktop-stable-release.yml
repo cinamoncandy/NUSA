@@ -104,12 +104,9 @@ jobs:
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             CI_SUCCESS=false
             for page in $(seq 1 10); do
-              PAGE_RESULT="$(
-                gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$SOURCE_SHA&status=completed&per_page=100&page=$page" \
-                  --jq '[.workflow_runs | length, ([.workflow_runs[] | select(.path == ".github/workflows/ci.yml" and .head_sha == "'"$SOURCE_SHA"'" and .status == "completed" and .conclusion == "success")] | length)] | @tsv'
-              )"
-              PAGE_COUNT="$(printf '%s' "$PAGE_RESULT" | cut -f1)"
-              PAGE_SUCCESS_COUNT="$(printf '%s' "$PAGE_RESULT" | cut -f2)"
+              PAGE_JSON="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$SOURCE_SHA&status=completed&per_page=100&page=$page")"
+              PAGE_COUNT="$(jq -r '.workflow_runs | length' <<<"$PAGE_JSON")"
+              PAGE_SUCCESS_COUNT="$(jq -r --arg sha "$SOURCE_SHA" '[.workflow_runs[] | select(.path == ".github/workflows/ci.yml" and .head_sha == $sha and .status == "completed" and .conclusion == "success")] | length' <<<"$PAGE_JSON")"
               if [ "$PAGE_SUCCESS_COUNT" -gt 0 ]; then
                 CI_SUCCESS=true
                 break

@@ -57,6 +57,7 @@ import { paperExecutionObservationId, PaperRealizedPeriodProducer, SqlitePaperRe
 import { readCanonicalPaperTickerBenchmark } from "./paperMarketBenchmark";
 import { buildPaperObservedExecutionQuote, type PaperObservedExecutionQuote } from "./paperRuntimeExecutionCostEvidence";
 import { SqlitePaperMarketObservationRepository } from "../../../packages/storage/src/paperMarketObservationRepository";
+import { canonicalUpbitSourceFingerprint } from "../../../packages/core/src/canonicalMarketData";
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import { buildEvolutionLearningSupervisorSnapshot } from "./evolutionLearningSupervisorProjection";
 import {
@@ -291,9 +292,6 @@ export function startCloudRuntime(
     heartbeat.lastHeartbeatAt = Date.now();
     heartbeat.lastMarketEventAt = ticker.trade_timestamp;
     heartbeat.eventCount += 1;
-    latestTickers.set(ticker.code, { market: ticker.code, price: ticker.trade_price, changeRate: ticker.signed_change_rate ?? null, volume: ticker.acc_trade_volume ?? null, observedAt: new Date(ticker.trade_timestamp).toISOString(), source: "UPBIT_PUBLIC_TICKER" });
-    try { paperMarketObservationRepository?.append({ market: ticker.code, observedAt: ticker.trade_timestamp, price: ticker.trade_price, signedChangeRate: ticker.signed_change_rate, accumulatedVolume: ticker.acc_trade_volume, accumulatedPrice: ticker.acc_trade_price_24h }); }
-    catch { heartbeat.lastError = "PAPER_MARKET_OBSERVATION_REJECTED"; }
     const now = Date.now();
     const observation = upbitTickerToIntelligenceObservation(ticker, { now });
     if (!observation) {
@@ -310,6 +308,11 @@ export function startCloudRuntime(
       safeHydrate([...observations.values()]);
       return;
     }
+    // Only accepted public-market events may become durable PAPER evidence.
+    // This keeps stale/future/malformed transport input out of the canonical observation store.
+    latestTickers.set(ticker.code, { market: ticker.code, price: ticker.trade_price, changeRate: ticker.signed_change_rate ?? null, volume: ticker.acc_trade_volume ?? null, observedAt: new Date(ticker.trade_timestamp).toISOString(), source: "UPBIT_PUBLIC_TICKER" });
+    try { paperMarketObservationRepository?.append({ market: ticker.code, observedAt: ticker.trade_timestamp, price: ticker.trade_price, signedChangeRate: ticker.signed_change_rate, accumulatedVolume: ticker.acc_trade_volume, accumulatedPrice: ticker.acc_trade_price_24h, sourceFingerprint: canonicalUpbitSourceFingerprint(ticker) }); }
+    catch { heartbeat.lastError = "PAPER_MARKET_OBSERVATION_REJECTED"; }
     observations.set(observation.id, observation); while (observations.size > 50) observations.delete(observations.keys().next().value!); safeHydrate([...observations.values()]);
     const researchTick = { market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, now };
     try { effectiveResearchRuntime?.onMarketData(researchTick); } catch { /* isolated */ }
