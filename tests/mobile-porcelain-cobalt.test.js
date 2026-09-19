@@ -8,7 +8,7 @@ const input = { market: "KRW-BTC", interval: "1m", rawCandles: [{ market: "KRW-B
 
 test("approved dark acid-lime product theme preserves semantic authority and accessible targets", () => {
   assert.equal(createTheme("dark").colors.background, "#050706");
-  assert.equal(createTheme("dark").colors.primary, "#D8EE76");
+  assert.equal(createTheme("dark").colors.primary, "#BFE85A");
   for (const mode of ["light", "dark"]) {
     const t = createTheme(mode);
     assert.equal(t.radii.lg, 22);
