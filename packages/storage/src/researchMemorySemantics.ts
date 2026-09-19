@@ -3,6 +3,8 @@ import {
   appendResearchMemoryRelationEvent,
   appendResearchMemorySemanticEvent,
   replayResearchMemoryOverlayEvents,
+  researchMemoryRelationEventIdentity,
+  researchMemorySemanticEventIdentity,
   type ResearchMemoryOverlayEvent,
   type ResearchMemoryRelationEvent,
   type ResearchMemoryRelationInput,
@@ -78,22 +80,15 @@ export class SqliteResearchSemanticMemoryRepository {
       const before = this.list();
       const after = appendResearchMemorySemanticEvent(before, input);
       if (after === before) {
-        const identity = after.find(
+        const identity = researchMemorySemanticEventIdentity(input);
+        const existing = before.find(
           (event): event is ResearchMemorySemanticEvent =>
-            event.eventKind === "SEMANTIC" &&
-            event.identity === before.find(
-              (candidate) =>
-                candidate.eventKind === "SEMANTIC" &&
-                candidate.artifact.artifactKind === input.artifact.artifactKind &&
-                candidate.artifact.artifactId === input.artifact.artifactId &&
-                candidate.semanticIdentity === input.semanticIdentity &&
-                candidate.validity === input.validity
-            )?.identity
+            event.eventKind === "SEMANTIC" && event.identity === identity,
         );
-        if (!identity) {
+        if (existing == null) {
           throw new Error("semantic memory idempotency resolution failed");
         }
-        return identity;
+        return existing;
       }
       const event = after.at(-1);
       if (event == null || event.eventKind !== "SEMANTIC") {
@@ -109,21 +104,15 @@ export class SqliteResearchSemanticMemoryRepository {
       const before = this.list();
       const after = appendResearchMemoryRelationEvent(before, input);
       if (after === before) {
-        const identity = after.find(
+        const identity = researchMemoryRelationEventIdentity(input);
+        const existing = before.find(
           (event): event is ResearchMemoryRelationEvent =>
-            event.eventKind === "RELATION" &&
-            event.relationType === input.relationType &&
-            event.sourceArtifact.artifactKind === input.sourceArtifact.artifactKind &&
-            event.sourceArtifact.artifactId === input.sourceArtifact.artifactId &&
-            event.sourceArtifact.artifactContentSha256 === input.sourceArtifact.artifactContentSha256 &&
-            event.targetArtifact.artifactKind === input.targetArtifact.artifactKind &&
-            event.targetArtifact.artifactId === input.targetArtifact.artifactId &&
-            event.targetArtifact.artifactContentSha256 === input.targetArtifact.artifactContentSha256
+            event.eventKind === "RELATION" && event.identity === identity,
         );
-        if (!identity) {
+        if (existing == null) {
           throw new Error("relation memory idempotency resolution failed");
         }
-        return identity;
+        return existing;
       }
       const event = after.at(-1);
       if (event == null || event.eventKind !== "RELATION") {
