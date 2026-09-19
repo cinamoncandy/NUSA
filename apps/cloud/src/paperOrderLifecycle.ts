@@ -18,7 +18,7 @@ export interface PaperOrderLifecycleState {
 
 const TERMINAL = new Set<PaperOrderStatus>(["FILLED", "CANCELLED", "REJECTED"]);
 
-const ALLOWED: Readonly<Record<PaperOrderStatus, readonly PaperOrderStatus[]>> = Object.freeze({
+const ALLOWED = Object.freeze({
   CREATED: Object.freeze(["ACCEPTED", "REJECTED"]),
   ACCEPTED: Object.freeze(["OPEN", "FILLED", "REJECTED", "CANCELLED"]),
   OPEN: Object.freeze(["PARTIALLY_FILLED", "FILLED", "CANCELLED"]),
@@ -26,7 +26,7 @@ const ALLOWED: Readonly<Record<PaperOrderStatus, readonly PaperOrderStatus[]>> =
   FILLED: Object.freeze([]),
   CANCELLED: Object.freeze([]),
   REJECTED: Object.freeze([]),
-});
+} satisfies Readonly<Record<PaperOrderStatus, readonly PaperOrderStatus[]>>);
 
 function assertQuantity(value: number, name: string): void {
   if (!Number.isFinite(value) || value < 0) throw new Error(`${name} must be finite and non-negative`);
