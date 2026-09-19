@@ -13,6 +13,7 @@ function namespace(): ExecutionCoordinatorNamespace {
     get: () => ({
       async fetch(input: RequestInfo | URL) {
         const url = String(input);
+        if (url.endsWith("/active-wip")) return new Response(JSON.stringify({ claims: [], activeExecutions: 0, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }), { status: 200, headers: { "content-type": "application/json" } });
         if (url.endsWith("/scheduled-receipt")) return new Response("not found", { status: 404 });
         if (url.endsWith("/acquire")) {
           return new Response(JSON.stringify({ acquired: true }), {
