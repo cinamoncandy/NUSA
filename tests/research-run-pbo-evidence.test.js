@@ -168,6 +168,7 @@ test("derives CSCV PBO from aligned cost-aware OOS equity returns only", () => {
   assert.equal(evidence.provenance.interval, "1d");
   assert.equal(evidence.provenance.candleCount, 200);
   assert.deepEqual(evidence.provenance.candidateIds, ["candidate-0", "candidate-1", "candidate-2"]);
+  assert.match(evidence.provenance.candidateConfigurationSha256, /^[0-9a-f]{64}$/);
   assert.match(evidence.provenance.evaluationSha256, /^[0-9a-f]{64}$/);
   assert.match(evidence.provenance.oosTimestampSha256, /^[0-9a-f]{64}$/);
 });
