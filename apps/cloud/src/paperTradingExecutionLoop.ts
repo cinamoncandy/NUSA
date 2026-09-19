@@ -46,6 +46,17 @@ function validateExecutionProfile(profile: PaperExecutionProfile): PaperExecutio
   return profile;
 }
 
+function deterministicFill(profile: PaperExecutionProfile, side: "BUY" | "SELL", requestedQuantity: number, quotePrice: number): Readonly<{ quantity: number; price: number }> {
+  if (!Number.isFinite(requestedQuantity) || requestedQuantity <= 0 || !Number.isFinite(quotePrice) || quotePrice <= 0) throw new Error("paper fill input is invalid");
+  const quantity = round8(requestedQuantity * profile.maxFillRatio);
+  if (quantity <= 0) throw new Error("paper liquidity model produced zero fill");
+  const adverseBps = profile.slippageBps + profile.spreadBps / 2;
+  const multiplier = side === "BUY" ? 1 + adverseBps / 10_000 : 1 - adverseBps / 10_000;
+  const price = round8(quotePrice * multiplier);
+  if (!Number.isFinite(price) || price <= 0) throw new Error("paper execution profile produced invalid fill price");
+  return Object.freeze({ quantity, price });
+}
+
 export interface PaperAccountPosition {
   readonly market: string;
   readonly quantity: number;
@@ -485,26 +496,29 @@ export class PaperTradingExecutionLoop {
     const marketable = current.side === "BUY" ? context.marketPrice <= (current.limitPrice ?? 0) : context.marketPrice >= (current.limitPrice ?? Number.POSITIVE_INFINITY);
     if (!marketable) return this.result("WAIT", "PAPER_LIMIT_NOT_MARKETABLE");
     if (fillQuantity > current.lifecycle.remainingQuantity) return this.result("REJECTED", "fill quantity exceeds remaining quantity");
+    const modeled = deterministicFill(current.executionProfile, current.side, Math.min(fillQuantity, current.lifecycle.remainingQuantity), context.marketPrice);
+    fillQuantity = modeled.quantity;
+    const fillPrice = modeled.price;
 
-    const fee = round8(fillQuantity * context.marketPrice * this.feeRate);
+    const fee = round8(fillQuantity * fillPrice * current.executionProfile.feeRate);
     const positions = this.state.positions.map((item) => ({ ...item }));
     const positionIndex = positions.findIndex((item) => item.market === current.market);
-    const previous = positionIndex < 0 ? { market: current.market, quantity: 0, averageEntryPrice: 0, realizedPnL: 0, unrealizedPnL: 0, markPrice: context.marketPrice } : positions[positionIndex]!;
+    const previous = positionIndex < 0 ? { market: current.market, quantity: 0, averageEntryPrice: 0, realizedPnL: 0, unrealizedPnL: 0, markPrice: fillPrice } : positions[positionIndex]!;
     let cash = this.state.cash;
     let realizedPnL = this.state.realizedPnL;
     let position: PaperAccountPosition;
-    const notional = round8(fillQuantity * context.marketPrice);
+    const notional = round8(fillQuantity * fillPrice);
     if (current.side === "BUY") {
       if (notional + fee > cash) return this.result("REJECTED", "insufficient paper cash");
       const nextQuantity = round8(previous.quantity + fillQuantity);
       const costBasis = toScaledLedgerAmount(previous.averageEntryPrice * previous.quantity + notional + fee);
-      position = { ...previous, quantity: nextQuantity, averageEntryPrice: divideRound8(costBasis * LEDGER_ROUND_SCALE, toScaledLedgerAmount(nextQuantity)), markPrice: context.marketPrice };
+      position = { ...previous, quantity: nextQuantity, averageEntryPrice: divideRound8(costBasis * LEDGER_ROUND_SCALE, toScaledLedgerAmount(nextQuantity)), markPrice: fillPrice };
       cash = round8(cash - notional - fee);
     } else {
       if (fillQuantity > previous.quantity + Number.EPSILON) return this.result("REJECTED", "insufficient paper position");
-      const realized = round8((context.marketPrice - previous.averageEntryPrice) * fillQuantity - fee);
+      const realized = round8((fillPrice - previous.averageEntryPrice) * fillQuantity - fee);
       const nextQuantity = round8(previous.quantity - fillQuantity);
-      position = { ...previous, quantity: nextQuantity, averageEntryPrice: nextQuantity === 0 ? 0 : previous.averageEntryPrice, realizedPnL: round8(previous.realizedPnL + realized), markPrice: context.marketPrice };
+      position = { ...previous, quantity: nextQuantity, averageEntryPrice: nextQuantity === 0 ? 0 : previous.averageEntryPrice, realizedPnL: round8(previous.realizedPnL + realized), markPrice: fillPrice };
       realizedPnL = round8(realizedPnL + realized);
       cash = round8(cash + notional - fee);
     }
@@ -515,7 +529,7 @@ export class PaperTradingExecutionLoop {
     try { lifecycle = transitionPaperOrderLifecycle(current.lifecycle, terminal ? "FILLED" : "PARTIALLY_FILLED", context.now, fillQuantity); }
     catch (error) { return this.result("REJECTED", error instanceof Error ? error.message : "paper working fill rejected"); }
     const priorFills = this.state.fills.filter((fill) => fill.orderId === current.id);
-    const fill: PaperFillRecord = Object.freeze({ id: `fill:${current.id}:${priorFills.length + 1}`, orderId: current.id, market: current.market, side: current.side, quantity: fillQuantity, price: context.marketPrice, fee, filledAt: context.now });
+    const fill: PaperFillRecord = Object.freeze({ id: `fill:${current.id}:${priorFills.length + 1}`, orderId: current.id, market: current.market, side: current.side, quantity: fillQuantity, price: fillPrice, fee, filledAt: context.now });
     const fills = Object.freeze([fill, ...this.state.fills].slice(0, 1_000));
 
     let orders = this.state.orders;
@@ -651,6 +665,9 @@ function cloneState(state: PaperAccountState): PaperAccountState { return { ...s
 
 function executeOrder(state: PaperAccountState, key: string, market: string, side: "BUY" | "SELL", quantity: number, price: number, now: number, feeRate: number, executionProfile: PaperExecutionProfile, requestFingerprint?: string, candidateProvenance?: PaperFillCandidateProvenance, quotePrice?: number, observedQuote?: PaperObservedExecutionQuote): { state: PaperAccountState; order: PaperOrderRecord; fill: PaperFillRecord } {
   const canonicalObservedQuote = observedQuote == null ? undefined : validatePaperObservedExecutionQuote(observedQuote, market, now);
+  const modeled = deterministicFill(executionProfile, side, quantity, price);
+  quantity = modeled.quantity;
+  price = modeled.price;
   const positions = state.positions.map((item) => ({ ...item }));
   const index = positions.findIndex((item) => item.market === market);
   const previous = index < 0 ? { market, quantity: 0, averageEntryPrice: 0, realizedPnL: 0, unrealizedPnL: 0, markPrice: price } : positions[index]!;
