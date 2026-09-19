@@ -134,16 +134,21 @@ async function revalidateBacklogSignal(
   }
   const [response, pullsResponse] = responses;
   if (!response.ok) return "UNAVAILABLE";
-  if (!pullsResponse.ok) return "UNAVAILABLE";
   let issue: unknown;
   let pullsPayload: unknown;
   try {
-    [issue, pullsPayload] = await Promise.all([response.json(), pullsResponse.json()]);
+    issue = await response.json();
   } catch {
     return "UNAVAILABLE";
   }
   const issueRecord = object(issue);
   if (!issueRecord || text(issueRecord.state)?.toLowerCase() !== "open") return "STALE";
+  if (!pullsResponse.ok) return "UNAVAILABLE";
+  try {
+    pullsPayload = await pullsResponse.json();
+  } catch {
+    return "UNAVAILABLE";
+  }
   const pullsBody = object(pullsPayload);
   const items = pullsBody?.items;
   const totalCount = pullsBody?.total_count;
