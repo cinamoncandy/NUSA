@@ -3,7 +3,7 @@ import type { RegisteredStrategy, StrategyIdentity, StrategyLifecycle } from "..
 export class StrategyRegistryError extends Error { constructor(readonly code: "INVALID_IDENTITY" | "VERSION_CONFLICT" | "TIME_REGRESSION") { super(code); this.name = "StrategyRegistryError"; } }
 const sha40 = /^[a-f0-9]{40}$/; const sha64 = /^[a-f0-9]{64}$/; const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 const valid = (value: StrategyIdentity): void => {
-  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value.strategyId) || !value.name.trim() || !semver.test(value.version) || !sha40.test(value.gitCommitSha) || !sha64.test(value.featureFingerprint) || !value.engineVersion.trim() || !Number.isSafeInteger(value.createdAt) || value.createdAt < 0) throw new StrategyRegistryError("INVALID_IDENTITY");
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value.strategyId) || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value.familyId) || !value.name.trim() || !semver.test(value.version) || !sha40.test(value.gitCommitSha) || !sha64.test(value.featureFingerprint) || !value.engineVersion.trim() || !Number.isSafeInteger(value.createdAt) || value.createdAt < 0) throw new StrategyRegistryError("INVALID_IDENTITY");
 };
 const same = (a: StrategyIdentity, b: StrategyIdentity): boolean => JSON.stringify(a) === JSON.stringify(b);
 const freeze = (value: RegisteredStrategy): RegisteredStrategy => Object.freeze({ identity: Object.freeze({ ...value.identity }), lifecycle: value.lifecycle });
