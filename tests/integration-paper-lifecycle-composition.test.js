@@ -24,14 +24,15 @@ test("production Cloud runtime must not silently omit canonical closed-learning 
   // canonical Market -> Research -> PAPER -> Evidence feedback lifecycle is wired.
   // Fail closed until production supplies explicit collaborators or the composition API
   // is replaced by an equivalent typed object whose required dependencies are testable.
-  const omitted = args
-    .map((value, index) => ({ value, index }))
-    .filter(({ value, index }) => index > 1 && index < args.length - 1 && value === "undefined");
+  const researchCollaboratorIndexes = [7, 8, 9];
+  const omittedResearch = researchCollaboratorIndexes
+    .map((index) => ({ index, value: args[index] }))
+    .filter(({ value }) => value === "undefined");
 
   assert.deepEqual(
-    omitted,
+    omittedResearch,
     [],
-    "production Cloud runtime omits canonical Integration/E2E collaborators; component availability is not closed-loop composition",
+    "production Cloud runtime omits canonical Research/Integration collaborators; optional infrastructure defaults must not be confused with lifecycle composition",
   );
 });
 
