@@ -1,6 +1,6 @@
 export type StrategyLifecycle = "DRAFT" | "RESEARCHING" | "VALIDATED" | "PAPER_CANDIDATE" | "PAPER_ACTIVE" | "PROMOTION_PENDING" | "CHAMPION" | "CHALLENGER" | "SUSPENDED" | "ROLLED_BACK" | "RETIRED" | "REJECTED";
 export type StrategyAuthorType = "HUMAN" | "AI" | "HYBRID";
-export type CommitteeMember = "MACRO" | "NEWS" | "QUANT" | "ONCHAIN" | "DERIVATIVES" | "RISK" | "EXECUTION" | "CIO";
+export type CommitteeMember = "MACRO" | "NEWS" | "QUANT" | "ONCHAIN" | "DERIVATIVES" | "RISK" | "EXECUTION" | "SECURITY" | "DATA_INTEGRITY" | "CIO";
 export type CommitteeDecision = "APPROVE" | "REJECT" | "NEED_MORE_PAPER";
 
 export interface StrategyIdentity {
