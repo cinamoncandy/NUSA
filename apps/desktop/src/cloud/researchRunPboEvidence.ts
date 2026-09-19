@@ -34,6 +34,7 @@ export interface ResearchRunPboEvidence extends PboCscvEvidence {
     readonly candidateConfigurationSha256: string;
     readonly evaluationSha256: string;
     readonly oosTimestampSha256: string;
+    readonly oosReturnMatrixSha256: string;
   }>;
 }
 
@@ -179,6 +180,14 @@ export function buildResearchRunPboEvidence(candidates: readonly ResearchRunPboC
       candidateConfigurationSha256,
       evaluationSha256: firstEvaluationSha256,
       oosTimestampSha256: hashCanonical(reference.map((entry) => entry.timestamp)),
+      oosReturnMatrixSha256: hashCanonical(
+        series
+          .map((candidate) => ({
+            candidateId: candidate.id,
+            returns: candidate.returns.map((entry) => ({ timestamp: entry.timestamp, value: entry.value })),
+          }))
+          .sort((left, right) => left.candidateId.localeCompare(right.candidateId)),
+      ),
     }),
   });
 }
