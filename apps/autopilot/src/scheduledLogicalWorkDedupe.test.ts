@@ -67,7 +67,7 @@ test("same main dispatches B after A gains an open PR because dedupe is logical-
 
   const first = await runScheduledEvolutionCoding(
     { NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: coordinator },
-    { candidates: [], backlogIssues: [issue(1901), issue(1902)], openPulls: [], now: NOW, repository: "cinamoncandy/NUSA", mainSha: SHA, workflowRunId: RUN_ID },
+    { candidates: [], backlogIssues: [issue(1901), issue(1902)], openPulls: [], now: NOW, repository: "cinamoncandy/NUSA", mainSha: SHA, workflowRunId: RUN_ID, successWorkflowRunId: RUN_ID },
     fetchImpl,
   );
   assert.equal(first.status, "EXECUTION_ACCEPTED");
@@ -75,7 +75,7 @@ test("same main dispatches B after A gains an open PR because dedupe is logical-
 
   const second = await runScheduledEvolutionCoding(
     { NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: coordinator },
-    { candidates: [], backlogIssues: [issue(1901), issue(1902)], openPulls: [{ title: "fix A", body: "Fixes #1901" }], now: NOW + 1000, repository: "cinamoncandy/NUSA", mainSha: SHA, workflowRunId: RUN_ID },
+    { candidates: [], backlogIssues: [issue(1901), issue(1902)], openPulls: [{ title: "fix A", body: "Fixes #1901" }], now: NOW + 1000, repository: "cinamoncandy/NUSA", mainSha: SHA, workflowRunId: RUN_ID, successWorkflowRunId: RUN_ID },
     fetchImpl,
   );
   assert.equal(second.status, "EXECUTION_ACCEPTED");
@@ -93,7 +93,7 @@ test("same logical work on same main remains persistently deduplicated", async (
   const acquiredKeys: string[] = [];
   const coordinator = namespace(seen, acquiredKeys);
   const fetchImpl = githubFetch();
-  const input = { candidates: [], backlogIssues: [issue(1901)], openPulls: [], now: NOW, repository: "cinamoncandy/NUSA", mainSha: SHA, workflowRunId: RUN_ID } as const;
+  const input = { candidates: [], backlogIssues: [issue(1901)], openPulls: [], now: NOW, repository: "cinamoncandy/NUSA", mainSha: SHA, workflowRunId: RUN_ID, successWorkflowRunId: RUN_ID } as const;
 
   assert.equal((await runScheduledEvolutionCoding({ NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: coordinator }, input, fetchImpl)).status, "EXECUTION_ACCEPTED");
   assert.equal((await runScheduledEvolutionCoding({ NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: coordinator }, { ...input, now: NOW + 1000 }, fetchImpl)).status, "DUPLICATE_SUPPRESSED");
@@ -117,7 +117,7 @@ test("closed issue discovered from a stale backlog snapshot is suppressed before
   }) as typeof fetch;
   const value = await runScheduledEvolutionCoding(
     { NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace(new Set<string>(), acquiredKeys) },
-    { candidates: [], backlogIssues: [issue(1955)], openPulls: [], now: NOW, repository: "cinamoncandy/NUSA", mainSha: SHA, workflowRunId: RUN_ID },
+    { candidates: [], backlogIssues: [issue(1955)], openPulls: [], now: NOW, repository: "cinamoncandy/NUSA", mainSha: SHA, workflowRunId: RUN_ID, successWorkflowRunId: RUN_ID },
     fetchImpl,
   );
   assert.equal(value.status, "ABSTAINED");
@@ -131,7 +131,7 @@ test("issue actionability revalidation fails closed when GitHub evidence is unav
   const acquiredKeys: string[] = [];
   const value = await runScheduledEvolutionCoding(
     { NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace(new Set<string>(), acquiredKeys) },
-    { candidates: [], backlogIssues: [issue(1960)], openPulls: [], now: NOW, repository: "cinamoncandy/NUSA", mainSha: SHA, workflowRunId: RUN_ID },
+    { candidates: [], backlogIssues: [issue(1960)], openPulls: [], now: NOW, repository: "cinamoncandy/NUSA", mainSha: SHA, workflowRunId: RUN_ID, successWorkflowRunId: RUN_ID },
     (async () => new Response("unavailable", { status: 503 })) as typeof fetch,
   );
   assert.equal(value.status, "ABSTAINED");
@@ -145,7 +145,7 @@ test("concurrent same-main logical issue work dispatches once and suppresses the
   const dispatchedReasons: string[] = [];
   const coordinator = namespace(seen, acquiredKeys);
   const fetchImpl = githubFetch(dispatchedReasons);
-  const input = { candidates: [], backlogIssues: [issue(1960)], openPulls: [], now: NOW, repository: "cinamoncandy/NUSA", mainSha: SHA, workflowRunId: RUN_ID } as const;
+  const input = { candidates: [], backlogIssues: [issue(1960)], openPulls: [], now: NOW, repository: "cinamoncandy/NUSA", mainSha: SHA, workflowRunId: RUN_ID, successWorkflowRunId: RUN_ID } as const;
   const [first, second] = await Promise.all([
     runScheduledEvolutionCoding({ NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: coordinator }, input, fetchImpl),
     runScheduledEvolutionCoding({ NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: coordinator }, input, fetchImpl),
@@ -173,7 +173,7 @@ test("issue that gained an open PR after discovery is suppressed by the dispatch
   }) as typeof fetch;
   const value = await runScheduledEvolutionCoding(
     { NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace(new Set<string>(), acquiredKeys) },
-    { candidates: [], backlogIssues: [issue(1960)], openPulls: [], now: NOW, repository: "cinamoncandy/NUSA", mainSha: SHA, workflowRunId: RUN_ID },
+    { candidates: [], backlogIssues: [issue(1960)], openPulls: [], now: NOW, repository: "cinamoncandy/NUSA", mainSha: SHA, workflowRunId: RUN_ID, successWorkflowRunId: RUN_ID },
     fetchImpl,
   );
   assert.equal(value.status, "ABSTAINED");
