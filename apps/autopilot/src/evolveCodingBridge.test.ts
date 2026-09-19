@@ -24,6 +24,7 @@ const baseInput = () => ({
   repository: "cinamoncandy/NUSA",
   headSha: "d3171864d989cf9897bd5f514f8cb45489b15056",
   workflowRunId: 33239968298,
+  successWorkflowRunId: 33239968298,
   executionId: "evolve:discovery:candidate",
   dedupeKey: "evolve:discovery:candidate:d3171864",
   circuit: { state: "CLOSED" as const, consecutiveFailures: 0 },
@@ -77,5 +78,58 @@ test("fails closed when the scheduler denies another execution", () => {
   const result = prepareDiscoveredCodingRequest({ ...baseInput(), elapsedSecondsSinceLastRun: 10 });
   assert.equal(result.status, "ABSTAINED");
   assert.equal(result.reason, "minimum-interval-not-reached");
+  assert.equal(result.request, null);
+});
+
+// Regression: issue-driven (non-repair) work must cite a SUCCESSFUL run. Binding the run id before
+// the opportunity was selected made backlog-issue work inherit the failed run id that only repair
+// work is allowed to cite, so the runner rejected it as CODING_RUNNER_WORKFLOW_NOT_SUCCESSFUL and
+// the whole issue lane starved whenever main carried any recent workflow failure.
+const FAILED_RUN = 35331005382;
+const SUCCESS_RUN = 35330992093;
+
+const issueSignal = () => signal("github-issue-1955", {
+  source: "issue",
+  reference: "https://github.com/cinamoncandy/NUSA/issues/1955",
+  problem: "GitHub issue #1955: Replay exact-head CI Audit eligibility when a validated PR leaves Draft",
+});
+
+const ghaSignal = () => signal("gha:autopilot-cloudflare-credential-preflight", {
+  problem: "Canonical workflow Autopilot Cloudflare Credential Preflight concluded failure",
+});
+
+test("issue-driven work cites the successful canonical CI run, not the failed run", () => {
+  const result = prepareDiscoveredCodingRequest({
+    ...baseInput(),
+    signals: [issueSignal()],
+    workflowRunId: FAILED_RUN,
+    successWorkflowRunId: SUCCESS_RUN,
+  });
+  assert.equal(result.status, "READY");
+  assert.equal(result.request?.workflowRunId, SUCCESS_RUN);
+  assert.ok(!result.request!.reason.includes("gha:"));
+});
+
+test("failure-repair work still cites the failed run it repairs", () => {
+  const result = prepareDiscoveredCodingRequest({
+    ...baseInput(),
+    signals: [ghaSignal()],
+    workflowRunId: FAILED_RUN,
+    successWorkflowRunId: SUCCESS_RUN,
+  });
+  assert.equal(result.status, "READY");
+  assert.equal(result.request?.workflowRunId, FAILED_RUN);
+  assert.ok(result.request!.reason.includes("gha:"));
+});
+
+test("non-repair work abstains instead of citing a failed run when no successful CI exists", () => {
+  const result = prepareDiscoveredCodingRequest({
+    ...baseInput(),
+    signals: [issueSignal()],
+    workflowRunId: FAILED_RUN,
+    successWorkflowRunId: null,
+  });
+  assert.equal(result.status, "ABSTAINED");
+  assert.equal(result.reason, "exact-head-successful-ci-required-for-non-repair-work");
   assert.equal(result.request, null);
 });
