@@ -374,16 +374,20 @@ async function fetchDayCandlePage(path) {
   return body;
 }
 
-function researchCandleCount(value = process.env.NUSA_RESEARCH_CANDLE_COUNT) {
-  if (value === undefined) return DEFAULT_CANDLE_COUNT;
-  // The ceiling tracks the deepest declared timeframe, so an explicit override can never be
-  // rejected for a depth the defaults already use. Below the floor the walk-forward plan cannot
-  // form its minimum windows.
-  const ceiling = Math.max(...Object.values(RESEARCH_TIMEFRAMES).map((entry) => entry.candleCount));
-  if (!/^\d+$/.test(String(value)) || !Number.isInteger(Number(value)) || Number(value) < 200 || Number(value) > ceiling) {
-    throw new Error(`NUSA_RESEARCH_CANDLE_COUNT must be an integer from 200 to ${ceiling}`);
+function researchCandleCount(value = process.env.NUSA_RESEARCH_CANDLE_COUNT, timeframe = TIMEFRAME) {
+  const declaration = RESEARCH_TIMEFRAMES[timeframe];
+  if (declaration == null) throw new Error(`research candle count requires a declared timeframe: ${timeframe}`);
+  if (value === undefined || String(value).trim() === "") return declaration.candleCount;
+  if (!/^\d+$/.test(String(value)) || !Number.isInteger(Number(value))) {
+    throw new Error("NUSA_RESEARCH_CANDLE_COUNT must be an integer matching the declared timeframe depth");
   }
-  return Number(value);
+  const count = Number(value);
+  if (count !== declaration.candleCount) {
+    throw new Error(
+      `NUSA_RESEARCH_CANDLE_COUNT=${count} is not covered by ${declaration.marketSetVersion}; declared depth is ${declaration.candleCount}`,
+    );
+  }
+  return count;
 }
 
 async function fetchResearchCandles({ market = MARKET, dataAsOf, count = DEFAULT_CANDLE_COUNT, fetchPage = fetchDayCandlePage, pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }) {
@@ -600,6 +604,9 @@ async function main() {
     strategyFamily: definition.familyId,
     researchMarketSet: {
       version: RESEARCH_MARKET_SET_VERSION,
+      timeframe: TIMEFRAME,
+      declaredCandleCount: DEFAULT_CANDLE_COUNT,
+      actualCandleCount: manifest.candleCount,
       selectionPolicy: "PREDECLARED_PUBLIC_HISTORY_AVAILABILITY_ONLY_NO_PERFORMANCE_SELECTION",
       markets: RESEARCH_MARKETS
     },
@@ -618,7 +625,7 @@ async function main() {
         status: "FRESH",
         expectedLatestCloseTime: new Date(freshness.expectedLatestCloseTime).toISOString(),
         actualLatestCloseTime: new Date(freshness.actualLatestCloseTime).toISOString(),
-        lagDays: freshness.lagDays
+        lagIntervals: freshness.lagIntervals
       }
     },
     evidenceDatasets: marketDatasets.map((entry) => ({
@@ -630,7 +637,7 @@ async function main() {
       endCloseTime: new Date(entry.manifest.endCloseTime).toISOString(),
       contentSha256: entry.manifest.contentSha256,
       sourceRequest: entry.manifest.sourceRequest,
-      freshnessLagDays: entry.freshness.lagDays
+      freshnessLagIntervals: entry.freshness.lagIntervals
     })),
     windowCount: result.walkForwardResult.windows.length,
     parameterNeighborhood: {
