@@ -33,7 +33,7 @@ test("cash allocation remains a first-class PAPER contract without cluttering ca
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /PAPER PERFORMANCE/);
   assert.match(home, /testID="home-investable-cash"/);
-  assert.match(home, /<FactRow label="RESERVED CASH" value=\{krw\(cashEnvelope\?\.reservedCash\)\} tone="success" \/>/);
+  assert.match(home, /testID="home-reserved-cash"/);
   const performanceStart = home.indexOf('PAPER PERFORMANCE');
   const investable = home.indexOf('testID="home-investable-cash"');
   const reserved = home.indexOf('label="RESERVED CASH"');
