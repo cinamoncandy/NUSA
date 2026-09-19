@@ -439,6 +439,8 @@ export function buildResearchRunLeague(
     candidates
       .map((candidate) => ({
         candidateId: candidate.id,
+        familyId: candidate.familyId,
+        specificationHash: specificationHashes.get(candidate.id),
         parameters: candidate.experiment.experimentConfig.candidates[0]?.parameters ?? null,
       }))
       .sort((left, right) => left.candidateId.localeCompare(right.candidateId)),
@@ -472,6 +474,8 @@ export function buildResearchRunLeague(
     ));
     pboProvenanceVerified = suppliedPboProvenance.schemaVersion === 1
       && Array.isArray(suppliedPboProvenance.candidateIds)
+      && Array.isArray(suppliedPboProvenance.familyIds)
+      && Array.isArray(suppliedPboProvenance.candidateSpecificationHashes)
       && /^[0-9a-f]{64}$/i.test(String(suppliedPboProvenance.datasetContentSha256 ?? ""))
       && /^[0-9a-f]{64}$/i.test(String(suppliedPboProvenance.candidateConfigurationSha256 ?? ""))
       && /^[0-9a-f]{64}$/i.test(String(suppliedPboProvenance.evaluationSha256 ?? ""))
@@ -485,6 +489,8 @@ export function buildResearchRunLeague(
       && suppliedPboProvenance.startOpenTime === expectedPboManifest.startOpenTime
       && suppliedPboProvenance.endCloseTime === expectedPboManifest.endCloseTime
       && JSON.stringify([...(suppliedPboProvenance.candidateIds ?? [])].sort()) === JSON.stringify(expectedPboCandidateIds)
+      && JSON.stringify([...(suppliedPboProvenance.familyIds ?? [])].sort()) === JSON.stringify(expectedPboFamilyIds)
+      && JSON.stringify([...(suppliedPboProvenance.candidateSpecificationHashes ?? [])].sort()) === JSON.stringify(expectedPboSpecificationHashes)
       && suppliedPboProvenance.candidateConfigurationSha256 === expectedPboCandidateConfigurationSha256
       && suppliedPboProvenance.evaluationSha256 === expectedPboEvaluationSha256
       && suppliedPboProvenance.oosTimestampSha256 === expectedPboTimestampSha256
