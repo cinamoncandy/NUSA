@@ -48,6 +48,25 @@ const entrypointEvidence = (stage: ModuleStage, sourceBlobSha: string): readonly
   "apps/cloud/src/moduleRuntimeManifest10XS.test.ts"
 ]);
 
+const DECISION_SOURCE_BLOB = "904b3e78562ca3f2350133942d2743ac49babd51";
+const DECISION_TEST_BLOB = "be152c0b5d69dd672940ddc934a797043f4d1d6f";
+const DECISION_CI_HEAD = "b0c48474e11fc655f7eecd43bc54e6480d2d6de0";
+const DECISION_CI_RUN = "35429938249";
+const DECISION_COVERAGE_JOB = "105862594690";
+
+const decisionCriterionEvidence = (criterion: Level10Criterion): readonly string[] => Object.freeze([
+  `gitblob:${DECISION_SOURCE_BLOB}:apps/cloud/src/cioDecisionEngine.ts`,
+  `gitblob:${DECISION_TEST_BLOB}:tests/cio-decision-engine.test.js`,
+  `github-actions:CI:run:${DECISION_CI_RUN}:job:${DECISION_COVERAGE_JOB}:coverage-core-1:head:${DECISION_CI_HEAD}`,
+  `criterion:${criterion}`
+]);
+
+const DECISION_VERIFIED_CRITERIA: ReadonlySet<Level10Criterion> = new Set([
+  "DETERMINISTIC_IO",
+  "FAIL_CLOSED",
+  "UNIT_TESTED"
+]);
+
 function criteriaFor(stage: ModuleStage, sourceBlobSha: string): Readonly<Record<Level10Criterion, ModuleCriterionQualificationV1>> {
   return Object.freeze(Object.fromEntries(LEVEL_10_CRITERIA.map((criterion) => {
     if (criterion === "CANONICAL_ENTRYPOINT") {
@@ -62,6 +81,18 @@ function criteriaFor(stage: ModuleStage, sourceBlobSha: string): Readonly<Record
         status: "VERIFIED" as const,
         evidenceRefs: entrypointEvidence(stage, sourceBlobSha),
         reason: "canonical and runtime entrypoints are repository-bound, source-fingerprinted, and covered by runtime-truth validation"
+      })];
+    }
+    if (stage === "DECISION" && DECISION_VERIFIED_CRITERIA.has(criterion)) {
+      const reason = criterion === "DETERMINISTIC_IO"
+        ? "direct exact-source test proves deterministic decision output across input signal ordering"
+        : criterion === "FAIL_CLOSED"
+          ? "direct exact-source test proves disabled trading, critical risk, and malformed evidence fail closed"
+          : "direct exact-source DECISION unit test executed successfully in exact-head coverage-core-1 CI";
+      return [criterion, Object.freeze({
+        status: "VERIFIED" as const,
+        evidenceRefs: decisionCriterionEvidence(criterion),
+        reason
       })];
     }
     return [criterion, Object.freeze({
