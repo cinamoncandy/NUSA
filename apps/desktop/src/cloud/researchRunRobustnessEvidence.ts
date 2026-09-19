@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { CandidateSelectionMode } from "../strategy/executionCostStress";
 
 export interface ResearchRunParameterRobustnessReference {
@@ -491,16 +492,46 @@ function parseCostStress(
   if (!scenarioIds.includes(baselineScenarioId)) {
     throw new ResearchRunRobustnessEvidenceError("COST_STRESS_BASELINE_MISMATCH", "cost stress baseline is not present in scenarios");
   }
+
+  const sourceExperimentSha = requiredText(identity.sourceExperimentSha, "COST_STRESS_SOURCE_EXPERIMENT_MISSING");
+  const engineVersion = requiredText(identity.engineVersion, "COST_STRESS_ENGINE_VERSION_MISSING");
+  const providedStressGridSha256 = hash(identity.stressGridSha256, "COST_STRESS_GRID_HASH_INVALID");
+  const canonicalStressGrid = [...scenarios]
+    .sort((left, right) => (
+      left.scenario.feeRate - right.scenario.feeRate
+      || left.scenario.spreadBps - right.scenario.spreadBps
+      || left.scenario.slippageBps - right.scenario.slippageBps
+      || left.scenario.id.localeCompare(right.scenario.id)
+    ))
+    .map((entry) => ({
+      id: entry.scenario.id,
+      feeRate: entry.scenario.feeRate,
+      spreadBps: entry.scenario.spreadBps,
+      slippageBps: entry.scenario.slippageBps,
+      latencyMs: entry.scenario.latencyMs ?? 0,
+    }));
+  const expectedStressGridSha256 = createHash("sha256").update(JSON.stringify(canonicalStressGrid)).digest("hex");
+  if (providedStressGridSha256 !== expectedStressGridSha256) {
+    throw new ResearchRunRobustnessEvidenceError("COST_STRESS_GRID_HASH_MISMATCH", "cost stress grid hash does not match canonical scenarios");
+  }
+  const providedIdentityId = hash(identity.id, "COST_STRESS_IDENTITY_INVALID");
+  const expectedIdentityId = createHash("sha256")
+    .update(`${sourceExperimentSha}|${identityDatasetSha256}|${expectedStressGridSha256}|${selectionMode}|${engineVersion}`)
+    .digest("hex");
+  if (providedIdentityId !== expectedIdentityId) {
+    throw new ResearchRunRobustnessEvidenceError("COST_STRESS_IDENTITY_MISMATCH", "cost stress identity id does not match its canonical inputs");
+  }
+
   const output: ResearchRunCostStressEvidence = {
     schemaVersion: 1,
     status: "VERIFIED",
     identity: freeze({
-      id: hash(identity.id, "COST_STRESS_IDENTITY_INVALID"),
-      sourceExperimentSha: requiredText(identity.sourceExperimentSha, "COST_STRESS_SOURCE_EXPERIMENT_MISSING"),
+      id: providedIdentityId,
+      sourceExperimentSha,
       datasetSha256: identityDatasetSha256,
-      stressGridSha256: hash(identity.stressGridSha256, "COST_STRESS_GRID_HASH_INVALID"),
+      stressGridSha256: expectedStressGridSha256,
       selectionMode,
-      engineVersion: requiredText(identity.engineVersion, "COST_STRESS_ENGINE_VERSION_MISSING"),
+      engineVersion,
     }),
     robustnessScore: finite(input.robustnessScore, "COST_STRESS_SCORE_INVALID", "robustnessScore"),
     baselineScenarioId,
