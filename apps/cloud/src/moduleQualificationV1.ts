@@ -51,6 +51,13 @@ const entrypointEvidence = (stage: ModuleStage, sourceBlobSha: string): readonly
 function criteriaFor(stage: ModuleStage, sourceBlobSha: string): Readonly<Record<Level10Criterion, ModuleCriterionQualificationV1>> {
   return Object.freeze(Object.fromEntries(LEVEL_10_CRITERIA.map((criterion) => {
     if (criterion === "CANONICAL_ENTRYPOINT") {
+      if (stage === "STRATEGY") {
+        return [criterion, Object.freeze({
+          status: "UNVERIFIED" as const,
+          evidenceRefs: Object.freeze([]),
+          reason: "declared canonical Strategy source differs from the actual PAPER runtime Strategy implementation; ownership must be reconciled by #1888"
+        })];
+      }
       return [criterion, Object.freeze({
         status: "VERIFIED" as const,
         evidenceRefs: entrypointEvidence(stage, sourceBlobSha),
