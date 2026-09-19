@@ -8,12 +8,19 @@ const RUN_ID = 4242;
 const NOW = Date.parse("2026-09-17T08:00:00.000Z");
 const SAFETY = "Safety invariants: liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY. No LIVE activation or real broker mutation.";
 
-function namespace(withPreviousReceipt = false): ExecutionCoordinatorNamespace {
-  return {
+function namespace(withPreviousReceipt = false): ExecutionCoordinatorNamespace {\n  let developmentQueue: unknown = null;\n  return {
     idFromName: (name: string) => ({ name }),
     get: () => ({
-      async fetch(input: RequestInfo | URL) {
+      async fetch(input: RequestInfo | URL, init?: RequestInit) {
         const url = String(input);
+        if (url.endsWith("/development-queue")) {
+          if (init?.method === "POST") {
+            const body = JSON.parse(String(init.body)) as { queue: unknown };
+            developmentQueue = body.queue;
+            return new Response(JSON.stringify({ updated: true, queue: developmentQueue }), { status: 201, headers: { "content-type": "application/json" } });
+          }
+          return new Response(JSON.stringify({ queue: developmentQueue }), { status: 200, headers: { "content-type": "application/json" } });
+        }
         if (url.endsWith("/scheduled-receipt")) {
           const receipt = withPreviousReceipt ? {
             scheduledTime: NOW - 60_000,
