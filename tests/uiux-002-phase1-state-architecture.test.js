@@ -9,17 +9,13 @@ function source(file) {
   return fs.readFileSync(path.join(mobile, "src", file), "utf8");
 }
 
-test("AI distinguishes error and loading before rendering analysis content", () => {
+test("AI renders truthful unavailable/error states inside the approved read-only signal detail", () => {
   const ai = source("aiView.tsx");
-  const errorIndex = ai.indexOf('if (error) return <AiState');
-  const loadingIndex = ai.indexOf('if (ai === null && research === null) return <AiState');
-  const screenIndex = ai.indexOf('testID="ai-screen"');
-
-  assert.ok(errorIndex >= 0, "AI must expose an explicit error state");
-  assert.ok(loadingIndex > errorIndex, "AI loading must be evaluated after error state");
-  assert.ok(screenIndex > loadingIndex, "analysis cards must not render before terminal state checks");
-  assert.match(ai, /testID="ai-loading"/);
-  assert.match(ai, /testID="ai-error"/);
+  assert.match(ai, /testID="ai-screen"/);
+  assert.match(ai, /const thesis=ai\?\.status==="AVAILABLE"&&ai\.thesis\?ai\.thesis:"검증된 AI 판단이 아직 없습니다\."/);
+  assert.match(ai, /\{error\?<Text style=\{styles\.error\}>\{error\}<\/Text>:null\}/);
+  assert.match(ai, /NO VERIFIED RUN/);
+  assert.match(ai, /UNVERIFIED/);
   assert.match(ai, /ZERO AUTHORITY/);
   assert.match(ai, /READ ONLY/);
 });

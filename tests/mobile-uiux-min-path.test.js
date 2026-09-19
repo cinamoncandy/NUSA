@@ -16,7 +16,9 @@ test("premium UI minimum path keeps canonical actionable Home routes and truthfu
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
   assert.match(decisionSurface, /const connectionRecoveryRequired = input\.disconnected \|\| input\.readOnlyError/);
   assert.match(decisionSurface, /const statusLabel = connectionRecoveryRequired[\s\S]*PAPER · RECOVERY REQUIRED[\s\S]*input\.accountSource === "CLOUD"[\s\S]*PAPER · \$\{[\s\S]*PAPER · LOCAL[\s\S]*PAPER · OFFLINE[\s\S]*PAPER · STANDBY/);
-  assert.doesNotMatch(home, /testID="home-supervisor-primary-action"/);
+  assert.match(home, /testID="home-operational-notice"/);
+  assert.match(home, /onPress=\{props\.onGoSettings\}/);
+  assert.match(home, /OPEN SETTINGS →/);
   assert.doesNotMatch(home, /<MetricTile label="PAPER 연결"/);
   assert.doesNotMatch(home, /primaryActions/);
 });

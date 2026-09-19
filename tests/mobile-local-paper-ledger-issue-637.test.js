@@ -52,18 +52,17 @@ test("#637: Home gives Cloud PAPER precedence and otherwise renders shared LOCAL
   const home = read("apps/mobile/src/homeView.tsx");
   assert.match(home, /import \{ buildLocalPortfolio, isLocalPaperActive \} from "\.\/localPaperLedger"/);
   assert.match(home, /import \{ useLocalPaperMarkPrice, useLocalPaperSnapshot \} from "\.\/localPaperLedgerHooks"/);
-  assert.match(home, /const localPaperActive = snapshot == null && isLocalPaperActive\(\)/);
+  assert.match(home, /const localPaperActive = props.snapshot == null && isLocalPaperActive\(\)/);
   assert.match(home, /const localPortfolio = localPaperActive \? buildLocalPortfolio\(localTradingSnapshot, localMarkPrice\) : null/);
-  assert.match(home, /const cloudAccount = snapshot\?\.portfolio\?\.account \?\? null/);
+  assert.match(home, /const cloudAccount = props\.snapshot\?\.portfolio\?\.account \?\? null/);
   assert.match(home, /const localAccount = localPortfolio\?\.account \?\? null/);
   assert.match(home, /const account = cloudAccount \?\? localAccount/);
-  assert.match(home, /const accountSource = snapshot != null \? "CLOUD" : localPortfolio != null \? "LOCAL" : null/);
+  assert.match(home, /const accountSource = cloudAccount != null \? "CLOUD" : localAccount != null \? "LOCAL" : null/);
   assert.match(home, /const totalPnl = account == null \? null : \(account\.realizedPnl \?\? account\.position\.realizedPnl\) \+ account\.unrealizedPnl/);
   assert.match(home, /testID="account-hero-card"/);
-  assert.match(home, /PAPER EQUITY/);
-  assert.match(home, /\{krw\(account\?\.equity\)\}/);
-  assert.match(home, /\{signedMoney\(totalPnl\)\} TOTAL PNL/);
-  assert.doesNotMatch(home, /home-local-paper-note/);
+  assert.match(home, /PAPER PERFORMANCE/);
+  assert.match(home, /won\(account\?\.equity\)/);
+  assert.match(home, /\$\{accountSource\} PAPER/);
 });
 
 test("#637: Portfolio renders shared LOCAL PAPER only when Cloud PAPER is absent", () => {

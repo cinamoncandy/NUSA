@@ -9,14 +9,13 @@ const panel = fs.readFileSync(path.join(root, "apps/mobile/src/supervisorProgres
 const client = fs.readFileSync(path.join(root, "apps/mobile/src/operationalProgressClient.ts"), "utf8");
 const contract = fs.readFileSync(path.join(root, "packages/contracts/src/operationalProgress.ts"), "utf8");
 
-test("Canonical HOME does not restore the retired Supervisor progress panel", () => {
+test("approved HOME keeps supervision truth without embedding the developer progress panel", () => {
   assert.doesNotMatch(home, /<SupervisorProgressPanel/);
   assert.doesNotMatch(home, /home-supervisor-progress-attention/);
   assert.match(home, /testID="home-master-rail"/);
-  assert.match(home, /testID="home-now"/);
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /testID="ai-card"/);
-  assert.match(home, /testID="home-risk-status"/);
+  assert.match(home, /testID="home-risk-authority"/);
   assert.match(home, /testID="home-decision-stage"/);
   assert.match(home, /testID="home-paper-performance"/);
   assert.match(home, /testID="home-paper-learning"/);

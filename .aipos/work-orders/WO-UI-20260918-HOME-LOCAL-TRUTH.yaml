@@ -1,0 +1,54 @@
+id: WO-UI-20260918-HOME-LOCAL-TRUTH
+title: "Make HOME truthful and useful in LOCAL PAPER mode"
+status: LOCAL_VALIDATED_CI_PENDING
+priority: P1
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 8f244858dd3ebcd2e7ef31a2d1f5f7f877fc8b05
+implementation_branch: uiux/home-master-terminal-20260918
+pull_request: 1951
+authority_impact: none
+objective: "Keep the approved HOME MASTER identity while making the first screen truthful, concise, and actionable when LOCAL PAPER is available without Cloud configuration."
+observed_gap:
+  - "Android evidence showed PAPER RECOVERY REQUIRED and CONNECT PAPER while the same screen displayed a valid LOCAL PAPER account with ₩10,000,000 equity."
+  - "The unavailable Cloud Supervisor panel exposed endpoint configuration detail in the default LOCAL PAPER path."
+  - "The mobile signal terrain consumed too much of the first viewport before WHY, RESULT, RISK, and LEARNING."
+scope:
+  - "Treat missing optional Cloud configuration as disconnected only when LOCAL PAPER is not active."
+  - "Show Cloud Supervisor progress only when a canonical Cloud snapshot exists."
+  - "Reduce mobile signal-terrain height while preserving the approved terminal composition and tablet density."
+  - "Add coherent HOME, MARKETS, STRATEGY, PORTFOLIO, and SIGNAL navigation icons using React Native primitives and existing design tokens."
+  - "Preserve canonical market, account, PAPER, AI, portfolio, risk, and diagnostics sources."
+excluded:
+  - "No server, authentication, credential, order, accounting, strategy, navigation, or persistence changes."
+  - "No new data source, fabricated metric, second PAPER engine, or duplicate supervisor implementation."
+safety:
+  mode: PAPER_ONLY
+  live_authority: NONE
+  production_mutation_allowed: false
+  ai_authority: ZERO_AUTHORITY
+  paper_real_separation: strict
+verification:
+  - "node --test tests/mobile-home-supervision-cta.test.js tests/mobile-uiux-supervisor-progress.test.js"
+  - "pnpm run typecheck"
+  - "pnpm run lint:mobile"
+  - "pnpm run validate:full"
+  - "pnpm run security:gate"
+  - "git diff --check"
+verification_result:
+  focused_home_regression: PASS_8_OF_8
+  typecheck: PASS
+  build: PASS
+  mobile_lint: "PENDING_BRANCH_COLOR_TOKEN_CLEANUP; changed App.tsx introduces no raw color violation"
+  security_gate: PASS
+  validate_full: PASS
+  diff_check: PASS
+  exact_head_ci: PENDING
+  android_product_ux: PENDING
+acceptance:
+  - "LOCAL PAPER no longer appears as a Cloud recovery failure."
+  - "Cloud recovery remains fail-closed when no usable LOCAL PAPER source exists."
+  - "Cloud-only supervisor evidence remains available when a verified Cloud snapshot exists."
+  - "Fresh exact-head Android Product UX evidence confirms the first-screen hierarchy."
+next_permitted_action: "Push the existing Draft PR and require fresh exact-head CI, Mobile Native, and Android Product UX evidence; inspect screenshots before any user approval request."

@@ -30,7 +30,17 @@ test("bottom navigation is restrained and does not restore the legacy neon pill 
   assert.doesNotMatch(app, /shadowColor: active \? appTheme\.colors\.neonBlue/);
   assert.doesNotMatch(app, /color: active \? appTheme\.colors\.neonTeal/);
   assert.match(app, /backgroundColor: active \? appTheme\.colors\.primarySoft : "transparent"/);
-  assert.match(app, /backgroundColor: active \? appTheme\.colors\.aiSignalEnd : appTheme\.colors\.border/);
   assert.match(app, /navigationFrame/);
-  assert.match(app, /color: active \? appTheme\.colors\.text : appTheme\.colors\.textMuted/);
+  // The active marker is a thin indicator bar in the product navigation, not a filled pill.
+  assert.match(app, /navIndicator.*backgroundColor: active \? appTheme\.colors\.primary : "transparent"/s);
+  assert.match(app, /color: active \? appTheme\.colors\.primary : appTheme\.colors\.textMuted/);
+
+  // Every tab carries a drawn icon built from View primitives, so navigation reads as a product
+  // surface rather than a row of labels. Icons are the requirement now, not an optional extra.
+  for (const tab of ["Home", "Markets", "Paper", "Portfolio", "AiSignal"]) {
+    assert.match(app, new RegExp(`testID="nav-icon-${tab}"`), `${tab} tab must render an icon`);
+  }
+  assert.doesNotMatch(app, /react-native-vector-icons|@expo\/vector-icons/, "icons stay dependency-free View primitives");
+  // 48dp minimum touch target.
+  assert.match(app, /navItem: \{ flex: 1, minHeight: (?:4[89]|[5-9]\d|\d{3,})/);
 });

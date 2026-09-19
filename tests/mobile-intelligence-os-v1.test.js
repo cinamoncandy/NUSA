@@ -23,12 +23,11 @@ test("Intelligence OS keeps authority and data-integrity boundaries visible", ()
   assert.doesNotMatch(home, /BULLISH|BEARISH|STRONG SIGNAL|WEAK SIGNAL/);
 });
 
-test("HOME follows posture -> capital truth -> observation -> supervision -> learning -> decision detail", () => {
-  const anchors = ['testID="home-now"','testID="account-hero-card"','testID="home-decision-stage"','testID="home-paper-performance"','testID="home-paper-learning"','DECISION BASIS','testID="ai-card"','testID="home-risk-status"'];
+test("approved HOME follows market pulse -> AI terrain/evidence -> PAPER -> risk authority", () => {
+  const anchors = ['testID="home-market-pulse"','testID="ai-card"','label="WHY"','testID="home-paper-performance"','testID="home-risk-authority"'];
   let cursor = -1;
   for (const anchor of anchors) { const next = home.indexOf(anchor); assert.ok(next > cursor, `${anchor} must appear after the previous UX stage`); cursor = next; }
-  assert.match(home, /공개 시장 데이터 대기 중/);
-  assert.match(home, /UNAVAILABLE|—/);
+  assert.match(home, /NO VERIFIED MARKET SNAPSHOT|UNAVAILABLE|—/);
 });
 
 test("primary screens share Intelligence OS truth grammar while PAPER specializes as a learning monitor", () => {

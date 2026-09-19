@@ -44,41 +44,29 @@ test("not-configured dashboard state is distinct from runtime errors", () => {
   assert.match(app, /<AiView ai=\{ai\} error=\{readOnlyError\}/);
   assert.doesNotMatch(app, /error=\{readOnlyError \?\? notConfigured\}/);
 });
-test("Home hierarchy follows the Intelligence OS state-to-learning flow while preserving verified safety", () => {
+test("Home MASTER hierarchy preserves verified safety and dense terminal truth", () => {
   const home = read("src/homeView.tsx");
-  const markers = [
-    'testID="home-master-rail"',
-    'testID="home-status-rail"',
-    'testID="home-now"',
-    'testID="account-hero-card"',
-    'testID="ai-card"',
-    'testID="home-risk-status"',
-    'testID="home-decision-stage"',
-    'testID="home-operational-notice"',
-  ];
-  for (const marker of markers) assert.match(home, new RegExp(marker));
-  assert.match(home, /PAPER EQUITY/);
-  assert.match(home, /DECISION BASIS/);
-  assert.match(home, /QUICK ACCESS/);
-  assert.match(home, />PORTFOLIO<\/Text>/);
-  assert.match(home, />RISK<\/Text>/);
-  assert.match(home, /buildHomeStatusRail/);
+  for (const marker of ['testID="home-master-rail"','testID="home-status-rail"','testID="ai-card"','testID="home-decision-stage"','testID="home-market-pulse"','testID="home-paper-performance"','testID="home-risk-authority"','testID="home-operational-notice"']) assert.match(home, new RegExp(marker));
+  assert.match(home, /PAPER PERFORMANCE/);
+  assert.match(home, /CAPITAL LIMITS/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
-  assert.doesNotMatch(home, /label="스케줄러"|label="대기 쓰기"|label="Champion"|label="Challenger"/);
   assert.doesNotMatch(home, /productionMutationAllowed:\s*true|authority:\s*"LIVE"/);
 });
 test("AI hierarchy prioritizes evidence, uncertainty, calibration, and authority", () => {
   const ai = read("src/aiView.tsx");
-  assert.match(ai, /testID="ai-loading"/);
-  assert.match(ai, /testID="ai-error"/);
-  assert.match(ai, /원시 모델 확률 \(미보정\)/);
+  assert.match(ai, /testID="ai-screen"/);
+  assert.match(ai, /testID="ai-thesis-card"/);
+  assert.match(ai, /testID="ai-why"/);
+  assert.match(ai, /testID="ai-result"/);
+  assert.match(ai, /testID="ai-risk"/);
+  assert.match(ai, /testID="ai-learning"/);
+  assert.match(ai, /UNVERIFIED/);
+  assert.match(ai, /EVIDENCE/);
+  assert.match(ai, /COUNTER/);
   assert.match(ai, /검증 신뢰도/);
-  assert.match(ai, /불확실성/);
-  assert.match(ai, /보정 상태/);
-  assert.match(ai, /근거와 반대 신호/);
-  assert.match(ai, /외 \{ai\.evidenceReferences\.length - 4\}개 근거/);
+  assert.match(ai, /수익 확률로 표시하지 않습니다/);
   assert.match(ai, /ZERO AUTHORITY/);
-  assert.match(ai, /AI LIVE 권한/);
+  assert.match(ai, /READ ONLY/);
   assert.doesNotMatch(ai, /label="모델"|label="프롬프트"/);
   assert.doesNotMatch(ai, /ORDER_CREATE|LIVE_EXECUTION|onSubmit/);
 });

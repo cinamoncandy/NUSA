@@ -6,7 +6,7 @@ const path = require("node:path");
 const root = path.join(__dirname, "..");
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), "utf8");
 
-test("runtime mobile brand keeps the provisional symbol hidden while logo production is on hold", () => {
+test("runtime mobile brand keeps the approved NUSA wordmark surface stable", () => {
   const components = read("apps/mobile/src/components.tsx");
   const app = read("apps/mobile/App.tsx");
 
@@ -15,7 +15,7 @@ test("runtime mobile brand keeps the provisional symbol hidden while logo produc
   assert.match(app, />NUSA<\/Text>/);
 });
 
-test("Android launcher resources expose Concept 1, monochrome, notification, and splash assets", () => {
+test("Android launcher resources expose approved NUSA mark, monochrome, notification, and splash assets", () => {
   const manifest = read("apps/mobile/android/app/src/main/AndroidManifest.xml");
   const fallback = read("apps/mobile/android/app/src/main/res/mipmap-anydpi-v24/ic_launcher.xml");
   const adaptive = read("apps/mobile/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml");
@@ -26,9 +26,9 @@ test("Android launcher resources expose Concept 1, monochrome, notification, and
 
   assert.match(manifest, /android:icon="@mipmap\/ic_launcher"/);
   assert.match(manifest, /android:roundIcon="@mipmap\/ic_launcher_round"/);
-  assert.match(fallback, /M54,24L82,62H26Z/);
-  assert.match(logo, /M54,24L82,62H26Z/);
-  assert.match(splash, /M54,22L84,64H24Z/);
+  assert.match(fallback, /M27,74L27,34L37,34L61,61L61,34L71,34L71,74L61,74L37,47L37,74Z/);
+  assert.match(logo, /M27,74L27,34L37,34L61,61L61,34L71,34L71,74L61,74L37,47L37,74Z/);
+  assert.match(splash, /M27,74L27,34L37,34L61,61L61,34L71,34L71,74L61,74L37,47L37,74Z/);
   assert.match(adaptive, /<monochrome android:drawable="@drawable\/ic_nusa_logo_monochrome"\s*\/>/);
   assert.match(notification, /M12,3L20,14H4Z/);
   assert.match(api31Theme, /windowSplashScreenAnimatedIcon/);

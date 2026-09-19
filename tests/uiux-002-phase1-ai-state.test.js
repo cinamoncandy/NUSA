@@ -9,20 +9,16 @@ function source(file) {
   return fs.readFileSync(path.join(mobile, "src", file), "utf8");
 }
 
-test("AI distinguishes error and loading before rendering analysis content", () => {
+test("AI renders truthful unverified state without fabricating confidence", () => {
   const ai = source("aiView.tsx");
-  const errorIndex = ai.indexOf('if (error) return <AiState');
-  const loadingIndex = ai.indexOf('if (ai === null && research === null) return <AiState');
-  const screenIndex = ai.indexOf('testID="ai-screen"');
-
-  assert.ok(errorIndex >= 0);
-  assert.ok(loadingIndex > errorIndex);
-  assert.ok(screenIndex > loadingIndex);
-  assert.match(ai, /testID="ai-loading"/);
-  assert.match(ai, /testID="ai-error"/);
-  assert.match(ai, /ZERO AUTHORITY/);
-  assert.match(ai, /READ ONLY/);
-  assert.match(ai, /testID="ai-loading-skeleton"/);
+  assert.match(ai, /ai\?\.status==="AVAILABLE"&&ai\.thesis\?ai\.thesis:"검증된 AI 판단이 아직 없습니다\."/);
+  assert.match(ai, /const trusted=calibrated\?percent\(ai\?\.confidence\):"UNVERIFIED"/);
+  assert.match(ai, /calibrated\?"CALIBRATED":"UNVERIFIED"/);
+  assert.match(ai, /testID="ai-screen"/);
+  assert.match(ai, /testID="ai-zero-authority-status"/);
+  assert.match(ai, /AI ZERO AUTHORITY/);
+  assert.match(ai, /PUBLIC READ ONLY/);
+  assert.match(ai, /productionMutationAllowed===false\?"BLOCKED":"UNVERIFIED"/);
   assert.doesNotMatch(ai, /ActivityIndicator/);
 });
 

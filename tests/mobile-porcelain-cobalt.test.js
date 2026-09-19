@@ -6,9 +6,9 @@ const { buildChartViewModel } = require("../dist/apps/mobile/src/chartViewModel.
 
 const input = { market: "KRW-BTC", interval: "1m", rawCandles: [{ market: "KRW-BTC", openTime: 60000, closeTime: 120000, open: 100, high: 104, low: 99, close: 102, volume: 1 }], currentPrice: 102, connectionState: "CONNECTED", stale: false };
 
-test("approved porcelain/cobalt theme preserves semantic authority and accessible targets", () => {
-  assert.equal(createTheme("light").colors.background, "#F4F5F8");
-  assert.equal(createTheme("light").colors.primary, "#304EE8");
+test("approved dark acid-lime product theme preserves semantic authority and accessible targets", () => {
+  assert.equal(createTheme("dark").colors.background, "#050706");
+  assert.equal(createTheme("dark").colors.primary, "#BFE85A");
   for (const mode of ["light", "dark"]) {
     const t = createTheme(mode);
     assert.equal(t.radii.lg, 22);
@@ -18,15 +18,15 @@ test("approved porcelain/cobalt theme preserves semantic authority and accessibl
   }
 });
 
-test("Home reuses canonical chart reader and renderer without sample or private IO", () => {
+test("Home MASTER reuses canonical chart reader without sample or private IO", () => {
   const home = fs.readFileSync("apps/mobile/src/homeView.tsx", "utf8");
-  assert.match(home, /buildChartViewModel\(\{ market: publicMarket/);
-  assert.match(home, /stale: publicMarketStale/);
-  assert.match(home, /marketChart.state === "READY" \? <CandlePlot model=\{marketChart\}/);
-  assert.match(home, /krw\(marketChart.currentPrice\)/);
+  assert.match(home, /const marketWave = buildChartViewModel\(\{/);
+  assert.match(home, /market: props\.publicMarket/);
+  assert.match(home, /stale: props\.publicMarketStale/);
+  assert.match(home, /marketWave\.state === "READY"/);
+  assert.match(home, /marketWave\.bars\.slice\(-22\)/);
   assert.doesNotMatch(home, /128420000|128,420,000|Math.random|fetch\(|WebSocket/);
   assert.match(home, /onNavigate\("Markets"\)/);
-  assert.match(home, /disabled=\{disconnected\}/);
   assert.match(home, /LIVE NONE · AI ZERO AUTHORITY/);
 });
 
