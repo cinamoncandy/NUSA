@@ -46,9 +46,9 @@ function validateExecutionProfile(profile: PaperExecutionProfile): PaperExecutio
   return profile;
 }
 
-function deterministicFill(profile: PaperExecutionProfile, side: "BUY" | "SELL", requestedQuantity: number, quotePrice: number): Readonly<{ quantity: number; price: number }> {
-  if (!Number.isFinite(requestedQuantity) || requestedQuantity <= 0 || !Number.isFinite(quotePrice) || quotePrice <= 0) throw new Error("paper fill input is invalid");
-  const quantity = round8(requestedQuantity * profile.maxFillRatio);
+function deterministicFill(profile: PaperExecutionProfile, side: "BUY" | "SELL", requestedQuantity: number, quotePrice: number, liquidityBaseQuantity = requestedQuantity): Readonly<{ quantity: number; price: number }> {
+  if (!Number.isFinite(requestedQuantity) || requestedQuantity <= 0 || !Number.isFinite(liquidityBaseQuantity) || liquidityBaseQuantity <= 0 || !Number.isFinite(quotePrice) || quotePrice <= 0) throw new Error("paper fill input is invalid");
+  const quantity = Math.min(requestedQuantity, round8(liquidityBaseQuantity * profile.maxFillRatio));
   if (quantity <= 0) throw new Error("paper liquidity model produced zero fill");
   const adverseBps = profile.slippageBps + profile.spreadBps / 2;
   const multiplier = side === "BUY" ? 1 + adverseBps / 10_000 : 1 - adverseBps / 10_000;
@@ -496,9 +496,14 @@ export class PaperTradingExecutionLoop {
     const marketable = current.side === "BUY" ? context.marketPrice <= (current.limitPrice ?? 0) : context.marketPrice >= (current.limitPrice ?? Number.POSITIVE_INFINITY);
     if (!marketable) return this.result("WAIT", "PAPER_LIMIT_NOT_MARKETABLE");
     if (fillQuantity > current.lifecycle.remainingQuantity) return this.result("REJECTED", "fill quantity exceeds remaining quantity");
-    const modeled = deterministicFill(current.executionProfile, current.side, Math.min(fillQuantity, current.lifecycle.remainingQuantity), context.marketPrice);
+    const modeled = deterministicFill(current.executionProfile, current.side, Math.min(fillQuantity, current.lifecycle.remainingQuantity), context.marketPrice, current.requestedQuantity);
     fillQuantity = modeled.quantity;
     const fillPrice = modeled.price;
+    if (current.orderType === "LIMIT") {
+      const limitPrice = current.limitPrice!;
+      const modeledPriceBreachesLimit = current.side === "BUY" ? fillPrice > limitPrice : fillPrice < limitPrice;
+      if (modeledPriceBreachesLimit) return this.result("WAIT", "PAPER_LIMIT_MODELED_PRICE_OUTSIDE_LIMIT");
+    }
 
     const fee = round8(fillQuantity * fillPrice * current.executionProfile.feeRate);
     const positions = this.state.positions.map((item) => ({ ...item }));
