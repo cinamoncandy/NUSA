@@ -32,3 +32,15 @@ export function assertPaperPerformanceFresh(
   }
   if (now - evidence.generatedAt > maxAgeMs) throw new Error("PAPER_PERFORMANCE_EVIDENCE_STALE");
 }
+
+export interface PaperPerformanceLedgerSourceReadiness {
+  readonly durableCompleteJournal: boolean;
+  readonly reconciled: boolean;
+  readonly ledgerFingerprintSha256: string;
+}
+
+export function assertPaperPerformanceLedgerSourceReady(source: PaperPerformanceLedgerSourceReadiness): void {
+  if (!source.durableCompleteJournal) throw new Error("PAPER_PERFORMANCE_LEDGER_HISTORY_INCOMPLETE");
+  if (!source.reconciled) throw new Error("PAPER_PERFORMANCE_LEDGER_NOT_RECONCILED");
+  if (!/^[a-f0-9]{64}$/.test(source.ledgerFingerprintSha256)) throw new Error("PAPER_PERFORMANCE_LEDGER_FINGERPRINT_INVALID");
+}
