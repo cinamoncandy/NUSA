@@ -195,7 +195,7 @@ function costGate(entry: LeagueRankedEntry, run: ResearchRunLeagueResult): GateD
   ) {
     return gate("UNKNOWN", ["COST_STRESS_PROVENANCE_MISMATCH"]);
   }
-  if (!Array.isArray(evidence.candidateCostStress)) {
+  if (!Array.isArray(evidence.candidateCostStress as unknown)) {
     return gate("UNKNOWN", ["COST_STRESS_CANDIDATE_BINDING_REQUIRED"]);
   }
   const binding = run.provenance.candidateBindings.find((candidate) => candidate.candidateId === entry.id);
