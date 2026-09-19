@@ -15,6 +15,7 @@ function input(): PaperPerformanceEvidenceInput {
     ],
     realizedPnL: 8, unrealizedPnL: 2, feeAmount: 1, fillCount: 4,
     sourceLedgerFingerprintSha256: hash,
+    benchmarkId: "KRW-CASH", calculationVersion: "paper-performance-v1", generatedAt: 5_000,
   };
 }
 
@@ -56,6 +57,14 @@ test("source ledger identity changes evidence identity", () => {
   assert.throws(() => verifyPaperPerformanceEvidence(input(), second), /PAPER_PERFORMANCE_EVIDENCE_MISMATCH/);
 });
 
+test("provenance identity changes evidence identity", () => {
+  const first = buildPaperPerformanceEvidence(input());
+  const benchmark = buildPaperPerformanceEvidence({ ...input(), benchmarkId: "KRW-BTC" });
+  const calculation = buildPaperPerformanceEvidence({ ...input(), calculationVersion: "paper-performance-v2" });
+  assert.notEqual(first.evidenceFingerprintSha256, benchmark.evidenceFingerprintSha256);
+  assert.notEqual(first.evidenceFingerprintSha256, calculation.evidenceFingerprintSha256);
+});
+
 test("metric or candidate tampering fails independent rebuild verification", () => {
   const source = input();
   const evidence = buildPaperPerformanceEvidence(source);
@@ -72,6 +81,9 @@ for (const [name, mutate] of [
   ["non-canonical identity", (value: PaperPerformanceEvidenceInput) => ({ ...value, candidateId: " candidate-1 " })],
   ["insufficient observations", (value: PaperPerformanceEvidenceInput) => ({ ...value, equityCurve: [{ observedAt: 1_000, equity: 100 }] })],
   ["unordered observations", (value: PaperPerformanceEvidenceInput) => ({ ...value, equityCurve: [{ observedAt: 1_000, equity: 100 }, { observedAt: 3_000, equity: 90 }, { observedAt: 2_000, equity: 95 }, { observedAt: 4_000, equity: 110 }] })],
+  ["invalid generation time", (value: PaperPerformanceEvidenceInput) => ({ ...value, generatedAt: 3_999 })],
+  ["empty benchmark identity", (value: PaperPerformanceEvidenceInput) => ({ ...value, benchmarkId: "" })],
+  ["empty calculation identity", (value: PaperPerformanceEvidenceInput) => ({ ...value, calculationVersion: "" })],
   ["incomplete window", (value: PaperPerformanceEvidenceInput) => ({ ...value, equityCurve: [{ observedAt: 1_001, equity: 100 }, { observedAt: 4_000, equity: 110 }] })],
 ] as const) {
   test(`fails closed on ${name}`, () => assert.throws(() => buildPaperPerformanceEvidence(mutate(input()))));
