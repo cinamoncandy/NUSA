@@ -4,7 +4,7 @@ export type CommitteeMember = "MACRO" | "NEWS" | "QUANT" | "ONCHAIN" | "DERIVATI
 export type CommitteeDecision = "APPROVE" | "REJECT" | "NEED_MORE_PAPER";
 
 export interface StrategyIdentity {
-  readonly strategyId: string; readonly version: string; readonly name: string; readonly createdAt: number;
+  readonly strategyId: string; readonly version: string; readonly name: string; readonly familyId: string; readonly createdAt: number;
   readonly gitCommitSha: string; readonly featureFingerprint: string; readonly engineVersion: string; readonly authorType: StrategyAuthorType;
 }
 export interface StrategyValidationSummary {
@@ -36,5 +36,5 @@ export interface StrategyGovernanceApproval {
 }
 export interface StrategyGovernanceEvent {
   readonly type: StrategyGovernanceEventType; readonly strategyId: string; readonly version: string; readonly lifecycle: StrategyLifecycle;
-  readonly family: string; readonly occurredAt: number; readonly reason: string; readonly approval?: StrategyGovernanceApproval;
+  readonly familyId: string; readonly occurredAt: number; readonly reason: string; readonly approval?: StrategyGovernanceApproval;
 }
