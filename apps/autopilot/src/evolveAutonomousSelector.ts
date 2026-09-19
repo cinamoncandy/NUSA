@@ -115,7 +115,7 @@ export function selectNonConflictingEvolutionOpportunities(
   if (!schedule.allowed) return Object.freeze({ selectedOpportunities: Object.freeze([]), priorities: Object.freeze([]), reason: schedule.reason, authority: AUTHORITY });
   for (const opportunity of input.opportunities) validateEvolutionOpportunity(opportunity);
 
-  const activeConflictKeys = input.activeConflictKeys ?? [];
+  const activeConflictKeys: readonly string[] = input.activeConflictKeys ?? [];
   if (!Array.isArray(activeConflictKeys) || activeConflictKeys.length > MAX_ACTIVE_CONFLICT_KEYS) {
     throw new Error("EVOLVE_SELECTION_ACTIVE_CONFLICT_KEYS_INVALID");
   }
