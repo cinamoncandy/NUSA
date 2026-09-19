@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { createPaperOrderLifecycle, transitionPaperOrderLifecycle, validatePaperOrderLifecycle } from "./paperOrderLifecycle";
 
 describe("canonical PAPER order lifecycle", () => {
@@ -7,9 +8,9 @@ describe("canonical PAPER order lifecycle", () => {
     state = transitionPaperOrderLifecycle(state, "ACCEPTED", 101);
     state = transitionPaperOrderLifecycle(state, "OPEN", 102);
     state = transitionPaperOrderLifecycle(state, "PARTIALLY_FILLED", 103, 4);
-    expect(state).toMatchObject({ status: "PARTIALLY_FILLED", filledQuantity: 4, remainingQuantity: 6, transitionSequence: 3 });
+    assert.deepEqual(Object.assign({}, state, { status: "PARTIALLY_FILLED", filledQuantity: 4, remainingQuantity: 6, transitionSequence: 3 }), state);
     state = transitionPaperOrderLifecycle(state, "FILLED", 104, 6);
-    expect(validatePaperOrderLifecycle(state)).toMatchObject({ status: "FILLED", filledQuantity: 10, remainingQuantity: 0, transitionSequence: 4 });
+    assert.deepEqual(Object.assign({}, validatePaperOrderLifecycle(state), { status: "FILLED", filledQuantity: 10, remainingQuantity: 0, transitionSequence: 4 }), validatePaperOrderLifecycle(state));
   });
 
   it("supports cancellation after partial fill without inventing another fill", () => {
@@ -18,12 +19,12 @@ describe("canonical PAPER order lifecycle", () => {
     state = transitionPaperOrderLifecycle(state, "OPEN", 102);
     state = transitionPaperOrderLifecycle(state, "PARTIALLY_FILLED", 103, 2);
     state = transitionPaperOrderLifecycle(state, "CANCELLED", 104);
-    expect(state).toMatchObject({ status: "CANCELLED", filledQuantity: 2, remainingQuantity: 3 });
+    assert.deepEqual(Object.assign({}, state, { status: "CANCELLED", filledQuantity: 2, remainingQuantity: 3 }), state);
   });
 
   it("supports rejection before execution", () => {
     const rejected = transitionPaperOrderLifecycle(createPaperOrderLifecycle(1, 100), "REJECTED", 101);
-    expect(rejected).toMatchObject({ status: "REJECTED", filledQuantity: 0, remainingQuantity: 1 });
+    assert.deepEqual(Object.assign({}, rejected, { status: "REJECTED", filledQuantity: 0, remainingQuantity: 1 }), rejected);
   });
 
   it.each([
@@ -41,20 +42,20 @@ describe("canonical PAPER order lifecycle", () => {
     } else {
       state = transitionPaperOrderLifecycle(state, "REJECTED", 101);
     }
-    expect(() => transitionPaperOrderLifecycle(state, next, 103, next === "FILLED" ? 1 : 0)).toThrow(/terminal state cannot transition/);
+    assert.throws(() => transitionPaperOrderLifecycle(state, next, 103, next === "FILLED" ? 1 : 0), /terminal state cannot transition/);
   });
 
   it("rejects overfill and incomplete FILLED transitions", () => {
     let state = createPaperOrderLifecycle(10, 100);
     state = transitionPaperOrderLifecycle(state, "ACCEPTED", 101);
     state = transitionPaperOrderLifecycle(state, "OPEN", 102);
-    expect(() => transitionPaperOrderLifecycle(state, "PARTIALLY_FILLED", 103, 11)).toThrow(/exceeds remaining/);
-    expect(() => transitionPaperOrderLifecycle(state, "FILLED", 103, 9)).toThrow(/consume remaining/);
+    assert.throws(() => transitionPaperOrderLifecycle(state, "PARTIALLY_FILLED", 103, 11), /exceeds remaining/);
+    assert.throws(() => transitionPaperOrderLifecycle(state, "FILLED", 103, 9), /consume remaining/);
   });
 
   it("rejects clock regression", () => {
     const state = transitionPaperOrderLifecycle(createPaperOrderLifecycle(1, 100), "ACCEPTED", 101);
-    expect(() => transitionPaperOrderLifecycle(state, "OPEN", 100)).toThrow(/time is invalid/);
+    assert.throws(() => transitionPaperOrderLifecycle(state, "OPEN", 100), /time is invalid/);
   });
 });
 
@@ -65,7 +66,7 @@ describe("restart-safe working order semantics", () => {
     state = transitionPaperOrderLifecycle(state, "ACCEPTED", 201);
     state = transitionPaperOrderLifecycle(state, "OPEN", 202);
     const restored = JSON.parse(JSON.stringify(state));
-    expect(validatePaperOrderLifecycle(restored)).toEqual(state);
+    assert.deepEqual(validatePaperOrderLifecycle(restored), state);
   });
 
   it("keeps PARTIALLY_FILLED quantities across serialization", () => {
@@ -74,6 +75,6 @@ describe("restart-safe working order semantics", () => {
     state = transitionPaperOrderLifecycle(state, "OPEN", 202);
     state = transitionPaperOrderLifecycle(state, "PARTIALLY_FILLED", 203, 3);
     const restored = validatePaperOrderLifecycle(JSON.parse(JSON.stringify(state)));
-    expect(restored).toMatchObject({ status: "PARTIALLY_FILLED", requestedQuantity: 8, filledQuantity: 3, remainingQuantity: 5 });
+    assert.deepEqual(Object.assign({}, restored, { status: "PARTIALLY_FILLED", requestedQuantity: 8, filledQuantity: 3, remainingQuantity: 5 }), restored);
   });
 });
