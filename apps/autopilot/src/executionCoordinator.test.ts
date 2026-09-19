@@ -250,6 +250,45 @@ describe("persistent execution coordination", () => {
     assert.equal((await coordinator.fetch(request("/dispatched", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 120 }))).status, 200);
     assert.equal((await coordinator.fetch(request("/complete", { dedupeKey: identity.dedupeKey, executionId: "stale-exec", now: 130 }))).status, 409);
   });
+
+  it("atomically admits independent WIP while rejecting conflict and capacity overflow", async () => {
+    const storage = new TransactionalRacyStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const post = (body: object) => coordinator.fetch(new Request("https://execution-coordinator/active-wip/admit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
+    const base = { canonicalOwner: "evolve", claimedAt: 100, maxConcurrent: 2 };
+    const [a, b] = await Promise.all([
+      post({ ...base, dedupeKey: "work:a", executionId: "exec:a", conflictKeys: ["module:a"] }),
+      post({ ...base, dedupeKey: "work:b", executionId: "exec:b", conflictKeys: ["module:b"] }),
+    ]);
+    assert.deepEqual([a.status, b.status].sort(), [201, 201]);
+    const full = await post({ ...base, dedupeKey: "work:c", executionId: "exec:c", conflictKeys: ["module:c"] });
+    assert.equal(full.status, 409);
+    assert.equal((await full.json() as { reason: string }).reason, "WIP_LIMIT_REACHED");
+  });
+
+  it("rejects overlapping conflict keys and releases capacity only for exact identity", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const post = (path: string, body: object) => coordinator.fetch(new Request(`https://execution-coordinator${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
+    const first = { dedupeKey: "work:a", executionId: "exec:a", canonicalOwner: "evolve", conflictKeys: ["module:shared"], claimedAt: 100, maxConcurrent: 2 };
+    assert.equal((await post("/active-wip/admit", first)).status, 201);
+    const conflict = await post("/active-wip/admit", { ...first, dedupeKey: "work:b", executionId: "exec:b" });
+    assert.equal(conflict.status, 409);
+    assert.equal((await conflict.json() as { reason: string }).reason, "CONFLICT_KEY_ACTIVE");
+    assert.equal((await post("/active-wip/complete", { dedupeKey: first.dedupeKey, executionId: "stale" })).status, 409);
+    assert.equal((await post("/active-wip/complete", { dedupeKey: first.dedupeKey, executionId: first.executionId })).status, 200);
+    assert.equal((await post("/active-wip/admit", { ...first, dedupeKey: "work:b", executionId: "exec:b" })).status, 201);
+  });
+
+  it("fails closed on malformed WIP ownership and conflict metadata", async () => {
+    const coordinator = new ExecutionCoordinator({ storage: new MemoryStorage() });
+    const post = (body: object) => coordinator.fetch(new Request("https://execution-coordinator/active-wip/admit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
+    const base = { dedupeKey: "work:a", executionId: "exec:a", canonicalOwner: "evolve", conflictKeys: ["module:a"], claimedAt: 100, maxConcurrent: 2 };
+    assert.equal((await post({ ...base, canonicalOwner: "bad owner" })).status, 400);
+    assert.equal((await post({ ...base, conflictKeys: [] })).status, 400);
+    assert.equal((await post({ ...base, conflictKeys: ["module:a", "module:a"] })).status, 400);
+    assert.equal((await post({ ...base, maxConcurrent: 9 })).status, 400);
+  });
 });
 
 
