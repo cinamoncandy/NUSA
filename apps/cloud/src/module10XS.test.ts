@@ -68,14 +68,19 @@ describe("10X-S canonical registry", () => {
         qualification.sourceBlobSha,
         `${definition.stage} canonical source changed without re-qualification`
       );
-      assert.equal(
-        definition.criterionEvidence.CANONICAL_ENTRYPOINT.includes(
-          `gitblob:${qualification.sourceBlobSha}:${definition.canonicalEntrypoint}`
-        ),
-        true,
-        `${definition.stage} canonical entrypoint evidence must bind the exact source blob`
-      );
-      assert.equal(definition.criteria.CANONICAL_ENTRYPOINT, true);
+      if (definition.stage === "STRATEGY") {
+        assert.equal(definition.criteria.CANONICAL_ENTRYPOINT, false);
+        assert.deepEqual(definition.criterionEvidence.CANONICAL_ENTRYPOINT, []);
+      } else {
+        assert.equal(
+          definition.criterionEvidence.CANONICAL_ENTRYPOINT.includes(
+            `gitblob:${qualification.sourceBlobSha}:${definition.canonicalEntrypoint}`
+          ),
+          true,
+          `${definition.stage} canonical entrypoint evidence must bind the exact source blob`
+        );
+        assert.equal(definition.criteria.CANONICAL_ENTRYPOINT, true);
+      }
       for (const criterion of LEVEL_10_CRITERIA.filter((item) => item !== "CANONICAL_ENTRYPOINT")) {
         assert.equal(definition.criteria[criterion], false, `${definition.stage}:${criterion}`);
         assert.deepEqual(definition.criterionEvidence[criterion], [], `${definition.stage}:${criterion}`);
