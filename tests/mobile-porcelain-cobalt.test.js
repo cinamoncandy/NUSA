@@ -6,9 +6,9 @@ const { buildChartViewModel } = require("../dist/apps/mobile/src/chartViewModel.
 
 const input = { market: "KRW-BTC", interval: "1m", rawCandles: [{ market: "KRW-BTC", openTime: 60000, closeTime: 120000, open: 100, high: 104, low: 99, close: 102, volume: 1 }], currentPrice: 102, connectionState: "CONNECTED", stale: false };
 
-test("approved porcelain/cobalt theme preserves semantic authority and accessible targets", () => {
-  assert.equal(createTheme("light").colors.background, "#F4F5F8");
-  assert.equal(createTheme("light").colors.primary, "#304EE8");
+test("successor identity preserves semantic authority and accessible targets", () => {
+  assert.equal(createTheme("light").colors.background, "#F2F0E9");
+  assert.equal(createTheme("light").colors.primary, "#172322");
   for (const mode of ["light", "dark"]) {
     const t = createTheme(mode);
     assert.equal(t.radii.lg, 22);

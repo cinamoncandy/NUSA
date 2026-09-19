@@ -12,7 +12,9 @@ test("visual redesign has a distinct NUSA surface and financial hierarchy", () =
   const design = read("src/designSystem.ts");
   const primitives = read("src/uxPrimitives.tsx");
   assert.match(design, /classic:[\s\S]*?dark:[\s\S]*?background: "#05070D"/);
-  assert.match(design, /master:[\s\S]*?dark:[\s\S]*?background: "#101318"/);
+  assert.match(design, /master:[\s\S]*?dark:[\s\S]*?background: "#101918"/);
+  assert.match(design, /master:[\s\S]*?dark:[\s\S]*?text: "#F2F0E9"[\s\S]*?primary: "#D8EE76"/);
+  assert.match(design, /master:[\s\S]*?light:[\s\S]*?background: "#F2F0E9"[\s\S]*?primary: "#172322"/);
   assert.match(design, /const palette = dark \? preset\.dark : preset\.light/);
   assert.match(design, /background: palette\.background/);
   assert.match(design, /navSurface: palette\.navSurface/);
@@ -28,6 +30,9 @@ test("Home uses the content-first command center hierarchy without weakening aut
   assert.match(home, /testID="home-master-rail"/);
   assert.match(home, /connectionLabel = disconnected \? "SETUP" : readOnlyError \? "DEGRADED"/);
   assert.match(home, /"ACTIVE" : "OBSERVING"/);
+  assert.match(home, /판단은 검증으로 쌓인다/);
+  assert.ok(home.indexOf('testID="home-operational-notice"') < home.indexOf('testID="home-now"'));
+  assert.doesNotMatch(home, /IntelligenceMotionField|LIVE INTELLIGENCE/);
   assert.match(home, /PAPER EQUITY/);
   assert.match(home, /TOTAL PNL/);
   assert.match(home, /QUICK ACCESS/);

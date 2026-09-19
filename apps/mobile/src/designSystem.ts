@@ -107,19 +107,19 @@ export const designPresets: Readonly<Record<DesignPresetName, DesignPreset>> = O
   master: Object.freeze({
     name: "master" as const,
     dark: Object.freeze({
-      background: "#101318", surface: "#1B2029", surfaceRaised: "#232A36", surfaceSunken: "#151A22",
-      text: "#F1F3FA", textMuted: "#A5AEC0", primary: "#9BABFF", primarySoft: "#29314F", onPrimary: "#101318",
-      navSurface: "#1B2029", border: "#303744", borderStrong: "#66728A", info: "#A5B9E2", focus: "#B6C2FF",
+      background: "#101918", surface: "#172322", surfaceRaised: "#22312F", surfaceSunken: "#121E1C",
+      text: "#F2F0E9", textMuted: "#ADBAB3", primary: "#D8EE76", primarySoft: "#303B23", onPrimary: "#172322",
+      navSurface: "#172322", border: "#344540", borderStrong: "#75887E", info: "#BED0C7", focus: "#D8EE76",
       neonGlow: "rgba(155, 108, 255, 0.14)",
     }),
     light: Object.freeze({
-      background: "#F4F5F8", surface: "#FFFFFF", surfaceRaised: "#F0F3FA", surfaceSunken: "#EDF0F6",
-      text: "#171D2B", textMuted: "#616B7E", primary: "#304EE8", primarySoft: "#E9EEFF", onPrimary: "#FFFFFF",
-      navSurface: "#FFFFFF", border: "#E3E7EE", borderStrong: "#8994AA", info: "#43567D", focus: "#304EE8",
+      background: "#F2F0E9", surface: "#FAF9F4", surfaceRaised: "#EAEDE3", surfaceSunken: "#E7E8DF",
+      text: "#172322", textMuted: "#53615A", primary: "#172322", primarySoft: "#D8EE76", onPrimary: "#F2F0E9",
+      navSurface: "#FAF9F4", border: "#D0D5C9", borderStrong: "#7C897E", info: "#405E52", focus: "#405E52",
       neonGlow: "rgba(155, 108, 255, 0.08)",
     }),
-    typography: Object.freeze({ micro: 11, caption: 12, body: 14, title: 20, heading: 28, display: 36, hero: 46 }),
-    layout: Object.freeze({ screenPadding: 20, sectionGap: 16, cardPadding: 18, heroRadius: 22 }),
+    typography: Object.freeze({ micro: 12, caption: 13, body: 16, title: 22, heading: 30, display: 36, hero: 46 }),
+    layout: Object.freeze({ screenPadding: 20, sectionGap: 24, cardPadding: 20, heroRadius: 22 }),
     radii: Object.freeze({ sm: 8, md: 12, lg: 22, xl: 24, full: 9999 as const }),
   }),
 });
