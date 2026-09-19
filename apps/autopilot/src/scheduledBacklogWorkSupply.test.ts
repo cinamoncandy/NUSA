@@ -14,6 +14,7 @@ function namespace(withPreviousReceipt = false): ExecutionCoordinatorNamespace {
     get: () => ({
       async fetch(input: RequestInfo | URL) {
         const url = String(input);
+        if (url.endsWith("/active-wip")) return new Response(JSON.stringify({ claims: [], activeExecutions: 0, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }), { status: 200, headers: { "content-type": "application/json" } });
         if (url.endsWith("/scheduled-receipt")) {
           const receipt = withPreviousReceipt ? {
             scheduledTime: NOW - 60_000,
