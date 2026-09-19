@@ -422,3 +422,87 @@ test("malformed mandatory gate collections fail closed to insufficient", () => {
   assert.equal(result.candidates[0].outcome, "INSUFFICIENT");
   assert.ok(result.candidates[0].reasons.includes("PARAMETER_ROBUSTNESS_CANDIDATE_BINDING_REQUIRED"));
 });
+
+
+test("candidate-bound cost survival never smears one candidate result across another", () => {
+  const base = run();
+  const candidateB = entry({
+    id: "candidate-b",
+    familyId: "family-a",
+    rank: 2,
+  });
+  const bindingB = {
+    candidateId: "candidate-b",
+    familyId: "family-a",
+    lineageId: "family-a-v1",
+    specificationHash: "b".repeat(64),
+    datasetId: "dataset-a",
+    datasetContentSha256: "f".repeat(64),
+    parameters: { period: 21 },
+  };
+  const candidateBCost = costStress({
+    identity: {
+      ...costStress().identity,
+      id: "9".repeat(64),
+      sourceExperimentSha: "fixture:candidate-b",
+    },
+    scenarios: costStress().scenarios.map((scenario) => (
+      scenario.scenario.id === "SEVERE"
+        ? { ...scenario, closedTradeExpectancy: -1 }
+        : scenario
+    )),
+  });
+  const multi = {
+    ...base,
+    provenance: {
+      ...base.provenance,
+      candidateBindings: [...base.provenance.candidateBindings, bindingB],
+      searchOverfittingIdentity: {
+        ...base.provenance.searchOverfittingIdentity,
+        candidateIds: ["candidate-a", "candidate-b"],
+        candidateSpecificationHashes: ["a".repeat(64), "b".repeat(64)],
+      },
+    },
+    standing: {
+      ...base.standing,
+      entries: [entry(), candidateB],
+      coverage: { candidateCount: 2, eligibleCount: 2, familyCount: 1 },
+    },
+    evidenceReport: [
+      report(),
+      report({ candidateId: "candidate-b" }),
+    ],
+    robustnessEvidence: {
+      ...base.robustnessEvidence,
+      parameterRobustness: {
+        ...base.robustnessEvidence.parameterRobustness,
+        references: [
+          ...base.robustnessEvidence.parameterRobustness.references,
+          {
+            source: "PRECOMMITTED_CANDIDATE_LOCAL",
+            familyId: "family-a",
+            candidateKey: "candidate-b",
+            parameters: { period: 21 },
+            assessment: "BROAD_PLATEAU",
+          },
+        ],
+      },
+      candidateCostStress: [
+        ...base.robustnessEvidence.candidateCostStress,
+        {
+          candidateId: "candidate-b",
+          familyId: "family-a",
+          specificationHash: "b".repeat(64),
+          costStress: candidateBCost,
+        },
+      ],
+    },
+  };
+
+  const result = qualifyResearchFactoryRun(multi);
+  const byId = new Map(result.candidates.map((candidate) => [candidate.candidateId, candidate]));
+  assert.equal(byId.get("candidate-a").outcome, "QUALIFIED_FOR_LEAGUE");
+  assert.equal(byId.get("candidate-b").outcome, "REJECTED");
+  assert.ok(byId.get("candidate-b").reasons.includes("EXPECTANCY_TURNS_NEGATIVE"));
+  assert.equal(byId.get("candidate-a").reasons.includes("EXPECTANCY_TURNS_NEGATIVE"), false);
+});
