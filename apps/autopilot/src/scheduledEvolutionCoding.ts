@@ -22,7 +22,6 @@ const SHA40 = /^[0-9a-f]{40}$/i;
 const MAX_SOURCE_AGE_SECONDS = 24 * 60 * 60;
 const DISCOVERY_MAX_AGE_MS = 60 * 60 * 1000;
 const DISCOVERY_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
-const CODING_LEASE_MS = 5 * 60 * 1000;
 const AUTHORITY = Object.freeze({ liveAuthority: "NONE" as const, productionMutationAllowed: false as const, aiAuthority: "ZERO_AUTHORITY" as const });
 
 type JsonObject = Record<string, unknown>;
