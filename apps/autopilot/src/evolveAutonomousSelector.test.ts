@@ -141,3 +141,37 @@ test("active conflict keys block overlapping work but preserve independent capac
   });
   assert.deepEqual(result.selectedOpportunities.map((item) => item.id), ["free"]);
 });
+
+test("clamps bounded selection to remaining scheduler capacity", () => {
+  const input = baseInput();
+  const result = selectNonConflictingEvolutionOpportunities({
+    ...input,
+    schedulePolicy: { ...input.schedulePolicy, maxConcurrent: 3 },
+    activeExecutions: 2,
+    maxSelections: 3,
+    opportunities: [
+      opportunity("a", { canonicalOwner: "development", conflictKeys: ["module:a"] }),
+      opportunity("b", { canonicalOwner: "development", conflictKeys: ["module:b"] }),
+      opportunity("c", { canonicalOwner: "development", conflictKeys: ["module:c"] }),
+    ],
+  });
+  assert.deepEqual(result.selectedOpportunities.map((item) => item.id), ["a"]);
+});
+
+test("rejects malformed or duplicate active conflict evidence", () => {
+  const input = baseInput();
+  const bounded = {
+    ...input,
+    schedulePolicy: { ...input.schedulePolicy, maxConcurrent: 2 },
+    maxSelections: 2,
+    opportunities: [opportunity("a", { canonicalOwner: "development", conflictKeys: ["module:a"] })],
+  };
+  assert.throws(
+    () => selectNonConflictingEvolutionOpportunities({ ...bounded, activeConflictKeys: ["bad key"] }),
+    /EVOLVE_SELECTION_ACTIVE_CONFLICT_KEYS_INVALID/,
+  );
+  assert.throws(
+    () => selectNonConflictingEvolutionOpportunities({ ...bounded, activeConflictKeys: ["module:busy", "module:busy"] }),
+    /EVOLVE_SELECTION_ACTIVE_CONFLICT_KEYS_INVALID/,
+  );
+});
