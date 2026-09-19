@@ -14,6 +14,7 @@ function namespace(acquired = true): ExecutionCoordinatorNamespace {
     get: () => ({
       async fetch(input: RequestInfo | URL) {
         const url = String(input);
+        if (url.endsWith("/active-wip")) return new Response(JSON.stringify({ claims: [], activeExecutions: 0, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }), { status: 200, headers: { "content-type": "application/json" } });
         if (url.endsWith("/acquire")) return new Response(JSON.stringify(acquired ? { acquired: true } : { acquired: false, reason: "ALREADY_DISPATCHED" }), { status: acquired ? 201 : 409, headers: { "content-type": "application/json" } });
         if (url.endsWith("/dispatched")) return new Response(JSON.stringify({ updated: true }), { status: 200, headers: { "content-type": "application/json" } });
         return new Response("not found", { status: 404 });

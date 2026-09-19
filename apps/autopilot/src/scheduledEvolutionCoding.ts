@@ -3,7 +3,7 @@ import { prepareDiscoveredCodingRequest } from "./evolveCodingBridge";
 import { deriveWorkflowFailureOpportunities, type WorkflowFailureEvidence } from "./evolveEvidenceOpportunitySource";
 import { deriveGithubIssueBacklogSignals } from "./evolveGithubIssueBacklog";
 import type { EvolutionDiscoverySignal } from "./evolveOpportunityDiscovery";
-import { acquirePersistentExecution, markPersistentExecutionDispatched, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, markPersistentExecutionDispatched, readActiveWip, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
 export interface ScheduledEvolutionCodingEnv {
   readonly NUSA_GITHUB_TOKEN?: string;
@@ -205,6 +205,12 @@ export async function runScheduledEvolutionCoding(
   }
   const executionId = `evolve-coding:${input.mainSha.slice(0, 16)}:${workIdentity.slice(0, 100)}`;
   const dedupeKey = `evolve-coding:${input.mainSha}:${workIdentity}`;
+  let activeExecutions: number;
+  try {
+    activeExecutions = (await readActiveWip(coordinator)).activeExecutions;
+  } catch {
+    return result("ABSTAINED", "active-wip-read-unavailable", signals.map((signal) => signal.id));
+  }
   const bridge = prepareDiscoveredCodingRequest({
     signals,
     now: new Date(input.now),
@@ -217,7 +223,7 @@ export async function runScheduledEvolutionCoding(
       ? { state: "OPEN", consecutiveFailures: freshFailureCount, openedAt: new Date(input.now).toISOString() }
       : { state: "CLOSED", consecutiveFailures: freshFailureCount },
     schedulePolicy: { mode: "AUTONOMOUS", minIntervalSeconds: 60, maxConcurrent: 1 },
-    activeExecutions: 0,
+    activeExecutions,
     elapsedSecondsSinceLastRun: 60,
   });
   if (bridge.status !== "READY" || !bridge.request) return result("ABSTAINED", bridge.reason);

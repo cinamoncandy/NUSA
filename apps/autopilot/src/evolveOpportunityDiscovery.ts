@@ -11,6 +11,8 @@ export interface EvolutionDiscoverySignal {
   readonly confidence: number;
   readonly risk: number;
   readonly reversibility: number;
+  readonly canonicalOwner?: string;
+  readonly conflictKeys?: readonly string[];
 }
 
 export interface EvolutionDiscoveryResult {
@@ -113,6 +115,8 @@ export function discoverEvolutionOpportunities(
         reversibility: signal.reversibility,
         status: "DISCOVERED",
         createdAt: signal.observedAt,
+        ...(signal.canonicalOwner === undefined ? {} : { canonicalOwner: signal.canonicalOwner }),
+        ...(signal.conflictKeys === undefined ? {} : { conflictKeys: signal.conflictKeys }),
       }));
     } catch {
       rejectedSignalIds.push(id);
