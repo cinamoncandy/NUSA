@@ -19,7 +19,7 @@ test("mobile presets keep classic neutral and apply approved cobalt master actio
   // surface, so a light-mode variant exists for each rather than one value used unconditionally.
   assert.match(source, /aiSignalStart: dark \? "#91C74F" : "#[0-9A-F]{6}"/);
   assert.match(source, /aiSignalMid: dark \? "#B7E35C" : "#[0-9A-F]{6}"/);
-  assert.match(source, /aiSignalEnd: dark \? "#36D8CB" : "#[0-9A-F]{6}"/);
+  assert.match(source, /aiSignalEnd: dark \? "#BFE85A" : "#[0-9A-F]{6}"/);
   assert.match(source, /aiSignalSoft/);
 });
 
