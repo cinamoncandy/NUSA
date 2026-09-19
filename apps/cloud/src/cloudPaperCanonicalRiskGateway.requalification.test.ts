@@ -6,10 +6,10 @@ import { CLOUD_PAPER_RISK_LIMITS } from "./cloudPaperCanonicalRiskGateway";
 describe("RISK re-qualification source delta", () => {
   it("verifies the candidate source has the four CANCELLED-order exclusions", () => {
     const source = readFileSync("apps/cloud/src/cloudPaperCanonicalRiskGateway.ts", "utf8");
-    assert.equal((source.match(/if \\(order\\.status === "CANCELLED"\\) continue;/g) ?? []).length, 4);
-    assert.match(source, /function rateState[\\s\\S]*?if \\(order\\.status === "CANCELLED"\\) continue;/);
-    assert.match(source, /function dailyNotional[\\s\\S]*?if \\(order\\.status === "CANCELLED"\\) continue;/);
-    assert.match(source, /function realizedLossState[\\s\\S]*?if \\(order\\.status === "CANCELLED"\\) continue;/);
+    assert.equal((source.match(/if \(order\.status === "CANCELLED"\\) continue;/g) ?? []).length, 4);
+    assert.match(source, /function rateState[\s\\S]*?if \(order\.status === "CANCELLED"\\) continue;/);
+    assert.match(source, /function dailyNotional[\s\\S]*?if \(order\.status === "CANCELLED"\\) continue;/);
+    assert.match(source, /function realizedLossState[\s\\S]*?if \(order\.status === "CANCELLED"\\) continue;/);
   });
 
   it("verifies the qualified PAPER risk envelope is unchanged", () => {
