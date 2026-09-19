@@ -224,6 +224,39 @@ describe("persistent execution coordination", () => {
     assert.equal(body.history[0]?.recordedAtMs, 1_001);
     assert.equal(body.history.at(-1)?.recordedAtMs, 1_032);
   });
+  it("dispatched execution can be completed exactly once with matching identity", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const request = (pathname: string, body: object) => new Request(`https://execution-coordinator${pathname}`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+    });
+    const identity = { dedupeKey: "coding:complete", executionId: "exec-complete", now: 100, leaseExpiresAt: 200 };
+    assert.equal((await coordinator.fetch(request("/acquire", identity))).status, 201);
+    assert.equal((await coordinator.fetch(request("/dispatched", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 110 }))).status, 200);
+    const first = await coordinator.fetch(request("/complete", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 120 }));
+    assert.equal(first.status, 200);
+    assert.equal((await first.json() as { completed: boolean }).completed, true);
+    const replay = await coordinator.fetch(request("/complete", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 130 }));
+    assert.equal(replay.status, 200);
+    assert.equal((await replay.json() as { completed: boolean }).completed, false);
+    const duplicate = await coordinator.fetch(request("/acquire", { ...identity, executionId: "exec-redelivery", now: 140, leaseExpiresAt: 240 }));
+    assert.equal(duplicate.status, 409);
+    assert.equal((await duplicate.json() as { reason: string }).reason, "ALREADY_COMPLETED");
+  });
+
+  it("completion fails closed before dispatch or for stale identity", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const request = (pathname: string, body: object) => new Request(`https://execution-coordinator${pathname}`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+    });
+    const identity = { dedupeKey: "coding:guard", executionId: "exec-guard", now: 100, leaseExpiresAt: 200 };
+    assert.equal((await coordinator.fetch(request("/acquire", identity))).status, 201);
+    assert.equal((await coordinator.fetch(request("/complete", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 110 }))).status, 409);
+    assert.equal((await coordinator.fetch(request("/dispatched", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 120 }))).status, 200);
+    assert.equal((await coordinator.fetch(request("/complete", { dedupeKey: identity.dedupeKey, executionId: "stale-exec", now: 130 }))).status, 409);
+  });
+
 });
 
 
@@ -295,3 +328,4 @@ describe("persistent control-plane HOLD", () => {
     assert.equal((await readPersistentControlPlaneHold(ns, identity))?.state, "ACTIVE");
   });
 });
+
