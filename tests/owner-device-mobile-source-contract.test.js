@@ -16,7 +16,17 @@ test("owner-device native bridge keeps private keys native and mobile auth secre
   assert.match(native, /BiometricPrompt\.CryptoObject/);
   assert.match(gradle, /androidx\.biometric:biometric:1\.1\.0/);
   assert.match(application, /NusaOwnerDeviceCredentialPackage/);
-  assert.doesNotMatch(native, /Authenticators\.DEVICE_CREDENTIAL|AUTH_DEVICE_CREDENTIAL/);
+  // The owner may unlock the credential with a fingerprint OR the lock-screen PIN/pattern/password.
+  // DEVICE_CREDENTIAL was previously forbidden here; that contract was relaxed on owner instruction
+  // ("그냥 지문 방식을 없애") because a biometric-only prompt was unusable on the owner's device.
+  // The prompt and the key must widen together, or initSign() fails on a key minted biometric-only.
+  assert.match(native, /Authenticators\.DEVICE_CREDENTIAL/);
+  assert.match(native, /KeyProperties\.AUTH_BIOMETRIC_STRONG \| KeyProperties\.AUTH_DEVICE_CREDENTIAL/);
+  // AndroidX rejects a negative button once DEVICE_CREDENTIAL is allowed.
+  assert.doesNotMatch(native, /setNegativeButtonText/);
+  // What does NOT widen: the key stays hardware-backed, non-exportable, and auth-gated.
+  assert.match(native, /setUserAuthenticationRequired\(true\)/);
+  assert.match(native, /isInsideSecureHardware/);
   assert.doesNotMatch(native, /getPrivateKey|exportPrivate|PrivateKey\s*\.\s*getEncoded/);
   assert.doesNotMatch(bridge, /privateKey|export.*key/i);
   assert.match(session, /setSecret\(SESSION_STORAGE_KEY/);

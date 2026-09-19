@@ -40,8 +40,12 @@ public final class NusaOwnerDeviceCredentialModule extends ReactContextBaseJavaM
   private static final String STORE = "nusa_owner_device_credential_v1";
   private static final String ACTIVE_ID = "credential_id";
   private static final String ALIAS_PREFIX = "nusa_owner_device_credential_p256_";
-  // A CryptoObject flow is biometric-only.
-  private static final int AUTHENTICATORS = BiometricManager.Authenticators.BIOMETRIC_STRONG;
+  // The owner may satisfy this with a fingerprint OR with the lock-screen PIN/pattern/password.
+  // API 30+ supports a CryptoObject under DEVICE_CREDENTIAL, which is why getStatus() and
+  // requireSupportedAuthentication() both refuse anything below Android 11: the key stays
+  // hardware-backed and non-exportable either way, only the unlock gesture widens.
+  private static final int AUTHENTICATORS =
+    BiometricManager.Authenticators.BIOMETRIC_STRONG | BiometricManager.Authenticators.DEVICE_CREDENTIAL;
   private static final int MAX_CHALLENGE_BYTES = 4096;
   private final SharedPreferences preferences;
 
@@ -77,7 +81,10 @@ public final class NusaOwnerDeviceCredentialModule extends ReactContextBaseJavaM
         .setAlgorithmParameterSpec(new ECGenParameterSpec("secp256r1"))
         .setDigests(KeyProperties.DIGEST_SHA256)
         .setUserAuthenticationRequired(true)
-        .setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG)
+        // Must mirror AUTHENTICATORS. A key minted for AUTH_BIOMETRIC_STRONG alone cannot be
+        // unlocked by a device credential, so widening the prompt without widening the key
+        // would fail at initSign() instead of at the prompt.
+        .setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG | KeyProperties.AUTH_DEVICE_CREDENTIAL)
         .build();
       generator.initialize(spec);
       generator.generateKeyPair();
@@ -119,7 +126,15 @@ public final class NusaOwnerDeviceCredentialModule extends ReactContextBaseJavaM
         }
         @Override public void onAuthenticationError(int code, @NonNull CharSequence error) { promise.reject("E_NUSA_OWNER_DEVICE_CREDENTIAL_AUTH", "Owner authentication was not completed."); }
       });
-      BiometricPrompt.PromptInfo info = new BiometricPrompt.PromptInfo.Builder().setTitle("NUSA 소유자 인증").setSubtitle(message).setAllowedAuthenticators(AUTHENTICATORS).build();
+      // No explicit negative action is set here. AndroidX requires one when only biometric
+      // authenticators are allowed and rejects one when DEVICE_CREDENTIAL is allowed, because the
+      // system supplies its own fallback action. Setting one throws IllegalArgumentException,
+      // which surfaces to the owner as "Owner authentication could not start."
+      BiometricPrompt.PromptInfo info = new BiometricPrompt.PromptInfo.Builder()
+        .setTitle("NUSA 소유자 인증")
+        .setSubtitle(message)
+        .setAllowedAuthenticators(AUTHENTICATORS)
+        .build();
       prompt.authenticate(info, new BiometricPrompt.CryptoObject(signer));
     } catch (Exception error) { promise.reject("E_NUSA_OWNER_DEVICE_CREDENTIAL_SIGN", "Owner authentication could not start.", error); }
   }
@@ -135,7 +150,7 @@ public final class NusaOwnerDeviceCredentialModule extends ReactContextBaseJavaM
 
   private void requireSupportedAuthentication() {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) throw new IllegalStateException("Android 11 or later is required for biometric signing");
-    if (BiometricManager.from(getReactApplicationContext()).canAuthenticate(AUTHENTICATORS) != BiometricManager.BIOMETRIC_SUCCESS) throw new IllegalStateException("strong biometric is unavailable");
+    if (BiometricManager.from(getReactApplicationContext()).canAuthenticate(AUTHENTICATORS) != BiometricManager.BIOMETRIC_SUCCESS) throw new IllegalStateException("no biometric or device credential is enrolled");
   }
   private static String requireCredentialId(String value) {
     String id = value == null ? "" : value.trim();

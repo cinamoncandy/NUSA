@@ -97,7 +97,10 @@ test("source boundaries expose only public key and signature operations, never p
   const bridge = fs.readFileSync(path.join(root, "apps/mobile/src/ownerDeviceCredential.ts"), "utf8");
   const service = fs.readFileSync(path.join(root, "apps/cloud/src/ownerCredential/ownerDeviceCredentialService.ts"), "utf8");
   assert.match(native, /AndroidKeyStore/); assert.match(native, /BIOMETRIC_STRONG/);
-  assert.doesNotMatch(native, /Authenticators\.DEVICE_CREDENTIAL|AUTH_DEVICE_CREDENTIAL/);
+  // DEVICE_CREDENTIAL is now permitted on owner instruction; see
+  // tests/owner-device-mobile-source-contract.test.js for the widened authenticator contract.
+  // What this test guards is unchanged: the private key is never exported.
+  assert.doesNotMatch(native, /setUserAuthenticationRequired\(false\)/);
   assert.doesNotMatch(native, /getPrivateKey|exportPrivate|PrivateKey\.getEncoded/);
   assert.doesNotMatch(bridge, /privateKey|export.*key/i);
   assert.doesNotMatch(service, /UPBIT|BINANCE|BYBIT|OKX|COINBASE|exchange.*(?:secret|key)/i);
