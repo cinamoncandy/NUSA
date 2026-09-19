@@ -31,6 +31,7 @@ export interface ResearchRunPboEvidence extends PboCscvEvidence {
     readonly startOpenTime: number;
     readonly endCloseTime: number;
     readonly candidateIds: readonly string[];
+    readonly candidateConfigurationSha256: string;
     readonly evaluationSha256: string;
     readonly oosTimestampSha256: string;
   }>;
@@ -147,6 +148,14 @@ export function buildResearchRunPboEvidence(candidates: readonly ResearchRunPboC
     }
   }
 
+  const candidateConfigurationSha256 = hashCanonical(
+    candidates
+      .map((candidate) => ({
+        candidateId: candidate.id,
+        parameters: candidate.experiment.experimentConfig.candidates[0]?.parameters ?? null,
+      }))
+      .sort((left, right) => left.candidateId.localeCompare(right.candidateId)),
+  );
   const partitions = choosePartitions(reference.length);
   const evidence = estimateProbabilityBacktestOverfitting({
     strategies: series.map((candidate) => ({
@@ -167,6 +176,7 @@ export function buildResearchRunPboEvidence(candidates: readonly ResearchRunPboC
       startOpenTime: firstManifest.startOpenTime,
       endCloseTime: firstManifest.endCloseTime,
       candidateIds: freeze([...ids].sort()),
+      candidateConfigurationSha256,
       evaluationSha256: firstEvaluationSha256,
       oosTimestampSha256: hashCanonical(reference.map((entry) => entry.timestamp)),
     }),
