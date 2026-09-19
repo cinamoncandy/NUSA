@@ -1,0 +1,62 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import { PaperTradingExecutionLoop } from "./paperTradingExecutionLoop";
+import type { PersonalPaperOrderCommand } from "../../../packages/contracts/src/personalPaperOrderCommand";
+
+const context = (marketPrice: number, now = 1_000) => ({
+  now,
+  marketPrice,
+  observedAt: now,
+  mode: "PAPER" as const,
+  killSwitchActive: false,
+  tradingAllowed: true,
+  overallHealth: "HEALTHY" as const,
+});
+
+const limitOrder = (idempotencyKey: string, quantity: number, limitPrice: number): PersonalPaperOrderCommand => ({
+  schemaVersion: 1,
+  authority: "HUMAN",
+  productionMutationAllowed: false,
+  idempotencyKey,
+  market: "KRW-BTC",
+  side: "BUY",
+  orderType: "LIMIT",
+  quantity,
+  limitPrice,
+});
+
+describe("PAPER working-order execution invariants", () => {
+  it("converges a capped partial fill to terminal FILLED when the remaining quantity fits the original-order liquidity cap", () => {
+    const loop = new PaperTradingExecutionLoop({ initialCapital: 1_000_000, maxFillRatio: 0.5 });
+    const opened = loop.openLimitOrder(limitOrder("partial-terminal", 2, 100), context(100));
+    assert.equal(opened.status, "WAIT");
+    const orderId = opened.state.workingOrders?.[0]?.id;
+    assert.ok(orderId);
+
+    const first = loop.fillWorkingOrder(orderId, 2, context(100, 1_001));
+    assert.equal(first.status, "WAIT");
+    assert.equal(first.fills[0]?.quantity, 1);
+    assert.equal(first.state.workingOrders?.[0]?.lifecycle.remainingQuantity, 1);
+
+    const second = loop.fillWorkingOrder(orderId, 1, context(100, 1_002));
+    assert.equal(second.status, "FILLED");
+    assert.equal(second.fills[0]?.quantity, 1);
+    assert.equal(second.orders[0]?.quantity, 2);
+    assert.equal(second.orders[0]?.lifecycle?.status, "FILLED");
+    assert.equal(second.state.workingOrders?.length ?? 0, 0);
+  });
+
+  it("does not fill a BUY limit when adverse modeled execution price breaches the limit", () => {
+    const loop = new PaperTradingExecutionLoop({ initialCapital: 1_000_000, slippageBps: 20, spreadBps: 20 });
+    const opened = loop.openLimitOrder(limitOrder("limit-protection", 1, 100), context(100));
+    const orderId = opened.state.workingOrders?.[0]?.id;
+    assert.ok(orderId);
+
+    const result = loop.fillWorkingOrder(orderId, 1, context(100, 1_001));
+    assert.equal(result.status, "WAIT");
+    assert.equal(result.reason, "PAPER_LIMIT_MODELED_PRICE_OUTSIDE_LIMIT");
+    assert.equal(result.fills.length, 0);
+    assert.equal(result.state.workingOrders?.[0]?.lifecycle.filledQuantity, 0);
+    assert.equal(result.state.cash, 1_000_000);
+  });
+});
