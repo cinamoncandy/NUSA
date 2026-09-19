@@ -398,6 +398,50 @@ export class PaperTradingExecutionLoop {
 
   public snapshot(): PaperAccountState { return this.state; }
 
+  public openLimitOrder(command: PersonalPaperOrderCommand, context: PaperManualOrderContext): PaperExecutionResult {
+    let validated: PersonalPaperOrderCommand;
+    try { validated = validatePersonalPaperOrderCommand(command); } catch { return this.result("FAILED", "invalid PAPER order command"); }
+    if (validated.orderType !== "LIMIT") return this.result("REJECTED", "PAPER_WORKING_ORDER_REQUIRES_LIMIT");
+    const gate = this.executionGate(context);
+    if (gate != null) return this.result("BLOCKED", gate);
+    const fingerprint = manualCommandFingerprint(validated);
+    const priorFilled = this.state.orders.find((order) => order.idempotencyKey === validated.idempotencyKey);
+    const priorWorking = (this.state.workingOrders ?? []).find((order) => order.idempotencyKey === validated.idempotencyKey);
+    if (priorFilled != null || priorWorking != null) {
+      const priorFingerprint = priorFilled?.requestFingerprint ?? priorWorking?.requestFingerprint;
+      return this.result(priorFingerprint === fingerprint ? "DUPLICATE" : "REJECTED", priorFingerprint === fingerprint ? validated.idempotencyKey : "PAPER_IDEMPOTENCY_CONFLICT");
+    }
+    const id = createHash("sha256").update(validated.idempotencyKey, "utf8").digest("hex").slice(0, 24);
+    let lifecycle = createPaperOrderLifecycle(validated.quantity, context.now);
+    lifecycle = transitionPaperOrderLifecycle(lifecycle, "ACCEPTED", context.now);
+    lifecycle = transitionPaperOrderLifecycle(lifecycle, "OPEN", context.now);
+    const order: PaperWorkingOrderRecord = Object.freeze({
+      id, idempotencyKey: validated.idempotencyKey, market: validated.market, side: validated.side,
+      orderType: "LIMIT", requestedQuantity: validated.quantity, limitPrice: validated.limitPrice,
+      createdAt: context.now, requestFingerprint: fingerprint, lifecycle,
+    });
+    const working = Object.freeze({ ...this.state, workingOrders: Object.freeze([order, ...(this.state.workingOrders ?? [])].slice(0, 1_000)), processedIdempotencyKeys: Object.freeze([validated.idempotencyKey, ...this.state.processedIdempotencyKeys]), updatedAt: context.now });
+    try { this.repository?.save(working); } catch { return this.result("FAILED", "paper account persistence failed"); }
+    this.state = working;
+    return Object.freeze({ status: "WAIT", reason: "PAPER_LIMIT_OPEN", orders: Object.freeze([]), fills: Object.freeze([]), state: this.state });
+  }
+
+  public cancelWorkingOrder(orderId: string, now: number): PaperExecutionResult {
+    if (!orderId.trim() || !Number.isSafeInteger(now) || now < 0) return this.result("FAILED", "invalid PAPER cancel request");
+    const workingOrders = [...(this.state.workingOrders ?? [])];
+    const index = workingOrders.findIndex((order) => order.id === orderId);
+    if (index < 0) return this.result("REJECTED", "PAPER_WORKING_ORDER_NOT_FOUND");
+    const current = workingOrders[index]!;
+    let lifecycle: PaperOrderLifecycleState;
+    try { lifecycle = transitionPaperOrderLifecycle(current.lifecycle, "CANCELLED", now); }
+    catch (error) { return this.result("REJECTED", error instanceof Error ? error.message : "paper cancel rejected"); }
+    workingOrders.splice(index, 1);
+    const next = Object.freeze({ ...this.state, workingOrders: Object.freeze(workingOrders), updatedAt: now });
+    try { this.repository?.save(next); } catch { return this.result("FAILED", "paper account persistence failed"); }
+    this.state = next;
+    return Object.freeze({ status: "WAIT", reason: `PAPER_ORDER_CANCELLED:${lifecycle.transitionSequence}`, orders: Object.freeze([]), fills: Object.freeze([]), state: this.state });
+  }
+
   public submitManualOrder(command: PersonalPaperOrderCommand, context: PaperManualOrderContext): PaperExecutionResult {
     let validatedCommand: PersonalPaperOrderCommand;
     try { validatedCommand = validatePersonalPaperOrderCommand(command); } catch { return this.result("FAILED", "invalid PAPER order command"); }
