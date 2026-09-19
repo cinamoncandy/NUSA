@@ -540,7 +540,8 @@ export class PaperTradingExecutionLoop {
     catch (error) { return this.result("REJECTED", error instanceof Error ? error.message : "paper working fill rejected"); }
     const priorFills = this.state.fills.filter((fill) => fill.orderId === current.id);
     const fill: PaperFillRecord = Object.freeze({ id: eventId == null ? `fill:${current.id}:${priorFills.length + 1}` : `fill-event:${eventId}`, orderId: current.id, market: current.market, side: current.side, quantity: fillQuantity, price: fillPrice, fee, filledAt: context.now });
-    const fills = Object.freeze([fill, ...this.state.fills].slice(0, 1_000));
+    // Working-order fills are reconciliation state, not telemetry. Never truncate them independently of their order.
+    const fills = Object.freeze([fill, ...this.state.fills]);
 
     let orders = this.state.orders;
     if (terminal) {
