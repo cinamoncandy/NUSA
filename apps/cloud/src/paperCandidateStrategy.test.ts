@@ -106,6 +106,49 @@ describe("PAPER candidate strategy semantics", () => {
     }
   });
 
+  it("replays prior-only volatility compression breakout semantics", () => {
+    const vcbSpec: PaperCandidateStrategySpec = Object.freeze({
+      ...spec, familyId: "volatility-compression-breakout", lineageId: "volatility-compression-breakout-v1",
+      parameters: Object.freeze({ breakoutLookback: 10, compressionRatio: 0.7 }),
+    });
+    const volatile = Array.from({ length: 21 }, (_, index) => index % 2 === 0 ? 90 : 110);
+    const stable = Array.from({ length: 10 }, (_, index) => index % 2 === 0 ? 100 : 100.1);
+    const baseline = evaluatePaperCandidateStrategy(vcbSpec, observations([...volatile, ...stable, 100]), 100, "KRW-BTC");
+    const buy = evaluatePaperCandidateStrategy(vcbSpec, observations([...volatile, ...stable, 100, 105]), 100, "KRW-BTC");
+    const sell = evaluatePaperCandidateStrategy(vcbSpec, observations([...volatile, ...stable, 100, 95]), 100, "KRW-BTC");
+    assert.equal(baseline.action, "HOLD");
+    assert.equal(buy.action, "BUY");
+    assert.equal(sell.action, "SELL");
+    assert.match(buy.reason, /^VOLATILITY_COMPRESSION_BREAKOUT:10\/0.7:prior=0:current=1:/);
+  });
+
+  it("prevents current-tick compression leakage and fails closed for zero volatility", () => {
+    const vcbSpec: PaperCandidateStrategySpec = Object.freeze({
+      ...spec, familyId: "volatility-compression-breakout", parameters: Object.freeze({ breakoutLookback: 10, compressionRatio: 0.7 }),
+    });
+    const leakagePrior = [...Array.from({ length: 27 }, () => 100), 120, 121, 122, 123, 124];
+    const leakage = evaluatePaperCandidateStrategy(vcbSpec, observations([...leakagePrior, 125]), 100, "KRW-BTC");
+    assert.equal(leakage.action, "HOLD");
+    assert.match(leakage.reason, /current=0:/);
+    const zeroVol = evaluatePaperCandidateStrategy(vcbSpec, observations(Array.from({ length: 40 }, () => 100)), 100, "KRW-BTC");
+    assert.equal(zeroVol.action, "HOLD");
+    assert.match(zeroVol.reason, /volatility-baseline-unavailable$/);
+  });
+
+  it("fails closed for invalid volatility compression parameters", () => {
+    for (const parameters of [
+      { breakoutLookback: 1, compressionRatio: 0.7 },
+      { breakoutLookback: 20, compressionRatio: 0 },
+      { breakoutLookback: 20, compressionRatio: 1.1 },
+      { breakoutLookback: 20, compressionRatio: Number.NaN },
+    ]) {
+      assert.throws(
+        () => evaluatePaperCandidateStrategy({ ...spec, familyId: "volatility-compression-breakout", parameters }, observations([100, 101]), 10, "KRW-BTC"),
+        /PAPER volatility compression candidate parameters are invalid/,
+      );
+    }
+  });
+
   it("fails closed for an unsupported candidate family", () => {
     assert.throws(() => evaluatePaperCandidateStrategy({ ...spec, familyId: "unknown-family" }, observations([100, 101, 103]), 10, "KRW-BTC"), /unsupported PAPER candidate strategy family/);
   });
