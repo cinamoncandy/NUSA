@@ -122,29 +122,6 @@ export function buildResearchRunPboEvidence(candidates: readonly ResearchRunPboC
     if (!candidate.familyId.trim()) {
       throw new ResearchRunPboEvidenceError("INVALID_FAMILY_ID", `candidate ${candidate.id} family id is required`);
     }
-    const specification = candidate.candidateSpecification;
-    const decision = validateResearchCandidateSpecification(
-      specification,
-      Date.parse(specification.evaluationEndedAt),
-    );
-    const configured = candidate.experiment.experimentConfig.candidates;
-    const manifest = candidate.experiment.manifest;
-    if (
-      decision.status !== "VERIFIED"
-      || specification.candidateId !== candidate.id
-      || specification.familyId !== candidate.familyId
-      || specification.datasetId !== manifest.datasetId
-      || specification.datasetContentSha256.toLowerCase() !== manifest.contentSha256.toLowerCase()
-      || configured.length !== 1
-      || configured[0]?.id !== candidate.id
-      || canonicalResearchJson(configured[0]?.parameters ?? {}) !== canonicalResearchJson(specification.parameters)
-    ) {
-      throw new ResearchRunPboEvidenceError(
-        "CANDIDATE_SPECIFICATION_MISMATCH",
-        `candidate ${candidate.id} PBO evidence must bind to its verified canonical specification`,
-      );
-    }
-    specificationHashes.set(candidate.id, decision.specificationHash);
   }
 
   const firstManifest = candidates[0]!.experiment.manifest;
@@ -185,6 +162,30 @@ export function buildResearchRunPboEvidence(candidates: readonly ResearchRunPboC
         throw new ResearchRunPboEvidenceError("OOS_TIMESTAMP_ALIGNMENT_MISMATCH", "all PBO candidates must describe the same OOS timestamps");
       }
     }
+  }
+
+  for (const candidate of candidates) {
+    const specification = candidate.candidateSpecification;
+    const decision = validateResearchCandidateSpecification(
+      specification,
+      Date.parse(specification.evaluationEndedAt),
+    );
+    const configured = candidate.experiment.experimentConfig.candidates;
+    const manifest = candidate.experiment.manifest;
+    if (
+      decision.status !== "VERIFIED"
+      || specification.candidateId !== candidate.id
+      || specification.familyId !== candidate.familyId
+      || specification.datasetId !== manifest.datasetId
+      || specification.datasetContentSha256.toLowerCase() !== manifest.contentSha256.toLowerCase()
+      || canonicalResearchJson(configured[0]?.parameters ?? {}) !== canonicalResearchJson(specification.parameters)
+    ) {
+      throw new ResearchRunPboEvidenceError(
+        "CANDIDATE_SPECIFICATION_MISMATCH",
+        `candidate ${candidate.id} PBO evidence must bind to its verified canonical specification`,
+      );
+    }
+    specificationHashes.set(candidate.id, decision.specificationHash);
   }
 
   const candidateConfigurationSha256 = hashCanonical(
