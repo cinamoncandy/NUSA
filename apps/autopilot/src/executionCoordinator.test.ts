@@ -239,6 +239,9 @@ describe("persistent execution coordination", () => {
     const replay = await coordinator.fetch(request("/complete", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 130 }));
     assert.equal(replay.status, 200);
     assert.equal((await replay.json() as { completed: boolean }).completed, false);
+    const duplicate = await coordinator.fetch(request("/acquire", { ...identity, executionId: "exec-redelivery", now: 140, leaseExpiresAt: 240 }));
+    assert.equal(duplicate.status, 409);
+    assert.equal((await duplicate.json() as { reason: string }).reason, "ALREADY_COMPLETED");
   });
 
   it("completion fails closed before dispatch or for stale identity", async () => {
