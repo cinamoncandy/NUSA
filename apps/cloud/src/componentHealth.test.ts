@@ -4,7 +4,7 @@ import { evaluateComponentHealth, type ComponentHealthEvidence } from "./compone
 
 const now = 1_789_800_000_000;
 const policy = { staleAfterMs: 10_000 };
-const evidence = (signal: ComponentHealthEvidence["signal"], observedAt = now, evidenceId = signal): ComponentHealthEvidence => ({
+const evidence = (signal: ComponentHealthEvidence["signal"], observedAt = now, evidenceId: string = signal): ComponentHealthEvidence => ({
   componentId: "PAPER_EXECUTION",
   signal,
   observedAt,
