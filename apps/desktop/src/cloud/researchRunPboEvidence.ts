@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { canonicalResearchJson } from "../../../../packages/contracts/src/researchRuntime";
 import type { ResearchExperimentResult } from "./researchDataset";
 import { estimateProbabilityBacktestOverfitting, type PboCscvEvidence } from "./researchSearchAdjustedEvidence";
 
@@ -18,7 +20,24 @@ export interface ResearchRunOosReturn {
   readonly value: number;
 }
 
+export interface ResearchRunPboEvidence extends PboCscvEvidence {
+  readonly provenance: Readonly<{
+    readonly schemaVersion: 1;
+    readonly datasetId: string;
+    readonly datasetContentSha256: string;
+    readonly market: string;
+    readonly interval: string;
+    readonly candleCount: number;
+    readonly startOpenTime: number;
+    readonly endCloseTime: number;
+    readonly candidateIds: readonly string[];
+    readonly evaluationSha256: string;
+    readonly oosTimestampSha256: string;
+  }>;
+}
+
 const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
+const hashCanonical = (value: unknown): string => createHash("sha256").update(canonicalResearchJson(value), "utf8").digest("hex");
 const PARTITION_PREFERENCE = Object.freeze([16, 14, 12, 10, 8, 6, 4] as const);
 
 export function researchRunOosReturns(candidate: ResearchRunPboCandidate): readonly ResearchRunOosReturn[] {
@@ -81,7 +100,7 @@ function choosePartitions(observationCount: number): number {
  * each window resets its backtest equity, so the first point of a window is only a baseline and
  * no synthetic cross-window return is created.
  */
-export function buildResearchRunPboEvidence(candidates: readonly ResearchRunPboCandidate[]): PboCscvEvidence {
+export function buildResearchRunPboEvidence(candidates: readonly ResearchRunPboCandidate[]): ResearchRunPboEvidence {
   if (candidates.length < 2) throw new ResearchRunPboEvidenceError("INSUFFICIENT_CANDIDATES", "real-run PBO requires at least two candidates");
   const ids = candidates.map((candidate) => candidate.id.trim());
   if (ids.some((id) => !id) || new Set(ids).size !== ids.length) {
@@ -89,10 +108,29 @@ export function buildResearchRunPboEvidence(candidates: readonly ResearchRunPboC
   }
 
   const firstManifest = candidates[0]!.experiment.manifest;
+  const firstEvaluationSha256 = hashCanonical({
+    walkForward: candidates[0]!.experiment.experimentConfig.walkForward,
+    executionCosts: candidates[0]!.experiment.experimentConfig.executionCosts,
+  });
   for (const candidate of candidates.slice(1)) {
     const manifest = candidate.experiment.manifest;
-    if (manifest.datasetId !== firstManifest.datasetId || manifest.contentSha256 !== firstManifest.contentSha256) {
+    if (
+      manifest.datasetId !== firstManifest.datasetId
+      || manifest.contentSha256 !== firstManifest.contentSha256
+      || manifest.market !== firstManifest.market
+      || manifest.interval !== firstManifest.interval
+      || manifest.candleCount !== firstManifest.candleCount
+      || manifest.startOpenTime !== firstManifest.startOpenTime
+      || manifest.endCloseTime !== firstManifest.endCloseTime
+    ) {
       throw new ResearchRunPboEvidenceError("DATASET_PROVENANCE_MISMATCH", "all PBO candidates must use the same verified dataset");
+    }
+    const evaluationSha256 = hashCanonical({
+      walkForward: candidate.experiment.experimentConfig.walkForward,
+      executionCosts: candidate.experiment.experimentConfig.executionCosts,
+    });
+    if (evaluationSha256 !== firstEvaluationSha256) {
+      throw new ResearchRunPboEvidenceError("EVALUATION_PROVENANCE_MISMATCH", "all PBO candidates must use the same walk-forward and execution-cost policy");
     }
   }
 
@@ -110,11 +148,27 @@ export function buildResearchRunPboEvidence(candidates: readonly ResearchRunPboC
   }
 
   const partitions = choosePartitions(reference.length);
-  return estimateProbabilityBacktestOverfitting({
+  const evidence = estimateProbabilityBacktestOverfitting({
     strategies: series.map((candidate) => ({
       strategyId: candidate.id,
       returns: Object.freeze(candidate.returns.map((entry) => entry.value)),
     })),
     partitions,
+  });
+  return freeze({
+    ...evidence,
+    provenance: freeze({
+      schemaVersion: 1 as const,
+      datasetId: firstManifest.datasetId,
+      datasetContentSha256: firstManifest.contentSha256,
+      market: firstManifest.market,
+      interval: firstManifest.interval,
+      candleCount: firstManifest.candleCount,
+      startOpenTime: firstManifest.startOpenTime,
+      endCloseTime: firstManifest.endCloseTime,
+      candidateIds: freeze([...ids].sort()),
+      evaluationSha256: firstEvaluationSha256,
+      oosTimestampSha256: hashCanonical(reference.map((entry) => entry.timestamp)),
+    }),
   });
 }
