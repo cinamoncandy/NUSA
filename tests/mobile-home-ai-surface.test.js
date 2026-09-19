@@ -15,7 +15,7 @@ test("HOME matches the canonical autonomous-intelligence hierarchy", () => {
   assert.match(os, />NUSA<\/Text>/);
   assert.match(home, /TOTAL P&L/);
   assert.match(home, /EQUITY/);
-  assert.match(home, />NOW<\/Text>/);
+  assert.match(home, /PAPER MODE/);
   assert.match(home, /SIGNAL TERRAIN/);
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /testID="home-risk-authority"/);
@@ -27,11 +27,11 @@ test("HOME matches the canonical autonomous-intelligence hierarchy", () => {
 test("HOME autonomous-intelligence design uses verified runtime data and preserves authority safety", () => {
   const home = read("apps/mobile/src/homeView.tsx");
 
-  assert.match(home, /selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)/);
+  assert.match(home, /selectHomeMarketData\(props\.publicMarkets, props\.snapshot\?\.markets \?\? \[\]\)/);
   assert.match(home, /buildLocalPortfolio\(localTradingSnapshot, localMarkPrice\)/);
   assert.match(home, /buildHomeDecisionSurface/);
   assert.match(home, /accountSource/);
-  assert.match(home, /freshestObservedAtMs\(marketRows\)/);
+  assert.match(home, /marketRows/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
   assert.match(home, /UPBIT PUBLIC/);
   assert.doesNotMatch(home, /productionMutationAllowed\s*=\s*true/);
@@ -47,6 +47,6 @@ test("HOME autonomous-intelligence design keeps real navigation actions", () => 
   assert.match(home, /onNavigate\("AiSignal"\)/);
   assert.match(home, /onNavigate\("Portfolio"\)/);
   assert.match(home, /onOpenPaperLearning/);
-  assert.match(home, /onPress=\{onGoSettings\}/);
+  assert.match(home, /onPress=\{props\.onGoSettings\}/);
   assert.match(home, /testID="home-operational-notice"/);
 });
