@@ -59,6 +59,13 @@ export function AiView({ai,research,health,liveAuthority,productionMutationAllow
       </View>
     </View>
 
+    <View style={styles.analysis} testID="ai-signal-factors">
+      <View style={styles.analysisHeader}><Text style={styles.sectionTitle}>SIGNAL EVIDENCE</Text><Text style={styles.time}>{evidence.length + counter.length} VERIFIED REFERENCES</Text></View>
+      {evidence.length===0&&counter.length===0?<View style={{padding:14}}><Text style={styles.emptyText}>VERIFIED EVIDENCE UNAVAILABLE</Text></View>:null}
+      {evidence.slice(0,3).map((item,index)=><View key={`evidence-${index}`} style={{paddingHorizontal:14,paddingVertical:11,borderBottomWidth:1,borderBottomColor:BORDER,flexDirection:"row",gap:10}}><Text style={{color:LIME,fontSize:9,fontWeight:"900",width:62}}>EVIDENCE</Text><Text style={{color:"#B5C2BB",fontSize:9,lineHeight:14,flex:1}} numberOfLines={3}>{String(item)}</Text></View>)}
+      {counter.slice(0,2).map((item,index)=><View key={`counter-${index}`} style={{paddingHorizontal:14,paddingVertical:11,borderBottomWidth:1,borderBottomColor:BORDER,flexDirection:"row",gap:10}}><Text style={{color:RED,fontSize:9,fontWeight:"900",width:62}}>COUNTER</Text><Text style={{color:"#B5C2BB",fontSize:9,lineHeight:14,flex:1}} numberOfLines={3}>{String(item)}</Text></View>)}
+    </View>
+
     <View style={styles.authority}>
       <Text style={styles.authorityTitle}>AI ZERO AUTHORITY</Text>
       <Text style={styles.authorityText}>PAPER ONLY · LIVE {liveAuthority??"NONE"} · PRODUCTION MUTATION {productionMutationAllowed===false?"BLOCKED":"UNVERIFIED"}</Text>
