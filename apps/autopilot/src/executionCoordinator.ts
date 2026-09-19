@@ -313,7 +313,7 @@ export class ExecutionCoordinator {
       const current = await storage.get<ExecutionRecord>("execution");
 
       if (current?.dedupeKey === request.dedupeKey) {
-        if (current.state === "DISPATCHED") return json({ acquired: false, reason: "ALREADY_DISPATCHED", record: current }, 409);
+        if (current.state === "DISPATCHED") return json({ acquired: false, reason: "ALREADY_DISPATCHED", record: current }, 409);\n        if (current.state === "COMPLETED") return json({ acquired: false, reason: "ALREADY_COMPLETED", record: current }, 409);
         if (current.state === "LEASED" && current.leaseExpiresAt > request.now) return json({ acquired: false, reason: "LEASE_ACTIVE", record: current }, 409);
       }
 
