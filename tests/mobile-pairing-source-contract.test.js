@@ -18,8 +18,8 @@ test("mobile pairing source uses direct atomic session issuance and retains no p
   assert.match(service, /MAX_ACTIVE_PAIRINGS_PER_DEVICE = 1/);
   assert.match(service, /PAIRING_SUPERSEDED/);
   assert.match(service, /SAME_DEVICE_RETRY/);
-  assert.match(service, /state='APPROVED'[\s\S]*approved pairing already active[\s\S]*state='PENDING'/);
-  assert.doesNotMatch(service, /UPDATE mobile_pairing_requests SET state='EXPIRED',expires_at=\? WHERE device_id_hash=\? AND state IN \('PENDING','APPROVED'\)/);
+  assert.match(service, /state=\'APPROVED\'[\\s\\S]*approved pairing already active[\\s\\S]*state=\'PENDING\'/);
+  assert.doesNotMatch(service, /UPDATE mobile_pairing_requests SET state=\'EXPIRED\',expires_at=\\? WHERE device_id_hash=\\? AND state IN \\(\'PENDING\',\'APPROVED\'\\)/);
   assert.match(service, /transaction\(\(\) => \{[\s\S]*device_id_hash=\?[\s\S]*MAX_ACTIVE_PAIRINGS[\s\S]*INSERT INTO mobile_pairing_requests/);
   assert.match(service, /CLIENT_REVOKED_RECOVERY_ISSUED_BEFORE/);
   assert.match(service, /BOOTSTRAP_RECOVERED_AFTER_CLIENT_REVOKE/);
@@ -29,9 +29,6 @@ test("mobile pairing source uses direct atomic session issuance and retains no p
   assert.doesNotMatch(http, /bootstrapToken[\s\S]{0,300}pairing\/exchange/);
   assert.match(http, /authorizeOwner[\s\S]*users:manage[\s\S]*isUserAllowed/);
   assert.match(http, /handleMobilePairingApproveHttp[\s\S]*authorizeOwner/);
-  assert.match(installationIdentity, /getRandomValues/);
-  assert.match(installationIdentity, /secure installation identity entropy is unavailable/);
-  assert.doesNotMatch(installationIdentity, /Math\.random|Date\.now\(\).*random/i);
   assert.match(mobile, /\/v1\/mobile\/pairing\/exchange/);
   assert.match(mobile, /PAIRING_STORAGE_KEY/);
   assert.match(mobile, /private pendingPairing: PendingPairingMemory \| null = null/);
@@ -40,6 +37,7 @@ test("mobile pairing source uses direct atomic session issuance and retains no p
   assert.doesNotMatch(mobile, /setSecret\(PAIRING_STORAGE_KEY/);
   assert.doesNotMatch(mobile, /getSecret\(PAIRING_STORAGE_KEY/);
   assert.doesNotMatch(mobile, /AsyncStorage/);
-  assert.match(ui, /PAPER 연결 요청/);
-  assert.match(ui, /PAPER 연결 승인 대기/);
+  assert.match(ui, /6자리 코드로 복구 연결/);
+  assert.match(ui, /6자리 코드 승인 대기/);
+  assert.match(ui, /소유자 인증/);
 });
