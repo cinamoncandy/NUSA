@@ -144,6 +144,7 @@ const run = (overrides = {}) => ({
       candidateConfigurationSha256: "b".repeat(64),
       evaluationSha256: "c".repeat(64),
       oosTimestampSha256: "d".repeat(64),
+      oosReturnMatrixSha256: "e".repeat(64),
     },
   },
   standing: {
