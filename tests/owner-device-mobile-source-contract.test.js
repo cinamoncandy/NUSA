@@ -19,7 +19,9 @@ test("owner-device native bridge keeps private keys native and mobile auth secre
   assert.doesNotMatch(native, /Authenticators\.DEVICE_CREDENTIAL|AUTH_DEVICE_CREDENTIAL/);
   assert.doesNotMatch(native, /getPrivateKey|exportPrivate|PrivateKey\s*\.\s*getEncoded/);
   assert.doesNotMatch(bridge, /privateKey|export.*key/i);
-  assert.doesNotMatch(session, /setSecret\(SESSION_STORAGE_KEY|setSecret\(PAIRING_STORAGE_KEY|getSecret\(SESSION_STORAGE_KEY|getSecret\(PAIRING_STORAGE_KEY/);
+  assert.match(session, /setSecret\(SESSION_STORAGE_KEY/);
+  assert.match(session, /getSecret\(SESSION_STORAGE_KEY/);
+  assert.doesNotMatch(session, /setSecret\(PAIRING_STORAGE_KEY/);
 });
 
 test("primary owner flow is password enrollment then biometric authentication; pairing remains secondary", () => {
@@ -27,15 +29,28 @@ test("primary owner flow is password enrollment then biometric authentication; p
   const source = fs.readFileSync(path.join(root, "apps/mobile/src/settingsView.tsx"), "utf8");
   const http = fs.readFileSync(path.join(root, "apps/cloud/src/mobileSessionHttp.ts"), "utf8");
   const server = fs.readFileSync(path.join(root, "apps/cloud/src/server.ts"), "utf8");
-  assert.match(source, /로그인 및 이 휴대폰 등록/);
+  assert.match(source, /소유자 확인 및 이 휴대폰 등록/);
   assert.match(source, /소유자 인증/);
-  assert.match(source, /호환 코드 연결/);
+  assert.match(source, /6자리 코드로 복구 연결/);
   assert.doesNotMatch(source, /ChatGPT/);
   assert.match(http, /signInWithOwnerPassword\(\{ password: input\?\.password, deviceId \}\)/);
   assert.doesNotMatch(http, /signInWithOwnerPassword\(\{ userId:/);
-  // Two branches added a password-availability signal to /health in different shapes. Consolidated
-  // on the flat one from deploymentHealth.ts: it is a superset -- it carries the deployed revision
-  // and the standing authority invariants next to this flag -- and apps/mobile/src/serverCapabilities.ts
-  // already reads it, where the nested `capabilities.passwordSignIn` boolean had no consumer.
+  // The merge kept this branch's flat /health payload over main's nested
+  // `capabilities: { passwordSignIn }`, because the flat one is what has a consumer:
+  // apps/mobile/src/serverCapabilities.ts reads `body.passwordSignIn`, and it carries the deployed
+  // revision alongside. The nested boolean was read by nothing.
   assert.match(server, /deploymentHealthPayload\(new Date\(\)\.toISOString\(\), process\.env, mobileSessionService\?\.ownerPasswordConfigured\(\) === true\)/);
+});
+
+test("mobile owner-auth endpoint contract is present in client, server, and Oracle readiness", () => {
+  const root = path.resolve(__dirname, "..");
+  const mobile = fs.readFileSync(path.join(root, "apps/mobile/src/mobileApprovedSession.ts"), "utf8");
+  const server = fs.readFileSync(path.join(root, "apps/cloud/src/server.ts"), "utf8");
+  const readiness = fs.readFileSync(path.join(root, "scripts/oracle-readiness-check.js"), "utf8");
+  for (const route of ["/v1/mobile/session/password", "/v1/mobile/session/password/change"]) {
+    const escaped = route.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    assert.match(mobile, new RegExp(escaped), `${route} must remain consumed by mobile`);
+    assert.match(server, new RegExp(escaped), `${route} must remain served by cloud`);
+    assert.match(readiness, new RegExp(escaped), `${route} must be release-gated`);
+  }
 });

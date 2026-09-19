@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { acquirePersistentExecution, ExecutionCoordinator, releasePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, applyPersistentControlPlaneHold, clearPersistentControlPlaneHold, ExecutionCoordinator, readPersistentControlPlaneHold, releasePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
 
 class MemoryStorage {
@@ -12,6 +12,35 @@ class MemoryStorage {
 
   async put<T>(key: string, value: T): Promise<void> {
     this.values.set(key, value);
+  }
+}
+
+class TransactionalRacyStorage {
+  private readonly values = new Map<string, unknown>();
+  private queue: Promise<void> = Promise.resolve();
+  transactionCount = 0;
+
+  async get<T>(key: string): Promise<T | undefined> {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    return this.values.get(key) as T | undefined;
+  }
+
+  async put<T>(key: string, value: T): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    this.values.set(key, value);
+  }
+
+  async transaction<T>(closure: (storage: TransactionalRacyStorage) => Promise<T>): Promise<T> {
+    this.transactionCount += 1;
+    let release: (() => void) | undefined;
+    const previous = this.queue;
+    this.queue = new Promise<void>((resolve) => { release = resolve; });
+    await previous;
+    try {
+      return await closure(this);
+    } finally {
+      release?.();
+    }
   }
 }
 
@@ -86,6 +115,24 @@ describe("persistent execution coordination", () => {
       }),
       /PERSISTENT_EXECUTION_COORDINATION_FAILED/,
     );
+  });
+
+  it("atomically suppresses concurrent acquire requests for one immutable dedupe key", async () => {
+    const storage = new TransactionalRacyStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const acquire = (executionId: string) => coordinator.fetch(new Request("https://execution-coordinator/acquire", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ dedupeKey: "audit:1965:35345529340:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", executionId, now: 100, leaseExpiresAt: 1_000 }),
+    }));
+
+    const [first, second] = await Promise.all([acquire("audit:1965:35345529340"), acquire("audit:1965:35345529340:redelivery")]);
+    assert.deepEqual([first.status, second.status].sort(), [201, 409]);
+    const duplicate = first.status === 409 ? first : second;
+    const body = await duplicate.json() as { acquired: boolean; reason: string };
+    assert.equal(body.acquired, false);
+    assert.equal(body.reason, "LEASE_ACTIVE");
+    assert.equal(storage.transactionCount, 2);
   });
 
   it("releases a failed lease so a bounded retry can reacquire it", async () => {
@@ -176,5 +223,75 @@ describe("persistent execution coordination", () => {
     assert.equal(body.history.length, 32);
     assert.equal(body.history[0]?.recordedAtMs, 1_001);
     assert.equal(body.history.at(-1)?.recordedAtMs, 1_032);
+  });
+});
+
+
+describe("persistent control-plane HOLD", () => {
+  function namespace(): { namespace: ExecutionCoordinatorNamespace; storageByName: Map<string, MemoryStorage> } {
+    const storageByName = new Map<string, MemoryStorage>();
+    const coordinatorByName = new Map<string, ExecutionCoordinator>();
+    const ns: ExecutionCoordinatorNamespace = {
+      idFromName: (name) => ({ name }),
+      get: (id) => {
+        const name = String((id as { name?: unknown }).name ?? "");
+        let coordinator = coordinatorByName.get(name);
+        if (!coordinator) {
+          const storage = new MemoryStorage();
+          storageByName.set(name, storage);
+          coordinator = new ExecutionCoordinator({ storage });
+          coordinatorByName.set(name, coordinator);
+        }
+        return { fetch: (input: RequestInfo | URL, init?: RequestInit) => coordinator!.fetch(new Request(input, init)) };
+      },
+    };
+    return { namespace: ns, storageByName };
+  }
+
+  const identity = Object.freeze({ repository: "cinamoncandy/NUSA", prNumber: 1854, headSha: "a".repeat(40), baseSha: "b".repeat(40) });
+  const hold = Object.freeze({ holdId: "hold-1854-a", prNumber: identity.prNumber, headSha: identity.headSha, baseSha: identity.baseSha, reason: "GLOBAL_RELEASE_FREEZE" as const, source: "core:#1803/#1861" });
+
+  it("persists and rehydrates an exact PR/head/base-bound HOLD", async () => {
+    const { namespace: ns } = namespace();
+    const applied = await applyPersistentControlPlaneHold(ns, { ...identity, hold, now: 100 });
+    assert.equal(applied.state, "ACTIVE");
+    assert.deepEqual((await readPersistentControlPlaneHold(ns, identity))?.hold, hold);
+    const replay = await applyPersistentControlPlaneHold(ns, { ...identity, hold, now: 101 });
+    assert.equal(replay.state, "ACTIVE");
+  });
+
+  it("rejects conflicting/replayed HOLD mutation after explicit clearance", async () => {
+    const { namespace: ns } = namespace();
+    await applyPersistentControlPlaneHold(ns, { ...identity, hold, now: 100 });
+    const cleared = await clearPersistentControlPlaneHold(ns, {
+      ...identity,
+      clearance: { holdId: hold.holdId, prNumber: identity.prNumber, headSha: identity.headSha, baseSha: identity.baseSha, clearedBy: "core", globalReleaseFreeze: false, blockedHuman: false, reworkRequired: false },
+      now: 200,
+    });
+    assert.equal(cleared.state, "CLEARED");
+    await assert.rejects(() => applyPersistentControlPlaneHold(ns, { ...identity, hold, now: 201 }), /HOLD_APPLY_BLOCKED/);
+  });
+
+  it("fails closed on stale clearance and active global/human/rework blockers", async () => {
+    const { namespace: ns } = namespace();
+    await applyPersistentControlPlaneHold(ns, { ...identity, hold, now: 100 });
+    const base = { holdId: hold.holdId, prNumber: identity.prNumber, headSha: identity.headSha, baseSha: identity.baseSha, clearedBy: "core", globalReleaseFreeze: false, blockedHuman: false, reworkRequired: false };
+    await assert.rejects(() => clearPersistentControlPlaneHold(ns, { ...identity, clearance: { ...base, holdId: "stale" }, now: 200 }), /HOLD_CLEAR_FAILED/);
+    await assert.rejects(() => clearPersistentControlPlaneHold(ns, { ...identity, clearance: { ...base, globalReleaseFreeze: true }, now: 201 }), /HOLD_CLEAR_FAILED/);
+    await assert.rejects(() => clearPersistentControlPlaneHold(ns, { ...identity, clearance: { ...base, blockedHuman: true }, now: 202 }), /HOLD_CLEAR_FAILED/);
+    await assert.rejects(() => clearPersistentControlPlaneHold(ns, { ...identity, clearance: { ...base, reworkRequired: true }, now: 203 }), /HOLD_CLEAR_FAILED/);
+  });
+
+  it("isolates a new exact head from stale-head clear attempts", async () => {
+    const { namespace: ns } = namespace();
+    await applyPersistentControlPlaneHold(ns, { ...identity, hold, now: 100 });
+    const next = { ...identity, headSha: "c".repeat(40) };
+    assert.equal(await readPersistentControlPlaneHold(ns, next), null);
+    await assert.rejects(() => clearPersistentControlPlaneHold(ns, {
+      ...next,
+      clearance: { holdId: hold.holdId, prNumber: next.prNumber, headSha: next.headSha, baseSha: next.baseSha, clearedBy: "core", globalReleaseFreeze: false, blockedHuman: false, reworkRequired: false },
+      now: 200,
+    }), /HOLD_CLEAR_FAILED/);
+    assert.equal((await readPersistentControlPlaneHold(ns, identity))?.state, "ACTIVE");
   });
 });

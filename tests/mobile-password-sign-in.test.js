@@ -21,10 +21,19 @@ test("the password is never persisted, only sent", () => {
   assert.match(SESSION, /signInWithOwnerPasswordAndEnrollDeviceCredential/);
   const start = SESSION.indexOf("signInWithOwnerPasswordAndEnrollDeviceCredential");
   const body = SESSION.slice(start, start + 2_400);
-  assert.match(body, /destroyLegacyPersistedCredentials/, "a stale persisted credential must be purged first");
-  // Purging old credentials is the one storage call allowed here; anything else would be a write.
-  const withoutPurge = body.replace(/destroyLegacyPersistedCredentials/g, "");
-  assert.equal(/setSecret|setItem|AsyncStorage/i.test(withoutPurge), false, "the sign-in path wrote the password to storage");
+  // This branch purged legacy slots with destroyLegacyPersistedCredentials before enrolling. The
+  // merge with main replaced that helper: main persists the session through persistOrClear, which
+  // writes SESSION_STORAGE_KEY with the new tokens and so overwrites an old device's stored
+  // credential rather than deleting it first, and clearLocal() purges on failure. The guarantee
+  // this test exists for is unchanged and still asserted below -- the password itself is never
+  // written anywhere.
+  //
+  // KNOWN RESIDUE, recorded rather than dropped: main's success path does not clear
+  // PAIRING_STORAGE_KEY, which the old purge did. A stale persisted pairing can outlive a password
+  // sign-in. It is inert (a pairing row is single-use and worthless once consumed) but it is a
+  // difference, not an equivalence.
+  assert.equal(/setSecret|setItem|AsyncStorage/i.test(body), false, "the sign-in path wrote the password to storage");
+  assert.doesNotMatch(body, /storage\.(set|write)/i, "the sign-in path must not touch storage directly");
 });
 
 test("the field is cleared on success and on failure alike", () => {

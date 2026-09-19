@@ -1,10 +1,15 @@
 import { validatePersistedEvolutionLearningMemory, type EvolutionLearningMemoryStorage } from "./evolveDurableLearningMemory";
 import { validatePersistedCodingExecutionEvidence, type CodingExecutionEvidence } from "./codingExecutionEvidence";
 import { validateAutopilotExecutionTelemetry, type AutopilotExecutionTelemetry } from "./executionTelemetry";
+import type { ExecutionHold, HoldClearance } from "./autonomousExecutionState";
 
 interface DurableObjectStorageLike {
   get<T>(key: string): Promise<T | undefined>;
   put<T>(key: string, value: T): Promise<void>;
+}
+
+interface TransactionalDurableObjectStorageLike extends DurableObjectStorageLike {
+  transaction<T>(closure: (storage: DurableObjectStorageLike) => Promise<T>): Promise<T>;
 }
 
 interface DurableObjectStateLike {
@@ -73,6 +78,30 @@ interface AutopilotExecutionTelemetryHistory {
   telemetry: readonly AutopilotExecutionTelemetry[];
 }
 
+export interface ControlPlaneHoldIdentity {
+  readonly repository: string;
+  readonly prNumber: number;
+  readonly headSha: string;
+  readonly baseSha: string;
+}
+
+export interface PersistedControlPlaneHold extends ControlPlaneHoldIdentity {
+  readonly schemaVersion: 1;
+  readonly hold: ExecutionHold;
+  readonly state: "ACTIVE" | "CLEARED";
+  readonly updatedAt: number;
+}
+
+export interface ApplyControlPlaneHoldRequest extends ControlPlaneHoldIdentity {
+  readonly hold: ExecutionHold;
+  readonly now: number;
+}
+
+export interface ClearControlPlaneHoldRequest extends ControlPlaneHoldIdentity {
+  readonly clearance: HoldClearance;
+  readonly now: number;
+}
+
 const SCHEDULED_RECEIPT_COORDINATOR_KEY = "scheduled-runtime-observability";
 const SCHEDULED_RECEIPT_HISTORY_KEY = "scheduled-runtime-receipts-v1";
 const MAX_SCHEDULED_RECEIPTS = 120;
@@ -83,6 +112,10 @@ const MAX_CODING_EVIDENCE = 32;
 const AUTOPILOT_TELEMETRY_COORDINATOR_KEY = "autopilot-execution-telemetry";
 const AUTOPILOT_TELEMETRY_HISTORY_KEY = "autopilot-execution-telemetry-v1";
 const MAX_AUTOPILOT_TELEMETRY = 120;
+const CONTROL_PLANE_HOLD_STORAGE_KEY = "control-plane-hold-v1";
+const CONTROL_PLANE_HOLD_COORDINATOR_PREFIX = "control-plane-hold";
+const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+const SHA40 = /^[0-9a-f]{40}$/i;
 const json = (body: unknown, status = 200): Response => new Response(JSON.stringify(body), {
   status,
   headers: { "content-type": "application/json; charset=utf-8" },
@@ -94,6 +127,65 @@ function validText(value: unknown): value is string {
 
 function validSafeTimestamp(value: unknown): value is number {
   return Number.isSafeInteger(value) && Number(value) >= 0;
+}
+
+function validControlPlaneHoldIdentity(value: unknown): value is ControlPlaneHoldIdentity {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<ControlPlaneHoldIdentity>;
+  return typeof candidate.repository === "string"
+    && REPOSITORY.test(candidate.repository)
+    && Number.isSafeInteger(candidate.prNumber)
+    && Number(candidate.prNumber) > 0
+    && typeof candidate.headSha === "string"
+    && SHA40.test(candidate.headSha)
+    && typeof candidate.baseSha === "string"
+    && SHA40.test(candidate.baseSha);
+}
+
+function validExecutionHold(value: unknown, identity?: ControlPlaneHoldIdentity): value is ExecutionHold {
+  if (!value || typeof value !== "object") return false;
+  const hold = value as Partial<ExecutionHold>;
+  return validText(hold.holdId)
+    && Number.isSafeInteger(hold.prNumber)
+    && Number(hold.prNumber) > 0
+    && typeof hold.headSha === "string"
+    && SHA40.test(hold.headSha)
+    && typeof hold.baseSha === "string"
+    && SHA40.test(hold.baseSha)
+    && ["GLOBAL_RELEASE_FREEZE", "BLOCKED_HUMAN", "REWORK", "EXPLICIT_HOLD"].includes(String(hold.reason))
+    && validText(hold.source)
+    && (!identity || (hold.prNumber === identity.prNumber && hold.headSha === identity.headSha && hold.baseSha === identity.baseSha));
+}
+
+function validHoldClearance(value: unknown, identity?: ControlPlaneHoldIdentity): value is HoldClearance {
+  if (!value || typeof value !== "object") return false;
+  const clearance = value as Partial<HoldClearance>;
+  return validText(clearance.holdId)
+    && Number.isSafeInteger(clearance.prNumber)
+    && Number(clearance.prNumber) > 0
+    && typeof clearance.headSha === "string"
+    && SHA40.test(clearance.headSha)
+    && typeof clearance.baseSha === "string"
+    && SHA40.test(clearance.baseSha)
+    && validText(clearance.clearedBy)
+    && typeof clearance.globalReleaseFreeze === "boolean"
+    && typeof clearance.blockedHuman === "boolean"
+    && typeof clearance.reworkRequired === "boolean"
+    && (!identity || (clearance.prNumber === identity.prNumber && clearance.headSha === identity.headSha && clearance.baseSha === identity.baseSha));
+}
+
+function validPersistedControlPlaneHold(value: unknown): value is PersistedControlPlaneHold {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<PersistedControlPlaneHold>;
+  if (candidate.schemaVersion !== 1 || !validControlPlaneHoldIdentity(candidate)) return false;
+  const record = value as Partial<PersistedControlPlaneHold> & ControlPlaneHoldIdentity;
+  return validExecutionHold(record.hold, record)
+    && (record.state === "ACTIVE" || record.state === "CLEARED")
+    && validSafeTimestamp(record.updatedAt);
+}
+
+function holdCoordinatorKey(identity: ControlPlaneHoldIdentity): string {
+  return `${CONTROL_PLANE_HOLD_COORDINATOR_PREFIX}:${identity.repository}:${identity.prNumber}:${identity.headSha.toLowerCase()}:${identity.baseSha.toLowerCase()}`;
 }
 
 function validAcquire(value: unknown): value is AcquireRequest {
@@ -173,7 +265,24 @@ function validScheduledRuntimeSummary(value: unknown): value is ScheduledRuntime
 }
 
 export class ExecutionCoordinator {
+  private executionMutationQueue: Promise<void> = Promise.resolve();
+
   constructor(private readonly ctx: DurableObjectStateLike) {}
+
+  private async mutateExecutionAtomically<T>(operation: (storage: DurableObjectStorageLike) => Promise<T>): Promise<T> {
+    const transactional = this.ctx.storage as DurableObjectStorageLike & Partial<TransactionalDurableObjectStorageLike>;
+    if (typeof transactional.transaction === "function") return transactional.transaction(operation);
+
+    let releaseQueue: (() => void) | undefined;
+    const previous = this.executionMutationQueue;
+    this.executionMutationQueue = new Promise<void>((resolve) => { releaseQueue = resolve; });
+    await previous;
+    try {
+      return await operation(this.ctx.storage);
+    } finally {
+      releaseQueue?.();
+    }
+  }
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
@@ -182,6 +291,7 @@ export class ExecutionCoordinator {
     if (request.method === "GET" && url.pathname === "/evolve-learning-memory") return this.readEvolutionLearningMemory();
     if (request.method === "GET" && url.pathname === "/coding-evidence-history") return this.readCodingExecutionEvidence();
     if (request.method === "GET" && url.pathname === "/execution-telemetry") return this.readExecutionTelemetry();
+    if (request.method === "GET" && url.pathname === "/control-plane-hold") return this.readControlPlaneHold();
     if (request.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405);
     if (url.pathname === "/acquire") return this.acquire(await request.json());
     if (url.pathname === "/dispatched") return this.markDispatched(await request.json());
@@ -190,28 +300,32 @@ export class ExecutionCoordinator {
     if (url.pathname === "/evolve-learning-memory") return this.writeEvolutionLearningMemory(await request.json());
     if (url.pathname === "/coding-evidence") return this.writeCodingExecutionEvidence(await request.json());
     if (url.pathname === "/execution-telemetry") return this.writeExecutionTelemetry(await request.json());
+    if (url.pathname === "/control-plane-hold/apply") return this.applyControlPlaneHold(await request.json());
+    if (url.pathname === "/control-plane-hold/clear") return this.clearControlPlaneHold(await request.json());
     return json({ error: "NOT_FOUND" }, 404);
   }
 
   private async acquire(value: unknown): Promise<Response> {
     if (!validAcquire(value)) return json({ error: "EXECUTION_COORDINATION_REQUEST_INVALID" }, 400);
     const request = value;
-    const current = await this.ctx.storage.get<ExecutionRecord>("execution");
+    return this.mutateExecutionAtomically(async (storage) => {
+      const current = await storage.get<ExecutionRecord>("execution");
 
-    if (current?.dedupeKey === request.dedupeKey) {
-      if (current.state === "DISPATCHED") return json({ acquired: false, reason: "ALREADY_DISPATCHED", record: current }, 409);
-      if (current.state === "LEASED" && current.leaseExpiresAt > request.now) return json({ acquired: false, reason: "LEASE_ACTIVE", record: current }, 409);
-    }
+      if (current?.dedupeKey === request.dedupeKey) {
+        if (current.state === "DISPATCHED") return json({ acquired: false, reason: "ALREADY_DISPATCHED", record: current }, 409);
+        if (current.state === "LEASED" && current.leaseExpiresAt > request.now) return json({ acquired: false, reason: "LEASE_ACTIVE", record: current }, 409);
+      }
 
-    const record: ExecutionRecord = Object.freeze({
-      dedupeKey: request.dedupeKey,
-      executionId: request.executionId,
-      state: "LEASED",
-      leaseExpiresAt: request.leaseExpiresAt,
-      updatedAt: request.now,
+      const record: ExecutionRecord = Object.freeze({
+        dedupeKey: request.dedupeKey,
+        executionId: request.executionId,
+        state: "LEASED",
+        leaseExpiresAt: request.leaseExpiresAt,
+        updatedAt: request.now,
+      });
+      await storage.put("execution", record);
+      return json({ acquired: true, record }, 201);
     });
-    await this.ctx.storage.put("execution", record);
-    return json({ acquired: true, record }, 201);
   }
 
   private async markDispatched(value: unknown): Promise<Response> {
@@ -425,6 +539,68 @@ export class ExecutionCoordinator {
       telemetry: Object.freeze([...(telemetry as AutopilotExecutionTelemetry[])].sort((left, right) => left.timestampMs - right.timestampMs || left.telemetryId.localeCompare(right.telemetryId))),
     });
   }
+
+  private async readControlPlaneHold(): Promise<Response> {
+    const stored = await this.ctx.storage.get<unknown>(CONTROL_PLANE_HOLD_STORAGE_KEY);
+    if (stored == null) return json({ hold: null });
+    if (!validPersistedControlPlaneHold(stored)) return json({ error: "CONTROL_PLANE_HOLD_CORRUPT" }, 500);
+    return json({ hold: stored });
+  }
+
+  private async applyControlPlaneHold(value: unknown): Promise<Response> {
+    if (!value || typeof value !== "object") return json({ error: "CONTROL_PLANE_HOLD_REQUEST_INVALID" }, 400);
+    const candidate = value as Partial<ApplyControlPlaneHoldRequest>;
+    if (!validControlPlaneHoldIdentity(candidate)) return json({ error: "CONTROL_PLANE_HOLD_REQUEST_INVALID" }, 400);
+    const boundedCandidate = value as Partial<ApplyControlPlaneHoldRequest> & ControlPlaneHoldIdentity;
+    if (!validExecutionHold(boundedCandidate.hold, boundedCandidate) || !validSafeTimestamp(boundedCandidate.now)) {
+      return json({ error: "CONTROL_PLANE_HOLD_REQUEST_INVALID" }, 400);
+    }
+    const request = value as ApplyControlPlaneHoldRequest;
+    const existing = await this.ctx.storage.get<unknown>(CONTROL_PLANE_HOLD_STORAGE_KEY);
+    if (existing != null && !validPersistedControlPlaneHold(existing)) return json({ error: "CONTROL_PLANE_HOLD_CORRUPT" }, 500);
+    if (existing) {
+      if (existing.state === "CLEARED") return json({ error: "CONTROL_PLANE_HOLD_REPLAY_AFTER_CLEAR", hold: existing }, 409);
+      if (JSON.stringify(existing.hold) === JSON.stringify(request.hold)) return json({ updated: false, hold: existing });
+      return json({ error: "CONTROL_PLANE_HOLD_CONFLICT", hold: existing }, 409);
+    }
+    const record: PersistedControlPlaneHold = Object.freeze({
+      schemaVersion: 1,
+      repository: request.repository,
+      prNumber: request.prNumber,
+      headSha: request.headSha.toLowerCase(),
+      baseSha: request.baseSha.toLowerCase(),
+      hold: Object.freeze({ ...request.hold, headSha: request.hold.headSha.toLowerCase(), baseSha: request.hold.baseSha.toLowerCase() }),
+      state: "ACTIVE",
+      updatedAt: request.now,
+    });
+    await this.ctx.storage.put(CONTROL_PLANE_HOLD_STORAGE_KEY, record);
+    return json({ updated: true, hold: record }, 201);
+  }
+
+  private async clearControlPlaneHold(value: unknown): Promise<Response> {
+    if (!value || typeof value !== "object") return json({ error: "CONTROL_PLANE_HOLD_REQUEST_INVALID" }, 400);
+    const candidate = value as Partial<ClearControlPlaneHoldRequest>;
+    if (!validControlPlaneHoldIdentity(candidate)) return json({ error: "CONTROL_PLANE_HOLD_REQUEST_INVALID" }, 400);
+    const boundedCandidate = value as Partial<ClearControlPlaneHoldRequest> & ControlPlaneHoldIdentity;
+    if (!validHoldClearance(boundedCandidate.clearance, boundedCandidate) || !validSafeTimestamp(boundedCandidate.now)) {
+      return json({ error: "CONTROL_PLANE_HOLD_REQUEST_INVALID" }, 400);
+    }
+    const request = value as ClearControlPlaneHoldRequest;
+    if (request.clearance.globalReleaseFreeze || request.clearance.blockedHuman || request.clearance.reworkRequired) {
+      return json({ error: "CONTROL_PLANE_HOLD_CLEAR_BLOCKED" }, 409);
+    }
+    const existing = await this.ctx.storage.get<unknown>(CONTROL_PLANE_HOLD_STORAGE_KEY);
+    if (existing == null) return json({ error: "CONTROL_PLANE_HOLD_NOT_FOUND" }, 409);
+    if (!validPersistedControlPlaneHold(existing)) return json({ error: "CONTROL_PLANE_HOLD_CORRUPT" }, 500);
+    if (existing.state === "CLEARED") {
+      if (existing.hold.holdId === request.clearance.holdId) return json({ updated: false, hold: existing });
+      return json({ error: "CONTROL_PLANE_HOLD_CLEAR_STALE", hold: existing }, 409);
+    }
+    if (existing.hold.holdId !== request.clearance.holdId) return json({ error: "CONTROL_PLANE_HOLD_CLEAR_STALE", hold: existing }, 409);
+    const record: PersistedControlPlaneHold = Object.freeze({ ...existing, state: "CLEARED", updatedAt: request.now });
+    await this.ctx.storage.put(CONTROL_PLANE_HOLD_STORAGE_KEY, record);
+    return json({ updated: true, hold: record });
+  }
 }
 
 export interface AutopilotExecutionTelemetrySummary {
@@ -555,6 +731,37 @@ export async function readScheduledRuntimeEvidence(namespace: ExecutionCoordinat
     history: sortScheduledReceipts(history),
     summary,
   });
+}
+
+export async function applyPersistentControlPlaneHold(namespace: ExecutionCoordinatorNamespace, input: ApplyControlPlaneHoldRequest): Promise<PersistedControlPlaneHold> {
+  const stub = namespace.get(namespace.idFromName(holdCoordinatorKey(input)));
+  const response = await stub.fetch("https://execution-coordinator/control-plane-hold/apply", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) });
+  const body = await response.json() as { hold?: unknown };
+  if (!response.ok || !validPersistedControlPlaneHold(body.hold)) throw new Error(response.status === 409 ? "CONTROL_PLANE_HOLD_APPLY_BLOCKED" : "CONTROL_PLANE_HOLD_PERSIST_FAILED");
+  return Object.freeze(body.hold);
+}
+
+export async function readPersistentControlPlaneHold(namespace: ExecutionCoordinatorNamespace, identity: ControlPlaneHoldIdentity): Promise<PersistedControlPlaneHold | null> {
+  if (!validControlPlaneHoldIdentity(identity)) throw new Error("CONTROL_PLANE_HOLD_IDENTITY_INVALID");
+  const stub = namespace.get(namespace.idFromName(holdCoordinatorKey(identity)));
+  const response = await stub.fetch("https://execution-coordinator/control-plane-hold", { method: "GET" });
+  if (!response.ok) throw new Error("CONTROL_PLANE_HOLD_READ_FAILED");
+  const body = await response.json() as { hold?: unknown };
+  if (body.hold == null) return null;
+  if (!validPersistedControlPlaneHold(body.hold)) throw new Error("CONTROL_PLANE_HOLD_READ_INVALID");
+  const hold = body.hold;
+  if (hold.repository !== identity.repository || hold.prNumber !== identity.prNumber || hold.headSha !== identity.headSha.toLowerCase() || hold.baseSha !== identity.baseSha.toLowerCase()) {
+    throw new Error("CONTROL_PLANE_HOLD_READ_STALE");
+  }
+  return Object.freeze(hold);
+}
+
+export async function clearPersistentControlPlaneHold(namespace: ExecutionCoordinatorNamespace, input: ClearControlPlaneHoldRequest): Promise<PersistedControlPlaneHold> {
+  const stub = namespace.get(namespace.idFromName(holdCoordinatorKey(input)));
+  const response = await stub.fetch("https://execution-coordinator/control-plane-hold/clear", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) });
+  const body = await response.json() as { hold?: unknown };
+  if (!response.ok || !validPersistedControlPlaneHold(body.hold)) throw new Error("CONTROL_PLANE_HOLD_CLEAR_FAILED");
+  return Object.freeze(body.hold);
 }
 
 export function createEvolutionLearningMemoryStorage(namespace: ExecutionCoordinatorNamespace): EvolutionLearningMemoryStorage {

@@ -36,6 +36,11 @@ const prResponse = (sha = auditRequest.headSha!, state = "open") => new Response
   headers: { "content-type": "application/json" },
 });
 
+const draftPrResponse = () => new Response(JSON.stringify({ state: "open", draft: true, head: { sha: auditRequest.headSha } }), {
+  status: 200,
+  headers: { "content-type": "application/json" },
+});
+
 describe("executeGithubDispatch", () => {
   it("stays interface-ready when no executor token is configured", async () => {
     const value = await executeGithubDispatch(request, { allowedRepository: "cinamoncandy/NUSA" });
@@ -122,6 +127,22 @@ describe("executeGithubDispatch", () => {
     assert.deepEqual(calls, ["https://api.example.test/repos/cinamoncandy/NUSA/pulls/42"]);
   });
 
+  it("does not Audit when canonical CI succeeds while the PR is still Draft", async () => {
+    const calls: string[] = [];
+    const value = await executeGithubDispatch(auditRequest, {
+      token: "secret",
+      allowedRepository: "cinamoncandy/NUSA",
+      apiBaseUrl: "https://api.example.test/",
+    }, (async (url: string | URL | Request) => {
+      calls.push(String(url));
+      return draftPrResponse();
+    }) as typeof fetch);
+
+    assert.equal(value.status, "REJECTED");
+    assert.equal(value.reason, "github-executor-pr-draft-hold-active");
+    assert.deepEqual(calls, ["https://api.example.test/repos/cinamoncandy/NUSA/pulls/42"]);
+  });
+
   it("sends one bounded repository dispatch with durable lifecycle identity and no authority escalation", async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const fakeFetch = (async (url: string | URL | Request, init?: RequestInit) => {
@@ -161,6 +182,9 @@ describe("executeGithubDispatch", () => {
     const fakeFetch = (async (url: string | URL | Request, init?: RequestInit) => {
       calls.push({ url: String(url), init });
       if (String(url).endsWith("/pulls/42")) return prResponse();
+      if (String(url).includes("/actions/workflows/autopilot-deterministic-audit-release.yml/runs?")) {
+        return new Response(JSON.stringify({ workflow_runs: [] }), { status: 200, headers: { "content-type": "application/json" } });
+      }
       return new Response(null, { status: 204 });
     }) as typeof fetch;
 
@@ -174,8 +198,9 @@ describe("executeGithubDispatch", () => {
     assert.equal(value.requestedHeadSha, auditRequest.headSha);
     assert.equal(value.observedHeadSha, auditRequest.headSha);
     assert.equal(calls[0]?.url, "https://api.example.test/repos/cinamoncandy/NUSA/pulls/42");
-    assert.equal(calls[1]?.url, "https://api.example.test/repos/cinamoncandy/NUSA/dispatches");
-    const payload = JSON.parse(String(calls[1]?.init?.body));
+    assert.match(calls[1]?.url ?? "", /actions\/workflows\/autopilot-deterministic-audit-release\.yml\/runs/);
+    assert.equal(calls[2]?.url, "https://api.example.test/repos/cinamoncandy/NUSA/dispatches");
+    const payload = JSON.parse(String(calls[2]?.init?.body));
     assert.equal(payload.event_type, "nusa_autopilot_audit");
     assert.equal(payload.client_payload.kind, "AUDIT_REQUEST");
     assert.equal(payload.client_payload.pr_number, 42);
@@ -186,6 +211,39 @@ describe("executeGithubDispatch", () => {
     assert.equal(payload.client_payload.production_mutation_allowed, false);
     assert.equal(payload.client_payload.live_authority, "NONE");
     assert.equal(payload.client_payload.ai_authority, "ZERO_AUTHORITY");
+  });
+
+  it("suppresses a cross-ingress Audit when GitHub already exposes the immutable dedupe identity", async () => {
+    const calls: string[] = [];
+    const fakeFetch = (async (url: string | URL | Request) => {
+      const value = String(url);
+      calls.push(value);
+      if (value.endsWith("/pulls/42")) return prResponse();
+      if (value.includes("/actions/workflows/autopilot-deterministic-audit-release.yml/runs?")) {
+        return new Response(JSON.stringify({ workflow_runs: [{ display_title: auditRequest.dedupeKey }] }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      throw new Error("repository dispatch must not be reached");
+    }) as typeof fetch;
+    const value = await executeGithubDispatch(auditRequest, {
+      token: "secret",
+      allowedRepository: "cinamoncandy/NUSA",
+      apiBaseUrl: "https://api.example.test/",
+    }, fakeFetch);
+    assert.equal(value.status, "REJECTED");
+    assert.equal(value.reason, "github-executor-duplicate-audit-run-suppressed");
+    assert.equal(calls.length, 2);
+  });
+
+  it("fails closed when cross-ingress Audit dedupe evidence cannot be read", async () => {
+    const value = await executeGithubDispatch(auditRequest, {
+      token: "secret",
+      allowedRepository: "cinamoncandy/NUSA",
+      apiBaseUrl: "https://api.example.test/",
+    }, (async (url: string | URL | Request) => String(url).endsWith("/pulls/42")
+      ? prResponse()
+      : new Response("unavailable", { status: 503 })) as typeof fetch);
+    assert.equal(value.status, "FAILED");
+    assert.equal(value.reason, "github-executor-audit-dedupe-http-503");
   });
 
   it("fails closed when current main cannot be verified", async () => {

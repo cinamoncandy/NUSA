@@ -23,12 +23,19 @@ test("product v5 uses flatter secondary sections and Android-sized actions", () 
   assert.match(intelligence, /leadDetail: { maxWidth: 720, fontSize: 11, lineHeight: 17/);
 });
 
-test("Cloud PAPER setup communicates server session verify without changing authority", () => {
+test("Cloud PAPER setup communicates server-verified owner device session without changing authority", () => {
   const settings = read("src/settingsView.tsx");
-  assert.match(settings, /title="SERVER"/);
-  assert.match(settings, /testID="settings-owner-device-enroll"/);
-  assert.match(settings, /title="VERIFY"/);
-  assert.match(settings, /호환 승인 대기 중/);
+  const experience = read("src/ownerConnectionExperience.tsx");
+  assert.match(settings, /<OwnerConnectionExperience/);
+  assert.match(settings, /stage=\{ownerConnectionStage\}/);
+  assert.match(settings, /onAuthenticateOwner=\{\(\) => \{ void requestPaperConnection\(\); \}\}/);
+  assert.match(settings, /onRecoverWithPairing=\{\(\) => \{ void requestRecoveryPairing\(\); \}\}/);
+  assert.match(experience, /PAPER 서버 확인/);
+  assert.match(experience, /소유자 확인/);
+  assert.match(experience, /이 휴대폰 등록/);
+  assert.match(experience, /복구 연결/);
+  assert.match(experience, /PAPER ONLY/);
+  assert.match(experience, /LIVE AUTH SEPARATE/);
   assert.doesNotMatch(settings, /placeOrder|cancelOrder|withdraw/);
   const productionPaper = read("src/tradingView.tsx");
   assert.match(productionPaper, /<PaperLearningMonitorView/);

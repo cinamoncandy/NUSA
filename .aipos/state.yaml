@@ -20,6 +20,32 @@ current_first_read_connection_recovery:
   branch: codex/session-connect-recovery
   validation: "22 focused/regression tests; typecheck/lint/security/architecture/safety/AI guard PASS. CI pending."
   remaining: "Independent CI/Audit/Release and actual device verification; Upbit persistence policy handled by PR 1786."
+current_audit_dispatch_payload_limit:
+  work_order: WO-ISSUE-903-EVENT-REPLAY-HARDENING
+  status: MERGED_VERIFIED
+  base_sha: 849fca669804cbd40f8dd7b5efe6145d5afe1cae
+  exact_head: 3f2219467d48439ae8cf7b63cf43fae5b5e0dea3
+  pull_request: 1945
+  merge_commit: cabe68df11d95cd4212d09c1045c9aff7cd769b2
+  finding: "GitHub repository_dispatch enforces a ten-property client_payload limit; the fallback Audit dispatch carried an unused eleventh reason property and failed closed with HTTP 422."
+  remediation: "Emit only the ten canonical Audit consumer fields; exact CI/PR/dedupe identity and NONE/false/ZERO_AUTHORITY invariants are unchanged."
+  audit_followup: "Exact-head CI 35168377327 PASS, but independent Audit 35168788582 incorrectly classified the removed reason line as a current blocker. BLOCKER findings now require an exact current added-diff evidenceRef (path:+line); invalid model findings are retried only against the same immutable evidence and remain fail-closed after the bounded limit."
+  validation: "Typecheck PASS; build PASS; Audit runner regression PASS 23/23 including stale removed-line retry and persistent invalid-evidence fail-closed; security gate PASS; git diff --check PASS."
+  freshness: "PR #1945 Release correctly failed closed when main moved from audited base 03119c0 to 849fca66 before merge. The implementation branch was merged with 849fca66; all prior exact-head CI/Audit evidence is invalidated."
+  completion: "Exact-head CI 35188124813 PASS; PAPER runtime, READ_ONLY broker, and Restricted LIVE safety workflows PASS; canonical independent Audit/Release run 35188428151 PASS; protected main re-read as cabe68df11d95cd4212d09c1045c9aff7cd769b2."
+  next: "Completed. Select the next ready work order from current source-of-truth state; no financial authority is granted."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_ready_for_review_audit_dedupe_repair:
+  work_order: WO-ISSUE-903-EVENT-REPLAY-HARDENING
+  status: IMPLEMENTED_LOCAL
+  branch: codex/issue-1955
+  pull_request: 1956
+  base_head: d9b707a64be4dfea29d04e17eb6f95e7cd543931
+  finding: "PR_CI_SUCCEEDED Audit dispatches did not acquire the existing persistent execution identity, allowing two ready_for_review delivery IDs to create duplicate Audit chains."
+  remediation: "Use NUSA_EXECUTION_COORDINATOR for the unchanged audit:<pr>:<workflowRunId>:<exactHead> identity, suppress duplicate/replayed/concurrent deliveries, and fail closed without the coordinator."
+  local_validation: "TypeScript compile/typecheck PASS; focused Autopilot regressions PASS; minimal preflight checks PASS; git diff --check PASS."
+  next: "Local commit only on the existing PR #1956 branch; no push, Ready transition, new PR, or remote CI."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_oracle_codex_dev_runner:
   work_order: WO-20260908-ORACLE-CODEX-DEV-RUNNER
   status: MERGED_VM_CREATION_HUMAN_ENVIRONMENT_ONLY
@@ -1274,4 +1300,24 @@ latest_paper_chaos_bound_runtime_evidence_slice:
   base_commit: 1e085360dc057ed8c097d28de36d40c71cb1cc5c
   implementation_branch: codex/paper-chaos-bound-runtime-evidence
   scope: "Emit only BOUND_UNVERIFIED restart-recovery evidence from the canonical actual PAPER runtime harness; external workflow verification remains separate."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_audit_structured_output_recovery:
+  status: EXACT_HEAD_CI_PASS_PENDING_MERGED_MAIN_DEPLOYMENT_AND_FRESH_AUDIT
+  base_sha: 45e4c653e89644f176c2398a007ca26b99014bda
+  implementation_branch: codex/audit-json-output-hardening
+  implementation_head: 8748cd6cc203fd80de3ec7d3f34dbeffe6497047
+  scope: "Make the independent Audit Worker’s provider-facing JSON schema compatible with Workers AI while preserving strict local verdict validation and exact-head revalidation."
+  finding: "Fresh Audit run 35057987820 reached the existing Worker and failed closed with 409 AUDIT_VERDICT_SAFETY_INVALID after the model returned a safetyInvariantResult shape rejected by the strict validator."
+  remediation: "Use one flat required JSON Schema for provider reliability, explicitly require the safety result to be the uppercase JSON string PASS or FAIL, and retain the unchanged semantic validator, bounded retries, and exact-head evidence checks."
+  local_validation: "Targeted Audit tests 24/24 PASS; pnpm run build PASS; pnpm run validate:full PASS; pnpm run lint PASS with 4 pre-existing warnings and 0 errors; pnpm run security:gate PASS; pnpm run architecture:check PASS; pnpm test PASS across 986 isolated test files; git diff --check PASS."
+  exact_head_ci: "PR #1928 exact head 8748cd6cc203fd80de3ec7d3f34dbeffe6497047; canonical CI 35059260683 and required PAPER/read-only/Restricted LIVE workflows 35059260664, 35059260672, 35059260684, 35059260766, 35059260795, plus Cloudflare preflight 35059260699 and bridge 35059260690 all completed success."
+  follow_up_finding: "Exact-head preflight 35060300788 failed closed because its non-paginated first page contained 141 completed runs and omitted successful deploy run 35050583254; credential, Wrangler, account, and Worker safety checks were already successful."
+  follow_up_remediation: "Read all exact-main Actions-run pages with gh api --paginate --slurp and flatten workflow_runs before selecting the newest successful deploy evidence; retain bounded polling and fail-closed behavior."
+  follow_up_status: BRANCH_PREFLIGHT_PASS_PENDING_TRUSTED_MAIN_PROMOTION_AND_FRESH_AUDIT
+  follow_up_branch: codex/audit-json-output-hardening
+  follow_up_exact_head: 92eb62d62ec9a4ee438e51f562c79e5e116cc11f
+  follow_up_exact_head_ci: "Canonical CI 35061465031 and required PAPER/read-only/Restricted LIVE workflows 35061463863, 35061465021, 35061465014, 35061465038, 35061465064, 35061465020 all PASS. Protected pull_request_target preflight 35061463878 used the trusted main workflow and failed because main still has the pre-pagination selector; branch workflow_dispatch preflight 35061869720 executed the pagination fix at this exact head and PASSed credential, account, Wrangler, Free-tier, exact-main deploy, and runtime revision checks."
+  follow_up_next_permitted_action: "Promote the pagination fix through the existing protected Release path; only after the trusted main workflow contains it may the protected pull_request_target preflight be expected to PASS. Then deploy the exact merged main revision and request a fresh independent Audit."
+  next_permitted_action: "Obtain the existing owner-controlled nusa/release-authorized gate without bypassing Audit, merge through the canonical Release path, deploy the exact merged main revision through the existing Cloudflare promotion workflow, then request a fresh independent Audit."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

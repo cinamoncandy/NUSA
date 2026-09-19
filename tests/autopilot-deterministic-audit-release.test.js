@@ -3,12 +3,17 @@ import fs from "node:fs";
 import test from "node:test";
 
 const workflow = fs.readFileSync(".github/workflows/autopilot-deterministic-audit-release.yml", "utf8");
+const auditWorkflow = workflow.split(/\r?\n  release:\r?\n/, 1)[0];
+
+test("Audit workflow exposes immutable dispatch identity as the GitHub run name", () => {
+  assert.match(workflow, /run-name:\s*\$\{\{ github\.event\.client_payload\.dedupe_key/);
+});
 
 test("deterministic Audit has no Cloudflare or AI merge dependency", () => {
-  assert.match(workflow, /Autopilot Deterministic Audit Release/);
-  assert.match(workflow, /github\.event\.client_payload\.kind == 'AUDIT_REQUEST'/);
-  assert.doesNotMatch(workflow, /workers\.dev|\/audit\/execute|Workers AI|env\.AI|id-token:\s*write/);
-  assert.match(workflow, /authority=DETERMINISTIC_AUDIT_PASS/);
+  assert.match(auditWorkflow, /Autopilot Deterministic Audit Release/);
+  assert.match(auditWorkflow, /github\.event\.client_payload\.kind == 'AUDIT_REQUEST'/);
+  assert.doesNotMatch(auditWorkflow, /workers\.dev|\/audit\/execute|Workers AI|env\.AI|id-token:\s*write/);
+  assert.match(auditWorkflow, /authority=DETERMINISTIC_AUDIT_PASS/);
 });
 
 test("deterministic Audit binds exact PR, protected main, canonical CI, and six required workflows", () => {
@@ -38,6 +43,11 @@ test("Audit waits boundedly for independent exact-head evidence convergence", ()
 test("stale Audit requests are NO_ACTION and cannot release", () => {
   assert.match(workflow, /NO_ACTION stale\/non-releasable Audit request/);
   assert.match(workflow, /current_draft/);
+  assert.match(workflow, /current_hold/);
+  assert.match(workflow, /\.labels \| type\) != "array"/);
+  assert.match(workflow, /any\(\.labels\[\]; \(\.name \| ascii_downcase\) == "hold"\)/);
+  assert.match(workflow, /current_draft" = "true"/);
+  assert.match(workflow, /current_hold" != "false"/);
   assert.match(workflow, /applicable=false/);
   assert.match(workflow, /authority=NONE/);
   assert.match(workflow, /needs\.audit\.outputs\.applicable == 'true'/);
@@ -49,6 +59,12 @@ test("Release re-verifies exact expected head and audited base before merge", ()
   assert.match(workflow, /EXPECTED_HEAD/);
   assert.match(workflow, /AUDITED_BASE/);
   assert.match(workflow, /final_draft/);
+  assert.match(workflow, /final_hold/);
+  assert.match(workflow, /test "\$final_hold" = "false"/);
+  assert.match(workflow, /release_hold/);
+  assert.match(workflow, /test "\$release_hold" = "false"/);
+  assert.ok((workflow.match(/test "\$release_hold" = "false"/g) || []).length >= 3,
+    "Release must re-check HOLD before each authority-sensitive transition");
   assert.match(workflow, /-f sha="\$EXPECTED_HEAD"/);
   assert.match(workflow, /\.merged == true/);
 });
@@ -63,7 +79,7 @@ test("Release explicitly dispatches canonical main CI after a GITHUB_TOKEN merge
 
 test("Release recovers bounded post-merge CI retries before directly dispatching Cloudflare Deploy", () => {
   assert.match(workflow, /Recover post-merge CI retries and dispatch Cloudflare Deploy/);
-  assert.match(workflow, /does not reliably fan out through workflow_run/);
+  assert.match(workflow, /for poll in \$\(seq 1 40\)/);
   assert.match(workflow, /actions\/runs\?head_sha=\$MERGED_MAIN&per_page=100/);
   assert.match(workflow, /\.conclusion == "success"/);
   assert.match(workflow, /rerun-failed-jobs/);
@@ -92,4 +108,17 @@ test("safety invariants remain fail-closed", () => {
   assert.match(workflow, /liveAuthority=NONE/);
   assert.match(workflow, /productionMutationAllowed=false/);
   assert.match(workflow, /aiAuthority=ZERO_AUTHORITY/);
+});
+
+
+test("already-merged convergence is non-applicable for an open PR but preserves merged-provenance failure", () => {
+  const convergence = fs.readFileSync(".github/workflows/autopilot-already-merged-audit-convergence.yml", "utf8");
+  assert.match(convergence, /pulls\/\$PR_NUMBER/);
+  assert.match(convergence, /if \[ "\$pr_state" = "open" \]/);
+  assert.match(convergence, /NO_ACTION Audit convergence is not applicable to an open PR/);
+  assert.match(convergence, /RELEASE_PROVENANCE_MISSING: already-merged PRs cannot be post-facto upgraded/);
+  const noActionIndex = convergence.indexOf("NO_ACTION Audit convergence is not applicable to an open PR");
+  const provenanceFailureIndex = convergence.indexOf("RELEASE_PROVENANCE_MISSING: already-merged PRs cannot be post-facto upgraded");
+  assert.ok(noActionIndex >= 0 && provenanceFailureIndex > noActionIndex);
+  assert.match(convergence.slice(provenanceFailureIndex), /exit 1/);
 });

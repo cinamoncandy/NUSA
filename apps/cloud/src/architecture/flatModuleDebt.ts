@@ -133,6 +133,11 @@ export const FLAT_MODULE_DEBT: readonly string[] = Object.freeze([
   "mobileDashboardHttp.ts",
   "mobileSessionHttp.ts",
   "mobileSessionService.ts",
+  // Added on main independently, before this ratchet reached main (73902cdc, 29a69a2e), and
+  // brought in by the merge. Listing it establishes the baseline against the tree the ratchet now
+  // describes; it is not the list being used as a place to add to. The count below moves 235 -> 236
+  // for that reason and for no other.
+  "moduleQualificationV1.ts",
   "module10XS.ts",
   "moduleLevel10.ts",
   "moduleReplacementPolicy10XS.ts",

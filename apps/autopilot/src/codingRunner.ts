@@ -77,6 +77,26 @@ export interface CodingPublisher {
   publish(request: CodingRunnerRequest, runtime: CodingRuntimeExecutionResult): Promise<CodingPublisherResult>;
 }
 
+export interface CodingRunnerFailureEvidence {
+  readonly code: string;
+  readonly workflowRunId: number;
+  readonly workflowName: string | null;
+  readonly workflowEvent: string | null;
+  readonly workflowStatus: string | null;
+  readonly workflowConclusion: string | null;
+  readonly headSha: string;
+}
+
+export class CodingRunnerEvidenceError extends Error {
+  readonly evidence: CodingRunnerFailureEvidence;
+
+  constructor(message: string, evidence: CodingRunnerFailureEvidence) {
+    super(message);
+    this.name = "CodingRunnerEvidenceError";
+    this.evidence = Object.freeze({ ...evidence });
+  }
+}
+
 export interface CodingRunnerResult {
   readonly status: string;
   readonly reason?: string;
@@ -309,7 +329,16 @@ export async function verifyCodingRunnerRequestAgainstGitHub(
   const failureRepair = request.reason.includes("gha:");
   const allowedConclusions = failureRepair ? ["failure", "cancelled", "timed_out"] : ["success"];
   if (typeof run.conclusion !== "string" || !allowedConclusions.includes(run.conclusion)) {
-    throw new Error(failureRepair ? "CODING_RUNNER_FAILURE_EVIDENCE_INVALID" : "CODING_RUNNER_WORKFLOW_NOT_SUCCESSFUL");
+    const code = failureRepair ? "CODING_RUNNER_FAILURE_EVIDENCE_INVALID" : "CODING_RUNNER_WORKFLOW_NOT_SUCCESSFUL";
+    throw new CodingRunnerEvidenceError(code, {
+      code,
+      workflowRunId: request.workflowRunId,
+      workflowName: typeof run.name === "string" ? run.name : null,
+      workflowEvent: typeof run.event === "string" ? run.event : null,
+      workflowStatus: typeof run.status === "string" ? run.status : null,
+      workflowConclusion: typeof run.conclusion === "string" ? run.conclusion : null,
+      headSha: request.headSha.toLowerCase(),
+    });
   }
   if (typeof run.head_branch !== "string" || !run.head_branch.trim()) throw new Error("CODING_RUNNER_WORKFLOW_BRANCH_INVALID");
 }

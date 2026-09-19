@@ -1,12 +1,15 @@
 import { parseGithubWebhookPayload, planGithubWebhookDispatch, type SupportedGithubEvent } from "./dispatchPlanner";
 import { resolveOpenPullRequestByHeadSha } from "./githubPrHeadShaResolver";
+import { resolveCanonicalPrCiForReady } from "./githubCanonicalPrCiResolver";
 import { planAutopilotExecution } from "./executionPlanner";
 import { executeGithubDispatch } from "./githubExecutor";
+import { resolveGithubReleaseCompletion } from "./githubReleaseCompletionResolver";
 import { verifyGithubActionsOidcToken, verifyGithubEventBridgeOidcToken } from "./githubActionsOidc";
-import { executeCodingRunner, validateCodingRunnerRequest, type CodingPublisher, type CodingRuntime, type WorkersAiBinding } from "./codingRunner";
+import { CodingRunnerEvidenceError, executeCodingRunner, validateCodingRunnerRequest, type CodingPublisher, type CodingRuntime, type WorkersAiBinding } from "./codingRunner";
 import { prepareProductionExecution } from "./productionExecutionSpine";
 import {
   acquirePersistentExecution,
+  applyPersistentControlPlaneHold,
   markPersistentExecutionDispatched,
   recordAutopilotExecutionTelemetry,
   readAutopilotExecutionTelemetry,
@@ -33,13 +36,24 @@ export interface Env {
   NUSA_AI_CODING_MODEL?: string;
   AI?: WorkersAiBinding;
   NUSA_DEPLOYMENT_REVISION?: string;
+  /** Fail closed by default; only an explicit deployment configuration may clear the global Release freeze. */
+  NUSA_GLOBAL_RELEASE_FREEZE?: string;
   NUSA_EXECUTION_COORDINATOR?: ExecutionCoordinatorNamespace;
 }
 
 const DEFAULT_REPOSITORY = "cinamoncandy/NUSA";
 const CODING_EXECUTION_LEASE_MS = 20 * 60 * 1000;
+const WEBHOOK_EXECUTION_LEASE_MS = 5 * 60 * 1000;
+const RELEASABLE_AUDIT_STATE_DECLINES = new Set([
+  "github-executor-pr-draft-hold-active",
+  "github-executor-pr-hold-label-active",
+]);
 const json = (body: unknown, status = 200): Response => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8" } });
 const encoder = new TextEncoder();
+
+export function globalReleaseFreezeActive(env: Pick<Env, "NUSA_GLOBAL_RELEASE_FREEZE">): boolean {
+  return env.NUSA_GLOBAL_RELEASE_FREEZE?.trim().toLowerCase() !== "false";
+}
 
 async function persistCodingTelemetry(env: Env, input: AutopilotExecutionTelemetryInput): Promise<void> {
   if (!env.NUSA_EXECUTION_COORDINATOR) return;
@@ -189,7 +203,14 @@ export async function handleCodingExecute(
         productionMutationAllowed: false,
         aiAuthority: "ZERO_AUTHORITY",
       });
-      return json({ error: failureReason, status: "EXECUTION_FAILED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 400);
+      return json({
+        error: failureReason,
+        status: "EXECUTION_FAILED",
+        failureEvidence: error instanceof CodingRunnerEvidenceError ? error.evidence : null,
+        liveAuthority: "NONE",
+        productionMutationAllowed: false,
+        aiAuthority: "ZERO_AUTHORITY",
+      }, 400);
     }
 
     if (result.status === "EXECUTION_ACCEPTED") {
@@ -246,7 +267,14 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
-    if (request.method === "GET" && url.pathname === "/health") return json({ service: "nusa-autopilot", status: "WEBHOOK_READY", webhookAuthentication: env.NUSA_WEBHOOK_SECRET ? "OIDC_OR_HMAC" : "OIDC", deploymentRevision: env.NUSA_DEPLOYMENT_REVISION?.trim() || "UNVERIFIED", executionPlanning: "ENABLED", boundedExecutionSpine: "ENABLED", persistentExecutionCoordination: env.NUSA_EXECUTION_COORDINATOR ? "CONFIGURED" : "INTERFACE_READY", codingExecutionEvidence: env.NUSA_EXECUTION_COORDINATOR ? "CONFIGURED" : "INTERFACE_READY", executionTelemetry: env.NUSA_EXECUTION_COORDINATOR ? "CONFIGURED" : "INTERFACE_READY", authenticatedExecutor: env.NUSA_GITHUB_TOKEN ? "CONFIGURED" : "INTERFACE_READY", codingRunner: "OIDC_READY", legacyCodingRunnerToken: env.NUSA_CODING_RUNNER_TOKEN ? "CONFIGURED" : "NOT_REQUIRED", aiCodingEngine: (env.NUSA_AI_CODING_ENDPOINT && env.NUSA_AI_CODING_TOKEN) || env.AI ? "CONFIGURED" : "INTERFACE_READY", allowedRepository, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+    if (request.method === "GET" && url.pathname === "/health") return json({ service: "nusa-autopilot", status: "WEBHOOK_READY", webhookAuthentication: env.NUSA_WEBHOOK_SECRET ? "OIDC_OR_HMAC" : "OIDC", deploymentRevision: env.NUSA_DEPLOYMENT_REVISION?.trim() || "UNVERIFIED", executionPlanning: "ENABLED", boundedExecutionSpine: "ENABLED", persistentExecutionCoordination: env.NUSA_EXECUTION_COORDINATOR ? "CONFIGURED" : "INTERFACE_READY", codingExecutionEvidence: env.NUSA_EXECUTION_COORDINATOR ? "CONFIGURED" : "INTERFACE_READY", executionTelemetry: env.NUSA_EXECUTION_COORDINATOR ? "CONFIGURED" : "INTERFACE_READY", authenticatedExecutor: env.NUSA_GITHUB_TOKEN ? "CONFIGURED" : "INTERFACE_READY", releaseProvenanceConsumer: env.NUSA_GITHUB_TOKEN ? "CONFIGURED" : "INTERFACE_READY", codingRunner: "OIDC_READY", legacyCodingRunnerToken: env.NUSA_CODING_RUNNER_TOKEN ? "CONFIGURED" : "NOT_REQUIRED", aiCodingEngine: (env.NUSA_AI_CODING_ENDPOINT && env.NUSA_AI_CODING_TOKEN) || env.AI ? "CONFIGURED" : "INTERFACE_READY", allowedRepository, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+
+    if (request.method === "GET" && url.pathname === "/release/status") {
+      const prNumber = Number(url.searchParams.get("pr"));
+      const release = await resolveGithubReleaseCompletion(prNumber, { token: env.NUSA_GITHUB_TOKEN, allowedRepository });
+      const unavailable = release.reason === "release-github-token-not-configured";
+      return json(release, unavailable ? 503 : 200);
+    }
 
     if (request.method === "GET" && url.pathname === "/scheduled/status") {
       if (!env.NUSA_EXECUTION_COORDINATOR) return json({ status: "UNAVAILABLE", reason: "PERSISTENT_EXECUTION_COORDINATOR_REQUIRED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 503);
@@ -298,8 +326,67 @@ export default {
     const body = await request.text();
     if (!await verifyGithubWebhookAuthorization(request, env, body, allowedRepository)) return json({ error: "GITHUB_WEBHOOK_UNAUTHORIZED" }, 401);
     let dispatch;
-    try { dispatch = planGithubWebhookDispatch(event, parseGithubWebhookPayload(body)); }
-    catch (error) { return json({ error: error instanceof Error ? error.message : "GITHUB_WEBHOOK_PAYLOAD_INVALID" }, 400); }
+    let payload: Record<string, unknown>;
+    try {
+      payload = parseGithubWebhookPayload(body);
+      dispatch = planGithubWebhookDispatch(event, payload);
+    } catch (error) { return json({ error: error instanceof Error ? error.message : "GITHUB_WEBHOOK_PAYLOAD_INVALID" }, 400); }
+
+    // During a global Release freeze, every observed PR identity is bound to one durable exact
+    // PR/head/base HOLD in the existing execution coordinator. Duplicate/replayed deliveries are
+    // idempotent; they can never clear the HOLD. A ready_for_review event is treated as evidence
+    // of an attempted promotion, not as authority to advance the pipeline.
+    if (event === "pull_request" && dispatch.kind === "PR_CHANGED" && dispatch.prNumber && dispatch.headSha && globalReleaseFreezeActive(env)) {
+      if (!env.NUSA_EXECUTION_COORDINATOR) return json({ error: "PERSISTENT_EXECUTION_COORDINATOR_REQUIRED", status: "CONTROL_PLANE_HOLD_REQUIRED" }, 503);
+      const pull = payload.pull_request && typeof payload.pull_request === "object" && !Array.isArray(payload.pull_request) ? payload.pull_request as Record<string, unknown> : null;
+      const base = pull?.base && typeof pull.base === "object" && !Array.isArray(pull.base) ? pull.base as Record<string, unknown> : null;
+      const baseSha = typeof base?.sha === "string" ? base.sha : "";
+      if (!/^[0-9a-f]{40}$/i.test(baseSha)) return json({ error: "CONTROL_PLANE_HOLD_BASE_SHA_REQUIRED" }, 409);
+      const holdId = `global-release-freeze:${dispatch.prNumber}:${dispatch.headSha.toLowerCase()}:${baseSha.toLowerCase()}`;
+      try {
+        await applyPersistentControlPlaneHold(env.NUSA_EXECUTION_COORDINATOR, {
+          repository: allowedRepository, prNumber: dispatch.prNumber, headSha: dispatch.headSha, baseSha, now: Date.now(),
+          hold: { holdId, prNumber: dispatch.prNumber, headSha: dispatch.headSha, baseSha, reason: "GLOBAL_RELEASE_FREEZE", source: "#1803/#1861" },
+        });
+      } catch (error) {
+        return json({ error: error instanceof Error ? error.message : "CONTROL_PLANE_HOLD_PERSIST_FAILED", status: "CONTROL_PLANE_HOLD_FAILED_CLOSED" }, 409);
+      }
+      if (dispatch.reason === "pull-request:ready_for_review") {
+        return json({ accepted: true, status: "NO_ACTION", reason: "CONTROL_PLANE_HOLD_ACTIVE", deliveryId, event, dispatch, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 202);
+      }
+    }
+
+    // A PR may finish canonical CI while still Draft. GitHub later sends ready_for_review as a
+    // PR_CHANGED event without a workflow-run identity, so recover only the one already-completed
+    // canonical pull_request CI run for this exact immutable head. The resulting dispatch is the
+    // existing PR_CI_SUCCEEDED identity; planning, dedupe, and executor revalidation stay shared.
+    if (dispatch.kind === "PR_CHANGED" && dispatch.reason === "pull-request:ready_for_review") {
+      const resolution = await resolveCanonicalPrCiForReady(dispatch, {
+        token: env.NUSA_GITHUB_TOKEN,
+        allowedRepository,
+      });
+      if (!resolution.resolved || !resolution.dispatch) {
+        return json({
+          accepted: true,
+          status: "NOOP",
+          reason: resolution.reason,
+          deliveryId,
+          event,
+          dispatch,
+          executor: {
+            status: "NOOP",
+            reason: "github-executor-ready-ci-replay-unresolved",
+            httpStatus: null,
+            requestedHeadSha: dispatch.headSha,
+            observedHeadSha: null,
+          },
+          liveAuthority: "NONE",
+          productionMutationAllowed: false,
+          aiAuthority: "ZERO_AUTHORITY",
+        }, 202);
+      }
+      dispatch = resolution.dispatch;
+    }
 
     // workflow_run.pull_requests is empty for cross-repository PRs, restricted forks, and some
     // pull_request_target runs -- not a reliable "no PR" signal. dispatchPlanner.ts still surfaces
@@ -317,6 +404,7 @@ export default {
     const planned = planAutopilotExecution(dispatch);
     let execution = planned;
     let boundedExecution = null;
+    let persistentExecutionIdentity: { readonly dedupeKey: string; readonly executionId: string } | null = null;
     try {
       boundedExecution = prepareProductionExecution(dispatch, {
         deliveryId,
@@ -324,29 +412,78 @@ export default {
         now: Date.now(),
         allowedRepository,
       });
-      if (dispatch.kind === "CI_SUCCEEDED") {
-        if (!boundedExecution) throw new Error("PRODUCTION_EXECUTION_BOUNDARY_REQUIRED");
+      if (dispatch.kind === "CI_SUCCEEDED" || dispatch.kind === "PR_CI_SUCCEEDED") {
         if (!env.NUSA_EXECUTION_COORDINATOR) throw new Error("PERSISTENT_EXECUTION_COORDINATOR_REQUIRED");
-        const lease = boundedExecution.state.lease;
-        if (!lease) throw new Error("PERSISTENT_EXECUTION_LEASE_REQUIRED");
+        if (dispatch.kind === "CI_SUCCEEDED") {
+          if (!boundedExecution) throw new Error("PRODUCTION_EXECUTION_BOUNDARY_REQUIRED");
+          const lease = boundedExecution.state.lease;
+          if (!lease) throw new Error("PERSISTENT_EXECUTION_LEASE_REQUIRED");
+          execution = boundedExecution.request;
+          persistentExecutionIdentity = boundedExecution.envelope;
+        } else {
+          if (planned.kind !== "AUDIT_REQUEST" || !planned.dedupeKey || !planned.executionId) {
+            throw new Error("PERSISTENT_EXECUTION_IDENTITY_REQUIRED");
+          }
+          persistentExecutionIdentity = { dedupeKey: planned.dedupeKey, executionId: planned.executionId };
+        }
         const persistent = await acquirePersistentExecution(env.NUSA_EXECUTION_COORDINATOR, {
-          dedupeKey: boundedExecution.envelope.dedupeKey,
-          executionId: boundedExecution.envelope.executionId,
+          dedupeKey: persistentExecutionIdentity.dedupeKey,
+          executionId: persistentExecutionIdentity.executionId,
           now: Date.now(),
-          leaseExpiresAt: lease.expiresAt,
+          leaseExpiresAt: boundedExecution?.state.lease?.expiresAt ?? Date.now() + WEBHOOK_EXECUTION_LEASE_MS,
         });
-        if (!persistent.acquired) return json({ accepted: true, status: "DUPLICATE_EXECUTION_SUPPRESSED", reason: persistent.reason, deliveryId, event, dispatch, executionBoundary: { dedupeKey: boundedExecution.envelope.dedupeKey, origin: boundedExecution.envelope.origin }, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 202);
-        execution = boundedExecution.request;
+        if (!persistent.acquired) return json({
+          accepted: true,
+          status: "DUPLICATE_EXECUTION_SUPPRESSED",
+          reason: persistent.reason,
+          deliveryId,
+          event,
+          dispatch,
+          execution,
+          executor: {
+            status: "REJECTED",
+            reason: "github-executor-duplicate-execution-suppressed",
+            httpStatus: null,
+            requestedHeadSha: dispatch.headSha,
+            observedHeadSha: null,
+          },
+          executionBoundary: { dedupeKey: persistentExecutionIdentity.dedupeKey, origin: boundedExecution?.envelope.origin ?? "AUTO_BACKGROUND" },
+          liveAuthority: "NONE",
+          productionMutationAllowed: false,
+          aiAuthority: "ZERO_AUTHORITY",
+        }, 202);
       }
     } catch (error) {
       return json({ error: error instanceof Error ? error.message : "PRODUCTION_EXECUTION_INVALID", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 409);
     }
 
     const executor = await executeGithubDispatch(execution, { token: env.NUSA_GITHUB_TOKEN, allowedRepository });
-    if (boundedExecution && executor.status === "DISPATCHED" && env.NUSA_EXECUTION_COORDINATOR) {
+    if (
+      persistentExecutionIdentity
+      && dispatch.kind === "PR_CI_SUCCEEDED"
+      && executor.status === "REJECTED"
+      && RELEASABLE_AUDIT_STATE_DECLINES.has(executor.reason ?? "")
+      && env.NUSA_EXECUTION_COORDINATOR
+    ) {
+      try {
+        await releasePersistentExecution(env.NUSA_EXECUTION_COORDINATOR, {
+          dedupeKey: persistentExecutionIdentity.dedupeKey,
+          executionId: persistentExecutionIdentity.executionId,
+          now: Date.now(),
+        });
+      } catch {
+        return json({
+          error: "PERSISTENT_AUDIT_EXECUTION_RELEASE_FAILED",
+          liveAuthority: "NONE",
+          productionMutationAllowed: false,
+          aiAuthority: "ZERO_AUTHORITY",
+        }, 409);
+      }
+    }
+    if (persistentExecutionIdentity && executor.status === "DISPATCHED" && env.NUSA_EXECUTION_COORDINATOR) {
       await markPersistentExecutionDispatched(env.NUSA_EXECUTION_COORDINATOR, {
-        dedupeKey: boundedExecution.envelope.dedupeKey,
-        executionId: boundedExecution.envelope.executionId,
+        dedupeKey: persistentExecutionIdentity.dedupeKey,
+        executionId: persistentExecutionIdentity.executionId,
         now: Date.now(),
       });
     }

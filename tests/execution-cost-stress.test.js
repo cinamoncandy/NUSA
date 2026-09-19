@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { recordStressExperiment, runExecutionCostStress } = require("../dist/apps/desktop/src/strategy/executionCostStress.js");
 
-class RoundTrip { constructor() { this.id = "round"; this.name = "Round"; this.index = 0; } onTick(tick) { this.index += 1; return { type: this.index === 1 ? "BUY" : this.index === 2 ? "SELL" : "HOLD", reason: "round", confidence: 0, timestamp: tick.timestamp }; } reset() { this.index = 0; } }
+class RoundTrip { constructor() { this.id = "round"; this.name = "Round"; } onTick(tick) { const phase = ((tick.timestamp - 1) % 3) + 1; return { type: phase === 1 ? "BUY" : phase === 2 ? "SELL" : "HOLD", reason: "round", confidence: 0, timestamp: tick.timestamp }; } reset() {} }
 class Flat { constructor() { this.id = "flat"; this.name = "Flat"; } onTick(tick) { return { type: "HOLD", reason: "flat", confidence: 0, timestamp: tick.timestamp }; } reset() {} }
 const points = (values = [100, 120, 110, 130, 120, 140, 130, 150, 140]) => values.map((close, index) => ({ timestamp: index + 1, close }));
 const candidates = () => [{ id: "round", strategyFactory: () => new RoundTrip() }, { id: "flat", strategyFactory: () => new Flat() }];
@@ -11,7 +11,8 @@ const scenarios = () => [
   { id: "baseline", feeRate: 0, spreadBps: 0, slippageBps: 0 },
   { id: "medium", feeRate: 0.05, spreadBps: 20, slippageBps: 20 }
 ];
-const walk = { trainSize: 3, testSize: 2, stepSize: 2, backtestConfig: { initialCash: 1000, orderQuantity: 1 } };
+// Three points are the minimum causal round-trip window: BUY signal -> next-observation BUY fill / SELL signal -> next-observation SELL fill.
+const walk = { trainSize: 3, testSize: 3, stepSize: 3, backtestConfig: { initialCash: 1000, orderQuantity: 1 } };
 const identity = { sourceExperimentSha: "source-experiment-sha", datasetSha256: "a".repeat(64) };
 const run = (overrides = {}) => runExecutionCostStress(points(), candidates(), walk, { scenarios: scenarios(), baselineScenarioId: "baseline", ...overrides }, identity);
 
@@ -29,4 +30,3 @@ test("19 OOS metrics remain separate from 20 open-position marked policy", () =>
 test("21 candidate churn is surfaced through scenario warnings", () => { const result = run(); assert.ok(result.scenarios.every(x => Array.isArray(x.warnings))); });
 test("22 Research Memory identity is deterministic and 23 record insertion is idempotent", () => { const result = run(); const records = new Map(); const adapter = { appendExperiment(record) { const existing = records.get(record.id); if (existing) { assert.deepEqual(existing, record); return existing; } records.set(record.id, record); return record; } }; assert.deepEqual(result.identity, run().identity); assert.deepEqual(recordStressExperiment(adapter, result, { datasetId: "dataset", manifestSchemaVersion: 1, market: "KRW-BTC", interval: "1m", startOpenTime: 0, endCloseTime: 60_000 }), recordStressExperiment(adapter, result, { datasetId: "dataset", manifestSchemaVersion: 1, market: "KRW-BTC", interval: "1m", startOpenTime: 0, endCloseTime: 60_000 })); });
 test("24 invalid non-finite scenario fails closed", () => { assert.throws(() => run({ scenarios: [{ id: "baseline", feeRate: 0, spreadBps: 0, slippageBps: 0 }, { id: "bad", feeRate: NaN, spreadBps: 0, slippageBps: 0 }] }), /invalid cost/); });
-

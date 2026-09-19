@@ -55,7 +55,7 @@ test("the debt is counted, and counted honestly", () => {
   // not merged yet, so nobody was asked to place them in a directory. Once it is merged, a
   // rising number here is a rule being broken, not a baseline being refreshed.
   assert.equal(new Set(FLAT_MODULE_DEBT).size, FLAT_MODULE_DEBT.length, "duplicate entry");
-  assert.equal(FLAT_MODULE_DEBT.length, 235);
+  assert.equal(FLAT_MODULE_DEBT.length, 236);
   assert.ok(FLAT_MODULE_DEBT.every((name) => name.endsWith(".ts") && !name.includes("/")), "entries are bare filenames");
 });
 

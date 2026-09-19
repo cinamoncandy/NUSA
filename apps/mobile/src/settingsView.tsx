@@ -19,6 +19,7 @@ import { describeRefusal, isResolvableInOperatorPanel, type RefusalDescriptor } 
 import { RefusalRecord } from "./instrumentSurfaces";
 import { mobileApprovedSession, type MobilePairingRequest } from "./mobileApprovedSessionBoundary";
 import { ownerDeviceCredential, type OwnerDeviceCredentialNative, type OwnerDeviceCredentialStatus } from "./ownerDeviceCredential";
+import { OwnerConnectionExperience, type OwnerConnectionStage } from "./ownerConnectionExperience";
 
 interface SettingsViewProps { readonly repository: SettingsRepository; readonly onSignOut?: () => void; readonly exchangeCash?: number; readonly onCloudInvestmentPercentSave?: (investmentPercent: number) => Promise<void>; readonly onInvestmentPercentChanged?: (investmentPercent: number) => void; readonly credentialSession?: InMemoryDashboardCredentialSession; readonly canonicalEndpoint?: string | null; }
 const themeItems = Object.freeze([{ key: "SYSTEM", label: "시스템" }, { key: "LIGHT", label: "라이트" }, { key: "DARK", label: "다크" }]);
@@ -75,6 +76,7 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
   const [ownerDeviceStatus, setOwnerDeviceStatus] = useState<OwnerDeviceCredentialStatus | null>(null);
   const [ownerDeviceBusy, setOwnerDeviceBusy] = useState(false);
   const [ownerAuthenticationFallback, setOwnerAuthenticationFallback] = useState(false);
+  const [showRecoveryOptions, setShowRecoveryOptions] = useState(false);
   const [ownerPassword, setOwnerPassword] = useState("");
   const [currentOwnerPassword, setCurrentOwnerPassword] = useState("");
   const [newOwnerPassword, setNewOwnerPassword] = useState("");
@@ -213,11 +215,22 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
         markPaperConnectionVerified(configuredEndpoint); setConnection(result); setPairing(null); setOwnerAuthenticationFallback(false);
         return;
       }
-      // Compatibility/recovery only: a phone with no registered device credential still needs
-      // an existing OWNER to approve the legacy pairing path. It is not the normal UX.
+      credentialSession.clear(); clearPaperConnectionVerification();
+      setConnection({ status: "NOT_CONFIGURED", reason: "소유자 확인 후 이 휴대폰을 먼저 등록하세요." });
+    } catch (connectionError) { credentialSession.clear(); clearPaperConnectionVerification(); setOwnerAuthenticationFallback(true); setConnection({ status: "NOT_CONFIGURED", reason: describeCredentialFailure(connectionError) }); }
+    finally { connectionInFlightRef.current = false; setConnecting(false); }
+  };
+  const requestRecoveryPairing = async () => {
+    if (settings == null || isBusyNow()) return;
+    connectionInFlightRef.current = true; setConnectionAttempted(true); setConnecting(true); setError(null);
+    try {
+      if (!await persist({ ...settings, paperEndpoint: endpointDraft })) return;
+      const configuredEndpoint = getConfiguredPaperEndpoint();
+      if (!configuredEndpoint) throw new Error("Cloud PAPER endpoint is not configured.");
+      if (installationId == null) throw new Error("Secure installation identity is unavailable.");
       const request = await mobileApprovedSession().startPairing(configuredEndpoint, installationId);
-      setPairing(request); setConnection({ status: "NOT_CONFIGURED", reason: "호환/복구 소유자 승인을 기다리고 있습니다." });
-    } catch (connectionError) { setOwnerAuthenticationFallback(true); setConnection({ status: "NOT_CONFIGURED", reason: "소유자 인증을 완료하지 못했습니다. 다시 시도하거나 비밀번호로 로그인하세요." }); }
+      setPairing(request); setShowRecoveryOptions(true); setConnection({ status: "NOT_CONFIGURED", reason: "복구 연결 승인을 기다리고 있습니다." });
+    } catch (connectionError) { setConnection({ status: "NOT_CONFIGURED", reason: describeCredentialFailure(connectionError) }); }
     finally { connectionInFlightRef.current = false; setConnecting(false); }
   };
   const enrollThisPhone = async () => {
@@ -304,6 +317,7 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
   const cloudConnectionTone = connecting ? "info" : connection.status === "READY" ? "success" : connectionFailed || connection.status === "UNAVAILABLE" ? "danger" : "warning";
   const cloudConnectionLabel = connecting ? "VERIFYING" : connection.status === "READY" ? "VERIFIED" : connectionFailed || connection.status === "UNAVAILABLE" ? "RETRY" : "NOT CONNECTED";
   const ownerCredentialReady = ownerDeviceStatus?.available === true && ownerDeviceStatus.credentialId != null;
+  const ownerConnectionStage: OwnerConnectionStage = connection.status === "READY" ? "COMPLETE" : connecting || ownerDeviceBusy ? "SECURE_SESSION" : connectionFailed ? "BLOCKED" : ownerCredentialReady ? "VERIFY_OWNER" : "VERIFY_DEVICE";
   const cloudConnectionDetail = connecting || ownerDeviceBusy ? "서버, 소유자 기기 인증과 PAPER 운영 projection을 검증하고 있습니다." : connection.status === "READY" ? `${connection.snapshot.operations.runtimeState} · ${connection.snapshot.operations.transport}` : connectionFailed ? connection.reason : ownerCredentialReady ? "소유자 인증 한 번으로 이 기기의 PAPER 보안 세션을 시작합니다." : "이 휴대폰 등록 뒤에는 소유자 인증만으로 연결합니다.";
   const allocationCash = exchangeCash > 0 ? exchangeCash : LOCAL_PAPER_INITIAL_CASH;
   const allocation = createCashInvestmentEnvelope(allocationCash, settings.capitalAllocation.investmentPercent);
@@ -316,26 +330,30 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
     <ScreenHeader eyebrow="APPLICATION" title="설정" description="LOCAL PAPER는 연결 없이 즉시 사용할 수 있습니다. Cloud 기능은 선택 사항입니다." statusLabel="LOCAL 준비됨" statusTone="success" />
     {error ? <InlineNotice title="설정 저장 오류" detail={error} tone="danger" /> : null}
 
-    <View style={styles.sectionBlock} testID="settings-local-paper"><View style={styles.sectionHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>PAPER · LOCAL</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>기기 내 PAPER</Text></View><StatusChip label="READY" tone="success" /></View><InlineNotice title="연결 없이 관측 가능" detail={`Upbit 공개 시세와 가상자금 ${money(LOCAL_PAPER_INITIAL_CASH)}으로 LOCAL PAPER 관측·회계·학습 근거를 사용할 수 있습니다. Cloud endpoint와 bootstrap token은 필요하지 않습니다.`} tone="success" testID="settings-local-paper-ready" /></View>
+    <View style={styles.sectionBlock} testID="settings-local-paper"><View style={styles.sectionHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>PAPER · LOCAL</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>기기 내 PAPER</Text></View><StatusChip label="READY" tone="success" /></View><InlineNotice title="연결 없이 관측 가능" detail={`Upbit 공개 시세와 가상자금 ${money(LOCAL_PAPER_INITIAL_CASH)}으로 LOCAL PAPER 관측·회계·학습 근거를 사용할 수 있습니다. Cloud 연결 정보는 필요하지 않습니다.`} tone="success" testID="settings-local-paper-ready" /></View>
 
     <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
     <View style={styles.sectionBlock} testID="settings-paper-connection">
-      <View style={styles.sectionHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>CONNECTIONS · CLOUD PAPER</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>PAPER 서버 연결</Text></View><StatusChip label={cloudConnectionLabel} tone={cloudConnectionTone} /></View>
-      <InlineNotice title={connection.status === "READY" ? "연결 검증 완료" : connectionFailed ? "연결을 다시 확인하세요" : "Cloud PAPER 연결"} detail={cloudConnectionDetail} tone={connection.status === "READY" ? "success" : connectionFailed ? "danger" : "info"} testID="settings-connection-summary" />
-      <View style={styles.connectionSteps} testID="settings-connection-steps">
-        <ConnectionStep index="1" title="SERVER" detail={canonicalEndpoint ? "Release에 주입된 canonical HTTPS endpoint" : endpointDraft.trim() ? "입력한 HTTPS endpoint" : "Cloud를 사용할 때 endpoint 필요"} state={canonicalEndpoint || endpointDraft.trim() ? "READY" : "NEEDED"} tone={canonicalEndpoint || endpointDraft.trim() ? "success" : "neutral"} />
-        <ConnectionStep index="2" title="OWNER DEVICE" detail={ownerCredentialReady ? "지문·얼굴·기기 잠금으로 이 기기의 비공개 키가 인증합니다" : "최초 1회 ACTIVE OWNER로 이 휴대폰을 등록하세요"} state={connection.status === "READY" ? "SECURE" : ownerCredentialReady ? "READY" : pairing != null ? "RECOVERY" : "NEEDED"} tone={connection.status === "READY" ? "success" : ownerCredentialReady ? "info" : pairing != null ? "warning" : "neutral"} />
-        <ConnectionStep index="3" title="VERIFY" detail="PAPER 운영 projection까지 읽힌 경우에만 연결 완료" state={connecting ? "CHECKING" : connection.status === "READY" ? "VERIFIED" : connectionFailed ? "ERROR" : "WAITING"} tone={connecting ? "info" : connection.status === "READY" ? "success" : connectionFailed ? "danger" : "neutral"} {...(connectionFailed ? { errorDetail: connection.reason } : {})} />
-      </View>
-      {canonicalEndpoint ? <Text style={[styles.hint, { color: theme.colors.textMuted }]} testID="settings-paper-endpoint">이 릴리스의 안전한 Cloud endpoint를 사용합니다.</Text> : <NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} keyboardType="url" label="Cloud endpoint" value={endpointDraft} onChangeText={setEndpointDraft} placeholder="https://..." returnKeyType="done" testID="settings-paper-endpoint" />}
-      {pairing != null ? <InlineNotice title="호환/복구 연결 승인 대기" detail={`등록된 소유자 기기가 없는 경우에만 이 확인 코드를 기존 소유자에게 전달하세요: ${pairing.verificationCode}.`} tone="warning" testID="settings-paper-pairing-status" /> : null}
-      <Text style={[styles.hint, { color: theme.colors.textMuted }]}>등록 후에는 지문·얼굴 인증만 사용합니다. 개인키·거래소 키·세션 비밀은 JavaScript, 로그, 일반 저장소에 들어가지 않습니다.</Text>
-      {ownerCredentialReady ? <View style={styles.row}><NusaButton disabled={busy || pairing != null} label={ownerDeviceBusy || connecting ? "인증 중..." : "소유자 인증"} onPress={() => void requestPaperConnection()} testID="settings-paper-connect" /><NusaButton disabled={busy || connection.status !== "READY"} label="연결 해제" onPress={disconnect} tone="neutral" testID="settings-paper-disconnect" /></View> : null}
-      {!ownerCredentialReady || ownerAuthenticationFallback ? <View style={styles.compatibilityBlock} testID="settings-owner-device-enrollment"><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>INITIAL / RECOVERY ONLY</Text>{connectionRefusal == null ? null : <RefusalRecord refusal={connectionRefusal} testID="settings-connection-refusal" {...(isResolvableInOperatorPanel(connectionRefusal) ? { actionLabel: "운영자 승인으로 이동", onAction: () => scrollRef.current?.scrollTo({ y: Math.max(0, operatorSectionYRef.current - 12), animated: true }) } : {})} />}{capabilities.passwordSignIn === "NOT_CONFIGURED" ? <InlineNotice title="서버에 비밀번호가 아직 없습니다" detail="이 서버에서 set-owner-password 스크립트를 한 번 실행해야 비밀번호 로그인이 열립니다. 그전에는 어떤 비밀번호도 거부됩니다." tone="warning" testID="settings-password-not-configured" /> : null}<Text style={[styles.hint, { color: theme.colors.textMuted }]}>{ownerAuthenticationFallback ? "생체 인증을 취소하거나 완료하지 못했습니다. 기기 자격 증명은 그대로 유지됩니다. 다시 시도하거나 비밀번호로 복구할 수 있습니다." : "처음 또는 복구 시에는 OWNER 비밀번호로 로그인한 뒤 이 휴대폰을 등록합니다. 비밀번호는 이 한 번의 요청 뒤 바로 지워지며 저장하지 않습니다."}</Text><NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy && pairing == null} label="비밀번호" value={ownerPassword} onChangeText={setOwnerPassword} placeholder="초기/복구에서만 사용" secureTextEntry testID="settings-owner-password" /><NusaButton disabled={busy || pairing != null || !ownerPassword} label={ownerDeviceBusy ? "등록 중..." : "로그인 및 이 휴대폰 등록"} onPress={() => void enrollThisPhone()} tone="primary" testID="settings-owner-device-enroll" /></View> : null}
-      <Text style={[styles.hint, { color: theme.colors.textMuted }]}>호환용 1회 연결 토큰(보조 경로): 기존에 발급된 토큰만 사용할 수 있으며 bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다. LOCAL PAPER에는 사용하지 않습니다. 등록된 소유자 기기가 없는 초기·복구 상황에서만 사용합니다. 서버가 받는 값은 셋입니다 — ① 소유자 대시보드 토큰(만료 없음) ② 등록 토큰(설정된 경우, 만료 없음) ③ 부트스트랩 토큰(발급 후 10분, 1회용). 며칠 전에 받아둔 부트스트랩 토큰은 반드시 거부됩니다.</Text>
-      <NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy && pairing == null} label="1회용 연결 토큰 (호환용)" value={tokenDraft} onChangeText={setTokenDraft} placeholder="기존 토큰이 있는 경우에만 입력" returnKeyType="done" secureTextEntry testID="settings-paper-token" />
-      <NusaButton disabled={busy || pairing != null || !tokenDraft.trim()} label={connecting ? "검증 중..." : "호환 토큰으로 연결"} onPress={() => void testConnection()} tone="neutral" testID="settings-paper-legacy-connect" />
-      <NusaButton disabled={busy || pairing != null || ownerCredentialReady} label={pairing != null ? "호환 승인 대기 중" : "호환 코드 연결"} onPress={() => void requestPaperConnection()} tone="neutral" testID="settings-paper-legacy-pairing" />
+      <OwnerConnectionExperience
+        stage={ownerConnectionStage}
+        deviceCredentialAvailable={ownerCredentialReady}
+        busy={busy}
+        detail={connection.status === "READY" ? undefined : cloudConnectionDetail}
+        onAuthenticateOwner={() => { void requestPaperConnection(); }}
+        onRecoverWithPairing={() => { void requestRecoveryPairing(); }}
+      />
+      {canonicalEndpoint ? <Text style={[styles.hint, { color: theme.colors.textMuted }]} testID="settings-paper-endpoint">이 릴리스의 안전한 PAPER 서버를 사용합니다.</Text> : <NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} keyboardType="url" label="PAPER 서버 주소" value={endpointDraft} onChangeText={setEndpointDraft} placeholder="https://..." returnKeyType="done" testID="settings-paper-endpoint" />}
+      {!ownerCredentialReady ? <View style={styles.compatibilityBlock} testID="settings-owner-device-enrollment">{connectionRefusal == null ? null : <RefusalRecord refusal={connectionRefusal} testID="settings-connection-refusal" {...(isResolvableInOperatorPanel(connectionRefusal) ? { actionLabel: "운영자 승인으로 이동", onAction: () => scrollRef.current?.scrollTo({ y: Math.max(0, operatorSectionYRef.current - 12), animated: true }) } : {})} />}{capabilities.passwordSignIn === "NOT_CONFIGURED" ? <InlineNotice title="서버에 비밀번호가 아직 없습니다" detail="이 서버에서 set-owner-password 스크립트를 한 번 실행해야 비밀번호 로그인이 열립니다. 그전에는 어떤 비밀번호도 거부됩니다." tone="warning" testID="settings-password-not-configured" /> : null}<Text style={[styles.hint, { color: theme.colors.textMuted }]}>최초 연결에서는 소유자 확인 후 이 휴대폰을 등록합니다. 확인 정보는 저장하지 않습니다.</Text><NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy && pairing == null} label="소유자 비밀번호" value={ownerPassword} onChangeText={setOwnerPassword} placeholder="최초 기기 승인" secureTextEntry testID="settings-owner-password" /><NusaButton disabled={busy || pairing != null || !ownerPassword} label={ownerDeviceBusy ? "등록 중..." : "소유자 확인 및 이 휴대폰 등록"} onPress={() => void enrollThisPhone()} tone="primary" testID="settings-owner-device-enroll" /></View> : null}
+      {ownerAuthenticationFallback && ownerCredentialReady ? <InlineNotice title="기기 확인을 완료하지 못했습니다" detail="취소하거나 인증에 실패해 PAPER 변경 권한은 발급되지 않았습니다. 다시 시도하거나 필요할 때만 복구 옵션을 여세요." tone="warning" testID="settings-owner-auth-failed" /> : null}
+      <NusaButton disabled={busy} label={showRecoveryOptions ? "복구 옵션 닫기" : "복구 옵션"} onPress={() => setShowRecoveryOptions((value) => !value)} tone="neutral" testID="settings-paper-recovery-toggle" />
+      {showRecoveryOptions ? <View style={styles.compatibilityBlock} testID="settings-paper-recovery-options">
+        <Text style={[styles.hint, { color: theme.colors.textMuted }]}>기존 승인 기기를 사용할 수 없을 때만 복구 경로를 사용합니다. 일반 PAPER 연결은 이 정보를 요구하지 않습니다.</Text>
+        {pairing != null ? <InlineNotice title="6자리 코드 승인 대기" detail={`기존 소유자 기기에서 다음 코드를 확인하세요: ${pairing.verificationCode}`} tone="warning" testID="settings-paper-pairing-status" /> : <NusaButton disabled={busy || pairing != null} label="6자리 코드로 복구 연결" onPress={() => void requestRecoveryPairing()} tone="neutral" testID="settings-paper-legacy-pairing" />}
+        <Text style={[styles.hint, { color: theme.colors.textMuted }]}>서버가 받는 복구 키는 셋입니다 — ① 소유자 대시보드 토큰(만료 없음) ② 등록 토큰(설정된 경우, 만료 없음) ③ 부트스트랩 토큰(발급 후 10분, 1회용). 며칠 전에 받아둔 부트스트랩 토큰은 반드시 거부됩니다.</Text>
+        <NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy && pairing == null} label="1회용 복구 키" value={tokenDraft} onChangeText={setTokenDraft} placeholder="기존 복구 키가 있는 경우" returnKeyType="done" secureTextEntry testID="settings-paper-token" />
+        <NusaButton disabled={busy || pairing != null || !tokenDraft.trim()} label={connecting ? "검증 중..." : "복구 키로 연결"} onPress={() => void testConnection()} tone="neutral" testID="settings-paper-legacy-connect" />
+      </View> : null}
+      {connection.status === "READY" ? <NusaButton disabled={busy} label="연결 해제" onPress={disconnect} tone="neutral" testID="settings-paper-disconnect" /> : null}
     </View>
 
     {connection.status === "READY" ? <><View style={[styles.divider, { backgroundColor: theme.colors.border }]} /><View style={styles.sectionBlock} testID="settings-owner-password-change"><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>OWNER · SECURITY</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>비밀번호 변경</Text><Text style={[styles.hint, { color: theme.colors.textMuted }]}>현재 비밀번호를 다시 확인해야 변경할 수 있습니다.</Text><NusaTextField secureTextEntry autoCorrect={false} editable={!ownerPasswordChangeBusy} label="현재 비밀번호" value={currentOwnerPassword} onChangeText={setCurrentOwnerPassword} testID="settings-owner-current-password" /><NusaTextField secureTextEntry autoCorrect={false} editable={!ownerPasswordChangeBusy} label="새 비밀번호" value={newOwnerPassword} onChangeText={setNewOwnerPassword} testID="settings-owner-new-password" /><NusaButton disabled={ownerPasswordChangeBusy || !currentOwnerPassword || !newOwnerPassword} label={ownerPasswordChangeBusy ? "변경 중..." : "비밀번호 변경"} onPress={() => void changeOwnerPassword()} testID="settings-owner-password-change-submit" />{ownerPasswordChangeMessage ? <Text style={[styles.hint, { color: theme.colors.textMuted }]}>{ownerPasswordChangeMessage}</Text> : null}</View></> : null}

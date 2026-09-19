@@ -170,7 +170,6 @@ export async function runAuditDispatchFallback({
     head_sha: event.headSha,
     pr_number: evidence.prNumber,
     workflow_run_id: event.runId,
-    reason: `audit:pr:${evidence.prNumber}:ci:${event.runId}:${event.headSha}`,
     execution_id: `audit:${evidence.prNumber}:${event.runId}`,
     dedupe_key: `audit:${evidence.prNumber}:${event.runId}:${event.headSha}`,
     live_authority: "NONE",
