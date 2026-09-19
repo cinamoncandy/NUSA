@@ -60,12 +60,12 @@ function stressScenario(id, overrides = {}) {
     scenario: { id, ...costs },
     selectionMode: "FIX_BASELINE_SELECTION",
     markedTotalReturn: id === "BASE" ? 0.1 : id === "MODERATE" ? 0.09 : 0.08,
-    markedMaximumDrawdown: id === "BASE" ? 0.1 : id === "MODERATE" ? 0.11 : 0.12,
+    markedMaximumDrawdown: id === "BASE" ? 0.08 : id === "MODERATE" ? 0.11 : 0.12,
     closedTradeNetProfit: 1000,
     closedTradeExpectancy: 100,
     closedTradeProfitFactor: 1.5,
     totalTradingCost: 100,
-    benchmarkOutperformance: 0.02,
+    benchmarkOutperformance: id === "BASE" ? 0.03 : 0.02,
     totalOosClosedTrades: 4,
     warnings: [],
     ...overrides,
@@ -532,4 +532,29 @@ test("parameter assessment without comparable neighbor evidence stays insufficie
   result = qualifyResearchFactoryRun(zeroNeighbors);
   assert.equal(result.candidates[0].outcome, "INSUFFICIENT");
   assert.ok(result.candidates[0].reasons.includes("PARAMETER_ROBUSTNESS_NEIGHBOR_EVIDENCE_INSUFFICIENT"));
+});
+
+
+test("cost stress from a different evaluation window cannot bind to canonical OOS", () => {
+  const mismatched = run();
+  const stress = mismatched.robustnessEvidence.candidateCostStress[0].costStress;
+  stress.scenarios = stress.scenarios.map((scenario) => (
+    scenario.scenario.id === "BASE"
+      ? { ...scenario, markedTotalReturn: 0.11 }
+      : scenario
+  ));
+  let result = qualifyResearchFactoryRun(mismatched);
+  assert.equal(result.candidates[0].outcome, "INSUFFICIENT");
+  assert.ok(result.candidates[0].reasons.includes("COST_STRESS_BASELINE_BINDING_MISMATCH"));
+
+  const missingExpectancy = run();
+  const missing = missingExpectancy.robustnessEvidence.candidateCostStress[0].costStress;
+  missing.scenarios = missing.scenarios.map((scenario) => (
+    scenario.scenario.id === "MODERATE"
+      ? { ...scenario, closedTradeExpectancy: undefined }
+      : scenario
+  ));
+  result = qualifyResearchFactoryRun(missingExpectancy);
+  assert.equal(result.candidates[0].outcome, "INSUFFICIENT");
+  assert.ok(result.candidates[0].reasons.includes("COST_STRESS_EXPECTANCY_EVIDENCE_MISSING"));
 });
