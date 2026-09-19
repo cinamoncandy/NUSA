@@ -221,6 +221,52 @@ function canonicalRelationInput(
   });
 }
 
+const sameArtifact = (
+  left: ResearchMemoryArtifactRef,
+  right: ResearchMemoryArtifactRef,
+): boolean =>
+  left.artifactKind === right.artifactKind &&
+  left.artifactId === right.artifactId &&
+  left.artifactContentSha256 === right.artifactContentSha256 &&
+  left.artifactDigestKind === right.artifactDigestKind;
+
+const isCanonicalEmpiricalSemanticEvent = (
+  event: ResearchMemoryOverlayEvent,
+): event is ResearchMemorySemanticEvent =>
+  event.eventKind === "SEMANTIC" &&
+  event.semanticClass === "EVIDENCE" &&
+  event.validity === "CURRENT" &&
+  empiricalOrigins.has(event.evidenceOrigin);
+
+function requireIndependentLessonSupport(
+  records: readonly ResearchMemoryOverlayEvent[],
+  lesson: ResearchMemorySemanticInput,
+): void {
+  if (lesson.semanticClass !== "LESSON") return;
+
+  const supportingGroups = new Set<string>();
+  for (const relation of records) {
+    if (
+      relation.eventKind !== "RELATION" ||
+      relation.relationType !== "SUPPORTS" ||
+      !sameArtifact(relation.targetArtifact, lesson.artifact)
+    ) {
+      continue;
+    }
+    const evidence = records.find(
+      (candidate) =>
+        isCanonicalEmpiricalSemanticEvent(candidate) &&
+        sameArtifact(candidate.artifact, relation.sourceArtifact),
+    );
+    if (evidence != null) supportingGroups.add(evidence.independenceGroupId);
+  }
+
+  if (supportingGroups.size < 2) {
+    throw new Error("LESSON requires repeated independent canonical evidence");
+  }
+}
+
+
 /**
  * Event identity intentionally excludes actor/source/reason/occurredAt prose and time.
  * Those remain exact append-only event metadata and are covered by the chain hash.
@@ -356,6 +402,8 @@ export function appendResearchMemorySemanticEvent(
   input: ResearchMemorySemanticInput,
 ): readonly ResearchMemoryOverlayEvent[] {
   const canonical = canonicalSemanticInput(input);
+  replayResearchMemoryOverlayEvents(records);
+  requireIndependentLessonSupport(records, canonical);
   return appendEvent(
     records,
     "SEMANTIC",
@@ -410,10 +458,5 @@ export function replayResearchMemoryOverlayEvents(
 
 export const replayResearchMemorySemanticEvents = replayResearchMemoryOverlayEvents;
 
-export const isCanonicalEmpiricalResearchMemoryEvidence = (
-  event: ResearchMemoryOverlayEvent,
-): event is ResearchMemorySemanticEvent =>
-  event.eventKind === "SEMANTIC" &&
-  event.semanticClass === "EVIDENCE" &&
-  event.validity === "CURRENT" &&
-  empiricalOrigins.has(event.evidenceOrigin);
+export const isCanonicalEmpiricalResearchMemoryEvidence =
+  isCanonicalEmpiricalSemanticEvent;
