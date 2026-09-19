@@ -698,15 +698,20 @@ export async function readScheduledRuntimeReceipt(namespace: ExecutionCoordinato
 
 export async function readScheduledRuntimeEvidence(namespace: ExecutionCoordinatorNamespace): Promise<ScheduledRuntimeEvidenceSnapshot> {
   const stub = namespace.get(namespace.idFromName(SCHEDULED_RECEIPT_COORDINATOR_KEY));
-  const response = await stub.fetch("https://execution-coordinator/scheduled-receipt", { method: "GET" });
-  if (!response.ok) throw new Error("SCHEDULED_RUNTIME_RECEIPT_READ_FAILED");
-  const legacy = await response.json() as Partial<ScheduledRuntimeEvidenceSnapshot>;
-  let body = legacy;
+  // Current coordinators expose the complete snapshot in one read. Fall back
+  // to the legacy endpoint only for older deployments, avoiding a second DO
+  // round trip on every scheduled cycle.
+  let body: Partial<ScheduledRuntimeEvidenceSnapshot> | null = null;
   try {
     const historyResponse = await stub.fetch("https://execution-coordinator/scheduled-receipt-history", { method: "GET" });
     if (historyResponse.ok) body = await historyResponse.json() as Partial<ScheduledRuntimeEvidenceSnapshot>;
   } catch {
     // Older coordinator deployments expose only the legacy latest-receipt response.
+  }
+  if (body === null) {
+    const response = await stub.fetch("https://execution-coordinator/scheduled-receipt", { method: "GET" });
+    if (!response.ok) throw new Error("SCHEDULED_RUNTIME_RECEIPT_READ_FAILED");
+    body = await response.json() as Partial<ScheduledRuntimeEvidenceSnapshot>;
   }
   if (body.receipt !== null && body.receipt !== undefined && !validScheduledReceipt(body.receipt)) throw new Error("SCHEDULED_RUNTIME_RECEIPT_READ_INVALID");
   const history = body.history == null
