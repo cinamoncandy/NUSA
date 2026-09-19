@@ -3,7 +3,7 @@ import { prepareDiscoveredCodingRequest } from "./evolveCodingBridge";
 import { deriveWorkflowFailureOpportunities, type WorkflowFailureEvidence } from "./evolveEvidenceOpportunitySource";
 import { deriveGithubIssueBacklogSignals } from "./evolveGithubIssueBacklog";
 import type { EvolutionDiscoverySignal } from "./evolveOpportunityDiscovery";
-import { acquirePersistentExecution, markPersistentExecutionDispatched, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
 export interface ScheduledEvolutionCodingEnv {
   readonly NUSA_GITHUB_TOKEN?: string;
@@ -226,7 +226,6 @@ export async function runScheduledEvolutionCoding(
 
   const dispatched = await executeGithubDispatch(bridge.request, { token, allowedRepository: input.repository }, fetchImpl);
   if (dispatched.status === "DISPATCHED") {
-    await markPersistentExecutionDispatched(coordinator, { dedupeKey: bridge.request.dedupeKey, executionId: bridge.request.executionId, now: input.now });
     return result("EXECUTION_ACCEPTED", "github-coding-dispatch-accepted", signals.map((signal) => signal.id));
   }
   if (dispatched.status === "INTERFACE_READY") return result("INTERFACE_READY", dispatched.reason, signals.map((signal) => signal.id));

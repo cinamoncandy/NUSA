@@ -8,7 +8,7 @@ import worker, {
 } from "./index";
 import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
 import type { CodingRuntime } from "./codingRunner";
-import { ExecutionCoordinator, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, ExecutionCoordinator, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
 class MemoryStorage {
   private readonly values = new Map<string, unknown>();
@@ -452,6 +452,13 @@ describe("NUSA autopilot GitHub webhook", () => {
         NUSA_AI_CODING_TOKEN: "ai-token",
         NUSA_EXECUTION_COORDINATOR: namespace,
       };
+      const now = Date.now();
+      await acquirePersistentExecution(namespace, {
+        dedupeKey: codingRequest.dedupeKey,
+        executionId: codingRequest.executionId,
+        now,
+        leaseExpiresAt: now + 60_000,
+      });
       const first = await handleCodingExecute(request(), env, runtime);
       const second = await handleCodingExecute(request(), env, runtime);
       assert.equal(first.status, 202);

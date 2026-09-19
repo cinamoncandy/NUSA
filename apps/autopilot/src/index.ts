@@ -9,6 +9,7 @@ import { CodingRunnerEvidenceError, executeCodingRunner, validateCodingRunnerReq
 import { prepareProductionExecution } from "./productionExecutionSpine";
 import {
   acquirePersistentExecution,
+  handoffOrAcquirePersistentExecution,
   applyPersistentControlPlaneHold,
   markPersistentExecutionDispatched,
   recordAutopilotExecutionTelemetry,
@@ -138,7 +139,7 @@ export async function handleCodingExecute(
   try {
     const runnerRequest = validateCodingRunnerRequest(await request.json(), allowedRepository);
     if (!env.NUSA_EXECUTION_COORDINATOR) return json({ error: "PERSISTENT_EXECUTION_COORDINATOR_REQUIRED", status: "INTERFACE_READY" }, 503);
-    const lease = await acquirePersistentExecution(env.NUSA_EXECUTION_COORDINATOR, {
+    const lease = await handoffOrAcquirePersistentExecution(env.NUSA_EXECUTION_COORDINATOR, {
       dedupeKey: runnerRequest.dedupeKey,
       executionId: runnerRequest.executionId,
       now: startedAt,
