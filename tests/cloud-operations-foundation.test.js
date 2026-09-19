@@ -177,6 +177,28 @@ test("operator scripts expose safe dry-run paths without emitting generated secr
   assert.equal(JSON.parse(securityResult.stdout).rootExecution, false);
 });
 
+test("host security validator resolves the default systemd unit independently of runner cwd", () => {
+  const foreignCwd = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-host-security-cwd-"));
+  const env = { ...process.env };
+  delete env.NUSA_UNIT;
+  try {
+    const result = spawnSync(
+      process.execPath,
+      [path.resolve(__dirname, "..", "scripts", "host-security-validate.js")],
+      {
+        cwd: foreignCwd,
+        env,
+        encoding: "utf8"
+      }
+    );
+    assert.equal(result.status, 0, result.stderr);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.rootExecution, false);
+  } finally {
+    fs.rmSync(foreignCwd, { recursive: true, force: true });
+  }
+});
+
 test("atomic deployment dry-run is versioned, reversible, and validates canonical release paths", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-deploy-"));
   const commit = "a".repeat(40);
