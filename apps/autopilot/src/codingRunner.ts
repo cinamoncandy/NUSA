@@ -306,6 +306,17 @@ async function githubEvidenceGet(url: string, githubToken: string | undefined, f
   return fetchImpl(url, { method: "GET", headers: githubHeaders() });
 }
 
+/**
+ * A dispatch is failure-repair work when its reason cites a GitHub Actions run (`gha:`). Repair
+ * work must cite the failed run it repairs; every other kind of work must cite a successful run.
+ *
+ * Exported so the request builder decides this with the same predicate the verifier enforces. When
+ * the two disagreed, issue-driven work inherited a failed run id and fail-closed on it.
+ */
+export function isFailureRepairReason(reason: string): boolean {
+  return reason.includes("gha:");
+}
+
 export async function verifyCodingRunnerRequestAgainstGitHub(
   request: CodingRunnerRequest,
   githubToken: string | undefined,
@@ -326,7 +337,7 @@ export async function verifyCodingRunnerRequestAgainstGitHub(
   if (typeof run.head_sha !== "string" || run.head_sha.toLowerCase() !== request.headSha.toLowerCase()) throw new Error("CODING_RUNNER_WORKFLOW_HEAD_MISMATCH");
   if (runRepository.full_name !== request.repository) throw new Error("CODING_RUNNER_WORKFLOW_REPOSITORY_MISMATCH");
   if (run.status !== "completed") throw new Error("CODING_RUNNER_WORKFLOW_NOT_COMPLETED");
-  const failureRepair = request.reason.includes("gha:");
+  const failureRepair = isFailureRepairReason(request.reason);
   const allowedConclusions = failureRepair ? ["failure", "cancelled", "timed_out"] : ["success"];
   if (typeof run.conclusion !== "string" || !allowedConclusions.includes(run.conclusion)) {
     const code = failureRepair ? "CODING_RUNNER_FAILURE_EVIDENCE_INVALID" : "CODING_RUNNER_WORKFLOW_NOT_SUCCESSFUL";
