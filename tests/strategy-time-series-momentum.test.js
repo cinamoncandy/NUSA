@@ -202,3 +202,30 @@ test("parameter stability is measured across both axes of the grid", () => {
   assert.deepEqual([...grid.map((entry) => entry.neighbors.length)].sort(), [2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4]);
   assert.ok(request.referenceParameters.every((reference) => keys.has(reference.candidateKey)), "reference parameters must name real cells");
 });
+
+// The defect this pins: the family passed every registration check in research-real-market-run.js
+// and then failed inside the robustness runner, which kept its own parallel allowlist. It surfaced
+// only at run time, after a 60-cell grid had started, as "unsupported strategyFamily".
+test("every family the research runner accepts is executable by the robustness runner", () => {
+  const { runParameterRobustnessRequest } = require("../scripts/lib/parameter-robustness-runner.js");
+  assert.equal(typeof runParameterRobustnessRequest, "function");
+
+  const candles = Array.from({ length: 400 }, (_, index) => ({
+    timestamp: 1_700_000_000_000 + index * 86_400_000,
+    open: 100 + index, high: 102 + index, low: 98 + index, close: 100 + index, volume: 1
+  }));
+  const manifest = { market: "KRW-BTC", datasetId: "ds1", contentSha256: "a".repeat(64), marketSetVersion: "v1" };
+
+  for (const family of ["sma-crossover", "rsi-mean-reversion", "donchian-breakout", "time-series-momentum"]) {
+    const request = runner.buildParameterRobustnessRequest({ candles, manifest, strategyFamily: family });
+    const result = runParameterRobustnessRequest(request, { candles });
+    // The verdict may legitimately be PASS or FAIL on synthetic candles. What must never happen is
+    // the family being rejected as unknown before it is evaluated at all.
+    // The verdict may legitimately be PASS or FAIL on synthetic candles, and the result shape
+    // differs between the generic and legacy request paths. The only thing asserted is the defect
+    // itself: the family must never be turned away as unknown before it is evaluated.
+    const rejected = JSON.stringify(result).includes("unsupported strategyFamily")
+      || JSON.stringify(result).includes("unsupported parameter robustness strategy family");
+    assert.equal(rejected, false, `${family} must be executable, not rejected as an unknown family`);
+  }
+});
