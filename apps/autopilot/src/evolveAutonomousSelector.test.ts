@@ -175,3 +175,26 @@ test("rejects malformed or duplicate active conflict evidence", () => {
     /EVOLVE_SELECTION_ACTIVE_CONFLICT_KEYS_INVALID/,
   );
 });
+
+
+test("bounded selector rejects malformed envelopes and invalid CLOSED circuit state", () => {
+  const input = baseInput();
+  const bounded = {
+    ...input,
+    schedulePolicy: { ...input.schedulePolicy, maxConcurrent: 2 },
+    maxSelections: 2,
+    opportunities: [opportunity("a", { canonicalOwner: "development", conflictKeys: ["module:a"] })],
+  };
+  assert.throws(() => selectNonConflictingEvolutionOpportunities(null as never), /EVOLVE_SELECTION_INPUT_INVALID/);
+  assert.throws(() => selectNonConflictingEvolutionOpportunities({ ...bounded, circuit: null } as never), /EVOLVE_SELECTION_CIRCUIT_INVALID/);
+  assert.throws(() => selectNonConflictingEvolutionOpportunities({ ...bounded, schedulePolicy: null } as never), /EVOLVE_SELECTION_SCHEDULE_POLICY_INVALID/);
+  assert.throws(() => selectNonConflictingEvolutionOpportunities({ ...bounded, opportunities: null } as never), /EVOLVE_SELECTION_OPPORTUNITIES_INVALID/);
+  assert.throws(
+    () => selectNonConflictingEvolutionOpportunities({ ...bounded, circuit: { state: "CLOSED", consecutiveFailures: -1 } } as never),
+    /EVOLVE_CIRCUIT/,
+  );
+  assert.throws(
+    () => selectNonConflictingEvolutionOpportunities({ ...bounded, opportunities: [null] } as never),
+    /EVOLVE_OPPORTUNITY_INVALID/,
+  );
+});
