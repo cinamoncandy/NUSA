@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assertPaperPerformanceComparable } from "./paperPerformanceComparison";
+import { assertPaperPerformanceComparable, assertPaperPerformanceFresh } from "./paperPerformanceComparison";
 import { buildPaperPerformanceEvidence, type PaperPerformanceEvidenceInput } from "./paperPerformanceEvidence";
 
 const base: PaperPerformanceEvidenceInput = {
@@ -27,4 +27,12 @@ test("fails closed on apples-to-oranges performance evidence", () => {
   assert.throws(() => assertPaperPerformanceComparable(left, { familyId: "family-1", evidence: evidence({ candidateId: "b", periodStartAt: 999, equityCurve: [{ observedAt: 999, equity: 100 }, { observedAt: 2_000, equity: 101 }] }) }), /WINDOW_MISMATCH/);
   assert.throws(() => assertPaperPerformanceComparable(left, { familyId: "family-1", evidence: evidence({ candidateId: "b", benchmarkId: "KRW-BTC" }) }), /BENCHMARK_MISMATCH/);
   assert.throws(() => assertPaperPerformanceComparable(left, { familyId: "family-1", evidence: evidence({ candidateId: "b", calculationVersion: "v2" }) }), /CALCULATION_MISMATCH/);
+});
+
+test("freshness is evaluated at consumption time without changing evidence identity", () => {
+  const current = evidence();
+  assert.doesNotThrow(() => assertPaperPerformanceFresh(current, 2_500, 500));
+  assert.throws(() => assertPaperPerformanceFresh(current, 2_501, 500), /PAPER_PERFORMANCE_EVIDENCE_STALE/);
+  assert.throws(() => assertPaperPerformanceFresh(current, 1_999, 500), /PAPER_PERFORMANCE_FRESHNESS_POLICY_INVALID/);
+  assert.throws(() => assertPaperPerformanceFresh(current, 2_500, -1), /PAPER_PERFORMANCE_FRESHNESS_POLICY_INVALID/);
 });
