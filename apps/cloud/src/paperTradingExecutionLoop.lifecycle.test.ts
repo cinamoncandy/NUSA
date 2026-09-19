@@ -112,6 +112,29 @@ describe("PAPER working-order execution invariants", () => {
     assert.equal(cancelled.state.orders[0]?.id, orderId);
   });
 
+  it("restores working lifecycle and latency counter from persisted state", () => {
+    let persisted: ReturnType<PaperTradingExecutionLoop["snapshot"]> | undefined;
+    const repository = {
+      save: (state: ReturnType<PaperTradingExecutionLoop["snapshot"]>) => { persisted = state; },
+      loadLatest: () => persisted,
+      clear: () => { persisted = undefined; },
+    };
+    const firstLoop = new PaperTradingExecutionLoop({ initialCapital: 1_000_000, latencyTicks: 2, repository });
+    const opened = firstLoop.openLimitOrder(limitOrder("restart-latency", 1, 100), context(100));
+    const orderId = opened.state.workingOrders?.[0]?.id;
+    assert.ok(orderId);
+    const firstTick = firstLoop.fillWorkingOrder(orderId, 1, context(100, 1_001), "restart-fill");
+    assert.equal(firstTick.state.workingOrders?.[0]?.observedTicks, 1);
+
+    const restored = new PaperTradingExecutionLoop({ initialCapital: 1_000_000, latencyTicks: 2, repository });
+    assert.equal(restored.snapshot().workingOrders?.[0]?.id, orderId);
+    assert.equal(restored.snapshot().workingOrders?.[0]?.observedTicks, 1);
+    const secondTick = restored.fillWorkingOrder(orderId, 1, context(100, 1_002), "restart-fill");
+    assert.equal(secondTick.reason, "PAPER_EXECUTION_LATENCY:2/2");
+    const terminal = restored.fillWorkingOrder(orderId, 1, context(100, 1_003), "restart-fill");
+    assert.equal(terminal.status, "FILLED");
+  });
+
   it("does not fill a BUY limit when adverse modeled execution price breaches the limit", () => {
     const loop = new PaperTradingExecutionLoop({ initialCapital: 1_000_000, slippageBps: 20, spreadBps: 20 });
     const opened = loop.openLimitOrder(limitOrder("limit-protection", 1, 100), context(100));
