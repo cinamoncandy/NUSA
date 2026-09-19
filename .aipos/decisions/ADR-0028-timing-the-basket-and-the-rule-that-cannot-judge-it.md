@@ -111,3 +111,81 @@ precommitted follow-up above will add 12 more if run, for 42. The count does not
 Measurement only. No strategy, registry entry, or execution path changed. `PAPER_ONLY`,
 `liveAuthority=NONE`, `productionMutationAllowed=false`, AI `ZERO_AUTHORITY` are unchanged, and
 nothing here creates order, withdrawal, or transfer authority.
+
+---
+
+# Addendum: the precommitted risk-adjusted rule was itself defective
+
+The follow-up rule precommitted above was implemented in
+`scripts/alpha/measure-basket-exposure-risk-adjusted.js` and run after this ADR was committed.
+
+**As precommitted, it returns 3 of 12** — above the falsification threshold of 2, which would read
+as "the family is not closed". That number is recorded, because it is what the committed rule says.
+
+On inspection all three pass for arithmetic reasons rather than evidence of edge, and the fault is
+in the rule I wrote, not in the data.
+
+| clearing cell | holdout strategy return | holdout basket return | strategy maxDD | in-market | n |
+|---|---|---|---|---|---|
+| 14d / 7d | **-1.0%** | -29.6% | -23.6% | 45% | 38 |
+| 14d / 14d | **-9.6%** | -29.8% | -18.7% | 47% | 19 |
+| 60d / 14d | +26.8% | -24.8% | **-0.8%** | 22% | 18 |
+
+Three defects, each of which alone is enough to void the reading:
+
+1. **A negative numerator makes the ratio meaningless.** Two of the three cells lost money in the
+   holdout. Their return/drawdown is negative, and they "beat" the basket only because `-0.04` is
+   greater than `-0.59`. Comparing two negative ratios rewards losing less — which is what *any*
+   overlay that stands aside does in a falling market, by construction and without forecasting
+   anything. The rule should have required a positive strategy return before the ratio could be
+   compared at all.
+
+2. **The anti-avoidance guard was switched off in the half that decides.** The shortfall clause
+   existed precisely so an overlay could not pass by avoiding the market, but it was gated on
+   `benchmarkReturn > 0`. Every holdout cell in this grid has a negative basket return, so the guard
+   never ran in the holdout. The one protection against the failure mode I anticipated was inactive
+   exactly where it was needed.
+
+3. **A near-zero denominator.** The third cell reports return/drawdown of 32.79 because its maximum
+   drawdown is -0.8%. `returnOverDrawdown` refuses an exactly-zero drawdown but not a vanishing one,
+   so an overlay that was in the market for 4 of 18 windows scores an unbeatable ratio for having
+   barely participated.
+
+Underlying all three: **the holdout is a bear market.** The basket lost 21.8% to 39.5% in every
+cell. A defensive overlay is flattered there whether or not it can forecast. That is a property of
+the split, not of the candidate, and no statistic evaluated only on this holdout can separate them.
+
+## Corrected rule, precommitted for any future run
+
+Requiring a positive strategy return in each half before its ratio is compared, and applying the
+shortfall clause unconditionally, **1 of 12 cells clears** (60d/14d) — below the falsification
+threshold of 2. Adding the unmeasurable-denominator floor below takes it to **0 of 12**, because
+that surviving cell is the one whose 0.8% drawdown produced the 32.79 ratio.
+That number is reported as a diagnosis of the instrument, **not as the verdict**, because it was
+computed after seeing the first result. The precedent is ADR-0027, where the UNDERPOWERED floor was
+added after the same kind of near-miss and both counts were printed.
+
+Any future run of this family must, fixed in advance:
+
+- require strategy return above zero in a half before that half's ratio is compared;
+- apply the return-shortfall clause in every half, with no benchmark-sign gate;
+- reject a half whose maximum drawdown is smaller than 5%, as an unmeasurable denominator;
+- use a holdout that is not a single directional regime, or state that it is and decline to read a
+  defensive candidate on it.
+
+## Standing conclusion
+
+**The family is not promoted and no registry entry is created.** The ADR-0026/0027 rule rejected it
+0 of 12 and cannot fairly judge it; the risk-adjusted rule passed it 3 of 12 and cannot be trusted.
+Two rules that disagree, each for a reason internal to the rule, is not evidence of edge in either
+direction — and the corrected count of 1 of 12 is below the bar besides.
+
+What is now established and reusable is narrower and more durable than a verdict on this candidate:
+a defensive overlay cannot be evaluated against a directional holdout, by either a per-window
+excess rule or a ratio rule. Fixing that is a prerequisite for the next candidate of this shape,
+and it is the reason no further parameter search was spent here.
+
+## Search cost
+
+42 cumulative across ADR-0026, ADR-0027 and this ADR. The corrected recount introduced no new
+parameters and is not counted as additional hypotheses. The count does not reset.
