@@ -139,8 +139,8 @@ export function HomeView(props: HomeViewProps) {
 
     <View style={styles.hero}>
       <View style={styles.heroCopy}>
-        <Text style={styles.heroLine}>DISCIPLINE</Text><Text style={styles.heroLine}>COMPOUNDS</Text><Text style={styles.heroAccent}>FREEDOM.</Text>
-        <Text style={styles.heroKorean}>더 나은 오늘이,{String.fromCharCode(10)}더 큰 자유를 만든다.</Text>
+        <Text style={styles.heroLine}>A MORE</Text><Text style={styles.heroLine}>RATIONAL</Text><Text style={styles.heroAccent}>TOMORROW.</Text>
+        <Text style={styles.heroKorean}>MARKETS. SIGNALS. EVIDENCE.</Text>
       </View>
       <GlobeVisual />
     </View>
