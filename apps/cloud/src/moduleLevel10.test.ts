@@ -12,6 +12,7 @@ import {
   type ModuleStage
 } from "./moduleLevel10";
 import { PipelineOrchestratorV10, type Level10ModuleBundle } from "./pipelineOrchestratorV10";
+import { createDefaultPlatformTopology, validatePlatformTopology } from "./platformTopology";
 
 const context: ModuleExecutionContext = Object.freeze({
   traceId: "trace-v10",
@@ -93,5 +94,17 @@ describe("PipelineOrchestratorV10", () => {
     assert.deepEqual(result.evidence.map((item) => item.stage), [
       "MARKET_DATA", "INTELLIGENCE", "STRATEGY", "DECISION", "PORTFOLIO", "RISK"
     ]);
+  });
+});
+
+
+describe("canonical topology reconciliation", () => {
+  it("keeps production PAPER stage ordering aligned across topology contracts", () => {
+    const topology = createDefaultPlatformTopology();
+    validatePlatformTopology(topology);
+    assert.deepEqual(topology.corePipeline, ["MARKET", "PROBABILITY", "ALPHA", "PORTFOLIO", "RISK", "EXECUTION", "RUNTIME"]);
+    const moduleOrder = [...MODULE_STAGE_ORDER];
+    assert.ok(moduleOrder.indexOf("PORTFOLIO") < moduleOrder.indexOf("RISK"));
+    assert.ok(moduleOrder.indexOf("RISK") < moduleOrder.indexOf("EXECUTION"));
   });
 });
