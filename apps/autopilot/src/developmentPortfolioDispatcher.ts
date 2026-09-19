@@ -75,7 +75,7 @@ function extendQueue(queue: NusaDevelopmentQueue | null, signals: readonly Evolu
     .map((signal) => workItem(signal, now));
   return additions.length === 0
     ? existing
-    : createNusaDevelopmentQueue([...existing.items, ...additions], existing.revision);
+    : createNusaDevelopmentQueue([...existing.items, ...additions], existing.revision + 1);
 }
 
 function signalForItem(item: NusaDevelopmentWorkItem, signals: readonly EvolutionDiscoverySignal[]): EvolutionDiscoverySignal | null {
