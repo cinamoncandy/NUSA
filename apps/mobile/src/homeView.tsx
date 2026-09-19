@@ -116,6 +116,9 @@ export function HomeView(props: HomeViewProps) {
   const signalAvailable = decision.aiInsightAvailable;
   const signalTitle = signalAvailable ? (ai?.thesis ?? "VERIFIED SIGNAL") : "WAITING FOR VERIFIED SIGNAL";
   const strength = signalAvailable && ai?.confidence != null ? Math.max(0.15, Math.min(0.95, ai.confidence)) : 0.24;
+  const observedMarkets = marketRows.filter((market) => market.changeRate != null && Number.isFinite(market.changeRate));
+  const positiveMarkets = observedMarkets.filter((market) => (market.changeRate ?? 0) > 0).length;
+  const breadthPercent = observedMarkets.length === 0 ? null : Math.round((positiveMarkets / observedMarkets.length) * 100);
 
   return <ScrollView
     style={{ backgroundColor: INK }}
@@ -152,11 +155,12 @@ export function HomeView(props: HomeViewProps) {
     </View>
 
     <Pressable onPress={() => props.onNavigate("AiSignal")} style={({ pressed }) => [styles.signalPanel, { opacity: pressed ? 0.84 : 1 }]} testID="ai-card">
-      <View style={styles.panelTitleRow}><Text style={styles.panelTitle}>◉ SIGNAL TERRAIN</Text><Text style={styles.arrow}>›</Text></View>
+      <View style={styles.panelTitleRow}><View><Text style={styles.panelTitle}>◉ SIGNAL TERRAIN</Text><Text style={{color:MUTED,fontSize:8,marginTop:2,letterSpacing:.7}}>GLOBAL FLOW · VERIFIED PUBLIC DATA</Text></View><Text style={styles.arrow}>›</Text></View>
       <View style={styles.terrain} testID="home-decision-stage">
         <View style={styles.gridH1}/><View style={styles.gridH2}/><View style={styles.gridV1}/><View style={styles.gridV2}/>
         <TerrainSignal variant="symbolic" signalStrength={strength} accessibilityLabel={signalAvailable ? "verified AI signal terrain" : "signal unavailable"} testID="home-signal-trace" />
         <View style={styles.signalPin}><View style={styles.pinDot}/><Text style={styles.pinLabel}>{signalAvailable ? "VERIFIED AI SIGNAL" : "NO VERIFIED SIGNAL"}</Text></View>
+        {marketRows.slice(0,4).map((market,index) => { const up=(market.changeRate??0)>=0; const positions=[{left:"8%",top:"18%"},{right:"7%",top:"22%"},{left:"12%",bottom:"15%"},{right:"10%",bottom:"12%"}] as const; return <View key={`terrain-${market.market}`} style={[{position:"absolute",paddingHorizontal:8,paddingVertical:5,borderRadius:6,borderWidth:1,backgroundColor:"#090D0A"},positions[index],{borderColor:up?LIME:RED}]}><Text style={{color:"#E9F0EC",fontSize:8,fontWeight:"800"}}>{market.market.replace("KRW-","")}</Text><Text style={{color:up?LIME:RED,fontSize:9,fontWeight:"900"}}>{pct(market.changeRate)}</Text></View>; })}
       </View>
       <Text style={styles.signalThesis} numberOfLines={2}>{signalTitle}</Text>
       <View style={styles.evidenceRail}>
@@ -166,6 +170,14 @@ export function HomeView(props: HomeViewProps) {
         <View testID="home-supervisor-learning"><EvidenceRow label="LEARNING" value={decision.learning} /></View>
       </View>
     </Pressable>
+
+    <View style={styles.panel} testID="home-market-breadth">
+      <View style={styles.panelTitleRow}><Text style={styles.panelTitle}>MARKET BREADTH</Text><Text style={styles.source}>UPBIT PUBLIC</Text></View>
+      <View style={{padding:14,flexDirection:"row",alignItems:"center",gap:16}}>
+        <View style={{width:74,height:74,borderRadius:74,borderWidth:8,borderColor:breadthPercent==null?BORDER:LIME,alignItems:"center",justifyContent:"center"}}><Text style={{color:breadthPercent==null?MUTED:LIME,fontSize:20,fontWeight:"900"}}>{breadthPercent==null?"—":breadthPercent}</Text><Text style={{color:MUTED,fontSize:7,fontWeight:"800"}}>UP %</Text></View>
+        <View style={{flex:1,gap:8}}><Text style={{color:"#DDE9E2",fontSize:10}}>Observed markets {observedMarkets.length}</Text><View style={{height:7,borderRadius:7,backgroundColor:BORDER,overflow:"hidden"}}><View style={{height:7,width:breadthPercent==null?"0%":`${breadthPercent}%`,backgroundColor:LIME}}/></View><Text style={{color:MUTED,fontSize:8,lineHeight:13}}>Public-market breadth only. Not an AI confidence score or profit probability.</Text></View>
+      </View>
+    </View>
 
     <View style={styles.panel} testID="home-top-signals">
       <View style={styles.panelTitleRow}><Text style={styles.panelTitle}>TODAY'S TOP SIGNALS</Text><Text style={styles.count}>{marketRows.length}</Text></View>
