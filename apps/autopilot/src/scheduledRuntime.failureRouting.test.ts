@@ -7,7 +7,9 @@ const SHA = "c".repeat(40);
 const FAILURE_RUN_ID = 5151;
 const NOW = 1_787_968_000_000;
 
-function namespace(): ExecutionCoordinatorNamespace {\n  let developmentQueue: unknown = null;\n  return {
+function namespace(): ExecutionCoordinatorNamespace {
+  let developmentQueue: unknown = null;
+  return {
     idFromName: (name: string) => ({ name }),
     get: () => ({
       async fetch(input: RequestInfo | URL, init?: RequestInit) {
