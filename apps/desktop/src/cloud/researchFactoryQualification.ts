@@ -168,6 +168,7 @@ function pboGate(run: ResearchRunLeagueResult): GateDecision {
     || identity.candleCount !== run.provenance.dataset.candleCount
     || identity.startOpenTime !== run.provenance.dataset.startOpenTime
     || identity.endCloseTime !== run.provenance.dataset.endCloseTime
+    || !/^[0-9a-f]{64}$/i.test(identity.candidateConfigurationSha256)
     || !/^[0-9a-f]{64}$/i.test(identity.evaluationSha256)
     || !/^[0-9a-f]{64}$/i.test(identity.oosTimestampSha256)
     || !sameStrings(identity.candidateIds, expectedCandidateIds)
