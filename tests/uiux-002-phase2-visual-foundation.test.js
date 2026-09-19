@@ -50,6 +50,7 @@ test("Phase 2 theme follows the canonical preset identity and restrained accent"
   assert.match(design, /primary: palette\.primary/);
   assert.match(design, /surfaceRaised: palette\.surfaceRaised/);
   assert.match(design, /terrain: dark \? "#BFE85A"/);
+  assert.match(design, /chartUp: dark \? "#BFE85A" : "#147A50"/);
   assert.match(design, /classic: Object\.freeze\(/);
   assert.match(design, /master: Object\.freeze\(/);
   assert.match(design, /radii: preset\.radii/);
