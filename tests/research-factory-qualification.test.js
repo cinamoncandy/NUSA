@@ -141,6 +141,7 @@ const run = (overrides = {}) => ({
       candidateIds: ["candidate-a"],
       familyIds: ["family-a"],
       candidateSpecificationHashes: ["a".repeat(64)],
+      candidateConfigurationSha256: "b".repeat(64),
       evaluationSha256: "c".repeat(64),
       oosTimestampSha256: "d".repeat(64),
     },
