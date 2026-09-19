@@ -111,50 +111,39 @@ async function revalidateBacklogSignal(
 ): Promise<"ACTIONABLE" | "STALE" | "UNAVAILABLE"> {
   const issueNumber = backlogIssueNumber(signal);
   if (issueNumber === null) return signal?.source === "github-issue-backlog" ? "STALE" : "ACTIONABLE";
-  let response: Response;
+  // Issue state and open-PR evidence are independent reads. Fetch them in
+  // parallel so a scheduled cycle does not pay two GitHub round trips before
+  // it can decide whether the signal is still actionable.
+  const issueUrl = `https://api.github.com/repos/${input.repository}/issues/${issueNumber}`;
+  const query = new URLSearchParams({ q: `repo:${input.repository} is:pr is:open ${issueNumber}`, per_page: "100", page: "1" });
+  const pullsUrl = `https://api.github.com/search/issues?${query.toString()}`;
+  const headers = {
+    accept: "application/vnd.github+json",
+    authorization: `Bearer ${token}`,
+    "user-agent": "nusa-autopilot-worker",
+    "x-github-api-version": "2022-11-28",
+  };
+  let responses: readonly [Response, Response];
   try {
-    response = await fetchImpl(`https://api.github.com/repos/${input.repository}/issues/${issueNumber}`, {
-      headers: {
-        accept: "application/vnd.github+json",
-        authorization: `Bearer ${token}`,
-        "user-agent": "nusa-autopilot-worker",
-        "x-github-api-version": "2022-11-28",
-      },
-    });
+    responses = await Promise.all([
+      fetchImpl(issueUrl, { headers }),
+      fetchImpl(pullsUrl, { headers }),
+    ]) as [Response, Response];
   } catch {
     return "UNAVAILABLE";
   }
+  const [response, pullsResponse] = responses;
   if (!response.ok) return "UNAVAILABLE";
+  if (!pullsResponse.ok) return "UNAVAILABLE";
   let issue: unknown;
+  let pullsPayload: unknown;
   try {
-    issue = await response.json();
+    [issue, pullsPayload] = await Promise.all([response.json(), pullsResponse.json()]);
   } catch {
     return "UNAVAILABLE";
   }
   const issueRecord = object(issue);
   if (!issueRecord || text(issueRecord.state)?.toLowerCase() !== "open") return "STALE";
-
-  const query = new URLSearchParams({ q: `repo:${input.repository} is:pr is:open ${issueNumber}`, per_page: "100", page: "1" });
-  let pullsResponse: Response;
-  try {
-    pullsResponse = await fetchImpl(`https://api.github.com/search/issues?${query.toString()}`, {
-      headers: {
-        accept: "application/vnd.github+json",
-        authorization: `Bearer ${token}`,
-        "user-agent": "nusa-autopilot-worker",
-        "x-github-api-version": "2022-11-28",
-      },
-    });
-  } catch {
-    return "UNAVAILABLE";
-  }
-  if (!pullsResponse.ok) return "UNAVAILABLE";
-  let pullsPayload: unknown;
-  try {
-    pullsPayload = await pullsResponse.json();
-  } catch {
-    return "UNAVAILABLE";
-  }
   const pullsBody = object(pullsPayload);
   const items = pullsBody?.items;
   const totalCount = pullsBody?.total_count;
