@@ -1,9 +1,13 @@
 import type { DatabaseSync } from "node:sqlite";
 import {
+  appendResearchMemoryRelationEvent,
   appendResearchMemorySemanticEvent,
-  replayResearchMemorySemanticEvents,
+  replayResearchMemoryOverlayEvents,
+  type ResearchMemoryOverlayEvent,
+  type ResearchMemoryRelationEvent,
+  type ResearchMemoryRelationInput,
   type ResearchMemorySemanticEvent,
-  type ResearchMemorySemanticInput
+  type ResearchMemorySemanticInput,
 } from "../../contracts/src/researchMemorySemantics";
 
 export interface ResearchSemanticMemoryDatabase {
@@ -11,36 +15,141 @@ export interface ResearchSemanticMemoryDatabase {
   transaction<T>(fn: () => T): T;
 }
 
-const decode = (row: Record<string, unknown>): ResearchMemorySemanticEvent =>
-  JSON.parse(String(row.event_json)) as ResearchMemorySemanticEvent;
+const decode = (row: Record<string, unknown>): ResearchMemoryOverlayEvent =>
+  JSON.parse(String(row.event_json)) as ResearchMemoryOverlayEvent;
+
+const primaryArtifact = (event: ResearchMemoryOverlayEvent) =>
+  event.eventKind === "SEMANTIC" ? event.artifact : event.sourceArtifact;
 
 export class SqliteResearchSemanticMemoryRepository {
   constructor(private readonly db: ResearchSemanticMemoryDatabase) {}
 
-  list(): readonly ResearchMemorySemanticEvent[] {
-    const records = (this.db.connection.prepare(
-      "SELECT event_json FROM research_memory_semantic_events ORDER BY sequence ASC"
-    ).all() as Record<string, unknown>[]).map(decode);
-    return replayResearchMemorySemanticEvents(records);
+  list(): readonly ResearchMemoryOverlayEvent[] {
+    const rows = this.db.connection.prepare(
+      "SELECT sequence, event_kind, identity, artifact_kind, artifact_id, artifact_sha256, semantic_identity, independence_group_id, previous_hash, event_json, hash FROM research_memory_semantic_events ORDER BY sequence ASC"
+    ).all() as Record<string, unknown>[];
+
+    const records = rows.map((row) => {
+      const event = decode(row);
+      const artifact = primaryArtifact(event);
+      if (
+        Number(row.sequence) !== event.sequence ||
+        String(row.event_kind) !== event.eventKind ||
+        String(row.identity) !== event.identity ||
+        String(row.artifact_kind) !== artifact.artifactKind ||
+        String(row.artifact_id) !== artifact.artifactId ||
+        String(row.artifact_sha256) !== artifact.artifactContentSha256 ||
+        String(row.previous_hash) !== event.previousHash ||
+        String(row.hash) !== event.hash ||
+        (event.eventKind === "SEMANTIC" &&
+          (String(row.semantic_identity) !== event.semanticIdentity ||
+            String(row.independence_group_id) !== event.independenceGroupId)) ||
+        (event.eventKind === "RELATION" &&
+          (row.semantic_identity !== null || row.independence_group_id !== null))
+      ) {
+        throw new Error("research memory persisted row integrity violation");
+      }
+      return event;
+    });
+
+    return replayResearchMemoryOverlayEvents(records);
   }
 
-  append(input: ResearchMemorySemanticInput): ResearchMemorySemanticEvent {
+  listSemantic(): readonly ResearchMemorySemanticEvent[] {
+    return Object.freeze(
+      this.list().filter(
+        (event): event is ResearchMemorySemanticEvent =>
+          event.eventKind === "SEMANTIC"
+      )
+    );
+  }
+
+  listRelations(): readonly ResearchMemoryRelationEvent[] {
+    return Object.freeze(
+      this.list().filter(
+        (event): event is ResearchMemoryRelationEvent =>
+          event.eventKind === "RELATION"
+      )
+    );
+  }
+
+  appendSemantic(input: ResearchMemorySemanticInput): ResearchMemorySemanticEvent {
     return this.db.transaction(() => {
       const before = this.list();
       const after = appendResearchMemorySemanticEvent(before, input);
       if (after === before) {
-        const identity = before.find((event) =>
-          event.artifactSha256 === input.artifactSha256 &&
-          event.semanticIdentity === input.semanticIdentity
+        const identity = after.find(
+          (event): event is ResearchMemorySemanticEvent =>
+            event.eventKind === "SEMANTIC" &&
+            event.identity === before.find(
+              (candidate) =>
+                candidate.eventKind === "SEMANTIC" &&
+                candidate.artifact.artifactKind === input.artifact.artifactKind &&
+                candidate.artifact.artifactId === input.artifact.artifactId &&
+                candidate.semanticIdentity === input.semanticIdentity &&
+                candidate.validity === input.validity
+            )?.identity
         );
-        if (!identity) throw new Error("semantic memory idempotency resolution failed");
+        if (!identity) {
+          throw new Error("semantic memory idempotency resolution failed");
+        }
         return identity;
       }
-      const event = after.at(-1)!;
-      this.db.connection.prepare(
-        "INSERT INTO research_memory_semantic_events (sequence, identity, artifact_sha256, semantic_identity, independence_group_id, previous_hash, event_json, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-      ).run(event.sequence, event.identity, event.artifactSha256, event.semanticIdentity, event.independenceGroupId, event.previousHash, JSON.stringify(event), event.hash);
+      const event = after.at(-1);
+      if (event == null || event.eventKind !== "SEMANTIC") {
+        throw new Error("semantic memory append did not produce a semantic event");
+      }
+      this.insert(event);
       return event;
     });
+  }
+
+  appendRelation(input: ResearchMemoryRelationInput): ResearchMemoryRelationEvent {
+    return this.db.transaction(() => {
+      const before = this.list();
+      const after = appendResearchMemoryRelationEvent(before, input);
+      if (after === before) {
+        const identity = after.find(
+          (event): event is ResearchMemoryRelationEvent =>
+            event.eventKind === "RELATION" &&
+            event.relationType === input.relationType &&
+            event.sourceArtifact.artifactKind === input.sourceArtifact.artifactKind &&
+            event.sourceArtifact.artifactId === input.sourceArtifact.artifactId &&
+            event.sourceArtifact.artifactContentSha256 === input.sourceArtifact.artifactContentSha256 &&
+            event.targetArtifact.artifactKind === input.targetArtifact.artifactKind &&
+            event.targetArtifact.artifactId === input.targetArtifact.artifactId &&
+            event.targetArtifact.artifactContentSha256 === input.targetArtifact.artifactContentSha256
+        );
+        if (!identity) {
+          throw new Error("relation memory idempotency resolution failed");
+        }
+        return identity;
+      }
+      const event = after.at(-1);
+      if (event == null || event.eventKind !== "RELATION") {
+        throw new Error("semantic memory append did not produce a relation event");
+      }
+      this.insert(event);
+      return event;
+    });
+  }
+
+  private insert(event: ResearchMemoryOverlayEvent): void {
+    const artifact = primaryArtifact(event);
+    this.db.connection.prepare(
+      "INSERT INTO research_memory_semantic_events (sequence, event_kind, identity, artifact_kind, artifact_id, artifact_sha256, semantic_identity, independence_group_id, previous_hash, event_json, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(
+      event.sequence,
+      event.eventKind,
+      event.identity,
+      artifact.artifactKind,
+      artifact.artifactId,
+      artifact.artifactContentSha256,
+      event.eventKind === "SEMANTIC" ? event.semanticIdentity : null,
+      event.eventKind === "SEMANTIC" ? event.independenceGroupId : null,
+      event.previousHash,
+      JSON.stringify(event),
+      event.hash
+    );
   }
 }
