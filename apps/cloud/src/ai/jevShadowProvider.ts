@@ -1,7 +1,5 @@
 import type { JevShadowDecision } from "./jevShadowRouter";
 
-const DEFAULT_ENDPOINT = "https://api.jev.ai/v1/classify";
-
 export interface JevHttpResponse {
   readonly ok: boolean;
   readonly status: number;
@@ -38,7 +36,7 @@ export class JevShadowProvider {
 
   public constructor(options: JevProviderOptions) {
     this.#apiKey = options.apiKey.trim();
-    this.endpoint = (options.endpoint ?? DEFAULT_ENDPOINT).trim();
+    this.endpoint = (options.endpoint ?? "").trim();
     this.timeoutMs = options.timeoutMs ?? 1500;
     this.fetchImpl = options.fetchImpl ?? defaultFetch;
     if (!this.#apiKey || !this.endpoint) throw new Error("Jev provider configuration incomplete");
@@ -77,7 +75,8 @@ export function createJevShadowProviderFromEnvironment(env: NodeJS.ProcessEnv = 
   if (!enabled(env.NUSA_JEV_SHADOW_ENABLED)) return null;
   const apiKey = text(env.NUSA_JEV_API_KEY);
   if (apiKey == null) return null;
-  const endpoint = text(env.NUSA_JEV_ENDPOINT) ?? undefined;
+  const endpoint = text(env.NUSA_JEV_ENDPOINT);
+  if (endpoint == null) return null;
   const rawTimeout = text(env.NUSA_JEV_TIMEOUT_MS);
   const timeoutMs = rawTimeout == null ? undefined : Number(rawTimeout);
   try { return new JevShadowProvider({ apiKey, endpoint, timeoutMs }); }
