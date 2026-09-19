@@ -23,6 +23,7 @@ const { buildResearchHypothesis } = require("../dist/apps/desktop/src/cloud/rese
 const { createResearchHypothesis } = require("../dist/packages/contracts/src/researchHypothesisContract.js");
 const { buildResearchRunTimeline } = require("../dist/apps/desktop/src/cloud/researchRunTimeline.js");
 const { buildResearchRunProvenancePlan } = require("../dist/apps/desktop/src/cloud/researchRunFactory.js");
+const { validateResearchCandidateSpecification } = require("../dist/apps/desktop/src/cloud/researchCandidateSpecification.js");
 
 const SMA_FAMILY_ID = "sma-crossover";
 const RSI_FAMILY_ID = "rsi-mean-reversion";
@@ -503,9 +504,10 @@ async function main() {
     parameters: candidate.parameters,
     canonicalHypothesis: candidate.canonicalHypothesis
   }));
+  const backtestPoints = candlesToBacktestPoints(candles);
 
   const costStress = runExecutionCostStress(
-    candlesToBacktestPoints(candles),
+    backtestPoints,
     candidates,
     WALK_FORWARD_CONFIG,
     {
@@ -545,12 +547,67 @@ async function main() {
       datasetContentSha256: manifest.contentSha256
     }
   };
+  // Legacy SMA references predate family-generic candidateKey transport. Bind them deterministically
+  // to the exact precommitted candidate identity before the finalizer consumes them.
+  const candidateBoundParameterRobustnessEvidence = {
+    ...parameterRobustnessEvidence,
+    references: parameterRobustnessEvidence.references.map((reference) => {
+      if (reference.candidateKey != null) return reference;
+      if (
+        definition.familyId === SMA_FAMILY_ID
+        && Number.isFinite(reference.shortWindow)
+        && Number.isFinite(reference.longWindow)
+      ) {
+        const parameters = { shortPeriod: reference.shortWindow, longPeriod: reference.longWindow };
+        return {
+          source: reference.source,
+          familyId: definition.familyId,
+          candidateKey: candidateIdFor(definition.familyId, parameters),
+          parameters,
+          assessment: reference.assessment
+        };
+      }
+      return reference;
+    })
+  };
   const costStressEvidence = projectExecutionCostStress(costStress);
+  const candidateCostStressEvidence = candidates.map((candidate) => {
+    const specification = candidateSpecifications.get(candidate.id);
+    if (specification == null) throw new Error(`missing candidate specification for ${candidate.id}`);
+    const specificationDecision = validateResearchCandidateSpecification(
+      specification,
+      Date.parse(timeline.generatedAt)
+    );
+    if (specificationDecision.status !== "VERIFIED") {
+      throw new Error(`invalid candidate specification for cost stress: ${candidate.id}`);
+    }
+    const candidateStress = runExecutionCostStress(
+      backtestPoints,
+      [candidate],
+      WALK_FORWARD_CONFIG,
+      {
+        scenarios: COST_STRESS_SCENARIOS,
+        baselineScenarioId: "BASE",
+        candidateSelectionMode: "FIX_BASELINE_SELECTION"
+      },
+      {
+        sourceExperimentSha: `real-run:${manifest.datasetId}:${definition.familyId}:${candidate.id}`,
+        datasetSha256: manifest.contentSha256
+      }
+    );
+    return {
+      candidateId: candidate.id,
+      familyId: definition.familyId,
+      specificationHash: specificationDecision.specificationHash,
+      costStress: projectExecutionCostStress(candidateStress)
+    };
+  });
   const robustnessEvidence = buildResearchRunRobustnessEvidence({
     datasetId: manifest.datasetId,
     datasetContentSha256: manifest.contentSha256,
-    parameterRobustness: parameterRobustnessEvidence,
-    costStress: costStressEvidence
+    parameterRobustness: candidateBoundParameterRobustnessEvidence,
+    costStress: costStressEvidence,
+    candidateCostStress: candidateCostStressEvidence
   });
 
   const generatedAt = timeline.generatedAt;
@@ -640,7 +697,7 @@ async function main() {
       candidates: result.walkForwardResult.stabilityDiagnostics.candidates
     },
     costStress: costStressEvidence,
-    parameterRobustness: parameterRobustnessEvidence,
+    parameterRobustness: robustnessEvidence.parameterRobustness,
     outOfSample: {
       totalOosPoints: oos.totalOosPoints,
       totalOosClosedTrades: oos.totalOosClosedTrades,
