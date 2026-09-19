@@ -665,14 +665,16 @@ function cloneState(state: PaperAccountState): PaperAccountState { return { ...s
 
 function executeOrder(state: PaperAccountState, key: string, market: string, side: "BUY" | "SELL", quantity: number, price: number, now: number, feeRate: number, executionProfile: PaperExecutionProfile, requestFingerprint?: string, candidateProvenance?: PaperFillCandidateProvenance, quotePrice?: number, observedQuote?: PaperObservedExecutionQuote): { state: PaperAccountState; order: PaperOrderRecord; fill: PaperFillRecord } {
   const canonicalObservedQuote = observedQuote == null ? undefined : validatePaperObservedExecutionQuote(observedQuote, market, now);
-  const modeled = deterministicFill(executionProfile, side, quantity, price);
+  const requestedQuantity = quantity;
+  const modeled = deterministicFill(executionProfile, side, requestedQuantity, price);
+  if (modeled.quantity !== requestedQuantity) throw new Error("PAPER_PARTIAL_FILL_REQUIRES_WORKING_ORDER");
   quantity = modeled.quantity;
   price = modeled.price;
   const positions = state.positions.map((item) => ({ ...item }));
   const index = positions.findIndex((item) => item.market === market);
   const previous = index < 0 ? { market, quantity: 0, averageEntryPrice: 0, realizedPnL: 0, unrealizedPnL: 0, markPrice: price } : positions[index]!;
   const notional = round8(quantity * price);
-  const fee = round8(notional * feeRate);
+  const fee = round8(notional * executionProfile.feeRate);
   let cash = state.cash;
   let position: PaperAccountPosition;
   let realizedPnL = state.realizedPnL;
