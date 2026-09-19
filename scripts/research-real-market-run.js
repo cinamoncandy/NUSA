@@ -5,7 +5,7 @@ const {
   mapUpbitDayCandlesToResearchCandles
 } = require("../dist/apps/desktop/src/exchange/upbitCandleAdapter.js");
 const { createHistoricalDatasetManifest, candlesToBacktestPoints, runWalkForwardExperiment } = require("../dist/apps/desktop/src/cloud/researchDataset.js");
-const { SmaCrossoverStrategy, RsiMeanReversionStrategy, DonchianBreakoutStrategy } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
+const { SmaCrossoverStrategy, RsiMeanReversionStrategy, DonchianBreakoutStrategy, TimeSeriesMomentumStrategy } = require("../dist/apps/desktop/src/strategy/strategyEngine.js");
 const { buildResearchRunLeague } = require("../dist/apps/desktop/src/cloud/researchRunLeagueBridge.js");
 const { qualifyResearchFactoryRun } = require("../dist/apps/desktop/src/cloud/researchFactoryQualification.js");
 const { buildResearchRunRegimeEvaluation } = require("../dist/apps/desktop/src/cloud/researchRunRegimeEvidence.js");
@@ -24,6 +24,7 @@ const { buildResearchRunProvenancePlan } = require("../dist/apps/desktop/src/clo
 const SMA_FAMILY_ID = "sma-crossover";
 const RSI_FAMILY_ID = "rsi-mean-reversion";
 const DONCHIAN_FAMILY_ID = "donchian-breakout";
+const TSMOM_FAMILY_ID = "time-series-momentum";
 const STRATEGY_FAMILY_ID = SMA_FAMILY_ID; // legacy export/default identity
 const MARKET = "KRW-BTC";
 const RESEARCH_MARKET_SET_VERSION = "upbit-public-daily-2000-v2";
@@ -110,9 +111,19 @@ const DONCHIAN_PARAMETER_NEIGHBORHOOD = Object.freeze(
   [10, 20, 30, 40, 55].map((channelPeriod) => Object.freeze({ channelPeriod }))
 );
 
+// Precommitted before any time-series-momentum result was observed. Lookbacks span the horizons
+// ADR-0024 left open on this venue; thresholds are the dead band, which exists because ADR-0026
+// through ADR-0028 established the round trip -- not the rule -- decides the outcome here. The grid
+// is a fixed 4 x 3 lattice so the parameter-stability neighbours are well defined in both axes.
+const TSMOM_PARAMETER_NEIGHBORHOOD = Object.freeze(
+  [10, 20, 40, 60].flatMap((lookbackPeriod) =>
+    [0.01, 0.03, 0.05].map((entryThreshold) => Object.freeze({ lookbackPeriod, entryThreshold }))
+  )
+);
+
 function researchStrategyFamily(value = process.env.NUSA_RESEARCH_STRATEGY_FAMILY) {
   const normalized = String(value ?? SMA_FAMILY_ID).trim() || SMA_FAMILY_ID;
-  if (![SMA_FAMILY_ID, RSI_FAMILY_ID, DONCHIAN_FAMILY_ID].includes(normalized)) throw new Error(`unsupported NUSA_RESEARCH_STRATEGY_FAMILY: ${normalized}`);
+  if (![SMA_FAMILY_ID, RSI_FAMILY_ID, DONCHIAN_FAMILY_ID, TSMOM_FAMILY_ID].includes(normalized)) throw new Error(`unsupported NUSA_RESEARCH_STRATEGY_FAMILY: ${normalized}`);
   return normalized;
 }
 
@@ -120,6 +131,8 @@ function candidateIdFor(familyId, parameters) {
   if (familyId === SMA_FAMILY_ID) return `sma-${parameters.shortPeriod}-${parameters.longPeriod}`;
   if (familyId === RSI_FAMILY_ID) return `rsi-${parameters.period}-${parameters.oversold}-${parameters.overbought}`;
   if (familyId === DONCHIAN_FAMILY_ID) return `donchian-${parameters.channelPeriod}`;
+  // Threshold is a fraction, so it is rendered in basis points to keep the id free of decimal points.
+  if (familyId === TSMOM_FAMILY_ID) return `tsmom-${parameters.lookbackPeriod}-${Math.round(Number(parameters.entryThreshold) * 10000)}`;
   throw new Error(`unsupported strategy family: ${familyId}`);
 }
 
@@ -127,6 +140,7 @@ function strategyFactoryFor(familyId, parameters) {
   if (familyId === SMA_FAMILY_ID) return () => new SmaCrossoverStrategy(Number(parameters.shortPeriod), Number(parameters.longPeriod));
   if (familyId === RSI_FAMILY_ID) return () => new RsiMeanReversionStrategy(Number(parameters.period), Number(parameters.oversold), Number(parameters.overbought));
   if (familyId === DONCHIAN_FAMILY_ID) return () => new DonchianBreakoutStrategy(Number(parameters.channelPeriod));
+  if (familyId === TSMOM_FAMILY_ID) return () => new TimeSeriesMomentumStrategy(Number(parameters.lookbackPeriod), Number(parameters.entryThreshold));
   throw new Error(`unsupported strategy family: ${familyId}`);
 }
 
@@ -145,6 +159,11 @@ function familyDefinition(familyId) {
     familyId, lineageId: `${familyId}-v1`, canonicalFamily: "MOMENTUM", parameters: DONCHIAN_PARAMETER_NEIGHBORHOOD,
     thesis: "A close breaking a precommitted prior-price channel may identify a reproducible directional persistence edge after explicit execution costs.",
     mechanism: "The strategy measures each close against a channel formed only from prior closes and trades only when state transitions into a new above-channel or below-channel breakout, preventing current-tick self-confirmation and lookahead.",
+  });
+  if (familyId === TSMOM_FAMILY_ID) return Object.freeze({
+    familyId, lineageId: `${familyId}-v1`, canonicalFamily: "MOMENTUM", parameters: TSMOM_PARAMETER_NEIGHBORHOOD,
+    thesis: "An asset's own trailing return crossing a precommitted zero-centred band may identify a reproducible directional persistence edge after explicit execution costs.",
+    mechanism: "The strategy compares each close against a single strictly earlier close and changes state only when the trailing return leaves a precommitted dead band, so a signal oscillating around zero cannot pay the round trip repeatedly and no signal reads the bar it is evaluated on.",
   });
   throw new Error(`unsupported strategy family: ${familyId}`);
 }
@@ -185,6 +204,33 @@ function buildDonchianRobustnessGrid() {
     entries[index].neighbors.sort();
     Object.freeze(entries[index].neighbors);
     Object.freeze(entries[index]);
+  }
+  return Object.freeze(entries);
+}
+
+/** 4 lookbacks x 3 thresholds. Neighbours are the adjacent cells on each axis, matching the RSI
+ *  lattice, so parameter stability is measured across both dimensions rather than one. */
+function buildTsmomRobustnessGrid() {
+  const entries = TSMOM_PARAMETER_NEIGHBORHOOD.map((parameters) => ({
+    key: candidateIdFor(TSMOM_FAMILY_ID, parameters),
+    parameters,
+    neighbors: []
+  }));
+  const lookbacks = [10, 20, 40, 60];
+  const thresholds = [0.01, 0.03, 0.05];
+  const by = (lookbackPeriod, entryThreshold) => entries.find((entry) =>
+    entry.parameters.lookbackPeriod === lookbackPeriod && entry.parameters.entryThreshold === entryThreshold);
+  for (let li = 0; li < lookbacks.length; li += 1) {
+    for (let ti = 0; ti < thresholds.length; ti += 1) {
+      const entry = by(lookbacks[li], thresholds[ti]);
+      for (const [dl, dt] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+        const neighbor = by(lookbacks[li + dl], thresholds[ti + dt]);
+        if (neighbor) entry.neighbors.push(neighbor.key);
+      }
+      entry.neighbors.sort();
+      Object.freeze(entry.neighbors);
+      Object.freeze(entry);
+    }
   }
   return Object.freeze(entries);
 }
@@ -262,6 +308,18 @@ function buildParameterRobustnessRequest({ candles, manifest, strategyFamily = S
       referenceParameters: [
         { source: "PRODUCTION_DEFAULT", candidateKey: "donchian-20", parameters: { channelPeriod: 20 } },
         { source: "MANUAL_RESEARCH_REFERENCE", candidateKey: "donchian-55", parameters: { channelPeriod: 55 } }
+      ]
+    };
+  }
+  if (strategyFamily === TSMOM_FAMILY_ID) {
+    const candidateGrid = buildTsmomRobustnessGrid();
+    return {
+      ...common,
+      strategyFamily,
+      candidateGrid,
+      referenceParameters: [
+        { source: "PRODUCTION_DEFAULT", candidateKey: "tsmom-20-300", parameters: { lookbackPeriod: 20, entryThreshold: 0.03 } },
+        { source: "MANUAL_RESEARCH_REFERENCE", candidateKey: "tsmom-60-100", parameters: { lookbackPeriod: 60, entryThreshold: 0.01 } }
       ]
     };
   }
@@ -633,6 +691,7 @@ module.exports = {
   SMA_PARAMETER_NEIGHBORHOOD,
   RSI_PARAMETER_NEIGHBORHOOD,
   DONCHIAN_PARAMETER_NEIGHBORHOOD,
+  TSMOM_PARAMETER_NEIGHBORHOOD,
   researchStrategyFamily,
   fetchResearchCandles,
   researchCandleCount,
