@@ -67,6 +67,29 @@ describe("PAPER working-order execution invariants", () => {
     assert.equal(replay.fills[0]?.id, "fill-event:exchange-event-1");
   });
 
+  it("enforces latencyTicks by deterministic fill-attempt sequence and persists the counter", () => {
+    const loop = new PaperTradingExecutionLoop({ initialCapital: 1_000_000, latencyTicks: 2 });
+    const opened = loop.openLimitOrder(limitOrder("latency-sequence", 1, 100), context(100));
+    const orderId = opened.state.workingOrders?.[0]?.id;
+    assert.ok(orderId);
+
+    const tick1 = loop.fillWorkingOrder(orderId, 1, context(100, 1_001), "latency-fill");
+    assert.equal(tick1.status, "WAIT");
+    assert.equal(tick1.reason, "PAPER_EXECUTION_LATENCY:1/2");
+    assert.equal(tick1.state.workingOrders?.[0]?.observedTicks, 1);
+    assert.equal(tick1.state.fills.length, 0);
+
+    const tick2 = loop.fillWorkingOrder(orderId, 1, context(100, 1_002), "latency-fill");
+    assert.equal(tick2.status, "WAIT");
+    assert.equal(tick2.reason, "PAPER_EXECUTION_LATENCY:2/2");
+    assert.equal(tick2.state.workingOrders?.[0]?.observedTicks, 2);
+    assert.equal(tick2.state.fills.length, 0);
+
+    const tick3 = loop.fillWorkingOrder(orderId, 1, context(100, 1_003), "latency-fill");
+    assert.equal(tick3.status, "FILLED");
+    assert.equal(tick3.fills[0]?.id, "fill-event:latency-fill");
+  });
+
   it("does not fill a BUY limit when adverse modeled execution price breaches the limit", () => {
     const loop = new PaperTradingExecutionLoop({ initialCapital: 1_000_000, slippageBps: 20, spreadBps: 20 });
     const opened = loop.openLimitOrder(limitOrder("limit-protection", 1, 100), context(100));
