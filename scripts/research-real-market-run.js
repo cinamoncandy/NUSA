@@ -560,11 +560,10 @@ async function main() {
       ) {
         const parameters = { shortPeriod: reference.shortWindow, longPeriod: reference.longWindow };
         return {
-          source: reference.source,
+          ...reference,
           familyId: definition.familyId,
           candidateKey: candidateIdFor(definition.familyId, parameters),
-          parameters,
-          assessment: reference.assessment
+          parameters
         };
       }
       return reference;
