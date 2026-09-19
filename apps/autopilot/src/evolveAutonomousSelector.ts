@@ -102,6 +102,11 @@ export interface EvolutionBoundedSelection {
 export function selectNonConflictingEvolutionOpportunities(
   input: EvolutionBoundedSelectionInput,
 ): EvolutionBoundedSelection {
+  if (input == null || typeof input !== "object") throw new Error("EVOLVE_SELECTION_INPUT_INVALID");
+  if (input.circuit == null || typeof input.circuit !== "object") throw new Error("EVOLVE_SELECTION_CIRCUIT_INVALID");
+  validateCircuitBreakerState(input.circuit);
+  if (input.schedulePolicy == null || typeof input.schedulePolicy !== "object") throw new Error("EVOLVE_SELECTION_SCHEDULE_POLICY_INVALID");
+  if (!Array.isArray(input.opportunities)) throw new Error("EVOLVE_SELECTION_OPPORTUNITIES_INVALID");
   if (!Number.isSafeInteger(input.maxSelections) || input.maxSelections <= 0) {
     throw new Error("EVOLVE_SELECTION_MAX_INVALID");
   }
