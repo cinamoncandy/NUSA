@@ -10,6 +10,7 @@ import { prepareProductionExecution } from "./productionExecutionSpine";
 import {
   acquirePersistentExecution,
   applyPersistentControlPlaneHold,
+  completePersistentExecution,
   markPersistentExecutionDispatched,
   recordAutopilotExecutionTelemetry,
   readAutopilotExecutionTelemetry,
@@ -253,6 +254,13 @@ export async function handleCodingExecute(
       try {
         await recordCodingExecutionEvidence(env.NUSA_EXECUTION_COORDINATOR, evidenceDecision.evidence);
         evidencePersisted = true;
+        if (result.status === "EXECUTION_ACCEPTED") {
+          await completePersistentExecution(env.NUSA_EXECUTION_COORDINATOR, {
+            dedupeKey: runnerRequest.dedupeKey,
+            executionId: runnerRequest.executionId,
+            now: Date.now(),
+          });
+        }
       } catch {
         console.error(JSON.stringify({ event: "NUSA_CODING_EVIDENCE_PERSIST_FAILED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }));
       }
