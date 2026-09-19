@@ -151,6 +151,19 @@ export interface ResearchRunProvenance {
     readonly regimeSha256: string;
     readonly oosObservationSha256: string;
   }>;
+  readonly searchOverfittingIdentity?: Readonly<{
+    readonly evidenceSha256: string;
+    readonly probabilityBacktestOverfitting: number;
+    readonly datasetId: string;
+    readonly datasetContentSha256: string;
+    readonly market: string;
+    readonly interval: string;
+    readonly startOpenTime: number;
+    readonly endCloseTime: number;
+    readonly candidateIds: readonly string[];
+    readonly familyIds: readonly string[];
+    readonly candidateSpecificationHashes: readonly string[];
+  }>;
 }
 
 export class ResearchRunLeagueBridgeError extends Error {
@@ -313,6 +326,37 @@ export function buildResearchRunLeague(
         "ROBUSTNESS_PROVENANCE_MISMATCH",
         "run-level robustness evidence does not match candidate dataset provenance",
       );
+    }
+    if (
+      options.robustnessEvidence.parameterRobustness.provenance.sourceCommitSha !== sourceCommitSha
+      || options.robustnessEvidence.parameterRobustness.provenance.costModelVersion !== costModelVersion
+    ) {
+      throw new ResearchRunLeagueBridgeError(
+        "ROBUSTNESS_PROVENANCE_MISMATCH",
+        "parameter robustness source/cost-model provenance does not match the canonical run",
+      );
+    }
+    const candidateCostIds = new Set<string>();
+    for (const candidateStress of options.robustnessEvidence.candidateCostStress) {
+      if (candidateCostIds.has(candidateStress.candidateId)) {
+        throw new ResearchRunLeagueBridgeError(
+          "ROBUSTNESS_PROVENANCE_MISMATCH",
+          "candidate cost-stress evidence contains duplicate candidate bindings",
+        );
+      }
+      candidateCostIds.add(candidateStress.candidateId);
+      const candidate = candidates.find((item) => item.id === candidateStress.candidateId);
+      if (
+        candidate == null
+        || candidate.familyId !== candidateStress.familyId
+        || specificationHashes.get(candidate.id) !== candidateStress.specificationHash
+        || candidateStress.costStress.identity.datasetSha256 !== candidate.experiment.manifest.contentSha256
+      ) {
+        throw new ResearchRunLeagueBridgeError(
+          "ROBUSTNESS_PROVENANCE_MISMATCH",
+          `candidate cost-stress evidence does not bind to canonical candidate ${candidateStress.candidateId}`,
+        );
+      }
     }
   }
 
@@ -499,6 +543,21 @@ export function buildResearchRunLeague(
     })).sort((left, right) => left.candidateId.localeCompare(right.candidateId))),
     oosObservationSha256: hashCanonical(oosObservationEvidence),
   });
+  const searchOverfittingIdentity = options.probabilityBacktestOverfitting == null
+    ? undefined
+    : freeze({
+      evidenceSha256: evidenceIdentity.pboSha256!,
+      probabilityBacktestOverfitting: options.probabilityBacktestOverfitting.probabilityBacktestOverfitting,
+      datasetId: canonicalDataset.datasetId,
+      datasetContentSha256: canonicalDataset.contentSha256,
+      market: canonicalDataset.market,
+      interval: canonicalDataset.interval,
+      startOpenTime: canonicalDataset.startOpenTime,
+      endCloseTime: canonicalDataset.endCloseTime,
+      candidateIds: freeze(candidateBindings.map((binding) => binding.candidateId).sort()),
+      familyIds: freeze([...new Set(candidateBindings.map((binding) => binding.familyId))].sort()),
+      candidateSpecificationHashes: freeze(candidateBindings.map((binding) => binding.specificationHash).sort()),
+    });
   const provenancePayload = {
     schemaVersion: 1 as const,
     sourceCommitSha,
@@ -508,6 +567,7 @@ export function buildResearchRunLeague(
     candidateBindings,
     benchmarkIdentity,
     evidenceIdentity,
+    ...(searchOverfittingIdentity == null ? {} : { searchOverfittingIdentity }),
   };
   const runFingerprintSha256 = hashCanonical({
     provenance: provenancePayload,
