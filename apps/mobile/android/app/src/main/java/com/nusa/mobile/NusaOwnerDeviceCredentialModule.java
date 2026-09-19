@@ -119,7 +119,15 @@ public final class NusaOwnerDeviceCredentialModule extends ReactContextBaseJavaM
         }
         @Override public void onAuthenticationError(int code, @NonNull CharSequence error) { promise.reject("E_NUSA_OWNER_DEVICE_CREDENTIAL_AUTH", "Owner authentication was not completed."); }
       });
-      BiometricPrompt.PromptInfo info = new BiometricPrompt.PromptInfo.Builder().setTitle("NUSA 소유자 인증").setSubtitle(message).setAllowedAuthenticators(AUTHENTICATORS).build();
+      BiometricPrompt.PromptInfo info = new BiometricPrompt.PromptInfo.Builder()
+        .setTitle("NUSA 소유자 인증")
+        .setSubtitle(message)
+        // AndroidX requires an explicit negative action when only biometric
+        // authenticators are allowed; without it Galaxy can reject prompt
+        // construction before the fingerprint UI is shown.
+        .setNegativeButtonText("취소")
+        .setAllowedAuthenticators(AUTHENTICATORS)
+        .build();
       prompt.authenticate(info, new BiometricPrompt.CryptoObject(signer));
     } catch (Exception error) { promise.reject("E_NUSA_OWNER_DEVICE_CREDENTIAL_SIGN", "Owner authentication could not start.", error); }
   }
