@@ -27,11 +27,15 @@ export interface EvolutionOpportunity {
   readonly reversibility: number;
   readonly status: EvolutionOpportunityStatus;
   readonly createdAt: string;
+  readonly canonicalOwner?: string;
+  readonly conflictKeys?: readonly string[];
 }
 
 const ID = /^[A-Za-z0-9_.:-]{1,160}$/;
 const SOURCE = /^[A-Za-z0-9_.:/-]{1,120}$/;
 const REFERENCE = /^[A-Za-z0-9_.:/#@-]{1,240}$/;
+const OWNER = /^[A-Za-z0-9_.:/-]{1,120}$/;
+const CONFLICT_KEY = /^[A-Za-z0-9_.:/-]{1,200}$/;
 const bounded = (value: number): boolean => Number.isFinite(value) && value >= 0 && value <= 1;
 const VALID_STATUSES: ReadonlySet<EvolutionOpportunityStatus> = new Set([
   "DISCOVERED",
@@ -67,6 +71,17 @@ export function validateEvolutionOpportunity(value: unknown): EvolutionOpportuni
     throw new Error("EVOLVE_OPPORTUNITY_STATUS_INVALID");
   }
   if (typeof opportunity.createdAt !== "string" || Number.isNaN(Date.parse(opportunity.createdAt))) throw new Error("EVOLVE_OPPORTUNITY_CREATED_AT_INVALID");
+  if (opportunity.canonicalOwner !== undefined && (typeof opportunity.canonicalOwner !== "string" || !OWNER.test(opportunity.canonicalOwner))) {
+    throw new Error("EVOLVE_OPPORTUNITY_CANONICAL_OWNER_INVALID");
+  }
+  if (opportunity.conflictKeys !== undefined) {
+    if (!Array.isArray(opportunity.conflictKeys) || opportunity.conflictKeys.length > 32) throw new Error("EVOLVE_OPPORTUNITY_CONFLICT_KEYS_INVALID");
+    const seenConflictKeys = new Set<string>();
+    for (const key of opportunity.conflictKeys) {
+      if (typeof key !== "string" || !CONFLICT_KEY.test(key) || seenConflictKeys.has(key)) throw new Error("EVOLVE_OPPORTUNITY_CONFLICT_KEYS_INVALID");
+      seenConflictKeys.add(key);
+    }
+  }
   return Object.freeze({
     id: opportunity.id,
     source: opportunity.source,
@@ -78,5 +93,7 @@ export function validateEvolutionOpportunity(value: unknown): EvolutionOpportuni
     reversibility: opportunity.reversibility!,
     status: opportunity.status as EvolutionOpportunityStatus,
     createdAt: opportunity.createdAt,
+    ...(opportunity.canonicalOwner === undefined ? {} : { canonicalOwner: opportunity.canonicalOwner }),
+    ...(opportunity.conflictKeys === undefined ? {} : { conflictKeys: Object.freeze([...opportunity.conflictKeys]) }),
   });
 }
