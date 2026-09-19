@@ -440,6 +440,70 @@ export class PaperTradingExecutionLoop {
     return Object.freeze({ status: "WAIT", reason: "PAPER_LIMIT_OPEN", orders: Object.freeze([]), fills: Object.freeze([]), state: this.state });
   }
 
+  public fillWorkingOrder(orderId: string, fillQuantity: number, context: PaperManualOrderContext): PaperExecutionResult {
+    const gate = this.executionGate(context);
+    if (gate != null) return this.result("BLOCKED", gate);
+    if (!orderId.trim() || !Number.isFinite(fillQuantity) || fillQuantity <= 0) return this.result("FAILED", "invalid PAPER working fill request");
+    const workingOrders = [...(this.state.workingOrders ?? [])];
+    const index = workingOrders.findIndex((order) => order.id === orderId);
+    if (index < 0) return this.result("REJECTED", "PAPER_WORKING_ORDER_NOT_FOUND");
+    const current = workingOrders[index]!;
+    if (current.market !== current.market.trim().toUpperCase()) return this.result("REJECTED", "paper working order market is invalid");
+    const marketable = current.side === "BUY" ? context.marketPrice <= (current.limitPrice ?? 0) : context.marketPrice >= (current.limitPrice ?? Number.POSITIVE_INFINITY);
+    if (!marketable) return this.result("WAIT", "PAPER_LIMIT_NOT_MARKETABLE");
+    if (fillQuantity > current.lifecycle.remainingQuantity) return this.result("REJECTED", "fill quantity exceeds remaining quantity");
+
+    const fee = round8(fillQuantity * context.marketPrice * this.feeRate);
+    const positions = this.state.positions.map((item) => ({ ...item }));
+    const positionIndex = positions.findIndex((item) => item.market === current.market);
+    const previous = positionIndex < 0 ? { market: current.market, quantity: 0, averageEntryPrice: 0, realizedPnL: 0, unrealizedPnL: 0, markPrice: context.marketPrice } : positions[positionIndex]!;
+    let cash = this.state.cash;
+    let realizedPnL = this.state.realizedPnL;
+    let position: PaperAccountPosition;
+    const notional = round8(fillQuantity * context.marketPrice);
+    if (current.side === "BUY") {
+      if (notional + fee > cash) return this.result("REJECTED", "insufficient paper cash");
+      const nextQuantity = round8(previous.quantity + fillQuantity);
+      const costBasis = toScaledLedgerAmount(previous.averageEntryPrice * previous.quantity + notional + fee);
+      position = { ...previous, quantity: nextQuantity, averageEntryPrice: divideRound8(costBasis * LEDGER_ROUND_SCALE, toScaledLedgerAmount(nextQuantity)), markPrice: context.marketPrice };
+      cash = round8(cash - notional - fee);
+    } else {
+      if (fillQuantity > previous.quantity + Number.EPSILON) return this.result("REJECTED", "insufficient paper position");
+      const realized = round8((context.marketPrice - previous.averageEntryPrice) * fillQuantity - fee);
+      const nextQuantity = round8(previous.quantity - fillQuantity);
+      position = { ...previous, quantity: nextQuantity, averageEntryPrice: nextQuantity === 0 ? 0 : previous.averageEntryPrice, realizedPnL: round8(previous.realizedPnL + realized), markPrice: context.marketPrice };
+      realizedPnL = round8(realizedPnL + realized);
+      cash = round8(cash + notional - fee);
+    }
+    if (positionIndex < 0) positions.push(position); else positions[positionIndex] = position;
+
+    const terminal = Math.abs(fillQuantity - current.lifecycle.remainingQuantity) <= Number.EPSILON;
+    let lifecycle: PaperOrderLifecycleState;
+    try { lifecycle = transitionPaperOrderLifecycle(current.lifecycle, terminal ? "FILLED" : "PARTIALLY_FILLED", context.now, fillQuantity); }
+    catch (error) { return this.result("REJECTED", error instanceof Error ? error.message : "paper working fill rejected"); }
+    const priorFills = this.state.fills.filter((fill) => fill.orderId === current.id);
+    const fill: PaperFillRecord = Object.freeze({ id: `fill:${current.id}:${priorFills.length + 1}`, orderId: current.id, market: current.market, side: current.side, quantity: fillQuantity, price: context.marketPrice, fee, filledAt: context.now });
+    const fills = Object.freeze([fill, ...this.state.fills].slice(0, 1_000));
+
+    let orders = this.state.orders;
+    if (terminal) {
+      workingOrders.splice(index, 1);
+      const orderFills = [...priorFills, fill];
+      const totalQuantity = round8(orderFills.reduce((sum, item) => sum + item.quantity, 0));
+      const totalFee = round8(orderFills.reduce((sum, item) => sum + item.fee, 0));
+      const averagePrice = round8(orderFills.reduce((sum, item) => sum + item.quantity * item.price, 0) / totalQuantity);
+      const completed: PaperOrderRecord = Object.freeze({ id: current.id, idempotencyKey: current.idempotencyKey, market: current.market, side: current.side, quantity: totalQuantity, price: averagePrice, fee: totalFee, status: "FILLED", createdAt: current.createdAt, filledAt: context.now, requestFingerprint: current.requestFingerprint, lifecycle });
+      orders = Object.freeze([completed, ...orders].slice(0, 1_000));
+    } else {
+      workingOrders[index] = Object.freeze({ ...current, lifecycle });
+    }
+    let next: PaperAccountState = Object.freeze({ ...this.state, cash, realizedPnL, positions: Object.freeze(positions), orders, fills, workingOrders: Object.freeze(workingOrders), updatedAt: context.now });
+    next = markToMarket(next, current.market, context.marketPrice, context.now);
+    try { this.repository?.save(next); } catch { return this.result("FAILED", "paper account persistence failed"); }
+    this.state = next;
+    return Object.freeze({ status: terminal ? "FILLED" : "WAIT", reason: terminal ? "PAPER_LIMIT_FILLED" : "PAPER_LIMIT_PARTIALLY_FILLED", orders: terminal ? Object.freeze([orders[0]!]) : Object.freeze([]), fills: Object.freeze([fill]), state: this.state });
+  }
+
   public cancelWorkingOrder(orderId: string, now: number): PaperExecutionResult {
     if (!orderId.trim() || !Number.isSafeInteger(now) || now < 0) return this.result("FAILED", "invalid PAPER cancel request");
     const workingOrders = [...(this.state.workingOrders ?? [])];
