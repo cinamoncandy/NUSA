@@ -94,6 +94,13 @@ export class StrategyFamilyRegistry {
     const found = this.members.get(`${strategyId}|${version}`); return found && freezeMember(found);
   }
 
+  requireMembership(strategyId: string, version: string, familyId: string): StrategyFamilyMember {
+    if (!this.families.has(familyId)) throw new StrategyFamilyRegistryError("UNKNOWN_FAMILY");
+    const member = this.getMember(strategyId, version);
+    if (!member || member.familyId !== familyId) throw new StrategyFamilyRegistryError("MEMBER_CONFLICT");
+    return member;
+  }
+
   restore(families: readonly StrategyFamilyDefinition[], members: readonly StrategyFamilyMember[]): void {
     for (const family of [...families].sort((a,b) => a.familyId.localeCompare(b.familyId))) this.registerFamily(family);
     for (const member of [...members].sort((a,b) => a.familyId.localeCompare(b.familyId) || a.strategyId.localeCompare(b.strategyId) || a.version.localeCompare(b.version))) this.registerMember(member);
