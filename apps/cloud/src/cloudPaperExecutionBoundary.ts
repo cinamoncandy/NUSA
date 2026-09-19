@@ -48,8 +48,6 @@ export class CloudPaperExecutionBoundary {
     if (command.orderType === "LIMIT") {
       const limit = command.limitPrice;
       if (!Number.isFinite(limit) || (limit ?? 0) <= 0) return this.options.loop.submitManualOrder(command, context);
-      const marketable = command.side === "BUY" ? context.marketPrice <= limit! : context.marketPrice >= limit!;
-      if (!marketable) return this.options.loop.submitManualOrder(command, context);
     }
 
     if (command.side === "BUY") {
@@ -84,7 +82,10 @@ export class CloudPaperExecutionBoundary {
       approvedBy
     });
     if (risk.status !== "ALLOW") return this.riskResult(risk.status, risk.reasonCodes);
-    return this.withRisk(this.options.loop.submitManualOrder(command, context), risk);
+    const execution = command.orderType === "LIMIT"
+      ? this.options.loop.openLimitOrder(command, context)
+      : this.options.loop.submitManualOrder(command, context);
+    return this.withRisk(execution, risk);
   }
 
   public processTick(tick: PaperExecutionTick & { readonly investmentPercent?: number }): PaperExecutionResult {
