@@ -16,7 +16,7 @@ test("visual redesign has a distinct NUSA surface and financial hierarchy", () =
   assert.match(design, /const palette = dark \? preset\.dark : preset\.light/);
   assert.match(design, /background: palette\.background/);
   assert.match(design, /navSurface: palette\.navSurface/);
-  assert.match(design, /chartUp: dark \? "#D8EE76" : "#147A50"/);
+  assert.match(design, /chartUp: dark \? "#BFE85A" : "#147A50"/);
   assert.match(primitives, /metricAccent: \{ position: "absolute", left: 14, right: 14/);
   assert.match(primitives, /borderRadius: 999, borderWidth: 1, gap: 3/);
 });
