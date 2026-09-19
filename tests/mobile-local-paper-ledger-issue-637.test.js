@@ -19,7 +19,7 @@ test("#637: LOCAL PAPER is the default source when no Cloud endpoint is configur
   assert.equal(isLocalPaperActive(), true);
 });
 
-test("#637: a fill placed on the shared ledger is immediately visible to any other reader (Home/Portfolio simulation)", async () => {
+test("#637: a fill placed on the shared ledger is immediately visible to any other ledger reader", async () => {
   const before = getCachedLocalPaperSnapshot();
   const cashBefore = before.balances.find((balance) => balance.currency === "KRW")?.available ?? 0;
   let notified = 0;
@@ -35,10 +35,10 @@ test("#637: a fill placed on the shared ledger is immediately visible to any oth
   assert.ok(cashAfter < cashBefore);
   assert.equal(after.orders[after.orders.length - 1].id, order.id);
   const portfolioAsSeenByTrade = buildLocalPortfolio(after, price);
-  const portfolioAsSeenByHome = buildLocalPortfolio(getCachedLocalPaperSnapshot(), price);
-  assert.deepEqual(portfolioAsSeenByHome.account, portfolioAsSeenByTrade.account);
-  assert.equal(portfolioAsSeenByHome.account.position.quantity, quantity);
-  assert.equal(portfolioAsSeenByHome.account.cash, cashAfter);
+  const portfolioAsSeenByAnotherReader = buildLocalPortfolio(getCachedLocalPaperSnapshot(), price);
+  assert.deepEqual(portfolioAsSeenByAnotherReader.account, portfolioAsSeenByTrade.account);
+  assert.equal(portfolioAsSeenByAnotherReader.account.position.quantity, quantity);
+  assert.equal(portfolioAsSeenByAnotherReader.account.cash, cashAfter);
 });
 
 test("#637: ledger state is not tied to any component lifecycle", () => {
@@ -48,22 +48,16 @@ test("#637: ledger state is not tied to any component lifecycle", () => {
   assert.ok(firstRead.orders.length > 0);
 });
 
-test("#637: Home gives Cloud PAPER precedence and otherwise renders shared LOCAL PAPER equity/PnL", () => {
+test("#637: canonical Runtime Canvas does not mix LOCAL PAPER into the verified Cloud operations projection", () => {
   const home = read("apps/mobile/src/homeView.tsx");
-  assert.match(home, /import \{ buildLocalPortfolio, isLocalPaperActive \} from "\.\/localPaperLedger"/);
-  assert.match(home, /import \{ useLocalPaperMarkPrice, useLocalPaperSnapshot \} from "\.\/localPaperLedgerHooks"/);
-  assert.match(home, /const localPaperActive = snapshot == null && isLocalPaperActive\(\)/);
-  assert.match(home, /const localPortfolio = localPaperActive \? buildLocalPortfolio\(localTradingSnapshot, localMarkPrice\) : null/);
-  assert.match(home, /const cloudAccount = snapshot\?\.portfolio\?\.account \?\? null/);
-  assert.match(home, /const localAccount = localPortfolio\?\.account \?\? null/);
-  assert.match(home, /const account = cloudAccount \?\? localAccount/);
-  assert.match(home, /const accountSource = snapshot != null \? "CLOUD" : localPortfolio != null \? "LOCAL" : null/);
+  assert.match(home, /const account = snapshot\?\.portfolio\?\.account \?\? null/);
+  assert.match(home, /const capitalLabel = account == null \? "PAPER CAPITAL UNAVAILABLE" : "CLOUD PAPER CAPITAL"/);
   assert.match(home, /const totalPnl = account == null \? null : \(account\.realizedPnl \?\? account\.position\.realizedPnl\) \+ account\.unrealizedPnl/);
   assert.match(home, /testID="account-hero-card"/);
-  assert.match(home, /PAPER EQUITY/);
-  assert.match(home, /\{krw\(account\?\.equity\)\}/);
-  assert.match(home, /\{signedMoney\(totalPnl\)\} TOTAL PNL/);
-  assert.doesNotMatch(home, /home-local-paper-note/);
+  assert.match(home, /label="PAPER EQUITY"/);
+  assert.match(home, /money\(account\?\.equity\)/);
+  assert.match(home, /signedMoney\(totalPnl\)/);
+  assert.doesNotMatch(home, /buildLocalPortfolio|useLocalPaperSnapshot|useLocalPaperMarkPrice|LOCAL PAPER CAPITAL/);
 });
 
 test("#637: Portfolio renders shared LOCAL PAPER only when Cloud PAPER is absent", () => {
@@ -78,11 +72,12 @@ test("#637: Portfolio renders shared LOCAL PAPER only when Cloud PAPER is absent
   assert.match(portfolio, /testID="portfolio-supervisor-summary"/);
 });
 
-test("#637: Trade, Home, and Portfolio all derive LOCAL-vs-Cloud from the one shared isLocalPaperActive expression", () => {
+test("#637: Trade and Portfolio share the LOCAL activation expression while HOME stays Cloud-projection only", () => {
   const trading = read("apps/mobile/src/tradingViewLegacy.tsx");
   const home = read("apps/mobile/src/homeView.tsx");
   const portfolio = read("apps/mobile/src/portfolioView.tsx");
-  for (const source of [trading, home, portfolio]) assert.match(source, /isLocalPaperActive\(\)/);
+  for (const source of [trading, portfolio]) assert.match(source, /isLocalPaperActive\(\)/);
+  assert.doesNotMatch(home, /isLocalPaperActive\(\)/);
 });
 
 test("#637: no LIVE or production-mutation authority is introduced by the shared ledger", () => {

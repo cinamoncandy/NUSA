@@ -5,12 +5,14 @@ const path = require("node:path");
 const root = path.join(__dirname, "..", "apps", "mobile");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-test("product v5 keeps the four primary jobs literal and glanceable", () => {
+test("product v5 keeps the primary jobs explicit across navigation and the Runtime Canvas", () => {
   const app = read("App.tsx");
   assert.match(app, /Home: "HOME", Markets: "MARKETS", Paper: "PAPER", Portfolio: "PORTFOLIO"/);
   const home = read("src/homeView.tsx");
-  assert.match(home, />MARKETS<\/Text>/);
-  assert.match(home, />PORTFOLIO<\/Text>/);
+  assert.match(home, /onNavigate\("Markets"\)/);
+  assert.match(home, /onNavigate\("Portfolio"\)/);
+  assert.match(home, /onNavigate\("AiSignal"\)/);
+  assert.match(home, /testID="home-paper-learning"/);
   assert.match(home, /PAPER EQUITY/);
   assert.match(home, /TOTAL PNL/);
 });

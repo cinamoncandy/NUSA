@@ -16,24 +16,34 @@ const spec = read("docs/ux/NUSA_INTELLIGENCE_OS_V1.md");
 
 test("Intelligence OS keeps authority and data-integrity boundaries visible", () => {
   for (const source of [home, markets, paper, portfolio, spec]) assert.match(source, /PAPER/);
-  assert.match(home, /LIVE NONE · AI ZERO AUTHORITY/);
+  assert.match(home, /PAPER ONLY · LIVE NONE · MUTATION FALSE · AI ZERO AUTHORITY/);
   assert.match(paper, /LIVE NONE · AI ZERO AUTHORITY/);
   assert.match(portfolio, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
   assert.match(markets, /PUBLIC READ ONLY/);
   assert.doesNotMatch(home, /BULLISH|BEARISH|STRONG SIGNAL|WEAK SIGNAL/);
 });
 
-test("HOME follows posture -> capital truth -> observation -> supervision -> learning -> decision detail", () => {
-  const anchors = ['testID="home-now"','testID="account-hero-card"','testID="home-decision-stage"','testID="home-paper-performance"','testID="home-paper-learning"','DECISION BASIS','testID="ai-card"','testID="home-risk-status"'];
+test("HOME follows runtime truth -> judgment -> evidence -> validation -> observation -> PAPER context -> learning", () => {
+  const anchors = [
+    'testID="home-status-rail"',
+    'testID="home-intelligence-reveal"',
+    'testID="home-judgment-proof"',
+    'testID="ai-card"',
+    'testID="home-confidence-evidence-quality"',
+    'testID="home-market-canvas-reveal"',
+    'testID="home-capital-reveal"',
+    'testID="home-paper-performance"',
+    'testID="home-paper-learning"',
+  ];
   let cursor = -1;
   for (const anchor of anchors) { const next = home.indexOf(anchor); assert.ok(next > cursor, `${anchor} must appear after the previous UX stage`); cursor = next; }
-  assert.match(home, /공개 시장 데이터 대기 중/);
   assert.match(home, /UNAVAILABLE|—/);
+  assert.doesNotMatch(home, /RISK VETO|SIGNAL FUNNEL|REJECTED SIGNALS|testID="home-risk-status"|testID="home-decision-stage"/);
 });
 
 test("primary screens share Intelligence OS truth grammar while PAPER specializes as a learning monitor", () => {
   assert.match(home, /testID="home-status-rail"/);
-  assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
+  assert.match(home, /PAPER ONLY · LIVE NONE · MUTATION FALSE · AI ZERO AUTHORITY/);
   assert.match(markets, /AuthorityRail/);
   assert.match(portfolio, /AuthorityRail/);
   assert.match(paper, /PaperLearningMonitorView/);

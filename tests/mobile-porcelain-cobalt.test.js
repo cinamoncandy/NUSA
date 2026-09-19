@@ -18,19 +18,19 @@ test("approved porcelain/cobalt theme preserves semantic authority and accessibl
   }
 });
 
-test("Home reuses canonical chart reader and renderer without sample or private IO", () => {
+test("Runtime Canvas keeps chart rendering in Markets instead of reconstructing a finance-dashboard Home", () => {
   const home = fs.readFileSync("apps/mobile/src/homeView.tsx", "utf8");
-  assert.match(home, /buildChartViewModel\(\{ market: publicMarket/);
-  assert.match(home, /stale: publicMarketStale/);
-  assert.match(home, /marketChart.state === "READY" \? <CandlePlot model=\{marketChart\}/);
-  assert.match(home, /krw\(marketChart.currentPrice\)/);
-  assert.doesNotMatch(home, /128420000|128,420,000|Math.random|fetch\(|WebSocket/);
+  const markets = fs.readFileSync("apps/mobile/src/marketsView.tsx", "utf8");
+  assert.match(markets, /import \{ ChartView \} from "\.\/chartView"/);
+  assert.match(markets, /<ChartView changeRate=\{changeRate\}/);
+  assert.match(markets, /rawCandles=\{displayedCandles === null \? null : \[\.\.\.displayedCandles\]\}/);
+  assert.match(home, /testID="home-public-market-chart"/);
   assert.match(home, /onNavigate\("Markets"\)/);
-  assert.match(home, /disabled=\{disconnected\}/);
-  assert.match(home, /LIVE NONE · AI ZERO AUTHORITY/);
+  assert.doesNotMatch(home, /buildChartViewModel\(|<CandlePlot|Math\.random\(|fetch\(|WebSocket/);
+  assert.match(home, /PAPER ONLY · LIVE NONE · MUTATION FALSE · AI ZERO AUTHORITY/);
 });
 
-test("Home chart input remains unavailable on stale, disconnected, missing or malformed evidence", () => {
+test("canonical chart model remains unavailable on stale, disconnected, missing or malformed evidence", () => {
   assert.equal(buildChartViewModel(input).state, "READY");
   for (const override of [{ stale: true }, { connectionState: "OFFLINE" }, { rawCandles: null }, { rawCandles: [] }, { currentPrice: NaN }, { rawCandles: [{ ...input.rawCandles[0], market: "KRW-ETH" }] }]) {
     const model = buildChartViewModel({ ...input, ...override });

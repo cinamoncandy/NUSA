@@ -6,20 +6,22 @@ const path = require("node:path");
 const root = path.join(__dirname, "..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-test("Home preserves the canonical Intelligence OS safety-first actions without restoring the legacy supervisor CTA", () => {
+test("Home preserves truth-bound Runtime Canvas actions without restoring the retired supervisor deck", () => {
   const home = read("apps/mobile/src/homeView.tsx");
   const decisionSurface = read("apps/mobile/src/homeDecisionSurface.ts");
 
   assert.match(home, /testID="home-screen"/);
   assert.match(home, /testID="home-master-rail"/);
+  assert.match(home, /testID="home-status-rail"/);
   assert.match(home, /testID="home-now"/);
-  assert.match(home, /testID="account-hero-card"/);
+  assert.match(home, /testID="home-judgment-proof"/);
   assert.match(home, /testID="ai-card"/);
-  assert.match(home, /testID="home-risk-status"/);
-  assert.match(home, /testID="home-decision-stage"/);
+  assert.match(home, /testID="home-confidence-evidence-quality"/);
+  assert.match(home, /testID="home-market-canvas-reveal"/);
   assert.match(home, /testID="home-paper-performance"/);
   assert.match(home, /testID="home-paper-learning"/);
-  assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
+  assert.match(home, /PAPER ONLY · LIVE NONE · MUTATION FALSE · AI ZERO AUTHORITY/);
+  assert.doesNotMatch(home, /testID="home-risk-status"|testID="home-decision-stage"|RISK VETO|SIGNAL FUNNEL|REJECTED SIGNALS/);
 
   assert.doesNotMatch(home, /testID="home-supervisor-primary-action"/);
   assert.doesNotMatch(home, /testID="home-next-action"/);
@@ -35,7 +37,7 @@ test("Home preserves the canonical Intelligence OS safety-first actions without 
   assert.match(home, /onOpenPaperLearning/);
 
   // Keep the canonical fail-closed decision model available for runtime truth and downstream users,
-  // but the approved HOME presentation must not reconstruct the retired supervisor deck.
+  // but the approved HOME presentation must not reconstruct fields the production read path does not deliver.
   assert.match(decisionSurface, /"CONNECT PAPER"/);
   assert.match(decisionSurface, /"RECOVER"/);
   assert.match(decisionSurface, /"SUPERVISE PAPER"/);

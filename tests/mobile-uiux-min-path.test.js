@@ -6,19 +6,23 @@ const path = require("node:path");
 const root = path.join(__dirname, "..", "apps", "mobile");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-test("premium UI minimum path keeps canonical actionable Home routes and truthful PAPER naming", () => {
+test("premium UI minimum path keeps canonical actionable Runtime Canvas routes and truthful PAPER naming", () => {
   const home = read("src/homeView.tsx");
   const decisionSurface = read("src/homeDecisionSurface.ts");
+  assert.match(home, /testID="home-intelligence-reveal"/);
   assert.match(home, /testID="ai-card"/);
-  assert.match(home, /testID="home-decision-stage"/);
+  assert.match(home, /testID="home-confidence-evidence-quality"/);
+  assert.match(home, /testID="home-market-canvas-reveal"/);
   assert.match(home, /testID="home-paper-performance"/);
   assert.match(home, /testID="home-paper-learning"/);
-  assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
+  assert.match(home, /onNavigate\("Markets"\)/);
+  assert.match(home, /onNavigate\("Portfolio"\)/);
+  assert.match(home, /onNavigate\("AiSignal"\)/);
+  assert.match(home, /PAPER ONLY · LIVE NONE · MUTATION FALSE · AI ZERO AUTHORITY/);
   assert.match(decisionSurface, /const connectionRecoveryRequired = input\.disconnected \|\| input\.readOnlyError/);
   assert.match(decisionSurface, /const statusLabel = connectionRecoveryRequired[\s\S]*PAPER · RECOVERY REQUIRED[\s\S]*input\.accountSource === "CLOUD"[\s\S]*PAPER · \$\{[\s\S]*PAPER · LOCAL[\s\S]*PAPER · OFFLINE[\s\S]*PAPER · STANDBY/);
-  assert.doesNotMatch(home, /testID="home-supervisor-primary-action"/);
-  assert.doesNotMatch(home, /<MetricTile label="PAPER 연결"/);
-  assert.doesNotMatch(home, /primaryActions/);
+  assert.doesNotMatch(home, /testID="home-supervisor-primary-action"|testID="home-decision-stage"|testID="home-risk-status"/);
+  assert.doesNotMatch(home, /<MetricTile label="PAPER 연결"|primaryActions/);
 });
 
 test("functional motion is bounded and reduced-motion aware", () => {
@@ -29,7 +33,7 @@ test("functional motion is bounded and reduced-motion aware", () => {
   assert.match(components, /reduceMotionChanged/);
   assert.match(components, /Animated\.timing/);
   assert.match(components, /useNativeDriver: true/);
-  assert.doesNotMatch(home, /MotionReveal testID="home-hero-reveal"/);
+  assert.doesNotMatch(home, /MotionReveal|IntelligenceMotionField/);
   assert.match(chart, /MotionReveal testID="chart-data-reveal"/);
 });
 
