@@ -57,9 +57,7 @@
       "environment": null
     },
     "autopilot-cloudflare-credential-preflight.yml:preflight": {
-      "write": [
-        "issues"
-      ],
+      "write": [],
       "secrets": true,
       "environment": null
     },
@@ -292,15 +290,14 @@
       "write": [],
       "secrets": false,
       "environment": null
+    },
+    "autopilot-cloudflare-credential-preflight.yml:blocker": {
+      "write": [
+        "issues"
+      ],
+      "secrets": false,
+      "environment": null
     }
   },
-  "acknowledgedDebt": {
-    "prSecretWrite": [
-      {
-        "job": "autopilot-cloudflare-credential-preflight.yml:preflight",
-        "issue": "#1871",
-        "note": "Secret-bearing pull_request_target validation also carries issues:write to maintain the canonical blocker. Split validation from issue mutation, then delete this entry."
-      }
-    ]
-  }
+  "acknowledgedDebt": {}
 }
