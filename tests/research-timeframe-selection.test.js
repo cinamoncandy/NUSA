@@ -4,6 +4,7 @@ const {
   RESEARCH_TIMEFRAMES,
   RESEARCH_MARKET_SET_VERSION,
   researchTimeframe,
+  researchCandleCount,
 } = require("../scripts/research-real-market-run.js");
 
 test("timeframe defaults to daily when unset", () => {
@@ -51,4 +52,20 @@ test("each timeframe declares the depth its contiguity was verified at", () => {
 test("the module resolves its market-set identity from the selected timeframe", () => {
   // Default process env in this test run is unset, so the daily identity must be in force.
   assert.equal(RESEARCH_MARKET_SET_VERSION, RESEARCH_TIMEFRAMES["1d"].marketSetVersion);
+});
+
+test("runtime candle depth must exactly match the timeframe availability declaration", () => {
+  assert.equal(researchCandleCount(undefined, "1d"), 2000);
+  assert.equal(researchCandleCount("2000", "1d"), 2000);
+  assert.equal(researchCandleCount("1500", "60m"), 1500);
+  assert.equal(researchCandleCount("4000", "240m"), 4000);
+
+  assert.throws(() => researchCandleCount("500", "1d"), /not covered by upbit-public-daily-2000-v2/);
+  assert.throws(() => researchCandleCount("1700", "60m"), /not covered by upbit-public-minute60-1500-v1/);
+  assert.throws(() => researchCandleCount("1500", "240m"), /not covered by upbit-public-minute240-4000-v1/);
+});
+
+test("runtime candle depth rejects malformed and undeclared timeframe values", () => {
+  assert.throws(() => researchCandleCount("abc", "1d"), /must be an integer/);
+  assert.throws(() => researchCandleCount("2000", "5m"), /requires a declared timeframe/);
 });
