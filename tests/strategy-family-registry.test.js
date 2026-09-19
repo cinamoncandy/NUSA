@@ -3,6 +3,7 @@ const test = require("node:test");
 const { StrategyFamilyRegistry, StrategyFamilyRegistryError, CANONICAL_INDEPENDENT_ALPHA_FAMILIES } = require("../dist/apps/cloud/src/strategyFamilyRegistry.js");
 
 const family = { familyId:"microstructure.orderbook-imbalance", name:"Orderbook Imbalance", category:"MICROSTRUCTURE", thesis:"Independent microstructure pressure evidence.", lifecycle:"RESEARCHING" };
+const fundingFamily = { familyId:"derivatives.funding-persistence", name:"Funding Persistence", category:"DERIVATIVES", thesis:"Independent derivatives carry evidence.", lifecycle:"RESEARCHING" };
 const member = { strategyId:"ORDERBOOK_IMBALANCE", version:"1.0.0", familyId:family.familyId, role:"RESEARCH_CANDIDATE" };
 
 test("registers canonical family and member deterministically", () => {
@@ -19,9 +20,9 @@ test("rejects unknown family and invalid family id", () => {
 });
 
 test("rejects duplicate family and mismatched member identity", () => {
-  const r=new StrategyFamilyRegistry(); r.registerFamily(family); r.registerMember(member);
+  const r=new StrategyFamilyRegistry(); r.registerFamily(family); r.registerFamily(fundingFamily); r.registerMember(member);
   assert.throws(()=>r.registerFamily(family), e=>e.code==="DUPLICATE_FAMILY");
-  assert.throws(()=>r.registerMember({...member,familyId:"derivatives.funding-persistence"}), e=>e.code==="MEMBER_CONFLICT");
+  assert.throws(()=>r.registerMember({...member,familyId:fundingFamily.familyId}), e=>e.code==="MEMBER_CONFLICT");
 });
 
 test("enforces one champion per family while keeping challenger and research candidate distinct", () => {
