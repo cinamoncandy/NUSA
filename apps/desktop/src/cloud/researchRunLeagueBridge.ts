@@ -433,43 +433,45 @@ export function buildResearchRunLeague(
   const expectedPboCandidateIds = [...candidates.map((candidate) => candidate.id)].sort();
   const expectedPboFamilyIds = [...new Set(candidates.map((candidate) => candidate.familyId))].sort();
   const expectedPboSpecificationHashes = candidates.map((candidate) => specificationHashes.get(candidate.id)!).sort();
-  const firstPboCandidate = candidates[0]!;
-  const expectedPboManifest = firstPboCandidate.experiment.manifest;
-  const expectedPboEvaluationSha256 = hashCanonical({
-    walkForward: firstPboCandidate.experiment.experimentConfig.walkForward,
-    executionCosts: firstPboCandidate.experiment.experimentConfig.executionCosts,
-  });
-  const expectedPboTimestampSha256 = hashCanonical(
-    firstPboCandidate.experiment.walkForwardResult.windows.flatMap((window) => (
-      window.testResult.equityCurve.slice(1).map((point) => point.timestamp)
-    )),
-  );
-  const currentPboEvaluationAligned = candidates.every((candidate) => (
-    hashCanonical({
-      walkForward: candidate.experiment.experimentConfig.walkForward,
-      executionCosts: candidate.experiment.experimentConfig.executionCosts,
-    }) === expectedPboEvaluationSha256
-  ));
-  const currentPboTimestampsAligned = candidates.every((candidate) => (
-    hashCanonical(candidate.experiment.walkForwardResult.windows.flatMap((window) => (
-      window.testResult.equityCurve.slice(1).map((point) => point.timestamp)
-    ))) === expectedPboTimestampSha256
-  ));
-  const pboProvenanceVerified = suppliedPbo != null
-    && suppliedPboProvenance != null
-    && suppliedPboProvenance.schemaVersion === 1
-    && suppliedPboProvenance.datasetId === expectedPboManifest.datasetId
-    && suppliedPboProvenance.datasetContentSha256 === expectedPboManifest.contentSha256
-    && suppliedPboProvenance.market === expectedPboManifest.market
-    && suppliedPboProvenance.interval === expectedPboManifest.interval
-    && suppliedPboProvenance.candleCount === expectedPboManifest.candleCount
-    && suppliedPboProvenance.startOpenTime === expectedPboManifest.startOpenTime
-    && suppliedPboProvenance.endCloseTime === expectedPboManifest.endCloseTime
-    && JSON.stringify([...suppliedPboProvenance.candidateIds].sort()) === JSON.stringify(expectedPboCandidateIds)
-    && suppliedPboProvenance.evaluationSha256 === expectedPboEvaluationSha256
-    && suppliedPboProvenance.oosTimestampSha256 === expectedPboTimestampSha256
-    && currentPboEvaluationAligned
-    && currentPboTimestampsAligned;
+
+  let pboProvenanceVerified = false;
+  if (suppliedPbo != null && suppliedPboProvenance != null) {
+    const firstPboCandidate = candidates[0]!;
+    const expectedPboManifest = firstPboCandidate.experiment.manifest;
+    const expectedPboEvaluationSha256 = hashCanonical({
+      walkForward: firstPboCandidate.experiment.experimentConfig.walkForward,
+      executionCosts: firstPboCandidate.experiment.experimentConfig.executionCosts,
+    });
+    const firstPboCurveTimestamps = firstPboCandidate.experiment.walkForwardResult.windows.flatMap((window) => (
+      window.testResult?.equityCurve?.slice(1).map((point) => point.timestamp) ?? []
+    ));
+    const expectedPboTimestampSha256 = hashCanonical(firstPboCurveTimestamps);
+    const currentPboEvaluationAligned = candidates.every((candidate) => (
+      hashCanonical({
+        walkForward: candidate.experiment.experimentConfig.walkForward,
+        executionCosts: candidate.experiment.experimentConfig.executionCosts,
+      }) === expectedPboEvaluationSha256
+    ));
+    const currentPboTimestampsAligned = candidates.every((candidate) => (
+      hashCanonical(candidate.experiment.walkForwardResult.windows.flatMap((window) => (
+        window.testResult?.equityCurve?.slice(1).map((point) => point.timestamp) ?? []
+      ))) === expectedPboTimestampSha256
+    ));
+    pboProvenanceVerified = suppliedPboProvenance.schemaVersion === 1
+      && suppliedPboProvenance.datasetId === expectedPboManifest.datasetId
+      && suppliedPboProvenance.datasetContentSha256 === expectedPboManifest.contentSha256
+      && suppliedPboProvenance.market === expectedPboManifest.market
+      && suppliedPboProvenance.interval === expectedPboManifest.interval
+      && suppliedPboProvenance.candleCount === expectedPboManifest.candleCount
+      && suppliedPboProvenance.startOpenTime === expectedPboManifest.startOpenTime
+      && suppliedPboProvenance.endCloseTime === expectedPboManifest.endCloseTime
+      && JSON.stringify([...suppliedPboProvenance.candidateIds].sort()) === JSON.stringify(expectedPboCandidateIds)
+      && suppliedPboProvenance.evaluationSha256 === expectedPboEvaluationSha256
+      && suppliedPboProvenance.oosTimestampSha256 === expectedPboTimestampSha256
+      && firstPboCurveTimestamps.length > 0
+      && currentPboEvaluationAligned
+      && currentPboTimestampsAligned;
+  }
   const admittedPbo = pboProvenanceVerified ? suppliedPbo : undefined;
 
   const reasons: string[] = ["RESEARCH_TIER_ONLY", "NO_EXECUTION_AUTHORITY"];
