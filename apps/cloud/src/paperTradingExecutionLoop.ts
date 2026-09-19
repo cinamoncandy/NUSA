@@ -571,10 +571,16 @@ export class PaperTradingExecutionLoop {
     try { lifecycle = transitionPaperOrderLifecycle(current.lifecycle, "CANCELLED", now); }
     catch (error) { return this.result("REJECTED", error instanceof Error ? error.message : "paper cancel rejected"); }
     workingOrders.splice(index, 1);
-    const next = Object.freeze({ ...this.state, workingOrders: Object.freeze(workingOrders), updatedAt: now });
+    const priorFills = this.state.fills.filter((fill) => fill.orderId === current.id);
+    const totalQuantity = round8(priorFills.reduce((sum, fill) => sum + fill.quantity, 0));
+    const totalFee = round8(priorFills.reduce((sum, fill) => sum + fill.fee, 0));
+    const averagePrice = totalQuantity > 0 ? priorFills.reduce((sum, fill) => sum + fill.price * fill.quantity, 0) / totalQuantity : current.limitPrice;
+    const cancelled: PaperOrderRecord = Object.freeze({ id: current.id, idempotencyKey: current.idempotencyKey, market: current.market, side: current.side, quantity: totalQuantity, price: averagePrice, fee: totalFee, status: "CANCELLED", createdAt: current.createdAt, filledAt: now, requestFingerprint: current.requestFingerprint, lifecycle, executionProfile: current.executionProfile });
+    const orders = Object.freeze([cancelled, ...this.state.orders.filter((order) => order.id !== current.id)].slice(0, 1_000));
+    const next = Object.freeze({ ...this.state, orders, workingOrders: Object.freeze(workingOrders), updatedAt: now });
     try { this.repository?.save(next); } catch { return this.result("FAILED", "paper account persistence failed"); }
     this.state = next;
-    return Object.freeze({ status: "WAIT", reason: `PAPER_ORDER_CANCELLED:${lifecycle.transitionSequence}`, orders: Object.freeze([]), fills: Object.freeze([]), state: this.state });
+    return Object.freeze({ status: "WAIT", reason: `PAPER_ORDER_CANCELLED:${lifecycle.transitionSequence}`, orders: Object.freeze([cancelled]), fills: Object.freeze(priorFills), state: this.state });
   }
 
   public submitManualOrder(command: PersonalPaperOrderCommand, context: PaperManualOrderContext): PaperExecutionResult {
