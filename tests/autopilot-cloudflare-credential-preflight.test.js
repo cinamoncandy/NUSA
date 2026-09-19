@@ -78,7 +78,7 @@ test('preflight waits boundedly for executed exact-main deploy evidence and live
 test('failed preflight freezes existing Release through canonical P0 serialization', () => {
   assert.match(workflow, /issues: write/);
   assert.match(workflow, /actions: read/);
-  assert.match(workflow, /if: \$\{\{ failure\(\) \}\}/);
+  assert.match(workflow, /if: \$\{\{ needs\.preflight\.result != 'success' \}\}/);
   assert.match(workflow, /P0: Cloudflare deployment credential\/runtime baseline unhealthy/);
   assert.match(workflow, /Refs #903/);
   assert.match(workflow, /nusa-cloudflare-credential-preflight-p0/);
@@ -87,7 +87,7 @@ test('failed preflight freezes existing Release through canonical P0 serializati
 });
 
 test('pull_request_target can never clear the canonical P0 freeze', () => {
-  assert.match(workflow, /if: \$\{\{ success\(\) && github\.event_name != 'pull_request_target' && steps\.deploy\.outputs\.status == 'ready' \}\}/);
+  assert.match(workflow, /if: \$\{\{ needs\.preflight\.result == 'success' && github\.event_name != 'pull_request_target' && needs\.preflight\.outputs\.deployment_status == 'ready' \}\}/);
   assert.match(workflow, /state='closed'/);
 });
 
@@ -103,6 +103,29 @@ test('active exact-main convergence abstains without weakening terminal failure 
   assert.match(workflow, /id: deploy/);
   assert.match(workflow, /if: steps\.deploy\.outputs\.status == 'ready'/);
   assert.match(workflow, /No successful exact-main Cloudflare deploy and no bounded active CI\/deploy convergence/);
-  assert.match(workflow, /if: \$\{\{ failure\(\) \}\}/);
+  assert.match(workflow, /if: \$\{\{ needs\.preflight\.result != 'success' \}\}/);
   assert.match(workflow, /deploymentStatus=\$\{\{ steps\.deploy\.outputs\.status \|\| 'unknown' \}\}/);
+});
+
+// #1871: a PR-triggered job must never combine Cloudflare secrets with repository write authority.
+test('the secret-bearing job and issue-mutating job never share authority', () => {
+  const body = workflow.replace(/\r\n/g, "\n").split("\n").filter((line) => !/^\s*#/.test(line)).join("\n");
+  const jobs = body.split(/\n  (?=[A-Za-z0-9_-]+:\n)/);
+  const preflight = jobs.find((job) => job.startsWith('preflight:'));
+  const blocker = jobs.find((job) => job.startsWith('blocker:'));
+  assert.ok(preflight); assert.ok(blocker);
+  assert.match(preflight, /secrets\.CLOUDFLARE_API_TOKEN/);
+  assert.doesNotMatch(preflight, /issues: write/);
+  assert.doesNotMatch(preflight, /\/issues\b/);
+  assert.match(blocker, /issues: write/);
+  assert.doesNotMatch(blocker, /\$\{\{\s*secrets\./);
+  assert.match(workflow, /^permissions: \{\}$/m);
+});
+
+test('blocker consumes only trusted preflight outputs and preserves pending convergence', () => {
+  assert.match(workflow, /needs: preflight/);
+  assert.match(workflow, /if: \$\{\{ !cancelled\(\) \}\}/);
+  assert.match(workflow, /CURRENT_MAIN: \$\{\{ needs\.preflight\.outputs\.current_main \}\}/);
+  assert.match(workflow, /deployment_status: \$\{\{ steps\.deploy\.outputs\.status \}\}/);
+  assert.match(workflow, /needs\.preflight\.outputs\.deployment_status == 'ready'/);
 });
