@@ -254,7 +254,7 @@ function requireIndependentLessonSupport(
       continue;
     }
     const evidence = records.find(
-      (candidate) =>
+      (candidate): candidate is ResearchMemorySemanticEvent =>
         isCanonicalEmpiricalSemanticEvent(candidate) &&
         sameArtifact(candidate.artifact, relation.sourceArtifact),
     );
