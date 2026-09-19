@@ -52,7 +52,7 @@ export class SqliteStrategyGovernanceStore {
       const snapshot = JSON.stringify({ hash: replay.hash, lifecycles: [...replay.lifecycles], champions: [...replay.champions] });
       this.db.connection.prepare("INSERT INTO strategy_governance_state(id,snapshot_json) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET snapshot_json=excluded.snapshot_json").run(snapshot);
       this.db.connection.prepare("DELETE FROM champion_assignments").run();
-      for (const [family, strategyKeyValue] of replay.champions) this.db.connection.prepare("INSERT INTO champion_assignments(family,strategy_key) VALUES(?,?)").run(family, strategyKeyValue);
+      for (const [familyId, strategyKeyValue] of replay.champions) this.db.connection.prepare("INSERT INTO champion_assignments(family,strategy_key) VALUES(?,?)").run(familyId, strategyKeyValue);
     });
   }
 
