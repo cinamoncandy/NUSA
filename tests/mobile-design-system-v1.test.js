@@ -11,7 +11,7 @@ test("mobile presets keep classic neutral and apply approved cobalt master actio
 
   // Master actions use the approved cobalt palette; semantic AI and risk colors remain separate.
   assert.match(source, /classic:[\s\S]*?primary: "#E8F3FF"[\s\S]*?primary: "#11151B"/);
-  assert.match(source, /master:[\s\S]*?primary: "#9BABFF"[\s\S]*?primary: "#304EE8"/);
+  assert.match(source, /master:[\s\S]*?primary: "#BFE85A"[\s\S]*?primary: "#304EE8"/);
   assert.match(source, /primary: palette\.primary/);
 
   // Chromatic accents remain confined to signal/AI semantics rather than brand actions. Each
