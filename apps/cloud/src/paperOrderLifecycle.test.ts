@@ -57,3 +57,23 @@ describe("canonical PAPER order lifecycle", () => {
     expect(() => transitionPaperOrderLifecycle(state, "OPEN", 100)).toThrow(/time is invalid/);
   });
 });
+
+
+describe("restart-safe working order semantics", () => {
+  it("keeps OPEN lifecycle non-terminal across serialization", () => {
+    let state = createPaperOrderLifecycle(3, 200);
+    state = transitionPaperOrderLifecycle(state, "ACCEPTED", 201);
+    state = transitionPaperOrderLifecycle(state, "OPEN", 202);
+    const restored = JSON.parse(JSON.stringify(state));
+    expect(validatePaperOrderLifecycle(restored)).toEqual(state);
+  });
+
+  it("keeps PARTIALLY_FILLED quantities across serialization", () => {
+    let state = createPaperOrderLifecycle(8, 200);
+    state = transitionPaperOrderLifecycle(state, "ACCEPTED", 201);
+    state = transitionPaperOrderLifecycle(state, "OPEN", 202);
+    state = transitionPaperOrderLifecycle(state, "PARTIALLY_FILLED", 203, 3);
+    const restored = validatePaperOrderLifecycle(JSON.parse(JSON.stringify(state)));
+    expect(restored).toMatchObject({ status: "PARTIALLY_FILLED", requestedQuantity: 8, filledQuantity: 3, remainingQuantity: 5 });
+  });
+});
