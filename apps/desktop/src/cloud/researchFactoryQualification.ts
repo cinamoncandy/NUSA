@@ -288,6 +288,17 @@ function parameterGate(entry: LeagueRankedEntry, run: ResearchRunLeagueResult): 
   ) {
     return gate("UNKNOWN", ["PARAMETER_ROBUSTNESS_PROVENANCE_MISMATCH"]);
   }
+  if (
+    !Number.isInteger(reference.immediateNeighborCount)
+    || (reference.immediateNeighborCount ?? 0) < 1
+    || !Number.isFinite(reference.referenceReturn)
+    || !Number.isFinite(reference.immediateNeighborPositiveRatio)
+    || !Number.isFinite(reference.immediateNeighborBenchmarkOutperformRatio)
+    || !Number.isFinite(reference.allCandidatePositiveRatio)
+    || !Number.isFinite(reference.signReversalRatio)
+  ) {
+    return gate("UNKNOWN", ["PARAMETER_ROBUSTNESS_NEIGHBOR_EVIDENCE_INSUFFICIENT"]);
+  }
   if (reference.assessment === "BROAD_PLATEAU" || reference.assessment === "NARROW_PLATEAU") {
     return gate("PASS");
   }
