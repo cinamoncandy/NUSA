@@ -1,6 +1,7 @@
 import { validatePersistedEvolutionLearningMemory, type EvolutionLearningMemoryStorage } from "./evolveDurableLearningMemory";
 import { validatePersistedCodingExecutionEvidence, type CodingExecutionEvidence } from "./codingExecutionEvidence";
 import { validateAutopilotExecutionTelemetry, type AutopilotExecutionTelemetry } from "./executionTelemetry";
+import { createNusaDevelopmentQueue, type NusaDevelopmentQueue } from "../../../packages/development-control-plane/src";
 import type { ExecutionHold, HoldClearance } from "./autonomousExecutionState";
 
 interface DurableObjectStorageLike {
@@ -114,6 +115,7 @@ const AUTOPILOT_TELEMETRY_HISTORY_KEY = "autopilot-execution-telemetry-v1";
 const MAX_AUTOPILOT_TELEMETRY = 120;
 const CONTROL_PLANE_HOLD_STORAGE_KEY = "control-plane-hold-v1";
 const CONTROL_PLANE_HOLD_COORDINATOR_PREFIX = "control-plane-hold";
+const DEVELOPMENT_QUEUE_COORDINATOR_PREFIX = "development-queue";
 const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SHA40 = /^[0-9a-f]{40}$/i;
 const json = (body: unknown, status = 200): Response => new Response(JSON.stringify(body), {
@@ -182,6 +184,11 @@ function validPersistedControlPlaneHold(value: unknown): value is PersistedContr
   return validExecutionHold(record.hold, record)
     && (record.state === "ACTIVE" || record.state === "CLEARED")
     && validSafeTimestamp(record.updatedAt);
+}
+
+function developmentQueueCoordinatorKey(repository: string): string {
+  if (!REPOSITORY.test(repository)) throw new Error("DEVELOPMENT_QUEUE_REPOSITORY_INVALID");
+  return `${DEVELOPMENT_QUEUE_COORDINATOR_PREFIX}:${repository}`;
 }
 
 function holdCoordinatorKey(identity: ControlPlaneHoldIdentity): string {
@@ -292,6 +299,7 @@ export class ExecutionCoordinator {
     if (request.method === "GET" && url.pathname === "/coding-evidence-history") return this.readCodingExecutionEvidence();
     if (request.method === "GET" && url.pathname === "/execution-telemetry") return this.readExecutionTelemetry();
     if (request.method === "GET" && url.pathname === "/control-plane-hold") return this.readControlPlaneHold();
+    if (request.method === "GET" && url.pathname === "/development-queue") return this.readDevelopmentQueue();
     if (request.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405);
     if (url.pathname === "/acquire") return this.acquire(await request.json());
     if (url.pathname === "/dispatched") return this.markDispatched(await request.json());
@@ -302,6 +310,7 @@ export class ExecutionCoordinator {
     if (url.pathname === "/execution-telemetry") return this.writeExecutionTelemetry(await request.json());
     if (url.pathname === "/control-plane-hold/apply") return this.applyControlPlaneHold(await request.json());
     if (url.pathname === "/control-plane-hold/clear") return this.clearControlPlaneHold(await request.json());
+    if (url.pathname === "/development-queue") return this.writeDevelopmentQueue(await request.json());
     return json({ error: "NOT_FOUND" }, 404);
   }
 
@@ -540,6 +549,44 @@ export class ExecutionCoordinator {
     });
   }
 
+  private async readDevelopmentQueue(): Promise<Response> {
+    const stored = await this.ctx.storage.get<unknown>("development-queue-v1");
+    if (stored == null) return json({ queue: null });
+    try {
+      const candidate = stored as NusaDevelopmentQueue;
+      const queue = createNusaDevelopmentQueue(candidate.items, candidate.revision);
+      return json({ queue });
+    } catch {
+      return json({ error: "DEVELOPMENT_QUEUE_CORRUPT" }, 500);
+    }
+  }
+
+  private async writeDevelopmentQueue(value: unknown): Promise<Response> {
+    if (!value || typeof value !== "object") return json({ error: "DEVELOPMENT_QUEUE_INVALID" }, 400);
+    const candidate = value as { repository?: unknown; queue?: unknown };
+    if (typeof candidate.repository !== "string") return json({ error: "DEVELOPMENT_QUEUE_REPOSITORY_INVALID" }, 400);
+    let queue: NusaDevelopmentQueue;
+    try {
+      const raw = candidate.queue as NusaDevelopmentQueue;
+      queue = createNusaDevelopmentQueue(raw.items, raw.revision);
+    } catch {
+      return json({ error: "DEVELOPMENT_QUEUE_INVALID" }, 400);
+    }
+    const existing = await this.ctx.storage.get<unknown>("development-queue-v1");
+    if (existing != null) {
+      try {
+        const current = createNusaDevelopmentQueue((existing as NusaDevelopmentQueue).items, (existing as NusaDevelopmentQueue).revision);
+        if (queue.revision < current.revision) return json({ error: "DEVELOPMENT_QUEUE_REVISION_CONFLICT", queue: current }, 409);
+        if (queue.revision === current.revision && JSON.stringify(queue) !== JSON.stringify(current)) return json({ error: "DEVELOPMENT_QUEUE_IDENTITY_CONFLICT", queue: current }, 409);
+        if (queue.revision === current.revision) return json({ updated: false, queue: current });
+      } catch {
+        return json({ error: "DEVELOPMENT_QUEUE_CORRUPT" }, 500);
+      }
+    }
+    await this.ctx.storage.put("development-queue-v1", queue);
+    return json({ updated: true, queue }, 201);
+  }
+
   private async readControlPlaneHold(): Promise<Response> {
     const stored = await this.ctx.storage.get<unknown>(CONTROL_PLANE_HOLD_STORAGE_KEY);
     if (stored == null) return json({ hold: null });
@@ -731,6 +778,26 @@ export async function readScheduledRuntimeEvidence(namespace: ExecutionCoordinat
     history: sortScheduledReceipts(history),
     summary,
   });
+}
+
+export async function readPersistentDevelopmentQueue(namespace: ExecutionCoordinatorNamespace, repository: string): Promise<NusaDevelopmentQueue | null> {
+  const stub = namespace.get(namespace.idFromName(developmentQueueCoordinatorKey(repository)));
+  const response = await stub.fetch("https://execution-coordinator/development-queue", { method: "GET" });
+  if (!response.ok) throw new Error("DEVELOPMENT_QUEUE_READ_FAILED");
+  const body = await response.json() as { queue?: unknown };
+  if (body.queue == null) return null;
+  const candidate = body.queue as NusaDevelopmentQueue;
+  return createNusaDevelopmentQueue(candidate.items, candidate.revision);
+}
+
+export async function writePersistentDevelopmentQueue(namespace: ExecutionCoordinatorNamespace, repository: string, queue: NusaDevelopmentQueue): Promise<NusaDevelopmentQueue> {
+  const canonical = createNusaDevelopmentQueue(queue.items, queue.revision);
+  const stub = namespace.get(namespace.idFromName(developmentQueueCoordinatorKey(repository)));
+  const response = await stub.fetch("https://execution-coordinator/development-queue", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ repository, queue: canonical }) });
+  const body = await response.json() as { queue?: unknown };
+  if (!response.ok || body.queue == null) throw new Error(response.status === 409 ? "DEVELOPMENT_QUEUE_WRITE_CONFLICT" : "DEVELOPMENT_QUEUE_WRITE_FAILED");
+  const persisted = body.queue as NusaDevelopmentQueue;
+  return createNusaDevelopmentQueue(persisted.items, persisted.revision);
 }
 
 export async function applyPersistentControlPlaneHold(namespace: ExecutionCoordinatorNamespace, input: ApplyControlPlaneHoldRequest): Promise<PersistedControlPlaneHold> {
