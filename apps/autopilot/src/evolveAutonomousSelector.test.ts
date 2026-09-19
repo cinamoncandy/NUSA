@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectNextEvolutionOpportunity } from "./evolveAutonomousSelector";
+import { selectNextEvolutionOpportunity, selectNonConflictingEvolutionOpportunities } from "./evolveAutonomousSelector";
 import type { EvolutionOpportunity } from "./evolveOpportunity";
 
 const opportunity = (id: string, overrides: Partial<EvolutionOpportunity> = {}): EvolutionOpportunity => ({
@@ -86,4 +86,58 @@ test("rejects malformed selector envelopes before runtime property access", () =
     ...baseInput(),
     opportunities: [null],
   } as never), /EVOLVE_OPPORTUNITY_INVALID/);
+});
+
+
+test("selects multiple independent opportunities deterministically without widening authority", () => {
+  const input = baseInput();
+  const result = selectNonConflictingEvolutionOpportunities({
+    ...input,
+    schedulePolicy: { ...input.schedulePolicy, maxConcurrent: 3 },
+    maxSelections: 3,
+    opportunities: [
+      opportunity("b", { canonicalOwner: "development", conflictKeys: ["module:beta"] }),
+      opportunity("a", { canonicalOwner: "development", conflictKeys: ["module:alpha"] }),
+      opportunity("c", { canonicalOwner: "ai-platform", conflictKeys: ["module:gamma"] }),
+    ],
+  });
+  assert.deepEqual(result.selectedOpportunities.map((item) => item.id), ["a", "b", "c"]);
+  assert.deepEqual(result.authority, { liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+});
+
+test("never selects two opportunities sharing a conflict key", () => {
+  const input = baseInput();
+  const result = selectNonConflictingEvolutionOpportunities({
+    ...input,
+    schedulePolicy: { ...input.schedulePolicy, maxConcurrent: 3 },
+    maxSelections: 3,
+    opportunities: [
+      opportunity("higher", { impact: 0.9, canonicalOwner: "development", conflictKeys: ["file:shared"] }),
+      opportunity("lower", { impact: 0.4, canonicalOwner: "development", conflictKeys: ["file:shared"] }),
+      opportunity("independent", { impact: 0.5, canonicalOwner: "development", conflictKeys: ["file:other"] }),
+    ],
+  });
+  assert.deepEqual(result.selectedOpportunities.map((item) => item.id), ["higher", "independent"]);
+});
+
+test("multi-selection fails closed when ownership or conflict evidence is missing", () => {
+  const input = baseInput();
+  const result = selectNonConflictingEvolutionOpportunities({ ...input, maxSelections: 2 });
+  assert.deepEqual(result.selectedOpportunities, []);
+  assert.equal(result.reason, "no-non-conflicting-opportunity");
+});
+
+test("active conflict keys block overlapping work but preserve independent capacity", () => {
+  const input = baseInput();
+  const result = selectNonConflictingEvolutionOpportunities({
+    ...input,
+    schedulePolicy: { ...input.schedulePolicy, maxConcurrent: 2 },
+    maxSelections: 2,
+    activeConflictKeys: ["module:busy"],
+    opportunities: [
+      opportunity("blocked", { impact: 1, canonicalOwner: "development", conflictKeys: ["module:busy"] }),
+      opportunity("free", { canonicalOwner: "development", conflictKeys: ["module:free"] }),
+    ],
+  });
+  assert.deepEqual(result.selectedOpportunities.map((item) => item.id), ["free"]);
 });
