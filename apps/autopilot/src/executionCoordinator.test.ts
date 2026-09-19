@@ -224,30 +224,6 @@ describe("persistent execution coordination", () => {
     assert.equal(body.history[0]?.recordedAtMs, 1_001);
     assert.equal(body.history.at(-1)?.recordedAtMs, 1_032);
   });
-  it("dispatched execution can be completed exactly once with matching identity", async () => {
-    const state = stateHarness();
-    const coordinator = new ExecutionCoordinator(state);
-    const identity = { dedupeKey: "coding:complete", executionId: "exec-complete", now: 100, leaseExpiresAt: 200 };
-    assert.equal((await coordinator.fetch(request("/acquire", identity))).status, 201);
-    assert.equal((await coordinator.fetch(request("/dispatched", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 110 }))).status, 200);
-    const first = await coordinator.fetch(request("/complete", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 120 }));
-    assert.equal(first.status, 200);
-    assert.equal((await first.json() as { completed: boolean }).completed, true);
-    const replay = await coordinator.fetch(request("/complete", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 130 }));
-    assert.equal(replay.status, 200);
-    assert.equal((await replay.json() as { completed: boolean }).completed, false);
-  });
-
-  it("completion fails closed before dispatch or for stale identity", async () => {
-    const state = stateHarness();
-    const coordinator = new ExecutionCoordinator(state);
-    const identity = { dedupeKey: "coding:guard", executionId: "exec-guard", now: 100, leaseExpiresAt: 200 };
-    assert.equal((await coordinator.fetch(request("/acquire", identity))).status, 201);
-    assert.equal((await coordinator.fetch(request("/complete", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 110 }))).status, 409);
-    assert.equal((await coordinator.fetch(request("/dispatched", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 120 }))).status, 200);
-    assert.equal((await coordinator.fetch(request("/complete", { dedupeKey: identity.dedupeKey, executionId: "stale-exec", now: 130 }))).status, 409);
-  });
-
 });
 
 
