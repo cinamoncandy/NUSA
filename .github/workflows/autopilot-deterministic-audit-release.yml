@@ -387,7 +387,30 @@ jobs:
           if [ "$success" != "true" ]; then echo "::error::Post-merge CI for $MERGED_MAIN produced no successful attempt before timeout."; exit 1; fi
           current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           if [ "$current_main" != "$MERGED_MAIN" ]; then echo "Main advanced after CI recovery; newer convergence chain owns deployment."; exit 0; fi
-          echo "Post-merge CI verified for $MERGED_MAIN; dispatching Cloudflare Deploy directly."
+
+          deploy_runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-cloudflare-deploy.yml/runs?head_sha=$MERGED_MAIN&per_page=100")"
+          existing_deploy_run="$(jq -r --arg sha "$MERGED_MAIN" '
+            [.workflow_runs[]
+              | select(.path == ".github/workflows/autopilot-cloudflare-deploy.yml"
+                and .head_sha == $sha
+                and (
+                  .status == "queued"
+                  or .status == "in_progress"
+                  or .status == "pending"
+                  or .status == "waiting"
+                  or .status == "requested"
+                  or (.status == "completed" and .conclusion == "success")
+                ))]
+            | sort_by(.created_at)
+            | reverse
+            | .[0].id // empty
+          ' <<<"$deploy_runs")"
+          if [ -n "$existing_deploy_run" ]; then
+            echo "Exact-main Cloudflare Deploy already owns convergence for $MERGED_MAIN via run $existing_deploy_run; suppressing duplicate Release dispatch."
+            exit 0
+          fi
+
+          echo "Post-merge CI verified for $MERGED_MAIN with no active/successful exact-main Deploy; dispatching bounded fallback."
           gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-cloudflare-deploy.yml/dispatches" -f ref=main -f "inputs[head_sha]=$MERGED_MAIN"
 
       - name: Dispatch exact-main runtime evidence and CI-gated downstream workflows directly

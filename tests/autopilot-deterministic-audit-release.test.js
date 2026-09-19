@@ -77,7 +77,7 @@ test("Release explicitly dispatches canonical main CI after a GITHUB_TOKEN merge
   assert.match(workflow, /merged_main/);
 });
 
-test("Release recovers bounded post-merge CI retries before directly dispatching Cloudflare Deploy", () => {
+test("Release recovers bounded post-merge CI and suppresses duplicate Cloudflare Deploy dispatch", () => {
   assert.match(workflow, /Recover post-merge CI retries and dispatch Cloudflare Deploy/);
   assert.match(workflow, /for poll in \$\(seq 1 40\)/);
   assert.match(workflow, /actions\/runs\?head_sha=\$MERGED_MAIN&per_page=100/);
@@ -85,6 +85,11 @@ test("Release recovers bounded post-merge CI retries before directly dispatching
   assert.match(workflow, /rerun-failed-jobs/);
   assert.match(workflow, /failed_attempt" -ge 3/);
   assert.match(workflow, /Post-merge CI SUCCESS recovered/);
+  assert.match(workflow, /actions\/workflows\/autopilot-cloudflare-deploy\.yml\/runs\?head_sha=\$MERGED_MAIN&per_page=100/);
+  assert.match(workflow, /\.status == "in_progress"/);
+  assert.match(workflow, /\.status == "completed" and \.conclusion == "success"/);
+  assert.match(workflow, /suppressing duplicate Release dispatch/);
+  assert.match(workflow, /no active\/successful exact-main Deploy; dispatching bounded fallback/);
   assert.match(workflow, /actions\/workflows\/autopilot-cloudflare-deploy\.yml\/dispatches/);
   assert.match(workflow, /inputs\[head_sha\]=\$MERGED_MAIN/);
 });

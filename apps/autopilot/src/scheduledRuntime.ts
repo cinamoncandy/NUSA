@@ -16,7 +16,6 @@ import {
   markPersistentExecutionDispatched,
   readScheduledRuntimeReceipt,
   type ExecutionCoordinatorNamespace,
-  type ScheduledRuntimeReceipt,
 } from "./executionCoordinator";
 
 export interface ScheduledRuntimeEnv {
@@ -107,30 +106,32 @@ async function observeGithubBacklogEvidence(
   now: number,
   fetchImpl: typeof fetch,
 ): Promise<BacklogEvidence> {
-  let issueSearch: JsonObject;
-  try {
-    const issueQuery = encodeURIComponent(`repo:${repository} is:issue is:open`);
-    issueSearch = await githubJson(`https://api.github.com/search/issues?q=${issueQuery}&per_page=100&sort=updated&order=desc`, token, fetchImpl);
-  } catch (error) {
+  // These searches are independent. Keeping them serial made every scheduled
+  // cycle pay two GitHub round trips before it could even inspect exact-main CI.
+  // Run them concurrently while retaining the existing fail-closed partial-result
+  // behavior for either search.
+  const issueQuery = encodeURIComponent(`repo:${repository} is:issue is:open`);
+  const pullQuery = encodeURIComponent(`repo:${repository} is:pr is:open`);
+  const [issueResult, pullResult] = await Promise.allSettled([
+    githubJson(`https://api.github.com/search/issues?q=${issueQuery}&per_page=100&sort=updated&order=desc`, token, fetchImpl),
+    githubJson(`https://api.github.com/search/issues?q=${pullQuery}&per_page=100&sort=updated&order=desc`, token, fetchImpl),
+  ]);
+
+  if (issueResult.status === "rejected") {
     return Object.freeze({
       issues: Object.freeze([]),
       openPulls: Object.freeze([]),
-      workSupply: unknownGithubIssueWorkSupply(error instanceof Error ? error.message : "github-open-issue-search-failed"),
+      workSupply: unknownGithubIssueWorkSupply(issueResult.reason instanceof Error ? issueResult.reason.message : "github-open-issue-search-failed"),
     });
   }
 
-  const rawSupply = deriveGithubIssueWorkSupply(issueSearch);
-  const issues = completeSearchItems(issueSearch);
-  if (!issues) return Object.freeze({ issues: Object.freeze([]), openPulls: Object.freeze([]), workSupply: rawSupply });
-
-  let pullSearch: JsonObject;
-  try {
-    const pullQuery = encodeURIComponent(`repo:${repository} is:pr is:open`);
-    pullSearch = await githubJson(`https://api.github.com/search/issues?q=${pullQuery}&per_page=100&sort=updated&order=desc`, token, fetchImpl);
-  } catch {
-    return Object.freeze({ issues, openPulls: Object.freeze([]), workSupply: rawSupply });
+  const rawSupply = deriveGithubIssueWorkSupply(issueResult.value);
+  const issues = completeSearchItems(issueResult.value);
+  if (!issues || pullResult.status === "rejected") {
+    return Object.freeze({ issues: issues ?? Object.freeze([]), openPulls: Object.freeze([]), workSupply: rawSupply });
   }
-  const openPulls = completeSearchItems(pullSearch);
+
+  const openPulls = completeSearchItems(pullResult.value);
   if (!openPulls) return Object.freeze({ issues, openPulls: Object.freeze([]), workSupply: rawSupply });
 
   const readiness = deriveGithubIssueBacklogReadiness(issues, openPulls, new Date(now));
@@ -219,23 +220,28 @@ export async function runScheduledAutopilot(env: ScheduledRuntimeEnv, now: numbe
   const repository = env.NUSA_GITHUB_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) return result("ABSTAINED", "repository-invalid");
 
-  const backlog = await observeGithubBacklogEvidence(repository, token, now, fetchImpl);
+  // Backlog discovery and the previous receipt are independent reads. Starting
+  // them together removes one more full network/storage round trip from every
+  // scheduled cycle without changing any authorization or dedupe decision.
+  const [backlog, previousReceipt] = await Promise.all([
+    observeGithubBacklogEvidence(repository, token, now, fetchImpl),
+    readScheduledRuntimeReceipt(coordinator).catch(() => null),
+  ]);
   const workSupply = backlog.workSupply;
-
-  let previousReceipt: ScheduledRuntimeReceipt | null = null;
-  try { previousReceipt = await readScheduledRuntimeReceipt(coordinator); } catch { previousReceipt = null; }
 
   let mainSha: string;
   let workflowRunId: number;
   let discoveredOpportunityIds: readonly string[] = Object.freeze([]);
   try {
-    const main = await githubJson(`https://api.github.com/repos/${repository}/branches/main`, token, fetchImpl);
+    const [main, runs] = await Promise.all([
+      githubJson(`https://api.github.com/repos/${repository}/branches/main`, token, fetchImpl),
+      githubJson(`https://api.github.com/repos/${repository}/actions/runs?branch=main&status=completed&per_page=50`, token, fetchImpl),
+    ]);
     const commit = object(main.commit);
     const resolvedMainSha = text(commit?.sha);
     if (!resolvedMainSha || !SHA40.test(resolvedMainSha)) return result("ABSTAINED", "main-sha-invalid", null, null, null, discoveredOpportunityIds, workSupply);
     mainSha = resolvedMainSha;
 
-    const runs = await githubJson(`https://api.github.com/repos/${repository}/actions/runs?branch=main&status=completed&per_page=50`, token, fetchImpl);
     const candidates = Array.isArray(runs.workflow_runs) ? runs.workflow_runs : [];
     discoveredOpportunityIds = discoverWorkflowFailureOpportunityIds(candidates, now);
 
