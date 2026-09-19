@@ -7,6 +7,13 @@ current_mobile_self_service_paper_upbit_readonly:
   local_validation: "Upbit relay 19/19 PASS, including real handler 405 assertions for non-GET account and order routes; mobile/source contracts 12/12 PASS; exact pairing regressions 9/9 PASS including same-device PENDING/APPROVED supersession, old exchange denial, global-cap preservation, OWNER users:manage approval, and no credential leakage; incremental repository TypeScript typecheck PASS; direct mobile lint PASS (132 files); git diff --check PASS."
   remaining: "Run exact-head CI and independent merge/release gates; preserve configured NUSA_MOBILE_INTROSPECTION_ORIGIN on production deployment."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY
+current_correlation_aware_research_portfolio:
+  work_order: WO-ISSUE-1815-CORRELATION-AWARE-RESEARCH-PORTFOLIO
+  status: READY_FOR_PR
+  branch: research/correlation-aware-portfolio-1815
+  base_sha: c8095fe38d2ea097fbe167819ccf19f4260a7271
+  scope: "Research-only OOS correlation/drawdown-overlap evidence and dependence gate reusing canonical League allocation."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_first_read_connection_recovery:
   work_order: WO-20260908-CONNECTION-FIRST-READ-RECOVERY
   status: IMPLEMENTED_LOCAL
