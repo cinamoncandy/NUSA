@@ -306,7 +306,6 @@ function validateState(state: PaperAccountState): void {
     if (order.requestFingerprint !== undefined && !/^[a-f0-9]{64}$/.test(order.requestFingerprint)) throw new Error("paper order request fingerprint is invalid");
     if (order.lifecycle !== undefined) {
       const lifecycle = validatePaperOrderLifecycle(order.lifecycle);
-    validateExecutionProfile(order.executionProfile);
       if (lifecycle.status !== order.status || lifecycle.requestedQuantity !== order.quantity || lifecycle.filledQuantity !== order.quantity || lifecycle.remainingQuantity !== 0 || lifecycle.lastTransitionAt !== order.filledAt) throw new Error("paper order lifecycle reconciliation mismatch");
     }
     if (order.executionProfile !== undefined) validateExecutionProfile(order.executionProfile);
