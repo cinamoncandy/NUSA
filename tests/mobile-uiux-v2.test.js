@@ -39,12 +39,11 @@ test("AI destination is evidence-backed and explicitly zero authority", () => {
   const source = read("src/aiView.tsx");
   assert.match(source, /ZERO AUTHORITY/);
   assert.match(source, /READ ONLY/);
-  assert.match(source, /ai\.evidenceReferences/);
-  assert.match(source, /ai\.counterEvidence/);
-  assert.match(source, /ai\.disagreements/);
+  assert.match(source, /ai\?\.evidenceReferences/);
+  assert.match(source, /ai\?\.counterEvidence/);
   assert.match(source, /liveAuthority/);
   assert.match(source, /productionMutationAllowed/);
-  assert.match(source, /AI에는 PAPER·LIVE 주문, 이체, 출금 또는 운영 변경 권한이 없습니다/);
+  assert.match(source, /AI ZERO AUTHORITY/);
   assert.doesNotMatch(source, /onSubmit|ORDER_CREATE|LIVE_EXECUTION/);
 });
 

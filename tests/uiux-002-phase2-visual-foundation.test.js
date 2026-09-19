@@ -49,7 +49,8 @@ test("Phase 2 theme follows the canonical preset identity and restrained accent"
   assert.match(design, /background: palette\.background/);
   assert.match(design, /primary: palette\.primary/);
   assert.match(design, /surfaceRaised: palette\.surfaceRaised/);
-  assert.match(design, /terrain: dark \? "#DCEBFF"/);
+  assert.match(design, /terrain: dark \? "#BFE85A"/);
+  assert.match(design, /chartUp: dark \? "#BFE85A" : "#147A50"/);
   assert.match(design, /classic: Object\.freeze\(/);
   assert.match(design, /master: Object\.freeze\(/);
   assert.match(design, /radii: preset\.radii/);
@@ -101,3 +102,4 @@ test("visual foundation does not introduce profile or avatar UI", () => {
   const components = read("components.tsx");
   assert.doesNotMatch(components, /avatar|profile photo|profile image/i);
 });
+
