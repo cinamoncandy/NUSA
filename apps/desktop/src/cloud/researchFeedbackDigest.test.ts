@@ -9,9 +9,10 @@ function seal(
   records: readonly ResearchTrialRecord[],
   familyId: string,
   outcome: ResearchTrialOutcome,
-  searchId = "search-1",
+  searchId?: string,
 ): readonly ResearchTrialRecord[] {
   ordinal += 1;
+  const resolvedSearchId = searchId ?? `search-${ordinal}`;
   return appendResearchTrial(records, {
     trialId: `trial-${ordinal}`,
     familyId,
@@ -19,7 +20,7 @@ function seal(
     createdAt: "2026-08-26T05:00:00.000Z",
     dataset: { datasetId: "dataset-a", contentSha256: "a".repeat(64), market: "KRW-BTC", interval: "60m" },
     candidateIds: [`candidate-${ordinal}`],
-    search: { searchId, attemptOrdinal: records.filter((record) => record.search.searchId === searchId).length + 1 },
+    search: { searchId: resolvedSearchId, attemptOrdinal: records.filter((record) => record.search.searchId === resolvedSearchId).length + 1 },
     outcome,
     ...(outcome === "REJECTED" ? { rejectionReasons: ["OOS_BELOW_THRESHOLD"] } : {}),
     ...(outcome === "ABSTAINED" ? { abstentionReasons: ["INSUFFICIENT_CONFIDENCE"] } : {}),
@@ -64,6 +65,28 @@ describe("buildResearchFeedbackDigest", () => {
     assert.equal(family.priorTrialCount, 6);
     assert.equal(family.abstainedCount, 1);
     assert.equal(family.failureRatio, 0.5);
+  });
+
+  it("counts abstentions in the failure ratio even while history is below the learning minimum", () => {
+    const family = buildResearchFeedbackDigest(ledgerOf(
+      ["momentum", "COMPLETED"],
+      ["momentum", "ABSTAINED"],
+    )).families[0]!;
+    assert.equal(family.priorTrialCount, 2);
+    assert.equal(family.failureRatio, 0.5);
+    assert.equal(family.priorAdjustment, 0);
+    assert.ok(family.reasons.includes("INSUFFICIENT_PRIOR_HISTORY"));
+  });
+
+
+  it("does not treat many parameter cells from one canonical search as independent learning evidence", () => {
+    let ledger: readonly ResearchTrialRecord[] = [];
+    for (let index = 0; index < 9; index += 1) ledger = seal(ledger, "momentum", "REJECTED", "same-canonical-run");
+    const family = buildResearchFeedbackDigest(ledger).families[0]!;
+    assert.equal(family.priorTrialCount, 9);
+    assert.equal(family.distinctSearchCount, 1);
+    assert.equal(family.priorAdjustment, 0);
+    assert.ok(family.reasons.includes("INSUFFICIENT_DISTINCT_SEARCH_HISTORY"));
   });
 
   it("never lets a trial influence the prior applied to itself", () => {
@@ -141,7 +164,7 @@ describe("buildResearchFeedbackDigest", () => {
 
   it("fails closed on an invalid policy or evaluated sequence", () => {
     const ledger = ledgerOf(["momentum", "COMPLETED"]);
-    for (const bad of [{ maximumAdjustment: 0 }, { maximumAdjustment: 1.5 }, { minimumPriorTrials: 0 }, { concentrationDisclosureThreshold: 0 }]) {
+    for (const bad of [{ maximumAdjustment: 0 }, { maximumAdjustment: 1.5 }, { minimumPriorTrials: 0 }, { minimumDistinctSearches: 1 }, { concentrationDisclosureThreshold: 0 }]) {
       assert.throws(
         () => buildResearchFeedbackDigest(ledger, { policy: bad }),
         (error) => error instanceof ResearchFeedbackError && error.code === "INVALID_POLICY",
