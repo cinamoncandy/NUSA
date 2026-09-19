@@ -166,6 +166,7 @@ export interface ResearchRunProvenance {
     readonly candidateIds: readonly string[];
     readonly familyIds: readonly string[];
     readonly candidateSpecificationHashes: readonly string[];
+    readonly candidateConfigurationSha256: string;
     readonly evaluationSha256: string;
     readonly oosTimestampSha256: string;
   }>;
@@ -433,6 +434,14 @@ export function buildResearchRunLeague(
   const expectedPboCandidateIds = [...candidates.map((candidate) => candidate.id)].sort();
   const expectedPboFamilyIds = [...new Set(candidates.map((candidate) => candidate.familyId))].sort();
   const expectedPboSpecificationHashes = candidates.map((candidate) => specificationHashes.get(candidate.id)!).sort();
+  const expectedPboCandidateConfigurationSha256 = hashCanonical(
+    candidates
+      .map((candidate) => ({
+        candidateId: candidate.id,
+        parameters: candidate.experiment.experimentConfig.candidates[0]?.parameters ?? null,
+      }))
+      .sort((left, right) => left.candidateId.localeCompare(right.candidateId)),
+  );
 
   let pboProvenanceVerified = false;
   if (suppliedPbo != null && suppliedPboProvenance != null) {
@@ -460,6 +469,7 @@ export function buildResearchRunLeague(
     pboProvenanceVerified = suppliedPboProvenance.schemaVersion === 1
       && Array.isArray(suppliedPboProvenance.candidateIds)
       && /^[0-9a-f]{64}$/i.test(String(suppliedPboProvenance.datasetContentSha256 ?? ""))
+      && /^[0-9a-f]{64}$/i.test(String(suppliedPboProvenance.candidateConfigurationSha256 ?? ""))
       && /^[0-9a-f]{64}$/i.test(String(suppliedPboProvenance.evaluationSha256 ?? ""))
       && /^[0-9a-f]{64}$/i.test(String(suppliedPboProvenance.oosTimestampSha256 ?? ""))
       && suppliedPboProvenance.datasetId === expectedPboManifest.datasetId
@@ -470,6 +480,7 @@ export function buildResearchRunLeague(
       && suppliedPboProvenance.startOpenTime === expectedPboManifest.startOpenTime
       && suppliedPboProvenance.endCloseTime === expectedPboManifest.endCloseTime
       && JSON.stringify([...(suppliedPboProvenance.candidateIds ?? [])].sort()) === JSON.stringify(expectedPboCandidateIds)
+      && suppliedPboProvenance.candidateConfigurationSha256 === expectedPboCandidateConfigurationSha256
       && suppliedPboProvenance.evaluationSha256 === expectedPboEvaluationSha256
       && suppliedPboProvenance.oosTimestampSha256 === expectedPboTimestampSha256
       && firstPboCurveTimestamps.length > 0
@@ -615,6 +626,7 @@ export function buildResearchRunLeague(
       candidateIds: freeze(expectedPboCandidateIds),
       familyIds: freeze(expectedPboFamilyIds),
       candidateSpecificationHashes: freeze(expectedPboSpecificationHashes),
+      candidateConfigurationSha256: suppliedPboProvenance.candidateConfigurationSha256,
       evaluationSha256: suppliedPboProvenance.evaluationSha256,
       oosTimestampSha256: suppliedPboProvenance.oosTimestampSha256,
     });
