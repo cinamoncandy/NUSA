@@ -166,6 +166,12 @@ const run = (overrides = {}) => ({
         familyId: "family-a",
         candidateKey: "candidate-a",
         parameters: { period: 14 },
+        referenceReturn: 0.08,
+        immediateNeighborCount: 4,
+        immediateNeighborPositiveRatio: 0.75,
+        immediateNeighborBenchmarkOutperformRatio: 0.75,
+        allCandidatePositiveRatio: 0.6,
+        signReversalRatio: 0.1,
         assessment: "BROAD_PLATEAU",
       }],
       provenance: {
@@ -483,6 +489,12 @@ test("candidate-bound cost survival never smears one candidate result across ano
             familyId: "family-a",
             candidateKey: "candidate-b",
             parameters: { period: 21 },
+            referenceReturn: 0.07,
+            immediateNeighborCount: 3,
+            immediateNeighborPositiveRatio: 0.67,
+            immediateNeighborBenchmarkOutperformRatio: 0.67,
+            allCandidatePositiveRatio: 0.6,
+            signReversalRatio: 0.1,
             assessment: "BROAD_PLATEAU",
           },
         ],
@@ -505,4 +517,19 @@ test("candidate-bound cost survival never smears one candidate result across ano
   assert.equal(byId.get("candidate-b").outcome, "REJECTED");
   assert.ok(byId.get("candidate-b").reasons.includes("EXPECTANCY_TURNS_NEGATIVE"));
   assert.equal(byId.get("candidate-a").reasons.includes("EXPECTANCY_TURNS_NEGATIVE"), false);
+});
+
+
+test("parameter assessment without comparable neighbor evidence stays insufficient", () => {
+  const missingNeighbors = run();
+  delete missingNeighbors.robustnessEvidence.parameterRobustness.references[0].immediateNeighborCount;
+  let result = qualifyResearchFactoryRun(missingNeighbors);
+  assert.equal(result.candidates[0].outcome, "INSUFFICIENT");
+  assert.ok(result.candidates[0].reasons.includes("PARAMETER_ROBUSTNESS_NEIGHBOR_EVIDENCE_INSUFFICIENT"));
+
+  const zeroNeighbors = run();
+  zeroNeighbors.robustnessEvidence.parameterRobustness.references[0].immediateNeighborCount = 0;
+  result = qualifyResearchFactoryRun(zeroNeighbors);
+  assert.equal(result.candidates[0].outcome, "INSUFFICIENT");
+  assert.ok(result.candidates[0].reasons.includes("PARAMETER_ROBUSTNESS_NEIGHBOR_EVIDENCE_INSUFFICIENT"));
 });
