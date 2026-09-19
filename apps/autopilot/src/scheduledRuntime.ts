@@ -164,6 +164,18 @@ function discoverWorkflowFailureOpportunityIds(candidates: readonly unknown[], n
   return Object.freeze(opportunities.map((opportunity) => opportunity.id));
 }
 
+/**
+ * The exact head's successful canonical CI run. `repository_dispatch` runs are excluded: they are
+ * the autopilot's own output edge, not independent CI evidence.
+ */
+function exactMainCanonicalCiRunId(candidates: readonly unknown[], mainSha: string): number | null {
+  const canonical = candidates
+    .map(object)
+    .filter((run): run is JsonObject => run !== null)
+    .find((run) => text(run.name) === "CI" && text(run.conclusion) === "success" && text(run.head_branch) === "main" && text(run.head_sha) === mainSha && text(run.event) !== "repository_dispatch");
+  return positiveInteger(canonical?.id) ?? null;
+}
+
 function currentMainFailureRunId(candidates: readonly unknown[], mainSha: string, now: number): number | null {
   for (const candidate of candidates) {
     const run = object(candidate);
@@ -239,10 +251,15 @@ export async function runScheduledAutopilot(env: ScheduledRuntimeEnv, now: numbe
     const candidates = Array.isArray(runs.workflow_runs) ? runs.workflow_runs : [];
     discoveredOpportunityIds = discoverWorkflowFailureOpportunityIds(candidates, now);
 
+    // Resolved before the failure branch so both lanes can cite truthful provenance: repair work
+    // cites the failed run, issue-driven work cites this. Previously only the failure branch ran
+    // when main carried any recent failure, so issue work inherited the failed run id.
+    const canonicalSuccessRunId = exactMainCanonicalCiRunId(candidates, mainSha);
+
     const failedRunId = currentMainFailureRunId(candidates, mainSha, now);
     if (failedRunId) {
       try {
-        const coding = await runScheduledEvolutionCoding(env, { candidates, backlogIssues: backlog.issues, openPulls: backlog.openPulls, now, repository, mainSha, workflowRunId: failedRunId }, fetchImpl);
+        const coding = await runScheduledEvolutionCoding(env, { candidates, backlogIssues: backlog.issues, openPulls: backlog.openPulls, now, repository, mainSha, workflowRunId: failedRunId, successWorkflowRunId: canonicalSuccessRunId }, fetchImpl);
         console.log(JSON.stringify({ event: "NUSA_SCHEDULED_EVOLVE_CODING", ...coding }));
         return codingResult(coding, mainSha, failedRunId, discoveredOpportunityIds, workSupply)
           ?? result("ABSTAINED", coding.reason, mainSha, failedRunId, null, discoveredOpportunityIds, workSupply);
@@ -251,16 +268,11 @@ export async function runScheduledAutopilot(env: ScheduledRuntimeEnv, now: numbe
       }
     }
 
-    const canonical = candidates
-      .map(object)
-      .filter((run): run is JsonObject => run !== null)
-      .find((run) => text(run.name) === "CI" && text(run.conclusion) === "success" && text(run.head_branch) === "main" && text(run.head_sha) === mainSha && text(run.event) !== "repository_dispatch");
-    const resolvedRunId = positiveInteger(canonical?.id);
-    if (!canonical || !resolvedRunId) return result("ABSTAINED", "exact-main-canonical-ci-not-found", mainSha, null, null, discoveredOpportunityIds, workSupply);
-    workflowRunId = resolvedRunId;
+    if (!canonicalSuccessRunId) return result("ABSTAINED", "exact-main-canonical-ci-not-found", mainSha, null, null, discoveredOpportunityIds, workSupply);
+    workflowRunId = canonicalSuccessRunId;
 
     try {
-      const coding = await runScheduledEvolutionCoding(env, { candidates, backlogIssues: backlog.issues, openPulls: backlog.openPulls, now, repository, mainSha, workflowRunId }, fetchImpl);
+      const coding = await runScheduledEvolutionCoding(env, { candidates, backlogIssues: backlog.issues, openPulls: backlog.openPulls, now, repository, mainSha, workflowRunId, successWorkflowRunId: canonicalSuccessRunId }, fetchImpl);
       console.log(JSON.stringify({ event: "NUSA_SCHEDULED_EVOLVE_CODING", ...coding }));
       const handled = codingResult(coding, mainSha, workflowRunId, discoveredOpportunityIds, workSupply);
       if (handled) return handled;
