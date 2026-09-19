@@ -84,6 +84,9 @@ export interface EvolutionBoundedSelectionInput extends EvolutionAutonomousSelec
   readonly activeConflictKeys?: readonly string[];
 }
 
+const CONFLICT_KEY = /^[A-Za-z0-9_.:/-]{1,200}$/;
+const MAX_ACTIVE_CONFLICT_KEYS = 128;
+
 export interface EvolutionBoundedSelection {
   readonly selectedOpportunities: readonly EvolutionOpportunity[];
   readonly priorities: readonly EvolutionPriority[];
@@ -107,11 +110,23 @@ export function selectNonConflictingEvolutionOpportunities(
   if (!schedule.allowed) return Object.freeze({ selectedOpportunities: Object.freeze([]), priorities: Object.freeze([]), reason: schedule.reason, authority: AUTHORITY });
   for (const opportunity of input.opportunities) validateEvolutionOpportunity(opportunity);
 
-  const occupied = new Set(input.activeConflictKeys ?? []);
+  const activeConflictKeys = input.activeConflictKeys ?? [];
+  if (!Array.isArray(activeConflictKeys) || activeConflictKeys.length > MAX_ACTIVE_CONFLICT_KEYS) {
+    throw new Error("EVOLVE_SELECTION_ACTIVE_CONFLICT_KEYS_INVALID");
+  }
+  const occupied = new Set<string>();
+  for (const key of activeConflictKeys) {
+    if (typeof key !== "string" || !CONFLICT_KEY.test(key) || occupied.has(key)) {
+      throw new Error("EVOLVE_SELECTION_ACTIVE_CONFLICT_KEYS_INVALID");
+    }
+    occupied.add(key);
+  }
+  const availableCapacity = input.schedulePolicy.maxConcurrent - input.activeExecutions;
+  const selectionLimit = Math.min(input.maxSelections, availableCapacity);
   const selected: EvolutionOpportunity[] = [];
   const priorities: EvolutionPriority[] = [];
   for (const priority of rankEvolutionOpportunities(input.opportunities)) {
-    if (!priority.eligible || priority.score <= 0 || selected.length >= input.maxSelections) continue;
+    if (!priority.eligible || priority.score <= 0 || selected.length >= selectionLimit) continue;
     const opportunity = input.opportunities.find((candidate) => candidate.id === priority.opportunityId);
     if (!opportunity?.canonicalOwner || !opportunity.conflictKeys?.length) continue;
     if (opportunity.conflictKeys.some((key) => occupied.has(key))) continue;
