@@ -43,6 +43,9 @@ test("each timeframe declares the depth its contiguity was verified at", () => {
     assert.match(entry.marketSetVersion, new RegExp(String(entry.candleCount)), "identity must name its declared depth");
   }
   assert.equal(RESEARCH_TIMEFRAMES["60m"].candleCount, 1500);
+  // 240m carries the only depth verified to span multiple regimes (5000 contiguous candles back
+  // to 2024-06-07 across all five markets; 4000 declared for headroom).
+  assert.equal(RESEARCH_TIMEFRAMES["240m"].candleCount, 4000);
 });
 
 test("the module resolves its market-set identity from the selected timeframe", () => {

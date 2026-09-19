@@ -25,6 +25,16 @@ This runbook deploys the NUSA Cloud runtime to an Oracle Linux host while preser
 /var/backups/nusa/                 nusa:nusa backup snapshots
 ```
 
+The manual `Oracle PAPER Release` workflow requires an online, dedicated repository runner
+with the `nusa-paper-host` label on this host. Run it as an unprivileged account separate from
+`nusa`; do not use the Codex development runner. Install the reviewed
+`deploy/oracle/nusa-release-step.sh` as root-owned mode `0755` at
+`/opt/nusa/bin/nusa-release-step`, outside the release tree, and grant that runner account
+passwordless sudo for that exact helper only. A missing runner leaves dispatches queued without
+deploying anything. The workflow builds on GitHub-hosted Linux and verifies the built archive's
+SHA-256 before the host backs up, stages, switches, restarts, and checks readiness. Never build
+the repository on the 1 GB PAPER host as part of a release.
+
 Create the service user and persistent directories with the least privileges required by your host policy. Install `deploy/oracle/nusa.service` as `/etc/systemd/system/nusa.service` and run `node scripts/host-security-validate.js` before enabling it.
 
 ## Environment and token rotation

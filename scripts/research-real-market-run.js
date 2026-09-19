@@ -67,7 +67,13 @@ const MARKET = researchPrimaryMarket();
  *                          1500 is declared to leave headroom. KRW-BTC has a real 4-hour hole
  *                          at 2026-07-05T17:00Z..21:00Z, so 2000 60m candles are *reachable*
  *                          but not contiguous. Reachability is not availability.
- *   240m  400 candles   -- 400 x 4h spans the same window as the verified 60m depth.
+ *   240m  4000 candles  -- re-verified 2026-09-18 by walking the same cursor: all five cohort
+ *                          markets serve 5000 contiguous 240m candles back to 2024-06-07 with no
+ *                          gap. 4000 is declared to leave headroom, spanning roughly 1.8 years.
+ *                          This is the only declared depth that can satisfy the closed-trade and
+ *                          regime-coverage gates at once: 4h bars close far more trades than
+ *                          daily, and 1.8 years spans several regimes, whereas 60m x 1500 covers
+ *                          only ~62 days and fails INSUFFICIENT_REGIME_COVERAGE.
  *
  * The identity is derived from the timeframe rather than shared, because
  * "upbit-public-daily-2000-v2" is an availability claim about daily candles. Reusing it for a
@@ -80,7 +86,7 @@ const MARKET = researchPrimaryMarket();
 const RESEARCH_TIMEFRAMES = Object.freeze({
   "1d": Object.freeze({ marketSetVersion: "upbit-public-daily-2000-v2", candleCount: 2000 }),
   "60m": Object.freeze({ marketSetVersion: "upbit-public-minute60-1500-v1", candleCount: 1500 }),
-  "240m": Object.freeze({ marketSetVersion: "upbit-public-minute240-400-v1", candleCount: 400 }),
+  "240m": Object.freeze({ marketSetVersion: "upbit-public-minute240-4000-v1", candleCount: 4000 }),
 });
 const DEFAULT_TIMEFRAME = "1d";
 
@@ -370,8 +376,12 @@ async function fetchDayCandlePage(path) {
 
 function researchCandleCount(value = process.env.NUSA_RESEARCH_CANDLE_COUNT) {
   if (value === undefined) return DEFAULT_CANDLE_COUNT;
-  if (!/^\d+$/.test(String(value)) || !Number.isInteger(Number(value)) || Number(value) < 200 || Number(value) > 2000) {
-    throw new Error("NUSA_RESEARCH_CANDLE_COUNT must be an integer from 200 to 2000");
+  // The ceiling tracks the deepest declared timeframe, so an explicit override can never be
+  // rejected for a depth the defaults already use. Below the floor the walk-forward plan cannot
+  // form its minimum windows.
+  const ceiling = Math.max(...Object.values(RESEARCH_TIMEFRAMES).map((entry) => entry.candleCount));
+  if (!/^\d+$/.test(String(value)) || !Number.isInteger(Number(value)) || Number(value) < 200 || Number(value) > ceiling) {
+    throw new Error(`NUSA_RESEARCH_CANDLE_COUNT must be an integer from 200 to ${ceiling}`);
   }
   return Number(value);
 }
