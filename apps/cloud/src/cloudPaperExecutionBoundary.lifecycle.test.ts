@@ -6,7 +6,7 @@ import type { PersonalPaperOrderCommand } from "../../../packages/contracts/src/
 
 const command: PersonalPaperOrderCommand = {
   schemaVersion: 1, authority: "PAPER_ONLY", productionMutationAllowed: false,
-  idempotencyKey: "boundary-limit", market: "KRW-BTC", side: "BUY",
+  idempotencyKey: "boundary-limit-0001", market: "KRW-BTC", side: "BUY",
   orderType: "LIMIT", quantity: 1, limitPrice: 100,
 };
 const context = (now: number) => ({
