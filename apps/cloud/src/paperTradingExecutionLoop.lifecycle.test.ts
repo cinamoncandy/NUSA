@@ -15,7 +15,7 @@ const context = (marketPrice: number, now = 1_000) => ({
 
 const limitOrder = (idempotencyKey: string, quantity: number, limitPrice: number): PersonalPaperOrderCommand => ({
   schemaVersion: 1,
-  authority: "HUMAN",
+  authority: "PAPER_ONLY",
   productionMutationAllowed: false,
   idempotencyKey,
   market: "KRW-BTC",
