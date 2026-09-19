@@ -371,6 +371,7 @@ test("candidate-bound cost collapse rejects while missing or thin cost evidence 
 
 test("candidate-local parameter robustness is mandatory and non-compensatory", () => {
   const isolated = run();
+  isolated.robustnessEvidence.parameterRobustness.references[0].immediateNeighborPositiveRatio = 0.25;
   isolated.robustnessEvidence.parameterRobustness.references[0].assessment = "ISOLATED_PEAK";
   let result = qualifyResearchFactoryRun(isolated);
   assert.equal(result.candidates[0].outcome, "REJECTED");
@@ -499,7 +500,7 @@ test("candidate-bound cost survival never smears one candidate result across ano
             immediateNeighborBenchmarkOutperformRatio: 0.67,
             allCandidatePositiveRatio: 0.6,
             signReversalRatio: 0.1,
-            assessment: "BROAD_PLATEAU",
+            assessment: "NARROW_PLATEAU",
           },
         ],
       },
@@ -561,4 +562,13 @@ test("cost stress from a different evaluation window cannot bind to canonical OO
   result = qualifyResearchFactoryRun(missingExpectancy);
   assert.equal(result.candidates[0].outcome, "INSUFFICIENT");
   assert.ok(result.candidates[0].reasons.includes("COST_STRESS_EXPECTANCY_EVIDENCE_MISSING"));
+});
+
+
+test("parameter assessment tampering fails closed instead of trusting the label", () => {
+  const forged = run();
+  forged.robustnessEvidence.parameterRobustness.references[0].assessment = "ISOLATED_PEAK";
+  const result = qualifyResearchFactoryRun(forged);
+  assert.equal(result.candidates[0].outcome, "INSUFFICIENT");
+  assert.ok(result.candidates[0].reasons.includes("PARAMETER_ROBUSTNESS_ASSESSMENT_MISMATCH"));
 });
