@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { CandidateSelectionMode } from "../strategy/executionCostStress";
 
 export interface ResearchRunParameterRobustnessReference {
@@ -9,6 +10,12 @@ export interface ResearchRunParameterRobustnessReference {
   readonly familyId?: string;
   readonly candidateKey?: string;
   readonly parameters?: Readonly<Record<string, number>>;
+  readonly referenceReturn?: number;
+  readonly immediateNeighborCount?: number;
+  readonly immediateNeighborPositiveRatio?: number;
+  readonly immediateNeighborBenchmarkOutperformRatio?: number;
+  readonly allCandidatePositiveRatio?: number;
+  readonly signReversalRatio?: number;
   readonly assessment: string;
 }
 
@@ -43,6 +50,26 @@ export interface ResearchRunParameterRobustnessEvidence {
   }>;
 }
 
+export interface ResearchRunCostStressScenarioEvidence {
+  readonly scenario: Readonly<{
+    readonly id: string;
+    readonly feeRate: number;
+    readonly spreadBps: number;
+    readonly slippageBps: number;
+    readonly latencyMs?: number;
+  }>;
+  readonly selectionMode: CandidateSelectionMode;
+  readonly markedTotalReturn: number;
+  readonly markedMaximumDrawdown: number;
+  readonly closedTradeNetProfit: number;
+  readonly closedTradeExpectancy?: number;
+  readonly closedTradeProfitFactor?: number;
+  readonly totalTradingCost: number;
+  readonly benchmarkOutperformance: number;
+  readonly totalOosClosedTrades: number;
+  readonly warnings: readonly string[];
+}
+
 export interface ResearchRunCostStressEvidence {
   readonly schemaVersion: 1;
   readonly status: "VERIFIED";
@@ -55,8 +82,17 @@ export interface ResearchRunCostStressEvidence {
     readonly engineVersion: string;
   }>;
   readonly robustnessScore: number;
+  readonly baselineScenarioId: string;
   readonly scenarioIds: readonly string[];
+  readonly scenarios: readonly ResearchRunCostStressScenarioEvidence[];
   readonly warnings: readonly string[];
+}
+
+export interface ResearchRunCandidateCostStressEvidence {
+  readonly candidateId: string;
+  readonly familyId: string;
+  readonly specificationHash: string;
+  readonly costStress: ResearchRunCostStressEvidence;
 }
 
 export interface ResearchRunRobustnessEvidence {
@@ -64,7 +100,10 @@ export interface ResearchRunRobustnessEvidence {
   readonly datasetId: string;
   readonly datasetContentSha256: string;
   readonly parameterRobustness: ResearchRunParameterRobustnessEvidence;
+  /** Family/search-level diagnostic retained for compatibility and reporting only. */
   readonly costStress: ResearchRunCostStressEvidence;
+  /** Candidate-bound stress facts used by the canonical qualification finalizer. */
+  readonly candidateCostStress: readonly ResearchRunCandidateCostStressEvidence[];
 }
 
 interface ParameterRobustnessResultInput {
@@ -84,6 +123,12 @@ interface ParameterRobustnessResultInput {
     readonly familyId?: unknown;
     readonly candidateKey?: unknown;
     readonly parameters?: unknown;
+    readonly referenceReturn?: unknown;
+    readonly immediateNeighborCount?: unknown;
+    readonly immediateNeighborPositiveRatio?: unknown;
+    readonly immediateNeighborBenchmarkOutperformRatio?: unknown;
+    readonly allCandidatePositiveRatio?: unknown;
+    readonly signReversalRatio?: unknown;
     readonly assessment?: unknown;
   }[];
   readonly aggregate?: {
@@ -107,6 +152,26 @@ interface ParameterRobustnessResultInput {
   };
 }
 
+interface CostStressScenarioProjectionInput {
+  readonly scenario?: {
+    readonly id?: unknown;
+    readonly feeRate?: unknown;
+    readonly spreadBps?: unknown;
+    readonly slippageBps?: unknown;
+    readonly latencyMs?: unknown;
+  };
+  readonly selectionMode?: unknown;
+  readonly markedTotalReturn?: unknown;
+  readonly markedMaximumDrawdown?: unknown;
+  readonly closedTradeNetProfit?: unknown;
+  readonly closedTradeExpectancy?: unknown;
+  readonly closedTradeProfitFactor?: unknown;
+  readonly totalTradingCost?: unknown;
+  readonly benchmarkOutperformance?: unknown;
+  readonly totalOosClosedTrades?: unknown;
+  readonly warnings?: readonly unknown[];
+}
+
 interface CostStressProjectionInput {
   readonly identity?: {
     readonly id?: unknown;
@@ -117,11 +182,17 @@ interface CostStressProjectionInput {
     readonly engineVersion?: unknown;
   };
   readonly selectionMode?: unknown;
-  readonly scenarios?: readonly {
-    readonly scenario?: { readonly id?: unknown };
-  }[];
+  readonly baseline?: CostStressScenarioProjectionInput;
+  readonly scenarios?: readonly CostStressScenarioProjectionInput[];
   readonly robustnessScore?: unknown;
   readonly warnings?: readonly unknown[];
+}
+
+interface CandidateCostStressProjectionInput {
+  readonly candidateId?: unknown;
+  readonly familyId?: unknown;
+  readonly specificationHash?: unknown;
+  readonly costStress?: CostStressProjectionInput;
 }
 
 const HASH_PATTERN = /^[a-f0-9]{64}$/i;
@@ -165,6 +236,11 @@ function finite(value: unknown, code: string, name: string): number {
     throw new ResearchRunRobustnessEvidenceError(code, `${name} must be finite`);
   }
   return value;
+}
+
+function optionalFinite(value: unknown, code: string, name: string): number | undefined {
+  if (value == null) return undefined;
+  return finite(value, code, name);
 }
 
 function nonNegativeInteger(value: unknown, code: string, name: string): number {
@@ -234,12 +310,37 @@ function parseParameterRobustness(
   const references = referencesInput.map((reference): ResearchRunParameterRobustnessReference => {
     const source = requiredText(reference.source, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID");
     const assessment = requiredText(reference.assessment, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID");
+    const referenceReturn = optionalFinite(reference.referenceReturn, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID", "referenceReturn");
+    const immediateNeighborCount = reference.immediateNeighborCount == null
+      ? undefined
+      : nonNegativeInteger(reference.immediateNeighborCount, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID", "immediateNeighborCount");
+    const immediateNeighborPositiveRatio = reference.immediateNeighborPositiveRatio == null
+      ? undefined
+      : ratio(reference.immediateNeighborPositiveRatio, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID", "immediateNeighborPositiveRatio");
+    const immediateNeighborBenchmarkOutperformRatio = reference.immediateNeighborBenchmarkOutperformRatio == null
+      ? undefined
+      : ratio(reference.immediateNeighborBenchmarkOutperformRatio, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID", "immediateNeighborBenchmarkOutperformRatio");
+    const allCandidatePositiveRatio = reference.allCandidatePositiveRatio == null
+      ? undefined
+      : ratio(reference.allCandidatePositiveRatio, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID", "allCandidatePositiveRatio");
+    const signReversalRatio = reference.signReversalRatio == null
+      ? undefined
+      : ratio(reference.signReversalRatio, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID", "signReversalRatio");
+    const diagnostics = {
+      ...(referenceReturn == null ? {} : { referenceReturn }),
+      ...(immediateNeighborCount == null ? {} : { immediateNeighborCount }),
+      ...(immediateNeighborPositiveRatio == null ? {} : { immediateNeighborPositiveRatio }),
+      ...(immediateNeighborBenchmarkOutperformRatio == null ? {} : { immediateNeighborBenchmarkOutperformRatio }),
+      ...(allCandidatePositiveRatio == null ? {} : { allCandidatePositiveRatio }),
+      ...(signReversalRatio == null ? {} : { signReversalRatio }),
+    };
     if (reference.parameters !== undefined || reference.familyId !== undefined || reference.candidateKey !== undefined) {
       return freeze({
         source,
         familyId: requiredText(reference.familyId, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID"),
         candidateKey: requiredText(reference.candidateKey, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID"),
         parameters: parameterRecord(reference.parameters),
+        ...diagnostics,
         assessment,
       });
     }
@@ -247,6 +348,7 @@ function parseParameterRobustness(
       source,
       shortWindow: nonNegativeInteger(reference.shortWindow, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID", "shortWindow"),
       longWindow: nonNegativeInteger(reference.longWindow, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID", "longWindow"),
+      ...diagnostics,
       assessment,
     });
   }).sort((left, right) => left.source.localeCompare(right.source)
@@ -304,6 +406,56 @@ function parseParameterRobustness(
   return freeze(output);
 }
 
+function parseCostStressScenario(
+  input: CostStressScenarioProjectionInput,
+  expectedSelectionMode: CandidateSelectionMode,
+): ResearchRunCostStressScenarioEvidence {
+  const scenario = input.scenario;
+  if (scenario == null || typeof scenario !== "object") {
+    throw new ResearchRunRobustnessEvidenceError("COST_STRESS_SCENARIO_INVALID", "cost stress scenario evidence is required");
+  }
+  const selectionMode = requiredText(input.selectionMode, "COST_STRESS_SELECTION_MODE_MISSING") as CandidateSelectionMode;
+  if (selectionMode !== expectedSelectionMode) {
+    throw new ResearchRunRobustnessEvidenceError("COST_STRESS_SELECTION_MODE_MISMATCH", "cost stress scenario selection mode does not match identity");
+  }
+  const latencyMs = optionalFinite(scenario.latencyMs, "COST_STRESS_SCENARIO_INVALID", "latencyMs");
+  if (latencyMs != null && latencyMs < 0) {
+    throw new ResearchRunRobustnessEvidenceError("COST_STRESS_SCENARIO_INVALID", "latencyMs must be non-negative");
+  }
+  const feeRate = finite(scenario.feeRate, "COST_STRESS_SCENARIO_INVALID", "feeRate");
+  const spreadBps = finite(scenario.spreadBps, "COST_STRESS_SCENARIO_INVALID", "spreadBps");
+  const slippageBps = finite(scenario.slippageBps, "COST_STRESS_SCENARIO_INVALID", "slippageBps");
+  if (feeRate < 0 || spreadBps < 0 || slippageBps < 0) {
+    throw new ResearchRunRobustnessEvidenceError("COST_STRESS_SCENARIO_INVALID", "cost stress scenario costs must be non-negative");
+  }
+  return freeze({
+    scenario: freeze({
+      id: requiredText(scenario.id, "COST_STRESS_SCENARIO_INVALID"),
+      feeRate,
+      spreadBps,
+      slippageBps,
+      ...(latencyMs == null ? {} : { latencyMs }),
+    }),
+    selectionMode,
+    markedTotalReturn: finite(input.markedTotalReturn, "COST_STRESS_SCENARIO_INVALID", "markedTotalReturn"),
+    markedMaximumDrawdown: ratio(input.markedMaximumDrawdown, "COST_STRESS_SCENARIO_INVALID", "markedMaximumDrawdown"),
+    closedTradeNetProfit: finite(input.closedTradeNetProfit, "COST_STRESS_SCENARIO_INVALID", "closedTradeNetProfit"),
+    ...(optionalFinite(input.closedTradeExpectancy, "COST_STRESS_SCENARIO_INVALID", "closedTradeExpectancy") == null
+      ? {}
+      : { closedTradeExpectancy: optionalFinite(input.closedTradeExpectancy, "COST_STRESS_SCENARIO_INVALID", "closedTradeExpectancy")! }),
+    ...(optionalFinite(input.closedTradeProfitFactor, "COST_STRESS_SCENARIO_INVALID", "closedTradeProfitFactor") == null
+      ? {}
+      : { closedTradeProfitFactor: optionalFinite(input.closedTradeProfitFactor, "COST_STRESS_SCENARIO_INVALID", "closedTradeProfitFactor")! }),
+    totalTradingCost: finite(input.totalTradingCost, "COST_STRESS_SCENARIO_INVALID", "totalTradingCost"),
+    benchmarkOutperformance: finite(input.benchmarkOutperformance, "COST_STRESS_SCENARIO_INVALID", "benchmarkOutperformance"),
+    totalOosClosedTrades: nonNegativeInteger(input.totalOosClosedTrades, "COST_STRESS_SCENARIO_INVALID", "totalOosClosedTrades"),
+    warnings: uniqueSorted(
+      (input.warnings ?? []).map((warning) => requiredText(warning, "COST_STRESS_WARNING_INVALID")),
+      "COST_STRESS_WARNING_INVALID",
+    ),
+  });
+}
+
 function parseCostStress(
   input: CostStressProjectionInput,
   datasetContentSha256: string,
@@ -320,28 +472,71 @@ function parseCostStress(
   if (!SELECTION_MODES.includes(selectionMode)) {
     throw new ResearchRunRobustnessEvidenceError("COST_STRESS_SELECTION_MODE_INVALID", "cost stress selection mode is invalid");
   }
-  const scenarioIds = uniqueSorted(
-    (input.scenarios ?? []).map((scenario) => requiredText(scenario.scenario?.id, "COST_STRESS_SCENARIO_INVALID")),
-    "COST_STRESS_SCENARIO_INVALID",
-  );
+  const scenariosInput = input.scenarios;
+  if (!Array.isArray(scenariosInput) || scenariosInput.length === 0) {
+    throw new ResearchRunRobustnessEvidenceError("COST_STRESS_SCENARIO_MISSING", "cost stress scenarios are required");
+  }
+  const scenarios = scenariosInput
+    .map((scenario) => parseCostStressScenario(scenario, selectionMode))
+    .sort((left, right) => left.scenario.id.localeCompare(right.scenario.id));
+  const scenarioIds = scenarios.map((scenario) => scenario.scenario.id);
+  if (new Set(scenarioIds).size !== scenarioIds.length) {
+    throw new ResearchRunRobustnessEvidenceError("COST_STRESS_SCENARIO_INVALID", "cost stress scenario ids must be unique");
+  }
   for (const requiredScenario of REQUIRED_COST_SCENARIOS) {
     if (!scenarioIds.includes(requiredScenario)) {
       throw new ResearchRunRobustnessEvidenceError("COST_STRESS_SCENARIO_MISSING", `cost stress scenario ${requiredScenario} is missing`);
     }
   }
+  const baselineScenarioId = requiredText(input.baseline?.scenario?.id, "COST_STRESS_BASELINE_MISSING");
+  if (!scenarioIds.includes(baselineScenarioId)) {
+    throw new ResearchRunRobustnessEvidenceError("COST_STRESS_BASELINE_MISMATCH", "cost stress baseline is not present in scenarios");
+  }
+
+  const sourceExperimentSha = requiredText(identity.sourceExperimentSha, "COST_STRESS_SOURCE_EXPERIMENT_MISSING");
+  const engineVersion = requiredText(identity.engineVersion, "COST_STRESS_ENGINE_VERSION_MISSING");
+  const providedStressGridSha256 = hash(identity.stressGridSha256, "COST_STRESS_GRID_HASH_INVALID");
+  const canonicalStressGrid = [...scenarios]
+    .sort((left, right) => (
+      left.scenario.feeRate - right.scenario.feeRate
+      || left.scenario.spreadBps - right.scenario.spreadBps
+      || left.scenario.slippageBps - right.scenario.slippageBps
+      || left.scenario.id.localeCompare(right.scenario.id)
+    ))
+    .map((entry) => ({
+      id: entry.scenario.id,
+      feeRate: entry.scenario.feeRate,
+      spreadBps: entry.scenario.spreadBps,
+      slippageBps: entry.scenario.slippageBps,
+      latencyMs: entry.scenario.latencyMs ?? 0,
+    }));
+  const expectedStressGridSha256 = createHash("sha256").update(JSON.stringify(canonicalStressGrid)).digest("hex");
+  if (providedStressGridSha256 !== expectedStressGridSha256) {
+    throw new ResearchRunRobustnessEvidenceError("COST_STRESS_GRID_HASH_MISMATCH", "cost stress grid hash does not match canonical scenarios");
+  }
+  const providedIdentityId = hash(identity.id, "COST_STRESS_IDENTITY_INVALID");
+  const expectedIdentityId = createHash("sha256")
+    .update(`${sourceExperimentSha}|${identityDatasetSha256}|${expectedStressGridSha256}|${selectionMode}|${engineVersion}`)
+    .digest("hex");
+  if (providedIdentityId !== expectedIdentityId) {
+    throw new ResearchRunRobustnessEvidenceError("COST_STRESS_IDENTITY_MISMATCH", "cost stress identity id does not match its canonical inputs");
+  }
+
   const output: ResearchRunCostStressEvidence = {
     schemaVersion: 1,
     status: "VERIFIED",
     identity: freeze({
-      id: hash(identity.id, "COST_STRESS_IDENTITY_INVALID"),
-      sourceExperimentSha: requiredText(identity.sourceExperimentSha, "COST_STRESS_SOURCE_EXPERIMENT_MISSING"),
+      id: providedIdentityId,
+      sourceExperimentSha,
       datasetSha256: identityDatasetSha256,
-      stressGridSha256: hash(identity.stressGridSha256, "COST_STRESS_GRID_HASH_INVALID"),
+      stressGridSha256: expectedStressGridSha256,
       selectionMode,
-      engineVersion: requiredText(identity.engineVersion, "COST_STRESS_ENGINE_VERSION_MISSING"),
+      engineVersion,
     }),
     robustnessScore: finite(input.robustnessScore, "COST_STRESS_SCORE_INVALID", "robustnessScore"),
-    scenarioIds,
+    baselineScenarioId,
+    scenarioIds: freeze(scenarioIds),
+    scenarios: freeze(scenarios),
     warnings: uniqueSorted(
       (input.warnings ?? []).map((warning) => requiredText(warning, "COST_STRESS_WARNING_INVALID")),
       "COST_STRESS_WARNING_INVALID",
@@ -353,21 +548,69 @@ function parseCostStress(
   return freeze(output);
 }
 
+function parseCandidateCostStress(
+  input: CandidateCostStressProjectionInput,
+  datasetContentSha256: string,
+): ResearchRunCandidateCostStressEvidence {
+  return freeze({
+    candidateId: requiredText(input.candidateId, "CANDIDATE_COST_STRESS_IDENTITY_INVALID"),
+    familyId: requiredText(input.familyId, "CANDIDATE_COST_STRESS_IDENTITY_INVALID"),
+    specificationHash: hash(input.specificationHash, "CANDIDATE_COST_STRESS_SPECIFICATION_HASH_INVALID"),
+    costStress: parseCostStress(input.costStress ?? {}, datasetContentSha256),
+  });
+}
+
 export function buildResearchRunRobustnessEvidence(input: {
   readonly datasetId: string;
   readonly datasetContentSha256: string;
   readonly parameterRobustness: ParameterRobustnessResultInput;
   readonly costStress: CostStressProjectionInput;
+  readonly candidateCostStress?: readonly CandidateCostStressProjectionInput[];
 }): ResearchRunRobustnessEvidence {
   const datasetId = requiredText(input.datasetId, "ROBUSTNESS_DATASET_ID_MISSING");
   const datasetContentSha256 = hash(input.datasetContentSha256, "ROBUSTNESS_DATASET_HASH_INVALID");
+  const candidateCostStress = (input.candidateCostStress ?? [])
+    .map((candidate) => parseCandidateCostStress(candidate, datasetContentSha256))
+    .sort((left, right) => left.candidateId.localeCompare(right.candidateId));
+  if (new Set(candidateCostStress.map((candidate) => candidate.candidateId)).size !== candidateCostStress.length) {
+    throw new ResearchRunRobustnessEvidenceError("CANDIDATE_COST_STRESS_DUPLICATE", "candidate cost stress bindings must be unique");
+  }
   return freeze({
     schemaVersion: 1,
     datasetId,
     datasetContentSha256,
     parameterRobustness: parseParameterRobustness(input.parameterRobustness, datasetId, datasetContentSha256),
     costStress: parseCostStress(input.costStress, datasetContentSha256),
+    candidateCostStress: freeze(candidateCostStress),
   });
+}
+
+function costStressProjection(evidence: ResearchRunCostStressEvidence): CostStressProjectionInput {
+  const scenarios = evidence.scenarios.map((scenario) => ({
+    scenario: scenario.scenario,
+    selectionMode: scenario.selectionMode,
+    markedTotalReturn: scenario.markedTotalReturn,
+    markedMaximumDrawdown: scenario.markedMaximumDrawdown,
+    closedTradeNetProfit: scenario.closedTradeNetProfit,
+    closedTradeExpectancy: scenario.closedTradeExpectancy ?? null,
+    closedTradeProfitFactor: scenario.closedTradeProfitFactor ?? null,
+    totalTradingCost: scenario.totalTradingCost,
+    benchmarkOutperformance: scenario.benchmarkOutperformance,
+    totalOosClosedTrades: scenario.totalOosClosedTrades,
+    warnings: scenario.warnings,
+  }));
+  const baseline = scenarios.find((scenario) => scenario.scenario.id === evidence.baselineScenarioId);
+  if (baseline == null) {
+    throw new ResearchRunRobustnessEvidenceError("COST_STRESS_BASELINE_MISMATCH", "canonical cost stress baseline is missing");
+  }
+  return {
+    identity: evidence.identity,
+    selectionMode: evidence.identity.selectionMode,
+    baseline,
+    scenarios,
+    robustnessScore: evidence.robustnessScore,
+    warnings: evidence.warnings,
+  };
 }
 
 export function validateResearchRunRobustnessEvidence(evidence: ResearchRunRobustnessEvidence): void {
@@ -393,13 +636,13 @@ export function validateResearchRunRobustnessEvidence(evidence: ResearchRunRobus
         datasetContentSha256: evidence.parameterRobustness.datasetContentSha256,
       },
     },
-    costStress: {
-      identity: evidence.costStress.identity,
-      scenarios: evidence.costStress.scenarioIds.map((id) => ({ scenario: { id } })),
-      robustnessScore: evidence.costStress.robustnessScore,
-      warnings: evidence.costStress.warnings,
-      selectionMode: evidence.costStress.identity.selectionMode,
-    },
+    costStress: costStressProjection(evidence.costStress),
+    candidateCostStress: evidence.candidateCostStress.map((candidate) => ({
+      candidateId: candidate.candidateId,
+      familyId: candidate.familyId,
+      specificationHash: candidate.specificationHash,
+      costStress: costStressProjection(candidate.costStress),
+    })),
   });
   if (JSON.stringify(rebuilt) !== JSON.stringify(evidence)) {
     throw new ResearchRunRobustnessEvidenceError("ROBUSTNESS_EVIDENCE_NOT_CANONICAL", "robustness evidence is not canonical");

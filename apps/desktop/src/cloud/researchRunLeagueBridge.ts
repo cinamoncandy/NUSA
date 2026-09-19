@@ -3,6 +3,7 @@ import { canonicalResearchJson } from "../../../../packages/contracts/src/resear
 import { createResearchBenchmarkScorecard, type ResearchBenchmarkPolicy, type ResearchBenchmarkSlice } from "./researchBenchmarkScorecard";
 import type { ResearchExperimentResult } from "./researchDataset";
 import type { PboCscvEvidence } from "./researchSearchAdjustedEvidence";
+import { researchRunOosReturns, type ResearchRunPboEvidence } from "./researchRunPboEvidence";
 import type { DeflatedSharpeEvidence } from "./researchSearchAdjustedEvidence";
 import type { RegimeAwareStrategyEvaluation } from "./regimeAwareStrategyEvaluation";
 import type { RegimeHealthAssessment } from "./regimeHealth";
@@ -127,6 +128,7 @@ export interface ResearchRunProvenance {
     readonly source: string;
     readonly market: string;
     readonly interval: string;
+    readonly candleCount: number;
     readonly startOpenTime: number;
     readonly endCloseTime: number;
   }>;
@@ -150,6 +152,24 @@ export interface ResearchRunProvenance {
     readonly robustnessSha256?: string;
     readonly regimeSha256: string;
     readonly oosObservationSha256: string;
+  }>;
+  readonly searchOverfittingIdentity?: Readonly<{
+    readonly evidenceSha256: string;
+    readonly probabilityBacktestOverfitting: number;
+    readonly datasetId: string;
+    readonly datasetContentSha256: string;
+    readonly market: string;
+    readonly interval: string;
+    readonly candleCount: number;
+    readonly startOpenTime: number;
+    readonly endCloseTime: number;
+    readonly candidateIds: readonly string[];
+    readonly familyIds: readonly string[];
+    readonly candidateSpecificationHashes: readonly string[];
+    readonly candidateConfigurationSha256: string;
+    readonly evaluationSha256: string;
+    readonly oosTimestampSha256: string;
+    readonly oosReturnMatrixSha256: string;
   }>;
 }
 
@@ -314,6 +334,37 @@ export function buildResearchRunLeague(
         "run-level robustness evidence does not match candidate dataset provenance",
       );
     }
+    if (
+      options.robustnessEvidence.parameterRobustness.provenance.sourceCommitSha !== sourceCommitSha
+      || options.robustnessEvidence.parameterRobustness.provenance.costModelVersion !== costModelVersion
+    ) {
+      throw new ResearchRunLeagueBridgeError(
+        "ROBUSTNESS_PROVENANCE_MISMATCH",
+        "parameter robustness source/cost-model provenance does not match the canonical run",
+      );
+    }
+    const candidateCostIds = new Set<string>();
+    for (const candidateStress of options.robustnessEvidence.candidateCostStress) {
+      if (candidateCostIds.has(candidateStress.candidateId)) {
+        throw new ResearchRunLeagueBridgeError(
+          "ROBUSTNESS_PROVENANCE_MISMATCH",
+          "candidate cost-stress evidence contains duplicate candidate bindings",
+        );
+      }
+      candidateCostIds.add(candidateStress.candidateId);
+      const candidate = candidates.find((item) => item.id === candidateStress.candidateId);
+      if (
+        candidate == null
+        || candidate.familyId !== candidateStress.familyId
+        || specificationHashes.get(candidate.id) !== candidateStress.specificationHash
+        || candidateStress.costStress.identity.datasetSha256 !== candidate.experiment.manifest.contentSha256
+      ) {
+        throw new ResearchRunLeagueBridgeError(
+          "ROBUSTNESS_PROVENANCE_MISMATCH",
+          `candidate cost-stress evidence does not bind to canonical candidate ${candidateStress.candidateId}`,
+        );
+      }
+    }
   }
 
   let hypothesisHash: string | undefined;
@@ -379,6 +430,77 @@ export function buildResearchRunLeague(
     };
   });
 
+  const suppliedPbo = options.probabilityBacktestOverfitting;
+  const suppliedPboProvenance = (suppliedPbo as Partial<ResearchRunPboEvidence> | undefined)?.provenance;
+  const expectedPboCandidateIds = [...candidates.map((candidate) => candidate.id)].sort();
+  const expectedPboFamilyIds = [...new Set(candidates.map((candidate) => candidate.familyId))].sort();
+  const expectedPboSpecificationHashes = candidates.map((candidate) => specificationHashes.get(candidate.id)!).sort();
+  const expectedPboCandidateConfigurationSha256 = hashCanonical(
+    candidates
+      .map((candidate) => ({
+        candidateId: candidate.id,
+        familyId: candidate.familyId,
+        specificationHash: specificationHashes.get(candidate.id),
+        parameters: candidate.experiment.experimentConfig.candidates[0]?.parameters ?? null,
+      }))
+      .sort((left, right) => left.candidateId.localeCompare(right.candidateId)),
+  );
+
+  let pboProvenanceVerified = false;
+  if (suppliedPbo != null && suppliedPboProvenance != null) {
+    const firstPboCandidate = candidates[0]!;
+    const expectedPboManifest = firstPboCandidate.experiment.manifest;
+    const expectedPboEvaluationSha256 = hashCanonical({
+      walkForward: firstPboCandidate.experiment.experimentConfig.walkForward,
+      executionCosts: firstPboCandidate.experiment.experimentConfig.executionCosts,
+    });
+    const currentPboReturnSeries = candidates
+      .map((candidate) => ({
+        candidateId: candidate.id,
+        returns: researchRunOosReturns(candidate).map((entry) => ({ timestamp: entry.timestamp, value: entry.value })),
+      }))
+      .sort((left, right) => left.candidateId.localeCompare(right.candidateId));
+    const firstPboCurveTimestamps = currentPboReturnSeries[0]?.returns.map((entry) => entry.timestamp) ?? [];
+    const expectedPboTimestampSha256 = hashCanonical(firstPboCurveTimestamps);
+    const expectedPboReturnMatrixSha256 = hashCanonical(currentPboReturnSeries);
+    const currentPboEvaluationAligned = candidates.every((candidate) => (
+      hashCanonical({
+        walkForward: candidate.experiment.experimentConfig.walkForward,
+        executionCosts: candidate.experiment.experimentConfig.executionCosts,
+      }) === expectedPboEvaluationSha256
+    ));
+    const currentPboTimestampsAligned = currentPboReturnSeries.every((candidate) => (
+      hashCanonical(candidate.returns.map((entry) => entry.timestamp)) === expectedPboTimestampSha256
+    ));
+    pboProvenanceVerified = suppliedPboProvenance.schemaVersion === 1
+      && Array.isArray(suppliedPboProvenance.candidateIds)
+      && Array.isArray(suppliedPboProvenance.familyIds)
+      && Array.isArray(suppliedPboProvenance.candidateSpecificationHashes)
+      && /^[0-9a-f]{64}$/i.test(String(suppliedPboProvenance.datasetContentSha256 ?? ""))
+      && /^[0-9a-f]{64}$/i.test(String(suppliedPboProvenance.candidateConfigurationSha256 ?? ""))
+      && /^[0-9a-f]{64}$/i.test(String(suppliedPboProvenance.evaluationSha256 ?? ""))
+      && /^[0-9a-f]{64}$/i.test(String(suppliedPboProvenance.oosTimestampSha256 ?? ""))
+      && /^[0-9a-f]{64}$/i.test(String(suppliedPboProvenance.oosReturnMatrixSha256 ?? ""))
+      && suppliedPboProvenance.datasetId === expectedPboManifest.datasetId
+      && suppliedPboProvenance.datasetContentSha256 === expectedPboManifest.contentSha256
+      && suppliedPboProvenance.market === expectedPboManifest.market
+      && suppliedPboProvenance.interval === expectedPboManifest.interval
+      && suppliedPboProvenance.candleCount === expectedPboManifest.candleCount
+      && suppliedPboProvenance.startOpenTime === expectedPboManifest.startOpenTime
+      && suppliedPboProvenance.endCloseTime === expectedPboManifest.endCloseTime
+      && JSON.stringify([...(suppliedPboProvenance.candidateIds ?? [])].sort()) === JSON.stringify(expectedPboCandidateIds)
+      && JSON.stringify([...(suppliedPboProvenance.familyIds ?? [])].sort()) === JSON.stringify(expectedPboFamilyIds)
+      && JSON.stringify([...(suppliedPboProvenance.candidateSpecificationHashes ?? [])].sort()) === JSON.stringify(expectedPboSpecificationHashes)
+      && suppliedPboProvenance.candidateConfigurationSha256 === expectedPboCandidateConfigurationSha256
+      && suppliedPboProvenance.evaluationSha256 === expectedPboEvaluationSha256
+      && suppliedPboProvenance.oosTimestampSha256 === expectedPboTimestampSha256
+      && suppliedPboProvenance.oosReturnMatrixSha256 === expectedPboReturnMatrixSha256
+      && firstPboCurveTimestamps.length > 0
+      && currentPboEvaluationAligned
+      && currentPboTimestampsAligned;
+  }
+  const admittedPbo = pboProvenanceVerified ? suppliedPbo : undefined;
+
   const reasons: string[] = ["RESEARCH_TIER_ONLY", "NO_EXECUTION_AUTHORITY"];
   const paperDecisionValues = [...paperDecisions.values()];
   if (paperDecisionValues.some((decision) => decision.strength === "VERIFIED")) reasons.push("VERIFIED_PAPER_FORWARD_EVIDENCE_PRESENT");
@@ -409,7 +531,8 @@ export function buildResearchRunLeague(
   if (Object.keys(oosObservationEvidence).length === candidates.length) reasons.push("OOS_OBSERVATION_PROVENANCE_PRESENT");
   if (new Set(candidates.map((candidate) => candidate.familyId)).size <= 1) reasons.push("SINGLE_FAMILY_RESEARCH_RUN");
   if (candidates.every((candidate) => candidate.regimeAwareEvaluation != null)) reasons.push("POINT_IN_TIME_REGIME_EVIDENCE_PRESENT");
-  if (options.probabilityBacktestOverfitting != null) reasons.push("SEARCH_OVERFITTING_EVIDENCE_PRESENT");
+  if (admittedPbo != null) reasons.push("SEARCH_OVERFITTING_EVIDENCE_PRESENT");
+  else if (suppliedPbo != null) reasons.push("SEARCH_OVERFITTING_EVIDENCE_PROVENANCE_MISMATCH");
   if (options.robustnessEvidence != null) {
     reasons.push("PARAMETER_ROBUSTNESS_EVIDENCE_PRESENT", "COST_STRESS_EVIDENCE_PRESENT");
   }
@@ -417,9 +540,9 @@ export function buildResearchRunLeague(
 
   const pipelineInput = {
     candidates: leagueCandidates,
-    ...(options.probabilityBacktestOverfitting == null
+    ...(admittedPbo == null
       ? {}
-      : { probabilityBacktestOverfitting: options.probabilityBacktestOverfitting }),
+      : { probabilityBacktestOverfitting: admittedPbo }),
     ...(options.leaguePolicy == null ? {} : { leaguePolicy: options.leaguePolicy }),
     ...(options.allocationPolicy == null ? {} : { allocationPolicy: options.allocationPolicy }),
     ...(options.generatedAt == null ? {} : { generatedAt: options.generatedAt }),
@@ -438,9 +561,9 @@ export function buildResearchRunLeague(
     // not a reason to discard the ranking, and never a reason to invent an allocation.
     if (!(error instanceof LeagueCapitalAllocationError)) throw error;
     standing = evaluateLeague(leagueCandidates, {
-      ...(options.probabilityBacktestOverfitting == null
+      ...(admittedPbo == null
         ? {}
-        : { probabilityBacktestOverfitting: options.probabilityBacktestOverfitting }),
+        : { probabilityBacktestOverfitting: admittedPbo }),
       ...(options.leaguePolicy == null ? {} : { policy: options.leaguePolicy }),
       ...(options.generatedAt == null ? {} : { generatedAt: options.generatedAt }),
     });
@@ -449,7 +572,7 @@ export function buildResearchRunLeague(
   }
 
   const evidenceReport = freeze(standing.entries.map((entry) => buildLeagueCandidateEvidenceReport(entry, {
-    pboAvailable: options.probabilityBacktestOverfitting != null,
+    pboAvailable: admittedPbo != null,
   })));
 
   const canonicalManifest = candidates
@@ -464,6 +587,7 @@ export function buildResearchRunLeague(
     source: canonicalManifest.source,
     market: canonicalManifest.market,
     interval: canonicalManifest.interval,
+    candleCount: canonicalManifest.candleCount,
     startOpenTime: canonicalManifest.startOpenTime,
     endCloseTime: canonicalManifest.endCloseTime,
   });
@@ -481,9 +605,9 @@ export function buildResearchRunLeague(
     evidenceSha256: hashCanonical(scorecard.slices),
   });
   const evidenceIdentity = freeze({
-    ...(options.probabilityBacktestOverfitting == null
+    ...(admittedPbo == null
       ? {}
-      : { pboSha256: hashCanonical(options.probabilityBacktestOverfitting) }),
+      : { pboSha256: hashCanonical(admittedPbo) }),
     dsrSha256: hashCanonical(candidates.map((candidate) => ({
       candidateId: candidate.id,
       deflatedSharpe: candidate.deflatedSharpe ?? null,
@@ -499,6 +623,26 @@ export function buildResearchRunLeague(
     })).sort((left, right) => left.candidateId.localeCompare(right.candidateId))),
     oosObservationSha256: hashCanonical(oosObservationEvidence),
   });
+  const searchOverfittingIdentity = admittedPbo == null || suppliedPboProvenance == null
+    ? undefined
+    : freeze({
+      evidenceSha256: evidenceIdentity.pboSha256!,
+      probabilityBacktestOverfitting: admittedPbo.probabilityBacktestOverfitting,
+      datasetId: suppliedPboProvenance.datasetId,
+      datasetContentSha256: suppliedPboProvenance.datasetContentSha256,
+      market: suppliedPboProvenance.market,
+      interval: suppliedPboProvenance.interval,
+      candleCount: suppliedPboProvenance.candleCount,
+      startOpenTime: suppliedPboProvenance.startOpenTime,
+      endCloseTime: suppliedPboProvenance.endCloseTime,
+      candidateIds: freeze(expectedPboCandidateIds),
+      familyIds: freeze(expectedPboFamilyIds),
+      candidateSpecificationHashes: freeze(expectedPboSpecificationHashes),
+      candidateConfigurationSha256: suppliedPboProvenance.candidateConfigurationSha256,
+      evaluationSha256: suppliedPboProvenance.evaluationSha256,
+      oosTimestampSha256: suppliedPboProvenance.oosTimestampSha256,
+      oosReturnMatrixSha256: suppliedPboProvenance.oosReturnMatrixSha256,
+    });
   const provenancePayload = {
     schemaVersion: 1 as const,
     sourceCommitSha,
@@ -508,6 +652,7 @@ export function buildResearchRunLeague(
     candidateBindings,
     benchmarkIdentity,
     evidenceIdentity,
+    ...(searchOverfittingIdentity == null ? {} : { searchOverfittingIdentity }),
   };
   const runFingerprintSha256 = hashCanonical({
     provenance: provenancePayload,
