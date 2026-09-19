@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { acquirePersistentExecution, applyPersistentControlPlaneHold, clearPersistentControlPlaneHold, ExecutionCoordinator, readPersistentControlPlaneHold, releasePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, applyPersistentControlPlaneHold, clearPersistentControlPlaneHold, ExecutionCoordinator, handoffOrAcquirePersistentExecution, markPersistentExecutionDispatched, readPersistentControlPlaneHold, releasePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
 
 class MemoryStorage {
@@ -84,6 +84,15 @@ function fakeNamespace(status: number, body: object): ExecutionCoordinatorNamesp
   };
 }
 
+function memoryNamespace(): ExecutionCoordinatorNamespace {
+  const storage = new MemoryStorage();
+  const coordinator = new ExecutionCoordinator({ storage });
+  return {
+    idFromName: () => ({}),
+    get: () => ({ fetch: (input, init) => coordinator.fetch(new Request(input, init)) }),
+  };
+}
+
 describe("persistent execution coordination", () => {
   it("accepts a new lease", async () => {
     const result = await acquirePersistentExecution(fakeNamespace(201, { acquired: true }), {
@@ -103,6 +112,25 @@ describe("persistent execution coordination", () => {
       leaseExpiresAt: 200,
     });
     assert.deepEqual(result, { acquired: false, reason: "ALREADY_DISPATCHED" });
+  });
+
+  it("hands one producer lease to one consumer and suppresses replay", async () => {
+    const ns = memoryNamespace();
+    const input = { dedupeKey: "coding:handoff", executionId: "exec:handoff", now: 100, leaseExpiresAt: 200 };
+    assert.deepEqual(await acquirePersistentExecution(ns, input), { acquired: true });
+    assert.deepEqual(await handoffOrAcquirePersistentExecution(ns, { ...input, now: 110, leaseExpiresAt: 210 }), { acquired: true });
+    assert.deepEqual(await handoffOrAcquirePersistentExecution(ns, { ...input, now: 120, leaseExpiresAt: 220 }), { acquired: false, reason: "LEASE_ACTIVE" });
+    await markPersistentExecutionDispatched(ns, { dedupeKey: input.dedupeKey, executionId: input.executionId, now: 130 });
+    assert.deepEqual(await handoffOrAcquirePersistentExecution(ns, { ...input, now: 140, leaseExpiresAt: 240 }), { acquired: false, reason: "ALREADY_DISPATCHED" });
+  });
+
+  it("releases a failed handoff so a bounded retry can reacquire", async () => {
+    const ns = memoryNamespace();
+    const input = { dedupeKey: "coding:handoff-retry", executionId: "exec:handoff-retry", now: 100, leaseExpiresAt: 200 };
+    await acquirePersistentExecution(ns, input);
+    await handoffOrAcquirePersistentExecution(ns, { ...input, now: 110, leaseExpiresAt: 210 });
+    await releasePersistentExecution(ns, { dedupeKey: input.dedupeKey, executionId: input.executionId, now: 120 });
+    assert.deepEqual(await handoffOrAcquirePersistentExecution(ns, { ...input, now: 130, leaseExpiresAt: 230 }), { acquired: true });
   });
 
   it("fails closed on coordinator failure", async () => {
