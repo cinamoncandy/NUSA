@@ -49,17 +49,7 @@ export class CloudRuntimeDashboardHydrator {
       const now = this.now();
       if (!Number.isSafeInteger(now) || now < 0) throw new Error("runtime clock is invalid");
       const validObservations = observations.filter((observation) => observation.expiresAt >= now && observation.observedAt <= now);
-      // The engine returns a status and the reasons behind it. Taking only `.fused` and dropping
-      // the rest is what made the engine's fail-closed abstention decorative: it could report
-      // ABSTAIN on every single call and nothing downstream or on screen would differ. Nothing in
-      // the tree produces MarketRegimeFeatures today, so REGIME_UNKNOWN is the live path, not an
-      // edge case -- the runtime abstains 100% of the time and said so to nobody.
-      const abstainReasons = new Set<string>();
-      const collect = (output: { readonly status: string; readonly reasons: readonly string[] }): void => {
-        if (output.status === "ABSTAIN") for (const reason of output.reasons) abstainReasons.add(reason);
-      };
-
-      const globalIntelligence = runIntelligenceEngineV10({
+      const intelligence = runIntelligenceEngineV10({
         now,
         observations: validObservations.length > 0
           ? validObservations
@@ -72,9 +62,7 @@ export class CloudRuntimeDashboardHydrator {
             expiresAt: now,
             summary: "No market data available"
           }]
-      });
-      collect(globalIntelligence);
-      const intelligence = globalIntelligence.fused;
+      }).fused;
 
       const previous = provider.read(operatorPrincipal);
       const marketGroups = new Map<string, IntelligenceObservation[]>();
@@ -89,12 +77,10 @@ export class CloudRuntimeDashboardHydrator {
 
       const decisions: CioDecision[] = [];
       for (const market of [...marketGroups.keys()].sort()) {
-        const marketOutput = runIntelligenceEngineV10({
+        const marketIntelligence = runIntelligenceEngineV10({
           now,
           observations: [...globalObservations, ...marketGroups.get(market)!]
-        });
-        collect(marketOutput);
-        const marketIntelligence = marketOutput.fused;
+        }).fused;
         if (marketIntelligence.signals.length === 0) continue;
         const currentAllocation = clampUnit(previous?.portfolio.allocations
           .filter((allocation) => allocation.symbol === market && allocation.instrument === "SPOT")
@@ -149,15 +135,9 @@ export class CloudRuntimeDashboardHydrator {
         killSwitchActive: !hasExecutableMarketData,
         overallHealth: hasExecutableMarketData ? "HEALTHY" : "DOWN",
         headline: hasExecutableMarketData ? "Paper runtime evaluating live public market data" : "Paper runtime awaiting market data",
-        // Abstention reasons are reported, not acted on. Whether an abstaining intelligence engine
-        // should suppress decisions outright is a product decision for the owner, and today it
-        // would silence the entire paper runtime, since every call abstains. Surfacing the reason
-        // is the part that is unambiguously correct: the owner can now see that the engine is
-        // abstaining and why, which was previously invisible at every layer.
-        issues: Object.freeze([
-          ...(hasExecutableMarketData ? [] : ["Market data unavailable", "Trading is blocked by the kill switch"]),
-          ...[...abstainReasons].sort().map((reason) => `Intelligence abstained: ${reason}`)
-        ]),
+        issues: Object.freeze(hasExecutableMarketData
+          ? []
+          : ["Market data unavailable", "Trading is blocked by the kill switch"]),
         portfolio,
         decisions: Object.freeze(decisions),
         intelligence
