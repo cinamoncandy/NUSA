@@ -458,6 +458,10 @@ export function buildResearchRunLeague(
       ))) === expectedPboTimestampSha256
     ));
     pboProvenanceVerified = suppliedPboProvenance.schemaVersion === 1
+      && Array.isArray(suppliedPboProvenance.candidateIds)
+      && /^[0-9a-f]{64}$/i.test(String(suppliedPboProvenance.datasetContentSha256 ?? ""))
+      && /^[0-9a-f]{64}$/i.test(String(suppliedPboProvenance.evaluationSha256 ?? ""))
+      && /^[0-9a-f]{64}$/i.test(String(suppliedPboProvenance.oosTimestampSha256 ?? ""))
       && suppliedPboProvenance.datasetId === expectedPboManifest.datasetId
       && suppliedPboProvenance.datasetContentSha256 === expectedPboManifest.contentSha256
       && suppliedPboProvenance.market === expectedPboManifest.market
@@ -465,7 +469,7 @@ export function buildResearchRunLeague(
       && suppliedPboProvenance.candleCount === expectedPboManifest.candleCount
       && suppliedPboProvenance.startOpenTime === expectedPboManifest.startOpenTime
       && suppliedPboProvenance.endCloseTime === expectedPboManifest.endCloseTime
-      && JSON.stringify([...suppliedPboProvenance.candidateIds].sort()) === JSON.stringify(expectedPboCandidateIds)
+      && JSON.stringify([...(suppliedPboProvenance.candidateIds ?? [])].sort()) === JSON.stringify(expectedPboCandidateIds)
       && suppliedPboProvenance.evaluationSha256 === expectedPboEvaluationSha256
       && suppliedPboProvenance.oosTimestampSha256 === expectedPboTimestampSha256
       && firstPboCurveTimestamps.length > 0
