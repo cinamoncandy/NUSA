@@ -24,6 +24,7 @@ import { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllo
 import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, isPaperConnectionVerified, restoreConfiguredPaperSession, setConfiguredPaperEndpoint } from "./src/paperConnectionSession";
 import { mobileApprovedSession } from "./src/mobileApprovedSessionBoundary";
 import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./src/personalPaperOperationsClient";
+import { loadAnonymousPaperObservation } from "./src/observation/anonymousObservationClient";
 import { loadShadowOperations, type ShadowOperationsLoadResult } from "./src/shadowOperationsClient";
 import { loadRealReadOnlyOperations, type RealReadOnlyOperationsLoadResult } from "./src/realReadOnlyOperationsClient";
 import { loadLiveReadinessOperations, type LiveReadinessOperationsLoadResult } from "./src/liveReadinessOperationsClient";
@@ -187,11 +188,26 @@ function AuthenticatedApp() {
     const generation = refreshGenerationRef.current;
     const endpoint = getConfiguredPaperEndpoint();
     if (endpoint == null || !isPaperConnectionVerified(endpoint)) {
+      // Without a verified session the credentialed reads cannot run. Rather than showing nothing
+      // until enrollment is finished, try the server's anonymous read-only observation. It carries
+      // no credential, so it is safe here, and a server that has it disabled just answers 401 and
+      // leaves the original NOT_CONFIGURED message in place.
       setOperations({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified in Settings before dashboard credentials can be used." });
       setShadowOperations({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified before SHADOW reads." });
       setRealReadOnlyOperations({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified before REAL_READ_ONLY reads." });
       setLiveReadinessOperations({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified before LIVE readiness reads." });
-      return Promise.resolve();
+      const observation = (async () => {
+        const result = await loadAnonymousPaperObservation();
+        if (generation !== refreshGenerationRef.current) return;
+        // A session established while this was in flight owns the projection; do not overwrite it.
+        const stillUnverified = (() => { const current = getConfiguredPaperEndpoint(); return current == null || !isPaperConnectionVerified(current); })();
+        if (!stillUnverified) return;
+        if (result.status === "READY") setOperations({ status: "READY", snapshot: result.snapshot });
+      })();
+      const clearObservation = () => { if (refreshInFlightRef.current === observation) refreshInFlightRef.current = null; };
+      refreshInFlightRef.current = observation;
+      void observation.then(clearObservation, clearObservation);
+      return observation;
     }
     dispatchRuntime({ type: "RECOVERY_STARTED" });
     const request = (async () => {
