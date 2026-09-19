@@ -9,6 +9,12 @@ export interface ResearchRunParameterRobustnessReference {
   readonly familyId?: string;
   readonly candidateKey?: string;
   readonly parameters?: Readonly<Record<string, number>>;
+  readonly referenceReturn?: number;
+  readonly immediateNeighborCount?: number;
+  readonly immediateNeighborPositiveRatio?: number;
+  readonly immediateNeighborBenchmarkOutperformRatio?: number;
+  readonly allCandidatePositiveRatio?: number;
+  readonly signReversalRatio?: number;
   readonly assessment: string;
 }
 
@@ -116,6 +122,12 @@ interface ParameterRobustnessResultInput {
     readonly familyId?: unknown;
     readonly candidateKey?: unknown;
     readonly parameters?: unknown;
+    readonly referenceReturn?: unknown;
+    readonly immediateNeighborCount?: unknown;
+    readonly immediateNeighborPositiveRatio?: unknown;
+    readonly immediateNeighborBenchmarkOutperformRatio?: unknown;
+    readonly allCandidatePositiveRatio?: unknown;
+    readonly signReversalRatio?: unknown;
     readonly assessment?: unknown;
   }[];
   readonly aggregate?: {
@@ -297,12 +309,37 @@ function parseParameterRobustness(
   const references = referencesInput.map((reference): ResearchRunParameterRobustnessReference => {
     const source = requiredText(reference.source, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID");
     const assessment = requiredText(reference.assessment, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID");
+    const referenceReturn = optionalFinite(reference.referenceReturn, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID", "referenceReturn");
+    const immediateNeighborCount = reference.immediateNeighborCount == null
+      ? undefined
+      : nonNegativeInteger(reference.immediateNeighborCount, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID", "immediateNeighborCount");
+    const immediateNeighborPositiveRatio = reference.immediateNeighborPositiveRatio == null
+      ? undefined
+      : ratio(reference.immediateNeighborPositiveRatio, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID", "immediateNeighborPositiveRatio");
+    const immediateNeighborBenchmarkOutperformRatio = reference.immediateNeighborBenchmarkOutperformRatio == null
+      ? undefined
+      : ratio(reference.immediateNeighborBenchmarkOutperformRatio, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID", "immediateNeighborBenchmarkOutperformRatio");
+    const allCandidatePositiveRatio = reference.allCandidatePositiveRatio == null
+      ? undefined
+      : ratio(reference.allCandidatePositiveRatio, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID", "allCandidatePositiveRatio");
+    const signReversalRatio = reference.signReversalRatio == null
+      ? undefined
+      : ratio(reference.signReversalRatio, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID", "signReversalRatio");
+    const diagnostics = {
+      ...(referenceReturn == null ? {} : { referenceReturn }),
+      ...(immediateNeighborCount == null ? {} : { immediateNeighborCount }),
+      ...(immediateNeighborPositiveRatio == null ? {} : { immediateNeighborPositiveRatio }),
+      ...(immediateNeighborBenchmarkOutperformRatio == null ? {} : { immediateNeighborBenchmarkOutperformRatio }),
+      ...(allCandidatePositiveRatio == null ? {} : { allCandidatePositiveRatio }),
+      ...(signReversalRatio == null ? {} : { signReversalRatio }),
+    };
     if (reference.parameters !== undefined || reference.familyId !== undefined || reference.candidateKey !== undefined) {
       return freeze({
         source,
         familyId: requiredText(reference.familyId, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID"),
         candidateKey: requiredText(reference.candidateKey, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID"),
         parameters: parameterRecord(reference.parameters),
+        ...diagnostics,
         assessment,
       });
     }
@@ -310,6 +347,7 @@ function parseParameterRobustness(
       source,
       shortWindow: nonNegativeInteger(reference.shortWindow, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID", "shortWindow"),
       longWindow: nonNegativeInteger(reference.longWindow, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID", "longWindow"),
+      ...diagnostics,
       assessment,
     });
   }).sort((left, right) => left.source.localeCompare(right.source)
