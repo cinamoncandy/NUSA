@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assertPaperPerformanceComparable, assertPaperPerformanceFresh } from "./paperPerformanceComparison";
+import { assertPaperPerformanceComparable, assertPaperPerformanceFresh, assertPaperPerformanceLedgerSourceReady } from "./paperPerformanceComparison";
 import { buildPaperPerformanceEvidence, type PaperPerformanceEvidenceInput } from "./paperPerformanceEvidence";
 
 const base: PaperPerformanceEvidenceInput = {
@@ -35,4 +35,12 @@ test("freshness is evaluated at consumption time without changing evidence ident
   assert.throws(() => assertPaperPerformanceFresh(current, 2_501, 500), /PAPER_PERFORMANCE_EVIDENCE_STALE/);
   assert.throws(() => assertPaperPerformanceFresh(current, 1_999, 500), /PAPER_PERFORMANCE_FRESHNESS_POLICY_INVALID/);
   assert.throws(() => assertPaperPerformanceFresh(current, 2_500, -1), /PAPER_PERFORMANCE_FRESHNESS_POLICY_INVALID/);
+});
+
+test("performance source requires durable complete reconciled ledger truth", () => {
+  const ready = { durableCompleteJournal: true, reconciled: true, ledgerFingerprintSha256: "a".repeat(64) };
+  assert.doesNotThrow(() => assertPaperPerformanceLedgerSourceReady(ready));
+  assert.throws(() => assertPaperPerformanceLedgerSourceReady({ ...ready, durableCompleteJournal: false }), /LEDGER_HISTORY_INCOMPLETE/);
+  assert.throws(() => assertPaperPerformanceLedgerSourceReady({ ...ready, reconciled: false }), /LEDGER_NOT_RECONCILED/);
+  assert.throws(() => assertPaperPerformanceLedgerSourceReady({ ...ready, ledgerFingerprintSha256: "bad" }), /LEDGER_FINGERPRINT_INVALID/);
 });
