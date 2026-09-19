@@ -7,6 +7,9 @@ export interface GithubIssueWorkSupplySnapshot {
   readonly readyWorkCount: number | null;
   readonly readyWorkStatus: "OBSERVED" | "UNKNOWN";
   readonly readyWorkScope: GithubReadyWorkScope;
+  readonly capabilityBlockedWorkCount: number | null;
+  readonly capabilityBlockedWorkStatus: "OBSERVED" | "UNKNOWN";
+  readonly capabilityBlockedCapabilities: Readonly<Record<"RESEARCH" | "GENERAL" | "UNKNOWN", number>> | null;
   readonly reason: string;
 }
 
@@ -16,6 +19,9 @@ export const UNKNOWN_GITHUB_ISSUE_WORK_SUPPLY: GithubIssueWorkSupplySnapshot = O
   readyWorkCount: null,
   readyWorkStatus: "UNKNOWN",
   readyWorkScope: "UNKNOWN",
+  capabilityBlockedWorkCount: null,
+  capabilityBlockedWorkStatus: "UNKNOWN",
+  capabilityBlockedCapabilities: null,
   reason: "github-open-issue-supply-unobserved",
 });
 
@@ -60,5 +66,31 @@ export function withObservedReadyWork(
     readyWorkStatus: "OBSERVED" as const,
     readyWorkScope: "AUTOPILOT_CODING_RUNNER" as const,
     reason: "github-open-issue-backlog-and-current-executor-ready-work-observed",
+  });
+}
+
+export function withObservedCapabilityBlockedWork(
+  supply: GithubIssueWorkSupplySnapshot,
+  capabilityBlockedWorkCount: number,
+  capabilityBlockedCapabilities: Readonly<Record<"RESEARCH" | "GENERAL" | "UNKNOWN", number>>,
+): GithubIssueWorkSupplySnapshot {
+  const validCounts = Object.values(capabilityBlockedCapabilities).every((value) => Number.isSafeInteger(value) && value >= 0);
+  if (supply.status !== "OBSERVED"
+    || !Number.isSafeInteger(capabilityBlockedWorkCount)
+    || capabilityBlockedWorkCount < 0
+    || !validCounts
+    || Object.values(capabilityBlockedCapabilities).reduce((sum, value) => sum + value, 0) !== capabilityBlockedWorkCount) {
+    return supply.status === "OBSERVED"
+      ? Object.freeze({ ...supply, capabilityBlockedWorkCount: null, capabilityBlockedWorkStatus: "UNKNOWN" as const, capabilityBlockedCapabilities: null, reason: "github-capability-blocked-work-count-invalid" })
+      : supply;
+  }
+  return Object.freeze({
+    ...supply,
+    capabilityBlockedWorkCount,
+    capabilityBlockedWorkStatus: "OBSERVED" as const,
+    capabilityBlockedCapabilities: Object.freeze({ ...capabilityBlockedCapabilities }),
+    reason: supply.readyWorkStatus === "OBSERVED"
+      ? "github-open-issue-backlog-current-executor-ready-and-capability-blocked-work-observed"
+      : supply.reason,
   });
 }

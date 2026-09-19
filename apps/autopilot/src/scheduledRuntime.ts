@@ -8,6 +8,7 @@ import {
   UNKNOWN_GITHUB_ISSUE_WORK_SUPPLY,
   deriveGithubIssueWorkSupply,
   unknownGithubIssueWorkSupply,
+  withObservedCapabilityBlockedWork,
   withObservedReadyWork,
   type GithubIssueWorkSupplySnapshot,
 } from "./githubIssueWorkSupply";
@@ -135,7 +136,15 @@ async function observeGithubBacklogEvidence(
   if (!openPulls) return Object.freeze({ issues, openPulls: Object.freeze([]), workSupply: rawSupply });
 
   const readiness = deriveGithubIssueBacklogReadiness(issues, openPulls, new Date(now));
-  return Object.freeze({ issues, openPulls, workSupply: withObservedReadyWork(rawSupply, readiness.eligibleIssueCount) });
+  return Object.freeze({
+    issues,
+    openPulls,
+    workSupply: withObservedCapabilityBlockedWork(
+      withObservedReadyWork(rawSupply, readiness.eligibleIssueCount),
+      readiness.capabilityBlockedIssueCount,
+      readiness.capabilityBlockedCapabilities,
+    ),
+  });
 }
 
 function workflowCompletedAt(run: JsonObject): string | null {

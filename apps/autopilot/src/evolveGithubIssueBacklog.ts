@@ -7,10 +7,15 @@ type EligibleIssue = Readonly<{
   title: string;
   priority: 0 | 1;
   updatedAtMs: number;
+  capability: GithubIssueCapability;
 }>;
+
+export type GithubIssueCapability = "AUTOPILOT_TYPESCRIPT" | "RESEARCH" | "GENERAL" | "UNKNOWN";
 
 export interface GithubIssueBacklogReadiness {
   readonly eligibleIssueCount: number;
+  readonly capabilityBlockedIssueCount: number;
+  readonly capabilityBlockedCapabilities: Readonly<Record<Exclude<GithubIssueCapability, "AUTOPILOT_TYPESCRIPT">, number>>;
   readonly signals: readonly EvolutionDiscoverySignal[];
 }
 
@@ -33,10 +38,24 @@ function hasSafetyContract(body: string): boolean {
     && !/aiAuthority\s*=\s*(?!ZERO_AUTHORITY\b)[A-Z0-9_]+/i.test(body);
 }
 
-function isAutopilotScoped(title: string, body: string): boolean {
-  return /\bAUTOPILOT\b/i.test(title)
-    || /autonomous development control plane/i.test(title)
-    || /\bapps\/autopilot\/src\b/i.test(body);
+/**
+ * Explicit, allowlisted capability routing for the existing CodingRunner.
+ * Unknown or unsupported domains remain observable but never become READY.
+ */
+function capabilityForIssue(title: string, body: string): GithubIssueCapability {
+  const textValue = `${title}\n${body}`;
+  if (/\bapps\/autopilot\/src\b/i.test(body)
+    || /\bautopilot\b/i.test(title)
+    || /autonomous development control plane/i.test(title)) {
+    return "AUTOPILOT_TYPESCRIPT";
+  }
+  if (/\b(?:research|market intelligence|oos|walk[- ]forward|league|allocation|regime|paper evidence)\b/i.test(textValue)) {
+    return "RESEARCH";
+  }
+  if (/\b(?:mobile|android|ios|ui|ux|cloudflare|deployment|release|website|desktop)\b/i.test(textValue)) {
+    return "GENERAL";
+  }
+  return "UNKNOWN";
 }
 
 function labelNames(issue: JsonObject): readonly string[] {
@@ -79,11 +98,17 @@ function eligibleIssue(value: unknown, linked: ReadonlySet<number>): EligibleIss
   if (!number || !title || !body || linked.has(number)) return null;
 
   const priority = priorityFromTitle(title);
-  if (priority === null || !isAutopilotScoped(title, body) || !hasSafetyContract(body)) return null;
+  if (priority === null || !hasSafetyContract(body)) return null;
 
   const updatedAt = text(issue.updated_at);
   const updatedAtMs = updatedAt ? Date.parse(updatedAt) : 0;
-  return Object.freeze({ number, title, priority, updatedAtMs: Number.isFinite(updatedAtMs) ? updatedAtMs : 0 });
+  return Object.freeze({
+    number,
+    title,
+    priority,
+    updatedAtMs: Number.isFinite(updatedAtMs) ? updatedAtMs : 0,
+    capability: capabilityForIssue(title, body),
+  });
 }
 
 export function deriveGithubIssueBacklogReadiness(
@@ -92,14 +117,25 @@ export function deriveGithubIssueBacklogReadiness(
   observedAt: Date,
 ): GithubIssueBacklogReadiness {
   if (!Array.isArray(issues) || !Array.isArray(openPulls) || !(observedAt instanceof Date) || !Number.isFinite(observedAt.getTime())) {
-    return Object.freeze({ eligibleIssueCount: 0, signals: Object.freeze([]) });
+    return Object.freeze({
+      eligibleIssueCount: 0,
+      capabilityBlockedIssueCount: 0,
+      capabilityBlockedCapabilities: Object.freeze({ RESEARCH: 0, GENERAL: 0, UNKNOWN: 0 }),
+      signals: Object.freeze([]),
+    });
   }
 
   const linked = linkedIssueNumbers(openPulls);
-  const eligible = issues
+  const candidates = issues
     .map((issue) => eligibleIssue(issue, linked))
     .filter((issue): issue is EligibleIssue => issue !== null)
     .sort((left, right) => left.priority - right.priority || right.updatedAtMs - left.updatedAtMs || left.number - right.number);
+
+  const capabilityBlockedCapabilities = { RESEARCH: 0, GENERAL: 0, UNKNOWN: 0 } as Record<Exclude<GithubIssueCapability, "AUTOPILOT_TYPESCRIPT">, number>;
+  for (const candidate of candidates) {
+    if (candidate.capability !== "AUTOPILOT_TYPESCRIPT") capabilityBlockedCapabilities[candidate.capability] += 1;
+  }
+  const eligible = candidates.filter((candidate) => candidate.capability === "AUTOPILOT_TYPESCRIPT");
 
   const signals = eligible.slice(0, 1).map((issue) => Object.freeze({
     id: `github-issue-${issue.number}`,
@@ -114,7 +150,12 @@ export function deriveGithubIssueBacklogReadiness(
     reversibility: 0.9,
   } satisfies EvolutionDiscoverySignal));
 
-  return Object.freeze({ eligibleIssueCount: eligible.length, signals: Object.freeze(signals) });
+  return Object.freeze({
+    eligibleIssueCount: eligible.length,
+    capabilityBlockedIssueCount: candidates.length - eligible.length,
+    capabilityBlockedCapabilities: Object.freeze({ ...capabilityBlockedCapabilities }),
+    signals: Object.freeze(signals),
+  });
 }
 
 export function deriveGithubIssueBacklogSignals(
