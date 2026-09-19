@@ -6,7 +6,7 @@ const path = require("node:path");
 const root = path.join(__dirname, "..");
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), "utf8");
 
-test("runtime mobile brand keeps the provisional symbol hidden while logo production is on hold", () => {
+test("runtime mobile brand keeps the approved NUSA wordmark surface stable", () => {
   const components = read("apps/mobile/src/components.tsx");
   const app = read("apps/mobile/App.tsx");
 
