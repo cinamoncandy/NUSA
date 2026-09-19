@@ -18,6 +18,7 @@
  */
 const path = require("node:path");
 const { canonicalHash } = require("./canonical-hash.js");
+const { canonicalFamilyParameters } = require("./strategy-family-parameters.js");
 const { buildWindowPlan, compoundedSequence, computeMaxDrawdownFromCurve } = require("./walk-forward-runner.js");
 
 function loadProductionModules(repositoryRoot) {
@@ -43,7 +44,7 @@ function canonicalParameters(value) {
   if (entries.length === 0) throw new Error("strategy parameters must not be empty");
   const normalized = {};
   for (const [name, parameter] of entries) {
-    if (!name.trim() || typeof parameter !== "number" || !Number.isFinite(parameter)) throw new Error("strategy parameters must be finite numeric values");
+    if (!name.trim() || name !== name.trim() || typeof parameter !== "number" || !Number.isFinite(parameter)) throw new Error("strategy parameters must be finite numeric values with canonical names");
     normalized[name.trim()] = parameter;
   }
   return normalized;
@@ -70,16 +71,18 @@ function validateGenericCandidateGrid(request, modules) {
     return errors;
   }
   const keys = new Set();
-  const candidates = new Map();
+  const parameterIdentities = new Set();
   for (const candidate of request.candidateGrid) {
     const key = typeof candidate?.key === "string" ? candidate.key.trim() : "";
-    if (!key) { errors.push("candidateGrid entry requires a key"); continue; }
+    if (!key || key !== candidate.key) { errors.push("candidateGrid entry requires a canonical key"); continue; }
     if (keys.has(key)) errors.push(`candidateGrid contains duplicate key: ${key}`);
     keys.add(key);
     let parameters;
-    try { parameters = canonicalParameters(candidate.parameters); strategyFactoryFor(modules, request.strategyFamily, parameters)(); }
+    try { parameters = canonicalFamilyParameters(request.strategyFamily, candidate.parameters); strategyFactoryFor(modules, request.strategyFamily, parameters)(); }
     catch (error) { errors.push(`candidateGrid ${key} is invalid: ${error instanceof Error ? error.message : String(error)}`); continue; }
-    candidates.set(key, parameters);
+    const identity = canonicalHash(parameters);
+    if (parameterIdentities.has(identity)) errors.push(`candidateGrid contains duplicate strategy parameters: ${key}`);
+    parameterIdentities.add(identity);
     if (!Array.isArray(candidate.neighbors)) errors.push(`candidateGrid ${key} requires an explicit neighbors array`);
   }
   for (const candidate of request.candidateGrid) {
@@ -96,7 +99,7 @@ function validateGenericCandidateGrid(request, modules) {
   for (const candidate of request.candidateGrid) {
     if (!Array.isArray(candidate?.neighbors)) continue;
     for (const neighbor of candidate.neighbors) {
-      const reverse = request.candidateGrid.find((entry) => entry.key === neighbor);
+      const reverse = request.candidateGrid.find((entry) => entry?.key === neighbor);
       if (reverse && Array.isArray(reverse.neighbors) && !reverse.neighbors.includes(candidate.key)) errors.push(`candidateGrid adjacency must be symmetric: ${candidate.key}<->${neighbor}`);
     }
   }
@@ -121,8 +124,12 @@ function validateRequest(request, modules) {
   if (!Array.isArray(references) || references.length === 0) errors.push("request.referenceParameters must be a non-empty array");
   else if (isGenericFamilyRequest(request)) {
     errors.push(...validateGenericCandidateGrid(request, modules));
-    const gridByKey = new Map((request.candidateGrid ?? []).map((candidate) => [candidate.key, candidate]));
+    const gridByKey = new Map((Array.isArray(request.candidateGrid) ? request.candidateGrid : []).filter(isPlainObject).map((candidate) => [candidate.key, candidate]));
+    const referenceIdentities = new Set();
     for (const ref of references) {
+      const identity = JSON.stringify([ref?.source, ref?.candidateKey]);
+      if (referenceIdentities.has(identity)) errors.push("referenceParameters contains duplicate source/candidate identity");
+      referenceIdentities.add(identity);
       if (!["PRODUCTION_DEFAULT", "WALK_FORWARD_SELECTED", "MANUAL_RESEARCH_REFERENCE"].includes(ref?.source)) errors.push(`referenceParameters entry has an invalid source: ${ref?.source}`);
       if (typeof ref?.candidateKey !== "string" || !gridByKey.has(ref.candidateKey)) errors.push(`referenceParameters entry has an unknown candidateKey: ${ref?.candidateKey}`);
       try {
