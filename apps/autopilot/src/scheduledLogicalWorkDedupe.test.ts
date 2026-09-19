@@ -20,7 +20,9 @@ function issue(number: number): Record<string, unknown> {
   };
 }
 
-function namespace(seen: Set<string>, acquiredKeys: string[]): ExecutionCoordinatorNamespace {\n  let developmentQueue: unknown = null;\n  return {
+function namespace(seen: Set<string>, acquiredKeys: string[]): ExecutionCoordinatorNamespace {
+  let developmentQueue: unknown = null;
+  return {
     idFromName: (name: string) => ({ name }),
     get: () => ({
       async fetch(input: RequestInfo | URL, init?: RequestInit) {
