@@ -87,11 +87,27 @@ jobs:
           fi
 
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            CI_CONCLUSION="$(
-              gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$SOURCE_SHA&status=completed&per_page=100" \
-                --jq '[.workflow_runs[] | select(.path == ".github/workflows/ci.yml" and .head_sha == "'"$SOURCE_SHA"'")][0].conclusion // empty'
-            )"
-            if [ "$CI_CONCLUSION" != "success" ]; then
+            CI_SUCCESS=false
+            for page in $(seq 1 10); do
+              PAGE_RESULT="$(
+                gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$SOURCE_SHA&status=completed&per_page=100&page=$page" \
+                  --jq '[.workflow_runs | length, ([.workflow_runs[] | select(.path == ".github/workflows/ci.yml" and .head_sha == "'"$SOURCE_SHA"'" and .status == "completed" and .conclusion == "success")] | length)] | @tsv'
+              )"
+              PAGE_COUNT="$(printf '%s' "$PAGE_RESULT" | cut -f1)"
+              PAGE_SUCCESS_COUNT="$(printf '%s' "$PAGE_RESULT" | cut -f2)"
+              if [ "$PAGE_SUCCESS_COUNT" -gt 0 ]; then
+                CI_SUCCESS=true
+                break
+              fi
+              if [ "$PAGE_COUNT" -lt 100 ]; then
+                break
+              fi
+              if [ "$page" -eq 10 ]; then
+                echo "::error::Canonical CI evidence exceeded the bounded 1000-run scan for exact source $SOURCE_SHA; failing closed."
+                exit 1
+              fi
+            done
+            if [ "$CI_SUCCESS" != "true" ]; then
               echo "::error::Exact source $SOURCE_SHA does not have a successful CI run."
               exit 1
             fi

@@ -27,7 +27,7 @@ class MemorySecureStorage implements SecureStoragePort {
 }
 
 describe("mobile approved session persistence boundary", () => {
-  it("never reads or writes mobile credential storage", async () => {
+  it("persists only the rotating refresh session in secure storage", async () => {
     const storage = new MemorySecureStorage();
     const endpoint = "https://paper.example";
     const now = Date.now();
@@ -50,28 +50,40 @@ describe("mobile approved session persistence boundary", () => {
 
     const session = new MobileApprovedSession(storage, request);
     assert.equal((await session.connectBootstrap(endpoint, "bootstrap-token-0123456789")).userId, "mobile-user");
-    assert.equal(storage.setCount, 0);
+    assert.equal(storage.setCount, 1);
     assert.equal(storage.getCount, 0);
-    assert.equal(storage.values.size, 0);
+    const persisted = storage.values.get(SESSION_STORAGE_KEY);
+    assert.ok(persisted);
+    assert.doesNotMatch(new TextDecoder().decode(persisted), /access-token/);
+    assert.match(new TextDecoder().decode(persisted), /refresh-token/);
   });
 
-  it("a process restart cannot restore an approved credential", async () => {
+  it("restores an approved credential after process restart without user input", async () => {
     const storage = new MemorySecureStorage();
-    const restarted = new MobileApprovedSession(storage, (async () => { throw new Error("network must not be reached"); }) as typeof fetch);
-    assert.equal(await restarted.restore("https://paper.example"), null);
-    assert.equal(restarted.hasMemoryAccess(), false);
-    assert.equal(restarted.shouldRetryRestore(), false);
-    assert.equal(storage.getCount, 0);
+    const endpoint = "https://paper.example";
+    const now = Date.now();
+    const request = (async (url: string | URL | Request) => {
+      const value = String(url);
+      if (value.endsWith("/v1/mobile/bootstrap") || value.endsWith("/v1/mobile/session/refresh")) return new Response(JSON.stringify({ accessToken: "restored-access-token-0123456789", accessExpiresAt: now + 60_000, refreshToken: "rotated-refresh-token-0123456789", refreshExpiresAt: now + 600_000, scopes: ["dashboard:read", "paper:trade"] }), { status: 200 });
+      if (value.endsWith("/v1/mobile/me")) return new Response(JSON.stringify({ userId: "mobile-user", email: "mobile@example.com", scopes: ["dashboard:read", "paper:trade"] }), { status: 200 });
+      throw new Error(`unexpected request ${value}`);
+    }) as typeof fetch;
+    const first = new MobileApprovedSession(storage, request);
+    await first.connectBootstrap(endpoint, "bootstrap-token-0123456789");
+    const restarted = new MobileApprovedSession(storage, request);
+    assert.equal((await restarted.restore(endpoint))?.userId, "mobile-user");
+    assert.equal(restarted.hasMemoryAccess(), true);
+    assert.equal(storage.getCount, 1);
   });
 
-  it("destroys legacy persisted session and pairing capabilities without reading them", async () => {
+  it("rejects malformed persisted session and deletes it without network access", async () => {
     const storage = new MemorySecureStorage();
     storage.values.set(SESSION_STORAGE_KEY, new Uint8Array([1, 2, 3]));
     storage.values.set(PAIRING_STORAGE_KEY, new Uint8Array([4, 5, 6]));
     const session = new MobileApprovedSession(storage, (async () => { throw new Error("network must not be reached"); }) as typeof fetch);
 
     assert.equal(await session.restore("https://paper.example"), null);
-    assert.equal(storage.getCount, 0);
+    assert.equal(storage.getCount, 1);
     assert.equal(storage.values.has(SESSION_STORAGE_KEY), false);
     assert.equal(storage.values.has(PAIRING_STORAGE_KEY), false);
     assert.equal(storage.deleteCount, 2);
