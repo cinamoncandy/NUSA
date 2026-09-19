@@ -295,10 +295,14 @@ function validateState(state: PaperAccountState): void {
     workingOrderIds.add(order.id); workingIdempotencyKeys.add(order.idempotencyKey);
   }
   const fillIds = new Set<string>();
-  const fillsByOrder = new Map<string, PaperFillRecord>();
+  const fillsByOrder = new Map<string, PaperFillRecord[]>();
+  const knownOrderIds = new Set([...orderIds, ...workingOrderIds]);
   for (const fill of state.fills) {
-    if (!fill.id.trim() || fillIds.has(fill.id) || !orderIds.has(fill.orderId) || fillsByOrder.has(fill.orderId) || !fill.market.trim()) throw new Error("paper fill identity is invalid");
-    fillIds.add(fill.id); fillsByOrder.set(fill.orderId, fill);
+    if (!fill.id.trim() || fillIds.has(fill.id) || !knownOrderIds.has(fill.orderId) || !fill.market.trim()) throw new Error("paper fill identity is invalid");
+    fillIds.add(fill.id);
+    const grouped = fillsByOrder.get(fill.orderId) ?? [];
+    grouped.push(fill);
+    fillsByOrder.set(fill.orderId, grouped);
     finiteNonNegative(fill.quantity, "paper fill quantity"); finiteNonNegative(fill.price, "paper fill price"); finiteNonNegative(fill.fee, "paper fill fee");
     if (fill.quantity <= 0 || fill.price <= 0 || !Number.isSafeInteger(fill.filledAt) || fill.filledAt < 0) throw new Error("paper fill accounting fields are invalid");
     if (fill.orderBookQuoteReceipt != null) {
@@ -310,8 +314,18 @@ function validateState(state: PaperAccountState): void {
     validateObservedExecutionCostAttribution(fill);
   }
   for (const order of state.orders) {
-    const fill = fillsByOrder.get(order.id);
-    if (fill == null || fill.market !== order.market || fill.side !== order.side || fill.quantity !== order.quantity || fill.price !== order.price || fill.fee !== order.fee || fill.filledAt !== order.filledAt) throw new Error("paper order/fill reconciliation mismatch");
+    const fills = fillsByOrder.get(order.id) ?? [];
+    const quantity = round8(fills.reduce((sum, fill) => sum + fill.quantity, 0));
+    const fee = round8(fills.reduce((sum, fill) => sum + fill.fee, 0));
+    const notional = fills.reduce((sum, fill) => sum + fill.quantity * fill.price, 0);
+    const averagePrice = quantity > 0 ? round8(notional / quantity) : 0;
+    const lastFilledAt = fills.reduce((latest, fill) => Math.max(latest, fill.filledAt), 0);
+    if (fills.length === 0 || fills.some((fill) => fill.market !== order.market || fill.side !== order.side) || quantity !== order.quantity || averagePrice !== order.price || fee !== order.fee || lastFilledAt !== order.filledAt) throw new Error("paper order/fill reconciliation mismatch");
+  }
+  for (const order of state.workingOrders ?? []) {
+    const fills = fillsByOrder.get(order.id) ?? [];
+    const quantity = round8(fills.reduce((sum, fill) => sum + fill.quantity, 0));
+    if (quantity !== order.lifecycle.filledQuantity || fills.some((fill) => fill.market !== order.market || fill.side !== order.side)) throw new Error("paper working order/fill reconciliation mismatch");
   }
   if (state.processedIdempotencyKeys.some((key) => !key.trim()) || new Set(state.processedIdempotencyKeys).size !== state.processedIdempotencyKeys.length || state.orders.some((order) => !state.processedIdempotencyKeys.includes(order.idempotencyKey)) || (state.workingOrders ?? []).some((order) => !state.processedIdempotencyKeys.includes(order.idempotencyKey))) throw new Error("paper idempotency ledger mismatch");
   const expectedEquity = round8(state.cash + state.positions.reduce((sum, position) => sum + position.quantity * position.markPrice, 0));
