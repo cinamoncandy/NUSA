@@ -39,8 +39,8 @@ test("AI destination is evidence-backed and explicitly zero authority", () => {
   const source = read("src/aiView.tsx");
   assert.match(source, /ZERO AUTHORITY/);
   assert.match(source, /READ ONLY/);
-  assert.match(source, /ai\?\.evidenceSummary/);
-  assert.match(source, /ai\?\.counterEvidenceSummary/);
+  assert.match(source, /ai\?\.evidenceReferences/);
+  assert.match(source, /ai\?\.counterEvidence/);
   assert.match(source, /liveAuthority/);
   assert.match(source, /productionMutationAllowed/);
   assert.match(source, /AI ZERO AUTHORITY/);
