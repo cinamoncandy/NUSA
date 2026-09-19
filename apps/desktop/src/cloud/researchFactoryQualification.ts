@@ -83,6 +83,8 @@ function validateRunProvenance(run: ResearchRunLeagueResult): void {
     || !/^[0-9a-f]{64}$/i.test(provenance.dataset.contentSha256)
     || !provenance.dataset.market
     || !provenance.dataset.interval
+    || !Number.isInteger(provenance.dataset.candleCount)
+    || provenance.dataset.candleCount <= 0
     || !Number.isFinite(provenance.dataset.startOpenTime)
     || !Number.isFinite(provenance.dataset.endCloseTime)
     || !Array.isArray(provenance.candidateBindings)
@@ -163,8 +165,11 @@ function pboGate(run: ResearchRunLeagueResult): GateDecision {
     || identity.datasetContentSha256.toLowerCase() !== run.provenance.dataset.contentSha256.toLowerCase()
     || identity.market !== run.provenance.dataset.market
     || identity.interval !== run.provenance.dataset.interval
+    || identity.candleCount !== run.provenance.dataset.candleCount
     || identity.startOpenTime !== run.provenance.dataset.startOpenTime
     || identity.endCloseTime !== run.provenance.dataset.endCloseTime
+    || !/^[0-9a-f]{64}$/i.test(identity.evaluationSha256)
+    || !/^[0-9a-f]{64}$/i.test(identity.oosTimestampSha256)
     || !sameStrings(identity.candidateIds, expectedCandidateIds)
     || !sameStrings(identity.familyIds, expectedFamilyIds)
     || !sameStrings(identity.candidateSpecificationHashes, expectedSpecificationHashes)
