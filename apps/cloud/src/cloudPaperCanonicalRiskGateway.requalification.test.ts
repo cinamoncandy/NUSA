@@ -5,7 +5,7 @@ import { CLOUD_PAPER_RISK_LIMITS } from "./cloudPaperCanonicalRiskGateway";
 
 describe("RISK re-qualification source delta", () => {
   it("binds the current source to the four CANCELLED-order exclusions", () => {
-    const source = readFileSync(new URL("./cloudPaperCanonicalRiskGateway.ts", import.meta.url), "utf8");
+    const source = readFileSync("apps/cloud/src/cloudPaperCanonicalRiskGateway.ts", "utf8");
     assert.equal((source.match(/if \(order\.status === "CANCELLED"\) continue;/g) ?? []).length, 4);
     assert.match(source, /function rateState[\s\S]*?if \(order\.status === "CANCELLED"\) continue;/);
     assert.match(source, /function dailyNotional[\s\S]*?if \(order\.status === "CANCELLED"\) continue;/);
