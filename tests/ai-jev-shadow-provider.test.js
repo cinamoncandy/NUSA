@@ -34,7 +34,7 @@ test("HTTP and network failures are sanitized and shadow router falls back", asy
     async () => response("no", false, 503),
     async () => { throw new Error(`network ${key}`); }
   ]) {
-    const provider = new JevShadowProvider({ apiKey: key, fetchImpl });
+    const provider = new JevShadowProvider({ apiKey: key, endpoint: "https://jev.invalid/classify", fetchImpl });
     const router = new JevShadowRouter((input) => provider.classify(input));
     const result = await router.observe({}, { NUSA_JEV_SHADOW_ENABLED: "true" });
     assert.deepEqual(result.decision, JEV_DETERMINISTIC_FALLBACK);
@@ -44,7 +44,7 @@ test("HTTP and network failures are sanitized and shadow router falls back", asy
 });
 
 test("malformed provider response cannot escape validation", async () => {
-  const provider = new JevShadowProvider({ apiKey: secret(), fetchImpl: async () => response("{") });
+  const provider = new JevShadowProvider({ apiKey: secret(), endpoint: "https://jev.invalid/classify", fetchImpl: async () => response("{") });
   const router = new JevShadowRouter((input) => provider.classify(input));
   const result = await router.observe({}, { NUSA_JEV_SHADOW_ENABLED: "true" });
   assert.deepEqual(result.decision, JEV_DETERMINISTIC_FALLBACK);
@@ -54,6 +54,7 @@ test("malformed provider response cannot escape validation", async () => {
 test("provider timeout is bounded and cannot block the existing NUSA path", async () => {
   const provider = new JevShadowProvider({
     apiKey: secret(),
+    endpoint: "https://jev.invalid/classify",
     timeoutMs: 100,
     fetchImpl: async (_url, init) => new Promise((_resolve, reject) => {
       init.signal.addEventListener("abort", () => { const error = new Error("aborted"); error.name = "AbortError"; reject(error); }, { once: true });
