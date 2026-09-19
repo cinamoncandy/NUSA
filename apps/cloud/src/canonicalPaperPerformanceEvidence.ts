@@ -12,7 +12,6 @@ export interface CanonicalPaperPerformanceEvidence {
   readonly realizedPnL: number;
   readonly unrealizedPnL: number;
   readonly returnRatio: number;
-  readonly maxDrawdownRatio: number;
   readonly fingerprintSha256: string;
 }
 
@@ -38,21 +37,19 @@ export function buildCanonicalPaperPerformanceEvidence(
   if (!/^[a-f0-9]{64}$/.test(ledger.fingerprintSha256)) throw new Error("ledger fingerprint is invalid");
   const entries = ledger.entries.filter((entry) => entry.filledAt >= periodStartAt && entry.filledAt <= periodEndAt);
   if (entries.length === 0) return undefined;
+
+  // Total-return evidence is only emitted when the requested period contains the complete
+  // canonical ledger. A partial ledger window cannot reconstruct starting equity without a
+  // second source of truth, so it fails closed rather than fabricating a baseline.
+  const firstFillAt = ledger.entries[0]?.filledAt;
+  const lastFillAt = ledger.entries.at(-1)?.filledAt;
+  if (firstFillAt == null || lastFillAt == null || periodStartAt > firstFillAt || periodEndAt < lastFillAt) return undefined;
+
   const fees = entries.reduce((sum, entry) => sum + entry.fee, 0);
   const realizedPnL = entries.reduce((sum, entry) => sum + entry.realizedPnL, 0);
   const startingCapital = ledger.initialCapital;
-  const endingEquity = ledger.equity;
-  const returnRatio = startingCapital === 0 ? 0 : (endingEquity - startingCapital) / startingCapital;
+  const returnRatio = startingCapital === 0 ? 0 : (ledger.equity - startingCapital) / startingCapital;
   if (!Number.isFinite(returnRatio)) throw new Error("performance return is invalid");
-
-  let runningEquity = startingCapital;
-  let peakEquity = startingCapital;
-  let maxDrawdownRatio = 0;
-  for (const entry of entries) {
-    runningEquity += entry.cashDelta + entry.realizedPnL - entry.cashDelta;
-    peakEquity = Math.max(peakEquity, runningEquity);
-    if (peakEquity > 0) maxDrawdownRatio = Math.max(maxDrawdownRatio, (peakEquity - runningEquity) / peakEquity);
-  }
 
   const base = Object.freeze({
     schemaVersion: 1 as const,
@@ -65,7 +62,6 @@ export function buildCanonicalPaperPerformanceEvidence(
     realizedPnL,
     unrealizedPnL: ledger.unrealizedPnL,
     returnRatio,
-    maxDrawdownRatio,
   });
   return Object.freeze({ ...base, fingerprintSha256: fingerprint(base) });
 }
