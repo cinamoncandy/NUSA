@@ -72,6 +72,64 @@ test("running PR-controlled code while holding a mutation token fails", () => {
   rmSync(root, { recursive: true, force: true });
 });
 
+/**
+ * A checkout with no `ref` is the quieter half of the same defect. On a pull_request event it takes
+ * the pull request's own merge revision, so the job runs PR-controlled code without ever naming
+ * `head.sha`. The rule has to read the absence of a ref, not the presence of a dangerous one.
+ */
+test("a PR-triggered checkout with no ref counts as running PR code", () => {
+  const workflow = [
+    "name: Implicit", "on:", "  pull_request:", "jobs:", "  implicit:", "    permissions:", "      actions: write",
+    "    steps:", "      - uses: actions/checkout@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "      - run: node scripts/thing.mjs", ""
+  ].join("\n");
+  const root = sandbox({ "implicit.yml": workflow }, { jobs: { "implicit.yml:implicit": { write: ["actions"], secrets: false, environment: null } }, acknowledgedDebt: {} });
+  const result = validateWorkflowAuthorityMap(root);
+  assert.ok(
+    result.failures.includes("PR_CODE_EXECUTION_WITH_WRITE_AUTHORITY:implicit.yml:implicit:default-ref-checkout:actions"),
+    JSON.stringify(result.failures)
+  );
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("pinning the checkout to a trusted revision clears the rule", () => {
+  const workflow = [
+    "name: Pinned", "on:", "  pull_request_target:", "jobs:", "  pinned:", "    permissions:", "      actions: write",
+    "    steps:", "      - uses: actions/checkout@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "        with:", "          ref: ${{ steps.main.outputs.sha }}", "      - run: node scripts/thing.mjs", ""
+  ].join("\n");
+  const root = sandbox({ "pinned.yml": workflow }, { jobs: { "pinned.yml:pinned": { write: ["actions"], secrets: false, environment: null } }, acknowledgedDebt: {} });
+  assert.deepEqual(validateWorkflowAuthorityMap(root).failures, []);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("a default-ref checkout outside a PR trigger is not PR code", () => {
+  const workflow = [
+    "name: Pushonly", "on:", "  push:", "jobs:", "  build:", "    permissions:", "      contents: write",
+    "    steps:", "      - uses: actions/checkout@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "      - run: node scripts/thing.mjs", ""
+  ].join("\n");
+  const root = sandbox({ "pushonly.yml": workflow }, { jobs: { "pushonly.yml:build": { write: ["contents"], secrets: false, environment: null } }, acknowledgedDebt: {} });
+  assert.deepEqual(validateWorkflowAuthorityMap(root).failures, []);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("a job that checks out trusted main in one step and PR code in another is still caught", () => {
+  const workflow = [
+    "name: Mixed", "on:", "  pull_request:", "jobs:", "  mixed:", "    permissions:", "      contents: write",
+    "    steps:", "      - uses: actions/checkout@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "        with:", "          ref: main", "      - uses: actions/checkout@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "        with:", "          path: pr", "      - run: node pr/scripts/thing.mjs", ""
+  ].join("\n");
+  const root = sandbox({ "mixed.yml": workflow }, { jobs: { "mixed.yml:mixed": { write: ["contents"], secrets: false, environment: null } }, acknowledgedDebt: {} });
+  const result = validateWorkflowAuthorityMap(root);
+  assert.ok(
+    result.failures.some((failure) => failure.startsWith("PR_CODE_EXECUTION_WITH_WRITE_AUTHORITY:mixed.yml:mixed:default-ref-checkout")),
+    JSON.stringify(result.failures)
+  );
+  rmSync(root, { recursive: true, force: true });
+});
+
 test("id-token alone does not make a PR job dangerous, because it mutates nothing", () => {
   const workflow = [
     "name: Oidc", "on:", "  pull_request_target:", "jobs:", "  bridge:", "    permissions:", "      id-token: write",

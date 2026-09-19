@@ -23,13 +23,40 @@ test("runtime proof runs hourly away from the scheduler burst and uploads bounde
 });
 
 test("successful runtime proof directly dispatches Credential Preflight instead of relying on workflow_run chaining", () => {
-  assert.match(workflow, /permissions:\s*\n\s*contents: read\s*\n\s*actions: write/);
   assert.equal(workflow.includes("Dispatch Credential Preflight directly for fresh safety-gate re-verification"), true);
   assert.equal(workflow.includes("does not fire"), true);
   assert.equal(workflow.includes("actions/workflows/autopilot-cloudflare-credential-preflight.yml/dispatches"), true);
-  const dispatchIndex = workflow.indexOf("Dispatch Credential Preflight directly");
-  assert.ok(dispatchIndex > 0);
-  assert.match(workflow.slice(dispatchIndex, dispatchIndex + 400), /if: steps\.freshness\.outputs\.current == 'true'/);
+  // The dispatch is still gated on the proof having run against current main; the gate moved from a
+  // step condition to the job that owns the dispatch.
+  assert.match(workflow, /needs\.runtime-proof\.outputs\.current == 'true'/);
+  assert.match(workflow, /needs\.runtime-proof\.result == 'success'/);
+});
+
+// #1860. `actions: write` while a pull request's own copy of the verification script executes lets
+// PR-controlled code dispatch workflows. The dispatch is a separate, checkout-free job now.
+test("the job that runs repository code never holds dispatch authority", () => {
+  // Windows checkouts land CRLF, and a lookahead for `name:\n` never matches a `\r` that is
+  // still there. Normalise before splitting, the way the assertions above this one already do.
+  const body = workflow.replace(/\r\n/g, "\n").split("\n").filter((line) => !/^\s*#/.test(line)).join("\n");
+  const jobs = body.split(/\n  (?=[A-Za-z0-9_-]+:\n)/);
+  const proof = jobs.find((job) => job.startsWith("runtime-proof:"));
+  const dispatch = jobs.find((job) => job.startsWith("refresh-safety-gate:"));
+  assert.ok(proof && dispatch, "the proof and the dispatch must be separate jobs");
+
+  assert.match(proof, /uses:\s*actions\/checkout@/, "the proof job is the one that checks out code");
+  assert.match(proof, /permissions:\s*\n\s*contents: read\s*\n/, "and it may hold read authority only");
+  assert.doesNotMatch(proof, /actions: write/);
+  assert.doesNotMatch(proof, /\/dispatches/);
+
+  assert.doesNotMatch(dispatch, /uses:\s*actions\/checkout@/, "the write-authority job must not check out repository code");
+  assert.match(dispatch, /actions: write/);
+
+  assert.match(workflow, /^permissions: \{\}$/m, "no authority may be granted workflow-wide");
+});
+
+// A pull request must not be able to make main re-run its own safety gate.
+test("a pull request cannot dispatch the safety gate", () => {
+  assert.match(workflow, /github\.event_name != 'pull_request'/);
 });
 
 test("runtime proof distinguishes scheduler, receipt, and worker failures without exposing credentials", () => {
