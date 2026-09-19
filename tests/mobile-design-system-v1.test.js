@@ -17,7 +17,7 @@ test("mobile presets keep classic neutral and apply approved cobalt master actio
   // Chromatic accents remain confined to signal/AI semantics rather than brand actions. Each
   // resolves per mode -- the dark-tuned hues fall to as little as ~1.5:1 contrast on a light
   // surface, so a light-mode variant exists for each rather than one value used unconditionally.
-  assert.match(source, /aiSignalStart: dark \? "#9B6CFF" : "#[0-9A-F]{6}"/);
+  assert.match(source, /aiSignalStart: dark ? "#91C74F" : "#[0-9A-F]{6}"/);
   assert.match(source, /aiSignalMid: dark \? "#5B8CFF" : "#[0-9A-F]{6}"/);
   assert.match(source, /aiSignalEnd: dark \? "#36D8CB" : "#[0-9A-F]{6}"/);
   assert.match(source, /aiSignalSoft/);
