@@ -576,7 +576,7 @@ export class PaperTradingExecutionLoop {
       if (!marketable) return this.result("REJECTED", "PAPER_LIMIT_NOT_MARKETABLE");
     }
     let executed: ReturnType<typeof executeOrder>;
-    try { executed = executeOrder(this.state, command.idempotencyKey, market, command.side, command.quantity, context.marketPrice, context.now, this.feeRate, requestFingerprint); }
+    try { executed = executeOrder(this.state, command.idempotencyKey, market, command.side, command.quantity, context.marketPrice, context.now, this.feeRate, this.executionProfile, requestFingerprint); }
     catch (error) { return this.result("REJECTED", error instanceof Error ? error.message : "paper order rejected"); }
     const working = markToMarket(executed.state, market, context.marketPrice, context.now);
     try { this.repository?.save(working); } catch { return this.result("FAILED", "paper account persistence failed"); }
@@ -616,7 +616,7 @@ export class PaperTradingExecutionLoop {
         binding: validatePaperCandidateExecutionBinding(decision.paperCandidateBinding, decision.decidedAt),
       });
       let order: ReturnType<typeof executeOrder>;
-      try { order = executeOrder(working, key, tick.market, side, quantity, tick.price, tick.now, this.feeRate, undefined, candidateProvenance, tick.price, tick.observedQuote); }
+      try { order = executeOrder(working, key, tick.market, side, quantity, tick.price, tick.now, this.feeRate, this.executionProfile, undefined, candidateProvenance, tick.price, tick.observedQuote); }
       catch (error) { return this.result("REJECTED", error instanceof Error ? error.message : "paper order rejected"); }
       working = order.state; nextOrders.push(order.order); nextFills.push(order.fill); existingKeys.add(key);
     }
@@ -650,7 +650,7 @@ export class PaperTradingExecutionLoop {
 function initialState(initialCapital: number): PaperAccountState { return Object.freeze({ version: 1, initialCapital, cash: initialCapital, equity: initialCapital, realizedPnL: 0, unrealizedPnL: 0, positions: Object.freeze([]), orders: Object.freeze([]), fills: Object.freeze([]), processedIdempotencyKeys: Object.freeze([]), updatedAt: 0 }); }
 function cloneState(state: PaperAccountState): PaperAccountState { return { ...state, positions: state.positions.map((item) => ({ ...item })), orders: [...state.orders], fills: [...state.fills], processedIdempotencyKeys: [...state.processedIdempotencyKeys], ...(state.workingOrders === undefined ? {} : { workingOrders: [...state.workingOrders] }) }; }
 
-function executeOrder(state: PaperAccountState, key: string, market: string, side: "BUY" | "SELL", quantity: number, price: number, now: number, feeRate: number, requestFingerprint?: string, candidateProvenance?: PaperFillCandidateProvenance, quotePrice?: number, observedQuote?: PaperObservedExecutionQuote): { state: PaperAccountState; order: PaperOrderRecord; fill: PaperFillRecord } {
+function executeOrder(state: PaperAccountState, key: string, market: string, side: "BUY" | "SELL", quantity: number, price: number, now: number, feeRate: number, executionProfile: PaperExecutionProfile, requestFingerprint?: string, candidateProvenance?: PaperFillCandidateProvenance, quotePrice?: number, observedQuote?: PaperObservedExecutionQuote): { state: PaperAccountState; order: PaperOrderRecord; fill: PaperFillRecord } {
   const canonicalObservedQuote = observedQuote == null ? undefined : validatePaperObservedExecutionQuote(observedQuote, market, now);
   const positions = state.positions.map((item) => ({ ...item }));
   const index = positions.findIndex((item) => item.market === market);
@@ -679,7 +679,7 @@ function executeOrder(state: PaperAccountState, key: string, market: string, sid
   let lifecycle = createPaperOrderLifecycle(quantity, now);
   lifecycle = transitionPaperOrderLifecycle(lifecycle, "ACCEPTED", now);
   lifecycle = transitionPaperOrderLifecycle(lifecycle, "FILLED", now, quantity);
-  const order: PaperOrderRecord = Object.freeze({ id, idempotencyKey: key, market, side, quantity, price, fee, status: "FILLED", createdAt: now, filledAt: now, ...(requestFingerprint === undefined ? {} : { requestFingerprint }), lifecycle });
+  const order: PaperOrderRecord = Object.freeze({ id, idempotencyKey: key, market, side, quantity, price, fee, status: "FILLED", createdAt: now, filledAt: now, ...(requestFingerprint === undefined ? {} : { requestFingerprint }), lifecycle, executionProfile });
   const baseFill: PaperFillRecord = { id: `fill:${id}`, orderId: id, market, side, quantity, price, fee, filledAt: now, ...(candidateProvenance === undefined ? {} : { candidateProvenance }), ...(canonicalObservedQuote === undefined ? {} : { orderBookQuoteReceipt: canonicalObservedQuote.receipt }) };
   const runtimeExecutionCostEvidence = candidateProvenance == null || quotePrice == null ? undefined : buildPaperRuntimeExecutionCostEvidence(baseFill, quotePrice);
   let executionCostAttribution: PaperExecutionCostAttribution | undefined;
