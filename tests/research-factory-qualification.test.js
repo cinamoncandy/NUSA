@@ -401,3 +401,24 @@ test("cross-market or cross-timeframe PBO evidence cannot satisfy the same quali
     assert.ok(result.candidates[0].reasons.includes("PBO_PROVENANCE_MISMATCH"));
   }
 });
+
+
+test("malformed mandatory gate collections fail closed to insufficient", () => {
+  const malformedPbo = run();
+  malformedPbo.provenance.searchOverfittingIdentity.candidateIds = undefined;
+  let result = qualifyResearchFactoryRun(malformedPbo);
+  assert.equal(result.candidates[0].outcome, "INSUFFICIENT");
+  assert.ok(result.candidates[0].reasons.includes("PBO_PROVENANCE_MISMATCH"));
+
+  const malformedCost = run();
+  malformedCost.robustnessEvidence.candidateCostStress = undefined;
+  result = qualifyResearchFactoryRun(malformedCost);
+  assert.equal(result.candidates[0].outcome, "INSUFFICIENT");
+  assert.ok(result.candidates[0].reasons.includes("COST_STRESS_CANDIDATE_BINDING_REQUIRED"));
+
+  const malformedParameter = run();
+  malformedParameter.robustnessEvidence.parameterRobustness.references = undefined;
+  result = qualifyResearchFactoryRun(malformedParameter);
+  assert.equal(result.candidates[0].outcome, "INSUFFICIENT");
+  assert.ok(result.candidates[0].reasons.includes("PARAMETER_ROBUSTNESS_CANDIDATE_BINDING_REQUIRED"));
+});
