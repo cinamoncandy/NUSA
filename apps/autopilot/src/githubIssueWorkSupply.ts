@@ -47,6 +47,9 @@ export function deriveGithubIssueWorkSupply(value: unknown): GithubIssueWorkSupp
     readyWorkCount: null,
     readyWorkStatus: "UNKNOWN",
     readyWorkScope: "UNKNOWN",
+    capabilityBlockedWorkCount: null,
+    capabilityBlockedWorkStatus: "UNKNOWN",
+    capabilityBlockedCapabilities: null,
     reason: "github-open-issue-backlog-observed-current-executor-readiness-not-proven",
   });
 }
