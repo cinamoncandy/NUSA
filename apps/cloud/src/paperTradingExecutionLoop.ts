@@ -593,7 +593,7 @@ export class PaperTradingExecutionLoop {
     const priorFills = this.state.fills.filter((fill) => fill.orderId === current.id);
     const totalQuantity = round8(priorFills.reduce((sum, fill) => sum + fill.quantity, 0));
     const totalFee = round8(priorFills.reduce((sum, fill) => sum + fill.fee, 0));
-    const averagePrice = totalQuantity > 0 ? priorFills.reduce((sum, fill) => sum + fill.price * fill.quantity, 0) / totalQuantity : current.limitPrice;
+    const averagePrice = totalQuantity > 0 ? priorFills.reduce((sum, fill) => sum + fill.price * fill.quantity, 0) / totalQuantity : (current.limitPrice ?? 0);
     const cancelled: PaperOrderRecord = Object.freeze({ id: current.id, idempotencyKey: current.idempotencyKey, market: current.market, side: current.side, quantity: totalQuantity, price: averagePrice, fee: totalFee, status: "CANCELLED", createdAt: current.createdAt, filledAt: now, requestFingerprint: current.requestFingerprint, lifecycle, executionProfile: current.executionProfile });
     const orders = Object.freeze([cancelled, ...this.state.orders.filter((order) => order.id !== current.id)].slice(0, 1_000));
     const next = Object.freeze({ ...this.state, orders, workingOrders: Object.freeze(workingOrders), updatedAt: now });
