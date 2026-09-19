@@ -36,13 +36,15 @@ test("builds deterministic PAPER_ONLY performance evidence from ordered observat
 });
 
 test("drawdown respects temporal peak-to-trough ordering", () => {
-  const value = input();
-  value.equityCurve = [
-    { observedAt: 1_000, equity: 100 },
-    { observedAt: 2_000, equity: 80 },
-    { observedAt: 3_000, equity: 120 },
-    { observedAt: 4_000, equity: 110 },
-  ];
+  const value: PaperPerformanceEvidenceInput = {
+    ...input(),
+    equityCurve: [
+      { observedAt: 1_000, equity: 100 },
+      { observedAt: 2_000, equity: 80 },
+      { observedAt: 3_000, equity: 120 },
+      { observedAt: 4_000, equity: 110 },
+    ],
+  };
   assert.equal(buildPaperPerformanceEvidence(value).maxDrawdownRate, 0.2);
 });
 
