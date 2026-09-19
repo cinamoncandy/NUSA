@@ -134,10 +134,10 @@ export function selectNonConflictingEvolutionOpportunities(
     if (!priority.eligible || priority.score <= 0 || selected.length >= selectionLimit) continue;
     const opportunity = input.opportunities.find((candidate) => candidate.id === priority.opportunityId);
     if (!opportunity?.canonicalOwner || !opportunity.conflictKeys?.length) continue;
-    if (opportunity.conflictKeys.some((key) => occupied.has(key))) continue;
+    if (opportunity.conflictKeys.some((key: string) => occupied.has(key))) continue;
     selected.push(opportunity);
     priorities.push(priority);
-    opportunity.conflictKeys.forEach((key) => occupied.add(key));
+    opportunity.conflictKeys.forEach((key: string) => occupied.add(key));
   }
   return Object.freeze({
     selectedOpportunities: Object.freeze(selected),
