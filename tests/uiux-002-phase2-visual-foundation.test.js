@@ -101,3 +101,4 @@ test("visual foundation does not introduce profile or avatar UI", () => {
   const components = read("components.tsx");
   assert.doesNotMatch(components, /avatar|profile photo|profile image/i);
 });
+
