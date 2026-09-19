@@ -83,7 +83,8 @@ test("healthy exact-main backlog is evaluated before unchanged-state suppression
     NOW,
     fetchFor([safeIssue(1901)]),
   );
-  assert.equal(outcome.status, "EXECUTION_DISPATCHED");
+  assert.equal(outcome.status, "DUPLICATE_EXECUTION_SUPPRESSED");
+  assert.equal(outcome.reason, "canonical-development-portfolio-duplicate-suppressed");
   assert.equal(outcome.workSupply.rawOpenIssueCount, 1);
   assert.equal(outcome.workSupply.readyWorkCount, 1);
 });
