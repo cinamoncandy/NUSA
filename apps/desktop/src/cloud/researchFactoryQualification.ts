@@ -171,6 +171,7 @@ function pboGate(run: ResearchRunLeagueResult): GateDecision {
     || !/^[0-9a-f]{64}$/i.test(identity.candidateConfigurationSha256)
     || !/^[0-9a-f]{64}$/i.test(identity.evaluationSha256)
     || !/^[0-9a-f]{64}$/i.test(identity.oosTimestampSha256)
+    || !/^[0-9a-f]{64}$/i.test(identity.oosReturnMatrixSha256)
     || !sameStrings(identity.candidateIds, expectedCandidateIds)
     || !sameStrings(identity.familyIds, expectedFamilyIds)
     || !sameStrings(identity.candidateSpecificationHashes, expectedSpecificationHashes)
