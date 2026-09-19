@@ -8,12 +8,19 @@ const FAILED_SHA = "b".repeat(40);
 const RUN_ID = 9001;
 const NOW = 1_787_968_000_000;
 
-function namespace(acquired = true): ExecutionCoordinatorNamespace {
-  return {
+function namespace(acquired = true): ExecutionCoordinatorNamespace {\n  let developmentQueue: unknown = null;\n  return {
     idFromName: (name: string) => ({ name }),
     get: () => ({
-      async fetch(input: RequestInfo | URL) {
+      async fetch(input: RequestInfo | URL, init?: RequestInit) {
         const url = String(input);
+        if (url.endsWith("/development-queue")) {
+          if (init?.method === "POST") {
+            const body = JSON.parse(String(init.body)) as { queue: unknown };
+            developmentQueue = body.queue;
+            return new Response(JSON.stringify({ updated: true, queue: developmentQueue }), { status: 201, headers: { "content-type": "application/json" } });
+          }
+          return new Response(JSON.stringify({ queue: developmentQueue }), { status: 200, headers: { "content-type": "application/json" } });
+        }
         if (url.endsWith("/acquire")) return new Response(JSON.stringify(acquired ? { acquired: true } : { acquired: false, reason: "ALREADY_DISPATCHED" }), { status: acquired ? 201 : 409, headers: { "content-type": "application/json" } });
         if (url.endsWith("/dispatched")) return new Response(JSON.stringify({ updated: true }), { status: 200, headers: { "content-type": "application/json" } });
         return new Response("not found", { status: 404 });
