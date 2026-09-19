@@ -7,6 +7,7 @@ import type { PortfolioPlan } from "./portfolioOrchestrator";
 import { buildPaperObservedExecutionCostAttribution, buildPaperRuntimeExecutionCostEvidence, validatePaperObservedExecutionCostAttribution, validatePaperObservedExecutionQuote, type PaperObservedExecutionQuote, type PaperRuntimeExecutionCostEvidence, type PaperExecutionCostAttribution } from "./paperRuntimeExecutionCostEvidence";
 import { validatePaperOrderBookQuoteReceipt, type PaperOrderBookQuoteReceipt } from "./paperOrderBookQuoteReceipt";
 import { guardCashInvestmentAllocation } from "../../mobile/src/capitalAllocationGuard";
+import { createPaperOrderLifecycle, transitionPaperOrderLifecycle, validatePaperOrderLifecycle, type PaperOrderLifecycleState } from "./paperOrderLifecycle";
 
 const ACCOUNT_ID = "paper-default";
 const SCHEMA_VERSION = 1;
@@ -41,6 +42,8 @@ export interface PaperOrderRecord {
   readonly createdAt: number;
   readonly filledAt: number;
   readonly requestFingerprint?: string;
+  /** Canonical lifecycle evidence. Optional only for persisted schema-v1 compatibility. */
+  readonly lifecycle?: PaperOrderLifecycleState;
 }
 export interface PaperFillCandidateProvenance {
   readonly schemaVersion: 1;
@@ -261,6 +264,10 @@ function validateState(state: PaperAccountState): void {
     finiteNonNegative(order.quantity, "paper order quantity"); finiteNonNegative(order.price, "paper order price"); finiteNonNegative(order.fee, "paper order fee");
     if (order.quantity <= 0 || order.price <= 0 || !Number.isSafeInteger(order.createdAt) || !Number.isSafeInteger(order.filledAt) || order.createdAt < 0 || order.filledAt < order.createdAt) throw new Error("paper order accounting fields are invalid");
     if (order.requestFingerprint !== undefined && !/^[a-f0-9]{64}$/.test(order.requestFingerprint)) throw new Error("paper order request fingerprint is invalid");
+    if (order.lifecycle !== undefined) {
+      const lifecycle = validatePaperOrderLifecycle(order.lifecycle);
+      if (lifecycle.status !== order.status || lifecycle.requestedQuantity !== order.quantity || lifecycle.filledQuantity !== order.quantity || lifecycle.remainingQuantity !== 0 || lifecycle.lastTransitionAt !== order.filledAt) throw new Error("paper order lifecycle reconciliation mismatch");
+    }
   }
   const fillIds = new Set<string>();
   const fillsByOrder = new Map<string, PaperFillRecord>();
@@ -488,7 +495,10 @@ function executeOrder(state: PaperAccountState, key: string, market: string, sid
   }
   if (index < 0) positions.push(position); else positions[index] = position;
   const id = createHash("sha256").update(key, "utf8").digest("hex").slice(0, 24);
-  const order: PaperOrderRecord = Object.freeze({ id, idempotencyKey: key, market, side, quantity, price, fee, status: "FILLED", createdAt: now, filledAt: now, ...(requestFingerprint === undefined ? {} : { requestFingerprint }) });
+  let lifecycle = createPaperOrderLifecycle(quantity, now);
+  lifecycle = transitionPaperOrderLifecycle(lifecycle, "ACCEPTED", now);
+  lifecycle = transitionPaperOrderLifecycle(lifecycle, "FILLED", now, quantity);
+  const order: PaperOrderRecord = Object.freeze({ id, idempotencyKey: key, market, side, quantity, price, fee, status: "FILLED", createdAt: now, filledAt: now, ...(requestFingerprint === undefined ? {} : { requestFingerprint }), lifecycle });
   const baseFill: PaperFillRecord = { id: `fill:${id}`, orderId: id, market, side, quantity, price, fee, filledAt: now, ...(candidateProvenance === undefined ? {} : { candidateProvenance }), ...(canonicalObservedQuote === undefined ? {} : { orderBookQuoteReceipt: canonicalObservedQuote.receipt }) };
   const runtimeExecutionCostEvidence = candidateProvenance == null || quotePrice == null ? undefined : buildPaperRuntimeExecutionCostEvidence(baseFill, quotePrice);
   let executionCostAttribution: PaperExecutionCostAttribution | undefined;
