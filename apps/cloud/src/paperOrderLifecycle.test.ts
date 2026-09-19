@@ -27,23 +27,25 @@ describe("canonical PAPER order lifecycle", () => {
     assert.deepEqual(Object.assign({}, rejected, { status: "REJECTED", filledQuantity: 0, remainingQuantity: 1 }), rejected);
   });
 
-  it.each([
+  for (const [terminal, next] of [
     ["FILLED", "OPEN"],
     ["CANCELLED", "FILLED"],
     ["REJECTED", "ACCEPTED"],
-  ] as const)("fails closed for terminal transition %s -> %s", (terminal, next) => {
-    let state = createPaperOrderLifecycle(1, 100);
-    if (terminal === "FILLED") {
-      state = transitionPaperOrderLifecycle(state, "ACCEPTED", 101);
-      state = transitionPaperOrderLifecycle(state, "FILLED", 102, 1);
-    } else if (terminal === "CANCELLED") {
-      state = transitionPaperOrderLifecycle(state, "ACCEPTED", 101);
-      state = transitionPaperOrderLifecycle(state, "CANCELLED", 102);
-    } else {
-      state = transitionPaperOrderLifecycle(state, "REJECTED", 101);
-    }
-    assert.throws(() => transitionPaperOrderLifecycle(state, next, 103, next === "FILLED" ? 1 : 0), /terminal state cannot transition/);
-  });
+  ] as const) {
+    it(`fails closed for terminal transition ${terminal} -> ${next}`, () => {
+      let state = createPaperOrderLifecycle(1, 100);
+      if (terminal === "FILLED") {
+        state = transitionPaperOrderLifecycle(state, "ACCEPTED", 101);
+        state = transitionPaperOrderLifecycle(state, "FILLED", 102, 1);
+      } else if (terminal === "CANCELLED") {
+        state = transitionPaperOrderLifecycle(state, "ACCEPTED", 101);
+        state = transitionPaperOrderLifecycle(state, "CANCELLED", 102);
+      } else {
+        state = transitionPaperOrderLifecycle(state, "REJECTED", 101);
+      }
+      assert.throws(() => transitionPaperOrderLifecycle(state, next, 103, next === "FILLED" ? 1 : 0), /terminal state cannot transition/);
+    });
+  }
 
   it("rejects overfill and incomplete FILLED transitions", () => {
     let state = createPaperOrderLifecycle(10, 100);
