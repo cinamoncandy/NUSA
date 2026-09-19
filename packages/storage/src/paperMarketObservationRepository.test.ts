@@ -66,3 +66,19 @@ test("unexpected credential-shaped input is not persisted or returned", () => {
     assert.doesNotMatch(String(row?.payload_json ?? ""), /do-not-persist|access_token/);
   } finally { db.close(); }
 });
+
+
+test("canonical source fingerprint is preserved, validated, and covered by evidence checksum", () => {
+  const db = new SqliteDatabase(":memory:");
+  try {
+    const repository = new SqlitePaperMarketObservationRepository(db);
+    const fingerprint = "a".repeat(64);
+    assert.equal(repository.append({ ...observation(400, 130), sourceFingerprint: fingerprint }), "RECORDED");
+    const stored = repository.list()[0];
+    assert.equal(stored?.sourceFingerprint, fingerprint);
+    assert.equal(code(() => repository.append({ ...observation(500, 140), sourceFingerprint: "not-a-sha256" })), "INVALID_SOURCE_FINGERPRINT");
+    db.connection.prepare("UPDATE paper_public_market_observations SET payload_json = replace(payload_json, ?, ?) WHERE observation_id = ?")
+      .run(fingerprint, "b".repeat(64), "paper-market:KRW-BTC:400");
+    assert.equal(code(() => repository.list()), "OBSERVATION_CHECKSUM_MISMATCH");
+  } finally { db.close(); }
+});
