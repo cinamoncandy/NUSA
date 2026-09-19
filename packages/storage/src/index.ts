@@ -473,7 +473,7 @@ CREATE INDEX IF NOT EXISTS idx_evolution_learning_ledger_recorded_at
   ON evolution_learning_ledger_events (recorded_at ASC, opportunity_id ASC);
 INSERT OR IGNORE INTO evolution_learning_ledger_meta (id, schema_version, event_count, ledger_hash)
   VALUES (1, 1, 0, '0000000000000000000000000000000000000000000000000000000000000000');
-, researchFactoryDecisionHistoryMigration, ` }, { id: "022_research_memory_semantic_overlay", sql: `
+` }, researchFactoryDecisionHistoryMigration, { id: "022_research_memory_semantic_overlay", sql: `
 CREATE TABLE IF NOT EXISTS research_memory_semantic_events (
   sequence INTEGER PRIMARY KEY,
   identity TEXT NOT NULL UNIQUE,
@@ -486,4 +486,4 @@ CREATE TABLE IF NOT EXISTS research_memory_semantic_events (
 );
 CREATE INDEX IF NOT EXISTS idx_research_memory_semantic_artifact ON research_memory_semantic_events (artifact_sha256, sequence);
 CREATE INDEX IF NOT EXISTS idx_research_memory_semantic_identity ON research_memory_semantic_events (semantic_identity, independence_group_id, sequence);
-` }]
+` }];
