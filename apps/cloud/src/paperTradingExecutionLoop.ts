@@ -111,6 +111,9 @@ export interface PaperFillRecord {
   readonly price: number;
   readonly fee: number;
   readonly filledAt: number;
+  /** Immutable execution-model identity for canonical working-order fills. */
+  readonly executionProfileFingerprintSha256?: string;
+  readonly executionEngineVersion?: PaperExecutionProfile["engineVersion"];
   /** Canonical public order-book receipt retained with the fill for restart-safe attribution. */
   readonly orderBookQuoteReceipt?: PaperOrderBookQuoteReceipt;
   /** Point-in-time candidate binding copied from the exact CIO decision that caused this strategy fill. */
@@ -554,7 +557,7 @@ export class PaperTradingExecutionLoop {
     try { lifecycle = transitionPaperOrderLifecycle(current.lifecycle, terminal ? "FILLED" : "PARTIALLY_FILLED", context.now, fillQuantity); }
     catch (error) { return this.result("REJECTED", error instanceof Error ? error.message : "paper working fill rejected"); }
     const priorFills = this.state.fills.filter((fill) => fill.orderId === current.id);
-    const fill: PaperFillRecord = Object.freeze({ id: eventId == null ? `fill:${current.id}:${priorFills.length + 1}` : `fill-event:${eventId}`, orderId: current.id, market: current.market, side: current.side, quantity: fillQuantity, price: fillPrice, fee, filledAt: context.now });
+    const fill: PaperFillRecord = Object.freeze({ id: eventId == null ? `fill:${current.id}:${priorFills.length + 1}` : `fill-event:${eventId}`, orderId: current.id, market: current.market, side: current.side, quantity: fillQuantity, price: fillPrice, fee, filledAt: context.now, executionProfileFingerprintSha256: current.executionProfile.fingerprintSha256, executionEngineVersion: current.executionProfile.engineVersion });
     // Working-order fills are reconciliation state, not telemetry. Never truncate them independently of their order.
     const fills = Object.freeze([fill, ...this.state.fills]);
 
