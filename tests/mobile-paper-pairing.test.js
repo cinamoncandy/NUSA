@@ -95,17 +95,20 @@ test("same-device retry supersedes a pending request before TTL without preservi
   } finally { db.close(); }
 });
 
-test("same-device retry expires an approved request so its old exchange cannot issue a session", () => {
-  const { db, service } = fixture();
+test("anonymous same-device retry cannot revoke an approved request", () => {
+  const { db, service, deps } = fixture();
   try {
-    const now = 2_000_000;
+    const now = Date.now();
     const approved = service.startPairing(DEVICE, now);
     assert.equal(service.approvePairing({ actorUserId: OWNER.userId, actorScopes: OWNER.scopes, targetUserId: "mobile-user", requestId: approved.requestId, verificationCode: approved.verificationCode, now: now + 1 }), true);
 
-    const replacement = service.startPairing(DEVICE, now + 2);
-    assert.equal(service.pairingStatus(approved.requestId, DEVICE, now + 2)?.state, "EXPIRED");
-    assert.equal(service.exchangePairing(approved.requestId, DEVICE, now + 2), undefined);
-    assert.equal(service.pairingStatus(replacement.requestId, DEVICE, now + 2)?.state, "PENDING");
+    const attackerRetry = pairingHttp.handleMobilePairingStartHttp(request("POST", { deviceId: DEVICE }), deps);
+    assert.equal(attackerRetry.status, 400);
+    assert.equal(JSON.parse(attackerRetry.body).error, "PAIRING_START_REJECTED");
+    assert.equal(service.pairingStatus(approved.requestId, DEVICE, now + 2)?.state, "APPROVED");
+    assert.ok(service.exchangePairing(approved.requestId, DEVICE, now + 2), "original approved capability remains exchangeable");
+    const rows = db.connection.prepare("SELECT state FROM mobile_pairing_requests").all();
+    assert.equal(rows.filter((row) => row.state === "PENDING").length, 0, "rejected retry creates no replacement");
   } finally { db.close(); }
 });
 
