@@ -7,6 +7,7 @@ import {
   createNusaDevelopmentQueue,
   recoverStaleNusaDevelopmentClaims,
   recoverStaleNusaDevelopmentClaimWithEvidence,
+  transitionNusaDevelopmentWork,
   type NusaDevelopmentWorkItem,
 } from "./nusaDevelopmentControlPlane";
 
@@ -303,6 +304,22 @@ describe("NUSA canonical development queue", () => {
     });
     assert.equal(competing.status, "REVISION_CONFLICT");
     assert.equal(competing.item, null);
+  });
+
+  it("enforces the canonical lifecycle and clears ownership only when requeued", () => {
+    const queue = createNusaDevelopmentQueue([work({ id: "lifecycle" })]);
+    const claimed = claimNextNusaDevelopmentWork(queue, {
+      owner: "development", requestId: "lifecycle-claim", expectedRevision: 0, now: T0, leaseMs: 60_000,
+    });
+    assert.equal(claimed.status, "CLAIMED");
+    const implementing = transitionNusaDevelopmentWork(claimed.queue, "lifecycle", "IMPLEMENTING", T0 + 1);
+    assert.equal(implementing.items[0]?.state, "IMPLEMENTING");
+    assert.equal(implementing.items[0]?.canonicalOwner, "development");
+    const ready = transitionNusaDevelopmentWork(implementing, "lifecycle", "READY", T0 + 2);
+    assert.equal(ready.items[0]?.state, "READY");
+    assert.equal(ready.items[0]?.canonicalOwner, null);
+    assert.equal(ready.items[0]?.claim, null);
+    assert.throws(() => transitionNusaDevelopmentWork(ready, "lifecycle", "MERGED", T0 + 3), /WORK_TRANSITION_INVALID/);
   });
 
   it("recovers expired claims deterministically and recovery itself is idempotent", () => {
