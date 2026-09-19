@@ -48,22 +48,6 @@ function canonicalParameters(value) {
   }
   return normalized;
 }
-/**
- * Single source of truth for which families this runner can execute.
- *
- * strategyFactoryFor and validateGenericCandidateGrid each used to carry their own list. A family
- * added to the factory but not to the validator's copy passes every registration check in
- * research-real-market-run.js and then fails here, at run time, with "unsupported strategyFamily"
- * -- after the grid has already been declared and the run started. That is exactly how
- * time-series-momentum reached a 60-cell run and errored on every one of its own cells.
- */
-const SUPPORTED_ROBUSTNESS_FAMILIES = Object.freeze([
-  "sma-crossover",
-  "rsi-mean-reversion",
-  "donchian-breakout",
-  "time-series-momentum"
-]);
-
 function strategyFactoryFor(modules, familyId, parameters) {
   if (familyId === "sma-crossover") {
     const shortPeriod = parameters.shortPeriod ?? parameters.shortWindow;
@@ -76,14 +60,11 @@ function strategyFactoryFor(modules, familyId, parameters) {
   if (familyId === "donchian-breakout") {
     return () => new modules.strategyEngine.DonchianBreakoutStrategy(parameters.channelPeriod);
   }
-  if (familyId === "time-series-momentum") {
-    return () => new modules.strategyEngine.TimeSeriesMomentumStrategy(parameters.lookbackPeriod, parameters.entryThreshold);
-  }
   throw new Error(`unsupported parameter robustness strategy family: ${familyId}`);
 }
 function validateGenericCandidateGrid(request, modules) {
   const errors = [];
-  if (!SUPPORTED_ROBUSTNESS_FAMILIES.includes(request.strategyFamily)) errors.push(`unsupported strategyFamily: ${request.strategyFamily}`);
+  if (!["sma-crossover", "rsi-mean-reversion", "donchian-breakout"].includes(request.strategyFamily)) errors.push(`unsupported strategyFamily: ${request.strategyFamily}`);
   if (!Array.isArray(request.candidateGrid) || request.candidateGrid.length === 0) {
     errors.push("request.candidateGrid must be a non-empty precommitted array");
     return errors;

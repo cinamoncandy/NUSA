@@ -5,7 +5,6 @@ import type { IntelligenceObservation } from "./marketIntelligenceFusion";
 const SMA_FAMILY = "sma-crossover";
 const RSI_FAMILY = "rsi-mean-reversion";
 const DONCHIAN_FAMILY = "donchian-breakout";
-const TSMOM_FAMILY = "time-series-momentum";
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
 const round4 = (value: number): number => Math.round(value * 10_000) / 10_000;
 
@@ -45,19 +44,6 @@ function parseRsiParameters(spec: PaperCandidateStrategySpec): { period: number;
     throw new Error("PAPER RSI candidate parameters are invalid");
   }
   return { period, oversold, overbought };
-}
-
-function parseTsmomParameters(spec: PaperCandidateStrategySpec): { lookbackPeriod: number; entryThreshold: number } {
-  const lookbackPeriod = spec.parameters.lookbackPeriod;
-  const entryThreshold = spec.parameters.entryThreshold;
-  if (
-    !finitePositiveInteger(lookbackPeriod) || lookbackPeriod < 2 || lookbackPeriod > 500
-    || typeof entryThreshold !== "number" || !Number.isFinite(entryThreshold)
-    || entryThreshold < 0 || entryThreshold >= 1
-  ) {
-    throw new Error("PAPER time-series momentum candidate parameters are invalid");
-  }
-  return { lookbackPeriod, entryThreshold };
 }
 
 function canonicalPrices(
@@ -179,45 +165,6 @@ function evaluateRsi(
   });
 }
 
-/** Band position of the trailing return, or undefined while there are too few closes. */
-function tsmomPosition(closes: readonly number[], lookbackPeriod: number, entryThreshold: number): { position: -1 | 0 | 1; trailingReturn: number } | undefined {
-  if (closes.length < lookbackPeriod + 1) return undefined;
-  const current = closes.at(-1)!;
-  const reference = closes[closes.length - 1 - lookbackPeriod]!;
-  if (!Number.isFinite(reference) || reference <= 0) return undefined;
-  const trailingReturn = current / reference - 1;
-  const position: -1 | 0 | 1 = trailingReturn > entryThreshold ? 1 : trailingReturn < -entryThreshold ? -1 : 0;
-  return { position, trailingReturn };
-}
-
-function evaluateTsmom(
-  spec: PaperCandidateStrategySpec,
-  prices: readonly (readonly [number, number])[],
-  now: number,
-): PaperCandidateStrategyDecision {
-  const { lookbackPeriod, entryThreshold } = parseTsmomParameters(spec);
-  const closes = prices.map(([, price]) => price);
-  const current = tsmomPosition(closes, lookbackPeriod, entryThreshold);
-  if (current === undefined) {
-    return Object.freeze({ action: "WAIT", score: 0, confidence: 0, observedAt: prices.at(-1)?.[0] ?? now, reason: `INSUFFICIENT_TSMOM_OBSERVATIONS:${prices.length}/${lookbackPeriod + 1}` });
-  }
-  const observedAt = prices.at(-1)?.[0] ?? now;
-  const prior = tsmomPosition(closes.slice(0, -1), lookbackPeriod, entryThreshold);
-  if (prior === undefined) {
-    return Object.freeze({ action: "HOLD", score: 0, confidence: 0, observedAt, reason: `TIME_SERIES_MOMENTUM:${lookbackPeriod}:${round4(entryThreshold)}:baseline=${current.position}:trailing=${round4(current.trailingReturn)}` });
-  }
-  const denominator = Math.max(entryThreshold, Number.EPSILON);
-  const confidence = round4(clamp((Math.abs(current.trailingReturn) - entryThreshold) / denominator, 0, 1));
-  let action: PaperCandidateStrategyDecision["action"] = "HOLD";
-  if (prior.position <= 0 && current.position === 1) action = "BUY";
-  else if (prior.position >= 0 && current.position === -1) action = "SELL";
-  const score = action === "BUY" ? confidence : action === "SELL" ? -confidence : 0;
-  return Object.freeze({
-    action, score, confidence, observedAt,
-    reason: `TIME_SERIES_MOMENTUM:${lookbackPeriod}:${round4(entryThreshold)}:prior=${prior.position}:current=${current.position}:trailing=${round4(current.trailingReturn)}`,
-  });
-}
-
 /**
  * Evaluates exact immutable Research candidate semantics over already accepted public ticker
  * observations. It is deterministic and read-only: generic CIO scoring is never a fallback.
@@ -232,6 +179,5 @@ export function evaluatePaperCandidateStrategy(
   if (spec.familyId === SMA_FAMILY) return evaluateSma(spec, prices, now);
   if (spec.familyId === RSI_FAMILY) return evaluateRsi(spec, prices, now);
   if (spec.familyId === DONCHIAN_FAMILY) return evaluateDonchian(spec, prices, now);
-  if (spec.familyId === TSMOM_FAMILY) return evaluateTsmom(spec, prices, now);
   throw new Error(`unsupported PAPER candidate strategy family: ${spec.familyId}`);
 }

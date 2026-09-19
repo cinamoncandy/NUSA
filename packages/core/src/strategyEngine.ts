@@ -332,62 +332,6 @@ export class DonchianBreakoutStrategy implements TradingStrategy {
 }
 
 /**
- * Absolute (time-series) momentum: hold when the asset's own trailing return is positive.
- *
- * Distinct from SmaCrossoverStrategy, which compares two moving averages of each other, and from
- * DonchianBreakoutStrategy, which compares a close against prior price extremes. This compares the
- * current close against a single close `lookbackPeriod` ago, against a fixed zero-centred band.
- *
- * The dead band is the point of the family rather than a tuning knob. ADR-0026 through ADR-0028
- * established that on this venue the 0.172% round trip, not the quality of the rule, is what
- * decides the outcome; a threshold that must be exceeded before the state flips is what keeps a
- * signal oscillating around zero from paying that round trip repeatedly.
- */
-export class TimeSeriesMomentumStrategy implements TradingStrategy {
-  readonly id = "time-series-momentum";
-  readonly name = "Time Series Momentum";
-  private previousPosition?: -1 | 0 | 1;
-
-  constructor(private readonly lookbackPeriod = 20, private readonly entryThreshold = 0.03) {
-    if (!Number.isInteger(lookbackPeriod) || lookbackPeriod < 2) throw new Error("invalid time-series momentum lookback");
-    if (!Number.isFinite(entryThreshold) || entryThreshold < 0 || entryThreshold >= 1) throw new Error("invalid time-series momentum threshold");
-  }
-
-  onTick(tick: MarketTick, context: StrategyContext): StrategySignal {
-    const closes = [...context.prices, tick.price];
-    if (closes.length < this.lookbackPeriod + 1) {
-      return { type: "HOLD", reason: "warming-up", confidence: 0, timestamp: tick.timestamp };
-    }
-    // The reference close is strictly earlier than the current tick, so the signal never reads the
-    // bar it is evaluated on.
-    const reference = closes[closes.length - 1 - this.lookbackPeriod]!;
-    if (!Number.isFinite(reference) || reference <= 0) {
-      return { type: "HOLD", reason: "reference-close-unusable", confidence: 0, timestamp: tick.timestamp };
-    }
-    const trailingReturn = tick.price / reference - 1;
-    const position = trailingReturn > this.entryThreshold ? 1 : trailingReturn < -this.entryThreshold ? -1 : 0;
-    const prior = this.previousPosition;
-    this.previousPosition = position;
-    if (prior === undefined) {
-      return { type: "HOLD", reason: "baseline-established", confidence: 0, timestamp: tick.timestamp };
-    }
-    // Confidence measures how far past the band the move already is, so a marginal crossing is not
-    // reported with the same weight as a decisive one.
-    const denominator = Math.max(this.entryThreshold, Number.EPSILON);
-    const confidence = Math.min(1, Math.max(0, (Math.abs(trailingReturn) - this.entryThreshold) / denominator));
-    if (prior <= 0 && position === 1) {
-      return { type: "BUY", reason: "trailing-return-crossed-above-band", confidence, timestamp: tick.timestamp };
-    }
-    if (prior >= 0 && position === -1) {
-      return { type: "SELL", reason: "trailing-return-crossed-below-band", confidence, timestamp: tick.timestamp };
-    }
-    return { type: "HOLD", reason: "inside-momentum-band", confidence: 0, timestamp: tick.timestamp };
-  }
-
-  reset(): void { this.previousPosition = undefined; }
-}
-
-/**
  * Regime-gated wrapper: converts entries (BUY) to HOLD in regimes where the
  * canonical policy forbids new exposure, while exits (SELL) always pass
  * through — a risk gate must never trap a position. Blocked regimes are
