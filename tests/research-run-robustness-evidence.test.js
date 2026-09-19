@@ -2,6 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { createHash } = require("node:crypto");
 const {
   buildResearchRunRobustnessEvidence,
   ResearchRunRobustnessEvidenceError,
@@ -37,6 +38,33 @@ function stressScenario(id, overrides = {}) {
     totalOosClosedTrades: 4,
     warnings: [],
     ...overrides,
+  };
+}
+
+function costStressIdentity(sourceExperimentSha = "real-run:real-run-dataset") {
+  const grid = ["BASE", "MODERATE", "SEVERE"].map((id) => {
+    const scenario = stressScenario(id).scenario;
+    return {
+      id: scenario.id,
+      feeRate: scenario.feeRate,
+      spreadBps: scenario.spreadBps,
+      slippageBps: scenario.slippageBps,
+      latencyMs: scenario.latencyMs ?? 0,
+    };
+  });
+  const stressGridSha256 = createHash("sha256").update(JSON.stringify(grid)).digest("hex");
+  const engineVersion = "execution-cost-stress-v1";
+  const selectionMode = "FIX_BASELINE_SELECTION";
+  const id = createHash("sha256")
+    .update(`${sourceExperimentSha}|${DATASET_SHA}|${stressGridSha256}|${selectionMode}|${engineVersion}`)
+    .digest("hex");
+  return {
+    id,
+    sourceExperimentSha,
+    datasetSha256: DATASET_SHA,
+    stressGridSha256,
+    selectionMode,
+    engineVersion,
   };
 }
 
@@ -76,14 +104,7 @@ function rawEvidence(overrides = {}) {
       },
     },
     costStress: {
-      identity: {
-        id: "d".repeat(64),
-        sourceExperimentSha: "real-run:real-run-dataset",
-        datasetSha256: DATASET_SHA,
-        stressGridSha256: "e".repeat(64),
-        selectionMode: "FIX_BASELINE_SELECTION",
-        engineVersion: "execution-cost-stress-v1",
-      },
+      identity: costStressIdentity(),
       selectionMode: "FIX_BASELINE_SELECTION",
       baseline: stressScenario("BASE"),
       scenarios: [stressScenario("SEVERE"), stressScenario("BASE"), stressScenario("MODERATE")],
@@ -296,11 +317,7 @@ test("preserves candidate-bound cost-stress facts without smearing family eviden
       specificationHash: "9".repeat(64),
       costStress: {
         ...rawEvidence().costStress,
-        identity: {
-          ...rawEvidence().costStress.identity,
-          id: "8".repeat(64),
-          sourceExperimentSha: "real-run:real-run-dataset:family-a:candidate-a",
-        },
+        identity: costStressIdentity("real-run:real-run-dataset:family-a:candidate-a"),
       },
     }],
   });
@@ -312,5 +329,30 @@ test("preserves candidate-bound cost-stress facts without smearing family eviden
   assert.equal(
     evidence.candidateCostStress[0].costStress.scenarios.find((scenario) => scenario.scenario.id === "SEVERE").benchmarkOutperformance,
     0.02,
+  );
+});
+
+
+test("tampered cost-stress grid hash or derived identity is rejected", () => {
+  const badGrid = rawEvidence();
+  badGrid.costStress.identity = {
+    ...badGrid.costStress.identity,
+    stressGridSha256: "f".repeat(64),
+  };
+  assert.throws(
+    () => buildResearchRunRobustnessEvidence(badGrid),
+    (error) => error instanceof ResearchRunRobustnessEvidenceError
+      && error.code === "COST_STRESS_GRID_HASH_MISMATCH",
+  );
+
+  const badId = rawEvidence();
+  badId.costStress.identity = {
+    ...badId.costStress.identity,
+    id: "f".repeat(64),
+  };
+  assert.throws(
+    () => buildResearchRunRobustnessEvidence(badId),
+    (error) => error instanceof ResearchRunRobustnessEvidenceError
+      && error.code === "COST_STRESS_IDENTITY_MISMATCH",
   );
 });
