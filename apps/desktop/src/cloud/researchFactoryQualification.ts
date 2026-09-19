@@ -184,6 +184,10 @@ function costLoad(scenario: {
   return scenario.feeRate * 10_000 + scenario.spreadBps + scenario.slippageBps;
 }
 
+function sameMetric(left: number, right: number): boolean {
+  return Math.abs(left - right) <= 1e-12 * Math.max(1, Math.abs(left), Math.abs(right));
+}
+
 function costGate(entry: LeagueRankedEntry, run: ResearchRunLeagueResult): GateDecision {
   const evidence = run.robustnessEvidence;
   if (evidence == null) return gate("UNKNOWN", ["COST_STRESS_CANDIDATE_BINDING_REQUIRED"]);
@@ -230,6 +234,16 @@ function costGate(entry: LeagueRankedEntry, run: ResearchRunLeagueResult): GateD
   }
   const baseline = scenarios.find((scenario) => scenario.scenario.id === "BASE");
   if (baseline == null) return gate("UNKNOWN", ["COST_STRESS_PRECOMMITTED_GRID_REQUIRED"]);
+  if (
+    !sameMetric(baseline.markedTotalReturn, entry.components.outOfSamplePerformance)
+    || !sameMetric(baseline.markedMaximumDrawdown, entry.components.maximumDrawdown)
+    || !sameMetric(baseline.benchmarkOutperformance, entry.components.benchmarkExcess)
+  ) {
+    return gate("UNKNOWN", ["COST_STRESS_BASELINE_BINDING_MISMATCH"]);
+  }
+  if (scenarios.some((scenario) => scenario.closedTradeExpectancy == null || !Number.isFinite(scenario.closedTradeExpectancy))) {
+    return gate("UNKNOWN", ["COST_STRESS_EXPECTANCY_EVIDENCE_MISSING"]);
+  }
   const baselineCostLoad = costLoad(baseline.scenario);
   const highCost = scenarios.filter((scenario) => costLoad(scenario.scenario) >= baselineCostLoad * 2);
   const failures: string[] = [];
