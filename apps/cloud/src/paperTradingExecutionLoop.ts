@@ -93,6 +93,8 @@ export interface PaperWorkingOrderRecord {
   readonly requestFingerprint: string;
   readonly lifecycle: PaperOrderLifecycleState;
   readonly executionProfile: PaperExecutionProfile;
+  /** Number of deterministic fill attempts observed since OPEN. */
+  readonly observedTicks?: number;
 }
 export interface PaperFillCandidateProvenance {
   readonly schemaVersion: 1;
@@ -476,7 +478,7 @@ export class PaperTradingExecutionLoop {
     const order: PaperWorkingOrderRecord = Object.freeze({
       id, idempotencyKey: validated.idempotencyKey, market: validated.market, side: validated.side,
       orderType: "LIMIT", requestedQuantity: validated.quantity, limitPrice: validated.limitPrice,
-      createdAt: context.now, requestFingerprint: fingerprint, lifecycle, executionProfile: this.executionProfile,
+      createdAt: context.now, requestFingerprint: fingerprint, lifecycle, executionProfile: this.executionProfile, observedTicks: 0,
     });
     const working = Object.freeze({ ...this.state, workingOrders: Object.freeze([order, ...(this.state.workingOrders ?? [])].slice(0, 1_000)), processedIdempotencyKeys: Object.freeze([validated.idempotencyKey, ...this.state.processedIdempotencyKeys]), updatedAt: context.now });
     try { this.repository?.save(working); } catch { return this.result("FAILED", "paper account persistence failed"); }
@@ -496,7 +498,20 @@ export class PaperTradingExecutionLoop {
     const workingOrders = [...(this.state.workingOrders ?? [])];
     const index = workingOrders.findIndex((order) => order.id === orderId);
     if (index < 0) return this.result("REJECTED", "PAPER_WORKING_ORDER_NOT_FOUND");
-    const current = workingOrders[index]!;
+    let current = workingOrders[index]!;
+    const observedTicks = (current.observedTicks ?? 0) + 1;
+    if (observedTicks <= current.executionProfile.latencyTicks) {
+      current = Object.freeze({ ...current, observedTicks });
+      workingOrders[index] = current;
+      const next = Object.freeze({ ...this.state, workingOrders: Object.freeze(workingOrders), updatedAt: context.now });
+      try { this.repository?.save(next); } catch { return this.result("FAILED", "paper account persistence failed"); }
+      this.state = next;
+      return this.result("WAIT", `PAPER_EXECUTION_LATENCY:${observedTicks}/${current.executionProfile.latencyTicks}`);
+    }
+    if (current.observedTicks !== observedTicks) {
+      current = Object.freeze({ ...current, observedTicks });
+      workingOrders[index] = current;
+    }
     if (current.market !== current.market.trim().toUpperCase()) return this.result("REJECTED", "paper working order market is invalid");
     const marketable = current.side === "BUY" ? context.marketPrice <= (current.limitPrice ?? 0) : context.marketPrice >= (current.limitPrice ?? Number.POSITIVE_INFINITY);
     if (!marketable) return this.result("WAIT", "PAPER_LIMIT_NOT_MARKETABLE");
