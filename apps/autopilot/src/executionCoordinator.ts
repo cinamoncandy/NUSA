@@ -25,7 +25,7 @@ export interface DurableObjectStubLike {
 interface ExecutionRecord {
   dedupeKey: string;
   executionId: string;
-  state: "LEASED" | "DISPATCHED" | "RELEASED";
+  state: "LEASED" | "DISPATCHED" | "RELEASED" | "COMPLETED";
   leaseExpiresAt: number;
   updatedAt: number;
 }
@@ -296,6 +296,7 @@ export class ExecutionCoordinator {
     if (url.pathname === "/acquire") return this.acquire(await request.json());
     if (url.pathname === "/dispatched") return this.markDispatched(await request.json());
     if (url.pathname === "/release") return this.release(await request.json());
+    if (url.pathname === "/complete") return this.complete(await request.json());
     if (url.pathname === "/scheduled-receipt") return this.writeScheduledReceipt(await request.json());
     if (url.pathname === "/evolve-learning-memory") return this.writeEvolutionLearningMemory(await request.json());
     if (url.pathname === "/coding-evidence") return this.writeCodingExecutionEvidence(await request.json());
@@ -349,6 +350,21 @@ export class ExecutionCoordinator {
     const record: ExecutionRecord = Object.freeze({ ...current, state: "RELEASED", leaseExpiresAt: Number(request.now), updatedAt: Number(request.now) });
     await this.ctx.storage.put("execution", record);
     return json({ released: true, record });
+  }
+
+  private async complete(value: unknown): Promise<Response> {
+    if (!value || typeof value !== "object") return json({ error: "EXECUTION_COORDINATION_REQUEST_INVALID" }, 400);
+    const request = value as { dedupeKey?: unknown; executionId?: unknown; now?: unknown };
+    if (!validText(request.dedupeKey) || !validText(request.executionId) || !validSafeTimestamp(request.now)) return json({ error: "EXECUTION_COORDINATION_REQUEST_INVALID" }, 400);
+    return this.mutateExecutionAtomically(async (storage) => {
+      const current = await storage.get<ExecutionRecord>("execution");
+      if (!current || current.dedupeKey !== request.dedupeKey || current.executionId !== request.executionId) return json({ error: "EXECUTION_LEASE_MISMATCH" }, 409);
+      if (current.state === "COMPLETED") return json({ completed: false, record: current });
+      if (current.state !== "DISPATCHED") return json({ error: "EXECUTION_NOT_DISPATCHED" }, 409);
+      const record: ExecutionRecord = Object.freeze({ ...current, state: "COMPLETED", leaseExpiresAt: Number(request.now), updatedAt: Number(request.now) });
+      await storage.put("execution", record);
+      return json({ completed: true, record });
+    });
   }
 
   private async writeScheduledReceipt(value: unknown): Promise<Response> {
@@ -684,6 +700,12 @@ export async function releasePersistentExecution(namespace: ExecutionCoordinator
   const stub = namespace.get(namespace.idFromName(input.dedupeKey));
   const response = await stub.fetch("https://execution-coordinator/release", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) });
   if (!response.ok) throw new Error("PERSISTENT_EXECUTION_RELEASE_FAILED");
+}
+
+export async function completePersistentExecution(namespace: ExecutionCoordinatorNamespace, input: { dedupeKey: string; executionId: string; now: number }): Promise<void> {
+  const stub = namespace.get(namespace.idFromName(input.dedupeKey));
+  const response = await stub.fetch("https://execution-coordinator/complete", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) });
+  if (!response.ok) throw new Error("PERSISTENT_EXECUTION_COMPLETION_FAILED");
 }
 
 export async function recordScheduledRuntimeReceipt(namespace: ExecutionCoordinatorNamespace, receipt: ScheduledRuntimeReceipt): Promise<void> {
