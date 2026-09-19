@@ -36,6 +36,10 @@ describe("PAPER working-order execution invariants", () => {
     const first = loop.fillWorkingOrder(orderId, 2, context(100, 1_001));
     assert.equal(first.status, "WAIT");
     assert.equal(first.fills[0]?.quantity, 1);
+    const profile = first.state.workingOrders?.[0]?.executionProfile;
+    assert.ok(profile);
+    assert.equal(first.fills[0]?.executionProfileFingerprintSha256, profile.fingerprintSha256);
+    assert.equal(first.fills[0]?.executionEngineVersion, profile.engineVersion);
     assert.equal(first.state.workingOrders?.[0]?.lifecycle.remainingQuantity, 1);
 
     const second = loop.fillWorkingOrder(orderId, 1, context(100, 1_002));
