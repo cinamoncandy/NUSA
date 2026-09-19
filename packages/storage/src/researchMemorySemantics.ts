@@ -4,7 +4,7 @@ import {
   replayResearchMemorySemanticEvents,
   type ResearchMemorySemanticEvent,
   type ResearchMemorySemanticInput
-} from "@nusa/contracts";
+} from "../../contracts/src/researchMemorySemantics";
 
 export interface ResearchSemanticMemoryDatabase {
   readonly connection: DatabaseSync;
