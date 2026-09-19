@@ -146,6 +146,7 @@ export async function dispatchDevelopmentPortfolio(
 
   let queue = allocation.queue;
   let dispatchedCount = 0;
+  let duplicateCount = 0;
   const selectedSignalIds: string[] = [];
 
   for (const item of allocation.items) {
@@ -184,6 +185,7 @@ export async function dispatchDevelopmentPortfolio(
     });
     if (!persistent.acquired) {
       queue = transitionNusaDevelopmentWork(queue, item.id, "IMPLEMENTING", input.now);
+      duplicateCount += 1;
       selectedSignalIds.push(signal.id);
       continue;
     }
@@ -205,6 +207,7 @@ export async function dispatchDevelopmentPortfolio(
 
   await writePersistentDevelopmentQueue(input.coordinator, input.repository, queue);
   if (dispatchedCount > 0) return result("EXECUTION_ACCEPTED", "canonical-development-portfolio-dispatched", allocation.claimedCount, dispatchedCount, selectedSignalIds, queue.revision);
+  if (duplicateCount > 0) return result("DUPLICATE_SUPPRESSED", "canonical-development-portfolio-duplicate-suppressed", allocation.claimedCount, 0, selectedSignalIds, queue.revision);
   if (allocation.claimedCount > 0) return result("EXECUTION_FAILED", "canonical-development-portfolio-not-dispatched", allocation.claimedCount, 0, selectedSignalIds, queue.revision);
   return result("NO_READY_WORK", "canonical-development-queue-exhausted", 0, 0, [], queue.revision);
 }
