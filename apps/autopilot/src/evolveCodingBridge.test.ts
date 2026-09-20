@@ -15,6 +15,8 @@ const signal = (id: string, overrides: Partial<EvolutionDiscoverySignal> = {}): 
   confidence: 0.9,
   risk: 0.2,
   reversibility: 0.9,
+  canonicalOwner: "autopilot.control-plane",
+  conflictKeys: ["module:apps/autopilot/src"],
   ...overrides,
 });
 
@@ -44,6 +46,16 @@ test("connects fresh bounded discovery evidence to the existing CodingRunner req
     productionMutationAllowed: false,
     aiAuthority: "ZERO_AUTHORITY",
   });
+});
+
+test("fails closed when selected Evolve work lacks ownership metadata", () => {
+  const result = prepareDiscoveredCodingRequest({
+    ...baseInput(),
+    signals: [signal("unowned", { canonicalOwner: undefined, conflictKeys: undefined })],
+  });
+  assert.equal(result.status, "ABSTAINED");
+  assert.equal(result.reason, "ownership-metadata-required");
+  assert.equal(result.request, null);
 });
 
 test("abstains when no discovery evidence exists", () => {
