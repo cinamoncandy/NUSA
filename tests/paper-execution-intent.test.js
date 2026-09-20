@@ -137,6 +137,25 @@ test("intent fingerprint fails closed after sizing tamper", () => {
   assert.throws(() => validatePaperExecutionIntent({ ...intent, quantity: 0.03 }), /FINGERPRINT_MISMATCH/);
 });
 
+test("reserved portfolio capital participates in account reconciliation without becoming BUY notional", () => {
+  const portfolio = Object.freeze({
+    ...buyPortfolio(),
+    cashCapital: 8_000_000,
+    reservedCapital: 1_000_000,
+  });
+  const intent = buildPaperExecutionIntent({
+    now: 1_100,
+    market: "KRW-BTC",
+    referencePrice: 50_000_000,
+    portfolio,
+    decision: decision(),
+    state: state(),
+    investmentPercent: 100,
+  });
+  assert.equal(intent.allocationCapital, 1_000_000);
+  assert.equal(intent.quantity, 0.02);
+});
+
 test("account and portfolio capital must reconcile before an intent exists", () => {
   assert.throws(() => buildPaperExecutionIntent({
     now: 1_100,
