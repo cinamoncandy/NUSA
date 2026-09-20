@@ -34,13 +34,13 @@ test('paper and history selectors expose their current selection', () => {
   assert.match(history, /selectedKey=\{sort\}/);
 });
 
-test('AI hierarchy presents calibrated confidence before raw model probability', () => {
+test('AI hierarchy exposes calibrated confidence only when verified and otherwise fails closed', () => {
   const source = read('apps/mobile/src/aiView.tsx');
-  const trusted = source.indexOf('label="검증 신뢰도"');
-  const raw = source.indexOf('label="원시 모델 확률 (미보정)"');
-  assert.ok(trusted >= 0 && raw >= 0 && trusted < raw);
-  assert.match(source, /testID="ai-zero-authority-status"><StatusChip label="AI ZERO AUTHORITY"/);
-  assert.match(source, /READ ONLY/);
+  assert.match(source, /const trusted=calibrated\?percent\(ai\?\.confidence\):"UNVERIFIED"/);
+  assert.match(source, /calibrated\?"CALIBRATED":"UNVERIFIED"/);
+  assert.match(source, /보정되지 않은 출력입니다\. 수익 확률로 표시하지 않습니다\./);
+  assert.match(source, /testID="ai-zero-authority-status"/);
+  assert.match(source, /SIGNAL IS READ ONLY/);
 });
 
 test('design direction preserves read-only safety identity and Android-only completion scope', () => {
