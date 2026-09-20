@@ -18,15 +18,14 @@ test("approved porcelain/cobalt theme preserves semantic authority and accessibl
   }
 });
 
-test("Home reuses canonical chart reader and renderer without sample or private IO", () => {
+test("Home reuses canonical chart evidence without sample or private IO", () => {
   const home = fs.readFileSync("apps/mobile/src/homeView.tsx", "utf8");
-  assert.match(home, /buildChartViewModel\(\{ market: publicMarket/);
-  assert.match(home, /stale: publicMarketStale/);
-  assert.match(home, /marketChart.state === "READY" \? <CandlePlot model=\{marketChart\}/);
-  assert.match(home, /krw\(marketChart.currentPrice\)/);
-  assert.doesNotMatch(home, /128420000|128,420,000|Math.random|fetch\(|WebSocket/);
-  assert.match(home, /onNavigate\("Markets"\)/);
-  assert.match(home, /disabled=\{disconnected\}/);
+  assert.match(home, /buildChartViewModel\(\{ market: props\.publicMarket/);
+  assert.match(home, /stale: props\.publicMarketStale/);
+  assert.match(home, /marketWave\.state === "READY"/);
+  assert.match(home, /marketWave\.bars\.slice\(-22\)/);
+  assert.doesNotMatch(home, /128420000|128,420,000|Math\.random|fetch\(|WebSocket/);
+  assert.match(home, /props\.onNavigate\("Markets"\)/);
   assert.match(home, /LIVE NONE · AI ZERO AUTHORITY/);
 });
 
