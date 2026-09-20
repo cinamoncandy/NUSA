@@ -48,10 +48,10 @@ export function AiView({ai,research,health,liveAuthority,productionMutationAllow
 
     <View style={styles.analysis} testID="ai-thesis-card">
       <View style={styles.analysisHeader}><Text style={styles.sectionTitle}>AI ANALYSIS</Text><Text style={styles.chevron}>›</Text></View>
-      <View testID="ai-why"><AnalysisRow narrow={viewport.narrow} label="WHY" value={thesis}/></View>
-      <View testID="ai-result"><AnalysisRow narrow={viewport.narrow} label="RESULT" value={calibrated?`검증 신뢰도 ${trusted} · 근거 ${evidence.length}건`:"보정되지 않은 출력입니다. 수익 확률로 표시하지 않습니다."}/></View>
-      <View testID="ai-risk"><AnalysisRow narrow={viewport.narrow} label="RISK" value={risk} tone="danger"/></View>
-      <View testID="ai-learning"><AnalysisRow narrow={viewport.narrow} label="LEARNING" value={learning}/><AnalysisRow narrow={viewport.narrow} label="PROVENANCE" value={learningProvenanceLabel[learningProvenance] ?? learningProvenanceLabel.UNKNOWN}/></View>
+      <View testID="ai-why"><AnalysisRow label="WHY" narrow={viewport.narrow} value={thesis}/></View>
+      <View testID="ai-result"><AnalysisRow label="RESULT" narrow={viewport.narrow} value={calibrated?`검증 신뢰도 ${trusted} · 근거 ${evidence.length}건`:"보정되지 않은 출력입니다. 수익 확률로 표시하지 않습니다."}/></View>
+      <View testID="ai-risk"><AnalysisRow label="RISK" narrow={viewport.narrow} value={risk} tone="danger"/></View>
+      <View testID="ai-learning"><AnalysisRow label="LEARNING" narrow={viewport.narrow} value={learning}/><AnalysisRow label="PROVENANCE" narrow={viewport.narrow} value={learningProvenanceLabel[learningProvenance] ?? learningProvenanceLabel.UNKNOWN}/></View>
     </View>
 
     <View style={styles.chartPanel}>
