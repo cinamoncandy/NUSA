@@ -59,6 +59,16 @@ export function prepareDiscoveredCodingRequest(input: EvolutionCodingBridgeInput
     });
   }
 
+  if (!selection.selectedOpportunity.canonicalOwner || !selection.selectedOpportunity.conflictKeys?.length) {
+    return Object.freeze({
+      status: "ABSTAINED",
+      reason: "ownership-metadata-required",
+      rejectedSignalIds: discovery.rejectedSignalIds,
+      request: null,
+      authority: AUTHORITY,
+    });
+  }
+
   const request = validateCodingRunnerRequest({
     kind: "REPOSITORY_AUTOPILOT",
     repository: input.repository,
