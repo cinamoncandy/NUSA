@@ -89,6 +89,10 @@ test("primary mobile workspaces remain intentionally bounded and supervision-fir
   assert.match(paper, /PaperLearningMonitorView/);
   assert.match(paperMonitor, /contentContainerStyle=\{styles\.content\}/);
   assert.match(paperMonitor, /PAPER LEARNING · READ ONLY/);
+  assert.match(paperMonitor, /testID="paper-learning-command-hero"/);
+  assert.match(paperMonitor, /PAPER SUPERVISION/);
+  assert.match(paperMonitor, /RESULT = VERIFIED PAPER P&L/);
+  assert.match(paperMonitor, /LEARNING = VALIDATED EVALUATION/);
   assert.doesNotMatch(paper, /productionMutationAllowed: true/);
 
   assert.match(home, /useWindowDimensions/);
