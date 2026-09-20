@@ -281,6 +281,26 @@ describe("active WIP coordination", () => {
     assert.equal(duplicate.some((entry) => entry.reason === "DEDUPE_CONFLICT"), true);
   });
 
+  it("treats exact active WIP admission replay as idempotent but rejects identity drift", async () => {
+    const ns = namespace();
+    const original = claim("task:admission-replay", "exec:admission-replay", ["module:replay"]);
+    assert.deepEqual(await admitActiveWip(ns, original), { admitted: true });
+    assert.deepEqual(await admitActiveWip(ns, original), { admitted: true });
+    assert.deepEqual(
+      await admitActiveWip(ns, { ...original, canonicalOwner: "evolve.other" }),
+      { admitted: false, reason: "ACTIVE_WIP_IDENTITY_CONFLICT" },
+    );
+    assert.deepEqual(
+      await admitActiveWip(ns, { ...original, conflictKeys: ["module:other"] }),
+      { admitted: false, reason: "ACTIVE_WIP_IDENTITY_CONFLICT" },
+    );
+    assert.deepEqual(
+      await admitActiveWip(ns, { ...original, claimedAt: original.claimedAt + 1 }),
+      { admitted: false, reason: "ACTIVE_WIP_IDENTITY_CONFLICT" },
+    );
+    assert.equal((await readActiveWip(ns)).activeExecutions, 1);
+  });
+
   it("allows exact completion replay but rejects unknown and stale execution identities", async () => {
     const ns = namespace();
     await admitActiveWip(ns, claim("task:replay", "exec:old", ["module:replay"]));
