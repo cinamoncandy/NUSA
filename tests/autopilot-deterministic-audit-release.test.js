@@ -116,14 +116,19 @@ test("safety invariants remain fail-closed", () => {
 });
 
 
-test("already-merged convergence is non-applicable for an open PR but preserves merged-provenance failure", () => {
+test("already-merged convergence is non-applicable for an open PR, accepts existing dedicated authorization, and preserves missing-provenance failure", () => {
   const convergence = fs.readFileSync(".github/workflows/autopilot-already-merged-audit-convergence.yml", "utf8");
   assert.match(convergence, /pulls\/\$PR_NUMBER/);
   assert.match(convergence, /if \[ "\$pr_state" = "open" \]/);
   assert.match(convergence, /NO_ACTION Audit convergence is not applicable to an open PR/);
+  assert.match(convergence, /CONVERGED existing exact-head dedicated Release authorization/);
+  assert.match(convergence, /commits\/\$EXPECTED_HEAD\/statuses\?per_page=100/);
+  assert.match(convergence, /\.creator\.login == "nusa-release-authority\[bot\]"/);
+  assert.match(convergence, /startswith\("canonical Audit PASS; pr=" \+ \$pr \+ "; base="\)/);
   assert.match(convergence, /RELEASE_PROVENANCE_MISSING: already-merged PRs cannot be post-facto upgraded/);
   const noActionIndex = convergence.indexOf("NO_ACTION Audit convergence is not applicable to an open PR");
+  const convergedIndex = convergence.indexOf("CONVERGED existing exact-head dedicated Release authorization");
   const provenanceFailureIndex = convergence.indexOf("RELEASE_PROVENANCE_MISSING: already-merged PRs cannot be post-facto upgraded");
-  assert.ok(noActionIndex >= 0 && provenanceFailureIndex > noActionIndex);
+  assert.ok(noActionIndex >= 0 && convergedIndex > noActionIndex && provenanceFailureIndex > convergedIndex);
   assert.match(convergence.slice(provenanceFailureIndex), /exit 1/);
 });

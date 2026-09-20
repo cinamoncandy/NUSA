@@ -13,6 +13,7 @@ function namespace(receipt: ScheduledRuntimeReceipt): ExecutionCoordinatorNamesp
     get: () => ({
       async fetch(input: RequestInfo | URL) {
         const url = String(input);
+        if (url.endsWith("/execution")) return new Response(JSON.stringify({ record: null }), { status: 200, headers: { "content-type": "application/json" } });
         if (url.endsWith("/scheduled-receipt")) {
           return new Response(JSON.stringify({ receipt }), { status: 200, headers: { "content-type": "application/json" } });
         }

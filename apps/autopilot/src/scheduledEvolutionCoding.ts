@@ -3,7 +3,7 @@ import { prepareDiscoveredCodingRequest } from "./evolveCodingBridge";
 import { deriveWorkflowFailureOpportunities, type WorkflowFailureEvidence } from "./evolveEvidenceOpportunitySource";
 import { deriveGithubIssueBacklogSignals } from "./evolveGithubIssueBacklog";
 import type { EvolutionDiscoverySignal } from "./evolveOpportunityDiscovery";
-import { acquirePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, readPersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
 export interface ScheduledEvolutionCodingEnv {
   readonly NUSA_GITHUB_TOKEN?: string;
@@ -199,6 +199,20 @@ export async function runScheduledEvolutionCoding(
   }
   const executionId = `evolve-coding:${input.mainSha.slice(0, 16)}:${workIdentity.slice(0, 100)}`;
   const dedupeKey = `evolve-coding:${input.mainSha}:${workIdentity}`;
+  let currentExecution;
+  try {
+    currentExecution = await readPersistentExecution(coordinator, dedupeKey);
+  } catch {
+    return result("ABSTAINED", "persistent-execution-state-unavailable", signals.map((signal) => signal.id));
+  }
+  const activeExecutions = currentExecution
+    && (currentExecution.state === "LEASED" || currentExecution.state === "HANDED_OFF")
+    && currentExecution.leaseExpiresAt > input.now
+    ? 1
+    : 0;
+  const elapsedSecondsSinceLastRun = currentExecution
+    ? Math.max(0, Math.floor((input.now - currentExecution.updatedAt) / 1000))
+    : Number.MAX_SAFE_INTEGER;
   const bridge = prepareDiscoveredCodingRequest({
     signals,
     now: new Date(input.now),
@@ -211,8 +225,8 @@ export async function runScheduledEvolutionCoding(
       ? { state: "OPEN", consecutiveFailures: freshFailureCount, openedAt: new Date(input.now).toISOString() }
       : { state: "CLOSED", consecutiveFailures: freshFailureCount },
     schedulePolicy: { mode: "AUTONOMOUS", minIntervalSeconds: 60, maxConcurrent: 1 },
-    activeExecutions: 0,
-    elapsedSecondsSinceLastRun: 60,
+    activeExecutions,
+    elapsedSecondsSinceLastRun,
   });
   if (bridge.status !== "READY" || !bridge.request) return result("ABSTAINED", bridge.reason);
 
