@@ -537,6 +537,73 @@ describe("NUSA autopilot GitHub webhook", () => {
     } finally { globalThis.fetch = originalFetch; }
   });
 
+
+
+  it("keeps durable evidence when active WIP completion fails", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    let completionCalls = 0;
+    const namespace: ExecutionCoordinatorNamespace = {
+      idFromName: () => ({}),
+      get: () => ({ fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = new Request(input, init);
+        if (request.method === "POST" && request.url.endsWith("/active-wip/complete")) {
+          completionCalls += 1;
+          return new Response(JSON.stringify({ error: "forced" }), { status: 500 });
+        }
+        return coordinator.fetch(request);
+      } }),
+    };
+    const owned = { ...codingRequest, canonicalOwner: "autopilot.control-plane", conflictKeys: ["module:apps/autopilot/src"] };
+    await admitActiveWip(namespace, { dedupeKey: owned.dedupeKey, executionId: owned.executionId, canonicalOwner: owned.canonicalOwner, conflictKeys: owned.conflictKeys, claimedAt: Date.now(), maxConcurrent: 1 });
+    const runtime: CodingRuntime = { name: "fake-cloud-runtime", async execute() { return { backend: "fake-cloud-runtime", checkpointId: "checkpoint:completion-fail", workspaceVerified: true, proposalValidated: true, changedFiles: ["apps/autopilot/src/index.ts"] }; } };
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/commits/")) return new Response(JSON.stringify({ sha: owned.headSha }), { status: 200 });
+      if (url.includes("/actions/runs/")) return new Response(JSON.stringify({ id: owned.workflowRunId, head_sha: owned.headSha, head_branch: "main", status: "completed", conclusion: "success", repository: { full_name: owned.repository } }), { status: 200 });
+      return new Response(JSON.stringify({ patch: "diff --git a/apps/autopilot/src/index.ts b/apps/autopilot/src/index.ts\n--- a/apps/autopilot/src/index.ts\n+++ b/apps/autopilot/src/index.ts\n" }), { status: 200 });
+    }) as typeof fetch;
+    try {
+      const response = await handleCodingExecute(new Request("https://example.test/coding/execute", { method: "POST", headers: { authorization: "Bearer runner-token", "content-type": "application/json" }, body: JSON.stringify(owned) }), { NUSA_CODING_RUNNER_TOKEN: "runner-token", NUSA_GITHUB_TOKEN: "github-token", NUSA_AI_CODING_ENDPOINT: "https://coding.example.test/execute", NUSA_AI_CODING_TOKEN: "ai-token", NUSA_EXECUTION_COORDINATOR: namespace }, runtime);
+      const body = await response.json() as { executionEvidencePersisted: boolean };
+      assert.equal(body.executionEvidencePersisted, true);
+      assert.equal(completionCalls, 1);
+      const evidenceResponse = await coordinator.fetch(new Request("https://execution-coordinator/coding-evidence"));
+      const evidenceBody = await evidenceResponse.json() as { history: readonly unknown[] };
+      assert.equal(evidenceBody.history.length, 1);
+      assert.equal((await readActiveWip(namespace)).activeExecutions, 1);
+    } finally { globalThis.fetch = originalFetch; }
+  });
+
+  it("does not touch active WIP completion for legacy unowned coding requests", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    let completionCalls = 0;
+    const namespace: ExecutionCoordinatorNamespace = {
+      idFromName: () => ({}),
+      get: () => ({ fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = new Request(input, init);
+        if (request.method === "POST" && request.url.endsWith("/active-wip/complete")) completionCalls += 1;
+        return coordinator.fetch(request);
+      } }),
+    };
+    const runtime: CodingRuntime = { name: "fake-cloud-runtime", async execute() { return { backend: "fake-cloud-runtime", checkpointId: "checkpoint:legacy", workspaceVerified: true, proposalValidated: true, changedFiles: ["apps/autopilot/src/index.ts"] }; } };
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/commits/")) return new Response(JSON.stringify({ sha: codingRequest.headSha }), { status: 200 });
+      if (url.includes("/actions/runs/")) return new Response(JSON.stringify({ id: codingRequest.workflowRunId, head_sha: codingRequest.headSha, head_branch: "main", status: "completed", conclusion: "success", repository: { full_name: codingRequest.repository } }), { status: 200 });
+      return new Response(JSON.stringify({ patch: "diff --git a/apps/autopilot/src/index.ts b/apps/autopilot/src/index.ts\n--- a/apps/autopilot/src/index.ts\n+++ b/apps/autopilot/src/index.ts\n" }), { status: 200 });
+    }) as typeof fetch;
+    try {
+      const response = await handleCodingExecute(new Request("https://example.test/coding/execute", { method: "POST", headers: { authorization: "Bearer runner-token", "content-type": "application/json" }, body: JSON.stringify(codingRequest) }), { NUSA_CODING_RUNNER_TOKEN: "runner-token", NUSA_GITHUB_TOKEN: "github-token", NUSA_AI_CODING_ENDPOINT: "https://coding.example.test/execute", NUSA_AI_CODING_TOKEN: "ai-token", NUSA_EXECUTION_COORDINATOR: namespace }, runtime);
+      const body = await response.json() as { executionEvidencePersisted: boolean };
+      assert.equal(body.executionEvidencePersisted, true);
+      assert.equal(completionCalls, 0);
+    } finally { globalThis.fetch = originalFetch; }
+  });
+
   it("releases a failed coding lease so the bounded retry can reach the Worker again", async () => {
     const storage = new MemoryStorage();
     const coordinator = new ExecutionCoordinator({ storage });
