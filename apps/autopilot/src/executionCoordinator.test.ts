@@ -329,7 +329,7 @@ describe("persistent control-plane HOLD", () => {
     const request = (pathname: string, body: object) => new Request(`https://execution-coordinator${pathname}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     const identity = { dedupeKey: "coding:complete", executionId: "exec-complete", now: 100, leaseExpiresAt: 200 };
     assert.equal((await coordinator.fetch(request("/acquire", identity))).status, 201);
-    assert.equal((await coordinator.fetch(request("/handoff-consume", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 105 }))).status, 200);
+    assert.equal((await coordinator.fetch(request("/handoff-or-acquire", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 105, leaseExpiresAt: 200 }))).status, 200);
     assert.equal((await coordinator.fetch(request("/dispatched", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 110 }))).status, 200);
     assert.equal((await coordinator.fetch(request("/complete", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 120 }))).status, 200);
     const replay = await coordinator.fetch(request("/complete", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 130 }));
@@ -346,7 +346,7 @@ describe("persistent control-plane HOLD", () => {
     const identity = { dedupeKey: "coding:guard", executionId: "exec-guard", now: 100, leaseExpiresAt: 200 };
     assert.equal((await coordinator.fetch(request("/acquire", identity))).status, 201);
     assert.equal((await coordinator.fetch(request("/complete", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 110 }))).status, 409);
-    assert.equal((await coordinator.fetch(request("/handoff-consume", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 115 }))).status, 200);
+    assert.equal((await coordinator.fetch(request("/handoff-or-acquire", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 115, leaseExpiresAt: 200 }))).status, 200);
     assert.equal((await coordinator.fetch(request("/dispatched", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 120 }))).status, 200);
     assert.equal((await coordinator.fetch(request("/complete", { dedupeKey: identity.dedupeKey, executionId: "stale-exec", now: 130 }))).status, 409);
   });
