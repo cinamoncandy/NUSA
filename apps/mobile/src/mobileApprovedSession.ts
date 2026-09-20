@@ -279,21 +279,21 @@ export class MobileApprovedSession {
     this.acceptTokens(endpoint, passwordTokens);
     let credentialId: string | null = null;
     try {
-      const created = await native.createCredential();
+      const created = await native.createSilentDeviceCredential();
       credentialId = readToken(created.credentialId, "owner device credential id");
       const publicKeySpki = readProof(created.publicKeySpki);
       if (created.hardwareBacked !== true) throw new Error("hardware-backed owner credential is unavailable.");
       const challenge = parseOwnerDeviceChallenge(await requestJson(this.request, `${endpoint}/v1/mobile/owner-device/registration/challenge`, {
         method: "POST", headers: { authorization: `Bearer ${ownerBearer}` }, body: JSON.stringify({ credentialId, deviceId: device, publicKeySpki })
       }), "REGISTRATION");
-      const proof = readProof(await native.signChallenge(credentialId, challenge.challenge, "이 휴대폰을 NUSA 소유자 기기로 등록"));
+      const proof = readProof(await native.signSilentChallenge(credentialId, challenge.challenge));
       await requestJson(this.request, `${endpoint}/v1/mobile/owner-device/registration/activate`, {
         method: "POST", headers: { authorization: `Bearer ${ownerBearer}` }, body: JSON.stringify({ credentialId, deviceId: device, challengeId: challenge.challengeId, signature: proof })
       });
       return this.authenticateOwnerDeviceCredential(endpoint, device, native, credentialId);
     } catch (error) {
       await this.clearLocal();
-      if (credentialId != null) { try { await native.deleteCredential(credentialId); } catch { /* remove unusable local registration material */ } }
+      if (credentialId != null) { try { await native.deleteSilentDeviceCredential(credentialId); } catch { /* remove unusable local registration material */ } }
       throw error;
     }
   }
@@ -302,13 +302,13 @@ export class MobileApprovedSession {
     const endpoint = secureEndpoint(baseUrl);
     const device = readDeviceId(deviceId);
     if (device == null) throw new Error("device enrollment identifier is invalid.");
-    const status = await native.getStatus();
+    const status = await native.getSilentDeviceStatus();
     const id = readToken(credentialId ?? status.credentialId ?? "", "owner device credential id");
     if (status.available !== true || status.hardwareBacked !== true) throw new Error("hardware-backed owner credential is unavailable.");
     const challenge = parseOwnerDeviceChallenge(await requestJson(this.request, `${endpoint}/v1/mobile/owner-device/authentication/challenge`, {
       method: "POST", body: JSON.stringify({ credentialId: id, deviceId: device })
     }), "AUTHENTICATION");
-    const proof = readProof(await native.signChallenge(id, challenge.challenge, "NUSA 소유자 인증"));
+    const proof = readProof(await native.signSilentChallenge(id, challenge.challenge));
     const tokens = parseTokens(await requestJson(this.request, `${endpoint}/v1/mobile/owner-device/authentication/complete`, {
       method: "POST", body: JSON.stringify({ credentialId: id, deviceId: device, challengeId: challenge.challengeId, signature: proof })
     }));
@@ -401,6 +401,19 @@ export class MobileApprovedSession {
     } finally {
       await this.clearPendingPairing();
     }
+  }
+
+  public async restoreWithSilentDevice(baseUrl: string, deviceId: string, native: OwnerDeviceCredentialNative): Promise<MobileApprovedSessionIdentity | null> {
+    const endpoint = secureEndpoint(baseUrl);
+    try {
+      const restored = await this.restore(endpoint);
+      if (restored != null) return restored;
+    } catch (error) {
+      if (!this.shouldRetryRestore()) throw error;
+    }
+    const status = await native.getSilentDeviceStatus();
+    if (status.available !== true || status.hardwareBacked !== true || status.credentialId == null) return null;
+    return this.authenticateOwnerDeviceCredential(endpoint, deviceId, native, status.credentialId);
   }
 
   public async restore(baseUrl: string): Promise<MobileApprovedSessionIdentity | null> {
