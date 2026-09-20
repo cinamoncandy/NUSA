@@ -52,6 +52,38 @@ export type ReferenceEvidenceStrength =
 
 export type ReferenceEstimate = "LOW" | "MEDIUM" | "HIGH" | "UNKNOWN";
 
+export type ReferenceComparisonDimension =
+  | "VERIFIED_USEFUL_OUTCOME_TIME"
+  | "OWNER_PERCEIVED_LATENCY"
+  | "COST_PER_VERIFIED_RESULT"
+  | "AUTONOMY"
+  | "BOUNDED_RECOVERY"
+  | "EVIDENCE_INTEGRITY"
+  | "REPRODUCIBILITY"
+  | "OBSERVABILITY"
+  | "CONFLICT_RATE"
+  | "REWORK_RATE"
+  | "STALE_WORK_RATE"
+  | "HUMAN_INTERVENTION"
+  | "SAFETY_AUTHORITY_SEPARATION"
+  | "ECONOMIC_OUTCOME_QUALITY"
+  | "INFORMATION_CLARITY"
+  | "MOBILE_USABILITY"
+  | "OTHER";
+
+export type ReferenceComparisonVerdict =
+  | "REFERENCE_BETTER"
+  | "NUSA_BETTER"
+  | "PARITY"
+  | "UNKNOWN";
+
+export interface ReferenceComparisonEvidence {
+  readonly dimension: ReferenceComparisonDimension;
+  readonly verdict: ReferenceComparisonVerdict;
+  readonly evidenceRefs: readonly string[];
+  readonly note: string;
+}
+
 export type ReferenceExpectedValueDimension =
   | "ECONOMIC"
   | "PERFORMANCE"
@@ -83,7 +115,7 @@ export interface ReferenceIntelligenceInput {
   readonly claimedAdvantage: string;
   readonly evidenceStrength: ReferenceEvidenceStrength;
   readonly evidenceRefs: readonly string[];
-  readonly actualBetterDimensions: readonly string[];
+  readonly comparisons: readonly ReferenceComparisonEvidence[];
   readonly principleToAbsorb: readonly string[];
   readonly doNotAbsorb: readonly string[];
   readonly nusaGap: readonly string[];
@@ -179,7 +211,25 @@ export function createReferenceIntelligenceRecord(
   const description = requireText(input.description, "description");
   const claimedAdvantage = requireText(input.claimedAdvantage, "claimedAdvantage");
   const evidenceRefs = uniqueText(input.evidenceRefs, "evidenceRefs");
-  const actualBetterDimensions = uniqueText(input.actualBetterDimensions, "actualBetterDimensions");
+  if (input.comparisons.length === 0) throw new Error("comparisons requires at least one dimension");
+  const comparisons = Object.freeze(
+    [...input.comparisons]
+      .map((comparison) => Object.freeze({
+        dimension: comparison.dimension,
+        verdict: comparison.verdict,
+        evidenceRefs: uniqueText(comparison.evidenceRefs, "comparison.evidenceRefs"),
+        note: requireText(comparison.note, "comparison.note", 4_000),
+      }))
+      .sort((left, right) => left.dimension.localeCompare(right.dimension)),
+  );
+  for (const comparison of comparisons) {
+    if (
+      comparison.verdict !== "UNKNOWN" &&
+      comparison.evidenceRefs.length === 0
+    ) {
+      throw new Error("non-UNKNOWN comparison requires evidenceRefs");
+    }
+  }
   const principleToAbsorb = uniqueText(input.principleToAbsorb, "principleToAbsorb");
   const doNotAbsorb = uniqueText(input.doNotAbsorb, "doNotAbsorb");
   const nusaGap = uniqueText(input.nusaGap, "nusaGap");
@@ -225,7 +275,7 @@ export function createReferenceIntelligenceRecord(
     claimedAdvantage,
     evidenceStrength: input.evidenceStrength,
     evidenceRefs,
-    actualBetterDimensions,
+    comparisons,
     principleToAbsorb,
     doNotAbsorb,
     nusaGap,
