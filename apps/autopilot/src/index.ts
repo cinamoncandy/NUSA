@@ -16,6 +16,7 @@ import {
   readAutopilotExecutionTelemetry,
   readCodingExecutionEvidence,
   recordCodingExecutionEvidence,
+  completeActiveWip,
   releasePersistentExecution,
   readScheduledRuntimeEvidence,
   recordScheduledRuntimeReceipt,
@@ -254,6 +255,17 @@ export async function handleCodingExecute(
       try {
         await recordCodingExecutionEvidence(env.NUSA_EXECUTION_COORDINATOR, evidenceDecision.evidence);
         evidencePersisted = true;
+        if (runnerRequest.canonicalOwner && runnerRequest.conflictKeys.length > 0) {
+          try {
+            await completeActiveWip(env.NUSA_EXECUTION_COORDINATOR, {
+              dedupeKey: runnerRequest.dedupeKey,
+              executionId: runnerRequest.executionId,
+              completedAt: Date.now(),
+            });
+          } catch (error) {
+            console.error(JSON.stringify({ event: "NUSA_ACTIVE_WIP_COMPLETION_FAILED", reason: error instanceof Error ? error.message : "UNKNOWN", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }));
+          }
+        }
       } catch {
         console.error(JSON.stringify({ event: "NUSA_CODING_EVIDENCE_PERSIST_FAILED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }));
       }
