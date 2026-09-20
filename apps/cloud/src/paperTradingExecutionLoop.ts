@@ -7,6 +7,7 @@ import type { PortfolioPlan } from "./portfolioOrchestrator";
 import { buildPaperObservedExecutionCostAttribution, buildPaperRuntimeExecutionCostEvidence, validatePaperObservedExecutionCostAttribution, validatePaperObservedExecutionQuote, type PaperObservedExecutionQuote, type PaperRuntimeExecutionCostEvidence, type PaperExecutionCostAttribution } from "./paperRuntimeExecutionCostEvidence";
 import { validatePaperOrderBookQuoteReceipt, type PaperOrderBookQuoteReceipt } from "./paperOrderBookQuoteReceipt";
 import { guardCashInvestmentAllocation } from "../../mobile/src/capitalAllocationGuard";
+import { assertPaperAccountingReconciled } from "./paperAccountingLedger";
 import { createPaperOrderLifecycle, transitionPaperOrderLifecycle, validatePaperOrderLifecycle, type PaperOrderLifecycleState } from "./paperOrderLifecycle";
 
 const ACCOUNT_ID = "paper-default";
@@ -377,6 +378,25 @@ function validateState(state: PaperAccountState): void {
     if (quantity !== order.lifecycle.filledQuantity || fills.some((fill) => fill.market !== order.market || fill.side !== order.side)) throw new Error("paper working order/fill reconciliation mismatch");
   }
   if (state.processedIdempotencyKeys.some((key) => !key.trim()) || new Set(state.processedIdempotencyKeys).size !== state.processedIdempotencyKeys.length || state.orders.some((order) => !state.processedIdempotencyKeys.includes(order.idempotencyKey)) || (state.workingOrders ?? []).some((order) => !state.processedIdempotencyKeys.includes(order.idempotencyKey))) throw new Error("paper idempotency ledger mismatch");
+  // Strict accounting replay is valid only while the bounded order history still represents
+  // every processed execution identity. Open/cancelled orders may legitimately have zero fills,
+  // and one order may have multiple partial fills, so fill-count equality is not a valid gate.
+  const representedIdempotencyKeys = new Set([
+    ...state.orders.map((order) => order.idempotencyKey),
+    ...(state.workingOrders ?? []).map((order) => order.idempotencyKey)
+  ]);
+  const completeExecutionHistory =
+    representedIdempotencyKeys.size === state.processedIdempotencyKeys.length
+    && state.processedIdempotencyKeys.every((key) => representedIdempotencyKeys.has(key));
+  if (completeExecutionHistory) {
+    assertPaperAccountingReconciled({
+      initialCapital: state.initialCapital,
+      fills: state.fills,
+      cash: state.cash,
+      realizedPnL: state.realizedPnL,
+      positions: state.positions
+    });
+  }
   const expectedEquity = round8(state.cash + state.positions.reduce((sum, position) => sum + position.quantity * position.markPrice, 0));
   const expectedUnrealized = round8(state.positions.reduce((sum, position) => sum + position.unrealizedPnL, 0));
   if (state.equity !== expectedEquity || state.unrealizedPnL !== expectedUnrealized) throw new Error("paper account projection mismatch");
