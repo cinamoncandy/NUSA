@@ -20,9 +20,9 @@ test("AI presents intelligence and evidence before one explicit zero-authority b
 
   assert.ok(thesisIndex >= 0, "thesis must remain present");
   assert.ok(evidenceIndex > thesisIndex, "verified evidence must follow thesis");
-  assert.ok(authorityIndex > evidenceIndex, "authority boundary must follow intelligence/evidence");
+  assert.ok(zeroAuthorityIndex > evidenceIndex, "zero-authority panel must follow intelligence/evidence");
+  assert.ok(authorityIndex > zeroAuthorityIndex, "visible authority copy must live inside the zero-authority panel");
   assert.ok(readOnlyIndex > authorityIndex, "read-only action affordance must follow authority summary");
-  assert.ok(zeroAuthorityIndex > readOnlyIndex, "zero-authority status marker must remain at the end of the screen");
   assert.match(ai, /AI ZERO AUTHORITY/);
   assert.match(ai, /SIGNAL IS READ ONLY/);
   assert.match(ai, /PAPER ONLY · LIVE \{liveAuthority\?\?"NONE"\} · PRODUCTION MUTATION/);
