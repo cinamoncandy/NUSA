@@ -98,6 +98,10 @@ export interface PaperWorkingOrderRecord {
   readonly executionProfile: PaperExecutionProfile;
   /** Number of deterministic fill attempts observed since OPEN. */
   readonly observedTicks?: number;
+  /** Present only for canonical automatic strategy working orders. */
+  readonly candidateProvenance?: PaperFillCandidateProvenance;
+  /** Immutable PortfolioPlan-derived intent retained across restart-safe partial fills. */
+  readonly executionIntent?: PaperExecutionIntent;
 }
 export interface PaperFillCandidateProvenance {
   readonly schemaVersion: 1;
@@ -445,10 +449,30 @@ function validateState(state: PaperAccountState): void {
     if (order.orderType === "LIMIT" && (!Number.isFinite(order.limitPrice) || (order.limitPrice ?? 0) <= 0)) throw new Error("paper working limit price is invalid");
     const lifecycle = validatePaperOrderLifecycle(order.lifecycle);
     if (lifecycle.requestedQuantity !== order.requestedQuantity || lifecycle.status === "FILLED" || lifecycle.status === "CANCELLED" || lifecycle.status === "REJECTED") throw new Error("paper working order lifecycle is terminal or mismatched");
+    if ((order.executionIntent == null) !== (order.candidateProvenance == null)) throw new Error("paper strategy working-order provenance is incomplete");
+    if (order.executionIntent != null) {
+      const intent = validatePaperExecutionIntent(order.executionIntent);
+      const provenance = order.candidateProvenance!;
+      const binding = validatePaperCandidateExecutionBinding(provenance.binding, provenance.decisionAt);
+      if (order.orderType !== "MARKET" ||
+          order.idempotencyKey !== paperExecutionIntentCommandId(intent) ||
+          order.requestFingerprint !== intent.intentFingerprintSha256 ||
+          order.market !== intent.market ||
+          order.side !== intent.side ||
+          order.requestedQuantity !== intent.quantity ||
+          provenance.source !== "CIO_DECISION_BINDING" ||
+          provenance.decisionAt !== intent.decisionDecidedAt ||
+          binding.candidateId !== intent.candidateId ||
+          binding.bindingFingerprintSha256 !== intent.candidateBindingFingerprintSha256) {
+        throw new Error("paper strategy working-order identity is invalid");
+      }
+    }
     workingOrderIds.add(order.id); workingIdempotencyKeys.add(order.idempotencyKey);
   }
   const fillIds = new Set<string>();
   const fillsByOrder = new Map<string, PaperFillRecord[]>();
+  const workingById = new Map((state.workingOrders ?? []).map((order) => [order.id, order] as const));
+  const terminalById = new Map(state.orders.map((order) => [order.id, order] as const));
   const knownOrderIds = new Set([...orderIds, ...workingOrderIds]);
   for (const fill of state.fills) {
     if (!fill.id.trim() || fillIds.has(fill.id) || !knownOrderIds.has(fill.orderId) || !fill.market.trim()) throw new Error("paper fill identity is invalid");
@@ -473,8 +497,10 @@ function validateState(state: PaperAccountState): void {
         throw new Error("paper fill execution intent provenance mismatch");
       }
     }
+    const parent = workingById.get(fill.orderId) ?? terminalById.get(fill.orderId);
     if (fill.orderBookExecutionReceipt != null) {
       if (fill.orderBookQuoteReceipt == null) throw new Error("paper depth execution requires order-book quote receipt");
+      const workingIntentMatch = intent != null && parent?.lifecycle?.requestedQuantity === intent.quantity;
       try {
         validatePaperOrderBookExecutionReceipt(fill.orderBookExecutionReceipt, {
           market: fill.market,
@@ -482,14 +508,18 @@ function validateState(state: PaperAccountState): void {
           filledQuantity: fill.quantity,
           fillPrice: fill.price,
           quoteReceipt: fill.orderBookQuoteReceipt,
-          ...(intent == null ? {} : { intentQuantity: intent.quantity }),
-          ...(intent?.side === "BUY" ? { allocationCapital: intent.allocationCapital } : {}),
+          ...(workingIntentMatch ? { allowPartial: true } : intent == null ? {} : { intentQuantity: intent.quantity }),
+          ...(workingIntentMatch || intent?.side !== "BUY" ? {} : { allocationCapital: intent.allocationCapital }),
         });
       } catch (error) {
         throw new Error(`paper fill order-book execution receipt is invalid: ${error instanceof Error ? error.message : "unknown error"}`);
       }
     } else if (intent != null && intent.quantity !== fill.quantity) {
-      throw new Error("paper fill execution intent mismatch");
+      if (parent?.lifecycle?.requestedQuantity !== intent.quantity ||
+          parent.executionProfile?.fingerprintSha256 !== fill.executionProfileFingerprintSha256 ||
+          fill.executionEngineVersion !== parent.executionProfile?.engineVersion) {
+        throw new Error("paper fill execution intent mismatch");
+      }
     }
     validateRuntimeExecutionCostEvidence(fill);
     validateObservedExecutionCostAttribution(fill);
@@ -901,6 +931,7 @@ function executeOrder(state: PaperAccountState, key: string, market: string, sid
       ...(executionIntent?.side === "BUY" ? { maximumNotional: executionIntent.allocationCapital } : {}),
       maximumFillRatio: executionProfile.maxFillRatio,
     });
+    if (orderBookExecutionReceipt.liquidityLimited) throw new Error("PAPER_PARTIAL_FILL_REQUIRES_WORKING_ORDER");
     quantity = orderBookExecutionReceipt.filledQuantity;
     price = orderBookExecutionReceipt.vwapPrice;
   } else {
