@@ -187,7 +187,7 @@ export function buildDurablePaperAccountingSource(
       fillsById.set(fill.id, fill);
     }
   }
-  if (end.processedIdempotencyKeys.some((key) => !idempotencyToOrderId.has(key))) throw new Error("PAPER_LEDGER_HISTORY_INCOMPLETE");
+  if (end.processedIdempotencyKeys.some((key: string) => !idempotencyToOrderId.has(key))) throw new Error("PAPER_LEDGER_HISTORY_INCOMPLETE");
 
   const fills = Object.freeze([...fillsById.values()].sort((left, right) => left.filledAt - right.filledAt || left.id.localeCompare(right.id)));
   const projection = assertPaperAccountingReconciled({
