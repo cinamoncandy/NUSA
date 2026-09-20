@@ -255,7 +255,7 @@ export async function handleCodingExecute(
       try {
         await recordCodingExecutionEvidence(env.NUSA_EXECUTION_COORDINATOR, evidenceDecision.evidence);
         evidencePersisted = true;
-        if (runnerRequest.canonicalOwner && runnerRequest.conflictKeys.length > 0) {
+        if (runnerRequest.canonicalOwner && runnerRequest.conflictKeys && runnerRequest.conflictKeys.length > 0) {
           try {
             await completeActiveWip(env.NUSA_EXECUTION_COORDINATOR, {
               dedupeKey: runnerRequest.dedupeKey,
