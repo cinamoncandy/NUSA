@@ -43,3 +43,44 @@ export function assertUniformPaperPerformanceObservations(
     }
   }
 }
+
+const round8 = (value: number): number => Number(value.toFixed(8));
+
+function sampleDeviation(values: readonly number[]): number {
+  if (values.length < 2) return 0;
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (values.length - 1);
+  return Math.sqrt(variance);
+}
+
+export function calculatePaperPerformanceRiskStatistics(
+  equity: readonly number[],
+  observedAt: readonly number[],
+  cadence: PaperPerformanceCadence,
+): Readonly<{ volatility: PaperPerformanceStatistic; sharpe: PaperPerformanceStatistic; sortino: PaperPerformanceStatistic }> {
+  assertUniformPaperPerformanceObservations(observedAt, cadence);
+  if (equity.length !== observedAt.length || equity.some((value) => !Number.isFinite(value) || value <= 0)) {
+    throw new Error("PAPER_PERFORMANCE_STATISTIC_INPUT_INVALID");
+  }
+  const returns = equity.slice(1).map((value, index) => value / equity[index] - 1);
+  if (returns.length < 2) {
+    const insufficient = unavailablePaperPerformanceStatistic("INSUFFICIENT_OBSERVATIONS");
+    return Object.freeze({ volatility: insufficient, sharpe: insufficient, sortino: insufficient });
+  }
+  const annualizer = Math.sqrt(cadence.periodsPerYear);
+  const deviation = sampleDeviation(returns);
+  if (deviation === 0) {
+    const zero = unavailablePaperPerformanceStatistic("ZERO_VARIANCE");
+    return Object.freeze({ volatility: availablePaperPerformanceStatistic(0), sharpe: zero, sortino: zero });
+  }
+  const mean = returns.reduce((sum, value) => sum + value, 0) / returns.length;
+  const downside = returns.filter((value) => value < 0);
+  const downsideDeviation = downside.length < 2 ? 0 : Math.sqrt(downside.reduce((sum, value) => sum + value ** 2, 0) / downside.length);
+  return Object.freeze({
+    volatility: availablePaperPerformanceStatistic(round8(deviation * annualizer)),
+    sharpe: availablePaperPerformanceStatistic(round8((mean / deviation) * annualizer)),
+    sortino: downsideDeviation === 0
+      ? unavailablePaperPerformanceStatistic("INSUFFICIENT_OBSERVATIONS")
+      : availablePaperPerformanceStatistic(round8((mean / downsideDeviation) * annualizer)),
+  });
+}
