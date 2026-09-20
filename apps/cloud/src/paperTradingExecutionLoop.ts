@@ -84,6 +84,14 @@ export interface PaperOrderRecord {
   readonly lifecycle?: PaperOrderLifecycleState;
   readonly executionProfile?: PaperExecutionProfile;
 }
+export interface PaperStrategyWorkingOrderProvenance {
+  readonly schemaVersion: 1;
+  readonly source: "PAPER_EXECUTION_INTENT";
+  readonly executionIntent: PaperExecutionIntent;
+  readonly candidateProvenance?: PaperFillCandidateProvenance;
+  readonly quotePrice: number;
+  readonly remainingAllocationCapital: number | null;
+}
 export interface PaperWorkingOrderRecord {
   readonly id: string;
   readonly idempotencyKey: string;
@@ -98,6 +106,8 @@ export interface PaperWorkingOrderRecord {
   readonly executionProfile: PaperExecutionProfile;
   /** Number of deterministic fill attempts observed since OPEN. */
   readonly observedTicks?: number;
+  /** Strategy-only provenance for automatic residual fills. Manual LIMIT orders omit it. */
+  readonly strategyExecution?: PaperStrategyWorkingOrderProvenance;
 }
 export interface PaperFillCandidateProvenance {
   readonly schemaVersion: 1;
@@ -445,6 +455,28 @@ function validateState(state: PaperAccountState): void {
     if (order.orderType === "LIMIT" && (!Number.isFinite(order.limitPrice) || (order.limitPrice ?? 0) <= 0)) throw new Error("paper working limit price is invalid");
     const lifecycle = validatePaperOrderLifecycle(order.lifecycle);
     if (lifecycle.requestedQuantity !== order.requestedQuantity || lifecycle.status === "FILLED" || lifecycle.status === "CANCELLED" || lifecycle.status === "REJECTED") throw new Error("paper working order lifecycle is terminal or mismatched");
+    if (order.strategyExecution != null) {
+      const strategy = order.strategyExecution;
+      if (strategy.schemaVersion !== 1 || strategy.source !== "PAPER_EXECUTION_INTENT" || order.orderType !== "MARKET") throw new Error("paper strategy working-order provenance is invalid");
+      const intent = validatePaperExecutionIntent(strategy.executionIntent);
+      if (intent.market !== order.market || intent.side !== order.side || intent.quantity !== order.requestedQuantity ||
+          paperExecutionIntentCommandId(intent) !== order.idempotencyKey || !Number.isFinite(strategy.quotePrice) || strategy.quotePrice <= 0) {
+        throw new Error("paper strategy working-order intent mismatch");
+      }
+      if (intent.side === "BUY") {
+        if (!Number.isFinite(strategy.remainingAllocationCapital) || (strategy.remainingAllocationCapital ?? -1) < 0 ||
+            (strategy.remainingAllocationCapital ?? Number.POSITIVE_INFINITY) > intent.allocationCapital + 1e-8) {
+          throw new Error("paper strategy working-order budget is invalid");
+        }
+      } else if (strategy.remainingAllocationCapital !== null) throw new Error("paper strategy SELL working-order budget must be null");
+      if (strategy.candidateProvenance != null) {
+        validateFillCandidateProvenance({ id: "working-provenance", orderId: order.id, market: order.market, side: order.side, quantity: 1, price: strategy.quotePrice, fee: 0, filledAt: order.createdAt, candidateProvenance: strategy.candidateProvenance });
+        if (strategy.candidateProvenance.binding.candidateId !== intent.candidateId ||
+            strategy.candidateProvenance.binding.bindingFingerprintSha256 !== intent.candidateBindingFingerprintSha256) {
+          throw new Error("paper strategy working-order candidate mismatch");
+        }
+      }
+    }
     workingOrderIds.add(order.id); workingIdempotencyKeys.add(order.idempotencyKey);
   }
   const fillIds = new Set<string>();
@@ -493,6 +525,27 @@ function validateState(state: PaperAccountState): void {
     }
     validateRuntimeExecutionCostEvidence(fill);
     validateObservedExecutionCostAttribution(fill);
+  }
+  for (const [orderId, orderFills] of fillsByOrder) {
+    const intentFills = orderFills.filter((fill) => fill.executionIntent != null);
+    if (intentFills.length > 0) {
+      if (intentFills.length !== orderFills.length) throw new Error("paper order execution-intent provenance is incomplete");
+      const intent = validatePaperExecutionIntent(intentFills[0]!.executionIntent!);
+      if (intentFills.some((fill) => fill.executionIntent!.intentFingerprintSha256 !== intent.intentFingerprintSha256)) throw new Error("paper order execution-intent provenance diverged");
+      const cumulativeQuantity = round8(intentFills.reduce((sum, fill) => sum + fill.quantity, 0));
+      if (cumulativeQuantity > intent.quantity + 1e-8) throw new Error("paper order cumulative fill exceeds execution intent");
+      if (intent.side === "BUY") {
+        const cumulativeGrossNotional = round8(intentFills.reduce((sum, fill) => sum + (fill.orderBookExecutionReceipt?.grossNotional ?? round8(fill.quantity * fill.price)), 0));
+        if (cumulativeGrossNotional > intent.allocationCapital + 1e-6) throw new Error("paper order cumulative fill exceeds execution-intent capital");
+      }
+      const working = (state.workingOrders ?? []).find((order) => order.id === orderId);
+      if (working?.strategyExecution != null) {
+        const expectedRemaining = intent.side === "BUY"
+          ? round8(Math.max(0, intent.allocationCapital - intentFills.reduce((sum, fill) => sum + (fill.orderBookExecutionReceipt?.grossNotional ?? round8(fill.quantity * fill.price)), 0)))
+          : null;
+        if (expectedRemaining !== working.strategyExecution.remainingAllocationCapital) throw new Error("paper strategy working-order residual budget mismatch");
+      }
+    }
   }
   for (const order of state.orders) {
     const fills = fillsByOrder.get(order.id) ?? [];
