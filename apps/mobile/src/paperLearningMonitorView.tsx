@@ -111,6 +111,59 @@ function riskTone(status: string | null | undefined): IntelligenceTone {
   return "warning";
 }
 
+function PaperReportHero({ state }: Readonly<{ state: PaperLearningScreenState }>) {
+  const { theme } = useTheme();
+  const totalPnl = state.latestAccount == null
+    ? state.performance.realizedPnL + state.performance.unrealizedPnL
+    : state.latestAccount.realizedPnL + state.latestAccount.unrealizedPnL;
+  const stages = [
+    { label: "DATA", observed: state.timeline.some((event) => event.stage === "MARKET_DATA") },
+    { label: "DECISION", observed: state.latestDecision != null },
+    { label: "RISK", observed: state.latestRisk != null },
+    { label: "FILL", observed: state.latestFill != null },
+    { label: "LEARNING", observed: state.latestEvidence != null },
+  ] as const;
+
+  return <View style={[styles.reportHero, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.borderStrong }]} testID="paper-report-hero">
+    <View style={styles.reportHeroTop}>
+      <View>
+        <Text style={[styles.reportEyebrow, { color: theme.colors.primary }]}>VERIFIED PAPER REPORT</Text>
+        <Text style={[styles.reportMeta, { color: theme.colors.textMuted }]}>{state.status} · {state.dataSource}</Text>
+      </View>
+      <Text style={[styles.reportSource, { color: theme.colors.textMuted }]}>PAPER ONLY</Text>
+    </View>
+    <View style={styles.reportNumbers}>
+      <View style={styles.reportPrimary}>
+        <Text style={[styles.reportValue, { color: totalPnl > 0 ? theme.colors.success : totalPnl < 0 ? theme.colors.danger : theme.colors.text }]}>{signedMoney(totalPnl)}</Text>
+        <Text style={[styles.reportLabel, { color: theme.colors.textMuted }]}>TOTAL P&L</Text>
+      </View>
+      <View style={styles.reportSecondary}>
+        <Text style={[styles.reportSecondaryValue, { color: theme.colors.text }]}>{money(state.latestAccount?.equity)}</Text>
+        <Text style={[styles.reportLabel, { color: theme.colors.textMuted }]}>EQUITY</Text>
+      </View>
+      <View style={styles.reportSecondary}>
+        <Text style={[styles.reportSecondaryValue, { color: theme.colors.text }]}>{state.latestMarket ?? "—"}</Text>
+        <Text style={[styles.reportLabel, { color: theme.colors.textMuted }]}>MARKET</Text>
+      </View>
+    </View>
+    <View style={[styles.reportCycle, { borderTopColor: theme.colors.border }]}>
+      <Text style={[styles.reportCycleText, { color: theme.colors.textMuted }]}>CYCLE {state.currentCycle ?? "—"}</Text>
+      <Text style={[styles.reportCycleText, { color: theme.colors.textMuted }]}>OBSERVATION STATE</Text>
+    </View>
+    <View style={styles.reportStages} testID="paper-report-stage-timeline">
+      {stages.map((stage, index) => <View key={stage.label} style={styles.reportStage}>
+        <View style={styles.reportStageLine}>
+          {index > 0 ? <View style={[styles.reportConnector, { backgroundColor: theme.colors.borderStrong }]} /> : null}
+          <View style={[styles.reportNode, { backgroundColor: stage.observed ? theme.colors.primary : theme.colors.surfaceRaised, borderColor: stage.observed ? theme.colors.primary : theme.colors.borderStrong }]} />
+        </View>
+        <Text style={[styles.reportStageLabel, { color: stage.observed ? theme.colors.text : theme.colors.textMuted }]}>{stage.label}</Text>
+        <Text style={[styles.reportStageState, { color: stage.observed ? theme.colors.primary : theme.colors.textMuted }]}>{stage.observed ? "OBSERVED" : "WAITING"}</Text>
+      </View>)}
+    </View>
+    <Text style={[styles.reportDisclosure, { color: theme.colors.textMuted }]}>Stages indicate recorded evidence presence only. They do not imply approval, profit probability, or execution authority.</Text>
+  </View>;
+}
+
 export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose }: PaperLearningMonitorViewProps) {
   const { theme } = useTheme();
   const { width } = useWindowDimensions();
@@ -160,6 +213,7 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
         badge="READ ONLY"
         badgeTone="info"
       />
+      <PaperReportHero state={state} />
       <MetricStrip
         items={[
           { label: "EQUITY", value: money(state.latestAccount?.equity), tone: "neutral" },
@@ -300,6 +354,27 @@ const styles = StyleSheet.create({
   truthRail: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 9, flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 8 },
   truthText: { fontSize: 7, lineHeight: 10, fontWeight: "800", letterSpacing: 0.7 },
   eyebrow: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.15 },
+  reportHero: { borderWidth: 1, borderRadius: 9, overflow: "hidden" },
+  reportHeroTop: { minHeight: 52, paddingHorizontal: 14, paddingVertical: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  reportEyebrow: { fontSize: 11, lineHeight: 15, fontWeight: "900", letterSpacing: 1.15 },
+  reportMeta: { marginTop: 3, fontSize: 9, lineHeight: 13, fontWeight: "700" },
+  reportSource: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 0.8 },
+  reportNumbers: { flexDirection: "row", alignItems: "flex-end", gap: 16, paddingHorizontal: 14, paddingTop: 16, paddingBottom: 14 },
+  reportPrimary: { flex: 1.5, minWidth: 0 },
+  reportSecondary: { flex: 1, minWidth: 0 },
+  reportValue: { fontSize: 28, lineHeight: 34, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  reportSecondaryValue: { fontSize: 14, lineHeight: 19, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  reportLabel: { marginTop: 4, fontSize: 8, lineHeight: 12, fontWeight: "900", letterSpacing: 0.85 },
+  reportCycle: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14, paddingVertical: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  reportCycleText: { fontSize: 8, lineHeight: 12, fontWeight: "800", letterSpacing: 0.55 },
+  reportStages: { flexDirection: "row", paddingHorizontal: 10, paddingTop: 12, paddingBottom: 10 },
+  reportStage: { flex: 1, minWidth: 0, alignItems: "center" },
+  reportStageLine: { width: "100%", height: 12, alignItems: "center", justifyContent: "center" },
+  reportConnector: { position: "absolute", right: "50%", width: "100%", height: 1 },
+  reportNode: { width: 10, height: 10, borderRadius: 10, borderWidth: 2 },
+  reportStageLabel: { marginTop: 5, fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 0.35 },
+  reportStageState: { marginTop: 1, fontSize: 7, lineHeight: 10, fontWeight: "800" },
+  reportDisclosure: { paddingHorizontal: 14, paddingBottom: 12, fontSize: 8, lineHeight: 12 },
   sourceRow: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingHorizontal: 2 },
   sourceCopy: { flex: 1, minWidth: 0, gap: 3 },
   sourceValue: { fontSize: 13, lineHeight: 18, fontWeight: "800" },
