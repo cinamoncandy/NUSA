@@ -15,6 +15,11 @@ export interface ResearchIntelligenceCollector {
   collect(): Promise<readonly ResearchIntelligenceRecord[]>;
 }
 
+export interface ResearchIntelligenceMemory {
+  list(): readonly ResearchIntelligenceRecord[];
+  append(record: ResearchIntelligenceRecord): ResearchIntelligenceRecord;
+}
+
 export interface ResearchIntelligenceScoutResult {
   readonly discovered: number;
   readonly accepted: number;
@@ -250,6 +255,7 @@ export class ArxivResearchIntelligenceCollector implements ResearchIntelligenceC
 export class ResearchIntelligenceScout {
   public constructor(
     private readonly collectors: readonly ResearchIntelligenceCollector[],
+    private readonly memory?: ResearchIntelligenceMemory,
   ) {
     if (collectors.length === 0) throw new Error("at least one research intelligence collector is required");
     if (new Set(collectors.map((collector) => collector.sourceId)).size !== collectors.length) {
@@ -260,6 +266,10 @@ export class ResearchIntelligenceScout {
   public async run(
     existing: readonly ResearchIntelligenceRecord[] = [],
   ): Promise<ResearchIntelligenceScoutResult> {
+    const historical = Object.freeze([
+      ...(this.memory?.list() ?? []),
+      ...existing,
+    ]);
     const records: ResearchIntelligenceRecord[] = [];
     const axiomHandoffs: AxiomResearchIntelligenceHandoff[] = [];
     const sourceErrors: Array<{ sourceId: string; reason: string }> = [];
@@ -282,7 +292,7 @@ export class ResearchIntelligenceScout {
       for (const candidate of collected) {
         const classification = classifyResearchIntelligenceRelation(
           candidate,
-          Object.freeze([...existing, ...records]),
+          Object.freeze([...historical, ...records]),
         );
         let record = reclassifyResearchIntelligenceRecord(candidate, classification);
 
@@ -295,6 +305,7 @@ export class ResearchIntelligenceScout {
         // Keep medium/low relevance discoveries observable without flooding AXIOM.
         // Until a canonical evidence-backed priority model exists, only HIGH relevance may hand off.
         if (record.nusaRelevance !== "HIGH") {
+          record = this.memory?.append(record) ?? record;
           records.push(record);
           continue;
         }
@@ -306,6 +317,7 @@ export class ResearchIntelligenceScout {
         } catch {
           // Fail closed. Source discovery remains observable, but no handoff is fabricated.
         }
+        record = this.memory?.append(record) ?? record;
         records.push(record);
       }
     }
