@@ -27,6 +27,7 @@ import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
 import { classifyAutopilotFailure, createAutopilotExecutionTelemetry, type AutopilotExecutionTelemetryInput } from "./executionTelemetry";
 
 export { ExecutionCoordinator } from "./executionCoordinator";
+export * from "./worktreeWorkerPool";
 
 export interface Env {
   NUSA_WEBHOOK_SECRET?: string;
