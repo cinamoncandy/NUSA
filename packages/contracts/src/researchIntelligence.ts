@@ -429,6 +429,21 @@ export function reclassifyResearchIntelligenceRecord(
   });
 }
 
+export function markResearchIntelligenceReadyForAxiom(
+  record: ResearchIntelligenceRecord,
+): ResearchIntelligenceRecord {
+  if (record.novelty === "DUPLICATE") {
+    throw new Error("duplicate research cannot become AXIOM-ready");
+  }
+  if (record.sourceVerification !== "VERIFIED_PRIMARY_SOURCE") {
+    throw new Error("AXIOM-ready research requires verified primary-source provenance");
+  }
+  return Object.freeze({
+    ...record,
+    axiomHandoffStatus: "READY_FOR_AXIOM_REVIEW" as const,
+  });
+}
+
 export function createAxiomResearchIntelligenceHandoff(
   record: ResearchIntelligenceRecord,
 ): AxiomResearchIntelligenceHandoff {
