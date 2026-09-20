@@ -722,6 +722,7 @@ export class PaperTradingExecutionLoop {
     const index = workingOrders.findIndex((order) => order.id === orderId);
     if (index < 0) return this.result("REJECTED", "PAPER_WORKING_ORDER_NOT_FOUND");
     let current = workingOrders[index]!;
+    if (current.strategyExecution != null) return this.result("REJECTED", "PAPER_STRATEGY_WORKING_ORDER_AUTOMATIC_ONLY");
     const observedTicks = (current.observedTicks ?? 0) + 1;
     if (observedTicks <= current.executionProfile.latencyTicks) {
       current = Object.freeze({ ...current, observedTicks });
@@ -856,6 +857,57 @@ export class PaperTradingExecutionLoop {
     const gate = this.executionGate({ now: tick.now, marketPrice: tick.price, observedAt: tick.observedAt, mode: tick.mode, killSwitchActive: tick.killSwitchActive, tradingAllowed: tick.tradingAllowed, overallHealth: tick.overallHealth });
     if (gate != null) return this.result(gate === "invalid tick" ? "FAILED" : "BLOCKED", gate);
     if (tick.quantity !== undefined && (!Number.isFinite(tick.quantity) || tick.quantity <= 0)) return this.result("FAILED", "invalid order quantity");
+
+    const strategyWorking = (this.state.workingOrders ?? []).filter((order) => order.market === tick.market.trim().toUpperCase() && order.strategyExecution != null);
+    if (strategyWorking.length > 1) return this.result("FAILED", "multiple canonical strategy working orders exist for one market");
+    if (strategyWorking.length === 1) {
+      const current = strategyWorking[0]!;
+      const strategy = current.strategyExecution!;
+      if (tick.observedQuote?.depth == null || tick.observedQuote.depthFingerprintSha256 == null) return this.result("WAIT", "PAPER_STRATEGY_WORKING_WAITING_FOR_DEPTH");
+      let receipt: PaperOrderBookExecutionReceipt;
+      try {
+        receipt = buildPaperOrderBookExecutionReceipt({
+          quote: tick.observedQuote,
+          side: current.side,
+          requestedQuantity: current.lifecycle.remainingQuantity,
+          filledAt: tick.now,
+          ...(current.side === "BUY" ? { maximumNotional: strategy.remainingAllocationCapital ?? 0 } : {}),
+          maximumFillRatio: current.executionProfile.maxFillRatio,
+          allowLiquidityPartial: true,
+        });
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : "public orderbook cannot advance strategy working order";
+        return this.result("WAIT", `PAPER_STRATEGY_WORKING_DEPTH_WAIT:${reason}`);
+      }
+      let advanced: PaperStrategyDepthAdvance;
+      try {
+        advanced = applyStrategyDepthFill(this.state, {
+          key: current.idempotencyKey,
+          market: current.market,
+          side: current.side,
+          targetQuantity: current.requestedQuantity,
+          now: tick.now,
+          executionProfile: current.executionProfile,
+          ...(strategy.candidateProvenance === undefined ? {} : { candidateProvenance: strategy.candidateProvenance }),
+          quotePrice: tick.price,
+          observedQuote: tick.observedQuote,
+          executionIntent: strategy.executionIntent,
+          receipt,
+          existingWorking: current,
+        });
+      } catch (error) { return this.result("REJECTED", error instanceof Error ? error.message : "strategy working fill rejected"); }
+      if (advanced.status === "DUPLICATE") return Object.freeze({ status: "DUPLICATE", reason: advanced.reason, orders: Object.freeze([]), fills: advanced.fill == null ? Object.freeze([]) : Object.freeze([advanced.fill]), state: this.state });
+      const next = markToMarket(advanced.state, tick.market, tick.price, tick.now);
+      try { this.repository?.save(next); } catch { return this.result("FAILED", "paper account persistence failed"); }
+      this.state = next;
+      return Object.freeze({
+        status: advanced.status,
+        reason: advanced.reason,
+        orders: advanced.order == null ? Object.freeze([]) : Object.freeze([advanced.order]),
+        fills: advanced.fill == null ? Object.freeze([]) : Object.freeze([advanced.fill]),
+        state: this.state,
+      });
+    }
     let canonicalExecutionIntent: PaperExecutionIntent | undefined;
     if (tick.executionIntent != null) {
       try { canonicalExecutionIntent = validatePaperExecutionIntent(tick.executionIntent); }
@@ -906,6 +958,43 @@ export class PaperTradingExecutionLoop {
         decisionAt: decision.decidedAt,
         binding: validatePaperCandidateExecutionBinding(decision.paperCandidateBinding, decision.decidedAt),
       });
+      if (canonicalExecutionIntent != null && tick.observedQuote?.depth != null && tick.observedQuote.depthFingerprintSha256 != null) {
+        let preview: PaperOrderBookExecutionReceipt;
+        try {
+          preview = buildPaperOrderBookExecutionReceipt({
+            quote: tick.observedQuote,
+            side,
+            requestedQuantity: quantity,
+            filledAt: tick.now,
+            ...(side === "BUY" ? { maximumNotional: canonicalExecutionIntent.allocationCapital } : {}),
+            maximumFillRatio: this.executionProfile.maxFillRatio,
+            allowLiquidityPartial: true,
+          });
+        } catch (error) { return this.result("REJECTED", error instanceof Error ? error.message : "paper order depth preview rejected"); }
+        if (preview.liquidityLimited) {
+          let partial: PaperStrategyDepthAdvance;
+          try {
+            partial = applyStrategyDepthFill(working, {
+              key,
+              market: tick.market,
+              side,
+              targetQuantity: quantity,
+              now: tick.now,
+              executionProfile: this.executionProfile,
+              ...(candidateProvenance === undefined ? {} : { candidateProvenance }),
+              quotePrice: tick.price,
+              observedQuote: tick.observedQuote,
+              executionIntent: canonicalExecutionIntent,
+              receipt: preview,
+            });
+          } catch (error) { return this.result("REJECTED", error instanceof Error ? error.message : "paper strategy partial fill rejected"); }
+          working = partial.state;
+          if (partial.fill != null) nextFills.push(partial.fill);
+          if (partial.order != null) nextOrders.push(partial.order);
+          existingKeys.add(key);
+          continue;
+        }
+      }
       let order: ReturnType<typeof executeOrder>;
       try { order = executeOrder(working, key, tick.market, side, quantity, tick.price, tick.now, this.executionProfile, undefined, candidateProvenance, tick.price, tick.observedQuote, canonicalExecutionIntent); }
       catch (error) { return this.result("REJECTED", error instanceof Error ? error.message : "paper order rejected"); }
@@ -914,7 +1003,8 @@ export class PaperTradingExecutionLoop {
     working = markToMarket(working, tick.market, tick.price, tick.now);
     try { this.repository?.save(working); } catch { return this.result("FAILED", "paper account persistence failed"); }
     this.state = working;
-    return Object.freeze({ status: "FILLED", orders: Object.freeze(nextOrders), fills: Object.freeze(nextFills), state: this.state });
+    const hasOpenStrategyWorking = (this.state.workingOrders ?? []).some((order) => order.strategyExecution != null);
+    return Object.freeze({ status: hasOpenStrategyWorking ? "WAIT" : "FILLED", ...(hasOpenStrategyWorking ? { reason: "PAPER_STRATEGY_WORKING_PARTIALLY_FILLED" } : {}), orders: Object.freeze(nextOrders), fills: Object.freeze(nextFills), state: this.state });
   }
 
   public applyToDashboard(base: MobileDashboardApiInput, now: number): MobileDashboardApiInput {
@@ -1002,6 +1092,179 @@ function executeOrder(state: PaperAccountState, key: string, market: string, sid
     ...(executionCostAttribution === undefined && runtimeExecutionCostEvidence !== undefined ? { runtimeExecutionCostEvidence } : {})
   });
   return { state: { ...state, cash, realizedPnL, positions, orders: [order, ...state.orders].slice(0, 1_000), fills: [fill, ...state.fills].slice(0, 1_000), processedIdempotencyKeys: [key, ...state.processedIdempotencyKeys], updatedAt: now }, order, fill };
+}
+
+
+interface PaperStrategyDepthAdvance {
+  readonly status: "FILLED" | "WAIT" | "DUPLICATE";
+  readonly reason: string;
+  readonly state: PaperAccountState;
+  readonly order?: PaperOrderRecord;
+  readonly fill?: PaperFillRecord;
+}
+
+function applyStrategyDepthFill(
+  state: PaperAccountState,
+  input: {
+    readonly key: string;
+    readonly market: string;
+    readonly side: "BUY" | "SELL";
+    readonly targetQuantity: number;
+    readonly now: number;
+    readonly executionProfile: PaperExecutionProfile;
+    readonly candidateProvenance?: PaperFillCandidateProvenance;
+    readonly quotePrice: number;
+    readonly observedQuote: PaperObservedExecutionQuote;
+    readonly executionIntent: PaperExecutionIntent;
+    readonly receipt: PaperOrderBookExecutionReceipt;
+    readonly existingWorking?: PaperWorkingOrderRecord;
+  },
+): PaperStrategyDepthAdvance {
+  const intent = validatePaperExecutionIntent(input.executionIntent);
+  const current = input.existingWorking;
+  const id = current?.id ?? createHash("sha256").update(input.key, "utf8").digest("hex").slice(0, 24);
+  const remainingBefore = current?.lifecycle.remainingQuantity ?? input.targetQuantity;
+  if (input.receipt.requestedQuantity !== round8(remainingBefore)) throw new Error("PAPER_STRATEGY_DEPTH_ATTEMPT_MISMATCH");
+  const fillId = `fill-depth:${id}:${input.receipt.fingerprintSha256.slice(0, 24)}`;
+  const priorSameFill = state.fills.find((fill) => fill.id === fillId);
+  if (priorSameFill != null) return Object.freeze({ status: "DUPLICATE", reason: input.receipt.fingerprintSha256, state, fill: priorSameFill });
+
+  const quantity = input.receipt.filledQuantity;
+  const price = input.receipt.vwapPrice;
+  const positions = state.positions.map((item) => ({ ...item }));
+  const positionIndex = positions.findIndex((item) => item.market === input.market);
+  const previous = positionIndex < 0
+    ? { market: input.market, quantity: 0, averageEntryPrice: 0, realizedPnL: 0, unrealizedPnL: 0, markPrice: price }
+    : positions[positionIndex]!;
+  const notional = round8(quantity * price);
+  const fee = round8(notional * input.executionProfile.feeRate);
+  let cash = state.cash;
+  let realizedPnL = state.realizedPnL;
+  let position: PaperAccountPosition;
+  if (input.side === "BUY") {
+    if (notional + fee > cash) throw new Error("insufficient paper cash");
+    const nextQuantity = round8(previous.quantity + quantity);
+    const costBasis = toScaledLedgerAmount(previous.averageEntryPrice * previous.quantity + notional + fee);
+    position = { ...previous, quantity: nextQuantity, averageEntryPrice: divideRound8(costBasis * LEDGER_ROUND_SCALE, toScaledLedgerAmount(nextQuantity)), markPrice: price };
+    cash = round8(cash - notional - fee);
+  } else {
+    if (quantity > previous.quantity + Number.EPSILON) throw new Error("insufficient paper position");
+    const realized = round8((price - previous.averageEntryPrice) * quantity - fee);
+    const nextQuantity = round8(previous.quantity - quantity);
+    position = { ...previous, quantity: nextQuantity, averageEntryPrice: nextQuantity === 0 ? 0 : previous.averageEntryPrice, realizedPnL: round8(previous.realizedPnL + realized), markPrice: price };
+    realizedPnL = round8(realizedPnL + realized);
+    cash = round8(cash + notional - fee);
+  }
+  if (positionIndex < 0) positions.push(position); else positions[positionIndex] = position;
+
+  let lifecycle = current?.lifecycle ?? createPaperOrderLifecycle(input.targetQuantity, input.now);
+  if (current == null) {
+    lifecycle = transitionPaperOrderLifecycle(lifecycle, "ACCEPTED", input.now);
+    lifecycle = transitionPaperOrderLifecycle(lifecycle, "OPEN", input.now);
+  }
+  const terminalByQuantity = Math.abs(quantity - lifecycle.remainingQuantity) <= 1e-8;
+  lifecycle = transitionPaperOrderLifecycle(lifecycle, terminalByQuantity ? "FILLED" : "PARTIALLY_FILLED", input.now, quantity);
+  const cancelForBudget = !terminalByQuantity && input.receipt.budgetLimited;
+  if (cancelForBudget) lifecycle = transitionPaperOrderLifecycle(lifecycle, "CANCELLED", input.now);
+
+  const baseFill: PaperFillRecord = {
+    id: fillId,
+    orderId: id,
+    market: input.market,
+    side: input.side,
+    quantity,
+    price,
+    fee,
+    filledAt: input.now,
+    executionProfileFingerprintSha256: input.executionProfile.fingerprintSha256,
+    executionEngineVersion: input.executionProfile.engineVersion,
+    executionIntent: intent,
+    ...(input.candidateProvenance === undefined ? {} : { candidateProvenance: input.candidateProvenance }),
+    orderBookQuoteReceipt: input.observedQuote.receipt,
+    orderBookExecutionReceipt: input.receipt,
+  };
+  const runtimeExecutionCostEvidence = input.candidateProvenance == null ? undefined : buildPaperRuntimeExecutionCostEvidence(baseFill, input.quotePrice);
+  const executionCostAttribution = input.candidateProvenance == null ? undefined : buildPaperObservedExecutionCostAttribution({ ...baseFill, candidateProvenance: input.candidateProvenance }, input.observedQuote);
+  const fill: PaperFillRecord = Object.freeze({
+    ...baseFill,
+    ...(executionCostAttribution === undefined ? {} : { executionCostAttribution }),
+    ...(executionCostAttribution === undefined && runtimeExecutionCostEvidence !== undefined ? { runtimeExecutionCostEvidence } : {}),
+  });
+
+  const priorFills = state.fills.filter((item) => item.orderId === id);
+  const orderFills = [...priorFills, fill];
+  const cumulativeGross = round8(orderFills.reduce((sum, item) => sum + (item.orderBookExecutionReceipt?.grossNotional ?? round8(item.quantity * item.price)), 0));
+  const remainingAllocationCapital = input.side === "BUY" ? round8(Math.max(0, intent.allocationCapital - cumulativeGross)) : null;
+  const strategyExecution: PaperStrategyWorkingOrderProvenance = Object.freeze({
+    schemaVersion: 1,
+    source: "PAPER_EXECUTION_INTENT",
+    executionIntent: intent,
+    ...(input.candidateProvenance === undefined ? {} : { candidateProvenance: input.candidateProvenance }),
+    quotePrice: input.quotePrice,
+    remainingAllocationCapital,
+  });
+
+  let workingOrders = [...(state.workingOrders ?? [])].filter((order) => order.id !== id);
+  let orders = state.orders;
+  let terminalOrder: PaperOrderRecord | undefined;
+  if (lifecycle.status === "FILLED" || lifecycle.status === "CANCELLED") {
+    const totalQuantity = round8(orderFills.reduce((sum, item) => sum + item.quantity, 0));
+    const totalFee = round8(orderFills.reduce((sum, item) => sum + item.fee, 0));
+    const averagePrice = round8(orderFills.reduce((sum, item) => sum + item.quantity * item.price, 0) / totalQuantity);
+    terminalOrder = Object.freeze({
+      id,
+      idempotencyKey: input.key,
+      market: input.market,
+      side: input.side,
+      quantity: totalQuantity,
+      price: averagePrice,
+      fee: totalFee,
+      status: lifecycle.status === "FILLED" ? "FILLED" : "CANCELLED",
+      createdAt: current?.createdAt ?? input.now,
+      filledAt: input.now,
+      requestFingerprint: intent.intentFingerprintSha256,
+      lifecycle,
+      executionProfile: input.executionProfile,
+    });
+    orders = Object.freeze([terminalOrder, ...orders.filter((order) => order.id !== id)].slice(0, 1_000));
+  } else {
+    const workingOrder: PaperWorkingOrderRecord = Object.freeze({
+      id,
+      idempotencyKey: input.key,
+      market: input.market,
+      side: input.side,
+      orderType: "MARKET",
+      requestedQuantity: input.targetQuantity,
+      createdAt: current?.createdAt ?? input.now,
+      requestFingerprint: intent.intentFingerprintSha256,
+      lifecycle,
+      executionProfile: input.executionProfile,
+      observedTicks: (current?.observedTicks ?? 0) + 1,
+      strategyExecution,
+    });
+    workingOrders = [workingOrder, ...workingOrders].slice(0, 1_000);
+  }
+
+  const processedIdempotencyKeys = state.processedIdempotencyKeys.includes(input.key)
+    ? state.processedIdempotencyKeys
+    : Object.freeze([input.key, ...state.processedIdempotencyKeys]);
+  const next = Object.freeze({
+    ...state,
+    cash,
+    realizedPnL,
+    positions: Object.freeze(positions),
+    orders: Object.freeze([...orders]),
+    fills: Object.freeze([fill, ...state.fills]),
+    workingOrders: Object.freeze(workingOrders),
+    processedIdempotencyKeys,
+    updatedAt: input.now,
+  });
+  const reason = lifecycle.status === "FILLED"
+    ? "PAPER_STRATEGY_WORKING_FILLED"
+    : lifecycle.status === "CANCELLED"
+      ? "PAPER_STRATEGY_WORKING_BUDGET_EXHAUSTED"
+      : "PAPER_STRATEGY_WORKING_PARTIALLY_FILLED";
+  return Object.freeze({ status: lifecycle.status === "FILLED" ? "FILLED" : "WAIT", reason, state: next, ...(terminalOrder === undefined ? {} : { order: terminalOrder }), fill });
 }
 
 function markToMarket(state: PaperAccountState, market: string, price: number, now: number): PaperAccountState {
