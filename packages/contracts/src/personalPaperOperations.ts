@@ -253,6 +253,20 @@ const deepFreeze = <T>(value: T): T => {
   return value;
 };
 
+/**
+ * Clone JSON-compatible PAPER projections without relying on Web-only globals.
+ * React Native Hermes does not expose structuredClone on every supported Android runtime.
+ */
+const cloneProjection = <T>(value: T): T => {
+  if (Array.isArray(value)) return value.map((child) => cloneProjection(child)) as unknown as T;
+  if (value !== null && typeof value === "object") {
+    const copy: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) copy[key] = cloneProjection(child);
+    return copy as unknown as T;
+  }
+  return value;
+};
+
 export function buildPersonalPaperOperationsSnapshot(input: PersonalPaperOperationsInput, generatedAt = Date.now()): PersonalPaperOperationsSnapshot {
   validateDashboard(input.dashboard);
   validateResearch(input.research);
@@ -282,7 +296,7 @@ export function buildPersonalPaperOperationsSnapshot(input: PersonalPaperOperati
     productionMutationAllowed: false as const
   };
   validateReadOnlyProjections(snapshot);
-  return deepFreeze(structuredClone(snapshot));
+  return deepFreeze(cloneProjection(snapshot));
 }
 
 export function validatePersonalPaperOperationsSnapshot(snapshot: PersonalPaperOperationsSnapshot, now = Date.now(), maximumAgeMs = 15_000): PersonalPaperOperationsSnapshot {
@@ -304,7 +318,7 @@ export function validatePersonalPaperOperationsSnapshot(snapshot: PersonalPaperO
   const expectedHealth = deriveHealth(snapshot);
   if (snapshot.health !== expectedHealth) throw new Error("personal PAPER operations health mismatch");
   if (snapshot.mode !== snapshot.dashboard.mode) throw new Error("personal PAPER operations mode mismatch");
-  return deepFreeze(structuredClone(snapshot));
+  return deepFreeze(cloneProjection(snapshot));
 }
 
 export function dashboardHealthToOperationsHealth(health: DashboardHealth): PersonalPaperOperationsHealth {
