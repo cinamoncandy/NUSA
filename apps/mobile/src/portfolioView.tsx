@@ -35,6 +35,48 @@ function buildModel(snapshot: PortfolioAccountResponse | null): PortfolioViewMod
   try { return buildPortfolioViewModel(snapshot); } catch { return null; }
 }
 
+function PortfolioHero({ model, usingLocalPaper }: Readonly<{ model: PortfolioViewModel | null; usingLocalPaper: boolean }>) {
+  const { theme } = useTheme();
+  const total = model?.totalEquity ?? null;
+  const cashShare = model != null && total != null && total > 0 ? Math.max(0, Math.min(100, (model.cash / total) * 100)) : 0;
+  const exposureShare = model != null && total != null && total > 0 ? Math.max(0, Math.min(100, (model.assetValue / total) * 100)) : 0;
+
+  return <View style={[styles.portfolioHero, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.borderStrong }]} testID="portfolio-master-hero">
+    <View style={styles.portfolioHeroTop}>
+      <View>
+        <Text style={[styles.portfolioHeroEyebrow, { color: theme.colors.primary }]}>PAPER PORTFOLIO</Text>
+        <Text style={[styles.portfolioHeroMeta, { color: theme.colors.textMuted }]}>{model == null ? "PAPER DATA UNAVAILABLE" : `${usingLocalPaper ? "LOCAL PAPER" : "CLOUD PAPER"} · VERIFIED ACCOUNTING`}</Text>
+      </View>
+      <Text style={[styles.portfolioHeroSource, { color: theme.colors.textMuted }]}>LIVE NONE</Text>
+    </View>
+    <View style={styles.portfolioHeroNumbers}>
+      <View style={styles.portfolioHeroPrimary}>
+        <Text style={[styles.portfolioHeroValue, { color: theme.colors.text }]}>{money(model?.totalEquity)}</Text>
+        <Text style={[styles.portfolioHeroLabel, { color: theme.colors.textMuted }]}>TOTAL EQUITY</Text>
+      </View>
+      <View style={styles.portfolioHeroSecondary}>
+        <Text style={[styles.portfolioHeroSecondaryValue, { color: model == null ? theme.colors.textMuted : model.totalPnl >= 0 ? theme.colors.success : theme.colors.danger }]}>{signedMoney(model?.totalPnl)}</Text>
+        <Text style={[styles.portfolioHeroLabel, { color: theme.colors.textMuted }]}>TOTAL P&L</Text>
+      </View>
+    </View>
+    <View style={[styles.composition, { borderTopColor: theme.colors.border }]} testID="portfolio-composition">
+      <View style={styles.compositionHead}>
+        <Text style={[styles.compositionTitle, { color: theme.colors.text }]}>ALLOCATION</Text>
+        <Text style={[styles.compositionMeta, { color: theme.colors.textMuted }]}>CURRENT VERIFIED SNAPSHOT</Text>
+      </View>
+      <View style={[styles.compositionRail, { backgroundColor: theme.colors.surfaceRaised }]}>
+        <View style={[styles.compositionCash, { width: `${cashShare}%` as `${number}%`, backgroundColor: theme.colors.primary }]} />
+        <View style={[styles.compositionExposure, { width: `${exposureShare}%` as `${number}%`, backgroundColor: theme.colors.info }]} />
+      </View>
+      <View style={styles.compositionLegend}>
+        <Text style={[styles.compositionLegendText, { color: theme.colors.textMuted }]}>CASH {money(model?.cash)}</Text>
+        <Text style={[styles.compositionLegendText, { color: theme.colors.textMuted }]}>EXPOSURE {money(model?.assetValue)}</Text>
+      </View>
+      <Text style={[styles.historyUnavailable, { color: theme.colors.textMuted }]}>EQUITY HISTORY UNAVAILABLE IN CURRENT CANONICAL PROJECTION · NO SYNTHETIC CURVE</Text>
+    </View>
+  </View>;
+}
+
 export function PortfolioView({ snapshot, investmentPercent, error, refreshing, onRefresh, upbitSnapshot = null, upbitStatus = "DISCONNECTED", upbitError = null, onOpenPaperLearning }: PortfolioViewProps) {
   const { theme } = useTheme();
   const { width } = useWindowDimensions();
@@ -65,6 +107,7 @@ export function PortfolioView({ snapshot, investmentPercent, error, refreshing, 
         </View>
       </View>
       <ScreenLead eyebrow="PORTFOLIO" title="PAPER 자산과 결과" detail="Equity와 누적 손익을 먼저 보고, 자본 배분·노출·회계 근거를 아래에서 확인합니다." badge="PORTFOLIO" badgeTone="primary" />
+      <PortfolioHero model={model} usingLocalPaper={usingLocalPaper} />
       <MetricStrip testID="portfolio-supervisor-summary" items={[{ label: "PAPER EQUITY", value: money(model?.totalEquity) }, { label: "TOTAL PNL", value: signedMoney(model?.totalPnl), tone: model == null ? "neutral" : model.totalPnl >= 0 ? "success" : "danger" }, { label: "CASH", value: money(model?.cash) }, { label: "EXPOSURE", value: money(model?.assetValue) }]} />
       <View style={[styles.truthRail, { borderTopColor: theme.colors.border }]}>
         <Text style={[styles.truthText, { color: theme.colors.textMuted }]}>PAPER RESULT = CANONICAL</Text>
@@ -97,4 +140,4 @@ export function PortfolioView({ snapshot, investmentPercent, error, refreshing, 
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({ content: { paddingHorizontal: 18, paddingTop: 10, paddingBottom: 96, gap: 14, width: "100%", alignSelf: "center" }, commandHero: { borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingTop: 14, paddingBottom: 12, gap: 10 }, commandHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 14 }, commandTitleWrap: { flex: 1, minWidth: 0 }, commandEyebrow: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.25 }, commandTitle: { marginTop: 3, fontSize: 25, lineHeight: 30, fontWeight: "900", letterSpacing: 0.55 }, commandDetail: { marginTop: 6, maxWidth: 680, fontSize: 10, lineHeight: 16 }, commandBadge: { minHeight: 32, maxWidth: 154, borderWidth: 1, borderRadius: 8, paddingHorizontal: 9, flexDirection: "row", alignItems: "center", gap: 6 }, commandDot: { width: 6, height: 6, borderRadius: 6 }, commandBadgeText: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 0.45 }, truthRail: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 9, flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 8 }, truthText: { fontSize: 7, lineHeight: 10, fontWeight: "800", letterSpacing: 0.7 }, columns: { flexDirection: "row", alignItems: "stretch", gap: 16 }, stack: { gap: 14 }, column: { flex: 1, minWidth: 0 }, allocationRail: { height: 8, borderRadius: 999, overflow: "hidden" }, allocationFill: { height: "100%", borderRadius: 999 }, note: { fontSize: 11, lineHeight: 17 }, footer: { textAlign: "center", fontSize: 9, lineHeight: 14, fontWeight: "900", letterSpacing: 1.05, paddingTop: 4 } });
+const styles = StyleSheet.create({ content: { paddingHorizontal: 18, paddingTop: 10, paddingBottom: 96, gap: 14, width: "100%", alignSelf: "center" }, commandHero: { borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingTop: 14, paddingBottom: 12, gap: 10 }, commandHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 14 }, commandTitleWrap: { flex: 1, minWidth: 0 }, commandEyebrow: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.25 }, commandTitle: { marginTop: 3, fontSize: 25, lineHeight: 30, fontWeight: "900", letterSpacing: 0.55 }, commandDetail: { marginTop: 6, maxWidth: 680, fontSize: 10, lineHeight: 16 }, commandBadge: { minHeight: 32, maxWidth: 154, borderWidth: 1, borderRadius: 8, paddingHorizontal: 9, flexDirection: "row", alignItems: "center", gap: 6 }, commandDot: { width: 6, height: 6, borderRadius: 6 }, commandBadgeText: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 0.45 }, truthRail: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 9, flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 8 }, truthText: { fontSize: 7, lineHeight: 10, fontWeight: "800", letterSpacing: 0.7 }, portfolioHero: { borderWidth: 1, borderRadius: 9, overflow: "hidden" }, portfolioHeroTop: { minHeight: 52, paddingHorizontal: 14, paddingVertical: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }, portfolioHeroEyebrow: { fontSize: 11, lineHeight: 15, fontWeight: "900", letterSpacing: 1.15 }, portfolioHeroMeta: { marginTop: 3, fontSize: 9, lineHeight: 13, fontWeight: "700" }, portfolioHeroSource: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 0.8 }, portfolioHeroNumbers: { flexDirection: "row", alignItems: "flex-end", gap: 18, paddingHorizontal: 14, paddingTop: 16, paddingBottom: 14 }, portfolioHeroPrimary: { flex: 1.6, minWidth: 0 }, portfolioHeroSecondary: { flex: 1, minWidth: 0 }, portfolioHeroValue: { fontSize: 30, lineHeight: 36, fontWeight: "900", fontVariant: ["tabular-nums"] }, portfolioHeroSecondaryValue: { fontSize: 17, lineHeight: 22, fontWeight: "900", fontVariant: ["tabular-nums"] }, portfolioHeroLabel: { marginTop: 4, fontSize: 8, lineHeight: 12, fontWeight: "900", letterSpacing: 0.85 }, composition: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 13 }, compositionHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }, compositionTitle: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 0.8 }, compositionMeta: { fontSize: 8, lineHeight: 12, fontWeight: "700", letterSpacing: 0.45 }, compositionRail: { height: 10, borderRadius: 999, overflow: "hidden", flexDirection: "row", marginTop: 10 }, compositionCash: { height: "100%" }, compositionExposure: { height: "100%" }, compositionLegend: { marginTop: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }, compositionLegendText: { fontSize: 8, lineHeight: 12, fontWeight: "800" }, historyUnavailable: { marginTop: 8, fontSize: 7, lineHeight: 11, fontWeight: "700", letterSpacing: 0.35 }, columns: { flexDirection: "row", alignItems: "stretch", gap: 16 }, stack: { gap: 14 }, column: { flex: 1, minWidth: 0 }, allocationRail: { height: 8, borderRadius: 999, overflow: "hidden" }, allocationFill: { height: "100%", borderRadius: 999 }, note: { fontSize: 11, lineHeight: 17 }, footer: { textAlign: "center", fontSize: 9, lineHeight: 14, fontWeight: "900", letterSpacing: 1.05, paddingTop: 4 } });
