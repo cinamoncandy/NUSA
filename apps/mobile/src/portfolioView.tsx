@@ -35,6 +35,48 @@ function buildModel(snapshot: PortfolioAccountResponse | null): PortfolioViewMod
   try { return buildPortfolioViewModel(snapshot); } catch { return null; }
 }
 
+function PortfolioHero({ model, usingLocalPaper }: Readonly<{ model: PortfolioViewModel | null; usingLocalPaper: boolean }>) {
+  const { theme } = useTheme();
+  const total = model?.totalEquity ?? null;
+  const cashShare = model != null && total != null && total > 0 ? Math.max(0, Math.min(100, (model.cash / total) * 100)) : 0;
+  const exposureShare = model != null && total != null && total > 0 ? Math.max(0, Math.min(100, (model.assetValue / total) * 100)) : 0;
+
+  return <View style={[styles.portfolioHero, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.borderStrong }]} testID="portfolio-master-hero">
+    <View style={styles.portfolioHeroTop}>
+      <View>
+        <Text style={[styles.portfolioHeroEyebrow, { color: theme.colors.primary }]}>PAPER PORTFOLIO</Text>
+        <Text style={[styles.portfolioHeroMeta, { color: theme.colors.textMuted }]}>{usingLocalPaper ? "LOCAL PAPER" : "CLOUD PAPER"} · VERIFIED ACCOUNTING</Text>
+      </View>
+      <Text style={[styles.portfolioHeroSource, { color: theme.colors.textMuted }]}>LIVE NONE</Text>
+    </View>
+    <View style={styles.portfolioHeroNumbers}>
+      <View style={styles.portfolioHeroPrimary}>
+        <Text style={[styles.portfolioHeroValue, { color: theme.colors.text }]}>{money(model?.totalEquity)}</Text>
+        <Text style={[styles.portfolioHeroLabel, { color: theme.colors.textMuted }]}>TOTAL EQUITY</Text>
+      </View>
+      <View style={styles.portfolioHeroSecondary}>
+        <Text style={[styles.portfolioHeroSecondaryValue, { color: model == null ? theme.colors.textMuted : model.totalPnl >= 0 ? theme.colors.success : theme.colors.danger }]}>{signedMoney(model?.totalPnl)}</Text>
+        <Text style={[styles.portfolioHeroLabel, { color: theme.colors.textMuted }]}>TOTAL P&L</Text>
+      </View>
+    </View>
+    <View style={[styles.composition, { borderTopColor: theme.colors.border }]} testID="portfolio-composition">
+      <View style={styles.compositionHead}>
+        <Text style={[styles.compositionTitle, { color: theme.colors.text }]}>ALLOCATION</Text>
+        <Text style={[styles.compositionMeta, { color: theme.colors.textMuted }]}>CURRENT VERIFIED SNAPSHOT</Text>
+      </View>
+      <View style={[styles.compositionRail, { backgroundColor: theme.colors.surfaceRaised }]}>
+        <View style={[styles.compositionCash, { width: `${cashShare}%` as `${number}%`, backgroundColor: theme.colors.primary }]} />
+        <View style={[styles.compositionExposure, { width: `${exposureShare}%` as `${number}%`, backgroundColor: theme.colors.info }]} />
+      </View>
+      <View style={styles.compositionLegend}>
+        <Text style={[styles.compositionLegendText, { color: theme.colors.textMuted }]}>CASH {money(model?.cash)}</Text>
+        <Text style={[styles.compositionLegendText, { color: theme.colors.textMuted }]}>EXPOSURE {money(model?.assetValue)}</Text>
+      </View>
+      <Text style={[styles.historyUnavailable, { color: theme.colors.textMuted }]}>EQUITY HISTORY UNAVAILABLE IN CURRENT CANONICAL PROJECTION · NO SYNTHETIC CURVE</Text>
+    </View>
+  </View>;
+}
+
 export function PortfolioView({ snapshot, investmentPercent, error, refreshing, onRefresh, upbitSnapshot = null, upbitStatus = "DISCONNECTED", upbitError = null, onOpenPaperLearning }: PortfolioViewProps) {
   const { theme } = useTheme();
   const { width } = useWindowDimensions();
@@ -53,6 +95,7 @@ export function PortfolioView({ snapshot, investmentPercent, error, refreshing, 
   return <ScrollView style={{ backgroundColor: theme.colors.background }} contentContainerStyle={[styles.content, { maxWidth: tablet ? 1080 : 720 }]} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} showsVerticalScrollIndicator={false} testID="portfolio-screen">
     <AuthorityRail detail="PAPER CAPITAL · REAL ACCOUNT SEPARATE · LIVE NONE" status={model ? (usingLocalPaper ? "LOCAL PAPER" : "PAPER READY") : error ? "DEGRADED" : "UNAVAILABLE"} tone={model ? "success" : "warning"} testID="portfolio-authority-rail" />
     <ScreenLead eyebrow="PORTFOLIO" title="PAPER 자산과 결과" detail="Equity와 누적 손익을 먼저 보고, 자본 배분·노출·회계 근거를 아래에서 확인합니다." badge="PORTFOLIO" badgeTone="primary" />
+    <PortfolioHero model={model} usingLocalPaper={usingLocalPaper} />
     {error ? <StateNotice title="PAPER PORTFOLIO DEGRADED" detail={error} tone="danger" /> : null}
     {!model ? <StateNotice title="PAPER DATA UNAVAILABLE" detail="PAPER 서버에 연결하거나 LOCAL PAPER 결과가 생성되면 자산과 손익을 표시합니다. UNKNOWN 값을 0으로 표시하지 않습니다." tone="warning" /> : null}
     <MetricStrip testID="portfolio-supervisor-summary" items={[{ label: "PAPER EQUITY", value: money(model?.totalEquity) }, { label: "TOTAL PNL", value: signedMoney(model?.totalPnl), tone: model == null ? "neutral" : model.totalPnl >= 0 ? "success" : "danger" }, { label: "CASH", value: money(model?.cash) }, { label: "EXPOSURE", value: money(model?.assetValue) }]} />
@@ -80,4 +123,26 @@ export function PortfolioView({ snapshot, investmentPercent, error, refreshing, 
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({ content: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 96, gap: 14, width: "100%", alignSelf: "center" }, columns: { flexDirection: "row", alignItems: "stretch", gap: 16 }, stack: { gap: 14 }, column: { flex: 1, minWidth: 0 }, allocationRail: { height: 8, borderRadius: 999, overflow: "hidden" }, allocationFill: { height: "100%", borderRadius: 999 }, note: { fontSize: 11, lineHeight: 17 }, footer: { textAlign: "center", fontSize: 9, lineHeight: 14, fontWeight: "900", letterSpacing: 1.05, paddingTop: 4 } });
+const styles = StyleSheet.create({
+  portfolioHero: { borderWidth: 1, borderRadius: 12, overflow: "hidden" },
+  portfolioHeroTop: { minHeight: 52, paddingHorizontal: 14, paddingVertical: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  portfolioHeroEyebrow: { fontSize: 11, lineHeight: 15, fontWeight: "900", letterSpacing: 1.15 },
+  portfolioHeroMeta: { marginTop: 3, fontSize: 9, lineHeight: 13, fontWeight: "700" },
+  portfolioHeroSource: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 0.8 },
+  portfolioHeroNumbers: { flexDirection: "row", alignItems: "flex-end", gap: 18, paddingHorizontal: 14, paddingTop: 16, paddingBottom: 14 },
+  portfolioHeroPrimary: { flex: 1.6, minWidth: 0 },
+  portfolioHeroSecondary: { flex: 1, minWidth: 0 },
+  portfolioHeroValue: { fontSize: 30, lineHeight: 36, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  portfolioHeroSecondaryValue: { fontSize: 17, lineHeight: 22, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  portfolioHeroLabel: { marginTop: 4, fontSize: 8, lineHeight: 12, fontWeight: "900", letterSpacing: 0.85 },
+  composition: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 13 },
+  compositionHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  compositionTitle: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 0.8 },
+  compositionMeta: { fontSize: 8, lineHeight: 12, fontWeight: "700", letterSpacing: 0.45 },
+  compositionRail: { height: 10, borderRadius: 999, overflow: "hidden", flexDirection: "row", marginTop: 10 },
+  compositionCash: { height: "100%" },
+  compositionExposure: { height: "100%" },
+  compositionLegend: { marginTop: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  compositionLegendText: { fontSize: 8, lineHeight: 12, fontWeight: "800" },
+  historyUnavailable: { marginTop: 8, fontSize: 7, lineHeight: 11, fontWeight: "700", letterSpacing: 0.35 },
+  content: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 96, gap: 14, width: "100%", alignSelf: "center" }, columns: { flexDirection: "row", alignItems: "stretch", gap: 16 }, stack: { gap: 14 }, column: { flex: 1, minWidth: 0 }, allocationRail: { height: 8, borderRadius: 999, overflow: "hidden" }, allocationFill: { height: "100%", borderRadius: 999 }, note: { fontSize: 11, lineHeight: 17 }, footer: { textAlign: "center", fontSize: 9, lineHeight: 14, fontWeight: "900", letterSpacing: 1.05, paddingTop: 4 } });
