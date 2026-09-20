@@ -47,6 +47,18 @@ describe("coding runner", () => {
     assert.deepEqual(validateCodingRunnerRequest(request), request);
   });
 
+  it("rejects partial or malformed bounded ownership metadata", () => {
+    assert.throws(() => validateCodingRunnerRequest({ ...request, canonicalOwner: "autopilot.control-plane" }), /CODING_RUNNER_OWNERSHIP_PAIR_INVALID/);
+    assert.throws(() => validateCodingRunnerRequest({ ...request, conflictKeys: ["module:apps/autopilot/src"] }), /CODING_RUNNER_OWNERSHIP_PAIR_INVALID/);
+    assert.throws(() => validateCodingRunnerRequest({ ...request, canonicalOwner: "bad owner", conflictKeys: ["module:apps/autopilot/src"] }), /CODING_RUNNER_CANONICAL_OWNER_INVALID/);
+    assert.throws(() => validateCodingRunnerRequest({ ...request, canonicalOwner: "autopilot.control-plane", conflictKeys: ["same", "same"] }), /CODING_RUNNER_CONFLICT_KEYS_INVALID/);
+  });
+
+  it("preserves valid bounded ownership metadata", () => {
+    const owned = { ...request, canonicalOwner: "autopilot.control-plane", conflictKeys: ["module:apps/autopilot/src"] };
+    assert.deepEqual(validateCodingRunnerRequest(owned), owned);
+  });
+
   it("rejects missing or malformed lifecycle identity", () => {
     assert.throws(() => validateCodingRunnerRequest({ ...request, executionId: "" }), /CODING_RUNNER_EXECUTION_ID_INVALID/);
     assert.throws(() => validateCodingRunnerRequest({ ...request, dedupeKey: "bad key" }), /CODING_RUNNER_DEDUPE_KEY_INVALID/);
