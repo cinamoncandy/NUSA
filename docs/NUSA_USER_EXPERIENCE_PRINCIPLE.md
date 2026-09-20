@@ -249,6 +249,34 @@ For major Android surfaces:
 `CI PASS != Product PASS`
 `Feature complete != visually complete`
 
+### 13.7 Dense operational modules
+
+NUSA may use compact operational modules to expose multiple subsystems at once when doing so improves situational awareness.
+
+Good candidates include AI judgment, Market, Risk, PAPER, Research, Autopilot, Strategy, Portfolio, and Performance. Each module should compress a small set of authoritative values such as current state, one dominant metric, progress or verification state, and the next material change.
+
+Use this pattern to increase information density without turning the interface into a game HUD.
+
+Absorb:
+
+- compact multi-module status composition;
+- clear boundaries between concurrent subsystems;
+- aligned numeric summaries;
+- visible progress and verification state;
+- side-by-side economic and operational outcomes;
+- live state changes that make the system feel active because the underlying state is active.
+
+Do not absorb:
+
+- pixel or retro-game typography;
+- decorative hacker-console aesthetics;
+- excessive neon;
+- tiny unreadable text used only to create density;
+- fake counters, fake progress, fake speedups, or synthetic activity;
+- visual noise that competes with financial judgment or risk.
+
+The preferred result is an institutional-grade AI investment terminal, not a game interface.
+
 ## Definition of Done
 
 NUSA's UI is successful when a new user can perform ordinary safe tasks without studying the internal architecture, while an expert can inspect progressively deeper evidence and controls without losing semantic accuracy or safety boundaries.
