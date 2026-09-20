@@ -314,6 +314,14 @@ export class ApprovedUserSessionService<Scope extends string> {
     return tokens;
   }
 
+  protected revokeDeviceSessions(input: Readonly<{ userId: string; deviceIdHash: string; reason: string; now?: number }>): number {
+    const now = input.now ?? Date.now();
+    const rows = this.db.connection.prepare(`SELECT id FROM ${this.prefix}_session_families WHERE user_id=? AND device_id_hash=? AND revoked_at IS NULL`).all(input.userId, input.deviceIdHash) as Record<string, unknown>[];
+    let revoked = 0;
+    for (const row of rows) if (this.revokeFamily(String(row.id), input.reason, now)) revoked += 1;
+    return revoked;
+  }
+
   public revokeAccess(accessToken: string, now = Date.now()): boolean {
     if (!accessToken) return false;
     const row = this.db.connection.prepare(`SELECT family_id FROM ${this.prefix}_access_tokens WHERE token_hash=?`).get(tokenHash(accessToken)) as Record<string, unknown> | undefined;
