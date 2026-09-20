@@ -315,14 +315,15 @@ function validateState(state: PaperAccountState): void {
   const orderIds = new Set<string>();
   const idempotencyKeys = new Set<string>();
   for (const order of state.orders) {
-    if (!order.id.trim() || orderIds.has(order.id) || !order.idempotencyKey.trim() || idempotencyKeys.has(order.idempotencyKey) || !order.market.trim() || order.status !== "FILLED") throw new Error("paper order identity is invalid");
+    if (!order.id.trim() || orderIds.has(order.id) || !order.idempotencyKey.trim() || idempotencyKeys.has(order.idempotencyKey) || !order.market.trim() || (order.status !== "FILLED" && order.status !== "CANCELLED")) throw new Error("paper order identity is invalid");
     orderIds.add(order.id); idempotencyKeys.add(order.idempotencyKey);
     finiteNonNegative(order.quantity, "paper order quantity"); finiteNonNegative(order.price, "paper order price"); finiteNonNegative(order.fee, "paper order fee");
-    if (order.quantity <= 0 || order.price <= 0 || !Number.isSafeInteger(order.createdAt) || !Number.isSafeInteger(order.filledAt) || order.createdAt < 0 || order.filledAt < order.createdAt) throw new Error("paper order accounting fields are invalid");
+    if ((order.status === "FILLED" && order.quantity <= 0) || order.price <= 0 || !Number.isSafeInteger(order.createdAt) || !Number.isSafeInteger(order.filledAt) || order.createdAt < 0 || order.filledAt < order.createdAt) throw new Error("paper order accounting fields are invalid");
     if (order.requestFingerprint !== undefined && !/^[a-f0-9]{64}$/.test(order.requestFingerprint)) throw new Error("paper order request fingerprint is invalid");
     if (order.lifecycle !== undefined) {
       const lifecycle = validatePaperOrderLifecycle(order.lifecycle);
-      if (lifecycle.status !== order.status || lifecycle.requestedQuantity !== order.quantity || lifecycle.filledQuantity !== order.quantity || lifecycle.remainingQuantity !== 0 || lifecycle.lastTransitionAt !== order.filledAt) throw new Error("paper order lifecycle reconciliation mismatch");
+      if (lifecycle.status !== order.status || lifecycle.filledQuantity !== order.quantity || lifecycle.lastTransitionAt !== order.filledAt) throw new Error("paper order lifecycle reconciliation mismatch");
+      if (order.status === "FILLED" && (lifecycle.requestedQuantity !== order.quantity || lifecycle.remainingQuantity !== 0)) throw new Error("paper filled order lifecycle reconciliation mismatch");
     }
     if (order.executionProfile !== undefined) validateExecutionProfile(order.executionProfile);
   }
@@ -363,7 +364,12 @@ function validateState(state: PaperAccountState): void {
     const notional = fills.reduce((sum, fill) => sum + fill.quantity * fill.price, 0);
     const averagePrice = quantity > 0 ? round8(notional / quantity) : 0;
     const lastFilledAt = fills.reduce((latest, fill) => Math.max(latest, fill.filledAt), 0);
-    if (fills.length === 0 || fills.some((fill) => fill.market !== order.market || fill.side !== order.side) || quantity !== order.quantity || averagePrice !== order.price || fee !== order.fee || lastFilledAt !== order.filledAt) throw new Error("paper order/fill reconciliation mismatch");
+    const fillShapeMismatch = fills.some((fill) => fill.market !== order.market || fill.side !== order.side) || quantity !== order.quantity || fee !== order.fee;
+    if (order.status === "FILLED") {
+      if (fills.length === 0 || fillShapeMismatch || averagePrice !== order.price || lastFilledAt !== order.filledAt) throw new Error("paper order/fill reconciliation mismatch");
+    } else if (fillShapeMismatch || (fills.length > 0 && (averagePrice !== order.price || lastFilledAt > order.filledAt))) {
+      throw new Error("paper cancelled order/fill reconciliation mismatch");
+    }
   }
   for (const order of state.workingOrders ?? []) {
     const fills = fillsByOrder.get(order.id) ?? [];
