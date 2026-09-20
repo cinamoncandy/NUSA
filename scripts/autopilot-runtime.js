@@ -178,14 +178,14 @@ class AutopilotRuntime {
       try {
         const result = await this.tick();
         const status = safeText(result?.status) || "ABSTAINED";
-        const success = status === "EXECUTION_DISPATCHED" || status === "DUPLICATE_EXECUTION_SUPPRESSED" || status === "ABSTAINED";
+        if (status === "EXECUTION_NOT_DISPATCHED") throw new Error(safeText(result?.reason) || status);
+        if (status !== "EXECUTION_DISPATCHED" && status !== "DUPLICATE_EXECUTION_SUPPRESSED" && status !== "ABSTAINED") throw new Error("AUTOPILOT_TICK_STATUS_UNSUPPORTED");
         const now = this.now();
         this.state = {
           ...this.state,
           status: status === "EXECUTION_DISPATCHED" ? "RUNNING" : "IDLE",
-          completedCount: success ? this.state.completedCount + 1 : this.state.completedCount,
-          retryCount: this.state.retryCount + (attempt - 1),
-          lastSuccessfulWorkAt: success ? now : this.state.lastSuccessfulWorkAt,
+          completedCount: status === "EXECUTION_DISPATCHED" ? this.state.completedCount + 1 : this.state.completedCount,
+          lastSuccessfulWorkAt: now,
           lastHeartbeatAt: now,
           lastResult: { status, reason: safeText(result?.reason) || "UNSPECIFIED", headSha: typeof result?.headSha === "string" ? result.headSha.slice(0, 128) : null, workflowRunId: Number.isSafeInteger(result?.workflowRunId) ? result.workflowRunId : null },
           ...SAFETY,
