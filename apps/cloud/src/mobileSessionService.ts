@@ -274,6 +274,10 @@ export class MobileSessionService extends ApprovedUserSessionService<MobileScope
     return this.createDeviceBoundSession({ targetUserId: user.id, deviceId: this.validateDeviceId(input.deviceId), scopes: ["dashboard:read", "paper:trade", "users:manage"], now: input.now, auditEvent: "OWNER_DEVICE_CREDENTIAL_SESSION_ISSUED" });
   }
 
+  public revokeOwnerDeviceSessions(input: Readonly<{ userId: string; deviceIdHash: string; now?: number }>): number {
+    return this.revokeDeviceSessions({ userId: input.userId, deviceIdHash: input.deviceIdHash, reason: "OWNER_DEVICE_CREDENTIAL_REVOKED", now: input.now });
+  }
+
   private ownerForPasswordSignIn(explicitUserId: string | undefined): string | "AMBIGUOUS_OWNER" | "INVALID_OWNER" {
     if (explicitUserId?.trim()) {
       const user = this.mobileUsers.get(explicitUserId.trim());
