@@ -4,9 +4,9 @@ status: IMPLEMENTED_LOCAL
 scope: Bounded Oracle Cloud PAPER startup readiness only.
 base_sha: a89ab75e3d590f1c13198a504abaaf482c26fc2d
 finding: The release restarted the supervised runtime and immediately probed localhost before the child runtime had bound its port, causing a false readiness failure and automatic rollback.
-remediation: Retry the authenticated readiness probe for at most 30 seconds at a bounded one-second interval; accept only a fully healthy readiness response and preserve fail-closed rollback after the deadline.
+remediation: Retry the authenticated readiness probe for at most 60 seconds at a bounded one-second interval; accept only a fully healthy readiness response and preserve fail-closed rollback after the deadline. The original 30-second window was proven too short on the real 1 GB Oracle PAPER host: exact-main release bd06d7ae... bound 127.0.0.1:41731 and emitted healthy readiness just after the previous boundary, while the release-side probe had already exhausted its window.
 acceptance:
-  - A delayed local bind is accepted within the bounded startup window.
+  - A delayed local bind is accepted within the bounded 60-second startup window.
   - Missing or unhealthy readiness remains rejected after the deadline.
   - Mobile owner-auth route probes remain mandatory after readiness succeeds.
   - No dashboard token is logged.
