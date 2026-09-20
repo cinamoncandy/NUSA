@@ -26,8 +26,6 @@ const baseInput = () => ({
   repository: "cinamoncandy/NUSA",
   headSha: "d3171864d989cf9897bd5f514f8cb45489b15056",
   workflowRunId: 33239968298,
-  executionId: "evolve:discovery:candidate",
-  dedupeKey: "evolve:discovery:candidate:d3171864",
   circuit: { state: "CLOSED" as const, consecutiveFailures: 0 },
   schedulePolicy: { mode: "AUTONOMOUS" as const, minIntervalSeconds: 60, maxConcurrent: 1 },
   activeExecutions: 0,
@@ -40,6 +38,9 @@ test("connects fresh bounded discovery evidence to the existing CodingRunner req
   assert.equal(result.request?.kind, "REPOSITORY_AUTOPILOT");
   assert.equal(result.request?.headSha, "d3171864d989cf9897bd5f514f8cb45489b15056");
   assert.equal(result.request?.workflowRunId, 33239968298);
+  assert.equal(result.selectedOpportunityId, "discovery:candidate");
+  assert.equal(result.request?.executionId, "evolve-coding:d3171864d989cf98:discovery:candidate");
+  assert.equal(result.request?.dedupeKey, "evolve-coding:d3171864d989cf9897bd5f514f8cb45489b15056:discovery:candidate");
   assert.equal(result.request?.mutationAllowed, false);
   assert.deepEqual(result.authority, {
     liveAuthority: "NONE",
