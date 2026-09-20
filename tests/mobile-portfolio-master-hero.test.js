@@ -12,6 +12,7 @@ test("Portfolio leads with verified equity and PnL rather than a generic card st
   assert.match(source, /TOTAL EQUITY/);
   assert.match(source, /TOTAL P&L/);
   assert.match(source, /VERIFIED ACCOUNTING/);
+  assert.match(source, /model == null \? "PAPER DATA UNAVAILABLE"/);
 });
 
 test("Portfolio allocation visualization is derived only from canonical cash and exposure", () => {
