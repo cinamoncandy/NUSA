@@ -374,6 +374,9 @@ describe("persistent control-plane HOLD", () => {
     const post = (path: string, body: object) => coordinator.fetch(new Request(`https://execution-coordinator${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
     const first = { dedupeKey: "work:a", executionId: "exec:a", canonicalOwner: "evolve", conflictKeys: ["module:shared"], claimedAt: 100, maxConcurrent: 2 };
     assert.equal((await post("/active-wip/admit", first)).status, 201);
+    const duplicateExecution = await post("/active-wip/admit", { ...first, dedupeKey: "work:duplicate-exec", conflictKeys: ["module:other"] });
+    assert.equal(duplicateExecution.status, 409);
+    assert.equal((await duplicateExecution.json() as { reason: string }).reason, "EXECUTION_ID_CONFLICT");
     const conflict = await post("/active-wip/admit", { ...first, dedupeKey: "work:b", executionId: "exec:b" });
     assert.equal(conflict.status, 409);
     assert.equal((await conflict.json() as { reason: string }).reason, "CONFLICT_KEY_ACTIVE");
