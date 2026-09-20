@@ -14,6 +14,7 @@ function namespace(acquired: boolean): ExecutionCoordinatorNamespace {
     get: () => ({
       async fetch(input: RequestInfo | URL) {
         const url = String(input);
+        if (url.endsWith("/execution")) return new Response(JSON.stringify({ record: null }), { status: 200, headers: { "content-type": "application/json" } });
         if (url.endsWith("/acquire")) {
           return new Response(JSON.stringify(acquired
             ? { acquired: true }

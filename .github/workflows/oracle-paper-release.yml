@@ -134,29 +134,8 @@ jobs:
       - name: Preflight host and security contract
         run: sudo "$STEP" preflight "$SOURCE_SHA"
 
-      - name: Switch the release symlink atomically
-        run: sudo "$STEP" switch "$SOURCE_SHA"
-
-      - name: Restart the PAPER service
-        run: sudo "$STEP" restart
-
-      - name: Prove readiness, and roll back if it fails
-        id: readiness
-        run: |
-          set -euo pipefail
-          # Readiness is the acceptance gate. A release that cannot prove it is rolled back here
-          # rather than left serving, because the runbook's failure path is a symlink rollback and
-          # never an automatic data restore.
-          if sudo "$STEP" readiness; then
-            echo "Release $SOURCE_SHA accepted."
-            exit 0
-          fi
-          echo "::error::Readiness failed for $SOURCE_SHA; rolling back."
-          sudo "$STEP" rollback
-          sudo "$STEP" restart
-          sudo "$STEP" readiness || { echo "::error::Rollback readiness also failed. Service left for investigation; do not bypass readiness."; exit 1; }
-          echo "::error::Rolled back to the prior release, which is ready."
-          exit 1
+      - name: Atomically activate exact release and prove both runtimes
+        run: sudo "$STEP" activate "$SOURCE_SHA"
 
       - name: Record deployed identity and fail-closed authority
         if: always()

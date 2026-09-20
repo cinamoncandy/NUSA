@@ -8,6 +8,7 @@ import {
 } from "./paperTradingExecutionLoop";
 import type { CloudPaperRiskGate, CloudPaperRiskRequest } from "./cloudPaperCanonicalRiskGateway";
 import { validatePaperCandidateExecutionBinding } from "./cioDecisionEngine";
+import { buildPaperExecutionIntent, paperExecutionIntentCommandId } from "./paperExecutionIntent";
 
 export interface CloudPaperExecutionBoundaryOptions {
   readonly loop: PaperTradingExecutionLoop;
@@ -48,8 +49,6 @@ export class CloudPaperExecutionBoundary {
     if (command.orderType === "LIMIT") {
       const limit = command.limitPrice;
       if (!Number.isFinite(limit) || (limit ?? 0) <= 0) return this.options.loop.submitManualOrder(command, context);
-      const marketable = command.side === "BUY" ? context.marketPrice <= limit! : context.marketPrice >= limit!;
-      if (!marketable) return this.options.loop.submitManualOrder(command, context);
     }
 
     if (command.side === "BUY") {
@@ -84,7 +83,45 @@ export class CloudPaperExecutionBoundary {
       approvedBy
     });
     if (risk.status !== "ALLOW") return this.riskResult(risk.status, risk.reasonCodes);
-    return this.withRisk(this.options.loop.submitManualOrder(command, context), risk);
+    const execution = command.orderType === "LIMIT"
+      ? this.options.loop.openLimitOrder(command, context)
+      : this.options.loop.submitManualOrder(command, context);
+    return this.withRisk(execution, risk);
+  }
+
+
+  public fillWorkingOrder(approvedBy: string, orderId: string, fillQuantity: number, context: PaperManualOrderAllocationContext, fillEventId?: string): PaperExecutionResult {
+    const working = (this.options.loop.snapshot().workingOrders ?? []).find((order) => order.id === orderId);
+    if (working == null) return this.options.loop.fillWorkingOrder(orderId, fillQuantity, context, fillEventId);
+    const openP0 = this.readOpenP0();
+    if (openP0 !== false) return this.blocked(openP0 === true ? "OPEN_P0_ALERT" : "P0_STATE_UNVERIFIABLE");
+    const risk = this.options.riskGate.evaluate({
+      path: "MANUAL", commandId: fillEventId?.trim() || `fill:${orderId}:${working.lifecycle.transitionSequence}`,
+      signalId: working.idempotencyKey, clientOrderId: working.id, strategyId: "MANUAL",
+      market: working.market, side: working.side, quantity: Math.min(fillQuantity, working.lifecycle.remainingQuantity),
+      price: context.marketPrice, now: context.now, observedAt: context.observedAt, maximumMarketAgeMs: this.maximumMarketAgeMs,
+      killSwitchActive: context.killSwitchActive, openP0, overallHealth: normalizedHealth(context.overallHealth),
+      state: this.options.loop.snapshot(), approvedBy
+    });
+    if (risk.status !== "ALLOW") return this.riskResult(risk.status, risk.reasonCodes);
+    return this.withRisk(this.options.loop.fillWorkingOrder(orderId, fillQuantity, context, fillEventId), risk);
+  }
+
+  public cancelWorkingOrder(approvedBy: string, orderId: string, context: PaperManualOrderAllocationContext): PaperExecutionResult {
+    const working = (this.options.loop.snapshot().workingOrders ?? []).find((order) => order.id === orderId);
+    if (working == null) return this.options.loop.cancelWorkingOrder(orderId, context.now);
+    const openP0 = this.readOpenP0();
+    if (openP0 !== false) return this.blocked(openP0 === true ? "OPEN_P0_ALERT" : "P0_STATE_UNVERIFIABLE");
+    const risk = this.options.riskGate.evaluate({
+      path: "MANUAL", commandId: `cancel:${orderId}:${working.lifecycle.transitionSequence}`,
+      signalId: working.idempotencyKey, clientOrderId: working.id, strategyId: "MANUAL",
+      market: working.market, side: working.side, quantity: working.lifecycle.remainingQuantity,
+      price: context.marketPrice, now: context.now, observedAt: context.observedAt, maximumMarketAgeMs: this.maximumMarketAgeMs,
+      killSwitchActive: context.killSwitchActive, openP0, overallHealth: normalizedHealth(context.overallHealth),
+      state: this.options.loop.snapshot(), approvedBy
+    });
+    if (risk.status !== "ALLOW") return this.riskResult(risk.status, risk.reasonCodes);
+    return this.withRisk(this.options.loop.cancelWorkingOrder(orderId, context.now), risk);
   }
 
   public processTick(tick: PaperExecutionTick & { readonly investmentPercent?: number }): PaperExecutionResult {
@@ -92,71 +129,103 @@ export class CloudPaperExecutionBoundary {
       .filter((decision) => decision.symbol === tick.market && (decision.action === "BUY" || decision.action === "SELL"))
       .sort((left, right) => left.symbol.localeCompare(right.symbol) || left.action.localeCompare(right.action));
     if (actionable.length === 0) return this.options.loop.processTick(tick);
+    if (actionable.length !== 1) return this.blocked("PAPER_EXECUTION_INTENT_AMBIGUOUS");
+    if (tick.portfolio == null) return this.blocked("PAPER_PORTFOLIO_EXECUTION_INTENT_REQUIRED");
 
     const openP0 = this.readOpenP0();
     if (openP0 !== false) return this.blocked(openP0 === true ? "OPEN_P0_ALERT" : "P0_STATE_UNVERIFIABLE");
     const state = this.options.loop.snapshot();
     const investmentPercent = tick.investmentPercent ?? 100;
     if (!Number.isFinite(investmentPercent) || investmentPercent < 0 || investmentPercent > 100) return this.blocked("INVALID_INVESTMENT_ALLOCATION");
-    for (const decision of actionable) {
-      // Generic CIO decisions remain advisory. Automatic PAPER mutation is allowed only when the
-      // action is the exact output of an immutable, currently bound Research/League challenger.
-      if (decision.paperCandidateBinding == null || decision.paperCandidateStrategyDecision == null) {
-        return this.blocked("PAPER_CANDIDATE_BINDING_REQUIRED");
-      }
-      let candidateBinding;
-      try { candidateBinding = validatePaperCandidateExecutionBinding(decision.paperCandidateBinding, decision.decidedAt); }
-      catch { return this.blocked("PAPER_CANDIDATE_BINDING_INVALID"); }
-      const candidateDecision = decision.paperCandidateStrategyDecision;
-      if (candidateBinding.candidateStrategy == null ||
-          candidateDecision.action !== decision.action ||
-          candidateDecision.score !== decision.score ||
-          candidateDecision.confidence !== decision.confidence ||
-          !Number.isSafeInteger(candidateDecision.observedAt) ||
-          candidateDecision.observedAt < candidateBinding.periodStartAt ||
-          candidateDecision.observedAt > decision.decidedAt ||
-          !candidateDecision.reason.trim()) {
-        return this.blocked("PAPER_CANDIDATE_STRATEGY_DECISION_INVALID");
-      }
 
-      // Cloud automatic strategy authority is deliberately PAPER-only and spot-only. An actionable
-      // challenger decision must be self-consistent before it is even presented to the canonical risk gate.
-      if (tick.mode !== "PAPER" || decision.leverage !== 1 || decision.risk === "HIGH" || decision.risk === "CRITICAL" ||
-          !Number.isFinite(decision.confidence) || decision.confidence < 0.55 || decision.confidence > 1 ||
-          !Number.isFinite(decision.allocation) || decision.allocation < 0 || decision.allocation > 1 ||
-          (decision.action === "BUY" && decision.allocation <= 0)) {
-        return this.blocked("STRATEGY_APPROVAL_REJECTED");
-      }
-
-      const side = decision.action === "BUY" ? "BUY" as const : "SELL" as const;
-      const position = state.positions.find((item) => item.market === tick.market);
-      const quantity = Number((tick.quantity ?? (side === "SELL" ? position?.quantity ?? 0 : state.cash * (investmentPercent / 100) * decision.allocation / tick.price)).toFixed(8));
-      if (!Number.isFinite(quantity) || quantity <= 0) return this.options.loop.processTick(tick);
-      const key = `paper:${tick.market}:${tick.observedAt}:${decision.action}:${decision.decidedAt}`;
-      const risk = this.options.riskGate.evaluate({
-        path: "STRATEGY",
-        commandId: key,
-        signalId: key,
-        clientOrderId: key,
-        strategyId: "CIO_PAPER",
-        market: tick.market,
-        side,
-        quantity,
-        price: tick.price,
-        now: tick.now,
-        observedAt: tick.observedAt,
-        maximumMarketAgeMs: this.maximumMarketAgeMs,
-        killSwitchActive: tick.killSwitchActive,
-        openP0,
-        overallHealth: normalizedHealth(tick.overallHealth),
-        state
-      });
-      if (risk.status !== "ALLOW") return this.riskResult(risk.status, risk.reasonCodes);
+    const decision = actionable[0]!;
+    // Generic CIO decisions remain advisory. Automatic PAPER mutation is allowed only when the
+    // action is the exact output of an immutable, currently bound Research/League challenger.
+    if (decision.paperCandidateBinding == null || decision.paperCandidateStrategyDecision == null) {
+      return this.blocked("PAPER_CANDIDATE_BINDING_REQUIRED");
+    }
+    let candidateBinding;
+    try { candidateBinding = validatePaperCandidateExecutionBinding(decision.paperCandidateBinding, decision.decidedAt); }
+    catch { return this.blocked("PAPER_CANDIDATE_BINDING_INVALID"); }
+    const candidateDecision = decision.paperCandidateStrategyDecision;
+    if (candidateBinding.candidateStrategy == null ||
+        candidateDecision.action !== decision.action ||
+        candidateDecision.score !== decision.score ||
+        candidateDecision.confidence !== decision.confidence ||
+        !Number.isSafeInteger(candidateDecision.observedAt) ||
+        candidateDecision.observedAt < candidateBinding.periodStartAt ||
+        candidateDecision.observedAt > decision.decidedAt ||
+        !candidateDecision.reason.trim()) {
+      return this.blocked("PAPER_CANDIDATE_STRATEGY_DECISION_INVALID");
     }
 
-    // Canonical risk ALLOW plus the deterministic PAPER-only challenger checks above form the
-    // strategy approval boundary. LIVE/production mutation authority is still absent by design.
-    return this.withRisk(this.options.loop.processTick(tick), { status: "ALLOW", reasonCodes: Object.freeze([]) });
+    // Cloud automatic strategy authority is deliberately PAPER-only and spot-only. An actionable
+    // challenger decision must be self-consistent before it is even presented to the canonical risk gate.
+    if (tick.mode !== "PAPER" || decision.leverage !== 1 || decision.risk === "HIGH" || decision.risk === "CRITICAL" ||
+        !Number.isFinite(decision.confidence) || decision.confidence < 0.55 || decision.confidence > 1 ||
+        !Number.isFinite(decision.allocation) || decision.allocation < 0 || decision.allocation > 1 ||
+        (decision.action === "BUY" && decision.allocation <= 0)) {
+      return this.blocked("STRATEGY_APPROVAL_REJECTED");
+    }
+
+    let executionIntent;
+    try {
+      executionIntent = buildPaperExecutionIntent({
+        now: tick.now,
+        market: tick.market,
+        referencePrice: tick.price,
+        portfolio: tick.portfolio,
+        decision,
+        state,
+        investmentPercent,
+      });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "PAPER_EXECUTION_INTENT_INVALID";
+      if (reason === "PAPER_EXECUTION_INTENT_ALLOCATION_ZERO") return this.rejected("decision allocation is zero");
+      if (reason === "PAPER_EXECUTION_INTENT_POSITION_REQUIRED") return this.rejected("insufficient paper position");
+      return this.blocked(reason.startsWith("PAPER_EXECUTION_INTENT_") ? reason : "PAPER_EXECUTION_INTENT_INVALID");
+    }
+
+    if (executionIntent.side === "BUY") {
+      // Owner capital-allocation protection remains an independent outer envelope around the
+      // canonical PortfolioPlan target. Portfolio may reduce the intent, but cannot widen this cap.
+      const requiredCash = executionIntent.quantity * tick.price * 1.001;
+      const investableCash = state.cash * (investmentPercent / 100);
+      if (!Number.isFinite(requiredCash) || requiredCash > investableCash + 1e-8) {
+        return this.blocked("PAPER_INVESTMENT_ALLOCATION_EXCEEDED");
+      }
+    }
+
+    const commandId = paperExecutionIntentCommandId(executionIntent);
+    const risk = this.options.riskGate.evaluate({
+      path: "STRATEGY",
+      commandId,
+      signalId: commandId,
+      clientOrderId: commandId,
+      strategyId: executionIntent.candidateId,
+      market: executionIntent.market,
+      side: executionIntent.side,
+      quantity: executionIntent.quantity,
+      price: tick.price,
+      now: tick.now,
+      observedAt: tick.observedAt,
+      maximumMarketAgeMs: this.maximumMarketAgeMs,
+      killSwitchActive: tick.killSwitchActive,
+      openP0,
+      overallHealth: normalizedHealth(tick.overallHealth),
+      state,
+      payloadFingerprintSha256: executionIntent.intentFingerprintSha256
+    });
+    if (risk.status !== "ALLOW") return this.riskResult(risk.status, risk.reasonCodes);
+
+    // PortfolioPlan -> immutable intent -> canonical risk -> execution is now one identity chain.
+    // LIVE/production mutation authority remains absent by design.
+    const execution = this.options.loop.processTick(Object.freeze({
+      ...tick,
+      quantity: executionIntent.quantity,
+      executionIntent,
+    }));
+    return this.withRisk(execution, risk);
   }
 
   private readOpenP0(): boolean | null {
@@ -173,6 +242,10 @@ export class CloudPaperExecutionBoundary {
       state: this.options.loop.snapshot(),
       risk: Object.freeze({ status, reasonCodes: Object.freeze([...reasonCodes]) })
     });
+  }
+
+  private rejected(reason: string): PaperExecutionResult {
+    return Object.freeze({ status: "REJECTED", reason, orders: Object.freeze([]), fills: Object.freeze([]), state: this.options.loop.snapshot() });
   }
 
   private blocked(reason: string): PaperExecutionResult {

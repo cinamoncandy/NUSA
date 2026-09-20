@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { acquirePersistentExecution, applyPersistentControlPlaneHold, clearPersistentControlPlaneHold, ExecutionCoordinator, readPersistentControlPlaneHold, releasePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, applyPersistentControlPlaneHold, clearPersistentControlPlaneHold, ExecutionCoordinator, handoffOrAcquirePersistentExecution, markPersistentExecutionDispatched, readPersistentControlPlaneHold, releasePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
 
 class MemoryStorage {
@@ -84,6 +84,15 @@ function fakeNamespace(status: number, body: object): ExecutionCoordinatorNamesp
   };
 }
 
+function memoryNamespace(): ExecutionCoordinatorNamespace {
+  const storage = new MemoryStorage();
+  const coordinator = new ExecutionCoordinator({ storage });
+  return {
+    idFromName: () => ({}),
+    get: () => ({ fetch: (input, init) => coordinator.fetch(new Request(input, init)) }),
+  };
+}
+
 describe("persistent execution coordination", () => {
   it("accepts a new lease", async () => {
     const result = await acquirePersistentExecution(fakeNamespace(201, { acquired: true }), {
@@ -103,6 +112,25 @@ describe("persistent execution coordination", () => {
       leaseExpiresAt: 200,
     });
     assert.deepEqual(result, { acquired: false, reason: "ALREADY_DISPATCHED" });
+  });
+
+  it("hands one producer lease to one consumer and suppresses replay", async () => {
+    const ns = memoryNamespace();
+    const input = { dedupeKey: "coding:handoff", executionId: "exec:handoff", now: 100, leaseExpiresAt: 200 };
+    assert.deepEqual(await acquirePersistentExecution(ns, input), { acquired: true });
+    assert.deepEqual(await handoffOrAcquirePersistentExecution(ns, { ...input, now: 110, leaseExpiresAt: 210 }), { acquired: true });
+    assert.deepEqual(await handoffOrAcquirePersistentExecution(ns, { ...input, now: 120, leaseExpiresAt: 220 }), { acquired: false, reason: "LEASE_ACTIVE" });
+    await markPersistentExecutionDispatched(ns, { dedupeKey: input.dedupeKey, executionId: input.executionId, now: 130 });
+    assert.deepEqual(await handoffOrAcquirePersistentExecution(ns, { ...input, now: 140, leaseExpiresAt: 240 }), { acquired: false, reason: "ALREADY_DISPATCHED" });
+  });
+
+  it("releases a failed handoff so a bounded retry can reacquire", async () => {
+    const ns = memoryNamespace();
+    const input = { dedupeKey: "coding:handoff-retry", executionId: "exec:handoff-retry", now: 100, leaseExpiresAt: 200 };
+    await acquirePersistentExecution(ns, input);
+    await handoffOrAcquirePersistentExecution(ns, { ...input, now: 110, leaseExpiresAt: 210 });
+    await releasePersistentExecution(ns, { dedupeKey: input.dedupeKey, executionId: input.executionId, now: 120 });
+    assert.deepEqual(await handoffOrAcquirePersistentExecution(ns, { ...input, now: 130, leaseExpiresAt: 230 }), { acquired: true });
   });
 
   it("fails closed on coordinator failure", async () => {
@@ -294,4 +322,77 @@ describe("persistent control-plane HOLD", () => {
     }), /HOLD_CLEAR_FAILED/);
     assert.equal((await readPersistentControlPlaneHold(ns, identity))?.state, "ACTIVE");
   });
+
+  it("dispatched execution completes once and permanently suppresses the same dedupe identity", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const request = (pathname: string, body: object) => new Request(`https://execution-coordinator${pathname}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    const identity = { dedupeKey: "coding:complete", executionId: "exec-complete", now: 100, leaseExpiresAt: 200 };
+    assert.equal((await coordinator.fetch(request("/acquire", identity))).status, 201);
+    assert.equal((await coordinator.fetch(request("/handoff-or-acquire", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 105, leaseExpiresAt: 200 }))).status, 201);
+    assert.equal((await coordinator.fetch(request("/dispatched", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 110 }))).status, 200);
+    assert.equal((await coordinator.fetch(request("/complete", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 120 }))).status, 200);
+    const replay = await coordinator.fetch(request("/complete", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 130 }));
+    assert.equal((await replay.json() as { completed: boolean }).completed, false);
+    const duplicate = await coordinator.fetch(request("/acquire", { ...identity, executionId: "exec-redelivery", now: 140, leaseExpiresAt: 240 }));
+    assert.equal(duplicate.status, 409);
+    assert.equal((await duplicate.json() as { reason: string }).reason, "ALREADY_COMPLETED");
+    const handoffDuplicate = await coordinator.fetch(request("/handoff-or-acquire", { ...identity, executionId: "exec-redelivery", now: 150, leaseExpiresAt: 250 }));
+    assert.equal(handoffDuplicate.status, 409);
+    assert.equal((await handoffDuplicate.json() as { reason: string }).reason, "ALREADY_COMPLETED");
+  });
+
+  it("completion fails closed before dispatch or for stale identity", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const request = (pathname: string, body: object) => new Request(`https://execution-coordinator${pathname}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    const identity = { dedupeKey: "coding:guard", executionId: "exec-guard", now: 100, leaseExpiresAt: 200 };
+    assert.equal((await coordinator.fetch(request("/acquire", identity))).status, 201);
+    assert.equal((await coordinator.fetch(request("/complete", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 110 }))).status, 409);
+    assert.equal((await coordinator.fetch(request("/handoff-or-acquire", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 115, leaseExpiresAt: 200 }))).status, 201);
+    assert.equal((await coordinator.fetch(request("/dispatched", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 120 }))).status, 200);
+    assert.equal((await coordinator.fetch(request("/complete", { dedupeKey: identity.dedupeKey, executionId: "stale-exec", now: 130 }))).status, 409);
+  });
+  it("atomically admits independent WIP while rejecting conflict and capacity overflow", async () => {
+    const storage = new TransactionalRacyStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const post = (body: object) => coordinator.fetch(new Request("https://execution-coordinator/active-wip/admit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
+    const base = { canonicalOwner: "evolve", claimedAt: 100, maxConcurrent: 2 };
+    const [a, b] = await Promise.all([
+      post({ ...base, dedupeKey: "work:a", executionId: "exec:a", conflictKeys: ["module:a"] }),
+      post({ ...base, dedupeKey: "work:b", executionId: "exec:b", conflictKeys: ["module:b"] }),
+    ]);
+    assert.deepEqual([a.status, b.status].sort(), [201, 201]);
+    const full = await post({ ...base, dedupeKey: "work:c", executionId: "exec:c", conflictKeys: ["module:c"] });
+    assert.equal(full.status, 409);
+    assert.equal((await full.json() as { reason: string }).reason, "WIP_LIMIT_REACHED");
+  });
+
+  it("rejects overlapping conflict keys and releases capacity only for exact identity", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const post = (path: string, body: object) => coordinator.fetch(new Request(`https://execution-coordinator${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
+    const first = { dedupeKey: "work:a", executionId: "exec:a", canonicalOwner: "evolve", conflictKeys: ["module:shared"], claimedAt: 100, maxConcurrent: 2 };
+    assert.equal((await post("/active-wip/admit", first)).status, 201);
+    const duplicateExecution = await post("/active-wip/admit", { ...first, dedupeKey: "work:duplicate-exec", conflictKeys: ["module:other"] });
+    assert.equal(duplicateExecution.status, 409);
+    assert.equal((await duplicateExecution.json() as { reason: string }).reason, "EXECUTION_ID_CONFLICT");
+    const conflict = await post("/active-wip/admit", { ...first, dedupeKey: "work:b", executionId: "exec:b" });
+    assert.equal(conflict.status, 409);
+    assert.equal((await conflict.json() as { reason: string }).reason, "CONFLICT_KEY_ACTIVE");
+    assert.equal((await post("/active-wip/complete", { dedupeKey: first.dedupeKey, executionId: "stale" })).status, 409);
+    assert.equal((await post("/active-wip/complete", { dedupeKey: first.dedupeKey, executionId: first.executionId })).status, 200);
+    assert.equal((await post("/active-wip/admit", { ...first, dedupeKey: "work:b", executionId: "exec:b" })).status, 201);
+  });
+
+  it("fails closed on malformed WIP ownership and conflict metadata", async () => {
+    const coordinator = new ExecutionCoordinator({ storage: new MemoryStorage() });
+    const post = (body: object) => coordinator.fetch(new Request("https://execution-coordinator/active-wip/admit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
+    const base = { dedupeKey: "work:a", executionId: "exec:a", canonicalOwner: "evolve", conflictKeys: ["module:a"], claimedAt: 100, maxConcurrent: 2 };
+    assert.equal((await post({ ...base, canonicalOwner: "bad owner" })).status, 400);
+    assert.equal((await post({ ...base, conflictKeys: [] })).status, 400);
+    assert.equal((await post({ ...base, conflictKeys: ["module:a", "module:a"] })).status, 400);
+    assert.equal((await post({ ...base, maxConcurrent: 9 })).status, 400);
+  });
+
 });
