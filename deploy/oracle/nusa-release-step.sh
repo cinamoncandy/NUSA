@@ -23,6 +23,8 @@ readonly RESEARCH_TIMER=nusa-research.timer
 readonly AUTOPILOT_SERVICE=nusa-autopilot.service
 readonly SERVICE_USER=nusa
 readonly SYSTEMD_UNIT_DIR=/etc/systemd/system
+readonly PREVIOUS_RELEASE_FILE="${DEPLOY_ROOT}/.previous-release"
+readonly RELEASE_RETENTION=4
 
 die() { printf '%s\n' "nusa-release-step: $*" >&2; exit 1; }
 
