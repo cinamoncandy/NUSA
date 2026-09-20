@@ -247,7 +247,7 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
       const native: OwnerDeviceCredentialNative | null = ownerDeviceCredential();
       if (!configuredEndpoint) throw new Error("Cloud PAPER endpoint is not configured.");
       if (installationId == null || native == null) throw new Error("이 기기에서는 소유자 기기 자격 증명을 사용할 수 없습니다.");
-      await mobileApprovedSession().signInWithOwnerPasswordAndEnrollDeviceCredential(configuredEndpoint, ownerPassword, installationId, native);
+      await mobileApprovedSession().signInWithOwnerPasswordAndEnrollSilentDeviceCredential(configuredEndpoint, ownerPassword, installationId, native);
       const result = await loadPersonalPaperOperations({ baseUrl: configuredEndpoint, credentialProvider: credentialSession.credentialProvider, allowUnverifiedEndpoint: true });
       if (result.status !== "READY") throw new Error(result.reason);
       markPaperConnectionVerified(configuredEndpoint); setConnection(result); setOwnerPassword(""); setOwnerAuthenticationFallback(false); await refreshOwnerDeviceStatus();
