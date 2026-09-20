@@ -100,7 +100,7 @@ export function selectNonConflictingEvolutionOpportunities(input: EvolutionBound
   if (!schedule.allowed) return Object.freeze({ selectedOpportunities: Object.freeze([]), priorities: Object.freeze([]), reason: schedule.reason, authority: AUTHORITY });
   for (const opportunity of input.opportunities) validateEvolutionOpportunity(opportunity);
   const activeConflictKeys = input.activeConflictKeys ?? [];
-  if (!Array.isArray(activeConflictKeys) || activeConflictKeys.length > 32 || new Set(activeConflictKeys).size !== activeConflictKeys.length || activeConflictKeys.some((key) => typeof key !== "string" || !/^[A-Za-z0-9_.:/-]{1,200}$/.test(key))) throw new Error("EVOLVE_SELECTION_ACTIVE_CONFLICT_KEYS_INVALID");
+  if (!Array.isArray(activeConflictKeys) || activeConflictKeys.length > 32 || new Set(activeConflictKeys).size !== activeConflictKeys.length || activeConflictKeys.some((key: unknown) => typeof key !== "string" || !/^[A-Za-z0-9_.:/-]{1,200}$/.test(key))) throw new Error("EVOLVE_SELECTION_ACTIVE_CONFLICT_KEYS_INVALID");
   const selectionLimit = Math.min(input.maxSelections, Math.max(0, input.schedulePolicy.maxConcurrent - input.activeExecutions));
   const occupied = new Set(activeConflictKeys);
   const selected: EvolutionOpportunity[] = [];
@@ -109,10 +109,10 @@ export function selectNonConflictingEvolutionOpportunities(input: EvolutionBound
     if (!priority.eligible || priority.score <= 0 || selected.length >= selectionLimit) continue;
     const opportunity = input.opportunities.find((candidate) => candidate.id === priority.opportunityId);
     if (!opportunity?.canonicalOwner || !opportunity.conflictKeys?.length) continue;
-    if (opportunity.conflictKeys.some((key) => occupied.has(key))) continue;
+    if (opportunity.conflictKeys.some((key: string) => occupied.has(key))) continue;
     selected.push(opportunity);
     priorities.push(priority);
-    opportunity.conflictKeys.forEach((key) => occupied.add(key));
+    opportunity.conflictKeys.forEach((key: string) => occupied.add(key));
   }
   return Object.freeze({ selectedOpportunities: Object.freeze(selected), priorities: Object.freeze(priorities), reason: selected.length ? "bounded-non-conflicting-selection" : "no-non-conflicting-opportunity", authority: AUTHORITY });
 }
