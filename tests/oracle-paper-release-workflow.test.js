@@ -163,3 +163,21 @@ test("the privileged helper declares helper locals before expanding them under n
     assert.doesNotMatch(helper, /local dir="\$1" name="\$2" path=/);
   }
 });
+
+
+test("rollback restores a legacy release that predates the Autopilot systemd unit", () => {
+  const rollbackStart = wrapper.indexOf("rollback_and_restore()");
+  const rollbackEnd = wrapper.indexOf("\n}\n", rollbackStart) + 2;
+  const rollback = wrapper.slice(rollbackStart, rollbackEnd);
+  assert.match(rollback, /install_units_from_release "\$\(active_release\)" true/);
+  assert.match(rollback, /enable_units true/);
+  assert.match(rollback, /restart_units true/);
+
+  const installStart = wrapper.indexOf("install_units_from_release()");
+  const installEnd = wrapper.indexOf("\n}\n", installStart) + 2;
+  const installUnits = wrapper.slice(installStart, installEnd);
+  assert.match(installUnits, /if \[ -f "\$\{dir\}\/deploy\/oracle\/nusa-autopilot\.service" \]/);
+  assert.match(installUnits, /systemctl disable --now "\$\{AUTOPILOT_SERVICE\}"/);
+  assert.match(installUnits, /rm -f -- "\$\{SYSTEMD_UNIT_DIR\}\/\$\{AUTOPILOT_SERVICE\}"/);
+  assert.match(installUnits, /die "missing nusa-autopilot\.service/, "forward activation must still fail closed when the unit is missing");
+});
