@@ -8,14 +8,18 @@ const FAILED_SHA = "b".repeat(40);
 const RUN_ID = 9001;
 const NOW = 1_787_968_000_000;
 
-function namespace(acquired = true, record: Record<string, unknown> | null = null): ExecutionCoordinatorNamespace {
+function namespace(acquired = true, record: Record<string, unknown> | null = null, activeExecutions = 0, events: string[] = []): ExecutionCoordinatorNamespace {
+  let active = activeExecutions;
   return {
     idFromName: (name: string) => ({ name }),
     get: () => ({
       async fetch(input: RequestInfo | URL) {
         const url = String(input);
         if (url.endsWith("/execution")) return new Response(JSON.stringify({ record }), { status: 200, headers: { "content-type": "application/json" } });
-        if (url.endsWith("/acquire")) return new Response(JSON.stringify(acquired ? { acquired: true } : { acquired: false, reason: "ALREADY_DISPATCHED" }), { status: acquired ? 201 : 409, headers: { "content-type": "application/json" } });
+        if (url.endsWith("/active-wip")) return new Response(JSON.stringify({ claims: Array.from({ length: active }, (_, index) => ({ dedupeKey: `task:${index}`, executionId: `exec:${index}`, canonicalOwner: "evolve", conflictKeys: [`module:${index}`], claimedAt: NOW - 1_000 })), activeExecutions: active }), { status: 200, headers: { "content-type": "application/json" } });
+        if (url.endsWith("/active-wip/admit")) { events.push("admit"); active += 1; return new Response(JSON.stringify({ admitted: true }), { status: 201, headers: { "content-type": "application/json" } }); }
+        if (url.endsWith("/active-wip/complete")) { events.push("complete"); active = Math.max(0, active - 1); return new Response(JSON.stringify({ completed: true }), { status: 200, headers: { "content-type": "application/json" } }); }
+        if (url.endsWith("/acquire")) { events.push("acquire"); return new Response(JSON.stringify(acquired ? { acquired: true } : { acquired: false, reason: "ALREADY_DISPATCHED" }), { status: acquired ? 201 : 409, headers: { "content-type": "application/json" } }); }
         if (url.endsWith("/dispatched")) return new Response(JSON.stringify({ updated: true }), { status: 200, headers: { "content-type": "application/json" } });
         return new Response("not found", { status: 404 });
       },
@@ -66,6 +70,8 @@ test("scheduled evolution coding routes fresh evidence through existing reposito
       assert.equal(body.client_payload.kind, "REPOSITORY_AUTOPILOT");
       assert.equal(body.client_payload.head_sha, MAIN_SHA);
       assert.equal(body.client_payload.workflow_run_id, RUN_ID);
+      assert.equal(body.client_payload.canonical_owner, "autopilot.ci-repair");
+      assert.deepEqual(body.client_payload.conflict_keys, ["workflow:ci"]);
       assert.equal(body.client_payload.live_authority, "NONE");
       assert.equal(body.client_payload.production_mutation_allowed, false);
       assert.equal(body.client_payload.ai_authority, "ZERO_AUTHORITY");
@@ -91,6 +97,39 @@ test("scheduled evolution coding routes fresh evidence through existing reposito
   assert.equal(outcome.selectedSignalIds.length, 1);
 });
 
+test("scheduled evolution coding keeps active WIP claimed after successful dispatch", async () => {
+  const events: string[] = [];
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith("/branches/main")) return new Response(JSON.stringify({ commit: { sha: MAIN_SHA } }), { status: 200, headers: { "content-type": "application/json" } });
+    if (url.endsWith("/dispatches")) return new Response(null, { status: 204 });
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+  const outcome = await runScheduledEvolutionCoding({ NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace(true, null, 0, events) }, { candidates, now: NOW, repository: "cinamoncandy/NUSA", mainSha: MAIN_SHA, workflowRunId: RUN_ID }, fetchImpl);
+  assert.equal(outcome.status, "EXECUTION_ACCEPTED");
+  assert.deepEqual(events, ["admit", "acquire"]);
+});
+
+test("scheduled evolution coding rolls active WIP back when persistent acquisition fails", async () => {
+  const events: string[] = [];
+  const outcome = await runScheduledEvolutionCoding({ NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace(false, null, 0, events) }, { candidates, now: NOW, repository: "cinamoncandy/NUSA", mainSha: MAIN_SHA, workflowRunId: RUN_ID });
+  assert.equal(outcome.status, "DUPLICATE_SUPPRESSED");
+  assert.deepEqual(events, ["admit", "acquire", "complete"]);
+});
+
+test("scheduled evolution coding rolls active WIP back when dispatch is rejected", async () => {
+  const events: string[] = [];
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith("/branches/main")) return new Response(JSON.stringify({ commit: { sha: MAIN_SHA } }), { status: 200, headers: { "content-type": "application/json" } });
+    if (url.endsWith("/dispatches")) return new Response(JSON.stringify({ message: "rejected" }), { status: 422, headers: { "content-type": "application/json" } });
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+  const outcome = await runScheduledEvolutionCoding({ NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace(true, null, 0, events) }, { candidates, now: NOW, repository: "cinamoncandy/NUSA", mainSha: MAIN_SHA, workflowRunId: RUN_ID }, fetchImpl);
+  assert.notEqual(outcome.status, "EXECUTION_ACCEPTED");
+  assert.deepEqual(events, ["admit", "acquire", "complete"]);
+});
+
 test("scheduled evolution coding suppresses duplicate coding dispatch", async () => {
   const outcome = await runScheduledEvolutionCoding({
     NUSA_GITHUB_TOKEN: "token",
@@ -106,7 +145,7 @@ test("scheduled evolution coding suppresses duplicate coding dispatch", async ()
   assert.equal(outcome.reason, "ALREADY_DISPATCHED");
 });
 
-test("scheduled evolution coding uses the coordinator lease to stop selection before acquisition", async () => {
+test("scheduled evolution coding uses aggregate persistent WIP to stop selection before acquisition", async () => {
   const dedupeKey = `evolve-coding:${MAIN_SHA}:gha:ci:${FAILED_SHA}:failure`;
   const outcome = await runScheduledEvolutionCoding({
     NUSA_GITHUB_TOKEN: "token",
@@ -116,7 +155,7 @@ test("scheduled evolution coding uses the coordinator lease to stop selection be
       state: "LEASED",
       leaseExpiresAt: NOW + 60_000,
       updatedAt: NOW - 120_000,
-    }),
+    }, 1),
   }, {
     candidates,
     now: NOW,
