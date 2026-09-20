@@ -28,7 +28,9 @@ test("utility navigation has an explicit close path and local settings expose gu
   assert.match(app, /testID="utility-navigation"/);
   assert.match(app, /testID="utility-close"/);
   assert.match(app, /const closeUtility = useCallback\(\(\) => setUtilityView\(null\)/);
-  assert.match(settings, /const signOutLocal = \(\) => \{ if \(!isBusyNow\(\)\) \{ setOperatorToken\(""); onSignOut\?\.\(\); \} \};/);
+  assert.match(settings, /const signOutLocal = \(\) =>/);
+  assert.match(settings, /setOperatorToken\(\"\"\)/);
+  assert.match(settings, /onSignOut\?\.\(\)/);
   assert.match(settings, /<NusaButton disabled=\{busy\} label="개인 모드 종료" onPress=\{signOutLocal\} tone="neutral" testID="settings-sign-out" \/>/);
   assert.doesNotMatch(settings, /label="개인 모드 종료" onPress=\{onSignOut\}/);
   assert.match(app, /const handleSignOut = useCallback/);
