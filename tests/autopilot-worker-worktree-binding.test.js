@@ -36,6 +36,13 @@ function newRepository() {
     ["config", "user.email", "worker@example.invalid"],
     ["config", "user.name", "NUSA Worker Test"],
     ["config", "commit.gpgsign", "false"],
+    // The fixture pins its own line-ending policy instead of inheriting the machine's. A Windows
+    // runner has core.autocrlf=true globally, which rewrites LF to CRLF on checkout -- so the
+    // content a freshly provisioned worktree hands back would differ from what the test committed,
+    // and the assertion about a retry not inheriting dirty state would fail for a reason that has
+    // nothing to do with worktree isolation.
+    ["config", "core.autocrlf", "false"],
+    ["config", "core.eol", "lf"],
   ]) {
     const result = git(args);
     assert.equal(result.status, 0, `git ${args.join(" ")} failed: ${result.stderr}`);
