@@ -355,8 +355,19 @@ jobs:
           current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           echo "merged_main=$MERGED_MAIN" >> "$GITHUB_OUTPUT"
           if [ "$current_main" != "$MERGED_MAIN" ]; then echo "Main advanced from audited merge $MERGED_MAIN to $current_main; newer Release/watchdog owns convergence."; exit 0; fi
+          runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$MERGED_MAIN&per_page=100")"
+          successful_run="$(jq -r --arg sha "$MERGED_MAIN" '[.workflow_runs[] | select(.name == "CI" and .path == ".github/workflows/ci.yml" and .head_sha == $sha and .status == "completed" and .conclusion == "success")] | sort_by(.updated_at) | reverse | .[0].id // empty' <<<"$runs")"
+          if [ -n "$successful_run" ]; then
+            echo "Exact-main CI already succeeded for $MERGED_MAIN via run $successful_run; suppressing duplicate post-merge dispatch."
+            exit 0
+          fi
+          active_run="$(jq -r --arg sha "$MERGED_MAIN" '[.workflow_runs[] | select(.name == "CI" and .path == ".github/workflows/ci.yml" and .head_sha == $sha and (.status == "queued" or .status == "in_progress" or .status == "pending"))] | sort_by(.created_at) | reverse | .[0].id // empty' <<<"$runs")"
+          if [ -n "$active_run" ]; then
+            echo "Exact-main CI is already active for $MERGED_MAIN via run $active_run; reusing it instead of dispatching duplicate work."
+            exit 0
+          fi
           gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/dispatches" -f ref=main
-          echo "Dispatched canonical main CI for merged revision $MERGED_MAIN"
+          echo "No exact-main CI existed; dispatched canonical fallback CI for merged revision $MERGED_MAIN"
 
       - name: Recover post-merge CI retries and dispatch Cloudflare Deploy
         env:
