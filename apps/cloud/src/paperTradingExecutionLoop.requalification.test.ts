@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-const EXPECTED_PAPER_ADAPTER_BLOB = "78514f5bc00c70c677aa5b2298dfb38a08640ff8";
+const EXPECTED_PAPER_ADAPTER_BLOB = "4d405e21fa788d7011944269a934e908ff18bf39";
 
 function gitBlobSha(content: string): string {
   // Git stores this repository's TypeScript sources with LF. Windows checkout may materialize
@@ -36,5 +36,10 @@ describe("PAPER_ADAPTER exact-source re-qualification evidence", () => {
     assert.match(source, /maximumNotional: executionIntent\.allocationCapital/);
     assert.match(source, /filledQuantity: fill\.quantity/);
     assert.match(source, /validatePaperOrderBookExecutionReceipt/);
+    assert.match(source, /advanceStrategyWorkingOrder/);
+    assert.match(source, /PAPER_STRATEGY_PARTIALLY_FILLED/);
+    assert.match(source, /PAPER_STRATEGY_BUDGET_EXHAUSTED/);
+    assert.match(source, /executionIntent: canonicalExecutionIntent/);
+    assert.match(source, /workingOrders: Object\.freeze/);
   });
 });
