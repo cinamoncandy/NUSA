@@ -223,6 +223,7 @@ export async function runScheduledEvolutionCoding(
       : { state: "CLOSED", consecutiveFailures: freshFailureCount },
     schedulePolicy: { mode: "AUTONOMOUS", minIntervalSeconds: 60, maxConcurrent: 1 },
     activeExecutions,
+    activeConflictKeys: Object.freeze([...new Set(activeWip.claims.flatMap((claim) => [...claim.conflictKeys]))]),
     elapsedSecondsSinceLastRun,
   });
   if (bridge.status !== "READY" || !bridge.request) return result("ABSTAINED", bridge.reason);
