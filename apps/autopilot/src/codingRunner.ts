@@ -111,6 +111,8 @@ export interface CodingRunnerResult {
   readonly commitSha?: string;
   readonly pullRequestNumber?: number;
   readonly pullRequestUrl?: string;
+  readonly proposalAttempts?: number;
+  readonly failureStage?: "proposal-parse" | "sandbox-validation";
 }
 
 interface HttpResponse {
@@ -484,17 +486,19 @@ export async function executeCodingRunner(
       const proposal = workersAiProposal(await env.AI.run(model, workersAiCodingRequest(request, model, prompt)));
       const result = await executeProposal(request, proposal, runtime, publisher);
       if (result.status === "EXECUTION_ACCEPTED" || !retryableProposalFailure(result.reason ?? "") || attempt === MAX_WORKERS_AI_PROPOSAL_ATTEMPTS) {
-        return result;
+        return result.status === "EXECUTION_FAILED" && retryableProposalFailure(result.reason ?? "")
+          ? { ...result, proposalAttempts: attempt, failureStage: "sandbox-validation" }
+          : result;
       }
-      lastFailure = result;
+      lastFailure = { ...result, proposalAttempts: attempt, failureStage: "sandbox-validation" };
       prompt = `${codingProposalPrompt(request)}\nThe previous proposal was rejected by the bounded patch contract (${result.reason}). Return a new valid one-file unified diff only.`;
     } catch (error) {
       const reason = error instanceof Error ? error.message : "WORKERS_AI_CODING_ENGINE_FAILED";
       if (!retryableProposalFailure(reason) || attempt === MAX_WORKERS_AI_PROPOSAL_ATTEMPTS) {
-        return { status: "EXECUTION_FAILED", reason };
+        return { status: "EXECUTION_FAILED", reason, proposalAttempts: attempt, failureStage: "proposal-parse" };
       }
       prompt = `${codingProposalPrompt(request)}\nThe previous proposal was rejected by the bounded proposal contract (${reason}). Return a new valid one-file unified diff only.`;
     }
   }
-  return lastFailure ?? { status: "EXECUTION_FAILED", reason: "WORKERS_AI_CODING_ENGINE_FAILED" };
+  return lastFailure ?? { status: "EXECUTION_FAILED", reason: "WORKERS_AI_CODING_ENGINE_FAILED", proposalAttempts: MAX_WORKERS_AI_PROPOSAL_ATTEMPTS, failureStage: "proposal-parse" };
 }
