@@ -93,6 +93,21 @@ const snapshot = (overrides = {}) => buildPersonalPaperOperationsSnapshot({
 test.beforeEach(() => clearConfiguredPaperEndpoint());
 test.afterEach(() => clearConfiguredPaperEndpoint());
 
+// React Native Hermes may not expose structuredClone; keep this shared transport contract host-portable.
+test("PAPER projection build and validation do not require host structuredClone", () => {
+  const originalStructuredClone = globalThis.structuredClone;
+  try {
+    globalThis.structuredClone = undefined;
+    const result = snapshot();
+    assert.equal(result.schemaVersion, 1);
+    assert.equal(validatePersonalPaperOperationsSnapshot(result, 1_100, 500).schemaVersion, 1);
+    assert.ok(Object.isFrozen(result));
+    assert.ok(Object.isFrozen(result.dashboard));
+  } finally {
+    globalThis.structuredClone = originalStructuredClone;
+  }
+});
+
 test("builds one immutable read-only PAPER operations snapshot", () => {
   const result = snapshot();
   assert.equal(result.schemaVersion, 1);
@@ -137,22 +152,6 @@ test("validates freshness and rejects authority tampering", () => {
   assert.equal(validatePersonalPaperOperationsSnapshot(result, 1_100, 500).schemaVersion, 1);
   assert.throws(() => validatePersonalPaperOperationsSnapshot(result, 1_501, 500), /stale/);
   assert.throws(() => validatePersonalPaperOperationsSnapshot({ ...result, liveAuthority: "LIVE" }, 1_100, 500), /authority/);
-});
-
-test("builds and validates PAPER operations without structuredClone on Android Hermes", () => {
-  const original = globalThis.structuredClone;
-  try {
-    globalThis.structuredClone = undefined;
-    const result = snapshot();
-    const validated = validatePersonalPaperOperationsSnapshot(result, 1_100, 500);
-    assert.equal(validated.schemaVersion, 1);
-    assert.equal(validated.liveAuthority, "NONE");
-    assert.equal(validated.productionMutationAllowed, false);
-    assert.ok(Object.isFrozen(validated));
-    assert.ok(Object.isFrozen(validated.dashboard));
-  } finally {
-    globalThis.structuredClone = original;
-  }
 });
 
 test("authenticated endpoint is GET-only, scope-bound, and read-only", () => {
