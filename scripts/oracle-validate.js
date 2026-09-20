@@ -59,7 +59,18 @@ if (!fs.existsSync(backupPath)) fail(`missing backup directory: ${backupPath}`);
 for (const requiredPath of [servicePath, researchServicePath, researchTimerPath, autopilotServicePath]) {
   if (!fs.existsSync(requiredPath)) fail(`missing systemd unit: ${requiredPath}`);
 }
-if (fs.existsSync(currentPath) && !fs.lstatSync(currentPath).isSymbolicLink()) fail("/opt/nusa/current must be an atomic symlink");
+let activeReleaseCommit = null;
+if (fs.existsSync(currentPath)) {
+  if (!fs.lstatSync(currentPath).isSymbolicLink()) fail("/opt/nusa/current must be an atomic symlink");
+  activeReleaseCommit = path.basename(fs.realpathSync(currentPath)).toLowerCase();
+  if (!sha40.test(activeReleaseCommit)) fail("active Oracle release directory must be named by exact commit SHA");
+  // Candidate preflight intentionally validates the staged tree before activation, while the
+  // current environment still belongs to the prior release. Active-host validation has no such
+  // exception: runtime self-identity must equal the immutable release selected by /opt/nusa/current.
+  if (candidateRelease === null && sourceCommit !== activeReleaseCommit) {
+    fail(`runtime source identity does not match active Oracle release: source=${sourceCommit} active=${activeReleaseCommit}`);
+  }
+}
 
 const unit = fs.readFileSync(servicePath, "utf8");
 for (const required of ["User=nusa", "Group=nusa", "NoNewPrivileges=true", "ProtectSystem=strict", "Restart=on-failure", "WorkingDirectory=/opt/nusa/current", "EnvironmentFile=/etc/nusa/cloud-runtime.env", "ExecStart=/usr/bin/node /opt/nusa/current/scripts/start-cloud-runtime.js", "ReadWritePaths=/var/lib/nusa /var/backups/nusa"]) {
@@ -84,4 +95,4 @@ for (const required of ["Type=simple", "User=nusa", "Group=nusa", "NoNewPrivileg
 }
 if (/User=root|Group=root/.test(autopilotUnit)) fail("Autopilot unit must not execute as root");
 
-console.log(JSON.stringify({ status: "PASS", envPath, dbPath: dbAbsolute, snapshotPath: snapshotAbsolute, sourceCommit, backupPath, servicePath, researchServicePath, researchTimerPath, autopilotServicePath, autopilotEndpoint: autopilotEndpoint.origin, candidateRelease, host }));
+console.log(JSON.stringify({ status: "PASS", envPath, dbPath: dbAbsolute, snapshotPath: snapshotAbsolute, sourceCommit, activeReleaseCommit, backupPath, servicePath, researchServicePath, researchTimerPath, autopilotServicePath, autopilotEndpoint: autopilotEndpoint.origin, candidateRelease, host }));
