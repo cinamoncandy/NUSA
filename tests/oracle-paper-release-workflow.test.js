@@ -114,7 +114,7 @@ test("bounded release pruning preserves rollback safety and validates before del
   const prune = wrapper.slice(pruneStart, pruneEnd);
   assert.match(prune, /active_release/);
   assert.match(prune, /previous_release/);
-  assert.match(prune, /RELEASE_RETENTION=4/);
+  assert.match(wrapper, /readonly RELEASE_RETENTION=4/);
   assert.match(prune, /Validate the entire candidate set before deleting anything/);
   assert.ok(prune.indexOf("unexpected release directory name") < prune.indexOf("rm -rf --"), "validation must dominate deletion");
   assert.match(prune, /\[ "\$dir" = "\$active" \] && continue/);
