@@ -325,9 +325,11 @@ export async function runScheduledEvolutionCoding(
   });
   if (bridge.status !== "READY" || !bridge.request) return result("ABSTAINED", bridge.reason);
 
-  const actionability = await classifyWorkflowActionability(input.repository, input.workflowRunId, token, fetchImpl);
-  if (actionability !== "CODE_ACTIONABLE") {
-    return result("ABSTAINED", `workflow-not-code-actionable:${actionability}`, signals.map((signal) => signal.id));
+  if (failureSignals.length > 0) {
+    const actionability = await classifyWorkflowActionability(input.repository, input.workflowRunId, token, fetchImpl);
+    if (actionability !== "CODE_ACTIONABLE") {
+      return result("ABSTAINED", `workflow-not-code-actionable:${actionability}`, signals.map((signal) => signal.id));
+    }
   }
 
   const persistent = await acquirePersistentExecution(coordinator, {
