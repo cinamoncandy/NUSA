@@ -3,6 +3,7 @@ import {
   classifyResearchIntelligenceRelation,
   createAxiomResearchIntelligenceHandoff,
   createResearchIntelligenceRecord,
+  markResearchIntelligenceReadyForAxiom,
   reclassifyResearchIntelligenceRecord,
   type AxiomResearchIntelligenceHandoff,
   type ResearchIntelligenceRecord,
@@ -93,7 +94,7 @@ function classifyTopics(text: string): readonly string[] {
   const rules: readonly [string, RegExp][] = [
     ["reinforcement-learning", /\breinforcement learning\b|\bppo\b|\bsac\b|\bddpg\b|\btd3\b|\ba2c\b/],
     ["market-microstructure", /market microstructure|limit order book|order book/],
-    ["execution", /execution|market impact|slippage|transaction cost|almgren|square-root law/],
+    ["execution", /trade execution|order execution|execution algorithm|market impact|slippage|transaction cost|almgren|square-root law/],
     ["portfolio-risk", /portfolio optimization|portfolio allocation|risk management|drawdown/],
     ["time-series", /time[- ]series|forecasting|sequence model|transformer|state space/],
     ["statistical-arbitrage", /statistical arbitrage|mean reversion|pairs trading/],
@@ -111,7 +112,7 @@ function classifyMethod(text: string): string {
     return "reinforcement-learning";
   }
   if (/limit order book|order book/.test(normalized)) return "order-book-modeling";
-  if (/market impact|execution|slippage|transaction cost/.test(normalized)) return "execution-cost-modeling";
+  if (/market impact|trade execution|order execution|execution algorithm|slippage|transaction cost/.test(normalized)) return "execution-cost-modeling";
   if (/transformer|state space|sequence model/.test(normalized)) return "sequence-modeling";
   if (/portfolio optimization|portfolio allocation/.test(normalized)) return "portfolio-optimization";
   if (/statistical arbitrage|mean reversion|pairs trading/.test(normalized)) return "statistical-arbitrage";
@@ -120,20 +121,22 @@ function classifyMethod(text: string): string {
 
 function classifyRelevance(text: string): ResearchIntelligenceRelevance {
   const normalized = text.toLowerCase();
+  const financialAnchor =
+    /\btrading\b|quantitative finance|financial market|stock market|capital market|market microstructure|limit order book|order book|bid[- ]ask|portfolio optimization|asset allocation|market impact|transaction cost|slippage|liquidity|automated market mak|prediction market|\bclob\b|\bamm\b|\bstock\b|\bequity\b|asset pricing|\bcrypto(?:currency)?\b|\bbitcoin\b|\bethereum\b/;
+  if (!financialAnchor.test(normalized)) return "LOW";
+
   const direct = [
-    /algorithmic trading/,
-    /market microstructure/,
-    /market impact/,
-    /execution/,
-    /transaction cost/,
-    /limit order book/,
-    /reinforcement learning.*trad/,
-    /portfolio optimization/,
-    /statistical arbitrage/,
+    /algorithmic trading|quantitative trading|systematic trading/,
+    /market microstructure|limit order book|order book|bid[- ]ask/,
+    /market impact|slippage|transaction cost|trade execution|order execution/,
+    /reinforcement learning.{0,100}(trad|market|portfolio)|(?:trad|market|portfolio).{0,100}reinforcement learning/,
+    /portfolio optimization|asset allocation/,
+    /statistical arbitrage|pairs trading|mean reversion/,
+    /automated market mak|prediction market|\bclob\b|\bamm\b/,
   ].filter((pattern) => pattern.test(normalized)).length;
+
   if (direct >= 2) return "HIGH";
   if (direct === 1) return "MEDIUM";
-  if (/finance|market|trading|portfolio|risk|price|return/.test(normalized)) return "MEDIUM";
   return "LOW";
 }
 
@@ -287,20 +290,29 @@ export class ResearchIntelligenceScout {
           candidate,
           Object.freeze([...existing, ...records]),
         );
-        const record = reclassifyResearchIntelligenceRecord(candidate, classification);
-        records.push(record);
+        let record = reclassifyResearchIntelligenceRecord(candidate, classification);
 
         if (record.novelty === "DUPLICATE") {
           duplicatesSuppressed += 1;
+          records.push(record);
           continue;
         }
-        if (record.nusaRelevance === "LOW" || record.nusaRelevance === "UNKNOWN") continue;
+
+        // Keep medium/low relevance discoveries observable without flooding AXIOM.
+        // Until a canonical evidence-backed priority model exists, only HIGH relevance may hand off.
+        if (record.nusaRelevance !== "HIGH") {
+          records.push(record);
+          continue;
+        }
 
         try {
-          axiomHandoffs.push(createAxiomResearchIntelligenceHandoff(record));
+          const handoff = createAxiomResearchIntelligenceHandoff(record);
+          record = markResearchIntelligenceReadyForAxiom(record);
+          axiomHandoffs.push(handoff);
         } catch {
           // Fail closed. Source discovery remains observable, but no handoff is fabricated.
         }
+        records.push(record);
       }
     }
 
