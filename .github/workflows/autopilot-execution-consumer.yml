@@ -44,6 +44,18 @@ jobs:
           if (!Number.isSafeInteger(payload.workflow_run_id) || payload.workflow_run_id <= 0) fail('workflow_run_id must be a positive safe integer');
           if (!/^[A-Za-z0-9_.:-]{1,160}$/.test(payload.execution_id || '')) fail('execution_id must be a bounded lifecycle identity');
           if (!/^[A-Za-z0-9_.:-]{1,256}$/.test(payload.dedupe_key || '')) fail('dedupe_key must be a bounded lifecycle identity');
+          const hasOwner = payload.canonical_owner !== undefined && payload.canonical_owner !== null;
+          const hasConflictKeys = payload.conflict_keys !== undefined && payload.conflict_keys !== null;
+          if (hasOwner !== hasConflictKeys) fail('canonical_owner and conflict_keys must be supplied together');
+          if (hasOwner) {
+            if (!/^[A-Za-z0-9_.:/-]{1,120}$/.test(payload.canonical_owner || '')) fail('canonical_owner must be a bounded owner identity');
+            if (!Array.isArray(payload.conflict_keys) || payload.conflict_keys.length === 0 || payload.conflict_keys.length > 32) fail('conflict_keys must be a non-empty bounded array');
+            const conflictKeys = new Set();
+            for (const key of payload.conflict_keys) {
+              if (typeof key !== 'string' || !/^[A-Za-z0-9_.:/-]{1,200}$/.test(key) || conflictKeys.has(key)) fail('conflict_keys contains an invalid or duplicate key');
+              conflictKeys.add(key);
+            }
+          }
           if (payload.live_authority !== 'NONE') fail('live_authority must remain NONE');
           if (payload.production_mutation_allowed !== false) fail('production_mutation_allowed must remain false');
           if (payload.ai_authority !== 'ZERO_AUTHORITY') fail('ai_authority must remain ZERO_AUTHORITY');
@@ -88,6 +100,10 @@ jobs:
             reason: payload.reason,
             executionId: payload.execution_id,
             dedupeKey: payload.dedupe_key,
+            ...(payload.canonical_owner !== undefined && payload.canonical_owner !== null ? {
+              canonicalOwner: payload.canonical_owner,
+              conflictKeys: payload.conflict_keys,
+            } : {}),
             mutationAllowed: false,
             liveAuthority: 'NONE',
             productionMutationAllowed: false,
