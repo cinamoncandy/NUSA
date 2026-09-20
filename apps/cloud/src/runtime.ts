@@ -332,7 +332,7 @@ export function startCloudRuntime(
       } catch { /* advisory AI only */ }
       if (effectivePaperLoop != null) {
         const investmentPercent = investmentAllocationSettings.get(config.ownerId)?.investmentPercent ?? config.paperInvestmentPercent;
-        const tick = { now: executionNow, market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, mode: state.mode, killSwitchActive: state.killSwitchActive, tradingAllowed: dashboard.tradingAllowed, overallHealth: state.overallHealth, decisions: state.decisions, investmentPercent, observedQuote: latestExecutionQuotes.get(ticker.code) };
+        const tick = { now: executionNow, market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, mode: state.mode, killSwitchActive: state.killSwitchActive, tradingAllowed: dashboard.tradingAllowed, overallHealth: state.overallHealth, portfolio: state.portfolio, decisions: state.decisions, investmentPercent, observedQuote: latestExecutionQuotes.get(ticker.code) };
         heartbeat.lastPaperDecisionAt = now;
         heartbeat.decisionCount += state.decisions.length;
         // A supplied loop is a read/recovery fixture unless it is composed behind the

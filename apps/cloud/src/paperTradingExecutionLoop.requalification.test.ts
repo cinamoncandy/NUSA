@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-const EXPECTED_PAPER_ADAPTER_BLOB = "59e1a554b9d70a95ed2f4000a348f1f32a344f97";
+const EXPECTED_PAPER_ADAPTER_BLOB = "7aa0cf033c7b177505cb2891eef7b31f5f08928a";
 
 function gitBlobSha(content: string): string {
   // Git stores this repository's TypeScript sources with LF. Windows checkout may materialize
@@ -22,5 +22,9 @@ describe("PAPER_ADAPTER exact-source re-qualification evidence", () => {
     assert.match(source, /loadHistory\(\): readonly PaperAccountState\[\]/);
     assert.match(source, /cloud_paper_account_history/);
     assert.match(source, /paper cancelled order\/fill reconciliation mismatch/);
+    assert.match(source, /validatePaperExecutionIntent\(fill\.executionIntent\)/);
+    assert.match(source, /paper fill execution intent mismatch/);
+    assert.match(source, /paper fill execution intent provenance mismatch/);
+    assert.match(source, /paperExecutionIntentCommandId\(canonicalExecutionIntent\)/);
   });
 });
