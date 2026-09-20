@@ -198,6 +198,7 @@ export function startCloudRuntime(
   const paperMarketObservationRepository = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new SqlitePaperMarketObservationRepository(durableRepository.database())
     : undefined;
+  const effectivePaperRepository = paperAccountRepository ?? (config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository ? new SqliteCloudPaperAccountRepository(durableRepository.database()) : undefined);
   let effectivePaperLoop: PaperTradingExecutionLoop | undefined;
   const paperRealizedPeriodProducer = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new PaperRealizedPeriodProducer(new SqlitePaperRealizedPeriodRepository(durableRepository.database()), {
@@ -213,6 +214,10 @@ export function startCloudRuntime(
         const loop = effectivePaperLoop;
         if (loop == null) throw new Error("canonical PAPER account source is unavailable");
         return loop.snapshot();
+      },
+      readCanonicalPaperFills: () => {
+        if (effectivePaperRepository?.loadFills == null) throw new Error("canonical PAPER fill ledger is unavailable");
+        return effectivePaperRepository.loadFills();
       },
       ...(paperMarketObservationRepository == null ? {} : { readCanonicalBenchmarkEvidence: (periodStartAt: number, periodEndAt: number, market?: string) => readCanonicalPaperTickerBenchmark(paperMarketObservationRepository, market, periodStartAt, periodEndAt) }),
     })
@@ -235,7 +240,6 @@ export function startCloudRuntime(
     : new InMemoryInvestmentAllocationSettingsRepository();
   const readPaperP0State = () => { if (effectiveP0Repository == null) throw new Error("P0 safety repository unavailable"); return effectiveP0Repository.readState(); };
   const readAiP0State = (): CloudRuntimeAiP0State => { if (effectiveP0Repository == null) return "UNAVAILABLE"; try { return effectiveP0Repository.readState().openP0 ? "OPEN" : "CLOSED"; } catch { return "UNVERIFIABLE"; } };
-  const effectivePaperRepository = paperAccountRepository ?? (config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository ? new SqliteCloudPaperAccountRepository(durableRepository.database()) : undefined);
   const productionPaperRiskGate = config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new CloudPaperCanonicalRiskGateway({ database: durableRepository.database(), initialCapital: config.paperInitialCapitalKrw, sourceCommitSha: env.NUSA_SOURCE_COMMIT?.trim() || env.GITHUB_SHA?.trim() || "local-paper-build" })
     : undefined;
