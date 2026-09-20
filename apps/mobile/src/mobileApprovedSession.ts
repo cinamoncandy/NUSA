@@ -176,6 +176,18 @@ function readProof(value: string): string {
   return proof;
 }
 
+/**
+ * True when the local hardware-key ceremony failed, as opposed to the server refusing the
+ * owner. Native rejections carry an E_NUSA_OWNER_DEVICE_CREDENTIAL_* code; the two local
+ * hardware assertions in this module throw plain Errors and are matched by message.
+ */
+function isOwnerDeviceCredentialFailure(error: unknown): boolean {
+  if (error instanceof MobileSessionRequestError) return false;
+  const code = (error as { code?: unknown } | null | undefined)?.code;
+  if (typeof code === "string" && code.startsWith("E_NUSA_OWNER_DEVICE_CREDENTIAL_")) return true;
+  return error instanceof Error && error.message === "hardware-backed owner credential is unavailable.";
+}
+
 function parseIdentity(value: unknown): MobileApprovedSessionIdentity {
   if (value == null || typeof value !== "object" || Array.isArray(value)) throw new Error("mobile identity response is invalid.");
   const record = value as Record<string, unknown>;
@@ -295,8 +307,19 @@ export class MobileApprovedSession {
       });
       return this.authenticateOwnerDeviceCredential(endpoint, device, native, credentialId);
     } catch (error) {
-      await this.clearLocal();
       if (credentialId != null) { try { await native.deleteCredential(credentialId); } catch { /* remove unusable local registration material */ } }
+      // A device that cannot complete the hardware-key ceremony loses silent reconnect, not the
+      // session the server already issued against the owner password. Keeping it grants nothing
+      // the server withheld. It stays memory-only and is never persisted, so the next launch asks
+      // for the password again -- that is the cost of having no hardware key to re-sign with.
+      if (isOwnerDeviceCredentialFailure(error)) {
+        try {
+          const identity = await this.loadIdentity(endpoint, ownerBearer);
+          this.identity = identity;
+          return identity;
+        } catch (identityError) { await this.clearLocal(); throw identityError; }
+      }
+      await this.clearLocal();
       throw error;
     }
   }
