@@ -110,6 +110,24 @@ describe("PAPER working-order execution invariants", () => {
     assert.equal(cancelled.orders[0]?.quantity, 1);
     assert.equal(cancelled.fills[0]?.id, "fill-event:partial-before-cancel");
     assert.equal(cancelled.state.orders[0]?.id, orderId);
+    const restored = new PaperTradingExecutionLoop({ initialCapital: 1_000_000, maxFillRatio: 0.5, restoredState: cancelled.state });
+    assert.equal(restored.snapshot().orders[0]?.status, "CANCELLED");
+    assert.equal(restored.snapshot().orders[0]?.lifecycle?.remainingQuantity, 1);
+  });
+
+  it("restores a zero-fill cancelled LIMIT order without fabricating accounting", () => {
+    const loop = new PaperTradingExecutionLoop({ initialCapital: 1_000_000 });
+    const opened = loop.openLimitOrder(limitOrder("zero-fill-cancel-0001", 2, 100), context(100));
+    const orderId = opened.state.workingOrders?.[0]?.id;
+    assert.ok(orderId);
+    const cancelled = loop.cancelWorkingOrder(orderId, 1_001);
+    assert.equal(cancelled.orders[0]?.status, "CANCELLED");
+    assert.equal(cancelled.orders[0]?.quantity, 0);
+    assert.equal(cancelled.state.fills.length, 0);
+    const restored = new PaperTradingExecutionLoop({ initialCapital: 1_000_000, restoredState: cancelled.state });
+    assert.equal(restored.snapshot().orders[0]?.status, "CANCELLED");
+    assert.equal(restored.snapshot().cash, 1_000_000);
+    assert.equal(restored.snapshot().fills.length, 0);
   });
 
   it("restores working lifecycle and latency counter from persisted state", () => {
