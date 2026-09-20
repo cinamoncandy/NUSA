@@ -71,14 +71,13 @@ export function AiView({ai,research,health,liveAuthority,productionMutationAllow
       {counter.slice(0,2).map((item,index)=><View key={`counter-${index}`} style={{paddingHorizontal:14,paddingVertical:11,borderBottomWidth:1,borderBottomColor:BORDER,flexDirection:"row",gap:10}}><Text style={{color:RED,fontSize:9,fontWeight:"900",width:62}}>COUNTER</Text><Text style={{color:wealthProductColors.c51,fontSize:9,lineHeight:14,flex:1}} numberOfLines={3}>{String(item)}</Text></View>)}
     </View>
 
-    <View style={styles.authority}>
+    <View style={styles.authority} testID="ai-zero-authority-status">
       <Text style={styles.authorityTitle}>AI ZERO AUTHORITY</Text>
       <Text style={styles.authorityText}>PAPER ONLY · LIVE {liveAuthority??"NONE"} · PRODUCTION MUTATION {productionMutationAllowed===false?"BLOCKED":"UNVERIFIED"}</Text>
       <Text style={styles.authorityText}>SYSTEM {health??"UNKNOWN"} · KILL SWITCH {killSwitchActive==null?"UNKNOWN":killSwitchActive?"ACTIVE":"INACTIVE"} · RESEARCH {research?.health??"UNAVAILABLE"}</Text>
     </View>
     <View style={styles.watchButton}><Text style={styles.watchText}>☆  SIGNAL IS READ ONLY</Text></View>
     {error?<Text style={styles.error}>{error}</Text>:null}
-    <View testID="ai-zero-authority-status"/>
   </ScrollView>;
 }
 const styles=StyleSheet.create({
