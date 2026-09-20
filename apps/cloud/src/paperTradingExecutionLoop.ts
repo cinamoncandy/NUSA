@@ -143,7 +143,7 @@ export interface PaperAccountState {
   readonly workingOrders?: readonly PaperWorkingOrderRecord[];
   readonly updatedAt: number;
 }
-export interface PaperAccountRepository { save(state: PaperAccountState): void; loadLatest(): PaperAccountState | undefined; clear(): void; close?: () => void; }
+export interface PaperAccountRepository { save(state: PaperAccountState): void; loadLatest(): PaperAccountState | undefined; loadHistory?: () => readonly PaperAccountState[]; clear(): void; close?: () => void; }
 
 export interface PaperWriterLeaseOptions {
   readonly now?: () => number;
@@ -208,6 +208,19 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
       this.db.connection.prepare("UPDATE cloud_paper_accounts SET status = 'CORRUPTED' WHERE account_id = ?").run(ACCOUNT_ID);
       throw error;
     }
+  }
+  public loadHistory(): readonly PaperAccountState[] {
+    this.assertLeaseHeld();
+    const rows = this.db.connection.prepare(
+      "SELECT schema_version, updated_at, state_json, checksum FROM cloud_paper_account_history WHERE account_id = ? ORDER BY updated_at ASC"
+    ).all(ACCOUNT_ID) as Array<Record<string, string | number | null>>;
+    return Object.freeze(rows.map((row) => {
+      if (Number(row.schema_version) !== SCHEMA_VERSION) throw new Error("unsupported paper account history schema");
+      const state = JSON.parse(String(row.state_json)) as PaperAccountState;
+      validateState(state);
+      if (Number(row.updated_at) !== state.updatedAt || String(row.checksum) !== accountChecksum(state)) throw new Error("paper account history checksum mismatch");
+      return state;
+    }));
   }
   public clear(): void { this.db.transaction(() => { this.assertLeaseHeld(); this.db.connection.prepare("DELETE FROM cloud_paper_accounts WHERE account_id = ?").run(ACCOUNT_ID); }); }
   public close(): void {
