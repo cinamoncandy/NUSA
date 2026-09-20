@@ -24,7 +24,7 @@ export interface RegisteredStrategyFamily extends StrategyFamilyDefinition {
 }
 
 export class StrategyFamilyRegistryError extends Error {
-  constructor(readonly code: "INVALID_FAMILY" | "DUPLICATE_FAMILY" | "UNKNOWN_FAMILY" | "MEMBER_CONFLICT" | "CHAMPION_CONFLICT") {
+  constructor(readonly code: "INVALID_FAMILY" | "DUPLICATE_FAMILY" | "UNKNOWN_FAMILY" | "FAMILY_NOT_ADMITTING_MEMBERS" | "MEMBER_CONFLICT" | "CHAMPION_CONFLICT") {
     super(code); this.name = "StrategyFamilyRegistryError";
   }
 }
@@ -77,7 +77,9 @@ export class StrategyFamilyRegistry {
 
   registerMember(member: StrategyFamilyMember): StrategyFamilyMember {
     validateMember(member);
-    if (!this.families.has(member.familyId)) throw new StrategyFamilyRegistryError("UNKNOWN_FAMILY");
+    const family = this.families.get(member.familyId);
+    if (!family) throw new StrategyFamilyRegistryError("UNKNOWN_FAMILY");
+    if (family.lifecycle === "SUSPENDED" || family.lifecycle === "RETIRED") throw new StrategyFamilyRegistryError("FAMILY_NOT_ADMITTING_MEMBERS");
     const key = `${member.strategyId}|${member.version}`;
     const existing = this.members.get(key);
     if (existing) {
