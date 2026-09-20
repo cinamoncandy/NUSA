@@ -9,21 +9,21 @@ function source(file) {
   return fs.readFileSync(path.join(mobile, "src", file), "utf8");
 }
 
-test("AI distinguishes error and loading before rendering analysis content", () => {
+test("AI renders fail-closed read-only truth without fabricated loading or analysis claims", () => {
   const ai = source("aiView.tsx");
-  const errorIndex = ai.indexOf('if (error) return <AiState');
-  const loadingIndex = ai.indexOf('if (ai === null && research === null) return <AiState');
-  const screenIndex = ai.indexOf('testID="ai-screen"');
 
-  assert.ok(errorIndex >= 0);
-  assert.ok(loadingIndex > errorIndex);
-  assert.ok(screenIndex > loadingIndex);
-  assert.match(ai, /testID="ai-loading"/);
-  assert.match(ai, /testID="ai-error"/);
-  assert.match(ai, /ZERO AUTHORITY/);
-  assert.match(ai, /READ ONLY/);
-  assert.match(ai, /testID="ai-loading-skeleton"/);
+  assert.match(ai, /testID="ai-screen"/);
+  assert.match(ai, /const thesis=ai\?\.status==="AVAILABLE"&&ai\.thesis\?ai\.thesis:"검증된 AI 판단이 아직 없습니다\."/);
+  assert.match(ai, /const calibrated=ai\?\.calibrationStatus==="CALIBRATED"/);
+  assert.match(ai, /const trusted=calibrated\?percent\(ai\?\.confidence\):"UNVERIFIED"/);
+  assert.match(ai, /보정되지 않은 출력입니다\. 수익 확률로 표시하지 않습니다\./);
+  assert.match(ai, /VERIFIED EVIDENCE UNAVAILABLE/);
+  assert.match(ai, /VERIFIED CHART UNAVAILABLE/);
+  assert.match(ai, /AI ZERO AUTHORITY/);
+  assert.match(ai, /SIGNAL IS READ ONLY/);
+  assert.match(ai, /\{error\?<Text style=\{styles\.error\}>\{error\}<\/Text>:null\}/);
   assert.doesNotMatch(ai, /ActivityIndicator/);
+  assert.doesNotMatch(ai, /ORDER_CREATE|LIVE_EXECUTION|onSubmit/);
 });
 
 test("Markets keeps chart navigation reachable regardless of verified candles", () => {
