@@ -10,10 +10,12 @@ const test = require("node:test");
 const VALID_SHA = "a".repeat(40);
 const OTHER_SHA = "b".repeat(40);
 const TOKEN = "t".repeat(64);
+const AUTOPILOT_TOKEN = "a".repeat(64);
 
 const PAPER_UNIT = `[Unit]\nDescription=NUSA Cloud Paper Runtime\n[Service]\nUser=nusa\nGroup=nusa\nWorkingDirectory=/opt/nusa/current\nEnvironmentFile=/etc/nusa/cloud-runtime.env\nExecStart=/usr/bin/node /opt/nusa/current/scripts/start-cloud-runtime.js\nRestart=on-failure\nNoNewPrivileges=true\nProtectSystem=strict\nReadWritePaths=/var/lib/nusa /var/backups/nusa\n`;
 const RESEARCH_UNIT = `[Unit]\nDescription=NUSA canonical Research\n[Service]\nType=oneshot\nUser=nusa\nGroup=nusa\nWorkingDirectory=/opt/nusa/current\nEnvironmentFile=/etc/nusa/cloud-runtime.env\nExecStart=/usr/bin/node /opt/nusa/current/scripts/run-cloud-research-snapshot.js\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectHome=true\nReadWritePaths=/var/lib/nusa /var/backups/nusa\n`;
 const RESEARCH_TIMER = `[Unit]\nDescription=Schedule Research\n[Timer]\nOnBootSec=2min\nOnCalendar=*-*-* 09:15:00 Asia/Seoul\nPersistent=true\nRandomizedDelaySec=5min\nUnit=nusa-research.service\n[Install]\nWantedBy=timers.target\n`;
+const AUTOPILOT_UNIT = `[Unit]\nDescription=NUSA Persistent Autopilot Runtime\n[Service]\nType=simple\nUser=nusa\nGroup=nusa\nWorkingDirectory=/opt/nusa/current\nEnvironmentFile=/etc/nusa/cloud-runtime.env\nEnvironment=HOME=/var/lib/nusa\nExecStart=/usr/bin/node /opt/nusa/current/scripts/autopilot-runtime.js\nRestart=always\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectHome=true\nReadWritePaths=/var/lib/nusa\nUMask=0077\n`;
 
 function write(root, absolute, contents) {
   const target = path.join(root, absolute.replace(/^\/+/, ""));
@@ -30,6 +32,8 @@ function fixture(overrides = {}) {
     NUSA_CLOUD_DASHBOARD_TOKEN: TOKEN,
     NUSA_CLOUD_DASHBOARD_HOST: "127.0.0.1",
     NUSA_CLOUD_STATE_DB_PATH: "/var/lib/nusa/state.sqlite",
+    NUSA_AUTOPILOT_RUNTIME_ENDPOINT: "https://autopilot.example.test/scheduled/run",
+    NUSA_AUTOPILOT_RUNTIME_TOKEN: AUTOPILOT_TOKEN,
     NUSA_SOURCE_COMMIT: VALID_SHA,
     ...overrides,
   };
@@ -37,6 +41,7 @@ function fixture(overrides = {}) {
   write(root, "/etc/systemd/system/nusa.service", PAPER_UNIT);
   write(root, "/etc/systemd/system/nusa-research.service", RESEARCH_UNIT);
   write(root, "/etc/systemd/system/nusa-research.timer", RESEARCH_TIMER);
+  write(root, "/etc/systemd/system/nusa-autopilot.service", AUTOPILOT_UNIT);
   return root;
 }
 
@@ -63,6 +68,21 @@ test("fails closed when the autonomous Research timer is missing", () => {
   const result = validate(root);
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /missing systemd unit/);
+});
+
+test("fails closed when the persistent Autopilot unit is missing", () => {
+  const root = fixture();
+  fs.rmSync(path.join(root, "etc/systemd/system/nusa-autopilot.service"));
+  const result = validate(root);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /missing systemd unit/);
+});
+
+test("fails closed when the Autopilot runtime endpoint is not HTTPS", () => {
+  const root = fixture({ NUSA_AUTOPILOT_RUNTIME_ENDPOINT: "http://autopilot.example.test/scheduled/run" });
+  const result = validate(root);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /endpoint must be HTTPS/);
 });
 
 test("fails closed when deployed source identities disagree", () => {
