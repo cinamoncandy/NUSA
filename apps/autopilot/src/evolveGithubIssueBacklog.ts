@@ -148,6 +148,8 @@ export function deriveGithubIssueBacklogReadiness(
     confidence: 0.85,
     risk: 0.2,
     reversibility: 0.9,
+    canonicalOwner: "autopilot.control-plane",
+    conflictKeys: ["module:apps/autopilot/src"],
   } satisfies EvolutionDiscoverySignal));
 
   return Object.freeze({
