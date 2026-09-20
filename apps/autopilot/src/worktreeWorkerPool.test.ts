@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { admitWorkerTask, completeWorkerClaim, createWorkerPoolState, recoverExpiredWorkerClaims, startWorkerClaim, validateWorkerPoolState } from "./worktreeWorkerPool";
+import { admitWorkerTask, completeWorkerClaim, createWorkerPoolState, recoverExpiredWorkerClaims, renewWorkerLease, startWorkerClaim, validateWorkerPoolState } from "./worktreeWorkerPool";
 
 const task = (id: string, overrides: Partial<Parameters<typeof admitWorkerTask>[1]> = {}) => ({
   taskId: id,
@@ -78,6 +78,70 @@ describe("worktree worker pool", () => {
     const completed = completeWorkerClaim(running, { taskId: "one", executionId: "execution:one", workerId: "worker-1" }, 400);
     assert.deepEqual(completed.metrics, { taskId: "one", workerId: "worker-1", queuedAt: 100, claimedAt: 200, startedAt: 250, completedAt: 400, queueWaitMs: 100, claimToStartMs: 50, claimToCompleteMs: 200, totalMs: 300 });
     assert.equal(completed.state.claims.length, 0);
+  });
+
+  it("rejects a completion from a worker whose lease already expired", () => {
+    const admitted = admitWorkerTask(createWorkerPoolState(1), task("one"), "worker-1", 200, 10);
+    assert.equal(admitted.admitted, true);
+    if (!admitted.admitted) return;
+    const running = startWorkerClaim(admitted.state, { taskId: "one", executionId: "execution:one", workerId: "worker-1" }, 205);
+    // The lease died at 210. The allocator agrees this task is recoverable.
+    assert.deepEqual(recoverExpiredWorkerClaims(running, 300).recoveredTaskIds, ["one"]);
+    // So the zombie worker must not be able to close it out and emit throughput for it.
+    assert.throws(() => completeWorkerClaim(running, { taskId: "one", executionId: "execution:one", workerId: "worker-1" }, 300), /WORKER_LEASE_EXPIRED/);
+    // A live worker renews instead, and then completes normally.
+    const renewed = renewWorkerLease(running, { taskId: "one", executionId: "execution:one", workerId: "worker-1" }, 208, 1_000);
+    const completed = completeWorkerClaim(renewed, { taskId: "one", executionId: "execution:one", workerId: "worker-1" }, 300);
+    assert.equal(completed.metrics.completedAt, 300);
+    assert.equal(completed.state.claims.length, 0);
+  });
+
+  it("does not double-count a task that was re-admitted after its lease expired", () => {
+    const first = admitWorkerTask(createWorkerPoolState(1), task("one"), "worker-1", 200, 10);
+    assert.equal(first.admitted, true);
+    if (!first.admitted) return;
+    const running = startWorkerClaim(first.state, { taskId: "one", executionId: "execution:one", workerId: "worker-1" }, 205);
+    const recovered = recoverExpiredWorkerClaims(running, 300);
+    const second = admitWorkerTask(recovered.state, task("one"), "worker-2", 301, 1_000);
+    assert.equal(second.admitted, true);
+    if (!second.admitted) return;
+    // worker-1 comes back from the dead holding its own stale snapshot.
+    assert.throws(() => completeWorkerClaim(running, { taskId: "one", executionId: "execution:one", workerId: "worker-1" }, 400), /WORKER_LEASE_EXPIRED/);
+    // And it cannot complete against the live state either: that claim belongs to worker-2.
+    assert.throws(() => completeWorkerClaim(second.state, { taskId: "one", executionId: "execution:one", workerId: "worker-1" }, 400), /WORKER_IDENTITY_MISMATCH/);
+  });
+
+  it("refuses to hand a worker a protected or symbolic branch", () => {
+    // A worker branch is a branch the worker creates and pushes. Admitting `main` here would make
+    // the admission boundary itself the thing that hands out the branch the release path owns.
+    for (const branchName of ["main", "master", "HEAD", "refs/heads/main", "codex/../main"]) {
+      assert.throws(() => admitWorkerTask(createWorkerPoolState(1), task("one", { branchName }), "worker-1", 200, 1_000), /WORKER_TASK_INVALID/, branchName);
+    }
+    const ok = admitWorkerTask(createWorkerPoolState(1), task("one", { branchName: "codex/2117-worker" }), "worker-1", 200, 1_000);
+    assert.equal(ok.admitted, true);
+  });
+
+  it("confines every worker workspace to the sandbox root", () => {
+    // worktreePath is passed to `git worktree add` and `git worktree remove`, so an absolute path
+    // or a traversal segment puts worker lifecycle side effects outside the sandbox.
+    for (const worktreePath of ["../../../tmp/evil", "/etc/nusa", ".autopilot/worktrees/../../../root/.ssh", ".autopilot/worktrees/", "relative/elsewhere"]) {
+      assert.throws(() => admitWorkerTask(createWorkerPoolState(1), task("one", { worktreePath }), "worker-1", 200, 1_000), /WORKER_TASK_INVALID/, worktreePath);
+    }
+    const ok = admitWorkerTask(createWorkerPoolState(1), task("one", { worktreePath: ".autopilot/worktrees/one" }), "worker-1", 200, 1_000);
+    assert.equal(ok.admitted, true);
+  });
+
+  it("rejects persisted state carrying an escaped workspace or a protected branch", () => {
+    // Recovery reads this state back. A state file that got past an older validator must not be
+    // able to re-open capacity with a claim the current rules would never have admitted.
+    const claim = (overrides: Record<string, unknown>) => ({
+      schemaVersion: 1,
+      maxWip: 1,
+      claims: [{ task: { ...task("one"), ...overrides }, workerId: "worker-1", state: "RUNNING", claimedAt: 200, leaseExpiresAt: 1_200, startedAt: 205 }],
+    });
+    assert.throws(() => validateWorkerPoolState(claim({ branchName: "main" })), /WORKER_POOL_STATE_CORRUPT/);
+    assert.throws(() => validateWorkerPoolState(claim({ worktreePath: "/etc/nusa" })), /WORKER_POOL_STATE_CORRUPT/);
+    assert.doesNotThrow(() => validateWorkerPoolState(claim({})));
   });
 
   it("rejects corrupt persisted state instead of opening capacity", () => {
