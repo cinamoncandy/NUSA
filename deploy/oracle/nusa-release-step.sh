@@ -122,6 +122,11 @@ restart_units() {
   systemctl start "${RESEARCH_TIMER}"
 }
 
+stop_units_fail_closed() {
+  systemctl stop "${AUTOPILOT_SERVICE}" 2>/dev/null || true
+  systemctl stop "${SERVICE}" 2>/dev/null || true
+}
+
 rollback_and_restore() {
   NUSA_DEPLOY_ACTION=rollback node "$(script_in "$(active_release)" atomic-deploy.js)"
   bind_runtime_source_identity "$(active_release_sha)"
@@ -237,8 +242,14 @@ case "$verb" in
     if ! bind_runtime_source_identity "$1" || ! install_units_from_release "$dir" || ! enable_units || ! restart_units || ! node "$(script_in "$dir" oracle-readiness-check.js)" || ! node "$(script_in "$dir" autopilot-readiness.js)"; then
       printf '%s\n' "nusa-release-step: activation failed for $1; restoring previous release" >&2
       rollback_and_restore
-      node "$(script_in "$(active_release)" oracle-readiness-check.js)" || die "rollback PAPER readiness failed"
-      node "$(script_in "$(active_release)" autopilot-readiness.js)" || die "rollback Autopilot readiness failed"
+      if ! node "$(script_in "$(active_release)" oracle-readiness-check.js)"; then
+        stop_units_fail_closed
+        die "rollback PAPER readiness failed; services stopped because persistent state may be incompatible with the rollback release"
+      fi
+      if ! node "$(script_in "$(active_release)" autopilot-readiness.js)"; then
+        stop_units_fail_closed
+        die "rollback Autopilot readiness failed; services stopped"
+      fi
       exit 1
     fi
     systemctl is-active --quiet "$SERVICE" || die "PAPER service is not active after activation"
