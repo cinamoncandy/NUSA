@@ -22,13 +22,15 @@ export interface DurableObjectStubLike {
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
 }
 
-interface ExecutionRecord {
+export interface PersistentExecutionRecord {
   dedupeKey: string;
   executionId: string;
   state: "LEASED" | "HANDED_OFF" | "DISPATCHED" | "RELEASED";
   leaseExpiresAt: number;
   updatedAt: number;
 }
+
+type ExecutionRecord = PersistentExecutionRecord;
 
 interface AcquireRequest {
   dedupeKey: string;
@@ -291,6 +293,7 @@ export class ExecutionCoordinator {
     if (request.method === "GET" && url.pathname === "/evolve-learning-memory") return this.readEvolutionLearningMemory();
     if (request.method === "GET" && url.pathname === "/coding-evidence-history") return this.readCodingExecutionEvidence();
     if (request.method === "GET" && url.pathname === "/execution-telemetry") return this.readExecutionTelemetry();
+    if (request.method === "GET" && url.pathname === "/execution") return this.readExecution();
     if (request.method === "GET" && url.pathname === "/control-plane-hold") return this.readControlPlaneHold();
     if (request.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405);
     if (url.pathname === "/acquire") return this.acquire(await request.json());
@@ -327,6 +330,11 @@ export class ExecutionCoordinator {
       await storage.put("execution", record);
       return json({ acquired: true, record }, 201);
     });
+  }
+
+  private async readExecution(): Promise<Response> {
+    const record = await this.ctx.storage.get<ExecutionRecord>("execution");
+    return json({ record: record ?? null });
   }
 
   private async markDispatched(value: unknown): Promise<Response> {
@@ -708,6 +716,14 @@ export async function acquirePersistentExecution(namespace: ExecutionCoordinator
   if (response.status === 201 && body.acquired === true) return { acquired: true };
   if (response.status === 409 && body.acquired === false) return { acquired: false, reason: body.reason ?? "DUPLICATE_EXECUTION" };
   throw new Error("PERSISTENT_EXECUTION_COORDINATION_FAILED");
+}
+
+export async function readPersistentExecution(namespace: ExecutionCoordinatorNamespace, dedupeKey: string): Promise<PersistentExecutionRecord | null> {
+  const stub = namespace.get(namespace.idFromName(dedupeKey));
+  const response = await stub.fetch("https://execution-coordinator/execution");
+  if (!response.ok) throw new Error("PERSISTENT_EXECUTION_STATE_READ_FAILED");
+  const body = await response.json() as { record?: PersistentExecutionRecord | null };
+  return body.record ?? null;
 }
 
 export async function handoffOrAcquirePersistentExecution(namespace: ExecutionCoordinatorNamespace, input: AcquireRequest): Promise<{ acquired: boolean; reason?: string }> {
