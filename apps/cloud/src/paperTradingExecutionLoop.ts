@@ -1044,7 +1044,13 @@ export class PaperTradingExecutionLoop {
       const key = canonicalExecutionIntent == null
         ? `paper:${tick.market}:${tick.observedAt}:${decision.action}:${decision.decidedAt}`
         : paperExecutionIntentCommandId(canonicalExecutionIntent);
-      if (existingKeys.has(key)) return this.result("DUPLICATE", key);
+      if (existingKeys.has(key)) {
+        const existingWorking = (this.state.workingOrders ?? []).find((order) => order.idempotencyKey === key && order.executionIntent != null);
+        if (canonicalExecutionIntent != null && existingWorking?.executionIntent?.intentFingerprintSha256 === canonicalExecutionIntent.intentFingerprintSha256) {
+          return this.advanceStrategyWorkingOrder(existingWorking.id, tick);
+        }
+        return this.result("DUPLICATE", key);
+      }
       const position = working.positions.find((item) => item.market === tick.market);
       const quantity = round8(canonicalExecutionIntent?.quantity ?? tick.quantity ?? (decision.action === "SELL" ? position?.quantity ?? 0 : working.cash * (investmentPercent / 100) * decision.allocation / tick.price));
       if (quantity <= 0) return this.result("REJECTED", decision.action === "SELL" ? "insufficient paper position" : "decision allocation is zero");
@@ -1061,6 +1067,38 @@ export class PaperTradingExecutionLoop {
         decisionAt: decision.decidedAt,
         binding: validatePaperCandidateExecutionBinding(decision.paperCandidateBinding, decision.decidedAt),
       });
+      if (canonicalExecutionIntent != null) {
+        if (candidateProvenance == null) return this.result("REJECTED", "PAPER_CANDIDATE_BINDING_REQUIRED");
+        const id = createHash("sha256").update(key, "utf8").digest("hex").slice(0, 24);
+        let lifecycle = createPaperOrderLifecycle(quantity, tick.now);
+        lifecycle = transitionPaperOrderLifecycle(lifecycle, "ACCEPTED", tick.now);
+        lifecycle = transitionPaperOrderLifecycle(lifecycle, "OPEN", tick.now);
+        const strategyWorking: PaperWorkingOrderRecord = Object.freeze({
+          id,
+          idempotencyKey: key,
+          market: tick.market.trim().toUpperCase(),
+          side,
+          orderType: "MARKET",
+          requestedQuantity: quantity,
+          createdAt: tick.now,
+          requestFingerprint: canonicalExecutionIntent.intentFingerprintSha256,
+          lifecycle,
+          executionProfile: this.executionProfile,
+          observedTicks: 0,
+          candidateProvenance,
+          executionIntent: canonicalExecutionIntent,
+        });
+        let opened: PaperAccountState = Object.freeze({
+          ...working,
+          workingOrders: Object.freeze([strategyWorking, ...(working.workingOrders ?? [])].slice(0, 1_000)),
+          processedIdempotencyKeys: Object.freeze([key, ...working.processedIdempotencyKeys]),
+          updatedAt: tick.now,
+        });
+        opened = markToMarket(opened, tick.market, tick.price, tick.now);
+        try { this.repository?.save(opened); } catch { return this.result("FAILED", "paper account persistence failed"); }
+        this.state = opened;
+        return this.advanceStrategyWorkingOrder(id, tick);
+      }
       let order: ReturnType<typeof executeOrder>;
       try { order = executeOrder(working, key, tick.market, side, quantity, tick.price, tick.now, this.executionProfile, undefined, candidateProvenance, tick.price, tick.observedQuote, canonicalExecutionIntent); }
       catch (error) { return this.result("REJECTED", error instanceof Error ? error.message : "paper order rejected"); }
