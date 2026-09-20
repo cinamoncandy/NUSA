@@ -3,7 +3,7 @@ import { prepareDiscoveredCodingRequest } from "./evolveCodingBridge";
 import { deriveWorkflowFailureOpportunities, type WorkflowFailureEvidence } from "./evolveEvidenceOpportunitySource";
 import { deriveGithubIssueBacklogSignals } from "./evolveGithubIssueBacklog";
 import type { EvolutionDiscoverySignal } from "./evolveOpportunityDiscovery";
-import { acquirePersistentExecution, readPersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, admitActiveWip, completeActiveWip, readActiveWip, readPersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
 export interface ScheduledEvolutionCodingEnv {
   readonly NUSA_GITHUB_TOKEN?: string;
@@ -78,6 +78,8 @@ function signalsFromRuns(candidates: readonly unknown[], now: number): readonly 
     confidence: opportunity.confidence,
     risk: opportunity.risk,
     reversibility: opportunity.reversibility,
+    canonicalOwner: opportunity.canonicalOwner,
+    conflictKeys: opportunity.conflictKeys,
   })));
 }
 
@@ -200,16 +202,16 @@ export async function runScheduledEvolutionCoding(
   const executionId = `evolve-coding:${input.mainSha.slice(0, 16)}:${workIdentity.slice(0, 100)}`;
   const dedupeKey = `evolve-coding:${input.mainSha}:${workIdentity}`;
   let currentExecution;
+  let activeWip;
   try {
-    currentExecution = await readPersistentExecution(coordinator, dedupeKey);
+    [currentExecution, activeWip] = await Promise.all([
+      readPersistentExecution(coordinator, dedupeKey),
+      readActiveWip(coordinator),
+    ]);
   } catch {
     return result("ABSTAINED", "persistent-execution-state-unavailable", signals.map((signal) => signal.id));
   }
-  const activeExecutions = currentExecution
-    && (currentExecution.state === "LEASED" || currentExecution.state === "HANDED_OFF")
-    && currentExecution.leaseExpiresAt > input.now
-    ? 1
-    : 0;
+  const activeExecutions = activeWip.activeExecutions;
   const elapsedSecondsSinceLastRun = currentExecution
     ? Math.max(0, Math.floor((input.now - currentExecution.updatedAt) / 1000))
     : Number.MAX_SAFE_INTEGER;
@@ -229,6 +231,19 @@ export async function runScheduledEvolutionCoding(
     elapsedSecondsSinceLastRun,
   });
   if (bridge.status !== "READY" || !bridge.request) return result("ABSTAINED", bridge.reason);
+  if (!bridge.request.canonicalOwner || !bridge.request.conflictKeys?.length) {
+    return result("ABSTAINED", "ownership-metadata-required", signals.map((signal) => signal.id));
+  }
+
+  const wip = await admitActiveWip(coordinator, {
+    dedupeKey: bridge.request.dedupeKey,
+    executionId: bridge.request.executionId,
+    canonicalOwner: bridge.request.canonicalOwner,
+    conflictKeys: bridge.request.conflictKeys,
+    claimedAt: input.now,
+    maxConcurrent: 1,
+  });
+  if (!wip.admitted) return result("DUPLICATE_SUPPRESSED", wip.reason ?? "ACTIVE_WIP_REJECTED", signals.map((signal) => signal.id));
 
   const persistent = await acquirePersistentExecution(coordinator, {
     dedupeKey: bridge.request.dedupeKey,
@@ -236,12 +251,22 @@ export async function runScheduledEvolutionCoding(
     now: input.now,
     leaseExpiresAt: input.now + CODING_LEASE_MS,
   });
-  if (!persistent.acquired) return result("DUPLICATE_SUPPRESSED", persistent.reason ?? "DUPLICATE_EXECUTION", signals.map((signal) => signal.id));
+  if (!persistent.acquired) {
+    await completeActiveWip(coordinator, { dedupeKey: bridge.request.dedupeKey, executionId: bridge.request.executionId });
+    return result("DUPLICATE_SUPPRESSED", persistent.reason ?? "DUPLICATE_EXECUTION", signals.map((signal) => signal.id));
+  }
 
-  const dispatched = await executeGithubDispatch(bridge.request, { token, allowedRepository: input.repository }, fetchImpl);
+  let dispatched;
+  try {
+    dispatched = await executeGithubDispatch(bridge.request, { token, allowedRepository: input.repository }, fetchImpl);
+  } catch (error) {
+    await completeActiveWip(coordinator, { dedupeKey: bridge.request.dedupeKey, executionId: bridge.request.executionId });
+    throw error;
+  }
   if (dispatched.status === "DISPATCHED") {
     return result("EXECUTION_ACCEPTED", "github-coding-dispatch-accepted", signals.map((signal) => signal.id));
   }
+  await completeActiveWip(coordinator, { dedupeKey: bridge.request.dedupeKey, executionId: bridge.request.executionId });
   if (dispatched.status === "INTERFACE_READY") return result("INTERFACE_READY", dispatched.reason, signals.map((signal) => signal.id));
   return result("EXECUTION_FAILED", dispatched.reason, signals.map((signal) => signal.id));
 }
