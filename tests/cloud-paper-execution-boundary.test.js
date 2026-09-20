@@ -60,20 +60,40 @@ const tick = Object.freeze({
   killSwitchActive: false,
   tradingAllowed: true,
   overallHealth: "HEALTHY",
+  portfolio: Object.freeze({
+    allocations: Object.freeze([Object.freeze({
+      symbol: "KRW-BTC",
+      instrument: "SPOT",
+      action: "BUY",
+      capital: 1_000_000,
+      share: 0.1,
+      leverage: 1,
+      confidence: 1,
+      risk: "LOW"
+    })]),
+    deployedCapital: 1_000_000,
+    cashCapital: 9_000_000,
+    reservedCapital: 0,
+    grossShare: 0.1,
+    futuresShare: 0,
+    decidedAt: 1_000
+  }),
   decisions: Object.freeze([decision])
 });
 
 function build(status) {
   const loop = new PaperTradingExecutionLoop({ initialCapital: 10_000_000, feeRate: 0, readP0State: () => ({ openP0: false }) });
   let evaluations = 0;
+  let lastRiskRequest;
   const riskGate = {
-    evaluate() {
+    evaluate(request) {
       evaluations += 1;
+      lastRiskRequest = request;
       return Object.freeze({ status, reasonCodes: Object.freeze(status === "ALLOW" ? [] : [status === "HALT" ? "KILL_SWITCH_ACTIVE" : "MAX_ORDER_NOTIONAL"]) });
     }
   };
   const boundary = new CloudPaperExecutionBoundary({ loop, riskGate, readP0State: () => ({ openP0: false }) });
-  return { loop, boundary, evaluations: () => evaluations };
+  return { loop, boundary, evaluations: () => evaluations, lastRiskRequest: () => lastRiskRequest };
 }
 
 for (const status of ["HALT", "REJECT"]) {
@@ -105,6 +125,40 @@ test("canonical ALLOW executes an immutable Research/League-bound PAPER challeng
   assert.equal(after.positions[0].market, "KRW-BTC");
   assert.equal(after.positions[0].quantity, 0.02);
   assert.equal(after.cash, 9_000_000);
+});
+
+test("PortfolioPlan capital is the canonical BUY sizing source even when CIO decision allocation is larger", () => {
+  const { loop, boundary, evaluations } = build("ALLOW");
+  const largerDecision = Object.freeze({ ...decision, allocation: 0.5 });
+  const result = boundary.processTick(Object.freeze({ ...tick, decisions: Object.freeze([largerDecision]) }));
+  assert.equal(evaluations(), 1);
+  assert.equal(result.status, "FILLED");
+  assert.equal(result.fills[0].quantity, 0.02);
+  assert.equal(result.fills[0].executionIntent.allocationShare, 0.1);
+  assert.equal(result.fills[0].executionIntent.allocationCapital, 1_000_000);
+  assert.equal(result.fills[0].executionIntent.candidateId, "sma-5-20");
+  assert.equal(loop.snapshot().cash, 9_000_000);
+});
+
+test("risk request and persisted fill share the exact execution-intent fingerprint", () => {
+  const { boundary, lastRiskRequest } = build("ALLOW");
+  const result = boundary.processTick(tick);
+  assert.equal(result.status, "FILLED");
+  assert.ok(lastRiskRequest());
+  assert.equal(lastRiskRequest().payloadFingerprintSha256, result.fills[0].executionIntent.intentFingerprintSha256);
+  assert.equal(lastRiskRequest().commandId, `paper-intent:${result.fills[0].executionIntent.intentFingerprintSha256}`);
+  assert.equal(result.orders[0].idempotencyKey, lastRiskRequest().commandId);
+});
+
+test("automatic PAPER mutation fails closed when canonical PortfolioPlan is absent", () => {
+  const { loop, boundary, evaluations } = build("ALLOW");
+  const before = loop.snapshot();
+  const { portfolio: _portfolio, ...withoutPortfolio } = tick;
+  const result = boundary.processTick(Object.freeze(withoutPortfolio));
+  assert.equal(result.status, "BLOCKED");
+  assert.equal(result.reason, "PAPER_PORTFOLIO_EXECUTION_INTENT_REQUIRED");
+  assert.equal(evaluations(), 0);
+  assert.deepEqual(loop.snapshot(), before);
 });
 
 test("generic CIO action remains advisory and cannot mutate PAPER without a challenger binding", () => {
