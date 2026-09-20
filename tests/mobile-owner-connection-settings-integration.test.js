@@ -12,7 +12,7 @@ const slice = (from, to) => settings.slice(settings.indexOf(from), settings.inde
 test("primary OWNER authentication never silently starts pairing", () => {
   const primary = slice("const requestPaperConnection = async", "const requestRecoveryPairing = async");
   const recovery = slice("const requestRecoveryPairing = async", "const enrollThisPhone = async");
-  assert.match(primary, /authenticateOwnerDeviceCredential/);
+  assert.match(primary, /restoreWithSilentDevice/);
   assert.doesNotMatch(primary, /startPairing/);
   assert.match(primary, /소유자 확인 후 이 휴대폰을 먼저 등록하세요/);
   assert.match(recovery, /startPairing\(configuredEndpoint, installationId\)/);
@@ -41,7 +41,7 @@ test("recovery credentials stay behind explicit progressive disclosure", () => {
   assert.match(recoverySurface, /1회용 복구 키/);
 });
 
-test("biometric failure remains fail-closed while public observation and authority invariants remain fixed", () => {
+test("silent DeviceKey failure remains fail-closed while public observation and authority invariants remain fixed", () => {
   const primary = slice("const requestPaperConnection = async", "const requestRecoveryPairing = async");
   assert.match(primary, /catch \(connectionError\)[\s\S]*credentialSession\.clear\(\); clearPaperConnectionVerification\(\)/);
   assert.match(settings, /connectionFailed[\s\S]*\? "BLOCKED"/);
