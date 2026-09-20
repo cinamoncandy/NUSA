@@ -172,6 +172,124 @@ test("fresh public orderbook depth executes BUY at VWAP without exceeding execut
   assert.deepEqual(restored.snapshot(), loop.snapshot());
 });
 
+test("canonical depth liquidity residual becomes a restart-safe automatic working order", () => {
+  const { loop, boundary, evaluations } = build("ALLOW");
+  const firstQuote = buildPaperObservedExecutionQuote({
+    market: "KRW-BTC",
+    observedAt: 1_900,
+    totalAskSize: 0.005,
+    totalBidSize: 0.05,
+    units: [Object.freeze({ askPrice: 50_000_000, bidPrice: 49_000_000, askSize: 0.005, bidSize: 0.05 })]
+  });
+  const first = boundary.processTick(Object.freeze({ ...tick, observedQuote: firstQuote }));
+  assert.equal(evaluations(), 1);
+  assert.equal(first.status, "WAIT");
+  assert.equal(first.reason, "PAPER_STRATEGY_WORKING_PARTIALLY_FILLED");
+  assert.equal(first.fills.length, 1);
+  assert.equal(first.fills[0].quantity, 0.005);
+  assert.equal(first.fills[0].orderBookExecutionReceipt.liquidityLimited, true);
+  assert.equal(first.fills[0].orderBookExecutionReceipt.budgetLimited, false);
+  assert.equal(first.state.workingOrders.length, 1);
+  assert.equal(first.state.workingOrders[0].orderType, "MARKET");
+  assert.equal(first.state.workingOrders[0].lifecycle.remainingQuantity, 0.015);
+  assert.equal(first.state.workingOrders[0].strategyExecution.remainingAllocationCapital, 750_000);
+  assert.equal(first.state.workingOrders[0].strategyExecution.lastOrderBookObservedAt, 1_900);
+
+  const replay = boundary.processTick(Object.freeze({
+    ...tick,
+    now: 2_050,
+    observedAt: 2_000,
+    decisions: Object.freeze([]),
+    observedQuote: firstQuote
+  }));
+  assert.equal(replay.status, "WAIT");
+  assert.equal(replay.reason, "PAPER_STRATEGY_WORKING_WAITING_FOR_NEW_DEPTH");
+  assert.equal(replay.state.fills.length, 1);
+  assert.equal(evaluations(), 1);
+
+  const restoredLoop = new PaperTradingExecutionLoop({
+    initialCapital: 10_000_000,
+    feeRate: 0,
+    restoredState: structuredClone(loop.snapshot()),
+    readP0State: () => ({ openP0: false })
+  });
+  const restoredBoundary = new CloudPaperExecutionBoundary({
+    loop: restoredLoop,
+    riskGate: { evaluate() { throw new Error("residual fill must not create a wider risk request"); } },
+    readP0State: () => ({ openP0: false })
+  });
+  const secondQuote = buildPaperObservedExecutionQuote({
+    market: "KRW-BTC",
+    observedAt: 2_150,
+    totalAskSize: 0.02,
+    totalBidSize: 0.05,
+    units: [Object.freeze({ askPrice: 50_000_000, bidPrice: 49_000_000, askSize: 0.02, bidSize: 0.05 })]
+  });
+  const terminal = restoredBoundary.processTick(Object.freeze({
+    ...tick,
+    now: 2_200,
+    observedAt: 2_100,
+    decisions: Object.freeze([]),
+    observedQuote: secondQuote
+  }));
+  assert.equal(terminal.status, "FILLED");
+  assert.equal(terminal.reason, "PAPER_STRATEGY_WORKING_FILLED");
+  assert.equal(terminal.fills.length, 1);
+  assert.equal(terminal.fills[0].quantity, 0.015);
+  assert.equal(terminal.orders[0].quantity, 0.02);
+  assert.equal(terminal.orders[0].lifecycle.status, "FILLED");
+  assert.equal(terminal.state.workingOrders.length, 0);
+  assert.equal(terminal.state.fills.length, 2);
+  assert.equal(terminal.state.cash, 9_000_000);
+  assert.equal(terminal.state.positions[0].quantity, 0.02);
+  assert.equal(terminal.state.fills.reduce((sum, fill) => sum + fill.orderBookExecutionReceipt.grossNotional, 0), 1_000_000);
+
+  const replaySafe = new PaperTradingExecutionLoop({
+    initialCapital: 10_000_000,
+    feeRate: 0,
+    restoredState: structuredClone(terminal.state),
+    readP0State: () => ({ openP0: false })
+  });
+  assert.deepEqual(replaySafe.snapshot(), terminal.state);
+});
+
+test("automatic residual BUY cancels only the unfundable remainder when later depth exhausts the original capital budget", () => {
+  const { boundary } = build("ALLOW");
+  const firstQuote = buildPaperObservedExecutionQuote({
+    market: "KRW-BTC",
+    observedAt: 1_900,
+    totalAskSize: 0.005,
+    totalBidSize: 0.05,
+    units: [Object.freeze({ askPrice: 50_000_000, bidPrice: 49_000_000, askSize: 0.005, bidSize: 0.05 })]
+  });
+  const first = boundary.processTick(Object.freeze({ ...tick, observedQuote: firstQuote }));
+  assert.equal(first.status, "WAIT");
+
+  const expensiveQuote = buildPaperObservedExecutionQuote({
+    market: "KRW-BTC",
+    observedAt: 2_150,
+    totalAskSize: 0.02,
+    totalBidSize: 0.05,
+    units: [Object.freeze({ askPrice: 100_000_000, bidPrice: 99_000_000, askSize: 0.02, bidSize: 0.05 })]
+  });
+  const capped = boundary.processTick(Object.freeze({
+    ...tick,
+    now: 2_200,
+    observedAt: 2_100,
+    price: 100_000_000,
+    decisions: Object.freeze([]),
+    observedQuote: expensiveQuote
+  }));
+  assert.equal(capped.status, "WAIT");
+  assert.equal(capped.reason, "PAPER_STRATEGY_WORKING_BUDGET_EXHAUSTED");
+  assert.equal(capped.fills[0].quantity, 0.0075);
+  assert.equal(capped.fills[0].orderBookExecutionReceipt.budgetLimited, true);
+  assert.equal(capped.state.workingOrders.length, 0);
+  assert.equal(capped.orders[0].status, "CANCELLED");
+  assert.equal(capped.orders[0].lifecycle.remainingQuantity, 0.0075);
+  assert.equal(capped.state.fills.reduce((sum, fill) => sum + fill.orderBookExecutionReceipt.grossNotional, 0), 1_000_000);
+});
+
 test("risk request and persisted fill share the exact execution-intent fingerprint", () => {
   const { boundary, lastRiskRequest } = build("ALLOW");
   const result = boundary.processTick(tick);
