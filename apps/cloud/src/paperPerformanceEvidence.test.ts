@@ -88,3 +88,33 @@ for (const [name, mutate] of [
 ] as const) {
   test(`fails closed on ${name}`, () => assert.throws(() => buildPaperPerformanceEvidence(mutate(input()))));
 }
+
+test("zero-trade flat equity remains finite and neutral", () => {
+  const value: PaperPerformanceEvidenceInput = {
+    ...input(),
+    equityCurve: [{ observedAt: 1_000, equity: 100 }, { observedAt: 4_000, equity: 100 }],
+    realizedPnL: 0, unrealizedPnL: 0, feeAmount: 0, fillCount: 0,
+  };
+  const result = buildPaperPerformanceEvidence(value);
+  assert.equal(result.netPnL, 0);
+  assert.equal(result.returnRate, 0);
+  assert.equal(result.maxDrawdownRate, 0);
+  assert.ok([result.netPnL, result.returnRate, result.maxDrawdownRate].every(Number.isFinite));
+});
+
+test("complete equity loss reports 100 percent maximum drawdown without NaN", () => {
+  const value: PaperPerformanceEvidenceInput = {
+    ...input(),
+    equityCurve: [
+      { observedAt: 1_000, equity: 100 },
+      { observedAt: 2_000, equity: 120 },
+      { observedAt: 3_000, equity: 0 },
+      { observedAt: 4_000, equity: 0 },
+    ],
+    realizedPnL: -100, unrealizedPnL: 0,
+  };
+  const result = buildPaperPerformanceEvidence(value);
+  assert.equal(result.maxDrawdownRate, 1);
+  assert.equal(result.finalEquity, 0);
+  assert.ok(Number.isFinite(result.returnRate));
+});
