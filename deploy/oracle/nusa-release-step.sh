@@ -23,6 +23,8 @@ readonly RESEARCH_TIMER=nusa-research.timer
 readonly AUTOPILOT_SERVICE=nusa-autopilot.service
 readonly SERVICE_USER=nusa
 readonly SYSTEMD_UNIT_DIR=/etc/systemd/system
+readonly PREVIOUS_RELEASE_FILE="${DEPLOY_ROOT}/.previous-release"
+readonly RELEASE_RETENTION=4
 
 die() { printf '%s\n' "nusa-release-step: $*" >&2; exit 1; }
 
@@ -40,13 +42,17 @@ active_release() { readlink -f "${DEPLOY_ROOT}/current" 2>/dev/null || true; }
 # Release scripts are read from the staged release itself, so the procedure always matches the
 # commit being deployed rather than whatever happened to be installed earlier.
 script_in() {
-  local dir="$1" name="$2" path="${1}/scripts/${2}"
+  local dir="$1"
+  local name="$2"
+  local path="${dir}/scripts/${name}"
   [ -f "$path" ] || die "missing ${name} in ${dir}"
   printf '%s' "$path"
 }
 
 unit_in() {
-  local dir="$1" name="$2" path="${dir}/deploy/oracle/${name}"
+  local dir="$1"
+  local name="$2"
+  local path="${dir}/deploy/oracle/${name}"
   [ -f "$path" ] || die "missing ${name} in ${dir}"
   printf '%s' "$path"
 }
@@ -77,6 +83,43 @@ rollback_and_restore() {
   restart_units
 }
 
+previous_release() {
+  [ -f "$PREVIOUS_RELEASE_FILE" ] || return 0
+  local path
+  path="$(cat "$PREVIOUS_RELEASE_FILE" 2>/dev/null || true)"
+  [ -n "$path" ] || return 0
+  readlink -f "$path" 2>/dev/null || true
+}
+
+prune_releases() {
+  [ -d "$RELEASES" ] || die "release directory missing: $RELEASES"
+  local active previous dir name kept=0 removed=0
+  active="$(active_release)"
+  previous="$(previous_release)"
+
+  mapfile -t dirs < <(find "$RELEASES" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -nr | cut -d' ' -f2-)
+
+  # Validate the entire candidate set before deleting anything.
+  for dir in "${dirs[@]}"; do
+    name="${dir##*/}"
+    [[ "$name" =~ ^[0-9a-f]{40}$ ]] || die "unexpected release directory name: $name"
+    [ ! -L "$dir" ] || die "release directory must not be a symlink: $dir"
+  done
+
+  for dir in "${dirs[@]}"; do
+    [ "$dir" = "$active" ] && continue
+    [ -n "$previous" ] && [ "$dir" = "$previous" ] && continue
+    if [ "$kept" -lt "$RELEASE_RETENTION" ]; then
+      kept=$((kept + 1))
+      continue
+    fi
+    rm -rf -- "$dir"
+    removed=$((removed + 1))
+  done
+
+  printf '%s\n' "nusa-release-step: prune complete; keptRecent=$kept removed=$removed active=$active previous=${previous:-none}"
+}
+
 verb="${1:-}"
 shift || true
 
@@ -99,6 +142,10 @@ case "$verb" in
     [ -d "$dir" ] || die "release not staged: $dir"
     install_units_from_release "$dir"
     enable_units
+    ;;
+
+  prune)
+    prune_releases
     ;;
 
   stage)
@@ -155,6 +202,6 @@ case "$verb" in
     ;;
 
   *)
-    die "unknown verb '${verb}'. Expected: backup|preflight|stage|install-units|switch|activate|rollback|restart|readiness"
+    die "unknown verb '${verb}'. Expected: backup|preflight|install-units|prune|stage|switch|activate|rollback|restart|readiness"
     ;;
 esac

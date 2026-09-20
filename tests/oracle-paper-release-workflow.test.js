@@ -99,13 +99,27 @@ test("the wrapper validates the only caller-supplied value that reaches a path",
 
 test("the wrapper refuses an unknown verb instead of doing something else", () => {
   assert.match(wrapper, /unknown verb/);
-  for (const verb of ["backup", "preflight", "install-units", "stage", "switch", "activate", "rollback", "restart", "readiness"]) {
+  for (const verb of ["backup", "preflight", "install-units", "prune", "stage", "switch", "activate", "rollback", "restart", "readiness"]) {
     assert.match(wrapper, new RegExp(`^\\s*${verb}\\)`, "m"), `${verb} must be an explicit case`);
   }
 });
 
 test("the wrapper never restages the active release", () => {
   assert.match(wrapper, /refusing to restage the active release/);
+});
+
+test("bounded release pruning preserves rollback safety and validates before deletion", () => {
+  const pruneStart = wrapper.indexOf("prune_releases()");
+  const pruneEnd = wrapper.indexOf("\n}\n", pruneStart) + 2;
+  const prune = wrapper.slice(pruneStart, pruneEnd);
+  assert.match(prune, /active_release/);
+  assert.match(prune, /previous_release/);
+  assert.match(wrapper, /readonly RELEASE_RETENTION=4/);
+  assert.match(prune, /Validate the entire candidate set before deleting anything/);
+  assert.ok(prune.indexOf("unexpected release directory name") < prune.indexOf("rm -rf --"), "validation must dominate deletion");
+  assert.match(prune, /\[ "\$dir" = "\$active" \] && continue/);
+  assert.match(prune, /\[ -n "\$previous" \] && \[ "\$dir" = "\$previous" \] && continue/);
+  assert.doesNotMatch(prune, /\/var\/lib\/nusa|\/var\/backups\/nusa/);
 });
 
 test("the wrapper runs the exact-release validation and activation scripts", () => {
@@ -137,4 +151,15 @@ test("the deployed identity and fail-closed authority are always recorded", () =
   assert.match(workflow, /liveAuthority=NONE/);
   assert.match(workflow, /productionMutationAllowed=false/);
   assert.match(workflow, /aiAuthority=ZERO_AUTHORITY/);
+});
+
+
+test("the privileged helper declares helper locals before expanding them under nounset", () => {
+  const scriptIn = wrapper.slice(wrapper.indexOf("script_in()"), wrapper.indexOf("\n}\n", wrapper.indexOf("script_in()")) + 2);
+  const unitIn = wrapper.slice(wrapper.indexOf("unit_in()"), wrapper.indexOf("\n}\n", wrapper.indexOf("unit_in()")) + 2);
+
+  for (const helper of [scriptIn, unitIn]) {
+    assert.match(helper, /local dir="\$1"\n\s*local name="\$2"\n\s*local path=/);
+    assert.doesNotMatch(helper, /local dir="\$1" name="\$2" path=/);
+  }
 });
