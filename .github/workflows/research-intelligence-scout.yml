@@ -1,6 +1,14 @@
 name: Research Intelligence Scout (advisory)
 
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "packages/contracts/src/researchIntelligence.ts"
+      - "apps/cloud/src/researchIntelligenceScout.ts"
+      - "scripts/research-intelligence-scout.js"
+      - "tests/research-intelligence-scout.test.js"
+      - ".github/workflows/research-intelligence-scout.yml"
   schedule:
     - cron: "17 1,13 * * *"
   workflow_dispatch:
