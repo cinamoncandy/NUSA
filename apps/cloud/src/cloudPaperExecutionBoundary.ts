@@ -48,8 +48,6 @@ export class CloudPaperExecutionBoundary {
     if (command.orderType === "LIMIT") {
       const limit = command.limitPrice;
       if (!Number.isFinite(limit) || (limit ?? 0) <= 0) return this.options.loop.submitManualOrder(command, context);
-      const marketable = command.side === "BUY" ? context.marketPrice <= limit! : context.marketPrice >= limit!;
-      if (!marketable) return this.options.loop.submitManualOrder(command, context);
     }
 
     if (command.side === "BUY") {
@@ -84,7 +82,45 @@ export class CloudPaperExecutionBoundary {
       approvedBy
     });
     if (risk.status !== "ALLOW") return this.riskResult(risk.status, risk.reasonCodes);
-    return this.withRisk(this.options.loop.submitManualOrder(command, context), risk);
+    const execution = command.orderType === "LIMIT"
+      ? this.options.loop.openLimitOrder(command, context)
+      : this.options.loop.submitManualOrder(command, context);
+    return this.withRisk(execution, risk);
+  }
+
+
+  public fillWorkingOrder(approvedBy: string, orderId: string, fillQuantity: number, context: PaperManualOrderAllocationContext, fillEventId?: string): PaperExecutionResult {
+    const working = (this.options.loop.snapshot().workingOrders ?? []).find((order) => order.id === orderId);
+    if (working == null) return this.options.loop.fillWorkingOrder(orderId, fillQuantity, context, fillEventId);
+    const openP0 = this.readOpenP0();
+    if (openP0 !== false) return this.blocked(openP0 === true ? "OPEN_P0_ALERT" : "P0_STATE_UNVERIFIABLE");
+    const risk = this.options.riskGate.evaluate({
+      path: "MANUAL", commandId: fillEventId?.trim() || `fill:${orderId}:${working.lifecycle.transitionSequence}`,
+      signalId: working.idempotencyKey, clientOrderId: working.id, strategyId: "MANUAL",
+      market: working.market, side: working.side, quantity: Math.min(fillQuantity, working.lifecycle.remainingQuantity),
+      price: context.marketPrice, now: context.now, observedAt: context.observedAt, maximumMarketAgeMs: this.maximumMarketAgeMs,
+      killSwitchActive: context.killSwitchActive, openP0, overallHealth: normalizedHealth(context.overallHealth),
+      state: this.options.loop.snapshot(), approvedBy
+    });
+    if (risk.status !== "ALLOW") return this.riskResult(risk.status, risk.reasonCodes);
+    return this.withRisk(this.options.loop.fillWorkingOrder(orderId, fillQuantity, context, fillEventId), risk);
+  }
+
+  public cancelWorkingOrder(approvedBy: string, orderId: string, context: PaperManualOrderAllocationContext): PaperExecutionResult {
+    const working = (this.options.loop.snapshot().workingOrders ?? []).find((order) => order.id === orderId);
+    if (working == null) return this.options.loop.cancelWorkingOrder(orderId, context.now);
+    const openP0 = this.readOpenP0();
+    if (openP0 !== false) return this.blocked(openP0 === true ? "OPEN_P0_ALERT" : "P0_STATE_UNVERIFIABLE");
+    const risk = this.options.riskGate.evaluate({
+      path: "MANUAL", commandId: `cancel:${orderId}:${working.lifecycle.transitionSequence}`,
+      signalId: working.idempotencyKey, clientOrderId: working.id, strategyId: "MANUAL",
+      market: working.market, side: working.side, quantity: working.lifecycle.remainingQuantity,
+      price: context.marketPrice, now: context.now, observedAt: context.observedAt, maximumMarketAgeMs: this.maximumMarketAgeMs,
+      killSwitchActive: context.killSwitchActive, openP0, overallHealth: normalizedHealth(context.overallHealth),
+      state: this.options.loop.snapshot(), approvedBy
+    });
+    if (risk.status !== "ALLOW") return this.riskResult(risk.status, risk.reasonCodes);
+    return this.withRisk(this.options.loop.cancelWorkingOrder(orderId, context.now), risk);
   }
 
   public processTick(tick: PaperExecutionTick & { readonly investmentPercent?: number }): PaperExecutionResult {
