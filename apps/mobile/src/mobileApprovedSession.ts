@@ -213,6 +213,8 @@ export class MobileApprovedSession {
   private pendingPairing: PendingPairingMemory | null = null;
   private refreshInFlight: Promise<string | null> | null = null;
   private restoreRetryable = false;
+  private silentNative: OwnerDeviceCredentialNative | null = null;
+  private silentCredentialId: string | null = null;
 
   public constructor(private readonly storage: SecureStoragePort | null, private readonly request: typeof fetch = fetch) {}
 
@@ -305,16 +307,9 @@ export class MobileApprovedSession {
     const status = await native.getSilentDeviceStatus();
     const id = readToken(credentialId ?? status.credentialId ?? "", "owner device credential id");
     if (status.available !== true || status.hardwareBacked !== true) throw new Error("hardware-backed owner credential is unavailable.");
-    const challenge = parseOwnerDeviceChallenge(await requestJson(this.request, `${endpoint}/v1/mobile/owner-device/authentication/challenge`, {
-      method: "POST", body: JSON.stringify({ credentialId: id, deviceId: device })
-    }), "AUTHENTICATION");
-    const proof = readProof(await native.signSilentChallenge(id, challenge.challenge));
-    const tokens = parseTokens(await requestJson(this.request, `${endpoint}/v1/mobile/owner-device/authentication/complete`, {
-      method: "POST", body: JSON.stringify({ credentialId: id, deviceId: device, challengeId: challenge.challengeId, signature: proof })
-    }));
-    this.deviceId = tokens.deviceId ?? device;
-    this.acceptTokens(endpoint, tokens);
-    await this.persistOrClear(endpoint, tokens);
+    this.silentNative = native;
+    this.silentCredentialId = id;
+    const tokens = await this.issueSilentDeviceSession(endpoint, device, native, id);
     try {
       const identity = await this.loadIdentity(endpoint, tokens.accessToken);
       this.identity = identity;
@@ -405,15 +400,13 @@ export class MobileApprovedSession {
 
   public async restoreWithSilentDevice(baseUrl: string, deviceId: string, native: OwnerDeviceCredentialNative): Promise<MobileApprovedSessionIdentity | null> {
     const endpoint = secureEndpoint(baseUrl);
-    try {
-      const restored = await this.restore(endpoint);
-      if (restored != null) return restored;
-    } catch (error) {
-      if (!this.shouldRetryRestore()) throw error;
-    }
     const status = await native.getSilentDeviceStatus();
-    if (status.available !== true || status.hardwareBacked !== true || status.credentialId == null) return null;
-    return this.authenticateOwnerDeviceCredential(endpoint, deviceId, native, status.credentialId);
+    if (status.available !== true || status.hardwareBacked !== true || status.credentialId == null) return this.restore(endpoint);
+    this.silentNative = native;
+    this.silentCredentialId = readToken(status.credentialId, "owner device credential id");
+    // Silent DeviceKey sessions never trust a persisted bearer refresh as proof of device possession.
+    // Re-establish the session with a fresh, single-use signed server challenge on process restart.
+    return this.authenticateOwnerDeviceCredential(endpoint, deviceId, native, this.silentCredentialId);
   }
 
   public async restore(baseUrl: string): Promise<MobileApprovedSessionIdentity | null> {
@@ -464,6 +457,8 @@ export class MobileApprovedSession {
     this.identity = null;
     this.pendingPairing = null;
     this.restoreRetryable = false;
+    this.silentNative = null;
+    this.silentCredentialId = null;
   }
 
   private async getAccessToken(): Promise<string | null> {
@@ -482,12 +477,31 @@ export class MobileApprovedSession {
       await this.clearLocal();
       return null;
     }
-    try { return (await this.refreshWith(endpoint, refreshToken, this.deviceId ?? undefined)).accessToken; }
+    try {
+      if (this.silentNative != null && this.silentCredentialId != null && this.deviceId != null) {
+        return (await this.issueSilentDeviceSession(endpoint, this.deviceId, this.silentNative, this.silentCredentialId)).accessToken;
+      }
+      return (await this.refreshWith(endpoint, refreshToken, this.deviceId ?? undefined)).accessToken;
+    }
     catch (error) {
       if (isDefinitiveSessionRejection(error)) await this.clearLocal();
       else this.restoreRetryable = true;
       return null;
     }
+  }
+
+  private async issueSilentDeviceSession(endpoint: string, deviceId: string, native: OwnerDeviceCredentialNative, credentialId: string): Promise<MobileSessionTokens> {
+    const challenge = parseOwnerDeviceChallenge(await requestJson(this.request, `${endpoint}/v1/mobile/owner-device/authentication/challenge`, {
+      method: "POST", body: JSON.stringify({ credentialId, deviceId })
+    }), "AUTHENTICATION");
+    const proof = readProof(await native.signSilentChallenge(credentialId, challenge.challenge));
+    const tokens = parseTokens(await requestJson(this.request, `${endpoint}/v1/mobile/owner-device/authentication/complete`, {
+      method: "POST", body: JSON.stringify({ credentialId, deviceId, challengeId: challenge.challengeId, signature: proof })
+    }));
+    this.deviceId = tokens.deviceId ?? deviceId;
+    this.acceptTokens(endpoint, tokens);
+    await this.persistOrClear(endpoint, tokens);
+    return tokens;
   }
 
   private async refreshWith(endpoint: string, refreshToken: string, deviceId?: string): Promise<MobileSessionTokens> {
