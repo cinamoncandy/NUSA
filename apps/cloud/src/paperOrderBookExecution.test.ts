@@ -49,7 +49,7 @@ test("BUY depth execution preserves PortfolioPlan gross-notional budget and seal
 
 test("SELL depth execution fails closed instead of inventing liquidity or silently partial-filling", () => {
   assert.throws(
-    () => buildPaperOrderBookExecutionReceipt({ quote: quote(), side: "SELL", requestedQuantity: 10, filledAt: 1_100 }),
+    () => buildPaperOrderBookExecutionReceipt({ quote: quote(), side: "SELL", requestedQuantity: 25, filledAt: 1_100 }),
     (error: unknown) => error instanceof PaperOrderBookExecutionError && error.code === "PAPER_ORDERBOOK_LIQUIDITY_INSUFFICIENT"
   );
 });
