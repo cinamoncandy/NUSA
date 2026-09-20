@@ -121,23 +121,17 @@ function classifyMethod(text: string): string {
 
 function classifyRelevance(text: string): ResearchIntelligenceRelevance {
   const normalized = text.toLowerCase();
-  const financialAnchor =
-    /\btrading\b|quantitative finance|financial market|stock market|capital market|market microstructure|limit order book|order book|bid[- ]ask|portfolio optimization|asset allocation|market impact|transaction cost|slippage|liquidity|automated market mak|prediction market|\bclob\b|\bamm\b|\bstock\b|\bequity\b|asset pricing|\bcrypto(?:currency)?\b|\bbitcoin\b|\bethereum\b/;
-  if (!financialAnchor.test(normalized)) return "LOW";
+  const strongFinancialAnchor =
+    /algorithmic trading|quantitative trading|systematic trading|\btrading\b|quantitative finance|financial market|stock market|capital market|market microstructure|limit order book|order book|bid[- ]ask|market impact|transaction cost|slippage|trade execution|order execution|liquidity|automated market mak|prediction market|\bclob\b|\bamm\b|\bstock\b|\bequity\b|asset pricing|\bcrypto(?:currency)?\b|\bbitcoin\b|\bethereum\b|order flow|sharpe|drawdown/;
+  const portfolioFinancialContext =
+    /(portfolio optimization|asset allocation)/.test(normalized) &&
+    /asset|investment|return|risk|financial|stock|equity|crypto|sharpe|drawdown|volatility/.test(normalized);
+  if (!strongFinancialAnchor.test(normalized) && !portfolioFinancialContext) return "LOW";
 
-  const direct = [
-    /algorithmic trading|quantitative trading|systematic trading/,
-    /market microstructure|limit order book|order book|bid[- ]ask/,
-    /market impact|slippage|transaction cost|trade execution|order execution/,
-    /reinforcement learning.{0,100}(trad|market|portfolio)|(?:trad|market|portfolio).{0,100}reinforcement learning/,
-    /portfolio optimization|asset allocation/,
-    /statistical arbitrage|pairs trading|mean reversion/,
-    /automated market mak|prediction market|\bclob\b|\bamm\b/,
-  ].filter((pattern) => pattern.test(normalized)).length;
-
-  if (direct >= 2) return "HIGH";
-  if (direct === 1) return "MEDIUM";
-  return "LOW";
+  const highSignal =
+    /algorithmic trading|quantitative trading|systematic trading|reinforcement learning.{0,120}trading|trading.{0,120}reinforcement learning|market microstructure|limit order book|order book|market impact|trade execution|order execution|statistical arbitrage|pairs trading|automated market mak|\bclob\b|\bamm\b|order flow|equity index forecasting|high[- ]frequency swapping/;
+  if (highSignal.test(normalized)) return "HIGH";
+  return "MEDIUM";
 }
 
 function testableReplicationHypothesis(title: string): string {
