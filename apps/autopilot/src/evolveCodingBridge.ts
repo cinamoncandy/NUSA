@@ -59,6 +59,16 @@ export function prepareDiscoveredCodingRequest(input: EvolutionCodingBridgeInput
     });
   }
 
+  if (!selection.selectedOpportunity.canonicalOwner || !selection.selectedOpportunity.conflictKeys?.length) {
+    return Object.freeze({
+      status: "ABSTAINED",
+      reason: "ownership-metadata-required",
+      rejectedSignalIds: discovery.rejectedSignalIds,
+      request: null,
+      authority: AUTHORITY,
+    });
+  }
+
   const request = validateCodingRunnerRequest({
     kind: "REPOSITORY_AUTOPILOT",
     repository: input.repository,
@@ -67,6 +77,8 @@ export function prepareDiscoveredCodingRequest(input: EvolutionCodingBridgeInput
     reason: `evolve:${selection.selectedOpportunity.id}:${selection.selectedOpportunity.problem}`,
     executionId: input.executionId,
     dedupeKey: input.dedupeKey,
+    canonicalOwner: selection.selectedOpportunity.canonicalOwner,
+    conflictKeys: selection.selectedOpportunity.conflictKeys,
     mutationAllowed: false,
     liveAuthority: "NONE",
     productionMutationAllowed: false,
