@@ -35,6 +35,8 @@ export interface Env {
   NUSA_AI_CODING_ENDPOINT?: string;
   NUSA_AI_CODING_TOKEN?: string;
   NUSA_AI_CODING_MODEL?: string;
+  /** Secret shared only by the protected persistent runtime and this Worker route. */
+  NUSA_AUTOPILOT_RUNTIME_TOKEN?: string;
   AI?: WorkersAiBinding;
   NUSA_DEPLOYMENT_REVISION?: string;
   /** Fail closed by default; only an explicit deployment configuration may clear the global Release freeze. */
@@ -122,6 +124,45 @@ async function verifyCodingRunnerAuthorization(provided: string | undefined, con
     return true;
   } catch {
     return false;
+  }
+}
+
+async function persistScheduledOutcome(env: Env, scheduledTime: number, outcome: Awaited<ReturnType<typeof runScheduledAutopilot>>): Promise<number> {
+  if (!env.NUSA_EXECUTION_COORDINATOR) throw new Error("PERSISTENT_EXECUTION_COORDINATOR_REQUIRED");
+  const observedAt = Math.max(Date.now(), scheduledTime);
+  await recordScheduledRuntimeReceipt(env.NUSA_EXECUTION_COORDINATOR, {
+    scheduledTime,
+    observedAt,
+    status: outcome.status,
+    reason: outcome.reason,
+    headSha: outcome.headSha,
+    workflowRunId: outcome.workflowRunId,
+    liveAuthority: "NONE",
+    productionMutationAllowed: false,
+    aiAuthority: "ZERO_AUTHORITY",
+  });
+  return observedAt;
+}
+
+function verifyAutopilotRuntimeAuthorization(request: Request, configured: string | undefined): boolean {
+  const expected = configured?.trim();
+  const provided = request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+  return Boolean(expected && provided && constantTimeEqual(expected, provided));
+}
+
+export async function handleScheduledRuntimeTick(request: Request, env: Env): Promise<Response> {
+  if (request.method !== "POST") return json({ error: "AUTOPILOT_RUNTIME_METHOD_NOT_ALLOWED" }, 405);
+  const configured = env.NUSA_AUTOPILOT_RUNTIME_TOKEN?.trim();
+  if (!configured) return json({ status: "INTERFACE_READY", reason: "AUTOPILOT_RUNTIME_TOKEN_NOT_CONFIGURED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 503);
+  if (!verifyAutopilotRuntimeAuthorization(request, configured)) return json({ error: "AUTOPILOT_RUNTIME_UNAUTHORIZED" }, 401);
+  if (!env.NUSA_EXECUTION_COORDINATOR) return json({ status: "INTERFACE_READY", reason: "PERSISTENT_EXECUTION_COORDINATOR_REQUIRED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 503);
+  const scheduledTime = Date.now();
+  try {
+    const outcome = await runScheduledAutopilot(env, scheduledTime);
+    const observedAt = await persistScheduledOutcome(env, scheduledTime, outcome);
+    return json({ accepted: true, ...outcome, heartbeatAt: observedAt, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 202);
+  } catch (error) {
+    return json({ accepted: false, status: "EXECUTION_NOT_DISPATCHED", reason: error instanceof Error ? error.message : "SCHEDULED_RUNTIME_FAILED", heartbeatAt: Date.now(), liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 503);
   }
 }
 
@@ -295,6 +336,8 @@ export default {
         return json({ status: "UNAVAILABLE", reason: "SCHEDULED_RUNTIME_RECEIPT_READ_FAILED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 503);
       }
     }
+
+    if (request.method === "POST" && url.pathname === "/scheduled/run") return handleScheduledRuntimeTick(request, env);
 
     if (request.method === "GET" && url.pathname === "/coding/evidence") {
       if (!env.NUSA_EXECUTION_COORDINATOR) return json({ status: "UNAVAILABLE", reason: "PERSISTENT_EXECUTION_COORDINATOR_REQUIRED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 503);
@@ -518,19 +561,8 @@ export default {
       : Date.now();
     const outcome = await runScheduledAutopilot(env, scheduledTime);
     if (env.NUSA_EXECUTION_COORDINATOR) {
-      const observedAt = Math.max(Date.now(), scheduledTime);
       try {
-        await recordScheduledRuntimeReceipt(env.NUSA_EXECUTION_COORDINATOR, {
-          scheduledTime,
-          observedAt,
-          status: outcome.status,
-          reason: outcome.reason,
-          headSha: outcome.headSha,
-          workflowRunId: outcome.workflowRunId,
-          liveAuthority: "NONE",
-          productionMutationAllowed: false,
-          aiAuthority: "ZERO_AUTHORITY",
-        });
+        await persistScheduledOutcome(env, scheduledTime, outcome);
       } catch (error) {
         console.error(JSON.stringify({ event: "NUSA_SCHEDULED_RECEIPT_FAILED", reason: error instanceof Error ? error.message : "UNKNOWN" }));
       }
