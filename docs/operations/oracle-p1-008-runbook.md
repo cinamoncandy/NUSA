@@ -76,6 +76,16 @@ The backup uses SQLite `VACUUM INTO`, runs `PRAGMA integrity_check`, writes a SH
 
 Verify that the command reports `status=PASS` before continuing.
 
+## Bounded release disk hygiene
+
+When root disk pressure is high, use the privileged helper rather than ad-hoc wildcard deletion:
+
+```bash
+sudo /opt/nusa/bin/nusa-release-step prune
+```
+
+The prune operation validates every direct child of `/opt/nusa/releases` as a real 40-hex release directory before deleting anything. It always preserves the active release, the rollback release recorded in `.previous-release`, and the four newest additional releases. It never touches `/var/lib/nusa` or `/var/backups/nusa`.
+
 ## Preflight validation
 
 Run both checks from the release tree:
