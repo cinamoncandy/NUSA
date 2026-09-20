@@ -42,13 +42,17 @@ active_release() { readlink -f "${DEPLOY_ROOT}/current" 2>/dev/null || true; }
 # Release scripts are read from the staged release itself, so the procedure always matches the
 # commit being deployed rather than whatever happened to be installed earlier.
 script_in() {
-  local dir="$1" name="$2" path="${1}/scripts/${2}"
+  local dir="$1"
+  local name="$2"
+  local path="${dir}/scripts/${name}"
   [ -f "$path" ] || die "missing ${name} in ${dir}"
   printf '%s' "$path"
 }
 
 unit_in() {
-  local dir="$1" name="$2" path="${dir}/deploy/oracle/${name}"
+  local dir="$1"
+  local name="$2"
+  local path="${dir}/deploy/oracle/${name}"
   [ -f "$path" ] || die "missing ${name} in ${dir}"
   printf '%s' "$path"
 }
