@@ -180,10 +180,10 @@ export class CloudPaperExecutionBoundary {
         investmentPercent,
       });
     } catch (error) {
-      const reason = error instanceof Error && error.message.startsWith("PAPER_EXECUTION_INTENT_")
-        ? error.message
-        : "PAPER_EXECUTION_INTENT_INVALID";
-      return this.blocked(reason);
+      const reason = error instanceof Error ? error.message : "PAPER_EXECUTION_INTENT_INVALID";
+      if (reason === "PAPER_EXECUTION_INTENT_ALLOCATION_ZERO") return this.rejected("decision allocation is zero");
+      if (reason === "PAPER_EXECUTION_INTENT_POSITION_REQUIRED") return this.rejected("insufficient paper position");
+      return this.blocked(reason.startsWith("PAPER_EXECUTION_INTENT_") ? reason : "PAPER_EXECUTION_INTENT_INVALID");
     }
 
     if (executionIntent.side === "BUY") {
@@ -242,6 +242,10 @@ export class CloudPaperExecutionBoundary {
       state: this.options.loop.snapshot(),
       risk: Object.freeze({ status, reasonCodes: Object.freeze([...reasonCodes]) })
     });
+  }
+
+  private rejected(reason: string): PaperExecutionResult {
+    return Object.freeze({ status: "REJECTED", reason, orders: Object.freeze([]), fills: Object.freeze([]), state: this.options.loop.snapshot() });
   }
 
   private blocked(reason: string): PaperExecutionResult {
