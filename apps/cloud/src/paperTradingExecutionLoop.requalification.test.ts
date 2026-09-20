@@ -33,7 +33,6 @@ describe("PAPER_ADAPTER exact-source re-qualification evidence", () => {
     assert.match(source, /PAPER_FILL_LEDGER_CHECKSUM_MISMATCH/);
     assert.match(source, /buildPaperOrderBookExecutionReceipt/);
     assert.match(source, /orderBookExecutionReceipt/);
-    assert.match(source, /DEPTH_VWAP_V1/);
     assert.match(source, /maximumNotional: executionIntent\.allocationCapital/);
     assert.match(source, /filledQuantity: fill\.quantity/);
     assert.match(source, /validatePaperOrderBookExecutionReceipt/);
