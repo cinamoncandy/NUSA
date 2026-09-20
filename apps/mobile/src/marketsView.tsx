@@ -4,7 +4,7 @@ import { useTheme } from "./ThemeProvider";
 import { ChartView } from "./chartView";
 import type { PublicCandle } from "./chartViewModel";
 import { WatchlistView } from "./watchlistView";
-import { parseWatchlistMarkets, type WatchlistRepository } from "./watchlist";
+import { parseWatchlistMarkets, type WatchlistMarket, type WatchlistRepository } from "./watchlist";
 import { uxLayout } from "./uxLayout";
 import { loadUpbitPublicCandles, UpbitPublicQuotationError, type PublicQuotationDiagnostic } from "./upbitPublicQuotationClient";
 import { AuthorityRail, MetricStrip, ScreenLead, StateNotice } from "./intelligenceOs";
@@ -36,6 +36,70 @@ function rate(value: number | null): string {
   if (value == null || !Number.isFinite(value)) return "—";
   const n = value * 100;
   return `${n > 0 ? "+" : ""}${n.toFixed(2)}%`;
+}
+function terrainHeight(changeRate: number | null): number {
+  if (changeRate == null || !Number.isFinite(changeRate)) return 2;
+  return 12 + Math.min(76, Math.abs(changeRate) * 1_800);
+}
+
+function MarketTerrain({
+  markets,
+  selectedMarket,
+  onSelect,
+}: Readonly<{
+  markets: readonly WatchlistMarket[];
+  selectedMarket: string;
+  onSelect: (market: string) => void;
+}>) {
+  const { theme } = useTheme();
+  const terrainMarkets = [...markets]
+    .filter((item) => item.changeRate != null && Number.isFinite(item.changeRate))
+    .sort((a, b) => Math.abs(b.changeRate ?? 0) - Math.abs(a.changeRate ?? 0))
+    .slice(0, 6);
+
+  return <View style={[styles.terrainFrame, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.borderStrong }]} testID="markets-terrain">
+    <View style={styles.terrainHeader}>
+      <View>
+        <Text style={[styles.terrainEyebrow, { color: theme.colors.primary }]}>MARKET TERRAIN</Text>
+        <Text style={[styles.terrainDetail, { color: theme.colors.textMuted }]}>VERIFIED UPBIT PUBLIC MOVE · NO PREDICTION</Text>
+      </View>
+      <Text style={[styles.terrainSource, { color: theme.colors.textMuted }]}>UPBIT PUBLIC</Text>
+    </View>
+    <View style={[styles.terrainGrid, { borderColor: theme.colors.border }]}>
+      <View style={[styles.terrainAxis, { backgroundColor: theme.colors.border }]} />
+      {terrainMarkets.length === 0
+        ? <View style={styles.terrainEmpty}><Text style={[styles.terrainEmptyText, { color: theme.colors.textMuted }]}>NO VERIFIED PUBLIC DATA</Text></View>
+        : <View style={styles.terrainColumns}>
+          {terrainMarkets.map((item) => {
+            const move = item.changeRate ?? 0;
+            const up = move >= 0;
+            const selected = item.market === selectedMarket;
+            return <Pressable
+              key={item.market}
+              accessibilityRole="button"
+              accessibilityLabel={`${item.market} ${rate(item.changeRate)}`}
+              onPress={() => onSelect(item.market)}
+              style={({ pressed }) => [styles.terrainColumn, { opacity: pressed ? theme.interaction.pressedOpacity : 1 }]}
+              testID={`market-terrain-${item.market}`}
+            >
+              <View style={styles.terrainGraph}>
+                {up ? <View style={styles.terrainHalf}>
+                  <View style={[styles.terrainStem, { height: terrainHeight(item.changeRate), backgroundColor: theme.colors.chartUp }]} />
+                  <View style={[styles.terrainNode, { backgroundColor: theme.colors.chartUp, borderColor: selected ? theme.colors.text : theme.colors.chartUp }]} />
+                </View> : <View style={styles.terrainHalf} />}
+                <View style={[styles.terrainCenterTick, { backgroundColor: selected ? theme.colors.text : theme.colors.borderStrong }]} />
+                {!up ? <View style={[styles.terrainHalf, styles.terrainHalfDown]}>
+                  <View style={[styles.terrainNode, { backgroundColor: theme.colors.chartDown, borderColor: selected ? theme.colors.text : theme.colors.chartDown }]} />
+                  <View style={[styles.terrainStem, { height: terrainHeight(item.changeRate), backgroundColor: theme.colors.chartDown }]} />
+                </View> : <View style={styles.terrainHalf} />}
+              </View>
+              <Text style={[styles.terrainSymbol, { color: selected ? theme.colors.text : theme.colors.textMuted }]} numberOfLines={1}>{item.market.replace("KRW-", "")}</Text>
+              <Text style={[styles.terrainMove, { color: up ? theme.colors.chartUp : theme.colors.chartDown }]}>{rate(item.changeRate)}</Text>
+            </Pressable>;
+          })}
+        </View>}
+    </View>
+  </View>;
 }
 
 export function MarketsView({ repository, market, rawMarkets, rawCandles, currentPrice, marketConnectionState, stale, marketsStale, chartError, chartErrorDiagnostic, error, refreshing, onRefresh, onPaperTrade }: MarketsViewProps) {
@@ -117,6 +181,7 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
       <AuthorityRail detail="PUBLIC READ ONLY · PAPER SEPARATE · AI ZERO AUTHORITY" status={sourceState} tone={sourceState === "ACTIVE" ? "success" : sourceState === "ERROR" ? "danger" : "warning"} testID="markets-authority-rail" />
       <ScreenLead eyebrow="MARKETS" title={selectedMarket} detail="NUSA가 관측하는 공개 가격 흐름과 데이터 신선도입니다." badge="MARKETS" badgeTone="info" />
       <MetricStrip items={[{ label: "PRICE", value: money(selectedCurrentPrice) }, { label: "CHANGE", value: rate(changeRate), tone: changeRate == null ? "neutral" : changeRate >= 0 ? "success" : "danger" }, { label: "DATA", value: sourceState, tone: sourceState === "ACTIVE" ? "success" : "warning" }]} testID="markets-summary-strip" />
+      <MarketTerrain markets={parsedMarkets} selectedMarket={selectedMarket} onSelect={handleSelectMarket} />
       {error ? <StateNotice title="PUBLIC FEED ERROR" detail={error} tone="danger" /> : displayedStale ? <StateNotice title="STALE DATA" detail="표시 중인 공개 시장 데이터가 신선도 기준을 벗어났습니다." tone="warning" /> : null}
     </View>
 
@@ -129,6 +194,25 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
 const styles = StyleSheet.create({
   workspace: { flex: 1, width: "100%", maxWidth: uxLayout.maxWorkspaceWidth, alignSelf: "center" },
   top: { width: "100%", alignSelf: "center", paddingHorizontal: 20, paddingTop: 8, gap: 8 },
+  terrainFrame: { borderWidth: 1, borderRadius: 12, overflow: "hidden" },
+  terrainHeader: { minHeight: 52, paddingHorizontal: 14, paddingVertical: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  terrainEyebrow: { fontSize: 11, lineHeight: 15, fontWeight: "900", letterSpacing: 1.2 },
+  terrainDetail: { marginTop: 3, fontSize: 8, lineHeight: 12, fontWeight: "700", letterSpacing: 0.55 },
+  terrainSource: { fontSize: 8, lineHeight: 12, fontWeight: "800", letterSpacing: 0.7 },
+  terrainGrid: { height: 212, borderTopWidth: 1, position: "relative", overflow: "hidden" },
+  terrainAxis: { position: "absolute", left: 12, right: 12, top: 96, height: StyleSheet.hairlineWidth },
+  terrainColumns: { flex: 1, flexDirection: "row", paddingHorizontal: 8 },
+  terrainColumn: { flex: 1, minWidth: 0, alignItems: "center", paddingTop: 7, paddingHorizontal: 2 },
+  terrainGraph: { height: 148, width: "100%", alignItems: "center", justifyContent: "center" },
+  terrainHalf: { height: 70, width: "100%", alignItems: "center", justifyContent: "flex-end" },
+  terrainHalfDown: { justifyContent: "flex-start" },
+  terrainStem: { width: 2, borderRadius: 2 },
+  terrainNode: { width: 10, height: 10, borderRadius: 10, borderWidth: 2 },
+  terrainCenterTick: { width: 18, height: 1 },
+  terrainSymbol: { fontSize: 8, lineHeight: 12, fontWeight: "900", letterSpacing: 0.2 },
+  terrainMove: { marginTop: 2, fontSize: 9, lineHeight: 12, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  terrainEmpty: { flex: 1, alignItems: "center", justifyContent: "center" },
+  terrainEmptyText: { fontSize: 10, fontWeight: "800", letterSpacing: 1 },
   segmentOuter: { paddingTop: 9, paddingBottom: 2 },
   tabletWorkspace: { flex: 1, flexDirection: "row", gap: 24, paddingHorizontal: 28, paddingTop: 18 },
   tabletPanel: { flex: 1, minWidth: 0 },
