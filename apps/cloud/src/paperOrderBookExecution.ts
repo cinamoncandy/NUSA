@@ -206,7 +206,12 @@ export function validatePaperOrderBookExecutionReceipt(
   positive(receipt.filledQuantity, "receipt.filledQuantity");
   positive(receipt.vwapPrice, "receipt.vwapPrice");
   positive(receipt.grossNotional, "receipt.grossNotional");
-  if (receipt.maximumNotional !== null) positive(receipt.maximumNotional, "receipt.maximumNotional");
+  if (receipt.maximumNotional !== null) {
+    positive(receipt.maximumNotional, "receipt.maximumNotional");
+    if (receipt.grossNotional > receipt.maximumNotional + 1e-6) {
+      throw new PaperOrderBookExecutionError("PAPER_ORDERBOOK_BUDGET_EXCEEDED", "depth execution exceeds its sealed notional cap");
+    }
+  }
   if (typeof receipt.budgetLimited !== "boolean" || typeof receipt.liquidityLimited !== "boolean") {
     throw new PaperOrderBookExecutionError("INVALID_ORDERBOOK_EXECUTION_RECEIPT", "orderbook execution limitation flags are invalid");
   }
