@@ -23,12 +23,26 @@ test("Intelligence OS keeps authority and data-integrity boundaries visible", ()
   assert.doesNotMatch(home, /BULLISH|BEARISH|STRONG SIGNAL|WEAK SIGNAL/);
 });
 
-test("HOME follows posture -> capital truth -> observation -> supervision -> learning -> decision detail", () => {
-  const anchors = ['testID="home-now"','testID="account-hero-card"','testID="home-decision-stage"','testID="home-paper-performance"','testID="home-paper-learning"','DECISION BASIS','testID="ai-card"','testID="home-risk-status"'];
+test("HOME follows market truth -> intelligence -> breadth -> signals -> PAPER performance -> capital limits", () => {
+  const anchors = [
+    'testID="home-market-pulse"',
+    'testID="ai-card"',
+    'testID="home-decision-stage"',
+    'testID="home-market-breadth"',
+    'testID="home-top-signals"',
+    'testID="home-paper-performance"',
+    'testID="home-capital-limits"',
+    'testID="home-paper-learning"',
+    'testID="home-risk-authority"',
+  ];
   let cursor = -1;
-  for (const anchor of anchors) { const next = home.indexOf(anchor); assert.ok(next > cursor, `${anchor} must appear after the previous UX stage`); cursor = next; }
-  assert.match(home, /공개 시장 데이터 대기 중/);
+  for (const anchor of anchors) {
+    const next = home.indexOf(anchor);
+    assert.ok(next > cursor, `${anchor} must appear after the previous UX stage`);
+    cursor = next;
+  }
   assert.match(home, /UNAVAILABLE|—/);
+  assert.match(home, /NO VERIFIED SIGNAL|WAITING FOR VERIFIED SIGNAL/);
 });
 
 test("primary screens share Intelligence OS truth grammar while PAPER specializes as a learning monitor", () => {
