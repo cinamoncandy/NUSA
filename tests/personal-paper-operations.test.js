@@ -93,6 +93,7 @@ const snapshot = (overrides = {}) => buildPersonalPaperOperationsSnapshot({
 test.beforeEach(() => clearConfiguredPaperEndpoint());
 test.afterEach(() => clearConfiguredPaperEndpoint());
 
+// React Native Hermes may not expose structuredClone; keep this shared transport contract host-portable.
 test("PAPER projection build and validation do not require host structuredClone", () => {
   const originalStructuredClone = globalThis.structuredClone;
   try {
