@@ -23,6 +23,8 @@ test("derives a bounded evidence-backed opportunity without authority", () => {
   assert.equal(result[0]?.confidence, 1);
   assert.equal(result[0]?.evidence[0]?.quality, 1);
   assert.match(result[0]?.id ?? "", /^gha:ci:/);
+  assert.equal(result[0]?.canonicalOwner, "autopilot.ci-repair");
+  assert.deepEqual(result[0]?.conflictKeys, ["workflow:ci"]);
 });
 
 test("drops stale evidence instead of inventing work", () => {
