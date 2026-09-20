@@ -152,3 +152,14 @@ test("the deployed identity and fail-closed authority are always recorded", () =
   assert.match(workflow, /productionMutationAllowed=false/);
   assert.match(workflow, /aiAuthority=ZERO_AUTHORITY/);
 });
+
+
+test("the privileged helper declares helper locals before expanding them under nounset", () => {
+  const scriptIn = wrapper.slice(wrapper.indexOf("script_in()"), wrapper.indexOf("\n}\n", wrapper.indexOf("script_in()")) + 2);
+  const unitIn = wrapper.slice(wrapper.indexOf("unit_in()"), wrapper.indexOf("\n}\n", wrapper.indexOf("unit_in()")) + 2);
+
+  for (const helper of [scriptIn, unitIn]) {
+    assert.match(helper, /local dir="\$1"\n\s*local name="\$2"\n\s*local path=/);
+    assert.doesNotMatch(helper, /local dir="\$1" name="\$2" path=/);
+  }
+});
