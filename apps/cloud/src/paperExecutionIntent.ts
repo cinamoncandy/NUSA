@@ -22,6 +22,8 @@ export interface PaperExecutionIntent {
   readonly decisionDecidedAt: number;
   readonly allocationCapital: number;
   readonly allocationShare: number;
+  /** Owner-selected PAPER capital scaler applied after PortfolioPlan target construction. */
+  readonly investmentPercent: number;
   readonly candidateId: string;
   readonly candidateBindingFingerprintSha256: string;
   readonly intentFingerprintSha256: string;
@@ -34,6 +36,7 @@ export interface PaperExecutionIntentInput {
   readonly portfolio: PortfolioPlan;
   readonly decision: CioDecision;
   readonly state: PaperAccountState;
+  readonly investmentPercent: number;
 }
 
 const payload = (intent: Omit<PaperExecutionIntent, "intentFingerprintSha256">): Omit<PaperExecutionIntent, "intentFingerprintSha256"> => intent;
@@ -72,6 +75,10 @@ export function buildPaperExecutionIntent(input: PaperExecutionIntentInput): Pap
   if (allocations.length > 1) throw new Error("PAPER_EXECUTION_INTENT_PORTFOLIO_AMBIGUOUS");
 
   const side = input.decision.action === "BUY" ? "BUY" as const : "SELL" as const;
+  if (!Number.isFinite(input.investmentPercent) || input.investmentPercent < 0 || input.investmentPercent > 100) {
+    throw new Error("PAPER_EXECUTION_INTENT_INVESTMENT_PERCENT_INVALID");
+  }
+
   let allocationCapital = 0;
   let allocationShare = 0;
   let quantity = 0;
@@ -85,9 +92,9 @@ export function buildPaperExecutionIntent(input: PaperExecutionIntentInput): Pap
     requireUnit(allocation.share, "allocationShare");
     requireFinitePositive(allocation.capital, "allocationCapital");
     if (allocation.share > input.decision.allocation + 1e-8) throw new Error("PAPER_EXECUTION_INTENT_ALLOCATION_EXCEEDS_DECISION");
-    allocationCapital = allocation.capital;
-    allocationShare = allocation.share;
-    quantity = round8(allocation.capital / input.referencePrice);
+    allocationCapital = Number((allocation.capital * (input.investmentPercent / 100)).toFixed(8));
+    allocationShare = Number((allocation.share * (input.investmentPercent / 100)).toFixed(8));
+    quantity = round8(allocationCapital / input.referencePrice);
   } else {
     if (allocations.length !== 0) throw new Error("PAPER_EXECUTION_INTENT_EXIT_TARGET_NOT_ZERO");
     const position = input.state.positions.find((item) => item.market === market);
@@ -110,6 +117,7 @@ export function buildPaperExecutionIntent(input: PaperExecutionIntentInput): Pap
     decisionDecidedAt: input.decision.decidedAt,
     allocationCapital,
     allocationShare,
+    investmentPercent: input.investmentPercent,
     candidateId: binding.candidateId.trim(),
     candidateBindingFingerprintSha256: binding.bindingFingerprintSha256,
   });
@@ -130,6 +138,7 @@ export function validatePaperExecutionIntent(intent: PaperExecutionIntent): Pape
   }
   if (!Number.isFinite(intent.allocationCapital) || intent.allocationCapital < 0) throw new Error("PAPER_EXECUTION_INTENT_CAPITAL_INVALID");
   requireUnit(intent.allocationShare, "allocationShare");
+  if (!Number.isFinite(intent.investmentPercent) || intent.investmentPercent < 0 || intent.investmentPercent > 100) throw new Error("PAPER_EXECUTION_INTENT_INVESTMENT_PERCENT_INVALID");
   if (intent.side === "BUY" && (intent.allocationCapital <= 0 || intent.allocationShare <= 0)) throw new Error("PAPER_EXECUTION_INTENT_BUY_ALLOCATION_INVALID");
   if (intent.side === "SELL" && (intent.allocationCapital !== 0 || intent.allocationShare !== 0)) throw new Error("PAPER_EXECUTION_INTENT_SELL_ALLOCATION_INVALID");
   if (!intent.candidateId.trim() || !SHA256.test(intent.candidateBindingFingerprintSha256) || !SHA256.test(intent.intentFingerprintSha256)) {
@@ -150,6 +159,7 @@ export function validatePaperExecutionIntent(intent: PaperExecutionIntent): Pape
     decisionDecidedAt: intent.decisionDecidedAt,
     allocationCapital: intent.allocationCapital,
     allocationShare: intent.allocationShare,
+    investmentPercent: intent.investmentPercent,
     candidateId: intent.candidateId.trim(),
     candidateBindingFingerprintSha256: intent.candidateBindingFingerprintSha256,
   }));
