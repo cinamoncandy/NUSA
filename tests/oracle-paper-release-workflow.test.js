@@ -54,22 +54,20 @@ test("the small PAPER host receives a sealed build instead of installing or buil
   assert.doesNotMatch(release, /pnpm install|pnpm run build/);
 });
 
-test("the workflow runs the release verbs in the runbook's order", () => {
-  // Staging precedes preflight because the runbook runs both checks *from the release tree*,
-  // which has to exist first.
-  orderIn(workflow, ['"$STEP" backup', '"$STEP" stage', '"$STEP" preflight', '"$STEP" switch', '"$STEP" restart', '"$STEP" readiness']);
+test("the workflow stages, preflights, and atomically activates the exact release", () => {
+  // Staging precedes preflight because validation reads the candidate unit files from the staged
+  // immutable release. Activation owns switch, unit installation, restart, and rollback.
+  orderIn(workflow, ['"$STEP" backup', '"$STEP" stage', '"$STEP" preflight', '"$STEP" activate']);
 });
 
-test("a release that cannot prove readiness is rolled back, not left serving", () => {
-  const readiness = workflow.indexOf("Prove readiness, and roll back if it fails");
-  assert.ok(readiness > 0);
-  const rollbackBranch = workflow.indexOf("rolling back.", readiness);
-  assert.ok(rollbackBranch > readiness, "the readiness step must have a rollback branch");
-  const failurePath = workflow.slice(rollbackBranch);
-  orderIn(failurePath, ['"$STEP" rollback', '"$STEP" restart', '"$STEP" readiness']);
-  assert.match(failurePath, /Rollback readiness also failed/, "a failed rollback must stop, not continue");
+test("a release that cannot prove readiness is rolled back by the canonical activation helper", () => {
+  assert.match(workflow, /Atomically activate exact release and prove both runtimes/);
+  assert.match(wrapper, /activation failed.*restoring previous release/s);
+  assert.match(wrapper, /rollback_and_restore/);
+  assert.match(wrapper, /rollback PAPER readiness failed/);
+  assert.match(wrapper, /rollback Autopilot readiness failed/);
   assert.doesNotMatch(workflow, /scripts\/[a-z0-9-]*restore[a-z0-9-]*\.js/i);
-  assert.doesNotMatch(failurePath, /rm\s+-rf\s+\/var\/lib\/nusa|DROP\s+TABLE/i, "the failure path must not touch persistent state");
+  assert.doesNotMatch(wrapper, /rm\s+-rf\s+\/var\/lib\/nusa|DROP\s+TABLE/i, "the failure path must not touch persistent state");
 });
 
 test("every privileged action goes through the one wrapper command", () => {
@@ -94,7 +92,7 @@ test("the wrapper validates the only caller-supplied value that reaches a path",
 
 test("the wrapper refuses an unknown verb instead of doing something else", () => {
   assert.match(wrapper, /unknown verb/);
-  for (const verb of ["backup", "preflight", "stage", "switch", "rollback", "restart", "readiness"]) {
+  for (const verb of ["backup", "preflight", "stage", "install-units", "switch", "activate", "rollback", "restart", "readiness"]) {
     assert.match(wrapper, new RegExp(`^\\s*${verb}\\)`, "m"), `${verb} must be an explicit case`);
   }
 });
@@ -104,7 +102,7 @@ test("the wrapper never restages the active release", () => {
 });
 
 test("the wrapper runs the scripts the runbook documents, from the staged release", () => {
-  for (const script of ["sqlite-backup.js", "host-security-validate.js", "oracle-validate.js", "atomic-deploy.js", "oracle-readiness-check.js"]) {
+  for (const script of ["sqlite-backup.js", "host-security-validate.js", "oracle-validate.js", "atomic-deploy.js", "oracle-readiness-check.js", "autopilot-readiness.js"]) {
     assert.ok(runbook.includes(script), `${script} is part of the documented procedure`);
     assert.ok(wrapper.includes(script), `${script} must be run by the wrapper`);
     assert.ok(fs.existsSync(`scripts/${script}`), `scripts/${script} must exist`);

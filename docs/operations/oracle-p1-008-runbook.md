@@ -97,6 +97,7 @@ sudo /opt/nusa/bin/nusa-release-step activate <full-40-char-sha>
 ```
 
 The switch records the prior release path and reports `readinessRequired=true`. It does not restart services itself and does not touch persistent data.
+The helper executes the staged `scripts/atomic-deploy.js`, `scripts/oracle-readiness-check.js`, and `scripts/autopilot-readiness.js`; no host-side copy of those scripts is used.
 
 ## Acceptance check
 
