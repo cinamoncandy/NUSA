@@ -468,7 +468,7 @@ export class MobileApprovedSession {
     this.silentCredentialId = readToken(status.credentialId, "owner device credential id");
     // Silent DeviceKey sessions never trust a persisted bearer refresh as proof of device possession.
     // Re-establish the session with a fresh, single-use signed server challenge on process restart.
-    return this.authenticateOwnerDeviceCredential(endpoint, deviceId, native, this.silentCredentialId);
+    return this.authenticateSilentDeviceCredential(endpoint, deviceId, native, this.silentCredentialId);
   }
 
   public async restore(baseUrl: string): Promise<MobileApprovedSessionIdentity | null> {
