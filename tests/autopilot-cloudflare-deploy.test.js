@@ -13,6 +13,7 @@ test("Cloudflare deployment recovers after a CI-only repair merge", () => {
   assert.match(workflow, /Verify exact current main revision/);
   assert.match(workflow, /deploymentRevision/);
   assert.match(workflow, /CLOUDFLARE_API_TOKEN/);
+  assert.match(workflow, /NUSA_AUTOPILOT_RUNTIME_TOKEN/);
   assert.match(workflow, /liveAuthority=NONE/);
   assert.match(workflow, /productionMutationAllowed=false/);
   assert.match(workflow, /AI authority=ZERO_AUTHORITY/);
@@ -28,6 +29,20 @@ test("deployment is Worker-only and has no paid Cloudflare Containers rollout", 
   assert.doesNotMatch(workflow, /containers list/);
 });
 
+test("deployment fail-closes and synchronizes the persistent runtime secret before Worker deploy", () => {
+  const preflightIndex = workflow.indexOf("Verify Cloudflare deployment credentials and account access");
+  const secretIndex = workflow.indexOf("Sync persistent Autopilot runtime bearer secret");
+  const deployIndex = workflow.indexOf("Deploy exact CI-verified revision to Cloudflare Workers Free-compatible runtime");
+  assert.ok(preflightIndex >= 0);
+  assert.ok(secretIndex > preflightIndex);
+  assert.ok(deployIndex > secretIndex);
+  assert.match(workflow, /secrets\.NUSA_AUTOPILOT_RUNTIME_TOKEN/);
+  assert.match(workflow, /\$\{#NUSA_AUTOPILOT_RUNTIME_TOKEN\}.*-lt 32/);
+  assert.match(workflow, /wrangler@4\.127\.1 secret put NUSA_AUTOPILOT_RUNTIME_TOKEN/);
+  assert.match(workflow, /printf '%s' "\$NUSA_AUTOPILOT_RUNTIME_TOKEN"/);
+  assert.doesNotMatch(workflow, /echo .*NUSA_AUTOPILOT_RUNTIME_TOKEN/);
+});
+
 test("deployment authenticates read-only before attempting Cloudflare mutation", () => {
   const preflightIndex = workflow.indexOf("Verify Cloudflare deployment credentials and account access");
   const deployIndex = workflow.indexOf("Deploy exact CI-verified revision to Cloudflare Workers Free-compatible runtime");
@@ -36,7 +51,7 @@ test("deployment authenticates read-only before attempting Cloudflare mutation",
   assert.match(workflow, /CLOUDFLARE_ACCOUNT_ID/);
   assert.match(workflow, /wrangler@4\.127\.1 whoami/);
   assert.match(workflow, /Cloudflare authentication\/account preflight failed/);
-  assert.match(workflow, /Cloudflare token\/account preflight passed/);
+  assert.match(workflow, /Cloudflare token\/account\/runtime-secret preflight passed/);
 });
 
 test("daily read-only readiness guard detects broken Cloudflare credentials before deployment day", () => {
