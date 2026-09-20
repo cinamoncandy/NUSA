@@ -98,6 +98,7 @@ test("canonical BUY intent is sized from PortfolioPlan capital", () => {
     portfolio: buyPortfolio(),
     decision: decision("BUY", 0.5),
     state: state(),
+    investmentPercent: 100,
   });
   assert.equal(intent.quantity, 0.02);
   assert.equal(intent.allocationCapital, 1_000_000);
@@ -105,6 +106,22 @@ test("canonical BUY intent is sized from PortfolioPlan capital", () => {
   assert.equal(intent.candidateId, "candidate-a");
   assert.match(intent.intentFingerprintSha256, /^[a-f0-9]{64}$/);
   assert.equal(paperExecutionIntentCommandId(intent), `paper-intent:${intent.intentFingerprintSha256}`);
+});
+
+test("owner investment percent scales the PortfolioPlan BUY target without changing the PortfolioPlan source", () => {
+  const intent = buildPaperExecutionIntent({
+    now: 1_100,
+    market: "KRW-BTC",
+    referencePrice: 50_000_000,
+    portfolio: buyPortfolio(),
+    decision: decision("BUY", 0.5),
+    state: state(),
+    investmentPercent: 25,
+  });
+  assert.equal(intent.allocationCapital, 250_000);
+  assert.equal(intent.allocationShare, 0.025);
+  assert.equal(intent.quantity, 0.005);
+  assert.equal(intent.investmentPercent, 25);
 });
 
 test("intent fingerprint fails closed after sizing tamper", () => {
@@ -115,6 +132,7 @@ test("intent fingerprint fails closed after sizing tamper", () => {
     portfolio: buyPortfolio(),
     decision: decision(),
     state: state(),
+    investmentPercent: 100,
   });
   assert.throws(() => validatePaperExecutionIntent({ ...intent, quantity: 0.03 }), /FINGERPRINT_MISMATCH/);
 });
@@ -127,6 +145,7 @@ test("account and portfolio capital must reconcile before an intent exists", () 
     portfolio: buyPortfolio(),
     decision: decision(),
     state: state({ equity: 9_000_000 }),
+    investmentPercent: 100,
   }), /ACCOUNT_PORTFOLIO_MISMATCH/);
 });
 
@@ -159,6 +178,7 @@ test("SELL intent requires zero target allocation and exits the canonical curren
     portfolio,
     decision: decision("SELL", 0),
     state: sellState,
+    investmentPercent: 100,
   });
   assert.equal(intent.side, "SELL");
   assert.equal(intent.quantity, 0.1);
