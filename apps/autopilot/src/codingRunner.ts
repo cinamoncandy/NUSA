@@ -6,8 +6,8 @@ export interface CodingRunnerRequest {
   readonly reason: string;
   readonly executionId: string;
   readonly dedupeKey: string;
-  readonly canonicalOwner: string;
-  readonly conflictKeys: readonly string[];
+  readonly canonicalOwner?: string;
+  readonly conflictKeys?: readonly string[];
   readonly mutationAllowed: false;
   readonly liveAuthority: "NONE";
   readonly productionMutationAllowed: false;
@@ -146,13 +146,18 @@ export function validateCodingRunnerRequest(value: unknown, allowedRepository = 
   if (typeof request.headSha !== "string" || !SHA40.test(request.headSha)) throw new Error("CODING_RUNNER_HEAD_SHA_INVALID");
   if (typeof request.executionId !== "string" || !EXECUTION_ID.test(request.executionId)) throw new Error("CODING_RUNNER_EXECUTION_ID_INVALID");
   if (typeof request.dedupeKey !== "string" || !DEDUPE_KEY.test(request.dedupeKey)) throw new Error("CODING_RUNNER_DEDUPE_KEY_INVALID");
-  if (typeof request.canonicalOwner !== "string" || !CANONICAL_OWNER.test(request.canonicalOwner)) throw new Error("CODING_RUNNER_CANONICAL_OWNER_INVALID");
-  if (!Array.isArray(request.conflictKeys) || request.conflictKeys.length === 0 || request.conflictKeys.length > 32) throw new Error("CODING_RUNNER_CONFLICT_KEYS_INVALID");
-  const conflictKeys = request.conflictKeys as unknown[];
-  const seenConflictKeys = new Set<string>();
-  for (const key of conflictKeys) {
-    if (typeof key !== "string" || !CONFLICT_KEY.test(key) || seenConflictKeys.has(key)) throw new Error("CODING_RUNNER_CONFLICT_KEYS_INVALID");
-    seenConflictKeys.add(key);
+  const hasCanonicalOwner = request.canonicalOwner !== undefined;
+  const hasConflictKeys = request.conflictKeys !== undefined;
+  if (hasCanonicalOwner !== hasConflictKeys) throw new Error("CODING_RUNNER_OWNERSHIP_PAIR_INVALID");
+  if (hasCanonicalOwner) {
+    if (typeof request.canonicalOwner !== "string" || !CANONICAL_OWNER.test(request.canonicalOwner)) throw new Error("CODING_RUNNER_CANONICAL_OWNER_INVALID");
+    if (!Array.isArray(request.conflictKeys) || request.conflictKeys.length === 0 || request.conflictKeys.length > 32) throw new Error("CODING_RUNNER_CONFLICT_KEYS_INVALID");
+    const conflictKeys = request.conflictKeys as unknown[];
+    const seenConflictKeys = new Set<string>();
+    for (const key of conflictKeys) {
+      if (typeof key !== "string" || !CONFLICT_KEY.test(key) || seenConflictKeys.has(key)) throw new Error("CODING_RUNNER_CONFLICT_KEYS_INVALID");
+      seenConflictKeys.add(key);
+    }
   }
   if (request.liveAuthority !== "NONE") throw new Error("CODING_RUNNER_LIVE_AUTHORITY_FORBIDDEN");
   if (request.productionMutationAllowed !== false || request.mutationAllowed !== false) throw new Error("CODING_RUNNER_PRODUCTION_MUTATION_FORBIDDEN");
