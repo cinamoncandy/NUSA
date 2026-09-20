@@ -96,6 +96,7 @@ function createHarness() {
     killSwitchActive: false,
     tradingAllowed: true,
     overallHealth: "HEALTHY",
+    portfolio: dashboard.portfolio,
     decisions: dashboard.decisions,
     investmentPercent: 100,
     ...overrides
