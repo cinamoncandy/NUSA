@@ -322,4 +322,35 @@ describe("persistent control-plane HOLD", () => {
     }), /HOLD_CLEAR_FAILED/);
     assert.equal((await readPersistentControlPlaneHold(ns, identity))?.state, "ACTIVE");
   });
+
+  it("dispatched execution completes once and permanently suppresses the same dedupe identity", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const request = (pathname: string, body: object) => new Request(`https://execution-coordinator${pathname}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    const identity = { dedupeKey: "coding:complete", executionId: "exec-complete", now: 100, leaseExpiresAt: 200 };
+    assert.equal((await coordinator.fetch(request("/acquire", identity))).status, 201);
+    assert.equal((await coordinator.fetch(request("/handoff-or-acquire", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 105, leaseExpiresAt: 200 }))).status, 201);
+    assert.equal((await coordinator.fetch(request("/dispatched", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 110 }))).status, 200);
+    assert.equal((await coordinator.fetch(request("/complete", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 120 }))).status, 200);
+    const replay = await coordinator.fetch(request("/complete", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 130 }));
+    assert.equal((await replay.json() as { completed: boolean }).completed, false);
+    const duplicate = await coordinator.fetch(request("/acquire", { ...identity, executionId: "exec-redelivery", now: 140, leaseExpiresAt: 240 }));
+    assert.equal(duplicate.status, 409);
+    assert.equal((await duplicate.json() as { reason: string }).reason, "ALREADY_COMPLETED");
+    const handoffDuplicate = await coordinator.fetch(request("/handoff-or-acquire", { ...identity, executionId: "exec-redelivery", now: 150, leaseExpiresAt: 250 }));
+    assert.equal(handoffDuplicate.status, 409);
+    assert.equal((await handoffDuplicate.json() as { reason: string }).reason, "ALREADY_COMPLETED");
+  });
+
+  it("completion fails closed before dispatch or for stale identity", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const request = (pathname: string, body: object) => new Request(`https://execution-coordinator${pathname}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    const identity = { dedupeKey: "coding:guard", executionId: "exec-guard", now: 100, leaseExpiresAt: 200 };
+    assert.equal((await coordinator.fetch(request("/acquire", identity))).status, 201);
+    assert.equal((await coordinator.fetch(request("/complete", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 110 }))).status, 409);
+    assert.equal((await coordinator.fetch(request("/handoff-or-acquire", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 115, leaseExpiresAt: 200 }))).status, 201);
+    assert.equal((await coordinator.fetch(request("/dispatched", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 120 }))).status, 200);
+    assert.equal((await coordinator.fetch(request("/complete", { dedupeKey: identity.dedupeKey, executionId: "stale-exec", now: 130 }))).status, 409);
+  });
 });
