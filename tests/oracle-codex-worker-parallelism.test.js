@@ -4,7 +4,9 @@ const assert = require("node:assert/strict");
 const { readFileSync } = require("node:fs");
 const { join } = require("node:path");
 
-const WORKFLOW = readFileSync(join(__dirname, "..", ".github", "workflows", "oracle-codex-dev.yml"), "utf8");
+// Normalised to LF. A Windows CI runner checks this file out with CRLF, and every pattern below
+// anchors on line structure, so without this the whole file reads as one unmatchable blob there.
+const WORKFLOW = readFileSync(join(__dirname, "..", ".github", "workflows", "oracle-codex-dev.yml"), "utf8").replace(/\r\n/g, "\n");
 
 /**
  * oracle-codex-dev.yml is the only Codex worker execution path in this repository, so whatever it
