@@ -7,6 +7,7 @@ import {
 } from "../../contracts/src/index";
 import { runMigrations, type MigrationResult, type SqliteMigration } from "./migrationRunner";
 import { cloudPaperAccountHistoryMigration } from "./cloudPaperAccountHistoryMigration";
+import { cloudPaperFillLedgerMigration } from "./cloudPaperFillLedgerMigration";
 import { researchFactoryDecisionHistoryMigration } from "./researchFactoryDecisionHistoryRepository";
 
 export { runMigrations } from "./migrationRunner";
@@ -491,4 +492,4 @@ CREATE INDEX IF NOT EXISTS idx_research_memory_semantic_artifact
   ON research_memory_semantic_events (artifact_kind, artifact_id, artifact_sha256, sequence);
 CREATE INDEX IF NOT EXISTS idx_research_memory_semantic_identity
   ON research_memory_semantic_events (semantic_identity, independence_group_id, sequence);
-` }];
+` }, cloudPaperFillLedgerMigration];
