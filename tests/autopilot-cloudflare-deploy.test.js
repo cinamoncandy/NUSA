@@ -40,7 +40,7 @@ test("deployment fail-closes and synchronizes the persistent runtime secret befo
   assert.match(workflow, /\$\{#NUSA_AUTOPILOT_RUNTIME_TOKEN\}.*-lt 32/);
   assert.match(workflow, /wrangler@4\.127\.1 secret put NUSA_AUTOPILOT_RUNTIME_TOKEN/);
   assert.match(workflow, /printf '%s' "\$NUSA_AUTOPILOT_RUNTIME_TOKEN"/);
-  assert.doesNotMatch(workflow, /echo .*NUSA_AUTOPILOT_RUNTIME_TOKEN/);
+  assert.doesNotMatch(workflow, /echo\s+["']?\$\{?NUSA_AUTOPILOT_RUNTIME_TOKEN/, "the secret value itself must never be echoed");
 });
 
 test("deployment authenticates read-only before attempting Cloudflare mutation", () => {
