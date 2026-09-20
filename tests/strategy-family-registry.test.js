@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { StrategyFamilyRegistry, StrategyFamilyRegistryError, CANONICAL_INDEPENDENT_ALPHA_FAMILIES } = require("../dist/apps/cloud/src/strategyFamilyRegistry.js");
+const { StrategyFamilyRegistry, StrategyFamilyRegistryError, CANONICAL_INDEPENDENT_ALPHA_FAMILIES, CANONICAL_INDEPENDENT_ALPHA_FAMILY_BINDINGS, requireCanonicalIndependentAlphaFamilyBinding } = require("../dist/apps/cloud/src/strategyFamilyRegistry.js");
 
 const family = { familyId:"microstructure.orderbook-imbalance", name:"Orderbook Imbalance", category:"MICROSTRUCTURE", thesis:"Independent microstructure pressure evidence.", lifecycle:"RESEARCHING" };
 const fundingFamily = { familyId:"derivatives.funding-persistence", name:"Funding Persistence", category:"DERIVATIVES", thesis:"Independent derivatives carry evidence.", lifecycle:"RESEARCHING" };
@@ -56,4 +56,14 @@ test("suspended and retired families reject new members while preserving restore
   r.registerFamily(family);
   r.registerMember(member);
   assert.deepEqual(r.getMember(member.strategyId,member.version),member);
+});
+
+
+test("independent alpha bindings are explicit, semver-normalized, and research-candidate only", () => {
+  assert.deepEqual(CANONICAL_INDEPENDENT_ALPHA_FAMILY_BINDINGS.map(x=>[x.alphaId,x.alphaVersion,x.strategyVersion,x.familyId,x.role]),[
+    ["ORDERBOOK_IMBALANCE",1,"1.0.0","microstructure.orderbook-imbalance","RESEARCH_CANDIDATE"],
+    ["FUNDING_PERSISTENCE_MEAN_REVERSION",1,"1.0.0","derivatives.funding-persistence","RESEARCH_CANDIDATE"]
+  ]);
+  assert.equal(requireCanonicalIndependentAlphaFamilyBinding("ORDERBOOK_IMBALANCE",1).strategyVersion,"1.0.0");
+  assert.throws(()=>requireCanonicalIndependentAlphaFamilyBinding("ORDERBOOK_IMBALANCE",2), e=>e.code==="MEMBER_CONFLICT");
 });
