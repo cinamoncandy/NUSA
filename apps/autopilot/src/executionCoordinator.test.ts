@@ -300,6 +300,31 @@ describe("active WIP coordination", () => {
     await assert.rejects(() => readActiveWip(fakeNamespace(200, { claims: [], activeExecutions: 0, liveAuthority: "LIVE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" })), /ACTIVE_WIP_READ_INVALID/);
   });
 
+  it("fails closed when persisted active claims overlap on a conflict key", async () => {
+    const storage = new MemoryStorage();
+    await storage.put("evolve-active-wip-v2", {
+      schemaVersion: 1,
+      claims: [
+        { dedupeKey: "task:left", executionId: "exec:left", canonicalOwner: "evolve", conflictKeys: ["module:shared"], claimedAt: 100 },
+        { dedupeKey: "task:right", executionId: "exec:right", canonicalOwner: "evolve", conflictKeys: ["module:shared"], claimedAt: 101 },
+      ],
+      completions: [],
+    });
+    await assert.rejects(() => readActiveWip(namespace(storage)), /ACTIVE_WIP_READ_FAILED/);
+  });
+
+  it("bounds completion tombstones while preserving replay safety", async () => {
+    const ns = namespace();
+    for (let index = 0; index < 33; index += 1) {
+      const key = `task:tombstone:${index}`;
+      const executionId = `exec:tombstone:${index}`;
+      await admitActiveWip(ns, { ...claim(key, executionId, [`module:tombstone:${index}`]), claimedAt: 100 + index });
+      await completeActiveWip(ns, { dedupeKey: key, executionId, completedAt: 200 + index });
+    }
+    await assert.rejects(() => completeActiveWip(ns, { dedupeKey: "task:tombstone:0", executionId: "exec:tombstone:0", completedAt: 500 }), /ACTIVE_WIP_COMPLETION_FAILED/);
+    assert.deepEqual(await completeActiveWip(ns, { dedupeKey: "task:tombstone:32", executionId: "exec:tombstone:32", completedAt: 501 }), { completed: false, replayed: true });
+  });
+
   it("bounds active WIP and preserves ZERO_AUTHORITY read evidence", async () => {
     const ns = namespace();
     await admitActiveWip(ns, { ...claim("task:1", "exec:1", ["module:1"]), maxConcurrent: 1 });
