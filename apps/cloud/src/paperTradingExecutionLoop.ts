@@ -399,7 +399,8 @@ function validateState(state: PaperAccountState): void {
     ...(state.workingOrders ?? []).map((order) => order.idempotencyKey)
   ]);
   const completeExecutionHistory =
-    representedIdempotencyKeys.size === state.processedIdempotencyKeys.length
+    state.processedIdempotencyKeys.length > 0
+    && representedIdempotencyKeys.size === state.processedIdempotencyKeys.length
     && state.processedIdempotencyKeys.every((key) => representedIdempotencyKeys.has(key));
   if (completeExecutionHistory) {
     assertPaperAccountingReconciled({
