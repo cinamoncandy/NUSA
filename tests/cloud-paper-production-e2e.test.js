@@ -70,6 +70,13 @@ function createHarness() {
   const risk = new CloudPaperCanonicalRiskGateway({ database: db, initialCapital: 100_000, sourceCommitSha: "a".repeat(40) });
   const boundary = new CloudPaperExecutionBoundary({ loop, riskGate: risk, readP0State: () => ({ openP0 }) });
 
+  // Mirror startCloudRuntime bootstrap: the dashboard hydrates fail-closed first, then the
+  // canonical PAPER account is projected so the first real market observation has deployable capital.
+  hydrator.hydrate(provider, []);
+  const bootstrapped = provider.read(principal);
+  assert.ok(bootstrapped);
+  provider.set(loop.applyToDashboard(bootstrapped, now));
+
   const hydrate = (changeRate, price) => {
     const observation = upbitTickerToIntelligenceObservation({
       type: "ticker",
