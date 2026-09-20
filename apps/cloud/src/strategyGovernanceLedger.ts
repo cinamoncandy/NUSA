@@ -12,7 +12,7 @@ const key=(e:StrategyGovernanceEvent)=>`${e.strategyId}|${e.version}`;
 const terminal=new Set<StrategyLifecycle>(["RETIRED","REJECTED","ROLLED_BACK"]);
 
 const lifecycleRule: Partial<Record<StrategyGovernanceEvent["type"], { readonly from: readonly (StrategyLifecycle | undefined)[]; readonly to: StrategyLifecycle }>> = Object.freeze({
-  STRATEGY_REGISTERED:{from:[undefined],to:"DRAFT"}, VALIDATION_RECORDED:{from:["RESEARCHING"],to:"VALIDATED"},
+  STRATEGY_REGISTERED:{from:[undefined],to:"DRAFT"}, RESEARCH_STARTED:{from:["DRAFT"],to:"RESEARCHING"}, VALIDATION_RECORDED:{from:["RESEARCHING"],to:"VALIDATED"}, PAPER_CANDIDATE_APPROVED:{from:["VALIDATED"],to:"PAPER_CANDIDATE"},
   PAPER_STARTED:{from:["PAPER_CANDIDATE"],to:"PAPER_ACTIVE"}, PAPER_COMPLETED:{from:["PAPER_ACTIVE"],to:"PAPER_ACTIVE"},
   PROMOTION_REQUESTED:{from:["PAPER_ACTIVE"],to:"PROMOTION_PENDING"}, PROMOTION_REJECTED:{from:["PROMOTION_PENDING"],to:"REJECTED"},
   CHALLENGER_APPROVED:{from:["PROMOTION_PENDING"],to:"CHALLENGER"}, CHAMPION_PROMOTED:{from:["CHALLENGER"],to:"CHAMPION"},
