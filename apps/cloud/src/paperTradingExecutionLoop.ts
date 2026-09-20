@@ -808,10 +808,11 @@ export class PaperTradingExecutionLoop {
 
     const priorFills = this.state.fills.filter((fill) => fill.orderId === current.id);
     const remainingQuantity = current.lifecycle.remainingQuantity;
-    const canonicalObservedQuote = tick.observedQuote == null ? undefined : (() => {
-      try { return validatePaperObservedExecutionQuote(tick.observedQuote!, current.market, tick.now); }
-      catch { return undefined; }
-    })();
+    let canonicalObservedQuote: PaperObservedExecutionQuote | undefined;
+    if (tick.observedQuote != null) {
+      try { canonicalObservedQuote = validatePaperObservedExecutionQuote(tick.observedQuote, current.market, tick.now); }
+      catch (error) { return this.result("REJECTED", error instanceof Error ? error.message : "paper strategy observed quote is invalid"); }
+    }
     let fillQuantity: number;
     let fillPrice: number;
     let orderBookExecutionReceipt: PaperOrderBookExecutionReceipt | undefined;
