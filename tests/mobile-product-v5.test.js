@@ -5,14 +5,15 @@ const path = require("node:path");
 const root = path.join(__dirname, "..", "apps", "mobile");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-test("product v5 keeps the four primary jobs literal and glanceable", () => {
+test("product v5 keeps the primary jobs literal and glanceable through the canonical navigation", () => {
   const app = read("App.tsx");
   assert.match(app, /Home: "HOME", Markets: "MARKETS", Paper: "PAPER", Portfolio: "PORTFOLIO"/);
+  assert.match(app, /Home: "HOME", Markets: "MARKETS", Paper: "STRATEGY", Portfolio: "PORTFOLIO", AiSignal: "SIGNAL"/);
   const home = read("src/homeView.tsx");
-  assert.match(home, />MARKETS<\/Text>/);
-  assert.match(home, />PORTFOLIO<\/Text>/);
-  assert.match(home, /PAPER EQUITY/);
-  assert.match(home, /TOTAL PNL/);
+  assert.match(home, /props\.onNavigate\("Markets"\)/);
+  assert.match(home, /props\.onNavigate\("Portfolio"\)/);
+  assert.match(home, /PAPER PERFORMANCE/);
+  assert.match(home, /TOTAL P&L/);
 });
 
 test("product v5 uses flatter secondary sections and Android-sized actions", () => {
