@@ -86,6 +86,25 @@ export interface WorkerIdentity {
 const SAFE_ID = /^[A-Za-z0-9_.:/-]{1,256}$/;
 const SAFE_BRANCH = /^[A-Za-z0-9_.][A-Za-z0-9_./-]{0,199}$/;
 const SAFE_WORKTREE = /^[A-Za-z0-9_./:-]{1,512}$/;
+// A worker branch is a branch a worker will create and push. Protected and symbolic refs are not
+// work branches, and admitting one would hand a worker the branch the release path owns.
+const RESERVED_BRANCHES = Object.freeze(["main", "master", "HEAD"]);
+// Every worker workspace lives under this root. The path is later passed to `git worktree add`
+// and `git worktree remove`, so an absolute path or a traversal segment would place worker
+// lifecycle side effects outside the sandbox entirely.
+const WORKTREE_ROOT = ".autopilot/worktrees/";
+
+function safeBranchName(value: unknown): value is string {
+  if (typeof value !== "string" || !SAFE_BRANCH.test(value)) return false;
+  if (RESERVED_BRANCHES.includes(value) || value.startsWith("refs/")) return false;
+  return !value.split("/").includes("..");
+}
+
+function safeWorktreePath(value: unknown): value is string {
+  if (typeof value !== "string" || !SAFE_WORKTREE.test(value)) return false;
+  if (!value.startsWith(WORKTREE_ROOT) || value.length === WORKTREE_ROOT.length) return false;
+  return !value.split("/").includes("..");
+}
 const MAX_CLAIMS = 8;
 const MAX_DEPENDENCIES = 32;
 const MAX_CONFLICT_KEYS = 32;
@@ -111,8 +130,8 @@ function validTask(value: unknown): value is WorkerTask {
     && issueOk
     && validId(task.dedupeKey)
     && validId(task.executionId)
-    && typeof task.branchName === "string" && SAFE_BRANCH.test(task.branchName)
-    && typeof task.worktreePath === "string" && SAFE_WORKTREE.test(task.worktreePath)
+    && safeBranchName(task.branchName)
+    && safeWorktreePath(task.worktreePath)
     && validId(task.canonicalOwner)
     && Array.isArray(conflictKeys) && conflictKeys.length > 0 && conflictKeys.length <= MAX_CONFLICT_KEYS
     && conflictKeys.every(validId) && new Set(conflictKeys).size === conflictKeys.length
