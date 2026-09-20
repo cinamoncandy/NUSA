@@ -4,6 +4,10 @@ const {
   ArxivResearchIntelligenceCollector,
   ResearchIntelligenceScout,
 } = require("../dist/apps/cloud/src/researchIntelligenceScout.js");
+const {
+  SqliteDatabase,
+  SqliteResearchIntelligenceMemoryRepository,
+} = require("../dist/packages/storage/src/index.js");
 
 function argument(name, fallback) {
   const index = process.argv.indexOf(name);
@@ -16,16 +20,29 @@ function argument(name, fallback) {
 async function main() {
   const output = resolve(argument("--output", "artifacts/research-intelligence/latest.json"));
   const maxResults = Number(argument("--max-results", process.env.NUSA_RESEARCH_INTELLIGENCE_MAX_RESULTS || "20"));
-  const collector = new ArxivResearchIntelligenceCollector({ maxResults });
-  const scout = new ResearchIntelligenceScout([collector]);
-  const result = await scout.run();
+  const databaseArg = argument("--db", process.env.NUSA_RESEARCH_INTELLIGENCE_DB || "");
+  let database;
+  try {
+    const memory = databaseArg
+      ? (() => {
+          database = new SqliteDatabase(resolve(databaseArg));
+          return new SqliteResearchIntelligenceMemoryRepository(database);
+        })()
+      : undefined;
+    const collector = new ArxivResearchIntelligenceCollector({ maxResults });
+    const scout = new ResearchIntelligenceScout([collector], memory);
+    const result = await scout.run();
 
-  const receipt = Object.freeze({
+    const receipt = Object.freeze({
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
     runMode: "ADVISORY_RESEARCH_ONLY",
-    dedupScope: "CURRENT_RUN_ONLY_UNTIL_CANONICAL_RESEARCH_MEMORY_INTEGRATION",
-    canonicalMemoryIntegration: "SEMANTIC_MEMORY_CONTRACT_AVAILABLE_RUNTIME_BINDING_PENDING_1906",
+    dedupScope: databaseArg
+      ? "CANONICAL_SQLITE_RESEARCH_MEMORY"
+      : "CURRENT_RUN_ONLY_WITH_CANONICAL_MEMORY_BINDING_AVAILABLE",
+    canonicalMemoryIntegration: databaseArg
+      ? "BOUND_TO_EXISTING_SEMANTIC_MEMORY_OWNER"
+      : "AVAILABLE_BUT_NOT_ACTIVATED_WITHOUT_PERSISTENT_DB",
     sourceRegistry: ["arxiv"],
     metrics: Object.freeze({
       discovered: result.discovered,
@@ -57,8 +74,11 @@ async function main() {
     }) + "\n",
   );
 
-  if (result.sourceErrors.length > 0 && result.records.length === 0) {
-    process.exitCode = 2;
+    if (result.sourceErrors.length > 0 && result.records.length === 0) {
+      process.exitCode = 2;
+    }
+  } finally {
+    database?.close();
   }
 }
 
