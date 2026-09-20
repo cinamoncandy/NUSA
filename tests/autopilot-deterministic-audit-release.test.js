@@ -69,10 +69,16 @@ test("Release re-verifies exact expected head and audited base before merge", ()
   assert.match(workflow, /\.merged == true/);
 });
 
-test("Release explicitly dispatches canonical main CI after a GITHUB_TOKEN merge", () => {
+test("Release reuses exact-main CI and dispatches only as a fallback after merge", () => {
   assert.match(workflow, /actions:\s*write/);
   assert.match(workflow, /Start canonical post-merge main CI/);
+  assert.match(workflow, /actions\/runs\?head_sha=\$MERGED_MAIN&per_page=100/);
+  assert.match(workflow, /Exact-main CI already succeeded/);
+  assert.match(workflow, /Exact-main CI is already active/);
+  assert.match(workflow, /suppressing duplicate post-merge dispatch/);
+  assert.match(workflow, /reusing it instead of dispatching duplicate work/);
   assert.match(workflow, /actions\/workflows\/ci\.yml\/dispatches/);
+  assert.match(workflow, /No exact-main CI existed; dispatched canonical fallback CI/);
   assert.match(workflow, /-f ref=main/);
   assert.match(workflow, /merged_main/);
 });
