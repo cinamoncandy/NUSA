@@ -104,6 +104,33 @@ describe("mobile approved session persistence boundary", () => {
     assert.equal(calls.some((value) => value.endsWith("/v1/mobile/session/refresh")), false);
   });
 
+  it("deletes a stale silent DeviceKey after definitive server rejection so enrollment can restart", async () => {
+    const storage = new MemorySecureStorage();
+    const endpoint = "https://paper.example";
+    const now = Date.now();
+    storage.values.set(SESSION_STORAGE_KEY, new TextEncoder().encode(JSON.stringify({ endpoint, refreshToken: "stale-refresh-token-0123456789", refreshExpiresAt: now + 600_000, deviceId: "nusa-device-stale-0001" })));
+    const request = (async (url: string | URL | Request) => {
+      const value = String(url);
+      if (value.endsWith("/v1/mobile/owner-device/authentication/challenge")) {
+        return new Response(JSON.stringify({ error: "OWNER_DEVICE_CREDENTIAL_REJECTED" }), { status: 401, headers: { "content-type": "application/json" } });
+      }
+      throw new Error("unexpected request " + value);
+    }) as typeof fetch;
+    let deleted: string | null = null;
+    const native = {
+      getSilentDeviceStatus: async () => ({ available: true, canCreate: true, hardwareBacked: true, status: "SILENT_DEVICE_KEY_PRESENT", credentialId: "silent-stale-credential-0123456789" }),
+      deleteSilentDeviceCredential: async (credentialId: string) => { deleted = credentialId; },
+    } as unknown as OwnerDeviceCredentialNative;
+    const session = new MobileApprovedSession(storage, request);
+    await assert.rejects(
+      () => session.restoreWithSilentDevice(endpoint, "nusa-device-stale-0001", native),
+      (error: unknown) => error instanceof Error && error.name === "MobileSessionRequestError",
+    );
+    assert.equal(deleted, "silent-stale-credential-0123456789");
+    assert.equal(storage.values.has(SESSION_STORAGE_KEY), false);
+    assert.equal(session.hasMemoryAccess(), false);
+  });
+
   it("rejects malformed persisted session and deletes it without network access", async () => {
     const storage = new MemorySecureStorage();
     storage.values.set(SESSION_STORAGE_KEY, new Uint8Array([1, 2, 3]));

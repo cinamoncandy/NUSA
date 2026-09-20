@@ -371,7 +371,19 @@ export class MobileApprovedSession {
     if (status.available !== true || status.hardwareBacked !== true) throw new Error("hardware-backed owner credential is unavailable.");
     this.silentNative = native;
     this.silentCredentialId = id;
-    const tokens = await this.issueSilentDeviceSession(endpoint, device, native, id);
+    let tokens: MobileSessionTokens;
+    try {
+      tokens = await this.issueSilentDeviceSession(endpoint, device, native, id);
+    } catch (error) {
+      if (isDefinitiveSessionRejection(error)) {
+        try { await native.deleteSilentDeviceCredential(id); } catch { /* server rejection still clears the unusable local session */ }
+        await this.clearLocal();
+      } else {
+        this.clearMemory();
+        this.restoreRetryable = true;
+      }
+      throw error;
+    }
     try {
       const identity = await this.loadIdentity(endpoint, tokens.accessToken);
       this.identity = identity;
@@ -539,15 +551,21 @@ export class MobileApprovedSession {
       await this.clearLocal();
       return null;
     }
+    const silentNative = this.silentNative;
+    const silentCredentialId = this.silentCredentialId;
     try {
-      if (this.silentNative != null && this.silentCredentialId != null && this.deviceId != null) {
-        return (await this.issueSilentDeviceSession(endpoint, this.deviceId, this.silentNative, this.silentCredentialId)).accessToken;
+      if (silentNative != null && silentCredentialId != null && this.deviceId != null) {
+        return (await this.issueSilentDeviceSession(endpoint, this.deviceId, silentNative, silentCredentialId)).accessToken;
       }
       return (await this.refreshWith(endpoint, refreshToken, this.deviceId ?? undefined)).accessToken;
     }
     catch (error) {
-      if (isDefinitiveSessionRejection(error)) await this.clearLocal();
-      else this.restoreRetryable = true;
+      if (isDefinitiveSessionRejection(error)) {
+        if (silentNative != null && silentCredentialId != null) {
+          try { await silentNative.deleteSilentDeviceCredential(silentCredentialId); } catch { /* local session is still cleared fail-closed */ }
+        }
+        await this.clearLocal();
+      } else this.restoreRetryable = true;
       return null;
     }
   }
