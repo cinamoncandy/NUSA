@@ -97,10 +97,36 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
   const refreshOwnerDeviceStatus = async (): Promise<OwnerDeviceCredentialStatus | null> => {
     const native = ownerDeviceCredential();
     if (native == null) { setOwnerDeviceStatus(null); return null; }
-    try { const status = await native.getStatus(); setOwnerDeviceStatus(status); return status; }
+    try { const status = await native.getSilentDeviceStatus(); setOwnerDeviceStatus(status); return status; }
     catch { setOwnerDeviceStatus(null); return null; }
   };
   useEffect(() => { void refreshOwnerDeviceStatus(); }, []);
+
+  useEffect(() => {
+    if (installationId == null || connection.status === "READY" || connectionInFlightRef.current) return;
+    const endpoint = getConfiguredPaperEndpoint();
+    const native = ownerDeviceCredential();
+    if (endpoint == null || native == null) return;
+    let active = true;
+    connectionInFlightRef.current = true;
+    setConnecting(true);
+    void mobileApprovedSession().restoreWithSilentDevice(endpoint, installationId, native).then(async (identity) => {
+      if (!active || identity == null) return;
+      const result = await loadPersonalPaperOperations({ baseUrl: endpoint, credentialProvider: credentialSession.credentialProvider, allowUnverifiedEndpoint: true });
+      if (!active || result.status !== "READY") return;
+      markPaperConnectionVerified(endpoint);
+      setConnection(result);
+      setConnectionAttempted(true);
+      setOwnerAuthenticationFallback(false);
+    }).catch((connectionError) => {
+      if (active) setConnection({ status: "NOT_CONFIGURED", reason: describeCredentialFailure(connectionError) });
+    }).finally(() => {
+      if (active) { connectionInFlightRef.current = false; setConnecting(false); }
+    });
+    return () => { active = false; connectionInFlightRef.current = false; };
+  }, [canonicalEndpoint, credentialSession, installationId, settings?.paperEndpoint]);
+
+
 
   useEffect(() => {
     if (pairing != null || installationId == null) return;
@@ -188,7 +214,7 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
       const native = ownerDeviceCredential();
       const status = await refreshOwnerDeviceStatus();
       if (native != null && status?.available === true && status.credentialId != null) {
-        await mobileApprovedSession().authenticateOwnerDeviceCredential(configuredEndpoint, installationId, native, status.credentialId);
+        await mobileApprovedSession().restoreWithSilentDevice(configuredEndpoint, installationId, native);
         const result = await loadPersonalPaperOperations({ baseUrl: configuredEndpoint, credentialProvider: credentialSession.credentialProvider, allowUnverifiedEndpoint: true });
         if (result.status !== "READY") throw new Error(result.reason);
         markPaperConnectionVerified(configuredEndpoint); setConnection(result); setPairing(null); setOwnerAuthenticationFallback(false);
