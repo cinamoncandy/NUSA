@@ -146,7 +146,7 @@ export interface PaperAccountState {
   readonly workingOrders?: readonly PaperWorkingOrderRecord[];
   readonly updatedAt: number;
 }
-export interface PaperAccountRepository { save(state: PaperAccountState): void; loadLatest(): PaperAccountState | undefined; loadHistory?: () => readonly PaperAccountState[]; clear(): void; close?: () => void; }
+export interface PaperAccountRepository { save(state: PaperAccountState): void; loadLatest(): PaperAccountState | undefined; loadHistory?: () => readonly PaperAccountState[]; loadFills?: () => readonly PaperFillRecord[]; clear(): void; close?: () => void; }
 
 export interface PaperWriterLeaseOptions {
   readonly now?: () => number;
@@ -180,6 +180,7 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
     if (!Number.isSafeInteger(this.maxClockAdvanceMs) || this.maxClockAdvanceMs < this.leaseDurationMs) throw new Error("paper writer clock advance limit is invalid");
     if (!Number.isSafeInteger(this.maxTakeoverAgeMs) || this.maxTakeoverAgeMs < this.leaseDurationMs) throw new Error("paper writer takeover age limit is invalid");
     this.acquireLease();
+    this.backfillFillLedgerFromHistory();
     const timer = setInterval(() => this.heartbeatLease(), this.heartbeatIntervalMs);
     timer.unref?.();
     this.heartbeat = timer;
@@ -189,6 +190,8 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
     const stateJson = JSON.stringify(state);
     this.db.transaction(() => {
       this.assertLeaseHeld();
+      this.appendFillLedgerRows(state.fills);
+      this.assertFillLedgerReconcilesState(state);
       this.db.connection.prepare(`
         INSERT INTO cloud_paper_accounts (account_id, schema_version, updated_at, state_json, checksum, status)
         VALUES (?, ?, ?, ?, ?, 'VALID')
@@ -206,6 +209,7 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
       const state = JSON.parse(String(row.state_json)) as PaperAccountState;
       validateState(state);
       if (String(row.checksum) !== accountChecksum(state)) throw new Error("paper account checksum mismatch");
+      this.assertFillLedgerReconcilesState(state);
       return state;
     } catch (error) {
       this.db.connection.prepare("UPDATE cloud_paper_accounts SET status = 'CORRUPTED' WHERE account_id = ?").run(ACCOUNT_ID);
@@ -225,7 +229,92 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
       return state;
     }));
   }
-  public clear(): void { this.db.transaction(() => { this.assertLeaseHeld(); this.db.connection.prepare("DELETE FROM cloud_paper_accounts WHERE account_id = ?").run(ACCOUNT_ID); }); }
+  public loadFills(): readonly PaperFillRecord[] {
+    this.assertLeaseHeld();
+    return this.readFillLedgerRows();
+  }
+  public clear(): void {
+    this.db.transaction(() => {
+      this.assertLeaseHeld();
+      this.db.connection.prepare("DELETE FROM cloud_paper_fill_ledger WHERE account_id = ?").run(ACCOUNT_ID);
+      this.db.connection.prepare("DELETE FROM cloud_paper_account_history WHERE account_id = ?").run(ACCOUNT_ID);
+      this.db.connection.prepare("DELETE FROM cloud_paper_accounts WHERE account_id = ?").run(ACCOUNT_ID);
+    });
+  }
+  private fillChecksum(fill: PaperFillRecord): string {
+    return createHash("sha256").update(JSON.stringify(fill), "utf8").digest("hex");
+  }
+  private appendFillLedgerRows(fills: readonly PaperFillRecord[]): void {
+    const ordered = [...fills].sort((left, right) => left.filledAt - right.filledAt || left.id.localeCompare(right.id));
+    let sequence = Number((this.db.connection.prepare(
+      "SELECT COALESCE(MAX(sequence), 0) AS sequence FROM cloud_paper_fill_ledger WHERE account_id = ?"
+    ).get(ACCOUNT_ID) as Record<string, number | bigint>).sequence);
+    for (const fill of ordered) {
+      const fillJson = JSON.stringify(fill);
+      const checksum = this.fillChecksum(fill);
+      const existing = this.db.connection.prepare(
+        "SELECT fill_json, checksum, filled_at FROM cloud_paper_fill_ledger WHERE account_id = ? AND fill_id = ?"
+      ).get(ACCOUNT_ID, fill.id) as Record<string, string | number> | undefined;
+      if (existing != null) {
+        if (String(existing.fill_json) !== fillJson || String(existing.checksum) !== checksum || Number(existing.filled_at) !== fill.filledAt) {
+          throw new Error("PAPER_FILL_LEDGER_CONFLICT");
+        }
+        continue;
+      }
+      sequence += 1;
+      this.db.connection.prepare(
+        "INSERT INTO cloud_paper_fill_ledger(account_id,sequence,fill_id,filled_at,fill_json,checksum) VALUES(?,?,?,?,?,?)"
+      ).run(ACCOUNT_ID, sequence, fill.id, fill.filledAt, fillJson, checksum);
+    }
+  }
+  private readFillLedgerRows(): readonly PaperFillRecord[] {
+    const rows = this.db.connection.prepare(
+      "SELECT sequence, fill_id, filled_at, fill_json, checksum FROM cloud_paper_fill_ledger WHERE account_id = ? ORDER BY sequence ASC"
+    ).all(ACCOUNT_ID) as Array<Record<string, string | number>>;
+    const ids = new Set<string>();
+    return Object.freeze(rows.map((row, index) => {
+      if (Number(row.sequence) !== index + 1) throw new Error("PAPER_FILL_LEDGER_SEQUENCE_GAP");
+      const fill = JSON.parse(String(row.fill_json)) as PaperFillRecord;
+      if (!fill.id.trim() || ids.has(fill.id) || fill.id !== String(row.fill_id) || fill.filledAt !== Number(row.filled_at)) throw new Error("PAPER_FILL_LEDGER_IDENTITY_INVALID");
+      ids.add(fill.id);
+      if (String(row.checksum) !== this.fillChecksum(fill)) throw new Error("PAPER_FILL_LEDGER_CHECKSUM_MISMATCH");
+      return fill;
+    }));
+  }
+  private assertFillLedgerReconcilesState(state: PaperAccountState): void {
+    const fills = this.readFillLedgerRows();
+    if (fills.length === 0 && state.fills.length === 0) return;
+    const byId = new Map(fills.map((fill) => [fill.id, JSON.stringify(fill)]));
+    for (const fill of state.fills) {
+      if (byId.get(fill.id) !== JSON.stringify(fill)) throw new Error("PAPER_FILL_LEDGER_STATE_CONFLICT");
+    }
+    assertPaperAccountingReconciled({
+      initialCapital: state.initialCapital,
+      fills,
+      cash: state.cash,
+      realizedPnL: state.realizedPnL,
+      positions: state.positions
+    });
+  }
+  private backfillFillLedgerFromHistory(): void {
+    const account = this.db.connection.prepare(
+      "SELECT 1 FROM cloud_paper_accounts WHERE account_id = ? AND status = 'VALID'"
+    ).get(ACCOUNT_ID);
+    if (account == null) return;
+    const states = this.loadHistory();
+    const fillsById = new Map<string, PaperFillRecord>();
+    for (const state of states) {
+      for (const fill of state.fills) {
+        const previous = fillsById.get(fill.id);
+        if (previous != null && JSON.stringify(previous) !== JSON.stringify(fill)) throw new Error("PAPER_FILL_LEDGER_HISTORY_CONFLICT");
+        fillsById.set(fill.id, fill);
+      }
+    }
+    this.db.transaction(() => {
+      this.assertLeaseHeld();
+      this.appendFillLedgerRows([...fillsById.values()]);
+    });
+  }
   public close(): void {
     if (this.closed) return;
     this.closed = true;
