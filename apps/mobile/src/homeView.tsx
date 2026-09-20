@@ -63,22 +63,6 @@ function MarketTile({ market }: Readonly<{ market: WatchlistMarket | null }>) {
 function EvidenceRow({ label, value, tone = "neutral" }: Readonly<{ label: string; value: string; tone?: "lime" | "danger" | "neutral" }>) {
   return <View style={styles.evidenceRow}><Text style={[styles.evidenceLabel, { color: tone === "lime" ? LIME : tone === "danger" ? RED : wealthProductColors.c06 }]}>{label}</Text><Text style={styles.evidenceValue} numberOfLines={3}>{value}</Text></View>;
 }
-function GlobeVisual() {
-  return <View style={styles.globeWrap} accessible accessibilityRole="image" accessibilityLabel="NUSA global market intelligence globe">
-    <View style={styles.globeGlow} />
-    <View style={styles.globeSphere}>
-      <View style={[styles.globeLongitude, styles.globeLongitudeA]} />
-      <View style={[styles.globeLongitude, styles.globeLongitudeB]} />
-      <View style={[styles.globeLatitude, styles.globeLatitudeA]} />
-      <View style={[styles.globeLatitude, styles.globeLatitudeB]} />
-      <View style={[styles.globeLatitude, styles.globeLatitudeC]} />
-      <View style={styles.globeLandA} /><View style={styles.globeLandB} /><View style={styles.globeLandC} />
-      <View style={[styles.globeNode, styles.globeNodeA]} /><View style={[styles.globeNode, styles.globeNodeB]} /><View style={[styles.globeNode, styles.globeNodeC]} />
-    </View>
-    <Text style={styles.orbitText}>GLOBAL{String.fromCharCode(10)}MARKETS{String.fromCharCode(10)}REAL-TIME{String.fromCharCode(10)}WITH AI</Text>
-  </View>;
-}
-
 export function HomeView(props: HomeViewProps) {
   const { theme } = useTheme();
   const localPaperActive = props.snapshot == null && isLocalPaperActive();
