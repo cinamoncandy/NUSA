@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { MobileApprovedSession, PAIRING_STORAGE_KEY, SESSION_STORAGE_KEY } from "./mobileApprovedSession";
 import type { SecureStoragePort } from "./mobileSecurity";
+import type { OwnerDeviceCredentialNative } from "./ownerDeviceCredential";
 
 class MemorySecureStorage implements SecureStoragePort {
   readonly values = new Map<string, Uint8Array>();
@@ -74,6 +75,60 @@ describe("mobile approved session persistence boundary", () => {
     assert.equal((await restarted.restore(endpoint))?.userId, "mobile-user");
     assert.equal(restarted.hasMemoryAccess(), true);
     assert.equal(storage.getCount, 1);
+  });
+
+  it("uses silent DeviceKey proof instead of a persisted bearer refresh after restart", async () => {
+    const storage = new MemorySecureStorage();
+    const endpoint = "https://paper.example";
+    const now = Date.now();
+    storage.values.set(SESSION_STORAGE_KEY, new TextEncoder().encode(JSON.stringify({ endpoint, refreshToken: "expired-refresh-token-0123456789", refreshExpiresAt: now + 600_000, deviceId: "nusa-device-silent-0001" })));
+    const calls: string[] = [];
+    const request = (async (url: string | URL | Request) => {
+      const value = String(url); calls.push(value);
+      if (value.endsWith("/v1/mobile/session/refresh")) throw new Error("silent DeviceKey restart must not send a bearer refresh");
+      if (value.endsWith("/v1/mobile/owner-device/authentication/challenge")) return new Response(JSON.stringify({ challengeId: "challenge-id-0123456789", challenge: "Y2Fub25pY2FsLWNoYWxsZW5nZQ==", purpose: "AUTHENTICATION", expiresAt: now + 60_000 }), { status: 201 });
+      if (value.endsWith("/v1/mobile/owner-device/authentication/complete")) return new Response(JSON.stringify({ accessToken: "silent-access-token-0123456789", accessExpiresAt: now + 60_000, refreshToken: "silent-refresh-token-0123456789", refreshExpiresAt: now + 600_000, scopes: ["dashboard:read", "paper:trade"], deviceId: "nusa-device-silent-0001" }), { status: 200 });
+      if (value.endsWith("/v1/mobile/me")) return new Response(JSON.stringify({ userId: "owner", email: "owner@example.com", scopes: ["dashboard:read", "paper:trade"] }), { status: 200 });
+      throw new Error("unexpected request " + value);
+    }) as typeof fetch;
+    let signed = 0;
+    const native = {
+      getSilentDeviceStatus: async () => ({ available: true, canCreate: true, hardwareBacked: true, status: "SILENT_DEVICE_KEY_PRESENT", credentialId: "silent-credential-0123456789" }),
+      signSilentChallenge: async () => { signed += 1; return "MEUCIQDummysignature0123456789ABCD=="; },
+    } as unknown as OwnerDeviceCredentialNative;
+    const session = new MobileApprovedSession(storage, request);
+    const identity = await session.restoreWithSilentDevice(endpoint, "nusa-device-silent-0001", native);
+    assert.equal(identity?.userId, "owner");
+    assert.equal(signed, 1);
+    assert.equal(calls.some((value) => value.endsWith("/v1/mobile/owner-device/authentication/challenge")), true);
+    assert.equal(calls.some((value) => value.endsWith("/v1/mobile/session/refresh")), false);
+  });
+
+  it("deletes a stale silent DeviceKey after definitive server rejection so enrollment can restart", async () => {
+    const storage = new MemorySecureStorage();
+    const endpoint = "https://paper.example";
+    const now = Date.now();
+    storage.values.set(SESSION_STORAGE_KEY, new TextEncoder().encode(JSON.stringify({ endpoint, refreshToken: "stale-refresh-token-0123456789", refreshExpiresAt: now + 600_000, deviceId: "nusa-device-stale-0001" })));
+    const request = (async (url: string | URL | Request) => {
+      const value = String(url);
+      if (value.endsWith("/v1/mobile/owner-device/authentication/challenge")) {
+        return new Response(JSON.stringify({ error: "OWNER_DEVICE_CREDENTIAL_REJECTED" }), { status: 401, headers: { "content-type": "application/json" } });
+      }
+      throw new Error("unexpected request " + value);
+    }) as typeof fetch;
+    let deleted: string | null = null;
+    const native = {
+      getSilentDeviceStatus: async () => ({ available: true, canCreate: true, hardwareBacked: true, status: "SILENT_DEVICE_KEY_PRESENT", credentialId: "silent-stale-credential-0123456789" }),
+      deleteSilentDeviceCredential: async (credentialId: string) => { deleted = credentialId; },
+    } as unknown as OwnerDeviceCredentialNative;
+    const session = new MobileApprovedSession(storage, request);
+    await assert.rejects(
+      () => session.restoreWithSilentDevice(endpoint, "nusa-device-stale-0001", native),
+      (error: unknown) => error instanceof Error && error.name === "MobileSessionRequestError",
+    );
+    assert.equal(deleted, "silent-stale-credential-0123456789");
+    assert.equal(storage.values.has(SESSION_STORAGE_KEY), false);
+    assert.equal(session.hasMemoryAccess(), false);
   });
 
   it("rejects malformed persisted session and deletes it without network access", async () => {
