@@ -15,13 +15,13 @@ function readConcurrencyBlock(filePath) {
   return workflow.slice(start, end);
 }
 
-test("stable dispatch controllers share one non-cancelling concurrency group", () => {
+test("stable trigger serializes dispatch while watchdog avoids pending-run cancellation churn", () => {
   const triggerConcurrency = readConcurrencyBlock(triggerPath);
-  const watchdogConcurrency = readConcurrencyBlock(watchdogPath);
+  const watchdog = readFileSync(watchdogPath, "utf8");
 
-  assert.equal(triggerConcurrency, watchdogConcurrency);
   assert.match(triggerConcurrency, /group: android-stable-release-dispatch-controller/);
   assert.match(triggerConcurrency, /cancel-in-progress: false/);
+  assert.doesNotMatch(watchdog, /^concurrency:/m);
 });
 
 test("both controllers retain exact-main and active-release guards", () => {
