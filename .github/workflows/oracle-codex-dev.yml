@@ -21,8 +21,13 @@ on:
 permissions:
   contents: read
 
+# Keyed per mode and per task, not one global group. A single constant group serialized every
+# dispatch of this workflow behind the last one, so the Codex worker path was capped at one
+# concurrent worker by the workflow itself, no matter how many runners carry the label.
+# login stays serialized because two concurrent device logins would race the same credential,
+# and re-dispatching the same task still shares a group, so duplicate work is still suppressed.
 concurrency:
-  group: oracle-codex-dev-runner
+  group: oracle-codex-dev-${{ inputs.mode }}-${{ inputs.task || 'none' }}
   cancel-in-progress: false
 
 jobs:
