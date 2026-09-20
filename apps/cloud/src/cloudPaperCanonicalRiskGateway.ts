@@ -94,12 +94,14 @@ function rateState(state: PaperAccountState, now: number, side: "BUY" | "SELL"):
   let ordersInLastSecond = 0;
   let ordersInLastMinute = 0;
   for (const order of state.orders) {
+    if (order.status === "CANCELLED") continue;
     const age = now - order.filledAt;
     if (age >= 0 && age < 1_000) ordersInLastSecond += 1;
     if (age >= 0 && age < 60_000) ordersInLastMinute += 1;
   }
   let sameSideStreak = 0;
   for (const order of state.orders) {
+    if (order.status === "CANCELLED") continue;
     if (order.side !== side) break;
     sameSideStreak += 1;
   }
@@ -111,6 +113,7 @@ function dailyNotional(state: PaperAccountState, now: number): Readonly<{ dailyB
   let dailyBuyNotional = 0;
   let dailySellNotional = 0;
   for (const order of state.orders) {
+    if (order.status === "CANCELLED") continue;
     if (dayOf(order.filledAt) !== day) continue;
     const notional = order.quantity * order.price;
     if (order.side === "BUY") dailyBuyNotional += notional;
@@ -123,6 +126,7 @@ function realizedLossState(state: PaperAccountState, now: number): Readonly<{ da
   const positions = new Map<string, { quantity: number; averageEntryPrice: number }>();
   const sells: Array<{ pnl: number; filledAt: number }> = [];
   for (const order of [...state.orders].reverse()) {
+    if (order.status === "CANCELLED") continue;
     const prior = positions.get(order.market) ?? { quantity: 0, averageEntryPrice: 0 };
     if (order.side === "BUY") {
       const nextQuantity = prior.quantity + order.quantity;
