@@ -15,7 +15,8 @@ test("Home preserves the canonical Intelligence OS safety-first actions without 
   assert.match(home, /testID="home-market-pulse"/);
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /testID="ai-card"/);
-  assert.match(home, /<EvidenceRow label="RISK" value={decision\.risk}/);\n  assert.match(home, /testID="home-risk-authority"/);
+  assert.match(home, /<EvidenceRow label="RISK" value={decision\.risk}/);
+  assert.match(home, /testID="home-risk-authority"/);
   assert.match(home, /testID="home-decision-stage"/);
   assert.match(home, /testID="home-paper-performance"/);
   assert.match(home, /testID="home-paper-learning"/);
