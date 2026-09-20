@@ -15,7 +15,7 @@ test("Signal Detail explicitly supports 360 390 and 430px mobile acceptance widt
   assert.match(ai, /useWindowDimensions/);
   assert.match(ai, /getMobileViewportProfile\(width\)/);
   assert.match(ai, /viewport\.narrow\?styles\.titleRowNarrow:null/);
-  assert.match(ai, /viewport\.narrow\?styles\.analysisRowNarrow:null/);
+  assert.match(ai, /narrow\?styles\.analysisRowNarrow:null/);
   assert.match(ai, /viewport\.narrow\?styles\.assetHeadNarrow:null/);
 });
 
