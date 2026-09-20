@@ -3,7 +3,7 @@ import { prepareDiscoveredCodingRequest } from "./evolveCodingBridge";
 import { deriveWorkflowFailureOpportunities, type WorkflowFailureEvidence } from "./evolveEvidenceOpportunitySource";
 import { deriveGithubIssueBacklogSignals } from "./evolveGithubIssueBacklog";
 import type { EvolutionDiscoverySignal } from "./evolveOpportunityDiscovery";
-import { acquirePersistentExecution, readPersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, readActiveWip, readPersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
 export interface ScheduledEvolutionCodingEnv {
   readonly NUSA_GITHUB_TOKEN?: string;
@@ -200,16 +200,16 @@ export async function runScheduledEvolutionCoding(
   const executionId = `evolve-coding:${input.mainSha.slice(0, 16)}:${workIdentity.slice(0, 100)}`;
   const dedupeKey = `evolve-coding:${input.mainSha}:${workIdentity}`;
   let currentExecution;
+  let activeWip;
   try {
-    currentExecution = await readPersistentExecution(coordinator, dedupeKey);
+    [currentExecution, activeWip] = await Promise.all([
+      readPersistentExecution(coordinator, dedupeKey),
+      readActiveWip(coordinator),
+    ]);
   } catch {
     return result("ABSTAINED", "persistent-execution-state-unavailable", signals.map((signal) => signal.id));
   }
-  const activeExecutions = currentExecution
-    && (currentExecution.state === "LEASED" || currentExecution.state === "HANDED_OFF")
-    && currentExecution.leaseExpiresAt > input.now
-    ? 1
-    : 0;
+  const activeExecutions = activeWip.activeExecutions;
   const elapsedSecondsSinceLastRun = currentExecution
     ? Math.max(0, Math.floor((input.now - currentExecution.updatedAt) / 1000))
     : Number.MAX_SAFE_INTEGER;
