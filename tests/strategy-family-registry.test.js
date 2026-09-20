@@ -44,3 +44,16 @@ test("governance boundary requires exact canonical family membership", () => {
   assert.throws(()=>r.requireMembership(member.strategyId,member.version,fundingFamily.familyId), e=>e.code==="MEMBER_CONFLICT");
   assert.throws(()=>r.requireMembership(member.strategyId,member.version,"unknown.family"), e=>e.code==="UNKNOWN_FAMILY");
 });
+
+
+test("suspended and retired families reject new members while preserving restored membership", () => {
+  for (const lifecycle of ["SUSPENDED","RETIRED"]) {
+    const r=new StrategyFamilyRegistry();
+    r.registerFamily({...family,lifecycle});
+    assert.throws(()=>r.registerMember(member), e=>e.code==="FAMILY_NOT_ADMITTING_MEMBERS");
+  }
+  const r=new StrategyFamilyRegistry();
+  r.registerFamily(family);
+  r.registerMember(member);
+  assert.deepEqual(r.getMember(member.strategyId,member.version),member);
+});
