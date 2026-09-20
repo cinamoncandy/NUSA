@@ -6,6 +6,8 @@ export interface CodingRunnerRequest {
   readonly reason: string;
   readonly executionId: string;
   readonly dedupeKey: string;
+  readonly canonicalOwner?: string;
+  readonly conflictKeys?: readonly string[];
   readonly mutationAllowed: false;
   readonly liveAuthority: "NONE";
   readonly productionMutationAllowed: false;
@@ -126,6 +128,8 @@ type FetchImpl = (input: string, init?: RequestInit) => Promise<HttpResponse>;
 const SHA40 = /^[0-9a-f]{40}$/i;
 const EXECUTION_ID = /^[A-Za-z0-9_.:-]{1,160}$/;
 const DEDUPE_KEY = /^[A-Za-z0-9_.:-]{1,256}$/;
+const CANONICAL_OWNER = /^[A-Za-z0-9_.:/-]{1,120}$/;
+const CONFLICT_KEY = /^[A-Za-z0-9_.:/-]{1,200}$/;
 const DEFAULT_REPOSITORY = "cinamoncandy/NUSA";
 const GITHUB_API_ORIGIN = "https://api.github.com";
 const DEFAULT_WORKERS_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
@@ -144,6 +148,19 @@ export function validateCodingRunnerRequest(value: unknown, allowedRepository = 
   if (typeof request.headSha !== "string" || !SHA40.test(request.headSha)) throw new Error("CODING_RUNNER_HEAD_SHA_INVALID");
   if (typeof request.executionId !== "string" || !EXECUTION_ID.test(request.executionId)) throw new Error("CODING_RUNNER_EXECUTION_ID_INVALID");
   if (typeof request.dedupeKey !== "string" || !DEDUPE_KEY.test(request.dedupeKey)) throw new Error("CODING_RUNNER_DEDUPE_KEY_INVALID");
+  const hasCanonicalOwner = request.canonicalOwner !== undefined;
+  const hasConflictKeys = request.conflictKeys !== undefined;
+  if (hasCanonicalOwner !== hasConflictKeys) throw new Error("CODING_RUNNER_OWNERSHIP_PAIR_INVALID");
+  if (hasCanonicalOwner) {
+    if (typeof request.canonicalOwner !== "string" || !CANONICAL_OWNER.test(request.canonicalOwner)) throw new Error("CODING_RUNNER_CANONICAL_OWNER_INVALID");
+    if (!Array.isArray(request.conflictKeys) || request.conflictKeys.length === 0 || request.conflictKeys.length > 32) throw new Error("CODING_RUNNER_CONFLICT_KEYS_INVALID");
+    const conflictKeys = request.conflictKeys as unknown[];
+    const seenConflictKeys = new Set<string>();
+    for (const key of conflictKeys) {
+      if (typeof key !== "string" || !CONFLICT_KEY.test(key) || seenConflictKeys.has(key)) throw new Error("CODING_RUNNER_CONFLICT_KEYS_INVALID");
+      seenConflictKeys.add(key);
+    }
+  }
   if (request.liveAuthority !== "NONE") throw new Error("CODING_RUNNER_LIVE_AUTHORITY_FORBIDDEN");
   if (request.productionMutationAllowed !== false || request.mutationAllowed !== false) throw new Error("CODING_RUNNER_PRODUCTION_MUTATION_FORBIDDEN");
   if (request.aiAuthority !== "ZERO_AUTHORITY") throw new Error("CODING_RUNNER_AI_AUTHORITY_INVALID");
@@ -362,6 +379,8 @@ function codingEngineRequest(request: CodingRunnerRequest, token: string): Reque
       reason: request.reason,
       executionId: request.executionId,
       dedupeKey: request.dedupeKey,
+      canonicalOwner: request.canonicalOwner,
+      conflictKeys: request.conflictKeys,
       outputContract: { patch: "unified-git-diff" },
       constraints: { mutationAllowed: false, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" },
     }),
@@ -383,6 +402,8 @@ function codingProposalPrompt(request: CodingRunnerRequest): string {
     `Execution reason: ${request.reason}`,
     `Execution id: ${request.executionId}`,
     `Dedupe key: ${request.dedupeKey}`,
+    `Canonical owner: ${request.canonicalOwner ?? "legacy-unowned"}`,
+    `Conflict keys: ${request.conflictKeys?.join(",") ?? "none"}`,
   ].join("\n");
 }
 
