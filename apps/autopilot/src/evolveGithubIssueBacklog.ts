@@ -137,7 +137,7 @@ export function deriveGithubIssueBacklogReadiness(
   }
   const eligible = candidates.filter((candidate) => candidate.capability === "AUTOPILOT_TYPESCRIPT");
 
-  const signals = eligible.slice(0, 1).map((issue) => Object.freeze({
+  const signals = eligible.map((issue) => Object.freeze({
     id: `github-issue-${issue.number}`,
     source: "github-issue-backlog",
     reference: `github://issue/${issue.number}`,
