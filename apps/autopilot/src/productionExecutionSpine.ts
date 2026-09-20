@@ -54,10 +54,16 @@ export function prepareProductionExecution(
   // is what suppresses a second execution for the same commit. Without normalising here, the same
   // commit in a different case mints a second identity and the suppression silently does nothing.
   const headSha = dispatch.headSha.toLowerCase();
+  // AutopilotDispatchPlan documents why the attempt belongs in the identity: "a re-run keeps the
+  // same workflowRunId but is a distinct execution producing distinct evidence, so downstream
+  // execution identity must carry it -- otherwise a re-run collides with the first attempt's dedupe
+  // key and is suppressed as a duplicate, permanently starving any head whose first Audit attempt
+  // reached no verdict." dispatchPlanner sets the field; nothing consumed it until here.
+  const runAttempt = dispatch.workflowRunAttempt ?? 1;
   const cycleId = `ci:${dispatch.workflowRunId}`;
   const workItemId = `continue:${headSha}`;
   const executionId = `github:${delivery}`;
-  const dedupeKey = `ci:${dispatch.workflowRunId}:${headSha}`;
+  const dedupeKey = `ci:${dispatch.workflowRunId}:${runAttempt}:${headSha}`;
 
   let state = createExecutionState({ cycleId, workItemId, executionId, dedupeKey });
   state = acquireExecutionLease(state, "cloudflare:nusa-autopilot", options.now, leaseTtlMs);
