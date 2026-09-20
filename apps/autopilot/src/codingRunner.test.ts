@@ -388,6 +388,8 @@ describe("coding runner", () => {
     const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch);
     assert.equal(result.status, "EXECUTION_FAILED");
     assert.equal(result.reason, "CODING_PROPOSAL_SHAPE_INVALID");
+    assert.equal(result.proposalAttempts, 3);
+    assert.equal(result.failureStage, "proposal-parse");
   });
 
   it("rejects forbidden authority-surface proposal paths before sandbox execution", async () => {
@@ -399,6 +401,24 @@ describe("coding runner", () => {
     assert.equal(result.status, "EXECUTION_FAILED");
     assert.equal(result.reason, "CODING_PROPOSAL_PATH_FORBIDDEN");
   });
+  it("records bounded sandbox failure diagnostics without proposal contents", async () => {
+    let attempts = 0;
+    const ai: WorkersAiBinding = {
+      async run() { attempts += 1; return { response: JSON.stringify({ patch }) }; },
+    };
+    const runtime: CodingRuntime = {
+      name: "fake-sandbox",
+      async execute() { throw new Error("SANDBOX_PATCH_APPLY_CHECK_FAILED"); },
+    };
+    const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch, runtime);
+    assert.equal(result.status, "EXECUTION_FAILED");
+    assert.equal(result.reason, "SANDBOX_PATCH_APPLY_CHECK_FAILED");
+    assert.equal(result.proposalAttempts, 3);
+    assert.equal(result.failureStage, "sandbox-validation");
+    assert.equal(attempts, 3);
+    assert.equal("patch" in result, false);
+  });
+
   it("falls back from the retired dashboard model to the supported default", async () => {
     const calls: string[] = [];
     const ai: WorkersAiBinding = {

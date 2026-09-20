@@ -192,3 +192,79 @@ test("defaults Oracle startup readiness to the full bounded 60 second window", (
   assert.match(source, /NUSA_READY_STARTUP_WAIT_MS \|\| 60_000/);
   assert.match(source, /startupWaitMs > 60_000/);
 });
+
+
+test("Oracle readiness retries a transiently blocked mobile owner route within the bounded startup window", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-ready-route-retry-"));
+  let passwordCalls = 0;
+  const server = http.createServer((request, response) => {
+    if (request.url === "/ready") {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ ok: true, checks: { database: true, migrations: true, dashboardPersistence: true, runtimeRecovery: true } }));
+      return;
+    }
+    if (request.url === "/v1/mobile/session/password") {
+      passwordCalls += 1;
+      if (passwordCalls === 1) return;
+      response.writeHead(405);
+      response.end();
+      return;
+    }
+    if (request.url === "/v1/mobile/session/password/change") {
+      response.writeHead(405);
+      response.end();
+      return;
+    }
+    response.writeHead(404);
+    response.end();
+  });
+  const port = await listen(server);
+  const envFile = writeReadinessEnv(root, port);
+  try {
+    const result = await runReadiness(envFile, {
+      NUSA_READY_TIMEOUT_MS: "30",
+      NUSA_READY_STARTUP_WAIT_MS: "300",
+      NUSA_READY_RETRY_DELAY_MS: "20",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.ok(passwordCalls >= 2);
+    assert.deepEqual(JSON.parse(result.stdout).mobileOwnerAuthRoutes, [
+      { path: "/v1/mobile/session/password", status: 405 },
+      { path: "/v1/mobile/session/password/change", status: 405 },
+    ]);
+  } finally {
+    await close(server);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("Oracle readiness still rejects a mobile owner route that never reaches 405", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-ready-route-timeout-"));
+  const server = http.createServer((request, response) => {
+    if (request.url === "/ready") {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ ok: true, checks: { database: true, migrations: true, dashboardPersistence: true, runtimeRecovery: true } }));
+      return;
+    }
+    if (request.url === "/v1/mobile/session/password") return;
+    response.writeHead(405);
+    response.end();
+  });
+  const port = await listen(server);
+  const envFile = writeReadinessEnv(root, port);
+  try {
+    const result = await runReadiness(envFile, {
+      NUSA_READY_TIMEOUT_MS: "25",
+      NUSA_READY_STARTUP_WAIT_MS: "100",
+      NUSA_READY_RETRY_DELAY_MS: "10",
+    });
+    assert.notEqual(result.status, 0);
+    const failure = JSON.parse(result.stderr);
+    assert.equal(failure.stage, "mobile_owner_route");
+    assert.equal(failure.route, "/v1/mobile/session/password");
+    assert.ok(failure.attempts > 1);
+  } finally {
+    await close(server);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
