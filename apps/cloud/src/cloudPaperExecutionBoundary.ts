@@ -177,6 +177,7 @@ export class CloudPaperExecutionBoundary {
         portfolio: tick.portfolio,
         decision,
         state,
+        investmentPercent,
       });
     } catch (error) {
       const reason = error instanceof Error && error.message.startsWith("PAPER_EXECUTION_INTENT_")
