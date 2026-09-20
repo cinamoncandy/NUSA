@@ -91,6 +91,7 @@ export interface PaperStrategyWorkingOrderProvenance {
   readonly candidateProvenance?: PaperFillCandidateProvenance;
   readonly quotePrice: number;
   readonly remainingAllocationCapital: number | null;
+  readonly lastOrderBookObservedAt: number;
 }
 export interface PaperWorkingOrderRecord {
   readonly id: string;
@@ -460,7 +461,8 @@ function validateState(state: PaperAccountState): void {
       if (strategy.schemaVersion !== 1 || strategy.source !== "PAPER_EXECUTION_INTENT" || order.orderType !== "MARKET") throw new Error("paper strategy working-order provenance is invalid");
       const intent = validatePaperExecutionIntent(strategy.executionIntent);
       if (intent.market !== order.market || intent.side !== order.side || intent.quantity !== order.requestedQuantity ||
-          paperExecutionIntentCommandId(intent) !== order.idempotencyKey || !Number.isFinite(strategy.quotePrice) || strategy.quotePrice <= 0) {
+          paperExecutionIntentCommandId(intent) !== order.idempotencyKey || !Number.isFinite(strategy.quotePrice) || strategy.quotePrice <= 0 ||
+          !Number.isSafeInteger(strategy.lastOrderBookObservedAt) || strategy.lastOrderBookObservedAt < 0 || strategy.lastOrderBookObservedAt > order.lifecycle.lastTransitionAt) {
         throw new Error("paper strategy working-order intent mismatch");
       }
       if (intent.side === "BUY") {
@@ -864,6 +866,7 @@ export class PaperTradingExecutionLoop {
       const current = strategyWorking[0]!;
       const strategy = current.strategyExecution!;
       if (tick.observedQuote?.depth == null || tick.observedQuote.depthFingerprintSha256 == null) return this.result("WAIT", "PAPER_STRATEGY_WORKING_WAITING_FOR_DEPTH");
+      if (tick.observedQuote.observedAt <= strategy.lastOrderBookObservedAt) return this.result("WAIT", "PAPER_STRATEGY_WORKING_WAITING_FOR_NEW_DEPTH");
       let receipt: PaperOrderBookExecutionReceipt;
       try {
         receipt = buildPaperOrderBookExecutionReceipt({
@@ -1202,6 +1205,7 @@ function applyStrategyDepthFill(
     ...(input.candidateProvenance === undefined ? {} : { candidateProvenance: input.candidateProvenance }),
     quotePrice: input.quotePrice,
     remainingAllocationCapital,
+    lastOrderBookObservedAt: input.observedQuote.observedAt,
   });
 
   let workingOrders = [...(state.workingOrders ?? [])].filter((order) => order.id !== id);
