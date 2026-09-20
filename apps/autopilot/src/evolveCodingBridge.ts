@@ -8,8 +8,6 @@ export interface EvolutionCodingBridgeInput extends Omit<EvolutionAutonomousSele
   readonly repository: string;
   readonly headSha: string;
   readonly workflowRunId: number;
-  readonly executionId: string;
-  readonly dedupeKey: string;
 }
 
 export interface EvolutionCodingBridgeResult {
@@ -78,8 +76,8 @@ export function prepareDiscoveredCodingRequest(input: EvolutionCodingBridgeInput
     headSha: input.headSha,
     workflowRunId: input.workflowRunId,
     reason: `evolve:${selection.selectedOpportunity.id}:${selection.selectedOpportunity.problem}`,
-    executionId: input.executionId,
-    dedupeKey: input.dedupeKey,
+    executionId: `evolve-coding:${input.headSha.slice(0, 16)}:${selection.selectedOpportunity.id.replace(/[^A-Za-z0-9_.:-]+/g, "-").slice(0, 100)}`,
+    dedupeKey: `evolve-coding:${input.headSha}:${selection.selectedOpportunity.id.replace(/[^A-Za-z0-9_.:-]+/g, "-").slice(0, 180)}`,
     canonicalOwner: selection.selectedOpportunity.canonicalOwner,
     conflictKeys: selection.selectedOpportunity.conflictKeys,
     mutationAllowed: false,
