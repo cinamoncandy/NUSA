@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 
 const workflow = fs.readFileSync(".github/workflows/oracle-paper-release.yml", "utf8");
-const wrapper = fs.readFileSync("deploy/oracle/nusa-release-step.sh", "utf8");
+const wrapper = fs.readFileSync("deploy/oracle/nusa-release-step.sh", "utf8").replaceAll("\r\n", "\n");
 const runbook = fs.readFileSync("docs/operations/oracle-p1-008-runbook.md", "utf8");
 
 /**
@@ -62,7 +62,9 @@ test("the workflow runs the release verbs in the runbook's order", () => {
 });
 
 test("a release that cannot prove either runtime ready is rolled back, not left serving", () => {
-  const activateCase = wrapper.slice(wrapper.indexOf("  activate)"), wrapper.indexOf("\n  rollback)", wrapper.indexOf("  activate)"));
+  const activateStart = wrapper.indexOf("  activate)");
+  const activateEnd = wrapper.indexOf("\n  rollback)", activateStart);
+  const activateCase = wrapper.slice(activateStart, activateEnd);
   assert.ok(activateCase.length > 0, "activate must be an explicit wrapper case");
   orderIn(activateCase, ["atomic-deploy.js", "install_units_from_release", "enable_units", "restart_units", "oracle-readiness-check.js", "autopilot-readiness.js"]);
   assert.match(activateCase, /rollback_and_restore/, "activation failure must restore the previous release and unit set");
