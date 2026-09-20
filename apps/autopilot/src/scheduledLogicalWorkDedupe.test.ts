@@ -26,6 +26,7 @@ function namespace(seen: Set<string>, acquiredKeys: string[]): ExecutionCoordina
     get: () => ({
       async fetch(input: RequestInfo | URL, init?: RequestInit) {
         const url = String(input);
+        if (url.endsWith("/execution")) return new Response(JSON.stringify({ record: null }), { status: 200, headers: { "content-type": "application/json" } });
         if (url.endsWith("/acquire")) {
           const body = JSON.parse(String(init?.body)) as { dedupeKey: string };
           acquiredKeys.push(body.dedupeKey);
