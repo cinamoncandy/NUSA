@@ -75,6 +75,8 @@ export function deriveWorkflowFailureOpportunities(input: WorkflowOpportunitySou
       confidence: 1,
       risk: 0.15,
       reversibility: 0.95,
+      canonicalOwner: "autopilot.ci-repair",
+      conflictKeys: [`workflow:${name}`],
       status: "DISCOVERED",
       createdAt: observation.completedAt,
     });
