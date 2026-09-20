@@ -10,7 +10,7 @@ import { guardCashInvestmentAllocation } from "../../mobile/src/capitalAllocatio
 import { assertPaperAccountingReconciled } from "./paperAccountingLedger";
 import { createPaperOrderLifecycle, transitionPaperOrderLifecycle, validatePaperOrderLifecycle, type PaperOrderLifecycleState } from "./paperOrderLifecycle";
 import { paperExecutionIntentCommandId, validatePaperExecutionIntent, type PaperExecutionIntent } from "./paperExecutionIntent";
-import { buildPaperOrderBookExecutionReceipt, validatePaperOrderBookExecutionReceipt, type PaperOrderBookExecutionReceipt } from "./paperOrderBookExecution";
+import { buildPaperOrderBookExecutionReceipt, validatePaperOrderBookExecutionReceipt, PaperOrderBookExecutionError, type PaperOrderBookExecutionReceipt } from "./paperOrderBookExecution";
 
 const ACCOUNT_ID = "paper-default";
 const SCHEMA_VERSION = 1;
@@ -775,6 +775,184 @@ export class PaperTradingExecutionLoop {
     try { this.repository?.save(next); } catch { return this.result("FAILED", "paper account persistence failed"); }
     this.state = next;
     return Object.freeze({ status: terminal ? "FILLED" : "WAIT", reason: terminal ? "PAPER_LIMIT_FILLED" : "PAPER_LIMIT_PARTIALLY_FILLED", orders: terminal ? Object.freeze([orders[0]!]) : Object.freeze([]), fills: Object.freeze([fill]), state: this.state });
+  }
+
+  public advanceStrategyWorkingOrder(orderId: string, tick: PaperExecutionTick): PaperExecutionResult {
+    const gate = this.executionGate({ now: tick.now, marketPrice: tick.price, observedAt: tick.observedAt, mode: tick.mode, killSwitchActive: tick.killSwitchActive, tradingAllowed: tick.tradingAllowed, overallHealth: tick.overallHealth });
+    if (gate != null) return this.result(gate === "invalid tick" ? "FAILED" : "BLOCKED", gate);
+    const workingOrders = [...(this.state.workingOrders ?? [])];
+    const index = workingOrders.findIndex((order) => order.id === orderId);
+    if (index < 0) return this.result("REJECTED", "PAPER_WORKING_ORDER_NOT_FOUND");
+    let current = workingOrders[index]!;
+    if (current.orderType !== "MARKET" || current.executionIntent == null || current.candidateProvenance == null) return this.result("REJECTED", "PAPER_STRATEGY_WORKING_ORDER_REQUIRED");
+    let intent: PaperExecutionIntent;
+    try { intent = validatePaperExecutionIntent(current.executionIntent); }
+    catch { return this.result("REJECTED", "PAPER_STRATEGY_WORKING_INTENT_INVALID"); }
+    if (current.market !== tick.market.trim().toUpperCase() || intent.market !== current.market || intent.side !== current.side || current.requestedQuantity !== intent.quantity) {
+      return this.result("REJECTED", "PAPER_STRATEGY_WORKING_ORDER_MISMATCH");
+    }
+
+    const observedTicks = (current.observedTicks ?? 0) + 1;
+    if (observedTicks <= current.executionProfile.latencyTicks) {
+      current = Object.freeze({ ...current, observedTicks });
+      workingOrders[index] = current;
+      const next = markToMarket(Object.freeze({ ...this.state, workingOrders: Object.freeze(workingOrders), updatedAt: tick.now }), current.market, tick.price, tick.now);
+      try { this.repository?.save(next); } catch { return this.result("FAILED", "paper account persistence failed"); }
+      this.state = next;
+      return this.result("WAIT", `PAPER_STRATEGY_EXECUTION_LATENCY:${observedTicks}/${current.executionProfile.latencyTicks}`);
+    }
+    if (current.observedTicks !== observedTicks) {
+      current = Object.freeze({ ...current, observedTicks });
+      workingOrders[index] = current;
+    }
+
+    const priorFills = this.state.fills.filter((fill) => fill.orderId === current.id);
+    const remainingQuantity = current.lifecycle.remainingQuantity;
+    const canonicalObservedQuote = tick.observedQuote == null ? undefined : (() => {
+      try { return validatePaperObservedExecutionQuote(tick.observedQuote!, current.market, tick.now); }
+      catch { return undefined; }
+    })();
+    let fillQuantity: number;
+    let fillPrice: number;
+    let orderBookExecutionReceipt: PaperOrderBookExecutionReceipt | undefined;
+
+    if (canonicalObservedQuote?.depth != null && canonicalObservedQuote.depthFingerprintSha256 != null) {
+      const priorGrossNotional = round8(priorFills.reduce((sum, fill) => sum + fill.quantity * fill.price, 0));
+      const remainingNotional = intent.side === "BUY" ? round8(Math.max(0, intent.allocationCapital - priorGrossNotional)) : undefined;
+      if (intent.side === "BUY" && (remainingNotional ?? 0) <= 1e-8) {
+        let lifecycle: PaperOrderLifecycleState;
+        try { lifecycle = transitionPaperOrderLifecycle(current.lifecycle, "CANCELLED", tick.now); }
+        catch (error) { return this.result("REJECTED", error instanceof Error ? error.message : "paper strategy budget cancellation rejected"); }
+        workingOrders.splice(index, 1);
+        const totalQuantity = round8(priorFills.reduce((sum, fill) => sum + fill.quantity, 0));
+        const totalFee = round8(priorFills.reduce((sum, fill) => sum + fill.fee, 0));
+        const averagePrice = totalQuantity > 0 ? round8(priorFills.reduce((sum, fill) => sum + fill.quantity * fill.price, 0) / totalQuantity) : tick.price;
+        const cancelled: PaperOrderRecord = Object.freeze({ id: current.id, idempotencyKey: current.idempotencyKey, market: current.market, side: current.side, quantity: totalQuantity, price: averagePrice, fee: totalFee, status: "CANCELLED", createdAt: current.createdAt, filledAt: tick.now, requestFingerprint: current.requestFingerprint, lifecycle, executionProfile: current.executionProfile });
+        const orders = Object.freeze([cancelled, ...this.state.orders.filter((order) => order.id !== current.id)].slice(0, 1_000));
+        const next = markToMarket(Object.freeze({ ...this.state, orders, workingOrders: Object.freeze(workingOrders), updatedAt: tick.now }), current.market, tick.price, tick.now);
+        try { this.repository?.save(next); } catch { return this.result("FAILED", "paper account persistence failed"); }
+        this.state = next;
+        return Object.freeze({ status: "WAIT", reason: "PAPER_STRATEGY_BUDGET_EXHAUSTED", orders: Object.freeze([cancelled]), fills: Object.freeze([]), state: this.state });
+      }
+      try {
+        orderBookExecutionReceipt = buildPaperOrderBookExecutionReceipt({
+          quote: canonicalObservedQuote,
+          side: current.side,
+          requestedQuantity: remainingQuantity,
+          filledAt: tick.now,
+          ...(remainingNotional === undefined ? {} : { maximumNotional: remainingNotional }),
+          maximumFillRatio: current.executionProfile.maxFillRatio,
+        });
+      } catch (error) {
+        if (error instanceof PaperOrderBookExecutionError && error.code === "PAPER_ORDERBOOK_LIQUIDITY_INSUFFICIENT") {
+          const next = markToMarket(Object.freeze({ ...this.state, workingOrders: Object.freeze(workingOrders), updatedAt: tick.now }), current.market, tick.price, tick.now);
+          try { this.repository?.save(next); } catch { return this.result("FAILED", "paper account persistence failed"); }
+          this.state = next;
+          return this.result("WAIT", "PAPER_STRATEGY_LIQUIDITY_WAIT");
+        }
+        if (error instanceof PaperOrderBookExecutionError && error.code === "PAPER_ORDERBOOK_BUDGET_UNEXECUTABLE") {
+          let lifecycle: PaperOrderLifecycleState;
+          try { lifecycle = transitionPaperOrderLifecycle(current.lifecycle, "CANCELLED", tick.now); }
+          catch (transitionError) { return this.result("REJECTED", transitionError instanceof Error ? transitionError.message : "paper strategy budget cancellation rejected"); }
+          workingOrders.splice(index, 1);
+          const totalQuantity = round8(priorFills.reduce((sum, fill) => sum + fill.quantity, 0));
+          const totalFee = round8(priorFills.reduce((sum, fill) => sum + fill.fee, 0));
+          const averagePrice = totalQuantity > 0 ? round8(priorFills.reduce((sum, fill) => sum + fill.quantity * fill.price, 0) / totalQuantity) : tick.price;
+          const cancelled: PaperOrderRecord = Object.freeze({ id: current.id, idempotencyKey: current.idempotencyKey, market: current.market, side: current.side, quantity: totalQuantity, price: averagePrice, fee: totalFee, status: "CANCELLED", createdAt: current.createdAt, filledAt: tick.now, requestFingerprint: current.requestFingerprint, lifecycle, executionProfile: current.executionProfile });
+          const orders = Object.freeze([cancelled, ...this.state.orders.filter((order) => order.id !== current.id)].slice(0, 1_000));
+          const next = markToMarket(Object.freeze({ ...this.state, orders, workingOrders: Object.freeze(workingOrders), updatedAt: tick.now }), current.market, tick.price, tick.now);
+          try { this.repository?.save(next); } catch { return this.result("FAILED", "paper account persistence failed"); }
+          this.state = next;
+          return Object.freeze({ status: "WAIT", reason: "PAPER_STRATEGY_BUDGET_UNEXECUTABLE", orders: Object.freeze([cancelled]), fills: Object.freeze([]), state: this.state });
+        }
+        return this.result("REJECTED", error instanceof Error ? error.message : "paper strategy depth execution rejected");
+      }
+      fillQuantity = orderBookExecutionReceipt.filledQuantity;
+      fillPrice = orderBookExecutionReceipt.vwapPrice;
+    } else {
+      const modeled = deterministicFill(current.executionProfile, current.side, remainingQuantity, tick.price, current.requestedQuantity);
+      fillQuantity = modeled.quantity;
+      fillPrice = modeled.price;
+    }
+
+    const fee = round8(fillQuantity * fillPrice * current.executionProfile.feeRate);
+    const positions = this.state.positions.map((item) => ({ ...item }));
+    const positionIndex = positions.findIndex((item) => item.market === current.market);
+    const previous = positionIndex < 0 ? { market: current.market, quantity: 0, averageEntryPrice: 0, realizedPnL: 0, unrealizedPnL: 0, markPrice: fillPrice } : positions[positionIndex]!;
+    let cash = this.state.cash;
+    let realizedPnL = this.state.realizedPnL;
+    let position: PaperAccountPosition;
+    const notional = round8(fillQuantity * fillPrice);
+    if (current.side === "BUY") {
+      if (notional + fee > cash) return this.result("REJECTED", "insufficient paper cash");
+      const nextQuantity = round8(previous.quantity + fillQuantity);
+      const costBasis = toScaledLedgerAmount(previous.averageEntryPrice * previous.quantity + notional + fee);
+      position = { ...previous, quantity: nextQuantity, averageEntryPrice: divideRound8(costBasis * LEDGER_ROUND_SCALE, toScaledLedgerAmount(nextQuantity)), markPrice: fillPrice };
+      cash = round8(cash - notional - fee);
+    } else {
+      if (fillQuantity > previous.quantity + Number.EPSILON) return this.result("REJECTED", "insufficient paper position");
+      const realized = round8((fillPrice - previous.averageEntryPrice) * fillQuantity - fee);
+      const nextQuantity = round8(previous.quantity - fillQuantity);
+      position = { ...previous, quantity: nextQuantity, averageEntryPrice: nextQuantity === 0 ? 0 : previous.averageEntryPrice, realizedPnL: round8(previous.realizedPnL + realized), markPrice: fillPrice };
+      realizedPnL = round8(realizedPnL + realized);
+      cash = round8(cash + notional - fee);
+    }
+    if (positionIndex < 0) positions.push(position); else positions[positionIndex] = position;
+
+    const terminalFill = Math.abs(fillQuantity - remainingQuantity) <= 1e-8;
+    let lifecycle: PaperOrderLifecycleState;
+    try { lifecycle = transitionPaperOrderLifecycle(current.lifecycle, terminalFill ? "FILLED" : "PARTIALLY_FILLED", tick.now, fillQuantity); }
+    catch (error) { return this.result("REJECTED", error instanceof Error ? error.message : "paper strategy working fill rejected"); }
+    const budgetExhausted = orderBookExecutionReceipt?.budgetLimited === true && !terminalFill;
+    if (budgetExhausted) {
+      try { lifecycle = transitionPaperOrderLifecycle(lifecycle, "CANCELLED", tick.now); }
+      catch (error) { return this.result("REJECTED", error instanceof Error ? error.message : "paper strategy budget cancellation rejected"); }
+    }
+
+    const baseFill: PaperFillRecord = {
+      id: `fill:${current.id}:${priorFills.length + 1}`,
+      orderId: current.id,
+      market: current.market,
+      side: current.side,
+      quantity: fillQuantity,
+      price: fillPrice,
+      fee,
+      filledAt: tick.now,
+      executionProfileFingerprintSha256: current.executionProfile.fingerprintSha256,
+      executionEngineVersion: current.executionProfile.engineVersion,
+      candidateProvenance: current.candidateProvenance,
+      executionIntent: intent,
+      ...(canonicalObservedQuote === undefined ? {} : { orderBookQuoteReceipt: canonicalObservedQuote.receipt }),
+      ...(orderBookExecutionReceipt === undefined ? {} : { orderBookExecutionReceipt }),
+    };
+    const runtimeExecutionCostEvidence = buildPaperRuntimeExecutionCostEvidence(baseFill, tick.price);
+    const executionCostAttribution = canonicalObservedQuote == null ? undefined : buildPaperObservedExecutionCostAttribution(baseFill, canonicalObservedQuote);
+    const fill: PaperFillRecord = Object.freeze({
+      ...baseFill,
+      ...(executionCostAttribution === undefined ? { runtimeExecutionCostEvidence } : { executionCostAttribution }),
+    });
+    const fills = Object.freeze([fill, ...this.state.fills]);
+
+    let orders = this.state.orders;
+    if (terminalFill || budgetExhausted) {
+      workingOrders.splice(index, 1);
+      const orderFills = [...priorFills, fill];
+      const totalQuantity = round8(orderFills.reduce((sum, item) => sum + item.quantity, 0));
+      const totalFee = round8(orderFills.reduce((sum, item) => sum + item.fee, 0));
+      const averagePrice = round8(orderFills.reduce((sum, item) => sum + item.quantity * item.price, 0) / totalQuantity);
+      const status = budgetExhausted ? "CANCELLED" as const : "FILLED" as const;
+      const completed: PaperOrderRecord = Object.freeze({ id: current.id, idempotencyKey: current.idempotencyKey, market: current.market, side: current.side, quantity: totalQuantity, price: averagePrice, fee: totalFee, status, createdAt: current.createdAt, filledAt: tick.now, requestFingerprint: current.requestFingerprint, lifecycle, executionProfile: current.executionProfile });
+      orders = Object.freeze([completed, ...orders.filter((order) => order.id !== current.id)].slice(0, 1_000));
+    } else {
+      workingOrders[index] = Object.freeze({ ...current, lifecycle, observedTicks });
+    }
+    let next: PaperAccountState = Object.freeze({ ...this.state, cash, realizedPnL, positions: Object.freeze(positions), orders, fills, workingOrders: Object.freeze(workingOrders), updatedAt: tick.now });
+    next = markToMarket(next, current.market, tick.price, tick.now);
+    try { this.repository?.save(next); } catch { return this.result("FAILED", "paper account persistence failed"); }
+    this.state = next;
+    if (budgetExhausted) return Object.freeze({ status: "WAIT", reason: "PAPER_STRATEGY_BUDGET_EXHAUSTED", orders: Object.freeze([orders[0]!]), fills: Object.freeze([fill]), state: this.state });
+    if (!terminalFill) return Object.freeze({ status: "WAIT", reason: "PAPER_STRATEGY_PARTIALLY_FILLED", orders: Object.freeze([]), fills: Object.freeze([fill]), state: this.state });
+    return Object.freeze({ status: "FILLED", reason: "PAPER_STRATEGY_FILLED", orders: Object.freeze([orders[0]!]), fills: Object.freeze([fill]), state: this.state });
   }
 
   public cancelWorkingOrder(orderId: string, now: number): PaperExecutionResult {
