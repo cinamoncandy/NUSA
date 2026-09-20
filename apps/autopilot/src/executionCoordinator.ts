@@ -268,8 +268,13 @@ function validActiveWipState(value: unknown): value is ActiveWipState {
     || !state.claims.every(validActiveWipClaim) || !state.completions.every(validActiveWipCompletion)) return false;
   const dedupeKeys = new Set<string>();
   const executionKeys = new Set<string>();
+  const activeConflictKeys = new Set<string>();
   for (const claim of state.claims) {
     if (dedupeKeys.has(claim.dedupeKey) || executionKeys.has(`${claim.dedupeKey}\0${claim.executionId}`)) return false;
+    for (const conflictKey of claim.conflictKeys) {
+      if (activeConflictKeys.has(conflictKey)) return false;
+      activeConflictKeys.add(conflictKey);
+    }
     dedupeKeys.add(claim.dedupeKey);
     executionKeys.add(`${claim.dedupeKey}\0${claim.executionId}`);
   }
