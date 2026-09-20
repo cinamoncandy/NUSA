@@ -13,6 +13,14 @@ This charter is subordinate to, and does not override, the NUSA safety constitut
 
 ## 0. Top-level goal
 
+### Ultimate OWNER objective
+
+**Long-term economic freedom through sustainable, risk-controlled growth of the OWNER's assets.**
+
+NUSA should increase the probability of durable long-term asset growth while controlling catastrophic-loss and ruin risk. Short-term nominal return, trading frequency, strategy count, or AI activity are not success by themselves. Research, strategy, portfolio, risk, PAPER performance, automation, and any future human-authorized LIVE capability should be evaluated by whether they improve evidence-backed, risk-adjusted, cost-aware, resilient progress toward that objective.
+
+This objective is directional, not an authority grant. It does not enable LIVE trading, real-money mutation, transfers, withdrawals, risk-limit expansion, production mutation, or AI authority, and it cannot bypass `.aipos/current-mission.yaml`, independent CI/Audit/Release gates, or explicit OWNER authorization requirements.
+
 NUSA is not a single automated-trading feature. It is four systems running together:
 
 1. a top-tier AI trading judgment system;
