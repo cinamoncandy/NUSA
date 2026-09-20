@@ -409,7 +409,7 @@ function AuthenticatedApp() {
   const ai = snapshot?.ai ?? null;
   const accountCash = snapshot?.portfolio?.account.cash ?? 0;
   const runtimeCanSubmit = !runtimeSnapshot.tradingBlocked && runtimeSnapshot.lifecycle === "FOREGROUND" && runtimeSnapshot.network === "ONLINE" && runtimeSnapshot.recovery === "READY";
-  const requiresDashboardConnection = notConfigured !== null && utilityView === null && activeTab !== "Home" && activeTab !== "Markets" && activeTab !== "Portfolio" && activeTab !== "Paper";
+  const requiresDashboardConnection = notConfigured !== null && utilityView === null && activeTab === "Order";
   const homeShellActive = utilityView === null && activeTab === "Home";
   const localPaperReadiness = getLocalPaperLearningReadiness();
   const paperLearningRuntimeStatus = snapshot?.paperLearning?.events?.length ? snapshot.paperLearning.runtimeStatus : snapshot?.paperLearning?.runtimeStatus === "HALTED" || snapshot?.paperLearning?.runtimeStatus === "ERROR" ? snapshot.paperLearning.runtimeStatus : localPaperReadiness.status;
