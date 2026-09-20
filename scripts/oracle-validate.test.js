@@ -52,6 +52,15 @@ function validate(root) {
   });
 }
 
+function pointCurrentAt(root, sha) {
+  const releases = path.join(root, "opt/nusa/releases");
+  const release = path.join(releases, sha);
+  const current = path.join(root, "opt/nusa/current");
+  fs.mkdirSync(release, { recursive: true });
+  fs.mkdirSync(path.dirname(current), { recursive: true });
+  fs.symlinkSync(release, current, process.platform === "win32" ? "junction" : "dir");
+}
+
 test("accepts a hardened Oracle PAPER + autonomous Research installation", () => {
   const root = fixture();
   const result = validate(root);
@@ -83,6 +92,24 @@ test("fails closed when the Autopilot runtime endpoint is not HTTPS", () => {
   const result = validate(root);
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /endpoint must be HTTPS/);
+});
+
+test("active-host validation binds runtime source identity to the current immutable release", () => {
+  const root = fixture();
+  pointCurrentAt(root, VALID_SHA);
+  const result = validate(root);
+  assert.equal(result.status, 0, result.stderr);
+  const output = JSON.parse(result.stdout.trim());
+  assert.equal(output.sourceCommit, VALID_SHA);
+  assert.equal(output.activeReleaseCommit, VALID_SHA);
+});
+
+test("fails closed when runtime source identity drifts from the active Oracle release", () => {
+  const root = fixture();
+  pointCurrentAt(root, OTHER_SHA);
+  const result = validate(root);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /runtime source identity does not match active Oracle release/);
 });
 
 test("fails closed when deployed source identities disagree", () => {
