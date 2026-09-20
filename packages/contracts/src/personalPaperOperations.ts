@@ -245,24 +245,17 @@ function deriveHealth(input: PersonalPaperOperationsInput): PersonalPaperOperati
   return "HEALTHY";
 }
 
+const cloneJsonProjection = <T>(value: T): T => {
+  // Personal PAPER projections are JSON transport values. React Native Hermes versions used by
+  // the Android app do not universally expose structuredClone, so keep this contract validator
+  // portable instead of depending on a host global that exists in Node but may not exist on-device.
+  return JSON.parse(JSON.stringify(value)) as T;
+};
+
 const deepFreeze = <T>(value: T): T => {
   if (value != null && typeof value === "object" && !Object.isFrozen(value)) {
     for (const child of Object.values(value as Record<string, unknown>)) deepFreeze(child);
     Object.freeze(value);
-  }
-  return value;
-};
-
-/**
- * Clone JSON-compatible PAPER projections without relying on Web-only globals.
- * React Native Hermes does not expose structuredClone on every supported Android runtime.
- */
-const cloneProjection = <T>(value: T): T => {
-  if (Array.isArray(value)) return value.map((child) => cloneProjection(child)) as unknown as T;
-  if (value !== null && typeof value === "object") {
-    const copy: Record<string, unknown> = {};
-    for (const [key, child] of Object.entries(value as Record<string, unknown>)) copy[key] = cloneProjection(child);
-    return copy as unknown as T;
   }
   return value;
 };
@@ -296,7 +289,7 @@ export function buildPersonalPaperOperationsSnapshot(input: PersonalPaperOperati
     productionMutationAllowed: false as const
   };
   validateReadOnlyProjections(snapshot);
-  return deepFreeze(cloneProjection(snapshot));
+  return deepFreeze(cloneJsonProjection(snapshot));
 }
 
 export function validatePersonalPaperOperationsSnapshot(snapshot: PersonalPaperOperationsSnapshot, now = Date.now(), maximumAgeMs = 15_000): PersonalPaperOperationsSnapshot {
@@ -318,7 +311,7 @@ export function validatePersonalPaperOperationsSnapshot(snapshot: PersonalPaperO
   const expectedHealth = deriveHealth(snapshot);
   if (snapshot.health !== expectedHealth) throw new Error("personal PAPER operations health mismatch");
   if (snapshot.mode !== snapshot.dashboard.mode) throw new Error("personal PAPER operations mode mismatch");
-  return deepFreeze(cloneProjection(snapshot));
+  return deepFreeze(cloneJsonProjection(snapshot));
 }
 
 export function dashboardHealthToOperationsHealth(health: DashboardHealth): PersonalPaperOperationsHealth {
