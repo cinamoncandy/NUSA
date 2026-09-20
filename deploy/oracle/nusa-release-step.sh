@@ -23,6 +23,7 @@ readonly RESEARCH_TIMER=nusa-research.timer
 readonly AUTOPILOT_SERVICE=nusa-autopilot.service
 readonly SERVICE_USER=nusa
 readonly SYSTEMD_UNIT_DIR=/etc/systemd/system
+readonly RUNTIME_ENV=/etc/nusa/cloud-runtime.env
 readonly PREVIOUS_RELEASE_FILE="${DEPLOY_ROOT}/.previous-release"
 readonly RELEASE_RETENTION=4
 
@@ -38,6 +39,39 @@ validate_sha() {
 release_dir() { printf '%s/%s' "$RELEASES" "$1"; }
 
 active_release() { readlink -f "${DEPLOY_ROOT}/current" 2>/dev/null || true; }
+
+active_release_sha() {
+  local release sha
+  release="$(active_release)"
+  [ -n "$release" ] || die "active release is unavailable"
+  sha="${release##*/}"
+  validate_sha "$sha"
+  printf '%s' "$sha"
+}
+
+# Bind the runtime's self-reported source identity to the exact immutable release.
+# The environment file also contains secrets, so rewrite only the two source keys,
+# preserve ownership/mode, never print its contents, and replace it atomically.
+bind_runtime_source_identity() {
+  local sha="${1:-}"
+  validate_sha "$sha"
+  [ -f "$RUNTIME_ENV" ] || die "runtime environment file missing: $RUNTIME_ENV"
+  local tmp="${RUNTIME_ENV}.source-identity.$"
+  umask 077
+  awk -v sha="$sha" '
+    BEGIN { commit_seen=0; commit_sha_seen=0 }
+    /^NUSA_SOURCE_COMMIT=/ { print "NUSA_SOURCE_COMMIT=" sha; commit_seen=1; next }
+    /^NUSA_SOURCE_COMMIT_SHA=/ { print "NUSA_SOURCE_COMMIT_SHA=" sha; commit_sha_seen=1; next }
+    { print }
+    END {
+      if (!commit_seen) print "NUSA_SOURCE_COMMIT=" sha
+      if (!commit_sha_seen) print "NUSA_SOURCE_COMMIT_SHA=" sha
+    }
+  ' "$RUNTIME_ENV" > "$tmp" || { rm -f -- "$tmp"; die "failed to build runtime source identity"; }
+  chmod --reference="$RUNTIME_ENV" "$tmp"
+  chown --reference="$RUNTIME_ENV" "$tmp"
+  mv -f -- "$tmp" "$RUNTIME_ENV"
+}
 
 # Release scripts are read from the staged release itself, so the procedure always matches the
 # commit being deployed rather than whatever happened to be installed earlier.
@@ -90,6 +124,7 @@ restart_units() {
 
 rollback_and_restore() {
   NUSA_DEPLOY_ACTION=rollback node "$(script_in "$(active_release)" atomic-deploy.js)"
+  bind_runtime_source_identity "$(active_release_sha)"
   install_units_from_release "$(active_release)" true
   enable_units true
   restart_units true
@@ -179,11 +214,13 @@ case "$verb" in
   switch)
     validate_sha "${1:-}"
     dir="$(release_dir "$1")"
-    NUSA_COMMIT_SHA="$1" exec node "$(script_in "$dir" atomic-deploy.js)"
+    NUSA_COMMIT_SHA="$1" node "$(script_in "$dir" atomic-deploy.js)"
+    bind_runtime_source_identity "$1"
     ;;
 
   rollback)
-    NUSA_DEPLOY_ACTION=rollback exec node "$(script_in "$(active_release)" atomic-deploy.js)"
+    NUSA_DEPLOY_ACTION=rollback node "$(script_in "$(active_release)" atomic-deploy.js)"
+    bind_runtime_source_identity "$(active_release_sha)"
     ;;
 
   restart)
@@ -197,7 +234,7 @@ case "$verb" in
     dir="$(release_dir "$1")"
     [ -d "$dir" ] || die "release not staged: $dir"
     NUSA_COMMIT_SHA="$1" node "$(script_in "$dir" atomic-deploy.js)"
-    if ! install_units_from_release "$dir" || ! enable_units || ! restart_units || ! node "$(script_in "$dir" oracle-readiness-check.js)" || ! node "$(script_in "$dir" autopilot-readiness.js)"; then
+    if ! bind_runtime_source_identity "$1" || ! install_units_from_release "$dir" || ! enable_units || ! restart_units || ! node "$(script_in "$dir" oracle-readiness-check.js)" || ! node "$(script_in "$dir" autopilot-readiness.js)"; then
       printf '%s\n' "nusa-release-step: activation failed for $1; restoring previous release" >&2
       rollback_and_restore
       node "$(script_in "$(active_release)" oracle-readiness-check.js)" || die "rollback PAPER readiness failed"
