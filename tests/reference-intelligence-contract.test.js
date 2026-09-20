@@ -135,3 +135,44 @@ test("UNKNOWN comparison may preserve an evidence gap without fabricated proof",
   }));
   assert.equal(record.comparisons[0].verdict, "UNKNOWN");
 });
+
+
+test("owner-provided video references may omit a public URL without fabricating provenance", () => {
+  const record = createReferenceIntelligenceRecord(input({
+    sourceType: "VIDEO",
+    sourceLocator: "owner-provided:reference-video:2026-09-20:A",
+    sourceUrl: undefined,
+    sourceVersion: "owner-provided-2026-09-20",
+    category: "SYSTEM_ARCHITECTURE",
+    title: "Owner-provided live system reference",
+    description: "A visual reference showing concurrent system modules, progress, and shared outcome reporting.",
+    claimedAdvantage: "High-density live system visibility and explicit parallel work decomposition.",
+    evidenceStrength: "PRIMARY_SOURCE",
+    evidenceRefs: ["owner-provided-video:A"],
+    comparisons: [{
+      dimension: "OBSERVABILITY",
+      verdict: "UNKNOWN",
+      evidenceRefs: [],
+      note: "The video demonstrates presentation and interaction patterns, not a comparable NUSA runtime benchmark.",
+    }],
+    principleToAbsorb: ["project canonical state into compact concurrent system modules"],
+    doNotAbsorb: ["marketing speedups without comparable evidence"],
+    nusaGap: ["NUSA does not yet expose all canonical subsystem progress through one evidence-derived projection"],
+    rootCause: ["cross-domain observability projection is incomplete"],
+    proposedImprovement: ["benchmark a shared evidence-derived operational projection without adding a second state machine"],
+    canonicalOwner: "CORE",
+    validationProposal: ["compare evidence coverage and user comprehension before and after the projection"],
+    measurement: ["percentage of displayed progress states backed by canonical evidence"],
+    expectedValueDimensions: ["UX", "RELIABILITY"],
+    expectedValueMagnitude: "MEDIUM",
+    implementationCost: "MEDIUM",
+    regressionRisk: "LOW",
+    remainingUncertainty: ["the source video does not expose its backend architecture"],
+  }));
+
+  assert.equal(record.sourceType, "VIDEO");
+  assert.equal(record.sourceUrl, undefined);
+  assert.equal(record.authority, "PAPER_ONLY");
+  assert.equal(record.aiAuthority, "ZERO_AUTHORITY");
+  assert.equal(record.comparisons[0].verdict, "UNKNOWN");
+});
