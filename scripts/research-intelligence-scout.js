@@ -34,45 +34,45 @@ async function main() {
     const result = await scout.run();
 
     const receipt = Object.freeze({
-    schemaVersion: 1,
-    generatedAt: new Date().toISOString(),
-    runMode: "ADVISORY_RESEARCH_ONLY",
-    dedupScope: databaseArg
-      ? "CANONICAL_SQLITE_RESEARCH_MEMORY"
-      : "CURRENT_RUN_ONLY_WITH_CANONICAL_MEMORY_BINDING_AVAILABLE",
-    canonicalMemoryIntegration: databaseArg
-      ? "BOUND_TO_EXISTING_SEMANTIC_MEMORY_OWNER"
-      : "AVAILABLE_BUT_NOT_ACTIVATED_WITHOUT_PERSISTENT_DB",
-    sourceRegistry: ["arxiv"],
-    metrics: Object.freeze({
-      discovered: result.discovered,
-      accepted: result.accepted,
-      duplicatesSuppressed: result.duplicatesSuppressed,
-      axiomHandoffs: result.axiomHandoffs.length,
-      sourceErrors: result.sourceErrors.length,
-    }),
-    records: result.records,
-    axiomHandoffs: result.axiomHandoffs,
-    sourceErrors: result.sourceErrors,
-    safety: Object.freeze({
-      authority: result.authority,
-      liveAuthority: result.liveAuthority,
-      productionMutationAllowed: result.productionMutationAllowed,
-      aiAuthority: result.aiAuthority,
-      strategyPromotionAllowed: false,
-      paperAllocationAllowed: false,
-    }),
-  });
+      schemaVersion: 1,
+      generatedAt: new Date().toISOString(),
+      runMode: "ADVISORY_RESEARCH_ONLY",
+      dedupScope: databaseArg
+        ? "CANONICAL_SQLITE_RESEARCH_MEMORY"
+        : "CURRENT_RUN_ONLY_WITH_CANONICAL_MEMORY_BINDING_AVAILABLE",
+      canonicalMemoryIntegration: databaseArg
+        ? "BOUND_TO_EXISTING_SEMANTIC_MEMORY_OWNER"
+        : "AVAILABLE_BUT_NOT_ACTIVATED_WITHOUT_PERSISTENT_DB",
+      sourceRegistry: ["arxiv"],
+      metrics: Object.freeze({
+        discovered: result.discovered,
+        accepted: result.accepted,
+        duplicatesSuppressed: result.duplicatesSuppressed,
+        axiomHandoffs: result.axiomHandoffs.length,
+        sourceErrors: result.sourceErrors.length,
+      }),
+      records: result.records,
+      axiomHandoffs: result.axiomHandoffs,
+      sourceErrors: result.sourceErrors,
+      safety: Object.freeze({
+        authority: result.authority,
+        liveAuthority: result.liveAuthority,
+        productionMutationAllowed: result.productionMutationAllowed,
+        aiAuthority: result.aiAuthority,
+        strategyPromotionAllowed: false,
+        paperAllocationAllowed: false,
+      }),
+    });
 
-  mkdirSync(dirname(output), { recursive: true });
-  writeFileSync(output, JSON.stringify(receipt, null, 2) + "\n", "utf8");
-  process.stdout.write(
-    JSON.stringify({
-      output,
-      metrics: receipt.metrics,
-      safety: receipt.safety,
-    }) + "\n",
-  );
+    mkdirSync(dirname(output), { recursive: true });
+    writeFileSync(output, JSON.stringify(receipt, null, 2) + "\n", "utf8");
+    process.stdout.write(
+      JSON.stringify({
+        output,
+        metrics: receipt.metrics,
+        safety: receipt.safety,
+      }) + "\n",
+    );
 
     if (result.sourceErrors.length > 0 && result.records.length === 0) {
       process.exitCode = 2;
