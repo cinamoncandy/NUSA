@@ -189,6 +189,18 @@ test("the privileged helper declares helper locals before expanding them under n
 });
 
 
+test("failed rollback readiness explicitly stops runtimes fail-closed", () => {
+  const activateStart = wrapper.indexOf("  activate)");
+  const activateEnd = wrapper.indexOf("\n  readiness)", activateStart);
+  const activateCase = wrapper.slice(activateStart, activateEnd);
+  assert.match(activateCase, /rollback PAPER readiness failed; services stopped because persistent state may be incompatible with the rollback release/);
+  assert.match(activateCase, /rollback Autopilot readiness failed; services stopped/);
+  assert.ok(
+    activateCase.indexOf("stop_units_fail_closed") < activateCase.indexOf("rollback PAPER readiness failed; services stopped"),
+    "services must be stopped before the rollback PAPER failure exits",
+  );
+});
+
 test("rollback restores a legacy release that predates the Autopilot systemd unit", () => {
   const rollbackStart = wrapper.indexOf("rollback_and_restore()");
   const rollbackEnd = wrapper.indexOf("\n}\n", rollbackStart) + 2;
