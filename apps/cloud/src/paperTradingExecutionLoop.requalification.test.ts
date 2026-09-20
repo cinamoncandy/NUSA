@@ -25,6 +25,6 @@ describe("PAPER_ADAPTER exact-source re-qualification evidence", () => {
     assert.match(source, /validatePaperExecutionIntent\(fill\.executionIntent\)/);
     assert.match(source, /paper fill execution intent mismatch/);
     assert.match(source, /paper fill execution intent provenance mismatch/);
-    assert.match(source, /paperExecutionIntentCommandId\(executionIntent\)/);
+    assert.match(source, /paperExecutionIntentCommandId\(canonicalExecutionIntent\)/);
   });
 });
