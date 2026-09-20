@@ -85,8 +85,10 @@ test("authentication rejects replay, wrong device, and revoked credentials, then
     assert.equal(credentials.authenticate({ credentialId: CREDENTIAL_ID, deviceId: "nusa-install-wrong-device-0001", challengeId: challenge.challengeId, signature: sign(pair, challenge.challenge), now: 51 }), undefined);
     const tokens = credentials.authenticate({ credentialId: CREDENTIAL_ID, deviceId: DEVICE, challengeId: challenge.challengeId, signature: sign(pair, challenge.challenge), now: 52 });
     assert.ok(tokens); assert.equal(mobile.verifyAccess(tokens.accessToken, 53).userId, "owner");
+    const rotated = mobile.refresh(tokens.refreshToken, 54, DEVICE); assert.ok(rotated); assert.notEqual(rotated.refreshToken, tokens.refreshToken);
     assert.equal(credentials.authenticate({ credentialId: CREDENTIAL_ID, deviceId: DEVICE, challengeId: challenge.challengeId, signature: sign(pair, challenge.challenge), now: 54 }), undefined);
     assert.equal(credentials.revoke({ actorUserId: "owner", actorScopes: ["users:manage"], credentialId: CREDENTIAL_ID, now: 55 }), true);
+    assert.equal(mobile.verifyAccess(rotated.accessToken, 56), undefined, "credential revoke cascades to device-bound session families");
     assert.equal(credentials.startAuthentication({ credentialId: CREDENTIAL_ID, deviceId: DEVICE, now: 56 }), undefined);
   } finally { db.close(); }
 });
@@ -97,6 +99,10 @@ test("source boundaries expose only public key and signature operations, never p
   const bridge = fs.readFileSync(path.join(root, "apps/mobile/src/ownerDeviceCredential.ts"), "utf8");
   const service = fs.readFileSync(path.join(root, "apps/cloud/src/ownerCredential/ownerDeviceCredentialService.ts"), "utf8");
   assert.match(native, /AndroidKeyStore/); assert.match(native, /BIOMETRIC_STRONG/);
+  assert.match(native, /createSilentDeviceCredential/);
+  assert.match(native, /signSilentChallenge/);
+  assert.match(native, /setUserAuthenticationRequired\(false\)/);
+  assert.match(native, /isSilentHardwareBacked/);
   assert.doesNotMatch(native, /Authenticators\.DEVICE_CREDENTIAL|AUTH_DEVICE_CREDENTIAL/);
   assert.doesNotMatch(native, /getPrivateKey|exportPrivate|PrivateKey\.getEncoded/);
   assert.doesNotMatch(bridge, /privateKey|export.*key/i);
