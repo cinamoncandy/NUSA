@@ -45,7 +45,7 @@ function PortfolioHero({ model, usingLocalPaper }: Readonly<{ model: PortfolioVi
     <View style={styles.portfolioHeroTop}>
       <View>
         <Text style={[styles.portfolioHeroEyebrow, { color: theme.colors.primary }]}>PAPER PORTFOLIO</Text>
-        <Text style={[styles.portfolioHeroMeta, { color: theme.colors.textMuted }]}>{usingLocalPaper ? "LOCAL PAPER" : "CLOUD PAPER"} · VERIFIED ACCOUNTING</Text>
+        <Text style={[styles.portfolioHeroMeta, { color: theme.colors.textMuted }]}>{model == null ? "PAPER DATA UNAVAILABLE" : `${usingLocalPaper ? "LOCAL PAPER" : "CLOUD PAPER"} · VERIFIED ACCOUNTING`}</Text>
       </View>
       <Text style={[styles.portfolioHeroSource, { color: theme.colors.textMuted }]}>LIVE NONE</Text>
     </View>
