@@ -108,6 +108,16 @@ test("the wrapper never restages the active release", () => {
   assert.match(wrapper, /refusing to restage the active release/);
 });
 
+test("unit path resolution is nounset-safe under set -u", () => {
+  const start = wrapper.indexOf("unit_in()");
+  const end = wrapper.indexOf("\n}\n", start) + 2;
+  const unit = wrapper.slice(start, end);
+  assert.ok(unit.length > 0, "unit_in must exist");
+  assert.doesNotMatch(unit, /local dir="\$1" name="\$2" path=/, "path must not expand locals in the same declaration under set -u");
+  assert.match(unit, /local dir="\$1"\n\s*local name="\$2"\n\s*local path="\$\{dir\}\/deploy\/oracle\/\$\{name\}"/);
+});
+
+
 test("bounded release pruning preserves rollback safety and validates before deletion", () => {
   const pruneStart = wrapper.indexOf("prune_releases()");
   const pruneEnd = wrapper.indexOf("\n}\n", pruneStart) + 2;
