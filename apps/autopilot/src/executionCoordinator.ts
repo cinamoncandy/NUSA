@@ -39,6 +39,36 @@ interface AcquireRequest {
   leaseExpiresAt: number;
 }
 
+export interface ActiveWipClaim {
+  readonly dedupeKey: string;
+  readonly executionId: string;
+  readonly canonicalOwner: string;
+  readonly conflictKeys: readonly string[];
+  readonly claimedAt: number;
+}
+
+interface ActiveWipCompletion {
+  readonly dedupeKey: string;
+  readonly executionId: string;
+  readonly completedAt: number;
+}
+
+interface ActiveWipState {
+  readonly schemaVersion: 1;
+  readonly claims: readonly ActiveWipClaim[];
+  readonly completions: readonly ActiveWipCompletion[];
+}
+
+export interface ActiveWipAdmissionRequest extends ActiveWipClaim {
+  readonly maxConcurrent: number;
+}
+
+export interface ActiveWipCompletionRequest {
+  readonly dedupeKey: string;
+  readonly executionId: string;
+  readonly completedAt: number;
+}
+
 export interface ScheduledRuntimeReceipt {
   scheduledTime: number;
   observedAt: number;
@@ -115,6 +145,13 @@ const AUTOPILOT_TELEMETRY_COORDINATOR_KEY = "autopilot-execution-telemetry";
 const AUTOPILOT_TELEMETRY_HISTORY_KEY = "autopilot-execution-telemetry-v1";
 const MAX_AUTOPILOT_TELEMETRY = 120;
 const CONTROL_PLANE_HOLD_STORAGE_KEY = "control-plane-hold-v1";
+const ACTIVE_WIP_COORDINATOR_KEY = "evolve-active-wip-v2";
+const ACTIVE_WIP_STORAGE_KEY = "evolve-active-wip-v2";
+const MAX_ACTIVE_WIP = 8;
+const MAX_ACTIVE_WIP_COMPLETIONS = 32;
+const ACTIVE_WIP_OWNER = /^[A-Za-z0-9_.:/-]{1,120}$/;
+const ACTIVE_WIP_CONFLICT_KEY = /^[A-Za-z0-9_.:/-]{1,200}$/;
+
 const CONTROL_PLANE_HOLD_COORDINATOR_PREFIX = "control-plane-hold";
 const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SHA40 = /^[0-9a-f]{40}$/i;
@@ -198,6 +235,55 @@ function validAcquire(value: unknown): value is AcquireRequest {
     && validSafeTimestamp(candidate.now)
     && validSafeTimestamp(candidate.leaseExpiresAt)
     && Number(candidate.leaseExpiresAt) > Number(candidate.now);
+}
+
+function validActiveWipClaim(value: unknown): value is ActiveWipClaim {
+  if (!value || typeof value !== "object") return false;
+  const claim = value as Partial<ActiveWipClaim>;
+  return validText(claim.dedupeKey)
+    && validText(claim.executionId)
+    && typeof claim.canonicalOwner === "string"
+    && ACTIVE_WIP_OWNER.test(claim.canonicalOwner)
+    && Array.isArray(claim.conflictKeys)
+    && claim.conflictKeys.length > 0
+    && claim.conflictKeys.length <= 32
+    && claim.conflictKeys.every((key) => typeof key === "string" && ACTIVE_WIP_CONFLICT_KEY.test(key))
+    && new Set(claim.conflictKeys).size === claim.conflictKeys.length
+    && validSafeTimestamp(claim.claimedAt);
+}
+
+function validActiveWipCompletion(value: unknown): value is ActiveWipCompletion {
+  if (!value || typeof value !== "object") return false;
+  const completion = value as Partial<ActiveWipCompletion>;
+  return validText(completion.dedupeKey)
+    && validText(completion.executionId)
+    && validSafeTimestamp(completion.completedAt);
+}
+
+function validActiveWipState(value: unknown): value is ActiveWipState {
+  if (!value || typeof value !== "object") return false;
+  const state = value as Partial<ActiveWipState>;
+  if (state.schemaVersion !== 1 || !Array.isArray(state.claims) || !Array.isArray(state.completions)
+    || state.claims.length > MAX_ACTIVE_WIP || state.completions.length > MAX_ACTIVE_WIP_COMPLETIONS
+    || !state.claims.every(validActiveWipClaim) || !state.completions.every(validActiveWipCompletion)) return false;
+  const dedupeKeys = new Set<string>();
+  const executionKeys = new Set<string>();
+  for (const claim of state.claims) {
+    if (dedupeKeys.has(claim.dedupeKey) || executionKeys.has(`${claim.dedupeKey}\0${claim.executionId}`)) return false;
+    dedupeKeys.add(claim.dedupeKey);
+    executionKeys.add(`${claim.dedupeKey}\0${claim.executionId}`);
+  }
+  const completionKeys = new Set<string>();
+  for (const completion of state.completions) {
+    const key = `${completion.dedupeKey}\0${completion.executionId}`;
+    if (completionKeys.has(key) || executionKeys.has(key)) return false;
+    completionKeys.add(key);
+  }
+  return true;
+}
+
+function emptyActiveWipState(): ActiveWipState {
+  return Object.freeze({ schemaVersion: 1, claims: Object.freeze([]), completions: Object.freeze([]) });
 }
 
 function validScheduledReceipt(value: unknown): value is ScheduledRuntimeReceipt {
@@ -295,11 +381,14 @@ export class ExecutionCoordinator {
     if (request.method === "GET" && url.pathname === "/execution-telemetry") return this.readExecutionTelemetry();
     if (request.method === "GET" && url.pathname === "/execution") return this.readExecution();
     if (request.method === "GET" && url.pathname === "/control-plane-hold") return this.readControlPlaneHold();
+    if (request.method === "GET" && url.pathname === "/active-wip") return this.readActiveWip();
     if (request.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405);
     if (url.pathname === "/acquire") return this.acquire(await request.json());
     if (url.pathname === "/handoff-or-acquire") return this.handoffOrAcquire(await request.json());
     if (url.pathname === "/dispatched") return this.markDispatched(await request.json());
     if (url.pathname === "/release") return this.release(await request.json());
+    if (url.pathname === "/active-wip/admit") return this.admitActiveWip(await request.json());
+    if (url.pathname === "/active-wip/complete") return this.completeActiveWip(await request.json());
     if (url.pathname === "/scheduled-receipt") return this.writeScheduledReceipt(await request.json());
     if (url.pathname === "/evolve-learning-memory") return this.writeEvolutionLearningMemory(await request.json());
     if (url.pathname === "/coding-evidence") return this.writeCodingExecutionEvidence(await request.json());
@@ -393,6 +482,59 @@ export class ExecutionCoordinator {
       await storage.put("execution", record);
       return json({ acquired: true, handoff: false, record }, 201);
     });
+  }
+
+  private async admitActiveWip(value: unknown): Promise<Response> {
+    if (!value || typeof value !== "object") return json({ error: "ACTIVE_WIP_REQUEST_INVALID" }, 400);
+    const request = value as Partial<ActiveWipAdmissionRequest>;
+    if (!validActiveWipClaim(request) || !Number.isSafeInteger(request.maxConcurrent)
+      || Number(request.maxConcurrent) < 1 || Number(request.maxConcurrent) > MAX_ACTIVE_WIP) {
+      return json({ error: "ACTIVE_WIP_REQUEST_INVALID" }, 400);
+    }
+    return this.mutateExecutionAtomically(async (storage) => {
+      const stored = await storage.get<unknown>(ACTIVE_WIP_STORAGE_KEY);
+      const state = stored == null ? emptyActiveWipState() : stored;
+      if (!validActiveWipState(state)) return json({ error: "ACTIVE_WIP_STATE_CORRUPT" }, 500);
+      const same = state.claims.find((claim) => claim.dedupeKey === request.dedupeKey);
+      if (same) return json({ admitted: false, reason: same.executionId === request.executionId ? "ALREADY_ACTIVE" : "DEDUPE_CONFLICT" }, 409);
+      if (state.claims.length >= Number(request.maxConcurrent)) return json({ admitted: false, reason: "WIP_LIMIT_REACHED" }, 409);
+      const occupied = new Set(state.claims.flatMap((claim) => [...claim.conflictKeys]));
+      if (request.conflictKeys.some((key) => occupied.has(key))) return json({ admitted: false, reason: "CONFLICT_KEY_ACTIVE" }, 409);
+      const claim: ActiveWipClaim = Object.freeze({ dedupeKey: request.dedupeKey, executionId: request.executionId, canonicalOwner: request.canonicalOwner, conflictKeys: Object.freeze([...request.conflictKeys]), claimedAt: request.claimedAt });
+      const completions = Object.freeze(state.completions.filter((completion) => completion.dedupeKey !== claim.dedupeKey));
+      const next: ActiveWipState = Object.freeze({ schemaVersion: 1, claims: Object.freeze([...state.claims, claim]), completions });
+      await storage.put(ACTIVE_WIP_STORAGE_KEY, next);
+      return json({ admitted: true, claim }, 201);
+    });
+  }
+
+  private async completeActiveWip(value: unknown): Promise<Response> {
+    if (!value || typeof value !== "object") return json({ error: "ACTIVE_WIP_REQUEST_INVALID" }, 400);
+    const request = value as Partial<ActiveWipCompletionRequest>;
+    if (!validText(request.dedupeKey) || !validText(request.executionId) || !validSafeTimestamp(request.completedAt)) return json({ error: "ACTIVE_WIP_REQUEST_INVALID" }, 400);
+    return this.mutateExecutionAtomically(async (storage) => {
+      const stored = await storage.get<unknown>(ACTIVE_WIP_STORAGE_KEY);
+      const state = stored == null ? emptyActiveWipState() : stored;
+      if (!validActiveWipState(state)) return json({ error: "ACTIVE_WIP_STATE_CORRUPT" }, 500);
+      const claim = state.claims.find((candidate) => candidate.dedupeKey === request.dedupeKey);
+      if (!claim) {
+        const replay = state.completions.find((candidate) => candidate.dedupeKey === request.dedupeKey && candidate.executionId === request.executionId);
+        return replay ? json({ completed: false, replayed: true }) : json({ error: "ACTIVE_WIP_IDENTITY_MISMATCH" }, 409);
+      }
+      if (claim.executionId !== request.executionId) return json({ error: "ACTIVE_WIP_IDENTITY_MISMATCH" }, 409);
+      const completion: ActiveWipCompletion = Object.freeze({ dedupeKey: request.dedupeKey, executionId: request.executionId, completedAt: request.completedAt });
+      const completions = Object.freeze([...state.completions.filter((candidate) => candidate.dedupeKey !== request.dedupeKey), completion].slice(-MAX_ACTIVE_WIP_COMPLETIONS));
+      const next: ActiveWipState = Object.freeze({ schemaVersion: 1, claims: Object.freeze(state.claims.filter((candidate) => candidate.dedupeKey !== request.dedupeKey)), completions });
+      await storage.put(ACTIVE_WIP_STORAGE_KEY, next);
+      return json({ completed: true, replayed: false });
+    });
+  }
+
+  private async readActiveWip(): Promise<Response> {
+    const stored = await this.ctx.storage.get<unknown>(ACTIVE_WIP_STORAGE_KEY);
+    const state = stored == null ? emptyActiveWipState() : stored;
+    if (!validActiveWipState(state)) return json({ error: "ACTIVE_WIP_STATE_CORRUPT" }, 500);
+    return json({ claims: state.claims, activeExecutions: state.claims.length, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
   }
 
   private async writeScheduledReceipt(value: unknown): Promise<Response> {
@@ -745,6 +887,34 @@ export async function releasePersistentExecution(namespace: ExecutionCoordinator
   const stub = namespace.get(namespace.idFromName(input.dedupeKey));
   const response = await stub.fetch("https://execution-coordinator/release", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) });
   if (!response.ok) throw new Error("PERSISTENT_EXECUTION_RELEASE_FAILED");
+}
+
+export async function admitActiveWip(namespace: ExecutionCoordinatorNamespace, input: ActiveWipAdmissionRequest): Promise<{ admitted: boolean; reason?: string }> {
+  const stub = namespace.get(namespace.idFromName(ACTIVE_WIP_COORDINATOR_KEY));
+  const response = await stub.fetch("https://execution-coordinator/active-wip/admit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) });
+  const body = await response.json() as { admitted?: unknown; reason?: unknown };
+  if (response.status === 409 && body.admitted === false) return Object.freeze({ admitted: false, reason: typeof body.reason === "string" ? body.reason : "ACTIVE_WIP_REJECTED" });
+  if (!response.ok || body.admitted !== true) throw new Error("ACTIVE_WIP_ADMISSION_FAILED");
+  return Object.freeze({ admitted: true });
+}
+
+export async function completeActiveWip(namespace: ExecutionCoordinatorNamespace, input: ActiveWipCompletionRequest): Promise<{ readonly completed: boolean; readonly replayed: boolean }> {
+  const stub = namespace.get(namespace.idFromName(ACTIVE_WIP_COORDINATOR_KEY));
+  const response = await stub.fetch("https://execution-coordinator/active-wip/complete", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) });
+  const body = await response.json() as { completed?: unknown; replayed?: unknown };
+  if (!response.ok || typeof body.completed !== "boolean" || typeof body.replayed !== "boolean") throw new Error("ACTIVE_WIP_COMPLETION_FAILED");
+  return Object.freeze({ completed: body.completed, replayed: body.replayed });
+}
+
+export async function readActiveWip(namespace: ExecutionCoordinatorNamespace): Promise<{ readonly claims: readonly ActiveWipClaim[]; readonly activeExecutions: number }> {
+  const stub = namespace.get(namespace.idFromName(ACTIVE_WIP_COORDINATOR_KEY));
+  const response = await stub.fetch("https://execution-coordinator/active-wip", { method: "GET" });
+  if (!response.ok) throw new Error("ACTIVE_WIP_READ_FAILED");
+  const body = await response.json() as { claims?: unknown; activeExecutions?: unknown; liveAuthority?: unknown; productionMutationAllowed?: unknown; aiAuthority?: unknown };
+  if (!Array.isArray(body.claims) || !body.claims.every(validActiveWipClaim)
+    || !Number.isSafeInteger(body.activeExecutions) || Number(body.activeExecutions) !== body.claims.length
+    || body.liveAuthority !== "NONE" || body.productionMutationAllowed !== false || body.aiAuthority !== "ZERO_AUTHORITY") throw new Error("ACTIVE_WIP_READ_INVALID");
+  return Object.freeze({ claims: Object.freeze([...body.claims]), activeExecutions: Number(body.activeExecutions) });
 }
 
 export async function recordScheduledRuntimeReceipt(namespace: ExecutionCoordinatorNamespace, receipt: ScheduledRuntimeReceipt): Promise<void> {
