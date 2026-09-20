@@ -28,6 +28,7 @@ function namespace(withPreviousReceipt = false): ExecutionCoordinatorNamespace {
           } : null;
           return new Response(JSON.stringify({ receipt }), { status: 200, headers: { "content-type": "application/json" } });
         }
+        if (url.endsWith("/execution")) return new Response(JSON.stringify({ record: null }), { status: 200, headers: { "content-type": "application/json" } });
         if (url.endsWith("/acquire")) return new Response(JSON.stringify({ acquired: true }), { status: 201, headers: { "content-type": "application/json" } });
         if (url.endsWith("/dispatched")) return new Response(JSON.stringify({ updated: true }), { status: 200, headers: { "content-type": "application/json" } });
         return new Response("not found", { status: 404 });
