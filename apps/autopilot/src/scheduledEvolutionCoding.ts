@@ -195,6 +195,7 @@ export async function runScheduledEvolutionCoding(
     workflowRunId: input.workflowRunId,
     now: input.now,
     signals,
+    failureSignalCount: failureSignals.length,
     token,
     coordinator,
     fetchImpl,

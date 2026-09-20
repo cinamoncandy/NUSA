@@ -86,7 +86,7 @@ test("scheduled evolution coding routes fresh evidence through the canonical dev
   }, fetchImpl);
   assert.equal(posted, true);
   assert.equal(outcome.status, "EXECUTION_ACCEPTED");
-  assert.equal(outcome.reason, "canonical-development-portfolio-dispatched");
+  assert.equal(outcome.reason, "github-coding-dispatch-accepted");
   assert.equal(outcome.selectedSignalIds.length, 1);
 });
 

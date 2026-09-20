@@ -10,6 +10,7 @@ import { executeGithubDispatch } from "./githubExecutor";
 import {
   acquirePersistentExecution,
   markPersistentExecutionDispatched,
+  readPersistentExecution,
   readPersistentDevelopmentQueue,
   writePersistentDevelopmentQueue,
   type ExecutionCoordinatorNamespace,
@@ -115,6 +116,7 @@ export async function dispatchDevelopmentPortfolio(
     readonly workflowRunId: number;
     readonly now: number;
     readonly signals: readonly EvolutionDiscoverySignal[];
+    readonly failureSignalCount?: number;
     readonly token: string;
     readonly coordinator: ExecutionCoordinatorNamespace;
     readonly fetchImpl?: typeof fetch;
@@ -195,10 +197,12 @@ export async function dispatchDevelopmentPortfolio(
       workflowRunId: input.workflowRunId,
       executionId,
       dedupeKey,
-      circuit: { state: "CLOSED", consecutiveFailures: 0 },
-      schedulePolicy: { mode: "AUTONOMOUS", minIntervalSeconds: 0, maxConcurrent: MAX_PORTFOLIO_ITEMS },
-      activeExecutions: 0,
-      elapsedSecondsSinceLastRun: 60,
+      circuit: failureSignalCount >= 3
+        ? { state: "OPEN", consecutiveFailures: failureSignalCount, openedAt: new Date(input.now).toISOString() }
+        : { state: "CLOSED", consecutiveFailures: failureSignalCount },
+      schedulePolicy: { mode: "AUTONOMOUS", minIntervalSeconds: 60, maxConcurrent: MAX_PORTFOLIO_ITEMS },
+      activeExecutions,
+      elapsedSecondsSinceLastRun,
     });
 
     if (bridge.status !== "READY" || !bridge.request) {
