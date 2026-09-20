@@ -27,7 +27,7 @@ export interface StrategyGovernanceDecision {
   readonly previousChampionVersion?: string; readonly targetLifecycle: StrategyLifecycle;
 }
 export interface RegisteredStrategy { readonly identity: StrategyIdentity; readonly lifecycle: StrategyLifecycle; }
-export type StrategyGovernanceEventType = "STRATEGY_REGISTERED" | "VALIDATION_RECORDED" | "PAPER_STARTED" | "PAPER_COMPLETED" | "PROMOTION_REQUESTED" | "PROMOTION_REJECTED" | "CHALLENGER_APPROVED" | "CHAMPION_PROMOTED" | "STRATEGY_SUSPENDED" | "STRATEGY_ROLLED_BACK" | "STRATEGY_RETIRED";
+export type StrategyGovernanceEventType = "STRATEGY_REGISTERED" | "RESEARCH_STARTED" | "VALIDATION_RECORDED" | "PAPER_CANDIDATE_APPROVED" | "PAPER_STARTED" | "PAPER_COMPLETED" | "PROMOTION_REQUESTED" | "PROMOTION_REJECTED" | "CHALLENGER_APPROVED" | "CHAMPION_PROMOTED" | "STRATEGY_SUSPENDED" | "STRATEGY_ROLLED_BACK" | "STRATEGY_RETIRED";
 export interface StrategyGovernanceApproval {
   readonly actorType: "HUMAN";
   readonly approvalReference: string;
