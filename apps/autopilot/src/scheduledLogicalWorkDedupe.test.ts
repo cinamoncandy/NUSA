@@ -21,12 +21,21 @@ function issue(number: number): Record<string, unknown> {
 }
 
 function namespace(seen: Set<string>, acquiredKeys: string[]): ExecutionCoordinatorNamespace {
+  let developmentQueue: unknown = null;
   return {
     idFromName: (name: string) => ({ name }),
     get: () => ({
       async fetch(input: RequestInfo | URL, init?: RequestInit) {
         const url = String(input);
         if (url.endsWith("/execution")) return new Response(JSON.stringify({ record: null }), { status: 200, headers: { "content-type": "application/json" } });
+        if (url.endsWith("/development-queue")) {
+          if (init?.method === "POST") {
+            const body = JSON.parse(String(init.body)) as { queue: unknown };
+            developmentQueue = body.queue;
+            return new Response(JSON.stringify({ updated: true, queue: developmentQueue }), { status: 201, headers: { "content-type": "application/json" } });
+          }
+          return new Response(JSON.stringify({ queue: developmentQueue }), { status: 200, headers: { "content-type": "application/json" } });
+        }
         if (url.endsWith("/acquire")) {
           const body = JSON.parse(String(init?.body)) as { dedupeKey: string };
           acquiredKeys.push(body.dedupeKey);
@@ -59,7 +68,7 @@ function githubFetch(dispatchedReasons?: string[]): typeof fetch {
   }) as typeof fetch;
 }
 
-test("same main dispatches B after A gains an open PR because dedupe is logical-work-bound", async () => {
+test("unknown-scope B remains fail-closed while A is active even after A gains an open PR", async () => {
   const seen = new Set<string>();
   const acquiredKeys: string[] = [];
   const coordinator = namespace(seen, acquiredKeys);
@@ -79,14 +88,11 @@ test("same main dispatches B after A gains an open PR because dedupe is logical-
     { candidates: [], backlogIssues: [issue(1901), issue(1902)], openPulls: [{ title: "fix A", body: "Fixes #1901" }], now: NOW + 1000, repository: "cinamoncandy/NUSA", mainSha: SHA, workflowRunId: RUN_ID },
     fetchImpl,
   );
-  assert.equal(second.status, "EXECUTION_ACCEPTED");
-  assert.deepEqual(second.selectedSignalIds, ["github-issue-1902"]);
-  assert.equal(acquiredKeys.length, 2);
-  assert.notEqual(acquiredKeys[0], acquiredKeys[1]);
+  assert.equal(second.status, "ABSTAINED");
+  assert.equal(second.reason, "WIP_LIMIT_REACHED");
+  assert.equal(acquiredKeys.length, 1);
   assert.match(acquiredKeys[0]!, /github-issue-1901/);
-  assert.match(acquiredKeys[1]!, /github-issue-1902/);
   assert.match(dispatchedReasons[0]!, /GitHub issue #1901/);
-  assert.match(dispatchedReasons[1]!, /GitHub issue #1902/);
 });
 
 test("same logical work on same main remains persistently deduplicated", async () => {

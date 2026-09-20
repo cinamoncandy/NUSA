@@ -8,12 +8,21 @@ const FAILURE_RUN_ID = 5151;
 const NOW = 1_787_968_000_000;
 
 function namespace(): ExecutionCoordinatorNamespace {
+  let developmentQueue: unknown = null;
   return {
     idFromName: (name: string) => ({ name }),
     get: () => ({
-      async fetch(input: RequestInfo | URL) {
+      async fetch(input: RequestInfo | URL, init?: RequestInit) {
         const url = String(input);
         if (url.endsWith("/execution")) return new Response(JSON.stringify({ record: null }), { status: 200, headers: { "content-type": "application/json" } });
+        if (url.endsWith("/development-queue")) {
+          if (init?.method === "POST") {
+            const body = JSON.parse(String(init.body)) as { queue: unknown };
+            developmentQueue = body.queue;
+            return new Response(JSON.stringify({ updated: true, queue: developmentQueue }), { status: 201, headers: { "content-type": "application/json" } });
+          }
+          return new Response(JSON.stringify({ queue: developmentQueue }), { status: 200, headers: { "content-type": "application/json" } });
+        }
         if (url.endsWith("/scheduled-receipt")) return new Response("not found", { status: 404 });
         if (url.endsWith("/acquire")) {
           return new Response(JSON.stringify({ acquired: true }), {
