@@ -46,11 +46,6 @@ function positive(value: number, field: string): number {
   return value;
 }
 
-function nonNegative(value: number, field: string): number {
-  if (!Number.isFinite(value) || value < 0) throw new PaperOrderBookExecutionError("INVALID_ORDERBOOK_EXECUTION", `${field} must be finite and non-negative`);
-  return value;
-}
-
 function canonicalCore(receipt: Omit<PaperOrderBookExecutionReceipt, "fingerprintSha256">) {
   return Object.freeze({
     schemaVersion: receipt.schemaVersion,
