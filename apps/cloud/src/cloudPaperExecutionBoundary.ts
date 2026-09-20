@@ -8,7 +8,7 @@ import {
 } from "./paperTradingExecutionLoop";
 import type { CloudPaperRiskGate, CloudPaperRiskRequest } from "./cloudPaperCanonicalRiskGateway";
 import { validatePaperCandidateExecutionBinding } from "./cioDecisionEngine";
-import { buildPaperExecutionIntent, paperExecutionIntentCommandId } from "./paperExecutionIntent";
+import { buildPaperExecutionIntent, paperExecutionIntentCommandId, validatePaperExecutionIntent } from "./paperExecutionIntent";
 
 export interface CloudPaperExecutionBoundaryOptions {
   readonly loop: PaperTradingExecutionLoop;
@@ -125,6 +125,53 @@ export class CloudPaperExecutionBoundary {
   }
 
   public processTick(tick: PaperExecutionTick & { readonly investmentPercent?: number }): PaperExecutionResult {
+    const stateBeforeDecision = this.options.loop.snapshot();
+    const strategyWorkingOrders = (stateBeforeDecision.workingOrders ?? []).filter((order) => order.market === tick.market.trim().toUpperCase() && order.executionIntent != null);
+    if (strategyWorkingOrders.length > 1) return this.blocked("PAPER_STRATEGY_WORKING_ORDER_AMBIGUOUS");
+    if (strategyWorkingOrders.length === 1) {
+      const working = strategyWorkingOrders[0]!;
+      let intent;
+      try { intent = validatePaperExecutionIntent(working.executionIntent!); }
+      catch { return this.blocked("PAPER_STRATEGY_WORKING_INTENT_INVALID"); }
+      if (working.candidateProvenance == null) return this.blocked("PAPER_STRATEGY_WORKING_PROVENANCE_REQUIRED");
+      let binding;
+      try { binding = validatePaperCandidateExecutionBinding(working.candidateProvenance.binding, working.candidateProvenance.decisionAt); }
+      catch { return this.blocked("PAPER_STRATEGY_WORKING_PROVENANCE_INVALID"); }
+      if (working.idempotencyKey !== paperExecutionIntentCommandId(intent) ||
+          working.requestFingerprint !== intent.intentFingerprintSha256 ||
+          working.requestedQuantity !== intent.quantity ||
+          working.side !== intent.side ||
+          working.candidateProvenance.decisionAt !== intent.decisionDecidedAt ||
+          binding.candidateId !== intent.candidateId ||
+          binding.bindingFingerprintSha256 !== intent.candidateBindingFingerprintSha256) {
+        return this.blocked("PAPER_STRATEGY_WORKING_IDENTITY_MISMATCH");
+      }
+      const openP0 = this.readOpenP0();
+      if (openP0 !== false) return this.blocked(openP0 === true ? "OPEN_P0_ALERT" : "P0_STATE_UNVERIFIABLE");
+      const continuationCommandId = `${working.idempotencyKey}:continue:${working.lifecycle.transitionSequence + 1}`;
+      const risk = this.options.riskGate.evaluate({
+        path: "STRATEGY",
+        commandId: continuationCommandId,
+        signalId: working.idempotencyKey,
+        clientOrderId: working.id,
+        strategyId: intent.candidateId,
+        market: working.market,
+        side: working.side,
+        quantity: working.lifecycle.remainingQuantity,
+        price: tick.price,
+        now: tick.now,
+        observedAt: tick.observedAt,
+        maximumMarketAgeMs: this.maximumMarketAgeMs,
+        killSwitchActive: tick.killSwitchActive,
+        openP0,
+        overallHealth: normalizedHealth(tick.overallHealth),
+        state: stateBeforeDecision,
+        payloadFingerprintSha256: intent.intentFingerprintSha256
+      });
+      if (risk.status !== "ALLOW") return this.riskResult(risk.status, risk.reasonCodes);
+      return this.withRisk(this.options.loop.advanceStrategyWorkingOrder(working.id, tick), risk);
+    }
+
     const actionable = tick.decisions
       .filter((decision) => decision.symbol === tick.market && (decision.action === "BUY" || decision.action === "SELL"))
       .sort((left, right) => left.symbol.localeCompare(right.symbol) || left.action.localeCompare(right.action));
@@ -134,7 +181,7 @@ export class CloudPaperExecutionBoundary {
 
     const openP0 = this.readOpenP0();
     if (openP0 !== false) return this.blocked(openP0 === true ? "OPEN_P0_ALERT" : "P0_STATE_UNVERIFIABLE");
-    const state = this.options.loop.snapshot();
+    const state = stateBeforeDecision;
     const investmentPercent = tick.investmentPercent ?? 100;
     if (!Number.isFinite(investmentPercent) || investmentPercent < 0 || investmentPercent > 100) return this.blocked("INVALID_INVESTMENT_ALLOCATION");
 
