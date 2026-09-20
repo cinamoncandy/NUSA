@@ -22,6 +22,8 @@ This deployment layer runs the canonical supervised Cloud PAPER runtime continuo
 - Cloud PAPER unit: `/etc/systemd/system/nusa-cloud-paper.service`
 - Research unit: `/etc/systemd/system/nusa-research.service`
 - Research timer: `/etc/systemd/system/nusa-research.timer`
+- Persistent Autopilot unit: `/etc/systemd/system/nusa-autopilot.service`
+- Persistent Autopilot state: `/var/lib/nusa/autopilot/runtime-state.json`
 
 The canonical Oracle unit templates live under `deploy/oracle/`.
 
@@ -36,9 +38,11 @@ The canonical Oracle unit templates live under `deploy/oracle/`.
 sudo cp /opt/nusa/current/deploy/oracle/nusa.service /etc/systemd/system/nusa-cloud-paper.service
 sudo cp /opt/nusa/current/deploy/oracle/nusa-research.service /etc/systemd/system/nusa-research.service
 sudo cp /opt/nusa/current/deploy/oracle/nusa-research.timer /etc/systemd/system/nusa-research.timer
+sudo cp /opt/nusa/current/deploy/oracle/nusa-autopilot.service /etc/systemd/system/nusa-autopilot.service
 sudo systemctl daemon-reload
 sudo systemctl enable --now nusa-cloud-paper.service
 sudo systemctl enable --now nusa-research.timer
+sudo systemctl enable --now nusa-autopilot.service
 ```
 
 5. Verify the runtime and scheduler:
@@ -48,7 +52,32 @@ systemctl is-active nusa-cloud-paper.service
 systemctl is-enabled nusa-research.timer
 systemctl is-active nusa-research.timer
 systemctl list-timers nusa-research.timer --no-pager
+systemctl is-active nusa-autopilot.service
 ```
+
+The Autopilot unit is a persistent, restartable control loop. It calls the
+authenticated `POST /scheduled/run` Worker interface, which reuses the
+canonical backlog inspection, ExecutionCoordinator lease/dedupe, bounded
+coding dispatch, and scheduled receipt path. The existing Worker cron remains
+an independent fallback; both paths converge through the same durable
+ExecutionCoordinator and therefore cannot double-dispatch the same identity.
+
+Set these values in the protected `0600` `/etc/nusa/cloud-runtime.env` before
+enabling the unit (never commit or print the token):
+
+```dotenv
+NUSA_AUTOPILOT_RUNTIME_ENDPOINT=https://<canonical-autopilot-worker>/scheduled/run
+NUSA_AUTOPILOT_RUNTIME_TOKEN=<shared-runtime-secret>
+NUSA_AUTOPILOT_STATE_PATH=/var/lib/nusa/autopilot/runtime-state.json
+NUSA_AUTOPILOT_INTERVAL_MS=60000
+NUSA_AUTOPILOT_MAX_ATTEMPTS=3
+```
+
+The runtime persists an atomic, owner-only heartbeat/state snapshot, restores
+it after process restart, retries transient failures at most three times per
+cycle, and keeps the daemon alive in a bounded `BLOCKED` state when an
+external dependency requires attention. Corrupt or safety-invalid state is
+preserved and causes fail-closed startup without dispatching work.
 
 The Research timer is `Persistent=true`, runs shortly after boot, and schedules the canonical public-market Research snapshot daily at 09:15 Asia/Seoul with bounded randomized delay. The Research service writes immutable replay snapshots beside the Cloud state DB. The production closed-learning runtime immediately attempts bootstrap/recovery and retries every 30 seconds; only a uniquely `QUALIFIED_FOR_LEAGUE` candidate can become a PAPER challenger binding.
 

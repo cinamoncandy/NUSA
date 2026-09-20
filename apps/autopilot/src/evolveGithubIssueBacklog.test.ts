@@ -33,6 +33,27 @@ test("backlog readiness counts all eligible work but dispatch signal stays bound
   assert.deepEqual(result.signals.map((signal) => signal.id), ["github-issue-1900"]);
 });
 
+test("unsupported research and general work stays visible but cannot enter CodingRunner READY", () => {
+  const result = deriveGithubIssueBacklogReadiness([
+    issue({ number: 1901, title: "P1: Research OOS robustness evidence" }),
+    issue({ number: 1902, title: "P1: Mobile UI release regression" }),
+    issue({ number: 1903, title: "P1: AUTOPILOT bounded coding fix" }),
+  ], [], NOW);
+  assert.equal(result.eligibleIssueCount, 1);
+  assert.equal(result.capabilityBlockedIssueCount, 2);
+  assert.deepEqual(result.capabilityBlockedCapabilities, { RESEARCH: 1, GENERAL: 1, UNKNOWN: 0 });
+  assert.deepEqual(result.signals.map((signal) => signal.id), ["github-issue-1903"]);
+});
+
+test("HOLD and open-PR filters dominate before capability classification", () => {
+  const result = deriveGithubIssueBacklogReadiness([
+    issue({ number: 1901, title: "P1: Research OOS robustness evidence", labels: [{ name: "HOLD" }] }),
+    issue({ number: 1902, title: "P1: Mobile UI release regression" }),
+  ], [{ title: "fix: mobile", body: "Fixes #1902" }], NOW);
+  assert.equal(result.eligibleIssueCount, 0);
+  assert.equal(result.capabilityBlockedIssueCount, 0);
+});
+
 test("backlog readiness excludes HOLD, BLOCKED_HUMAN and REWORK labels", () => {
   const blocked = [
     issue({ number: 1, labels: [{ name: "HOLD" }] }),
