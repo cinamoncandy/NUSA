@@ -501,7 +501,15 @@ export class ExecutionCoordinator {
       const state = stored == null ? emptyActiveWipState() : stored;
       if (!validActiveWipState(state)) return json({ error: "ACTIVE_WIP_STATE_CORRUPT" }, 500);
       const same = state.claims.find((claim) => claim.dedupeKey === request.dedupeKey);
-      if (same) return json({ admitted: false, reason: same.executionId === request.executionId ? "ALREADY_ACTIVE" : "DEDUPE_CONFLICT" }, 409);
+      if (same) {
+        const exactReplay = same.executionId === request.executionId
+          && same.canonicalOwner === request.canonicalOwner
+          && same.claimedAt === request.claimedAt
+          && same.conflictKeys.length === request.conflictKeys.length
+          && same.conflictKeys.every((key, index) => key === request.conflictKeys[index]);
+        if (exactReplay) return json({ admitted: true, replayed: true, claim: same });
+        return json({ admitted: false, reason: same.executionId === request.executionId ? "ACTIVE_WIP_IDENTITY_CONFLICT" : "DEDUPE_CONFLICT" }, 409);
+      }
       if (state.claims.length >= Number(request.maxConcurrent)) return json({ admitted: false, reason: "WIP_LIMIT_REACHED" }, 409);
       const occupied = new Set(state.claims.flatMap((claim) => [...claim.conflictKeys]));
       if (request.conflictKeys.some((key) => occupied.has(key))) return json({ admitted: false, reason: "CONFLICT_KEY_ACTIVE" }, 409);
