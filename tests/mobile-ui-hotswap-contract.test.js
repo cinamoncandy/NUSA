@@ -23,22 +23,21 @@ test("HomeView presents the approved autonomous-intelligence composition", () =>
 
   assert.match(home, /useWindowDimensions/);
   assert.match(home, /const tablet = width >= 768/);
-  assert.match(home, /maxWidth: tablet \? 1080 : 720/);
+  assert.match(home, /maxWidth: tablet \? 980 : 720/);
   assert.match(home, /testID="home-screen"/);
   assert.match(home, /testID="home-master-rail"/);
   assert.match(home, /testID="home-status-rail"/);
-  assert.match(home, /testID="home-now"/);
+  assert.match(home, /testID="home-market-pulse"/);
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /testID="ai-card"/);
-  assert.match(home, /testID="home-risk-status"/);
+  assert.match(home, /testID="home-risk-authority"/);
   assert.match(home, /testID="home-decision-stage"/);
   assert.match(home, /testID="home-paper-performance"/);
   assert.match(home, /testID="home-paper-learning"/);
-  assert.match(home, /DECISION BASIS/);
-  assert.match(home, /RISK/);
-  assert.match(home, /MARKETS/);
+  assert.match(home, /MARKET BREADTH/);
+  assert.match(home, /TODAY'S TOP SIGNALS/);
   assert.match(home, /PAPER PERFORMANCE/);
-  assert.match(home, /LEARN/);
+  assert.match(home, /CAPITAL LIMITS/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
 
   assert.doesNotMatch(home, /getHomeVisualProfile\(theme\.preset\)/);
@@ -51,14 +50,15 @@ test("canonical HOME uses verified market and PAPER data without fabricating una
   const home = read("apps/mobile/src/homeView.tsx");
   const app = read("apps/mobile/App.tsx");
 
-  assert.match(home, /const marketRows = \[\.\.\.selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)\][\s\S]*?\.slice\(0, tablet \? 5 : 3\)/);
+  assert.match(home, /const marketFeed = selectHomeMarketData\(props\.publicMarkets, props\.snapshot\?\.markets \?\? \[\]\)/);
+  assert.match(home, /const marketRows = \[\.\.\.marketFeed\][\s\S]*?\.slice\(0, tablet \? 6 : 4\)/);
   assert.match(home, /publicMarkets: readonly WatchlistMarket\[\] \| null/);
-  assert.match(home, /signedPercentFromRate\(market\.changeRate\)/);
-  assert.match(home, /const cloudAccount = snapshot\?\.portfolio\?\.account \?\? null/);
+  assert.match(home, /pct\(market\.changeRate\)/);
+  assert.match(home, /const cloudAccount = props\.snapshot\?\.portfolio\?\.account \?\? null/);
   assert.match(home, /const account = cloudAccount \?\? localAccount/);
   assert.match(home, /buildLocalPortfolio\(localTradingSnapshot, localMarkPrice\)/);
   assert.match(home, /testID="home-operational-notice"/);
-  assert.match(home, /onPress=\{onGoSettings\}/);
+  assert.match(home, /onPress=\{props\.onGoSettings\}/);
   assert.doesNotMatch(home, /<OperationalNotice/);
 
   assert.match(app, /publicMarket=\{CHART_MARKET\}/);
@@ -76,11 +76,11 @@ test("canonical HOME uses verified market and PAPER data without fabricating una
 
 test("HOME rendered financial values keep stable tabular numerals in the command-center grammar", () => {
   const home = read("apps/mobile/src/homeView.tsx");
-  for (const style of ["balanceValue", "pnlValue", "factValue", "previewValue"]) {
-    assert.match(home, new RegExp(`${style}: \\{[^}]*fontVariant: \\["tabular-nums"\\]`));
+  for (const style of ["marketPrice", "metricValue"]) {
+    assert.match(home, new RegExp(`${style}:\\{[^}]*fontVariant:\\["tabular-nums"\\]`));
   }
-  assert.match(home, /\{krw\(account\?\.equity\)\}/);
-  assert.match(home, /\{signedMoney\(totalPnl\)\} TOTAL PNL/);
+  assert.match(home, /\{won\(account\?\.equity\)\}/);
+  assert.match(home, /TOTAL P&L/);
 });
 
 test("fresh or stale installs converge on the canonical master preset", () => {
