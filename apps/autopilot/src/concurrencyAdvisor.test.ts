@@ -67,3 +67,23 @@ describe("concurrencyAdvisor", () => {
     assert.equal(result.recommendedWip, 4);
   });
 });
+
+
+it("decreases WIP when verified provider rate-limit pressure is active", () => {
+  const result = adviseConcurrency({ ...verified(), providerRateLimitRate: 0.2 });
+  assert.equal(result.action, "DECREASE_BY_ONE");
+  assert.equal(result.recommendedWip, 1);
+  assert.equal(result.reason, "verified-contention-or-capacity-pressure");
+});
+
+it("does not increase while a provider cooldown is active", () => {
+  const result = adviseConcurrency({ ...verified(), providerCooldownActive: true });
+  assert.equal(result.action, "DECREASE_BY_ONE");
+  assert.equal(result.recommendedWip, 1);
+});
+
+it("fails closed on invalid provider rate-limit telemetry", () => {
+  const result = adviseConcurrency({ ...verified(), providerRateLimitRate: 1.2 });
+  assert.equal(result.action, "HOLD");
+  assert.equal(result.reason, "insufficient-or-invalid-evidence");
+});
