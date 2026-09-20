@@ -11,6 +11,7 @@ import {
   acquirePersistentExecution,
   handoffOrAcquirePersistentExecution,
   applyPersistentControlPlaneHold,
+  completeActiveWip,
   completePersistentExecution,
   markPersistentExecutionDispatched,
   recordAutopilotExecutionTelemetry,
@@ -303,6 +304,16 @@ export async function handleCodingExecute(
             executionId: runnerRequest.executionId,
             now: Date.now(),
           });
+        }
+        if (runnerRequest.canonicalOwner && runnerRequest.conflictKeys?.length) {
+          try {
+            await completeActiveWip(env.NUSA_EXECUTION_COORDINATOR, {
+              dedupeKey: runnerRequest.dedupeKey,
+              executionId: runnerRequest.executionId,
+            });
+          } catch (error) {
+            console.error(JSON.stringify({ event: "NUSA_ACTIVE_WIP_COMPLETION_FAILED", reason: error instanceof Error ? error.message : "UNKNOWN", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }));
+          }
         }
       } catch {
         console.error(JSON.stringify({ event: "NUSA_CODING_EVIDENCE_PERSIST_FAILED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }));
