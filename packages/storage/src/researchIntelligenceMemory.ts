@@ -43,9 +43,22 @@ export class SqliteResearchIntelligenceMemoryRepository {
     const rows = this.db.connection.prepare(
       "SELECT record_id, source_id, source_type, content_fingerprint, hypothesis_semantic_fingerprint, discovered_at, payload_json FROM research_intelligence_records ORDER BY discovered_at ASC, source_id ASC, record_id ASC"
     ).all() as Record<string, unknown>[];
+    const semantic = this.semantic.listSemantic().filter(
+      (event) => event.artifact.artifactKind === "RESEARCH_INTELLIGENCE_RECORD",
+    );
     return Object.freeze(rows.map((row) => {
       const record = decode(row);
       validateStoredRow(row, record);
+      const expectedDigest = researchMemoryArtifactDigestV1(record);
+      const overlay = semantic.find(
+        (event) =>
+          event.artifact.artifactId === record.recordId &&
+          event.artifact.artifactContentSha256 === expectedDigest &&
+          event.artifact.artifactDigestKind === "CANONICAL_RESEARCH_INTELLIGENCE_SHA256_V1",
+      );
+      if (overlay == null) {
+        throw new Error("research intelligence semantic provenance mismatch");
+      }
       return Object.freeze(record);
     }));
   }
