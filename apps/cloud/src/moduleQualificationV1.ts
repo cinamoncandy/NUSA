@@ -26,7 +26,7 @@ export interface ModuleQualificationV1 {
 
 // Exact repository snapshot audited by module management. A later source change must be
 // re-qualified rather than inheriting this record by name or target tier.
-export const MODULE_QUALIFICATION_SOURCE_COMMIT_V1 = "1e546fbeea5575b75a4a32c2a24ee1af92d9a8d7";
+export const MODULE_QUALIFICATION_SOURCE_COMMIT_V1 = "d6e9f8834d7d7471f7f889e42e5df680d9a52c74";
 
 export const MODULE_QUALIFICATION_SOURCE_BLOB_BY_STAGE_V1: Readonly<Record<ModuleStage, string>> = Object.freeze({
   MARKET_DATA: "6b64eeb212895e5d65fc0a6b3d01ce542914119d",
