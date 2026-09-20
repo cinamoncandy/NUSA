@@ -238,14 +238,25 @@ export function validatePaperOrderBookExecutionReceipt(
   } else if (receipt.consumedLevels[0]!.price !== input.quoteReceipt.bestBidPrice) {
     throw new PaperOrderBookExecutionError("ORDERBOOK_EXECUTION_BEST_PRICE_MISMATCH", "SELL depth execution did not begin at best bid");
   }
-  if (input.intentQuantity !== undefined && round8(input.intentQuantity) !== receipt.requestedQuantity) {
-    throw new PaperOrderBookExecutionError("ORDERBOOK_EXECUTION_INTENT_MISMATCH", "orderbook requested quantity does not match execution intent");
+  if (typeof receipt.budgetLimited !== "boolean" || typeof receipt.liquidityLimited !== "boolean" || (receipt.budgetLimited && receipt.liquidityLimited)) {
+    throw new PaperOrderBookExecutionError("INVALID_ORDERBOOK_EXECUTION_RECEIPT", "orderbook execution limiting reason is invalid");
   }
-  if (receipt.side === "SELL" && receipt.filledQuantity !== receipt.requestedQuantity) {
-    throw new PaperOrderBookExecutionError("PAPER_ORDERBOOK_LIQUIDITY_INSUFFICIENT", "SELL depth execution is partial");
+  if (receipt.filledQuantity > receipt.requestedQuantity + 1e-8) {
+    throw new PaperOrderBookExecutionError("ORDERBOOK_EXECUTION_RECONCILIATION_MISMATCH", "orderbook fill exceeds attempted quantity");
+  }
+  if (receipt.liquidityLimited) {
+    if (receipt.filledQuantity >= receipt.requestedQuantity - 1e-8) {
+      throw new PaperOrderBookExecutionError("INVALID_ORDERBOOK_EXECUTION_RECEIPT", "liquidity-limited execution must leave residual quantity");
+    }
+  } else if (!receipt.budgetLimited && Math.abs(receipt.filledQuantity - receipt.requestedQuantity) > 1e-8) {
+    throw new PaperOrderBookExecutionError("ORDERBOOK_EXECUTION_RECONCILIATION_MISMATCH", "non-limited depth execution must fill its attempted quantity");
+  }
+  if (input.intentQuantity !== undefined && receipt.requestedQuantity > round8(input.intentQuantity) + 1e-8) {
+    throw new PaperOrderBookExecutionError("ORDERBOOK_EXECUTION_INTENT_MISMATCH", "orderbook attempted quantity exceeds execution intent");
   }
   if (receipt.side === "BUY" && input.allocationCapital !== undefined) {
-    if (receipt.maximumNotional !== round8(input.allocationCapital) || receipt.grossNotional > input.allocationCapital + 1e-6) {
+    if (receipt.maximumNotional === null || receipt.maximumNotional > round8(input.allocationCapital) + 1e-8 ||
+        receipt.grossNotional > receipt.maximumNotional + 1e-6) {
       throw new PaperOrderBookExecutionError("PAPER_ORDERBOOK_BUDGET_EXCEEDED", "BUY depth execution exceeds execution-intent capital");
     }
   }
