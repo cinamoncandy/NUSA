@@ -400,8 +400,8 @@ function codingProposalPrompt(request: CodingRunnerRequest): string {
     `Execution reason: ${request.reason}`,
     `Execution id: ${request.executionId}`,
     `Dedupe key: ${request.dedupeKey}`,
-    `Canonical owner: ${request.canonicalOwner}`,
-    `Conflict keys: ${request.conflictKeys.join(",")}`,
+    `Canonical owner: ${request.canonicalOwner ?? "legacy-unowned"}`,
+    `Conflict keys: ${request.conflictKeys?.join(",") ?? "none"}`,
   ].join("\n");
 }
 
