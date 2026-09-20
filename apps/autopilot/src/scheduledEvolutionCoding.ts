@@ -193,19 +193,16 @@ export async function runScheduledEvolutionCoding(
     : Object.freeze([] as EvolutionDiscoverySignal[]);
   const signals = failureSignals.length > 0 ? failureSignals : backlogSignals;
   const freshFailureCount = failureSignals.length;
-  const workIdentity = logicalWorkIdentity(signals);
   if (signals[0]?.source === "github-issue-backlog") {
     const freshness = await revalidateBacklogSignal(signals[0], input, token, fetchImpl);
     if (freshness === "UNAVAILABLE") return result("ABSTAINED", "github-issue-actionability-revalidation-unavailable", signals.map((signal) => signal.id));
     if (freshness !== "ACTIONABLE") return result("ABSTAINED", "github-issue-no-longer-actionable", signals.map((signal) => signal.id));
   }
-  const executionId = `evolve-coding:${input.mainSha.slice(0, 16)}:${workIdentity.slice(0, 100)}`;
-  const dedupeKey = `evolve-coding:${input.mainSha}:${workIdentity}`;
   let currentExecution;
   let activeWip;
   try {
     [currentExecution, activeWip] = await Promise.all([
-      readPersistentExecution(coordinator, dedupeKey),
+      Promise.resolve(null),
       readActiveWip(coordinator),
     ]);
   } catch {
@@ -221,8 +218,6 @@ export async function runScheduledEvolutionCoding(
     repository: input.repository,
     headSha: input.mainSha,
     workflowRunId: input.workflowRunId,
-    executionId,
-    dedupeKey,
     circuit: freshFailureCount >= 3
       ? { state: "OPEN", consecutiveFailures: freshFailureCount, openedAt: new Date(input.now).toISOString() }
       : { state: "CLOSED", consecutiveFailures: freshFailureCount },
