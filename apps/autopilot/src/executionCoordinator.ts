@@ -376,6 +376,7 @@ export class ExecutionCoordinator {
       const current = await storage.get<ExecutionRecord>("execution");
       if (current?.dedupeKey === request.dedupeKey) {
         if (current.state === "DISPATCHED") return json({ acquired: false, reason: "ALREADY_DISPATCHED", record: current }, 409);
+        if (current.state === "COMPLETED") return json({ acquired: false, reason: "ALREADY_COMPLETED", record: current }, 409);
         if (current.executionId === request.executionId && current.state === "LEASED" && current.leaseExpiresAt > request.now) {
           const record: ExecutionRecord = Object.freeze({ ...current, state: "HANDED_OFF", updatedAt: request.now });
           await storage.put("execution", record);
