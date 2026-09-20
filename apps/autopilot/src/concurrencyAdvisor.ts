@@ -9,6 +9,8 @@ export interface ConcurrencyEvidence {
   readonly conflictRate: number;
   readonly reworkRate: number;
   readonly ciUtilization: number;
+  readonly providerRateLimitRate?: number;
+  readonly providerCooldownActive?: boolean;
 }
 
 export type ConcurrencyAction = "HOLD" | "INCREASE_BY_ONE" | "DECREASE_BY_ONE";
@@ -36,7 +38,9 @@ export function adviseConcurrency(evidence: ConcurrencyEvidence): ConcurrencyRec
     finite(evidence.throughputTrend) &&
     boundedRate(evidence.conflictRate) &&
     boundedRate(evidence.reworkRate) &&
-    boundedRate(evidence.ciUtilization);
+    boundedRate(evidence.ciUtilization) &&
+    (evidence.providerRateLimitRate === undefined || boundedRate(evidence.providerRateLimitRate)) &&
+    (evidence.providerCooldownActive === undefined || typeof evidence.providerCooldownActive === "boolean");
 
   if (!valid) {
     return Object.freeze({
@@ -47,8 +51,14 @@ export function adviseConcurrency(evidence: ConcurrencyEvidence): ConcurrencyRec
     });
   }
 
+  const providerRateLimitRate = evidence.providerRateLimitRate ?? 0;
+  const providerCooldownActive = evidence.providerCooldownActive ?? false;
   const pressureHigh =
-    evidence.conflictRate > 0.15 || evidence.reworkRate > 0.15 || evidence.ciUtilization > 0.85;
+    evidence.conflictRate > 0.15 ||
+    evidence.reworkRate > 0.15 ||
+    evidence.ciUtilization > 0.85 ||
+    providerRateLimitRate > 0.1 ||
+    providerCooldownActive;
 
   if (pressureHigh && evidence.currentWip > 1) {
     return Object.freeze({
@@ -63,7 +73,9 @@ export function adviseConcurrency(evidence: ConcurrencyEvidence): ConcurrencyRec
     evidence.throughputTrend > 0 &&
     evidence.conflictRate <= 0.05 &&
     evidence.reworkRate <= 0.05 &&
-    evidence.ciUtilization <= 0.7;
+    evidence.ciUtilization <= 0.7 &&
+    providerRateLimitRate === 0 &&
+    providerCooldownActive === false;
 
   if (headroomVerified && evidence.currentWip < evidence.maxWip) {
     return Object.freeze({
