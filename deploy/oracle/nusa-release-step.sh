@@ -48,7 +48,9 @@ script_in() {
 }
 
 unit_in() {
-  local dir="$1" name="$2" path="${dir}/deploy/oracle/${name}"
+  local dir="$1"
+  local name="$2"
+  local path="${dir}/deploy/oracle/${name}"
   [ -f "$path" ] || die "missing ${name} in ${dir}"
   printf '%s' "$path"
 }
