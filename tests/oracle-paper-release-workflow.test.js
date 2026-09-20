@@ -181,3 +181,23 @@ test("rollback restores a legacy release that predates the Autopilot systemd uni
   assert.match(installUnits, /rm -f -- "\$\{SYSTEMD_UNIT_DIR\}\/\$\{AUTOPILOT_SERVICE\}"/);
   assert.match(installUnits, /die "missing nusa-autopilot\.service/, "forward activation must still fail closed when the unit is missing");
 });
+
+
+test("failed rollback readiness explicitly stops runtimes fail-closed", () => {
+  const stopStart = wrapper.indexOf("stop_units_fail_closed()");
+  const stopEnd = wrapper.indexOf("\n}\n", stopStart) + 2;
+  const stopHelper = wrapper.slice(stopStart, stopEnd);
+  assert.ok(stopHelper.length > 0, "stop_units_fail_closed helper must exist");
+  assert.match(stopHelper, /systemctl stop "\$\{AUTOPILOT_SERVICE\}"/);
+  assert.match(stopHelper, /systemctl stop "\$\{SERVICE\}"/);
+
+  const activateStart = wrapper.indexOf("  activate)");
+  const activateEnd = wrapper.indexOf("\n  readiness)", activateStart);
+  const activateCase = wrapper.slice(activateStart, activateEnd);
+  assert.match(activateCase, /rollback PAPER readiness failed; services stopped because persistent state may be incompatible with the rollback release/);
+  assert.match(activateCase, /rollback Autopilot readiness failed; services stopped/);
+  assert.ok(
+    activateCase.indexOf("stop_units_fail_closed") < activateCase.indexOf("rollback PAPER readiness failed; services stopped"),
+    "services must be stopped before the rollback PAPER failure exits"
+  );
+});
