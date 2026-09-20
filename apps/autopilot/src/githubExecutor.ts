@@ -1,3 +1,4 @@
+import { providerRequestGovernor } from "./providerRequestGovernor";
 import type { AutopilotExecutionRequest } from "./executionPlanner";
 
 export interface GithubExecutorConfig {
@@ -42,6 +43,10 @@ function githubHeaders(token: string): Record<string, string> {
   };
 }
 
+async function governedGithubFetch(fetchImpl: typeof fetch, input: string, init?: RequestInit): Promise<Response> {
+  return providerRequestGovernor.execute("github", () => fetchImpl(input, init));
+}
+
 function githubClientPayload(request: AutopilotExecutionRequest): Record<string, unknown> {
   return {
     kind: request.kind,
@@ -66,7 +71,7 @@ async function findExistingAuditDispatch(
   fetchImpl: typeof fetch,
 ): Promise<GithubExecutorResult | boolean> {
   for (let page = 1; page <= 3; page += 1) {
-    const response = await fetchImpl(`${base}/repos/${repository}/actions/workflows/autopilot-deterministic-audit-release.yml/runs?event=repository_dispatch&per_page=100&page=${page}`, { headers: githubHeaders(token) });
+    const response = await governedGithubFetch(fetchImpl, `${base}/repos/${repository}/actions/workflows/autopilot-deterministic-audit-release.yml/runs?event=repository_dispatch&per_page=100&page=${page}`, { headers: githubHeaders(token) });
     if (response.status === 401 || response.status === 403) return result("FAILED", "github-executor-audit-dedupe-auth-rejected", response.status);
     if (response.status === 404) return result("FAILED", "github-executor-audit-dedupe-evidence-unavailable", 404);
     if (!response.ok) return result("FAILED", `github-executor-audit-dedupe-http-${response.status}`, response.status);
@@ -90,7 +95,7 @@ async function resolveCurrentMainSha(
   token: string,
   fetchImpl: typeof fetch,
 ): Promise<GithubExecutorResult | string> {
-  const response = await fetchImpl(`${base}/repos/${repository}/branches/main`, { headers: githubHeaders(token) });
+  const response = await governedGithubFetch(fetchImpl, `${base}/repos/${repository}/branches/main`, { headers: githubHeaders(token) });
   if (response.status === 401 || response.status === 403) return result("FAILED", "github-executor-auth-rejected", response.status);
   if (response.status === 404) return result("FAILED", "github-executor-repository-or-token-scope-invalid", 404);
   if (!response.ok) return result("FAILED", `github-executor-main-head-http-${response.status}`, response.status);
@@ -120,7 +125,7 @@ async function resolveCurrentPullRequestHead(
   token: string,
   fetchImpl: typeof fetch,
 ): Promise<GithubExecutorResult | string> {
-  const response = await fetchImpl(`${base}/repos/${repository}/pulls/${prNumber}`, { headers: githubHeaders(token) });
+  const response = await governedGithubFetch(fetchImpl, `${base}/repos/${repository}/pulls/${prNumber}`, { headers: githubHeaders(token) });
   if (response.status === 401 || response.status === 403) return result("FAILED", "github-executor-auth-rejected", response.status);
   if (response.status === 404) return result("FAILED", "github-executor-pr-or-token-scope-invalid", 404);
   if (!response.ok) return result("FAILED", `github-executor-pr-head-http-${response.status}`, response.status);
@@ -184,7 +189,7 @@ export async function executeGithubDispatch(
     if (existing) return result("REJECTED", "github-executor-duplicate-audit-run-suppressed", null, requestedHead, currentHead);
   }
 
-  const response = await fetchImpl(`${base}/repos/${config.allowedRepository}/dispatches`, {
+  const response = await governedGithubFetch(fetchImpl, `${base}/repos/${config.allowedRepository}/dispatches`, {
     method: "POST",
     headers: {
       ...githubHeaders(token),
