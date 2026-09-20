@@ -137,12 +137,28 @@ export function HomeView(props: HomeViewProps) {
       </View>
     </View>
 
-    <View style={styles.hero}>
-      <View style={styles.heroCopy}>
-        <Text style={styles.heroLine}>A MORE</Text><Text style={styles.heroLine}>RATIONAL</Text><Text style={styles.heroAccent}>TOMORROW.</Text>
-        <Text style={styles.heroKorean}>MARKETS. SIGNALS. EVIDENCE.</Text>
+    <View style={styles.accountHero} testID="account-hero-card">
+      <View style={styles.accountHeroTop}>
+        <View style={styles.accountHeroValueBlock}>
+          <Text style={styles.accountHeroEyebrow}>PAPER EQUITY</Text>
+          <Text style={styles.accountHeroValue}>{won(account?.equity)}</Text>
+          <Text style={[styles.accountHeroDelta, { color: totalPnl == null ? MUTED : totalPnl >= 0 ? LIME : RED }]}>
+            {totalPnl == null ? "P&L —" : `${won(totalPnl)} TOTAL P&L`}
+          </Text>
+        </View>
+        <View style={styles.accountHeroSource}>
+          <Text style={styles.accountHeroSourceLabel}>{accountSource == null ? "PAPER UNAVAILABLE" : `${accountSource} PAPER`}</Text>
+          <Text style={styles.accountHeroSourceMode}>LIVE NONE · AI ZERO AUTHORITY</Text>
+        </View>
       </View>
-      <GlobeVisual />
+      <Pressable onPress={() => props.onNavigate("AiSignal")} style={({ pressed }) => [styles.accountHeroInsight, { opacity: pressed ? 0.78 : 1 }]} testID="home-ai-judgement">
+        <View style={styles.accountHeroInsightHead}>
+          <Text style={styles.accountHeroInsightLabel}>AI JUDGEMENT</Text>
+          <Text style={[styles.accountHeroInsightState, { color: signalAvailable ? LIME : MUTED }]}>{signalAvailable ? "VERIFIED" : "WAITING"}</Text>
+        </View>
+        <Text style={styles.accountHeroInsightTitle} numberOfLines={2}>{signalTitle}</Text>
+        <Text style={styles.accountHeroInsightWhy} numberOfLines={2}>WHY · {decision.why}</Text>
+      </Pressable>
     </View>
 
     <View testID="home-market-pulse">
@@ -204,7 +220,7 @@ export function HomeView(props: HomeViewProps) {
           return <View key={bar.openTime} style={[styles.waveBar,{height:12+Math.min(38, range/Math.max(1,bar.close)*8000), backgroundColor:rise?LIME:wealthProductColors.c07, opacity:0.55 + index/50}]}/>;
         }) : <Text style={styles.empty}>VERIFIED PERFORMANCE WAVE UNAVAILABLE</Text>}
       </View>
-      <View style={styles.performanceMetrics} testID="account-hero-card">
+      <View style={styles.performanceMetrics} testID="home-performance-metrics">
         <View><Text style={[styles.metricValue,{color:totalPnl != null && totalPnl >= 0?LIME:totalPnl == null?MUTED:RED}]}>{totalPnl == null ? "—" : won(totalPnl)}</Text><Text style={styles.metricLabel}>TOTAL P&L</Text></View>
         <View><Text style={styles.metricValue}>{won(account?.equity)}</Text><Text style={styles.metricLabel}>EQUITY</Text></View>
         <View><Text style={styles.metricValue}>{heartbeat?.paperOrderCount ?? "—"}</Text><Text style={styles.metricLabel}>ORDERS</Text></View>
@@ -242,20 +258,28 @@ const styles = StyleSheet.create({
   logo:{color:wealthProductColors.c08,fontSize:27,fontWeight:"900",letterSpacing:2.7},tagline:{color:MUTED,fontSize:7,fontWeight:"700",letterSpacing:1.4,marginTop:-2},
   modeWrap:{flexDirection:"row",alignItems:"center",gap:7},modeDot:{width:9,height:9,borderRadius:9,backgroundColor:LIME,shadowColor:LIME,shadowOpacity:.6,shadowRadius:8},
   modeText:{color:wealthProductColors.c09,fontSize:10,fontWeight:"800",letterSpacing:.7},modeSub:{color:wealthProductColors.c10,fontSize:8,marginTop:2},
-  hero:{minHeight:188,flexDirection:"row",alignItems:"center",justifyContent:"space-between",overflow:"hidden"},
-  heroCopy:{zIndex:2,flex:1},heroLine:{color:wealthProductColors.c11,fontSize:29,lineHeight:34,fontWeight:"500",letterSpacing:2.2},heroAccent:{color:LIME,fontSize:29,lineHeight:35,fontWeight:"900",letterSpacing:2.1},
-  heroKorean:{color:wealthProductColors.c12,fontSize:13,lineHeight:20,marginTop:16},
+  accountHero:{paddingVertical:20,borderBottomWidth:1,borderBottomColor:BORDER,gap:16},
+  accountHeroTop:{flexDirection:"row",alignItems:"flex-end",justifyContent:"space-between",gap:16},
+  accountHeroValueBlock:{flex:1,minWidth:0},accountHeroEyebrow:{color:LIME,fontSize:9,fontWeight:"900",letterSpacing:1.5,marginBottom:6},
+  accountHeroValue:{color:wealthProductColors.c08,fontSize:40,lineHeight:46,fontWeight:"900",letterSpacing:-1.6,fontVariant:["tabular-nums"]},
+  accountHeroDelta:{fontSize:12,fontWeight:"900",letterSpacing:.35,marginTop:6,fontVariant:["tabular-nums"]},
+  accountHeroSource:{alignItems:"flex-end",paddingBottom:3},accountHeroSourceLabel:{color:wealthProductColors.c09,fontSize:9,fontWeight:"900",letterSpacing:.65,textAlign:"right"},
+  accountHeroSourceMode:{color:MUTED,fontSize:7,lineHeight:11,marginTop:4,textAlign:"right"},
+  accountHeroInsight:{borderTopWidth:1,borderBottomWidth:1,borderColor:wealthProductColors.c24,paddingVertical:12,gap:6},
+  accountHeroInsightHead:{flexDirection:"row",alignItems:"center",justifyContent:"space-between"},accountHeroInsightLabel:{color:wealthProductColors.c06,fontSize:9,fontWeight:"900",letterSpacing:1.2},
+  accountHeroInsightState:{fontSize:8,fontWeight:"900",letterSpacing:1},accountHeroInsightTitle:{color:wealthProductColors.c33,fontSize:15,lineHeight:20,fontWeight:"800"},
+  accountHeroInsightWhy:{color:MUTED,fontSize:9,lineHeight:14},
   globeWrap:{width:172,height:174,marginRight:-4,alignItems:"center",justifyContent:"center",position:"relative"},globeGlow:{position:"absolute",width:152,height:152,borderRadius:152,backgroundColor:wealthProductColors.c13,opacity:.72,shadowColor:LIME,shadowOpacity:.22,shadowRadius:28},globeSphere:{width:152,height:152,borderRadius:152,borderWidth:1,borderColor:wealthProductColors.c14,backgroundColor:wealthProductColors.c15,overflow:"hidden",position:"relative"},globeLongitude:{position:"absolute",top:-2,bottom:-2,left:"50%",width:56,marginLeft:-28,borderRadius:56,borderWidth:1,borderColor:wealthProductColors.c16},globeLongitudeA:{transform:[{scaleX:.55}]},globeLongitudeB:{transform:[{scaleX:1.45}]},globeLatitude:{position:"absolute",left:-4,right:-4,height:46,borderRadius:80,borderWidth:1,borderColor:wealthProductColors.c17},globeLatitudeA:{top:15},globeLatitudeB:{top:48},globeLatitudeC:{top:81},globeLandA:{position:"absolute",left:77,top:35,width:34,height:18,borderRadius:8,backgroundColor:wealthProductColors.c18,transform:[{rotate:"-18deg"}]},globeLandB:{position:"absolute",left:67,top:54,width:20,height:35,borderRadius:7,backgroundColor:wealthProductColors.c19,transform:[{rotate:"17deg"}]},globeLandC:{position:"absolute",left:98,top:77,width:17,height:12,borderRadius:6,backgroundColor:wealthProductColors.c20},globeNode:{position:"absolute",width:4,height:4,borderRadius:4,backgroundColor:LIME,shadowColor:LIME,shadowOpacity:.9,shadowRadius:5},globeNodeA:{left:84,top:47},globeNodeB:{left:99,top:82},globeNodeC:{left:71,top:69},
   orbitText:{position:"absolute",right:2,bottom:8,color:wealthProductColors.c21,fontSize:7,lineHeight:10,fontWeight:"800",letterSpacing:.55,textAlign:"right"},
-  marketStrip:{flexDirection:"row",gap:7},marketTile:{flex:1,minWidth:0,padding:10,borderWidth:1,borderColor:BORDER,borderRadius:7,backgroundColor:PANEL},
+  marketStrip:{flexDirection:"row",gap:0,borderTopWidth:1,borderBottomWidth:1,borderColor:BORDER},marketTile:{flex:1,minWidth:0,paddingVertical:10,paddingHorizontal:9,borderRightWidth:1,borderRightColor:BORDER,backgroundColor:"transparent"},
   marketSymbol:{color:wealthProductColors.c22,fontSize:11,fontWeight:"800"},marketChange:{fontSize:14,fontWeight:"800",marginTop:7},marketPrice:{color:wealthProductColors.c23,fontSize:8,marginTop:5,fontVariant:["tabular-nums"]},
-  signalPanel:{borderWidth:1,borderColor:wealthProductColors.c24,borderRadius:9,backgroundColor:wealthProductColors.c25,overflow:"hidden"},
+  signalPanel:{borderWidth:1,borderColor:wealthProductColors.c24,borderRadius:4,backgroundColor:wealthProductColors.c25,overflow:"hidden"},
   panel:{borderWidth:1,borderColor:BORDER,borderRadius:9,backgroundColor:PANEL,overflow:"hidden"},
   panelTitleRow:{height:46,paddingHorizontal:14,flexDirection:"row",alignItems:"center",justifyContent:"space-between",borderBottomWidth:1,borderBottomColor:BORDER},
   marketStripHead:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",paddingHorizontal:2,paddingBottom:6},
   marketStripTitle:{color:wealthProductColors.c06,fontSize:11,fontWeight:"800",letterSpacing:1.1},
   panelTitle:{color:wealthProductColors.c06,fontSize:13,fontWeight:"800",letterSpacing:1},arrow:{color:LIME,fontSize:25,fontWeight:"300"},count:{color:wealthProductColors.c26,fontSize:13},source:{color:wealthProductColors.c27,fontSize:9,fontWeight:"800"},
-  terrain:{height:206,position:"relative",justifyContent:"center",overflow:"hidden",backgroundColor:wealthProductColors.c28},gridH1:{position:"absolute",left:0,right:0,top:"33%",height:1,backgroundColor:wealthProductColors.c29},gridH2:{position:"absolute",left:0,right:0,top:"66%",height:1,backgroundColor:wealthProductColors.c29},gridV1:{position:"absolute",top:0,bottom:0,left:"33%",width:1,backgroundColor:wealthProductColors.c29},gridV2:{position:"absolute",top:0,bottom:0,left:"66%",width:1,backgroundColor:wealthProductColors.c29},
+  terrain:{height:252,position:"relative",justifyContent:"center",overflow:"hidden",backgroundColor:wealthProductColors.c28},gridH1:{position:"absolute",left:0,right:0,top:"33%",height:1,backgroundColor:wealthProductColors.c29},gridH2:{position:"absolute",left:0,right:0,top:"66%",height:1,backgroundColor:wealthProductColors.c29},gridV1:{position:"absolute",top:0,bottom:0,left:"33%",width:1,backgroundColor:wealthProductColors.c29},gridV2:{position:"absolute",top:0,bottom:0,left:"66%",width:1,backgroundColor:wealthProductColors.c29},
   signalPin:{position:"absolute",left:"43%",top:"42%",alignItems:"center"},pinDot:{width:14,height:14,borderRadius:14,backgroundColor:LIME,borderWidth:4,borderColor:wealthProductColors.c30,shadowColor:LIME,shadowOpacity:.9,shadowRadius:12},pinLabel:{marginTop:5,color:LIME,fontSize:8,fontWeight:"900",backgroundColor:wealthProductColors.c31,paddingHorizontal:6,paddingVertical:4,borderRadius:4,borderWidth:1,borderColor:wealthProductColors.c32},
   signalThesis:{color:wealthProductColors.c33,fontSize:15,lineHeight:21,fontWeight:"700",paddingHorizontal:14,paddingVertical:11,borderTopWidth:1,borderTopColor:BORDER},
   evidenceRail:{borderTopWidth:1,borderTopColor:BORDER},evidenceRow:{flexDirection:"row",gap:10,paddingHorizontal:14,paddingVertical:10,borderBottomWidth:1,borderBottomColor:wealthProductColors.c34},evidenceLabel:{width:60,fontSize:9,fontWeight:"900",letterSpacing:.8},evidenceValue:{flex:1,color:wealthProductColors.c35,fontSize:10,lineHeight:15},
