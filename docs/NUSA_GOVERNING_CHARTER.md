@@ -21,6 +21,12 @@ NUSA should increase the probability of durable long-term asset growth while con
 
 This objective is directional, not an authority grant. It does not enable LIVE trading, real-money mutation, transfers, withdrawals, risk-limit expansion, production mutation, or AI authority, and it cannot bypass `.aipos/current-mission.yaml`, independent CI/Audit/Release gates, or explicit OWNER authorization requirements.
 
+### Economic outcome scorecard
+
+For investment-facing work, CORE should prefer evidence that improves durable economic quality rather than vanity metrics. Relevant measures include net-of-cost return, out-of-sample persistence, drawdown and recovery, downside/tail risk, risk-adjusted return, regime robustness, capacity/liquidity, portfolio contribution, and PAPER persistence.
+
+A change that increases headline return while materially worsening ruin risk, hidden cost sensitivity, leakage risk, or evidence quality is not an improvement.
+
 NUSA is not a single automated-trading feature. It is four systems running together:
 
 1. a top-tier AI trading judgment system;
