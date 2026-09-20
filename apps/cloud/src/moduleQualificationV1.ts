@@ -26,7 +26,7 @@ export interface ModuleQualificationV1 {
 
 // Exact repository snapshot audited by module management. A later source change must be
 // re-qualified rather than inheriting this record by name or target tier.
-export const MODULE_QUALIFICATION_SOURCE_COMMIT_V1 = "d6e9f8834d7d7471f7f889e42e5df680d9a52c74";
+export const MODULE_QUALIFICATION_SOURCE_COMMIT_V1 = "4208bfe5f09e6909bc2c103b0ab9831a352c762e";
 
 export const MODULE_QUALIFICATION_SOURCE_BLOB_BY_STAGE_V1: Readonly<Record<ModuleStage, string>> = Object.freeze({
   MARKET_DATA: "6b64eeb212895e5d65fc0a6b3d01ce542914119d",
@@ -36,7 +36,7 @@ export const MODULE_QUALIFICATION_SOURCE_BLOB_BY_STAGE_V1: Readonly<Record<Modul
   RISK: "4a8533cb3ef81223f5b249b03619c50d0c28811e",
   PORTFOLIO: "8da5e80589e03004c3d4147528b97da5c473c40a",
   EXECUTION: "149bb7983f7d23dc0bfb6e595252561893ddc99b",
-  PAPER_ADAPTER: "6b545b039030db20918b76dbcd0967d71a063d61",
+  PAPER_ADAPTER: "59e1a554b9d70a95ed2f4000a348f1f32a344f97",
   REVIEW: "675b11025fda5678f152f98277a2b527141c8b7c",
   MEMORY: "70bf43e419fb36b453f634505cd09bb0ca50343c"
 });
