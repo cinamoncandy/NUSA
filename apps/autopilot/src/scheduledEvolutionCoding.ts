@@ -3,7 +3,7 @@ import { prepareDiscoveredCodingRequest } from "./evolveCodingBridge";
 import { deriveWorkflowFailureOpportunities, type WorkflowFailureEvidence } from "./evolveEvidenceOpportunitySource";
 import { deriveGithubIssueBacklogSignals } from "./evolveGithubIssueBacklog";
 import type { EvolutionDiscoverySignal } from "./evolveOpportunityDiscovery";
-import { acquirePersistentExecution, markPersistentExecutionDispatched, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, readPersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
 export interface ScheduledEvolutionCodingEnv {
   readonly NUSA_GITHUB_TOKEN?: string;
@@ -111,21 +111,31 @@ async function revalidateBacklogSignal(
 ): Promise<"ACTIONABLE" | "STALE" | "UNAVAILABLE"> {
   const issueNumber = backlogIssueNumber(signal);
   if (issueNumber === null) return signal?.source === "github-issue-backlog" ? "STALE" : "ACTIONABLE";
-  let response: Response;
+  // Issue state and open-PR evidence are independent reads. Fetch them in
+  // parallel so a scheduled cycle does not pay two GitHub round trips before
+  // it can decide whether the signal is still actionable.
+  const issueUrl = `https://api.github.com/repos/${input.repository}/issues/${issueNumber}`;
+  const query = new URLSearchParams({ q: `repo:${input.repository} is:pr is:open ${issueNumber}`, per_page: "100", page: "1" });
+  const pullsUrl = `https://api.github.com/search/issues?${query.toString()}`;
+  const headers = {
+    accept: "application/vnd.github+json",
+    authorization: `Bearer ${token}`,
+    "user-agent": "nusa-autopilot-worker",
+    "x-github-api-version": "2022-11-28",
+  };
+  let responses: readonly [Response, Response];
   try {
-    response = await fetchImpl(`https://api.github.com/repos/${input.repository}/issues/${issueNumber}`, {
-      headers: {
-        accept: "application/vnd.github+json",
-        authorization: `Bearer ${token}`,
-        "user-agent": "nusa-autopilot-worker",
-        "x-github-api-version": "2022-11-28",
-      },
-    });
+    responses = await Promise.all([
+      fetchImpl(issueUrl, { headers }),
+      fetchImpl(pullsUrl, { headers }),
+    ]) as [Response, Response];
   } catch {
     return "UNAVAILABLE";
   }
+  const [response, pullsResponse] = responses;
   if (!response.ok) return "UNAVAILABLE";
   let issue: unknown;
+  let pullsPayload: unknown;
   try {
     issue = await response.json();
   } catch {
@@ -133,23 +143,7 @@ async function revalidateBacklogSignal(
   }
   const issueRecord = object(issue);
   if (!issueRecord || text(issueRecord.state)?.toLowerCase() !== "open") return "STALE";
-
-  const query = new URLSearchParams({ q: `repo:${input.repository} is:pr is:open ${issueNumber}`, per_page: "100", page: "1" });
-  let pullsResponse: Response;
-  try {
-    pullsResponse = await fetchImpl(`https://api.github.com/search/issues?${query.toString()}`, {
-      headers: {
-        accept: "application/vnd.github+json",
-        authorization: `Bearer ${token}`,
-        "user-agent": "nusa-autopilot-worker",
-        "x-github-api-version": "2022-11-28",
-      },
-    });
-  } catch {
-    return "UNAVAILABLE";
-  }
   if (!pullsResponse.ok) return "UNAVAILABLE";
-  let pullsPayload: unknown;
   try {
     pullsPayload = await pullsResponse.json();
   } catch {
@@ -205,6 +199,20 @@ export async function runScheduledEvolutionCoding(
   }
   const executionId = `evolve-coding:${input.mainSha.slice(0, 16)}:${workIdentity.slice(0, 100)}`;
   const dedupeKey = `evolve-coding:${input.mainSha}:${workIdentity}`;
+  let currentExecution;
+  try {
+    currentExecution = await readPersistentExecution(coordinator, dedupeKey);
+  } catch {
+    return result("ABSTAINED", "persistent-execution-state-unavailable", signals.map((signal) => signal.id));
+  }
+  const activeExecutions = currentExecution
+    && (currentExecution.state === "LEASED" || currentExecution.state === "HANDED_OFF")
+    && currentExecution.leaseExpiresAt > input.now
+    ? 1
+    : 0;
+  const elapsedSecondsSinceLastRun = currentExecution
+    ? Math.max(0, Math.floor((input.now - currentExecution.updatedAt) / 1000))
+    : Number.MAX_SAFE_INTEGER;
   const bridge = prepareDiscoveredCodingRequest({
     signals,
     now: new Date(input.now),
@@ -217,8 +225,8 @@ export async function runScheduledEvolutionCoding(
       ? { state: "OPEN", consecutiveFailures: freshFailureCount, openedAt: new Date(input.now).toISOString() }
       : { state: "CLOSED", consecutiveFailures: freshFailureCount },
     schedulePolicy: { mode: "AUTONOMOUS", minIntervalSeconds: 60, maxConcurrent: 1 },
-    activeExecutions: 0,
-    elapsedSecondsSinceLastRun: 60,
+    activeExecutions,
+    elapsedSecondsSinceLastRun,
   });
   if (bridge.status !== "READY" || !bridge.request) return result("ABSTAINED", bridge.reason);
 
@@ -232,7 +240,6 @@ export async function runScheduledEvolutionCoding(
 
   const dispatched = await executeGithubDispatch(bridge.request, { token, allowedRepository: input.repository }, fetchImpl);
   if (dispatched.status === "DISPATCHED") {
-    await markPersistentExecutionDispatched(coordinator, { dedupeKey: bridge.request.dedupeKey, executionId: bridge.request.executionId, now: input.now });
     return result("EXECUTION_ACCEPTED", "github-coding-dispatch-accepted", signals.map((signal) => signal.id));
   }
   if (dispatched.status === "INTERFACE_READY") return result("INTERFACE_READY", dispatched.reason, signals.map((signal) => signal.id));

@@ -4,11 +4,12 @@ import worker, {
   classifyGithubEvent,
   computeGithubWebhookSignature,
   handleCodingExecute,
+  handleScheduledRuntimeTick,
   verifyGithubWebhookSignature,
 } from "./index";
 import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
 import type { CodingRuntime } from "./codingRunner";
-import { ExecutionCoordinator, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, ExecutionCoordinator, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
 class MemoryStorage {
   private readonly values = new Map<string, unknown>();
@@ -74,6 +75,20 @@ describe("NUSA autopilot GitHub webhook", () => {
 
     const verified = await worker.fetch(new Request("https://example.test/health"), { NUSA_DEPLOYMENT_REVISION: "a".repeat(40) });
     assert.equal((await verified.json() as { deploymentRevision: string }).deploymentRevision, "a".repeat(40));
+  });
+
+  it("protects the persistent scheduled runtime tick with a dedicated bearer secret", async () => {
+    const request = () => new Request("https://example.test/scheduled/run", { method: "POST" });
+    const missing = await handleScheduledRuntimeTick(request(), {});
+    assert.equal(missing.status, 503);
+    assert.equal((await missing.json() as { reason: string }).reason, "AUTOPILOT_RUNTIME_TOKEN_NOT_CONFIGURED");
+
+    const wrong = await handleScheduledRuntimeTick(new Request("https://example.test/scheduled/run", { method: "POST", headers: { authorization: "Bearer wrong" } }), { NUSA_AUTOPILOT_RUNTIME_TOKEN: "correct" });
+    assert.equal(wrong.status, 401);
+
+    const unavailable = await handleScheduledRuntimeTick(new Request("https://example.test/scheduled/run", { method: "POST", headers: { authorization: "Bearer correct" } }), { NUSA_AUTOPILOT_RUNTIME_TOKEN: "correct" });
+    assert.equal(unavailable.status, 503);
+    assert.equal((await unavailable.json() as { reason: string }).reason, "PERSISTENT_EXECUTION_COORDINATOR_REQUIRED");
   });
 
   it("verifies the exact request body with HMAC SHA-256", async () => {
@@ -161,6 +176,7 @@ describe("NUSA autopilot GitHub webhook", () => {
       headSha: "a".repeat(40),
       prNumber: null,
       workflowRunId: null,
+      workflowRunAttempt: null,
       reason: "continue-from:main_push",
       mutationAllowed: false,
     });
@@ -451,6 +467,13 @@ describe("NUSA autopilot GitHub webhook", () => {
         NUSA_AI_CODING_TOKEN: "ai-token",
         NUSA_EXECUTION_COORDINATOR: namespace,
       };
+      const now = Date.now();
+      await acquirePersistentExecution(namespace, {
+        dedupeKey: codingRequest.dedupeKey,
+        executionId: codingRequest.executionId,
+        now,
+        leaseExpiresAt: now + 60_000,
+      });
       const first = await handleCodingExecute(request(), env, runtime);
       const second = await handleCodingExecute(request(), env, runtime);
       assert.equal(first.status, 202);
