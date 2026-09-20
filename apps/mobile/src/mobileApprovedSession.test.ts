@@ -77,7 +77,7 @@ describe("mobile approved session persistence boundary", () => {
     assert.equal(storage.getCount, 1);
   });
 
-  it("falls back from a rejected persisted refresh to silent DeviceKey challenge-response without user input", async () => {
+  it("uses silent DeviceKey proof instead of a persisted bearer refresh after restart", async () => {
     const storage = new MemorySecureStorage();
     const endpoint = "https://paper.example";
     const now = Date.now();
@@ -85,7 +85,7 @@ describe("mobile approved session persistence boundary", () => {
     const calls: string[] = [];
     const request = (async (url: string | URL | Request) => {
       const value = String(url); calls.push(value);
-      if (value.endsWith("/v1/mobile/session/refresh")) return new Response(JSON.stringify({ error: "MOBILE_SESSION_REFRESH_REJECTED" }), { status: 401 });
+      if (value.endsWith("/v1/mobile/session/refresh")) throw new Error("silent DeviceKey restart must not send a bearer refresh");
       if (value.endsWith("/v1/mobile/owner-device/authentication/challenge")) return new Response(JSON.stringify({ challengeId: "challenge-id-0123456789", challenge: "Y2Fub25pY2FsLWNoYWxsZW5nZQ==", purpose: "AUTHENTICATION", expiresAt: now + 60_000 }), { status: 201 });
       if (value.endsWith("/v1/mobile/owner-device/authentication/complete")) return new Response(JSON.stringify({ accessToken: "silent-access-token-0123456789", accessExpiresAt: now + 60_000, refreshToken: "silent-refresh-token-0123456789", refreshExpiresAt: now + 600_000, scopes: ["dashboard:read", "paper:trade"], deviceId: "nusa-device-silent-0001" }), { status: 200 });
       if (value.endsWith("/v1/mobile/me")) return new Response(JSON.stringify({ userId: "owner", email: "owner@example.com", scopes: ["dashboard:read", "paper:trade"] }), { status: 200 });
@@ -101,6 +101,7 @@ describe("mobile approved session persistence boundary", () => {
     assert.equal(identity?.userId, "owner");
     assert.equal(signed, 1);
     assert.equal(calls.some((value) => value.endsWith("/v1/mobile/owner-device/authentication/challenge")), true);
+    assert.equal(calls.some((value) => value.endsWith("/v1/mobile/session/refresh")), false);
   });
 
   it("rejects malformed persisted session and deletes it without network access", async () => {
