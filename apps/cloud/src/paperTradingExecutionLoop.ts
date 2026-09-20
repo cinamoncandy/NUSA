@@ -7,6 +7,7 @@ import type { PortfolioPlan } from "./portfolioOrchestrator";
 import { buildPaperObservedExecutionCostAttribution, buildPaperRuntimeExecutionCostEvidence, validatePaperObservedExecutionCostAttribution, validatePaperObservedExecutionQuote, type PaperObservedExecutionQuote, type PaperRuntimeExecutionCostEvidence, type PaperExecutionCostAttribution } from "./paperRuntimeExecutionCostEvidence";
 import { validatePaperOrderBookQuoteReceipt, type PaperOrderBookQuoteReceipt } from "./paperOrderBookQuoteReceipt";
 import { guardCashInvestmentAllocation } from "../../mobile/src/capitalAllocationGuard";
+import { assertPaperAccountingReconciled } from "./paperAccountingLedger";
 import { createPaperOrderLifecycle, transitionPaperOrderLifecycle, validatePaperOrderLifecycle, type PaperOrderLifecycleState } from "./paperOrderLifecycle";
 
 const ACCOUNT_ID = "paper-default";
@@ -142,7 +143,7 @@ export interface PaperAccountState {
   readonly workingOrders?: readonly PaperWorkingOrderRecord[];
   readonly updatedAt: number;
 }
-export interface PaperAccountRepository { save(state: PaperAccountState): void; loadLatest(): PaperAccountState | undefined; clear(): void; close?: () => void; }
+export interface PaperAccountRepository { save(state: PaperAccountState): void; loadLatest(): PaperAccountState | undefined; loadHistory?: () => readonly PaperAccountState[]; clear(): void; close?: () => void; }
 
 export interface PaperWriterLeaseOptions {
   readonly now?: () => number;
@@ -207,6 +208,19 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
       this.db.connection.prepare("UPDATE cloud_paper_accounts SET status = 'CORRUPTED' WHERE account_id = ?").run(ACCOUNT_ID);
       throw error;
     }
+  }
+  public loadHistory(): readonly PaperAccountState[] {
+    this.assertLeaseHeld();
+    const rows = this.db.connection.prepare(
+      "SELECT schema_version, updated_at, state_json, checksum FROM cloud_paper_account_history WHERE account_id = ? ORDER BY updated_at ASC"
+    ).all(ACCOUNT_ID) as Array<Record<string, string | number | null>>;
+    return Object.freeze(rows.map((row) => {
+      if (Number(row.schema_version) !== SCHEMA_VERSION) throw new Error("unsupported paper account history schema");
+      const state = JSON.parse(String(row.state_json)) as PaperAccountState;
+      validateState(state);
+      if (Number(row.updated_at) !== state.updatedAt || String(row.checksum) !== accountChecksum(state)) throw new Error("paper account history checksum mismatch");
+      return state;
+    }));
   }
   public clear(): void { this.db.transaction(() => { this.assertLeaseHeld(); this.db.connection.prepare("DELETE FROM cloud_paper_accounts WHERE account_id = ?").run(ACCOUNT_ID); }); }
   public close(): void {
@@ -377,6 +391,26 @@ function validateState(state: PaperAccountState): void {
     if (quantity !== order.lifecycle.filledQuantity || fills.some((fill) => fill.market !== order.market || fill.side !== order.side)) throw new Error("paper working order/fill reconciliation mismatch");
   }
   if (state.processedIdempotencyKeys.some((key) => !key.trim()) || new Set(state.processedIdempotencyKeys).size !== state.processedIdempotencyKeys.length || state.orders.some((order) => !state.processedIdempotencyKeys.includes(order.idempotencyKey)) || (state.workingOrders ?? []).some((order) => !state.processedIdempotencyKeys.includes(order.idempotencyKey))) throw new Error("paper idempotency ledger mismatch");
+  // Strict accounting replay is valid only while the bounded order history still represents
+  // every processed execution identity. Open/cancelled orders may legitimately have zero fills,
+  // and one order may have multiple partial fills, so fill-count equality is not a valid gate.
+  const representedIdempotencyKeys = new Set([
+    ...state.orders.map((order) => order.idempotencyKey),
+    ...(state.workingOrders ?? []).map((order) => order.idempotencyKey)
+  ]);
+  const completeExecutionHistory =
+    state.processedIdempotencyKeys.length > 0
+    && representedIdempotencyKeys.size === state.processedIdempotencyKeys.length
+    && state.processedIdempotencyKeys.every((key) => representedIdempotencyKeys.has(key));
+  if (completeExecutionHistory) {
+    assertPaperAccountingReconciled({
+      initialCapital: state.initialCapital,
+      fills: state.fills,
+      cash: state.cash,
+      realizedPnL: state.realizedPnL,
+      positions: state.positions
+    });
+  }
   const expectedEquity = round8(state.cash + state.positions.reduce((sum, position) => sum + position.quantity * position.markPrice, 0));
   const expectedUnrealized = round8(state.positions.reduce((sum, position) => sum + position.unrealizedPnL, 0));
   if (state.equity !== expectedEquity || state.unrealizedPnL !== expectedUnrealized) throw new Error("paper account projection mismatch");
