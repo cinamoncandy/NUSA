@@ -90,15 +90,14 @@ test("오늘 is only allowed with proven daily basis", () => {
   assert.equal(buildHomeStatusRail(input({ hasDailyPnlBasis: false })).pnlBasisLabel, "누적");
 });
 
-test("production HomeView wires the status rail and keeps cumulative PnL truth explicit", () => {
+test("production HomeView keeps the approved authority rail and cumulative PnL truth explicit", () => {
   const home = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "homeView.tsx"), "utf8");
   assert.match(home, /testID="home-status-rail"/);
-  assert.match(home, /buildHomeStatusRail\(/);
-  assert.match(home, /hasDailyPnlBasis:\s*false/);
-  assert.match(home, /\{rail\.marketLine\} · \{rail\.systemLine\}/);
-  assert.match(home, /RISK \{rail\.riskLabel\}/);
-  assert.match(home, /\{rail\.marketLine\} · \{rail\.systemLine\}/);
-  assert.match(home, /TOTAL PNL/);
+  assert.match(home, /PAPER MODE/);
+  assert.match(home, /LIVE: RESTRICTED/);
+  assert.match(home, /testID="home-risk-authority"/);
+  assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
+  assert.match(home, /TOTAL P&L/);
   assert.doesNotMatch(home, />오늘</);
   assert.doesNotMatch(home, /accessibilityLabel="알림"/);
 });
