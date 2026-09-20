@@ -27,8 +27,8 @@ test("Home preserves the canonical Intelligence OS safety-first actions without 
   assert.doesNotMatch(home, /testID="home-next-action-button"/);
 
   assert.match(home, /testID="home-operational-notice"/);
-  assert.match(home, /onPress=\{onGoSettings\}/);
-  assert.doesNotMatch(home, /onAction=\{onGoSettings\}/);
+  assert.match(home, /onPress=\{props\.onGoSettings\}/);
+  assert.doesNotMatch(home, /onAction=\{(?:props\.)?onGoSettings\}/);
   assert.doesNotMatch(home, /<OperationalNotice/);
   assert.match(home, /onNavigate\("Portfolio"\)/);
   assert.match(home, /onNavigate\("AiSignal"\)/);
@@ -51,7 +51,7 @@ test("AI exposes confidence only through the calibrated truth contract", () => {
   assert.match(app, /<AiView ai=\{ai\} error=\{readOnlyError\}/);
   assert.match(app, /<HomeView snapshot=\{snapshot\}/);
   assert.match(app, /const ai = snapshot\?\.ai \?\? null/);
-  assert.match(ai, /calibrationStatus === "CALIBRATED"/);
+  assert.match(ai, /calibrationStatus\s*===\s*"CALIBRATED"/);
   assert.match(ai, /const trusted=calibrated\?percent\(ai\?\.confidence\):"UNVERIFIED"/);
   assert.match(ai, /calibrated\?"CALIBRATED":"UNVERIFIED"/);
   assert.match(ai, /보정되지 않은 출력입니다\. 수익 확률로 표시하지 않습니다\./);
