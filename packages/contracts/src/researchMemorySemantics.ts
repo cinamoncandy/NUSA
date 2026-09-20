@@ -32,6 +32,7 @@ export type ResearchMemoryEvidenceOrigin =
   | "PAPER_FORWARD"
   | "AI_ADVISORY"
   | "HYPOTHESIS_PRIOR"
+  | "EXTERNAL_PRIMARY_SOURCE"
   | "UNKNOWN_UNTRUSTED";
 
 export type ResearchMemoryRelationType =
@@ -46,10 +47,12 @@ export type ResearchMemoryArtifactKind =
   | "HYPOTHESIS_LIFECYCLE_EVENT"
   | "EVALUATION_LEDGER_RECORD"
   | "FACTORY_DECISION"
-  | "CLOUD_MEMORY_RECORD";
+  | "CLOUD_MEMORY_RECORD"
+  | "RESEARCH_INTELLIGENCE_RECORD";
 
 export type ResearchMemoryArtifactDigestKind =
   | "CANONICAL_EXISTING_SHA256"
+  | "CANONICAL_RESEARCH_INTELLIGENCE_SHA256_V1"
   | "LEGACY_ARTIFACT_SHA256_V1";
 
 export interface ResearchMemoryArtifactRef {
@@ -149,6 +152,7 @@ export function validateResearchMemoryArtifactRef(ref: ResearchMemoryArtifactRef
   digest(ref.artifactContentSha256, "artifactContentSha256");
   if (
     ref.artifactDigestKind !== "CANONICAL_EXISTING_SHA256" &&
+    ref.artifactDigestKind !== "CANONICAL_RESEARCH_INTELLIGENCE_SHA256_V1" &&
     ref.artifactDigestKind !== "LEGACY_ARTIFACT_SHA256_V1"
   ) {
     throw new Error("unsupported artifact digest kind");
