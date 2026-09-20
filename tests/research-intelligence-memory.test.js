@@ -113,3 +113,27 @@ test("research intelligence memory fails closed on record identity conflict", ()
     db.close();
   }
 });
+
+
+test("persisted payload tampering fails closed against semantic provenance", () => {
+  const db = new SqliteDatabase(":memory:");
+  try {
+    const memory = new SqliteResearchIntelligenceMemoryRepository(db);
+    const original = record("2026-09-20T04:00:00.000Z");
+    memory.append(original);
+
+    db.connection.prepare(
+      "UPDATE research_intelligence_records SET payload_json = ? WHERE record_id = ?",
+    ).run(
+      JSON.stringify({ ...original, claimedContribution: "tampered after persistence" }),
+      original.recordId,
+    );
+
+    assert.throws(
+      () => memory.list(),
+      /semantic provenance mismatch/,
+    );
+  } finally {
+    db.close();
+  }
+});
