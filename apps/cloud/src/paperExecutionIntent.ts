@@ -63,7 +63,7 @@ export function buildPaperExecutionIntent(input: PaperExecutionIntentInput): Pap
     throw new Error("PAPER_EXECUTION_INTENT_CANDIDATE_BINDING_REQUIRED");
   }
 
-  const portfolioCapital = input.portfolio.deployedCapital + input.portfolio.cashCapital;
+  const portfolioCapital = input.portfolio.deployedCapital + input.portfolio.cashCapital + input.portfolio.reservedCapital;
   const tolerance = Math.max(0.01, Math.abs(input.state.equity) * 1e-8);
   if (!Number.isFinite(portfolioCapital) || Math.abs(portfolioCapital - input.state.equity) > tolerance) {
     throw new Error("PAPER_EXECUTION_INTENT_ACCOUNT_PORTFOLIO_MISMATCH");
