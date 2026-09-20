@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const root = path.join(__dirname, "..", "apps", "mobile");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
+
 test("system theme follows device preference and persisted settings are applied", () => {
   const provider = read("src/ThemeProvider.tsx");
   const app = read("App.tsx");
@@ -20,19 +21,21 @@ test("system theme follows device preference and persisted settings are applied"
   assert.match(settings, /if \(!saved\) setMode\(themePreference\(previousTheme\)\)/);
   assert.doesNotMatch(settings, /settings-locale-|언어 선택/);
 });
+
 test("utility navigation has an explicit close path and local settings expose guarded real sign-out", () => {
   const app = read("App.tsx");
   const settings = read("src/settingsView.tsx");
   assert.match(app, /testID="utility-navigation"/);
   assert.match(app, /testID="utility-close"/);
   assert.match(app, /const closeUtility = useCallback\(\(\) => setUtilityView\(null\)/);
-  assert.match(settings, /const signOutLocal = \(\) => \{ if \(!isBusyNow\(\)\) \{ setOperatorToken\(""\); onSignOut\?\.\(\); \} \};/);
+  assert.match(settings, /const signOutLocal = \(\) => \{ if \(!isBusyNow\(\)\) \{ setOperatorToken\(""); onSignOut\?\.\(\); \} \};/);
   assert.match(settings, /<NusaButton disabled=\{busy\} label="개인 모드 종료" onPress=\{signOutLocal\} tone="neutral" testID="settings-sign-out" \/>/);
   assert.doesNotMatch(settings, /label="개인 모드 종료" onPress=\{onSignOut\}/);
   assert.match(app, /const handleSignOut = useCallback/);
   assert.match(app, /credentialSession\.clear\(\)/);
   assert.match(app, /signOut\(\)/);
 });
+
 test("not-configured dashboard state is distinct from runtime errors", () => {
   const app = read("App.tsx");
   assert.match(app, /testID="dashboard-connection-required"/);
@@ -44,44 +47,56 @@ test("not-configured dashboard state is distinct from runtime errors", () => {
   assert.match(app, /<AiView ai=\{ai\} error=\{readOnlyError\}/);
   assert.doesNotMatch(app, /error=\{readOnlyError \?\? notConfigured\}/);
 });
-test("Home hierarchy follows the Intelligence OS state-to-learning flow while preserving verified safety", () => {
+
+test("Home hierarchy follows the approved market-to-intelligence flow while preserving verified safety", () => {
   const home = read("src/homeView.tsx");
   const markers = [
     'testID="home-master-rail"',
     'testID="home-status-rail"',
-    'testID="home-now"',
-    'testID="account-hero-card"',
+    'testID="home-market-pulse"',
     'testID="ai-card"',
-    'testID="home-risk-status"',
     'testID="home-decision-stage"',
+    'testID="home-market-breadth"',
+    'testID="home-top-signals"',
+    'testID="home-paper-performance"',
+    'testID="home-capital-limits"',
     'testID="home-operational-notice"',
+    'testID="home-paper-learning"',
+    'testID="home-risk-authority"',
   ];
   for (const marker of markers) assert.match(home, new RegExp(marker));
-  assert.match(home, /PAPER EQUITY/);
-  assert.match(home, /DECISION BASIS/);
-  assert.match(home, /QUICK ACCESS/);
-  assert.match(home, />PORTFOLIO<\/Text>/);
-  assert.match(home, />RISK<\/Text>/);
-  assert.match(home, /buildHomeStatusRail/);
+  assert.match(home, /TOTAL P&L/);
+  assert.match(home, />EQUITY<\/Text>/);
+  assert.match(home, /SIGNAL TERRAIN/);
+  assert.match(home, /<EvidenceRow label="WHY"/);
+  assert.match(home, /<EvidenceRow label="RESULT"/);
+  assert.match(home, /<EvidenceRow label="RISK"/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
   assert.doesNotMatch(home, /label="스케줄러"|label="대기 쓰기"|label="Champion"|label="Challenger"/);
   assert.doesNotMatch(home, /productionMutationAllowed:\s*true|authority:\s*"LIVE"/);
 });
-test("AI hierarchy prioritizes evidence, uncertainty, calibration, and authority", () => {
+
+test("AI hierarchy prioritizes evidence, calibration, risk, provenance, and authority", () => {
   const ai = read("src/aiView.tsx");
-  assert.match(ai, /testID="ai-loading"/);
-  assert.match(ai, /testID="ai-error"/);
-  assert.match(ai, /원시 모델 확률 \(미보정\)/);
-  assert.match(ai, /검증 신뢰도/);
-  assert.match(ai, /불확실성/);
-  assert.match(ai, /보정 상태/);
-  assert.match(ai, /근거와 반대 신호/);
-  assert.match(ai, /외 \{ai\.evidenceReferences\.length - 4\}개 근거/);
-  assert.match(ai, /ZERO AUTHORITY/);
-  assert.match(ai, /AI LIVE 권한/);
-  assert.doesNotMatch(ai, /label="모델"|label="프롬프트"/);
+  assert.match(ai, /testID="ai-screen"/);
+  assert.match(ai, /testID="ai-now"/);
+  assert.match(ai, /SIGNAL DETAIL/);
+  assert.match(ai, /calibrationStatus==="CALIBRATED"/);
+  assert.match(ai, /UNVERIFIED/);
+  assert.match(ai, /testID="ai-thesis-card"/);
+  assert.match(ai, /testID="ai-why"/);
+  assert.match(ai, /testID="ai-result"/);
+  assert.match(ai, /testID="ai-risk"/);
+  assert.match(ai, /testID="ai-learning"/);
+  assert.match(ai, /SIGNAL EVIDENCE/);
+  assert.match(ai, /evidence\.slice\(0,3\)/);
+  assert.match(ai, /counter\.slice\(0,2\)/);
+  assert.match(ai, /PROVENANCE/);
+  assert.match(ai, /AI ZERO AUTHORITY/);
+  assert.match(ai, /SIGNAL IS READ ONLY/);
   assert.doesNotMatch(ai, /ORDER_CREATE|LIVE_EXECUTION|onSubmit/);
 });
+
 test("recoverable states stay actionable while production PAPER observation remains truthful", () => {
   const notifications = read("src/notificationView.tsx");
   const tradingShell = read("src/tradingView.tsx");
