@@ -7,6 +7,7 @@ import type { PortfolioPlan } from "./portfolioOrchestrator";
 import { buildPaperObservedExecutionCostAttribution, buildPaperRuntimeExecutionCostEvidence, validatePaperObservedExecutionCostAttribution, validatePaperObservedExecutionQuote, type PaperObservedExecutionQuote, type PaperRuntimeExecutionCostEvidence, type PaperExecutionCostAttribution } from "./paperRuntimeExecutionCostEvidence";
 import { validatePaperOrderBookQuoteReceipt, type PaperOrderBookQuoteReceipt } from "./paperOrderBookQuoteReceipt";
 import { guardCashInvestmentAllocation } from "../../mobile/src/capitalAllocationGuard";
+import { assertPaperAccountingReconciled } from "./paperAccountingLedger";
 import { createPaperOrderLifecycle, transitionPaperOrderLifecycle, validatePaperOrderLifecycle, type PaperOrderLifecycleState } from "./paperOrderLifecycle";
 
 const ACCOUNT_ID = "paper-default";
@@ -371,6 +372,21 @@ function validateState(state: PaperAccountState): void {
     if (quantity !== order.lifecycle.filledQuantity || fills.some((fill) => fill.market !== order.market || fill.side !== order.side)) throw new Error("paper working order/fill reconciliation mismatch");
   }
   if (state.processedIdempotencyKeys.some((key) => !key.trim()) || new Set(state.processedIdempotencyKeys).size !== state.processedIdempotencyKeys.length || state.orders.some((order) => !state.processedIdempotencyKeys.includes(order.idempotencyKey)) || (state.workingOrders ?? []).some((order) => !state.processedIdempotencyKeys.includes(order.idempotencyKey))) throw new Error("paper idempotency ledger mismatch");
+  // Replay-check only while the retained fill history is still complete enough to be canonical.
+  // Working orders may legitimately have partial fills, so they are excluded from strict terminal reconciliation.
+  if ((state.workingOrders?.length ?? 0) === 0 && state.fills.length > 0 && state.orders.every((order) => order.status === "FILLED")) {
+    try {
+      assertPaperAccountingReconciled({
+        initialCapital: state.initialCapital,
+        fills: state.fills,
+        cash: state.cash,
+        realizedPnL: state.realizedPnL,
+        positions: state.positions
+      });
+    } catch (error) {
+      if (state.orders.length < 1_000 && state.fills.length < 1_000) throw error;
+    }
+  }
   const expectedEquity = round8(state.cash + state.positions.reduce((sum, position) => sum + position.quantity * position.markPrice, 0));
   const expectedUnrealized = round8(state.positions.reduce((sum, position) => sum + position.unrealizedPnL, 0));
   if (state.equity !== expectedEquity || state.unrealizedPnL !== expectedUnrealized) throw new Error("paper account projection mismatch");
