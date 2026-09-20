@@ -161,7 +161,7 @@ function discoverWorkflowFailureOpportunityIds(candidates: readonly unknown[], n
     const run = object(candidate);
     if (!run) continue;
     const conclusion = text(run.conclusion);
-    if (conclusion !== "failure" && conclusion !== "cancelled" && conclusion !== "timed_out") continue;
+    if (conclusion !== "failure" && conclusion !== "timed_out") continue;
     if (text(run.head_branch) !== "main" || text(run.event) === "repository_dispatch") continue;
     const workflowName = text(run.name);
     const runId = positiveInteger(run.id);
@@ -179,7 +179,7 @@ function currentMainFailureRunId(candidates: readonly unknown[], mainSha: string
     const run = object(candidate);
     if (!run) continue;
     const conclusion = text(run.conclusion);
-    if (conclusion !== "failure" && conclusion !== "cancelled" && conclusion !== "timed_out") continue;
+    if (conclusion !== "failure" && conclusion !== "timed_out") continue;
     if (text(run.head_branch) !== "main" || text(run.event) === "repository_dispatch") continue;
     if (text(run.head_sha)?.toLowerCase() !== mainSha.toLowerCase()) continue;
     const runId = positiveInteger(run.id);
@@ -198,7 +198,7 @@ function hasFreshWorkflowFailureSince(candidates: readonly unknown[], observedAt
     const run = object(candidate);
     if (!run) continue;
     const conclusion = text(run.conclusion);
-    if (conclusion !== "failure" && conclusion !== "cancelled" && conclusion !== "timed_out") continue;
+    if (conclusion !== "failure" && conclusion !== "timed_out") continue;
     if (text(run.head_branch) !== "main" || text(run.event) === "repository_dispatch") continue;
     const completedAt = workflowCompletedAt(run);
     if (completedAt && Date.parse(completedAt) >= observedAt) return true;
