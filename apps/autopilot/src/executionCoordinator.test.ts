@@ -337,6 +337,9 @@ describe("persistent control-plane HOLD", () => {
     const duplicate = await coordinator.fetch(request("/acquire", { ...identity, executionId: "exec-redelivery", now: 140, leaseExpiresAt: 240 }));
     assert.equal(duplicate.status, 409);
     assert.equal((await duplicate.json() as { reason: string }).reason, "ALREADY_COMPLETED");
+    const handoffDuplicate = await coordinator.fetch(request("/handoff-or-acquire", { ...identity, executionId: "exec-redelivery", now: 150, leaseExpiresAt: 250 }));
+    assert.equal(handoffDuplicate.status, 409);
+    assert.equal((await handoffDuplicate.json() as { reason: string }).reason, "ALREADY_COMPLETED");
   });
 
   it("completion fails closed before dispatch or for stale identity", async () => {
