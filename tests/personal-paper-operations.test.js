@@ -139,6 +139,22 @@ test("validates freshness and rejects authority tampering", () => {
   assert.throws(() => validatePersonalPaperOperationsSnapshot({ ...result, liveAuthority: "LIVE" }, 1_100, 500), /authority/);
 });
 
+test("builds and validates PAPER operations without structuredClone on Android Hermes", () => {
+  const original = globalThis.structuredClone;
+  try {
+    globalThis.structuredClone = undefined;
+    const result = snapshot();
+    const validated = validatePersonalPaperOperationsSnapshot(result, 1_100, 500);
+    assert.equal(validated.schemaVersion, 1);
+    assert.equal(validated.liveAuthority, "NONE");
+    assert.equal(validated.productionMutationAllowed, false);
+    assert.ok(Object.isFrozen(validated));
+    assert.ok(Object.isFrozen(validated.dashboard));
+  } finally {
+    globalThis.structuredClone = original;
+  }
+});
+
 test("authenticated endpoint is GET-only, scope-bound, and read-only", () => {
   const value = snapshot();
   const verifier = { verify: token => token === "ok" ? { userId: "owner", scopes: ["dashboard:read"] } : undefined };
