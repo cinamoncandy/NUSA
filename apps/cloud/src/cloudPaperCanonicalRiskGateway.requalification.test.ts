@@ -1,20 +1,23 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { CLOUD_PAPER_RISK_LIMITS } from "./cloudPaperCanonicalRiskGateway";
 
 const EXPECTED_RISK_BLOB = "4a8533cb3ef81223f5b249b03619c50d0c28811e";
 
-function gitBlobSha(content: string): string {
-  const body = Buffer.from(content, "utf8");
-  return createHash("sha1").update(`blob ${body.length}\0`, "utf8").update(body).digest("hex");
+function committedGitBlobSha(path: string): string {
+  return execFileSync("git", ["rev-parse", `HEAD:${path}`], {
+    cwd: process.cwd(),
+    encoding: "utf8"
+  }).trim();
 }
 
 describe("RISK exact-source re-qualification evidence", () => {
   it("binds evidence to the exact canonical RISK source blob", () => {
-    const source = readFileSync("apps/cloud/src/cloudPaperCanonicalRiskGateway.ts", "utf8");
-    assert.equal(gitBlobSha(source), EXPECTED_RISK_BLOB);
+    const sourcePath = "apps/cloud/src/cloudPaperCanonicalRiskGateway.ts";
+    readFileSync(sourcePath, "utf8");
+    assert.equal(committedGitBlobSha(sourcePath), EXPECTED_RISK_BLOB);
   });
 
   it("verifies exactly four CANCELLED-order exclusions", () => {
