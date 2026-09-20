@@ -18,7 +18,11 @@ set -euo pipefail
 readonly DEPLOY_ROOT=/opt/nusa
 readonly RELEASES="${DEPLOY_ROOT}/releases"
 readonly SERVICE=nusa.service
+readonly RESEARCH_SERVICE=nusa-research.service
+readonly RESEARCH_TIMER=nusa-research.timer
+readonly AUTOPILOT_SERVICE=nusa-autopilot.service
 readonly SERVICE_USER=nusa
+readonly SYSTEMD_UNIT_DIR=/etc/systemd/system
 
 die() { printf '%s\n' "nusa-release-step: $*" >&2; exit 1; }
 
@@ -41,6 +45,38 @@ script_in() {
   printf '%s' "$path"
 }
 
+unit_in() {
+  local dir="$1" name="$2" path="${dir}/deploy/oracle/${name}"
+  [ -f "$path" ] || die "missing ${name} in ${dir}"
+  printf '%s' "$path"
+}
+
+install_units_from_release() {
+  local dir="$1"
+  [ -d "$dir" ] || die "release directory missing: ${dir}"
+  install -o root -g root -m 0644 "$(unit_in "$dir" nusa.service)" "${SYSTEMD_UNIT_DIR}/${SERVICE}"
+  install -o root -g root -m 0644 "$(unit_in "$dir" nusa-research.service)" "${SYSTEMD_UNIT_DIR}/${RESEARCH_SERVICE}"
+  install -o root -g root -m 0644 "$(unit_in "$dir" nusa-research.timer)" "${SYSTEMD_UNIT_DIR}/${RESEARCH_TIMER}"
+  install -o root -g root -m 0644 "$(unit_in "$dir" nusa-autopilot.service)" "${SYSTEMD_UNIT_DIR}/${AUTOPILOT_SERVICE}"
+  systemctl daemon-reload
+}
+
+enable_units() {
+  systemctl enable "${SERVICE}" "${RESEARCH_TIMER}" "${AUTOPILOT_SERVICE}"
+}
+
+restart_units() {
+  systemctl restart "${SERVICE}" "${AUTOPILOT_SERVICE}"
+  systemctl start "${RESEARCH_TIMER}"
+}
+
+rollback_and_restore() {
+  NUSA_DEPLOY_ACTION=rollback node "$(script_in "$(active_release)" atomic-deploy.js)"
+  install_units_from_release "$(active_release)"
+  enable_units
+  restart_units
+}
+
 verb="${1:-}"
 shift || true
 
@@ -54,7 +90,15 @@ case "$verb" in
     dir="$(release_dir "$1")"
     [ -d "$dir" ] || die "release not staged: $dir"
     node "$(script_in "$dir" host-security-validate.js)"
-    exec node "$(script_in "$dir" oracle-validate.js)"
+    NUSA_ORACLE_RELEASE_DIR="$dir" exec node "$(script_in "$dir" oracle-validate.js)"
+    ;;
+
+  install-units)
+    validate_sha "${1:-}"
+    dir="$(release_dir "$1")"
+    [ -d "$dir" ] || die "release not staged: $dir"
+    install_units_from_release "$dir"
+    enable_units
     ;;
 
   stage)
@@ -85,7 +129,25 @@ case "$verb" in
 
   restart)
     systemctl daemon-reload
-    exec systemctl restart "$SERVICE"
+    enable_units
+    restart_units
+    ;;
+
+  activate)
+    validate_sha "${1:-}"
+    dir="$(release_dir "$1")"
+    [ -d "$dir" ] || die "release not staged: $dir"
+    NUSA_COMMIT_SHA="$1" node "$(script_in "$dir" atomic-deploy.js)"
+    if ! install_units_from_release "$dir" || ! enable_units || ! restart_units || ! node "$(script_in "$dir" oracle-readiness-check.js)" || ! node "$(script_in "$dir" autopilot-readiness.js)"; then
+      printf '%s\n' "nusa-release-step: activation failed for $1; restoring previous release" >&2
+      rollback_and_restore
+      node "$(script_in "$(active_release)" oracle-readiness-check.js)" || die "rollback PAPER readiness failed"
+      node "$(script_in "$(active_release)" autopilot-readiness.js)" || die "rollback Autopilot readiness failed"
+      exit 1
+    fi
+    systemctl is-active --quiet "$SERVICE" || die "PAPER service is not active after activation"
+    systemctl is-active --quiet "$AUTOPILOT_SERVICE" || die "Autopilot service is not active after activation"
+    printf '%s\n' "nusa-release-step: activation accepted for $1"
     ;;
 
   readiness)
@@ -93,6 +155,6 @@ case "$verb" in
     ;;
 
   *)
-    die "unknown verb '${verb}'. Expected: backup|preflight|stage|switch|rollback|restart|readiness"
+    die "unknown verb '${verb}'. Expected: backup|preflight|stage|install-units|switch|activate|rollback|restart|readiness"
     ;;
 esac
