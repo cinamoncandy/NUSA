@@ -23,7 +23,9 @@ const AUTHORITY = Object.freeze({
 });
 
 const SHA40 = /^[0-9a-f]{40}$/i;
-const MAX_PORTFOLIO_ITEMS = 2;
+// Runtime remains single-dispatch until discovery supplies truthful touched-file/owner
+// metadata. The canonical queue supports portfolios, but unknown scope is not proof of independence.
+const MAX_PORTFOLIO_ITEMS = 1;
 
 export interface DevelopmentPortfolioDispatchResult {
   readonly status: "ABSTAINED" | "NO_READY_WORK" | "PARTIAL" | "EXECUTION_ACCEPTED" | "EXECUTION_FAILED" | "DUPLICATE_SUPPRESSED";
@@ -127,9 +129,15 @@ export async function dispatchDevelopmentPortfolio(
   const extended = extendQueue(existing, input.signals, input.now);
   if (extended !== existing) await writePersistentDevelopmentQueue(input.coordinator, input.repository, extended);
 
+  const portfolioIdentity = input.signals
+    .map((signal) => signal.id)
+    .sort()
+    .join("|")
+    .replace(/[^A-Za-z0-9_.:|+-]+/g, "-")
+    .slice(0, 320);
   const allocation = claimNusaDevelopmentWorkPortfolio(extended, {
     owner: "autopilot-evolve",
-    requestId: `portfolio:${input.mainSha}:${input.workflowRunId}`,
+    requestId: `portfolio:${input.mainSha}:${input.workflowRunId}:${portfolioIdentity}`,
     expectedRevision: extended.revision,
     now: input.now,
     leaseMs: 5 * 60 * 1000,
@@ -147,6 +155,7 @@ export async function dispatchDevelopmentPortfolio(
   let queue = allocation.queue;
   let dispatchedCount = 0;
   let duplicateCount = 0;
+  let duplicateReason: string | null = null;
   const selectedSignalIds: string[] = [];
 
   for (const item of allocation.items) {
@@ -156,8 +165,28 @@ export async function dispatchDevelopmentPortfolio(
       continue;
     }
 
-    const executionId = `evolve-coding:${input.mainSha.slice(0, 16)}:${item.id.replace(/[^A-Za-z0-9_.:-]+/g, "-").slice(0, 100)}`;
-    const dedupeKey = `evolve-coding:${input.mainSha}:${item.id}`;
+    // Queue identity may evolve independently, but execution/dedupe identity must remain
+    // byte-compatible with the pre-portfolio logical-work contract.
+    const logicalWorkIdentity = signal.id.replace(/[^A-Za-z0-9_.:-]+/g, "-").slice(0, 180) || "no-signal";
+    const executionId = `evolve-coding:${input.mainSha.slice(0, 16)}:${logicalWorkIdentity.slice(0, 100)}`;
+    const dedupeKey = `evolve-coding:${input.mainSha}:${logicalWorkIdentity}`;
+    let currentExecution;
+    try {
+      currentExecution = await readPersistentExecution(input.coordinator, dedupeKey);
+    } catch {
+      queue = transitionNusaDevelopmentWork(queue, item.id, "READY", input.now);
+      await writePersistentDevelopmentQueue(input.coordinator, input.repository, queue);
+      return result("ABSTAINED", "persistent-execution-state-unavailable", allocation.claimedCount, dispatchedCount, selectedSignalIds, queue.revision);
+    }
+    const activeExecutions = currentExecution
+      && (currentExecution.state === "LEASED" || currentExecution.state === "HANDED_OFF")
+      && currentExecution.leaseExpiresAt > input.now
+      ? 1
+      : 0;
+    const elapsedSecondsSinceLastRun = currentExecution
+      ? Math.max(0, Math.floor((input.now - currentExecution.updatedAt) / 1000))
+      : Number.MAX_SAFE_INTEGER;
+    const failureSignalCount = input.failureSignalCount ?? input.signals.filter((candidate) => candidate.source.includes("workflow")).length;
     const bridge = prepareDiscoveredCodingRequest({
       signals: [signal],
       now: new Date(input.now),
@@ -174,7 +203,8 @@ export async function dispatchDevelopmentPortfolio(
 
     if (bridge.status !== "READY" || !bridge.request) {
       queue = transitionNusaDevelopmentWork(queue, item.id, "READY", input.now);
-      continue;
+      await writePersistentDevelopmentQueue(input.coordinator, input.repository, queue);
+      return result("ABSTAINED", bridge.reason, allocation.claimedCount, dispatchedCount, [signal.id], queue.revision);
     }
 
     const persistent = await acquirePersistentExecution(input.coordinator, {
@@ -184,8 +214,11 @@ export async function dispatchDevelopmentPortfolio(
       leaseExpiresAt: input.now + 5 * 60 * 1000,
     });
     if (!persistent.acquired) {
-      queue = transitionNusaDevelopmentWork(queue, item.id, "IMPLEMENTING", input.now);
+      if (item.state !== "IMPLEMENTING") {
+        queue = transitionNusaDevelopmentWork(queue, item.id, "IMPLEMENTING", input.now);
+      }
       duplicateCount += 1;
+      duplicateReason ??= persistent.reason ?? "DUPLICATE_EXECUTION";
       selectedSignalIds.push(signal.id);
       continue;
     }
@@ -206,8 +239,8 @@ export async function dispatchDevelopmentPortfolio(
   }
 
   await writePersistentDevelopmentQueue(input.coordinator, input.repository, queue);
-  if (dispatchedCount > 0) return result("EXECUTION_ACCEPTED", "canonical-development-portfolio-dispatched", allocation.claimedCount, dispatchedCount, selectedSignalIds, queue.revision);
-  if (duplicateCount > 0) return result("DUPLICATE_SUPPRESSED", "canonical-development-portfolio-duplicate-suppressed", allocation.claimedCount, 0, selectedSignalIds, queue.revision);
+  if (dispatchedCount > 0) return result("EXECUTION_ACCEPTED", "github-coding-dispatch-accepted", allocation.claimedCount, dispatchedCount, selectedSignalIds, queue.revision);
+  if (duplicateCount > 0) return result("DUPLICATE_SUPPRESSED", duplicateReason ?? "DUPLICATE_EXECUTION", allocation.claimedCount, 0, selectedSignalIds, queue.revision);
   if (allocation.claimedCount > 0) return result("EXECUTION_FAILED", "canonical-development-portfolio-not-dispatched", allocation.claimedCount, 0, selectedSignalIds, queue.revision);
   return result("NO_READY_WORK", "canonical-development-queue-exhausted", 0, 0, [], queue.revision);
 }
