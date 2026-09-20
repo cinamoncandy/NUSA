@@ -86,3 +86,22 @@ test("backlog readiness fails closed for PR wrappers, untrusted authors, unsafe 
   ];
   assert.equal(deriveGithubIssueBacklogReadiness(unsafe, [], NOW).eligibleIssueCount, 0);
 });
+
+
+test("backlog preserves explicit deterministic ownership and conflict metadata", () => {
+  const result = deriveGithubIssueBacklogReadiness([
+    issue({ body: `Implement bounded Autopilot control-plane work. ${SAFETY}\ncanonicalOwner: evolve\nconflictKeys: issue:903,module:apps/autopilot/src` }),
+  ], [], NOW);
+  assert.equal(result.eligibleIssueCount, 1);
+  assert.equal(result.signals[0]?.canonicalOwner, "evolve");
+  assert.deepEqual(result.signals[0]?.conflictKeys, ["issue:903", "module:apps/autopilot/src"]);
+});
+
+test("backlog rejects malformed explicit work metadata fail closed", () => {
+  const invalid = [
+    issue({ number: 910, body: `Autopilot work. ${SAFETY}\ncanonicalOwner: bad owner\nconflictKeys: issue:910` }),
+    issue({ number: 911, body: `Autopilot work. ${SAFETY}\ncanonicalOwner: evolve\nconflictKeys: bad conflict` }),
+    issue({ number: 912, body: `Autopilot work. ${SAFETY}\ncanonicalOwner: evolve\nconflictKeys: issue:912,issue:912` }),
+  ];
+  assert.equal(deriveGithubIssueBacklogReadiness(invalid, [], NOW).eligibleIssueCount, 0);
+});
