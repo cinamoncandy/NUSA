@@ -4,6 +4,7 @@ import worker, {
   classifyGithubEvent,
   computeGithubWebhookSignature,
   handleCodingExecute,
+  handleScheduledRuntimeTick,
   verifyGithubWebhookSignature,
 } from "./index";
 import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
@@ -74,6 +75,20 @@ describe("NUSA autopilot GitHub webhook", () => {
 
     const verified = await worker.fetch(new Request("https://example.test/health"), { NUSA_DEPLOYMENT_REVISION: "a".repeat(40) });
     assert.equal((await verified.json() as { deploymentRevision: string }).deploymentRevision, "a".repeat(40));
+  });
+
+  it("protects the persistent scheduled runtime tick with a dedicated bearer secret", async () => {
+    const request = () => new Request("https://example.test/scheduled/run", { method: "POST" });
+    const missing = await handleScheduledRuntimeTick(request(), {});
+    assert.equal(missing.status, 503);
+    assert.equal((await missing.json() as { reason: string }).reason, "AUTOPILOT_RUNTIME_TOKEN_NOT_CONFIGURED");
+
+    const wrong = await handleScheduledRuntimeTick(new Request("https://example.test/scheduled/run", { method: "POST", headers: { authorization: "Bearer wrong" } }), { NUSA_AUTOPILOT_RUNTIME_TOKEN: "correct" });
+    assert.equal(wrong.status, 401);
+
+    const unavailable = await handleScheduledRuntimeTick(new Request("https://example.test/scheduled/run", { method: "POST", headers: { authorization: "Bearer correct" } }), { NUSA_AUTOPILOT_RUNTIME_TOKEN: "correct" });
+    assert.equal(unavailable.status, 503);
+    assert.equal((await unavailable.json() as { reason: string }).reason, "PERSISTENT_EXECUTION_COORDINATOR_REQUIRED");
   });
 
   it("verifies the exact request body with HMAC SHA-256", async () => {
