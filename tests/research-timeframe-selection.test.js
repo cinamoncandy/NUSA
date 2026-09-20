@@ -4,6 +4,8 @@ const {
   RESEARCH_TIMEFRAMES,
   RESEARCH_MARKET_SET_VERSION,
   researchTimeframe,
+  researchCandleCount,
+  declaredResearchCandleCount,
 } = require("../scripts/research-real-market-run.js");
 
 test("timeframe defaults to daily when unset", () => {
@@ -51,4 +53,27 @@ test("each timeframe declares the depth its contiguity was verified at", () => {
 test("the module resolves its market-set identity from the selected timeframe", () => {
   // Default process env in this test run is unset, so the daily identity must be in force.
   assert.equal(RESEARCH_MARKET_SET_VERSION, RESEARCH_TIMEFRAMES["1d"].marketSetVersion);
+});
+
+test("low-level pagination depth remains bounded without manufacturing an availability claim", () => {
+  assert.equal(researchCandleCount("200"), 200);
+  assert.equal(researchCandleCount("201"), 201);
+  assert.equal(researchCandleCount("400"), 400);
+  assert.throws(() => researchCandleCount("199"), /integer from 200/);
+});
+
+test("runtime candle depth must exactly match the timeframe availability declaration", () => {
+  assert.equal(declaredResearchCandleCount(undefined, "1d"), 2000);
+  assert.equal(declaredResearchCandleCount("2000", "1d"), 2000);
+  assert.equal(declaredResearchCandleCount("1500", "60m"), 1500);
+  assert.equal(declaredResearchCandleCount("4000", "240m"), 4000);
+
+  assert.throws(() => declaredResearchCandleCount("500", "1d"), /not covered by upbit-public-daily-2000-v2/);
+  assert.throws(() => declaredResearchCandleCount("1700", "60m"), /not covered by upbit-public-minute60-1500-v1/);
+  assert.throws(() => declaredResearchCandleCount("1500", "240m"), /not covered by upbit-public-minute240-4000-v1/);
+});
+
+test("runtime candle depth rejects malformed and undeclared timeframe values", () => {
+  assert.throws(() => declaredResearchCandleCount("abc", "1d"), /must be an integer/);
+  assert.throws(() => declaredResearchCandleCount("2000", "5m"), /requires a declared timeframe/);
 });
