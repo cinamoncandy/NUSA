@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { PaperTradingExecutionLoop } = require("../dist/apps/cloud/src/paperTradingExecutionLoop.js");
 const { CloudPaperExecutionBoundary } = require("../dist/apps/cloud/src/cloudPaperExecutionBoundary.js");
+const { buildPaperObservedExecutionQuote } = require("../dist/apps/cloud/src/paperRuntimeExecutionCostEvidence.js");
 
 const genericDecision = Object.freeze({
   symbol: "KRW-BTC",
@@ -138,6 +139,37 @@ test("PortfolioPlan capital is the canonical BUY sizing source even when CIO dec
   assert.equal(result.fills[0].executionIntent.allocationCapital, 1_000_000);
   assert.equal(result.fills[0].executionIntent.candidateId, "sma-5-20");
   assert.equal(loop.snapshot().cash, 9_000_000);
+});
+
+test("fresh public orderbook depth executes BUY at VWAP without exceeding execution-intent capital", () => {
+  const { loop, boundary, evaluations, lastRiskRequest } = build("ALLOW");
+  const observedQuote = buildPaperObservedExecutionQuote({
+    market: "KRW-BTC",
+    observedAt: 1_900,
+    totalAskSize: 0.05,
+    totalBidSize: 0.05,
+    units: [Object.freeze({ askPrice: 55_000_000, bidPrice: 54_000_000, askSize: 0.05, bidSize: 0.05 })]
+  });
+  const result = boundary.processTick(Object.freeze({ ...tick, observedQuote }));
+  assert.equal(evaluations(), 1);
+  assert.equal(result.status, "FILLED");
+  assert.equal(result.fills.length, 1);
+  const fill = result.fills[0];
+  assert.equal(fill.price, 55_000_000);
+  assert.ok(fill.quantity < fill.executionIntent.quantity);
+  assert.ok(fill.quantity * fill.price <= fill.executionIntent.allocationCapital + 1e-6);
+  assert.equal(fill.orderBookExecutionReceipt.model, "DEPTH_VWAP_V1");
+  assert.equal(fill.orderBookExecutionReceipt.budgetLimited, true);
+  assert.equal(fill.orderBookExecutionReceipt.requestedQuantity, fill.executionIntent.quantity);
+  assert.equal(fill.orderBookExecutionReceipt.filledQuantity, fill.quantity);
+  assert.equal(fill.orderBookExecutionReceipt.quoteFingerprintSha256, fill.orderBookQuoteReceipt.fingerprintSha256);
+  assert.equal(lastRiskRequest().quantity, fill.executionIntent.quantity);
+  assert.equal(lastRiskRequest().payloadFingerprintSha256, fill.executionIntent.intentFingerprintSha256);
+
+  // Re-validating as restored state proves the intent-target quantity may exceed the budget-capped
+  // observed fill only when the canonical depth receipt explains the difference.
+  const restored = new PaperTradingExecutionLoop({ initialCapital: 10_000_000, feeRate: 0, restoredState: structuredClone(loop.snapshot()), readP0State: () => ({ openP0: false }) });
+  assert.deepEqual(restored.snapshot(), loop.snapshot());
 });
 
 test("risk request and persisted fill share the exact execution-intent fingerprint", () => {
