@@ -40,6 +40,29 @@ test("bounds transient retries and remains available for the next cycle", async 
   } finally { await fs.rm(directory, { recursive: true, force: true }); }
 });
 
+test("treats a non-dispatched Worker outcome as a bounded failure", async () => {
+  const { directory, file } = await tempState();
+  try {
+    let calls = 0;
+    const runtime = new AutopilotRuntime({ statePath: file, maxAttempts: 3, backoffMs: 0, sleep: async () => {}, tick: async () => { calls += 1; return { status: "EXECUTION_NOT_DISPATCHED", reason: "worker-interface-ready" }; } });
+    const state = await runtime.cycle();
+    assert.equal(calls, 3);
+    assert.equal(state.status, "BLOCKED");
+    assert.equal(state.lastResult.reason, "worker-interface-ready");
+  } finally { await fs.rm(directory, { recursive: true, force: true }); }
+});
+
+test("counts only dispatched work and counts each retry once", async () => {
+  const { directory, file } = await tempState();
+  try {
+    let calls = 0;
+    const runtime = new AutopilotRuntime({ statePath: file, maxAttempts: 3, backoffMs: 0, sleep: async () => {}, tick: async () => { calls += 1; if (calls === 1) throw new Error("temporary"); return { status: "EXECUTION_DISPATCHED", reason: "accepted" }; } });
+    const state = await runtime.cycle();
+    assert.equal(state.retryCount, 1);
+    assert.equal(state.completedCount, 1);
+  } finally { await fs.rm(directory, { recursive: true, force: true }); }
+});
+
 test("corrupt state fails closed without dispatching a task", async () => {
   const { directory, file } = await tempState();
   try {
