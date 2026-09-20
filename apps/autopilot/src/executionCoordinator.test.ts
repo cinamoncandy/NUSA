@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { acquirePersistentExecution, applyPersistentControlPlaneHold, clearPersistentControlPlaneHold, ExecutionCoordinator, handoffOrAcquirePersistentExecution, markPersistentExecutionDispatched, readPersistentControlPlaneHold, releasePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, admitActiveWip, applyPersistentControlPlaneHold, clearPersistentControlPlaneHold, completeActiveWip, ExecutionCoordinator, handoffOrAcquirePersistentExecution, markPersistentExecutionDispatched, readActiveWip, readPersistentControlPlaneHold, releasePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
 
 class MemoryStorage {
@@ -251,6 +251,62 @@ describe("persistent execution coordination", () => {
     assert.equal(body.history.length, 32);
     assert.equal(body.history[0]?.recordedAtMs, 1_001);
     assert.equal(body.history.at(-1)?.recordedAtMs, 1_032);
+  });
+});
+
+
+describe("active WIP coordination", () => {
+  function namespace(storage = new MemoryStorage()): ExecutionCoordinatorNamespace {
+    const coordinator = new ExecutionCoordinator({ storage });
+    return { idFromName: (name) => ({ name }), get: () => ({ fetch: (input, init) => coordinator.fetch(new Request(input, init)) }) };
+  }
+  const claim = (dedupeKey: string, executionId: string, conflictKeys: readonly string[]) => ({
+    dedupeKey, executionId, canonicalOwner: "evolve", conflictKeys, claimedAt: 100, maxConcurrent: 4,
+  });
+
+  it("atomically admits independent work and rejects same-conflict and duplicate races", async () => {
+    const storage = new TransactionalRacyStorage();
+    const ns = namespace(storage as unknown as MemoryStorage);
+    const [left, right] = await Promise.all([
+      admitActiveWip(ns, claim("task:a", "exec:a", ["module:shared"])),
+      admitActiveWip(ns, claim("task:b", "exec:b", ["module:shared"])),
+    ]);
+    assert.equal([left.admitted, right.admitted].filter(Boolean).length, 1);
+    assert.equal([left.reason, right.reason].includes("CONFLICT_KEY_ACTIVE"), true);
+    const duplicate = await Promise.all([
+      admitActiveWip(ns, claim("task:c", "exec:c1", ["module:c1"])),
+      admitActiveWip(ns, claim("task:c", "exec:c2", ["module:c2"])),
+    ]);
+    assert.equal(duplicate.filter((entry) => entry.admitted).length, 1);
+    assert.equal(duplicate.some((entry) => entry.reason === "DEDUPE_CONFLICT"), true);
+  });
+
+  it("allows exact completion replay but rejects unknown and stale execution identities", async () => {
+    const ns = namespace();
+    await admitActiveWip(ns, claim("task:replay", "exec:old", ["module:replay"]));
+    assert.deepEqual(await completeActiveWip(ns, { dedupeKey: "task:replay", executionId: "exec:old", completedAt: 200 }), { completed: true, replayed: false });
+    assert.deepEqual(await completeActiveWip(ns, { dedupeKey: "task:replay", executionId: "exec:old", completedAt: 201 }), { completed: false, replayed: true });
+    await assert.rejects(() => completeActiveWip(ns, { dedupeKey: "never", executionId: "exec:none", completedAt: 202 }), /ACTIVE_WIP_COMPLETION_FAILED/);
+    await admitActiveWip(ns, { ...claim("task:replay", "exec:new", ["module:replay"]), claimedAt: 300 });
+    await assert.rejects(() => completeActiveWip(ns, { dedupeKey: "task:replay", executionId: "exec:old", completedAt: 301 }), /ACTIVE_WIP_COMPLETION_FAILED/);
+    assert.equal((await readActiveWip(ns)).claims[0]?.executionId, "exec:new");
+  });
+
+  it("fails closed on corrupt persisted WIP and validates authority on reads", async () => {
+    const storage = new MemoryStorage();
+    await storage.put("evolve-active-wip-v2", { schemaVersion: 1, claims: [{ dedupeKey: "bad" }], completions: [] });
+    const ns = namespace(storage);
+    await assert.rejects(() => readActiveWip(ns), /ACTIVE_WIP_READ_FAILED/);
+    await assert.rejects(() => readActiveWip(fakeNamespace(200, { claims: [], activeExecutions: 0, liveAuthority: "LIVE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" })), /ACTIVE_WIP_READ_INVALID/);
+  });
+
+  it("bounds active WIP and preserves ZERO_AUTHORITY read evidence", async () => {
+    const ns = namespace();
+    await admitActiveWip(ns, { ...claim("task:1", "exec:1", ["module:1"]), maxConcurrent: 1 });
+    assert.deepEqual(await admitActiveWip(ns, { ...claim("task:2", "exec:2", ["module:2"]), maxConcurrent: 1 }), { admitted: false, reason: "WIP_LIMIT_REACHED" });
+    const snapshot = await readActiveWip(ns);
+    assert.equal(snapshot.activeExecutions, 1);
+    assert.equal(snapshot.claims[0]?.canonicalOwner, "evolve");
   });
 });
 
