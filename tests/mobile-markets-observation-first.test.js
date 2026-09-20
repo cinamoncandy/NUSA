@@ -20,6 +20,17 @@ test("Markets uses observation-first navigation language and authority framing",
   assert.match(source, /segment\("WATCHLIST", "시장 목록", "markets-watchlist-tab"\)/);
 });
 
+test("Markets makes verified public terrain the visual hero without inventing prediction semantics", () => {
+  assert.match(source, /function MarketTerrain/);
+  assert.match(source, /testID="markets-terrain"/);
+  assert.match(source, /MARKET TERRAIN/);
+  assert.match(source, /VERIFIED UPBIT PUBLIC MOVE · NO PREDICTION/);
+  assert.match(source, /terrainHeight\(item\.changeRate\)/);
+  assert.match(source, /item\.market\.replace\("KRW-", ""\)/);
+  assert.match(source, /rate\(item\.changeRate\)/);
+  assert.doesNotMatch(source, /Risk|Neutral|Opportunity|confidence score|profit probability/i);
+});
+
 test("Markets does not overclaim that a selected market is an AI decision or PAPER symbol", () => {
   assert.match(source, /testID="market-observation-context"/);
   assert.match(source, /시장 관측과 PAPER 판단은 분리됩니다/);
