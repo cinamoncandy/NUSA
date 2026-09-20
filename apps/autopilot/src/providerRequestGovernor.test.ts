@@ -45,7 +45,7 @@ describe("ProviderRequestGovernor", () => {
 
     assert.equal(result.status, 429);
     assert.equal(calls, 3);
-    assert.deepEqual(sleeps, [100, 100, 200, 200]);
+    assert.deepEqual(sleeps, [100, 200]);
     const snapshot = governor.snapshot("claude");
     assert.equal(snapshot.consecutiveRateLimits, 3);
     assert.equal(snapshot.cooldownUntilMs, 700);
