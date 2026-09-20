@@ -69,9 +69,14 @@ test("Release re-verifies exact expected head and audited base before merge", ()
   assert.match(workflow, /\.merged == true/);
 });
 
-test("Release explicitly dispatches canonical main CI after a GITHUB_TOKEN merge", () => {
+test("Release reuses an exact-main CI run before dispatching a duplicate", () => {
   assert.match(workflow, /actions:\s*write/);
   assert.match(workflow, /Start canonical post-merge main CI/);
+  assert.match(workflow, /actions\/runs\?head_sha=\$MERGED_MAIN&per_page=100/);
+  assert.match(workflow, /gh api --paginate --slurp/);
+  assert.match(workflow, /\.status == "queued" or \.status == "in_progress" or \.status == "pending"/);
+  assert.match(workflow, /\.status == "completed" and \.conclusion == "success"/);
+  assert.match(workflow, /suppressing duplicate dispatch/);
   assert.match(workflow, /actions\/workflows\/ci\.yml\/dispatches/);
   assert.match(workflow, /-f ref=main/);
   assert.match(workflow, /merged_main/);
