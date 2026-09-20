@@ -444,6 +444,8 @@ export class ExecutionCoordinator {
       if (state.schemaVersion !== 1 || !Array.isArray(state.claims) || state.claims.length > MAX_ACTIVE_WIP) return json({ error: "ACTIVE_WIP_STATE_CORRUPT" }, 500);
       const same = state.claims.find((claim) => claim.dedupeKey === request.dedupeKey);
       if (same) return json({ admitted: false, reason: same.executionId === request.executionId ? "ALREADY_ACTIVE" : "DEDUPE_CONFLICT", claims: state.claims }, 409);
+      const sameExecution = state.claims.find((claim) => claim.executionId === request.executionId);
+      if (sameExecution) return json({ admitted: false, reason: "EXECUTION_ID_CONFLICT", claims: state.claims }, 409);
       if (state.claims.length >= Number(request.maxConcurrent)) return json({ admitted: false, reason: "WIP_LIMIT_REACHED", claims: state.claims }, 409);
       const occupied = new Set(state.claims.flatMap((claim) => [...claim.conflictKeys]));
       if (request.conflictKeys!.some((key) => occupied.has(key))) return json({ admitted: false, reason: "CONFLICT_KEY_ACTIVE", claims: state.claims }, 409);
