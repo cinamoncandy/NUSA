@@ -17,6 +17,7 @@ export interface EvolutionCodingBridgeResult {
   readonly reason: string;
   readonly rejectedSignalIds: readonly string[];
   readonly request: CodingRunnerRequest | null;
+  readonly selectedOpportunityId: string | null;
   readonly authority: {
     readonly liveAuthority: "NONE";
     readonly productionMutationAllowed: false;
@@ -55,6 +56,7 @@ export function prepareDiscoveredCodingRequest(input: EvolutionCodingBridgeInput
       reason: selection.reason,
       rejectedSignalIds: discovery.rejectedSignalIds,
       request: null,
+      selectedOpportunityId: null,
       authority: AUTHORITY,
     });
   }
@@ -65,6 +67,7 @@ export function prepareDiscoveredCodingRequest(input: EvolutionCodingBridgeInput
       reason: "ownership-metadata-required",
       rejectedSignalIds: discovery.rejectedSignalIds,
       request: null,
+      selectedOpportunityId: null,
       authority: AUTHORITY,
     });
   }
@@ -90,6 +93,7 @@ export function prepareDiscoveredCodingRequest(input: EvolutionCodingBridgeInput
     reason: "discovery-selected-for-existing-coding-runner",
     rejectedSignalIds: discovery.rejectedSignalIds,
     request,
+    selectedOpportunityId: selection.selectedOpportunity.id,
     authority: AUTHORITY,
   });
 }
