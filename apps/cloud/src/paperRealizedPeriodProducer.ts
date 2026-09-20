@@ -8,7 +8,7 @@ import {
 } from "../../../packages/storage/src/persistedPaperPeriodStore";
 import type { LeagueCapitalAllocationAdvisory } from "../../../packages/contracts/src/leagueCapitalAllocation";
 import { PaperCanonicalOutcomeReconciliationError, reconcileCanonicalPaperOutcomeWindow } from "./paperCanonicalOutcomeReconciliation";
-import type { PaperAccountState } from "./paperTradingExecutionLoop";
+import type { PaperAccountState, PaperFillRecord } from "./paperTradingExecutionLoop";
 
 export interface PaperRealizedPeriodOpenInput {
   readonly periodId: string;
