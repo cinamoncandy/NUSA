@@ -21,7 +21,20 @@ function input(overrides = {}) {
     claimedAdvantage: "Lower stale-work rate through isolated claims.",
     evidenceStrength: "INDEPENDENT_SUPPORT",
     evidenceRefs: ["benchmark:reference-v1", "docs:architecture-v1"],
-    actualBetterDimensions: ["stale-work rate", "owner-perceived latency"],
+    comparisons: [
+      {
+        dimension: "STALE_WORK_RATE",
+        verdict: "REFERENCE_BETTER",
+        evidenceRefs: ["benchmark:reference-v1"],
+        note: "Reference reports lower stale-work under the compared workload.",
+      },
+      {
+        dimension: "OWNER_PERCEIVED_LATENCY",
+        verdict: "UNKNOWN",
+        evidenceRefs: [],
+        note: "Workload definitions are not yet comparable.",
+      },
+    ],
     principleToAbsorb: ["isolate conflict identities before worker admission"],
     doNotAbsorb: ["agent-count marketing metric"],
     nusaGap: ["current worker admission lacks the same measured isolation evidence"],
@@ -94,4 +107,31 @@ test("non-HTTPS source URLs are rejected", () => {
     () => createReferenceIntelligenceRecord(input({ sourceUrl: "http://example.com/ref" })),
     /sourceUrl must use HTTPS/,
   );
+});
+
+
+test("non-UNKNOWN superiority claims require evidence", () => {
+  assert.throws(
+    () => createReferenceIntelligenceRecord(input({
+      comparisons: [{
+        dimension: "AUTONOMY",
+        verdict: "REFERENCE_BETTER",
+        evidenceRefs: [],
+        note: "unsupported comparison",
+      }],
+    })),
+    /non-UNKNOWN comparison requires evidenceRefs/,
+  );
+});
+
+test("UNKNOWN comparison may preserve an evidence gap without fabricated proof", () => {
+  const record = createReferenceIntelligenceRecord(input({
+    comparisons: [{
+      dimension: "MOBILE_USABILITY",
+      verdict: "UNKNOWN",
+      evidenceRefs: [],
+      note: "No comparable physical-device evidence is available.",
+    }],
+  }));
+  assert.equal(record.comparisons[0].verdict, "UNKNOWN");
 });
