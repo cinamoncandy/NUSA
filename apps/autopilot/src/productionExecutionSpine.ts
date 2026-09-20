@@ -50,10 +50,14 @@ export function prepareProductionExecution(
   if (!safePositiveDuration(leaseTtlMs)) throw new Error("PRODUCTION_EXECUTION_LEASE_TTL_INVALID");
 
   const delivery = boundedId(options.deliveryId);
+  // SHA40 is case-insensitive, so this function accepts a mixed-case head SHA -- and the dedupe key
+  // is what suppresses a second execution for the same commit. Without normalising here, the same
+  // commit in a different case mints a second identity and the suppression silently does nothing.
+  const headSha = dispatch.headSha.toLowerCase();
   const cycleId = `ci:${dispatch.workflowRunId}`;
-  const workItemId = `continue:${dispatch.headSha}`;
+  const workItemId = `continue:${headSha}`;
   const executionId = `github:${delivery}`;
-  const dedupeKey = `ci:${dispatch.workflowRunId}:${dispatch.headSha}`;
+  const dedupeKey = `ci:${dispatch.workflowRunId}:${headSha}`;
 
   let state = createExecutionState({ cycleId, workItemId, executionId, dedupeKey });
   state = acquireExecutionLease(state, "cloudflare:nusa-autopilot", options.now, leaseTtlMs);
@@ -65,7 +69,7 @@ export function prepareProductionExecution(
     dedupeKey,
     origin: options.origin,
     repository: dispatch.repository,
-    baseSha: dispatch.headSha,
+    baseSha: headSha,
     workflowRunId: dispatch.workflowRunId,
     objective: "Continue the highest-value safe NUSA engineering improvement from verified main evidence.",
     acceptanceCriteria: [
@@ -73,7 +77,7 @@ export function prepareProductionExecution(
       "Preserve liveAuthority=NONE, productionMutationAllowed=false, and AI authority=ZERO_AUTHORITY.",
       "Produce auditable GitHub evidence for any repository change.",
     ],
-    evidenceRefs: [`github:workflow-run:${dispatch.workflowRunId}`, `github:commit:${dispatch.headSha}`],
+    evidenceRefs: [`github:workflow-run:${dispatch.workflowRunId}`, `github:commit:${headSha}`],
     allowedScope: ["apps/autopilot/", ".github/workflows/", "scripts/"],
     forbiddenScope: ["live-trading", "production-authority", "secrets"],
     maxChangedFiles: 12,
