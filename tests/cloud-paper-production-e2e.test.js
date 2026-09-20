@@ -122,7 +122,7 @@ function createHarness() {
 function closeHarness(harness) {
   try { harness.repository.close(); } catch {}
   try { harness.db.close(); } catch {}
-  fs.rmSync(harness.directory, { recursive: true, force: true });
+  fs.rmSync(harness.directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 }
 
 function projectOrders(state) {
@@ -169,6 +169,8 @@ function projectPortfolio(state) {
 
 test("production PAPER path executes BUY then SELL through challenger-bound decision, canonical risk, accounting, SQLite reopen, and mobile operations authority", () => {
   const harness = createHarness();
+  let reopenedDb;
+  let reopenedRepository;
   try {
     const buyDashboard = harness.hydrate(0.03, 50_000);
     assert.equal(buyDashboard.overallHealth, "HEALTHY");
@@ -250,14 +252,18 @@ test("production PAPER path executes BUY then SELL through challenger-bound deci
     const expected = structuredClone(finalState);
     harness.repository.close();
     harness.db.close();
-    const reopenedDb = new SqliteDatabase(harness.databasePath);
-    const reopenedRepository = new SqliteCloudPaperAccountRepository(reopenedDb, { now: () => harness.now() });
+    reopenedDb = new SqliteDatabase(harness.databasePath);
+    reopenedRepository = new SqliteCloudPaperAccountRepository(reopenedDb, { now: () => harness.now() });
     const restored = new PaperTradingExecutionLoop({ initialCapital: 100_000, repository: reopenedRepository, readP0State: () => ({ openP0: false }) });
     assert.deepEqual(restored.snapshot(), expected);
     reopenedRepository.close();
     reopenedDb.close();
+    reopenedRepository = undefined;
+    reopenedDb = undefined;
   } finally {
-    fs.rmSync(harness.directory, { recursive: true, force: true });
+    try { reopenedRepository?.close(); } catch {}
+    try { reopenedDb?.close(); } catch {}
+    closeHarness(harness);
   }
 });
 
