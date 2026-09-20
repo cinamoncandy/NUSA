@@ -154,7 +154,6 @@ public final class NusaOwnerDeviceCredentialModule extends ReactContextBaseJavaM
     try {
       if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) throw new IllegalStateException("Android Keystore is unavailable");
       String previous = preferences.getString(SILENT_ACTIVE_ID, null);
-      if (previous != null) deleteSilentAlias(previous);
       credentialId = UUID.randomUUID().toString().replace("-", "") + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
       KeyPairGenerator generator = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, "AndroidKeyStore");
       KeyGenParameterSpec spec = new KeyGenParameterSpec.Builder(silentAlias(credentialId), KeyProperties.PURPOSE_SIGN)
@@ -167,6 +166,7 @@ public final class NusaOwnerDeviceCredentialModule extends ReactContextBaseJavaM
       if (!isSilentHardwareBacked(credentialId)) { deleteSilentAlias(credentialId); throw new IllegalStateException("hardware-backed silent device key is unavailable"); }
       byte[] spki = keyStore().getCertificate(silentAlias(credentialId)).getPublicKey().getEncoded();
       if (!preferences.edit().putString(SILENT_ACTIVE_ID, credentialId).commit()) throw new IllegalStateException("silent device credential metadata write failed");
+      if (previous != null && !previous.equals(credentialId)) { try { deleteSilentAlias(previous); } catch (Exception ignored) {} }
       WritableMap result = Arguments.createMap();
       result.putString("credentialId", credentialId);
       result.putString("publicKeySpki", Base64.encodeToString(spki, Base64.NO_WRAP));
