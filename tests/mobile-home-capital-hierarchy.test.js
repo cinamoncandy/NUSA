@@ -9,6 +9,8 @@ const portfolio = fs.readFileSync(path.join(process.cwd(), "apps/mobile/src/port
 
 test("HOME presents truthful PAPER equity and cumulative PnL in the approved performance block", () => {
   assert.match(home, /testID="account-hero-card"/);
+  assert.match(home, /PAPER EQUITY/);
+  assert.match(home, /testID="home-ai-judgement"/);
   assert.match(home, /PAPER PERFORMANCE/);
   assert.match(home, /won\(account\?\.equity\)/);
   assert.match(home, /TOTAL P&L/);
@@ -16,6 +18,8 @@ test("HOME presents truthful PAPER equity and cumulative PnL in the approved per
   assert.match(home, /const totalPnl = account == null \? null : \(account\.realizedPnl \?\? account\.position\.realizedPnl\) \+ account\.unrealizedPnl/);
   assert.match(decisionSurface, /PAPER P&L .*EQUITY/);
   assert.doesNotMatch(home, />오늘<\/Text>/);
+  assert.doesNotMatch(home, /A MORE|RATIONAL|TOMORROW/);
+  assert.ok(home.indexOf('testID="account-hero-card"') < home.indexOf('testID="home-market-pulse"'));
   assert.doesNotMatch(home, /const equity\s*=\s*10000000|totalPnl\s*=\s*[+-]?\d+(?:\.\d+)?;/);
 });
 
