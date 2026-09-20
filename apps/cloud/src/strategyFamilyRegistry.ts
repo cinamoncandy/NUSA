@@ -113,3 +113,26 @@ export const CANONICAL_INDEPENDENT_ALPHA_FAMILIES = Object.freeze([
   Object.freeze({ familyId: "derivatives.funding-persistence", name: "Funding Persistence Mean Reversion", category: "DERIVATIVES", thesis: "Persistent extreme funding, confirmed by open interest and bounded basis, may mean-revert after costs.", lifecycle: "RESEARCHING" as const }),
   Object.freeze({ familyId: "microstructure.orderbook-imbalance", name: "Orderbook Imbalance", category: "MICROSTRUCTURE", thesis: "Persistent executable order-book pressure and microprice displacement may contain short-horizon directional information after costs.", lifecycle: "RESEARCHING" as const })
 ]);
+
+
+export interface CanonicalIndependentAlphaFamilyBinding {
+  readonly alphaId: "ORDERBOOK_IMBALANCE" | "FUNDING_PERSISTENCE_MEAN_REVERSION";
+  readonly alphaVersion: number;
+  readonly strategyVersion: string;
+  readonly familyId: string;
+  readonly role: "RESEARCH_CANDIDATE";
+}
+
+export const CANONICAL_INDEPENDENT_ALPHA_FAMILY_BINDINGS: readonly CanonicalIndependentAlphaFamilyBinding[] = Object.freeze([
+  Object.freeze({ alphaId: "ORDERBOOK_IMBALANCE", alphaVersion: 1, strategyVersion: "1.0.0", familyId: "microstructure.orderbook-imbalance", role: "RESEARCH_CANDIDATE" as const }),
+  Object.freeze({ alphaId: "FUNDING_PERSISTENCE_MEAN_REVERSION", alphaVersion: 1, strategyVersion: "1.0.0", familyId: "derivatives.funding-persistence", role: "RESEARCH_CANDIDATE" as const })
+]);
+
+export const requireCanonicalIndependentAlphaFamilyBinding = (
+  alphaId: string,
+  alphaVersion: number
+): CanonicalIndependentAlphaFamilyBinding => {
+  const binding = CANONICAL_INDEPENDENT_ALPHA_FAMILY_BINDINGS.find(x => x.alphaId === alphaId && x.alphaVersion === alphaVersion);
+  if (!binding) throw new StrategyFamilyRegistryError("MEMBER_CONFLICT");
+  return binding;
+};
