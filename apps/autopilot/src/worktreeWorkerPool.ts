@@ -221,6 +221,10 @@ export function completeWorkerClaim(state: WorkerPoolState, identity: WorkerIden
   const claim = state.claims.find((candidate) => candidate.task.taskId === identity.taskId);
   if (!claim || claim.workerId !== identity.workerId || claim.task.executionId !== identity.executionId) throw new Error("WORKER_IDENTITY_MISMATCH");
   if (claim.state !== "RUNNING" || claim.startedAt === null) throw new Error("WORKER_NOT_RUNNING");
+  // An expired lease means the allocator already treats this task as recoverable, so accepting the
+  // completion would free a slot this worker no longer holds and would emit throughput metrics for
+  // work another worker may be re-running. A worker that is still alive renews its lease instead.
+  if (claim.leaseExpiresAt <= now) throw new Error("WORKER_LEASE_EXPIRED");
   if (now < claim.startedAt || now < claim.task.queuedAt) throw new Error("WORKER_COMPLETION_TIME_INVALID");
   const metrics: WorkerPoolMetrics = Object.freeze({ taskId: claim.task.taskId, workerId: claim.workerId, queuedAt: claim.task.queuedAt, claimedAt: claim.claimedAt, startedAt: claim.startedAt, completedAt: now, queueWaitMs: claim.claimedAt - claim.task.queuedAt, claimToStartMs: claim.startedAt - claim.claimedAt, claimToCompleteMs: now - claim.claimedAt, totalMs: now - claim.task.queuedAt });
   return Object.freeze({ state: freezeState(state.maxWip, state.claims.filter((candidate) => candidate !== claim)), metrics });

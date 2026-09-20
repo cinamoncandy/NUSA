@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { admitWorkerTask, completeWorkerClaim, createWorkerPoolState, recoverExpiredWorkerClaims, startWorkerClaim, validateWorkerPoolState } from "./worktreeWorkerPool";
+import { admitWorkerTask, completeWorkerClaim, createWorkerPoolState, recoverExpiredWorkerClaims, renewWorkerLease, startWorkerClaim, validateWorkerPoolState } from "./worktreeWorkerPool";
 
 const task = (id: string, overrides: Partial<Parameters<typeof admitWorkerTask>[1]> = {}) => ({
   taskId: id,
@@ -78,6 +78,37 @@ describe("worktree worker pool", () => {
     const completed = completeWorkerClaim(running, { taskId: "one", executionId: "execution:one", workerId: "worker-1" }, 400);
     assert.deepEqual(completed.metrics, { taskId: "one", workerId: "worker-1", queuedAt: 100, claimedAt: 200, startedAt: 250, completedAt: 400, queueWaitMs: 100, claimToStartMs: 50, claimToCompleteMs: 200, totalMs: 300 });
     assert.equal(completed.state.claims.length, 0);
+  });
+
+  it("rejects a completion from a worker whose lease already expired", () => {
+    const admitted = admitWorkerTask(createWorkerPoolState(1), task("one"), "worker-1", 200, 10);
+    assert.equal(admitted.admitted, true);
+    if (!admitted.admitted) return;
+    const running = startWorkerClaim(admitted.state, { taskId: "one", executionId: "execution:one", workerId: "worker-1" }, 205);
+    // The lease died at 210. The allocator agrees this task is recoverable.
+    assert.deepEqual(recoverExpiredWorkerClaims(running, 300).recoveredTaskIds, ["one"]);
+    // So the zombie worker must not be able to close it out and emit throughput for it.
+    assert.throws(() => completeWorkerClaim(running, { taskId: "one", executionId: "execution:one", workerId: "worker-1" }, 300), /WORKER_LEASE_EXPIRED/);
+    // A live worker renews instead, and then completes normally.
+    const renewed = renewWorkerLease(running, { taskId: "one", executionId: "execution:one", workerId: "worker-1" }, 208, 1_000);
+    const completed = completeWorkerClaim(renewed, { taskId: "one", executionId: "execution:one", workerId: "worker-1" }, 300);
+    assert.equal(completed.metrics.completedAt, 300);
+    assert.equal(completed.state.claims.length, 0);
+  });
+
+  it("does not double-count a task that was re-admitted after its lease expired", () => {
+    const first = admitWorkerTask(createWorkerPoolState(1), task("one"), "worker-1", 200, 10);
+    assert.equal(first.admitted, true);
+    if (!first.admitted) return;
+    const running = startWorkerClaim(first.state, { taskId: "one", executionId: "execution:one", workerId: "worker-1" }, 205);
+    const recovered = recoverExpiredWorkerClaims(running, 300);
+    const second = admitWorkerTask(recovered.state, task("one"), "worker-2", 301, 1_000);
+    assert.equal(second.admitted, true);
+    if (!second.admitted) return;
+    // worker-1 comes back from the dead holding its own stale snapshot.
+    assert.throws(() => completeWorkerClaim(running, { taskId: "one", executionId: "execution:one", workerId: "worker-1" }, 400), /WORKER_LEASE_EXPIRED/);
+    // And it cannot complete against the live state either: that claim belongs to worker-2.
+    assert.throws(() => completeWorkerClaim(second.state, { taskId: "one", executionId: "execution:one", workerId: "worker-1" }, 400), /WORKER_IDENTITY_MISMATCH/);
   });
 
   it("rejects corrupt persisted state instead of opening capacity", () => {
