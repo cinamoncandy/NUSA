@@ -7,7 +7,7 @@ const root = path.resolve(__dirname, "..");
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), "utf8");
 
 function expectTabularStyle(source, styleName) {
-  assert.match(source, new RegExp(`${styleName}:\\{[^}]*fontVariant:\\["tabular-nums"\\]`), `${styleName} must use tabular numerals`);
+  assert.match(source, new RegExp(`${styleName}:\\s*\\{[^}]*fontVariant:\\s*\\["tabular-nums"\\]`), `${styleName} must use tabular numerals`);
 }
 
 test("primary financial values use stable tabular numerals in each canonical presentation grammar", () => {
