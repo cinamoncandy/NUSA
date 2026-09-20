@@ -1,8 +1,9 @@
 import { validateCodingRunnerRequest, type CodingRunnerRequest } from "./codingRunner";
-import { selectNextEvolutionOpportunity, type EvolutionAutonomousSelectionInput } from "./evolveAutonomousSelector";
+import { selectNonConflictingEvolutionOpportunities, type EvolutionAutonomousSelectionInput } from "./evolveAutonomousSelector";
 import { discoverEvolutionOpportunities, type EvolutionDiscoverySignal } from "./evolveOpportunityDiscovery";
 
 export interface EvolutionCodingBridgeInput extends Omit<EvolutionAutonomousSelectionInput, "opportunities"> {
+  readonly activeConflictKeys?: readonly string[];
   readonly signals: readonly EvolutionDiscoverySignal[];
   readonly now: Date;
   readonly repository: string;
@@ -40,18 +41,21 @@ const AUTHORITY = Object.freeze({
  */
 export function prepareDiscoveredCodingRequest(input: EvolutionCodingBridgeInput): EvolutionCodingBridgeResult {
   const discovery = discoverEvolutionOpportunities(input.signals, input.now);
-  const selection = selectNextEvolutionOpportunity({
+  const boundedSelection = selectNonConflictingEvolutionOpportunities({
     opportunities: discovery.opportunities,
     circuit: input.circuit,
     schedulePolicy: input.schedulePolicy,
     activeExecutions: input.activeExecutions,
+    activeConflictKeys: input.activeConflictKeys ?? [],
     elapsedSecondsSinceLastRun: input.elapsedSecondsSinceLastRun,
+    maxSelections: 1,
   });
+  const selectedOpportunity = boundedSelection.selectedOpportunities[0] ?? null;
 
-  if (!selection.selectedOpportunity) {
+  if (!selectedOpportunity) {
     return Object.freeze({
       status: "ABSTAINED",
-      reason: selection.reason,
+      reason: boundedSelection.reason,
       rejectedSignalIds: discovery.rejectedSignalIds,
       request: null,
       selectedOpportunityId: null,
@@ -59,7 +63,7 @@ export function prepareDiscoveredCodingRequest(input: EvolutionCodingBridgeInput
     });
   }
 
-  if (!selection.selectedOpportunity.canonicalOwner || !selection.selectedOpportunity.conflictKeys?.length) {
+  if (!selectedOpportunity.canonicalOwner || !selectedOpportunity.conflictKeys?.length) {
     return Object.freeze({
       status: "ABSTAINED",
       reason: "ownership-metadata-required",
@@ -75,11 +79,11 @@ export function prepareDiscoveredCodingRequest(input: EvolutionCodingBridgeInput
     repository: input.repository,
     headSha: input.headSha,
     workflowRunId: input.workflowRunId,
-    reason: `evolve:${selection.selectedOpportunity.id}:${selection.selectedOpportunity.problem}`,
-    executionId: `evolve-coding:${input.headSha.slice(0, 16)}:${selection.selectedOpportunity.id.replace(/[^A-Za-z0-9_.:-]+/g, "-").slice(0, 100)}`,
-    dedupeKey: `evolve-coding:${input.headSha}:${selection.selectedOpportunity.id.replace(/[^A-Za-z0-9_.:-]+/g, "-").slice(0, 180)}`,
-    canonicalOwner: selection.selectedOpportunity.canonicalOwner,
-    conflictKeys: selection.selectedOpportunity.conflictKeys,
+    reason: `evolve:${selectedOpportunity.id}:${selectedOpportunity.problem}`,
+    executionId: `evolve-coding:${input.headSha.slice(0, 16)}:${selectedOpportunity.id.replace(/[^A-Za-z0-9_.:-]+/g, "-").slice(0, 100)}`,
+    dedupeKey: `evolve-coding:${input.headSha}:${selectedOpportunity.id.replace(/[^A-Za-z0-9_.:-]+/g, "-").slice(0, 180)}`,
+    canonicalOwner: selectedOpportunity.canonicalOwner,
+    conflictKeys: selectedOpportunity.conflictKeys,
     mutationAllowed: false,
     liveAuthority: "NONE",
     productionMutationAllowed: false,
@@ -91,7 +95,7 @@ export function prepareDiscoveredCodingRequest(input: EvolutionCodingBridgeInput
     reason: "discovery-selected-for-existing-coding-runner",
     rejectedSignalIds: discovery.rejectedSignalIds,
     request,
-    selectedOpportunityId: selection.selectedOpportunity.id,
+    selectedOpportunityId: selectedOpportunity.id,
     authority: AUTHORITY,
   });
 }
