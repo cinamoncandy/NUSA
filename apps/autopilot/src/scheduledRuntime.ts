@@ -242,9 +242,12 @@ export async function runScheduledAutopilot(env: ScheduledRuntimeEnv, now: numbe
   let workflowRunId: number;
   let discoveredOpportunityIds: readonly string[] = Object.freeze([]);
   try {
-    const [main, runs] = await Promise.all([
+    const [main, runs, canonicalRuns] = await Promise.all([
       githubJson(`https://api.github.com/repos/${repository}/branches/main`, token, fetchImpl),
       githubJson(`https://api.github.com/repos/${repository}/actions/runs?branch=main&status=completed&per_page=50`, token, fetchImpl),
+      // Keep canonical CI lookup independent from high-volume workflow_run/schedule noise.
+      // Filtering to push runs prevents a valid exact-main CI from falling beyond the first page.
+      githubJson(`https://api.github.com/repos/${repository}/actions/runs?branch=main&status=completed&event=push&per_page=50`, token, fetchImpl),
     ]);
     const commit = object(main.commit);
     const resolvedMainSha = text(commit?.sha);
@@ -266,10 +269,11 @@ export async function runScheduledAutopilot(env: ScheduledRuntimeEnv, now: numbe
       }
     }
 
-    const canonical = candidates
+    const canonicalCandidates = Array.isArray(canonicalRuns.workflow_runs) ? canonicalRuns.workflow_runs : [];
+    const canonical = canonicalCandidates
       .map(object)
       .filter((run): run is JsonObject => run !== null)
-      .find((run) => text(run.name) === "CI" && text(run.conclusion) === "success" && text(run.head_branch) === "main" && text(run.head_sha) === mainSha && text(run.event) !== "repository_dispatch");
+      .find((run) => text(run.name) === "CI" && text(run.conclusion) === "success" && text(run.head_branch) === "main" && text(run.head_sha) === mainSha && text(run.event) === "push");
     const resolvedRunId = positiveInteger(canonical?.id);
     if (!canonical || !resolvedRunId) return result("ABSTAINED", "exact-main-canonical-ci-not-found", mainSha, null, null, discoveredOpportunityIds, workSupply);
     workflowRunId = resolvedRunId;
