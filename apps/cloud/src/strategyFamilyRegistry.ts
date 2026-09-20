@@ -76,10 +76,14 @@ export class StrategyFamilyRegistry {
   }
 
   registerMember(member: StrategyFamilyMember): StrategyFamilyMember {
+    return this.registerMemberInternal(member, false);
+  }
+
+  private registerMemberInternal(member: StrategyFamilyMember, allowClosedFamily: boolean): StrategyFamilyMember {
     validateMember(member);
     const family = this.families.get(member.familyId);
     if (!family) throw new StrategyFamilyRegistryError("UNKNOWN_FAMILY");
-    if (family.lifecycle === "SUSPENDED" || family.lifecycle === "RETIRED") throw new StrategyFamilyRegistryError("FAMILY_NOT_ADMITTING_MEMBERS");
+    if (!allowClosedFamily && (family.lifecycle === "SUSPENDED" || family.lifecycle === "RETIRED")) throw new StrategyFamilyRegistryError("FAMILY_NOT_ADMITTING_MEMBERS");
     const key = `${member.strategyId}|${member.version}`;
     const existing = this.members.get(key);
     if (existing) {
@@ -105,7 +109,7 @@ export class StrategyFamilyRegistry {
 
   restore(families: readonly StrategyFamilyDefinition[], members: readonly StrategyFamilyMember[]): void {
     for (const family of [...families].sort((a,b) => a.familyId.localeCompare(b.familyId))) this.registerFamily(family);
-    for (const member of [...members].sort((a,b) => a.familyId.localeCompare(b.familyId) || a.strategyId.localeCompare(b.strategyId) || a.version.localeCompare(b.version))) this.registerMember(member);
+    for (const member of [...members].sort((a,b) => a.familyId.localeCompare(b.familyId) || a.strategyId.localeCompare(b.strategyId) || a.version.localeCompare(b.version))) this.registerMemberInternal(member, true);
   }
 }
 

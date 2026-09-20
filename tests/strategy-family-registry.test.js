@@ -59,6 +59,25 @@ test("suspended and retired families reject new members while preserving restore
 });
 
 
+test("restore replays persisted members for closed families but still blocks new admissions", () => {
+  for (const lifecycle of ["SUSPENDED","RETIRED"]) {
+    const r=new StrategyFamilyRegistry();
+    const closed={...family,lifecycle};
+    r.restore([closed],[member]);
+    assert.deepEqual(r.requireMembership(member.strategyId,member.version,family.familyId),member);
+    assert.throws(()=>r.registerMember({strategyId:"ORDERBOOK_IMBALANCE_NEW",version:"1.0.0",familyId:family.familyId,role:"RESEARCH_CANDIDATE"}), e=>e.code==="FAMILY_NOT_ADMITTING_MEMBERS");
+  }
+});
+
+test("restore keeps champion uniqueness fail-closed for closed families", () => {
+  const r=new StrategyFamilyRegistry();
+  const closed={...family,lifecycle:"SUSPENDED"};
+  assert.throws(()=>r.restore([closed],[
+    {...member,role:"CHAMPION"},
+    {strategyId:"ORDERBOOK_IMBALANCE_V2",version:"2.0.0",familyId:family.familyId,role:"CHAMPION"}
+  ]), e=>e.code==="CHAMPION_CONFLICT");
+});
+
 test("independent alpha bindings are explicit, semver-normalized, and research-candidate only", () => {
   assert.deepEqual(CANONICAL_INDEPENDENT_ALPHA_FAMILY_BINDINGS.map(x=>[x.alphaId,x.alphaVersion,x.strategyVersion,x.familyId,x.role]),[
     ["ORDERBOOK_IMBALANCE",1,"1.0.0","microstructure.orderbook-imbalance","RESEARCH_CANDIDATE"],
