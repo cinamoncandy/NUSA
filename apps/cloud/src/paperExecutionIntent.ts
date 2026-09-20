@@ -95,10 +95,12 @@ export function buildPaperExecutionIntent(input: PaperExecutionIntentInput): Pap
     allocationCapital = Number((allocation.capital * (input.investmentPercent / 100)).toFixed(8));
     allocationShare = Number((allocation.share * (input.investmentPercent / 100)).toFixed(8));
     quantity = round8(allocationCapital / input.referencePrice);
+    if (allocationCapital <= 0 || allocationShare <= 0 || quantity <= 0) throw new Error("PAPER_EXECUTION_INTENT_ALLOCATION_ZERO");
   } else {
     if (allocations.length !== 0) throw new Error("PAPER_EXECUTION_INTENT_EXIT_TARGET_NOT_ZERO");
     const position = input.state.positions.find((item) => item.market === market);
     quantity = round8(position?.quantity ?? 0);
+    if (quantity <= 0) throw new Error("PAPER_EXECUTION_INTENT_POSITION_REQUIRED");
   }
 
   requireFinitePositive(quantity, "quantity");
