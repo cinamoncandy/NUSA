@@ -30,6 +30,7 @@ export interface PaperOrderBookExecutionReceipt {
   readonly vwapPrice: number;
   readonly grossNotional: number;
   readonly budgetLimited: boolean;
+  readonly liquidityLimited: boolean;
   readonly consumedLevels: readonly PaperOrderBookExecutionLevel[];
   readonly fingerprintSha256: string;
 }
@@ -62,6 +63,7 @@ function canonicalCore(receipt: Omit<PaperOrderBookExecutionReceipt, "fingerprin
     vwapPrice: receipt.vwapPrice,
     grossNotional: receipt.grossNotional,
     budgetLimited: receipt.budgetLimited,
+    liquidityLimited: receipt.liquidityLimited,
     consumedLevels: receipt.consumedLevels.map((level) => Object.freeze({ price: level.price, quantity: level.quantity })),
   });
 }
@@ -83,6 +85,7 @@ export function buildPaperOrderBookExecutionReceipt(input: {
   readonly filledAt: number;
   readonly maximumNotional?: number;
   readonly maximumFillRatio?: number;
+  readonly allowLiquidityPartial?: boolean;
 }): PaperOrderBookExecutionReceipt {
   const quote = validatePaperObservedExecutionQuote(input.quote, input.quote.market, input.filledAt);
   const depth = validatePaperObservedExecutionDepth(quote, quote.market, input.filledAt);
@@ -106,6 +109,7 @@ export function buildPaperOrderBookExecutionReceipt(input: {
   let remainingQuantity = requestedQuantity;
   let remainingNotional = maximumNotional ?? Number.POSITIVE_INFINITY;
   let budgetLimited = false;
+  let liquidityLimited = false;
   const consumed: PaperOrderBookExecutionLevel[] = [];
 
   for (const level of rawLevels) {
@@ -144,7 +148,8 @@ export function buildPaperOrderBookExecutionReceipt(input: {
   const totals = consumedTotals(consumed);
   if (totals.quantity <= 0 || totals.notional <= 0) throw new PaperOrderBookExecutionError("INVALID_ORDERBOOK_EXECUTION", "depth sweep produced invalid totals");
   if (remainingQuantity > 1e-8 && !budgetLimited) {
-    throw new PaperOrderBookExecutionError("PAPER_ORDERBOOK_LIQUIDITY_INSUFFICIENT", "public orderbook depth cannot fully satisfy the PAPER target");
+    if (input.allowLiquidityPartial === true) liquidityLimited = true;
+    else throw new PaperOrderBookExecutionError("PAPER_ORDERBOOK_LIQUIDITY_INSUFFICIENT", "public orderbook depth cannot fully satisfy the PAPER target");
   }
   const vwapPrice = round8(totals.notional / totals.quantity);
   const grossNotional = round8(totals.quantity * vwapPrice);
@@ -170,6 +175,7 @@ export function buildPaperOrderBookExecutionReceipt(input: {
     vwapPrice,
     grossNotional,
     budgetLimited,
+    liquidityLimited,
     consumedLevels: Object.freeze(consumed),
   });
   return Object.freeze({ ...core, fingerprintSha256: fingerprint(canonicalCore(core)) });
@@ -258,6 +264,7 @@ export function validatePaperOrderBookExecutionReceipt(
     vwapPrice: receipt.vwapPrice,
     grossNotional: receipt.grossNotional,
     budgetLimited: receipt.budgetLimited,
+    liquidityLimited: receipt.liquidityLimited,
     consumedLevels: receipt.consumedLevels,
   });
   const expectedFingerprint = fingerprint(core);
