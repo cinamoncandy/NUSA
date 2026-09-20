@@ -36,21 +36,10 @@ test("durable PAPER account history reconstructs one canonical accounting source
     heartbeatIntervalMs: 10_000,
   });
   try {
-    let persistenceError: unknown;
-    const instrumentedRepository = {
-      save: (state: Parameters<typeof repository.save>[0]) => {
-        try { repository.save(state); }
-        catch (error) { persistenceError = error; throw error; }
-      },
-      loadLatest: () => repository.loadLatest(),
-      loadHistory: () => repository.loadHistory(),
-      clear: () => repository.clear(),
-    };
-    const loop = new PaperTradingExecutionLoop({ initialCapital: 1_000, feeRate: 0, repository: instrumentedRepository });
-    const first = loop.submitManualOrder(command("history-buy-1"), context(1_000));
-    assert.equal(first.status, "FILLED", persistenceError instanceof Error ? persistenceError.message : "unexpected first PAPER execution failure");
+    const loop = new PaperTradingExecutionLoop({ initialCapital: 1_000, feeRate: 0, repository });
+    assert.equal(loop.submitManualOrder(command("history-buy-order-0001"), context(1_000)).status, "FILLED");
     now = 2_000;
-    assert.equal(loop.submitManualOrder(command("history-buy-2"), context(2_000)).status, "FILLED");
+    assert.equal(loop.submitManualOrder(command("history-buy-order-0002"), context(2_000)).status, "FILLED");
 
     const history = repository.loadHistory();
     assert.equal(history.length, 2);
@@ -78,19 +67,8 @@ test("durable PAPER accounting source fails closed when processed identity has n
     heartbeatIntervalMs: 10_000,
   });
   try {
-    let persistenceError: unknown;
-    const instrumentedRepository = {
-      save: (state: Parameters<typeof repository.save>[0]) => {
-        try { repository.save(state); }
-        catch (error) { persistenceError = error; throw error; }
-      },
-      loadLatest: () => repository.loadLatest(),
-      loadHistory: () => repository.loadHistory(),
-      clear: () => repository.clear(),
-    };
-    const loop = new PaperTradingExecutionLoop({ initialCapital: 1_000, feeRate: 0, repository: instrumentedRepository });
-    const first = loop.submitManualOrder(command("history-buy-1"), context(1_000));
-    assert.equal(first.status, "FILLED", persistenceError instanceof Error ? persistenceError.message : "unexpected PAPER execution failure");
+    const loop = new PaperTradingExecutionLoop({ initialCapital: 1_000, feeRate: 0, repository });
+    assert.equal(loop.submitManualOrder(command("history-buy-order-0001"), context(1_000)).status, "FILLED");
     const history = repository.loadHistory();
     const latest = history.at(-1)!;
     const corrupted = Object.freeze({
