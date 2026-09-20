@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = require("node:fs");
+const { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } = require("node:fs");
 const { join } = require("node:path");
 const { tmpdir } = require("node:os");
 
@@ -121,4 +121,40 @@ test("every acknowledged debt entry names the issue that owns it", () => {
       assert.ok((entry.note ?? "").length > 0, `${rule}:${entry.job} must say what removes it`);
     }
   }
+});
+
+
+test("autopilot execution workflow keeps ownership metadata optional as an exact pair", () => {
+  const workflow = readFileSync(join(process.cwd(), ".github", "workflows", "autopilot-execution-consumer.yml"), "utf8");
+  const validationStart = workflow.indexOf("const hasOwner = payload.canonical_owner");
+  const validationEnd = workflow.indexOf("if (payload.live_authority !== 'NONE')", validationStart);
+  assert.ok(validationStart >= 0 && validationEnd > validationStart, "ownership validation block must exist");
+  const validation = workflow.slice(validationStart, validationEnd);
+
+  const validate = new Function("payload", [
+    "const fail = (message) => { throw new Error(message); };",
+    validation,
+  ].join("\n"));
+
+  assert.doesNotThrow(() => validate({}), "legacy dispatch without ownership remains compatible");
+  assert.throws(
+    () => validate({ canonical_owner: "autopilot.control-plane" }),
+    /must be supplied together/,
+    "owner-only payload fails closed",
+  );
+  assert.throws(
+    () => validate({ conflict_keys: ["module:apps/autopilot/src"] }),
+    /must be supplied together/,
+    "conflict-only payload fails closed",
+  );
+  assert.doesNotThrow(() => validate({
+    canonical_owner: "autopilot.control-plane",
+    conflict_keys: ["module:apps/autopilot/src"],
+  }), "valid owned dispatch is accepted");
+
+  assert.match(
+    workflow,
+    /\.\.\.\(payload\.canonical_owner !== undefined && payload\.canonical_owner !== null \? \{/,
+    "legacy coding request must omit the ownership pair instead of serializing null fields",
+  );
 });
