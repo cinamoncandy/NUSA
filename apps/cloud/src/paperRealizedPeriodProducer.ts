@@ -74,6 +74,8 @@ export interface PaperRealizedPeriodProducerOptions {
   readonly maximumPeriods?: number;
   /** Read-only canonical PAPER account source used by the canonical close path. */
   readonly readCanonicalPaperAccount?: () => PaperAccountState;
+  /** Complete durable PAPER fill truth. Production supplies the canonical repository ledger. */
+  readonly readCanonicalPaperFills?: () => readonly PaperFillRecord[];
   /** Read-only benchmark source; absent means canonical period admission remains fail-closed. */
   readonly readCanonicalBenchmarkEvidence?: (periodStartAt: number, periodEndAt: number, market?: string) => PaperCanonicalBenchmarkEvidence | undefined;
 }
@@ -299,6 +301,18 @@ export class PaperRealizedPeriodProducer {
     return boundaryFromCanonicalAccount(this.readCanonicalAccountState(expectedAt, periodId), expectedAt, periodId);
   }
 
+  private readCanonicalPaperFills(periodId: string): readonly PaperFillRecord[] | undefined {
+    const reader = this.options.readCanonicalPaperFills;
+    if (reader == null) return undefined;
+    try {
+      const fills = reader();
+      if (!Array.isArray(fills)) throw new Error("canonical PAPER fill ledger is invalid");
+      return fills;
+    } catch {
+      throw new PaperRealizedPeriodProducerError("CANONICAL_FILL_LEDGER_UNAVAILABLE", "canonical PAPER fill ledger could not be read", periodId);
+    }
+  }
+
   public observeExecution(observation: PaperRuntimeObservation): "RECORDED" | "DUPLICATE" | "NO_ACTIVE_PERIOD" {
     const normalized = validateObservation(observation);
     if (this.openPeriods.size === 0) return "NO_ACTIVE_PERIOD";
@@ -346,9 +360,16 @@ export class PaperRealizedPeriodProducer {
       if (current.observationIds.length === 0) throw new PaperRealizedPeriodProducerError("PERIOD_OUTCOME_NOT_OBSERVED", "PAPER period cannot be realized without a runtime observation", periodId);
       if (periodEndAt <= current.periodStartAt) throw new PaperRealizedPeriodProducerError("INVALID_PERIOD_BOUNDS", "periodEndAt must be after periodStartAt", periodId);
       const endState = this.readCanonicalAccountState(periodEndAt, periodId);
+      const canonicalFills = this.readCanonicalPaperFills(periodId);
       let receipt: ReturnType<typeof reconcileCanonicalPaperOutcomeWindow>;
       try {
-        receipt = reconcileCanonicalPaperOutcomeWindow({ periodStartAt: current.periodStartAt, periodEndAt, startState: boundaryAsAccountState(current.accountBoundary), endState });
+        receipt = reconcileCanonicalPaperOutcomeWindow({
+          periodStartAt: current.periodStartAt,
+          periodEndAt,
+          startState: boundaryAsAccountState(current.accountBoundary),
+          endState,
+          ...(canonicalFills === undefined ? {} : { canonicalFills }),
+        });
       } catch (error) {
         if (error instanceof PaperCanonicalOutcomeReconciliationError) throw new PaperRealizedPeriodProducerError(error.code, error.message, periodId);
         throw error;
