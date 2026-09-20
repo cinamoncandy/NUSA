@@ -93,6 +93,26 @@ const awaitReadiness = async () => {
   }
 };
 
+
+const awaitExpectedStatus = async (path, expectedStatus) => {
+  const deadline = Date.now() + startupWaitMs;
+  let attempts = 0;
+  let last = { kind: "transport", message: "route probe was not attempted" };
+  for (;;) {
+    attempts += 1;
+    try {
+      const response = await requestStatus(path);
+      if (response.statusCode === expectedStatus) return { ok: true, statusCode: response.statusCode, attempts };
+      last = { kind: "response", actualStatus: response.statusCode };
+    } catch (error) {
+      last = { kind: "transport", message: error instanceof Error ? error.message : "route probe failed" };
+    }
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) return { ok: false, attempts, last };
+    await pause(Math.min(retryDelayMs, remaining));
+  }
+};
+
 const run = async () => {
   const readiness = await awaitReadiness();
   if (!readiness.healthy) {
@@ -103,20 +123,18 @@ const run = async () => {
 
   const routeChecks = [];
   for (const path of REQUIRED_MOBILE_OWNER_AUTH_ROUTES) {
-    let probe;
-    try { probe = await requestStatus(path); } catch (error) {
-      console.error(JSON.stringify({ status: "FAIL", route: path, error: error instanceof Error ? error.message : "mobile owner route probe failed" }));
-      process.exitCode = 1;
-      return;
-    }
     // GET is intentionally used as a non-mutating route-presence probe. The canonical handlers
     // reject it with 405; 404 means this release is stale and cannot serve the mobile client.
-    routeChecks.push({ path, status: probe.statusCode });
-    if (probe.statusCode !== 405) {
-      console.error(JSON.stringify({ status: "FAIL", route: path, expectedStatus: 405, actualStatus: probe.statusCode }));
+    // A freshly started 1 GB host can transiently stop servicing the event loop while bounded
+    // PAPER/Research startup work begins, so retry the exact route within the same bounded
+    // startup contract instead of treating one 5-second transport timeout as proof of absence.
+    const probe = await awaitExpectedStatus(path, 405);
+    if (!probe.ok) {
+      console.error(JSON.stringify({ status: "FAIL", stage: "mobile_owner_route", route: path, expectedStatus: 405, attempts: probe.attempts, last: probe.last }));
       process.exitCode = 1;
       return;
     }
+    routeChecks.push({ path, status: probe.statusCode });
   }
   console.log(JSON.stringify({ status: "PASS", httpStatus: readiness.httpStatus, ready: true, checks: readiness.checks, startupAttempts: readiness.attempts, mobileOwnerAuthRoutes: routeChecks }));
 };

@@ -8,6 +8,6 @@ remediation: Retry the authenticated readiness probe for at most 60 seconds at a
 acceptance:
   - A delayed local bind is accepted within the bounded 60-second startup window.
   - Missing or unhealthy readiness remains rejected after the deadline.
-  - Mobile owner-auth route probes remain mandatory after readiness succeeds.
+  - Mobile owner-auth route probes remain mandatory after readiness succeeds.\n  - Mobile owner-auth route-presence probes also retry transient transport stalls within the same bounded startup contract; a route that never reaches canonical 405 remains rejected.
   - No dashboard token is logged.
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
