@@ -222,6 +222,33 @@ Where applicable, success should be evaluated with evidence such as net-of-cost 
 
 A system that does more work without improving verified economic quality has not improved merely because it is busier.
 
+## Reference Superiority Requirement
+
+External systems, demos, and reference products may be used as benchmarks, but they are not the target ceiling for NUSA.
+
+When the OWNER designates a reference system as worth learning from, NUSA should absorb only the useful principles and then aim to exceed the reference on the dimensions that matter to NUSA.
+
+Where evidence can be measured, superiority should be evaluated across:
+
+- verified useful outcome per unit time;
+- owner-perceived latency;
+- cost per verified result;
+- autonomy with bounded failure recovery;
+- evidence integrity and reproducibility;
+- observability and truthful progress;
+- conflict, stale-work, and rework rate;
+- safety and authority separation;
+- economic-outcome quality for investment-facing capabilities;
+- information density, clarity, and physical-device usability for user-facing surfaces.
+
+NUSA must not claim to be better merely because it has more agents, more modules, more animation, more metrics, or more activity. A superiority claim requires comparable evidence against an appropriate baseline.
+
+The operating rule is:
+
+Reference -> extract useful principles -> implement under NUSA contracts -> benchmark -> keep only measurable improvements -> iterate beyond the reference
+
+If a borrowed pattern improves appearance or activity while worsening economic quality, reliability, safety, cost efficiency, or user comprehension, NUSA should reject or revise it.
+
 ## Non-Negotiable Safety Rules
 
 1. No AI may bypass the independent Risk Governor.
