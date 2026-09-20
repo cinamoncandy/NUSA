@@ -212,7 +212,8 @@ export class CloudPaperExecutionBoundary {
       killSwitchActive: tick.killSwitchActive,
       openP0,
       overallHealth: normalizedHealth(tick.overallHealth),
-      state
+      state,
+      payloadFingerprintSha256: executionIntent.intentFingerprintSha256
     });
     if (risk.status !== "ALLOW") return this.riskResult(risk.status, risk.reasonCodes);
 
