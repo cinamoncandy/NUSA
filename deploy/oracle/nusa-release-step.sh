@@ -59,28 +59,40 @@ unit_in() {
 
 install_units_from_release() {
   local dir="$1"
+  local legacy_ok="${2:-false}"
   [ -d "$dir" ] || die "release directory missing: ${dir}"
   install -o root -g root -m 0644 "$(unit_in "$dir" nusa.service)" "${SYSTEMD_UNIT_DIR}/${SERVICE}"
   install -o root -g root -m 0644 "$(unit_in "$dir" nusa-research.service)" "${SYSTEMD_UNIT_DIR}/${RESEARCH_SERVICE}"
   install -o root -g root -m 0644 "$(unit_in "$dir" nusa-research.timer)" "${SYSTEMD_UNIT_DIR}/${RESEARCH_TIMER}"
-  install -o root -g root -m 0644 "$(unit_in "$dir" nusa-autopilot.service)" "${SYSTEMD_UNIT_DIR}/${AUTOPILOT_SERVICE}"
+  if [ -f "${dir}/deploy/oracle/nusa-autopilot.service" ]; then
+    install -o root -g root -m 0644 "${dir}/deploy/oracle/nusa-autopilot.service" "${SYSTEMD_UNIT_DIR}/${AUTOPILOT_SERVICE}"
+  elif [ "$legacy_ok" = true ]; then
+    systemctl disable --now "${AUTOPILOT_SERVICE}" 2>/dev/null || true
+    rm -f -- "${SYSTEMD_UNIT_DIR}/${AUTOPILOT_SERVICE}"
+  else
+    die "missing nusa-autopilot.service in ${dir}"
+  fi
   systemctl daemon-reload
 }
 
 enable_units() {
-  systemctl enable "${SERVICE}" "${RESEARCH_TIMER}" "${AUTOPILOT_SERVICE}"
+  local legacy_ok="${1:-false}"
+  systemctl enable "${SERVICE}" "${RESEARCH_TIMER}"
+  [ "$legacy_ok" = true ] || systemctl enable "${AUTOPILOT_SERVICE}"
 }
 
 restart_units() {
-  systemctl restart "${SERVICE}" "${AUTOPILOT_SERVICE}"
+  local legacy_ok="${1:-false}"
+  systemctl restart "${SERVICE}"
+  [ "$legacy_ok" = true ] || systemctl restart "${AUTOPILOT_SERVICE}"
   systemctl start "${RESEARCH_TIMER}"
 }
 
 rollback_and_restore() {
   NUSA_DEPLOY_ACTION=rollback node "$(script_in "$(active_release)" atomic-deploy.js)"
-  install_units_from_release "$(active_release)"
-  enable_units
-  restart_units
+  install_units_from_release "$(active_release)" true
+  enable_units true
+  restart_units true
 }
 
 previous_release() {
