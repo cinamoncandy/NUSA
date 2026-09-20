@@ -66,13 +66,13 @@ test("a release that cannot prove either runtime ready is rolled back, not left 
   const activateEnd = wrapper.indexOf("\n  rollback)", activateStart);
   const activateCase = wrapper.slice(activateStart, activateEnd);
   assert.ok(activateCase.length > 0, "activate must be an explicit wrapper case");
-  orderIn(activateCase, ["atomic-deploy.js", "install_units_from_release", "enable_units", "restart_units", "oracle-readiness-check.js", "autopilot-readiness.js"]);
+  orderIn(activateCase, ["atomic-deploy.js", "bind_runtime_source_identity", "install_units_from_release", "enable_units", "restart_units", "oracle-readiness-check.js", "autopilot-readiness.js"]);
   assert.match(activateCase, /rollback_and_restore/, "activation failure must restore the previous release and unit set");
   assert.match(activateCase, /systemctl is-active --quiet "\$SERVICE"/);
   assert.match(activateCase, /systemctl is-active --quiet "\$AUTOPILOT_SERVICE"/);
 
   const rollbackHelper = wrapper.slice(wrapper.indexOf("rollback_and_restore()"), wrapper.indexOf("\n}\n", wrapper.indexOf("rollback_and_restore()")) + 2);
-  orderIn(rollbackHelper, ["NUSA_DEPLOY_ACTION=rollback", "install_units_from_release", "enable_units", "restart_units"]);
+  orderIn(rollbackHelper, ["NUSA_DEPLOY_ACTION=rollback", "bind_runtime_source_identity", "install_units_from_release", "enable_units", "restart_units"]);
   assert.doesNotMatch(wrapper, /scripts\/[a-z0-9-]*restore[a-z0-9-]*\.js/i);
   assert.doesNotMatch(rollbackHelper, /rm\s+-rf\s+\/var\/lib\/nusa|DROP\s+TABLE/i, "the failure path must not touch persistent state");
 });
@@ -84,6 +84,30 @@ test("every privileged action goes through the one wrapper command", () => {
     assert.match(call, /sudo\s+"\$STEP"/, `sudoers must grant one command only, found: ${call}`);
   }
   assert.match(workflow, /STEP: \/opt\/nusa\/bin\/nusa-release-step/);
+});
+
+test("activation and rollback atomically bind runtime source identity to the selected release", () => {
+  const bindStart = wrapper.indexOf("bind_runtime_source_identity()");
+  const bindEnd = wrapper.indexOf("\n}\n", bindStart) + 2;
+  const bind = wrapper.slice(bindStart, bindEnd);
+  assert.ok(bind.length > 0);
+  assert.match(bind, /NUSA_SOURCE_COMMIT=/);
+  assert.match(bind, /NUSA_SOURCE_COMMIT_SHA=/);
+  assert.match(bind, /chmod --reference/);
+  assert.match(bind, /chown --reference/);
+  assert.match(bind, /mv -f -- "\$tmp" "\$RUNTIME_ENV"/);
+  assert.doesNotMatch(bind, /cat\s+"?\$RUNTIME_ENV"?/, "release must never print the secret-bearing runtime environment");
+
+  const activateStart = wrapper.indexOf("  activate)");
+  const activateEnd = wrapper.indexOf("\n  rollback)", activateStart);
+  const activate = wrapper.slice(activateStart, activateEnd);
+  orderIn(activate, ["atomic-deploy.js", "bind_runtime_source_identity", "restart_units"]);
+
+  const rollbackStart = wrapper.indexOf("rollback_and_restore()");
+  const rollbackEnd = wrapper.indexOf("\n}\n", rollbackStart) + 2;
+  const rollback = wrapper.slice(rollbackStart, rollbackEnd);
+  orderIn(rollback, ["NUSA_DEPLOY_ACTION=rollback", "bind_runtime_source_identity", "restart_units"]);
+  assert.match(rollback, /active_release_sha/);
 });
 
 test("the wrapper lives outside the release tree it installs", () => {
