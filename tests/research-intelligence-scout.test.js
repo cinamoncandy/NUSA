@@ -60,6 +60,7 @@ test("real arXiv source snapshot becomes zero-authority AXIOM review input", asy
   assert.equal(record.reproducibilityStatus, "NOT_ATTEMPTED");
   assert.equal(record.nusaRelevance, "HIGH");
   assert.equal(record.researchPriority, "UNSCORED_INSUFFICIENT_EVIDENCE");
+  assert.equal(record.axiomHandoffStatus, "READY_FOR_AXIOM_REVIEW");
   assert.match(record.claimedContribution, /place a LIVE order/);
   assert.equal(record.liveAuthority, "NONE");
   assert.equal(record.productionMutationAllowed, false);
@@ -133,3 +134,26 @@ test("collector failure is observable and cannot fabricate a handoff", async () 
   assert.match(result.sourceErrors[0].reason, /HTTP 503/);
   assert.equal(result.liveAuthority, "NONE");
 });
+
+test("generic workflow portfolio research is collected but not routed as financial alpha research", async () => {
+  const xml = '<?xml version="1.0" encoding="UTF-8"?>' +
+    '<feed xmlns="http://www.w3.org/2005/Atom">' +
+    '<entry>' +
+    '<id>http://arxiv.org/abs/2609.18126v1</id>' +
+    '<published>2026-09-16T05:02:11Z</published>' +
+    '<title>Designing Agentic AI Workflow Portfolios under Imperfect Selection and Compute Cost</title>' +
+    '<summary>We study execution of agentic workflows, compute cost, model selection, and portfolio construction for software tasks.</summary>' +
+    '<author><name>Example Author</name></author>' +
+    '</entry></feed>';
+  const collector = new ArxivResearchIntelligenceCollector({
+    fetchFn: fetchFor(xml, []),
+    now: () => NOW,
+  });
+  const result = await new ResearchIntelligenceScout([collector]).run();
+
+  assert.equal(result.discovered, 1);
+  assert.equal(result.records[0].nusaRelevance, "LOW");
+  assert.equal(result.records[0].axiomHandoffStatus, "NOT_READY");
+  assert.equal(result.axiomHandoffs.length, 0);
+});
+
