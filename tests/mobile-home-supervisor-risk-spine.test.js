@@ -6,15 +6,18 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-test("canonical HOME keeps the content-first command center hierarchy instead of restoring the legacy truth rail", () => {
+test("canonical HOME keeps the approved content-first intelligence hierarchy", () => {
   const home = read("apps/mobile/src/homeView.tsx");
+  const pulse = home.indexOf('testID="home-market-pulse"');
   const ai = home.indexOf('testID="ai-card"');
-  const risk = home.indexOf('testID="home-risk-status"');
   const terrain = home.indexOf('testID="home-decision-stage"');
+  const breadth = home.indexOf('testID="home-market-breadth"');
+  const signals = home.indexOf('testID="home-top-signals"');
   const performance = home.indexOf('testID="home-paper-performance"');
+  const capital = home.indexOf('testID="home-capital-limits"');
   const learning = home.indexOf('testID="home-paper-learning"');
-  assert.ok(ai >= 0 && risk >= 0 && terrain >= 0 && performance >= 0 && learning >= 0);
-  assert.ok(terrain < performance && performance < learning && learning < ai && ai < risk);
+  assert.ok([pulse, ai, terrain, breadth, signals, performance, capital, learning].every((index) => index >= 0));
+  assert.ok(pulse < ai && ai < terrain && terrain < breadth && breadth < signals && signals < performance && performance < capital && capital < learning);
   assert.doesNotMatch(home, /<TruthCell label="(?:NOW|WHY|RESULT|RISK|LEARNING)"/);
 });
 
