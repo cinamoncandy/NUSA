@@ -231,6 +231,9 @@ export async function runScheduledEvolutionCoding(
     elapsedSecondsSinceLastRun,
   });
   if (bridge.status !== "READY" || !bridge.request) return result("ABSTAINED", bridge.reason);
+  if (!bridge.request.canonicalOwner || !bridge.request.conflictKeys?.length) {
+    return result("ABSTAINED", "ownership-metadata-required", signals.map((signal) => signal.id));
+  }
 
   const wip = await admitActiveWip(coordinator, {
     dedupeKey: bridge.request.dedupeKey,
