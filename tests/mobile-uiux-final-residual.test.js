@@ -12,10 +12,10 @@ test("Home preserves the canonical Intelligence OS safety-first actions without 
 
   assert.match(home, /testID="home-screen"/);
   assert.match(home, /testID="home-master-rail"/);
-  assert.match(home, /testID="home-now"/);
+  assert.match(home, /testID="home-market-pulse"/);
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /testID="ai-card"/);
-  assert.match(home, /testID="home-risk-status"/);
+  assert.match(home, /<EvidenceRow label="RISK" value={decision\.risk}/);\n  assert.match(home, /testID="home-risk-authority"/);
   assert.match(home, /testID="home-decision-stage"/);
   assert.match(home, /testID="home-paper-performance"/);
   assert.match(home, /testID="home-paper-learning"/);
@@ -44,25 +44,18 @@ test("Home preserves the canonical Intelligence OS safety-first actions without 
   assert.match(decisionSurface, /const primaryAction: HomeDecisionPrimaryAction/);
 });
 
-test("AI separates uncalibrated raw probability from trusted calibrated confidence", () => {
+test("AI exposes confidence only through the calibrated truth contract", () => {
   const app = read("apps/mobile/App.tsx");
   const ai = read("apps/mobile/src/aiView.tsx");
   assert.match(app, /<AiView ai=\{ai\} error=\{readOnlyError\}/);
   assert.match(app, /<HomeView snapshot=\{snapshot\}/);
-  for (const source of [ai]) {
-    assert.match(source, /원시 모델 확률 \(미보정\)/);
-    assert.match(source, /검증 신뢰도/);
-    assert.match(source, /보정 상태/);
-    assert.doesNotMatch(source, /<DataRow label="신뢰도"/);
-    assert.doesNotMatch(source, /모델 점수 \(미보정\)/);
-  }
   assert.match(app, /const ai = snapshot\?\.ai \?\? null/);
-  assert.match(app, /<AiView ai=\{ai\} error=\{readOnlyError\}/);
   assert.match(ai, /calibrationStatus === "CALIBRATED"/);
-  assert.match(ai, /보정 확률/);
-  assert.match(ai, /원시 모델 확률은 미보정 모델 출력/);
-  assert.match(ai, /검증된 성공 확률이나 성과 보장이 아닙니다/);
-  assert.match(ai, /CALIBRATED일 때만 별도의 검증 신뢰도/);
+  assert.match(ai, /const trusted=calibrated\?percent\(ai\?\.confidence\):"UNVERIFIED"/);
+  assert.match(ai, /calibrated\?"CALIBRATED":"UNVERIFIED"/);
+  assert.match(ai, /보정되지 않은 출력입니다\. 수익 확률로 표시하지 않습니다\./);
+  assert.doesNotMatch(ai, /<DataRow label="신뢰도"/);
+  assert.doesNotMatch(ai, /모델 점수 \(미보정\)/);
 });
 
 test("Residual polish preserves read-only and zero-authority product boundaries", () => {
