@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { PaperAccountPosition, PaperFillRecord } from "./paperTradingExecutionLoop";
+import type { PaperAccountPosition, PaperAccountState, PaperFillRecord } from "./paperTradingExecutionLoop";
 
 const SCALE = 100_000_000n;
 const round8 = (value: number): number => Number(value.toFixed(8));
@@ -137,4 +137,73 @@ export function assertPaperAccountingReconciled(input: {
     throw new Error("PAPER_LEDGER_RECONCILIATION_REQUIRED");
   }
   return projection;
+}
+
+
+export interface DurablePaperAccountingSource {
+  readonly durableCompleteJournal: true;
+  readonly reconciled: true;
+  readonly historyStartAt: number;
+  readonly historyEndAt: number;
+  readonly fills: readonly PaperFillRecord[];
+  readonly projection: PaperAccountingProjection;
+  readonly ledgerFingerprintSha256: string;
+}
+
+function fillIdentity(fill: PaperFillRecord): string {
+  return JSON.stringify(fill);
+}
+
+export function buildDurablePaperAccountingSource(
+  history: readonly PaperAccountState[],
+  throughAt?: number,
+): DurablePaperAccountingSource {
+  if (!Array.isArray(history) || history.length === 0) throw new Error("PAPER_LEDGER_HISTORY_UNAVAILABLE");
+  const ordered = [...history]
+    .filter((state) => throughAt === undefined || state.updatedAt <= throughAt)
+    .sort((left, right) => left.updatedAt - right.updatedAt);
+  if (ordered.length === 0) throw new Error("PAPER_LEDGER_HISTORY_BOUNDARY_MISSING");
+  for (let index = 1; index < ordered.length; index += 1) {
+    if (ordered[index]!.updatedAt <= ordered[index - 1]!.updatedAt) throw new Error("PAPER_LEDGER_HISTORY_CHRONOLOGY_INVALID");
+  }
+  const end = ordered.at(-1)!;
+  if (throughAt !== undefined && end.updatedAt !== throughAt) throw new Error("PAPER_LEDGER_HISTORY_BOUNDARY_MISSING");
+  if (ordered.some((state) => state.version !== 1 || state.initialCapital !== end.initialCapital)) throw new Error("PAPER_LEDGER_HISTORY_ACCOUNT_IDENTITY_MISMATCH");
+
+  const idempotencyToOrderId = new Map<string, string>();
+  const fillsById = new Map<string, PaperFillRecord>();
+  const fillIdentityById = new Map<string, string>();
+  for (const state of ordered) {
+    for (const order of [...state.orders, ...(state.workingOrders ?? [])]) {
+      const previous = idempotencyToOrderId.get(order.idempotencyKey);
+      if (previous != null && previous !== order.id) throw new Error("PAPER_LEDGER_HISTORY_IDEMPOTENCY_CONFLICT");
+      idempotencyToOrderId.set(order.idempotencyKey, order.id);
+    }
+    for (const fill of state.fills) {
+      const identity = fillIdentity(fill);
+      const previous = fillIdentityById.get(fill.id);
+      if (previous != null && previous !== identity) throw new Error("PAPER_LEDGER_HISTORY_FILL_CONFLICT");
+      fillIdentityById.set(fill.id, identity);
+      fillsById.set(fill.id, fill);
+    }
+  }
+  if (end.processedIdempotencyKeys.some((key) => !idempotencyToOrderId.has(key))) throw new Error("PAPER_LEDGER_HISTORY_INCOMPLETE");
+
+  const fills = Object.freeze([...fillsById.values()].sort((left, right) => left.filledAt - right.filledAt || left.id.localeCompare(right.id)));
+  const projection = assertPaperAccountingReconciled({
+    initialCapital: end.initialCapital,
+    fills,
+    cash: end.cash,
+    realizedPnL: end.realizedPnL,
+    positions: end.positions,
+  });
+  return Object.freeze({
+    durableCompleteJournal: true as const,
+    reconciled: true as const,
+    historyStartAt: ordered[0]!.updatedAt,
+    historyEndAt: end.updatedAt,
+    fills,
+    projection,
+    ledgerFingerprintSha256: projection.fingerprintSha256,
+  });
 }
