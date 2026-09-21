@@ -12,6 +12,7 @@ import {
   handoffOrAcquirePersistentExecution,
   applyPersistentControlPlaneHold,
   completePersistentExecution,
+  completeActiveWip,
   markPersistentExecutionDispatched,
   recordAutopilotExecutionTelemetry,
   readAutopilotExecutionTelemetry,
@@ -297,15 +298,23 @@ export async function handleCodingExecute(
       try {
         await recordCodingExecutionEvidence(env.NUSA_EXECUTION_COORDINATOR, evidenceDecision.evidence);
         evidencePersisted = true;
-        if (result.status === "EXECUTION_ACCEPTED") {
+      } catch {
+        console.error(JSON.stringify({ event: "NUSA_CODING_EVIDENCE_PERSIST_FAILED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }));
+      }
+      if (evidencePersisted && result.status === "EXECUTION_ACCEPTED") {
+        try {
+          await completeActiveWip(env.NUSA_EXECUTION_COORDINATOR, {
+            dedupeKey: runnerRequest.dedupeKey,
+            executionId: runnerRequest.executionId,
+          });
           await completePersistentExecution(env.NUSA_EXECUTION_COORDINATOR, {
             dedupeKey: runnerRequest.dedupeKey,
             executionId: runnerRequest.executionId,
             now: Date.now(),
           });
+        } catch {
+          console.error(JSON.stringify({ event: "NUSA_CODING_COMPLETION_RECONCILIATION_FAILED", dedupeKey: runnerRequest.dedupeKey, executionId: runnerRequest.executionId, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }));
         }
-      } catch {
-        console.error(JSON.stringify({ event: "NUSA_CODING_EVIDENCE_PERSIST_FAILED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }));
       }
     }
     return json({ accepted: true, ...result, executionEvidence: evidenceDecision.status === "RECORDED" ? evidenceDecision.evidence : null, executionEvidencePersisted: evidencePersisted, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, result.status === "EXECUTION_FAILED" ? 502 : 202);
