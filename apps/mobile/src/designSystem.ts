@@ -80,6 +80,31 @@ export const wealthProductColors = Object.freeze({
   c66: "#BAC4D4", c67: "#101727", c68: "#62708A", c69: "#74839B", c70: "#0A0D16",
 });
 
+/**
+ * MASTER VISUAL REFERENCE palette, sampled from the owner-provided NUSA concept board rather than
+ * chosen here. The board is the visual source of truth for issue #536; every value below was read
+ * off its pixels.
+ *
+ * The accent is a pale lime. An earlier written directive described this product as
+ * "purple -> blue -> cyan/teal" and listed acid-lime as forbidden; the board it was meant to
+ * describe is lime-accented on near-black, so the board wins per the owner's decision.
+ *
+ * Usage ratio target from #536: 75-80% near-black surface, 15-20% white/grey type and structure,
+ * <=5% accent. The accent is for active state, verified signal and primary action only.
+ */
+export const masterReferenceColors = Object.freeze({
+  /** Board background: near-black with a faint blue-green cast. */
+  canvas: "#091012",
+  /** Primary accent: filled CTA, active navigation, verified chips. Carries dark text. */
+  accent: "#D0F8B0",
+  /** Accent at rest: sparklines, positive deltas, softer active state. */
+  accentSoft: "#9BDBA3",
+  /** Accent mid: gradient stops and secondary markers between accent and accentSoft. */
+  accentMuted: "#B1E6AC",
+  /** Text colour to place on an accent fill. The accent is light, so its foreground is dark. */
+  onAccent: "#0B1210",
+});
+
 export const intelligenceFieldColors = Object.freeze({
   surface: "#060812",
   border: "#202A42",
