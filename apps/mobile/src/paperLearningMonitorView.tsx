@@ -3,7 +3,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimen
 import { NusaButton } from "./components";
 import { useTheme } from "./ThemeProvider";
 import type { PaperLearningScreenState, PaperLearningUiEvent } from "./paperLearningScreen";
-import { AuthorityRail, FactRow, IntelligenceSection, MetricStrip, ScreenLead, StateNotice, type IntelligenceTone } from "./intelligenceOs";
+import { AuthorityRail, FactRow, IntelligenceSection, MetricStrip, StateNotice, type IntelligenceTone } from "./intelligenceOs";
 
 export interface PaperLearningMonitorViewProps {
   readonly state: PaperLearningScreenState;
@@ -197,22 +197,15 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
     <View style={[styles.commandHero, { borderColor: theme.colors.border }]} testID="paper-learning-command-hero">
       <View style={styles.commandHeader}>
         <View style={styles.commandTitleWrap}>
-          <Text style={[styles.commandEyebrow, { color: theme.colors.primary }]}>PAPER SUPERVISION</Text>
-          <Text style={[styles.commandTitle, { color: theme.colors.text }]}>LEARN. VERIFY. ADAPT.</Text>
-          <Text style={[styles.commandDetail, { color: theme.colors.textMuted }]}>실제 PAPER 결과와 학습 근거를 분리해 감독합니다. 이 화면은 주문 권한을 갖지 않습니다.</Text>
+          <Text style={[styles.commandEyebrow, { color: theme.colors.primary }]}>PAPER LEARNING · READ ONLY</Text>
+          <Text style={[styles.commandTitle, { color: theme.colors.text }]}>RESULT / LEARNING</Text>
+          <Text style={[styles.commandDetail, { color: theme.colors.textMuted }]}>실제 PAPER 결과와 검증된 학습 근거만 표시합니다. 주문 권한은 없습니다.</Text>
         </View>
         <View style={[styles.runtimeBadge, { borderColor: runtimeTone === "success" ? theme.colors.primary : theme.colors.warning }]}>
           <View style={[styles.runtimeDot, { backgroundColor: runtimeTone === "success" ? theme.colors.primary : theme.colors.warning }]} />
           <Text style={[styles.runtimeBadgeText, { color: runtimeTone === "success" ? theme.colors.primary : theme.colors.warning }]}>{runtimeLabel}</Text>
         </View>
       </View>
-      <ScreenLead
-        eyebrow="PAPER LEARNING · READ ONLY"
-        title="PAPER 학습 상태"
-        detail="AI 판단이 PAPER에서 어떻게 검증되고 학습되는지 한 사이클로 확인합니다."
-        badge="READ ONLY"
-        badgeTone="info"
-      />
       <PaperReportHero state={state} />
       <MetricStrip
         items={[
@@ -342,11 +335,11 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { width: "100%", maxWidth: 1080, alignSelf: "center", paddingHorizontal: 20, paddingTop: 10, paddingBottom: 96, gap: 14 },
-  commandHero: { borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingTop: 14, paddingBottom: 12, gap: 10 },
+  commandHero: { borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingTop: 10, paddingBottom: 12, gap: 8 },
   commandHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 14 },
   commandTitleWrap: { flex: 1, minWidth: 0 },
   commandEyebrow: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.25 },
-  commandTitle: { marginTop: 3, fontSize: 25, lineHeight: 30, fontWeight: "900", letterSpacing: 0.7 },
+  commandTitle: { marginTop: 3, fontSize: 18, lineHeight: 23, fontWeight: "900", letterSpacing: 0.8 },
   commandDetail: { marginTop: 6, maxWidth: 680, fontSize: 10, lineHeight: 16 },
   runtimeBadge: { minHeight: 32, maxWidth: 154, borderWidth: 1, borderRadius: 8, paddingHorizontal: 9, flexDirection: "row", alignItems: "center", gap: 6 },
   runtimeDot: { width: 6, height: 6, borderRadius: 6 },
