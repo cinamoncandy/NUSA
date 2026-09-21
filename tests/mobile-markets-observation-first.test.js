@@ -18,6 +18,9 @@ test("Markets uses observation-first navigation language and authority framing",
   assert.match(source, />READ ONLY<\/Text>/);
   assert.match(source, /segment\("CHART", "차트", "markets-chart-tab"\)/);
   assert.match(source, /segment\("WATCHLIST", "시장 목록", "markets-watchlist-tab"\)/);
+  assert.match(source, /backgroundColor: pressed \? theme\.colors\.primarySoft : "transparent"/);
+  assert.match(source, /borderBottomColor: selected \? theme\.colors\.primary : "transparent"/);
+  assert.doesNotMatch(source, /backgroundColor: selected \? theme\.colors\.primarySoft : "transparent"/);
 });
 
 test("Markets makes verified public terrain the visual hero without inventing prediction semantics", () => {
