@@ -111,40 +111,30 @@ jobs:
           capture 00-entry
           enter_personal; capture 01-home
 
-          tap "tab-Market"; capture 02-markets-chart
-          tap "시장 목록"; capture 03-markets-list
-          tap "차트"; capture 04-markets-chart-return
+          tap "tab-Market"; capture 02-market
 
-          tap "tab-More"; tap "more-paper"; capture 05-paper
-          adb shell input swipe 540 1800 540 500 450; sleep 1; capture 06-paper-scroll
-          tap_after_scroll "paper-learning-detail-toggle"; scroll_until_visible "paper-learning-timeline"; capture 07-paper-evidence-open
+          tap "tab-Signals"; capture 03-signal-terrain
+          scroll_until_visible "ai-thesis-card"; capture 04-signal-detail
 
-          tap "tab-Strategies"; capture 08-strategies
-          grep -q "strategies-screen" qa/android-product-ux/08-strategies.xml
-          grep -q "strategies-authority" qa/android-product-ux/08-strategies.xml
+          tap "tab-Strategies"; capture 05-strategies
+          grep -q "strategies-screen" qa/android-product-ux/05-strategies.xml
 
-          tap "tab-More"; capture 09-more
-          grep -q "more-authority" qa/android-product-ux/09-more.xml
-          tap "more-performance"; capture 09b-performance
+          tap "tab-More"; tap "more-risk"; capture 06-risk
+          grep -q "risk-screen" qa/android-product-ux/06-risk.xml
           tap "utility-close"
-          tap "tab-More"; tap "more-settings"; capture 10-settings
-          adb shell input swipe 540 1800 540 600 450; sleep 1; capture 11-settings-scroll
-          tap "utility-close"; capture 12-after-settings-close
-          tap "tab-Home"; capture 13-home-return
 
-          tap "tab-Signals"; capture 14-ai
-          scroll_until_visible "ai-zero-authority-status"; capture 15-ai-authority
-          tap "tab-Home"; capture 16-home-final
+          tap "tab-More"; tap "more-performance"; capture 07-performance
+          grep -q "performance-screen" qa/android-product-ux/07-performance.xml
+          tap "utility-close"
 
-          grep -q "paper-learning-monitor" qa/android-product-ux/05-paper.xml
-          grep -q "MARKETS" qa/android-product-ux/02-markets-chart.xml
-          grep -q "PORTFOLIO" qa/android-product-ux/09-portfolio.xml
-          grep -q "paper-learning-timeline" qa/android-product-ux/07-paper-evidence-open.xml
-          grep -q "home-screen" qa/android-product-ux/13-home-return.xml
-          grep -q "ai-screen" qa/android-product-ux/14-ai.xml
-          grep -q "ai-zero-authority-status" qa/android-product-ux/15-ai-authority.xml
-          grep -q "home-screen" qa/android-product-ux/16-home-final.xml
-          printf 'touch_navigation=PASS\nprimary_screens=6\norder_navigation=PASS\nframes=%s\nevidence_disclosure=PASS\nsettings_close=PASS\nreturn_home=PASS\nai_navigation=PASS\nai_zero_authority=PASS\n' "$(find qa/android-product-ux -name '*.png' | wc -l)" > qa/android-product-ux/report.txt
+          tap "tab-More"; capture 08-more
+          grep -q "more-authority" qa/android-product-ux/08-more.xml
+
+          grep -q "home-screen" qa/android-product-ux/01-home.xml
+          grep -q "markets-workspace" qa/android-product-ux/02-market.xml
+          grep -q "ai-screen" qa/android-product-ux/03-signal-terrain.xml
+          grep -q "ai-thesis-card" qa/android-product-ux/04-signal-detail.xml
+          printf 'touch_navigation=PASS\nmaster_screens=8\nframes=%s\nvisual_route=HOME>MARKET>SIGNAL_TERRAIN>SIGNAL_DETAIL>STRATEGIES>RISK>PERFORMANCE>MORE\n' "$(find qa/android-product-ux -name '*.png' | wc -l)" > qa/android-product-ux/report.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

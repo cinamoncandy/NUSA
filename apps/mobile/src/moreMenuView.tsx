@@ -10,7 +10,7 @@ const BORDER = wealthProductColors.c03;
 const PANEL = wealthProductColors.c02;
 
 /** Destinations the concept board's More screen leads to, beyond the five primary tabs. */
-export type MoreDestination = "PAPER" | "PERFORMANCE" | "HISTORY" | "NOTIFICATIONS" | "SETTINGS";
+export type MoreDestination = "RISK" | "PERFORMANCE" | "PAPER" | "HISTORY" | "NOTIFICATIONS" | "SETTINGS";
 
 interface MoreMenuViewProps {
   readonly onSelect: (destination: MoreDestination) => void;
@@ -18,11 +18,12 @@ interface MoreMenuViewProps {
 }
 
 const ITEMS: ReadonlyArray<Readonly<{ key: MoreDestination; title: string; detail: string }>> = [
-  { key: "PAPER", title: "PAPER 리포트", detail: "검증된 PAPER 상태와 학습 근거" },
-  { key: "PERFORMANCE", title: "성과", detail: "PAPER 자산 · 손익 · 배분" },
-  { key: "HISTORY", title: "주문 이력", detail: "기록된 PAPER 주문" },
-  { key: "NOTIFICATIONS", title: "알림", detail: "런타임 알림 상태" },
-  { key: "SETTINGS", title: "설정", detail: "연결 · 기기 · 환경설정" },
+  { key: "RISK", title: "Risk", detail: "검증 가능한 노출 · 집중도 · 위험 근거" },
+  { key: "PERFORMANCE", title: "Performance", detail: "PAPER equity · return · allocation" },
+  { key: "PAPER", title: "PAPER Report", detail: "검증된 PAPER 상태와 학습 근거" },
+  { key: "HISTORY", title: "Order History", detail: "기록된 PAPER 주문" },
+  { key: "NOTIFICATIONS", title: "System Status", detail: "런타임 알림과 상태" },
+  { key: "SETTINGS", title: "Settings", detail: "연결 · 기기 · 환경설정" },
 ];
 
 /**

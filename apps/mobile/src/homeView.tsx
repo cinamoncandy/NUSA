@@ -112,115 +112,50 @@ export function HomeView(props: HomeViewProps) {
     testID="home-screen"
   >
     <View style={styles.topbar} testID="home-master-rail">
-      <View><Text style={styles.logo}>NUSA</Text><Text style={styles.tagline}>AI SIGNAL · STRATEGY</Text></View>
-      <View style={styles.notificationGlyph} testID="home-status-rail">
-        <View style={styles.notificationBell} />
-        <View style={styles.notificationClapper} />
-      </View>
+      <View><Text style={styles.logo}>NUSA</Text><Text style={styles.tagline}>INTELLIGENCE OS</Text></View>
+      <View style={styles.notificationGlyph} testID="home-status-rail"><View style={styles.notificationBell}/><View style={styles.notificationClapper}/></View>
     </View>
 
-    <View style={styles.accountHero} testID="account-hero-card">
-      <View style={styles.accountHeroTop}>
-        <View style={styles.accountHeroValueBlock}>
-          <Text style={styles.accountHeroEyebrow}>총 자산</Text>
-          <Text style={styles.accountHeroValue}>{won(account?.equity)}</Text>
-          <Text style={[styles.accountHeroDelta, { color: totalPnl == null ? MUTED : totalPnl >= 0 ? SIGNAL_TEAL : RED }]}>
-            {/* Cumulative, not daily: totalPnl is realized + unrealized since inception. Nothing
-                in the app supplies a daily basis — no producer sets homeStatusRail's
-                hasDailyPnlBasis — so a daily caption would state a period the data cannot support. */}
-            {totalPnl == null ? "누적 —" : `누적 · ${won(totalPnl)}`}
-          </Text>
-        </View>
-        <View style={styles.accountHeroSource}>
-          <Text style={styles.accountHeroSourceLabel}>{accountSource == null ? "PAPER UNAVAILABLE" : `${accountSource} PAPER`}</Text>
-          <Text style={styles.accountHeroSourceMode}>LIVE NONE · AI ZERO AUTHORITY</Text>
-        </View>
+    <View style={styles.referenceHero} testID="home-reference-hero">
+      <View style={styles.heroGlow}/>
+      <View style={styles.heroMountainBack}/>
+      <View style={styles.heroMountainMid}/>
+      <View style={styles.heroMountainFront}/>
+      <View style={styles.heroHorizon}/>
+      <View style={styles.heroCopy}>
+        <Text style={styles.heroHeadline}>A More{"\n"}Rational Tomorrow.</Text>
+        <Text style={styles.heroSubline}>Markets. Signals. Evidence.</Text>
       </View>
-      <Pressable onPress={() => props.onNavigate("Signals")} style={({ pressed }) => [styles.accountHeroInsight, { opacity: pressed ? 0.78 : 1 }]} testID="home-ai-judgement">
-        <View style={styles.accountHeroInsightHead}>
-          <Text style={styles.accountHeroInsightLabel}>NUSA AI 판단</Text>
-          <Text style={[styles.accountHeroInsightState, { color: signalAvailable ? SIGNAL_TEAL : MUTED }]}>{signalAvailable ? "VERIFIED" : "WAITING"}</Text>
-        </View>
-        <Text style={styles.accountHeroInsightTitle} numberOfLines={2}>{signalTitle}</Text>
-        <View style={styles.homeConfidenceRow}><Text style={styles.accountHeroInsightWhy} numberOfLines={1}>신뢰도</Text><Text style={styles.homeConfidenceValue}>{confidenceLabel}</Text></View>
+      <View style={styles.heroPrinciples}><Text style={styles.heroPrinciple}>DISCIPLINE</Text><Text style={styles.heroPrinciple}>EVIDENCE</Text><Text style={styles.heroPrinciple}>PERSPECTIVE</Text></View>
+    </View>
+
+    <View style={styles.equityCard} testID="account-hero-card">
+      <View><Text style={styles.equityLabel}>PAPER Equity</Text><Text style={styles.equityValue}>{won(account?.equity)}</Text></View>
+      <View style={styles.equitySide}><Text style={[styles.equityPnl,{color:totalPnl==null?MUTED:totalPnl>=0?SIGNAL_TEAL:RED}]}>{totalPnl==null?"—":won(totalPnl)}</Text><Text style={styles.equityMeta}>{accountSource==null?"NO VERIFIED ACCOUNT":accountSource+" PAPER"}</Text></View>
+    </View>
+
+    <View style={styles.systemCard} testID="home-system-status">
+      <View style={[styles.systemDot,{backgroundColor:props.snapshot?.health==="HEALTHY"||localPaperActive?SIGNAL_TEAL:wealthProductColors.c60}]}/>
+      <View style={styles.systemCopy}><Text style={styles.systemLabel}>System Status</Text><Text style={styles.systemValue}>{props.snapshot?.health==="HEALTHY"||localPaperActive?"All Systems Operational":props.snapshot?.health??"WAITING FOR VERIFIED RUNTIME"}</Text></View>
+      <Text style={styles.systemChevron}>›</Text>
+    </View>
+
+    <View style={styles.referenceMiniGrid}>
+      <Pressable onPress={()=>props.onNavigate("Market")} style={styles.referenceMiniCard} testID="home-market-status">
+        <Text style={styles.miniLabel}>Market</Text><Text style={[styles.miniValue,{color:props.publicMarketConnectionState==="CONNECTED"?SIGNAL_TEAL:MUTED}]}>{props.publicMarketConnectionState==="CONNECTED"?"Live":"Waiting"}</Text>
+        <View style={styles.miniSpark}><View style={[styles.miniSparkLine,{backgroundColor:theme.colors.aiSignalMid}]}/><View style={[styles.miniSparkLine2,{backgroundColor:theme.colors.aiSignalEnd}]}/></View>
+      </Pressable>
+      <Pressable onPress={props.onOpenPaperLearning} style={styles.referenceMiniCard} testID="home-paper-status">
+        <Text style={styles.miniLabel}>PAPER</Text><Text style={[styles.miniValue,{color:props.snapshot?.readyForPaperOperations||localPaperActive?SIGNAL_TEAL:MUTED}]}>{props.snapshot?.readyForPaperOperations||localPaperActive?"Running":"Waiting"}</Text>
+        <View style={styles.miniSpark}><View style={[styles.miniSparkLine,{backgroundColor:theme.colors.aiSignalEnd}]}/><View style={[styles.miniSparkLine2,{backgroundColor:theme.colors.aiSignalMid}]}/></View>
+      </Pressable>
+      <Pressable onPress={()=>props.onNavigate("Signals")} style={styles.referenceMiniCard} testID="home-ai-judgement">
+        <Text style={styles.miniLabel}>AI</Text><Text style={[styles.miniValue,{color:signalAvailable?SIGNAL_TEAL:MUTED}]}>{signalAvailable?"Ready":"Waiting"}</Text>
+        <View style={styles.miniSpark}><View style={[styles.miniSparkLine,{backgroundColor:theme.colors.aiSignalStart}]}/><View style={[styles.miniSparkLine2,{backgroundColor:theme.colors.aiSignalEnd}]}/></View>
       </Pressable>
     </View>
 
-    <Pressable onPress={() => props.onNavigate("Signals")} style={({ pressed }) => [styles.signalPanel, { opacity: pressed ? 0.84 : 1 }]} testID="ai-card">
-      <View style={styles.terrain} testID="home-decision-stage">
-        <View style={styles.gridH1}/><View style={styles.gridH2}/><View style={styles.gridV1}/><View style={styles.gridV2}/>
-        <TerrainSignal variant="symbolic" signalStrength={strength} accessibilityLabel={signalAvailable ? "verified AI signal terrain" : "signal unavailable"} testID="home-signal-trace" />
-        <View style={styles.signalPin}><View style={styles.pinDot}/><Text style={styles.pinLabel}>{signalAvailable ? "VERIFIED AI SIGNAL" : "NO VERIFIED SIGNAL"}</Text></View>
-      </View>
-    </Pressable>
-
-
-    <View testID="home-market-pulse">
-      <View style={styles.marketStripHead}>
-        <Text style={styles.marketStripTitle}>주요 지표</Text>
-        {/* Public market numbers carry their source on screen. A price with no stated origin is
-            indistinguishable from a fabricated one, and PAPER PERFORMANCE already names its own. */}
-        <Text style={styles.source}>{marketRows.length === 0 ? "UNAVAILABLE" : "UPBIT PUBLIC"}</Text>
-      </View>
-      <View style={styles.marketStrip}>
-        {(tablet ? [0,1,2,3,4,5] : [0,1,2,3]).map((i) => <MarketTile key={marketRows[i]?.market ?? i} market={marketRows[i] ?? null} />)}
-      </View>
-    </View>
-
-    <View style={styles.panel} testID="home-market-breadth">
-      <View style={styles.panelTitleRow}><Text style={styles.panelTitle}>MARKET BREADTH</Text><Text style={styles.source}>UPBIT PUBLIC</Text></View>
-      <View style={{padding:14,flexDirection:"row",alignItems:"center",gap:16}}>
-        <View style={{width:74,height:74,borderRadius:74,borderWidth:8,borderColor:breadthPercent==null?BORDER:SIGNAL_TEAL,alignItems:"center",justifyContent:"center"}}><Text style={{color:breadthPercent==null?MUTED:SIGNAL_TEAL,fontSize:20,fontWeight:"900"}}>{breadthPercent==null?"—":breadthPercent}</Text><Text style={{color:MUTED,fontSize:7,fontWeight:"800"}}>UP %</Text></View>
-        <View style={{flex:1,gap:8}}><Text style={{color:wealthProductColors.c51,fontSize:10}}>Observed markets {observedMarkets.length}</Text><View style={{height:7,borderRadius:7,backgroundColor:BORDER,overflow:"hidden"}}><View style={{height:7,width:breadthPercent==null?"0%":`${breadthPercent}%`,backgroundColor:SIGNAL_TEAL}}/></View><Text style={{color:MUTED,fontSize:8,lineHeight:13}}>Public-market breadth only. Not an AI confidence score or profit probability.</Text></View>
-      </View>
-    </View>
-
-    <View style={styles.panel} testID="home-top-signals">
-      <View style={styles.panelTitleRow}><Text style={styles.panelTitle}>TODAY'S TOP SIGNALS</Text><Text style={styles.count}>{marketRows.length}</Text></View>
-      {marketRows.length === 0 ? <Text style={styles.empty}>검증된 public market signal이 없습니다.</Text> : marketRows.slice(0, tablet ? 5 : 3).map((market, index) => {
-        const up = (market.changeRate ?? 0) >= 0;
-        return <Pressable key={market.market} onPress={() => props.onNavigate("Market")} style={styles.signalRow}>
-          <Text style={styles.rank}>{index + 1}</Text>
-          <Text style={styles.asset}>{market.market.replace("KRW-", "")}</Text>
-          <View style={[styles.signalBadge, { borderColor: up ? SIGNAL_TEAL : RED }]}><Text style={[styles.signalBadgeText,{color:up?SIGNAL_TEAL:RED}]}>{up ? "UP" : "DOWN"}</Text></View>
-          <Text style={[styles.rowChange,{color:up?SIGNAL_TEAL:RED}]}>{pct(market.changeRate)}</Text>
-        </Pressable>;
-      })}
-    </View>
-
-    <Pressable onPress={() => props.onNavigate("Strategies")} style={styles.panel} testID="home-paper-performance">
-      <View style={styles.panelTitleRow}><Text style={styles.panelTitle}>PAPER PERFORMANCE</Text><Text style={styles.source}>{accountSource ? `${accountSource} PAPER` : "NO LINK"}</Text></View>
-      <View style={styles.performanceGraph}>
-        {marketWave.state === "READY" ? marketWave.bars.slice(-22).map((bar,index) => {
-          const range = Math.max(0.000001, bar.high - bar.low);
-          const rise = bar.close >= bar.open;
-          return <View key={bar.openTime} style={[styles.waveBar,{height:12+Math.min(38, range/Math.max(1,bar.close)*8000), backgroundColor:rise?SIGNAL_TEAL:wealthProductColors.c07, opacity:0.55 + index/50}]}/>;
-        }) : <Text style={styles.empty}>VERIFIED PERFORMANCE WAVE UNAVAILABLE</Text>}
-      </View>
-      <View style={styles.performanceMetrics} testID="home-performance-metrics">
-        <View><Text style={[styles.metricValue,{color:totalPnl != null && totalPnl >= 0?SIGNAL_TEAL:totalPnl == null?MUTED:RED}]}>{totalPnl == null ? "—" : won(totalPnl)}</Text><Text style={styles.metricLabel}>TOTAL P&L</Text></View>
-        <View><Text style={styles.metricValue}>{won(account?.equity)}</Text><Text style={styles.metricLabel}>EQUITY</Text></View>
-        <View><Text style={styles.metricValue}>{heartbeat?.paperOrderCount ?? "—"}</Text><Text style={styles.metricLabel}>ORDERS</Text></View>
-        <View><Text style={styles.metricValue}>{heartbeat?.paperFillCount ?? "—"}</Text><Text style={styles.metricLabel}>FILLS</Text></View>
-      </View>
-    </Pressable>
-
-    <View style={styles.capitalLimits} testID="home-capital-limits">
-      <View>
-        <Text style={styles.capitalLabel}>CAPITAL LIMITS</Text>
-        <Text style={styles.capitalMeta}>PAPER BUY ENVELOPE · {props.investmentPercent}%</Text>
-      </View>
-      <View style={styles.capitalValues}>
-        <View testID="home-investable-cash">
-          <Text style={styles.capitalValue}>{cashEnvelope == null ? "—" : won(cashEnvelope.investableCash)}</Text>
-          <Text style={styles.capitalKey}>INVESTABLE</Text>
-        </View>
-        <View testID="home-reserved-cash">
-          <Text style={styles.capitalValue}>{cashEnvelope == null ? "—" : won(cashEnvelope.reservedCash)}</Text>
-          <Text style={styles.capitalKey}>RESERVED</Text>
-        </View>
-      </View>
-    </View>
+    <View style={styles.referenceFooter}><Text style={styles.referenceFooterLead}>A SAFER TOMORROW.</Text><Text style={styles.referenceFooterSub}>Real data · PAPER only · AI zero authority</Text></View>
 
     {disconnected || props.readOnlyError ? <Pressable onPress={props.onGoSettings} style={styles.connectionNotice} testID="home-operational-notice"><Text style={styles.connectionTitle}>{disconnected ? "PAPER CONNECTION REQUIRED" : "PAPER READ-ONLY ERROR"}</Text><Text style={styles.connectionBody}>{props.notConfigured ?? props.readOnlyError}</Text><Text style={styles.connectionAction}>OPEN SETTINGS →</Text></Pressable> : null}
 
@@ -234,6 +169,22 @@ export function HomeView(props: HomeViewProps) {
 }
 
 const styles = StyleSheet.create({
+  referenceHero:{height:330,borderRadius:22,overflow:"hidden",position:"relative",backgroundColor:"#07101A",borderWidth:1,borderColor:"#18283A"},
+  heroGlow:{position:"absolute",right:-70,top:-30,width:260,height:260,borderRadius:260,backgroundColor:"#DDF9A8",opacity:.14,shadowColor:"#DDF9A8",shadowOpacity:.5,shadowRadius:42},
+  heroMountainBack:{position:"absolute",left:-30,right:80,bottom:74,height:120,backgroundColor:"#152A38",transform:[{rotate:"-8deg"}],borderTopRightRadius:120},
+  heroMountainMid:{position:"absolute",left:40,right:-45,bottom:46,height:150,backgroundColor:"#0D1C28",transform:[{rotate:"5deg"}],borderTopLeftRadius:130},
+  heroMountainFront:{position:"absolute",left:-70,right:-40,bottom:-42,height:130,backgroundColor:"#050A0F",transform:[{rotate:"-4deg"}],borderTopRightRadius:180},
+  heroHorizon:{position:"absolute",left:0,right:0,bottom:92,height:1,backgroundColor:"#A8E66A",opacity:.5},
+  heroCopy:{position:"absolute",left:20,top:22,right:18},heroHeadline:{color:"#F7F8F5",fontSize:31,lineHeight:35,fontWeight:"500",letterSpacing:-1},heroSubline:{color:"#99A3A9",fontSize:10,lineHeight:15,marginTop:8},
+  heroPrinciples:{position:"absolute",left:20,bottom:22,gap:4},heroPrinciple:{color:"#B7C1C5",fontSize:7,fontWeight:"800",letterSpacing:2},
+  equityCard:{minHeight:86,borderRadius:16,borderWidth:1,borderColor:"#20303A",backgroundColor:"#0B1117",paddingHorizontal:16,paddingVertical:14,flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:12},
+  equityLabel:{color:"#9CA7AC",fontSize:9,fontWeight:"700"},equityValue:{color:"#F5F7F4",fontSize:26,lineHeight:32,fontWeight:"700",fontVariant:["tabular-nums"],marginTop:3},
+  equitySide:{alignItems:"flex-end"},equityPnl:{fontSize:13,fontWeight:"800",fontVariant:["tabular-nums"]},equityMeta:{color:"#768187",fontSize:7,fontWeight:"800",letterSpacing:.7,marginTop:4},
+  systemCard:{minHeight:68,borderRadius:14,borderWidth:1,borderColor:"#20303A",backgroundColor:"#0B1117",paddingHorizontal:14,flexDirection:"row",alignItems:"center",gap:12},
+  systemDot:{width:12,height:12,borderRadius:12,shadowColor:SIGNAL_TEAL,shadowOpacity:.5,shadowRadius:9},systemCopy:{flex:1},systemLabel:{color:"#919CA2",fontSize:9},systemValue:{color:"#DDF9A8",fontSize:12,fontWeight:"700",marginTop:2},systemChevron:{color:"#A5B0B4",fontSize:22},
+  referenceMiniGrid:{flexDirection:"row",gap:8},referenceMiniCard:{flex:1,minHeight:100,borderRadius:12,borderWidth:1,borderColor:"#20303A",backgroundColor:"#0B1117",padding:11,overflow:"hidden"},
+  miniLabel:{color:"#99A4AA",fontSize:8,fontWeight:"700"},miniValue:{fontSize:11,fontWeight:"800",marginTop:4},miniSpark:{height:30,marginTop:12,position:"relative"},miniSparkLine:{position:"absolute",left:0,right:"30%",top:15,height:1.5,transform:[{rotate:"-12deg"}]},miniSparkLine2:{position:"absolute",left:"38%",right:0,top:10,height:1.5,transform:[{rotate:"7deg"}]},
+  referenceFooter:{paddingVertical:12,gap:3},referenceFooterLead:{color:"#C8D0D2",fontSize:8,fontWeight:"800",letterSpacing:1.7},referenceFooterSub:{color:"#66747B",fontSize:8,lineHeight:12},
   content:{paddingHorizontal:20,paddingTop:12,paddingBottom:38,gap:18,width:"100%",alignSelf:"center",backgroundColor:INK},
   topbar:{minHeight:68,flexDirection:"row",alignItems:"center",justifyContent:"space-between",paddingBottom:6},
   logo:{color:wealthProductColors.c08,fontSize:24,fontWeight:"700",letterSpacing:5.2},tagline:{color:wealthProductColors.c58,fontSize:7,fontWeight:"600",letterSpacing:2.1,marginTop:2},

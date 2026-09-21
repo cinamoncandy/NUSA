@@ -84,6 +84,20 @@ function MarketTerrain({
   </View>;
 }
 
+function MarketGlobe({ markets }: Readonly<{ markets: readonly WatchlistMarket[] }>) {
+  const { theme } = useTheme();
+  const rows=markets.slice(0,4);
+  return <View style={styles.globeHero} testID="market-globe-hero">
+    <View style={styles.globeGlow}/>
+    <View style={styles.globeSphere}>
+      <View style={styles.globeLatA}/><View style={styles.globeLatB}/><View style={styles.globeLonA}/><View style={styles.globeLonB}/>
+      <View style={[styles.globeNode,{left:"28%",top:"42%",backgroundColor:theme.colors.aiSignalEnd}]}/><View style={[styles.globeNode,{left:"57%",top:"35%",backgroundColor:theme.colors.primary}]}/><View style={[styles.globeNode,{left:"73%",top:"58%",backgroundColor:theme.colors.aiSignalMid}]}/>
+      <Text style={[styles.globeLabel,{left:"20%",top:"49%"}]}>US</Text><Text style={[styles.globeLabel,{left:"54%",top:"42%"}]}>EU</Text><Text style={[styles.globeLabel,{right:"11%",top:"64%"}]}>ASIA</Text>
+    </View>
+    <View style={styles.globeCaption}><Text style={styles.globeCaptionTitle}>Global Markets</Text><Text style={styles.globeCaptionSub}>{rows.length>0?"Verified public observations":"NO VERIFIED PUBLIC DATA"}</Text></View>
+  </View>;
+}
+
 export function MarketsView({ repository, market, rawMarkets, rawCandles, currentPrice, marketConnectionState, stale, marketsStale, chartError, chartErrorDiagnostic, error, refreshing, onRefresh, onPaperTrade }: MarketsViewProps) {
   const { theme } = useTheme();
   const { width } = useWindowDimensions();
@@ -186,47 +200,25 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
 
   return <View style={[styles.workspace, { backgroundColor: theme.colors.background }]} testID="markets-workspace">
     <View style={[styles.top, { maxWidth: tabletWorkspace ? 980 : 720 }]}>
-      <AuthorityRail detail="PUBLIC READ ONLY · PAPER SEPARATE · AI ZERO AUTHORITY" status={sourceState} tone={sourceState === "ACTIVE" ? "success" : sourceState === "ERROR" ? "danger" : "warning"} testID="markets-authority-rail" />
-
-      <View style={styles.marketHero} testID="markets-command-hero">
-        <View style={styles.heroTopRow}>
-          <View style={styles.heroLead}>
-            <Text style={[styles.heroEyebrow, { color: theme.colors.textMuted }]}>MARKETS</Text>
-            <Text style={[styles.heroTitle, { color: theme.colors.text }]}>시장 상태를 관측하고 있습니다.</Text>
-            <Text style={[styles.heroMarket, { color: theme.colors.textMuted }]}>{marketSymbol} · {selectedMarket}</Text>
-          </View>
-          <View style={[styles.sourceBadge, { borderColor: sourceState === "ACTIVE" ? theme.colors.primary : theme.colors.borderStrong }]}>
-            <View style={[styles.sourceDot, { backgroundColor: sourceState === "ACTIVE" ? theme.colors.primary : theme.colors.warning }]} />
-            <Text style={[styles.sourceBadgeText, { color: sourceState === "ACTIVE" ? theme.colors.primary : theme.colors.textMuted }]}>{sourceLabel}</Text>
-          </View>
-        </View>
-
-        <View style={styles.quoteRow}>
-          <Text style={[styles.heroPrice, { color: theme.colors.text }]} numberOfLines={1} adjustsFontSizeToFit>{money(selectedCurrentPrice)}</Text>
-          <Text style={[styles.heroChange, { color: changeRate == null ? theme.colors.textMuted : positiveMove ? theme.colors.primary : theme.colors.danger }]}>{rate(changeRate)}</Text>
-        </View>
-
-        <View style={[styles.marketStats, { borderColor: theme.colors.border }]} testID="markets-summary-strip">
-          <View style={styles.marketStat}>
-            <Text style={[styles.statLabel, { color: theme.colors.textMuted }]}>CONNECTION</Text>
-            <Text style={[styles.statValue, { color: marketConnectionState === "CONNECTED" ? theme.colors.primary : theme.colors.warning }]}>{marketConnectionState}</Text>
-          </View>
-          <View style={[styles.marketStat, styles.statDivider, { borderLeftColor: theme.colors.border }]}>
-            <Text style={[styles.statLabel, { color: theme.colors.textMuted }]}>OBSERVED</Text>
-            <Text style={[styles.statValue, { color: theme.colors.text }]}>{parsedMarkets.length}</Text>
-          </View>
-          <View style={[styles.marketStat, styles.statDivider, { borderLeftColor: theme.colors.border }]}>
-            <Text style={[styles.statLabel, { color: theme.colors.textMuted }]}>AUTHORITY</Text>
-            <Text style={[styles.statValue, { color: theme.colors.primary }]}>READ ONLY</Text>
-          </View>
-        </View>
+      <View style={styles.marketReferenceHeader} testID="market-reference-header">
+        <View><Text style={[styles.marketReferenceTitle,{color:theme.colors.text}]}>Market</Text><Text style={[styles.marketReferenceSub,{color:theme.colors.textMuted}]}>Global markets at a glance</Text></View>
+        <Text style={[styles.marketReferenceSource,{color:theme.colors.textMuted}]}>UPBIT PUBLIC</Text>
       </View>
-
-      <View style={styles.referenceFilterRow} testID="markets-reference-filter">
-        <View style={[styles.referenceFilter, { borderColor: theme.colors.borderStrong }]}><Text style={[styles.referenceFilterText, { color: theme.colors.text }]}>전체 시장 상황⌄</Text></View>
-        <View style={[styles.referenceState, { borderColor: theme.colors.aiSignalStart }]}><Text style={[styles.referenceStateText, { color: theme.colors.aiSignalMid }]}>{sourceState === "ACTIVE" ? "OBSERVED" : sourceState}</Text></View>
+      <View style={styles.marketReferenceTabs} testID="market-reference-tabs">
+        {["Overview","Indices","Sectors","Assets"].map((label,index)=><View key={label} style={[styles.marketReferenceTab,index===0?{borderBottomColor:theme.colors.primary}:null]}><Text style={[styles.marketReferenceTabText,{color:index===0?theme.colors.text:theme.colors.textMuted}]}>{label}</Text></View>)}
       </View>
-      <MarketTerrain markets={parsedMarkets} selectedMarket={selectedMarket} onSelect={handleSelectMarket} />
+      <MarketGlobe markets={parsedMarkets}/>
+      <View style={styles.marketReferenceList} testID="market-reference-list">
+        {(parsedMarkets.length?parsedMarkets.slice(0,4):[null,null,null,null]).map((item,index)=>{
+          const up=item!=null&&(item.changeRate??0)>=0;
+          return <Pressable key={item?.market??index} disabled={item==null} onPress={()=>item&&handleSelectMarket(item.market)} style={styles.marketReferenceRow}>
+            <View style={styles.marketReferenceIcon}><Text style={styles.marketReferenceIconText}>{item?.market.replace("KRW-","").slice(0,1)??"—"}</Text></View>
+            <View style={styles.marketReferenceRowMain}><Text style={[styles.marketReferenceSymbol,{color:theme.colors.text}]}>{item?.market.replace("KRW-","")??"NO DATA"}</Text><Text style={[styles.marketReferencePrice,{color:theme.colors.textMuted}]}>{item?money(item.price):"—"}</Text></View>
+            <Text style={[styles.marketReferenceMove,{color:item==null?theme.colors.textMuted:up?theme.colors.chartUp:theme.colors.chartDown}]}>{item?rate(item.changeRate):"—"}</Text>
+          </Pressable>;
+        })}
+      </View>
+      <Text style={[styles.marketSafety,{color:theme.colors.textMuted}]}>REAL DATA ONLY · NO PREDICTION · PAPER SEPARATE</Text>
 
       {error ? <StateNotice title="PUBLIC FEED ERROR" detail={error} tone="danger" /> : displayedStale ? <StateNotice title="STALE DATA" detail="표시 중인 공개 시장 데이터가 신선도 기준을 벗어났습니다." tone="warning" /> : null}
     </View>
@@ -244,6 +236,20 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
 }
 
 const styles = StyleSheet.create({
+  marketReferenceHeader:{paddingTop:6,flexDirection:"row",alignItems:"flex-end",justifyContent:"space-between",gap:12},
+  marketReferenceTitle:{fontSize:30,lineHeight:36,fontWeight:"700",letterSpacing:-.7},marketReferenceSub:{fontSize:9,lineHeight:13,marginTop:3},marketReferenceSource:{fontSize:8,fontWeight:"800",letterSpacing:.8},
+  marketReferenceTabs:{height:40,flexDirection:"row",alignItems:"stretch",borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:"#1B2830"},marketReferenceTab:{marginRight:22,justifyContent:"center",borderBottomWidth:2,borderBottomColor:"transparent"},marketReferenceTabText:{fontSize:10,fontWeight:"700"},
+  globeHero:{height:260,borderRadius:20,overflow:"hidden",position:"relative",backgroundColor:"#06101A",borderWidth:1,borderColor:"#1A2B38",alignItems:"center",justifyContent:"center"},
+  globeGlow:{position:"absolute",width:245,height:245,borderRadius:245,backgroundColor:"#76C7FF",opacity:.08,shadowColor:"#7FE6B0",shadowOpacity:.4,shadowRadius:35},
+  globeSphere:{width:210,height:210,borderRadius:210,borderWidth:1,borderColor:"#39586C",backgroundColor:"#0A1722",overflow:"hidden",position:"relative"},
+  globeLatA:{position:"absolute",left:-5,right:-5,top:58,height:76,borderRadius:110,borderWidth:1,borderColor:"#23455B"},globeLatB:{position:"absolute",left:-5,right:-5,top:84,height:42,borderRadius:110,borderWidth:1,borderColor:"#23455B"},
+  globeLonA:{position:"absolute",top:-4,bottom:-4,left:66,width:78,borderRadius:90,borderWidth:1,borderColor:"#23455B"},globeLonB:{position:"absolute",top:-4,bottom:-4,left:88,width:34,borderRadius:90,borderWidth:1,borderColor:"#23455B"},
+  globeNode:{position:"absolute",width:8,height:8,borderRadius:8,shadowColor:"#DDF9A8",shadowOpacity:.8,shadowRadius:8},globeLabel:{position:"absolute",color:"#D7DEE0",fontSize:8,fontWeight:"800"},
+  globeCaption:{position:"absolute",left:16,bottom:14},globeCaptionTitle:{color:"#F4F7F6",fontSize:13,fontWeight:"700"},globeCaptionSub:{color:"#7D8A90",fontSize:8,marginTop:2},
+  marketReferenceList:{gap:7},marketReferenceRow:{minHeight:58,borderRadius:12,borderWidth:1,borderColor:"#1B2A33",backgroundColor:"#0B1218",paddingHorizontal:12,flexDirection:"row",alignItems:"center",gap:11},
+  marketReferenceIcon:{width:30,height:30,borderRadius:30,backgroundColor:"#16232C",alignItems:"center",justifyContent:"center"},marketReferenceIconText:{color:"#C7D2D6",fontSize:11,fontWeight:"800"},
+  marketReferenceRowMain:{flex:1},marketReferenceSymbol:{fontSize:12,fontWeight:"800"},marketReferencePrice:{fontSize:9,fontVariant:["tabular-nums"],marginTop:2},marketReferenceMove:{fontSize:11,fontWeight:"800",fontVariant:["tabular-nums"]},
+  marketSafety:{textAlign:"center",fontSize:7,fontWeight:"800",letterSpacing:1.1,paddingVertical:4},
   workspace: { flex: 1, width: "100%", maxWidth: uxLayout.maxWorkspaceWidth, alignSelf: "center" },
   top: { width: "100%", alignSelf: "center", paddingHorizontal: 18, paddingTop: 10, gap: 10 },
   marketHero: { paddingTop: 12, paddingBottom: 4, gap: 12 },
