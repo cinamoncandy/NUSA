@@ -52,7 +52,7 @@ export function StrategiesView({ research, refreshing, onRefresh }: StrategiesVi
           {entries.map((entry,index)=><View key={entry.key} style={styles.strategyRow} testID={`strategy-${entry.key}`}>
             <View style={[styles.strategyIcon,{borderColor:index===0?ACCENT_SOFT:BORDER}]}><Text style={styles.strategyIconText}>{index===0?"C":"Δ"}</Text></View>
             <View style={styles.strategyMain}><Text style={styles.strategyName} numberOfLines={1}>{entry.id}</Text><Text style={styles.strategySub}>{entry.role} · v{entry.version}</Text></View>
-            <View style={styles.strategyTail}><Text style={styles.strategyAuthority}>{entry.authority}</Text><Text style={styles.strategyReturn} testID={`strategy-${entry.key}-return`}>RETURN —</Text></View>
+            <View style={styles.strategyTail}><Text style={styles.strategyAuthority}>{entry.authority}</Text><Text style={styles.strategyReturn} testID={`strategy-${entry.key}-return`}>수익률 —</Text></View>
             <Text style={styles.strategyChevron}>›</Text>
           </View>)}
           <View style={styles.strategyEmptyRow}><Text style={styles.strategyEmptyText}>No additional verified strategy families</Text></View>
@@ -63,7 +63,7 @@ export function StrategiesView({ research, refreshing, onRefresh }: StrategiesVi
           <Text style={styles.featuredTitle}>{research.champion.strategyId}</Text>
           <Text style={styles.featuredMeta}>CHAMPION · v{research.champion.strategyVersion} · {research.champion.authority}</Text>
           <View style={styles.featuredTrace}><View style={styles.featuredLineA}/><View style={styles.featuredLineB}/></View>
-          <Text style={styles.featuredNote}>Performance unavailable in this projection; no return is fabricated.</Text>
+          <Text style={styles.featuredNote}>런타임이 전략별 수익률을 제공하지 않습니다.</Text>
         </View>
 
         <View style={styles.sessionCard} testID="strategies-session"><Text style={styles.sessionTitle}>RESEARCH SESSION</Text><Row label="상태" value={research.state}/><Row label="건전성" value={research.health} tone="accent"/><Row label="후보" value={String(research.candidateCount)}/><Row label="실험" value={String(research.experimentCount)}/></View>

@@ -72,7 +72,7 @@ export function AiView({ai,research,health,liveAuthority,productionMutationAllow
     <Text style={styles.terrainTruth}>READ ONLY · NO FABRICATED SIGNAL COUNTS · AI ZERO AUTHORITY</Text>
   </ScrollView>;
 
-    return <ScrollView style={{backgroundColor:INK}} contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={SIGNAL_TEAL} refreshing={refreshing} onRefresh={onRefresh}/>} testID="ai-screen">
+    return <ScrollView style={{backgroundColor:INK}} contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={SIGNAL_TEAL} refreshing={refreshing} onRefresh={onRefresh}/>} testID="signal-detail-screen">
     <View style={[styles.titleRow,viewport.narrow?styles.titleRowNarrow:null]}>
       <View style={styles.detailHeaderLead}><Pressable onPress={()=>setDetailOpen(false)} testID="signal-detail-back"><Text style={styles.detailBack}>‹ Back</Text></Pressable><Text style={styles.pageEyebrow}>US EQUITIES · VERIFIED EVIDENCE</Text><Text style={styles.pageTitle}>Signal Detail</Text></View>
       <View style={styles.titleMeta}><View style={styles.dot}/><Text style={styles.time}>{ai?.lastModelRun?new Date(ai.lastModelRun).toLocaleString("ko-KR"):"NO VERIFIED RUN"}</Text></View>

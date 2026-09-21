@@ -23,9 +23,12 @@ test("More renders the board's authority footer as readable text", () => {
   assert.doesNotMatch(style[1], /(width|height):\s*[01]\b/, "the authority footer must not be collapsed");
 });
 
-test("More is the only route to the deeper screens the board moved off the tab bar", () => {
+test("More preserves the MASTER primary menu while deeper PAPER operations remain reachable", () => {
+  for (const label of ["AI Analysis", "Research", "System Status", "Settings", "Help"]) {
+    assert.match(more, new RegExp(label), `${label} must remain in the MASTER More menu`);
+  }
   for (const destination of ["PAPER", "PERFORMANCE", "HISTORY", "NOTIFICATIONS", "SETTINGS"]) {
-    assert.match(more, new RegExp(`key: "${destination}"`), `${destination} must be reachable from More`);
+    assert.match(more, new RegExp(`key: "${destination}"`), `${destination} must remain reachable`);
     assert.match(app, new RegExp(`utilityView === "${destination}" \\?`), `${destination} must be routed`);
   }
   assert.match(app, /const tabs = \["Home", "Market", "Signals", "Strategies", "More"\] as const;/);

@@ -32,6 +32,11 @@ const INSIGHTS = [
   { key: "PERFORMANCE", title: "Performance" },
 ] as const;
 
+const OPERATIONS = [
+  { key: "PAPER", title: "PAPER Report" },
+  { key: "HISTORY", title: "Order History" },
+] as const;
+
 /**
  * The concept board's More screen: an identity card, a list of deeper destinations, and an explicit
  * authority footer. The footer wording is the board's own — PAPER ONLY / AI ZERO AUTHORITY /
@@ -71,6 +76,10 @@ export function MoreMenuView({ onSelect, onNavigatePrimary, buildLabel }: MoreMe
       {INSIGHTS.map((item)=><Pressable key={item.key} onPress={()=>onSelect(item.key)} style={styles.insightCard} testID={`more-${item.key.toLowerCase()}`}><Text style={styles.insightTitle}>{item.title}</Text><Text style={styles.insightMeta}>Verified PAPER insight</Text></Pressable>)}
     </View>
 
+    <View style={styles.operationsRail} testID="more-operations-rail">
+      {OPERATIONS.map((item)=><Pressable key={item.key} onPress={()=>onSelect(item.key)} style={styles.operationChip} testID={`more-${item.key.toLowerCase()}`}><Text style={styles.operationText}>{item.title}</Text></Pressable>)}
+    </View>
+
     <View style={styles.authority} testID="more-authority">
       <Text style={styles.authorityLine}>PAPER ONLY</Text>
       <Text style={styles.authorityLine}>AI ZERO AUTHORITY</Text>
@@ -103,6 +112,9 @@ const styles = StyleSheet.create({
   insightRail: { flexDirection: "row", gap: 8 },
   insightCard: { flex: 1, minHeight: 64, borderWidth: 1, borderColor: BORDER, borderRadius: 12, backgroundColor: PANEL, padding: 12, justifyContent: "center" },
   insightTitle: { color: TEXT, fontSize: 12, fontWeight: "800" }, insightMeta: { color: MUTED, fontSize: 8, marginTop: 3 },
+  operationsRail: { flexDirection: "row", gap: 8 },
+  operationChip: { flex: 1, minHeight: 38, borderWidth: 1, borderColor: BORDER, borderRadius: 10, backgroundColor: "#0A1116", alignItems: "center", justifyContent: "center" },
+  operationText: { color: MUTED, fontSize: 8, fontWeight: "800", letterSpacing: 0.3 },
   authority: { borderWidth: 1, borderColor: BORDER, borderRadius: 14, paddingVertical: 18, paddingHorizontal: 16, gap: 4, alignItems: "center" },
   authorityLine: { color: MUTED, fontSize: 10, lineHeight: 16, fontWeight: "800", letterSpacing: 1.6 },
   build: { color: MUTED, fontSize: 10, textAlign: "center", fontVariant: ["tabular-nums"] },
