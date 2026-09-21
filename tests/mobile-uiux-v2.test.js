@@ -11,14 +11,14 @@ test("product navigation promotes PAPER learning supervision and AI through the 
   const tradingShell = read("src/tradingView.tsx");
   const tradingWorkspace = read("src/tradingViewLegacy.tsx");
   const home = read("src/homeView.tsx");
-  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\] as const/);
+  assert.match(app, /const tabs = \["Home", "AiSignal", "Markets", "Paper", "Order", "Portfolio"\] as const/);
   assert.match(app, /Paper: "PAPER"/);
   assert.match(app, /AiSignal: "AI SIGNAL"/);
   assert.match(app, /AiSignal: "AI 판단과 근거"/);
-  assert.match(app, /type Tab = PrimaryTab \| "Order"/);
+  assert.match(app, /type Tab = PrimaryTab/);
   assert.match(app, /activeTab === "AiSignal" \? <AiView/);
   assert.doesNotMatch(app, /<MoreView/);
-  assert.match(app, /activeTab === "Order" \? <OrderHistoryView/);
+  assert.match(app, /activeTab === "Order" \? <PaperOrderView/);
   assert.match(app, /header-notifications/);
   assert.match(app, /header-settings/);
   assert.match(app, /setUtilityView\(null\); setActiveTab\(tab\)/);

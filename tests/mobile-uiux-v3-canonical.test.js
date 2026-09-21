@@ -8,13 +8,13 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 test("App shell routes the canonical five-tab decision flow and preserves deeper jobs", () => {
   const app = read("App.tsx");
   assert.match(app, /import \{ HomeView/);
-  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\]/);
+  assert.match(app, /const tabs = \["Home", "AiSignal", "Markets", "Paper", "Order", "Portfolio"\]/);
   assert.match(app, /AiSignal: "AI SIGNAL"/);
-  assert.match(app, /const tabDisplayLabels: Readonly<Record<PrimaryTab, string>> = \{ Home: "HOME", Markets: "MARKETS", Paper: "PAPER", Portfolio: "PORTFOLIO", AiSignal: "AI SIGNAL" \};/);
+  assert.match(app, /const tabDisplayLabels: Readonly<Record<PrimaryTab, string>> = \{ Home: "HOME", AiSignal: "AI", Markets: "MARKET", Paper: "PAPER", Order: "ORDER", Portfolio: "ASSETS" \};/);
   assert.doesNotMatch(app, /Paper: "STRATEGY"/);
   assert.doesNotMatch(app, /AiSignal: "SIGNAL"/);
   assert.match(app, /AiSignal: "AI 판단과 근거"/);
-  assert.match(app, /type Tab = PrimaryTab \| "Order"/);
+  assert.match(app, /type Tab = PrimaryTab/);
   assert.match(app, /<HomeView/);
   assert.match(app, /activeTab === "Paper"/);
   assert.match(app, /<TradingView/);

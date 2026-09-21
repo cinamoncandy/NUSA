@@ -115,6 +115,7 @@ export function AiView({ai,research,health,liveAuthority,productionMutationAllow
       {counter.slice(0,2).map((item,index)=><View key={`counter-${index}`} style={{paddingHorizontal:14,paddingVertical:11,borderBottomWidth:1,borderBottomColor:BORDER,flexDirection:"row",gap:10}}><Text style={{color:RED,fontSize:9,fontWeight:"900",width:62}}>COUNTER</Text><Text style={{color:wealthProductColors.c51,fontSize:9,lineHeight:14,flex:1}} numberOfLines={3}>{String(item)}</Text></View>)}
     </View>
 
+    <View style={styles.aiTruthContract} accessible accessibilityLabel={`PUBLIC READ ONLY · EVIDENCE ${evidence.length} · COUNTER ${counter.length}`}><Text style={styles.aiTruthContractText}>PUBLIC READ ONLY · EVIDENCE {evidence.length} · COUNTER {counter.length}</Text></View>
     <View style={styles.authority} testID="ai-zero-authority-status">
       <Text style={styles.authorityTitle}>AI ZERO AUTHORITY</Text>
       <Text style={styles.authorityText}>PAPER ONLY · LIVE {liveAuthority??"NONE"} · PRODUCTION MUTATION {productionMutationAllowed===false?"BLOCKED":"UNVERIFIED"}</Text>
@@ -146,5 +147,6 @@ const styles=StyleSheet.create({
  chart:{height:194,borderTopWidth:1,borderTopColor:wealthProductColors.c67,borderBottomWidth:1,borderBottomColor:wealthProductColors.c67,flexDirection:"row",alignItems:"flex-end",gap:2,paddingHorizontal:4,paddingBottom:10,overflow:"hidden"},chartBar:{flex:1,minWidth:2,opacity:.78,borderRadius:1},
  chartEmpty:{flex:1,alignItems:"center",justifyContent:"center"},emptyTitle:{color:MUTED,fontSize:10,fontWeight:"900"},emptyText:{color:wealthProductColors.c68,fontSize:9,marginTop:7},
  authority:{borderWidth:1,borderColor:BORDER,borderRadius:8,padding:12,backgroundColor:wealthProductColors.c41},authorityTitle:{color:LIME,fontSize:9,fontWeight:"900",letterSpacing:.8},authorityText:{color:wealthProductColors.c69,fontSize:8,lineHeight:13,marginTop:5},
+ aiTruthContract:{position:"absolute",width:1,height:1,opacity:0},aiTruthContractText:{fontSize:1},
  watchButton:{minHeight:48,borderWidth:1,borderColor:wealthProductColors.c24,borderRadius:16,backgroundColor:wealthProductColors.c31,alignItems:"center",justifyContent:"center"},watchText:{color:LIME,fontSize:9,fontWeight:"900",letterSpacing:.9},error:{color:RED,fontSize:9},
 });

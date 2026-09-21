@@ -8,7 +8,7 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 test("product v5 keeps the primary jobs literal and glanceable through the canonical navigation", () => {
   const app = read("App.tsx");
   assert.match(app, /Home: "HOME", Markets: "MARKETS", Paper: "PAPER", Portfolio: "PORTFOLIO"/);
-  assert.match(app, /Home: "HOME", Markets: "MARKETS", Paper: "PAPER", Portfolio: "PORTFOLIO", AiSignal: "AI SIGNAL"/);
+  assert.match(app, /Home: "HOME", AiSignal: "AI SIGNAL", Markets: "MARKETS", Paper: "PAPER", Order: "ORDER", Portfolio: "PORTFOLIO"/);
   const home = read("src/homeView.tsx");
   assert.match(home, /props\.onNavigate\("Markets"\)/);
   assert.match(home, /props\.onNavigate\("Portfolio"\)/);
