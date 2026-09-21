@@ -133,13 +133,13 @@ const EXECUTION_ID = /^[A-Za-z0-9_.:-]{1,160}$/;
 const DEDUPE_KEY = /^[A-Za-z0-9_.:-]{1,256}$/;
 const DEFAULT_REPOSITORY = "cinamoncandy/NUSA";
 const GITHUB_API_ORIGIN = "https://api.github.com";
-const DEFAULT_WORKERS_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
+const DEFAULT_WORKERS_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct";
 const MAX_CODING_PROPOSAL_BYTES = 24_000;
 const MAX_CODING_PROPOSAL_FEEDBACK_BYTES = 512;
 const FORBIDDEN_CODING_PATH_SEGMENT = /(?:^|\/)(?:live|live-trading|broker|order|credential|secret|secrets|withdraw|transfer|production-authority)(?:\/|$)/i;
-const RETIRED_WORKERS_AI_MODELS = new Set([
+const NON_JSON_MODE_WORKERS_AI_MODELS = new Set([
   "@cf/meta/infire-llama-3.1-8b-instruct",
-  "@cf/meta/llama-3.1-8b-instruct",
+  "@cf/meta/llama-3.1-8b-instruct-fast",
 ]);
 
 export function validateCodingRunnerRequest(value: unknown, allowedRepository = DEFAULT_REPOSITORY): CodingRunnerRequest {
@@ -496,7 +496,7 @@ export async function executeCodingRunner(
   if (!env.AI) return { status: "INTERFACE_READY", reason: "ai-coding-engine-not-configured" };
   const configuredModel = env.NUSA_AI_CODING_MODEL?.trim();
   // Dashboard vars can outlive a provider retirement; never call a known-retired model.
-  const model = !configuredModel || RETIRED_WORKERS_AI_MODELS.has(configuredModel)
+  const model = !configuredModel || NON_JSON_MODE_WORKERS_AI_MODELS.has(configuredModel)
     ? DEFAULT_WORKERS_AI_MODEL
     : configuredModel;
   if (!validWorkersAiModel(model)) return { status: "EXECUTION_FAILED", reason: "WORKERS_AI_MODEL_INVALID" };
