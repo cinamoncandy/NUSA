@@ -44,6 +44,19 @@ function githubFetch(dispatchStatus = 204): typeof fetch {
         headers: { "content-type": "application/json" },
       });
     }
+    if (url.includes("/actions/workflows/ci.yml/runs?")) {
+      return new Response(JSON.stringify({ workflow_runs: [{
+        id: RUN_ID,
+        name: "CI",
+        conclusion: "success",
+        head_branch: "main",
+        head_sha: SHA,
+        event: "push",
+      }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
     if (url.includes("/actions/runs?")) {
       return new Response(JSON.stringify({ workflow_runs: [{
         id: RUN_ID,
@@ -102,6 +115,16 @@ test("scheduled runtime discovers fresh failed main workflow evidence without di
     if (url.endsWith("/branches/main")) {
       return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200, headers: { "content-type": "application/json" } });
     }
+    if (url.includes("/actions/workflows/ci.yml/runs?")) {
+      return new Response(JSON.stringify({ workflow_runs: [{
+        id: RUN_ID,
+        name: "CI",
+        conclusion: "success",
+        head_branch: "main",
+        head_sha: SHA,
+        event: "push",
+      }] }), { status: 200, headers: { "content-type": "application/json" } });
+    }
     if (url.includes("/actions/runs?")) {
       return new Response(JSON.stringify({ workflow_runs: [
         {
@@ -149,6 +172,11 @@ test("scheduled runtime excludes stale failed workflow evidence", async () => {
     const url = String(input);
     if (url.endsWith("/branches/main")) {
       return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (url.includes("/actions/workflows/ci.yml/runs?")) {
+      return new Response(JSON.stringify({ workflow_runs: [
+        { id: RUN_ID, name: "CI", conclusion: "success", head_branch: "main", head_sha: SHA, event: "push" },
+      ] }), { status: 200, headers: { "content-type": "application/json" } });
     }
     if (url.includes("/actions/runs?")) {
       return new Response(JSON.stringify({ workflow_runs: [
@@ -221,6 +249,9 @@ test("scheduled runtime fails closed when latest main lacks exact canonical CI e
     const url = String(input);
     if (url.endsWith("/branches/main")) {
       return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (url.includes("/actions/workflows/ci.yml/runs?")) {
+      return new Response(JSON.stringify({ workflow_runs: [{ id: RUN_ID, name: "CI", conclusion: "success", head_branch: "main", head_sha: FAILED_SHA, event: "push" }] }), { status: 200, headers: { "content-type": "application/json" } });
     }
     if (url.includes("/actions/runs?")) {
       return new Response(JSON.stringify({ workflow_runs: [{ id: RUN_ID, name: "CI", conclusion: "success", head_branch: "main", head_sha: FAILED_SHA, event: "push" }] }), { status: 200, headers: { "content-type": "application/json" } });
