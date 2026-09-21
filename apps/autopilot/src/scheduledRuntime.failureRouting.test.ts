@@ -43,6 +43,18 @@ test("scheduled runtime routes a real GitHub completed run using updated_at when
         headers: { "content-type": "application/json" },
       });
     }
+    if (url.includes("/actions/workflows/ci.yml/runs?")) {
+      return new Response(JSON.stringify({ workflow_runs: [{
+        id: 5150,
+        name: "CI",
+        status: "completed",
+        conclusion: "success",
+        head_branch: "main",
+        head_sha: SHA,
+        event: "push",
+        updated_at: new Date(NOW - 20_000).toISOString(),
+      }] }), { status: 200, headers: { "content-type": "application/json" } });
+    }
     if (url.includes("/actions/runs?")) {
       return new Response(JSON.stringify({ workflow_runs: [{
         id: FAILURE_RUN_ID,
@@ -104,6 +116,7 @@ test("updated_at fallback is fail-closed for runs that are not completed", async
   const fetchImpl = (async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url.endsWith("/branches/main")) return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200 });
+    if (url.includes("/actions/workflows/ci.yml/runs?")) return new Response(JSON.stringify({ workflow_runs: [] }), { status: 200 });
     if (url.includes("/actions/runs?")) {
       return new Response(JSON.stringify({ workflow_runs: [{
         id: FAILURE_RUN_ID,
@@ -137,6 +150,7 @@ test("cancelled exact-main workflows are not treated as autonomous failure-repai
   const fetchImpl = (async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url.endsWith("/branches/main")) return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200 });
+    if (url.includes("/actions/workflows/ci.yml/runs?")) return new Response(JSON.stringify({ workflow_runs: [] }), { status: 200 });
     if (url.includes("/actions/runs?")) return new Response(JSON.stringify({ workflow_runs: [{
       id: FAILURE_RUN_ID,
       name: "Android Stable Release Watchdog",
