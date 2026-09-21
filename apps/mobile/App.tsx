@@ -411,6 +411,7 @@ function AuthenticatedApp() {
   const ai = snapshot?.ai ?? null;
   const accountCash = snapshot?.portfolio?.account.cash ?? 0;
   const runtimeCanSubmit = !runtimeSnapshot.tradingBlocked && runtimeSnapshot.lifecycle === "FOREGROUND" && runtimeSnapshot.network === "ONLINE" && runtimeSnapshot.recovery === "READY";
+  // LOCAL PAPER is intentionally usable without Cloud verification; only Cloud-backed ORDER requires the dashboard gate.
   const requiresDashboardConnection = notConfigured !== null && utilityView === null && activeTab === "Order" && !isLocalPaperActive();
   const homeShellActive = utilityView === null && activeTab === "Home";
   const localPaperReadiness = getLocalPaperLearningReadiness();
