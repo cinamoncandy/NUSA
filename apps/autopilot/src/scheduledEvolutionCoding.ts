@@ -49,7 +49,7 @@ function evidenceFromRuns(candidates: readonly unknown[]): readonly WorkflowFail
     const run = object(candidate);
     if (!run) continue;
     const conclusion = text(run.conclusion);
-    if (conclusion !== "failure" && conclusion !== "cancelled" && conclusion !== "timed_out") continue;
+    if (conclusion !== "failure" && conclusion !== "timed_out") continue;
     if (text(run.head_branch) !== "main" || text(run.event) === "repository_dispatch") continue;
     const workflowName = text(run.name);
     const runId = positiveInteger(run.id);
