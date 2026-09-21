@@ -11,7 +11,7 @@ test("bottom navigation exposes five semantic primary jobs and preserves deeper 
   assert.match(app, /Markets: "MARKETS"/);
   assert.match(app, /Paper: "PAPER"/);
   assert.match(app, /Portfolio: "PORTFOLIO"/);
-  assert.match(app, /AiSignal: "AI"/);
+  assert.match(app, /AiSignal: "AI SIGNAL"/);
   assert.match(app, /AiSignal: "AI 판단과 근거"/);
   assert.match(app, /type Tab = PrimaryTab \| "Order"/);
   assert.match(app, /activeTab === "AiSignal" \? <AiView/);
