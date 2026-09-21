@@ -7,6 +7,8 @@ export interface CodingRunnerRequest {
   readonly proposalFeedback?: string;
   readonly executionId: string;
   readonly dedupeKey: string;
+  readonly canonicalOwner?: string;
+  readonly conflictKeys?: readonly string[];
   readonly mutationAllowed: false;
   readonly liveAuthority: "NONE";
   readonly productionMutationAllowed: false;
@@ -131,6 +133,8 @@ type FetchImpl = (input: string, init?: RequestInit) => Promise<HttpResponse>;
 const SHA40 = /^[0-9a-f]{40}$/i;
 const EXECUTION_ID = /^[A-Za-z0-9_.:-]{1,160}$/;
 const DEDUPE_KEY = /^[A-Za-z0-9_.:-]{1,256}$/;
+const OWNER = /^[A-Za-z0-9_.:@/-]{1,120}$/;
+const CONFLICT_KEY = /^[A-Za-z0-9_.:/-]{1,160}$/;
 const DEFAULT_REPOSITORY = "cinamoncandy/NUSA";
 const GITHUB_API_ORIGIN = "https://api.github.com";
 const DEFAULT_WORKERS_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct";
@@ -150,6 +154,14 @@ export function validateCodingRunnerRequest(value: unknown, allowedRepository = 
   if (typeof request.headSha !== "string" || !SHA40.test(request.headSha)) throw new Error("CODING_RUNNER_HEAD_SHA_INVALID");
   if (typeof request.executionId !== "string" || !EXECUTION_ID.test(request.executionId)) throw new Error("CODING_RUNNER_EXECUTION_ID_INVALID");
   if (typeof request.dedupeKey !== "string" || !DEDUPE_KEY.test(request.dedupeKey)) throw new Error("CODING_RUNNER_DEDUPE_KEY_INVALID");
+  const hasOwner = request.canonicalOwner !== undefined;
+  const hasConflicts = request.conflictKeys !== undefined;
+  if (hasOwner !== hasConflicts) throw new Error("CODING_RUNNER_OWNERSHIP_PAIR_INVALID");
+  if (hasOwner) {
+    if (typeof request.canonicalOwner !== "string" || !OWNER.test(request.canonicalOwner)) throw new Error("CODING_RUNNER_CANONICAL_OWNER_INVALID");
+    if (!Array.isArray(request.conflictKeys) || request.conflictKeys.length === 0 || request.conflictKeys.length > 32 || new Set(request.conflictKeys).size !== request.conflictKeys.length || request.conflictKeys.some((key) => typeof key !== "string" || !CONFLICT_KEY.test(key))) throw new Error("CODING_RUNNER_CONFLICT_KEYS_INVALID");
+  }
+  if (typeof request.reason === "string" && request.reason.startsWith("evolve:") && !hasOwner) throw new Error("CODING_RUNNER_EVOLVE_OWNERSHIP_REQUIRED");
   if (request.liveAuthority !== "NONE") throw new Error("CODING_RUNNER_LIVE_AUTHORITY_FORBIDDEN");
   if (request.productionMutationAllowed !== false || request.mutationAllowed !== false) throw new Error("CODING_RUNNER_PRODUCTION_MUTATION_FORBIDDEN");
   if (request.aiAuthority !== "ZERO_AUTHORITY") throw new Error("CODING_RUNNER_AI_AUTHORITY_INVALID");
