@@ -29,5 +29,5 @@ test("HOME approved intelligence hierarchy remains content-first and evidence-ba
   const capital = home.indexOf('testID="home-capital-limits"');
   const learning = home.indexOf('testID="home-paper-learning"');
   assert.ok([pulse, ai, terrain, breadth, signals, paper, capital, learning].every((index) => index >= 0));
-  assert.ok(pulse < ai && ai < terrain && terrain < breadth && breadth < signals && signals < paper && paper < capital && capital < learning);
+  assert.ok(ai < terrain && terrain < pulse && pulse < breadth && breadth < signals && signals < paper && paper < capital && capital < learning);
 });

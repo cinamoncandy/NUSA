@@ -28,7 +28,7 @@ test("Markets makes verified public terrain the visual hero without inventing pr
   assert.match(source, /testID="markets-terrain"/);
   assert.match(source, /MARKET TERRAIN/);
   assert.match(source, /VERIFIED UPBIT PUBLIC MOVE · NO PREDICTION/);
-  assert.match(source, /terrainHeight\(item\.changeRate\)/);
+  assert.match(source, /<TerrainSignal variant="market" signalStrength=\{strength\}/);
   assert.match(source, /item\.market\.replace\("KRW-", ""\)/);
   assert.match(source, /rate\(item\.changeRate\)/);
   assert.doesNotMatch(source, /Risk|Neutral|Opportunity|confidence score|profit probability/i);

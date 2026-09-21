@@ -11,15 +11,15 @@ test("mobile presets keep classic neutral and apply approved cobalt master actio
 
   // Master actions use the approved cobalt palette; semantic AI and risk colors remain separate.
   assert.match(source, /classic:[\s\S]*?primary: "#E8F3FF"[\s\S]*?primary: "#11151B"/);
-  assert.match(source, /master:[\s\S]*?primary: "#BFE85A"[\s\S]*?primary: "#304EE8"/);
+  assert.match(source, /master:[\s\S]*?primary: "#7B61FF"[\s\S]*?primary: "#304EE8"/);
   assert.match(source, /primary: palette\.primary/);
 
   // Chromatic accents remain confined to signal/AI semantics rather than brand actions. Each
   // resolves per mode -- the dark-tuned hues fall to as little as ~1.5:1 contrast on a light
   // surface, so a light-mode variant exists for each rather than one value used unconditionally.
-  assert.match(source, /aiSignalStart: dark \? "#91C74F" : "#[0-9A-F]{6}"/);
-  assert.match(source, /aiSignalMid: dark \? "#B7E35C" : "#[0-9A-F]{6}"/);
-  assert.match(source, /aiSignalEnd: dark \? "#BFE85A" : "#[0-9A-F]{6}"/);
+  assert.match(source, /aiSignalStart: dark \? "#7B61FF" : "#[0-9A-F]{6}"/);
+  assert.match(source, /aiSignalMid: dark \? "#4B8DFF" : "#[0-9A-F]{6}"/);
+  assert.match(source, /aiSignalEnd: dark \? "#33D7C7" : "#[0-9A-F]{6}"/);
   assert.match(source, /aiSignalSoft/);
 });
 

@@ -12,11 +12,11 @@ test("visual redesign has a distinct NUSA surface and financial hierarchy", () =
   const design = read("src/designSystem.ts");
   const primitives = read("src/uxPrimitives.tsx");
   assert.match(design, /classic:[\s\S]*?dark:[\s\S]*?background: "#05070D"/);
-  assert.match(design, /master:[\s\S]*?dark:[\s\S]*?background: "#050706"/);
+  assert.match(design, /master:[\s\S]*?dark:[\s\S]*?background: "#05060B"/);
   assert.match(design, /const palette = dark \? preset\.dark : preset\.light/);
   assert.match(design, /background: palette\.background/);
   assert.match(design, /navSurface: palette\.navSurface/);
-  assert.match(design, /chartUp: dark \? "#BFE85A" : "#147A50"/);
+  assert.match(design, /chartUp: dark \? "#34D6B4" : "#147A50"/);
   assert.match(primitives, /metricAccent: \{ position: "absolute", left: 14, right: 14/);
   assert.match(primitives, /borderRadius: 999, borderWidth: 1, gap: 3/);
 });
