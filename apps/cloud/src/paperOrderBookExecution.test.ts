@@ -47,11 +47,29 @@ test("BUY depth execution preserves PortfolioPlan gross-notional budget and seal
   }), receipt);
 });
 
-test("SELL depth execution fails closed instead of inventing liquidity or silently partial-filling", () => {
+test("SELL depth shortage is sealed as partial evidence but requires a working-order owner", () => {
+  const observed = quote();
+  const receipt = buildPaperOrderBookExecutionReceipt({ quote: observed, side: "SELL", requestedQuantity: 25, filledAt: 1_100 });
+  assert.equal(receipt.liquidityLimited, true);
+  assert.ok(receipt.filledQuantity < receipt.requestedQuantity);
   assert.throws(
-    () => buildPaperOrderBookExecutionReceipt({ quote: quote(), side: "SELL", requestedQuantity: 25, filledAt: 1_100 }),
+    () => validatePaperOrderBookExecutionReceipt(receipt, {
+      market: "KRW-BTC",
+      side: "SELL",
+      filledQuantity: receipt.filledQuantity,
+      fillPrice: receipt.vwapPrice,
+      quoteReceipt: observed.receipt,
+    }),
     (error: unknown) => error instanceof PaperOrderBookExecutionError && error.code === "PAPER_ORDERBOOK_LIQUIDITY_INSUFFICIENT"
   );
+  assert.deepEqual(validatePaperOrderBookExecutionReceipt(receipt, {
+    market: "KRW-BTC",
+    side: "SELL",
+    filledQuantity: receipt.filledQuantity,
+    fillPrice: receipt.vwapPrice,
+    quoteReceipt: observed.receipt,
+    allowPartial: true,
+  }), receipt);
 });
 
 test("depth execution receipt rejects tampered consumed-level evidence", () => {

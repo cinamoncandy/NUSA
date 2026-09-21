@@ -151,6 +151,8 @@ test("validates freshness and rejects authority tampering", () => {
   const result = snapshot();
   assert.equal(validatePersonalPaperOperationsSnapshot(result, 1_100, 500).schemaVersion, 1);
   assert.throws(() => validatePersonalPaperOperationsSnapshot(result, 1_501, 500), /stale/);
+  assert.equal(validatePersonalPaperOperationsSnapshot(result, 750, 500).schemaVersion, 1);
+  assert.throws(() => validatePersonalPaperOperationsSnapshot(result, 499, 500), /future/);
   assert.throws(() => validatePersonalPaperOperationsSnapshot({ ...result, liveAuthority: "LIVE" }, 1_100, 500), /authority/);
 });
 
