@@ -86,6 +86,8 @@ function validateEvent(event: PaperLearningReadOnlyEvent): void {
   assertNoForbiddenKeys(event, "event");
 }
 
+const cloneJsonProjection = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+
 const deepFreeze = <T>(value: T): T => {
   if (value != null && typeof value === "object" && !Object.isFrozen(value)) {
     for (const child of Object.values(value as Record<string, unknown>)) deepFreeze(child);
@@ -112,5 +114,5 @@ export function validatePaperLearningReadOnlySnapshot(snapshot: PaperLearningRea
     if (previous.occurredAt < current.occurredAt || (previous.occurredAt === current.occurredAt && previous.id.localeCompare(current.id) > 0)) throw new Error("PAPER learning transport order is not deterministic newest-first");
   }
   assertNoForbiddenKeys(snapshot);
-  return deepFreeze(structuredClone(snapshot));
+  return deepFreeze(cloneJsonProjection(snapshot));
 }
