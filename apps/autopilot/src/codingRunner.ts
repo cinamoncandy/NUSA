@@ -4,6 +4,7 @@ export interface CodingRunnerRequest {
   readonly headSha: string;
   readonly workflowRunId: number;
   readonly reason: string;
+  readonly proposalFeedback?: string;
   readonly executionId: string;
   readonly dedupeKey: string;
   readonly mutationAllowed: false;
@@ -97,6 +98,10 @@ export class CodingRunnerEvidenceError extends Error {
   }
 }
 
+export interface CodingRunnerExecutionOptions {
+  readonly maxProposalAttempts?: number;
+}
+
 export interface CodingRunnerResult {
   readonly status: string;
   readonly reason?: string;
@@ -128,12 +133,14 @@ const EXECUTION_ID = /^[A-Za-z0-9_.:-]{1,160}$/;
 const DEDUPE_KEY = /^[A-Za-z0-9_.:-]{1,256}$/;
 const DEFAULT_REPOSITORY = "cinamoncandy/NUSA";
 const GITHUB_API_ORIGIN = "https://api.github.com";
-const DEFAULT_WORKERS_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
+const DEFAULT_WORKERS_AI_MODEL = "@cf/zai-org/glm-4.7-flash";
 const MAX_CODING_PROPOSAL_BYTES = 24_000;
+const MAX_CODING_PROPOSAL_FEEDBACK_BYTES = 512;
 const FORBIDDEN_CODING_PATH_SEGMENT = /(?:^|\/)(?:live|live-trading|broker|order|credential|secret|secrets|withdraw|transfer|production-authority)(?:\/|$)/i;
-const RETIRED_WORKERS_AI_MODELS = new Set([
+const UNUSABLE_CODING_WORKERS_AI_MODELS = new Set([
   "@cf/meta/infire-llama-3.1-8b-instruct",
   "@cf/meta/llama-3.1-8b-instruct",
+  "@cf/meta/llama-3.1-8b-instruct-fast",
 ]);
 
 export function validateCodingRunnerRequest(value: unknown, allowedRepository = DEFAULT_REPOSITORY): CodingRunnerRequest {
@@ -148,6 +155,14 @@ export function validateCodingRunnerRequest(value: unknown, allowedRepository = 
   if (request.productionMutationAllowed !== false || request.mutationAllowed !== false) throw new Error("CODING_RUNNER_PRODUCTION_MUTATION_FORBIDDEN");
   if (request.aiAuthority !== "ZERO_AUTHORITY") throw new Error("CODING_RUNNER_AI_AUTHORITY_INVALID");
   if (typeof request.reason !== "string" || !request.reason.trim()) throw new Error("CODING_RUNNER_REASON_REQUIRED");
+  if (request.proposalFeedback !== undefined) {
+    if (typeof request.proposalFeedback !== "string"
+      || !request.proposalFeedback.trim()
+      || new TextEncoder().encode(request.proposalFeedback).byteLength > MAX_CODING_PROPOSAL_FEEDBACK_BYTES
+      || !/^[\x20-\x7E]+$/.test(request.proposalFeedback)) {
+      throw new Error("CODING_RUNNER_PROPOSAL_FEEDBACK_INVALID");
+    }
+  }
   if (!Number.isSafeInteger(request.workflowRunId) || Number(request.workflowRunId) <= 0) throw new Error("CODING_RUNNER_WORKFLOW_RUN_ID_INVALID");
   return Object.freeze(request as unknown as CodingRunnerRequest);
 }
@@ -245,18 +260,29 @@ function parseProposalText(value: string): CodingProposal {
   throw new Error(parsedJson ? "CODING_PROPOSAL_SHAPE_INVALID" : "CODING_PROPOSAL_JSON_INVALID");
 }
 
+function workersAiResponseValue(payload: Record<string, unknown>): unknown {
+  if (payload.response !== undefined) return payload.response;
+  if (!Array.isArray(payload.choices) || payload.choices.length === 0) return undefined;
+  const first = payload.choices[0];
+  if (!first || typeof first !== "object" || Array.isArray(first)) return undefined;
+  const message = (first as Record<string, unknown>).message;
+  if (!message || typeof message !== "object" || Array.isArray(message)) return undefined;
+  return (message as Record<string, unknown>).content;
+}
+
 function workersAiProposal(value: unknown): CodingProposal {
   const payload = object(value);
-  if (typeof payload.response === "string") {
-    if (!payload.response.trim()) throw new Error("CODING_PROPOSAL_RESPONSE_INVALID");
-    return parseProposalText(payload.response);
+  const response = workersAiResponseValue(payload);
+  if (typeof response === "string") {
+    if (!response.trim()) throw new Error("CODING_PROPOSAL_RESPONSE_INVALID");
+    return parseProposalText(response);
   }
-  // Workers AI JSON mode returns the schema object directly under `response`,
-  // while non-JSON text mode returns a string. Validate both shapes without
-  // accepting any unstructured or authority-bearing fields.
-  if (payload.response && typeof payload.response === "object" && !Array.isArray(payload.response)) {
+  // Legacy Workers AI JSON mode can return the schema object under `response`.
+  // Current chat-completion models return text under `choices[0].message.content`.
+  // Validate both envelopes without widening the patch-only authority boundary.
+  if (response && typeof response === "object" && !Array.isArray(response)) {
     try {
-      return validateCodingProposal(payload.response);
+      return validateCodingProposal(response);
     } catch (error) {
       if (error instanceof Error && error.message === "CODING_PROPOSAL_PATCH_REQUIRED") throw error;
       throw new Error("CODING_PROPOSAL_SHAPE_INVALID");
@@ -360,6 +386,7 @@ function codingEngineRequest(request: CodingRunnerRequest, token: string): Reque
       headSha: request.headSha,
       workflowRunId: request.workflowRunId,
       reason: request.reason,
+      proposalFeedback: request.proposalFeedback ?? null,
       executionId: request.executionId,
       dedupeKey: request.dedupeKey,
       outputContract: { patch: "unified-git-diff" },
@@ -381,6 +408,7 @@ function codingProposalPrompt(request: CodingRunnerRequest): string {
     `Exact main SHA: ${request.headSha}`,
     `Workflow run: ${request.workflowRunId}`,
     `Execution reason: ${request.reason}`,
+    ...(request.proposalFeedback ? [`Repair feedback: ${request.proposalFeedback}`] : []),
     `Execution id: ${request.executionId}`,
     `Dedupe key: ${request.dedupeKey}`,
   ].join("\n");
@@ -453,8 +481,13 @@ export async function executeCodingRunner(
   fetchImpl: FetchImpl = fetch as unknown as FetchImpl,
   runtime?: CodingRuntime,
   publisher?: CodingPublisher,
+  options: CodingRunnerExecutionOptions = {},
 ): Promise<CodingRunnerResult> {
   await verifyCodingRunnerRequestAgainstGitHub(request, env.NUSA_GITHUB_TOKEN, fetchImpl);
+  const maxProposalAttempts = options.maxProposalAttempts ?? MAX_WORKERS_AI_PROPOSAL_ATTEMPTS;
+  if (!Number.isSafeInteger(maxProposalAttempts) || maxProposalAttempts < 1 || maxProposalAttempts > MAX_WORKERS_AI_PROPOSAL_ATTEMPTS) {
+    throw new Error("CODING_PROPOSAL_ATTEMPT_LIMIT_INVALID");
+  }
 
   const endpoint = env.NUSA_AI_CODING_ENDPOINT?.trim();
   const token = env.NUSA_AI_CODING_TOKEN?.trim();
@@ -474,18 +507,18 @@ export async function executeCodingRunner(
 
   if (!env.AI) return { status: "INTERFACE_READY", reason: "ai-coding-engine-not-configured" };
   const configuredModel = env.NUSA_AI_CODING_MODEL?.trim();
-  // Dashboard vars can outlive a provider retirement; never call a known-retired model.
-  const model = !configuredModel || RETIRED_WORKERS_AI_MODELS.has(configuredModel)
+  // Dashboard vars can outlive provider deprecations or retain a model that cannot satisfy the current JSON-schema contract.
+  const model = !configuredModel || UNUSABLE_CODING_WORKERS_AI_MODELS.has(configuredModel)
     ? DEFAULT_WORKERS_AI_MODEL
     : configuredModel;
   if (!validWorkersAiModel(model)) return { status: "EXECUTION_FAILED", reason: "WORKERS_AI_MODEL_INVALID" };
   let prompt = codingProposalPrompt(request);
   let lastFailure: CodingRunnerResult | undefined;
-  for (let attempt = 1; attempt <= MAX_WORKERS_AI_PROPOSAL_ATTEMPTS; attempt += 1) {
+  for (let attempt = 1; attempt <= maxProposalAttempts; attempt += 1) {
     try {
       const proposal = workersAiProposal(await env.AI.run(model, workersAiCodingRequest(request, model, prompt)));
       const result = await executeProposal(request, proposal, runtime, publisher);
-      if (result.status === "EXECUTION_ACCEPTED" || !retryableProposalFailure(result.reason ?? "") || attempt === MAX_WORKERS_AI_PROPOSAL_ATTEMPTS) {
+      if (result.status === "EXECUTION_ACCEPTED" || !retryableProposalFailure(result.reason ?? "") || attempt === maxProposalAttempts) {
         return result.status === "EXECUTION_FAILED" && retryableProposalFailure(result.reason ?? "")
           ? { ...result, proposalAttempts: attempt, failureStage: "sandbox-validation" }
           : result;
@@ -494,11 +527,11 @@ export async function executeCodingRunner(
       prompt = `${codingProposalPrompt(request)}\nThe previous proposal was rejected by the bounded patch contract (${result.reason}). Return a new valid one-file unified diff only.`;
     } catch (error) {
       const reason = error instanceof Error ? error.message : "WORKERS_AI_CODING_ENGINE_FAILED";
-      if (!retryableProposalFailure(reason) || attempt === MAX_WORKERS_AI_PROPOSAL_ATTEMPTS) {
+      if (!retryableProposalFailure(reason) || attempt === maxProposalAttempts) {
         return { status: "EXECUTION_FAILED", reason, proposalAttempts: attempt, failureStage: "proposal-parse" };
       }
       prompt = `${codingProposalPrompt(request)}\nThe previous proposal was rejected by the bounded proposal contract (${reason}). Return a new valid one-file unified diff only.`;
     }
   }
-  return lastFailure ?? { status: "EXECUTION_FAILED", reason: "WORKERS_AI_CODING_ENGINE_FAILED", proposalAttempts: MAX_WORKERS_AI_PROPOSAL_ATTEMPTS, failureStage: "proposal-parse" };
+  return lastFailure ?? { status: "EXECUTION_FAILED", reason: "WORKERS_AI_CODING_ENGINE_FAILED", proposalAttempts: maxProposalAttempts, failureStage: "proposal-parse" };
 }

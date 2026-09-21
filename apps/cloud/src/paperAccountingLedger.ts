@@ -157,6 +157,7 @@ function fillIdentity(fill: PaperFillRecord): string {
 export function buildDurablePaperAccountingSource(
   history: readonly PaperAccountState[],
   throughAt?: number,
+  durableFills?: readonly PaperFillRecord[],
 ): DurablePaperAccountingSource {
   if (!Array.isArray(history) || history.length === 0) throw new Error("PAPER_LEDGER_HISTORY_UNAVAILABLE");
   const ordered = [...history]
@@ -189,7 +190,24 @@ export function buildDurablePaperAccountingSource(
   }
   if (end.processedIdempotencyKeys.some((key: string) => !idempotencyToOrderId.has(key))) throw new Error("PAPER_LEDGER_HISTORY_INCOMPLETE");
 
-  const fills = Object.freeze([...fillsById.values()].sort((left, right) => left.filledAt - right.filledAt || left.id.localeCompare(right.id)));
+  let fills: readonly PaperFillRecord[];
+  if (durableFills === undefined) {
+    fills = Object.freeze([...fillsById.values()].sort((left, right) => left.filledAt - right.filledAt || left.id.localeCompare(right.id)));
+  } else {
+    const durableById = new Map<string, PaperFillRecord>();
+    const durableIdentityById = new Map<string, string>();
+    for (const fill of durableFills) {
+      if (fill.filledAt > end.updatedAt) continue;
+      const identity = fillIdentity(fill);
+      if (durableIdentityById.has(fill.id)) throw new Error("PAPER_LEDGER_DURABLE_DUPLICATE_FILL");
+      durableIdentityById.set(fill.id, identity);
+      durableById.set(fill.id, fill);
+    }
+    for (const [fillId, identity] of fillIdentityById) {
+      if (durableIdentityById.get(fillId) !== identity) throw new Error("PAPER_LEDGER_DURABLE_HISTORY_MISMATCH");
+    }
+    fills = Object.freeze([...durableById.values()].sort((left, right) => left.filledAt - right.filledAt || left.id.localeCompare(right.id)));
+  }
   const projection = assertPaperAccountingReconciled({
     initialCapital: end.initialCapital,
     fills,

@@ -10,6 +10,8 @@ export interface CanonicalPaperOutcomeReconciliationInput {
   readonly periodEndAt: number;
   readonly startState: PaperAccountState;
   readonly endState: PaperAccountState;
+  /** Complete durable fill truth. When supplied, bounded account snapshots are projection-only. */
+  readonly canonicalFills?: readonly PaperFillRecord[];
 }
 
 export interface CanonicalPaperOutcomeReceipt {
@@ -160,10 +162,29 @@ export function reconcileCanonicalPaperOutcomeWindow(input: CanonicalPaperOutcom
   const endEquity = finiteNonNegative(input.endState.equity, "endState.equity");
   if (startEquity <= 0) throw new PaperCanonicalOutcomeReconciliationError("INVALID_START_EQUITY", "realized PAPER period requires positive start equity");
 
-  const startFillIds = new Set(input.startState.fills.map((fill) => fill.id));
-  const periodFills = (input.endState.fills as readonly AttributedPaperFill[])
-    .filter((fill) => !startFillIds.has(fill.id) && fill.filledAt > periodStartAt && fill.filledAt <= periodEndAt)
-    .sort((left, right) => left.filledAt - right.filledAt || left.id.localeCompare(right.id));
+  let periodFills: readonly AttributedPaperFill[];
+  if (input.canonicalFills === undefined) {
+    const startFillIds = new Set(input.startState.fills.map((fill) => fill.id));
+    periodFills = (input.endState.fills as readonly AttributedPaperFill[])
+      .filter((fill) => !startFillIds.has(fill.id) && fill.filledAt > periodStartAt && fill.filledAt <= periodEndAt)
+      .sort((left, right) => left.filledAt - right.filledAt || left.id.localeCompare(right.id));
+  } else {
+    const canonicalById = new Map<string, string>();
+    for (const fill of input.canonicalFills) {
+      if (!fill.id.trim() || canonicalById.has(fill.id)) {
+        throw new PaperCanonicalOutcomeReconciliationError("CANONICAL_FILL_LEDGER_INVALID", "canonical PAPER fill ledger contains a missing or duplicated fill identity");
+      }
+      canonicalById.set(fill.id, canonicalJson(fill));
+    }
+    for (const fill of [...input.startState.fills, ...input.endState.fills]) {
+      if (fill.filledAt <= periodEndAt && canonicalById.get(fill.id) !== canonicalJson(fill)) {
+        throw new PaperCanonicalOutcomeReconciliationError("CANONICAL_FILL_LEDGER_STATE_MISMATCH", "bounded PAPER account fill projection disagrees with canonical fill truth");
+      }
+    }
+    periodFills = (input.canonicalFills as readonly AttributedPaperFill[])
+      .filter((fill) => fill.filledAt > periodStartAt && fill.filledAt <= periodEndAt)
+      .sort((left, right) => left.filledAt - right.filledAt || left.id.localeCompare(right.id));
+  }
 
   const candidateIds = new Set<string>();
   const executionCostEvidenceIds = new Set<string>();

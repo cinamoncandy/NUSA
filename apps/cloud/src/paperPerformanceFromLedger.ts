@@ -10,6 +10,8 @@ const SHA256 = /^[a-f0-9]{64}$/;
 export interface PaperPerformanceFromLedgerInput {
   readonly period: PersistedPaperPeriodEnvelope;
   readonly accountHistory: readonly PaperAccountState[];
+  /** Complete durable fill truth from the canonical PAPER repository. */
+  readonly durableFills?: readonly PaperFillRecord[];
   readonly generatedAt?: number;
   readonly calculationVersion?: string;
 }
@@ -68,8 +70,8 @@ export function buildPaperPerformanceFromLedger(input: PaperPerformanceFromLedge
 
   const startState = exactBoundary(input.accountHistory, record.periodStartAt, "START");
   const endState = exactBoundary(input.accountHistory, record.periodEndAt, "END");
-  const startLedger = buildDurablePaperAccountingSource(input.accountHistory, record.periodStartAt);
-  const endLedger = buildDurablePaperAccountingSource(input.accountHistory, record.periodEndAt);
+  const startLedger = buildDurablePaperAccountingSource(input.accountHistory, record.periodStartAt, input.durableFills);
+  const endLedger = buildDurablePaperAccountingSource(input.accountHistory, record.periodEndAt, input.durableFills);
 
   const startFillIds = new Set(startLedger.fills.map((fill) => fill.id));
   const periodFills = Object.freeze(endLedger.fills.filter((fill) =>
@@ -83,6 +85,7 @@ export function buildPaperPerformanceFromLedger(input: PaperPerformanceFromLedge
     periodEndAt: record.periodEndAt,
     startState: durableStartState,
     endState: durableEndState,
+    canonicalFills: endLedger.fills,
   });
   if (receipt.receiptFingerprint !== record.canonicalOutcomeReceiptFingerprint) throw new Error("PAPER_PERFORMANCE_OUTCOME_RECEIPT_MISMATCH");
   if (receipt.candidateIds.length !== 1 || receipt.candidateIds[0] !== candidateId) throw new Error("PAPER_PERFORMANCE_CANDIDATE_ATTRIBUTION_MISMATCH");
