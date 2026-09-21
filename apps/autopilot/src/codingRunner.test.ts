@@ -197,7 +197,7 @@ describe("coding runner", () => {
     const ai: WorkersAiBinding = {
       async run(model, input) {
         aiCalls += 1;
-        assert.equal(model, "@cf/meta/llama-3.1-8b-instruct");
+        assert.equal(model, "@cf/meta/llama-3.3-70b-instruct-fp8-fast");
         assert.match(input.prompt, /unified diff/);
         return { response: JSON.stringify({ patch }) };
       },
@@ -468,7 +468,24 @@ describe("coding runner", () => {
       AI: ai,
     }, verifiedGithubFetch);
     assert.equal(result.status, "EXECUTION_ACCEPTED");
-    assert.deepEqual(calls, ["@cf/meta/llama-3.1-8b-instruct"]);
+    assert.deepEqual(calls, ["@cf/meta/llama-3.3-70b-instruct-fp8-fast"]);
+  });
+
+  it("falls back from the deprecated former JSON-mode default to the active default", async () => {
+    const calls: string[] = [];
+    const ai: WorkersAiBinding = {
+      async run(model) {
+        calls.push(model);
+        return { response: { patch } };
+      },
+    };
+    const result = await executeCodingRunner(request, {
+      NUSA_GITHUB_TOKEN: "github-token",
+      NUSA_AI_CODING_MODEL: "@cf/meta/llama-3.1-8b-instruct",
+      AI: ai,
+    }, verifiedGithubFetch);
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.deepEqual(calls, ["@cf/meta/llama-3.3-70b-instruct-fp8-fast"]);
   });
 
   it("falls back from the retired dashboard model to the supported default", async () => {
@@ -485,7 +502,7 @@ describe("coding runner", () => {
       AI: ai,
     }, verifiedGithubFetch);
     assert.equal(result.status, "EXECUTION_ACCEPTED");
-    assert.deepEqual(calls, ["@cf/meta/llama-3.1-8b-instruct"]);
+    assert.deepEqual(calls, ["@cf/meta/llama-3.3-70b-instruct-fp8-fast"]);
   });
 
   it("stays interface-ready when no provider-neutral coding engine is configured", async () => {
