@@ -76,7 +76,7 @@ test("Bottom navigation uses a restrained active rail with the five-destination 
   assert.match(app, /backgroundColor: active \? appTheme\.colors\.primary : "transparent"/);
   assert.match(app, /const color = active \? intelligenceFieldColors\.terminalSignal : intelligenceFieldColors\.textSubtle/);
   assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\]/);
-  assert.match(app, /AiSignal: "AI"/);
+  assert.match(app, /AiSignal: "AI SIGNAL"/);
   assert.match(app, /AiSignal: "AI 판단과 근거"/);
 });
 

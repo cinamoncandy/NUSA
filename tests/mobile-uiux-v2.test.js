@@ -13,7 +13,7 @@ test("product navigation promotes PAPER learning supervision and AI through the 
   const home = read("src/homeView.tsx");
   assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\] as const/);
   assert.match(app, /Paper: "PAPER"/);
-  assert.match(app, /AiSignal: "AI"/);
+  assert.match(app, /AiSignal: "AI SIGNAL"/);
   assert.match(app, /AiSignal: "AI 판단과 근거"/);
   assert.match(app, /type Tab = PrimaryTab \| "Order"/);
   assert.match(app, /activeTab === "AiSignal" \? <AiView/);
