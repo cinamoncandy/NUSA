@@ -8,14 +8,18 @@ const FAILED_SHA = "b".repeat(40);
 const RUN_ID = 9001;
 const NOW = 1_787_968_000_000;
 
-function namespace(acquired = true, record: Record<string, unknown> | null = null): ExecutionCoordinatorNamespace {
+function namespace(acquired = true, record: Record<string, unknown> | null = null, events: string[] = []): ExecutionCoordinatorNamespace {
   return {
     idFromName: (name: string) => ({ name }),
     get: () => ({
       async fetch(input: RequestInfo | URL) {
         const url = String(input);
+        if (url.endsWith("/active-wip")) { events.push("active-wip:read"); return new Response(JSON.stringify({ claims: [], activeExecutions: 0 }), { status: 200, headers: { "content-type": "application/json" } }); }
+        if (url.endsWith("/active-wip/admit")) { events.push("active-wip:admit"); return new Response(JSON.stringify({ admitted: true }), { status: 201, headers: { "content-type": "application/json" } }); }
+        if (url.endsWith("/active-wip/complete")) { events.push("active-wip:complete"); return new Response(JSON.stringify({ completed: true }), { status: 200, headers: { "content-type": "application/json" } }); }
         if (url.endsWith("/execution")) return new Response(JSON.stringify({ record }), { status: 200, headers: { "content-type": "application/json" } });
-        if (url.endsWith("/acquire")) return new Response(JSON.stringify(acquired ? { acquired: true } : { acquired: false, reason: "ALREADY_DISPATCHED" }), { status: acquired ? 201 : 409, headers: { "content-type": "application/json" } });
+        if (url.endsWith("/acquire")) { events.push("persistent:acquire"); return new Response(JSON.stringify(acquired ? { acquired: true } : { acquired: false, reason: "ALREADY_DISPATCHED" }), { status: acquired ? 201 : 409, headers: { "content-type": "application/json" } }); }
+        if (url.endsWith("/release")) { events.push("persistent:release"); return new Response(JSON.stringify({ released: true }), { status: 200, headers: { "content-type": "application/json" } }); }
         if (url.endsWith("/dispatched")) return new Response(JSON.stringify({ updated: true }), { status: 200, headers: { "content-type": "application/json" } });
         return new Response("not found", { status: 404 });
       },
@@ -50,6 +54,7 @@ test("scheduled evolution coding abstains without GitHub transport", async () =>
 
 test("scheduled evolution coding routes fresh evidence through existing repository dispatch spine", async () => {
   let posted = false;
+  const events: string[] = [];
   const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.endsWith("/branches/main")) {
@@ -69,6 +74,8 @@ test("scheduled evolution coding routes fresh evidence through existing reposito
       assert.equal(body.client_payload.live_authority, "NONE");
       assert.equal(body.client_payload.production_mutation_allowed, false);
       assert.equal(body.client_payload.ai_authority, "ZERO_AUTHORITY");
+      assert.equal(body.client_payload.canonical_owner, "evolve");
+      assert.deepEqual(body.client_payload.conflict_keys, ["workflow:ci", `head:${FAILED_SHA}`]);
       return new Response(null, { status: 204 });
     }
     return new Response("not found", { status: 404 });
@@ -76,7 +83,7 @@ test("scheduled evolution coding routes fresh evidence through existing reposito
 
   const outcome = await runScheduledEvolutionCoding({
     NUSA_GITHUB_TOKEN: "token",
-    NUSA_EXECUTION_COORDINATOR: namespace(),
+    NUSA_EXECUTION_COORDINATOR: namespace(true, null, events),
   }, {
     candidates,
     now: NOW,
@@ -89,6 +96,7 @@ test("scheduled evolution coding routes fresh evidence through existing reposito
   assert.equal(outcome.status, "EXECUTION_ACCEPTED");
   assert.equal(outcome.reason, "github-coding-dispatch-accepted");
   assert.equal(outcome.selectedSignalIds.length, 1);
+  assert.deepEqual(events, ["active-wip:read", "active-wip:admit", "persistent:acquire"]);
 });
 
 test("scheduled evolution coding suppresses duplicate coding dispatch", async () => {
