@@ -197,7 +197,7 @@ describe("coding runner", () => {
     const ai: WorkersAiBinding = {
       async run(model, input) {
         aiCalls += 1;
-        assert.equal(model, "@cf/meta/llama-3.1-8b-instruct-fast");
+        assert.equal(model, "@cf/meta/llama-3.1-8b-instruct");
         assert.match(input.prompt, /unified diff/);
         return { response: JSON.stringify({ patch }) };
       },
@@ -244,7 +244,7 @@ describe("coding runner", () => {
     assert.equal(result.proposalValidated, true);
     assert.equal(runtimeCalls, 1);
     assert.equal(calls.length, 1);
-    assert.equal(calls[0]?.model, "@cf/meta/llama-3.1-8b-instruct-fast");
+    assert.equal(calls[0]?.model, "@cf/meta/llama-3.1-8b-instruct");
     assert.match(calls[0]?.input.prompt ?? "", /unified diff/);
     assert.deepEqual(calls[0]?.input.response_format, {
       type: "json_schema",
@@ -454,6 +454,23 @@ describe("coding runner", () => {
     assert.equal("patch" in result, false);
   });
 
+  it("falls back from a JSON-mode-incompatible fast model to the JSON-mode default", async () => {
+    const calls: string[] = [];
+    const ai: WorkersAiBinding = {
+      async run(model) {
+        calls.push(model);
+        return { response: { patch } };
+      },
+    };
+    const result = await executeCodingRunner(request, {
+      NUSA_GITHUB_TOKEN: "github-token",
+      NUSA_AI_CODING_MODEL: "@cf/meta/llama-3.1-8b-instruct-fast",
+      AI: ai,
+    }, verifiedGithubFetch);
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.deepEqual(calls, ["@cf/meta/llama-3.1-8b-instruct"]);
+  });
+
   it("falls back from the retired dashboard model to the supported default", async () => {
     const calls: string[] = [];
     const ai: WorkersAiBinding = {
@@ -468,7 +485,7 @@ describe("coding runner", () => {
       AI: ai,
     }, verifiedGithubFetch);
     assert.equal(result.status, "EXECUTION_ACCEPTED");
-    assert.deepEqual(calls, ["@cf/meta/llama-3.1-8b-instruct-fast"]);
+    assert.deepEqual(calls, ["@cf/meta/llama-3.1-8b-instruct"]);
   });
 
   it("stays interface-ready when no provider-neutral coding engine is configured", async () => {
