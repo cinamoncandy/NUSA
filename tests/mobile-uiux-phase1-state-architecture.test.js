@@ -44,7 +44,7 @@ test("not-configured dashboard state is distinct from runtime errors", () => {
   assert.match(app, /testID="dashboard-open-settings"/);
   assert.match(app, /requiresDashboardConnection = notConfigured !== null/);
   assert.match(app, /<PortfolioView error=\{readOnlyError\}/);
-  assert.match(app, /<TradingView error=\{readOnlyError\}/);
+  assert.match(app, /<PaperOrderView error=\{readOnlyError\}/);
   assert.match(app, /<MarketsView chartError=\{publicMarkets\.chartError\}/);
   assert.match(app, /<AiView ai=\{ai\} error=\{readOnlyError\}/);
   assert.doesNotMatch(app, /error=\{readOnlyError \?\? notConfigured\}/);
@@ -69,10 +69,22 @@ test("Home hierarchy follows the approved market-to-intelligence flow while pres
   for (const marker of markers) assert.match(home, new RegExp(marker));
   assert.match(home, /TOTAL P&L/);
   assert.match(home, />EQUITY<\/Text>/);
-  assert.match(home, /SIGNAL TERRAIN/);
-  assert.match(home, /<EvidenceRow label="WHY"/);
-  assert.match(home, /<EvidenceRow label="RESULT"/);
-  assert.match(home, /<EvidenceRow label="RISK"/);
+  // The redesign dropped the literal "SIGNAL TERRAIN" heading; the terrain itself stayed. Assert the
+  // part that carries meaning — it renders, it is labelled for screen readers, and both the label and
+  // the pin text are gated on signalAvailable so an absent signal can never read as a verified one.
+  assert.match(home, /testID="home-signal-trace"/);
+  assert.match(home, /accessibilityLabel=\{signalAvailable \? "verified AI signal terrain" : "signal unavailable"\}/);
+  assert.match(home, /\{signalAvailable \? "VERIFIED AI SIGNAL" : "NO VERIFIED SIGNAL"\}/);
+  // The approved layout (d9226f33) has no WHY/RESULT/RISK evidence rows on HOME; that evidence lives
+  // on AI SIGNAL. The rows are therefore not asserted here any more.
+  //
+  // OPEN DEFECT, deliberately not asserted either way: d9226f33 kept buildHomeDecisionSurface's
+  // why/result/risk/learning strings on HOME inside `hiddenDecisionEvidence`
+  // (position:"absolute",width:1,height:1,opacity:0) under testID="home-supervisor-learning", which
+  // tests/mobile-uiux-v2.test.js and tests/mobile-home-supervisor-risk-spine.test.js still require.
+  // Those strings are invisible to the user, so the testID no longer evidences anything a person can
+  // read. Asserting the node would bless the scaffolding; asserting its absence would break two other
+  // suites over a layout question only the approved mockup can settle. Resolve it there, not here.
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
   assert.doesNotMatch(home, /label="스케줄러"|label="대기 쓰기"|label="Champion"|label="Challenger"/);
   assert.doesNotMatch(home, /productionMutationAllowed:\s*true|authority:\s*"LIVE"/);

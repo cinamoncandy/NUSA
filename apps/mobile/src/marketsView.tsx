@@ -57,7 +57,7 @@ function MarketTerrain({
 
   return <View style={[styles.terrainFrame, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.borderStrong }]} testID="markets-terrain">
     <View style={styles.terrainHeader}>
-      <View>
+      <View style={styles.terrainHeaderLead}>
         <Text style={[styles.terrainEyebrow, { color: theme.colors.aiSignalEnd }]}>MARKET TERRAIN</Text>
         <Text style={[styles.terrainDetail, { color: theme.colors.textMuted }]}>VERIFIED UPBIT PUBLIC MOVE · NO PREDICTION</Text>
       </View>
@@ -269,9 +269,13 @@ const styles = StyleSheet.create({
   referenceStateText: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 0.6 },
   terrainFrame: { borderWidth: 1, borderRadius: 24, overflow: "hidden" },
   terrainHeader: { minHeight: 64, paddingHorizontal: 18, paddingVertical: 13, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  terrainHeaderLead: { flex: 1, minWidth: 0 },
   terrainEyebrow: { fontSize: 12, lineHeight: 16, fontWeight: "900", letterSpacing: 1.3 },
   terrainDetail: { marginTop: 4, fontSize: 8, lineHeight: 12, fontWeight: "700", letterSpacing: 0.55 },
-  terrainSource: { fontSize: 8, lineHeight: 12, fontWeight: "800", letterSpacing: 0.7 },
+  // flexShrink 0: terrainHeader is a space-between row whose left column carries a 41-character
+  // detail line, which squeezed this sibling until the last glyph was cut ("UPBIT PUBLI").
+  // paddingRight absorbs the trailing letterSpacing, which Android excludes from measured width.
+  terrainSource: { fontSize: 8, lineHeight: 12, fontWeight: "800", letterSpacing: 0.7, flexShrink: 0, paddingRight: 1 },
   terrainGrid: { height: 310, position: "relative", overflow: "hidden" },
   terrainColumns: { position:"absolute",left:10,right:10,bottom:12,flexDirection:"row",gap:5 },
   terrainColumn: { flex:1,minWidth:0,alignItems:"center",justifyContent:"center",paddingVertical:7,paddingHorizontal:3,borderWidth:1,borderRadius:10,backgroundColor:"rgba(5,7,16,0.72)" },

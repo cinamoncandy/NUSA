@@ -26,7 +26,9 @@ test("classic and master themes are frozen, semantic, and geometrically distinct
   assert.notEqual(classicDark.colors.background, masterDark.colors.background);
 
   assert.equal(masterDark.colors.surfaceSunken, "#060811");
-  assert.equal(masterDark.colors.primarySoft, "#15152B");
+  // Darkened from #15152B so primary-on-primarySoft chip text clears WCAG AA (4.26 -> 4.59);
+  // tests/uiux-002-phase2-visual-foundation.test.js owns that contrast contract.
+  assert.equal(masterDark.colors.primarySoft, "#14052C");
   assert.equal(masterDark.colors.borderStrong, "#2B3550");
   assert.equal(masterDark.colors.info, "#59C9FF");
   assert.equal(masterDark.colors.aiSignalStart, "#7B61FF");

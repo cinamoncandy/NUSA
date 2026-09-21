@@ -126,7 +126,7 @@ export const designPresets: Readonly<Record<DesignPresetName, DesignPreset>> = O
     name: "master" as const,
     dark: Object.freeze({
       background: "#05060B", surface: "#090C14", surfaceRaised: "#101522", surfaceSunken: "#060811",
-      text: "#F7F8FC", textMuted: "#8C94A7", primary: "#7B61FF", primarySoft: "#15152B", onPrimary: "#FFFFFF",
+      text: "#F7F8FC", textMuted: "#8C94A7", primary: "#7B61FF", primarySoft: "#14052C", onPrimary: "#FFFFFF",
       navSurface: "#070911", border: "#171D2C", borderStrong: "#2B3550", info: "#59C9FF", focus: "#8C6CFF",
       neonGlow: "rgba(123, 97, 255, 0.28)",
     }),
