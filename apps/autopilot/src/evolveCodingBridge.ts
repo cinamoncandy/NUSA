@@ -59,12 +59,25 @@ export function prepareDiscoveredCodingRequest(input: EvolutionCodingBridgeInput
     });
   }
 
+  const selected = selection.selectedOpportunity;
+  if (!selected.canonicalOwner || !selected.conflictKeys?.length) {
+    return Object.freeze({
+      status: "ABSTAINED",
+      reason: "selected-evolution-ownership-required",
+      rejectedSignalIds: discovery.rejectedSignalIds,
+      request: null,
+      authority: AUTHORITY,
+    });
+  }
+
   const request = validateCodingRunnerRequest({
     kind: "REPOSITORY_AUTOPILOT",
     repository: input.repository,
     headSha: input.headSha,
     workflowRunId: input.workflowRunId,
-    reason: `evolve:${selection.selectedOpportunity.id}:${selection.selectedOpportunity.problem}`,
+    reason: `evolve:${selected.id}:${selected.problem}`,
+    canonicalOwner: selected.canonicalOwner,
+    conflictKeys: selected.conflictKeys,
     executionId: input.executionId,
     dedupeKey: input.dedupeKey,
     mutationAllowed: false,
