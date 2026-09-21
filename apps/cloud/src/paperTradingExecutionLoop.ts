@@ -16,6 +16,7 @@ const ACCOUNT_ID = "paper-default";
 const SCHEMA_VERSION = 1;
 const LEDGER_ROUND_SCALE = 100_000_000n;
 const round8 = (value: number): number => Number(value.toFixed(8));
+const floor8 = (value: number): number => Math.floor((value + Number.EPSILON) * 100_000_000) / 100_000_000;
 const toScaledLedgerAmount = (value: number): bigint => BigInt(Math.round(value * Number(LEDGER_ROUND_SCALE)));
 const fromScaledLedgerAmount = (value: bigint): number => Number(value) / Number(LEDGER_ROUND_SCALE);
 function divideRound8(numerator: bigint, denominator: bigint): number {
@@ -965,7 +966,7 @@ export class PaperTradingExecutionLoop {
     const remainingAllocationCapital = current.side === "BUY"
       ? round8(Math.max(0, (current.remainingAllocationCapital ?? 0) - notional))
       : null;
-    const fallbackBudgetLimited = current.side === "BUY" && orderBookExecutionReceipt == null && remainingAllocationCapital <= 1e-8 && !terminalFill;
+    const fallbackBudgetLimited = current.side === "BUY" && orderBookExecutionReceipt == null && remainingAllocationCapital != null && remainingAllocationCapital <= 1e-8 && !terminalFill;
     const budgetExhausted = (orderBookExecutionReceipt?.budgetLimited === true || fallbackBudgetLimited) && !terminalFill;
     if (budgetExhausted) {
       try { lifecycle = transitionPaperOrderLifecycle(lifecycle, "CANCELLED", tick.now); }
