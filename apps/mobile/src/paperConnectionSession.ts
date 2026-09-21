@@ -1,8 +1,7 @@
 import { clearDashboardCredentialSession, setDashboardCredentialEndpoint } from "./dashboardCredentialSession";
 import { clearMobileApprovedSessionMemory, mobileApprovedSession } from "./mobileApprovedSessionBoundary";
 import { connectUpbitReadOnlyAccount, resetUpbitReadOnlyState } from "./upbitReadOnlyAccount";
-import { ownerDeviceCredential } from "./ownerDeviceCredential";
-import { installationIdentity } from "./installationIdentity";
+import type { OwnerDeviceCredentialNative } from "./ownerDeviceCredential";
 
 let configuredEndpoint: string | null = null;
 let verifiedEndpoint: string | null = null;
@@ -39,19 +38,15 @@ function clearCredentialMemory(): void {
   clearMobileApprovedSessionMemory();
 }
 
-function restoreApprovedSession(endpoint: string, force = false): Promise<void> {
+function restoreApprovedSession(endpoint: string, force = false, silent?: Readonly<{ deviceId: string; native: OwnerDeviceCredentialNative }>): Promise<void> {
   if (restoreInFlight != null) return restoreInFlight;
   const generation = ++restoreGeneration;
-  const native = ownerDeviceCredential();
   const operation = (async () => {
     // Foreground recovery must not trust the process-local VERIFIED flag as proof that the
     // credential survived hours of Android background/Doze. Prefer a fresh hardware-bound
     // DeviceKey challenge whenever the adapter is available; otherwise retain the existing
     // rotating-session restore path for platforms without that adapter.
-    if (force && native != null) {
-      const deviceId = await installationIdentity();
-      return mobileApprovedSession().restoreWithSilentDevice(endpoint, deviceId, native);
-    }
+    if (force && silent != null) return mobileApprovedSession().restoreWithSilentDevice(endpoint, silent.deviceId, silent.native);
     return mobileApprovedSession().restore(endpoint);
   })().then((identity) => {
     if (generation !== restoreGeneration || configuredEndpoint !== endpoint) return;
@@ -127,14 +122,14 @@ export async function restoreConfiguredPaperSession(value = configuredEndpoint):
  * and this only exchanges it again. A session that has genuinely lapsed still fails closed, and the
  * device must be re-approved by an ACTIVE OWNER exactly as before.
  */
-export function resumePaperConnection(): void {
+export function resumePaperConnection(silent?: Readonly<{ deviceId: string; native: OwnerDeviceCredentialNative }>): void {
   const endpoint = configuredEndpoint;
   if (endpoint == null) return;
   // A VERIFIED flag is only a process-local observation. Android can preserve it while the app is
   // backgrounded long enough for the actual access credential to expire. Always revalidate on
   // foreground; restoreApprovedSession is single-flight so duplicate lifecycle events coalesce.
   cancelRestoreRetry();
-  void restoreApprovedSession(endpoint, true);
+  void restoreApprovedSession(endpoint, true, silent);
 }
 
 export function clearConfiguredPaperEndpoint(): void {
