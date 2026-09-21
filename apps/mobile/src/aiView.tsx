@@ -61,13 +61,20 @@ export function AiView({ai,research,health,liveAuthority,productionMutationAllow
         <Text style={[styles.convergenceState,{color:signalAvailable?LIME:MUTED}]}>{signalAvailable?"VERIFIED":"WAITING"}</Text>
       </View>
       <View style={styles.convergenceField}>
-        {[0,45,90,135].map((deg)=><View key={deg} style={[styles.convergenceRay,{backgroundColor:signalAvailable?LIME:wealthProductColors.c62,transform:[{rotate:`${deg}deg`}]}]}/>)}
-        <View style={[styles.signalRingOuter,{borderColor:signalAvailable?LIME:wealthProductColors.c62}]}>
-          <View style={[styles.signalRingInner,{borderColor:signalAvailable?LIME:wealthProductColors.c62}]}>
-            <View style={[styles.signalCore,{backgroundColor:signalAvailable?LIME:MUTED}]}/>
-          </View>
+        <View style={[styles.flowAmbient,styles.flowAmbientPurple,{backgroundColor:theme.colors.neonPurple}]}/>
+        <View style={[styles.flowAmbient,styles.flowAmbientBlue,{backgroundColor:theme.colors.neonBlue}]}/>
+        <View style={[styles.flowAmbient,styles.flowAmbientTeal,{backgroundColor:theme.colors.neonTeal}]}/>
+        <View style={[styles.flowLine,{top:"24%",left:"2%",width:"68%",backgroundColor:theme.colors.aiSignalStart,transform:[{rotate:"11deg"}]}]}/>
+        <View style={[styles.flowLine,{top:"33%",left:"3%",width:"70%",backgroundColor:theme.colors.aiSignalStart,transform:[{rotate:"7deg"}]}]}/>
+        <View style={[styles.flowLine,{top:"43%",left:"5%",width:"70%",backgroundColor:theme.colors.aiSignalMid,transform:[{rotate:"3deg"}]}]}/>
+        <View style={[styles.flowLine,{top:"54%",left:"5%",width:"70%",backgroundColor:theme.colors.aiSignalMid,transform:[{rotate:"-3deg"}]}]}/>
+        <View style={[styles.flowLine,{top:"64%",left:"3%",width:"70%",backgroundColor:theme.colors.aiSignalEnd,transform:[{rotate:"-7deg"}]}]}/>
+        <View style={[styles.flowLine,{top:"73%",left:"2%",width:"68%",backgroundColor:theme.colors.aiSignalEnd,transform:[{rotate:"-11deg"}]}]}/>
+        <View style={[styles.flowBeam,{backgroundColor:signalAvailable?theme.colors.aiSignalEnd:wealthProductColors.c62}]}/>
+        <View style={[styles.flowCoreOuter,{borderColor:signalAvailable?theme.colors.aiSignalMid:wealthProductColors.c62}]}>
+          <View style={[styles.flowCore,{backgroundColor:signalAvailable?theme.colors.text:MUTED,shadowColor:theme.colors.aiSignalEnd}]}/>
         </View>
-        <View style={styles.convergenceLabel}><Text style={[styles.convergenceLabelText,{color:signalAvailable?LIME:MUTED}]}>{signalAvailable?"VERIFIED AI SIGNAL":"NO VERIFIED SIGNAL"}</Text></View>
+        <View style={styles.convergenceLabel}><Text style={[styles.convergenceLabelText,{color:signalAvailable?theme.colors.aiSignalEnd:MUTED}]}>{signalAvailable?"VERIFIED AI SIGNAL":"NO VERIFIED SIGNAL"}</Text></View>
       </View>
       <View style={styles.stageRail} testID="ai-stage-timeline">
         {convergenceStages.map((stage,index)=><View key={stage.label} style={styles.stageItem}>
@@ -119,19 +126,22 @@ const styles=StyleSheet.create({
  titleRow:{minHeight:72,flexDirection:"row",alignItems:"center",justifyContent:"space-between",borderBottomWidth:1,borderBottomColor:BORDER},titleRowNarrow:{height:"auto",minHeight:68,paddingVertical:10,flexWrap:"wrap",gap:6},pageEyebrow:{color:LIME,fontSize:8,fontWeight:"900",letterSpacing:1.25,marginBottom:5},pageTitle:{color:wealthProductColors.c59,fontSize:24,fontWeight:"900",letterSpacing:1.1},titleMeta:{flexDirection:"row",alignItems:"center",gap:7},time:{color:MUTED,fontSize:8},
  assetHead:{flexDirection:"row",alignItems:"center",paddingVertical:2,gap:11},assetHeadNarrow:{flexWrap:"wrap"},coin:{width:46,height:46,borderRadius:46,backgroundColor:wealthProductColors.c60,alignItems:"center",justifyContent:"center"},coinText:{color:wealthProductColors.c08,fontSize:20,fontWeight:"900"},assetName:{flex:1},symbol:{color:wealthProductColors.c61,fontSize:20,fontWeight:"800"},assetSub:{color:MUTED,fontSize:9,marginTop:3},quote:{alignItems:"flex-end"},quoteNarrow:{width:"100%",alignItems:"flex-start",paddingLeft:57},price:{color:wealthProductColors.c59,fontSize:20,fontWeight:"800",fontVariant:["tabular-nums"]},readOnly:{color:LIME,fontSize:8,fontWeight:"800",marginTop:4},
  chips:{flexDirection:"row",gap:7,flexWrap:"wrap"},chip:{borderWidth:1,borderColor:wealthProductColors.c62,borderRadius:6,paddingHorizontal:10,paddingVertical:7,backgroundColor:wealthProductColors.c63},chipText:{color:wealthProductColors.c64,fontSize:8,fontWeight:"900",letterSpacing:.5},
- convergencePanel:{borderTopWidth:1,borderBottomWidth:1,borderColor:BORDER,backgroundColor:INK},
+ convergencePanel:{backgroundColor:INK},
  convergenceHead:{minHeight:58,paddingHorizontal:4,flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:12},convergenceSub:{color:MUTED,fontSize:7,fontWeight:"800",letterSpacing:.55,marginTop:4},convergenceState:{fontSize:9,fontWeight:"900",letterSpacing:1},
- convergenceField:{height:244,position:"relative",alignItems:"center",justifyContent:"center",overflow:"hidden",backgroundColor:wealthProductColors.c28},
- convergenceRay:{position:"absolute",width:220,height:1,left:"50%",top:"50%",marginLeft:-110,opacity:.72},
- signalRingOuter:{width:118,height:118,borderRadius:118,borderWidth:1,alignItems:"center",justifyContent:"center",backgroundColor:wealthProductColors.c31},
- signalRingInner:{width:70,height:70,borderRadius:70,borderWidth:1,alignItems:"center",justifyContent:"center"},signalCore:{width:15,height:15,borderRadius:15,shadowColor:LIME,shadowOpacity:.65,shadowRadius:12},
- convergenceLabel:{position:"absolute",bottom:24,paddingHorizontal:10,paddingVertical:6,borderWidth:1,borderColor:BORDER,backgroundColor:INK},convergenceLabelText:{fontSize:9,fontWeight:"900",letterSpacing:.8},
+ convergenceField:{height:300,position:"relative",overflow:"hidden",backgroundColor:wealthProductColors.c28,borderWidth:1,borderColor:wealthProductColors.c24,borderRadius:24},
+ flowAmbient:{position:"absolute",width:190,height:190,borderRadius:190,opacity:.12},
+ flowAmbientPurple:{left:-82,top:-38},flowAmbientBlue:{left:"32%",top:54,opacity:.09},flowAmbientTeal:{right:-72,bottom:-42,opacity:.1},
+ flowLine:{position:"absolute",height:1.5,borderRadius:2,opacity:.72},
+ flowBeam:{position:"absolute",right:"18%",top:"18%",bottom:"18%",width:1.5,opacity:.65},
+ flowCoreOuter:{position:"absolute",right:"12%",top:"36%",width:66,height:66,borderRadius:66,borderWidth:1,alignItems:"center",justifyContent:"center",backgroundColor:wealthProductColors.c31},
+ flowCore:{width:10,height:10,borderRadius:10,shadowOpacity:.9,shadowRadius:18},
+ convergenceLabel:{position:"absolute",right:18,bottom:20,paddingHorizontal:11,paddingVertical:6,borderWidth:1,borderColor:wealthProductColors.c24,borderRadius:999,backgroundColor:wealthProductColors.c31},convergenceLabelText:{fontSize:8,fontWeight:"900",letterSpacing:.8},
  stageRail:{minHeight:90,flexDirection:"row",paddingHorizontal:4,paddingTop:14,paddingBottom:10},stageItem:{flex:1,alignItems:"center",position:"relative"},stageNode:{width:10,height:10,borderRadius:10,borderWidth:2,zIndex:2},stageLink:{position:"absolute",top:4,left:"55%",width:"90%",height:1},stageLabel:{fontSize:8,fontWeight:"900",letterSpacing:.55,marginTop:10},stageStatus:{fontSize:7,fontWeight:"900",marginTop:4},
- analysis:{borderWidth:1,borderColor:BORDER,borderRadius:4,backgroundColor:PANEL,overflow:"hidden"},analysisHeader:{height:48,paddingHorizontal:14,flexDirection:"row",alignItems:"center",justifyContent:"space-between",borderBottomWidth:1,borderBottomColor:BORDER},sectionTitle:{color:wealthProductColors.c59,fontSize:14,fontWeight:"900",letterSpacing:1},chevron:{color:MUTED,fontSize:22},
+ analysis:{borderWidth:1,borderColor:BORDER,borderRadius:18,backgroundColor:PANEL,overflow:"hidden"},analysisHeader:{height:48,paddingHorizontal:14,flexDirection:"row",alignItems:"center",justifyContent:"space-between",borderBottomWidth:1,borderBottomColor:BORDER},sectionTitle:{color:wealthProductColors.c59,fontSize:14,fontWeight:"900",letterSpacing:1},chevron:{color:MUTED,fontSize:22},
  analysisRow:{minHeight:82,flexDirection:"row",gap:15,paddingHorizontal:14,paddingVertical:14,borderBottomWidth:1,borderBottomColor:wealthProductColors.c65},analysisRowNarrow:{minHeight:0,flexDirection:"column",gap:6},analysisLabel:{width:66,fontSize:11,fontWeight:"900",letterSpacing:.7},analysisLabelNarrow:{width:"100%"},analysisValue:{flex:1,color:wealthProductColors.c66,fontSize:11,lineHeight:17},analysisValueNarrow:{flexGrow:0,width:"100%"},
  chartPanel:{borderTopWidth:1,borderTopColor:BORDER},periods:{height:45,flexDirection:"row",alignItems:"center",gap:25},period:{height:45,lineHeight:44,borderBottomWidth:2,borderBottomColor:"transparent",color:MUTED,fontSize:9,fontWeight:"800"},
  chart:{height:194,borderTopWidth:1,borderTopColor:wealthProductColors.c67,borderBottomWidth:1,borderBottomColor:wealthProductColors.c67,flexDirection:"row",alignItems:"flex-end",gap:2,paddingHorizontal:4,paddingBottom:10,overflow:"hidden"},chartBar:{flex:1,minWidth:2,opacity:.78,borderRadius:1},
  chartEmpty:{flex:1,alignItems:"center",justifyContent:"center"},emptyTitle:{color:MUTED,fontSize:10,fontWeight:"900"},emptyText:{color:wealthProductColors.c68,fontSize:9,marginTop:7},
  authority:{borderWidth:1,borderColor:BORDER,borderRadius:8,padding:12,backgroundColor:wealthProductColors.c41},authorityTitle:{color:LIME,fontSize:9,fontWeight:"900",letterSpacing:.8},authorityText:{color:wealthProductColors.c69,fontSize:8,lineHeight:13,marginTop:5},
- watchButton:{minHeight:48,borderWidth:1,borderColor:LIME,borderRadius:4,backgroundColor:"transparent",alignItems:"center",justifyContent:"center"},watchText:{color:LIME,fontSize:9,fontWeight:"900",letterSpacing:.9},error:{color:RED,fontSize:9},
+ watchButton:{minHeight:48,borderWidth:1,borderColor:wealthProductColors.c24,borderRadius:16,backgroundColor:wealthProductColors.c31,alignItems:"center",justifyContent:"center"},watchText:{color:LIME,fontSize:9,fontWeight:"900",letterSpacing:.9},error:{color:RED,fontSize:9},
 });
