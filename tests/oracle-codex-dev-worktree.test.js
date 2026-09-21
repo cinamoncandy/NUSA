@@ -27,6 +27,7 @@ test("Oracle Codex task execution uses one isolated branch and git worktree", ()
   assert.match(workflow, /git worktree prune/);
 });
 
-test("Oracle Codex concurrency remains deliberately bounded at one worker", () => {
-  assert.match(workflow, /concurrency:\s*\n\s*group: oracle-codex-dev-runner\s*\n\s*cancel-in-progress: false/);
+test("Oracle Codex concurrency isolates distinct task IDs while deduplicating the same task", () => {
+  assert.match(workflow, /group: oracle-codex-dev-\$\{\{ inputs\.mode \}\}-\$\{\{ inputs\.task \|\| 'none' \}\}/);
+  assert.doesNotMatch(workflow, /group: oracle-codex-dev-runner/);
 });

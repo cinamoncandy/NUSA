@@ -21,8 +21,10 @@ on:
 permissions:
   contents: read
 
+# Distinct task IDs may execute concurrently when runner capacity exists. Login/status remain
+# serialized per mode, and redispatching the same task keeps the same group.
 concurrency:
-  group: oracle-codex-dev-runner
+  group: oracle-codex-dev-${{ inputs.mode }}-${{ inputs.task || 'none' }}
   cancel-in-progress: false
 
 jobs:
