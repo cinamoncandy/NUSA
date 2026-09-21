@@ -40,7 +40,7 @@ test("connects fresh bounded discovery evidence to the existing CodingRunner req
   assert.equal(result.request?.kind, "REPOSITORY_AUTOPILOT");
   assert.equal(result.request?.headSha, "d3171864d989cf9897bd5f514f8cb45489b15056");
   assert.equal(result.request?.workflowRunId, 33239968298);
-  assert.equal(result.selectedOpportunityId, "candidate");
+  assert.equal(result.selectedOpportunityId, "discovery:candidate");
   assert.equal(result.request?.canonicalOwner, "evolve");
   assert.deepEqual(result.request?.conflictKeys, ["evolve:candidate"]);
   assert.equal(result.request?.mutationAllowed, false);
