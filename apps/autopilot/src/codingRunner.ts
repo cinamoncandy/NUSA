@@ -158,7 +158,7 @@ export function validateCodingRunnerRequest(value: unknown, allowedRepository = 
     if (typeof request.proposalFeedback !== "string"
       || !request.proposalFeedback.trim()
       || new TextEncoder().encode(request.proposalFeedback).byteLength > MAX_CODING_PROPOSAL_FEEDBACK_BYTES
-      || !/^[\\x20-\\x7E]+$/.test(request.proposalFeedback)) {
+      || !/^[\x20-\x7E]+$/.test(request.proposalFeedback)) {
       throw new Error("CODING_RUNNER_PROPOSAL_FEEDBACK_INVALID");
     }
   }
