@@ -313,7 +313,9 @@ function workersAiResponseValue(payload: Record<string, unknown>): unknown {
   if (!first || typeof first !== "object" || Array.isArray(first)) return undefined;
   const message = (first as Record<string, unknown>).message;
   if (!message || typeof message !== "object" || Array.isArray(message)) return undefined;
-  return (message as Record<string, unknown>).content;
+  const record = message as Record<string, unknown>;
+  if (record.parsed !== undefined) return record.parsed;
+  return record.content;
 }
 
 function workersAiProposal(value: unknown): CodingProposal {
@@ -324,8 +326,9 @@ function workersAiProposal(value: unknown): CodingProposal {
     return parseProposalText(response);
   }
   // Legacy Workers AI JSON mode can return the schema object under `response`.
-  // Current chat-completion models return text under `choices[0].message.content`.
-  // Validate both envelopes without widening the patch-only authority boundary.
+  // Current structured chat-completion models can return the schema object under `choices[0].message.parsed`,
+  // while non-structured chat completions return text under `choices[0].message.content`.
+  // Validate all supported envelopes without widening the patch-only authority boundary.
   if (response && typeof response === "object" && !Array.isArray(response)) {
     try {
       return validateCodingProposal(response);
