@@ -257,6 +257,35 @@ describe("coding runner", () => {
     });
   });
 
+  it("accepts Workers AI structured chat-completion parsed responses", async () => {
+    const runtime: CodingRuntime = {
+      name: "fake-sandbox",
+      async execute(value, proposal) {
+        assert.equal(value.executionId, request.executionId);
+        assert.equal(proposal?.patch, patch);
+        return {
+          backend: "fake-sandbox",
+          checkpointId: request.headSha,
+          workspaceVerified: true,
+          proposalValidated: true,
+          changedFiles: ["apps/autopilot/src/example.ts"],
+        };
+      },
+    };
+    const ai: WorkersAiBinding = {
+      async run() {
+        return {
+          id: "chatcmpl-test",
+          object: "chat.completion",
+          choices: [{ index: 0, message: { role: "assistant", content: null, parsed: { patch } } }],
+        };
+      },
+    };
+    const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch, runtime);
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.equal(result.proposalValidated, true);
+  });
+
   it("accepts current Workers AI chat-completion response envelopes", async () => {
     const runtime: CodingRuntime = {
       name: "fake-sandbox",
