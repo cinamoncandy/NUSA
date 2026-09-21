@@ -203,7 +203,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3, 4]
+        shard: [0, 1, 2, 3]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -232,7 +232,7 @@ jobs:
       - name: Core isolated coverage shard
         env:
           NODE_V8_COVERAGE: ${{ runner.temp }}/nusa-v8-core
-          NUSA_TEST_SHARD_COUNT: 5
+          NUSA_TEST_SHARD_COUNT: 4
           NUSA_TEST_SHARD_INDEX: ${{ matrix.shard }}
         run: node scripts/run-tests-isolated.js
       - name: Upload core V8 coverage shard
