@@ -4,6 +4,8 @@ export interface ResearchCandidateIdentity {
   readonly candidateId: string;
   readonly strategyId: string;
   readonly strategyVersion: string;
+  /** Optional only for persisted legacy records; new registrations require an explicit canonical binding. */
+  readonly familyId?: string;
   readonly artifactHash: string;
   readonly configHash: string;
   readonly createdAt: number;
