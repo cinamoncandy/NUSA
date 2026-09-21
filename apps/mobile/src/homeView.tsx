@@ -12,7 +12,6 @@ import { selectHomeMarketData } from "./homeMarketData";
 import type { WatchlistMarket } from "./watchlist";
 import type { PublicCandle } from "./chartViewModel";
 import { buildChartViewModel } from "./chartViewModel";
-import { BUILD_SOURCE_SHA } from "./generatedBuildConfig";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
 export type HomeDestination = "Markets" | "AiSignal" | "Portfolio";
@@ -41,7 +40,6 @@ const PANEL = wealthProductColors.c02;
 const BORDER = wealthProductColors.c03;
 const MUTED = wealthProductColors.c04;
 const RED = wealthProductColors.c05;
-const packagedBuildLabel = /^[0-9a-f]{40}$/i.test(BUILD_SOURCE_SHA) ? BUILD_SOURCE_SHA.slice(0, 8) : "DEV";
 
 function won(value: number | null | undefined): string {
   return value == null || !Number.isFinite(value) ? "—" : `₩${Math.round(value).toLocaleString("ko-KR")}`;
@@ -114,7 +112,6 @@ export function HomeView(props: HomeViewProps) {
     testID="home-screen"
   >
     <View style={styles.topbar} testID="home-master-rail">
-      <Text testID="home-build-source" style={{position:"absolute",opacity:0}}>BUILD {packagedBuildLabel} · UI INTELLIGENCE OS</Text>
       <View><Text style={styles.logo}>NUSA</Text><Text style={styles.tagline}>AI SIGNAL · STRATEGY</Text></View>
       <View style={styles.notificationGlyph} testID="home-status-rail">
         <View style={styles.notificationBell} />

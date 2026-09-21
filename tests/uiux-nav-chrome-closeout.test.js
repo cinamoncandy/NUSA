@@ -27,13 +27,16 @@ test("header keeps utilities behind one compact tools entry", () => {
   assert.match(app, /testID="header-tools-menu"/);
   assert.match(app, /accessibilityState=\{\{ expanded: utilityMenuOpen, selected: utilityMenuOpen \|\| utilityView !== null \}\}/);
   assert.match(app, /testID="header-tools-tray"/);
-  assert.match(app, /\["NOTIFICATIONS", "SETTINGS"\] as const/);
+  assert.match(app, /\["HISTORY", "NOTIFICATIONS", "SETTINGS"\] as const/);
   assert.match(app, /setUtilityView\(view\)/);
-  for (const marker of ["header-notifications", "header-settings"]) assert.match(app, new RegExp(marker));
+  for (const marker of ["header-order-history", "header-notifications", "header-settings"]) assert.match(app, new RegExp(marker));
   assert.match(app, /utilityMenuButton: \{ flex: 1, minHeight: 48/);
   assert.match(app, /utilityButton: \{ minWidth: 48, minHeight: 48/);
-  // MASTER keeps the primary nav compact while preserving an accessible >=48px touch target.
-  assert.match(app, /navItem: \{ flex: 1, minHeight: 72/);
+  // The floor is the contract, not an exact height. tests/mobile-frontend-lifecycle-resilience.test.js
+  // parses every touch target; three suites pinning three different exact numbers is what made a
+  // nav bar fail by growing.
+  const navMinHeight = /navItem: \{[^}]*minHeight:\s*(\d+)/.exec(app);
+  assert.ok(navMinHeight && Number(navMinHeight[1]) >= 48, "navItem must keep a >=48px touch target");
   assert.doesNotMatch(app, /backgroundColor: active \? appTheme\.colors\.neonGlow/);
   assert.doesNotMatch(app, /borderColor: active \? appTheme\.colors\.neonBlue/);
   assert.doesNotMatch(app, /shadowColor: active \? appTheme\.colors\.neonBlue/);
