@@ -133,12 +133,14 @@ const EXECUTION_ID = /^[A-Za-z0-9_.:-]{1,160}$/;
 const DEDUPE_KEY = /^[A-Za-z0-9_.:-]{1,256}$/;
 const DEFAULT_REPOSITORY = "cinamoncandy/NUSA";
 const GITHUB_API_ORIGIN = "https://api.github.com";
-const DEFAULT_WORKERS_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct";
+const DEFAULT_WORKERS_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 const MAX_CODING_PROPOSAL_BYTES = 24_000;
 const MAX_CODING_PROPOSAL_FEEDBACK_BYTES = 512;
 const FORBIDDEN_CODING_PATH_SEGMENT = /(?:^|\/)(?:live|live-trading|broker|order|credential|secret|secrets|withdraw|transfer|production-authority)(?:\/|$)/i;
-const NON_JSON_MODE_WORKERS_AI_MODELS = new Set([
+const UNUSABLE_CODING_WORKERS_AI_MODELS = new Set([
+  "@cf/zai-org/glm-4.7-flash",
   "@cf/meta/infire-llama-3.1-8b-instruct",
+  "@cf/meta/llama-3.1-8b-instruct",
   "@cf/meta/llama-3.1-8b-instruct-fast",
 ]);
 
@@ -259,18 +261,29 @@ function parseProposalText(value: string): CodingProposal {
   throw new Error(parsedJson ? "CODING_PROPOSAL_SHAPE_INVALID" : "CODING_PROPOSAL_JSON_INVALID");
 }
 
+function workersAiResponseValue(payload: Record<string, unknown>): unknown {
+  if (payload.response !== undefined) return payload.response;
+  if (!Array.isArray(payload.choices) || payload.choices.length === 0) return undefined;
+  const first = payload.choices[0];
+  if (!first || typeof first !== "object" || Array.isArray(first)) return undefined;
+  const message = (first as Record<string, unknown>).message;
+  if (!message || typeof message !== "object" || Array.isArray(message)) return undefined;
+  return (message as Record<string, unknown>).content;
+}
+
 function workersAiProposal(value: unknown): CodingProposal {
   const payload = object(value);
-  if (typeof payload.response === "string") {
-    if (!payload.response.trim()) throw new Error("CODING_PROPOSAL_RESPONSE_INVALID");
-    return parseProposalText(payload.response);
+  const response = workersAiResponseValue(payload);
+  if (typeof response === "string") {
+    if (!response.trim()) throw new Error("CODING_PROPOSAL_RESPONSE_INVALID");
+    return parseProposalText(response);
   }
-  // Workers AI JSON mode returns the schema object directly under `response`,
-  // while non-JSON text mode returns a string. Validate both shapes without
-  // accepting any unstructured or authority-bearing fields.
-  if (payload.response && typeof payload.response === "object" && !Array.isArray(payload.response)) {
+  // Legacy Workers AI JSON mode can return the schema object under `response`.
+  // Current chat-completion models return text under `choices[0].message.content`.
+  // Validate both envelopes without widening the patch-only authority boundary.
+  if (response && typeof response === "object" && !Array.isArray(response)) {
     try {
-      return validateCodingProposal(payload.response);
+      return validateCodingProposal(response);
     } catch (error) {
       if (error instanceof Error && error.message === "CODING_PROPOSAL_PATCH_REQUIRED") throw error;
       throw new Error("CODING_PROPOSAL_SHAPE_INVALID");
@@ -495,8 +508,8 @@ export async function executeCodingRunner(
 
   if (!env.AI) return { status: "INTERFACE_READY", reason: "ai-coding-engine-not-configured" };
   const configuredModel = env.NUSA_AI_CODING_MODEL?.trim();
-  // Dashboard vars can outlive a provider retirement; never call a known-retired model.
-  const model = !configuredModel || NON_JSON_MODE_WORKERS_AI_MODELS.has(configuredModel)
+  // Dashboard vars can outlive provider deprecations or retain a model that cannot satisfy the current JSON-schema contract.
+  const model = !configuredModel || UNUSABLE_CODING_WORKERS_AI_MODELS.has(configuredModel)
     ? DEFAULT_WORKERS_AI_MODEL
     : configuredModel;
   if (!validWorkersAiModel(model)) return { status: "EXECUTION_FAILED", reason: "WORKERS_AI_MODEL_INVALID" };
