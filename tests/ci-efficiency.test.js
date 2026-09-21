@@ -12,7 +12,8 @@ test("CI produces core and UI/E2E coverage in parallel before a merge-only job",
   assert.doesNotMatch(workflow, /- name: E2E tests\n/);
   assert.doesNotMatch(workflow, /- name: Full isolated test suite\n/);
   assert.match(workflow, /coverage-core:\n/);
-  assert.match(workflow, /matrix:\n\s+shard: \[0, 1, 2, 3\]/);
+  assert.match(workflow, /matrix:\n\s+shard: \[0, 1, 2, 3, 4\]/);
+  assert.match(workflow, /NUSA_TEST_SHARD_COUNT: 5/);
   assert.match(workflow, /- name: Core isolated coverage shard\n[\s\S]*?run: node scripts\/run-tests-isolated\.js/);
   assert.match(workflow, /coverage-ui-e2e:\n/);
   assert.match(workflow, /- name: Produce UI and E2E coverage in parallel with core shards\n[\s\S]*?--produce-ui-e2e/);
