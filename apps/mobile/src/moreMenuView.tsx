@@ -10,21 +10,27 @@ const BORDER = wealthProductColors.c03;
 const PANEL = wealthProductColors.c02;
 
 /** Destinations the concept board's More screen leads to, beyond the five primary tabs. */
-export type MoreDestination = "RISK" | "PERFORMANCE" | "PAPER" | "HISTORY" | "NOTIFICATIONS" | "SETTINGS";
+export type MoreDestination = "RISK" | "PERFORMANCE" | "PAPER" | "HISTORY" | "NOTIFICATIONS" | "SETTINGS" | "HELP";
+export type MorePrimaryDestination = "Signals" | "Strategies";
 
 interface MoreMenuViewProps {
   readonly onSelect: (destination: MoreDestination) => void;
+  readonly onNavigatePrimary: (destination: MorePrimaryDestination) => void;
   readonly buildLabel: string;
 }
 
-const ITEMS: ReadonlyArray<Readonly<{ key: MoreDestination; title: string; detail: string }>> = [
-  { key: "RISK", title: "Risk", detail: "검증 가능한 노출 · 집중도 · 위험 근거" },
-  { key: "PERFORMANCE", title: "Performance", detail: "PAPER equity · return · allocation" },
-  { key: "PAPER", title: "PAPER Report", detail: "검증된 PAPER 상태와 학습 근거" },
-  { key: "HISTORY", title: "Order History", detail: "기록된 PAPER 주문" },
-  { key: "NOTIFICATIONS", title: "System Status", detail: "런타임 알림과 상태" },
-  { key: "SETTINGS", title: "Settings", detail: "연결 · 기기 · 환경설정" },
-];
+const ITEMS = [
+  { key: "AI_ANALYSIS", title: "AI Analysis", detail: "Evidence-based insights", kind: "PRIMARY", destination: "Signals" },
+  { key: "RESEARCH", title: "Research", detail: "Backtest & Validate", kind: "PRIMARY", destination: "Strategies" },
+  { key: "SYSTEM_STATUS", title: "System Status", detail: "Runtime health and alerts", kind: "UTILITY", destination: "NOTIFICATIONS" },
+  { key: "SETTINGS", title: "Settings", detail: "Preferences", kind: "UTILITY", destination: "SETTINGS" },
+  { key: "HELP", title: "Help", detail: "Documentation", kind: "UTILITY", destination: "HELP" },
+] as const;
+
+const INSIGHTS = [
+  { key: "RISK", title: "Risk" },
+  { key: "PERFORMANCE", title: "Performance" },
+] as const;
 
 /**
  * The concept board's More screen: an identity card, a list of deeper destinations, and an explicit
@@ -32,7 +38,7 @@ const ITEMS: ReadonlyArray<Readonly<{ key: MoreDestination; title: string; detai
  * REAL DATA ONLY — and it is a safety declaration, so it renders as visible text rather than as a
  * marker some test can satisfy without anyone being able to read it.
  */
-export function MoreMenuView({ onSelect, buildLabel }: MoreMenuViewProps) {
+export function MoreMenuView({ onSelect, onNavigatePrimary, buildLabel }: MoreMenuViewProps) {
   return <ScrollView style={{ backgroundColor: CANVAS }} contentContainerStyle={styles.content} testID="more-screen">
     <Text style={styles.title}>More</Text>
 
@@ -51,16 +57,18 @@ export function MoreMenuView({ onSelect, buildLabel }: MoreMenuViewProps) {
         accessibilityRole="button"
         accessibilityLabel={item.title}
         accessibilityHint={item.detail}
-        onPress={() => onSelect(item.key)}
+        onPress={() => item.kind === "PRIMARY" ? onNavigatePrimary(item.destination) : onSelect(item.destination)}
         style={({ pressed }) => [styles.item, index === ITEMS.length - 1 ? styles.itemLast : null, { opacity: pressed ? 0.7 : 1 }]}
         testID={`more-${item.key.toLowerCase()}`}
       >
-        <View style={styles.itemLead}>
-          <Text style={styles.itemTitle}>{item.title}</Text>
-          <Text style={styles.itemDetail} numberOfLines={1}>{item.detail}</Text>
-        </View>
+        <View style={styles.itemGlyph}><Text style={styles.itemGlyphText}>{item.title.slice(0,1)}</Text></View>
+        <View style={styles.itemLead}><Text style={styles.itemTitle}>{item.title}</Text><Text style={styles.itemDetail} numberOfLines={1}>{item.detail}</Text></View>
         <Text style={styles.itemChevron}>›</Text>
       </Pressable>)}
+    </View>
+
+    <View style={styles.insightRail} testID="more-insight-rail">
+      {INSIGHTS.map((item)=><Pressable key={item.key} onPress={()=>onSelect(item.key)} style={styles.insightCard} testID={`more-${item.key.toLowerCase()}`}><Text style={styles.insightTitle}>{item.title}</Text><Text style={styles.insightMeta}>Verified PAPER insight</Text></Pressable>)}
     </View>
 
     <View style={styles.authority} testID="more-authority">
@@ -84,12 +92,17 @@ const styles = StyleSheet.create({
   modeChip: { flexShrink: 0, minHeight: 26, borderWidth: 1, borderColor: ACCENT_SOFT, borderRadius: 999, paddingHorizontal: 10, justifyContent: "center" },
   modeChipText: { color: ACCENT_SOFT, fontSize: 9, fontWeight: "900", letterSpacing: 0.7, paddingRight: 1 },
   list: { borderWidth: 1, borderColor: BORDER, borderRadius: 14, backgroundColor: PANEL, overflow: "hidden" },
-  item: { minHeight: 56, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  item: { minHeight: 58, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  itemGlyph: { width: 30, height: 30, borderRadius: 9, borderWidth: 1, borderColor: BORDER, backgroundColor: "#0D171B", alignItems: "center", justifyContent: "center" },
+  itemGlyphText: { color: ACCENT_SOFT, fontSize: 10, fontWeight: "900" },
   itemLast: { borderBottomWidth: 0 },
   itemLead: { flex: 1, minWidth: 0 },
   itemTitle: { color: TEXT, fontSize: 14, lineHeight: 20, fontWeight: "700" },
   itemDetail: { color: MUTED, fontSize: 11, lineHeight: 16 },
   itemChevron: { color: MUTED, fontSize: 20, fontWeight: "300" },
+  insightRail: { flexDirection: "row", gap: 8 },
+  insightCard: { flex: 1, minHeight: 64, borderWidth: 1, borderColor: BORDER, borderRadius: 12, backgroundColor: PANEL, padding: 12, justifyContent: "center" },
+  insightTitle: { color: TEXT, fontSize: 12, fontWeight: "800" }, insightMeta: { color: MUTED, fontSize: 8, marginTop: 3 },
   authority: { borderWidth: 1, borderColor: BORDER, borderRadius: 14, paddingVertical: 18, paddingHorizontal: 16, gap: 4, alignItems: "center" },
   authorityLine: { color: MUTED, fontSize: 10, lineHeight: 16, fontWeight: "800", letterSpacing: 1.6 },
   build: { color: MUTED, fontSize: 10, textAlign: "center", fontVariant: ["tabular-nums"] },

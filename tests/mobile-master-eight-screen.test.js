@@ -24,3 +24,9 @@ test("Signals are real Terrain and Detail states and Strategies follows the mast
  assert.match(ai,/testID="signal-terrain-hero"/);assert.match(ai,/testID="signal-open-detail"/);assert.match(ai,/setDetailOpen\(true\)/);assert.match(ai,/signal-detail-back/);
  assert.match(strategies,/Families","Active","Watchlist/);assert.match(strategies,/testID="strategies-list"/);assert.match(strategies,/testID="strategies-featured"/);
 });
+
+test("More matches the master primary menu and keeps Risk/Performance secondary",()=>{
+ const more=fs.readFileSync("apps/mobile/src/moreMenuView.tsx","utf8");
+ for(const label of ["AI Analysis","Research","System Status","Settings","Help"]) assert.match(more,new RegExp(label));
+ assert.match(more,/testID="more-insight-rail"/);assert.match(more,/INSIGHTS/);
+});
