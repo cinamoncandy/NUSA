@@ -13,7 +13,7 @@ test("UIUX-002 presents the canonical five-tab product navigation while preservi
   assert.match(app, /Markets: "MARKETS"/);
   assert.match(app, /Paper: "PAPER"/);
   assert.match(app, /Portfolio: "PORTFOLIO"/);
-  assert.match(app, /AiSignal: "AI"/);
+  assert.match(app, /AiSignal: "AI SIGNAL"/);
   assert.match(app, /Markets: "공개 시장 환경"/);
   assert.match(app, /Portfolio: "PAPER 자산과 결과"/);
   assert.match(app, /AiSignal: "AI 판단과 근거"/);
