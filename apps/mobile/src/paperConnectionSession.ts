@@ -63,7 +63,14 @@ function restoreApprovedSession(endpoint: string, force = false, silent?: Readon
     if (generation === restoreGeneration && configuredEndpoint === endpoint) verifiedEndpoint = null;
   });
   restoreInFlight = operation;
-  void operation.finally(() => { if (restoreInFlight === operation) restoreInFlight = null; });
+  void operation.finally(() => {
+    if (restoreInFlight !== operation) return;
+    restoreInFlight = null;
+    // A transient failure may have scheduled an immediate retry (tests and foreground wakeups can
+    // collapse timers to a microtask). If that callback observed this operation as in-flight it
+    // safely no-oped; re-arm once after clearing the single-flight slot so recovery cannot stall.
+    if (configuredEndpoint === endpoint && !isPaperConnectionVerified(endpoint) && mobileApprovedSession().shouldRetryRestore()) scheduleRestoreRetry(endpoint);
+  });
   return operation;
 }
 
