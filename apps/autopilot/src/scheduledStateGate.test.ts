@@ -32,6 +32,9 @@ function githubFetch(withFreshFailure = false): typeof fetch {
     if (url.endsWith("/branches/main")) {
       return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200, headers: { "content-type": "application/json" } });
     }
+    if (url.includes("/actions/workflows/ci.yml/runs?")) {
+      return new Response(JSON.stringify({ workflow_runs: [{ id: RUN_ID, name: "CI", conclusion: "success", head_branch: "main", head_sha: SHA, event: "push" }] }), { status: 200, headers: { "content-type": "application/json" } });
+    }
     if (url.includes("/actions/runs?")) {
       const workflowRuns: unknown[] = [{ id: RUN_ID, name: "CI", conclusion: "success", head_branch: "main", head_sha: SHA, event: "push" }];
       if (withFreshFailure) workflowRuns.push({ id: RUN_ID + 1, name: "CI", conclusion: "failure", head_branch: "main", head_sha: "b".repeat(40), event: "push", completed_at: new Date(NOW + 1_000).toISOString() });

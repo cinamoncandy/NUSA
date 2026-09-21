@@ -47,6 +47,19 @@ describe("coding runner", () => {
     assert.deepEqual(validateCodingRunnerRequest(request), request);
   });
 
+  it("accepts only bounded printable proposal repair feedback", () => {
+    const repair = { ...request, proposalFeedback: "attempt=2;rejection=SANDBOX_PATCH_APPLY_CHECK_FAILED;repair=regenerate" };
+    assert.deepEqual(validateCodingRunnerRequest(repair), repair);
+    assert.throws(
+      () => validateCodingRunnerRequest({ ...request, proposalFeedback: "attempt=2\nsecret=unexpected" }),
+      /CODING_RUNNER_PROPOSAL_FEEDBACK_INVALID/,
+    );
+    assert.throws(
+      () => validateCodingRunnerRequest({ ...request, proposalFeedback: "x".repeat(513) }),
+      /CODING_RUNNER_PROPOSAL_FEEDBACK_INVALID/,
+    );
+  });
+
   it("rejects missing or malformed lifecycle identity", () => {
     assert.throws(() => validateCodingRunnerRequest({ ...request, executionId: "" }), /CODING_RUNNER_EXECUTION_ID_INVALID/);
     assert.throws(() => validateCodingRunnerRequest({ ...request, dedupeKey: "bad key" }), /CODING_RUNNER_DEDUPE_KEY_INVALID/);
@@ -390,6 +403,28 @@ describe("coding runner", () => {
     assert.equal(result.reason, "CODING_PROPOSAL_SHAPE_INVALID");
     assert.equal(result.proposalAttempts, 3);
     assert.equal(result.failureStage, "proposal-parse");
+  });
+
+  it("allows the external GitHub runner to cap one AI generation per proposal request", async () => {
+    let attempts = 0;
+    const ai: WorkersAiBinding = {
+      async run() {
+        attempts += 1;
+        return { response: JSON.stringify({ patch: 42, explanation: "invalid patch shape" }) };
+      },
+    };
+    const result = await executeCodingRunner(
+      request,
+      { NUSA_GITHUB_TOKEN: "github-token", AI: ai },
+      verifiedGithubFetch,
+      undefined,
+      undefined,
+      { maxProposalAttempts: 1 },
+    );
+    assert.equal(result.status, "EXECUTION_FAILED");
+    assert.equal(result.reason, "CODING_PROPOSAL_SHAPE_INVALID");
+    assert.equal(result.proposalAttempts, 1);
+    assert.equal(attempts, 1);
   });
 
   it("rejects forbidden authority-surface proposal paths before sandbox execution", async () => {
