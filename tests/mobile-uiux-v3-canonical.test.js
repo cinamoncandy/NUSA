@@ -68,7 +68,7 @@ test("Portfolio and AI use decision-first information hierarchy", () => {
   const portfolio = read("src/portfolioView.tsx");
   const ai = read("src/aiView.tsx");
   assert.match(portfolio, /<AuthorityRail/);
-  assert.match(portfolio, /<ScreenLead/);
+  assert.match(portfolio, /testID="portfolio-master-hero"/);
   assert.match(portfolio, /testID="portfolio-supervisor-summary"/);
   assert.match(portfolio, /label: "PAPER EQUITY"/);
   assert.match(portfolio, /testID="portfolio-upbit-read-only"/);
@@ -79,7 +79,7 @@ test("Portfolio and AI use decision-first information hierarchy", () => {
 
   assert.match(ai, /testID="ai-screen"/);
   assert.match(ai, /SIGNAL DETAIL/);
-  assert.match(ai, /testID="ai-thesis-card"/);
+  assert.match(ai, /testID="ai-convergence-signal"/);\n  assert.match(ai, /testID="ai-stage-timeline"/);\n  assert.match(ai, /testID="ai-thesis-card"/);
   assert.match(ai, /testID="ai-why"/);
   assert.match(ai, /testID="ai-result"/);
   assert.match(ai, /testID="ai-risk"/);
