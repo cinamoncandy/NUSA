@@ -30,6 +30,7 @@ export function AiView({ai,research,health,liveAuthority,productionMutationAllow
   const trusted=calibrated?percent(ai?.confidence):"UNVERIFIED";
   const evidence=ai?.evidenceReferences ?? [];
   const counter=ai?.counterEvidence ?? [];
+  const signalAvailable=ai?.status==="AVAILABLE"&&Boolean(ai.thesis)&&calibrated&&evidence.length>0;
   const thesis=ai?.status==="AVAILABLE"&&ai.thesis?ai.thesis:"검증된 AI 판단이 아직 없습니다.";
   const risk=counter.length>0?counter.slice(0,2).join(" · "):"검증된 반대 근거가 없습니다.";
   const learningProvenance = ai?.learningProvenance ?? "UNKNOWN";
