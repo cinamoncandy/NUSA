@@ -38,6 +38,6 @@ test("Signal Detail makes truthful convergence the visual hero without duplicate
   assert.match(ai, /DECIDE/);
   assert.match(ai, /stage\.observed\?"OBSERVED":"WAITING"/);
   assert.doesNotMatch(ai, /<View style=\{styles\.topbar\}>/);
-  assert.match(ai, /watchButton:\{minHeight:48,borderWidth:1,borderColor:LIME/);
+  assert.match(ai, /watchButton:\{minHeight:48,borderWidth:1,borderColor:wealthProductColors\.c24/);
   assert.match(ai, /backgroundColor:"transparent"/);
 });
