@@ -133,11 +133,12 @@ const EXECUTION_ID = /^[A-Za-z0-9_.:-]{1,160}$/;
 const DEDUPE_KEY = /^[A-Za-z0-9_.:-]{1,256}$/;
 const DEFAULT_REPOSITORY = "cinamoncandy/NUSA";
 const GITHUB_API_ORIGIN = "https://api.github.com";
-const DEFAULT_WORKERS_AI_MODEL = "@cf/zai-org/glm-4.7-flash";
+const DEFAULT_WORKERS_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 const MAX_CODING_PROPOSAL_BYTES = 24_000;
 const MAX_CODING_PROPOSAL_FEEDBACK_BYTES = 512;
 const FORBIDDEN_CODING_PATH_SEGMENT = /(?:^|\/)(?:live|live-trading|broker|order|credential|secret|secrets|withdraw|transfer|production-authority)(?:\/|$)/i;
 const UNUSABLE_CODING_WORKERS_AI_MODELS = new Set([
+  "@cf/zai-org/glm-4.7-flash",
   "@cf/meta/infire-llama-3.1-8b-instruct",
   "@cf/meta/llama-3.1-8b-instruct",
   "@cf/meta/llama-3.1-8b-instruct-fast",

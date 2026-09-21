@@ -197,7 +197,7 @@ describe("coding runner", () => {
     const ai: WorkersAiBinding = {
       async run(model, input) {
         aiCalls += 1;
-        assert.equal(model, "@cf/zai-org/glm-4.7-flash");
+        assert.equal(model, "@cf/meta/llama-3.3-70b-instruct-fp8-fast");
         assert.match(input.prompt, /unified diff/);
         return { response: JSON.stringify({ patch }) };
       },
@@ -244,7 +244,7 @@ describe("coding runner", () => {
     assert.equal(result.proposalValidated, true);
     assert.equal(runtimeCalls, 1);
     assert.equal(calls.length, 1);
-    assert.equal(calls[0]?.model, "@cf/zai-org/glm-4.7-flash");
+    assert.equal(calls[0]?.model, "@cf/meta/llama-3.3-70b-instruct-fp8-fast");
     assert.match(calls[0]?.input.prompt ?? "", /unified diff/);
     assert.deepEqual(calls[0]?.input.response_format, {
       type: "json_schema",
@@ -483,6 +483,23 @@ describe("coding runner", () => {
     assert.equal("patch" in result, false);
   });
 
+  it("falls back from GLM because the coding contract requires documented Workers AI JSON Mode support", async () => {
+    const calls: string[] = [];
+    const ai: WorkersAiBinding = {
+      async run(model) {
+        calls.push(model);
+        return { response: { patch } };
+      },
+    };
+    const result = await executeCodingRunner(request, {
+      NUSA_GITHUB_TOKEN: "github-token",
+      NUSA_AI_CODING_MODEL: "@cf/zai-org/glm-4.7-flash",
+      AI: ai,
+    }, verifiedGithubFetch);
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.deepEqual(calls, ["@cf/meta/llama-3.3-70b-instruct-fp8-fast"]);
+  });
+
   it("falls back from a JSON-mode-incompatible fast model to the JSON-mode default", async () => {
     const calls: string[] = [];
     const ai: WorkersAiBinding = {
@@ -497,7 +514,7 @@ describe("coding runner", () => {
       AI: ai,
     }, verifiedGithubFetch);
     assert.equal(result.status, "EXECUTION_ACCEPTED");
-    assert.deepEqual(calls, ["@cf/zai-org/glm-4.7-flash"]);
+    assert.deepEqual(calls, ["@cf/meta/llama-3.3-70b-instruct-fp8-fast"]);
   });
 
   it("falls back from the retired dashboard model to the supported default", async () => {
@@ -514,7 +531,7 @@ describe("coding runner", () => {
       AI: ai,
     }, verifiedGithubFetch);
     assert.equal(result.status, "EXECUTION_ACCEPTED");
-    assert.deepEqual(calls, ["@cf/zai-org/glm-4.7-flash"]);
+    assert.deepEqual(calls, ["@cf/meta/llama-3.3-70b-instruct-fp8-fast"]);
   });
 
   it("stays interface-ready when no provider-neutral coding engine is configured", async () => {
@@ -537,7 +554,7 @@ describe("coding runner", () => {
       AI: ai,
     }, verifiedGithubFetch);
     assert.equal(result.status, "EXECUTION_ACCEPTED");
-    assert.deepEqual(calls, ["@cf/zai-org/glm-4.7-flash"]);
+    assert.deepEqual(calls, ["@cf/meta/llama-3.3-70b-instruct-fp8-fast"]);
   });
 
   it("fails closed when the Workers AI binding is unavailable", async () => {
