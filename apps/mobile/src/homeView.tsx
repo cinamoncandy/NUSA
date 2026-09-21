@@ -34,7 +34,7 @@ interface HomeViewProps {
   readonly onOpenPaperLearning: () => void;
 }
 
-const LIME = intelligenceFieldColors.terminalSignal;
+const SIGNAL_TEAL = intelligenceFieldColors.terminalSignal;
 const INK = wealthProductColors.c01;
 const PANEL = wealthProductColors.c02;
 const BORDER = wealthProductColors.c03;
@@ -54,12 +54,12 @@ function MarketTile({ market }: Readonly<{ market: WatchlistMarket | null }>) {
   const positive = (market?.changeRate ?? 0) >= 0;
   return <View style={styles.marketTile}>
     <Text style={styles.marketSymbol}>{symbol}</Text>
-    <Text style={[styles.marketChange, { color: market == null ? MUTED : positive ? LIME : RED }]}>{pct(market?.changeRate)}</Text>
+    <Text style={[styles.marketChange, { color: market == null ? MUTED : positive ? SIGNAL_TEAL : RED }]}>{pct(market?.changeRate)}</Text>
     <Text style={styles.marketPrice}>{market == null ? "NO DATA" : won(market.price)}</Text>
   </View>;
 }
 function EvidenceRow({ label, value, tone = "neutral" }: Readonly<{ label: string; value: string; tone?: "lime" | "danger" | "neutral" }>) {
-  return <View style={styles.evidenceRow}><Text style={[styles.evidenceLabel, { color: tone === "lime" ? LIME : tone === "danger" ? RED : wealthProductColors.c06 }]}>{label}</Text><Text style={styles.evidenceValue} numberOfLines={3}>{value}</Text></View>;
+  return <View style={styles.evidenceRow}><Text style={[styles.evidenceLabel, { color: tone === "lime" ? SIGNAL_TEAL : tone === "danger" ? RED : wealthProductColors.c06 }]}>{label}</Text><Text style={styles.evidenceValue} numberOfLines={3}>{value}</Text></View>;
 }
 export function HomeView(props: HomeViewProps) {
   const { theme } = useTheme();
@@ -108,7 +108,7 @@ export function HomeView(props: HomeViewProps) {
   return <ScrollView
     style={{ backgroundColor: INK }}
     contentContainerStyle={[styles.content, { maxWidth: tablet ? 980 : 720 }]}
-    refreshControl={<RefreshControl tintColor={LIME} refreshing={props.refreshing} onRefresh={props.onRefresh} />}
+    refreshControl={<RefreshControl tintColor={SIGNAL_TEAL} refreshing={props.refreshing} onRefresh={props.onRefresh} />}
     testID="home-screen"
   >
     <View style={styles.topbar} testID="home-master-rail">
@@ -124,7 +124,7 @@ export function HomeView(props: HomeViewProps) {
         <View style={styles.accountHeroValueBlock}>
           <Text style={styles.accountHeroEyebrow}>총 자산</Text>
           <Text style={styles.accountHeroValue}>{won(account?.equity)}</Text>
-          <Text style={[styles.accountHeroDelta, { color: totalPnl == null ? MUTED : totalPnl >= 0 ? LIME : RED }]}>
+          <Text style={[styles.accountHeroDelta, { color: totalPnl == null ? MUTED : totalPnl >= 0 ? SIGNAL_TEAL : RED }]}>
             {/* Cumulative, not daily: totalPnl is realized + unrealized since inception. Nothing
                 in the app supplies a daily basis — no producer sets homeStatusRail's
                 hasDailyPnlBasis — so a daily caption would state a period the data cannot support. */}
@@ -139,7 +139,7 @@ export function HomeView(props: HomeViewProps) {
       <Pressable onPress={() => props.onNavigate("AiSignal")} style={({ pressed }) => [styles.accountHeroInsight, { opacity: pressed ? 0.78 : 1 }]} testID="home-ai-judgement">
         <View style={styles.accountHeroInsightHead}>
           <Text style={styles.accountHeroInsightLabel}>NUSA AI 판단</Text>
-          <Text style={[styles.accountHeroInsightState, { color: signalAvailable ? LIME : MUTED }]}>{signalAvailable ? "VERIFIED" : "WAITING"}</Text>
+          <Text style={[styles.accountHeroInsightState, { color: signalAvailable ? SIGNAL_TEAL : MUTED }]}>{signalAvailable ? "VERIFIED" : "WAITING"}</Text>
         </View>
         <Text style={styles.accountHeroInsightTitle} numberOfLines={2}>{signalTitle}</Text>
         <View style={styles.homeConfidenceRow}><Text style={styles.accountHeroInsightWhy} numberOfLines={1}>신뢰도</Text><Text style={styles.homeConfidenceValue}>{confidenceLabel}</Text></View>
@@ -170,8 +170,8 @@ export function HomeView(props: HomeViewProps) {
     <View style={styles.panel} testID="home-market-breadth">
       <View style={styles.panelTitleRow}><Text style={styles.panelTitle}>MARKET BREADTH</Text><Text style={styles.source}>UPBIT PUBLIC</Text></View>
       <View style={{padding:14,flexDirection:"row",alignItems:"center",gap:16}}>
-        <View style={{width:74,height:74,borderRadius:74,borderWidth:8,borderColor:breadthPercent==null?BORDER:LIME,alignItems:"center",justifyContent:"center"}}><Text style={{color:breadthPercent==null?MUTED:LIME,fontSize:20,fontWeight:"900"}}>{breadthPercent==null?"—":breadthPercent}</Text><Text style={{color:MUTED,fontSize:7,fontWeight:"800"}}>UP %</Text></View>
-        <View style={{flex:1,gap:8}}><Text style={{color:wealthProductColors.c51,fontSize:10}}>Observed markets {observedMarkets.length}</Text><View style={{height:7,borderRadius:7,backgroundColor:BORDER,overflow:"hidden"}}><View style={{height:7,width:breadthPercent==null?"0%":`${breadthPercent}%`,backgroundColor:LIME}}/></View><Text style={{color:MUTED,fontSize:8,lineHeight:13}}>Public-market breadth only. Not an AI confidence score or profit probability.</Text></View>
+        <View style={{width:74,height:74,borderRadius:74,borderWidth:8,borderColor:breadthPercent==null?BORDER:SIGNAL_TEAL,alignItems:"center",justifyContent:"center"}}><Text style={{color:breadthPercent==null?MUTED:SIGNAL_TEAL,fontSize:20,fontWeight:"900"}}>{breadthPercent==null?"—":breadthPercent}</Text><Text style={{color:MUTED,fontSize:7,fontWeight:"800"}}>UP %</Text></View>
+        <View style={{flex:1,gap:8}}><Text style={{color:wealthProductColors.c51,fontSize:10}}>Observed markets {observedMarkets.length}</Text><View style={{height:7,borderRadius:7,backgroundColor:BORDER,overflow:"hidden"}}><View style={{height:7,width:breadthPercent==null?"0%":`${breadthPercent}%`,backgroundColor:SIGNAL_TEAL}}/></View><Text style={{color:MUTED,fontSize:8,lineHeight:13}}>Public-market breadth only. Not an AI confidence score or profit probability.</Text></View>
       </View>
     </View>
 
@@ -182,8 +182,8 @@ export function HomeView(props: HomeViewProps) {
         return <Pressable key={market.market} onPress={() => props.onNavigate("Markets")} style={styles.signalRow}>
           <Text style={styles.rank}>{index + 1}</Text>
           <Text style={styles.asset}>{market.market.replace("KRW-", "")}</Text>
-          <View style={[styles.signalBadge, { borderColor: up ? LIME : RED }]}><Text style={[styles.signalBadgeText,{color:up?LIME:RED}]}>{up ? "UP" : "DOWN"}</Text></View>
-          <Text style={[styles.rowChange,{color:up?LIME:RED}]}>{pct(market.changeRate)}</Text>
+          <View style={[styles.signalBadge, { borderColor: up ? SIGNAL_TEAL : RED }]}><Text style={[styles.signalBadgeText,{color:up?SIGNAL_TEAL:RED}]}>{up ? "UP" : "DOWN"}</Text></View>
+          <Text style={[styles.rowChange,{color:up?SIGNAL_TEAL:RED}]}>{pct(market.changeRate)}</Text>
         </Pressable>;
       })}
     </View>
@@ -194,11 +194,11 @@ export function HomeView(props: HomeViewProps) {
         {marketWave.state === "READY" ? marketWave.bars.slice(-22).map((bar,index) => {
           const range = Math.max(0.000001, bar.high - bar.low);
           const rise = bar.close >= bar.open;
-          return <View key={bar.openTime} style={[styles.waveBar,{height:12+Math.min(38, range/Math.max(1,bar.close)*8000), backgroundColor:rise?LIME:wealthProductColors.c07, opacity:0.55 + index/50}]}/>;
+          return <View key={bar.openTime} style={[styles.waveBar,{height:12+Math.min(38, range/Math.max(1,bar.close)*8000), backgroundColor:rise?SIGNAL_TEAL:wealthProductColors.c07, opacity:0.55 + index/50}]}/>;
         }) : <Text style={styles.empty}>VERIFIED PERFORMANCE WAVE UNAVAILABLE</Text>}
       </View>
       <View style={styles.performanceMetrics} testID="home-performance-metrics">
-        <View><Text style={[styles.metricValue,{color:totalPnl != null && totalPnl >= 0?LIME:totalPnl == null?MUTED:RED}]}>{totalPnl == null ? "—" : won(totalPnl)}</Text><Text style={styles.metricLabel}>TOTAL P&L</Text></View>
+        <View><Text style={[styles.metricValue,{color:totalPnl != null && totalPnl >= 0?SIGNAL_TEAL:totalPnl == null?MUTED:RED}]}>{totalPnl == null ? "—" : won(totalPnl)}</Text><Text style={styles.metricLabel}>TOTAL P&L</Text></View>
         <View><Text style={styles.metricValue}>{won(account?.equity)}</Text><Text style={styles.metricLabel}>EQUITY</Text></View>
         <View><Text style={styles.metricValue}>{heartbeat?.paperOrderCount ?? "—"}</Text><Text style={styles.metricLabel}>ORDERS</Text></View>
         <View><Text style={styles.metricValue}>{heartbeat?.paperFillCount ?? "—"}</Text><Text style={styles.metricLabel}>FILLS</Text></View>
@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
   notificationClapper:{position:"absolute",bottom:7,width:4,height:2,borderRadius:2,backgroundColor:wealthProductColors.c08},
   accountHero:{paddingTop:22,paddingBottom:8,gap:18},
   accountHeroTop:{flexDirection:"row",alignItems:"flex-end",justifyContent:"space-between",gap:16},
-  accountHeroValueBlock:{flex:1,minWidth:0},accountHeroEyebrow:{color:LIME,fontSize:9,fontWeight:"900",letterSpacing:1.5,marginBottom:6},
+  accountHeroValueBlock:{flex:1,minWidth:0},accountHeroEyebrow:{color:SIGNAL_TEAL,fontSize:9,fontWeight:"900",letterSpacing:1.5,marginBottom:6},
   accountHeroValue:{color:wealthProductColors.c08,fontSize:42,lineHeight:48,fontWeight:"800",letterSpacing:-1.8,fontVariant:["tabular-nums"]},
   accountHeroDelta:{fontSize:12,fontWeight:"900",letterSpacing:.35,marginTop:6,fontVariant:["tabular-nums"]},
   accountHeroSource:{alignItems:"flex-end",paddingBottom:3},accountHeroSourceLabel:{color:wealthProductColors.c09,fontSize:9,fontWeight:"900",letterSpacing:.65,textAlign:"right"},
@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
   accountHeroInsightHead:{flexDirection:"row",alignItems:"center",justifyContent:"space-between"},accountHeroInsightLabel:{color:wealthProductColors.c06,fontSize:9,fontWeight:"900",letterSpacing:1.2},
   accountHeroInsightState:{fontSize:8,fontWeight:"900",letterSpacing:1},accountHeroInsightTitle:{color:wealthProductColors.c33,fontSize:15,lineHeight:20,fontWeight:"800"},
   accountHeroInsightWhy:{color:MUTED,fontSize:10,lineHeight:14},homeConfidenceRow:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginTop:4},homeConfidenceValue:{color:wealthProductColors.c08,fontSize:18,fontWeight:"800",fontVariant:["tabular-nums"]},
-  globeWrap:{width:172,height:174,marginRight:-4,alignItems:"center",justifyContent:"center",position:"relative"},globeGlow:{position:"absolute",width:152,height:152,borderRadius:152,backgroundColor:wealthProductColors.c13,opacity:.72,shadowColor:LIME,shadowOpacity:.22,shadowRadius:28},globeSphere:{width:152,height:152,borderRadius:152,borderWidth:1,borderColor:wealthProductColors.c14,backgroundColor:wealthProductColors.c15,overflow:"hidden",position:"relative"},globeLongitude:{position:"absolute",top:-2,bottom:-2,left:"50%",width:56,marginLeft:-28,borderRadius:56,borderWidth:1,borderColor:wealthProductColors.c16},globeLongitudeA:{transform:[{scaleX:.55}]},globeLongitudeB:{transform:[{scaleX:1.45}]},globeLatitude:{position:"absolute",left:-4,right:-4,height:46,borderRadius:80,borderWidth:1,borderColor:wealthProductColors.c17},globeLatitudeA:{top:15},globeLatitudeB:{top:48},globeLatitudeC:{top:81},globeLandA:{position:"absolute",left:77,top:35,width:34,height:18,borderRadius:8,backgroundColor:wealthProductColors.c18,transform:[{rotate:"-18deg"}]},globeLandB:{position:"absolute",left:67,top:54,width:20,height:35,borderRadius:7,backgroundColor:wealthProductColors.c19,transform:[{rotate:"17deg"}]},globeLandC:{position:"absolute",left:98,top:77,width:17,height:12,borderRadius:6,backgroundColor:wealthProductColors.c20},globeNode:{position:"absolute",width:4,height:4,borderRadius:4,backgroundColor:LIME,shadowColor:LIME,shadowOpacity:.9,shadowRadius:5},globeNodeA:{left:84,top:47},globeNodeB:{left:99,top:82},globeNodeC:{left:71,top:69},
+  globeWrap:{width:172,height:174,marginRight:-4,alignItems:"center",justifyContent:"center",position:"relative"},globeGlow:{position:"absolute",width:152,height:152,borderRadius:152,backgroundColor:wealthProductColors.c13,opacity:.72,shadowColor:SIGNAL_TEAL,shadowOpacity:.22,shadowRadius:28},globeSphere:{width:152,height:152,borderRadius:152,borderWidth:1,borderColor:wealthProductColors.c14,backgroundColor:wealthProductColors.c15,overflow:"hidden",position:"relative"},globeLongitude:{position:"absolute",top:-2,bottom:-2,left:"50%",width:56,marginLeft:-28,borderRadius:56,borderWidth:1,borderColor:wealthProductColors.c16},globeLongitudeA:{transform:[{scaleX:.55}]},globeLongitudeB:{transform:[{scaleX:1.45}]},globeLatitude:{position:"absolute",left:-4,right:-4,height:46,borderRadius:80,borderWidth:1,borderColor:wealthProductColors.c17},globeLatitudeA:{top:15},globeLatitudeB:{top:48},globeLatitudeC:{top:81},globeLandA:{position:"absolute",left:77,top:35,width:34,height:18,borderRadius:8,backgroundColor:wealthProductColors.c18,transform:[{rotate:"-18deg"}]},globeLandB:{position:"absolute",left:67,top:54,width:20,height:35,borderRadius:7,backgroundColor:wealthProductColors.c19,transform:[{rotate:"17deg"}]},globeLandC:{position:"absolute",left:98,top:77,width:17,height:12,borderRadius:6,backgroundColor:wealthProductColors.c20},globeNode:{position:"absolute",width:4,height:4,borderRadius:4,backgroundColor:SIGNAL_TEAL,shadowColor:SIGNAL_TEAL,shadowOpacity:.9,shadowRadius:5},globeNodeA:{left:84,top:47},globeNodeB:{left:99,top:82},globeNodeC:{left:71,top:69},
   orbitText:{position:"absolute",right:2,bottom:8,color:wealthProductColors.c21,fontSize:7,lineHeight:10,fontWeight:"800",letterSpacing:.55,textAlign:"right"},
   marketStrip:{flexDirection:"row",gap:8},marketTile:{flex:1,minWidth:0,paddingVertical:12,paddingHorizontal:10,borderRadius:14,backgroundColor:PANEL},
   marketSymbol:{color:wealthProductColors.c22,fontSize:11,fontWeight:"800"},marketChange:{fontSize:14,fontWeight:"800",marginTop:7},marketPrice:{color:wealthProductColors.c23,fontSize:8,marginTop:5,fontVariant:["tabular-nums"]},
@@ -260,9 +260,9 @@ const styles = StyleSheet.create({
   panelTitleRow:{minHeight:56,paddingHorizontal:18,flexDirection:"row",alignItems:"center",justifyContent:"space-between"},
   marketStripHead:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",paddingHorizontal:2,paddingBottom:6},
   marketStripTitle:{color:wealthProductColors.c06,fontSize:11,fontWeight:"800",letterSpacing:1.1},
-  panelTitle:{color:wealthProductColors.c06,fontSize:13,fontWeight:"800",letterSpacing:1},arrow:{color:LIME,fontSize:25,fontWeight:"300"},count:{color:wealthProductColors.c26,fontSize:13},source:{color:wealthProductColors.c27,fontSize:9,fontWeight:"800"},
+  panelTitle:{color:wealthProductColors.c06,fontSize:13,fontWeight:"800",letterSpacing:1},arrow:{color:SIGNAL_TEAL,fontSize:25,fontWeight:"300"},count:{color:wealthProductColors.c26,fontSize:13},source:{color:wealthProductColors.c27,fontSize:9,fontWeight:"800"},
   terrain:{height:330,position:"relative",justifyContent:"center",overflow:"hidden",backgroundColor:wealthProductColors.c28},gridH1:{position:"absolute",left:0,right:0,top:"33%",height:1,backgroundColor:wealthProductColors.c29},gridH2:{position:"absolute",left:0,right:0,top:"66%",height:1,backgroundColor:wealthProductColors.c29},gridV1:{position:"absolute",top:0,bottom:0,left:"33%",width:1,backgroundColor:wealthProductColors.c29},gridV2:{position:"absolute",top:0,bottom:0,left:"66%",width:1,backgroundColor:wealthProductColors.c29},
-  signalPin:{position:"absolute",left:"38%",bottom:24,alignItems:"center"},pinDot:{width:8,height:8,borderRadius:8,backgroundColor:wealthProductColors.c08,shadowColor:LIME,shadowOpacity:.9,shadowRadius:14},pinLabel:{marginTop:8,color:wealthProductColors.c57,fontSize:8,fontWeight:"800",backgroundColor:wealthProductColors.c31,paddingHorizontal:9,paddingVertical:5,borderRadius:999,borderWidth:1,borderColor:wealthProductColors.c24},
+  signalPin:{position:"absolute",left:"38%",bottom:24,alignItems:"center"},pinDot:{width:8,height:8,borderRadius:8,backgroundColor:wealthProductColors.c08,shadowColor:SIGNAL_TEAL,shadowOpacity:.9,shadowRadius:14},pinLabel:{marginTop:8,color:wealthProductColors.c57,fontSize:8,fontWeight:"800",backgroundColor:wealthProductColors.c31,paddingHorizontal:9,paddingVertical:5,borderRadius:999,borderWidth:1,borderColor:wealthProductColors.c24},
   signalThesis:{color:wealthProductColors.c33,fontSize:20,lineHeight:28,fontWeight:"700",paddingHorizontal:18,paddingTop:18,paddingBottom:14},
   evidenceRail:{paddingBottom:8},evidenceRow:{flexDirection:"row",gap:12,paddingHorizontal:18,paddingVertical:10,borderTopWidth:StyleSheet.hairlineWidth,borderTopColor:wealthProductColors.c34},evidenceLabel:{width:60,fontSize:9,fontWeight:"900",letterSpacing:.8},evidenceValue:{flex:1,color:wealthProductColors.c35,fontSize:10,lineHeight:15},
   signalRow:{minHeight:48,flexDirection:"row",alignItems:"center",paddingHorizontal:13,gap:10,borderBottomWidth:1,borderBottomColor:wealthProductColors.c34},rank:{width:22,height:22,borderRadius:22,borderWidth:1,borderColor:wealthProductColors.c36,color:wealthProductColors.c37,textAlign:"center",lineHeight:20,fontSize:9},asset:{color:wealthProductColors.c38,fontSize:13,fontWeight:"800",width:54},signalBadge:{borderWidth:1,borderRadius:5,paddingHorizontal:7,paddingVertical:4},signalBadgeText:{fontSize:8,fontWeight:"900"},rowChange:{marginLeft:"auto",fontSize:11,fontWeight:"800",fontVariant:["tabular-nums"]},

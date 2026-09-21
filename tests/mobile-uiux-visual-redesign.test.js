@@ -42,7 +42,11 @@ test("Home uses the approved HOME MASTER terminal hierarchy without weakening au
   assert.match(home, /testID="home-signal-trace"/);
   assert.match(home, /testID="home-market-pulse"/);
   assert.match(home, /testID="home-capital-limits"/);
-  assert.match(home, /const LIME = intelligenceFieldColors\.terminalSignal/);
+  // The accent is intelligenceFieldColors.terminalSignal = #33D7C7, a cyan/teal. It was bound to a
+  // constant named LIME, so anyone grepping this branch for the forbidden acid-lime palette found a
+  // hit that was not one. Assert the binding under its true name.
+  assert.match(home, /const SIGNAL_TEAL = intelligenceFieldColors\.terminalSignal/);
+  assert.doesNotMatch(home, /\bLIME\b/);
   assert.match(decisionSurface, /`PAPER P&L .* · EQUITY \${krw\(input\.paperEquity\)}`/s);
   assert.doesNotMatch(home, /productionMutationAllowed:\s*true/);
   assert.doesNotMatch(home, /authority:\s*"LIVE"/);

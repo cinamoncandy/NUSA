@@ -14,11 +14,11 @@ interface AiViewProps {
   readonly market?: string; readonly currentPrice?: number | null; readonly rawCandles?: readonly PublicCandle[] | null;
   readonly marketConnectionState?: string; readonly stale?: boolean;
 }
-const LIME=intelligenceFieldColors.terminalSignal, INK=wealthProductColors.c01, PANEL=wealthProductColors.c02, BORDER=wealthProductColors.c03, MUTED=wealthProductColors.c04, RED=wealthProductColors.c05;
+const SIGNAL_TEAL=intelligenceFieldColors.terminalSignal, INK=wealthProductColors.c01, PANEL=wealthProductColors.c02, BORDER=wealthProductColors.c03, MUTED=wealthProductColors.c04, RED=wealthProductColors.c05;
 const learningProvenanceLabel: Record<string, string> = { AUTO_BACKGROUND: "백그라운드 자동 실행", USER_TRIGGERED: "사용자 요청", UNKNOWN: "알 수 없음" };
 const percent=(v:number|null|undefined)=>v==null||!Number.isFinite(v)?"—":`${Math.round(v*100)}%`;
 function AnalysisRow({label,value,tone="lime",narrow=false}:Readonly<{label:string;value:string;tone?:"lime"|"danger"|"neutral";narrow?:boolean}>){
-  return <View style={[styles.analysisRow,narrow?styles.analysisRowNarrow:null]}><Text style={[styles.analysisLabel,narrow?styles.analysisLabelNarrow:null,{color:tone==="lime"?LIME:tone==="danger"?RED:wealthProductColors.c51}]}>{label}</Text><Text style={[styles.analysisValue,narrow?styles.analysisValueNarrow:null]}>{value}</Text></View>;
+  return <View style={[styles.analysisRow,narrow?styles.analysisRowNarrow:null]}><Text style={[styles.analysisLabel,narrow?styles.analysisLabelNarrow:null,{color:tone==="lime"?SIGNAL_TEAL:tone==="danger"?RED:wealthProductColors.c51}]}>{label}</Text><Text style={[styles.analysisValue,narrow?styles.analysisValueNarrow:null]}>{value}</Text></View>;
 }
 export function AiView({ai,research,health,liveAuthority,productionMutationAllowed,killSwitchActive,error,refreshing,onRefresh,market="KRW-BTC",currentPrice=null,rawCandles=null,marketConnectionState="UNKNOWN",stale=true}:AiViewProps){
   const {theme}=useTheme();
@@ -41,7 +41,7 @@ export function AiView({ai,research,health,liveAuthority,productionMutationAllow
     { label: "VERIFY", observed: calibrated && evidence.length > 0 },
     { label: "DECIDE", observed: ai?.status === "AVAILABLE" && Boolean(ai.thesis) },
   ] as const;
-  return <ScrollView style={{backgroundColor:INK}} contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={LIME} refreshing={refreshing} onRefresh={onRefresh}/>} testID="ai-screen">
+  return <ScrollView style={{backgroundColor:INK}} contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={SIGNAL_TEAL} refreshing={refreshing} onRefresh={onRefresh}/>} testID="ai-screen">
     <View style={[styles.titleRow,viewport.narrow?styles.titleRowNarrow:null]}>
       <View><Text style={styles.pageEyebrow}>AI SIGNAL · READ ONLY</Text><Text style={styles.pageTitle}>SIGNAL DETAIL</Text></View>
       <View style={styles.titleMeta}><View style={styles.dot}/><Text style={styles.time}>{ai?.lastModelRun?new Date(ai.lastModelRun).toLocaleString("ko-KR"):"NO VERIFIED RUN"}</Text></View>
@@ -81,7 +81,7 @@ export function AiView({ai,research,health,liveAuthority,productionMutationAllow
       </View>
       <View style={styles.stageRail} testID="ai-stage-timeline">
         {convergenceStages.map((stage,index)=><View key={stage.label} style={styles.stageItem}>
-          <View style={[styles.stageNode,{borderColor:stage.observed?LIME:BORDER,backgroundColor:stage.observed?LIME:INK}]}/>
+          <View style={[styles.stageNode,{borderColor:stage.observed?SIGNAL_TEAL:BORDER,backgroundColor:stage.observed?SIGNAL_TEAL:INK}]}/>
           {index<convergenceStages.length-1?<View style={[styles.stageLink,{backgroundColor:stage.observed?wealthProductColors.c24:BORDER}]}/>:null}
           <Text style={[styles.stageNumber,{color:stage.observed?theme.colors.text:MUTED}]}>{index + 1}</Text>
           <Text style={[styles.stageLabel,{color:stage.observed?wealthProductColors.c59:MUTED}]}>{stage.label==="GATHER"?"수집":stage.label==="ANALYZE"?"분석":stage.label==="VERIFY"?"검증":"판단"}</Text>
@@ -99,11 +99,11 @@ export function AiView({ai,research,health,liveAuthority,productionMutationAllow
     </View>
 
     <View style={styles.chartPanel}>
-      <View style={styles.periods}><Text style={[styles.period,{color:LIME,borderBottomColor:LIME}]}>1D</Text><Text style={styles.period}>1W</Text><Text style={styles.period}>1M</Text><Text style={styles.period}>3M</Text><Text style={styles.period}>1Y</Text></View>
+      <View style={styles.periods}><Text style={[styles.period,{color:SIGNAL_TEAL,borderBottomColor:SIGNAL_TEAL}]}>1D</Text><Text style={styles.period}>1W</Text><Text style={styles.period}>1M</Text><Text style={styles.period}>3M</Text><Text style={styles.period}>1Y</Text></View>
       <View style={styles.chart}>
         {chart.state==="READY"?chart.bars.slice(-38).map((bar,i)=>{
           const base=chart.currentPrice??bar.close; const delta=(bar.close-base)/Math.max(1,base); const h=18+Math.min(90,Math.abs(delta)*5000+i*1.2);
-          return <View key={bar.openTime} style={[styles.chartBar,{height:h,backgroundColor:bar.close>=bar.open?LIME:wealthProductColors.c54}]}/>;
+          return <View key={bar.openTime} style={[styles.chartBar,{height:h,backgroundColor:bar.close>=bar.open?SIGNAL_TEAL:wealthProductColors.c54}]}/>;
         }):<View style={styles.chartEmpty}><Text style={styles.emptyTitle}>VERIFIED CHART UNAVAILABLE</Text><Text style={styles.emptyText}>실제 public candle이 확인될 때만 차트를 표시합니다.</Text></View>}
       </View>
     </View>
@@ -111,7 +111,7 @@ export function AiView({ai,research,health,liveAuthority,productionMutationAllow
     <View style={styles.analysis} testID="ai-signal-factors">
       <View style={styles.analysisHeader}><Text style={styles.sectionTitle}>SIGNAL EVIDENCE</Text><Text style={styles.time}>{evidence.length + counter.length} VERIFIED REFERENCES</Text></View>
       {evidence.length===0&&counter.length===0?<View style={{padding:14}}><Text style={styles.emptyText}>VERIFIED EVIDENCE UNAVAILABLE</Text></View>:null}
-      {evidence.slice(0,3).map((item,index)=><View key={`evidence-${index}`} style={{paddingHorizontal:14,paddingVertical:11,borderBottomWidth:1,borderBottomColor:BORDER,flexDirection:"row",gap:10}}><Text style={{color:LIME,fontSize:9,fontWeight:"900",width:62}}>EVIDENCE</Text><Text style={{color:wealthProductColors.c51,fontSize:9,lineHeight:14,flex:1}} numberOfLines={3}>{String(item)}</Text></View>)}
+      {evidence.slice(0,3).map((item,index)=><View key={`evidence-${index}`} style={{paddingHorizontal:14,paddingVertical:11,borderBottomWidth:1,borderBottomColor:BORDER,flexDirection:"row",gap:10}}><Text style={{color:SIGNAL_TEAL,fontSize:9,fontWeight:"900",width:62}}>EVIDENCE</Text><Text style={{color:wealthProductColors.c51,fontSize:9,lineHeight:14,flex:1}} numberOfLines={3}>{String(item)}</Text></View>)}
       {counter.slice(0,2).map((item,index)=><View key={`counter-${index}`} style={{paddingHorizontal:14,paddingVertical:11,borderBottomWidth:1,borderBottomColor:BORDER,flexDirection:"row",gap:10}}><Text style={{color:RED,fontSize:9,fontWeight:"900",width:62}}>COUNTER</Text><Text style={{color:wealthProductColors.c51,fontSize:9,lineHeight:14,flex:1}} numberOfLines={3}>{String(item)}</Text></View>)}
     </View>
 
@@ -127,8 +127,8 @@ export function AiView({ai,research,health,liveAuthority,productionMutationAllow
 }
 const styles=StyleSheet.create({
  content:{paddingHorizontal:18,paddingTop:10,paddingBottom:34,gap:12,width:"100%",maxWidth:720,alignSelf:"center",backgroundColor:INK},
- dot:{width:8,height:8,borderRadius:8,backgroundColor:LIME},
- titleRow:{minHeight:72,flexDirection:"row",alignItems:"center",justifyContent:"space-between",borderBottomWidth:1,borderBottomColor:BORDER},titleRowNarrow:{height:"auto",minHeight:68,paddingVertical:10,flexWrap:"wrap",gap:6},pageEyebrow:{color:LIME,fontSize:8,fontWeight:"900",letterSpacing:1.25,marginBottom:5},pageTitle:{color:wealthProductColors.c59,fontSize:24,fontWeight:"900",letterSpacing:1.1},titleMeta:{flexDirection:"row",alignItems:"center",gap:7},time:{color:MUTED,fontSize:8},
+ dot:{width:8,height:8,borderRadius:8,backgroundColor:SIGNAL_TEAL},
+ titleRow:{minHeight:72,flexDirection:"row",alignItems:"center",justifyContent:"space-between",borderBottomWidth:1,borderBottomColor:BORDER},titleRowNarrow:{height:"auto",minHeight:68,paddingVertical:10,flexWrap:"wrap",gap:6},pageEyebrow:{color:SIGNAL_TEAL,fontSize:8,fontWeight:"900",letterSpacing:1.25,marginBottom:5},pageTitle:{color:wealthProductColors.c59,fontSize:24,fontWeight:"900",letterSpacing:1.1},titleMeta:{flexDirection:"row",alignItems:"center",gap:7},time:{color:MUTED,fontSize:8},
  aiDecisionSummary:{flexDirection:"row",alignItems:"center",gap:16,paddingVertical:8},aiDecisionCopy:{flex:1,minWidth:0},aiDecisionHeadline:{color:wealthProductColors.c59,fontSize:24,lineHeight:33,fontWeight:"700",letterSpacing:-.5},aiDecisionSub:{color:MUTED,fontSize:10,lineHeight:16,marginTop:8},confidenceRing:{width:82,height:82,borderRadius:82,borderWidth:5,alignItems:"center",justifyContent:"center",backgroundColor:wealthProductColors.c31},confidenceLabel:{color:MUTED,fontSize:8,fontWeight:"800"},confidenceValue:{fontSize:18,fontWeight:"900",marginTop:2,fontVariant:["tabular-nums"]},
  convergencePanel:{backgroundColor:INK},
  convergenceHead:{minHeight:58,paddingHorizontal:4,flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:12},convergenceSub:{color:MUTED,fontSize:7,fontWeight:"800",letterSpacing:.55,marginTop:4},convergenceState:{fontSize:9,fontWeight:"900",letterSpacing:1},
@@ -146,7 +146,7 @@ const styles=StyleSheet.create({
  chartPanel:{borderTopWidth:1,borderTopColor:BORDER},periods:{height:45,flexDirection:"row",alignItems:"center",gap:25},period:{height:45,lineHeight:44,borderBottomWidth:2,borderBottomColor:"transparent",color:MUTED,fontSize:9,fontWeight:"800"},
  chart:{height:194,borderTopWidth:1,borderTopColor:wealthProductColors.c67,borderBottomWidth:1,borderBottomColor:wealthProductColors.c67,flexDirection:"row",alignItems:"flex-end",gap:2,paddingHorizontal:4,paddingBottom:10,overflow:"hidden"},chartBar:{flex:1,minWidth:2,opacity:.78,borderRadius:1},
  chartEmpty:{flex:1,alignItems:"center",justifyContent:"center"},emptyTitle:{color:MUTED,fontSize:10,fontWeight:"900"},emptyText:{color:wealthProductColors.c68,fontSize:9,marginTop:7},
- authority:{borderWidth:1,borderColor:BORDER,borderRadius:8,padding:12,backgroundColor:wealthProductColors.c41},authorityTitle:{color:LIME,fontSize:9,fontWeight:"900",letterSpacing:.8},authorityText:{color:wealthProductColors.c69,fontSize:8,lineHeight:13,marginTop:5},
+ authority:{borderWidth:1,borderColor:BORDER,borderRadius:8,padding:12,backgroundColor:wealthProductColors.c41},authorityTitle:{color:SIGNAL_TEAL,fontSize:9,fontWeight:"900",letterSpacing:.8},authorityText:{color:wealthProductColors.c69,fontSize:8,lineHeight:13,marginTop:5},
  aiTruthContract:{position:"absolute",width:1,height:1,opacity:0},aiTruthContractText:{fontSize:1},
- watchButton:{minHeight:48,borderWidth:1,borderColor:wealthProductColors.c24,borderRadius:16,backgroundColor:wealthProductColors.c31,alignItems:"center",justifyContent:"center"},watchText:{color:LIME,fontSize:9,fontWeight:"900",letterSpacing:.9},error:{color:RED,fontSize:9},
+ watchButton:{minHeight:48,borderWidth:1,borderColor:wealthProductColors.c24,borderRadius:16,backgroundColor:wealthProductColors.c31,alignItems:"center",justifyContent:"center"},watchText:{color:SIGNAL_TEAL,fontSize:9,fontWeight:"900",letterSpacing:.9},error:{color:RED,fontSize:9},
 });
