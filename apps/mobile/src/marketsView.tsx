@@ -190,7 +190,7 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
 
       <View style={styles.marketHero} testID="markets-command-hero">
         <View style={styles.heroTopRow}>
-          <View>
+          <View style={styles.heroLead}>
             <Text style={[styles.heroEyebrow, { color: theme.colors.textMuted }]}>MARKETS</Text>
             <Text style={[styles.heroTitle, { color: theme.colors.text }]}>시장 상태를 관측하고 있습니다.</Text>
             <Text style={[styles.heroMarket, { color: theme.colors.textMuted }]}>{marketSymbol} · {selectedMarket}</Text>
@@ -247,11 +247,16 @@ const styles = StyleSheet.create({
   workspace: { flex: 1, width: "100%", maxWidth: uxLayout.maxWorkspaceWidth, alignSelf: "center" },
   top: { width: "100%", alignSelf: "center", paddingHorizontal: 18, paddingTop: 10, gap: 10 },
   marketHero: { paddingTop: 12, paddingBottom: 4, gap: 12 },
-  heroTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 14 },
+  // flexWrap plus a flexible lead column: heroTitle used to carry maxWidth 330 while the row is
+  // only ~320dp wide on a 360dp screen, so the lead column claimed more than the row had and the
+  // badge was pushed past the right edge ("UPBIT PUBLIC · VERIFIED" rendered as "UPBIT PUBLI").
+  // Now the badge drops to its own line instead of off-screen.
+  heroTopRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-start", gap: 14 },
+  heroLead: { flex: 1, minWidth: 220 },
   heroEyebrow: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.35 },
-  heroTitle: { maxWidth: 330, fontSize: 24, lineHeight: 32, fontWeight: "700", letterSpacing: -0.4, marginTop: 4 },
+  heroTitle: { fontSize: 24, lineHeight: 32, fontWeight: "700", letterSpacing: -0.4, marginTop: 4 },
   heroMarket: { fontSize: 9, lineHeight: 13, fontWeight: "700", letterSpacing: 0.8, marginTop: 1 },
-  sourceBadge: { minHeight: 32, maxWidth: 190, borderWidth: 1, borderRadius: 8, paddingHorizontal: 9, flexDirection: "row", alignItems: "center", gap: 6 },
+  sourceBadge: { minHeight: 32, maxWidth: 190, flexShrink: 0, borderWidth: 1, borderRadius: 8, paddingHorizontal: 9, flexDirection: "row", alignItems: "center", gap: 6 },
   sourceDot: { width: 6, height: 6, borderRadius: 6 },
   sourceBadgeText: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 0.5 },
   quoteRow: { flexDirection: "row", alignItems: "baseline", gap: 10, flexWrap: "wrap" },

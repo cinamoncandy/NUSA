@@ -42,3 +42,17 @@ test("Markets does not overclaim that a selected market is an AI decision or PAP
   assert.doesNotMatch(source, /PUBLIC OBSERVATION/);
   assert.doesNotMatch(source, /AI CONFIDENCE|PROFIT PROBABILITY/);
 });
+
+test("the MARKETS hero cannot push its source badge off the right edge", () => {
+  // Verified against a rendered Pixel 6 frame, not inferred: on f020102d the badge read
+  // "UPBIT PUBLI" because heroTitle carried maxWidth 330 while the row is ~320dp wide on a 360dp
+  // screen, so the lead column claimed more than the row had and the badge overflowed the screen.
+  assert.doesNotMatch(source, /heroTitle: \{ maxWidth:/);
+  assert.match(source, /heroTopRow: \{[^}]*flexWrap: "wrap"/);
+  assert.match(source, /heroLead: \{ flex: 1, minWidth: \d+ \}/);
+  assert.match(source, /sourceBadge: \{[^}]*flexShrink: 0/);
+  assert.match(source, /<View style=\{styles\.heroLead\}>/);
+  // The same class of overflow on the terrain header, fixed earlier and kept fixed.
+  assert.match(source, /terrainHeaderLead: \{ flex: 1, minWidth: 0 \}/);
+  assert.match(source, /terrainSource: \{[^}]*flexShrink: 0/);
+});
