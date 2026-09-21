@@ -197,7 +197,7 @@ describe("coding runner", () => {
     const ai: WorkersAiBinding = {
       async run(model, input) {
         aiCalls += 1;
-        assert.equal(model, "@cf/meta/llama-3.1-8b-instruct");
+        assert.equal(model, "@cf/zai-org/glm-4.7-flash");
         assert.match(input.prompt, /unified diff/);
         return { response: JSON.stringify({ patch }) };
       },
@@ -244,7 +244,7 @@ describe("coding runner", () => {
     assert.equal(result.proposalValidated, true);
     assert.equal(runtimeCalls, 1);
     assert.equal(calls.length, 1);
-    assert.equal(calls[0]?.model, "@cf/meta/llama-3.1-8b-instruct");
+    assert.equal(calls[0]?.model, "@cf/zai-org/glm-4.7-flash");
     assert.match(calls[0]?.input.prompt ?? "", /unified diff/);
     assert.deepEqual(calls[0]?.input.response_format, {
       type: "json_schema",
@@ -468,7 +468,7 @@ describe("coding runner", () => {
       AI: ai,
     }, verifiedGithubFetch);
     assert.equal(result.status, "EXECUTION_ACCEPTED");
-    assert.deepEqual(calls, ["@cf/meta/llama-3.1-8b-instruct"]);
+    assert.deepEqual(calls, ["@cf/zai-org/glm-4.7-flash"]);
   });
 
   it("falls back from the retired dashboard model to the supported default", async () => {
@@ -485,13 +485,30 @@ describe("coding runner", () => {
       AI: ai,
     }, verifiedGithubFetch);
     assert.equal(result.status, "EXECUTION_ACCEPTED");
-    assert.deepEqual(calls, ["@cf/meta/llama-3.1-8b-instruct"]);
+    assert.deepEqual(calls, ["@cf/zai-org/glm-4.7-flash"]);
   });
 
   it("stays interface-ready when no provider-neutral coding engine is configured", async () => {
     const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token" }, verifiedGithubFetch);
     assert.equal(result.status, "INTERFACE_READY");
     assert.equal(result.reason, "ai-coding-engine-not-configured");
+  });
+
+  it("falls back from the deprecated llama 3.1 model to the active JSON-schema default", async () => {
+    const calls: string[] = [];
+    const ai: WorkersAiBinding = {
+      async run(model) {
+        calls.push(model);
+        return { response: { patch } };
+      },
+    };
+    const result = await executeCodingRunner(request, {
+      NUSA_GITHUB_TOKEN: "github-token",
+      NUSA_AI_CODING_MODEL: "@cf/meta/llama-3.1-8b-instruct",
+      AI: ai,
+    }, verifiedGithubFetch);
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.deepEqual(calls, ["@cf/zai-org/glm-4.7-flash"]);
   });
 
   it("fails closed when the Workers AI binding is unavailable", async () => {
