@@ -60,6 +60,44 @@ describe("coding runner", () => {
     );
   });
 
+  it("accepts only bounded read-only retry source context", async () => {
+    const contextual = {
+      ...request,
+      proposalContext: {
+        path: "apps/autopilot/src/example.ts",
+        startLine: 7,
+        content: "export const oldValue = true;\n",
+      },
+    };
+    assert.deepEqual(validateCodingRunnerRequest(contextual), contextual);
+
+    let observedPrompt = "";
+    const ai: WorkersAiBinding = {
+      async run(_model, input) {
+        observedPrompt = input.prompt;
+        return { response: { patch } };
+      },
+    };
+    const result = await executeCodingRunner(contextual, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch);
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.match(observedPrompt, /Retry target path: apps\/autopilot\/src\/example\.ts/);
+    assert.match(observedPrompt, /Excerpt starts at source line 7/);
+    assert.match(observedPrompt, /export const oldValue = true/);
+
+    assert.throws(
+      () => validateCodingRunnerRequest({ ...request, proposalContext: { path: "apps/autopilot/src/worker.ts", startLine: 1, content: "x" } }),
+      /CODING_RUNNER_PROPOSAL_CONTEXT_PATH_INVALID/,
+    );
+    assert.throws(
+      () => validateCodingRunnerRequest({ ...request, proposalContext: { path: "apps/autopilot/src/example.ts", startLine: 0, content: "x" } }),
+      /CODING_RUNNER_PROPOSAL_CONTEXT_LINE_INVALID/,
+    );
+    assert.throws(
+      () => validateCodingRunnerRequest({ ...request, proposalContext: { path: "apps/autopilot/src/example.ts", startLine: 1, content: "x".repeat(20_001) } }),
+      /CODING_RUNNER_PROPOSAL_CONTEXT_CONTENT_INVALID/,
+    );
+  });
+
   it("rejects missing or malformed lifecycle identity", () => {
     assert.throws(() => validateCodingRunnerRequest({ ...request, executionId: "" }), /CODING_RUNNER_EXECUTION_ID_INVALID/);
     assert.throws(() => validateCodingRunnerRequest({ ...request, dedupeKey: "bad key" }), /CODING_RUNNER_DEDUPE_KEY_INVALID/);
