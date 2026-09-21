@@ -15,6 +15,8 @@ const signal = (id: string, overrides: Partial<EvolutionDiscoverySignal> = {}): 
   confidence: 0.9,
   risk: 0.2,
   reversibility: 0.9,
+  canonicalOwner: "evolve",
+  conflictKeys: [`evolve:${id}`],
   ...overrides,
 });
 
@@ -38,6 +40,9 @@ test("connects fresh bounded discovery evidence to the existing CodingRunner req
   assert.equal(result.request?.kind, "REPOSITORY_AUTOPILOT");
   assert.equal(result.request?.headSha, "d3171864d989cf9897bd5f514f8cb45489b15056");
   assert.equal(result.request?.workflowRunId, 33239968298);
+  assert.equal(result.selectedOpportunityId, "candidate");
+  assert.equal(result.request?.canonicalOwner, "evolve");
+  assert.deepEqual(result.request?.conflictKeys, ["evolve:candidate"]);
   assert.equal(result.request?.mutationAllowed, false);
   assert.deepEqual(result.authority, {
     liveAuthority: "NONE",
@@ -78,4 +83,16 @@ test("fails closed when the scheduler denies another execution", () => {
   assert.equal(result.status, "ABSTAINED");
   assert.equal(result.reason, "minimum-interval-not-reached");
   assert.equal(result.request, null);
+});
+
+
+test("fails closed when selected Evolve work has no ownership metadata", () => {
+  const result = prepareDiscoveredCodingRequest({
+    ...baseInput(),
+    signals: [signal("unowned", { canonicalOwner: undefined, conflictKeys: undefined })],
+  });
+  assert.equal(result.status, "ABSTAINED");
+  assert.equal(result.reason, "selected-evolution-ownership-required");
+  assert.equal(result.request, null);
+  assert.equal(result.selectedOpportunityId, null);
 });
