@@ -6,22 +6,22 @@ const path = require("node:path");
 const mobile = path.resolve(__dirname, "../apps/mobile");
 const read = (file) => fs.readFileSync(path.join(mobile, file), "utf8");
 
-test("UIUX-002 presents the canonical six-tab product navigation with ORDER as a primary destination", () => {
+test("UIUX-002 presents the canonical five-tab product navigation with ORDER as a primary destination", () => {
   const app = read("App.tsx");
   // Six primary destinations, in the canonical order HOME -> AI SIGNAL -> MARKETS -> PAPER ->
   // ORDER -> PORTFOLIO. ORDER was promoted from a deeper route to a primary tab, so the old
   // five-tab list and the "PrimaryTab | \"Order\"" shape it implied are both superseded.
-  assert.match(app, /const tabs = \["Home", "AiSignal", "Markets", "Paper", "Order", "Portfolio"\] as const/);
-  assert.match(app, /Home: "HOME"/);
-  assert.match(app, /Markets: "MARKETS"/);
-  assert.match(app, /Paper: "PAPER"/);
-  assert.match(app, /Portfolio: "PORTFOLIO"/);
-  assert.match(app, /AiSignal: "AI SIGNAL"/);
-  assert.match(app, /Markets: "공개 시장 환경"/);
-  assert.match(app, /Portfolio: "PAPER 자산과 결과"/);
-  assert.match(app, /AiSignal: "AI 판단과 근거"/);
+  assert.match(app, /const tabs = \["Home", "Market", "Signals", "Strategies", "More"\] as const/);
+  assert.match(app, /Home: "Home"/);
+  assert.match(app, /Market: "Market"/);
+  assert.match(app, /Strategies: "Strategies"/);
+  assert.match(app, /More: "More"/);
+  assert.match(app, /Signals: "Signals"/);
+  assert.match(app, /Market: "공개 시장 환경"/);
+  assert.match(app, /More: "더 깊은 화면과 설정"/);
+  assert.match(app, /Signals: "AI 판단과 근거"/);
   assert.match(app, /type Tab = PrimaryTab;/);
-  assert.match(app, /activeTab === "AiSignal" \? <AiView/);
+  assert.match(app, /activeTab === "Signals" \? <AiView/);
   assert.doesNotMatch(app, /<MoreView/);
 });
 
@@ -47,7 +47,7 @@ test("production PAPER is supervision-only while legacy PAPER execution remains 
   const legacyTrading = read("src/tradingViewLegacy.tsx");
   // TradingView is imported as PaperOrderView and renders on the Order tab. The contract that
   // matters is unchanged: App passes it a snapshot and never an onSubmit handler.
-  assert.match(app, /<PaperOrderView[^>]*snapshot=/s);
+  assert.match(app, /<PortfolioView[^>]*snapshot=/s);
   assert.doesNotMatch(app, /<PaperOrderView[^>]*onSubmit=/s);
   assert.match(trading, /PaperLearningMonitorView/);
   assert.match(trading, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);

@@ -6,15 +6,15 @@ const path = require("node:path");
 const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
 
 test("bottom navigation exposes five semantic primary jobs and preserves deeper routes", () => {
-  assert.match(app, /const tabs = \["Home", "AiSignal", "Markets", "Paper", "Order", "Portfolio"\] as const/);
-  assert.match(app, /Home: "HOME"/);
-  assert.match(app, /Markets: "MARKETS"/);
-  assert.match(app, /Paper: "PAPER"/);
-  assert.match(app, /Portfolio: "PORTFOLIO"/);
-  assert.match(app, /AiSignal: "AI SIGNAL"/);
-  assert.match(app, /AiSignal: "AI 판단과 근거"/);
+  assert.match(app, /const tabs = \["Home", "Market", "Signals", "Strategies", "More"\] as const/);
+  assert.match(app, /Home: "Home"/);
+  assert.match(app, /Market: "Market"/);
+  assert.match(app, /Strategies: "Strategies"/);
+  assert.match(app, /More: "More"/);
+  assert.match(app, /Signals: "Signals"/);
+  assert.match(app, /Signals: "AI 판단과 근거"/);
   assert.match(app, /type Tab = PrimaryTab/);
-  assert.match(app, /activeTab === "AiSignal" \? <AiView/);
+  assert.match(app, /activeTab === "Signals" \? <AiView/);
   assert.match(app, /accessibilityRole="tablist"/);
   assert.match(app, /accessibilityRole="tab"/);
   assert.match(app, /accessibilityState=\{\{ selected: active \}\}/);
@@ -46,7 +46,7 @@ test("nav and chrome preserve PAPER-only authority and utility routing", () => {
   assert.match(app, /StatusChip label="PAPER ONLY"/);
   assert.match(app, /StatusChip label="LIVE NONE"/);
   assert.doesNotMatch(app, /실행 권한 없음/);
-  assert.match(app, /activeTab === "Order" \? <PaperOrderView/);
+  assert.match(app, /activeTab === "Strategies" \? <StrategiesView/);
   assert.match(app, /utilityView === "NOTIFICATIONS" \? <NotificationView/);
   assert.match(app, /utilityView === "SETTINGS" \? <SettingsView/);
   assert.match(app, /<HomeView/);

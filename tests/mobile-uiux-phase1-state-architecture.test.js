@@ -40,11 +40,14 @@ test("utility navigation has an explicit close path and local settings expose gu
 
 test("not-configured dashboard state is distinct from runtime errors", () => {
   const app = read("App.tsx");
-  assert.match(app, /testID="dashboard-connection-required"/);
-  assert.match(app, /testID="dashboard-open-settings"/);
-  assert.match(app, /requiresDashboardConnection = notConfigured !== null/);
+  // The ORDER screen is gone with the concept board's five-tab structure, and with it the gate
+  // that demanded a cloud connection before showing it. Nothing in the app mutates PAPER any
+  // more, so no screen needs that gate, and #536 forbids replacing the product with a
+  // connection screen: an unavailable PAPER link is compact operational chrome instead.
+  assert.doesNotMatch(app, /requiresDashboardConnection/);
+  assert.doesNotMatch(app, /dashboard-connection-required/);
+  assert.doesNotMatch(app, /<PaperOrderView/);
   assert.match(app, /<PortfolioView error=\{readOnlyError\}/);
-  assert.match(app, /<PaperOrderView error=\{readOnlyError\}/);
   assert.match(app, /<MarketsView chartError=\{publicMarkets\.chartError\}/);
   assert.match(app, /<AiView ai=\{ai\} error=\{readOnlyError\}/);
   assert.doesNotMatch(app, /error=\{readOnlyError \?\? notConfigured\}/);

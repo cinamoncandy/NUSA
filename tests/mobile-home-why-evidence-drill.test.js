@@ -11,7 +11,7 @@ test("HOME AI judgment drills into verified evidence without creating a dead con
   assert.match(home, /aiThesis: ai\?\.status === "AVAILABLE" \? ai\.thesis : null/);
   assert.match(home, /aiEvidenceCount: ai\?\.status === "AVAILABLE" \? ai\.evidenceReferences\.length : 0/);
   assert.match(home, /const signalAvailable = decision\.aiInsightAvailable/);
-  assert.match(home, /onPress=\{\(\) => props\.onNavigate\("AiSignal"\)\}/);
+  assert.match(home, /onPress=\{\(\) => props\.onNavigate\("Signals"\)\}/);
   assert.match(home, /testID="ai-card"/);
   // The approved layout has no WHY/RESULT/RISK rows on HOME. d9226f33 kept the strings alive in a
   // 1x1 opacity-0 node under testID="home-supervisor-learning", which satisfied the old assertions

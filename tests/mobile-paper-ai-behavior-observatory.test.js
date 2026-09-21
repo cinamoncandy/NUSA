@@ -49,7 +49,11 @@ test("PAPER activity summary status is never more confident than the real runtim
 test("App wires the same paperLearningState already computed for the observatory into PAPER's summary, not a second source", () => {
   const app = read("apps/mobile/App.tsx");
   assert.match(app, /const paperLearningState = buildPaperLearningScreen\(/);
-  assert.match(app, /paperLearning=\{paperLearningState\}/);
+  // The single-source contract is what matters, not which screen consumes it. The order ticket
+  // that used to take paperLearning is gone with the board's five-tab structure; the PAPER
+  // monitor and the shadow monitor now both read the one state computed here.
+  assert.match(app, /<PaperLearningMonitorView state=\{paperLearningState\}/);
+  assert.equal(app.match(/buildPaperLearningScreen\(/g).length, 1, "paperLearningState must have exactly one source");
   assert.match(app, /<PaperShadowMonitorView paper=\{paperLearningState\}/);
 });
 

@@ -14,7 +14,8 @@ test("mobile app feeds Cloud PAPER availability from the runtime recovery coordi
   assert.match(app, /type: "RECOVERY_STARTED"/);
   assert.match(app, /type: "NETWORK_OFFLINE"/);
   assert.match(app, /type: "RECOVERY_MATCHED"/);
-  assert.match(app, /runtimeCanSubmit=\{runtimeCanSubmit\}/);
+  // runtimeCanSubmit only ever fed the order ticket, which the board does not have.
+  assert.doesNotMatch(app, /runtimeCanSubmit/);
   assert.match(tradingShell, /PaperLearningMonitorView/);
   assert.match(tradingShell, /PROJECTION_ABSENT/);
   assert.doesNotMatch(tradingShell, /<LegacyTradingView \{\.\.\.props\} \/>/);

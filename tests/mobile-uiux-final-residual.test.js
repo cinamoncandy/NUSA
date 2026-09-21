@@ -32,9 +32,9 @@ test("Home preserves the canonical Intelligence OS safety-first actions without 
   assert.match(home, /onPress=\{props\.onGoSettings\}/);
   assert.doesNotMatch(home, /onAction=\{(?:props\.)?onGoSettings\}/);
   assert.doesNotMatch(home, /<OperationalNotice/);
-  assert.match(home, /onNavigate\("Portfolio"\)/);
-  assert.match(home, /onNavigate\("AiSignal"\)/);
-  assert.match(home, /onNavigate\("Markets"\)/);
+  assert.match(home, /onNavigate\("Strategies"\)/);
+  assert.match(home, /onNavigate\("Signals"\)/);
+  assert.match(home, /onNavigate\("Market"\)/);
   assert.match(home, /onOpenPaperLearning/);
 
   // Keep the canonical fail-closed decision model available for runtime truth and downstream users,
@@ -70,7 +70,7 @@ test("Residual polish preserves read-only and zero-authority product boundaries"
   const ai = read("apps/mobile/src/aiView.tsx");
   // TradingView is imported as PaperOrderView and renders on the Order tab. The contract that
   // matters is unchanged: App passes it a snapshot and never an onSubmit handler.
-  assert.match(app, /<PaperOrderView[^>]*snapshot=/s);
+  assert.match(app, /<PortfolioView[^>]*snapshot=/s);
   assert.doesNotMatch(app, /<PaperOrderView[^>]*onSubmit=/s);
   assert.match(ai, /ZERO AUTHORITY/);
   assert.match(ai, /READ ONLY/);

@@ -139,8 +139,14 @@ test("App keeps public Markets state independent from PAPER configuration and ex
   assert.match(app, /loadUpbitPublicCandles/);
   assert.match(app, /status: "STALE"/);
   assert.match(app, /PUBLIC_REFRESH_INTERVAL_MS = 30_000/);
-  assert.match(app, /const requiresDashboardConnection = notConfigured !== null && utilityView === null && activeTab === "Order" && !isLocalPaperActive\(\);/);
-  assert.match(app, /activeTab === "Markets" \? <MarketsView/);
+  // The ORDER screen is gone with the concept board's five-tab structure, and with it the gate
+  // that demanded a cloud connection before showing it. Nothing in the app mutates PAPER any
+  // more, so no screen needs that gate, and #536 forbids replacing the product with a
+  // connection screen: an unavailable PAPER link is compact operational chrome instead.
+  assert.doesNotMatch(app, /requiresDashboardConnection/);
+  assert.doesNotMatch(app, /dashboard-connection-required/);
+  assert.doesNotMatch(app, /<PaperOrderView/);
+  assert.match(app, /activeTab === "Market" \? <MarketsView/);
   assert.match(app, /publicMarkets.status === "ERROR"/);
   assert.match(app, /marketsStale={publicMarkets.status === "STALE"}/);
   assert.match(app, /refreshing={publicRefreshing}/);

@@ -8,17 +8,11 @@ const aiSource = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "s
 const localPaperSource = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "localPaperLedger.ts"), "utf8");
 
 test("AI supervision remains visible without a verified PAPER dashboard connection", () => {
-  // The Cloud connection gate applies to ORDER only, and only when Cloud PAPER is the authoritative
-  // ledger. LOCAL PAPER is usable without Cloud verification, so gating its order surface behind a
-  // Cloud connection would hide a working PAPER screen behind a server the build does not need.
-  assert.match(
-    appSource,
-    /const requiresDashboardConnection = notConfigured !== null && utilityView === null && activeTab === "Order" && !isLocalPaperActive\(\);/,
-  );
-  // The bypass is exactly LOCAL PAPER activation, derived from the shared helper rather than
-  // re-implemented here, so no screen can disagree about which ledger is authoritative.
-  assert.match(appSource, /import \{[^}]*isLocalPaperActive[^}]*\} from "\.\/src\/localPaperLedger"/);
-  assert.match(appSource, /activeTab === "AiSignal" \? <AiView/);
+  // The Cloud connection gate existed for the ORDER screen, which the concept board does not have.
+  // With nothing left to mutate, no screen is gated behind a Cloud connection at all, and AI
+  // supervision is reachable whatever the PAPER link is doing.
+  assert.doesNotMatch(appSource, /requiresDashboardConnection/);
+  assert.match(appSource, /activeTab === "Signals" \? <AiView/);
   assert.match(aiSource, /testID="ai-screen"/);
   assert.match(aiSource, /testID="ai-zero-authority-status"/);
   assert.match(aiSource, /검증된 AI 판단이 아직 없습니다\./);

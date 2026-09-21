@@ -12,19 +12,19 @@ const state = (overrides: Partial<AndroidBackNavigationState> = {}): AndroidBack
 
 describe("Android back navigation containment", () => {
   it("closes PAPER learning before any parent surface", () => {
-    assert.equal(resolveAndroidBackNavigation(state({ paperLearningOpen: true, utilityViewOpen: true, activeTab: "Paper" })), "CLOSE_PAPER_LEARNING");
+    assert.equal(resolveAndroidBackNavigation(state({ paperLearningOpen: true, utilityViewOpen: true, activeTab: "Strategies" })), "CLOSE_PAPER_LEARNING");
   });
 
   it("closes an open utility view before leaving its parent tab", () => {
-    assert.equal(resolveAndroidBackNavigation(state({ utilityViewOpen: true, activeTab: "Portfolio" })), "CLOSE_UTILITY_VIEW");
+    assert.equal(resolveAndroidBackNavigation(state({ utilityViewOpen: true, activeTab: "More" })), "CLOSE_UTILITY_VIEW");
   });
 
   it("closes the utility tray before changing tabs", () => {
-    assert.equal(resolveAndroidBackNavigation(state({ utilityMenuOpen: true, activeTab: "Markets" })), "CLOSE_UTILITY_MENU");
+    assert.equal(resolveAndroidBackNavigation(state({ utilityMenuOpen: true, activeTab: "Market" })), "CLOSE_UTILITY_MENU");
   });
 
   it("returns any non-root tab or detail route to HOME", () => {
-    for (const activeTab of ["Markets", "Paper", "Portfolio", "AiSignal", "Order"] as const) {
+    for (const activeTab of ["Market", "Strategies", "More", "Signals", "More"] as const) {
       assert.equal(resolveAndroidBackNavigation(state({ activeTab })), "GO_HOME");
     }
   });

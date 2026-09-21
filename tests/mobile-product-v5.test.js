@@ -7,11 +7,11 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
 test("product v5 keeps the primary jobs literal and glanceable through the canonical navigation", () => {
   const app = read("App.tsx");
-  assert.match(app, /Home: "HOME", AiSignal: "AI SIGNAL", Markets: "MARKETS", Paper: "PAPER", Order: "ORDER", Portfolio: "PORTFOLIO"/);
-  assert.match(app, /Home: "HOME", AiSignal: "AI SIGNAL", Markets: "MARKETS", Paper: "PAPER", Order: "ORDER", Portfolio: "PORTFOLIO"/);
+  assert.match(app, /Home: "Home", Market: "Market", Signals: "Signals", Strategies: "Strategies", More: "More"/);
+  assert.match(app, /Home: "Home", Market: "Market", Signals: "Signals", Strategies: "Strategies", More: "More"/);
   const home = read("src/homeView.tsx");
-  assert.match(home, /props\.onNavigate\("Markets"\)/);
-  assert.match(home, /props\.onNavigate\("Portfolio"\)/);
+  assert.match(home, /props\.onNavigate\("Market"\)/);
+  assert.match(home, /props\.onNavigate\("Strategies"\)/);
   assert.match(home, /PAPER PERFORMANCE/);
   assert.match(home, /TOTAL P&L/);
 });
@@ -64,7 +64,7 @@ test("Android product UX acceptance bounds emulator startup and preserves diagno
   assert.match(workflow, /enter_personal\(\)/);
   assert.match(workflow, /"local-entry-submit"/);
   assert.match(workflow, /"home-screen"/);
-  for (const marker of ["tab-Markets", "tab-Paper", "paper-learning-detail-toggle", "tab-Portfolio", "header-tools-menu", "header-settings", "utility-close", "tab-Home"]) {
+  for (const marker of ["tab-Market", "more-paper", "paper-learning-detail-toggle", "tab-More", "more-performance", "more-settings", "utility-close", "tab-Home"]) {
     assert.match(workflow, new RegExp(`(?:tap|tap_after_scroll) "${marker}"`));
   }
   for (const ambiguousLabel of ["MARKETS", "PAPER", "PORTFOLIO", "HOME", "도구", "설정", "설정 닫기"]) {

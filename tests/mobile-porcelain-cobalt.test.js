@@ -27,7 +27,7 @@ test("Home reuses canonical chart evidence without sample or private IO", () => 
   assert.match(home, /marketWave\.state === "READY"/);
   assert.match(home, /marketWave\.bars\.slice\(-22\)/);
   assert.doesNotMatch(home, /128420000|128,420,000|Math\.random|fetch\(|WebSocket/);
-  assert.match(home, /props\.onNavigate\("Markets"\)/);
+  assert.match(home, /props\.onNavigate\("Market"\)/);
   assert.match(home, /LIVE NONE · AI ZERO AUTHORITY/);
 });
 

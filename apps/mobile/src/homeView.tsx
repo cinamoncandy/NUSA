@@ -14,7 +14,7 @@ import type { PublicCandle } from "./chartViewModel";
 import { buildChartViewModel } from "./chartViewModel";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
-export type HomeDestination = "Markets" | "AiSignal" | "Portfolio";
+export type HomeDestination = "Market" | "Signals" | "Strategies";
 
 interface HomeViewProps {
   readonly snapshot: Snapshot | null;
@@ -136,7 +136,7 @@ export function HomeView(props: HomeViewProps) {
           <Text style={styles.accountHeroSourceMode}>LIVE NONE · AI ZERO AUTHORITY</Text>
         </View>
       </View>
-      <Pressable onPress={() => props.onNavigate("AiSignal")} style={({ pressed }) => [styles.accountHeroInsight, { opacity: pressed ? 0.78 : 1 }]} testID="home-ai-judgement">
+      <Pressable onPress={() => props.onNavigate("Signals")} style={({ pressed }) => [styles.accountHeroInsight, { opacity: pressed ? 0.78 : 1 }]} testID="home-ai-judgement">
         <View style={styles.accountHeroInsightHead}>
           <Text style={styles.accountHeroInsightLabel}>NUSA AI 판단</Text>
           <Text style={[styles.accountHeroInsightState, { color: signalAvailable ? SIGNAL_TEAL : MUTED }]}>{signalAvailable ? "VERIFIED" : "WAITING"}</Text>
@@ -146,7 +146,7 @@ export function HomeView(props: HomeViewProps) {
       </Pressable>
     </View>
 
-    <Pressable onPress={() => props.onNavigate("AiSignal")} style={({ pressed }) => [styles.signalPanel, { opacity: pressed ? 0.84 : 1 }]} testID="ai-card">
+    <Pressable onPress={() => props.onNavigate("Signals")} style={({ pressed }) => [styles.signalPanel, { opacity: pressed ? 0.84 : 1 }]} testID="ai-card">
       <View style={styles.terrain} testID="home-decision-stage">
         <View style={styles.gridH1}/><View style={styles.gridH2}/><View style={styles.gridV1}/><View style={styles.gridV2}/>
         <TerrainSignal variant="symbolic" signalStrength={strength} accessibilityLabel={signalAvailable ? "verified AI signal terrain" : "signal unavailable"} testID="home-signal-trace" />
@@ -179,7 +179,7 @@ export function HomeView(props: HomeViewProps) {
       <View style={styles.panelTitleRow}><Text style={styles.panelTitle}>TODAY'S TOP SIGNALS</Text><Text style={styles.count}>{marketRows.length}</Text></View>
       {marketRows.length === 0 ? <Text style={styles.empty}>검증된 public market signal이 없습니다.</Text> : marketRows.slice(0, tablet ? 5 : 3).map((market, index) => {
         const up = (market.changeRate ?? 0) >= 0;
-        return <Pressable key={market.market} onPress={() => props.onNavigate("Markets")} style={styles.signalRow}>
+        return <Pressable key={market.market} onPress={() => props.onNavigate("Market")} style={styles.signalRow}>
           <Text style={styles.rank}>{index + 1}</Text>
           <Text style={styles.asset}>{market.market.replace("KRW-", "")}</Text>
           <View style={[styles.signalBadge, { borderColor: up ? SIGNAL_TEAL : RED }]}><Text style={[styles.signalBadgeText,{color:up?SIGNAL_TEAL:RED}]}>{up ? "UP" : "DOWN"}</Text></View>
@@ -188,7 +188,7 @@ export function HomeView(props: HomeViewProps) {
       })}
     </View>
 
-    <Pressable onPress={() => props.onNavigate("Portfolio")} style={styles.panel} testID="home-paper-performance">
+    <Pressable onPress={() => props.onNavigate("Strategies")} style={styles.panel} testID="home-paper-performance">
       <View style={styles.panelTitleRow}><Text style={styles.panelTitle}>PAPER PERFORMANCE</Text><Text style={styles.source}>{accountSource ? `${accountSource} PAPER` : "NO LINK"}</Text></View>
       <View style={styles.performanceGraph}>
         {marketWave.state === "READY" ? marketWave.bars.slice(-22).map((bar,index) => {
