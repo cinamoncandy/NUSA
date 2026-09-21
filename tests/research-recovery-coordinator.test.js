@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { SqliteDatabase, SqliteResearchEvaluationLedger, SqliteCandidatePromotionRepository } = require("../dist/packages/storage/src/index.js");
 const { CandidatePromotionRuntime } = require("../dist/apps/cloud/src/candidatePromotionRuntime.js");
+const { StrategyFamilyRegistry } = require("../dist/apps/cloud/src/strategyFamilyRegistry.js");
 const { ResearchRecoveryCoordinator } = require("../dist/apps/cloud/src/researchRecoveryCoordinator.js");
 const { startCloudRuntime } = require("../dist/apps/cloud/src/runtime.js");
 const { InMemoryCloudDashboardStateProvider } = require("../dist/apps/cloud/src/cloudDashboardStateProvider.js");
@@ -13,7 +14,7 @@ const { tmpdir } = require("node:os");
 
 const now = 1_800_000_000_000;
 const digest = (value) => crypto.createHash("sha256").update(canonicalResearchJson(value)).digest("hex");
-const identity = (overrides = {}) => ({ candidateId: "candidate-1", strategyId: "strategy-1", strategyVersion: "1.0.0", artifactHash: "a".repeat(64), configHash: "b".repeat(64), createdAt: now - 1000, originatingEvaluationId: "evaluation-1", originatingInputHash: "c".repeat(64), authority: "PAPER_ONLY", paperOnly: true, ...overrides });
+const identity = (overrides = {}) => ({ candidateId: "candidate-1", strategyId: "strategy-1", strategyVersion: "1.0.0", familyId: "test.mean-reversion", artifactHash: "a".repeat(64), configHash: "b".repeat(64), createdAt: now - 1000, originatingEvaluationId: "evaluation-1", originatingInputHash: "c".repeat(64), authority: "PAPER_ONLY", paperOnly: true, ...overrides });
 const evidence = (overrides = {}) => ({ schemaVersion: 1, researchRunId: "run-1", evaluationId: "evaluation-1", strategyId: "strategy-1", strategyVersion: "1.0.0", marketDataTimestamp: now - 2000, evaluationTimestamp: now - 1000, canonicalInputHash: "c".repeat(64), modelVersion: "model-1", fillModelVersion: "fill-1", feeModelVersion: "fee-1", slippageModelVersion: "slip-1", champion: { strategyId: "strategy-1", strategyVersion: "0.9.0", authority: "PAPER_ONLY", evaluatorVersion: "champion-1", canonicalInputHash: "c".repeat(64), metrics: { netReturn: 1 }, signal: "HOLD" }, challenger: { strategyId: "strategy-1", strategyVersion: "1.0.0", authority: "ZERO_AUTHORITY", evaluatorVersion: "challenger-1", canonicalInputHash: "c".repeat(64), metrics: { netReturn: 2, costAdjustedReturn: 2 }, signal: "HOLD" }, costEvidence: { schemaVersion: 1, evaluationId: "evaluation-1", datasetId: "dataset-1", datasetContentSha256: "a".repeat(64), feeRate: 0.001, spreadRate: 0.0005, slippageRate: 0.0005, turnoverRate: 2, grossReturn: 2.004, netReturn: 2, costModelVersion: "cost-v1", observedAt: now - 2000 }, result: "CHALLENGER_BETTER", reason: "NET_RETURN_COMPARISON", productionMutationAllowed: false, promotionAllowed: false, ...overrides });
 const ownerAuthorization = { authorize(command) { return command.ownerActorRef === "owner-1" ? { actorRef: "owner-1", authenticated: true } : null; } };
 
@@ -21,7 +22,10 @@ function validState() {
   const db = new SqliteDatabase();
   const repository = new SqliteCandidatePromotionRepository(db);
   const ledger = new SqliteResearchEvaluationLedger(db);
-  const runtime = new CandidatePromotionRuntime({ repository, evaluationLedger: ledger, ownerAuthorization, now: () => now });
+  const familyMembership = new StrategyFamilyRegistry();
+  familyMembership.registerFamily({ familyId: "test.mean-reversion", name: "Test Mean Reversion", category: "MEAN_REVERSION", thesis: "Recovery fixture family.", lifecycle: "RESEARCHING" });
+  familyMembership.registerMember({ strategyId: "strategy-1", version: "1.0.0", familyId: "test.mean-reversion", role: "RESEARCH_CANDIDATE" });
+  const runtime = new CandidatePromotionRuntime({ repository, evaluationLedger: ledger, familyMembership, ownerAuthorization, now: () => now });
   const record = evidence();
   ledger.append(record);
   runtime.registerCandidate(identity());
