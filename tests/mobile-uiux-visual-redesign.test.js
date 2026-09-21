@@ -70,12 +70,15 @@ test("Chart prioritizes real candles and removes decorative market context", () 
   assert.doesNotMatch(chart, /signal data:/);
 });
 
-test("Bottom navigation uses a restrained active rail with the five-destination route contract", () => {
+test("Bottom navigation uses a restrained active rail with the six-destination route contract", () => {
   const app = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/App.tsx"), "utf8");
   assert.match(app, /backgroundColor: appTheme\.colors\.navSurface/);
   assert.match(app, /backgroundColor: active \? appTheme\.colors\.primary : "transparent"/);
   assert.match(app, /const color = active \? intelligenceFieldColors\.terminalSignal : intelligenceFieldColors\.textSubtle/);
-  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\]/);
+  // Six primary destinations, in the canonical order HOME -> AI SIGNAL -> MARKETS -> PAPER ->
+  // ORDER -> PORTFOLIO. ORDER was promoted from a deeper route to a primary tab, so the old
+  // five-tab list and the "PrimaryTab | \"Order\"" shape it implied are both superseded.
+  assert.match(app, /const tabs = \["Home", "AiSignal", "Markets", "Paper", "Order", "Portfolio"\] as const/);
   assert.match(app, /AiSignal: "AI SIGNAL"/);
   assert.match(app, /AiSignal: "AI 판단과 근거"/);
 });

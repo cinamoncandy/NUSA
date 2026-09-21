@@ -6,9 +6,12 @@ const path = require("node:path");
 const mobile = path.resolve(__dirname, "../apps/mobile");
 const read = (file) => fs.readFileSync(path.join(mobile, file), "utf8");
 
-test("UIUX-002 presents the canonical five-tab product navigation while preserving deeper routes", () => {
+test("UIUX-002 presents the canonical six-tab product navigation with ORDER as a primary destination", () => {
   const app = read("App.tsx");
-  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\] as const/);
+  // Six primary destinations, in the canonical order HOME -> AI SIGNAL -> MARKETS -> PAPER ->
+  // ORDER -> PORTFOLIO. ORDER was promoted from a deeper route to a primary tab, so the old
+  // five-tab list and the "PrimaryTab | \"Order\"" shape it implied are both superseded.
+  assert.match(app, /const tabs = \["Home", "AiSignal", "Markets", "Paper", "Order", "Portfolio"\] as const/);
   assert.match(app, /Home: "HOME"/);
   assert.match(app, /Markets: "MARKETS"/);
   assert.match(app, /Paper: "PAPER"/);
@@ -17,7 +20,7 @@ test("UIUX-002 presents the canonical five-tab product navigation while preservi
   assert.match(app, /Markets: "공개 시장 환경"/);
   assert.match(app, /Portfolio: "PAPER 자산과 결과"/);
   assert.match(app, /AiSignal: "AI 판단과 근거"/);
-  assert.match(app, /type Tab = PrimaryTab \| "Order"/);
+  assert.match(app, /type Tab = PrimaryTab;/);
   assert.match(app, /activeTab === "AiSignal" \? <AiView/);
   assert.doesNotMatch(app, /<MoreView/);
 });
