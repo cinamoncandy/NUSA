@@ -72,7 +72,7 @@ test("the app resumes the PAPER session from its existing foreground handler", (
   const fs = require("node:fs");
   const app = fs.readFileSync("apps/mobile/App.tsx", "utf8");
   assert.match(app, /resumePaperConnection/, "App must resume the PAPER session");
-  assert.match(app, /if \\(nextState === "active"\\)/, "resume must run on foreground");
+  assert.match(app, /if \(nextState === "active"\)/, "resume must run on foreground");
   assert.match(app, /getOrCreateInstallationId/, "foreground recovery must reuse the persisted installation identity");
   // One AppState subscription, not a second competing listener.
   assert.equal((app.match(/AppState\.addEventListener/g) || []).length, 1);
