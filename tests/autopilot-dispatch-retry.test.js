@@ -8,6 +8,7 @@ const {
   transientStatus,
   assertBoundedPatch,
   proposalFailureCode,
+  providerRateLimitCode,
   readDispatchRequest,
   assertGithubRunnerWorkspaceClean,
   filterGithubRunnerWorkspacePaths,
@@ -173,6 +174,47 @@ test("records duplicate suppression as no action without retry", async () => {
   assert.equal(result.summary.noAction, 1);
   assert.equal(result.attempts[0].decision, "NO_ACTION");
   assert.equal(calls, 2);
+});
+
+test("classifies only bounded provider rate-limit reasons", () => {
+  assert.equal(providerRateLimitCode("WORKERS_AI_DAILY_QUOTA_EXHAUSTED"), "WORKERS_AI_DAILY_QUOTA_EXHAUSTED");
+  assert.equal(providerRateLimitCode("WORKERS_AI_RATE_LIMITED"), "WORKERS_AI_RATE_LIMITED");
+  assert.equal(providerRateLimitCode("provider unavailable"), null);
+  assert.equal(providerRateLimitCode("WORKERS_AI_RATE_LIMITED secret=unexpected"), null);
+});
+
+test("treats provider rate-limit blocking as non-terminal without proposal retries", async () => {
+  await withOidcEnvironment(async () => {
+    let proposalCalls = 0;
+    let publishCalls = 0;
+    const result = await executeGithubActionsRunner(
+      request,
+      "https://runner.example.test/coding/execute",
+      async (url) => {
+        const value = String(url);
+        if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+        if (value.endsWith("/coding/propose")) {
+          proposalCalls += 1;
+          return response(409, { status: "CODING_PROPOSAL_FAILED_CLOSED", error: "WORKERS_AI_DAILY_QUOTA_EXHAUSTED" });
+        }
+        if (value.endsWith("/coding/publish")) {
+          publishCalls += 1;
+          throw new Error("publish must not run");
+        }
+        throw new Error("unexpected URL " + value);
+      },
+    );
+    assert.equal(result.status, "BLOCKED_RATE_LIMIT");
+    assert.equal(result.reason, "WORKERS_AI_DAILY_QUOTA_EXHAUSTED");
+    assert.equal(result.proposalAttempts, 0);
+    assert.equal(result.proposalRetries, 0);
+    assert.equal(result.codeChanged, false);
+    assert.equal(result.blockedRateLimit, true);
+    assert.equal(result.summary.blockedRateLimit, 1);
+    assert.equal(result.summary.failedClosed, 0);
+    assert.equal(proposalCalls, 1);
+    assert.equal(publishCalls, 0);
+  });
 });
 
 test("allows only this workflow's generated artifacts before patch validation", () => {

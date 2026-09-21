@@ -68,6 +68,13 @@ function retryableProposalFailureCode(reason) {
   return code && RETRYABLE_PROPOSAL_FAILURE_CODES.has(code) ? code : null;
 }
 
+function providerRateLimitCode(reason) {
+  const code = String(reason || "");
+  return code === "WORKERS_AI_DAILY_QUOTA_EXHAUSTED" || code === "WORKERS_AI_RATE_LIMITED" || code === "PROVIDER_RATE_LIMITED"
+    ? code
+    : null;
+}
+
 function proposalRepairFeedback(code, attempt) {
   return `attempt=${attempt};rejection=${code};repair=regenerate one valid unified diff against the exact head for one existing apps/autopilot/src TypeScript file;do_not_repeat_previous_patch=true`;
 }
@@ -452,6 +459,7 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
     const proposalRejected = attempts.filter((entry) => entry.decision === "RETRY" || entry.decision === "NO_ACTION").length;
     const changedFiles = Array.isArray(extra.changedFiles) ? extra.changedFiles : [];
     const codeChanged = status === "DISPATCHED" && changedFiles.length > 0;
+    const blockedRateLimit = status === "BLOCKED_RATE_LIMIT";
     return {
       ...base,
       proposalAttempts: attempts.length,
@@ -459,6 +467,7 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
       proposalRejected,
       proposalAccepted: status === "DISPATCHED",
       codeChanged,
+      blockedRateLimit,
       ...extra,
       summary: {
         ...base.summary,
@@ -467,6 +476,7 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
         proposalRejected,
         proposalAccepted: status === "DISPATCHED" ? 1 : 0,
         codeChanged: codeChanged ? 1 : 0,
+        blockedRateLimit: blockedRateLimit ? 1 : 0,
       },
     };
   };
@@ -488,6 +498,10 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
       }
     } catch (error) {
       const reason = error instanceof Error ? error.message : "CODING_PROPOSAL_UNAVAILABLE";
+      const rateLimitCode = providerRateLimitCode(reason);
+      if (rateLimitCode) {
+        return finish("BLOCKED_RATE_LIMIT", rateLimitCode, null, "RATE_LIMITED");
+      }
       const code = retryableProposalFailureCode(reason);
       if (!code) throw error;
       const decision = attempt < maxProposalAttempts ? "RETRY" : "NO_ACTION";
@@ -685,6 +699,7 @@ module.exports = {
   assertBoundedPatch,
   proposalFailureCode,
   retryableProposalFailureCode,
+  providerRateLimitCode,
   proposalRepairFeedback,
   boundedProposalContext,
   proposalContextFromGithubRunner,
