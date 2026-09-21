@@ -362,6 +362,13 @@ function assertGithubRunnerWorkspaceClean(statusOutput) {
   if (unexpected.length > 0) throw new Error("CODING_RUNTIME_WORKSPACE_DIRTY");
 }
 
+function resetProposalRetryWorkspace() {
+  fs.rmSync(PATCH_PATH, { force: true });
+  const tracked = run("git", ["diff", "--name-only"], "GITHUB_RUNNER_RETRY_TRACKED_STATUS_FAILED").trim();
+  const staged = run("git", ["diff", "--cached", "--name-only"], "GITHUB_RUNNER_RETRY_STAGED_STATUS_FAILED").trim();
+  if (tracked || staged) throw new Error("CODING_RUNTIME_WORKSPACE_DIRTY");
+}
+
 function validatePatchOnGithubRunner(request, patch) {
   const expectedPath = assertBoundedPatch(patch);
   if (run("git", ["rev-parse", "HEAD"], "GITHUB_RUNNER_HEAD_FAILED").trim().toLowerCase() !== request.headSha.toLowerCase()) {
@@ -490,8 +497,7 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
       const code = retryableProposalFailureCode(reason);
       if (!code) throw error;
 
-      fs.rmSync(PATCH_PATH, { force: true });
-      assertGithubRunnerWorkspaceClean(run("git", ["status", "--porcelain", "--untracked-files=all"], "GITHUB_RUNNER_RETRY_STATUS_FAILED"));
+      resetProposalRetryWorkspace();
 
       const decision = attempt < maxProposalAttempts ? "RETRY" : "NO_ACTION";
       attempts.push(attemptRecord({
@@ -637,6 +643,7 @@ module.exports = {
   retryableProposalFailureCode,
   proposalRepairFeedback,
   executeGithubActionsRunner,
+  resetProposalRetryWorkspace,
   readDispatchRequest,
   assertGithubRunnerWorkspaceClean,
   filterGithubRunnerWorkspacePaths,
