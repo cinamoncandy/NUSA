@@ -5,6 +5,7 @@ const DEFAULT_MAX_ATTEMPTS = 3;
 const DEFAULT_BACKOFF_MS = 1_000;
 const MAX_PATCH_BYTES = 24_000;
 const MAX_VALIDATED_FILE_BYTES = 128_000;
+const MAX_PROPOSAL_CONTEXT_BYTES = 20_000;
 const PATCH_PATH = ".nusa-autopilot.patch";
 const GENERATED_WORKSPACE_ARTIFACTS = new Set([
   "artifacts/autopilot-execution/repository-dispatch.json",
@@ -341,6 +342,34 @@ function run(command, args, label, timeout = 300_000) {
   return String(result.stdout || "");
 }
 
+function boundedProposalContext(path, content, patch) {
+  if (assertBoundedPatch(patch) !== path) throw new Error("CODING_PROPOSAL_CONTEXT_PATH_MISMATCH");
+  if (typeof content !== "string" || !content.trim()) throw new Error("CODING_PROPOSAL_CONTEXT_CONTENT_INVALID");
+  const lines = content.split(/\r?\n/);
+  const hunk = patch.match(/^@@ -(\d+)(?:,\d+)? \+\d+(?:,\d+)? @@/m);
+  const anchorLine = hunk ? Number(hunk[1]) : 1;
+  const anchorIndex = Math.max(0, Math.min(lines.length - 1, Number.isSafeInteger(anchorLine) ? anchorLine - 1 : 0));
+  const startIndex = Math.max(0, anchorIndex - 40);
+  let endIndex = Math.min(lines.length, startIndex + 160);
+  let excerpt = lines.slice(startIndex, endIndex).join("\n");
+  while (Buffer.byteLength(excerpt, "utf8") > MAX_PROPOSAL_CONTEXT_BYTES && endIndex - startIndex > 20) {
+    endIndex -= 10;
+    excerpt = lines.slice(startIndex, endIndex).join("\n");
+  }
+  if (!excerpt.trim() || Buffer.byteLength(excerpt, "utf8") > MAX_PROPOSAL_CONTEXT_BYTES) {
+    throw new Error("CODING_PROPOSAL_CONTEXT_TOO_LARGE");
+  }
+  return Object.freeze({ path, startLine: startIndex + 1, content: excerpt });
+}
+
+function proposalContextFromGithubRunner(patch) {
+  const path = assertBoundedPatch(patch);
+  run("git", ["ls-files", "--error-unmatch", "--", path], "CODING_PROPOSAL_CONTEXT_TRACKED_FILE_REQUIRED");
+  const stat = fs.lstatSync(path);
+  if (!stat.isFile() || stat.isSymbolicLink()) throw new Error("CODING_PROPOSAL_CONTEXT_FILE_INVALID");
+  return boundedProposalContext(path, fs.readFileSync(path, "utf8"), patch);
+}
+
 function isGeneratedWorkspaceArtifact(path) {
   return GENERATED_WORKSPACE_ARTIFACTS.has(path);
 }
@@ -407,6 +436,7 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
   const validatePatch = options.validatePatch ?? validatePatchOnGithubRunner;
   const now = options.now ?? (() => Date.now());
   const maxProposalAttempts = options.maxProposalAttempts ?? DEFAULT_MAX_ATTEMPTS;
+  const proposalContextForPatch = options.proposalContextForPatch ?? proposalContextFromGithubRunner;
   if (!Number.isSafeInteger(maxProposalAttempts) || maxProposalAttempts < 1 || maxProposalAttempts > DEFAULT_MAX_ATTEMPTS) {
     throw new Error("AUTOPILOT_PROPOSAL_RETRY_LIMIT_INVALID");
   }
@@ -414,6 +444,7 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
   const attempts = [];
   const seenPatches = new Set();
   let feedback = null;
+  let proposalContext = null;
 
   const finish = (status, reason, httpStatus, workerStatus, extra = {}) => {
     const base = resultSummary(request, attempts, status, reason, httpStatus, workerStatus);
@@ -442,7 +473,13 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
 
   for (let attempt = 1; attempt <= maxProposalAttempts; attempt += 1) {
     const startedAt = now();
-    const proposalRequest = feedback ? { ...request, proposalFeedback: feedback } : request;
+    const proposalRequest = feedback || proposalContext
+      ? {
+          ...request,
+          ...(feedback ? { proposalFeedback: feedback } : {}),
+          ...(proposalContext ? { proposalContext } : {}),
+        }
+      : request;
     let proposal;
     try {
       proposal = await authorizedJsonPost(proposalUrl, proposalRequest, fetchImpl);
@@ -512,6 +549,13 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
         now,
       }));
       if (decision === "RETRY") {
+        if (code === "SANDBOX_PATCH_APPLY_CHECK_FAILED") {
+          try {
+            proposalContext = proposalContextForPatch(proposal.patch);
+          } catch {
+            proposalContext = null;
+          }
+        }
         feedback = proposalRepairFeedback(code, attempt + 1);
         continue;
       }
@@ -642,6 +686,8 @@ module.exports = {
   proposalFailureCode,
   retryableProposalFailureCode,
   proposalRepairFeedback,
+  boundedProposalContext,
+  proposalContextFromGithubRunner,
   executeGithubActionsRunner,
   resetProposalRetryWorkspace,
   readDispatchRequest,
