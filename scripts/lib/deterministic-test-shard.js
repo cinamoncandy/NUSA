@@ -17,12 +17,27 @@ function resolveShardConfig(env = process.env) {
   return Object.freeze({ count, index });
 }
 
-function selectDeterministicShard(files, config) {
+function selectDeterministicShard(files, config, pinnedFiles = {}) {
   const { count, index } = config;
   if (!Array.isArray(files)) throw new Error("files must be an array");
   if (!Number.isInteger(count) || count < 1) throw new Error("shard count must be a positive integer");
   if (!Number.isInteger(index) || index < 0 || index >= count) throw new Error("shard index must be within shard count");
-  return files.filter((_, position) => position % count === index);
+  if (!pinnedFiles || typeof pinnedFiles !== "object" || Array.isArray(pinnedFiles)) throw new Error("pinned files must be an object");
+
+  const pins = new Map();
+  for (const [file, pinnedIndex] of Object.entries(pinnedFiles)) {
+    const normalized = String(file).replace(/\\/g, "/");
+    if (!normalized.trim()) throw new Error("pinned test path must be non-empty");
+    if (!Number.isInteger(pinnedIndex) || pinnedIndex < 0 || pinnedIndex >= count) throw new Error("pinned shard index must be within shard count");
+    if (pins.has(normalized)) throw new Error("pinned test path must be unique");
+    pins.set(normalized, pinnedIndex);
+  }
+
+  return files.filter((file, position) => {
+    const normalized = String(file).replace(/\\/g, "/");
+    const pinnedIndex = pins.get(normalized);
+    return pinnedIndex === undefined ? position % count === index : pinnedIndex === index;
+  });
 }
 
 module.exports = { resolveShardConfig, selectDeterministicShard };
