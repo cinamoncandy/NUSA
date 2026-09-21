@@ -144,6 +144,18 @@ const DEFAULT_WORKERS_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 const MAX_CODING_PROPOSAL_BYTES = 24_000;
 const MAX_CODING_PROPOSAL_FEEDBACK_BYTES = 512;
 const MAX_CODING_PROPOSAL_CONTEXT_BYTES = 20_000;
+
+function workersAiRateLimitReason(error: unknown): "WORKERS_AI_DAILY_QUOTA_EXHAUSTED" | "WORKERS_AI_RATE_LIMITED" | null {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  if (/^4006:\s*you have used up your daily free allocation of [\d,]+ neurons\b/i.test(message)) {
+    return "WORKERS_AI_DAILY_QUOTA_EXHAUSTED";
+  }
+  if (/\b429\b/.test(message) || /\btoo many requests\b/i.test(message) || /\brate[- ]?limit(?:ed| exceeded)?\b/i.test(message)) {
+    return "WORKERS_AI_RATE_LIMITED";
+  }
+  return null;
+}
+
 const FORBIDDEN_CODING_PATH_SEGMENT = /(?:^|\/)(?:live|live-trading|broker|order|credential|secret|secrets|withdraw|transfer|production-authority)(?:\/|$)/i;
 const UNUSABLE_CODING_WORKERS_AI_MODELS = new Set([
   "@cf/zai-org/glm-4.7-flash",
@@ -567,6 +579,10 @@ export async function executeCodingRunner(
       lastFailure = { ...result, proposalAttempts: attempt, failureStage: "sandbox-validation" };
       prompt = `${codingProposalPrompt(request)}\nThe previous proposal was rejected by the bounded patch contract (${result.reason}). Return a new valid one-file unified diff only.`;
     } catch (error) {
+      const rateLimitReason = workersAiRateLimitReason(error);
+      if (rateLimitReason) {
+        return { status: "BLOCKED_RATE_LIMIT", reason: rateLimitReason, proposalAttempts: Math.max(0, attempt - 1), failureStage: "proposal-parse" };
+      }
       const reason = error instanceof Error ? error.message : "WORKERS_AI_CODING_ENGINE_FAILED";
       if (!retryableProposalFailure(reason) || attempt === maxProposalAttempts) {
         return { status: "EXECUTION_FAILED", reason, proposalAttempts: attempt, failureStage: "proposal-parse" };
