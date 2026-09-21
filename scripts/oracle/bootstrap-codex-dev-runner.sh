@@ -5,7 +5,7 @@ umask 077
 REPO="${NUSA_GITHUB_REPO:-cinamoncandy/NUSA}"
 RUNNER_TOKEN="${GITHUB_RUNNER_TOKEN:?GITHUB_RUNNER_TOKEN is required}"
 RUNNER_USER="${NUSA_RUNNER_USER:-nusa-dev}"
-RUNNER_ROOT="/opt/actions-runner"
+RUNNER_ROOT="${NUSA_RUNNER_ROOT:-/opt/actions-runner-nusa-codex}"
 
 if [[ "$(id -u)" -ne 0 ]]; then
   echo "Run as root (cloud-init or sudo)." >&2
@@ -27,14 +27,23 @@ git config --system user.email "noreply@nusa.local"
 
 mkdir -p "$RUNNER_ROOT"
 chown "$RUNNER_USER:$RUNNER_USER" "$RUNNER_ROOT"
+case "$(uname -m)" in
+  x86_64|amd64) RUNNER_ARCH=x64 ;;
+  aarch64|arm64) RUNNER_ARCH=arm64 ;;
+  *)
+    echo "Unsupported runner architecture: $(uname -m)" >&2
+    exit 3
+    ;;
+esac
+
 cd /tmp
 version=$(curl -fsSL https://api.github.com/repos/actions/runner/releases/latest | jq -r '.tag_name | ltrimstr("v")')
-curl -fsSLo actions-runner.tar.gz "https://github.com/actions/runner/releases/download/v${version}/actions-runner-linux-arm64-${version}.tar.gz"
+curl -fsSLo actions-runner.tar.gz "https://github.com/actions/runner/releases/download/v${version}/actions-runner-linux-${RUNNER_ARCH}-${version}.tar.gz"
 tar -xzf actions-runner.tar.gz -C "$RUNNER_ROOT"
 rm -f actions-runner.tar.gz
 
 cd "$RUNNER_ROOT"
-sudo -u "$RUNNER_USER" ./config.sh   --url "https://github.com/$REPO"   --token "$RUNNER_TOKEN"   --name "oracle-codex-dev"   --labels "nusa-codex-dev"   --work _work   --unattended   --replace
+sudo -u "$RUNNER_USER" ./config.sh   --url "https://github.com/$REPO"   --token "$RUNNER_TOKEN"   --name "${NUSA_RUNNER_NAME:-oracle-codex-dev}"   --labels "nusa-codex-dev,arch-${RUNNER_ARCH}"   --work _work   --unattended   --replace
 ./svc.sh install "$RUNNER_USER"
 ./svc.sh start
 unset RUNNER_TOKEN GITHUB_RUNNER_TOKEN

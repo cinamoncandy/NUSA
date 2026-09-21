@@ -89,6 +89,35 @@ test("same main dispatches B after A gains an open PR because dedupe is logical-
   assert.match(dispatchedReasons[1]!, /GitHub issue #1902/);
 });
 
+test("cancelled workflow evidence does not starve healthy-main READY backlog work", async () => {
+  const seen = new Set<string>();
+  const acquiredKeys: string[] = [];
+  const dispatchedReasons: string[] = [];
+  const fetchImpl = githubFetch(dispatchedReasons);
+  const cancelled = [{
+    id: RUN_ID + 100,
+    name: "Android Stable Release Trigger",
+    status: "completed",
+    conclusion: "cancelled",
+    head_branch: "main",
+    head_sha: SHA,
+    event: "push",
+    completed_at: new Date(NOW - 30_000).toISOString(),
+  }];
+
+  const outcome = await runScheduledEvolutionCoding(
+    { NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace(seen, acquiredKeys) },
+    { candidates: cancelled, backlogIssues: [issue(2118)], openPulls: [], now: NOW, repository: "cinamoncandy/NUSA", mainSha: SHA, workflowRunId: RUN_ID },
+    fetchImpl,
+  );
+
+  assert.equal(outcome.status, "EXECUTION_ACCEPTED");
+  assert.deepEqual(outcome.selectedSignalIds, ["github-issue-2118"]);
+  assert.equal(acquiredKeys.length, 1);
+  assert.match(acquiredKeys[0]!, /github-issue-2118/);
+  assert.match(dispatchedReasons[0]!, /GitHub issue #2118/);
+});
+
 test("same logical work on same main remains persistently deduplicated", async () => {
   const seen = new Set<string>();
   const acquiredKeys: string[] = [];
