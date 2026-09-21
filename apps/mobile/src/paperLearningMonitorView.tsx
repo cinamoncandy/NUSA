@@ -197,6 +197,17 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
     showsVerticalScrollIndicator={false}
     testID="paper-learning-monitor"
   >
+    <View style={styles.paperPageHeader}>
+      <Text style={[styles.paperPageTitle, { color: theme.colors.text }]}>PAPER</Text>
+      <View style={[styles.paperAiPill, { borderColor: theme.colors.aiSignalStart }]}>
+        <Text style={[styles.paperAiPillText, { color: theme.colors.aiSignalMid }]}>AI · READ ONLY</Text>
+      </View>
+    </View>
+    <View style={styles.paperTabs} testID="paper-reference-tabs">
+      <View style={[styles.paperTab, styles.paperTabActive, { borderBottomColor: theme.colors.aiSignalStart }]}><Text style={[styles.paperTabText, { color: theme.colors.text }]}>현황</Text></View>
+      <View style={styles.paperTab}><Text style={[styles.paperTabText, { color: theme.colors.textMuted }]}>검토</Text></View>
+      <View style={styles.paperTab}><Text style={[styles.paperTabText, { color: theme.colors.textMuted }]}>확인</Text></View>
+    </View>
     <AuthorityRail
       detail="AUTONOMOUS PAPER · LIVE NONE · AI ZERO AUTHORITY"
       status={runtimeLabel}
@@ -348,6 +359,14 @@ const styles = StyleSheet.create({
   commandHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 14 },
   commandTitleWrap: { flex: 1, minWidth: 0 },
   commandEyebrow: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.25 },
+  paperPageHeader: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  paperPageTitle: { fontSize: 24, lineHeight: 30, fontWeight: "800", letterSpacing: 0.3 },
+  paperAiPill: { minHeight: 26, borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
+  paperAiPillText: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 0.55 },
+  paperTabs: { flexDirection: "row", minHeight: 42, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#171D2B" },
+  paperTab: { minWidth: 62, alignItems: "center", justifyContent: "center", borderBottomWidth: 2, borderBottomColor: "transparent" },
+  paperTabActive: { borderBottomWidth: 2 },
+  paperTabText: { fontSize: 10, lineHeight: 14, fontWeight: "900", letterSpacing: 0.4 },
   commandTitle: { marginTop: 3, fontSize: 18, lineHeight: 23, fontWeight: "900", letterSpacing: 0.8 },
   commandDetail: { marginTop: 6, maxWidth: 680, fontSize: 10, lineHeight: 16 },
   runtimeBadge: { minHeight: 32, maxWidth: 154, borderWidth: 1, borderRadius: 8, paddingHorizontal: 9, flexDirection: "row", alignItems: "center", gap: 6 },

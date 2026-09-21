@@ -191,9 +191,9 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
       <View style={styles.marketHero} testID="markets-command-hero">
         <View style={styles.heroTopRow}>
           <View>
-            <Text style={[styles.heroEyebrow, { color: theme.colors.textMuted }]}>MARKET OBSERVATION</Text>
-            <Text style={[styles.heroTitle, { color: theme.colors.text }]}>{marketSymbol}</Text>
-            <Text style={[styles.heroMarket, { color: theme.colors.textMuted }]}>{selectedMarket}</Text>
+            <Text style={[styles.heroEyebrow, { color: theme.colors.textMuted }]}>MARKETS</Text>
+            <Text style={[styles.heroTitle, { color: theme.colors.text }]}>시장 상태를 관측하고 있습니다.</Text>
+            <Text style={[styles.heroMarket, { color: theme.colors.textMuted }]}>{marketSymbol} · {selectedMarket}</Text>
           </View>
           <View style={[styles.sourceBadge, { borderColor: sourceState === "ACTIVE" ? theme.colors.primary : theme.colors.borderStrong }]}>
             <View style={[styles.sourceDot, { backgroundColor: sourceState === "ACTIVE" ? theme.colors.primary : theme.colors.warning }]} />
@@ -222,6 +222,10 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
         </View>
       </View>
 
+      <View style={styles.referenceFilterRow} testID="markets-reference-filter">
+        <View style={[styles.referenceFilter, { borderColor: theme.colors.borderStrong }]}><Text style={[styles.referenceFilterText, { color: theme.colors.text }]}>전체 시장 상황⌄</Text></View>
+        <View style={[styles.referenceState, { borderColor: theme.colors.aiSignalStart }]}><Text style={[styles.referenceStateText, { color: theme.colors.aiSignalMid }]}>{sourceState === "ACTIVE" ? "OBSERVED" : sourceState}</Text></View>
+      </View>
       <MarketTerrain markets={parsedMarkets} selectedMarket={selectedMarket} onSelect={handleSelectMarket} />
 
       {error ? <StateNotice title="PUBLIC FEED ERROR" detail={error} tone="danger" /> : displayedStale ? <StateNotice title="STALE DATA" detail="표시 중인 공개 시장 데이터가 신선도 기준을 벗어났습니다." tone="warning" /> : null}
@@ -245,7 +249,7 @@ const styles = StyleSheet.create({
   marketHero: { paddingTop: 12, paddingBottom: 4, gap: 12 },
   heroTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 14 },
   heroEyebrow: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.35 },
-  heroTitle: { fontSize: 34, lineHeight: 38, fontWeight: "900", letterSpacing: 0.6, marginTop: 2 },
+  heroTitle: { maxWidth: 330, fontSize: 24, lineHeight: 32, fontWeight: "700", letterSpacing: -0.4, marginTop: 4 },
   heroMarket: { fontSize: 9, lineHeight: 13, fontWeight: "700", letterSpacing: 0.8, marginTop: 1 },
   sourceBadge: { minHeight: 32, maxWidth: 190, borderWidth: 1, borderRadius: 8, paddingHorizontal: 9, flexDirection: "row", alignItems: "center", gap: 6 },
   sourceDot: { width: 6, height: 6, borderRadius: 6 },
@@ -258,6 +262,11 @@ const styles = StyleSheet.create({
   statDivider: { borderLeftWidth: StyleSheet.hairlineWidth, paddingLeft: 10 },
   statLabel: { fontSize: 7, lineHeight: 10, fontWeight: "900", letterSpacing: 0.8 },
   statValue: { fontSize: 10, lineHeight: 14, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  referenceFilterRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  referenceFilter: { minHeight: 34, borderWidth: 1, borderRadius: 8, paddingHorizontal: 11, alignItems: "center", justifyContent: "center" },
+  referenceFilterText: { fontSize: 9, lineHeight: 12, fontWeight: "800" },
+  referenceState: { minHeight: 30, borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
+  referenceStateText: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 0.6 },
   terrainFrame: { borderWidth: 1, borderRadius: 24, overflow: "hidden" },
   terrainHeader: { minHeight: 64, paddingHorizontal: 18, paddingVertical: 13, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   terrainEyebrow: { fontSize: 12, lineHeight: 16, fontWeight: "900", letterSpacing: 1.3 },

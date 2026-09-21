@@ -40,6 +40,8 @@ function PortfolioHero({ model, usingLocalPaper }: Readonly<{ model: PortfolioVi
   const total = model?.totalEquity ?? null;
   const cashShare = model != null && total != null && total > 0 ? Math.max(0, Math.min(100, (model.cash / total) * 100)) : 0;
   const exposureShare = model != null && total != null && total > 0 ? Math.max(0, Math.min(100, (model.assetValue / total) * 100)) : 0;
+  const costBasis = model != null ? model.totalEquity - model.totalPnl : null;
+  const totalReturn = model != null && costBasis != null && costBasis > 0 ? model.totalPnl / costBasis : null;
 
   return <View style={[styles.portfolioHero, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.borderStrong }]} testID="portfolio-master-hero">
     <View style={styles.portfolioHeroTop}>
@@ -49,14 +51,15 @@ function PortfolioHero({ model, usingLocalPaper }: Readonly<{ model: PortfolioVi
       </View>
       <Text style={[styles.portfolioHeroSource, { color: theme.colors.textMuted }]}>LIVE NONE</Text>
     </View>
+    <View style={styles.portfolioReturnBlock}>
+      <Text style={[styles.portfolioHeroLabel, { color: theme.colors.textMuted }]}>총 수익률</Text>
+      <Text style={[styles.portfolioReturnValue, { color: totalReturn == null ? theme.colors.textMuted : totalReturn >= 0 ? theme.colors.success : theme.colors.danger }]}>{totalReturn == null ? "—" : `${totalReturn >= 0 ? "+" : ""}${(totalReturn * 100).toFixed(2)}%`}</Text>
+      <Text style={[styles.portfolioReturnPnl, { color: model == null ? theme.colors.textMuted : model.totalPnl >= 0 ? theme.colors.success : theme.colors.danger }]}>{signedMoney(model?.totalPnl)}</Text>
+    </View>
     <View style={styles.portfolioHeroNumbers}>
       <View style={styles.portfolioHeroPrimary}>
         <Text style={[styles.portfolioHeroValue, { color: theme.colors.text }]}>{money(model?.totalEquity)}</Text>
         <Text style={[styles.portfolioHeroLabel, { color: theme.colors.textMuted }]}>TOTAL EQUITY</Text>
-      </View>
-      <View style={styles.portfolioHeroSecondary}>
-        <Text style={[styles.portfolioHeroSecondaryValue, { color: model == null ? theme.colors.textMuted : model.totalPnl >= 0 ? theme.colors.success : theme.colors.danger }]}>{signedMoney(model?.totalPnl)}</Text>
-        <Text style={[styles.portfolioHeroLabel, { color: theme.colors.textMuted }]}>TOTAL P&L</Text>
       </View>
     </View>
     <View style={styles.allocationField} testID="portfolio-allocation-field">
@@ -152,7 +155,10 @@ export function PortfolioView({ snapshot, investmentPercent, error, refreshing, 
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({ content: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 96, gap: 18, width: "100%", alignSelf: "center" }, commandHero: { paddingTop: 12, paddingBottom: 16, gap: 14 }, commandHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 14 }, commandTitleWrap: { flex: 1, minWidth: 0 }, commandEyebrow: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.25 }, commandTitle: { marginTop: 3, fontSize: 18, lineHeight: 23, fontWeight: "900", letterSpacing: 0.8 }, commandDetail: { marginTop: 6, maxWidth: 680, fontSize: 10, lineHeight: 16 }, commandBadge: { minHeight: 32, maxWidth: 154, borderWidth: 1, borderRadius: 8, paddingHorizontal: 9, flexDirection: "row", alignItems: "center", gap: 6 }, commandDot: { width: 6, height: 6, borderRadius: 6 }, commandBadgeText: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 0.45 }, truthRail: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 9, flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 8 }, truthText: { fontSize: 7, lineHeight: 10, fontWeight: "800", letterSpacing: 0.7 }, portfolioHero: { borderWidth: 1, borderRadius: 24, overflow: "hidden" }, portfolioHeroTop: { minHeight: 62, paddingHorizontal: 18, paddingVertical: 13, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }, portfolioHeroEyebrow: { fontSize: 11, lineHeight: 15, fontWeight: "900", letterSpacing: 1.15 }, portfolioHeroMeta: { marginTop: 3, fontSize: 9, lineHeight: 13, fontWeight: "700" }, portfolioHeroSource: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 0.8 }, portfolioHeroNumbers: { flexDirection: "row", alignItems: "flex-end", gap: 18, paddingHorizontal: 18, paddingTop: 20, paddingBottom: 18 }, portfolioHeroPrimary: { flex: 1.6, minWidth: 0 }, portfolioHeroSecondary: { flex: 1, minWidth: 0 }, portfolioHeroValue: { fontSize: 38, lineHeight: 44, fontWeight: "800", letterSpacing: -1.2, fontVariant: ["tabular-nums"] }, portfolioHeroSecondaryValue: { fontSize: 17, lineHeight: 22, fontWeight: "900", fontVariant: ["tabular-nums"] }, portfolioHeroLabel: { marginTop: 4, fontSize: 8, lineHeight: 12, fontWeight: "900", letterSpacing: 0.85 }, allocationField: { height: 210, position: "relative", overflow: "hidden", justifyContent: "center", paddingHorizontal: 22, backgroundColor: "#050710" },
+const styles = StyleSheet.create({ content: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 96, gap: 18, width: "100%", alignSelf: "center" }, commandHero: { paddingTop: 12, paddingBottom: 16, gap: 14 }, commandHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 14 }, commandTitleWrap: { flex: 1, minWidth: 0 }, commandEyebrow: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.25 }, commandTitle: { marginTop: 3, fontSize: 18, lineHeight: 23, fontWeight: "900", letterSpacing: 0.8 }, commandDetail: { marginTop: 6, maxWidth: 680, fontSize: 10, lineHeight: 16 }, commandBadge: { minHeight: 32, maxWidth: 154, borderWidth: 1, borderRadius: 8, paddingHorizontal: 9, flexDirection: "row", alignItems: "center", gap: 6 }, commandDot: { width: 6, height: 6, borderRadius: 6 }, commandBadgeText: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 0.45 }, truthRail: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 9, flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 8 }, truthText: { fontSize: 7, lineHeight: 10, fontWeight: "800", letterSpacing: 0.7 }, portfolioHero: { borderWidth: 1, borderRadius: 24, overflow: "hidden" }, portfolioHeroTop: { minHeight: 62, paddingHorizontal: 18, paddingVertical: 13, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }, portfolioHeroEyebrow: { fontSize: 11, lineHeight: 15, fontWeight: "900", letterSpacing: 1.15 }, portfolioHeroMeta: { marginTop: 3, fontSize: 9, lineHeight: 13, fontWeight: "700" }, portfolioHeroSource: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 0.8 }, portfolioReturnBlock: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 8 },
+  portfolioReturnValue: { marginTop: 4, fontSize: 38, lineHeight: 44, fontWeight: "800", letterSpacing: -1.5, fontVariant: ["tabular-nums"] },
+  portfolioReturnPnl: { marginTop: 5, fontSize: 12, lineHeight: 16, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  portfolioHeroNumbers: { flexDirection: "row", alignItems: "flex-end", gap: 18, paddingHorizontal: 18, paddingTop: 8, paddingBottom: 18 }, portfolioHeroPrimary: { flex: 1.6, minWidth: 0 }, portfolioHeroSecondary: { flex: 1, minWidth: 0 }, portfolioHeroValue: { fontSize: 38, lineHeight: 44, fontWeight: "800", letterSpacing: -1.2, fontVariant: ["tabular-nums"] }, portfolioHeroSecondaryValue: { fontSize: 17, lineHeight: 22, fontWeight: "900", fontVariant: ["tabular-nums"] }, portfolioHeroLabel: { marginTop: 4, fontSize: 8, lineHeight: 12, fontWeight: "900", letterSpacing: 0.85 }, allocationField: { height: 210, position: "relative", overflow: "hidden", justifyContent: "center", paddingHorizontal: 22, backgroundColor: "#050710" },
   allocationGlow: { position: "absolute", width: 190, height: 190, borderRadius: 190, opacity: 0.12 },
   allocationGlowPurple: { left: -70, top: -48 },
   allocationGlowBlue: { left: "30%", top: 32, opacity: 0.09 },
