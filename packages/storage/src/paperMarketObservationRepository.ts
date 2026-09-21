@@ -12,6 +12,7 @@ export interface PaperPublicMarketObservationInput {
   readonly signedChangeRate?: number;
   readonly accumulatedVolume?: number;
   readonly accumulatedPrice?: number;
+  readonly sourceFingerprint?: string;
 }
 
 export interface PaperPublicMarketObservation {
@@ -24,6 +25,7 @@ export interface PaperPublicMarketObservation {
   readonly signedChangeRate?: number;
   readonly accumulatedVolume?: number;
   readonly accumulatedPrice?: number;
+  readonly sourceFingerprint?: string;
   readonly evidenceFingerprintSha256: string;
 }
 
@@ -84,6 +86,12 @@ function optionalNonNegative(value: unknown, name: string): number | undefined {
   return normalized;
 }
 
+function sourceFingerprint(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "string" || !/^[a-f0-9]{64}$/.test(value)) throw new PaperMarketObservationStoreError("INVALID_SOURCE_FINGERPRINT", "public market observation source fingerprint is invalid");
+  return value;
+}
+
 function payload(input: PaperPublicMarketObservationInput): Record<string, unknown> {
   return {
     schemaVersion: 1,
@@ -94,6 +102,7 @@ function payload(input: PaperPublicMarketObservationInput): Record<string, unkno
     signedChangeRate: optionalFinite(input.signedChangeRate, "signedChangeRate") ?? null,
     accumulatedVolume: optionalNonNegative(input.accumulatedVolume, "accumulatedVolume") ?? null,
     accumulatedPrice: optionalNonNegative(input.accumulatedPrice, "accumulatedPrice") ?? null,
+    ...(sourceFingerprint(input.sourceFingerprint) === undefined ? {} : { sourceFingerprint: sourceFingerprint(input.sourceFingerprint) }),
   };
 }
 
@@ -112,6 +121,7 @@ export function normalizePaperPublicMarketObservation(input: PaperPublicMarketOb
     ...(normalized.signedChangeRate === null ? {} : { signedChangeRate: Number(normalized.signedChangeRate) }),
     ...(normalized.accumulatedVolume === null ? {} : { accumulatedVolume: Number(normalized.accumulatedVolume) }),
     ...(normalized.accumulatedPrice === null ? {} : { accumulatedPrice: Number(normalized.accumulatedPrice) }),
+    ...(normalized.sourceFingerprint === undefined ? {} : { sourceFingerprint: String(normalized.sourceFingerprint) }),
     evidenceFingerprintSha256: fingerprint,
   });
 }
@@ -131,6 +141,7 @@ function decodeRow(row: Record<string, unknown>): PaperPublicMarketObservation {
       signedChangeRate: parsed.signedChangeRate == null ? undefined : parsed.signedChangeRate as number,
       accumulatedVolume: parsed.accumulatedVolume == null ? undefined : parsed.accumulatedVolume as number,
       accumulatedPrice: parsed.accumulatedPrice == null ? undefined : parsed.accumulatedPrice as number,
+      sourceFingerprint: parsed.sourceFingerprint == null ? undefined : parsed.sourceFingerprint as string,
     });
     if (observation.observationId !== observationId || canonical(payloadFromObservation(observation)) !== String(row.payload_json) || observation.evidenceFingerprintSha256 !== String(row.evidence_fingerprint_sha256 ?? "")) {
       throw new PaperMarketObservationStoreError("OBSERVATION_CHECKSUM_MISMATCH", "persisted public market observation checksum mismatch", observationId);

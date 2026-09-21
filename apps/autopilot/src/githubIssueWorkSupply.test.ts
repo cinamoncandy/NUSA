@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { deriveGithubIssueWorkSupply, unknownGithubIssueWorkSupply, withObservedReadyWork } from "./githubIssueWorkSupply";
+import { deriveGithubIssueWorkSupply, unknownGithubIssueWorkSupply, withObservedCapabilityBlockedWork, withObservedReadyWork } from "./githubIssueWorkSupply";
 
 test("observed GitHub backlog preserves a real zero only when GitHub reports zero", () => {
   const supply = deriveGithubIssueWorkSupply({ total_count: 0 });
@@ -9,6 +9,7 @@ test("observed GitHub backlog preserves a real zero only when GitHub reports zer
   assert.equal(supply.readyWorkCount, null);
   assert.equal(supply.readyWorkStatus, "UNKNOWN");
   assert.equal(supply.readyWorkScope, "UNKNOWN");
+  assert.equal(supply.capabilityBlockedWorkCount, null);
 });
 
 test("observed nonzero backlog is not collapsed to zero or READY", () => {
@@ -24,6 +25,17 @@ test("READY count is explicitly bound to the current Autopilot coding executor",
   assert.equal(supply.readyWorkCount, 3);
   assert.equal(supply.readyWorkStatus, "OBSERVED");
   assert.equal(supply.readyWorkScope, "AUTOPILOT_CODING_RUNNER");
+});
+
+test("capability-blocked work is observed separately from executable READY work", () => {
+  const supply = withObservedCapabilityBlockedWork(
+    withObservedReadyWork(deriveGithubIssueWorkSupply({ total_count: 60 }), 3),
+    4,
+    { RESEARCH: 2, GENERAL: 1, UNKNOWN: 1 },
+  );
+  assert.equal(supply.readyWorkCount, 3);
+  assert.equal(supply.capabilityBlockedWorkCount, 4);
+  assert.deepEqual(supply.capabilityBlockedCapabilities, { RESEARCH: 2, GENERAL: 1, UNKNOWN: 1 });
 });
 
 test("missing or malformed supply is UNKNOWN instead of fabricated zero", () => {

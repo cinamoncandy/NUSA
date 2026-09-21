@@ -33,7 +33,7 @@ function moduleFor(stage: ModuleStage, fail = false): Level10Module<unknown, unk
 }
 
 function bundle(failingStage?: ModuleStage): Level10ModuleBundle {
-  return Object.fromEntries(MODULE_STAGE_ORDER.map((stage) => [stage, moduleFor(stage, stage === failingStage)])) as Level10ModuleBundle;
+  return Object.fromEntries(MODULE_STAGE_ORDER.map((stage) => [stage, moduleFor(stage, stage === failingStage)])) as unknown as Level10ModuleBundle;
 }
 
 describe("level-10/10X-S module contract", () => {
@@ -87,11 +87,11 @@ describe("PipelineOrchestratorV10", () => {
   });
 
   it("halts immediately at the first failed-closed module", async () => {
-    const result = await new PipelineOrchestratorV10(bundle("PORTFOLIO")).run({ seed: true }, context);
+    const result = await new PipelineOrchestratorV10(bundle("RISK")).run({ seed: true }, context);
     assert.equal(result.status, "FAILED_CLOSED");
-    assert.equal(result.haltedAt, "PORTFOLIO");
+    assert.equal(result.haltedAt, "RISK");
     assert.deepEqual(result.evidence.map((item) => item.stage), [
-      "MARKET_DATA", "INTELLIGENCE", "STRATEGY", "DECISION", "RISK", "PORTFOLIO"
+      "MARKET_DATA", "INTELLIGENCE", "STRATEGY", "DECISION", "PORTFOLIO", "RISK"
     ]);
   });
 });

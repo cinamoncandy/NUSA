@@ -69,15 +69,20 @@ test("Release re-verifies exact expected head and audited base before merge", ()
   assert.match(workflow, /\.merged == true/);
 });
 
-test("Release explicitly dispatches canonical main CI after a GITHUB_TOKEN merge", () => {
+test("Release reuses an exact-main CI run before dispatching a duplicate", () => {
   assert.match(workflow, /actions:\s*write/);
   assert.match(workflow, /Start canonical post-merge main CI/);
+  assert.match(workflow, /actions\/runs\?head_sha=\$MERGED_MAIN&per_page=100/);
+  assert.match(workflow, /gh api --paginate --slurp/);
+  assert.match(workflow, /\.status == "queued" or \.status == "in_progress" or \.status == "pending"/);
+  assert.match(workflow, /\.status == "completed" and \.conclusion == "success"/);
+  assert.match(workflow, /suppressing duplicate dispatch/);
   assert.match(workflow, /actions\/workflows\/ci\.yml\/dispatches/);
   assert.match(workflow, /-f ref=main/);
   assert.match(workflow, /merged_main/);
 });
 
-test("Release recovers bounded post-merge CI retries before directly dispatching Cloudflare Deploy", () => {
+test("Release recovers bounded post-merge CI and suppresses duplicate Cloudflare Deploy dispatch", () => {
   assert.match(workflow, /Recover post-merge CI retries and dispatch Cloudflare Deploy/);
   assert.match(workflow, /for poll in \$\(seq 1 40\)/);
   assert.match(workflow, /actions\/runs\?head_sha=\$MERGED_MAIN&per_page=100/);
@@ -85,6 +90,11 @@ test("Release recovers bounded post-merge CI retries before directly dispatching
   assert.match(workflow, /rerun-failed-jobs/);
   assert.match(workflow, /failed_attempt" -ge 3/);
   assert.match(workflow, /Post-merge CI SUCCESS recovered/);
+  assert.match(workflow, /actions\/workflows\/autopilot-cloudflare-deploy\.yml\/runs\?head_sha=\$MERGED_MAIN&per_page=100/);
+  assert.match(workflow, /\.status == "in_progress"/);
+  assert.match(workflow, /\.status == "completed" and \.conclusion == "success"/);
+  assert.match(workflow, /suppressing duplicate Release dispatch/);
+  assert.match(workflow, /no active\/successful exact-main Deploy; dispatching bounded fallback/);
   assert.match(workflow, /actions\/workflows\/autopilot-cloudflare-deploy\.yml\/dispatches/);
   assert.match(workflow, /inputs\[head_sha\]=\$MERGED_MAIN/);
 });
@@ -111,14 +121,19 @@ test("safety invariants remain fail-closed", () => {
 });
 
 
-test("already-merged convergence is non-applicable for an open PR but preserves merged-provenance failure", () => {
+test("already-merged convergence is non-applicable for an open PR, accepts existing dedicated authorization, and preserves missing-provenance failure", () => {
   const convergence = fs.readFileSync(".github/workflows/autopilot-already-merged-audit-convergence.yml", "utf8");
   assert.match(convergence, /pulls\/\$PR_NUMBER/);
   assert.match(convergence, /if \[ "\$pr_state" = "open" \]/);
   assert.match(convergence, /NO_ACTION Audit convergence is not applicable to an open PR/);
+  assert.match(convergence, /CONVERGED existing exact-head dedicated Release authorization/);
+  assert.match(convergence, /commits\/\$EXPECTED_HEAD\/statuses\?per_page=100/);
+  assert.match(convergence, /\.creator\.login == "nusa-release-authority\[bot\]"/);
+  assert.match(convergence, /startswith\("canonical Audit PASS; pr=" \+ \$pr \+ "; base="\)/);
   assert.match(convergence, /RELEASE_PROVENANCE_MISSING: already-merged PRs cannot be post-facto upgraded/);
   const noActionIndex = convergence.indexOf("NO_ACTION Audit convergence is not applicable to an open PR");
+  const convergedIndex = convergence.indexOf("CONVERGED existing exact-head dedicated Release authorization");
   const provenanceFailureIndex = convergence.indexOf("RELEASE_PROVENANCE_MISSING: already-merged PRs cannot be post-facto upgraded");
-  assert.ok(noActionIndex >= 0 && provenanceFailureIndex > noActionIndex);
+  assert.ok(noActionIndex >= 0 && convergedIndex > noActionIndex && provenanceFailureIndex > convergedIndex);
   assert.match(convergence.slice(provenanceFailureIndex), /exit 1/);
 });

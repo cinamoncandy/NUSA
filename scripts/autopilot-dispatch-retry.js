@@ -5,28 +5,38 @@ const DEFAULT_MAX_ATTEMPTS = 3;
 const DEFAULT_BACKOFF_MS = 1_000;
 const MAX_PATCH_BYTES = 24_000;
 const MAX_VALIDATED_FILE_BYTES = 128_000;
+const MAX_PROPOSAL_CONTEXT_BYTES = 20_000;
 const PATCH_PATH = ".nusa-autopilot.patch";
 const GENERATED_WORKSPACE_ARTIFACTS = new Set([
   "artifacts/autopilot-execution/repository-dispatch.json",
   "artifacts/autopilot-execution/coding-runner-request.json",
 ]);
-const SAFE_PROPOSAL_FAILURE_CODES = new Set([
-  "CODING_PROPOSAL_AUTHORITY_SURFACE_FORBIDDEN",
+const NO_ACTION_PROPOSAL_FAILURE_CODES = new Set([
   "CODING_PROPOSAL_FAILED_CLOSED",
   "CODING_PROPOSAL_INVALID",
   "CODING_PROPOSAL_JSON_INVALID",
   "CODING_PROPOSAL_PATCH_REQUIRED",
-  "CODING_PROPOSAL_PATH_FORBIDDEN",
-  "CODING_PROPOSAL_PATH_INVALID",
+  "CODING_PROPOSAL_RESPONSE_INVALID",
+  "CODING_PROPOSAL_SHAPE_INVALID",
+  "CODING_PROPOSAL_TOO_LARGE",
+  "CODING_PROPOSAL_UNAVAILABLE",
+  "CODING_PROPOSAL_REPEATED",
+  "SANDBOX_PATCH_APPLY_CHECK_FAILED",
+  "SANDBOX_PATCH_FILE_COUNT_INVALID",
+  "SANDBOX_PATCH_REQUIRED",
+  "SANDBOX_PATCH_TOO_LARGE",
+]);
+const RETRYABLE_PROPOSAL_FAILURE_CODES = new Set([
+  "CODING_PROPOSAL_FAILED_CLOSED",
+  "CODING_PROPOSAL_INVALID",
+  "CODING_PROPOSAL_JSON_INVALID",
+  "CODING_PROPOSAL_PATCH_REQUIRED",
   "CODING_PROPOSAL_RESPONSE_INVALID",
   "CODING_PROPOSAL_SHAPE_INVALID",
   "CODING_PROPOSAL_TOO_LARGE",
   "CODING_PROPOSAL_UNAVAILABLE",
   "SANDBOX_PATCH_APPLY_CHECK_FAILED",
   "SANDBOX_PATCH_FILE_COUNT_INVALID",
-  "SANDBOX_PATCH_FORBIDDEN_AUTHORITY_SURFACE",
-  "SANDBOX_PATCH_PATH_FORBIDDEN",
-  "SANDBOX_PATCH_PATH_OUTSIDE_ALLOWED_SCOPE",
   "SANDBOX_PATCH_REQUIRED",
   "SANDBOX_PATCH_TOO_LARGE",
 ]);
@@ -48,9 +58,25 @@ function proposalFailureCode(reason) {
   const text = String(reason || "");
   const match = text.match(/^(CODING_PROPOSAL_[A-Z0-9_]+|SANDBOX_PATCH_[A-Z0-9_]+)/);
   const code = match?.[1];
-  if (!code || !SAFE_PROPOSAL_FAILURE_CODES.has(code)) return null;
+  if (!code || !NO_ACTION_PROPOSAL_FAILURE_CODES.has(code)) return null;
   if (code.startsWith("CODING_PROPOSAL_")) return text === code ? code : null;
   return text === code || text.startsWith(`${code}:`) ? code : null;
+}
+
+function retryableProposalFailureCode(reason) {
+  const code = proposalFailureCode(reason);
+  return code && RETRYABLE_PROPOSAL_FAILURE_CODES.has(code) ? code : null;
+}
+
+function providerRateLimitCode(reason) {
+  const code = String(reason || "");
+  return code === "WORKERS_AI_DAILY_QUOTA_EXHAUSTED" || code === "WORKERS_AI_RATE_LIMITED" || code === "PROVIDER_RATE_LIMITED"
+    ? code
+    : null;
+}
+
+function proposalRepairFeedback(code, attempt) {
+  return `attempt=${attempt};rejection=${code};repair=regenerate one valid unified diff against the exact head for one existing apps/autopilot/src TypeScript file;do_not_repeat_previous_patch=true`;
 }
 
 function safeWorkerStatus(value) {
@@ -323,6 +349,34 @@ function run(command, args, label, timeout = 300_000) {
   return String(result.stdout || "");
 }
 
+function boundedProposalContext(path, content, patch) {
+  if (assertBoundedPatch(patch) !== path) throw new Error("CODING_PROPOSAL_CONTEXT_PATH_MISMATCH");
+  if (typeof content !== "string" || !content.trim()) throw new Error("CODING_PROPOSAL_CONTEXT_CONTENT_INVALID");
+  const lines = content.split(/\r?\n/);
+  const hunk = patch.match(/^@@ -(\d+)(?:,\d+)? \+\d+(?:,\d+)? @@/m);
+  const anchorLine = hunk ? Number(hunk[1]) : 1;
+  const anchorIndex = Math.max(0, Math.min(lines.length - 1, Number.isSafeInteger(anchorLine) ? anchorLine - 1 : 0));
+  const startIndex = Math.max(0, anchorIndex - 40);
+  let endIndex = Math.min(lines.length, startIndex + 160);
+  let excerpt = lines.slice(startIndex, endIndex).join("\n");
+  while (Buffer.byteLength(excerpt, "utf8") > MAX_PROPOSAL_CONTEXT_BYTES && endIndex - startIndex > 20) {
+    endIndex -= 10;
+    excerpt = lines.slice(startIndex, endIndex).join("\n");
+  }
+  if (!excerpt.trim() || Buffer.byteLength(excerpt, "utf8") > MAX_PROPOSAL_CONTEXT_BYTES) {
+    throw new Error("CODING_PROPOSAL_CONTEXT_TOO_LARGE");
+  }
+  return Object.freeze({ path, startLine: startIndex + 1, content: excerpt });
+}
+
+function proposalContextFromGithubRunner(patch) {
+  const path = assertBoundedPatch(patch);
+  run("git", ["ls-files", "--error-unmatch", "--", path], "CODING_PROPOSAL_CONTEXT_TRACKED_FILE_REQUIRED");
+  const stat = fs.lstatSync(path);
+  if (!stat.isFile() || stat.isSymbolicLink()) throw new Error("CODING_PROPOSAL_CONTEXT_FILE_INVALID");
+  return boundedProposalContext(path, fs.readFileSync(path, "utf8"), patch);
+}
+
 function isGeneratedWorkspaceArtifact(path) {
   return GENERATED_WORKSPACE_ARTIFACTS.has(path);
 }
@@ -342,6 +396,13 @@ function assertGithubRunnerWorkspaceClean(statusOutput) {
       return status !== "??" || !isGeneratedWorkspaceArtifact(path);
     });
   if (unexpected.length > 0) throw new Error("CODING_RUNTIME_WORKSPACE_DIRTY");
+}
+
+function resetProposalRetryWorkspace() {
+  fs.rmSync(PATCH_PATH, { force: true });
+  const tracked = run("git", ["diff", "--name-only"], "GITHUB_RUNNER_RETRY_TRACKED_STATUS_FAILED").trim();
+  const staged = run("git", ["diff", "--cached", "--name-only"], "GITHUB_RUNNER_RETRY_STAGED_STATUS_FAILED").trim();
+  if (tracked || staged) throw new Error("CODING_RUNTIME_WORKSPACE_DIRTY");
 }
 
 function validatePatchOnGithubRunner(request, patch) {
@@ -376,40 +437,178 @@ function validatePatchOnGithubRunner(request, patch) {
   return [{ path: expectedPath, content }];
 }
 
-async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch) {
-  const startedAt = Date.now();
+async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch, options = {}) {
   const proposalUrl = endpointFor(runnerUrl, "propose");
   const publishUrl = endpointFor(runnerUrl, "publish");
-  const proposal = await authorizedJsonPost(proposalUrl, request, fetchImpl);
-  if (proposal.status !== "PROPOSAL_READY" || typeof proposal.patch !== "string") throw new Error("CODING_PROPOSAL_UNAVAILABLE");
-  const validatedFiles = validatePatchOnGithubRunner(request, proposal.patch);
-  const published = await authorizedJsonPost(publishUrl, { request, validatedFiles }, fetchImpl);
-  if (published.status !== "EXECUTION_ACCEPTED" || published.proposalValidated !== true) throw new Error("CODING_PUBLISH_VALIDATION_REQUIRED");
+  const validatePatch = options.validatePatch ?? validatePatchOnGithubRunner;
+  const now = options.now ?? (() => Date.now());
+  const maxProposalAttempts = options.maxProposalAttempts ?? DEFAULT_MAX_ATTEMPTS;
+  const proposalContextForPatch = options.proposalContextForPatch ?? proposalContextFromGithubRunner;
+  if (!Number.isSafeInteger(maxProposalAttempts) || maxProposalAttempts < 1 || maxProposalAttempts > DEFAULT_MAX_ATTEMPTS) {
+    throw new Error("AUTOPILOT_PROPOSAL_RETRY_LIMIT_INVALID");
+  }
 
-  const attempts = [attemptRecord({
-    request,
-    attempt: 1,
-    decision: "DISPATCHED",
-    startedAt,
-    status: 200,
-    workerStatus: "EXECUTION_ACCEPTED",
-    failureClass: null,
-    reason: null,
-    now: () => Date.now(),
-  })];
-  return {
-    ...resultSummary(request, attempts, "DISPATCHED", null, 200, "EXECUTION_ACCEPTED"),
-    backend: "github-actions-runner",
-    checkpointId: request.headSha,
-    workspaceVerified: true,
-    proposalValidated: true,
-    changedFiles: validatedFiles.map((file) => file.path),
-    publisher: published.publisher,
-    branch: published.branch,
-    commitSha: published.commitSha,
-    pullRequestNumber: published.pullRequestNumber,
-    pullRequestUrl: published.pullRequestUrl,
+  const attempts = [];
+  const seenPatches = new Set();
+  let feedback = null;
+  let proposalContext = null;
+
+  const finish = (status, reason, httpStatus, workerStatus, extra = {}) => {
+    const base = resultSummary(request, attempts, status, reason, httpStatus, workerStatus);
+    const proposalRetries = attempts.filter((entry) => entry.decision === "RETRY").length;
+    const proposalRejected = attempts.filter((entry) => entry.decision === "RETRY" || entry.decision === "NO_ACTION").length;
+    const changedFiles = Array.isArray(extra.changedFiles) ? extra.changedFiles : [];
+    const codeChanged = status === "DISPATCHED" && changedFiles.length > 0;
+    const blockedRateLimit = status === "BLOCKED_RATE_LIMIT";
+    return {
+      ...base,
+      proposalAttempts: attempts.length,
+      proposalRetries,
+      proposalRejected,
+      proposalAccepted: status === "DISPATCHED",
+      codeChanged,
+      blockedRateLimit,
+      ...extra,
+      summary: {
+        ...base.summary,
+        proposalAttempts: attempts.length,
+        proposalRetries,
+        proposalRejected,
+        proposalAccepted: status === "DISPATCHED" ? 1 : 0,
+        codeChanged: codeChanged ? 1 : 0,
+        blockedRateLimit: blockedRateLimit ? 1 : 0,
+      },
+    };
   };
+
+  for (let attempt = 1; attempt <= maxProposalAttempts; attempt += 1) {
+    const startedAt = now();
+    const proposalRequest = feedback || proposalContext
+      ? {
+          ...request,
+          ...(feedback ? { proposalFeedback: feedback } : {}),
+          ...(proposalContext ? { proposalContext } : {}),
+        }
+      : request;
+    let proposal;
+    try {
+      proposal = await authorizedJsonPost(proposalUrl, proposalRequest, fetchImpl);
+      if (proposal.status !== "PROPOSAL_READY" || typeof proposal.patch !== "string") {
+        throw new Error("CODING_PROPOSAL_UNAVAILABLE");
+      }
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "CODING_PROPOSAL_UNAVAILABLE";
+      const rateLimitCode = providerRateLimitCode(reason);
+      if (rateLimitCode) {
+        return finish("BLOCKED_RATE_LIMIT", rateLimitCode, null, "RATE_LIMITED");
+      }
+      const code = retryableProposalFailureCode(reason);
+      if (!code) throw error;
+      const decision = attempt < maxProposalAttempts ? "RETRY" : "NO_ACTION";
+      attempts.push(attemptRecord({
+        request,
+        attempt,
+        decision,
+        startedAt,
+        status: null,
+        workerStatus: "PROPOSAL_REJECTED",
+        failureClass: "deterministic",
+        reason: code,
+        now,
+      }));
+      if (decision === "RETRY") {
+        feedback = proposalRepairFeedback(code, attempt + 1);
+        continue;
+      }
+      return finish("NO_ACTION", code, null, "PROPOSAL_REJECTED");
+    }
+
+    if (seenPatches.has(proposal.patch)) {
+      const code = "CODING_PROPOSAL_REPEATED";
+      attempts.push(attemptRecord({
+        request,
+        attempt,
+        decision: "NO_ACTION",
+        startedAt,
+        status: null,
+        workerStatus: "PROPOSAL_REJECTED",
+        failureClass: "deterministic",
+        reason: code,
+        now,
+      }));
+      return finish("NO_ACTION", code, null, "PROPOSAL_REJECTED");
+    }
+    seenPatches.add(proposal.patch);
+
+    let validatedFiles;
+    try {
+      validatedFiles = validatePatch(request, proposal.patch);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "AUTOPILOT_GITHUB_RUNNER_FAILED";
+      const code = retryableProposalFailureCode(reason);
+      if (!code) throw error;
+
+      resetProposalRetryWorkspace();
+
+      const decision = attempt < maxProposalAttempts ? "RETRY" : "NO_ACTION";
+      attempts.push(attemptRecord({
+        request,
+        attempt,
+        decision,
+        startedAt,
+        status: null,
+        workerStatus: "PROPOSAL_REJECTED",
+        failureClass: "deterministic",
+        reason: code,
+        now,
+      }));
+      if (decision === "RETRY") {
+        if (code === "SANDBOX_PATCH_APPLY_CHECK_FAILED") {
+          try {
+            proposalContext = proposalContextForPatch(proposal.patch);
+          } catch {
+            proposalContext = null;
+          }
+        }
+        feedback = proposalRepairFeedback(code, attempt + 1);
+        continue;
+      }
+      return finish("NO_ACTION", code, null, "PROPOSAL_REJECTED");
+    }
+
+    fs.rmSync(PATCH_PATH, { force: true });
+    const published = await authorizedJsonPost(publishUrl, { request, validatedFiles }, fetchImpl);
+    if (published.status !== "EXECUTION_ACCEPTED" || published.proposalValidated !== true) {
+      throw new Error("CODING_PUBLISH_VALIDATION_REQUIRED");
+    }
+
+    attempts.push(attemptRecord({
+      request,
+      attempt,
+      decision: "DISPATCHED",
+      startedAt,
+      status: 200,
+      workerStatus: "EXECUTION_ACCEPTED",
+      failureClass: null,
+      reason: null,
+      now,
+    }));
+    const changedFiles = validatedFiles.map((file) => file.path);
+    return finish("DISPATCHED", null, 200, "EXECUTION_ACCEPTED", {
+      backend: "github-actions-runner",
+      checkpointId: request.headSha,
+      workspaceVerified: true,
+      proposalValidated: true,
+      changedFiles,
+      publisher: published.publisher,
+      branch: published.branch,
+      commitSha: published.commitSha,
+      pullRequestNumber: published.pullRequestNumber,
+      pullRequestUrl: published.pullRequestUrl,
+    });
+  }
+
+  throw new Error("AUTOPILOT_PROPOSAL_RETRY_EXHAUSTED");
 }
 
 function writeArtifacts(request, result) {
@@ -499,6 +698,13 @@ module.exports = {
   resultSummary,
   assertBoundedPatch,
   proposalFailureCode,
+  retryableProposalFailureCode,
+  providerRateLimitCode,
+  proposalRepairFeedback,
+  boundedProposalContext,
+  proposalContextFromGithubRunner,
+  executeGithubActionsRunner,
+  resetProposalRetryWorkspace,
   readDispatchRequest,
   assertGithubRunnerWorkspaceClean,
   filterGithubRunnerWorkspacePaths,

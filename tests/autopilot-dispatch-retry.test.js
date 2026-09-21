@@ -8,10 +8,13 @@ const {
   transientStatus,
   assertBoundedPatch,
   proposalFailureCode,
+  providerRateLimitCode,
   readDispatchRequest,
   assertGithubRunnerWorkspaceClean,
   filterGithubRunnerWorkspacePaths,
   boundedWorkerFailureEvidence,
+  boundedProposalContext,
+  executeGithubActionsRunner,
 } = require("../scripts/autopilot-dispatch-retry.js");
 
 const request = Object.freeze({
@@ -38,6 +41,21 @@ function response(status, body = {}) {
 
 function oidcSuccess() {
   return response(200, { value: "oidc-test-value" });
+}
+
+async function withOidcEnvironment(run) {
+  const previousUrl = process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
+  const previousToken = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
+  process.env.ACTIONS_ID_TOKEN_REQUEST_URL = "https://oidc.example.test/token";
+  process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN = "oidc-request-test";
+  try {
+    return await run();
+  } finally {
+    if (previousUrl === undefined) delete process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
+    else process.env.ACTIONS_ID_TOKEN_REQUEST_URL = previousUrl;
+    if (previousToken === undefined) delete process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
+    else process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN = previousToken;
+  }
 }
 
 test("classifies only 429 and 5xx as retryable HTTP statuses", () => {
@@ -158,6 +176,47 @@ test("records duplicate suppression as no action without retry", async () => {
   assert.equal(calls, 2);
 });
 
+test("classifies only bounded provider rate-limit reasons", () => {
+  assert.equal(providerRateLimitCode("WORKERS_AI_DAILY_QUOTA_EXHAUSTED"), "WORKERS_AI_DAILY_QUOTA_EXHAUSTED");
+  assert.equal(providerRateLimitCode("WORKERS_AI_RATE_LIMITED"), "WORKERS_AI_RATE_LIMITED");
+  assert.equal(providerRateLimitCode("provider unavailable"), null);
+  assert.equal(providerRateLimitCode("WORKERS_AI_RATE_LIMITED secret=unexpected"), null);
+});
+
+test("treats provider rate-limit blocking as non-terminal without proposal retries", async () => {
+  await withOidcEnvironment(async () => {
+    let proposalCalls = 0;
+    let publishCalls = 0;
+    const result = await executeGithubActionsRunner(
+      request,
+      "https://runner.example.test/coding/execute",
+      async (url) => {
+        const value = String(url);
+        if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+        if (value.endsWith("/coding/propose")) {
+          proposalCalls += 1;
+          return response(409, { status: "CODING_PROPOSAL_FAILED_CLOSED", error: "WORKERS_AI_DAILY_QUOTA_EXHAUSTED" });
+        }
+        if (value.endsWith("/coding/publish")) {
+          publishCalls += 1;
+          throw new Error("publish must not run");
+        }
+        throw new Error("unexpected URL " + value);
+      },
+    );
+    assert.equal(result.status, "BLOCKED_RATE_LIMIT");
+    assert.equal(result.reason, "WORKERS_AI_DAILY_QUOTA_EXHAUSTED");
+    assert.equal(result.proposalAttempts, 0);
+    assert.equal(result.proposalRetries, 0);
+    assert.equal(result.codeChanged, false);
+    assert.equal(result.blockedRateLimit, true);
+    assert.equal(result.summary.blockedRateLimit, 1);
+    assert.equal(result.summary.failedClosed, 0);
+    assert.equal(proposalCalls, 1);
+    assert.equal(publishCalls, 0);
+  });
+});
+
 test("allows only this workflow's generated artifacts before patch validation", () => {
   assert.doesNotThrow(() => assertGithubRunnerWorkspaceClean([
     "?? artifacts/autopilot-execution/repository-dispatch.json",
@@ -197,11 +256,197 @@ test("rejects forbidden authority-surface patch paths", () => {
   );
 });
 
+test("builds a bounded exact-head retry excerpt around the rejected hunk", () => {
+  const source = Array.from({ length: 300 }, (_value, index) => `line-${index + 1}`).join("\n");
+  const contextPatch = [
+    "diff --git a/apps/autopilot/src/example.ts b/apps/autopilot/src/example.ts",
+    "--- a/apps/autopilot/src/example.ts",
+    "+++ b/apps/autopilot/src/example.ts",
+    "@@ -200,1 +200,1 @@",
+    "-line-200",
+    "+line-200-updated",
+    "",
+  ].join("\n");
+  const context = boundedProposalContext("apps/autopilot/src/example.ts", source, contextPatch);
+  assert.equal(context.path, "apps/autopilot/src/example.ts");
+  assert.ok(context.startLine <= 200);
+  assert.match(context.content, /line-200/);
+  assert.ok(Buffer.byteLength(context.content, "utf8") <= 20_000);
+});
+
 test("classifies only bounded proposal validation failures as no-action", () => {
   assert.equal(proposalFailureCode("CODING_PROPOSAL_JSON_INVALID"), "CODING_PROPOSAL_JSON_INVALID");
   assert.equal(proposalFailureCode("SANDBOX_PATCH_APPLY_CHECK_FAILED:128:error: malformed diff"), "SANDBOX_PATCH_APPLY_CHECK_FAILED");
   assert.equal(proposalFailureCode("CODING_RUNTIME_WORKSPACE_DIRTY"), null);
+  assert.equal(proposalFailureCode("CODING_PROPOSAL_PATH_FORBIDDEN"), null);
+  assert.equal(proposalFailureCode("SANDBOX_PATCH_FORBIDDEN_AUTHORITY_SURFACE"), null);
   assert.equal(proposalFailureCode("CODING_PROPOSAL_JSON_INVALID secret=redacted"), null);
+});
+
+test("regenerates an apply-check rejection inside one execution and publishes the repaired patch", async () => {
+  await withOidcEnvironment(async () => {
+    let proposalCalls = 0;
+    let publishCalls = 0;
+    let validateCalls = 0;
+    const proposalBodies = [];
+    const result = await executeGithubActionsRunner(
+      request,
+      "https://runner.example.test/coding/execute",
+      async (url, init = {}) => {
+        const value = String(url);
+        if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+        if (value.endsWith("/coding/propose")) {
+          proposalCalls += 1;
+          proposalBodies.push(JSON.parse(init.body));
+          return response(200, { status: "PROPOSAL_READY", patch: proposalCalls === 1 ? "first-invalid-patch" : "second-valid-patch" });
+        }
+        if (value.endsWith("/coding/publish")) {
+          publishCalls += 1;
+          return response(200, {
+            status: "EXECUTION_ACCEPTED",
+            proposalValidated: true,
+            publisher: "github-validated-patch",
+            branch: "autopilot/test",
+            commitSha: "b".repeat(40),
+            pullRequestNumber: 77,
+            pullRequestUrl: "https://github.com/cinamoncandy/NUSA/pull/77",
+          });
+        }
+        throw new Error("unexpected URL " + value);
+      },
+      {
+        validatePatch(value, patch) {
+          validateCalls += 1;
+          assert.equal(value.executionId, request.executionId);
+          if (validateCalls === 1) throw new Error("SANDBOX_PATCH_APPLY_CHECK_FAILED:128:error: patch failed");
+          assert.equal(patch, "second-valid-patch");
+          return [{ path: "apps/autopilot/src/example.ts", content: "export const repaired = true;\n" }];
+        },
+        proposalContextForPatch(patch) {
+          assert.equal(patch, "first-invalid-patch");
+          return {
+            path: "apps/autopilot/src/example.ts",
+            startLine: 1,
+            content: "export const oldValue = true;\n",
+          };
+        },
+      },
+    );
+
+    assert.equal(result.status, "DISPATCHED");
+    assert.equal(result.proposalAttempts, 2);
+    assert.equal(result.proposalRetries, 1);
+    assert.equal(result.codeChanged, true);
+    assert.equal(result.commitSha, "b".repeat(40));
+    assert.equal(result.pullRequestNumber, 77);
+    assert.equal(proposalCalls, 2);
+    assert.equal(validateCalls, 2);
+    assert.equal(publishCalls, 1);
+    assert.equal(proposalBodies[0].executionId, request.executionId);
+    assert.equal(proposalBodies[1].executionId, request.executionId);
+    assert.equal(proposalBodies[1].dedupeKey, request.dedupeKey);
+    assert.equal(proposalBodies[1].headSha, request.headSha);
+    assert.match(proposalBodies[1].proposalFeedback, /SANDBOX_PATCH_APPLY_CHECK_FAILED/);
+    assert.equal(proposalBodies[0].proposalContext, undefined);
+    assert.deepEqual(proposalBodies[1].proposalContext, {
+      path: "apps/autopilot/src/example.ts",
+      startLine: 1,
+      content: "export const oldValue = true;\n",
+    });
+    assert.deepEqual(result.attempts.map((entry) => entry.decision), ["RETRY", "DISPATCHED"]);
+  });
+});
+
+test("bounds repeated apply-check rejection at three proposal attempts", async () => {
+  await withOidcEnvironment(async () => {
+    let proposalCalls = 0;
+    const result = await executeGithubActionsRunner(
+      request,
+      "https://runner.example.test/coding/execute",
+      async (url) => {
+        const value = String(url);
+        if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+        if (value.endsWith("/coding/propose")) {
+          proposalCalls += 1;
+          return response(200, { status: "PROPOSAL_READY", patch: "invalid-patch-" + proposalCalls });
+        }
+        throw new Error("publish must not run");
+      },
+      {
+        validatePatch() {
+          throw new Error("SANDBOX_PATCH_APPLY_CHECK_FAILED:128:error: patch failed");
+        },
+      },
+    );
+
+    assert.equal(result.status, "NO_ACTION");
+    assert.equal(result.reason, "SANDBOX_PATCH_APPLY_CHECK_FAILED");
+    assert.equal(result.proposalAttempts, 3);
+    assert.equal(result.proposalRetries, 2);
+    assert.equal(result.codeChanged, false);
+    assert.equal(proposalCalls, 3);
+    assert.deepEqual(result.attempts.map((entry) => entry.decision), ["RETRY", "RETRY", "NO_ACTION"]);
+  });
+});
+
+test("terminates when the AI repeats the same rejected patch", async () => {
+  await withOidcEnvironment(async () => {
+    let proposalCalls = 0;
+    let validateCalls = 0;
+    const result = await executeGithubActionsRunner(
+      request,
+      "https://runner.example.test/coding/execute",
+      async (url) => {
+        const value = String(url);
+        if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+        if (value.endsWith("/coding/propose")) {
+          proposalCalls += 1;
+          return response(200, { status: "PROPOSAL_READY", patch: "same-invalid-patch" });
+        }
+        throw new Error("publish must not run");
+      },
+      {
+        validatePatch() {
+          validateCalls += 1;
+          throw new Error("SANDBOX_PATCH_APPLY_CHECK_FAILED:128:error: patch failed");
+        },
+      },
+    );
+
+    assert.equal(result.status, "NO_ACTION");
+    assert.equal(result.reason, "CODING_PROPOSAL_REPEATED");
+    assert.equal(result.proposalAttempts, 2);
+    assert.equal(proposalCalls, 2);
+    assert.equal(validateCalls, 1);
+  });
+});
+
+test("does not retry forbidden authority or path failures", async () => {
+  await withOidcEnvironment(async () => {
+    let proposalCalls = 0;
+    await assert.rejects(
+      () => executeGithubActionsRunner(
+        request,
+        "https://runner.example.test/coding/execute",
+        async (url) => {
+          const value = String(url);
+          if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+          if (value.endsWith("/coding/propose")) {
+            proposalCalls += 1;
+            return response(200, { status: "PROPOSAL_READY", patch: "forbidden-patch" });
+          }
+          throw new Error("publish must not run");
+        },
+        {
+          validatePatch() {
+            throw new Error("SANDBOX_PATCH_PATH_FORBIDDEN:apps/autopilot/src/live/order.ts");
+          },
+        },
+      ),
+      /SANDBOX_PATCH_PATH_FORBIDDEN/,
+    );
+    assert.equal(proposalCalls, 1);
+  });
 });
 
 test("normalizes a UTF-8 BOM and rejects malformed dispatch events with bounded reasons", () => {

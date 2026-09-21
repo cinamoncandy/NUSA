@@ -7,16 +7,36 @@ type EligibleIssue = Readonly<{
   title: string;
   priority: 0 | 1;
   updatedAtMs: number;
+  capability: GithubIssueCapability;
+  canonicalOwner?: string;
+  conflictKeys?: readonly string[];
 }>;
+
+export type GithubIssueCapability = "AUTOPILOT_TYPESCRIPT" | "RESEARCH" | "GENERAL" | "UNKNOWN";
 
 export interface GithubIssueBacklogReadiness {
   readonly eligibleIssueCount: number;
+  readonly capabilityBlockedIssueCount: number;
+  readonly capabilityBlockedCapabilities: Readonly<Record<Exclude<GithubIssueCapability, "AUTOPILOT_TYPESCRIPT">, number>>;
   readonly signals: readonly EvolutionDiscoverySignal[];
 }
 
 const object = (value: unknown): JsonObject | null => value !== null && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : null;
 const text = (value: unknown): string | null => typeof value === "string" && value.trim() ? value.trim() : null;
 const positiveInteger = (value: unknown): number | null => Number.isSafeInteger(value) && Number(value) > 0 ? Number(value) : null;
+const OWNER = /^[A-Za-z0-9_.:/-]{1,120}$/;
+const CONFLICT_KEY = /^[A-Za-z0-9_.:/-]{1,200}$/;
+
+function explicitWorkMetadata(body: string): Readonly<{ canonicalOwner: string; conflictKeys: readonly string[] }> | null {
+  const ownerMatches = [...body.matchAll(/^\s*canonicalOwner\s*:\s*([^\s]+)\s*$/gim)];
+  const conflictMatches = [...body.matchAll(/^\s*conflictKeys\s*:\s*([^\n\r]+)\s*$/gim)];
+  if (ownerMatches.length === 0 && conflictMatches.length === 0) return null;
+  if (ownerMatches.length !== 1 || conflictMatches.length !== 1) throw new Error("BACKLOG_WORK_METADATA_AMBIGUOUS");
+  const canonicalOwner = ownerMatches[0]?.[1]?.trim() ?? "";
+  const conflictKeys = (conflictMatches[0]?.[1] ?? "").split(",").map((value) => value.trim()).filter(Boolean);
+  if (!OWNER.test(canonicalOwner) || conflictKeys.length === 0 || conflictKeys.length > 32 || new Set(conflictKeys).size !== conflictKeys.length || conflictKeys.some((key) => !CONFLICT_KEY.test(key))) throw new Error("BACKLOG_WORK_METADATA_INVALID");
+  return Object.freeze({ canonicalOwner, conflictKeys: Object.freeze(conflictKeys) });
+}
 
 function priorityFromTitle(title: string): 0 | 1 | null {
   const match = title.match(/^\s*\[?P([01])\]?(?:\s*[:\]-]|\s+)/i);
@@ -33,10 +53,24 @@ function hasSafetyContract(body: string): boolean {
     && !/aiAuthority\s*=\s*(?!ZERO_AUTHORITY\b)[A-Z0-9_]+/i.test(body);
 }
 
-function isAutopilotScoped(title: string, body: string): boolean {
-  return /\bAUTOPILOT\b/i.test(title)
-    || /autonomous development control plane/i.test(title)
-    || /\bapps\/autopilot\/src\b/i.test(body);
+/**
+ * Explicit, allowlisted capability routing for the existing CodingRunner.
+ * Unknown or unsupported domains remain observable but never become READY.
+ */
+function capabilityForIssue(title: string, body: string): GithubIssueCapability {
+  const textValue = `${title}\n${body}`;
+  if (/\bapps\/autopilot\/src\b/i.test(body)
+    || /\bautopilot\b/i.test(title)
+    || /autonomous development control plane/i.test(title)) {
+    return "AUTOPILOT_TYPESCRIPT";
+  }
+  if (/\b(?:research|market intelligence|oos|walk[- ]forward|league|allocation|regime|paper evidence)\b/i.test(textValue)) {
+    return "RESEARCH";
+  }
+  if (/\b(?:mobile|android|ios|ui|ux|cloudflare|deployment|release|website|desktop)\b/i.test(textValue)) {
+    return "GENERAL";
+  }
+  return "UNKNOWN";
 }
 
 function labelNames(issue: JsonObject): readonly string[] {
@@ -79,11 +113,20 @@ function eligibleIssue(value: unknown, linked: ReadonlySet<number>): EligibleIss
   if (!number || !title || !body || linked.has(number)) return null;
 
   const priority = priorityFromTitle(title);
-  if (priority === null || !isAutopilotScoped(title, body) || !hasSafetyContract(body)) return null;
+  if (priority === null || !hasSafetyContract(body)) return null;
 
   const updatedAt = text(issue.updated_at);
   const updatedAtMs = updatedAt ? Date.parse(updatedAt) : 0;
-  return Object.freeze({ number, title, priority, updatedAtMs: Number.isFinite(updatedAtMs) ? updatedAtMs : 0 });
+  let metadata: ReturnType<typeof explicitWorkMetadata>;
+  try { metadata = explicitWorkMetadata(body); } catch { return null; }
+  return Object.freeze({
+    number,
+    title,
+    priority,
+    updatedAtMs: Number.isFinite(updatedAtMs) ? updatedAtMs : 0,
+    capability: capabilityForIssue(title, body),
+    ...(metadata ?? {}),
+  });
 }
 
 export function deriveGithubIssueBacklogReadiness(
@@ -92,14 +135,25 @@ export function deriveGithubIssueBacklogReadiness(
   observedAt: Date,
 ): GithubIssueBacklogReadiness {
   if (!Array.isArray(issues) || !Array.isArray(openPulls) || !(observedAt instanceof Date) || !Number.isFinite(observedAt.getTime())) {
-    return Object.freeze({ eligibleIssueCount: 0, signals: Object.freeze([]) });
+    return Object.freeze({
+      eligibleIssueCount: 0,
+      capabilityBlockedIssueCount: 0,
+      capabilityBlockedCapabilities: Object.freeze({ RESEARCH: 0, GENERAL: 0, UNKNOWN: 0 }),
+      signals: Object.freeze([]),
+    });
   }
 
   const linked = linkedIssueNumbers(openPulls);
-  const eligible = issues
+  const candidates = issues
     .map((issue) => eligibleIssue(issue, linked))
     .filter((issue): issue is EligibleIssue => issue !== null)
     .sort((left, right) => left.priority - right.priority || right.updatedAtMs - left.updatedAtMs || left.number - right.number);
+
+  const capabilityBlockedCapabilities = { RESEARCH: 0, GENERAL: 0, UNKNOWN: 0 } as Record<Exclude<GithubIssueCapability, "AUTOPILOT_TYPESCRIPT">, number>;
+  for (const candidate of candidates) {
+    if (candidate.capability !== "AUTOPILOT_TYPESCRIPT") capabilityBlockedCapabilities[candidate.capability] += 1;
+  }
+  const eligible = candidates.filter((candidate) => candidate.capability === "AUTOPILOT_TYPESCRIPT");
 
   const signals = eligible.slice(0, 1).map((issue) => Object.freeze({
     id: `github-issue-${issue.number}`,
@@ -112,9 +166,16 @@ export function deriveGithubIssueBacklogReadiness(
     confidence: 0.85,
     risk: 0.2,
     reversibility: 0.9,
+    ...(issue.canonicalOwner === undefined ? {} : { canonicalOwner: issue.canonicalOwner }),
+    ...(issue.conflictKeys === undefined ? {} : { conflictKeys: issue.conflictKeys }),
   } satisfies EvolutionDiscoverySignal));
 
-  return Object.freeze({ eligibleIssueCount: eligible.length, signals: Object.freeze(signals) });
+  return Object.freeze({
+    eligibleIssueCount: eligible.length,
+    capabilityBlockedIssueCount: candidates.length - eligible.length,
+    capabilityBlockedCapabilities: Object.freeze({ ...capabilityBlockedCapabilities }),
+    signals: Object.freeze(signals),
+  });
 }
 
 export function deriveGithubIssueBacklogSignals(

@@ -9,6 +9,10 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 test('#1883 already-merged recovery cannot post-facto manufacture Release provenance', () => {
   const workflow = read('.github/workflows/autopilot-already-merged-audit-convergence.yml');
   assert.match(workflow, /RELEASE_PROVENANCE_MISSING/);
+  assert.match(workflow, /CONVERGED existing exact-head dedicated Release authorization/);
+  assert.match(workflow, /commits\/\$EXPECTED_HEAD\/statuses\?per_page=100/);
+  assert.doesNotMatch(workflow, /--method POST.*statuses/);
+  assert.doesNotMatch(workflow, /create-github-app-token/);
   assert.doesNotMatch(workflow, /Already-merged deterministic Audit provenance PASS/);
   assert.doesNotMatch(workflow, /workflows\/wo-0059-actual-paper-runtime\.yml\/dispatches/);
   assert.doesNotMatch(workflow, /autopilot-cloudflare-promote\.yml\/dispatches/);
