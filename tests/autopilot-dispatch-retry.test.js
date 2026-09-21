@@ -12,6 +12,7 @@ const {
   assertGithubRunnerWorkspaceClean,
   filterGithubRunnerWorkspacePaths,
   boundedWorkerFailureEvidence,
+  boundedProposalContext,
   executeGithubActionsRunner,
 } = require("../scripts/autopilot-dispatch-retry.js");
 
@@ -213,6 +214,24 @@ test("rejects forbidden authority-surface patch paths", () => {
   );
 });
 
+test("builds a bounded exact-head retry excerpt around the rejected hunk", () => {
+  const source = Array.from({ length: 300 }, (_value, index) => `line-${index + 1}`).join("\n");
+  const contextPatch = [
+    "diff --git a/apps/autopilot/src/example.ts b/apps/autopilot/src/example.ts",
+    "--- a/apps/autopilot/src/example.ts",
+    "+++ b/apps/autopilot/src/example.ts",
+    "@@ -200,1 +200,1 @@",
+    "-line-200",
+    "+line-200-updated",
+    "",
+  ].join("\n");
+  const context = boundedProposalContext("apps/autopilot/src/example.ts", source, contextPatch);
+  assert.equal(context.path, "apps/autopilot/src/example.ts");
+  assert.ok(context.startLine <= 200);
+  assert.match(context.content, /line-200/);
+  assert.ok(Buffer.byteLength(context.content, "utf8") <= 20_000);
+});
+
 test("classifies only bounded proposal validation failures as no-action", () => {
   assert.equal(proposalFailureCode("CODING_PROPOSAL_JSON_INVALID"), "CODING_PROPOSAL_JSON_INVALID");
   assert.equal(proposalFailureCode("SANDBOX_PATCH_APPLY_CHECK_FAILED:128:error: malformed diff"), "SANDBOX_PATCH_APPLY_CHECK_FAILED");
@@ -261,6 +280,14 @@ test("regenerates an apply-check rejection inside one execution and publishes th
           assert.equal(patch, "second-valid-patch");
           return [{ path: "apps/autopilot/src/example.ts", content: "export const repaired = true;\n" }];
         },
+        proposalContextForPatch(patch) {
+          assert.equal(patch, "first-invalid-patch");
+          return {
+            path: "apps/autopilot/src/example.ts",
+            startLine: 1,
+            content: "export const oldValue = true;\n",
+          };
+        },
       },
     );
 
@@ -278,6 +305,12 @@ test("regenerates an apply-check rejection inside one execution and publishes th
     assert.equal(proposalBodies[1].dedupeKey, request.dedupeKey);
     assert.equal(proposalBodies[1].headSha, request.headSha);
     assert.match(proposalBodies[1].proposalFeedback, /SANDBOX_PATCH_APPLY_CHECK_FAILED/);
+    assert.equal(proposalBodies[0].proposalContext, undefined);
+    assert.deepEqual(proposalBodies[1].proposalContext, {
+      path: "apps/autopilot/src/example.ts",
+      startLine: 1,
+      content: "export const oldValue = true;\n",
+    });
     assert.deepEqual(result.attempts.map((entry) => entry.decision), ["RETRY", "DISPATCHED"]);
   });
 });

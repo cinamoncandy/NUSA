@@ -10,7 +10,7 @@ import { CloudPaperExecutionBoundary } from "./cloudPaperExecutionBoundary";
 import { SqliteP0AlertRepository } from "./p0AlertRepository";
 import fs from "node:fs";
 import path from "node:path";
-import { createShutdownController, type ShutdownController } from "./cloudRuntimeShutdown";
+import { createShutdownController, handleRuntimeFault, type ShutdownController } from "./cloudRuntimeShutdown";
 import { startCloudDashboardServer, type CloudDashboardServerHandle, type CloudReadinessSnapshot } from "./server";
 import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { UpbitWebSocketClient, type UpbitOrderBook, type UpbitTicker, type UpbitWebSocketOptions } from "./upbitWebSocket";
@@ -480,12 +480,10 @@ export function registerGracefulShutdown(handle: CloudDashboardServerHandle, exi
   // Unrecoverable runtime faults must terminate the process so supervisors can restart
   // from a fail-closed state instead of serving potentially stale mutation paths.
   process.on("uncaughtException", (error) => {
-    console.error("[cloud-runtime-crash] uncaught exception", error instanceof Error ? error.message : "unknown error");
-    exit(1);
+    handleRuntimeFault(controller, "uncaught exception", error, exit);
   });
   process.on("unhandledRejection", (reason) => {
-    console.error("[cloud-runtime-crash] unhandled rejection", reason instanceof Error ? reason.message : "unknown error");
-    exit(1);
+    handleRuntimeFault(controller, "unhandled rejection", reason, exit);
   });
 
   return controller;
