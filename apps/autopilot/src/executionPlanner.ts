@@ -12,6 +12,8 @@ export interface AutopilotExecutionRequest {
   readonly reason: string;
   readonly executionId?: string | null;
   readonly dedupeKey?: string | null;
+  readonly canonicalOwner?: string;
+  readonly conflictKeys?: readonly string[];
   readonly mutationAllowed: false;
 }
 
