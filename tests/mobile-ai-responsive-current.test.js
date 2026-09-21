@@ -31,7 +31,7 @@ test("Signal Detail makes truthful convergence the visual hero without duplicate
   assert.match(ai, /testID="ai-convergence-signal"/);
   assert.match(ai, /testID="ai-stage-timeline"/);
   assert.match(ai, /AI 분석 진행 중/);
-  assert.match(ai, /OBSERVATION → EVIDENCE → VERIFIED JUDGEMENT/);
+  assert.match(ai, /GATHER → ANALYZE → CONVERGE → DECIDE/);
   assert.match(ai, /GATHER/);
   assert.match(ai, /ANALYZE/);
   assert.match(ai, /VERIFY/);
