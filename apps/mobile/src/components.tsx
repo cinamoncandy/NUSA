@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
-import { buttonTokens, cardTokens, fieldTokens, intelligenceFieldColors, type ButtonTone } from "./designSystem";
+import { buttonTokens, cardTokens, fieldTokens, intelligenceFieldColors, type ButtonTone, wealthProductColors } from "./designSystem";
 import { useTheme } from "./ThemeProvider";
 
 export interface NusaButtonProps {
@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
   // changed" on device. Strokes stay thin and precise per the reference language; what changes is
   // that they are now thick and contrasted enough to actually register as a hero graphic rather
   // than disappearing into the surface behind them.
-  terrainSignal: { height: "100%", minHeight: 210, width: "100%", overflow: "hidden", justifyContent: "center", position: "relative", backgroundColor: "#050710" },
+  terrainSignal: { height: "100%", minHeight: 210, width: "100%", overflow: "hidden", justifyContent: "center", position: "relative", backgroundColor: wealthProductColors.c28 },
   terrainAmbient: { position: "absolute", width: 210, height: 210, borderRadius: 210, opacity: 0.14 },
   terrainAmbientPurple: { left: -80, top: 22 },
   terrainAmbientBlue: { left: "35%", top: 58, opacity: 0.1 },

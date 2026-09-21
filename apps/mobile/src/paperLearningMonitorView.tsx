@@ -4,6 +4,7 @@ import { NusaButton, TerrainSignal } from "./components";
 import { useTheme } from "./ThemeProvider";
 import type { PaperLearningScreenState, PaperLearningUiEvent } from "./paperLearningScreen";
 import { AuthorityRail, FactRow, IntelligenceSection, MetricStrip, StateNotice, type IntelligenceTone } from "./intelligenceOs";
+import { intelligenceFieldColors, wealthProductColors } from "./designSystem";
 
 export interface PaperLearningMonitorViewProps {
   readonly state: PaperLearningScreenState;
@@ -363,7 +364,7 @@ const styles = StyleSheet.create({
   paperPageTitle: { fontSize: 24, lineHeight: 30, fontWeight: "800", letterSpacing: 0.3 },
   paperAiPill: { minHeight: 26, borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
   paperAiPillText: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 0.55 },
-  paperTabs: { flexDirection: "row", minHeight: 42, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#171D2B" },
+  paperTabs: { flexDirection: "row", minHeight: 42, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: wealthProductColors.c03 },
   paperTab: { minWidth: 62, alignItems: "center", justifyContent: "center", borderBottomWidth: 2, borderBottomColor: "transparent" },
   paperTabActive: { borderBottomWidth: 2 },
   paperTabText: { fontSize: 10, lineHeight: 14, fontWeight: "900", letterSpacing: 0.4 },
@@ -381,7 +382,7 @@ const styles = StyleSheet.create({
   reportMeta: { marginTop: 3, fontSize: 9, lineHeight: 13, fontWeight: "700" },
   reportSource: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 0.8 },
   paperVisual: { height: 238, position: "relative", overflow: "hidden" },
-  paperVisualCaption: { position: "absolute", left: 18, bottom: 16, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, backgroundColor: "rgba(5,6,11,0.76)", borderWidth: StyleSheet.hairlineWidth, borderColor: "#27314B" },
+  paperVisualCaption: { position: "absolute", left: 18, bottom: 16, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, backgroundColor: "rgba(5,6,11,0.76)", borderWidth: StyleSheet.hairlineWidth, borderColor: intelligenceFieldColors.heroBorder },
   paperVisualKicker: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 1.05 },
   paperVisualMeta: { marginTop: 2, fontSize: 7, lineHeight: 10, fontWeight: "800", letterSpacing: 0.45 },
   reportNumbers: { flexDirection: "row", alignItems: "flex-end", gap: 18, paddingHorizontal: 18, paddingTop: 18, paddingBottom: 16 },
