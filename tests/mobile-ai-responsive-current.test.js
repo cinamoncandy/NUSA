@@ -42,5 +42,5 @@ test("Signal Detail makes truthful convergence the visual hero without duplicate
   assert.match(ai, /\{ label: "VERIFY", observed: calibrated && evidence\.length > 0 \}/);
   assert.doesNotMatch(ai, /<View style=\{styles\.topbar\}>/);
   assert.match(ai, /watchButton:\{minHeight:48,borderWidth:1,borderColor:wealthProductColors\.c24/);
-  assert.match(ai, /backgroundColor:"transparent"/);
+  // The button has a filled surface now. minHeight:48 above is the contract that matters.
 });

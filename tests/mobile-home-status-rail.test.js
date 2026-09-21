@@ -93,11 +93,15 @@ test("오늘 is only allowed with proven daily basis", () => {
 test("production HomeView keeps the approved authority rail and cumulative PnL truth explicit", () => {
   const home = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "homeView.tsx"), "utf8");
   assert.match(home, /testID="home-status-rail"/);
-  assert.match(home, /PAPER MODE/);
-  assert.match(home, /LIVE: RESTRICTED/);
+  assert.match(home, /총 자산/);
+  assert.match(home, /LIVE NONE · AI ZERO AUTHORITY/);
   assert.match(home, /testID="home-risk-authority"/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
   assert.match(home, /TOTAL P&L/);
-  assert.doesNotMatch(home, />오늘</);
+  // The old form only rejected 오늘 as a standalone element, so the hero slipped a hardcoded
+  // `오늘 · ${won(totalPnl)}` past it while totalPnl is realized + unrealized since inception and
+  // nothing sets hasDailyPnlBasis. Reject the word in any form on HOME.
+  assert.doesNotMatch(home, /오늘/);
+  assert.match(home, /누적 · \$\{won\(totalPnl\)\}/);
   assert.doesNotMatch(home, /accessibilityLabel="알림"/);
 });

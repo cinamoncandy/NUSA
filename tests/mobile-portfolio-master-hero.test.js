@@ -10,7 +10,8 @@ test("Portfolio leads with verified equity and PnL rather than a generic card st
   assert.match(source, /testID="portfolio-master-hero"/);
   assert.match(source, /PAPER PORTFOLIO/);
   assert.match(source, /TOTAL EQUITY/);
-  assert.match(source, /TOTAL P&L/);
+  assert.match(source, /EQUITY \/ P&L/);
+  assert.match(source, /label: "TOTAL PNL", value: signedMoney\(model\?\.totalPnl\)/);
   assert.match(source, /VERIFIED ACCOUNTING/);
   assert.match(source, /model == null \? "PAPER DATA UNAVAILABLE"/);
   assert.doesNotMatch(source, /KNOW WHAT IS WORKING\./);

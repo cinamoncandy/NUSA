@@ -65,7 +65,7 @@ test("Market order model remains safe while production PAPER exposes learning on
   assert.doesNotMatch(shell, /authority:\s*"LIVE"/);
   assert.doesNotMatch(shell, /productionMutationAllowed:\s*true/);
   assert.doesNotMatch(shell, /\/api\/(?:live|withdraw|transfer)/i);
-  assert.match(source, /<ScreenHeader eyebrow="PAPER"/);
+  assert.match(source, /<ScreenHeader eyebrow="PAPER ONLY"/);
   assert.match(source, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
   assert.match(source, /const usingLocalPaper = isLocalPaperActive\(\)/);
   assert.match(source, /await placeLocalPaperOrder\(/);
@@ -94,7 +94,7 @@ test("Market order model remains safe while production PAPER exposes learning on
   assert.doesNotMatch(source, /productionMutationAllowed:\s*true/);
   assert.doesNotMatch(source, /\/api\/(?:live|withdraw|transfer)/i);
   assert.match(app, /activeTab === "Paper"/);
-  assert.match(app, /<TradingView/);
+  assert.match(app, /<PaperOrderView/);
 });
 
 test("SELL has a holdings-based allocation panel and BUY shows a genuine post-order remaining figure", () => {

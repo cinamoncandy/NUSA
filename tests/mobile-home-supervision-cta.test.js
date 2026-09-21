@@ -27,8 +27,8 @@ test("HOME keeps operational recovery as small chrome without replacing the inte
 test("HOME connection failure outranks stale AI thesis in the canonical fail-closed decision model", () => {
   assert.match(home, /const disconnected = props\.notConfigured != null && !localPaperActive/);
   assert.match(home, /const decision = buildHomeDecisionSurface\(\{[\s\S]*disconnected,[\s\S]*readOnlyError: props\.readOnlyError != null/);
-  assert.match(home, /<EvidenceRow label="WHY" value=\{decision\.why\}/);
-  assert.match(home, /<EvidenceRow label="RISK" value=\{decision\.risk\}/);
+  // No evidence rows on HOME in the approved layout; the decision surface still gates the signal.
+  assert.match(home, /const signalAvailable = decision\.aiInsightAvailable/);
 
   const whyStart = decisionSurface.indexOf("const why = input.disconnected");
   const degradedIndex = decisionSurface.indexOf(': runtimeState === "DEGRADED"', whyStart);

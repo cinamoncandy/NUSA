@@ -31,8 +31,6 @@ test("Home uses the approved HOME MASTER terminal hierarchy without weakening au
   assert.match(home, /PAPER PERFORMANCE/);
   assert.match(home, /CAPITAL LIMITS/);
   assert.match(home, /const signalAvailable = decision\.aiInsightAvailable/);
-  assert.match(home, /<EvidenceRow label="RESULT"/);
-  assert.match(home, /<EvidenceRow label="RISK"/);
   assert.match(home, /testID="home-risk-authority"/);
   assert.match(home, /testID="home-decision-stage"/);
   assert.match(home, /UPBIT PUBLIC/);

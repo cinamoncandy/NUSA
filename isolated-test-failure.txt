@@ -1,0 +1,61 @@
+FAILED_TEST_FILE tests/autopilot-dispatch-retry.test.js
+SHARD 1/1
+✔ classifies only 429 and 5xx as retryable HTTP statuses (1.151431ms)
+✔ retries transient OIDC and runner failures with bounded exponential backoff (3.895901ms)
+✔ does not retry malformed successful OIDC responses (0.521209ms)
+✔ does not retry deterministic runner rejection (0.328633ms)
+✔ bounds repeated transient rejection and closes without mutation (0.496996ms)
+✔ records duplicate suppression as no action without retry (0.462124ms)
+✔ allows only this workflow's generated artifacts before patch validation (0.576326ms)
+✔ still rejects tracked or unrelated dirty workspace entries (0.494377ms)
+✔ rejects forbidden authority-surface patch paths (1.10066ms)
+✔ classifies only bounded proposal validation failures as no-action (0.54148ms)
+✖ regenerates an apply-check rejection inside one execution and publishes the repaired patch (18.777557ms)
+✖ bounds repeated apply-check rejection at three proposal attempts (15.545419ms)
+✖ terminates when the AI repeats the same rejected patch (13.624639ms)
+✔ does not retry forbidden authority or path failures (0.65298ms)
+✔ normalizes a UTF-8 BOM and rejects malformed dispatch events with bounded reasons (1.169473ms)
+✔ preserves only bounded structured Worker workflow evidence (0.763232ms)
+ℹ tests 16
+ℹ suites 0
+ℹ pass 13
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 156.930351
+
+✖ failing tests:
+
+test at tests/autopilot-dispatch-retry.test.js:225:1
+✖ regenerates an apply-check rejection inside one execution and publishes the repaired patch (18.777557ms)
+  Error: CODING_RUNTIME_WORKSPACE_DIRTY
+      at resetProposalRetryWorkspace (/tmp/claude-0/wt-ui/scripts/autopilot-dispatch-retry.js:369:32)
+      at executeGithubActionsRunner (/tmp/claude-0/wt-ui/scripts/autopilot-dispatch-retry.js:500:7)
+      at async /tmp/claude-0/wt-ui/tests/autopilot-dispatch-retry.test.js:231:20
+      at async withOidcEnvironment (/tmp/claude-0/wt-ui/tests/autopilot-dispatch-retry.test.js:50:12)
+      at async TestContext.<anonymous> (/tmp/claude-0/wt-ui/tests/autopilot-dispatch-retry.test.js:226:3)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+
+test at tests/autopilot-dispatch-retry.test.js:285:1
+✖ bounds repeated apply-check rejection at three proposal attempts (15.545419ms)
+  Error: CODING_RUNTIME_WORKSPACE_DIRTY
+      at resetProposalRetryWorkspace (/tmp/claude-0/wt-ui/scripts/autopilot-dispatch-retry.js:369:32)
+      at executeGithubActionsRunner (/tmp/claude-0/wt-ui/scripts/autopilot-dispatch-retry.js:500:7)
+      at async /tmp/claude-0/wt-ui/tests/autopilot-dispatch-retry.test.js:288:20
+      at async withOidcEnvironment (/tmp/claude-0/wt-ui/tests/autopilot-dispatch-retry.test.js:50:12)
+      at async TestContext.<anonymous> (/tmp/claude-0/wt-ui/tests/autopilot-dispatch-retry.test.js:286:3)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+
+test at tests/autopilot-dispatch-retry.test.js:317:1
+✖ terminates when the AI repeats the same rejected patch (13.624639ms)
+  Error: CODING_RUNTIME_WORKSPACE_DIRTY
+      at resetProposalRetryWorkspace (/tmp/claude-0/wt-ui/scripts/autopilot-dispatch-retry.js:369:32)
+      at executeGithubActionsRunner (/tmp/claude-0/wt-ui/scripts/autopilot-dispatch-retry.js:500:7)
+      at async /tmp/claude-0/wt-ui/tests/autopilot-dispatch-retry.test.js:321:20
+      at async withOidcEnvironment (/tmp/claude-0/wt-ui/tests/autopilot-dispatch-retry.test.js:50:12)
+      at async TestContext.<anonymous> (/tmp/claude-0/wt-ui/tests/autopilot-dispatch-retry.test.js:318:3)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)

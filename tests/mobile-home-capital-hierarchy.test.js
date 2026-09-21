@@ -19,7 +19,7 @@ test("HOME presents truthful PAPER equity and cumulative PnL in the approved per
   assert.match(home, /won\(totalPnl\)/);
   assert.match(home, /const totalPnl = account == null \? null : \(account\.realizedPnl \?\? account\.position\.realizedPnl\) \+ account\.unrealizedPnl/);
   assert.match(decisionSurface, /PAPER P&L .*EQUITY/);
-  assert.doesNotMatch(home, />오늘<\/Text>/);
+  assert.doesNotMatch(home, /오늘/);
   assert.doesNotMatch(home, /A MORE|RATIONAL|TOMORROW/);
   assert.ok(home.indexOf('testID="account-hero-card"') < home.indexOf('testID="home-market-pulse"'));
   assert.doesNotMatch(home, /const equity\s*=\s*10000000|totalPnl\s*=\s*[+-]?\d+(?:\.\d+)?;/);

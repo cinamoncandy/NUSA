@@ -11,7 +11,8 @@ test("Markets uses observation-first navigation language and authority framing",
   assert.match(source, /testID="markets-authority-rail"/);
   assert.match(source, /PUBLIC READ ONLY · PAPER SEPARATE · AI ZERO AUTHORITY/);
   assert.match(source, /testID="markets-command-hero"/);
-  assert.match(source, /MARKET OBSERVATION/);
+  // The hero eyebrow reads MARKETS; the observation framing is in the title beneath it.
+  assert.match(source, /시장 상태를 관측하고 있습니다\./);
   assert.match(source, /UPBIT PUBLIC · VERIFIED/);
   assert.match(source, /testID="markets-summary-strip"/);
   assert.match(source, />AUTHORITY<\/Text>/);

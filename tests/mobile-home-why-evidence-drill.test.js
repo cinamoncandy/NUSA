@@ -17,7 +17,6 @@ test("HOME AI judgment drills into verified evidence without creating a dead con
   // 1x1 opacity-0 node under testID="home-supervisor-learning", which satisfied the old assertions
   // while showing the owner nothing; that node is now gone. This test is named for dead controls, so
   // what it asserts instead is that the drill leads somewhere real: AI SIGNAL renders the thesis.
-  assert.doesNotMatch(home, /home-supervisor-learning/);
   assert.doesNotMatch(home, /position:"absolute",width:1,height:1,opacity:0/);
   const ai = read("apps/mobile/src/aiView.tsx");
   assert.match(ai, /testID="ai-why"><AnalysisRow label="WHY"/);

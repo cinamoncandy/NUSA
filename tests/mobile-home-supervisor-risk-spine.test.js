@@ -38,9 +38,12 @@ test("canonical decision risk remains fail-closed and derives only from PAPER ru
 test("canonical HOME preserves zero-authority safety and one PAPER learning route", () => {
   const home = read("apps/mobile/src/homeView.tsx");
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
-  // "one PAPER learning route" is home-paper-learning; the invisible home-supervisor-learning node
-  // that used to sit beside it is gone.
   assert.match(home, /testID="home-paper-learning"/);
+  // The Android release contract requires a supervisor-learning role on HOME distinct from the
+  // PAPER learning route. It had degenerated into a 1x1 opacity-0 node, so assert the surface as
+  // well as the marker: it renders decision.learning, which is fail-closed, and is not hidden.
+  assert.match(home, /testID="home-supervisor-learning"><Text style=\{styles\.supervisorLearning\}[^>]*>\{decision\.learning\}/);
+  assert.doesNotMatch(home, /position:"absolute",width:1,height:1,opacity:0/);
   assert.equal((home.match(/testID="home-paper-learning"/g) ?? []).length, 1);
   assert.doesNotMatch(home, /productionMutationAllowed\s*=\s*true/);
 });

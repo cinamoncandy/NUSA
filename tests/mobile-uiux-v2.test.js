@@ -25,8 +25,11 @@ test("product navigation promotes PAPER learning supervision and AI through the 
   assert.match(app, /PaperLearningMonitorView/);
   assert.match(app, /buildPaperLearningScreen/);
   assert.match(app, /onOpenPaperLearning/);
-  // home-supervisor-learning was a 1x1 opacity-0 node with no rendered content and is gone; the
-  // single PAPER learning route is home-paper-learning, asserted below.
+  // The Android release contract requires a supervisor-learning role on HOME distinct from the
+  // PAPER learning route. It had degenerated into a 1x1 opacity-0 node, so assert the surface as
+  // well as the marker: it renders decision.learning, which is fail-closed, and is not hidden.
+  assert.match(home, /testID="home-supervisor-learning"><Text style=\{styles\.supervisorLearning\}[^>]*>\{decision\.learning\}/);
+  assert.doesNotMatch(home, /position:"absolute",width:1,height:1,opacity:0/);
   assert.match(home, /testID="home-paper-learning"/);
   assert.match(home, /onOpenPaperLearning/);
   assert.match(tradingShell, /import \{ PaperLearningMonitorView \} from "\.\/paperLearningMonitorView"/);

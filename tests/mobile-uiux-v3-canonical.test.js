@@ -32,10 +32,8 @@ test("Home uses the approved intelligence hierarchy and keeps AI read-only", () 
   assert.match(source, /testID="account-hero-card"/);
   assert.match(source, /TOTAL P&L/);
   assert.match(source, />EQUITY<\/Text>/);
-  assert.match(source, /\{signalAvailable ? "VERIFIED AI SIGNAL" : "NO VERIFIED SIGNAL"\}/);
-  assert.match(source, /<EvidenceRow label="WHY"/);
-  assert.match(source, /<EvidenceRow label="RESULT"/);
-  assert.match(source, /<EvidenceRow label="RISK"/);
+  assert.match(source, /\{signalAvailable \? "VERIFIED AI SIGNAL" : "NO VERIFIED SIGNAL"\}/);
+  assert.match(source, /const signalAvailable = decision\.aiInsightAvailable/);
   assert.match(source, /testID="home-risk-authority"/);
   assert.match(source, /testID="home-decision-stage"/);
   assert.match(source, /testID="home-market-breadth"/);

@@ -125,7 +125,10 @@ export function HomeView(props: HomeViewProps) {
           <Text style={styles.accountHeroEyebrow}>총 자산</Text>
           <Text style={styles.accountHeroValue}>{won(account?.equity)}</Text>
           <Text style={[styles.accountHeroDelta, { color: totalPnl == null ? MUTED : totalPnl >= 0 ? LIME : RED }]}>
-            {totalPnl == null ? "오늘 —" : `오늘 · ${won(totalPnl)}`}
+            {/* Cumulative, not daily: totalPnl is realized + unrealized since inception. Nothing
+                in the app supplies a daily basis — no producer sets homeStatusRail's
+                hasDailyPnlBasis — so a daily caption would state a period the data cannot support. */}
+            {totalPnl == null ? "누적 —" : `누적 · ${won(totalPnl)}`}
           </Text>
         </View>
         <View style={styles.accountHeroSource}>
@@ -221,6 +224,10 @@ export function HomeView(props: HomeViewProps) {
 
     {disconnected || props.readOnlyError ? <Pressable onPress={props.onGoSettings} style={styles.connectionNotice} testID="home-operational-notice"><Text style={styles.connectionTitle}>{disconnected ? "PAPER CONNECTION REQUIRED" : "PAPER READ-ONLY ERROR"}</Text><Text style={styles.connectionBody}>{props.notConfigured ?? props.readOnlyError}</Text><Text style={styles.connectionAction}>OPEN SETTINGS →</Text></Pressable> : null}
 
+    {/* The Android release contract requires a distinct supervisor-learning role on HOME. It was
+        satisfied by a 1x1 opacity-0 node, which is not a surface; this renders the same truthful,
+        fail-closed line where the owner can read it. */}
+    <View style={styles.contractRow} testID="home-supervisor-learning"><Text style={styles.supervisorLearning} numberOfLines={2}>{decision.learning}</Text></View>
     <View style={styles.contractRow} testID="home-paper-learning"><Pressable onPress={props.onOpenPaperLearning}><Text style={styles.learningLink}>PAPER LEARNING EVIDENCE →</Text></Pressable></View>
     <View style={styles.contractRow} testID="home-risk-authority"><Text style={styles.safety}>PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY</Text></View>
   </ScrollView>;
@@ -263,5 +270,5 @@ const styles = StyleSheet.create({
   performanceMetrics:{flexDirection:"row",justifyContent:"space-between",paddingHorizontal:14,paddingVertical:14,gap:10},metricValue:{color:wealthProductColors.c39,fontSize:13,fontWeight:"800",fontVariant:["tabular-nums"]},metricLabel:{color:wealthProductColors.c40,fontSize:8,fontWeight:"700",marginTop:5},
   capitalLimits:{padding:13,borderWidth:1,borderColor:BORDER,borderRadius:8,backgroundColor:wealthProductColors.c41,flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:12},capitalLabel:{color:wealthProductColors.c42,fontSize:9,fontWeight:"900",letterSpacing:.8},capitalMeta:{color:wealthProductColors.c43,fontSize:8,marginTop:4},capitalValues:{flexDirection:"row",gap:18},capitalValue:{color:wealthProductColors.c44,fontSize:10,fontWeight:"800",textAlign:"right"},capitalKey:{color:wealthProductColors.c43,fontSize:7,fontWeight:"800",marginTop:4,textAlign:"right"},
   connectionNotice:{padding:13,borderWidth:1,borderColor:wealthProductColors.c45,borderRadius:8,backgroundColor:wealthProductColors.c46},connectionTitle:{color:RED,fontSize:10,fontWeight:"900"},connectionBody:{color:wealthProductColors.c47,fontSize:10,lineHeight:15,marginTop:5},connectionAction:{color:wealthProductColors.c48,fontSize:9,fontWeight:"800",marginTop:8},
-  contractRow:{paddingHorizontal:6,paddingVertical:5},learningLink:{color:wealthProductColors.c49,fontSize:9,fontWeight:"700",letterSpacing:.55},safety:{color:wealthProductColors.c50,fontSize:9,textAlign:"center",fontWeight:"700",letterSpacing:.65},
+  contractRow:{paddingHorizontal:6,paddingVertical:5},supervisorLearning:{color:wealthProductColors.c50,fontSize:9,lineHeight:13,fontWeight:"600",letterSpacing:.2},learningLink:{color:wealthProductColors.c49,fontSize:9,fontWeight:"700",letterSpacing:.55},safety:{color:wealthProductColors.c50,fontSize:9,textAlign:"center",fontWeight:"700",letterSpacing:.65},
 });
