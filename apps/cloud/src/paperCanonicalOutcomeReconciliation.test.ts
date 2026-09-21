@@ -145,6 +145,20 @@ describe("canonical PAPER outcome reconciliation", () => {
     assert.match(result.receiptFingerprint, /^[a-f0-9]{64}$/);
   });
 
+  it("uses canonical durable fills even when bounded account snapshots no longer retain the period fill", () => {
+    const result = reconcileCanonicalPaperOutcomeWindow({
+      periodStartAt: START,
+      periodEndAt: END,
+      startState: baseState(START, 1_000),
+      endState: baseState(END, 1_010),
+      canonicalFills: [fill()],
+    });
+    assert.equal(result.fillCount, 1);
+    assert.deepEqual(result.candidateIds, ["candidate-a"]);
+    assert.deepEqual(result.executionCostEvidenceIds, ["paper-cost-model:v1"]);
+    assert.equal(result.turnover, 0.1);
+  });
+
   it("preserves deterministic aggregate execution-cost provenance", () => {
     const secondFill = fill({ id: "fill-2", filledAt: 1_600, executionCostAttribution: attribution({ evidenceId: "paper-cost-model:v2", evidenceFingerprintSha256: HASH_B, feeAmount: 0.05 }) });
     const forward = reconcileCanonicalPaperOutcomeWindow({
@@ -181,6 +195,16 @@ describe("canonical PAPER outcome reconciliation", () => {
       startState: baseState(START, 1_000),
       endState: baseState(END, 1_010, [fill(), fill({ id: "fill-2", filledAt: 1_600, executionCostAttribution: attribution({ evidenceFingerprintSha256: HASH_B }) })]),
     })), "EXECUTION_COST_PROVENANCE_CONFLICT");
+  });
+
+  it("fails closed when bounded snapshot fill bytes disagree with canonical durable fill truth", () => {
+    assert.equal(code(() => reconcileCanonicalPaperOutcomeWindow({
+      periodStartAt: START,
+      periodEndAt: END,
+      startState: baseState(START, 1_000),
+      endState: baseState(END, 1_010, [fill({ fee: 0.01 })]),
+      canonicalFills: [fill()],
+    })), "CANONICAL_FILL_LEDGER_STATE_MISMATCH");
   });
 
   it("keeps a no-fill interval explicit without fabricating execution costs", () => {

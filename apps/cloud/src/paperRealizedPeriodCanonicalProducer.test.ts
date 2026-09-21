@@ -151,6 +151,31 @@ describe("canonical PAPER realized-period producer", () => {
     }
   });
 
+  it("closes from durable fill truth even when the bounded account snapshot has evicted the period fill", () => {
+    let current = account(BASE, 1_000);
+    let durableFills: readonly PaperFillRecord[] = [];
+    const options: PaperRealizedPeriodProducerOptions = {
+      readCanonicalPaperAccount: () => current,
+      readCanonicalPaperFills: () => durableFills,
+      readCanonicalBenchmarkEvidence: (_start, periodEndAt, market) => ({ evidenceId: "benchmark-durable", observedAt: periodEndAt, benchmarkReturn: 101 / 100 - 1, market: market ?? "KRW-BTC", source: "UPBIT_PUBLIC_TICKER", startObservedAt: BASE, endObservedAt: periodEndAt, startPrice: 100, endPrice: 101, inputFingerprintSha256: HASH }),
+    };
+    const first = state(options);
+    try {
+      const plan = first.producer.openPeriodFromCanonicalAccount(openInput());
+      first.producer.observeExecution({ observationId: "durable-fill-observation", observedAt: BASE + 50, status: "FILLED" });
+      const canonicalFill = candidateFill();
+      durableFills = [canonicalFill];
+      const projected = account(END, 1_009.95, [canonicalFill]);
+      current = Object.freeze({ ...projected, fills: Object.freeze([]) });
+      const realized = first.producer.closePeriodFromCanonicalAccount({ periodId: plan.periodId, periodEndAt: END });
+      assert.ok(Math.abs(realized.record.realizedReturns["candidate-a"]! - 0.00995) < 1e-12);
+      assert.equal(realized.record.turnoverCostRate, 0.0005);
+      assert.equal(realized.record.costEvidence.evidenceId.startsWith("paper-canonical-outcome:"), true);
+    } finally {
+      first.db.close();
+    }
+  });
+
   it("does not finalize when canonical fill cost evidence is incomplete", () => {
     let current = account(BASE, 1_000);
     const first = state({ readCanonicalPaperAccount: () => current });
@@ -178,6 +203,22 @@ describe("canonical PAPER realized-period producer", () => {
       assert.equal(errorCode(() => first.producer.closePeriodFromCanonicalAccount({ periodId: plan.periodId, periodEndAt: END })), "MISSING_BENCHMARK_EVIDENCE");
       assert.equal(first.producer.listRealizedPeriods().length, 0);
       assert.equal(first.producer.listOpenPeriods().length, 1);
+    } finally {
+      first.db.close();
+    }
+  });
+
+  it("fails closed when the configured durable fill ledger cannot be read", () => {
+    let current = account(BASE, 1_000);
+    const first = state({
+      readCanonicalPaperAccount: () => current,
+      readCanonicalPaperFills: () => { throw new Error("ledger unavailable"); },
+    });
+    try {
+      const plan = first.producer.openPeriodFromCanonicalAccount(openInput());
+      first.producer.observeExecution({ observationId: "fill-ledger-unavailable", observedAt: BASE + 50, status: "FILLED" });
+      current = account(END, 1_009.95, [candidateFill()]);
+      assert.equal(errorCode(() => first.producer.closePeriodFromCanonicalAccount({ periodId: plan.periodId, periodEndAt: END })), "CANONICAL_FILL_LEDGER_UNAVAILABLE");
     } finally {
       first.db.close();
     }
