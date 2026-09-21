@@ -174,8 +174,8 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
       style={({ pressed }) => [
         styles.segment,
         {
-          backgroundColor: selected ? theme.colors.primarySoft : "transparent",
-          borderColor: selected ? theme.colors.primary : "transparent",
+          backgroundColor: pressed ? theme.colors.primarySoft : "transparent",
+          borderBottomColor: selected ? theme.colors.primary : "transparent",
           opacity: pressed ? theme.interaction.pressedOpacity : 1,
         },
       ]}
@@ -298,8 +298,8 @@ const styles = StyleSheet.create({
   segmentOuter: { paddingTop: 9, paddingBottom: 2 },
   tabletWorkspace: { flex: 1, flexDirection: "row", gap: 20, paddingHorizontal: 24, paddingTop: 14 },
   tabletPanel: { flex: 1, minWidth: 0 },
-  panels: { flexDirection: "row", padding: 4, borderWidth: 1, borderRadius: 9 },
-  segment: { flex: 1, minHeight: 48, alignItems: "center", justifyContent: "center", borderWidth: 1, borderRadius: 6, paddingHorizontal: 12 },
+  panels: { flexDirection: "row", borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderRadius: 0 },
+  segment: { flex: 1, minHeight: 48, alignItems: "center", justifyContent: "center", borderBottomWidth: 2, paddingHorizontal: 12 },
   segmentAlias: { flex: 1, flexDirection: "row" },
   segmentLabel: { fontSize: 11, lineHeight: 15, fontWeight: "900", letterSpacing: 0.35 },
   detailWorkspace: { flex: 1, minWidth: 0 },
