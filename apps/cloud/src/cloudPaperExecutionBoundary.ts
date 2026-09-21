@@ -93,6 +93,7 @@ export class CloudPaperExecutionBoundary {
   public fillWorkingOrder(approvedBy: string, orderId: string, fillQuantity: number, context: PaperManualOrderAllocationContext, fillEventId?: string): PaperExecutionResult {
     const working = (this.options.loop.snapshot().workingOrders ?? []).find((order) => order.id === orderId);
     if (working == null) return this.options.loop.fillWorkingOrder(orderId, fillQuantity, context, fillEventId);
+    if (working.executionIntent != null || working.candidateProvenance != null) return this.rejected("PAPER_STRATEGY_WORKING_ORDER_AUTOMATIC_ONLY");
     const openP0 = this.readOpenP0();
     if (openP0 !== false) return this.blocked(openP0 === true ? "OPEN_P0_ALERT" : "P0_STATE_UNVERIFIABLE");
     const risk = this.options.riskGate.evaluate({
@@ -148,6 +149,15 @@ export class CloudPaperExecutionBoundary {
       }
       const openP0 = this.readOpenP0();
       if (openP0 !== false) return this.blocked(openP0 === true ? "OPEN_P0_ALERT" : "P0_STATE_UNVERIFIABLE");
+      const lastOrderBookObservedAt = working.lastOrderBookObservedAt ?? 0;
+      if (lastOrderBookObservedAt > 0) {
+        if (tick.observedQuote?.depth == null || tick.observedQuote.depthFingerprintSha256 == null) {
+          return Object.freeze({ status: "WAIT", reason: "PAPER_STRATEGY_WORKING_WAITING_FOR_DEPTH", orders: Object.freeze([]), fills: Object.freeze([]), state: stateBeforeDecision });
+        }
+        if (tick.observedQuote.observedAt <= lastOrderBookObservedAt) {
+          return Object.freeze({ status: "WAIT", reason: "PAPER_STRATEGY_WORKING_WAITING_FOR_NEW_DEPTH", orders: Object.freeze([]), fills: Object.freeze([]), state: stateBeforeDecision });
+        }
+      }
       const continuationCommandId = `${working.idempotencyKey}:continue:${working.lifecycle.transitionSequence + 1}`;
       const risk = this.options.riskGate.evaluate({
         path: "STRATEGY",

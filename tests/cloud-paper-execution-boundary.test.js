@@ -216,6 +216,50 @@ test("canonical strategy order carries orderbook-liquidity remainder across tick
   assert.equal(first.fills[0].quantity, 0.005);
   assert.equal(first.fills[0].orderBookExecutionReceipt.liquidityLimited, true);
   assert.equal(first.state.workingOrders?.[0]?.lifecycle.remainingQuantity, 0.015);
+  assert.equal(first.state.workingOrders?.[0]?.remainingAllocationCapital, 750_000);
+  assert.equal(first.state.workingOrders?.[0]?.lastOrderBookObservedAt, 1_900);
+
+  const strategyOrderId = first.state.workingOrders[0].id;
+  const manualAttempt = boundary.fillWorkingOrder("owner", strategyOrderId, 0.001, {
+    now: 2_025,
+    marketPrice: 50_000_000,
+    observedAt: 2_000,
+    mode: "PAPER",
+    killSwitchActive: false,
+    tradingAllowed: true,
+    overallHealth: "HEALTHY"
+  }, "forbidden-strategy-fill");
+  assert.equal(manualAttempt.status, "REJECTED");
+  assert.equal(manualAttempt.reason, "PAPER_STRATEGY_WORKING_ORDER_AUTOMATIC_ONLY");
+  assert.equal(loop.snapshot().fills.length, 1);
+  assert.equal(evaluations(), 1);
+
+  const replay = boundary.processTick(Object.freeze({
+    ...tick,
+    now: 2_050,
+    observedAt: 2_000,
+    decisions: Object.freeze([]),
+    observedQuote: shallow
+  }));
+  assert.equal(replay.status, "WAIT");
+  assert.equal(replay.reason, "PAPER_STRATEGY_WORKING_WAITING_FOR_NEW_DEPTH");
+  assert.equal(replay.state.fills.length, 1);
+  assert.equal(evaluations(), 1);
+
+  const restoredLoop = new PaperTradingExecutionLoop({
+    initialCapital: 10_000_000,
+    feeRate: 0,
+    restoredState: structuredClone(replay.state),
+    readP0State: () => ({ openP0: false })
+  });
+  let restoredEvaluations = 0;
+  const restoredBoundary = new CloudPaperExecutionBoundary({
+    loop: restoredLoop,
+    riskGate: { evaluate() { restoredEvaluations += 1; return Object.freeze({ status: "ALLOW", reasonCodes: Object.freeze([]) }); } },
+    readP0State: () => ({ openP0: false })
+  });
+  assert.equal(restoredLoop.snapshot().workingOrders[0].remainingAllocationCapital, 750_000);
+  assert.equal(restoredLoop.snapshot().workingOrders[0].lastOrderBookObservedAt, 1_900);
 
   const deeper = buildPaperObservedExecutionQuote({
     market: "KRW-BTC",
@@ -224,7 +268,7 @@ test("canonical strategy order carries orderbook-liquidity remainder across tick
     totalBidSize: 0.02,
     units: [Object.freeze({ askPrice: 50_000_000, bidPrice: 49_000_000, askSize: 0.02, bidSize: 0.02 })]
   });
-  const second = boundary.processTick(Object.freeze({
+  const second = restoredBoundary.processTick(Object.freeze({
     ...tick,
     now: 2_100,
     observedAt: 2_050,
@@ -236,8 +280,9 @@ test("canonical strategy order carries orderbook-liquidity remainder across tick
   assert.equal(second.fills[0].orderBookExecutionReceipt.liquidityLimited, false);
   assert.equal(second.orders[0].quantity, 0.02);
   assert.equal(second.state.workingOrders?.length ?? 0, 0);
-  assert.equal(loop.snapshot().cash, 9_000_000);
-  assert.equal(evaluations(), 2);
+  assert.equal(restoredLoop.snapshot().cash, 9_000_000);
+  assert.equal(evaluations(), 1);
+  assert.equal(restoredEvaluations, 1);
 });
 
 test("strategy latency is restart-safe and continuation is risk checked again", () => {
