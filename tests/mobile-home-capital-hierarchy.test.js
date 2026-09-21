@@ -9,7 +9,9 @@ const portfolio = fs.readFileSync(path.join(process.cwd(), "apps/mobile/src/port
 
 test("HOME presents truthful PAPER equity and cumulative PnL in the approved performance block", () => {
   assert.match(home, /testID="account-hero-card"/);
-  assert.match(home, /PAPER EQUITY/);
+  // The approved hero labels this 총 자산; the PAPER boundary is declared by the risk-authority row,
+  // whose visibility tests/mobile-home-ai-surface.test.js asserts.
+  assert.match(home, /총 자산/);
   assert.match(home, /testID="home-ai-judgement"/);
   assert.match(home, /PAPER PERFORMANCE/);
   assert.match(home, /won\(account\?\.equity\)/);

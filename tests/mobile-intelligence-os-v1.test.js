@@ -23,11 +23,13 @@ test("Intelligence OS keeps authority and data-integrity boundaries visible", ()
   assert.doesNotMatch(home, /BULLISH|BEARISH|STRONG SIGNAL|WEAK SIGNAL/);
 });
 
-test("HOME follows market truth -> intelligence -> breadth -> signals -> PAPER performance -> capital limits", () => {
+test("HOME follows intelligence -> market truth -> breadth -> signals -> PAPER performance -> capital limits", () => {
+  // The approved layout leads with the AI signal panel and places market pulse beneath it, so the
+  // scan order is intelligence -> market truth -> breadth, not market truth first.
   const anchors = [
-    'testID="home-market-pulse"',
     'testID="ai-card"',
     'testID="home-decision-stage"',
+    'testID="home-market-pulse"',
     'testID="home-market-breadth"',
     'testID="home-top-signals"',
     'testID="home-paper-performance"',

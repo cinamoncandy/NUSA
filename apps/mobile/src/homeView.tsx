@@ -152,9 +152,6 @@ export function HomeView(props: HomeViewProps) {
         <TerrainSignal variant="symbolic" signalStrength={strength} accessibilityLabel={signalAvailable ? "verified AI signal terrain" : "signal unavailable"} testID="home-signal-trace" />
         <View style={styles.signalPin}><View style={styles.pinDot}/><Text style={styles.pinLabel}>{signalAvailable ? "VERIFIED AI SIGNAL" : "NO VERIFIED SIGNAL"}</Text></View>
       </View>
-      <View style={styles.hiddenDecisionEvidence} testID="home-supervisor-learning">
-        <Text>{decision.why}{decision.result}{decision.risk}{decision.learning}</Text>
-      </View>
     </Pressable>
 
 
@@ -227,8 +224,8 @@ export function HomeView(props: HomeViewProps) {
 
     {disconnected || props.readOnlyError ? <Pressable onPress={props.onGoSettings} style={styles.connectionNotice} testID="home-operational-notice"><Text style={styles.connectionTitle}>{disconnected ? "PAPER CONNECTION REQUIRED" : "PAPER READ-ONLY ERROR"}</Text><Text style={styles.connectionBody}>{props.notConfigured ?? props.readOnlyError}</Text><Text style={styles.connectionAction}>OPEN SETTINGS →</Text></Pressable> : null}
 
-    <View style={styles.hiddenContract} testID="home-paper-learning"><Pressable onPress={props.onOpenPaperLearning}><Text style={styles.learningLink}>PAPER LEARNING EVIDENCE →</Text></Pressable></View>
-    <View style={styles.hiddenContract} testID="home-risk-authority"><Text style={styles.safety}>PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY</Text></View>
+    <View style={styles.contractRow} testID="home-paper-learning"><Pressable onPress={props.onOpenPaperLearning}><Text style={styles.learningLink}>PAPER LEARNING EVIDENCE →</Text></Pressable></View>
+    <View style={styles.contractRow} testID="home-risk-authority"><Text style={styles.safety}>PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY</Text></View>
   </ScrollView>;
 }
 
@@ -264,11 +261,10 @@ const styles = StyleSheet.create({
   signalPin:{position:"absolute",left:"38%",bottom:24,alignItems:"center"},pinDot:{width:8,height:8,borderRadius:8,backgroundColor:wealthProductColors.c08,shadowColor:LIME,shadowOpacity:.9,shadowRadius:14},pinLabel:{marginTop:8,color:wealthProductColors.c57,fontSize:8,fontWeight:"800",backgroundColor:wealthProductColors.c31,paddingHorizontal:9,paddingVertical:5,borderRadius:999,borderWidth:1,borderColor:wealthProductColors.c24},
   signalThesis:{color:wealthProductColors.c33,fontSize:20,lineHeight:28,fontWeight:"700",paddingHorizontal:18,paddingTop:18,paddingBottom:14},
   evidenceRail:{paddingBottom:8},evidenceRow:{flexDirection:"row",gap:12,paddingHorizontal:18,paddingVertical:10,borderTopWidth:StyleSheet.hairlineWidth,borderTopColor:wealthProductColors.c34},evidenceLabel:{width:60,fontSize:9,fontWeight:"900",letterSpacing:.8},evidenceValue:{flex:1,color:wealthProductColors.c35,fontSize:10,lineHeight:15},
-  hiddenDecisionEvidence:{position:"absolute",width:1,height:1,opacity:0},
   signalRow:{minHeight:48,flexDirection:"row",alignItems:"center",paddingHorizontal:13,gap:10,borderBottomWidth:1,borderBottomColor:wealthProductColors.c34},rank:{width:22,height:22,borderRadius:22,borderWidth:1,borderColor:wealthProductColors.c36,color:wealthProductColors.c37,textAlign:"center",lineHeight:20,fontSize:9},asset:{color:wealthProductColors.c38,fontSize:13,fontWeight:"800",width:54},signalBadge:{borderWidth:1,borderRadius:5,paddingHorizontal:7,paddingVertical:4},signalBadgeText:{fontSize:8,fontWeight:"900"},rowChange:{marginLeft:"auto",fontSize:11,fontWeight:"800",fontVariant:["tabular-nums"]},
   empty:{color:MUTED,fontSize:10,padding:14},performanceGraph:{height:74,flexDirection:"row",alignItems:"flex-end",gap:3,paddingHorizontal:14,paddingTop:12,borderBottomWidth:1,borderBottomColor:BORDER},waveBar:{flex:1,minWidth:2,borderRadius:2},
   performanceMetrics:{flexDirection:"row",justifyContent:"space-between",paddingHorizontal:14,paddingVertical:14,gap:10},metricValue:{color:wealthProductColors.c39,fontSize:13,fontWeight:"800",fontVariant:["tabular-nums"]},metricLabel:{color:wealthProductColors.c40,fontSize:8,fontWeight:"700",marginTop:5},
   capitalLimits:{padding:13,borderWidth:1,borderColor:BORDER,borderRadius:8,backgroundColor:wealthProductColors.c41,flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:12},capitalLabel:{color:wealthProductColors.c42,fontSize:9,fontWeight:"900",letterSpacing:.8},capitalMeta:{color:wealthProductColors.c43,fontSize:8,marginTop:4},capitalValues:{flexDirection:"row",gap:18},capitalValue:{color:wealthProductColors.c44,fontSize:10,fontWeight:"800",textAlign:"right"},capitalKey:{color:wealthProductColors.c43,fontSize:7,fontWeight:"800",marginTop:4,textAlign:"right"},
   connectionNotice:{padding:13,borderWidth:1,borderColor:wealthProductColors.c45,borderRadius:8,backgroundColor:wealthProductColors.c46},connectionTitle:{color:RED,fontSize:10,fontWeight:"900"},connectionBody:{color:wealthProductColors.c47,fontSize:10,lineHeight:15,marginTop:5},connectionAction:{color:wealthProductColors.c48,fontSize:9,fontWeight:"800",marginTop:8},
-  hiddenContract:{paddingHorizontal:6,paddingVertical:5},learningLink:{color:wealthProductColors.c49,fontSize:9,fontWeight:"700",letterSpacing:.55},safety:{color:wealthProductColors.c50,fontSize:9,textAlign:"center",fontWeight:"700",letterSpacing:.65},
+  contractRow:{paddingHorizontal:6,paddingVertical:5},learningLink:{color:wealthProductColors.c49,fontSize:9,fontWeight:"700",letterSpacing:.55},safety:{color:wealthProductColors.c50,fontSize:9,textAlign:"center",fontWeight:"700",letterSpacing:.65},
 });

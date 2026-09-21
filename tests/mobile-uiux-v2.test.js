@@ -25,7 +25,8 @@ test("product navigation promotes PAPER learning supervision and AI through the 
   assert.match(app, /PaperLearningMonitorView/);
   assert.match(app, /buildPaperLearningScreen/);
   assert.match(app, /onOpenPaperLearning/);
-  assert.match(home, /testID="home-supervisor-learning"/);
+  // home-supervisor-learning was a 1x1 opacity-0 node with no rendered content and is gone; the
+  // single PAPER learning route is home-paper-learning, asserted below.
   assert.match(home, /testID="home-paper-learning"/);
   assert.match(home, /onOpenPaperLearning/);
   assert.match(tradingShell, /import \{ PaperLearningMonitorView \} from "\.\/paperLearningMonitorView"/);

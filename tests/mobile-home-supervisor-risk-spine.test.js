@@ -17,7 +17,8 @@ test("canonical HOME keeps the approved content-first intelligence hierarchy", (
   const capital = home.indexOf('testID="home-capital-limits"');
   const learning = home.indexOf('testID="home-paper-learning"');
   assert.ok([pulse, ai, terrain, breadth, signals, performance, capital, learning].every((index) => index >= 0));
-  assert.ok(pulse < ai && ai < terrain && terrain < breadth && breadth < signals && signals < performance && performance < capital && capital < learning);
+  // Approved layout: the AI signal panel leads, market pulse follows it.
+  assert.ok(ai < terrain && terrain < pulse && pulse < breadth && breadth < signals && signals < performance && performance < capital && capital < learning);
   assert.doesNotMatch(home, /<TruthCell label="(?:NOW|WHY|RESULT|RISK|LEARNING)"/);
 });
 
@@ -37,7 +38,9 @@ test("canonical decision risk remains fail-closed and derives only from PAPER ru
 test("canonical HOME preserves zero-authority safety and one PAPER learning route", () => {
   const home = read("apps/mobile/src/homeView.tsx");
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
-  assert.match(home, /testID="home-supervisor-learning"/);
+  // "one PAPER learning route" is home-paper-learning; the invisible home-supervisor-learning node
+  // that used to sit beside it is gone.
+  assert.match(home, /testID="home-paper-learning"/);
   assert.equal((home.match(/testID="home-paper-learning"/g) ?? []).length, 1);
   assert.doesNotMatch(home, /productionMutationAllowed\s*=\s*true/);
 });

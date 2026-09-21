@@ -15,8 +15,17 @@ test("HOME matches the canonical autonomous-intelligence hierarchy", () => {
   assert.match(os, />NUSA<\/Text>/);
   assert.match(home, /TOTAL P&L/);
   assert.match(home, /EQUITY/);
-  assert.match(home, /PAPER MODE/);
-  assert.match(home, /SIGNAL TERRAIN/);
+  // The approved layout dropped the "PAPER MODE" and "SIGNAL TERRAIN" headings. What must survive is
+  // that HOME still *visibly* declares the PAPER boundary, so assert the declaration and the style it
+  // renders under. homeView also carries `hiddenDecisionEvidence`
+  // (position:"absolute",width:1,height:1,opacity:0); a safety declaration moved into a style like
+  // that would still match a plain text assertion while being invisible to the owner.
+  const safetyLine = /<View style=\{styles\.(\w+)\} testID="home-risk-authority"><Text style=\{styles\.safety\}>PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY<\/Text><\/View>/.exec(home);
+  assert.ok(safetyLine, "HOME must render the PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY declaration");
+  const safetyStyle = new RegExp(safetyLine[1] + ":\\s*\\{([^}]*)\\}").exec(home);
+  assert.ok(safetyStyle, "the PAPER declaration must use a declared style");
+  assert.doesNotMatch(safetyStyle[1], /opacity:\s*0\b/, "the PAPER declaration must not be rendered invisible");
+  assert.doesNotMatch(safetyStyle[1], /(width|height):\s*[01]\b/, "the PAPER declaration must not be collapsed to a 1px node");
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /testID="home-risk-authority"/);
   assert.match(home, /testID="home-decision-stage"/);

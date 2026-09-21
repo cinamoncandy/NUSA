@@ -13,9 +13,14 @@ test("HOME AI judgment drills into verified evidence without creating a dead con
   assert.match(home, /const signalAvailable = decision\.aiInsightAvailable/);
   assert.match(home, /onPress=\{\(\) => props\.onNavigate\("AiSignal"\)\}/);
   assert.match(home, /testID="ai-card"/);
-  assert.match(home, /<EvidenceRow label="WHY" value=\{decision\.why\}/);
-  assert.match(home, /<EvidenceRow label="RESULT" value=\{decision\.result\}/);
-  assert.match(home, /<EvidenceRow label="RISK" value=\{decision\.risk\}/);
+  // The approved layout has no WHY/RESULT/RISK rows on HOME. d9226f33 kept the strings alive in a
+  // 1x1 opacity-0 node under testID="home-supervisor-learning", which satisfied the old assertions
+  // while showing the owner nothing; that node is now gone. This test is named for dead controls, so
+  // what it asserts instead is that the drill leads somewhere real: AI SIGNAL renders the thesis.
+  assert.doesNotMatch(home, /home-supervisor-learning/);
+  assert.doesNotMatch(home, /position:"absolute",width:1,height:1,opacity:0/);
+  const ai = read("apps/mobile/src/aiView.tsx");
+  assert.match(ai, /testID="ai-why"><AnalysisRow label="WHY"/);
 });
 
 test("HOME keeps the approved evidence-first scan order and authority footer", () => {
