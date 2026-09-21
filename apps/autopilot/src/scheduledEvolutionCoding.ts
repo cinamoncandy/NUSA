@@ -3,7 +3,7 @@ import { prepareDiscoveredCodingRequest } from "./evolveCodingBridge";
 import { deriveWorkflowFailureOpportunities, type WorkflowFailureEvidence } from "./evolveEvidenceOpportunitySource";
 import { deriveGithubIssueBacklogSignals } from "./evolveGithubIssueBacklog";
 import type { EvolutionDiscoverySignal } from "./evolveOpportunityDiscovery";
-import { acquirePersistentExecution, readPersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, admitActiveWip, completeActiveWip, readActiveWip, readPersistentExecution, releasePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
 export interface ScheduledEvolutionCodingEnv {
   readonly NUSA_GITHUB_TOKEN?: string;
@@ -191,25 +191,27 @@ export async function runScheduledEvolutionCoding(
     : Object.freeze([] as EvolutionDiscoverySignal[]);
   const signals = failureSignals.length > 0 ? failureSignals : backlogSignals;
   const freshFailureCount = failureSignals.length;
-  const workIdentity = logicalWorkIdentity(signals);
+  let activeWip;
+  try {
+    activeWip = await readActiveWip(coordinator);
+  } catch {
+    return result("ABSTAINED", "active-wip-state-unavailable", signals.map((signal) => signal.id));
+  }
+  const provisionalIdentity = logicalWorkIdentity(signals);
   if (signals[0]?.source === "github-issue-backlog") {
     const freshness = await revalidateBacklogSignal(signals[0], input, token, fetchImpl);
     if (freshness === "UNAVAILABLE") return result("ABSTAINED", "github-issue-actionability-revalidation-unavailable", signals.map((signal) => signal.id));
     if (freshness !== "ACTIONABLE") return result("ABSTAINED", "github-issue-no-longer-actionable", signals.map((signal) => signal.id));
   }
-  const executionId = `evolve-coding:${input.mainSha.slice(0, 16)}:${workIdentity.slice(0, 100)}`;
-  const dedupeKey = `evolve-coding:${input.mainSha}:${workIdentity}`;
+  const executionId = `evolve-coding:${input.mainSha.slice(0, 16)}:${provisionalIdentity.slice(0, 100)}`;
+  const dedupeKey = `evolve-coding:${input.mainSha}:${provisionalIdentity}`;
   let currentExecution;
   try {
     currentExecution = await readPersistentExecution(coordinator, dedupeKey);
   } catch {
     return result("ABSTAINED", "persistent-execution-state-unavailable", signals.map((signal) => signal.id));
   }
-  const activeExecutions = currentExecution
-    && (currentExecution.state === "LEASED" || currentExecution.state === "HANDED_OFF")
-    && currentExecution.leaseExpiresAt > input.now
-    ? 1
-    : 0;
+  const activeExecutions = activeWip.activeExecutions;
   const elapsedSecondsSinceLastRun = currentExecution
     ? Math.max(0, Math.floor((input.now - currentExecution.updatedAt) / 1000))
     : Number.MAX_SAFE_INTEGER;
@@ -228,20 +230,65 @@ export async function runScheduledEvolutionCoding(
     activeExecutions,
     elapsedSecondsSinceLastRun,
   });
-  if (bridge.status !== "READY" || !bridge.request) return result("ABSTAINED", bridge.reason);
-
-  const persistent = await acquirePersistentExecution(coordinator, {
-    dedupeKey: bridge.request.dedupeKey,
-    executionId: bridge.request.executionId,
-    now: input.now,
-    leaseExpiresAt: input.now + CODING_LEASE_MS,
-  });
-  if (!persistent.acquired) return result("DUPLICATE_SUPPRESSED", persistent.reason ?? "DUPLICATE_EXECUTION", signals.map((signal) => signal.id));
-
-  const dispatched = await executeGithubDispatch(bridge.request, { token, allowedRepository: input.repository }, fetchImpl);
-  if (dispatched.status === "DISPATCHED") {
-    return result("EXECUTION_ACCEPTED", "github-coding-dispatch-accepted", signals.map((signal) => signal.id));
+  if (bridge.status !== "READY" || !bridge.request || !bridge.selectedOpportunityId) return result("ABSTAINED", bridge.reason);
+  const selectedSignal = signals.find((signal) => signal.id === bridge.selectedOpportunityId);
+  if (!selectedSignal) return result("ABSTAINED", "selected-evolution-signal-unresolved", signals.map((signal) => signal.id));
+  if (selectedSignal.source === "github-issue-backlog" && selectedSignal.id !== signals[0]?.id) {
+    const freshness = await revalidateBacklogSignal(selectedSignal, input, token, fetchImpl);
+    if (freshness === "UNAVAILABLE") return result("ABSTAINED", "github-issue-actionability-revalidation-unavailable", [selectedSignal.id]);
+    if (freshness !== "ACTIONABLE") return result("ABSTAINED", "github-issue-no-longer-actionable", [selectedSignal.id]);
   }
-  if (dispatched.status === "INTERFACE_READY") return result("INTERFACE_READY", dispatched.reason, signals.map((signal) => signal.id));
-  return result("EXECUTION_FAILED", dispatched.reason, signals.map((signal) => signal.id));
+  const selectedIdentity = logicalWorkIdentity([selectedSignal]);
+  const selectedExecutionId = `evolve-coding:${input.mainSha.slice(0, 16)}:${selectedIdentity.slice(0, 100)}`;
+  const selectedDedupeKey = `evolve-coding:${input.mainSha}:${selectedIdentity}`;
+  const selectedRequest = Object.freeze({ ...bridge.request, executionId: selectedExecutionId, dedupeKey: selectedDedupeKey });
+  const ownership = selectedRequest.canonicalOwner && selectedRequest.conflictKeys?.length
+    ? { canonicalOwner: selectedRequest.canonicalOwner, conflictKeys: selectedRequest.conflictKeys }
+    : null;
+  if (!ownership) return result("ABSTAINED", "selected-evolution-ownership-required", [selectedSignal.id]);
+  let admitted;
+  try {
+    admitted = await admitActiveWip(coordinator, {
+      dedupeKey: selectedDedupeKey,
+      executionId: selectedExecutionId,
+      canonicalOwner: ownership.canonicalOwner,
+      conflictKeys: ownership.conflictKeys,
+      claimedAt: input.now,
+      maxConcurrent: 1,
+    });
+  } catch {
+    return result("ABSTAINED", "active-wip-admission-unavailable", [selectedSignal.id]);
+  }
+  if (!admitted.admitted) return result("DUPLICATE_SUPPRESSED", admitted.reason ?? "ACTIVE_WIP_REJECTED", [selectedSignal.id]);
+
+  let persistent;
+  try {
+    persistent = await acquirePersistentExecution(coordinator, {
+      dedupeKey: selectedDedupeKey,
+      executionId: selectedExecutionId,
+    now: input.now,
+      leaseExpiresAt: input.now + CODING_LEASE_MS,
+    });
+  } catch {
+    try { await completeActiveWip(coordinator, { dedupeKey: selectedDedupeKey, executionId: selectedExecutionId }); } catch {}
+    return result("ABSTAINED", "persistent-execution-coordination-failed", [selectedSignal.id]);
+  }
+  if (!persistent.acquired) {
+    try { await completeActiveWip(coordinator, { dedupeKey: selectedDedupeKey, executionId: selectedExecutionId }); } catch {
+      return result("ABSTAINED", "active-wip-rollback-failed", [selectedSignal.id]);
+    }
+    return result("DUPLICATE_SUPPRESSED", persistent.reason ?? "DUPLICATE_EXECUTION", [selectedSignal.id]);
+  }
+
+  const dispatched = await executeGithubDispatch(selectedRequest, { token, allowedRepository: input.repository }, fetchImpl);
+  if (dispatched.status === "DISPATCHED") return result("EXECUTION_ACCEPTED", "github-coding-dispatch-accepted", [selectedSignal.id]);
+
+  try {
+    await releasePersistentExecution(coordinator, { dedupeKey: selectedDedupeKey, executionId: selectedExecutionId, now: input.now });
+    await completeActiveWip(coordinator, { dedupeKey: selectedDedupeKey, executionId: selectedExecutionId });
+  } catch {
+    return result("ABSTAINED", "coding-dispatch-rollback-failed", [selectedSignal.id]);
+  }
+  if (dispatched.status === "INTERFACE_READY") return result("INTERFACE_READY", dispatched.reason, [selectedSignal.id]);
+  return result("EXECUTION_FAILED", dispatched.reason, [selectedSignal.id]);
 }
