@@ -76,6 +76,8 @@ export function deriveWorkflowFailureOpportunities(input: WorkflowOpportunitySou
       risk: 0.15,
       reversibility: 0.95,
       status: "DISCOVERED",
+      canonicalOwner: "evolve",
+      conflictKeys: Object.freeze([`workflow:${name}`, `head:${observation.headSha}`]),
       createdAt: observation.completedAt,
     });
     deduped.set(id, opportunity);
