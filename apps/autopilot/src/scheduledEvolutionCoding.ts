@@ -233,7 +233,8 @@ export async function runScheduledEvolutionCoding(
     elapsedSecondsSinceLastRun,
   });
   if (bridge.status !== "READY" || !bridge.request || !bridge.selectedOpportunityId) return result("ABSTAINED", bridge.reason);
-  const selectedSignal = signals.find((signal) => signal.id === bridge.selectedOpportunityId);
+  const selectedSignalId = bridge.selectedOpportunityId.startsWith("discovery:") ? bridge.selectedOpportunityId.slice("discovery:".length) : bridge.selectedOpportunityId;
+  const selectedSignal = signals.find((signal) => signal.id === selectedSignalId);
   if (!selectedSignal) return result("ABSTAINED", "selected-evolution-signal-unresolved", signals.map((signal) => signal.id));
   if (selectedSignal.source === "github-issue-backlog" && selectedSignal.id !== signals[0]?.id) {
     const freshness = await revalidateBacklogSignal(selectedSignal, input, token, fetchImpl);
