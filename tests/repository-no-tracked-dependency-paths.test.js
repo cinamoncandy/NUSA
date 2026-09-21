@@ -42,3 +42,13 @@ test("no tracked symlink points outside the repository", () => {
 
   assert.deepEqual(escaping.map((entry) => entry.file), [], "tracked symlinks must resolve inside the repository");
 });
+
+test("no runner-generated scratch file is tracked", () => {
+  // scripts/run-tests-isolated.js deletes isolated-test-failure.txt at startup and rewrites it on
+  // failure. Tracked, it shows as a deleted-then-modified file for the whole run, so every shard
+  // has a dirty workspace and tests/autopilot-dispatch-retry.test.js fails closed with
+  // CODING_RUNTIME_WORKSPACE_DIRTY — three failures that say nothing about the code under test.
+  const scratch = ["isolated-test-failure.txt"];
+  const offenders = tracked().filter((file) => scratch.includes(file));
+  assert.deepEqual(offenders, [], `runner scratch files must never be tracked: ${offenders.join(", ")}`);
+});
