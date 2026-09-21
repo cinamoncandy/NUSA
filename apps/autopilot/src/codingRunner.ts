@@ -260,18 +260,29 @@ function parseProposalText(value: string): CodingProposal {
   throw new Error(parsedJson ? "CODING_PROPOSAL_SHAPE_INVALID" : "CODING_PROPOSAL_JSON_INVALID");
 }
 
+function workersAiResponseValue(payload: Record<string, unknown>): unknown {
+  if (payload.response !== undefined) return payload.response;
+  if (!Array.isArray(payload.choices) || payload.choices.length === 0) return undefined;
+  const first = payload.choices[0];
+  if (!first || typeof first !== "object" || Array.isArray(first)) return undefined;
+  const message = (first as Record<string, unknown>).message;
+  if (!message || typeof message !== "object" || Array.isArray(message)) return undefined;
+  return (message as Record<string, unknown>).content;
+}
+
 function workersAiProposal(value: unknown): CodingProposal {
   const payload = object(value);
-  if (typeof payload.response === "string") {
-    if (!payload.response.trim()) throw new Error("CODING_PROPOSAL_RESPONSE_INVALID");
-    return parseProposalText(payload.response);
+  const response = workersAiResponseValue(payload);
+  if (typeof response === "string") {
+    if (!response.trim()) throw new Error("CODING_PROPOSAL_RESPONSE_INVALID");
+    return parseProposalText(response);
   }
-  // Workers AI JSON mode returns the schema object directly under `response`,
-  // while non-JSON text mode returns a string. Validate both shapes without
-  // accepting any unstructured or authority-bearing fields.
-  if (payload.response && typeof payload.response === "object" && !Array.isArray(payload.response)) {
+  // Legacy Workers AI JSON mode can return the schema object under `response`.
+  // Current chat-completion models return text under `choices[0].message.content`.
+  // Validate both envelopes without widening the patch-only authority boundary.
+  if (response && typeof response === "object" && !Array.isArray(response)) {
     try {
-      return validateCodingProposal(payload.response);
+      return validateCodingProposal(response);
     } catch (error) {
       if (error instanceof Error && error.message === "CODING_PROPOSAL_PATCH_REQUIRED") throw error;
       throw new Error("CODING_PROPOSAL_SHAPE_INVALID");
