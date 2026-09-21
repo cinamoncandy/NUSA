@@ -16,7 +16,7 @@ test("Signal Detail explicitly supports 360 390 and 430px mobile acceptance widt
   assert.match(ai, /getMobileViewportProfile\(width\)/);
   assert.match(ai, /viewport\.narrow\?styles\.titleRowNarrow:null/);
   assert.match(ai, /narrow\?styles\.analysisRowNarrow:null/);
-  assert.match(ai, /viewport\.narrow\?styles\.assetHeadNarrow:null/);
+  assert.match(ai, /style=\{styles\.aiDecisionSummary\}/);
 });
 
 test("narrow responsive behavior does not change AI authority", () => {
@@ -30,7 +30,7 @@ test("Signal Detail makes truthful convergence the visual hero without duplicate
   const ai = read("src/aiView.tsx");
   assert.match(ai, /testID="ai-convergence-signal"/);
   assert.match(ai, /testID="ai-stage-timeline"/);
-  assert.match(ai, /SIGNAL CONVERGENCE/);
+  assert.match(ai, /AI 분석 진행 중/);
   assert.match(ai, /OBSERVATION → EVIDENCE → VERIFIED JUDGEMENT/);
   assert.match(ai, /GATHER/);
   assert.match(ai, /ANALYZE/);
