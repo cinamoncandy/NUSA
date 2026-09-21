@@ -78,6 +78,8 @@ function signalsFromRuns(candidates: readonly unknown[], now: number): readonly 
     confidence: opportunity.confidence,
     risk: opportunity.risk,
     reversibility: opportunity.reversibility,
+    canonicalOwner: opportunity.canonicalOwner,
+    conflictKeys: opportunity.conflictKeys,
   })));
 }
 
