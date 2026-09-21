@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-const EXPECTED_EXECUTION_BLOB = "a6d9b590408515eebe51109167a4f4218fea544f";
+const EXPECTED_EXECUTION_BLOB = "af61904f44652a4e198b545767348ce750e758bf";
 
 function gitBlobSha(content: string): string {
   const normalized = content.replace(/\r\n/g, "\n");
@@ -21,6 +21,12 @@ describe("EXECUTION exact-source re-qualification evidence", () => {
     assert.match(source, /const commandId = paperExecutionIntentCommandId\(executionIntent\)/);
     assert.match(source, /quantity: executionIntent\.quantity/);
     assert.match(source, /executionIntent,/);
+    assert.match(source, /strategyWorkingOrders/);
+    assert.match(source, /continuationCommandId/);
+    assert.match(source, /quantity: working\.lifecycle\.remainingQuantity/);
+    assert.match(source, /advanceStrategyWorkingOrder\(working\.id, tick\)/);
+    assert.match(source, /PAPER_STRATEGY_WORKING_WAITING_FOR_NEW_DEPTH/);
+    assert.match(source, /PAPER_STRATEGY_WORKING_ORDER_AUTOMATIC_ONLY/);
     assert.doesNotMatch(source, /quantity = state\.cash \* investmentPercent/);
   });
 });

@@ -30,6 +30,7 @@ export interface PaperOrderBookExecutionReceipt {
   readonly vwapPrice: number;
   readonly grossNotional: number;
   readonly budgetLimited: boolean;
+  readonly liquidityLimited: boolean;
   readonly consumedLevels: readonly PaperOrderBookExecutionLevel[];
   readonly fingerprintSha256: string;
 }
@@ -62,6 +63,7 @@ function canonicalCore(receipt: Omit<PaperOrderBookExecutionReceipt, "fingerprin
     vwapPrice: receipt.vwapPrice,
     grossNotional: receipt.grossNotional,
     budgetLimited: receipt.budgetLimited,
+    liquidityLimited: receipt.liquidityLimited,
     consumedLevels: receipt.consumedLevels.map((level) => Object.freeze({ price: level.price, quantity: level.quantity })),
   });
 }
@@ -143,9 +145,7 @@ export function buildPaperOrderBookExecutionReceipt(input: {
 
   const totals = consumedTotals(consumed);
   if (totals.quantity <= 0 || totals.notional <= 0) throw new PaperOrderBookExecutionError("INVALID_ORDERBOOK_EXECUTION", "depth sweep produced invalid totals");
-  if (remainingQuantity > 1e-8 && !budgetLimited) {
-    throw new PaperOrderBookExecutionError("PAPER_ORDERBOOK_LIQUIDITY_INSUFFICIENT", "public orderbook depth cannot fully satisfy the PAPER target");
-  }
+  const liquidityLimited = remainingQuantity > 1e-8 && !budgetLimited;
   const vwapPrice = round8(totals.notional / totals.quantity);
   const grossNotional = round8(totals.quantity * vwapPrice);
   if (maximumNotional !== undefined && grossNotional > maximumNotional + 1e-6) {
@@ -170,6 +170,7 @@ export function buildPaperOrderBookExecutionReceipt(input: {
     vwapPrice,
     grossNotional,
     budgetLimited,
+    liquidityLimited,
     consumedLevels: Object.freeze(consumed),
   });
   return Object.freeze({ ...core, fingerprintSha256: fingerprint(canonicalCore(core)) });
@@ -185,6 +186,8 @@ export function validatePaperOrderBookExecutionReceipt(
     readonly quoteReceipt: PaperOrderBookQuoteReceipt;
     readonly intentQuantity?: number;
     readonly allocationCapital?: number;
+    readonly maximumNotional?: number;
+    readonly allowPartial?: boolean;
   },
 ): PaperOrderBookExecutionReceipt {
   if (receipt.schemaVersion !== 1 || receipt.source !== "UPBIT_PUBLIC_ORDERBOOK" || receipt.model !== "DEPTH_VWAP_V1") {
@@ -203,7 +206,25 @@ export function validatePaperOrderBookExecutionReceipt(
   positive(receipt.filledQuantity, "receipt.filledQuantity");
   positive(receipt.vwapPrice, "receipt.vwapPrice");
   positive(receipt.grossNotional, "receipt.grossNotional");
-  if (receipt.maximumNotional !== null) positive(receipt.maximumNotional, "receipt.maximumNotional");
+  if (receipt.maximumNotional !== null) {
+    positive(receipt.maximumNotional, "receipt.maximumNotional");
+    if (receipt.grossNotional > receipt.maximumNotional + 1e-6) {
+      throw new PaperOrderBookExecutionError("PAPER_ORDERBOOK_BUDGET_EXCEEDED", "depth execution exceeds its sealed notional cap");
+    }
+  }
+  if (typeof receipt.budgetLimited !== "boolean" || typeof receipt.liquidityLimited !== "boolean") {
+    throw new PaperOrderBookExecutionError("INVALID_ORDERBOOK_EXECUTION_RECEIPT", "orderbook execution limitation flags are invalid");
+  }
+  if (receipt.filledQuantity > receipt.requestedQuantity + 1e-8) {
+    throw new PaperOrderBookExecutionError("ORDERBOOK_EXECUTION_RECONCILIATION_MISMATCH", "orderbook execution exceeds requested quantity");
+  }
+  const isPartial = receipt.filledQuantity + 1e-8 < receipt.requestedQuantity;
+  if (receipt.liquidityLimited !== (isPartial && !receipt.budgetLimited)) {
+    throw new PaperOrderBookExecutionError("ORDERBOOK_EXECUTION_RECONCILIATION_MISMATCH", "orderbook liquidity limitation flag is inconsistent");
+  }
+  if (isPartial && receipt.liquidityLimited && input.allowPartial !== true) {
+    throw new PaperOrderBookExecutionError("PAPER_ORDERBOOK_LIQUIDITY_INSUFFICIENT", "partial depth execution requires a working order");
+  }
   if (!Array.isArray(receipt.consumedLevels) || receipt.consumedLevels.length === 0) {
     throw new PaperOrderBookExecutionError("INVALID_ORDERBOOK_EXECUTION_RECEIPT", "orderbook execution receipt has no consumed levels");
   }
@@ -235,12 +256,13 @@ export function validatePaperOrderBookExecutionReceipt(
   if (input.intentQuantity !== undefined && round8(input.intentQuantity) !== receipt.requestedQuantity) {
     throw new PaperOrderBookExecutionError("ORDERBOOK_EXECUTION_INTENT_MISMATCH", "orderbook requested quantity does not match execution intent");
   }
-  if (receipt.side === "SELL" && receipt.filledQuantity !== receipt.requestedQuantity) {
-    throw new PaperOrderBookExecutionError("PAPER_ORDERBOOK_LIQUIDITY_INSUFFICIENT", "SELL depth execution is partial");
+  if (receipt.side === "SELL" && receipt.budgetLimited) {
+    throw new PaperOrderBookExecutionError("INVALID_ORDERBOOK_EXECUTION_RECEIPT", "SELL depth execution cannot be budget limited");
   }
-  if (receipt.side === "BUY" && input.allocationCapital !== undefined) {
-    if (receipt.maximumNotional !== round8(input.allocationCapital) || receipt.grossNotional > input.allocationCapital + 1e-6) {
-      throw new PaperOrderBookExecutionError("PAPER_ORDERBOOK_BUDGET_EXCEEDED", "BUY depth execution exceeds execution-intent capital");
+  const expectedMaximumNotional = input.maximumNotional ?? input.allocationCapital;
+  if (receipt.side === "BUY" && expectedMaximumNotional !== undefined) {
+    if (receipt.maximumNotional !== round8(expectedMaximumNotional) || receipt.grossNotional > expectedMaximumNotional + 1e-6) {
+      throw new PaperOrderBookExecutionError("PAPER_ORDERBOOK_BUDGET_EXCEEDED", "BUY depth execution exceeds the approved notional cap");
     }
   }
   const core = canonicalCore({
@@ -258,6 +280,7 @@ export function validatePaperOrderBookExecutionReceipt(
     vwapPrice: receipt.vwapPrice,
     grossNotional: receipt.grossNotional,
     budgetLimited: receipt.budgetLimited,
+    liquidityLimited: receipt.liquidityLimited,
     consumedLevels: receipt.consumedLevels,
   });
   const expectedFingerprint = fingerprint(core);
