@@ -52,7 +52,12 @@ try {
   console.error(message);
   process.exit(1);
 }
-const files = selectDeterministicShard(allFiles, shard);
+// This test is a stable ~61s outlier across repeated CI runs. Pinning it to the
+// historically light shard rebalances the existing four runners without reducing coverage.
+const slowShardPins = Object.freeze({
+  "tests/oracle-readiness-check.test.js": 0,
+});
+const files = selectDeterministicShard(allFiles, shard, slowShardPins);
 if (files.length === 0) {
   const message = `EMPTY_TEST_SHARD ${shard.index + 1}/${shard.count} from ${allFiles.length} test files`;
   writeFileSync(diagnosticPath, message, "utf8");
