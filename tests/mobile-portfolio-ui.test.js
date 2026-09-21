@@ -74,6 +74,13 @@ test("Portfolio screen exposes truthful verified totals without unavailable retu
   assert.match(source, /const costBasis = model != null \? model\.totalEquity - model\.totalPnl : null;/);
   assert.match(source, /const totalReturn = model != null && costBasis != null && costBasis > 0 \? model\.totalPnl \/ costBasis : null;/);
   assert.match(source, /\{totalReturn == null \? "—"/);
+  // Exactly zero is neither a gain nor a loss. Verified on a rendered Pixel 6 frame, the hero showed
+  // "+0.00%" in the success colour over a book that had never traded — a positive claim the numbers
+  // do not carry. Zero now reads muted and unsigned.
+  assert.match(source, /color: totalReturn == null \|\| totalReturn === 0 \? theme\.colors\.textMuted : totalReturn > 0 \?/);
+  assert.match(source, /\$\{totalReturn > 0 \? "\+" : ""\}/);
+  assert.match(source, /color: model == null \|\| model\.totalPnl === 0 \? theme\.colors\.textMuted : model\.totalPnl > 0 \?/);
+  assert.doesNotMatch(source, /totalReturn >= 0 \? theme\.colors\.success/);
   assert.doesNotMatch(source, /testID="portfolio-summary"/);
   assert.doesNotMatch(source, /MetricTile/);
   assert.match(source, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);

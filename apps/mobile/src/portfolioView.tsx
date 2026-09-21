@@ -54,8 +54,11 @@ function PortfolioHero({ model, usingLocalPaper }: Readonly<{ model: PortfolioVi
     </View>
     <View style={styles.portfolioReturnBlock}>
       <Text style={[styles.portfolioHeroLabel, { color: theme.colors.textMuted }]}>총 수익률</Text>
-      <Text style={[styles.portfolioReturnValue, { color: totalReturn == null ? theme.colors.textMuted : totalReturn >= 0 ? theme.colors.success : theme.colors.danger }]}>{totalReturn == null ? "—" : `${totalReturn >= 0 ? "+" : ""}${(totalReturn * 100).toFixed(2)}%`}</Text>
-      <Text style={[styles.portfolioReturnPnl, { color: model == null ? theme.colors.textMuted : model.totalPnl >= 0 ? theme.colors.success : theme.colors.danger }]}>{signedMoney(model?.totalPnl)}</Text>
+      {/* Exactly zero is neither a gain nor a loss. Colouring it as a gain, and prefixing it with
+          "+", states a result the numbers do not support — the same overstatement as captioning
+          lifetime PnL 오늘. A flat book reads muted, with no sign. */}
+      <Text style={[styles.portfolioReturnValue, { color: totalReturn == null || totalReturn === 0 ? theme.colors.textMuted : totalReturn > 0 ? theme.colors.success : theme.colors.danger }]}>{totalReturn == null ? "—" : `${totalReturn > 0 ? "+" : ""}${(totalReturn * 100).toFixed(2)}%`}</Text>
+      <Text style={[styles.portfolioReturnPnl, { color: model == null || model.totalPnl === 0 ? theme.colors.textMuted : model.totalPnl > 0 ? theme.colors.success : theme.colors.danger }]}>{signedMoney(model?.totalPnl)}</Text>
     </View>
     <View style={styles.portfolioHeroNumbers}>
       <View style={styles.portfolioHeroPrimary}>
