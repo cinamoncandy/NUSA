@@ -114,7 +114,7 @@ jobs:
           tap "tab-Market"; capture 02-market
 
           tap "tab-Signals"; capture 03-signal-terrain
-          scroll_until_visible "ai-thesis-card"; capture 04-signal-detail
+          tap "signal-open-detail"; capture 04-signal-detail
 
           tap "tab-Strategies"; capture 05-strategies
           grep -q "strategies-screen" qa/android-product-ux/05-strategies.xml
@@ -132,7 +132,7 @@ jobs:
 
           grep -q "home-screen" qa/android-product-ux/01-home.xml
           grep -q "markets-workspace" qa/android-product-ux/02-market.xml
-          grep -q "ai-screen" qa/android-product-ux/03-signal-terrain.xml
+          grep -q "signal-terrain-hero" qa/android-product-ux/03-signal-terrain.xml
           grep -q "ai-thesis-card" qa/android-product-ux/04-signal-detail.xml
           printf 'touch_navigation=PASS\nmaster_screens=8\nframes=%s\nvisual_route=HOME>MARKET>SIGNAL_TERRAIN>SIGNAL_DETAIL>STRATEGIES>RISK>PERFORMANCE>MORE\n' "$(find qa/android-product-ux -name '*.png' | wc -l)" > qa/android-product-ux/report.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

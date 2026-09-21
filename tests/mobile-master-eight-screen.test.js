@@ -19,3 +19,8 @@ test("HOME and Market use approved concept hierarchy instead of dense command da
 test("truthful missing-evidence states stay explicit",()=>{
  assert.match(risk,/PORTFOLIO VAR" value="—"/);assert.match(perf,/NO VERIFIED EQUITY HISTORY/);assert.match(perf,/NO SYNTHETIC CURVE/);
 });
+test("Signals are real Terrain and Detail states and Strategies follows the master hierarchy",()=>{
+ const ai=fs.readFileSync("apps/mobile/src/aiView.tsx","utf8");const strategies=fs.readFileSync("apps/mobile/src/strategiesView.tsx","utf8");
+ assert.match(ai,/testID="signal-terrain-hero"/);assert.match(ai,/testID="signal-open-detail"/);assert.match(ai,/setDetailOpen\(true\)/);assert.match(ai,/signal-detail-back/);
+ assert.match(strategies,/Families","Active","Watchlist/);assert.match(strategies,/testID="strategies-list"/);assert.match(strategies,/testID="strategies-featured"/);
+});
