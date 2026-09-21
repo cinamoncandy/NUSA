@@ -13,6 +13,8 @@ test("PAPER surface leads with a truthful report hero instead of generic stacked
   assert.match(source, /EQUITY/);
   assert.match(source, /MARKET/);
   assert.match(source, /CYCLE \{state\.currentCycle \?\? "—"\}/);
+  assert.doesNotMatch(source, /LEARN\. VERIFY\. ADAPT\./);
+  assert.ok(source.indexOf('testID="paper-report-hero"') < source.indexOf('testID="paper-learning-glance-strip"'));
 });
 
 test("PAPER stage timeline reflects observed evidence presence only", () => {
