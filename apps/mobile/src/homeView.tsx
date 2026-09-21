@@ -102,6 +102,7 @@ export function HomeView(props: HomeViewProps) {
   const signalAvailable = decision.aiInsightAvailable;
   const signalTitle = signalAvailable ? (ai?.thesis ?? "VERIFIED SIGNAL") : "WAITING FOR VERIFIED SIGNAL";
   const strength = signalAvailable && ai?.confidence != null ? Math.max(0.15, Math.min(0.95, ai.confidence)) : 0.24;
+  const confidenceLabel = signalAvailable && ai?.confidence != null ? `${Math.round(ai.confidence * 100)}%` : "—";
   const observedMarkets = marketRows.filter((market) => market.changeRate != null && Number.isFinite(market.changeRate));
   const positiveMarkets = observedMarkets.filter((market) => (market.changeRate ?? 0) > 0).length;
   const breadthPercent = observedMarkets.length === 0 ? null : Math.round((positiveMarkets / observedMarkets.length) * 100);
@@ -115,19 +116,19 @@ export function HomeView(props: HomeViewProps) {
     <View style={styles.topbar} testID="home-master-rail">
       <Text testID="home-build-source" style={{position:"absolute",opacity:0}}>BUILD {packagedBuildLabel} · UI INTELLIGENCE OS</Text>
       <View><Text style={styles.logo}>NUSA</Text><Text style={styles.tagline}>AI SIGNAL · STRATEGY</Text></View>
-      <View style={styles.modeWrap} testID="home-status-rail">
-        <View style={styles.modeDot} />
-        <View><Text style={styles.modeText}>PAPER MODE</Text><Text style={styles.modeSub}>LIVE: RESTRICTED</Text></View>
+      <View style={styles.notificationGlyph} testID="home-status-rail">
+        <View style={styles.notificationBell} />
+        <View style={styles.notificationClapper} />
       </View>
     </View>
 
     <View style={styles.accountHero} testID="account-hero-card">
       <View style={styles.accountHeroTop}>
         <View style={styles.accountHeroValueBlock}>
-          <Text style={styles.accountHeroEyebrow}>PAPER EQUITY</Text>
+          <Text style={styles.accountHeroEyebrow}>총 자산</Text>
           <Text style={styles.accountHeroValue}>{won(account?.equity)}</Text>
           <Text style={[styles.accountHeroDelta, { color: totalPnl == null ? MUTED : totalPnl >= 0 ? LIME : RED }]}>
-            {totalPnl == null ? "P&L —" : `${won(totalPnl)} TOTAL P&L`}
+            {totalPnl == null ? "오늘 —" : `오늘 · ${won(totalPnl)}`}
           </Text>
         </View>
         <View style={styles.accountHeroSource}>
@@ -137,34 +138,29 @@ export function HomeView(props: HomeViewProps) {
       </View>
       <Pressable onPress={() => props.onNavigate("AiSignal")} style={({ pressed }) => [styles.accountHeroInsight, { opacity: pressed ? 0.78 : 1 }]} testID="home-ai-judgement">
         <View style={styles.accountHeroInsightHead}>
-          <Text style={styles.accountHeroInsightLabel}>AI JUDGEMENT</Text>
+          <Text style={styles.accountHeroInsightLabel}>NUSA AI 판단</Text>
           <Text style={[styles.accountHeroInsightState, { color: signalAvailable ? LIME : MUTED }]}>{signalAvailable ? "VERIFIED" : "WAITING"}</Text>
         </View>
         <Text style={styles.accountHeroInsightTitle} numberOfLines={2}>{signalTitle}</Text>
-        <Text style={styles.accountHeroInsightWhy} numberOfLines={2}>WHY · {decision.why}</Text>
+        <View style={styles.homeConfidenceRow}><Text style={styles.accountHeroInsightWhy} numberOfLines={1}>신뢰도</Text><Text style={styles.homeConfidenceValue}>{confidenceLabel}</Text></View>
       </Pressable>
     </View>
 
     <Pressable onPress={() => props.onNavigate("AiSignal")} style={({ pressed }) => [styles.signalPanel, { opacity: pressed ? 0.84 : 1 }]} testID="ai-card">
-      <View style={styles.panelTitleRow}><View><Text style={styles.panelTitle}>◉ SIGNAL TERRAIN</Text><Text style={{color:MUTED,fontSize:8,marginTop:2,letterSpacing:.7}}>GLOBAL FLOW · VERIFIED PUBLIC DATA</Text></View><Text style={styles.arrow}>›</Text></View>
       <View style={styles.terrain} testID="home-decision-stage">
         <View style={styles.gridH1}/><View style={styles.gridH2}/><View style={styles.gridV1}/><View style={styles.gridV2}/>
         <TerrainSignal variant="symbolic" signalStrength={strength} accessibilityLabel={signalAvailable ? "verified AI signal terrain" : "signal unavailable"} testID="home-signal-trace" />
         <View style={styles.signalPin}><View style={styles.pinDot}/><Text style={styles.pinLabel}>{signalAvailable ? "VERIFIED AI SIGNAL" : "NO VERIFIED SIGNAL"}</Text></View>
       </View>
-      <Text style={styles.signalThesis} numberOfLines={2}>{signalTitle}</Text>
-      <View style={styles.evidenceRail}>
-        <EvidenceRow label="WHY" value={decision.why} tone="lime" />
-        <EvidenceRow label="RESULT" value={decision.result} tone="lime" />
-        <EvidenceRow label="RISK" value={decision.risk} tone={decision.attention === "ACTION REQUIRED" ? "danger" : "neutral"} />
-        <View testID="home-supervisor-learning"><EvidenceRow label="LEARNING" value={decision.learning} /></View>
+      <View style={styles.hiddenDecisionEvidence} testID="home-supervisor-learning">
+        <Text>{decision.why}{decision.result}{decision.risk}{decision.learning}</Text>
       </View>
     </Pressable>
 
 
     <View testID="home-market-pulse">
       <View style={styles.marketStripHead}>
-        <Text style={styles.marketStripTitle}>MARKET PULSE</Text>
+        <Text style={styles.marketStripTitle}>주요 지표</Text>
         {/* Public market numbers carry their source on screen. A price with no stated origin is
             indistinguishable from a fabricated one, and PAPER PERFORMANCE already names its own. */}
         <Text style={styles.source}>{marketRows.length === 0 ? "UNAVAILABLE" : "UPBIT PUBLIC"}</Text>
@@ -240,8 +236,9 @@ const styles = StyleSheet.create({
   content:{paddingHorizontal:20,paddingTop:12,paddingBottom:38,gap:18,width:"100%",alignSelf:"center",backgroundColor:INK},
   topbar:{minHeight:68,flexDirection:"row",alignItems:"center",justifyContent:"space-between",paddingBottom:6},
   logo:{color:wealthProductColors.c08,fontSize:24,fontWeight:"700",letterSpacing:5.2},tagline:{color:wealthProductColors.c58,fontSize:7,fontWeight:"600",letterSpacing:2.1,marginTop:2},
-  modeWrap:{flexDirection:"row",alignItems:"center",gap:7},modeDot:{width:9,height:9,borderRadius:9,backgroundColor:LIME,shadowColor:LIME,shadowOpacity:.6,shadowRadius:8},
-  modeText:{color:wealthProductColors.c09,fontSize:10,fontWeight:"800",letterSpacing:.7},modeSub:{color:wealthProductColors.c10,fontSize:8,marginTop:2},
+  notificationGlyph:{width:34,height:34,alignItems:"center",justifyContent:"center",position:"relative"},
+  notificationBell:{width:14,height:15,borderWidth:1.4,borderColor:wealthProductColors.c08,borderTopLeftRadius:8,borderTopRightRadius:8,borderBottomLeftRadius:3,borderBottomRightRadius:3},
+  notificationClapper:{position:"absolute",bottom:7,width:4,height:2,borderRadius:2,backgroundColor:wealthProductColors.c08},
   accountHero:{paddingTop:22,paddingBottom:8,gap:18},
   accountHeroTop:{flexDirection:"row",alignItems:"flex-end",justifyContent:"space-between",gap:16},
   accountHeroValueBlock:{flex:1,minWidth:0},accountHeroEyebrow:{color:LIME,fontSize:9,fontWeight:"900",letterSpacing:1.5,marginBottom:6},
@@ -252,12 +249,12 @@ const styles = StyleSheet.create({
   accountHeroInsight:{borderWidth:1,borderColor:wealthProductColors.c24,borderRadius:20,paddingHorizontal:16,paddingVertical:15,gap:7,backgroundColor:wealthProductColors.c31},
   accountHeroInsightHead:{flexDirection:"row",alignItems:"center",justifyContent:"space-between"},accountHeroInsightLabel:{color:wealthProductColors.c06,fontSize:9,fontWeight:"900",letterSpacing:1.2},
   accountHeroInsightState:{fontSize:8,fontWeight:"900",letterSpacing:1},accountHeroInsightTitle:{color:wealthProductColors.c33,fontSize:15,lineHeight:20,fontWeight:"800"},
-  accountHeroInsightWhy:{color:MUTED,fontSize:9,lineHeight:14},
+  accountHeroInsightWhy:{color:MUTED,fontSize:10,lineHeight:14},homeConfidenceRow:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginTop:4},homeConfidenceValue:{color:wealthProductColors.c08,fontSize:18,fontWeight:"800",fontVariant:["tabular-nums"]},
   globeWrap:{width:172,height:174,marginRight:-4,alignItems:"center",justifyContent:"center",position:"relative"},globeGlow:{position:"absolute",width:152,height:152,borderRadius:152,backgroundColor:wealthProductColors.c13,opacity:.72,shadowColor:LIME,shadowOpacity:.22,shadowRadius:28},globeSphere:{width:152,height:152,borderRadius:152,borderWidth:1,borderColor:wealthProductColors.c14,backgroundColor:wealthProductColors.c15,overflow:"hidden",position:"relative"},globeLongitude:{position:"absolute",top:-2,bottom:-2,left:"50%",width:56,marginLeft:-28,borderRadius:56,borderWidth:1,borderColor:wealthProductColors.c16},globeLongitudeA:{transform:[{scaleX:.55}]},globeLongitudeB:{transform:[{scaleX:1.45}]},globeLatitude:{position:"absolute",left:-4,right:-4,height:46,borderRadius:80,borderWidth:1,borderColor:wealthProductColors.c17},globeLatitudeA:{top:15},globeLatitudeB:{top:48},globeLatitudeC:{top:81},globeLandA:{position:"absolute",left:77,top:35,width:34,height:18,borderRadius:8,backgroundColor:wealthProductColors.c18,transform:[{rotate:"-18deg"}]},globeLandB:{position:"absolute",left:67,top:54,width:20,height:35,borderRadius:7,backgroundColor:wealthProductColors.c19,transform:[{rotate:"17deg"}]},globeLandC:{position:"absolute",left:98,top:77,width:17,height:12,borderRadius:6,backgroundColor:wealthProductColors.c20},globeNode:{position:"absolute",width:4,height:4,borderRadius:4,backgroundColor:LIME,shadowColor:LIME,shadowOpacity:.9,shadowRadius:5},globeNodeA:{left:84,top:47},globeNodeB:{left:99,top:82},globeNodeC:{left:71,top:69},
   orbitText:{position:"absolute",right:2,bottom:8,color:wealthProductColors.c21,fontSize:7,lineHeight:10,fontWeight:"800",letterSpacing:.55,textAlign:"right"},
   marketStrip:{flexDirection:"row",gap:8},marketTile:{flex:1,minWidth:0,paddingVertical:12,paddingHorizontal:10,borderRadius:14,backgroundColor:PANEL},
   marketSymbol:{color:wealthProductColors.c22,fontSize:11,fontWeight:"800"},marketChange:{fontSize:14,fontWeight:"800",marginTop:7},marketPrice:{color:wealthProductColors.c23,fontSize:8,marginTop:5,fontVariant:["tabular-nums"]},
-  signalPanel:{borderWidth:1,borderColor:wealthProductColors.c24,borderRadius:24,backgroundColor:wealthProductColors.c25,overflow:"hidden"},
+  signalPanel:{borderWidth:0,borderColor:"transparent",borderRadius:0,backgroundColor:wealthProductColors.c25,overflow:"hidden"},
   panel:{borderWidth:1,borderColor:BORDER,borderRadius:18,backgroundColor:PANEL,overflow:"hidden"},
   panelTitleRow:{minHeight:56,paddingHorizontal:18,flexDirection:"row",alignItems:"center",justifyContent:"space-between"},
   marketStripHead:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",paddingHorizontal:2,paddingBottom:6},
@@ -267,6 +264,7 @@ const styles = StyleSheet.create({
   signalPin:{position:"absolute",left:"38%",bottom:24,alignItems:"center"},pinDot:{width:8,height:8,borderRadius:8,backgroundColor:wealthProductColors.c08,shadowColor:LIME,shadowOpacity:.9,shadowRadius:14},pinLabel:{marginTop:8,color:wealthProductColors.c57,fontSize:8,fontWeight:"800",backgroundColor:wealthProductColors.c31,paddingHorizontal:9,paddingVertical:5,borderRadius:999,borderWidth:1,borderColor:wealthProductColors.c24},
   signalThesis:{color:wealthProductColors.c33,fontSize:20,lineHeight:28,fontWeight:"700",paddingHorizontal:18,paddingTop:18,paddingBottom:14},
   evidenceRail:{paddingBottom:8},evidenceRow:{flexDirection:"row",gap:12,paddingHorizontal:18,paddingVertical:10,borderTopWidth:StyleSheet.hairlineWidth,borderTopColor:wealthProductColors.c34},evidenceLabel:{width:60,fontSize:9,fontWeight:"900",letterSpacing:.8},evidenceValue:{flex:1,color:wealthProductColors.c35,fontSize:10,lineHeight:15},
+  hiddenDecisionEvidence:{position:"absolute",width:1,height:1,opacity:0},
   signalRow:{minHeight:48,flexDirection:"row",alignItems:"center",paddingHorizontal:13,gap:10,borderBottomWidth:1,borderBottomColor:wealthProductColors.c34},rank:{width:22,height:22,borderRadius:22,borderWidth:1,borderColor:wealthProductColors.c36,color:wealthProductColors.c37,textAlign:"center",lineHeight:20,fontSize:9},asset:{color:wealthProductColors.c38,fontSize:13,fontWeight:"800",width:54},signalBadge:{borderWidth:1,borderRadius:5,paddingHorizontal:7,paddingVertical:4},signalBadgeText:{fontSize:8,fontWeight:"900"},rowChange:{marginLeft:"auto",fontSize:11,fontWeight:"800",fontVariant:["tabular-nums"]},
   empty:{color:MUTED,fontSize:10,padding:14},performanceGraph:{height:74,flexDirection:"row",alignItems:"flex-end",gap:3,paddingHorizontal:14,paddingTop:12,borderBottomWidth:1,borderBottomColor:BORDER},waveBar:{flex:1,minWidth:2,borderRadius:2},
   performanceMetrics:{flexDirection:"row",justifyContent:"space-between",paddingHorizontal:14,paddingVertical:14,gap:10},metricValue:{color:wealthProductColors.c39,fontSize:13,fontWeight:"800",fontVariant:["tabular-nums"]},metricLabel:{color:wealthProductColors.c40,fontSize:8,fontWeight:"700",marginTop:5},

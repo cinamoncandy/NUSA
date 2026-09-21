@@ -47,18 +47,21 @@ export function AiView({ai,research,health,liveAuthority,productionMutationAllow
       <View style={styles.titleMeta}><View style={styles.dot}/><Text style={styles.time}>{ai?.lastModelRun?new Date(ai.lastModelRun).toLocaleString("ko-KR"):"NO VERIFIED RUN"}</Text></View>
     </View>
 
-    <View style={[styles.assetHead,viewport.narrow?styles.assetHeadNarrow:null]} testID="ai-now">
-      <View style={styles.coin}><Text style={styles.coinText}>{symbol.slice(0,1)}</Text></View>
-      <View style={styles.assetName}><Text style={styles.symbol}>{symbol}</Text><Text style={styles.assetSub}>{market}</Text></View>
-      <View style={[styles.quote,viewport.narrow?styles.quoteNarrow:null]}><Text style={styles.price}>{currentPrice==null?"—":`₩${Math.round(currentPrice).toLocaleString("ko-KR")}`}</Text><Text style={styles.readOnly}>PUBLIC READ ONLY</Text></View>
+    <View style={styles.aiDecisionSummary} testID="ai-now">
+      <View style={styles.aiDecisionCopy}>
+        <Text style={styles.aiDecisionHeadline}>{thesis}</Text>
+        <Text style={styles.aiDecisionSub}>실제 검증 근거를 바탕으로 현재 방향성을 관찰합니다.</Text>
+      </View>
+      <View style={[styles.confidenceRing,{borderColor:signalAvailable?theme.colors.aiSignalMid:BORDER}]}>
+        <Text style={styles.confidenceLabel}>신뢰도</Text>
+        <Text style={[styles.confidenceValue,{color:signalAvailable?theme.colors.text:MUTED}]}>{trusted}</Text>
+      </View>
     </View>
-
-    <View style={styles.chips}><View style={[styles.chip,{backgroundColor:calibrated?wealthProductColors.c52:wealthProductColors.c53}]}><Text style={[styles.chipText,{color:calibrated?LIME:MUTED}]}>{calibrated?"CALIBRATED":"UNVERIFIED"}</Text></View><View style={styles.chip}><Text style={styles.chipText}>EVIDENCE {evidence.length}</Text></View><View style={styles.chip}><Text style={styles.chipText}>COUNTER {counter.length}</Text></View></View>
 
     <View style={styles.convergencePanel} testID="ai-convergence-signal">
       <View style={styles.convergenceHead}>
-        <View><Text style={styles.sectionTitle}>SIGNAL CONVERGENCE</Text><Text style={styles.convergenceSub}>OBSERVATION → EVIDENCE → VERIFIED JUDGEMENT</Text></View>
-        <Text style={[styles.convergenceState,{color:signalAvailable?LIME:MUTED}]}>{signalAvailable?"VERIFIED":"WAITING"}</Text>
+        <View><Text style={styles.sectionTitle}>AI 분석 진행 중</Text><Text style={styles.convergenceSub}>GATHER → ANALYZE → CONVERGE → DECIDE</Text></View>
+        <Text style={[styles.convergenceState,{color:signalAvailable?theme.colors.aiSignalEnd:MUTED}]}>{signalAvailable?"VERIFIED":"WAITING"}</Text>
       </View>
       <View style={styles.convergenceField}>
         <View style={[styles.flowAmbient,styles.flowAmbientPurple,{backgroundColor:theme.colors.neonPurple}]}/>
@@ -80,8 +83,9 @@ export function AiView({ai,research,health,liveAuthority,productionMutationAllow
         {convergenceStages.map((stage,index)=><View key={stage.label} style={styles.stageItem}>
           <View style={[styles.stageNode,{borderColor:stage.observed?LIME:BORDER,backgroundColor:stage.observed?LIME:INK}]}/>
           {index<convergenceStages.length-1?<View style={[styles.stageLink,{backgroundColor:stage.observed?wealthProductColors.c24:BORDER}]}/>:null}
-          <Text style={[styles.stageLabel,{color:stage.observed?wealthProductColors.c59:MUTED}]}>{stage.label}</Text>
-          <Text style={[styles.stageStatus,{color:stage.observed?LIME:MUTED}]}>{stage.observed?"OBSERVED":"WAITING"}</Text>
+          <Text style={[styles.stageNumber,{color:stage.observed?theme.colors.text:MUTED}]}>{index + 1}</Text>
+          <Text style={[styles.stageLabel,{color:stage.observed?wealthProductColors.c59:MUTED}]}>{stage.label==="GATHER"?"수집":stage.label==="ANALYZE"?"분석":stage.label==="VERIFY"?"검증":"판단"}</Text>
+          <Text style={[styles.stageStatus,{color:stage.observed?theme.colors.aiSignalEnd:MUTED}]}>{stage.observed?"완료":"대기"}</Text>
         </View>)}
       </View>
     </View>
@@ -124,8 +128,7 @@ const styles=StyleSheet.create({
  content:{paddingHorizontal:18,paddingTop:10,paddingBottom:34,gap:12,width:"100%",maxWidth:720,alignSelf:"center",backgroundColor:INK},
  dot:{width:8,height:8,borderRadius:8,backgroundColor:LIME},
  titleRow:{minHeight:72,flexDirection:"row",alignItems:"center",justifyContent:"space-between",borderBottomWidth:1,borderBottomColor:BORDER},titleRowNarrow:{height:"auto",minHeight:68,paddingVertical:10,flexWrap:"wrap",gap:6},pageEyebrow:{color:LIME,fontSize:8,fontWeight:"900",letterSpacing:1.25,marginBottom:5},pageTitle:{color:wealthProductColors.c59,fontSize:24,fontWeight:"900",letterSpacing:1.1},titleMeta:{flexDirection:"row",alignItems:"center",gap:7},time:{color:MUTED,fontSize:8},
- assetHead:{flexDirection:"row",alignItems:"center",paddingVertical:2,gap:11},assetHeadNarrow:{flexWrap:"wrap"},coin:{width:46,height:46,borderRadius:46,backgroundColor:wealthProductColors.c60,alignItems:"center",justifyContent:"center"},coinText:{color:wealthProductColors.c08,fontSize:20,fontWeight:"900"},assetName:{flex:1},symbol:{color:wealthProductColors.c61,fontSize:20,fontWeight:"800"},assetSub:{color:MUTED,fontSize:9,marginTop:3},quote:{alignItems:"flex-end"},quoteNarrow:{width:"100%",alignItems:"flex-start",paddingLeft:57},price:{color:wealthProductColors.c59,fontSize:20,fontWeight:"800",fontVariant:["tabular-nums"]},readOnly:{color:LIME,fontSize:8,fontWeight:"800",marginTop:4},
- chips:{flexDirection:"row",gap:7,flexWrap:"wrap"},chip:{borderWidth:1,borderColor:wealthProductColors.c62,borderRadius:6,paddingHorizontal:10,paddingVertical:7,backgroundColor:wealthProductColors.c63},chipText:{color:wealthProductColors.c64,fontSize:8,fontWeight:"900",letterSpacing:.5},
+ aiDecisionSummary:{flexDirection:"row",alignItems:"center",gap:16,paddingVertical:8},aiDecisionCopy:{flex:1,minWidth:0},aiDecisionHeadline:{color:wealthProductColors.c59,fontSize:24,lineHeight:33,fontWeight:"700",letterSpacing:-.5},aiDecisionSub:{color:MUTED,fontSize:10,lineHeight:16,marginTop:8},confidenceRing:{width:82,height:82,borderRadius:82,borderWidth:5,alignItems:"center",justifyContent:"center",backgroundColor:wealthProductColors.c31},confidenceLabel:{color:MUTED,fontSize:8,fontWeight:"800"},confidenceValue:{fontSize:18,fontWeight:"900",marginTop:2,fontVariant:["tabular-nums"]},
  convergencePanel:{backgroundColor:INK},
  convergenceHead:{minHeight:58,paddingHorizontal:4,flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:12},convergenceSub:{color:MUTED,fontSize:7,fontWeight:"800",letterSpacing:.55,marginTop:4},convergenceState:{fontSize:9,fontWeight:"900",letterSpacing:1},
  convergenceField:{height:300,position:"relative",overflow:"hidden",backgroundColor:wealthProductColors.c28,borderWidth:1,borderColor:wealthProductColors.c24,borderRadius:24},
@@ -136,7 +139,7 @@ const styles=StyleSheet.create({
  flowCoreOuter:{position:"absolute",right:"12%",top:"36%",width:66,height:66,borderRadius:66,borderWidth:1,alignItems:"center",justifyContent:"center",backgroundColor:wealthProductColors.c31},
  flowCore:{width:10,height:10,borderRadius:10,shadowOpacity:.9,shadowRadius:18},
  convergenceLabel:{position:"absolute",right:18,bottom:20,paddingHorizontal:11,paddingVertical:6,borderWidth:1,borderColor:wealthProductColors.c24,borderRadius:999,backgroundColor:wealthProductColors.c31},convergenceLabelText:{fontSize:8,fontWeight:"900",letterSpacing:.8},
- stageRail:{minHeight:90,flexDirection:"row",paddingHorizontal:4,paddingTop:14,paddingBottom:10},stageItem:{flex:1,alignItems:"center",position:"relative"},stageNode:{width:10,height:10,borderRadius:10,borderWidth:2,zIndex:2},stageLink:{position:"absolute",top:4,left:"55%",width:"90%",height:1},stageLabel:{fontSize:8,fontWeight:"900",letterSpacing:.55,marginTop:10},stageStatus:{fontSize:7,fontWeight:"900",marginTop:4},
+ stageRail:{minHeight:196,flexDirection:"column",paddingHorizontal:4,paddingTop:14,paddingBottom:10,gap:8},stageItem:{minHeight:40,flexDirection:"row",alignItems:"center",position:"relative",borderWidth:1,borderColor:BORDER,borderRadius:10,paddingHorizontal:12,gap:10,backgroundColor:PANEL},stageNode:{width:8,height:8,borderRadius:8,borderWidth:1,zIndex:2},stageLink:{display:"none"},stageNumber:{width:22,height:22,borderRadius:22,borderWidth:1,borderColor:BORDER,textAlign:"center",lineHeight:20,fontSize:9,fontWeight:"900"},stageLabel:{flex:1,fontSize:10,fontWeight:"900",letterSpacing:.35,marginTop:0},stageStatus:{fontSize:8,fontWeight:"900",marginTop:0},
  analysis:{borderWidth:1,borderColor:BORDER,borderRadius:18,backgroundColor:PANEL,overflow:"hidden"},analysisHeader:{height:48,paddingHorizontal:14,flexDirection:"row",alignItems:"center",justifyContent:"space-between",borderBottomWidth:1,borderBottomColor:BORDER},sectionTitle:{color:wealthProductColors.c59,fontSize:14,fontWeight:"900",letterSpacing:1},chevron:{color:MUTED,fontSize:22},
  analysisRow:{minHeight:82,flexDirection:"row",gap:15,paddingHorizontal:14,paddingVertical:14,borderBottomWidth:1,borderBottomColor:wealthProductColors.c65},analysisRowNarrow:{minHeight:0,flexDirection:"column",gap:6},analysisLabel:{width:66,fontSize:11,fontWeight:"900",letterSpacing:.7},analysisLabelNarrow:{width:"100%"},analysisValue:{flex:1,color:wealthProductColors.c66,fontSize:11,lineHeight:17},analysisValueNarrow:{flexGrow:0,width:"100%"},
  chartPanel:{borderTopWidth:1,borderTopColor:BORDER},periods:{height:45,flexDirection:"row",alignItems:"center",gap:25},period:{height:45,lineHeight:44,borderBottomWidth:2,borderBottomColor:"transparent",color:MUTED,fontSize:9,fontWeight:"800"},
