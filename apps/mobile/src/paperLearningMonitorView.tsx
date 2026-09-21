@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import { NusaButton } from "./components";
+import { NusaButton, TerrainSignal } from "./components";
 import { useTheme } from "./ThemeProvider";
 import type { PaperLearningScreenState, PaperLearningUiEvent } from "./paperLearningScreen";
 import { AuthorityRail, FactRow, IntelligenceSection, MetricStrip, StateNotice, type IntelligenceTone } from "./intelligenceOs";
@@ -123,6 +123,8 @@ function PaperReportHero({ state }: Readonly<{ state: PaperLearningScreenState }
     { label: "FILL", observed: state.latestFill != null },
     { label: "LEARNING", observed: state.latestEvidence != null },
   ] as const;
+  const observedCount = stages.filter((stage) => stage.observed).length;
+  const evidenceStrength = 0.25 + (observedCount / stages.length) * 0.75;
 
   return <View style={[styles.reportHero, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.borderStrong }]} testID="paper-report-hero">
     <View style={styles.reportHeroTop}>
@@ -131,6 +133,13 @@ function PaperReportHero({ state }: Readonly<{ state: PaperLearningScreenState }
         <Text style={[styles.reportMeta, { color: theme.colors.textMuted }]}>{state.status} · {state.dataSource}</Text>
       </View>
       <Text style={[styles.reportSource, { color: theme.colors.textMuted }]}>PAPER ONLY</Text>
+    </View>
+    <View style={styles.paperVisual} testID="paper-evidence-terrain">
+      <TerrainSignal variant="symbolic" signalStrength={evidenceStrength} accessibilityLabel="verified PAPER evidence terrain" />
+      <View style={styles.paperVisualCaption}>
+        <Text style={[styles.paperVisualKicker, { color: theme.colors.aiSignalEnd }]}>EVIDENCE TERRAIN</Text>
+        <Text style={[styles.paperVisualMeta, { color: theme.colors.textMuted }]}>{observedCount}/{stages.length} VERIFIED STAGES</Text>
+      </View>
     </View>
     <View style={styles.reportNumbers}>
       <View style={styles.reportPrimary}>
@@ -335,7 +344,7 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { width: "100%", maxWidth: 1080, alignSelf: "center", paddingHorizontal: 20, paddingTop: 10, paddingBottom: 96, gap: 14 },
-  commandHero: { borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingTop: 10, paddingBottom: 12, gap: 8 },
+  commandHero: { paddingTop: 12, paddingBottom: 16, gap: 14 },
   commandHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 14 },
   commandTitleWrap: { flex: 1, minWidth: 0 },
   commandEyebrow: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.25 },
@@ -347,15 +356,19 @@ const styles = StyleSheet.create({
   truthRail: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 9, flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 8 },
   truthText: { fontSize: 7, lineHeight: 10, fontWeight: "800", letterSpacing: 0.7 },
   eyebrow: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.15 },
-  reportHero: { borderWidth: 1, borderRadius: 9, overflow: "hidden" },
-  reportHeroTop: { minHeight: 52, paddingHorizontal: 14, paddingVertical: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  reportHero: { borderWidth: 1, borderRadius: 24, overflow: "hidden" },
+  reportHeroTop: { minHeight: 62, paddingHorizontal: 18, paddingVertical: 13, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   reportEyebrow: { fontSize: 11, lineHeight: 15, fontWeight: "900", letterSpacing: 1.15 },
   reportMeta: { marginTop: 3, fontSize: 9, lineHeight: 13, fontWeight: "700" },
   reportSource: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 0.8 },
-  reportNumbers: { flexDirection: "row", alignItems: "flex-end", gap: 16, paddingHorizontal: 14, paddingTop: 16, paddingBottom: 14 },
+  paperVisual: { height: 238, position: "relative", overflow: "hidden" },
+  paperVisualCaption: { position: "absolute", left: 18, bottom: 16, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, backgroundColor: "rgba(5,6,11,0.76)", borderWidth: StyleSheet.hairlineWidth, borderColor: "#27314B" },
+  paperVisualKicker: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 1.05 },
+  paperVisualMeta: { marginTop: 2, fontSize: 7, lineHeight: 10, fontWeight: "800", letterSpacing: 0.45 },
+  reportNumbers: { flexDirection: "row", alignItems: "flex-end", gap: 18, paddingHorizontal: 18, paddingTop: 18, paddingBottom: 16 },
   reportPrimary: { flex: 1.5, minWidth: 0 },
   reportSecondary: { flex: 1, minWidth: 0 },
-  reportValue: { fontSize: 28, lineHeight: 34, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  reportValue: { fontSize: 34, lineHeight: 40, fontWeight: "800", letterSpacing: -1, fontVariant: ["tabular-nums"] },
   reportSecondaryValue: { fontSize: 14, lineHeight: 19, fontWeight: "900", fontVariant: ["tabular-nums"] },
   reportLabel: { marginTop: 4, fontSize: 8, lineHeight: 12, fontWeight: "900", letterSpacing: 0.85 },
   reportCycle: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14, paddingVertical: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
