@@ -79,7 +79,9 @@ test("Portfolio and AI use decision-first information hierarchy", () => {
 
   assert.match(ai, /testID="ai-screen"/);
   assert.match(ai, /SIGNAL DETAIL/);
-  assert.match(ai, /testID="ai-convergence-signal"/);\n  assert.match(ai, /testID="ai-stage-timeline"/);\n  assert.match(ai, /testID="ai-thesis-card"/);
+  assert.match(ai, /testID="ai-convergence-signal"/);
+  assert.match(ai, /testID="ai-stage-timeline"/);
+  assert.match(ai, /testID="ai-thesis-card"/);
   assert.match(ai, /testID="ai-why"/);
   assert.match(ai, /testID="ai-result"/);
   assert.match(ai, /testID="ai-risk"/);
