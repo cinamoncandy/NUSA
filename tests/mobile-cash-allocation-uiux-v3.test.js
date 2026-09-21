@@ -31,13 +31,9 @@ test("cash allocation remains a first-class PAPER contract without cluttering ca
   assert.match(app, /investmentPercent=\{investmentPercent\}/);
   assert.match(home, /readonly investmentPercent: number/);
   assert.match(home, /testID="account-hero-card"/);
-  assert.match(home, /PAPER PERFORMANCE/);
-  assert.match(home, /testID="home-investable-cash"/);
-  assert.match(home, /testID="home-reserved-cash"/);
-  const capitalLimits = home.indexOf('testID="home-capital-limits"');
-  const investable = home.indexOf('testID="home-investable-cash"');
-  const reserved = home.indexOf('testID="home-reserved-cash"');
-  assert.ok(capitalLimits >= 0 && investable > capitalLimits && reserved > capitalLimits, "allocation detail must live inside CAPITAL LIMITS");
+  assert.match(home, /PAPER Equity/);
+  assert.match(home, /testID="home-system-status"/);
+  assert.doesNotMatch(home, /testID="home-investable-cash"|testID="home-reserved-cash"|testID="home-capital-limits"/);
   assert.match(portfolio, /portfolio-investable-cash/);
   assert.match(trading, /const cashEnvelope = createCashInvestmentEnvelope\(effectiveSnapshot\.account\.cash, investmentPercent\)/);
   assert.match(trading, /const modelCash = side === "BUY" \? cashEnvelope\.investableCash : effectiveSnapshot\.account\.cash/);
