@@ -8,7 +8,7 @@ const navigation = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/m
 
 test("visible mobile navigation exposes supervision and AI jobs while retaining existing screen routes", () => {
   assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\]/);
-  assert.match(app, /Home: "HOME", Markets: "MARKETS", Paper: "PAPER", Portfolio: "PORTFOLIO", AiSignal: "AI"/);
+  assert.match(app, /Home: "HOME", Markets: "MARKETS", Paper: "PAPER", Portfolio: "PORTFOLIO", AiSignal: "AI SIGNAL"/);
   assert.match(app, /Home: "현재 NUSA 상태", Markets: "공개 시장 환경", Paper: "PAPER 운용", Portfolio: "PAPER 자산과 결과", AiSignal: "AI 판단과 근거"/);
   assert.match(app, /testID="primary-navigation"/);
   assert.doesNotMatch(app, /Markets: "MARKET", Paper: "TRADE"/);
