@@ -44,6 +44,19 @@ function githubFetch(dispatchStatus = 204): typeof fetch {
         headers: { "content-type": "application/json" },
       });
     }
+    if (url.includes("/actions/workflows/ci.yml/runs?")) {
+      return new Response(JSON.stringify({ workflow_runs: [{
+        id: RUN_ID,
+        name: "CI",
+        conclusion: "success",
+        head_branch: "main",
+        head_sha: SHA,
+        event: "push",
+      }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
     if (url.includes("/actions/runs?")) {
       return new Response(JSON.stringify({ workflow_runs: [{
         id: RUN_ID,
@@ -102,6 +115,16 @@ test("scheduled runtime discovers fresh failed main workflow evidence without di
     if (url.endsWith("/branches/main")) {
       return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200, headers: { "content-type": "application/json" } });
     }
+    if (url.includes("/actions/workflows/ci.yml/runs?")) {
+      return new Response(JSON.stringify({ workflow_runs: [{
+        id: RUN_ID,
+        name: "CI",
+        conclusion: "success",
+        head_branch: "main",
+        head_sha: SHA,
+        event: "push",
+      }] }), { status: 200, headers: { "content-type": "application/json" } });
+    }
     if (url.includes("/actions/runs?")) {
       return new Response(JSON.stringify({ workflow_runs: [
         {
@@ -150,6 +173,11 @@ test("scheduled runtime excludes stale failed workflow evidence", async () => {
     if (url.endsWith("/branches/main")) {
       return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200, headers: { "content-type": "application/json" } });
     }
+    if (url.includes("/actions/workflows/ci.yml/runs?")) {
+      return new Response(JSON.stringify({ workflow_runs: [
+        { id: RUN_ID, name: "CI", conclusion: "success", head_branch: "main", head_sha: SHA, event: "push" },
+      ] }), { status: 200, headers: { "content-type": "application/json" } });
+    }
     if (url.includes("/actions/runs?")) {
       return new Response(JSON.stringify({ workflow_runs: [
         { id: RUN_ID, name: "CI", conclusion: "success", head_branch: "main", head_sha: SHA, event: "push" },
@@ -178,18 +206,18 @@ test("scheduled runtime cannot bypass persistent dedupe", async () => {
   assert.equal(outcome.reason, "ALREADY_DISPATCHED");
 });
 
-test("scheduled runtime finds exact-main CI even when general completed-run page is saturated by workflow noise", async () => {
+test("scheduled runtime accepts exact-main canonical CI from workflow_dispatch despite repository workflow noise", async () => {
   const base = githubFetch();
   const noisyFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
-    if (url.includes("/actions/runs?") && url.includes("event=push")) {
+    if (url.includes("/actions/workflows/ci.yml/runs?")) {
       return new Response(JSON.stringify({ workflow_runs: [{
         id: RUN_ID,
         name: "CI",
         conclusion: "success",
         head_branch: "main",
         head_sha: SHA,
-        event: "push",
+        event: "workflow_dispatch",
       }] }), { status: 200, headers: { "content-type": "application/json" } });
     }
     if (url.includes("/actions/runs?")) {
@@ -221,6 +249,9 @@ test("scheduled runtime fails closed when latest main lacks exact canonical CI e
     const url = String(input);
     if (url.endsWith("/branches/main")) {
       return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (url.includes("/actions/workflows/ci.yml/runs?")) {
+      return new Response(JSON.stringify({ workflow_runs: [{ id: RUN_ID, name: "CI", conclusion: "success", head_branch: "main", head_sha: FAILED_SHA, event: "push" }] }), { status: 200, headers: { "content-type": "application/json" } });
     }
     if (url.includes("/actions/runs?")) {
       return new Response(JSON.stringify({ workflow_runs: [{ id: RUN_ID, name: "CI", conclusion: "success", head_branch: "main", head_sha: FAILED_SHA, event: "push" }] }), { status: 200, headers: { "content-type": "application/json" } });
