@@ -25,3 +25,19 @@ test("narrow responsive behavior does not change AI authority", () => {
   assert.match(ai, /SIGNAL IS READ ONLY/);
   assert.doesNotMatch(ai, /ORDER_CREATE|LIVE_EXECUTION|onSubmit|productionMutationAllowed:\s*true/);
 });
+
+test("Signal Detail makes truthful convergence the visual hero without duplicate product chrome", () => {
+  const ai = read("src/aiView.tsx");
+  assert.match(ai, /testID="ai-convergence-signal"/);
+  assert.match(ai, /testID="ai-stage-timeline"/);
+  assert.match(ai, /SIGNAL CONVERGENCE/);
+  assert.match(ai, /OBSERVATION → EVIDENCE → VERIFIED JUDGEMENT/);
+  assert.match(ai, /GATHER/);
+  assert.match(ai, /ANALYZE/);
+  assert.match(ai, /VERIFY/);
+  assert.match(ai, /DECIDE/);
+  assert.match(ai, /stage\.observed\?"OBSERVED":"WAITING"/);
+  assert.doesNotMatch(ai, /<View style=\{styles\.topbar\}>/);
+  assert.match(ai, /watchButton:\{minHeight:48,borderWidth:1,borderColor:LIME/);
+  assert.match(ai, /backgroundColor:"transparent"/);
+});
