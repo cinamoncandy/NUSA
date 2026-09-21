@@ -1167,9 +1167,18 @@ export class PaperTradingExecutionLoop {
           updatedAt: tick.now,
         });
         opened = markToMarket(opened, tick.market, tick.price, tick.now);
-        try { this.repository?.save(opened); } catch { return this.result("FAILED", "paper account persistence failed"); }
+        // OPEN and its first automatic fill are one logical strategy tick. Persist only the
+        // resulting state so immutable account history never receives two different snapshots
+        // with the same canonical updatedAt. advanceStrategyWorkingOrder persists every
+        // successful WAIT/FILLED continuation itself.
+        const durableStateBeforeOpen = this.state;
         this.state = opened;
-        return this.advanceStrategyWorkingOrder(id, tick);
+        const advanced = this.advanceStrategyWorkingOrder(id, tick);
+        if ((advanced.status === "FAILED" || advanced.status === "REJECTED" || advanced.status === "BLOCKED") && this.state === opened) {
+          this.state = durableStateBeforeOpen;
+          return Object.freeze({ ...advanced, state: this.state });
+        }
+        return advanced;
       }
       let order: ReturnType<typeof executeOrder>;
       try { order = executeOrder(working, key, tick.market, side, quantity, tick.price, tick.now, this.executionProfile, undefined, candidateProvenance, tick.price, tick.observedQuote, canonicalExecutionIntent); }
