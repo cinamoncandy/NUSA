@@ -298,7 +298,7 @@ export function validatePersonalPaperOperationsSnapshot(snapshot: PersonalPaperO
   finite(snapshot.generatedAt, "generatedAt");
   finite(now, "now");
   if (!Number.isFinite(maximumAgeMs) || maximumAgeMs < 0) throw new Error("maximumAgeMs must be non-negative");
-  if (snapshot.generatedAt > now) throw new Error("personal PAPER operations snapshot is from the future");
+  if (snapshot.generatedAt - now > maximumAgeMs) throw new Error("personal PAPER operations snapshot is from the future");
   if (now - snapshot.generatedAt > maximumAgeMs) throw new Error("personal PAPER operations snapshot is stale");
   validateDashboard(snapshot.dashboard);
   validateResearch(snapshot.research);
