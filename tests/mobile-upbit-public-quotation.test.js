@@ -139,7 +139,7 @@ test("App keeps public Markets state independent from PAPER configuration and ex
   assert.match(app, /loadUpbitPublicCandles/);
   assert.match(app, /status: "STALE"/);
   assert.match(app, /PUBLIC_REFRESH_INTERVAL_MS = 30_000/);
-  assert.match(app, /const requiresDashboardConnection = notConfigured !== null && utilityView === null && activeTab === "Order";/);
+  assert.match(app, /const requiresDashboardConnection = notConfigured !== null && utilityView === null && activeTab === "Order" && !isLocalPaperActive\(\);/);
   assert.match(app, /activeTab === "Markets" \? <MarketsView/);
   assert.match(app, /publicMarkets.status === "ERROR"/);
   assert.match(app, /marketsStale={publicMarkets.status === "STALE"}/);

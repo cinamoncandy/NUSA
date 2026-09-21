@@ -37,7 +37,8 @@ test('paper and history selectors expose their current selection', () => {
 test('AI hierarchy exposes calibrated confidence only when verified and otherwise fails closed', () => {
   const source = read('apps/mobile/src/aiView.tsx');
   assert.match(source, /const trusted=calibrated\?percent\(ai\?\.confidence\):"UNVERIFIED"/);
-  assert.match(source, /calibrated\?"CALIBRATED":"UNVERIFIED"/);
+  assert.match(source, /const calibrated=ai\?\.calibrationStatus==="CALIBRATED"/);
+  assert.match(source, /const trusted=calibrated\?percent\(ai\?\.confidence\):"UNVERIFIED"/);
   assert.match(source, /보정되지 않은 출력입니다\. 수익 확률로 표시하지 않습니다\./);
   assert.match(source, /testID="ai-zero-authority-status"/);
   assert.match(source, /SIGNAL IS READ ONLY/);

@@ -17,7 +17,7 @@ test("App shell routes the canonical five-tab decision flow and preserves deeper
   assert.match(app, /type Tab = PrimaryTab/);
   assert.match(app, /<HomeView/);
   assert.match(app, /activeTab === "Paper"/);
-  assert.match(app, /<TradingView/);
+  assert.match(app, /<PaperOrderView/);
   assert.match(app, /activeTab === "AiSignal" \? <AiView/);
   assert.match(app, /accessibilityRole="tablist"/);
   assert.match(app, /StatusChip label="PAPER ONLY"/);
@@ -32,7 +32,7 @@ test("Home uses the approved intelligence hierarchy and keeps AI read-only", () 
   assert.match(source, /testID="account-hero-card"/);
   assert.match(source, /TOTAL P&L/);
   assert.match(source, />EQUITY<\/Text>/);
-  assert.match(source, /SIGNAL TERRAIN/);
+  assert.match(source, /\{signalAvailable ? "VERIFIED AI SIGNAL" : "NO VERIFIED SIGNAL"\}/);
   assert.match(source, /<EvidenceRow label="WHY"/);
   assert.match(source, /<EvidenceRow label="RESULT"/);
   assert.match(source, /<EvidenceRow label="RISK"/);

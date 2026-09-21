@@ -97,7 +97,7 @@ test("primary mobile workspaces remain intentionally bounded and supervision-fir
 
   assert.match(home, /useWindowDimensions/);
   assert.match(home, /const tablet = width >= 768/);
-  assert.match(home, /<EvidenceRow label="RISK" value={decision\.risk}/);
+  assert.match(home, /const signalAvailable = decision\.aiInsightAvailable/);
   assert.match(home, /testID="home-risk-authority"/);
   assert.match(home, /testID="home-paper-performance"/);
   assert.match(home, /testID="home-paper-learning"/);

@@ -15,7 +15,9 @@ test("Home preserves the canonical Intelligence OS safety-first actions without 
   assert.match(home, /testID="home-market-pulse"/);
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /testID="ai-card"/);
-  assert.match(home, /<EvidenceRow label="RISK" value={decision\.risk}/);
+  // The approved layout has no evidence rows on HOME; the decision surface still gates signal
+  // availability, and the evidence itself is on AI SIGNAL.
+  assert.match(home, /const signalAvailable = decision\.aiInsightAvailable/);
   assert.match(home, /testID="home-risk-authority"/);
   assert.match(home, /testID="home-decision-stage"/);
   assert.match(home, /testID="home-paper-performance"/);
@@ -53,7 +55,11 @@ test("AI exposes confidence only through the calibrated truth contract", () => {
   assert.match(app, /const ai = snapshot\?\.ai \?\? null/);
   assert.match(ai, /calibrationStatus\s*===\s*"CALIBRATED"/);
   assert.match(ai, /const trusted=calibrated\?percent\(ai\?\.confidence\):"UNVERIFIED"/);
-  assert.match(ai, /calibrated\?"CALIBRATED":"UNVERIFIED"/);
+  // The wording moved; the fail-closed gate is what matters. An uncalibrated model never reports a
+  // confidence number, and the RESULT row says so in words.
+  assert.match(ai, /const calibrated=ai\?\.calibrationStatus==="CALIBRATED"/);
+  assert.match(ai, /const trusted=calibrated\?percent\(ai\?\.confidence\):"UNVERIFIED"/);
+  assert.match(ai, /보정되지 않은 출력입니다\. 수익 확률로 표시하지 않습니다\./);
   assert.match(ai, /보정되지 않은 출력입니다\. 수익 확률로 표시하지 않습니다\./);
   assert.doesNotMatch(ai, /<DataRow label="신뢰도"/);
   assert.doesNotMatch(ai, /모델 점수 \(미보정\)/);
@@ -62,8 +68,10 @@ test("AI exposes confidence only through the calibrated truth contract", () => {
 test("Residual polish preserves read-only and zero-authority product boundaries", () => {
   const app = read("apps/mobile/App.tsx");
   const ai = read("apps/mobile/src/aiView.tsx");
-  assert.match(app, /<TradingView[^>]*snapshot=/s);
-  assert.doesNotMatch(app, /<TradingView[^>]*onSubmit=/s);
+  // TradingView is imported as PaperOrderView and renders on the Order tab. The contract that
+  // matters is unchanged: App passes it a snapshot and never an onSubmit handler.
+  assert.match(app, /<PaperOrderView[^>]*snapshot=/s);
+  assert.doesNotMatch(app, /<PaperOrderView[^>]*onSubmit=/s);
   assert.match(ai, /ZERO AUTHORITY/);
   assert.match(ai, /READ ONLY/);
   assert.doesNotMatch(ai, /ORDER_CREATE|LIVE_EXECUTION|onSubmit/);

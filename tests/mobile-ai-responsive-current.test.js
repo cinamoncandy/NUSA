@@ -36,7 +36,10 @@ test("Signal Detail makes truthful convergence the visual hero without duplicate
   assert.match(ai, /ANALYZE/);
   assert.match(ai, /VERIFY/);
   assert.match(ai, /DECIDE/);
-  assert.match(ai, /stage\.observed\?"OBSERVED":"WAITING"/);
+  // The status wording is Korean now. The contract is that every stage status is driven by
+  // stage.observed and never asserted unconditionally.
+  assert.match(ai, /\{stage\.observed\?"완료":"대기"\}/);
+  assert.match(ai, /\{ label: "VERIFY", observed: calibrated && evidence\.length > 0 \}/);
   assert.doesNotMatch(ai, /<View style=\{styles\.topbar\}>/);
   assert.match(ai, /watchButton:\{minHeight:48,borderWidth:1,borderColor:wealthProductColors\.c24/);
   assert.match(ai, /backgroundColor:"transparent"/);

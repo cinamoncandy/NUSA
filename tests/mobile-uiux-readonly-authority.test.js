@@ -45,8 +45,10 @@ test("production PAPER is supervision-only while legacy PAPER execution remains 
   const app = read("App.tsx");
   const trading = read("src/tradingView.tsx");
   const legacyTrading = read("src/tradingViewLegacy.tsx");
-  assert.match(app, /<TradingView[^>]*snapshot=/s);
-  assert.doesNotMatch(app, /<TradingView[^>]*onSubmit=/s);
+  // TradingView is imported as PaperOrderView and renders on the Order tab. The contract that
+  // matters is unchanged: App passes it a snapshot and never an onSubmit handler.
+  assert.match(app, /<PaperOrderView[^>]*snapshot=/s);
+  assert.doesNotMatch(app, /<PaperOrderView[^>]*onSubmit=/s);
   assert.match(trading, /PaperLearningMonitorView/);
   assert.match(trading, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
   assert.doesNotMatch(trading, /<LegacyTradingView \{\.\.\.props\} \/>/);

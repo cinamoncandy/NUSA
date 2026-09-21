@@ -12,7 +12,10 @@ test("production PAPER monitors autonomous learning while legacy local simulator
   const legacy = read("apps/mobile/src/tradingViewLegacy.tsx");
   const ledger = read("apps/mobile/src/localPaperLedger.ts");
 
-  assert.match(app, /activeTab === "Paper" \? <TradingView/);
+  // The Paper tab is now the supervision monitor and the order form moved to the Order tab, which
+  // is what this test is named for.
+  assert.match(app, /activeTab === "Paper" \? <PaperLearningMonitorView/);
+  assert.match(app, /activeTab === "Order" \? <PaperOrderView/);
   assert.match(shell, /PaperLearningMonitorView/);
   assert.doesNotMatch(shell, /<LegacyTradingView \{\.\.\.props\} \/>/);
   assert.doesNotMatch(shell, /priceInput|quantityInput|PAPER 주문 확정|placeLocalPaperOrder/);
