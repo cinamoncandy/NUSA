@@ -10,6 +10,7 @@ import { guardCashInvestmentAllocation } from "../../mobile/src/capitalAllocatio
 import { assertPaperAccountingReconciled } from "./paperAccountingLedger";
 import { createPaperOrderLifecycle, transitionPaperOrderLifecycle, validatePaperOrderLifecycle, type PaperOrderLifecycleState } from "./paperOrderLifecycle";
 import { paperExecutionIntentCommandId, validatePaperExecutionIntent, type PaperExecutionIntent } from "./paperExecutionIntent";
+import { buildPaperOrderBookExecutionReceipt, validatePaperOrderBookExecutionReceipt, type PaperOrderBookExecutionReceipt } from "./paperOrderBookExecution";
 
 const ACCOUNT_ID = "paper-default";
 const SCHEMA_VERSION = 1;
@@ -116,8 +117,10 @@ export interface PaperFillRecord {
   /** Immutable execution-model identity for canonical working-order fills. */
   readonly executionProfileFingerprintSha256?: string;
   readonly executionEngineVersion?: PaperExecutionProfile["engineVersion"];
-  /** Canonical public order-book receipt retained with the fill for restart-safe attribution. */
+  /** Canonical public best-quote receipt retained with the fill for restart-safe attribution. */
   readonly orderBookQuoteReceipt?: PaperOrderBookQuoteReceipt;
+  /** Derived depth/VWAP execution facts. Stores only consumed levels, never the full raw book. */
+  readonly orderBookExecutionReceipt?: PaperOrderBookExecutionReceipt;
   /** Point-in-time candidate binding copied from the exact CIO decision that caused this strategy fill. */
   readonly candidateProvenance?: PaperFillCandidateProvenance;
   /** Canonical PortfolioPlan-derived execution intent that crossed the risk boundary. */
@@ -460,14 +463,33 @@ function validateState(state: PaperAccountState): void {
       catch (error) { throw new Error(`paper fill order-book quote receipt is invalid: ${error instanceof Error ? error.message : "unknown error"}`); }
     }
     validateFillCandidateProvenance(fill);
+    let intent: PaperExecutionIntent | undefined;
     if (fill.executionIntent != null) {
-      const intent = validatePaperExecutionIntent(fill.executionIntent);
-      if (intent.market !== fill.market || intent.side !== fill.side || intent.quantity !== fill.quantity) throw new Error("paper fill execution intent mismatch");
+      intent = validatePaperExecutionIntent(fill.executionIntent);
+      if (intent.market !== fill.market || intent.side !== fill.side) throw new Error("paper fill execution intent mismatch");
       if (fill.candidateProvenance == null ||
           intent.candidateId !== fill.candidateProvenance.binding.candidateId ||
           intent.candidateBindingFingerprintSha256 !== fill.candidateProvenance.binding.bindingFingerprintSha256) {
         throw new Error("paper fill execution intent provenance mismatch");
       }
+    }
+    if (fill.orderBookExecutionReceipt != null) {
+      if (fill.orderBookQuoteReceipt == null) throw new Error("paper depth execution requires order-book quote receipt");
+      try {
+        validatePaperOrderBookExecutionReceipt(fill.orderBookExecutionReceipt, {
+          market: fill.market,
+          side: fill.side,
+          filledQuantity: fill.quantity,
+          fillPrice: fill.price,
+          quoteReceipt: fill.orderBookQuoteReceipt,
+          ...(intent == null ? {} : { intentQuantity: intent.quantity }),
+          ...(intent?.side === "BUY" ? { allocationCapital: intent.allocationCapital } : {}),
+        });
+      } catch (error) {
+        throw new Error(`paper fill order-book execution receipt is invalid: ${error instanceof Error ? error.message : "unknown error"}`);
+      }
+    } else if (intent != null && intent.quantity !== fill.quantity) {
+      throw new Error("paper fill execution intent mismatch");
     }
     validateRuntimeExecutionCostEvidence(fill);
     validateObservedExecutionCostAttribution(fill);
@@ -869,10 +891,24 @@ function cloneState(state: PaperAccountState): PaperAccountState { return { ...s
 function executeOrder(state: PaperAccountState, key: string, market: string, side: "BUY" | "SELL", quantity: number, price: number, now: number, executionProfile: PaperExecutionProfile, requestFingerprint?: string, candidateProvenance?: PaperFillCandidateProvenance, quotePrice?: number, observedQuote?: PaperObservedExecutionQuote, executionIntent?: PaperExecutionIntent): { state: PaperAccountState; order: PaperOrderRecord; fill: PaperFillRecord } {
   const canonicalObservedQuote = observedQuote == null ? undefined : validatePaperObservedExecutionQuote(observedQuote, market, now);
   const requestedQuantity = quantity;
-  const modeled = deterministicFill(executionProfile, side, requestedQuantity, price);
-  if (modeled.quantity !== requestedQuantity) throw new Error("PAPER_PARTIAL_FILL_REQUIRES_WORKING_ORDER");
-  quantity = modeled.quantity;
-  price = modeled.price;
+  let orderBookExecutionReceipt: PaperOrderBookExecutionReceipt | undefined;
+  if (canonicalObservedQuote?.depth != null && canonicalObservedQuote.depthFingerprintSha256 != null) {
+    orderBookExecutionReceipt = buildPaperOrderBookExecutionReceipt({
+      quote: canonicalObservedQuote,
+      side,
+      requestedQuantity,
+      filledAt: now,
+      ...(executionIntent?.side === "BUY" ? { maximumNotional: executionIntent.allocationCapital } : {}),
+      maximumFillRatio: executionProfile.maxFillRatio,
+    });
+    quantity = orderBookExecutionReceipt.filledQuantity;
+    price = orderBookExecutionReceipt.vwapPrice;
+  } else {
+    const modeled = deterministicFill(executionProfile, side, requestedQuantity, price);
+    if (modeled.quantity !== requestedQuantity) throw new Error("PAPER_PARTIAL_FILL_REQUIRES_WORKING_ORDER");
+    quantity = modeled.quantity;
+    price = modeled.price;
+  }
   const positions = state.positions.map((item) => ({ ...item }));
   const index = positions.findIndex((item) => item.market === market);
   const previous = index < 0 ? { market, quantity: 0, averageEntryPrice: 0, realizedPnL: 0, unrealizedPnL: 0, markPrice: price } : positions[index]!;
@@ -901,7 +937,7 @@ function executeOrder(state: PaperAccountState, key: string, market: string, sid
   lifecycle = transitionPaperOrderLifecycle(lifecycle, "ACCEPTED", now);
   lifecycle = transitionPaperOrderLifecycle(lifecycle, "FILLED", now, quantity);
   const order: PaperOrderRecord = Object.freeze({ id, idempotencyKey: key, market, side, quantity, price, fee, status: "FILLED", createdAt: now, filledAt: now, ...(requestFingerprint === undefined ? {} : { requestFingerprint }), lifecycle, executionProfile });
-  const baseFill: PaperFillRecord = { id: `fill:${id}`, orderId: id, market, side, quantity, price, fee, filledAt: now, ...(candidateProvenance === undefined ? {} : { candidateProvenance }), ...(executionIntent === undefined ? {} : { executionIntent: validatePaperExecutionIntent(executionIntent) }), ...(canonicalObservedQuote === undefined ? {} : { orderBookQuoteReceipt: canonicalObservedQuote.receipt }) };
+  const baseFill: PaperFillRecord = { id: `fill:${id}`, orderId: id, market, side, quantity, price, fee, filledAt: now, ...(candidateProvenance === undefined ? {} : { candidateProvenance }), ...(executionIntent === undefined ? {} : { executionIntent: validatePaperExecutionIntent(executionIntent) }), ...(canonicalObservedQuote === undefined ? {} : { orderBookQuoteReceipt: canonicalObservedQuote.receipt }), ...(orderBookExecutionReceipt === undefined ? {} : { orderBookExecutionReceipt }) };
   const runtimeExecutionCostEvidence = candidateProvenance == null || quotePrice == null ? undefined : buildPaperRuntimeExecutionCostEvidence(baseFill, quotePrice);
   let executionCostAttribution: PaperExecutionCostAttribution | undefined;
   if (candidateProvenance != null && canonicalObservedQuote != null) {
