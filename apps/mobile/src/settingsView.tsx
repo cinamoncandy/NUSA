@@ -14,6 +14,7 @@ import { UpbitConnectionPanel } from "./upbitConnectionPanel";
 import { resetUpbitReadOnlyState } from "./upbitReadOnlyAccount";
 import { getOrCreateInstallationId } from "./installationIdentity";
 import { mobileApprovedSession, type MobilePairingRequest } from "./mobileApprovedSessionBoundary";
+import { MobileSessionRequestError } from "./mobileApprovedSession";
 import { ownerDeviceCredential, type OwnerDeviceCredentialNative, type OwnerDeviceCredentialStatus } from "./ownerDeviceCredential";
 import { OwnerConnectionExperience, type OwnerConnectionStage } from "./ownerConnectionExperience";
 import { BUILD_SOURCE_SHA } from "./generatedBuildConfig";
@@ -25,6 +26,7 @@ const telemetryItems = Object.freeze([{ key: "OFF", label: "끔" }, { key: "ON",
 const LOCAL_PAPER_INITIAL_CASH = 10_000_000;
 const themePreference = (value: ThemeSetting): ThemePreference => value === "SYSTEM" ? "system" : value === "LIGHT" ? "light" : "dark";
 const money = (value: number): string => `₩${Math.round(value).toLocaleString("ko-KR")}`;
+const isDefinitiveDeviceTrustFailure = (error: unknown): boolean => error instanceof MobileSessionRequestError && (error.status === 401 || error.status === 403);
 const actionFor = (user: OperatorUserRecord): readonly OperatorUserAction[] => user.status === "PENDING" ? ["APPROVE", "REJECT"] : user.status === "ACTIVE" ? ["SUSPEND"] : ["RESTORE"];
 const actionLabel: Readonly<Record<OperatorUserAction, string>> = { APPROVE: "승인", REJECT: "거절", SUSPEND: "정지", RESTORE: "복구" };
 
@@ -223,7 +225,17 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
       }
       credentialSession.clear(); clearPaperConnectionVerification();
       setConnection({ status: "NOT_CONFIGURED", reason: "소유자 확인 후 이 휴대폰을 먼저 등록하세요." });
-    } catch (connectionError) { credentialSession.clear(); clearPaperConnectionVerification(); setOwnerAuthenticationFallback(true); setConnection({ status: "NOT_CONFIGURED", reason: describeCredentialFailure(connectionError) }); }
+    } catch (connectionError) {
+      if (isDefinitiveDeviceTrustFailure(connectionError)) {
+        credentialSession.clear();
+        clearPaperConnectionVerification();
+        setOwnerAuthenticationFallback(true);
+      } else {
+        // 429/network/5xx is a transport/session recovery state, not loss of device registration.
+        setOwnerAuthenticationFallback(false);
+      }
+      setConnection({ status: "NOT_CONFIGURED", reason: describeCredentialFailure(connectionError) });
+    }
     finally { connectionInFlightRef.current = false; setConnecting(false); }
   };
   const requestRecoveryPairing = async () => {
