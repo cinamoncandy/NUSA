@@ -38,11 +38,6 @@ test("Cloud PAPER setup communicates server-verified owner device session withou
   assert.match(experience, /PAPER ONLY/);
   assert.match(experience, /LIVE AUTH SEPARATE/);
   assert.doesNotMatch(settings, /placeOrder|cancelOrder|withdraw/);
-  const productionPaper = read("src/tradingView.tsx");
-  assert.match(productionPaper, /<PaperLearningMonitorView/);
-  assert.doesNotMatch(productionPaper, /<LegacyTradingView/);
-  assert.doesNotMatch(productionPaper, /<NusaTextField|placeOrder\(|submitOrder\(/);
-  assert.match(productionPaper, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
 });
 
 test("Android product UX acceptance bounds emulator startup and preserves diagnostic evidence", () => {

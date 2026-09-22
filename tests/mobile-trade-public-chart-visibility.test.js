@@ -5,7 +5,7 @@ const path = require("node:path");
 
 const read = (file) => fs.readFileSync(path.resolve(__dirname, "..", file), "utf8");
 const app = read("apps/mobile/App.tsx");
-const paper = read("apps/mobile/src/tradingView.tsx");
+const paper = read("apps/mobile/src/paperLearningMonitorView.tsx");
 const markets = read("apps/mobile/src/marketsView.tsx");
 
 test("public quotation stays on the observation surface, not the PAPER execution route", () => {
@@ -18,8 +18,6 @@ test("public quotation stays on the observation surface, not the PAPER execution
 });
 
 test("production PAPER is a read-only learning monitor and never exposes a manual workspace", () => {
-  assert.match(paper, /PaperLearningMonitorView/);
   assert.match(paper, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
-  assert.doesNotMatch(paper, /<LegacyTradingView \{\.\.\.props\} \/>/);
   assert.doesNotMatch(paper, /CLOUD PAPER NOT CONNECTED|EXECUTION WORKSPACE|SIMULATED EXECUTION/);
 });

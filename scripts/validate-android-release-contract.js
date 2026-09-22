@@ -17,7 +17,9 @@ const REQUIRED_SAFETY = Object.freeze({
 const REQUIRED_UI_ROLES = Object.freeze([
   "homePaperLearning",
   "homeSupervisorLearning",
-  "tradePaperLearning",
+  // tradePaperLearning covered the PAPER-learning entry point on the manual order surface. The
+  // board has no ORDER destination, so that entry point no longer exists; HOME, PORTFOLIO and the
+  // monitor itself remain as the required reachability points.
   "portfolioPaperLearning",
   "paperLearningMonitor",
 ]);

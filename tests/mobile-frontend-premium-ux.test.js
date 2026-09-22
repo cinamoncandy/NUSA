@@ -25,10 +25,7 @@ test('markets use semantic segmented tabs rather than competing primary CTAs', (
 });
 
 test('paper and history selectors expose their current selection', () => {
-  const trading = read('apps/mobile/src/tradingViewLegacy.tsx');
   const history = read('apps/mobile/src/orderHistoryView.tsx');
-  assert.match(trading, /selectedKey=\{side\}/);
-  assert.match(trading, /selectedKey=\{orderType\}/);
   assert.match(history, /selectedKey=\{filter\}/);
   assert.match(history, /selectedKey=\{period\}/);
   assert.match(history, /selectedKey=\{sort\}/);

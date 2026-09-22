@@ -55,67 +55,23 @@ test("Market order model remains safe while production PAPER exposes learning on
   assert.equal(model.price, 100);
   assert.equal(model.estimatedNotional, 200);
 
-  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingViewLegacy.tsx"), "utf8");
-  const shell = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
 
-  assert.match(shell, /PaperLearningMonitorView/);
-  assert.match(shell, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
-  assert.doesNotMatch(shell, /<LegacyTradingView \{\.\.\.props\} \/>/);
-  assert.doesNotMatch(shell, /authority:\s*"LIVE"/);
-  assert.doesNotMatch(shell, /productionMutationAllowed:\s*true/);
-  assert.doesNotMatch(shell, /\/api\/(?:live|withdraw|transfer)/i);
-  assert.match(source, /<ScreenHeader eyebrow="PAPER ONLY"/);
-  assert.match(source, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
-  assert.match(source, /const usingLocalPaper = isLocalPaperActive\(\)/);
-  assert.match(source, /await placeLocalPaperOrder\(/);
-  assert.match(source, /statusLabel="LIVE NONE"/);
-  assert.match(source, /authority: "PAPER_ONLY"/);
-  assert.match(source, /productionMutationAllowed: false/);
-  assert.match(source, /isPaperConnectionVerified\(configuredEndpoint\)/);
   assert.match(fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "localPaperLedger.ts"), "utf8"), /session\.isConfigured\(\)/);
-  assert.match(source, /PAPER 주문 연결이 필요합니다/);
-  assert.match(source, /02 · 주문 검토/);
-  assert.match(source, /이 PAPER 주문을 확정할까요/);
-  assert.match(source, /PAPER 주문 확정/);
-  assert.match(source, /PersonalPaperOrderRetryIdentity/);
-  assert.match(source, /submitPersonalPaperOrderWithRetryIdentity/);
-  assert.match(source, /liveMutationAllowed: false/);
-  assert.match(source, /disabled=\{!submitEnabled\}/);
-  assert.match(source, /RefreshControl/);
-  assert.match(source, /NusaTextField/);
-  assert.match(source, /SegmentedControl/);
-  assert.match(source, /testID="paper-side-segmented-control"/);
-  assert.match(source, /testID="paper-type-segmented-control"/);
-  assert.match(source, /selectedKey=\{side\}/);
-  assert.match(source, /selectedKey=\{orderType\}/);
-  assert.match(source, /disabled=\{submitting\}/);
-  assert.doesNotMatch(source, /authority:\s*"LIVE"/);
-  assert.doesNotMatch(source, /productionMutationAllowed:\s*true/);
-  assert.doesNotMatch(source, /\/api\/(?:live|withdraw|transfer)/i);
   assert.match(app, /utilityView === "PAPER"/);
   // The board has no ORDER screen; the owner removed it. PAPER is observation and learning only.
   assert.doesNotMatch(app, /<PaperOrderView/);
 });
 
-test("SELL has a holdings-based allocation panel and BUY shows a genuine post-order remaining figure", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingViewLegacy.tsx"), "utf8");
-  assert.match(source, /testID="paper-holdings-panel"/);
-  assert.match(source, /매도 가능 수량/);
-  assert.match(source, /positionQuantity > 0 && Number\.isFinite\(sellQuantity\) && sellQuantity > 0/);
-  assert.match(source, /const remainingInvestableCash = model\.estimatedNotional === null \? cashEnvelope\.investableCash : Math\.max\(0, cashEnvelope\.investableCash - model\.estimatedNotional\)/);
-  assert.match(source, /label="주문 후 투자 가능 현금" value=\{formatTradingAmount\(remainingInvestableCash,/);
-  assert.doesNotMatch(source, /label="주문 후 보호 현금"/);
-});
+// The manual PAPER order contract this block covered moved to
+// tests/mobile-no-order-submission-surface.test.js when tradingView.tsx and
+// tradingViewLegacy.tsx were deleted: there is no order submission surface left to assert on.
 
 test("production PAPER contains no public-feed execution context while legacy feed labels never borrow LIVE authority wording", () => {
-  const shell = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
-  const legacy = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingViewLegacy.tsx"), "utf8");
 
-  assert.match(shell, /PaperLearningMonitorView/);
-  assert.doesNotMatch(shell, /CloudPaperPublicChart|PUBLIC CONTEXT|loadUpbitPublicMarkets|loadUpbitPublicCandles/);
-  assert.match(legacy, /수신 중/);
-  for (const source of [shell, legacy]) {
+  // The two order surfaces these guards used to cover were deleted with the ORDER
+  // destination. The guards now cover the PAPER surfaces that replaced them.
+  for (const source of [fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "paperLearningMonitorView.tsx"), "utf8"), fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "homeView.tsx"), "utf8")]) {
     assert.doesNotMatch(source, /차트 LIVE/);
     assert.doesNotMatch(source, /PUBLIC LIVE/);
   }

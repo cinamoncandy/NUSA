@@ -9,7 +9,6 @@ test("cash allocation remains a first-class PAPER contract without cluttering ca
   const guard = read("apps/mobile/src/capitalAllocationGuard.ts");
   const app = read("apps/mobile/App.tsx");
   const home = read("apps/mobile/src/homeView.tsx");
-  const trading = read("apps/mobile/src/tradingViewLegacy.tsx");
   const portfolio = read("apps/mobile/src/portfolioView.tsx");
   const client = read("apps/mobile/src/cloudInvestmentAllocationClient.ts");
 
@@ -39,18 +38,11 @@ test("cash allocation remains a first-class PAPER contract without cluttering ca
   const reserved = home.indexOf('testID="home-reserved-cash"');
   assert.ok(capitalLimits >= 0 && investable > capitalLimits && reserved > capitalLimits, "allocation detail must live inside CAPITAL LIMITS");
   assert.match(portfolio, /portfolio-investable-cash/);
-  assert.match(trading, /const cashEnvelope = createCashInvestmentEnvelope\(effectiveSnapshot\.account\.cash, investmentPercent\)/);
-  assert.match(trading, /const modelCash = side === "BUY" \? cashEnvelope\.investableCash : effectiveSnapshot\.account\.cash/);
-  assert.match(trading, /보호 현금 \{formatTradingAmount\(cashEnvelope\.reservedCash/);
-  assert.match(trading, /신규 매수 비중이 0%입니다/);
 });
 
 test("allocation changes cannot grant LIVE or production authority", () => {
-  for (const relative of ["apps/mobile/App.tsx", "apps/mobile/src/tradingView.tsx", "apps/mobile/src/tradingViewLegacy.tsx", "apps/mobile/src/settingsView.tsx"]) {
+  for (const relative of ["apps/mobile/App.tsx", "apps/mobile/src/settingsView.tsx"]) {
     const source = read(relative);
     assert.doesNotMatch(source, /productionMutationAllowed:\s*true|liveAuthority\s*=\s*["'](?!NONE)/);
   }
-  const trading = read("apps/mobile/src/tradingViewLegacy.tsx");
-  assert.match(trading, /authority: "PAPER_ONLY"/);
-  assert.match(trading, /productionMutationAllowed: false/);
 });

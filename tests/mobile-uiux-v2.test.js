@@ -8,8 +8,6 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
 test("product navigation promotes PAPER learning supervision and AI through the canonical five-tab shell", () => {
   const app = read("App.tsx");
-  const tradingShell = read("src/tradingView.tsx");
-  const tradingWorkspace = read("src/tradingViewLegacy.tsx");
   const home = read("src/homeView.tsx");
   assert.match(app, /const tabs = \["Home", "Market", "Signals", "Strategies", "More"\] as const/);
   assert.match(app, /Strategies: "Strategies"/);
@@ -32,10 +30,6 @@ test("product navigation promotes PAPER learning supervision and AI through the 
   assert.doesNotMatch(home, /position:"absolute",width:1,height:1,opacity:0/);
   assert.match(home, /testID="home-paper-learning"/);
   assert.match(home, /onOpenPaperLearning/);
-  assert.match(tradingShell, /import \{ PaperLearningMonitorView \} from "\.\/paperLearningMonitorView"/);
-  assert.match(tradingShell, /<PaperLearningMonitorView/);
-  assert.doesNotMatch(tradingShell, /<LegacyTradingView \{\.\.\.props\} \/>/);
-  assert.match(tradingWorkspace, /testID="trade-paper-learning"/);
   assert.match(read("src/portfolioView.tsx"), /testID="portfolio-paper-learning"/);
 });
 
@@ -61,26 +55,7 @@ test("Markets keeps the chart reachable and truthful even when App has no candle
 });
 
 test("production PAPER exposes learning only while isolated legacy PAPER execution stays runtime-gated", () => {
-  const shell = read("src/tradingView.tsx");
-  const source = read("src/tradingViewLegacy.tsx");
-  assert.match(shell, /import \{ PaperLearningMonitorView \} from "\.\/paperLearningMonitorView"/);
-  assert.match(shell, /buildPaperLearningScreen/);
-  assert.match(shell, /<PaperLearningMonitorView/);
-  assert.doesNotMatch(shell, /<LegacyTradingView \{\.\.\.props\} \/>/);
-  assert.match(source, /const configuredEndpoint = getConfiguredPaperEndpoint\(\)/);
   assert.match(read("src/localPaperLedger.ts"), /Boolean\(configuredEndpoint && session\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
-  assert.match(source, /const usingLocalPaper = isLocalPaperActive\(\)/);
-  assert.match(source, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
-  assert.match(source, /const cloudPaperSubmitAvailable = runtimeCanSubmit && !usingLocalPaper/);
-  assert.match(source, /const submitAvailable = onSubmit !== undefined \|\| localPaperSubmitAvailable \|\| cloudPaperSubmitAvailable/);
-  assert.match(source, /testID="paper-runtime-blocked"/);
-  assert.match(source, /liveMutationAllowed: false/);
-  assert.match(source, /authority: "PAPER_ONLY"/);
-  assert.match(source, /productionMutationAllowed: false/);
-  assert.match(source, /설정에서 PAPER endpoint와 세션을 먼저 검증하세요/);
-  assert.match(source, /statusLabel="LIVE NONE"/);
-  assert.doesNotMatch(shell, /productionMutationAllowed: true/);
-  assert.doesNotMatch(source, /productionMutationAllowed: true/);
 });
 
 test("market discovery uses compact accessible favorite and sort controls", () => {

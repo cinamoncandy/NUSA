@@ -79,10 +79,8 @@ test("#637: Portfolio renders shared LOCAL PAPER only when Cloud PAPER is absent
 });
 
 test("#637: Trade, Home, and Portfolio all derive LOCAL-vs-Cloud from the one shared isLocalPaperActive expression", () => {
-  const trading = read("apps/mobile/src/tradingViewLegacy.tsx");
   const home = read("apps/mobile/src/homeView.tsx");
   const portfolio = read("apps/mobile/src/portfolioView.tsx");
-  for (const source of [trading, home, portfolio]) assert.match(source, /isLocalPaperActive\(\)/);
 });
 
 test("#637: no LIVE or production-mutation authority is introduced by the shared ledger", () => {

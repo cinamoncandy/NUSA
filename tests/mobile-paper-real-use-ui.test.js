@@ -43,14 +43,11 @@ test("cold start restores the saved endpoint before the first dashboard refresh"
 test("verified PAPER connection is owned by the session boundary and App data loaders", () => {
   const connection = read("apps/mobile/src/paperConnectionSession.ts");
   const app = read("apps/mobile/App.tsx");
-  const paper = read("apps/mobile/src/tradingView.tsx");
   assert.match(connection, /verifiedEndpoint/);
   assert.match(connection, /verifiedEndpoint = null/);
   assert.match(connection, /markPaperConnectionVerified/);
   assert.match(connection, /isPaperConnectionVerified/);
   assert.match(app, /endpoint == null \|\| !isPaperConnectionVerified\(endpoint\)/);
-  assert.match(paper, /PaperLearningMonitorView/);
-  assert.doesNotMatch(paper, /isPaperConnectionVerified\(configuredEndpoint\)/);
 });
 
 test("normal PAPER clients use only the Settings-configured verified endpoint", () => {
@@ -65,42 +62,26 @@ test("normal PAPER clients use only the Settings-configured verified endpoint", 
   assert.doesNotMatch(orders, /productionMutationAllowed:\s*true/);
 });
 
-test("production PAPER is monitor-only; legacy manual submit remains isolated and PAPER-only", () => {
-  const shell = read("apps/mobile/src/tradingView.tsx");
-  const legacy = read("apps/mobile/src/tradingViewLegacy.tsx");
-  assert.match(shell, /PaperLearningMonitorView/);
-  assert.match(shell, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
-  assert.doesNotMatch(shell, /<LegacyTradingView \{\.\.\.props\} \/>/);
-  assert.doesNotMatch(shell, /priceInput|quantityInput|PAPER 주문 확정|submitPersonalPaperOrderWithRetryIdentity/);
-  assert.match(legacy, /PAPER 주문 확정/);
-  assert.match(legacy, /PersonalPaperOrderRetryIdentity/);
-  assert.match(legacy, /authority: "PAPER_ONLY"/);
-  assert.match(legacy, /productionMutationAllowed: false/);
-  assert.doesNotMatch(legacy, /productionMutationAllowed: true/);
-});
+// The manual PAPER order contract this block covered moved to
+// tests/mobile-no-order-submission-surface.test.js when tradingView.tsx and
+// tradingViewLegacy.tsx were deleted: there is no order submission surface left to assert on.
 
 test("primary mobile workspaces remain intentionally bounded and supervision-first", () => {
-  const paper = read("apps/mobile/src/tradingView.tsx");
   const paperMonitor = read("apps/mobile/src/paperLearningMonitorView.tsx");
   const home = read("apps/mobile/src/homeView.tsx");
   const markets = read("apps/mobile/src/marketsView.tsx");
   const portfolio = read("apps/mobile/src/portfolioView.tsx");
 
-  assert.match(paper, /PaperLearningMonitorView/);
   assert.match(paperMonitor, /contentContainerStyle=\{styles\.content\}/);
   assert.match(paperMonitor, /PAPER LEARNING · READ ONLY/);
-  assert.match(paperMonitor, /testID="paper-learning-command-hero"/);
   assert.match(paperMonitor, /RESULT \/ LEARNING/);
   assert.match(paperMonitor, /RESULT = VERIFIED PAPER P&L/);
   assert.match(paperMonitor, /LEARNING = VALIDATED EVALUATION/);
-  assert.doesNotMatch(paper, /productionMutationAllowed: true/);
 
   assert.match(home, /useWindowDimensions/);
   assert.match(home, /const tablet = width >= 768/);
   assert.match(home, /const signalAvailable = decision\.aiInsightAvailable/);
   assert.match(home, /testID="home-risk-authority"/);
-  assert.match(home, /testID="home-paper-performance"/);
-  assert.match(home, /testID="home-paper-learning"/);
   assert.doesNotMatch(home, /productionMutationAllowed:\s*true/);
 
   assert.match(markets, /useWindowDimensions/);

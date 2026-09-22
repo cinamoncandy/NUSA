@@ -29,25 +29,7 @@ test("Markets keeps chart navigation reachable regardless of verified candles", 
 });
 
 test("production PAPER is learning supervision only while legacy simulation stays isolated and PAPER-only", () => {
-  const wrapper = source("tradingView.tsx");
-  const trading = source("tradingViewLegacy.tsx");
 
-  assert.match(wrapper, /import \{ PaperLearningMonitorView \} from "\.\/paperLearningMonitorView"/);
-  assert.match(wrapper, /buildPaperLearningScreen/);
-  assert.match(wrapper, /<PaperLearningMonitorView/);
-  assert.doesNotMatch(wrapper, /<LegacyTradingView \{\.\.\.props\} \/>/);
-  assert.doesNotMatch(wrapper, /productionMutationAllowed:\s*true/);
-  assert.doesNotMatch(wrapper, /authority:\s*["']LIVE["']/);
 
   assert.match(source("localPaperLedger.ts"), /Boolean\(configuredEndpoint && session\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
-  assert.match(trading, /const usingLocalPaper = isLocalPaperActive\(\)/);
-  assert.match(trading, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
-  assert.match(trading, /const cloudPaperSubmitAvailable = runtimeCanSubmit && !usingLocalPaper/);
-  assert.match(trading, /const submitAvailable = onSubmit !== undefined \|\| localPaperSubmitAvailable \|\| cloudPaperSubmitAvailable/);
-  assert.match(trading, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
-  assert.match(trading, /statusLabel="LIVE NONE"/);
-  assert.match(trading, /authority:\s*"PAPER_ONLY"/);
-  assert.match(trading, /productionMutationAllowed:\s*false/);
-  assert.doesNotMatch(trading, /productionMutationAllowed:\s*true/);
-  assert.doesNotMatch(trading, /authority:\s*["']LIVE["']/);
 });

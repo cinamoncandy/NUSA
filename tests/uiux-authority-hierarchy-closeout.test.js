@@ -33,42 +33,24 @@ test("AI presents intelligence and evidence before one explicit zero-authority b
 });
 
 test("production PAPER supervises learning while isolated legacy simulation remains PAPER-only", () => {
-  const tradingWrapper = read("tradingView.tsx");
-  const trading = read("tradingViewLegacy.tsx");
-  const combinedTrading = `${tradingWrapper}\n${trading}`;
+  // The two order surfaces this block covered were deleted with the ORDER destination.
+  // The guards now cover the PAPER surfaces that replaced them.
+  const combinedTrading = `${read("paperLearningMonitorView.tsx")}\n${read("homeView.tsx")}`;
 
-  assert.match(tradingWrapper, /TradingView as LegacyTradingView/);
-  assert.match(tradingWrapper, /PaperLearningMonitorView/);
-  assert.doesNotMatch(tradingWrapper, /<LegacyTradingView \{\.\.\.props\} \/>/);
-  assert.equal(occurrences(trading, 'statusLabel="LIVE NONE"'), 1);
   assert.doesNotMatch(combinedTrading, /<AuthorityBanner/);
   assert.match(read("localPaperLedger.ts"), /Boolean\(configuredEndpoint && session\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
-  assert.match(trading, /const usingLocalPaper = isLocalPaperActive\(\)/);
-  assert.match(trading, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
-  assert.match(trading, /const cloudPaperSubmitAvailable = runtimeCanSubmit && !usingLocalPaper/);
-  assert.match(trading, /const submitAvailable = onSubmit !== undefined \|\| localPaperSubmitAvailable \|\| cloudPaperSubmitAvailable/);
-  assert.match(trading, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
-  assert.match(trading, /testID="paper-order-ticket"/);
-  assert.match(trading, /const requestSubmit = \(\) =>/);
-  assert.match(trading, /const submitBuiltIn = async \(\) =>/);
-  assert.match(trading, /setConfirming\(true\)/);
   assert.doesNotMatch(combinedTrading, /authority: "LIVE"|productionMutationAllowed: true|liveMutationAllowed: true/);
 });
 
 test("authority hierarchy closeout preserves AI zero-authority and PAPER-only mutation", () => {
   const ai = read("aiView.tsx");
-  const tradingWrapper = read("tradingView.tsx");
-  const trading = read("tradingViewLegacy.tsx");
-  const combinedTrading = `${tradingWrapper}\n${trading}`;
+  // The two order surfaces this block covered were deleted with the ORDER destination.
+  // The guards now cover the PAPER surfaces that replaced them.
+  const combinedTrading = `${read("paperLearningMonitorView.tsx")}\n${read("homeView.tsx")}`;
 
   assert.doesNotMatch(ai, /onSubmit|ORDER_CREATE|LIVE_EXECUTION/);
   assert.match(ai, /AI ZERO AUTHORITY/);
   assert.match(ai, /SIGNAL IS READ ONLY/);
-  assert.match(tradingWrapper, /TradingView as LegacyTradingView/);
-  assert.match(tradingWrapper, /PaperLearningMonitorView/);
-  assert.match(trading, /authority: "PAPER_ONLY"/);
-  assert.match(trading, /productionMutationAllowed: false/);
-  assert.match(trading, /liveMutationAllowed: false/);
   assert.doesNotMatch(combinedTrading, /authority: "LIVE"|productionMutationAllowed: true|liveMutationAllowed: true/);
   assert.doesNotMatch(combinedTrading, /\/live(?:\/|\b)|\/withdraw(?:\/|\b)|\/transfer(?:\/|\b)/i);
 });

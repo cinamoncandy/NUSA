@@ -12,39 +12,11 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 // unlabeled "PAPER 학습 보기" button with zero information density. These tests hold the new
 // PaperActivitySummary to the product's truthfulness and observatory-first requirements.
 
-test("PAPER renders what NUSA actually observed/decided above the manual order ticket, truthfully", () => {
-  const trading = read("apps/mobile/src/tradingViewLegacy.tsx");
-  assert.match(trading, /import type \{ PaperLearningScreenState \} from "\.\/paperLearningScreen"/);
-  assert.match(trading, /readonly paperLearning\?: PaperLearningScreenState \| null/);
-  assert.match(trading, /function PaperActivitySummary/);
-  // The summary must render before the manual order ticket (paper-quote-hero), not after.
-  const summaryIndex = trading.indexOf("<PaperActivitySummary");
-  const ticketIndex = trading.indexOf('testID="paper-quote-hero"');
-  assert.ok(summaryIndex > 0 && ticketIndex > summaryIndex, "the activity summary must render above the manual order ticket");
-});
-
-test("PAPER activity summary never fabricates observed evidence and states absence truthfully", () => {
-  const trading = read("apps/mobile/src/tradingViewLegacy.tsx");
-  // No activity yet: an honest "no observed behavior" state, never a fabricated zero/placeholder count.
-  assert.match(trading, /관측된 PAPER 행동 없음/);
-  assert.match(trading, /아직 검증된 PAPER 판단 evidence가 없습니다/);
-  // Real activity: only ever derived directly from paperLearning.timeline.length -- never a
-  // hardcoded or estimated figure.
-  assert.match(trading, /관측 이벤트 \$\{paperLearning!\.timeline\.length\}건/);
-  assert.match(trading, /const hasActivity = paperLearning != null && paperLearning\.timeline\.length > 0/);
-  // The full observatory remains one tap away from the summary itself.
-  assert.match(trading, /testID="trade-paper-learning"/);
-  assert.match(trading, /testID="paper-ai-activity-summary"/);
-});
-
-test("PAPER activity summary status is never more confident than the real runtime status", () => {
-  const trading = read("apps/mobile/src/tradingViewLegacy.tsx");
-  // Status chip must read directly from paperLearning.status (RUNNING/PAUSED/HALTED/ERROR), or the
-  // honest "대기" (standby) placeholder when there is no runtime evidence at all -- never a
-  // synthesized "OK"/"connected" label independent of that real state.
-  assert.match(trading, /label=\{paperLearning\?\.status \?\? "대기"\}/);
-  assert.match(trading, /paperLearning\.status === "RUNNING" \? "success" : paperLearning\.status === "HALTED" \|\| paperLearning\.status === "ERROR" \? "danger" : "warning"/);
-});
+// PaperActivitySummary lived in tradingViewLegacy.tsx, the manual order ticket. The board has no
+// ORDER destination, so the summary has no ticket to render above and the three ordering,
+// truthfulness and status-confidence blocks that asserted on it have no subject left. The
+// observatory-first principle is now carried by PAPER itself being the learning monitor, which
+// tests/mobile-paper-learning-monitor-only.test.js holds, and by the single-source contract below.
 
 test("App wires the same paperLearningState already computed for the observatory into PAPER's summary, not a second source", () => {
   const app = read("apps/mobile/App.tsx");
@@ -57,12 +29,9 @@ test("App wires the same paperLearningState already computed for the observatory
   assert.match(app, /<PaperShadowMonitorView paper=\{paperLearningState\}/);
 });
 
-test("no LIVE or production-mutation authority is introduced by the activity summary", () => {
-  const trading = read("apps/mobile/src/tradingViewLegacy.tsx");
+test("no LIVE or production-mutation authority is introduced by the PAPER observatory", () => {
+  const monitor = read("apps/mobile/src/paperLearningMonitorView.tsx");
   for (const forbidden of ["productionMutationAllowed: true", "authority: \"LIVE\"", "placeOrder(", "onWithdraw", "onTransfer"]) {
-    // placeOrder( already exists legitimately for the manual ticket's own local ledger path
-    // (placeLocalPaperOrder); only assert the truly forbidden ones here.
-    if (forbidden === "placeOrder(") continue;
-    assert.equal(trading.includes(forbidden), false, `${forbidden} must not appear`);
+    assert.equal(monitor.includes(forbidden), false, `${forbidden} must not appear`);
   }
 });

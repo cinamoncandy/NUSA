@@ -90,16 +90,10 @@ test("credential rotation makes an in-flight PAPER result ambiguous and preserve
   assert.equal(observedKeys[1], observedKeys[0], "credential rotation must not consume the unresolved retry identity");
 });
 
-test("legacy PAPER workspace keeps unresolved retry identity while production PAPER remains monitor-only", () => {
-  const shellSource = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingView.tsx"), "utf8");
-  const workspaceSource = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "tradingViewLegacy.tsx"), "utf8");
-  assert.match(shellSource, /TradingView as LegacyTradingView/);
-  assert.match(shellSource, /<PaperLearningMonitorView/);
-  assert.doesNotMatch(shellSource, /<LegacyTradingView \{\.\.\.props\} \/>/);
-  assert.match(workspaceSource, /const processPaperOrderRetryIdentity = new PersonalPaperOrderRetryIdentity\(\)/);
-  assert.match(workspaceSource, /submitPersonalPaperOrderWithRetryIdentity\([\s\S]*processPaperOrderRetryIdentity/);
-  assert.doesNotMatch(workspaceSource, /const retryIdentity = useMemo\(\(\) => new PersonalPaperOrderRetryIdentity\(\), \[\]\)/);
-  for (const source of [shellSource, workspaceSource]) {
+test("the PAPER surfaces never borrow LIVE authority", () => {
+  // The two order surfaces these guards used to cover were deleted with the ORDER
+  // destination. The guards now cover the PAPER surfaces that replaced them.
+  for (const source of [fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "paperLearningMonitorView.tsx"), "utf8"), fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "homeView.tsx"), "utf8")]) {
     assert.doesNotMatch(source, /productionMutationAllowed\s*:\s*true/);
     assert.doesNotMatch(source, /authority\s*:\s*["']LIVE["']/);
     assert.doesNotMatch(source, /\/api\/(?:live|withdraw|transfer)/i);

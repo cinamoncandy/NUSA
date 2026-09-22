@@ -43,31 +43,14 @@ test("mobile intelligence shell displays real AI projection and truthful scoped 
 
 test("production PAPER is supervision-only while legacy PAPER execution remains isolated and never gains LIVE authority", () => {
   const app = read("App.tsx");
-  const trading = read("src/tradingView.tsx");
-  const legacyTrading = read("src/tradingViewLegacy.tsx");
   // TradingView is imported as PaperOrderView and renders on the Order tab. The contract that
   // matters is unchanged: App passes it a snapshot and never an onSubmit handler.
   assert.match(app, /<PortfolioView[^>]*snapshot=/s);
   assert.doesNotMatch(app, /<PaperOrderView[^>]*onSubmit=/s);
-  assert.match(trading, /PaperLearningMonitorView/);
-  assert.match(trading, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
-  assert.doesNotMatch(trading, /<LegacyTradingView \{\.\.\.props\} \/>/);
-  assert.match(legacyTrading, /const usingLocalPaper = isLocalPaperActive\(\)/);
-  assert.match(legacyTrading, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
-  assert.match(legacyTrading, /const cloudPaperSubmitAvailable = runtimeCanSubmit && !usingLocalPaper/);
-  assert.match(legacyTrading, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
-  assert.match(legacyTrading, /statusLabel="LIVE NONE"/);
-  assert.match(legacyTrading, /isPaperConnectionVerified\(configuredEndpoint\)/);
   assert.match(read("src/localPaperLedger.ts"), /MockTradingService/);
-  assert.match(legacyTrading, /loadUpbitPublicMarkets/);
-  assert.match(legacyTrading, /PersonalPaperOrderRetryIdentity/);
-  assert.match(legacyTrading, /submitPersonalPaperOrderWithRetryIdentity/);
-  assert.match(legacyTrading, /authority: "PAPER_ONLY"/);
-  assert.match(legacyTrading, /productionMutationAllowed: false/);
-  assert.match(legacyTrading, /liveMutationAllowed: false/);
-  assert.match(legacyTrading, /이 PAPER 주문을 확정할까요/);
-  assert.match(legacyTrading, /PAPER 주문 확정/);
-  for (const source of [trading, legacyTrading]) {
+  // The two order surfaces these guards used to cover were deleted with the ORDER
+  // destination. The guards now cover the PAPER surfaces that replaced them.
+  for (const source of [read("src/paperLearningMonitorView.tsx"), read("src/homeView.tsx")]) {
     assert.doesNotMatch(source, /authority:\s*"LIVE"/);
     assert.doesNotMatch(source, /productionMutationAllowed:\s*true/);
     assert.doesNotMatch(source, /\/api\/(?:live|withdraw|transfer)/i);
