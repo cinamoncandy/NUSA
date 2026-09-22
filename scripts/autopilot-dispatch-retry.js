@@ -3,6 +3,8 @@ const { spawnSync } = require("node:child_process");
 
 const DEFAULT_MAX_ATTEMPTS = 3;
 const DEFAULT_BACKOFF_MS = 1_000;
+const MAX_RETRY_DELAY_MS = 60_000;
+const RETRY_JITTER_RATIO = 0.1;
 const MAX_PATCH_BYTES = 24_000;
 const MAX_VALIDATED_FILE_BYTES = 128_000;
 const MAX_PROPOSAL_CONTEXT_BYTES = 20_000;
@@ -70,9 +72,123 @@ function retryableProposalFailureCode(reason) {
 
 function providerRateLimitCode(reason) {
   const code = String(reason || "");
-  return code === "WORKERS_AI_DAILY_QUOTA_EXHAUSTED" || code === "WORKERS_AI_RATE_LIMITED" || code === "PROVIDER_RATE_LIMITED"
+  return code === "RATE_LIMITED" || code === "WORKERS_AI_DAILY_QUOTA_EXHAUSTED" || code === "WORKERS_AI_RATE_LIMITED" || code === "PROVIDER_RATE_LIMITED"
     ? code
     : null;
+}
+
+function responseHeader(headers, name) {
+  if (!headers || typeof name !== "string") return null;
+  if (typeof headers.get === "function") {
+    const value = headers.get(name);
+    return typeof value === "string" && value.trim() ? value.trim() : null;
+  }
+  if (typeof headers !== "object" || Array.isArray(headers)) return null;
+  const key = Object.keys(headers).find((candidate) => candidate.toLowerCase() === name.toLowerCase());
+  const value = key ? headers[key] : null;
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function clampRetryDelayMs(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) return null;
+  return Math.min(MAX_RETRY_DELAY_MS, Math.floor(numeric));
+}
+
+function retryTimestampMs(value, observedAt) {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+    const milliseconds = value < 1_000_000_000_000 ? value * 1_000 : value;
+    return clampRetryDelayMs(milliseconds - observedAt);
+  }
+  if (typeof value !== "string" || !value.trim()) return null;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? clampRetryDelayMs(parsed - observedAt) : null;
+}
+
+function retryHint(response, payload, observedAt) {
+  const retryAfter = responseHeader(response?.headers, "retry-after");
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return { delayMs: clampRetryDelayMs(seconds * 1_000), source: "retry-after-header" };
+    }
+    const timestampDelay = retryTimestampMs(retryAfter, observedAt);
+    if (timestampDelay !== null) return { delayMs: timestampDelay, source: "retry-after-header-date" };
+  }
+
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  if (Object.prototype.hasOwnProperty.call(payload, "retryAfterMs")) {
+    const delayMs = clampRetryDelayMs(payload.retryAfterMs);
+    if (delayMs !== null) return { delayMs, source: "provider-retry-after-ms" };
+  }
+  for (const key of ["retryAt", "nextRetryAt", "resetAt", "resetTimestamp"]) {
+    if (!Object.prototype.hasOwnProperty.call(payload, key)) continue;
+    const delayMs = retryTimestampMs(payload[key], observedAt);
+    if (delayMs !== null) return { delayMs, source: `provider-${key}` };
+  }
+  return null;
+}
+
+function providerRateLimitCodeFromPayload(payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  for (const value of [payload.reason, payload.error, payload.code, payload.status]) {
+    const code = providerRateLimitCode(value);
+    if (code) return code;
+  }
+  return null;
+}
+
+function rateLimitEvidence(response, payload, observedAt = Date.now()) {
+  const code = providerRateLimitCodeFromPayload(payload) || (response?.status === 429 ? "RATE_LIMITED" : null);
+  if (!code) return null;
+  const hint = retryHint(response, payload, observedAt);
+  return Object.freeze({
+    provider: code.startsWith("WORKERS_AI_") ? "workers-ai" : "external-coding-runner",
+    code,
+    httpStatus: Number.isInteger(response?.status) ? response.status : null,
+    lastRateLimitAt: observedAt,
+    retryAfterMs: hint?.delayMs ?? null,
+    nextRetryAt: hint ? observedAt + hint.delayMs : null,
+    retrySource: hint?.source ?? "none",
+  });
+}
+
+function boundedBackoffMs(baseBackoffMs, attempt, jitter = Math.random) {
+  const base = Math.min(MAX_RETRY_DELAY_MS, baseBackoffMs * 2 ** Math.max(0, attempt - 1));
+  const sample = Number(jitter());
+  const normalized = Number.isFinite(sample) && sample >= 0 && sample <= 1 ? sample : 0.5;
+  return clampRetryDelayMs(base + (normalized * 2 - 1) * base * RETRY_JITTER_RATIO) ?? 0;
+}
+
+function rateLimitedResult(result, evidence, rateLimitEvents = []) {
+  const enriched = {
+    ...result,
+    provider: evidence.provider,
+    lastRateLimitAt: evidence.lastRateLimitAt,
+    nextRetryAt: evidence.nextRetryAt,
+    retrySource: evidence.retrySource,
+    rateLimitEvents,
+  };
+  return {
+    ...enriched,
+    summary: {
+      ...result.summary,
+      provider: evidence.provider,
+      lastRateLimitAt: evidence.lastRateLimitAt,
+      nextRetryAt: evidence.nextRetryAt,
+      retrySource: evidence.retrySource,
+      rateLimitEvents: rateLimitEvents.length,
+    },
+  };
+}
+
+function withRateLimitEvents(result, rateLimitEvents) {
+  if (!Array.isArray(rateLimitEvents) || rateLimitEvents.length === 0) return result;
+  return {
+    ...result,
+    rateLimitEvents,
+    summary: { ...result.summary, rateLimitEvents: rateLimitEvents.length },
+  };
 }
 
 function proposalRepairFeedback(code, attempt) {
@@ -162,6 +278,7 @@ async function dispatchWithRetry({
   fetchImpl = fetch,
   sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
   now = () => Date.now(),
+  jitter = Math.random,
   maxAttempts = DEFAULT_MAX_ATTEMPTS,
   baseBackoffMs = DEFAULT_BACKOFF_MS,
   oidcRequestUrl = process.env.ACTIONS_ID_TOKEN_REQUEST_URL,
@@ -171,6 +288,7 @@ async function dispatchWithRetry({
   if (!Number.isSafeInteger(baseBackoffMs) || baseBackoffMs < 0 || baseBackoffMs > 30_000) throw new Error("AUTOPILOT_BACKOFF_INVALID");
 
   const attempts = [];
+  const rateLimitEvents = [];
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const startedAt = now();
     const token = await oidcToken({ fetchImpl, requestUrl: oidcRequestUrl, requestToken: oidcRequestToken });
@@ -178,7 +296,7 @@ async function dispatchWithRetry({
       const decision = token.retryable && attempt < maxAttempts ? "RETRY" : "FAILED_CLOSED";
       attempts.push(attemptRecord({ request, attempt, decision, startedAt, status: token.status, workerStatus: "OIDC_UNAVAILABLE", failureClass: fixedFailureClass(token.status), reason: token.reason, now }));
       if (decision === "RETRY") {
-        await sleep(baseBackoffMs * 2 ** (attempt - 1));
+        await sleep(boundedBackoffMs(baseBackoffMs, attempt, jitter));
         continue;
       }
       return resultSummary(request, attempts, "FAILED_CLOSED", token.reason, token.status, "OIDC_UNAVAILABLE");
@@ -200,19 +318,40 @@ async function dispatchWithRetry({
       const decision = attempt < maxAttempts ? "RETRY" : "FAILED_CLOSED";
       attempts.push(attemptRecord({ request, attempt, decision, startedAt, status: null, workerStatus: "NETWORK_FAILURE", failureClass: "transient", reason: "coding-runner-network-failure", now }));
       if (decision === "RETRY") {
-        await sleep(baseBackoffMs * 2 ** (attempt - 1));
+        await sleep(boundedBackoffMs(baseBackoffMs, attempt, jitter));
         continue;
       }
       return resultSummary(request, attempts, "FAILED_CLOSED", "coding-runner-network-failure", null, "NETWORK_FAILURE");
     }
 
+    let payload;
+    try { payload = await response.json(); } catch { payload = {}; }
+    const observedAt = now();
+    const rateLimit = rateLimitEvidence(response, payload, observedAt);
+    if (rateLimit) {
+      const providerQuotaExhausted = rateLimit.code === "WORKERS_AI_DAILY_QUOTA_EXHAUSTED";
+      const decision = !providerQuotaExhausted && attempt < maxAttempts ? "RETRY" : "NO_ACTION";
+      const delayMs = rateLimit.retryAfterMs ?? boundedBackoffMs(baseBackoffMs, attempt, jitter);
+      const nextEvidence = Object.freeze({
+        ...rateLimit,
+        nextRetryAt: observedAt + delayMs,
+        retrySource: rateLimit.retryAfterMs === null ? "bounded-exponential-backoff-jitter" : rateLimit.retrySource,
+      });
+      rateLimitEvents.push(nextEvidence);
+      const rateLimitEventsForResult = [...rateLimitEvents];
+      attempts.push(attemptRecord({ request, attempt, decision, startedAt, status: response.status, workerStatus: "RATE_LIMITED", failureClass: "transient", reason: rateLimit.code, now }));
+      if (decision === "RETRY") {
+        await sleep(delayMs);
+        continue;
+      }
+      return rateLimitedResult(resultSummary(request, attempts, "BLOCKED_RATE_LIMIT", rateLimit.code, response.status, "RATE_LIMITED"), nextEvidence, rateLimitEventsForResult);
+    }
+
     if (response.ok) {
-      let payload;
-      try { payload = await response.json(); } catch { payload = {}; }
       const workerStatus = safeWorkerStatus(payload && payload.status);
       if (["EXECUTION_ACCEPTED", "EXECUTION_DISPATCHED"].includes(workerStatus)) {
         attempts.push(attemptRecord({ request, attempt, decision: "DISPATCHED", startedAt, status: response.status, workerStatus, failureClass: null, reason: null, now }));
-        return resultSummary(request, attempts, "DISPATCHED", null, response.status, workerStatus);
+        return withRateLimitEvents(resultSummary(request, attempts, "DISPATCHED", null, response.status, workerStatus), rateLimitEvents);
       }
       if (workerStatus === "DUPLICATE_EXECUTION_SUPPRESSED") {
         attempts.push(attemptRecord({ request, attempt, decision: "NO_ACTION", startedAt, status: response.status, workerStatus, failureClass: "deterministic", reason: "duplicate-execution-suppressed", now }));
@@ -225,7 +364,7 @@ async function dispatchWithRetry({
     const decision = transientStatus(response.status) && attempt < maxAttempts ? "RETRY" : "FAILED_CLOSED";
     attempts.push(attemptRecord({ request, attempt, decision, startedAt, status: response.status, workerStatus: "HTTP_REJECTED", failureClass: fixedFailureClass(response.status), reason: transientStatus(response.status) ? "external-coding-runner-transient-failure" : "external-coding-runner-rejected-request", now }));
     if (decision === "RETRY") {
-      await sleep(baseBackoffMs * 2 ** (attempt - 1));
+      await sleep(boundedBackoffMs(baseBackoffMs, attempt, jitter));
       continue;
     }
     return resultSummary(request, attempts, "FAILED_CLOSED", transientStatus(response.status) ? "external-coding-runner-transient-failure" : "external-coding-runner-rejected-request", response.status, "HTTP_REJECTED");
@@ -309,7 +448,7 @@ function boundedWorkerFailureEvidence(payload, url, httpStatus) {
   });
 }
 
-async function authorizedJsonPost(url, body, fetchImpl = fetch) {
+async function authorizedJsonPost(url, body, fetchImpl = fetch, now = () => Date.now()) {
   const token = await oidcToken({ fetchImpl });
   if (!token.ok) throw new Error(token.reason);
   const response = await fetchImpl(url, {
@@ -322,6 +461,13 @@ async function authorizedJsonPost(url, body, fetchImpl = fetch) {
   if (!response.ok) {
     const error = new Error(typeof payload.error === "string" ? payload.error : `AUTOPILOT_WORKER_HTTP_${response.status}`);
     error.failureEvidence = boundedWorkerFailureEvidence(payload, url, response.status);
+    error.rateLimit = rateLimitEvidence(response, payload, now());
+    throw error;
+  }
+  const rateLimit = rateLimitEvidence(response, payload, now());
+  if (rateLimit) {
+    const error = new Error(rateLimit.code);
+    error.rateLimit = rateLimit;
     throw error;
   }
   return payload;
@@ -442,6 +588,8 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
   const publishUrl = endpointFor(runnerUrl, "publish");
   const validatePatch = options.validatePatch ?? validatePatchOnGithubRunner;
   const now = options.now ?? (() => Date.now());
+  const sleep = options.sleep ?? ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
+  const jitter = options.jitter ?? Math.random;
   const maxProposalAttempts = options.maxProposalAttempts ?? DEFAULT_MAX_ATTEMPTS;
   const proposalContextForPatch = options.proposalContextForPatch ?? proposalContextFromGithubRunner;
   if (!Number.isSafeInteger(maxProposalAttempts) || maxProposalAttempts < 1 || maxProposalAttempts > DEFAULT_MAX_ATTEMPTS) {
@@ -460,6 +608,7 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
     const changedFiles = Array.isArray(extra.changedFiles) ? extra.changedFiles : [];
     const codeChanged = status === "DISPATCHED" && changedFiles.length > 0;
     const blockedRateLimit = status === "BLOCKED_RATE_LIMIT";
+    const rateLimit = extra.rateLimitEvidence;
     return {
       ...base,
       proposalAttempts: attempts.length,
@@ -477,6 +626,12 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
         proposalAccepted: status === "DISPATCHED" ? 1 : 0,
         codeChanged: codeChanged ? 1 : 0,
         blockedRateLimit: blockedRateLimit ? 1 : 0,
+        ...(rateLimit ? {
+          provider: rateLimit.provider,
+          lastRateLimitAt: rateLimit.lastRateLimitAt,
+          nextRetryAt: rateLimit.nextRetryAt,
+          retrySource: rateLimit.retrySource,
+        } : {}),
       },
     };
   };
@@ -492,15 +647,62 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
       : request;
     let proposal;
     try {
-      proposal = await authorizedJsonPost(proposalUrl, proposalRequest, fetchImpl);
+      proposal = await authorizedJsonPost(proposalUrl, proposalRequest, fetchImpl, now);
       if (proposal.status !== "PROPOSAL_READY" || typeof proposal.patch !== "string") {
         throw new Error("CODING_PROPOSAL_UNAVAILABLE");
       }
     } catch (error) {
       const reason = error instanceof Error ? error.message : "CODING_PROPOSAL_UNAVAILABLE";
-      const rateLimitCode = providerRateLimitCode(reason);
+      const rateLimitCode = providerRateLimitCode(reason) || providerRateLimitCode(error?.rateLimit?.code);
       if (rateLimitCode) {
-        return finish("BLOCKED_RATE_LIMIT", rateLimitCode, null, "RATE_LIMITED");
+        const observedAt = error?.rateLimit?.lastRateLimitAt ?? now();
+        const rawEvidence = error?.rateLimit ?? Object.freeze({
+          provider: rateLimitCode.startsWith("WORKERS_AI_") ? "workers-ai" : "external-coding-runner",
+          code: rateLimitCode,
+          httpStatus: null,
+          lastRateLimitAt: observedAt,
+          retryAfterMs: null,
+          nextRetryAt: null,
+          retrySource: "none",
+        });
+        const retryable = rateLimitCode !== "WORKERS_AI_DAILY_QUOTA_EXHAUSTED";
+        if (retryable && attempt < maxProposalAttempts) {
+          const delayMs = rawEvidence.retryAfterMs ?? boundedBackoffMs(DEFAULT_BACKOFF_MS, attempt, jitter);
+          attempts.push(attemptRecord({
+            request,
+            attempt,
+            decision: "RETRY",
+            startedAt,
+            status: rawEvidence.httpStatus,
+            workerStatus: "RATE_LIMITED",
+            failureClass: "transient",
+            reason: rateLimitCode,
+            now,
+          }));
+          await sleep(delayMs);
+          continue;
+        }
+        const fallbackRetryDelayMs = boundedBackoffMs(DEFAULT_BACKOFF_MS, attempt, jitter);
+        const evidence = Object.freeze({
+          ...rawEvidence,
+          nextRetryAt: rawEvidence.retryAfterMs !== null
+            ? rawEvidence.nextRetryAt
+            : retryable
+              ? rawEvidence.lastRateLimitAt + fallbackRetryDelayMs
+              : null,
+          retrySource: rawEvidence.retryAfterMs !== null
+            ? rawEvidence.retrySource
+            : retryable
+              ? "bounded-exponential-backoff-jitter"
+              : "none",
+        });
+        return finish("BLOCKED_RATE_LIMIT", rateLimitCode, evidence.httpStatus, "RATE_LIMITED", {
+          provider: evidence.provider,
+          lastRateLimitAt: evidence.lastRateLimitAt,
+          nextRetryAt: evidence.nextRetryAt,
+          retrySource: evidence.retrySource,
+          rateLimitEvidence: evidence,
+        });
       }
       const code = retryableProposalFailureCode(reason);
       if (!code) throw error;
@@ -577,7 +779,7 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
     }
 
     fs.rmSync(PATCH_PATH, { force: true });
-    const published = await authorizedJsonPost(publishUrl, { request, validatedFiles }, fetchImpl);
+    const published = await authorizedJsonPost(publishUrl, { request, validatedFiles }, fetchImpl, now);
     if (published.status !== "EXECUTION_ACCEPTED" || published.proposalValidated !== true) {
       throw new Error("CODING_PUBLISH_VALIDATION_REQUIRED");
     }
@@ -690,6 +892,8 @@ if (require.main === module) {
 }
 
 module.exports = {
+  MAX_RETRY_DELAY_MS,
+  RETRY_JITTER_RATIO,
   DEFAULT_MAX_ATTEMPTS,
   DEFAULT_BACKOFF_MS,
   dispatchWithRetry,
@@ -700,6 +904,15 @@ module.exports = {
   proposalFailureCode,
   retryableProposalFailureCode,
   providerRateLimitCode,
+  responseHeader,
+  clampRetryDelayMs,
+  retryTimestampMs,
+  retryHint,
+  providerRateLimitCodeFromPayload,
+  rateLimitEvidence,
+  boundedBackoffMs,
+  rateLimitedResult,
+  withRateLimitEvents,
   proposalRepairFeedback,
   boundedProposalContext,
   proposalContextFromGithubRunner,
