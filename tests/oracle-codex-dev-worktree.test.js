@@ -25,6 +25,9 @@ test("Oracle Codex task execution uses one isolated branch and git worktree", ()
   assert.match(workflow, /git worktree remove --force "\$NUSA_WORKTREE"/);
   assert.match(workflow, /git branch -D "\$NUSA_WORKER_BRANCH"/);
   assert.match(workflow, /git worktree prune/);
+  assert.match(workflow, /RUNNER_TEMP.*nusa-codex-.*GITHUB_RUN_ID.*GITHUB_RUN_ATTEMPT/);
+  assert.match(workflow, /runner\.temp.*nusa-codex-result-.*github\.run_id.*github\.run_attempt/);
+  assert.doesNotMatch(workflow, /\/tmp\/nusa-codex-(?:prompt\.txt|log|result)/);
 });
 
 test("Oracle Codex concurrency isolates distinct task IDs while deduplicating the same task", () => {
