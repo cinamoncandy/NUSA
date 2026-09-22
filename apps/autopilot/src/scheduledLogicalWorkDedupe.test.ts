@@ -6,7 +6,7 @@ import type { ExecutionCoordinatorNamespace } from "./executionCoordinator";
 const SHA = "a".repeat(40);
 const RUN_ID = 4242;
 const NOW = Date.parse("2026-09-17T08:00:00.000Z");
-const SAFETY = "Safety invariants: liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY. No LIVE activation or real broker mutation.";
+const SAFETY = "Safety invariants: liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY. No LIVE activation or real broker mutation.\ncanonicalOwner: autopilot\nconflictKeys: autopilot:scheduled-coding";
 
 function issue(number: number): Record<string, unknown> {
   return {
