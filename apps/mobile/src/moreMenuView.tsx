@@ -1,6 +1,7 @@
 import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { masterReferenceColors, wealthProductColors } from "./designSystem";
+import { MasterHeroImage } from "./masterHeroImage";
 
 const CANVAS = masterReferenceColors.canvas;
 const ACCENT_SOFT = masterReferenceColors.accentSoft;
@@ -40,9 +41,7 @@ const OPERATIONS = [
 
 /**
  * The concept board's More screen: an identity card, a list of deeper destinations, and an explicit
- * authority footer. The footer wording is the board's own — PAPER ONLY / AI ZERO AUTHORITY /
- * REAL DATA ONLY — and it is a safety declaration, so it renders as visible text rather than as a
- * marker some test can satisfy without anyone being able to read it.
+ * authority footer. Decorative landscape imagery carries no market or authority semantics.
  */
 export function MoreMenuView({ onSelect, onNavigatePrimary, buildLabel }: MoreMenuViewProps) {
   return <ScrollView style={{ backgroundColor: CANVAS }} contentContainerStyle={styles.content} testID="more-screen">
@@ -81,11 +80,13 @@ export function MoreMenuView({ onSelect, onNavigatePrimary, buildLabel }: MoreMe
       {OPERATIONS.map((item)=><Pressable key={item.key} onPress={()=>onSelect(item.key)} style={styles.operationChip} testID={`more-${item.key.toLowerCase()}`}><Text style={styles.operationText}>{item.title}</Text></Pressable>)}
     </View>
 
-    <View style={styles.authority} testID="more-authority">
-      <Text style={styles.authorityLine}>PAPER ONLY</Text>
-      <Text style={styles.authorityLine}>AI ZERO AUTHORITY</Text>
-      <Text style={styles.authorityLine}>REAL DATA ONLY</Text>
-    </View>
+    <MasterHeroImage asset="moreLandscape" style={styles.authorityLandscape} imageStyle={styles.authorityLandscapeImage} scrimOpacity={0.38} testID="more-master-landscape">
+      <View style={styles.authority} testID="more-authority">
+        <Text style={styles.authorityLine}>PAPER ONLY</Text>
+        <Text style={styles.authorityLine}>AI ZERO AUTHORITY</Text>
+        <Text style={styles.authorityLine}>REAL DATA ONLY</Text>
+      </View>
+    </MasterHeroImage>
 
     <Text style={styles.build} testID="more-build-source">빌드 {buildLabel}</Text>
   </ScrollView>;
@@ -116,7 +117,9 @@ const styles = StyleSheet.create({
   operationsRail: { flexDirection: "row", gap: 8 },
   operationChip: { flex: 1, minHeight: 38, borderWidth: 1, borderColor: BORDER, borderRadius: 10, backgroundColor: wealthProductColors.c72, alignItems: "center", justifyContent: "center" },
   operationText: { color: MUTED, fontSize: 8, fontWeight: "800", letterSpacing: 0.3 },
-  authority: { borderWidth: 1, borderColor: BORDER, borderRadius: 14, paddingVertical: 18, paddingHorizontal: 16, gap: 4, alignItems: "center" },
-  authorityLine: { color: MUTED, fontSize: 10, lineHeight: 16, fontWeight: "800", letterSpacing: 1.6 },
+  authorityLandscape: { minHeight: 136, borderWidth: 1, borderColor: BORDER, borderRadius: 14, justifyContent: "flex-end" },
+  authorityLandscapeImage: { borderRadius: 14 },
+  authority: { paddingVertical: 16, paddingHorizontal: 16, gap: 4, alignItems: "flex-start" },
+  authorityLine: { color: "#E8EFE5", fontSize: 10, lineHeight: 16, fontWeight: "800", letterSpacing: 1.6 },
   build: { color: MUTED, fontSize: 10, textAlign: "center", fontVariant: ["tabular-nums"] },
 });
