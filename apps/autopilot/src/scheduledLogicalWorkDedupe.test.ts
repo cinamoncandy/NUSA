@@ -26,6 +26,9 @@ function namespace(seen: Set<string>, acquiredKeys: string[]): ExecutionCoordina
     get: () => ({
       async fetch(input: RequestInfo | URL, init?: RequestInit) {
         const url = String(input);
+        if (url.endsWith("/active-wip")) return new Response(JSON.stringify({ claims: [], activeExecutions: 0 }), { status: 200, headers: { "content-type": "application/json" } });
+        if (url.endsWith("/active-wip/admit")) return new Response(JSON.stringify({ admitted: true }), { status: 201, headers: { "content-type": "application/json" } });
+        if (url.endsWith("/active-wip/complete")) return new Response(JSON.stringify({ completed: true }), { status: 200, headers: { "content-type": "application/json" } });
         if (url.endsWith("/execution")) return new Response(JSON.stringify({ record: null }), { status: 200, headers: { "content-type": "application/json" } });
         if (url.endsWith("/acquire")) {
           const body = JSON.parse(String(init?.body)) as { dedupeKey: string };
