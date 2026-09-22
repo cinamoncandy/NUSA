@@ -23,6 +23,7 @@ const { buildResearchHypothesis } = require("../dist/apps/desktop/src/cloud/rese
 const { createResearchHypothesis } = require("../dist/packages/contracts/src/researchHypothesisContract.js");
 const { buildResearchRunTimeline } = require("../dist/apps/desktop/src/cloud/researchRunTimeline.js");
 const { buildResearchRunProvenancePlan } = require("../dist/apps/desktop/src/cloud/researchRunFactory.js");
+const { featureFingerprint, validateEvidenceProvenance } = require("../dist/apps/desktop/src/cloud/researchIntegrity.js");
 
 const SMA_FAMILY_ID = "sma-crossover";
 const RSI_FAMILY_ID = "rsi-mean-reversion";
@@ -592,12 +593,40 @@ async function main() {
       hypothesis
     }
   );
+  // Bind qualification inputs to the immutable dataset/candidate/source identities before the
+  // existing factory gate is allowed to consume them. The real-market runner is the only source
+  // of REAL evidence here; synthetic fixtures must never cross this promotion-safe boundary.
+  const integrityProvenance = provenancePlan.candidates.map((candidate) => {
+    const specification = candidate.specification;
+    const featureIdentity = {
+      featureId: `strategy-input:${candidate.candidateId}`,
+      featureVersion: candidate.lineageId ?? definition.lineageId,
+      datasetFingerprint: manifest.contentSha256,
+      inputCutoff: manifest.endCloseTime,
+      parameters: candidate.parameters
+    };
+    const provenance = {
+      evidenceKind: "REAL",
+      datasetFingerprint: manifest.contentSha256,
+      featureFingerprint: featureFingerprint(featureIdentity),
+      strategyId: candidate.candidateId,
+      strategyVersion: candidate.lineageId ?? definition.lineageId,
+      familyId: definition.familyId,
+      engineVersion: costModelVersion,
+      gitCommitSha: sourceCommitSha,
+      researchRunId: hypothesis.hypothesisId,
+      createdAt: specification.evaluationEndedAt
+    };
+    validateEvidenceProvenance(provenance, { promotionEligible: true });
+    return Object.freeze({ candidateId: candidate.candidateId, featureIdentity: Object.freeze(featureIdentity), provenance: Object.freeze(provenance) });
+  });
   const factoryQualification = qualifyResearchFactoryRun(league);
 
   const oos = result.walkForwardResult.combinedOutOfSampleMetrics;
   console.log(JSON.stringify({
     NOTICE: "REAL_MARKET_DATA_RESEARCH_TIER_ONLY -- not operational Paper evidence, does not authorize release",
     strategyFamily: definition.familyId,
+    integrityProvenance,
     researchMarketSet: {
       version: RESEARCH_MARKET_SET_VERSION,
       selectionPolicy: "PREDECLARED_PUBLIC_HISTORY_AVAILABILITY_ONLY_NO_PERFORMANCE_SELECTION",
