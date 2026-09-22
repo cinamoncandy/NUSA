@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { MobileApprovedSession, PAIRING_STORAGE_KEY, SESSION_STORAGE_KEY } from "./mobileApprovedSession";
+import { MobileApprovedSession, MobileSessionRequestError, PAIRING_STORAGE_KEY, SESSION_STORAGE_KEY } from "./mobileApprovedSession";
 import type { SecureStoragePort } from "./mobileSecurity";
 import type { OwnerDeviceCredentialNative } from "./ownerDeviceCredential";
 
@@ -28,6 +28,42 @@ class MemorySecureStorage implements SecureStoragePort {
 }
 
 describe("mobile approved session persistence boundary", () => {
+
+  it("coalesces concurrent silent restores and preserves DeviceKey on 429", async () => {
+    const storage = new MemorySecureStorage();
+    const endpoint = "https://paper.example";
+    const now = Date.now();
+    let challenges = 0;
+    let deleted = 0;
+    const request = (async (url: string | URL | Request) => {
+      const value = String(url);
+      if (value.endsWith("/v1/mobile/owner-device/authentication/challenge")) {
+        challenges += 1;
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return new Response(JSON.stringify({ error: "RATE_LIMITED" }), { status: 429, headers: { "content-type": "application/json", "retry-after": "2" } });
+      }
+      throw new Error("unexpected request " + value);
+    }) as typeof fetch;
+    const native = {
+      getSilentDeviceStatus: async () => ({ available: true, canCreate: true, hardwareBacked: true, status: "SILENT_DEVICE_KEY_PRESENT", credentialId: "silent-credential-0123456789" }),
+      signSilentChallenge: async () => "MEUCIQDummysignature0123456789ABCD==",
+      deleteSilentDeviceCredential: async () => { deleted += 1; },
+    } as unknown as OwnerDeviceCredentialNative;
+    const session = new MobileApprovedSession(storage, request);
+    const results = await Promise.allSettled([
+      session.restoreWithSilentDevice(endpoint, "nusa-device-silent-0001", native),
+      session.restoreWithSilentDevice(endpoint, "nusa-device-silent-0001", native),
+    ]);
+    assert.equal(results.every((result) => result.status === "rejected"), true);
+    assert.equal(challenges, 1);
+    assert.equal(deleted, 0);
+    assert.equal(session.shouldRetryRestore(), true);
+    const reason = results[0].status === "rejected" ? results[0].reason : null;
+    assert.equal(reason instanceof MobileSessionRequestError, true);
+    assert.equal((reason as MobileSessionRequestError).status, 429);
+    assert.equal((reason as MobileSessionRequestError).retryAfterMs, 2000);
+  });
+
   it("persists only the rotating refresh session in secure storage", async () => {
     const storage = new MemorySecureStorage();
     const endpoint = "https://paper.example";
