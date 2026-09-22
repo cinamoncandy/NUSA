@@ -214,6 +214,9 @@ export async function runScheduledEvolutionCoding(
     return result("ABSTAINED", "persistent-execution-state-unavailable", signals.map((signal) => signal.id));
   }
   const activeExecutions = activeWip.activeExecutions;
+  if (currentExecution?.state === "LEASED" && currentExecution.leaseExpiresAt > input.now) {
+    return result("ABSTAINED", "concurrency-limit-reached", signals.map((signal) => signal.id));
+  }
   const elapsedSecondsSinceLastRun = currentExecution
     ? Math.max(0, Math.floor((input.now - currentExecution.updatedAt) / 1000))
     : Number.MAX_SAFE_INTEGER;
