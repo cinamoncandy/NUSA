@@ -64,11 +64,21 @@ export type MobileApprovedCredentialProvider = () => Promise<string | null>;
 
 export class MobileSessionRequestError extends Error {
   public readonly refusal: string | undefined;
-  public constructor(readonly status: number, refusal?: string) {
+  public constructor(readonly status: number, refusal?: string, readonly retryAfterMs?: number) {
     super(`mobile session request rejected (${status}).`);
     this.name = "MobileSessionRequestError";
     this.refusal = refusal;
   }
+}
+
+function readRetryAfterMs(response: Response): number | undefined {
+  const raw = response.headers.get("retry-after")?.trim();
+  if (!raw) return undefined;
+  const seconds = Number(raw);
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.min(Math.ceil(seconds * 1000), 60_000);
+  const at = Date.parse(raw);
+  if (!Number.isFinite(at)) return undefined;
+  return Math.min(Math.max(0, at - Date.now()), 60_000);
 }
 
 function secureEndpoint(value: string): string {
@@ -194,7 +204,7 @@ async function readRefusal(response: Response): Promise<string | undefined> {
 async function requestJson(request: typeof fetch, endpoint: string, init: RequestInit): Promise<unknown> {
   const response = await request(endpoint, { ...init, redirect: "error", headers: { accept: "application/json", "content-type": "application/json", ...(init.headers ?? {}) } });
   if (response.redirected === true || (response.url && new URL(response.url).href !== new URL(endpoint).href)) throw new Error("mobile session redirect is prohibited.");
-  if (!response.ok) throw new MobileSessionRequestError(response.status, await readRefusal(response));
+  if (!response.ok) throw new MobileSessionRequestError(response.status, await readRefusal(response), response.status === 429 ? readRetryAfterMs(response) : undefined);
   return response.json();
 }
 
@@ -215,6 +225,7 @@ export class MobileApprovedSession {
   private restoreRetryable = false;
   private silentNative: OwnerDeviceCredentialNative | null = null;
   private silentCredentialId: string | null = null;
+  private silentAuthenticationInFlight: Promise<MobileApprovedSessionIdentity> | null = null;
 
   public constructor(private readonly storage: SecureStoragePort | null, private readonly request: typeof fetch = fetch) {}
 
@@ -474,13 +485,23 @@ export class MobileApprovedSession {
 
   public async restoreWithSilentDevice(baseUrl: string, deviceId: string, native: OwnerDeviceCredentialNative): Promise<MobileApprovedSessionIdentity | null> {
     const endpoint = secureEndpoint(baseUrl);
-    const status = await native.getSilentDeviceStatus();
-    if (status.available !== true || status.hardwareBacked !== true || status.credentialId == null) return this.restore(endpoint);
-    this.silentNative = native;
-    this.silentCredentialId = readToken(status.credentialId, "owner device credential id");
-    // Silent DeviceKey sessions never trust a persisted bearer refresh as proof of device possession.
-    // Re-establish the session with a fresh, single-use signed server challenge on process restart.
-    return this.authenticateSilentDeviceCredential(endpoint, deviceId, native, this.silentCredentialId);
+    if (this.silentAuthenticationInFlight != null) return this.silentAuthenticationInFlight;
+    const operation = (async (): Promise<MobileApprovedSessionIdentity> => {
+      const status = await native.getSilentDeviceStatus();
+      if (status.available !== true || status.hardwareBacked !== true || status.credentialId == null) {
+        const restored = await this.restore(endpoint);
+        if (restored == null) throw new Error("registered silent DeviceKey is unavailable.");
+        return restored;
+      }
+      this.silentNative = native;
+      this.silentCredentialId = readToken(status.credentialId, "owner device credential id");
+      // Silent DeviceKey sessions never trust a persisted bearer refresh as proof of device possession.
+      // Re-establish the session with one fresh, single-use signed server challenge per concurrent restore wave.
+      return this.authenticateSilentDeviceCredential(endpoint, deviceId, native, this.silentCredentialId);
+    })();
+    this.silentAuthenticationInFlight = operation;
+    try { return await operation; }
+    finally { if (this.silentAuthenticationInFlight === operation) this.silentAuthenticationInFlight = null; }
   }
 
   public async restore(baseUrl: string): Promise<MobileApprovedSessionIdentity | null> {
