@@ -22,7 +22,7 @@ interface MoreMenuViewProps {
 const ITEMS = [
   { key: "AI_ANALYSIS", title: "AI Analysis", detail: "Evidence-based insights", kind: "PRIMARY", destination: "Signals" },
   { key: "RESEARCH", title: "Research", detail: "Backtest & Validate", kind: "PRIMARY", destination: "Strategies" },
-  { key: "SYSTEM_STATUS", title: "System Status", detail: "Runtime health and alerts", kind: "UTILITY", destination: "NOTIFICATIONS" },
+  { key: "NOTIFICATIONS", title: "System Status", detail: "Runtime health and alerts", kind: "UTILITY", destination: "NOTIFICATIONS" },
   { key: "SETTINGS", title: "Settings", detail: "Preferences", kind: "UTILITY", destination: "SETTINGS" },
   { key: "HELP", title: "Help", detail: "Documentation", kind: "UTILITY", destination: "HELP" },
 ] as const;
