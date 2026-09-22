@@ -155,6 +155,7 @@ test("governance service evaluates containment without appending events or chang
     featureFingerprint: "c".repeat(64),
     engineVersion: "1",
     authorType: "HUMAN",
+    familyId: "family-1",
   };
   service.register("register-containment", identity, 1);
   const beforeEvents = store.listEvents().length;
@@ -181,6 +182,7 @@ test("human-approved containment applies one evidence-bound lifecycle event and 
     featureFingerprint: "c".repeat(64),
     engineVersion: "1",
     authorType: "HUMAN",
+    familyId: "family-1",
   };
   service.register("register-apply-containment", identity, 1);
   toPaperActive(service, "apply");
@@ -225,6 +227,7 @@ test("containment approval rejects mismatched, non-human, and stale decisions wi
     featureFingerprint: "c".repeat(64),
     engineVersion: "1",
     authorType: "HUMAN",
+    familyId: "family-1",
   };
   service.register("register-reject-containment", identity, 1);
   toPaperActive(service, "reject");
@@ -265,6 +268,7 @@ test("public governance transition cannot bypass human-approved containment", ()
     featureFingerprint: "c".repeat(64),
     engineVersion: "1",
     authorType: "HUMAN",
+    familyId: "family-1",
   };
   service.register("register-transition-guard", identity, 1);
   toPaperActive(service, "guard");
@@ -294,6 +298,7 @@ test("approval metadata is part of the governance integrity chain", () => {
     featureFingerprint: "c".repeat(64),
     engineVersion: "1",
     authorType: "HUMAN",
+    familyId: "family-1",
   };
   service.register("register-integrity-containment", identity, 1);
   toPaperActive(service, "integrity");
