@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("node:path");
+const fs = require("node:fs");
 const { spawnSync } = require("node:child_process");
 const {
   RESEARCH_TIMEFRAMES,
@@ -180,4 +181,19 @@ test("published provenance freshness carries interval lag and never a day-named 
   assert.throws(() => buildPublishedFreshness({ expectedLatestCloseTime: 0, actualLatestCloseTime: 0, lagDays: 1 }), /finite lagIntervals/);
   assert.throws(() => buildPublishedFreshness({ expectedLatestCloseTime: 0, actualLatestCloseTime: 0, lagIntervals: undefined }), /finite lagIntervals/);
   assert.throws(() => buildPublishedFreshness(undefined), /finite lagIntervals/);
+});
+
+test("the timeframe option cannot reach the frozen confirmatory families", () => {
+  // #1981 requirement 6: the frozen Bollinger/VCB/TSMOM confirmatory contract stays on KRW-BTC + 1d
+  // and must not be retuned through this issue. Those families live in packages/core/src/strategyEngine.ts
+  // and this run script never names them, so NUSA_RESEARCH_TIMEFRAME and NUSA_RESEARCH_PRIMARY_MARKET
+  // structurally cannot reach them. That separation is the guarantee, so assert it rather than assume it.
+  const script = fs.readFileSync(path.resolve(__dirname, "..", "scripts", "research-real-market-run.js"), "utf8");
+  for (const frozen of ["BOLLINGER", "bollinger", "TSMOM", "tsmom", "VCB"]) {
+    assert.equal(script.includes(frozen), false, `the run script must not reference the frozen family ${frozen}`);
+  }
+
+  // What it does declare are the exploratory families the timeframe option is allowed to move.
+  const definitions = ["SMA_PARAMETER_NEIGHBORHOOD", "RSI_PARAMETER_NEIGHBORHOOD", "DONCHIAN_PARAMETER_NEIGHBORHOOD"];
+  for (const family of definitions) assert.equal(script.includes(family), true, `${family} must remain declared here`);
 });
