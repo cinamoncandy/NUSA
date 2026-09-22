@@ -120,6 +120,6 @@ const styles = StyleSheet.create({
   authorityLandscape: { minHeight: 136, borderWidth: 1, borderColor: BORDER, borderRadius: 14, justifyContent: "flex-end" },
   authorityLandscapeImage: { borderRadius: 14 },
   authority: { paddingVertical: 16, paddingHorizontal: 16, gap: 4, alignItems: "flex-start" },
-  authorityLine: { color: "#E8EFE5", fontSize: 10, lineHeight: 16, fontWeight: "800", letterSpacing: 1.6 },
+  authorityLine: { color: wealthProductColors.c118, fontSize: 10, lineHeight: 16, fontWeight: "800", letterSpacing: 1.6 },
   build: { color: MUTED, fontSize: 10, textAlign: "center", fontVariant: ["tabular-nums"] },
 });

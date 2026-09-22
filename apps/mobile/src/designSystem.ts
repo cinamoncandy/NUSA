@@ -64,6 +64,9 @@ export interface Theme {
 }
 
 export const wealthProductColors = Object.freeze({
+  c116: "#05080C",
+  c117: "#020509",
+  c118: "#E8EFE5",
   c71: "#0D171B",
   c72: "#0A1116",
   c73: "#1B2830",

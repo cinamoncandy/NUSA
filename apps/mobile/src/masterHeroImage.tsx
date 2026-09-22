@@ -1,6 +1,7 @@
 import React from "react";
 import { ImageBackground, StyleSheet, View, type ImageStyle, type StyleProp, type ViewStyle } from "react-native";
 import { masterHeroAssets, type MasterHeroAssetKey } from "./masterHeroAssets";
+import { wealthProductColors } from "./designSystem";
 
 interface MasterHeroImageProps {
   readonly asset: MasterHeroAssetKey;
@@ -25,6 +26,6 @@ export function MasterHeroImage({ asset, children, style, imageStyle, testID, sc
 }
 
 const styles = StyleSheet.create({
-  hero: { position: "relative", overflow: "hidden", backgroundColor: "#05080C" },
-  scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "#020509" },
+  hero: { position: "relative", overflow: "hidden", backgroundColor: wealthProductColors.c116 },
+  scrim: { ...StyleSheet.absoluteFill, backgroundColor: wealthProductColors.c117 },
 });
