@@ -8,13 +8,13 @@ const FAILED_SHA = "b".repeat(40);
 const RUN_ID = 9001;
 const NOW = 1_787_968_000_000;
 
-function namespace(acquired = true, record: Record<string, unknown> | null = null, events: string[] = []): ExecutionCoordinatorNamespace {
+function namespace(acquired = true, record: Record<string, unknown> | null = null, events: string[] = [], activeExecutions = 0): ExecutionCoordinatorNamespace {
   return {
     idFromName: (name: string) => ({ name }),
     get: () => ({
       async fetch(input: RequestInfo | URL) {
         const url = String(input);
-        if (url.endsWith("/active-wip")) { events.push("active-wip:read"); return new Response(JSON.stringify({ claims: [], activeExecutions: 0 }), { status: 200, headers: { "content-type": "application/json" } }); }
+        if (url.endsWith("/active-wip")) { events.push("active-wip:read"); return new Response(JSON.stringify({ claims: activeExecutions === 0 ? [] : [{ dedupeKey: "other", executionId: "other", canonicalOwner: "other", conflictKeys: ["other"], claimedAt: NOW }], activeExecutions }), { status: 200, headers: { "content-type": "application/json" } }); }
         if (url.endsWith("/active-wip/admit")) { events.push("active-wip:admit"); return new Response(JSON.stringify({ admitted: true }), { status: 201, headers: { "content-type": "application/json" } }); }
         if (url.endsWith("/active-wip/complete")) { events.push("active-wip:complete"); return new Response(JSON.stringify({ completed: true }), { status: 200, headers: { "content-type": "application/json" } }); }
         if (url.endsWith("/execution")) return new Response(JSON.stringify({ record }), { status: 200, headers: { "content-type": "application/json" } });
@@ -114,18 +114,11 @@ test("scheduled evolution coding suppresses duplicate coding dispatch", async ()
   assert.equal(outcome.reason, "ALREADY_DISPATCHED");
 });
 
-test("scheduled evolution coding uses the coordinator lease to stop selection before acquisition", async () => {
-  const dedupeKey = `evolve-coding:${MAIN_SHA}:gha:ci:${FAILED_SHA}:failure`;
+test("scheduled evolution coding uses aggregate active WIP to stop selection before acquisition", async () => {
   const events: string[] = [];
   const outcome = await runScheduledEvolutionCoding({
     NUSA_GITHUB_TOKEN: "token",
-    NUSA_EXECUTION_COORDINATOR: namespace(true, {
-      dedupeKey,
-      executionId: "existing-execution",
-      state: "LEASED",
-      leaseExpiresAt: NOW + 60_000,
-      updatedAt: NOW - 120_000,
-    }, events),
+    NUSA_EXECUTION_COORDINATOR: namespace(true, null, events, 1),
   }, {
     candidates,
     now: NOW,
