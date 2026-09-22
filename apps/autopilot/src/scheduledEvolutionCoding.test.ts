@@ -116,6 +116,7 @@ test("scheduled evolution coding suppresses duplicate coding dispatch", async ()
 
 test("scheduled evolution coding uses the coordinator lease to stop selection before acquisition", async () => {
   const dedupeKey = `evolve-coding:${MAIN_SHA}:gha:ci:${FAILED_SHA}:failure`;
+  const events: string[] = [];
   const outcome = await runScheduledEvolutionCoding({
     NUSA_GITHUB_TOKEN: "token",
     NUSA_EXECUTION_COORDINATOR: namespace(true, {
@@ -124,7 +125,7 @@ test("scheduled evolution coding uses the coordinator lease to stop selection be
       state: "LEASED",
       leaseExpiresAt: NOW + 60_000,
       updatedAt: NOW - 120_000,
-    }),
+    }, events),
   }, {
     candidates,
     now: NOW,
@@ -134,6 +135,7 @@ test("scheduled evolution coding uses the coordinator lease to stop selection be
   });
   assert.equal(outcome.status, "ABSTAINED");
   assert.equal(outcome.reason, "concurrency-limit-reached");
+  assert.deepEqual(events, ["active-wip:read"]);
 });
 
 test("scheduled evolution coding fails closed on repeated fresh failure evidence", async () => {
