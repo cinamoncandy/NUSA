@@ -32,7 +32,6 @@ describe("mobile approved session persistence boundary", () => {
   it("coalesces concurrent silent restores and preserves DeviceKey on 429", async () => {
     const storage = new MemorySecureStorage();
     const endpoint = "https://paper.example";
-    const now = Date.now();
     let challenges = 0;
     let deleted = 0;
     const request = (async (url: string | URL | Request) => {
