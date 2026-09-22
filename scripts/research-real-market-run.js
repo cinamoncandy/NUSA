@@ -428,6 +428,25 @@ async function fetchResearchCandles({ market = MARKET, dataAsOf, count = DEFAULT
   return { candles, sourceRequests };
 }
 
+/**
+ * The freshness block published into hypothesis provenance.
+ *
+ * It exists as a named function because the bug it encodes was invisible otherwise: the emission
+ * read `freshness.lagDays` off the generic projection, which only the daily-named wrapper carries,
+ * so every non-daily run published `lagDays: undefined` and no test could see it from main().
+ */
+function buildPublishedFreshness(freshness) {
+  if (!Number.isFinite(freshness?.lagIntervals)) {
+    throw new Error("research freshness projection must report a finite lagIntervals");
+  }
+  return {
+    status: "FRESH",
+    expectedLatestCloseTime: new Date(freshness.expectedLatestCloseTime).toISOString(),
+    actualLatestCloseTime: new Date(freshness.actualLatestCloseTime).toISOString(),
+    lagIntervals: freshness.lagIntervals
+  };
+}
+
 function createMarketDataset({ market, dataAsOf, candles, sourceRequests }) {
   const freshness = evaluateUpbitCandleFreshness(candles, dataAsOf, TIMEFRAME);
   if (!freshness.fresh) {
@@ -628,12 +647,7 @@ async function main() {
       contentSha256: manifest.contentSha256,
       sourceRequest: manifest.sourceRequest,
       completedBy: new Date(dataAsOf).toISOString(),
-      freshness: {
-        status: "FRESH",
-        expectedLatestCloseTime: new Date(freshness.expectedLatestCloseTime).toISOString(),
-        actualLatestCloseTime: new Date(freshness.actualLatestCloseTime).toISOString(),
-        lagIntervals: freshness.lagIntervals
-      }
+      freshness: buildPublishedFreshness(freshness)
     },
     evidenceDatasets: marketDatasets.map((entry) => ({
       datasetId: entry.manifest.datasetId,
@@ -718,6 +732,11 @@ if (require.main === module) {
 
 module.exports = {
   RESEARCH_MARKET_SET_VERSION,
+  // Exported so the emitted freshness projection can be asserted directly. Reading a field that the
+  // generic projection does not carry produced `undefined` in research output for every non-daily
+  // run, and nothing failed; a source-text assertion would not have caught that either.
+  createMarketDataset,
+  buildPublishedFreshness,
   RESEARCH_MARKETS,
   researchPrimaryMarket,
   researchTimeframe,

@@ -1,12 +1,37 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const path = require("node:path");
+const { spawnSync } = require("node:child_process");
 const {
   RESEARCH_TIMEFRAMES,
   RESEARCH_MARKET_SET_VERSION,
   researchTimeframe,
   researchCandleCount,
   declaredResearchCandleCount,
+  createMarketDataset,
+  buildPublishedFreshness,
 } = require("../scripts/research-real-market-run.js");
+const { UPBIT_INTERVAL_MS, evaluateUpbitCandleFreshness } = require("../dist/apps/desktop/src/exchange/upbitCandleAdapter.js");
+
+const candleSeries = (market, interval, closeTime, count) => {
+  const step = UPBIT_INTERVAL_MS[interval];
+  return Object.freeze(
+    Array.from({ length: count }, (_, index) => {
+      const close = closeTime - (count - 1 - index) * step;
+      return Object.freeze({
+        market,
+        interval,
+        openTime: close - step,
+        closeTime: close,
+        open: 100,
+        high: 101,
+        low: 99,
+        close: 100,
+        volume: 1,
+      });
+    }),
+  );
+};
 
 test("timeframe defaults to daily when unset", () => {
   for (const value of [undefined, "", "   "]) assert.equal(researchTimeframe(value), "1d");
@@ -76,4 +101,83 @@ test("runtime candle depth must exactly match the timeframe availability declara
 test("runtime candle depth rejects malformed and undeclared timeframe values", () => {
   assert.throws(() => declaredResearchCandleCount("abc", "1d"), /must be an integer/);
   assert.throws(() => declaredResearchCandleCount("2000", "5m"), /requires a declared timeframe/);
+});
+
+test("the generic freshness projection carries interval units and no day-named field", () => {
+  // #1981 requirement 7. evaluateUpbitCandleFreshness reports lagIntervals; only the daily-named
+  // wrapper reports lagDays. Reading lagDays off the generic result yields undefined, which is the
+  // defect this guards, so assert the absence as well as the presence.
+  for (const interval of ["1d", "60m", "240m"]) {
+    const step = UPBIT_INTERVAL_MS[interval];
+    const asOf = Math.floor(Date.now() / step) * step;
+    const fresh = evaluateUpbitCandleFreshness(candleSeries("KRW-BTC", interval, asOf, 3), asOf, interval);
+    assert.equal(Object.prototype.hasOwnProperty.call(fresh, "lagIntervals"), true, `${interval} must report lagIntervals`);
+    assert.equal(Object.prototype.hasOwnProperty.call(fresh, "lagDays"), false, `${interval} must not report lagDays`);
+    assert.equal(Number.isFinite(fresh.lagIntervals), true, `${interval} lagIntervals must be finite`);
+
+    // One interval of trailing data is still one interval of lag, counted in intervals.
+    const behind = evaluateUpbitCandleFreshness(candleSeries("KRW-BTC", interval, asOf - step, 3), asOf, interval);
+    assert.equal(behind.lagIntervals, 1, `${interval} must count lag in intervals, not days`);
+  }
+});
+
+test("emitted research freshness is defined for every declared timeframe", () => {
+  // The run script emits dataset.freshness into hypothesis provenance. Before #1982 it copied
+  // freshness.lagDays off the generic projection, so every non-daily run published
+  // `lagDays: undefined`. createMarketDataset reads the module-level TIMEFRAME, fixed at load, so
+  // each timeframe is exercised in its own process rather than by passing an interval in.
+  for (const interval of ["1d", "60m", "240m"]) {
+    const script = `
+      const { createMarketDataset } = require("./scripts/research-real-market-run.js");
+      const { UPBIT_INTERVAL_MS } = require("./dist/apps/desktop/src/exchange/upbitCandleAdapter.js");
+      const interval = process.env.NUSA_RESEARCH_TIMEFRAME;
+      const step = UPBIT_INTERVAL_MS[interval];
+      const dataAsOf = Math.floor(Date.now() / step) * step;
+      const candles = Array.from({ length: 40 }, (_, index) => {
+        const closeTime = dataAsOf - (39 - index) * step;
+        return { market: "KRW-BTC", interval, openTime: closeTime - step, closeTime, open: 100, high: 101, low: 99, close: 100, volume: 1 };
+      });
+      const dataset = createMarketDataset({ market: "KRW-BTC", dataAsOf, candles, sourceRequests: ["test"] });
+      process.stdout.write(JSON.stringify({
+        lagIntervals: dataset.freshness.lagIntervals,
+        hasLagDays: Object.prototype.hasOwnProperty.call(dataset.freshness, "lagDays"),
+        fresh: dataset.freshness.fresh,
+        candleCount: dataset.manifest.candleCount,
+      }));
+    `;
+    const result = spawnSync(process.execPath, ["-e", script], {
+      cwd: path.resolve(__dirname, ".."),
+      env: { ...process.env, NUSA_RESEARCH_TIMEFRAME: interval },
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0, `${interval} emission failed: ${result.stderr}`);
+    const emitted = JSON.parse(result.stdout);
+    assert.equal(Number.isFinite(emitted.lagIntervals), true, `${interval} emitted lagIntervals must be finite`);
+    assert.equal(emitted.hasLagDays, false, `${interval} must not emit a day-named lag`);
+    assert.equal(emitted.fresh, true);
+    assert.equal(emitted.candleCount, 40);
+  }
+});
+
+test("published provenance freshness carries interval lag and never a day-named field", () => {
+  // This is the value that actually reaches hypothesis provenance, and the one #1982 repaired. It is
+  // asserted through the exported builder because main() does network I/O: reading lagDays off the
+  // generic projection published `lagDays: undefined` and nothing could observe it.
+  for (const interval of ["1d", "60m", "240m"]) {
+    const step = UPBIT_INTERVAL_MS[interval];
+    const asOf = Math.floor(Date.now() / step) * step;
+    const source = evaluateUpbitCandleFreshness(candleSeries("KRW-BTC", interval, asOf - step, 3), asOf, interval);
+
+    const published = buildPublishedFreshness(source);
+    assert.equal(published.lagIntervals, 1, `${interval} must publish lag in intervals`);
+    assert.equal(Object.prototype.hasOwnProperty.call(published, "lagDays"), false, `${interval} must not publish lagDays`);
+    assert.equal(published.status, "FRESH");
+    assert.equal(published.expectedLatestCloseTime, new Date(source.expectedLatestCloseTime).toISOString());
+    assert.equal(published.actualLatestCloseTime, new Date(source.actualLatestCloseTime).toISOString());
+  }
+
+  // A projection without a finite interval lag — the daily wrapper's shape — cannot be published.
+  assert.throws(() => buildPublishedFreshness({ expectedLatestCloseTime: 0, actualLatestCloseTime: 0, lagDays: 1 }), /finite lagIntervals/);
+  assert.throws(() => buildPublishedFreshness({ expectedLatestCloseTime: 0, actualLatestCloseTime: 0, lagIntervals: undefined }), /finite lagIntervals/);
+  assert.throws(() => buildPublishedFreshness(undefined), /finite lagIntervals/);
 });
