@@ -23,16 +23,16 @@ test("Intelligence OS keeps authority and data-integrity boundaries visible", ()
   assert.doesNotMatch(home, /BULLISH|BEARISH|STRONG SIGNAL|WEAK SIGNAL/);
 });
 
-test("HOME follows intelligence -> market truth -> breadth -> signals -> PAPER performance -> capital limits", () => {
-  // The approved layout leads with the AI signal panel and places market pulse beneath it, so the
-  // scan order is intelligence -> market truth -> breadth, not market truth first.
+test("HOME follows PAPER truth -> system -> market -> PAPER -> AI -> capital limits -> learning", () => {
+  // The concept board leads with the owner's own PAPER position, then the runtime status cards, and
+  // keeps the capital envelope and the learning route below them. The old market-breadth and
+  // top-signals panels are gone: the market list is the Market tab now.
   const anchors = [
-    'testID="ai-card"',
-    'testID="home-decision-stage"',
-    'testID="home-market-pulse"',
-    'testID="home-market-breadth"',
-    'testID="home-top-signals"',
-    'testID="home-paper-performance"',
+    'testID="account-hero-card"',
+    'testID="home-system-status"',
+    'testID="home-market-status"',
+    'testID="home-paper-status"',
+    'testID="home-ai-judgement"',
     'testID="home-capital-limits"',
     'testID="home-paper-learning"',
     'testID="home-risk-authority"',

@@ -7,14 +7,17 @@ const home = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src",
 const decisionSurface = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "homeDecisionSurface.ts"), "utf8");
 
 test("HOME keeps operational recovery as small chrome without replacing the intelligence composition", () => {
-  const ai = home.indexOf('testID="ai-card"');
-  const terrain = home.indexOf('testID="home-decision-stage"');
-  const paperPerformance = home.indexOf('testID="home-paper-performance"');
+  // The board's HOME scan order: the PAPER equity hero, then the runtime status cards, then the
+  // capital envelope, and only then the learning route. Recovery chrome stays below all of it.
+  const hero = home.indexOf('testID="account-hero-card"');
+  const ai = home.indexOf('testID="home-ai-judgement"');
+  const capital = home.indexOf('testID="home-capital-limits"');
   const learning = home.indexOf('testID="home-paper-learning"');
   const notice = home.indexOf('testID="home-operational-notice"');
 
-  assert.ok(ai >= 0 && terrain > ai && paperPerformance > terrain && learning > paperPerformance);
-  assert.ok(notice > paperPerformance, "connection recovery remains operational chrome rather than replacing HOME");
+  assert.ok([hero, ai, capital, learning, notice].every((index) => index >= 0), "every HOME landmark must render");
+  assert.ok(hero < ai && ai < capital && capital < learning);
+  assert.ok(notice > capital, "connection recovery remains operational chrome rather than replacing HOME");
   assert.match(home, /PAPER CONNECTION REQUIRED/);
   assert.match(home, /PAPER READ-ONLY ERROR/);
   assert.match(home, /onPress=\{props\.onGoSettings\}/);

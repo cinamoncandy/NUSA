@@ -21,7 +21,7 @@ export function AuthorityRail({ detail, status, tone = "success", testID }: Read
       <View style={[styles.authorityDot, { borderColor: color }]} />
       <Text style={[styles.authorityBrand, { color: theme.colors.text }]}>NUSA</Text>
       <Text style={[styles.authorityMode, { color }]}>PAPER ONLY</Text>
-      <Text style={[styles.authorityDetail, { color: theme.colors.textMuted }]} numberOfLines={1}>{detail}</Text>
+      <Text style={[styles.authorityDetail, { color: theme.colors.textMuted }]}>{detail}</Text>
     </View>
     <View style={[styles.authorityStatus, { borderColor: color }]}><Text style={[styles.authorityStatusText, { color }]}>{status}</Text></View>
   </View>;
@@ -88,7 +88,7 @@ export function StateNotice({ title, detail, tone = "warning", testID }: Readonl
 
 const styles = StyleSheet.create({
   authorityRail: { minHeight: 32, borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 2, paddingVertical: 4, justifyContent: "center" },
-  authorityBrandRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingRight: 72 },
+  authorityBrandRow: { flexWrap: "wrap", flexDirection: "row", alignItems: "center", gap: 6, paddingRight: 72 },
   authorityDot: { width: 6, height: 6, borderWidth: 1.2, borderRadius: 999 },
   authorityBrand: { fontSize: 10, lineHeight: 14, fontWeight: "900", letterSpacing: 1.45 },
   authorityMode: { fontSize: 7, lineHeight: 10, fontWeight: "900", letterSpacing: 0.8 },

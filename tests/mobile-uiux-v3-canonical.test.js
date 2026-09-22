@@ -28,17 +28,21 @@ test("Home uses the approved intelligence hierarchy and keeps AI read-only", () 
   const source = read("src/homeView.tsx");
   const decisionSurface = read("src/homeDecisionSurface.ts");
   assert.match(source, /testID="home-master-rail"/);
-  assert.match(source, /testID="home-market-pulse"/);
+  assert.match(source, /testID="home-market-status"/);
   assert.match(source, /testID="account-hero-card"/);
-  assert.match(source, /TOTAL P&L/);
-  assert.match(source, />EQUITY<\/Text>/);
-  assert.match(source, /\{signalAvailable \? "VERIFIED AI SIGNAL" : "NO VERIFIED SIGNAL"\}/);
+  assert.match(source, /won\(totalPnl\)/);
+  assert.match(source, />PAPER Equity<\/Text>/);
+  // HOME states AI readiness on its status card; the verified/unverified signal wording itself now
+  // lives on the Signals screen, which owns the signal.
+  assert.match(source, /\{signalAvailable\?"Ready":"Waiting"\}/);
   assert.match(source, /const signalAvailable = decision\.aiInsightAvailable/);
   assert.match(source, /testID="home-risk-authority"/);
-  assert.match(source, /testID="home-decision-stage"/);
-  assert.match(source, /testID="home-market-breadth"/);
-  assert.match(source, /testID="home-top-signals"/);
-  assert.match(source, /testID="home-paper-performance"/);
+  assert.match(source, /testID="home-ai-judgement"/);
+  // The breadth and top-signals panels are gone with the board: the market list is the Market tab
+  // and signals are the Signals tab. HOME states each domain's verified runtime state instead.
+  assert.match(source, /testID="home-market-status"/);
+  assert.match(source, /testID="home-paper-status"/);
+  assert.match(source, /testID="home-paper-status"/);
   assert.match(source, /testID="home-capital-limits"/);
   assert.match(source, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
   assert.match(source, /selectHomeMarketData\(props\.publicMarkets, props\.snapshot\?\.markets \?\? \[\]\)/);
@@ -74,7 +78,9 @@ test("Portfolio and AI use decision-first information hierarchy", () => {
   assert.doesNotMatch(portfolio, /<MetricTile/);
 
   assert.match(ai, /testID="ai-screen"/);
-  assert.match(ai, /SIGNAL DETAIL/);
+  // The board titles the drill "Signal Detail" and gives it its own screen.
+  assert.match(ai, /testID="signal-detail-screen"/);
+  assert.match(ai, /Signal Detail/);
   assert.match(ai, /testID="ai-convergence-signal"/);
   assert.match(ai, /testID="ai-stage-timeline"/);
   assert.match(ai, /testID="ai-thesis-card"/);

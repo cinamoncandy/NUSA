@@ -13,8 +13,8 @@ test("HOME matches the canonical autonomous-intelligence hierarchy", () => {
   assert.match(home, /testID="home-status-rail"/);
   assert.match(home, /testID="home-master-rail"/);
   assert.match(os, />NUSA<\/Text>/);
-  assert.match(home, /TOTAL P&L/);
-  assert.match(home, /EQUITY/);
+  assert.match(home, /won\(totalPnl\)/);
+  assert.match(home, /PAPER Equity/);
   // The approved layout dropped the "PAPER MODE" and "SIGNAL TERRAIN" headings. What must survive is
   // that HOME still *visibly* declares the PAPER boundary, so assert the declaration and the style it
   // renders under. homeView also carries `hiddenDecisionEvidence`
@@ -28,8 +28,8 @@ test("HOME matches the canonical autonomous-intelligence hierarchy", () => {
   assert.doesNotMatch(safetyStyle[1], /(width|height):\s*[01]\b/, "the PAPER declaration must not be collapsed to a 1px node");
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /testID="home-risk-authority"/);
-  assert.match(home, /testID="home-decision-stage"/);
-  assert.match(home, /testID="home-paper-performance"/);
+  assert.match(home, /testID="home-ai-judgement"/);
+  assert.match(home, /testID="home-paper-status"/);
   assert.match(home, /testID="home-paper-learning"/);
 });
 
@@ -40,7 +40,11 @@ test("HOME autonomous-intelligence design uses verified runtime data and preserv
   assert.match(home, /buildLocalPortfolio\(localTradingSnapshot, localMarkPrice\)/);
   assert.match(home, /buildHomeDecisionSurface/);
   assert.match(home, /accountSource/);
-  assert.match(home, /marketRows/);
+  // The board's HOME states market truth as one status rather than a market list; the list itself
+  // is the Market tab. What must not weaken is that the status comes from verified observations,
+  // not from a bare connection flag.
+  assert.match(home, /const observedMarkets = marketFeed\.filter\(/);
+  assert.match(home, /const marketVerified = props\.publicMarketConnectionState === "CONNECTED" && !props\.publicMarketStale && observedMarkets\.length > 0/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
   assert.match(home, /UPBIT PUBLIC/);
   assert.doesNotMatch(home, /productionMutationAllowed\s*=\s*true/);
@@ -54,7 +58,8 @@ test("HOME autonomous-intelligence design keeps real navigation actions", () => 
 
   assert.match(home, /onNavigate\("Market"\)/);
   assert.match(home, /onNavigate\("Signals"\)/);
-  assert.match(home, /onNavigate\("Strategies"\)/);
+  // HOME does not link Strategies: the board makes it a primary tab, so it is reachable from the
+  // navigation bar rather than from a HOME card. Every control HOME does render must still be live.
   assert.match(home, /onOpenPaperLearning/);
   assert.match(home, /onPress=\{props\.onGoSettings\}/);
   assert.match(home, /testID="home-operational-notice"/);

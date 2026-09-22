@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useTheme } from "./ThemeProvider";
+import { wealthProductColors } from "./designSystem";
 import { TerrainSignal } from "./components";
 import { ChartView } from "./chartView";
 import type { PublicCandle } from "./chartViewModel";
@@ -94,7 +95,7 @@ function MarketGlobe({ markets }: Readonly<{ markets: readonly WatchlistMarket[]
       <View style={[styles.globeNode,{left:"28%",top:"42%",backgroundColor:theme.colors.aiSignalEnd}]}/><View style={[styles.globeNode,{left:"57%",top:"35%",backgroundColor:theme.colors.primary}]}/><View style={[styles.globeNode,{left:"73%",top:"58%",backgroundColor:theme.colors.aiSignalMid}]}/>
       <Text style={[styles.globeLabel,{left:"20%",top:"49%"}]}>US</Text><Text style={[styles.globeLabel,{left:"54%",top:"42%"}]}>EU</Text><Text style={[styles.globeLabel,{right:"11%",top:"64%"}]}>ASIA</Text>
     </View>
-    <View style={styles.globeCaption}><Text style={styles.globeCaptionTitle}>Global Markets</Text><Text style={styles.globeCaptionSub}>{rows.length>0?"Verified public observations":"NO VERIFIED PUBLIC DATA"}</Text></View>
+    <View style={styles.globeCaption}><Text style={styles.globeCaptionTitle}>Upbit KRW Markets</Text><Text style={styles.globeCaptionSub}>{rows.length>0?"Verified public observations":"NO VERIFIED PUBLIC DATA"}</Text></View>
   </View>;
 }
 
@@ -201,11 +202,14 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
   return <View style={[styles.workspace, { backgroundColor: theme.colors.background }]} testID="markets-workspace">
     <View style={[styles.top, { maxWidth: tabletWorkspace ? 980 : 720 }]}>
       <View style={styles.marketReferenceHeader} testID="market-reference-header">
-        <View><Text style={[styles.marketReferenceTitle,{color:theme.colors.text}]}>Market</Text><Text style={[styles.marketReferenceSub,{color:theme.colors.textMuted}]}>Global markets at a glance</Text></View>
+        <View style={styles.marketReferenceLead}><Text style={[styles.marketReferenceTitle,{color:theme.colors.text}]}>Market</Text><Text style={[styles.marketReferenceSub,{color:theme.colors.textMuted}]}>Upbit KRW public markets at a glance</Text></View>
         <Text style={[styles.marketReferenceSource,{color:theme.colors.textMuted}]}>UPBIT PUBLIC</Text>
       </View>
       <View style={styles.marketReferenceTabs} testID="market-reference-tabs">
-        {["Overview","Indices","Sectors","Assets"].map((label,index)=><View key={label} style={[styles.marketReferenceTab,index===0?{borderBottomColor:theme.colors.primary}:null]}><Text style={[styles.marketReferenceTabText,{color:index===0?theme.colors.text:theme.colors.textMuted}]}>{label}</Text></View>)}
+        {/* The board's tabs read Overview / Indices / Sectors / Assets. Upbit KRW publishes no indices
+          and no sector classification, and these were plain Views with no handler — a false scope
+          and a dead control at once. Only the tab the screen actually shows remains. */}
+        <View style={[styles.marketReferenceTab,{borderBottomColor:theme.colors.primary}]}><Text style={[styles.marketReferenceTabText,{color:theme.colors.text}]}>KRW Markets</Text></View>
       </View>
       <MarketGlobe markets={parsedMarkets}/>
       <View style={styles.marketReferenceList} testID="market-reference-list">
@@ -218,7 +222,7 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
           </Pressable>;
         })}
       </View>
-      <Text style={[styles.marketSafety,{color:theme.colors.textMuted}]}>REAL DATA ONLY · NO PREDICTION · PAPER SEPARATE</Text>
+      <AuthorityRail detail="PUBLIC READ ONLY · PAPER SEPARATE · AI ZERO AUTHORITY" status={sourceState} tone={sourceState === "ACTIVE" ? "success" : sourceState === "ERROR" ? "danger" : "warning"} testID="markets-authority-rail" />
 
       {error ? <StateNotice title="PUBLIC FEED ERROR" detail={error} tone="danger" /> : displayedStale ? <StateNotice title="STALE DATA" detail="표시 중인 공개 시장 데이터가 신선도 기준을 벗어났습니다." tone="warning" /> : null}
     </View>
@@ -236,18 +240,18 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
 }
 
 const styles = StyleSheet.create({
-  marketReferenceHeader:{paddingTop:6,flexDirection:"row",alignItems:"flex-end",justifyContent:"space-between",gap:12},
-  marketReferenceTitle:{fontSize:30,lineHeight:36,fontWeight:"700",letterSpacing:-.7},marketReferenceSub:{fontSize:9,lineHeight:13,marginTop:3},marketReferenceSource:{fontSize:8,fontWeight:"800",letterSpacing:.8},
-  marketReferenceTabs:{height:40,flexDirection:"row",alignItems:"stretch",borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:"#1B2830"},marketReferenceTab:{marginRight:22,justifyContent:"center",borderBottomWidth:2,borderBottomColor:"transparent"},marketReferenceTabText:{fontSize:10,fontWeight:"700"},
-  globeHero:{height:260,borderRadius:20,overflow:"hidden",position:"relative",backgroundColor:"#06101A",borderWidth:1,borderColor:"#1A2B38",alignItems:"center",justifyContent:"center"},
-  globeGlow:{position:"absolute",width:245,height:245,borderRadius:245,backgroundColor:"#76C7FF",opacity:.08,shadowColor:"#7FE6B0",shadowOpacity:.4,shadowRadius:35},
-  globeSphere:{width:210,height:210,borderRadius:210,borderWidth:1,borderColor:"#39586C",backgroundColor:"#0A1722",overflow:"hidden",position:"relative"},
-  globeLatA:{position:"absolute",left:-5,right:-5,top:58,height:76,borderRadius:110,borderWidth:1,borderColor:"#23455B"},globeLatB:{position:"absolute",left:-5,right:-5,top:84,height:42,borderRadius:110,borderWidth:1,borderColor:"#23455B"},
-  globeLonA:{position:"absolute",top:-4,bottom:-4,left:66,width:78,borderRadius:90,borderWidth:1,borderColor:"#23455B"},globeLonB:{position:"absolute",top:-4,bottom:-4,left:88,width:34,borderRadius:90,borderWidth:1,borderColor:"#23455B"},
-  globeNode:{position:"absolute",width:8,height:8,borderRadius:8,shadowColor:"#DDF9A8",shadowOpacity:.8,shadowRadius:8},globeLabel:{position:"absolute",color:"#D7DEE0",fontSize:8,fontWeight:"800"},
-  globeCaption:{position:"absolute",left:16,bottom:14},globeCaptionTitle:{color:"#F4F7F6",fontSize:13,fontWeight:"700"},globeCaptionSub:{color:"#7D8A90",fontSize:8,marginTop:2},
-  marketReferenceList:{gap:7},marketReferenceRow:{minHeight:58,borderRadius:12,borderWidth:1,borderColor:"#1B2A33",backgroundColor:"#0B1218",paddingHorizontal:12,flexDirection:"row",alignItems:"center",gap:11},
-  marketReferenceIcon:{width:30,height:30,borderRadius:30,backgroundColor:"#16232C",alignItems:"center",justifyContent:"center"},marketReferenceIconText:{color:"#C7D2D6",fontSize:11,fontWeight:"800"},
+  marketReferenceHeader:{paddingTop:6,flexDirection:"row",alignItems:"flex-end",justifyContent:"space-between",gap:12,flexWrap:"wrap"},marketReferenceLead: { flex: 1, minWidth: 0 },
+  marketReferenceTitle:{fontSize:30,lineHeight:36,fontWeight:"700",letterSpacing:-.7},marketReferenceSub:{fontSize:9,lineHeight:13,marginTop:3},marketReferenceSource:{fontSize:8,fontWeight:"800",letterSpacing:.8,flexShrink:0},
+  marketReferenceTabs:{height:40,flexDirection:"row",alignItems:"stretch",borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:wealthProductColors.c73},marketReferenceTab:{marginRight:22,justifyContent:"center",borderBottomWidth:2,borderBottomColor:"transparent"},marketReferenceTabText:{fontSize:10,fontWeight:"700"},
+  globeHero:{height:260,borderRadius:20,overflow:"hidden",position:"relative",backgroundColor:wealthProductColors.c77,borderWidth:1,borderColor:wealthProductColors.c78,alignItems:"center",justifyContent:"center"},
+  globeGlow:{position:"absolute",width:245,height:245,borderRadius:245,backgroundColor:wealthProductColors.c79,opacity:.08,shadowColor:wealthProductColors.c80,shadowOpacity:.4,shadowRadius:35},
+  globeSphere:{width:210,height:210,borderRadius:210,borderWidth:1,borderColor:wealthProductColors.c81,backgroundColor:wealthProductColors.c82,overflow:"hidden",position:"relative"},
+  globeLatA:{position:"absolute",left:-5,right:-5,top:58,height:76,borderRadius:110,borderWidth:1,borderColor:wealthProductColors.c83},globeLatB:{position:"absolute",left:-5,right:-5,top:84,height:42,borderRadius:110,borderWidth:1,borderColor:wealthProductColors.c83},
+  globeLonA:{position:"absolute",top:-4,bottom:-4,left:66,width:78,borderRadius:90,borderWidth:1,borderColor:wealthProductColors.c83},globeLonB:{position:"absolute",top:-4,bottom:-4,left:88,width:34,borderRadius:90,borderWidth:1,borderColor:wealthProductColors.c83},
+  globeNode:{position:"absolute",width:8,height:8,borderRadius:8,shadowColor:wealthProductColors.c84,shadowOpacity:.8,shadowRadius:8},globeLabel:{position:"absolute",color:wealthProductColors.c85,fontSize:8,fontWeight:"800"},
+  globeCaption:{position:"absolute",left:16,bottom:14},globeCaptionTitle:{color:wealthProductColors.c86,fontSize:13,fontWeight:"700"},globeCaptionSub:{color:wealthProductColors.c87,fontSize:8,marginTop:2},
+  marketReferenceList:{gap:7},marketReferenceRow:{minHeight:58,borderRadius:12,borderWidth:1,borderColor:wealthProductColors.c88,backgroundColor:wealthProductColors.c89,paddingHorizontal:12,flexDirection:"row",alignItems:"center",gap:11},
+  marketReferenceIcon:{width:30,height:30,borderRadius:30,backgroundColor:wealthProductColors.c90,alignItems:"center",justifyContent:"center"},marketReferenceIconText:{color:wealthProductColors.c91,fontSize:11,fontWeight:"800"},
   marketReferenceRowMain:{flex:1},marketReferenceSymbol:{fontSize:12,fontWeight:"800"},marketReferencePrice:{fontSize:9,fontVariant:["tabular-nums"],marginTop:2},marketReferenceMove:{fontSize:11,fontWeight:"800",fontVariant:["tabular-nums"]},
   marketSafety:{textAlign:"center",fontSize:7,fontWeight:"800",letterSpacing:1.1,paddingVertical:4},
   workspace: { flex: 1, width: "100%", maxWidth: uxLayout.maxWorkspaceWidth, alignSelf: "center" },

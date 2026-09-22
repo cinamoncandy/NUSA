@@ -127,14 +127,33 @@ jobs:
           grep -q "performance-screen" qa/android-product-ux/07-performance.xml
           tap "utility-close"
 
-          tap "tab-More"; capture 08-more
-          grep -q "more-authority" qa/android-product-ux/08-more.xml
+          tap "tab-More"; tap "more-portfolio"; capture 08-portfolio
+          grep -q "portfolio-investable-cash" qa/android-product-ux/08-portfolio.xml
+          tap "utility-close"
+
+          # PAPER learning evidence is the safety-relevant surface on this device path. Dropping it
+          # left the acceptance run never opening the PAPER report or its evidence detail.
+          tap "tab-More"; tap "more-paper"; capture 09-paper
+          grep -q "paper-learning-monitor" qa/android-product-ux/09-paper.xml
+          tap_after_scroll "paper-learning-detail-toggle"; scroll_until_visible "paper-learning-timeline"; capture 10-paper-evidence-open
+          grep -q "paper-learning-timeline" qa/android-product-ux/10-paper-evidence-open.xml
+          tap "utility-close"
+
+          tap "tab-More"; capture 11-more
+          grep -q "more-authority" qa/android-product-ux/11-more.xml
+
+          tap "tab-Home"; capture 12-home-return
+          grep -q "home-screen" qa/android-product-ux/12-home-return.xml
+
+          tap "tab-More"; tap "more-settings"; capture 13-settings
+          grep -q "settings" qa/android-product-ux/13-settings.xml
+          tap "utility-close"
 
           grep -q "home-screen" qa/android-product-ux/01-home.xml
           grep -q "markets-workspace" qa/android-product-ux/02-market.xml
           grep -q "signal-terrain-hero" qa/android-product-ux/03-signal-terrain.xml
           grep -q "signal-detail-screen" qa/android-product-ux/04-signal-detail.xml
-          printf 'touch_navigation=PASS\nmaster_screens=8\nframes=%s\nvisual_route=HOME>MARKET>SIGNAL_TERRAIN>SIGNAL_DETAIL>STRATEGIES>RISK>PERFORMANCE>MORE\n' "$(find qa/android-product-ux -name '*.png' | wc -l)" > qa/android-product-ux/report.txt
+          printf 'touch_navigation=PASS\nmaster_screens=10\nframes=%s\nvisual_route=HOME>MARKET>SIGNAL_TERRAIN>SIGNAL_DETAIL>STRATEGIES>RISK>PERFORMANCE>PORTFOLIO>PAPER>MORE>HOME>SETTINGS\nevidence_disclosure=PASS\nsettings_close=PASS\nreturn_home=PASS\nai_navigation=PASS\nai_zero_authority=PASS\n' "$(find qa/android-product-ux -name '*.png' | wc -l)" > qa/android-product-ux/report.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

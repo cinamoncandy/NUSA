@@ -22,10 +22,14 @@ test("approved porcelain/cobalt theme preserves semantic authority and accessibl
 
 test("Home reuses canonical chart evidence without sample or private IO", () => {
   const home = fs.readFileSync("apps/mobile/src/homeView.tsx", "utf8");
-  assert.match(home, /buildChartViewModel\(\{ market: props\.publicMarket/);
-  assert.match(home, /stale: props\.publicMarketStale/);
-  assert.match(home, /marketWave\.state === "READY"/);
-  assert.match(home, /marketWave\.bars\.slice\(-22\)/);
+  // The board's HOME carries no chart: the candles live on the Market tab, and HOME states market
+  // truth as one verified status. It still reads the same canonical feed, so the rule that matters
+  // here is unchanged — no sample series, no private IO, and the status derives from observations
+  // the runtime verified rather than from a bare connection flag.
+  assert.match(home, /selectHomeMarketData\(props\.publicMarkets, props\.snapshot\?\.markets \?\? \[\]\)/);
+  assert.match(home, /props\.publicMarketStale/);
+  assert.match(home, /const marketVerified = props\.publicMarketConnectionState === "CONNECTED" && !props\.publicMarketStale && observedMarkets\.length > 0/);
+  assert.doesNotMatch(home, /buildChartViewModel/);
   assert.doesNotMatch(home, /128420000|128,420,000|Math\.random|fetch\(|WebSocket/);
   assert.match(home, /props\.onNavigate\("Market"\)/);
   assert.match(home, /LIVE NONE · AI ZERO AUTHORITY/);

@@ -14,9 +14,12 @@ test("AI presents intelligence and evidence before one explicit zero-authority b
   const ai = read("aiView.tsx");
   const thesisIndex = ai.indexOf('testID="ai-thesis-card"');
   const evidenceIndex = ai.indexOf('testID="ai-signal-factors"');
-  const authorityIndex = ai.indexOf('AI ZERO AUTHORITY');
-  const readOnlyIndex = ai.indexOf('SIGNAL IS READ ONLY');
+  // The board also states the boundary in the signal hero footer, before the panel. That is a
+  // stronger disclosure, not a weaker one, so what this checks is the panel's own copy rather than
+  // the first occurrence anywhere in the file.
   const zeroAuthorityIndex = ai.indexOf('testID="ai-zero-authority-status"');
+  const authorityIndex = ai.indexOf('AI ZERO AUTHORITY', zeroAuthorityIndex);
+  const readOnlyIndex = ai.indexOf('SIGNAL IS READ ONLY');
 
   assert.ok(thesisIndex >= 0, "thesis must remain present");
   assert.ok(evidenceIndex > thesisIndex, "verified evidence must follow thesis");

@@ -33,6 +33,15 @@ export function AiView({ai,research,health,liveAuthority,productionMutationAllow
   const signalAvailable=ai?.status==="AVAILABLE"&&Boolean(ai.thesis)&&calibrated&&evidence.length>0;
   const thesis=ai?.status==="AVAILABLE"&&ai.thesis?ai.thesis:"검증된 AI 판단이 아직 없습니다.";
   const risk=counter.length>0?counter.slice(0,2).join(" · "):"검증된 반대 근거가 없습니다.";
+  // NUSA observes Upbit KRW markets. The concept board's placeholder named US equities, which this
+  // runtime has never observed; naming the real subject is the difference between a label and a claim.
+  const subject=market!==""?market:"UPBIT KRW";
+  // The board showed three named strategy families. The runtime names a champion and a challenger;
+  // anything beyond that would be invented, so the list stops where the evidence stops.
+  const families=research===null?[]:[
+    {key:"champion",role:"CHAMPION",id:research.champion.strategyId,version:research.champion.strategyVersion},
+    {key:"challenger",role:"CHALLENGER",id:research.challenger.strategyId,version:research.challenger.strategyVersion},
+  ];
   const learningProvenance = ai?.learningProvenance ?? "UNKNOWN";
   const learning=ai?.recentLessonCount==null?"학습 근거를 확인할 수 없습니다.":`검증된 과거 사례 ${ai.recentLessonCount}건을 현재 판단에 참고했습니다.`;
   const [detailOpen, setDetailOpen] = React.useState(false);
@@ -48,33 +57,34 @@ export function AiView({ai,research,health,liveAuthority,productionMutationAllow
       <Text style={styles.terrainSearch}>⌕</Text>
     </View>
     <View style={styles.filterRow} testID="signal-terrain-filters">
-      {["All","Macro","Tech","Crypto","Forex"].map((label,index)=><View key={label} style={[styles.filterChip,index===0?styles.filterChipActive:null]}><Text style={[styles.filterText,index===0?styles.filterTextActive:null]}>{label}</Text></View>)}
+      {/* The board's filter chips named Macro / Tech / Forex. NUSA observes Upbit KRW only and the
+          chips were plain Views with no handler, so they were both a false scope and a dead
+          control. The real observed scope is stated instead. */}
+      <View style={[styles.filterChip,styles.filterChipActive]}><Text style={[styles.filterText,styles.filterTextActive]}>{subject}</Text></View>
     </View>
     <View style={styles.signalTerrainHero} testID="signal-terrain-hero">
       <View style={[styles.terrainGlow,{left:-40,top:40,backgroundColor:theme.colors.aiSignalMid}]}/>
       <View style={[styles.terrainGlow,{right:-70,bottom:10,backgroundColor:theme.colors.aiSignalEnd}]}/>
       {[0,1,2,3,4,5].map((i)=><View key={i} style={[styles.terrainMeshLine,{top:48+i*32,left:-18+i*5,right:-24,backgroundColor:i%2===0?theme.colors.aiSignalMid:theme.colors.aiSignalEnd,transform:[{rotate:i%2===0?"-7deg":"7deg"}]}]}/>)}
-      <View style={[styles.terrainNode,{left:"18%",top:"30%",borderColor:theme.colors.aiSignalEnd}]}><Text style={styles.terrainNodeText}>Macro</Text></View>
-      <View style={[styles.terrainNode,{left:"58%",top:"25%",borderColor:theme.colors.aiSignalMid}]}><Text style={styles.terrainNodeText}>Tech</Text></View>
-      <View style={[styles.terrainNode,{left:"33%",top:"51%",borderColor:RED}]}><Text style={styles.terrainNodeText}>Risk</Text></View>
-      <Pressable onPress={()=>setDetailOpen(true)} style={[styles.terrainNode,styles.terrainPrimaryNode,{left:"48%",top:"59%",borderColor:SIGNAL_TEAL}]} testID="signal-open-detail"><Text style={[styles.terrainNodeText,{color:SIGNAL_TEAL}]}>US Equities</Text></Pressable>
-      <View style={[styles.terrainNode,{right:"7%",top:"55%",borderColor:theme.colors.aiSignalMid}]}><Text style={styles.terrainNodeText}>Crypto</Text></View>
+      <Pressable onPress={()=>setDetailOpen(true)} style={[styles.terrainNode,styles.terrainPrimaryNode,{left:"48%",top:"59%",borderColor:SIGNAL_TEAL}]} testID="signal-open-detail"><Text style={[styles.terrainNodeText,{color:SIGNAL_TEAL}]}>{subject}</Text></Pressable>
       <View style={styles.terrainHeroFooter}><Text style={styles.terrainHeroStatus}>{signalAvailable?"VERIFIED AI SIGNAL":"NO VERIFIED SIGNAL"}</Text><Text style={styles.terrainHeroMeta}>{evidence.length} evidence · {counter.length} counter</Text></View>
     </View>
     <Pressable onPress={()=>setDetailOpen(true)} style={styles.signalSummaryCard} testID="signal-summary-card">
       <View style={[styles.signalSummaryDot,{backgroundColor:signalAvailable?SIGNAL_TEAL:MUTED}]}/>
-      <View style={{flex:1}}><Text style={styles.signalSummaryTitle}>US Equities</Text><Text style={styles.signalSummaryMeta}>{signalAvailable?thesis:"No verified signal available"}</Text></View>
+      <View style={{flex:1}}><Text style={styles.signalSummaryTitle}>{subject}</Text><Text style={styles.signalSummaryMeta}>{signalAvailable?thesis:"No verified signal available"}</Text></View>
       <Text style={styles.signalSummaryChevron}>›</Text>
     </Pressable>
     <View style={styles.signalFamilyGrid}>
-      {["Momentum","Mean Reversion","Breakout"].map((name,index)=><View key={name} style={styles.signalFamilyCard}><View style={[styles.familyTrace,{backgroundColor:index===0?SIGNAL_TEAL:index===1?theme.colors.aiSignalMid:theme.colors.aiSignalEnd}]}/><Text style={styles.familyTitle}>{name}</Text><Text style={styles.familyMeta}>VERIFIED COUNT —</Text></View>)}
+      {families.length===0
+        ? <View style={styles.signalFamilyCard} testID="signal-families-unavailable"><Text style={styles.familyTitle}>NO VERIFIED FAMILIES</Text><Text style={styles.familyMeta}>연구 세션 근거가 없습니다</Text></View>
+        : families.map((family,index)=><View key={family.key} style={styles.signalFamilyCard} testID={`signal-family-${family.key}`}><View style={[styles.familyTrace,{backgroundColor:index===0?SIGNAL_TEAL:theme.colors.aiSignalMid}]}/><Text style={styles.familyTitle} numberOfLines={1}>{family.id}</Text><Text style={styles.familyMeta}>{family.role} · v{family.version}</Text></View>)}
     </View>
     <Text style={styles.terrainTruth}>READ ONLY · NO FABRICATED SIGNAL COUNTS · AI ZERO AUTHORITY</Text>
   </ScrollView>;
 
     return <ScrollView style={{backgroundColor:INK}} contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={SIGNAL_TEAL} refreshing={refreshing} onRefresh={onRefresh}/>} testID="signal-detail-screen">
     <View style={[styles.titleRow,viewport.narrow?styles.titleRowNarrow:null]}>
-      <View style={styles.detailHeaderLead}><Pressable onPress={()=>setDetailOpen(false)} testID="signal-detail-back"><Text style={styles.detailBack}>‹ Back</Text></Pressable><Text style={styles.pageEyebrow}>US EQUITIES · VERIFIED EVIDENCE</Text><Text style={styles.pageTitle}>Signal Detail</Text></View>
+      <View style={styles.detailHeaderLead}><Pressable onPress={()=>setDetailOpen(false)} testID="signal-detail-back"><Text style={styles.detailBack}>‹ Back</Text></Pressable><Text style={styles.pageEyebrow}>{subject.toUpperCase()} · VERIFIED EVIDENCE</Text><Text style={styles.pageTitle}>Signal Detail</Text></View>
       <View style={styles.titleMeta}><View style={styles.dot}/><Text style={styles.time}>{ai?.lastModelRun?new Date(ai.lastModelRun).toLocaleString("ko-KR"):"NO VERIFIED RUN"}</Text></View>
     </View>
 
@@ -159,10 +169,10 @@ export function AiView({ai,research,health,liveAuthority,productionMutationAllow
 const styles=StyleSheet.create({
  terrainContent:{paddingHorizontal:18,paddingTop:12,paddingBottom:110,gap:14,width:"100%",maxWidth:720,alignSelf:"center",backgroundColor:INK},
  terrainTitleRow:{minHeight:54,flexDirection:"row",alignItems:"center",justifyContent:"space-between"},terrainTitle:{color:wealthProductColors.c59,fontSize:29,fontWeight:"700",letterSpacing:-.7},terrainSearch:{color:wealthProductColors.c59,fontSize:24,fontWeight:"300"},
- filterRow:{flexDirection:"row",gap:7,flexWrap:"wrap"},filterChip:{minHeight:30,borderRadius:999,borderWidth:1,borderColor:BORDER,paddingHorizontal:12,alignItems:"center",justifyContent:"center",backgroundColor:PANEL},filterChipActive:{backgroundColor:"#DDF9A8",borderColor:"#DDF9A8"},filterText:{color:MUTED,fontSize:9,fontWeight:"700"},filterTextActive:{color:"#0A1114"},
- signalTerrainHero:{height:360,borderRadius:20,borderWidth:1,borderColor:"#1B2B35",backgroundColor:"#061019",overflow:"hidden",position:"relative"},
- terrainGlow:{position:"absolute",width:210,height:210,borderRadius:210,opacity:.12},terrainMeshLine:{position:"absolute",height:1.3,opacity:.54},terrainNode:{position:"absolute",minHeight:30,borderRadius:999,borderWidth:1,backgroundColor:"rgba(6,16,25,.88)",paddingHorizontal:10,alignItems:"center",justifyContent:"center"},terrainPrimaryNode:{minHeight:38,shadowColor:SIGNAL_TEAL,shadowOpacity:.45,shadowRadius:14},terrainNodeText:{color:"#D9E1E3",fontSize:8,fontWeight:"800"},
- terrainHeroFooter:{position:"absolute",left:14,right:14,bottom:13,flexDirection:"row",alignItems:"center",justifyContent:"space-between"},terrainHeroStatus:{color:"#DDF9A8",fontSize:9,fontWeight:"900",letterSpacing:.7},terrainHeroMeta:{color:MUTED,fontSize:8},
+ filterRow:{flexDirection:"row",gap:7,flexWrap:"wrap"},filterChip:{minHeight:30,borderRadius:999,borderWidth:1,borderColor:BORDER,paddingHorizontal:12,alignItems:"center",justifyContent:"center",backgroundColor:PANEL},filterChipActive:{backgroundColor:wealthProductColors.c84,borderColor:wealthProductColors.c84},filterText:{color:MUTED,fontSize:9,fontWeight:"700"},filterTextActive:{color:wealthProductColors.c113},
+ signalTerrainHero:{height:360,borderRadius:20,borderWidth:1,borderColor:wealthProductColors.c114,backgroundColor:wealthProductColors.c75,overflow:"hidden",position:"relative"},
+ terrainGlow:{position:"absolute",width:210,height:210,borderRadius:210,opacity:.12},terrainMeshLine:{position:"absolute",height:1.3,opacity:.54},terrainNode:{position:"absolute",minHeight:30,borderRadius:999,borderWidth:1,backgroundColor:"rgba(6,16,25,.88)",paddingHorizontal:10,alignItems:"center",justifyContent:"center"},terrainPrimaryNode:{minHeight:38,shadowColor:SIGNAL_TEAL,shadowOpacity:.45,shadowRadius:14},terrainNodeText:{color:wealthProductColors.c115,fontSize:8,fontWeight:"800"},
+ terrainHeroFooter:{position:"absolute",left:14,right:14,bottom:13,flexDirection:"row",alignItems:"center",justifyContent:"space-between"},terrainHeroStatus:{color:wealthProductColors.c84,fontSize:9,fontWeight:"900",letterSpacing:.7},terrainHeroMeta:{color:MUTED,fontSize:8},
  signalSummaryCard:{minHeight:64,borderWidth:1,borderColor:BORDER,borderRadius:14,backgroundColor:PANEL,paddingHorizontal:14,flexDirection:"row",alignItems:"center",gap:11},signalSummaryDot:{width:14,height:14,borderRadius:14},signalSummaryTitle:{color:wealthProductColors.c59,fontSize:13,fontWeight:"800"},signalSummaryMeta:{color:MUTED,fontSize:9,marginTop:3},signalSummaryChevron:{color:MUTED,fontSize:22},
  signalFamilyGrid:{flexDirection:"row",gap:8},signalFamilyCard:{flex:1,minHeight:92,borderWidth:1,borderColor:BORDER,borderRadius:12,backgroundColor:PANEL,padding:10,justifyContent:"flex-end",overflow:"hidden"},familyTrace:{height:1.5,width:"80%",marginBottom:14,transform:[{rotate:"-8deg"}]},familyTitle:{color:wealthProductColors.c59,fontSize:9,fontWeight:"800"},familyMeta:{color:MUTED,fontSize:7,marginTop:3},terrainTruth:{color:MUTED,fontSize:7,fontWeight:"800",letterSpacing:.9,textAlign:"center"},
  detailHeaderLead:{flex:1,minWidth:0},detailBack:{color:wealthProductColors.c59,fontSize:11,fontWeight:"700",marginBottom:7},

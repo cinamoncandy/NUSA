@@ -10,7 +10,7 @@ const BORDER = wealthProductColors.c03;
 const PANEL = wealthProductColors.c02;
 
 /** Destinations the concept board's More screen leads to, beyond the five primary tabs. */
-export type MoreDestination = "RISK" | "PERFORMANCE" | "PAPER" | "HISTORY" | "NOTIFICATIONS" | "SETTINGS" | "HELP";
+export type MoreDestination = "PORTFOLIO" | "RISK" | "PERFORMANCE" | "PAPER" | "HISTORY" | "NOTIFICATIONS" | "SETTINGS" | "HELP";
 export type MorePrimaryDestination = "Signals" | "Strategies";
 
 interface MoreMenuViewProps {
@@ -28,6 +28,7 @@ const ITEMS = [
 ] as const;
 
 const INSIGHTS = [
+  { key: "PORTFOLIO", title: "Portfolio" },
   { key: "RISK", title: "Risk" },
   { key: "PERFORMANCE", title: "Performance" },
 ] as const;
@@ -102,7 +103,7 @@ const styles = StyleSheet.create({
   modeChipText: { color: ACCENT_SOFT, fontSize: 9, fontWeight: "900", letterSpacing: 0.7, paddingRight: 1 },
   list: { borderWidth: 1, borderColor: BORDER, borderRadius: 14, backgroundColor: PANEL, overflow: "hidden" },
   item: { minHeight: 58, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
-  itemGlyph: { width: 30, height: 30, borderRadius: 9, borderWidth: 1, borderColor: BORDER, backgroundColor: "#0D171B", alignItems: "center", justifyContent: "center" },
+  itemGlyph: { width: 30, height: 30, borderRadius: 9, borderWidth: 1, borderColor: BORDER, backgroundColor: wealthProductColors.c71, alignItems: "center", justifyContent: "center" },
   itemGlyphText: { color: ACCENT_SOFT, fontSize: 10, fontWeight: "900" },
   itemLast: { borderBottomWidth: 0 },
   itemLead: { flex: 1, minWidth: 0 },
@@ -113,7 +114,7 @@ const styles = StyleSheet.create({
   insightCard: { flex: 1, minHeight: 64, borderWidth: 1, borderColor: BORDER, borderRadius: 12, backgroundColor: PANEL, padding: 12, justifyContent: "center" },
   insightTitle: { color: TEXT, fontSize: 12, fontWeight: "800" }, insightMeta: { color: MUTED, fontSize: 8, marginTop: 3 },
   operationsRail: { flexDirection: "row", gap: 8 },
-  operationChip: { flex: 1, minHeight: 38, borderWidth: 1, borderColor: BORDER, borderRadius: 10, backgroundColor: "#0A1116", alignItems: "center", justifyContent: "center" },
+  operationChip: { flex: 1, minHeight: 38, borderWidth: 1, borderColor: BORDER, borderRadius: 10, backgroundColor: wealthProductColors.c72, alignItems: "center", justifyContent: "center" },
   operationText: { color: MUTED, fontSize: 8, fontWeight: "800", letterSpacing: 0.3 },
   authority: { borderWidth: 1, borderColor: BORDER, borderRadius: 14, paddingVertical: 18, paddingHorizontal: 16, gap: 4, alignItems: "center" },
   authorityLine: { color: MUTED, fontSize: 10, lineHeight: 16, fontWeight: "800", letterSpacing: 1.6 },

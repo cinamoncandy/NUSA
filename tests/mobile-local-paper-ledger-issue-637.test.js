@@ -60,9 +60,11 @@ test("#637: Home gives Cloud PAPER precedence and otherwise renders shared LOCAL
   assert.match(home, /const accountSource = cloudAccount != null \? "CLOUD" : localAccount != null \? "LOCAL" : null/);
   assert.match(home, /const totalPnl = account == null \? null : \(account\.realizedPnl \?\? account\.position\.realizedPnl\) \+ account\.unrealizedPnl/);
   assert.match(home, /testID="account-hero-card"/);
-  assert.match(home, /PAPER PERFORMANCE/);
+  // The board renamed the block's labels to English; the contract is unchanged — the rendered
+  // equity and cumulative PnL must come from the resolved account, never a literal.
+  assert.match(home, /PAPER Equity/);
   assert.match(home, /\{won\(account\?\.equity\)\}/);
-  assert.match(home, /TOTAL P&L/);
+  assert.match(home, /\{totalPnl==null\?"—":won\(totalPnl\)\}/);
   assert.doesNotMatch(home, /home-local-paper-note/);
 });
 

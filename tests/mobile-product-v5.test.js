@@ -11,9 +11,12 @@ test("product v5 keeps the primary jobs literal and glanceable through the canon
   assert.match(app, /Home: "Home", Market: "Market", Signals: "Signals", Strategies: "Strategies", More: "More"/);
   const home = read("src/homeView.tsx");
   assert.match(home, /props\.onNavigate\("Market"\)/);
-  assert.match(home, /props\.onNavigate\("Strategies"\)/);
-  assert.match(home, /PAPER PERFORMANCE/);
-  assert.match(home, /TOTAL P&L/);
+  // Strategies is a primary tab on the board, reached from the navigation bar rather than a HOME
+  // card; the device acceptance path taps tab-Strategies for exactly that reason.
+  assert.match(home, /props\.onNavigate\("Market"\)/);
+  assert.match(home, /props\.onNavigate\("Signals"\)/);
+  assert.match(home, /PAPER Equity/);
+  assert.match(home, /won\(totalPnl\)/);
 });
 
 test("product v5 uses flatter secondary sections and Android-sized actions", () => {
@@ -69,7 +72,7 @@ test("Android product UX acceptance bounds emulator startup and preserves diagno
   assert.match(workflow, /if: always\(\)/);
   assert.match(workflow, /grep -q "paper-learning-monitor"/);
   assert.match(workflow, /scroll_until_visible\(\)/);
-  assert.match(workflow, /tap_after_scroll "paper-learning-detail-toggle"; scroll_until_visible "paper-learning-timeline"; capture 07-paper-evidence-open/);
-  assert.match(workflow, /grep -q "paper-learning-timeline" qa\/android-product-ux\/07-paper-evidence-open\.xml/);
+  assert.match(workflow, /tap_after_scroll "paper-learning-detail-toggle"; scroll_until_visible "paper-learning-timeline"; capture 10-paper-evidence-open/);
+  assert.match(workflow, /grep -q "paper-learning-timeline" qa\/android-product-ux\/10-paper-evidence-open\.xml/);
   assert.match(workflow, /evidence_disclosure=PASS/);
 });

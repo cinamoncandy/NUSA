@@ -58,26 +58,28 @@ test("Home hierarchy follows the approved market-to-intelligence flow while pres
   const markers = [
     'testID="home-master-rail"',
     'testID="home-status-rail"',
-    'testID="home-market-pulse"',
-    'testID="ai-card"',
-    'testID="home-decision-stage"',
-    'testID="home-market-breadth"',
-    'testID="home-top-signals"',
-    'testID="home-paper-performance"',
+    'testID="home-market-status"',
+    'testID="home-paper-status"',
+    'testID="home-ai-judgement"',
     'testID="home-capital-limits"',
     'testID="home-operational-notice"',
     'testID="home-paper-learning"',
     'testID="home-risk-authority"',
   ];
   for (const marker of markers) assert.match(home, new RegExp(marker));
-  assert.match(home, /TOTAL P&L/);
-  assert.match(home, />EQUITY<\/Text>/);
+  assert.match(home, /won\(totalPnl\)/);
+  assert.match(home, />PAPER Equity<\/Text>/);
   // The redesign dropped the literal "SIGNAL TERRAIN" heading; the terrain itself stayed. Assert the
   // part that carries meaning — it renders, it is labelled for screen readers, and both the label and
   // the pin text are gated on signalAvailable so an absent signal can never read as a verified one.
-  assert.match(home, /testID="home-signal-trace"/);
-  assert.match(home, /accessibilityLabel=\{signalAvailable \? "verified AI signal terrain" : "signal unavailable"\}/);
-  assert.match(home, /\{signalAvailable \? "VERIFIED AI SIGNAL" : "NO VERIFIED SIGNAL"\}/);
+  assert.match(home, /testID="home-ai-judgement"/);
+  // The signal terrain moved to the Signals screen with the board. What must not be lost is that
+  // the AI state is announced truthfully to a screen reader rather than only drawn.
+  const ai = read("src/aiView.tsx");
+  assert.match(ai, /accessibilityLabel=\{`PUBLIC READ ONLY · EVIDENCE \$\{evidence\.length\} · COUNTER \$\{counter\.length\}`\}/);
+  assert.match(home, /\{signalAvailable\?"Ready":"Waiting"\}/);
+  // The verified/unverified signal wording belongs to the Signals screen, which owns the signal.
+  assert.match(ai, /\{signalAvailable\?"VERIFIED AI SIGNAL":"NO VERIFIED SIGNAL"\}/);
   // The approved layout (d9226f33) has no WHY/RESULT/RISK evidence rows on HOME; that evidence lives
   // on AI SIGNAL. The rows are therefore not asserted here any more.
   //
@@ -97,7 +99,9 @@ test("AI hierarchy prioritizes evidence, calibration, risk, provenance, and auth
   const ai = read("src/aiView.tsx");
   assert.match(ai, /testID="ai-screen"/);
   assert.match(ai, /testID="ai-now"/);
-  assert.match(ai, /SIGNAL DETAIL/);
+  // The board titles the drill "Signal Detail" and gives it its own screen.
+  assert.match(ai, /testID="signal-detail-screen"/);
+  assert.match(ai, /Signal Detail/);
   assert.match(ai, /calibrationStatus==="CALIBRATED"/);
   assert.match(ai, /UNVERIFIED/);
   assert.match(ai, /testID="ai-thesis-card"/);

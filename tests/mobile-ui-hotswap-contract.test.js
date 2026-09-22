@@ -27,16 +27,22 @@ test("HomeView presents the approved autonomous-intelligence composition", () =>
   assert.match(home, /testID="home-screen"/);
   assert.match(home, /testID="home-master-rail"/);
   assert.match(home, /testID="home-status-rail"/);
-  assert.match(home, /testID="home-market-pulse"/);
+  assert.match(home, /testID="home-market-status"/);
   assert.match(home, /testID="account-hero-card"/);
-  assert.match(home, /testID="ai-card"/);
+  assert.match(home, /testID="home-ai-judgement"/);
   assert.match(home, /testID="home-risk-authority"/);
-  assert.match(home, /testID="home-decision-stage"/);
-  assert.match(home, /testID="home-paper-performance"/);
+  assert.match(home, /testID="home-ai-judgement"/);
+  assert.match(home, /testID="home-paper-status"/);
   assert.match(home, /testID="home-paper-learning"/);
-  assert.match(home, /MARKET BREADTH/);
-  assert.match(home, /TODAY'S TOP SIGNALS/);
-  assert.match(home, /PAPER PERFORMANCE/);
+  // The board replaced the breadth panel with a market status card; the breadth figure had no
+  // home left and was being computed and discarded. The status it does show is still derived from
+  // verified observations rather than a bare connection flag.
+  assert.match(home, /const marketVerified = props\.publicMarketConnectionState === "CONNECTED" && !props\.publicMarketStale && observedMarkets\.length > 0/);
+  // "TODAY'S TOP SIGNALS" was a daily claim over a list HOME no longer carries; signals are the
+  // Signals tab now, and HOME states AI readiness rather than ranking anything by day.
+  assert.match(home, /testID="home-ai-judgement"/);
+  assert.doesNotMatch(home, /TODAY/i);
+  assert.match(home, /PAPER Equity/);
   assert.match(home, /CAPITAL LIMITS/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
 
@@ -51,9 +57,12 @@ test("canonical HOME uses verified market and PAPER data without fabricating una
   const app = read("apps/mobile/App.tsx");
 
   assert.match(home, /const marketFeed = selectHomeMarketData\(props\.publicMarkets, props\.snapshot\?\.markets \?\? \[\]\)/);
-  assert.match(home, /const marketRows = \[\.\.\.marketFeed\][\s\S]*?\.slice\(0, tablet \? 6 : 4\)/);
+  assert.match(home, /const observedMarkets = marketFeed\.filter\(/);
   assert.match(home, /publicMarkets: readonly WatchlistMarket\[\] \| null/);
-  assert.match(home, /pct\(market\.changeRate\)/);
+  // Per-market change lives on the Market tab. HOME keeps pct for values it does render, and it
+  // must still fail closed rather than print a zero.
+  assert.match(home, /function pct\(value: number \| null \| undefined\): string/);
+  assert.match(home, /if \(value == null \|\| !Number\.isFinite\(value\)\) return "—";/);
   assert.match(home, /const cloudAccount = props\.snapshot\?\.portfolio\?\.account \?\? null/);
   assert.match(home, /const account = cloudAccount \?\? localAccount/);
   assert.match(home, /buildLocalPortfolio\(localTradingSnapshot, localMarkPrice\)/);
@@ -80,7 +89,7 @@ test("HOME rendered financial values keep stable tabular numerals in the command
     assert.match(home, new RegExp(`${style}:\\{[^}]*fontVariant:\\["tabular-nums"\\]`));
   }
   assert.match(home, /\{won\(account\?\.equity\)\}/);
-  assert.match(home, /TOTAL P&L/);
+  assert.match(home, /won\(totalPnl\)/);
 });
 
 test("fresh or stale installs converge on the canonical master preset", () => {

@@ -56,7 +56,7 @@ type UtilityView = MoreDestination | null;
 const tabLabels: Readonly<Record<PrimaryTab, string>> = { Home: "Home", Market: "Market", Signals: "Signals", Strategies: "Strategies", More: "More" };
 const tabDisplayLabels: Readonly<Record<PrimaryTab, string>> = { Home: "Home", Market: "Market", Signals: "Signals", Strategies: "Strategies", More: "More" };
 const tabDescriptions: Readonly<Record<PrimaryTab, string>> = { Home: "현재 NUSA 상태", Market: "공개 시장 환경", Signals: "AI 판단과 근거", Strategies: "검증된 연구 전략", More: "더 깊은 화면과 설정" };
-const utilityLabels: Readonly<Record<Exclude<UtilityView, null>, string>> = { RISK: "Risk", PAPER: "PAPER 리포트", PERFORMANCE: "Performance", HISTORY: "주문 이력", NOTIFICATIONS: "알림", SETTINGS: "설정", HELP: "Help" };
+const utilityLabels: Readonly<Record<Exclude<UtilityView, null>, string>> = { PORTFOLIO: "Portfolio", RISK: "Risk", PAPER: "PAPER 리포트", PERFORMANCE: "Performance", HISTORY: "주문 이력", NOTIFICATIONS: "알림", SETTINGS: "설정", HELP: "Help" };
 const CHART_MARKET = "KRW-BTC";
 const PAPER_REFRESH_INTERVAL_MS = 5000;
 const PUBLIC_REFRESH_INTERVAL_MS = 30_000;
@@ -292,6 +292,7 @@ function AuthenticatedApp() {
 
   const packagedBuildLabel = /^[0-9a-f]{40}$/i.test(BUILD_SOURCE_SHA) ? BUILD_SOURCE_SHA.slice(0, 8) : "DEV";
   const closeUtility = useCallback(() => setUtilityView(null), []);
+  const openSystemStatus = useCallback(() => { setUtilityMenuOpen(false); setUtilityView("NOTIFICATIONS"); }, []);
   const goSettings = useCallback(() => { setUtilityMenuOpen(false); setUtilityView("SETTINGS"); }, []);
   const navigateHome = useCallback((destination: HomeDestination) => { setUtilityMenuOpen(false); setUtilityView(null); setActiveTab(destination); }, []);
   const openPaperTrade = useCallback(() => { setUtilityMenuOpen(false); setActiveTab("More"); setUtilityView("PAPER"); }, []);
@@ -420,6 +421,7 @@ function AuthenticatedApp() {
     {utilityView ? <View style={[styles.utilityNavigation, { borderBottomColor: appTheme.colors.border }]} testID="utility-navigation"><View style={styles.utilityNavigationInner}><Text style={[styles.utilityTitle, { color: appTheme.colors.text }]}>{utilityLabels[utilityView]}</Text><Pressable accessibilityLabel={`${utilityLabels[utilityView]} 닫기`} accessibilityRole="button" onPress={closeUtility} style={[styles.utilityClose, { borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceSunken }]} testID="utility-close"><Text style={[styles.utilityText, { color: appTheme.colors.textMuted }]}>닫기</Text></Pressable></View></View> : null}
 
     {paperLearningOpen ? <PaperShadowMonitorView paper={paperLearningState} shadow={shadowOperations.status === "READY" ? shadowOperations.snapshot : null} shadowReason={shadowOperations.status === "READY" ? undefined : shadowOperations.reason} real={realReadOnlyOperations.status === "READY" ? realReadOnlyOperations.snapshot : null} realReason={realReadOnlyOperations.status === "READY" ? undefined : realReadOnlyOperations.reason} live={liveReadinessOperations.status === "READY" ? liveReadinessOperations.snapshot : null} liveReason={liveReadinessOperations.status === "READY" ? undefined : liveReadinessOperations.reason} refreshing={refreshing} onRefresh={onRefresh} onClose={() => setPaperLearningOpen(false)} />
+      : utilityView === "PORTFOLIO" ? <PortfolioView error={readOnlyError} investmentPercent={investmentPercent} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} />
       : utilityView === "RISK" ? <RiskView snapshot={snapshot?.portfolio ?? null} />
       : utilityView === "PAPER" ? <PaperLearningMonitorView state={paperLearningState} refreshing={refreshing} onRefresh={onRefresh} />
       : utilityView === "PERFORMANCE" ? <PerformanceView snapshot={snapshot?.portfolio ?? null} />
@@ -431,7 +433,7 @@ function AuthenticatedApp() {
       : activeTab === "Signals" ? <AiView ai={ai} error={readOnlyError} health={snapshot?.health ?? null} killSwitchActive={snapshot?.dashboard.killSwitchActive ?? null} liveAuthority={snapshot?.liveAuthority ?? null} onRefresh={onRefresh} productionMutationAllowed={snapshot?.productionMutationAllowed ?? null} refreshing={refreshing} research={snapshot?.research ?? null} market={CHART_MARKET} currentPrice={publicMarkets.currentPrice} rawCandles={publicMarkets.candles} marketConnectionState={publicMarketConnectionState} stale={publicMarkets.status !== "READY"} />
       : activeTab === "Strategies" ? <StrategiesView research={snapshot?.research ?? null} refreshing={refreshing} onRefresh={onRefresh} />
       : activeTab === "More" ? <MoreMenuView onSelect={setUtilityView} onNavigatePrimary={(destination) => { setUtilityView(null); setActiveTab(destination); }} buildLabel={packagedBuildLabel} />
-      : <HomeView snapshot={snapshot} investmentPercent={investmentPercent} readOnlyError={readOnlyError} notConfigured={notConfigured} refreshing={refreshing} publicMarket={CHART_MARKET} publicMarkets={publicMarkets.markets} publicCandles={publicMarkets.candles} publicCurrentPrice={publicMarkets.currentPrice} publicMarketConnectionState={publicMarketConnectionState} publicMarketStale={publicMarkets.status !== "READY"} onRefresh={onRefresh} onGoSettings={goSettings} onNavigate={navigateHome} onOpenPaperLearning={openPaperLearning} />}
+      : <HomeView snapshot={snapshot} investmentPercent={investmentPercent} readOnlyError={readOnlyError} notConfigured={notConfigured} refreshing={refreshing} publicMarket={CHART_MARKET} publicMarkets={publicMarkets.markets} publicCandles={publicMarkets.candles} publicCurrentPrice={publicMarkets.currentPrice} publicMarketConnectionState={publicMarketConnectionState} publicMarketStale={publicMarkets.status !== "READY"} onRefresh={onRefresh} onGoSettings={goSettings} onNavigate={navigateHome} onOpenPaperLearning={openPaperLearning} onOpenSystemStatus={openSystemStatus} />}
 
     <View style={styles.navigationFrame} pointerEvents="box-none">
       <View style={[styles.navigation, { backgroundColor: appTheme.colors.navSurface, borderColor: appTheme.colors.border, shadowColor: appTheme.shadows.md.color }]}>

@@ -14,7 +14,12 @@ test("MASTER reference exposes five primary destinations and truthful Risk/Perfo
 test("HOME and Market use approved concept hierarchy instead of dense command dashboard",()=>{
  assert.match(home,/A More\{"\\n"\}Rational Tomorrow\./);
  assert.match(home,/testID="home-system-status"/);assert.match(home,/testID="home-market-status"/);assert.match(home,/testID="home-paper-status"/);
- assert.match(markets,/testID="market-globe-hero"/);assert.match(markets,/Global Markets/);assert.match(markets,/Overview","Indices","Sectors","Assets/);
+ assert.match(markets,/testID="market-globe-hero"/);// The board captioned this "Global Markets". NUSA observes Upbit KRW only, so the caption names
+ // the real scope; "global" would be a claim the feed does not support.
+ assert.match(markets,/Upbit KRW Markets/);// Upbit KRW publishes no indices and no sector classification, and the board's tabs were plain
+ // Views with no handler. Only the tab the screen actually shows remains.
+ assert.match(markets,/KRW Markets/);
+ assert.doesNotMatch(markets,/"Indices"|"Sectors"/);
 });
 test("truthful missing-evidence states stay explicit",()=>{
  assert.match(risk,/PORTFOLIO VAR" value="—"/);assert.match(perf,/NO VERIFIED EQUITY HISTORY/);assert.match(perf,/NO SYNTHETIC CURVE/);

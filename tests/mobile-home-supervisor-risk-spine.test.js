@@ -8,17 +8,18 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
 test("canonical HOME keeps the approved content-first intelligence hierarchy", () => {
   const home = read("apps/mobile/src/homeView.tsx");
-  const pulse = home.indexOf('testID="home-market-pulse"');
-  const ai = home.indexOf('testID="ai-card"');
-  const terrain = home.indexOf('testID="home-decision-stage"');
-  const breadth = home.indexOf('testID="home-market-breadth"');
-  const signals = home.indexOf('testID="home-top-signals"');
-  const performance = home.indexOf('testID="home-paper-performance"');
+  // The concept board replaced the old market-breadth / top-signals panels with three runtime
+  // status cards; the market list itself is the Market tab. The spine that remains: PAPER equity
+  // first, then system and per-domain status, then the capital envelope, then the learning route.
+  const hero = home.indexOf('testID="account-hero-card"');
+  const system = home.indexOf('testID="home-system-status"');
+  const pulse = home.indexOf('testID="home-market-status"');
+  const paper = home.indexOf('testID="home-paper-status"');
+  const ai = home.indexOf('testID="home-ai-judgement"');
   const capital = home.indexOf('testID="home-capital-limits"');
   const learning = home.indexOf('testID="home-paper-learning"');
-  assert.ok([pulse, ai, terrain, breadth, signals, performance, capital, learning].every((index) => index >= 0));
-  // Approved layout: the AI signal panel leads, market pulse follows it.
-  assert.ok(ai < terrain && terrain < pulse && pulse < breadth && breadth < signals && signals < performance && performance < capital && capital < learning);
+  assert.ok([hero, system, pulse, paper, ai, capital, learning].every((index) => index >= 0));
+  assert.ok(hero < system && system < pulse && pulse < paper && paper < ai && ai < capital && capital < learning);
   assert.doesNotMatch(home, /<TruthCell label="(?:NOW|WHY|RESULT|RISK|LEARNING)"/);
 });
 

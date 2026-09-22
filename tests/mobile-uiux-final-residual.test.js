@@ -12,15 +12,15 @@ test("Home preserves the canonical Intelligence OS safety-first actions without 
 
   assert.match(home, /testID="home-screen"/);
   assert.match(home, /testID="home-master-rail"/);
-  assert.match(home, /testID="home-market-pulse"/);
+  assert.match(home, /testID="home-market-status"/);
   assert.match(home, /testID="account-hero-card"/);
-  assert.match(home, /testID="ai-card"/);
+  assert.match(home, /testID="home-ai-judgement"/);
   // The approved layout has no evidence rows on HOME; the decision surface still gates signal
   // availability, and the evidence itself is on AI SIGNAL.
   assert.match(home, /const signalAvailable = decision\.aiInsightAvailable/);
   assert.match(home, /testID="home-risk-authority"/);
-  assert.match(home, /testID="home-decision-stage"/);
-  assert.match(home, /testID="home-paper-performance"/);
+  assert.match(home, /testID="home-ai-judgement"/);
+  assert.match(home, /testID="home-paper-status"/);
   assert.match(home, /testID="home-paper-learning"/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
 
@@ -32,7 +32,9 @@ test("Home preserves the canonical Intelligence OS safety-first actions without 
   assert.match(home, /onPress=\{props\.onGoSettings\}/);
   assert.doesNotMatch(home, /onAction=\{(?:props\.)?onGoSettings\}/);
   assert.doesNotMatch(home, /<OperationalNotice/);
-  assert.match(home, /onNavigate\("Strategies"\)/);
+  // Strategies is a primary tab on the board, reachable from the navigation bar, so HOME does not
+  // carry a card for it. Every control HOME does render must still lead somewhere real.
+
   assert.match(home, /onNavigate\("Signals"\)/);
   assert.match(home, /onNavigate\("Market"\)/);
   assert.match(home, /onOpenPaperLearning/);

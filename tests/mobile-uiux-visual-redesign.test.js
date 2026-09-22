@@ -28,19 +28,22 @@ test("Home uses the approved HOME MASTER terminal hierarchy without weakening au
   assert.match(home, /testID="home-master-rail"/);
   assert.match(home, /testID="home-status-rail"/);
   assert.match(home, /testID="account-hero-card"/);
-  assert.match(home, /PAPER PERFORMANCE/);
+  assert.match(home, /PAPER Equity/);
   assert.match(home, /CAPITAL LIMITS/);
   assert.match(home, /const signalAvailable = decision\.aiInsightAvailable/);
   assert.match(home, /testID="home-risk-authority"/);
-  assert.match(home, /testID="home-decision-stage"/);
+  assert.match(home, /testID="home-ai-judgement"/);
   assert.match(home, /UPBIT PUBLIC/);
-  assert.match(home, /testID="home-paper-performance"/);
+  assert.match(home, /testID="home-paper-status"/);
   assert.match(home, /testID="home-paper-learning"/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
 
-  assert.match(home, /<TerrainSignal/);
-  assert.match(home, /testID="home-signal-trace"/);
-  assert.match(home, /testID="home-market-pulse"/);
+  // The board replaced HOME's signal terrain with three runtime status cards; TerrainSignal now
+  // belongs to the Signals screen, and HOME's AI state is the card below.
+  assert.match(home, /testID="home-ai-judgement"/);
+  assert.doesNotMatch(home, /TerrainSignal/);
+  assert.match(home, /testID="home-ai-judgement"/);
+  assert.match(home, /testID="home-market-status"/);
   assert.match(home, /testID="home-capital-limits"/);
   // The accent is intelligenceFieldColors.terminalSignal = #33D7C7, a cyan/teal. It was bound to a
   // constant named LIME, so anyone grepping this branch for the forbidden acid-lime palette found a

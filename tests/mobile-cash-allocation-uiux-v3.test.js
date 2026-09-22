@@ -32,7 +32,13 @@ test("cash allocation remains a first-class PAPER contract without cluttering ca
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /PAPER Equity/);
   assert.match(home, /testID="home-system-status"/);
-  assert.doesNotMatch(home, /testID="home-investable-cash"|testID="home-reserved-cash"|testID="home-capital-limits"/);
+  // This asserted the opposite until now, encoding a rewrite that simply dropped the CAPITAL LIMITS
+  // block while still computing cashEnvelope. Capital constraints being visible is a transparency
+  // contract that the concept board never asked to remove, and it is what
+  // tests/mobile-home-capital-hierarchy.test.js requires, so the two no longer contradict.
+  assert.match(home, /testID="home-capital-limits"/);
+  assert.match(home, /testID="home-investable-cash"/);
+  assert.match(home, /testID="home-reserved-cash"/);
   assert.match(portfolio, /portfolio-investable-cash/);
 });
 

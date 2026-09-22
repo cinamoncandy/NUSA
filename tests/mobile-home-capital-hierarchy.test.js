@@ -9,19 +9,20 @@ const portfolio = fs.readFileSync(path.join(process.cwd(), "apps/mobile/src/port
 
 test("HOME presents truthful PAPER equity and cumulative PnL in the approved performance block", () => {
   assert.match(home, /testID="account-hero-card"/);
-  // The approved hero labels this 총 자산; the PAPER boundary is declared by the risk-authority row,
-  // whose visibility tests/mobile-home-ai-surface.test.js asserts.
-  assert.match(home, /총 자산/);
+  // The approved concept board labels this "PAPER Equity" in English; the PAPER boundary is
+  // declared by the risk-authority row, whose visibility tests/mobile-home-ai-surface.test.js
+  // asserts.
+  assert.match(home, /PAPER Equity/);
   assert.match(home, /testID="home-ai-judgement"/);
-  assert.match(home, /PAPER PERFORMANCE/);
   assert.match(home, /won\(account\?\.equity\)/);
-  assert.match(home, /TOTAL P&L/);
   assert.match(home, /won\(totalPnl\)/);
   assert.match(home, /const totalPnl = account == null \? null : \(account\.realizedPnl \?\? account\.position\.realizedPnl\) \+ account\.unrealizedPnl/);
   assert.match(decisionSurface, /PAPER P&L .*EQUITY/);
+  // "오늘" stays forbidden: the rendered figure is cumulative, not a daily basis, and labelling it
+  // as today's would be a false claim. The board's own tagline is a different matter — it is the
+  // approved reference wording, so it is no longer prohibited here.
   assert.doesNotMatch(home, /오늘/);
-  assert.doesNotMatch(home, /A MORE|RATIONAL|TOMORROW/);
-  assert.ok(home.indexOf('testID="account-hero-card"') < home.indexOf('testID="home-market-pulse"'));
+  assert.ok(home.indexOf('testID="account-hero-card"') < home.indexOf('testID="home-capital-limits"'));
   assert.doesNotMatch(home, /const equity\s*=\s*10000000|totalPnl\s*=\s*[+-]?\d+(?:\.\d+)?;/);
 });
 

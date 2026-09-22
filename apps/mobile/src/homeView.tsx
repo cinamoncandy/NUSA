@@ -1,6 +1,5 @@
 import React from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import { TerrainSignal } from "./components";
 import { useTheme } from "./ThemeProvider";
 import { intelligenceFieldColors, wealthProductColors } from "./designSystem";
 import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
@@ -11,7 +10,6 @@ import { useLocalPaperMarkPrice, useLocalPaperSnapshot } from "./localPaperLedge
 import { selectHomeMarketData } from "./homeMarketData";
 import type { WatchlistMarket } from "./watchlist";
 import type { PublicCandle } from "./chartViewModel";
-import { buildChartViewModel } from "./chartViewModel";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
 export type HomeDestination = "Market" | "Signals" | "Strategies";
@@ -32,6 +30,7 @@ interface HomeViewProps {
   readonly onGoSettings: () => void;
   readonly onNavigate: (destination: HomeDestination) => void;
   readonly onOpenPaperLearning: () => void;
+  readonly onOpenSystemStatus: () => void;
 }
 
 const SIGNAL_TEAL = intelligenceFieldColors.terminalSignal;
@@ -76,13 +75,12 @@ export function HomeView(props: HomeViewProps) {
   const heartbeat = props.snapshot?.operations.heartbeat;
   const ai = props.snapshot?.ai ?? null;
   const disconnected = props.notConfigured != null && !localPaperActive;
+  // The board's HOME states market truth as one verified status, and the market list itself lives
+  // on the Market tab. marketFeed still backs that status: observedMarkets is what the runtime has
+  // actually verified, so "Live" cannot be claimed from a connection flag alone.
   const marketFeed = selectHomeMarketData(props.publicMarkets, props.snapshot?.markets ?? []);
-  // A tablet has the width to carry more verified observation without crowding, and the rebuilt
-  // HOME lost that. The phone layout stays at the four market tiles the approved design specifies.
   const { width } = useWindowDimensions();
   const tablet = width >= 768;
-  const marketRows = [...marketFeed].sort((a, b) => Math.abs(b.changeRate ?? 0) - Math.abs(a.changeRate ?? 0)).slice(0, tablet ? 6 : 4);
-  const marketWave = buildChartViewModel({ market: props.publicMarket, interval: "1m", rawCandles: props.publicCandles === null ? null : [...props.publicCandles], currentPrice: props.publicCurrentPrice, connectionState: props.publicMarketConnectionState, stale: props.publicMarketStale });
   const decision = buildHomeDecisionSurface({
     runtimeState: props.snapshot?.operations.runtimeState,
     health: props.snapshot?.health,
@@ -101,9 +99,8 @@ export function HomeView(props: HomeViewProps) {
   const signalTitle = signalAvailable ? (ai?.thesis ?? "VERIFIED SIGNAL") : "WAITING FOR VERIFIED SIGNAL";
   const strength = signalAvailable && ai?.confidence != null ? Math.max(0.15, Math.min(0.95, ai.confidence)) : 0.24;
   const confidenceLabel = signalAvailable && ai?.confidence != null ? `${Math.round(ai.confidence * 100)}%` : "—";
-  const observedMarkets = marketRows.filter((market) => market.changeRate != null && Number.isFinite(market.changeRate));
-  const positiveMarkets = observedMarkets.filter((market) => (market.changeRate ?? 0) > 0).length;
-  const breadthPercent = observedMarkets.length === 0 ? null : Math.round((positiveMarkets / observedMarkets.length) * 100);
+  const observedMarkets = marketFeed.filter((market) => market.changeRate != null && Number.isFinite(market.changeRate));
+  const marketVerified = props.publicMarketConnectionState === "CONNECTED" && !props.publicMarketStale && observedMarkets.length > 0;
 
   return <ScrollView
     style={{ backgroundColor: INK }}
@@ -131,28 +128,43 @@ export function HomeView(props: HomeViewProps) {
 
     <View style={styles.equityCard} testID="account-hero-card">
       <View><Text style={styles.equityLabel}>PAPER Equity</Text><Text style={styles.equityValue}>{won(account?.equity)}</Text></View>
-      <View style={styles.equitySide}><Text style={[styles.equityPnl,{color:totalPnl==null?MUTED:totalPnl>=0?SIGNAL_TEAL:RED}]}>{totalPnl==null?"—":won(totalPnl)}</Text><Text style={styles.equityMeta}>{accountSource==null?"NO VERIFIED ACCOUNT":accountSource+" PAPER"}</Text></View>
+      <View style={styles.equitySide}><Text style={styles.equityPnlLabel}>누적 P&amp;L</Text><Text style={[styles.equityPnl,{color:totalPnl==null?MUTED:totalPnl>=0?SIGNAL_TEAL:RED}]}>{totalPnl==null?"—":won(totalPnl)}</Text><Text style={styles.equityMeta}>{accountSource==null?"NO VERIFIED ACCOUNT":accountSource+" PAPER"}</Text></View>
     </View>
 
-    <View style={styles.systemCard} testID="home-system-status">
+    <Pressable onPress={props.onOpenSystemStatus} style={styles.systemCard} testID="home-system-status">
       <View style={[styles.systemDot,{backgroundColor:props.snapshot?.health==="HEALTHY"||localPaperActive?SIGNAL_TEAL:wealthProductColors.c60}]}/>
       <View style={styles.systemCopy}><Text style={styles.systemLabel}>System Status</Text><Text style={styles.systemValue}>{props.snapshot?.health==="HEALTHY"||localPaperActive?"All Systems Operational":props.snapshot?.health??"WAITING FOR VERIFIED RUNTIME"}</Text></View>
       <Text style={styles.systemChevron}>›</Text>
-    </View>
+    </Pressable>
 
     <View style={styles.referenceMiniGrid}>
       <Pressable onPress={()=>props.onNavigate("Market")} style={styles.referenceMiniCard} testID="home-market-status">
-        <Text style={styles.miniLabel}>Market</Text><Text style={[styles.miniValue,{color:props.publicMarketConnectionState==="CONNECTED"?SIGNAL_TEAL:MUTED}]}>{props.publicMarketConnectionState==="CONNECTED"?"Live":"Waiting"}</Text>
-        <View style={styles.miniSpark}><View style={[styles.miniSparkLine,{backgroundColor:theme.colors.aiSignalMid}]}/><View style={[styles.miniSparkLine2,{backgroundColor:theme.colors.aiSignalEnd}]}/></View>
+        <Text style={styles.miniLabel}>Market</Text><Text style={[styles.miniValue,{color:marketVerified?SIGNAL_TEAL:MUTED}]}>{marketVerified?`Live · ${observedMarkets.length}`:props.publicMarketStale?"Stale":"Waiting"}</Text><Text style={styles.source}>UPBIT PUBLIC</Text>
       </Pressable>
       <Pressable onPress={props.onOpenPaperLearning} style={styles.referenceMiniCard} testID="home-paper-status">
         <Text style={styles.miniLabel}>PAPER</Text><Text style={[styles.miniValue,{color:props.snapshot?.readyForPaperOperations||localPaperActive?SIGNAL_TEAL:MUTED}]}>{props.snapshot?.readyForPaperOperations||localPaperActive?"Running":"Waiting"}</Text>
-        <View style={styles.miniSpark}><View style={[styles.miniSparkLine,{backgroundColor:theme.colors.aiSignalEnd}]}/><View style={[styles.miniSparkLine2,{backgroundColor:theme.colors.aiSignalMid}]}/></View>
       </Pressable>
       <Pressable onPress={()=>props.onNavigate("Signals")} style={styles.referenceMiniCard} testID="home-ai-judgement">
         <Text style={styles.miniLabel}>AI</Text><Text style={[styles.miniValue,{color:signalAvailable?SIGNAL_TEAL:MUTED}]}>{signalAvailable?"Ready":"Waiting"}</Text>
-        <View style={styles.miniSpark}><View style={[styles.miniSparkLine,{backgroundColor:theme.colors.aiSignalStart}]}/><View style={[styles.miniSparkLine2,{backgroundColor:theme.colors.aiSignalEnd}]}/></View>
       </Pressable>
+    </View>
+
+
+    <View style={styles.capitalLimits} testID="home-capital-limits">
+      <View>
+        <Text style={styles.capitalLabel}>CAPITAL LIMITS</Text>
+        <Text style={styles.capitalMeta}>PAPER BUY ENVELOPE · {props.investmentPercent}%</Text>
+      </View>
+      <View style={styles.capitalValues}>
+        <View testID="home-investable-cash">
+          <Text style={styles.capitalValue}>{cashEnvelope == null ? "—" : won(cashEnvelope.investableCash)}</Text>
+          <Text style={styles.capitalKey}>INVESTABLE</Text>
+        </View>
+        <View testID="home-reserved-cash">
+          <Text style={styles.capitalValue}>{cashEnvelope == null ? "—" : won(cashEnvelope.reservedCash)}</Text>
+          <Text style={styles.capitalKey}>RESERVED</Text>
+        </View>
+      </View>
     </View>
 
     <View style={styles.referenceFooter}><Text style={styles.referenceFooterLead}>A SAFER TOMORROW.</Text><Text style={styles.referenceFooterSub}>Real data · PAPER only · AI zero authority</Text></View>
@@ -169,22 +181,22 @@ export function HomeView(props: HomeViewProps) {
 }
 
 const styles = StyleSheet.create({
-  referenceHero:{height:330,borderRadius:22,overflow:"hidden",position:"relative",backgroundColor:"#07101A",borderWidth:1,borderColor:"#18283A"},
-  heroGlow:{position:"absolute",right:-70,top:-30,width:260,height:260,borderRadius:260,backgroundColor:"#DDF9A8",opacity:.14,shadowColor:"#DDF9A8",shadowOpacity:.5,shadowRadius:42},
-  heroMountainBack:{position:"absolute",left:-30,right:80,bottom:74,height:120,backgroundColor:"#152A38",transform:[{rotate:"-8deg"}],borderTopRightRadius:120},
-  heroMountainMid:{position:"absolute",left:40,right:-45,bottom:46,height:150,backgroundColor:"#0D1C28",transform:[{rotate:"5deg"}],borderTopLeftRadius:130},
-  heroMountainFront:{position:"absolute",left:-70,right:-40,bottom:-42,height:130,backgroundColor:"#050A0F",transform:[{rotate:"-4deg"}],borderTopRightRadius:180},
-  heroHorizon:{position:"absolute",left:0,right:0,bottom:92,height:1,backgroundColor:"#A8E66A",opacity:.5},
-  heroCopy:{position:"absolute",left:20,top:22,right:18},heroHeadline:{color:"#F7F8F5",fontSize:31,lineHeight:35,fontWeight:"500",letterSpacing:-1},heroSubline:{color:"#99A3A9",fontSize:10,lineHeight:15,marginTop:8},
-  heroPrinciples:{position:"absolute",left:20,bottom:22,gap:4},heroPrinciple:{color:"#B7C1C5",fontSize:7,fontWeight:"800",letterSpacing:2},
-  equityCard:{minHeight:86,borderRadius:16,borderWidth:1,borderColor:"#20303A",backgroundColor:"#0B1117",paddingHorizontal:16,paddingVertical:14,flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:12},
-  equityLabel:{color:"#9CA7AC",fontSize:9,fontWeight:"700"},equityValue:{color:"#F5F7F4",fontSize:26,lineHeight:32,fontWeight:"700",fontVariant:["tabular-nums"],marginTop:3},
-  equitySide:{alignItems:"flex-end"},equityPnl:{fontSize:13,fontWeight:"800",fontVariant:["tabular-nums"]},equityMeta:{color:"#768187",fontSize:7,fontWeight:"800",letterSpacing:.7,marginTop:4},
-  systemCard:{minHeight:68,borderRadius:14,borderWidth:1,borderColor:"#20303A",backgroundColor:"#0B1117",paddingHorizontal:14,flexDirection:"row",alignItems:"center",gap:12},
-  systemDot:{width:12,height:12,borderRadius:12,shadowColor:SIGNAL_TEAL,shadowOpacity:.5,shadowRadius:9},systemCopy:{flex:1},systemLabel:{color:"#919CA2",fontSize:9},systemValue:{color:"#DDF9A8",fontSize:12,fontWeight:"700",marginTop:2},systemChevron:{color:"#A5B0B4",fontSize:22},
-  referenceMiniGrid:{flexDirection:"row",gap:8},referenceMiniCard:{flex:1,minHeight:100,borderRadius:12,borderWidth:1,borderColor:"#20303A",backgroundColor:"#0B1117",padding:11,overflow:"hidden"},
-  miniLabel:{color:"#99A4AA",fontSize:8,fontWeight:"700"},miniValue:{fontSize:11,fontWeight:"800",marginTop:4},miniSpark:{height:30,marginTop:12,position:"relative"},miniSparkLine:{position:"absolute",left:0,right:"30%",top:15,height:1.5,transform:[{rotate:"-12deg"}]},miniSparkLine2:{position:"absolute",left:"38%",right:0,top:10,height:1.5,transform:[{rotate:"7deg"}]},
-  referenceFooter:{paddingVertical:12,gap:3},referenceFooterLead:{color:"#C8D0D2",fontSize:8,fontWeight:"800",letterSpacing:1.7},referenceFooterSub:{color:"#66747B",fontSize:8,lineHeight:12},
+  referenceHero:{height:330,borderRadius:22,overflow:"hidden",position:"relative",backgroundColor:wealthProductColors.c93,borderWidth:1,borderColor:wealthProductColors.c94},
+  heroGlow:{position:"absolute",right:-70,top:-30,width:260,height:260,borderRadius:260,backgroundColor:wealthProductColors.c84,opacity:.14,shadowColor:wealthProductColors.c84,shadowOpacity:.5,shadowRadius:42},
+  heroMountainBack:{position:"absolute",left:-30,right:80,bottom:74,height:120,backgroundColor:wealthProductColors.c95,transform:[{rotate:"-8deg"}],borderTopRightRadius:120},
+  heroMountainMid:{position:"absolute",left:40,right:-45,bottom:46,height:150,backgroundColor:wealthProductColors.c96,transform:[{rotate:"5deg"}],borderTopLeftRadius:130},
+  heroMountainFront:{position:"absolute",left:-70,right:-40,bottom:-42,height:130,backgroundColor:wealthProductColors.c97,transform:[{rotate:"-4deg"}],borderTopRightRadius:180},
+  heroHorizon:{position:"absolute",left:0,right:0,bottom:92,height:1,backgroundColor:wealthProductColors.c98,opacity:.5},
+  heroCopy:{position:"absolute",left:20,top:22,right:18},heroHeadline:{color:wealthProductColors.c99,fontSize:31,lineHeight:35,fontWeight:"500",letterSpacing:-1},heroSubline:{color:wealthProductColors.c100,fontSize:10,lineHeight:15,marginTop:8},
+  heroPrinciples:{position:"absolute",left:20,bottom:22,gap:4},heroPrinciple:{color:wealthProductColors.c101,fontSize:7,fontWeight:"800",letterSpacing:2},
+  equityCard:{minHeight:86,borderRadius:16,borderWidth:1,borderColor:wealthProductColors.c102,backgroundColor:wealthProductColors.c103,paddingHorizontal:16,paddingVertical:14,flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:12},
+  equityLabel:{color:wealthProductColors.c104,fontSize:9,fontWeight:"700"},equityValue:{color:wealthProductColors.c105,fontSize:26,lineHeight:32,fontWeight:"700",fontVariant:["tabular-nums"],marginTop:3},
+  equitySide:{alignItems:"flex-end"},equityPnlLabel:{color:wealthProductColors.c106,fontSize:7,fontWeight:"800",letterSpacing:.7,marginBottom:2},equityPnl:{fontSize:13,fontWeight:"800",fontVariant:["tabular-nums"]},equityMeta:{color:wealthProductColors.c106,fontSize:7,fontWeight:"800",letterSpacing:.7,marginTop:4},
+  systemCard:{minHeight:68,borderRadius:14,borderWidth:1,borderColor:wealthProductColors.c102,backgroundColor:wealthProductColors.c103,paddingHorizontal:14,flexDirection:"row",alignItems:"center",gap:12},
+  systemDot:{width:12,height:12,borderRadius:12,shadowColor:SIGNAL_TEAL,shadowOpacity:.5,shadowRadius:9},systemCopy:{flex:1},systemLabel:{color:wealthProductColors.c107,fontSize:9},systemValue:{color:wealthProductColors.c84,fontSize:12,fontWeight:"700",marginTop:2},systemChevron:{color:wealthProductColors.c108,fontSize:22},
+  referenceMiniGrid:{flexDirection:"row",gap:8},referenceMiniCard:{flex:1,minHeight:100,borderRadius:12,borderWidth:1,borderColor:wealthProductColors.c102,backgroundColor:wealthProductColors.c103,padding:11,overflow:"hidden"},
+  miniLabel:{color:wealthProductColors.c109,fontSize:8,fontWeight:"700"},miniValue:{fontSize:11,fontWeight:"800",marginTop:4},
+  referenceFooter:{paddingVertical:12,gap:3},referenceFooterLead:{color:wealthProductColors.c110,fontSize:8,fontWeight:"800",letterSpacing:1.7},referenceFooterSub:{color:wealthProductColors.c111,fontSize:8,lineHeight:12},
   content:{paddingHorizontal:20,paddingTop:12,paddingBottom:38,gap:18,width:"100%",alignSelf:"center",backgroundColor:INK},
   topbar:{minHeight:68,flexDirection:"row",alignItems:"center",justifyContent:"space-between",paddingBottom:6},
   logo:{color:wealthProductColors.c08,fontSize:24,fontWeight:"700",letterSpacing:5.2},tagline:{color:wealthProductColors.c58,fontSize:7,fontWeight:"600",letterSpacing:2.1,marginTop:2},

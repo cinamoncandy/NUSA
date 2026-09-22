@@ -11,6 +11,8 @@ test("HOME visibly distinguishes CLOUD PAPER from LOCAL PAPER capital", () => {
   const home = fs.readFileSync(homePath, "utf8");
 
   assert.match(home, /const accountSource = cloudAccount != null \? "CLOUD" : localAccount != null \? "LOCAL" : null/);
-  assert.match(home, /\{accountSource \? `\$\{accountSource\} PAPER` : "NO LINK"\}/);
-  assert.match(home, /PAPER PERFORMANCE/);
+  // The board states absence as "NO VERIFIED ACCOUNT" rather than "NO LINK". The disclosure
+  // contract is the same and the wording is stricter: no account means no claim.
+  assert.match(home, /\{accountSource==null\?"NO VERIFIED ACCOUNT":accountSource\+" PAPER"\}/);
+  assert.match(home, /PAPER Equity/);
 });

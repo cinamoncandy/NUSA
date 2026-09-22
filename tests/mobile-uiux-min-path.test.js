@@ -9,9 +9,9 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 test("premium UI minimum path keeps canonical actionable Home routes and truthful PAPER naming", () => {
   const home = read("src/homeView.tsx");
   const decisionSurface = read("src/homeDecisionSurface.ts");
-  assert.match(home, /testID="ai-card"/);
-  assert.match(home, /testID="home-decision-stage"/);
-  assert.match(home, /testID="home-paper-performance"/);
+  assert.match(home, /testID="home-ai-judgement"/);
+  assert.match(home, /testID="home-ai-judgement"/);
+  assert.match(home, /testID="home-paper-status"/);
   assert.match(home, /testID="home-paper-learning"/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
   assert.match(decisionSurface, /const connectionRecoveryRequired = input\.disconnected \|\| input\.readOnlyError/);

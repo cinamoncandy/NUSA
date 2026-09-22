@@ -11,8 +11,8 @@ test("HOME AI judgment drills into verified evidence without creating a dead con
   assert.match(home, /aiThesis: ai\?\.status === "AVAILABLE" \? ai\.thesis : null/);
   assert.match(home, /aiEvidenceCount: ai\?\.status === "AVAILABLE" \? ai\.evidenceReferences\.length : 0/);
   assert.match(home, /const signalAvailable = decision\.aiInsightAvailable/);
-  assert.match(home, /onPress=\{\(\) => props\.onNavigate\("Signals"\)\}/);
-  assert.match(home, /testID="ai-card"/);
+  assert.match(home, /onPress=\{\(\)\s*=>\s*props\.onNavigate\("Signals"\)\}/);
+  assert.match(home, /testID="home-ai-judgement"/);
   // The approved layout has no WHY/RESULT/RISK rows on HOME. d9226f33 kept the strings alive in a
   // 1x1 opacity-0 node under testID="home-supervisor-learning", which satisfied the old assertions
   // while showing the owner nothing; that node is now gone. This test is named for dead controls, so
@@ -24,12 +24,14 @@ test("HOME AI judgment drills into verified evidence without creating a dead con
 
 test("HOME keeps the approved evidence-first scan order and authority footer", () => {
   const home = read("apps/mobile/src/homeView.tsx");
-  const ai = home.indexOf('testID="ai-card"');
-  const terrain = home.indexOf('testID="home-decision-stage"');
-  const paperPerformance = home.indexOf('testID="home-paper-performance"');
+  const hero = home.indexOf('testID="account-hero-card"');
+  const ai = home.indexOf('testID="home-ai-judgement"');
+  const capital = home.indexOf('testID="home-capital-limits"');
   const learning = home.indexOf('testID="home-paper-learning"');
   const riskAuthority = home.indexOf('testID="home-risk-authority"');
-  assert.ok(ai >= 0 && terrain > ai && paperPerformance > terrain && learning > paperPerformance && riskAuthority > learning);
+  assert.ok([hero, ai, capital, learning, riskAuthority].every((index) => index >= 0));
+  // The authority footer stays last: it is the claim the whole screen is bounded by.
+  assert.ok(hero < ai && ai < capital && capital < learning && learning < riskAuthority);
   assert.doesNotMatch(home, /<TruthCell label="WHY"/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
 });
