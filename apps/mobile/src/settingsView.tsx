@@ -14,8 +14,10 @@ import { UpbitConnectionPanel } from "./upbitConnectionPanel";
 import { resetUpbitReadOnlyState } from "./upbitReadOnlyAccount";
 import { getOrCreateInstallationId } from "./installationIdentity";
 import { mobileApprovedSession, type MobilePairingRequest } from "./mobileApprovedSessionBoundary";
+import { MobileSessionRequestError } from "./mobileApprovedSession";
 import { ownerDeviceCredential, type OwnerDeviceCredentialNative, type OwnerDeviceCredentialStatus } from "./ownerDeviceCredential";
 import { OwnerConnectionExperience, type OwnerConnectionStage } from "./ownerConnectionExperience";
+import { BUILD_SOURCE_SHA } from "./generatedBuildConfig";
 
 interface SettingsViewProps { readonly repository: SettingsRepository; readonly onSignOut?: () => void; readonly exchangeCash?: number; readonly onCloudInvestmentPercentSave?: (investmentPercent: number) => Promise<void>; readonly onInvestmentPercentChanged?: (investmentPercent: number) => void; readonly credentialSession?: InMemoryDashboardCredentialSession; readonly canonicalEndpoint?: string | null; }
 const themeItems = Object.freeze([{ key: "SYSTEM", label: "시스템" }, { key: "LIGHT", label: "라이트" }, { key: "DARK", label: "다크" }]);
@@ -24,6 +26,7 @@ const telemetryItems = Object.freeze([{ key: "OFF", label: "끔" }, { key: "ON",
 const LOCAL_PAPER_INITIAL_CASH = 10_000_000;
 const themePreference = (value: ThemeSetting): ThemePreference => value === "SYSTEM" ? "system" : value === "LIGHT" ? "light" : "dark";
 const money = (value: number): string => `₩${Math.round(value).toLocaleString("ko-KR")}`;
+const isDefinitiveDeviceTrustFailure = (error: unknown): boolean => error instanceof MobileSessionRequestError && (error.status === 401 || error.status === 403);
 const actionFor = (user: OperatorUserRecord): readonly OperatorUserAction[] => user.status === "PENDING" ? ["APPROVE", "REJECT"] : user.status === "ACTIVE" ? ["SUSPEND"] : ["RESTORE"];
 const actionLabel: Readonly<Record<OperatorUserAction, string>> = { APPROVE: "승인", REJECT: "거절", SUSPEND: "정지", RESTORE: "복구" };
 
@@ -222,7 +225,17 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
       }
       credentialSession.clear(); clearPaperConnectionVerification();
       setConnection({ status: "NOT_CONFIGURED", reason: "소유자 확인 후 이 휴대폰을 먼저 등록하세요." });
-    } catch (connectionError) { credentialSession.clear(); clearPaperConnectionVerification(); setOwnerAuthenticationFallback(true); setConnection({ status: "NOT_CONFIGURED", reason: describeCredentialFailure(connectionError) }); }
+    } catch (connectionError) {
+      if (isDefinitiveDeviceTrustFailure(connectionError)) {
+        credentialSession.clear();
+        clearPaperConnectionVerification();
+        setOwnerAuthenticationFallback(true);
+      } else {
+        // 429/network/5xx is a transport/session recovery state, not loss of device registration.
+        setOwnerAuthenticationFallback(false);
+      }
+      setConnection({ status: "NOT_CONFIGURED", reason: describeCredentialFailure(connectionError) });
+    }
     finally { connectionInFlightRef.current = false; setConnecting(false); }
   };
   const requestRecoveryPairing = async () => {
@@ -372,7 +385,7 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
     <View style={styles.sectionBlock} testID="settings-safety"><View style={styles.sectionHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>ADVANCED · SAFETY</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>안전 상태</Text></View><StatusChip label="PAPER ONLY" tone="info" /></View><NusaCard><DataRow label="기본 운영 모드" value="LOCAL PAPER" emphasis /><DataRow label="Cloud 연결" value="선택" /><DataRow label="LIVE 주문" value="금지" /><DataRow label="Production mutation" value="금지" /><Text style={[styles.hint, { color: theme.colors.textMuted }]}>LOCAL PAPER는 연결 없이 동작하며 LIVE·출금·이체 권한은 이 화면에서 활성화할 수 없습니다.</Text></NusaCard></View>
 
     <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-    <View style={styles.sectionBlock} testID="settings-mode"><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>ADVANCED · LOCAL</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>로컬과 개인 모드 관리</Text><NusaCard testID="settings-about"><DataRow label="클라이언트" value="NUSA Mobile 0.1.0" /><DataRow label="용도" value="LOCAL PAPER / Read Only" /></NusaCard><View style={styles.row} testID="settings-reset"><NusaButton label={busy ? "작업 중..." : "설정 초기화"} disabled={busy} onPress={resetSettings} tone="danger" /></View>{onSignOut ? <View testID="settings-session"><NusaButton disabled={busy} label="개인 모드 종료" onPress={signOutLocal} tone="neutral" testID="settings-sign-out" /></View> : null}</View>
+    <View style={styles.sectionBlock} testID="settings-mode"><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>ADVANCED · LOCAL</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>로컬과 개인 모드 관리</Text><NusaCard testID="settings-about"><DataRow label="클라이언트" value="NUSA Mobile 0.1.0" /><DataRow label="빌드 소스" value={String(BUILD_SOURCE_SHA) === "unprepared" ? "개발 빌드" : String(BUILD_SOURCE_SHA).slice(0, 12)} /><DataRow label="용도" value="LOCAL PAPER / Read Only" /></NusaCard><View style={styles.row} testID="settings-reset"><NusaButton label={busy ? "작업 중..." : "설정 초기화"} disabled={busy} onPress={resetSettings} tone="danger" /></View>{onSignOut ? <View testID="settings-session"><NusaButton disabled={busy} label="개인 모드 종료" onPress={signOutLocal} tone="neutral" testID="settings-sign-out" /></View> : null}</View>
 
     <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
     <View style={styles.sectionBlock} testID="settings-operator-users"><View style={styles.sectionHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>ADVANCED · USER ACCESS</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>운영자 사용자 승인</Text></View><StatusChip label="CLOUD ONLY" tone="neutral" /></View><Text style={[styles.hint, { color: theme.colors.textMuted }]}>이 기능만 Cloud 연결이 필요합니다. LOCAL PAPER 거래와는 무관합니다.</Text><NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} label="운영자 토큰" value={operatorToken} onChangeText={setOperatorToken} placeholder="메모리에만 유지" secureTextEntry testID="operator-user-token" /><View style={styles.row}><NusaButton disabled={busy} label={operatorBusy ? "불러오는 중..." : "사용자 목록 불러오기"} onPress={() => void refreshOperatorUsers()} testID="operator-user-refresh" /><NusaButton disabled={busy && !operatorToken} label="토큰 지우기" tone="neutral" onPress={() => { setOperatorToken(""); setOperatorUsers([]); setOperatorError(null); }} /></View>{operatorError ? <InlineNotice title="사용자 관리 오류" detail={operatorError} tone="danger" testID="operator-user-error" /> : null}{operatorUsers.length > 0 ? <><DataRow label="전체 사용자" value={String(operatorUsers.length)} emphasis /><DataRow label="승인 대기" value={String(pendingUsers)} /><DataRow label="활성" value={String(activeUsers)} />{operatorUsers.map((user) => <NusaCard key={user.id} testID={`operator-user-${user.id}`}><View style={styles.sectionHeader}><View><Text style={[styles.userName, { color: theme.colors.text }]}>{user.displayName || user.email}</Text><Text style={[styles.hint, { color: theme.colors.textMuted }]}>{user.email} · {user.role}</Text></View><StatusChip label={user.status} tone={user.status === "ACTIVE" ? "success" : user.status === "PENDING" ? "warning" : "danger"} /></View>{user.lastSeenAt ? <Text style={[styles.hint, { color: theme.colors.textMuted }]}>최근 활동: {new Date(user.lastSeenAt).toLocaleString("ko-KR")}</Text> : null}{user.role !== "OWNER" ? <View style={styles.row}>{actionFor(user).map((action) => <NusaButton key={action} disabled={busy} label={actionLabel[action]} onPress={() => void applyOperatorAction(user, action)} tone={action === "REJECT" || action === "SUSPEND" ? "danger" : "primary"} testID={`operator-user-${user.id}-${action.toLowerCase()}`} />)}</View> : null}</NusaCard>)}</> : null}</View>

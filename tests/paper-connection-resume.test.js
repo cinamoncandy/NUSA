@@ -41,13 +41,13 @@ test("resuming never invents verification for an unrestored session", () => {
   clearConfiguredPaperEndpoint();
 });
 
-test("resuming leaves an already verified session alone", () => {
+test("resuming revalidates even when the process-local endpoint was already verified", () => {
   clearConfiguredPaperEndpoint();
   setConfiguredPaperEndpoint(ENDPOINT);
   markPaperConnectionVerified(ENDPOINT);
   assert.equal(isPaperConnectionVerified(ENDPOINT), true);
   resumePaperConnection();
-  assert.equal(isPaperConnectionVerified(ENDPOINT), true, "a working session must survive a resume");
+  assert.equal(isPaperConnectionVerified(ENDPOINT), true, "revalidation must not invent a disconnect synchronously");
   clearConfiguredPaperEndpoint();
 });
 
@@ -72,7 +72,8 @@ test("the app resumes the PAPER session from its existing foreground handler", (
   const fs = require("node:fs");
   const app = fs.readFileSync("apps/mobile/App.tsx", "utf8");
   assert.match(app, /resumePaperConnection/, "App must resume the PAPER session");
-  assert.match(app, /if \(nextState === "active"\) resumePaperConnection\(\);/, "resume must run on foreground");
+  assert.match(app, /if \(nextState === "active"\)/, "resume must run on foreground");
+  assert.match(app, /getOrCreateInstallationId/, "foreground recovery must reuse the persisted installation identity");
   // One AppState subscription, not a second competing listener.
   assert.equal((app.match(/AppState\.addEventListener/g) || []).length, 1);
 });
@@ -84,4 +85,14 @@ test("resume requires no token input", () => {
   assert.ok(start > 0);
   const body = source.slice(start, source.indexOf("\n}", start));
   assert.doesNotMatch(body, /token/i, "resume must not take or handle a token");
+});
+
+
+test("resume does not trust VERIFIED as proof of a live credential", () => {
+  const fs = require("node:fs");
+  const source = fs.readFileSync("apps/mobile/src/paperConnectionSession.ts", "utf8");
+  const start = source.indexOf("export function resumePaperConnection");
+  const body = source.slice(start, source.indexOf("\n}", start));
+  assert.doesNotMatch(body, /if \(isPaperConnectionVerified\(endpoint\)\) return/, "foreground must revalidate stale process-local verification");
+  assert.match(body, /restoreApprovedSession\(endpoint, true, silent\)/, "foreground recovery must force a single-flight revalidation");
 });
