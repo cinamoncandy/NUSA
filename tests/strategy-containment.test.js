@@ -155,7 +155,6 @@ test("governance service evaluates containment without appending events or chang
     featureFingerprint: "c".repeat(64),
     engineVersion: "1",
     authorType: "HUMAN",
-    familyId: "family-1",
   };
   service.register("register-containment", identity, 1);
   const beforeEvents = store.listEvents().length;
@@ -182,7 +181,6 @@ test("human-approved containment applies one evidence-bound lifecycle event and 
     featureFingerprint: "c".repeat(64),
     engineVersion: "1",
     authorType: "HUMAN",
-    familyId: "family-1",
   };
   service.register("register-apply-containment", identity, 1);
   toPaperActive(service, "apply");
@@ -227,7 +225,6 @@ test("containment approval rejects mismatched, non-human, and stale decisions wi
     featureFingerprint: "c".repeat(64),
     engineVersion: "1",
     authorType: "HUMAN",
-    familyId: "family-1",
   };
   service.register("register-reject-containment", identity, 1);
   toPaperActive(service, "reject");
@@ -268,7 +265,6 @@ test("public governance transition cannot bypass human-approved containment", ()
     featureFingerprint: "c".repeat(64),
     engineVersion: "1",
     authorType: "HUMAN",
-    familyId: "family-1",
   };
   service.register("register-transition-guard", identity, 1);
   toPaperActive(service, "guard");
@@ -298,7 +294,6 @@ test("approval metadata is part of the governance integrity chain", () => {
     featureFingerprint: "c".repeat(64),
     engineVersion: "1",
     authorType: "HUMAN",
-    familyId: "family-1",
   };
   service.register("register-integrity-containment", identity, 1);
   toPaperActive(service, "integrity");
@@ -332,5 +327,52 @@ test("the containment suite's family membership port is exact, not a permissive 
     /STRATEGY_FAMILY_MEMBERSHIP_UNAVAILABLE/,
   );
   assert.equal(store.listStrategies().length, 0);
+  db.close();
+});
+
+test("containment refuses a caller-supplied family that is not the registered one", () => {
+  // 7eb51e92 made applyContainmentDecision derive the family from the registered canonical identity
+  // and reject a mismatching caller argument. Removing that rejection passed every existing test, so
+  // the guard was carrying no weight. This is the test that makes it load-bearing.
+  const db = new SqliteDatabase(":memory:");
+  const store = new SqliteStrategyGovernanceStore(db);
+  const service = new StrategyGovernanceService(store, familyMembership);
+  const identity = {
+    strategyId: "strategy-1",
+    version: "1.0.0",
+    name: "Strategy 1",
+    familyId: "family-1",
+    createdAt: 1,
+    gitCommitSha: "b".repeat(40),
+    featureFingerprint: "c".repeat(64),
+    engineVersion: "1",
+    authorType: "HUMAN",
+  };
+  service.register("register-family-guard", identity, 1);
+  toPaperActive(service, "family-guard");
+  const decision = service.evaluateContainment(input({
+    currentLifecycle: "PAPER_ACTIVE",
+    rollback: rollback({ previousChampionVersion: undefined, unresolvedFaultCount: 1 }),
+  }));
+  const approval = {
+    actorType: "HUMAN",
+    approvalReference: "owner:containment:family-guard",
+    approvedAt: 101,
+    decisionFingerprint: fingerprintStrategyContainmentDecision(decision),
+  };
+
+  const before = store.listEvents().length;
+  // The old default was decision.strategyId, which is exactly the wrong value for this strategy.
+  assert.throws(() => service.applyContainmentDecision("wrong-family", decision, approval, decision.strategyId), /STRATEGY_FAMILY_MISMATCH/);
+  assert.throws(() => service.applyContainmentDecision("other-family", decision, approval, "family-2"), /STRATEGY_FAMILY_MISMATCH/);
+  assert.equal(store.listEvents().length, before, "a family mismatch must not append an event");
+  assert.equal(store.listStrategies()[0].lifecycle, "PAPER_ACTIVE");
+
+  // Omitting the family is allowed: the canonical identity supplies it.
+  service.applyContainmentDecision("derived-family", decision, approval);
+  assert.equal(store.listEvents().length, before + 1);
+  assert.equal(store.listEvents().at(-1).event.familyId, "family-1", "the event must carry the registered family");
+  assert.equal(store.listStrategies()[0].lifecycle, "SUSPENDED");
+  store.verify();
   db.close();
 });
