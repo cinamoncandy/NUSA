@@ -8,10 +8,12 @@ const {
   transientStatus,
   assertBoundedPatch,
   proposalFailureCode,
+  providerRateLimitCode,
   readDispatchRequest,
   assertGithubRunnerWorkspaceClean,
   filterGithubRunnerWorkspacePaths,
   boundedWorkerFailureEvidence,
+  boundedProposalContext,
   executeGithubActionsRunner,
 } = require("../scripts/autopilot-dispatch-retry.js");
 
@@ -174,6 +176,47 @@ test("records duplicate suppression as no action without retry", async () => {
   assert.equal(calls, 2);
 });
 
+test("classifies only bounded provider rate-limit reasons", () => {
+  assert.equal(providerRateLimitCode("WORKERS_AI_DAILY_QUOTA_EXHAUSTED"), "WORKERS_AI_DAILY_QUOTA_EXHAUSTED");
+  assert.equal(providerRateLimitCode("WORKERS_AI_RATE_LIMITED"), "WORKERS_AI_RATE_LIMITED");
+  assert.equal(providerRateLimitCode("provider unavailable"), null);
+  assert.equal(providerRateLimitCode("WORKERS_AI_RATE_LIMITED secret=unexpected"), null);
+});
+
+test("treats provider rate-limit blocking as non-terminal without proposal retries", async () => {
+  await withOidcEnvironment(async () => {
+    let proposalCalls = 0;
+    let publishCalls = 0;
+    const result = await executeGithubActionsRunner(
+      request,
+      "https://runner.example.test/coding/execute",
+      async (url) => {
+        const value = String(url);
+        if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+        if (value.endsWith("/coding/propose")) {
+          proposalCalls += 1;
+          return response(409, { status: "CODING_PROPOSAL_FAILED_CLOSED", error: "WORKERS_AI_DAILY_QUOTA_EXHAUSTED" });
+        }
+        if (value.endsWith("/coding/publish")) {
+          publishCalls += 1;
+          throw new Error("publish must not run");
+        }
+        throw new Error("unexpected URL " + value);
+      },
+    );
+    assert.equal(result.status, "BLOCKED_RATE_LIMIT");
+    assert.equal(result.reason, "WORKERS_AI_DAILY_QUOTA_EXHAUSTED");
+    assert.equal(result.proposalAttempts, 0);
+    assert.equal(result.proposalRetries, 0);
+    assert.equal(result.codeChanged, false);
+    assert.equal(result.blockedRateLimit, true);
+    assert.equal(result.summary.blockedRateLimit, 1);
+    assert.equal(result.summary.failedClosed, 0);
+    assert.equal(proposalCalls, 1);
+    assert.equal(publishCalls, 0);
+  });
+});
+
 test("allows only this workflow's generated artifacts before patch validation", () => {
   assert.doesNotThrow(() => assertGithubRunnerWorkspaceClean([
     "?? artifacts/autopilot-execution/repository-dispatch.json",
@@ -211,6 +254,24 @@ test("rejects forbidden authority-surface patch paths", () => {
     () => assertBoundedPatch("diff --git a/apps/autopilot/src/live/broker/order/credential/secret/withdraw/transfer.ts b/apps/autopilot/src/live/broker/order/credential/secret/withdraw/transfer.ts\n+++ b/apps/autopilot/src/live/broker/order/credential/secret/withdraw/transfer.ts\n"),
     /SANDBOX_PATCH_PATH_FORBIDDEN/,
   );
+});
+
+test("builds a bounded exact-head retry excerpt around the rejected hunk", () => {
+  const source = Array.from({ length: 300 }, (_value, index) => `line-${index + 1}`).join("\n");
+  const contextPatch = [
+    "diff --git a/apps/autopilot/src/example.ts b/apps/autopilot/src/example.ts",
+    "--- a/apps/autopilot/src/example.ts",
+    "+++ b/apps/autopilot/src/example.ts",
+    "@@ -200,1 +200,1 @@",
+    "-line-200",
+    "+line-200-updated",
+    "",
+  ].join("\n");
+  const context = boundedProposalContext("apps/autopilot/src/example.ts", source, contextPatch);
+  assert.equal(context.path, "apps/autopilot/src/example.ts");
+  assert.ok(context.startLine <= 200);
+  assert.match(context.content, /line-200/);
+  assert.ok(Buffer.byteLength(context.content, "utf8") <= 20_000);
 });
 
 test("classifies only bounded proposal validation failures as no-action", () => {
@@ -261,6 +322,14 @@ test("regenerates an apply-check rejection inside one execution and publishes th
           assert.equal(patch, "second-valid-patch");
           return [{ path: "apps/autopilot/src/example.ts", content: "export const repaired = true;\n" }];
         },
+        proposalContextForPatch(patch) {
+          assert.equal(patch, "first-invalid-patch");
+          return {
+            path: "apps/autopilot/src/example.ts",
+            startLine: 1,
+            content: "export const oldValue = true;\n",
+          };
+        },
       },
     );
 
@@ -278,6 +347,12 @@ test("regenerates an apply-check rejection inside one execution and publishes th
     assert.equal(proposalBodies[1].dedupeKey, request.dedupeKey);
     assert.equal(proposalBodies[1].headSha, request.headSha);
     assert.match(proposalBodies[1].proposalFeedback, /SANDBOX_PATCH_APPLY_CHECK_FAILED/);
+    assert.equal(proposalBodies[0].proposalContext, undefined);
+    assert.deepEqual(proposalBodies[1].proposalContext, {
+      path: "apps/autopilot/src/example.ts",
+      startLine: 1,
+      content: "export const oldValue = true;\n",
+    });
     assert.deepEqual(result.attempts.map((entry) => entry.decision), ["RETRY", "DISPATCHED"]);
   });
 });

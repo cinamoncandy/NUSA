@@ -60,6 +60,44 @@ describe("coding runner", () => {
     );
   });
 
+  it("accepts only bounded read-only retry source context", async () => {
+    const contextual = {
+      ...request,
+      proposalContext: {
+        path: "apps/autopilot/src/example.ts",
+        startLine: 7,
+        content: "export const oldValue = true;\n",
+      },
+    };
+    assert.deepEqual(validateCodingRunnerRequest(contextual), contextual);
+
+    let observedPrompt = "";
+    const ai: WorkersAiBinding = {
+      async run(_model, input) {
+        observedPrompt = input.prompt;
+        return { response: { patch } };
+      },
+    };
+    const result = await executeCodingRunner(contextual, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch);
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.match(observedPrompt, /Retry target path: apps\/autopilot\/src\/example\.ts/);
+    assert.match(observedPrompt, /Excerpt starts at source line 7/);
+    assert.match(observedPrompt, /export const oldValue = true/);
+
+    assert.throws(
+      () => validateCodingRunnerRequest({ ...request, proposalContext: { path: "apps/autopilot/src/worker.ts", startLine: 1, content: "x" } }),
+      /CODING_RUNNER_PROPOSAL_CONTEXT_PATH_INVALID/,
+    );
+    assert.throws(
+      () => validateCodingRunnerRequest({ ...request, proposalContext: { path: "apps/autopilot/src/example.ts", startLine: 0, content: "x" } }),
+      /CODING_RUNNER_PROPOSAL_CONTEXT_LINE_INVALID/,
+    );
+    assert.throws(
+      () => validateCodingRunnerRequest({ ...request, proposalContext: { path: "apps/autopilot/src/example.ts", startLine: 1, content: "x".repeat(20_001) } }),
+      /CODING_RUNNER_PROPOSAL_CONTEXT_CONTENT_INVALID/,
+    );
+  });
+
   it("rejects missing or malformed lifecycle identity", () => {
     assert.throws(() => validateCodingRunnerRequest({ ...request, executionId: "" }), /CODING_RUNNER_EXECUTION_ID_INVALID/);
     assert.throws(() => validateCodingRunnerRequest({ ...request, dedupeKey: "bad key" }), /CODING_RUNNER_DEDUPE_KEY_INVALID/);
@@ -255,6 +293,35 @@ describe("coding runner", () => {
         additionalProperties: false,
       },
     });
+  });
+
+  it("accepts Workers AI structured chat-completion parsed responses", async () => {
+    const runtime: CodingRuntime = {
+      name: "fake-sandbox",
+      async execute(value, proposal) {
+        assert.equal(value.executionId, request.executionId);
+        assert.equal(proposal?.patch, patch);
+        return {
+          backend: "fake-sandbox",
+          checkpointId: request.headSha,
+          workspaceVerified: true,
+          proposalValidated: true,
+          changedFiles: ["apps/autopilot/src/example.ts"],
+        };
+      },
+    };
+    const ai: WorkersAiBinding = {
+      async run() {
+        return {
+          id: "chatcmpl-test",
+          object: "chat.completion",
+          choices: [{ index: 0, message: { role: "assistant", content: null, parsed: { patch } } }],
+        };
+      },
+    };
+    const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch, runtime);
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.equal(result.proposalValidated, true);
   });
 
   it("accepts current Workers AI chat-completion response envelopes", async () => {
@@ -555,6 +622,30 @@ describe("coding runner", () => {
     }, verifiedGithubFetch);
     assert.equal(result.status, "EXECUTION_ACCEPTED");
     assert.deepEqual(calls, ["@cf/meta/llama-3.3-70b-instruct-fp8-fast"]);
+  });
+
+  it("classifies Workers AI daily quota exhaustion as blocked before proposal generation", async () => {
+    let calls = 0;
+    const result = await executeCodingRunner(request, {
+      NUSA_GITHUB_TOKEN: "github-token",
+      AI: { async run() { calls += 1; throw new Error("4006: you have used up your daily free allocation of 10,000 neurons, please upgrade to Cloudflare's Workers Paid plan if you would like to continue usage."); } },
+    }, verifiedGithubFetch);
+    assert.equal(result.status, "BLOCKED_RATE_LIMIT");
+    assert.equal(result.reason, "WORKERS_AI_DAILY_QUOTA_EXHAUSTED");
+    assert.equal(result.proposalAttempts, 0);
+    assert.equal(calls, 1);
+  });
+
+  it("classifies generic Workers AI rate limiting without hot-loop proposal retries", async () => {
+    let calls = 0;
+    const result = await executeCodingRunner(request, {
+      NUSA_GITHUB_TOKEN: "github-token",
+      AI: { async run() { calls += 1; throw new Error("429 Too Many Requests: rate limit exceeded"); } },
+    }, verifiedGithubFetch);
+    assert.equal(result.status, "BLOCKED_RATE_LIMIT");
+    assert.equal(result.reason, "WORKERS_AI_RATE_LIMITED");
+    assert.equal(result.proposalAttempts, 0);
+    assert.equal(calls, 1);
   });
 
   it("fails closed when the Workers AI binding is unavailable", async () => {

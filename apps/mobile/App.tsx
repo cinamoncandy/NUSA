@@ -46,6 +46,8 @@ import type { WatchlistMarket } from "./src/watchlist";
 import { emitUxTelemetryEvent } from "./src/uxTelemetryClient";
 import { screenIdForNavigationState, createUxTelemetrySessionId } from "./src/uxTelemetryScreenTracking";
 import { resolveAndroidBackNavigation } from "./src/androidBackNavigation";
+import { ownerDeviceCredential } from "./src/ownerDeviceCredential";
+import { getOrCreateInstallationId } from "./src/installationIdentity";
 
 // The concept board (MASTER VISUAL REFERENCE, #536) defines five primary destinations. PAPER,
 // performance, order history, notifications and settings live one level deeper, under More.
@@ -344,7 +346,11 @@ function AuthenticatedApp() {
       // long background spell leaves the PAPER session unrestored with no timer due. Resuming asks
       // for it again immediately. No token and no owner action: the approved rotating session is
       // already in secure storage, and a genuinely lapsed one still fails closed.
-      if (nextState === "active") resumePaperConnection();
+      if (nextState === "active") {
+        const native = ownerDeviceCredential();
+        if (native == null) resumePaperConnection();
+        else void getOrCreateInstallationId(AsyncStorage).then((deviceId) => resumePaperConnection({ deviceId, native })).catch(() => resumePaperConnection());
+      }
       if (nextState === "active" && runtimeCoordinator.current().recovery === "READY") dispatchRuntime({ type: "RECOVERY_STARTED" });
     });
     return () => subscription.remove();
