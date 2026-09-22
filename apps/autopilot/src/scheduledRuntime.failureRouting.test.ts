@@ -13,6 +13,9 @@ function namespace(): ExecutionCoordinatorNamespace {
     get: () => ({
       async fetch(input: RequestInfo | URL) {
         const url = String(input);
+        if (url.endsWith("/active-wip")) return new Response(JSON.stringify({ claims: [], activeExecutions: 0 }), { status: 200, headers: { "content-type": "application/json" } });
+        if (url.endsWith("/active-wip/admit")) return new Response(JSON.stringify({ admitted: true }), { status: 201, headers: { "content-type": "application/json" } });
+        if (url.endsWith("/active-wip/complete")) return new Response(JSON.stringify({ completed: true }), { status: 200, headers: { "content-type": "application/json" } });
         if (url.endsWith("/execution")) return new Response(JSON.stringify({ record: null }), { status: 200, headers: { "content-type": "application/json" } });
         if (url.endsWith("/scheduled-receipt")) return new Response("not found", { status: 404 });
         if (url.endsWith("/acquire")) {
