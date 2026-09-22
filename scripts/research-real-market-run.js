@@ -376,14 +376,25 @@ async function fetchDayCandlePage(path) {
 
 function researchCandleCount(value = process.env.NUSA_RESEARCH_CANDLE_COUNT) {
   if (value === undefined) return DEFAULT_CANDLE_COUNT;
-  // The ceiling tracks the deepest declared timeframe, so an explicit override can never be
-  // rejected for a depth the defaults already use. Below the floor the walk-forward plan cannot
-  // form its minimum windows.
+  // Low-level pagination/integrity callers may request any bounded depth. This helper does not
+  // create a canonical availability claim; the production runtime binds that claim separately.
   const ceiling = Math.max(...Object.values(RESEARCH_TIMEFRAMES).map((entry) => entry.candleCount));
   if (!/^\d+$/.test(String(value)) || !Number.isInteger(Number(value)) || Number(value) < 200 || Number(value) > ceiling) {
     throw new Error(`NUSA_RESEARCH_CANDLE_COUNT must be an integer from 200 to ${ceiling}`);
   }
   return Number(value);
+}
+
+function declaredResearchCandleCount(value = process.env.NUSA_RESEARCH_CANDLE_COUNT, timeframe = TIMEFRAME) {
+  const declaration = RESEARCH_TIMEFRAMES[timeframe];
+  if (declaration == null) throw new Error(`research candle count requires a declared timeframe: ${timeframe}`);
+  const count = value === undefined ? declaration.candleCount : researchCandleCount(value);
+  if (count !== declaration.candleCount) {
+    throw new Error(
+      `NUSA_RESEARCH_CANDLE_COUNT=${count} is not covered by ${declaration.marketSetVersion}; declared depth is ${declaration.candleCount}`,
+    );
+  }
+  return count;
 }
 
 async function fetchResearchCandles({ market = MARKET, dataAsOf, count = DEFAULT_CANDLE_COUNT, fetchPage = fetchDayCandlePage, pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }) {
@@ -417,6 +428,25 @@ async function fetchResearchCandles({ market = MARKET, dataAsOf, count = DEFAULT
   return { candles, sourceRequests };
 }
 
+/**
+ * The freshness block published into hypothesis provenance.
+ *
+ * It exists as a named function because the bug it encodes was invisible otherwise: the emission
+ * read `freshness.lagDays` off the generic projection, which only the daily-named wrapper carries,
+ * so every non-daily run published `lagDays: undefined` and no test could see it from main().
+ */
+function buildPublishedFreshness(freshness) {
+  if (!Number.isFinite(freshness?.lagIntervals)) {
+    throw new Error("research freshness projection must report a finite lagIntervals");
+  }
+  return {
+    status: "FRESH",
+    expectedLatestCloseTime: new Date(freshness.expectedLatestCloseTime).toISOString(),
+    actualLatestCloseTime: new Date(freshness.actualLatestCloseTime).toISOString(),
+    lagIntervals: freshness.lagIntervals
+  };
+}
+
 function createMarketDataset({ market, dataAsOf, candles, sourceRequests }) {
   const freshness = evaluateUpbitCandleFreshness(candles, dataAsOf, TIMEFRAME);
   if (!freshness.fresh) {
@@ -433,7 +463,7 @@ function createMarketDataset({ market, dataAsOf, candles, sourceRequests }) {
 async function main() {
   const dataAsOf = Date.now();
   const timeline = buildResearchRunTimeline(dataAsOf);
-  const candleCount = researchCandleCount();
+  const candleCount = declaredResearchCandleCount();
   const marketDatasets = [];
   for (let index = 0; index < RESEARCH_MARKETS.length; index += 1) {
     if (index > 0) await new Promise((resolve) => setTimeout(resolve, REQUEST_THROTTLE_MS));
@@ -600,6 +630,9 @@ async function main() {
     strategyFamily: definition.familyId,
     researchMarketSet: {
       version: RESEARCH_MARKET_SET_VERSION,
+      timeframe: TIMEFRAME,
+      declaredCandleCount: DEFAULT_CANDLE_COUNT,
+      actualCandleCount: manifest.candleCount,
       selectionPolicy: "PREDECLARED_PUBLIC_HISTORY_AVAILABILITY_ONLY_NO_PERFORMANCE_SELECTION",
       markets: RESEARCH_MARKETS
     },
@@ -614,12 +647,7 @@ async function main() {
       contentSha256: manifest.contentSha256,
       sourceRequest: manifest.sourceRequest,
       completedBy: new Date(dataAsOf).toISOString(),
-      freshness: {
-        status: "FRESH",
-        expectedLatestCloseTime: new Date(freshness.expectedLatestCloseTime).toISOString(),
-        actualLatestCloseTime: new Date(freshness.actualLatestCloseTime).toISOString(),
-        lagDays: freshness.lagDays
-      }
+      freshness: buildPublishedFreshness(freshness)
     },
     evidenceDatasets: marketDatasets.map((entry) => ({
       datasetId: entry.manifest.datasetId,
@@ -630,7 +658,7 @@ async function main() {
       endCloseTime: new Date(entry.manifest.endCloseTime).toISOString(),
       contentSha256: entry.manifest.contentSha256,
       sourceRequest: entry.manifest.sourceRequest,
-      freshnessLagDays: entry.freshness.lagDays
+      freshnessLagIntervals: entry.freshness.lagIntervals
     })),
     windowCount: result.walkForwardResult.windows.length,
     parameterNeighborhood: {
@@ -704,6 +732,11 @@ if (require.main === module) {
 
 module.exports = {
   RESEARCH_MARKET_SET_VERSION,
+  // Exported so the emitted freshness projection can be asserted directly. Reading a field that the
+  // generic projection does not carry produced `undefined` in research output for every non-daily
+  // run, and nothing failed; a source-text assertion would not have caught that either.
+  createMarketDataset,
+  buildPublishedFreshness,
   RESEARCH_MARKETS,
   researchPrimaryMarket,
   researchTimeframe,
@@ -714,6 +747,7 @@ module.exports = {
   researchStrategyFamily,
   fetchResearchCandles,
   researchCandleCount,
+  declaredResearchCandleCount,
   buildParameterRobustnessRequest,
   buildResearchRunTimeline,
   isResearchRunPboEvidenceUnavailable
