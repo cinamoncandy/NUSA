@@ -1,5 +1,5 @@
 /**
- * The 28 exported functions in `apps/autopilot/src` that no running code calls, and a ratchet that
+ * The 29 exported functions in `apps/autopilot/src` that no running code calls, and a ratchet that
  * stops the number from growing.
  *
  * Every one of these is reached only by its own test file. A passing test suite is not evidence
@@ -56,6 +56,7 @@ export const UNWIRED_CONTROL_PLANE_DEBT: readonly string[] = Object.freeze([
   "opportunityPlanner.ts#planOpportunity",
   "opportunityPlanner.ts#rankOpportunities",
   "outcomeFeedback.ts#assessOutcome",
+  "referenceIntelligenceIssueHandoff.ts#buildReferenceOwnerIssueDraft",
   // #2128 states plainly that the worker pool creates no branches, worktrees or side effects, so
   // these having no caller yet is the declared design rather than a missed wiring. They stay listed
   // because the ledger is a measurement, not a judgement: #2117's runner integration is what removes
