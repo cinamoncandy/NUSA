@@ -186,6 +186,7 @@ test("classifies only bounded provider rate-limit reasons", () => {
   assert.equal(providerRateLimitCode("RATE_LIMITED"), "RATE_LIMITED");
   assert.equal(providerRateLimitCode("WORKERS_AI_DAILY_QUOTA_EXHAUSTED"), "WORKERS_AI_DAILY_QUOTA_EXHAUSTED");
   assert.equal(providerRateLimitCode("WORKERS_AI_RATE_LIMITED"), "WORKERS_AI_RATE_LIMITED");
+  assert.equal(providerRateLimitCode("WAITING_PROVIDER_CAPACITY"), "PROVIDER_RATE_LIMITED");
   assert.equal(providerRateLimitCode("provider unavailable"), null);
   assert.equal(providerRateLimitCode("WORKERS_AI_RATE_LIMITED secret=unexpected"), null);
 });
@@ -310,6 +311,36 @@ test("normalizes a non-2xx worker rate-limit stop into waiting without proposal 
     assert.equal(result.stopReason, "WORKERS_AI_DAILY_QUOTA_EXHAUSTED");
     assert.equal(proposalCalls, 1);
     assert.equal(publishCalls, 0);
+  });
+});
+
+test("normalizes a non-2xx shared provider-capacity stop without failing the consumer", async () => {
+  await withOidcEnvironment(async () => {
+    let proposalCalls = 0;
+    const result = await executeGithubActionsRunner(
+      request,
+      "https://runner.example.test/coding/execute",
+      async (url) => {
+        const value = String(url);
+        if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+        proposalCalls += 1;
+        return response(409, {
+          status: "CODING_PROPOSAL_FAILED_CLOSED",
+          error: "WAITING_PROVIDER_CAPACITY",
+          stopReason: "WAITING_PROVIDER_CAPACITY",
+          lastFailure: "WORKERS_AI_DAILY_QUOTA_EXHAUSTED",
+          nextRetryAt: 1_700_000_100_000,
+          resumeCondition: "provider-capacity-and-exact-head-revalidation",
+        });
+      },
+      { now: () => 1_700_000_000_000, sleep: async () => { throw new Error("must not retry"); } },
+    );
+    assert.equal(result.status, "WAITING_RATE_LIMIT");
+    assert.equal(result.reason, "WAITING_RATE_LIMIT");
+    assert.equal(result.summary.failedClosed, 0);
+    assert.equal(result.attempts[0].decision, "NO_ACTION");
+    assert.equal(result.stopReason, "WAITING_PROVIDER_CAPACITY");
+    assert.equal(proposalCalls, 1);
   });
 });
 
