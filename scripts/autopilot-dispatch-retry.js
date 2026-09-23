@@ -131,10 +131,11 @@ function retryHint(response, payload, observedAt) {
 
 function providerRateLimitCodeFromPayload(payload) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
-  for (const value of [payload.reason, payload.error, payload.code, payload.status]) {
+  for (const value of [payload.reason, payload.error, payload.code, payload.status, payload.stopReason, payload.lastFailure]) {
     const code = providerRateLimitCode(value);
     if (code) return code;
   }
+  if (payload.status === "WAITING_RATE_LIMIT" || payload.status === "BLOCKED_RATE_LIMIT") return "PROVIDER_RATE_LIMITED";
   return null;
 }
 
@@ -329,12 +330,16 @@ async function dispatchWithRetry({
     const observedAt = now();
     const rateLimit = rateLimitEvidence(response, payload, observedAt);
     if (rateLimit) {
+      const workerWaiting = payload?.status === "WAITING_RATE_LIMIT" || payload?.status === "BLOCKED_RATE_LIMIT";
       const providerQuotaExhausted = rateLimit.code === "WORKERS_AI_DAILY_QUOTA_EXHAUSTED";
-      const decision = !providerQuotaExhausted && attempt < maxAttempts ? "RETRY" : "NO_ACTION";
+      const decision = !workerWaiting && !providerQuotaExhausted && attempt < maxAttempts ? "RETRY" : "NO_ACTION";
       const delayMs = rateLimit.retryAfterMs ?? boundedBackoffMs(baseBackoffMs, attempt, jitter);
       const nextEvidence = Object.freeze({
         ...rateLimit,
         nextRetryAt: observedAt + delayMs,
+        stopReason: typeof payload?.stopReason === "string" ? payload.stopReason : rateLimit.code,
+        stoppedAt: Number.isSafeInteger(payload?.stoppedAt) ? payload.stoppedAt : observedAt,
+        resumeCondition: typeof payload?.resumeCondition === "string" ? payload.resumeCondition : "provider-capacity-and-exact-head-revalidation",
         retrySource: rateLimit.retryAfterMs === null ? "bounded-exponential-backoff-jitter" : rateLimit.retrySource,
       });
       rateLimitEvents.push(nextEvidence);
@@ -344,7 +349,7 @@ async function dispatchWithRetry({
         await sleep(delayMs);
         continue;
       }
-      return rateLimitedResult(resultSummary(request, attempts, "BLOCKED_RATE_LIMIT", rateLimit.code, response.status, "RATE_LIMITED"), nextEvidence, rateLimitEventsForResult);
+      return rateLimitedResult(resultSummary(request, attempts, workerWaiting ? "WAITING_RATE_LIMIT" : "BLOCKED_RATE_LIMIT", rateLimit.code, response.status, workerWaiting ? "WAITING_RATE_LIMIT" : "RATE_LIMITED"), nextEvidence, rateLimitEventsForResult);
     }
 
     if (response.ok) {
@@ -466,8 +471,16 @@ async function authorizedJsonPost(url, body, fetchImpl = fetch, now = () => Date
   }
   const rateLimit = rateLimitEvidence(response, payload, now());
   if (rateLimit) {
-    const error = new Error(rateLimit.code);
-    error.rateLimit = rateLimit;
+    const workerStop = payload?.status === "WAITING_RATE_LIMIT" || payload?.status === "BLOCKED_RATE_LIMIT";
+    const error = new Error(workerStop ? payload.status : rateLimit.code);
+    error.workerStop = workerStop;
+    error.rateLimit = Object.freeze({
+      ...rateLimit,
+      ...(workerStop && typeof payload.stopReason === "string" ? { stopReason: payload.stopReason } : {}),
+      ...(workerStop && typeof payload.resumeCondition === "string" ? { resumeCondition: payload.resumeCondition } : {}),
+      ...(workerStop && Number.isSafeInteger(payload.stoppedAt) ? { stoppedAt: payload.stoppedAt } : {}),
+      ...(workerStop && typeof payload.lastFailure === "string" ? { lastFailure: payload.lastFailure } : {}),
+    });
     throw error;
   }
   return payload;
@@ -597,6 +610,7 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
   }
 
   const attempts = [];
+  const rateLimitEvents = [];
   const seenPatches = new Set();
   let feedback = null;
   let proposalContext = null;
@@ -653,6 +667,35 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
       }
     } catch (error) {
       const reason = error instanceof Error ? error.message : "CODING_PROPOSAL_UNAVAILABLE";
+      if (error?.workerStop === true && error?.rateLimit) {
+        const evidence = Object.freeze({
+          ...error.rateLimit,
+          nextRetryAt: Number.isSafeInteger(error.rateLimit.nextRetryAt) ? error.rateLimit.nextRetryAt : null,
+          retrySource: error.rateLimit.retrySource ?? "provider-state",
+        });
+        attempts.push(attemptRecord({
+          request,
+          attempt,
+          decision: "NO_ACTION",
+          startedAt,
+          status: evidence.httpStatus,
+          workerStatus: "WAITING_RATE_LIMIT",
+          failureClass: "transient",
+          reason: "WAITING_RATE_LIMIT",
+          now,
+        }));
+        return rateLimitedResult(
+          finish("WAITING_RATE_LIMIT", "WAITING_RATE_LIMIT", evidence.httpStatus, "WAITING_RATE_LIMIT", {
+            stopReason: typeof error.rateLimit.stopReason === "string" ? error.rateLimit.stopReason : "PROVIDER_RATE_LIMITED",
+            lastFailure: typeof error.rateLimit.lastFailure === "string" ? error.rateLimit.lastFailure : "PROVIDER_RATE_LIMITED",
+            resumeCondition: typeof error.rateLimit.resumeCondition === "string" ? error.rateLimit.resumeCondition : "provider-recovery-and-exact-head-revalidation",
+            nextRetryAt: evidence.nextRetryAt,
+            rateLimitEvidence: evidence,
+          }),
+          evidence,
+          [...rateLimitEvents],
+        );
+      }
       const rateLimitCode = providerRateLimitCode(reason) || providerRateLimitCode(error?.rateLimit?.code);
       if (rateLimitCode) {
         const observedAt = error?.rateLimit?.lastRateLimitAt ?? now();

@@ -310,6 +310,40 @@ test("treats provider rate-limit blocking as non-terminal without proposal retri
   });
 });
 
+test("preserves a worker WAITING_RATE_LIMIT stop and suppresses duplicate dispatch", async () => {
+  await withOidcEnvironment(async () => {
+    const now = 1_700_000_000_000;
+    const waits = [];
+    let runnerCalls = 0;
+    const result = await executeGithubActionsRunner(
+      request,
+      "https://runner.example.test/coding/execute",
+      async (url) => {
+        const value = String(url);
+        if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+        runnerCalls += 1;
+        return response(202, {
+          status: "WAITING_RATE_LIMIT",
+          provider: "workers-ai",
+          stopReason: "WORKERS_AI_RATE_LIMITED",
+          lastFailure: "WORKERS_AI_RATE_LIMITED",
+          nextRetryAt: now + 5_000,
+          resumeCondition: "provider-capacity-and-exact-head-revalidation",
+        });
+      },
+      { now: () => now, sleep: async (milliseconds) => waits.push(milliseconds) },
+    );
+    assert.equal(result.status, "WAITING_RATE_LIMIT");
+    assert.equal(result.reason, "WAITING_RATE_LIMIT");
+    assert.equal(result.nextRetryAt, now + 5_000);
+    assert.equal(result.stopReason, "WORKERS_AI_RATE_LIMITED");
+    assert.equal(result.resumeCondition, "provider-capacity-and-exact-head-revalidation");
+    assert.deepEqual(result.attempts.map((attempt) => attempt.decision), ["NO_ACTION"]);
+    assert.deepEqual(waits, []);
+    assert.equal(runnerCalls, 1);
+  });
+});
+
 test("retries a temporary provider rate limit using provider retry metadata", async () => {
   await withOidcEnvironment(async () => {
     const waits = [];

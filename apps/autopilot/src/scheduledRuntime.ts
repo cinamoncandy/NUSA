@@ -28,7 +28,7 @@ export interface ScheduledRuntimeEnv {
 }
 
 export interface ScheduledRuntimeResult {
-  readonly status: "ABSTAINED" | "DUPLICATE_EXECUTION_SUPPRESSED" | "EXECUTION_DISPATCHED" | "EXECUTION_NOT_DISPATCHED";
+  readonly status: "ABSTAINED" | "WAITING_RATE_LIMIT" | "DUPLICATE_EXECUTION_SUPPRESSED" | "EXECUTION_DISPATCHED" | "EXECUTION_NOT_DISPATCHED";
   readonly reason: string;
   readonly headSha: string | null;
   readonly workflowRunId: number | null;
@@ -214,6 +214,7 @@ function codingResult(
   workSupply: GithubIssueWorkSupplySnapshot,
 ): ScheduledRuntimeResult | null {
   if (coding.status === "EXECUTION_ACCEPTED") return result("EXECUTION_DISPATCHED", coding.reason, mainSha, workflowRunId, null, discoveredOpportunityIds, workSupply);
+  if (coding.status === "WAITING_RATE_LIMIT") return result("WAITING_RATE_LIMIT", coding.reason, mainSha, workflowRunId, null, discoveredOpportunityIds, workSupply);
   if (coding.status === "DUPLICATE_SUPPRESSED") return result("DUPLICATE_EXECUTION_SUPPRESSED", coding.reason, mainSha, workflowRunId, null, discoveredOpportunityIds, workSupply);
   if (coding.status === "INTERFACE_READY" || coding.status === "EXECUTION_FAILED") return result("EXECUTION_NOT_DISPATCHED", coding.reason, mainSha, workflowRunId, null, discoveredOpportunityIds, workSupply);
   return null;

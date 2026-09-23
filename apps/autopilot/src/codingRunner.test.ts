@@ -629,11 +629,14 @@ describe("coding runner", () => {
     const result = await executeCodingRunner(request, {
       NUSA_GITHUB_TOKEN: "github-token",
       AI: { async run() { calls += 1; throw new Error("4006: you have used up your daily free allocation of 10,000 neurons, please upgrade to Cloudflare's Workers Paid plan if you would like to continue usage."); } },
-    }, verifiedGithubFetch);
+    }, verifiedGithubFetch, undefined, undefined, { now: () => 1_000 });
     assert.equal(result.status, "BLOCKED_RATE_LIMIT");
     assert.equal(result.reason, "WORKERS_AI_DAILY_QUOTA_EXHAUSTED");
     assert.equal(result.proposalAttempts, 0);
     assert.equal(calls, 1);
+    assert.equal(result.provider, "workers-ai");
+    assert.equal(result.nextRetryAt, 61_000);
+    assert.equal(result.resumeCondition, "provider-capacity-and-exact-head-revalidation");
   });
 
   it("classifies generic Workers AI rate limiting without hot-loop proposal retries", async () => {
@@ -641,11 +644,12 @@ describe("coding runner", () => {
     const result = await executeCodingRunner(request, {
       NUSA_GITHUB_TOKEN: "github-token",
       AI: { async run() { calls += 1; throw new Error("429 Too Many Requests: rate limit exceeded"); } },
-    }, verifiedGithubFetch);
+    }, verifiedGithubFetch, undefined, undefined, { now: () => 2_000 });
     assert.equal(result.status, "BLOCKED_RATE_LIMIT");
     assert.equal(result.reason, "WORKERS_AI_RATE_LIMITED");
     assert.equal(result.proposalAttempts, 0);
     assert.equal(calls, 1);
+    assert.equal(result.nextRetryAt, 3_000);
   });
 
   it("fails closed when the Workers AI binding is unavailable", async () => {
