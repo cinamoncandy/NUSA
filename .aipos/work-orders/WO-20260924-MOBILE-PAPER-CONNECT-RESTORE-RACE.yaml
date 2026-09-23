@@ -1,6 +1,6 @@
 id: WO-20260924-MOBILE-PAPER-CONNECT-RESTORE-RACE
 title: "One PAPER session restore at a time; explicit verification supersedes stale restores"
-status: READY_FOR_REVIEW
+status: MERGED
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -28,7 +28,7 @@ verification_commands:
   - "node --test dist/apps/mobile/src/mobileApprovedSession.test.js tests/paper-connection-resume.test.js"
   - "node --test dist/apps/mobile/src/*.test.js tests/mobile-*.test.js tests/uiux-*.test.js tests/paper-connection-resume.test.js tests/owner-device-*.test.js"
 evidence:
-  implementation_status: READY_FOR_REVIEW
+  implementation_status: MERGED_PR_2243
   mutation_verification:
     - "silent restore not waiting for in-flight bearer -> 1 failure"
     - "restore() not joining in-flight silent restore -> 1 failure"
@@ -48,4 +48,4 @@ safety:
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
-next_permitted_action: "Obtain exact-head CI, Audit, Release; owner confirms one-press connect on Galaxy after the Android build installs."
+next_permitted_action: "Merged. Owner confirms one-press connect on Galaxy after installing the Android build (HUMAN_ENVIRONMENT_ONLY)."
