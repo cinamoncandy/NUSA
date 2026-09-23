@@ -1,6 +1,7 @@
 import { clearDashboardCredentialSession, setDashboardCredentialEndpoint } from "./dashboardCredentialSession";
 import { clearMobileApprovedSessionMemory, mobileApprovedSession } from "./mobileApprovedSessionBoundary";
 import { connectUpbitReadOnlyAccount, resetUpbitReadOnlyState } from "./upbitReadOnlyAccount";
+import type { OwnerDeviceCredentialNative } from "./ownerDeviceCredential";
 
 let configuredEndpoint: string | null = null;
 let verifiedEndpoint: string | null = null;
@@ -37,9 +38,17 @@ function clearCredentialMemory(): void {
   clearMobileApprovedSessionMemory();
 }
 
-function restoreApprovedSession(endpoint: string): Promise<void> {
+function restoreApprovedSession(endpoint: string, force = false, silent?: Readonly<{ deviceId: string; native: OwnerDeviceCredentialNative }>): Promise<void> {
+  if (restoreInFlight != null) return restoreInFlight;
   const generation = ++restoreGeneration;
-  const operation = mobileApprovedSession().restore(endpoint).then((identity) => {
+  const operation = (async () => {
+    // Foreground recovery must not trust the process-local VERIFIED flag as proof that the
+    // credential survived hours of Android background/Doze. Prefer a fresh hardware-bound
+    // DeviceKey challenge whenever the adapter is available; otherwise retain the existing
+    // rotating-session restore path for platforms without that adapter.
+    if (force && silent != null) return mobileApprovedSession().restoreWithSilentDevice(endpoint, silent.deviceId, silent.native);
+    return mobileApprovedSession().restore(endpoint);
+  })().then((identity) => {
     if (generation !== restoreGeneration || configuredEndpoint !== endpoint) return;
     if (identity != null) {
       verifiedEndpoint = endpoint;
@@ -54,7 +63,14 @@ function restoreApprovedSession(endpoint: string): Promise<void> {
     if (generation === restoreGeneration && configuredEndpoint === endpoint) verifiedEndpoint = null;
   });
   restoreInFlight = operation;
-  void operation.finally(() => { if (restoreInFlight === operation) restoreInFlight = null; });
+  void operation.finally(() => {
+    if (restoreInFlight !== operation) return;
+    restoreInFlight = null;
+    // A transient failure may have scheduled an immediate retry (tests and foreground wakeups can
+    // collapse timers to a microtask). If that callback observed this operation as in-flight it
+    // safely no-oped; re-arm once after clearing the single-flight slot so recovery cannot stall.
+    if (configuredEndpoint === endpoint && !isPaperConnectionVerified(endpoint) && mobileApprovedSession().shouldRetryRestore()) scheduleRestoreRetry(endpoint);
+  });
   return operation;
 }
 
@@ -99,6 +115,30 @@ export async function restoreConfiguredPaperSession(value = configuredEndpoint):
   }
   return true;
 }
+/**
+ * Re-establishes the PAPER session when the app returns to the foreground.
+ *
+ * The restore retry backs off to 30 seconds, and Android suspends timers while the app is
+ * backgrounded, so a device that spends hours in the background comes back with either a timer the
+ * OS never fired or one that is capped at its slowest interval. The owner then opens the app to a
+ * disconnected PAPER server and has no action available except reconnecting by hand, which is the
+ * thing the paired session exists to avoid.
+ *
+ * Resuming resets the backoff and asks for a restore immediately. It needs no token and no owner
+ * interaction: the device already holds an approved, rotating session in Android secure storage,
+ * and this only exchanges it again. A session that has genuinely lapsed still fails closed, and the
+ * device must be re-approved by an ACTIVE OWNER exactly as before.
+ */
+export function resumePaperConnection(silent?: Readonly<{ deviceId: string; native: OwnerDeviceCredentialNative }>): void {
+  const endpoint = configuredEndpoint;
+  if (endpoint == null) return;
+  // A VERIFIED flag is only a process-local observation. Android can preserve it while the app is
+  // backgrounded long enough for the actual access credential to expire. Always revalidate on
+  // foreground; restoreApprovedSession is single-flight so duplicate lifecycle events coalesce.
+  cancelRestoreRetry();
+  void restoreApprovedSession(endpoint, true, silent);
+}
+
 export function clearConfiguredPaperEndpoint(): void {
   configuredEndpoint = null;
   verifiedEndpoint = null;

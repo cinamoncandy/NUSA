@@ -5,6 +5,9 @@
   "compatibility_date": "2026-08-27",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
+  "vars": {
+    "NUSA_GLOBAL_RELEASE_FREEZE": "false"
+  },
   "ai": {
     "binding": "AI"
   },

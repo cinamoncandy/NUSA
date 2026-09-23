@@ -6,6 +6,7 @@ import { isUserAllowed, type NusaUserAccessRepository } from "./operatorUserAcce
 export interface ApprovedUserSessionProfile<Scope extends string> {
   readonly namespace: string;
   readonly allowedScopes: readonly Scope[];
+  readonly defaultScopes?: readonly Scope[];
   readonly accessTtlMs: number;
   readonly refreshTtlMs: number;
   readonly bootstrapTtlMs: number;
@@ -112,6 +113,7 @@ export class ApprovedUserSessionService<Scope extends string> {
     `);
     try { this.db.connection.exec(`ALTER TABLE ${this.prefix}_bootstrap_tokens ADD COLUMN device_id_hash TEXT`); } catch { /* existing schema already migrated */ }
     try { this.db.connection.exec(`ALTER TABLE ${this.prefix}_session_families ADD COLUMN device_id_hash TEXT`); } catch { /* existing schema already migrated */ }
+    try { this.db.connection.exec(`ALTER TABLE ${this.prefix}_session_families ADD COLUMN proof_bound INTEGER NOT NULL DEFAULT 0`); } catch { /* existing schema already migrated */ }
   }
 
   public issueBootstrap(input: Readonly<{ actorUserId: string; targetUserId: string; scopes?: readonly string[]; now?: number }>): ApprovedUserBootstrapIssue<Scope> {
@@ -219,7 +221,7 @@ export class ApprovedUserSessionService<Scope extends string> {
       return undefined;
     }
     const hash = tokenHash(refreshToken);
-    const row = this.db.connection.prepare(`SELECT r.*, f.user_id, f.scopes_json, f.expires_at AS family_expires_at, f.revoked_at AS family_revoked_at
+    const row = this.db.connection.prepare(`SELECT r.*, f.user_id, f.scopes_json, f.expires_at AS family_expires_at, f.revoked_at AS family_revoked_at, f.proof_bound AS family_proof_bound
       FROM ${this.prefix}_refresh_tokens r JOIN ${this.prefix}_session_families f ON f.id=r.family_id WHERE r.token_hash=?`).get(hash) as Record<string, unknown> | undefined;
     if (row == null) {
       this.audit("SESSION_REFRESH_REJECTED", undefined, undefined, undefined, "UNKNOWN_TOKEN", now);
@@ -227,6 +229,10 @@ export class ApprovedUserSessionService<Scope extends string> {
     }
     const familyId = String(row.family_id);
     const userId = String(row.user_id);
+    if (Number(row.family_proof_bound) === 1) {
+      this.audit("SESSION_REFRESH_REJECTED", userId, userId, familyId, "DEVICE_PROOF_REQUIRED", now);
+      return undefined;
+    }
     if (row.device_id_hash != null && deviceDigest(deviceId ?? "") !== String(row.device_id_hash)) {
       this.audit("SESSION_REFRESH_REJECTED", userId, userId, familyId, "DEVICE_MISMATCH", now);
       return undefined;
@@ -294,22 +300,32 @@ export class ApprovedUserSessionService<Scope extends string> {
   protected createDeviceBoundSession(input: Readonly<{
     targetUserId: string;
     deviceId: string;
+    scopes?: readonly string[];
     now?: number;
     auditEvent?: string;
+    proofBound?: boolean;
   }>): ApprovedUserSessionTokens<Scope> {
     const now = input.now ?? Date.now();
     const user = this.users.get(input.targetUserId.trim());
     if (!isUserAllowed(user)) throw new Error("target user must be ACTIVE");
     const familyId = randomUUID();
     const refreshExpiresAt = now + this.profile.refreshTtlMs;
-    const scopes = this.normalizeScopes(undefined);
+    const scopes = this.normalizeScopes(input.scopes);
     const tokens = this.createTokens(scopes, now, refreshExpiresAt);
-    this.db.connection.prepare(`INSERT INTO ${this.prefix}_session_families(id,user_id,scopes_json,created_at,expires_at,device_id_hash) VALUES(?,?,?,?,?,?)`)
-      .run(familyId, user!.id, JSON.stringify(scopes), now, refreshExpiresAt, deviceDigest(input.deviceId));
+    this.db.connection.prepare(`INSERT INTO ${this.prefix}_session_families(id,user_id,scopes_json,created_at,expires_at,device_id_hash,proof_bound) VALUES(?,?,?,?,?,?,?)`)
+      .run(familyId, user!.id, JSON.stringify(scopes), now, refreshExpiresAt, deviceDigest(input.deviceId), input.proofBound === true ? 1 : 0);
     this.persistTokens(tokens, familyId, 0, now);
     this.audit(input.auditEvent ?? "DEVICE_SESSION_ISSUED", user!.id, user!.id, familyId, undefined, now);
     this.users.markLogin(user!.id, now);
     return tokens;
+  }
+
+  protected revokeDeviceSessions(input: Readonly<{ userId: string; deviceIdHash: string; reason: string; now?: number }>): number {
+    const now = input.now ?? Date.now();
+    const rows = this.db.connection.prepare(`SELECT id FROM ${this.prefix}_session_families WHERE user_id=? AND device_id_hash=? AND revoked_at IS NULL`).all(input.userId, input.deviceIdHash) as Record<string, unknown>[];
+    let revoked = 0;
+    for (const row of rows) if (this.revokeFamily(String(row.id), input.reason, now)) revoked += 1;
+    return revoked;
   }
 
   public revokeAccess(accessToken: string, now = Date.now()): boolean {
@@ -324,7 +340,7 @@ export class ApprovedUserSessionService<Scope extends string> {
   }
 
   private normalizeScopes(scopes: readonly string[] | undefined): readonly Scope[] {
-    const requested = scopes ?? this.profile.allowedScopes;
+    const requested = scopes ?? this.profile.defaultScopes ?? this.profile.allowedScopes;
     const unique = [...new Set(requested.map((scope) => scope.trim()).filter(Boolean))];
     if (unique.length === 0 || unique.some((scope) => !this.profile.allowedScopes.includes(scope as Scope))) {
       throw new Error("session scopes are invalid");

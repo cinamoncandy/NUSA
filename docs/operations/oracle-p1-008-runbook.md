@@ -19,13 +19,26 @@ This runbook deploys the NUSA Cloud runtime to an Oracle Linux host while preser
 ```text
 /etc/nusa/cloud-runtime.env        root:nusa 0640
 /etc/systemd/system/nusa.service  root:root 0644
+/etc/systemd/system/nusa-research.service root:root 0644
+/etc/systemd/system/nusa-research.timer root:root 0644
+/etc/systemd/system/nusa-autopilot.service root:root 0644
 /opt/nusa/releases/<sha>/          immutable release
 /opt/nusa/current -> releases/...  atomic symlink
 /var/lib/nusa/                     nusa:nusa persistent state
 /var/backups/nusa/                 nusa:nusa backup snapshots
 ```
 
-Create the service user and persistent directories with the least privileges required by your host policy. Install `deploy/oracle/nusa.service` as `/etc/systemd/system/nusa.service` and run `node scripts/host-security-validate.js` before enabling it.
+The manual `Oracle PAPER Release` workflow requires an online, dedicated repository runner
+with the `nusa-paper-host` label on this host. Run it as an unprivileged account separate from
+`nusa`; do not use the Codex development runner. Install the reviewed
+`deploy/oracle/nusa-release-step.sh` as root-owned mode `0755` at
+`/opt/nusa/bin/nusa-release-step`, outside the release tree, and grant that runner account
+passwordless sudo for that exact helper only. A missing runner leaves dispatches queued without
+deploying anything. The workflow builds on GitHub-hosted Linux and verifies the built archive's
+SHA-256 before the host backs up, stages, switches, restarts, and checks readiness. Never build
+the repository on the 1 GB PAPER host as part of a release.
+
+Create the service user and persistent directories with the least privileges required by your host policy. The helper installs all four units from the exact staged release; do not copy units from a dirty checkout.
 
 ## Environment and token rotation
 
@@ -36,6 +49,11 @@ NUSA_CLOUD_DASHBOARD_PORT=3000
 NUSA_CLOUD_DASHBOARD_HOST=127.0.0.1
 NUSA_CLOUD_STATE_DB_PATH=/var/lib/nusa/cloud-state.db
 NUSA_CLOUD_DASHBOARD_TOKEN=<secret>
+NUSA_AUTOPILOT_RUNTIME_ENDPOINT=https://<canonical-autopilot-worker>/scheduled/run
+NUSA_AUTOPILOT_RUNTIME_TOKEN=<secret>
+NUSA_AUTOPILOT_STATE_PATH=/var/lib/nusa/autopilot/runtime-state.json
+NUSA_AUTOPILOT_INTERVAL_MS=60000
+NUSA_AUTOPILOT_MAX_ATTEMPTS=3
 ```
 
 Generate or rotate the secret atomically with:
@@ -58,6 +76,16 @@ The backup uses SQLite `VACUUM INTO`, runs `PRAGMA integrity_check`, writes a SH
 
 Verify that the command reports `status=PASS` before continuing.
 
+## Bounded release disk hygiene
+
+When root disk pressure is high, use the privileged helper rather than ad-hoc wildcard deletion:
+
+```bash
+sudo /opt/nusa/bin/nusa-release-step prune
+```
+
+The prune operation validates every direct child of `/opt/nusa/releases` as a real 40-hex release directory before deleting anything. It always preserves the active release, the rollback release recorded in `.previous-release`, and the four newest additional releases. It never touches `/var/lib/nusa` or `/var/backups/nusa`.
+
 ## Preflight validation
 
 Run both checks from the release tree:
@@ -71,15 +99,15 @@ sudo node scripts/oracle-validate.js
 
 ## Atomic release switch
 
-Stage and verify the complete release at `/opt/nusa/releases/<full-sha>` first. Then switch only the symlink:
+Stage and verify the complete release at `/opt/nusa/releases/<full-sha>` first. The canonical `activate` helper then installs the four unit files from that exact immutable release, enables them, atomically switches the symlink, restarts PAPER and Autopilot, and proves readiness. If any step fails, it restores the prior symlink and unit set before returning failure:
 
 ```bash
-sudo env NUSA_COMMIT_SHA=<full-40-char-sha> node scripts/atomic-deploy.js
-sudo systemctl daemon-reload
-sudo systemctl restart nusa.service
+sudo /opt/nusa/bin/nusa-release-step preflight <full-40-char-sha>
+sudo /opt/nusa/bin/nusa-release-step activate <full-40-char-sha>
 ```
 
 The switch records the prior release path and reports `readinessRequired=true`. It does not restart services itself and does not touch persistent data.
+The helper executes the staged `scripts/atomic-deploy.js`, `scripts/oracle-readiness-check.js`, and `scripts/autopilot-readiness.js`; no host-side copy of those scripts is used.
 
 ## Acceptance check
 
@@ -90,19 +118,16 @@ curl --fail --silent http://127.0.0.1:3000/health
 sudo node scripts/oracle-readiness-check.js
 ```
 
-Accept the release only when `/ready` returns HTTP 200 and all four checks are true: database, migrations, dashboard persistence, and runtime recovery.
+Accept the release only when `/ready` returns HTTP 200 and all four checks are true: database, migrations, dashboard persistence, and runtime recovery. The activation helper also requires `autopilot-readiness.js` to observe a fresh, non-blocked heartbeat with all zero-authority markers intact.
 
 ## Failed readiness: rollback
 
-If readiness fails, do not attempt an automatic database restore. Roll the release symlink back, restart, and prove readiness again:
+If readiness fails, do not attempt an automatic database restore. The `activate` helper rolls the release symlink and systemd unit files back, restarts both runtimes, and proves readiness again. If rollback readiness also fails, stop the services and investigate the persistent state and logs. Do not bypass readiness, relax localhost binding, shorten the token, or enable LIVE/private mutation to recover service.
 
 ```bash
-sudo env NUSA_DEPLOY_ACTION=rollback node scripts/atomic-deploy.js
-sudo systemctl restart nusa.service
-sudo node scripts/oracle-readiness-check.js
+sudo systemctl status nusa.service nusa-autopilot.service --no-pager
+sudo node /opt/nusa/current/scripts/oracle-readiness-check.js
 ```
-
-If rollback readiness also fails, stop the service and investigate the persistent state and logs. Do not bypass readiness, relax localhost binding, shorten the token, or enable LIVE/private mutation to recover service.
 
 ## Operational logging
 

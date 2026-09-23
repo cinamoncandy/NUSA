@@ -24,7 +24,10 @@ test("Settings keeps Cloud PAPER setup separate from the supervision surfaces", 
   assert.match(settings, /settings-paper-disconnect/);
   assert.match(settings, /markPaperConnectionVerified/);
   assert.match(settings, /clearPaperConnectionVerification/);
-  assert.match(settings, /bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);
+  assert.match(settings, /복구 옵션/);
+  assert.match(settings, /1회용 복구 키/);
+  assert.match(settings, /6자리 코드로 복구 연결/);
+  assert.doesNotMatch(settings, /bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);
   assert.doesNotMatch(app, /NusaTextField/);
 });
 

@@ -77,33 +77,11 @@ test("Workers AI response schema makes verdict invariants structurally expressib
 
   const responseFormat = captured?.response_format as {
     type?: unknown;
-    json_schema?: { anyOf?: readonly Record<string, unknown>[] };
+    json_schema?: { anyOf?: readonly Record<string, unknown>[]; properties?: Record<string, { type?: unknown; enum?: readonly string[] }> };
   } | undefined;
   assert.equal(responseFormat?.type, "json_schema");
-  const variants = responseFormat?.json_schema?.anyOf;
-  assert.equal(variants?.length, 3);
-
-  const byVerdict = new Map<string, Record<string, unknown>>();
-  for (const variant of variants ?? []) {
-    const properties = variant.properties as Record<string, { enum?: readonly string[] }>;
-    const verdict = properties.verdict?.enum?.[0];
-    if (verdict) byVerdict.set(verdict, properties as Record<string, unknown>);
-  }
-
-  const pass = byVerdict.get("PASS") as Record<string, { maxItems?: number; enum?: readonly string[] }>;
-  assert.equal(pass.findings.maxItems, 0);
-  assert.equal(pass.blockers.maxItems, 0);
-  assert.deepEqual(pass.safetyInvariantResult.enum, ["PASS"]);
-
-  const notes = byVerdict.get("PASS_WITH_NOTES") as Record<string, {
-    minItems?: number;
-    maxItems?: number;
-    items?: { properties?: { severity?: { enum?: readonly string[] } } };
-  }>;
-  assert.equal(notes.findings.minItems, 1);
-  assert.equal(notes.blockers.maxItems, 0);
-  assert.deepEqual(notes.findings.items?.properties?.severity?.enum, ["NOTE"]);
-
-  const fail = byVerdict.get("FAIL") as Record<string, { minItems?: number }>;
-  assert.equal(fail.blockers.minItems, 1);
+  assert.equal(responseFormat?.json_schema?.anyOf, undefined);
+  assert.deepEqual(responseFormat?.json_schema?.properties?.verdict?.enum, ["PASS", "PASS_WITH_NOTES", "FAIL"]);
+  assert.deepEqual(responseFormat?.json_schema?.properties?.safetyInvariantResult?.enum, ["PASS", "FAIL"]);
+  assert.equal(responseFormat?.json_schema?.properties?.safetyInvariantResult?.type, "string");
 });

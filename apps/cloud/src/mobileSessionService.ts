@@ -1,6 +1,13 @@
 import { createHash, randomBytes, randomInt, randomUUID } from "node:crypto";
 import type { SqliteDatabase } from "../../../packages/storage/src/index";
 import { isUserAllowed, type NusaUserAccessRepository } from "./operatorUserAccess";
+import { hashOwnerPassword, verifyOwnerPassword } from "./ownerCredential/ownerPassword";
+import {
+  mayAttempt,
+  recordFailure,
+  recordSuccess,
+  type AttemptRecord
+} from "./ownerCredential/ownerPasswordThrottle";
 import {
   ApprovedUserSessionService,
   type ApprovedUserBootstrapIssue,
@@ -11,7 +18,7 @@ import {
 export const MOBILE_ACCESS_TTL_MS = 10 * 60 * 1000;
 export const MOBILE_REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 export const MOBILE_BOOTSTRAP_TTL_MS = 10 * 60 * 1000;
-export const MOBILE_ALLOWED_SCOPES = Object.freeze(["dashboard:read", "paper:trade"] as const);
+export const MOBILE_ALLOWED_SCOPES = Object.freeze(["dashboard:read", "paper:trade", "users:manage"] as const);
 
 export type MobileScope = (typeof MOBILE_ALLOWED_SCOPES)[number];
 export type MobileSessionTokens = ApprovedUserSessionTokens<MobileScope>;
@@ -21,10 +28,17 @@ export const MOBILE_PAIRING_TTL_MS = 10 * 60 * 1000;
 const MAX_ACTIVE_PAIRINGS = 100;
 const MAX_ACTIVE_PAIRINGS_PER_DEVICE = 1;
 export type MobilePairingState = "PENDING" | "APPROVED" | "CONSUMED" | "EXPIRED";
+export type OwnerPasswordSignIn =
+  | { readonly status: "ISSUED"; readonly tokens: MobileSessionTokens }
+  | { readonly status: "REJECTED" }
+  | { readonly status: "LOCKED"; readonly retryAfterMs: number }
+  | { readonly status: "AMBIGUOUS_OWNER" }
+  | { readonly status: "INVALID_OWNER" };
 
 const MOBILE_SESSION_PROFILE = Object.freeze({
   namespace: "mobile",
   allowedScopes: MOBILE_ALLOWED_SCOPES,
+  defaultScopes: Object.freeze(["dashboard:read", "paper:trade"] as const),
   accessTtlMs: MOBILE_ACCESS_TTL_MS,
   refreshTtlMs: MOBILE_REFRESH_TTL_MS,
   bootstrapTtlMs: MOBILE_BOOTSTRAP_TTL_MS
@@ -50,6 +64,16 @@ export class MobileSessionService extends ApprovedUserSessionService<MobileScope
         approved_by_user_id TEXT,
         target_user_id TEXT,
         consumed_at INTEGER
+      );
+    `);
+    this.mobileDb.connection.exec(`
+      CREATE TABLE IF NOT EXISTS nusa_owner_password (
+        user_id TEXT PRIMARY KEY,
+        password_hash TEXT NOT NULL,
+        updated_at INTEGER NOT NULL,
+        failures INTEGER NOT NULL DEFAULT 0,
+        locked_until INTEGER,
+        last_failure_at INTEGER
       );
     `);
     this.mobileDb.connection.exec(`
@@ -100,19 +124,22 @@ export class MobileSessionService extends ApprovedUserSessionService<MobileScope
 
   public startPairing(deviceId: string, now = Date.now()): Readonly<{ requestId: string; verificationCode: string; expiresAt: number; state: "PENDING" }> {
     const deviceHash = hashToken(this.validateDeviceId(deviceId));
-    this.expirePairings(now);
-    const active = Number((this.mobileDb.connection.prepare("SELECT COUNT(*) AS count FROM mobile_pairing_requests WHERE state IN ('PENDING','APPROVED') AND expires_at>?").get(now) as Record<string, unknown>).count);
-    const deviceActive = Number((this.mobileDb.connection.prepare("SELECT COUNT(*) AS count FROM mobile_pairing_requests WHERE device_id_hash=? AND state IN ('PENDING','APPROVED') AND expires_at>?").get(deviceHash, now) as Record<string, unknown>).count);
-    if (active >= MAX_ACTIVE_PAIRINGS || deviceActive >= MAX_ACTIVE_PAIRINGS_PER_DEVICE) throw new Error("pairing request limit reached");
     const requestId = randomBytes(32).toString("base64url");
     const verificationCode = String(randomInt(0, 1_000_000)).padStart(6, "0");
     const expiresAt = now + MOBILE_PAIRING_TTL_MS;
-    this.mobileDb.transaction(() => {
+    return this.mobileDb.transaction(() => {
+      this.mobileDb.connection.prepare("UPDATE mobile_pairing_requests SET state='EXPIRED' WHERE expires_at<=? AND state IN ('PENDING','APPROVED')").run(now);
+      const superseded = this.mobileDb.connection.prepare("UPDATE mobile_pairing_requests SET state='EXPIRED',expires_at=? WHERE device_id_hash=? AND state IN ('PENDING','APPROVED') AND expires_at>?")
+        .run(now, deviceHash, now);
+      const active = Number((this.mobileDb.connection.prepare("SELECT COUNT(*) AS count FROM mobile_pairing_requests WHERE state IN ('PENDING','APPROVED') AND expires_at>?").get(now) as Record<string, unknown>).count);
+      const deviceActive = Number((this.mobileDb.connection.prepare("SELECT COUNT(*) AS count FROM mobile_pairing_requests WHERE device_id_hash=? AND state IN ('PENDING','APPROVED') AND expires_at>?").get(deviceHash, now) as Record<string, unknown>).count);
+      if (active >= MAX_ACTIVE_PAIRINGS || deviceActive >= MAX_ACTIVE_PAIRINGS_PER_DEVICE) throw new Error("pairing request limit reached");
       this.mobileDb.connection.prepare("INSERT INTO mobile_pairing_requests(request_id_hash,verification_code_hash,device_id_hash,state,created_at,expires_at) VALUES(?,?,?,?,?,?)")
         .run(hashToken(requestId), hashToken(verificationCode), deviceHash, "PENDING", now, expiresAt);
+      if (Number(superseded.changes) > 0) this.auditPairing("PAIRING_SUPERSEDED", undefined, undefined, "SAME_DEVICE_RETRY", now);
       this.auditPairing("PAIRING_STARTED", undefined, undefined, "PENDING", now);
+      return Object.freeze({ requestId, verificationCode, expiresAt, state: "PENDING" as const });
     });
-    return Object.freeze({ requestId, verificationCode, expiresAt, state: "PENDING" });
   }
 
   public pairingStatus(requestId: string, deviceId: string, now = Date.now()): Readonly<{ state: MobilePairingState; expiresAt: number }> | undefined {
@@ -156,6 +183,129 @@ export class MobileSessionService extends ApprovedUserSessionService<MobileScope
       this.auditPairing("PAIRING_CONSUMED", String(row.approved_by_user_id ?? ""), String(row.target_user_id), "CONSUMED", now);
       return tokens;
     });
+  }
+
+  /**
+   * Password sign-in is deliberately identity-free for the normal phone path.
+   * A test/internal caller may provide userId. With multiple owners, public
+   * sign-in remains fail-closed unless exactly one active owner has configured
+   * the server-side password; that password is the unambiguous enrollment owner.
+   */
+  public signInWithOwnerPassword(input: Readonly<{
+    password: unknown;
+    deviceId: string;
+    userId?: string;
+    now?: number;
+  }>): OwnerPasswordSignIn {
+    const now = input.now ?? Date.now();
+    const deviceId = this.validateDeviceId(input.deviceId);
+    const selected = this.ownerForPasswordSignIn(input.userId);
+    if (selected === "AMBIGUOUS_OWNER" || selected === "INVALID_OWNER") return Object.freeze({ status: selected });
+    const userId = selected;
+    const record = this.attemptRecord(userId);
+    const decision = mayAttempt(record, now);
+    if (!decision.allowed) return Object.freeze({ status: "LOCKED", retryAfterMs: decision.retryAfterMs });
+    const outcome = verifyOwnerPassword(this.storedPasswordHash(userId), input.password);
+    if (outcome.status !== "ACCEPTED") {
+      this.writeAttempt(userId, recordFailure(record, now));
+      return Object.freeze({ status: "REJECTED" });
+    }
+    const user = this.mobileUsers.get(userId);
+    if (user == null || user.role !== "OWNER" || !isUserAllowed(user)) {
+      this.writeAttempt(userId, recordFailure(record, now));
+      return Object.freeze({ status: "REJECTED" });
+    }
+    return this.mobileDb.transaction(() => {
+      this.writeAttempt(userId, recordSuccess());
+      if (outcome.needsRehash && typeof input.password === "string") {
+        this.mobileDb.connection.prepare("UPDATE nusa_owner_password SET password_hash=?,updated_at=? WHERE user_id=?")
+          .run(hashOwnerPassword(input.password), now, userId);
+      }
+      return Object.freeze({
+        status: "ISSUED" as const,
+        tokens: this.createDeviceBoundSession({ targetUserId: user.id, deviceId, scopes: ["dashboard:read", "paper:trade", "users:manage"], now, auditEvent: "OWNER_PASSWORD_SESSION_ISSUED" })
+      });
+    });
+  }
+
+  /** Password change remains authenticated and requires the current password as a second factor. */
+  public changeOwnerPassword(input: Readonly<{ actorUserId: string; currentPassword: unknown; newPassword: string; now?: number }>): OwnerPasswordSignIn | { readonly status: "CHANGED" } {
+    const now = input.now ?? Date.now();
+    const userId = input.actorUserId.trim();
+    const user = this.mobileUsers.get(userId);
+    if (user?.role !== "OWNER" || !isUserAllowed(user)) return Object.freeze({ status: "INVALID_OWNER" });
+    const record = this.attemptRecord(userId);
+    const decision = mayAttempt(record, now);
+    if (!decision.allowed) return Object.freeze({ status: "LOCKED", retryAfterMs: decision.retryAfterMs });
+    const outcome = verifyOwnerPassword(this.storedPasswordHash(userId), input.currentPassword);
+    if (outcome.status !== "ACCEPTED") {
+      this.writeAttempt(userId, recordFailure(record, now));
+      return Object.freeze({ status: "REJECTED" });
+    }
+    const nextHash = hashOwnerPassword(input.newPassword);
+    this.mobileDb.transaction(() => {
+      this.mobileDb.connection.prepare("UPDATE nusa_owner_password SET password_hash=?,updated_at=?,failures=0,locked_until=NULL,last_failure_at=NULL WHERE user_id=?")
+        .run(nextHash, now, userId);
+      this.auditPairing("OWNER_PASSWORD_CHANGED", userId, userId, "OWNER_PASSWORD", now);
+    });
+    return Object.freeze({ status: "CHANGED" });
+  }
+
+  /** Server-side setup only; no HTTP initialization/reset path exists. */
+  public setOwnerPassword(userId: string, password: string, now = Date.now()): void {
+    const user = this.mobileUsers.get(userId.trim());
+    if (user?.role !== "OWNER") throw new Error("owner account required");
+    const passwordHash = hashOwnerPassword(password);
+    this.mobileDb.transaction(() => {
+      this.mobileDb.connection.prepare("INSERT INTO nusa_owner_password(user_id,password_hash,updated_at,failures,locked_until,last_failure_at) VALUES(?,?,?,0,NULL,NULL) ON CONFLICT(user_id) DO UPDATE SET password_hash=excluded.password_hash,updated_at=excluded.updated_at,failures=0,locked_until=NULL,last_failure_at=NULL")
+        .run(user.id, passwordHash, now);
+      this.auditPairing("OWNER_PASSWORD_SET", user.id, user.id, "OWNER_PASSWORD", now);
+    });
+  }
+
+  public ownerPasswordConfigured(): boolean {
+    return this.passwordConfiguredOwners().length === 1;
+  }
+
+  /** Keeps hardware proof inside the existing rotating mobile-session namespace. */
+  public issueOwnerDeviceCredentialSession(input: Readonly<{ userId: string; deviceId: string; now?: number }>): MobileSessionTokens {
+    const user = this.mobileUsers.get(input.userId.trim());
+    if (user?.role !== "OWNER" || !isUserAllowed(user)) throw new Error("active owner required");
+    return this.createDeviceBoundSession({ targetUserId: user.id, deviceId: this.validateDeviceId(input.deviceId), scopes: ["dashboard:read", "paper:trade", "users:manage"], now: input.now, auditEvent: "OWNER_DEVICE_CREDENTIAL_SESSION_ISSUED", proofBound: true });
+  }
+
+  public revokeOwnerDeviceSessions(input: Readonly<{ userId: string; deviceIdHash: string; now?: number }>): number {
+    return this.revokeDeviceSessions({ userId: input.userId, deviceIdHash: input.deviceIdHash, reason: "OWNER_DEVICE_CREDENTIAL_REVOKED", now: input.now });
+  }
+
+  private ownerForPasswordSignIn(explicitUserId: string | undefined): string | "AMBIGUOUS_OWNER" | "INVALID_OWNER" {
+    if (explicitUserId?.trim()) {
+      const user = this.mobileUsers.get(explicitUserId.trim());
+      return user?.role === "OWNER" ? user.id : "INVALID_OWNER";
+    }
+    const owners = this.mobileUsers.list().filter((user) => user.role === "OWNER" && isUserAllowed(user));
+    if (owners.length === 1) return owners[0].id;
+    const configured = this.passwordConfiguredOwners(owners);
+    return configured.length === 1 ? configured[0].id : owners.length === 0 ? "INVALID_OWNER" : "AMBIGUOUS_OWNER";
+  }
+
+  private passwordConfiguredOwners(owners = this.mobileUsers.list().filter((user) => user.role === "OWNER" && isUserAllowed(user))): readonly { readonly id: string }[] {
+    return owners.filter((user) => this.storedPasswordHash(user.id) != null).map((user) => Object.freeze({ id: user.id }));
+  }
+
+  private storedPasswordHash(userId: string): string | undefined {
+    const row = this.mobileDb.connection.prepare("SELECT password_hash FROM nusa_owner_password WHERE user_id=?").get(userId) as Record<string, unknown> | undefined;
+    return row == null ? undefined : String(row.password_hash);
+  }
+
+  private attemptRecord(userId: string): AttemptRecord | undefined {
+    const row = this.mobileDb.connection.prepare("SELECT failures,locked_until,last_failure_at FROM nusa_owner_password WHERE user_id=?").get(userId) as Record<string, unknown> | undefined;
+    return row == null ? undefined : Object.freeze({ failures: Number(row.failures), lockedUntilMs: row.locked_until == null ? null : Number(row.locked_until), lastFailureAtMs: row.last_failure_at == null ? null : Number(row.last_failure_at) });
+  }
+
+  private writeAttempt(userId: string, record: AttemptRecord): void {
+    this.mobileDb.connection.prepare("UPDATE nusa_owner_password SET failures=?,locked_until=?,last_failure_at=? WHERE user_id=?")
+      .run(record.failures, record.lockedUntilMs, record.lastFailureAtMs, userId);
   }
 
   private validateDeviceId(deviceId: string): string {

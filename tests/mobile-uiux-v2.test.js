@@ -82,13 +82,16 @@ test("production PAPER exposes learning only while isolated legacy PAPER executi
 
 test("market discovery uses compact accessible favorite and sort controls", () => {
   const source = read("src/watchlistView.tsx");
+  const primitives = read("src/uxPrimitives.tsx");
   assert.match(source, /accessibilityLabel=\{`\$\{market\.market\}/);
   assert.match(source, /accessibilityRole="button"/);
   assert.match(source, /accessibilityState=\{\{ selected: active \}\}/);
-  assert.match(source, /favorite: \{ minWidth: 52, minHeight: 48/);
-  assert.match(source, /sortChip: \{ minHeight: 44/);
-  assert.match(source, /StatusChip label="READ ONLY"/);
+  assert.match(source, /hitSlop=\{4\}/);
+  assert.match(source, /favorite: \{ minWidth: 48, minHeight: 44/);
+  assert.match(source, /<SegmentedControl/);
+  assert.match(primitives, /segment: \{ flex: 1, minHeight: 44/);
+  assert.doesNotMatch(source, /StatusChip label="READ ONLY"/);
   assert.doesNotMatch(source, /PUBLIC · READ ONLY/);
-  assert.match(source, /active \? "관심중" : "관심"/);
+  assert.match(source, /active \? "저장됨" : "저장"/);
   assert.doesNotMatch(source, /★|☆/);
 });

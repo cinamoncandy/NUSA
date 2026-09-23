@@ -17,6 +17,7 @@ import { OrderHistoryView } from "./src/orderHistoryView";
 import { WatchlistRepository } from "./src/watchlist";
 import { DEFAULT_SETTINGS, normalizeSettings, type ThemeSetting } from "./src/settings";
 import { VersionedSettingsRepository } from "./src/persistenceRepositories";
+import { resumePaperConnection } from "./src/paperConnectionSession";
 import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";
 import { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllocationClient";
 import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, isPaperConnectionVerified, restoreConfiguredPaperSession, setConfiguredPaperEndpoint } from "./src/paperConnectionSession";
@@ -39,6 +40,8 @@ import type { WatchlistMarket } from "./src/watchlist";
 import { emitUxTelemetryEvent } from "./src/uxTelemetryClient";
 import { screenIdForNavigationState, createUxTelemetrySessionId } from "./src/uxTelemetryScreenTracking";
 import { resolveAndroidBackNavigation } from "./src/androidBackNavigation";
+import { ownerDeviceCredential } from "./src/ownerDeviceCredential";
+import { getOrCreateInstallationId } from "./src/installationIdentity";
 
 const tabs = ["Home", "Markets", "Paper", "Portfolio", "AiSignal"] as const;
 type PrimaryTab = (typeof tabs)[number];
@@ -329,6 +332,15 @@ function AuthenticatedApp() {
     const subscription = AppState.addEventListener("change", (nextState) => {
       setAppState(nextState);
       dispatchRuntime({ type: nextState === "active" ? "APP_FOREGROUND" : "APP_BACKGROUND" });
+      // The restore retry backs off to 30s and Android suspends timers while backgrounded, so a
+      // long background spell leaves the PAPER session unrestored with no timer due. Resuming asks
+      // for it again immediately. No token and no owner action: the approved rotating session is
+      // already in secure storage, and a genuinely lapsed one still fails closed.
+      if (nextState === "active") {
+        const native = ownerDeviceCredential();
+        if (native == null) resumePaperConnection();
+        else void getOrCreateInstallationId(AsyncStorage).then((deviceId) => resumePaperConnection({ deviceId, native })).catch(() => resumePaperConnection());
+      }
       if (nextState === "active" && runtimeCoordinator.current().recovery === "READY") dispatchRuntime({ type: "RECOVERY_STARTED" });
     });
     return () => subscription.remove();

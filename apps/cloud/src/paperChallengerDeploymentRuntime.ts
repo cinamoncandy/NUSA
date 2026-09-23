@@ -12,6 +12,75 @@ import type {
   PaperChallengerDeploymentAdapter,
 } from "./closedLearningLoopCoordinator";
 
+/**
+ * The exact, current, immutable Strategy Governance authorization for one candidate to execute as a
+ * PAPER challenger. Returned by the canonical Governance service; this runtime never derives it.
+ */
+export interface StrategyGovernanceChallengerAuthorization {
+  readonly strategyId: string;
+  readonly candidateId: string;
+  readonly candidateVersion: string;
+  readonly familyId: string;
+  readonly evidenceFingerprintSha256: string;
+  readonly lifecycle: string;
+  readonly approval: Readonly<{
+    readonly actorType: string;
+    readonly approvalReference: string;
+    readonly approvedAt: number;
+    readonly decisionFingerprint: string;
+  }>;
+}
+
+/**
+ * Fail-closed port onto canonical Strategy Governance. It must throw — never return a partial or
+ * permissive answer — when the candidate is not currently an approved CHALLENGER.
+ */
+export interface StrategyGovernanceChallengerApprovalPort {
+  requireExecutableChallenger(request: Readonly<{
+    readonly candidateId: string;
+    readonly candidateVersion: string;
+    readonly familyId: string;
+    readonly evidenceFingerprintSha256: string;
+  }>): StrategyGovernanceChallengerAuthorization;
+}
+
+const SHA256 = /^[a-f0-9]{64}$/;
+const APPROVAL_REFERENCE = /^[A-Za-z0-9_.:/#@-]{1,240}$/;
+
+/**
+ * Verifies the Governance answer against the exact identity it was asked about, and refuses anything
+ * that is not a current HUMAN-approved CHALLENGER.
+ *
+ * The port is not trusted blindly: a port that returned some other candidate's valid approval, or an
+ * approval for a different family, version or evidence, would otherwise authorize the wrong
+ * deployment. Every field is compared back against the request.
+ */
+function requireExecutableChallengerAuthorization(
+  governance: StrategyGovernanceChallengerApprovalPort | undefined,
+  request: Readonly<{ candidateId: string; candidateVersion: string; familyId: string; evidenceFingerprintSha256: string }>,
+): StrategyGovernanceChallengerAuthorization {
+  if (governance == null) throw new Error("PAPER_CHALLENGER_GOVERNANCE_APPROVAL_UNAVAILABLE");
+  const authorization = governance.requireExecutableChallenger(request);
+  if (authorization == null || typeof authorization !== "object") throw new Error("PAPER_CHALLENGER_GOVERNANCE_APPROVAL_UNAVAILABLE");
+  if (
+    authorization.candidateId !== request.candidateId ||
+    authorization.candidateVersion !== request.candidateVersion ||
+    authorization.familyId !== request.familyId ||
+    authorization.evidenceFingerprintSha256 !== request.evidenceFingerprintSha256
+  ) throw new Error("PAPER_CHALLENGER_GOVERNANCE_IDENTITY_MISMATCH");
+  if (!safeText(authorization.strategyId, "governance strategyId")) throw new Error("PAPER_CHALLENGER_GOVERNANCE_IDENTITY_MISMATCH");
+  // Only CHALLENGER is executable. SUSPENDED, ROLLED_BACK, RETIRED, REJECTED, PAPER_ACTIVE,
+  // PROMOTION_PENDING and CHAMPION all fail closed here rather than being enumerated as exceptions.
+  if (authorization.lifecycle !== "CHALLENGER") throw new Error("PAPER_CHALLENGER_GOVERNANCE_LIFECYCLE_INVALID");
+  const approval = authorization.approval;
+  // AI and AXIOM cannot approve their own candidate into execution.
+  if (approval == null || approval.actorType !== "HUMAN") throw new Error("PAPER_CHALLENGER_GOVERNANCE_APPROVAL_INVALID");
+  if (!APPROVAL_REFERENCE.test(approval.approvalReference)) throw new Error("PAPER_CHALLENGER_GOVERNANCE_APPROVAL_INVALID");
+  if (!SHA256.test(approval.decisionFingerprint)) throw new Error("PAPER_CHALLENGER_GOVERNANCE_APPROVAL_INVALID");
+  if (!Number.isSafeInteger(approval.approvedAt) || approval.approvedAt < 0) throw new Error("PAPER_CHALLENGER_GOVERNANCE_APPROVAL_INVALID");
+  return authorization;
+}
+
 export interface QualifiedPaperChallengerArtifact {
   readonly schemaVersion: 1;
   readonly candidateId: string;
@@ -43,6 +112,12 @@ export interface PaperChallengerDeploymentRuntimeOptions {
   readonly bindings: Pick<PaperChallengerBindingLedger, "activate" | "current" | "revoke">;
   readonly periods: CanonicalPaperPeriodPort;
   readonly readCanonicalPaperAccount: () => PaperAccountState;
+  /**
+   * Required. Qualification proves a candidate is good enough to be considered; it does not approve
+   * it to execute. Without this port the runtime cannot tell the two apart, so it refuses to deploy
+   * rather than binding an unapproved candidate to a PAPER period.
+   */
+  readonly governance?: StrategyGovernanceChallengerApprovalPort;
 }
 
 const MARKET = /^KRW-[A-Z0-9-]+$/;
@@ -100,6 +175,17 @@ export class PaperChallengerDeploymentRuntime implements PaperChallengerDeployme
     if (artifact.candidateStrategy.specificationHash !== candidateVersion) throw new Error("qualified PAPER challenger strategy specification identity conflicts with candidate version");
     const binding = bindPaperCandidateForExecution(artifact.advisory, artifact.candidateProvenance, candidateId, periodStartAt, artifact.candidateStrategy);
     const periodId = `${input.cycleId}:paper:${binding.bindingFingerprintSha256}`;
+
+    // Qualification is not authorization. Nothing below this line may revoke a binding, activate a
+    // binding or open a PAPER period until canonical Strategy Governance says this exact candidate is
+    // a currently approved CHALLENGER.
+    const authorization = requireExecutableChallengerAuthorization(this.options.governance, {
+      candidateId,
+      candidateVersion,
+      familyId: artifact.candidateStrategy.familyId,
+      evidenceFingerprintSha256: binding.bindingFingerprintSha256,
+    });
+    void authorization;
 
     const prior = this.options.bindings.current(market, periodStartAt);
     if (prior != null && prior.binding.bindingFingerprintSha256 !== binding.bindingFingerprintSha256) {

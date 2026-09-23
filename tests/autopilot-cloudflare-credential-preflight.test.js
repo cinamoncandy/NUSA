@@ -18,10 +18,9 @@ test('Cloudflare credential preflight never executes untrusted PR head code', ()
   assert.doesNotMatch(workflow, /github\.head_ref/);
 });
 
-test('preflight reuses existing runtime cadence instead of adding a scheduler', () => {
-  assert.match(workflow, /workflow_run:/);
-  assert.match(workflow, /Autopilot Cloudflare Deploy/);
-  assert.match(workflow, /Autopilot Cloudflare Runtime Proof/);
+test('preflight has one canonical post-runtime ingress and no stale workflow_run listener', () => {
+  assert.doesNotMatch(workflow, /^\s*workflow_run:/m);
+  assert.match(workflow, /workflow_dispatch:/);
   assert.doesNotMatch(workflow, /^\s*schedule:/m);
   assert.doesNotMatch(workflow, /cron:/);
 });
@@ -50,7 +49,9 @@ test('preflight verifies the free-tier Worker has no paid Container or Sandbox b
 });
 
 test('preflight waits boundedly for executed exact-main deploy evidence and live Worker revision', () => {
-  assert.match(workflow, /actions\/runs\?head_sha=\$CURRENT_MAIN&status=completed&per_page=100/);
+  assert.match(workflow, /gh api --paginate --slurp "repos\/\$GITHUB_REPOSITORY\/actions\/runs\?head_sha=\$CURRENT_MAIN&status=completed&per_page=100"/);
+  assert.match(workflow, /nusa-main-runs-pages\.json/);
+  assert.match(workflow, /Array\.isArray\(pages\) \? pages\.flatMap/);
   assert.match(workflow, /Autopilot Cloudflare Deploy/);
   assert.match(workflow, /autopilot-cloudflare-deploy\.yml/);
   assert.match(workflow, /actions\/runs\/\$run_id\/jobs\?per_page=100/);
@@ -64,6 +65,11 @@ test('preflight waits boundedly for executed exact-main deploy evidence and live
   assert.match(workflow, /waiting for Worker deployment revision/);
   assert.match(workflow, /if \[\[ "\$attempt" -lt 18 \]\]; then sleep 10; fi/);
   assert.match(workflow, /deploymentRevision mismatch/);
+  assert.match(workflow, /PENDING exact-main CI\/deploy convergence is still active/);
+  assert.match(workflow, /active\.has\(String\(run\?\.status/);
+  assert.match(workflow, /run\?\.name === 'CI' \|\| run\?\.name === 'Autopilot Cloudflare Deploy'/);
+  assert.match(workflow, /status=pending/);
+  assert.match(workflow, /status=ready/);
   assert.match(workflow, /health\.liveAuthority !== 'NONE'/);
   assert.match(workflow, /health\.productionMutationAllowed !== false/);
   assert.match(workflow, /health\.aiAuthority !== 'ZERO_AUTHORITY'/);
@@ -81,7 +87,7 @@ test('failed preflight freezes existing Release through canonical P0 serializati
 });
 
 test('pull_request_target can never clear the canonical P0 freeze', () => {
-  assert.match(workflow, /if: \$\{\{ success\(\) && github\.event_name != 'pull_request_target' \}\}/);
+  assert.match(workflow, /if: \$\{\{ success\(\) && github\.event_name != 'pull_request_target' && steps\.deploy\.outputs\.status == 'ready' \}\}/);
   assert.match(workflow, /state='closed'/);
 });
 
@@ -90,4 +96,13 @@ test('preflight preserves fail-closed authority invariants', () => {
   assert.match(workflow, /liveAuthority=NONE/);
   assert.match(workflow, /productionMutationAllowed=false/);
   assert.match(workflow, /AI authority=ZERO_AUTHORITY/);
+});
+
+
+test('active exact-main convergence abstains without weakening terminal failure handling', () => {
+  assert.match(workflow, /id: deploy/);
+  assert.match(workflow, /if: steps\.deploy\.outputs\.status == 'ready'/);
+  assert.match(workflow, /No successful exact-main Cloudflare deploy and no bounded active CI\/deploy convergence/);
+  assert.match(workflow, /if: \$\{\{ failure\(\) \}\}/);
+  assert.match(workflow, /deploymentStatus=\$\{\{ steps\.deploy\.outputs\.status \|\| 'unknown' \}\}/);
 });

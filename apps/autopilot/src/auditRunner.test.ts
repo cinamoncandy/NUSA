@@ -94,7 +94,7 @@ function fetchSequence(options: {
     response(200, options.firstPull ?? pull()),
     response(200, firstRun),
     ...(needsFallback(firstRun) ? [response(200, options.firstHeadPulls ?? headPulls())] : []),
-    response(200, {}, options.diff ?? "diff --git a/a.ts b/a.ts\n+const safe = true;\n"),
+    response(200, {}, options.diff ?? "diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -0,0 +1 @@\n+const safe = true;\n"),
     response(200, options.secondPull ?? options.firstPull ?? pull()),
     response(200, secondRun),
     ...(needsFallback(secondRun) ? [response(200, options.secondHeadPulls ?? options.firstHeadPulls ?? headPulls())] : []),
@@ -278,6 +278,34 @@ test("safety regression is preserved as FAIL and cannot become merge allowed", a
   assert.equal(result.mergeAllowed, false);
   assert.equal(result.safetyInvariantResult, "FAIL");
   assert.equal(result.reviewedHeadSha, HEAD);
+});
+
+test("retries a blocker that cites removed rather than current diff evidence", async () => {
+  const model = aiSequence([
+    { response: JSON.stringify({
+      verdict: "FAIL",
+      findings: [{ code: "STALE", severity: "BLOCKER", message: "removed behavior is current", evidenceRef: "a.ts:1" }],
+      blockers: ["stale evidence"],
+      safetyInvariantResult: "FAIL",
+    }) },
+    { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS" }) },
+  ]);
+  const result = await executeIndependentAudit(request, auditEnv(model as never), fetchSequence() as never);
+  assert.equal(result.verdict, "PASS");
+  assert.equal(result.mergeAllowed, true);
+});
+
+test("fails closed when every blocker lacks current added-line evidence", async () => {
+  const invalidBlocker = { response: JSON.stringify({
+    verdict: "FAIL",
+    findings: [{ code: "STALE", severity: "BLOCKER", message: "removed behavior is current", evidenceRef: "a.ts:1" }],
+    blockers: ["stale evidence"],
+    safetyInvariantResult: "FAIL",
+  }) };
+  await assert.rejects(
+    executeIndependentAudit(request, auditEnv(aiSequence([invalidBlocker, invalidBlocker, invalidBlocker]) as never), fetchSequence() as never),
+    /AUDIT_VERDICT_BLOCKER_EVIDENCE_NOT_CURRENT/,
+  );
 });
 
 test("detects PR head movement after model review", async () => {
