@@ -60,11 +60,16 @@ function strategyFactoryFor(modules, familyId, parameters) {
   if (familyId === "donchian-breakout") {
     return () => new modules.strategyEngine.DonchianBreakoutStrategy(parameters.channelPeriod);
   }
+  if (familyId === "bollinger-breakout") {
+    return () => new modules.strategyEngine.BollingerBreakoutStrategy(parameters.period, parameters.multiplier);
+
+  }
   throw new Error(`unsupported parameter robustness strategy family: ${familyId}`);
 }
 function validateGenericCandidateGrid(request, modules) {
   const errors = [];
-  if (!["sma-crossover", "rsi-mean-reversion", "donchian-breakout"].includes(request.strategyFamily)) errors.push(`unsupported strategyFamily: ${request.strategyFamily}`);
+  if (!["sma-crossover", "rsi-mean-reversion", "donchian-breakout", "bollinger-breakout"].includes(request.strategyFamily)) errors.push(`unsupported strategyFamily: ${request.strategyFamily}`);
+
   if (!Array.isArray(request.candidateGrid) || request.candidateGrid.length === 0) {
     errors.push("request.candidateGrid must be a non-empty precommitted array");
     return errors;

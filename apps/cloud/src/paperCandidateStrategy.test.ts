@@ -106,6 +106,38 @@ describe("PAPER candidate strategy semantics", () => {
     }
   });
 
+  it("replays exact Bollinger warm-up and baseline semantics", () => {
+    const bollingerSpec: PaperCandidateStrategySpec = Object.freeze({
+      ...spec, familyId: "bollinger-breakout", parameters: Object.freeze({ period: 3, multiplier: 1 }),
+    });
+    assert.equal(evaluatePaperCandidateStrategy(bollingerSpec, observations([100, 100]), 10, "KRW-BTC").action, "WAIT");
+    const baseline = evaluatePaperCandidateStrategy(bollingerSpec, observations([100, 100, 100]), 10, "KRW-BTC");
+    assert.equal(baseline.action, "HOLD");
+    assert.match(baseline.reason, /baseline-established$/);
+  });
+
+  it("replays exact Bollinger BUY breakout and SELL breakdown crossings", () => {
+    const bollingerSpec: PaperCandidateStrategySpec = Object.freeze({
+      ...spec, familyId: "bollinger-breakout", parameters: Object.freeze({ period: 3, multiplier: 1 }),
+    });
+    const buy = evaluatePaperCandidateStrategy(bollingerSpec, observations([100, 100, 100, 103]), 10, "KRW-BTC");
+    const sell = evaluatePaperCandidateStrategy(bollingerSpec, observations([100, 100, 100, 97]), 10, "KRW-BTC");
+    assert.equal(buy.action, "BUY");
+    assert.equal(sell.action, "SELL");
+    assert.ok(buy.score > 0);
+    assert.ok(sell.score < 0);
+  });
+
+  it("fails closed for invalid Bollinger parameters", () => {
+    for (const parameters of [{ period: 1, multiplier: 2 }, { period: 20, multiplier: 0 }, { period: 20, multiplier: Number.NaN }]) {
+      assert.throws(
+        () => evaluatePaperCandidateStrategy({ ...spec, familyId: "bollinger-breakout", parameters }, observations([100, 101, 103]), 10, "KRW-BTC"),
+        /PAPER Bollinger candidate parameters are invalid/,
+
+      );
+    }
+  });
+
   it("fails closed for an unsupported candidate family", () => {
     assert.throws(() => evaluatePaperCandidateStrategy({ ...spec, familyId: "unknown-family" }, observations([100, 101, 103]), 10, "KRW-BTC"), /unsupported PAPER candidate strategy family/);
   });
