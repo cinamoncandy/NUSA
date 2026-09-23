@@ -8,8 +8,8 @@ import worker, {
   verifyGithubWebhookSignature,
 } from "./index";
 import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
-import type { CodingRuntime } from "./codingRunner";
-import { acquirePersistentExecution, ExecutionCoordinator, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import type { CodingRuntime, WorkersAiBinding } from "./codingRunner";
+import { acquirePersistentExecution, ExecutionCoordinator, readPersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
 class MemoryStorage {
   private readonly values = new Map<string, unknown>();
@@ -531,6 +531,72 @@ describe("NUSA autopilot GitHub webhook", () => {
       assert.equal(first.status, 502);
       assert.equal(second.status, 502);
       assert.equal(codingEngineCalls, 2);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("persists a Worker rate-limit stop and suppresses replay until the same WIP is due", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const namespace: ExecutionCoordinatorNamespace = {
+      idFromName: () => ({}),
+      get: () => ({ fetch: (input: RequestInfo | URL, init?: RequestInit) => coordinator.fetch(new Request(input, init)) }),
+    };
+    let codingEngineCalls = 0;
+    const ai: WorkersAiBinding = {
+      async run() {
+        codingEngineCalls += 1;
+        throw new Error("429 too many requests");
+      },
+    };
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/commits/")) return new Response(JSON.stringify({ sha: codingRequest.headSha }), { status: 200 });
+      if (url.includes("/actions/runs/")) return new Response(JSON.stringify({
+        id: codingRequest.workflowRunId,
+        head_sha: codingRequest.headSha,
+        head_branch: "main",
+        status: "completed",
+        conclusion: "success",
+        repository: { full_name: codingRequest.repository },
+      }), { status: 200 });
+      return new Response(null, { status: 404 });
+    }) as typeof fetch;
+    try {
+      const request = () => new Request("https://example.test/coding/execute", {
+        method: "POST",
+        headers: { authorization: "Bearer runner-token", "content-type": "application/json" },
+        body: JSON.stringify(codingRequest),
+      });
+      const env = {
+        NUSA_CODING_RUNNER_TOKEN: "runner-token",
+        NUSA_GITHUB_TOKEN: "github-token",
+        NUSA_EXECUTION_COORDINATOR: namespace,
+        AI: ai,
+      };
+      const first = await handleCodingExecute(request(), env);
+      const firstPayload = await first.json() as { status: string; nextRetryAt: number; stopReason: string; resumeCondition: string };
+      assert.equal(first.status, 202);
+      assert.equal(firstPayload.status, "WAITING_RATE_LIMIT");
+      assert.equal(firstPayload.stopReason, "WORKERS_AI_RATE_LIMITED");
+      assert.equal(firstPayload.resumeCondition, "provider-capacity-and-exact-head-revalidation");
+      assert.ok(firstPayload.nextRetryAt > Date.now());
+
+      const stopped = await readPersistentExecution(namespace, codingRequest.dedupeKey);
+      assert.equal(stopped?.state, "WAITING_RATE_LIMIT");
+      assert.equal(stopped?.executionId, codingRequest.executionId);
+      assert.equal(stopped?.stop?.dedupeKey, codingRequest.dedupeKey);
+      assert.equal(stopped?.stop?.headSha, codingRequest.headSha);
+
+      const replay = await handleCodingExecute(request(), env);
+      const replayPayload = await replay.json() as { status: string; reason: string; nextRetryAt: number };
+      assert.equal(replay.status, 202);
+      assert.equal(replayPayload.status, "WAITING_RATE_LIMIT");
+      assert.equal(replayPayload.reason, "WAITING_RATE_LIMIT");
+      assert.equal(replayPayload.nextRetryAt, firstPayload.nextRetryAt);
+      assert.equal(codingEngineCalls, 1);
     } finally {
       globalThis.fetch = originalFetch;
     }

@@ -15,6 +15,8 @@ const {
   boundedWorkerFailureEvidence,
   boundedProposalContext,
   executeGithubActionsRunner,
+  MAX_RETRY_DELAY_MS,
+  retryHint,
 } = require("../scripts/autopilot-dispatch-retry.js");
 
 const request = Object.freeze({
@@ -31,10 +33,11 @@ const request = Object.freeze({
   aiAuthority: "ZERO_AUTHORITY",
 });
 
-function response(status, body = {}) {
+function response(status, body = {}, headers = {}) {
   return {
     ok: status >= 200 && status < 300,
     status,
+    headers,
     json: async () => body,
   };
 }
@@ -77,6 +80,7 @@ test("retries transient OIDC and runner failures with bounded exponential backof
     oidcRequestToken: "oidc-request-test",
     maxAttempts: 3,
     baseBackoffMs: 10,
+    jitter: () => 0.5,
     now: () => now,
     sleep: async (milliseconds) => waits.push(milliseconds),
     fetchImpl: async (url) => {
@@ -143,6 +147,7 @@ test("bounds repeated transient rejection and closes without mutation", async ()
     oidcRequestUrl: "https://oidc.example.test/token",
     oidcRequestToken: "oidc-request-test",
     baseBackoffMs: 5,
+    jitter: () => 0.5,
     sleep: async (milliseconds) => waits.push(milliseconds),
     fetchImpl: async () => {
       calls += 1;
@@ -177,10 +182,91 @@ test("records duplicate suppression as no action without retry", async () => {
 });
 
 test("classifies only bounded provider rate-limit reasons", () => {
+  assert.equal(providerRateLimitCode("RATE_LIMITED"), "RATE_LIMITED");
   assert.equal(providerRateLimitCode("WORKERS_AI_DAILY_QUOTA_EXHAUSTED"), "WORKERS_AI_DAILY_QUOTA_EXHAUSTED");
   assert.equal(providerRateLimitCode("WORKERS_AI_RATE_LIMITED"), "WORKERS_AI_RATE_LIMITED");
   assert.equal(providerRateLimitCode("provider unavailable"), null);
   assert.equal(providerRateLimitCode("WORKERS_AI_RATE_LIMITED secret=unexpected"), null);
+});
+
+test("uses a valid Retry-After hint before bounded retry backoff", async () => {
+  const waits = [];
+  let runnerCalls = 0;
+  const result = await dispatchWithRetry({
+    request,
+    url: "https://runner.example.test/coding/execute",
+    oidcRequestUrl: "https://oidc.example.test/token",
+    oidcRequestToken: "oidc-request-test",
+    maxAttempts: 3,
+    baseBackoffMs: 10,
+    jitter: () => 0.5,
+    sleep: async (milliseconds) => waits.push(milliseconds),
+    fetchImpl: async (url) => {
+      const value = String(url);
+      if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+      runnerCalls += 1;
+      return runnerCalls === 1
+        ? response(429, { error: "RATE_LIMITED" }, { "Retry-After": "2" })
+        : response(200, { status: "EXECUTION_ACCEPTED" });
+    },
+  });
+  assert.equal(result.status, "DISPATCHED");
+  assert.deepEqual(waits, [2_000]);
+  assert.equal(result.rateLimitEvents.length, 1);
+  assert.equal(result.rateLimitEvents[0].retrySource, "retry-after-header");
+});
+
+test("falls back to bounded jitter when Retry-After is malformed or missing", async () => {
+  const waits = [];
+  let runnerCalls = 0;
+  const result = await dispatchWithRetry({
+    request,
+    url: "https://runner.example.test/coding/execute",
+    oidcRequestUrl: "https://oidc.example.test/token",
+    oidcRequestToken: "oidc-request-test",
+    maxAttempts: 3,
+    baseBackoffMs: 5,
+    jitter: () => 0.5,
+    sleep: async (milliseconds) => waits.push(milliseconds),
+    fetchImpl: async (url) => {
+      const value = String(url);
+      if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+      runnerCalls += 1;
+      if (runnerCalls === 1) return response(429, { error: "RATE_LIMITED" }, { "Retry-After": "malformed" });
+      return response(200, { status: "EXECUTION_ACCEPTED" });
+    },
+  });
+  assert.equal(result.status, "DISPATCHED");
+  assert.deepEqual(waits, [5]);
+
+  const exhausted = await dispatchWithRetry({
+    request,
+    url: "https://runner.example.test/coding/execute",
+    oidcRequestUrl: "https://oidc.example.test/token",
+    oidcRequestToken: "oidc-request-test",
+    maxAttempts: 3,
+    baseBackoffMs: 5,
+    jitter: () => 0.5,
+    sleep: async (milliseconds) => waits.push(milliseconds),
+    fetchImpl: async (url) => String(url).startsWith("https://oidc.example.test/token")
+      ? oidcSuccess()
+      : response(429, { error: "RATE_LIMITED" }),
+  });
+  assert.equal(exhausted.status, "BLOCKED_RATE_LIMIT");
+  assert.equal(exhausted.reason, "RATE_LIMITED");
+  assert.equal(exhausted.provider, "external-coding-runner");
+  assert.equal(exhausted.rateLimitEvents.length, 3);
+  assert.equal(exhausted.retrySource, "bounded-exponential-backoff-jitter");
+  assert.deepEqual(waits, [5, 5, 10]);
+});
+
+test("clamps excessive Retry-After values to the bounded retry ceiling", () => {
+  const hint = retryHint(
+    response(429, { error: "RATE_LIMITED" }, { "Retry-After": "999999" }),
+    { error: "RATE_LIMITED" },
+    1_700_000_000_000,
+  );
+  assert.deepEqual(hint, { delayMs: MAX_RETRY_DELAY_MS, source: "retry-after-header" });
 });
 
 test("treats provider rate-limit blocking as non-terminal without proposal retries", async () => {
@@ -203,6 +289,9 @@ test("treats provider rate-limit blocking as non-terminal without proposal retri
         }
         throw new Error("unexpected URL " + value);
       },
+      {
+        now: () => 1_000,
+      },
     );
     assert.equal(result.status, "BLOCKED_RATE_LIMIT");
     assert.equal(result.reason, "WORKERS_AI_DAILY_QUOTA_EXHAUSTED");
@@ -212,8 +301,85 @@ test("treats provider rate-limit blocking as non-terminal without proposal retri
     assert.equal(result.blockedRateLimit, true);
     assert.equal(result.summary.blockedRateLimit, 1);
     assert.equal(result.summary.failedClosed, 0);
+    assert.equal(result.provider, "workers-ai");
+    assert.equal(result.lastRateLimitAt, 1000);
+    assert.equal(result.nextRetryAt, null);
+    assert.equal(result.retrySource, "none");
     assert.equal(proposalCalls, 1);
     assert.equal(publishCalls, 0);
+  });
+});
+
+test("preserves a worker WAITING_RATE_LIMIT stop and suppresses duplicate dispatch", async () => {
+  await withOidcEnvironment(async () => {
+    const now = 1_700_000_000_000;
+    const waits = [];
+    let runnerCalls = 0;
+    const result = await executeGithubActionsRunner(
+      request,
+      "https://runner.example.test/coding/execute",
+      async (url) => {
+        const value = String(url);
+        if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+        runnerCalls += 1;
+        return response(202, {
+          status: "WAITING_RATE_LIMIT",
+          provider: "workers-ai",
+          stopReason: "WORKERS_AI_RATE_LIMITED",
+          lastFailure: "WORKERS_AI_RATE_LIMITED",
+          nextRetryAt: now + 5_000,
+          resumeCondition: "provider-capacity-and-exact-head-revalidation",
+        });
+      },
+      { now: () => now, sleep: async (milliseconds) => waits.push(milliseconds) },
+    );
+    assert.equal(result.status, "WAITING_RATE_LIMIT");
+    assert.equal(result.reason, "WAITING_RATE_LIMIT");
+    assert.equal(result.nextRetryAt, now + 5_000);
+    assert.equal(result.stopReason, "WORKERS_AI_RATE_LIMITED");
+    assert.equal(result.resumeCondition, "provider-capacity-and-exact-head-revalidation");
+    assert.deepEqual(result.attempts.map((attempt) => attempt.decision), ["NO_ACTION"]);
+    assert.deepEqual(waits, []);
+    assert.equal(runnerCalls, 1);
+  });
+});
+
+test("retries a temporary provider rate limit using provider retry metadata", async () => {
+  await withOidcEnvironment(async () => {
+    const waits = [];
+    let proposalCalls = 0;
+    let publishCalls = 0;
+    const result = await executeGithubActionsRunner(
+      request,
+      "https://runner.example.test/coding/execute",
+      async (url) => {
+        const value = String(url);
+        if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+        if (value.endsWith("/coding/propose")) {
+          proposalCalls += 1;
+          if (proposalCalls === 1) return response(429, { error: "WORKERS_AI_RATE_LIMITED", retryAfterMs: 25 });
+          return response(200, { status: "PROPOSAL_READY", patch: "valid-patch" });
+        }
+        if (value.endsWith("/coding/publish")) {
+          publishCalls += 1;
+          return response(200, { status: "EXECUTION_ACCEPTED", proposalValidated: true, commitSha: "c".repeat(40), pullRequestNumber: 88 });
+        }
+        throw new Error("unexpected URL " + value);
+      },
+      {
+        validatePatch() { return [{ path: "apps/autopilot/src/example.ts", content: "export const valid = true;\n" }]; },
+        sleep: async (milliseconds) => waits.push(milliseconds),
+        now: () => 1_000,
+        jitter: () => 0.5,
+      },
+    );
+    assert.equal(result.status, "DISPATCHED");
+    assert.deepEqual(waits, [25]);
+    assert.deepEqual(result.attempts.map((attempt) => attempt.decision), ["RETRY", "DISPATCHED"]);
+    assert.equal(result.proposalAttempts, 2);
+    assert.equal(result.codeChanged, true);
+    assert.equal(proposalCalls, 2);
+    assert.equal(publishCalls, 1);
   });
 });
 
@@ -315,6 +481,7 @@ test("regenerates an apply-check rejection inside one execution and publishes th
         throw new Error("unexpected URL " + value);
       },
       {
+        now: () => 1_000,
         validatePatch(value, patch) {
           validateCalls += 1;
           assert.equal(value.executionId, request.executionId);

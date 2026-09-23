@@ -11,7 +11,7 @@ export interface ScheduledEvolutionCodingEnv {
 }
 
 export interface ScheduledEvolutionCodingResult {
-  readonly status: "ABSTAINED" | "DUPLICATE_SUPPRESSED" | "INTERFACE_READY" | "EXECUTION_ACCEPTED" | "EXECUTION_FAILED";
+  readonly status: "ABSTAINED" | "WAITING_RATE_LIMIT" | "DUPLICATE_SUPPRESSED" | "INTERFACE_READY" | "EXECUTION_ACCEPTED" | "EXECUTION_FAILED";
   readonly reason: string;
   readonly selectedSignalIds: readonly string[];
   readonly liveAuthority: "NONE";
@@ -205,6 +205,12 @@ export async function runScheduledEvolutionCoding(
   } catch {
     return result("ABSTAINED", "persistent-execution-state-unavailable", signals.map((signal) => signal.id));
   }
+  if (currentExecution?.state === "BLOCKED") return result("EXECUTION_FAILED", "persistent-execution-blocked", signals.map((signal) => signal.id));
+  if (currentExecution?.state === "WAITING_RATE_LIMIT") {
+    const stop = currentExecution.stop;
+    if (!stop || stop.executionId !== executionId || stop.dedupeKey !== dedupeKey) return result("ABSTAINED", "persistent-rate-limit-stop-corrupt", signals.map((signal) => signal.id));
+    if (input.now < stop.nextRetryAt) return result("WAITING_RATE_LIMIT", "waiting-rate-limit", signals.map((signal) => signal.id));
+  }
   const activeExecutions = currentExecution
     && (currentExecution.state === "LEASED" || currentExecution.state === "HANDED_OFF")
     && currentExecution.leaseExpiresAt > input.now
@@ -236,7 +242,10 @@ export async function runScheduledEvolutionCoding(
     now: input.now,
     leaseExpiresAt: input.now + CODING_LEASE_MS,
   });
-  if (!persistent.acquired) return result("DUPLICATE_SUPPRESSED", persistent.reason ?? "DUPLICATE_EXECUTION", signals.map((signal) => signal.id));
+  if (!persistent.acquired) {
+    if (persistent.reason === "WAITING_RATE_LIMIT") return result("WAITING_RATE_LIMIT", "waiting-rate-limit", signals.map((signal) => signal.id));
+    return result("DUPLICATE_SUPPRESSED", persistent.reason ?? "DUPLICATE_EXECUTION", signals.map((signal) => signal.id));
+  }
 
   const dispatched = await executeGithubDispatch(bridge.request, { token, allowedRepository: input.repository }, fetchImpl);
   if (dispatched.status === "DISPATCHED") {
