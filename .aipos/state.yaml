@@ -191,7 +191,7 @@ current_upbit_bridge_credential_persistence:
   unverified: "pnpm run preflight and pnpm test could not run here (Node >= 24 required, environment provides 22.22.2). No Android device run: persistence is verified against a stubbed SecureStoragePort, not the real Keystore."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 project: nusa
-updated_at: "2026-09-23T14:50:00+09:00"
+updated_at: "2026-09-23T18:40:00+09:00"
 current_execution_target:
   work_order: WO-20260923-AUTOPILOT-DAILY-QUOTA-WAIT
   status: READY_FOR_REVIEW
@@ -200,8 +200,8 @@ current_execution_target:
   scope: "A Workers AI daily-quota stop waits until the next 00:00 UTC (floored at 60s) instead of 60s, and independent Audit uses the same provider-keyed wait as coding, so neither caller re-probes an exhausted per-day budget."
   authority_impact: none
   parent_work_order: WO-20260923-AUTOPILOT-EXECUTE-PROVIDER-GATE
-  prior_target: WO-20260923-AUTOPILOT-EXECUTE-PROVIDER-GATE
-  prior_target_status: MERGED_PR_2237
+  prior_target: WO-20260923-CLOUD-PAPER-RUNTIME-LIVENESS
+  prior_target_status: MERGED_PR_1933
   prior_target_preserved: true
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
