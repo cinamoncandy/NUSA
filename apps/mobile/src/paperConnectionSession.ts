@@ -18,13 +18,18 @@ function cancelRestoreRetry(): void {
   restoreRetryAttempts = 0;
 }
 
-function scheduleRestoreRetry(endpoint: string): void {
+function scheduleRestoreRetry(endpoint: string, force: boolean, silent?: Readonly<{ deviceId: string; native: OwnerDeviceCredentialNative }>): void {
   if (restoreRetryTimer != null || configuredEndpoint !== endpoint || isPaperConnectionVerified(endpoint)) return;
   const delay = Math.min(RESTORE_RETRY_MAX_MS, RESTORE_RETRY_BASE_MS * (2 ** restoreRetryAttempts));
   restoreRetryAttempts += 1;
   restoreRetryTimer = setTimeout(() => {
     restoreRetryTimer = null;
-    if (configuredEndpoint === endpoint && !isPaperConnectionVerified(endpoint)) void restoreApprovedSession(endpoint);
+    // A scheduled retry must repeat the same attempt that failed. Dropping force/silent here
+    // silently downgraded every retry to the bearer-refresh restore() path, so a device whose
+    // silent DeviceKey check failed only transiently never got a second silent attempt -- it
+    // depended on a persisted bearer refresh surviving background/Doze, which foreground restores
+    // never rely on by design.
+    if (configuredEndpoint === endpoint && !isPaperConnectionVerified(endpoint)) void restoreApprovedSession(endpoint, force, silent);
   }, delay);
 }
 
@@ -57,7 +62,7 @@ function restoreApprovedSession(endpoint: string, force = false, silent?: Readon
       // credential. Re-establish its GET-only monitor after a cold-start restore.
       void connectUpbitReadOnlyAccount(endpoint);
     } else if (mobileApprovedSession().shouldRetryRestore()) {
-      scheduleRestoreRetry(endpoint);
+      scheduleRestoreRetry(endpoint, force, silent);
     }
   }).catch(() => {
     if (generation === restoreGeneration && configuredEndpoint === endpoint) verifiedEndpoint = null;
@@ -69,7 +74,7 @@ function restoreApprovedSession(endpoint: string, force = false, silent?: Readon
     // A transient failure may have scheduled an immediate retry (tests and foreground wakeups can
     // collapse timers to a microtask). If that callback observed this operation as in-flight it
     // safely no-oped; re-arm once after clearing the single-flight slot so recovery cannot stall.
-    if (configuredEndpoint === endpoint && !isPaperConnectionVerified(endpoint) && mobileApprovedSession().shouldRetryRestore()) scheduleRestoreRetry(endpoint);
+    if (configuredEndpoint === endpoint && !isPaperConnectionVerified(endpoint) && mobileApprovedSession().shouldRetryRestore()) scheduleRestoreRetry(endpoint, force, silent);
   });
   return operation;
 }

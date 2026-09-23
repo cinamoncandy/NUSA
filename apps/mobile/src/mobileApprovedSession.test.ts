@@ -87,6 +87,31 @@ describe("mobile approved session persistence boundary", () => {
     assert.equal(session.shouldRetryRestore(), true);
   });
 
+  it("marks retryable when a falsely-negative silent status and an empty bearer session both come up empty", async () => {
+    // The native silent-status check resolves available:false on an internal Keystore read
+    // exception too -- it never rejects for that (see NusaOwnerDeviceCredentialModule.hasSilentKey).
+    // So a transient hardware hiccup and a genuinely absent silent key are indistinguishable here,
+    // and this branch falls back to the bearer-refresh restore() path. restore() unconditionally
+    // resets restoreRetryable via clearMemory() before it runs, so when nothing is persisted either
+    // (also not a definitive rejection), the pre-fix code left restoreRetryable false and the
+    // foreground retry timer unarmed -- indistinguishable, from the owner's side, from a real
+    // DEVICE_UNREGISTERED.
+    const storage = new MemorySecureStorage(); // nothing persisted: no bearer session to fall back to
+    const endpoint = "https://paper.example";
+    const request = (async () => { throw new Error("must not reach the network with no persisted session and no silent key"); }) as unknown as typeof fetch;
+    const native = {
+      getSilentDeviceStatus: async () => ({ available: false, canCreate: false, hardwareBacked: false, status: "SILENT_DEVICE_KEY_ABSENT", credentialId: null }),
+      signSilentChallenge: async () => { throw new Error("must not be called"); },
+      deleteSilentDeviceCredential: async () => { throw new Error("must not be called"); },
+    } as unknown as OwnerDeviceCredentialNative;
+    const session = new MobileApprovedSession(storage, request);
+    await assert.rejects(
+      () => session.restoreWithSilentDevice(endpoint, "nusa-device-silent-0003", native),
+      /registered silent DeviceKey is unavailable/,
+    );
+    assert.equal(session.shouldRetryRestore(), true);
+  });
+
   it("persists only the rotating refresh session in secure storage", async () => {
     const storage = new MemorySecureStorage();
     const endpoint = "https://paper.example";

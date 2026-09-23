@@ -501,8 +501,17 @@ export class MobileApprovedSession {
         throw error;
       }
       if (status.available !== true || status.hardwareBacked !== true || status.credentialId == null) {
+        // The native status check resolves `available: false` on a Keystore read exception too
+        // (it never rejects for that), so this branch is reached by both a genuinely absent silent
+        // key and a transient hardware hiccup indistinguishably. restore() unconditionally resets
+        // restoreRetryable via clearMemory() before it runs, so an empty/expired bearer session
+        // underneath (itself not a definitive rejection) would otherwise leave restoreRetryable
+        // false here and the foreground retry timer unarmed, exactly as before this fix.
         const restored = await this.restore(endpoint);
-        if (restored == null) throw new Error("registered silent DeviceKey is unavailable.");
+        if (restored == null) {
+          this.restoreRetryable = true;
+          throw new Error("registered silent DeviceKey is unavailable.");
+        }
         return restored;
       }
       this.silentNative = native;
