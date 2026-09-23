@@ -44,7 +44,7 @@ safety:
   real_transfer_authority: false
   ai_authority: ZERO_AUTHORITY
 verification:
-  focused_session_tests: PENDING
-  typecheck: PENDING
-  required_ci: PENDING
+  focused_session_tests: "MOOT_MERGED_PR_615 (per-head result not recorded in this order)"
+  typecheck: "MOOT_MERGED_PR_615 (per-head result not recorded in this order)"
+  required_ci: "MOOT_MERGED_PR_615 (per-head result not recorded in this order)"
 completion_rule: "Implementation, focused tests, and exact-head required CI must pass; audit records must contain only safe reason codes and existing actor/target/family identifiers when already known, never raw credential material."

@@ -32,5 +32,5 @@ validation:
   validate_full: PASS
   lint: PASS_WITH_ONE_PREEXISTING_NON_BLOCKING_WARNING
   diff_check: PASS
-  exact_head_ci: PENDING
-next_permitted_action: "Push the exact repair head and require fresh protected CI before Audit, Release, or merge."
+  exact_head_ci: "MOOT_MERGED_PR_1744 (per-head result not recorded in this order)"
+next_permitted_action: "None; implementation merged."

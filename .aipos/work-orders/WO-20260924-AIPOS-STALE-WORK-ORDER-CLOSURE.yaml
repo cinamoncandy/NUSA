@@ -23,6 +23,7 @@ scope:
     - "status IN_PROGRESS -> COMPLETED with closed_by_pull_request and closure_note on each of the eight orders"
     - "state.yaml current_mobile_porcelain_cobalt and current_mobile_product_v5_recovery blocks marked COMPLETED"
     - "tests/aipos-work-order-provenance.test.js: WO-0063 closure asserted against its recorded PR evidence"
+    - "Pre-merge gates recorded as MOOT_MERGED_PR_N without claiming a result; unfinished Android release/device gates of WO-0063, home-ai-surface and PORCELAIN-COBALT moved to open WO-20260924-MOBILE-DELIVERY-RESIDUAL-GATES (review finding on #2248)"
   exclude:
     - "LIVE-readiness orders, physical-device acceptance claims, file moves"
 acceptance:

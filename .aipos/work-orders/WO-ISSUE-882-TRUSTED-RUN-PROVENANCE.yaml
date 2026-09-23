@@ -61,7 +61,7 @@ validation:
   security: PASS_SECRETS_0
   aipos: PASS
   diff_check: PASS
-implementation_status: PR_975_OPEN_EXACT_HEAD_VALIDATION_PENDING
+implementation_status: "MERGED_PR_975 (per-head result not recorded in this order)"
 implementation_files:
   - apps/cloud/src/paperChaosGitHubRunLookup.ts
   - apps/cloud/src/paperChaosGitHubRunLookup.test.ts

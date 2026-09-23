@@ -1,0 +1,31 @@
+id: WO-20260924-MOBILE-DELIVERY-RESIDUAL-GATES
+title: "Residual Android delivery and device gates from closed mobile UI work orders"
+status: BLOCKED
+blocked_reason: "Physical Galaxy acceptance is HUMAN_ENVIRONMENT_ONLY; Android release provenance and Firebase outcome have not been re-verified for these merges."
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+parent_work_order: WO-20260924-AIPOS-STALE-WORK-ORDER-CLOSURE
+authority_impact: none
+objective: "Keep the unfinished delivery gates of three merged mobile UI orders visible to recovery after their code scope was closed."
+residual_gates:
+  - source: WO-0063-mobile-master-ux-wave1
+    merged_pull_request: 619
+    gates: ["physical Galaxy visual acceptance"]
+  - source: WO-UI-20260904-home-ai-surface
+    merged_pull_request: 1571
+    gates: ["exact-main Android Stable Release for the merged SHA", "exact-APK physical Galaxy screenshot"]
+  - source: WO-UI-20260907-PORCELAIN-COBALT
+    merged_pull_request: 1757
+    gates: ["Android release APK provenance", "Firebase distribution outcome", "physical device check"]
+acceptance:
+  - "Each gate is either evidenced (release run / APK provenance / owner device confirmation) or explicitly superseded by a later merged UI change and a later verified release."
+verification_commands:
+  - "pnpm run aipos:index (this order must appear while any gate is open)"
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Owner confirms on device or marks gates superseded by a later verified Android release."

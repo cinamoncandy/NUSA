@@ -35,5 +35,5 @@ validation:
   preflight: PASS
   validate_full: PASS
   diff_check: PASS
-  exact_head_ci: PENDING
-next_permitted_action: "Push the validated branch head, require fresh exact-head protected CI, and route a green same-head result through independent Audit and Release governance."
+  exact_head_ci: "MOOT_MERGED_PR_1732 (per-head result not recorded in this order)"
+next_permitted_action: "None; implementation merged."
