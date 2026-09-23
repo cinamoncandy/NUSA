@@ -49,7 +49,7 @@ const APPROVAL_REFERENCE = /^[A-Za-z0-9_.:/#@-]{1,240}$/;
 
 /**
  * Verifies the Governance answer against the exact identity it was asked about, and refuses anything
- * that is not a current HUMAN-approved CHALLENGER.
+ * that is not a current HUMAN- or ADR-0018 POLICY-approved CHALLENGER.
  *
  * The port is not trusted blindly: a port that returned some other candidate's valid approval, or an
  * approval for a different family, version or evidence, would otherwise authorize the wrong
@@ -73,8 +73,12 @@ function requireExecutableChallengerAuthorization(
   // PROMOTION_PENDING and CHAMPION all fail closed here rather than being enumerated as exceptions.
   if (authorization.lifecycle !== "CHALLENGER") throw new Error("PAPER_CHALLENGER_GOVERNANCE_LIFECYCLE_INVALID");
   const approval = authorization.approval;
-  // AI and AXIOM cannot approve their own candidate into execution.
-  if (approval == null || approval.actorType !== "HUMAN") throw new Error("PAPER_CHALLENGER_GOVERNANCE_APPROVAL_INVALID");
+  // AI and AXIOM cannot approve their own candidate into execution. Besides HUMAN, only the
+  // owner-approved deterministic PAPER challenger policy (ADR-0018) may approve, and only under its
+  // own policy: reference namespace.
+  if (approval == null) throw new Error("PAPER_CHALLENGER_GOVERNANCE_APPROVAL_INVALID");
+  const policyApproval = approval.actorType === "POLICY" && approval.approvalReference?.startsWith("policy:") === true;
+  if (approval.actorType !== "HUMAN" && !policyApproval) throw new Error("PAPER_CHALLENGER_GOVERNANCE_APPROVAL_INVALID");
   if (!APPROVAL_REFERENCE.test(approval.approvalReference)) throw new Error("PAPER_CHALLENGER_GOVERNANCE_APPROVAL_INVALID");
   if (!SHA256.test(approval.decisionFingerprint)) throw new Error("PAPER_CHALLENGER_GOVERNANCE_APPROVAL_INVALID");
   if (!Number.isSafeInteger(approval.approvedAt) || approval.approvedAt < 0) throw new Error("PAPER_CHALLENGER_GOVERNANCE_APPROVAL_INVALID");
