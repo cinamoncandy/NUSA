@@ -96,6 +96,22 @@ export function setConfiguredPaperEndpoint(value: string): void {
 
 export function getConfiguredPaperEndpoint(): string | null { return configuredEndpoint; }
 
+/**
+ * Session state for projection only. An unverified session on a configured endpoint is not a
+ * setup problem while a restore is in flight or a bounded retry is armed: the device is still
+ * trusted and recovery needs no owner input. Only RECOVERY_REQUIRED (no restore running and none
+ * scheduled, e.g. after a definitive 401/403 rejection) means the owner must act in Settings.
+ * Transport loss, network loss and background suspension must never surface as RECOVERY_REQUIRED
+ * by themselves; that classification belongs to mobileApprovedSession, not to the UI.
+ */
+export type PaperSessionState = "NOT_CONFIGURED" | "VERIFIED" | "RECOVERING" | "RECOVERY_REQUIRED";
+export function getPaperSessionState(): PaperSessionState {
+  if (configuredEndpoint == null) return "NOT_CONFIGURED";
+  if (isPaperConnectionVerified(configuredEndpoint)) return "VERIFIED";
+  if (restoreInFlight != null || restoreRetryTimer != null) return "RECOVERING";
+  return "RECOVERY_REQUIRED";
+}
+
 export function markPaperConnectionVerified(value: string): void {
   const endpoint = normalizeEndpoint(value);
   if (endpoint == null || endpoint !== configuredEndpoint) throw new Error("PAPER endpoint verification mismatch.");
