@@ -35,6 +35,7 @@
     "aipos:drift": "node scripts/validate-aipos-drift.js",
     "aipos:conformance": "node scripts/validate-aipos-cross-ai-conformance.js",
     "aipos:provenance": "node scripts/validate-aipos-work-order-provenance.js",
+    "aipos:index": "node scripts/aipos-work-order-index.js",
     "aipos:yaml": "node scripts/validate-aipos-yaml.js",
     "capability:check": "node scripts/validate-capability-registry.js",
     "research:champion-challenger": "node scripts/validate-champion-challenger.js",

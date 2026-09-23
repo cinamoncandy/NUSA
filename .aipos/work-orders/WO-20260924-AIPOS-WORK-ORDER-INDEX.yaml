@@ -1,0 +1,38 @@
+id: WO-20260924-AIPOS-WORK-ORDER-INDEX
+title: "On-demand AIPOS work-order index and frozen status vocabulary"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-aipos-index
+authority_impact: none
+authority_impact_note: "Repository metadata tooling only. No existing work order is moved, rewritten, re-statused, or closed; LIVE-readiness orders are untouched and remain owner decisions."
+objective: "A recovering agent reads one generated index to find open work instead of opening every work order, and new orders cannot add new status spellings."
+finding: "Structural review: 150+ work orders with ~25 distinct status spellings (COMPLETED/COMPLETE/VERIFIED/MERGED/LOCAL_VALIDATED_CI_PENDING/...) and 13 stale IN_PROGRESS orders. Moving files is unsafe: 66 hard-coded work-order paths across scripts, tests and docs, and validators read specific statuses."
+scope:
+  include:
+    - "scripts/aipos-work-order-index.js: prints the index of open orders on demand (not committed, so adding an order never requires regenerating a file) and --check mode"
+    - ".aipos/work-order-legacy-statuses.json: frozen allowlist of existing non-canonical statuses"
+    - "tests/aipos-work-order-index.test.js: new orders must use canonical statuses"
+    - "package.json script aipos:index"
+  exclude:
+    - "No file moves, no status rewrites, no closure of any existing order"
+    - "No change to preflight or existing validators"
+acceptance:
+  - "Index lists every order whose status is not closed, including unknown statuses."
+  - "A new order with a non-canonical status fails the test; existing orders keep their historical status."
+verification_commands:
+  - "node scripts/aipos-work-order-index.js --check"
+  - "node --test tests/aipos-work-order-index.test.js"
+  - "pnpm run validate (Node >= 24)"
+evidence:
+  implementation_status: READY_FOR_REVIEW
+  external_validation: "REQUIRED: exact-head CI, Audit, Release."
+owner_decision_pending: "Closing or archiving the 13 stale IN_PROGRESS orders (several are LIVE-readiness) requires per-order owner approval."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Obtain exact-head CI, Audit, Release."
