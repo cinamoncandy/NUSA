@@ -227,6 +227,35 @@ const auditHttpResponse = (
   });
 };
 
+const PUBLIC_LIVENESS_TIMESTAMPS = ["startedAt", "lastHeartbeatAt", "lastMarketEventAt", "lastPaperDecisionAt", "lastPaperOrderAt", "lastPaperFillAt"] as const;
+const PUBLIC_LIVENESS_COUNTERS = ["eventCount", "decisionCount", "paperOrderCount", "paperFillCount"] as const;
+const PUBLIC_LIVENESS_ERROR_CODE = /^[A-Z0-9_.:-]{1,160}$/;
+
+/**
+ * `/health` is unauthenticated, so the runtime object is rebuilt here from a fixed allowlist instead
+ * of being passed through. A liveness source that grows an extra field -- a token, an account
+ * identifier, a price -- cannot make it public, and an error that is not a bare code is replaced by
+ * a fixed code rather than published as free text.
+ */
+function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntimeLivenessSnapshot {
+  const source = value as unknown as Record<string, unknown>;
+  const timestamp = (key: string): number | null => {
+    const raw = source[key];
+    return typeof raw === "number" && Number.isFinite(raw) && raw >= 0 ? raw : null;
+  };
+  const counter = (key: string): number => {
+    const raw = source[key];
+    return Number.isSafeInteger(raw) && Number(raw) >= 0 ? Number(raw) : 0;
+  };
+  const rawError = source.lastError;
+  const lastError = rawError === null || rawError === undefined
+    ? null
+    : typeof rawError === "string" && PUBLIC_LIVENESS_ERROR_CODE.test(rawError) ? rawError : "LIVENESS_ERROR_UNCLASSIFIED";
+  const timestamps = Object.fromEntries(PUBLIC_LIVENESS_TIMESTAMPS.map((key) => [key, timestamp(key)]));
+  const counters = Object.fromEntries(PUBLIC_LIVENESS_COUNTERS.map((key) => [key, counter(key)]));
+  return Object.freeze({ ...timestamps, ...counters, lastError }) as unknown as CloudRuntimeLivenessSnapshot;
+}
+
 export function startCloudDashboardServer(options: CloudDashboardServerOptions): CloudDashboardServerHandle {
   if (!Number.isSafeInteger(options.port) || options.port < 1024 || options.port > 65535) throw new Error("invalid cloud dashboard server port");
   const host = options.host ?? "127.0.0.1";
@@ -388,7 +417,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
           ok: true,
           observedAt: new Date().toISOString(),
           capabilities: { passwordSignIn: mobileSessionService?.ownerPasswordConfigured() === true },
-          ...(liveness === undefined ? {} : { runtime: liveness })
+          ...(liveness === undefined ? {} : { runtime: publicRuntimeLiveness(liveness) })
         }));
         return;
       }

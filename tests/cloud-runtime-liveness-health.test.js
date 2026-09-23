@@ -113,3 +113,22 @@ test("the runtime publishes exactly the fields the contract allows", () => {
     assert.doesNotMatch(block, new RegExp(banned, "i"), `liveness must not publish ${banned}`);
   }
 });
+
+test("/health publishes only the allowlisted liveness fields, whatever the source returns", async () => {
+  // A future or alternate source can return more than the contract; structural typing allows it.
+  const leaky = { ...LIVENESS, token: "secret-token", accountId: "acct-123", balanceKrw: 1_000_000, lastError: "Upbit said: invalid key abc123 for account acct-123" };
+  await withServer({ runtimeLiveness: () => leaky }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    const body = JSON.parse(res.body);
+    assert.deepEqual(Object.keys(body.runtime).sort(), Object.keys(LIVENESS).sort(), "no field beyond the contract may reach the public route");
+    assert.equal(body.runtime.lastError, "LIVENESS_ERROR_UNCLASSIFIED", "a free-text error is replaced, never published");
+    assert.doesNotMatch(res.body, /secret-token|acct-123|1000000|invalid key/);
+  }, 41887);
+});
+
+test("a coded liveness error is published unchanged", async () => {
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, lastError: "PUBLIC_MARKET_EVENT_REJECTED:STALE" }) }, async (handle) => {
+    const body = JSON.parse((await request(handle.port, "/health")).body);
+    assert.equal(body.runtime.lastError, "PUBLIC_MARKET_EVENT_REJECTED:STALE");
+  }, 41888);
+});
