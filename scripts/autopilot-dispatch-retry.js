@@ -4,6 +4,12 @@ const { spawnSync } = require("node:child_process");
 const DEFAULT_MAX_ATTEMPTS = 3;
 const DEFAULT_BACKOFF_MS = 1_000;
 const MAX_RETRY_DELAY_MS = 60_000;
+// A daily-quota stop's real resume time is up to ~24h away, not a transient rate-limit backoff.
+// Reporting/evidence must reflect the provider's actual nextRetryAt so quota-usage telemetry
+// (time-to-exhaustion, provider-wait duration) is accurate; only the LOCAL retry-loop sleep stays
+// bounded by MAX_RETRY_DELAY_MS, since a daily-quota stop is never retried within one execution
+// (decision is always NO_ACTION for it, so this ceiling never delays a real sleep).
+const MAX_REPORTED_QUOTA_RETRY_DELAY_MS = 25 * 60 * 60 * 1_000;
 const RETRY_JITTER_RATIO = 0.1;
 const MAX_PATCH_BYTES = 24_000;
 const MAX_VALIDATED_FILE_BYTES = 128_000;
@@ -90,41 +96,41 @@ function responseHeader(headers, name) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function clampRetryDelayMs(value) {
+function clampRetryDelayMs(value, maxMs = MAX_RETRY_DELAY_MS) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric < 0) return null;
-  return Math.min(MAX_RETRY_DELAY_MS, Math.floor(numeric));
+  return Math.min(maxMs, Math.floor(numeric));
 }
 
-function retryTimestampMs(value, observedAt) {
+function retryTimestampMs(value, observedAt, maxMs) {
   if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
     const milliseconds = value < 1_000_000_000_000 ? value * 1_000 : value;
-    return clampRetryDelayMs(milliseconds - observedAt);
+    return clampRetryDelayMs(milliseconds - observedAt, maxMs);
   }
   if (typeof value !== "string" || !value.trim()) return null;
   const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? clampRetryDelayMs(parsed - observedAt) : null;
+  return Number.isFinite(parsed) ? clampRetryDelayMs(parsed - observedAt, maxMs) : null;
 }
 
-function retryHint(response, payload, observedAt) {
+function retryHint(response, payload, observedAt, maxMs = MAX_RETRY_DELAY_MS) {
   const retryAfter = responseHeader(response?.headers, "retry-after");
   if (retryAfter) {
     const seconds = Number(retryAfter);
     if (Number.isFinite(seconds) && seconds >= 0) {
-      return { delayMs: clampRetryDelayMs(seconds * 1_000), source: "retry-after-header" };
+      return { delayMs: clampRetryDelayMs(seconds * 1_000, maxMs), source: "retry-after-header" };
     }
-    const timestampDelay = retryTimestampMs(retryAfter, observedAt);
+    const timestampDelay = retryTimestampMs(retryAfter, observedAt, maxMs);
     if (timestampDelay !== null) return { delayMs: timestampDelay, source: "retry-after-header-date" };
   }
 
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
   if (Object.prototype.hasOwnProperty.call(payload, "retryAfterMs")) {
-    const delayMs = clampRetryDelayMs(payload.retryAfterMs);
+    const delayMs = clampRetryDelayMs(payload.retryAfterMs, maxMs);
     if (delayMs !== null) return { delayMs, source: "provider-retry-after-ms" };
   }
   for (const key of ["retryAt", "nextRetryAt", "resetAt", "resetTimestamp"]) {
     if (!Object.prototype.hasOwnProperty.call(payload, key)) continue;
-    const delayMs = retryTimestampMs(payload[key], observedAt);
+    const delayMs = retryTimestampMs(payload[key], observedAt, maxMs);
     if (delayMs !== null) return { delayMs, source: `provider-${key}` };
   }
   return null;
@@ -143,7 +149,10 @@ function providerRateLimitCodeFromPayload(payload) {
 function rateLimitEvidence(response, payload, observedAt = Date.now()) {
   const code = providerRateLimitCodeFromPayload(payload) || (response?.status === 429 ? "RATE_LIMITED" : null);
   if (!code) return null;
-  const hint = retryHint(response, payload, observedAt);
+  // A daily-quota stop is never locally retried (see decision logic below), so reporting its real
+  // resume time cannot lengthen any actual sleep; only the evidence/telemetry value changes.
+  const maxMs = code === "WORKERS_AI_DAILY_QUOTA_EXHAUSTED" ? MAX_REPORTED_QUOTA_RETRY_DELAY_MS : MAX_RETRY_DELAY_MS;
+  const hint = retryHint(response, payload, observedAt, maxMs);
   return Object.freeze({
     provider: code.startsWith("WORKERS_AI_") ? "workers-ai" : "external-coding-runner",
     code,
