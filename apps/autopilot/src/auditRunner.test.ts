@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { executeIndependentAudit, validateAuditModelVerdict, validateAuditRunnerRequest, type AuditRunnerRequest } from "./auditRunner";
+import { executeIndependentAudit, executeProviderGatedAudit, validateAuditModelVerdict, validateAuditRunnerRequest, type AuditRunnerRequest } from "./auditRunner";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
@@ -388,4 +388,62 @@ test("fails closed when no independent AI audit engine is configured", async () 
 
 test("fails closed when GitHub evidence credentials are unavailable", async () => {
   await assert.rejects(executeIndependentAudit(request, { AI: passingModel() }, fetchSequence() as never), /AUDIT_GITHUB_TOKEN_NOT_CONFIGURED/);
+});
+
+const QUOTA_ERROR = "4006: you have used up your daily free allocation of 10,000 neurons, please upgrade to Cloudflare's Workers Paid plan if you would like to continue usage.";
+
+function gatedDeps(overrides: Partial<Parameters<typeof executeProviderGatedAudit>[1]> & { waitUntil?: number | null } = {}) {
+  const recorded: unknown[] = [];
+  let audits = 0;
+  const deps = {
+    readProviderWait: async () => overrides.waitUntil == null ? null : ({
+      schemaVersion: 1 as const, taskId: "t", executionId: "e", provider: "workers-ai", headSha: request.headSha,
+      stopReason: "WORKERS_AI_DAILY_QUOTA_EXHAUSTED", stoppedAt: 0, attemptCount: 1, lastFailure: "x",
+      nextRetryAt: overrides.waitUntil, resumeCondition: "r", dedupeKey: "d", evidenceRef: null,
+    }),
+    recordProviderWait: async (stop: unknown) => { recorded.push(stop); },
+    runAudit: async () => { audits += 1; return { status: "AUDIT_PASSED" } as never; },
+    now: () => Date.parse("2026-09-23T10:30:00.000Z"),
+    ...overrides,
+  };
+  return { deps, recorded, audits: () => audits };
+}
+
+test("provider-gated Audit makes no provider call inside the shared provider wait", async () => {
+  const { deps, audits } = gatedDeps({ waitUntil: Date.parse("2026-09-24T00:00:00.000Z") });
+  const outcome = await executeProviderGatedAudit(request, deps);
+  assert.equal(outcome.status, "WAITING_PROVIDER_CAPACITY");
+  assert.equal(audits(), 0);
+});
+
+test("provider-gated Audit fails closed without a provider call when the wait is unreadable", async () => {
+  const { deps, audits } = gatedDeps({ readProviderWait: async () => { throw new Error("down"); } });
+  const outcome = await executeProviderGatedAudit(request, deps);
+  assert.equal(outcome.status, "PROVIDER_CAPACITY_STATE_UNAVAILABLE");
+  assert.equal(audits(), 0);
+});
+
+test("provider-gated Audit runs once the wait has elapsed", async () => {
+  const { deps, audits } = gatedDeps({ waitUntil: Date.parse("2026-09-23T10:00:00.000Z") });
+  const outcome = await executeProviderGatedAudit(request, deps);
+  assert.equal(outcome.status, "AUDITED");
+  assert.equal(audits(), 1);
+});
+
+test("provider-gated Audit records the daily-quota stop in the shared provider wait until the next UTC day", async () => {
+  const { deps, recorded } = gatedDeps({ runAudit: async () => { throw new Error(QUOTA_ERROR); } });
+  const outcome = await executeProviderGatedAudit(request, deps);
+  assert.equal(outcome.status, "WAITING_PROVIDER_CAPACITY");
+  assert.equal(recorded.length, 1);
+  const stop = recorded[0] as { provider: string; stopReason: string; nextRetryAt: number; executionId: string };
+  assert.equal(stop.provider, "workers-ai");
+  assert.equal(stop.stopReason, "WORKERS_AI_DAILY_QUOTA_EXHAUSTED");
+  assert.equal(stop.nextRetryAt, Date.parse("2026-09-24T00:00:00.000Z"));
+  assert.equal(stop.executionId, request.executionId);
+});
+
+test("provider-gated Audit does not turn non-provider failures into a wait", async () => {
+  const { deps, recorded } = gatedDeps({ runAudit: async () => { throw new Error("AUDIT_MODEL_RESPONSE_INVALID"); } });
+  await assert.rejects(executeProviderGatedAudit(request, deps), /AUDIT_MODEL_RESPONSE_INVALID/);
+  assert.equal(recorded.length, 0);
 });

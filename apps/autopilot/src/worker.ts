@@ -1,5 +1,5 @@
 import baseWorker, { globalReleaseFreezeActive, handleCodingExecute, type Env as BaseEnv } from "./index";
-import { acquirePersistentExecution, ExecutionCoordinator, readPersistentControlPlaneHold, releasePersistentExecution } from "./executionCoordinator";
+import { acquirePersistentExecution, ExecutionCoordinator, readPersistentControlPlaneHold, readProviderCapacityWait, recordProviderCapacityWait, releasePersistentExecution } from "./executionCoordinator";
 import {
   CodingRunnerEvidenceError,
   executeCodingRunner,
@@ -12,7 +12,7 @@ import {
 } from "./codingRunner";
 import { GithubValidatedPatchPublisher } from "./githubValidatedPatchPublisher";
 import { verifyGithubActionsOidcToken, verifyGithubReleaseControlOidcToken } from "./githubActionsOidc";
-import { executeIndependentAudit, validateAuditRunnerRequest } from "./auditRunner";
+import { AUDIT_PROVIDER, executeIndependentAudit, executeProviderGatedAudit, validateAuditRunnerRequest } from "./auditRunner";
 
 export { ExecutionCoordinator };
 
@@ -303,8 +303,26 @@ async function handleAuditExecute(request: Request, env: WorkerEnv): Promise<Res
   }
 
   try {
-    const result = await executeIndependentAudit(auditRequest, env);
-    return json({ accepted: true, ...result }, 200);
+    const coordinator = env.NUSA_EXECUTION_COORDINATOR;
+    const gated = await executeProviderGatedAudit(auditRequest, {
+      readProviderWait: () => readProviderCapacityWait(coordinator, AUDIT_PROVIDER),
+      recordProviderWait: (stop) => recordProviderCapacityWait(coordinator, stop),
+      runAudit: () => executeIndependentAudit(auditRequest, env),
+      now: () => Date.now(),
+    });
+    if (gated.status === "AUDITED") return json({ accepted: true, ...gated.result }, 200);
+    return json({
+      accepted: false,
+      status: "AUDIT_FAILED_CLOSED",
+      error: gated.status === "WAITING_PROVIDER_CAPACITY" ? "WAITING_PROVIDER_CAPACITY" : "PROVIDER_CAPACITY_STATE_UNAVAILABLE",
+      ...(gated.status === "WAITING_PROVIDER_CAPACITY" ? { providerStopReason: gated.reason, nextRetryAt: gated.nextRetryAt } : {}),
+      reviewedHeadSha: auditRequest.headSha,
+      baseSha: auditRequest.baseSha,
+      workflowRunId: auditRequest.workflowRunId,
+      liveAuthority: "NONE",
+      productionMutationAllowed: false,
+      aiAuthority: "ZERO_AUTHORITY",
+    }, 409);
   } catch (error) {
     return json({
       accepted: false,
