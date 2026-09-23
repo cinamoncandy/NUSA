@@ -9,7 +9,7 @@ import worker, {
 } from "./index";
 import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
 import type { CodingRuntime, WorkersAiBinding } from "./codingRunner";
-import { acquirePersistentExecution, ExecutionCoordinator, readPersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, ExecutionCoordinator, readPersistentExecution, readProviderCapacityWait, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
 class MemoryStorage {
   private readonly values = new Map<string, unknown>();
@@ -589,6 +589,13 @@ describe("NUSA autopilot GitHub webhook", () => {
       assert.equal(stopped?.executionId, codingRequest.executionId);
       assert.equal(stopped?.stop?.dedupeKey, codingRequest.dedupeKey);
       assert.equal(stopped?.stop?.headSha, codingRequest.headSha);
+
+      // The same stop is also recorded against the provider, which is what keeps later executions on
+      // a different main from dispatching inside the wait window.
+      const providerWait = await readProviderCapacityWait(namespace, "workers-ai");
+      assert.equal(providerWait?.nextRetryAt, firstPayload.nextRetryAt);
+      assert.equal(providerWait?.dedupeKey, codingRequest.dedupeKey);
+      assert.equal(providerWait?.stopReason, "WORKERS_AI_RATE_LIMITED");
 
       const replay = await handleCodingExecute(request(), env);
       const replayPayload = await replay.json() as { status: string; reason: string; nextRetryAt: number };
