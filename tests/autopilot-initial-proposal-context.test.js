@@ -14,7 +14,10 @@ test("the initial proposal context is real, in scope and bounded", async (t) => 
     const context = initialProposalContextFromGithubRunner(execution("ci:1:aaa"));
     assert.ok(context, "an excerpt must be produced inside a repository checkout");
     assert.equal(context.startLine, 1);
-    const onDisk = require("node:fs").readFileSync(context.path, "utf8");
+    // The producer splits on /\r?\n/ and rejoins with \n, which is what `git apply` compares. A
+    // Windows runner checks the repository out with CRLF, so the raw bytes on disk must be
+    // normalised the same way before comparing, or the test fails on the checkout, not the code.
+    const onDisk = require("node:fs").readFileSync(context.path, "utf8").replace(/\r\n/g, "\n");
     assert.ok(
       onDisk.startsWith(context.content.split("\n")[0]),
       "the excerpt must come from the working tree, not be synthesised",
