@@ -1,0 +1,40 @@
+id: WO-20260924-MOBILE-PAPER-CONNECT-RESTORE-RACE
+title: "One PAPER session restore at a time; explicit verification supersedes stale restores"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-connect-race
+parent_work_order: WO-20260924-MOBILE-PAPER-SESSION-PROJECTION
+authority_impact: none
+objective: "Pressing the PAPER connect button once must connect when the device is trusted and the server is reachable."
+finding: "Owner report (Galaxy): the PAPER server connect button had to be pressed several times. Settings requestPaperConnection() first persists settings, which calls setConfiguredPaperEndpoint(); for an unverified endpoint that starts a bearer restore through paperConnectionSession. The button then starts a silent DeviceKey restore directly on MobileApprovedSession. Two owners ran two restores concurrently: (1) the bearer path's clearMemory()/clearLocal() on a stale 401 refresh or expired persisted session could land after the silent path accepted fresh tokens and wipe them; (2) the earlier bearer restore failing after markPaperConnectionVerified() cleared verification because verification did not advance the restore generation."
+scope:
+  include:
+    - "MobileApprovedSession.restore() joins an in-flight silent restore and coalesces concurrent bearer restores; restoreWithSilentDevice() lets an in-flight bearer restore settle before its silent proof; the internal bearer fallback uses restoreBearer() to avoid self-joining"
+    - "markPaperConnectionVerified() advances restoreGeneration and cancels any armed retry so a slower earlier restore cannot clear an explicit verification"
+  exclude:
+    - "Silent-over-bearer trust rule unchanged: the silent path never returns a bearer-restored identity"
+    - "No new endpoint, coordinator, or state machine"
+acceptance:
+  - "A silent connect started during a bearer restore keeps its tokens when the bearer restore fails late with 401."
+  - "A bearer restore requested during a silent restore joins it and sends no refresh."
+  - "An explicit verification is not cleared by an earlier restore that fails afterwards."
+verification_commands:
+  - "pnpm run preflight (Node >= 24)"
+  - "node --test dist/apps/mobile/src/mobileApprovedSession.test.js tests/paper-connection-resume.test.js"
+  - "node --test dist/apps/mobile/src/*.test.js tests/mobile-*.test.js tests/uiux-*.test.js tests/paper-connection-resume.test.js tests/owner-device-*.test.js"
+evidence:
+  implementation_status: READY_FOR_REVIEW
+  mutation_verification:
+    - "silent restore not waiting for in-flight bearer -> 1 failure"
+    - "restore() not joining in-flight silent restore -> 1 failure"
+    - "markPaperConnectionVerified not advancing generation -> 1 failure"
+  external_validation: "REQUIRED: exact-head CI, Audit, Release. Galaxy physical confirmation is HUMAN_ENVIRONMENT_ONLY."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Obtain exact-head CI, Audit, Release; owner confirms one-press connect on Galaxy after the Android build installs."

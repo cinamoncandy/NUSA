@@ -226,6 +226,7 @@ export class MobileApprovedSession {
   private silentNative: OwnerDeviceCredentialNative | null = null;
   private silentCredentialId: string | null = null;
   private silentAuthenticationInFlight: Promise<MobileApprovedSessionIdentity> | null = null;
+  private bearerRestoreInFlight: Promise<MobileApprovedSessionIdentity | null> | null = null;
 
   public constructor(private readonly storage: SecureStoragePort | null, private readonly request: typeof fetch = fetch) {}
 
@@ -487,6 +488,12 @@ export class MobileApprovedSession {
     const endpoint = secureEndpoint(baseUrl);
     if (this.silentAuthenticationInFlight != null) return this.silentAuthenticationInFlight;
     const operation = (async (): Promise<MobileApprovedSessionIdentity> => {
+      // A bearer restore already running would otherwise finish after this silent proof and wipe
+      // its tokens on its own failure path. Let it settle first; its outcome is superseded here.
+      const pendingBearer = this.bearerRestoreInFlight;
+      if (pendingBearer != null) {
+        try { await pendingBearer; } catch { /* superseded by the silent proof below */ }
+      }
       // getSilentDeviceStatus() is a native bridge call and can throw transiently -- a Keystore or
       // biometric provider briefly unavailable right after a long Doze/background spell is the
       // expected shape here, not proof the device was unregistered. Unlike a definitive session
@@ -507,7 +514,7 @@ export class MobileApprovedSession {
         // restoreRetryable via clearMemory() before it runs, so an empty/expired bearer session
         // underneath (itself not a definitive rejection) would otherwise leave restoreRetryable
         // false here and the foreground retry timer unarmed, exactly as before this fix.
-        const restored = await this.restore(endpoint);
+        const restored = await this.restoreBearer(endpoint);
         if (restored == null) {
           this.restoreRetryable = true;
           throw new Error("registered silent DeviceKey is unavailable.");
@@ -525,7 +532,24 @@ export class MobileApprovedSession {
     finally { if (this.silentAuthenticationInFlight === operation) this.silentAuthenticationInFlight = null; }
   }
 
+  /**
+   * One session owner, one restore at a time. Saving Settings starts a bearer restore through the
+   * connection coordinator while the connect button starts a silent DeviceKey restore directly;
+   * run concurrently, the bearer path's clearMemory()/clearLocal() (a stale refresh rejected with
+   * 401, an expired persisted session) could land after the silent path accepted fresh tokens and
+   * wipe them, so a successful connect read as a failure and had to be pressed again. A bearer
+   * restore requested while a silent one is running joins it instead of racing it.
+   */
   public async restore(baseUrl: string): Promise<MobileApprovedSessionIdentity | null> {
+    if (this.silentAuthenticationInFlight != null) return this.silentAuthenticationInFlight;
+    if (this.bearerRestoreInFlight != null) return this.bearerRestoreInFlight;
+    const operation = this.restoreBearer(baseUrl);
+    this.bearerRestoreInFlight = operation;
+    try { return await operation; }
+    finally { if (this.bearerRestoreInFlight === operation) this.bearerRestoreInFlight = null; }
+  }
+
+  private async restoreBearer(baseUrl: string): Promise<MobileApprovedSessionIdentity | null> {
     const endpoint = secureEndpoint(baseUrl);
     this.clearMemory();
     if (this.storage == null) return null;
