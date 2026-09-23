@@ -116,13 +116,14 @@ test("the runtime publishes exactly the fields the contract allows", () => {
 
 test("/health publishes only the allowlisted liveness fields, whatever the source returns", async () => {
   // A future or alternate source can return more than the contract; structural typing allows it.
-  const leaky = { ...LIVENESS, token: "secret-token", accountId: "acct-123", balanceKrw: 1_000_000, lastError: "Upbit said: invalid key abc123 for account acct-123" };
+  // The extra values are sentinels, not credentials, so the repository secret scan stays clean.
+  const leaky = { ...LIVENESS, privateRuntimeField: "leak-sentinel-7f3", accountId: "acct-123", balanceKrw: 1_000_000, lastError: "Upbit said: invalid key abc123 for account acct-123" };
   await withServer({ runtimeLiveness: () => leaky }, async (handle) => {
     const res = await request(handle.port, "/health");
     const body = JSON.parse(res.body);
     assert.deepEqual(Object.keys(body.runtime).sort(), Object.keys(LIVENESS).sort(), "no field beyond the contract may reach the public route");
     assert.equal(body.runtime.lastError, "LIVENESS_ERROR_UNCLASSIFIED", "a free-text error is replaced, never published");
-    assert.doesNotMatch(res.body, /secret-token|acct-123|1000000|invalid key/);
+    assert.doesNotMatch(res.body, /leak-sentinel-7f3|acct-123|1000000|invalid key/);
   }, 41887);
 });
 
