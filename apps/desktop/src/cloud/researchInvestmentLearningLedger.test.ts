@@ -54,9 +54,92 @@ function qualification(): ResearchFactoryQualificationResult {
   };
 }
 
+const stubQualify = (): ResearchFactoryQualificationResult => qualification();
+
+function withStore<T>(fn: (filename: string, store: FileResearchInvestmentLearningLedgerStore) => T): T {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-investment-learning-"));
+  try {
+    const filename = path.join(root, "learning.jsonl");
+    return fn(filename, new FileResearchInvestmentLearningLedgerStore(filename, stubQualify));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+const codeOf = (code: string) => (error: unknown) => (error as { code?: string }).code === code;
+
 describe("Research investment-learning ledger", () => {
+  it("replays a retried search idempotently when only the timestamp and fingerprint changed", () => {
+    const once = appendResearchQualificationToLearningLedger([], run(), qualification(), stubQualify);
+    const base = run();
+    const retried = {
+      ...base,
+      provenance: { ...base.provenance, runFingerprintSha256: "9".repeat(64) },
+      standing: { ...base.standing, generatedAt: "2026-09-11T00:00:00.000Z" },
+    };
+    const twice = appendResearchQualificationToLearningLedger(once, retried, qualification(), stubQualify);
+    assert.equal(twice.length, once.length);
+    assert.equal(new Set(twice.map((record) => record.search.searchId)).size, 1);
+  });
+
+  it("appends a new search when the dataset content changes", () => {
+    const once = appendResearchQualificationToLearningLedger([], run(), qualification(), stubQualify);
+    const base = run();
+    const next = {
+      ...base,
+      provenance: {
+        ...base.provenance,
+        dataset: { ...base.provenance.dataset, contentSha256: "3".repeat(64) },
+        candidateBindings: base.provenance.candidateBindings.map((binding) => ({ ...binding, datasetContentSha256: "3".repeat(64) })),
+      },
+    };
+    const twice = appendResearchQualificationToLearningLedger(once, next, qualification(), stubQualify);
+    assert.equal(twice.length, 6);
+    assert.equal(new Set(twice.map((record) => record.search.searchId)).size, 2);
+  });
+
+  it("rejects a qualification that does not match the canonical qualification of the supplied run", () => {
+    const stale = qualification();
+    const recomputed = (): ResearchFactoryQualificationResult => ({
+      ...stale,
+      candidates: stale.candidates.map((candidate) => candidate.candidateId === "candidate-a"
+        ? { ...candidate, outcome: "QUALIFIED_FOR_LEAGUE" as const, reasons: [] }
+        : candidate),
+    });
+    assert.throws(() => appendResearchQualificationToLearningLedger([], run(), stale, recomputed), codeOf("QUALIFICATION_RUN_MISMATCH"));
+    assert.throws(() => appendResearchQualificationToLearningLedger([], run(), stale, () => { throw new Error("x"); }), codeOf("QUALIFICATION_RECOMPUTE_FAILED"));
+  });
+
+  it("serializes appends: a held lock fails closed without writing", () => {
+    withStore((filename, store) => {
+      fs.writeFileSync(`${filename}.lock`, "");
+      assert.throws(() => store.appendRun(run(), qualification()), codeOf("CONCURRENT_LEDGER_APPEND"));
+      assert.equal(fs.existsSync(filename), false);
+    });
+  });
+
+  it("detects deletion, truncation, and rollback of anchored ledger history", () => {
+    withStore((filename, store) => {
+      store.appendRun(run(), qualification());
+      const bytes = fs.readFileSync(filename, "utf8");
+      const lines = bytes.trimEnd().split("\n");
+
+      fs.writeFileSync(filename, `${lines.slice(0, 2).join("\n")}\n`);
+      assert.throws(() => store.read(), codeOf("LEDGER_HISTORY_ROLLBACK"));
+
+      fs.rmSync(filename);
+      assert.throws(() => store.read(), codeOf("LEDGER_HISTORY_LOST"));
+      assert.throws(() => store.appendRun(run(), qualification()), codeOf("LEDGER_HISTORY_LOST"));
+
+      fs.writeFileSync(filename, bytes);
+      assert.equal(store.read().length, 3);
+      fs.rmSync(`${filename}.anchor.json`);
+      assert.throws(() => store.read(), codeOf("LEDGER_ANCHOR_MISSING"));
+    });
+  });
+
   it("learns from final qualification truth, not DSR availability", () => {
-    const ledger = appendResearchQualificationToLearningLedger([], run(), qualification());
+    const ledger = appendResearchQualificationToLearningLedger([], run(), qualification(), stubQualify);
     assert.equal(ledger.length, 3);
     assert.deepEqual(ledger.map((record) => record.outcome), ["REJECTED", "ABSTAINED", "COMPLETED"]);
     assert.deepEqual(ledger[0]!.rejectionReasons, ["REGIME_FRAGILE_EDGE"]);
@@ -65,25 +148,25 @@ describe("Research investment-learning ledger", () => {
   });
 
   it("is exactly idempotent for an identical canonical run replay", () => {
-    const once = appendResearchQualificationToLearningLedger([], run(), qualification());
-    const twice = appendResearchQualificationToLearningLedger(once, run(), qualification());
+    const once = appendResearchQualificationToLearningLedger([], run(), qualification(), stubQualify);
+    const twice = appendResearchQualificationToLearningLedger(once, run(), qualification(), stubQualify);
     assert.equal(twice.length, once.length);
     assert.equal(twice.at(-1)!.recordHash, once.at(-1)!.recordHash);
   });
 
   it("fails closed when qualification coverage or candidate provenance is inconsistent", () => {
     const badQualification = { ...qualification(), coverage: { candidateCount: 3, qualifiedCount: 99, insufficientCount: 1, rejectedCount: 1 } };
-    assert.throws(() => appendResearchQualificationToLearningLedger([], run(), badQualification));
+    assert.throws(() => appendResearchQualificationToLearningLedger([], run(), badQualification, stubQualify));
     const base = run();
     const badRun = { ...base, provenance: { ...base.provenance, candidateBindings: base.provenance.candidateBindings.slice(1) } };
-    assert.throws(() => appendResearchQualificationToLearningLedger([], badRun, qualification()));
+    assert.throws(() => appendResearchQualificationToLearningLedger([], badRun, qualification(), stubQualify));
   });
 
   it("persists only append-only sealed records and replays without duplicate bytes", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-investment-learning-"));
     try {
       const filename = path.join(root, "learning.jsonl");
-      const store = new FileResearchInvestmentLearningLedgerStore(filename);
+      const store = new FileResearchInvestmentLearningLedgerStore(filename, stubQualify);
       const first = store.appendRun(run(), qualification());
       const firstBytes = fs.readFileSync(filename, "utf8");
       const second = store.appendRun(run(), qualification());

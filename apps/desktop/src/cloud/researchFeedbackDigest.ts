@@ -114,16 +114,17 @@ function validatePolicy(policy: ResearchFeedbackPolicy): void {
  * search, and must be scored down for it.
  */
 function familyPrior(
-  completedCount: number,
-  failedCount: number,
-  rejectedCount: number,
-  abstainedCount: number,
-  distinctSearchCount: number,
+  priorTrialCount: number,
+  searchFailureRatios: readonly number[],
   policy: ResearchFeedbackPolicy,
 ): { readonly failureRatio: number; readonly priorAdjustment: number; readonly reasons: readonly string[] } {
-  const priorTrialCount = completedCount + failedCount + rejectedCount + abstainedCount;
+  const distinctSearchCount = searchFailureRatios.length;
   const reasons: string[] = [];
-  const failureRatio = priorTrialCount === 0 ? 0 : (failedCount + rejectedCount + abstainedCount) / priorTrialCount;
+  // Each canonical search counts once: its parameter cells are correlated, so grid breadth alone
+  // must not be able to swing the prior. The ratio is the mean of per-search failure ratios.
+  const failureRatio = distinctSearchCount === 0
+    ? 0
+    : searchFailureRatios.reduce((sum, ratio) => sum + ratio, 0) / distinctSearchCount;
   if (priorTrialCount < policy.minimumPriorTrials || distinctSearchCount < policy.minimumDistinctSearches) {
     if (priorTrialCount < policy.minimumPriorTrials) reasons.push("INSUFFICIENT_PRIOR_HISTORY");
     if (distinctSearchCount < policy.minimumDistinctSearches) reasons.push("INSUFFICIENT_DISTINCT_SEARCH_HISTORY");
@@ -166,10 +167,13 @@ export function buildResearchFeedbackDigest(
   // Strictly-earlier records only: this is what makes the feedback non-circular.
   const priorRecords = ledger.filter((record) => record.sequence < evaluatedSequence);
 
-  const byFamily = new Map<string, { completed: number; failed: number; rejected: number; abstained: number; searchIds: Set<string> }>();
+  const byFamily = new Map<string, { completed: number; failed: number; rejected: number; abstained: number; searches: Map<string, { total: number; failed: number }> }>();
   for (const record of priorRecords) {
-    const bucket = byFamily.get(record.familyId) ?? { completed: 0, failed: 0, rejected: 0, abstained: 0, searchIds: new Set<string>() };
-    bucket.searchIds.add(record.search.searchId);
+    const bucket = byFamily.get(record.familyId) ?? { completed: 0, failed: 0, rejected: 0, abstained: 0, searches: new Map<string, { total: number; failed: number }>() };
+    const search = bucket.searches.get(record.search.searchId) ?? { total: 0, failed: 0 };
+    search.total += 1;
+    if (record.outcome !== "COMPLETED") search.failed += 1;
+    bucket.searches.set(record.search.searchId, search);
     if (record.outcome === "COMPLETED") bucket.completed += 1;
     else if (record.outcome === "FAILED") bucket.failed += 1;
     else if (record.outcome === "REJECTED") bucket.rejected += 1;
@@ -180,8 +184,9 @@ export function buildResearchFeedbackDigest(
   const families = [...byFamily.entries()]
     .map(([familyId, counts]) => {
       const priorTrialCount = counts.completed + counts.failed + counts.rejected + counts.abstained;
-      const distinctSearchCount = counts.searchIds.size;
-      const { failureRatio, priorAdjustment, reasons } = familyPrior(counts.completed, counts.failed, counts.rejected, counts.abstained, distinctSearchCount, policy);
+      const distinctSearchCount = counts.searches.size;
+      const searchFailureRatios = [...counts.searches.values()].map((search) => search.failed / search.total);
+      const { failureRatio, priorAdjustment, reasons } = familyPrior(priorTrialCount, searchFailureRatios, policy);
       return freeze({
         familyId,
         priorTrialCount,

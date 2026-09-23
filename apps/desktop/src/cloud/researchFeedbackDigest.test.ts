@@ -52,6 +52,18 @@ describe("buildResearchFeedbackDigest", () => {
     assert.ok(family.reasons.includes("HISTORICAL_FAILURE_RATE_ARGUES_AGAINST_FAMILY"));
   });
 
+  it("weights each canonical search equally, so grid breadth cannot swing the failure ratio", () => {
+    let records: readonly ResearchTrialRecord[] = [];
+    records = seal(records, "breadth", "REJECTED", "wide-a");
+    records = seal(records, "breadth", "REJECTED", "wide-b");
+    for (let cell = 0; cell < 9; cell += 1) records = seal(records, "breadth", "COMPLETED", "wide-c");
+    const family = buildResearchFeedbackDigest(records).families[0]!;
+    assert.equal(family.priorTrialCount, 11);
+    assert.equal(family.distinctSearchCount, 3);
+    assert.equal(family.failureRatio, 2 / 3);
+    assert.ok(family.priorAdjustment < 0, "two failed searches out of three must argue against the family");
+  });
+
   it("counts abstained trials as unsuccessful evidence in the denominator", () => {
     const ledger = ledgerOf(
       ["momentum", "COMPLETED"],
