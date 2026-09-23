@@ -1071,6 +1071,7 @@ if (require.main === module) {
 
 module.exports = {
   MAX_RETRY_DELAY_MS,
+  MAX_REPORTED_QUOTA_RETRY_DELAY_MS,
   RETRY_JITTER_RATIO,
   DEFAULT_MAX_ATTEMPTS,
   DEFAULT_BACKOFF_MS,

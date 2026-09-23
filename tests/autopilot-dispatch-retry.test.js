@@ -17,6 +17,7 @@ const {
   executeGithubActionsRunner,
   MAX_RETRY_DELAY_MS,
   retryHint,
+  MAX_REPORTED_QUOTA_RETRY_DELAY_MS,
 } = require("../scripts/autopilot-dispatch-retry.js");
 
 const request = Object.freeze({
@@ -379,6 +380,18 @@ test("reports the real next-UTC-day resume time for a daily-quota stop instead o
     assert.deepEqual(waits, []);
     assert.equal(runnerCalls, 1);
   });
+});
+
+test("prefers the provider's absolute reset timestamp over a relative retryAfterMs when both are present", () => {
+  const observedAt = 1_700_000_000_000;
+  const absoluteNextRetryAt = observedAt + 50_000_000; // far outside the 60s local retry ceiling
+  const hint = retryHint(
+    response(409, {}),
+    { stopReason: "WORKERS_AI_DAILY_QUOTA_EXHAUSTED", retryAfterMs: 500, nextRetryAt: absoluteNextRetryAt },
+    observedAt,
+    MAX_REPORTED_QUOTA_RETRY_DELAY_MS,
+  );
+  assert.deepEqual(hint, { delayMs: absoluteNextRetryAt - observedAt, source: "provider-nextRetryAt" });
 });
 
 test("still bounds a generic transient rate limit's reported resume time to the retry ceiling", () => {
