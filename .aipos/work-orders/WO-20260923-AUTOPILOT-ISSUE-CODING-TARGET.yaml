@@ -1,6 +1,6 @@
 id: WO-20260923-AUTOPILOT-ISSUE-CODING-TARGET
 title: "Carry an OWNER issue's explicit coding target to the first proposal attempt"
-status: READY_FOR_REVIEW
+status: MERGED
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -31,7 +31,7 @@ verification_commands:
   - "pnpm run safety:invariants"
   - "pnpm run ai:architecture"
 evidence:
-  implementation_status: READY_FOR_REVIEW
+  implementation_status: MERGED_PR_2232_af6a9f90
   mutation_verification:
     - "drop the target from the problem -> unit 1 failure and end-to-end 1 failure"
     - "accept a forbidden-domain target -> 1 failure"

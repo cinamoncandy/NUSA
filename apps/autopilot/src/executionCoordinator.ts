@@ -364,6 +364,7 @@ export class ExecutionCoordinator {
     if (request.method === "GET" && url.pathname === "/execution") return this.readExecution();
     if (request.method === "GET" && url.pathname === "/control-plane-hold") return this.readControlPlaneHold();
     if (request.method === "GET" && url.pathname === "/active-wip") return this.readActiveWip();
+    if (request.method === "GET" && url.pathname === "/provider-capacity-wait") return this.readProviderCapacityWait();
     if (request.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405);
     if (url.pathname === "/acquire") return this.acquire(await request.json());
     if (url.pathname === "/handoff-or-acquire") return this.handoffOrAcquire(await request.json());
@@ -379,6 +380,7 @@ export class ExecutionCoordinator {
     if (url.pathname === "/control-plane-hold/apply") return this.applyControlPlaneHold(await request.json());
     if (url.pathname === "/control-plane-hold/clear") return this.clearControlPlaneHold(await request.json());
     if (url.pathname === "/rate-limit-stop") return this.stopForRateLimit(await request.json());
+    if (url.pathname === "/provider-capacity-wait") return this.recordProviderCapacityWait(await request.json());
     return json({ error: "NOT_FOUND" }, 404);
   }
 
@@ -533,6 +535,24 @@ export class ExecutionCoordinator {
       });
       await storage.put("execution", record);
       return json({ stopped: true, state: record.state, nextRetryAt: stop.nextRetryAt, record });
+    });
+  }
+
+  private async readProviderCapacityWait(): Promise<Response> {
+    const wait = await this.ctx.storage.get<PersistentExecutionStop>("provider-capacity-wait");
+    if (wait !== undefined && !validPersistentExecutionStop(wait)) return json({ error: "PROVIDER_CAPACITY_WAIT_CORRUPT" }, 500);
+    return json({ wait: wait ?? null });
+  }
+
+  private async recordProviderCapacityWait(value: unknown): Promise<Response> {
+    if (!validPersistentExecutionStop(value)) return json({ error: "PROVIDER_CAPACITY_WAIT_INVALID" }, 400);
+    const incoming = Object.freeze({ ...value, schemaVersion: 1 }) as PersistentExecutionStop;
+    return this.mutateExecutionAtomically(async (storage) => {
+      const current = await storage.get<PersistentExecutionStop>("provider-capacity-wait");
+      // Monotonic: a late or replayed stop can never shorten a provider wait that is already longer.
+      const kept = current && validPersistentExecutionStop(current) && current.nextRetryAt >= incoming.nextRetryAt ? current : incoming;
+      if (kept === incoming) await storage.put("provider-capacity-wait", incoming);
+      return json({ recorded: true, wait: kept });
     });
   }
 
@@ -942,6 +962,34 @@ export async function markPersistentExecutionRateLimitStopped(namespace: Executi
   if (response.status === 200 && body.stopped === true && Number.isSafeInteger(body.nextRetryAt)) return { stopped: true, nextRetryAt: Number(body.nextRetryAt) };
   if (response.status === 409) return { stopped: false, reason: typeof body.error === "string" ? body.error : "EXECUTION_STOP_REJECTED" };
   throw new Error("PERSISTENT_EXECUTION_RATE_LIMIT_STOP_FAILED");
+}
+
+/**
+ * A provider rate-limit is a property of the provider, not of one execution. Execution records are
+ * keyed by a dedupe key that includes the exact main SHA, so after main moves the next scheduled run
+ * looks up a new, empty record and dispatches again inside the provider's wait window. This record is
+ * keyed by provider only, so the wait survives main changes and applies to every new execution.
+ */
+function providerCapacityWaitId(provider: string): string {
+  return `provider-capacity-wait:${provider}`;
+}
+
+export async function recordProviderCapacityWait(namespace: ExecutionCoordinatorNamespace, stop: PersistentExecutionStop): Promise<PersistentExecutionStop> {
+  const stub = namespace.get(namespace.idFromName(providerCapacityWaitId(stop.provider)));
+  const response = await stub.fetch("https://execution-coordinator/provider-capacity-wait", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(stop) });
+  const body = await response.json() as { recorded?: boolean; wait?: unknown };
+  if (response.status !== 200 || body.recorded !== true || !validPersistentExecutionStop(body.wait)) throw new Error("PROVIDER_CAPACITY_WAIT_RECORD_FAILED");
+  return body.wait;
+}
+
+export async function readProviderCapacityWait(namespace: ExecutionCoordinatorNamespace, provider: string): Promise<PersistentExecutionStop | null> {
+  const stub = namespace.get(namespace.idFromName(providerCapacityWaitId(provider)));
+  const response = await stub.fetch("https://execution-coordinator/provider-capacity-wait");
+  if (!response.ok) throw new Error("PROVIDER_CAPACITY_WAIT_READ_FAILED");
+  const body = await response.json() as { wait?: unknown };
+  if (body.wait === null || body.wait === undefined) return null;
+  if (!validPersistentExecutionStop(body.wait)) throw new Error("PROVIDER_CAPACITY_WAIT_READ_FAILED");
+  return body.wait;
 }
 
 export async function completePersistentExecution(namespace: ExecutionCoordinatorNamespace, input: { dedupeKey: string; executionId: string; now: number }): Promise<void> {
