@@ -25,22 +25,20 @@ test('markets use semantic segmented tabs rather than competing primary CTAs', (
 });
 
 test('paper and history selectors expose their current selection', () => {
-  const trading = read('apps/mobile/src/tradingViewLegacy.tsx');
   const history = read('apps/mobile/src/orderHistoryView.tsx');
-  assert.match(trading, /selectedKey=\{side\}/);
-  assert.match(trading, /selectedKey=\{orderType\}/);
   assert.match(history, /selectedKey=\{filter\}/);
   assert.match(history, /selectedKey=\{period\}/);
   assert.match(history, /selectedKey=\{sort\}/);
 });
 
-test('AI hierarchy presents calibrated confidence before raw model probability', () => {
+test('AI hierarchy exposes calibrated confidence only when verified and otherwise fails closed', () => {
   const source = read('apps/mobile/src/aiView.tsx');
-  const trusted = source.indexOf('label="검증 신뢰도"');
-  const raw = source.indexOf('label="원시 모델 확률 (미보정)"');
-  assert.ok(trusted >= 0 && raw >= 0 && trusted < raw);
-  assert.match(source, /testID="ai-zero-authority-status"><StatusChip label="AI ZERO AUTHORITY"/);
-  assert.match(source, /READ ONLY/);
+  assert.match(source, /const trusted=calibrated\?percent\(ai\?\.confidence\):"UNVERIFIED"/);
+  assert.match(source, /const calibrated=ai\?\.calibrationStatus==="CALIBRATED"/);
+  assert.match(source, /const trusted=calibrated\?percent\(ai\?\.confidence\):"UNVERIFIED"/);
+  assert.match(source, /보정되지 않은 출력입니다\. 수익 확률로 표시하지 않습니다\./);
+  assert.match(source, /testID="ai-zero-authority-status"/);
+  assert.match(source, /SIGNAL IS READ ONLY/);
 });
 
 test('design direction preserves read-only safety identity and Android-only completion scope', () => {

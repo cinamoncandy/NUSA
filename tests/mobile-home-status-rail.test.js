@@ -90,15 +90,22 @@ test("오늘 is only allowed with proven daily basis", () => {
   assert.equal(buildHomeStatusRail(input({ hasDailyPnlBasis: false })).pnlBasisLabel, "누적");
 });
 
-test("production HomeView wires the status rail and keeps cumulative PnL truth explicit", () => {
+test("production HomeView keeps the approved authority rail and cumulative PnL truth explicit", () => {
   const home = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "homeView.tsx"), "utf8");
   assert.match(home, /testID="home-status-rail"/);
-  assert.match(home, /buildHomeStatusRail\(/);
-  assert.match(home, /hasDailyPnlBasis:\s*false/);
-  assert.match(home, /\{rail\.marketLine\} · \{rail\.systemLine\}/);
-  assert.match(home, /RISK \{rail\.riskLabel\}/);
-  assert.match(home, /\{rail\.marketLine\} · \{rail\.systemLine\}/);
-  assert.match(home, /TOTAL PNL/);
-  assert.doesNotMatch(home, />오늘</);
+  assert.match(home, /PAPER Equity/);
+  assert.match(home, /LIVE NONE · AI ZERO AUTHORITY/);
+  assert.match(home, /testID="home-risk-authority"/);
+  assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
+  assert.match(home, /won\(totalPnl\)/);
+  // The old form only rejected 오늘 as a standalone element, so the hero slipped a hardcoded
+  // `오늘 · ${won(totalPnl)}` past it while totalPnl is realized + unrealized since inception and
+  // nothing sets hasDailyPnlBasis. Reject the word in any form on HOME.
+  assert.doesNotMatch(home, /오늘/);
+  // The board's hero shows the figure bare. totalPnl is realized + unrealized since inception and
+  // nothing sets hasDailyPnlBasis, so an unlabelled number beside PAPER Equity reads as today's.
+  // The basis is stated as its own label instead of being folded into the value.
+  assert.match(home, /누적 P&amp;L/);
+  assert.match(home, /\{totalPnl==null\?"—":won\(totalPnl\)\}/);
   assert.doesNotMatch(home, /accessibilityLabel="알림"/);
 });

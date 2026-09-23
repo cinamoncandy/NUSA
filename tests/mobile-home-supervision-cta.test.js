@@ -6,32 +6,32 @@ const path = require("node:path");
 const home = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "homeView.tsx"), "utf8");
 const decisionSurface = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "homeDecisionSurface.ts"), "utf8");
 
-test("HOME surfaces degraded PAPER connection states before exploration without restoring legacy supervisor chrome", () => {
-  const notice = home.indexOf('testID="home-operational-notice"');
-  const ai = home.indexOf('testID="ai-card"');
-  const terrain = home.indexOf('testID="home-decision-stage"');
-  const paperPerformance = home.indexOf('testID="home-paper-performance"');
+test("HOME keeps operational recovery as small chrome without replacing the intelligence composition", () => {
+  // The board's HOME scan order: the PAPER equity hero, then the runtime status cards, then the
+  // capital envelope, and only then the learning route. Recovery chrome stays below all of it.
+  const hero = home.indexOf('testID="account-hero-card"');
+  const ai = home.indexOf('testID="home-ai-judgement"');
+  const capital = home.indexOf('testID="home-capital-limits"');
   const learning = home.indexOf('testID="home-paper-learning"');
+  const notice = home.indexOf('testID="home-operational-notice"');
 
-  assert.ok(notice >= 0, "PAPER operational notice must exist");
-  assert.ok(ai >= 0 && terrain >= 0 && paperPerformance >= 0 && learning >= 0, "canonical HOME intelligence flow must exist");
-  assert.ok(terrain < paperPerformance && paperPerformance < learning && learning < ai, "workspace actions must stay glanceable before progressive AI detail");
-  assert.ok(notice < ai, "connection recovery notice must remain visible before progressive AI detail");
-  assert.match(home, /"PAPER 연결 오류"/);
-  assert.match(home, /"PAPER 연결 필요"/);
-  assert.match(home, /onPress=\{onGoSettings\}/);
+  assert.ok([hero, ai, capital, learning, notice].every((index) => index >= 0), "every HOME landmark must render");
+  assert.ok(hero < ai && ai < capital && capital < learning);
+  assert.ok(notice > capital, "connection recovery remains operational chrome rather than replacing HOME");
+  assert.match(home, /PAPER CONNECTION REQUIRED/);
+  assert.match(home, /PAPER READ-ONLY ERROR/);
+  assert.match(home, /onPress=\{props\.onGoSettings\}/);
   assert.doesNotMatch(home, /testID="home-supervisor-primary-action"/);
 
   assert.match(decisionSurface, /const WATCH_RUNTIME_STATES = new Set\(\["DEGRADED", "STOPPED", "STOPPING"\]\)/);
   assert.match(decisionSurface, /runtimeNeedsSupervision\s*\n\s*\? "SUPERVISE PAPER"/);
 });
 
-test("HOME connection failure copy wins over stale AI output while fail-closed supervisor logic remains available", () => {
-  assert.match(home, /const disconnected = notConfigured != null/);
-  assert.match(home, /const decisionSurface = buildHomeDecisionSurface\(\{[\s\S]*disconnected,[\s\S]*readOnlyError: readOnlyError != null/);
-  assert.match(home, /const aiInsightAvailable = decisionSurface\.aiInsightAvailable && !disconnected && readOnlyError == null/);
-  assert.match(home, /const posture = disconnected[\s\S]*\? "PAPER 서버 연결이 필요합니다\."[\s\S]*: readOnlyError[\s\S]*\? "PAPER 상태를 확인하고 있습니다\."/);
-  assert.match(home, /const why = aiInsightAvailable \? decisionSurface\.why : disconnected \? "Cloud PAPER 상태가 연결되기 전에는 판단 근거를 확정하지 않습니다\." : decisionSurface\.why/);
+test("HOME connection failure outranks stale AI thesis in the canonical fail-closed decision model", () => {
+  assert.match(home, /const disconnected = props\.notConfigured != null && !localPaperActive/);
+  assert.match(home, /const decision = buildHomeDecisionSurface\(\{[\s\S]*disconnected,[\s\S]*readOnlyError: props\.readOnlyError != null/);
+  // No evidence rows on HOME in the approved layout; the decision surface still gates the signal.
+  assert.match(home, /const signalAvailable = decision\.aiInsightAvailable/);
 
   const whyStart = decisionSurface.indexOf("const why = input.disconnected");
   const degradedIndex = decisionSurface.indexOf(': runtimeState === "DEGRADED"', whyStart);

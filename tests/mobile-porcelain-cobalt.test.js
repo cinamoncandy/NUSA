@@ -11,22 +11,27 @@ test("approved porcelain/cobalt theme preserves semantic authority and accessibl
   assert.equal(createTheme("light").colors.primary, "#304EE8");
   for (const mode of ["light", "dark"]) {
     const t = createTheme(mode);
-    assert.equal(t.radii.lg, 22);
+    // Exact token values belong to tests/mobile-design-system.test.js; pinning radii.lg here only
+    // made this suite fail when a corner radius changed. What it is for is the semantic and
+    // accessibility guarantees below.
     assert.ok(t.interaction.touchTarget >= 48);
     assert.notEqual(t.colors.danger, t.colors.primary);
     assert.notEqual(t.colors.success, t.colors.primary);
   }
 });
 
-test("Home reuses canonical chart reader and renderer without sample or private IO", () => {
+test("Home reuses canonical chart evidence without sample or private IO", () => {
   const home = fs.readFileSync("apps/mobile/src/homeView.tsx", "utf8");
-  assert.match(home, /buildChartViewModel\(\{ market: publicMarket/);
-  assert.match(home, /stale: publicMarketStale/);
-  assert.match(home, /marketChart.state === "READY" \? <CandlePlot model=\{marketChart\}/);
-  assert.match(home, /krw\(marketChart.currentPrice\)/);
-  assert.doesNotMatch(home, /128420000|128,420,000|Math.random|fetch\(|WebSocket/);
-  assert.match(home, /onNavigate\("Markets"\)/);
-  assert.match(home, /disabled=\{disconnected\}/);
+  // The board's HOME carries no chart: the candles live on the Market tab, and HOME states market
+  // truth as one verified status. It still reads the same canonical feed, so the rule that matters
+  // here is unchanged — no sample series, no private IO, and the status derives from observations
+  // the runtime verified rather than from a bare connection flag.
+  assert.match(home, /selectHomeMarketData\(props\.publicMarkets, props\.snapshot\?\.markets \?\? \[\]\)/);
+  assert.match(home, /props\.publicMarketStale/);
+  assert.match(home, /const marketVerified = props\.publicMarketConnectionState === "CONNECTED" && !props\.publicMarketStale && observedMarkets\.length > 0/);
+  assert.doesNotMatch(home, /buildChartViewModel/);
+  assert.doesNotMatch(home, /128420000|128,420,000|Math\.random|fetch\(|WebSocket/);
+  assert.match(home, /props\.onNavigate\("Market"\)/);
   assert.match(home, /LIVE NONE · AI ZERO AUTHORITY/);
 });
 

@@ -16,22 +16,24 @@ test("classic and master themes are frozen, semantic, and geometrically distinct
   assert.notEqual(masterLight.colors.background, masterDark.colors.background);
 
   assert.equal(classicDark.radii.md, 12);
-  assert.equal(masterDark.radii.md, 12);
+  assert.equal(masterDark.radii.md, 14);
   assert.equal(classicDark.layout.cardPadding, 20);
   assert.equal(masterDark.layout.cardPadding, 18);
   assert.equal(classicDark.layout.heroRadius, 22);
-  assert.equal(masterDark.layout.heroRadius, 22);
+  assert.equal(masterDark.layout.heroRadius, 28);
   assert.equal(classicDark.typography.hero, 50);
-  assert.equal(masterDark.typography.hero, 46);
+  assert.equal(masterDark.typography.hero, 54);
   assert.notEqual(classicDark.colors.background, masterDark.colors.background);
 
-  assert.equal(masterDark.colors.surfaceSunken, "#151A22");
-  assert.equal(masterDark.colors.primarySoft, "#29314F");
-  assert.equal(masterDark.colors.borderStrong, "#66728A");
-  assert.equal(masterDark.colors.info, "#A5B9E2");
-  assert.equal(masterDark.colors.aiSignalStart, "#9B6CFF");
-  assert.equal(masterDark.colors.aiSignalMid, "#5B8CFF");
-  assert.equal(masterDark.colors.aiSignalEnd, "#36D8CB");
+  assert.equal(masterDark.colors.surfaceSunken, "#060811");
+  // Darkened from #15152B so primary-on-primarySoft chip text clears WCAG AA (4.26 -> 4.59);
+  // tests/uiux-002-phase2-visual-foundation.test.js owns that contrast contract.
+  assert.equal(masterDark.colors.primarySoft, "#14052C");
+  assert.equal(masterDark.colors.borderStrong, "#2B3550");
+  assert.equal(masterDark.colors.info, "#59C9FF");
+  assert.equal(masterDark.colors.aiSignalStart, "#7B61FF");
+  assert.equal(masterDark.colors.aiSignalMid, "#4B8DFF");
+  assert.equal(masterDark.colors.aiSignalEnd, "#33D7C7");
   assert.equal(masterDark.icons.lg, 24);
 
   assert.equal(Object.isFrozen(masterDark), true);
@@ -116,7 +118,7 @@ test("dark success stays visually distinct from the AI signal tone", () => {
   const { createTheme } = require("../dist/apps/mobile/src/designSystem.js");
   for (const preset of ["classic", "master"]) {
     const theme = createTheme("dark", preset);
-    assert.equal(theme.colors.success, "#34D399");
+    assert.equal(theme.colors.success, "#59C88A");
     assert.notEqual(theme.colors.success.toLowerCase(), theme.colors.aiSignalEnd.toLowerCase());
   }
   const light = createTheme("light", "master");

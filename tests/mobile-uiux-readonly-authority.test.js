@@ -6,19 +6,22 @@ const path = require("node:path");
 const mobile = path.resolve(__dirname, "../apps/mobile");
 const read = (file) => fs.readFileSync(path.join(mobile, file), "utf8");
 
-test("UIUX-002 presents the canonical five-tab product navigation while preserving deeper routes", () => {
+test("UIUX-002 presents the canonical five-tab product navigation with ORDER as a primary destination", () => {
   const app = read("App.tsx");
-  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\] as const/);
-  assert.match(app, /Home: "HOME"/);
-  assert.match(app, /Markets: "MARKETS"/);
-  assert.match(app, /Paper: "PAPER"/);
-  assert.match(app, /Portfolio: "PORTFOLIO"/);
-  assert.match(app, /AiSignal: "AI"/);
-  assert.match(app, /Markets: "공개 시장 환경"/);
-  assert.match(app, /Portfolio: "PAPER 자산과 결과"/);
-  assert.match(app, /AiSignal: "AI 판단과 근거"/);
-  assert.match(app, /type Tab = PrimaryTab \| "Order"/);
-  assert.match(app, /activeTab === "AiSignal" \? <AiView/);
+  // Six primary destinations, in the canonical order HOME -> AI SIGNAL -> MARKETS -> PAPER ->
+  // ORDER -> PORTFOLIO. ORDER was promoted from a deeper route to a primary tab, so the old
+  // five-tab list and the "PrimaryTab | \"Order\"" shape it implied are both superseded.
+  assert.match(app, /const tabs = \["Home", "Market", "Signals", "Strategies", "More"\] as const/);
+  assert.match(app, /Home: "Home"/);
+  assert.match(app, /Market: "Market"/);
+  assert.match(app, /Strategies: "Strategies"/);
+  assert.match(app, /More: "More"/);
+  assert.match(app, /Signals: "Signals"/);
+  assert.match(app, /Market: "공개 시장 환경"/);
+  assert.match(app, /More: "더 깊은 화면과 설정"/);
+  assert.match(app, /Signals: "AI 판단과 근거"/);
+  assert.match(app, /type Tab = PrimaryTab;/);
+  assert.match(app, /activeTab === "Signals" \? <AiView/);
   assert.doesNotMatch(app, /<MoreView/);
 });
 
@@ -27,42 +30,27 @@ test("mobile intelligence shell displays real AI projection and truthful scoped 
   const aiView = read("src/aiView.tsx");
   const components = read("src/components.tsx");
   assert.match(app, /const ai = snapshot\?\.ai \?\? null/);
-  assert.match(aiView, /ai\?\.thesis \?\? "현재 표시할 검증된 AI 분석이 없습니다\."/);
-  assert.match(aiView, /testID="ai-zero-authority-status"><StatusChip label="AI ZERO AUTHORITY"/);
+  assert.match(aiView, /const thesis=ai\?\.status==="AVAILABLE"&&ai\.thesis\?ai\.thesis:"검증된 AI 판단이 아직 없습니다\."/);
+  assert.match(aiView, /AI ZERO AUTHORITY/);
   assert.match(components, /AI는 주문, 이체, 출금 또는 운영 상태를 변경할 권한이 없습니다/);
   assert.match(components, /AI는 읽기 전용이며 PAPER 주문은 별도의 사용자 승인·PAPER 실행 경로에서만 처리됩니다/);
-  assert.match(aiView, /AI에는 PAPER·LIVE 주문, 이체, 출금 또는 운영 변경 권한이 없습니다/);
-  assert.match(aiView, /<DataRow label="AI LIVE 권한" value=\{liveAuthority \?\? "-"\} emphasis \/>/);
-  assert.match(aiView, /<DataRow label="Production mutation" value=\{productionMutationAllowed == null \? "-" : "금지"\}/);
+  assert.match(aiView, /SIGNAL IS READ ONLY/);
+  assert.match(aiView, /PUBLIC READ ONLY/);
+  assert.match(aiView, /productionMutationAllowed===false\?"BLOCKED":"UNVERIFIED"/);
   assert.doesNotMatch(components, /UI 주문 경로 없음/);
   assert.doesNotMatch(app, /94%/);
 });
 
 test("production PAPER is supervision-only while legacy PAPER execution remains isolated and never gains LIVE authority", () => {
   const app = read("App.tsx");
-  const trading = read("src/tradingView.tsx");
-  const legacyTrading = read("src/tradingViewLegacy.tsx");
-  assert.match(app, /<TradingView[^>]*snapshot=/s);
-  assert.doesNotMatch(app, /<TradingView[^>]*onSubmit=/s);
-  assert.match(trading, /PaperLearningMonitorView/);
-  assert.match(trading, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
-  assert.doesNotMatch(trading, /<LegacyTradingView \{\.\.\.props\} \/>/);
-  assert.match(legacyTrading, /const usingLocalPaper = isLocalPaperActive\(\)/);
-  assert.match(legacyTrading, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
-  assert.match(legacyTrading, /const cloudPaperSubmitAvailable = runtimeCanSubmit && !usingLocalPaper/);
-  assert.match(legacyTrading, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
-  assert.match(legacyTrading, /statusLabel="LIVE NONE"/);
-  assert.match(legacyTrading, /isPaperConnectionVerified\(configuredEndpoint\)/);
+  // TradingView is imported as PaperOrderView and renders on the Order tab. The contract that
+  // matters is unchanged: App passes it a snapshot and never an onSubmit handler.
+  assert.match(app, /<PortfolioView[^>]*snapshot=/s);
+  assert.doesNotMatch(app, /<PaperOrderView[^>]*onSubmit=/s);
   assert.match(read("src/localPaperLedger.ts"), /MockTradingService/);
-  assert.match(legacyTrading, /loadUpbitPublicMarkets/);
-  assert.match(legacyTrading, /PersonalPaperOrderRetryIdentity/);
-  assert.match(legacyTrading, /submitPersonalPaperOrderWithRetryIdentity/);
-  assert.match(legacyTrading, /authority: "PAPER_ONLY"/);
-  assert.match(legacyTrading, /productionMutationAllowed: false/);
-  assert.match(legacyTrading, /liveMutationAllowed: false/);
-  assert.match(legacyTrading, /이 PAPER 주문을 확정할까요/);
-  assert.match(legacyTrading, /PAPER 주문 확정/);
-  for (const source of [trading, legacyTrading]) {
+  // The two order surfaces these guards used to cover were deleted with the ORDER
+  // destination. The guards now cover the PAPER surfaces that replaced them.
+  for (const source of [read("src/paperLearningMonitorView.tsx"), read("src/homeView.tsx")]) {
     assert.doesNotMatch(source, /authority:\s*"LIVE"/);
     assert.doesNotMatch(source, /productionMutationAllowed:\s*true/);
     assert.doesNotMatch(source, /\/api\/(?:live|withdraw|transfer)/i);

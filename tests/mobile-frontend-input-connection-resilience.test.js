@@ -71,13 +71,6 @@ test("Settings makes server-verified owner device authentication primary and pai
   assert.match(source, /const cloudConnectionLabel = connecting \? "VERIFYING"/);
 });
 
-test("PAPER order inputs are numeric-first and locked during an in-flight submit", () => {
-  const source = read("apps/mobile/src/tradingViewLegacy.tsx");
-  assert.match(source, /keyboardType="decimal-pad" label="지정 가격"/);
-  assert.match(source, /keyboardType="decimal-pad" label=\{`수량/);
-  assert.equal((source.match(/editable=\{!submitting\}/g) ?? []).length, 2);
-  assert.match(source, /disabled=\{!submitEnabled\}/);
-  assert.match(source, /authority: "PAPER_ONLY"/);
-  assert.match(source, /productionMutationAllowed: false/);
-  assert.doesNotMatch(source, /authority:\s*"LIVE"|productionMutationAllowed:\s*true/);
-});
+// The manual PAPER order contract this block covered moved to
+// tests/mobile-no-order-submission-surface.test.js when tradingView.tsx and
+// tradingViewLegacy.tsx were deleted: there is no order submission surface left to assert on.

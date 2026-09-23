@@ -1,4 +1,4 @@
-node_modules/
+node_modules
 dist/
 .pnpm-store/
 
@@ -26,3 +26,7 @@ storybook-static/
 # workspace-clean validation and must not be mistaken for code mutations.
 /artifacts/autopilot-execution/cited-run.json
 /artifacts/autopilot-execution/dispatch-freshness.json
+
+# scripts/run-tests-isolated.js deletes this at startup and rewrites it on failure. Tracking it
+# makes every test run dirty the workspace, which the autopilot runtime guard rejects.
+isolated-test-failure.txt

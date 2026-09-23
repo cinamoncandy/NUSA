@@ -5,14 +5,18 @@ const path = require("node:path");
 const root = path.join(__dirname, "..", "apps", "mobile");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-test("product v5 keeps the four primary jobs literal and glanceable", () => {
+test("product v5 keeps the primary jobs literal and glanceable through the canonical navigation", () => {
   const app = read("App.tsx");
-  assert.match(app, /Home: "HOME", Markets: "MARKETS", Paper: "PAPER", Portfolio: "PORTFOLIO"/);
+  assert.match(app, /Home: "Home", Market: "Market", Signals: "Signals", Strategies: "Strategies", More: "More"/);
+  assert.match(app, /Home: "Home", Market: "Market", Signals: "Signals", Strategies: "Strategies", More: "More"/);
   const home = read("src/homeView.tsx");
-  assert.match(home, />MARKETS<\/Text>/);
-  assert.match(home, />PORTFOLIO<\/Text>/);
-  assert.match(home, /PAPER EQUITY/);
-  assert.match(home, /TOTAL PNL/);
+  assert.match(home, /props\.onNavigate\("Market"\)/);
+  // Strategies is a primary tab on the board, reached from the navigation bar rather than a HOME
+  // card; the device acceptance path taps tab-Strategies for exactly that reason.
+  assert.match(home, /props\.onNavigate\("Market"\)/);
+  assert.match(home, /props\.onNavigate\("Signals"\)/);
+  assert.match(home, /PAPER Equity/);
+  assert.match(home, /won\(totalPnl\)/);
 });
 
 test("product v5 uses flatter secondary sections and Android-sized actions", () => {
@@ -37,11 +41,6 @@ test("Cloud PAPER setup communicates server-verified owner device session withou
   assert.match(experience, /PAPER ONLY/);
   assert.match(experience, /LIVE AUTH SEPARATE/);
   assert.doesNotMatch(settings, /placeOrder|cancelOrder|withdraw/);
-  const productionPaper = read("src/tradingView.tsx");
-  assert.match(productionPaper, /<PaperLearningMonitorView/);
-  assert.doesNotMatch(productionPaper, /<LegacyTradingView/);
-  assert.doesNotMatch(productionPaper, /<NusaTextField|placeOrder\(|submitOrder\(/);
-  assert.match(productionPaper, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
 });
 
 test("Android product UX acceptance bounds emulator startup and preserves diagnostic evidence", () => {
@@ -63,7 +62,7 @@ test("Android product UX acceptance bounds emulator startup and preserves diagno
   assert.match(workflow, /enter_personal\(\)/);
   assert.match(workflow, /"local-entry-submit"/);
   assert.match(workflow, /"home-screen"/);
-  for (const marker of ["tab-Markets", "tab-Paper", "paper-learning-detail-toggle", "tab-Portfolio", "header-tools-menu", "header-settings", "utility-close", "tab-Home"]) {
+  for (const marker of ["tab-Market", "more-paper", "paper-learning-detail-toggle", "tab-More", "more-performance", "more-settings", "utility-close", "tab-Home"]) {
     assert.match(workflow, new RegExp(`(?:tap|tap_after_scroll) "${marker}"`));
   }
   for (const ambiguousLabel of ["MARKETS", "PAPER", "PORTFOLIO", "HOME", "도구", "설정", "설정 닫기"]) {
@@ -73,7 +72,7 @@ test("Android product UX acceptance bounds emulator startup and preserves diagno
   assert.match(workflow, /if: always\(\)/);
   assert.match(workflow, /grep -q "paper-learning-monitor"/);
   assert.match(workflow, /scroll_until_visible\(\)/);
-  assert.match(workflow, /tap_after_scroll "paper-learning-detail-toggle"; scroll_until_visible "paper-learning-timeline"; capture 07-paper-evidence-open/);
-  assert.match(workflow, /grep -q "paper-learning-timeline" qa\/android-product-ux\/07-paper-evidence-open\.xml/);
+  assert.match(workflow, /tap_after_scroll "paper-learning-detail-toggle"; scroll_until_visible "paper-learning-timeline"; capture 10-paper-evidence-open/);
+  assert.match(workflow, /grep -q "paper-learning-timeline" qa\/android-product-ux\/10-paper-evidence-open\.xml/);
   assert.match(workflow, /evidence_disclosure=PASS/);
 });

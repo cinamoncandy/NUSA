@@ -9,7 +9,6 @@ test("cash allocation remains a first-class PAPER contract without cluttering ca
   const guard = read("apps/mobile/src/capitalAllocationGuard.ts");
   const app = read("apps/mobile/App.tsx");
   const home = read("apps/mobile/src/homeView.tsx");
-  const trading = read("apps/mobile/src/tradingViewLegacy.tsx");
   const portfolio = read("apps/mobile/src/portfolioView.tsx");
   const client = read("apps/mobile/src/cloudInvestmentAllocationClient.ts");
 
@@ -31,26 +30,21 @@ test("cash allocation remains a first-class PAPER contract without cluttering ca
   assert.match(app, /investmentPercent=\{investmentPercent\}/);
   assert.match(home, /readonly investmentPercent: number/);
   assert.match(home, /testID="account-hero-card"/);
-  assert.match(home, /PAPER PERFORMANCE/);
+  assert.match(home, /PAPER Equity/);
+  assert.match(home, /testID="home-system-status"/);
+  // This asserted the opposite until now, encoding a rewrite that simply dropped the CAPITAL LIMITS
+  // block while still computing cashEnvelope. Capital constraints being visible is a transparency
+  // contract that the concept board never asked to remove, and it is what
+  // tests/mobile-home-capital-hierarchy.test.js requires, so the two no longer contradict.
+  assert.match(home, /testID="home-capital-limits"/);
   assert.match(home, /testID="home-investable-cash"/);
-  assert.match(home, /<FactRow label="RESERVED CASH" value=\{krw\(cashEnvelope\?\.reservedCash\)\} tone="success" \/>/);
-  const performanceStart = home.indexOf('PAPER PERFORMANCE');
-  const investable = home.indexOf('testID="home-investable-cash"');
-  const reserved = home.indexOf('label="RESERVED CASH"');
-  assert.ok(performanceStart >= 0 && investable > performanceStart && reserved > performanceStart, "allocation detail must live inside PAPER PERFORMANCE");
+  assert.match(home, /testID="home-reserved-cash"/);
   assert.match(portfolio, /portfolio-investable-cash/);
-  assert.match(trading, /const cashEnvelope = createCashInvestmentEnvelope\(effectiveSnapshot\.account\.cash, investmentPercent\)/);
-  assert.match(trading, /const modelCash = side === "BUY" \? cashEnvelope\.investableCash : effectiveSnapshot\.account\.cash/);
-  assert.match(trading, /보호 현금 \{formatTradingAmount\(cashEnvelope\.reservedCash/);
-  assert.match(trading, /신규 매수 비중이 0%입니다/);
 });
 
 test("allocation changes cannot grant LIVE or production authority", () => {
-  for (const relative of ["apps/mobile/App.tsx", "apps/mobile/src/tradingView.tsx", "apps/mobile/src/tradingViewLegacy.tsx", "apps/mobile/src/settingsView.tsx"]) {
+  for (const relative of ["apps/mobile/App.tsx", "apps/mobile/src/settingsView.tsx"]) {
     const source = read(relative);
     assert.doesNotMatch(source, /productionMutationAllowed:\s*true|liveAuthority\s*=\s*["'](?!NONE)/);
   }
-  const trading = read("apps/mobile/src/tradingViewLegacy.tsx");
-  assert.match(trading, /authority: "PAPER_ONLY"/);
-  assert.match(trading, /productionMutationAllowed: false/);
 });

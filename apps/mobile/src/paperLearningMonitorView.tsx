@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import { NusaButton } from "./components";
+import { NusaButton, TerrainSignal } from "./components";
 import { useTheme } from "./ThemeProvider";
 import type { PaperLearningScreenState, PaperLearningUiEvent } from "./paperLearningScreen";
-import { AuthorityRail, FactRow, IntelligenceSection, MetricStrip, ScreenLead, StateNotice, type IntelligenceTone } from "./intelligenceOs";
+import { AuthorityRail, FactRow, IntelligenceSection, MetricStrip, StateNotice, type IntelligenceTone } from "./intelligenceOs";
+import { intelligenceFieldColors, wealthProductColors } from "./designSystem";
 
 export interface PaperLearningMonitorViewProps {
   readonly state: PaperLearningScreenState;
@@ -111,6 +112,68 @@ function riskTone(status: string | null | undefined): IntelligenceTone {
   return "warning";
 }
 
+function PaperReportHero({ state }: Readonly<{ state: PaperLearningScreenState }>) {
+  const { theme } = useTheme();
+  const totalPnl = state.latestAccount == null
+    ? state.performance.realizedPnL + state.performance.unrealizedPnL
+    : state.latestAccount.realizedPnL + state.latestAccount.unrealizedPnL;
+  const stages = [
+    { label: "DATA", observed: state.timeline.some((event) => event.stage === "MARKET_DATA") },
+    { label: "DECISION", observed: state.latestDecision != null },
+    { label: "RISK", observed: state.latestRisk != null },
+    { label: "FILL", observed: state.latestFill != null },
+    { label: "LEARNING", observed: state.latestEvidence != null },
+  ] as const;
+  const observedCount = stages.filter((stage) => stage.observed).length;
+  const evidenceStrength = 0.25 + (observedCount / stages.length) * 0.75;
+
+  return <View style={[styles.reportHero, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.borderStrong }]} testID="paper-report-hero">
+    <View style={styles.reportHeroTop}>
+      <View>
+        <Text style={[styles.reportEyebrow, { color: theme.colors.primary }]}>VERIFIED PAPER REPORT</Text>
+        <Text style={[styles.reportMeta, { color: theme.colors.textMuted }]}>{state.status} · {state.dataSource}</Text>
+      </View>
+      <Text style={[styles.reportSource, { color: theme.colors.textMuted }]}>PAPER ONLY</Text>
+    </View>
+    <View style={styles.paperVisual} testID="paper-evidence-terrain">
+      <TerrainSignal variant="symbolic" signalStrength={evidenceStrength} accessibilityLabel="verified PAPER evidence terrain" />
+      <View style={styles.paperVisualCaption}>
+        <Text style={[styles.paperVisualKicker, { color: theme.colors.aiSignalEnd }]}>EVIDENCE TERRAIN</Text>
+        <Text style={[styles.paperVisualMeta, { color: theme.colors.textMuted }]}>{observedCount}/{stages.length} VERIFIED STAGES</Text>
+      </View>
+    </View>
+    <View style={styles.reportNumbers}>
+      <View style={styles.reportPrimary}>
+        <Text style={[styles.reportValue, { color: totalPnl > 0 ? theme.colors.success : totalPnl < 0 ? theme.colors.danger : theme.colors.text }]}>{signedMoney(totalPnl)}</Text>
+        <Text style={[styles.reportLabel, { color: theme.colors.textMuted }]}>TOTAL P&L</Text>
+      </View>
+      <View style={styles.reportSecondary}>
+        <Text style={[styles.reportSecondaryValue, { color: theme.colors.text }]}>{money(state.latestAccount?.equity)}</Text>
+        <Text style={[styles.reportLabel, { color: theme.colors.textMuted }]}>EQUITY</Text>
+      </View>
+      <View style={styles.reportSecondary}>
+        <Text style={[styles.reportSecondaryValue, { color: theme.colors.text }]}>{state.latestMarket ?? "—"}</Text>
+        <Text style={[styles.reportLabel, { color: theme.colors.textMuted }]}>MARKET</Text>
+      </View>
+    </View>
+    <View style={[styles.reportCycle, { borderTopColor: theme.colors.border }]}>
+      <Text style={[styles.reportCycleText, { color: theme.colors.textMuted }]}>CYCLE {state.currentCycle ?? "—"}</Text>
+      <Text style={[styles.reportCycleText, { color: theme.colors.textMuted }]}>OBSERVATION STATE</Text>
+    </View>
+    <View style={styles.reportStages} testID="paper-report-stage-timeline">
+      {stages.map((stage, index) => <View key={stage.label} style={styles.reportStage}>
+        <View style={styles.reportStageLine}>
+          {index > 0 ? <View style={[styles.reportConnector, { backgroundColor: theme.colors.borderStrong }]} /> : null}
+          <View style={[styles.reportNode, { backgroundColor: stage.observed ? theme.colors.primary : theme.colors.surfaceRaised, borderColor: stage.observed ? theme.colors.primary : theme.colors.borderStrong }]} />
+        </View>
+        <Text style={[styles.reportStageLabel, { color: stage.observed ? theme.colors.text : theme.colors.textMuted }]}>{stage.label}</Text>
+        <Text style={[styles.reportStageState, { color: stage.observed ? theme.colors.primary : theme.colors.textMuted }]}>{stage.observed ? "OBSERVED" : "WAITING"}</Text>
+      </View>)}
+    </View>
+    <Text style={[styles.reportDisclosure, { color: theme.colors.textMuted }]}>Stages indicate recorded evidence presence only. They do not imply approval, profit probability, or execution authority.</Text>
+  </View>;
+}
+
 export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose }: PaperLearningMonitorViewProps) {
   const { theme } = useTheme();
   const { width } = useWindowDimensions();
@@ -135,28 +198,50 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
     showsVerticalScrollIndicator={false}
     testID="paper-learning-monitor"
   >
+    <View style={styles.paperPageHeader}>
+      <Text style={[styles.paperPageTitle, { color: theme.colors.text }]}>PAPER</Text>
+      <View style={[styles.paperAiPill, { borderColor: theme.colors.aiSignalStart }]}>
+        <Text style={[styles.paperAiPillText, { color: theme.colors.aiSignalMid }]}>AI · READ ONLY</Text>
+      </View>
+    </View>
+    <View style={styles.paperTabs} testID="paper-reference-tabs">
+      <View style={[styles.paperTab, styles.paperTabActive, { borderBottomColor: theme.colors.aiSignalStart }]}><Text style={[styles.paperTabText, { color: theme.colors.text }]}>현황</Text></View>
+      <View style={styles.paperTab}><Text style={[styles.paperTabText, { color: theme.colors.textMuted }]}>검토</Text></View>
+      <View style={styles.paperTab}><Text style={[styles.paperTabText, { color: theme.colors.textMuted }]}>확인</Text></View>
+    </View>
     <AuthorityRail
       detail="AUTONOMOUS PAPER · LIVE NONE · AI ZERO AUTHORITY"
       status={runtimeLabel}
       tone={runtimeTone}
       testID="paper-learning-authority-rail"
     />
-    <ScreenLead
-      eyebrow="PAPER LEARNING · READ ONLY"
-      title="PAPER 학습 상태"
-      detail="AI 판단이 PAPER에서 어떻게 검증되고 학습되는지 한 사이클로 확인합니다."
-      badge="READ ONLY"
-      badgeTone="info"
-    />
-    <MetricStrip
-      items={[
-        { label: "EQUITY", value: money(state.latestAccount?.equity), tone: "neutral" },
-        { label: "TOTAL PNL", value: signedMoney(totalPnl), tone: pnlTone },
-        { label: "RISK", value: state.latestRisk?.status ?? "UNKNOWN", tone: riskTone(state.latestRisk?.status) },
-        { label: "LEARNING", value: learningLabel, tone: learningTone },
-      ]}
-      testID="paper-learning-glance-strip"
-    />
+    <View style={[styles.commandHero, { borderColor: theme.colors.border }]} testID="paper-learning-command-hero">
+      <View style={styles.commandHeader}>
+        <View style={styles.commandTitleWrap}>
+          <Text style={[styles.commandEyebrow, { color: theme.colors.primary }]}>PAPER LEARNING · READ ONLY</Text>
+          <Text style={[styles.commandTitle, { color: theme.colors.text }]}>RESULT / LEARNING</Text>
+          <Text style={[styles.commandDetail, { color: theme.colors.textMuted }]}>실제 PAPER 결과와 검증된 학습 근거만 표시합니다. 주문 권한은 없습니다.</Text>
+        </View>
+        <View style={[styles.runtimeBadge, { borderColor: runtimeTone === "success" ? theme.colors.primary : theme.colors.warning }]}>
+          <View style={[styles.runtimeDot, { backgroundColor: runtimeTone === "success" ? theme.colors.primary : theme.colors.warning }]} />
+          <Text style={[styles.runtimeBadgeText, { color: runtimeTone === "success" ? theme.colors.primary : theme.colors.warning }]}>{runtimeLabel}</Text>
+        </View>
+      </View>
+      <PaperReportHero state={state} />
+      <MetricStrip
+        items={[
+          { label: "EQUITY", value: money(state.latestAccount?.equity), tone: "neutral" },
+          { label: "TOTAL PNL", value: signedMoney(totalPnl), tone: pnlTone },
+          { label: "RISK", value: state.latestRisk?.status ?? "UNKNOWN", tone: riskTone(state.latestRisk?.status) },
+          { label: "LEARNING", value: learningLabel, tone: learningTone },
+        ]}
+        testID="paper-learning-glance-strip"
+      />
+      <View style={[styles.truthRail, { borderTopColor: theme.colors.border }]}>
+        <Text style={[styles.truthText, { color: theme.colors.textMuted }]}>RESULT = VERIFIED PAPER P&L</Text>
+        <Text style={[styles.truthText, { color: theme.colors.textMuted }]}>LEARNING = VALIDATED EVALUATION</Text>
+      </View>
+    </View>
 
     <View style={styles.sourceRow} testID="paper-learning-data-source">
       <View style={styles.sourceCopy}>
@@ -271,7 +356,51 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { width: "100%", maxWidth: 1080, alignSelf: "center", paddingHorizontal: 20, paddingTop: 10, paddingBottom: 96, gap: 14 },
+  commandHero: { paddingTop: 12, paddingBottom: 16, gap: 14 },
+  commandHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 14 },
+  commandTitleWrap: { flex: 1, minWidth: 0 },
+  commandEyebrow: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.25 },
+  paperPageHeader: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  paperPageTitle: { fontSize: 24, lineHeight: 30, fontWeight: "800", letterSpacing: 0.3 },
+  paperAiPill: { minHeight: 26, borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, alignItems: "center", justifyContent: "center" },
+  paperAiPillText: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 0.55 },
+  paperTabs: { flexDirection: "row", minHeight: 42, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: wealthProductColors.c03 },
+  paperTab: { minWidth: 62, alignItems: "center", justifyContent: "center", borderBottomWidth: 2, borderBottomColor: "transparent" },
+  paperTabActive: { borderBottomWidth: 2 },
+  paperTabText: { fontSize: 10, lineHeight: 14, fontWeight: "900", letterSpacing: 0.4 },
+  commandTitle: { marginTop: 3, fontSize: 18, lineHeight: 23, fontWeight: "900", letterSpacing: 0.8 },
+  commandDetail: { marginTop: 6, maxWidth: 680, fontSize: 10, lineHeight: 16 },
+  runtimeBadge: { minHeight: 32, maxWidth: 154, borderWidth: 1, borderRadius: 8, paddingHorizontal: 9, flexDirection: "row", alignItems: "center", gap: 6 },
+  runtimeDot: { width: 6, height: 6, borderRadius: 6 },
+  runtimeBadgeText: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 0.45 },
+  truthRail: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 9, flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 8 },
+  truthText: { fontSize: 7, lineHeight: 10, fontWeight: "800", letterSpacing: 0.7 },
   eyebrow: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.15 },
+  reportHero: { borderWidth: 1, borderRadius: 24, overflow: "hidden" },
+  reportHeroTop: { minHeight: 62, paddingHorizontal: 18, paddingVertical: 13, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  reportEyebrow: { fontSize: 11, lineHeight: 15, fontWeight: "900", letterSpacing: 1.15 },
+  reportMeta: { marginTop: 3, fontSize: 9, lineHeight: 13, fontWeight: "700" },
+  reportSource: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 0.8 },
+  paperVisual: { height: 238, position: "relative", overflow: "hidden" },
+  paperVisualCaption: { position: "absolute", left: 18, bottom: 16, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, backgroundColor: "rgba(5,6,11,0.76)", borderWidth: StyleSheet.hairlineWidth, borderColor: intelligenceFieldColors.heroBorder },
+  paperVisualKicker: { fontSize: 9, lineHeight: 12, fontWeight: "900", letterSpacing: 1.05 },
+  paperVisualMeta: { marginTop: 2, fontSize: 7, lineHeight: 10, fontWeight: "800", letterSpacing: 0.45 },
+  reportNumbers: { flexDirection: "row", alignItems: "flex-end", gap: 18, paddingHorizontal: 18, paddingTop: 18, paddingBottom: 16 },
+  reportPrimary: { flex: 1.5, minWidth: 0 },
+  reportSecondary: { flex: 1, minWidth: 0 },
+  reportValue: { fontSize: 34, lineHeight: 40, fontWeight: "800", letterSpacing: -1, fontVariant: ["tabular-nums"] },
+  reportSecondaryValue: { fontSize: 14, lineHeight: 19, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  reportLabel: { marginTop: 4, fontSize: 8, lineHeight: 12, fontWeight: "900", letterSpacing: 0.85 },
+  reportCycle: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14, paddingVertical: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  reportCycleText: { fontSize: 8, lineHeight: 12, fontWeight: "800", letterSpacing: 0.55 },
+  reportStages: { flexDirection: "row", paddingHorizontal: 10, paddingTop: 12, paddingBottom: 10 },
+  reportStage: { flex: 1, minWidth: 0, alignItems: "center" },
+  reportStageLine: { width: "100%", height: 12, alignItems: "center", justifyContent: "center" },
+  reportConnector: { position: "absolute", right: "50%", width: "100%", height: 1 },
+  reportNode: { width: 10, height: 10, borderRadius: 10, borderWidth: 2 },
+  reportStageLabel: { marginTop: 5, fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 0.35 },
+  reportStageState: { marginTop: 1, fontSize: 7, lineHeight: 10, fontWeight: "800" },
+  reportDisclosure: { paddingHorizontal: 14, paddingBottom: 12, fontSize: 8, lineHeight: 12 },
   sourceRow: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingHorizontal: 2 },
   sourceCopy: { flex: 1, minWidth: 0, gap: 3 },
   sourceValue: { fontSize: 13, lineHeight: 18, fontWeight: "800" },

@@ -7,7 +7,7 @@ const root = path.resolve(__dirname, "..");
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), "utf8");
 
 function expectTabularStyle(source, styleName) {
-  assert.match(source, new RegExp(`${styleName}: \\{[^}]*fontVariant: \\["tabular-nums"\\]`), `${styleName} must use tabular numerals`);
+  assert.match(source, new RegExp(`${styleName}:\\s*\\{[^}]*fontVariant:\\s*\\["tabular-nums"\\]`), `${styleName} must use tabular numerals`);
 }
 
 test("primary financial values use stable tabular numerals in each canonical presentation grammar", () => {
@@ -15,19 +15,17 @@ test("primary financial values use stable tabular numerals in each canonical pre
   const intelligence = read("apps/mobile/src/intelligenceOs.tsx");
   const primitives = read("apps/mobile/src/uxPrimitives.tsx");
   const portfolio = read("apps/mobile/src/portfolioView.tsx");
-  const trading = read("apps/mobile/src/tradingViewLegacy.tsx");
   const watchlist = read("apps/mobile/src/watchlistView.tsx");
 
   assert.match(home, /testID="account-hero-card"/);
-  expectTabularStyle(home, "balanceValue");
-  expectTabularStyle(home, "pnlValue");
+  expectTabularStyle(home, "marketPrice");
+  expectTabularStyle(home, "metricValue");
   assert.match(portfolio, /<MetricStrip testID="portfolio-supervisor-summary"/);
   assert.match(portfolio, /<FactRow label="INVESTMENT LIMIT"/);
   assert.match(portfolio, /<FactRow label="CURRENT PRICE"/);
   expectTabularStyle(intelligence, "metricValue");
   expectTabularStyle(intelligence, "factValue");
   expectTabularStyle(primitives, "compactMetricValue");
-  expectTabularStyle(trading, "price");
   for (const style of ["price", "change", "volumeInline"]) expectTabularStyle(watchlist, style);
 });
 
@@ -51,21 +49,12 @@ test("touch-target policy is truthful: standard controls 48px, compact controls 
 test("closeout preserves PAPER-only semantics while production PAPER is supervision-only", () => {
   const app = read("apps/mobile/App.tsx");
   const ai = read("apps/mobile/src/aiView.tsx");
-  const tradingShell = read("apps/mobile/src/tradingView.tsx");
-  const trading = read("apps/mobile/src/tradingViewLegacy.tsx");
 
   assert.match(app, /PAPER/);
   assert.match(ai, /READ ONLY/);
-  assert.match(tradingShell, /TradingView as LegacyTradingView/);
-  assert.match(tradingShell, /PaperLearningMonitorView/);
-  assert.doesNotMatch(tradingShell, /<LegacyTradingView \{\.\.\.props\} \/>/);
-  assert.match(trading, /Production mutation 금지/);
-  assert.match(trading, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
-  assert.match(trading, /const cloudPaperSubmitAvailable = runtimeCanSubmit && !usingLocalPaper/);
-  assert.match(trading, /const submitAvailable = onSubmit !== undefined \|\| localPaperSubmitAvailable \|\| cloudPaperSubmitAvailable/);
-  assert.match(trading, /liveMutationAllowed: false/);
-  assert.match(trading, /productionMutationAllowed: false/);
-  for (const source of [tradingShell, trading]) {
+  // The two order surfaces these guards used to cover were deleted with the ORDER
+  // destination. The guards now cover the PAPER surfaces that replaced them.
+  for (const source of [read("apps/mobile/src/paperLearningMonitorView.tsx"), read("apps/mobile/src/homeView.tsx")]) {
     assert.doesNotMatch(source, /authority:\s*"LIVE"/);
     assert.doesNotMatch(source, /productionMutationAllowed:\s*true/);
     assert.doesNotMatch(source, /\/(?:live|withdraw|transfer)\b/i);

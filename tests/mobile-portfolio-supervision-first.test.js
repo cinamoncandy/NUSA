@@ -10,10 +10,14 @@ const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src
 test("Portfolio is framed as NUSA operating supervision, not a personal trading wallet", () => {
   assert.match(source, /testID="portfolio-authority-rail"/);
   assert.match(source, /detail="PAPER CAPITAL · REAL ACCOUNT SEPARATE · LIVE NONE"/);
-  assert.match(source, /eyebrow="PORTFOLIO"/);
-  assert.match(source, /title="PAPER 자산과 결과"/);
-  assert.match(source, /badge="PORTFOLIO"/);
+  assert.match(source, /PAPER CAPITAL · VERIFIED ACCOUNTING/);
+  assert.match(source, /EQUITY \/ P&L/);
+  assert.match(source, /testID="portfolio-master-hero"/);
   assert.match(source, /testID="portfolio-supervisor-summary"/);
+  assert.match(source, /testID="portfolio-command-hero"/);
+  assert.doesNotMatch(source, /KNOW WHAT IS WORKING\./);
+  assert.match(source, /PAPER RESULT = CANONICAL/);
+  assert.match(source, /REAL_READ_ONLY = REFERENCE ONLY/);
   assert.doesNotMatch(source, /eyebrow="MY ISLAND"/);
 });
 

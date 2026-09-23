@@ -12,7 +12,6 @@
   "uiMarkers": {
     "homePaperLearning": "home-paper-learning",
     "homeSupervisorLearning": "home-supervisor-learning",
-    "tradePaperLearning": "trade-paper-learning",
     "portfolioPaperLearning": "portfolio-paper-learning",
     "paperLearningMonitor": "paper-learning-monitor"
   },

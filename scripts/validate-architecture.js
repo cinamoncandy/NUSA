@@ -3,6 +3,10 @@ const { join, relative, resolve, dirname, extname } = require("node:path");
 const ts = require("typescript");
 
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".mjs", ".json"]);
+// React Native resolves image imports through the bundler, so an asset is a real, supported
+// import. It is a leaf resource rather than an architectural dependency: it takes part in no layer
+// relationship and no cycle, so it resolves without creating an edge. A missing asset still fails.
+const ASSET_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ttf", ".otf"]);
 const SOURCE_ROOTS = ["apps", "packages"];
 const IGNORED_FILE = /(?:\.test|\.spec)\.|\.stories\./;
 const IGNORED_DIRECTORY = new Set(["node_modules", "dist", "coverage", "release"]);
@@ -19,6 +23,7 @@ function analyzeRepository(root = process.cwd()) {
     const sourceText = readFileSync(file, "utf8");
     for (const imported of parseImports(sourceText)) {
       if (imported.specifier.startsWith(".")) {
+        if (isResolvableAsset(file, imported.specifier)) continue;
         const target = resolveLocal(file, imported.specifier, nodes, root);
         if (!target) {
           unresolved.push({ source, specifier: imported.specifier });
@@ -33,6 +38,7 @@ function analyzeRepository(root = process.cwd()) {
 
     for (const imported of parseImportExpressionReferences(sourceText)) {
       if (imported.specifier.startsWith(".")) {
+        if (isResolvableAsset(file, imported.specifier)) continue;
         const target = resolveLocal(file, imported.specifier, nodes, root);
         if (!target) {
           unresolved.push({ source, specifier: imported.specifier });
@@ -168,6 +174,11 @@ function parseImportExpressionReferences(source) {
 
 function parseImportExpressions(source) {
   return parseImportExpressionReferences(source).map((item) => item.specifier);
+}
+
+function isResolvableAsset(file, specifier) {
+  if (!ASSET_EXTENSIONS.has(extname(specifier).toLowerCase())) return false;
+  return existsSync(resolve(dirname(file), specifier));
 }
 
 function resolveLocal(file, specifier, nodes, root) {

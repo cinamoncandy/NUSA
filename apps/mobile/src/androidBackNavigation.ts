@@ -1,4 +1,4 @@
-export type AndroidBackTab = "Home" | "Markets" | "Paper" | "Portfolio" | "AiSignal" | "Order";
+export type AndroidBackTab = "Home" | "Market" | "Signals" | "Strategies" | "More";
 
 export interface AndroidBackNavigationState {
   readonly paperLearningOpen: boolean;

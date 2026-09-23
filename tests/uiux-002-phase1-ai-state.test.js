@@ -9,21 +9,21 @@ function source(file) {
   return fs.readFileSync(path.join(mobile, "src", file), "utf8");
 }
 
-test("AI distinguishes error and loading before rendering analysis content", () => {
+test("AI renders fail-closed read-only truth without fabricated loading or analysis claims", () => {
   const ai = source("aiView.tsx");
-  const errorIndex = ai.indexOf('if (error) return <AiState');
-  const loadingIndex = ai.indexOf('if (ai === null && research === null) return <AiState');
-  const screenIndex = ai.indexOf('testID="ai-screen"');
 
-  assert.ok(errorIndex >= 0);
-  assert.ok(loadingIndex > errorIndex);
-  assert.ok(screenIndex > loadingIndex);
-  assert.match(ai, /testID="ai-loading"/);
-  assert.match(ai, /testID="ai-error"/);
-  assert.match(ai, /ZERO AUTHORITY/);
-  assert.match(ai, /READ ONLY/);
-  assert.match(ai, /testID="ai-loading-skeleton"/);
+  assert.match(ai, /testID="ai-screen"/);
+  assert.match(ai, /const thesis=ai\?\.status==="AVAILABLE"&&ai\.thesis\?ai\.thesis:"검증된 AI 판단이 아직 없습니다\."/);
+  assert.match(ai, /const calibrated=ai\?\.calibrationStatus==="CALIBRATED"/);
+  assert.match(ai, /const trusted=calibrated\?percent\(ai\?\.confidence\):"UNVERIFIED"/);
+  assert.match(ai, /보정되지 않은 출력입니다\. 수익 확률로 표시하지 않습니다\./);
+  assert.match(ai, /VERIFIED EVIDENCE UNAVAILABLE/);
+  assert.match(ai, /VERIFIED CHART UNAVAILABLE/);
+  assert.match(ai, /AI ZERO AUTHORITY/);
+  assert.match(ai, /SIGNAL IS READ ONLY/);
+  assert.match(ai, /\{error\?<Text style=\{styles\.error\}>\{error\}<\/Text>:null\}/);
   assert.doesNotMatch(ai, /ActivityIndicator/);
+  assert.doesNotMatch(ai, /ORDER_CREATE|LIVE_EXECUTION|onSubmit/);
 });
 
 test("Markets keeps chart navigation reachable regardless of verified candles", () => {
@@ -35,28 +35,13 @@ test("Markets keeps chart navigation reachable regardless of verified candles", 
 });
 
 test("production PAPER supervises autonomous learning while legacy PAPER execution remains isolated and runtime-gated", () => {
-  const tradingShell = source("tradingView.tsx");
-  const trading = source("tradingViewLegacy.tsx");
 
-  assert.match(tradingShell, /import \{ PaperLearningMonitorView \} from "\.\/paperLearningMonitorView"/);
-  assert.match(tradingShell, /import \{ buildPaperLearningScreen \} from "\.\/paperLearningScreen"/);
-  assert.match(tradingShell, /import \{ TradingView as LegacyTradingView \} from "\.\/tradingViewLegacy"/);
-  assert.match(tradingShell, /buildPaperLearningScreen\(\[\], "PAUSED", "PROJECTION_ABSENT"\)/);
-  assert.match(tradingShell, /<PaperLearningMonitorView/);
-  assert.doesNotMatch(tradingShell, /<LegacyTradingView \{\.\.\.props\} \/>/);
-  assert.match(tradingShell, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
 
   assert.match(source("localPaperLedger.ts"), /Boolean\(configuredEndpoint && session\.isConfigured\(\) && isPaperConnectionVerified\(configuredEndpoint\)\)/);
-  assert.match(trading, /const usingLocalPaper = isLocalPaperActive\(\)/);
-  assert.match(trading, /const localPaperSubmitAvailable = usingLocalPaper && effectiveMarkPrice != null/);
-  assert.match(trading, /const cloudPaperSubmitAvailable = runtimeCanSubmit && !usingLocalPaper/);
-  assert.match(trading, /const submitAvailable = onSubmit !== undefined \|\| localPaperSubmitAvailable \|\| cloudPaperSubmitAvailable/);
-  assert.match(trading, /StatusChip label=\{usingLocalPaper \? "LOCAL PAPER" : "CLOUD PAPER"\}/);
-  assert.match(trading, /statusLabel="LIVE NONE"/);
-  assert.match(trading, /productionMutationAllowed: false/);
-  assert.match(trading, /liveMutationAllowed: false/);
 
-  for (const candidate of [tradingShell, trading]) {
+  // The two order surfaces these guards used to cover were deleted with the ORDER
+  // destination. The guards now cover the PAPER surfaces that replaced them.
+  for (const candidate of [source("paperLearningMonitorView.tsx"), source("homeView.tsx")]) {
     assert.doesNotMatch(candidate, /productionMutationAllowed:\s*true/);
     assert.doesNotMatch(candidate, /authority:\s*["']LIVE["']/);
     assert.doesNotMatch(candidate, /\/(?:live|withdraw|transfer)(?:\/|["'`])/i);

@@ -67,10 +67,23 @@ test("Portfolio screen exposes truthful verified totals without unavailable retu
   assert.match(source, /REAL_READ_ONLY 잔고는 감독용 기준선이며 PAPER 성과와 절대 합산하지 않습니다\./);
   assert.match(source, /PAPER RESULT/);
   assert.doesNotMatch(source, /대표 포지션|대표 열린 포지션/);
-  assert.doesNotMatch(source, /수익률/);
+  // This used to be a blanket ban on 수익률, from a time when the screen showed a return it could
+  // not support. The hero now shows one, so assert the truthfulness instead of the absence: it is
+  // derived from the same verified equity and PnL shown beside it, and renders — rather than 0%
+  // when there is no cost basis to divide by.
+  assert.match(source, /const costBasis = model != null \? model\.totalEquity - model\.totalPnl : null;/);
+  assert.match(source, /const totalReturn = model != null && costBasis != null && costBasis > 0 \? model\.totalPnl \/ costBasis : null;/);
+  assert.match(source, /\{totalReturn == null \? "—"/);
+  // Exactly zero is neither a gain nor a loss. Verified on a rendered Pixel 6 frame, the hero showed
+  // "+0.00%" in the success colour over a book that had never traded — a positive claim the numbers
+  // do not carry. Zero now reads muted and unsigned.
+  assert.match(source, /color: totalReturn == null \|\| totalReturn === 0 \? theme\.colors\.textMuted : totalReturn > 0 \?/);
+  assert.match(source, /\$\{totalReturn > 0 \? "\+" : ""\}/);
+  assert.match(source, /color: model == null \|\| model\.totalPnl === 0 \? theme\.colors\.textMuted : model\.totalPnl > 0 \?/);
+  assert.doesNotMatch(source, /totalReturn >= 0 \? theme\.colors\.success/);
   assert.doesNotMatch(source, /testID="portfolio-summary"/);
   assert.doesNotMatch(source, /MetricTile/);
   assert.match(source, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
-  assert.match(app, /activeTab === "Portfolio"/);
+  assert.match(app, /utilityView === "PERFORMANCE"/);
   assert.match(app, /<PortfolioView/);
 });

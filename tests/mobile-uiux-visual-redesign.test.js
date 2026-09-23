@@ -12,49 +12,47 @@ test("visual redesign has a distinct NUSA surface and financial hierarchy", () =
   const design = read("src/designSystem.ts");
   const primitives = read("src/uxPrimitives.tsx");
   assert.match(design, /classic:[\s\S]*?dark:[\s\S]*?background: "#05070D"/);
-  assert.match(design, /master:[\s\S]*?dark:[\s\S]*?background: "#101318"/);
+  assert.match(design, /master:[\s\S]*?dark:[\s\S]*?background: "#05060B"/);
   assert.match(design, /const palette = dark \? preset\.dark : preset\.light/);
   assert.match(design, /background: palette\.background/);
   assert.match(design, /navSurface: palette\.navSurface/);
-  assert.match(design, /chartUp: dark \? "#36D8CB" : "#147A50"/);
+  assert.match(design, /chartUp: dark \? "#34D6B4" : "#147A50"/);
   assert.match(primitives, /metricAccent: \{ position: "absolute", left: 14, right: 14/);
   assert.match(primitives, /borderRadius: 999, borderWidth: 1, gap: 3/);
 });
 
-test("Home uses the content-first command center hierarchy without weakening authority", () => {
+test("Home uses the approved HOME MASTER terminal hierarchy without weakening authority", () => {
   const home = read("src/homeView.tsx");
   const decisionSurface = read("src/homeDecisionSurface.ts");
 
   assert.match(home, /testID="home-master-rail"/);
-  assert.match(home, /connectionLabel = disconnected \? "SETUP" : readOnlyError \? "DEGRADED"/);
-  assert.match(home, /"ACTIVE" : "OBSERVING"/);
-  assert.match(home, /PAPER EQUITY/);
-  assert.match(home, /TOTAL PNL/);
-  assert.match(home, /QUICK ACCESS/);
-  assert.match(home, />MARKETS</);
-  assert.match(home, />PORTFOLIO</);
-  assert.match(home, />LEARN</);
-  assert.match(home, /DECISION BASIS/);
-  assert.match(home, />RISK</);
-  assert.match(home, />RESULT</);
-  assert.match(home, /paddingBottom: 32/);
-  assert.match(home, /commandStackTablet: \{ flexDirection: "row"/);
-  assert.match(home, /testID="home-now"/);
+  assert.match(home, /testID="home-status-rail"/);
   assert.match(home, /testID="account-hero-card"/);
-  assert.match(home, /testID="ai-card"/);
-  assert.match(home, /testID="home-risk-status"/);
-  assert.match(home, /testID="home-decision-stage"/);
-  assert.match(home, /PUBLIC READ ONLY/);
-  assert.match(home, /testID="home-paper-performance"/);
+  assert.match(home, /PAPER Equity/);
+  assert.match(home, /CAPITAL LIMITS/);
+  assert.match(home, /const signalAvailable = decision\.aiInsightAvailable/);
+  assert.match(home, /testID="home-risk-authority"/);
+  assert.match(home, /testID="home-ai-judgement"/);
+  assert.match(home, /UPBIT PUBLIC/);
+  assert.match(home, /testID="home-paper-status"/);
   assert.match(home, /testID="home-paper-learning"/);
   assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
 
-  assert.doesNotMatch(home, /<TerrainSignal/);
-  assert.doesNotMatch(home, /testID="home-signal-trace"/);
-  assert.doesNotMatch(home, /testID="home-market-pulse"/);
-  assert.doesNotMatch(home, /testID="home-terminal-grid"/);
-
-  assert.match(decisionSurface, /`PAPER P&L .* · EQUITY \$\{krw\(input\.paperEquity\)\}`/s);
+  // The board replaced HOME's signal terrain with three runtime status cards; TerrainSignal now
+  // belongs to the Signals screen, and HOME's AI state is the card below.
+  assert.match(home, /testID="home-ai-judgement"/);
+  assert.doesNotMatch(home, /TerrainSignal/);
+  assert.match(home, /testID="home-ai-judgement"/);
+  assert.match(home, /testID="home-market-status"/);
+  assert.match(home, /testID="home-capital-limits"/);
+  // The accent is intelligenceFieldColors.terminalSignal = #33D7C7, a cyan/teal. It was bound to a
+  // constant named LIME, so anyone grepping this branch for the forbidden acid-lime palette found a
+  // hit that was not one. Assert the binding under its true name.
+  assert.match(home, /const SIGNAL_TEAL = intelligenceFieldColors\.terminalSignal/);
+  assert.doesNotMatch(home, /\bLIME\b/);
+  assert.match(decisionSurface, /`PAPER P&L .* · EQUITY \${krw\(input\.paperEquity\)}`/s);
+  assert.doesNotMatch(home, /productionMutationAllowed:\s*true/);
+  assert.doesNotMatch(home, /authority:\s*"LIVE"/);
 });
 
 test("Markets rows use list rhythm instead of repeated cards", () => {
@@ -80,10 +78,14 @@ test("Chart prioritizes real candles and removes decorative market context", () 
 test("Bottom navigation uses a restrained active rail with the five-destination route contract", () => {
   const app = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/App.tsx"), "utf8");
   assert.match(app, /backgroundColor: appTheme\.colors\.navSurface/);
-  assert.match(app, /backgroundColor: active \? appTheme\.colors\.aiSignalEnd/);
-  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\]/);
-  assert.match(app, /AiSignal: "AI"/);
-  assert.match(app, /AiSignal: "AI 판단과 근거"/);
+  assert.match(app, /backgroundColor: active \? appTheme\.colors\.primary : "transparent"/);
+  assert.match(app, /const color = active \? intelligenceFieldColors\.terminalSignal : intelligenceFieldColors\.textSubtle/);
+  // Six primary destinations, in the canonical order HOME -> AI SIGNAL -> MARKETS -> PAPER ->
+  // ORDER -> PORTFOLIO. ORDER was promoted from a deeper route to a primary tab, so the old
+  // five-tab list and the "PrimaryTab | \"Order\"" shape it implied are both superseded.
+  assert.match(app, /const tabs = \["Home", "Market", "Signals", "Strategies", "More"\] as const/);
+  assert.match(app, /Signals: "Signals"/);
+  assert.match(app, /Signals: "AI 판단과 근거"/);
 });
 
 test("visual redesign keeps the authority boundary unchanged", () => {

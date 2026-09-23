@@ -33,7 +33,7 @@ test("order history supports deterministic periods and fill detail data", () => 
   assert.equal(buildOrderHistoryViewModel({ rawOrders: detailed, query: "", filter: "ALL", sort: "TIME_DESC", page: 1, period: "TODAY", referenceAt: "2026-08-03T00:00:00.000Z" }).state, "EMPTY");
 });
 
-test("order history UI uses design system and remains reachable and read-only in the six-tab command center", () => {
+test("order history UI uses design system and remains reachable and read-only in the five-tab command center", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "orderHistoryView.tsx"), "utf8");
   assert.match(source, /주문 이력/);
   assert.match(source, /order-history-filters/);
@@ -53,8 +53,15 @@ test("order history UI uses design system and remains reachable and read-only in
   assert.match(primitives, /segment: \{ flex: 1, minHeight: 44/);
 
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
-  assert.match(app, /activeTab === "AiSignal" \? <AiView/);
-  assert.match(app, /activeTab === "Order" \? <OrderHistoryView/);
+  assert.match(app, /activeTab === "Signals" \? <AiView/);
+  // The six-screen layout gives the Order tab the PAPER order form, so order history lives in the
+  // tools tray beside 알림/설정 rather than on a tab of its own. Before this, App.tsx imported
+  // OrderHistoryView nowhere at all and moreView.tsx — its only caller — was itself unrouted, so
+  // the cloud PAPER order record was unreachable while this suite stayed green by reading
+  // orderHistoryView.tsx directly. Assert the route, not just the file.
+  assert.match(app, /utilityView === "HISTORY" \? <OrderHistoryView/);
+  assert.match(app, /"header-order-history"/);
+  assert.match(app, /\["HISTORY", "NOTIFICATIONS", "SETTINGS"\] as const/);
   assert.doesNotMatch(app, /<MoreView/);
   assert.match(app, /rawOrders=\{snapshot\?\.orders \?\? null\}/);
   assert.match(app, /loadPersonalPaperOperations/);

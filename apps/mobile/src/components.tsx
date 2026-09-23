@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
-import { buttonTokens, cardTokens, fieldTokens, intelligenceFieldColors, type ButtonTone } from "./designSystem";
+import { buttonTokens, cardTokens, fieldTokens, intelligenceFieldColors, type ButtonTone, wealthProductColors } from "./designSystem";
 import { useTheme } from "./ThemeProvider";
 
 export interface NusaButtonProps {
@@ -202,24 +202,26 @@ export function IntelligenceMotionField({ active = true, evidenceCount = 0, labe
 export function TerrainSignal({ variant = "symbolic", signalStrength = 0.6, accessibilityLabel, testID }: Readonly<{ variant?: "symbolic" | "market"; signalStrength?: number; accessibilityLabel?: string; testID?: string }>) {
   const { theme } = useTheme();
   const boundedStrength = Math.max(0.25, Math.min(1, signalStrength));
-  const primaryWidth = `${Math.round(58 + boundedStrength * 27)}%` as `${number}%`;
-  const secondaryWidth = `${Math.round(45 + boundedStrength * 25)}%` as `${number}%`;
-  const convergenceLeft = `${Math.round(48 + boundedStrength * 22)}%` as `${number}%`;
-  // Raised floors so the hero reads as a hero even at the lowest signal strength: the reference
-  // calls for restrained glow and low-noise surfaces, not for the centerpiece to be optional.
-  const signalOpacity = 0.55 + boundedStrength * 0.4;
-  return <View accessible accessibilityRole="image" accessibilityLabel={accessibilityLabel ?? (variant === "market" ? "실제 시장 데이터에 연결된 시그널" : "NUSA 상태 시그널")} style={styles.terrainSignal} testID={testID}>
-    <View style={[styles.terrainGridLine, styles.terrainGridLineTop, { backgroundColor: theme.colors.borderStrong, opacity: 0.5 }]} />
-    <View style={[styles.terrainGridLine, styles.terrainGridLineMid, { backgroundColor: theme.colors.borderStrong, opacity: 0.62 }]} />
-    <View style={[styles.terrainGridLine, styles.terrainGridLineLow, { backgroundColor: theme.colors.borderStrong, opacity: 0.4 }]} />
-    <View style={[styles.terrainPlane, styles.terrainPlaneFar, { width: secondaryWidth, backgroundColor: theme.colors.terrain, opacity: signalOpacity * 0.6 }]} />
-    <View style={[styles.terrainPlane, styles.terrainPlaneMid, { width: primaryWidth, backgroundColor: theme.colors.aiSignalStart, opacity: signalOpacity * 0.78 }]} />
-    <View style={[styles.terrainPlane, styles.terrainPlaneNear, { width: "72%", backgroundColor: theme.colors.aiSignalMid, opacity: signalOpacity * 0.9 }]} />
-    <View style={[styles.terrainPlane, styles.terrainPlaneGround, { width: "88%", backgroundColor: theme.colors.terrain, opacity: signalOpacity }]} />
-    <View style={[styles.terrainConvergenceBeam, { left: convergenceLeft, backgroundColor: theme.colors.aiSignalEnd, opacity: 0.35 + boundedStrength * 0.25 }]} />
-    <View style={[styles.terrainConvergenceHaloOuter, { left: convergenceLeft, borderColor: theme.colors.aiSignalMid, opacity: 0.3 + boundedStrength * 0.2 }]} />
-    <View style={[styles.terrainConvergenceHalo, { left: convergenceLeft, borderColor: theme.colors.aiSignalEnd, opacity: 0.5 + boundedStrength * 0.25 }]} />
-    <View style={[styles.terrainConvergence, { left: convergenceLeft, backgroundColor: theme.colors.aiSignalEnd, shadowColor: theme.colors.aiSignalEnd, opacity: 0.9 + boundedStrength * 0.1 }]} />
+  const lineOpacity = 0.34 + boundedStrength * 0.5;
+  const beamOpacity = 0.45 + boundedStrength * 0.42;
+  return <View accessible accessibilityRole="image" accessibilityLabel={accessibilityLabel ?? (variant === "market" ? "실제 시장 데이터에 연결된 마켓 터레인" : "NUSA 시그널 터레인")} style={styles.terrainSignal} testID={testID}>
+    <View style={[styles.terrainAmbient, styles.terrainAmbientPurple, { backgroundColor: theme.colors.neonPurple }]} />
+    <View style={[styles.terrainAmbient, styles.terrainAmbientBlue, { backgroundColor: theme.colors.neonBlue }]} />
+    <View style={[styles.terrainAmbient, styles.terrainAmbientTeal, { backgroundColor: theme.colors.neonTeal }]} />
+    <View style={[styles.terrainHorizon, { backgroundColor: theme.colors.aiSignalMid, opacity: lineOpacity * 0.52 }]} />
+    <View style={[styles.terrainSlope, styles.terrainSlopeL1, { backgroundColor: theme.colors.aiSignalStart, opacity: lineOpacity }]} />
+    <View style={[styles.terrainSlope, styles.terrainSlopeR1, { backgroundColor: theme.colors.aiSignalMid, opacity: lineOpacity }]} />
+    <View style={[styles.terrainSlope, styles.terrainSlopeL2, { backgroundColor: theme.colors.aiSignalStart, opacity: lineOpacity * 0.78 }]} />
+    <View style={[styles.terrainSlope, styles.terrainSlopeR2, { backgroundColor: theme.colors.aiSignalEnd, opacity: lineOpacity * 0.8 }]} />
+    <View style={[styles.terrainSlope, styles.terrainSlopeL3, { backgroundColor: theme.colors.aiSignalMid, opacity: lineOpacity * 0.62 }]} />
+    <View style={[styles.terrainSlope, styles.terrainSlopeR3, { backgroundColor: theme.colors.aiSignalEnd, opacity: lineOpacity * 0.62 }]} />
+    <View style={[styles.terrainContour, styles.terrainContourA, { borderColor: theme.colors.aiSignalStart, opacity: lineOpacity * 0.42 }]} />
+    <View style={[styles.terrainContour, styles.terrainContourB, { borderColor: theme.colors.aiSignalMid, opacity: lineOpacity * 0.34 }]} />
+    <View style={[styles.terrainContour, styles.terrainContourC, { borderColor: theme.colors.aiSignalEnd, opacity: lineOpacity * 0.28 }]} />
+    <View style={[styles.terrainConvergenceBeam, { backgroundColor: theme.colors.aiSignalEnd, opacity: beamOpacity }]} />
+    <View style={[styles.terrainConvergenceHaloOuter, { borderColor: theme.colors.aiSignalMid, opacity: beamOpacity * 0.48 }]} />
+    <View style={[styles.terrainConvergenceHalo, { borderColor: theme.colors.aiSignalEnd, opacity: beamOpacity * 0.72 }]} />
+    <View style={[styles.terrainConvergence, { backgroundColor: theme.colors.text, shadowColor: theme.colors.aiSignalEnd }]} />
   </View>;
 }
 
@@ -310,18 +312,25 @@ const styles = StyleSheet.create({
   // changed" on device. Strokes stay thin and precise per the reference language; what changes is
   // that they are now thick and contrasted enough to actually register as a hero graphic rather
   // than disappearing into the surface behind them.
-  terrainSignal: { height: 240, width: "100%", overflow: "hidden", justifyContent: "center", position: "relative" },
-  terrainGridLine: { position: "absolute", left: "2%", right: "2%", height: 1 },
-  terrainGridLineTop: { top: "27%" },
-  terrainGridLineMid: { top: "50%" },
-  terrainGridLineLow: { top: "73%" },
-  terrainPlane: { position: "absolute", height: 2, borderRadius: 1 },
-  terrainPlaneFar: { left: "6%", top: "30%", transform: [{ rotate: "6deg" }] },
-  terrainPlaneMid: { left: "10%", top: "45%", transform: [{ rotate: "-8deg" }] },
-  terrainPlaneNear: { left: "18%", top: "61%", transform: [{ rotate: "9deg" }] },
-  terrainPlaneGround: { left: "4%", top: "77%", transform: [{ rotate: "-3deg" }] },
-  terrainConvergenceBeam: { position: "absolute", top: "24%", bottom: "16%", width: 1.5, marginLeft: -0.75 },
-  terrainConvergence: { position: "absolute", top: "48%", width: 16, height: 16, borderRadius: 8, marginLeft: -8, shadowOpacity: 0.85, shadowRadius: 18, elevation: 4 },
-  terrainConvergenceHalo: { position: "absolute", top: "40%", width: 48, height: 48, borderRadius: 24, borderWidth: 1.5, marginLeft: -24 },
-  terrainConvergenceHaloOuter: { position: "absolute", top: "33%", width: 82, height: 82, borderRadius: 41, borderWidth: 1, marginLeft: -41 },
+  terrainSignal: { height: "100%", minHeight: 210, width: "100%", overflow: "hidden", justifyContent: "center", position: "relative", backgroundColor: wealthProductColors.c28 },
+  terrainAmbient: { position: "absolute", width: 210, height: 210, borderRadius: 210, opacity: 0.14 },
+  terrainAmbientPurple: { left: -80, top: 22 },
+  terrainAmbientBlue: { left: "35%", top: 58, opacity: 0.1 },
+  terrainAmbientTeal: { right: -86, bottom: -34, opacity: 0.1 },
+  terrainHorizon: { position: "absolute", left: "8%", right: "8%", bottom: "23%", height: 1 },
+  terrainSlope: { position: "absolute", height: 1.4, borderRadius: 2, top: "46%" },
+  terrainSlopeL1: { width: "42%", left: "9%", transform: [{ rotate: "-23deg" }] },
+  terrainSlopeR1: { width: "42%", right: "9%", transform: [{ rotate: "23deg" }] },
+  terrainSlopeL2: { width: "48%", left: "4%", top: "53%", transform: [{ rotate: "-17deg" }] },
+  terrainSlopeR2: { width: "48%", right: "4%", top: "53%", transform: [{ rotate: "17deg" }] },
+  terrainSlopeL3: { width: "53%", left: "-1%", top: "61%", transform: [{ rotate: "-11deg" }] },
+  terrainSlopeR3: { width: "53%", right: "-1%", top: "61%", transform: [{ rotate: "11deg" }] },
+  terrainContour: { position: "absolute", borderWidth: 1, borderRadius: 999, left: "50%", transform: [{ translateX: -90 }] },
+  terrainContourA: { width: 180, height: 54, bottom: "19%" },
+  terrainContourB: { width: 220, height: 72, bottom: "12%", transform: [{ translateX: -110 }] },
+  terrainContourC: { width: 280, height: 92, bottom: "4%", transform: [{ translateX: -140 }] },
+  terrainConvergenceBeam: { position: "absolute", left: "50%", top: "13%", bottom: "22%", width: 1.5, marginLeft: -0.75 },
+  terrainConvergence: { position: "absolute", left: "50%", top: "13%", width: 12, height: 12, borderRadius: 8, marginLeft: -6, shadowOpacity: 0.92, shadowRadius: 18, elevation: 4 },
+  terrainConvergenceHalo: { position: "absolute", left: "50%", top: "8%", width: 34, height: 34, borderRadius: 17, borderWidth: 1.2, marginLeft: -17 },
+  terrainConvergenceHaloOuter: { position: "absolute", left: "50%", top: "3%", width: 58, height: 58, borderRadius: 29, borderWidth: 1, marginLeft: -29 },
 });

@@ -9,28 +9,26 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 test("HOME keeps verified market observation substantial and tablet-aware", () => {
   const home = read("apps/mobile/src/homeView.tsx");
   assert.match(home, /const tablet = width >= 768;/);
-  assert.match(home, /contentContainerStyle=\{\[styles\.content, \{ maxWidth: tablet \? 1080 : 720 \}\]\}/);
-  assert.match(home, /\.slice\(0, tablet \? 5 : 3\)/);
-  assert.match(home, /QUICK ACCESS/);
-  assert.match(home, /testID="home-decision-stage"/);
-  assert.match(home, /selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)/);
-  assert.match(home, /PUBLIC READ ONLY/);
+  assert.match(home, /contentContainerStyle=\{\[styles\.content, \{ maxWidth: tablet \? 980 : 720 \}\]\}/);
+  // The board carries market observation as one verified status rather than a truncated list, so
+  // there is no per-device slice any more. What still matters is that the status is derived from
+  // observations the runtime actually verified.
+  assert.match(home, /const observedMarkets = marketFeed\.filter\(/);
+  assert.match(home, /observedMarkets\.length > 0/);
+  assert.match(home, /testID="home-market-status"/);
+  assert.match(home, /testID="home-ai-judgement"/);
+  assert.match(home, /selectHomeMarketData\(props\.publicMarkets, props\.snapshot\?\.markets \?\? \[\]\)/);
+  assert.match(home, /UPBIT PUBLIC/);
 });
 
-test("HOME content-first hierarchy places glanceable workspaces before progressive decision and risk detail", () => {
+test("HOME approved intelligence hierarchy remains content-first and evidence-backed", () => {
   const home = read("apps/mobile/src/homeView.tsx");
-  const ai = home.indexOf('testID="ai-card"');
-  const risk = home.indexOf('testID="home-risk-status"');
-  const observe = home.indexOf('testID="home-decision-stage"');
-  const paper = home.indexOf('testID="home-paper-performance"');
+  const hero = home.indexOf('testID="account-hero-card"');
+  const pulse = home.indexOf('testID="home-market-status"');
+  const paper = home.indexOf('testID="home-paper-status"');
+  const ai = home.indexOf('testID="home-ai-judgement"');
+  const capital = home.indexOf('testID="home-capital-limits"');
   const learning = home.indexOf('testID="home-paper-learning"');
-  assert.ok(ai >= 0, "AI detail must exist");
-  assert.ok(risk >= 0, "risk detail must exist");
-  assert.ok(observe >= 0, "observation workspace must exist");
-  assert.ok(paper >= 0, "PAPER workspace must exist");
-  assert.ok(learning >= 0, "learning workspace must exist");
-  assert.ok(observe < paper, "observation workspace must lead PAPER supervision");
-  assert.ok(paper < learning, "PAPER supervision must lead learning");
-  assert.ok(learning < ai, "workspace actions must precede progressive AI detail");
-  assert.ok(ai < risk, "decision basis must precede detailed risk evidence");
+  assert.ok([hero, pulse, paper, ai, capital, learning].every((index) => index >= 0));
+  assert.ok(hero < pulse && pulse < paper && paper < ai && ai < capital && capital < learning);
 });
