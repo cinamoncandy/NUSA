@@ -193,15 +193,15 @@ current_upbit_bridge_credential_persistence:
 project: nusa
 updated_at: "2026-09-23T14:50:00+09:00"
 current_execution_target:
-  work_order: WO-20260923-AUTOPILOT-EXECUTE-PROVIDER-GATE
+  work_order: WO-20260923-AUTOPILOT-DAILY-QUOTA-WAIT
   status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-execute-gate
-  base_sha: d612756c6eacf861cc26bfb037ec4bbca057e262
-  scope: "Worker /coding/execute honours the provider-keyed capacity wait before any lease or provider call; unreadable state fails closed."
+  branch: claude/nusa-repository-j93sd8-daily-quota-wait
+  base_sha: f72f6b0c5be5e6aa6fd25332c9e6eb5d86003dfe
+  scope: "A Workers AI daily-quota stop waits until the next 00:00 UTC (floored at 60s) instead of 60s, so scheduler cycles stop re-probing an exhausted per-day budget."
   authority_impact: none
-  parent_work_order: WO-20260923-AUTOPILOT-PROVIDER-WAIT-ACROSS-MAIN
-  prior_target: WO-20260923-AUTOPILOT-PROVIDER-WAIT-ACROSS-MAIN
-  prior_target_status: MERGED_PR_2234
+  parent_work_order: WO-20260923-AUTOPILOT-EXECUTE-PROVIDER-GATE
+  prior_target: WO-20260923-AUTOPILOT-EXECUTE-PROVIDER-GATE
+  prior_target_status: MERGED_PR_2237
   prior_target_preserved: true
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

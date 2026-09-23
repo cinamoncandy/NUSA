@@ -23,11 +23,13 @@ acceptance:
   - "Generic 429 backoff is unchanged."
   - "PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY remain unchanged."
 verification_commands:
+  - "pnpm run preflight (Node >= 24)"
   - "node --test dist/apps/autopilot/src/*.test.js"
   - "node --test tests/autopilot-dispatch-retry.test.js"
   - "pnpm run typecheck"
 evidence:
   implementation_status: READY_FOR_REVIEW
+  local_validation: "pnpm run preflight PASS on Node 24.21.0 (check-runtime, portability, platform-independent tests, android release contract, aipos yaml); autopilot unit tests and tests/autopilot-dispatch-retry.test.js pass; typecheck clean."
   mutation_verification:
     - "original 60s daily-quota backoff -> 2 failures"
   external_validation: "REQUIRED: exact-head protected CI, independent Audit, and Release gate."
