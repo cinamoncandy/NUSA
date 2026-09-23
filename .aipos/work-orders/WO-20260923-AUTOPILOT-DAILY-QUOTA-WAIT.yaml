@@ -9,10 +9,12 @@ implementation_branch: claude/nusa-repository-j93sd8-daily-quota-wait
 objective: "A daily-quota exhaustion must not be re-probed with a provider call every scheduler cycle."
 parent_work_order: WO-20260923-AUTOPILOT-EXECUTE-PROVIDER-GATE
 authority_impact: none
+finding_audit: "Coding (C1) and independent Audit (C2) are the only production Workers AI callers and share one account budget. C2 neither read nor recorded the provider wait, so during quota exhaustion each Audit spent a provider call and failed, and C1 never learned of a stop C2 hit."
 finding: "Runtime evidence on f72f6b0c (consumer runs 35846962117, 35847443207, 35847607125) shows WORKERS_AI_DAILY_QUOTA_EXHAUSTED recorded with nextRetryAt = stop + 60s. The provider wait expired before the next ~5 minute scheduled cycle, so each cycle re-dispatched the same identity and spent another Workers AI call against a per-UTC-day budget that cannot recover before 00:00 UTC."
 scope:
   include:
     - "codingRunner rateLimitStopMetadata: daily quota retryAfterMs = time until next 00:00 UTC, floored at the existing 60s backoff"
+    - "Independent Audit (C2, worker /audit/execute) reads the same provider-keyed capacity wait before its Workers AI call, fails closed when unreadable, and records a Workers AI provider stop it hits via the canonical classifier (classifyWorkersAiProviderStop)"
   exclude:
     - "Generic 429 rate-limit backoff (unchanged)"
     - "Provider wait storage, lease, dedupe, scheduler, execution identity"
@@ -21,6 +23,9 @@ acceptance:
   - "Daily-quota stop at 10:12:49Z records nextRetryAt 00:00:00Z next day."
   - "A stop within 60s of midnight still waits at least 60s."
   - "Generic 429 backoff is unchanged."
+  - "Audit inside the provider wait makes no provider call and fails closed (WAITING_PROVIDER_CAPACITY, never a PASS)."
+  - "Audit hitting a daily-quota stop records the shared provider wait until the next UTC day, so coding also stops calling."
+  - "Audit with unreadable provider state makes no provider call and fails closed."
   - "PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY remain unchanged."
 verification_commands:
   - "pnpm run preflight (Node >= 24)"
@@ -32,6 +37,8 @@ evidence:
   local_validation: "pnpm run preflight PASS on Node 24.21.0 (check-runtime, portability, platform-independent tests, android release contract, aipos yaml); autopilot unit tests and tests/autopilot-dispatch-retry.test.js pass; typecheck clean."
   mutation_verification:
     - "original 60s daily-quota backoff -> 2 failures"
+    - "Audit ignores the provider wait -> 1 failure"
+    - "Audit does not record its provider stop -> 1 failure"
   external_validation: "REQUIRED: exact-head protected CI, independent Audit, and Release gate."
 safety:
   paper_only: true

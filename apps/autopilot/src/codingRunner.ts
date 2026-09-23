@@ -211,6 +211,17 @@ function rateLimitStopMetadata(error: unknown, reason: "WORKERS_AI_DAILY_QUOTA_E
   });
 }
 
+/**
+ * Canonical Workers AI provider-stop classification shared by every caller of the one Workers AI
+ * budget (coding proposals and independent Audit), so both record the same provider truth.
+ */
+export function classifyWorkersAiProviderStop(error: unknown, now: number): { readonly reason: "WORKERS_AI_DAILY_QUOTA_EXHAUSTED" | "WORKERS_AI_RATE_LIMITED"; readonly nextRetryAt: number; readonly resumeCondition: string } | null {
+  const reason = workersAiRateLimitReason(error);
+  if (!reason) return null;
+  const stop = rateLimitStopMetadata(error, reason, 1, now);
+  return Object.freeze({ reason, nextRetryAt: stop.nextRetryAt as number, resumeCondition: stop.resumeCondition as string });
+}
+
 const FORBIDDEN_CODING_PATH_SEGMENT = /(?:^|\/)(?:live|live-trading|broker|order|credential|secret|secrets|withdraw|transfer|production-authority)(?:\/|$)/i;
 const UNUSABLE_CODING_WORKERS_AI_MODELS = new Set([
   "@cf/zai-org/glm-4.7-flash",

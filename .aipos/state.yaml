@@ -197,7 +197,7 @@ current_execution_target:
   status: READY_FOR_REVIEW
   branch: claude/nusa-repository-j93sd8-daily-quota-wait
   base_sha: f72f6b0c5be5e6aa6fd25332c9e6eb5d86003dfe
-  scope: "A Workers AI daily-quota stop waits until the next 00:00 UTC (floored at 60s) instead of 60s, so scheduler cycles stop re-probing an exhausted per-day budget."
+  scope: "A Workers AI daily-quota stop waits until the next 00:00 UTC (floored at 60s) instead of 60s, and independent Audit uses the same provider-keyed wait as coding, so neither caller re-probes an exhausted per-day budget."
   authority_impact: none
   parent_work_order: WO-20260923-AUTOPILOT-EXECUTE-PROVIDER-GATE
   prior_target: WO-20260923-AUTOPILOT-EXECUTE-PROVIDER-GATE
