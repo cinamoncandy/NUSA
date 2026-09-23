@@ -22,21 +22,51 @@ export interface DurableObjectStubLike {
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
 }
 
+export type PersistentExecutionState = "LEASED" | "HANDED_OFF" | "DISPATCHED" | "RELEASED" | "COMPLETED" | "WAITING_RATE_LIMIT" | "BLOCKED";
+
+export interface PersistentExecutionStop {
+  schemaVersion: 1;
+  taskId: string;
+  executionId: string;
+  provider: string;
+  headSha: string;
+  stopReason: string;
+  stoppedAt: number;
+  attemptCount: number;
+  lastFailure: string;
+  nextRetryAt: number;
+  resumeCondition: string;
+  dedupeKey: string;
+  evidenceRef: string | null;
+}
+
 export interface PersistentExecutionRecord {
   dedupeKey: string;
   executionId: string;
-  state: "LEASED" | "HANDED_OFF" | "DISPATCHED" | "RELEASED" | "COMPLETED";
+  state: PersistentExecutionState;
   leaseExpiresAt: number;
   updatedAt: number;
+  taskId?: string;
+  provider?: string;
+  headSha?: string;
+  stop?: PersistentExecutionStop;
+  resumeCount?: number;
 }
 
 type ExecutionRecord = PersistentExecutionRecord;
 
-interface AcquireRequest {
+export interface PersistentExecutionAcquireRequest {
   dedupeKey: string;
   executionId: string;
   now: number;
   leaseExpiresAt: number;
+  taskId?: string;
+  provider?: string;
+  headSha?: string;
+}
+
+export interface PersistentExecutionStopRequest extends PersistentExecutionStop {
+  now: number;
 }
 
 export interface ActiveWipClaim {
@@ -204,14 +234,38 @@ function holdCoordinatorKey(identity: ControlPlaneHoldIdentity): string {
   return `${CONTROL_PLANE_HOLD_COORDINATOR_PREFIX}:${identity.repository}:${identity.prNumber}:${identity.headSha.toLowerCase()}:${identity.baseSha.toLowerCase()}`;
 }
 
-function validAcquire(value: unknown): value is AcquireRequest {
+const SAFE_LIFECYCLE_ID = /^[A-Za-z0-9_.:/-]{1,256}$/;
+
+function validPersistentExecutionStop(value: unknown): value is PersistentExecutionStop {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const candidate = value as Partial<PersistentExecutionStop>;
+  return candidate.schemaVersion === 1
+    && typeof candidate.taskId === "string" && SAFE_LIFECYCLE_ID.test(candidate.taskId)
+    && typeof candidate.executionId === "string" && SAFE_LIFECYCLE_ID.test(candidate.executionId)
+    && typeof candidate.provider === "string" && SAFE_LIFECYCLE_ID.test(candidate.provider)
+    && typeof candidate.headSha === "string" && SHA40.test(candidate.headSha)
+    && typeof candidate.stopReason === "string" && SAFE_LIFECYCLE_ID.test(candidate.stopReason)
+    && validSafeTimestamp(candidate.stoppedAt)
+    && Number.isSafeInteger(candidate.attemptCount) && Number(candidate.attemptCount) >= 1 && Number(candidate.attemptCount) <= 100
+    && typeof candidate.lastFailure === "string" && SAFE_LIFECYCLE_ID.test(candidate.lastFailure)
+    && validSafeTimestamp(candidate.nextRetryAt)
+    && candidate.nextRetryAt >= candidate.stoppedAt
+    && typeof candidate.resumeCondition === "string" && SAFE_LIFECYCLE_ID.test(candidate.resumeCondition)
+    && typeof candidate.dedupeKey === "string" && SAFE_LIFECYCLE_ID.test(candidate.dedupeKey)
+    && (candidate.evidenceRef === null || (typeof candidate.evidenceRef === "string" && SAFE_LIFECYCLE_ID.test(candidate.evidenceRef)));
+}
+
+function validAcquire(value: unknown): value is PersistentExecutionAcquireRequest {
   if (!value || typeof value !== "object") return false;
-  const candidate = value as Partial<AcquireRequest>;
+  const candidate = value as Partial<PersistentExecutionAcquireRequest>;
   return validText(candidate.dedupeKey)
     && validText(candidate.executionId)
     && validSafeTimestamp(candidate.now)
     && validSafeTimestamp(candidate.leaseExpiresAt)
-    && Number(candidate.leaseExpiresAt) > Number(candidate.now);
+    && Number(candidate.leaseExpiresAt) > Number(candidate.now)
+    && (candidate.taskId === undefined || (typeof candidate.taskId === "string" && SAFE_LIFECYCLE_ID.test(candidate.taskId)))
+    && (candidate.provider === undefined || (typeof candidate.provider === "string" && SAFE_LIFECYCLE_ID.test(candidate.provider)))
+    && (candidate.headSha === undefined || (typeof candidate.headSha === "string" && SHA40.test(candidate.headSha)));
 }
 
 function validScheduledReceipt(value: unknown): value is ScheduledRuntimeReceipt {
@@ -310,6 +364,7 @@ export class ExecutionCoordinator {
     if (request.method === "GET" && url.pathname === "/execution") return this.readExecution();
     if (request.method === "GET" && url.pathname === "/control-plane-hold") return this.readControlPlaneHold();
     if (request.method === "GET" && url.pathname === "/active-wip") return this.readActiveWip();
+    if (request.method === "GET" && url.pathname === "/provider-capacity-wait") return this.readProviderCapacityWait();
     if (request.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405);
     if (url.pathname === "/acquire") return this.acquire(await request.json());
     if (url.pathname === "/handoff-or-acquire") return this.handoffOrAcquire(await request.json());
@@ -324,6 +379,8 @@ export class ExecutionCoordinator {
     if (url.pathname === "/execution-telemetry") return this.writeExecutionTelemetry(await request.json());
     if (url.pathname === "/control-plane-hold/apply") return this.applyControlPlaneHold(await request.json());
     if (url.pathname === "/control-plane-hold/clear") return this.clearControlPlaneHold(await request.json());
+    if (url.pathname === "/rate-limit-stop") return this.stopForRateLimit(await request.json());
+    if (url.pathname === "/provider-capacity-wait") return this.recordProviderCapacityWait(await request.json());
     return json({ error: "NOT_FOUND" }, 404);
   }
 
@@ -336,6 +393,12 @@ export class ExecutionCoordinator {
       if (current?.dedupeKey === request.dedupeKey) {
         if (current.state === "DISPATCHED") return json({ acquired: false, reason: "ALREADY_DISPATCHED", record: current }, 409);
         if (current.state === "COMPLETED") return json({ acquired: false, reason: "ALREADY_COMPLETED", record: current }, 409);
+        if (current.state === "BLOCKED") return json({ acquired: false, reason: "EXECUTION_BLOCKED", record: current }, 409);
+        if (current.state === "WAITING_RATE_LIMIT") {
+          if (!current.stop || !validPersistentExecutionStop(current.stop)) return json({ error: "EXECUTION_STOP_STATE_CORRUPT" }, 500);
+          if (current.executionId !== request.executionId) return json({ acquired: false, reason: "EXECUTION_ID_CONFLICT", record: current }, 409);
+          if (request.now < current.stop.nextRetryAt) return json({ acquired: false, reason: "WAITING_RATE_LIMIT", nextRetryAt: current.stop.nextRetryAt, record: current }, 409);
+        }
         if (current.state === "LEASED" && current.leaseExpiresAt > request.now) return json({ acquired: false, reason: "LEASE_ACTIVE", record: current }, 409);
       }
 
@@ -345,6 +408,10 @@ export class ExecutionCoordinator {
         state: "LEASED",
         leaseExpiresAt: request.leaseExpiresAt,
         updatedAt: request.now,
+        ...(request.taskId ? { taskId: request.taskId } : current?.taskId ? { taskId: current.taskId } : {}),
+        ...(request.provider ? { provider: request.provider } : current?.provider ? { provider: current.provider } : {}),
+        ...(request.headSha ? { headSha: request.headSha } : current?.headSha ? { headSha: current.headSha } : {}),
+        ...(current?.stop ? { stop: current.stop, resumeCount: (current.resumeCount ?? 0) + (current.state === "WAITING_RATE_LIMIT" ? 1 : 0) } : {}),
       });
       await storage.put("execution", record);
       return json({ acquired: true, record }, 201);
@@ -394,6 +461,12 @@ export class ExecutionCoordinator {
       if (current?.dedupeKey === request.dedupeKey) {
         if (current.state === "DISPATCHED") return json({ acquired: false, reason: "ALREADY_DISPATCHED", record: current }, 409);
         if (current.state === "COMPLETED") return json({ acquired: false, reason: "ALREADY_COMPLETED", record: current }, 409);
+        if (current.state === "BLOCKED") return json({ acquired: false, reason: "EXECUTION_BLOCKED", record: current }, 409);
+        if (current.state === "WAITING_RATE_LIMIT") {
+          if (!current.stop || !validPersistentExecutionStop(current.stop)) return json({ error: "EXECUTION_STOP_STATE_CORRUPT" }, 500);
+          if (current.executionId !== request.executionId) return json({ acquired: false, reason: "EXECUTION_ID_CONFLICT", record: current }, 409);
+          if (request.now < current.stop.nextRetryAt) return json({ acquired: false, reason: "WAITING_RATE_LIMIT", nextRetryAt: current.stop.nextRetryAt, record: current }, 409);
+        }
         if (current.executionId === request.executionId && current.state === "LEASED" && current.leaseExpiresAt > request.now) {
           const record: ExecutionRecord = Object.freeze({ ...current, state: "HANDED_OFF", updatedAt: request.now });
           await storage.put("execution", record);
@@ -409,6 +482,10 @@ export class ExecutionCoordinator {
         state: "LEASED",
         leaseExpiresAt: request.leaseExpiresAt,
         updatedAt: request.now,
+        ...(request.taskId ? { taskId: request.taskId } : current?.taskId ? { taskId: current.taskId } : {}),
+        ...(request.provider ? { provider: request.provider } : current?.provider ? { provider: current.provider } : {}),
+        ...(request.headSha ? { headSha: request.headSha } : current?.headSha ? { headSha: current.headSha } : {}),
+        ...(current?.stop ? { stop: current.stop, resumeCount: (current.resumeCount ?? 0) + (current.state === "WAITING_RATE_LIMIT" ? 1 : 0) } : {}),
       });
       await storage.put("execution", record);
       return json({ acquired: true, handoff: false, record }, 201);
@@ -427,6 +504,55 @@ export class ExecutionCoordinator {
       const record: ExecutionRecord = Object.freeze({ ...current, state: "COMPLETED", leaseExpiresAt: Number(request.now), updatedAt: Number(request.now) });
       await storage.put("execution", record);
       return json({ completed: true, record });
+    });
+  }
+
+  private async stopForRateLimit(value: unknown): Promise<Response> {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return json({ error: "EXECUTION_STOP_REQUEST_INVALID" }, 400);
+    const request = value as Partial<PersistentExecutionStopRequest>;
+    const nowValue = (value as { now?: unknown }).now;
+    const stoppedAtValue = (value as { stoppedAt?: unknown }).stoppedAt;
+    if (!validSafeTimestamp(nowValue) || !validPersistentExecutionStop(request) || !validSafeTimestamp(stoppedAtValue) || Number(nowValue) < Number(stoppedAtValue) || request.nextRetryAt === undefined || Number(request.nextRetryAt) <= Number(nowValue)) {
+      return json({ error: "EXECUTION_STOP_REQUEST_INVALID" }, 400);
+    }
+    const stopRequest = request as PersistentExecutionStopRequest;
+    if (stopRequest.dedupeKey !== stopRequest.dedupeKey.trim() || stopRequest.executionId !== stopRequest.executionId.trim()) return json({ error: "EXECUTION_STOP_REQUEST_INVALID" }, 400);
+    return this.mutateExecutionAtomically(async (storage) => {
+      const current = await storage.get<ExecutionRecord>("execution");
+      if (!current || current.dedupeKey !== stopRequest.dedupeKey || current.executionId !== stopRequest.executionId) return json({ error: "EXECUTION_LEASE_MISMATCH" }, 409);
+      if (current.state !== "LEASED" && current.state !== "HANDED_OFF") return json({ error: "EXECUTION_STOP_NOT_ACTIVE" }, 409);
+      const { now: _now, ...rawStop } = stopRequest;
+      const stop = Object.freeze({ ...rawStop, schemaVersion: 1 }) as PersistentExecutionStop;
+      const record: ExecutionRecord = Object.freeze({
+        ...current,
+        state: "WAITING_RATE_LIMIT",
+        leaseExpiresAt: stop.nextRetryAt,
+        updatedAt: stopRequest.now,
+        taskId: stop.taskId,
+        provider: stop.provider,
+        headSha: stop.headSha,
+        stop,
+      });
+      await storage.put("execution", record);
+      return json({ stopped: true, state: record.state, nextRetryAt: stop.nextRetryAt, record });
+    });
+  }
+
+  private async readProviderCapacityWait(): Promise<Response> {
+    const wait = await this.ctx.storage.get<PersistentExecutionStop>("provider-capacity-wait");
+    if (wait !== undefined && !validPersistentExecutionStop(wait)) return json({ error: "PROVIDER_CAPACITY_WAIT_CORRUPT" }, 500);
+    return json({ wait: wait ?? null });
+  }
+
+  private async recordProviderCapacityWait(value: unknown): Promise<Response> {
+    if (!validPersistentExecutionStop(value)) return json({ error: "PROVIDER_CAPACITY_WAIT_INVALID" }, 400);
+    const incoming = Object.freeze({ ...value, schemaVersion: 1 }) as PersistentExecutionStop;
+    return this.mutateExecutionAtomically(async (storage) => {
+      const current = await storage.get<PersistentExecutionStop>("provider-capacity-wait");
+      // Monotonic: a late or replayed stop can never shorten a provider wait that is already longer.
+      const kept = current && validPersistentExecutionStop(current) && current.nextRetryAt >= incoming.nextRetryAt ? current : incoming;
+      if (kept === incoming) await storage.put("provider-capacity-wait", incoming);
+      return json({ recorded: true, wait: kept });
     });
   }
 
@@ -791,12 +917,12 @@ export interface ExecutionCoordinatorNamespace {
   get(id: DurableObjectIdLike): DurableObjectStubLike;
 }
 
-export async function acquirePersistentExecution(namespace: ExecutionCoordinatorNamespace, input: AcquireRequest): Promise<{ acquired: boolean; reason?: string }> {
+export async function acquirePersistentExecution(namespace: ExecutionCoordinatorNamespace, input: PersistentExecutionAcquireRequest): Promise<{ acquired: boolean; reason?: string; nextRetryAt?: number }> {
   const stub = namespace.get(namespace.idFromName(input.dedupeKey));
   const response = await stub.fetch("https://execution-coordinator/acquire", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) });
-  const body = await response.json() as { acquired?: boolean; reason?: string };
+  const body = await response.json() as { acquired?: boolean; reason?: string; nextRetryAt?: unknown };
   if (response.status === 201 && body.acquired === true) return { acquired: true };
-  if (response.status === 409 && body.acquired === false) return { acquired: false, reason: body.reason ?? "DUPLICATE_EXECUTION" };
+  if (response.status === 409 && body.acquired === false) return { acquired: false, reason: body.reason ?? "DUPLICATE_EXECUTION", ...(Number.isSafeInteger(body.nextRetryAt) ? { nextRetryAt: Number(body.nextRetryAt) } : {}) };
   throw new Error("PERSISTENT_EXECUTION_COORDINATION_FAILED");
 }
 
@@ -808,12 +934,12 @@ export async function readPersistentExecution(namespace: ExecutionCoordinatorNam
   return body.record ?? null;
 }
 
-export async function handoffOrAcquirePersistentExecution(namespace: ExecutionCoordinatorNamespace, input: AcquireRequest): Promise<{ acquired: boolean; reason?: string }> {
+export async function handoffOrAcquirePersistentExecution(namespace: ExecutionCoordinatorNamespace, input: PersistentExecutionAcquireRequest): Promise<{ acquired: boolean; reason?: string; nextRetryAt?: number }> {
   const stub = namespace.get(namespace.idFromName(input.dedupeKey));
   const response = await stub.fetch("https://execution-coordinator/handoff-or-acquire", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) });
-  const body = await response.json() as { acquired?: boolean; reason?: string };
+  const body = await response.json() as { acquired?: boolean; reason?: string; nextRetryAt?: unknown };
   if (response.status === 201 && body.acquired === true) return { acquired: true };
-  if (response.status === 409 && body.acquired === false) return { acquired: false, reason: body.reason ?? "DUPLICATE_EXECUTION" };
+  if (response.status === 409 && body.acquired === false) return { acquired: false, reason: body.reason ?? "DUPLICATE_EXECUTION", ...(Number.isSafeInteger(body.nextRetryAt) ? { nextRetryAt: Number(body.nextRetryAt) } : {}) };
   throw new Error("PERSISTENT_EXECUTION_HANDOFF_FAILED");
 }
 
@@ -827,6 +953,43 @@ export async function releasePersistentExecution(namespace: ExecutionCoordinator
   const stub = namespace.get(namespace.idFromName(input.dedupeKey));
   const response = await stub.fetch("https://execution-coordinator/release", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) });
   if (!response.ok) throw new Error("PERSISTENT_EXECUTION_RELEASE_FAILED");
+}
+
+export async function markPersistentExecutionRateLimitStopped(namespace: ExecutionCoordinatorNamespace, input: PersistentExecutionStopRequest): Promise<{ stopped: boolean; nextRetryAt?: number; reason?: string }> {
+  const stub = namespace.get(namespace.idFromName(input.dedupeKey));
+  const response = await stub.fetch("https://execution-coordinator/rate-limit-stop", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) });
+  const body = await response.json() as { stopped?: boolean; nextRetryAt?: unknown; error?: unknown };
+  if (response.status === 200 && body.stopped === true && Number.isSafeInteger(body.nextRetryAt)) return { stopped: true, nextRetryAt: Number(body.nextRetryAt) };
+  if (response.status === 409) return { stopped: false, reason: typeof body.error === "string" ? body.error : "EXECUTION_STOP_REJECTED" };
+  throw new Error("PERSISTENT_EXECUTION_RATE_LIMIT_STOP_FAILED");
+}
+
+/**
+ * A provider rate-limit is a property of the provider, not of one execution. Execution records are
+ * keyed by a dedupe key that includes the exact main SHA, so after main moves the next scheduled run
+ * looks up a new, empty record and dispatches again inside the provider's wait window. This record is
+ * keyed by provider only, so the wait survives main changes and applies to every new execution.
+ */
+function providerCapacityWaitId(provider: string): string {
+  return `provider-capacity-wait:${provider}`;
+}
+
+export async function recordProviderCapacityWait(namespace: ExecutionCoordinatorNamespace, stop: PersistentExecutionStop): Promise<PersistentExecutionStop> {
+  const stub = namespace.get(namespace.idFromName(providerCapacityWaitId(stop.provider)));
+  const response = await stub.fetch("https://execution-coordinator/provider-capacity-wait", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(stop) });
+  const body = await response.json() as { recorded?: boolean; wait?: unknown };
+  if (response.status !== 200 || body.recorded !== true || !validPersistentExecutionStop(body.wait)) throw new Error("PROVIDER_CAPACITY_WAIT_RECORD_FAILED");
+  return body.wait;
+}
+
+export async function readProviderCapacityWait(namespace: ExecutionCoordinatorNamespace, provider: string): Promise<PersistentExecutionStop | null> {
+  const stub = namespace.get(namespace.idFromName(providerCapacityWaitId(provider)));
+  const response = await stub.fetch("https://execution-coordinator/provider-capacity-wait");
+  if (!response.ok) throw new Error("PROVIDER_CAPACITY_WAIT_READ_FAILED");
+  const body = await response.json() as { wait?: unknown };
+  if (body.wait === null || body.wait === undefined) return null;
+  if (!validPersistentExecutionStop(body.wait)) throw new Error("PROVIDER_CAPACITY_WAIT_READ_FAILED");
+  return body.wait;
 }
 
 export async function completePersistentExecution(namespace: ExecutionCoordinatorNamespace, input: { dedupeKey: string; executionId: string; now: number }): Promise<void> {

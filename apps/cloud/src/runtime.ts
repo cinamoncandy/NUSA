@@ -10,7 +10,7 @@ import { CloudPaperExecutionBoundary } from "./cloudPaperExecutionBoundary";
 import { SqliteP0AlertRepository } from "./p0AlertRepository";
 import fs from "node:fs";
 import path from "node:path";
-import { createShutdownController, type ShutdownController } from "./cloudRuntimeShutdown";
+import { createShutdownController, handleRuntimeFault, type ShutdownController } from "./cloudRuntimeShutdown";
 import { startCloudDashboardServer, type CloudDashboardServerHandle, type CloudReadinessSnapshot } from "./server";
 import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { UpbitWebSocketClient, type UpbitOrderBook, type UpbitTicker, type UpbitWebSocketOptions } from "./upbitWebSocket";
@@ -198,6 +198,7 @@ export function startCloudRuntime(
   const paperMarketObservationRepository = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new SqlitePaperMarketObservationRepository(durableRepository.database())
     : undefined;
+  const effectivePaperRepository = paperAccountRepository ?? (config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository ? new SqliteCloudPaperAccountRepository(durableRepository.database()) : undefined);
   let effectivePaperLoop: PaperTradingExecutionLoop | undefined;
   const paperRealizedPeriodProducer = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new PaperRealizedPeriodProducer(new SqlitePaperRealizedPeriodRepository(durableRepository.database()), {
@@ -213,6 +214,10 @@ export function startCloudRuntime(
         const loop = effectivePaperLoop;
         if (loop == null) throw new Error("canonical PAPER account source is unavailable");
         return loop.snapshot();
+      },
+      readCanonicalPaperFills: () => {
+        if (effectivePaperRepository?.loadFills == null) throw new Error("canonical PAPER fill ledger is unavailable");
+        return effectivePaperRepository.loadFills();
       },
       ...(paperMarketObservationRepository == null ? {} : { readCanonicalBenchmarkEvidence: (periodStartAt: number, periodEndAt: number, market?: string) => readCanonicalPaperTickerBenchmark(paperMarketObservationRepository, market, periodStartAt, periodEndAt) }),
     })
@@ -235,7 +240,6 @@ export function startCloudRuntime(
     : new InMemoryInvestmentAllocationSettingsRepository();
   const readPaperP0State = () => { if (effectiveP0Repository == null) throw new Error("P0 safety repository unavailable"); return effectiveP0Repository.readState(); };
   const readAiP0State = (): CloudRuntimeAiP0State => { if (effectiveP0Repository == null) return "UNAVAILABLE"; try { return effectiveP0Repository.readState().openP0 ? "OPEN" : "CLOSED"; } catch { return "UNVERIFIABLE"; } };
-  const effectivePaperRepository = paperAccountRepository ?? (config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository ? new SqliteCloudPaperAccountRepository(durableRepository.database()) : undefined);
   const productionPaperRiskGate = config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new CloudPaperCanonicalRiskGateway({ database: durableRepository.database(), initialCapital: config.paperInitialCapitalKrw, sourceCommitSha: env.NUSA_SOURCE_COMMIT?.trim() || env.GITHUB_SHA?.trim() || "local-paper-build" })
     : undefined;
@@ -476,12 +480,10 @@ export function registerGracefulShutdown(handle: CloudDashboardServerHandle, exi
   // Unrecoverable runtime faults must terminate the process so supervisors can restart
   // from a fail-closed state instead of serving potentially stale mutation paths.
   process.on("uncaughtException", (error) => {
-    console.error("[cloud-runtime-crash] uncaught exception", error instanceof Error ? error.message : "unknown error");
-    exit(1);
+    handleRuntimeFault(controller, "uncaught exception", error, exit);
   });
   process.on("unhandledRejection", (reason) => {
-    console.error("[cloud-runtime-crash] unhandled rejection", reason instanceof Error ? reason.message : "unknown error");
-    exit(1);
+    handleRuntimeFault(controller, "unhandled rejection", reason, exit);
   });
 
   return controller;

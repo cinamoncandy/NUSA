@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { acquirePersistentExecution, applyPersistentControlPlaneHold, clearPersistentControlPlaneHold, ExecutionCoordinator, handoffOrAcquirePersistentExecution, markPersistentExecutionDispatched, readPersistentControlPlaneHold, releasePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, readProviderCapacityWait, recordProviderCapacityWait, applyPersistentControlPlaneHold, clearPersistentControlPlaneHold, ExecutionCoordinator, handoffOrAcquirePersistentExecution, markPersistentExecutionDispatched, markPersistentExecutionRateLimitStopped, readPersistentControlPlaneHold, readPersistentExecution, releasePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
 
 class MemoryStorage {
@@ -175,6 +175,44 @@ describe("persistent execution coordination", () => {
     assert.deepEqual(await acquirePersistentExecution(namespace, request), { acquired: true });
     await releasePersistentExecution(namespace, { dedupeKey: request.dedupeKey, executionId: request.executionId, now: 200 });
     assert.deepEqual(await acquirePersistentExecution(namespace, { ...request, now: 201, leaseExpiresAt: 1_101 }), { acquired: true });
+  });
+
+  it("persists a rate-limit stop, suppresses early replays, and resumes the same identity once due", async () => {
+    const ns = memoryNamespace();
+    const request = {
+      dedupeKey: "evolve-coding:rate-limit",
+      executionId: "evolve-coding:rate-limit",
+      taskId: "autopilot:github-issue-2118",
+      provider: "workers-ai",
+      headSha: "a".repeat(40),
+      now: 1_000,
+      leaseExpiresAt: 2_000,
+    };
+    assert.deepEqual(await acquirePersistentExecution(ns, request), { acquired: true });
+    const stop = await markPersistentExecutionRateLimitStopped(ns, {
+      schemaVersion: 1,
+      taskId: request.taskId,
+      executionId: request.executionId,
+      provider: request.provider,
+      headSha: request.headSha,
+      stopReason: "WORKERS_AI_RATE_LIMITED",
+      stoppedAt: 1_100,
+      attemptCount: 3,
+      lastFailure: "WORKERS_AI_RATE_LIMITED",
+      nextRetryAt: 2_000,
+      resumeCondition: "provider-capacity-and-exact-head-revalidation",
+      dedupeKey: request.dedupeKey,
+      evidenceRef: "coding-evidence:evolve-coding-rate-limit",
+      now: 1_100,
+    });
+    assert.deepEqual(stop, { stopped: true, nextRetryAt: 2_000 });
+    assert.deepEqual(await handoffOrAcquirePersistentExecution(ns, { ...request, now: 1_500, leaseExpiresAt: 2_500 }), { acquired: false, reason: "WAITING_RATE_LIMIT", nextRetryAt: 2_000 });
+    assert.deepEqual(await handoffOrAcquirePersistentExecution(ns, { ...request, now: 2_000, leaseExpiresAt: 3_000 }), { acquired: true });
+    const record = await readPersistentExecution(ns, request.dedupeKey);
+    assert.equal(record?.state, "LEASED");
+    assert.equal(record?.executionId, request.executionId);
+    assert.equal(record?.stop?.nextRetryAt, 2_000);
+    assert.equal(record?.resumeCount, 1);
   });
 
   it("does not release an already dispatched execution", async () => {
@@ -395,4 +433,65 @@ describe("persistent control-plane HOLD", () => {
     assert.equal((await post({ ...base, maxConcurrent: 9 })).status, 400);
   });
 
+});
+
+describe("provider capacity wait", () => {
+  function namedNamespace(): { namespace: ExecutionCoordinatorNamespace; names: string[] } {
+    const coordinators = new Map<string, ExecutionCoordinator>();
+    const names: string[] = [];
+    const namespace: ExecutionCoordinatorNamespace = {
+      idFromName: (name: string) => ({ name }),
+      get: (id: unknown) => {
+        const name = (id as { name: string }).name;
+        names.push(name);
+        if (!coordinators.has(name)) coordinators.set(name, new ExecutionCoordinator({ storage: new MemoryStorage() }));
+        const coordinator = coordinators.get(name)!;
+        return { fetch: (input: RequestInfo | URL, init?: RequestInit) => coordinator.fetch(new Request(input, init)) };
+      },
+    };
+    return { namespace, names };
+  }
+
+  const stop = (mainSha: string, nextRetryAt: number) => ({
+    schemaVersion: 1 as const,
+    taskId: "autopilot:github-issue-2118",
+    executionId: `evolve-coding:${mainSha.slice(0, 16)}:github-issue-2118`,
+    provider: "workers-ai",
+    headSha: mainSha,
+    stopReason: "WORKERS_AI_DAILY_QUOTA_EXHAUSTED",
+    stoppedAt: 1_000,
+    attemptCount: 1,
+    lastFailure: "WORKERS_AI_DAILY_QUOTA_EXHAUSTED",
+    nextRetryAt,
+    resumeCondition: "provider-capacity-and-exact-head-revalidation",
+    dedupeKey: `evolve-coding:${mainSha}:github-issue-2118`,
+    evidenceRef: "coding-evidence:2118",
+  });
+
+  it("is keyed by provider, so a wait recorded on one main is read back on another", async () => {
+    const { namespace, names } = namedNamespace();
+    assert.equal(await readProviderCapacityWait(namespace, "workers-ai"), null);
+    await recordProviderCapacityWait(namespace, stop("a".repeat(40), 5_000));
+    const wait = await readProviderCapacityWait(namespace, "workers-ai");
+    assert.equal(wait?.nextRetryAt, 5_000);
+    assert.equal(wait?.headSha, "a".repeat(40), "the provenance of the stopped execution is kept");
+    assert.deepEqual([...new Set(names)], ["provider-capacity-wait:workers-ai"], "never keyed by a main-specific dedupe key");
+    assert.equal(await readProviderCapacityWait(namespace, "other-provider"), null, "providers do not share a wait");
+  });
+
+  it("never lets a late or replayed stop shorten a longer wait", async () => {
+    const { namespace } = namedNamespace();
+    await recordProviderCapacityWait(namespace, stop("a".repeat(40), 9_000));
+    const kept = await recordProviderCapacityWait(namespace, stop("b".repeat(40), 4_000));
+    assert.equal(kept.nextRetryAt, 9_000);
+    assert.equal((await readProviderCapacityWait(namespace, "workers-ai"))?.nextRetryAt, 9_000);
+    await recordProviderCapacityWait(namespace, stop("c".repeat(40), 12_000));
+    assert.equal((await readProviderCapacityWait(namespace, "workers-ai"))?.nextRetryAt, 12_000);
+  });
+
+  it("rejects a malformed wait instead of storing it", async () => {
+    const { namespace } = namedNamespace();
+    await assert.rejects(recordProviderCapacityWait(namespace, { ...stop("a".repeat(40), 5_000), headSha: "not-a-sha" }), /PROVIDER_CAPACITY_WAIT_RECORD_FAILED/);
+    assert.equal(await readProviderCapacityWait(namespace, "workers-ai"), null);
+  });
 });

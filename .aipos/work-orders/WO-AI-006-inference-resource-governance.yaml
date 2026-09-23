@@ -71,7 +71,7 @@ acceptance_criteria:
   - no provider/broker credential authorization header raw prompt hidden reasoning or secret material is stored in resource evidence
   - existing grounded evidence prompt identity calibration durability and zero-authority tests remain PASS
   - resource exhaustion cannot alter PAPER orders/fills strategy promotion risk limits P0 HALT kill switch or LIVE authority
-  - `liveAuthority=NONE`, `productionMutationAllowed=false`, `realOrderAuthority=false`, and `realTransferAuthority=false` remain proven
+  - "`liveAuthority=NONE`, `productionMutationAllowed=false`, `realOrderAuthority=false`, and `realTransferAuthority=false` remain proven"
   - exact-head typecheck build lint focused/full tests coverage architecture/AIPOS security E2E and all Restricted LIVE/read-only workflows pass
   - implementation PR is merged only after all required checks pass
 verification:

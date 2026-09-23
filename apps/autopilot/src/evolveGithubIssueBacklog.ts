@@ -10,6 +10,7 @@ type EligibleIssue = Readonly<{
   capability: GithubIssueCapability;
   canonicalOwner?: string;
   conflictKeys?: readonly string[];
+  codingTarget?: string;
 }>;
 
 export type GithubIssueCapability = "AUTOPILOT_TYPESCRIPT" | "RESEARCH" | "GENERAL" | "UNKNOWN";
@@ -26,6 +27,8 @@ const text = (value: unknown): string | null => typeof value === "string" && val
 const positiveInteger = (value: unknown): number | null => Number.isSafeInteger(value) && Number(value) > 0 ? Number(value) : null;
 const OWNER = /^[A-Za-z0-9_.:/-]{1,120}$/;
 const CONFLICT_KEY = /^[A-Za-z0-9_.:/-]{1,200}$/;
+const CODING_TARGET = /^apps\/autopilot\/src\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-]+\.ts$/;
+const FORBIDDEN_CODING_TARGET = /(?:^|\/)(?:live|live-trading|broker|order|credential|secret|secrets|withdraw|transfer|production-authority)(?:\/|$)/i;
 
 function explicitWorkMetadata(body: string): Readonly<{ canonicalOwner: string; conflictKeys: readonly string[] }> | null {
   const ownerMatches = [...body.matchAll(/^\s*canonicalOwner\s*:\s*([^\s]+)\s*$/gim)];
@@ -36,6 +39,31 @@ function explicitWorkMetadata(body: string): Readonly<{ canonicalOwner: string; 
   const conflictKeys = (conflictMatches[0]?.[1] ?? "").split(",").map((value) => value.trim()).filter(Boolean);
   if (!OWNER.test(canonicalOwner) || conflictKeys.length === 0 || conflictKeys.length > 32 || new Set(conflictKeys).size !== conflictKeys.length || conflictKeys.some((key) => !CONFLICT_KEY.test(key))) throw new Error("BACKLOG_WORK_METADATA_INVALID");
   return Object.freeze({ canonicalOwner, conflictKeys: Object.freeze(conflictKeys) });
+}
+
+/**
+ * An OWNER issue may name the one file its next increment belongs in with a single
+ * `codingTarget: apps/autopilot/src/<file>.ts` line. The path is carried into the selected
+ * problem, where the dispatch loop gives the first coding attempt a real excerpt of exactly that
+ * file instead of none; without it the model must invent the diff context that the sandbox's
+ * `git apply --check` compares byte for byte. Absent means unchanged behaviour. A repeated or
+ * out-of-scope target makes the issue ineligible, like any other ambiguous work metadata: a
+ * target the coding runner would refuse to patch must not reach it.
+ */
+function explicitCodingTarget(body: string): string | undefined {
+  const matches = [...body.matchAll(/^\s*codingTarget\s*:\s*([^\s]+)\s*$/gim)];
+  if (matches.length === 0) return undefined;
+  const target = matches[0]?.[1]?.trim() ?? "";
+  if (matches.length !== 1
+    || !CODING_TARGET.test(target)
+    || target.endsWith(".test.ts")
+    || target.endsWith(".d.ts")
+    || target === "apps/autopilot/src/index.ts"
+    || target === "apps/autopilot/src/worker.ts"
+    || FORBIDDEN_CODING_TARGET.test(target)) {
+    throw new Error("BACKLOG_CODING_TARGET_INVALID");
+  }
+  return target;
 }
 
 function priorityFromTitle(title: string): 0 | 1 | null {
@@ -118,7 +146,13 @@ function eligibleIssue(value: unknown, linked: ReadonlySet<number>): EligibleIss
   const updatedAt = text(issue.updated_at);
   const updatedAtMs = updatedAt ? Date.parse(updatedAt) : 0;
   let metadata: ReturnType<typeof explicitWorkMetadata>;
-  try { metadata = explicitWorkMetadata(body); } catch { return null; }
+  let codingTarget: string | undefined;
+  try {
+    metadata = explicitWorkMetadata(body);
+    codingTarget = explicitCodingTarget(body);
+  } catch {
+    return null;
+  }
   return Object.freeze({
     number,
     title,
@@ -126,6 +160,7 @@ function eligibleIssue(value: unknown, linked: ReadonlySet<number>): EligibleIss
     updatedAtMs: Number.isFinite(updatedAtMs) ? updatedAtMs : 0,
     capability: capabilityForIssue(title, body),
     ...(metadata ?? {}),
+    ...(codingTarget === undefined ? {} : { codingTarget }),
   });
 }
 
@@ -159,7 +194,7 @@ export function deriveGithubIssueBacklogReadiness(
     id: `github-issue-${issue.number}`,
     source: "github-issue-backlog",
     reference: `github://issue/${issue.number}`,
-    problem: `GitHub issue #${issue.number}: ${issue.title}. Implement only the next smallest verifiable apps/autopilot/src control-plane increment while preserving PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, and aiAuthority=ZERO_AUTHORITY.`,
+    problem: `GitHub issue #${issue.number}: ${issue.title}. Implement only the next smallest verifiable apps/autopilot/src control-plane increment while preserving PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, and aiAuthority=ZERO_AUTHORITY.${issue.codingTarget === undefined ? "" : ` Target file: ${issue.codingTarget}.`}`,
     observedAt: observedAt.toISOString(),
     evidenceQuality: 0.95,
     impact: issue.priority === 0 ? 0.95 : 0.85,

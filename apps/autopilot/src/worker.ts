@@ -129,7 +129,7 @@ async function handleCodingProposal(request: Request, env: WorkerEnv): Promise<R
   try {
     const runnerRequest = validateCodingRunnerRequest(await request.json(), allowedRepository);
     const capture = new ProposalCaptureRuntime();
-    const result = await executeCodingRunner(runnerRequest, env, undefined, capture);
+    const result = await executeCodingRunner(runnerRequest, env, undefined, capture, undefined, { maxProposalAttempts: 1 });
     if (result.status !== "EXECUTION_ACCEPTED" || !capture.proposal?.patch.trim()) {
       throw new Error(result.reason || "CODING_PROPOSAL_UNAVAILABLE");
     }

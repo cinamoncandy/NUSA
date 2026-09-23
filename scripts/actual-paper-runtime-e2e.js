@@ -5,6 +5,7 @@ const { dirname, resolve } = require("node:path");
 const { spawn, spawnSync } = require("node:child_process");
 const { DatabaseSync } = require("node:sqlite");
 const { PaperRuntimeProcessSupervisor } = require("./paper-runtime-supervisor.js");
+const { PRODUCTION_RUNTIME_ENTRYPOINT } = require("./start-cloud-runtime.js");
 
 const sleep = (ms) => new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
@@ -49,8 +50,8 @@ function gitRevision(root) {
 }
 
 function assertBuilt(root) {
-  const runtimePath = resolve(root, "dist/apps/cloud/src/runtime.js");
-  if (!existsSync(runtimePath)) throw new Error("compiled Cloud runtime is missing; run `pnpm run build` before the E2E harness");
+  const runtimePath = resolve(root, PRODUCTION_RUNTIME_ENTRYPOINT);
+  if (!existsSync(runtimePath)) throw new Error("compiled production Cloud runtime is missing; run `pnpm run build` before the E2E harness");
 }
 
 function readPersistedPaperLearningIds(databasePath) {
@@ -66,7 +67,7 @@ function readPersistedPaperLearningIds(databasePath) {
 function startRuntime(root, env) {
   const stdout = [];
   const stderr = [];
-  const child = spawn(process.execPath, ["dist/apps/cloud/src/runtime.js"], {
+  const child = spawn(process.execPath, [PRODUCTION_RUNTIME_ENTRYPOINT], {
     cwd: root,
     env,
     shell: false,
@@ -272,6 +273,9 @@ async function run(options = {}) {
   const idempotencyKey = `wo0059:${Date.now()}:${randomBytes(8).toString("hex")}`;
   void idempotencyKey;
   const port = await availablePort();
+  const sourceCommit = gitRevision(root);
+  const researchReplaySnapshotPath = resolve(workingDir, "research-replay-snapshots.json");
+  const qualifiedArtifactPath = resolve(workingDir, "qualified-paper-challengers.json");
   const { env: cleanBaseEnv, removed: scrubbedPrivateKeys } = scrubPrivateExchangeEnv(process.env);
   const env = {
     ...cleanBaseEnv,
@@ -285,7 +289,10 @@ async function run(options = {}) {
     NUSA_CLOUD_STATE_DB_PATH: databasePath,
     NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "10000000",
     NUSA_CLOUD_PAPER_INVESTMENT_PERCENT: "10",
-    NUSA_SOURCE_COMMIT: gitRevision(root),
+    NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH: researchReplaySnapshotPath,
+    NUSA_QUALIFIED_PAPER_CHALLENGER_ARTIFACT_PATH: qualifiedArtifactPath,
+    NUSA_SOURCE_COMMIT: sourceCommit,
+    NUSA_SOURCE_COMMIT_SHA: sourceCommit,
   };
   const baseUrl = `http://127.0.0.1:${port}`;
   let firstRuntime;
@@ -346,7 +353,7 @@ async function run(options = {}) {
 
     supervisor = new PaperRuntimeProcessSupervisor({
       command: process.execPath,
-      args: ["dist/apps/cloud/src/runtime.js"],
+      args: [PRODUCTION_RUNTIME_ENTRYPOINT],
       cwd: root,
       env,
       stableWindowMs: 60_000,
@@ -395,6 +402,7 @@ async function run(options = {}) {
       started_at: startedAt,
       completed_at: new Date().toISOString(),
       authority: { mode: "PAPER_ONLY", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" },
+      runtime_composition: { entrypoint: PRODUCTION_RUNTIME_ENTRYPOINT, closed_learning_production_root: true, isolated_research_snapshot_path: researchReplaySnapshotPath, isolated_qualified_challenger_path: qualifiedArtifactPath },
       market_data: { provider: "UPBIT", channel: "PUBLIC_TICKER", market, private_credentials_used: false, scrubbed_private_env_key_count: scrubbedPrivateKeys.length },
       execution: firstOrder == null ? { status: "NO_ACTIONABLE_SIGNAL", order_count: 0, fill_count: 0 } : { status: "AUTOMATICALLY_FILLED", order_id: firstOrder.id, fill_id: firstFill?.id, side: firstOrder.side, quantity: firstOrder.quantity, price: firstOrder.price, fee: firstOrder.fee },
       first_runtime: firstSummary,

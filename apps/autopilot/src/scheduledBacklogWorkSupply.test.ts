@@ -28,6 +28,7 @@ function namespace(withPreviousReceipt = false): ExecutionCoordinatorNamespace {
           } : null;
           return new Response(JSON.stringify({ receipt }), { status: 200, headers: { "content-type": "application/json" } });
         }
+        if (url.endsWith("/provider-capacity-wait")) return new Response(JSON.stringify({ wait: null }), { status: 200, headers: { "content-type": "application/json" } });
         if (url.endsWith("/execution")) return new Response(JSON.stringify({ record: null }), { status: 200, headers: { "content-type": "application/json" } });
         if (url.endsWith("/acquire")) return new Response(JSON.stringify({ acquired: true }), { status: 201, headers: { "content-type": "application/json" } });
         if (url.endsWith("/dispatched")) return new Response(JSON.stringify({ updated: true }), { status: 200, headers: { "content-type": "application/json" } });
@@ -62,6 +63,7 @@ function fetchFor(issues: readonly unknown[], pulls: readonly unknown[] = []): t
         : new Response("not found", { status: 404 });
     }
     if (url.endsWith("/branches/main")) return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200, headers: { "content-type": "application/json" } });
+    if (url.includes("/actions/workflows/ci.yml/runs?")) return new Response(JSON.stringify({ workflow_runs: [{ id: RUN_ID, name: "CI", conclusion: "success", head_branch: "main", head_sha: SHA, event: "push" }] }), { status: 200, headers: { "content-type": "application/json" } });
     if (url.includes("/actions/runs?")) return new Response(JSON.stringify({ workflow_runs: [{ id: RUN_ID, name: "CI", conclusion: "success", head_branch: "main", head_sha: SHA, event: "push" }] }), { status: 200, headers: { "content-type": "application/json" } });
     if (url.endsWith("/dispatches")) return new Response(null, { status: 204 });
     return new Response("not found", { status: 404 });
@@ -94,6 +96,7 @@ test("incomplete issue evidence never fabricates READY zero", async () => {
     const url = String(input);
     if (url.includes("/search/issues") && url.includes("is%3Aissue")) return new Response(JSON.stringify({ total_count: 101, items: [safeIssue(1901)] }), { status: 200, headers: { "content-type": "application/json" } });
     if (url.endsWith("/branches/main")) return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200, headers: { "content-type": "application/json" } });
+    if (url.includes("/actions/workflows/ci.yml/runs?")) return new Response(JSON.stringify({ workflow_runs: [] }), { status: 200, headers: { "content-type": "application/json" } });
     if (url.includes("/actions/runs?")) return new Response(JSON.stringify({ workflow_runs: [] }), { status: 200, headers: { "content-type": "application/json" } });
     return new Response("not found", { status: 404 });
   }) as typeof fetch;
