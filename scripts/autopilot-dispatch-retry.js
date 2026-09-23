@@ -124,14 +124,18 @@ function retryHint(response, payload, observedAt, maxMs = MAX_RETRY_DELAY_MS) {
   }
 
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
-  if (Object.prototype.hasOwnProperty.call(payload, "retryAfterMs")) {
-    const delayMs = clampRetryDelayMs(payload.retryAfterMs, maxMs);
-    if (delayMs !== null) return { delayMs, source: "provider-retry-after-ms" };
-  }
+  // An absolute timestamp is the provider's own authoritative clock value; a relative
+  // retryAfterMs is only reconstructed into an absolute time using *this* observation's
+  // clock, which already lags the Worker's by network + parse time. When both are present,
+  // prefer the absolute timestamp so a daily-quota reset time is not drifted by that latency.
   for (const key of ["retryAt", "nextRetryAt", "resetAt", "resetTimestamp"]) {
     if (!Object.prototype.hasOwnProperty.call(payload, key)) continue;
     const delayMs = retryTimestampMs(payload[key], observedAt, maxMs);
     if (delayMs !== null) return { delayMs, source: `provider-${key}` };
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, "retryAfterMs")) {
+    const delayMs = clampRetryDelayMs(payload.retryAfterMs, maxMs);
+    if (delayMs !== null) return { delayMs, source: "provider-retry-after-ms" };
   }
   return null;
 }
@@ -150,8 +154,14 @@ function rateLimitEvidence(response, payload, observedAt = Date.now()) {
   const code = providerRateLimitCodeFromPayload(payload) || (response?.status === 429 ? "RATE_LIMITED" : null);
   if (!code) return null;
   // A daily-quota stop is never locally retried (see decision logic below), so reporting its real
-  // resume time cannot lengthen any actual sleep; only the evidence/telemetry value changes.
-  const maxMs = code === "WORKERS_AI_DAILY_QUOTA_EXHAUSTED" ? MAX_REPORTED_QUOTA_RETRY_DELAY_MS : MAX_RETRY_DELAY_MS;
+  // resume time cannot lengthen any actual sleep; only the evidence/telemetry value changes. Once
+  // a provider-wide wait is already recorded, later executions are stopped with stopReason
+  // WAITING_PROVIDER_CAPACITY (not WORKERS_AI_DAILY_QUOTA_EXHAUSTED) but still carry the same
+  // long-lived absolute nextRetryAt, so they need the same uncapped reporting ceiling.
+  const isLongLivedQuotaStop = code === "WORKERS_AI_DAILY_QUOTA_EXHAUSTED"
+    || payload?.stopReason === "WORKERS_AI_DAILY_QUOTA_EXHAUSTED"
+    || payload?.stopReason === "WAITING_PROVIDER_CAPACITY";
+  const maxMs = isLongLivedQuotaStop ? MAX_REPORTED_QUOTA_RETRY_DELAY_MS : MAX_RETRY_DELAY_MS;
   const hint = retryHint(response, payload, observedAt, maxMs);
   return Object.freeze({
     provider: code.startsWith("WORKERS_AI_") ? "workers-ai" : "external-coding-runner",
