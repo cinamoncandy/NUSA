@@ -1,0 +1,51 @@
+id: WO-20260923-AUTOPILOT-RATE-LIMIT-NON2XX-FOLLOWUP
+title: "Autopilot rate-limit non-2xx stop normalization"
+status: IN_PROGRESS
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: f89490d071590b3e28551003807011525bf7fd80
+implementation_branch: codex/autopilot-rate-limit-waiting-20260923
+objective: "Ensure a provider rate-limit response returned as a non-2xx coding proposal failure enters WAITING_RATE_LIMIT with bounded nextRetryAt and preserves stop evidence instead of remaining terminal BLOCKED_RATE_LIMIT."
+parent_work_order: WO-20260923-AUTOPILOT-STOP-RESUME-P0
+authority_impact: none
+scope:
+  include:
+    - "Existing scripts/autopilot-dispatch-retry.js worker-stop normalization"
+    - "Existing provider rate-limit evidence and bounded backoff"
+    - "Targeted regression coverage for non-2xx worker proposal stops"
+  exclude:
+    - "LIVE, production mutation, real-money execution, withdrawal, or transfer"
+    - "New queue, scheduler, dispatcher, merge engine, or Audit authority"
+    - "Provider credential or secret changes"
+architecture:
+  canonical_owner: "#903 execution coordinator and existing coding dispatch spine"
+  duplicate_architecture: prohibited
+  lifecycle: "RUNNING -> WAITING_RATE_LIMIT -> RESUMABLE -> RUNNING"
+acceptance:
+  - "Non-2xx CODING_PROPOSAL_FAILED_CLOSED provider rate-limit responses normalize to WAITING_RATE_LIMIT."
+  - "Missing provider retry metadata receives bounded nextRetryAt and retrySource."
+  - "Provider stop reason and last failure remain in evidence without secret material."
+  - "The proposal retry loop and publish step are not re-entered for the stopped execution."
+  - "PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY remain unchanged."
+verification_commands:
+  - "node --test tests/autopilot-dispatch-retry.test.js"
+  - "pnpm run lint:scripts"
+  - "pnpm run typecheck"
+  - "pnpm run build"
+  - "pnpm run architecture:check"
+  - "pnpm run security:gate"
+  - "pnpm run safety:invariants"
+  - "pnpm run ai:architecture"
+  - "pnpm run validate:full"
+evidence:
+  implementation_status: IN_PROGRESS
+  external_validation: "REQUIRED: exact-head protected CI, independent Audit, and Release gate."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+  human_environment_only: true
+next_permitted_action: "Complete local validation, update this work order and AIPOS state, push one exact head, then require fresh CI/Audit/Release; do not merge from Development."
