@@ -601,8 +601,43 @@ describe("NUSA autopilot GitHub webhook", () => {
       const replayPayload = await replay.json() as { status: string; reason: string; nextRetryAt: number };
       assert.equal(replay.status, 202);
       assert.equal(replayPayload.status, "WAITING_RATE_LIMIT");
-      assert.equal(replayPayload.reason, "WAITING_RATE_LIMIT");
+      // The provider wait is consulted before the per-execution lease, so it is what suppresses the replay.
+      assert.equal(replayPayload.reason, "WAITING_PROVIDER_CAPACITY");
       assert.equal(replayPayload.nextRetryAt, firstPayload.nextRetryAt);
+      assert.equal(codingEngineCalls, 1);
+
+      // A different execution on a different main is a new identity with no execution record, yet it
+      // must not spend a provider call inside the same provider wait.
+      const otherMain = "c".repeat(40);
+      const other = await handleCodingExecute(new Request("https://example.test/coding/execute", {
+        method: "POST",
+        headers: { authorization: "Bearer runner-token", "content-type": "application/json" },
+        body: JSON.stringify({
+          ...codingRequest,
+          headSha: otherMain,
+          executionId: `${codingRequest.executionId}-other-main`,
+          dedupeKey: `${codingRequest.dedupeKey}-other-main`,
+        }),
+      }), env);
+      const otherPayload = await other.json() as { status: string; reason: string; nextRetryAt: number };
+      assert.equal(other.status, 202);
+      assert.equal(otherPayload.status, "WAITING_RATE_LIMIT");
+      assert.equal(otherPayload.reason, "WAITING_PROVIDER_CAPACITY");
+      assert.equal(otherPayload.nextRetryAt, firstPayload.nextRetryAt);
+      assert.equal(codingEngineCalls, 1, "no provider call for any execution inside the provider wait");
+
+      // Unreadable provider state fails closed before any lease or provider call.
+      const unreadable: ExecutionCoordinatorNamespace = {
+        idFromName: (name: string) => ({ name }),
+        get: (id: unknown) => ({
+          fetch: (input: RequestInfo | URL, init?: RequestInit) => String((id as { name?: string }).name ?? "").startsWith("provider-capacity-wait:")
+            ? Promise.resolve(new Response("unavailable", { status: 503 }))
+            : coordinator.fetch(new Request(input, init)),
+        }),
+      };
+      const closed = await handleCodingExecute(request(), { ...env, NUSA_EXECUTION_COORDINATOR: unreadable });
+      assert.equal(closed.status, 503);
+      assert.equal((await closed.json() as { error: string }).error, "PROVIDER_CAPACITY_STATE_UNAVAILABLE");
       assert.equal(codingEngineCalls, 1);
     } finally {
       globalThis.fetch = originalFetch;

@@ -1,0 +1,42 @@
+id: WO-20260923-AUTOPILOT-EXECUTE-PROVIDER-GATE
+title: "Gate the Worker coding entry on the provider capacity wait"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: d612756c6eacf861cc26bfb037ec4bbca057e262
+implementation_branch: claude/nusa-repository-j93sd8-execute-gate
+objective: "No execution of any identity may spend a coding-provider call while the provider is inside its recorded retry window."
+parent_work_order: WO-20260923-AUTOPILOT-PROVIDER-WAIT-ACROSS-MAIN
+authority_impact: none
+finding: "#2234 made the scheduler honour the provider-keyed wait, but repository_dispatch executions (for example CI-repair) enter the Worker through /coding/execute, which only checked the per-execution lease. A new identity inside the provider window therefore still called the provider."
+scope:
+  include:
+    - "/coding/execute reads the provider wait before taking any lease"
+    - "Inside the window: 202 WAITING_RATE_LIMIT (reason WAITING_PROVIDER_CAPACITY), no lease, no provider call"
+    - "Unreadable provider state: 503 PROVIDER_CAPACITY_STATE_UNAVAILABLE (fail closed)"
+  exclude:
+    - "Response status contract: the consumer keys on status, which stays WAITING_RATE_LIMIT"
+    - "Lease, dedupe, execution identity and per-execution WAITING semantics"
+    - "LIVE, production mutation, credentials, new queue/scheduler/agent"
+acceptance:
+  - "A different execution on a different main makes no provider call inside the provider wait."
+  - "An unreadable provider wait fails closed before any lease or provider call."
+  - "PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY remain unchanged."
+verification_commands:
+  - "npx tsx --test apps/autopilot/src/*.test.ts"
+  - "pnpm run typecheck"
+  - "pnpm run lint"
+evidence:
+  implementation_status: READY_FOR_REVIEW
+  mutation_verification:
+    - "execute ignores the provider wait -> 1 failure"
+    - "execute fails open on an unreadable wait -> 1 failure"
+  external_validation: "REQUIRED: exact-head protected CI, independent Audit, and Release gate."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Obtain exact-head CI, independent Audit, and Release; do not merge from Development."
