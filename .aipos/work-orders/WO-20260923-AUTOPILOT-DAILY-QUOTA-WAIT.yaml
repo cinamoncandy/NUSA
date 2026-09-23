@@ -1,0 +1,40 @@
+id: WO-20260923-AUTOPILOT-DAILY-QUOTA-WAIT
+title: "Hold a Workers AI daily-quota stop until the next UTC day"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: f72f6b0c5be5e6aa6fd25332c9e6eb5d86003dfe
+implementation_branch: claude/nusa-repository-j93sd8-daily-quota-wait
+objective: "A daily-quota exhaustion must not be re-probed with a provider call every scheduler cycle."
+parent_work_order: WO-20260923-AUTOPILOT-EXECUTE-PROVIDER-GATE
+authority_impact: none
+finding: "Runtime evidence on f72f6b0c (consumer runs 35846962117, 35847443207, 35847607125) shows WORKERS_AI_DAILY_QUOTA_EXHAUSTED recorded with nextRetryAt = stop + 60s. The provider wait expired before the next ~5 minute scheduled cycle, so each cycle re-dispatched the same identity and spent another Workers AI call against a per-UTC-day budget that cannot recover before 00:00 UTC."
+scope:
+  include:
+    - "codingRunner rateLimitStopMetadata: daily quota retryAfterMs = time until next 00:00 UTC, floored at the existing 60s backoff"
+  exclude:
+    - "Generic 429 rate-limit backoff (unchanged)"
+    - "Provider wait storage, lease, dedupe, scheduler, execution identity"
+    - "LIVE, production mutation, credentials, new queue/scheduler/agent"
+acceptance:
+  - "Daily-quota stop at 10:12:49Z records nextRetryAt 00:00:00Z next day."
+  - "A stop within 60s of midnight still waits at least 60s."
+  - "Generic 429 backoff is unchanged."
+  - "PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY remain unchanged."
+verification_commands:
+  - "node --test dist/apps/autopilot/src/*.test.js"
+  - "node --test tests/autopilot-dispatch-retry.test.js"
+  - "pnpm run typecheck"
+evidence:
+  implementation_status: READY_FOR_REVIEW
+  mutation_verification:
+    - "original 60s daily-quota backoff -> 2 failures"
+  external_validation: "REQUIRED: exact-head protected CI, independent Audit, and Release gate."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Obtain exact-head CI, independent Audit, and Release; do not merge from Development."

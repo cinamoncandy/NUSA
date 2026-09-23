@@ -159,6 +159,16 @@ const MAX_CODING_PROPOSAL_BYTES = 24_000;
 const MAX_CODING_PROPOSAL_FEEDBACK_BYTES = 512;
 const MAX_CODING_PROPOSAL_CONTEXT_BYTES = 20_000;
 const MAX_RATE_LIMIT_BACKOFF_MS = 60_000;
+const UTC_DAY_MS = 86_400_000;
+
+/**
+ * The Workers AI free allocation is a per-UTC-day budget, so a daily-quota stop cannot recover
+ * before the next 00:00 UTC. Waiting only the short rate-limit backoff made every scheduler cycle
+ * spend another provider call against an exhausted budget.
+ */
+function msUntilNextUtcDay(now: number): number {
+  return Math.max(MAX_RATE_LIMIT_BACKOFF_MS, (Math.floor(now / UTC_DAY_MS) + 1) * UTC_DAY_MS - now);
+}
 
 function workersAiRateLimitReason(error: unknown): "WORKERS_AI_DAILY_QUOTA_EXHAUSTED" | "WORKERS_AI_RATE_LIMITED" | null {
   const message = error instanceof Error ? error.message : String(error ?? "");
@@ -190,7 +200,7 @@ function providerRetryAfterMs(error: unknown, now: number): number | null {
 
 function rateLimitStopMetadata(error: unknown, reason: "WORKERS_AI_DAILY_QUOTA_EXHAUSTED" | "WORKERS_AI_RATE_LIMITED", attempt: number, now: number): Pick<CodingRunnerResult, "provider" | "retryAfterMs" | "nextRetryAt" | "stopReason" | "resumeCondition"> {
   const retryAfterMs = reason === "WORKERS_AI_DAILY_QUOTA_EXHAUSTED"
-    ? MAX_RATE_LIMIT_BACKOFF_MS
+    ? msUntilNextUtcDay(now)
     : providerRetryAfterMs(error, now) ?? Math.min(MAX_RATE_LIMIT_BACKOFF_MS, 1_000 * 2 ** Math.max(0, attempt - 1));
   return Object.freeze({
     provider: "workers-ai",

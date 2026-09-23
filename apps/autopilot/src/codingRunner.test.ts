@@ -635,8 +635,18 @@ describe("coding runner", () => {
     assert.equal(result.proposalAttempts, 0);
     assert.equal(calls, 1);
     assert.equal(result.provider, "workers-ai");
-    assert.equal(result.nextRetryAt, 61_000);
+    assert.equal(result.nextRetryAt, 86_400_000);
     assert.equal(result.resumeCondition, "provider-capacity-and-exact-head-revalidation");
+  });
+
+  it("waits for the next UTC day on daily quota exhaustion instead of re-probing every cycle", async () => {
+    const quotaError = { async run(): Promise<never> { throw new Error("4006: you have used up your daily free allocation of 10,000 neurons, please upgrade to Cloudflare's Workers Paid plan if you would like to continue usage."); } };
+    const midDay = Date.parse("2026-09-23T10:12:49.000Z");
+    const midDayResult = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: quotaError }, verifiedGithubFetch, undefined, undefined, { now: () => midDay });
+    assert.equal(midDayResult.nextRetryAt, Date.parse("2026-09-24T00:00:00.000Z"));
+    const nearReset = Date.parse("2026-09-23T23:59:50.000Z");
+    const nearResetResult = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: quotaError }, verifiedGithubFetch, undefined, undefined, { now: () => nearReset });
+    assert.equal(nearResetResult.nextRetryAt, nearReset + 60_000);
   });
 
   it("classifies generic Workers AI rate limiting without hot-loop proposal retries", async () => {
