@@ -3,7 +3,9 @@ import { prepareDiscoveredCodingRequest } from "./evolveCodingBridge";
 import { deriveWorkflowFailureOpportunities, type WorkflowFailureEvidence } from "./evolveEvidenceOpportunitySource";
 import { deriveGithubIssueBacklogSignals } from "./evolveGithubIssueBacklog";
 import type { EvolutionDiscoverySignal } from "./evolveOpportunityDiscovery";
-import { acquirePersistentExecution, readPersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, readPersistentExecution, readProviderCapacityWait, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+
+const CODING_PROVIDER = "workers-ai";
 
 export interface ScheduledEvolutionCodingEnv {
   readonly NUSA_GITHUB_TOKEN?: string;
@@ -199,6 +201,16 @@ export async function runScheduledEvolutionCoding(
   }
   const executionId = `evolve-coding:${input.mainSha.slice(0, 16)}:${workIdentity.slice(0, 100)}`;
   const dedupeKey = `evolve-coding:${input.mainSha}:${workIdentity}`;
+  // The execution record below is keyed by the exact main SHA, so it is empty again whenever main
+  // moves. The provider wait is not: while the coding provider is inside its retry window, no new
+  // execution is started for any main, and the next dispatch after the window is the bounded probe.
+  let providerWait;
+  try {
+    providerWait = await readProviderCapacityWait(coordinator, CODING_PROVIDER);
+  } catch {
+    return result("ABSTAINED", "provider-capacity-state-unavailable", signals.map((signal) => signal.id));
+  }
+  if (providerWait && input.now < providerWait.nextRetryAt) return result("WAITING_RATE_LIMIT", "waiting-provider-capacity", signals.map((signal) => signal.id));
   let currentExecution;
   try {
     currentExecution = await readPersistentExecution(coordinator, dedupeKey);
