@@ -1,6 +1,6 @@
 id: WO-20260923-AUTOPILOT-RATE-LIMIT-NON2XX-FOLLOWUP
 title: "Autopilot rate-limit non-2xx stop normalization"
-status: IN_PROGRESS
+status: READY_FOR_REVIEW
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -39,7 +39,21 @@ verification_commands:
   - "pnpm run ai:architecture"
   - "pnpm run validate:full"
 evidence:
-  implementation_status: IN_PROGRESS
+  implementation_status: READY_FOR_REVIEW
+  implementation_commit: b03055ae9b3b5bce9b5b4a3c10d0d5c66e1ddf7f
+  local_validation:
+    - "node --test tests/autopilot-dispatch-retry.test.js: PASS 24/24"
+    - "pnpm run lint:scripts: PASS, 0 errors, 11 pre-existing warnings"
+    - "pnpm run typecheck: PASS"
+    - "pnpm run build: PASS"
+    - "pnpm run architecture:check: PASS"
+    - "pnpm run security:gate: PASS"
+    - "pnpm run safety:invariants: PASS"
+    - "pnpm run ai:architecture: PASS"
+    - "pnpm run validate:full: PASS"
+    - "pnpm run aipos:drift: PASS"
+    - "pnpm run aipos:provenance: PASS"
+    - "git diff --check: PASS"
   external_validation: "REQUIRED: exact-head protected CI, independent Audit, and Release gate."
 safety:
   paper_only: true
@@ -48,4 +62,4 @@ safety:
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
   human_environment_only: true
-next_permitted_action: "Complete local validation, update this work order and AIPOS state, push one exact head, then require fresh CI/Audit/Release; do not merge from Development."
+next_permitted_action: "Push exact head b03055ae9b3b5bce9b5b4a3c10d0d5c66e1ddf7f, obtain fresh exact-head CI, then request independent Audit; do not merge from Development."
