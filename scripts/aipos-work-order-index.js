@@ -4,10 +4,10 @@
  * AIPOS work-order index (WO-20260924-AIPOS-WORK-ORDER-INDEX).
  *
  * The work-order directory holds every order ever written, with ~25 ad-hoc status spellings, so a
- * recovering agent had to open all of them to find what is still open. This generates a single
- * index that separates open orders from closed ones, and freezes the status vocabulary: orders in
- * LEGACY_STATUS_FILES keep their historical spelling (validators and docs reference those files by
- * path and some read their status), every other order must use a canonical status.
+ * recovering agent had to open all of them to find what is still open. This prints a single
+ * index that separates open orders from closed ones, and freezes the status vocabulary for new
+ * dated orders. Existing orders keep their historical spelling: validators and docs reference
+ * those files by path and some read their status.
  *
  * It never moves, rewrites, or re-statuses an existing order. In particular it does not close any
  * LIVE-readiness order; that stays an owner decision.
@@ -18,11 +18,10 @@
  *   node scripts/aipos-work-order-index.js          # print the index of open orders
  *   node scripts/aipos-work-order-index.js --check  # fail if a new order uses a non-canonical status
  */
-const { readFileSync, readdirSync, existsSync } = require("node:fs");
+const { readFileSync, readdirSync } = require("node:fs");
 const { join } = require("node:path");
 
 const WORK_ORDER_DIR = ".aipos/work-orders";
-const LEGACY_LIST_PATH = ".aipos/work-order-legacy-statuses.json";
 
 const CANONICAL_STATUSES = Object.freeze({
   PLANNED: "open",
@@ -35,6 +34,16 @@ const CANONICAL_STATUSES = Object.freeze({
   COMPLETED: "closed",
   SUPERSEDED: "closed",
 });
+
+// Only orders dated on or after this day (WO-YYYYMMDD-... filenames) must use a canonical status.
+// Many open PRs still add older-style orders; enforcing on those would turn main red when they
+// merge. Undated and earlier orders are reported by the index but never fail the check.
+const ENFORCED_FROM = 20260924;
+
+function enforced(name) {
+  const match = /^WO-(\d{8})-/.exec(name);
+  return match != null && Number(match[1]) >= ENFORCED_FROM;
+}
 
 // Historical spellings that mean the order is closed. Anything not listed here or canonical is
 // treated as open, so an unfamiliar status can never hide work from the index.
@@ -85,17 +94,14 @@ function render(orders) {
 function check(root) {
   const failures = [];
   const orders = readOrders(root);
-  const legacyPath = join(root, LEGACY_LIST_PATH);
-  const legacy = existsSync(legacyPath) ? JSON.parse(readFileSync(legacyPath, "utf8")) : {};
   for (const order of orders) {
-    if (CANONICAL_STATUSES[order.status]) continue;
-    if (legacy[order.name] === order.status) continue;
+    if (CANONICAL_STATUSES[order.status] || !enforced(order.name)) continue;
     failures.push(`NON_CANONICAL_STATUS:${order.name}:${order.status}`);
   }
   return { ok: failures.length === 0, failures };
 }
 
-module.exports = { CANONICAL_STATUSES, readOrders, classify, render, check, LEGACY_LIST_PATH };
+module.exports = { CANONICAL_STATUSES, ENFORCED_FROM, enforced, readOrders, classify, render, check };
 
 if (require.main === module) {
   const root = process.cwd();

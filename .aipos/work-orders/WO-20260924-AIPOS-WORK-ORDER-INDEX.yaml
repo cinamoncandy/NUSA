@@ -12,8 +12,7 @@ finding: "Structural review: 150+ work orders with ~25 distinct status spellings
 scope:
   include:
     - "scripts/aipos-work-order-index.js: prints the index of open orders on demand (not committed, so adding an order never requires regenerating a file) and --check mode"
-    - ".aipos/work-order-legacy-statuses.json: frozen allowlist of existing non-canonical statuses"
-    - "tests/aipos-work-order-index.test.js: new orders must use canonical statuses"
+    - "tests/aipos-work-order-index.test.js: WO-YYYYMMDD orders dated 2026-09-24 onward must use a canonical status; older and undated orders (and the 58 open PRs adding them) are exempt so main cannot turn red on their merge"
     - "package.json script aipos:index"
   exclude:
     - "No file moves, no status rewrites, no closure of any existing order"

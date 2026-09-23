@@ -2,7 +2,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("node:path");
-const { check, classify, render } = require("../scripts/aipos-work-order-index.js");
+const { check, classify, render, enforced } = require("../scripts/aipos-work-order-index.js");
 
 const root = path.resolve(__dirname, "..");
 
@@ -26,4 +26,10 @@ test("the index lists open orders and omits closed ones", () => {
   assert.match(text, /WO-OPEN/);
   assert.doesNotMatch(text, /WO-DONE/);
   assert.match(text, /open: 1 · closed: 1/);
+});
+
+test("status enforcement applies only to dated orders from the cutoff on", () => {
+  assert.equal(enforced("WO-20260924-SOMETHING.yaml"), true);
+  assert.equal(enforced("WO-20260923-SOMETHING.yaml"), false);
+  assert.equal(enforced("WO-0051-legacy.yaml"), false);
 });
