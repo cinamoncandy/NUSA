@@ -79,6 +79,7 @@ function retryableProposalFailureCode(reason) {
 
 function providerRateLimitCode(reason) {
   const code = String(reason || "");
+  if (code === "WAITING_PROVIDER_CAPACITY") return "PROVIDER_RATE_LIMITED";
   return code === "RATE_LIMITED" || code === "WORKERS_AI_DAILY_QUOTA_EXHAUSTED" || code === "WORKERS_AI_RATE_LIMITED" || code === "PROVIDER_RATE_LIMITED"
     ? code
     : null;
