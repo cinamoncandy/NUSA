@@ -13,6 +13,7 @@ test("Cloudflare deployment recovers after a CI-only repair merge", () => {
   assert.match(workflow, /Verify exact current main revision/);
   assert.match(workflow, /deploymentRevision/);
   assert.match(workflow, /CLOUDFLARE_API_TOKEN/);
+  assert.match(workflow, /NUSA_AUTOPILOT_RUNTIME_TOKEN/);
   assert.match(workflow, /liveAuthority=NONE/);
   assert.match(workflow, /productionMutationAllowed=false/);
   assert.match(workflow, /AI authority=ZERO_AUTHORITY/);
@@ -28,6 +29,20 @@ test("deployment is Worker-only and has no paid Cloudflare Containers rollout", 
   assert.doesNotMatch(workflow, /containers list/);
 });
 
+test("deployment fail-closes and synchronizes the persistent runtime secret before Worker deploy", () => {
+  const preflightIndex = workflow.indexOf("Verify Cloudflare deployment credentials and account access");
+  const secretIndex = workflow.indexOf("Sync persistent Autopilot runtime bearer secret");
+  const deployIndex = workflow.indexOf("Deploy exact CI-verified revision to Cloudflare Workers Free-compatible runtime");
+  assert.ok(preflightIndex >= 0);
+  assert.ok(secretIndex > preflightIndex);
+  assert.ok(deployIndex > secretIndex);
+  assert.match(workflow, /secrets\.NUSA_AUTOPILOT_RUNTIME_TOKEN/);
+  assert.match(workflow, /\$\{#NUSA_AUTOPILOT_RUNTIME_TOKEN\}.*-lt 32/);
+  assert.match(workflow, /wrangler@4\.127\.1 secret put NUSA_AUTOPILOT_RUNTIME_TOKEN/);
+  assert.match(workflow, /printf '%s' "\$NUSA_AUTOPILOT_RUNTIME_TOKEN"/);
+  assert.doesNotMatch(workflow, /echo\s+["']?\$\{?NUSA_AUTOPILOT_RUNTIME_TOKEN/, "the secret value itself must never be echoed");
+});
+
 test("deployment authenticates read-only before attempting Cloudflare mutation", () => {
   const preflightIndex = workflow.indexOf("Verify Cloudflare deployment credentials and account access");
   const deployIndex = workflow.indexOf("Deploy exact CI-verified revision to Cloudflare Workers Free-compatible runtime");
@@ -36,7 +51,7 @@ test("deployment authenticates read-only before attempting Cloudflare mutation",
   assert.match(workflow, /CLOUDFLARE_ACCOUNT_ID/);
   assert.match(workflow, /wrangler@4\.127\.1 whoami/);
   assert.match(workflow, /Cloudflare authentication\/account preflight failed/);
-  assert.match(workflow, /Cloudflare token\/account preflight passed/);
+  assert.match(workflow, /Cloudflare token\/account\/runtime-secret preflight passed/);
 });
 
 test("daily read-only readiness guard detects broken Cloudflare credentials before deployment day", () => {
@@ -69,13 +84,42 @@ test("deployment workflow remains read-only toward GitHub contents and cannot mu
   assert.match(workflow, /Failing closed/);
 });
 
-test("successful deploy directly dispatches Runtime Proof instead of relying on workflow_run chaining", () => {
+test("only a token-dispatched fallback deploy directly dispatches Runtime Proof", () => {
   assert.match(workflow, /permissions:[^]*actions: write/);
-  assert.match(workflow, /Dispatch Runtime Proof directly for fresh observability/);
-  assert.match(workflow, /does not fire workflow_run listeners/);
+  assert.match(workflow, /Dispatch Runtime Proof directly for token-dispatched fallback deploy/);
+  assert.match(workflow, /github\.event_name == 'workflow_dispatch'/);
+  assert.match(workflow, /github\.actor == 'github-actions\[bot\]'/);
+  assert.match(workflow, /Normal push\/workflow_run Deploy completions already feed Runtime Proof/);
   assert.match(workflow, /actions\/workflows\/autopilot-cloudflare-runtime-proof\.yml\/dispatches/);
   assert.match(workflow, /-f ref=main/);
-  const dispatchIndex = workflow.indexOf("Dispatch Runtime Proof directly");
-  assert.ok(dispatchIndex > 0);
-  assert.match(workflow.slice(dispatchIndex, dispatchIndex + 400), /if: steps\.revision\.outputs\.current == 'true'/);
+});
+
+// An exact head can carry more than one CI run: the push-triggered one and the
+// GITHUB_TOKEN-dispatched one that exists because a token-dispatched run fires no workflow_run
+// listeners. Concurrency cancels whichever loses the race. Reading one arbitrary run and failing
+// closed on it let a cancelled duplicate veto a deployment whose exact head had passed CI, which
+// is what stalled e29be261 and, through the credential preflight, reopened the canonical P0.
+test("the exact-head CI wait reads every run for that head, not one arbitrary run", () => {
+  const start = workflow.indexOf("Wait for exact-head CI success before deploying");
+  assert.ok(start > 0, "the wait step must exist");
+  const step = workflow.slice(start, workflow.indexOf("Verify exact current main revision", start));
+
+  assert.doesNotMatch(step, /\]\[0\]\.conclusion/, "a single indexed run is not evidence about the head");
+  assert.match(step, /--paginate/, "one page of repository-wide runs can bury the matching run");
+  assert.match(step, /run\?\.name === 'CI'/);
+  assert.match(step, /run\?\.path === '\.github\/workflows\/ci\.yml'/);
+  assert.match(step, /String\(run\?\.head_sha \|\| ''\)\.toLowerCase\(\) === expected/);
+});
+
+test("a cancelled duplicate does not count as a failed verdict, a real failure still does", () => {
+  const start = workflow.indexOf("Wait for exact-head CI success before deploying");
+  const step = workflow.slice(start, workflow.indexOf("Verify exact current main revision", start));
+
+  assert.match(step, /conclusions\.has\('success'\)/, "any successful exact-head CI clears the gate");
+  assert.match(step, /conclusions\.has\('failure'\) \|\| conclusions\.has\('timed_out'\)/, "a real negative verdict still fails closed");
+  assert.doesNotMatch(step, /conclusions\.has\('cancelled'\)/, "a cancelled run is the absence of a verdict, not a negative one");
+  // Absence of a decisive verdict keeps waiting rather than deploying.
+  assert.match(step, /console\.log\('pending'\)/);
+  assert.match(step, /Timed out waiting for exact-head CI/);
+  assert.match(step, /exit 1/);
 });

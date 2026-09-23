@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 
 const workflow = fs.readFileSync(".github/workflows/oracle-paper-release.yml", "utf8");
-const wrapper = fs.readFileSync("deploy/oracle/nusa-release-step.sh", "utf8");
+const wrapper = fs.readFileSync("deploy/oracle/nusa-release-step.sh", "utf8").replaceAll("\r\n", "\n");
 const runbook = fs.readFileSync("docs/operations/oracle-p1-008-runbook.md", "utf8");
 
 /**
@@ -41,22 +41,40 @@ test("the release requires successful exact-source CI, found by a paginated look
   assert.match(workflow, /actions\/workflows\/ci\.yml\/runs/);
 });
 
-test("the workflow runs the release verbs in the runbook's order", () => {
-  // Staging precedes preflight because the runbook runs both checks *from the release tree*,
-  // which has to exist first.
-  orderIn(workflow, ['"$STEP" backup', '"$STEP" stage', '"$STEP" preflight', '"$STEP" switch', '"$STEP" restart', '"$STEP" readiness']);
+test("the small PAPER host receives a sealed build instead of installing or building dependencies", () => {
+  const prepare = workflow.slice(workflow.indexOf("  prepare:"), workflow.indexOf("  release:"));
+  const release = workflow.slice(workflow.indexOf("  release:"));
+  assert.match(prepare, /runs-on: ubuntu-latest/);
+  assert.match(prepare, /pnpm install --frozen-lockfile/);
+  assert.match(prepare, /pnpm run build/);
+  assert.match(release, /needs: prepare/);
+  assert.match(release, /runs-on: \[self-hosted, Linux, nusa-paper-host\]/);
+  assert.match(release, /sha256sum --check --status/);
+  assert.ok(release.indexOf("sha256sum --check --status") < release.indexOf('"$STEP" backup'));
+  assert.doesNotMatch(release, /pnpm install|pnpm run build/);
 });
 
-test("a release that cannot prove readiness is rolled back, not left serving", () => {
-  const readiness = workflow.indexOf("Prove readiness, and roll back if it fails");
-  assert.ok(readiness > 0);
-  const rollbackBranch = workflow.indexOf("rolling back.", readiness);
-  assert.ok(rollbackBranch > readiness, "the readiness step must have a rollback branch");
-  const failurePath = workflow.slice(rollbackBranch);
-  orderIn(failurePath, ['"$STEP" rollback', '"$STEP" restart', '"$STEP" readiness']);
-  assert.match(failurePath, /Rollback readiness also failed/, "a failed rollback must stop, not continue");
-  assert.doesNotMatch(workflow, /scripts\/[a-z0-9-]*restore[a-z0-9-]*\.js/i);
-  assert.doesNotMatch(failurePath, /rm\s+-rf\s+\/var\/lib\/nusa|DROP\s+TABLE/i, "the failure path must not touch persistent state");
+test("the workflow runs the release verbs in the runbook's order", () => {
+  // Staging precedes preflight because the runbook runs both checks from the exact release tree.
+  // Activation owns switch + unit convergence + readiness + rollback as one fail-closed boundary.
+  orderIn(workflow, ['"$STEP" backup', '"$STEP" stage', '"$STEP" preflight', '"$STEP" activate']);
+  assert.doesNotMatch(workflow, /"\$STEP"\s+(switch|restart|readiness|rollback)\b/, "activation must not be split across workflow steps");
+});
+
+test("a release that cannot prove either runtime ready is rolled back, not left serving", () => {
+  const activateStart = wrapper.indexOf("  activate)");
+  const activateEnd = wrapper.indexOf("\n  rollback)", activateStart);
+  const activateCase = wrapper.slice(activateStart, activateEnd);
+  assert.ok(activateCase.length > 0, "activate must be an explicit wrapper case");
+  orderIn(activateCase, ["atomic-deploy.js", "bind_runtime_source_identity", "install_units_from_release", "enable_units", "restart_units", "oracle-readiness-check.js", "autopilot-readiness.js"]);
+  assert.match(activateCase, /rollback_and_restore/, "activation failure must restore the previous release and unit set");
+  assert.match(activateCase, /systemctl is-active --quiet "\$SERVICE"/);
+  assert.match(activateCase, /systemctl is-active --quiet "\$AUTOPILOT_SERVICE"/);
+
+  const rollbackHelper = wrapper.slice(wrapper.indexOf("rollback_and_restore()"), wrapper.indexOf("\n}\n", wrapper.indexOf("rollback_and_restore()")) + 2);
+  orderIn(rollbackHelper, ["NUSA_DEPLOY_ACTION=rollback", "bind_runtime_source_identity", "install_units_from_release", "enable_units", "restart_units"]);
+  assert.doesNotMatch(wrapper, /scripts\/[a-z0-9-]*restore[a-z0-9-]*\.js/i);
+  assert.doesNotMatch(rollbackHelper, /rm\s+-rf\s+\/var\/lib\/nusa|DROP\s+TABLE/i, "the failure path must not touch persistent state");
 });
 
 test("every privileged action goes through the one wrapper command", () => {
@@ -66,6 +84,30 @@ test("every privileged action goes through the one wrapper command", () => {
     assert.match(call, /sudo\s+"\$STEP"/, `sudoers must grant one command only, found: ${call}`);
   }
   assert.match(workflow, /STEP: \/opt\/nusa\/bin\/nusa-release-step/);
+});
+
+test("activation and rollback atomically bind runtime source identity to the selected release", () => {
+  const bindStart = wrapper.indexOf("bind_runtime_source_identity()");
+  const bindEnd = wrapper.indexOf("\n}\n", bindStart) + 2;
+  const bind = wrapper.slice(bindStart, bindEnd);
+  assert.ok(bind.length > 0);
+  assert.match(bind, /NUSA_SOURCE_COMMIT=/);
+  assert.match(bind, /NUSA_SOURCE_COMMIT_SHA=/);
+  assert.match(bind, /chmod --reference/);
+  assert.match(bind, /chown --reference/);
+  assert.match(bind, /mv -f -- "\$tmp" "\$RUNTIME_ENV"/);
+  assert.doesNotMatch(bind, /cat\s+"?\$RUNTIME_ENV"?/, "release must never print the secret-bearing runtime environment");
+
+  const activateStart = wrapper.indexOf("  activate)");
+  const activateEnd = wrapper.indexOf("\n  rollback)", activateStart);
+  const activate = wrapper.slice(activateStart, activateEnd);
+  orderIn(activate, ["atomic-deploy.js", "bind_runtime_source_identity", "restart_units"]);
+
+  const rollbackStart = wrapper.indexOf("rollback_and_restore()");
+  const rollbackEnd = wrapper.indexOf("\n}\n", rollbackStart) + 2;
+  const rollback = wrapper.slice(rollbackStart, rollbackEnd);
+  orderIn(rollback, ["NUSA_DEPLOY_ACTION=rollback", "bind_runtime_source_identity", "restart_units"]);
+  assert.match(rollback, /active_release_sha/);
 });
 
 test("the wrapper lives outside the release tree it installs", () => {
@@ -81,7 +123,7 @@ test("the wrapper validates the only caller-supplied value that reaches a path",
 
 test("the wrapper refuses an unknown verb instead of doing something else", () => {
   assert.match(wrapper, /unknown verb/);
-  for (const verb of ["backup", "preflight", "stage", "switch", "rollback", "restart", "readiness"]) {
+  for (const verb of ["backup", "preflight", "install-units", "prune", "stage", "switch", "activate", "rollback", "restart", "readiness"]) {
     assert.match(wrapper, new RegExp(`^\\s*${verb}\\)`, "m"), `${verb} must be an explicit case`);
   }
 });
@@ -90,12 +132,29 @@ test("the wrapper never restages the active release", () => {
   assert.match(wrapper, /refusing to restage the active release/);
 });
 
-test("the wrapper runs the scripts the runbook documents, from the staged release", () => {
-  for (const script of ["sqlite-backup.js", "host-security-validate.js", "oracle-validate.js", "atomic-deploy.js", "oracle-readiness-check.js"]) {
-    assert.ok(runbook.includes(script), `${script} is part of the documented procedure`);
+test("bounded release pruning preserves rollback safety and validates before deletion", () => {
+  const pruneStart = wrapper.indexOf("prune_releases()");
+  const pruneEnd = wrapper.indexOf("\n}\n", pruneStart) + 2;
+  const prune = wrapper.slice(pruneStart, pruneEnd);
+  assert.match(prune, /active_release/);
+  assert.match(prune, /previous_release/);
+  assert.match(wrapper, /readonly RELEASE_RETENTION=4/);
+  assert.match(prune, /Validate the entire candidate set before deleting anything/);
+  assert.ok(prune.indexOf("unexpected release directory name") < prune.indexOf("rm -rf --"), "validation must dominate deletion");
+  assert.match(prune, /\[ "\$dir" = "\$active" \] && continue/);
+  assert.match(prune, /\[ -n "\$previous" \] && \[ "\$dir" = "\$previous" \] && continue/);
+  assert.doesNotMatch(prune, /\/var\/lib\/nusa|\/var\/backups\/nusa/);
+});
+
+test("the wrapper runs the exact-release validation and activation scripts", () => {
+  for (const script of ["sqlite-backup.js", "host-security-validate.js", "oracle-validate.js", "atomic-deploy.js", "oracle-readiness-check.js", "autopilot-readiness.js"]) {
     assert.ok(wrapper.includes(script), `${script} must be run by the wrapper`);
     assert.ok(fs.existsSync(`scripts/${script}`), `scripts/${script} must exist`);
   }
+  for (const documented of ["sqlite-backup.js", "host-security-validate.js", "oracle-validate.js", "oracle-readiness-check.js", "autopilot-readiness.js"]) {
+    assert.ok(runbook.includes(documented), `${documented} must remain documented for operators`);
+  }
+  assert.match(runbook, /nusa-release-step activate/, "the runbook must document the atomic activation boundary");
   assert.match(wrapper, /script_in\(\)/, "scripts are read from the release being deployed");
 });
 
@@ -116,4 +175,33 @@ test("the deployed identity and fail-closed authority are always recorded", () =
   assert.match(workflow, /liveAuthority=NONE/);
   assert.match(workflow, /productionMutationAllowed=false/);
   assert.match(workflow, /aiAuthority=ZERO_AUTHORITY/);
+});
+
+
+test("the privileged helper declares helper locals before expanding them under nounset", () => {
+  const scriptIn = wrapper.slice(wrapper.indexOf("script_in()"), wrapper.indexOf("\n}\n", wrapper.indexOf("script_in()")) + 2);
+  const unitIn = wrapper.slice(wrapper.indexOf("unit_in()"), wrapper.indexOf("\n}\n", wrapper.indexOf("unit_in()")) + 2);
+
+  for (const helper of [scriptIn, unitIn]) {
+    assert.match(helper, /local dir="\$1"\n\s*local name="\$2"\n\s*local path=/);
+    assert.doesNotMatch(helper, /local dir="\$1" name="\$2" path=/);
+  }
+});
+
+
+test("rollback restores a legacy release that predates the Autopilot systemd unit", () => {
+  const rollbackStart = wrapper.indexOf("rollback_and_restore()");
+  const rollbackEnd = wrapper.indexOf("\n}\n", rollbackStart) + 2;
+  const rollback = wrapper.slice(rollbackStart, rollbackEnd);
+  assert.match(rollback, /install_units_from_release "\$\(active_release\)" true/);
+  assert.match(rollback, /enable_units true/);
+  assert.match(rollback, /restart_units true/);
+
+  const installStart = wrapper.indexOf("install_units_from_release()");
+  const installEnd = wrapper.indexOf("\n}\n", installStart) + 2;
+  const installUnits = wrapper.slice(installStart, installEnd);
+  assert.match(installUnits, /if \[ -f "\$\{dir\}\/deploy\/oracle\/nusa-autopilot\.service" \]/);
+  assert.match(installUnits, /systemctl disable --now "\$\{AUTOPILOT_SERVICE\}"/);
+  assert.match(installUnits, /rm -f -- "\$\{SYSTEMD_UNIT_DIR\}\/\$\{AUTOPILOT_SERVICE\}"/);
+  assert.match(installUnits, /die "missing nusa-autopilot\.service/, "forward activation must still fail closed when the unit is missing");
 });

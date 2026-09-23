@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { acquirePersistentExecution, applyPersistentControlPlaneHold, clearPersistentControlPlaneHold, ExecutionCoordinator, readPersistentControlPlaneHold, releasePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, readProviderCapacityWait, recordProviderCapacityWait, applyPersistentControlPlaneHold, clearPersistentControlPlaneHold, ExecutionCoordinator, handoffOrAcquirePersistentExecution, markPersistentExecutionDispatched, markPersistentExecutionRateLimitStopped, readPersistentControlPlaneHold, readPersistentExecution, releasePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
 
 class MemoryStorage {
@@ -12,6 +12,35 @@ class MemoryStorage {
 
   async put<T>(key: string, value: T): Promise<void> {
     this.values.set(key, value);
+  }
+}
+
+class TransactionalRacyStorage {
+  private readonly values = new Map<string, unknown>();
+  private queue: Promise<void> = Promise.resolve();
+  transactionCount = 0;
+
+  async get<T>(key: string): Promise<T | undefined> {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    return this.values.get(key) as T | undefined;
+  }
+
+  async put<T>(key: string, value: T): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    this.values.set(key, value);
+  }
+
+  async transaction<T>(closure: (storage: TransactionalRacyStorage) => Promise<T>): Promise<T> {
+    this.transactionCount += 1;
+    let release: (() => void) | undefined;
+    const previous = this.queue;
+    this.queue = new Promise<void>((resolve) => { release = resolve; });
+    await previous;
+    try {
+      return await closure(this);
+    } finally {
+      release?.();
+    }
   }
 }
 
@@ -55,6 +84,15 @@ function fakeNamespace(status: number, body: object): ExecutionCoordinatorNamesp
   };
 }
 
+function memoryNamespace(): ExecutionCoordinatorNamespace {
+  const storage = new MemoryStorage();
+  const coordinator = new ExecutionCoordinator({ storage });
+  return {
+    idFromName: () => ({}),
+    get: () => ({ fetch: (input, init) => coordinator.fetch(new Request(input, init)) }),
+  };
+}
+
 describe("persistent execution coordination", () => {
   it("accepts a new lease", async () => {
     const result = await acquirePersistentExecution(fakeNamespace(201, { acquired: true }), {
@@ -76,6 +114,25 @@ describe("persistent execution coordination", () => {
     assert.deepEqual(result, { acquired: false, reason: "ALREADY_DISPATCHED" });
   });
 
+  it("hands one producer lease to one consumer and suppresses replay", async () => {
+    const ns = memoryNamespace();
+    const input = { dedupeKey: "coding:handoff", executionId: "exec:handoff", now: 100, leaseExpiresAt: 200 };
+    assert.deepEqual(await acquirePersistentExecution(ns, input), { acquired: true });
+    assert.deepEqual(await handoffOrAcquirePersistentExecution(ns, { ...input, now: 110, leaseExpiresAt: 210 }), { acquired: true });
+    assert.deepEqual(await handoffOrAcquirePersistentExecution(ns, { ...input, now: 120, leaseExpiresAt: 220 }), { acquired: false, reason: "LEASE_ACTIVE" });
+    await markPersistentExecutionDispatched(ns, { dedupeKey: input.dedupeKey, executionId: input.executionId, now: 130 });
+    assert.deepEqual(await handoffOrAcquirePersistentExecution(ns, { ...input, now: 140, leaseExpiresAt: 240 }), { acquired: false, reason: "ALREADY_DISPATCHED" });
+  });
+
+  it("releases a failed handoff so a bounded retry can reacquire", async () => {
+    const ns = memoryNamespace();
+    const input = { dedupeKey: "coding:handoff-retry", executionId: "exec:handoff-retry", now: 100, leaseExpiresAt: 200 };
+    await acquirePersistentExecution(ns, input);
+    await handoffOrAcquirePersistentExecution(ns, { ...input, now: 110, leaseExpiresAt: 210 });
+    await releasePersistentExecution(ns, { dedupeKey: input.dedupeKey, executionId: input.executionId, now: 120 });
+    assert.deepEqual(await handoffOrAcquirePersistentExecution(ns, { ...input, now: 130, leaseExpiresAt: 230 }), { acquired: true });
+  });
+
   it("fails closed on coordinator failure", async () => {
     await assert.rejects(
       acquirePersistentExecution(fakeNamespace(500, { error: "FAILED" }), {
@@ -86,6 +143,24 @@ describe("persistent execution coordination", () => {
       }),
       /PERSISTENT_EXECUTION_COORDINATION_FAILED/,
     );
+  });
+
+  it("atomically suppresses concurrent acquire requests for one immutable dedupe key", async () => {
+    const storage = new TransactionalRacyStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const acquire = (executionId: string) => coordinator.fetch(new Request("https://execution-coordinator/acquire", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ dedupeKey: "audit:1965:35345529340:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", executionId, now: 100, leaseExpiresAt: 1_000 }),
+    }));
+
+    const [first, second] = await Promise.all([acquire("audit:1965:35345529340"), acquire("audit:1965:35345529340:redelivery")]);
+    assert.deepEqual([first.status, second.status].sort(), [201, 409]);
+    const duplicate = first.status === 409 ? first : second;
+    const body = await duplicate.json() as { acquired: boolean; reason: string };
+    assert.equal(body.acquired, false);
+    assert.equal(body.reason, "LEASE_ACTIVE");
+    assert.equal(storage.transactionCount, 2);
   });
 
   it("releases a failed lease so a bounded retry can reacquire it", async () => {
@@ -100,6 +175,44 @@ describe("persistent execution coordination", () => {
     assert.deepEqual(await acquirePersistentExecution(namespace, request), { acquired: true });
     await releasePersistentExecution(namespace, { dedupeKey: request.dedupeKey, executionId: request.executionId, now: 200 });
     assert.deepEqual(await acquirePersistentExecution(namespace, { ...request, now: 201, leaseExpiresAt: 1_101 }), { acquired: true });
+  });
+
+  it("persists a rate-limit stop, suppresses early replays, and resumes the same identity once due", async () => {
+    const ns = memoryNamespace();
+    const request = {
+      dedupeKey: "evolve-coding:rate-limit",
+      executionId: "evolve-coding:rate-limit",
+      taskId: "autopilot:github-issue-2118",
+      provider: "workers-ai",
+      headSha: "a".repeat(40),
+      now: 1_000,
+      leaseExpiresAt: 2_000,
+    };
+    assert.deepEqual(await acquirePersistentExecution(ns, request), { acquired: true });
+    const stop = await markPersistentExecutionRateLimitStopped(ns, {
+      schemaVersion: 1,
+      taskId: request.taskId,
+      executionId: request.executionId,
+      provider: request.provider,
+      headSha: request.headSha,
+      stopReason: "WORKERS_AI_RATE_LIMITED",
+      stoppedAt: 1_100,
+      attemptCount: 3,
+      lastFailure: "WORKERS_AI_RATE_LIMITED",
+      nextRetryAt: 2_000,
+      resumeCondition: "provider-capacity-and-exact-head-revalidation",
+      dedupeKey: request.dedupeKey,
+      evidenceRef: "coding-evidence:evolve-coding-rate-limit",
+      now: 1_100,
+    });
+    assert.deepEqual(stop, { stopped: true, nextRetryAt: 2_000 });
+    assert.deepEqual(await handoffOrAcquirePersistentExecution(ns, { ...request, now: 1_500, leaseExpiresAt: 2_500 }), { acquired: false, reason: "WAITING_RATE_LIMIT", nextRetryAt: 2_000 });
+    assert.deepEqual(await handoffOrAcquirePersistentExecution(ns, { ...request, now: 2_000, leaseExpiresAt: 3_000 }), { acquired: true });
+    const record = await readPersistentExecution(ns, request.dedupeKey);
+    assert.equal(record?.state, "LEASED");
+    assert.equal(record?.executionId, request.executionId);
+    assert.equal(record?.stop?.nextRetryAt, 2_000);
+    assert.equal(record?.resumeCount, 1);
   });
 
   it("does not release an already dispatched execution", async () => {
@@ -246,5 +359,139 @@ describe("persistent control-plane HOLD", () => {
       now: 200,
     }), /HOLD_CLEAR_FAILED/);
     assert.equal((await readPersistentControlPlaneHold(ns, identity))?.state, "ACTIVE");
+  });
+
+  it("dispatched execution completes once and permanently suppresses the same dedupe identity", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const request = (pathname: string, body: object) => new Request(`https://execution-coordinator${pathname}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    const identity = { dedupeKey: "coding:complete", executionId: "exec-complete", now: 100, leaseExpiresAt: 200 };
+    assert.equal((await coordinator.fetch(request("/acquire", identity))).status, 201);
+    assert.equal((await coordinator.fetch(request("/handoff-or-acquire", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 105, leaseExpiresAt: 200 }))).status, 201);
+    assert.equal((await coordinator.fetch(request("/dispatched", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 110 }))).status, 200);
+    assert.equal((await coordinator.fetch(request("/complete", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 120 }))).status, 200);
+    const replay = await coordinator.fetch(request("/complete", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 130 }));
+    assert.equal((await replay.json() as { completed: boolean }).completed, false);
+    const duplicate = await coordinator.fetch(request("/acquire", { ...identity, executionId: "exec-redelivery", now: 140, leaseExpiresAt: 240 }));
+    assert.equal(duplicate.status, 409);
+    assert.equal((await duplicate.json() as { reason: string }).reason, "ALREADY_COMPLETED");
+    const handoffDuplicate = await coordinator.fetch(request("/handoff-or-acquire", { ...identity, executionId: "exec-redelivery", now: 150, leaseExpiresAt: 250 }));
+    assert.equal(handoffDuplicate.status, 409);
+    assert.equal((await handoffDuplicate.json() as { reason: string }).reason, "ALREADY_COMPLETED");
+  });
+
+  it("completion fails closed before dispatch or for stale identity", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const request = (pathname: string, body: object) => new Request(`https://execution-coordinator${pathname}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    const identity = { dedupeKey: "coding:guard", executionId: "exec-guard", now: 100, leaseExpiresAt: 200 };
+    assert.equal((await coordinator.fetch(request("/acquire", identity))).status, 201);
+    assert.equal((await coordinator.fetch(request("/complete", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 110 }))).status, 409);
+    assert.equal((await coordinator.fetch(request("/handoff-or-acquire", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 115, leaseExpiresAt: 200 }))).status, 201);
+    assert.equal((await coordinator.fetch(request("/dispatched", { dedupeKey: identity.dedupeKey, executionId: identity.executionId, now: 120 }))).status, 200);
+    assert.equal((await coordinator.fetch(request("/complete", { dedupeKey: identity.dedupeKey, executionId: "stale-exec", now: 130 }))).status, 409);
+  });
+  it("atomically admits independent WIP while rejecting conflict and capacity overflow", async () => {
+    const storage = new TransactionalRacyStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const post = (body: object) => coordinator.fetch(new Request("https://execution-coordinator/active-wip/admit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
+    const base = { canonicalOwner: "evolve", claimedAt: 100, maxConcurrent: 2 };
+    const [a, b] = await Promise.all([
+      post({ ...base, dedupeKey: "work:a", executionId: "exec:a", conflictKeys: ["module:a"] }),
+      post({ ...base, dedupeKey: "work:b", executionId: "exec:b", conflictKeys: ["module:b"] }),
+    ]);
+    assert.deepEqual([a.status, b.status].sort(), [201, 201]);
+    const full = await post({ ...base, dedupeKey: "work:c", executionId: "exec:c", conflictKeys: ["module:c"] });
+    assert.equal(full.status, 409);
+    assert.equal((await full.json() as { reason: string }).reason, "WIP_LIMIT_REACHED");
+  });
+
+  it("rejects overlapping conflict keys and releases capacity only for exact identity", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const post = (path: string, body: object) => coordinator.fetch(new Request(`https://execution-coordinator${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
+    const first = { dedupeKey: "work:a", executionId: "exec:a", canonicalOwner: "evolve", conflictKeys: ["module:shared"], claimedAt: 100, maxConcurrent: 2 };
+    assert.equal((await post("/active-wip/admit", first)).status, 201);
+    const duplicateExecution = await post("/active-wip/admit", { ...first, dedupeKey: "work:duplicate-exec", conflictKeys: ["module:other"] });
+    assert.equal(duplicateExecution.status, 409);
+    assert.equal((await duplicateExecution.json() as { reason: string }).reason, "EXECUTION_ID_CONFLICT");
+    const conflict = await post("/active-wip/admit", { ...first, dedupeKey: "work:b", executionId: "exec:b" });
+    assert.equal(conflict.status, 409);
+    assert.equal((await conflict.json() as { reason: string }).reason, "CONFLICT_KEY_ACTIVE");
+    assert.equal((await post("/active-wip/complete", { dedupeKey: first.dedupeKey, executionId: "stale" })).status, 409);
+    assert.equal((await post("/active-wip/complete", { dedupeKey: first.dedupeKey, executionId: first.executionId })).status, 200);
+    assert.equal((await post("/active-wip/admit", { ...first, dedupeKey: "work:b", executionId: "exec:b" })).status, 201);
+  });
+
+  it("fails closed on malformed WIP ownership and conflict metadata", async () => {
+    const coordinator = new ExecutionCoordinator({ storage: new MemoryStorage() });
+    const post = (body: object) => coordinator.fetch(new Request("https://execution-coordinator/active-wip/admit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
+    const base = { dedupeKey: "work:a", executionId: "exec:a", canonicalOwner: "evolve", conflictKeys: ["module:a"], claimedAt: 100, maxConcurrent: 2 };
+    assert.equal((await post({ ...base, canonicalOwner: "bad owner" })).status, 400);
+    assert.equal((await post({ ...base, conflictKeys: [] })).status, 400);
+    assert.equal((await post({ ...base, conflictKeys: ["module:a", "module:a"] })).status, 400);
+    assert.equal((await post({ ...base, maxConcurrent: 9 })).status, 400);
+  });
+
+});
+
+describe("provider capacity wait", () => {
+  function namedNamespace(): { namespace: ExecutionCoordinatorNamespace; names: string[] } {
+    const coordinators = new Map<string, ExecutionCoordinator>();
+    const names: string[] = [];
+    const namespace: ExecutionCoordinatorNamespace = {
+      idFromName: (name: string) => ({ name }),
+      get: (id: unknown) => {
+        const name = (id as { name: string }).name;
+        names.push(name);
+        if (!coordinators.has(name)) coordinators.set(name, new ExecutionCoordinator({ storage: new MemoryStorage() }));
+        const coordinator = coordinators.get(name)!;
+        return { fetch: (input: RequestInfo | URL, init?: RequestInit) => coordinator.fetch(new Request(input, init)) };
+      },
+    };
+    return { namespace, names };
+  }
+
+  const stop = (mainSha: string, nextRetryAt: number) => ({
+    schemaVersion: 1 as const,
+    taskId: "autopilot:github-issue-2118",
+    executionId: `evolve-coding:${mainSha.slice(0, 16)}:github-issue-2118`,
+    provider: "workers-ai",
+    headSha: mainSha,
+    stopReason: "WORKERS_AI_DAILY_QUOTA_EXHAUSTED",
+    stoppedAt: 1_000,
+    attemptCount: 1,
+    lastFailure: "WORKERS_AI_DAILY_QUOTA_EXHAUSTED",
+    nextRetryAt,
+    resumeCondition: "provider-capacity-and-exact-head-revalidation",
+    dedupeKey: `evolve-coding:${mainSha}:github-issue-2118`,
+    evidenceRef: "coding-evidence:2118",
+  });
+
+  it("is keyed by provider, so a wait recorded on one main is read back on another", async () => {
+    const { namespace, names } = namedNamespace();
+    assert.equal(await readProviderCapacityWait(namespace, "workers-ai"), null);
+    await recordProviderCapacityWait(namespace, stop("a".repeat(40), 5_000));
+    const wait = await readProviderCapacityWait(namespace, "workers-ai");
+    assert.equal(wait?.nextRetryAt, 5_000);
+    assert.equal(wait?.headSha, "a".repeat(40), "the provenance of the stopped execution is kept");
+    assert.deepEqual([...new Set(names)], ["provider-capacity-wait:workers-ai"], "never keyed by a main-specific dedupe key");
+    assert.equal(await readProviderCapacityWait(namespace, "other-provider"), null, "providers do not share a wait");
+  });
+
+  it("never lets a late or replayed stop shorten a longer wait", async () => {
+    const { namespace } = namedNamespace();
+    await recordProviderCapacityWait(namespace, stop("a".repeat(40), 9_000));
+    const kept = await recordProviderCapacityWait(namespace, stop("b".repeat(40), 4_000));
+    assert.equal(kept.nextRetryAt, 9_000);
+    assert.equal((await readProviderCapacityWait(namespace, "workers-ai"))?.nextRetryAt, 9_000);
+    await recordProviderCapacityWait(namespace, stop("c".repeat(40), 12_000));
+    assert.equal((await readProviderCapacityWait(namespace, "workers-ai"))?.nextRetryAt, 12_000);
+  });
+
+  it("rejects a malformed wait instead of storing it", async () => {
+    const { namespace } = namedNamespace();
+    await assert.rejects(recordProviderCapacityWait(namespace, { ...stop("a".repeat(40), 5_000), headSha: "not-a-sha" }), /PROVIDER_CAPACITY_WAIT_RECORD_FAILED/);
+    assert.equal(await readProviderCapacityWait(namespace, "workers-ai"), null);
   });
 });

@@ -4,11 +4,12 @@ import worker, {
   classifyGithubEvent,
   computeGithubWebhookSignature,
   handleCodingExecute,
+  handleScheduledRuntimeTick,
   verifyGithubWebhookSignature,
 } from "./index";
 import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
-import type { CodingRuntime } from "./codingRunner";
-import { ExecutionCoordinator, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import type { CodingRuntime, WorkersAiBinding } from "./codingRunner";
+import { acquirePersistentExecution, ExecutionCoordinator, readPersistentExecution, readProviderCapacityWait, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
 class MemoryStorage {
   private readonly values = new Map<string, unknown>();
@@ -74,6 +75,20 @@ describe("NUSA autopilot GitHub webhook", () => {
 
     const verified = await worker.fetch(new Request("https://example.test/health"), { NUSA_DEPLOYMENT_REVISION: "a".repeat(40) });
     assert.equal((await verified.json() as { deploymentRevision: string }).deploymentRevision, "a".repeat(40));
+  });
+
+  it("protects the persistent scheduled runtime tick with a dedicated bearer secret", async () => {
+    const request = () => new Request("https://example.test/scheduled/run", { method: "POST" });
+    const missing = await handleScheduledRuntimeTick(request(), {});
+    assert.equal(missing.status, 503);
+    assert.equal((await missing.json() as { reason: string }).reason, "AUTOPILOT_RUNTIME_TOKEN_NOT_CONFIGURED");
+
+    const wrong = await handleScheduledRuntimeTick(new Request("https://example.test/scheduled/run", { method: "POST", headers: { authorization: "Bearer wrong" } }), { NUSA_AUTOPILOT_RUNTIME_TOKEN: "correct" });
+    assert.equal(wrong.status, 401);
+
+    const unavailable = await handleScheduledRuntimeTick(new Request("https://example.test/scheduled/run", { method: "POST", headers: { authorization: "Bearer correct" } }), { NUSA_AUTOPILOT_RUNTIME_TOKEN: "correct" });
+    assert.equal(unavailable.status, 503);
+    assert.equal((await unavailable.json() as { reason: string }).reason, "PERSISTENT_EXECUTION_COORDINATOR_REQUIRED");
   });
 
   it("verifies the exact request body with HMAC SHA-256", async () => {
@@ -161,6 +176,7 @@ describe("NUSA autopilot GitHub webhook", () => {
       headSha: "a".repeat(40),
       prNumber: null,
       workflowRunId: null,
+      workflowRunAttempt: null,
       reason: "continue-from:main_push",
       mutationAllowed: false,
     });
@@ -209,6 +225,160 @@ describe("NUSA autopilot GitHub webhook", () => {
     const persisted = await restored.fetch(new Request("https://execution-coordinator/control-plane-hold"));
     const record = await persisted.json() as { hold: { state: string; prNumber: number; headSha: string; baseSha: string } };
     assert.deepEqual({ state: record.hold.state, prNumber: record.hold.prNumber, headSha: record.hold.headSha, baseSha: record.hold.baseSha }, { state: "ACTIVE", prNumber: 1854, headSha, baseSha });
+  });
+
+  it("NOOPs Ready-for-review when exact canonical CI replay evidence is absent", async () => {
+    const headSha = "d".repeat(40);
+    const body = JSON.stringify({
+      action: "ready_for_review",
+      number: 1955,
+      repository: { full_name: "cinamoncandy/NUSA" },
+      pull_request: { head: { sha: headSha }, base: { sha: "b".repeat(40) } },
+    });
+    const signature = await computeGithubWebhookSignature("secret", body);
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      if (String(input).includes("/actions/workflows/ci.yml/runs?")) {
+        return new Response(JSON.stringify({ total_count: 0, workflow_runs: [] }), { status: 200 });
+      }
+      throw new Error("unexpected network call after unresolved Ready replay");
+    }) as typeof fetch;
+    try {
+      const response = await worker.fetch(new Request("https://example.test/github/webhook", {
+        method: "POST",
+        headers: { "x-github-delivery": "ready-no-ci", "x-github-event": "pull_request", "x-hub-signature-256": signature },
+        body,
+      }), {
+        NUSA_WEBHOOK_SECRET: "secret",
+        NUSA_GITHUB_TOKEN: "token",
+        NUSA_GLOBAL_RELEASE_FREEZE: "false",
+      });
+      assert.equal(response.status, 202);
+      const payload = await response.json() as { status: string; reason: string; executor: { status: string; reason: string } };
+      assert.equal(payload.status, "NOOP");
+      assert.equal(payload.reason, "canonical-ci-run-not-found");
+      assert.deepEqual(payload.executor, {
+        status: "NOOP",
+        reason: "github-executor-ready-ci-replay-unresolved",
+        httpStatus: null,
+        requestedHeadSha: headSha,
+        observedHeadSha: null,
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("releases a Draft CI Audit lease so Ready replay dispatches exactly once", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const namespace: ExecutionCoordinatorNamespace = {
+      idFromName: () => ({}),
+      get: () => ({ fetch: (input: RequestInfo | URL, init?: RequestInit) => coordinator.fetch(new Request(input, init)) }),
+    };
+    const headSha = "c".repeat(40);
+    const workflowRunId = 35195500001;
+    const readyBody = JSON.stringify({
+      action: "ready_for_review",
+      number: 1955,
+      repository: { full_name: "cinamoncandy/NUSA" },
+      pull_request: { head: { sha: headSha }, base: { sha: "b".repeat(40) } },
+    });
+    const workflowBody = JSON.stringify({
+      action: "completed",
+      workflow_run: {
+        id: workflowRunId,
+        name: "CI",
+        head_sha: headSha,
+        head_branch: "feature/ready-replay",
+        status: "completed",
+        conclusion: "success",
+        event: "pull_request",
+        pull_requests: [{ number: 1955 }],
+      },
+      repository: { full_name: "cinamoncandy/NUSA" },
+    });
+    const originalFetch = globalThis.fetch;
+    const dispatched: unknown[] = [];
+    let draft = true;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/actions/workflows/ci.yml/runs?")) return new Response(JSON.stringify({
+        total_count: 1,
+        workflow_runs: [{
+          id: workflowRunId,
+          name: "CI",
+          path: ".github/workflows/ci.yml",
+          event: "pull_request",
+          status: "completed",
+          conclusion: "success",
+          head_sha: headSha,
+          repository: { full_name: "cinamoncandy/NUSA" },
+          pull_requests: [{
+            number: 1955,
+            head: { sha: headSha },
+            base: { ref: "main" },
+          }],
+        }],
+      }), { status: 200 });
+      if (url.endsWith("/pulls/1955")) return new Response(JSON.stringify({
+        state: "open",
+        draft,
+        labels: [],
+        head: { sha: headSha },
+      }), { status: 200 });
+      if (url.includes("/actions/workflows/autopilot-deterministic-audit-release.yml/runs?")) {
+        return new Response(JSON.stringify({ workflow_runs: [] }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.endsWith("/dispatches")) {
+        dispatched.push(JSON.parse(String(init?.body)));
+        return new Response(null, { status: 204 });
+      }
+      return new Response(null, { status: 404 });
+    }) as typeof fetch;
+    try {
+      const request = async (delivery: string, event: "workflow_run" | "pull_request", body: string) => {
+        const signature = await computeGithubWebhookSignature("secret", body);
+        return new Request("https://example.test/github/webhook", {
+          method: "POST",
+          headers: { "x-github-delivery": delivery, "x-github-event": event, "x-hub-signature-256": signature },
+          body,
+        });
+      };
+      const env = { NUSA_WEBHOOK_SECRET: "secret", NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace, NUSA_GLOBAL_RELEASE_FREEZE: "false" };
+
+      // The Draft CI path must release this exact Audit lease so Ready can reacquire it later.
+      const draftCi = await worker.fetch(await request("draft-ci", "workflow_run", workflowBody), env);
+      const draftPayload = await draftCi.json() as { executor: { status: string; reason: string } };
+      assert.equal(draftCi.status, 202);
+      assert.equal(draftPayload.executor.status, "REJECTED");
+      assert.equal(draftPayload.executor.reason, "github-executor-pr-draft-hold-active");
+      assert.equal(dispatched.length, 0);
+
+      draft = false;
+      const first = await worker.fetch(await request("ready-1", "pull_request", readyBody), env);
+      const replay = await worker.fetch(await request("ready-2", "pull_request", readyBody), env);
+      const firstPayload = await first.json() as { dispatch: { kind: string; workflowRunId: number }; execution: { kind: string; workflowRunId: number; dedupeKey: string }; executor: { status: string } };
+      const replayPayload = await replay.json() as { status: string; executionBoundary: { dedupeKey: string }; executor: { status: string; reason: string } };
+
+      assert.equal(firstPayload.dispatch.kind, "PR_CI_SUCCEEDED");
+      assert.equal(firstPayload.dispatch.workflowRunId, workflowRunId);
+      assert.equal(firstPayload.execution.kind, "AUDIT_REQUEST");
+      assert.equal(firstPayload.execution.workflowRunId, workflowRunId);
+      assert.equal(firstPayload.executor.status, "DISPATCHED");
+      assert.equal(replayPayload.status, "DUPLICATE_EXECUTION_SUPPRESSED");
+      assert.equal(replayPayload.executionBoundary.dedupeKey, firstPayload.execution.dedupeKey);
+      assert.deepEqual(replayPayload.executor, {
+        status: "REJECTED",
+        reason: "github-executor-duplicate-execution-suppressed",
+        httpStatus: null,
+        requestedHeadSha: headSha,
+        observedHeadSha: null,
+      });
+      assert.equal(dispatched.length, 1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it("rejects malformed signed JSON instead of planning from partial data", async () => {
@@ -297,6 +467,13 @@ describe("NUSA autopilot GitHub webhook", () => {
         NUSA_AI_CODING_TOKEN: "ai-token",
         NUSA_EXECUTION_COORDINATOR: namespace,
       };
+      const now = Date.now();
+      await acquirePersistentExecution(namespace, {
+        dedupeKey: codingRequest.dedupeKey,
+        executionId: codingRequest.executionId,
+        now,
+        leaseExpiresAt: now + 60_000,
+      });
       const first = await handleCodingExecute(request(), env, runtime);
       const second = await handleCodingExecute(request(), env, runtime);
       assert.equal(first.status, 202);
@@ -354,6 +531,79 @@ describe("NUSA autopilot GitHub webhook", () => {
       assert.equal(first.status, 502);
       assert.equal(second.status, 502);
       assert.equal(codingEngineCalls, 2);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("persists a Worker rate-limit stop and suppresses replay until the same WIP is due", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const namespace: ExecutionCoordinatorNamespace = {
+      idFromName: () => ({}),
+      get: () => ({ fetch: (input: RequestInfo | URL, init?: RequestInit) => coordinator.fetch(new Request(input, init)) }),
+    };
+    let codingEngineCalls = 0;
+    const ai: WorkersAiBinding = {
+      async run() {
+        codingEngineCalls += 1;
+        throw new Error("429 too many requests");
+      },
+    };
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/commits/")) return new Response(JSON.stringify({ sha: codingRequest.headSha }), { status: 200 });
+      if (url.includes("/actions/runs/")) return new Response(JSON.stringify({
+        id: codingRequest.workflowRunId,
+        head_sha: codingRequest.headSha,
+        head_branch: "main",
+        status: "completed",
+        conclusion: "success",
+        repository: { full_name: codingRequest.repository },
+      }), { status: 200 });
+      return new Response(null, { status: 404 });
+    }) as typeof fetch;
+    try {
+      const request = () => new Request("https://example.test/coding/execute", {
+        method: "POST",
+        headers: { authorization: "Bearer runner-token", "content-type": "application/json" },
+        body: JSON.stringify(codingRequest),
+      });
+      const env = {
+        NUSA_CODING_RUNNER_TOKEN: "runner-token",
+        NUSA_GITHUB_TOKEN: "github-token",
+        NUSA_EXECUTION_COORDINATOR: namespace,
+        AI: ai,
+      };
+      const first = await handleCodingExecute(request(), env);
+      const firstPayload = await first.json() as { status: string; nextRetryAt: number; stopReason: string; resumeCondition: string };
+      assert.equal(first.status, 202);
+      assert.equal(firstPayload.status, "WAITING_RATE_LIMIT");
+      assert.equal(firstPayload.stopReason, "WORKERS_AI_RATE_LIMITED");
+      assert.equal(firstPayload.resumeCondition, "provider-capacity-and-exact-head-revalidation");
+      assert.ok(firstPayload.nextRetryAt > Date.now());
+
+      const stopped = await readPersistentExecution(namespace, codingRequest.dedupeKey);
+      assert.equal(stopped?.state, "WAITING_RATE_LIMIT");
+      assert.equal(stopped?.executionId, codingRequest.executionId);
+      assert.equal(stopped?.stop?.dedupeKey, codingRequest.dedupeKey);
+      assert.equal(stopped?.stop?.headSha, codingRequest.headSha);
+
+      // The same stop is also recorded against the provider, which is what keeps later executions on
+      // a different main from dispatching inside the wait window.
+      const providerWait = await readProviderCapacityWait(namespace, "workers-ai");
+      assert.equal(providerWait?.nextRetryAt, firstPayload.nextRetryAt);
+      assert.equal(providerWait?.dedupeKey, codingRequest.dedupeKey);
+      assert.equal(providerWait?.stopReason, "WORKERS_AI_RATE_LIMITED");
+
+      const replay = await handleCodingExecute(request(), env);
+      const replayPayload = await replay.json() as { status: string; reason: string; nextRetryAt: number };
+      assert.equal(replay.status, 202);
+      assert.equal(replayPayload.status, "WAITING_RATE_LIMIT");
+      assert.equal(replayPayload.reason, "WAITING_RATE_LIMIT");
+      assert.equal(replayPayload.nextRetryAt, firstPayload.nextRetryAt);
+      assert.equal(codingEngineCalls, 1);
     } finally {
       globalThis.fetch = originalFetch;
     }

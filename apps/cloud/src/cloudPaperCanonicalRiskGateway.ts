@@ -46,6 +46,8 @@ export interface CloudPaperRiskRequest {
   readonly overallHealth: "HEALTHY" | "DEGRADED" | "CRITICAL" | "UNKNOWN";
   readonly state: PaperAccountState;
   readonly approvedBy?: string;
+  /** Exact immutable request identity supplied by the upstream canonical execution boundary. */
+  readonly payloadFingerprintSha256?: string;
 }
 
 export interface CloudPaperRiskGate {
@@ -94,12 +96,14 @@ function rateState(state: PaperAccountState, now: number, side: "BUY" | "SELL"):
   let ordersInLastSecond = 0;
   let ordersInLastMinute = 0;
   for (const order of state.orders) {
+    if (order.status === "CANCELLED") continue;
     const age = now - order.filledAt;
     if (age >= 0 && age < 1_000) ordersInLastSecond += 1;
     if (age >= 0 && age < 60_000) ordersInLastMinute += 1;
   }
   let sameSideStreak = 0;
   for (const order of state.orders) {
+    if (order.status === "CANCELLED") continue;
     if (order.side !== side) break;
     sameSideStreak += 1;
   }
@@ -111,6 +115,7 @@ function dailyNotional(state: PaperAccountState, now: number): Readonly<{ dailyB
   let dailyBuyNotional = 0;
   let dailySellNotional = 0;
   for (const order of state.orders) {
+    if (order.status === "CANCELLED") continue;
     if (dayOf(order.filledAt) !== day) continue;
     const notional = order.quantity * order.price;
     if (order.side === "BUY") dailyBuyNotional += notional;
@@ -123,6 +128,7 @@ function realizedLossState(state: PaperAccountState, now: number): Readonly<{ da
   const positions = new Map<string, { quantity: number; averageEntryPrice: number }>();
   const sells: Array<{ pnl: number; filledAt: number }> = [];
   for (const order of [...state.orders].reverse()) {
+    if (order.status === "CANCELLED") continue;
     const prior = positions.get(order.market) ?? { quantity: 0, averageEntryPrice: 0 };
     if (order.side === "BUY") {
       const nextQuantity = prior.quantity + order.quantity;
@@ -184,6 +190,21 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
   public evaluate(input: CloudPaperRiskRequest): Readonly<{ status: "ALLOW" | "REJECT" | "HALT"; reasonCodes: readonly string[] }> {
     const persistent = databaseHealthy(this.options.database);
     const reconciled = stateHealthy(input.state);
+    const payloadFingerprint = input.payloadFingerprintSha256 ?? hash({
+      path: input.path,
+      commandId: input.commandId,
+      signalId: input.signalId,
+      clientOrderId: input.clientOrderId,
+      strategyId: input.strategyId,
+      market: input.market,
+      side: input.side,
+      quantity: input.quantity,
+      price: input.price,
+      observedAt: input.observedAt,
+    });
+    if (!/^[a-f0-9]{64}$/.test(payloadFingerprint)) {
+      return Object.freeze({ status: "HALT", reasonCodes: Object.freeze(["IDEMPOTENCY_FINGERPRINT_INVALID"]) });
+    }
     const marketAge = input.now - input.observedAt;
     const marketStatus = !Number.isSafeInteger(input.observedAt) || input.observedAt < 0 || input.observedAt > input.now
       ? "INVALID" as const
@@ -275,7 +296,7 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
       persistenceHealthy: persistent,
       maxDailyLoss: this.limits.maxDailyLoss,
       maxOpenOrders: this.limits.maxOpenOrders,
-      idempotency: { accountId: ACCOUNT_ID, commandId: input.commandId, signalId: input.signalId, clientOrderId: input.clientOrderId, payloadFingerprint: "PENDING", createdAtMs: input.now }
+      idempotency: { accountId: ACCOUNT_ID, commandId: input.commandId, signalId: input.signalId, clientOrderId: input.clientOrderId, payloadFingerprint, createdAtMs: input.now }
     });
     if (approvalId !== undefined) {
       try { this.canonical.revokeApproval(approvalId, "single-use manual approval evaluated"); } catch { return Object.freeze({ status: "HALT", reasonCodes: Object.freeze(["PERSISTENCE_UNHEALTHY"]) }); }

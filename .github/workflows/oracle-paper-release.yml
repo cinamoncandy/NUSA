@@ -25,18 +25,14 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Release exact-main Cloud PAPER runtime
-    # A dedicated label, not the Codex development runner: that runner's own contract forbids
-    # deploying, and a release writer must not share an identity with an agent sandbox.
-    runs-on: [self-hosted, Linux, nusa-paper-host]
+  prepare:
+    name: Build exact-main Cloud PAPER release
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       SOURCE_SHA: ${{ inputs.source_sha }}
-      NUSA_DEPLOY_ROOT: /opt/nusa
-      # One privileged entry point, installed outside the release tree so a release cannot rewrite
-      # the helper that runs as root. sudoers grants exactly this command and nothing else.
-      STEP: /opt/nusa/bin/nusa-release-step
+    outputs:
+      bundle_sha: ${{ steps.bundle.outputs.sha }}
     steps:
       - name: Verify the requested source is exact protected main
         env:
@@ -76,38 +72,70 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm run build
 
+      - name: Seal the built release
+        id: bundle
+        run: |
+          set -euo pipefail
+          tar -czf "$RUNNER_TEMP/nusa-release.tar.gz" --exclude=.git .
+          echo "sha=$(sha256sum "$RUNNER_TEMP/nusa-release.tar.gz" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload built release
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nusa-paper-release
+          path: ${{ runner.temp }}/nusa-release.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    name: Release exact-main Cloud PAPER runtime
+    needs: prepare
+    # Only the privileged release steps run on the dedicated host. Build and dependency
+    # installation stay on GitHub-hosted hardware, away from the 1 GB PAPER runtime host.
+    runs-on: [self-hosted, Linux, nusa-paper-host]
+    timeout-minutes: 30
+    env:
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      NUSA_DEPLOY_ROOT: /opt/nusa
+      STEP: /opt/nusa/bin/nusa-release-step
+      BUNDLE_SHA: ${{ needs.prepare.outputs.bundle_sha }}
+    steps:
+      - name: Recheck exact protected main before host mutation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          MAIN_SHA="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [ "$MAIN_SHA" = "$SOURCE_SHA" ] || { echo "::error::Protected main moved after build; refusing stale release"; exit 1; }
+
+      - name: Download built release
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: nusa-paper-release
+          path: ${{ runner.temp }}
+
+      - name: Verify and unpack the exact built release
+        run: |
+          set -euo pipefail
+          [[ "$BUNDLE_SHA" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::Missing bundle digest"; exit 1; }
+          echo "$BUNDLE_SHA  $RUNNER_TEMP/nusa-release.tar.gz" | sha256sum --check --status
+          RELEASE_TREE="$RUNNER_TEMP/nusa-release-tree-$GITHUB_RUN_ID"
+          mkdir -p "$RELEASE_TREE"
+          tar -xzf "$RUNNER_TEMP/nusa-release.tar.gz" -C "$RELEASE_TREE"
+          test -f "$RELEASE_TREE/scripts/oracle-validate.js"
+          echo "RELEASE_TREE=$RELEASE_TREE" >> "$GITHUB_ENV"
+
       - name: Back up persistent state before touching the release
         run: sudo "$STEP" backup
 
       - name: Stage the immutable release directory
-        run: sudo "$STEP" stage "$SOURCE_SHA" "$GITHUB_WORKSPACE"
+        run: sudo "$STEP" stage "$SOURCE_SHA" "$RELEASE_TREE"
 
       - name: Preflight host and security contract
         run: sudo "$STEP" preflight "$SOURCE_SHA"
 
-      - name: Switch the release symlink atomically
-        run: sudo "$STEP" switch "$SOURCE_SHA"
-
-      - name: Restart the PAPER service
-        run: sudo "$STEP" restart
-
-      - name: Prove readiness, and roll back if it fails
-        id: readiness
-        run: |
-          set -euo pipefail
-          # Readiness is the acceptance gate. A release that cannot prove it is rolled back here
-          # rather than left serving, because the runbook's failure path is a symlink rollback and
-          # never an automatic data restore.
-          if sudo "$STEP" readiness; then
-            echo "Release $SOURCE_SHA accepted."
-            exit 0
-          fi
-          echo "::error::Readiness failed for $SOURCE_SHA; rolling back."
-          sudo "$STEP" rollback
-          sudo "$STEP" restart
-          sudo "$STEP" readiness || { echo "::error::Rollback readiness also failed. Service left for investigation; do not bypass readiness."; exit 1; }
-          echo "::error::Rolled back to the prior release, which is ready."
-          exit 1
+      - name: Atomically activate exact release and prove both runtimes
+        run: sudo "$STEP" activate "$SOURCE_SHA"
 
       - name: Record deployed identity and fail-closed authority
         if: always()

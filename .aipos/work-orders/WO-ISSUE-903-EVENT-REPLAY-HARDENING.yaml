@@ -100,6 +100,18 @@ audit_dispatch_payload_limit_remediation:
   completion: "PR #1945 exact head 3f2219467d48439ae8cf7b63cf43fae5b5e0dea3 passed CI 35188124813, PAPER/READ_ONLY/Restricted LIVE safety workflows, and independent Audit/Release 35188428151 before canonical merge cabe68df11d95cd4212d09c1045c9aff7cd769b2."
   next: "Completed; select the next ready source-of-truth work order. No merge or financial authority is added by this record."
 
+ready_for_review_audit_dedupe_repair:
+  status: IMPLEMENTED_LOCAL
+  issue: 1955
+  pull_request: 1956
+  branch: codex/issue-1955
+  base_head: d9b707a64be4dfea29d04e17eb6f95e7cd543931
+  finding: "Ready-for-review recovered the exact successful PR CI identity but persistent execution acquisition was limited to CI_SUCCEEDED, so distinct webhook delivery IDs could dispatch the same deterministic Audit request twice."
+  remediation: "Acquire and mark the existing persistent execution identity for PR_CI_SUCCEEDED Audit requests as well as CI_SUCCEEDED coding requests. Preserve audit:<pr>:<workflowRunId>:<exactHead>; require NUSA_EXECUTION_COORDINATOR and fail closed when it is absent."
+  validation: "Direct repository TypeScript compile/typecheck PASS; focused Autopilot index, canonical PR CI resolver, and GitHub executor regressions PASS; runtime, repository-portability, and Android release-contract preflight checks PASS; git diff --check PASS."
+  next: "Commit locally on the existing PR #1956 branch. Do not push, mark Ready, open another PR, or trigger remote CI without a new OWNER instruction."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_main_audit:
   audited_at: "2026-08-31"
   current_main: db9067754e12c2e462579f5b39b0ebc99a182d19

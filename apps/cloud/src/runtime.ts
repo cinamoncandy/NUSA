@@ -10,7 +10,7 @@ import { CloudPaperExecutionBoundary } from "./cloudPaperExecutionBoundary";
 import { SqliteP0AlertRepository } from "./p0AlertRepository";
 import fs from "node:fs";
 import path from "node:path";
-import { createShutdownController, type ShutdownController } from "./cloudRuntimeShutdown";
+import { createShutdownController, handleRuntimeFault, type ShutdownController } from "./cloudRuntimeShutdown";
 import { startCloudDashboardServer, type CloudDashboardServerHandle, type CloudReadinessSnapshot } from "./server";
 import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { UpbitWebSocketClient, type UpbitOrderBook, type UpbitTicker, type UpbitWebSocketOptions } from "./upbitWebSocket";
@@ -25,6 +25,7 @@ import {
   type PersonalPaperOperationsSnapshot,
   type PersonalPaperOrderProjection,
   type PersonalPaperPortfolioProjection,
+  type PersonalPaperRuntimeHaltReason,
   type PersonalPaperRuntimeHeartbeat
 } from "../../../packages/contracts/src/personalPaperOperations";
 import type { PersonalPaperOrderCommand, PersonalPaperOrderCommandResult } from "../../../packages/contracts/src/personalPaperOrderCommand";
@@ -56,6 +57,7 @@ import { paperExecutionObservationId, PaperRealizedPeriodProducer, SqlitePaperRe
 import { readCanonicalPaperTickerBenchmark } from "./paperMarketBenchmark";
 import { buildPaperObservedExecutionQuote, type PaperObservedExecutionQuote } from "./paperRuntimeExecutionCostEvidence";
 import { SqlitePaperMarketObservationRepository } from "../../../packages/storage/src/paperMarketObservationRepository";
+import { canonicalUpbitSourceFingerprint } from "../../../packages/core/src/canonicalMarketData";
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import { buildEvolutionLearningSupervisorSnapshot } from "./evolutionLearningSupervisorProjection";
 import {
@@ -196,6 +198,7 @@ export function startCloudRuntime(
   const paperMarketObservationRepository = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new SqlitePaperMarketObservationRepository(durableRepository.database())
     : undefined;
+  const effectivePaperRepository = paperAccountRepository ?? (config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository ? new SqliteCloudPaperAccountRepository(durableRepository.database()) : undefined);
   let effectivePaperLoop: PaperTradingExecutionLoop | undefined;
   const paperRealizedPeriodProducer = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new PaperRealizedPeriodProducer(new SqlitePaperRealizedPeriodRepository(durableRepository.database()), {
@@ -211,6 +214,10 @@ export function startCloudRuntime(
         const loop = effectivePaperLoop;
         if (loop == null) throw new Error("canonical PAPER account source is unavailable");
         return loop.snapshot();
+      },
+      readCanonicalPaperFills: () => {
+        if (effectivePaperRepository?.loadFills == null) throw new Error("canonical PAPER fill ledger is unavailable");
+        return effectivePaperRepository.loadFills();
       },
       ...(paperMarketObservationRepository == null ? {} : { readCanonicalBenchmarkEvidence: (periodStartAt: number, periodEndAt: number, market?: string) => readCanonicalPaperTickerBenchmark(paperMarketObservationRepository, market, periodStartAt, periodEndAt) }),
     })
@@ -233,7 +240,6 @@ export function startCloudRuntime(
     : new InMemoryInvestmentAllocationSettingsRepository();
   const readPaperP0State = () => { if (effectiveP0Repository == null) throw new Error("P0 safety repository unavailable"); return effectiveP0Repository.readState(); };
   const readAiP0State = (): CloudRuntimeAiP0State => { if (effectiveP0Repository == null) return "UNAVAILABLE"; try { return effectiveP0Repository.readState().openP0 ? "OPEN" : "CLOSED"; } catch { return "UNVERIFIABLE"; } };
-  const effectivePaperRepository = paperAccountRepository ?? (config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository ? new SqliteCloudPaperAccountRepository(durableRepository.database()) : undefined);
   const productionPaperRiskGate = config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new CloudPaperCanonicalRiskGateway({ database: durableRepository.database(), initialCapital: config.paperInitialCapitalKrw, sourceCommitSha: env.NUSA_SOURCE_COMMIT?.trim() || env.GITHUB_SHA?.trim() || "local-paper-build" })
     : undefined;
@@ -290,9 +296,6 @@ export function startCloudRuntime(
     heartbeat.lastHeartbeatAt = Date.now();
     heartbeat.lastMarketEventAt = ticker.trade_timestamp;
     heartbeat.eventCount += 1;
-    latestTickers.set(ticker.code, { market: ticker.code, price: ticker.trade_price, changeRate: ticker.signed_change_rate ?? null, volume: ticker.acc_trade_volume ?? null, observedAt: new Date(ticker.trade_timestamp).toISOString(), source: "UPBIT_PUBLIC_TICKER" });
-    try { paperMarketObservationRepository?.append({ market: ticker.code, observedAt: ticker.trade_timestamp, price: ticker.trade_price, signedChangeRate: ticker.signed_change_rate, accumulatedVolume: ticker.acc_trade_volume, accumulatedPrice: ticker.acc_trade_price_24h }); }
-    catch { heartbeat.lastError = "PAPER_MARKET_OBSERVATION_REJECTED"; }
     const now = Date.now();
     const observation = upbitTickerToIntelligenceObservation(ticker, { now });
     if (!observation) {
@@ -309,6 +312,11 @@ export function startCloudRuntime(
       safeHydrate([...observations.values()]);
       return;
     }
+    // Only accepted public-market events may become durable PAPER evidence.
+    // This keeps stale/future/malformed transport input out of the canonical observation store.
+    latestTickers.set(ticker.code, { market: ticker.code, price: ticker.trade_price, changeRate: ticker.signed_change_rate ?? null, volume: ticker.acc_trade_volume ?? null, observedAt: new Date(ticker.trade_timestamp).toISOString(), source: "UPBIT_PUBLIC_TICKER" });
+    try { paperMarketObservationRepository?.append({ market: ticker.code, observedAt: ticker.trade_timestamp, price: ticker.trade_price, signedChangeRate: ticker.signed_change_rate, accumulatedVolume: ticker.acc_trade_volume, accumulatedPrice: ticker.acc_trade_price_24h, sourceFingerprint: canonicalUpbitSourceFingerprint(ticker) }); }
+    catch { heartbeat.lastError = "PAPER_MARKET_OBSERVATION_REJECTED"; }
     observations.set(observation.id, observation); while (observations.size > 50) observations.delete(observations.keys().next().value!); safeHydrate([...observations.values()]);
     const researchTick = { market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, now };
     try { effectiveResearchRuntime?.onMarketData(researchTick); } catch { /* isolated */ }
@@ -328,7 +336,7 @@ export function startCloudRuntime(
       } catch { /* advisory AI only */ }
       if (effectivePaperLoop != null) {
         const investmentPercent = investmentAllocationSettings.get(config.ownerId)?.investmentPercent ?? config.paperInvestmentPercent;
-        const tick = { now: executionNow, market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, mode: state.mode, killSwitchActive: state.killSwitchActive, tradingAllowed: dashboard.tradingAllowed, overallHealth: state.overallHealth, decisions: state.decisions, investmentPercent, observedQuote: latestExecutionQuotes.get(ticker.code) };
+        const tick = { now: executionNow, market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, mode: state.mode, killSwitchActive: state.killSwitchActive, tradingAllowed: dashboard.tradingAllowed, overallHealth: state.overallHealth, portfolio: state.portfolio, decisions: state.decisions, investmentPercent, observedQuote: latestExecutionQuotes.get(ticker.code) };
         heartbeat.lastPaperDecisionAt = now;
         heartbeat.decisionCount += state.decisions.length;
         // A supplied loop is a read/recovery fixture unless it is composed behind the
@@ -388,12 +396,20 @@ export function startCloudRuntime(
     const p0State = readAiP0State();
     const p0Halted = p0State === "OPEN" || p0State === "UNVERIFIABLE";
     const autoRunning = effectivePaperLoop != null && config.upbitPublicDataEnabled;
-    const runtimeState = dashboard.mode === "FAULTED" || dashboard.killSwitchActive || p0Halted ? "HALTED" as const : dashboard.mode === "STOPPED" ? "STOPPED" as const : !autoRunning ? "STOPPED" as const : transport === "ONLINE" ? "RUNNING" as const : "DEGRADED" as const;
-    const learningRuntimeStatus = dashboard.mode === "FAULTED" || dashboard.killSwitchActive || p0Halted || heartbeat.lastError != null ? "HALTED" as const : autoRunning && transport === "ONLINE" ? "RUNNING" as const : "PAUSED" as const;
+    // The reasons and the state come from one evaluation on purpose. Computing HALTED from these
+    // three inputs and then separately describing why would let the two drift, which is exactly the
+    // gap that left a HALTED soak observation unattributable (#1855).
+    const runtimeHaltReasons: PersonalPaperRuntimeHaltReason[] = [];
+    if (dashboard.mode === "FAULTED") runtimeHaltReasons.push("DASHBOARD_FAULTED");
+    if (dashboard.killSwitchActive) runtimeHaltReasons.push("KILL_SWITCH_ACTIVE");
+    if (p0State === "OPEN") runtimeHaltReasons.push("AI_P0_OPEN");
+    if (p0State === "UNVERIFIABLE") runtimeHaltReasons.push("AI_P0_UNVERIFIABLE");
+    const runtimeState = runtimeHaltReasons.length > 0 ? "HALTED" as const : dashboard.mode === "STOPPED" ? "STOPPED" as const : !autoRunning ? "STOPPED" as const : transport === "ONLINE" ? "RUNNING" as const : "DEGRADED" as const;
+    const learningRuntimeStatus = runtimeHaltReasons.length > 0 || heartbeat.lastError != null ? "HALTED" as const : autoRunning && transport === "ONLINE" ? "RUNNING" as const : "PAUSED" as const;
     const primaryMarket = latestTickers.get(config.upbitMarkets[0] ?? "");
     const generatedAt = Math.max(dashboard.generatedAt, heartbeat.lastHeartbeatAt);
     const paperLearning = { schemaVersion: 1 as const, mode: "PAPER" as const, readOnly: true as const, liveAuthority: "NONE" as const, productionMutationAllowed: false as const, runtimeStatus: learningRuntimeStatus, generatedAt, events: buildPaperLearningReadOnlyProjection(paperLearningRecorder.replay(), 250) };
-    return buildPersonalPaperOperationsSnapshot({ dashboard, research: researchAutomation?.statusProjection?.() ?? null, ai: aiRuntime == null ? null : projectAiReadOnly(aiRuntime.latest(Date.now())), paperLearning, operations: { runtimeState, schedulerRunning: autoRunning, schedulerMode: autoRunning ? "ACTIVE" : "OFF", pipelineStage: effectivePaperLoop == null ? "READ_ONLY_DASHBOARD" : "PAPER_EXECUTION_LOOP", transport, killSwitchActive: dashboard.killSwitchActive, accountHalted: dashboard.mode === "FAULTED" || p0Halted, pendingWrites: 0, ...(paperSnapshot != null && paperSnapshot.updatedAt > 0 ? { lastEventAt: paperSnapshot.updatedAt } : {}), updatedAt: generatedAt, heartbeat: readHeartbeat(), ...(paperSupervisor == null ? {} : { supervisor: paperSupervisor }) }, portfolio: buildReadOnlyPortfolio(paperSnapshot, primaryMarket), orders: buildReadOnlyOrders(paperSnapshot), markets: [...latestTickers.values()].sort((left, right) => left.market.localeCompare(right.market)) }, generatedAt);
+    return buildPersonalPaperOperationsSnapshot({ dashboard, research: researchAutomation?.statusProjection?.() ?? null, ai: aiRuntime == null ? null : projectAiReadOnly(aiRuntime.latest(Date.now())), paperLearning, operations: { runtimeState, schedulerRunning: autoRunning, schedulerMode: autoRunning ? "ACTIVE" : "OFF", pipelineStage: effectivePaperLoop == null ? "READ_ONLY_DASHBOARD" : "PAPER_EXECUTION_LOOP", transport, killSwitchActive: dashboard.killSwitchActive, accountHalted: dashboard.mode === "FAULTED" || p0Halted, ...(runtimeHaltReasons.length > 0 ? { runtimeHaltReasons: Object.freeze([...runtimeHaltReasons]) } : {}), pendingWrites: 0, ...(paperSnapshot != null && paperSnapshot.updatedAt > 0 ? { lastEventAt: paperSnapshot.updatedAt } : {}), updatedAt: generatedAt, heartbeat: readHeartbeat(), ...(paperSupervisor == null ? {} : { supervisor: paperSupervisor }) }, portfolio: buildReadOnlyPortfolio(paperSnapshot, primaryMarket), orders: buildReadOnlyOrders(paperSnapshot), markets: [...latestTickers.values()].sort((left, right) => left.market.localeCompare(right.market)) }, generatedAt);
   };
 
   const submitPaperOrder = (principal: DashboardPrincipal, command: PersonalPaperOrderCommand): PersonalPaperOrderCommandResult => {
@@ -480,12 +496,10 @@ export function registerGracefulShutdown(handle: CloudDashboardServerHandle, exi
   // Unrecoverable runtime faults must terminate the process so supervisors can restart
   // from a fail-closed state instead of serving potentially stale mutation paths.
   process.on("uncaughtException", (error) => {
-    console.error("[cloud-runtime-crash] uncaught exception", error instanceof Error ? error.message : "unknown error");
-    exit(1);
+    handleRuntimeFault(controller, "uncaught exception", error, exit);
   });
   process.on("unhandledRejection", (reason) => {
-    console.error("[cloud-runtime-crash] unhandled rejection", reason instanceof Error ? reason.message : "unknown error");
-    exit(1);
+    handleRuntimeFault(controller, "unhandled rejection", reason, exit);
   });
 
   return controller;

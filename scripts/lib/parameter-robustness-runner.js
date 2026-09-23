@@ -183,10 +183,6 @@ function buildCandidateGrid(referenceParameters, neighborhood, trainingCandleBou
         const shortWindow = ref.shortWindow + shortOffset;
         const longWindow = ref.longWindow + longOffset;
         const key = `${shortWindow}/${longWindow}`;
-        // Keep the research neighborhood aligned with the production
-        // SmaCrossoverStrategy constructor, which requires shortPeriod >= 2.
-        // A positive shortWindow of 1 would otherwise be admitted here and
-        // fail only after the candidate reaches strategy construction.
         const valid = Number.isInteger(shortWindow) && shortWindow >= 2 && isPositiveInteger(longWindow) && longWindow > shortWindow && (trainingCandleBound == null || longWindow < trainingCandleBound);
         const distances = referenceParameters.map((r) => ({
           source: r.source,
@@ -201,11 +197,6 @@ function buildCandidateGrid(referenceParameters, neighborhood, trainingCandleBou
   return [...seen.values()].sort((a, b) => a.shortWindow - b.shortWindow || a.longWindow - b.longWindow);
 }
 
-/** Immediate neighbors of `reference`: candidates one offset-index step away in the
- * declared shortOffsets/longOffsets grids (Chebyshev-adjacent), excluding the
- * reference cell itself. Distance is measured in grid-index space, not raw value, so
- * an irregular offset grid (e.g. [-5,-2,0,2,5]) is still treated as "adjacent" between
- * consecutive declared offsets. */
 function findImmediateNeighbors(grid, reference, neighborhood) {
   const sortedShort = [...new Set(neighborhood.shortOffsets)].sort((a, b) => a - b);
   const sortedLong = [...new Set(neighborhood.longOffsets)].sort((a, b) => a - b);
@@ -225,11 +216,19 @@ function runFullSample(modules, points, param, execConfig) {
   return modules.backtestEngine.runBacktest(points, factory, execConfig);
 }
 
+function runScoredOosBacktest(modules, points, boundary, factory, execConfig) {
+  return modules.backtestEngine.runBacktest(
+    points.slice(boundary.testStartIndex, boundary.testEndIndex + 1),
+    factory,
+    { ...execConfig, warmupPoints: points.slice(0, boundary.testStartIndex) }
+  );
+}
+
 function runOosFixed(modules, points, param, execConfig, oosWindows) {
   const plan = buildWindowPlan(points.map((p) => ({ market: execConfig.market, interval: "1m", openTime: p.timestamp - 1, closeTime: p.timestamp, open: p.close, high: p.close, low: p.close, close: p.close, volume: 1 })), { trainingCandles: oosWindows.trainingCandles, validationCandles: 0, testCandles: oosWindows.testCandles, stepCandles: oosWindows.stepCandles });
   if (plan.length === 0) return null;
   const factory = () => new modules.strategyEngine.SmaCrossoverStrategy(param.shortWindow, param.longWindow);
-  const testResults = plan.map((boundary) => modules.backtestEngine.runBacktest(points.slice(boundary.testStartIndex, boundary.testEndIndex + 1), factory, execConfig));
+  const testResults = plan.map((boundary) => runScoredOosBacktest(modules, points, boundary, factory, execConfig));
   const compoundedReturn = compoundedSequence(testResults.map((r) => r.metrics.totalReturn));
   let base = execConfig.initialCash;
   const curve = [];
@@ -263,7 +262,7 @@ function runGenericParameterRobustnessRequest(request, modules, candles, points)
     if (request.evaluation.mode === "WALK_FORWARD_OOS_WINDOWS" || request.evaluation.mode === "BOTH") {
       const plan = buildWindowPlan(points.map((p) => ({ market: execConfig.market, interval: "1m", openTime: p.timestamp - 1, closeTime: p.timestamp, open: p.close, high: p.close, low: p.close, close: p.close, volume: 1 })), { trainingCandles: oosWindows.trainingCandles, validationCandles: 0, testCandles: oosWindows.testCandles, stepCandles: oosWindows.stepCandles });
       if (plan.length > 0) {
-        const testResults = plan.map((boundary) => modules.backtestEngine.runBacktest(points.slice(boundary.testStartIndex, boundary.testEndIndex + 1), factory, execConfig));
+        const testResults = plan.map((boundary) => runScoredOosBacktest(modules, points, boundary, factory, execConfig));
         const compoundedReturn = compoundedSequence(testResults.map((result) => result.metrics.totalReturn));
         let base = execConfig.initialCash;
         const curve = [];
@@ -395,8 +394,6 @@ function runParameterRobustnessRequest(request, options = {}) {
     });
     const positiveRatioAll = allValidReturns.filter((r) => r > 0).length / allValidReturns.length;
 
-    // Local smoothness / abrupt edges across the whole grid (4-connected: adjacent in
-    // exactly one dimension), reused for the UNSTABLE classification below.
     const sortedShort = [...new Set(request.neighborhood.shortOffsets)].sort((a, b) => a - b);
     const sortedLong = [...new Set(request.neighborhood.longOffsets)].sort((a, b) => a - b);
     let signReversals = 0;

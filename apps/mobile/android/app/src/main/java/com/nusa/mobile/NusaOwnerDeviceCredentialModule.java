@@ -39,6 +39,8 @@ public final class NusaOwnerDeviceCredentialModule extends ReactContextBaseJavaM
   public static final String NAME = "NusaOwnerDeviceCredential";
   private static final String STORE = "nusa_owner_device_credential_v1";
   private static final String ACTIVE_ID = "credential_id";
+  private static final String SILENT_ACTIVE_ID = "silent_device_credential_id";
+  private static final String SILENT_ALIAS_PREFIX = "nusa_paper_silent_device_p256_";
   private static final String ALIAS_PREFIX = "nusa_owner_device_credential_p256_";
   // A CryptoObject flow is biometric-only.
   private static final int AUTHENTICATORS = BiometricManager.Authenticators.BIOMETRIC_STRONG;
@@ -119,9 +121,84 @@ public final class NusaOwnerDeviceCredentialModule extends ReactContextBaseJavaM
         }
         @Override public void onAuthenticationError(int code, @NonNull CharSequence error) { promise.reject("E_NUSA_OWNER_DEVICE_CREDENTIAL_AUTH", "Owner authentication was not completed."); }
       });
-      BiometricPrompt.PromptInfo info = new BiometricPrompt.PromptInfo.Builder().setTitle("NUSA 소유자 인증").setSubtitle(message).setAllowedAuthenticators(AUTHENTICATORS).build();
+      BiometricPrompt.PromptInfo info = new BiometricPrompt.PromptInfo.Builder()
+        .setTitle("NUSA 소유자 인증")
+        .setSubtitle(message)
+        // AndroidX requires an explicit negative action when only biometric
+        // authenticators are allowed; without it Galaxy can reject prompt
+        // construction before the fingerprint UI is shown.
+        .setNegativeButtonText("취소")
+        .setAllowedAuthenticators(AUTHENTICATORS)
+        .build();
       prompt.authenticate(info, new BiometricPrompt.CryptoObject(signer));
     } catch (Exception error) { promise.reject("E_NUSA_OWNER_DEVICE_CREDENTIAL_SIGN", "Owner authentication could not start.", error); }
+  }
+
+
+  @ReactMethod public void getSilentDeviceStatus(Promise promise) {
+    WritableMap result = Arguments.createMap();
+    String credentialId = preferences.getString(SILENT_ACTIVE_ID, null);
+    boolean apiSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M;
+    boolean keyPresent = credentialId != null && hasSilentKey(credentialId);
+    boolean hardwareBacked = keyPresent && isSilentHardwareBacked(credentialId);
+    result.putBoolean("available", apiSupported && keyPresent && hardwareBacked);
+    result.putBoolean("canCreate", apiSupported);
+    result.putBoolean("hardwareBacked", hardwareBacked);
+    result.putString("status", !apiSupported ? "ANDROID_KEYSTORE_REQUIRED" : keyPresent ? (hardwareBacked ? "SILENT_DEVICE_KEY_PRESENT" : "HARDWARE_BACKING_UNAVAILABLE") : "SILENT_DEVICE_KEY_NOT_REGISTERED");
+    if (keyPresent) result.putString("credentialId", credentialId); else result.putNull("credentialId");
+    promise.resolve(result);
+  }
+
+  @ReactMethod public void createSilentDeviceCredential(Promise promise) {
+    String credentialId = null;
+    try {
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) throw new IllegalStateException("Android Keystore is unavailable");
+      String previous = preferences.getString(SILENT_ACTIVE_ID, null);
+      credentialId = UUID.randomUUID().toString().replace("-", "") + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+      KeyPairGenerator generator = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, "AndroidKeyStore");
+      KeyGenParameterSpec spec = new KeyGenParameterSpec.Builder(silentAlias(credentialId), KeyProperties.PURPOSE_SIGN)
+        .setAlgorithmParameterSpec(new ECGenParameterSpec("secp256r1"))
+        .setDigests(KeyProperties.DIGEST_SHA256)
+        .setUserAuthenticationRequired(false)
+        .build();
+      generator.initialize(spec);
+      generator.generateKeyPair();
+      if (!isSilentHardwareBacked(credentialId)) { deleteSilentAlias(credentialId); throw new IllegalStateException("hardware-backed silent device key is unavailable"); }
+      byte[] spki = keyStore().getCertificate(silentAlias(credentialId)).getPublicKey().getEncoded();
+      if (!preferences.edit().putString(SILENT_ACTIVE_ID, credentialId).commit()) throw new IllegalStateException("silent device credential metadata write failed");
+      if (previous != null && !previous.equals(credentialId)) { try { deleteSilentAlias(previous); } catch (Exception ignored) {} }
+      WritableMap result = Arguments.createMap();
+      result.putString("credentialId", credentialId);
+      result.putString("publicKeySpki", Base64.encodeToString(spki, Base64.NO_WRAP));
+      result.putBoolean("hardwareBacked", true);
+      promise.resolve(result);
+    } catch (Exception error) {
+      if (credentialId != null) { try { deleteSilentAlias(credentialId); } catch (Exception ignored) {} }
+      promise.reject("E_NUSA_SILENT_DEVICE_CREDENTIAL_CREATE", "Unable to create a hardware-backed silent PAPER device key.", error);
+    }
+  }
+
+  @ReactMethod public void signSilentChallenge(String credentialId, String challengeBase64, Promise promise) {
+    try {
+      String id = requireCredentialId(credentialId);
+      byte[] challenge = Base64.decode(challengeBase64, Base64.NO_WRAP);
+      if (challenge.length < 1 || challenge.length > MAX_CHALLENGE_BYTES || !Base64.encodeToString(challenge, Base64.NO_WRAP).equals(challengeBase64)) throw new IllegalArgumentException("challenge is invalid");
+      PrivateKey privateKey = (PrivateKey) keyStore().getKey(silentAlias(id), null);
+      if (privateKey == null || !isSilentHardwareBacked(id)) throw new IllegalStateException("hardware-backed silent device key is unavailable");
+      Signature signer = Signature.getInstance("SHA256withECDSA");
+      signer.initSign(privateKey);
+      signer.update(challenge);
+      promise.resolve(Base64.encodeToString(signer.sign(), Base64.NO_WRAP));
+    } catch (Exception error) { promise.reject("E_NUSA_SILENT_DEVICE_CREDENTIAL_SIGN", "Silent PAPER device authentication could not sign the challenge.", error); }
+  }
+
+  @ReactMethod public void deleteSilentDeviceCredential(String credentialId, Promise promise) {
+    try {
+      String id = requireCredentialId(credentialId);
+      deleteSilentAlias(id);
+      if (id.equals(preferences.getString(SILENT_ACTIVE_ID, null)) && !preferences.edit().remove(SILENT_ACTIVE_ID).commit()) throw new IllegalStateException("silent device credential metadata delete failed");
+      promise.resolve(null);
+    } catch (Exception error) { promise.reject("E_NUSA_SILENT_DEVICE_CREDENTIAL_DELETE", "Unable to delete silent PAPER device credential.", error); }
   }
 
   @ReactMethod public void deleteCredential(String credentialId, Promise promise) {
@@ -143,9 +220,20 @@ public final class NusaOwnerDeviceCredentialModule extends ReactContextBaseJavaM
     return id;
   }
   private static String alias(String id) { return ALIAS_PREFIX + requireCredentialId(id); }
+  private static String silentAlias(String id) { return SILENT_ALIAS_PREFIX + requireCredentialId(id); }
   private static KeyStore keyStore() throws Exception { KeyStore store = KeyStore.getInstance("AndroidKeyStore"); store.load(null); return store; }
   private static boolean hasKey(String id) { try { return keyStore().containsAlias(alias(id)); } catch (Exception ignored) { return false; } }
   private static void deleteAlias(String id) throws Exception { keyStore().deleteEntry(alias(id)); }
+  private static boolean hasSilentKey(String id) { try { return keyStore().containsAlias(silentAlias(id)); } catch (Exception ignored) { return false; } }
+  private static void deleteSilentAlias(String id) throws Exception { keyStore().deleteEntry(silentAlias(id)); }
+  private static boolean isSilentHardwareBacked(String id) {
+    try {
+      PrivateKey key = (PrivateKey) keyStore().getKey(silentAlias(id), null);
+      if (key == null) return false;
+      KeyInfo info = KeyFactory.getInstance(key.getAlgorithm(), "AndroidKeyStore").getKeySpec(key, KeyInfo.class);
+      return info.isInsideSecureHardware();
+    } catch (Exception ignored) { return false; }
+  }
   private static boolean isHardwareBacked(String id) {
     try {
       PrivateKey key = (PrivateKey) keyStore().getKey(alias(id), null);

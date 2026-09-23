@@ -1,4 +1,13 @@
 version: 1
+current_oracle_paper_startup_readiness:
+  work_order: WO-20260919-ORACLE-READINESS-STARTUP
+  status: IMPLEMENTED_LOCAL
+  branch: codex/paper-server-readiness
+  base_sha: a89ab75e3d590f1c13198a504abaaf482c26fc2d
+  finding: "The Oracle release readiness probe ran before the supervised Cloud PAPER runtime bound localhost:41731, causing a false rollback despite the process reaching listen state moments later."
+  remediation: "Bounded 30-second startup readiness retry with a one-second maximum interval; malformed, unavailable, or unhealthy readiness remains fail-closed."
+  local_validation: "Oracle release/readiness suite 20/20 PASS, including delayed bind acceptance, bounded refusal, stale mobile-route rejection, secret non-disclosure, workflow ordering, and systemd entrypoint."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_self_service_paper_upbit_readonly:
   work_order: WO-20260910-MOBILE-SELF-SERVICE-PAPER-UPBIT-READONLY
   status: IMPLEMENTED_LOCAL_VALIDATION_PARTIAL
@@ -27,6 +36,17 @@ current_audit_dispatch_payload_limit:
   freshness: "PR #1945 Release correctly failed closed when main moved from audited base 03119c0 to 849fca66 before merge. The implementation branch was merged with 849fca66; all prior exact-head CI/Audit evidence is invalidated."
   completion: "Exact-head CI 35188124813 PASS; PAPER runtime, READ_ONLY broker, and Restricted LIVE safety workflows PASS; canonical independent Audit/Release run 35188428151 PASS; protected main re-read as cabe68df11d95cd4212d09c1045c9aff7cd769b2."
   next: "Completed. Select the next ready work order from current source-of-truth state; no financial authority is granted."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_ready_for_review_audit_dedupe_repair:
+  work_order: WO-ISSUE-903-EVENT-REPLAY-HARDENING
+  status: IMPLEMENTED_LOCAL
+  branch: codex/issue-1955
+  pull_request: 1956
+  base_head: d9b707a64be4dfea29d04e17eb6f95e7cd543931
+  finding: "PR_CI_SUCCEEDED Audit dispatches did not acquire the existing persistent execution identity, allowing two ready_for_review delivery IDs to create duplicate Audit chains."
+  remediation: "Use NUSA_EXECUTION_COORDINATOR for the unchanged audit:<pr>:<workflowRunId>:<exactHead> identity, suppress duplicate/replayed/concurrent deliveries, and fail closed without the coordinator."
+  local_validation: "TypeScript compile/typecheck PASS; focused Autopilot regressions PASS; minimal preflight checks PASS; git diff --check PASS."
+  next: "Local commit only on the existing PR #1956 branch; no push, Ready transition, new PR, or remote CI."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_oracle_codex_dev_runner:
   work_order: WO-20260908-ORACLE-CODEX-DEV-RUNNER
@@ -164,13 +184,19 @@ current_upbit_bridge_credential_persistence:
   unverified: "pnpm run preflight and pnpm test could not run here (Node >= 24 required, environment provides 22.22.2). No Android device run: persistence is verified against a stubbed SecureStoragePort, not the real Keystore."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 project: nusa
-updated_at: "2026-09-07T09:05:22+09:00"
+updated_at: "2026-09-23T14:30:00+09:00"
 current_execution_target:
-  work_order: WO-0051
-  status: IN_PROGRESS
-  branch: main
-  base_sha: 57952f14485e816a7ac88e11ba5f8f3e11dba34c
-  scope: "Terminal human/environment gate for LIVE and real-money transition; automated work remains fail-closed."
+  work_order: WO-20260923-AUTOPILOT-PROVIDER-WAIT-ACROSS-MAIN
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-waiting-identity
+  base_sha: af6a9f90cd090d4322cdd82566227320847fd613
+  scope: "Provider-keyed rate-limit wait so a WAITING_RATE_LIMIT stop survives main changes and no new execution is dispatched inside the provider window."
+  authority_impact: none
+  parent_work_order: WO-20260923-AUTOPILOT-STOP-RESUME-P0
+  prior_target: WO-20260923-AUTOPILOT-ISSUE-CODING-TARGET
+  prior_target_status: MERGED_PR_2232
+  prior_target_preserved: true
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: verification
 status: in_progress
@@ -1105,7 +1131,7 @@ issue_661_live_ready_observability:
   exact_head_remote_validation: PASS_ALL_REQUIRED_CHECKS
   local_full_isolated_suite: PASS_590_FILES_CLEAN_ISOLATED_PROFILE
   actual_paper_runtime: PASS_EXACT_HEAD_RUN_32730736119_JOB_97442165804
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  safety_boundary: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   protected_checks: "CI PASS; Mobile Native PASS; Actual PAPER Runtime PASS; Restricted LIVE Activation/Capability/Transport PASS; Read-only Broker PASS; Android Release Candidate SKIPPED_NOT_APPLICABLE"
   next: "PR #770 is eligible for merge under repository policy. After merge, verify main and continue the Issue #661 acceptance audit; Android promotion remains post-merge only."
 
