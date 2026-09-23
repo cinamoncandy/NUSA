@@ -269,7 +269,7 @@ test("clamps excessive Retry-After values to the bounded retry ceiling", () => {
   assert.deepEqual(hint, { delayMs: MAX_RETRY_DELAY_MS, source: "retry-after-header" });
 });
 
-test("treats provider rate-limit blocking as non-terminal without proposal retries", async () => {
+test("normalizes a non-2xx worker rate-limit stop into waiting without proposal retries", async () => {
   await withOidcEnvironment(async () => {
     let proposalCalls = 0;
     let publishCalls = 0;
@@ -291,20 +291,22 @@ test("treats provider rate-limit blocking as non-terminal without proposal retri
       },
       {
         now: () => 1_000,
+        jitter: () => 0.5,
       },
     );
-    assert.equal(result.status, "BLOCKED_RATE_LIMIT");
-    assert.equal(result.reason, "WORKERS_AI_DAILY_QUOTA_EXHAUSTED");
-    assert.equal(result.proposalAttempts, 0);
+    assert.equal(result.status, "WAITING_RATE_LIMIT");
+    assert.equal(result.reason, "WAITING_RATE_LIMIT");
+    assert.equal(result.proposalAttempts, 1);
     assert.equal(result.proposalRetries, 0);
     assert.equal(result.codeChanged, false);
-    assert.equal(result.blockedRateLimit, true);
-    assert.equal(result.summary.blockedRateLimit, 1);
+    assert.equal(result.blockedRateLimit, false);
+    assert.equal(result.summary.blockedRateLimit, 0);
     assert.equal(result.summary.failedClosed, 0);
     assert.equal(result.provider, "workers-ai");
     assert.equal(result.lastRateLimitAt, 1000);
-    assert.equal(result.nextRetryAt, null);
-    assert.equal(result.retrySource, "none");
+    assert.equal(result.nextRetryAt, 2_000);
+    assert.equal(result.retrySource, "bounded-exponential-backoff-jitter");
+    assert.equal(result.stopReason, "WORKERS_AI_DAILY_QUOTA_EXHAUSTED");
     assert.equal(proposalCalls, 1);
     assert.equal(publishCalls, 0);
   });
@@ -489,6 +491,9 @@ test("regenerates an apply-check rejection inside one execution and publishes th
           assert.equal(patch, "second-valid-patch");
           return [{ path: "apps/autopilot/src/example.ts", content: "export const repaired = true;\n" }];
         },
+        initialProposalContext() {
+          return { path: "apps/autopilot/src/first.ts", startLine: 1, content: "export const first = true;\n" };
+        },
         proposalContextForPatch(patch) {
           assert.equal(patch, "first-invalid-patch");
           return {
@@ -514,7 +519,14 @@ test("regenerates an apply-check rejection inside one execution and publishes th
     assert.equal(proposalBodies[1].dedupeKey, request.dedupeKey);
     assert.equal(proposalBodies[1].headSha, request.headSha);
     assert.match(proposalBodies[1].proposalFeedback, /SANDBOX_PATCH_APPLY_CHECK_FAILED/);
-    assert.equal(proposalBodies[0].proposalContext, undefined);
+    // This asserted proposalContext === undefined, which pinned the defect: attempt 1 was sent
+    // with no source excerpt, so the model had to invent the context lines that `git apply --check`
+    // compares byte for byte. Attempt 1 now carries a real excerpt like every retry does.
+    assert.deepEqual(proposalBodies[0].proposalContext, {
+      path: "apps/autopilot/src/first.ts",
+      startLine: 1,
+      content: "export const first = true;\n",
+    });
     assert.deepEqual(proposalBodies[1].proposalContext, {
       path: "apps/autopilot/src/example.ts",
       startLine: 1,
