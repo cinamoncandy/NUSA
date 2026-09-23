@@ -47,7 +47,7 @@ test("resuming revalidates even when the process-local endpoint was already veri
   markPaperConnectionVerified(ENDPOINT);
   assert.equal(isPaperConnectionVerified(ENDPOINT), true);
   resumePaperConnection();
-  assert.equal(isPaperConnectionVerified(ENDPOINT), true, "revalidation must not invent a disconnect synchronously");
+  assert.equal(isPaperConnectionVerified(ENDPOINT), false, "foreground revalidation must fail closed until fresh identity succeeds");
   clearConfiguredPaperEndpoint();
 });
 
