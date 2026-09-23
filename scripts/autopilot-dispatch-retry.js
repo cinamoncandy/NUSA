@@ -469,6 +469,22 @@ async function authorizedJsonPost(url, body, fetchImpl = fetch, now = () => Date
     const error = new Error(typeof payload.error === "string" ? payload.error : `AUTOPILOT_WORKER_HTTP_${response.status}`);
     error.failureEvidence = boundedWorkerFailureEvidence(payload, url, response.status);
     error.rateLimit = rateLimitEvidence(response, payload, now());
+    const workerRateLimitStop = error.rateLimit && (
+      payload?.status === "WAITING_RATE_LIMIT"
+      || payload?.status === "BLOCKED_RATE_LIMIT"
+      || payload?.status === "CODING_PROPOSAL_FAILED_CLOSED"
+    );
+    if (workerRateLimitStop) {
+      error.workerStop = true;
+      error.rateLimit = Object.freeze({
+        ...error.rateLimit,
+        ...(typeof payload.error === "string" ? { stopReason: payload.error, lastFailure: payload.error } : {}),
+        ...(typeof payload.stopReason === "string" ? { stopReason: payload.stopReason } : {}),
+        ...(typeof payload.resumeCondition === "string" ? { resumeCondition: payload.resumeCondition } : {}),
+        ...(Number.isSafeInteger(payload.stoppedAt) ? { stoppedAt: payload.stoppedAt } : {}),
+        ...(typeof payload.lastFailure === "string" ? { lastFailure: payload.lastFailure } : {}),
+      });
+    }
     throw error;
   }
   const rateLimit = rateLimitEvidence(response, payload, now());
@@ -750,10 +766,21 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
     } catch (error) {
       const reason = error instanceof Error ? error.message : "CODING_PROPOSAL_UNAVAILABLE";
       if (error?.workerStop === true && error?.rateLimit) {
+        const observedAt = Number.isSafeInteger(error.rateLimit.lastRateLimitAt) ? error.rateLimit.lastRateLimitAt : now();
+        const hintedDelayMs = Number.isSafeInteger(error.rateLimit.retryAfterMs) && error.rateLimit.retryAfterMs >= 0
+          ? error.rateLimit.retryAfterMs
+          : null;
+        const fallbackDelayMs = boundedBackoffMs(DEFAULT_BACKOFF_MS, attempt, jitter);
+        const nextRetryAt = Number.isSafeInteger(error.rateLimit.nextRetryAt) && error.rateLimit.nextRetryAt > observedAt
+          ? error.rateLimit.nextRetryAt
+          : observedAt + (hintedDelayMs ?? fallbackDelayMs);
         const evidence = Object.freeze({
           ...error.rateLimit,
-          nextRetryAt: Number.isSafeInteger(error.rateLimit.nextRetryAt) ? error.rateLimit.nextRetryAt : null,
-          retrySource: error.rateLimit.retrySource ?? "provider-state",
+          lastRateLimitAt: observedAt,
+          nextRetryAt,
+          retrySource: error.rateLimit.nextRetryAt === nextRetryAt && error.rateLimit.retrySource
+            ? error.rateLimit.retrySource
+            : hintedDelayMs === null ? "bounded-exponential-backoff-jitter" : error.rateLimit.retrySource ?? "provider-state",
         });
         attempts.push(attemptRecord({
           request,

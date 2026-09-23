@@ -269,7 +269,7 @@ test("clamps excessive Retry-After values to the bounded retry ceiling", () => {
   assert.deepEqual(hint, { delayMs: MAX_RETRY_DELAY_MS, source: "retry-after-header" });
 });
 
-test("treats provider rate-limit blocking as non-terminal without proposal retries", async () => {
+test("normalizes a non-2xx worker rate-limit stop into waiting without proposal retries", async () => {
   await withOidcEnvironment(async () => {
     let proposalCalls = 0;
     let publishCalls = 0;
@@ -291,20 +291,22 @@ test("treats provider rate-limit blocking as non-terminal without proposal retri
       },
       {
         now: () => 1_000,
+        jitter: () => 0.5,
       },
     );
-    assert.equal(result.status, "BLOCKED_RATE_LIMIT");
-    assert.equal(result.reason, "WORKERS_AI_DAILY_QUOTA_EXHAUSTED");
-    assert.equal(result.proposalAttempts, 0);
+    assert.equal(result.status, "WAITING_RATE_LIMIT");
+    assert.equal(result.reason, "WAITING_RATE_LIMIT");
+    assert.equal(result.proposalAttempts, 1);
     assert.equal(result.proposalRetries, 0);
     assert.equal(result.codeChanged, false);
-    assert.equal(result.blockedRateLimit, true);
-    assert.equal(result.summary.blockedRateLimit, 1);
+    assert.equal(result.blockedRateLimit, false);
+    assert.equal(result.summary.blockedRateLimit, 0);
     assert.equal(result.summary.failedClosed, 0);
     assert.equal(result.provider, "workers-ai");
     assert.equal(result.lastRateLimitAt, 1000);
-    assert.equal(result.nextRetryAt, null);
-    assert.equal(result.retrySource, "none");
+    assert.equal(result.nextRetryAt, 2_000);
+    assert.equal(result.retrySource, "bounded-exponential-backoff-jitter");
+    assert.equal(result.stopReason, "WORKERS_AI_DAILY_QUOTA_EXHAUSTED");
     assert.equal(proposalCalls, 1);
     assert.equal(publishCalls, 0);
   });
