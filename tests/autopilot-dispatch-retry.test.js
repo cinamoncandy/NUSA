@@ -347,6 +347,37 @@ test("preserves a worker WAITING_RATE_LIMIT stop and suppresses duplicate dispat
   });
 });
 
+test("reports the real resume time when a later execution is stopped by an already-recorded provider wait", async () => {
+  await withOidcEnvironment(async () => {
+    const now = Date.parse("2026-09-23T11:05:37.000Z");
+    const nextUtcDay = Date.parse("2026-09-24T00:00:00.000Z");
+    const result = await executeGithubActionsRunner(
+      request,
+      "https://runner.example.test/coding/execute",
+      async (url) => {
+        const value = String(url);
+        if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+        return response(202, {
+          status: "WAITING_RATE_LIMIT",
+          provider: "workers-ai",
+          reason: "WAITING_PROVIDER_CAPACITY",
+          stopReason: "WAITING_PROVIDER_CAPACITY",
+          lastFailure: "WAITING_PROVIDER_CAPACITY",
+          nextRetryAt: nextUtcDay,
+          resumeCondition: "provider-capacity-and-exact-head-revalidation",
+        });
+      },
+      { now: () => now, sleep: async () => { throw new Error("must not sleep"); } },
+    );
+    assert.equal(result.status, "WAITING_RATE_LIMIT");
+    assert.equal(result.stopReason, "WAITING_PROVIDER_CAPACITY");
+    // A wait already recorded by a different execution/task is just as long-lived as the
+    // original daily-quota stop; it must not be truncated back down to the 60s ceiling.
+    assert.equal(result.nextRetryAt, nextUtcDay);
+    assert.ok(result.nextRetryAt - now > MAX_RETRY_DELAY_MS);
+  });
+});
+
 test("reports the real next-UTC-day resume time for a daily-quota stop instead of the 60s retry ceiling", async () => {
   await withOidcEnvironment(async () => {
     const now = Date.parse("2026-09-23T10:53:36.040Z");
