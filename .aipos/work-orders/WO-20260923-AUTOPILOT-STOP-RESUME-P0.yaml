@@ -1,0 +1,53 @@
+id: WO-20260923-AUTOPILOT-STOP-RESUME-P0
+title: "Autopilot P0 bounded rate-limit stop and resume"
+status: IN_PROGRESS
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: f5e8673e80187813fd536084f8e4b57d1e49c0e4
+implementation_branch: codex/autopilot-stop-resume-20260923
+objective: "Remove hot-loop BLOCKED_RATE_LIMIT dispatch behavior by persisting bounded WAITING_RATE_LIMIT state for the same logical execution, suppressing replay, and resuming only after the recorded retry boundary through the existing #903 execution coordinator."
+authority_impact: none
+scope:
+  include:
+    - "Existing execution coordinator rate-limit stop evidence and same-identity resume"
+    - "Worker coding boundary normalization of provider rate-limit responses"
+    - "Scheduled coding replay suppression and WAITING_RATE_LIMIT projection"
+    - "Targeted regression coverage for persistence, replay, and integration behavior"
+  exclude:
+    - "LIVE, production mutation, real-money execution, withdrawal, or transfer"
+    - "New queue, scheduler, dispatcher, merge engine, or Audit authority"
+    - "Provider credential or secret changes"
+architecture:
+  canonical_owner: "#903 execution coordinator and existing coding dispatch spine"
+  duplicate_architecture: prohibited
+  lifecycle: "RUNNING -> WAITING_RATE_LIMIT -> RESUMABLE -> RUNNING, or STOPPED -> BLOCKED with evidence"
+acceptance:
+  - "A rate-limit stop records taskId, executionId, provider, exact headSha, bounded attempts, nextRetryAt, resumeCondition, dedupeKey, and evidenceRef."
+  - "Early duplicate dispatch returns WAITING_RATE_LIMIT without calling the coding provider again."
+  - "Due resume preserves the same logical identity and evidence chain."
+  - "Worker WAITING_RATE_LIMIT responses do not re-enter the proposal retry loop."
+  - "PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY remain unchanged."
+  - "The original coding -> test -> commit -> PR -> CI -> Audit -> Release -> merge VUC chain remains the only completion path."
+verification_commands:
+  - "pnpm run typecheck"
+  - "pnpm run build"
+  - "node --require ./tests/register-dist.cjs --test dist/apps/autopilot/src/codingRunner.test.js dist/apps/autopilot/src/executionCoordinator.test.js dist/apps/autopilot/src/index.test.js dist/apps/autopilot/src/scheduledEvolutionCoding.test.js"
+  - "node --test tests/autopilot-dispatch-retry.test.js"
+  - "pnpm run architecture:check"
+  - "pnpm run security:gate"
+  - "pnpm run safety:invariants"
+  - "pnpm run ai:architecture"
+  - "pnpm run validate:full"
+evidence:
+  implementation_status: IN_PROGRESS
+  local_validation: "Focused implementation tests and architecture/security/safety checks are being executed on the exact branch head."
+  external_validation: "REQUIRED: exact-head protected CI, independent Audit, and Release gate."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+  human_environment_only: true
+next_permitted_action: "Complete local validation, commit, push, obtain fresh exact-head CI, then request independent Audit; do not merge from Development."

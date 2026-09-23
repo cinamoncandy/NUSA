@@ -107,6 +107,7 @@ export class CodingRunnerEvidenceError extends Error {
 
 export interface CodingRunnerExecutionOptions {
   readonly maxProposalAttempts?: number;
+  readonly now?: () => number;
 }
 
 export interface CodingRunnerResult {
@@ -125,6 +126,11 @@ export interface CodingRunnerResult {
   readonly pullRequestUrl?: string;
   readonly proposalAttempts?: number;
   readonly failureStage?: "proposal-parse" | "sandbox-validation";
+  readonly provider?: string;
+  readonly retryAfterMs?: number | null;
+  readonly nextRetryAt?: number | null;
+  readonly stopReason?: string;
+  readonly resumeCondition?: string;
 }
 
 interface HttpResponse {
@@ -144,6 +150,7 @@ const DEFAULT_WORKERS_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 const MAX_CODING_PROPOSAL_BYTES = 24_000;
 const MAX_CODING_PROPOSAL_FEEDBACK_BYTES = 512;
 const MAX_CODING_PROPOSAL_CONTEXT_BYTES = 20_000;
+const MAX_RATE_LIMIT_BACKOFF_MS = 60_000;
 
 function workersAiRateLimitReason(error: unknown): "WORKERS_AI_DAILY_QUOTA_EXHAUSTED" | "WORKERS_AI_RATE_LIMITED" | null {
   const message = error instanceof Error ? error.message : String(error ?? "");
@@ -154,6 +161,36 @@ function workersAiRateLimitReason(error: unknown): "WORKERS_AI_DAILY_QUOTA_EXHAU
     return "WORKERS_AI_RATE_LIMITED";
   }
   return null;
+}
+
+function providerRetryAfterMs(error: unknown, now: number): number | null {
+  if (!error || typeof error !== "object" || Array.isArray(error)) return null;
+  const candidate = error as Record<string, unknown>;
+  const raw = candidate.retryAfterMs ?? candidate.retryAfter ?? candidate.resetAt;
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    const delta = raw > 1_000_000_000_000 ? raw - now : raw < 1_000_000_000 ? raw * 1_000 : raw;
+    return Number.isFinite(delta) && delta >= 0 ? Math.min(MAX_RATE_LIMIT_BACKOFF_MS, Math.floor(delta)) : null;
+  }
+  if (typeof raw === "string" && raw.trim()) {
+    const seconds = Number(raw);
+    if (Number.isFinite(seconds) && seconds >= 0) return Math.min(MAX_RATE_LIMIT_BACKOFF_MS, Math.floor(seconds * 1_000));
+    const parsed = Date.parse(raw);
+    if (Number.isFinite(parsed) && parsed >= now) return Math.min(MAX_RATE_LIMIT_BACKOFF_MS, parsed - now);
+  }
+  return null;
+}
+
+function rateLimitStopMetadata(error: unknown, reason: "WORKERS_AI_DAILY_QUOTA_EXHAUSTED" | "WORKERS_AI_RATE_LIMITED", attempt: number, now: number): Pick<CodingRunnerResult, "provider" | "retryAfterMs" | "nextRetryAt" | "stopReason" | "resumeCondition"> {
+  const retryAfterMs = reason === "WORKERS_AI_DAILY_QUOTA_EXHAUSTED"
+    ? MAX_RATE_LIMIT_BACKOFF_MS
+    : providerRetryAfterMs(error, now) ?? Math.min(MAX_RATE_LIMIT_BACKOFF_MS, 1_000 * 2 ** Math.max(0, attempt - 1));
+  return Object.freeze({
+    provider: "workers-ai",
+    retryAfterMs,
+    nextRetryAt: now + retryAfterMs,
+    stopReason: reason,
+    resumeCondition: "provider-capacity-and-exact-head-revalidation",
+  });
 }
 
 const FORBIDDEN_CODING_PATH_SEGMENT = /(?:^|\/)(?:live|live-trading|broker|order|credential|secret|secrets|withdraw|transfer|production-authority)(?:\/|$)/i;
@@ -544,6 +581,7 @@ export async function executeCodingRunner(
   if (!Number.isSafeInteger(maxProposalAttempts) || maxProposalAttempts < 1 || maxProposalAttempts > MAX_WORKERS_AI_PROPOSAL_ATTEMPTS) {
     throw new Error("CODING_PROPOSAL_ATTEMPT_LIMIT_INVALID");
   }
+  const now = options.now ?? (() => Date.now());
 
   const endpoint = env.NUSA_AI_CODING_ENDPOINT?.trim();
   const token = env.NUSA_AI_CODING_TOKEN?.trim();
@@ -584,7 +622,13 @@ export async function executeCodingRunner(
     } catch (error) {
       const rateLimitReason = workersAiRateLimitReason(error);
       if (rateLimitReason) {
-        return { status: "BLOCKED_RATE_LIMIT", reason: rateLimitReason, proposalAttempts: Math.max(0, attempt - 1), failureStage: "proposal-parse" };
+        return {
+          status: "BLOCKED_RATE_LIMIT",
+          reason: rateLimitReason,
+          proposalAttempts: Math.max(0, attempt - 1),
+          failureStage: "proposal-parse",
+          ...rateLimitStopMetadata(error, rateLimitReason, attempt, now()),
+        };
       }
       const reason = error instanceof Error ? error.message : "WORKERS_AI_CODING_ENGINE_FAILED";
       if (!retryableProposalFailure(reason) || attempt === maxProposalAttempts) {

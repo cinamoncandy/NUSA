@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { acquirePersistentExecution, applyPersistentControlPlaneHold, clearPersistentControlPlaneHold, ExecutionCoordinator, handoffOrAcquirePersistentExecution, markPersistentExecutionDispatched, readPersistentControlPlaneHold, releasePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, applyPersistentControlPlaneHold, clearPersistentControlPlaneHold, ExecutionCoordinator, handoffOrAcquirePersistentExecution, markPersistentExecutionDispatched, markPersistentExecutionRateLimitStopped, readPersistentControlPlaneHold, readPersistentExecution, releasePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
 
 class MemoryStorage {
@@ -175,6 +175,44 @@ describe("persistent execution coordination", () => {
     assert.deepEqual(await acquirePersistentExecution(namespace, request), { acquired: true });
     await releasePersistentExecution(namespace, { dedupeKey: request.dedupeKey, executionId: request.executionId, now: 200 });
     assert.deepEqual(await acquirePersistentExecution(namespace, { ...request, now: 201, leaseExpiresAt: 1_101 }), { acquired: true });
+  });
+
+  it("persists a rate-limit stop, suppresses early replays, and resumes the same identity once due", async () => {
+    const ns = memoryNamespace();
+    const request = {
+      dedupeKey: "evolve-coding:rate-limit",
+      executionId: "evolve-coding:rate-limit",
+      taskId: "autopilot:github-issue-2118",
+      provider: "workers-ai",
+      headSha: "a".repeat(40),
+      now: 1_000,
+      leaseExpiresAt: 2_000,
+    };
+    assert.deepEqual(await acquirePersistentExecution(ns, request), { acquired: true });
+    const stop = await markPersistentExecutionRateLimitStopped(ns, {
+      schemaVersion: 1,
+      taskId: request.taskId,
+      executionId: request.executionId,
+      provider: request.provider,
+      headSha: request.headSha,
+      stopReason: "WORKERS_AI_RATE_LIMITED",
+      stoppedAt: 1_100,
+      attemptCount: 3,
+      lastFailure: "WORKERS_AI_RATE_LIMITED",
+      nextRetryAt: 2_000,
+      resumeCondition: "provider-capacity-and-exact-head-revalidation",
+      dedupeKey: request.dedupeKey,
+      evidenceRef: "coding-evidence:evolve-coding-rate-limit",
+      now: 1_100,
+    });
+    assert.deepEqual(stop, { stopped: true, nextRetryAt: 2_000 });
+    assert.deepEqual(await handoffOrAcquirePersistentExecution(ns, { ...request, now: 1_500, leaseExpiresAt: 2_500 }), { acquired: false, reason: "WAITING_RATE_LIMIT", nextRetryAt: 2_000 });
+    assert.deepEqual(await handoffOrAcquirePersistentExecution(ns, { ...request, now: 2_000, leaseExpiresAt: 3_000 }), { acquired: true });
+    const record = await readPersistentExecution(ns, request.dedupeKey);
+    assert.equal(record?.state, "LEASED");
+    assert.equal(record?.executionId, request.executionId);
+    assert.equal(record?.stop?.nextRetryAt, 2_000);
+    assert.equal(record?.resumeCount, 1);
   });
 
   it("does not release an already dispatched execution", async () => {

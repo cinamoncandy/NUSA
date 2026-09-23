@@ -128,6 +128,44 @@ test("scheduled evolution coding uses the coordinator lease to stop selection be
   assert.equal(outcome.reason, "concurrency-limit-reached");
 });
 
+test("scheduled evolution coding preserves a waiting rate-limit WIP without redispatch", async () => {
+  const dedupeKey = `evolve-coding:${MAIN_SHA}:gha:ci:${FAILED_SHA}:failure`;
+  const executionId = `evolve-coding:${MAIN_SHA.slice(0, 16)}:gha:ci:${FAILED_SHA}:failure`;
+  const outcome = await runScheduledEvolutionCoding({
+    NUSA_GITHUB_TOKEN: "token",
+    NUSA_EXECUTION_COORDINATOR: namespace(true, {
+      dedupeKey,
+      executionId,
+      state: "WAITING_RATE_LIMIT",
+      leaseExpiresAt: NOW + 60_000,
+      updatedAt: NOW - 1_000,
+      stop: {
+        schemaVersion: 1,
+        taskId: "autopilot:github-issue-2118",
+        executionId,
+        provider: "workers-ai",
+        headSha: MAIN_SHA,
+        stopReason: "WORKERS_AI_RATE_LIMITED",
+        stoppedAt: NOW - 1_000,
+        attemptCount: 3,
+        lastFailure: "WORKERS_AI_RATE_LIMITED",
+        nextRetryAt: NOW + 60_000,
+        resumeCondition: "provider-capacity-and-exact-head-revalidation",
+        dedupeKey,
+        evidenceRef: "coding-evidence:2118",
+      },
+    }),
+  }, {
+    candidates,
+    now: NOW,
+    repository: "cinamoncandy/NUSA",
+    mainSha: MAIN_SHA,
+    workflowRunId: RUN_ID,
+  });
+  assert.equal(outcome.status, "WAITING_RATE_LIMIT");
+  assert.equal(outcome.reason, "waiting-rate-limit");
+});
+
 test("scheduled evolution coding fails closed on repeated fresh failure evidence", async () => {
   const repeated = [0, 1, 2].map((offset) => ({ ...candidates[0], id: RUN_ID + 10 + offset, head_sha: String(offset + 1).repeat(40) }));
   const outcome = await runScheduledEvolutionCoding({

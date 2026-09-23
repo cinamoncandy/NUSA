@@ -186,11 +186,14 @@ current_upbit_bridge_credential_persistence:
 project: nusa
 updated_at: "2026-09-07T09:05:22+09:00"
 current_execution_target:
-  work_order: WO-0051
+  work_order: WO-20260923-AUTOPILOT-STOP-RESUME-P0
   status: IN_PROGRESS
-  branch: main
-  base_sha: 57952f14485e816a7ac88e11ba5f8f3e11dba34c
-  scope: "Terminal human/environment gate for LIVE and real-money transition; automated work remains fail-closed."
+  branch: codex/autopilot-stop-resume-20260923
+  base_sha: f5e8673e80187813fd536084f8e4b57d1e49c0e4
+  scope: "Persist bounded provider rate-limit stops in the existing #903 execution coordinator, suppress duplicate dispatch, and resume the same logical WIP only after revalidation."
+  authority_impact: none
+  prior_target: WO-0051
+  prior_target_preserved: true
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: verification
 status: in_progress
