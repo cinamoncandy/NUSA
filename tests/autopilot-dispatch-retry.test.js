@@ -17,6 +17,7 @@ const {
   executeGithubActionsRunner,
   MAX_RETRY_DELAY_MS,
   retryHint,
+  MAX_REPORTED_QUOTA_RETRY_DELAY_MS,
 } = require("../scripts/autopilot-dispatch-retry.js");
 
 const request = Object.freeze({
@@ -344,6 +345,94 @@ test("preserves a worker WAITING_RATE_LIMIT stop and suppresses duplicate dispat
     assert.deepEqual(waits, []);
     assert.equal(runnerCalls, 1);
   });
+});
+
+test("reports the real resume time when a later execution is stopped by an already-recorded provider wait", async () => {
+  await withOidcEnvironment(async () => {
+    const now = Date.parse("2026-09-23T11:05:37.000Z");
+    const nextUtcDay = Date.parse("2026-09-24T00:00:00.000Z");
+    const result = await executeGithubActionsRunner(
+      request,
+      "https://runner.example.test/coding/execute",
+      async (url) => {
+        const value = String(url);
+        if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+        return response(202, {
+          status: "WAITING_RATE_LIMIT",
+          provider: "workers-ai",
+          reason: "WAITING_PROVIDER_CAPACITY",
+          stopReason: "WAITING_PROVIDER_CAPACITY",
+          lastFailure: "WAITING_PROVIDER_CAPACITY",
+          nextRetryAt: nextUtcDay,
+          resumeCondition: "provider-capacity-and-exact-head-revalidation",
+        });
+      },
+      { now: () => now, sleep: async () => { throw new Error("must not sleep"); } },
+    );
+    assert.equal(result.status, "WAITING_RATE_LIMIT");
+    assert.equal(result.stopReason, "WAITING_PROVIDER_CAPACITY");
+    // A wait already recorded by a different execution/task is just as long-lived as the
+    // original daily-quota stop; it must not be truncated back down to the 60s ceiling.
+    assert.equal(result.nextRetryAt, nextUtcDay);
+    assert.ok(result.nextRetryAt - now > MAX_RETRY_DELAY_MS);
+  });
+});
+
+test("reports the real next-UTC-day resume time for a daily-quota stop instead of the 60s retry ceiling", async () => {
+  await withOidcEnvironment(async () => {
+    const now = Date.parse("2026-09-23T10:53:36.040Z");
+    const nextUtcDay = Date.parse("2026-09-24T00:00:00.000Z");
+    const waits = [];
+    let runnerCalls = 0;
+    const result = await executeGithubActionsRunner(
+      request,
+      "https://runner.example.test/coding/execute",
+      async (url) => {
+        const value = String(url);
+        if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+        runnerCalls += 1;
+        return response(202, {
+          status: "WAITING_RATE_LIMIT",
+          provider: "workers-ai",
+          stopReason: "WORKERS_AI_DAILY_QUOTA_EXHAUSTED",
+          lastFailure: "WORKERS_AI_DAILY_QUOTA_EXHAUSTED",
+          nextRetryAt: nextUtcDay,
+          resumeCondition: "provider-capacity-and-exact-head-revalidation",
+        });
+      },
+      { now: () => now, sleep: async (milliseconds) => waits.push(milliseconds) },
+    );
+    assert.equal(result.status, "WAITING_RATE_LIMIT");
+    assert.equal(result.stopReason, "WORKERS_AI_DAILY_QUOTA_EXHAUSTED");
+    // The real resume time is ~13h away; it must not be clamped down to the 60s retry ceiling.
+    assert.equal(result.nextRetryAt, nextUtcDay);
+    assert.ok(result.nextRetryAt - now > MAX_RETRY_DELAY_MS);
+    assert.deepEqual(result.attempts.map((attempt) => attempt.decision), ["NO_ACTION"]);
+    assert.deepEqual(waits, []);
+    assert.equal(runnerCalls, 1);
+  });
+});
+
+test("prefers the provider's absolute reset timestamp over a relative retryAfterMs when both are present", () => {
+  const observedAt = 1_700_000_000_000;
+  const absoluteNextRetryAt = observedAt + 50_000_000; // far outside the 60s local retry ceiling
+  const hint = retryHint(
+    response(409, {}),
+    { stopReason: "WORKERS_AI_DAILY_QUOTA_EXHAUSTED", retryAfterMs: 500, nextRetryAt: absoluteNextRetryAt },
+    observedAt,
+    MAX_REPORTED_QUOTA_RETRY_DELAY_MS,
+  );
+  assert.deepEqual(hint, { delayMs: absoluteNextRetryAt - observedAt, source: "provider-nextRetryAt" });
+});
+
+test("still bounds a generic transient rate limit's reported resume time to the retry ceiling", () => {
+  const hint = retryHint(
+    response(429, { error: "WORKERS_AI_RATE_LIMITED" }),
+    { error: "WORKERS_AI_RATE_LIMITED", nextRetryAt: 1_700_000_000_000 + 999_999_000 },
+    1_700_000_000_000,
+    MAX_RETRY_DELAY_MS,
+  );
+  assert.deepEqual(hint, { delayMs: MAX_RETRY_DELAY_MS, source: "provider-nextRetryAt" });
 });
 
 test("retries a temporary provider rate limit using provider retry metadata", async () => {
