@@ -1,0 +1,42 @@
+id: WO-20260924-MOBILE-PAPER-SESSION-SINGLE-OWNER
+title: "One owner for PAPER session restores on mobile"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-session-coordinator
+parent_work_order: WO-20260924-MOBILE-PAPER-CONNECT-RESTORE-RACE
+depends_on:
+  - WO-20260924-MOBILE-PAPER-CONNECT-RESTORE-RACE
+authority_impact: credential_boundary
+authority_impact_note: "Moves the Settings connect path onto the existing paperConnectionSession restore coordinator. No LIVE, broker, risk, or AI-authority change; no new module, scheduler, or state framework."
+objective: "Every PAPER session restore on mobile goes through one coordinator so a connect press, a settings save, a foreground resume and a retry can never run competing restores."
+finding: "Structural review: restores could be started from five paths across three modules (Settings called MobileApprovedSession.restoreWithSilentDevice directly while paperConnectionSession ran its own restores). #2240, #2241 and #2243 each patched one race between these owners."
+scope:
+  include:
+    - "paperConnectionSession.connectPaperSessionSilently(): the explicit silent connect, routed through the existing single-flight restore; a silent request supersedes an in-flight bearer restore, any other request joins"
+    - "settingsView uses connectPaperSessionSilently for both the auto-connect effect and the connect button"
+    - "Structural guard: no mobile UI module calls restoreWithSilentDevice directly"
+  exclude:
+    - "VERIFIED is still granted only by markPaperConnectionVerified after a READY projection"
+    - "dashboardCredentialSession bearer restore unchanged (coalesced inside MobileApprovedSession)"
+acceptance:
+  - "A double connect press performs one silent proof and both callers receive the same identity."
+  - "A silent connect started during a bearer restore supersedes it; the late bearer failure does not undo verification."
+  - "No mobile UI module starts a silent restore directly."
+verification_commands:
+  - "pnpm run preflight (Node >= 24)"
+  - "node --test tests/mobile-paper-session-single-owner.test.js tests/paper-connection-resume.test.js"
+  - "node --test dist/apps/mobile/src/*.test.js tests/mobile-*.test.js tests/uiux-*.test.js tests/paper-connection-resume.test.js tests/owner-device-*.test.js"
+evidence:
+  implementation_status: READY_FOR_REVIEW
+  mutation_verification:
+    - "silent request always joins an in-flight bearer restore -> single-owner behavior test fails"
+  external_validation: "REQUIRED: exact-head CI, Audit, Release after WO-20260924-MOBILE-PAPER-CONNECT-RESTORE-RACE merges. Galaxy physical confirmation is HUMAN_ENVIRONMENT_ONLY."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Obtain exact-head CI, Audit, Release; owner confirms one-press connect on Galaxy after the Android build installs."

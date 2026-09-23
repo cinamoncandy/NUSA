@@ -196,13 +196,14 @@ current_upbit_bridge_credential_persistence:
 project: nusa
 updated_at: "2026-09-23T18:40:00+09:00"
 current_execution_target:
-  work_order: WO-20260924-MOBILE-PAPER-CONNECT-RESTORE-RACE
+  work_order: WO-20260924-MOBILE-PAPER-SESSION-SINGLE-OWNER
   status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-connect-race
-  scope: "One PAPER session restore at a time in MobileApprovedSession; explicit verification supersedes stale in-flight restores, so one connect press connects."
-  authority_impact: none
-  prior_target: WO-20260924-MOBILE-PAPER-SESSION-PROJECTION
-  prior_target_status: MERGED_PR_2241
+  branch: claude/nusa-repository-j93sd8-session-coordinator
+  scope: "Every mobile PAPER session restore goes through paperConnectionSession; Settings connect no longer starts its own silent restore."
+  authority_impact: credential_boundary
+  depends_on: WO-20260924-MOBILE-PAPER-CONNECT-RESTORE-RACE
+  prior_target: WO-20260924-MOBILE-PAPER-CONNECT-RESTORE-RACE
+  prior_target_status: MERGED_PR_2243
   prior_target_preserved: true
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
