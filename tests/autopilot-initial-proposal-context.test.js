@@ -82,3 +82,23 @@ test("the initial proposal context is only supplied for a file the request names
     }
   });
 });
+
+test("an issue's codingTarget reaches attempt 1 as an excerpt of that file", () => {
+  // Joins the two halves end to end: the backlog signal the scheduler selects, rendered into the
+  // execution reason exactly as evolveCodingBridge renders it, is what the dispatch loop reads.
+  const { deriveGithubIssueBacklogReadiness } = require("../dist/apps/autopilot/src/evolveGithubIssueBacklog.js");
+  const safety = "liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY.";
+  const readiness = deriveGithubIssueBacklogReadiness([{
+    number: 903,
+    title: "P1: Autonomous Development Control Plane increment",
+    body: `Bounded Autopilot work.\ncodingTarget: ${REAL_TARGET}\n${safety}`,
+    state: "open",
+    author_association: "OWNER",
+    labels: [],
+    updated_at: "2026-09-23T00:00:00.000Z",
+  }], [], new Date("2026-09-23T01:00:00.000Z"));
+  const [signal] = readiness.signals;
+  assert.ok(signal, "the issue must be selected");
+  const context = initialProposalContextFromGithubRunner(request(`evolve:${signal.id}:${signal.problem}`));
+  assert.equal(context?.path, REAL_TARGET);
+});

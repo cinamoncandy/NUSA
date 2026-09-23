@@ -14,6 +14,8 @@ import {
   completePersistentExecution,
   markPersistentExecutionDispatched,
   markPersistentExecutionRateLimitStopped,
+  readProviderCapacityWait,
+  recordProviderCapacityWait,
   recordAutopilotExecutionTelemetry,
   readAutopilotExecutionTelemetry,
   readCodingExecutionEvidence,
@@ -229,7 +231,10 @@ export async function handleCodingExecute(
 
     let result: Awaited<ReturnType<typeof executeCodingRunner>>;
     try {
-      result = await executeCodingRunner(runnerRequest, env, undefined, runtime, publisher);
+      const coordinator = env.NUSA_EXECUTION_COORDINATOR;
+      result = await executeCodingRunner(runnerRequest, env, undefined, runtime, publisher, {
+        providerWaitUntil: async () => (await readProviderCapacityWait(coordinator, "workers-ai"))?.nextRetryAt ?? null,
+      });
     } catch (error) {
       const failureReason = error instanceof Error ? error.message : "CODING_RUNNER_EXECUTION_FAILED";
       await releaseCodingExecutionLease(env, runnerRequest);
@@ -290,8 +295,8 @@ export async function handleCodingExecute(
         now: Date.now(),
       });
     } else if (rateLimitStopped) {
-      const stopResult = await markPersistentExecutionRateLimitStopped(env.NUSA_EXECUTION_COORDINATOR, {
-        schemaVersion: 1,
+      const stop = {
+        schemaVersion: 1 as const,
         taskId: codingTaskId(runnerRequest),
         executionId: runnerRequest.executionId,
         provider: result.provider ?? "workers-ai",
@@ -304,9 +309,10 @@ export async function handleCodingExecute(
         resumeCondition: normalizedResumeCondition,
         dedupeKey: runnerRequest.dedupeKey,
         evidenceRef: `coding-evidence:${runnerRequest.executionId}`,
-        now: stoppedAt,
-      });
+      };
+      const stopResult = await markPersistentExecutionRateLimitStopped(env.NUSA_EXECUTION_COORDINATOR, { ...stop, now: stoppedAt });
       if (!stopResult.stopped) throw new Error("PERSISTENT_EXECUTION_RATE_LIMIT_STOP_FAILED");
+      await recordProviderCapacityWait(env.NUSA_EXECUTION_COORDINATOR, stop);
     } else {
       await releaseCodingExecutionLease(env, runnerRequest);
     }

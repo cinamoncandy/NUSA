@@ -9,7 +9,7 @@ import worker, {
 } from "./index";
 import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
 import type { CodingRuntime, WorkersAiBinding } from "./codingRunner";
-import { acquirePersistentExecution, ExecutionCoordinator, readPersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, ExecutionCoordinator, readPersistentExecution, readProviderCapacityWait, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
 class MemoryStorage {
   private readonly values = new Map<string, unknown>();
@@ -590,12 +590,57 @@ describe("NUSA autopilot GitHub webhook", () => {
       assert.equal(stopped?.stop?.dedupeKey, codingRequest.dedupeKey);
       assert.equal(stopped?.stop?.headSha, codingRequest.headSha);
 
+      // The same stop is also recorded against the provider, which is what keeps later executions on
+      // a different main from dispatching inside the wait window.
+      const providerWait = await readProviderCapacityWait(namespace, "workers-ai");
+      assert.equal(providerWait?.nextRetryAt, firstPayload.nextRetryAt);
+      assert.equal(providerWait?.dedupeKey, codingRequest.dedupeKey);
+      assert.equal(providerWait?.stopReason, "WORKERS_AI_RATE_LIMITED");
+
       const replay = await handleCodingExecute(request(), env);
       const replayPayload = await replay.json() as { status: string; reason: string; nextRetryAt: number };
       assert.equal(replay.status, 202);
       assert.equal(replayPayload.status, "WAITING_RATE_LIMIT");
       assert.equal(replayPayload.reason, "WAITING_RATE_LIMIT");
       assert.equal(replayPayload.nextRetryAt, firstPayload.nextRetryAt);
+      assert.equal(codingEngineCalls, 1);
+
+      // A different execution identity passes its own lease and GitHub verification, but the provider
+      // wait is re-read immediately before the Workers AI call, so no call is spent inside the window.
+      const otherRequest = () => new Request("https://example.test/coding/execute", {
+        method: "POST",
+        headers: { authorization: "Bearer runner-token", "content-type": "application/json" },
+        body: JSON.stringify({ ...codingRequest, executionId: `${codingRequest.executionId}-other`, dedupeKey: `${codingRequest.dedupeKey}-other` }),
+      });
+      const other = await handleCodingExecute(otherRequest(), env);
+      const otherPayload = await other.json() as { status: string; reason: string; nextRetryAt: number };
+      assert.equal(otherPayload.status, "WAITING_RATE_LIMIT");
+      assert.equal(otherPayload.reason, "WAITING_PROVIDER_CAPACITY");
+      assert.equal(otherPayload.nextRetryAt, firstPayload.nextRetryAt);
+      assert.equal(codingEngineCalls, 1, "no provider call for any execution inside the provider wait");
+      // That identity now waits on its own record too, so its replay is suppressed by the lease path.
+      const otherRecord = await readPersistentExecution(namespace, `${codingRequest.dedupeKey}-other`);
+      assert.equal(otherRecord?.state, "WAITING_RATE_LIMIT");
+      assert.equal(otherRecord?.stop?.nextRetryAt, firstPayload.nextRetryAt);
+
+      // Unreadable provider state fails closed before any provider call.
+      const unreadable: ExecutionCoordinatorNamespace = {
+        idFromName: (name: string) => ({ name }),
+        get: (id: unknown) => ({
+          fetch: (input: RequestInfo | URL, init?: RequestInit) => String((id as { name?: string }).name ?? "").startsWith("provider-capacity-wait:")
+            ? Promise.resolve(new Response("unavailable", { status: 503 }))
+            : coordinator.fetch(new Request(input, init)),
+        }),
+      };
+      const thirdRequest = new Request("https://example.test/coding/execute", {
+        method: "POST",
+        headers: { authorization: "Bearer runner-token", "content-type": "application/json" },
+        body: JSON.stringify({ ...codingRequest, executionId: `${codingRequest.executionId}-third`, dedupeKey: `${codingRequest.dedupeKey}-third` }),
+      });
+      const closed = await handleCodingExecute(thirdRequest, { ...env, NUSA_EXECUTION_COORDINATOR: unreadable });
+      const closedPayload = await closed.json() as { status: string; reason?: string; error?: string };
+      assert.notEqual(closedPayload.status, "EXECUTION_ACCEPTED");
+      assert.equal(closedPayload.reason ?? closedPayload.error, "PROVIDER_CAPACITY_STATE_UNAVAILABLE");
       assert.equal(codingEngineCalls, 1);
     } finally {
       globalThis.fetch = originalFetch;
