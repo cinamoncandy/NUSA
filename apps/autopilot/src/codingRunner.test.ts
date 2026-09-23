@@ -80,7 +80,7 @@ describe("coding runner", () => {
     };
     const result = await executeCodingRunner(contextual, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch);
     assert.equal(result.status, "EXECUTION_ACCEPTED");
-    assert.match(observedPrompt, /Retry target path: apps\/autopilot\/src\/example\.ts/);
+    assert.match(observedPrompt, /Target path: apps\/autopilot\/src\/example\.ts/);
     assert.match(observedPrompt, /Excerpt starts at source line 7/);
     assert.match(observedPrompt, /export const oldValue = true/);
 

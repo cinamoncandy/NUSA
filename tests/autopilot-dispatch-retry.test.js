@@ -491,6 +491,9 @@ test("regenerates an apply-check rejection inside one execution and publishes th
           assert.equal(patch, "second-valid-patch");
           return [{ path: "apps/autopilot/src/example.ts", content: "export const repaired = true;\n" }];
         },
+        initialProposalContext() {
+          return { path: "apps/autopilot/src/first.ts", startLine: 1, content: "export const first = true;\n" };
+        },
         proposalContextForPatch(patch) {
           assert.equal(patch, "first-invalid-patch");
           return {
@@ -516,7 +519,14 @@ test("regenerates an apply-check rejection inside one execution and publishes th
     assert.equal(proposalBodies[1].dedupeKey, request.dedupeKey);
     assert.equal(proposalBodies[1].headSha, request.headSha);
     assert.match(proposalBodies[1].proposalFeedback, /SANDBOX_PATCH_APPLY_CHECK_FAILED/);
-    assert.equal(proposalBodies[0].proposalContext, undefined);
+    // This asserted proposalContext === undefined, which pinned the defect: attempt 1 was sent
+    // with no source excerpt, so the model had to invent the context lines that `git apply --check`
+    // compares byte for byte. Attempt 1 now carries a real excerpt like every retry does.
+    assert.deepEqual(proposalBodies[0].proposalContext, {
+      path: "apps/autopilot/src/first.ts",
+      startLine: 1,
+      content: "export const first = true;\n",
+    });
     assert.deepEqual(proposalBodies[1].proposalContext, {
       path: "apps/autopilot/src/example.ts",
       startLine: 1,

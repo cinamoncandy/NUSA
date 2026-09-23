@@ -1,0 +1,77 @@
+id: WO-20260923-AUTOPILOT-INITIAL-PROPOSAL-CONTEXT
+title: "Autopilot first-attempt coding proposal source context"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 3e7b0e3a6b7b9e8cc5a2d47852e38f5974f570a5
+implementation_branch: claude/nusa-repository-j93sd8-proposal
+pull_request: 2231
+objective: "Give the first coding proposal attempt a real excerpt of the file the request names, so its unified diff can match the byte-exact context that the sandbox git apply --check compares, without ever guessing a target."
+parent_work_order: WO-20260923-AUTOPILOT-STOP-RESUME-P0
+authority_impact: none
+finding: "Attempt 1 of every execution was dispatched with no proposalContext, so the model had to invent diff context lines that git apply --check compares with no fuzz and no --3way. Retries were already sound because proposalContextFromGithubRunner reads the real working tree."
+scope:
+  include:
+    - "Existing scripts/autopilot-dispatch-retry.js proposal loop: a context producer for attempt 1"
+    - "Target selection only from a file the request itself names (full path, or a basename matching exactly one eligible file)"
+    - "Shared allowed-path rule between patch assertion and context target selection"
+    - "codingRunner prompt wording: 'Retry target path' -> 'Target path'"
+  exclude:
+    - "Any change to SANDBOX_PATCH_APPLY_CHECK or a force-apply path"
+    - "A guessed or hash-selected target file"
+    - "New agent, orchestrator, patch engine, queue, scheduler, or sandbox"
+    - "LIVE, production mutation, real-money execution, withdrawal, transfer, credentials"
+    - "#2118 execution state, #2185 or #2229 behaviour"
+architecture:
+  canonical_owner: "#903 execution coordinator and existing coding dispatch spine"
+  duplicate_architecture: prohibited
+acceptance:
+  - "A request that names no file receives no context (never a guessed file)."
+  - "A request naming exactly one eligible file receives a bounded (<=20,000 bytes) excerpt read from the working tree."
+  - "Ambiguous, forbidden, out-of-scope, or boundary-violating mentions receive no context."
+  - "Files above the 128,000-byte publishing limit are never offered."
+  - "Every candidate target satisfies the patch assertion's allowed-path rule."
+  - "PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY remain unchanged."
+verification_commands:
+  - "node --test tests/autopilot-initial-proposal-context.test.js tests/autopilot-dispatch-retry.test.js"
+  - "npx tsx --test apps/autopilot/src/codingRunner.test.ts"
+  - "pnpm run lint:scripts"
+  - "pnpm run typecheck"
+  - "node scripts/validate-platform-independent-tests.js"
+  - "pnpm run safety:invariants"
+  - "pnpm run ai:architecture"
+  - "node scripts/validate-architecture.js"
+  - "pnpm run aipos:yaml"
+evidence:
+  implementation_status: READY_FOR_REVIEW
+  review_findings_addressed:
+    - "Codex P1 4078916422: hash-selected target replaced by request-named target; unnamed requests get no context."
+    - "Codex P2 4078916430: independent 200,000-byte bound replaced by the 128,000-byte publishing limit."
+    - "Codex P1 4078916426: this work order and state entry record scope, acceptance and evidence."
+  ci_windows_crlf: "First exact-head CI failed on Windows only: the test compared an LF-normalised excerpt with CRLF disk bytes. Reproduced locally by converting targets to CRLF; test now normalises before comparing."
+  mutation_verification:
+    - "guess a target when none is named -> 3 failures"
+    - "restore the 200,000-byte bound -> 2 failures (fixture uses many short lines so only total size can exclude it)"
+    - "pick the first of several named files -> 2 failures"
+    - "drop the left boundary of the full-path match -> 2 failures"
+  local_validation:
+    - "node --test tests/autopilot-initial-proposal-context.test.js tests/autopilot-dispatch-retry.test.js: PASS 30/30"
+    - "npx tsx --test apps/autopilot/src/codingRunner.test.ts: PASS 42/42 (#2185 regression)"
+    - "pnpm run lint:scripts: PASS, 0 errors, 11 pre-existing warnings"
+    - "pnpm run typecheck: PASS"
+    - "validate-platform-independent-tests: PASS"
+    - "safety invariants: PASS"
+    - "AI zero-authority: PASS"
+    - "architecture: findings=0 runtimeCycles=0"
+    - "AIPOS YAML: PASS"
+  not_run_locally: "pnpm run preflight/validate:full stop at check-runtime (Node >=24 required; local Node 22.22.2)."
+  external_validation: "REQUIRED: exact-head protected CI, independent Audit, and Release gate."
+  known_limit: "End-to-end effect cannot be observed while the coding provider reports WORKERS_AI_DAILY_QUOTA_EXHAUSTED; VUC #1 stays BLOCKED_PROVIDER_CAPACITY."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Obtain fresh exact-head CI on PR #2231, then independent Audit and Release; do not merge from Development."
