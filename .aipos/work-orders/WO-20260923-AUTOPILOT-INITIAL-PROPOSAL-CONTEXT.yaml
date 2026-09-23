@@ -1,6 +1,6 @@
 id: WO-20260923-AUTOPILOT-INITIAL-PROPOSAL-CONTEXT
 title: "Autopilot first-attempt coding proposal source context"
-status: READY_FOR_REVIEW
+status: MERGED
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -44,7 +44,7 @@ verification_commands:
   - "node scripts/validate-architecture.js"
   - "pnpm run aipos:yaml"
 evidence:
-  implementation_status: READY_FOR_REVIEW
+  implementation_status: MERGED_PR_2231_2f5400eb
   review_findings_addressed:
     - "Codex P1 4078916422: hash-selected target replaced by request-named target; unnamed requests get no context."
     - "Codex P2 4078916430: independent 200,000-byte bound replaced by the 128,000-byte publishing limit."
