@@ -817,4 +817,67 @@ describe("coding runner workflow failure evidence", () => {
       },
     );
   });
+
+  describe("provider capacity wait at the call", () => {
+    const acceptingRuntime = (): CodingRuntime => ({
+      name: "fake-sandbox",
+      async execute() {
+        return { backend: "fake-sandbox", checkpointId: request.headSha, workspaceVerified: true, proposalValidated: true, changedFiles: ["apps/autopilot/src/example.ts"] };
+      },
+    });
+
+    it("does not call the provider when a wait was recorded after the request was admitted", async () => {
+      let aiCalls = 0;
+      const ai: WorkersAiBinding = { async run() { aiCalls += 1; return { response: JSON.stringify({ patch }) }; } };
+      const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch, acceptingRuntime(), undefined, {
+        now: () => 1_000,
+        providerWaitUntil: async () => 61_000,
+      });
+      assert.equal(aiCalls, 0);
+      assert.equal(result.status, "BLOCKED_RATE_LIMIT");
+      assert.equal(result.reason, "WAITING_PROVIDER_CAPACITY");
+      assert.equal(result.nextRetryAt, 61_000);
+      assert.equal(result.proposalAttempts, 0);
+    });
+
+    it("stops before a repair attempt when a wait appears between attempts", async () => {
+      let aiCalls = 0;
+      let waitUntil: number | null = null;
+      const ai: WorkersAiBinding = {
+        async run() {
+          aiCalls += 1;
+          waitUntil = 90_000; // another execution records a provider stop while this attempt runs
+          return { response: "not a json proposal" };
+        },
+      };
+      const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch, acceptingRuntime(), undefined, {
+        now: () => 1_000,
+        providerWaitUntil: async () => waitUntil,
+      });
+      assert.equal(aiCalls, 1, "the repair attempt must not spend a call inside the new window");
+      assert.equal(result.reason, "WAITING_PROVIDER_CAPACITY");
+      assert.equal(result.proposalAttempts, 1);
+    });
+
+    it("fails closed without a provider call when the wait cannot be read", async () => {
+      let aiCalls = 0;
+      const ai: WorkersAiBinding = { async run() { aiCalls += 1; return { response: JSON.stringify({ patch }) }; } };
+      const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch, acceptingRuntime(), undefined, {
+        providerWaitUntil: async () => { throw new Error("coordinator unavailable"); },
+      });
+      assert.equal(aiCalls, 0);
+      assert.equal(result.status, "EXECUTION_FAILED");
+      assert.equal(result.reason, "PROVIDER_CAPACITY_STATE_UNAVAILABLE");
+    });
+
+    it("proceeds normally when no wait is recorded", async () => {
+      let aiCalls = 0;
+      const ai: WorkersAiBinding = { async run() { aiCalls += 1; return { response: JSON.stringify({ patch }) }; } };
+      const result = await executeCodingRunner(request, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch, acceptingRuntime(), undefined, {
+        providerWaitUntil: async () => null,
+      });
+      assert.equal(aiCalls, 1);
+      assert.equal(result.status, "EXECUTION_ACCEPTED");
+    });
+  });
 });

@@ -184,17 +184,17 @@ current_upbit_bridge_credential_persistence:
   unverified: "pnpm run preflight and pnpm test could not run here (Node >= 24 required, environment provides 22.22.2). No Android device run: persistence is verified against a stubbed SecureStoragePort, not the real Keystore."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 project: nusa
-updated_at: "2026-09-23T14:30:00+09:00"
+updated_at: "2026-09-23T14:50:00+09:00"
 current_execution_target:
-  work_order: WO-20260923-AUTOPILOT-PROVIDER-WAIT-ACROSS-MAIN
+  work_order: WO-20260923-AUTOPILOT-EXECUTE-PROVIDER-GATE
   status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-waiting-identity
-  base_sha: af6a9f90cd090d4322cdd82566227320847fd613
-  scope: "Provider-keyed rate-limit wait so a WAITING_RATE_LIMIT stop survives main changes and no new execution is dispatched inside the provider window."
+  branch: claude/nusa-repository-j93sd8-execute-gate
+  base_sha: d612756c6eacf861cc26bfb037ec4bbca057e262
+  scope: "Worker /coding/execute honours the provider-keyed capacity wait before any lease or provider call; unreadable state fails closed."
   authority_impact: none
-  parent_work_order: WO-20260923-AUTOPILOT-STOP-RESUME-P0
-  prior_target: WO-20260923-AUTOPILOT-ISSUE-CODING-TARGET
-  prior_target_status: MERGED_PR_2232
+  parent_work_order: WO-20260923-AUTOPILOT-PROVIDER-WAIT-ACROSS-MAIN
+  prior_target: WO-20260923-AUTOPILOT-PROVIDER-WAIT-ACROSS-MAIN
+  prior_target_status: MERGED_PR_2234
   prior_target_preserved: true
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

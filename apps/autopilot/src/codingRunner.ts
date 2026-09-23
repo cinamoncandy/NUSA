@@ -108,6 +108,14 @@ export class CodingRunnerEvidenceError extends Error {
 export interface CodingRunnerExecutionOptions {
   readonly maxProposalAttempts?: number;
   readonly now?: () => number;
+  /**
+   * Consulted immediately before every Workers AI call, after GitHub evidence verification. Returns
+   * the provider's recorded retry time when it is still inside its wait window, or null when a call
+   * may proceed. Checking at the call rather than at request admission means a request that was
+   * still verifying evidence when another execution recorded a provider stop does not then spend a
+   * call inside that window. It does not serialize calls already in flight when a stop lands.
+   */
+  readonly providerWaitUntil?: () => Promise<number | null>;
 }
 
 export interface CodingRunnerResult {
@@ -609,6 +617,28 @@ export async function executeCodingRunner(
   let prompt = codingProposalPrompt(request);
   let lastFailure: CodingRunnerResult | undefined;
   for (let attempt = 1; attempt <= maxProposalAttempts; attempt += 1) {
+    if (options.providerWaitUntil) {
+      let waitUntil: number | null;
+      try {
+        waitUntil = await options.providerWaitUntil();
+      } catch {
+        return { status: "EXECUTION_FAILED", reason: "PROVIDER_CAPACITY_STATE_UNAVAILABLE", proposalAttempts: attempt - 1, failureStage: "proposal-parse" };
+      }
+      const current = now();
+      if (waitUntil !== null && current < waitUntil) {
+        return {
+          status: "BLOCKED_RATE_LIMIT",
+          reason: "WAITING_PROVIDER_CAPACITY",
+          proposalAttempts: attempt - 1,
+          failureStage: "proposal-parse",
+          provider: "workers-ai",
+          retryAfterMs: waitUntil - current,
+          nextRetryAt: waitUntil,
+          stopReason: "WAITING_PROVIDER_CAPACITY",
+          resumeCondition: "provider-capacity-and-exact-head-revalidation",
+        };
+      }
+    }
     try {
       const proposal = workersAiProposal(await env.AI.run(model, workersAiCodingRequest(request, model, prompt)));
       const result = await executeProposal(request, proposal, runtime, publisher);
