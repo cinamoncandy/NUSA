@@ -58,8 +58,8 @@ selection_rationale:
   - Safe consolidation improves agent and human throughput without touching authority boundaries
   - Proposal already merged on main as documentation; this WO implements the approved slice only after owner acceptance
 acceptance_criteria:
-  - `pnpm validate` exists and runs a documented prioritized subset including architecture:truth and safety:architecture
-  - `pnpm validate:full` (or equivalent) still exposes deep audits
+  - "`pnpm validate` exists and runs a documented prioritized subset including architecture:truth and safety:architecture"
+  - "`pnpm validate:full` (or equivalent) still exposes deep audits"
   - No existing safety gate is deleted; only packaging/defaults change
   - AGENTS.md and AIPOS recovery docs describe a fast path for authority_impact: none work
   - Full evidence packages remain mandatory for authority/risk/execution/accounting/recovery/persistence changes
