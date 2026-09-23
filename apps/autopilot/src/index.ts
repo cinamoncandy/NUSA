@@ -14,6 +14,7 @@ import {
   completePersistentExecution,
   markPersistentExecutionDispatched,
   markPersistentExecutionRateLimitStopped,
+  readProviderCapacityWait,
   recordProviderCapacityWait,
   recordAutopilotExecutionTelemetry,
   readAutopilotExecutionTelemetry,
@@ -230,7 +231,10 @@ export async function handleCodingExecute(
 
     let result: Awaited<ReturnType<typeof executeCodingRunner>>;
     try {
-      result = await executeCodingRunner(runnerRequest, env, undefined, runtime, publisher);
+      const coordinator = env.NUSA_EXECUTION_COORDINATOR;
+      result = await executeCodingRunner(runnerRequest, env, undefined, runtime, publisher, {
+        providerWaitUntil: async () => (await readProviderCapacityWait(coordinator, "workers-ai"))?.nextRetryAt ?? null,
+      });
     } catch (error) {
       const failureReason = error instanceof Error ? error.message : "CODING_RUNNER_EXECUTION_FAILED";
       await releaseCodingExecutionLease(env, runnerRequest);

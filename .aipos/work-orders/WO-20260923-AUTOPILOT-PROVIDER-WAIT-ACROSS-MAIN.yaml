@@ -1,6 +1,6 @@
 id: WO-20260923-AUTOPILOT-PROVIDER-WAIT-ACROSS-MAIN
 title: "Keep a provider rate-limit wait in force after main moves"
-status: READY_FOR_REVIEW
+status: MERGED
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -33,18 +33,18 @@ verification_commands:
   - "pnpm run safety:invariants"
   - "pnpm run ai:architecture"
 evidence:
-  implementation_status: READY_FOR_REVIEW
+  implementation_status: MERGED_PR_2234_d612756c
   mutation_verification:
     - "ignore the provider wait in the scheduler -> 1 failure"
     - "fail open when the wait is unreadable -> 1 failure"
     - "allow a shorter wait to replace a longer one -> 1 failure"
     - "make the wait key unstable -> 2 failures"
     - "worker does not record the provider wait -> 1 failure"
-  external_validation: "REQUIRED: exact-head protected CI, independent Audit, and Release gate."
+  external_validation: "COMPLETED: exact-head protected CI passed on 5a2a5b1bdd0d33d6b2c305e814c5a59f8dff191f; independent Audit and Release gate passed; merged by nusa-release-authority[bot] as PR #2234 merge d612756c6eacf861cc26bfb037ec4bbca057e262; merged blobs verified byte-identical to the validated head."
 safety:
   paper_only: true
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
-next_permitted_action: "Obtain exact-head CI, independent Audit, and Release; do not merge from Development."
+next_permitted_action: "Completed (PR #2234, merge d612756c6eacf861cc26bfb037ec4bbca057e262). No further action on this work order; follow-on work is tracked by its successor work order."
