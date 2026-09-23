@@ -157,6 +157,10 @@ export function resumePaperConnection(silent?: Readonly<{ deviceId: string; nati
   // backgrounded long enough for the actual access credential to expire. Always revalidate on
   // foreground; restoreApprovedSession is single-flight so duplicate lifecycle events coalesce.
   cancelRestoreRetry();
+  // A process-local VERIFIED observation is stale once foreground revalidation begins. Clear it
+  // before the forced restore so a transient null result can enter the bounded retry path instead
+  // of being suppressed as "already verified". Fresh identity is the only path that marks it true.
+  verifiedEndpoint = null;
   void restoreApprovedSession(endpoint, true, silent);
 }
 
