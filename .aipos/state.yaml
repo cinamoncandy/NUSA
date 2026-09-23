@@ -81,24 +81,27 @@ current_research_source_commit_identity_guard:
 
 current_mobile_porcelain_cobalt:
   work_order: WO-UI-20260907-PORCELAIN-COBALT
-  status: IN_PROGRESS
+  status: COMPLETED
+  closed_by_pull_request: 1757
+  residual_gates_work_order: WO-20260924-MOBILE-DELIVERY-RESIDUAL-GATES
   branch: codex/mobile-porcelain-cobalt
   base_sha: 307b535727a209c1b9ed57b6599b579c8e97bad0
   scope: "Owner-approved Study 03 presentation with canonical market chart; no mock data or authority change."
   validation: "402/402 mobile tests; build/typecheck/lint/validate:full/security PASS. Lint has one pre-existing warning."
-  next_permitted_action: "Local validation then exact-head protected CI and existing Android stable release."
+  next_permitted_action: "None here; Android release/device gates tracked in WO-20260924-MOBILE-DELIVERY-RESIDUAL-GATES."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_product_v5_recovery:
   work_order: WO-UI-20260906-PRODUCT-V5-CI-RECOVERY
-  status: IN_PROGRESS
+  status: COMPLETED
+  closed_by_pull_request: 1744
   branch: design/mobile-product-v5-20260906
   pull_request: 1744
   base_sha: e7824d0c07dea4aa0b6a26c2f821f744b05a4e50
   failing_head: 1810e2e134d30760e75601d5c5d10400ffda64d8
   failure_classification: REPOSITORY_CONTROLLED_STRUCTURAL
   local_validation: "Focused 22/22; full isolated 952 files; typecheck, preflight, validate:full and diff check PASS."
-  exact_head_ci: PENDING
-  next_permitted_action: "Push validated head and require fresh exact-head CI before Audit, Release, or merge."
+  exact_head_ci: "MOOT_MERGED_PR_1744 (per-head result not recorded here)"
+  next_permitted_action: "None; implementation merged."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_research_horizon_slice:
   work_order: WO-ISSUE-1701-RESEARCH-HORIZON
