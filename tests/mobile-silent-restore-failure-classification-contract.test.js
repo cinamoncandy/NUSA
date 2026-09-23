@@ -22,7 +22,7 @@ const path = require("node:path");
 
 const RESTORE_PATH_METHODS = [
   "connectBootstrapForDevice",
-  "restore",
+  "restoreBearer",
   "restoreWithSilentDevice",
   "authenticateSilentDeviceCredential",
   "refreshFromMemory",

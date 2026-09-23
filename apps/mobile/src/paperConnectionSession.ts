@@ -115,6 +115,11 @@ export function getPaperSessionState(): PaperSessionState {
 export function markPaperConnectionVerified(value: string): void {
   const endpoint = normalizeEndpoint(value);
   if (endpoint == null || endpoint !== configuredEndpoint) throw new Error("PAPER endpoint verification mismatch.");
+  // An explicit verification supersedes any restore still in flight: without advancing the
+  // generation, a slower restore started earlier (e.g. by saving Settings) could fail afterwards
+  // and clear this verification, so a successful connect had to be pressed again.
+  restoreGeneration += 1;
+  cancelRestoreRetry();
   verifiedEndpoint = endpoint;
   void connectUpbitReadOnlyAccount(endpoint);
 }

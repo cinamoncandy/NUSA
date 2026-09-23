@@ -112,6 +112,136 @@ describe("mobile approved session persistence boundary", () => {
     assert.equal(session.shouldRetryRestore(), true);
   });
 
+  it("a silent connect started during a bearer restore keeps its tokens when the bearer path fails late", async () => {
+    // Galaxy report: the PAPER connect button had to be pressed several times. Saving Settings
+    // starts a bearer restore; the connect button starts a silent DeviceKey restore. The bearer
+    // path's late 401 ran clearLocal() after the silent path accepted fresh tokens and wiped them.
+    const storage = new MemorySecureStorage();
+    const endpoint = "https://paper.example";
+    const now = Date.now();
+    storage.values.set(SESSION_STORAGE_KEY, new TextEncoder().encode(JSON.stringify({ endpoint, refreshToken: "stale-refresh-token-0123456789", refreshExpiresAt: now + 600_000, deviceId: "nusa-device-race-0001" })));
+    const request = (async (url: string | URL | Request) => {
+      const value = String(url);
+      if (value.endsWith("/v1/mobile/session/refresh")) {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        return new Response(JSON.stringify({ error: "SESSION_REVOKED" }), { status: 401, headers: { "content-type": "application/json" } });
+      }
+      if (value.endsWith("/v1/mobile/owner-device/authentication/challenge")) return new Response(JSON.stringify({ challengeId: "challenge-id-0123456789", challenge: "Y2Fub25pY2FsLWNoYWxsZW5nZQ==", purpose: "AUTHENTICATION", expiresAt: now + 60_000 }), { status: 201 });
+      if (value.endsWith("/v1/mobile/owner-device/authentication/complete")) return new Response(JSON.stringify({ accessToken: "silent-access-token-0123456789", accessExpiresAt: now + 60_000, refreshToken: "silent-refresh-token-0123456789", refreshExpiresAt: now + 600_000, scopes: ["dashboard:read", "paper:trade"], deviceId: "nusa-device-race-0001" }), { status: 200 });
+      if (value.endsWith("/v1/mobile/me")) return new Response(JSON.stringify({ userId: "owner", email: "owner@example.com", scopes: ["dashboard:read", "paper:trade"] }), { status: 200 });
+      throw new Error("unexpected request " + value);
+    }) as typeof fetch;
+    const native = {
+      getSilentDeviceStatus: async () => ({ available: true, canCreate: true, hardwareBacked: true, status: "SILENT_DEVICE_KEY_PRESENT", credentialId: "silent-credential-0123456789" }),
+      signSilentChallenge: async () => "MEUCIQDummysignature0123456789ABCD==",
+      deleteSilentDeviceCredential: async () => { throw new Error("must not delete the silent key"); },
+    } as unknown as OwnerDeviceCredentialNative;
+    const session = new MobileApprovedSession(storage, request);
+    const bearer = session.restore(endpoint);
+    const identity = await session.restoreWithSilentDevice(endpoint, "nusa-device-race-0001", native);
+    await bearer.catch(() => null);
+    assert.equal(identity?.userId, "owner");
+    assert.equal(session.hasMemoryAccess(), true, "the late bearer failure must not wipe the silent session");
+    assert.equal(await session.credentialProvider(), "silent-access-token-0123456789");
+  });
+
+  it("a bearer restore requested while a silent restore is running joins it instead of racing it", async () => {
+    const storage = new MemorySecureStorage();
+    const endpoint = "https://paper.example";
+    const now = Date.now();
+    let refreshCalls = 0;
+    const request = (async (url: string | URL | Request) => {
+      const value = String(url);
+      if (value.endsWith("/v1/mobile/session/refresh")) { refreshCalls += 1; throw new Error("must not refresh while silent restore runs"); }
+      if (value.endsWith("/v1/mobile/owner-device/authentication/challenge")) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        return new Response(JSON.stringify({ challengeId: "challenge-id-0123456789", challenge: "Y2Fub25pY2FsLWNoYWxsZW5nZQ==", purpose: "AUTHENTICATION", expiresAt: now + 60_000 }), { status: 201 });
+      }
+      if (value.endsWith("/v1/mobile/owner-device/authentication/complete")) return new Response(JSON.stringify({ accessToken: "silent-access-token-0123456789", accessExpiresAt: now + 60_000, refreshToken: "silent-refresh-token-0123456789", refreshExpiresAt: now + 600_000, scopes: ["dashboard:read"], deviceId: "nusa-device-race-0002" }), { status: 200 });
+      if (value.endsWith("/v1/mobile/me")) return new Response(JSON.stringify({ userId: "owner", email: "owner@example.com", scopes: ["dashboard:read"] }), { status: 200 });
+      throw new Error("unexpected request " + value);
+    }) as typeof fetch;
+    const native = {
+      getSilentDeviceStatus: async () => ({ available: true, canCreate: true, hardwareBacked: true, status: "SILENT_DEVICE_KEY_PRESENT", credentialId: "silent-credential-0123456789" }),
+      signSilentChallenge: async () => "MEUCIQDummysignature0123456789ABCD==",
+    } as unknown as OwnerDeviceCredentialNative;
+    const session = new MobileApprovedSession(storage, request);
+    const silent = session.restoreWithSilentDevice(endpoint, "nusa-device-race-0002", native);
+    const joined = await session.restore(endpoint);
+    await silent;
+    assert.equal(joined?.userId, "owner");
+    assert.equal(refreshCalls, 0);
+    assert.equal(session.hasMemoryAccess(), true);
+  });
+
+  it("coalesces concurrent same-endpoint bearer restores into one refresh", async () => {
+    const storage = new MemorySecureStorage();
+    const endpoint = "https://paper.example";
+    const now = Date.now();
+    storage.values.set(SESSION_STORAGE_KEY, new TextEncoder().encode(JSON.stringify({ endpoint, refreshToken: "refresh-token-coalesce-0123456789", refreshExpiresAt: now + 600_000 })));
+    let refreshCalls = 0;
+    const request = (async (url: string | URL | Request) => {
+      const value = String(url);
+      if (value.endsWith("/v1/mobile/session/refresh")) { refreshCalls += 1; await new Promise((resolve) => setTimeout(resolve, 10)); return new Response(JSON.stringify({ accessToken: "coalesced-access-token-0123456789", accessExpiresAt: now + 60_000, refreshToken: "coalesced-refresh-token-0123456789", refreshExpiresAt: now + 600_000, scopes: ["dashboard:read"] }), { status: 200 }); }
+      if (value.endsWith("/v1/mobile/me")) return new Response(JSON.stringify({ userId: "owner", email: "owner@example.com", scopes: ["dashboard:read"] }), { status: 200 });
+      throw new Error("unexpected request " + value);
+    }) as typeof fetch;
+    const session = new MobileApprovedSession(storage, request);
+    const getsBefore = storage.getCount;
+    const [first, second] = await Promise.all([session.restore(endpoint), session.restore(endpoint)]);
+    assert.equal(refreshCalls, 1);
+    assert.equal(storage.getCount - getsBefore, 1);
+    assert.equal(first?.userId, "owner");
+    assert.deepEqual(second, first);
+  });
+
+  it("does not join an in-flight restore for a different endpoint", async () => {
+    const storage = new MemorySecureStorage();
+    const now = Date.now();
+    storage.values.set(SESSION_STORAGE_KEY, new TextEncoder().encode(JSON.stringify({ endpoint: "https://paper-a.example", refreshToken: "refresh-token-endpoint-a-0123456789", refreshExpiresAt: now + 600_000 })));
+    const request = (async (url: string | URL | Request) => {
+      const value = String(url);
+      if (value.startsWith("https://paper-a.example/v1/mobile/session/refresh")) { await new Promise((resolve) => setTimeout(resolve, 10)); return new Response(JSON.stringify({ accessToken: "endpoint-a-access-token-0123456789", accessExpiresAt: now + 60_000, refreshToken: "endpoint-a-refresh-token-0123456789", refreshExpiresAt: now + 600_000, scopes: ["dashboard:read"] }), { status: 200 }); }
+      if (value.startsWith("https://paper-a.example/v1/mobile/me")) return new Response(JSON.stringify({ userId: "owner-a", email: "a@example.com", scopes: ["dashboard:read"] }), { status: 200 });
+      throw new Error("unexpected request " + value);
+    }) as typeof fetch;
+    const session = new MobileApprovedSession(storage, request);
+    const restoreA = session.restore("https://paper-a.example");
+    const restoreB = await session.restore("https://paper-b.example");
+    assert.equal(restoreB, null, "endpoint B must never receive endpoint A's identity");
+    await restoreA.catch(() => null);
+  });
+
+  it("a hung bearer restore neither blocks nor later overwrites a silent connect", async () => {
+    const storage = new MemorySecureStorage();
+    const endpoint = "https://paper.example";
+    const now = Date.now();
+    storage.values.set(SESSION_STORAGE_KEY, new TextEncoder().encode(JSON.stringify({ endpoint, refreshToken: "hung-refresh-token-0123456789", refreshExpiresAt: now + 600_000, deviceId: "nusa-device-race-0003" })));
+    let releaseRefresh: (() => void) | undefined;
+    const request = (async (url: string | URL | Request) => {
+      const value = String(url);
+      if (value.endsWith("/v1/mobile/session/refresh")) {
+        await new Promise<void>((resolve) => { releaseRefresh = resolve; });
+        return new Response(JSON.stringify({ accessToken: "stale-bearer-access-token-0123456789", accessExpiresAt: now + 60_000, refreshToken: "stale-bearer-refresh-token-0123456789", refreshExpiresAt: now + 600_000, scopes: ["dashboard:read"] }), { status: 200 });
+      }
+      if (value.endsWith("/v1/mobile/owner-device/authentication/challenge")) return new Response(JSON.stringify({ challengeId: "challenge-id-0123456789", challenge: "Y2Fub25pY2FsLWNoYWxsZW5nZQ==", purpose: "AUTHENTICATION", expiresAt: now + 60_000 }), { status: 201 });
+      if (value.endsWith("/v1/mobile/owner-device/authentication/complete")) return new Response(JSON.stringify({ accessToken: "silent-access-token-0123456789", accessExpiresAt: now + 60_000, refreshToken: "silent-refresh-token-0123456789", refreshExpiresAt: now + 600_000, scopes: ["dashboard:read"], deviceId: "nusa-device-race-0003" }), { status: 200 });
+      if (value.endsWith("/v1/mobile/me")) return new Response(JSON.stringify({ userId: "owner", email: "owner@example.com", scopes: ["dashboard:read"] }), { status: 200 });
+      throw new Error("unexpected request " + value);
+    }) as typeof fetch;
+    const native = {
+      getSilentDeviceStatus: async () => ({ available: true, canCreate: true, hardwareBacked: true, status: "SILENT_DEVICE_KEY_PRESENT", credentialId: "silent-credential-0123456789" }),
+      signSilentChallenge: async () => "MEUCIQDummysignature0123456789ABCD==",
+    } as unknown as OwnerDeviceCredentialNative;
+    const session = new MobileApprovedSession(storage, request);
+    const bearer = session.restore(endpoint);
+    const identity = await session.restoreWithSilentDevice(endpoint, "nusa-device-race-0003", native);
+    assert.equal(identity?.userId, "owner");
+    releaseRefresh?.();
+    assert.equal(await bearer, null, "a superseded bearer restore reports no identity");
+    assert.equal(await session.credentialProvider(), "silent-access-token-0123456789");
+  });
+
   it("persists only the rotating refresh session in secure storage", async () => {
     const storage = new MemorySecureStorage();
     const endpoint = "https://paper.example";

@@ -124,3 +124,28 @@ test("resume does not trust VERIFIED as proof of a live credential", () => {
   assert.doesNotMatch(body, /if \(isPaperConnectionVerified\(endpoint\)\) return/, "foreground must revalidate stale process-local verification");
   assert.match(body, /restoreApprovedSession\(endpoint, true, silent\)/, "foreground recovery must force a single-flight revalidation");
 });
+
+test("an explicit verification is not undone by a slower restore that fails afterwards", async () => {
+  // Galaxy report: connect had to be pressed several times. Saving Settings starts a restore;
+  // the connect button then verified the session; the earlier restore failing later cleared it.
+  const { mobileApprovedSession } = require("../dist/apps/mobile/src/mobileApprovedSessionBoundary.js");
+  const session = mobileApprovedSession();
+  const originalRestore = session.restore;
+  const originalRetryable = session.shouldRetryRestore;
+  let rejectRestore;
+  try {
+    clearConfiguredPaperEndpoint();
+    session.restore = () => new Promise((_resolve, reject) => { rejectRestore = reject; });
+    session.shouldRetryRestore = () => true;
+    setConfiguredPaperEndpoint(ENDPOINT);
+    markPaperConnectionVerified(ENDPOINT);
+    rejectRestore(new Error("late network failure"));
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(isPaperConnectionVerified(ENDPOINT), true);
+  } finally {
+    clearConfiguredPaperEndpoint();
+    session.restore = originalRestore;
+    session.shouldRetryRestore = originalRetryable;
+  }
+});
