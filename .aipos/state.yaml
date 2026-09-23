@@ -191,17 +191,17 @@ current_upbit_bridge_credential_persistence:
   unverified: "pnpm run preflight and pnpm test could not run here (Node >= 24 required, environment provides 22.22.2). No Android device run: persistence is verified against a stubbed SecureStoragePort, not the real Keystore."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 project: nusa
-updated_at: "2026-09-23T14:50:00+09:00"
+updated_at: "2026-09-23T18:40:00+09:00"
 current_execution_target:
-  work_order: WO-20260923-AUTOPILOT-EXECUTE-PROVIDER-GATE
+  work_order: WO-20260923-CLOUD-PAPER-RUNTIME-LIVENESS
   status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-execute-gate
-  base_sha: d612756c6eacf861cc26bfb037ec4bbca057e262
-  scope: "Worker /coding/execute honours the provider-keyed capacity wait before any lease or provider call; unreadable state fails closed."
+  branch: feat/paper-runtime-liveness-evidence
+  pull_request: 1933
+  base_sha: f72f6b0c5be5e6aa6fd25332c9e6eb5d86003dfe
+  scope: "Publish allowlisted PAPER runtime liveness counters on unauthenticated /health so 24-hour operation is observable."
   authority_impact: none
-  parent_work_order: WO-20260923-AUTOPILOT-PROVIDER-WAIT-ACROSS-MAIN
-  prior_target: WO-20260923-AUTOPILOT-PROVIDER-WAIT-ACROSS-MAIN
-  prior_target_status: MERGED_PR_2234
+  prior_target: WO-20260923-AUTOPILOT-EXECUTE-PROVIDER-GATE
+  prior_target_status: MERGED_PR_2237
   prior_target_preserved: true
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
