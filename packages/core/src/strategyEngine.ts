@@ -331,6 +331,82 @@ export class DonchianBreakoutStrategy implements TradingStrategy {
   reset(): void { this.previousPosition = undefined; }
 }
 
+export class VolatilityCompressionBreakoutStrategy implements TradingStrategy {
+  readonly id = "volatility-compression-breakout";
+  readonly name = "Volatility Compression Breakout";
+  private previousPosition?: -1 | 0 | 1;
+  private static readonly SHORT_VOL_PERIOD = 5;
+  private static readonly LONG_VOL_PERIOD = 30;
+
+  constructor(
+    private readonly breakoutLookback = 20,
+    private readonly compressionRatio = 0.7,
+  ) {
+    if (!Number.isInteger(breakoutLookback) || breakoutLookback < 2) throw new Error("invalid volatility compression breakout lookback");
+    if (!Number.isFinite(compressionRatio) || compressionRatio <= 0 || compressionRatio > 1) throw new Error("invalid volatility compression ratio");
+  }
+
+  private populationStd(values: readonly number[]): number {
+    const mean = values.reduce((total, value) => total + value, 0) / values.length;
+    const variance = values.reduce((total, value) => total + (value - mean) ** 2, 0) / values.length;
+    return Math.sqrt(variance);
+  }
+
+  onTick(tick: MarketTick, context: StrategyContext): StrategySignal {
+    const priorCloses = context.prices;
+    const requiredPriorCloses = Math.max(this.breakoutLookback, VolatilityCompressionBreakoutStrategy.LONG_VOL_PERIOD + 1);
+    if (priorCloses.length < requiredPriorCloses) {
+      return { type: "HOLD", reason: "warming-up", confidence: 0, timestamp: tick.timestamp };
+    }
+
+    // Compression is deliberately formed only from closes strictly before the current tick.
+    // This prevents the current return from rolling an adverse prior return out of the short
+    // volatility window and self-authorizing its own breakout.
+    const volCloses = priorCloses.slice(-(VolatilityCompressionBreakoutStrategy.LONG_VOL_PERIOD + 1));
+    const returns = volCloses.slice(1).map((close, index) => close / volCloses[index]! - 1);
+    const longVol = this.populationStd(returns);
+    const shortVol = this.populationStd(returns.slice(-VolatilityCompressionBreakoutStrategy.SHORT_VOL_PERIOD));
+    if (!Number.isFinite(longVol) || !Number.isFinite(shortVol) || longVol <= Number.EPSILON) {
+      this.previousPosition = 0;
+      return { type: "HOLD", reason: "volatility-baseline-unavailable", confidence: 0, timestamp: tick.timestamp };
+    }
+
+    const volRatio = shortVol / longVol;
+    const compressed = Number.isFinite(volRatio) && volRatio <= this.compressionRatio;
+    const channel = priorCloses.slice(-this.breakoutLookback);
+    const highest = Math.max(...channel);
+    const lowest = Math.min(...channel);
+    const rawPosition: -1 | 0 | 1 = tick.price > highest ? 1 : tick.price < lowest ? -1 : 0;
+    const position: -1 | 0 | 1 = compressed ? rawPosition : 0;
+    const prior = this.previousPosition;
+    this.previousPosition = position;
+
+    if (prior === undefined) {
+      return { type: "HOLD", reason: "baseline-established", confidence: 0, timestamp: tick.timestamp };
+    }
+    if (!compressed) {
+      return { type: "HOLD", reason: "volatility-not-compressed", confidence: 0, timestamp: tick.timestamp };
+    }
+
+    const range = highest - lowest;
+    const breakoutStrength = range > 0
+      ? Math.min(1, Math.abs(tick.price - (rawPosition === 1 ? highest : rawPosition === -1 ? lowest : tick.price)) / range)
+      : 0;
+    const compressionStrength = Math.min(1, Math.max(0, (this.compressionRatio - volRatio) / this.compressionRatio));
+    const confidence = Math.min(1, breakoutStrength * 0.7 + compressionStrength * 0.3);
+
+    if (prior <= 0 && position === 1) {
+      return { type: "BUY", reason: "compressed-volatility-broke-above-channel", confidence, timestamp: tick.timestamp };
+    }
+    if (prior >= 0 && position === -1) {
+      return { type: "SELL", reason: "compressed-volatility-broke-below-channel", confidence, timestamp: tick.timestamp };
+    }
+    return { type: "HOLD", reason: "compressed-no-transition", confidence: 0, timestamp: tick.timestamp };
+  }
+
+  reset(): void { this.previousPosition = undefined; }
+}
+
 /**
  * Regime-gated wrapper: converts entries (BUY) to HOLD in regimes where the
  * canonical policy forbids new exposure, while exits (SELL) always pass

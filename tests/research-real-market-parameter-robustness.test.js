@@ -101,3 +101,18 @@ test("canonical Donchian robustness request is the precommitted five-period line
   assert.deepEqual(request.candidateGrid.find((entry) => entry.key === "donchian-55").neighbors, ["donchian-40"]);
   assert.ok(request.candidateGrid.every(Object.isFrozen));
 });
+
+
+test("canonical volatility compression robustness request uses frozen 3x3 adjacency", () => {
+  const request = buildParameterRobustnessRequest({ candles, manifest, strategyFamily: "volatility-compression-breakout" });
+  assert.equal(request.strategyFamily, "volatility-compression-breakout");
+  assert.equal(request.candidateGrid.length, 9);
+  assert.deepEqual(request.referenceParameters, [
+    { source: "PRODUCTION_DEFAULT", candidateKey: "vcb-20-0.70", parameters: { breakoutLookback: 20, compressionRatio: 0.7 } },
+    { source: "MANUAL_RESEARCH_REFERENCE", candidateKey: "vcb-10-0.50", parameters: { breakoutLookback: 10, compressionRatio: 0.5 } }
+  ]);
+  const center = request.candidateGrid.find((entry) => entry.key === "vcb-20-0.70");
+  assert.deepEqual(center.neighbors, ["vcb-10-0.70", "vcb-20-0.50", "vcb-20-0.90", "vcb-30-0.70"]);
+  assert.ok(request.candidateGrid.every(Object.isFrozen));
+  assert.ok(request.candidateGrid.every((entry) => Object.isFrozen(entry.neighbors)));
+});

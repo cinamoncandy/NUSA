@@ -5,6 +5,7 @@ import type { IntelligenceObservation } from "./marketIntelligenceFusion";
 const SMA_FAMILY = "sma-crossover";
 const RSI_FAMILY = "rsi-mean-reversion";
 const DONCHIAN_FAMILY = "donchian-breakout";
+const VOLATILITY_COMPRESSION_FAMILY = "volatility-compression-breakout";
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
 const round4 = (value: number): number => Math.round(value * 10_000) / 10_000;
 
@@ -28,6 +29,19 @@ function parseDonchianParameters(spec: PaperCandidateStrategySpec): { channelPer
     throw new Error("PAPER Donchian candidate parameters are invalid");
   }
   return { channelPeriod };
+}
+
+function parseVolatilityCompressionParameters(spec: PaperCandidateStrategySpec): { breakoutLookback: number; compressionRatio: number } {
+  const breakoutLookback = spec.parameters.breakoutLookback;
+  const compressionRatio = spec.parameters.compressionRatio;
+  if (
+    !finitePositiveInteger(breakoutLookback) || breakoutLookback < 2 || breakoutLookback > 500
+    || typeof compressionRatio !== "number" || !Number.isFinite(compressionRatio)
+    || compressionRatio <= 0 || compressionRatio > 1
+  ) {
+    throw new Error("PAPER volatility compression candidate parameters are invalid");
+  }
+  return { breakoutLookback, compressionRatio };
 }
 
 function parseRsiParameters(spec: PaperCandidateStrategySpec): { period: number; oversold: number; overbought: number } {
@@ -165,6 +179,82 @@ function evaluateRsi(
   });
 }
 
+function populationStd(values: readonly number[]): number {
+  const mean = values.reduce((total, value) => total + value, 0) / values.length;
+  const variance = values.reduce((total, value) => total + (value - mean) ** 2, 0) / values.length;
+  return Math.sqrt(variance);
+}
+
+type VolatilityCompressionState = Readonly<{
+  position: -1 | 0 | 1;
+  compressed: boolean;
+  volatilityAvailable: boolean;
+  volRatio: number;
+  highest: number;
+  lowest: number;
+}>;
+
+function volatilityCompressionState(
+  closesIncludingCurrent: readonly number[],
+  breakoutLookback: number,
+  compressionRatio: number,
+): VolatilityCompressionState | undefined {
+  const priorCloses = closesIncludingCurrent.slice(0, -1);
+  const requiredPriorCloses = Math.max(breakoutLookback, 31);
+  if (priorCloses.length < requiredPriorCloses) return undefined;
+  const volCloses = priorCloses.slice(-31);
+  const returns = volCloses.slice(1).map((close, index) => close / volCloses[index]! - 1);
+  const longVol = populationStd(returns);
+  const shortVol = populationStd(returns.slice(-5));
+  const channel = priorCloses.slice(-breakoutLookback);
+  const highest = Math.max(...channel);
+  const lowest = Math.min(...channel);
+  if (!Number.isFinite(longVol) || !Number.isFinite(shortVol) || longVol <= Number.EPSILON) {
+    return Object.freeze({ position: 0, compressed: false, volatilityAvailable: false, volRatio: Number.POSITIVE_INFINITY, highest, lowest });
+  }
+  const volRatio = shortVol / longVol;
+  const compressed = Number.isFinite(volRatio) && volRatio <= compressionRatio;
+  const current = closesIncludingCurrent.at(-1)!;
+  const rawPosition: -1 | 0 | 1 = current > highest ? 1 : current < lowest ? -1 : 0;
+  return Object.freeze({ position: compressed ? rawPosition : 0, compressed, volatilityAvailable: true, volRatio, highest, lowest });
+}
+
+function evaluateVolatilityCompression(
+  spec: PaperCandidateStrategySpec,
+  prices: readonly (readonly [number, number])[],
+  now: number,
+): PaperCandidateStrategyDecision {
+  const { breakoutLookback, compressionRatio } = parseVolatilityCompressionParameters(spec);
+  const closes = prices.map(([, price]) => price);
+  const current = volatilityCompressionState(closes, breakoutLookback, compressionRatio);
+  if (current === undefined) {
+    const required = Math.max(breakoutLookback, 31) + 1;
+    return Object.freeze({ action: "WAIT", score: 0, confidence: 0, observedAt: prices.at(-1)?.[0] ?? now, reason: `INSUFFICIENT_VOLATILITY_COMPRESSION_OBSERVATIONS:${prices.length}/${required}` });
+  }
+  const observedAt = prices.at(-1)?.[0] ?? now;
+  if (!current.volatilityAvailable) {
+    return Object.freeze({ action: "HOLD", score: 0, confidence: 0, observedAt, reason: `VOLATILITY_COMPRESSION_BREAKOUT:${breakoutLookback}/${round4(compressionRatio)}:volatility-baseline-unavailable` });
+  }
+  const prior = volatilityCompressionState(closes.slice(0, -1), breakoutLookback, compressionRatio);
+  if (prior === undefined) {
+    return Object.freeze({ action: "HOLD", score: 0, confidence: 0, observedAt, reason: `VOLATILITY_COMPRESSION_BREAKOUT:${breakoutLookback}/${round4(compressionRatio)}:baseline=${current.position}:ratio=${round4(current.volRatio)}` });
+  }
+  let action: PaperCandidateStrategyDecision["action"] = "HOLD";
+  if (prior.position <= 0 && current.position === 1) action = "BUY";
+  else if (prior.position >= 0 && current.position === -1) action = "SELL";
+  const range = current.highest - current.lowest;
+  const latest = closes.at(-1)!;
+  const boundary = current.position === 1 ? current.highest : current.position === -1 ? current.lowest : latest;
+  const breakoutStrength = range > 0 ? clamp(Math.abs(latest - boundary) / range, 0, 1) : 0;
+  const compressionStrength = clamp((compressionRatio - current.volRatio) / compressionRatio, 0, 1);
+  const confidence = action === "HOLD" ? 0 : round4(clamp(breakoutStrength * 0.7 + compressionStrength * 0.3, 0, 1));
+  const score = action === "BUY" ? confidence : action === "SELL" ? -confidence : 0;
+  return Object.freeze({
+    action, score, confidence, observedAt,
+    reason: `VOLATILITY_COMPRESSION_BREAKOUT:${breakoutLookback}/${round4(compressionRatio)}:prior=${prior.position}:current=${current.position}:ratio=${round4(current.volRatio)}`,
+  });
+}
+
 /**
  * Evaluates exact immutable Research candidate semantics over already accepted public ticker
  * observations. It is deterministic and read-only: generic CIO scoring is never a fallback.
@@ -179,5 +269,6 @@ export function evaluatePaperCandidateStrategy(
   if (spec.familyId === SMA_FAMILY) return evaluateSma(spec, prices, now);
   if (spec.familyId === RSI_FAMILY) return evaluateRsi(spec, prices, now);
   if (spec.familyId === DONCHIAN_FAMILY) return evaluateDonchian(spec, prices, now);
+  if (spec.familyId === VOLATILITY_COMPRESSION_FAMILY) return evaluateVolatilityCompression(spec, prices, now);
   throw new Error(`unsupported PAPER candidate strategy family: ${spec.familyId}`);
 }

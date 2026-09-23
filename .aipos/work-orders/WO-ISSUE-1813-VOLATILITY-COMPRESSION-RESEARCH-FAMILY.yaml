@@ -1,0 +1,23 @@
+id: WO-ISSUE-1813-VOLATILITY-COMPRESSION-RESEARCH-FAMILY
+title: Precommitted Volatility Compression Breakout Research Family
+status: IMPLEMENTED_LOCAL
+authority_impact: none
+branch: research/volatility-compression-1813
+base_sha: c8095fe38d2ea097fbe167819ccf19f4260a7271
+issue: 1813
+scope: "Add the frozen volatility-compression breakout 3x3 family to the existing core strategy, canonical Research, robustness, and exact PAPER candidate paths; no canonical OOS evaluation."
+precommit:
+  family_id: volatility-compression-breakout
+  short_vol_period: 5
+  long_vol_period: 30
+  breakout_lookbacks: [10, 20, 30]
+  compression_ratios: [0.5, 0.7, 0.9]
+  candidate_count: 9
+constraints:
+  canonical_real_market_evaluation: prohibited
+  market_data_fetch: prohibited
+  threshold_changes: prohibited
+  fabricated_evidence: prohibited
+  second_engine: prohibited
+safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+next_permitted_action: "Run focused deterministic tests and architecture/safety validation; if PASS, open exact-head PR. Canonical real-market/OOS evaluation remains post-merge only."

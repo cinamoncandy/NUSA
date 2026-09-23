@@ -11,6 +11,7 @@ const {
   SmaCrossoverStrategy,
   StochasticOscillatorStrategy,
   StrategyEngine,
+  VolatilityCompressionBreakoutStrategy,
 } = require("../dist/packages/core/src/strategyEngine.js");
 const { StrategyRegistry } = require("../dist/apps/desktop/src/strategy/strategyRegistry.js");
 
@@ -21,6 +22,7 @@ const FACTORIES = {
   "macd-momentum": () => new MacdMomentumStrategy(12, 26, 9),
   "stochastic-oscillator": () => new StochasticOscillatorStrategy(14, 3, 20, 80),
   "donchian-breakout": () => new DonchianBreakoutStrategy(20),
+  "volatility-compression-breakout": () => new VolatilityCompressionBreakoutStrategy(20, 0.7),
 };
 
 function drive(factory, prices, startTimestamp = 1_000) {
@@ -51,6 +53,10 @@ test("newcomers reject invalid construction parameters", () => {
   assert.equal(new StochasticOscillatorStrategy().id, "stochastic-oscillator");
   assert.equal(new DonchianBreakoutStrategy(20).id, "donchian-breakout");
   assert.throws(() => new DonchianBreakoutStrategy(1), /invalid Donchian period/);
+  assert.equal(new VolatilityCompressionBreakoutStrategy(20, 0.7).id, "volatility-compression-breakout");
+  assert.throws(() => new VolatilityCompressionBreakoutStrategy(1, 0.7), /invalid volatility compression breakout lookback/);
+  assert.throws(() => new VolatilityCompressionBreakoutStrategy(20, 0), /invalid volatility compression ratio/);
+  assert.throws(() => new VolatilityCompressionBreakoutStrategy(20, 1.1), /invalid volatility compression ratio/);
   assert.throws(() => new RegimeGatedStrategy(null), /requires an inner strategy/);
 });
 
@@ -94,6 +100,22 @@ test("Bollinger buys upper-band breakout and sells lower-band breakdown at exact
   for (const signal of [...breakout, ...breakdown]) {
     assert.ok(signal.confidence >= 0 && signal.confidence <= 1, `confidence out of bounds: ${signal.confidence}`);
   }
+});
+
+test("volatility compression breakout acts only after prior-only compression", () => {
+  const volatile = Array.from({ length: 21 }, (_, index) => index % 2 === 0 ? 90 : 110);
+  const stable = Array.from({ length: 10 }, (_, index) => index % 2 === 0 ? 100 : 100.1);
+  const buySignals = drive(() => new VolatilityCompressionBreakoutStrategy(10, 0.7), [...volatile, ...stable, 100, 105]);
+  assert.deepEqual([buySignals.at(-1).type, buySignals.at(-1).reason], ["BUY", "compressed-volatility-broke-above-channel"]);
+  const sellSignals = drive(() => new VolatilityCompressionBreakoutStrategy(10, 0.7), [...volatile, ...stable, 100, 95]);
+  assert.deepEqual([sellSignals.at(-1).type, sellSignals.at(-1).reason], ["SELL", "compressed-volatility-broke-below-channel"]);
+});
+
+test("current tick cannot roll a shock out of the compression window and self-authorize", () => {
+  const prior = [...Array.from({ length: 27 }, () => 100), 120, 121, 122, 123, 124];
+  const signals = drive(() => new VolatilityCompressionBreakoutStrategy(10, 0.7), [...prior, 125]);
+  assert.equal(signals.at(-1).type, "HOLD");
+  assert.equal(signals.at(-1).reason, "volatility-not-compressed");
 });
 
 test("MACD buys sustained rallies and sells sustained declines", () => {
