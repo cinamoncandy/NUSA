@@ -81,7 +81,8 @@ current_research_source_commit_identity_guard:
 
 current_mobile_porcelain_cobalt:
   work_order: WO-UI-20260907-PORCELAIN-COBALT
-  status: IN_PROGRESS
+  status: COMPLETED
+  closed_by_pull_request: 1757
   branch: codex/mobile-porcelain-cobalt
   base_sha: 307b535727a209c1b9ed57b6599b579c8e97bad0
   scope: "Owner-approved Study 03 presentation with canonical market chart; no mock data or authority change."
@@ -90,7 +91,8 @@ current_mobile_porcelain_cobalt:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_product_v5_recovery:
   work_order: WO-UI-20260906-PRODUCT-V5-CI-RECOVERY
-  status: IN_PROGRESS
+  status: COMPLETED
+  closed_by_pull_request: 1744
   branch: design/mobile-product-v5-20260906
   pull_request: 1744
   base_sha: e7824d0c07dea4aa0b6a26c2f821f744b05a4e50

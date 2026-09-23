@@ -1,6 +1,8 @@
 id: WO-UI-20260907-PORCELAIN-COBALT
 title: "Apply approved porcelain/cobalt mobile design and release Android"
-status: IN_PROGRESS
+status: COMPLETED
+closed_by_pull_request: 1757
+closure_note: "Closed 2026-09-23 under WO-20260924-AIPOS-STALE-WORK-ORDER-CLOSURE after verifying PR #1757 merged into main (main commit a3291d80). Code scope only; any physical-device acceptance remains HUMAN_ENVIRONMENT_ONLY and is not claimed here."
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main

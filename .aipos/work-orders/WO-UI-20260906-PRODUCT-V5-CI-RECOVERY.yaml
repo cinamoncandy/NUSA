@@ -1,6 +1,8 @@
 id: WO-UI-20260906-PRODUCT-V5-CI-RECOVERY
 title: "Mobile product UX v5 exact-head CI recovery"
-status: IN_PROGRESS
+status: COMPLETED
+closed_by_pull_request: 1744
+closure_note: "Closed 2026-09-23 under WO-20260924-AIPOS-STALE-WORK-ORDER-CLOSURE after verifying PR #1744 merged into main (main commit 32608bfa). Code scope only; any physical-device acceptance remains HUMAN_ENVIRONMENT_ONLY and is not claimed here."
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main

@@ -1,0 +1,43 @@
+id: WO-20260924-AIPOS-STALE-WORK-ORDER-CLOSURE
+title: "Close eight stale IN_PROGRESS work orders whose PRs already merged"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-wo-closure
+parent_work_order: WO-20260924-AIPOS-WORK-ORDER-INDEX
+authority_impact: none
+authority_impact_note: "Status metadata only, owner-approved 2026-09-23. The five LIVE-readiness orders (WO-0051, ISSUE-659, ISSUE-661 x3) are deliberately left IN_PROGRESS."
+objective: "Stop recovering agents from treating already-merged work as open."
+verified_closures:
+  - "WO-0060A-android-approved-user-session: PR #572 merged (df078f28)"
+  - "WO-0062-session-auth-failure-audit: PR #615 merged (7d1072f6)"
+  - "WO-0063-mobile-master-ux-wave1: PR #619 merged 2026-08-20"
+  - "WO-ISSUE-882-TRUSTED-RUN-PROVENANCE: PR #975 merged (aeae72d9)"
+  - "WO-UI-20260904-home-ai-surface: PR #1571 merged 2026-09-04"
+  - "WO-UI-20260906-PRODUCT-V5-CI-RECOVERY: PR #1744 merged (32608bfa)"
+  - "WO-UI-20260906-home-command-center-ci-recovery: PR #1732 merged (43a53b31)"
+  - "WO-UI-20260907-PORCELAIN-COBALT: PR #1757 merged (a3291d80)"
+scope:
+  include:
+    - "status IN_PROGRESS -> COMPLETED with closed_by_pull_request and closure_note on each of the eight orders"
+    - "state.yaml current_mobile_porcelain_cobalt and current_mobile_product_v5_recovery blocks marked COMPLETED"
+    - "tests/aipos-work-order-provenance.test.js: WO-0063 closure asserted against its recorded PR evidence"
+  exclude:
+    - "LIVE-readiness orders, physical-device acceptance claims, file moves"
+acceptance:
+  - "pnpm run aipos:index no longer lists the eight orders; the five LIVE-readiness orders remain open."
+verification_commands:
+  - "node --test tests/aipos-work-order-provenance.test.js tests/aipos-work-order-index.test.js"
+  - "pnpm run aipos:provenance && pnpm run aipos:drift"
+  - "pnpm run validate (Node >= 24)"
+evidence:
+  implementation_status: READY_FOR_REVIEW
+  external_validation: "REQUIRED: exact-head CI, Audit, Release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Obtain exact-head CI, Audit, Release."
