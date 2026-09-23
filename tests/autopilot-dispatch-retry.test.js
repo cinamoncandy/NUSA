@@ -313,6 +313,36 @@ test("normalizes a non-2xx worker rate-limit stop into waiting without proposal 
   });
 });
 
+test("normalizes a non-2xx shared provider-capacity stop without failing the consumer", async () => {
+  await withOidcEnvironment(async () => {
+    let proposalCalls = 0;
+    const result = await executeGithubActionsRunner(
+      request,
+      "https://runner.example.test/coding/execute",
+      async (url) => {
+        const value = String(url);
+        if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+        proposalCalls += 1;
+        return response(409, {
+          status: "CODING_PROPOSAL_FAILED_CLOSED",
+          error: "WAITING_PROVIDER_CAPACITY",
+          stopReason: "WAITING_PROVIDER_CAPACITY",
+          lastFailure: "WORKERS_AI_DAILY_QUOTA_EXHAUSTED",
+          nextRetryAt: 1_700_000_100_000,
+          resumeCondition: "provider-capacity-and-exact-head-revalidation",
+        });
+      },
+      { now: () => 1_700_000_000_000, sleep: async () => { throw new Error("must not retry"); } },
+    );
+    assert.equal(result.status, "WAITING_RATE_LIMIT");
+    assert.equal(result.reason, "WAITING_RATE_LIMIT");
+    assert.equal(result.summary.failedClosed, 0);
+    assert.equal(result.attempts[0].decision, "NO_ACTION");
+    assert.equal(result.stopReason, "WAITING_PROVIDER_CAPACITY");
+    assert.equal(proposalCalls, 1);
+  });
+});
+
 test("preserves a worker WAITING_RATE_LIMIT stop and suppresses duplicate dispatch", async () => {
   await withOidcEnvironment(async () => {
     const now = 1_700_000_000_000;
