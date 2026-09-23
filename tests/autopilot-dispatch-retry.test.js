@@ -186,6 +186,7 @@ test("classifies only bounded provider rate-limit reasons", () => {
   assert.equal(providerRateLimitCode("RATE_LIMITED"), "RATE_LIMITED");
   assert.equal(providerRateLimitCode("WORKERS_AI_DAILY_QUOTA_EXHAUSTED"), "WORKERS_AI_DAILY_QUOTA_EXHAUSTED");
   assert.equal(providerRateLimitCode("WORKERS_AI_RATE_LIMITED"), "WORKERS_AI_RATE_LIMITED");
+  assert.equal(providerRateLimitCode("WAITING_PROVIDER_CAPACITY"), "PROVIDER_RATE_LIMITED");
   assert.equal(providerRateLimitCode("provider unavailable"), null);
   assert.equal(providerRateLimitCode("WORKERS_AI_RATE_LIMITED secret=unexpected"), null);
 });
@@ -323,13 +324,17 @@ test("normalizes a non-2xx shared provider-capacity stop without failing the con
         const value = String(url);
         if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
         proposalCalls += 1;
+        // Exact shape apps/autopilot/src/worker.ts handleCodingProposal returns while a shared
+        // provider wait is active: no stopReason or lastFailure, only error + providerStopReason.
         return response(409, {
+          accepted: false,
           status: "CODING_PROPOSAL_FAILED_CLOSED",
           error: "WAITING_PROVIDER_CAPACITY",
-          stopReason: "WAITING_PROVIDER_CAPACITY",
-          lastFailure: "WORKERS_AI_DAILY_QUOTA_EXHAUSTED",
+          providerStopReason: "WAITING_PROVIDER_CAPACITY",
           nextRetryAt: 1_700_000_100_000,
-          resumeCondition: "provider-capacity-and-exact-head-revalidation",
+          liveAuthority: "NONE",
+          productionMutationAllowed: false,
+          aiAuthority: "ZERO_AUTHORITY",
         });
       },
       { now: () => 1_700_000_000_000, sleep: async () => { throw new Error("must not retry"); } },
@@ -339,6 +344,8 @@ test("normalizes a non-2xx shared provider-capacity stop without failing the con
     assert.equal(result.summary.failedClosed, 0);
     assert.equal(result.attempts[0].decision, "NO_ACTION");
     assert.equal(result.stopReason, "WAITING_PROVIDER_CAPACITY");
+    // The shared wait's absolute resume time (~100s out) is reported, not the 60s local-retry cap.
+    assert.equal(result.rateLimitEvents?.[0]?.nextRetryAt ?? result.nextRetryAt, 1_700_000_100_000);
     assert.equal(proposalCalls, 1);
   });
 });

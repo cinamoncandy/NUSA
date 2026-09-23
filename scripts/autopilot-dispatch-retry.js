@@ -79,6 +79,10 @@ function retryableProposalFailureCode(reason) {
 
 function providerRateLimitCode(reason) {
   const code = String(reason || "");
+  // /coding/propose stops with error WAITING_PROVIDER_CAPACITY (and no stopReason) while a shared
+  // Workers AI wait is recorded. That is bounded provider-capacity evidence, not a failure; left
+  // unclassified it failed the consumer closed on every dispatch until the wait lifted.
+  if (code === "WAITING_PROVIDER_CAPACITY") return "PROVIDER_RATE_LIMITED";
   return code === "RATE_LIMITED" || code === "WORKERS_AI_DAILY_QUOTA_EXHAUSTED" || code === "WORKERS_AI_RATE_LIMITED" || code === "PROVIDER_RATE_LIMITED"
     ? code
     : null;
@@ -160,7 +164,10 @@ function rateLimitEvidence(response, payload, observedAt = Date.now()) {
   // long-lived absolute nextRetryAt, so they need the same uncapped reporting ceiling.
   const isLongLivedQuotaStop = code === "WORKERS_AI_DAILY_QUOTA_EXHAUSTED"
     || payload?.stopReason === "WORKERS_AI_DAILY_QUOTA_EXHAUSTED"
-    || payload?.stopReason === "WAITING_PROVIDER_CAPACITY";
+    || payload?.stopReason === "WAITING_PROVIDER_CAPACITY"
+    || payload?.providerStopReason === "WORKERS_AI_DAILY_QUOTA_EXHAUSTED"
+    || payload?.providerStopReason === "WAITING_PROVIDER_CAPACITY"
+    || payload?.error === "WAITING_PROVIDER_CAPACITY";
   const maxMs = isLongLivedQuotaStop ? MAX_REPORTED_QUOTA_RETRY_DELAY_MS : MAX_RETRY_DELAY_MS;
   const hint = retryHint(response, payload, observedAt, maxMs);
   return Object.freeze({
