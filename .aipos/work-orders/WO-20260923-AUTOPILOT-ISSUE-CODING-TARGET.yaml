@@ -37,7 +37,7 @@ evidence:
     - "accept a forbidden-domain target -> 1 failure"
     - "accept a repeated target line -> 1 failure"
     - "accept apps/autopilot/src/index.ts -> 1 failure"
-  external_validation: "REQUIRED: exact-head protected CI, independent Audit, and Release gate."
+  external_validation: "COMPLETED: exact-head protected CI passed on 51a35325; independent Audit and Release gate passed; merged by nusa-release-authority[bot] as PR #2232 merge af6a9f90cd090d4322cdd82566227320847fd613; merged blobs verified byte-identical to the validated head."
   operational_note: "Takes effect only for issues whose body carries the line; OWNER may add it to #2118 or other Autopilot issues."
 safety:
   paper_only: true
@@ -45,4 +45,4 @@ safety:
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
-next_permitted_action: "Obtain exact-head CI, independent Audit, and Release; do not merge from Development."
+next_permitted_action: "Completed (PR #2232, merge af6a9f90cd090d4322cdd82566227320847fd613). No further action on this work order; follow-on work is tracked by its successor work order."

@@ -190,17 +190,6 @@ export async function handleCodingExecute(
   try {
     const runnerRequest = validateCodingRunnerRequest(await request.json(), allowedRepository);
     if (!env.NUSA_EXECUTION_COORDINATOR) return json({ error: "PERSISTENT_EXECUTION_COORDINATOR_REQUIRED", status: "INTERFACE_READY" }, 503);
-    // Checked before any lease is taken: while the coding provider is inside its retry window, no
-    // execution of any identity may spend a provider call. Unreadable state fails closed.
-    let providerWait;
-    try {
-      providerWait = await readProviderCapacityWait(env.NUSA_EXECUTION_COORDINATOR, "workers-ai");
-    } catch {
-      return json({ error: "PROVIDER_CAPACITY_STATE_UNAVAILABLE", status: "INTERFACE_READY" }, 503);
-    }
-    if (providerWait && startedAt < providerWait.nextRetryAt) {
-      return json({ accepted: true, status: "WAITING_RATE_LIMIT", reason: "WAITING_PROVIDER_CAPACITY", nextRetryAt: providerWait.nextRetryAt, executionId: runnerRequest.executionId, dedupeKey: runnerRequest.dedupeKey, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 202);
-    }
     const lease = await handoffOrAcquirePersistentExecution(env.NUSA_EXECUTION_COORDINATOR, {
       dedupeKey: runnerRequest.dedupeKey,
       executionId: runnerRequest.executionId,
@@ -242,7 +231,10 @@ export async function handleCodingExecute(
 
     let result: Awaited<ReturnType<typeof executeCodingRunner>>;
     try {
-      result = await executeCodingRunner(runnerRequest, env, undefined, runtime, publisher);
+      const coordinator = env.NUSA_EXECUTION_COORDINATOR;
+      result = await executeCodingRunner(runnerRequest, env, undefined, runtime, publisher, {
+        providerWaitUntil: async () => (await readProviderCapacityWait(coordinator, "workers-ai"))?.nextRetryAt ?? null,
+      });
     } catch (error) {
       const failureReason = error instanceof Error ? error.message : "CODING_RUNNER_EXECUTION_FAILED";
       await releaseCodingExecutionLease(env, runnerRequest);
