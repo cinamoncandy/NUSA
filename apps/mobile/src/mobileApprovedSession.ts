@@ -7,6 +7,8 @@ const SESSION_STORAGE_KEY = "nusa.mobile.approved-session.v1";
 const PAIRING_STORAGE_KEY = "nusa.mobile.pending-pairing.v1";
 const ACCESS_REFRESH_SKEW_MS = 30_000;
 const MAX_TOKEN_LENGTH = 4096;
+/** Upper bound on letting an earlier bearer restore settle before a silent DeviceKey proof. */
+const BEARER_SETTLE_WAIT_MS = 5_000;
 
 export interface MobileApprovedSessionIdentity {
   readonly userId: string;
@@ -227,6 +229,10 @@ export class MobileApprovedSession {
   private silentCredentialId: string | null = null;
   private silentAuthenticationInFlight: Promise<MobileApprovedSessionIdentity> | null = null;
   private bearerRestoreInFlight: Promise<MobileApprovedSessionIdentity | null> | null = null;
+  private bearerRestoreEndpoint: string | null = null;
+  private silentAuthenticationEndpoint: string | null = null;
+  /** Advanced when a silent proof supersedes a bearer restore; a superseded bearer restore never clears state. */
+  private bearerEpoch = 0;
 
   public constructor(private readonly storage: SecureStoragePort | null, private readonly request: typeof fetch = fetch) {}
 
@@ -486,14 +492,20 @@ export class MobileApprovedSession {
 
   public async restoreWithSilentDevice(baseUrl: string, deviceId: string, native: OwnerDeviceCredentialNative): Promise<MobileApprovedSessionIdentity | null> {
     const endpoint = secureEndpoint(baseUrl);
-    if (this.silentAuthenticationInFlight != null) return this.silentAuthenticationInFlight;
+    if (this.silentAuthenticationInFlight != null && this.silentAuthenticationEndpoint === endpoint) return this.silentAuthenticationInFlight;
     const operation = (async (): Promise<MobileApprovedSessionIdentity> => {
       // A bearer restore already running would otherwise finish after this silent proof and wipe
-      // its tokens on its own failure path. Let it settle first; its outcome is superseded here.
+      // its tokens on its own failure path. Let it settle first, but only for a bounded time: a
+      // hung refresh request must not disable the connect action. Either way it is superseded, and
+      // the epoch bump stops it from clearing anything if it settles later.
       const pendingBearer = this.bearerRestoreInFlight;
       if (pendingBearer != null) {
-        try { await pendingBearer; } catch { /* superseded by the silent proof below */ }
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const bound = new Promise<void>((resolve) => { timer = setTimeout(resolve, BEARER_SETTLE_WAIT_MS); });
+        try { await Promise.race([pendingBearer.then(() => undefined, () => undefined), bound]); }
+        finally { if (timer !== undefined) clearTimeout(timer); }
       }
+      this.bearerEpoch += 1;
       // getSilentDeviceStatus() is a native bridge call and can throw transiently -- a Keystore or
       // biometric provider briefly unavailable right after a long Doze/background spell is the
       // expected shape here, not proof the device was unregistered. Unlike a definitive session
@@ -528,8 +540,9 @@ export class MobileApprovedSession {
       return this.authenticateSilentDeviceCredential(endpoint, deviceId, native, this.silentCredentialId);
     })();
     this.silentAuthenticationInFlight = operation;
+    this.silentAuthenticationEndpoint = endpoint;
     try { return await operation; }
-    finally { if (this.silentAuthenticationInFlight === operation) this.silentAuthenticationInFlight = null; }
+    finally { if (this.silentAuthenticationInFlight === operation) { this.silentAuthenticationInFlight = null; this.silentAuthenticationEndpoint = null; } }
   }
 
   /**
@@ -538,36 +551,47 @@ export class MobileApprovedSession {
    * run concurrently, the bearer path's clearMemory()/clearLocal() (a stale refresh rejected with
    * 401, an expired persisted session) could land after the silent path accepted fresh tokens and
    * wipe them, so a successful connect read as a failure and had to be pressed again. A bearer
-   * restore requested while a silent one is running joins it instead of racing it.
+   * restore requested while a silent one is running joins it instead of racing it. Joining is
+   * scoped to the same endpoint so one endpoint's identity is never returned for another.
    */
   public async restore(baseUrl: string): Promise<MobileApprovedSessionIdentity | null> {
-    if (this.silentAuthenticationInFlight != null) return this.silentAuthenticationInFlight;
-    if (this.bearerRestoreInFlight != null) return this.bearerRestoreInFlight;
-    const operation = this.restoreBearer(baseUrl);
+    const endpoint = secureEndpoint(baseUrl);
+    if (this.silentAuthenticationInFlight != null && this.silentAuthenticationEndpoint === endpoint) return this.silentAuthenticationInFlight;
+    if (this.bearerRestoreInFlight != null && this.bearerRestoreEndpoint === endpoint) return this.bearerRestoreInFlight;
+    const operation = this.restoreBearer(endpoint);
     this.bearerRestoreInFlight = operation;
+    this.bearerRestoreEndpoint = endpoint;
     try { return await operation; }
-    finally { if (this.bearerRestoreInFlight === operation) this.bearerRestoreInFlight = null; }
+    finally { if (this.bearerRestoreInFlight === operation) { this.bearerRestoreInFlight = null; this.bearerRestoreEndpoint = null; } }
   }
 
   private async restoreBearer(baseUrl: string): Promise<MobileApprovedSessionIdentity | null> {
     const endpoint = secureEndpoint(baseUrl);
+    const epoch = this.bearerEpoch;
+    // Once a silent proof supersedes this restore, its late outcome must not touch session state.
+    const superseded = () => epoch !== this.bearerEpoch;
     this.clearMemory();
     if (this.storage == null) return null;
     let stored: Uint8Array | null;
     try { stored = await this.storage.getSecret(SESSION_STORAGE_KEY); }
-    catch { await this.clearLocal(); return null; }
-    if (stored == null) return null;
+    catch { if (!superseded()) await this.clearLocal(); return null; }
+    if (superseded() || stored == null) return null;
     let persisted: PersistedSession;
     try { persisted = parsePersisted(stored); }
     catch { await this.clearLocal(); return null; }
     if (persisted.endpoint !== endpoint || persisted.refreshExpiresAt <= Date.now()) { await this.clearLocal(); return null; }
     this.deviceId = persisted.deviceId ?? null;
     try {
-      const tokens = await this.refreshWith(endpoint, persisted.refreshToken, this.deviceId ?? undefined);
+      const tokens = parseTokens(await requestJson(this.request, `${endpoint}/v1/mobile/session/refresh`, { method: "POST", body: JSON.stringify({ refreshToken: persisted.refreshToken, ...(this.deviceId ? { deviceId: this.deviceId } : {}) }) }));
+      if (superseded()) return null;
+      this.acceptTokens(endpoint, tokens);
+      await this.persistOrClear(endpoint, tokens);
       const identity = await this.loadIdentity(endpoint, tokens.accessToken);
+      if (superseded()) return null;
       this.identity = identity;
       return identity;
     } catch (error) {
+      if (superseded()) return null;
       if (isDefinitiveSessionRejection(error)) { await this.clearLocal(); return null; }
       this.clearMemory();
       this.restoreRetryable = true;
