@@ -60,7 +60,7 @@ acceptance_criteria:
   - synthetic tests cannot satisfy real-runtime observation provenance rules
   - calibration cannot change PAPER orders, fills, risk state, P0 state, HALT, kill switch, strategy promotion, or LIVE authority
   - exact-head focused calibration/AI tests, typecheck, build, lint, architecture/AIPOS, security, E2E, full isolated suite, coverage, Mobile Native when triggered, and all Restricted LIVE/read-only workflows pass
-  - `liveAuthority=NONE`, `productionMutationAllowed=false`, `realOrderAuthority=false`, and `realTransferAuthority=false` remain proven
+  - "`liveAuthority=NONE`, `productionMutationAllowed=false`, `realOrderAuthority=false`, and `realTransferAuthority=false` remain proven"
   - PR is merged only after all required checks pass
 verification:
   required_commands:
