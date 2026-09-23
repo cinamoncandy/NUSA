@@ -63,6 +63,30 @@ describe("mobile approved session persistence boundary", () => {
     assert.equal((reason as MobileSessionRequestError).retryAfterMs, 2000);
   });
 
+  it("marks a transient native silent-status failure retryable instead of leaving foreground recovery unarmed", async () => {
+    // Reproduces a real Galaxy device report: PAPER was connected, the device backgrounded for a
+    // while, and on foreground the app was stuck on "PAPER connection required" until the owner
+    // opened Settings and reconnected by hand. getSilentDeviceStatus() is a native bridge call and
+    // can throw transiently right after Doze/background (Keystore or biometric provider briefly
+    // unavailable) -- that is not proof the device was unregistered, and unlike a definitive
+    // rejection further down this path, this throw previously escaped unclassified, leaving
+    // shouldRetryRestore() false and the foreground retry timer never re-armed.
+    const storage = new MemorySecureStorage();
+    const endpoint = "https://paper.example";
+    const request = (async () => { throw new Error("must not reach the network for a native-status failure"); }) as unknown as typeof fetch;
+    const native = {
+      getSilentDeviceStatus: async () => { throw new Error("keystore temporarily unavailable"); },
+      signSilentChallenge: async () => { throw new Error("must not be called"); },
+      deleteSilentDeviceCredential: async () => { throw new Error("must not be called"); },
+    } as unknown as OwnerDeviceCredentialNative;
+    const session = new MobileApprovedSession(storage, request);
+    await assert.rejects(
+      () => session.restoreWithSilentDevice(endpoint, "nusa-device-silent-0002", native),
+      /keystore temporarily unavailable/,
+    );
+    assert.equal(session.shouldRetryRestore(), true);
+  });
+
   it("persists only the rotating refresh session in secure storage", async () => {
     const storage = new MemorySecureStorage();
     const endpoint = "https://paper.example";

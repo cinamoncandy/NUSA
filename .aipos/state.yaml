@@ -193,15 +193,15 @@ current_upbit_bridge_credential_persistence:
 project: nusa
 updated_at: "2026-09-23T18:40:00+09:00"
 current_execution_target:
-  work_order: WO-20260923-AUTOPILOT-QUOTA-EVIDENCE-ACCURACY
+  work_order: WO-20260923-MOBILE-SILENT-RESTORE-STATUS-FAILURE
   status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-quota-evidence
-  base_sha: c96b5318d23cfe92e856b78619610e952a720d27
-  scope: "The GitHub Actions dispatch-retry script reports a daily-quota stop's real resume time (uncapped, absolute) instead of clamping it to the 60s local retry ceiling, including once the stop is already recorded as a shared provider wait (WAITING_PROVIDER_CAPACITY). /coding/propose (used by the github-actions-runner backend) now also reads and records the shared provider-capacity wait, which it previously bypassed entirely."
+  branch: claude/nusa-repository-j93sd8-silent-restore-status-failure
+  base_sha: 4f42105e
+  scope: "restoreWithSilentDevice()'s initial getSilentDeviceStatus() call now classifies a transient native-bridge failure as retryable, so the foreground PAPER-session retry timer arms instead of leaving the app requiring manual reconnect after background."
   authority_impact: none
-  parent_work_order: WO-20260923-AUTOPILOT-DAILY-QUOTA-WAIT
-  prior_target: WO-20260923-AUTOPILOT-DAILY-QUOTA-WAIT
-  prior_target_status: MERGED_PR_2238
+  parallel_track: "Independent of the Autopilot quota-gating track (WO-20260923-AUTOPILOT-QUOTA-EVIDENCE-ACCURACY, MERGED_PR_2239); a real Android background/foreground PAPER continuity defect reported and reproduced by the owner on a physical Galaxy device."
+  prior_target: WO-20260923-AUTOPILOT-QUOTA-EVIDENCE-ACCURACY
+  prior_target_status: MERGED_PR_2239
   prior_target_preserved: true
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
