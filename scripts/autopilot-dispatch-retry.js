@@ -8,6 +8,8 @@ const RETRY_JITTER_RATIO = 0.1;
 const MAX_PATCH_BYTES = 24_000;
 const MAX_VALIDATED_FILE_BYTES = 128_000;
 const MAX_PROPOSAL_CONTEXT_BYTES = 20_000;
+const MAX_INITIAL_PROPOSAL_CONTEXT_FILE_BYTES = 200_000;
+const INITIAL_PROPOSAL_CONTEXT_LINES = 160;
 const PATCH_PATH = ".nusa-autopilot.patch";
 const GENERATED_WORKSPACE_ARTIFACTS = new Set([
   "artifacts/autopilot-execution/repository-dispatch.json",
@@ -496,6 +498,10 @@ function assertBoundedPatch(patch) {
   const unique = [...new Set(paths)];
   if (unique.length !== 1) throw new Error("SANDBOX_PATCH_FILE_COUNT_INVALID");
   const path = unique[0];
+  return assertAllowedPatchTargetPath(path);
+}
+
+function assertAllowedPatchTargetPath(path) {
   if (!path.startsWith("apps/autopilot/") || path.startsWith("/") || path.split("/").includes("..")) throw new Error(`SANDBOX_PATCH_PATH_OUTSIDE_ALLOWED_SCOPE:${path}`);
   if (path === "apps/autopilot/src/index.ts" || path === "apps/autopilot/src/worker.ts" || /(?:^|\/)(?:live|live-trading|broker|order|credential|secret|secrets|withdraw|transfer|production-authority)(?:\/|$)/i.test(path)) throw new Error(`SANDBOX_PATCH_PATH_FORBIDDEN:${path}`);
   return path;
@@ -526,6 +532,73 @@ function boundedProposalContext(path, content, patch) {
     throw new Error("CODING_PROPOSAL_CONTEXT_TOO_LARGE");
   }
   return Object.freeze({ path, startLine: startIndex + 1, content: excerpt });
+}
+
+/**
+ * The first proposal of an execution used to carry no source context at all, so the model was
+ * asked for a unified diff against files it had never seen. `git apply --check` in the sandbox
+ * runs without fuzz and without --3way, so every context line it invented had to match the
+ * repository byte for byte; attempt 1 could only ever apply by coincidence. Retries were fine —
+ * proposalContextFromGithubRunner reads the real working tree — so the fix is to give attempt 1
+ * the same kind of real excerpt instead of nothing.
+ *
+ * Selection is deterministic in the execution's dedupe key: the same execution always sees the
+ * same target (so a repeated failure stays the same signature and stays suppressible), while
+ * different executions spread across the eligible files. Every failure path returns null, which
+ * leaves the caller exactly where it is today rather than introducing a new way to fail.
+ */
+function initialProposalContextTargets() {
+  const listed = run("git", ["ls-files", "--", "apps/autopilot/src"], "CODING_PROPOSAL_CONTEXT_LIST_FAILED");
+  return listed
+    .split(/\r?\n/)
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .filter((path) => path.endsWith(".ts") && !path.endsWith(".d.ts") && !path.endsWith(".test.ts"))
+    .filter((path) => {
+      try {
+        assertAllowedPatchTargetPath(path);
+        return true;
+      } catch {
+        return false;
+      }
+    })
+    .sort();
+}
+
+function stableTargetIndex(key, length) {
+  let hash = 0;
+  for (let index = 0; index < key.length; index += 1) hash = (Math.imul(hash, 31) + key.charCodeAt(index)) >>> 0;
+  return hash % length;
+}
+
+function initialProposalContextFromGithubRunner(request) {
+  let targets;
+  try {
+    targets = initialProposalContextTargets();
+  } catch {
+    return null;
+  }
+  if (targets.length === 0) return null;
+  const path = targets[stableTargetIndex(String(request?.dedupeKey ?? ""), targets.length)];
+  let content;
+  try {
+    const stat = fs.lstatSync(path);
+    if (!stat.isFile() || stat.isSymbolicLink()) return null;
+    if (stat.size > MAX_INITIAL_PROPOSAL_CONTEXT_FILE_BYTES) return null;
+    content = fs.readFileSync(path, "utf8");
+  } catch {
+    return null;
+  }
+  if (typeof content !== "string" || !content.trim()) return null;
+  const lines = content.split(/\r?\n/);
+  let endIndex = Math.min(lines.length, INITIAL_PROPOSAL_CONTEXT_LINES);
+  let excerpt = lines.slice(0, endIndex).join("\n");
+  while (Buffer.byteLength(excerpt, "utf8") > MAX_PROPOSAL_CONTEXT_BYTES && endIndex > 20) {
+    endIndex -= 10;
+    excerpt = lines.slice(0, endIndex).join("\n");
+  }
+  if (!excerpt.trim() || Buffer.byteLength(excerpt, "utf8") > MAX_PROPOSAL_CONTEXT_BYTES) return null;
+  return Object.freeze({ path, startLine: 1, content: excerpt });
 }
 
 function proposalContextFromGithubRunner(patch) {
@@ -605,6 +678,7 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
   const jitter = options.jitter ?? Math.random;
   const maxProposalAttempts = options.maxProposalAttempts ?? DEFAULT_MAX_ATTEMPTS;
   const proposalContextForPatch = options.proposalContextForPatch ?? proposalContextFromGithubRunner;
+  const initialProposalContext = options.initialProposalContext ?? initialProposalContextFromGithubRunner;
   if (!Number.isSafeInteger(maxProposalAttempts) || maxProposalAttempts < 1 || maxProposalAttempts > DEFAULT_MAX_ATTEMPTS) {
     throw new Error("AUTOPILOT_PROPOSAL_RETRY_LIMIT_INVALID");
   }
@@ -613,7 +687,15 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
   const rateLimitEvents = [];
   const seenPatches = new Set();
   let feedback = null;
+  // Attempt 1 gets a real excerpt of a real in-scope file. Without it the model has to invent the
+  // context lines that `git apply --check` compares byte for byte, so the first attempt of every
+  // execution was spent on a proposal that could not apply.
   let proposalContext = null;
+  try {
+    proposalContext = initialProposalContext(request) ?? null;
+  } catch {
+    proposalContext = null;
+  }
 
   const finish = (status, reason, httpStatus, workerStatus, extra = {}) => {
     const base = resultSummary(request, attempts, status, reason, httpStatus, workerStatus);
@@ -959,6 +1041,8 @@ module.exports = {
   proposalRepairFeedback,
   boundedProposalContext,
   proposalContextFromGithubRunner,
+  initialProposalContextFromGithubRunner,
+  initialProposalContextTargets,
   executeGithubActionsRunner,
   resetProposalRetryWorkspace,
   readDispatchRequest,
