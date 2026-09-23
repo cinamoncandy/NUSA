@@ -8,7 +8,6 @@ const RETRY_JITTER_RATIO = 0.1;
 const MAX_PATCH_BYTES = 24_000;
 const MAX_VALIDATED_FILE_BYTES = 128_000;
 const MAX_PROPOSAL_CONTEXT_BYTES = 20_000;
-const MAX_INITIAL_PROPOSAL_CONTEXT_FILE_BYTES = 200_000;
 const INITIAL_PROPOSAL_CONTEXT_LINES = 160;
 const PATCH_PATH = ".nusa-autopilot.patch";
 const GENERATED_WORKSPACE_ARTIFACTS = new Set([
@@ -558,10 +557,13 @@ function boundedProposalContext(path, content, patch) {
  * proposalContextFromGithubRunner reads the real working tree — so the fix is to give attempt 1
  * the same kind of real excerpt instead of nothing.
  *
- * Selection is deterministic in the execution's dedupe key: the same execution always sees the
- * same target (so a repeated failure stays the same signature and stays suppressible), while
- * different executions spread across the eligible files. Every failure path returns null, which
- * leaves the caller exactly where it is today rather than introducing a new way to fail.
+ * The target is never guessed. Only a file the request itself names (by full path, or by a
+ * basename that matches exactly one eligible file) is supplied; zero or several matches supply
+ * nothing. A guessed file would be worse than none: the prompt tells the model to patch the
+ * supplied file only, so an unrelated file invites an unrelated change that can still validate
+ * and publish. Files above the publishing limit are excluded, because a patch to one of them
+ * fails CODING_PUBLISH_CONTENT_INVALID after the full validation suite has already run. Every
+ * failure path returns null, which leaves the caller exactly where it was before this existed.
  */
 function initialProposalContextTargets() {
   const listed = run("git", ["ls-files", "--", "apps/autopilot/src"], "CODING_PROPOSAL_CONTEXT_LIST_FAILED");
@@ -581,10 +583,15 @@ function initialProposalContextTargets() {
     .sort();
 }
 
-function stableTargetIndex(key, length) {
-  let hash = 0;
-  for (let index = 0; index < key.length; index += 1) hash = (Math.imul(hash, 31) + key.charCodeAt(index)) >>> 0;
-  return hash % length;
+function requestNamedTarget(request, targets) {
+  const text = [request?.reason, request?.proposalFeedback].filter((value) => typeof value === "string").join("\n");
+  if (!text) return null;
+  const mentioned = (needle, before) => new RegExp(`${before}${needle.replace(/[.]/g, "\\.")}(?![A-Za-z0-9_])`).test(text);
+  const byPath = targets.filter((path) => mentioned(path, "(?:^|[^A-Za-z0-9_./-])"));
+  if (byPath.length === 1) return byPath[0];
+  if (byPath.length > 1) return null;
+  const byName = targets.filter((path) => mentioned(path.split("/").pop(), "(?:^|[^A-Za-z0-9_./-])"));
+  return byName.length === 1 ? byName[0] : null;
 }
 
 function initialProposalContextFromGithubRunner(request) {
@@ -594,13 +601,13 @@ function initialProposalContextFromGithubRunner(request) {
   } catch {
     return null;
   }
-  if (targets.length === 0) return null;
-  const path = targets[stableTargetIndex(String(request?.dedupeKey ?? ""), targets.length)];
+  const path = requestNamedTarget(request, targets);
+  if (!path) return null;
   let content;
   try {
     const stat = fs.lstatSync(path);
     if (!stat.isFile() || stat.isSymbolicLink()) return null;
-    if (stat.size > MAX_INITIAL_PROPOSAL_CONTEXT_FILE_BYTES) return null;
+    if (stat.size > MAX_VALIDATED_FILE_BYTES) return null;
     content = fs.readFileSync(path, "utf8");
   } catch {
     return null;
