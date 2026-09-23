@@ -184,19 +184,17 @@ current_upbit_bridge_credential_persistence:
   unverified: "pnpm run preflight and pnpm test could not run here (Node >= 24 required, environment provides 22.22.2). No Android device run: persistence is verified against a stubbed SecureStoragePort, not the real Keystore."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 project: nusa
-updated_at: "2026-09-23T13:20:00+09:00"
+updated_at: "2026-09-23T13:45:00+09:00"
 current_execution_target:
-  work_order: WO-20260923-AUTOPILOT-INITIAL-PROPOSAL-CONTEXT
+  work_order: WO-20260923-AUTOPILOT-ISSUE-CODING-TARGET
   status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-proposal
-  pull_request: 2231
-  base_sha: 3e7b0e3a6b7b9e8cc5a2d47852e38f5974f570a5
-  scope: "Give coding proposal attempt 1 a bounded excerpt of the file the request names; never a guessed target; sandbox apply-check unchanged."
+  branch: claude/nusa-repository-j93sd8-issue-target
+  base_sha: 2f5400eba35cc603b17ade7eb9c30043a5a1bcf0
+  scope: "Optional OWNER-issue codingTarget line carried into the backlog problem so attempt 1 gets a real excerpt of that file."
   authority_impact: none
-  parent_work_order: WO-20260923-AUTOPILOT-STOP-RESUME-P0
-  local_validation: "Targeted 30/30, codingRunner 42/42, lint 0 errors, typecheck, platform-independent, safety, AI zero-authority, architecture, AIPOS YAML PASS; four mutations each caught."
-  prior_target: WO-20260923-AUTOPILOT-RATE-LIMIT-NON2XX-FOLLOWUP
-  prior_target_status: MERGED_PR_2229
+  parent_work_order: WO-20260923-AUTOPILOT-INITIAL-PROPOSAL-CONTEXT
+  prior_target: WO-20260923-AUTOPILOT-INITIAL-PROPOSAL-CONTEXT
+  prior_target_status: MERGED_PR_2231
   prior_target_preserved: true
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

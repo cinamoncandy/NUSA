@@ -105,3 +105,34 @@ test("backlog rejects malformed explicit work metadata fail closed", () => {
   ];
   assert.equal(deriveGithubIssueBacklogReadiness(invalid, [], NOW).eligibleIssueCount, 0);
 });
+
+test("an explicit codingTarget line reaches the selected problem, and its absence changes nothing", () => {
+  const plain = deriveGithubIssueBacklogReadiness([issue()], [], NOW).signals[0]!;
+  assert.doesNotMatch(plain.problem, /Target file:/);
+
+  const targeted = deriveGithubIssueBacklogReadiness([
+    issue({ body: `Implement bounded Autopilot control-plane work.\ncodingTarget: apps/autopilot/src/auditRunner.ts\n${SAFETY}` }),
+  ], [], NOW).signals[0]!;
+  assert.match(targeted.problem, / Target file: apps\/autopilot\/src\/auditRunner\.ts\.$/);
+  assert.equal(targeted.problem.replace(/ Target file: .*$/, ""), plain.problem, "the rest of the problem is unchanged");
+});
+
+test("a repeated or out-of-scope codingTarget makes the issue ineligible rather than reaching the runner", () => {
+  for (const target of [
+    "apps/autopilot/src/auditRunner.ts\ncodingTarget: apps/autopilot/src/codingRunner.ts",
+    "apps/autopilot/src/index.ts",
+    "apps/autopilot/src/worker.ts",
+    "apps/autopilot/src/codingRunner.test.ts",
+    "apps/autopilot/src/types.d.ts",
+    "apps/autopilot/src/broker/adapter.ts",
+    "apps/autopilot/src/../../cloud/src/runtime.ts",
+    "apps/cloud/src/runtime.ts",
+    ".github/workflows/ci.yml",
+  ]) {
+    const result = deriveGithubIssueBacklogReadiness([
+      issue({ body: `Implement bounded Autopilot control-plane work.\ncodingTarget: ${target}\n${SAFETY}` }),
+    ], [], NOW);
+    assert.equal(result.eligibleIssueCount, 0, `accepted codingTarget ${JSON.stringify(target)}`);
+    assert.deepEqual(result.signals, []);
+  }
+});
