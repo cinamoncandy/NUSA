@@ -115,7 +115,12 @@ function AuthContextProvider({ children }: Readonly<{ children: React.ReactNode 
       const endpoint = settings.paperEndpoint || (canonical.status === "READY" ? canonical.origin : null);
       if (endpoint == null) return false;
       setConfiguredPaperEndpoint(endpoint);
-      return restoreConfiguredPaperSession(endpoint);
+      // Cold start and the first launch after an app update use the registered DeviceKey too.
+      const native = ownerDeviceCredential();
+      if (native == null) return restoreConfiguredPaperSession(endpoint);
+      return getOrCreateInstallationId(AsyncStorage)
+        .then((deviceId) => restoreConfiguredPaperSession(endpoint, { deviceId, native }))
+        .catch(() => restoreConfiguredPaperSession(endpoint));
     }).then((restored) => {
       if (active) setStatus(restored ? "SIGNED_IN" : "SIGNED_OUT");
     }).catch(() => { if (active) { mobileApprovedSession().clearMemory(); setStatus("SIGNED_OUT"); } });

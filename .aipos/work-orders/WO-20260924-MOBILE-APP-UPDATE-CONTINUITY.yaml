@@ -1,0 +1,40 @@
+id: WO-20260924-MOBILE-APP-UPDATE-CONTINUITY
+title: "First launch after an app update restores PAPER with the registered DeviceKey"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-update-continuity
+parent_work_order: WO-20260924-MOBILE-PAPER-SESSION-SINGLE-OWNER
+authority_impact: credential_boundary
+authority_impact_note: "Cold-start restore uses the existing silent DeviceKey path through the existing coordinator. No new auth/session/reconnect system; no LIVE, broker, risk or AI-authority change."
+objective: "A normal in-place app update never sends a still-registered device to Settings."
+finding: "Update chain audited on main 3f983909: package com.nusa.mobile and the protected release signing key are stable across builds (debug is com.nusa.mobile.preview, a different app); the silent DeviceKey alias is nusa_paper_silent_device_p256_<credentialId> with the id in SharedPreferences, both version-independent; the self-updater hands the APK to the OS installer (in-place update) and nothing clears storage on version change. FIRST_BROKEN_TRANSITION: cold start. An update kills the process, the new version starts cold, cold start gets no AppState 'change' event, and AuthContextProvider restored with the bearer refresh session only. With an expired refresh session the registered DeviceKey was never tried and the app showed PAPER connection required."
+scope:
+  include:
+    - "restoreConfiguredPaperSession(endpoint, silent?) runs the coordinator's silent restore, superseding the bearer restore setConfiguredPaperEndpoint started"
+    - "App cold start passes { deviceId: installationId, native } when the DeviceKey adapter exists"
+    - "tests/mobile-app-update-continuity.test.js"
+  exclude:
+    - "Server PAPER workload, Ledger, transport resync: unchanged and server-owned"
+acceptance:
+  - "Expired refresh + valid DeviceKey on first launch -> VERIFIED with no owner interaction."
+  - "Late failure of the settings-load bearer restore does not undo it."
+  - "Transient network failure on first launch -> RECOVERING, not setup."
+verification_commands:
+  - "node --test tests/mobile-app-update-continuity.test.js"
+  - "node --test dist/apps/mobile/src/*.test.js tests/mobile-*.test.js tests/uiux-*.test.js tests/paper-connection-resume.test.js tests/owner-device-*.test.js"
+  - "pnpm run validate (Node >= 24)"
+evidence:
+  implementation_status: READY_FOR_REVIEW
+  mutation_verification:
+    - "coordinator ignoring the silent context -> 1 failure"
+    - "App cold start not passing the DeviceKey context -> 1 failure"
+  external_validation: "REQUIRED: exact-head CI, Audit, Release; Galaxy in-place update scenarios A-E are HUMAN_ENVIRONMENT_ONLY."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Obtain exact-head CI, Audit, Release; owner runs the Galaxy in-place update acceptance."

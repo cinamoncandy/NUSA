@@ -169,12 +169,18 @@ export function isPaperConnectionVerified(value = configuredEndpoint): boolean {
  * a restored Cloud session, so entry readiness is independent from Cloud verification.
  * Callers that need Cloud authority must still require isPaperConnectionVerified().
  */
-export async function restoreConfiguredPaperSession(value = configuredEndpoint): Promise<boolean> {
+export async function restoreConfiguredPaperSession(value = configuredEndpoint, silent?: SilentContext): Promise<boolean> {
   const endpoint = value == null ? null : normalizeEndpoint(value);
   if (endpoint == null) return true;
   if (endpoint !== configuredEndpoint) return false;
   if (!isPaperConnectionVerified(endpoint)) {
-    if (restoreInFlight != null) await restoreInFlight;
+    // Cold start (including the first launch after an in-place app update) gets no AppState
+    // "change" event, so this is the only restore it runs. With the DeviceKey adapter available it
+    // must be the same silent restore foreground resume uses: an expired refresh session is not a
+    // reason to send a still-registered device to Settings. A silent request supersedes the bearer
+    // restore setConfiguredPaperEndpoint may have just started.
+    if (silent != null) await startRestore(endpoint, true, silent).catch(() => null);
+    else if (restoreInFlight != null) await restoreInFlight;
     else await restoreApprovedSession(endpoint);
   }
   return true;

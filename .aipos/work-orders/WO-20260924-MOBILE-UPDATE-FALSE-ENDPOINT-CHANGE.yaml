@@ -1,6 +1,6 @@
 id: WO-20260924-MOBILE-UPDATE-FALSE-ENDPOINT-CHANGE
 title: "App start must not read as an endpoint change and destroy the PAPER session"
-status: READY_FOR_REVIEW
+status: MERGED
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
