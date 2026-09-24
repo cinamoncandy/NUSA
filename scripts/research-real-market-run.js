@@ -1,5 +1,6 @@
 "use strict";
 
+const path = require("node:path");
 const {
   evaluateUpbitDailyCandleFreshness,
   mapUpbitDayCandlesToResearchCandles,
@@ -23,10 +24,13 @@ const { buildResearchHypothesis } = require("../dist/apps/desktop/src/cloud/rese
 const { createResearchHypothesis } = require("../dist/packages/contracts/src/researchHypothesisContract.js");
 const { buildResearchRunTimeline } = require("../dist/apps/desktop/src/cloud/researchRunTimeline.js");
 const { buildResearchRunProvenancePlan } = require("../dist/apps/desktop/src/cloud/researchRunFactory.js");
+const { buildInvestmentLearningEvidence, buildInvestmentResearchAttentionPlan, orderResearchFamiliesByLearning } = require("../dist/apps/desktop/src/cloud/investmentLearningEvidence.js");
+const { FileResearchInvestmentLearningLedgerStore } = require("../dist/apps/desktop/src/cloud/researchInvestmentLearningLedger.js");
 
 const SMA_FAMILY_ID = "sma-crossover";
 const RSI_FAMILY_ID = "rsi-mean-reversion";
 const DONCHIAN_FAMILY_ID = "donchian-breakout";
+const SUPPORTED_RESEARCH_FAMILIES = Object.freeze([SMA_FAMILY_ID, RSI_FAMILY_ID, DONCHIAN_FAMILY_ID]);
 const STRATEGY_FAMILY_ID = SMA_FAMILY_ID; // legacy export/default identity
 const DEFAULT_PRIMARY_MARKET = "KRW-BTC";
 // Availability-only cohort: each predeclared market had at least 2000 completed public
@@ -183,8 +187,26 @@ const DONCHIAN_PARAMETER_NEIGHBORHOOD = Object.freeze(
 
 function researchStrategyFamily(value = process.env.NUSA_RESEARCH_STRATEGY_FAMILY) {
   const normalized = String(value ?? SMA_FAMILY_ID).trim() || SMA_FAMILY_ID;
-  if (![SMA_FAMILY_ID, RSI_FAMILY_ID, DONCHIAN_FAMILY_ID].includes(normalized)) throw new Error(`unsupported NUSA_RESEARCH_STRATEGY_FAMILY: ${normalized}`);
+  if (!SUPPORTED_RESEARCH_FAMILIES.includes(normalized)) throw new Error(`unsupported NUSA_RESEARCH_STRATEGY_FAMILY: ${normalized}`);
   return normalized;
+}
+
+function researchLearningLedgerPath(env = process.env) {
+  const explicit = String(env.NUSA_RESEARCH_LEARNING_LEDGER_PATH || "").trim();
+  if (explicit) {
+    if (explicit === ":memory:" || !path.isAbsolute(explicit)) throw new Error("NUSA_RESEARCH_LEARNING_LEDGER_PATH must be an absolute durable path");
+    return path.resolve(explicit);
+  }
+  const replayPath = String(env.NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH || "").trim();
+  if (replayPath) {
+    if (replayPath === ":memory:" || !path.isAbsolute(replayPath)) throw new Error("NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH must be an absolute durable path");
+    return path.join(path.dirname(path.resolve(replayPath)), "research-investment-learning.jsonl");
+  }
+  const stateDbPath = String(env.NUSA_CLOUD_STATE_DB_PATH || "").trim();
+  if (!stateDbPath || stateDbPath === ":memory:" || !path.isAbsolute(stateDbPath)) {
+    throw new Error("investment learning requires an explicit ledger path, durable Research replay path, or durable Cloud state path");
+  }
+  return path.join(path.dirname(path.resolve(stateDbPath)), "research-investment-learning.jsonl");
 }
 
 function candidateIdFor(familyId, parameters) {
@@ -376,14 +398,25 @@ async function fetchDayCandlePage(path) {
 
 function researchCandleCount(value = process.env.NUSA_RESEARCH_CANDLE_COUNT) {
   if (value === undefined) return DEFAULT_CANDLE_COUNT;
-  // The ceiling tracks the deepest declared timeframe, so an explicit override can never be
-  // rejected for a depth the defaults already use. Below the floor the walk-forward plan cannot
-  // form its minimum windows.
+  // Low-level pagination/integrity callers may request any bounded depth. This helper does not
+  // create a canonical availability claim; the production runtime binds that claim separately.
   const ceiling = Math.max(...Object.values(RESEARCH_TIMEFRAMES).map((entry) => entry.candleCount));
   if (!/^\d+$/.test(String(value)) || !Number.isInteger(Number(value)) || Number(value) < 200 || Number(value) > ceiling) {
     throw new Error(`NUSA_RESEARCH_CANDLE_COUNT must be an integer from 200 to ${ceiling}`);
   }
   return Number(value);
+}
+
+function declaredResearchCandleCount(value = process.env.NUSA_RESEARCH_CANDLE_COUNT, timeframe = TIMEFRAME) {
+  const declaration = RESEARCH_TIMEFRAMES[timeframe];
+  if (declaration == null) throw new Error(`research candle count requires a declared timeframe: ${timeframe}`);
+  const count = value === undefined ? declaration.candleCount : researchCandleCount(value);
+  if (count !== declaration.candleCount) {
+    throw new Error(
+      `NUSA_RESEARCH_CANDLE_COUNT=${count} is not covered by ${declaration.marketSetVersion}; declared depth is ${declaration.candleCount}`,
+    );
+  }
+  return count;
 }
 
 async function fetchResearchCandles({ market = MARKET, dataAsOf, count = DEFAULT_CANDLE_COUNT, fetchPage = fetchDayCandlePage, pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }) {
@@ -417,6 +450,25 @@ async function fetchResearchCandles({ market = MARKET, dataAsOf, count = DEFAULT
   return { candles, sourceRequests };
 }
 
+/**
+ * The freshness block published into hypothesis provenance.
+ *
+ * It exists as a named function because the bug it encodes was invisible otherwise: the emission
+ * read `freshness.lagDays` off the generic projection, which only the daily-named wrapper carries,
+ * so every non-daily run published `lagDays: undefined` and no test could see it from main().
+ */
+function buildPublishedFreshness(freshness) {
+  if (!Number.isFinite(freshness?.lagIntervals)) {
+    throw new Error("research freshness projection must report a finite lagIntervals");
+  }
+  return {
+    status: "FRESH",
+    expectedLatestCloseTime: new Date(freshness.expectedLatestCloseTime).toISOString(),
+    actualLatestCloseTime: new Date(freshness.actualLatestCloseTime).toISOString(),
+    lagIntervals: freshness.lagIntervals
+  };
+}
+
 function createMarketDataset({ market, dataAsOf, candles, sourceRequests }) {
   const freshness = evaluateUpbitCandleFreshness(candles, dataAsOf, TIMEFRAME);
   if (!freshness.fresh) {
@@ -433,7 +485,7 @@ function createMarketDataset({ market, dataAsOf, candles, sourceRequests }) {
 async function main() {
   const dataAsOf = Date.now();
   const timeline = buildResearchRunTimeline(dataAsOf);
-  const candleCount = researchCandleCount();
+  const candleCount = declaredResearchCandleCount();
   const marketDatasets = [];
   for (let index = 0; index < RESEARCH_MARKETS.length; index += 1) {
     if (index > 0) await new Promise((resolve) => setTimeout(resolve, REQUEST_THROTTLE_MS));
@@ -593,6 +645,16 @@ async function main() {
     }
   );
   const factoryQualification = qualifyResearchFactoryRun(league);
+  const learningStore = new FileResearchInvestmentLearningLedgerStore(researchLearningLedgerPath());
+  const cumulativeLearningLedger = learningStore.appendRun(league, factoryQualification);
+  const investmentLearningEvidence = buildInvestmentLearningEvidence({
+    ledger: cumulativeLearningLedger,
+    standing: league.standing,
+    declaredFamilyIds: SUPPORTED_RESEARCH_FAMILIES,
+    evaluatedSequence: cumulativeLearningLedger.length + 1
+  });
+  const nextResearchAttention = orderResearchFamiliesByLearning(SUPPORTED_RESEARCH_FAMILIES, investmentLearningEvidence);
+  const researchAttentionPlan = buildInvestmentResearchAttentionPlan(SUPPORTED_RESEARCH_FAMILIES, investmentLearningEvidence);
 
   const oos = result.walkForwardResult.combinedOutOfSampleMetrics;
   console.log(JSON.stringify({
@@ -600,6 +662,9 @@ async function main() {
     strategyFamily: definition.familyId,
     researchMarketSet: {
       version: RESEARCH_MARKET_SET_VERSION,
+      timeframe: TIMEFRAME,
+      declaredCandleCount: DEFAULT_CANDLE_COUNT,
+      actualCandleCount: manifest.candleCount,
       selectionPolicy: "PREDECLARED_PUBLIC_HISTORY_AVAILABILITY_ONLY_NO_PERFORMANCE_SELECTION",
       markets: RESEARCH_MARKETS
     },
@@ -614,12 +679,7 @@ async function main() {
       contentSha256: manifest.contentSha256,
       sourceRequest: manifest.sourceRequest,
       completedBy: new Date(dataAsOf).toISOString(),
-      freshness: {
-        status: "FRESH",
-        expectedLatestCloseTime: new Date(freshness.expectedLatestCloseTime).toISOString(),
-        actualLatestCloseTime: new Date(freshness.actualLatestCloseTime).toISOString(),
-        lagDays: freshness.lagDays
-      }
+      freshness: buildPublishedFreshness(freshness)
     },
     evidenceDatasets: marketDatasets.map((entry) => ({
       datasetId: entry.manifest.datasetId,
@@ -630,7 +690,7 @@ async function main() {
       endCloseTime: new Date(entry.manifest.endCloseTime).toISOString(),
       contentSha256: entry.manifest.contentSha256,
       sourceRequest: entry.manifest.sourceRequest,
-      freshnessLagDays: entry.freshness.lagDays
+      freshnessLagIntervals: entry.freshness.lagIntervals
     })),
     windowCount: result.walkForwardResult.windows.length,
     parameterNeighborhood: {
@@ -691,6 +751,15 @@ async function main() {
         researchWeight: entry.researchWeight
       }))
     },
+    investmentLearning: {
+      status: "ADVISORY_ONLY",
+      appliesTo: "NEXT_RESEARCH_CYCLE_ATTENTION_ONLY",
+      automaticFamilySelectionAllowed: false,
+      qualificationThresholdMutationAllowed: false,
+      evidence: investmentLearningEvidence,
+      nextResearchAttention,
+      researchAttentionPlan
+    },
     warnings: result.warnings
   }, null, 2));
 }
@@ -704,6 +773,11 @@ if (require.main === module) {
 
 module.exports = {
   RESEARCH_MARKET_SET_VERSION,
+  // Exported so the emitted freshness projection can be asserted directly. Reading a field that the
+  // generic projection does not carry produced `undefined` in research output for every non-daily
+  // run, and nothing failed; a source-text assertion would not have caught that either.
+  createMarketDataset,
+  buildPublishedFreshness,
   RESEARCH_MARKETS,
   researchPrimaryMarket,
   researchTimeframe,
@@ -711,9 +785,12 @@ module.exports = {
   SMA_PARAMETER_NEIGHBORHOOD,
   RSI_PARAMETER_NEIGHBORHOOD,
   DONCHIAN_PARAMETER_NEIGHBORHOOD,
+  SUPPORTED_RESEARCH_FAMILIES,
   researchStrategyFamily,
+  researchLearningLedgerPath,
   fetchResearchCandles,
   researchCandleCount,
+  declaredResearchCandleCount,
   buildParameterRobustnessRequest,
   buildResearchRunTimeline,
   isResearchRunPboEvidenceUnavailable

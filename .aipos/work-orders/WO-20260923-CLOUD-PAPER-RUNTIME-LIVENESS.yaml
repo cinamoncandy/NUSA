@@ -1,0 +1,48 @@
+id: WO-20260923-CLOUD-PAPER-RUNTIME-LIVENESS
+title: "Publish continuous PAPER runtime liveness on the Cloud /health route"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: f72f6b0c5be5e6aa6fd25332c9e6eb5d86003dfe
+implementation_branch: feat/paper-runtime-liveness-evidence
+pull_request: 1933
+objective: "Make 24-hour PAPER operation observable from outside: /health must distinguish a process that answers HTTP from a PAPER loop that is actually receiving market events, deciding, ordering and filling."
+authority_impact: none
+finding: "A system audit found no durable production evidence that the PAPER loop runs. /health returned ok:true whenever the listener answered and /ready reports database readiness, so a stalled market feed or a loop that stopped deciding looked identical to a healthy one."
+scope:
+  include:
+    - "Existing Cloud runtime heartbeat counters exposed as an additive runtime object on /health"
+    - "A fixed public allowlist in the handler: six timestamps, four counters and a coded lastError"
+    - "Free-text errors replaced by LIVENESS_ERROR_UNCLASSIFIED; any extra field returned by a liveness source is dropped"
+  exclude:
+    - "Any price, balance, position, order detail, account identifier or credential on /health"
+    - "Changes to /ready, authentication, PAPER execution, risk, accounting or persistence"
+    - "LIVE, production mutation, credentials, new queue/scheduler/agent"
+acceptance:
+  - "/health keeps ok:true semantics and adds runtime only when a liveness source is wired."
+  - "A stalled loop is distinguishable from a healthy one by the published counters."
+  - "Only the allowlisted fields can reach /health; extra fields and free-text errors cannot."
+  - "PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY remain unchanged."
+verification_commands:
+  - "node --test tests/cloud-runtime-liveness-health.test.js"
+  - "pnpm run typecheck"
+  - "pnpm run lint"
+  - "pnpm run safety:invariants"
+evidence:
+  implementation_status: READY_FOR_REVIEW
+  review_findings_addressed:
+    - "Codex P2 4080904299: /health rebuilds runtime from a fixed allowlist and replaces non-code errors."
+    - "Codex P1 4080904293: this work order and the state entry record objective, scope, validation and next action."
+  mutation_verification:
+    - "pass the liveness object through unfiltered -> 1 failure"
+    - "publish free-text errors -> 1 failure"
+  external_validation: "REQUIRED: exact-head protected CI, independent Audit, and Release gate."
+  operational_follow_up: "After deployment, read production /health and confirm paperFillCount and lastPaperFillAt advance over time; this is the first external evidence that the PAPER loop runs."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Obtain exact-head CI, independent Audit, and Release; do not merge from Development."

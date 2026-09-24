@@ -355,6 +355,16 @@ jobs:
           current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           echo "merged_main=$MERGED_MAIN" >> "$GITHUB_OUTPUT"
           if [ "$current_main" != "$MERGED_MAIN" ]; then echo "Main advanced from audited merge $MERGED_MAIN to $current_main; newer Release/watchdog owns convergence."; exit 0; fi
+          exact_ci_runs="$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$MERGED_MAIN&per_page=100" \
+            | jq -c --arg sha "$MERGED_MAIN" '[.[].workflow_runs[]
+              | select(.name == "CI" and .path == ".github/workflows/ci.yml" and .head_sha == $sha
+                and (.status == "queued" or .status == "in_progress" or .status == "pending"
+                  or (.status == "completed" and .conclusion == "success")))]')"
+          existing_ci_run="$(jq -r 'sort_by(.created_at) | reverse | .[0].id // empty' <<<"$exact_ci_runs")"
+          if [ -n "$existing_ci_run" ]; then
+            echo "Exact-main CI already owns convergence for $MERGED_MAIN via run $existing_ci_run; suppressing duplicate dispatch."
+            exit 0
+          fi
           gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/dispatches" -f ref=main
           echo "Dispatched canonical main CI for merged revision $MERGED_MAIN"
 

@@ -15,7 +15,7 @@ test("settings UI exposes local PAPER, secure owner-device Cloud, cash allocatio
   assert.match(source, /OwnerConnectionExperience/);
   assert.match(source, /소유자 인증/);
   assert.match(source, /ownerCredentialReady/);
-  assert.match(source, /authenticateOwnerDeviceCredential/);
+  assert.match(source, /connectPaperSessionSilently\(/);
   assert.match(source, /testID="settings-owner-device-enroll"/);
   assert.match(source, /소유자 확인 및 이 휴대폰 등록/);
   assert.match(source, /testID="settings-paper-legacy-pairing"/);

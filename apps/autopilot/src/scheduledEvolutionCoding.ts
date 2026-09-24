@@ -3,7 +3,9 @@ import { prepareDiscoveredCodingRequest } from "./evolveCodingBridge";
 import { deriveWorkflowFailureOpportunities, type WorkflowFailureEvidence } from "./evolveEvidenceOpportunitySource";
 import { deriveGithubIssueBacklogSignals } from "./evolveGithubIssueBacklog";
 import type { EvolutionDiscoverySignal } from "./evolveOpportunityDiscovery";
-import { acquirePersistentExecution, readPersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, readPersistentExecution, readProviderCapacityWait, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+
+const CODING_PROVIDER = "workers-ai";
 
 export interface ScheduledEvolutionCodingEnv {
   readonly NUSA_GITHUB_TOKEN?: string;
@@ -11,7 +13,7 @@ export interface ScheduledEvolutionCodingEnv {
 }
 
 export interface ScheduledEvolutionCodingResult {
-  readonly status: "ABSTAINED" | "DUPLICATE_SUPPRESSED" | "INTERFACE_READY" | "EXECUTION_ACCEPTED" | "EXECUTION_FAILED";
+  readonly status: "ABSTAINED" | "WAITING_RATE_LIMIT" | "DUPLICATE_SUPPRESSED" | "INTERFACE_READY" | "EXECUTION_ACCEPTED" | "EXECUTION_FAILED";
   readonly reason: string;
   readonly selectedSignalIds: readonly string[];
   readonly liveAuthority: "NONE";
@@ -49,7 +51,7 @@ function evidenceFromRuns(candidates: readonly unknown[]): readonly WorkflowFail
     const run = object(candidate);
     if (!run) continue;
     const conclusion = text(run.conclusion);
-    if (conclusion !== "failure" && conclusion !== "cancelled" && conclusion !== "timed_out") continue;
+    if (conclusion !== "failure" && conclusion !== "timed_out") continue;
     if (text(run.head_branch) !== "main" || text(run.event) === "repository_dispatch") continue;
     const workflowName = text(run.name);
     const runId = positiveInteger(run.id);
@@ -199,11 +201,27 @@ export async function runScheduledEvolutionCoding(
   }
   const executionId = `evolve-coding:${input.mainSha.slice(0, 16)}:${workIdentity.slice(0, 100)}`;
   const dedupeKey = `evolve-coding:${input.mainSha}:${workIdentity}`;
+  // The execution record below is keyed by the exact main SHA, so it is empty again whenever main
+  // moves. The provider wait is not: while the coding provider is inside its retry window, no new
+  // execution is started for any main, and the next dispatch after the window is the bounded probe.
+  let providerWait;
+  try {
+    providerWait = await readProviderCapacityWait(coordinator, CODING_PROVIDER);
+  } catch {
+    return result("ABSTAINED", "provider-capacity-state-unavailable", signals.map((signal) => signal.id));
+  }
+  if (providerWait && input.now < providerWait.nextRetryAt) return result("WAITING_RATE_LIMIT", "waiting-provider-capacity", signals.map((signal) => signal.id));
   let currentExecution;
   try {
     currentExecution = await readPersistentExecution(coordinator, dedupeKey);
   } catch {
     return result("ABSTAINED", "persistent-execution-state-unavailable", signals.map((signal) => signal.id));
+  }
+  if (currentExecution?.state === "BLOCKED") return result("EXECUTION_FAILED", "persistent-execution-blocked", signals.map((signal) => signal.id));
+  if (currentExecution?.state === "WAITING_RATE_LIMIT") {
+    const stop = currentExecution.stop;
+    if (!stop || stop.executionId !== executionId || stop.dedupeKey !== dedupeKey) return result("ABSTAINED", "persistent-rate-limit-stop-corrupt", signals.map((signal) => signal.id));
+    if (input.now < stop.nextRetryAt) return result("WAITING_RATE_LIMIT", "waiting-rate-limit", signals.map((signal) => signal.id));
   }
   const activeExecutions = currentExecution
     && (currentExecution.state === "LEASED" || currentExecution.state === "HANDED_OFF")
@@ -236,7 +254,10 @@ export async function runScheduledEvolutionCoding(
     now: input.now,
     leaseExpiresAt: input.now + CODING_LEASE_MS,
   });
-  if (!persistent.acquired) return result("DUPLICATE_SUPPRESSED", persistent.reason ?? "DUPLICATE_EXECUTION", signals.map((signal) => signal.id));
+  if (!persistent.acquired) {
+    if (persistent.reason === "WAITING_RATE_LIMIT") return result("WAITING_RATE_LIMIT", "waiting-rate-limit", signals.map((signal) => signal.id));
+    return result("DUPLICATE_SUPPRESSED", persistent.reason ?? "DUPLICATE_EXECUTION", signals.map((signal) => signal.id));
+  }
 
   const dispatched = await executeGithubDispatch(bridge.request, { token, allowedRepository: input.repository }, fetchImpl);
   if (dispatched.status === "DISPATCHED") {

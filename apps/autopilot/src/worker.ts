@@ -1,5 +1,5 @@
 import baseWorker, { globalReleaseFreezeActive, handleCodingExecute, type Env as BaseEnv } from "./index";
-import { acquirePersistentExecution, ExecutionCoordinator, readPersistentControlPlaneHold, releasePersistentExecution } from "./executionCoordinator";
+import { acquirePersistentExecution, ExecutionCoordinator, readPersistentControlPlaneHold, readProviderCapacityWait, recordProviderCapacityWait, releasePersistentExecution } from "./executionCoordinator";
 import {
   CodingRunnerEvidenceError,
   executeCodingRunner,
@@ -12,11 +12,11 @@ import {
 } from "./codingRunner";
 import { GithubValidatedPatchPublisher } from "./githubValidatedPatchPublisher";
 import { verifyGithubActionsOidcToken, verifyGithubReleaseControlOidcToken } from "./githubActionsOidc";
-import { executeIndependentAudit, validateAuditRunnerRequest } from "./auditRunner";
+import { AUDIT_PROVIDER, executeIndependentAudit, executeProviderGatedAudit, validateAuditRunnerRequest } from "./auditRunner";
 
 export { ExecutionCoordinator };
 
-interface WorkerEnv extends BaseEnv {
+export interface WorkerEnv extends BaseEnv {
   NUSA_AI_AUDIT_MODEL?: string;
 }
 
@@ -119,7 +119,7 @@ function validatePublishedFiles(value: unknown): readonly { readonly path: strin
   return Object.freeze([Object.freeze({ path, content })]);
 }
 
-async function handleCodingProposal(request: Request, env: WorkerEnv): Promise<Response> {
+export async function handleCodingProposal(request: Request, env: WorkerEnv): Promise<Response> {
   const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || "cinamoncandy/NUSA";
   const provided = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
   if (!await verifyCodingAuthorization(provided, env.NUSA_CODING_RUNNER_TOKEN?.trim(), allowedRepository)) {
@@ -129,7 +129,49 @@ async function handleCodingProposal(request: Request, env: WorkerEnv): Promise<R
   try {
     const runnerRequest = validateCodingRunnerRequest(await request.json(), allowedRepository);
     const capture = new ProposalCaptureRuntime();
-    const result = await executeCodingRunner(runnerRequest, env, undefined, capture);
+    const coordinator = env.NUSA_EXECUTION_COORDINATOR;
+    const result = await executeCodingRunner(runnerRequest, env, undefined, capture, undefined, {
+      maxProposalAttempts: 1,
+      // /coding/execute and /coding/propose are separate entry points onto the same Workers AI
+      // budget as independent Audit; without this, a proposal request never saw a provider stop
+      // recorded by the other entry points, and never recorded its own, so the shared budget kept
+      // taking real calls from whichever entry point a distinct task happened to arrive through.
+      ...(coordinator ? { providerWaitUntil: async () => (await readProviderCapacityWait(coordinator, "workers-ai"))?.nextRetryAt ?? null } : {}),
+    });
+    if (result.status === "BLOCKED_RATE_LIMIT") {
+      if (coordinator && result.provider === "workers-ai" && result.stopReason && result.stopReason !== "WAITING_PROVIDER_CAPACITY" && Number.isSafeInteger(result.nextRetryAt)) {
+        const stoppedAt = Date.now();
+        try {
+          await recordProviderCapacityWait(coordinator, {
+            schemaVersion: 1,
+            taskId: `proposal:${runnerRequest.dedupeKey}`,
+            executionId: runnerRequest.executionId,
+            provider: "workers-ai",
+            headSha: runnerRequest.headSha,
+            stopReason: result.stopReason,
+            stoppedAt,
+            attemptCount: 1,
+            lastFailure: result.reason ?? result.stopReason,
+            nextRetryAt: result.nextRetryAt as number,
+            resumeCondition: result.resumeCondition ?? "provider-capacity-and-exact-head-revalidation",
+            dedupeKey: runnerRequest.dedupeKey,
+            evidenceRef: `proposal-evidence:${runnerRequest.executionId}`,
+          });
+        } catch {
+          console.error(JSON.stringify({ event: "NUSA_CODING_PROPOSAL_PROVIDER_WAIT_RECORD_FAILED", executionId: runnerRequest.executionId, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }));
+        }
+      }
+      return json({
+        accepted: false,
+        status: "CODING_PROPOSAL_FAILED_CLOSED",
+        error: result.reason ?? "WAITING_PROVIDER_CAPACITY",
+        providerStopReason: result.stopReason ?? null,
+        nextRetryAt: result.nextRetryAt ?? null,
+        liveAuthority: "NONE",
+        productionMutationAllowed: false,
+        aiAuthority: "ZERO_AUTHORITY",
+      }, 409);
+    }
     if (result.status !== "EXECUTION_ACCEPTED" || !capture.proposal?.patch.trim()) {
       throw new Error(result.reason || "CODING_PROPOSAL_UNAVAILABLE");
     }
@@ -303,8 +345,26 @@ async function handleAuditExecute(request: Request, env: WorkerEnv): Promise<Res
   }
 
   try {
-    const result = await executeIndependentAudit(auditRequest, env);
-    return json({ accepted: true, ...result }, 200);
+    const coordinator = env.NUSA_EXECUTION_COORDINATOR;
+    const gated = await executeProviderGatedAudit(auditRequest, {
+      readProviderWait: () => readProviderCapacityWait(coordinator, AUDIT_PROVIDER),
+      recordProviderWait: (stop) => recordProviderCapacityWait(coordinator, stop),
+      runAudit: () => executeIndependentAudit(auditRequest, env),
+      now: () => Date.now(),
+    });
+    if (gated.status === "AUDITED") return json({ accepted: true, ...gated.result }, 200);
+    return json({
+      accepted: false,
+      status: "AUDIT_FAILED_CLOSED",
+      error: gated.status === "WAITING_PROVIDER_CAPACITY" ? "WAITING_PROVIDER_CAPACITY" : "PROVIDER_CAPACITY_STATE_UNAVAILABLE",
+      ...(gated.status === "WAITING_PROVIDER_CAPACITY" ? { providerStopReason: gated.reason, nextRetryAt: gated.nextRetryAt } : {}),
+      reviewedHeadSha: auditRequest.headSha,
+      baseSha: auditRequest.baseSha,
+      workflowRunId: auditRequest.workflowRunId,
+      liveAuthority: "NONE",
+      productionMutationAllowed: false,
+      aiAuthority: "ZERO_AUTHORITY",
+    }, 409);
   } catch (error) {
     return json({
       accepted: false,

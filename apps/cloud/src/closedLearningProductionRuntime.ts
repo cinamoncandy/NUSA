@@ -1,3 +1,4 @@
+import { PaperChallengerPolicyApproval, paperChallengerPolicyEnabled } from "./paperChallengerPolicyApproval";
 import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
 import { FileResearchRunReplaySnapshotStore } from "../../desktop/src/cloud/researchRunReplaySnapshotStore";
 import { readCloudRuntimeConfig } from "./cloudRuntimeConfig";
@@ -121,6 +122,9 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     bindings: challengerBindings,
     periods,
     readCanonicalPaperAccount: requireCanonicalPaperAccount,
+    // Canonical Strategy Governance approval for PAPER challengers (ADR-0018). Disabled unless
+    // NUSA_PAPER_CHALLENGER_POLICY_APPROVAL=ENABLED; disabled means qualified candidates wait.
+    governance: new PaperChallengerPolicyApproval({ artifacts, enabled: paperChallengerPolicyEnabled(env) }),
   });
   const coordinator = new ClosedLearningLoopCoordinator(cycleRepository, researchFactory, paperDeployment);
   const runClosedLearningCycle = (input: ClosedLearningEvidenceIdentity): ClosedLearningCycleResult => coordinator.run(input);
@@ -160,11 +164,13 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     const normalized = periodId.trim();
     if (!normalized) throw new Error("PAPER_PERFORMANCE_PERIOD_ID_REQUIRED");
     if (paperRepository?.loadHistory == null) throw new Error("PAPER_PERFORMANCE_DURABLE_HISTORY_UNAVAILABLE");
+    if (paperRepository.loadFills == null) throw new Error("PAPER_PERFORMANCE_DURABLE_FILL_LEDGER_UNAVAILABLE");
     const matches = baseHandle.listPaperRealizedPeriods().filter((period) => period.record.recordId === normalized);
     if (matches.length !== 1) throw new Error(matches.length === 0 ? "PAPER_PERFORMANCE_PERIOD_NOT_FOUND" : "PAPER_PERFORMANCE_PERIOD_ID_CONFLICT");
     return buildPaperPerformanceFromLedger({
       period: matches[0]!,
       accountHistory: paperRepository.loadHistory(),
+      durableFills: paperRepository.loadFills(),
     });
   };
 

@@ -56,7 +56,7 @@ test("Settings makes server-verified owner device authentication primary and pai
   const source = read("apps/mobile/src/settingsView.tsx");
   assert.match(source, /Cloud 기능은 선택 사항입니다/);
   assert.match(source, /ownerCredentialReady/);
-  assert.match(source, /authenticateOwnerDeviceCredential/);
+  assert.match(source, /connectPaperSessionSilently\(/);
   assert.match(source, /<OwnerConnectionExperience/);
   assert.match(source, /onAuthenticateOwner=\{\(\) => \{ void requestPaperConnection\(\); \}\}/);
   assert.match(source, /testID="settings-owner-device-enroll"/);

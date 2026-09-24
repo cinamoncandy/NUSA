@@ -13,6 +13,9 @@ import {
   applyPersistentControlPlaneHold,
   completePersistentExecution,
   markPersistentExecutionDispatched,
+  markPersistentExecutionRateLimitStopped,
+  readProviderCapacityWait,
+  recordProviderCapacityWait,
   recordAutopilotExecutionTelemetry,
   readAutopilotExecutionTelemetry,
   readCodingExecutionEvidence,
@@ -27,6 +30,7 @@ import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
 import { classifyAutopilotFailure, createAutopilotExecutionTelemetry, type AutopilotExecutionTelemetryInput } from "./executionTelemetry";
 
 export { ExecutionCoordinator } from "./executionCoordinator";
+export * from "./worktreeWorkerPool";
 
 export interface Env {
   NUSA_WEBHOOK_SECRET?: string;
@@ -54,6 +58,11 @@ const RELEASABLE_AUDIT_STATE_DECLINES = new Set([
 ]);
 const json = (body: unknown, status = 200): Response => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8" } });
 const encoder = new TextEncoder();
+
+function codingTaskId(request: { readonly reason: string; readonly dedupeKey: string }): string {
+  const issue = request.reason.match(/(?:github-issue|issue)-[0-9]+/i)?.[0]?.toLowerCase();
+  return (issue ? `autopilot:${issue}` : `autopilot:${request.dedupeKey}`).slice(0, 256);
+}
 
 export function globalReleaseFreezeActive(env: Pick<Env, "NUSA_GLOBAL_RELEASE_FREEZE">): boolean {
   return env.NUSA_GLOBAL_RELEASE_FREEZE?.trim().toLowerCase() !== "false";
@@ -186,9 +195,13 @@ export async function handleCodingExecute(
       executionId: runnerRequest.executionId,
       now: startedAt,
       leaseExpiresAt: startedAt + CODING_EXECUTION_LEASE_MS,
+      taskId: codingTaskId(runnerRequest),
+      provider: "workers-ai",
+      headSha: runnerRequest.headSha,
     });
     if (!lease.acquired) {
       const duplicateReason = lease.reason ?? "DUPLICATE_EXECUTION";
+      const waitingRateLimit = duplicateReason === "WAITING_RATE_LIMIT";
       await persistCodingTelemetry(env, {
         executionId: runnerRequest.executionId,
         timestampMs: Date.now(),
@@ -202,7 +215,7 @@ export async function handleCodingExecute(
         recovery: { action: "NONE", reason: duplicateReason },
         checkpoint: { checkpointId: null, resumed: false },
         durationMs: Math.max(0, Date.now() - startedAt),
-        result: "DUPLICATE_EXECUTION_SUPPRESSED",
+        result: waitingRateLimit ? "WAITING_RATE_LIMIT" : "DUPLICATE_EXECUTION_SUPPRESSED",
         validationResult: "PASSED",
         ciResult: "UNVERIFIED",
         failureClass: "deterministic",
@@ -213,12 +226,15 @@ export async function handleCodingExecute(
         productionMutationAllowed: false,
         aiAuthority: "ZERO_AUTHORITY",
       });
-      return json({ accepted: true, status: "DUPLICATE_EXECUTION_SUPPRESSED", reason: duplicateReason, executionId: runnerRequest.executionId, dedupeKey: runnerRequest.dedupeKey, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 202);
+      return json({ accepted: true, status: waitingRateLimit ? "WAITING_RATE_LIMIT" : "DUPLICATE_EXECUTION_SUPPRESSED", reason: duplicateReason, nextRetryAt: lease.nextRetryAt ?? null, executionId: runnerRequest.executionId, dedupeKey: runnerRequest.dedupeKey, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 202);
     }
 
     let result: Awaited<ReturnType<typeof executeCodingRunner>>;
     try {
-      result = await executeCodingRunner(runnerRequest, env, undefined, runtime, publisher);
+      const coordinator = env.NUSA_EXECUTION_COORDINATOR;
+      result = await executeCodingRunner(runnerRequest, env, undefined, runtime, publisher, {
+        providerWaitUntil: async () => (await readProviderCapacityWait(coordinator, "workers-ai"))?.nextRetryAt ?? null,
+      });
     } catch (error) {
       const failureReason = error instanceof Error ? error.message : "CODING_RUNNER_EXECUTION_FAILED";
       await releaseCodingExecutionLease(env, runnerRequest);
@@ -256,12 +272,47 @@ export async function handleCodingExecute(
       }, 400);
     }
 
-    if (result.status === "EXECUTION_ACCEPTED") {
+    const stoppedAt = Date.now();
+    const rateLimitStopped = result.status === "BLOCKED_RATE_LIMIT";
+    const normalizedNextRetryAt = Number.isSafeInteger(result.nextRetryAt) && Number(result.nextRetryAt) > stoppedAt
+      ? Number(result.nextRetryAt)
+      : stoppedAt + 60_000;
+    const normalizedStopReason = result.stopReason ?? result.reason ?? "WORKERS_AI_RATE_LIMITED";
+    const normalizedResumeCondition = result.resumeCondition ?? "provider-capacity-and-exact-head-revalidation";
+    const normalizedResult = rateLimitStopped
+      ? {
+          ...result,
+          status: "WAITING_RATE_LIMIT",
+          nextRetryAt: normalizedNextRetryAt,
+          stopReason: normalizedStopReason,
+          resumeCondition: normalizedResumeCondition,
+        }
+      : result;
+    if (normalizedResult.status === "EXECUTION_ACCEPTED") {
       await markPersistentExecutionDispatched(env.NUSA_EXECUTION_COORDINATOR, {
         dedupeKey: runnerRequest.dedupeKey,
         executionId: runnerRequest.executionId,
         now: Date.now(),
       });
+    } else if (rateLimitStopped) {
+      const stop = {
+        schemaVersion: 1 as const,
+        taskId: codingTaskId(runnerRequest),
+        executionId: runnerRequest.executionId,
+        provider: result.provider ?? "workers-ai",
+        headSha: runnerRequest.headSha,
+        stopReason: normalizedStopReason,
+        stoppedAt,
+        attemptCount: Math.max(1, result.proposalAttempts ?? 1),
+        lastFailure: result.reason ?? "WORKERS_AI_RATE_LIMITED",
+        nextRetryAt: normalizedNextRetryAt,
+        resumeCondition: normalizedResumeCondition,
+        dedupeKey: runnerRequest.dedupeKey,
+        evidenceRef: `coding-evidence:${runnerRequest.executionId}`,
+      };
+      const stopResult = await markPersistentExecutionRateLimitStopped(env.NUSA_EXECUTION_COORDINATOR, { ...stop, now: stoppedAt });
+      if (!stopResult.stopped) throw new Error("PERSISTENT_EXECUTION_RATE_LIMIT_STOP_FAILED");
+      await recordProviderCapacityWait(env.NUSA_EXECUTION_COORDINATOR, stop);
     } else {
       await releaseCodingExecutionLease(env, runnerRequest);
     }
@@ -270,8 +321,8 @@ export async function handleCodingExecute(
       executionId: runnerRequest.executionId,
       timestampMs: Date.now(),
       trigger: "repository_dispatch",
-      decision: result.status === "EXECUTION_ACCEPTED" ? "coding-dispatch" : "coding-dispatch-failed",
-      action: result.status === "EXECUTION_ACCEPTED" ? "ACTION" : "NO_ACTION",
+      decision: normalizedResult.status === "EXECUTION_ACCEPTED" ? "coding-dispatch" : normalizedResult.status === "WAITING_RATE_LIMIT" ? "rate-limit-stop" : "coding-dispatch-failed",
+      action: normalizedResult.status === "EXECUTION_ACCEPTED" ? "ACTION" : "NO_ACTION",
       selectedExecutor: "cloud-coding-runner",
       dedupeKey: runnerRequest.dedupeKey,
       attempt: 1,
@@ -279,24 +330,24 @@ export async function handleCodingExecute(
       recovery: { action: "NONE", reason: failureReason },
       checkpoint: { checkpointId: result.checkpointId ?? null, resumed: false },
       durationMs: Math.max(0, Date.now() - startedAt),
-      result: result.status,
-      validationResult: result.proposalValidated === true || result.workspaceVerified === true ? "PASSED" : result.status === "EXECUTION_ACCEPTED" ? "NOT_RUN" : "FAILED",
+      result: normalizedResult.status,
+      validationResult: normalizedResult.proposalValidated === true || normalizedResult.workspaceVerified === true ? "PASSED" : normalizedResult.status === "EXECUTION_ACCEPTED" ? "NOT_RUN" : "FAILED",
       ciResult: "VERIFIED",
       failureClass: classifyAutopilotFailure(failureReason),
-      commitSha: result.commitSha?.toLowerCase() ?? null,
-      pullRequestNumber: result.pullRequestNumber ?? null,
+      commitSha: normalizedResult.commitSha?.toLowerCase() ?? null,
+      pullRequestNumber: normalizedResult.pullRequestNumber ?? null,
       failureReason,
       liveAuthority: "NONE",
       productionMutationAllowed: false,
       aiAuthority: "ZERO_AUTHORITY",
     });
-    const evidenceDecision = createCodingExecutionEvidence(runnerRequest, result, Date.now());
+    const evidenceDecision = createCodingExecutionEvidence(runnerRequest, normalizedResult, Date.now());
     let evidencePersisted = false;
     if (evidenceDecision.status === "RECORDED" && env.NUSA_EXECUTION_COORDINATOR) {
       try {
         await recordCodingExecutionEvidence(env.NUSA_EXECUTION_COORDINATOR, evidenceDecision.evidence);
         evidencePersisted = true;
-        if (result.status === "EXECUTION_ACCEPTED") {
+        if (normalizedResult.status === "EXECUTION_ACCEPTED") {
           await completePersistentExecution(env.NUSA_EXECUTION_COORDINATOR, {
             dedupeKey: runnerRequest.dedupeKey,
             executionId: runnerRequest.executionId,
@@ -307,7 +358,7 @@ export async function handleCodingExecute(
         console.error(JSON.stringify({ event: "NUSA_CODING_EVIDENCE_PERSIST_FAILED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }));
       }
     }
-    return json({ accepted: true, ...result, executionEvidence: evidenceDecision.status === "RECORDED" ? evidenceDecision.evidence : null, executionEvidencePersisted: evidencePersisted, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, result.status === "EXECUTION_FAILED" ? 502 : 202);
+    return json({ accepted: true, ...normalizedResult, executionEvidence: evidenceDecision.status === "RECORDED" ? evidenceDecision.evidence : null, executionEvidencePersisted: evidencePersisted, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, normalizedResult.status === "EXECUTION_FAILED" ? 502 : 202);
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "CODING_RUNNER_REQUEST_INVALID" }, 400);
   }

@@ -17,7 +17,7 @@ test("mobile startup restores an enrolled PAPER session without a second manual 
   assert.match(connection, /if \(restoreInFlight != null\) await restoreInFlight/);
   assert.match(connection, /RESTORE_RETRY_BASE_MS = 1_000/);
   assert.match(connection, /mobileApprovedSession\(\)\.shouldRetryRestore\(\)/);
-  assert.match(connection, /scheduleRestoreRetry\(endpoint\)/);
+  assert.match(connection, /scheduleRestoreRetry\(endpoint, force, silent\)/);
 });
 
 test("clean install remains fail-closed when no canonical origin or session is available", () => {

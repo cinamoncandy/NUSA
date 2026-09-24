@@ -1,4 +1,6 @@
-import type { WorkersAiBinding } from "./codingRunner";
+import { logAiCall } from "./aiCallTelemetry";
+import { classifyWorkersAiProviderStop, type WorkersAiBinding } from "./codingRunner";
+import type { PersistentExecutionStop } from "./executionCoordinator";
 
 export type AuditVerdict = "PASS" | "PASS_WITH_NOTES" | "FAIL";
 export type AuditSafetyInvariantResult = "PASS" | "FAIL";
@@ -410,6 +412,7 @@ export async function executeIndependentAudit(
   let lastModelError: unknown;
   for (let attempt = 1; attempt <= MAX_AUDIT_MODEL_ATTEMPTS; attempt += 1) {
     const rawModelResponse = await env.AI.run(model, modelRequest);
+    logAiCall({ caller: "C2_AUDIT", model, attempt, promptChars: modelRequest.prompt.length, response: rawModelResponse });
     try {
       modelResult = validateBlockerEvidenceAgainstCurrentDiff(parseAuditModelResponse(rawModelResponse), diff);
       break;
@@ -449,4 +452,59 @@ export async function executeIndependentAudit(
     productionMutationAllowed: false,
     aiAuthority: "ZERO_AUTHORITY",
   });
+}
+
+export const AUDIT_PROVIDER = "workers-ai";
+
+export type ProviderGatedAuditOutcome =
+  | { readonly status: "AUDITED"; readonly result: AuditRunnerResult }
+  | { readonly status: "WAITING_PROVIDER_CAPACITY"; readonly reason: string; readonly nextRetryAt: number }
+  | { readonly status: "PROVIDER_CAPACITY_STATE_UNAVAILABLE" };
+
+export interface ProviderGatedAuditDependencies {
+  readonly readProviderWait: () => Promise<PersistentExecutionStop | null>;
+  readonly recordProviderWait: (stop: PersistentExecutionStop) => Promise<unknown>;
+  readonly runAudit: () => Promise<AuditRunnerResult>;
+  readonly now: () => number;
+}
+
+/**
+ * Independent Audit shares the one Workers AI budget with coding. It honours the same
+ * provider-keyed capacity wait before calling the provider and records a provider stop it hits,
+ * so neither caller spends calls against a budget the other already found exhausted. Audit
+ * authority is unchanged: a provider wait is never a PASS.
+ */
+export async function executeProviderGatedAudit(request: AuditRunnerRequest, deps: ProviderGatedAuditDependencies): Promise<ProviderGatedAuditOutcome> {
+  let wait: PersistentExecutionStop | null;
+  try {
+    wait = await deps.readProviderWait();
+  } catch {
+    return { status: "PROVIDER_CAPACITY_STATE_UNAVAILABLE" };
+  }
+  if (wait && deps.now() < wait.nextRetryAt) {
+    return { status: "WAITING_PROVIDER_CAPACITY", reason: wait.stopReason, nextRetryAt: wait.nextRetryAt };
+  }
+  try {
+    return { status: "AUDITED", result: await deps.runAudit() };
+  } catch (error) {
+    const stoppedAt = deps.now();
+    const providerStop = classifyWorkersAiProviderStop(error, stoppedAt);
+    if (!providerStop) throw error;
+    await deps.recordProviderWait({
+      schemaVersion: 1,
+      taskId: `audit:${request.repository}#${request.prNumber}`,
+      executionId: request.executionId,
+      provider: AUDIT_PROVIDER,
+      headSha: request.headSha,
+      stopReason: providerStop.reason,
+      stoppedAt,
+      attemptCount: 1,
+      lastFailure: providerStop.reason,
+      nextRetryAt: providerStop.nextRetryAt,
+      resumeCondition: providerStop.resumeCondition,
+      dedupeKey: request.dedupeKey,
+      evidenceRef: `audit-evidence:${request.executionId}`,
+    });
+    return { status: "WAITING_PROVIDER_CAPACITY", reason: providerStop.reason, nextRetryAt: providerStop.nextRetryAt };
+  }
 }

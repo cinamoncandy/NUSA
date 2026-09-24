@@ -249,12 +249,12 @@ test("REJECTED and RETIRED remain queryable historical classes", () => {
   );
 });
 
-test("SQLite owner applies 021 then 022, preserves old rows, and survives restart", () => {
+test("SQLite owner preserves 021/022 semantic rows through later migrations and survives restart", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-research-memory-"));
   const file = path.join(dir, "memory.sqlite");
   try {
     let db = new SqliteDatabase(file);
-    assert.equal(db.migrationResult.currentVersion, "023_research_intelligence_memory");
+    assert.equal(db.migrationResult.currentVersion, "024_research_intelligence_memory");
     const migrations = db.connection.prepare(
       "SELECT id FROM schema_migrations WHERE id IN (?, ?) ORDER BY id ASC"
     ).all("021_research_factory_decision_history", "022_research_memory_semantic_overlay");
@@ -283,7 +283,7 @@ test("SQLite owner applies 021 then 022, preserves old rows, and survives restar
     assert.equal(restarted.listSemantic().length, 1);
     db.close();
   } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   }
 });
 
