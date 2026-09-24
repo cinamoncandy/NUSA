@@ -196,13 +196,13 @@ current_upbit_bridge_credential_persistence:
 project: nusa
 updated_at: "2026-09-23T18:40:00+09:00"
 current_execution_target:
-  work_order: WO-20260924-MOBILE-APP-UPDATE-CONTINUITY
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-update-continuity
-  scope: "First launch after an in-place app update restores PAPER with the registered DeviceKey through the existing coordinator."
-  authority_impact: credential_boundary
-  prior_target: WO-20260924-MOBILE-UPDATE-FALSE-ENDPOINT-CHANGE
-  prior_target_status: MERGED_PR_2256
+  work_order: WO-20260924-AI-CAPACITY-COST-CEILING
+  status: IN_PROGRESS
+  branch: claude/nusa-repository-j93sd8-ai-budget-state
+  scope: "Owner spec 2026-09-24: generalize #2238 daily-quota stop into NORMAL/CONSERVE/HARD_STOP AI budget states (first slice: pure classifier + diagnostic wiring only). Workers Paid enablement is a billing decision left to the owner, not performed here."
+  authority_impact: none
+  prior_target: WO-20260924-RESEARCH-RECOVERY-FEED-GATE
+  prior_target_status: READY_FOR_REVIEW
   prior_target_preserved: true
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 owner_decisions:

@@ -13,6 +13,7 @@ import {
 import { GithubValidatedPatchPublisher } from "./githubValidatedPatchPublisher";
 import { verifyGithubActionsOidcToken, verifyGithubReleaseControlOidcToken } from "./githubActionsOidc";
 import { AUDIT_PROVIDER, executeIndependentAudit, executeProviderGatedAudit, validateAuditRunnerRequest } from "./auditRunner";
+import { classifyAiBudgetState } from "./aiBudgetState";
 
 export { ExecutionCoordinator };
 
@@ -357,7 +358,8 @@ async function handleAuditExecute(request: Request, env: WorkerEnv): Promise<Res
       accepted: false,
       status: "AUDIT_FAILED_CLOSED",
       error: gated.status === "WAITING_PROVIDER_CAPACITY" ? "WAITING_PROVIDER_CAPACITY" : "PROVIDER_CAPACITY_STATE_UNAVAILABLE",
-      ...(gated.status === "WAITING_PROVIDER_CAPACITY" ? { providerStopReason: gated.reason, nextRetryAt: gated.nextRetryAt } : {}),
+      // Diagnostic only: does not change the gate above, which already blocked the call.
+      ...(gated.status === "WAITING_PROVIDER_CAPACITY" ? { providerStopReason: gated.reason, nextRetryAt: gated.nextRetryAt, aiBudgetState: classifyAiBudgetState({ stopReason: gated.reason, nextRetryAt: gated.nextRetryAt }, Date.now()) } : {}),
       reviewedHeadSha: auditRequest.headSha,
       baseSha: auditRequest.baseSha,
       workflowRunId: auditRequest.workflowRunId,
