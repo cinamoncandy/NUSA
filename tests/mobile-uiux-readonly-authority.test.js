@@ -8,7 +8,7 @@ const read = (file) => fs.readFileSync(path.join(mobile, file), "utf8");
 
 test("UIUX-002 presents the canonical five-tab product navigation while preserving deeper routes", () => {
   const app = read("App.tsx");
-  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\] as const/);
+  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "LiveTrading", "Portfolio", "AiSignal"\] as const/);
   assert.match(app, /Home: "HOME"/);
   assert.match(app, /Markets: "MARKETS"/);
   assert.match(app, /Paper: "PAPER"/);

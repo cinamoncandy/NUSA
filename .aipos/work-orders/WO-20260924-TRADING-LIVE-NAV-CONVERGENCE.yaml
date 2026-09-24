@@ -1,0 +1,46 @@
+id: WO-20260924-TRADING-LIVE-NAV-CONVERGENCE
+title: "MARKET+PAPER convergence into TRADING; independent LIVE TRADING destination (owner spec 2026-09-24)"
+status: IN_PROGRESS
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-live-trading-tab
+parent_work_order: null
+authority_impact: none
+authority_impact_note: "Presentation/navigation convergence only, per the owner's own scope boundary (section 13/14 of the spec). No backend domain merge, no LIVE authority, no order submission, no credential flow. PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY unchanged."
+objective: "Owner spec: converge MARKET+PAPER into one canonical TRADING workspace; give LIVE TRADING an independent navigation destination (never a toggle inside PAPER) so the PAPER/LIVE authority boundary is visible at the UI level, not just backend state. LIVE TRADING must show NOT ENABLED with liveAuthority=NONE/productionMutationAllowed=false/aiAuthority=ZERO_AUTHORITY and contain zero mutation surface (no order submission, no credential entry, no exchange connection)."
+scope:
+  full_spec_sections: "All 20 sections of the owner's 2026-09-24 UI/UX directive (navigation convergence, TRADING information architecture, market+PAPER linkage by selected asset, PAPER truth via Ledger/Performance projection only, independent LIVE destination, LIVE UI placeholder scope, strong visual separation, code/domain boundaries preserved, component reuse, motion-ready composition, navigation migration, LIVE boundary regression, device acceptance)."
+  this_slice:
+    - "apps/mobile/src/liveTradingView.tsx: new LIVE TRADING screen, presentation-only, reusing existing intelligenceOs primitives (ScreenLead/StateNotice/IntelligenceSection/FactRow) -- no new design system, no new component library"
+    - "apps/mobile/App.tsx: LiveTrading added as its own primary tab/destination alongside existing Home/Markets/Paper/Portfolio/AiSignal; excluded from the dashboard-connection-required gate since it needs no PAPER session"
+    - "tests/mobile-live-trading-boundary.test.js: LIVE TRADING reachable as its own destination (not a toggle inside PAPER), always shows the disabled/authority state in text (not color alone), has no order/mutation/credential control, does not require a PAPER connection to render"
+    - "existing tab-list source-regex tests (mobile-native-structure, mobile-product-v5, mobile-uiux-readonly-authority, mobile-uiux-v2, mobile-uiux-v3-canonical, mobile-uiux-visual-redesign, uiux-nav-chrome-closeout, mobile-supervision-navigation) updated for the new tab list; none deleted"
+  deferred_to_next_slices:
+    - "TRADING canonical workspace merging existing MarketsView + TradingView (PAPER) into one navigation destination with the compact status header, asset-linked PAPER position/PnL, and PAPER-truth-via-projection wiring (sections 2-7)"
+    - "Navigation migration/compatibility review for existing MARKET/PAPER deep links (section 16)"
+    - "Motion-ready decomposition into reusable status/market-card/asset-row/position-card/performance-card/section/transition-container units (section 15)"
+    - "Real Galaxy device acceptance walking the full HOME->TRADING->...->LIVE TRADING->MORE flow (section 18) -- this slice adds the reachable destination; the full flow walk belongs with the TRADING convergence slice so it is tested once, not twice"
+  explicitly_not_done:
+    - "No real exchange order submission, API trading authority, withdrawal, transfer, LIVE credential activation, LIVE position/portfolio mutation, real exchange endpoint connection, or LIVE secret input flow (section 10) -- none of this exists in the new screen"
+acceptance:
+  - "LIVE TRADING is reachable as its own primary navigation destination."
+  - "LIVE TRADING always displays 'LIVE trading is not enabled.' plus liveAuthority=NONE / productionMutationAllowed=false / aiAuthority=ZERO_AUTHORITY in text."
+  - "LIVE TRADING contains no order-submission, mutation, or credential-entry control."
+  - "LIVE TRADING does not require an active PAPER dashboard connection to render."
+  - "Existing MARKET/PAPER/Portfolio/AI navigation and functionality are unchanged."
+verification_commands:
+  - "node --test tests/mobile-live-trading-boundary.test.js tests/mobile-supervision-navigation.test.js"
+  - "node --test tests/mobile-*.test.js tests/uiux-*.test.js (excluding .vitest.js)"
+  - "pnpm run validate (Node >= 24)"
+evidence:
+  implementation_status: READY_FOR_REVIEW_FIRST_SLICE
+  local_validation: "mobile-live-trading-boundary 4/4 PASS; mobile-supervision-navigation + 6 other tab-list source tests 46/46 PASS; full mobile/uiux suite 504/504 PASS; typecheck PASS; pnpm run validate PASS; secret scan 0 failures."
+  external_validation: "REQUIRED: exact-head CI, Audit, Release; real Galaxy walkthrough of the LIVE TRADING destination is HUMAN_ENVIRONMENT_ONLY and belongs with the TRADING convergence slice per deferred scope above."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Exact-head CI, Audit, Release for this slice; next slice begins the TRADING canonical workspace convergence (sections 2-7) reusing MarketsView/TradingView, without a backend domain merge."

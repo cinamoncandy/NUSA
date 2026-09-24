@@ -7,7 +7,7 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
 test("product v5 keeps the four primary jobs literal and glanceable", () => {
   const app = read("App.tsx");
-  assert.match(app, /Home: "HOME", Markets: "MARKETS", Paper: "PAPER", Portfolio: "PORTFOLIO"/);
+  assert.match(app, /Home: "HOME", Markets: "MARKETS", Paper: "PAPER", LiveTrading: "LIVE TRADING", Portfolio: "PORTFOLIO"/);
   const home = read("src/homeView.tsx");
   assert.match(home, />MARKETS<\/Text>/);
   assert.match(home, />PORTFOLIO<\/Text>/);
