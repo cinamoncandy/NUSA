@@ -124,7 +124,7 @@ test("Oracle readiness remains fail-closed after its bounded startup window", as
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /startup_readiness/);
     assert.match(result.stderr, /ECONNREFUSED/);
-    assert.ok(JSON.parse(result.stderr).attempts > 1);
+    assert.ok(JSON.parse(result.stderr.split("\n")[0]).attempts > 1);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -265,6 +265,25 @@ test("Oracle readiness still rejects a mobile owner route that never reaches 405
     assert.ok(failure.attempts > 1);
   } finally {
     await close(server);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a failed startup carries the redacted service journal tail as release evidence", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-ready-journal-"));
+  const bin = path.join(root, "bin");
+  fs.mkdirSync(bin);
+  const fixture = "q".repeat(24);
+  fs.writeFileSync(path.join(bin, "journalctl"), `#!/bin/sh\necho "Error: database contains unknown migration: 024_research_intelligence_memory"\necho "NUSA_CLOUD_DASHBOARD_TOKEN=${fixture}"\n`, { mode: 0o755 });
+  const port = await reservePort();
+  const envFile = writeReadinessEnv(root, port);
+  try {
+    const result = await runReadiness(envFile, { NUSA_READY_STARTUP_WAIT_MS: "80", NUSA_READY_RETRY_DELAY_MS: "20", PATH: `${bin}:${process.env.PATH}` });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /\[journal\] Error: database contains unknown migration/);
+    assert.match(result.stderr, /\[journal\] NUSA_CLOUD_DASHBOARD_TOKEN=\[redacted\]/);
+    assert.doesNotMatch(result.stderr, new RegExp(fixture));
+  } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
