@@ -196,13 +196,13 @@ current_upbit_bridge_credential_persistence:
 project: nusa
 updated_at: "2026-09-23T18:40:00+09:00"
 current_execution_target:
-  work_order: WO-20260924-MOBILE-APP-UPDATE-CONTINUITY
+  work_order: WO-20260924-RESEARCH-RECOVERY-FEED-GATE
   status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-update-continuity
-  scope: "First launch after an in-place app update restores PAPER with the registered DeviceKey through the existing coordinator."
-  authority_impact: credential_boundary
-  prior_target: WO-20260924-MOBILE-UPDATE-FALSE-ENDPOINT-CHANGE
-  prior_target_status: MERGED_PR_2256
+  branch: claude/nusa-repository-j93sd8-research-recovery-gate
+  scope: "Opus P0-4: FIRST_UNSAFE_RECOVERY_BOUNDARY -- plain researchRuntime market-data feed now halts on a FAIL_CLOSED/throwing research recovery instead of discarding the result."
+  authority_impact: none
+  prior_target: WO-20260924-MOBILE-RESTORE-VERIFIED-NOTIFY
+  prior_target_status: READY_FOR_REVIEW
   prior_target_preserved: true
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 owner_decisions:
