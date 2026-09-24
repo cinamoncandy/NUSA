@@ -1,3 +1,4 @@
+import { PaperChallengerPolicyApproval, paperChallengerPolicyEnabled } from "./paperChallengerPolicyApproval";
 import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
 import { FileResearchRunReplaySnapshotStore } from "../../desktop/src/cloud/researchRunReplaySnapshotStore";
 import { readCloudRuntimeConfig } from "./cloudRuntimeConfig";
@@ -121,6 +122,9 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     bindings: challengerBindings,
     periods,
     readCanonicalPaperAccount: requireCanonicalPaperAccount,
+    // Canonical Strategy Governance approval for PAPER challengers (ADR-0018). Disabled unless
+    // NUSA_PAPER_CHALLENGER_POLICY_APPROVAL=ENABLED; disabled means qualified candidates wait.
+    governance: new PaperChallengerPolicyApproval({ artifacts, enabled: paperChallengerPolicyEnabled(env) }),
   });
   const coordinator = new ClosedLearningLoopCoordinator(cycleRepository, researchFactory, paperDeployment);
   const runClosedLearningCycle = (input: ClosedLearningEvidenceIdentity): ClosedLearningCycleResult => coordinator.run(input);

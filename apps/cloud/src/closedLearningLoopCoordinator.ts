@@ -66,7 +66,12 @@ export interface PaperChallengerDeploymentAdapter {
 }
 
 export interface ClosedLearningCycleResult {
-  readonly status: "EXECUTED" | "REPLAYED" | "RESUMED";
+  /**
+   * WAITING_GOVERNANCE_APPROVAL: the candidate qualified but Strategy Governance has not approved it
+   * as a CHALLENGER yet. The decision stays recorded without a deployment, so a later cycle for the
+   * same evidence resumes it; nothing was bound or opened.
+   */
+  readonly status: "EXECUTED" | "REPLAYED" | "RESUMED" | "WAITING_GOVERNANCE_APPROVAL";
   readonly record: ClosedLearningCycleRecord;
 }
 
@@ -144,6 +149,10 @@ export function closedLearningCycleId(input: ClosedLearningEvidenceIdentity): st
  * Every Research/League outcome is durably recorded before any PAPER action. A replay never reruns Research;
  * if a crash happened after qualification but before PAPER deployment, only that PAPER-only deployment resumes.
  */
+export function isGovernanceApprovalUnavailable(error: unknown): boolean {
+  return error instanceof Error && error.message === "PAPER_CHALLENGER_GOVERNANCE_APPROVAL_UNAVAILABLE";
+}
+
 export class ClosedLearningLoopCoordinator {
   public constructor(
     private readonly repository: ClosedLearningCycleRepository,
@@ -166,12 +175,22 @@ export class ClosedLearningLoopCoordinator {
     return this.repository.append(Object.freeze({ ...record, paperDeployment: receipt }));
   }
 
+  /** Only a missing approval waits; any other deployment fault (identity, lineage, authority) still fails closed. */
+  private deployOrWait(record: ClosedLearningCycleRecord, deployedStatus: "EXECUTED" | "RESUMED"): ClosedLearningCycleResult {
+    try {
+      return Object.freeze({ status: deployedStatus, record: this.deployQualified(record) });
+    } catch (error) {
+      if (isGovernanceApprovalUnavailable(error)) return Object.freeze({ status: "WAITING_GOVERNANCE_APPROVAL", record });
+      throw error;
+    }
+  }
+
   private existing(identity: ClosedLearningEvidenceIdentity, cycleId: string): ClosedLearningCycleResult | undefined {
     const previous = this.repository.get(cycleId);
     if (previous == null) return undefined;
     if (previous.evidenceId !== identity.evidenceId || previous.evidenceFingerprintSha256 !== identity.evidenceFingerprintSha256) throw new Error("closed learning replay identity conflict");
     if (previous.decision.outcome === "QUALIFIED_FOR_LEAGUE" && previous.paperDeployment == null) {
-      return Object.freeze({ status: "RESUMED", record: this.deployQualified(previous) });
+      return this.deployOrWait(previous, "RESUMED");
     }
     return Object.freeze({ status: "REPLAYED", record: previous });
   }
@@ -190,7 +209,7 @@ export class ClosedLearningLoopCoordinator {
     }));
 
     if (decision.outcome !== "QUALIFIED_FOR_LEAGUE") return Object.freeze({ status: "EXECUTED", record: decisionOnly });
-    return Object.freeze({ status: "EXECUTED", record: this.deployQualified(decisionOnly) });
+    return this.deployOrWait(decisionOnly, "EXECUTED");
   }
 
   public run(input: ClosedLearningEvidenceIdentity): ClosedLearningCycleResult {
