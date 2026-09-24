@@ -271,14 +271,13 @@ test("Oracle readiness still rejects a mobile owner route that never reaches 405
 
 test("a failed startup carries the redacted service journal tail as release evidence", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-ready-journal-"));
-  const bin = path.join(root, "bin");
-  fs.mkdirSync(bin);
+  const stub = path.join(root, "journalctl-stub.js");
   const fixture = "q".repeat(24);
-  fs.writeFileSync(path.join(bin, "journalctl"), `#!/bin/sh\necho "Error: database contains unknown migration: 024_research_intelligence_memory"\necho "NUSA_CLOUD_DASHBOARD_TOKEN=${fixture}"\n`, { mode: 0o755 });
+  fs.writeFileSync(stub, `console.log("Error: database contains unknown migration: 024_research_intelligence_memory");\nconsole.log("NUSA_CLOUD_DASHBOARD_TOKEN=${fixture}");\n`);
   const port = await reservePort();
   const envFile = writeReadinessEnv(root, port);
   try {
-    const result = await runReadiness(envFile, { NUSA_READY_STARTUP_WAIT_MS: "80", NUSA_READY_RETRY_DELAY_MS: "20", PATH: `${bin}:${process.env.PATH}` });
+    const result = await runReadiness(envFile, { NUSA_READY_STARTUP_WAIT_MS: "80", NUSA_READY_RETRY_DELAY_MS: "20", NUSA_READINESS_JOURNAL_STUB: stub });
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /\[journal\] Error: database contains unknown migration/);
     assert.match(result.stderr, /\[journal\] NUSA_CLOUD_DASHBOARD_TOKEN=\[redacted\]/);

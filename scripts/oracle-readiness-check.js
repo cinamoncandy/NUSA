@@ -123,7 +123,11 @@ function redactJournalLine(line) {
 }
 function journalTail(unit = process.env.NUSA_READINESS_JOURNAL_UNIT || "nusa", lines = 80, run = spawnSync) {
   try {
-    const result = run("journalctl", ["-u", unit, "-n", String(lines), "--no-pager", "-o", "cat"], { encoding: "utf8", timeout: 10_000 });
+    const args = ["-u", unit, "-n", String(lines), "--no-pager", "-o", "cat"];
+    // Test seam only: a Node script standing in for journalctl, so the evidence path is verified on
+    // every CI platform. Production never sets it and always reads the real systemd journal.
+    const stub = process.env.NUSA_READINESS_JOURNAL_STUB;
+    const result = stub ? run(process.execPath, [stub, ...args], { encoding: "utf8", timeout: 10_000 }) : run("journalctl", args, { encoding: "utf8", timeout: 10_000 });
     if (result.status !== 0 || typeof result.stdout !== "string") return [];
     return result.stdout.split(/\r?\n/).filter(Boolean).map(redactJournalLine);
   } catch {
