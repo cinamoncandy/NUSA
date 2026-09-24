@@ -196,16 +196,17 @@ current_upbit_bridge_credential_persistence:
 project: nusa
 updated_at: "2026-09-23T18:40:00+09:00"
 current_execution_target:
-  work_order: WO-20260924-PAPER-CHALLENGER-POLICY-APPROVAL
+  work_order: WO-20260924-MOBILE-UPDATE-FALSE-ENDPOINT-CHANGE
   status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-governance-wiring
-  decision: ADR-0018
-  scope: "Wire canonical Governance approval (deterministic POLICY, default off) into PAPER challenger deployment; a missing approval waits instead of stopping the PAPER runtime."
-  authority_impact: governance_boundary
-  prior_target: WO-20260924-MOBILE-PAPER-SESSION-SINGLE-OWNER
-  prior_target_status: MERGED_PR_2250
+  branch: claude/nusa-repository-j93sd8-update-endpoint
+  scope: "Real-device P0: settings restore no longer reads as an endpoint change that destroys the PAPER session."
+  authority_impact: credential_boundary
+  prior_target: WO-20260924-MOBILE-APP-UPDATE-CONTINUITY
+  prior_target_status: PR_2254_OPEN
   prior_target_preserved: true
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+owner_decisions:
+  autonomy: "2026-09-24 owner: every non-LIVE decision is autonomous; the only owner decision is LIVE trading approval."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: verification
 status: in_progress

@@ -34,7 +34,7 @@ import { PaperShadowMonitorView } from "./src/paperShadowMonitorView";
 // PaperLearningMonitorView remains the canonical PAPER monitor rendered by PaperShadowMonitorView.
 import { buildPaperLearningScreen } from "./src/paperLearningScreen";
 import { getLocalPaperLearningReadiness, recordLocalPaperPublicMarkets } from "./src/localPaperLearningProjection";
-import { resolveCanonicalCloudOrigin } from "./src/canonicalOrigin";
+import { effectivePaperEndpoint, resolveCanonicalCloudOrigin } from "./src/canonicalOrigin";
 import type { PublicCandle } from "./src/chartViewModel";
 import type { WatchlistMarket } from "./src/watchlist";
 import { emitUxTelemetryEvent } from "./src/uxTelemetryClient";
@@ -82,10 +82,11 @@ function PersistedThemeBridge({ children }: Readonly<{ children: React.ReactNode
       if (!active) return;
       const settings = normalizeSettings(stored ?? DEFAULT_SETTINGS);
       const canonical = resolveCanonicalCloudOrigin();
-      setConfiguredPaperEndpoint(settings.paperEndpoint);
-      if (!settings.paperEndpoint && canonical.status === "READY") setConfiguredPaperEndpoint(canonical.origin);
+      // Never apply the raw saved value: "" would transiently unset the canonical origin and read as
+      // an explicit endpoint change that destroys the encrypted PAPER session.
+      setConfiguredPaperEndpoint(effectivePaperEndpoint(settings.paperEndpoint, canonical));
       setMode(themePreference(settings.theme));
-    }).catch(() => { if (active) { setConfiguredPaperEndpoint(""); setMode("dark"); } });
+    }).catch(() => { if (active) setMode("dark"); });
     return () => { active = false; };
   }, [setMode]);
   return <>{children}</>;
