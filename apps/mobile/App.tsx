@@ -194,8 +194,17 @@ function AuthenticatedApp() {
     if (refreshInFlightRef.current) return refreshInFlightRef.current;
     const generation = refreshGenerationRef.current;
     const endpoint = getConfiguredPaperEndpoint();
-    setPaperSessionState(getPaperSessionState());
+    const sessionState = getPaperSessionState();
+    setPaperSessionState(sessionState);
     if (endpoint == null || !isPaperConnectionVerified(endpoint)) {
+      // A foreground DeviceKey restore intentionally clears the process-local VERIFIED flag while
+      // it proves possession again. RECOVERING is therefore not a configuration loss: preserve
+      // the last verified PAPER projections while the runtime remains trading-blocked, then let
+      // subscribePaperSessionVerified() refresh them as soon as the proof completes.
+      if (endpoint != null && sessionState === "RECOVERING") {
+        dispatchRuntime({ type: "RECOVERY_STARTED" });
+        return Promise.resolve();
+      }
       setOperations({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified in Settings before dashboard credentials can be used." });
       setShadowOperations({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified before SHADOW reads." });
       setRealReadOnlyOperations({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified before REAL_READ_ONLY reads." });
