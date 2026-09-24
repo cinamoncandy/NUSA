@@ -201,10 +201,12 @@ current_execution_target:
   branch: claude/nusa-repository-j93sd8-update-continuity
   scope: "First launch after an in-place app update restores PAPER with the registered DeviceKey through the existing coordinator."
   authority_impact: credential_boundary
-  prior_target: WO-20260924-PAPER-CHALLENGER-POLICY-APPROVAL
-  prior_target_status: MERGED_PR_2252
+  prior_target: WO-20260924-MOBILE-UPDATE-FALSE-ENDPOINT-CHANGE
+  prior_target_status: MERGED_PR_2256
   prior_target_preserved: true
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+owner_decisions:
+  autonomy: "2026-09-24 owner: every non-LIVE decision is autonomous; the only owner decision is LIVE trading approval."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: verification
 status: in_progress
