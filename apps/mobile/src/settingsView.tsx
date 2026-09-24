@@ -8,7 +8,7 @@ import { DEFAULT_SETTINGS, normalizeInvestmentPercent, normalizeSettings, type A
 import { createCashInvestmentEnvelope } from "./capitalAllocationGuard";
 import { describeCredentialFailure, InMemoryDashboardCredentialSession, shouldFallbackToMobileEnrollment } from "./dashboardCredentialSession";
 import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
-import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, isPaperConnectionVerified, markPaperConnectionVerified, setConfiguredPaperEndpoint } from "./paperConnectionSession";
+import { clearPaperConnectionVerification, connectPaperSessionSilently, getConfiguredPaperEndpoint, isPaperConnectionVerified, markPaperConnectionVerified, setConfiguredPaperEndpoint } from "./paperConnectionSession";
 import { changeOperatorUserStatus, loadOperatorUsers, type OperatorUserAction, type OperatorUserRecord } from "./operatorUserAccessClient";
 import { UpbitConnectionPanel } from "./upbitConnectionPanel";
 import { resetUpbitReadOnlyState } from "./upbitReadOnlyAccount";
@@ -113,7 +113,7 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
     let active = true;
     connectionInFlightRef.current = true;
     setConnecting(true);
-    void mobileApprovedSession().restoreWithSilentDevice(endpoint, installationId, native).then(async (identity) => {
+    void connectPaperSessionSilently(endpoint, { deviceId: installationId, native }).then(async (identity) => {
       if (!active || identity == null) return;
       const result = await loadPersonalPaperOperations({ baseUrl: endpoint, credentialProvider: credentialSession.credentialProvider, allowUnverifiedEndpoint: true });
       if (!active || result.status !== "READY") return;
@@ -217,7 +217,7 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
       const native = ownerDeviceCredential();
       const status = await refreshOwnerDeviceStatus();
       if (native != null && status?.available === true && status.credentialId != null) {
-        await mobileApprovedSession().restoreWithSilentDevice(configuredEndpoint, installationId, native);
+        await connectPaperSessionSilently(configuredEndpoint, { deviceId: installationId, native });
         const result = await loadPersonalPaperOperations({ baseUrl: configuredEndpoint, credentialProvider: credentialSession.credentialProvider, allowUnverifiedEndpoint: true });
         if (result.status !== "READY") throw new Error(result.reason);
         markPaperConnectionVerified(configuredEndpoint); setConnection(result); setPairing(null); setOwnerAuthenticationFallback(false);

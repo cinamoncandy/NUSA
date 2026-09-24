@@ -87,10 +87,11 @@ function identity(): ClosedLearningEvidenceIdentity {
   });
 }
 
-function cycle(outcome: "INSUFFICIENT" | "REJECTED" | "QUALIFIED_FOR_LEAGUE"): ClosedLearningCycleResult {
+function cycle(outcome: "INSUFFICIENT" | "REJECTED" | "QUALIFIED_FOR_LEAGUE", awaitingGovernance = false): ClosedLearningCycleResult {
   const qualified = outcome === "QUALIFIED_FOR_LEAGUE";
+  const deployed = qualified && !awaitingGovernance;
   return Object.freeze({
-    status: "EXECUTED",
+    status: awaitingGovernance ? "WAITING_GOVERNANCE_APPROVAL" : "EXECUTED",
     record: Object.freeze({
       cycleId: "closed-learning:cycle",
       evidenceId: "evidence-0",
@@ -102,7 +103,7 @@ function cycle(outcome: "INSUFFICIENT" | "REJECTED" | "QUALIFIED_FOR_LEAGUE"): C
         decisionReference: "research:decision-0",
         reasons: Object.freeze([]),
       }),
-      ...(qualified ? { paperDeployment: Object.freeze({ deploymentId: "deployment-0", candidateId: "candidate-b", candidateVersion: "v2", authority: "PAPER_RESEARCH_ONLY" as const, liveAuthority: "NONE" as const, productionMutationAllowed: false as const, aiAuthority: "ZERO_AUTHORITY" as const }) } : {}),
+      ...(deployed ? { paperDeployment: Object.freeze({ deploymentId: "deployment-0", candidateId: "candidate-b", candidateVersion: "v2", authority: "PAPER_RESEARCH_ONLY" as const, liveAuthority: "NONE" as const, productionMutationAllowed: false as const, aiAuthority: "ZERO_AUTHORITY" as const }) } : {}),
       recordedAt: NEXT_KST_DAY,
     }),
   });
@@ -112,6 +113,7 @@ function harness(options: {
   now: number;
   observation?: "FILLED" | "WAIT";
   outcome?: "INSUFFICIENT" | "REJECTED" | "QUALIFIED_FOR_LEAGUE";
+  awaitingGovernance?: boolean;
   closeError?: Error;
   openPeriods?: readonly PersistedPaperRealizedPeriodPlan[];
   priorRealized?: readonly PersistedPaperPeriodEnvelope[];
@@ -131,7 +133,7 @@ function harness(options: {
     },
     openPeriodFromCanonicalAccount: (input) => { events.push(`open:${input.periodId}:${input.periodStartAt}:${input.periodIndex}`); return { ...plan("FILLED", input.periodId), ...input } as PersistedPaperRealizedPeriodPlan; },
     buildEvidenceIdentity: (window) => { events.push(`identity:${window.realizedPeriods.map((item) => item.record.recordId).join(",")}`); return identity(); },
-    runClosedLearningCycle: () => { events.push("cycle"); return cycle(options.outcome ?? "INSUFFICIENT"); },
+    runClosedLearningCycle: () => { events.push("cycle"); return cycle(options.outcome ?? "INSUFFICIENT", options.awaitingGovernance === true); },
   };
   return { scheduler: new ClosedLearningRolloverScheduler(port), events };
 }
@@ -162,6 +164,13 @@ describe("ClosedLearningRolloverScheduler", () => {
     const { scheduler, events } = harness({ now: NEXT_KST_DAY, outcome: "QUALIFIED_FOR_LEAGUE" });
     assert.equal(scheduler.runOnce().status, "CLOSED_AND_EVALUATED");
     assert.deepEqual(events, [`close:period-0:${NEXT_KST_DAY}`, "identity:record-0", "cycle"]);
+  });
+
+  it("keeps PAPER running on the current candidate while a qualified challenger waits for Governance approval", () => {
+    const { scheduler, events } = harness({ now: NEXT_KST_DAY, outcome: "QUALIFIED_FOR_LEAGUE", awaitingGovernance: true });
+    assert.equal(scheduler.runOnce().status, "CLOSED_AND_EVALUATED");
+    assert.deepEqual(events.slice(0, 3), [`close:period-0:${NEXT_KST_DAY}`, "identity:record-0", "cycle"]);
+    assert.equal(events[3], `open:closed-learning-rollover:1:${NEXT_KST_DAY}:${NEXT_KST_DAY}:1`, "a next period opens so PAPER never stalls with no open period");
   });
 
   it("fails closed on multiple open canonical periods", () => {

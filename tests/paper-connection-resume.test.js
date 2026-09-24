@@ -47,7 +47,7 @@ test("resuming revalidates even when the process-local endpoint was already veri
   markPaperConnectionVerified(ENDPOINT);
   assert.equal(isPaperConnectionVerified(ENDPOINT), true);
   resumePaperConnection();
-  assert.equal(isPaperConnectionVerified(ENDPOINT), true, "revalidation must not invent a disconnect synchronously");
+  assert.equal(isPaperConnectionVerified(ENDPOINT), false, "foreground revalidation must fail closed until fresh identity succeeds");
   clearConfiguredPaperEndpoint();
 });
 
@@ -88,6 +88,34 @@ test("resume requires no token input", () => {
 });
 
 
+test("a scheduled restore retry repeats the same silent-device attempt, not a downgraded bearer restore", () => {
+  // Regression for a real Galaxy device report: a retry scheduled after a failed foreground resume
+  // called restoreApprovedSession(endpoint) with no force/silent context, silently downgrading
+  // every retry to the bearer-refresh restore() path. A device whose silent DeviceKey check failed
+  // only transiently (a Keystore hiccup right after Doze/background) then depended on a persisted
+  // bearer refresh surviving background too, which foreground resume does not rely on by design --
+  // so the retry could never actually repeat the attempt that failed.
+  const fs = require("node:fs");
+  const source = fs.readFileSync("apps/mobile/src/paperConnectionSession.ts", "utf8");
+  const signatureStart = source.indexOf("function scheduleRestoreRetry(");
+  assert.ok(signatureStart > 0, "expected scheduleRestoreRetry to exist");
+  const signatureEnd = source.indexOf(")", signatureStart);
+  const signature = source.slice(signatureStart, signatureEnd);
+  assert.match(signature, /force:\s*boolean/, "scheduleRestoreRetry must accept the force flag of the attempt it is retrying");
+  assert.match(signature, /silent\?:/, "scheduleRestoreRetry must accept the silent DeviceKey context of the attempt it is retrying");
+  const calls = (source.match(/scheduleRestoreRetry\([^)]*\)/g) || []).filter((call) => !call.startsWith("scheduleRestoreRetry(endpoint: string"));
+  assert.ok(calls.length >= 2, "expected at least the immediate-failure and single-flight-cleared call sites");
+  for (const call of calls) {
+    assert.match(call, /scheduleRestoreRetry\(endpoint,\s*force,\s*silent\)/, `every scheduleRestoreRetry call must forward force/silent, found: ${call}`);
+  }
+  // The retry timer itself must repeat the same attempt, not just receive the context and drop it.
+  const bodyStart = source.indexOf("restoreRetryTimer = setTimeout(", signatureStart);
+  assert.ok(bodyStart > signatureStart, "expected scheduleRestoreRetry to arm a retry timer");
+  const bodyEnd = source.indexOf("}, delay);", bodyStart);
+  const timerBody = source.slice(bodyStart, bodyEnd);
+  assert.match(timerBody, /restoreApprovedSession\(endpoint,\s*force,\s*silent\)/, "the retry timer must call restoreApprovedSession with the same force/silent it was armed with");
+});
+
 test("resume does not trust VERIFIED as proof of a live credential", () => {
   const fs = require("node:fs");
   const source = fs.readFileSync("apps/mobile/src/paperConnectionSession.ts", "utf8");
@@ -95,4 +123,29 @@ test("resume does not trust VERIFIED as proof of a live credential", () => {
   const body = source.slice(start, source.indexOf("\n}", start));
   assert.doesNotMatch(body, /if \(isPaperConnectionVerified\(endpoint\)\) return/, "foreground must revalidate stale process-local verification");
   assert.match(body, /restoreApprovedSession\(endpoint, true, silent\)/, "foreground recovery must force a single-flight revalidation");
+});
+
+test("an explicit verification is not undone by a slower restore that fails afterwards", async () => {
+  // Galaxy report: connect had to be pressed several times. Saving Settings starts a restore;
+  // the connect button then verified the session; the earlier restore failing later cleared it.
+  const { mobileApprovedSession } = require("../dist/apps/mobile/src/mobileApprovedSessionBoundary.js");
+  const session = mobileApprovedSession();
+  const originalRestore = session.restore;
+  const originalRetryable = session.shouldRetryRestore;
+  let rejectRestore;
+  try {
+    clearConfiguredPaperEndpoint();
+    session.restore = () => new Promise((_resolve, reject) => { rejectRestore = reject; });
+    session.shouldRetryRestore = () => true;
+    setConfiguredPaperEndpoint(ENDPOINT);
+    markPaperConnectionVerified(ENDPOINT);
+    rejectRestore(new Error("late network failure"));
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(isPaperConnectionVerified(ENDPOINT), true);
+  } finally {
+    clearConfiguredPaperEndpoint();
+    session.restore = originalRestore;
+    session.shouldRetryRestore = originalRetryable;
+  }
 });

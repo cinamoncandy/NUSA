@@ -1,0 +1,49 @@
+id: WO-20260924-PAPER-CHALLENGER-POLICY-APPROVAL
+title: "Wire canonical Governance approval into PAPER challenger deployment (ADR-0018)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-governance-wiring
+decision: ADR-0018
+authority_impact: governance_boundary
+authority_impact_note: "Owner-approved relaxation: deterministic POLICY approval of PAPER challengers, off by default. PAPER only; LIVE NONE; AI cannot approve."
+objective: "A Research-qualified candidate can become a PAPER challenger through canonical Governance, and a missing approval never stops the PAPER runtime."
+finding: "Independent convergence audit (latest main f6ae7fba): PaperChallengerDeploymentRuntime requires a Governance port, the production composition passed none, and no production implementation existed. The PAPER learning loop could never close, and the first qualified candidate would stop the runtime via failClosedScheduler; a qualified-but-undeployed rollover would leave no open PAPER period."
+scope:
+  include:
+    - "apps/cloud/src/paperChallengerPolicyApproval.ts: deterministic POLICY approval port, default off"
+    - "paperChallengerDeploymentRuntime: accept POLICY approvals only under the policy: namespace; AI/HYBRID still rejected"
+    - "closedLearningProductionRuntime: pass the Governance port, gated by NUSA_PAPER_CHALLENGER_POLICY_APPROVAL=ENABLED"
+    - "coordinator/bootstrap: PAPER_CHALLENGER_GOVERNANCE_APPROVAL_UNAVAILABLE becomes WAITING_GOVERNANCE_APPROVAL; other faults still fail closed"
+    - "rollover: open the next period whenever no replacement was deployed"
+    - "tests/closed-learning-governance-wiring.test.js: production composition must pass the port"
+  exclude:
+    - "No change to Research qualification gates, CHAMPION promotion, capital allocation, or LIVE"
+    - "The switch is not enabled by this change"
+acceptance:
+  - "Disabled policy: qualified candidate waits; nothing bound or opened; PAPER keeps running."
+  - "Enabled policy: stored qualified artifact with valid lineage deploys as a POLICY CHALLENGER."
+  - "AI/HYBRID approvals and POLICY approvals outside policy: are rejected."
+verification_commands:
+  - "node --test dist/apps/cloud/src/paperChallengerPolicyApproval.test.js dist/apps/cloud/src/closedLearning*.test.js dist/apps/cloud/src/paperChallenger*.test.js"
+  - "node --test tests/closed-learning-governance-wiring.test.js tests/integration-paper-lifecycle-production-root.test.js tests/closed-learning-http-event-loop-regression.test.js"
+  - "pnpm run validate (Node >= 24)"
+evidence:
+  implementation_status: READY_FOR_REVIEW
+  mutation_verification:
+    - "composition without governance port -> wiring test fails"
+    - "rollover not opening a period for undeployed qualified cycle -> 1 failure"
+    - "coordinator not converting missing approval to a wait -> 1 failure"
+    - "bootstrap not converting missing approval to a wait -> 1 failure"
+    - "runtime HUMAN-only -> 1 failure"
+    - "POLICY accepted outside policy: namespace -> 1 failure"
+    - "policy approving while disabled -> 1 failure"
+  external_validation: "REQUIRED: exact-head CI, Audit, Release. Enabling the switch on the PAPER host is an operator action."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Obtain exact-head CI, Audit, Release; operator sets NUSA_PAPER_CHALLENGER_POLICY_APPROVAL=ENABLED on the PAPER host when ready."

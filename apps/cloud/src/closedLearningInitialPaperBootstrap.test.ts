@@ -80,6 +80,7 @@ function options(input: {
   readonly hasOpen?: boolean;
   readonly hasRealized?: boolean;
   readonly failHistory?: boolean;
+  readonly deployError?: string;
 } = {}) {
   const events: string[] = [];
   const replay = input.replay ?? replayResult(true);
@@ -107,7 +108,7 @@ function options(input: {
     },
     history: { persist: () => { events.push("history"); if (input.failHistory) throw new Error("history unavailable"); return {} as never; } },
     artifacts: { save: (artifact: never) => { events.push("artifact"); return artifact; } },
-    deployment: { deploy: (deploymentInput: { decision: { candidateId: string; candidateVersion: string } }) => { events.push("deploy"); return { deploymentId: "initial-period", candidateId: deploymentInput.decision.candidateId, candidateVersion: deploymentInput.decision.candidateVersion, authority: "PAPER_RESEARCH_ONLY" as const, liveAuthority: "NONE" as const, productionMutationAllowed: false as const, aiAuthority: "ZERO_AUTHORITY" as const }; } },
+    deployment: { deploy: (deploymentInput: { decision: { candidateId: string; candidateVersion: string } }) => { events.push("deploy"); if (input.deployError) throw new Error(input.deployError); return { deploymentId: "initial-period", candidateId: deploymentInput.decision.candidateId, candidateVersion: deploymentInput.decision.candidateVersion, authority: "PAPER_RESEARCH_ONLY" as const, liveAuthority: "NONE" as const, productionMutationAllowed: false as const, aiAuthority: "ZERO_AUTHORITY" as const }; } },
     listOpenPeriods: () => input.hasOpen ? [{}] : [],
     listRealizedPeriods: () => input.hasRealized ? [{}] : [],
     now: () => 1_725_494_400_000,
@@ -122,6 +123,20 @@ describe("initial PAPER bootstrap", () => {
     assert.equal(output.status, "DEPLOYED");
     assert.deepEqual(events, ["worker", "history", "artifact", "deploy"]);
     assert.equal(output.deployment?.candidateId, "candidate-a");
+  });
+
+  it("waits instead of failing the runtime when Governance has not approved the qualified candidate", () => {
+    const { base, events } = options({ deployError: "PAPER_CHALLENGER_GOVERNANCE_APPROVAL_UNAVAILABLE" });
+    const output = new ClosedLearningInitialPaperBootstrap(base).runOnce();
+    assert.equal(output.status, "WAITING_GOVERNANCE_APPROVAL");
+    assert.deepEqual(output.reasons, ["PAPER_CHALLENGER_GOVERNANCE_APPROVAL_UNAVAILABLE"]);
+    assert.equal(output.deployment, undefined);
+    assert.deepEqual(events, ["worker", "history", "artifact", "deploy"]);
+  });
+
+  it("still fails closed on any other deployment fault", () => {
+    const { base } = options({ deployError: "PAPER_CHALLENGER_GOVERNANCE_LIFECYCLE_INVALID" });
+    assert.throws(() => new ClosedLearningInitialPaperBootstrap(base).runOnce(), /PAPER_CHALLENGER_GOVERNANCE_LIFECYCLE_INVALID/);
   });
 
   it("keeps async production bootstrap off the synchronous latest path", async () => {

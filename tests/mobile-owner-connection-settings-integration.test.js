@@ -12,7 +12,7 @@ const slice = (from, to) => settings.slice(settings.indexOf(from), settings.inde
 test("primary OWNER authentication never silently starts pairing", () => {
   const primary = slice("const requestPaperConnection = async", "const requestRecoveryPairing = async");
   const recovery = slice("const requestRecoveryPairing = async", "const enrollThisPhone = async");
-  assert.match(primary, /restoreWithSilentDevice/);
+  assert.match(primary, /connectPaperSessionSilently\(/);
   assert.doesNotMatch(primary, /startPairing/);
   assert.match(primary, /소유자 확인 후 이 휴대폰을 먼저 등록하세요/);
   assert.match(recovery, /startPairing\(configuredEndpoint, installationId\)/);
