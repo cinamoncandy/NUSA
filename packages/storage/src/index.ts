@@ -13,6 +13,8 @@ import { researchFactoryDecisionHistoryMigration } from "./researchFactoryDecisi
 export { runMigrations } from "./migrationRunner";
 export type { MigrationResult, SqliteMigration } from "./migrationRunner";
 export { SqliteResearchMemoryRepository } from "./researchMemory";
+export { SqliteResearchIntelligenceMemoryRepository } from "./researchIntelligenceMemory";
+export type { ResearchIntelligenceMemoryDatabase } from "./researchIntelligenceMemory";
 export type { HypothesisStatus, ResearchExperimentRecord, ResearchHypothesis, ResearchMemoryDatabase } from "./researchMemory";
 export { SqliteComplianceControlPlaneStore } from "./complianceControlPlaneStore";
 export type { ComplianceDatabase } from "./complianceControlPlaneStore";
@@ -492,4 +494,18 @@ CREATE INDEX IF NOT EXISTS idx_research_memory_semantic_artifact
   ON research_memory_semantic_events (artifact_kind, artifact_id, artifact_sha256, sequence);
 CREATE INDEX IF NOT EXISTS idx_research_memory_semantic_identity
   ON research_memory_semantic_events (semantic_identity, independence_group_id, sequence);
-` }, cloudPaperFillLedgerMigration];
+` }, cloudPaperFillLedgerMigration, { id: "024_research_intelligence_memory", sql: `
+CREATE TABLE IF NOT EXISTS research_intelligence_records (
+  record_id TEXT PRIMARY KEY,
+  source_id TEXT NOT NULL,
+  source_type TEXT NOT NULL,
+  content_fingerprint TEXT NOT NULL,
+  hypothesis_semantic_fingerprint TEXT NOT NULL,
+  discovered_at TEXT NOT NULL,
+  payload_json TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_research_intelligence_source
+  ON research_intelligence_records (source_type, source_id, discovered_at, record_id);
+CREATE INDEX IF NOT EXISTS idx_research_intelligence_hypothesis
+  ON research_intelligence_records (hypothesis_semantic_fingerprint, discovered_at, record_id);
+` }];
