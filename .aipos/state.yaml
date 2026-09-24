@@ -201,8 +201,8 @@ current_execution_target:
   branch: claude/nusa-repository-j93sd8-ai-budget-state
   scope: "Owner spec 2026-09-24: generalize #2238 daily-quota stop into NORMAL/CONSERVE/HARD_STOP AI budget states (first slice: pure classifier + diagnostic wiring only). Workers Paid enablement is a billing decision left to the owner, not performed here."
   authority_impact: none
-  prior_target: WO-20260924-RESEARCH-RECOVERY-FEED-GATE
-  prior_target_status: READY_FOR_REVIEW
+  prior_target: WO-20260924-MOBILE-RESTORE-VERIFIED-NOTIFY
+  prior_target_status: MERGED_PR_2264
   prior_target_preserved: true
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 owner_decisions:
