@@ -15,6 +15,10 @@ let restoreInFlightSilent = false;
 let restoreInFlightResult: Promise<MobileApprovedSessionIdentity | null> | null = null;
 let restoreRetryTimer: ReturnType<typeof setTimeout> | null = null;
 let restoreRetryAttempts = 0;
+// Foreground wake can require an async installation-id lookup before the DeviceKey restore starts.
+// Keep that bounded interval in the canonical session state so dashboard refreshes cannot overwrite
+// RECOVERING with RECOVERY_REQUIRED while the trusted device is preparing its silent proof.
+let foregroundRecoveryPending = false;
 const RESTORE_RETRY_BASE_MS = 1_000;
 const RESTORE_RETRY_MAX_MS = 30_000;
 const verificationListeners = new Set<() => void>();
@@ -152,6 +156,10 @@ export function setConfiguredPaperEndpoint(value: string): void {
 
 export function getConfiguredPaperEndpoint(): string | null { return configuredEndpoint; }
 
+export function beginPaperConnectionRecovery(): void {
+  if (configuredEndpoint != null) foregroundRecoveryPending = true;
+}
+
 /**
  * Session state for projection only. An unverified session on a configured endpoint is not a
  * setup problem while a restore is in flight or a bounded retry is armed: the device is still
@@ -164,7 +172,7 @@ export type PaperSessionState = "NOT_CONFIGURED" | "VERIFIED" | "RECOVERING" | "
 export function getPaperSessionState(): PaperSessionState {
   if (configuredEndpoint == null) return "NOT_CONFIGURED";
   if (isPaperConnectionVerified(configuredEndpoint)) return "VERIFIED";
-  if (restoreInFlight != null || restoreRetryTimer != null) return "RECOVERING";
+  if (foregroundRecoveryPending || restoreInFlight != null || restoreRetryTimer != null) return "RECOVERING";
   return "RECOVERY_REQUIRED";
 }
 
@@ -228,10 +236,13 @@ export function resumePaperConnection(silent?: SilentContext): void {
   // before the forced restore so a transient null result can enter the bounded retry path instead
   // of being suppressed as "already verified". Fresh identity is the only path that marks it true.
   verifiedEndpoint = null;
-  void restoreApprovedSession(endpoint, true, silent);
+  const restore = restoreApprovedSession(endpoint, true, silent);
+  foregroundRecoveryPending = false;
+  void restore;
 }
 
 export function clearConfiguredPaperEndpoint(): void {
+  foregroundRecoveryPending = false;
   configuredEndpoint = null;
   verifiedEndpoint = null;
   restoreGeneration += 1;
