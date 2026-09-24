@@ -199,9 +199,9 @@ export async function restoreConfiguredPaperSession(value = configuredEndpoint, 
  * and this only exchanges it again. A session that has genuinely lapsed still fails closed, and the
  * device must be re-approved by an ACTIVE OWNER exactly as before.
  */
-export function resumePaperConnection(silent?: SilentContext): void {
+export async function resumePaperConnection(silent?: SilentContext): Promise<boolean> {
   const endpoint = configuredEndpoint;
-  if (endpoint == null) return;
+  if (endpoint == null) return false;
   // A VERIFIED flag is only a process-local observation. Android can preserve it while the app is
   // backgrounded long enough for the actual access credential to expire. Always revalidate on
   // foreground; restoreApprovedSession is single-flight so duplicate lifecycle events coalesce.
@@ -210,7 +210,8 @@ export function resumePaperConnection(silent?: SilentContext): void {
   // before the forced restore so a transient null result can enter the bounded retry path instead
   // of being suppressed as "already verified". Fresh identity is the only path that marks it true.
   verifiedEndpoint = null;
-  void restoreApprovedSession(endpoint, true, silent);
+  await restoreApprovedSession(endpoint, true, silent);
+  return isPaperConnectionVerified(endpoint);
 }
 
 export function clearConfiguredPaperEndpoint(): void {
