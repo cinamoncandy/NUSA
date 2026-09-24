@@ -139,14 +139,44 @@ public final class NusaOwnerDeviceCredentialModule extends ReactContextBaseJavaM
     WritableMap result = Arguments.createMap();
     String credentialId = preferences.getString(SILENT_ACTIVE_ID, null);
     boolean apiSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M;
-    boolean keyPresent = credentialId != null && hasSilentKey(credentialId);
-    boolean hardwareBacked = keyPresent && isSilentHardwareBacked(credentialId);
-    result.putBoolean("available", apiSupported && keyPresent && hardwareBacked);
-    result.putBoolean("canCreate", apiSupported);
-    result.putBoolean("hardwareBacked", hardwareBacked);
-    result.putString("status", !apiSupported ? "ANDROID_KEYSTORE_REQUIRED" : keyPresent ? (hardwareBacked ? "SILENT_DEVICE_KEY_PRESENT" : "HARDWARE_BACKING_UNAVAILABLE") : "SILENT_DEVICE_KEY_NOT_REGISTERED");
-    if (keyPresent) result.putString("credentialId", credentialId); else result.putNull("credentialId");
-    promise.resolve(result);
+    if (!apiSupported) {
+      result.putBoolean("available", false);
+      result.putBoolean("canCreate", false);
+      result.putBoolean("hardwareBacked", false);
+      result.putString("status", "ANDROID_KEYSTORE_REQUIRED");
+      result.putNull("credentialId");
+      promise.resolve(result);
+      return;
+    }
+    if (credentialId == null) {
+      result.putBoolean("available", false);
+      result.putBoolean("canCreate", true);
+      result.putBoolean("hardwareBacked", false);
+      result.putString("status", "SILENT_DEVICE_KEY_NOT_REGISTERED");
+      result.putNull("credentialId");
+      promise.resolve(result);
+      return;
+    }
+    try {
+      KeyStore store = keyStore();
+      boolean keyPresent = store.containsAlias(silentAlias(credentialId));
+      boolean hardwareBacked = keyPresent && isSilentHardwareBackedOrThrow(credentialId);
+      result.putBoolean("available", keyPresent && hardwareBacked);
+      result.putBoolean("canCreate", true);
+      result.putBoolean("hardwareBacked", hardwareBacked);
+      result.putString("status", keyPresent ? (hardwareBacked ? "SILENT_DEVICE_KEY_PRESENT" : "HARDWARE_BACKING_UNAVAILABLE") : "SILENT_DEVICE_KEY_NOT_REGISTERED");
+      if (keyPresent) result.putString("credentialId", credentialId); else result.putNull("credentialId");
+      promise.resolve(result);
+    } catch (Exception error) {
+      // A Keystore/provider inspection failure is not evidence that the registered key vanished.
+      // Preserve the credential id and let the JS recovery coordinator classify this as transient.
+      result.putBoolean("available", false);
+      result.putBoolean("canCreate", false);
+      result.putBoolean("hardwareBacked", false);
+      result.putString("status", "SILENT_DEVICE_KEY_STATUS_TRANSIENT_ERROR");
+      result.putString("credentialId", credentialId);
+      promise.resolve(result);
+    }
   }
 
   @ReactMethod public void createSilentDeviceCredential(Promise promise) {
@@ -226,13 +256,14 @@ public final class NusaOwnerDeviceCredentialModule extends ReactContextBaseJavaM
   private static void deleteAlias(String id) throws Exception { keyStore().deleteEntry(alias(id)); }
   private static boolean hasSilentKey(String id) { try { return keyStore().containsAlias(silentAlias(id)); } catch (Exception ignored) { return false; } }
   private static void deleteSilentAlias(String id) throws Exception { keyStore().deleteEntry(silentAlias(id)); }
+  private static boolean isSilentHardwareBackedOrThrow(String id) throws Exception {
+    PrivateKey key = (PrivateKey) keyStore().getKey(silentAlias(id), null);
+    if (key == null) return false;
+    KeyInfo info = KeyFactory.getInstance(key.getAlgorithm(), "AndroidKeyStore").getKeySpec(key, KeyInfo.class);
+    return info.isInsideSecureHardware();
+  }
   private static boolean isSilentHardwareBacked(String id) {
-    try {
-      PrivateKey key = (PrivateKey) keyStore().getKey(silentAlias(id), null);
-      if (key == null) return false;
-      KeyInfo info = KeyFactory.getInstance(key.getAlgorithm(), "AndroidKeyStore").getKeySpec(key, KeyInfo.class);
-      return info.isInsideSecureHardware();
-    } catch (Exception ignored) { return false; }
+    try { return isSilentHardwareBackedOrThrow(id); } catch (Exception ignored) { return false; }
   }
   private static boolean isHardwareBacked(String id) {
     try {
