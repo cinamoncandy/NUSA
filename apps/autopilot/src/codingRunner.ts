@@ -155,6 +155,7 @@ const EXECUTION_ID = /^[A-Za-z0-9_.:-]{1,160}$/;
 const DEDUPE_KEY = /^[A-Za-z0-9_.:-]{1,256}$/;
 const DEFAULT_REPOSITORY = "cinamoncandy/NUSA";
 const GITHUB_API_ORIGIN = "https://api.github.com";
+const GITHUB_MODELS_ENDPOINT = "https://models.github.ai/inference/chat/completions";
 const DEFAULT_WORKERS_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 const MAX_CODING_PROPOSAL_BYTES = 24_000;
 const MAX_CODING_PROPOSAL_FEEDBACK_BYTES = 512;
@@ -537,6 +538,39 @@ function codingProposalPrompt(request: CodingRunnerRequest): string {
   ].join("\n");
 }
 
+function githubModelsCodingRequest(request: CodingRunnerRequest, token: string, prompt = codingProposalPrompt(request)): RequestInit {
+  return {
+    method: "POST",
+    headers: {
+      accept: "application/vnd.github+json",
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json",
+      "x-github-api-version": "2022-11-28",
+    },
+    body: JSON.stringify({
+      model: "openai/gpt-4.1",
+      temperature: 0,
+      max_tokens: 5000,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: "You are NUSA's bounded coding proposal engine. Obey every constraint and return JSON only." },
+        { role: "user", content: prompt },
+      ],
+    }),
+  };
+}
+
+async function githubModelsProposal(request: CodingRunnerRequest, token: string, fetchImpl: FetchImpl, prompt: string): Promise<CodingProposal> {
+  const response = await fetchImpl(GITHUB_MODELS_ENDPOINT, githubModelsCodingRequest(request, token, prompt));
+  if (!response.ok) throw new Error(`GITHUB_MODELS_CODING_HTTP_${response.status}`);
+  const payload = object(await response.json());
+  if (!Array.isArray(payload.choices) || payload.choices.length < 1) throw new Error("GITHUB_MODELS_CODING_RESPONSE_INVALID");
+  const choice = object(payload.choices[0]);
+  const message = object(choice.message);
+  if (typeof message.content !== "string" || !message.content.trim()) throw new Error("GITHUB_MODELS_CODING_RESPONSE_INVALID");
+  return parseProposalText(message.content);
+}
+
 function workersAiCodingRequest(request: CodingRunnerRequest, model: string, prompt = codingProposalPrompt(request)): {
   model: string;
   prompt: string;
@@ -648,6 +682,16 @@ export async function executeCodingRunner(
       }
       const current = now();
       if (waitUntil !== null && current < waitUntil) {
+        const githubToken = env.NUSA_GITHUB_TOKEN?.trim();
+        if (githubToken) {
+          try {
+            const proposal = await githubModelsProposal(request, githubToken, fetchImpl, prompt);
+            return await executeProposal(request, proposal, runtime, publisher);
+          } catch {
+            // The fallback is capacity relief only. If it is unavailable, preserve the canonical
+            // Workers AI wait instead of turning expected provider backpressure into a red failure.
+          }
+        }
         return {
           status: "BLOCKED_RATE_LIMIT",
           reason: "WAITING_PROVIDER_CAPACITY",
@@ -676,6 +720,15 @@ export async function executeCodingRunner(
     } catch (error) {
       const rateLimitReason = workersAiRateLimitReason(error);
       if (rateLimitReason) {
+        const githubToken = env.NUSA_GITHUB_TOKEN?.trim();
+        if (githubToken) {
+          try {
+            const proposal = await githubModelsProposal(request, githubToken, fetchImpl, prompt);
+            return await executeProposal(request, proposal, runtime, publisher);
+          } catch {
+            // Keep the provider stop authoritative when the independent fallback is unavailable.
+          }
+        }
         return {
           status: "BLOCKED_RATE_LIMIT",
           reason: rateLimitReason,
