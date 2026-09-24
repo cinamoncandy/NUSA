@@ -52,7 +52,11 @@ test("cloud market-data wiring selects one research entrypoint when legacy and a
   }
 });
 
-test("research recovery and tick failures stay isolated from PAPER/dashboard state", async () => {
+test("a research recovery that throws fails closed and stays isolated from PAPER/dashboard state", async () => {
+  // A throwing recover() is exactly the CANDIDATE_INPUT_HASH_MISMATCH / corrupted-state case
+  // researchRecoveryCoordinator raises as an exception; it must halt the research feed the same
+  // way an explicit FAIL_CLOSED result does; a tick failure inside onMarketData (once recovery is
+  // healthy) must still never affect the PAPER/dashboard state.
   const provider = new InMemoryCloudDashboardStateProvider();
   let onTicker;
   let automationCalls = 0;
@@ -78,10 +82,63 @@ test("research recovery and tick failures stay isolated from PAPER/dashboard sta
   );
   try {
     assert.doesNotThrow(() => onTicker({ type: "ticker", code: "KRW-BTC", trade_price: 100, signed_change_rate: 0.01, acc_trade_price_24h: 1000, trade_timestamp: Date.now() }));
-    assert.equal(automationCalls, 1);
+    assert.equal(automationCalls, 0, "a recover() failure must fail closed and never reach onMarketData");
     const state = provider.read({ userId: "operator", scopes: ["dashboard:read"] });
     assert.notEqual(state, undefined);
     assert.equal(state.mode, "PAPER");
+  } finally {
+    await handle.stop();
+  }
+});
+test("a FAIL_CLOSED plain researchRuntime recovery halts the market-data research feed", async () => {
+  const provider = new InMemoryCloudDashboardStateProvider();
+  let onTicker;
+  let legacyCalls = 0;
+  const legacy = { onMarketData() { legacyCalls += 1; } };
+  const recoveryCoordinator = { recover: () => ({ status: "FAIL_CLOSED", snapshot: null, reasons: ["CANDIDATE_INPUT_HASH_MISMATCH"] }) };
+  const factory = (_markets, callback) => { onTicker = callback; return { subscribe() {}, start() {}, stop() {} }; };
+  const handle = startCloudRuntime(
+    { NUSA_CLOUD_DASHBOARD_PORT: "41960", NUSA_CLOUD_DASHBOARD_TOKEN: DASHBOARD_TOKEN, NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true", NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC" },
+    provider,
+    undefined,
+    factory,
+    undefined,
+    undefined,
+    undefined,
+    legacy,
+    recoveryCoordinator,
+    undefined
+  );
+  try {
+    onTicker({ type: "ticker", code: "KRW-BTC", trade_price: 100, signed_change_rate: 0.01, acc_trade_price_24h: 1000, trade_timestamp: Date.now() });
+    assert.equal(legacyCalls, 0, "a corrupted research recovery must never be silently discarded; it must halt the research feed");
+  } finally {
+    await handle.stop();
+  }
+});
+
+test("a research recovery that throws also halts the plain researchRuntime market-data feed", async () => {
+  const provider = new InMemoryCloudDashboardStateProvider();
+  let onTicker;
+  let legacyCalls = 0;
+  const legacy = { onMarketData() { legacyCalls += 1; } };
+  const recoveryCoordinator = { recover: () => { throw new Error("recovery repository unavailable"); } };
+  const factory = (_markets, callback) => { onTicker = callback; return { subscribe() {}, start() {}, stop() {} }; };
+  const handle = startCloudRuntime(
+    { NUSA_CLOUD_DASHBOARD_PORT: "41961", NUSA_CLOUD_DASHBOARD_TOKEN: DASHBOARD_TOKEN, NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true", NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC" },
+    provider,
+    undefined,
+    factory,
+    undefined,
+    undefined,
+    undefined,
+    legacy,
+    recoveryCoordinator,
+    undefined
+  );
+  try {
+    assert.doesNotThrow(() => onTicker({ type: "ticker", code: "KRW-BTC", trade_price: 100, signed_change_rate: 0.01, acc_trade_price_24h: 1000, trade_timestamp: Date.now() }));
+    assert.equal(legacyCalls, 0);
   } finally {
     await handle.stop();
   }
