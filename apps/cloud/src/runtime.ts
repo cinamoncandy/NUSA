@@ -40,7 +40,7 @@ import { DesktopSessionService } from "./desktopSessionService";
 import { MobileSessionService } from "./mobileSessionService";
 import { OwnerDeviceCredentialService } from "./ownerCredential/ownerDeviceCredentialService";
 import { PaperLearningEventRecorder, paperLearningCycleId } from "./paperLearningObservability";
-import { buildPaperLearningReadOnlyProjection } from "./paperLearningReadOnlyProjection";
+import { buildPaperLearningReadOnlyProjection, classifyPaperLearningRuntimeStatus } from "./paperLearningReadOnlyProjection";
 import { readPaperRuntimeSupervisorProjection } from "./paperRuntimeSupervisorProjection";
 import type { ShadowObservabilitySnapshot } from "../../../packages/contracts/src/shadowObservabilityReadOnly";
 import { validateShadowObservabilitySnapshot } from "../../../packages/contracts/src/shadowObservabilityReadOnly";
@@ -421,7 +421,7 @@ export function startCloudRuntime(
     if (p0State === "OPEN") runtimeHaltReasons.push("AI_P0_OPEN");
     if (p0State === "UNVERIFIABLE") runtimeHaltReasons.push("AI_P0_UNVERIFIABLE");
     const runtimeState = runtimeHaltReasons.length > 0 ? "HALTED" as const : dashboard.mode === "STOPPED" ? "STOPPED" as const : !autoRunning ? "STOPPED" as const : transport === "ONLINE" ? "RUNNING" as const : "DEGRADED" as const;
-    const learningRuntimeStatus = runtimeHaltReasons.length > 0 || heartbeat.lastError != null ? "HALTED" as const : autoRunning && transport === "ONLINE" ? "RUNNING" as const : "PAUSED" as const;
+    const learningRuntimeStatus = classifyPaperLearningRuntimeStatus({ hasRuntimeHaltReason: runtimeHaltReasons.length > 0, lastError: heartbeat.lastError, autoRunning, transport });
     const primaryMarket = latestTickers.get(config.upbitMarkets[0] ?? "");
     const generatedAt = Math.max(dashboard.generatedAt, heartbeat.lastHeartbeatAt);
     const paperLearning = { schemaVersion: 1 as const, mode: "PAPER" as const, readOnly: true as const, liveAuthority: "NONE" as const, productionMutationAllowed: false as const, runtimeStatus: learningRuntimeStatus, generatedAt, events: buildPaperLearningReadOnlyProjection(paperLearningRecorder.replay(), 250) };
