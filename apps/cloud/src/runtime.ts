@@ -289,7 +289,14 @@ export function startCloudRuntime(
     const recovery = researchAutomation?.recover?.() ?? researchRecoveryCoordinator?.recover();
     if (recovery != null && recovery.status !== "READY") researchRecoveryFailClosed = true;
   } catch { researchRecoveryFailClosed = true; }
-  const clearPaperProjection = (): void => { try { effectivePaperRepository?.clear(); } catch { /* remain fail-closed */ } effectiveProvider.clear(); };
+  // Fail closed by withholding the dashboard projection only. This used to also call
+  // effectivePaperRepository.clear(), which deletes the durable PAPER account, its history and the
+  // canonical fill ledger. It ran whenever the dashboard had no state on a tick (stale or missing
+  // market data closes the kill switch and clears the provider), when a projection threw, or when
+  // one execution result FAILED -- so an ordinary data gap destroyed canonical PAPER truth, and the
+  // next restart loaded no account and reset NAV to initial capital. A projection problem is never
+  // a reason to erase the ledger; an explicit reset still goes through the repository itself.
+  const clearPaperProjection = (): void => { effectiveProvider.clear(); };
   const projectPaperAccount = (): void => {
     if (effectivePaperLoop == null) return;
     const state = effectiveProvider.read({ userId: "operator", scopes: ["dashboard:read"] });
