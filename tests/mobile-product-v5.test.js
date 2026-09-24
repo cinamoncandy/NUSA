@@ -7,7 +7,7 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
 test("product v5 keeps the four primary jobs literal and glanceable", () => {
   const app = read("App.tsx");
-  assert.match(app, /Home: "HOME", Markets: "MARKETS", Paper: "PAPER", LiveTrading: "LIVE TRADING", Portfolio: "PORTFOLIO"/);
+  assert.match(app, /Home: "HOME", Trading: "TRADING", LiveTrading: "LIVE TRADING", Portfolio: "PORTFOLIO"/);
   const home = read("src/homeView.tsx");
   assert.match(home, />MARKETS<\/Text>/);
   assert.match(home, />PORTFOLIO<\/Text>/);
@@ -63,7 +63,7 @@ test("Android product UX acceptance bounds emulator startup and preserves diagno
   assert.match(workflow, /enter_personal\(\)/);
   assert.match(workflow, /"local-entry-submit"/);
   assert.match(workflow, /"home-screen"/);
-  for (const marker of ["tab-Markets", "tab-Paper", "paper-learning-detail-toggle", "tab-Portfolio", "header-tools-menu", "header-settings", "utility-close", "tab-Home"]) {
+  for (const marker of ["tab-Trading", "trading-section-Markets", "trading-section-Paper", "paper-learning-detail-toggle", "tab-Portfolio", "header-tools-menu", "header-settings", "utility-close", "tab-Home"]) {
     assert.match(workflow, new RegExp(`(?:tap|tap_after_scroll) "${marker}"`));
   }
   for (const ambiguousLabel of ["MARKETS", "PAPER", "PORTFOLIO", "HOME", "도구", "설정", "설정 닫기"]) {

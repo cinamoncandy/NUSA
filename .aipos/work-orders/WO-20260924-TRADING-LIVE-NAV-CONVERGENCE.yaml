@@ -4,7 +4,7 @@ status: IN_PROGRESS
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
-implementation_branch: claude/nusa-repository-j93sd8-live-trading-tab
+implementation_branch: claude/nusa-repository-j93sd8-trading-workspace
 parent_work_order: null
 authority_impact: none
 authority_impact_note: "Presentation/navigation convergence only, per the owner's own scope boundary (section 13/14 of the spec). No backend domain merge, no LIVE authority, no order submission, no credential flow. PAPER_ONLY; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY unchanged."
@@ -16,6 +16,12 @@ scope:
     - "apps/mobile/App.tsx: LiveTrading added as its own primary tab/destination alongside existing Home/Markets/Paper/Portfolio/AiSignal; excluded from the dashboard-connection-required gate since it needs no PAPER session"
     - "tests/mobile-live-trading-boundary.test.js: LIVE TRADING reachable as its own destination (not a toggle inside PAPER), always shows the disabled/authority state in text (not color alone), has no order/mutation/credential control, does not require a PAPER connection to render"
     - "existing tab-list source-regex tests (mobile-native-structure, mobile-product-v5, mobile-uiux-readonly-authority, mobile-uiux-v2, mobile-uiux-v3-canonical, mobile-uiux-visual-redesign, uiux-nav-chrome-closeout, mobile-supervision-navigation) updated for the new tab list; none deleted"
+  slice_2:
+    - "Primary navigation: Home / TRADING / LIVE TRADING / Portfolio / AI. MARKETS and PAPER tabs replaced by one TRADING destination."
+    - "apps/mobile/src/tradingWorkspace.tsx: section switch (MARKETS / PAPER) over the existing MarketsView and PAPER TradingView -- no new Market or PAPER implementation, no data-source merge; LIVE is not a section."
+    - "Markets/Paper stay routes (type Tab = PrimaryTab | TradingSection | Order), so openPaperTrade, deep links and Android back keep working."
+    - "SegmentedControl items accept an optional testID; Android product UX acceptance taps tab-Trading / trading-section-Markets / trading-section-Paper."
+    - "tests/mobile-trading-workspace.test.js; nine existing tab-structure source tests updated, none deleted."
   deferred_to_next_slices:
     - "TRADING canonical workspace merging existing MarketsView + TradingView (PAPER) into one navigation destination with the compact status header, asset-linked PAPER position/PnL, and PAPER-truth-via-projection wiring (sections 2-7)"
     - "Navigation migration/compatibility review for existing MARKET/PAPER deep links (section 16)"

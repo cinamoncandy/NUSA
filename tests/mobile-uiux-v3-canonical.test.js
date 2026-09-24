@@ -7,10 +7,10 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 test("App shell routes the canonical five-tab decision flow and preserves deeper jobs", () => {
   const app = read("App.tsx");
   assert.match(app, /import \{ HomeView/);
-  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "LiveTrading", "Portfolio", "AiSignal"\]/);
+  assert.match(app, /const tabs = \["Home", "Trading", "LiveTrading", "Portfolio", "AiSignal"\]/);
   assert.match(app, /AiSignal: "AI"/);
   assert.match(app, /AiSignal: "AI 판단과 근거"/);
-  assert.match(app, /type Tab = PrimaryTab \| "Order"/);
+  assert.match(app, /type Tab = PrimaryTab \| TradingSection \| "Order"/);
   assert.match(app, /<HomeView/);
   assert.match(app, /activeTab === "Paper"/);
   assert.match(app, /<TradingView/);

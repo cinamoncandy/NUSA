@@ -81,7 +81,7 @@ test("Bottom navigation uses a restrained active rail with the five-destination 
   const app = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/App.tsx"), "utf8");
   assert.match(app, /backgroundColor: appTheme\.colors\.navSurface/);
   assert.match(app, /backgroundColor: active \? appTheme\.colors\.aiSignalEnd/);
-  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "LiveTrading", "Portfolio", "AiSignal"\]/);
+  assert.match(app, /const tabs = \["Home", "Trading", "LiveTrading", "Portfolio", "AiSignal"\]/);
   assert.match(app, /AiSignal: "AI"/);
   assert.match(app, /AiSignal: "AI 판단과 근거"/);
 });

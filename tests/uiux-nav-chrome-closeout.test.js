@@ -6,14 +6,14 @@ const path = require("node:path");
 const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
 
 test("bottom navigation exposes five semantic primary jobs and preserves deeper routes", () => {
-  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "LiveTrading", "Portfolio", "AiSignal"\] as const/);
+  assert.match(app, /const tabs = \["Home", "Trading", "LiveTrading", "Portfolio", "AiSignal"\] as const/);
   assert.match(app, /Home: "HOME"/);
-  assert.match(app, /Markets: "MARKETS"/);
-  assert.match(app, /Paper: "PAPER"/);
+  assert.match(app, /Trading: "TRADING"/);
+  assert.match(app, /activeTab === "Paper" \? <TradingWorkspace section="Paper"/);
   assert.match(app, /Portfolio: "PORTFOLIO"/);
   assert.match(app, /AiSignal: "AI"/);
   assert.match(app, /AiSignal: "AI 판단과 근거"/);
-  assert.match(app, /type Tab = PrimaryTab \| "Order"/);
+  assert.match(app, /type Tab = PrimaryTab \| TradingSection \| "Order"/);
   assert.match(app, /activeTab === "AiSignal" \? <AiView/);
   assert.match(app, /accessibilityRole="tablist"/);
   assert.match(app, /accessibilityRole="tab"/);
