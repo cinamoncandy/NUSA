@@ -38,3 +38,8 @@ test("LIVE TRADING has no order submission, mutation, or credential-entry contro
 test("LIVE TRADING does not require an active PAPER dashboard connection to render", () => {
   assert.match(app, /activeTab !== "LiveTrading"/);
 });
+
+test("Android back from LIVE TRADING returns HOME without touching session or authority", () => {
+  const { resolveAndroidBackNavigation } = require("../dist/apps/mobile/src/androidBackNavigation.js");
+  assert.equal(resolveAndroidBackNavigation({ paperLearningOpen: false, utilityViewOpen: false, utilityMenuOpen: false, activeTab: "LiveTrading" }), "GO_HOME");
+});
