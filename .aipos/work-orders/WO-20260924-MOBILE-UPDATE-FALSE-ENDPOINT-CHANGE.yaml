@@ -1,0 +1,38 @@
+id: WO-20260924-MOBILE-UPDATE-FALSE-ENDPOINT-CHANGE
+title: "App start must not read as an endpoint change and destroy the PAPER session"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-update-endpoint
+parent_work_order: WO-20260924-MOBILE-APP-UPDATE-CONTINUITY
+authority_impact: credential_boundary
+authority_impact_note: "Stops a false destructive session clear. Explicit endpoint-change protection unchanged. No LIVE, broker, risk or AI-authority change."
+objective: "A real Galaxy in-place app update keeps PAPER server authentication."
+finding: "Owner real-device report on main 93513c5e: app update still drops PAPER authentication. FIRST_BROKEN_TRANSITION: persisted settings restore -> false endpoint change -> destructive disconnect. Release builds save paperEndpoint '' and rely on the canonical origin. VersionedSettingsRepository.load() applied the raw '' via setConfiguredPaperEndpoint, and App start runs four settings loads, so after the auth path set the canonical origin a later load flipped it canonical -> none. setDashboardCredentialEndpoint treats that as an explicit endpoint change and calls mobileApprovedSession().disconnect(canonical) -> clearLocal() deletes the persisted refresh session (and revokes server-side if an access token is in memory). App start also cleared the endpoint on any settings load failure."
+scope:
+  include:
+    - "canonicalOrigin.effectivePaperEndpoint(saved, canonical): saved endpoint, else canonical origin"
+    - "VersionedSettingsRepository load/save and App cold start apply the effective endpoint; the load-failure path no longer clears the endpoint"
+    - "tests/mobile-app-update-endpoint-continuity.test.js (fails on main, passes after)"
+    - "tests/mobile-paper-real-use-ui.test.js: source assertion that required setConfiguredPaperEndpoint('') replaced by the inverse"
+  exclude:
+    - "Explicit change to a different endpoint still destroys the old session"
+acceptance:
+  - "Four concurrent settings loads after the canonical origin is configured leave it configured and call no disconnect."
+  - "An explicit save of a different endpoint still disconnects the old one."
+verification_commands:
+  - "node --test tests/mobile-app-update-endpoint-continuity.test.js"
+  - "node --test dist/apps/mobile/src/*.test.js tests/mobile-*.test.js tests/uiux-*.test.js tests/paper-connection-resume.test.js tests/owner-device-*.test.js"
+  - "pnpm run validate (Node >= 24)"
+evidence:
+  implementation_status: READY_FOR_REVIEW
+  reproduction: "Regression test on unmodified main: configured endpoint becomes null after settings loads (disconnect invoked); passes after the fix."
+  external_validation: "REQUIRED: exact-head CI, Audit, Release, then real Galaxy in-place update (HUMAN_ENVIRONMENT_ONLY). Not ACCEPTED until then."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Exact-head CI, Audit, Release; owner repeats the in-place update on the same Galaxy."
