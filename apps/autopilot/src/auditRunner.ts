@@ -1,3 +1,4 @@
+import { logAiCall } from "./aiCallTelemetry";
 import { classifyWorkersAiProviderStop, type WorkersAiBinding } from "./codingRunner";
 import type { PersistentExecutionStop } from "./executionCoordinator";
 
@@ -411,6 +412,7 @@ export async function executeIndependentAudit(
   let lastModelError: unknown;
   for (let attempt = 1; attempt <= MAX_AUDIT_MODEL_ATTEMPTS; attempt += 1) {
     const rawModelResponse = await env.AI.run(model, modelRequest);
+    logAiCall({ caller: "C2_AUDIT", model, attempt, promptChars: modelRequest.prompt.length, response: rawModelResponse });
     try {
       modelResult = validateBlockerEvidenceAgainstCurrentDiff(parseAuditModelResponse(rawModelResponse), diff);
       break;

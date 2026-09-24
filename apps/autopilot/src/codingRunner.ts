@@ -1,3 +1,4 @@
+import { logAiCall } from "./aiCallTelemetry";
 export interface CodingProposalContext {
   readonly path: string;
   readonly startLine: number;
@@ -661,7 +662,9 @@ export async function executeCodingRunner(
       }
     }
     try {
-      const proposal = workersAiProposal(await env.AI.run(model, workersAiCodingRequest(request, model, prompt)));
+      const rawProposal = await env.AI.run(model, workersAiCodingRequest(request, model, prompt));
+      logAiCall({ caller: "C1_CODING", model, attempt, promptChars: prompt.length, response: rawProposal });
+      const proposal = workersAiProposal(rawProposal);
       const result = await executeProposal(request, proposal, runtime, publisher);
       if (result.status === "EXECUTION_ACCEPTED" || !retryableProposalFailure(result.reason ?? "") || attempt === maxProposalAttempts) {
         return result.status === "EXECUTION_FAILED" && retryableProposalFailure(result.reason ?? "")
