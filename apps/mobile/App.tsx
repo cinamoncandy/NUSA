@@ -20,7 +20,7 @@ import { VersionedSettingsRepository } from "./src/persistenceRepositories";
 import { resumePaperConnection } from "./src/paperConnectionSession";
 import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";
 import { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllocationClient";
-import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, getPaperSessionState, isPaperConnectionVerified, restoreConfiguredPaperSession, setConfiguredPaperEndpoint, subscribePaperSessionVerified, type PaperSessionState } from "./src/paperConnectionSession";
+import { beginPaperConnectionRecovery, clearPaperConnectionVerification, getConfiguredPaperEndpoint, getPaperSessionState, isPaperConnectionVerified, restoreConfiguredPaperSession, setConfiguredPaperEndpoint, subscribePaperSessionVerified, type PaperSessionState } from "./src/paperConnectionSession";
 import { mobileApprovedSession } from "./src/mobileApprovedSessionBoundary";
 import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./src/personalPaperOperationsClient";
 import { loadShadowOperations, type ShadowOperationsLoadResult } from "./src/shadowOperationsClient";
@@ -357,7 +357,10 @@ function AuthenticatedApp() {
         // Screen unlock can render before AsyncStorage returns the installation id needed for the
         // silent DeviceKey proof. Project that interval as recovery, not lost configuration: the
         // registered endpoint/device trust still exist and no owner action is required.
-        if (getConfiguredPaperEndpoint() != null) setPaperSessionState("RECOVERING");
+        if (getConfiguredPaperEndpoint() != null) {
+          beginPaperConnectionRecovery();
+          setPaperSessionState("RECOVERING");
+        }
         const native = ownerDeviceCredential();
         if (native == null) resumePaperConnection();
         else void getOrCreateInstallationId(AsyncStorage).then((deviceId) => resumePaperConnection({ deviceId, native })).catch(() => resumePaperConnection());
