@@ -17,6 +17,23 @@ let restoreRetryTimer: ReturnType<typeof setTimeout> | null = null;
 let restoreRetryAttempts = 0;
 const RESTORE_RETRY_BASE_MS = 1_000;
 const RESTORE_RETRY_MAX_MS = 30_000;
+const verificationListeners = new Set<() => void>();
+
+/**
+ * Notifies the UI the moment a restore verifies the session. Without it the screen kept showing
+ * the pre-restore "PAPER 연결 필요/재연결 중" state until the next 5 s dashboard poll, so every cold
+ * start and foreground resume looked like a lost authentication that later fixed itself.
+ */
+export function subscribePaperSessionVerified(listener: () => void): () => void {
+  verificationListeners.add(listener);
+  return () => { verificationListeners.delete(listener); };
+}
+
+function notifyVerified(): void {
+  for (const listener of [...verificationListeners]) {
+    try { listener(); } catch { /* a UI listener must not break the restore owner */ }
+  }
+}
 
 function cancelRestoreRetry(): void {
   if (restoreRetryTimer != null) clearTimeout(restoreRetryTimer);
@@ -73,6 +90,7 @@ function startRestore(endpoint: string, force: boolean, silent?: SilentContext):
     if (identity != null) {
       verifiedEndpoint = endpoint;
       cancelRestoreRetry();
+      notifyVerified();
       // The Upbit relay uses this same PAPER session and has no separate mobile
       // credential. Re-establish its GET-only monitor after a cold-start restore.
       void connectUpbitReadOnlyAccount(endpoint);
