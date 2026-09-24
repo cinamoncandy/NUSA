@@ -94,3 +94,22 @@ export function buildPaperLearningReadOnlyProjection(events: readonly PaperLearn
     .slice(0, maximumEvents)
     .map(sanitizeEvent));
 }
+
+export type PaperLearningRuntimeStatus = "RUNNING" | "PAUSED" | "HALTED";
+
+/**
+ * Derives learning projection status without promoting per-tick market rejection diagnostics into
+ * a runtime halt. The rejected tick never enters trusted observations; the canonical dashboard
+ * kill switch remains the authority for a true freshness halt.
+ */
+export function classifyPaperLearningRuntimeStatus(input: Readonly<{
+  hasRuntimeHaltReason: boolean;
+  lastError: string | null;
+  autoRunning: boolean;
+  transport: "ONLINE" | "OFFLINE";
+}>): PaperLearningRuntimeStatus {
+  if (input.hasRuntimeHaltReason) return "HALTED";
+  const diagnosticOnly = input.lastError?.startsWith("PUBLIC_MARKET_EVENT_REJECTED:") === true;
+  if (input.lastError != null && !diagnosticOnly) return "HALTED";
+  return input.autoRunning && input.transport === "ONLINE" ? "RUNNING" : "PAUSED";
+}

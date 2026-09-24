@@ -40,7 +40,7 @@ import { DesktopSessionService } from "./desktopSessionService";
 import { MobileSessionService } from "./mobileSessionService";
 import { OwnerDeviceCredentialService } from "./ownerCredential/ownerDeviceCredentialService";
 import { PaperLearningEventRecorder, paperLearningCycleId } from "./paperLearningObservability";
-import { buildPaperLearningReadOnlyProjection } from "./paperLearningReadOnlyProjection";
+import { buildPaperLearningReadOnlyProjection, classifyPaperLearningRuntimeStatus } from "./paperLearningReadOnlyProjection";
 import { readPaperRuntimeSupervisorProjection } from "./paperRuntimeSupervisorProjection";
 import type { ShadowObservabilitySnapshot } from "../../../packages/contracts/src/shadowObservabilityReadOnly";
 import { validateShadowObservabilitySnapshot } from "../../../packages/contracts/src/shadowObservabilityReadOnly";
@@ -279,8 +279,24 @@ export function startCloudRuntime(
   };
   const liveReadinessSourceProvider = createLiveReadinessSourceProvider({ now: () => new Date().toISOString(), sourceVersion, readers: defaultLiveReadinessReaders });
   const effectiveResearchRuntime: CloudRuntimeResearchRuntimeLike | undefined = researchAutomation ?? researchRuntime;
-  try { researchAutomation?.recover?.() ?? researchRecoveryCoordinator?.recover(); } catch { /* Research owns its fail-closed state. */ }
-  const clearPaperProjection = (): void => { try { effectivePaperRepository?.clear(); } catch { /* remain fail-closed */ } effectiveProvider.clear(); };
+  // researchAutomation gates itself: a non-READY recover() halts its own RUNNING sessions, so its
+  // onMarketData sees none left and no-ops. The plain researchRuntime path has no such self-gate --
+  // without this flag a FAIL_CLOSED researchRecoveryCoordinator result (corrupted candidate/audit
+  // state) was silently discarded here and the market-data loop kept calling onMarketData on
+  // unverified research state below.
+  let researchRecoveryFailClosed = false;
+  try {
+    const recovery = researchAutomation?.recover?.() ?? researchRecoveryCoordinator?.recover();
+    if (recovery != null && recovery.status !== "READY") researchRecoveryFailClosed = true;
+  } catch { researchRecoveryFailClosed = true; }
+  // Fail closed by withholding the dashboard projection only. This used to also call
+  // effectivePaperRepository.clear(), which deletes the durable PAPER account, its history and the
+  // canonical fill ledger. It ran whenever the dashboard had no state on a tick (stale or missing
+  // market data closes the kill switch and clears the provider), when a projection threw, or when
+  // one execution result FAILED -- so an ordinary data gap destroyed canonical PAPER truth, and the
+  // next restart loaded no account and reset NAV to initial capital. A projection problem is never
+  // a reason to erase the ledger; an explicit reset still goes through the repository itself.
+  const clearPaperProjection = (): void => { effectiveProvider.clear(); };
   const projectPaperAccount = (): void => {
     if (effectivePaperLoop == null) return;
     const state = effectiveProvider.read({ userId: "operator", scopes: ["dashboard:read"] });
@@ -319,7 +335,7 @@ export function startCloudRuntime(
     catch { heartbeat.lastError = "PAPER_MARKET_OBSERVATION_REJECTED"; }
     observations.set(observation.id, observation); while (observations.size > 50) observations.delete(observations.keys().next().value!); safeHydrate([...observations.values()]);
     const researchTick = { market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, now };
-    try { effectiveResearchRuntime?.onMarketData(researchTick); } catch { /* isolated */ }
+    if (!researchRecoveryFailClosed) { try { effectiveResearchRuntime?.onMarketData(researchTick); } catch { /* isolated */ } }
     const state = effectiveProvider.read({ userId: "operator", scopes: ["dashboard:read"] });
     if (state != null) {
       // Hydration samples its own clock while producing decision.decidedAt. Re-sample only after
@@ -405,7 +421,7 @@ export function startCloudRuntime(
     if (p0State === "OPEN") runtimeHaltReasons.push("AI_P0_OPEN");
     if (p0State === "UNVERIFIABLE") runtimeHaltReasons.push("AI_P0_UNVERIFIABLE");
     const runtimeState = runtimeHaltReasons.length > 0 ? "HALTED" as const : dashboard.mode === "STOPPED" ? "STOPPED" as const : !autoRunning ? "STOPPED" as const : transport === "ONLINE" ? "RUNNING" as const : "DEGRADED" as const;
-    const learningRuntimeStatus = runtimeHaltReasons.length > 0 || heartbeat.lastError != null ? "HALTED" as const : autoRunning && transport === "ONLINE" ? "RUNNING" as const : "PAUSED" as const;
+    const learningRuntimeStatus = classifyPaperLearningRuntimeStatus({ hasRuntimeHaltReason: runtimeHaltReasons.length > 0, lastError: heartbeat.lastError, autoRunning, transport });
     const primaryMarket = latestTickers.get(config.upbitMarkets[0] ?? "");
     const generatedAt = Math.max(dashboard.generatedAt, heartbeat.lastHeartbeatAt);
     const paperLearning = { schemaVersion: 1 as const, mode: "PAPER" as const, readOnly: true as const, liveAuthority: "NONE" as const, productionMutationAllowed: false as const, runtimeStatus: learningRuntimeStatus, generatedAt, events: buildPaperLearningReadOnlyProjection(paperLearningRecorder.replay(), 250) };

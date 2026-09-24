@@ -20,7 +20,7 @@ import { VersionedSettingsRepository } from "./src/persistenceRepositories";
 import { resumePaperConnection } from "./src/paperConnectionSession";
 import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";
 import { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllocationClient";
-import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, getPaperSessionState, isPaperConnectionVerified, restoreConfiguredPaperSession, setConfiguredPaperEndpoint, subscribePaperSessionVerified, type PaperSessionState } from "./src/paperConnectionSession";
+import { beginPaperConnectionRecovery, clearPaperConnectionVerification, getConfiguredPaperEndpoint, getPaperSessionState, isPaperConnectionVerified, restoreConfiguredPaperSession, setConfiguredPaperEndpoint, subscribePaperSessionVerified, type PaperSessionState } from "./src/paperConnectionSession";
 import { mobileApprovedSession } from "./src/mobileApprovedSessionBoundary";
 import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./src/personalPaperOperationsClient";
 import { loadShadowOperations, type ShadowOperationsLoadResult } from "./src/shadowOperationsClient";
@@ -194,8 +194,17 @@ function AuthenticatedApp() {
     if (refreshInFlightRef.current) return refreshInFlightRef.current;
     const generation = refreshGenerationRef.current;
     const endpoint = getConfiguredPaperEndpoint();
-    setPaperSessionState(getPaperSessionState());
+    const sessionState = getPaperSessionState();
+    setPaperSessionState(sessionState);
     if (endpoint == null || !isPaperConnectionVerified(endpoint)) {
+      // A foreground DeviceKey restore intentionally clears the process-local VERIFIED flag while
+      // it proves possession again. RECOVERING is therefore not a configuration loss: preserve
+      // the last verified PAPER projections while the runtime remains trading-blocked, then let
+      // subscribePaperSessionVerified() refresh them as soon as the proof completes.
+      if (endpoint != null && sessionState === "RECOVERING") {
+        dispatchRuntime({ type: "RECOVERY_STARTED" });
+        return Promise.resolve();
+      }
       setOperations({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified in Settings before dashboard credentials can be used." });
       setShadowOperations({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified before SHADOW reads." });
       setRealReadOnlyOperations({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified before REAL_READ_ONLY reads." });
@@ -345,6 +354,13 @@ function AuthenticatedApp() {
       // for it again immediately. No token and no owner action: the approved rotating session is
       // already in secure storage, and a genuinely lapsed one still fails closed.
       if (nextState === "active") {
+        // Screen unlock can render before AsyncStorage returns the installation id needed for the
+        // silent DeviceKey proof. Project that interval as recovery, not lost configuration: the
+        // registered endpoint/device trust still exist and no owner action is required.
+        if (getConfiguredPaperEndpoint() != null) {
+          beginPaperConnectionRecovery();
+          setPaperSessionState("RECOVERING");
+        }
         const native = ownerDeviceCredential();
         if (native == null) resumePaperConnection();
         else void getOrCreateInstallationId(AsyncStorage).then((deviceId) => resumePaperConnection({ deviceId, native })).catch(() => resumePaperConnection());

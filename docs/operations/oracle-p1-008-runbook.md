@@ -122,7 +122,7 @@ Accept the release only when `/ready` returns HTTP 200 and all four checks are t
 
 ## Failed readiness: rollback
 
-If readiness fails, do not attempt an automatic database restore. The `activate` helper rolls the release symlink and systemd unit files back, restarts both runtimes, and proves readiness again. If rollback readiness also fails, stop the services and investigate the persistent state and logs. Do not bypass readiness, relax localhost binding, shorten the token, or enable LIVE/private mutation to recover service.
+If PAPER startup readiness fails with `PAPER_WRITER_CLOCK_ANOMALY` in the current activation journal, `activate` may perform one bounded recovery before rollback. It invokes the staged canonical `reset-paper-writer-lease.js` as the `nusa` service user; that script refuses to clear a lease while `/health` answers or while the lease is still valid, and it only removes the `paper-default` writer-lease row. The helper then restarts and retries PAPER readiness exactly once. Any unrelated readiness failure, reset refusal, or failed retry proceeds to the normal rollback path.\n\nIf readiness still fails, do not attempt an automatic database restore. The `activate` helper rolls the release symlink and systemd unit files back, restarts both runtimes, and proves readiness again. If rollback readiness also fails, stop the services and investigate the persistent state and logs. Do not bypass readiness, relax localhost binding, shorten the token, or enable LIVE/private mutation to recover service.
 
 ```bash
 sudo systemctl status nusa.service nusa-autopilot.service --no-pager

@@ -167,6 +167,18 @@ prune_releases() {
   printf '%s\n' "nusa-release-step: prune complete; keptRecent=$kept removed=$removed active=$active previous=${previous:-none}"
 }
 
+# A startup blocked by the fail-closed PAPER writer clock guard may recover once.  Scope the
+# journal to this activation so stale diagnostics from an older attempt cannot authorize reset.
+recover_abandoned_writer_lease_once() {
+  local dir="$1"
+  local since="$2"
+  journalctl -u "$SERVICE" --since "$since" --no-pager -o cat 2>/dev/null | grep -q 'PAPER_WRITER_CLOCK_ANOMALY' || return 1
+  printf '%s\n' "nusa-release-step: current candidate hit PAPER_WRITER_CLOCK_ANOMALY; attempting one fail-closed lease recovery" >&2
+  runuser -u "$SERVICE_USER" -- bash -c 'set -a; source "$1"; set +a; exec node "$2"' _ "$RUNTIME_ENV" "$(script_in "$dir" reset-paper-writer-lease.js)" || return 1
+  restart_units
+  node "$(script_in "$dir" oracle-readiness-check.js)"
+}
+
 verb="${1:-}"
 shift || true
 
@@ -234,7 +246,16 @@ case "$verb" in
     dir="$(release_dir "$1")"
     [ -d "$dir" ] || die "release not staged: $dir"
     NUSA_COMMIT_SHA="$1" node "$(script_in "$dir" atomic-deploy.js)"
-    if ! bind_runtime_source_identity "$1" || ! install_units_from_release "$dir" || ! enable_units || ! restart_units || ! node "$(script_in "$dir" oracle-readiness-check.js)" || ! node "$(script_in "$dir" autopilot-readiness.js)"; then
+    activation_started="$(date --iso-8601=seconds)"
+    paper_ready=false
+    if bind_runtime_source_identity "$1" && install_units_from_release "$dir" && enable_units && restart_units; then
+      if node "$(script_in "$dir" oracle-readiness-check.js)"; then
+        paper_ready=true
+      elif recover_abandoned_writer_lease_once "$dir" "$activation_started"; then
+        paper_ready=true
+      fi
+    fi
+    if [ "$paper_ready" != true ] || ! node "$(script_in "$dir" autopilot-readiness.js)"; then
       printf '%s\n' "nusa-release-step: activation failed for $1; restoring previous release" >&2
       rollback_and_restore
       node "$(script_in "$(active_release)" oracle-readiness-check.js)" || die "rollback PAPER readiness failed"
