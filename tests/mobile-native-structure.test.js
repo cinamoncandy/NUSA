@@ -77,9 +77,9 @@ test("Android release networking fails closed without an unresolved manifest pla
 test("mobile foundation exposes a Home screen, theme, and five primary decision-flow tabs", () => {
   const app = fs.readFileSync(path.join(mobile, "App.tsx"), "utf8");
   assert.match(app, /useState<Tab>\("Home"\)/);
-  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\]/);
+  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "LiveTrading", "Portfolio", "AiSignal"\]/);
   assert.match(app, /type Tab = PrimaryTab \| "Order"/);
-  assert.match(app, /Home: "HOME", Markets: "MARKETS", Paper: "PAPER", Portfolio: "PORTFOLIO", AiSignal: "AI"/);
+  assert.match(app, /Home: "HOME", Markets: "MARKETS", Paper: "PAPER", LiveTrading: "LIVE TRADING", Portfolio: "PORTFOLIO", AiSignal: "AI"/);
   assert.match(app, /const theme =/);
   assert.match(app, /accessibilityRole="button"/);
 });

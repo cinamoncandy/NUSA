@@ -6,7 +6,7 @@ const path = require("node:path");
 const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
 
 test("bottom navigation exposes five semantic primary jobs and preserves deeper routes", () => {
-  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\] as const/);
+  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "LiveTrading", "Portfolio", "AiSignal"\] as const/);
   assert.match(app, /Home: "HOME"/);
   assert.match(app, /Markets: "MARKETS"/);
   assert.match(app, /Paper: "PAPER"/);

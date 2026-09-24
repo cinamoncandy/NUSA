@@ -21,6 +21,7 @@ import { resumePaperConnection } from "./src/paperConnectionSession";
 import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";
 import { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllocationClient";
 import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, getPaperSessionState, isPaperConnectionVerified, restoreConfiguredPaperSession, setConfiguredPaperEndpoint, subscribePaperSessionVerified, type PaperSessionState } from "./src/paperConnectionSession";
+import { LiveTradingView } from "./src/liveTradingView";
 import { mobileApprovedSession } from "./src/mobileApprovedSessionBoundary";
 import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./src/personalPaperOperationsClient";
 import { loadShadowOperations, type ShadowOperationsLoadResult } from "./src/shadowOperationsClient";
@@ -43,13 +44,13 @@ import { resolveAndroidBackNavigation } from "./src/androidBackNavigation";
 import { ownerDeviceCredential } from "./src/ownerDeviceCredential";
 import { getOrCreateInstallationId } from "./src/installationIdentity";
 
-const tabs = ["Home", "Markets", "Paper", "Portfolio", "AiSignal"] as const;
+const tabs = ["Home", "Markets", "Paper", "LiveTrading", "Portfolio", "AiSignal"] as const;
 type PrimaryTab = (typeof tabs)[number];
 type Tab = PrimaryTab | "Order";
 type UtilityView = "NOTIFICATIONS" | "SETTINGS" | null;
-const tabLabels: Readonly<Record<PrimaryTab, string>> = { Home: "HOME", Markets: "MARKETS", Paper: "PAPER", Portfolio: "PORTFOLIO", AiSignal: "AI" };
-const tabDisplayLabels: Readonly<Record<PrimaryTab, string>> = { Home: "NUSA", Markets: "시장", Paper: "PAPER", Portfolio: "자산", AiSignal: "AI" };
-const tabDescriptions: Readonly<Record<PrimaryTab, string>> = { Home: "현재 NUSA 상태", Markets: "공개 시장 환경", Paper: "PAPER 운용", Portfolio: "PAPER 자산과 결과", AiSignal: "AI 판단과 근거" };
+const tabLabels: Readonly<Record<PrimaryTab, string>> = { Home: "HOME", Markets: "MARKETS", Paper: "PAPER", LiveTrading: "LIVE TRADING", Portfolio: "PORTFOLIO", AiSignal: "AI" };
+const tabDisplayLabels: Readonly<Record<PrimaryTab, string>> = { Home: "NUSA", Markets: "시장", Paper: "PAPER", LiveTrading: "LIVE", Portfolio: "자산", AiSignal: "AI" };
+const tabDescriptions: Readonly<Record<PrimaryTab, string>> = { Home: "현재 NUSA 상태", Markets: "공개 시장 환경", Paper: "PAPER 운용", LiveTrading: "실거래 (비활성)", Portfolio: "PAPER 자산과 결과", AiSignal: "AI 판단과 근거" };
 const utilityLabels: Readonly<Record<Exclude<UtilityView, null>, string>> = { NOTIFICATIONS: "알림", SETTINGS: "설정" };
 const CHART_MARKET = "KRW-BTC";
 const PAPER_REFRESH_INTERVAL_MS = 5000;
@@ -418,7 +419,7 @@ function AuthenticatedApp() {
   const ai = snapshot?.ai ?? null;
   const accountCash = snapshot?.portfolio?.account.cash ?? 0;
   const runtimeCanSubmit = !runtimeSnapshot.tradingBlocked && runtimeSnapshot.lifecycle === "FOREGROUND" && runtimeSnapshot.network === "ONLINE" && runtimeSnapshot.recovery === "READY";
-  const requiresDashboardConnection = notConfigured !== null && utilityView === null && activeTab !== "Home" && activeTab !== "Markets" && activeTab !== "Portfolio" && activeTab !== "Paper";
+  const requiresDashboardConnection = notConfigured !== null && utilityView === null && activeTab !== "Home" && activeTab !== "Markets" && activeTab !== "Portfolio" && activeTab !== "Paper" && activeTab !== "LiveTrading";
   const homeShellActive = utilityView === null && activeTab === "Home";
   const localPaperReadiness = getLocalPaperLearningReadiness();
   const paperLearningRuntimeStatus = snapshot?.paperLearning?.events?.length ? snapshot.paperLearning.runtimeStatus : snapshot?.paperLearning?.runtimeStatus === "HALTED" || snapshot?.paperLearning?.runtimeStatus === "ERROR" ? snapshot.paperLearning.runtimeStatus : localPaperReadiness.status;
@@ -434,6 +435,7 @@ function AuthenticatedApp() {
       : requiresDashboardConnection ? <DashboardConnectionRequired reason={notConfigured ?? "PAPER 서버 연결이 필요합니다."} onGoSettings={goSettings} />
       : utilityView === "NOTIFICATIONS" ? <NotificationView repository={settingsRepository} />
       : utilityView === "SETTINGS" ? <SettingsView canonicalEndpoint={getConfiguredPaperEndpoint()} credentialSession={credentialSession} exchangeCash={accountCash} onCloudInvestmentPercentSave={investmentAllocationClient.save} onInvestmentPercentChanged={setInvestmentPercent} onSignOut={handleSignOut} repository={settingsRepository} />
+      : activeTab === "LiveTrading" ? <LiveTradingView />
       : activeTab === "Portfolio" ? <PortfolioView error={readOnlyError} investmentPercent={investmentPercent} onOpenPaperLearning={openPaperLearning} onRefresh={onRefresh} refreshing={refreshing} snapshot={snapshot?.portfolio ?? null} upbitError={upbitState.error} upbitSnapshot={upbitState.snapshot} upbitStatus={upbitState.status} />
       : activeTab === "Paper" ? <TradingView error={readOnlyError} credentialSession={credentialSession} investmentPercent={investmentPercent} marketConnectionState={marketConnectionState} onOpenPaperLearning={openPaperLearning} onRefresh={onRefresh} paperLearning={paperLearningState} refreshing={refreshing} runtimeCanSubmit={runtimeCanSubmit} snapshot={snapshot?.portfolio ?? null} stale={stale} />
       : activeTab === "Markets" ? <MarketsView chartError={publicMarkets.chartError} chartErrorDiagnostic={publicMarkets.chartErrorDiagnostic} error={publicMarkets.status === "ERROR" ? publicMarkets.error : null} currentPrice={publicMarkets.currentPrice} market={CHART_MARKET} marketConnectionState={publicMarketConnectionState} marketsStale={publicMarkets.status === "STALE"} onPaperTrade={openPaperTrade} onRefresh={refreshPublicMarkets} rawCandles={publicMarkets.candles === null ? null : [...publicMarkets.candles]} rawMarkets={publicMarkets.markets === null ? null : [...publicMarkets.markets]} refreshing={publicRefreshing} repository={watchlistRepository} stale={publicMarkets.status !== "READY"} />
