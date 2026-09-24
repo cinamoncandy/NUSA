@@ -354,6 +354,10 @@ function AuthenticatedApp() {
       // for it again immediately. No token and no owner action: the approved rotating session is
       // already in secure storage, and a genuinely lapsed one still fails closed.
       if (nextState === "active") {
+        // Screen unlock can render before AsyncStorage returns the installation id needed for the
+        // silent DeviceKey proof. Project that interval as recovery, not lost configuration: the
+        // registered endpoint/device trust still exist and no owner action is required.
+        if (getConfiguredPaperEndpoint() != null) setPaperSessionState("RECOVERING");
         const native = ownerDeviceCredential();
         if (native == null) resumePaperConnection();
         else void getOrCreateInstallationId(AsyncStorage).then((deviceId) => resumePaperConnection({ deviceId, native })).catch(() => resumePaperConnection());
