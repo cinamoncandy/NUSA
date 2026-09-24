@@ -140,6 +140,8 @@ export interface CodingRunnerResult {
   readonly nextRetryAt?: number | null;
   readonly stopReason?: string;
   readonly resumeCondition?: string;
+  readonly fallbackProvider?: "github-models";
+  readonly fallbackFailureReason?: string;
 }
 
 interface HttpResponse {
@@ -687,9 +689,20 @@ export async function executeCodingRunner(
           try {
             const proposal = await githubModelsProposal(request, githubToken, fetchImpl, prompt);
             return await executeProposal(request, proposal, runtime, publisher);
-          } catch {
-            // The fallback is capacity relief only. If it is unavailable, preserve the canonical
-            // Workers AI wait instead of turning expected provider backpressure into a red failure.
+          } catch (error) {
+            return {
+              status: "BLOCKED_RATE_LIMIT",
+              reason: "WAITING_PROVIDER_CAPACITY",
+              proposalAttempts: attempt - 1,
+              failureStage: "proposal-parse",
+              provider: "workers-ai",
+              retryAfterMs: waitUntil - current,
+              nextRetryAt: waitUntil,
+              stopReason: "WAITING_PROVIDER_CAPACITY",
+              resumeCondition: "provider-capacity-and-exact-head-revalidation",
+              fallbackProvider: "github-models",
+              fallbackFailureReason: error instanceof Error ? error.message : "GITHUB_MODELS_CODING_FAILED",
+            };
           }
         }
         return {
@@ -725,8 +738,16 @@ export async function executeCodingRunner(
           try {
             const proposal = await githubModelsProposal(request, githubToken, fetchImpl, prompt);
             return await executeProposal(request, proposal, runtime, publisher);
-          } catch {
-            // Keep the provider stop authoritative when the independent fallback is unavailable.
+          } catch (fallbackError) {
+            return {
+              status: "BLOCKED_RATE_LIMIT",
+              reason: rateLimitReason,
+              proposalAttempts: Math.max(0, attempt - 1),
+              failureStage: "proposal-parse",
+              ...rateLimitStopMetadata(error, rateLimitReason, attempt, now()),
+              fallbackProvider: "github-models",
+              fallbackFailureReason: fallbackError instanceof Error ? fallbackError.message : "GITHUB_MODELS_CODING_FAILED",
+            };
           }
         }
         return {

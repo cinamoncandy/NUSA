@@ -637,6 +637,8 @@ describe("coding runner", () => {
     assert.equal(result.provider, "workers-ai");
     assert.equal(result.nextRetryAt, 86_400_000);
     assert.equal(result.resumeCondition, "provider-capacity-and-exact-head-revalidation");
+    assert.equal(result.fallbackProvider, "github-models");
+    assert.equal(result.fallbackFailureReason, "GITHUB_MODELS_CODING_RESPONSE_INVALID");
   });
 
   it("waits for the next UTC day on daily quota exhaustion instead of re-probing every cycle", async () => {
@@ -848,6 +850,8 @@ describe("coding runner workflow failure evidence", () => {
       assert.equal(result.reason, "WAITING_PROVIDER_CAPACITY");
       assert.equal(result.nextRetryAt, 61_000);
       assert.equal(result.proposalAttempts, 0);
+      assert.equal(result.fallbackProvider, "github-models");
+      assert.equal(result.fallbackFailureReason, "GITHUB_MODELS_CODING_RESPONSE_INVALID");
     });
 
     it("stops before a repair attempt when a wait appears between attempts", async () => {
