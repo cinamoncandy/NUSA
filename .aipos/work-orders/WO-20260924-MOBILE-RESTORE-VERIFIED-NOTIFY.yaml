@@ -1,0 +1,35 @@
+id: WO-20260924-MOBILE-RESTORE-VERIFIED-NOTIFY
+title: "Show a verified PAPER session as soon as the restore verifies it"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-restore-display
+parent_work_order: WO-20260924-MOBILE-APP-UPDATE-CONTINUITY
+authority_impact: none
+authority_impact_note: "Presentation timing only. No change to how or when a session is verified; no credential, LIVE, broker, risk or AI-authority change."
+objective: "Reopening or resuming the app must not look like lost authentication while the automatic restore is succeeding."
+finding: "Owner report on the real Galaxy after accepting the in-place update: reopening the app first shows PAPER unauthenticated, then authenticated. Device trust and the restore are intact; the UI read getPaperSessionState() only on the 5 s dashboard poll, so the pre-restore state stayed on screen until the next poll. Background: the app does not hold a live session while backgrounded by design (Android suspends it); every foreground resume re-proves the DeviceKey. Server-side PAPER runs independently of the app."
+scope:
+  include:
+    - "subscribePaperSessionVerified() in paperConnectionSession, fired when a restore verifies"
+    - "App re-projects (refresh) on that notification"
+    - "tests/mobile-paper-session-verified-notify.test.js"
+acceptance:
+  - "A foreground restore that verifies notifies subscribers once, with state VERIFIED."
+verification_commands:
+  - "node --test tests/mobile-paper-session-verified-notify.test.js"
+  - "node --test dist/apps/mobile/src/*.test.js tests/mobile-*.test.js tests/uiux-*.test.js tests/paper-connection-resume.test.js tests/owner-device-*.test.js"
+  - "pnpm run validate (Node >= 24)"
+evidence:
+  implementation_status: READY_FOR_REVIEW
+  mutation_verification:
+    - "removing the notifyVerified() call -> 1 failure"
+  external_validation: "REQUIRED: exact-head CI, Audit, Release; owner re-checks reopen/resume on the Galaxy (HUMAN_ENVIRONMENT_ONLY)."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Exact-head CI, Audit, Release; owner re-checks reopen/resume on the Galaxy."
