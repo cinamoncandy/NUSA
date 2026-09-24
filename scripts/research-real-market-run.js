@@ -1,6 +1,7 @@
 "use strict";
 
 const path = require("node:path");
+const fs = require("node:fs");
 const {
   evaluateUpbitDailyCandleFreshness,
   mapUpbitDayCandlesToResearchCandles,
@@ -185,8 +186,35 @@ const DONCHIAN_PARAMETER_NEIGHBORHOOD = Object.freeze(
   [10, 20, 30, 40, 55].map((channelPeriod) => Object.freeze({ channelPeriod }))
 );
 
-function researchStrategyFamily(value = process.env.NUSA_RESEARCH_STRATEGY_FAMILY) {
-  const normalized = String(value ?? SMA_FAMILY_ID).trim() || SMA_FAMILY_ID;
+// The learning evidence computed at the end of each run orders the precommitted families for the
+// next run (unexplored first). It used to be printed only; this file is how the next run consumes
+// it. Family order is attention only: every family keeps its own precommitted grid and faces the
+// same OOS, DSR, PBO, regime, cost-stress and League gates.
+function nextResearchFamilyPath(env = process.env) {
+  return path.join(path.dirname(researchLearningLedgerPath(env)), "research-next-family.json");
+}
+
+function readNextResearchFamily(file) {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (parsed?.schemaVersion !== 1 || !SUPPORTED_RESEARCH_FAMILIES.includes(parsed.nextFamily)) return null;
+    return parsed.nextFamily;
+  } catch {
+    return null;
+  }
+}
+
+function writeNextResearchFamily(file, nextFamily, ledgerLength, generatedAt) {
+  if (!SUPPORTED_RESEARCH_FAMILIES.includes(nextFamily)) throw new Error(`unsupported next research family: ${nextFamily}`);
+  const temporary = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(temporary, `${JSON.stringify({ schemaVersion: 1, nextFamily, ledgerLength, generatedAt })}\n`, { mode: 0o600 });
+  fs.renameSync(temporary, file);
+}
+
+/** Explicit NUSA_RESEARCH_STRATEGY_FAMILY wins; otherwise the learning-ordered next family; otherwise SMA. */
+function researchStrategyFamily(value = process.env.NUSA_RESEARCH_STRATEGY_FAMILY, learnedNext = null) {
+  const explicit = String(value ?? "").trim();
+  const normalized = explicit || learnedNext || SMA_FAMILY_ID;
   if (!SUPPORTED_RESEARCH_FAMILIES.includes(normalized)) throw new Error(`unsupported NUSA_RESEARCH_STRATEGY_FAMILY: ${normalized}`);
   return normalized;
 }
@@ -500,7 +528,7 @@ async function main() {
 
   const sourceCommitSha = requiredResearchSourceCommitSha();
   const costModelVersion = requiredResearchCostModelVersion();
-  const selectedFamily = researchStrategyFamily();
+  const selectedFamily = researchStrategyFamily(process.env.NUSA_RESEARCH_STRATEGY_FAMILY, readNextResearchFamily(nextResearchFamilyPath()));
   const definition = familyDefinition(selectedFamily);
   const hypothesis = buildResearchHypothesis({
     hypothesisId: `real-run:${manifest.datasetId}:${definition.familyId}`,
@@ -655,6 +683,7 @@ async function main() {
   });
   const nextResearchAttention = orderResearchFamiliesByLearning(SUPPORTED_RESEARCH_FAMILIES, investmentLearningEvidence);
   const researchAttentionPlan = buildInvestmentResearchAttentionPlan(SUPPORTED_RESEARCH_FAMILIES, investmentLearningEvidence);
+  writeNextResearchFamily(nextResearchFamilyPath(), nextResearchAttention[0], cumulativeLearningLedger.length, generatedAt);
 
   const oos = result.walkForwardResult.combinedOutOfSampleMetrics;
   console.log(JSON.stringify({
@@ -787,6 +816,9 @@ module.exports = {
   DONCHIAN_PARAMETER_NEIGHBORHOOD,
   SUPPORTED_RESEARCH_FAMILIES,
   researchStrategyFamily,
+  readNextResearchFamily,
+  writeNextResearchFamily,
+  nextResearchFamilyPath,
   researchLearningLedgerPath,
   fetchResearchCandles,
   researchCandleCount,
