@@ -13,7 +13,8 @@ const { loadPersonalPaperOperations } = require("../dist/apps/mobile/src/persona
 const { setConfiguredPaperEndpoint, clearConfiguredPaperEndpoint } = require("../dist/apps/mobile/src/paperConnectionSession.js");
 
 const ENDPOINT = "https://paper-projection.example.test";
-const TOKEN = "bootstrap-token-0123456789abcdef";
+// A shape-valid placeholder (>=16 chars, no whitespace); never a real credential.
+const BOOTSTRAP_FIXTURE = "b".repeat(32);
 
 function harness() {
   const session = mobileApprovedSession();
@@ -42,7 +43,7 @@ async function authenticated(h) {
   setDashboardCredentialEndpoint(null);
   setDashboardCredentialEndpoint(ENDPOINT);
   const credentials = new InMemoryDashboardCredentialSession();
-  credentials.connect(TOKEN);
+  credentials.connect(BOOTSTRAP_FIXTURE);
   assert.equal(await credentials.credentialProvider(), "access-token");
   h.calls.length = 0;
   return credentials;
