@@ -147,6 +147,17 @@ export class CloudPaperExecutionBoundary {
           binding.bindingFingerprintSha256 !== intent.candidateBindingFingerprintSha256) {
         return this.blocked("PAPER_STRATEGY_WORKING_IDENTITY_MISMATCH");
       }
+      // A challenger replacement revokes the earlier binding, but its open working order would keep
+      // filling inside the new binding's realized window (and block the new challenger, since only
+      // one strategy working order may exist per market). When the current decisions for this market
+      // are bound to a different candidate binding, the order belongs to a superseded strategy
+      // version: cancel it (risk-reducing, no new exposure) instead of continuing it.
+      const currentBindings = tick.decisions
+        .filter((decision) => decision.symbol === working.market && decision.paperCandidateBinding != null)
+        .map((decision) => decision.paperCandidateBinding!.bindingFingerprintSha256);
+      if (currentBindings.length > 0 && !currentBindings.includes(binding.bindingFingerprintSha256)) {
+        return this.options.loop.cancelWorkingOrder(working.id, tick.now);
+      }
       const openP0 = this.readOpenP0();
       if (openP0 !== false) return this.blocked(openP0 === true ? "OPEN_P0_ALERT" : "P0_STATE_UNVERIFIABLE");
       const lastOrderBookObservedAt = working.lastOrderBookObservedAt ?? 0;
