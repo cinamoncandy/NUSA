@@ -138,7 +138,13 @@ function AuthenticatedApp() {
   const [utilityView, setUtilityView] = useState<UtilityView>(null);
   const [utilityMenuOpen, setUtilityMenuOpen] = useState(false);
   const [operations, setOperations] = useState<PersonalPaperOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "PAPER connection is not configured." });
-  const [paperSessionState, setPaperSessionState] = useState<PaperSessionState>("NOT_CONFIGURED");
+  const [paperSessionState, setPaperSessionState] = useState<PaperSessionState>(() => {
+    // AuthContextProvider does not release the authenticated shell until persisted settings and the
+    // cold-start restore have been inspected. If a configured endpoint already exists at that point,
+    // project the canonical coordinator state instead of flashing NOT_CONFIGURED/SETUP for one frame.
+    const endpoint = getConfiguredPaperEndpoint();
+    return endpoint == null ? "NOT_CONFIGURED" : getPaperSessionState();
+  });
   const [shadowOperations, setShadowOperations] = useState<ShadowOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "SHADOW observability is not configured." });
   const [realReadOnlyOperations, setRealReadOnlyOperations] = useState<RealReadOnlyOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "REAL_READ_ONLY observability is not configured." });
   const [liveReadinessOperations, setLiveReadinessOperations] = useState<LiveReadinessOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "LIVE readiness observability is not configured." });
