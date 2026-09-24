@@ -388,7 +388,7 @@ function AuthenticatedApp() {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const scheduleNext = () => { if (cancelled || generation !== refreshGenerationRef.current) return; timer = setTimeout(() => { timer = null; void refresh().catch(() => undefined).finally(scheduleNext); }, PAPER_REFRESH_INTERVAL_MS); };
-    void refresh().catch(() => undefined).finally(scheduleNext);
+    void refresh().catch(() => undefined).finally(() => { setInitialPaperProjectionResolved(true); scheduleNext(); });
     return () => { cancelled = true; refreshGenerationRef.current += 1; if (timer !== null) clearTimeout(timer); };
   }, [appState, authStatus, refresh]);
 
