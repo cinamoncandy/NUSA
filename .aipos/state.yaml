@@ -202,7 +202,7 @@ current_execution_target:
   scope: "Opus P0-4: FIRST_UNSAFE_RECOVERY_BOUNDARY -- plain researchRuntime market-data feed now halts on a FAIL_CLOSED/throwing research recovery instead of discarding the result."
   authority_impact: none
   prior_target: WO-20260924-MOBILE-RESTORE-VERIFIED-NOTIFY
-  prior_target_status: READY_FOR_REVIEW
+  prior_target_status: MERGED_PR_2264
   prior_target_preserved: true
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 owner_decisions:

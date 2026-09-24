@@ -20,7 +20,7 @@ import { VersionedSettingsRepository } from "./src/persistenceRepositories";
 import { resumePaperConnection } from "./src/paperConnectionSession";
 import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";
 import { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllocationClient";
-import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, getPaperSessionState, isPaperConnectionVerified, restoreConfiguredPaperSession, setConfiguredPaperEndpoint, type PaperSessionState } from "./src/paperConnectionSession";
+import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, getPaperSessionState, isPaperConnectionVerified, restoreConfiguredPaperSession, setConfiguredPaperEndpoint, subscribePaperSessionVerified, type PaperSessionState } from "./src/paperConnectionSession";
 import { mobileApprovedSession } from "./src/mobileApprovedSessionBoundary";
 import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./src/personalPaperOperationsClient";
 import { loadShadowOperations, type ShadowOperationsLoadResult } from "./src/shadowOperationsClient";
@@ -353,6 +353,11 @@ function AuthenticatedApp() {
     });
     return () => subscription.remove();
   }, [dispatchRuntime, runtimeCoordinator]);
+  useEffect(() => {
+    if (authStatus !== "SIGNED_IN") return;
+    // Re-project as soon as a background restore verifies, instead of waiting for the next poll.
+    return subscribePaperSessionVerified(() => { void refresh().catch(() => undefined); });
+  }, [authStatus, refresh]);
   useEffect(() => {
     refreshGenerationRef.current += 1;
     if (authStatus !== "SIGNED_IN" || appState !== "active") return;
