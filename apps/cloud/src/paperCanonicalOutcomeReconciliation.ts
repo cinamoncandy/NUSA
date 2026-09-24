@@ -194,6 +194,11 @@ export function reconcileCanonicalPaperOutcomeWindow(input: CanonicalPaperOutcom
   let spreadAmount = 0;
   let slippageAmount = 0;
   const seenFillIds = new Set<string>();
+  // A candidate id names parameters, not a strategy version. After a challenger replacement an
+  // earlier binding's working order can still fill inside the new window; attributing by candidate
+  // id alone would silently mix two strategy versions into one realized return. Every strategy fill
+  // carries its exact binding, so a window may only realize a single binding.
+  const candidateBindingFingerprints = new Set<string>();
 
   for (const fill of periodFills) {
     if (!fill.id.trim() || seenFillIds.has(fill.id)) throw new PaperCanonicalOutcomeReconciliationError("DUPLICATE_FILL", "realized PAPER period contains a missing or duplicated fill identity");
@@ -204,6 +209,8 @@ export function reconcileCanonicalPaperOutcomeWindow(input: CanonicalPaperOutcom
     if (fill.quantity <= 0 || fill.price <= 0) throw new PaperCanonicalOutcomeReconciliationError("INVALID_FILL", `fill ${fill.id} has invalid quantity or price`);
     const attribution = validateCostAttribution(fill, fill.executionCostAttribution);
     candidateIds.add(attribution.candidateId);
+    // validateCostAttribution already requires candidate provenance and a matching candidate id.
+    candidateBindingFingerprints.add(fill.candidateProvenance!.binding.bindingFingerprintSha256);
     executionCostEvidenceIds.add(attribution.evidenceId);
     const existingCostEvidence = executionCostEvidenceById.get(attribution.evidenceId);
     if (existingCostEvidence != null && (existingCostEvidence.evidenceKind !== attribution.evidenceKind || existingCostEvidence.evidenceFingerprintSha256 !== attribution.evidenceFingerprintSha256)) {
@@ -214,6 +221,9 @@ export function reconcileCanonicalPaperOutcomeWindow(input: CanonicalPaperOutcom
     feeAmount += attribution.feeAmount;
     spreadAmount += attribution.spreadAmount;
     slippageAmount += attribution.slippageAmount;
+  }
+  if (candidateBindingFingerprints.size > 1) {
+    throw new PaperCanonicalOutcomeReconciliationError("CANDIDATE_BINDING_MIXED", "realized PAPER period mixes fills from more than one candidate binding");
   }
 
   if (![turnoverNotional, feeAmount, spreadAmount, slippageAmount].every(Number.isFinite)) {
