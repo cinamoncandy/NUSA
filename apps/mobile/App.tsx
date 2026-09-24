@@ -345,11 +345,18 @@ function AuthenticatedApp() {
       // for it again immediately. No token and no owner action: the approved rotating session is
       // already in secure storage, and a genuinely lapsed one still fails closed.
       if (nextState === "active") {
+        dispatchRuntime({ type: "RECOVERY_STARTED" });
         const native = ownerDeviceCredential();
-        if (native == null) resumePaperConnection();
-        else void getOrCreateInstallationId(AsyncStorage).then((deviceId) => resumePaperConnection({ deviceId, native })).catch(() => resumePaperConnection());
+        const resume = native == null
+          ? resumePaperConnection()
+          : getOrCreateInstallationId(AsyncStorage)
+              .then((deviceId) => resumePaperConnection({ deviceId, native }))
+              .catch(() => resumePaperConnection());
+        // Foreground PAPER projection reads must not race the silent DeviceKey/session restore.
+        // Once the restore settles, the normal active-state refresh effect observes the verified
+        // endpoint; transient restore failures remain RECOVERING through the bounded retry owner.
+        void resume.catch(() => undefined);
       }
-      if (nextState === "active" && runtimeCoordinator.current().recovery === "READY") dispatchRuntime({ type: "RECOVERY_STARTED" });
     });
     return () => subscription.remove();
   }, [dispatchRuntime, runtimeCoordinator]);
