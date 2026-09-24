@@ -77,6 +77,27 @@ test("a release that cannot prove either runtime ready is rolled back, not left 
   assert.doesNotMatch(rollbackHelper, /rm\s+-rf\s+\/var\/lib\/nusa|DROP\s+TABLE/i, "the failure path must not touch persistent state");
 });
 
+test("writer lease recovery is diagnosis-scoped, fail-closed, and bounded to one retry", () => {
+  const recoverStart = wrapper.indexOf("recover_abandoned_writer_lease_once()");
+  const recoverEnd = wrapper.indexOf("\n}\n", recoverStart) + 2;
+  const recover = wrapper.slice(recoverStart, recoverEnd);
+  assert.ok(recover.length > 0);
+  assert.match(recover, /journalctl -u "\$SERVICE" --since "\$since"/, "old journal evidence must not authorize recovery");
+  assert.match(recover, /PAPER_WRITER_CLOCK_ANOMALY/);
+  assert.match(recover, /reset-paper-writer-lease\.js/);
+  assert.match(recover, /runuser -u "\$SERVICE_USER"/, "lease reset must not run as root");
+  orderIn(recover, ["reset-paper-writer-lease.js", "restart_units", "oracle-readiness-check.js"]);
+
+  const activateStart = wrapper.indexOf("  activate)");
+  const activateEnd = wrapper.indexOf("\n  rollback)", activateStart);
+  const activate = wrapper.slice(activateStart, activateEnd);
+  assert.equal((activate.match(/recover_abandoned_writer_lease_once/g) ?? []).length, 1, "activation gets exactly one recovery attempt");
+  assert.match(activate, /activation_started=.*date --iso-8601=seconds/);
+  assert.match(activate, /paper_ready=false/);
+  assert.match(activate, /rollback_and_restore/, "failed recovery must retain the existing rollback boundary");
+  assert.doesNotMatch(recover, /DELETE|DROP|UPDATE|INSERT|\/var\/lib\/nusa/, "the privileged wrapper must delegate persistent-state safety to the canonical reset script");
+});
+
 test("every privileged action goes through the one wrapper command", () => {
   const sudoCalls = workflow.match(/sudo\s+\S+/g) ?? [];
   assert.ok(sudoCalls.length > 0);
