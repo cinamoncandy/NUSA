@@ -1,0 +1,37 @@
+id: WO-20260924-PAPER-SUPERSEDED-WORKING-ORDER
+title: "Cancel a superseded binding's open strategy working order"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-revoke-working
+parent_work_order: WO-20260924-PAPER-BINDING-IDENTITY-CONTINUITY
+authority_impact: execution_boundary
+authority_impact_note: "Risk-reducing cancellation only (no new exposure) inside the existing PAPER execution boundary; EXECUTION module re-qualified to the new exact source blob. No LIVE, capital, risk-policy or AI-authority change."
+objective: "After a challenger replacement, the earlier binding's open working order neither fills in the new binding's window nor blocks the new challenger."
+finding: "Follow-up to WO-20260924-PAPER-BINDING-IDENTITY-CONTINUITY. CloudPaperExecutionBoundary.processTick continued a strategy working order after checking only its own binding consistency. After a replacement, the old order kept filling (mixing strategy versions in one realized window) and, since one strategy working order per market is allowed, blocked every decision of the new challenger."
+scope:
+  include:
+    - "processTick: when current decisions for the market carry a different paperCandidateBinding, cancel the working order via the canonical loop cancel transition instead of continuing it"
+    - "tests/cloud-paper-execution-boundary.test.js: superseded order cancelled with no fill; same-binding order still continues"
+    - "EXECUTION re-qualification pin (moduleQualificationV1 + requalification test) moved to the new exact source blob"
+acceptance:
+  - "Different current binding -> working order cancelled, zero fills."
+  - "Same binding -> continuation unchanged."
+  - "No binding in current decisions -> continuation unchanged."
+verification_commands:
+  - "node --test tests/cloud-paper-execution-boundary.test.js"
+  - "node --test dist/apps/cloud/src/*.test.js tests/cloud-paper-*.test.js tests/integration-paper-*.test.js"
+  - "pnpm run validate (Node >= 24)"
+evidence:
+  implementation_status: READY_FOR_REVIEW
+  mutation_verification:
+    - "superseded-binding cancel disabled -> 1 failure"
+  external_validation: "REQUIRED: exact-head CI, Audit, Release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Exact-head CI, Audit, Release."

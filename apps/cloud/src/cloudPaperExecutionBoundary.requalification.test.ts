@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-const EXPECTED_EXECUTION_BLOB = "af61904f44652a4e198b545767348ce750e758bf";
+const EXPECTED_EXECUTION_BLOB = "cc61f40b945138d9fb372efe93fd7a92c20f7a86";
 
 function gitBlobSha(content: string): string {
   const normalized = content.replace(/\r\n/g, "\n");

@@ -20,7 +20,7 @@ import { VersionedSettingsRepository } from "./src/persistenceRepositories";
 import { resumePaperConnection } from "./src/paperConnectionSession";
 import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";
 import { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllocationClient";
-import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, getPaperSessionState, isPaperConnectionVerified, restoreConfiguredPaperSession, setConfiguredPaperEndpoint, type PaperSessionState } from "./src/paperConnectionSession";
+import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, getPaperSessionState, isPaperConnectionVerified, restoreConfiguredPaperSession, setConfiguredPaperEndpoint, subscribePaperSessionVerified, type PaperSessionState } from "./src/paperConnectionSession";
 import { mobileApprovedSession } from "./src/mobileApprovedSessionBoundary";
 import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./src/personalPaperOperationsClient";
 import { loadShadowOperations, type ShadowOperationsLoadResult } from "./src/shadowOperationsClient";
@@ -34,7 +34,7 @@ import { PaperShadowMonitorView } from "./src/paperShadowMonitorView";
 // PaperLearningMonitorView remains the canonical PAPER monitor rendered by PaperShadowMonitorView.
 import { buildPaperLearningScreen } from "./src/paperLearningScreen";
 import { getLocalPaperLearningReadiness, recordLocalPaperPublicMarkets } from "./src/localPaperLearningProjection";
-import { resolveCanonicalCloudOrigin } from "./src/canonicalOrigin";
+import { effectivePaperEndpoint, resolveCanonicalCloudOrigin } from "./src/canonicalOrigin";
 import type { PublicCandle } from "./src/chartViewModel";
 import type { WatchlistMarket } from "./src/watchlist";
 import { emitUxTelemetryEvent } from "./src/uxTelemetryClient";
@@ -82,10 +82,11 @@ function PersistedThemeBridge({ children }: Readonly<{ children: React.ReactNode
       if (!active) return;
       const settings = normalizeSettings(stored ?? DEFAULT_SETTINGS);
       const canonical = resolveCanonicalCloudOrigin();
-      setConfiguredPaperEndpoint(settings.paperEndpoint);
-      if (!settings.paperEndpoint && canonical.status === "READY") setConfiguredPaperEndpoint(canonical.origin);
+      // Never apply the raw saved value: "" would transiently unset the canonical origin and read as
+      // an explicit endpoint change that destroys the encrypted PAPER session.
+      setConfiguredPaperEndpoint(effectivePaperEndpoint(settings.paperEndpoint, canonical));
       setMode(themePreference(settings.theme));
-    }).catch(() => { if (active) { setConfiguredPaperEndpoint(""); setMode("dark"); } });
+    }).catch(() => { if (active) setMode("dark"); });
     return () => { active = false; };
   }, [setMode]);
   return <>{children}</>;
@@ -114,7 +115,12 @@ function AuthContextProvider({ children }: Readonly<{ children: React.ReactNode 
       const endpoint = settings.paperEndpoint || (canonical.status === "READY" ? canonical.origin : null);
       if (endpoint == null) return false;
       setConfiguredPaperEndpoint(endpoint);
-      return restoreConfiguredPaperSession(endpoint);
+      // Cold start and the first launch after an app update use the registered DeviceKey too.
+      const native = ownerDeviceCredential();
+      if (native == null) return restoreConfiguredPaperSession(endpoint);
+      return getOrCreateInstallationId(AsyncStorage)
+        .then((deviceId) => restoreConfiguredPaperSession(endpoint, { deviceId, native }))
+        .catch(() => restoreConfiguredPaperSession(endpoint));
     }).then((restored) => {
       if (active) setStatus(restored ? "SIGNED_IN" : "SIGNED_OUT");
     }).catch(() => { if (active) { mobileApprovedSession().clearMemory(); setStatus("SIGNED_OUT"); } });
@@ -347,6 +353,11 @@ function AuthenticatedApp() {
     });
     return () => subscription.remove();
   }, [dispatchRuntime, runtimeCoordinator]);
+  useEffect(() => {
+    if (authStatus !== "SIGNED_IN") return;
+    // Re-project as soon as a background restore verifies, instead of waiting for the next poll.
+    return subscribePaperSessionVerified(() => { void refresh().catch(() => undefined); });
+  }, [authStatus, refresh]);
   useEffect(() => {
     refreshGenerationRef.current += 1;
     if (authStatus !== "SIGNED_IN" || appState !== "active") return;

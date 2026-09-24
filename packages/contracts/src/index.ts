@@ -47,6 +47,7 @@ export * from "./uxTelemetryEvent";
 export * from "./aiTradingJudgment";
 export * from "./researchHypothesisContract";
 export * from "./referenceIntelligence";
+export * from "./researchIntelligence";
 export * from "./researchFactoryOutcome";
 export * from "./researchFactoryEvidenceReport";
 export * from "./researchFactoryPromotionBridge";

@@ -385,6 +385,14 @@ export class MobileApprovedSession {
     const device = readDeviceId(deviceId);
     if (device == null) throw new Error("device enrollment identifier is invalid.");
     const status = await native.getSilentDeviceStatus();
+    if (status.status === "SILENT_DEVICE_KEY_STATUS_TRANSIENT_ERROR") {
+      // A second status inspection happens immediately before issuing the challenge. AndroidKeyStore
+      // can become temporarily unavailable between the coordinator's first check and this call
+      // after foreground resume. Preserve device trust and let the existing bounded retry repeat the
+      // silent proof instead of turning the transient status into a terminal-looking auth failure.
+      this.restoreRetryable = true;
+      throw new Error("silent DeviceKey status is temporarily unavailable.");
+    }
     const id = readToken(credentialId ?? status.credentialId ?? "", "owner device credential id");
     if (status.available !== true || status.hardwareBacked !== true) throw new Error("hardware-backed owner credential is unavailable.");
     this.silentNative = native;
@@ -519,13 +527,14 @@ export class MobileApprovedSession {
         this.restoreRetryable = true;
         throw error;
       }
+      if (status.status === "SILENT_DEVICE_KEY_STATUS_TRANSIENT_ERROR") {
+        // Native retained the registered credential id but could not inspect AndroidKeyStore.
+        // Do not downgrade device trust or fall back to a bearer-only proof; retry the same silent
+        // DeviceKey recovery through paperConnectionSession's bounded single-flight coordinator.
+        this.restoreRetryable = true;
+        throw new Error("silent DeviceKey status is temporarily unavailable.");
+      }
       if (status.available !== true || status.hardwareBacked !== true || status.credentialId == null) {
-        // The native status check resolves `available: false` on a Keystore read exception too
-        // (it never rejects for that), so this branch is reached by both a genuinely absent silent
-        // key and a transient hardware hiccup indistinguishably. restore() unconditionally resets
-        // restoreRetryable via clearMemory() before it runs, so an empty/expired bearer session
-        // underneath (itself not a definitive rejection) would otherwise leave restoreRetryable
-        // false here and the foreground retry timer unarmed, exactly as before this fix.
         const restored = await this.restoreBearer(endpoint);
         if (restored == null) {
           this.restoreRetryable = true;

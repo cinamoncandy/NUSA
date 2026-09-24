@@ -201,6 +201,31 @@ test("canonical strategy order automatically partial-fills and completes on the 
   assert.equal(evaluations(), 2);
 });
 
+test("a superseded binding's open strategy order is cancelled, never continued, after a challenger replacement", () => {
+  const { loop, boundary } = build("ALLOW", { maxFillRatio: 0.5 });
+  const first = boundary.processTick(tick);
+  assert.equal(first.state.workingOrders?.length, 1);
+  const fillsBefore = loop.snapshot().fills.length;
+  // The next tick's decision is bound to a different binding (a replacement challenger version).
+  const replacementBinding = Object.freeze({ ...candidateBinding, bindingFingerprintSha256: "f".repeat(64) });
+  const second = boundary.processTick(Object.freeze({
+    ...tick,
+    now: 2_100,
+    observedAt: 2_050,
+    decisions: Object.freeze([Object.freeze({ ...decision, decidedAt: 2_000, paperCandidateBinding: replacementBinding })])
+  }));
+  assert.equal(second.state.workingOrders?.length ?? 0, 0, "the superseded working order is removed");
+  assert.equal(loop.snapshot().fills.length, fillsBefore, "no fill is produced for the superseded binding");
+});
+
+test("the same binding's open strategy order still continues", () => {
+  const { loop, boundary } = build("ALLOW", { maxFillRatio: 0.5 });
+  boundary.processTick(tick);
+  const second = boundary.processTick(Object.freeze({ ...tick, now: 2_100, observedAt: 2_050 }));
+  assert.equal(second.status, "FILLED");
+  assert.equal(loop.snapshot().fills.length, 2);
+});
+
 test("canonical strategy order carries orderbook-liquidity remainder across ticks", () => {
   const { loop, boundary, evaluations } = build("ALLOW");
   const shallow = buildPaperObservedExecutionQuote({
