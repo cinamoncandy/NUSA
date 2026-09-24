@@ -279,7 +279,16 @@ export function startCloudRuntime(
   };
   const liveReadinessSourceProvider = createLiveReadinessSourceProvider({ now: () => new Date().toISOString(), sourceVersion, readers: defaultLiveReadinessReaders });
   const effectiveResearchRuntime: CloudRuntimeResearchRuntimeLike | undefined = researchAutomation ?? researchRuntime;
-  try { researchAutomation?.recover?.() ?? researchRecoveryCoordinator?.recover(); } catch { /* Research owns its fail-closed state. */ }
+  // researchAutomation gates itself: a non-READY recover() halts its own RUNNING sessions, so its
+  // onMarketData sees none left and no-ops. The plain researchRuntime path has no such self-gate --
+  // without this flag a FAIL_CLOSED researchRecoveryCoordinator result (corrupted candidate/audit
+  // state) was silently discarded here and the market-data loop kept calling onMarketData on
+  // unverified research state below.
+  let researchRecoveryFailClosed = false;
+  try {
+    const recovery = researchAutomation?.recover?.() ?? researchRecoveryCoordinator?.recover();
+    if (recovery != null && recovery.status !== "READY") researchRecoveryFailClosed = true;
+  } catch { researchRecoveryFailClosed = true; }
   // Fail closed by withholding the dashboard projection only. This used to also call
   // effectivePaperRepository.clear(), which deletes the durable PAPER account, its history and the
   // canonical fill ledger. It ran whenever the dashboard had no state on a tick (stale or missing
@@ -326,7 +335,7 @@ export function startCloudRuntime(
     catch { heartbeat.lastError = "PAPER_MARKET_OBSERVATION_REJECTED"; }
     observations.set(observation.id, observation); while (observations.size > 50) observations.delete(observations.keys().next().value!); safeHydrate([...observations.values()]);
     const researchTick = { market: ticker.code, price: ticker.trade_price, observedAt: ticker.trade_timestamp, now };
-    try { effectiveResearchRuntime?.onMarketData(researchTick); } catch { /* isolated */ }
+    if (!researchRecoveryFailClosed) { try { effectiveResearchRuntime?.onMarketData(researchTick); } catch { /* isolated */ } }
     const state = effectiveProvider.read({ userId: "operator", scopes: ["dashboard:read"] });
     if (state != null) {
       // Hydration samples its own clock while producing decision.decidedAt. Re-sample only after
