@@ -189,10 +189,10 @@ function boundedBackoffMs(baseBackoffMs, attempt, jitter = Math.random) {
 }
 
 function rateLimitedResult(result, evidence, rateLimitEvents = []) {
-  const fallbackProvider = result?.fallbackProvider === "github-models" ? result.fallbackProvider : undefined;
-  const fallbackFailureReason = typeof result?.fallbackFailureReason === "string"
-    && /^[A-Z0-9_:-]{1,160}$/.test(result.fallbackFailureReason)
-    ? result.fallbackFailureReason
+  const fallbackProvider = evidence?.fallbackProvider === "github-models" ? evidence.fallbackProvider : undefined;
+  const fallbackFailureReason = typeof evidence?.fallbackFailureReason === "string"
+    && /^[A-Z0-9_:-]{1,160}$/.test(evidence.fallbackFailureReason)
+    ? evidence.fallbackFailureReason
     : undefined;
   const enriched = {
     ...result,
