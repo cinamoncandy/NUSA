@@ -121,6 +121,10 @@ function linkedIssueNumbers(openPulls: readonly unknown[]): ReadonlySet<number> 
   for (const value of openPulls) {
     const pull = object(value);
     if (!pull) continue;
+    // A linked PR blocks duplicate admission unless the runtime has positively
+    // verified that its head is behind current main. Missing/unknown evidence
+    // remains blocking (fail closed).
+    if (pull.nusa_stale_against_main === true) continue;
     const haystack = `${text(pull.title) ?? ""}\n${text(pull.body) ?? ""}`;
     for (const match of haystack.matchAll(/#(\d+)/g)) {
       const issueNumber = Number(match[1]);

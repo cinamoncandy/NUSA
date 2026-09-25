@@ -46,6 +46,7 @@ type BacklogEvidence = Readonly<{
   issues: readonly unknown[];
   openPulls: readonly unknown[];
   workSupply: GithubIssueWorkSupplySnapshot;
+  readinessEvidenceComplete: boolean;
 }>;
 
 const DEFAULT_REPOSITORY = "cinamoncandy/NUSA";
@@ -104,7 +105,6 @@ function completeSearchItems(value: JsonObject): readonly unknown[] | null {
 async function observeGithubBacklogEvidence(
   repository: string,
   token: string,
-  now: number,
   fetchImpl: typeof fetch,
 ): Promise<BacklogEvidence> {
   // These searches are independent. Keeping them serial made every scheduled
@@ -123,28 +123,54 @@ async function observeGithubBacklogEvidence(
       issues: Object.freeze([]),
       openPulls: Object.freeze([]),
       workSupply: unknownGithubIssueWorkSupply(issueResult.reason instanceof Error ? issueResult.reason.message : "github-open-issue-search-failed"),
+      readinessEvidenceComplete: false,
     });
   }
 
   const rawSupply = deriveGithubIssueWorkSupply(issueResult.value);
   const issues = completeSearchItems(issueResult.value);
   if (!issues || pullResult.status === "rejected") {
-    return Object.freeze({ issues: issues ?? Object.freeze([]), openPulls: Object.freeze([]), workSupply: rawSupply });
+    return Object.freeze({ issues: issues ?? Object.freeze([]), openPulls: Object.freeze([]), workSupply: rawSupply, readinessEvidenceComplete: false });
   }
 
   const openPulls = completeSearchItems(pullResult.value);
-  if (!openPulls) return Object.freeze({ issues, openPulls: Object.freeze([]), workSupply: rawSupply });
+  if (!openPulls) return Object.freeze({ issues, openPulls: Object.freeze([]), workSupply: rawSupply, readinessEvidenceComplete: false });
 
-  const readiness = deriveGithubIssueBacklogReadiness(issues, openPulls, new Date(now));
-  return Object.freeze({
-    issues,
-    openPulls,
-    workSupply: withObservedCapabilityBlockedWork(
-      withObservedReadyWork(rawSupply, readiness.eligibleIssueCount),
-      readiness.capabilityBlockedIssueCount,
-      readiness.capabilityBlockedCapabilities,
-    ),
-  });
+  return Object.freeze({ issues, openPulls, workSupply: rawSupply, readinessEvidenceComplete: true });
+}
+
+async function enrichOpenPullStaleness(
+  repository: string,
+  token: string,
+  openPulls: readonly unknown[],
+  mainSha: string,
+  fetchImpl: typeof fetch,
+): Promise<readonly unknown[]> {
+  const enriched = await Promise.all(openPulls.map(async (value) => {
+    const pull = object(value);
+    const number = positiveInteger(pull?.number);
+    if (!pull || !number) return value;
+    try {
+      const detail = await githubJson(`https://api.github.com/repos/${repository}/pulls/${number}`, token, fetchImpl);
+      const head = object(detail.head);
+      const headSha = text(head?.sha);
+      if (!headSha || !SHA40.test(headSha)) return value;
+      const comparison = await githubJson(
+        `https://api.github.com/repos/${repository}/compare/${headSha}...${mainSha}`,
+        token,
+        fetchImpl,
+      );
+      const behindBy = Number.isSafeInteger(comparison.behind_by) && Number(comparison.behind_by) >= 0
+        ? Number(comparison.behind_by)
+        : null;
+      if (behindBy === null) return value;
+      return Object.freeze({ ...pull, nusa_stale_against_main: behindBy > 0 });
+    } catch {
+      // Missing comparison evidence must keep the PR blocking.
+      return value;
+    }
+  }));
+  return Object.freeze(enriched);
 }
 
 function workflowCompletedAt(run: JsonObject): string | null {
@@ -234,10 +260,10 @@ export async function runScheduledAutopilot(env: ScheduledRuntimeEnv, now: numbe
   // them together removes one more full network/storage round trip from every
   // scheduled cycle without changing any authorization or dedupe decision.
   const [backlog, previousReceipt] = await Promise.all([
-    observeGithubBacklogEvidence(repository, token, now, fetchImpl),
+    observeGithubBacklogEvidence(repository, token, fetchImpl),
     readScheduledRuntimeReceipt(coordinator).catch(() => null),
   ]);
-  const workSupply = backlog.workSupply;
+  let workSupply = backlog.workSupply;
 
   let mainSha: string;
   let workflowRunId: number;
@@ -256,13 +282,23 @@ export async function runScheduledAutopilot(env: ScheduledRuntimeEnv, now: numbe
     if (!resolvedMainSha || !SHA40.test(resolvedMainSha)) return result("ABSTAINED", "main-sha-invalid", null, null, null, discoveredOpportunityIds, workSupply);
     mainSha = resolvedMainSha;
 
+    const openPulls = await enrichOpenPullStaleness(repository, token, backlog.openPulls, mainSha, fetchImpl);
+    const readiness = deriveGithubIssueBacklogReadiness(backlog.issues, openPulls, new Date(now));
+    workSupply = backlog.readinessEvidenceComplete
+      ? withObservedCapabilityBlockedWork(
+          withObservedReadyWork(backlog.workSupply, readiness.eligibleIssueCount),
+          readiness.capabilityBlockedIssueCount,
+          readiness.capabilityBlockedCapabilities,
+        )
+      : backlog.workSupply;
+
     const candidates = Array.isArray(runs.workflow_runs) ? runs.workflow_runs : [];
     discoveredOpportunityIds = discoverWorkflowFailureOpportunityIds(candidates, now);
 
     const failedRunId = currentMainFailureRunId(candidates, mainSha, now);
     if (failedRunId) {
       try {
-        const coding = await runScheduledEvolutionCoding(env, { candidates, backlogIssues: backlog.issues, openPulls: backlog.openPulls, now, repository, mainSha, workflowRunId: failedRunId }, fetchImpl);
+        const coding = await runScheduledEvolutionCoding(env, { candidates, backlogIssues: backlog.issues, openPulls, now, repository, mainSha, workflowRunId: failedRunId }, fetchImpl);
         console.log(JSON.stringify({ event: "NUSA_SCHEDULED_EVOLVE_CODING", ...coding }));
         return codingResult(coding, mainSha, failedRunId, discoveredOpportunityIds, workSupply)
           ?? result("ABSTAINED", coding.reason, mainSha, failedRunId, null, discoveredOpportunityIds, workSupply);
@@ -281,7 +317,7 @@ export async function runScheduledAutopilot(env: ScheduledRuntimeEnv, now: numbe
     workflowRunId = resolvedRunId;
 
     try {
-      const coding = await runScheduledEvolutionCoding(env, { candidates, backlogIssues: backlog.issues, openPulls: backlog.openPulls, now, repository, mainSha, workflowRunId }, fetchImpl);
+      const coding = await runScheduledEvolutionCoding(env, { candidates, backlogIssues: backlog.issues, openPulls, now, repository, mainSha, workflowRunId }, fetchImpl);
       console.log(JSON.stringify({ event: "NUSA_SCHEDULED_EVOLVE_CODING", ...coding }));
       const handled = codingResult(coding, mainSha, workflowRunId, discoveredOpportunityIds, workSupply);
       if (handled) return handled;
