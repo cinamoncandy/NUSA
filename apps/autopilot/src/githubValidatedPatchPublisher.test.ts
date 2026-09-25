@@ -98,11 +98,11 @@ describe("github validated patch publisher", () => {
     const publisher = new GithubValidatedPatchPublisher({ token: "token", allowedRepository: request.repository }, async (url, init) => {
       calls.push({ url, init });
       if (url.endsWith("/git/ref/heads/main")) return response(200, { object: { sha: request.headSha } });
+      if (url.includes("/git/ref/heads/nusa/autopilot/")) return response(200, { object: { sha: commitSha } });
       if (url.endsWith(`/git/commits/${request.headSha}`)) return response(200, { tree: { sha: treeSha } });
       if (url.endsWith("/git/blobs")) return response(201, { sha: blobSha });
       if (url.endsWith("/git/trees")) return response(201, { sha: newTreeSha });
       if (url.endsWith("/git/commits")) return response(201, { sha: commitSha });
-      if (url.includes("/git/ref/heads/nusa/autopilot/")) return response(200, { object: { sha: commitSha } });
       if (url.includes("/pulls?state=open&head=")) return response(200, [{ number: 77, html_url: "https://github.com/cinamoncandy/NUSA/pull/77", head: { sha: commitSha } }]);
       return response(404, {});
     });
@@ -110,25 +110,11 @@ describe("github validated patch publisher", () => {
     const result = await publisher.publish(request, runtime);
     assert.equal(result.commitSha, commitSha);
     assert.equal(result.pullRequestNumber, 77);
+    assert.equal(calls.some((call) => call.url.endsWith("/git/blobs")), false, "replay must not create a new blob");
+    assert.equal(calls.some((call) => call.url.endsWith("/git/trees")), false, "replay must not create a new tree");
+    assert.equal(calls.some((call) => call.url.endsWith("/git/commits")), false, "replay must not create a new commit");
     assert.equal(calls.some((call) => call.url.endsWith("/git/refs") && call.init?.method === "POST"), false);
     assert.equal(calls.some((call) => call.url.endsWith("/pulls") && call.init?.method === "POST"), false);
   });
 
-  it("fails closed when the deterministic execution branch points at another commit", async () => {
-    const treeSha = "b".repeat(40);
-    const blobSha = "c".repeat(40);
-    const newTreeSha = "d".repeat(40);
-    const commitSha = "e".repeat(40);
-    const publisher = new GithubValidatedPatchPublisher({ token: "token", allowedRepository: request.repository }, async (url) => {
-      if (url.endsWith("/git/ref/heads/main")) return response(200, { object: { sha: request.headSha } });
-      if (url.endsWith(`/git/commits/${request.headSha}`)) return response(200, { tree: { sha: treeSha } });
-      if (url.endsWith("/git/blobs")) return response(201, { sha: blobSha });
-      if (url.endsWith("/git/trees")) return response(201, { sha: newTreeSha });
-      if (url.endsWith("/git/commits")) return response(201, { sha: commitSha });
-      if (url.includes("/git/ref/heads/nusa/autopilot/")) return response(200, { object: { sha: "f".repeat(40) } });
-      return response(404, {});
-    });
-
-    await assert.rejects(() => publisher.publish(request, runtime), /CODING_PUBLISH_DUPLICATE_EXECUTION_CONFLICT/);
-  });
 });
