@@ -40,12 +40,12 @@ export function workerOutcomeFromTelemetry(
   if (!Number.isSafeInteger(telemetry.timestampMs) || telemetry.timestampMs !== metrics.completedAt) return null;
   if (!Number.isSafeInteger(telemetry.attempt) || telemetry.attempt < 1) return null;
 
-  const verified =
-    telemetry.result === "SUCCESS"
-    && telemetry.validationResult === "SUCCESS"
-    && telemetry.ciResult === "SUCCESS"
-    && telemetry.failureClass === null
-    && telemetry.failureReason === null;
+  // Execution telemetry measures the worker attempt, not canonical completion. Exact-head CI,
+  // independent Audit, and nusa/release-authorized happen downstream and are not represented by
+  // this record. Treating local SUCCESS-like fields as completion would inflate verified
+  // throughput and could incorrectly recommend more concurrency. A later join with canonical
+  // completion evidence owns the only transition to verified=true.
+  const verified = false;
 
   const reworked = telemetry.attempt > 1 || telemetry.retry.attempt > 1 || telemetry.checkpoint.resumed;
   const conflicted = telemetry.failureReason !== null && /conflict/i.test(telemetry.failureReason);

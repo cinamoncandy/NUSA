@@ -176,7 +176,7 @@ test("production evaluation boundary turns measured worker outcomes into a non-m
   assert.equal(recommendation.mutationAllowed, false);
 });
 
-test("canonical execution telemetry becomes a worker outcome only when timestamps match", () => {
+test("execution telemetry records worker outcome but cannot assert canonical completion", () => {
   const metrics = outcome("telemetry").metrics;
   const telemetry = {
     schemaVersion: 1,
@@ -206,7 +206,7 @@ test("canonical execution telemetry becomes a worker outcome only when timestamp
   };
   const measured = workerOutcomeFromTelemetry(metrics, telemetry);
   assert.ok(measured);
-  assert.equal(measured.verified, true);
+  assert.equal(measured.verified, false, "worker telemetry cannot prove exact-head CI + Audit + Release");
   assert.equal(measured.reworked, true);
   assert.equal(measured.conflicted, false);
   assert.equal(workerOutcomeFromTelemetry(metrics, { ...telemetry, timestampMs: metrics.completedAt + 1 }), null);
