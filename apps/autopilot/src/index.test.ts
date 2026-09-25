@@ -381,6 +381,71 @@ describe("NUSA autopilot GitHub webhook", () => {
     }
   });
 
+  it("releases a retryable Audit executor lease so the same CI identity can dispatch after recovery", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const namespace: ExecutionCoordinatorNamespace = {
+      idFromName: () => ({}),
+      get: () => ({ fetch: (input: RequestInfo | URL, init?: RequestInit) => coordinator.fetch(new Request(input, init)) }),
+    };
+    const headSha = "d".repeat(40);
+    const workflowRunId = 35195500002;
+    const workflowBody = JSON.stringify({
+      action: "completed",
+      workflow_run: {
+        id: workflowRunId,
+        name: "CI",
+        head_sha: headSha,
+        head_branch: "feature/audit-retry",
+        status: "completed",
+        conclusion: "success",
+        event: "pull_request",
+        pull_requests: [{ number: 1956 }],
+      },
+      repository: { full_name: "cinamoncandy/NUSA" },
+    });
+    const signature = await computeGithubWebhookSignature("secret", workflowBody);
+    const request = (delivery: string) => new Request("https://example.test/github/webhook", {
+      method: "POST",
+      headers: { "x-github-delivery": delivery, "x-github-event": "workflow_run", "x-hub-signature-256": signature },
+      body: workflowBody,
+    });
+    const originalFetch = globalThis.fetch;
+    const dispatched: unknown[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/pulls/1956")) return new Response(JSON.stringify({
+        state: "open",
+        draft: false,
+        labels: [],
+        head: { sha: headSha },
+      }), { status: 200 });
+      if (url.includes("/actions/workflows/autopilot-deterministic-audit-release.yml/runs?")) {
+        return new Response(JSON.stringify({ workflow_runs: [] }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.endsWith("/dispatches")) {
+        dispatched.push(JSON.parse(String(init?.body)));
+        return new Response(null, { status: 204 });
+      }
+      return new Response(null, { status: 404 });
+    }) as typeof fetch;
+    try {
+      const baseEnv = { NUSA_WEBHOOK_SECRET: "secret", NUSA_EXECUTION_COORDINATOR: namespace, NUSA_GLOBAL_RELEASE_FREEZE: "false" };
+      const unavailable = await worker.fetch(request("audit-retry-unavailable"), baseEnv);
+      const unavailablePayload = await unavailable.json() as { executor: { status: string; reason: string } };
+      assert.equal(unavailablePayload.executor.status, "INTERFACE_READY");
+      assert.equal(unavailablePayload.executor.reason, "github-executor-token-not-configured");
+      assert.equal(dispatched.length, 0);
+
+      const recovered = await worker.fetch(request("audit-retry-recovered"), { ...baseEnv, NUSA_GITHUB_TOKEN: "token" });
+      const recoveredPayload = await recovered.json() as { executor: { status: string } };
+      assert.equal(recoveredPayload.executor.status, "DISPATCHED");
+      assert.equal(dispatched.length, 1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("rejects malformed signed JSON instead of planning from partial data", async () => {
     const body = "{";
     const signature = await computeGithubWebhookSignature("secret", body);
