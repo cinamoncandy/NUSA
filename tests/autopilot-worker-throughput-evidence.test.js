@@ -7,6 +7,7 @@ const {
   toConcurrencyEvidence,
   MINIMUM_THROUGHPUT_SAMPLE,
   evaluateWorkerPoolConcurrency,
+  workerOutcomeFromTelemetry,
 } = require("../dist/apps/autopilot/src/workerThroughputEvidence.js");
 const { adviseConcurrency } = require("../dist/apps/autopilot/src/concurrencyAdvisor.js");
 
@@ -173,4 +174,75 @@ test("production evaluation boundary turns measured worker outcomes into a non-m
   assert.equal(recommendation.action, "INCREASE_BY_ONE");
   assert.equal(recommendation.recommendedWip, 2);
   assert.equal(recommendation.mutationAllowed, false);
+});
+
+test("canonical execution telemetry becomes a worker outcome only when timestamps match", () => {
+  const metrics = outcome("telemetry").metrics;
+  const telemetry = {
+    schemaVersion: 1,
+    telemetryId: "0".repeat(64),
+    executionId: "execution-telemetry",
+    timestampMs: metrics.completedAt,
+    trigger: "worker-complete",
+    decision: "record-outcome",
+    action: "ACTION",
+    selectedExecutor: "codex",
+    dedupeKey: "dedupe-telemetry",
+    attempt: 2,
+    retry: { attempt: 2, maxAttempts: 3, backoffMs: 1000 },
+    recovery: { action: "retry", reason: "validation-failed" },
+    checkpoint: { checkpointId: "checkpoint-1", resumed: true },
+    durationMs: metrics.claimToCompleteMs,
+    result: "SUCCESS",
+    validationResult: "SUCCESS",
+    ciResult: "SUCCESS",
+    failureClass: null,
+    commitSha: null,
+    pullRequestNumber: null,
+    failureReason: null,
+    liveAuthority: "NONE",
+    productionMutationAllowed: false,
+    aiAuthority: "ZERO_AUTHORITY",
+  };
+  const measured = workerOutcomeFromTelemetry(metrics, telemetry);
+  assert.ok(measured);
+  assert.equal(measured.verified, true);
+  assert.equal(measured.reworked, true);
+  assert.equal(measured.conflicted, false);
+  assert.equal(workerOutcomeFromTelemetry(metrics, { ...telemetry, timestampMs: metrics.completedAt + 1 }), null);
+});
+
+test("failed conflict telemetry is measured as conflict and never as verified completion", () => {
+  const metrics = outcome("conflict").metrics;
+  const telemetry = {
+    schemaVersion: 1,
+    telemetryId: "0".repeat(64),
+    executionId: "execution-conflict",
+    timestampMs: metrics.completedAt,
+    trigger: "worker-complete",
+    decision: "record-outcome",
+    action: "ACTION",
+    selectedExecutor: "codex",
+    dedupeKey: "dedupe-conflict",
+    attempt: 1,
+    retry: { attempt: 1, maxAttempts: 3, backoffMs: 0 },
+    recovery: { action: "none", reason: null },
+    checkpoint: { checkpointId: null, resumed: false },
+    durationMs: metrics.claimToCompleteMs,
+    result: "FAILED",
+    validationResult: "FAILED",
+    ciResult: "NOT_RUN",
+    failureClass: "deterministic",
+    commitSha: null,
+    pullRequestNumber: null,
+    failureReason: "CONFLICT_KEY_ACTIVE",
+    liveAuthority: "NONE",
+    productionMutationAllowed: false,
+    aiAuthority: "ZERO_AUTHORITY",
+  };
+  const measured = workerOutcomeFromTelemetry(metrics, telemetry);
+  assert.ok(measured);
+  assert.equal(measured.verified, false);
+  assert.equal(measured.reworked, false);
+  assert.equal(measured.conflicted, true);
 });
