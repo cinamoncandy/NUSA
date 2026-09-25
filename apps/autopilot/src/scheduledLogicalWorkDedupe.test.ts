@@ -194,7 +194,7 @@ test("issue that gained an open PR after discovery is suppressed by the dispatch
     const url = String(input);
     if (url.endsWith("/issues/1960")) return new Response(JSON.stringify(issue(1960)), { status: 200, headers: { "content-type": "application/json" } });
     if (url.includes("/search/issues?") && url.includes("is%3Apr")) {
-      return new Response(JSON.stringify({ total_count: 1, items: [{ title: "fix autopilot #1960", body: "Fixes #1960" }] }), { status: 200, headers: { "content-type": "application/json" } });
+      return new Response(JSON.stringify({ total_count: 1, items: [{ state: "open", title: "fix autopilot #1960", body: "Fixes #1960" }] }), { status: 200, headers: { "content-type": "application/json" } });
     }
     if (url.endsWith("/dispatches")) {
       dispatches += 1;
