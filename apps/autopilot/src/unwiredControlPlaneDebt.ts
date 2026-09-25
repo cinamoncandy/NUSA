@@ -1,5 +1,5 @@
 /**
- * The 29 exported functions in `apps/autopilot/src` that no running code calls, and a ratchet that
+ * The exported functions in `apps/autopilot/src` that no running code calls, and a ratchet that
  * stops the number from growing.
  *
  * Every one of these is reached only by its own test file. A passing test suite is not evidence
@@ -38,7 +38,6 @@ export const UNWIRED_CONTROL_PLANE_DEBT: readonly string[] = Object.freeze([
   "autonomousExecutionState.ts#clearExecutionHold",
   "autonomousExecutionState.ts#isDuplicateExecution",
   "autonomousExecutionState.ts#recoverExpiredLease",
-  "concurrencyAdvisor.ts#adviseConcurrency",
   "evolveAutonomousSelector.ts#selectNonConflictingEvolutionOpportunities",
   "evolveCircuitBreaker.ts#canAttemptCircuitRecovery",
   "evolveCircuitBreaker.ts#resetCircuitBreaker",
@@ -61,6 +60,10 @@ export const UNWIRED_CONTROL_PLANE_DEBT: readonly string[] = Object.freeze([
   // these having no caller yet is the declared design rather than a missed wiring. They stay listed
   // because the ledger is a measurement, not a judgement: #2117's runner integration is what removes
   // them, and leaving them out would hide exactly the work this issue is tracking.
+  // #2117 now has a real evidence producer and adviseConcurrency is therefore wired. The
+  // production evaluation boundary still waits on the worker-runner outcome stream; inventing a
+  // synthetic ThroughputWindow here would turn missing measurements into fake runtime evidence.
+  "workerThroughputEvidence.ts#evaluateWorkerPoolConcurrency",
   "worktreeWorkerPool.ts#admitWorkerTask",
   "worktreeWorkerPool.ts#completeWorkerClaim",
   "worktreeWorkerPool.ts#createWorkerPoolState",
