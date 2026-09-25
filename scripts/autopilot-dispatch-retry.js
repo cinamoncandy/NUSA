@@ -189,8 +189,15 @@ function boundedBackoffMs(baseBackoffMs, attempt, jitter = Math.random) {
 }
 
 function rateLimitedResult(result, evidence, rateLimitEvents = []) {
+  const fallbackProvider = result?.fallbackProvider === "github-models" ? result.fallbackProvider : undefined;
+  const fallbackFailureReason = typeof result?.fallbackFailureReason === "string"
+    && /^[A-Z0-9_:-]{1,160}$/.test(result.fallbackFailureReason)
+    ? result.fallbackFailureReason
+    : undefined;
   const enriched = {
     ...result,
+    ...(fallbackProvider ? { fallbackProvider } : {}),
+    ...(fallbackFailureReason ? { fallbackFailureReason } : {}),
     provider: evidence.provider,
     lastRateLimitAt: evidence.lastRateLimitAt,
     nextRetryAt: evidence.nextRetryAt,
@@ -361,6 +368,11 @@ async function dispatchWithRetry({
       const providerQuotaExhausted = rateLimit.code === "WORKERS_AI_DAILY_QUOTA_EXHAUSTED";
       const decision = !workerWaiting && !providerQuotaExhausted && attempt < maxAttempts ? "RETRY" : "NO_ACTION";
       const delayMs = rateLimit.retryAfterMs ?? boundedBackoffMs(baseBackoffMs, attempt, jitter);
+      const fallbackProvider = payload?.fallbackProvider === "github-models" ? payload.fallbackProvider : undefined;
+      const fallbackFailureReason = typeof payload?.fallbackFailureReason === "string"
+        && /^[A-Z0-9_:-]{1,160}$/.test(payload.fallbackFailureReason)
+        ? payload.fallbackFailureReason
+        : undefined;
       const nextEvidence = Object.freeze({
         ...rateLimit,
         nextRetryAt: observedAt + delayMs,
@@ -368,6 +380,8 @@ async function dispatchWithRetry({
         stoppedAt: Number.isSafeInteger(payload?.stoppedAt) ? payload.stoppedAt : observedAt,
         resumeCondition: typeof payload?.resumeCondition === "string" ? payload.resumeCondition : "provider-capacity-and-exact-head-revalidation",
         retrySource: rateLimit.retryAfterMs === null ? "bounded-exponential-backoff-jitter" : rateLimit.retrySource,
+        ...(fallbackProvider ? { fallbackProvider } : {}),
+        ...(fallbackFailureReason ? { fallbackFailureReason } : {}),
       });
       rateLimitEvents.push(nextEvidence);
       const rateLimitEventsForResult = [...rateLimitEvents];
