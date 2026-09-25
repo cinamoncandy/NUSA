@@ -46,6 +46,7 @@ type BacklogEvidence = Readonly<{
   issues: readonly unknown[];
   openPulls: readonly unknown[];
   workSupply: GithubIssueWorkSupplySnapshot;
+  readinessEvidenceComplete: boolean;
 }>;
 
 const DEFAULT_REPOSITORY = "cinamoncandy/NUSA";
@@ -122,19 +123,20 @@ async function observeGithubBacklogEvidence(
       issues: Object.freeze([]),
       openPulls: Object.freeze([]),
       workSupply: unknownGithubIssueWorkSupply(issueResult.reason instanceof Error ? issueResult.reason.message : "github-open-issue-search-failed"),
+      readinessEvidenceComplete: false,
     });
   }
 
   const rawSupply = deriveGithubIssueWorkSupply(issueResult.value);
   const issues = completeSearchItems(issueResult.value);
   if (!issues || pullResult.status === "rejected") {
-    return Object.freeze({ issues: issues ?? Object.freeze([]), openPulls: Object.freeze([]), workSupply: rawSupply });
+    return Object.freeze({ issues: issues ?? Object.freeze([]), openPulls: Object.freeze([]), workSupply: rawSupply, readinessEvidenceComplete: false });
   }
 
   const openPulls = completeSearchItems(pullResult.value);
-  if (!openPulls) return Object.freeze({ issues, openPulls: Object.freeze([]), workSupply: rawSupply });
+  if (!openPulls) return Object.freeze({ issues, openPulls: Object.freeze([]), workSupply: rawSupply, readinessEvidenceComplete: false });
 
-  return Object.freeze({ issues, openPulls, workSupply: rawSupply });
+  return Object.freeze({ issues, openPulls, workSupply: rawSupply, readinessEvidenceComplete: true });
 }
 
 async function enrichOpenPullStaleness(
@@ -282,7 +284,7 @@ export async function runScheduledAutopilot(env: ScheduledRuntimeEnv, now: numbe
 
     const openPulls = await enrichOpenPullStaleness(repository, token, backlog.openPulls, mainSha, fetchImpl);
     const readiness = deriveGithubIssueBacklogReadiness(backlog.issues, openPulls, new Date(now));
-    workSupply = backlog.workSupply.readyWorkStatus === "OBSERVED"
+    workSupply = backlog.readinessEvidenceComplete
       ? withObservedCapabilityBlockedWork(
           withObservedReadyWork(backlog.workSupply, readiness.eligibleIssueCount),
           readiness.capabilityBlockedIssueCount,
