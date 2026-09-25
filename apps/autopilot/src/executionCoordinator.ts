@@ -810,9 +810,16 @@ export class ExecutionCoordinator {
     const request = value as ApplyControlPlaneHoldRequest;
     const existing = await this.ctx.storage.get<unknown>(CONTROL_PLANE_HOLD_STORAGE_KEY);
     if (existing != null && !validPersistedControlPlaneHold(existing)) return json({ error: "CONTROL_PLANE_HOLD_CORRUPT" }, 500);
+    // A stored hold always carries lower-cased SHAs, so the replay comparison has to be made against
+    // the same normalised form the write below produces. Comparing the raw request instead made
+    // idempotency depend on the case GitHub happened to send: the identical delivery replayed with
+    // an upper-cased SHA compared unequal and came back as CONTROL_PLANE_HOLD_CONFLICT. That fails
+    // closed, so the HOLD was never at risk -- but index.ts states that replayed deliveries are
+    // idempotent, and they were not.
+    const normalisedHold = Object.freeze({ ...request.hold, headSha: request.hold.headSha.toLowerCase(), baseSha: request.hold.baseSha.toLowerCase() });
     if (existing) {
       if (existing.state === "CLEARED") return json({ error: "CONTROL_PLANE_HOLD_REPLAY_AFTER_CLEAR", hold: existing }, 409);
-      if (JSON.stringify(existing.hold) === JSON.stringify(request.hold)) return json({ updated: false, hold: existing });
+      if (JSON.stringify(existing.hold) === JSON.stringify(normalisedHold)) return json({ updated: false, hold: existing });
       return json({ error: "CONTROL_PLANE_HOLD_CONFLICT", hold: existing }, 409);
     }
     const record: PersistedControlPlaneHold = Object.freeze({
@@ -821,7 +828,7 @@ export class ExecutionCoordinator {
       prNumber: request.prNumber,
       headSha: request.headSha.toLowerCase(),
       baseSha: request.baseSha.toLowerCase(),
-      hold: Object.freeze({ ...request.hold, headSha: request.hold.headSha.toLowerCase(), baseSha: request.hold.baseSha.toLowerCase() }),
+      hold: normalisedHold,
       state: "ACTIVE",
       updatedAt: request.now,
     });
