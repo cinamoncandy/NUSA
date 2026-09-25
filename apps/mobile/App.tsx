@@ -122,8 +122,8 @@ function AuthContextProvider({ children }: Readonly<{ children: React.ReactNode 
         .then((deviceId) => restoreConfiguredPaperSession(endpoint, { deviceId, native }))
         .catch(() => restoreConfiguredPaperSession(endpoint));
     }).then((restored) => {
-      if (active) setStatus(restored ? "SIGNED_IN" : "SIGNED_OUT");
-    }).catch(() => { if (active) { mobileApprovedSession().clearMemory(); setStatus("SIGNED_OUT"); } });
+      if (active) setStatus(restored || getConfiguredPaperEndpoint() != null ? "SIGNED_IN" : "SIGNED_OUT");
+    }).catch(() => { if (active) { mobileApprovedSession().clearMemory(); setStatus(getConfiguredPaperEndpoint() != null ? "SIGNED_IN" : "SIGNED_OUT"); } });
     return () => { active = false; };
   }, []);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

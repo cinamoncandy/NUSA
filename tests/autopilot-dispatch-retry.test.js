@@ -191,6 +191,34 @@ test("classifies only bounded provider rate-limit reasons", () => {
   assert.equal(providerRateLimitCode("WORKERS_AI_RATE_LIMITED secret=unexpected"), null);
 });
 
+test("preserves bounded GitHub Models fallback evidence in a provider wait receipt", async () => {
+  let calls = 0;
+  const result = await dispatchWithRetry({
+    request,
+    url: "https://runner.example.test/coding/execute",
+    oidcRequestUrl: "https://oidc.example.test/token",
+    oidcRequestToken: "oidc-request-test",
+    fetchImpl: async () => {
+      calls += 1;
+      return calls === 1 ? oidcSuccess() : response(202, {
+        status: "WAITING_RATE_LIMIT",
+        provider: "workers-ai",
+        reason: "WAITING_PROVIDER_CAPACITY",
+        stopReason: "WAITING_PROVIDER_CAPACITY",
+        lastFailure: "WAITING_PROVIDER_CAPACITY",
+        nextRetryAt: Date.now() + 5_000,
+        resumeCondition: "provider-capacity-and-exact-head-revalidation",
+        fallbackProvider: "github-models",
+        fallbackFailureReason: "GITHUB_MODELS_CODING_HTTP_401",
+      });
+    },
+  });
+  assert.equal(result.status, "WAITING_RATE_LIMIT");
+  assert.equal(result.fallbackProvider, "github-models");
+  assert.equal(result.fallbackFailureReason, "GITHUB_MODELS_CODING_HTTP_401");
+  assert.equal(calls, 2);
+});
+
 test("uses a valid Retry-After hint before bounded retry backoff", async () => {
   const waits = [];
   let runnerCalls = 0;
