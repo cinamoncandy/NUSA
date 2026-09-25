@@ -66,9 +66,9 @@ function fetchFor(issues: readonly unknown[], pulls: readonly unknown[] = []): t
     const compareMatch = url.match(/\/compare\/([0-9a-f]{40})\.\.\.([0-9a-f]{40})$/i);
     if (compareMatch) {
       const selected = pulls.find((value) => (value as Record<string, unknown>)?.headSha === compareMatch[1]) as Record<string, unknown> | undefined;
-      const behindBy = Number(selected?.behindBy);
-      return selected && Number.isSafeInteger(behindBy) && behindBy >= 0
-        ? new Response(JSON.stringify({ behind_by: behindBy }), { status: 200, headers: { "content-type": "application/json" } })
+      const mainAheadBy = Number(selected?.mainAheadBy);
+      return selected && Number.isSafeInteger(mainAheadBy) && mainAheadBy >= 0
+        ? new Response(JSON.stringify({ ahead_by: mainAheadBy }), { status: 200, headers: { "content-type": "application/json" } })
         : new Response("not found", { status: 404 });
     }
     const issueMatch = url.match(/\/issues\/([1-9][0-9]*)$/);
@@ -114,21 +114,21 @@ test("verified stale linked PR returns its issue to READY supply", async () => {
     NOW,
     fetchFor(
       [safeIssue(1901)],
-      [{ number: 77, title: "fix autopilot", body: "Fixes #1901", headSha: staleHead, behindBy: 3 }],
+      [{ number: 77, title: "fix autopilot", body: "Fixes #1901", headSha: staleHead, mainAheadBy: 3 }],
     ),
   );
   assert.equal(outcome.workSupply.readyWorkStatus, "OBSERVED");
   assert.equal(outcome.workSupply.readyWorkCount, 1);
 });
 
-test("current linked PR remains blocking when comparison proves zero commits behind", async () => {
+test("current linked PR remains blocking when comparison proves zero main-ahead commits", async () => {
   const currentHead = "c".repeat(40);
   const outcome = await runScheduledAutopilot(
     { NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace() },
     NOW,
     fetchFor(
       [safeIssue(1901)],
-      [{ number: 78, title: "fix autopilot", body: "Fixes #1901", headSha: currentHead, behindBy: 0 }],
+      [{ number: 78, title: "fix autopilot", body: "Fixes #1901", headSha: currentHead, mainAheadBy: 0 }],
     ),
   );
   assert.equal(outcome.workSupply.readyWorkStatus, "OBSERVED");

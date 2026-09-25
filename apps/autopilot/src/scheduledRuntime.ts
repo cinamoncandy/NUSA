@@ -160,11 +160,14 @@ async function enrichOpenPullStaleness(
         token,
         fetchImpl,
       );
-      const behindBy = Number.isSafeInteger(comparison.behind_by) && Number(comparison.behind_by) >= 0
-        ? Number(comparison.behind_by)
+      // compare/{PR_HEAD}...{MAIN}: ahead_by is how many commits MAIN has
+      // beyond the merge base. behind_by is the PR's own feature delta and
+      // must never be interpreted as staleness.
+      const mainAheadBy = Number.isSafeInteger(comparison.ahead_by) && Number(comparison.ahead_by) >= 0
+        ? Number(comparison.ahead_by)
         : null;
-      if (behindBy === null) return value;
-      return Object.freeze({ ...pull, nusa_stale_against_main: behindBy > 0 });
+      if (mainAheadBy === null) return value;
+      return Object.freeze({ ...pull, nusa_stale_against_main: mainAheadBy > 0 });
     } catch {
       // Missing comparison evidence must keep the PR blocking.
       return value;
