@@ -564,8 +564,11 @@ export default {
     if (
       persistentExecutionIdentity
       && dispatch.kind === "PR_CI_SUCCEEDED"
-      && executor.status === "REJECTED"
-      && RELEASABLE_AUDIT_STATE_DECLINES.has(executor.reason ?? "")
+      && (
+        executor.status === "FAILED"
+        || executor.status === "INTERFACE_READY"
+        || (executor.status === "REJECTED" && RELEASABLE_AUDIT_STATE_DECLINES.has(executor.reason ?? ""))
+      )
       && env.NUSA_EXECUTION_COORDINATOR
     ) {
       try {
