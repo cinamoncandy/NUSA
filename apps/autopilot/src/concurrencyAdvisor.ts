@@ -29,7 +29,7 @@ const evidenceSource = (value: unknown): value is string =>
 export function adviseConcurrency(evidence: ConcurrencyEvidence): ConcurrencyRecommendation {
   const valid =
     evidenceSource(evidence.source) &&
-    evidence.confidence === "VERIFIED" &&
+    evidence.confidence === "VERIFIED" && evidence.currentWip >= 1 &&
     positiveInteger(evidence.currentWip) &&
     positiveInteger(evidence.maxWip) &&
     evidence.currentWip <= evidence.maxWip &&
