@@ -117,7 +117,7 @@ async function revalidateBacklogSignal(
   // parallel so a scheduled cycle does not pay two GitHub round trips before
   // it can decide whether the signal is still actionable.
   const issueUrl = `https://api.github.com/repos/${input.repository}/issues/${issueNumber}`;
-  const query = new URLSearchParams({ q: `repo:${input.repository} is:pr is:open ${issueNumber}`, per_page: "100", page: "1" });
+  const query = new URLSearchParams({ q: `repo:${input.repository} is:pr ${issueNumber}`, per_page: "100", page: "1" });
   const pullsUrl = `https://api.github.com/search/issues?${query.toString()}`;
   const headers = {
     accept: "application/vnd.github+json",
@@ -156,7 +156,26 @@ async function revalidateBacklogSignal(
   const totalCount = pullsBody?.total_count;
   if (!Array.isArray(items) || !Number.isSafeInteger(totalCount) || Number(totalCount) < 0 || Number(totalCount) > items.length) return "UNAVAILABLE";
 
-  const current = deriveGithubIssueBacklogSignals([issue], items, new Date(input.now));
+  const issueUpdatedAt = text(issueRecord.updated_at);
+  const issueUpdatedAtMs = issueUpdatedAt ? Date.parse(issueUpdatedAt) : Number.NaN;
+  if (!Number.isFinite(issueUpdatedAtMs)) return "UNAVAILABLE";
+  const completedCurrentIncrement = items.some((value) => {
+    const pull = object(value);
+    const pullRequest = object(pull?.pull_request);
+    const mergedAt = text(pullRequest?.merged_at);
+    if (!pull || !mergedAt) return false;
+    const mergedAtMs = Date.parse(mergedAt);
+    if (!Number.isFinite(mergedAtMs) || mergedAtMs < issueUpdatedAtMs) return false;
+    const haystack = `${text(pull.title) ?? ""}\n${text(pull.body) ?? ""}`;
+    return haystack.includes(`#${issueNumber}`);
+  });
+  if (completedCurrentIncrement) return "STALE";
+
+  const openPulls = items.filter((value) => {
+    const pull = object(value);
+    return text(pull?.state)?.toLowerCase() === "open";
+  });
+  const current = deriveGithubIssueBacklogSignals([issue], openPulls, new Date(input.now));
   return current.some((candidate) => candidate.id === signal?.id) ? "ACTIONABLE" : "STALE";
 }
 
