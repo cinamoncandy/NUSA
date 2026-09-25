@@ -326,6 +326,36 @@ describe("persistent control-plane HOLD", () => {
     assert.equal(replay.state, "ACTIVE");
   });
 
+  it("treats a replayed delivery as idempotent regardless of SHA case", async () => {
+    // index.ts states that duplicate and replayed deliveries are idempotent. A stored hold always
+    // carries lower-cased SHAs, so comparing a replay against the raw request made that property
+    // depend on the case GitHub happened to send.
+    const { namespace: ns } = namespace();
+    await applyPersistentControlPlaneHold(ns, { ...identity, hold, now: 100 });
+    const upper = {
+      ...identity,
+      headSha: identity.headSha.toUpperCase(),
+      baseSha: identity.baseSha.toUpperCase(),
+      hold: { ...hold, headSha: hold.headSha.toUpperCase(), baseSha: hold.baseSha.toUpperCase() },
+      now: 101,
+    };
+    const replay = await applyPersistentControlPlaneHold(ns, upper);
+    assert.equal(replay.state, "ACTIVE");
+    // The stored record is untouched, and still the normalised one.
+    assert.deepEqual((await readPersistentControlPlaneHold(ns, identity))?.hold, hold);
+    assert.equal((await readPersistentControlPlaneHold(ns, identity))?.updatedAt, 100);
+  });
+
+  it("a genuinely different HOLD for the same identity is still a conflict", async () => {
+    // Normalising the comparison must not make two different holds look like a replay.
+    const { namespace: ns } = namespace();
+    await applyPersistentControlPlaneHold(ns, { ...identity, hold, now: 100 });
+    await assert.rejects(
+      () => applyPersistentControlPlaneHold(ns, { ...identity, hold: { ...hold, holdId: "hold-1854-b" }, now: 101 }),
+      /CONTROL_PLANE_HOLD_APPLY_BLOCKED/,
+    );
+  });
+
   it("rejects conflicting/replayed HOLD mutation after explicit clearance", async () => {
     const { namespace: ns } = namespace();
     await applyPersistentControlPlaneHold(ns, { ...identity, hold, now: 100 });
