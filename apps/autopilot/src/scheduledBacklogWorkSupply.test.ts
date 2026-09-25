@@ -42,7 +42,7 @@ function safeIssue(number: number): Record<string, unknown> {
   return {
     number,
     title: `P1: AUTOPILOT bounded work ${number}`,
-    body: `apps/autopilot/src improvement. ${SAFETY}`,
+    body: `apps/autopilot/src improvement.\ncanonicalOwner: autopilot\nconflictKeys: autopilot:issue:${number}\n${SAFETY}`,
     state: "open",
     author_association: "OWNER",
     labels: [],
