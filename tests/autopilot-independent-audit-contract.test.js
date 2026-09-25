@@ -93,6 +93,7 @@ test("Audit recovery is bounded to classified transient executor failures and st
   assert.match(auditJob, /4006\|daily free allocation\|neurons\|quota/);
   assert.match(auditJob, /failureClass = 'executor_unavailable'/);
   assert.match(auditJob, /recovery = 'retry'/);
+  assert.match(auditJob, /WAITING_PROVIDER_CAPACITY/);
   assert.match(workflow, /needs\.audit-request\.outputs\.recovery == 'retry'/);
   assert.match(recovery, /state.*!=.*open/);
   assert.match(recovery, /current_head.*!=.*REQUESTED_HEAD/);
