@@ -74,6 +74,37 @@ test("backlog readiness excludes issue referenced by any open PR", () => {
   }
 });
 
+test("verified stale linked PR permits one latest-main successor while unknown evidence still blocks", () => {
+  const stale = deriveGithubIssueBacklogReadiness(
+    [issue()],
+    [{ title: "fix: stale control plane", body: "Refs #903", nusa_stale_against_main: true }],
+    NOW,
+  );
+  assert.equal(stale.eligibleIssueCount, 1);
+  assert.deepEqual(stale.signals.map((signal) => signal.id), ["github-issue-903"]);
+
+  const unknown = deriveGithubIssueBacklogReadiness(
+    [issue()],
+    [{ title: "fix: unknown control plane", body: "Refs #903" }],
+    NOW,
+  );
+  assert.equal(unknown.eligibleIssueCount, 0);
+  assert.deepEqual(unknown.signals, []);
+});
+
+test("one fresh linked PR still blocks when another linked PR is verified stale", () => {
+  const result = deriveGithubIssueBacklogReadiness(
+    [issue()],
+    [
+      { title: "fix: stale predecessor", body: "Refs #903", nusa_stale_against_main: true },
+      { title: "fix: current successor", body: "Refs #903" },
+    ],
+    NOW,
+  );
+  assert.equal(result.eligibleIssueCount, 0);
+  assert.deepEqual(result.signals, []);
+});
+
 test("backlog readiness fails closed for PR wrappers, untrusted authors, unsafe and unrelated work", () => {
   const unsafe = [
     issue({ pull_request: { url: "https://api.github.com/pulls/1" } }),
