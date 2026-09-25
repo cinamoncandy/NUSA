@@ -212,3 +212,78 @@ test("issue that gained an open PR after discovery is suppressed by the dispatch
   assert.equal(acquiredKeys.length, 0);
   assert.equal(dispatches, 0);
 });
+
+
+test("merged PR after the current issue revision suppresses replay after main moves", async () => {
+  const acquiredKeys: string[] = [];
+  let dispatches = 0;
+  const currentIssue = { ...issue(1961), updated_at: "2026-09-17T07:00:00.000Z" };
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith("/issues/1961")) return new Response(JSON.stringify(currentIssue), { status: 200, headers: { "content-type": "application/json" } });
+    if (url.includes("/search/issues?") && url.includes("is%3Apr")) {
+      return new Response(JSON.stringify({
+        total_count: 1,
+        items: [{
+          state: "closed",
+          title: "chore(autopilot): validated autonomous coding proposal",
+          body: "Refs #1961",
+          pull_request: { merged_at: "2026-09-17T07:30:00.000Z" },
+        }],
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (url.endsWith("/dispatches")) {
+      dispatches += 1;
+      return new Response(null, { status: 204 });
+    }
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+
+  const value = await runScheduledEvolutionCoding(
+    { NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace(new Set<string>(), acquiredKeys) },
+    { candidates: [], backlogIssues: [currentIssue], openPulls: [], now: NOW, repository: "cinamoncandy/NUSA", mainSha: SHA, workflowRunId: RUN_ID },
+    fetchImpl,
+  );
+
+  assert.equal(value.status, "ABSTAINED");
+  assert.equal(value.reason, "github-issue-no-longer-actionable");
+  assert.equal(acquiredKeys.length, 0);
+  assert.equal(dispatches, 0);
+});
+
+test("a new issue revision after the prior merge can admit the next increment", async () => {
+  const acquiredKeys: string[] = [];
+  let dispatches = 0;
+  const revisedIssue = { ...issue(1962), updated_at: "2026-09-17T08:00:00.000Z" };
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith("/issues/1962")) return new Response(JSON.stringify(revisedIssue), { status: 200, headers: { "content-type": "application/json" } });
+    if (url.includes("/search/issues?") && url.includes("is%3Apr")) {
+      return new Response(JSON.stringify({
+        total_count: 1,
+        items: [{
+          state: "closed",
+          title: "prior increment #1962",
+          body: "Refs #1962",
+          pull_request: { merged_at: "2026-09-17T07:30:00.000Z" },
+        }],
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (url.endsWith("/branches/main")) return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200, headers: { "content-type": "application/json" } });
+    if (url.endsWith("/dispatches")) {
+      dispatches += 1;
+      return new Response(null, { status: 204 });
+    }
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+
+  const value = await runScheduledEvolutionCoding(
+    { NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace(new Set<string>(), acquiredKeys) },
+    { candidates: [], backlogIssues: [revisedIssue], openPulls: [], now: NOW, repository: "cinamoncandy/NUSA", mainSha: SHA, workflowRunId: RUN_ID },
+    fetchImpl,
+  );
+
+  assert.equal(value.status, "EXECUTION_ACCEPTED");
+  assert.equal(acquiredKeys.length, 1);
+  assert.equal(dispatches, 1);
+});
