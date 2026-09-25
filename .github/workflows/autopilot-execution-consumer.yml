@@ -395,7 +395,7 @@ jobs:
             failureClass = 'deterministic';
           } else if (/AUDIT_(VERDICT|MODEL_RESPONSE)|JSON_INVALID/i.test(text)) {
             failureClass = 'validation_failure';
-          } else if (/429|5\\d\\d|timeout|timed out|fetch failed|temporar|network|ECONN/i.test(text)) {
+          } else if (/WAITING_PROVIDER_CAPACITY|429|5\\d\\d|timeout|timed out|fetch failed|temporar|network|ECONN/i.test(text)) {
             failureClass = 'transient';
             recovery = 'retry';
           }
