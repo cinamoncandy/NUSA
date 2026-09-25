@@ -1,6 +1,7 @@
 import { adviseConcurrency, type ConcurrencyEvidence, type ConcurrencyRecommendation } from "./concurrencyAdvisor";
 import type { EvidenceConfidence } from "./opportunityPlanner";
 import type { WorkerPoolMetrics } from "./worktreeWorkerPool";
+import type { AutopilotExecutionTelemetry } from "./executionTelemetry";
 
 /**
  * Turns measured worker outcomes into the evidence `adviseConcurrency` consumes.
@@ -24,6 +25,32 @@ export interface WorkerOutcome {
   readonly reworked: boolean;
   /** The task was blocked or abandoned because another claim held an overlapping conflict key. */
   readonly conflicted: boolean;
+}
+
+/**
+ * Converts one canonical execution telemetry record plus the worker-pool timing metrics emitted by
+ * completeWorkerClaim into a measured outcome. The two records must describe the same execution
+ * interval; mismatches fail closed instead of fabricating throughput evidence.
+ */
+export function workerOutcomeFromTelemetry(
+  metrics: WorkerPoolMetrics,
+  telemetry: AutopilotExecutionTelemetry,
+): WorkerOutcome | null {
+  if (!validOutcome({ metrics, verified: false, reworked: false, conflicted: false })) return null;
+  if (!Number.isSafeInteger(telemetry.timestampMs) || telemetry.timestampMs !== metrics.completedAt) return null;
+  if (!Number.isSafeInteger(telemetry.attempt) || telemetry.attempt < 1) return null;
+
+  const verified =
+    telemetry.result === "SUCCESS"
+    && telemetry.validationResult === "SUCCESS"
+    && telemetry.ciResult === "SUCCESS"
+    && telemetry.failureClass === null
+    && telemetry.failureReason === null;
+
+  const reworked = telemetry.attempt > 1 || telemetry.retry.attempt > 1 || telemetry.checkpoint.resumed;
+  const conflicted = telemetry.failureReason !== null && /conflict/i.test(telemetry.failureReason);
+
+  return Object.freeze({ metrics, verified, reworked, conflicted });
 }
 
 export interface ThroughputWindow {
