@@ -91,6 +91,32 @@ export class GithubValidatedPatchPublisher implements CodingPublisher {
     if (typeof currentMainSha !== "string" || !SHA40.test(currentMainSha)) throw new Error("CODING_PUBLISH_MAIN_HEAD_INVALID");
     if (currentMainSha.toLowerCase() !== request.headSha.toLowerCase()) throw new Error("CODING_PUBLISH_STALE_HEAD_SUPPRESSED");
 
+    const branch = branchFor(request);
+    let existingBranchSha: string | null = null;
+    try {
+      const existingRef = await jsonRequest(this.fetchImpl, `${base}/repos/${repository}/git/ref/heads/${branch.split("/").map(encodeURIComponent).join("/")}`, token);
+      const sha = object(object(existingRef.payload).object).sha;
+      if (typeof sha !== "string" || !SHA40.test(sha)) throw new Error("CODING_PUBLISH_EXISTING_BRANCH_INVALID");
+      existingBranchSha = sha;
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== "CODING_PUBLISH_GITHUB_HTTP_404") throw error;
+    }
+    if (existingBranchSha) {
+      const existingPulls = await jsonRequest(this.fetchImpl, `${base}/repos/${repository}/pulls?state=open&head=${encodeURIComponent(repository.split("/")[0] + ":" + branch)}`, token);
+      const pulls = Array.isArray(existingPulls.payload) ? existingPulls.payload : [];
+      const existingPull = pulls.find((candidate) => candidate && typeof candidate === "object" && (candidate as Record<string, unknown>).head);
+      if (!existingPull || typeof (existingPull as Record<string, unknown>).number !== "number" || typeof (existingPull as Record<string, unknown>).html_url !== "string") {
+        throw new Error("CODING_PUBLISH_DUPLICATE_EXECUTION_PR_MISSING");
+      }
+      return Object.freeze({
+        publisher: this.name,
+        branch,
+        commitSha: existingBranchSha,
+        pullRequestNumber: Number((existingPull as Record<string, unknown>).number),
+        pullRequestUrl: String((existingPull as Record<string, unknown>).html_url),
+      });
+    }
+
     const baseCommit = await jsonRequest(this.fetchImpl, `${base}/repos/${repository}/git/commits/${request.headSha}`, token);
     const baseTreeSha = object(object(baseCommit.payload).tree).sha;
     if (typeof baseTreeSha !== "string" || !SHA40.test(baseTreeSha)) throw new Error("CODING_PUBLISH_BASE_TREE_INVALID");
@@ -123,33 +149,6 @@ export class GithubValidatedPatchPublisher implements CodingPublisher {
     });
     const commitSha = object(commit.payload).sha;
     if (typeof commitSha !== "string" || !SHA40.test(commitSha)) throw new Error("CODING_PUBLISH_COMMIT_INVALID");
-
-    const branch = branchFor(request);
-    let existingBranchSha: string | null = null;
-    try {
-      const existingRef = await jsonRequest(this.fetchImpl, `${base}/repos/${repository}/git/ref/heads/${branch.split("/").map(encodeURIComponent).join("/")}`, token);
-      const sha = object(object(existingRef.payload).object).sha;
-      if (typeof sha !== "string" || !SHA40.test(sha)) throw new Error("CODING_PUBLISH_EXISTING_BRANCH_INVALID");
-      existingBranchSha = sha;
-    } catch (error) {
-      if (!(error instanceof Error) || error.message !== "CODING_PUBLISH_GITHUB_HTTP_404") throw error;
-    }
-    if (existingBranchSha) {
-      if (existingBranchSha.toLowerCase() !== commitSha.toLowerCase()) throw new Error("CODING_PUBLISH_DUPLICATE_EXECUTION_CONFLICT");
-      const existingPulls = await jsonRequest(this.fetchImpl, `${base}/repos/${repository}/pulls?state=open&head=${encodeURIComponent(repository.split("/")[0] + ":" + branch)}`, token);
-      const pulls = Array.isArray(existingPulls.payload) ? existingPulls.payload : [];
-      const existingPull = pulls.find((candidate) => candidate && typeof candidate === "object" && (candidate as Record<string, unknown>).head);
-      if (!existingPull || typeof (existingPull as Record<string, unknown>).number !== "number" || typeof (existingPull as Record<string, unknown>).html_url !== "string") {
-        throw new Error("CODING_PUBLISH_DUPLICATE_EXECUTION_PR_MISSING");
-      }
-      return Object.freeze({
-        publisher: this.name,
-        branch,
-        commitSha,
-        pullRequestNumber: Number((existingPull as Record<string, unknown>).number),
-        pullRequestUrl: String((existingPull as Record<string, unknown>).html_url),
-      });
-    }
 
     await jsonRequest(this.fetchImpl, `${base}/repos/${repository}/git/refs`, token, {
       method: "POST",
