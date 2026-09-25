@@ -30,7 +30,7 @@ export function adviseConcurrency(evidence: ConcurrencyEvidence): ConcurrencyRec
   const valid =
     evidenceSource(evidence.source) &&
     evidence.confidence === "VERIFIED" &&
-    positiveInteger(evidence.currentWip) &&
+    Number.isInteger(evidence.currentWip) && evidence.currentWip >= 1 &&
     positiveInteger(evidence.maxWip) &&
     evidence.currentWip <= evidence.maxWip &&
     finite(evidence.throughputTrend) &&
