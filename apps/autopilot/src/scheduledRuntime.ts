@@ -282,11 +282,13 @@ export async function runScheduledAutopilot(env: ScheduledRuntimeEnv, now: numbe
 
     const openPulls = await enrichOpenPullStaleness(repository, token, backlog.openPulls, mainSha, fetchImpl);
     const readiness = deriveGithubIssueBacklogReadiness(backlog.issues, openPulls, new Date(now));
-    workSupply = withObservedCapabilityBlockedWork(
-      withObservedReadyWork(backlog.workSupply, readiness.eligibleIssueCount),
-      readiness.capabilityBlockedIssueCount,
-      readiness.capabilityBlockedCapabilities,
-    );
+    workSupply = backlog.workSupply.readyWorkStatus === "OBSERVED"
+      ? withObservedCapabilityBlockedWork(
+          withObservedReadyWork(backlog.workSupply, readiness.eligibleIssueCount),
+          readiness.capabilityBlockedIssueCount,
+          readiness.capabilityBlockedCapabilities,
+        )
+      : backlog.workSupply;
 
     const candidates = Array.isArray(runs.workflow_runs) ? runs.workflow_runs : [];
     discoveredOpportunityIds = discoverWorkflowFailureOpportunityIds(candidates, now);
