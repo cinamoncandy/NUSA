@@ -55,6 +55,22 @@ function fetchFor(issues: readonly unknown[], pulls: readonly unknown[] = []): t
     const url = String(input);
     if (url.includes("/search/issues") && url.includes("is%3Aissue")) return new Response(JSON.stringify({ total_count: issues.length, items: issues }), { status: 200, headers: { "content-type": "application/json" } });
     if (url.includes("/search/issues") && url.includes("is%3Apr")) return new Response(JSON.stringify({ total_count: pulls.length, items: pulls }), { status: 200, headers: { "content-type": "application/json" } });
+    const pullMatch = url.match(/\/pulls\/([1-9][0-9]*)$/);
+    if (pullMatch) {
+      const selected = pulls.find((value) => Number((value as Record<string, unknown>)?.number) === Number(pullMatch[1])) as Record<string, unknown> | undefined;
+      const headSha = typeof selected?.headSha === "string" ? selected.headSha : null;
+      return selected && headSha
+        ? new Response(JSON.stringify({ ...selected, head: { sha: headSha } }), { status: 200, headers: { "content-type": "application/json" } })
+        : new Response("not found", { status: 404 });
+    }
+    const compareMatch = url.match(/\/compare\/([0-9a-f]{40})\.\.\.([0-9a-f]{40})$/i);
+    if (compareMatch) {
+      const selected = pulls.find((value) => (value as Record<string, unknown>)?.headSha === compareMatch[1]) as Record<string, unknown> | undefined;
+      const behindBy = Number(selected?.behindBy);
+      return selected && Number.isSafeInteger(behindBy) && behindBy >= 0
+        ? new Response(JSON.stringify({ behind_by: behindBy }), { status: 200, headers: { "content-type": "application/json" } })
+        : new Response("not found", { status: 404 });
+    }
     const issueMatch = url.match(/\/issues\/([1-9][0-9]*)$/);
     if (issueMatch) {
       const selected = issues.find((value) => Number((value as Record<string, unknown>)?.number) === Number(issueMatch[1]));
@@ -86,6 +102,34 @@ test("linked open PR removes issue from READY supply", async () => {
     { NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace() },
     NOW,
     fetchFor([safeIssue(1901)], [{ title: "fix autopilot", body: "Fixes #1901" }]),
+  );
+  assert.equal(outcome.workSupply.readyWorkStatus, "OBSERVED");
+  assert.equal(outcome.workSupply.readyWorkCount, 0);
+});
+
+test("verified stale linked PR returns its issue to READY supply", async () => {
+  const staleHead = "b".repeat(40);
+  const outcome = await runScheduledAutopilot(
+    { NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace() },
+    NOW,
+    fetchFor(
+      [safeIssue(1901)],
+      [{ number: 77, title: "fix autopilot", body: "Fixes #1901", headSha: staleHead, behindBy: 3 }],
+    ),
+  );
+  assert.equal(outcome.workSupply.readyWorkStatus, "OBSERVED");
+  assert.equal(outcome.workSupply.readyWorkCount, 1);
+});
+
+test("current linked PR remains blocking when comparison proves zero commits behind", async () => {
+  const currentHead = "c".repeat(40);
+  const outcome = await runScheduledAutopilot(
+    { NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace() },
+    NOW,
+    fetchFor(
+      [safeIssue(1901)],
+      [{ number: 78, title: "fix autopilot", body: "Fixes #1901", headSha: currentHead, behindBy: 0 }],
+    ),
   );
   assert.equal(outcome.workSupply.readyWorkStatus, "OBSERVED");
   assert.equal(outcome.workSupply.readyWorkCount, 0);
