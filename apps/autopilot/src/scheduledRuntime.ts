@@ -104,7 +104,6 @@ function completeSearchItems(value: JsonObject): readonly unknown[] | null {
 async function observeGithubBacklogEvidence(
   repository: string,
   token: string,
-  now: number,
   fetchImpl: typeof fetch,
 ): Promise<BacklogEvidence> {
   // These searches are independent. Keeping them serial made every scheduled
@@ -259,7 +258,7 @@ export async function runScheduledAutopilot(env: ScheduledRuntimeEnv, now: numbe
   // them together removes one more full network/storage round trip from every
   // scheduled cycle without changing any authorization or dedupe decision.
   const [backlog, previousReceipt] = await Promise.all([
-    observeGithubBacklogEvidence(repository, token, now, fetchImpl),
+    observeGithubBacklogEvidence(repository, token, fetchImpl),
     readScheduledRuntimeReceipt(coordinator).catch(() => null),
   ]);
   let workSupply = backlog.workSupply;
