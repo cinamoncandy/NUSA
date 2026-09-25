@@ -28,6 +28,7 @@ function namespace(withPreviousReceipt = false): ExecutionCoordinatorNamespace {
           } : null;
           return new Response(JSON.stringify({ receipt }), { status: 200, headers: { "content-type": "application/json" } });
         }
+        if (url.endsWith("/active-wip/admit")) return new Response(JSON.stringify({ admitted: true }), { status: 201, headers: { "content-type": "application/json" } });
         if (url.endsWith("/provider-capacity-wait")) return new Response(JSON.stringify({ wait: null }), { status: 200, headers: { "content-type": "application/json" } });
         if (url.endsWith("/execution")) return new Response(JSON.stringify({ record: null }), { status: 200, headers: { "content-type": "application/json" } });
         if (url.endsWith("/acquire")) return new Response(JSON.stringify({ acquired: true }), { status: 201, headers: { "content-type": "application/json" } });
@@ -42,7 +43,7 @@ function safeIssue(number: number): Record<string, unknown> {
   return {
     number,
     title: `P1: AUTOPILOT bounded work ${number}`,
-    body: `apps/autopilot/src improvement. ${SAFETY}`,
+    body: `apps/autopilot/src improvement.\ncanonicalOwner: autopilot\nconflictKeys: autopilot:issue:${number}\n${SAFETY}`,
     state: "open",
     author_association: "OWNER",
     labels: [],

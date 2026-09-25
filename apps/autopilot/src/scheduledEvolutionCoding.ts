@@ -3,7 +3,7 @@ import { prepareDiscoveredCodingRequest } from "./evolveCodingBridge";
 import { deriveWorkflowFailureOpportunities, type WorkflowFailureEvidence } from "./evolveEvidenceOpportunitySource";
 import { deriveGithubIssueBacklogSignals } from "./evolveGithubIssueBacklog";
 import type { EvolutionDiscoverySignal } from "./evolveOpportunityDiscovery";
-import { acquirePersistentExecution, readPersistentExecution, readProviderCapacityWait, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, admitActiveWip, readPersistentExecution, readProviderCapacityWait, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
 const CODING_PROVIDER = "workers-ai";
 
@@ -266,6 +266,29 @@ export async function runScheduledEvolutionCoding(
     elapsedSecondsSinceLastRun,
   });
   if (bridge.status !== "READY" || !bridge.request) return result("ABSTAINED", bridge.reason);
+
+  const selectedSignal = signals[0];
+  if (selectedSignal?.source === "github-issue-backlog") {
+    if (!selectedSignal.canonicalOwner || !selectedSignal.conflictKeys?.length) {
+      return result("ABSTAINED", "github-issue-work-metadata-required", signals.map((signal) => signal.id));
+    }
+    let activeWip;
+    try {
+      activeWip = await admitActiveWip(coordinator, {
+        dedupeKey: bridge.request.dedupeKey,
+        executionId: bridge.request.executionId,
+        canonicalOwner: selectedSignal.canonicalOwner,
+        conflictKeys: selectedSignal.conflictKeys,
+        claimedAt: input.now,
+        maxConcurrent: 1,
+      });
+    } catch {
+      return result("ABSTAINED", "active-wip-admission-unavailable", signals.map((signal) => signal.id));
+    }
+    if (!activeWip.admitted) {
+      return result("DUPLICATE_SUPPRESSED", activeWip.reason ?? "ACTIVE_WIP_REJECTED", signals.map((signal) => signal.id));
+    }
+  }
 
   const persistent = await acquirePersistentExecution(coordinator, {
     dedupeKey: bridge.request.dedupeKey,

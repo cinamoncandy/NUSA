@@ -8,7 +8,7 @@ const FAILED_SHA = "b".repeat(40);
 const RUN_ID = 9001;
 const NOW = 1_787_968_000_000;
 
-function namespace(acquired = true, record: Record<string, unknown> | null = null, providerWait: Record<string, unknown> | null | "unavailable" = null): ExecutionCoordinatorNamespace {
+function namespace(acquired = true, record: Record<string, unknown> | null = null, providerWait: Record<string, unknown> | null | "unavailable" = null, activeWip: { admitted: boolean; reason?: string } = { admitted: true }): ExecutionCoordinatorNamespace {
   return {
     idFromName: (name: string) => ({ name }),
     get: () => ({
@@ -19,6 +19,7 @@ function namespace(acquired = true, record: Record<string, unknown> | null = nul
           return new Response(JSON.stringify({ wait: providerWait }), { status: 200, headers: { "content-type": "application/json" } });
         }
         if (url.endsWith("/execution")) return new Response(JSON.stringify({ record }), { status: 200, headers: { "content-type": "application/json" } });
+        if (url.endsWith("/active-wip/admit")) return new Response(JSON.stringify(activeWip), { status: activeWip.admitted ? 201 : 409, headers: { "content-type": "application/json" } });
         if (url.endsWith("/acquire")) return new Response(JSON.stringify(acquired ? { acquired: true } : { acquired: false, reason: "ALREADY_DISPATCHED" }), { status: acquired ? 201 : 409, headers: { "content-type": "application/json" } });
         if (url.endsWith("/dispatched")) return new Response(JSON.stringify({ updated: true }), { status: 200, headers: { "content-type": "application/json" } });
         return new Response("not found", { status: 404 });
@@ -252,5 +253,69 @@ test("an unreadable provider wait fails closed instead of dispatching", async ()
   }, scheduledInput, recorder.fetchImpl);
   assert.equal(outcome.status, "ABSTAINED");
   assert.equal(outcome.reason, "provider-capacity-state-unavailable");
+  assert.equal(recorder.posted(), false);
+});
+
+
+const backlogIssue = {
+  number: 2117,
+  title: "[P0][Autopilot] Worktree-based parallel Codex Worker Pool",
+  body: "liveAuthority=NONE\nproductionMutationAllowed=false\naiAuthority=ZERO_AUTHORITY\ncanonicalOwner: autopilot\nconflictKeys: autopilot-worker-pool",
+  state: "open",
+  author_association: "OWNER",
+  labels: [],
+  updated_at: new Date(NOW - 1_000).toISOString(),
+};
+
+function backlogFetchRecorder(): { fetchImpl: typeof fetch; posted: () => boolean } {
+  let posted = false;
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/issues/2117")) return new Response(JSON.stringify(backlogIssue), { status: 200, headers: { "content-type": "application/json" } });
+    if (url.includes("/search/issues")) return new Response(JSON.stringify({ total_count: 0, items: [] }), { status: 200, headers: { "content-type": "application/json" } });
+    if (url.endsWith("/branches/main")) return new Response(JSON.stringify({ commit: { sha: MAIN_SHA } }), { status: 200, headers: { "content-type": "application/json" } });
+    if (url.endsWith("/dispatches")) {
+      posted = true;
+      return new Response(null, { status: 204 });
+    }
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+  return { fetchImpl, posted: () => posted };
+}
+
+test("backlog coding is admitted to canonical active WIP before dispatch", async () => {
+  const recorder = backlogFetchRecorder();
+  const outcome = await runScheduledEvolutionCoding({
+    NUSA_GITHUB_TOKEN: "token",
+    NUSA_EXECUTION_COORDINATOR: namespace(),
+  }, {
+    candidates: [],
+    backlogIssues: [backlogIssue],
+    openPulls: [],
+    now: NOW,
+    repository: "cinamoncandy/NUSA",
+    mainSha: MAIN_SHA,
+    workflowRunId: RUN_ID,
+  }, recorder.fetchImpl);
+  assert.equal(outcome.status, "EXECUTION_ACCEPTED");
+  assert.equal(recorder.posted(), true);
+});
+
+test("active WIP conflict suppresses backlog coding before dispatch", async () => {
+  const recorder = backlogFetchRecorder();
+  const outcome = await runScheduledEvolutionCoding({
+    NUSA_GITHUB_TOKEN: "token",
+    NUSA_EXECUTION_COORDINATOR: namespace(true, null, null, { admitted: false, reason: "CONFLICT_KEY_ACTIVE" }),
+  }, {
+    candidates: [],
+    backlogIssues: [backlogIssue],
+    openPulls: [],
+    now: NOW,
+    repository: "cinamoncandy/NUSA",
+    mainSha: MAIN_SHA,
+    workflowRunId: RUN_ID,
+  }, recorder.fetchImpl);
+  assert.equal(outcome.status, "DUPLICATE_SUPPRESSED");
+  assert.equal(outcome.reason, "CONFLICT_KEY_ACTIVE");
   assert.equal(recorder.posted(), false);
 });
