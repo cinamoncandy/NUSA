@@ -31,6 +31,7 @@ import { runScheduledAutopilot } from "./scheduledRuntime";
 import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
 import { classifyAutopilotFailure, createAutopilotExecutionTelemetry, type AutopilotExecutionTelemetryInput } from "./executionTelemetry";
 import { workerOutcomeFromTelemetry, workerOutcomeWithReleaseCompletion } from "./workerThroughputEvidence";
+import { observeJevCodingFailureShadow } from "./jevCodingFailureShadow";
 
 export { ExecutionCoordinator } from "./executionCoordinator";
 export * from "./worktreeWorkerPool";
@@ -43,6 +44,10 @@ export interface Env {
   NUSA_AI_CODING_ENDPOINT?: string;
   NUSA_AI_CODING_TOKEN?: string;
   NUSA_AI_CODING_MODEL?: string;
+  NUSA_JEV_SHADOW_ENABLED?: string;
+  NUSA_JEV_API_KEY?: string;
+  NUSA_JEV_ENDPOINT?: string;
+  NUSA_JEV_TIMEOUT_MS?: string;
   /** Secret shared only by the protected persistent runtime and this Worker route. */
   NUSA_AUTOPILOT_RUNTIME_TOKEN?: string;
   AI?: WorkersAiBinding;
@@ -240,6 +245,7 @@ export async function handleCodingExecute(
       });
     } catch (error) {
       const failureReason = error instanceof Error ? error.message : "CODING_RUNNER_EXECUTION_FAILED";
+      const jevShadowReceipt = await observeJevCodingFailureShadow({ runnerRequest, failureReason, failureClass: classifyAutopilotFailure(failureReason), env });
       await releaseCodingExecutionLease(env, runnerRequest);
       await persistCodingTelemetry(env, {
         executionId: runnerRequest.executionId,
@@ -269,6 +275,7 @@ export async function handleCodingExecute(
         error: failureReason,
         status: "EXECUTION_FAILED",
         failureEvidence: error instanceof CodingRunnerEvidenceError ? error.evidence : null,
+        jevShadowReceipt,
         liveAuthority: "NONE",
         productionMutationAllowed: false,
         aiAuthority: "ZERO_AUTHORITY",
@@ -320,6 +327,7 @@ export async function handleCodingExecute(
       await releaseCodingExecutionLease(env, runnerRequest);
     }
     const failureReason = result.reason ?? null;
+    const jevShadowReceipt = await observeJevCodingFailureShadow({ runnerRequest, failureReason, failureClass: classifyAutopilotFailure(failureReason), env });
     const completedAt = Date.now();
     await persistCodingTelemetry(env, {
       executionId: runnerRequest.executionId,
@@ -371,7 +379,7 @@ export async function handleCodingExecute(
         console.error(JSON.stringify({ event: "NUSA_CODING_EVIDENCE_PERSIST_FAILED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }));
       }
     }
-    return json({ accepted: true, ...normalizedResult, executionEvidence: evidenceDecision.status === "RECORDED" ? evidenceDecision.evidence : null, executionEvidencePersisted: evidencePersisted, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, normalizedResult.status === "EXECUTION_FAILED" ? 502 : 202);
+    return json({ accepted: true, ...normalizedResult, executionEvidence: evidenceDecision.status === "RECORDED" ? evidenceDecision.evidence : null, executionEvidencePersisted: evidencePersisted, jevShadowReceipt, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, normalizedResult.status === "EXECUTION_FAILED" ? 502 : 202);
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "CODING_RUNNER_REQUEST_INVALID" }, 400);
   }
