@@ -35,6 +35,7 @@ function projectExecutionCostStress(stress) {
       closedTradeProfitFactor: scenarioResult.closedTradeProfitFactor ?? null,
       totalTradingCost: scenarioResult.totalTradingCost,
       benchmarkOutperformance: scenarioResult.benchmarkOutperformance,
+      totalOosClosedTrades: scenarioResult.walkForwardResult?.combinedOutOfSampleMetrics?.totalOosClosedTrades,
       warnings: scenarioResult.warnings
     };
   };
