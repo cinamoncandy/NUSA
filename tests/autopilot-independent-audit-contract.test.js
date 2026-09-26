@@ -48,6 +48,9 @@ test("Audit execution is isolated from coding mutation endpoint", () => {
   assert.match(auditHandler, /verifyAuditAuthorization/);
   assert.doesNotMatch(auditHandler, /GithubValidatedPatchPublisher|SandboxCodingRuntime|publish\(|create_branch|commit|merge/);
   assert.doesNotMatch(auditHandler, /NUSA_CODING_RUNNER_TOKEN/);
+  assert.match(auditHandler, /x-nusa-audit-github-token/);
+  assert.match(auditHandler, /NUSA_AUDIT_GITHUB_TOKEN/);
+  assert.doesNotMatch(auditHandler, /NUSA_GITHUB_TOKEN/);
 });
 
 test("independent Audit re-fetches exact PR/head/base/CI and rejects partial diff evidence", () => {
@@ -60,6 +63,8 @@ test("independent Audit re-fetches exact PR/head/base/CI and rejects partial dif
   assert.match(auditRunner, /AUDIT_CI_PR_MISMATCH/);
   assert.match(auditRunner, /pull\.changed_files/);
   assert.match(auditRunner, /AUDIT_DIFF_FILE_COUNT_MISMATCH/);
+  assert.match(auditRunner, /NUSA_AUDIT_GITHUB_TOKEN/);
+  assert.doesNotMatch(auditRunner, /NUSA_GITHUB_TOKEN/);
 });
 
 test("Audit treats repository diff as untrusted data rather than model instructions", () => {
@@ -75,6 +80,13 @@ test("Audit always executes independently and exposes trusted same-workflow Rele
   assert.doesNotMatch(auditJob, /nusa-audit-verdict:\$\{PR_NUMBER\}:\$\{WORKFLOW_RUN_ID\}:\$\{REQUESTED_HEAD\}/);
   assert.doesNotMatch(auditJob, /Detect existing exact-head Audit verdict/);
   assert.doesNotMatch(auditJob, /steps\.existing-audit|skip=true/);
+  assert.match(auditJob, /Mint bounded read-only Audit GitHub App token/);
+  assert.match(auditJob, /actions\/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1/);
+  assert.match(auditJob, /permission-actions: read/);
+  assert.match(auditJob, /permission-contents: read/);
+  assert.match(auditJob, /permission-pull-requests: read/);
+  assert.match(auditJob, /NUSA_AUDIT_READ_APP_PRIVATE_KEY/);
+  assert.match(auditJob, /x-nusa-audit-github-token/);
   assert.match(auditJob, /Execute independent read-only Audit with GitHub OIDC/);
   assert.match(auditJob, /Re-verify exact head\/base\/main after Audit execution/);
   assert.match(auditJob, /PR head moved during Audit/);
