@@ -7,7 +7,7 @@ import type { PortfolioPlan } from "./portfolioOrchestrator";
 import { buildPaperObservedExecutionCostAttribution, buildPaperRuntimeExecutionCostEvidence, validatePaperObservedExecutionCostAttribution, validatePaperObservedExecutionQuote, type PaperObservedExecutionQuote, type PaperRuntimeExecutionCostEvidence, type PaperExecutionCostAttribution } from "./paperRuntimeExecutionCostEvidence";
 import { validatePaperOrderBookQuoteReceipt, type PaperOrderBookQuoteReceipt } from "./paperOrderBookQuoteReceipt";
 import { guardCashInvestmentAllocation } from "../../mobile/src/capitalAllocationGuard";
-import { assertPaperAccountingReconciled } from "./paperAccountingLedger";
+import { LEGACY_PAPER_ACCOUNTING_MIGRATION_VERSION, assertPaperAccountingReconciled, assertRecognizedLegacyPaperAccountingV1, projectPaperAccounting } from "./paperAccountingLedger";
 import { createPaperOrderLifecycle, transitionPaperOrderLifecycle, validatePaperOrderLifecycle, type PaperOrderLifecycleState } from "./paperOrderLifecycle";
 import { paperExecutionIntentCommandId, validatePaperExecutionIntent, type PaperExecutionIntent } from "./paperExecutionIntent";
 import { buildPaperOrderBookExecutionReceipt, validatePaperOrderBookExecutionReceipt, PaperOrderBookExecutionError, type PaperOrderBookExecutionReceipt } from "./paperOrderBookExecution";
@@ -192,6 +192,7 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
     if (!Number.isSafeInteger(this.maxClockAdvanceMs) || this.maxClockAdvanceMs < this.leaseDurationMs) throw new Error("paper writer clock advance limit is invalid");
     if (!Number.isSafeInteger(this.maxTakeoverAgeMs) || this.maxTakeoverAgeMs < this.leaseDurationMs) throw new Error("paper writer takeover age limit is invalid");
     this.acquireLease();
+    this.recoverRecognizedLegacyAccounting();
     this.backfillFillLedgerFromHistory();
     const timer = setInterval(() => this.heartbeatLease(), this.heartbeatIntervalMs);
     timer.unref?.();
@@ -236,7 +237,7 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
     return Object.freeze(rows.map((row) => {
       if (Number(row.schema_version) !== SCHEMA_VERSION) throw new Error("unsupported paper account history schema");
       const state = JSON.parse(String(row.state_json)) as PaperAccountState;
-      validateState(state);
+      validateState(state, "canonical-or-recognized-legacy");
       if (Number(row.updated_at) !== state.updatedAt || String(row.checksum) !== accountChecksum(state)) throw new Error("paper account history checksum mismatch");
       return state;
     }));
@@ -308,6 +309,147 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
       positions: state.positions
     });
   }
+  private recoverRecognizedLegacyAccounting(): void {
+    const row = this.db.connection.prepare(
+      "SELECT schema_version, updated_at, state_json, checksum, status FROM cloud_paper_accounts WHERE account_id = ?"
+    ).get(ACCOUNT_ID) as Record<string, string | number | null> | undefined;
+    if (row == null || Number(row.schema_version) !== SCHEMA_VERSION) return;
+    const ledgerCount = Number((this.db.connection.prepare(
+      "SELECT COUNT(*) AS count FROM cloud_paper_fill_ledger WHERE account_id = ?"
+    ).get(ACCOUNT_ID) as Record<string, number | bigint>).count);
+    if (ledgerCount !== 0) return;
+
+    const sourceState = JSON.parse(String(row.state_json)) as PaperAccountState;
+    const sourceChecksum = String(row.checksum);
+    if (sourceChecksum !== accountChecksum(sourceState)) throw new Error("PAPER_LEGACY_RECONCILIATION_SOURCE_CHECKSUM_MISMATCH");
+    validateState(sourceState, "canonical-or-recognized-legacy");
+    const accountingInput = {
+      initialCapital: sourceState.initialCapital,
+      fills: sourceState.fills,
+      cash: sourceState.cash,
+      realizedPnL: sourceState.realizedPnL,
+      positions: sourceState.positions,
+    };
+    try {
+      assertPaperAccountingReconciled(accountingInput);
+      return;
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== "PAPER_LEDGER_RECONCILIATION_REQUIRED") throw error;
+    }
+    assertRecognizedLegacyPaperAccountingV1(accountingInput);
+
+    const history = this.loadHistory();
+    const latest = history.at(-1);
+    if (latest == null || JSON.stringify(latest) !== JSON.stringify(sourceState)) {
+      throw new Error("PAPER_LEGACY_RECONCILIATION_HISTORY_TIP_MISMATCH");
+    }
+    const fillsById = new Map<string, PaperFillRecord>();
+    const orderKeys = new Set<string>();
+    for (const state of history) {
+      for (const order of [...state.orders, ...(state.workingOrders ?? [])]) orderKeys.add(order.idempotencyKey);
+      for (const fill of state.fills) {
+        const previous = fillsById.get(fill.id);
+        if (previous != null && JSON.stringify(previous) !== JSON.stringify(fill)) {
+          throw new Error("PAPER_LEGACY_RECONCILIATION_FILL_CONFLICT");
+        }
+        fillsById.set(fill.id, fill);
+      }
+    }
+    if (!sourceState.processedIdempotencyKeys.every((key) => orderKeys.has(key))) {
+      throw new Error("PAPER_LEGACY_RECONCILIATION_HISTORY_INCOMPLETE");
+    }
+    for (const fill of sourceState.fills) {
+      if (JSON.stringify(fillsById.get(fill.id)) !== JSON.stringify(fill)) {
+        throw new Error("PAPER_LEGACY_RECONCILIATION_HISTORY_INCOMPLETE");
+      }
+    }
+    const fills = Object.freeze([...fillsById.values()].sort((a, b) => a.filledAt - b.filledAt || a.id.localeCompare(b.id)));
+    const marks = Object.fromEntries(sourceState.positions.map((position) => [position.market, position.markPrice]));
+    const canonical = projectPaperAccounting(sourceState.initialCapital, fills, marks);
+    if (round8(sourceState.cash) !== round8(canonical.cash)) {
+      throw new Error("PAPER_LEGACY_RECONCILIATION_CASH_CHANGED");
+    }
+    const actualPositions = new Map(sourceState.positions.map((position) => [position.market, position]));
+    if (canonical.positions.length !== actualPositions.size || canonical.positions.some((position) => {
+      const actual = actualPositions.get(position.market);
+      return actual == null || round8(actual.quantity) !== round8(position.quantity) || actual.markPrice !== position.markPrice;
+    })) {
+      throw new Error("PAPER_LEGACY_RECONCILIATION_POSITION_IDENTITY_CHANGED");
+    }
+
+    const migratedUpdatedAt = Math.max(sourceState.updatedAt + 1, this.now());
+    if (!Number.isSafeInteger(migratedUpdatedAt)) throw new Error("PAPER_LEGACY_RECONCILIATION_TIMESTAMP_INVALID");
+    const unrealizedPnL = round8(canonical.positions.reduce((sum, position) => sum + position.unrealizedPnL, 0));
+    const equity = round8(canonical.cash + canonical.positions.reduce((sum, position) => sum + position.quantity * position.markPrice, 0));
+    const migratedState = Object.freeze({
+      ...sourceState,
+      cash: canonical.cash,
+      equity,
+      realizedPnL: canonical.realizedPnL,
+      unrealizedPnL,
+      positions: canonical.positions,
+      updatedAt: migratedUpdatedAt,
+    });
+    validateState(migratedState);
+    const migratedStateJson = JSON.stringify(migratedState);
+    const migratedChecksum = accountChecksum(migratedState);
+    const receipt = Object.freeze({
+      schemaVersion: 1,
+      migrationVersion: LEGACY_PAPER_ACCOUNTING_MIGRATION_VERSION,
+      accountId: ACCOUNT_ID,
+      sourceUpdatedAt: sourceState.updatedAt,
+      sourceChecksum,
+      fillCount: fills.length,
+      canonicalLedgerFingerprintSha256: canonical.fingerprintSha256,
+      migratedUpdatedAt,
+      migratedAccountChecksum: migratedChecksum,
+    });
+    const receiptJson = JSON.stringify(receipt);
+    const receiptChecksum = createHash("sha256").update(receiptJson, "utf8").digest("hex");
+
+    this.db.transaction(() => {
+      this.assertLeaseHeld();
+      const current = this.db.connection.prepare(
+        "SELECT checksum FROM cloud_paper_accounts WHERE account_id = ?"
+      ).get(ACCOUNT_ID) as Record<string, string> | undefined;
+      if (current == null || String(current.checksum) !== sourceChecksum) {
+        throw new Error("PAPER_LEGACY_RECONCILIATION_SOURCE_MOVED");
+      }
+      const currentLedgerCount = Number((this.db.connection.prepare(
+        "SELECT COUNT(*) AS count FROM cloud_paper_fill_ledger WHERE account_id = ?"
+      ).get(ACCOUNT_ID) as Record<string, number | bigint>).count);
+      if (currentLedgerCount !== 0) throw new Error("PAPER_LEGACY_RECONCILIATION_LEDGER_NOT_EMPTY");
+
+      this.appendFillLedgerRows(fills);
+      this.assertFillLedgerReconcilesState(migratedState);
+      const updated = this.db.connection.prepare(`
+        UPDATE cloud_paper_accounts
+        SET schema_version = ?, updated_at = ?, state_json = ?, checksum = ?, status = 'VALID'
+        WHERE account_id = ? AND checksum = ?
+      `).run(SCHEMA_VERSION, migratedUpdatedAt, migratedStateJson, migratedChecksum, ACCOUNT_ID, sourceChecksum);
+      if (Number(updated.changes) !== 1) throw new Error("PAPER_LEGACY_RECONCILIATION_ACCOUNT_UPDATE_FAILED");
+      this.db.connection.prepare(`
+        INSERT INTO cloud_paper_legacy_reconciliation_receipts(
+          account_id, migration_version, source_updated_at, source_checksum, fill_count,
+          canonical_ledger_fingerprint, migrated_updated_at, migrated_account_checksum,
+          receipt_json, receipt_checksum
+        ) VALUES(?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(account_id, migration_version, source_checksum) DO NOTHING
+      `).run(
+        ACCOUNT_ID,
+        LEGACY_PAPER_ACCOUNTING_MIGRATION_VERSION,
+        sourceState.updatedAt,
+        sourceChecksum,
+        fills.length,
+        canonical.fingerprintSha256,
+        migratedUpdatedAt,
+        migratedChecksum,
+        receiptJson,
+        receiptChecksum,
+      );
+    });
+  }
+
   private backfillFillLedgerFromHistory(): void {
     const account = this.db.connection.prepare(
       "SELECT 1 FROM cloud_paper_accounts WHERE account_id = ? AND status = 'VALID'"
@@ -418,7 +560,8 @@ function canonicalCandidateIdForFill(fill: PaperFillRecord): string {
   catch { throw new Error("paper execution-cost attribution candidate provenance is invalid"); }
 }
 
-function validateState(state: PaperAccountState): void {
+type PaperAccountingValidationMode = "canonical" | "canonical-or-recognized-legacy";
+function validateState(state: PaperAccountState, accountingMode: PaperAccountingValidationMode = "canonical"): void {
   if (state.version !== 1) throw new Error("unsupported paper account state version");
   for (const [name, value] of [["initialCapital", state.initialCapital], ["cash", state.cash], ["equity", state.equity], ["realizedPnL", state.realizedPnL], ["unrealizedPnL", state.unrealizedPnL]] as const) if (!Number.isFinite(value)) throw new Error(`${name} must be finite`);
   if (state.initialCapital <= 0 || state.cash < 0 || state.equity < 0) throw new Error("paper account balance invariant failed");
@@ -585,13 +728,23 @@ function validateState(state: PaperAccountState): void {
     && representedIdempotencyKeys.size === state.processedIdempotencyKeys.length
     && state.processedIdempotencyKeys.every((key) => representedIdempotencyKeys.has(key));
   if (completeExecutionHistory) {
-    assertPaperAccountingReconciled({
+    const accountingInput = {
       initialCapital: state.initialCapital,
       fills: state.fills,
       cash: state.cash,
       realizedPnL: state.realizedPnL,
       positions: state.positions
-    });
+    };
+    try {
+      assertPaperAccountingReconciled(accountingInput);
+    } catch (error) {
+      if (accountingMode !== "canonical-or-recognized-legacy" ||
+          !(error instanceof Error) ||
+          error.message !== "PAPER_LEDGER_RECONCILIATION_REQUIRED") {
+        throw error;
+      }
+      assertRecognizedLegacyPaperAccountingV1(accountingInput);
+    }
   }
   const expectedEquity = round8(state.cash + state.positions.reduce((sum, position) => sum + position.quantity * position.markPrice, 0));
   const expectedUnrealized = round8(state.positions.reduce((sum, position) => sum + position.unrealizedPnL, 0));

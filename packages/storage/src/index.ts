@@ -8,6 +8,7 @@ import {
 import { runMigrations, type MigrationResult, type SqliteMigration } from "./migrationRunner";
 import { cloudPaperAccountHistoryMigration } from "./cloudPaperAccountHistoryMigration";
 import { cloudPaperFillLedgerMigration } from "./cloudPaperFillLedgerMigration";
+import { cloudPaperLegacyReconciliationMigration } from "./cloudPaperLegacyReconciliationMigration";
 import { researchFactoryDecisionHistoryMigration } from "./researchFactoryDecisionHistoryRepository";
 
 export { runMigrations } from "./migrationRunner";
@@ -508,4 +509,4 @@ CREATE INDEX IF NOT EXISTS idx_research_intelligence_source
   ON research_intelligence_records (source_type, source_id, discovered_at, record_id);
 CREATE INDEX IF NOT EXISTS idx_research_intelligence_hypothesis
   ON research_intelligence_records (hypothesis_semantic_fingerprint, discovered_at, record_id);
-` }];
+` }, cloudPaperLegacyReconciliationMigration];
