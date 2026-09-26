@@ -1,4 +1,16 @@
 version: 1
+current_audit_recovery_pagination_fix:
+  work_order: WO-20260926-AUDIT-RECOVERY-PAGINATION-FIX
+  status: READY_FOR_REVIEW
+  branch: fix/audit-recovery-gh-pagination
+  base_sha: 0921f0514a47e3f3313645a654e258cf8f3ab485
+  exact_head: 364c1a33f7b3b4483158bb8794abfb2320417252
+  pull_request: 2328
+  finding: "Audit recovery on protected main invoked gh api --paginate --slurp together with --jq; the installed gh CLI rejects that combination and blocks recovery dispatch."
+  remediation: "Use paginated JSON streaming with --paginate and --jq, then deterministic numeric sorting and bounded selection; preserve exact identity and fail-closed behavior."
+  validation: "Exact-head CI 36261134881 PASS; independent Audit retry 36261734403 PASS; canonical Release blocked only by unresolved review thread."
+  next: "Resolve the existing review thread, rerun canonical Release on the same exact head, then verify protected main."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_oracle_paper_startup_readiness:
   work_order: WO-20260919-ORACLE-READINESS-STARTUP
   status: IMPLEMENTED_LOCAL
