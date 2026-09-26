@@ -123,6 +123,127 @@ export function projectPaperAccounting(initialCapital: number, fills: readonly P
   });
 }
 
+
+export const LEGACY_PAPER_ACCOUNTING_MIGRATION_VERSION = "legacy-round8-weighted-entry-v1" as const;
+
+/**
+ * Migration-only replay of the pre-2026-08-14 PAPER arithmetic.
+ *
+ * Historical snapshots rounded the weighted BUY average to 8 decimals after
+ * every fill. Current canonical accounting deliberately retains fixed-point
+ * cost basis instead. This function exists only to recognize that exact
+ * historical shape; it must never become an execution or performance source.
+ */
+export function projectLegacyRound8WeightedEntryPaperAccountingV1(
+  initialCapital: number,
+  fills: readonly PaperFillRecord[],
+  marks: Readonly<Record<string, number>> = {},
+): PaperAccountingProjection {
+  if (!Number.isFinite(initialCapital) || initialCapital <= 0) throw new Error("PAPER_LEGACY_LEDGER_INVALID_INITIAL_CAPITAL");
+  let cash = round8(initialCapital);
+  let realizedPnL = 0;
+  const positions = new Map<string, PaperAccountPosition>();
+  const journal: PaperAccountingJournalEntry[] = [];
+
+  for (const [index, fill] of canonicalFillOrder(fills).entries()) {
+    const previous = positions.get(fill.market) ?? Object.freeze({
+      market: fill.market,
+      quantity: 0,
+      averageEntryPrice: 0,
+      realizedPnL: 0,
+      unrealizedPnL: 0,
+      markPrice: fill.price,
+    });
+    const notional = round8(fill.quantity * fill.price);
+    let next: PaperAccountPosition;
+    if (fill.side === "BUY") {
+      if (round8(notional + fill.fee) > cash) throw new Error("PAPER_LEGACY_LEDGER_INSUFFICIENT_CASH");
+      const quantity = round8(previous.quantity + fill.quantity);
+      const averageEntryPrice = round8((previous.averageEntryPrice * previous.quantity + notional + fill.fee) / quantity);
+      cash = round8(cash - notional - fill.fee);
+      next = Object.freeze({
+        ...previous,
+        quantity,
+        averageEntryPrice,
+        markPrice: marks[fill.market] ?? fill.price,
+        unrealizedPnL: 0,
+      });
+    } else {
+      if (fill.quantity > previous.quantity) throw new Error("PAPER_LEGACY_LEDGER_INSUFFICIENT_POSITION");
+      const realized = round8((fill.price - previous.averageEntryPrice) * fill.quantity - fill.fee);
+      const quantity = round8(previous.quantity - fill.quantity);
+      realizedPnL = round8(realizedPnL + realized);
+      cash = round8(cash + notional - fill.fee);
+      next = Object.freeze({
+        ...previous,
+        quantity,
+        averageEntryPrice: quantity === 0 ? 0 : previous.averageEntryPrice,
+        realizedPnL: round8(previous.realizedPnL + realized),
+        markPrice: marks[fill.market] ?? fill.price,
+        unrealizedPnL: 0,
+      });
+    }
+    const withMark = Object.freeze({
+      ...next,
+      unrealizedPnL: round8(next.quantity * ((marks[fill.market] ?? next.markPrice) - next.averageEntryPrice)),
+      markPrice: marks[fill.market] ?? next.markPrice,
+    });
+    positions.set(fill.market, withMark);
+    journal.push(Object.freeze({
+      sequence: index + 1,
+      fillId: fill.id,
+      orderId: fill.orderId,
+      market: fill.market,
+      side: fill.side,
+      quantity: fill.quantity,
+      price: fill.price,
+      fee: fill.fee,
+      cashAfter: cash,
+      positionQuantityAfter: withMark.quantity,
+      averageEntryPriceAfter: withMark.averageEntryPrice,
+      realizedPnLAfter: realizedPnL,
+      occurredAt: fill.filledAt,
+    }));
+  }
+
+  const projectedPositions = Object.freeze([...positions.values()].sort((a, b) => a.market.localeCompare(b.market)));
+  const canonical = JSON.stringify({
+    migrationVersion: LEGACY_PAPER_ACCOUNTING_MIGRATION_VERSION,
+    initialCapital: round8(initialCapital),
+    journal,
+    positions: projectedPositions,
+    cash,
+    realizedPnL,
+  });
+  return Object.freeze({
+    cash,
+    realizedPnL,
+    positions: projectedPositions,
+    journal: Object.freeze(journal),
+    fingerprintSha256: createHash("sha256").update(canonical, "utf8").digest("hex"),
+  });
+}
+
+export function assertRecognizedLegacyPaperAccountingV1(input: {
+  readonly initialCapital: number;
+  readonly fills: readonly PaperFillRecord[];
+  readonly cash: number;
+  readonly realizedPnL: number;
+  readonly positions: readonly PaperAccountPosition[];
+}): PaperAccountingProjection {
+  const marks = Object.fromEntries(input.positions.map((position) => [position.market, position.markPrice]));
+  const projection = projectLegacyRound8WeightedEntryPaperAccountingV1(input.initialCapital, input.fills, marks);
+  const actual = [...input.positions].sort((a, b) => a.market.localeCompare(b.market));
+  if (
+    round8(input.cash) !== projection.cash ||
+    round8(input.realizedPnL) !== projection.realizedPnL ||
+    JSON.stringify(actual) !== JSON.stringify(projection.positions)
+  ) {
+    throw new Error("PAPER_LEDGER_LEGACY_ACCOUNTING_UNRECOGNIZED");
+  }
+  return projection;
+}
+
 export function assertPaperAccountingReconciled(input: {
   readonly initialCapital: number;
   readonly fills: readonly PaperFillRecord[];
