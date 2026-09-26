@@ -1,0 +1,68 @@
+name: Research Replay V2 Benchmark Evidence
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/desktop/src/cloud/researchRunReplaySnapshotObjectStoreV2.ts"
+      - "scripts/benchmark-research-replay-v2.js"
+      - "tests/research-replay-snapshot-object-store-v2.test.js"
+      - "docs/research-replay-v2-migration.md"
+      - ".github/workflows/research-replay-v2-benchmark.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: research-replay-v2-benchmark-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  benchmark:
+    name: benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Enable pnpm via Corepack
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.7.0 --activate
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Workflow action supply-chain pins
+        run: node scripts/validate-workflow-action-pins.js
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build benchmark target
+        run: pnpm run build
+      - name: Focused replay v2 adversarial regression
+        run: node --test --test-reporter=spec tests/research-replay-snapshot-object-store-v2.test.js
+      - name: Small logical archive benchmark
+        env:
+          NUSA_REPLAY_BENCH_SNAPSHOTS: "25"
+        run: |
+          mkdir -p artifacts/research-replay-v2
+          node scripts/benchmark-research-replay-v2.js > artifacts/research-replay-v2/benchmark-small.json
+          cat artifacts/research-replay-v2/benchmark-small.json
+      - name: Large logical archive benchmark
+        env:
+          NUSA_REPLAY_BENCH_SNAPSHOTS: "1000"
+        run: |
+          node scripts/benchmark-research-replay-v2.js > artifacts/research-replay-v2/benchmark-large.json
+          cat artifacts/research-replay-v2/benchmark-large.json
+      - name: Validate benchmark invariants
+        run: >-
+          node -e "const fs=require('node:fs'); for (const name of ['small','large']) { const r=JSON.parse(fs.readFileSync('artifacts/research-replay-v2/benchmark-'+name+'.json','utf8')); if (r.schemaVersion !== 2) throw new Error(name+': benchmark schema mismatch'); if (r.v2.copyCalls !== 0 || r.v2.logicalCopyBytes !== 0) throw new Error(name+': v2 performed whole-file copy'); if (r.v1.copyCalls !== 1 || r.v1.logicalCopyBytes !== r.legacyArchiveBytesBefore) throw new Error(name+': v1 whole-archive copy baseline mismatch'); if (!(r.v1.explicitReadBytes >= r.legacyArchiveBytesBefore)) throw new Error(name+': v1 full-history read baseline missing'); if (!(r.v2.explicitReadBytes < r.legacyArchiveBytesBefore)) throw new Error(name+': v2 read work is not bounded below archive size'); if (!(r.estimatedDataMovementByteReduction > 0)) throw new Error(name+': API-level data movement reduction missing'); }"
+      - name: Upload benchmark evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: research-replay-v2-benchmark-${{ github.sha }}
+          path: artifacts/research-replay-v2/*.json
+          if-no-files-found: error
+          retention-days: 14
