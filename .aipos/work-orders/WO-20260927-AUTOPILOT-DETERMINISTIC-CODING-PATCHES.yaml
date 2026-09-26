@@ -39,7 +39,7 @@ verification_commands:
   - "git diff --check"
 evidence:
   implementation_status: READY_FOR_REVIEW
-  local_validation: "Build, TypeScript compile, coding runner 54/54, sandbox/worker 8/8, and diff check PASS; dispatch retry requires a clean committed checkout before its workspace-integrity fixtures can run."
+  local_validation: "Build, TypeScript compile, coding runner 63/63, sandbox/worker 8/8, dispatch retry 32/32, and diff check PASS."
   external_validation: "Required: exact-head protected CI, independent Audit, canonical Release, and genuine coding recovery runtime evidence."
 safety:
   paper_only: true
