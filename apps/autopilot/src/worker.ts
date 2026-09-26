@@ -305,6 +305,11 @@ async function handleAuditExecute(request: Request, env: WorkerEnv): Promise<Res
     return json({ accepted: false, status: "AUDIT_FAILED_CLOSED", error: "PERSISTENT_EXECUTION_COORDINATOR_REQUIRED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 503);
   }
 
+  const auditGithubToken = request.headers.get("x-nusa-audit-github-token")?.trim();
+  if (!auditGithubToken) {
+    return json({ accepted: false, status: "AUDIT_FAILED_CLOSED", error: "AUDIT_GITHUB_APP_TOKEN_NOT_PROVIDED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 401);
+  }
+
   let auditRequest;
   try {
     auditRequest = validateAuditRunnerRequest(await request.json(), allowedRepository);
@@ -350,7 +355,7 @@ async function handleAuditExecute(request: Request, env: WorkerEnv): Promise<Res
     const gated = await executeProviderGatedAudit(auditRequest, {
       readProviderWait: () => readProviderCapacityWait(coordinator, AUDIT_PROVIDER),
       recordProviderWait: (stop) => recordProviderCapacityWait(coordinator, stop),
-      runAudit: () => executeIndependentAudit(auditRequest, env),
+      runAudit: () => executeIndependentAudit(auditRequest, { ...env, NUSA_AUDIT_GITHUB_TOKEN: auditGithubToken }),
       now: () => Date.now(),
     });
     if (gated.status === "AUDITED") return json({ accepted: true, ...gated.result }, 200);

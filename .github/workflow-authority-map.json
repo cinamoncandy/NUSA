@@ -111,7 +111,7 @@
         "id-token",
         "pull-requests"
       ],
-      "secrets": false,
+      "secrets": true,
       "environment": null
     },
     "autopilot-execution-consumer.yml:audit-recovery": {
