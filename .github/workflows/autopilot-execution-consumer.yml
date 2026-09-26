@@ -577,9 +577,13 @@ jobs:
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `audited_base=${authority.baseSha.toLowerCase()}\n`);
           NODE
 
+      - name: Re-verify exact PR head and audited base before Release handoff
+        env:
+          AUDITED_BASE: ${{ steps.authority.outputs.audited_base }}
+        run: |
+          set -euo pipefail
           pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
           current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
-          audited_base="${{ steps.authority.outputs.audited_base }}"
           hold="$(jq -r 'if (.labels | type) != "array" then "invalid" elif any(.labels[]; (.name | type) != "string") then "invalid" elif any(.labels[]; (.name | ascii_downcase) == "hold") then "true" else "false" end' <<<"$pr")"
           test "$(jq -r '.state' <<<"$pr")" = "open"
           test "$(jq -r '.draft // false' <<<"$pr")" = "false"
@@ -587,8 +591,8 @@ jobs:
           test "$(jq -r '.head.sha' <<<"$pr")" = "$REQUESTED_HEAD"
           test "$(jq -r '.base.ref' <<<"$pr")" = "main"
           test "$(jq -r '.base.repo.full_name' <<<"$pr")" = "$GITHUB_REPOSITORY"
-          test "$(jq -r '.base.sha' <<<"$pr")" = "$audited_base"
-          test "$current_main" = "$audited_base"
+          test "$(jq -r '.base.sha' <<<"$pr")" = "$AUDITED_BASE"
+          test "$current_main" = "$AUDITED_BASE"
 
       - name: Dispatch deterministic Release successor once
         run: |
