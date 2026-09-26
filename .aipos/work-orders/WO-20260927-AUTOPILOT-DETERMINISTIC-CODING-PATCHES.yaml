@@ -1,6 +1,6 @@
 id: WO-20260927-AUTOPILOT-DETERMINISTIC-CODING-PATCHES
 title: "Construct bounded coding patches from structured edits"
-status: IMPLEMENTED_PENDING_EXACT_HEAD_CI
+status: READY_FOR_REVIEW
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -38,7 +38,7 @@ verification_commands:
   - "pnpm run aipos:provenance"
   - "git diff --check"
 evidence:
-  implementation_status: IMPLEMENTED_PENDING_EXACT_HEAD_CI
+  implementation_status: READY_FOR_REVIEW
   local_validation: "Build, TypeScript compile, coding runner 54/54, sandbox/worker 8/8, and diff check PASS; dispatch retry requires a clean committed checkout before its workspace-integrity fixtures can run."
   external_validation: "Required: exact-head protected CI, independent Audit, canonical Release, and genuine coding recovery runtime evidence."
 safety:
