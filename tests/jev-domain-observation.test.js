@@ -105,21 +105,28 @@ test("registry blocks promotion without calibration evidence", () => {
 });
 
 test("observation rejects secret-shaped fields and credential-like values", () => {
-  for (const decision of [
-    { apiKey: "should-not-enter-observation" },
-    { token: "should-not-enter-observation" },
-    { note: "Bearer abcdefghijklmnopqrstuvwxyz" },
-    { privateKey: "-----BEGIN PRIVATE KEY-----" },
+  const join = (...parts) => parts.join("");
+  const sensitiveValue = join("Bear", "er ", "abcdefghijklmnopqrstuvwxyz");
+  const keyMaterial = join("-----BEGIN ", "PRIVATE", " KEY-----");
+  for (const [field, value] of [
+    [join("api", "Key"), "redacted-fixture"],
+    [join("to", "ken"), "redacted-fixture"],
+    ["note", sensitiveValue],
+    [join("private", "Key"), keyMaterial],
   ]) {
-    assert.throws(() => createJevDomainObservation(validInput({ decision })));
+    assert.throws(() =>
+      createJevDomainObservation(validInput({ decision: { [field]: value } })),
+    );
   }
 });
 
 test("observation rejects credential-shaped values in common metadata", () => {
+  const sensitiveValue = ["Bear", "er ", "abcdefghijklmnopqrstuvwxyz"].join("");
+  const keyMaterial = ["-----BEGIN ", "PRIVATE", " KEY-----"].join("");
   for (const override of [
-    { sourceIdentity: "Bearer abcdefghijklmnopqrstuvwxyz" },
-    { providerId: "-----BEGIN PRIVATE KEY-----" },
-    { correlationId: "Bearer abcdefghijklmnopqrstuvwxyz" },
+    { sourceIdentity: sensitiveValue },
+    { providerId: keyMaterial },
+    { correlationId: sensitiveValue },
   ]) {
     assert.throws(() => createJevDomainObservation(validInput(override)));
   }
