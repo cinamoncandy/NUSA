@@ -29,7 +29,7 @@ const CONFIG_DIR = path.join(os.homedir(), ".nusa", "cloud");
 const TOKEN_FILE = path.join(CONFIG_DIR, "dashboard-token");
 const DEFAULT_PORT = "41731";
 const DEFAULT_HOST = "127.0.0.1";
-const DEFAULT_PAPER_CAPITAL_KRW = "10000000";
+const DEFAULT_PAPER_CAPITAL_KRW = "5000";
 const SUPERVISOR_CHILD_ENV = "NUSA_PAPER_RUNTIME_SUPERVISOR_CHILD";
 const PRODUCTION_RUNTIME_ENTRYPOINT = "dist/apps/cloud/src/closedLearningProductionRuntime.js";
 
