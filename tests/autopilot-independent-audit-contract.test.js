@@ -41,7 +41,7 @@ test("Audit job has bounded read/OIDC/comment permissions only", () => {
 
 test("Audit execution is isolated from coding mutation endpoint", () => {
   assert.match(worker, /url\.pathname === "\/audit\/execute"/);
-  assert.match(worker, /executeIndependentAudit\(auditRequest, env\)/);
+  assert.match(worker, /executeIndependentAudit\(auditRequest, \{ \.\.\.env, NUSA_AUDIT_GITHUB_TOKEN: auditGithubToken \}\)/);
   const authHelper = worker.slice(worker.indexOf("async function verifyAuditAuthorization"), worker.indexOf("async function handleAuditExecute"));
   const auditHandler = worker.slice(worker.indexOf("async function handleAuditExecute"), worker.indexOf("const worker ="));
   assert.match(authHelper, /verifyGithubActionsOidcToken/);
