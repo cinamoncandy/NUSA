@@ -154,7 +154,7 @@ jobs:
             echo '::error::Cloudflare authentication/account preflight failed.'
             exit 1
           fi
-          echo 'Cloudflare token/account/runtime/GitHub-secret preflight passed.'
+          echo 'Cloudflare token/account/runtime-secret preflight passed; GitHub-secret preflight passed.'
 
       - name: Sync persistent Autopilot runtime bearer secret
         if: steps.revision.outputs.current == 'true'
