@@ -8,9 +8,17 @@ const auditRunner = fs.readFileSync("apps/autopilot/src/auditRunner.ts", "utf8")
 
 function auditJobSlice() {
   const start = workflow.indexOf("  audit-request:");
-  const end = workflow.indexOf("\n  audit-recovery:", start);
+  const end = workflow.indexOf("\n  release-handoff:", start);
   assert.ok(start >= 0, "Audit job must exist");
-  assert.ok(end > start, "Audit job must end before audit-recovery");
+  assert.ok(end > start, "Audit job must end before release-handoff");
+  return workflow.slice(start, end);
+}
+
+function releaseHandoffJobSlice() {
+  const start = workflow.indexOf("  release-handoff:");
+  const end = workflow.indexOf("\n  audit-recovery:", start);
+  assert.ok(start >= 0, "Release handoff job must exist");
+  assert.ok(end > start, "Release handoff job must end before audit-recovery");
   return workflow.slice(start, end);
 }
 
@@ -152,6 +160,13 @@ test("malformed or unsafe Audit evidence cannot advance Release", () => {
   assert.match(auditRunner, /AUDIT_RUNNER_MUTATION_FORBIDDEN/);
 });
 
+test("Audit prompt pins finding-code and blocker-list shape to strict validation", () => {
+  assert.match(auditRunner, /Each findings item code MUST be 1-80 characters/);
+  assert.match(auditRunner, /Every BLOCKER finding MUST have at least one corresponding human-readable entry in blockers/);
+  assert.ok(auditRunner.includes("const FINDING_CODE = /^[A-Z0-9_.:-]{1,80}$/;"));
+  assert.ok(auditRunner.includes('throw new Error("AUDIT_VERDICT_BLOCKER_LIST_REQUIRED")'));
+});
+
 test("Audit recovery paginates and binds exact-main evidence to canonical CI", () => {
   const recovery = auditRecoveryJobSlice();
   assert.match(recovery, /gh api --paginate --slurp/);
@@ -160,4 +175,37 @@ test("Audit recovery paginates and binds exact-main evidence to canonical CI", (
   assert.match(recovery, /\.conclusion == "success"/);
   assert.match(recovery, /\.head_sha == /);
   assert.match(recovery, /\$current_main/);
+});
+
+test("safe same-workflow Audit PASS dispatches the deterministic Release successor without expanding Audit authority", () => {
+  const auditJob = auditJobSlice();
+  const handoff = releaseHandoffJobSlice();
+  assert.doesNotMatch(auditJob, /contents: write|actions: write/);
+  assert.match(handoff, /needs: audit-request/);
+  assert.match(handoff, /needs\.audit-request\.outputs\.authority/);
+  assert.match(handoff, /contents: write/);
+  assert.match(handoff, /actions: read/);
+  assert.match(handoff, /pull-requests: read/);
+  assert.doesNotMatch(handoff, /id-token: write|pull-requests: write|actions: write/);
+  assert.match(handoff, /auditExecutionRunId/);
+  assert.match(handoff, /trusted Audit same-workflow execution identity mismatch/);
+  assert.match(handoff, /Re-verify exact PR head and audited base before Release handoff/);
+  assert.match(handoff, /AUDITED_BASE: \$\{\{ steps\.authority\.outputs\.audited_base \}\}/);
+  assert.match(handoff, /\['PASS', 'PASS_WITH_NOTES'\]/);
+  assert.match(handoff, /mergeAllowed !== true/);
+  assert.match(handoff, /safetyInvariantResult !== 'PASS'/);
+  assert.match(handoff, /liveAuthority !== 'NONE'/);
+  assert.match(handoff, /productionMutationAllowed !== false/);
+  assert.match(handoff, /aiAuthority !== 'ZERO_AUTHORITY'/);
+  assert.match(handoff, /pulls\/\$PR_NUMBER/);
+  assert.match(handoff, /branches\/main/);
+  assert.match(handoff, /autopilot-deterministic-audit-release\.yml\/runs\?event=repository_dispatch/);
+  assert.match(handoff, /display_title == \\"\$DEDUPE_KEY\\"/);
+  assert.match(handoff, /event_type": "nusa_autopilot_audit"/);
+  assert.match(handoff, /"kind": "AUDIT_REQUEST"/);
+  assert.match(handoff, /"head_sha": "\$REQUESTED_HEAD"/);
+  assert.match(handoff, /"workflow_run_id": \$WORKFLOW_RUN_ID/);
+  assert.match(handoff, /"live_authority": "NONE"/);
+  assert.match(handoff, /"production_mutation_allowed": false/);
+  assert.match(handoff, /"ai_authority": "ZERO_AUTHORITY"/);
 });
