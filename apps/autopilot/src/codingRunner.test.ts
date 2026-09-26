@@ -115,6 +115,57 @@ describe("coding runner", () => {
     );
   });
 
+  it("escalates apply-check repair with exact context to GitHub Models before Workers AI", async () => {
+    const repairRequest = {
+      ...request,
+      proposalFeedback: "attempt=2;rejection=SANDBOX_PATCH_APPLY_CHECK_FAILED;repair=regenerate",
+      proposalContext: {
+        path: "apps/autopilot/src/example.ts",
+        startLine: 7,
+        content: "export const oldValue = true;\n",
+      },
+    };
+    let workersAiCalls = 0;
+    let githubModelsCalls = 0;
+    let observedPrompt = "";
+    const ai: WorkersAiBinding = {
+      async run() {
+        workersAiCalls += 1;
+        return { response: { patch } };
+      },
+    };
+
+    const result = await executeCodingRunner(
+      repairRequest,
+      { NUSA_GITHUB_TOKEN: "github-token", AI: ai },
+      async (url, init) => {
+        if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+        if (url.includes("/actions/runs/")) return response(200, {
+          id: request.workflowRunId,
+          head_sha: request.headSha,
+          head_branch: "main",
+          status: "completed",
+          conclusion: "success",
+          repository: { full_name: request.repository },
+        });
+        if (url === "https://models.github.ai/inference/chat/completions") {
+          githubModelsCalls += 1;
+          const body = JSON.parse(String(init?.body)) as { messages?: Array<{ content?: string }> };
+          observedPrompt = body.messages?.[1]?.content ?? "";
+          return response(200, { choices: [{ message: { content: JSON.stringify({ patch }) } }] });
+        }
+        throw new Error(`unexpected URL ${url}`);
+      },
+    );
+
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.equal(githubModelsCalls, 1);
+    assert.equal(workersAiCalls, 0);
+    assert.match(observedPrompt, /Repair feedback: .*SANDBOX_PATCH_APPLY_CHECK_FAILED/);
+    assert.match(observedPrompt, /Target path: apps\/autopilot\/src\/example\.ts/);
+    assert.match(observedPrompt, /export const oldValue = true/);
+  });
+
   it("rejects missing or malformed lifecycle identity", () => {
     assert.throws(() => validateCodingRunnerRequest({ ...request, executionId: "" }), /CODING_RUNNER_EXECUTION_ID_INVALID/);
     assert.throws(() => validateCodingRunnerRequest({ ...request, dedupeKey: "bad key" }), /CODING_RUNNER_DEDUPE_KEY_INVALID/);
