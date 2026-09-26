@@ -1,0 +1,50 @@
+id: WO-20260927-AUTOPILOT-DETERMINISTIC-CODING-PATCHES
+title: "Construct bounded coding patches from structured edits"
+status: IMPLEMENTED_PENDING_EXACT_HEAD_CI
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: ad0eed4ec49fa6fd3296e9e9c82cbd404593db99
+implementation_branch: codex/deterministic-coding-patches
+authority_impact: none
+objective: "Replace fragile model-authored unified diffs with a bounded structured edit contract and deterministic runner-side patch construction."
+canonical_owner: "Existing autopilot coding runner and sandbox publish path"
+scope:
+  include:
+    - "Accept one exact existing TypeScript source anchor and replacement under apps/autopilot/src/*.ts."
+    - "Reject malformed, ambiguous, oversized, forbidden, or authority-bearing edits before persistence or apply."
+    - "Construct a stable single-file unified diff and validate it with strict git apply --check."
+    - "Reuse existing provider retry, sandbox, publish, audit, and release paths."
+    - "Add deterministic replay and structured-contract regression coverage."
+  exclude:
+    - "New queue, scheduler, worker, provider, sandbox, or execution engine."
+    - "LIVE, broker, production mutation, credentials, or authority changes."
+acceptance:
+  - "Structured edits materialize into deterministic strict-apply patches before sandbox execution."
+  - "Raw patch compatibility remains bounded and unchanged for existing callers."
+  - "Missing or ambiguous source anchors fail closed without mutation."
+  - "Repeated proposal attempts remain bounded and use existing retry/escalation behavior."
+  - "PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY remain unchanged."
+verification_commands:
+  - "pnpm run build"
+  - "pnpm exec tsc -p tsconfig.json --noEmit"
+  - "node --test dist/apps/autopilot/src/codingRunner.test.js"
+  - "node --test dist/apps/autopilot/src/sandboxCodingRuntime.test.js dist/apps/autopilot/src/worker.test.js"
+  - "node --test tests/autopilot-dispatch-retry.test.js"
+  - "pnpm run ai:architecture"
+  - "pnpm run safety:invariants"
+  - "pnpm run aipos:yaml"
+  - "pnpm run aipos:drift"
+  - "pnpm run aipos:provenance"
+  - "git diff --check"
+evidence:
+  implementation_status: IMPLEMENTED_PENDING_EXACT_HEAD_CI
+  local_validation: "Build, TypeScript compile, coding runner 54/54, sandbox/worker 8/8, and diff check PASS; dispatch retry requires a clean committed checkout before its workspace-integrity fixtures can run."
+  external_validation: "Required: exact-head protected CI, independent Audit, canonical Release, and genuine coding recovery runtime evidence."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Commit and publish one canonical successor PR, then obtain exact-head CI, Audit, and Release; do not merge from Development."
