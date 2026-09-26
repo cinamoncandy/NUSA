@@ -663,7 +663,7 @@ test("hunk-count normalization does not fuzz or accept mismatched source context
     ].join("\n"));
     assert.throws(
       () => applyPatchWithNormalizedHunkCounts(".nusa-autopilot.patch"),
-      /SANDBOX_PATCH_APPLY_CHECK_FAILED/,
+      /SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED/,
     );
     assert.equal(fs.readFileSync("apps/autopilot/src/example.ts", "utf8"), "export const actual = true;\n");
   } finally {
@@ -675,6 +675,10 @@ test("hunk-count normalization does not fuzz or accept mismatched source context
 test("classifies only bounded proposal validation failures as no-action", () => {
   assert.equal(proposalFailureCode("CODING_PROPOSAL_JSON_INVALID"), "CODING_PROPOSAL_JSON_INVALID");
   assert.equal(proposalFailureCode("SANDBOX_PATCH_APPLY_CHECK_FAILED:128:error: malformed diff"), "SANDBOX_PATCH_APPLY_CHECK_FAILED");
+  assert.equal(
+    proposalFailureCode("SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED:1:error: patch does not apply"),
+    "SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED",
+  );
   assert.equal(proposalFailureCode("CODING_RUNTIME_WORKSPACE_DIRTY"), null);
   assert.equal(proposalFailureCode("CODING_PROPOSAL_PATH_FORBIDDEN"), null);
   assert.equal(proposalFailureCode("SANDBOX_PATCH_FORBIDDEN_AUTHORITY_SURFACE"), null);
