@@ -302,6 +302,7 @@ test("fails closed when every blocker lacks current added-line evidence", async 
     findings: [{ code: "STALE", severity: "BLOCKER", message: "removed behavior is current", evidenceRef: "a.ts:1" }],
     blockers: ["stale evidence"],
     safetyInvariantResult: "FAIL",
+    mergeAllowed: false,
   }) };
   await assert.rejects(
     executeIndependentAudit(request, auditEnv(aiSequence([invalidBlocker, invalidBlocker, invalidBlocker]) as never), fetchSequence() as never),
