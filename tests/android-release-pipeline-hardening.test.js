@@ -57,6 +57,14 @@ test("stable release keeps exact-main, protected signing, signature and artifact
   assert.match(stable, /Firebase distribution failed after 3 attempts/);
 });
 
+test("Android Product UX waits for a real UI hierarchy before touch evidence", () => {
+  assert.match(productUx, /wait_for_ui\(\)/);
+  assert.match(productUx, /uiautomator dump/);
+  assert.match(productUx, /bounded startup window/);
+  assert.match(productUx, /time\.sleep\(1\)/);
+  assert.match(productUx, /capture\(\)\{ wait_for_ui;/);
+});
+
 test("release trigger is exact-main, idempotent and bounded", () => {
   assertFailClosedSafety(trigger);
   assert.match(trigger, /status=completed/);
