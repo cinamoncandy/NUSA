@@ -15,9 +15,10 @@ import { CandlePlot } from "./chartView";
 import { FactRow, StateNotice } from "./intelligenceOs";
 import { IntelligenceMotionField, MotionReveal } from "./components";
 import { BUILD_SOURCE_SHA } from "./generatedBuildConfig";
+import { visualSystem } from "./visualSystem";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
-export type HomeDestination = "Markets" | "AiSignal" | "Portfolio";
+export type HomeDestination = "Paper" | "Live" | "More";
 
 interface HomeViewProps {
   readonly snapshot: Snapshot | null;
@@ -82,6 +83,7 @@ export function HomeView({
   onOpenPaperLearning,
 }: HomeViewProps) {
   const { theme } = useTheme();
+  const ui = visualSystem(theme);
   const { width } = useWindowDimensions();
   const tablet = width >= 768;
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -148,6 +150,7 @@ export function HomeView({
   // reconnecting. SETUP remains only for a configuration or trust failure that needs the owner.
   const shownConnectionLabel = recovering ? "RECOVERING" : connectionLabel;
   const postureDisplay = recovering ? "PAPER 재연결 중" : disconnected ? "PAPER 연결 필요" : posture;
+  const intelligenceState = recovering ? "RECOVERING" as const : disconnected ? "BLOCKED" as const : readOnlyError != null || snapshot?.health === "DEGRADED" ? "DEGRADED" as const : snapshot?.readyForPaperOperations ? "ACTIVE" as const : "OBSERVING" as const;
   const intelligenceSurface = intelligenceFieldColors.surface;
   const intelligenceBorder = intelligenceFieldColors.heroBorder;
   const intelligenceText = intelligenceFieldColors.text;
@@ -176,10 +179,10 @@ export function HomeView({
       </View>
 
       <MotionReveal testID="home-intelligence-reveal">
-        <View style={[styles.intelligenceHero, tablet ? styles.intelligenceHeroTablet : null, { backgroundColor: intelligenceSurface, borderColor: intelligenceBorder }]} testID="home-now">
+        <View style={[styles.intelligenceHero, tablet ? styles.intelligenceHeroTablet : null, { backgroundColor: intelligenceSurface, borderColor: intelligenceBorder, borderRadius: ui.radius.hero }]} testID="home-now">
           <View style={styles.intelligenceCopy}>
             <View style={styles.heroTop}>
-              <View style={styles.liveIntelligenceLabel}><View style={[styles.heroStatusDot, { backgroundColor: systemColor }]} /><Text style={[styles.eyebrow, { color: theme.colors.aiSignalEnd }]}>LIVE INTELLIGENCE</Text></View>
+              <View style={styles.liveIntelligenceLabel}><View style={[styles.heroStatusDot, { backgroundColor: systemColor }]} /><Text style={[styles.eyebrow, { color: theme.colors.aiSignalEnd }]}>NUSA INTELLIGENCE</Text></View>
             </View>
             <Text style={[styles.heroTitle, { color: intelligenceText }]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.82}>{postureDisplay}</Text>
             <Text style={[styles.heroDetail, { color: intelligenceMuted }]} numberOfLines={3}>{why}</Text>
@@ -189,12 +192,12 @@ export function HomeView({
               <View><Text style={[styles.metaLabel, { color: intelligenceMuted }]}>MODE</Text><Text style={[styles.metaValue, { color: intelligenceText }]}>PAPER</Text></View>
             </View>
           </View>
-          <IntelligenceMotionField active={!disconnected && readOnlyError == null} evidenceCount={ai?.status === "AVAILABLE" ? ai.evidenceReferences.length : 0} label="NUSA intelligence evidence motion" />
+          <IntelligenceMotionField active={!disconnected && readOnlyError == null} evidenceCount={ai?.status === "AVAILABLE" ? ai.evidenceReferences.length : 0} state={intelligenceState} label={`NUSA intelligence ${intelligenceState.toLowerCase()} state`} />
         </View>
       </MotionReveal>
 
       <MotionReveal testID="home-capital-reveal">
-        <View style={[styles.capitalRail, { borderColor: theme.colors.border }]} testID="account-hero-card">
+        <View style={[styles.capitalRail, { borderColor: ui.color.border }]} testID="account-hero-card">
           <View style={styles.capitalPrimary}>
             <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>{capitalLabel}</Text>
             <Text style={[styles.capitalValue, { color: theme.colors.text }]} numberOfLines={1} adjustsFontSizeToFit>{krw(account?.equity)}</Text>
@@ -211,7 +214,7 @@ export function HomeView({
       {disconnected || readOnlyError ? <Pressable accessibilityRole="button" onPress={onGoSettings} testID="home-operational-notice"><StateNotice title={recovering ? "PAPER 재연결 중" : disconnected ? "PAPER 연결 필요" : "PAPER 연결 오류"} detail={`${recovering ? "기기 신뢰는 유지되고 있으며 세션을 자동 복구하는 중입니다." : disconnected ? "Cloud endpoint와 세션을 검증해야 합니다." : readOnlyError ?? "읽기 상태를 확인할 수 없습니다."} · 설정 열기`} tone="warning" /></Pressable> : null}
 
       <MotionReveal testID="home-market-canvas-reveal">
-        <View style={[styles.marketCanvas, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]} testID="home-public-market-chart">
+        <View style={[styles.marketCanvas, { backgroundColor: ui.color.panel, borderColor: ui.color.border, borderRadius: ui.radius.hero }]} testID="home-public-market-chart">
           <View style={styles.canvasHeader}>
             <View><Text style={[styles.eyebrow, { color: theme.colors.aiSignalMid }]}>MARKET CANVAS</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{publicMarket}</Text></View>
             <View style={styles.canvasQuote}><Text style={[styles.marketPrice, { color: theme.colors.text }]} adjustsFontSizeToFit numberOfLines={1}>{krw(marketChart.currentPrice)}</Text><Text style={[styles.sectionMeta, { color: theme.colors.textMuted }]}>UPBIT · PUBLIC READ ONLY</Text></View>
@@ -219,7 +222,7 @@ export function HomeView({
           <View style={[styles.canvasChart, { borderColor: theme.colors.border }]}>
             {marketChart.state === "READY" ? <CandlePlot model={marketChart} /> : <Text style={[styles.marketEmpty, { color: theme.colors.textMuted }]}>{publicMarketStale ? "시세가 지연되었거나 연결되지 않았습니다." : "검증된 차트 데이터를 기다리고 있습니다."}</Text>}
           </View>
-          <Pressable accessibilityRole="button" onPress={() => onNavigate("Markets")} style={styles.canvasAction}><Text style={[styles.inlineLink, { color: theme.colors.aiSignalEnd }]}>시장 환경 확장하기 ↗</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => onNavigate("Paper")} style={styles.canvasAction}><Text style={[styles.inlineLink, { color: theme.colors.aiSignalEnd }]}>PAPER 운영 보기 ↗</Text></Pressable>
         </View>
       </MotionReveal>
 
@@ -228,7 +231,7 @@ export function HomeView({
         <Text style={[styles.sectionMeta, { color: theme.colors.textMuted }]}>자동 실행이 아니라 검증 가능한 판단 흐름</Text>
       </View>
       <View style={[styles.commandStack, tablet ? styles.commandStackTablet : null]}>
-        <Pressable onPress={() => onNavigate("Markets")} style={({ pressed }) => [styles.command, { backgroundColor: "transparent", borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]} testID="home-decision-stage">
+        <Pressable onPress={() => onNavigate("Paper")} style={({ pressed }) => [styles.command, { backgroundColor: "transparent", borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]} testID="home-decision-stage">
           <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.info }]}>01 · OBSERVE</Text><Text style={[styles.commandArrow, { color: theme.colors.textMuted }]}>↗</Text></View>
           <Text style={[styles.commandTitle, { color: theme.colors.text }]}>시장 관측</Text>
           <Text style={[styles.commandSummary, { color: theme.colors.textMuted }]}>{marketRows.length === 0 ? "공개 시장 데이터 대기 중" : `${marketRows.length}개 핵심 시장`}</Text>
@@ -246,7 +249,7 @@ export function HomeView({
           <Text>CASH EXPOSURE</Text>
           <FactRow label="RESERVED CASH" value={krw(cashEnvelope?.reservedCash)} tone="success" />
         </View>
-        <Pressable onPress={() => onNavigate("Portfolio")} style={({ pressed }) => [styles.command, { backgroundColor: "transparent", borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]} testID="home-paper-performance">
+        <Pressable onPress={() => onNavigate("More")} style={({ pressed }) => [styles.command, { backgroundColor: "transparent", borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]} testID="home-paper-performance">
           <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.success }]}>02 · TEST</Text><Text style={[styles.commandArrow, { color: theme.colors.textMuted }]}>↗</Text></View>
           <Text style={[styles.commandTitle, { color: theme.colors.text }]}>PAPER 실험</Text>
           <Text style={[styles.commandSummary, { color: theme.colors.textMuted }]}>{hasPosition ? `${position?.market ?? "PAPER"} position active` : account ? "현재 노출 없음" : "계정 대기 중"}</Text>
@@ -277,7 +280,7 @@ export function HomeView({
       {detailsOpen ? <View style={styles.details}>
         <View style={styles.detailNarrative} testID="ai-card">
           <Text style={[styles.detailCopy, { color: theme.colors.textMuted }]}>{why}</Text>
-          {aiInsightAvailable ? <Pressable onPress={() => onNavigate("AiSignal")}><Text style={[styles.inlineLink, { color: theme.colors.primary }]}>AI 근거 상세 보기 →</Text></Pressable> : null}
+          {aiInsightAvailable ? <Pressable onPress={() => onNavigate("Paper")}><Text style={[styles.inlineLink, { color: theme.colors.primary }]}>PAPER 근거 상세 보기 →</Text></Pressable> : null}
         </View>
         <View style={[styles.detailFacts, { borderColor: theme.colors.border }]} testID="home-risk-status">
           <View style={styles.detailRow}><Text style={[styles.detailLabel, { color: theme.colors.textMuted }]}>RISK</Text><Text style={[styles.detailValue, { color: riskColor }]}>{decisionSurface.risk}</Text></View>

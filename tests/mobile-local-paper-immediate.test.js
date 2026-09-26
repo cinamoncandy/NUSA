@@ -12,7 +12,7 @@ test("production PAPER monitors autonomous learning while legacy local simulator
   const legacy = read("apps/mobile/src/tradingViewLegacy.tsx");
   const ledger = read("apps/mobile/src/localPaperLedger.ts");
 
-  assert.match(app, /activeTab === "Paper" \? <TradingView/);
+  assert.match(app, /activeTab === "Paper" \? <PaperShadowMonitorView/);
   assert.match(shell, /PaperLearningMonitorView/);
   assert.doesNotMatch(shell, /<LegacyTradingView \{\.\.\.props\} \/>/);
   assert.doesNotMatch(shell, /priceInput|quantityInput|PAPER 주문 확정|placeLocalPaperOrder/);

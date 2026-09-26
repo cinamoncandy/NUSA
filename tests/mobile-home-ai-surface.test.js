@@ -43,9 +43,9 @@ test("HOME autonomous-intelligence design uses verified runtime data and preserv
 test("HOME autonomous-intelligence design keeps real navigation actions", () => {
   const home = read("apps/mobile/src/homeView.tsx");
 
-  assert.match(home, /onNavigate\("Markets"\)/);
-  assert.match(home, /onNavigate\("AiSignal"\)/);
-  assert.match(home, /onNavigate\("Portfolio"\)/);
+  assert.match(home, /onNavigate\("Paper"\)/);
+  assert.match(home, /onNavigate\("More"\)/);
+  assert.doesNotMatch(home, /onNavigate\("Markets"\)|onNavigate\("AiSignal"\)/);
   assert.match(home, /onOpenPaperLearning/);
   assert.match(home, /onPress=\{onGoSettings\}/);
   assert.match(home, /testID="home-operational-notice"/);

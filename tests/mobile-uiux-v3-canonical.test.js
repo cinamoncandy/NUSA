@@ -4,18 +4,23 @@ const fs = require("node:fs");
 const path = require("node:path");
 const root = path.join(__dirname, "..", "apps", "mobile");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
-test("App shell routes the canonical five-tab decision flow and preserves deeper jobs", () => {
+test("App shell routes the canonical four-destination PAPER/LIVE flow", () => {
   const app = read("App.tsx");
+  const contract = read("src/navigationContract.ts");
+  const navigation = read("src/primaryNavigation.tsx");
   assert.match(app, /import \{ HomeView/);
-  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\]/);
-  assert.match(app, /AiSignal: "AI"/);
-  assert.match(app, /AiSignal: "AI 판단과 근거"/);
-  assert.match(app, /type Tab = PrimaryTab \| "Order"/);
   assert.match(app, /<HomeView/);
-  assert.match(app, /activeTab === "Paper"/);
-  assert.match(app, /<TradingView/);
-  assert.match(app, /activeTab === "AiSignal" \? <AiView/);
-  assert.match(app, /accessibilityRole="tablist"/);
+  assert.match(app, /activeTab === "Paper" \? <PaperShadowMonitorView/);
+  assert.match(app, /activeTab === "Live" \? <LiveReadinessMonitorView/);
+  assert.match(app, /activeTab === "More" \? <MoreMenuView/);
+  assert.match(contract, /PRIMARY_DESTINATIONS = \["Home", "Paper", "Live", "More"\]/);
+  assert.match(contract, /"Strategies"/);
+  assert.doesNotMatch(contract, /PRIMARY_DESTINATIONS = \[[^\]]*"Market"/);
+  assert.doesNotMatch(contract, /PRIMARY_DESTINATIONS = \[[^\]]*"Signals"/);
+  assert.match(navigation, /accessibilityRole="tablist"/);
+  assert.doesNotMatch(navigation, /"Order"/);
+  assert.match(navigation, /Paper:/);
+  assert.match(navigation, /Live:/);
   assert.match(app, /StatusChip label="PAPER ONLY"/);
   assert.match(app, /StatusChip label="LIVE NONE"/);
 });
@@ -86,6 +91,14 @@ test("Notification utility is honest about unavailable runtime capability", () =
   assert.match(notifications, /가짜 알림/);
   assert.match(notifications, /READ ONLY/);
 });
+test("Intelligence field motion is evidence-driven rather than ambient", () => {
+  const source = read("src/components.tsx");
+  assert.match(source, /previousFieldState/);
+  assert.match(source, /previous\.evidenceCount === boundedEvidence/);
+  assert.match(source, /\[active, depth, evidenceCount, orbit, pulse, reducedMotion, scan, state\]/);
+  assert.doesNotMatch(source, /Animated\.loop\(/);
+});
+
 test("UI v3 never introduces live execution authority", () => {
   const files = ["App.tsx", "src/homeView.tsx", "src/homeDecisionSurface.ts", "src/marketsView.tsx", "src/tradingView.tsx", "src/tradingViewLegacy.tsx", "src/portfolioView.tsx", "src/aiView.tsx", "src/settingsView.tsx"];
   const source = files.map(read).join("\n");
