@@ -1,12 +1,12 @@
 version: 1
 current_jev_domain_observation_contract:
   work_order: WO-ISSUE-2326-JEV-DOMAIN-OBSERVATION
-  status: READY_FOR_REVIEW
+  status: BLOCKED_LOCAL_VALIDATION
   branch: feat/2326-jev-domain-observation-registry
   base_sha: 0921f0514a47e3f3313645a654e258cf8f3ab485
   scope: canonical-jev-domain-observation-envelope-and-task-type-registry
   rollout_ceiling: SHADOW
-  remaining: exact-head-CI_then_independent-Audit_then_Release_then_merge
+  remaining: local-targeted-tests_and_preflight_then_READY_FOR_REVIEW_then_exact-head-CI_then_independent-Audit_then_Release_then_merge
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_oracle_paper_startup_readiness:
   work_order: WO-20260919-ORACLE-READINESS-STARTUP
