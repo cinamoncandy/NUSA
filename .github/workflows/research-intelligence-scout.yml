@@ -59,6 +59,13 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.sha }}
+      - name: Restore canonical Research Intelligence memory
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: research-intelligence-memory.sqlite
+          key: research-intelligence-memory-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            research-intelligence-memory-${{ runner.os }}-
       - name: Enable pnpm via Corepack
         run: |
           corepack enable
@@ -80,7 +87,7 @@ jobs:
           NUSA_JEV_ENDPOINT: ${{ vars.NUSA_JEV_ENDPOINT }}
           NUSA_JEV_TIMEOUT_MS: ${{ vars.NUSA_JEV_TIMEOUT_MS }}
           NUSA_JEV_MODEL_IDENTITY: ${{ vars.NUSA_JEV_MODEL_IDENTITY }}
-        run: node scripts/research-intelligence-scout.js --output artifacts/research-intelligence/latest.json
+        run: node scripts/research-intelligence-scout.js --db research-intelligence-memory.sqlite --output artifacts/research-intelligence/latest.json
       - name: Upload advisory research receipt
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
