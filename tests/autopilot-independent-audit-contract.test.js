@@ -160,6 +160,13 @@ test("malformed or unsafe Audit evidence cannot advance Release", () => {
   assert.match(auditRunner, /AUDIT_RUNNER_MUTATION_FORBIDDEN/);
 });
 
+test("Audit prompt pins finding-code and blocker-list shape to strict validation", () => {
+  assert.match(auditRunner, /Each findings item code MUST be 1-80 characters/);
+  assert.match(auditRunner, /Every BLOCKER finding MUST have at least one corresponding human-readable entry in blockers/);
+  assert.ok(auditRunner.includes("const FINDING_CODE = /^[A-Z0-9_.:-]{1,80}$/;"));
+  assert.ok(auditRunner.includes('throw new Error("AUDIT_VERDICT_BLOCKER_LIST_REQUIRED")'));
+});
+
 test("Audit recovery paginates and binds exact-main evidence to canonical CI", () => {
   const recovery = auditRecoveryJobSlice();
   assert.match(recovery, /gh api --paginate --slurp/);
