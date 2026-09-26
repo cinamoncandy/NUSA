@@ -650,6 +650,26 @@ export async function executeCodingRunner(
   }
   const now = options.now ?? (() => Date.now());
 
+  // A deterministic sandbox apply-check rejection means the cheap proposal model already had one
+  // chance and the GitHub runner has now supplied exact source context. Escalate only that bounded
+  // repair attempt to the existing GitHub Models fallback; it still returns a proposal only and
+  // remains subject to the same sandbox validation/publish gates. If unavailable, keep the current
+  // provider path unchanged.
+  const sandboxRepairEscalation = Boolean(
+    env.AI
+    && request.proposalContext
+    && request.proposalFeedback?.includes("SANDBOX_PATCH_APPLY_CHECK_FAILED"),
+  );
+  const repairGithubToken = env.NUSA_GITHUB_TOKEN?.trim();
+  if (sandboxRepairEscalation && repairGithubToken) {
+    try {
+      const proposal = await githubModelsProposal(request, repairGithubToken, fetchImpl, codingProposalPrompt(request));
+      return await executeProposal(request, proposal, runtime, publisher);
+    } catch {
+      // Best-effort escalation only. Existing provider behavior remains the canonical fallback.
+    }
+  }
+
   const endpoint = env.NUSA_AI_CODING_ENDPOINT?.trim();
   const token = env.NUSA_AI_CODING_TOKEN?.trim();
   // Prefer the binding-backed Workers AI path whenever it is available. A stale or retired
