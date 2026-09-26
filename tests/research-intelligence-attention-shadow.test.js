@@ -671,6 +671,10 @@ test("Research Intelligence runtime wires Jev shadow only through the protected 
   assert.match(discoverJob, /NUSA_JEV_RESEARCH_ATTENTION_SHADOW_ENABLED: "true"/);
   assert.match(discoverJob, /secrets\.NUSA_JEV_API_KEY/);
   assert.match(discoverJob, /vars\.NUSA_JEV_ENDPOINT/);
+  assert.match(discoverJob, /actions\/cache@0057852bfaa89a56745cba8c7296529d2fc39830/);
+  assert.match(discoverJob, /path: research-intelligence-memory\.sqlite/);
+  assert.match(discoverJob, /restore-keys:[\s\S]*research-intelligence-memory-/);
+  assert.match(discoverJob, /--db research-intelligence-memory\.sqlite/);
   assert.match(workflow, /permissions:\n  contents: read/);
   assert.doesNotMatch(workflow, /contents: write|actions: write|id-token: write/);
 });
