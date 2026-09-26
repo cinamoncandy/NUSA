@@ -8,11 +8,8 @@ const INSTALLATION_KEY = "nusa.mobile.installation-id.v1";
 function randomInstallationId(): string {
   const bytes = new Uint8Array(16);
   const cryptoApi = (globalThis as { crypto?: { getRandomValues?(target: Uint8Array): Uint8Array } }).crypto;
-  if (cryptoApi?.getRandomValues) cryptoApi.getRandomValues(bytes);
-  else {
-    const seed = `${Date.now()}-${Math.random()}-${Math.random()}`;
-    for (let index = 0; index < bytes.length; index += 1) bytes[index] = seed.charCodeAt(index % seed.length) & 0xff;
-  }
+  if (typeof cryptoApi?.getRandomValues !== "function") throw new Error("secure installation identity entropy is unavailable");
+  cryptoApi.getRandomValues(bytes);
   return `nusa-install-${Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("")}`;
 }
 
