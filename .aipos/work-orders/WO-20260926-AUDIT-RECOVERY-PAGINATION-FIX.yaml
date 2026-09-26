@@ -1,0 +1,19 @@
+id: WO-20260926-AUDIT-RECOVERY-PAGINATION-FIX
+title: Audit recovery pagination compatibility
+status: READY_FOR_REVIEW
+branch: fix/audit-recovery-gh-pagination
+base_sha: 0921f0514a47e3f3313645a654e258cf8f3ab485
+exact_head: 364c1a33f7b3b4483158bb8794abfb2320417252
+pull_request: 2328
+scope: "Repair the canonical Audit recovery GitHub API pagination command without changing Audit, Release, or authority semantics."
+finding: "gh api rejects --paginate --slurp combined with --jq in the protected-main recovery consumer."
+change: "Stream paginated workflow runs through --jq, sort numeric IDs, and select the newest successful CI run deterministically."
+validation:
+  exact_head_ci: 36261134881
+  exact_head_status: PASS
+  independent_audit_retry: 36261734403
+  independent_audit_status: PASS
+  release_attempt: 36261734403
+  release_result: BLOCKED_UNRESOLVED_REVIEW_THREAD
+next_permitted_action: "Resolve the existing review thread and rerun canonical Release; no new PR or merge bypass."
+safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
