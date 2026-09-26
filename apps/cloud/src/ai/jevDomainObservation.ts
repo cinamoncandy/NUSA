@@ -1,4 +1,12 @@
-import type { JevRequiredModel } from "./jevShadowRouter";
+import {
+  validateJevShadowDecision,
+  type JevRequiredModel,
+  type JevShadowDecision,
+} from "./jevShadowRouter";
+import {
+  validateJevResearchAttentionShadowDecision,
+  type JevResearchAttentionModelOutput,
+} from "./jevResearchAttentionShadow";
 
 export const JEV_DOMAIN_OBSERVATION_SCHEMA_VERSION = 1 as const;
 
@@ -50,6 +58,7 @@ export type JevDomainTaskType =
 
 export type JevAdvisoryAction =
   | "OBSERVE"
+  | "ESCALATE"
   | "CLASSIFY"
   | "SUMMARIZE"
   | "RECOMMEND_ROUTE"
@@ -66,6 +75,11 @@ export type JevForbiddenAction =
   | "RELEASE_AUTHORIZATION"
   | "MERGE";
 
+export type JevDecisionSchema =
+  | "WORKFLOW_FAILURE_V1"
+  | "RESEARCH_ATTENTION_V1"
+  | "UNAVAILABLE";
+
 export type JevDecisionPrimitive = string | number | boolean | null;
 export type JevStructuredDecision = Readonly<Record<string, JevDecisionPrimitive>>;
 
@@ -75,6 +89,7 @@ export interface JevTaskTypePolicy {
   readonly canonicalOwner: string;
   readonly maxStage: JevRolloutStage;
   readonly calibrationEvidenceVersion: string | null;
+  readonly decisionSchema: JevDecisionSchema;
   readonly allowedActions: readonly JevAdvisoryAction[];
   readonly forbiddenActions: readonly JevForbiddenAction[];
 }
@@ -161,6 +176,7 @@ function policy(
   domain: JevDomain,
   canonicalOwner: string,
   allowedActions: readonly JevAdvisoryAction[],
+  decisionSchema: JevDecisionSchema = "UNAVAILABLE",
 ): JevTaskTypePolicy {
   return Object.freeze({
     taskType,
@@ -168,6 +184,7 @@ function policy(
     canonicalOwner,
     maxStage: "SHADOW" as const,
     calibrationEvidenceVersion: null,
+    decisionSchema,
     allowedActions: Object.freeze([...allowedActions]),
     forbiddenActions: FORBIDDEN_ACTIONS,
   });
@@ -178,18 +195,15 @@ export const JEV_TASK_TYPE_POLICIES: readonly JevTaskTypePolicy[] = Object.freez
     "WORKFLOW_FAILURE_CLASSIFICATION",
     "AUTOPILOT_DEVELOPMENT",
     "Autopilot deterministic failure/recovery state machine",
-    Object.freeze([
-      "OBSERVE",
-      "CLASSIFY",
-      "RECOMMEND_ESCALATION",
-      "RECOMMEND_AUTOFIX_ELIGIBILITY",
-    ]),
+    Object.freeze(["OBSERVE", "ESCALATE"]),
+    "WORKFLOW_FAILURE_V1",
   ),
   policy(
     "RESEARCH_INTELLIGENCE_ATTENTION_SHADOW",
     "AXIOM_RESEARCH",
     "Research Intelligence Scout and AXIOM deterministic handoff",
-    OBSERVE_CLASSIFY_ESCALATE,
+    Object.freeze(["OBSERVE", "ESCALATE"]),
+    "RESEARCH_ATTENTION_V1",
   ),
   policy(
     "DUPLICATE_TASK_CLASSIFICATION",
@@ -305,9 +319,10 @@ const POLICY_BY_TASK = new Map<JevDomainTaskType, JevTaskTypePolicy>(
   JEV_TASK_TYPE_POLICIES.map((entry) => [entry.taskType, entry]),
 );
 
-const FINGERPRINT = /^(?:sha256:)?[a-f0-9]{64}$/;
+const FINGERPRINT = /^(?:sha256:)?([a-f0-9]{64})$/i;
 const REASON_CODE = /^[A-Z0-9_]{1,64}$/;
 const FIELD_NAME = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
+const CANONICAL_ISO_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const SENSITIVE_FIELD =
   /authorization|password|secret|token|apikey|api_key|privatekey|private_key|cookie|credential|recoverycode|recovery_code/i;
 const SENSITIVE_VALUE =
@@ -327,9 +342,6 @@ function boundedText(value: string, field: string, maxLength = 256): string {
 }
 
 function safeDecision(value: Readonly<Record<string, unknown>>): JevStructuredDecision {
-  if (value == null || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("JEV_DECISION_INVALID");
-  }
   const entries = Object.entries(value);
   if (entries.length === 0 || entries.length > 32) {
     throw new Error("JEV_DECISION_INVALID");
@@ -352,13 +364,46 @@ function safeDecision(value: Readonly<Record<string, unknown>>): JevStructuredDe
     }
     if (
       typeof raw === "string" &&
-      (raw.length > 512 || SENSITIVE_VALUE.test(raw) || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(raw))
+      (raw.length > 512 ||
+        SENSITIVE_VALUE.test(raw) ||
+        /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(raw))
     ) {
       throw new Error("JEV_DECISION_VALUE_INVALID");
     }
     output[key] = raw as JevDecisionPrimitive;
   }
   return Object.freeze(output);
+}
+
+function normalizeFingerprint(value: string): string {
+  const match = value.match(FINGERPRINT);
+  if (match == null) throw new Error("JEV_INPUT_FINGERPRINT_INVALID");
+  return `sha256:${match[1].toLowerCase()}`;
+}
+
+function canonicalTimestamp(value: string | undefined): string {
+  const timestamp = value ?? new Date().toISOString();
+  if (!CANONICAL_ISO_UTC.test(timestamp)) throw new Error("JEV_TIMESTAMP_INVALID");
+  const parsed = new Date(timestamp);
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString() !== timestamp) {
+    throw new Error("JEV_TIMESTAMP_INVALID");
+  }
+  return timestamp;
+}
+
+function validateTaskDecision(
+  policy: JevTaskTypePolicy,
+  value: Readonly<Record<string, unknown>>,
+): JevStructuredDecision {
+  let validated: JevShadowDecision | JevResearchAttentionModelOutput;
+  if (policy.decisionSchema === "WORKFLOW_FAILURE_V1") {
+    validated = validateJevShadowDecision(value);
+  } else if (policy.decisionSchema === "RESEARCH_ATTENTION_V1") {
+    validated = validateJevResearchAttentionShadowDecision(value);
+  } else {
+    throw new Error("JEV_TASK_DECISION_VALIDATOR_UNAVAILABLE");
+  }
+  return safeDecision(validated as unknown as Readonly<Record<string, unknown>>);
 }
 
 export function getJevTaskTypePolicy(taskType: JevDomainTaskType): JevTaskTypePolicy {
@@ -395,11 +440,11 @@ export function createJevDomainObservation(
   assertJevTaskTypeRegistry();
   const taskPolicy = getJevTaskTypePolicy(input.taskType);
   const rolloutStage = input.rolloutStage ?? "SHADOW";
+  if (!Object.prototype.hasOwnProperty.call(STAGE_RANK, rolloutStage)) {
+    throw new Error("JEV_STAGE_INVALID");
+  }
   if (STAGE_RANK[rolloutStage] > STAGE_RANK[taskPolicy.maxStage]) {
     throw new Error("JEV_STAGE_NOT_APPROVED");
-  }
-  if (!FINGERPRINT.test(input.inputFingerprint)) {
-    throw new Error("JEV_INPUT_FINGERPRINT_INVALID");
   }
   if (!REASON_CODE.test(input.reasonCode)) {
     throw new Error("JEV_REASON_CODE_INVALID");
@@ -411,11 +456,25 @@ export function createJevDomainObservation(
   ) {
     throw new Error("JEV_CONFIDENCE_INVALID");
   }
-  const timestamp = input.timestamp ?? new Date().toISOString();
-  if (!Number.isFinite(Date.parse(timestamp))) {
-    throw new Error("JEV_TIMESTAMP_INVALID");
+
+  const decision = validateTaskDecision(taskPolicy, input.decision);
+  if (taskPolicy.decisionSchema === "WORKFLOW_FAILURE_V1") {
+    if (
+      decision.requiredModel !== input.requiredModel ||
+      decision.confidence !== input.confidence
+    ) {
+      throw new Error("JEV_DECISION_ENVELOPE_MISMATCH");
+    }
   }
-  const decision = safeDecision(input.decision);
+  if (taskPolicy.decisionSchema === "RESEARCH_ATTENTION_V1") {
+    if (
+      decision.confidence !== input.confidence ||
+      decision.reasonCode !== input.reasonCode
+    ) {
+      throw new Error("JEV_DECISION_ENVELOPE_MISMATCH");
+    }
+  }
+
   return Object.freeze({
     schemaVersion: JEV_DOMAIN_OBSERVATION_SCHEMA_VERSION,
     decisionType: input.taskType,
@@ -423,7 +482,7 @@ export function createJevDomainObservation(
     domain: taskPolicy.domain,
     canonicalOwner: taskPolicy.canonicalOwner,
     rolloutStage,
-    inputFingerprint: input.inputFingerprint,
+    inputFingerprint: normalizeFingerprint(input.inputFingerprint),
     sourceIdentity: boundedText(input.sourceIdentity, "source_identity", 512),
     sourceVersion: boundedText(input.sourceVersion, "source_version", 256),
     decision,
@@ -441,7 +500,7 @@ export function createJevDomainObservation(
     fallbackApplied: input.fallbackApplied,
     correlationId: boundedText(input.correlationId, "correlation_id", 256),
     traceId: boundedText(input.traceId, "trace_id", 256),
-    timestamp,
+    timestamp: canonicalTimestamp(input.timestamp),
     usableForRouting: rolloutStage === "ACTIVE_ROUTING_ADVISORY",
     aiAuthority: "ZERO_AUTHORITY",
     productionMutationAllowed: false,
