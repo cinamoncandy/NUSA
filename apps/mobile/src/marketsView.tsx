@@ -23,7 +23,7 @@ interface MarketsViewProps {
   readonly error: string | null;
   readonly refreshing: boolean;
   readonly onRefresh: () => void;
-  readonly onPaperTrade: () => void;
+  readonly onOpenPaperEvidence: () => void;
 }
 
 type Panel = "WATCHLIST" | "CHART";
@@ -38,7 +38,7 @@ function rate(value: number | null): string {
   return `${n > 0 ? "+" : ""}${n.toFixed(2)}%`;
 }
 
-export function MarketsView({ repository, market, rawMarkets, rawCandles, currentPrice, marketConnectionState, stale, marketsStale, chartError, chartErrorDiagnostic, error, refreshing, onRefresh, onPaperTrade }: MarketsViewProps) {
+export function MarketsView({ repository, market, rawMarkets, rawCandles, currentPrice, marketConnectionState, stale, marketsStale, chartError, chartErrorDiagnostic, error, refreshing, onRefresh, onOpenPaperEvidence }: MarketsViewProps) {
   const { theme } = useTheme();
   const { width } = useWindowDimensions();
   const [panel, setPanel] = useState<Panel>("CHART");
@@ -106,7 +106,7 @@ export function MarketsView({ repository, market, rawMarkets, rawCandles, curren
   const watchlist = <WatchlistView error={error} onRefresh={refreshMarketView} rawMarkets={rawMarkets} refreshing={refreshing || selectedChartLoading} repository={repository} selectedMarket={selectedMarket} onSelectMarket={handleSelectMarket} stale={marketsStale} />;
   const chart = <View style={styles.detailWorkspace} testID="market-detail-workspace">
     <ChartView changeRate={changeRate} diagnostic={displayedChartError ? displayedDiagnostic : null} error={displayedChartError ?? error} currentPrice={selectedCurrentPrice} market={selectedMarket} marketConnectionState={marketConnectionState} onRefresh={refreshMarketView} rawCandles={displayedCandles === null ? null : [...displayedCandles]} refreshing={refreshing || selectedChartLoading} stale={displayedStale} />
-    <Pressable accessibilityRole="button" onPress={onPaperTrade} style={[styles.paperContext, { borderTopColor: theme.colors.border }]} testID="market-observation-context">
+    <Pressable accessibilityRole="button" onPress={onOpenPaperEvidence} style={[styles.paperContext, { borderTopColor: theme.colors.border }]} testID="market-observation-context">
       <View style={styles.paperContextCopy}><Text style={[styles.paperKicker, { color: theme.colors.primary }]}>PAPER CONTEXT</Text><Text style={[styles.paperTitle, { color: theme.colors.text }]}>시장 관측과 PAPER 판단은 분리됩니다</Text><Text style={[styles.paperDetail, { color: theme.colors.textMuted }]}>공개 시세는 읽기 전용입니다. 이 데이터만으로 전략 신호나 주문 권한이 생기지 않습니다.</Text></View>
       <Text style={[styles.chevron, { color: theme.colors.textMuted }]}>›</Text>
     </Pressable>
