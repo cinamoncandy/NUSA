@@ -1,12 +1,14 @@
 version: 1
 id: WO-ISSUE-1543-RESEARCH-REPLAY-SEGMENTED-PERSISTENCE
 title: "Bound Research replay persistence growth without weakening immutable evidence"
-status: LOCAL_VALIDATED_PENDING_PR
+status: READY_FOR_REVIEW
 owner: nusa-development
 repository: cinamoncandy/NUSA
 issue: 1543
 base_branch: main
-base_commit: 5fd273babb2919578e428691aa9955a58644360c
+base_commit: ed401cf73b323026240e80284661501bdb676515
+previous_head: 37c7e946db9e389898b018953703bd1c01bce014
+previous_base_commit: 5fd273babb2919578e428691aa9955a58644360c
 implementation_branch: fix/research-replay-segmented-persistence-1543
 authorization: "Explicit owner instruction in the NUSA pipeline-integration session to continue all remaining PAPER-only pipeline tasks after the segmented-persistence design and safety boundary were reported."
 objective: "Remove O(total historical archive bytes) rewrite growth from each canonical Research replay snapshot save while preserving immutable evidence, deterministic replay, provenance validation, duplicate detection, and fail-closed corruption handling."
@@ -55,13 +57,20 @@ verification_commands:
   - "node scripts/validate-aipos-cross-ai-conformance.js"
   - "git diff --check"
 validation:
-  focused_bounded_save: PASS_6_OF_6
-  focused_latest_identity: PASS_4_OF_4
-  targeted_typecheck: PASS
+  converged_head: c21b5b6a35f21329f33d9ba35ee8e6e0d3fe5844
+  convergence: "Clean ort merge of origin/main ed401cf7 into 37c7e946; 0 unmerged paths; delta vs main remains exactly the 3 canonical files; walkForwardEngine OOS fix 6f03cf89 preserved byte-identical (0 diff)."
+  focused_bounded_save: PASS_6_OF_6_ON_CONVERGED_HEAD_CLEAN_DIST
+  focused_latest_identity: PASS_4_OF_4_ON_CONVERGED_HEAD_CLEAN_DIST
+  replay_regression: PASS_7_OF_7_ON_CONVERGED_HEAD_CLEAN_DIST
+  targeted_typecheck: PASS_EXIT_0
   ai_zero_authority: PASS
   safety_invariants: PASS
+  aipos_provenance: PASS
+  aipos_conformance: PASS_ZERO_FAILURES
+  diff_check: PASS
   full_project_typecheck: PENDING_EXACT_HEAD_CI
   exact_head_ci: PENDING
 known_environment_limitations:
   - "The low-memory Oracle development host has ~954 MiB RAM; a full-repository local tsc run exceeded the default Node heap before test execution. Targeted strict typecheck passed; exact-head CI remains the required full-project validation boundary."
-next_permitted_action: "Run AIPOS conformance/provenance checks, publish one focused PR, then require exact-head CI before merge."
+  - "Converged-head clean-dist validation ran against a full project build in an isolated worktree; apps/mobile react type errors are worktree-local missing apps/mobile/node_modules artifacts and remain PENDING_EXACT_HEAD_CI."
+next_permitted_action: "Require exact-head CI on the converged head, then independent Audit and Release; no direct merge or gate bypass."
