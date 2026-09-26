@@ -59,15 +59,15 @@ describe("coding runner", () => {
       replacementText: "export const oldValue = false;",
     };
     const patch = buildDeterministicCodingPatch(context, edit);
-    assert.match(patch, /@@ -8 \+8 @@/);
+    assert.match(patch, /@@ -7,3 \+7,3 @@/);
     assert.match(patch, /-export const oldValue = true;/);
     assert.match(patch, /\+export const oldValue = false;/);
     assert.equal(patch, buildDeterministicCodingPatch(context, edit));
   });
 
   it("constructs a patch accepted by strict git apply check", () => {
-    const context = { path: "apps/autopilot/src/example.ts", startLine: 7, content: "export const oldValue = true;\n" };
-    const patch = buildDeterministicCodingPatch(context, { path: context.path, expectedText: context.content.trimEnd(), replacementText: "export const oldValue = false;" });
+    const context = { path: "apps/autopilot/src/example.ts", startLine: 7, content: "export const before = true;\nexport const oldValue = true;\nexport const after = true;\n" };
+    const patch = buildDeterministicCodingPatch(context, { path: context.path, expectedText: "export const oldValue = true;", replacementText: "export const oldValue = false;" });
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-edit-"));
     try {
       const target = path.join(root, context.path);
@@ -100,7 +100,7 @@ describe("coding runner", () => {
       proposalContext: {
         path: "apps/autopilot/src/example.ts",
         startLine: 7,
-        content: "export const oldValue = true;\n",
+        content: "export const before = true;\nexport const oldValue = true;\nexport const after = true;\n",
       },
     };
     let observedPatch = "";
@@ -126,7 +126,18 @@ describe("coding runner", () => {
     const result = await executeCodingRunner(contextual, { NUSA_GITHUB_TOKEN: "github-token", AI: ai }, verifiedGithubFetch, runtime);
     assert.equal(result.status, "EXECUTION_ACCEPTED");
     assert.match(observedPatch, /diff --git a\/apps\/autopilot\/src\/example\.ts/);
-    assert.match(observedPatch, /@@ -7 \+7 @@/);
+    assert.match(observedPatch, /@@ -7,3 \+7,3 @@/);
+  });
+
+  it("replaces a substring within complete source lines and rejects empty replacements", () => {
+    const context = { path: "apps/autopilot/src/example.ts", startLine: 1, content: "const value = true;\nconst after = true;\n" };
+    const patch = buildDeterministicCodingPatch(context, { path: context.path, expectedText: "value = true", replacementText: "value = false" });
+    assert.match(patch, /-const value = true;/);
+    assert.match(patch, /\+const value = false;/);
+    assert.throws(
+      () => buildDeterministicCodingPatch(context, { path: context.path, expectedText: "value = true", replacementText: "" }),
+      /CODING_EDIT_REPLACEMENT_INVALID/,
+    );
   });
 
   it("rejects structured edits outside the bounded authority surface", async () => {
