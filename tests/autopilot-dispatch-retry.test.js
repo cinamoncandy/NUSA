@@ -605,6 +605,8 @@ test("repairs only malformed unified-diff hunk counts with git apply --recount",
   try {
     process.chdir(directory);
     execFileSync("git", ["init", "-q"]);
+    execFileSync("git", ["config", "core.autocrlf", "false"]);
+    execFileSync("git", ["config", "core.eol", "lf"]);
     execFileSync("git", ["config", "user.email", "nusa-test@example.invalid"]);
     execFileSync("git", ["config", "user.name", "NUSA Test"]);
     fs.mkdirSync("apps/autopilot/src", { recursive: true });
@@ -639,6 +641,8 @@ test("recount fallback does not fuzz or accept mismatched source context", () =>
   try {
     process.chdir(directory);
     execFileSync("git", ["init", "-q"]);
+    execFileSync("git", ["config", "core.autocrlf", "false"]);
+    execFileSync("git", ["config", "core.eol", "lf"]);
     execFileSync("git", ["config", "user.email", "nusa-test@example.invalid"]);
     execFileSync("git", ["config", "user.name", "NUSA Test"]);
     fs.mkdirSync("apps/autopilot/src", { recursive: true });
