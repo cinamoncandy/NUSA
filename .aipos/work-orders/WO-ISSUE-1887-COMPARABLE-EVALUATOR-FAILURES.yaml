@@ -1,0 +1,31 @@
+id: WO-ISSUE-1887-COMPARABLE-EVALUATOR-FAILURES
+title: Bind lifecycle advice to canonical comparable Research Memory evidence
+status: IMPLEMENTED_PENDING_EXACT_HEAD_CI
+issue: 1887
+base_commit: 3ddc9dc5ab7f4e41da9acc7f37c263457b0add62
+implementation_branch: codex/issue-1887-comparable-evaluator
+authority_impact: none
+scope:
+  - Consume the Core-approved typed Research Memory overlay rather than caller-supplied repeated-failure, structural-domination, or independent-support counts.
+  - Validate the complete append-only memory chain before lifecycle interpretation.
+  - Count only CURRENT canonical empirical EVIDENCE with exact evaluatorSemanticsId and distinct independenceGroupId.
+  - Bind FAILURE, STRUCTURALLY_DOMINATED, and PROMOTION_SUPPORT to deterministic candidate/family semantic identities.
+  - Preserve legacy, superseded, revalidation-required, and evaluator-mismatched evidence as history while failing current lifecycle advice closed.
+acceptance_criteria:
+  - Three legacy/superseded/mismatched failures cannot RETIRE.
+  - Three CURRENT comparable independent canonical failures can RETIRE advisory-only.
+  - Replays/cells from one independence group count once.
+  - Raw fabricated counts/booleans cannot RETIRE or PROMOTE.
+  - Corrupted canonical memory QUARANTINEs before performance interpretation.
+  - Canonical structural-domination evidence is required for structural RETIRE.
+  - Canonical independent promotion support is required for PROMOTE.
+  - No lifecycle mutation, qualification, portfolio, Risk, order, credential, production mutation, or LIVE authority is added.
+safety:
+  authority: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification:
+  - pnpm run build
+  - node --test tests/strategy-evolution-advisory.test.js
+  - exact-head CI and companion safety workflows
