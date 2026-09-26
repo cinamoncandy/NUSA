@@ -114,6 +114,19 @@ test("Audit recovery is bounded to classified transient executor failures and st
   assert.match(auditJob, /WAITING_PROVIDER_CAPACITY/);
   assert.match(auditJob, /failureClass = 'executor_unavailable'/);
   assert.match(auditJob, /recovery = 'retry'/);
+  const classifyFrom = auditJob.indexOf("Classify Audit failure boundary");
+  const classifySlice = auditJob.slice(classifyFrom);
+  const firstCapacity = classifySlice.indexOf("WAITING_PROVIDER_CAPACITY");
+  const deterministicAssign = classifySlice.indexOf("failureClass = 'deterministic'");
+  assert.ok(
+    classifyFrom >= 0 && firstCapacity >= 0 && firstCapacity < deterministicAssign,
+    "provider-capacity wait must classify transient before deterministic stale matching (run 36134520306: AUDIT_FAILED_CLOSED contains 'closed')",
+  );
+  assert.match(
+    auditJob,
+    /result\.error === "WAITING_PROVIDER_CAPACITY" \|\| result\.status === "WAITING_PROVIDER_CAPACITY"/,
+    "capacity wait must be decided by exact structured code, not bare substring",
+  );
   assert.match(workflow, /needs\.audit-request\.outputs\.recovery == 'retry'/);
   assert.match(recovery, /state.*!=.*open/);
   assert.match(recovery, /current_head.*!=.*REQUESTED_HEAD/);
