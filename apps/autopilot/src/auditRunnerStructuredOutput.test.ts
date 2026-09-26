@@ -80,7 +80,7 @@ test("requests JSON Schema output and accepts a structured verdict object", asyn
 
   const result = await executeIndependentAudit(
     request,
-    { AI, NUSA_GITHUB_TOKEN: "github-token" },
+    { AI, NUSA_AUDIT_GITHUB_TOKEN: "github-token" },
     fetchSequence() as never,
   );
 
