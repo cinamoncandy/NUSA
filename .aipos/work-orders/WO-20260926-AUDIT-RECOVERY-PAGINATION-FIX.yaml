@@ -1,19 +1,20 @@
 id: WO-20260926-AUDIT-RECOVERY-PAGINATION-FIX
 title: Audit recovery pagination compatibility
-status: READY_FOR_REVIEW
+status: BLOCKED_EXTERNAL_AUDIT_CAPACITY
 branch: fix/audit-recovery-gh-pagination
 base_sha: 0921f0514a47e3f3313645a654e258cf8f3ab485
-exact_head: 364c1a33f7b3b4483158bb8794abfb2320417252
+exact_head: f0e590f4f076b9366c9163ff12137ff22780f5af
 pull_request: 2328
 scope: "Repair the canonical Audit recovery GitHub API pagination command without changing Audit, Release, or authority semantics."
 finding: "gh api rejects --paginate --slurp combined with --jq in the protected-main recovery consumer."
 change: "Stream paginated workflow runs through --jq, sort numeric IDs, and select the newest successful CI run deterministically."
 validation:
-  exact_head_ci: 36261134881
+  exact_head_ci: 36261890909
   exact_head_status: PASS
-  independent_audit_retry: 36261734403
-  independent_audit_status: PASS
-  release_attempt: 36261734403
-  release_result: BLOCKED_UNRESOLVED_REVIEW_THREAD
-next_permitted_action: "Resolve the existing review thread and rerun canonical Release; no new PR or merge bypass."
+  review_threads: RESOLVED
+  independent_audit_run: 36262309906
+  independent_audit_status: BLOCKED_WAITING_PROVIDER_CAPACITY
+  bounded_failed_job_retry: FAILED_SAME_409_WAITING_PROVIDER_CAPACITY
+blocker: "External independent Audit provider capacity; repository-controlled pagination and review findings are already resolved."
+next_permitted_action: "After external provider capacity returns, rerun canonical independent Audit for the current exact head; on PASS continue canonical Release -> merge -> protected-main verification. Do not add another implementation or poll repeatedly."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
