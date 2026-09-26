@@ -31,6 +31,8 @@ const NO_ACTION_PROPOSAL_FAILURE_CODES = new Set([
   "CODING_PROPOSAL_UNAVAILABLE",
   "CODING_PROPOSAL_REPEATED",
   "SANDBOX_PATCH_APPLY_CHECK_FAILED",
+  "SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED",
+  "SANDBOX_BUILD_FAILED",
   "SANDBOX_PATCH_FILE_COUNT_INVALID",
   "SANDBOX_PATCH_REQUIRED",
   "SANDBOX_PATCH_TOO_LARGE",
@@ -45,6 +47,8 @@ const RETRYABLE_PROPOSAL_FAILURE_CODES = new Set([
   "CODING_PROPOSAL_TOO_LARGE",
   "CODING_PROPOSAL_UNAVAILABLE",
   "SANDBOX_PATCH_APPLY_CHECK_FAILED",
+  "SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED",
+  "SANDBOX_BUILD_FAILED",
   "SANDBOX_PATCH_FILE_COUNT_INVALID",
   "SANDBOX_PATCH_REQUIRED",
   "SANDBOX_PATCH_TOO_LARGE",
@@ -65,7 +69,7 @@ function fixedFailureClass(status) {
 
 function proposalFailureCode(reason) {
   const text = String(reason || "");
-  const match = text.match(/^(CODING_PROPOSAL_[A-Z0-9_]+|SANDBOX_PATCH_[A-Z0-9_]+)/);
+  const match = text.match(/^(CODING_PROPOSAL_[A-Z0-9_]+|SANDBOX_(?:PATCH|BUILD)_[A-Z0-9_]+)/);
   const code = match?.[1];
   if (!code || !NO_ACTION_PROPOSAL_FAILURE_CODES.has(code)) return null;
   if (code.startsWith("CODING_PROPOSAL_")) return text === code ? code : null;
@@ -694,10 +698,82 @@ function assertGithubRunnerWorkspaceClean(statusOutput) {
 }
 
 function resetProposalRetryWorkspace() {
+  // validatePatchOnGithubRunner applies the candidate before running the build. Every
+  // retry starts from the exact clean head that was checked before proposal generation.
+  // Local unit tests intentionally run in the developer checkout; only the ephemeral
+  // GitHub runner is safe to restore destructively.
+  if (process.env.GITHUB_ACTIONS === "true") {
+    run("git", ["reset", "--hard", "HEAD"], "GITHUB_RUNNER_RETRY_RESTORE_FAILED");
+  }
   fs.rmSync(PATCH_PATH, { force: true });
   const tracked = run("git", ["diff", "--name-only"], "GITHUB_RUNNER_RETRY_TRACKED_STATUS_FAILED").trim();
   const staged = run("git", ["diff", "--cached", "--name-only"], "GITHUB_RUNNER_RETRY_STAGED_STATUS_FAILED").trim();
   if (tracked || staged) throw new Error("CODING_RUNTIME_WORKSPACE_DIRTY");
+}
+
+function normalizeUnifiedDiffHunkCounts(patch) {
+  const lines = String(patch).replace(/\r\n/g, "\n").split("\n");
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = lines[index].match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)$/);
+    if (!match) continue;
+    let oldCount = 0;
+    let newCount = 0;
+    for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+      const line = lines[cursor];
+      if (line.startsWith("@@ ") || line.startsWith("diff --git ") || line.startsWith("--- ") || line.startsWith("+++ ") || line === "") break;
+      if (line.startsWith("\\ No newline at end of file")) continue;
+      if (line.startsWith(" ")) {
+        oldCount += 1;
+        newCount += 1;
+        continue;
+      }
+      if (line.startsWith("-")) {
+        oldCount += 1;
+        continue;
+      }
+      if (line.startsWith("+")) {
+        newCount += 1;
+        continue;
+      }
+      break;
+    }
+    lines[index] = `@@ -${match[1]},${oldCount} +${match[2]},${newCount} @@${match[3]}`;
+  }
+  return lines.join("\n");
+}
+
+function applyPatchWithNormalizedHunkCounts(patchPath = PATCH_PATH) {
+  let strictFailure;
+  try {
+    run("git", ["apply", "--check", patchPath], "SANDBOX_PATCH_APPLY_CHECK_FAILED");
+  } catch (error) {
+    strictFailure = error;
+  }
+  if (!strictFailure) {
+    run("git", ["apply", patchPath], "SANDBOX_PATCH_APPLY_FAILED");
+    return "strict";
+  }
+
+  const originalPatch = fs.readFileSync(patchPath, "utf8");
+  const normalizedPatch = normalizeUnifiedDiffHunkCounts(originalPatch);
+  if (normalizedPatch === originalPatch) throw strictFailure;
+  fs.writeFileSync(patchPath, normalizedPatch, "utf8");
+
+  try {
+    // Only unified-diff hunk count numerals are normalized. The repaired patch must then pass the
+    // ordinary strict apply check: exact source context is still required and no fuzz/3-way merge
+    // or alternate Git apply mode is enabled.
+    run("git", ["apply", "--check", patchPath], "SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED");
+    run("git", ["apply", patchPath], "SANDBOX_PATCH_NORMALIZED_APPLY_FAILED");
+    console.log("SANDBOX_PATCH_HUNK_COUNTS_NORMALIZED");
+    return "normalized";
+  } catch (error) {
+    fs.writeFileSync(patchPath, originalPatch, "utf8");
+    // Recounting was attempted and failed independently. Preserve that exact transition instead
+    // of collapsing it back to the original strict-apply failure so the bounded repair loop can
+    // distinguish a post-recount apply failure from the initial malformed-hunk rejection.
+    throw error;
+  }
 }
 
 function validatePatchOnGithubRunner(request, patch) {
@@ -708,8 +784,7 @@ function validatePatchOnGithubRunner(request, patch) {
   assertGithubRunnerWorkspaceClean(run("git", ["status", "--porcelain", "--untracked-files=all"], "GITHUB_RUNNER_STATUS_FAILED"));
 
   fs.writeFileSync(PATCH_PATH, `${patch.trim()}\n`);
-  run("git", ["apply", "--check", PATCH_PATH], "SANDBOX_PATCH_APPLY_CHECK_FAILED");
-  run("git", ["apply", PATCH_PATH], "SANDBOX_PATCH_APPLY_FAILED");
+  applyPatchWithNormalizedHunkCounts(PATCH_PATH);
   run("git", ["diff", "--check"], "SANDBOX_PATCH_DIFF_CHECK_FAILED");
 
   const tracked = run("git", ["diff", "--name-only"], "SANDBOX_PATCH_DIFF_LIST_FAILED").split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
@@ -964,7 +1039,7 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
         now,
       }));
       if (decision === "RETRY") {
-        if (code === "SANDBOX_PATCH_APPLY_CHECK_FAILED") {
+        if (code === "SANDBOX_PATCH_APPLY_CHECK_FAILED" || code === "SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED") {
           try {
             proposalContext = proposalContextForPatch(proposal.patch);
           } catch {
@@ -1124,6 +1199,8 @@ module.exports = {
   assertGithubRunnerWorkspaceClean,
   filterGithubRunnerWorkspacePaths,
   validatePatchOnGithubRunner,
+  normalizeUnifiedDiffHunkCounts,
+  applyPatchWithNormalizedHunkCounts,
   endpointFor,
   boundedWorkerFailureEvidence,
 };

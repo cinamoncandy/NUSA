@@ -25,6 +25,14 @@
       "secrets": false,
       "environment": null
     },
+    "android-stable-release.yml:build-and-publish": {
+      "write": [
+        "contents",
+        "issues"
+      ],
+      "secrets": true,
+      "environment": null
+    },
     "android-stable-release.yml:resolve": {
       "write": [
         "contents",
@@ -34,14 +42,6 @@
       "environment": null
     },
     "android-stable-release.yml:signing-readiness": {
-      "write": [
-        "contents",
-        "issues"
-      ],
-      "secrets": true,
-      "environment": null
-    },
-    "android-stable-release.yml:build-and-publish": {
       "write": [
         "contents",
         "issues"
@@ -99,9 +99,9 @@
       "secrets": true,
       "environment": "nusa-release-authority"
     },
-    "autopilot-execution-consumer.yml:consume": {
+    "autopilot-execution-consumer.yml:audit-recovery": {
       "write": [
-        "id-token"
+        "contents"
       ],
       "secrets": false,
       "environment": null
@@ -114,9 +114,9 @@
       "secrets": true,
       "environment": null
     },
-    "autopilot-execution-consumer.yml:audit-recovery": {
+    "autopilot-execution-consumer.yml:consume": {
       "write": [
-        "contents"
+        "id-token"
       ],
       "secrets": false,
       "environment": null
@@ -130,7 +130,21 @@
       "secrets": false,
       "environment": null
     },
+    "autopilot-execution-consumer.yml:release-handoff": {
+      "write": [
+        "contents"
+      ],
+      "secrets": false,
+      "environment": null
+    },
     "autopilot-execution-consumer.yml:release-recovery": {
+      "write": [
+        "contents"
+      ],
+      "secrets": false,
+      "environment": null
+    },
+    "autopilot-github-event-bridge.yml:audit-dispatch-fallback": {
       "write": [
         "contents"
       ],
@@ -144,13 +158,6 @@
       "secrets": true,
       "environment": null
     },
-    "autopilot-github-event-bridge.yml:audit-dispatch-fallback": {
-      "write": [
-        "contents"
-      ],
-      "secrets": false,
-      "environment": null
-    },
     "autopilot-runner-progress-consumer.yml:validate": {
       "write": [],
       "secrets": false,
@@ -161,7 +168,7 @@
       "secrets": false,
       "environment": null
     },
-    "ci.yml:validation": {
+    "ci.yml:coverage": {
       "write": [],
       "secrets": false,
       "environment": null
@@ -176,12 +183,12 @@
       "secrets": false,
       "environment": null
     },
-    "ci.yml:coverage": {
+    "ci.yml:test": {
       "write": [],
       "secrets": false,
       "environment": null
     },
-    "ci.yml:test": {
+    "ci.yml:validation": {
       "write": [],
       "secrets": false,
       "environment": null
@@ -221,22 +228,22 @@
       "secrets": true,
       "environment": "testflight"
     },
-    "mobile-native.yml:foundation-smoke": {
-      "write": [],
-      "secrets": false,
-      "environment": null
-    },
     "mobile-native.yml:android-debug": {
       "write": [],
       "secrets": false,
       "environment": null
     },
-    "mobile-native.yml:ios-debug": {
+    "mobile-native.yml:android-release-candidate": {
       "write": [],
       "secrets": false,
       "environment": null
     },
-    "mobile-native.yml:android-release-candidate": {
+    "mobile-native.yml:foundation-smoke": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "mobile-native.yml:ios-debug": {
       "write": [],
       "secrets": false,
       "environment": null
@@ -276,15 +283,15 @@
       "secrets": false,
       "environment": null
     },
-    "windows-desktop-stable-release.yml:resolve": {
-      "write": [],
-      "secrets": false,
-      "environment": null
-    },
     "windows-desktop-stable-release.yml:release": {
       "write": [
         "contents"
       ],
+      "secrets": false,
+      "environment": null
+    },
+    "windows-desktop-stable-release.yml:resolve": {
+      "write": [],
       "secrets": false,
       "environment": null
     },

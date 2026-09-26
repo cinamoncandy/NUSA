@@ -7,10 +7,14 @@ const app = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/App.tsx"), "
 const navigation = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/mobileNavigation.ts"), "utf8");
 
 test("visible mobile navigation exposes supervision and AI jobs while retaining existing screen routes", () => {
-  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\]/);
-  assert.match(app, /Home: "HOME", Markets: "MARKETS", Paper: "PAPER", Portfolio: "PORTFOLIO", AiSignal: "AI"/);
-  assert.match(app, /Home: "현재 NUSA 상태", Markets: "공개 시장 환경", Paper: "PAPER 운용", Portfolio: "PAPER 자산과 결과", AiSignal: "AI 판단과 근거"/);
-  assert.match(app, /testID="primary-navigation"/);
+  const contract = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/navigationContract.ts"), "utf8");
+  const nav = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/primaryNavigation.tsx"), "utf8");
+  assert.match(contract, /PRIMARY_DESTINATIONS = \["Home", "Paper", "Live", "More"\]/);
+  assert.match(app, /<PrimaryNavigation/);
+  assert.match(app, /activeTab === "Paper" \? <PaperShadowMonitorView/);
+  assert.match(app, /activeTab === "Live" \? <LiveReadinessMonitorView/);
+  assert.match(nav, /testID="primary-navigation"/);
+  assert.doesNotMatch(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\]/);
   assert.doesNotMatch(app, /Markets: "MARKET", Paper: "TRADE"/);
 });
 

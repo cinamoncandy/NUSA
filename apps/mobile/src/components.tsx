@@ -133,12 +133,16 @@ export function MotionReveal({ children, testID }: Readonly<{ children: React.Re
 }
 
 
-export function IntelligenceMotionField({ active = true, evidenceCount = 0, label = "NUSA intelligence field" }: Readonly<{ active?: boolean; evidenceCount?: number; label?: string }>) {
+export type IntelligenceFieldState = "IDLE" | "OBSERVING" | "RECOVERING" | "READY" | "ACTIVE" | "DEGRADED" | "BLOCKED";
+
+export function IntelligenceMotionField({ active = true, evidenceCount = 0, state = active ? "ACTIVE" : "IDLE", label = "NUSA intelligence field" }: Readonly<{ active?: boolean; evidenceCount?: number; state?: IntelligenceFieldState; label?: string }>) {
   const { theme } = useTheme();
   const [reducedMotion, setReducedMotion] = useState<boolean | null>(null);
   const orbit = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(0)).current;
   const scan = useRef(new Animated.Value(0)).current;
+  const depth = useRef(new Animated.Value(0.35)).current;
+  const previousFieldState = useRef<Readonly<{ active: boolean; evidenceCount: number; state: IntelligenceFieldState }> | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -148,37 +152,63 @@ export function IntelligenceMotionField({ active = true, evidenceCount = 0, labe
   }, []);
 
   useEffect(() => {
-    orbit.stopAnimation(); pulse.stopAnimation(); scan.stopAnimation();
-    if (!active || reducedMotion == null || reducedMotion) {
-      orbit.setValue(0.2); pulse.setValue(active ? 0.55 : 0.15); scan.setValue(0.25);
+    const layerTranslateY = depth.interpolate({ inputRange: [0, 1], outputRange: [7, -4] });
+  const layerScale = depth.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1.04] });
+  const farLayerTranslateY = depth.interpolate({ inputRange: [0, 1], outputRange: [-3, 5] });
+  const boundedEvidence = Math.max(0, Math.min(99, Math.round(evidenceCount)));
+    const previous = previousFieldState.current;
+    previousFieldState.current = { active, evidenceCount: boundedEvidence, state };
+
+    orbit.stopAnimation(); pulse.stopAnimation(); scan.stopAnimation(); depth.stopAnimation();
+    if (reducedMotion == null) return undefined;
+    if (reducedMotion || !active) {
+      orbit.setValue(0.2); pulse.setValue(active ? 0.55 : 0.15); scan.setValue(0.25); depth.setValue(active ? 0.55 : 0.2);
       return undefined;
     }
-    const animation = Animated.loop(Animated.parallel([
-      Animated.timing(orbit, { toValue: 1, duration: 6200, useNativeDriver: true }),
+
+    // Mounting the field is not evidence. Animate only after a real semantic state/evidence change.
+    if (previous == null || (previous.active === active && previous.evidenceCount === boundedEvidence && previous.state === state)) {
+      orbit.setValue(0.2); pulse.setValue(0.55); scan.setValue(0.25); depth.setValue(0.55);
+      return undefined;
+    }
+
+    orbit.setValue(0);
+    pulse.setValue(0.55);
+    scan.setValue(0.25);
+    depth.setValue(0.2);
+    const animation = Animated.parallel([
+      Animated.timing(orbit, { toValue: 1, duration: 420, useNativeDriver: true }),
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 1200, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 1200, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 240, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.55, duration: 180, useNativeDriver: true }),
       ]),
       Animated.sequence([
-        Animated.timing(scan, { toValue: 1, duration: 2100, useNativeDriver: true }),
-        Animated.timing(scan, { toValue: 0, duration: 2100, useNativeDriver: true }),
+        Animated.timing(scan, { toValue: 1, duration: 320, useNativeDriver: true }),
+        Animated.timing(scan, { toValue: 0.25, duration: 160, useNativeDriver: true }),
       ]),
-    ]));
+      Animated.sequence([
+        Animated.timing(depth, { toValue: 1, duration: 280, useNativeDriver: true }),
+        Animated.timing(depth, { toValue: 0.55, duration: 220, useNativeDriver: true }),
+      ]),
+    ]);
     animation.start();
     return () => animation.stop();
-  }, [active, orbit, pulse, reducedMotion, scan]);
+  }, [active, depth, evidenceCount, orbit, pulse, reducedMotion, scan, state]);
 
   const rotation = orbit.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
   const coreScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.08] });
   const coreOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] });
   const scanX = scan.interpolate({ inputRange: [0, 1], outputRange: [-64, 64] });
+  const layerTranslateY = depth.interpolate({ inputRange: [0, 1], outputRange: [7, -4] });
+  const layerScale = depth.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1.04] });
+  const farLayerTranslateY = depth.interpolate({ inputRange: [0, 1], outputRange: [-3, 5] });
   const boundedEvidence = Math.max(0, Math.min(99, Math.round(evidenceCount)));
 
   return <View accessible accessibilityRole="image" accessibilityLabel={label} style={styles.intelligenceField} testID="nusa-intelligence-motion">
     <View style={styles.intelligenceAmbientOne} />
     <View style={styles.intelligenceAmbientTwo} />
-    <Text style={styles.intelligenceFieldKicker}>NUSA · EVIDENCE FIELD</Text>
-    <Animated.View style={[styles.intelligenceLattice, { opacity: coreOpacity }]}>
+    <Text style={styles.intelligenceFieldKicker}>NUSA · {state} FIELD</Text>
+    <Animated.View style={[styles.intelligenceLattice, { opacity: coreOpacity, transform: [{ translateY: farLayerTranslateY }, { scale: layerScale }] }]}>
       <View style={[styles.latticeLine, styles.latticeLineA, { backgroundColor: theme.colors.aiSignalMid }]} />
       <View style={[styles.latticeLine, styles.latticeLineB, { backgroundColor: theme.colors.aiSignalStart }]} />
       <View style={[styles.latticeLine, styles.latticeLineC, { backgroundColor: theme.colors.aiSignalEnd }]} />
@@ -188,14 +218,14 @@ export function IntelligenceMotionField({ active = true, evidenceCount = 0, labe
       <View style={[styles.latticeNode, styles.latticeNodeC, { borderColor: theme.colors.aiSignalEnd }]} />
       <View style={[styles.latticeNode, styles.latticeNodeD, { borderColor: theme.colors.aiSignalMid }]} />
     </Animated.View>
-    <View style={styles.intelligenceGrid} />
+    <Animated.View style={[styles.intelligenceGrid, { transform: [{ translateY: layerTranslateY }, { scale: layerScale }] }]} />
     <Animated.View style={[styles.intelligenceOrbitOuter, { borderColor: theme.colors.aiSignalStart, transform: [{ rotate: rotation }] }]}><View style={[styles.intelligenceOrbitNode, { backgroundColor: theme.colors.aiSignalEnd }]} /></Animated.View>
     <Animated.View style={[styles.intelligenceOrbitInner, { borderColor: theme.colors.aiSignalMid, transform: [{ rotate: rotation }] }]}><View style={[styles.intelligenceOrbitNodeSmall, { backgroundColor: theme.colors.aiSignalStart }]} /></Animated.View>
     <Animated.View style={[styles.intelligenceCoreHalo, { borderColor: theme.colors.aiSignalMid, opacity: coreOpacity, transform: [{ scale: coreScale }] }]} />
     <Animated.View style={[styles.intelligenceCore, { backgroundColor: theme.colors.aiSignalEnd, shadowColor: theme.colors.aiSignalEnd, opacity: coreOpacity, transform: [{ scale: coreScale }] }]} />
     <Animated.View style={[styles.intelligenceScan, { backgroundColor: theme.colors.aiSignalMid, opacity: coreOpacity, transform: [{ translateX: scanX }, { rotate: "-18deg" }] }]} />
     <View style={styles.intelligenceLegend}><Text style={styles.intelligenceLegendLabel}>EVIDENCE</Text><Text style={styles.intelligenceLegendValue}>{boundedEvidence}</Text></View>
-    <Text style={styles.intelligenceFieldFooter}>OBSERVE · VERIFY · LEARN</Text>
+    <Text style={styles.intelligenceFieldFooter}>{state === "RECOVERING" ? "RESTORE · VERIFY · CONNECT" : state === "BLOCKED" || state === "DEGRADED" ? "DETECT · ISOLATE · RECOVER" : "OBSERVE · VERIFY · LEARN"}</Text>
   </View>;
 }
 

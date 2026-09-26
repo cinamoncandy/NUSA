@@ -1,5 +1,6 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const { execFileSync } = require("node:child_process");
 const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
@@ -14,6 +15,8 @@ const {
   filterGithubRunnerWorkspacePaths,
   boundedWorkerFailureEvidence,
   boundedProposalContext,
+  normalizeUnifiedDiffHunkCounts,
+  applyPatchWithNormalizedHunkCounts,
   executeGithubActionsRunner,
   MAX_RETRY_DELAY_MS,
   retryHint,
@@ -596,9 +599,86 @@ test("builds a bounded exact-head retry excerpt around the rejected hunk", () =>
   assert.ok(Buffer.byteLength(context.content, "utf8") <= 20_000);
 });
 
+
+test("normalizes only malformed unified-diff hunk counts before strict git apply", () => {
+  const previous = process.cwd();
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-recount-"));
+  try {
+    process.chdir(directory);
+    execFileSync("git", ["init", "-q"]);
+    execFileSync("git", ["config", "core.autocrlf", "false"]);
+    execFileSync("git", ["config", "core.eol", "lf"]);
+    execFileSync("git", ["config", "user.email", "nusa-test@example.invalid"]);
+    execFileSync("git", ["config", "user.name", "NUSA Test"]);
+    fs.mkdirSync("apps/autopilot/src", { recursive: true });
+    fs.writeFileSync("apps/autopilot/src/example.ts", "export const oldValue = true;\n");
+    execFileSync("git", ["add", "."]);
+    execFileSync("git", ["commit", "-qm", "fixture"]);
+    const malformedCounts = [
+      "diff --git a/apps/autopilot/src/example.ts b/apps/autopilot/src/example.ts",
+      "--- a/apps/autopilot/src/example.ts",
+      "+++ b/apps/autopilot/src/example.ts",
+      "@@ -1,9 +1,9 @@",
+      "-export const oldValue = true;",
+      "+export const oldValue = false;",
+      "",
+    ].join("\n");
+    fs.writeFileSync(".nusa-autopilot.patch", malformedCounts);
+    assert.throws(
+      () => execFileSync("git", ["apply", "--check", ".nusa-autopilot.patch"], { stdio: "pipe" }),
+      /Command failed/,
+    );
+    const normalized = normalizeUnifiedDiffHunkCounts(malformedCounts);
+    assert.match(normalized, /@@ -1,1 \+1,1 @@/);
+    assert.equal(applyPatchWithNormalizedHunkCounts(".nusa-autopilot.patch"), "normalized");
+    assert.equal(fs.readFileSync("apps/autopilot/src/example.ts", "utf8"), "export const oldValue = false;\n");
+  } finally {
+    process.chdir(previous);
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("hunk-count normalization does not fuzz or accept mismatched source context", () => {
+  const previous = process.cwd();
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-recount-mismatch-"));
+  try {
+    process.chdir(directory);
+    execFileSync("git", ["init", "-q"]);
+    execFileSync("git", ["config", "core.autocrlf", "false"]);
+    execFileSync("git", ["config", "core.eol", "lf"]);
+    execFileSync("git", ["config", "user.email", "nusa-test@example.invalid"]);
+    execFileSync("git", ["config", "user.name", "NUSA Test"]);
+    fs.mkdirSync("apps/autopilot/src", { recursive: true });
+    fs.writeFileSync("apps/autopilot/src/example.ts", "export const actual = true;\n");
+    execFileSync("git", ["add", "."]);
+    execFileSync("git", ["commit", "-qm", "fixture"]);
+    fs.writeFileSync(".nusa-autopilot.patch", [
+      "diff --git a/apps/autopilot/src/example.ts b/apps/autopilot/src/example.ts",
+      "--- a/apps/autopilot/src/example.ts",
+      "+++ b/apps/autopilot/src/example.ts",
+      "@@ -1,9 +1,9 @@",
+      "-export const invented = true;",
+      "+export const invented = false;",
+      "",
+    ].join("\n"));
+    assert.throws(
+      () => applyPatchWithNormalizedHunkCounts(".nusa-autopilot.patch"),
+      /SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED/,
+    );
+    assert.equal(fs.readFileSync("apps/autopilot/src/example.ts", "utf8"), "export const actual = true;\n");
+  } finally {
+    process.chdir(previous);
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("classifies only bounded proposal validation failures as no-action", () => {
   assert.equal(proposalFailureCode("CODING_PROPOSAL_JSON_INVALID"), "CODING_PROPOSAL_JSON_INVALID");
   assert.equal(proposalFailureCode("SANDBOX_PATCH_APPLY_CHECK_FAILED:128:error: malformed diff"), "SANDBOX_PATCH_APPLY_CHECK_FAILED");
+  assert.equal(
+    proposalFailureCode("SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED:1:error: patch does not apply"),
+    "SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED",
+  );
   assert.equal(proposalFailureCode("CODING_RUNTIME_WORKSPACE_DIRTY"), null);
   assert.equal(proposalFailureCode("CODING_PROPOSAL_PATH_FORBIDDEN"), null);
   assert.equal(proposalFailureCode("SANDBOX_PATCH_FORBIDDEN_AUTHORITY_SURFACE"), null);
@@ -687,6 +767,64 @@ test("regenerates an apply-check rejection inside one execution and publishes th
       content: "export const oldValue = true;\n",
     });
     assert.deepEqual(result.attempts.map((entry) => entry.decision), ["RETRY", "DISPATCHED"]);
+  });
+});
+
+test("regenerates a bounded build rejection before publishing", async () => {
+  await withOidcEnvironment(async () => {
+    let proposalCalls = 0;
+    let validateCalls = 0;
+    const proposalBodies = [];
+    const result = await executeGithubActionsRunner(
+      request,
+      "https://runner.example.test/coding/execute",
+      async (url, init = {}) => {
+        const value = String(url);
+        if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+        if (value.endsWith("/coding/propose")) {
+          proposalCalls += 1;
+          proposalBodies.push(JSON.parse(init.body));
+          return response(200, { status: "PROPOSAL_READY", patch: proposalCalls === 1 ? "first-build-failure" : "second-build-safe" });
+        }
+        if (value.endsWith("/coding/publish")) {
+          return response(200, {
+            status: "EXECUTION_ACCEPTED",
+            proposalValidated: true,
+            publisher: "github-validated-patch",
+            branch: "autopilot/build-repair",
+            commitSha: "c".repeat(40),
+            pullRequestNumber: 78,
+            pullRequestUrl: "https://github.com/cinamoncandy/NUSA/pull/78",
+          });
+        }
+        throw new Error("unexpected URL " + value);
+      },
+      {
+        validatePatch(value, patch) {
+          validateCalls += 1;
+          assert.equal(value.executionId, request.executionId);
+          if (validateCalls === 1) throw new Error("SANDBOX_BUILD_FAILED:2:tsc failed");
+          assert.equal(patch, "second-build-safe");
+          return [{ path: "apps/autopilot/src/example.ts", content: "export const repaired = true;\n" }];
+        },
+        initialProposalContext() {
+          return { path: "apps/autopilot/src/example.ts", startLine: 1, content: "export const current = true;\n" };
+        },
+      },
+    );
+
+    assert.equal(result.status, "DISPATCHED");
+    assert.equal(result.proposalAttempts, 2);
+    assert.equal(result.proposalRetries, 1);
+    assert.equal(result.codeChanged, true);
+    assert.equal(proposalCalls, 2);
+    assert.equal(validateCalls, 2);
+    assert.match(proposalBodies[1].proposalFeedback, /SANDBOX_BUILD_FAILED/);
+    assert.deepEqual(proposalBodies[1].proposalContext, {
+      path: "apps/autopilot/src/example.ts",
+      startLine: 1,
+      content: "export const current = true;\n",
+    });
   });
 });
 

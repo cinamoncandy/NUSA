@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import { NusaButton } from "./components";
+import { IntelligenceMotionField, NusaButton } from "./components";
 import { useTheme } from "./ThemeProvider";
 import type { PaperLearningScreenState, PaperLearningUiEvent } from "./paperLearningScreen";
 import { AuthorityRail, FactRow, IntelligenceSection, MetricStrip, ScreenLead, StateNotice, type IntelligenceTone } from "./intelligenceOs";
@@ -127,6 +127,7 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
   const learningLabel = state.latestEvidence?.outcome == null ? "WAITING" : learningOutcomeLabel[state.latestEvidence.outcome] ?? state.latestEvidence.outcome;
   const learningTone: IntelligenceTone = state.latestEvidence?.outcome === "PROMOTE" ? "success" : state.latestEvidence?.outcome === "REJECT" ? "danger" : "neutral";
   const sourceColor = sourceTone(state.dataSource) === "success" ? theme.colors.success : sourceTone(state.dataSource) === "warning" ? theme.colors.warning : theme.colors.danger;
+  const fieldState = state.status === "RUNNING" ? "ACTIVE" as const : state.status === "HALTED" || state.status === "ERROR" ? "BLOCKED" as const : state.dataSource === "UNAVAILABLE" || state.dataSource === "NOT_CONFIGURED" ? "DEGRADED" as const : "OBSERVING" as const;
 
   return <ScrollView
     contentContainerStyle={styles.content}
@@ -135,6 +136,7 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
     showsVerticalScrollIndicator={false}
     testID="paper-learning-monitor"
   >
+    <IntelligenceMotionField active={state.status === "RUNNING"} evidenceCount={state.timeline.length} state={fieldState} label={`NUSA PAPER ${fieldState.toLowerCase()} state`} />
     <AuthorityRail
       detail="AUTONOMOUS PAPER · LIVE NONE · AI ZERO AUTHORITY"
       status={runtimeLabel}

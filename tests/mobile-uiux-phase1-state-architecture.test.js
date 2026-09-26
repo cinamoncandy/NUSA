@@ -39,9 +39,11 @@ test("not-configured dashboard state is distinct from runtime errors", () => {
   assert.match(app, /testID="dashboard-open-settings"/);
   assert.match(app, /requiresDashboardConnection = notConfigured !== null/);
   assert.match(app, /<PortfolioView error=\{readOnlyError\}/);
-  assert.match(app, /<TradingView error=\{readOnlyError\}/);
-  assert.match(app, /<MarketsView chartError=\{publicMarkets\.chartError\}/);
-  assert.match(app, /<AiView ai=\{ai\} error=\{readOnlyError\}/);
+  assert.match(app, /<PaperShadowMonitorView paper=\{paperLearningState\}/);
+  assert.match(app, /<HomeView[^>]*readOnlyError/s);
+  assert.doesNotMatch(app, /<TradingView error=\{readOnlyError\}/);
+  assert.doesNotMatch(app, /<MarketsView chartError=\{publicMarkets\.chartError\}/);
+  assert.doesNotMatch(app, /<AiView ai=\{ai\} error=\{readOnlyError\}/);
   assert.doesNotMatch(app, /error=\{readOnlyError \?\? notConfigured\}/);
 });
 test("Home hierarchy follows the Intelligence OS state-to-learning flow while preserving verified safety", () => {

@@ -6,23 +6,24 @@ const path = require("node:path");
 const root = path.join(__dirname, "..", "apps", "mobile");
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 
-test("product navigation promotes PAPER learning supervision and AI through the canonical five-tab shell", () => {
+test("product navigation promotes PAPER learning supervision and AI through the canonical four-tab shell", () => {
   const app = read("App.tsx");
   const tradingShell = read("src/tradingView.tsx");
   const tradingWorkspace = read("src/tradingViewLegacy.tsx");
   const home = read("src/homeView.tsx");
-  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\] as const/);
-  assert.match(app, /Paper: "PAPER"/);
-  assert.match(app, /AiSignal: "AI"/);
-  assert.match(app, /AiSignal: "AI 판단과 근거"/);
-  assert.match(app, /type Tab = PrimaryTab \| "Order"/);
-  assert.match(app, /activeTab === "AiSignal" \? <AiView/);
+  const contract = read("src/navigationContract.ts");
+  assert.match(contract, /PRIMARY_DESTINATIONS = \["Home", "Paper", "Live", "More"\]/);
+  assert.match(app, /<PrimaryNavigation/);
+  assert.match(app, /activeTab === "Paper" \? <PaperShadowMonitorView/);
+  assert.match(app, /activeTab === "Live" \? <LiveReadinessMonitorView/);
+  assert.doesNotMatch(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\]/);
+  assert.doesNotMatch(app, /activeTab === "AiSignal" \? <AiView/);
   assert.doesNotMatch(app, /<MoreView/);
-  assert.match(app, /activeTab === "Order" \? <OrderHistoryView/);
+  assert.match(app, /detailSurface === "Order" \? <OrderHistoryView/);
   assert.match(app, /header-notifications/);
   assert.match(app, /header-settings/);
-  assert.match(app, /setUtilityView\(null\); setActiveTab\(tab\)/);
-  assert.match(app, /PaperLearningMonitorView/);
+  assert.match(app, /setUtilityView\(null\); setDetailSurface\(null\); setPaperLearningOpen\(false\); setActiveTab\(destination\)/);
+  assert.match(app, /<PaperShadowMonitorView paper=\{paperLearningState\}/);
   assert.match(app, /buildPaperLearningScreen/);
   assert.match(app, /onOpenPaperLearning/);
   assert.match(home, /testID="home-supervisor-learning"/);
@@ -51,10 +52,12 @@ test("AI destination is evidence-backed and explicitly zero authority", () => {
 test("Markets keeps the chart reachable and truthful even when App has no candle data", () => {
   const source = read("src/marketsView.tsx");
   const app = read("App.tsx");
+  const home = read("src/homeView.tsx");
   assert.match(source, /useState<Panel>\("CHART"\)/);
   assert.doesNotMatch(source, /chartAvailable/);
   assert.match(source, /panel === "WATCHLIST"/);
-  assert.match(app, /rawCandles=\{publicMarkets\.candles === null \? null : \[\.\.\.publicMarkets\.candles\]\}/);
+  assert.match(app, /publicCandles=\{publicMarkets\.candles\}/);
+  assert.match(home, /rawCandles: publicCandles === null \? null : \[\.\.\.publicCandles\]/);
 });
 
 test("production PAPER exposes learning only while isolated legacy PAPER execution stays runtime-gated", () => {
