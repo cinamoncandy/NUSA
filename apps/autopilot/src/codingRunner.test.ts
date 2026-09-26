@@ -84,6 +84,23 @@ describe("coding runner", () => {
     assert.match(observedPrompt, /Excerpt starts at source line 7/);
     assert.match(observedPrompt, /export const oldValue = true/);
 
+    let configuredBody: Record<string, unknown> | undefined;
+    const configuredResult = await executeCodingRunner(contextual, runtimeEnv, async (url, init) => {
+      if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+      if (url.includes("/actions/runs/")) return response(200, {
+        id: request.workflowRunId,
+        head_sha: request.headSha,
+        head_branch: "main",
+        status: "completed",
+        conclusion: "success",
+        repository: { full_name: request.repository },
+      });
+      configuredBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return response(200, { patch });
+    });
+    assert.equal(configuredResult.status, "EXECUTION_ACCEPTED");
+    assert.deepEqual(configuredBody?.proposalContext, contextual.proposalContext);
+
     assert.throws(
       () => validateCodingRunnerRequest({ ...request, proposalContext: { path: "apps/autopilot/src/worker.ts", startLine: 1, content: "x" } }),
       /CODING_RUNNER_PROPOSAL_CONTEXT_PATH_INVALID/,
