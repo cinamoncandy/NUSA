@@ -1,6 +1,6 @@
 id: WO-ISSUE-2326-JEV-DOMAIN-OBSERVATION
 title: "Define canonical NUSA-wide Jev domain observation and task-type registry"
-status: READY_FOR_REVIEW
+status: BLOCKED_LOCAL_VALIDATION
 owner: nusa-ai-platform
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -42,8 +42,8 @@ verification_commands:
   - "pnpm run aipos:provenance"
   - "git diff --check"
 evidence:
-  implementation_status: READY_FOR_REVIEW
-  local_validation: "Local repository host is unavailable in the current execution environment; exact-head protected CI is required and authoritative."
+  implementation_status: IMPLEMENTED_UNVALIDATED_LOCALLY
+  local_validation: "BLOCKED: the authorized local repository host is disconnected; repository policy requires targeted tests plus pnpm run preflight before READY_FOR_REVIEW. Exact-head CI is supplementary evidence, not a substitute for this local gate."
   external_validation: "Required: exact-head CI, independent Audit, canonical Release, merge. Domain adapters and calibration remain successor work under #2326."
 safety:
   paper_only: true
@@ -51,4 +51,4 @@ safety:
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
-next_permitted_action: "Publish one canonical PR, obtain exact-head CI, independent Audit and Release, then merge before admitting the next shared-contract successor."
+next_permitted_action: "Reconnect the authorized local repository host, run the listed targeted tests plus pnpm run preflight on this exact branch head, record PASS evidence, then transition to READY_FOR_REVIEW."
