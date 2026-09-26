@@ -1185,7 +1185,8 @@ module.exports = {
   assertGithubRunnerWorkspaceClean,
   filterGithubRunnerWorkspacePaths,
   validatePatchOnGithubRunner,
-  normalizeUnifiedDiffHunkCounts,\n  applyPatchWithNormalizedHunkCounts,
+  normalizeUnifiedDiffHunkCounts,
+  applyPatchWithNormalizedHunkCounts,
   endpointFor,
   boundedWorkerFailureEvidence,
 };
