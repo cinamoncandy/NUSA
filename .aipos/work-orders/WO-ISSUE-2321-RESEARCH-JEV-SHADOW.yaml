@@ -1,0 +1,56 @@
+id: WO-ISSUE-2321-RESEARCH-JEV-SHADOW
+title: "Wire credential-bounded Jev attention shadow into scheduled Research Intelligence runtime"
+status: READY_FOR_REVIEW
+owner: nusa-ai-platform
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 56fe41fc45510958da1ef54de71045dc3eb54067
+implementation_branch: fix/research-jev-shadow-runtime-wiring
+authority_impact: none
+objective: "Run the already-merged Research Intelligence Jev attention observer in the existing advisory scout runtime with exact-sha provenance, bounded credential transport, durable duplicate suppression, and ZERO_AUTHORITY shadow evidence."
+canonical_owner: "Existing Research Intelligence Scout plus canonical JevShadowProvider"
+scope:
+  include:
+    - "Reuse the merged Jev Research Attention shadow observer; do not create a second router/provider."
+    - "Execute secret-bearing Jev observation only on schedule or owner-dispatched main through the nusa-jev-shadow environment."
+    - "Require HTTPS before sending the Jev bearer credential."
+    - "Bound the complete Jev request including response body consumption."
+    - "Checkout the exact triggering github.sha for runtime provenance."
+    - "Persist the existing canonical SQLite Research Intelligence memory across scheduled GitHub runners so stable record fingerprints are duplicate-suppressed before Jev invocation."
+    - "Persist SHADOW receipts and metrics in the existing advisory research receipt."
+  exclude:
+    - "Active routing, filtering, admission, qualification, strategy promotion, allocation, trading, Audit, Release, merge, or secret authority."
+    - "A second research memory owner, scheduler, queue, router, provider transport, or evidence store."
+acceptance:
+  - "Pull-request validation remains secret-free."
+  - "Scheduled/main-dispatch runtime is read-only and SHADOW-only with usableForRouting=false."
+  - "Provider missing, invalid, timed out, malformed, or unavailable preserves the deterministic AXIOM handoff path."
+  - "HTTP Jev endpoints are rejected before any credential-bearing request."
+  - "Timeout remains active through response body consumption."
+  - "Exact triggering SHA is checked out and attributable in runtime evidence."
+  - "Stable Research Intelligence records restored from canonical SQLite memory are suppressed before Jev is called again."
+  - "PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY remain unchanged."
+verification_commands:
+  - "pnpm run build"
+  - "node --test tests/research-intelligence-scout.test.js tests/research-intelligence-memory.test.js tests/research-intelligence-attention-shadow.test.js"
+  - "pnpm exec tsc -p tsconfig.json --noEmit"
+  - "pnpm run lint"
+  - "pnpm run security:gate"
+  - "pnpm run ai:architecture"
+  - "pnpm run safety:invariants"
+  - "pnpm run aipos:yaml"
+  - "pnpm run aipos:drift"
+  - "pnpm run aipos:provenance"
+  - "git diff --check"
+evidence:
+  implementation_status: READY_FOR_REVIEW
+  local_validation: "Pre-dedupe hardening head: build PASS, focused Jev tests 23/23 PASS, typecheck PASS, lint 0 errors. Persistent-memory workflow delta requires fresh exact-head CI."
+  external_validation: "Required: exact-head CI, independent Audit, canonical Release, merge, scheduled Jev shadow receipt, duplicate-suppression recovery/replay evidence."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  usableForRouting: false
+  fail_closed: true
+next_permitted_action: "Run exact-head protected CI, resolve addressed review threads, obtain independent Audit and canonical Release, merge, then capture scheduled runtime and recovery/replay evidence."

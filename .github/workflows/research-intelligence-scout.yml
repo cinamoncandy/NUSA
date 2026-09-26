@@ -10,8 +10,10 @@ on:
       - "packages/storage/src/researchIntelligenceMemory.ts"
       - "packages/contracts/src/researchMemorySemantics.ts"
       - "apps/cloud/src/researchIntelligenceScout.ts"
+      - "apps/cloud/src/ai/jevResearchAttentionShadow.ts"
       - "scripts/research-intelligence-scout.js"
       - "tests/research-intelligence-scout.test.js"
+      - "tests/research-intelligence-attention-shadow.test.js"
       - ".github/workflows/research-intelligence-scout.yml"
   schedule:
     - cron: "17 1,13 * * *"
@@ -21,12 +23,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: research-intelligence-scout
+  group: research-intelligence-scout-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
-  discover:
-    name: discover-public-research
+  validate:
+    if: ${{ github.event_name == 'pull_request' }}
+    name: validate-research-intelligence
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -44,9 +47,47 @@ jobs:
       - name: Build
         run: pnpm run build
       - name: Run focused Research Intelligence tests
-        run: node --test tests/research-intelligence-scout.test.js tests/research-intelligence-memory.test.js
-      - name: Discover and structure public research
-        run: node scripts/research-intelligence-scout.js --output artifacts/research-intelligence/latest.json
+        run: node --test tests/research-intelligence-scout.test.js tests/research-intelligence-memory.test.js tests/research-intelligence-attention-shadow.test.js
+
+  discover:
+    if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') }}
+    name: discover-public-research
+    environment: nusa-jev-shadow
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Restore canonical Research Intelligence memory
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: research-intelligence-memory.sqlite
+          key: research-intelligence-memory-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            research-intelligence-memory-${{ runner.os }}-
+      - name: Enable pnpm via Corepack
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.7.0 --activate
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build
+        run: pnpm run build
+      - name: Run focused Research Intelligence tests
+        run: node --test tests/research-intelligence-scout.test.js tests/research-intelligence-memory.test.js tests/research-intelligence-attention-shadow.test.js
+      - name: Discover and structure public research with Jev shadow observation
+        env:
+          NUSA_JEV_RESEARCH_ATTENTION_SHADOW_ENABLED: "true"
+          NUSA_JEV_API_KEY: ${{ secrets.NUSA_JEV_API_KEY }}
+          NUSA_JEV_ENDPOINT: ${{ vars.NUSA_JEV_ENDPOINT }}
+          NUSA_JEV_TIMEOUT_MS: ${{ vars.NUSA_JEV_TIMEOUT_MS }}
+          NUSA_JEV_MODEL_IDENTITY: ${{ vars.NUSA_JEV_MODEL_IDENTITY }}
+        run: node scripts/research-intelligence-scout.js --db research-intelligence-memory.sqlite --output artifacts/research-intelligence/latest.json
       - name: Upload advisory research receipt
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

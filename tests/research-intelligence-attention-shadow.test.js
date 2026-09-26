@@ -483,6 +483,14 @@ test("environment factory is disabled by default and requires complete config", 
     }),
     null,
   );
+  assert.equal(
+    createJevResearchAttentionShadowObserverFromEnvironment({
+      NUSA_JEV_RESEARCH_ATTENTION_SHADOW_ENABLED: "true",
+      NUSA_JEV_API_KEY: "k",
+      NUSA_JEV_ENDPOINT: "http://jev.invalid/classify",
+    }),
+    null,
+  );
 });
 
 test("factory with valid config returns a canonical-provider-backed observer", async () => {
@@ -528,6 +536,25 @@ test("canonical provider timeout maps to TIMEOUT without blocking handoff", asyn
     observe: (r, outcome) => observer.observe(r, outcome, ENABLED),
   }).run();
   assert.equal(result.axiomHandoffs.length, 1);
+  assert.equal(result.jevAttentionShadows[0].reasonCode, "TIMEOUT");
+  assert.equal(result.jevAttentionShadows[0].fallbackApplied, true);
+});
+
+test("canonical provider body timeout maps to TIMEOUT", async () => {
+  const observer = createJevResearchAttentionShadowObserverFromEnvironment(
+    {
+      NUSA_JEV_RESEARCH_ATTENTION_SHADOW_ENABLED: "true",
+      NUSA_JEV_API_KEY: "unit-jev-credential",
+      NUSA_JEV_ENDPOINT: "https://jev.invalid/classify",
+      NUSA_JEV_TIMEOUT_MS: "100",
+    },
+    async () => ({ ok: true, status: 200, async text() { return new Promise(() => undefined); } }),
+  );
+  assert.ok(observer);
+  const rec = record();
+  const result = await new ResearchIntelligenceScout([collectorFor([rec])], undefined, {
+    observe: (r, outcome) => observer.observe(r, outcome, ENABLED),
+  }).run();
   assert.equal(result.jevAttentionShadows[0].reasonCode, "TIMEOUT");
   assert.equal(result.jevAttentionShadows[0].fallbackApplied, true);
 });
@@ -611,4 +638,43 @@ test("research attention module contains no duplicate provider transport", () =>
     assert.equal(source.includes(token), false, "duplicate transport token: " + token);
   }
   assert.match(source, /JevShadowProvider/);
+});
+
+
+test("Research Intelligence runtime wires Jev shadow only through the protected non-PR path", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const root = path.join(__dirname, "..");
+  const script = fs.readFileSync(path.join(root, "scripts", "research-intelligence-scout.js"), "utf8").replace(/\r\n/g, "\n");
+  const workflow = fs.readFileSync(
+    path.join(root, ".github", "workflows", "research-intelligence-scout.yml"),
+    "utf8",
+  ).replace(/\r\n/g, "\n");
+
+  assert.match(script, /createJevResearchAttentionShadowObserverFromEnvironment/);
+  assert.match(script, /attentionObserver \?\? undefined/);
+  assert.match(script, /jevAttentionMode/);
+  assert.match(script, /jevAttentionMetrics/);
+  assert.match(script, /jevAttentionShadows/);
+
+  const validateStart = workflow.indexOf("  validate:");
+  const discoverStart = workflow.indexOf("  discover:");
+  assert.ok(validateStart >= 0 && discoverStart > validateStart);
+  const validateJob = workflow.slice(validateStart, discoverStart);
+  const discoverJob = workflow.slice(discoverStart);
+
+  assert.doesNotMatch(validateJob, /secrets\.|NUSA_JEV_API_KEY|NUSA_JEV_ENDPOINT/);
+  assert.match(discoverJob, /environment: nusa-jev-shadow/);
+  assert.match(discoverJob, /github\.event_name == 'schedule'/);
+  assert.match(discoverJob, /github\.ref == 'refs\/heads\/main'/);
+  assert.match(discoverJob, /ref: \$\{\{ github\.sha \}\}/);
+  assert.match(discoverJob, /NUSA_JEV_RESEARCH_ATTENTION_SHADOW_ENABLED: "true"/);
+  assert.match(discoverJob, /secrets\.NUSA_JEV_API_KEY/);
+  assert.match(discoverJob, /vars\.NUSA_JEV_ENDPOINT/);
+  assert.match(discoverJob, /actions\/cache@0057852bfaa89a56745cba8c7296529d2fc39830/);
+  assert.match(discoverJob, /path: research-intelligence-memory\.sqlite/);
+  assert.match(discoverJob, /restore-keys:[\s\S]*research-intelligence-memory-/);
+  assert.match(discoverJob, /--db research-intelligence-memory\.sqlite/);
+  assert.match(workflow, /permissions:\n  contents: read/);
+  assert.doesNotMatch(workflow, /contents: write|actions: write|id-token: write/);
 });

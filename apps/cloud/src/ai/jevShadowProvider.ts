@@ -40,31 +40,40 @@ export class JevShadowProvider {
     this.timeoutMs = options.timeoutMs ?? 1500;
     this.fetchImpl = options.fetchImpl ?? defaultFetch;
     if (!this.#apiKey || !this.endpoint) throw new Error("Jev provider configuration incomplete");
+    const parsedEndpoint = new URL(this.endpoint);
+    if (parsedEndpoint.protocol !== "https:") throw new Error("Jev provider endpoint must use HTTPS");
     if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs < 100 || this.timeoutMs > 10_000) throw new Error("Jev provider timeout invalid");
   }
 
   public async classify(input: Readonly<Record<string, unknown>>): Promise<JevShadowDecision> {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    let rejectDeadline: ((reason?: unknown) => void) | undefined;
+    const deadline = new Promise<never>((_, reject) => { rejectDeadline = reject; });
+    const timer = setTimeout(() => {
+      controller.abort();
+      rejectDeadline?.(namedError("TimeoutError", "Jev provider timed out"));
+    }, this.timeoutMs);
     let response: JevHttpResponse;
     try {
-      response = await this.fetchImpl(this.endpoint, {
+      response = await Promise.race([this.fetchImpl(this.endpoint, {
         method: "POST",
         headers: Object.freeze({ Authorization: `Bearer ${this.#apiKey}`, "Content-Type": "application/json" }),
         body: JSON.stringify({ input, authority: "ZERO_AUTHORITY", mode: "SHADOW" }),
         signal: controller.signal
-      });
+      }), deadline]);
+      if (!response.ok) throw namedError("JevProviderUnavailableError", `Jev provider HTTP failure ${response.status}`);
+      const body = await Promise.race([response.text(), deadline]);
+      let parsed: unknown;
+      try { parsed = JSON.parse(body) as unknown; }
+      catch { throw namedError("MalformedJevResponseError", "Jev provider response malformed"); }
+      return parsed as JevShadowDecision;
     } catch (error) {
       if (controller.signal.aborted || (error instanceof Error && error.name === "AbortError")) throw namedError("TimeoutError", "Jev provider timed out");
+      if (error instanceof Error && (error.name === "JevProviderUnavailableError" || error.name === "MalformedJevResponseError")) throw error;
       throw namedError("JevProviderUnavailableError", "Jev provider unavailable");
     } finally {
       clearTimeout(timer);
     }
-    if (!response.ok) throw namedError("JevProviderUnavailableError", `Jev provider HTTP failure ${response.status}`);
-    let parsed: unknown;
-    try { parsed = JSON.parse(await response.text()) as unknown; }
-    catch { throw namedError("MalformedJevResponseError", "Jev provider response malformed"); }
-    return parsed as JevShadowDecision;
   }
 }
 
