@@ -318,7 +318,8 @@ function boundedText(value: string, field: string, maxLength = 256): string {
   if (
     normalized.length === 0 ||
     normalized.length > maxLength ||
-    /[\u0000-\u001f\u007f]/.test(normalized)
+    /[\u0000-\u001f\u007f]/.test(normalized) ||
+    SENSITIVE_VALUE.test(normalized)
   ) {
     throw new Error(`JEV_${field.toUpperCase()}_INVALID`);
   }
