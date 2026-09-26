@@ -135,13 +135,25 @@ export function MotionReveal({ children, testID }: Readonly<{ children: React.Re
 
 export type IntelligenceFieldState = "IDLE" | "OBSERVING" | "RECOVERING" | "READY" | "ACTIVE" | "DEGRADED" | "BLOCKED";
 
-export function IntelligenceMotionField({ active = true, evidenceCount = 0, state = active ? "ACTIVE" : "IDLE", label = "NUSA intelligence field" }: Readonly<{ active?: boolean; evidenceCount?: number; state?: IntelligenceFieldState; label?: string }>) {
+export type IntelligenceFieldVariant = "intelligence" | "flow" | "authority";
+
+export function IntelligenceMotionField({
+  active = true,
+  evidenceCount = 0,
+  state = active ? "ACTIVE" : "IDLE",
+  label = "NUSA intelligence field",
+  variant = "intelligence",
+}: Readonly<{
+  active?: boolean;
+  evidenceCount?: number;
+  state?: IntelligenceFieldState;
+  label?: string;
+  variant?: IntelligenceFieldVariant;
+}>) {
   const { theme } = useTheme();
   const [reducedMotion, setReducedMotion] = useState<boolean | null>(null);
-  const orbit = useRef(new Animated.Value(0)).current;
-  const pulse = useRef(new Animated.Value(0)).current;
-  const scan = useRef(new Animated.Value(0)).current;
-  const depth = useRef(new Animated.Value(0.35)).current;
+  const shift = useRef(new Animated.Value(0.35)).current;
+  const energy = useRef(new Animated.Value(active ? 0.62 : 0.22)).current;
   const previousFieldState = useRef<Readonly<{ active: boolean; evidenceCount: number; state: IntelligenceFieldState }> | null>(null);
 
   useEffect(() => {
@@ -152,80 +164,80 @@ export function IntelligenceMotionField({ active = true, evidenceCount = 0, stat
   }, []);
 
   useEffect(() => {
-    const layerTranslateY = depth.interpolate({ inputRange: [0, 1], outputRange: [7, -4] });
-  const layerScale = depth.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1.04] });
-  const farLayerTranslateY = depth.interpolate({ inputRange: [0, 1], outputRange: [-3, 5] });
-  const boundedEvidence = Math.max(0, Math.min(99, Math.round(evidenceCount)));
+    const boundedEvidence = Math.max(0, Math.min(99, Math.round(evidenceCount)));
     const previous = previousFieldState.current;
     previousFieldState.current = { active, evidenceCount: boundedEvidence, state };
+    shift.stopAnimation();
+    energy.stopAnimation();
 
-    orbit.stopAnimation(); pulse.stopAnimation(); scan.stopAnimation(); depth.stopAnimation();
     if (reducedMotion == null) return undefined;
     if (reducedMotion || !active) {
-      orbit.setValue(0.2); pulse.setValue(active ? 0.55 : 0.15); scan.setValue(0.25); depth.setValue(active ? 0.55 : 0.2);
+      shift.setValue(0.35);
+      energy.setValue(active ? 0.62 : 0.22);
       return undefined;
     }
 
-    // Mounting the field is not evidence. Animate only after a real semantic state/evidence change.
     if (previous == null || (previous.active === active && previous.evidenceCount === boundedEvidence && previous.state === state)) {
-      orbit.setValue(0.2); pulse.setValue(0.55); scan.setValue(0.25); depth.setValue(0.55);
+      shift.setValue(0.35);
+      energy.setValue(0.62);
       return undefined;
     }
 
-    orbit.setValue(0);
-    pulse.setValue(0.55);
-    scan.setValue(0.25);
-    depth.setValue(0.2);
+    shift.setValue(0);
+    energy.setValue(0.42);
     const animation = Animated.parallel([
-      Animated.timing(orbit, { toValue: 1, duration: 420, useNativeDriver: true }),
+      Animated.timing(shift, { toValue: 1, duration: 520, useNativeDriver: true }),
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 240, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0.55, duration: 180, useNativeDriver: true }),
-      ]),
-      Animated.sequence([
-        Animated.timing(scan, { toValue: 1, duration: 320, useNativeDriver: true }),
-        Animated.timing(scan, { toValue: 0.25, duration: 160, useNativeDriver: true }),
-      ]),
-      Animated.sequence([
-        Animated.timing(depth, { toValue: 1, duration: 280, useNativeDriver: true }),
-        Animated.timing(depth, { toValue: 0.55, duration: 220, useNativeDriver: true }),
+        Animated.timing(energy, { toValue: 1, duration: 280, useNativeDriver: true }),
+        Animated.timing(energy, { toValue: 0.62, duration: 260, useNativeDriver: true }),
       ]),
     ]);
     animation.start();
     return () => animation.stop();
-  }, [active, depth, evidenceCount, orbit, pulse, reducedMotion, scan, state]);
+  }, [active, energy, evidenceCount, reducedMotion, shift, state]);
 
-  const rotation = orbit.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
-  const coreScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.08] });
-  const coreOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] });
-  const scanX = scan.interpolate({ inputRange: [0, 1], outputRange: [-64, 64] });
-  const layerTranslateY = depth.interpolate({ inputRange: [0, 1], outputRange: [7, -4] });
-  const layerScale = depth.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1.04] });
-  const farLayerTranslateY = depth.interpolate({ inputRange: [0, 1], outputRange: [-3, 5] });
   const boundedEvidence = Math.max(0, Math.min(99, Math.round(evidenceCount)));
+  const travelA = shift.interpolate({ inputRange: [0, 1], outputRange: [-22, 16] });
+  const travelB = shift.interpolate({ inputRange: [0, 1], outputRange: [18, -12] });
+  const travelC = shift.interpolate({ inputRange: [0, 1], outputRange: [-12, 10] });
+  const glowOpacity = energy.interpolate({ inputRange: [0, 1], outputRange: [0.28, 0.78] });
+  const lineOpacity = energy.interpolate({ inputRange: [0, 1], outputRange: [0.42, 1] });
+  const footer = state === "RECOVERING"
+    ? "RESTORE · VERIFY · CONNECT"
+    : state === "BLOCKED" || state === "DEGRADED"
+      ? "DETECT · ISOLATE · RECOVER"
+      : "OBSERVE · VERIFY · LEARN";
 
   return <View accessible accessibilityRole="image" accessibilityLabel={label} style={styles.intelligenceField} testID="nusa-intelligence-motion">
-    <View style={styles.intelligenceAmbientOne} />
-    <View style={styles.intelligenceAmbientTwo} />
-    <Text style={styles.intelligenceFieldKicker}>NUSA · {state} FIELD</Text>
-    <Animated.View style={[styles.intelligenceLattice, { opacity: coreOpacity, transform: [{ translateY: farLayerTranslateY }, { scale: layerScale }] }]}>
-      <View style={[styles.latticeLine, styles.latticeLineA, { backgroundColor: theme.colors.aiSignalMid }]} />
-      <View style={[styles.latticeLine, styles.latticeLineB, { backgroundColor: theme.colors.aiSignalStart }]} />
-      <View style={[styles.latticeLine, styles.latticeLineC, { backgroundColor: theme.colors.aiSignalEnd }]} />
-      <View style={[styles.latticeLine, styles.latticeLineD, { backgroundColor: theme.colors.aiSignalMid }]} />
-      <View style={[styles.latticeNode, styles.latticeNodeA, { borderColor: theme.colors.aiSignalMid }]} />
-      <View style={[styles.latticeNode, styles.latticeNodeB, { borderColor: theme.colors.aiSignalStart }]} />
-      <View style={[styles.latticeNode, styles.latticeNodeC, { borderColor: theme.colors.aiSignalEnd }]} />
-      <View style={[styles.latticeNode, styles.latticeNodeD, { borderColor: theme.colors.aiSignalMid }]} />
-    </Animated.View>
-    <Animated.View style={[styles.intelligenceGrid, { transform: [{ translateY: layerTranslateY }, { scale: layerScale }] }]} />
-    <Animated.View style={[styles.intelligenceOrbitOuter, { borderColor: theme.colors.aiSignalStart, transform: [{ rotate: rotation }] }]}><View style={[styles.intelligenceOrbitNode, { backgroundColor: theme.colors.aiSignalEnd }]} /></Animated.View>
-    <Animated.View style={[styles.intelligenceOrbitInner, { borderColor: theme.colors.aiSignalMid, transform: [{ rotate: rotation }] }]}><View style={[styles.intelligenceOrbitNodeSmall, { backgroundColor: theme.colors.aiSignalStart }]} /></Animated.View>
-    <Animated.View style={[styles.intelligenceCoreHalo, { borderColor: theme.colors.aiSignalMid, opacity: coreOpacity, transform: [{ scale: coreScale }] }]} />
-    <Animated.View style={[styles.intelligenceCore, { backgroundColor: theme.colors.aiSignalEnd, shadowColor: theme.colors.aiSignalEnd, opacity: coreOpacity, transform: [{ scale: coreScale }] }]} />
-    <Animated.View style={[styles.intelligenceScan, { backgroundColor: theme.colors.aiSignalMid, opacity: coreOpacity, transform: [{ translateX: scanX }, { rotate: "-18deg" }] }]} />
+    <View style={styles.intelligenceAmbientPlaneA} />
+    <View style={styles.intelligenceAmbientPlaneB} />
+    <Text style={styles.intelligenceFieldKicker}>NUSA · {state}</Text>
+
+    {variant === "authority" ? <View style={styles.authorityField}>
+      <Animated.View style={[styles.authorityInputBand, styles.authorityInputBandA, { backgroundColor: theme.colors.aiSignalMid, opacity: lineOpacity, transform: [{ translateX: travelA }] }]} />
+      <Animated.View style={[styles.authorityInputBand, styles.authorityInputBandB, { backgroundColor: theme.colors.aiSignalStart, opacity: glowOpacity, transform: [{ translateX: travelB }] }]} />
+      <Animated.View style={[styles.authorityInputBand, styles.authorityInputBandC, { backgroundColor: theme.colors.aiSignalEnd, opacity: lineOpacity, transform: [{ translateX: travelC }] }]} />
+      <View style={[styles.authorityBoundaryPlane, { borderColor: state === "BLOCKED" ? theme.colors.warning : theme.colors.aiSignalEnd }]}>
+        <Text style={[styles.authorityBoundaryLabel, { color: state === "BLOCKED" ? theme.colors.warning : theme.colors.aiSignalEnd }]}>AUTHORITY BOUNDARY</Text>
+        <Text style={styles.authorityBoundaryValue}>LIVE NONE</Text>
+      </View>
+      <View style={styles.authoritySilentZone} />
+    </View> : <View style={styles.ribbonField}>
+      <Animated.View style={[styles.ribbonBand, styles.ribbonBandA, { backgroundColor: theme.colors.aiSignalStart, opacity: glowOpacity, transform: [{ translateX: travelA }, { rotate: "-7deg" }] }]} />
+      <Animated.View style={[styles.ribbonBand, styles.ribbonBandB, { backgroundColor: theme.colors.aiSignalMid, opacity: glowOpacity, transform: [{ translateX: travelB }, { rotate: "4deg" }] }]} />
+      <Animated.View style={[styles.ribbonBand, styles.ribbonBandC, { backgroundColor: theme.colors.aiSignalEnd, opacity: glowOpacity, transform: [{ translateX: travelC }, { rotate: "-2deg" }] }]} />
+      <View style={[styles.ribbonHorizon, { backgroundColor: theme.colors.terrain }]} />
+      <View style={[styles.ribbonFocusLine, { backgroundColor: theme.colors.aiSignalEnd, opacity: active ? 0.9 : 0.38 }]} />
+      {variant === "flow" ? <View style={styles.flowLabels}>
+        <Text style={styles.flowLabel}>STRATEGY</Text>
+        <Text style={styles.flowLabel}>EXECUTION</Text>
+        <Text style={styles.flowLabel}>LEDGER</Text>
+        <Text style={styles.flowLabel}>LEARNING</Text>
+      </View> : null}
+    </View>}
+
     <View style={styles.intelligenceLegend}><Text style={styles.intelligenceLegendLabel}>EVIDENCE</Text><Text style={styles.intelligenceLegendValue}>{boundedEvidence}</Text></View>
-    <Text style={styles.intelligenceFieldFooter}>{state === "RECOVERING" ? "RESTORE · VERIFY · CONNECT" : state === "BLOCKED" || state === "DEGRADED" ? "DETECT · ISOLATE · RECOVER" : "OBSERVE · VERIFY · LEARN"}</Text>
+    <Text style={styles.intelligenceFieldFooter}>{footer}</Text>
   </View>;
 }
 
@@ -304,31 +316,30 @@ const styles = StyleSheet.create({
   dataRow: { minHeight: 36, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 14 },
   dataLabel: { flex: 1, fontSize: 13, lineHeight: 19 },
   skeleton: { opacity: 0.85 },
-  intelligenceField: { height: 210, minWidth: 220, flex: 1, overflow: "hidden", borderWidth: 1, borderColor: intelligenceFieldColors.border, borderRadius: 26, position: "relative", alignItems: "center", justifyContent: "center", backgroundColor: intelligenceFieldColors.surface },
-  intelligenceAmbientOne: { position: "absolute", width: 230, height: 230, borderRadius: 115, backgroundColor: intelligenceFieldColors.ambientPurple, opacity: 0.72, top: -86, right: -46 },
-  intelligenceAmbientTwo: { position: "absolute", width: 190, height: 190, borderRadius: 95, backgroundColor: intelligenceFieldColors.ambientTeal, opacity: 0.56, bottom: -82, left: -48 },
-  intelligenceFieldKicker: { position: "absolute", left: 16, top: 14, color: intelligenceFieldColors.textMuted, fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1.25 },
-  intelligenceFieldFooter: { position: "absolute", right: 16, bottom: 14, color: intelligenceFieldColors.textSubtle, fontSize: 7, lineHeight: 10, fontWeight: "900", letterSpacing: 1.05 },
-  intelligenceGrid: { position: "absolute", width: 170, height: 170, borderWidth: StyleSheet.hairlineWidth, borderColor: intelligenceFieldColors.grid, borderRadius: 85, opacity: 0.72 },
-  intelligenceLattice: { position: "absolute", width: 210, height: 150 },
-  latticeLine: { position: "absolute", height: 1, borderRadius: 1, opacity: 0.34 },
-  latticeLineA: { width: 118, left: 21, top: 54, transform: [{ rotate: "17deg" }] },
-  latticeLineB: { width: 106, right: 20, top: 80, transform: [{ rotate: "-23deg" }] },
-  latticeLineC: { width: 78, left: 52, bottom: 28, transform: [{ rotate: "-38deg" }] },
-  latticeLineD: { width: 88, right: 48, top: 34, transform: [{ rotate: "42deg" }] },
-  latticeNode: { position: "absolute", width: 8, height: 8, borderRadius: 4, borderWidth: 1.5, backgroundColor: intelligenceFieldColors.surface },
-  latticeNodeA: { left: 14, top: 42 },
-  latticeNodeB: { right: 9, top: 44 },
-  latticeNodeC: { left: 34, bottom: 14 },
-  latticeNodeD: { right: 34, bottom: 22 },
-  intelligenceOrbitOuter: { position: "absolute", width: 148, height: 148, borderRadius: 74, borderWidth: 1.2, opacity: 0.92 },
-  intelligenceOrbitInner: { position: "absolute", width: 94, height: 94, borderRadius: 47, borderWidth: 1, opacity: 0.86 },
-  intelligenceOrbitNode: { position: "absolute", width: 8, height: 8, borderRadius: 4, left: 13, top: 16 },
-  intelligenceOrbitNodeSmall: { position: "absolute", width: 6, height: 6, borderRadius: 3, right: 9, bottom: 14 },
-  intelligenceCoreHalo: { position: "absolute", width: 58, height: 58, borderRadius: 29, borderWidth: 1.2 },
-  intelligenceCore: { position: "absolute", width: 16, height: 16, borderRadius: 8, shadowOpacity: 0.95, shadowRadius: 22, elevation: 6 },
-  intelligenceScan: { position: "absolute", width: 128, height: 1.5, borderRadius: 1 },
-  intelligenceLegend: { position: "absolute", left: 16, bottom: 13, flexDirection: "row", alignItems: "baseline", gap: 6 },
+  intelligenceField: { height: 224, minWidth: 220, flex: 1, overflow: "hidden", borderWidth: StyleSheet.hairlineWidth, borderColor: intelligenceFieldColors.border, borderRadius: 20, position: "relative", backgroundColor: intelligenceFieldColors.surface },
+  intelligenceAmbientPlaneA: { position: "absolute", width: "78%", height: 118, right: "-12%", top: -30, borderRadius: 38, backgroundColor: intelligenceFieldColors.ambientPurple, opacity: 0.7, transform: [{ rotate: "-9deg" }] },
+  intelligenceAmbientPlaneB: { position: "absolute", width: "86%", height: 104, left: "-22%", bottom: -32, borderRadius: 42, backgroundColor: intelligenceFieldColors.ambientTeal, opacity: 0.58, transform: [{ rotate: "7deg" }] },
+  intelligenceFieldKicker: { position: "absolute", left: 16, top: 14, zIndex: 4, color: intelligenceFieldColors.textMuted, fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1.25 },
+  intelligenceFieldFooter: { position: "absolute", right: 16, bottom: 14, zIndex: 4, color: intelligenceFieldColors.textSubtle, fontSize: 7, lineHeight: 10, fontWeight: "900", letterSpacing: 1.05 },
+  ribbonField: { position: "absolute", left: 0, right: 0, top: 30, bottom: 30, overflow: "hidden", justifyContent: "center" },
+  ribbonBand: { position: "absolute", left: "-16%", width: "132%", borderRadius: 32 },
+  ribbonBandA: { height: 34, top: "29%" },
+  ribbonBandB: { height: 24, top: "47%" },
+  ribbonBandC: { height: 14, top: "63%" },
+  ribbonHorizon: { position: "absolute", left: "5%", right: "5%", top: "55%", height: 1, opacity: 0.32 },
+  ribbonFocusLine: { position: "absolute", left: "16%", right: "10%", top: "58%", height: 2, borderRadius: 1, transform: [{ rotate: "-4deg" }] },
+  flowLabels: { position: "absolute", left: 18, right: 18, bottom: 23, flexDirection: "row", justifyContent: "space-between", gap: 8 },
+  flowLabel: { color: intelligenceFieldColors.textSubtle, fontSize: 7, lineHeight: 10, fontWeight: "900", letterSpacing: 0.8 },
+  authorityField: { position: "absolute", left: 0, right: 0, top: 32, bottom: 32, overflow: "hidden" },
+  authorityInputBand: { position: "absolute", left: "-7%", width: "62%", height: 2, borderRadius: 1 },
+  authorityInputBandA: { top: "30%", transform: [{ rotate: "3deg" }] },
+  authorityInputBandB: { top: "50%", transform: [{ rotate: "-4deg" }] },
+  authorityInputBandC: { top: "69%", transform: [{ rotate: "2deg" }] },
+  authorityBoundaryPlane: { position: "absolute", left: "58%", top: "10%", bottom: "10%", width: "27%", borderLeftWidth: 1.5, justifyContent: "center", paddingLeft: 12, backgroundColor: "rgba(255,255,255,0.015)" },
+  authorityBoundaryLabel: { fontSize: 7, lineHeight: 10, fontWeight: "900", letterSpacing: 0.9 },
+  authorityBoundaryValue: { marginTop: 5, color: intelligenceFieldColors.text, fontSize: 13, lineHeight: 17, fontWeight: "900", letterSpacing: 0.6 },
+  authoritySilentZone: { position: "absolute", left: "85%", right: 0, top: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.18)" },
+  intelligenceLegend: { position: "absolute", left: 16, bottom: 13, zIndex: 4, flexDirection: "row", alignItems: "baseline", gap: 6 },
   intelligenceLegendLabel: { color: intelligenceFieldColors.textMuted, fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1.05 },
   intelligenceLegendValue: { color: intelligenceFieldColors.text, fontSize: 14, lineHeight: 17, fontWeight: "900", fontVariant: ["tabular-nums"] },
   dataValue: { flexShrink: 1, textAlign: "right", fontSize: 13, lineHeight: 19, fontVariant: ["tabular-nums"] },

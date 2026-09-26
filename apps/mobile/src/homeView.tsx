@@ -179,7 +179,7 @@ export function HomeView({
       </View>
 
       <MotionReveal testID="home-intelligence-reveal">
-        <View style={[styles.intelligenceHero, tablet ? styles.intelligenceHeroTablet : null, { backgroundColor: intelligenceSurface, borderColor: intelligenceBorder, borderRadius: ui.radius.hero }]} testID="home-now">
+        <View style={[styles.intelligenceHero, tablet ? styles.intelligenceHeroTablet : null, { backgroundColor: intelligenceSurface, borderColor: intelligenceBorder, borderRadius: 0 }]} testID="home-now">
           <View style={styles.intelligenceCopy}>
             <View style={styles.heroTop}>
               <View style={styles.liveIntelligenceLabel}><View style={[styles.heroStatusDot, { backgroundColor: systemColor }]} /><Text style={[styles.eyebrow, { color: theme.colors.aiSignalEnd }]}>NUSA INTELLIGENCE</Text></View>
@@ -309,7 +309,7 @@ const styles = StyleSheet.create({
   glancePrimary: { flex: 1, minWidth: 180, fontSize: 10, lineHeight: 15, fontWeight: "700" },
   glanceRisk: { fontSize: 10, lineHeight: 15, fontWeight: "900", letterSpacing: 0.45 },
   glanceBuild: { fontSize: 9, lineHeight: 14, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  intelligenceHero: { overflow: "hidden", borderWidth: 1, borderRadius: 28, padding: 16, gap: 16, minHeight: 280 },
+  intelligenceHero: { overflow: "hidden", borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderRadius: 0, paddingVertical: 18, paddingHorizontal: 0, gap: 18, minHeight: 320 },
   intelligenceHeroTablet: { flexDirection: "row", alignItems: "stretch" },
   intelligenceCopy: { flex: 1.05, minWidth: 0, gap: 10, justifyContent: "center" },
   liveIntelligenceLabel: { flexDirection: "row", alignItems: "center", gap: 7 },

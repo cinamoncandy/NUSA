@@ -136,7 +136,7 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
     showsVerticalScrollIndicator={false}
     testID="paper-learning-monitor"
   >
-    <IntelligenceMotionField active={state.status === "RUNNING"} evidenceCount={state.timeline.length} state={fieldState} label={`NUSA PAPER ${fieldState.toLowerCase()} state`} />
+    <IntelligenceMotionField active={state.status === "RUNNING"} evidenceCount={state.timeline.length} state={fieldState} variant="flow" label={`NUSA PAPER ${fieldState.toLowerCase()} state`} />
     <AuthorityRail
       detail="AUTONOMOUS PAPER · LIVE NONE · AI ZERO AUTHORITY"
       status={runtimeLabel}

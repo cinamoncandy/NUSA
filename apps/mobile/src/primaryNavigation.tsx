@@ -41,7 +41,7 @@ export function PrimaryNavigation({
             onPress={() => onNavigate(destination)}
             style={({ pressed }) => [
               styles.item,
-              { backgroundColor: active ? theme.colors.primarySoft : "transparent", opacity: pressed ? 0.72 : active ? 1 : 0.82 },
+              { backgroundColor: "transparent", opacity: pressed ? 0.62 : active ? 1 : 0.72 },
             ]}
             testID={`tab-${destination}`}
           >
@@ -61,7 +61,7 @@ const styles = StyleSheet.create({
   navigation: { width: "100%", maxWidth: 720, borderTopWidth: StyleSheet.hairlineWidth, alignItems: "center" },
   inner: { width: "100%", flexDirection: "row" },
   item: { flex: 1, minHeight: 50, alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 2 },
-  indicator: { height: 2, width: 20, borderRadius: 999 },
+  indicator: { height: 2, width: 28, borderRadius: 1 },
   label: { fontSize: 10, fontWeight: "700" },
   activeLabel: { fontWeight: "900" },
 });
