@@ -1,5 +1,6 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const { execFileSync } = require("node:child_process");
 const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
@@ -14,6 +15,8 @@ const {
   filterGithubRunnerWorkspacePaths,
   boundedWorkerFailureEvidence,
   boundedProposalContext,
+  normalizeUnifiedDiffHunkCounts,
+  applyPatchWithNormalizedHunkCounts,
   executeGithubActionsRunner,
   MAX_RETRY_DELAY_MS,
   retryHint,
@@ -594,6 +597,79 @@ test("builds a bounded exact-head retry excerpt around the rejected hunk", () =>
   assert.ok(context.startLine <= 200);
   assert.match(context.content, /line-200/);
   assert.ok(Buffer.byteLength(context.content, "utf8") <= 20_000);
+});
+
+
+test("normalizes only malformed unified-diff hunk counts before strict git apply", () => {
+  const previous = process.cwd();
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-recount-"));
+  try {
+    process.chdir(directory);
+    execFileSync("git", ["init", "-q"]);
+    execFileSync("git", ["config", "core.autocrlf", "false"]);
+    execFileSync("git", ["config", "core.eol", "lf"]);
+    execFileSync("git", ["config", "user.email", "nusa-test@example.invalid"]);
+    execFileSync("git", ["config", "user.name", "NUSA Test"]);
+    fs.mkdirSync("apps/autopilot/src", { recursive: true });
+    fs.writeFileSync("apps/autopilot/src/example.ts", "export const oldValue = true;\n");
+    execFileSync("git", ["add", "."]);
+    execFileSync("git", ["commit", "-qm", "fixture"]);
+    const malformedCounts = [
+      "diff --git a/apps/autopilot/src/example.ts b/apps/autopilot/src/example.ts",
+      "--- a/apps/autopilot/src/example.ts",
+      "+++ b/apps/autopilot/src/example.ts",
+      "@@ -1,9 +1,9 @@",
+      "-export const oldValue = true;",
+      "+export const oldValue = false;",
+      "",
+    ].join("\n");
+    fs.writeFileSync(".nusa-autopilot.patch", malformedCounts);
+    assert.throws(
+      () => execFileSync("git", ["apply", "--check", ".nusa-autopilot.patch"], { stdio: "pipe" }),
+      /Command failed/,
+    );
+    const normalized = normalizeUnifiedDiffHunkCounts(malformedCounts);
+    assert.match(normalized, /@@ -1,1 \+1,1 @@/);
+    assert.equal(applyPatchWithNormalizedHunkCounts(".nusa-autopilot.patch"), "normalized");
+    assert.equal(fs.readFileSync("apps/autopilot/src/example.ts", "utf8"), "export const oldValue = false;\n");
+  } finally {
+    process.chdir(previous);
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("hunk-count normalization does not fuzz or accept mismatched source context", () => {
+  const previous = process.cwd();
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-recount-mismatch-"));
+  try {
+    process.chdir(directory);
+    execFileSync("git", ["init", "-q"]);
+    execFileSync("git", ["config", "core.autocrlf", "false"]);
+    execFileSync("git", ["config", "core.eol", "lf"]);
+    execFileSync("git", ["config", "user.email", "nusa-test@example.invalid"]);
+    execFileSync("git", ["config", "user.name", "NUSA Test"]);
+    fs.mkdirSync("apps/autopilot/src", { recursive: true });
+    fs.writeFileSync("apps/autopilot/src/example.ts", "export const actual = true;\n");
+    execFileSync("git", ["add", "."]);
+    execFileSync("git", ["commit", "-qm", "fixture"]);
+    fs.writeFileSync(".nusa-autopilot.patch", [
+      "diff --git a/apps/autopilot/src/example.ts b/apps/autopilot/src/example.ts",
+      "--- a/apps/autopilot/src/example.ts",
+      "+++ b/apps/autopilot/src/example.ts",
+      "@@ -1,9 +1,9 @@",
+      "-export const invented = true;",
+      "+export const invented = false;",
+      "",
+    ].join("\n"));
+    assert.throws(
+      () => applyPatchWithNormalizedHunkCounts(".nusa-autopilot.patch"),
+      /SANDBOX_PATCH_APPLY_CHECK_FAILED/,
+    );
+    assert.equal(fs.readFileSync("apps/autopilot/src/example.ts", "utf8"), "export const actual = true;\n");
+  } finally {
+    process.chdir(previous);
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test("classifies only bounded proposal validation failures as no-action", () => {
