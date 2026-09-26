@@ -2,6 +2,8 @@ import { adviseConcurrency, type ConcurrencyEvidence, type ConcurrencyRecommenda
 import type { EvidenceConfidence } from "./opportunityPlanner";
 import type { WorkerPoolMetrics } from "./worktreeWorkerPool";
 import type { AutopilotExecutionTelemetry } from "./executionTelemetry";
+import type { CodingExecutionEvidence } from "./codingExecutionEvidence";
+import type { GithubReleaseCompletionResolution } from "./githubReleaseCompletionResolver";
 
 /**
  * Turns measured worker outcomes into the evidence `adviseConcurrency` consumes.
@@ -51,6 +53,25 @@ export function workerOutcomeFromTelemetry(
   const conflicted = telemetry.failureReason !== null && /conflict/i.test(telemetry.failureReason);
 
   return Object.freeze({ metrics, verified, reworked, conflicted });
+}
+
+export function workerOutcomeWithReleaseCompletion(
+  outcome: WorkerOutcome,
+  codingEvidence: CodingExecutionEvidence,
+  release: GithubReleaseCompletionResolution,
+): WorkerOutcome {
+  const pullRequestNumber = codingEvidence.outcome.pullRequestNumber;
+  const commitSha = codingEvidence.outcome.commitSha;
+  const identityMatches =
+    pullRequestNumber !== null
+    && commitSha !== null
+    && release.pullRequestNumber === pullRequestNumber
+    && release.expectedHeadSha === commitSha;
+
+  return Object.freeze({
+    ...outcome,
+    verified: identityMatches && release.status === "RELEASE_COMPLETE",
+  });
 }
 
 export interface ThroughputWindow {

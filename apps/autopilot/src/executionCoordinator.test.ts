@@ -448,9 +448,36 @@ describe("persistent control-plane HOLD", () => {
     const conflict = await post("/active-wip/admit", { ...first, dedupeKey: "work:b", executionId: "exec:b" });
     assert.equal(conflict.status, 409);
     assert.equal((await conflict.json() as { reason: string }).reason, "CONFLICT_KEY_ACTIVE");
-    assert.equal((await post("/active-wip/complete", { dedupeKey: first.dedupeKey, executionId: "stale" })).status, 409);
-    assert.equal((await post("/active-wip/complete", { dedupeKey: first.dedupeKey, executionId: first.executionId })).status, 200);
+    assert.equal((await post("/active-wip/complete", { dedupeKey: first.dedupeKey, executionId: "stale", workerId: "cloud-coding-runner", startedAt: 110, completedAt: 120 })).status, 409);
+    assert.equal((await post("/active-wip/complete", { dedupeKey: first.dedupeKey, executionId: first.executionId, workerId: "cloud-coding-runner", startedAt: 110, completedAt: 120 })).status, 200);
     assert.equal((await post("/active-wip/admit", { ...first, dedupeKey: "work:b", executionId: "exec:b" })).status, 201);
+  });
+
+  it("persists measured active-WIP completion timing and replays it after claim release", async () => {
+    const storage = new MemoryStorage();
+    const coordinator = new ExecutionCoordinator({ storage });
+    const post = (path: string, body: object) => coordinator.fetch(new Request(`https://execution-coordinator${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
+    const claim = { dedupeKey: "work:measured", executionId: "exec:measured", canonicalOwner: "evolve", conflictKeys: ["module:measured"], claimedAt: 100, maxConcurrent: 1 };
+    assert.equal((await post("/active-wip/admit", claim)).status, 201);
+    assert.equal((await post("/active-wip/complete", { dedupeKey: claim.dedupeKey, executionId: claim.executionId, workerId: "cloud-coding-runner", startedAt: 125, completedAt: 175 })).status, 200);
+    const replay = await coordinator.fetch(new Request("https://execution-coordinator/active-wip/completions"));
+    assert.equal(replay.status, 200);
+    const body = await replay.json() as { completions: readonly { executionId: string; claimedAt: number; startedAt: number; completedAt: number; claimToStartMs: number; claimToCompleteMs: number; totalMs: number }[] };
+    assert.deepEqual(body.completions, [{
+      dedupeKey: claim.dedupeKey, executionId: claim.executionId, canonicalOwner: claim.canonicalOwner, conflictKeys: claim.conflictKeys,
+      workerId: "cloud-coding-runner", queuedAt: 100, claimedAt: 100, startedAt: 125, completedAt: 175,
+      queueWaitMs: 0, claimToStartMs: 25, claimToCompleteMs: 75, totalMs: 75,
+    }]);
+    assert.equal((await coordinator.fetch(new Request("https://execution-coordinator/active-wip"))).status, 200);
+  });
+
+  it("fails closed on stale identity or impossible active-WIP completion timing", async () => {
+    const coordinator = new ExecutionCoordinator({ storage: new MemoryStorage() });
+    const post = (path: string, body: object) => coordinator.fetch(new Request(`https://execution-coordinator${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
+    const claim = { dedupeKey: "work:timing", executionId: "exec:timing", canonicalOwner: "evolve", conflictKeys: ["module:timing"], claimedAt: 100, maxConcurrent: 1 };
+    assert.equal((await post("/active-wip/admit", claim)).status, 201);
+    assert.equal((await post("/active-wip/complete", { dedupeKey: claim.dedupeKey, executionId: "stale", workerId: "cloud-coding-runner", startedAt: 125, completedAt: 175 })).status, 409);
+    assert.equal((await post("/active-wip/complete", { dedupeKey: claim.dedupeKey, executionId: claim.executionId, workerId: "cloud-coding-runner", startedAt: 99, completedAt: 175 })).status, 409);
   });
 
   it("fails closed on malformed WIP ownership and conflict metadata", async () => {
