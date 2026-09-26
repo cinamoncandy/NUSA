@@ -618,11 +618,11 @@ test("Research Intelligence runtime wires Jev shadow only through the protected 
   const fs = require("node:fs");
   const path = require("node:path");
   const root = path.join(__dirname, "..");
-  const script = fs.readFileSync(path.join(root, "scripts", "research-intelligence-scout.js"), "utf8");
+  const script = fs.readFileSync(path.join(root, "scripts", "research-intelligence-scout.js"), "utf8").replace(/\r\n/g, "\n");
   const workflow = fs.readFileSync(
     path.join(root, ".github", "workflows", "research-intelligence-scout.yml"),
     "utf8",
-  );
+  ).replace(/\r\n/g, "\n");
 
   assert.match(script, /createJevResearchAttentionShadowObserverFromEnvironment/);
   assert.match(script, /attentionObserver \?\? undefined/);
