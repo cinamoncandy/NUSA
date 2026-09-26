@@ -8,6 +8,7 @@ const {
   MINIMUM_THROUGHPUT_SAMPLE,
   evaluateWorkerPoolConcurrency,
   workerOutcomeFromTelemetry,
+  workerOutcomeWithReleaseCompletion,
 } = require("../dist/apps/autopilot/src/workerThroughputEvidence.js");
 const { adviseConcurrency } = require("../dist/apps/autopilot/src/concurrencyAdvisor.js");
 
@@ -245,4 +246,22 @@ test("failed conflict telemetry is measured as conflict and never as verified co
   assert.equal(measured.verified, false);
   assert.equal(measured.reworked, false);
   assert.equal(measured.conflicted, true);
+});
+
+test("only matching canonical RELEASE_COMPLETE evidence verifies a worker outcome", () => {
+  const base = outcome("release-join", { verified: false });
+  const commitSha = "a".repeat(40);
+  const codingEvidence = {
+    outcome: { pullRequestNumber: 2304, commitSha },
+  };
+  const complete = {
+    status: "RELEASE_COMPLETE",
+    pullRequestNumber: 2304,
+    expectedHeadSha: commitSha,
+  };
+  assert.equal(workerOutcomeWithReleaseCompletion(base, codingEvidence, complete).verified, true);
+  assert.equal(workerOutcomeWithReleaseCompletion(base, codingEvidence, { ...complete, status: "CONVERGENCE_INCOMPLETE" }).verified, false);
+  assert.equal(workerOutcomeWithReleaseCompletion(base, codingEvidence, { ...complete, pullRequestNumber: 2305 }).verified, false);
+  assert.equal(workerOutcomeWithReleaseCompletion(base, codingEvidence, { ...complete, expectedHeadSha: "b".repeat(40) }).verified, false);
+  assert.equal(workerOutcomeWithReleaseCompletion(base, { outcome: { pullRequestNumber: null, commitSha } }, complete).verified, false);
 });

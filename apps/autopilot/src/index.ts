@@ -12,6 +12,8 @@ import {
   handoffOrAcquirePersistentExecution,
   applyPersistentControlPlaneHold,
   completePersistentExecution,
+  completeActiveWip,
+  readActiveWipCompletions,
   markPersistentExecutionDispatched,
   markPersistentExecutionRateLimitStopped,
   readProviderCapacityWait,
@@ -28,6 +30,7 @@ import {
 import { runScheduledAutopilot } from "./scheduledRuntime";
 import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
 import { classifyAutopilotFailure, createAutopilotExecutionTelemetry, type AutopilotExecutionTelemetryInput } from "./executionTelemetry";
+import { workerOutcomeFromTelemetry, workerOutcomeWithReleaseCompletion } from "./workerThroughputEvidence";
 
 export { ExecutionCoordinator } from "./executionCoordinator";
 export * from "./worktreeWorkerPool";
@@ -317,9 +320,10 @@ export async function handleCodingExecute(
       await releaseCodingExecutionLease(env, runnerRequest);
     }
     const failureReason = result.reason ?? null;
+    const completedAt = Date.now();
     await persistCodingTelemetry(env, {
       executionId: runnerRequest.executionId,
-      timestampMs: Date.now(),
+      timestampMs: completedAt,
       trigger: "repository_dispatch",
       decision: normalizedResult.status === "EXECUTION_ACCEPTED" ? "coding-dispatch" : normalizedResult.status === "WAITING_RATE_LIMIT" ? "rate-limit-stop" : "coding-dispatch-failed",
       action: normalizedResult.status === "EXECUTION_ACCEPTED" ? "ACTION" : "NO_ACTION",
@@ -341,7 +345,7 @@ export async function handleCodingExecute(
       productionMutationAllowed: false,
       aiAuthority: "ZERO_AUTHORITY",
     });
-    const evidenceDecision = createCodingExecutionEvidence(runnerRequest, normalizedResult, Date.now());
+    const evidenceDecision = createCodingExecutionEvidence(runnerRequest, normalizedResult, completedAt);
     let evidencePersisted = false;
     if (evidenceDecision.status === "RECORDED" && env.NUSA_EXECUTION_COORDINATOR) {
       try {
@@ -353,6 +357,15 @@ export async function handleCodingExecute(
             executionId: runnerRequest.executionId,
             now: Date.now(),
           });
+          if (/(?:github-issue|issue)-[0-9]+/i.test(runnerRequest.reason)) {
+            await completeActiveWip(env.NUSA_EXECUTION_COORDINATOR, {
+              dedupeKey: runnerRequest.dedupeKey,
+              executionId: runnerRequest.executionId,
+              workerId: "cloud-coding-runner",
+              startedAt,
+              completedAt,
+            });
+          }
         }
       } catch {
         console.error(JSON.stringify({ event: "NUSA_CODING_EVIDENCE_PERSIST_FAILED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }));
@@ -373,8 +386,36 @@ export default {
     if (request.method === "GET" && url.pathname === "/release/status") {
       const prNumber = Number(url.searchParams.get("pr"));
       const release = await resolveGithubReleaseCompletion(prNumber, { token: env.NUSA_GITHUB_TOKEN, allowedRepository });
+      let verifiedWorkerOutcome = null;
+      if (env.NUSA_EXECUTION_COORDINATOR) {
+        try {
+          const coding = await readCodingExecutionEvidence(env.NUSA_EXECUTION_COORDINATOR);
+          const evidence = [...coding.history].reverse().find((candidate) => candidate.outcome.pullRequestNumber === prNumber) ?? null;
+          if (evidence?.outcome.commitSha) {
+            const completions = await readActiveWipCompletions(env.NUSA_EXECUTION_COORDINATOR);
+            const completion = [...completions].reverse().find((candidate) => candidate.executionId === evidence.request.executionId) ?? null;
+            const telemetry = await readAutopilotExecutionTelemetry(env.NUSA_EXECUTION_COORDINATOR);
+            const attempt = completion ? [...telemetry.history].reverse().find((candidate) =>
+              candidate.executionId === evidence.request.executionId
+              && candidate.pullRequestNumber === prNumber
+              && candidate.commitSha === evidence.outcome.commitSha
+              && candidate.timestampMs === completion.completedAt) ?? null : null;
+            if (completion && attempt) {
+              const measured = workerOutcomeFromTelemetry({
+                taskId: completion.executionId, workerId: completion.workerId,
+                queuedAt: completion.queuedAt, claimedAt: completion.claimedAt, startedAt: completion.startedAt, completedAt: completion.completedAt,
+                queueWaitMs: completion.queueWaitMs, claimToStartMs: completion.claimToStartMs,
+                claimToCompleteMs: completion.claimToCompleteMs, totalMs: completion.totalMs,
+              }, attempt);
+              if (measured) verifiedWorkerOutcome = workerOutcomeWithReleaseCompletion(measured, evidence, release);
+            }
+          }
+        } catch {
+          verifiedWorkerOutcome = null;
+        }
+      }
       const unavailable = release.reason === "release-github-token-not-configured";
-      return json(release, unavailable ? 503 : 200);
+      return json({ ...release, verifiedWorkerOutcome }, unavailable ? 503 : 200);
     }
 
     if (request.method === "GET" && url.pathname === "/scheduled/status") {

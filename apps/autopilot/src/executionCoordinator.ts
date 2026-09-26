@@ -78,7 +78,17 @@ export interface ActiveWipClaim {
 }
 interface ActiveWipState { readonly schemaVersion: 1; readonly claims: readonly ActiveWipClaim[]; }
 export interface ActiveWipAdmissionRequest extends ActiveWipClaim { readonly maxConcurrent: number; }
-export interface ActiveWipCompletionRequest { readonly dedupeKey: string; readonly executionId: string; }
+export interface ActiveWipCompletionRequest {
+  readonly dedupeKey: string; readonly executionId: string; readonly workerId: string;
+  readonly startedAt: number; readonly completedAt: number;
+}
+export interface ActiveWipCompletionEvidence {
+  readonly dedupeKey: string; readonly executionId: string; readonly canonicalOwner: string;
+  readonly conflictKeys: readonly string[]; readonly workerId: string;
+  readonly queuedAt: number; readonly claimedAt: number; readonly startedAt: number; readonly completedAt: number;
+  readonly queueWaitMs: number; readonly claimToStartMs: number; readonly claimToCompleteMs: number; readonly totalMs: number;
+}
+interface ActiveWipCompletionHistory { readonly schemaVersion: 1; readonly completions: readonly ActiveWipCompletionEvidence[]; }
 
 export interface ScheduledRuntimeReceipt {
   scheduledTime: number;
@@ -158,7 +168,9 @@ const MAX_AUTOPILOT_TELEMETRY = 120;
 const CONTROL_PLANE_HOLD_STORAGE_KEY = "control-plane-hold-v1";
 const ACTIVE_WIP_COORDINATOR_KEY = "evolve-active-wip-v1";
 const ACTIVE_WIP_STORAGE_KEY = "evolve-active-wip-v1";
+const ACTIVE_WIP_COMPLETION_HISTORY_KEY = "evolve-active-wip-completions-v1";
 const MAX_ACTIVE_WIP = 8;
+const MAX_ACTIVE_WIP_COMPLETIONS = 120;
 const CONTROL_PLANE_HOLD_COORDINATOR_PREFIX = "control-plane-hold";
 const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SHA40 = /^[0-9a-f]{40}$/i;
@@ -364,6 +376,7 @@ export class ExecutionCoordinator {
     if (request.method === "GET" && url.pathname === "/execution") return this.readExecution();
     if (request.method === "GET" && url.pathname === "/control-plane-hold") return this.readControlPlaneHold();
     if (request.method === "GET" && url.pathname === "/active-wip") return this.readActiveWip();
+    if (request.method === "GET" && url.pathname === "/active-wip/completions") return this.readActiveWipCompletions();
     if (request.method === "GET" && url.pathname === "/provider-capacity-wait") return this.readProviderCapacityWait();
     if (request.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405);
     if (url.pathname === "/acquire") return this.acquire(await request.json());
@@ -585,16 +598,37 @@ export class ExecutionCoordinator {
   private async completeActiveWip(value: unknown): Promise<Response> {
     if (!value || typeof value !== "object") return json({ error: "ACTIVE_WIP_REQUEST_INVALID" }, 400);
     const request = value as Partial<ActiveWipCompletionRequest>;
-    if (!validText(request.dedupeKey) || !validText(request.executionId)) return json({ error: "ACTIVE_WIP_REQUEST_INVALID" }, 400);
+    if (!validText(request.dedupeKey) || !validText(request.executionId) || !validText(request.workerId)
+      || !validSafeTimestamp(request.startedAt) || !validSafeTimestamp(request.completedAt)
+      || Number(request.completedAt) < Number(request.startedAt)) return json({ error: "ACTIVE_WIP_REQUEST_INVALID" }, 400);
     return this.mutateExecutionAtomically(async (storage) => {
       const state = await storage.get<ActiveWipState>(ACTIVE_WIP_STORAGE_KEY) ?? { schemaVersion: 1 as const, claims: [] };
       if (state.schemaVersion !== 1 || !Array.isArray(state.claims) || state.claims.length > MAX_ACTIVE_WIP) return json({ error: "ACTIVE_WIP_STATE_CORRUPT" }, 500);
       const claim = state.claims.find((candidate) => candidate.dedupeKey === request.dedupeKey);
       if (!claim || claim.executionId !== request.executionId) return json({ error: "ACTIVE_WIP_IDENTITY_MISMATCH" }, 409);
+      if (Number(request.startedAt) < claim.claimedAt) return json({ error: "ACTIVE_WIP_TIMING_INVALID" }, 409);
+      const evidence: ActiveWipCompletionEvidence = Object.freeze({
+        dedupeKey: claim.dedupeKey, executionId: claim.executionId, canonicalOwner: claim.canonicalOwner,
+        conflictKeys: Object.freeze([...claim.conflictKeys]), workerId: request.workerId!.trim(),
+        queuedAt: claim.claimedAt, claimedAt: claim.claimedAt, startedAt: Number(request.startedAt), completedAt: Number(request.completedAt),
+        queueWaitMs: 0, claimToStartMs: Number(request.startedAt) - claim.claimedAt,
+        claimToCompleteMs: Number(request.completedAt) - claim.claimedAt, totalMs: Number(request.completedAt) - claim.claimedAt,
+      });
+      const history = await storage.get<ActiveWipCompletionHistory>(ACTIVE_WIP_COMPLETION_HISTORY_KEY) ?? { schemaVersion: 1 as const, completions: [] };
+      if (history.schemaVersion !== 1 || !Array.isArray(history.completions) || history.completions.length > MAX_ACTIVE_WIP_COMPLETIONS) return json({ error: "ACTIVE_WIP_COMPLETION_STATE_CORRUPT" }, 500);
+      if (history.completions.some((candidate) => candidate.dedupeKey === claim.dedupeKey)) return json({ error: "ACTIVE_WIP_COMPLETION_DUPLICATE" }, 409);
+      const completions = Object.freeze([...history.completions, evidence].slice(-MAX_ACTIVE_WIP_COMPLETIONS));
       const claims = Object.freeze(state.claims.filter((candidate) => candidate.dedupeKey !== request.dedupeKey));
+      await storage.put(ACTIVE_WIP_COMPLETION_HISTORY_KEY, Object.freeze({ schemaVersion: 1, completions }));
       await storage.put(ACTIVE_WIP_STORAGE_KEY, Object.freeze({ schemaVersion: 1, claims }));
-      return json({ completed: true, claims });
+      return json({ completed: true, evidence, claims });
     });
+  }
+
+  private async readActiveWipCompletions(): Promise<Response> {
+    const history = await this.ctx.storage.get<ActiveWipCompletionHistory>(ACTIVE_WIP_COMPLETION_HISTORY_KEY) ?? { schemaVersion: 1 as const, completions: [] };
+    if (history.schemaVersion !== 1 || !Array.isArray(history.completions) || history.completions.length > MAX_ACTIVE_WIP_COMPLETIONS) return json({ error: "ACTIVE_WIP_COMPLETION_STATE_CORRUPT" }, 500);
+    return json({ completions: history.completions, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
   }
 
   private async readActiveWip(): Promise<Response> {
@@ -1014,10 +1048,22 @@ export async function admitActiveWip(namespace: ExecutionCoordinatorNamespace, i
   return Object.freeze({ admitted: true });
 }
 
-export async function completeActiveWip(namespace: ExecutionCoordinatorNamespace, input: ActiveWipCompletionRequest): Promise<void> {
+export async function completeActiveWip(namespace: ExecutionCoordinatorNamespace, input: ActiveWipCompletionRequest): Promise<ActiveWipCompletionEvidence> {
   const stub = namespace.get(namespace.idFromName(ACTIVE_WIP_COORDINATOR_KEY));
   const response = await stub.fetch("https://execution-coordinator/active-wip/complete", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) });
   if (!response.ok) throw new Error("ACTIVE_WIP_COMPLETION_FAILED");
+  const body = await response.json() as { evidence?: ActiveWipCompletionEvidence };
+  if (!body.evidence || body.evidence.executionId !== input.executionId || body.evidence.dedupeKey !== input.dedupeKey) throw new Error("ACTIVE_WIP_COMPLETION_INVALID");
+  return Object.freeze(body.evidence);
+}
+
+export async function readActiveWipCompletions(namespace: ExecutionCoordinatorNamespace): Promise<readonly ActiveWipCompletionEvidence[]> {
+  const stub = namespace.get(namespace.idFromName(ACTIVE_WIP_COORDINATOR_KEY));
+  const response = await stub.fetch("https://execution-coordinator/active-wip/completions", { method: "GET" });
+  if (!response.ok) throw new Error("ACTIVE_WIP_COMPLETION_READ_FAILED");
+  const body = await response.json() as { completions?: unknown };
+  if (!Array.isArray(body.completions)) throw new Error("ACTIVE_WIP_COMPLETION_READ_INVALID");
+  return Object.freeze(body.completions as ActiveWipCompletionEvidence[]);
 }
 
 export async function readActiveWip(namespace: ExecutionCoordinatorNamespace): Promise<{ readonly claims: readonly ActiveWipClaim[]; readonly activeExecutions: number }> {
