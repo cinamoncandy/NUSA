@@ -69,6 +69,26 @@ export interface ResearchMemoryAuthorityBoundary {
   readonly aiAuthority: "ZERO_AUTHORITY";
 }
 
+export type ResearchProtectedOosExposurePurpose =
+  | "CONFIRMATORY"
+  | "EXPLORATORY"
+  | "REVALIDATION";
+
+export interface ResearchProtectedOosExposure {
+  readonly hypothesisId: string;
+  readonly parentHypothesisId?: string;
+  readonly familyId: string;
+  readonly searchId: string;
+  readonly trialId: string;
+  readonly candidateIds: readonly string[];
+  readonly datasetId: string;
+  readonly datasetContentSha256: string;
+  readonly oosReuseFingerprint: string;
+  readonly purpose: ResearchProtectedOosExposurePurpose;
+  readonly precommittedAt: string;
+  readonly exposedAt: string;
+}
+
 export interface ResearchMemorySemanticInput extends ResearchMemoryAuthorityBoundary {
   readonly artifact: ResearchMemoryArtifactRef;
   readonly semanticClass: ResearchMemorySemanticClass;
@@ -78,6 +98,7 @@ export interface ResearchMemorySemanticInput extends ResearchMemoryAuthorityBoun
   readonly evaluatorSemanticsId: string;
   readonly semanticIdentity: string;
   readonly independenceGroupId: string;
+  readonly protectedOosExposure?: ResearchProtectedOosExposure;
   readonly actor: string;
   readonly source: string;
   readonly reason: string;
@@ -162,6 +183,37 @@ export function validateResearchMemoryArtifactRef(ref: ResearchMemoryArtifactRef
 export const researchMemoryArtifactDigestV1 = (value: unknown): string =>
   sha256(canonicalResearchJson({ version: 1, value }));
 
+function canonicalProtectedOosExposure(
+  exposure: ResearchProtectedOosExposure,
+): Readonly<ResearchProtectedOosExposure> {
+  for (const [field, value] of [
+    ["hypothesisId", exposure.hypothesisId],
+    ["familyId", exposure.familyId],
+    ["searchId", exposure.searchId],
+    ["trialId", exposure.trialId],
+    ["datasetId", exposure.datasetId],
+  ] as const) required(value, field);
+  if (exposure.parentHypothesisId != null) required(exposure.parentHypothesisId, "parentHypothesisId");
+  digest(exposure.datasetContentSha256, "datasetContentSha256");
+  digest(exposure.oosReuseFingerprint, "oosReuseFingerprint");
+  if (!Array.isArray(exposure.candidateIds) || exposure.candidateIds.length === 0) {
+    throw new Error("protected OOS exposure candidateIds are required");
+  }
+  const candidateIds = exposure.candidateIds.map((candidateId) => candidateId.trim());
+  if (candidateIds.some((candidateId) => candidateId.length === 0) || new Set(candidateIds).size !== candidateIds.length) {
+    throw new Error("protected OOS exposure candidateIds must be unique and non-empty");
+  }
+  validTime(exposure.precommittedAt);
+  validTime(exposure.exposedAt);
+  if (Date.parse(exposure.exposedAt) < Date.parse(exposure.precommittedAt)) {
+    throw new Error("protected OOS exposure cannot precede precommit");
+  }
+  return Object.freeze({
+    ...exposure,
+    candidateIds: Object.freeze([...candidateIds].sort((left, right) => left.localeCompare(right))),
+  });
+}
+
 function canonicalSemanticInput(
   input: ResearchMemorySemanticInput,
 ): Readonly<ResearchMemorySemanticInput> {
@@ -191,9 +243,20 @@ function canonicalSemanticInput(
     throw new Error("LESSON requires CURRENT validity");
   }
 
+  const protectedOosExposure = input.protectedOosExposure == null
+    ? undefined
+    : canonicalProtectedOosExposure(input.protectedOosExposure);
+  if (protectedOosExposure != null && (
+    input.semanticClass !== "EVIDENCE" ||
+    input.evidenceOrigin !== "CANONICAL_RESEARCH"
+  )) {
+    throw new Error("protected OOS exposure requires canonical Research EVIDENCE");
+  }
+
   return Object.freeze({
     ...input,
     artifact: Object.freeze({ ...input.artifact }),
+    ...(protectedOosExposure == null ? {} : { protectedOosExposure }),
   });
 }
 
@@ -289,6 +352,9 @@ export const researchMemorySemanticEventIdentity = (
     evaluatorSemanticsId: canonical.evaluatorSemanticsId,
     semanticIdentity: canonical.semanticIdentity,
     independenceGroupId: canonical.independenceGroupId,
+    ...(canonical.protectedOosExposure == null ? {} : {
+      protectedOosExposure: canonical.protectedOosExposure,
+    }),
   }));
 };
 
@@ -336,6 +402,7 @@ function sameExactInput(
           evaluatorSemanticsId: event.evaluatorSemanticsId,
           semanticIdentity: event.semanticIdentity,
           independenceGroupId: event.independenceGroupId,
+          ...(event.protectedOosExposure == null ? {} : { protectedOosExposure: event.protectedOosExposure }),
           actor: event.actor,
           source: event.source,
           reason: event.reason,
@@ -458,6 +525,79 @@ export function replayResearchMemoryOverlayEvents(
   });
 
   return Object.freeze([...records]);
+}
+
+
+export interface ResearchProtectedOosEligibilityInput {
+  readonly hypothesisId: string;
+  readonly lineageHypothesisIds: readonly string[];
+  readonly familyId: string;
+  readonly searchId: string;
+  readonly trialId: string;
+  readonly datasetId: string;
+  readonly datasetContentSha256: string;
+  readonly oosReuseFingerprint: string;
+  readonly purpose: ResearchProtectedOosExposurePurpose;
+}
+
+export interface ResearchProtectedOosEligibilityResult {
+  readonly status: "ELIGIBLE" | "REPLAY" | "HOLD";
+  readonly reason: "NEW_INDEPENDENT_LOCKBOX" | "EXACT_EXPOSURE_REPLAY" | "PROTECTED_OOS_ALREADY_EXPOSED";
+  readonly priorExposureCount: number;
+}
+
+export function assessResearchProtectedOosEligibility(
+  records: readonly ResearchMemoryOverlayEvent[],
+  input: ResearchProtectedOosEligibilityInput,
+): ResearchProtectedOosEligibilityResult {
+  replayResearchMemoryOverlayEvents(records);
+  for (const [field, value] of [
+    ["hypothesisId", input.hypothesisId],
+    ["familyId", input.familyId],
+    ["searchId", input.searchId],
+    ["trialId", input.trialId],
+    ["datasetId", input.datasetId],
+  ] as const) required(value, field);
+  digest(input.datasetContentSha256, "datasetContentSha256");
+  digest(input.oosReuseFingerprint, "oosReuseFingerprint");
+  if (!Array.isArray(input.lineageHypothesisIds) || input.lineageHypothesisIds.length === 0) {
+    throw new Error("lineageHypothesisIds are required");
+  }
+  const lineage = new Set(input.lineageHypothesisIds.map((value) => value.trim()));
+  if (lineage.has("") || !lineage.has(input.hypothesisId)) {
+    throw new Error("lineageHypothesisIds must be non-empty and include hypothesisId");
+  }
+
+  const exposures = records
+    .filter((event): event is ResearchMemorySemanticEvent =>
+      event.eventKind === "SEMANTIC" && event.protectedOosExposure != null)
+    .map((event) => event.protectedOosExposure!);
+
+  const exact = exposures.find((exposure) =>
+    exposure.hypothesisId === input.hypothesisId &&
+    exposure.searchId === input.searchId &&
+    exposure.trialId === input.trialId &&
+    exposure.datasetId === input.datasetId &&
+    exposure.datasetContentSha256 === input.datasetContentSha256 &&
+    exposure.oosReuseFingerprint === input.oosReuseFingerprint &&
+    exposure.purpose === input.purpose);
+  if (exact != null) return Object.freeze({ status: "REPLAY", reason: "EXACT_EXPOSURE_REPLAY", priorExposureCount: 1 });
+
+  const conflicting = exposures.filter((exposure) => {
+    const sameLockbox =
+      exposure.datasetId === input.datasetId &&
+      exposure.datasetContentSha256 === input.datasetContentSha256 &&
+      exposure.oosReuseFingerprint === input.oosReuseFingerprint;
+    if (!sameLockbox) return false;
+    return exposure.searchId === input.searchId ||
+      lineage.has(exposure.hypothesisId) ||
+      (exposure.parentHypothesisId != null && lineage.has(exposure.parentHypothesisId));
+  });
+
+  if (input.purpose === "CONFIRMATORY" && conflicting.length > 0) {
+    return Object.freeze({ status: "HOLD", reason: "PROTECTED_OOS_ALREADY_EXPOSED", priorExposureCount: conflicting.length });
+  }
+  return Object.freeze({ status: "ELIGIBLE", reason: "NEW_INDEPENDENT_LOCKBOX", priorExposureCount: conflicting.length });
 }
 
 export const replayResearchMemorySemanticEvents = replayResearchMemoryOverlayEvents;
