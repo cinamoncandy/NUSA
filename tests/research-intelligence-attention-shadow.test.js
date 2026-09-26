@@ -612,3 +612,38 @@ test("research attention module contains no duplicate provider transport", () =>
   }
   assert.match(source, /JevShadowProvider/);
 });
+
+
+test("Research Intelligence runtime wires Jev shadow only through the protected non-PR path", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const root = path.join(__dirname, "..");
+  const script = fs.readFileSync(path.join(root, "scripts", "research-intelligence-scout.js"), "utf8");
+  const workflow = fs.readFileSync(
+    path.join(root, ".github", "workflows", "research-intelligence-scout.yml"),
+    "utf8",
+  );
+
+  assert.match(script, /createJevResearchAttentionShadowObserverFromEnvironment/);
+  assert.match(script, /attentionObserver \?\? undefined/);
+  assert.match(script, /jevAttentionMode/);
+  assert.match(script, /jevAttentionMetrics/);
+  assert.match(script, /jevAttentionShadows/);
+
+  const validateStart = workflow.indexOf("  validate:");
+  const discoverStart = workflow.indexOf("  discover:");
+  assert.ok(validateStart >= 0 && discoverStart > validateStart);
+  const validateJob = workflow.slice(validateStart, discoverStart);
+  const discoverJob = workflow.slice(discoverStart);
+
+  assert.doesNotMatch(validateJob, /secrets\.|NUSA_JEV_API_KEY|NUSA_JEV_ENDPOINT/);
+  assert.match(discoverJob, /environment: nusa-jev-shadow/);
+  assert.match(discoverJob, /github\.event_name == 'schedule'/);
+  assert.match(discoverJob, /github\.ref == 'refs\/heads\/main'/);
+  assert.match(discoverJob, /ref: main/);
+  assert.match(discoverJob, /NUSA_JEV_RESEARCH_ATTENTION_SHADOW_ENABLED: "true"/);
+  assert.match(discoverJob, /secrets\.NUSA_JEV_API_KEY/);
+  assert.match(discoverJob, /vars\.NUSA_JEV_ENDPOINT/);
+  assert.match(workflow, /permissions:\n  contents: read/);
+  assert.doesNotMatch(workflow, /contents: write|actions: write|id-token: write/);
+});

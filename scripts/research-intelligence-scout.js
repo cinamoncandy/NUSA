@@ -5,6 +5,9 @@ const {
   ResearchIntelligenceScout,
 } = require("../dist/apps/cloud/src/researchIntelligenceScout.js");
 const {
+  createJevResearchAttentionShadowObserverFromEnvironment,
+} = require("../dist/apps/cloud/src/ai/jevResearchAttentionShadow.js");
+const {
   SqliteDatabase,
   SqliteResearchIntelligenceMemoryRepository,
 } = require("../dist/packages/storage/src/index.js");
@@ -30,7 +33,12 @@ async function main() {
         })()
       : undefined;
     const collector = new ArxivResearchIntelligenceCollector({ maxResults });
-    const scout = new ResearchIntelligenceScout([collector], memory);
+    const attentionObserver = createJevResearchAttentionShadowObserverFromEnvironment(process.env);
+    const scout = new ResearchIntelligenceScout(
+      [collector],
+      memory,
+      attentionObserver ?? undefined,
+    );
     const result = await scout.run();
 
     const receipt = Object.freeze({
@@ -53,6 +61,9 @@ async function main() {
       }),
       records: result.records,
       axiomHandoffs: result.axiomHandoffs,
+      jevAttentionMode: attentionObserver == null ? "UNCONFIGURED" : "SHADOW",
+      jevAttentionMetrics: result.jevAttentionMetrics,
+      jevAttentionShadows: result.jevAttentionShadows,
       sourceErrors: result.sourceErrors,
       safety: Object.freeze({
         authority: result.authority,
@@ -70,6 +81,8 @@ async function main() {
       JSON.stringify({
         output,
         metrics: receipt.metrics,
+        jevAttentionMode: receipt.jevAttentionMode,
+        jevAttentionMetrics: receipt.jevAttentionMetrics,
         safety: receipt.safety,
       }) + "\n",
     );
