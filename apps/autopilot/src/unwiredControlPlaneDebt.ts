@@ -64,7 +64,6 @@ export const UNWIRED_CONTROL_PLANE_DEBT: readonly string[] = Object.freeze([
   // production evaluation boundary still waits on the worker-runner outcome stream; inventing a
   // synthetic ThroughputWindow here would turn missing measurements into fake runtime evidence.
   "workerThroughputEvidence.ts#evaluateWorkerPoolConcurrency",
-  "workerThroughputEvidence.ts#workerOutcomeFromTelemetry",
   "worktreeWorkerPool.ts#admitWorkerTask",
   "worktreeWorkerPool.ts#completeWorkerClaim",
   "worktreeWorkerPool.ts#createWorkerPoolState",
