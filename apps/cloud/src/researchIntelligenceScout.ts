@@ -10,6 +10,19 @@ import {
   type ResearchIntelligenceRelevance,
 } from "../../../packages/contracts/src/researchIntelligence";
 
+import {
+  summarizeJevResearchAttentionShadows,
+  type JevResearchAttentionAxiomOutcome,
+  type JevResearchAttentionShadowReceipt,
+} from "./ai/jevResearchAttentionShadow";
+
+export interface ResearchIntelligenceAttentionShadowObserver {
+  observe(
+    record: ResearchIntelligenceRecord,
+    axiomHandoffOutcome: JevResearchAttentionAxiomOutcome,
+  ): Promise<JevResearchAttentionShadowReceipt>;
+}
+
 export interface ResearchIntelligenceCollector {
   readonly sourceId: string;
   collect(): Promise<readonly ResearchIntelligenceRecord[]>;
@@ -26,6 +39,14 @@ export interface ResearchIntelligenceScoutResult {
   readonly duplicatesSuppressed: number;
   readonly axiomHandoffs: readonly AxiomResearchIntelligenceHandoff[];
   readonly records: readonly ResearchIntelligenceRecord[];
+  readonly jevAttentionShadows: readonly JevResearchAttentionShadowReceipt[];
+  readonly jevAttentionMetrics: Readonly<{
+    evaluated: number;
+    reviewSoon: number;
+    defer: number;
+    escalateUncertain: number;
+    fallbackApplied: number;
+  }>;
   readonly sourceErrors: readonly Readonly<{
     sourceId: string;
     reason: string;
@@ -256,6 +277,7 @@ export class ResearchIntelligenceScout {
   public constructor(
     private readonly collectors: readonly ResearchIntelligenceCollector[],
     private readonly memory?: ResearchIntelligenceMemory,
+    private readonly attentionObserver?: ResearchIntelligenceAttentionShadowObserver,
   ) {
     if (collectors.length === 0) throw new Error("at least one research intelligence collector is required");
     if (new Set(collectors.map((collector) => collector.sourceId)).size !== collectors.length) {
@@ -272,9 +294,23 @@ export class ResearchIntelligenceScout {
     ]);
     const records: ResearchIntelligenceRecord[] = [];
     const axiomHandoffs: AxiomResearchIntelligenceHandoff[] = [];
+    const jevAttentionShadows: JevResearchAttentionShadowReceipt[] = [];
     const sourceErrors: Array<{ sourceId: string; reason: string }> = [];
     let discovered = 0;
     let duplicatesSuppressed = 0;
+
+    const observeAttention = async (
+      record: ResearchIntelligenceRecord,
+      axiomHandoffOutcome: JevResearchAttentionAxiomOutcome,
+    ): Promise<void> => {
+      if (this.attentionObserver == null) return;
+      try {
+        const receipt = await this.attentionObserver.observe(record, axiomHandoffOutcome);
+        jevAttentionShadows.push(receipt);
+      } catch {
+        // Shadow must never interrupt the canonical deterministic path.
+      }
+    };
 
     for (const collector of this.collectors) {
       let collected: readonly ResearchIntelligenceRecord[];
@@ -307,18 +343,22 @@ export class ResearchIntelligenceScout {
         if (record.nusaRelevance !== "HIGH") {
           record = this.memory?.append(record) ?? record;
           records.push(record);
+          await observeAttention(record, "NOT_HANDOFF");
           continue;
         }
 
+        let handoffOutcome: JevResearchAttentionAxiomOutcome = "HANDOFF_FAILED_CLOSED";
         try {
           const handoff = createAxiomResearchIntelligenceHandoff(record);
           record = markResearchIntelligenceReadyForAxiom(record);
           axiomHandoffs.push(handoff);
+          handoffOutcome = "HANDOFF";
         } catch {
           // Fail closed. Source discovery remains observable, but no handoff is fabricated.
         }
         record = this.memory?.append(record) ?? record;
         records.push(record);
+        await observeAttention(record, handoffOutcome);
       }
     }
 
@@ -328,6 +368,10 @@ export class ResearchIntelligenceScout {
       duplicatesSuppressed,
       axiomHandoffs: Object.freeze(axiomHandoffs),
       records: Object.freeze(records),
+      jevAttentionShadows: Object.freeze(jevAttentionShadows),
+      jevAttentionMetrics: summarizeJevResearchAttentionShadows(
+        Object.freeze(jevAttentionShadows),
+      ),
       sourceErrors: Object.freeze(sourceErrors.map((error) => Object.freeze(error))),
       authority: "PAPER_ONLY" as const,
       liveAuthority: "NONE" as const,
