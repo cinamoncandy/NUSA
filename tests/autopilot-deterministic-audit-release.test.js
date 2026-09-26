@@ -137,3 +137,18 @@ test("already-merged convergence is non-applicable for an open PR, accepts exist
   assert.ok(noActionIndex >= 0 && convergedIndex > noActionIndex && provenanceFailureIndex > convergedIndex);
   assert.match(convergence.slice(provenanceFailureIndex), /exit 1/);
 });
+
+
+test("Release serialization is classified as NO_ACTION before deterministic Audit work", () => {
+  assert.match(auditWorkflow, /issues:\s*read/);
+  assert.match(auditWorkflow, /open-issues-pages\.json/);
+  assert.match(auditWorkflow, /\^P0\(\?:\\s\|:\)/);
+  assert.match(auditWorkflow, /Refs\\s\+\#903/);
+  assert.match(auditWorkflow, /release-serialization-block\.json/);
+  assert.match(auditWorkflow, /NO_ACTION Release serialized before Audit/);
+  assert.match(auditWorkflow, /blocked_by=P0#/);
+  const serializationIndex = auditWorkflow.indexOf("NO_ACTION Release serialized before Audit");
+  const ciFetchIndex = auditWorkflow.indexOf('actions/runs/$WORKFLOW_RUN_ID');
+  assert.ok(serializationIndex >= 0 && ciFetchIndex > serializationIndex,
+    "canonical P0 serialization must short-circuit before CI/evidence Audit work");
+});
