@@ -154,6 +154,129 @@ Every significant user-facing Work Order must answer:
 
 A feature is not UX-complete merely because all backend controls are technically reachable.
 
+## 13. Living System Surface
+
+NUSA should look and behave like a live investment intelligence system, not a collection of generic application cards.
+
+The default visual hierarchy should prioritize actual system state, market structure, judgment, risk, portfolio outcome, and verified progress. Containers are secondary. Data, state transitions, and decision-relevant change are the visual subject.
+
+### 13.1 Visual hierarchy
+
+Prefer:
+
+- near-black / low-luminance canvas;
+- restrained borders and quiet containers;
+- dense but legible information hierarchy;
+- strong numeric typography with tabular figures for financial values;
+- compact labels and aligned metrics;
+- a small semantic accent palette rather than decorative color;
+- terrain, signal, evidence, risk, progress, and time-series primitives as first-class visuals.
+
+Avoid:
+
+- generic fintech or SaaS card stacks;
+- oversized rounded containers that dominate the information;
+- decorative gradients or glow without semantic meaning;
+- empty hero areas that displace decision-relevant state;
+- visual chrome that makes NUSA look like settings or infrastructure software.
+
+### 13.2 Semantic color
+
+Color should compress meaning, not decorate empty space.
+
+Where compatible with the active product theme, reserve distinct accent families for semantic states such as:
+
+- verified positive / healthy;
+- attention / risk;
+- AI reasoning / research;
+- blocked / loss / failure;
+- system / runtime state.
+
+Critical meaning must never depend on color alone, and no palette rule may fabricate financial meaning.
+
+### 13.3 Motion equals state change
+
+Motion should primarily communicate truthful state transition.
+
+Good motion includes:
+
+- a real progress value changing;
+- a pipeline stage advancing;
+- a metric updating from authoritative data;
+- a task moving from running to verified;
+- evidence converging into a decision state;
+- a chart or terrain updating from new market data.
+
+Decorative perpetual motion, fake intelligence animation, particle theatre, or activity that implies work when no verified state changed should be avoided.
+
+### 13.4 Mobile translation of dense systems
+
+NUSA may use high-density terminal-like information architecture, but mobile must not be a desktop canvas scaled down.
+
+On Galaxy-class portrait layouts:
+
+1. show the dominant financial/system outcome first;
+2. surface market and AI judgment next;
+3. expose portfolio/risk and active-system state in compact aligned blocks;
+4. push deeper evidence, provenance, logs, and operational detail behind progressive disclosure;
+5. preserve touch ergonomics, readable type, and truthful fold behavior.
+
+Density is valuable only when hierarchy remains immediately understandable.
+
+### 13.5 Canonical screen composition
+
+For major mobile surfaces, prefer a composition in which:
+
+- the first viewport communicates NUSA's investment-intelligence identity immediately;
+- one or two live data/judgment visualizations are the visual hero;
+- compact metrics support the hero rather than competing with it;
+- operational notices remain secondary unless they are safety-critical;
+- missing evidence renders as UNKNOWN / UNAVAILABLE rather than synthetic completion.
+
+### 13.6 Design acceptance
+
+A user-facing implementation is not visually complete merely because it is functional or technically polished.
+
+For major Android surfaces:
+
+- compare the result against the current OWNER-approved MASTER VISUAL REFERENCE;
+- reject generic template-like composition even if CI passes;
+- prefer a small number of coherent, high-quality primitives over many inconsistent widgets;
+- validate the exact APK on a physical Galaxy for typography, spacing, density, contrast, navigation balance, touch ergonomics, and fold behavior;
+- treat actual-device visual acceptance as separate from code and CI acceptance.
+
+`Code PASS != Design PASS`
+`CI PASS != Product PASS`
+`Feature complete != visually complete`
+
+### 13.7 Dense operational modules
+
+NUSA may use compact operational modules to expose multiple subsystems at once when doing so improves situational awareness.
+
+Good candidates include AI judgment, Market, Risk, PAPER, Research, Autopilot, Strategy, Portfolio, and Performance. Each module should compress a small set of authoritative values such as current state, one dominant metric, progress or verification state, and the next material change.
+
+Use this pattern to increase information density without turning the interface into a game HUD.
+
+Absorb:
+
+- compact multi-module status composition;
+- clear boundaries between concurrent subsystems;
+- aligned numeric summaries;
+- visible progress and verification state;
+- side-by-side economic and operational outcomes;
+- live state changes that make the system feel active because the underlying state is active.
+
+Do not absorb:
+
+- pixel or retro-game typography;
+- decorative hacker-console aesthetics;
+- excessive neon;
+- tiny unreadable text used only to create density;
+- fake counters, fake progress, fake speedups, or synthetic activity;
+- visual noise that competes with financial judgment or risk.
+
+The preferred result is an institutional-grade AI investment terminal, not a game interface.
+
 ## Definition of Done
 
 NUSA's UI is successful when a new user can perform ordinary safe tasks without studying the internal architecture, while an expert can inspect progressively deeper evidence and controls without losing semantic accuracy or safety boundaries.
