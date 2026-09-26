@@ -1,0 +1,25 @@
+{
+  "architecture_change": "AC-0018",
+  "issue": 1921,
+  "baseline_main": "79289f9f33f63e6b699bdbc42863c3e458f782a4",
+  "validation_kind": "architecture_metadata_static_review",
+  "checks": {
+    "duplicate_runtime_engine_introduced": false,
+    "duplicate_research_factory_introduced": false,
+    "duplicate_league_introduced": false,
+    "live_authority_expanded": false,
+    "ai_authority_expanded": false,
+    "production_mutation_enabled": false,
+    "external_performance_claims_adopted": false,
+    "existing_ADR_0003_preserved": true,
+    "existing_ADR_0006_preserved": true,
+    "issue_1605_reused": true,
+    "issue_1906_reused": true,
+    "fail_closed_required": true,
+    "protected_OOS_required": true,
+    "negative_evidence_retention_required": true,
+    "replay_idempotency_required": true
+  },
+  "ci_requirement": "exact-head CI must pass before merge; exact-main CI must be re-read after merge",
+  "result": "READY_FOR_PR_REVIEW"
+}
