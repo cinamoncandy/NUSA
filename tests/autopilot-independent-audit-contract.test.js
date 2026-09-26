@@ -182,6 +182,8 @@ test("safe same-workflow Audit PASS dispatches the deterministic Release success
   assert.doesNotMatch(handoff, /id-token: write|pull-requests: write|actions: write/);
   assert.match(handoff, /auditExecutionRunId/);
   assert.match(handoff, /trusted Audit same-workflow execution identity mismatch/);
+  assert.match(handoff, /Re-verify exact PR head and audited base before Release handoff/);
+  assert.match(handoff, /AUDITED_BASE: \\$\{\{ steps\.authority\.outputs\.audited_base \}\}/);
   assert.match(handoff, /\['PASS', 'PASS_WITH_NOTES'\]/);
   assert.match(handoff, /mergeAllowed !== true/);
   assert.match(handoff, /safetyInvariantResult !== 'PASS'/);
