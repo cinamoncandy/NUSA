@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { NusaButton, NusaTextField, StatusChip } from "./components";
+import { NusaButton, StatusChip } from "./components";
 import { InlineNotice } from "./uxPrimitives";
 import { useTheme } from "./ThemeProvider";
 import { UPBIT_LIVE_BASE_URL } from "./upbitLiveClient";
@@ -8,8 +8,6 @@ import { connectUpbitReadOnlyAccount, resetUpbitReadOnlyState, useUpbitReadOnlyS
 
 export function UpbitConnectionPanel() {
   const { theme } = useTheme();
-  const [endpointDraft, setEndpointDraft] = useState(UPBIT_LIVE_BASE_URL);
-  const [tokenDraft, setTokenDraft] = useState("");
   const state = useUpbitReadOnlyState();
 
   const busy = state.status === "LOADING";
@@ -27,14 +25,12 @@ export function UpbitConnectionPanel() {
 
   const connect = async (): Promise<void> => {
     if (busy) return;
-    const result = await connectUpbitReadOnlyAccount(tokenDraft, endpointDraft);
-    if (result.status === "READY" || result.status === "STALE") setTokenDraft("");
+    await connectUpbitReadOnlyAccount(UPBIT_LIVE_BASE_URL);
   };
 
   const disconnect = (): void => {
     if (busy) return;
     resetUpbitReadOnlyState();
-    setTokenDraft("");
   };
 
   return <View style={styles.sectionBlock} testID="settings-upbit-connection">
@@ -46,12 +42,10 @@ export function UpbitConnectionPanel() {
       <StatusChip label="READ ONLY" tone="info" />
     </View>
     <InlineNotice title={label} detail={detail} tone={tone} testID="settings-upbit-connection-summary" />
-    <NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} keyboardType="url" label="Upbit bridge endpoint" value={endpointDraft} onChangeText={setEndpointDraft} placeholder="https://..." returnKeyType="done" testID="settings-upbit-endpoint" />
-    <NusaTextField autoCapitalize="none" autoCorrect={false} editable={!busy} label="Bridge token" value={tokenDraft} onChangeText={setTokenDraft} placeholder="프로세스 메모리에만 유지" returnKeyType="done" secureTextEntry testID="settings-upbit-token" />
-    <Text style={[styles.hint, { color: theme.colors.textMuted }]}>토큰은 저장하지 않고 현재 앱 프로세스 메모리에만 유지합니다. 연결 후 계좌 상태는 30초마다 자동 갱신됩니다. 이 연결은 계정 조회 전용이며 주문·출금 권한을 제공하지 않습니다.</Text>
+    <Text style={[styles.hint, { color: theme.colors.textMuted }]}>별도 토큰 없이 인증된 PAPER 보안 세션을 사용해 자동 연결합니다. 계좌 상태는 30초마다 갱신되며 주문 생성·취소·출금·이체 권한은 없습니다.</Text>
     {monitoring && state.lastSuccessAt != null ? <Text style={[styles.hint, { color: theme.colors.textMuted }]} testID="settings-upbit-last-success">마지막 성공 조회: {new Date(state.lastSuccessAt).toLocaleString("ko-KR")}</Text> : null}
     <View style={styles.row}>
-      <NusaButton disabled={busy} label={busy ? "연결 확인 중..." : "연결 확인"} onPress={() => void connect()} testID="settings-upbit-connect" />
+      <NusaButton disabled={busy} label={busy ? "연결 확인 중..." : "PAPER 세션으로 다시 시도"} onPress={() => void connect()} testID="settings-upbit-connect" />
       <NusaButton disabled={busy || !monitoring} label="연결 해제" onPress={disconnect} tone="neutral" testID="settings-upbit-disconnect" />
     </View>
   </View>;

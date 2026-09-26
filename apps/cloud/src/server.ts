@@ -33,11 +33,23 @@ import {
   handleDesktopSessionRevokeHttp
 } from "./desktopSessionHttp";
 import { MobileSessionService } from "./mobileSessionService";
+import { OwnerDeviceCredentialService } from "./ownerCredential/ownerDeviceCredentialService";
 import {
+  handleOwnerDeviceCredentialAuthenticationChallengeHttp,
+  handleOwnerDeviceCredentialAuthenticationCompleteHttp,
+  handleOwnerDeviceCredentialRegistrationActivateHttp,
+  handleOwnerDeviceCredentialRegistrationChallengeHttp,
+  handleOwnerDeviceCredentialRevokeHttp,
+  handleOwnerPasswordChangeHttp,
+  handleOwnerPasswordSignInHttp,
   handleMobileBootstrapHttp,
   handleMobileBootstrapIssueHttp,
   handleMobileEnrollmentHttp,
   handleMobileMeHttp,
+  handleMobilePairingApproveHttp,
+  handleMobilePairingExchangeHttp,
+  handleMobilePairingStartHttp,
+  handleMobilePairingStatusHttp,
   handleMobileSessionRefreshHttp,
   handleMobileSessionRevokeHttp
 } from "./mobileSessionHttp";
@@ -47,6 +59,32 @@ import { handleEngineeringOperationsHttp, type EngineeringOperationsHttpDependen
 import { handleEvolutionLearningSupervisorHttp, type EvolutionLearningSupervisorHttpDependencies } from "./evolutionLearningSupervisorHttp";
 import { handleUxTelemetryEventHttp } from "./uxTelemetryHttp";
 import type { UxTelemetryStorage } from "./uxTelemetryJournal";
+
+/**
+ * Evidence that the continuous PAPER runtime is alive, not merely that the process answers HTTP.
+ *
+ * The PAPER execution loop is driven by a persistent Upbit public ticker subscription, so it either
+ * runs continuously or it does not run at all. Nothing exposed that distinction: `/health` said
+ * `{ok:true}` whenever the HTTP listener was up, and `/ready` reports database and migration
+ * readiness. A stalled market feed, a loop that had stopped deciding, or a runtime that had been
+ * serving for hours without a single tick all looked identical from outside.
+ *
+ * Only timestamps, counters and a coded error are carried. No price, balance, position, order
+ * detail or credential appears here, because `/health` is unauthenticated by design.
+ */
+export interface CloudRuntimeLivenessSnapshot {
+  readonly startedAt: number;
+  readonly lastHeartbeatAt: number;
+  readonly lastMarketEventAt: number | null;
+  readonly lastPaperDecisionAt: number | null;
+  readonly lastPaperOrderAt: number | null;
+  readonly lastPaperFillAt: number | null;
+  readonly eventCount: number;
+  readonly decisionCount: number;
+  readonly paperOrderCount: number;
+  readonly paperFillCount: number;
+  readonly lastError: string | null;
+}
 
 export interface CloudReadinessSnapshot {
   readonly ok: boolean;
@@ -75,7 +113,10 @@ export interface CloudDashboardServerOptions {
   readonly userAccessRepository?: NusaUserAccessRepository;
   readonly desktopSessionService?: DesktopSessionService;
   readonly mobileSessionService?: MobileSessionService;
+  readonly ownerDeviceCredentialService?: OwnerDeviceCredentialService;
   readonly readiness?: () => CloudReadinessSnapshot;
+  /** Continuous PAPER runtime liveness, surfaced on /health so 24-hour operation is observable. */
+  readonly runtimeLiveness?: () => CloudRuntimeLivenessSnapshot;
   /** Legacy shared limiter override. New callers should inject lanes explicitly. */
   readonly rateLimiter?: BoundedHttpRateLimiter;
   /** Bounds unauthenticated traffic without consuming authenticated-user capacity. */
@@ -186,6 +227,35 @@ const auditHttpResponse = (
   });
 };
 
+const PUBLIC_LIVENESS_TIMESTAMPS = ["startedAt", "lastHeartbeatAt", "lastMarketEventAt", "lastPaperDecisionAt", "lastPaperOrderAt", "lastPaperFillAt"] as const;
+const PUBLIC_LIVENESS_COUNTERS = ["eventCount", "decisionCount", "paperOrderCount", "paperFillCount"] as const;
+const PUBLIC_LIVENESS_ERROR_CODE = /^[A-Z0-9_.:-]{1,160}$/;
+
+/**
+ * `/health` is unauthenticated, so the runtime object is rebuilt here from a fixed allowlist instead
+ * of being passed through. A liveness source that grows an extra field -- a token, an account
+ * identifier, a price -- cannot make it public, and an error that is not a bare code is replaced by
+ * a fixed code rather than published as free text.
+ */
+function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntimeLivenessSnapshot {
+  const source = value as unknown as Record<string, unknown>;
+  const timestamp = (key: string): number | null => {
+    const raw = source[key];
+    return typeof raw === "number" && Number.isFinite(raw) && raw >= 0 ? raw : null;
+  };
+  const counter = (key: string): number => {
+    const raw = source[key];
+    return Number.isSafeInteger(raw) && Number(raw) >= 0 ? Number(raw) : 0;
+  };
+  const rawError = source.lastError;
+  const lastError = rawError === null || rawError === undefined
+    ? null
+    : typeof rawError === "string" && PUBLIC_LIVENESS_ERROR_CODE.test(rawError) ? rawError : "LIVENESS_ERROR_UNCLASSIFIED";
+  const timestamps = Object.fromEntries(PUBLIC_LIVENESS_TIMESTAMPS.map((key) => [key, timestamp(key)]));
+  const counters = Object.fromEntries(PUBLIC_LIVENESS_COUNTERS.map((key) => [key, counter(key)]));
+  return Object.freeze({ ...timestamps, ...counters, lastError }) as unknown as CloudRuntimeLivenessSnapshot;
+}
+
 export function startCloudDashboardServer(options: CloudDashboardServerOptions): CloudDashboardServerHandle {
   if (!Number.isSafeInteger(options.port) || options.port < 1024 || options.port > 65535) throw new Error("invalid cloud dashboard server port");
   const host = options.host ?? "127.0.0.1";
@@ -205,6 +275,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
   }
   const desktopSessionService = options.desktopSessionService ?? (ownedUserDb == null ? undefined : new DesktopSessionService(ownedUserDb, userAccessRepository));
   const mobileSessionService = options.mobileSessionService ?? (ownedUserDb == null ? undefined : new MobileSessionService(ownedUserDb, userAccessRepository));
+  const ownerDeviceCredentialService = options.ownerDeviceCredentialService ?? (ownedUserDb == null || mobileSessionService == null ? undefined : new OwnerDeviceCredentialService(ownedUserDb, userAccessRepository, mobileSessionService));
 
   const ownerPrincipal = options.tokenVerifier.ownerPrincipal;
   if (ownerPrincipal != null) {
@@ -336,7 +407,18 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
     try {
       if (req.url === "/health") {
         if (req.method !== "GET") { respond("health", dashboardJsonResponse(405, { error: "METHOD_NOT_ALLOWED" })); return; }
-        respond("health", dashboardJsonResponse(200, { ok: true, observedAt: new Date().toISOString() }));
+        // `ok` keeps its existing meaning -- the HTTP listener answers -- so existing probes are
+        // unaffected. `capabilities` and `runtime` are both additive: neither replaces a field the
+        // other side introduced, so the merge keeps both rather than choosing between them.
+        // `runtime` appears only when a liveness source is wired, and carries the counters that
+        // show whether the continuous PAPER loop is actually ticking.
+        const liveness = options.runtimeLiveness?.();
+        respond("health", dashboardJsonResponse(200, {
+          ok: true,
+          observedAt: new Date().toISOString(),
+          capabilities: { passwordSignIn: mobileSessionService?.ownerPasswordConfigured() === true },
+          ...(liveness === undefined ? {} : { runtime: publicRuntimeLiveness(liveness) })
+        }));
         return;
       }
 
@@ -385,6 +467,39 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
       if (mobileSessionService != null && req.url === "/v1/mobile/enroll") {
         respond("mobile_enroll", handleMobileEnrollmentHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository }));
         return;
+      }
+      if (mobileSessionService != null && req.url === "/v1/mobile/session/password") {
+        respond("mobile_session_password", handleOwnerPasswordSignInHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository })); return;
+      }
+      if (mobileSessionService != null && req.url === "/v1/mobile/session/password/change") {
+        respond("mobile_session_password_change", handleOwnerPasswordChangeHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository })); return;
+      }
+      if (mobileSessionService != null && req.url === "/v1/mobile/owner-device/registration/challenge") {
+        respond("owner_device_registration_challenge", handleOwnerDeviceCredentialRegistrationChallengeHttp(dashboardRequest, { sessionService: mobileSessionService, ownerDeviceCredentialService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository })); return;
+      }
+      if (mobileSessionService != null && req.url === "/v1/mobile/owner-device/registration/activate") {
+        respond("owner_device_registration_activate", handleOwnerDeviceCredentialRegistrationActivateHttp(dashboardRequest, { sessionService: mobileSessionService, ownerDeviceCredentialService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository })); return;
+      }
+      if (mobileSessionService != null && req.url === "/v1/mobile/owner-device/authentication/challenge") {
+        respond("owner_device_authentication_challenge", handleOwnerDeviceCredentialAuthenticationChallengeHttp(dashboardRequest, { sessionService: mobileSessionService, ownerDeviceCredentialService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository })); return;
+      }
+      if (mobileSessionService != null && req.url === "/v1/mobile/owner-device/authentication/complete") {
+        respond("owner_device_authentication_complete", handleOwnerDeviceCredentialAuthenticationCompleteHttp(dashboardRequest, { sessionService: mobileSessionService, ownerDeviceCredentialService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository })); return;
+      }
+      if (mobileSessionService != null && req.url === "/v1/mobile/owner-device/revoke") {
+        respond("owner_device_revoke", handleOwnerDeviceCredentialRevokeHttp(dashboardRequest, { sessionService: mobileSessionService, ownerDeviceCredentialService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository })); return;
+      }
+      if (mobileSessionService != null && req.url === "/v1/mobile/pairing/start") {
+        respond("mobile_pairing_start", handleMobilePairingStartHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository })); return;
+      }
+      if (mobileSessionService != null && req.url === "/v1/mobile/pairing/status") {
+        respond("mobile_pairing_status", handleMobilePairingStatusHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository })); return;
+      }
+      if (mobileSessionService != null && req.url === "/v1/mobile/pairing/exchange") {
+        respond("mobile_pairing_exchange", handleMobilePairingExchangeHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository })); return;
+      }
+      if (mobileSessionService != null && req.url === "/api/operator/mobile-pairing/approve") {
+        respond("mobile_pairing_approve", handleMobilePairingApproveHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository })); return;
       }
       if (mobileSessionService != null && req.url === "/v1/mobile/session/refresh") {
         respond("mobile_session_refresh", handleMobileSessionRefreshHttp(dashboardRequest, { sessionService: mobileSessionService, legacyTokenVerifier: options.tokenVerifier, userAccessRepository }));

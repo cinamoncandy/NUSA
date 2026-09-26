@@ -17,9 +17,10 @@ import { OrderHistoryView } from "./src/orderHistoryView";
 import { WatchlistRepository } from "./src/watchlist";
 import { DEFAULT_SETTINGS, normalizeSettings, type ThemeSetting } from "./src/settings";
 import { VersionedSettingsRepository } from "./src/persistenceRepositories";
+import { resumePaperConnection } from "./src/paperConnectionSession";
 import { InMemoryDashboardCredentialSession } from "./src/dashboardCredentialSession";
 import { createCloudInvestmentAllocationClient } from "./src/cloudInvestmentAllocationClient";
-import { clearPaperConnectionVerification, getConfiguredPaperEndpoint, isPaperConnectionVerified, restoreConfiguredPaperSession, setConfiguredPaperEndpoint } from "./src/paperConnectionSession";
+import { beginPaperConnectionRecovery, clearPaperConnectionVerification, getConfiguredPaperEndpoint, getPaperSessionState, isPaperConnectionVerified, restoreConfiguredPaperSession, setConfiguredPaperEndpoint, subscribePaperSessionVerified, type PaperSessionState } from "./src/paperConnectionSession";
 import { mobileApprovedSession } from "./src/mobileApprovedSessionBoundary";
 import { loadPersonalPaperOperations, type PersonalPaperOperationsLoadResult } from "./src/personalPaperOperationsClient";
 import { loadShadowOperations, type ShadowOperationsLoadResult } from "./src/shadowOperationsClient";
@@ -33,12 +34,14 @@ import { PaperShadowMonitorView } from "./src/paperShadowMonitorView";
 // PaperLearningMonitorView remains the canonical PAPER monitor rendered by PaperShadowMonitorView.
 import { buildPaperLearningScreen } from "./src/paperLearningScreen";
 import { getLocalPaperLearningReadiness, recordLocalPaperPublicMarkets } from "./src/localPaperLearningProjection";
-import { resolveCanonicalCloudOrigin } from "./src/canonicalOrigin";
+import { effectivePaperEndpoint, resolveCanonicalCloudOrigin } from "./src/canonicalOrigin";
 import type { PublicCandle } from "./src/chartViewModel";
 import type { WatchlistMarket } from "./src/watchlist";
 import { emitUxTelemetryEvent } from "./src/uxTelemetryClient";
 import { screenIdForNavigationState, createUxTelemetrySessionId } from "./src/uxTelemetryScreenTracking";
 import { resolveAndroidBackNavigation } from "./src/androidBackNavigation";
+import { ownerDeviceCredential } from "./src/ownerDeviceCredential";
+import { getOrCreateInstallationId } from "./src/installationIdentity";
 
 const tabs = ["Home", "Markets", "Paper", "Portfolio", "AiSignal"] as const;
 type PrimaryTab = (typeof tabs)[number];
@@ -79,10 +82,11 @@ function PersistedThemeBridge({ children }: Readonly<{ children: React.ReactNode
       if (!active) return;
       const settings = normalizeSettings(stored ?? DEFAULT_SETTINGS);
       const canonical = resolveCanonicalCloudOrigin();
-      setConfiguredPaperEndpoint(settings.paperEndpoint);
-      if (!settings.paperEndpoint && canonical.status === "READY") setConfiguredPaperEndpoint(canonical.origin);
+      // Never apply the raw saved value: "" would transiently unset the canonical origin and read as
+      // an explicit endpoint change that destroys the encrypted PAPER session.
+      setConfiguredPaperEndpoint(effectivePaperEndpoint(settings.paperEndpoint, canonical));
       setMode(themePreference(settings.theme));
-    }).catch(() => { if (active) { setConfiguredPaperEndpoint(""); setMode("dark"); } });
+    }).catch(() => { if (active) setMode("dark"); });
     return () => { active = false; };
   }, [setMode]);
   return <>{children}</>;
@@ -111,10 +115,15 @@ function AuthContextProvider({ children }: Readonly<{ children: React.ReactNode 
       const endpoint = settings.paperEndpoint || (canonical.status === "READY" ? canonical.origin : null);
       if (endpoint == null) return false;
       setConfiguredPaperEndpoint(endpoint);
-      return restoreConfiguredPaperSession(endpoint);
+      // Cold start and the first launch after an app update use the registered DeviceKey too.
+      const native = ownerDeviceCredential();
+      if (native == null) return restoreConfiguredPaperSession(endpoint);
+      return getOrCreateInstallationId(AsyncStorage)
+        .then((deviceId) => restoreConfiguredPaperSession(endpoint, { deviceId, native }))
+        .catch(() => restoreConfiguredPaperSession(endpoint));
     }).then((restored) => {
-      if (active) setStatus(restored ? "SIGNED_IN" : "SIGNED_OUT");
-    }).catch(() => { if (active) { mobileApprovedSession().clearMemory(); setStatus("SIGNED_OUT"); } });
+      if (active) setStatus(restored || getConfiguredPaperEndpoint() != null ? "SIGNED_IN" : "SIGNED_OUT");
+    }).catch(() => { if (active) { mobileApprovedSession().clearMemory(); setStatus(getConfiguredPaperEndpoint() != null ? "SIGNED_IN" : "SIGNED_OUT"); } });
     return () => { active = false; };
   }, []);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -129,6 +138,14 @@ function AuthenticatedApp() {
   const [utilityView, setUtilityView] = useState<UtilityView>(null);
   const [utilityMenuOpen, setUtilityMenuOpen] = useState(false);
   const [operations, setOperations] = useState<PersonalPaperOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "PAPER connection is not configured." });
+  const [initialPaperProjectionResolved, setInitialPaperProjectionResolved] = useState(false);
+  const [paperSessionState, setPaperSessionState] = useState<PaperSessionState>(() => {
+    // AuthContextProvider does not release the authenticated shell until persisted settings and the
+    // cold-start restore have been inspected. If a configured endpoint already exists at that point,
+    // project the canonical coordinator state instead of flashing NOT_CONFIGURED/SETUP for one frame.
+    const endpoint = getConfiguredPaperEndpoint();
+    return endpoint == null ? "NOT_CONFIGURED" : getPaperSessionState();
+  });
   const [shadowOperations, setShadowOperations] = useState<ShadowOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "SHADOW observability is not configured." });
   const [realReadOnlyOperations, setRealReadOnlyOperations] = useState<RealReadOnlyOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "REAL_READ_ONLY observability is not configured." });
   const [liveReadinessOperations, setLiveReadinessOperations] = useState<LiveReadinessOperationsLoadResult>({ status: "NOT_CONFIGURED", reason: "LIVE readiness observability is not configured." });
@@ -184,7 +201,17 @@ function AuthenticatedApp() {
     if (refreshInFlightRef.current) return refreshInFlightRef.current;
     const generation = refreshGenerationRef.current;
     const endpoint = getConfiguredPaperEndpoint();
+    const sessionState = getPaperSessionState();
+    setPaperSessionState(sessionState);
     if (endpoint == null || !isPaperConnectionVerified(endpoint)) {
+      // A foreground DeviceKey restore intentionally clears the process-local VERIFIED flag while
+      // it proves possession again. RECOVERING is therefore not a configuration loss: preserve
+      // the last verified PAPER projections while the runtime remains trading-blocked, then let
+      // subscribePaperSessionVerified() refresh them as soon as the proof completes.
+      if (endpoint != null && sessionState === "RECOVERING") {
+        dispatchRuntime({ type: "RECOVERY_STARTED" });
+        return Promise.resolve();
+      }
       setOperations({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified in Settings before dashboard credentials can be used." });
       setShadowOperations({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified before SHADOW reads." });
       setRealReadOnlyOperations({ status: "NOT_CONFIGURED", reason: "PAPER endpoint must be verified before REAL_READ_ONLY reads." });
@@ -329,10 +356,31 @@ function AuthenticatedApp() {
     const subscription = AppState.addEventListener("change", (nextState) => {
       setAppState(nextState);
       dispatchRuntime({ type: nextState === "active" ? "APP_FOREGROUND" : "APP_BACKGROUND" });
+      // The restore retry backs off to 30s and Android suspends timers while backgrounded, so a
+      // long background spell leaves the PAPER session unrestored with no timer due. Resuming asks
+      // for it again immediately. No token and no owner action: the approved rotating session is
+      // already in secure storage, and a genuinely lapsed one still fails closed.
+      if (nextState === "active") {
+        // Screen unlock can render before AsyncStorage returns the installation id needed for the
+        // silent DeviceKey proof. Project that interval as recovery, not lost configuration: the
+        // registered endpoint/device trust still exist and no owner action is required.
+        if (getConfiguredPaperEndpoint() != null) {
+          beginPaperConnectionRecovery();
+          setPaperSessionState("RECOVERING");
+        }
+        const native = ownerDeviceCredential();
+        if (native == null) resumePaperConnection();
+        else void getOrCreateInstallationId(AsyncStorage).then((deviceId) => resumePaperConnection({ deviceId, native })).catch(() => resumePaperConnection());
+      }
       if (nextState === "active" && runtimeCoordinator.current().recovery === "READY") dispatchRuntime({ type: "RECOVERY_STARTED" });
     });
     return () => subscription.remove();
   }, [dispatchRuntime, runtimeCoordinator]);
+  useEffect(() => {
+    if (authStatus !== "SIGNED_IN") return;
+    // Re-project as soon as a background restore verifies, instead of waiting for the next poll.
+    return subscribePaperSessionVerified(() => { void refresh().catch(() => undefined); });
+  }, [authStatus, refresh]);
   useEffect(() => {
     refreshGenerationRef.current += 1;
     if (authStatus !== "SIGNED_IN" || appState !== "active") return;
@@ -340,7 +388,7 @@ function AuthenticatedApp() {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const scheduleNext = () => { if (cancelled || generation !== refreshGenerationRef.current) return; timer = setTimeout(() => { timer = null; void refresh().catch(() => undefined).finally(scheduleNext); }, PAPER_REFRESH_INTERVAL_MS); };
-    void refresh().catch(() => undefined).finally(scheduleNext);
+    void refresh().catch(() => undefined).finally(() => { setInitialPaperProjectionResolved(true); scheduleNext(); });
     return () => { cancelled = true; refreshGenerationRef.current += 1; if (timer !== null) clearTimeout(timer); };
   }, [appState, authStatus, refresh]);
 
@@ -384,6 +432,11 @@ function AuthenticatedApp() {
   if (authStatus === "CHECKING") return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}><View style={[styles.authContent, { padding: entryProfile.screen.horizontalPadding }]}><WaveMark /><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.authHeading, { color: appTheme.colors.text }]}>로컬 상태 확인 중</Text></View></SafeAreaView>;
   if (authStatus !== "SIGNED_IN") return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}><View style={[styles.authContent, { padding: entryProfile.screen.horizontalPadding }]}><View style={[styles.authPanel, { maxWidth: entryProfile.screen.maxWidth, gap: entryProfile.density.contentGap }]}><View style={styles.authBrand}><WaveMark /><View><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.eyebrow, { color: appTheme.colors.primary }]}>PERSONAL INTELLIGENCE</Text></View></View><Text style={[styles.authHeading, { color: appTheme.colors.text, fontSize: entryProfile.hero.balanceSize * 0.66, letterSpacing: entryProfile.hero.balanceLetterSpacing * 0.35 }]}>개인 PAPER 모드</Text><Text style={[styles.subtitle, { color: appTheme.colors.textMuted, fontSize: entryProfile.type.body, lineHeight: entryProfile.type.bodyLineHeight }]}>개인 기기에서 PAPER 작업공간으로 진입합니다. 서버 자격 증명은 Settings에서 별도로 검증합니다.</Text><View style={[styles.entryBadges, { gap: entryProfile.density.metricGap }]}><StatusChip label="LOCAL ENTRY" tone="neutral" /><StatusChip label="PAPER ONLY" tone="primary" /><StatusChip label="LIVE NONE" tone="info" /></View><NusaButton accessibilityLabel="Start personal mode" label="개인 모드 시작" onPress={signIn} testID="local-entry-submit" /><Text style={[styles.meta, { color: appTheme.colors.textMuted, fontSize: entryProfile.type.meta }]}>이 진입 단계는 계정 인증이 아닙니다. 사용자 신원을 검증하지 않으며 비밀번호를 수집하거나 저장하지 않습니다.</Text></View></View></SafeAreaView>;
 
+  // Do not render owner-action/SETUP projections from placeholder NOT_CONFIGURED state before
+  // the first canonical PAPER refresh has classified the configured endpoint/session. This gate is
+  // projection-only: it grants no credential or transport authority.
+  if (!initialPaperProjectionResolved) return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}><View style={[styles.authContent, { padding: entryProfile.screen.horizontalPadding }]}><WaveMark /><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text><Text style={[styles.authHeading, { color: appTheme.colors.text }]}>PAPER 상태 복구 중</Text></View></SafeAreaView>;
+
   const snapshot = operations.status === "READY" ? operations.snapshot : null;
   const readOnlyError = operations.status === "UNAVAILABLE" ? operations.reason : null;
   const notConfigured = operations.status === "NOT_CONFIGURED" ? operations.reason : null;
@@ -414,7 +467,7 @@ function AuthenticatedApp() {
       : activeTab === "Markets" ? <MarketsView chartError={publicMarkets.chartError} chartErrorDiagnostic={publicMarkets.chartErrorDiagnostic} error={publicMarkets.status === "ERROR" ? publicMarkets.error : null} currentPrice={publicMarkets.currentPrice} market={CHART_MARKET} marketConnectionState={publicMarketConnectionState} marketsStale={publicMarkets.status === "STALE"} onPaperTrade={openPaperTrade} onRefresh={refreshPublicMarkets} rawCandles={publicMarkets.candles === null ? null : [...publicMarkets.candles]} rawMarkets={publicMarkets.markets === null ? null : [...publicMarkets.markets]} refreshing={publicRefreshing} repository={watchlistRepository} stale={publicMarkets.status !== "READY"} />
       : activeTab === "AiSignal" ? <AiView ai={ai} error={readOnlyError} health={snapshot?.health ?? null} killSwitchActive={snapshot?.dashboard.killSwitchActive ?? null} liveAuthority={snapshot?.liveAuthority ?? null} onRefresh={onRefresh} productionMutationAllowed={snapshot?.productionMutationAllowed ?? null} refreshing={refreshing} research={snapshot?.research ?? null} />
       : activeTab === "Order" ? <OrderHistoryView error={readOnlyError} onRefresh={onRefresh} rawOrders={snapshot?.orders ?? null} refreshing={refreshing} />
-      : <HomeView snapshot={snapshot} investmentPercent={investmentPercent} readOnlyError={readOnlyError} notConfigured={notConfigured} refreshing={refreshing} publicMarket={CHART_MARKET} publicMarkets={publicMarkets.markets} publicCandles={publicMarkets.candles} publicCurrentPrice={publicMarkets.currentPrice} publicMarketConnectionState={publicMarketConnectionState} publicMarketStale={publicMarkets.status !== "READY"} onRefresh={onRefresh} onGoSettings={goSettings} onNavigate={navigateHome} onOpenPaperLearning={openPaperLearning} />}
+      : <HomeView snapshot={snapshot} investmentPercent={investmentPercent} readOnlyError={readOnlyError} notConfigured={notConfigured} sessionRecovering={paperSessionState === "RECOVERING"} refreshing={refreshing} publicMarket={CHART_MARKET} publicMarkets={publicMarkets.markets} publicCandles={publicMarkets.candles} publicCurrentPrice={publicMarkets.currentPrice} publicMarketConnectionState={publicMarketConnectionState} publicMarketStale={publicMarkets.status !== "READY"} onRefresh={onRefresh} onGoSettings={goSettings} onNavigate={navigateHome} onOpenPaperLearning={openPaperLearning} />}
 
     <View style={styles.navigationFrame} pointerEvents="box-none">
       <View style={[styles.navigation, { backgroundColor: appTheme.colors.navSurface, borderColor: appTheme.colors.border, shadowColor: appTheme.shadows.md.color }]}>

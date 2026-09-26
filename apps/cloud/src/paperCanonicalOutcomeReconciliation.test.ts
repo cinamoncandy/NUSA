@@ -26,7 +26,7 @@ const baseState = (updatedAt: number, equity: number, fills: readonly PaperFillR
   updatedAt,
 });
 
-const candidateProvenance = (candidateId = "candidate-a") => ({
+const candidateProvenance = (candidateId = "candidate-a", bindingFingerprintSha256 = HASH) => ({
   schemaVersion: 1,
   source: "CIO_DECISION_BINDING",
   decisionAt: 1_400,
@@ -42,7 +42,7 @@ const candidateProvenance = (candidateId = "candidate-a") => ({
     advisoryGeneratedAt: 1_100,
     periodStartAt: 1_200,
     advisoryFingerprintSha256: HASH,
-    bindingFingerprintSha256: HASH,
+    bindingFingerprintSha256,
   },
 } as const);
 
@@ -129,6 +129,20 @@ describe("canonical PAPER outcome reconciliation", () => {
     })), "COST_RECONCILIATION_MISMATCH");
   });
 
+  it("fails closed when one window mixes fills from two bindings of the same candidate id", () => {
+    // Same parameters (candidate id), different strategy version: an earlier binding's working order
+    // filling after a challenger replacement must not be merged into the new binding's outcome.
+    assert.equal(code(() => reconcileCanonicalPaperOutcomeWindow({
+      periodStartAt: START,
+      periodEndAt: END,
+      startState: baseState(START, 1_000),
+      endState: baseState(END, 1_010, [
+        fill(),
+        fill({ id: "fill-2", orderId: "order-2", filledAt: 1_600, candidateProvenance: candidateProvenance("candidate-a", HASH_B) }),
+      ]),
+    })), "CANDIDATE_BINDING_MIXED");
+  });
+
   it("reconciles explicit candidate-bound PAPER execution costs", () => {
     const result = reconcileCanonicalPaperOutcomeWindow({
       periodStartAt: START,
@@ -143,6 +157,20 @@ describe("canonical PAPER outcome reconciliation", () => {
     assert.equal(result.spreadRate, 0);
     assert.equal(result.slippageRate, 0);
     assert.match(result.receiptFingerprint, /^[a-f0-9]{64}$/);
+  });
+
+  it("uses canonical durable fills even when bounded account snapshots no longer retain the period fill", () => {
+    const result = reconcileCanonicalPaperOutcomeWindow({
+      periodStartAt: START,
+      periodEndAt: END,
+      startState: baseState(START, 1_000),
+      endState: baseState(END, 1_010),
+      canonicalFills: [fill()],
+    });
+    assert.equal(result.fillCount, 1);
+    assert.deepEqual(result.candidateIds, ["candidate-a"]);
+    assert.deepEqual(result.executionCostEvidenceIds, ["paper-cost-model:v1"]);
+    assert.equal(result.turnover, 0.1);
   });
 
   it("preserves deterministic aggregate execution-cost provenance", () => {
@@ -181,6 +209,16 @@ describe("canonical PAPER outcome reconciliation", () => {
       startState: baseState(START, 1_000),
       endState: baseState(END, 1_010, [fill(), fill({ id: "fill-2", filledAt: 1_600, executionCostAttribution: attribution({ evidenceFingerprintSha256: HASH_B }) })]),
     })), "EXECUTION_COST_PROVENANCE_CONFLICT");
+  });
+
+  it("fails closed when bounded snapshot fill bytes disagree with canonical durable fill truth", () => {
+    assert.equal(code(() => reconcileCanonicalPaperOutcomeWindow({
+      periodStartAt: START,
+      periodEndAt: END,
+      startState: baseState(START, 1_000),
+      endState: baseState(END, 1_010, [fill({ fee: 0.01 })]),
+      canonicalFills: [fill()],
+    })), "CANONICAL_FILL_LEDGER_STATE_MISMATCH");
   });
 
   it("keeps a no-fill interval explicit without fabricating execution costs", () => {

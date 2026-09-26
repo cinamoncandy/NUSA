@@ -1,14 +1,43 @@
 import { clearDashboardCredentialSession, setDashboardCredentialEndpoint } from "./dashboardCredentialSession";
 import { clearMobileApprovedSessionMemory, mobileApprovedSession } from "./mobileApprovedSessionBoundary";
+import { connectUpbitReadOnlyAccount, resetUpbitReadOnlyState } from "./upbitReadOnlyAccount";
+import type { OwnerDeviceCredentialNative } from "./ownerDeviceCredential";
+import type { MobileApprovedSessionIdentity } from "./mobileApprovedSession";
+
+type SilentContext = Readonly<{ deviceId: string; native: OwnerDeviceCredentialNative }>;
 
 let configuredEndpoint: string | null = null;
 let verifiedEndpoint: string | null = null;
 let restoreGeneration = 0;
 let restoreInFlight: Promise<void> | null = null;
+/** Whether the in-flight restore is a silent DeviceKey proof; a bearer restore never satisfies a silent request. */
+let restoreInFlightSilent = false;
+let restoreInFlightResult: Promise<MobileApprovedSessionIdentity | null> | null = null;
 let restoreRetryTimer: ReturnType<typeof setTimeout> | null = null;
 let restoreRetryAttempts = 0;
+// Foreground wake can require an async installation-id lookup before the DeviceKey restore starts.
+// Keep that bounded interval in the canonical session state so dashboard refreshes cannot overwrite
+// RECOVERING with RECOVERY_REQUIRED while the trusted device is preparing its silent proof.
+let foregroundRecoveryPending = false;
 const RESTORE_RETRY_BASE_MS = 1_000;
 const RESTORE_RETRY_MAX_MS = 30_000;
+const verificationListeners = new Set<() => void>();
+
+/**
+ * Notifies the UI the moment a restore verifies the session. Without it the screen kept showing
+ * the pre-restore "PAPER 연결 필요/재연결 중" state until the next 5 s dashboard poll, so every cold
+ * start and foreground resume looked like a lost authentication that later fixed itself.
+ */
+export function subscribePaperSessionVerified(listener: () => void): () => void {
+  verificationListeners.add(listener);
+  return () => { verificationListeners.delete(listener); };
+}
+
+function notifyVerified(): void {
+  for (const listener of [...verificationListeners]) {
+    try { listener(); } catch { /* a UI listener must not break the restore owner */ }
+  }
+}
 
 function cancelRestoreRetry(): void {
   if (restoreRetryTimer != null) clearTimeout(restoreRetryTimer);
@@ -16,13 +45,18 @@ function cancelRestoreRetry(): void {
   restoreRetryAttempts = 0;
 }
 
-function scheduleRestoreRetry(endpoint: string): void {
+function scheduleRestoreRetry(endpoint: string, force: boolean, silent?: SilentContext): void {
   if (restoreRetryTimer != null || configuredEndpoint !== endpoint || isPaperConnectionVerified(endpoint)) return;
   const delay = Math.min(RESTORE_RETRY_MAX_MS, RESTORE_RETRY_BASE_MS * (2 ** restoreRetryAttempts));
   restoreRetryAttempts += 1;
   restoreRetryTimer = setTimeout(() => {
     restoreRetryTimer = null;
-    if (configuredEndpoint === endpoint && !isPaperConnectionVerified(endpoint)) void restoreApprovedSession(endpoint);
+    // A scheduled retry must repeat the same attempt that failed. Dropping force/silent here
+    // silently downgraded every retry to the bearer-refresh restore() path, so a device whose
+    // silent DeviceKey check failed only transiently never got a second silent attempt -- it
+    // depended on a persisted bearer refresh surviving background/Doze, which foreground restores
+    // never rely on by design.
+    if (configuredEndpoint === endpoint && !isPaperConnectionVerified(endpoint)) void restoreApprovedSession(endpoint, force, silent);
   }, delay);
 }
 
@@ -36,22 +70,73 @@ function clearCredentialMemory(): void {
   clearMobileApprovedSessionMemory();
 }
 
-function restoreApprovedSession(endpoint: string): Promise<void> {
+/**
+ * The single owner of PAPER session restores. Every restore -- settings save, the connect button,
+ * foreground resume, the retry timer, cold start -- goes through here, so there is exactly one
+ * restore at a time per endpoint and one place that decides VERIFIED. A silent DeviceKey request
+ * supersedes an in-flight bearer restore (MobileApprovedSession lets that bearer restore settle
+ * and fences it off); any other request joins the restore already running.
+ */
+function startRestore(endpoint: string, force: boolean, silent?: SilentContext): Promise<MobileApprovedSessionIdentity | null> {
+  const wantsSilent = force && silent != null;
+  if (restoreInFlightResult != null && (restoreInFlightSilent || !wantsSilent)) return restoreInFlightResult;
   const generation = ++restoreGeneration;
-  const operation = mobileApprovedSession().restore(endpoint).then((identity) => {
+  const result = (async () => {
+    // Foreground recovery must not trust the process-local VERIFIED flag as proof that the
+    // credential survived hours of Android background/Doze. Prefer a fresh hardware-bound
+    // DeviceKey challenge whenever the adapter is available; otherwise retain the existing
+    // rotating-session restore path for platforms without that adapter.
+    if (wantsSilent) return mobileApprovedSession().restoreWithSilentDevice(endpoint, silent.deviceId, silent.native);
+    return mobileApprovedSession().restore(endpoint);
+  })();
+  const operation = result.then((identity) => {
     if (generation !== restoreGeneration || configuredEndpoint !== endpoint) return;
     if (identity != null) {
       verifiedEndpoint = endpoint;
       cancelRestoreRetry();
+      notifyVerified();
+      // The Upbit relay uses this same PAPER session and has no separate mobile
+      // credential. Re-establish its GET-only monitor after a cold-start restore.
+      void connectUpbitReadOnlyAccount(endpoint);
     } else if (mobileApprovedSession().shouldRetryRestore()) {
-      scheduleRestoreRetry(endpoint);
+      scheduleRestoreRetry(endpoint, force, silent);
     }
   }).catch(() => {
     if (generation === restoreGeneration && configuredEndpoint === endpoint) verifiedEndpoint = null;
   });
   restoreInFlight = operation;
-  void operation.finally(() => { if (restoreInFlight === operation) restoreInFlight = null; });
-  return operation;
+  restoreInFlightSilent = wantsSilent;
+  restoreInFlightResult = result;
+  void operation.finally(() => {
+    if (restoreInFlight !== operation) return;
+    restoreInFlight = null;
+    restoreInFlightSilent = false;
+    restoreInFlightResult = null;
+    // A transient failure may have scheduled an immediate retry (tests and foreground wakeups can
+    // collapse timers to a microtask). If that callback observed this operation as in-flight it
+    // safely no-oped; re-arm once after clearing the single-flight slot so recovery cannot stall.
+    if (configuredEndpoint === endpoint && !isPaperConnectionVerified(endpoint) && mobileApprovedSession().shouldRetryRestore()) scheduleRestoreRetry(endpoint, force, silent);
+  });
+  return result;
+}
+
+function restoreApprovedSession(endpoint: string, force = false, silent?: SilentContext): Promise<void> {
+  const result = startRestore(endpoint, force, silent);
+  return restoreInFlight ?? result.then(() => undefined, () => undefined);
+}
+
+/**
+ * Explicit owner connect with the registered silent DeviceKey. Goes through the same single
+ * restore owner as every background path, so a connect press can no longer race a restore started
+ * by saving Settings. Resolves the restored identity (or null) and rejects with the restore's
+ * failure so the caller can classify it; VERIFIED is still granted only by
+ * markPaperConnectionVerified() after the PAPER projection confirms READY.
+ */
+export function connectPaperSessionSilently(value: string, silent: SilentContext): Promise<MobileApprovedSessionIdentity | null> {
+  const endpoint = normalizeEndpoint(value);
+  if (endpoint == null || endpoint !== configuredEndpoint) return Promise.reject(new Error("PAPER endpoint verification mismatch."));
+  cancelRestoreRetry();
+  return startRestore(endpoint, true, silent);
 }
 
 /** Process-local mirror of the persisted non-secret PAPER endpoint. Endpoint identity changes revoke all ephemeral access credentials. */
@@ -71,10 +156,36 @@ export function setConfiguredPaperEndpoint(value: string): void {
 
 export function getConfiguredPaperEndpoint(): string | null { return configuredEndpoint; }
 
+export function beginPaperConnectionRecovery(): void {
+  if (configuredEndpoint != null) foregroundRecoveryPending = true;
+}
+
+/**
+ * Session state for projection only. An unverified session on a configured endpoint is not a
+ * setup problem while a restore is in flight or a bounded retry is armed: the device is still
+ * trusted and recovery needs no owner input. Only RECOVERY_REQUIRED (no restore running and none
+ * scheduled, e.g. after a definitive 401/403 rejection) means the owner must act in Settings.
+ * Transport loss, network loss and background suspension must never surface as RECOVERY_REQUIRED
+ * by themselves; that classification belongs to mobileApprovedSession, not to the UI.
+ */
+export type PaperSessionState = "NOT_CONFIGURED" | "VERIFIED" | "RECOVERING" | "RECOVERY_REQUIRED";
+export function getPaperSessionState(): PaperSessionState {
+  if (configuredEndpoint == null) return "NOT_CONFIGURED";
+  if (isPaperConnectionVerified(configuredEndpoint)) return "VERIFIED";
+  if (foregroundRecoveryPending || restoreInFlight != null || restoreRetryTimer != null) return "RECOVERING";
+  return "RECOVERY_REQUIRED";
+}
+
 export function markPaperConnectionVerified(value: string): void {
   const endpoint = normalizeEndpoint(value);
   if (endpoint == null || endpoint !== configuredEndpoint) throw new Error("PAPER endpoint verification mismatch.");
+  // An explicit verification supersedes any restore still in flight: without advancing the
+  // generation, a slower restore started earlier (e.g. by saving Settings) could fail afterwards
+  // and clear this verification, so a successful connect had to be pressed again.
+  restoreGeneration += 1;
+  cancelRestoreRetry();
   verifiedEndpoint = endpoint;
+  void connectUpbitReadOnlyAccount(endpoint);
 }
 
 export function clearPaperConnectionVerification(): void { verifiedEndpoint = null; restoreGeneration += 1; cancelRestoreRetry(); }
@@ -84,22 +195,62 @@ export function isPaperConnectionVerified(value = configuredEndpoint): boolean {
  * a restored Cloud session, so entry readiness is independent from Cloud verification.
  * Callers that need Cloud authority must still require isPaperConnectionVerified().
  */
-export async function restoreConfiguredPaperSession(value = configuredEndpoint): Promise<boolean> {
+export async function restoreConfiguredPaperSession(value = configuredEndpoint, silent?: SilentContext): Promise<boolean> {
   const endpoint = value == null ? null : normalizeEndpoint(value);
   if (endpoint == null) return true;
   if (endpoint !== configuredEndpoint) return false;
   if (!isPaperConnectionVerified(endpoint)) {
-    if (restoreInFlight != null) await restoreInFlight;
+    // Cold start (including the first launch after an in-place app update) gets no AppState
+    // "change" event, so this is the only restore it runs. With the DeviceKey adapter available it
+    // must be the same silent restore foreground resume uses: an expired refresh session is not a
+    // reason to send a still-registered device to Settings. A silent request supersedes the bearer
+    // restore setConfiguredPaperEndpoint may have just started.
+    if (silent != null) await startRestore(endpoint, true, silent).catch(() => null);
+    else if (restoreInFlight != null) await restoreInFlight;
     else await restoreApprovedSession(endpoint);
   }
   return true;
 }
+/**
+ * Re-establishes the PAPER session when the app returns to the foreground.
+ *
+ * The restore retry backs off to 30 seconds, and Android suspends timers while the app is
+ * backgrounded, so a device that spends hours in the background comes back with either a timer the
+ * OS never fired or one that is capped at its slowest interval. The owner then opens the app to a
+ * disconnected PAPER server and has no action available except reconnecting by hand, which is the
+ * thing the paired session exists to avoid.
+ *
+ * Resuming resets the backoff and asks for a restore immediately. It needs no token and no owner
+ * interaction: the device already holds an approved, rotating session in Android secure storage,
+ * and this only exchanges it again. A session that has genuinely lapsed still fails closed, and the
+ * device must be re-approved by an ACTIVE OWNER exactly as before.
+ */
+export function resumePaperConnection(silent?: SilentContext): void {
+  const endpoint = configuredEndpoint;
+  if (endpoint == null) return;
+  // A VERIFIED flag is only a process-local observation. Android can preserve it while the app is
+  // backgrounded long enough for the actual access credential to expire. Always revalidate on
+  // foreground; restoreApprovedSession is single-flight so duplicate lifecycle events coalesce.
+  cancelRestoreRetry();
+  // A process-local VERIFIED observation is stale once foreground revalidation begins. Clear it
+  // before the forced restore so a transient null result can enter the bounded retry path instead
+  // of being suppressed as "already verified". Fresh identity is the only path that marks it true.
+  verifiedEndpoint = null;
+  const restore = restoreApprovedSession(endpoint, true, silent);
+  foregroundRecoveryPending = false;
+  void restore;
+}
+
 export function clearConfiguredPaperEndpoint(): void {
+  foregroundRecoveryPending = false;
   configuredEndpoint = null;
   verifiedEndpoint = null;
   restoreGeneration += 1;
   restoreInFlight = null;
+  restoreInFlightSilent = false;
+  restoreInFlightResult = null;
   cancelRestoreRetry();
   setDashboardCredentialEndpoint(null);
   clearCredentialMemory();
+  resetUpbitReadOnlyState();
 }

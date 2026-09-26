@@ -24,15 +24,20 @@ test("Settings keeps Cloud PAPER setup separate from the supervision surfaces", 
   assert.match(settings, /settings-paper-disconnect/);
   assert.match(settings, /markPaperConnectionVerified/);
   assert.match(settings, /clearPaperConnectionVerification/);
-  assert.match(settings, /bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);
+  assert.match(settings, /복구 옵션/);
+  assert.match(settings, /1회용 복구 키/);
+  assert.match(settings, /6자리 코드로 복구 연결/);
+  assert.doesNotMatch(settings, /bootstrap token은 저장하지 않고 한 번만 세션으로 교환합니다/);
   assert.doesNotMatch(app, /NusaTextField/);
 });
 
 test("cold start restores the saved endpoint before the first dashboard refresh", () => {
   const app = read("apps/mobile/App.tsx");
   const settings = read("apps/mobile/src/settingsView.tsx");
-  assert.match(app, /setConfiguredPaperEndpoint\(settings\.paperEndpoint\)/);
-  assert.match(app, /setConfiguredPaperEndpoint\(""\)/);
+  // Cold start applies the effective endpoint (saved, else canonical). Applying the raw saved "" or
+  // clearing on a load failure flipped the endpoint and destroyed the PAPER session after an app update.
+  assert.match(app, /setConfiguredPaperEndpoint\(effectivePaperEndpoint\(settings\.paperEndpoint, canonical\)\)/);
+  assert.doesNotMatch(app, /setConfiguredPaperEndpoint\(""\)/);
   assert.match(settings, /setConfiguredPaperEndpoint\(next\.paperEndpoint\)/);
   assert.match(settings, /setConfiguredPaperEndpoint\(normalized\.paperEndpoint\)/);
 });

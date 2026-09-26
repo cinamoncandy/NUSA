@@ -1,6 +1,7 @@
-import baseWorker, { handleCodingExecute, type Env as BaseEnv } from "./index";
-import { acquirePersistentExecution, ExecutionCoordinator, releasePersistentExecution } from "./executionCoordinator";
+import baseWorker, { globalReleaseFreezeActive, handleCodingExecute, type Env as BaseEnv } from "./index";
+import { acquirePersistentExecution, ExecutionCoordinator, readPersistentControlPlaneHold, readProviderCapacityWait, recordProviderCapacityWait, releasePersistentExecution } from "./executionCoordinator";
 import {
+  CodingRunnerEvidenceError,
   executeCodingRunner,
   validateCodingRunnerRequest,
   verifyCodingRunnerRequestAgainstGitHub,
@@ -10,18 +11,27 @@ import {
   type CodingRunnerRequest,
 } from "./codingRunner";
 import { GithubValidatedPatchPublisher } from "./githubValidatedPatchPublisher";
-import { verifyGithubActionsOidcToken } from "./githubActionsOidc";
-import { executeIndependentAudit, validateAuditRunnerRequest } from "./auditRunner";
+import { verifyGithubActionsOidcToken, verifyGithubReleaseControlOidcToken } from "./githubActionsOidc";
+import { AUDIT_PROVIDER, executeIndependentAudit, executeProviderGatedAudit, validateAuditRunnerRequest } from "./auditRunner";
+import { classifyAiBudgetState } from "./aiBudgetState";
 
 export { ExecutionCoordinator };
 
-interface WorkerEnv extends BaseEnv {
+export interface WorkerEnv extends BaseEnv {
   NUSA_AI_AUDIT_MODEL?: string;
+}
+
+interface ReleaseControlPlaneCheckRequest {
+  readonly repository: string;
+  readonly prNumber: number;
+  readonly headSha: string;
+  readonly baseSha: string;
 }
 
 const AUDIT_EXECUTION_LEASE_MS = 5 * 60 * 1000;
 const MAX_VALIDATED_FILE_BYTES = 128_000;
 const SAFE_AUTOPILOT_PATH = /^apps\/autopilot\/[A-Za-z0-9._/-]+$/;
+const SHA40 = /^[0-9a-f]{40}$/i;
 const json = (body: unknown, status = 200): Response => new Response(JSON.stringify(body), {
   status,
   headers: { "content-type": "application/json; charset=utf-8" },
@@ -59,6 +69,23 @@ async function verifyAuditAuthorization(provided: string | undefined, allowedRep
   }
 }
 
+function validateReleaseControlPlaneCheckRequest(value: unknown, allowedRepository: string): ReleaseControlPlaneCheckRequest {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("RELEASE_CONTROL_REQUEST_INVALID");
+  const request = value as Partial<ReleaseControlPlaneCheckRequest>;
+  if (request.repository !== allowedRepository
+    || !Number.isSafeInteger(request.prNumber) || Number(request.prNumber) <= 0
+    || typeof request.headSha !== "string" || !SHA40.test(request.headSha)
+    || typeof request.baseSha !== "string" || !SHA40.test(request.baseSha)) {
+    throw new Error("RELEASE_CONTROL_REQUEST_INVALID");
+  }
+  return Object.freeze({
+    repository: request.repository,
+    prNumber: Number(request.prNumber),
+    headSha: request.headSha.toLowerCase(),
+    baseSha: request.baseSha.toLowerCase(),
+  });
+}
+
 class ProposalCaptureRuntime implements CodingRuntime {
   readonly name = "github-actions-proposal";
   proposal?: CodingProposal;
@@ -93,7 +120,7 @@ function validatePublishedFiles(value: unknown): readonly { readonly path: strin
   return Object.freeze([Object.freeze({ path, content })]);
 }
 
-async function handleCodingProposal(request: Request, env: WorkerEnv): Promise<Response> {
+export async function handleCodingProposal(request: Request, env: WorkerEnv): Promise<Response> {
   const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || "cinamoncandy/NUSA";
   const provided = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
   if (!await verifyCodingAuthorization(provided, env.NUSA_CODING_RUNNER_TOKEN?.trim(), allowedRepository)) {
@@ -103,7 +130,49 @@ async function handleCodingProposal(request: Request, env: WorkerEnv): Promise<R
   try {
     const runnerRequest = validateCodingRunnerRequest(await request.json(), allowedRepository);
     const capture = new ProposalCaptureRuntime();
-    const result = await executeCodingRunner(runnerRequest, env, undefined, capture);
+    const coordinator = env.NUSA_EXECUTION_COORDINATOR;
+    const result = await executeCodingRunner(runnerRequest, env, undefined, capture, undefined, {
+      maxProposalAttempts: 1,
+      // /coding/execute and /coding/propose are separate entry points onto the same Workers AI
+      // budget as independent Audit; without this, a proposal request never saw a provider stop
+      // recorded by the other entry points, and never recorded its own, so the shared budget kept
+      // taking real calls from whichever entry point a distinct task happened to arrive through.
+      ...(coordinator ? { providerWaitUntil: async () => (await readProviderCapacityWait(coordinator, "workers-ai"))?.nextRetryAt ?? null } : {}),
+    });
+    if (result.status === "BLOCKED_RATE_LIMIT") {
+      if (coordinator && result.provider === "workers-ai" && result.stopReason && result.stopReason !== "WAITING_PROVIDER_CAPACITY" && Number.isSafeInteger(result.nextRetryAt)) {
+        const stoppedAt = Date.now();
+        try {
+          await recordProviderCapacityWait(coordinator, {
+            schemaVersion: 1,
+            taskId: `proposal:${runnerRequest.dedupeKey}`,
+            executionId: runnerRequest.executionId,
+            provider: "workers-ai",
+            headSha: runnerRequest.headSha,
+            stopReason: result.stopReason,
+            stoppedAt,
+            attemptCount: 1,
+            lastFailure: result.reason ?? result.stopReason,
+            nextRetryAt: result.nextRetryAt as number,
+            resumeCondition: result.resumeCondition ?? "provider-capacity-and-exact-head-revalidation",
+            dedupeKey: runnerRequest.dedupeKey,
+            evidenceRef: `proposal-evidence:${runnerRequest.executionId}`,
+          });
+        } catch {
+          console.error(JSON.stringify({ event: "NUSA_CODING_PROPOSAL_PROVIDER_WAIT_RECORD_FAILED", executionId: runnerRequest.executionId, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }));
+        }
+      }
+      return json({
+        accepted: false,
+        status: "CODING_PROPOSAL_FAILED_CLOSED",
+        error: result.reason ?? "WAITING_PROVIDER_CAPACITY",
+        providerStopReason: result.stopReason ?? null,
+        nextRetryAt: result.nextRetryAt ?? null,
+        liveAuthority: "NONE",
+        productionMutationAllowed: false,
+        aiAuthority: "ZERO_AUTHORITY",
+      }, 409);
+    }
     if (result.status !== "EXECUTION_ACCEPTED" || !capture.proposal?.patch.trim()) {
       throw new Error(result.reason || "CODING_PROPOSAL_UNAVAILABLE");
     }
@@ -122,6 +191,7 @@ async function handleCodingProposal(request: Request, env: WorkerEnv): Promise<R
       accepted: false,
       status: "CODING_PROPOSAL_FAILED_CLOSED",
       error: error instanceof Error ? error.message : "CODING_PROPOSAL_FAILED",
+      failureEvidence: error instanceof CodingRunnerEvidenceError ? error.evidence : null,
       liveAuthority: "NONE",
       productionMutationAllowed: false,
       aiAuthority: "ZERO_AUTHORITY",
@@ -169,11 +239,60 @@ async function handleCodingPublish(request: Request, env: WorkerEnv): Promise<Re
       accepted: false,
       status: "CODING_PUBLISH_FAILED_CLOSED",
       error: error instanceof Error ? error.message : "CODING_PUBLISH_FAILED",
+      failureEvidence: error instanceof CodingRunnerEvidenceError ? error.evidence : null,
       liveAuthority: "NONE",
       productionMutationAllowed: false,
       aiAuthority: "ZERO_AUTHORITY",
     }, 409);
   }
+}
+
+async function handleReleaseControlPlaneCheck(request: Request, env: WorkerEnv): Promise<Response> {
+  const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || "cinamoncandy/NUSA";
+  const provided = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
+  if (!provided) {
+    return json({ accepted: false, status: "RELEASE_CONTROL_FAILED_CLOSED", error: "RELEASE_CONTROL_UNAUTHORIZED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 401);
+  }
+  try {
+    await verifyGithubReleaseControlOidcToken(provided, allowedRepository);
+  } catch {
+    return json({ accepted: false, status: "RELEASE_CONTROL_FAILED_CLOSED", error: "RELEASE_CONTROL_UNAUTHORIZED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 401);
+  }
+  if (!env.NUSA_EXECUTION_COORDINATOR) {
+    return json({ accepted: false, status: "RELEASE_CONTROL_FAILED_CLOSED", error: "PERSISTENT_EXECUTION_COORDINATOR_REQUIRED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 503);
+  }
+
+  let identity: ReleaseControlPlaneCheckRequest;
+  try {
+    identity = validateReleaseControlPlaneCheckRequest(await request.json(), allowedRepository);
+  } catch (error) {
+    return json({ accepted: false, status: "RELEASE_CONTROL_FAILED_CLOSED", error: error instanceof Error ? error.message : "RELEASE_CONTROL_REQUEST_INVALID", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 400);
+  }
+
+  if (globalReleaseFreezeActive(env)) {
+    return json({ accepted: false, status: "RELEASE_CONTROL_FAILED_CLOSED", error: "GLOBAL_RELEASE_FREEZE_ACTIVE", ...identity, globalReleaseFreeze: true, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 409);
+  }
+
+  let persistedHold;
+  try {
+    persistedHold = await readPersistentControlPlaneHold(env.NUSA_EXECUTION_COORDINATOR, identity);
+  } catch {
+    return json({ accepted: false, status: "RELEASE_CONTROL_FAILED_CLOSED", error: "CONTROL_PLANE_HOLD_READ_FAILED", ...identity, globalReleaseFreeze: false, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 409);
+  }
+  if (persistedHold?.state === "ACTIVE") {
+    return json({ accepted: false, status: "RELEASE_CONTROL_FAILED_CLOSED", error: "CONTROL_PLANE_HOLD_ACTIVE", ...identity, holdState: "ACTIVE", holdId: persistedHold.hold.holdId, globalReleaseFreeze: false, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 409);
+  }
+
+  return json({
+    accepted: true,
+    status: "RELEASE_CONTROL_CLEAR",
+    ...identity,
+    holdState: persistedHold?.state ?? "NONE",
+    globalReleaseFreeze: false,
+    liveAuthority: "NONE",
+    productionMutationAllowed: false,
+    aiAuthority: "ZERO_AUTHORITY",
+  });
 }
 
 async function handleAuditExecute(request: Request, env: WorkerEnv): Promise<Response> {
@@ -186,11 +305,29 @@ async function handleAuditExecute(request: Request, env: WorkerEnv): Promise<Res
     return json({ accepted: false, status: "AUDIT_FAILED_CLOSED", error: "PERSISTENT_EXECUTION_COORDINATOR_REQUIRED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 503);
   }
 
+  const auditGithubToken = request.headers.get("x-nusa-audit-github-token")?.trim();
+  if (!auditGithubToken) {
+    return json({ accepted: false, status: "AUDIT_FAILED_CLOSED", error: "AUDIT_GITHUB_APP_TOKEN_NOT_PROVIDED", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 401);
+  }
+
   let auditRequest;
   try {
     auditRequest = validateAuditRunnerRequest(await request.json(), allowedRepository);
   } catch (error) {
     return json({ accepted: false, status: "AUDIT_FAILED_CLOSED", error: error instanceof Error ? error.message : "AUDIT_RUNNER_REQUEST_INVALID", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 400);
+  }
+
+  if (globalReleaseFreezeActive(env)) {
+    return json({ accepted: false, status: "AUDIT_FAILED_CLOSED", error: "GLOBAL_RELEASE_FREEZE_ACTIVE", reviewedHeadSha: auditRequest.headSha, baseSha: auditRequest.baseSha, workflowRunId: auditRequest.workflowRunId, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 409);
+  }
+  let persistedHold;
+  try {
+    persistedHold = await readPersistentControlPlaneHold(env.NUSA_EXECUTION_COORDINATOR, { repository: auditRequest.repository, prNumber: auditRequest.prNumber, headSha: auditRequest.headSha, baseSha: auditRequest.baseSha });
+  } catch {
+    return json({ accepted: false, status: "AUDIT_FAILED_CLOSED", error: "CONTROL_PLANE_HOLD_READ_FAILED", reviewedHeadSha: auditRequest.headSha, baseSha: auditRequest.baseSha, workflowRunId: auditRequest.workflowRunId, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 409);
+  }
+  if (persistedHold?.state === "ACTIVE") {
+    return json({ accepted: false, status: "AUDIT_FAILED_CLOSED", error: "CONTROL_PLANE_HOLD_ACTIVE", reviewedHeadSha: auditRequest.headSha, baseSha: auditRequest.baseSha, workflowRunId: auditRequest.workflowRunId, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }, 409);
   }
 
   const startedAt = Date.now();
@@ -214,8 +351,27 @@ async function handleAuditExecute(request: Request, env: WorkerEnv): Promise<Res
   }
 
   try {
-    const result = await executeIndependentAudit(auditRequest, env);
-    return json({ accepted: true, ...result }, 200);
+    const coordinator = env.NUSA_EXECUTION_COORDINATOR;
+    const gated = await executeProviderGatedAudit(auditRequest, {
+      readProviderWait: () => readProviderCapacityWait(coordinator, AUDIT_PROVIDER),
+      recordProviderWait: (stop) => recordProviderCapacityWait(coordinator, stop),
+      runAudit: () => executeIndependentAudit(auditRequest, { ...env, NUSA_AUDIT_GITHUB_TOKEN: auditGithubToken }),
+      now: () => Date.now(),
+    });
+    if (gated.status === "AUDITED") return json({ accepted: true, ...gated.result }, 200);
+    return json({
+      accepted: false,
+      status: "AUDIT_FAILED_CLOSED",
+      error: gated.status === "WAITING_PROVIDER_CAPACITY" ? "WAITING_PROVIDER_CAPACITY" : "PROVIDER_CAPACITY_STATE_UNAVAILABLE",
+      // Diagnostic only: does not change the gate above, which already blocked the call.
+      ...(gated.status === "WAITING_PROVIDER_CAPACITY" ? { providerStopReason: gated.reason, nextRetryAt: gated.nextRetryAt, aiBudgetState: classifyAiBudgetState({ stopReason: gated.reason, nextRetryAt: gated.nextRetryAt }, Date.now()) } : {}),
+      reviewedHeadSha: auditRequest.headSha,
+      baseSha: auditRequest.baseSha,
+      workflowRunId: auditRequest.workflowRunId,
+      liveAuthority: "NONE",
+      productionMutationAllowed: false,
+      aiAuthority: "ZERO_AUTHORITY",
+    }, 409);
   } catch (error) {
     return json({
       accepted: false,
@@ -244,6 +400,10 @@ async function handleAuditExecute(request: Request, env: WorkerEnv): Promise<Res
 const worker = {
   async fetch(request: Request, env: WorkerEnv): Promise<Response> {
     const url = new URL(request.url);
+
+    if (request.method === "POST" && url.pathname === "/control-plane/release-check") {
+      return handleReleaseControlPlaneCheck(request, env);
+    }
 
     if (request.method === "POST" && url.pathname === "/audit/execute") {
       return handleAuditExecute(request, env);

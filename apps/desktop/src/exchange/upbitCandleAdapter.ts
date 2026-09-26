@@ -1,9 +1,29 @@
-import type { ResearchCandle } from "../cloud/researchDataset";
+import type { ResearchCandle, ResearchInterval } from "../cloud/researchDataset";
 
 /**
  * Shape of a single element from Upbit's public GET /v1/candles/days response.
  * https://docs.upbit.com -- public market data only, no API key required.
  */
+/**
+ * Upbit intervals this adapter can map. The research dataset already validates and checksums
+ * every one of these (researchDataset.ts INTERVAL_MS); only this adapter and the run script
+ * were previously locked to daily candles.
+ */
+export type UpbitResearchInterval = Extract<ResearchInterval, "1d" | "60m" | "240m">;
+
+export const UPBIT_INTERVAL_MS: Readonly<Record<UpbitResearchInterval, number>> = Object.freeze({
+  "1d": 86_400_000,
+  "60m": 3_600_000,
+  "240m": 14_400_000,
+});
+
+/** Public request path for one interval. Minute candles use a different Upbit endpoint. */
+export function upbitCandleRequestPath(interval: UpbitResearchInterval): string {
+  if (interval === "1d") return "/v1/candles/days";
+  if (interval === "60m") return "/v1/candles/minutes/60";
+  return "/v1/candles/minutes/240";
+}
+
 export interface UpbitDayCandle {
   readonly market: string;
   readonly candle_date_time_utc: string;
@@ -12,6 +32,11 @@ export interface UpbitDayCandle {
   readonly low_price: number;
   readonly trade_price: number;
   readonly candle_acc_trade_volume: number;
+}
+
+export interface MapUpbitCandlesOptions extends MapUpbitDayCandlesOptions {
+  /** Interval the raw response was fetched at. Defaults to the historical daily behaviour. */
+  readonly interval?: UpbitResearchInterval;
 }
 
 export interface MapUpbitDayCandlesOptions {
@@ -24,6 +49,15 @@ export interface MapUpbitDayCandlesOptions {
   readonly maxCount?: number;
 }
 
+export interface UpbitCandleFreshness {
+  readonly asOf: number;
+  readonly expectedLatestCloseTime: number;
+  readonly actualLatestCloseTime: number;
+  /** Whole intervals by which the series trails the latest interval that could have closed. */
+  readonly lagIntervals: number;
+  readonly fresh: boolean;
+}
+
 export interface UpbitDailyCandleFreshness {
   readonly asOf: number;
   readonly expectedLatestCloseTime: number;
@@ -32,34 +66,50 @@ export interface UpbitDailyCandleFreshness {
   readonly fresh: boolean;
 }
 
-const DAY_MS = 86_400_000;
 
 /**
  * Evaluates whether a completed UTC daily series reaches the latest interval that could have
  * fully closed by `asOf`. No arbitrary age threshold is used: freshness is aligned to the
  * exchange's UTC daily interval boundary. Callers decide whether a stale result is fatal.
  */
-export function evaluateUpbitDailyCandleFreshness(
+export function evaluateUpbitCandleFreshness(
   candles: readonly ResearchCandle[],
   asOf: number,
-): UpbitDailyCandleFreshness {
+  interval: UpbitResearchInterval = "1d",
+): UpbitCandleFreshness {
+  const intervalMs = UPBIT_INTERVAL_MS[interval];
   if (!Number.isFinite(asOf)) throw new Error("asOf must be finite");
-  if (candles.length === 0) throw new Error("daily candle freshness requires at least one candle");
+  if (candles.length === 0) throw new Error("candle freshness requires at least one candle");
   const actualLatestCloseTime = Math.max(...candles.map((candle) => candle.closeTime));
-  const expectedLatestCloseTime = Math.floor(asOf / DAY_MS) * DAY_MS;
+  const expectedLatestCloseTime = Math.floor(asOf / intervalMs) * intervalMs;
   if (!Number.isFinite(actualLatestCloseTime) || actualLatestCloseTime > asOf) {
-    throw new Error("daily candle freshness requires completed finite candle timestamps");
+    throw new Error("candle freshness requires completed finite candle timestamps");
   }
   const lagMs = expectedLatestCloseTime - actualLatestCloseTime;
-  if (lagMs < 0 || lagMs % DAY_MS !== 0) {
-    throw new Error("daily candle freshness requires UTC-aligned daily close timestamps");
+  if (lagMs < 0 || lagMs % intervalMs !== 0) {
+    throw new Error("candle freshness requires UTC-aligned interval close timestamps");
   }
   return Object.freeze({
     asOf,
     expectedLatestCloseTime,
     actualLatestCloseTime,
-    lagDays: lagMs / DAY_MS,
+    lagIntervals: lagMs / intervalMs,
     fresh: lagMs === 0,
+  });
+}
+
+/** Daily-named wrapper kept so existing callers and their error strings are unchanged. */
+export function evaluateUpbitDailyCandleFreshness(
+  candles: readonly ResearchCandle[],
+  asOf: number,
+): UpbitDailyCandleFreshness {
+  const generic = evaluateUpbitCandleFreshness(candles, asOf, "1d");
+  return Object.freeze({
+    asOf: generic.asOf,
+    expectedLatestCloseTime: generic.expectedLatestCloseTime,
+    actualLatestCloseTime: generic.actualLatestCloseTime,
+    lagDays: generic.lagIntervals,
+    fresh: generic.fresh,
   });
 }
 
@@ -72,8 +122,10 @@ export function evaluateUpbitDailyCandleFreshness(
  */
 export function mapUpbitDayCandlesToResearchCandles(
   raw: readonly UpbitDayCandle[],
-  options: MapUpbitDayCandlesOptions = {},
+  options: MapUpbitCandlesOptions = {},
 ): readonly ResearchCandle[] {
+  const interval = options.interval ?? "1d";
+  const intervalMs = UPBIT_INTERVAL_MS[interval];
   if (raw.length === 0) throw new Error("upbit candle response is empty");
   if (options.completedBy != null && !Number.isFinite(options.completedBy)) {
     throw new Error("completedBy must be finite when provided");
@@ -99,9 +151,9 @@ export function mapUpbitDayCandlesToResearchCandles(
     }
     return Object.freeze({
       market: candle.market,
-      interval: "1d" as const,
+      interval,
       openTime,
-      closeTime: openTime + DAY_MS,
+      closeTime: openTime + intervalMs,
       open: candle.opening_price,
       high: candle.high_price,
       low: candle.low_price,

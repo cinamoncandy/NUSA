@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { executeIndependentAudit, validateAuditModelVerdict, validateAuditRunnerRequest, type AuditRunnerRequest } from "./auditRunner";
+import { executeIndependentAudit, executeProviderGatedAudit, validateAuditModelVerdict, validateAuditRunnerRequest, type AuditRunnerRequest } from "./auditRunner";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
@@ -94,7 +94,7 @@ function fetchSequence(options: {
     response(200, options.firstPull ?? pull()),
     response(200, firstRun),
     ...(needsFallback(firstRun) ? [response(200, options.firstHeadPulls ?? headPulls())] : []),
-    response(200, {}, options.diff ?? "diff --git a/a.ts b/a.ts\n+const safe = true;\n"),
+    response(200, {}, options.diff ?? "diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -0,0 +1 @@\n+const safe = true;\n"),
     response(200, options.secondPull ?? options.firstPull ?? pull()),
     response(200, secondRun),
     ...(needsFallback(secondRun) ? [response(200, options.secondHeadPulls ?? options.firstHeadPulls ?? headPulls())] : []),
@@ -123,11 +123,11 @@ function aiSequence(responses: readonly unknown[]) {
 }
 
 function passingModel() {
-  return ai({ response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS" }) });
+  return ai({ response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) });
 }
 
 function auditEnv(model?: ReturnType<typeof ai>) {
-  return { AI: model, NUSA_GITHUB_TOKEN: "github-token" };
+  return { AI: model, NUSA_AUDIT_GITHUB_TOKEN: "github-token" };
 }
 
 test("validates the immutable read-only audit request contract", () => {
@@ -257,11 +257,11 @@ test("fails closed when GitHub diff evidence does not cover every changed file",
 
 test("strict verdict schema rejects malformed, mutation-shaped, and inconsistent responses", () => {
   assert.throws(() => validateAuditModelVerdict({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", patch: "diff" }), /AUDIT_VERDICT_KEYS_INVALID/);
-  assert.throws(() => validateAuditModelVerdict({ verdict: "PASS", findings: [{ code: "NOTE", severity: "NOTE", message: "note", evidenceRef: null }], blockers: [], safetyInvariantResult: "PASS" }), /AUDIT_VERDICT_PASS_FINDINGS_FORBIDDEN/);
-  assert.throws(() => validateAuditModelVerdict({ verdict: "PASS_WITH_NOTES", findings: [], blockers: ["blocker"], safetyInvariantResult: "PASS" }), /AUDIT_VERDICT_BLOCKERS_REQUIRE_FAIL/);
-  assert.throws(() => validateAuditModelVerdict({ verdict: "PASS_WITH_NOTES", findings: [], blockers: [], safetyInvariantResult: "PASS" }), /AUDIT_VERDICT_NOTES_REQUIRED/);
-  assert.throws(() => validateAuditModelVerdict({ verdict: "PASS_WITH_NOTES", findings: [{ code: "NOTE", severity: "NOTE", message: "note", evidenceRef: null }], blockers: [], safetyInvariantResult: "FAIL" }), /AUDIT_VERDICT_SAFETY_REQUIRES_FAIL/);
-  assert.throws(() => validateAuditModelVerdict({ verdict: "FAIL", findings: [], blockers: [], safetyInvariantResult: "FAIL" }), /AUDIT_VERDICT_FAIL_BLOCKER_REQUIRED/);
+  assert.throws(() => validateAuditModelVerdict({ verdict: "PASS", findings: [{ code: "NOTE", severity: "NOTE", message: "note", evidenceRef: null }], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }), /AUDIT_VERDICT_PASS_FINDINGS_FORBIDDEN/);
+  assert.throws(() => validateAuditModelVerdict({ verdict: "PASS_WITH_NOTES", findings: [], blockers: ["blocker"], safetyInvariantResult: "PASS", mergeAllowed: true }), /AUDIT_VERDICT_BLOCKERS_REQUIRE_FAIL/);
+  assert.throws(() => validateAuditModelVerdict({ verdict: "PASS_WITH_NOTES", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }), /AUDIT_VERDICT_NOTES_REQUIRED/);
+  assert.throws(() => validateAuditModelVerdict({ verdict: "PASS_WITH_NOTES", findings: [{ code: "NOTE", severity: "NOTE", message: "note", evidenceRef: null }], blockers: [], safetyInvariantResult: "FAIL", mergeAllowed: false }), /AUDIT_VERDICT_SAFETY_REQUIRES_FAIL/);
+  assert.throws(() => validateAuditModelVerdict({ verdict: "FAIL", findings: [], blockers: [], safetyInvariantResult: "FAIL", mergeAllowed: false }), /AUDIT_VERDICT_FAIL_BLOCKER_REQUIRED/);
 });
 
 test("safety regression is preserved as FAIL and cannot become merge allowed", async () => {
@@ -271,6 +271,7 @@ test("safety regression is preserved as FAIL and cannot become merge allowed", a
       findings: [{ code: "SAFETY_REGRESSION", severity: "BLOCKER", message: "production mutation became possible", evidenceRef: "a.ts:+1" }],
       blockers: ["productionMutationAllowed invariant regressed"],
       safetyInvariantResult: "FAIL",
+      mergeAllowed: false,
     }),
   });
   const result = await executeIndependentAudit(request, auditEnv(model), fetchSequence() as never, () => 1234);
@@ -278,6 +279,35 @@ test("safety regression is preserved as FAIL and cannot become merge allowed", a
   assert.equal(result.mergeAllowed, false);
   assert.equal(result.safetyInvariantResult, "FAIL");
   assert.equal(result.reviewedHeadSha, HEAD);
+});
+
+test("retries a blocker that cites removed rather than current diff evidence", async () => {
+  const model = aiSequence([
+    { response: JSON.stringify({
+      verdict: "FAIL",
+      findings: [{ code: "STALE", severity: "BLOCKER", message: "removed behavior is current", evidenceRef: "a.ts:1" }],
+      blockers: ["stale evidence"],
+      safetyInvariantResult: "FAIL",
+    }) },
+    { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) },
+  ]);
+  const result = await executeIndependentAudit(request, auditEnv(model as never), fetchSequence() as never);
+  assert.equal(result.verdict, "PASS");
+  assert.equal(result.mergeAllowed, true);
+});
+
+test("fails closed when every blocker lacks current added-line evidence", async () => {
+  const invalidBlocker = { response: JSON.stringify({
+    verdict: "FAIL",
+    findings: [{ code: "STALE", severity: "BLOCKER", message: "removed behavior is current", evidenceRef: "a.ts:1" }],
+    blockers: ["stale evidence"],
+    safetyInvariantResult: "FAIL",
+    mergeAllowed: false,
+  }) };
+  await assert.rejects(
+    executeIndependentAudit(request, auditEnv(aiSequence([invalidBlocker, invalidBlocker, invalidBlocker]) as never), fetchSequence() as never),
+    /AUDIT_VERDICT_BLOCKER_EVIDENCE_NOT_CURRENT/,
+  );
 });
 
 test("detects PR head movement after model review", async () => {
@@ -288,19 +318,20 @@ test("detects PR head movement after model review", async () => {
   );
 });
 
-test("returns exact-head PASS_WITH_NOTES evidence but does not auto-authorize merge", async () => {
+test("returns exact-head explicitly mergeable PASS_WITH_NOTES evidence", async () => {
   const model = ai({
     response: "```json\n" + JSON.stringify({
       verdict: "PASS_WITH_NOTES",
       findings: [{ code: "NON_BLOCKING_NOTE", severity: "NOTE", message: "reviewed exact diff", evidenceRef: "a.ts:+1" }],
       blockers: [],
       safetyInvariantResult: "PASS",
+      mergeAllowed: true,
     }) + "\n```",
   });
   const result = await executeIndependentAudit(request, auditEnv(model), fetchSequence() as never, () => 5678);
   assert.equal(result.status, "AUDIT_COMPLETED");
   assert.equal(result.verdict, "PASS_WITH_NOTES");
-  assert.equal(result.mergeAllowed, false);
+  assert.equal(result.mergeAllowed, true);
   assert.equal(result.reviewedHeadSha, HEAD);
   assert.equal(result.baseSha, BASE);
   assert.equal(result.workflowRunId, request.workflowRunId);
@@ -315,7 +346,7 @@ test("returns exact-head PASS_WITH_NOTES evidence but does not auto-authorize me
 });
 
 test("retries a malformed model response before failing, and returns the eventual valid verdict", async () => {
-  const passing = JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS" });
+  const passing = JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true });
   const model = aiSequence([{ response: "not json at all" }, { response: "{}" }, { response: passing }]);
   const result = await executeIndependentAudit(request, auditEnv(model), fetchSequence() as never, () => 1234);
   assert.equal(result.verdict, "PASS");
@@ -346,7 +377,7 @@ test("fails closed after exhausting retries when the model response stays malfor
 });
 
 test("does not retry beyond the bounded attempt limit even if given more valid-eventually responses", async () => {
-  const passing = JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS" });
+  const passing = JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true });
   // 4 malformed responses queued; only 3 attempts are made, so this must still fail closed rather
   // than retry indefinitely -- an unbounded retry loop is exactly the "duplicate control-plane
   // waiting forever" failure mode this bound exists to prevent.
@@ -355,9 +386,67 @@ test("does not retry beyond the bounded attempt limit even if given more valid-e
 });
 
 test("fails closed when no independent AI audit engine is configured", async () => {
-  await assert.rejects(executeIndependentAudit(request, { NUSA_GITHUB_TOKEN: "github-token" }, fetchSequence() as never), /AUDIT_AI_NOT_CONFIGURED/);
+  await assert.rejects(executeIndependentAudit(request, { NUSA_AUDIT_GITHUB_TOKEN: "github-token" }, fetchSequence() as never), /AUDIT_AI_NOT_CONFIGURED/);
 });
 
 test("fails closed when GitHub evidence credentials are unavailable", async () => {
-  await assert.rejects(executeIndependentAudit(request, { AI: passingModel() }, fetchSequence() as never), /AUDIT_GITHUB_TOKEN_NOT_CONFIGURED/);
+  await assert.rejects(executeIndependentAudit(request, { AI: passingModel() }, fetchSequence() as never), /AUDIT_GITHUB_APP_TOKEN_NOT_PROVIDED/);
+});
+
+const QUOTA_ERROR = "4006: you have used up your daily free allocation of 10,000 neurons, please upgrade to Cloudflare's Workers Paid plan if you would like to continue usage.";
+
+function gatedDeps(overrides: Partial<Parameters<typeof executeProviderGatedAudit>[1]> & { waitUntil?: number | null } = {}) {
+  const recorded: unknown[] = [];
+  let audits = 0;
+  const deps = {
+    readProviderWait: async () => overrides.waitUntil == null ? null : ({
+      schemaVersion: 1 as const, taskId: "t", executionId: "e", provider: "workers-ai", headSha: request.headSha,
+      stopReason: "WORKERS_AI_DAILY_QUOTA_EXHAUSTED", stoppedAt: 0, attemptCount: 1, lastFailure: "x",
+      nextRetryAt: overrides.waitUntil, resumeCondition: "r", dedupeKey: "d", evidenceRef: null,
+    }),
+    recordProviderWait: async (stop: unknown) => { recorded.push(stop); },
+    runAudit: async () => { audits += 1; return { status: "AUDIT_PASSED" } as never; },
+    now: () => Date.parse("2026-09-23T10:30:00.000Z"),
+    ...overrides,
+  };
+  return { deps, recorded, audits: () => audits };
+}
+
+test("provider-gated Audit makes no provider call inside the shared provider wait", async () => {
+  const { deps, audits } = gatedDeps({ waitUntil: Date.parse("2026-09-24T00:00:00.000Z") });
+  const outcome = await executeProviderGatedAudit(request, deps);
+  assert.equal(outcome.status, "WAITING_PROVIDER_CAPACITY");
+  assert.equal(audits(), 0);
+});
+
+test("provider-gated Audit fails closed without a provider call when the wait is unreadable", async () => {
+  const { deps, audits } = gatedDeps({ readProviderWait: async () => { throw new Error("down"); } });
+  const outcome = await executeProviderGatedAudit(request, deps);
+  assert.equal(outcome.status, "PROVIDER_CAPACITY_STATE_UNAVAILABLE");
+  assert.equal(audits(), 0);
+});
+
+test("provider-gated Audit runs once the wait has elapsed", async () => {
+  const { deps, audits } = gatedDeps({ waitUntil: Date.parse("2026-09-23T10:00:00.000Z") });
+  const outcome = await executeProviderGatedAudit(request, deps);
+  assert.equal(outcome.status, "AUDITED");
+  assert.equal(audits(), 1);
+});
+
+test("provider-gated Audit records the daily-quota stop in the shared provider wait until the next UTC day", async () => {
+  const { deps, recorded } = gatedDeps({ runAudit: async () => { throw new Error(QUOTA_ERROR); } });
+  const outcome = await executeProviderGatedAudit(request, deps);
+  assert.equal(outcome.status, "WAITING_PROVIDER_CAPACITY");
+  assert.equal(recorded.length, 1);
+  const stop = recorded[0] as { provider: string; stopReason: string; nextRetryAt: number; executionId: string };
+  assert.equal(stop.provider, "workers-ai");
+  assert.equal(stop.stopReason, "WORKERS_AI_DAILY_QUOTA_EXHAUSTED");
+  assert.equal(stop.nextRetryAt, Date.parse("2026-09-24T00:00:00.000Z"));
+  assert.equal(stop.executionId, request.executionId);
+});
+
+test("provider-gated Audit does not turn non-provider failures into a wait", async () => {
+  const { deps, recorded } = gatedDeps({ runAudit: async () => { throw new Error("AUDIT_MODEL_RESPONSE_INVALID"); } });
+  await assert.rejects(executeProviderGatedAudit(request, deps), /AUDIT_MODEL_RESPONSE_INVALID/);
+  assert.equal(recorded.length, 0);
 });

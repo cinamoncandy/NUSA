@@ -24,6 +24,8 @@ interface HomeViewProps {
   readonly investmentPercent: number;
   readonly readOnlyError: string | null;
   readonly notConfigured: string | null;
+  /** Trusted device, session restore in flight or retry armed: not a setup problem. */
+  readonly sessionRecovering?: boolean;
   readonly refreshing: boolean;
   readonly publicMarket: string;
   readonly publicMarkets: readonly WatchlistMarket[] | null;
@@ -66,6 +68,7 @@ export function HomeView({
   investmentPercent,
   readOnlyError,
   notConfigured,
+  sessionRecovering = false,
   refreshing,
   publicMarket,
   publicMarkets,
@@ -125,6 +128,7 @@ export function HomeView({
     hasDailyPnlBasis: false,
   });
   const aiInsightAvailable = decisionSurface.aiInsightAvailable && !disconnected && readOnlyError == null;
+  const recovering = disconnected && sessionRecovering;
   const posture = disconnected
     ? "PAPER 서버 연결이 필요합니다."
     : readOnlyError
@@ -140,7 +144,10 @@ export function HomeView({
   const openOrders = snapshot?.portfolio?.openOrderCount ?? null;
   const pnlColor = totalPnl == null ? theme.colors.text : totalPnl >= 0 ? theme.colors.success : theme.colors.danger;
   const connectionLabel = disconnected ? "SETUP" : readOnlyError ? "DEGRADED" : snapshot?.readyForPaperOperations ? "ACTIVE" : "OBSERVING";
-  const postureDisplay = disconnected ? "PAPER 연결 필요" : posture;
+  // A trusted device whose session is being recovered is not a setup problem: project it as
+  // reconnecting. SETUP remains only for a configuration or trust failure that needs the owner.
+  const shownConnectionLabel = recovering ? "RECOVERING" : connectionLabel;
+  const postureDisplay = recovering ? "PAPER 재연결 중" : disconnected ? "PAPER 연결 필요" : posture;
   const intelligenceSurface = intelligenceFieldColors.surface;
   const intelligenceBorder = intelligenceFieldColors.heroBorder;
   const intelligenceText = intelligenceFieldColors.text;
@@ -158,7 +165,7 @@ export function HomeView({
           <Text style={[styles.brand, { color: theme.colors.text }]}>NUSA</Text>
         </View>
         <Pressable accessibilityRole="button" onPress={onGoSettings} style={({ pressed }) => [styles.statusCapsule, { backgroundColor: theme.colors.surfaceSunken, borderColor: theme.colors.border, opacity: pressed ? 0.72 : 1 }]}>
-          <Text style={[styles.statusCapsuleText, { color: systemColor }]}>{connectionLabel}</Text>
+          <Text style={[styles.statusCapsuleText, { color: systemColor }]}>{shownConnectionLabel}</Text>
         </Pressable>
       </View>
 
@@ -201,7 +208,7 @@ export function HomeView({
         </View>
       </MotionReveal>
 
-      {disconnected || readOnlyError ? <Pressable accessibilityRole="button" onPress={onGoSettings} testID="home-operational-notice"><StateNotice title={disconnected ? "PAPER 연결 필요" : "PAPER 연결 오류"} detail={`${disconnected ? "Cloud endpoint와 세션을 검증해야 합니다." : readOnlyError ?? "읽기 상태를 확인할 수 없습니다."} · 설정 열기`} tone="warning" /></Pressable> : null}
+      {disconnected || readOnlyError ? <Pressable accessibilityRole="button" onPress={onGoSettings} testID="home-operational-notice"><StateNotice title={recovering ? "PAPER 재연결 중" : disconnected ? "PAPER 연결 필요" : "PAPER 연결 오류"} detail={`${recovering ? "기기 신뢰는 유지되고 있으며 세션을 자동 복구하는 중입니다." : disconnected ? "Cloud endpoint와 세션을 검증해야 합니다." : readOnlyError ?? "읽기 상태를 확인할 수 없습니다."} · 설정 열기`} tone="warning" /></Pressable> : null}
 
       <MotionReveal testID="home-market-canvas-reveal">
         <View style={[styles.marketCanvas, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]} testID="home-public-market-chart">

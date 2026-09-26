@@ -1,8 +1,14 @@
 import type { SecureStoragePort } from "./mobileSecurity";
+import type { OwnerDeviceCredentialNative } from "./ownerDeviceCredential";
 
+// The refresh token is the only persisted credential and is stored through the Android
+// Keystore-backed SecureStoragePort. Access tokens remain process-memory-only.
 const SESSION_STORAGE_KEY = "nusa.mobile.approved-session.v1";
+const PAIRING_STORAGE_KEY = "nusa.mobile.pending-pairing.v1";
 const ACCESS_REFRESH_SKEW_MS = 30_000;
 const MAX_TOKEN_LENGTH = 4096;
+/** Upper bound on letting an earlier bearer restore settle before a silent DeviceKey proof. */
+const BEARER_SETTLE_WAIT_MS = 5_000;
 
 export interface MobileApprovedSessionIdentity {
   readonly userId: string;
@@ -17,6 +23,7 @@ interface MobileSessionTokens {
   readonly refreshToken: string;
   readonly refreshExpiresAt: number;
   readonly scopes: readonly string[];
+  readonly deviceId?: string;
 }
 
 interface PersistedSession {
@@ -30,21 +37,50 @@ interface MobileBootstrapIssue {
   readonly token: string;
 }
 
+interface OwnerDeviceChallenge {
+  readonly challengeId: string;
+  readonly challenge: string;
+  readonly purpose: "REGISTRATION" | "AUTHENTICATION";
+  readonly expiresAt: number;
+}
+
+export interface MobilePairingRequest {
+  readonly requestId: string;
+  readonly verificationCode: string;
+  readonly expiresAt: number;
+  readonly state: "PENDING";
+}
+
+export interface MobilePairingStatus {
+  readonly state: "PENDING" | "APPROVED" | "CONSUMED" | "EXPIRED";
+  readonly expiresAt: number;
+}
+
+interface PendingPairingMemory {
+  readonly endpoint: string;
+  readonly deviceId: string;
+  readonly request: MobilePairingRequest;
+}
+
 export type MobileApprovedCredentialProvider = () => Promise<string | null>;
 
-/**
- * Carries the upstream HTTP status so a caller can tell an expired or already-used token
- * (401/403) apart from a throttled server (429) or a transport fault, instead of collapsing
- * every rejection into one indistinguishable failure.
- */
 export class MobileSessionRequestError extends Error {
-  /** Server-named reason, when the response carried one. Never a credential or request detail. */
   public readonly refusal: string | undefined;
-  public constructor(readonly status: number, refusal?: string) {
+  public constructor(readonly status: number, refusal?: string, readonly retryAfterMs?: number) {
     super(`mobile session request rejected (${status}).`);
     this.name = "MobileSessionRequestError";
     this.refusal = refusal;
   }
+}
+
+function readRetryAfterMs(response: Response): number | undefined {
+  const raw = response.headers.get("retry-after")?.trim();
+  if (!raw) return undefined;
+  const seconds = Number(raw);
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.min(Math.ceil(seconds * 1000), 60_000);
+  const at = Date.parse(raw);
+  if (!Number.isFinite(at)) return undefined;
+  return Math.min(Math.max(0, at - Date.now()), 60_000);
 }
 
 function secureEndpoint(value: string): string {
@@ -73,8 +109,14 @@ function readTime(value: unknown, field: string): number {
 function readScopes(value: unknown): readonly string[] {
   if (!Array.isArray(value) || value.length === 0 || value.some((scope) => typeof scope !== "string")) throw new Error("mobile session scopes are invalid.");
   const scopes = value.map((scope) => scope.trim());
-  if (scopes.some((scope) => !["dashboard:read", "paper:trade"].includes(scope))) throw new Error("mobile session scopes are invalid.");
+  if (scopes.some((scope) => !["dashboard:read", "paper:trade", "users:manage"].includes(scope))) throw new Error("mobile session scopes are invalid.");
   return Object.freeze(scopes);
+}
+
+function readDeviceId(value: unknown): string | undefined {
+  if (value == null) return undefined;
+  if (typeof value !== "string" || value.trim().length < 8 || value.trim().length > 256 || /[\r\n]/.test(value)) throw new Error("device enrollment identifier is invalid.");
+  return value.trim();
 }
 
 function parseTokens(value: unknown): MobileSessionTokens {
@@ -85,28 +127,9 @@ function parseTokens(value: unknown): MobileSessionTokens {
     accessExpiresAt: readTime(record.accessExpiresAt, "access expiry"),
     refreshToken: readToken(record.refreshToken, "refresh token"),
     refreshExpiresAt: readTime(record.refreshExpiresAt, "refresh expiry"),
-    scopes: readScopes(record.scopes)
+    scopes: readScopes(record.scopes),
+    ...(record.deviceId == null ? {} : { deviceId: readDeviceId(record.deviceId) })
   });
-}
-
-function readDeviceId(value: unknown): string | undefined {
-  if (value == null) return undefined;
-  if (typeof value !== "string" || value.trim().length < 8 || value.trim().length > 256 || /[\r\n]/.test(value)) throw new Error("device enrollment identifier is invalid.");
-  return value.trim();
-}
-
-function parseBootstrapIssue(value: unknown): MobileBootstrapIssue {
-  if (value == null || typeof value !== "object" || Array.isArray(value)) throw new Error("mobile enrollment response is invalid.");
-  const token = readToken((value as Record<string, unknown>).token, "bootstrap token");
-  return Object.freeze({ token });
-}
-
-function parseIdentity(value: unknown): MobileApprovedSessionIdentity {
-  if (value == null || typeof value !== "object" || Array.isArray(value)) throw new Error("mobile identity response is invalid.");
-  const record = value as Record<string, unknown>;
-  if (typeof record.userId !== "string" || !record.userId.trim() || typeof record.email !== "string" || !record.email.trim()) throw new Error("mobile identity response is invalid.");
-  const displayName = typeof record.displayName === "string" && record.displayName.trim() ? record.displayName.trim() : undefined;
-  return Object.freeze({ userId: record.userId.trim(), email: record.email.trim(), ...(displayName ? { displayName } : {}), scopes: readScopes(record.scopes) });
 }
 
 function encodeAscii(value: string): Uint8Array {
@@ -120,6 +143,7 @@ function encodeAscii(value: string): Uint8Array {
 }
 
 function decodeAscii(value: Uint8Array): string {
+  if (value.byteLength === 0 || value.byteLength > 8192) throw new Error("secure session state is invalid");
   let result = "";
   for (const byte of value) {
     if (byte > 0x7f) throw new Error("secure session state is invalid");
@@ -133,14 +157,42 @@ function parsePersisted(value: Uint8Array): PersistedSession {
   if (decoded == null || typeof decoded !== "object" || Array.isArray(decoded)) throw new Error("secure session state is invalid");
   const record = decoded as Record<string, unknown>;
   const deviceId = readDeviceId(record.deviceId);
-  return Object.freeze({ endpoint: secureEndpoint(String(record.endpoint ?? "")), refreshToken: readToken(record.refreshToken, "refresh token"), refreshExpiresAt: readTime(record.refreshExpiresAt, "refresh expiry"), ...(deviceId ? { deviceId } : {}) });
+  return Object.freeze({
+    endpoint: secureEndpoint(typeof record.endpoint === "string" ? record.endpoint : ""),
+    refreshToken: readToken(record.refreshToken, "refresh token"),
+    refreshExpiresAt: readTime(record.refreshExpiresAt, "refresh expiry"),
+    ...(deviceId == null ? {} : { deviceId })
+  });
 }
 
-/**
- * Reads the server's own refusal code from an error response. Bounded and character-restricted
- * because it is rendered to the operator: only a short SCREAMING_SNAKE code is accepted, so an
- * error body can never carry arbitrary text into the UI.
- */
+function parseBootstrapIssue(value: unknown): MobileBootstrapIssue {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) throw new Error("mobile enrollment response is invalid.");
+  return Object.freeze({ token: readToken((value as Record<string, unknown>).token, "bootstrap token") });
+}
+
+function parseOwnerDeviceChallenge(value: unknown, purpose: OwnerDeviceChallenge["purpose"]): OwnerDeviceChallenge {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) throw new Error("owner device challenge is invalid.");
+  const row = value as Record<string, unknown>;
+  const challengeId = readToken(row.challengeId, "owner device challenge id");
+  const challenge = readToken(row.challenge, "owner device challenge");
+  if (row.purpose !== purpose) throw new Error("owner device challenge purpose is invalid.");
+  return Object.freeze({ challengeId, challenge, purpose, expiresAt: readTime(row.expiresAt, "owner device challenge expiry") });
+}
+
+function readProof(value: string): string {
+  const proof = value.trim();
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(proof) || proof.length < 8 || proof.length > 1024) throw new Error("owner device signature is invalid.");
+  return proof;
+}
+
+function parseIdentity(value: unknown): MobileApprovedSessionIdentity {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) throw new Error("mobile identity response is invalid.");
+  const record = value as Record<string, unknown>;
+  if (typeof record.userId !== "string" || !record.userId.trim() || typeof record.email !== "string" || !record.email.trim()) throw new Error("mobile identity response is invalid.");
+  const displayName = typeof record.displayName === "string" && record.displayName.trim() ? record.displayName.trim() : undefined;
+  return Object.freeze({ userId: record.userId.trim(), email: record.email.trim(), ...(displayName ? { displayName } : {}), scopes: readScopes(record.scopes) });
+}
+
 async function readRefusal(response: Response): Promise<string | undefined> {
   try {
     const body: unknown = await response.clone().json();
@@ -154,13 +206,10 @@ async function readRefusal(response: Response): Promise<string | undefined> {
 async function requestJson(request: typeof fetch, endpoint: string, init: RequestInit): Promise<unknown> {
   const response = await request(endpoint, { ...init, redirect: "error", headers: { accept: "application/json", "content-type": "application/json", ...(init.headers ?? {}) } });
   if (response.redirected === true || (response.url && new URL(response.url).href !== new URL(endpoint).href)) throw new Error("mobile session redirect is prohibited.");
-  if (!response.ok) throw new MobileSessionRequestError(response.status, await readRefusal(response));
+  if (!response.ok) throw new MobileSessionRequestError(response.status, await readRefusal(response), response.status === 429 ? readRetryAfterMs(response) : undefined);
   return response.json();
 }
 
-/** Only an explicit authorization rejection proves that the rotating session is no longer usable.
- * Transport faults, overload responses, and 5xx failures must leave the encrypted refresh state
- * intact so the app can reconnect without asking the user to re-enroll. */
 function isDefinitiveSessionRejection(error: unknown): boolean {
   return error instanceof MobileSessionRequestError && (error.status === 401 || error.status === 403);
 }
@@ -168,18 +217,29 @@ function isDefinitiveSessionRejection(error: unknown): boolean {
 export class MobileApprovedSession {
   private accessToken: string | null = null;
   private accessExpiresAt = 0;
+  private refreshToken: string | null = null;
+  private refreshExpiresAt = 0;
   private endpoint: string | null = null;
   private deviceId: string | null = null;
   private identity: MobileApprovedSessionIdentity | null = null;
+  private pendingPairing: PendingPairingMemory | null = null;
   private refreshInFlight: Promise<string | null> | null = null;
   private restoreRetryable = false;
+  private silentNative: OwnerDeviceCredentialNative | null = null;
+  private silentCredentialId: string | null = null;
+  private silentAuthenticationInFlight: Promise<MobileApprovedSessionIdentity> | null = null;
+  private bearerRestoreInFlight: Promise<MobileApprovedSessionIdentity | null> | null = null;
+  private bearerRestoreEndpoint: string | null = null;
+  private silentAuthenticationEndpoint: string | null = null;
+  /** Advanced when a silent proof supersedes a bearer restore; a superseded bearer restore never clears state. */
+  private bearerEpoch = 0;
 
   public constructor(private readonly storage: SecureStoragePort | null, private readonly request: typeof fetch = fetch) {}
 
   public readonly credentialProvider: MobileApprovedCredentialProvider = async () => this.getAccessToken();
   public currentIdentity(): MobileApprovedSessionIdentity | null { return this.identity; }
   public hasMemoryAccess(): boolean { return this.accessToken !== null; }
-  /** True only after a temporary restore/refresh failure with encrypted refresh state retained. */
+  /** True after a transient restore failure while encrypted refresh state remains available. */
   public shouldRetryRestore(): boolean { return this.restoreRetryable; }
 
   public async connectBootstrap(baseUrl: string, bootstrapToken: string): Promise<MobileApprovedSessionIdentity> {
@@ -193,35 +253,24 @@ export class MobileApprovedSession {
     const normalizedDevice = deviceId == null ? undefined : readDeviceId(deviceId);
     const tokens = parseTokens(await requestJson(this.request, `${endpoint}/v1/mobile/bootstrap`, { method: "POST", body: JSON.stringify({ bootstrapToken: token, ...(normalizedDevice ? { deviceId: normalizedDevice } : {}) }) }));
     this.deviceId = normalizedDevice ?? null;
-    await this.persist(endpoint, tokens);
-    this.acceptAccess(endpoint, tokens);
+    this.acceptTokens(endpoint, tokens);
+    await this.persistOrClear(endpoint, tokens);
     try {
       const identity = await this.loadIdentity(endpoint, tokens.accessToken);
       this.identity = identity;
       return identity;
     } catch (error) {
-      if (isDefinitiveSessionRejection(error)) {
-        await this.clearLocal();
-      } else {
-        // Bootstrap is single-use. Retain the already-issued refresh session when
-        // the identity read fails temporarily; the next restore revalidates it.
-        this.clearMemory();
-        this.restoreRetryable = true;
-      }
+      if (isDefinitiveSessionRejection(error)) await this.clearLocal();
+      else { this.clearMemory(); this.restoreRetryable = true; }
       throw error;
     }
   }
 
-  /**
-   * Performs first-run enrollment with a user-provided credential. The
-   * credential is sent once, never persisted, and is exchanged immediately
-   * for the normal rotating mobile session.
-   */
   public async enroll(baseUrl: string, userCredential: string, deviceId: string): Promise<MobileApprovedSessionIdentity> {
     const endpoint = secureEndpoint(baseUrl);
     const credential = readToken(userCredential, "user credential");
-    const device = deviceId.trim();
-    if (device.length < 8 || device.length > 256 || /[\r\n]/.test(device)) throw new Error("device enrollment identifier is invalid.");
+    const device = readDeviceId(deviceId);
+    if (device == null) throw new Error("device enrollment identifier is invalid.");
     const issue = parseBootstrapIssue(await requestJson(this.request, `${endpoint}/v1/mobile/enroll`, {
       method: "POST",
       headers: { authorization: `Bearer ${credential}` },
@@ -230,35 +279,336 @@ export class MobileApprovedSession {
     return this.connectBootstrapForDevice(endpoint, issue.token, device);
   }
 
-  public async restore(baseUrl: string): Promise<MobileApprovedSessionIdentity | null> {
+  /**
+   * This one-time setup needs a pre-existing ACTIVE OWNER users:manage session.
+   * It never treats local biometrics as initial identity proof and never persists
+   * that owner bearer; later authentication uses only the hardware key signature.
+   */
+  public async signInWithOwnerPasswordAndEnrollDeviceCredential(baseUrl: string, password: string, deviceId: string, native: OwnerDeviceCredentialNative): Promise<MobileApprovedSessionIdentity> {
     const endpoint = secureEndpoint(baseUrl);
-    this.restoreRetryable = false;
-    if (this.storage == null) return null;
-    let stored: Uint8Array | null;
-    try { stored = await this.storage.getSecret(SESSION_STORAGE_KEY); }
-    catch { await this.clearLocal(); return null; }
-    if (stored == null) return null;
-    let persisted: PersistedSession;
-    try { persisted = parsePersisted(stored); }
-    catch { await this.clearLocal(); return null; }
-    if (persisted.endpoint !== endpoint || persisted.refreshExpiresAt <= Date.now()) { await this.clearLocal(); return null; }
+    const device = readDeviceId(deviceId);
+    if (device == null) throw new Error("device enrollment identifier is invalid.");
+    if (typeof password !== "string" || password.length === 0 || password.length > 1024) throw new Error("owner password is invalid.");
+    const passwordTokens = parseTokens(await requestJson(this.request, `${endpoint}/v1/mobile/session/password`, {
+      method: "POST", body: JSON.stringify({ password, deviceId: device })
+    }));
+    // The newly issued existing mobile session is the only registration bearer.
+    // It stays in memory and is cleared immediately if enrollment cannot complete.
+    const ownerBearer = passwordTokens.accessToken;
+    this.deviceId = passwordTokens.deviceId ?? device;
+    this.acceptTokens(endpoint, passwordTokens);
+    let credentialId: string | null = null;
     try {
-      this.deviceId = persisted.deviceId ?? null;
-      const tokens = await this.refreshWith(endpoint, persisted.refreshToken, this.deviceId ?? undefined);
+      const created = await native.createCredential();
+      credentialId = readToken(created.credentialId, "owner device credential id");
+      const publicKeySpki = readProof(created.publicKeySpki);
+      if (created.hardwareBacked !== true) throw new Error("hardware-backed owner credential is unavailable.");
+      const challenge = parseOwnerDeviceChallenge(await requestJson(this.request, `${endpoint}/v1/mobile/owner-device/registration/challenge`, {
+        method: "POST", headers: { authorization: `Bearer ${ownerBearer}` }, body: JSON.stringify({ credentialId, deviceId: device, publicKeySpki })
+      }), "REGISTRATION");
+      const proof = readProof(await native.signChallenge(credentialId, challenge.challenge, "이 휴대폰을 NUSA 소유자 기기로 등록"));
+      await requestJson(this.request, `${endpoint}/v1/mobile/owner-device/registration/activate`, {
+        method: "POST", headers: { authorization: `Bearer ${ownerBearer}` }, body: JSON.stringify({ credentialId, deviceId: device, challengeId: challenge.challengeId, signature: proof })
+      });
+      return this.authenticateOwnerDeviceCredential(endpoint, device, native, credentialId);
+    } catch (error) {
+      await this.clearLocal();
+      if (credentialId != null) { try { await native.deleteCredential(credentialId); } catch { /* remove unusable local registration material */ } }
+      throw error;
+    }
+  }
+
+  public async authenticateOwnerDeviceCredential(baseUrl: string, deviceId: string, native: OwnerDeviceCredentialNative, credentialId?: string): Promise<MobileApprovedSessionIdentity> {
+    const endpoint = secureEndpoint(baseUrl);
+    const device = readDeviceId(deviceId);
+    if (device == null) throw new Error("device enrollment identifier is invalid.");
+    const status = await native.getStatus();
+    const id = readToken(credentialId ?? status.credentialId ?? "", "owner device credential id");
+    if (status.available !== true || status.hardwareBacked !== true) throw new Error("hardware-backed owner credential is unavailable.");
+    const challenge = parseOwnerDeviceChallenge(await requestJson(this.request, `${endpoint}/v1/mobile/owner-device/authentication/challenge`, {
+      method: "POST", body: JSON.stringify({ credentialId: id, deviceId: device })
+    }), "AUTHENTICATION");
+    const proof = readProof(await native.signChallenge(id, challenge.challenge, "NUSA 소유자 인증"));
+    const tokens = parseTokens(await requestJson(this.request, `${endpoint}/v1/mobile/owner-device/authentication/complete`, {
+      method: "POST", body: JSON.stringify({ credentialId: id, deviceId: device, challengeId: challenge.challengeId, signature: proof })
+    }));
+    this.deviceId = tokens.deviceId ?? device;
+    this.acceptTokens(endpoint, tokens);
+    await this.persistOrClear(endpoint, tokens);
+    try {
       const identity = await this.loadIdentity(endpoint, tokens.accessToken);
       this.identity = identity;
       return identity;
     } catch (error) {
-      if (isDefinitiveSessionRejection(error)) await this.clearLocal();
-      else this.retainRetryableSession(endpoint, persisted.deviceId);
+      if (isDefinitiveSessionRejection(error)) await this.clearLocal(); else { this.clearMemory(); this.restoreRetryable = true; }
+      throw error;
+    }
+  }
+
+  
+  public async signInWithOwnerPasswordAndEnrollSilentDeviceCredential(baseUrl: string, password: string, deviceId: string, native: OwnerDeviceCredentialNative): Promise<MobileApprovedSessionIdentity> {
+    const endpoint = secureEndpoint(baseUrl);
+    const device = readDeviceId(deviceId);
+    if (device == null) throw new Error("device enrollment identifier is invalid.");
+    if (typeof password !== "string" || password.length === 0 || password.length > 1024) throw new Error("owner password is invalid.");
+    const passwordTokens = parseTokens(await requestJson(this.request, `${endpoint}/v1/mobile/session/password`, {
+      method: "POST", body: JSON.stringify({ password, deviceId: device })
+    }));
+    // The newly issued existing mobile session is the only registration bearer.
+    // It stays in memory and is cleared immediately if enrollment cannot complete.
+    const ownerBearer = passwordTokens.accessToken;
+    this.deviceId = passwordTokens.deviceId ?? device;
+    this.acceptTokens(endpoint, passwordTokens);
+    let credentialId: string | null = null;
+    try {
+      const created = await native.createSilentDeviceCredential();
+      credentialId = readToken(created.credentialId, "owner device credential id");
+      const publicKeySpki = readProof(created.publicKeySpki);
+      if (created.hardwareBacked !== true) throw new Error("hardware-backed owner credential is unavailable.");
+      const challenge = parseOwnerDeviceChallenge(await requestJson(this.request, `${endpoint}/v1/mobile/owner-device/registration/challenge`, {
+        method: "POST", headers: { authorization: `Bearer ${ownerBearer}` }, body: JSON.stringify({ credentialId, deviceId: device, publicKeySpki })
+      }), "REGISTRATION");
+      const proof = readProof(await native.signSilentChallenge(credentialId, challenge.challenge));
+      await requestJson(this.request, `${endpoint}/v1/mobile/owner-device/registration/activate`, {
+        method: "POST", headers: { authorization: `Bearer ${ownerBearer}` }, body: JSON.stringify({ credentialId, deviceId: device, challengeId: challenge.challengeId, signature: proof })
+      });
+      return this.authenticateSilentDeviceCredential(endpoint, device, native, credentialId);
+    } catch (error) {
+      await this.clearLocal();
+      if (credentialId != null) { try { await native.deleteSilentDeviceCredential(credentialId); } catch { /* remove unusable local registration material */ } }
+      throw error;
+    }
+  }
+
+  public async authenticateSilentDeviceCredential(baseUrl: string, deviceId: string, native: OwnerDeviceCredentialNative, credentialId?: string): Promise<MobileApprovedSessionIdentity> {
+    const endpoint = secureEndpoint(baseUrl);
+    const device = readDeviceId(deviceId);
+    if (device == null) throw new Error("device enrollment identifier is invalid.");
+    const status = await native.getSilentDeviceStatus();
+    if (status.status === "SILENT_DEVICE_KEY_STATUS_TRANSIENT_ERROR") {
+      // A second status inspection happens immediately before issuing the challenge. AndroidKeyStore
+      // can become temporarily unavailable between the coordinator's first check and this call
+      // after foreground resume. Preserve device trust and let the existing bounded retry repeat the
+      // silent proof instead of turning the transient status into a terminal-looking auth failure.
+      this.restoreRetryable = true;
+      throw new Error("silent DeviceKey status is temporarily unavailable.");
+    }
+    const id = readToken(credentialId ?? status.credentialId ?? "", "owner device credential id");
+    if (status.available !== true || status.hardwareBacked !== true) throw new Error("hardware-backed owner credential is unavailable.");
+    this.silentNative = native;
+    this.silentCredentialId = id;
+    let tokens: MobileSessionTokens;
+    try {
+      tokens = await this.issueSilentDeviceSession(endpoint, device, native, id);
+    } catch (error) {
+      if (isDefinitiveSessionRejection(error)) {
+        try { await native.deleteSilentDeviceCredential(id); } catch { /* server rejection still clears the unusable local session */ }
+        await this.clearLocal();
+      } else {
+        this.clearMemory();
+        this.restoreRetryable = true;
+      }
+      throw error;
+    }
+    try {
+      const identity = await this.loadIdentity(endpoint, tokens.accessToken);
+      this.identity = identity;
+      return identity;
+    } catch (error) {
+      if (isDefinitiveSessionRejection(error)) await this.clearLocal(); else { this.clearMemory(); this.restoreRetryable = true; }
+      throw error;
+    }
+  }
+
+  public async changeOwnerPassword(baseUrl: string, currentPassword: string, newPassword: string): Promise<void> {
+    const endpoint = secureEndpoint(baseUrl);
+    const accessToken = await this.getAccessToken();
+    if (accessToken == null || !currentPassword || !newPassword) throw new Error("owner authentication is required.");
+    await requestJson(this.request, `${endpoint}/v1/mobile/session/password/change`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ currentPassword, newPassword })
+    });
+  }
+
+  public async startPairing(baseUrl: string, deviceId: string): Promise<MobilePairingRequest> {
+    const endpoint = secureEndpoint(baseUrl);
+    const device = readDeviceId(deviceId);
+    if (device == null) throw new Error("device enrollment identifier is invalid.");
+    const value = await requestJson(this.request, `${endpoint}/v1/mobile/pairing/start`, { method: "POST", body: JSON.stringify({ deviceId: device }) });
+    if (value == null || typeof value !== "object" || Array.isArray(value)) throw new Error("pairing response is invalid.");
+    const row = value as Record<string, unknown>;
+    const requestId = readToken(row.requestId, "pairing request id");
+    const verificationCode = typeof row.verificationCode === "string" && /^\d{6}$/.test(row.verificationCode) ? row.verificationCode : "";
+    if (!verificationCode || row.state !== "PENDING") throw new Error("pairing response is invalid.");
+    const pairing = Object.freeze({ requestId, verificationCode, expiresAt: readTime(row.expiresAt, "pairing expiry"), state: "PENDING" as const });
+    this.pendingPairing = Object.freeze({ endpoint, deviceId: device, request: pairing });
+    return pairing;
+  }
+
+  /** Pairing capabilities are process-memory-only; a process restart requires a fresh pairing. */
+  public async restorePendingPairing(baseUrl: string, deviceId: string): Promise<MobilePairingRequest | null> {
+    const endpoint = secureEndpoint(baseUrl);
+    const device = readDeviceId(deviceId);
+    const pending = this.pendingPairing;
+    if (device == null || pending == null) return null;
+    if (pending.endpoint !== endpoint || pending.deviceId !== device || pending.request.expiresAt <= Date.now()) {
+      this.pendingPairing = null;
       return null;
+    }
+    return pending.request;
+  }
+
+  public async clearPendingPairing(): Promise<void> {
+    this.pendingPairing = null;
+    if (this.storage != null) {
+      try { await this.storage.deleteSecret(PAIRING_STORAGE_KEY); } catch { /* legacy storage is never trusted for use */ }
+    }
+  }
+
+  public async pairingStatus(baseUrl: string, requestId: string, deviceId: string): Promise<MobilePairingStatus> {
+    const endpoint = secureEndpoint(baseUrl);
+    const value = await requestJson(this.request, `${endpoint}/v1/mobile/pairing/status`, { method: "POST", body: JSON.stringify({ requestId: readToken(requestId, "pairing request id"), deviceId: readDeviceId(deviceId) }) });
+    if (value == null || typeof value !== "object" || Array.isArray(value)) throw new Error("pairing status is invalid.");
+    const row = value as Record<string, unknown>;
+    if (!["PENDING", "APPROVED", "CONSUMED", "EXPIRED"].includes(String(row.state))) throw new Error("pairing status is invalid.");
+    return Object.freeze({ state: row.state as MobilePairingStatus["state"], expiresAt: readTime(row.expiresAt, "pairing expiry") });
+  }
+
+  public async exchangePairing(baseUrl: string, requestId: string, deviceId: string): Promise<MobileApprovedSessionIdentity> {
+    const endpoint = secureEndpoint(baseUrl);
+    const normalizedRequestId = readToken(requestId, "pairing request id");
+    const device = readDeviceId(deviceId);
+    try {
+      const tokens = parseTokens(await requestJson(this.request, `${endpoint}/v1/mobile/pairing/exchange`, { method: "POST", body: JSON.stringify({ requestId: normalizedRequestId, deviceId: device }) }));
+      this.deviceId = tokens.deviceId ?? device ?? null;
+      this.acceptTokens(endpoint, tokens);
+      await this.persistOrClear(endpoint, tokens);
+      try {
+        const identity = await this.loadIdentity(endpoint, tokens.accessToken);
+        this.identity = identity;
+        return identity;
+      } catch (error) {
+        if (isDefinitiveSessionRejection(error)) await this.clearLocal();
+        else { this.clearMemory(); this.restoreRetryable = true; }
+        throw error;
+      }
+    } finally {
+      await this.clearPendingPairing();
+    }
+  }
+
+  public async restoreWithSilentDevice(baseUrl: string, deviceId: string, native: OwnerDeviceCredentialNative): Promise<MobileApprovedSessionIdentity | null> {
+    const endpoint = secureEndpoint(baseUrl);
+    if (this.silentAuthenticationInFlight != null && this.silentAuthenticationEndpoint === endpoint) return this.silentAuthenticationInFlight;
+    const operation = (async (): Promise<MobileApprovedSessionIdentity> => {
+      // A bearer restore already running would otherwise finish after this silent proof and wipe
+      // its tokens on its own failure path. Let it settle first, but only for a bounded time: a
+      // hung refresh request must not disable the connect action. Either way it is superseded, and
+      // the epoch bump stops it from clearing anything if it settles later.
+      const pendingBearer = this.bearerRestoreInFlight;
+      if (pendingBearer != null) {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const bound = new Promise<void>((resolve) => { timer = setTimeout(resolve, BEARER_SETTLE_WAIT_MS); });
+        try { await Promise.race([pendingBearer.then(() => undefined, () => undefined), bound]); }
+        finally { if (timer !== undefined) clearTimeout(timer); }
+      }
+      this.bearerEpoch += 1;
+      // getSilentDeviceStatus() is a native bridge call and can throw transiently -- a Keystore or
+      // biometric provider briefly unavailable right after a long Doze/background spell is the
+      // expected shape here, not proof the device was unregistered. Unlike a definitive session
+      // rejection further down this path, an unclassified throw here previously escaped without
+      // ever setting restoreRetryable, so the foreground retry timer never re-armed and the app sat
+      // unrecoverable until the owner manually reconnected.
+      let status: Awaited<ReturnType<OwnerDeviceCredentialNative["getSilentDeviceStatus"]>>;
+      try {
+        status = await native.getSilentDeviceStatus();
+      } catch (error) {
+        this.restoreRetryable = true;
+        throw error;
+      }
+      if (status.status === "SILENT_DEVICE_KEY_STATUS_TRANSIENT_ERROR") {
+        // Native retained the registered credential id but could not inspect AndroidKeyStore.
+        // Do not downgrade device trust or fall back to a bearer-only proof; retry the same silent
+        // DeviceKey recovery through paperConnectionSession's bounded single-flight coordinator.
+        this.restoreRetryable = true;
+        throw new Error("silent DeviceKey status is temporarily unavailable.");
+      }
+      if (status.available !== true || status.hardwareBacked !== true || status.credentialId == null) {
+        const restored = await this.restoreBearer(endpoint);
+        if (restored == null) {
+          this.restoreRetryable = true;
+          throw new Error("registered silent DeviceKey is unavailable.");
+        }
+        return restored;
+      }
+      this.silentNative = native;
+      this.silentCredentialId = readToken(status.credentialId, "owner device credential id");
+      // Silent DeviceKey sessions never trust a persisted bearer refresh as proof of device possession.
+      // Re-establish the session with one fresh, single-use signed server challenge per concurrent restore wave.
+      return this.authenticateSilentDeviceCredential(endpoint, deviceId, native, this.silentCredentialId);
+    })();
+    this.silentAuthenticationInFlight = operation;
+    this.silentAuthenticationEndpoint = endpoint;
+    try { return await operation; }
+    finally { if (this.silentAuthenticationInFlight === operation) { this.silentAuthenticationInFlight = null; this.silentAuthenticationEndpoint = null; } }
+  }
+
+  /**
+   * One session owner, one restore at a time. Saving Settings starts a bearer restore through the
+   * connection coordinator while the connect button starts a silent DeviceKey restore directly;
+   * run concurrently, the bearer path's clearMemory()/clearLocal() (a stale refresh rejected with
+   * 401, an expired persisted session) could land after the silent path accepted fresh tokens and
+   * wipe them, so a successful connect read as a failure and had to be pressed again. A bearer
+   * restore requested while a silent one is running joins it instead of racing it. Joining is
+   * scoped to the same endpoint so one endpoint's identity is never returned for another.
+   */
+  public async restore(baseUrl: string): Promise<MobileApprovedSessionIdentity | null> {
+    const endpoint = secureEndpoint(baseUrl);
+    if (this.silentAuthenticationInFlight != null && this.silentAuthenticationEndpoint === endpoint) return this.silentAuthenticationInFlight;
+    if (this.bearerRestoreInFlight != null && this.bearerRestoreEndpoint === endpoint) return this.bearerRestoreInFlight;
+    const operation = this.restoreBearer(endpoint);
+    this.bearerRestoreInFlight = operation;
+    this.bearerRestoreEndpoint = endpoint;
+    try { return await operation; }
+    finally { if (this.bearerRestoreInFlight === operation) { this.bearerRestoreInFlight = null; this.bearerRestoreEndpoint = null; } }
+  }
+
+  private async restoreBearer(baseUrl: string): Promise<MobileApprovedSessionIdentity | null> {
+    const endpoint = secureEndpoint(baseUrl);
+    const epoch = this.bearerEpoch;
+    // Once a silent proof supersedes this restore, its late outcome must not touch session state.
+    const superseded = () => epoch !== this.bearerEpoch;
+    this.clearMemory();
+    if (this.storage == null) return null;
+    let stored: Uint8Array | null;
+    try { stored = await this.storage.getSecret(SESSION_STORAGE_KEY); }
+    catch { if (!superseded()) await this.clearLocal(); return null; }
+    if (superseded() || stored == null) return null;
+    let persisted: PersistedSession;
+    try { persisted = parsePersisted(stored); }
+    catch { await this.clearLocal(); return null; }
+    if (persisted.endpoint !== endpoint || persisted.refreshExpiresAt <= Date.now()) { await this.clearLocal(); return null; }
+    this.deviceId = persisted.deviceId ?? null;
+    try {
+      const tokens = parseTokens(await requestJson(this.request, `${endpoint}/v1/mobile/session/refresh`, { method: "POST", body: JSON.stringify({ refreshToken: persisted.refreshToken, ...(this.deviceId ? { deviceId: this.deviceId } : {}) }) }));
+      if (superseded()) return null;
+      this.acceptTokens(endpoint, tokens);
+      await this.persistOrClear(endpoint, tokens);
+      const identity = await this.loadIdentity(endpoint, tokens.accessToken);
+      if (superseded()) return null;
+      this.identity = identity;
+      return identity;
+    } catch (error) {
+      if (superseded()) return null;
+      if (isDefinitiveSessionRejection(error)) { await this.clearLocal(); return null; }
+      this.clearMemory();
+      this.restoreRetryable = true;
+      throw error;
     }
   }
 
   public async disconnect(baseUrl?: string): Promise<void> {
-    // Credential destruction is authoritative and must not depend on whether a caller supplied a
-    // malformed/insecure historical endpoint. Capture the candidate first, destroy local state,
-    // then validate only for the optional best-effort remote revoke.
     const candidateEndpoint = baseUrl == null ? this.endpoint : baseUrl;
     const access = this.accessToken;
     await this.clearLocal();
@@ -273,42 +623,70 @@ export class MobileApprovedSession {
   public clearMemory(): void {
     this.accessToken = null;
     this.accessExpiresAt = 0;
+    this.refreshToken = null;
+    this.refreshExpiresAt = 0;
     this.endpoint = null;
     this.deviceId = null;
     this.identity = null;
+    this.pendingPairing = null;
     this.restoreRetryable = false;
+    this.silentNative = null;
+    this.silentCredentialId = null;
   }
 
   private async getAccessToken(): Promise<string | null> {
     if (this.accessToken != null && Date.now() + ACCESS_REFRESH_SKEW_MS < this.accessExpiresAt) return this.accessToken;
     if (this.refreshInFlight != null) return this.refreshInFlight;
-    const operation = this.refreshFromStorage();
+    const operation = this.refreshFromMemory();
     this.refreshInFlight = operation;
     try { return await operation; }
     finally { if (this.refreshInFlight === operation) this.refreshInFlight = null; }
   }
 
-  private async refreshFromStorage(): Promise<string | null> {
-    if (this.storage == null || this.endpoint == null) return null;
-    let persisted: PersistedSession;
+  private async refreshFromMemory(): Promise<string | null> {
+    const endpoint = this.endpoint;
+    const refreshToken = this.refreshToken;
+    if (endpoint == null || refreshToken == null || Date.now() + ACCESS_REFRESH_SKEW_MS >= this.refreshExpiresAt) {
+      await this.clearLocal();
+      return null;
+    }
+    const silentNative = this.silentNative;
+    const silentCredentialId = this.silentCredentialId;
     try {
-      const stored = await this.storage.getSecret(SESSION_STORAGE_KEY);
-      if (stored == null) return null;
-      persisted = parsePersisted(stored);
-    } catch { await this.clearLocal(); return null; }
-    if (persisted.endpoint !== this.endpoint || persisted.refreshExpiresAt <= Date.now()) { await this.clearLocal(); return null; }
-    try { return (await this.refreshWith(this.endpoint, persisted.refreshToken, persisted.deviceId)).accessToken; }
+      if (silentNative != null && silentCredentialId != null && this.deviceId != null) {
+        return (await this.issueSilentDeviceSession(endpoint, this.deviceId, silentNative, silentCredentialId)).accessToken;
+      }
+      return (await this.refreshWith(endpoint, refreshToken, this.deviceId ?? undefined)).accessToken;
+    }
     catch (error) {
-      if (isDefinitiveSessionRejection(error)) await this.clearLocal();
-      else this.retainRetryableSession(persisted.endpoint, persisted.deviceId);
+      if (isDefinitiveSessionRejection(error)) {
+        if (silentNative != null && silentCredentialId != null) {
+          try { await silentNative.deleteSilentDeviceCredential(silentCredentialId); } catch { /* local session is still cleared fail-closed */ }
+        }
+        await this.clearLocal();
+      } else this.restoreRetryable = true;
       return null;
     }
   }
 
+  private async issueSilentDeviceSession(endpoint: string, deviceId: string, native: OwnerDeviceCredentialNative, credentialId: string): Promise<MobileSessionTokens> {
+    const challenge = parseOwnerDeviceChallenge(await requestJson(this.request, `${endpoint}/v1/mobile/owner-device/authentication/challenge`, {
+      method: "POST", body: JSON.stringify({ credentialId, deviceId })
+    }), "AUTHENTICATION");
+    const proof = readProof(await native.signSilentChallenge(credentialId, challenge.challenge));
+    const tokens = parseTokens(await requestJson(this.request, `${endpoint}/v1/mobile/owner-device/authentication/complete`, {
+      method: "POST", body: JSON.stringify({ credentialId, deviceId, challengeId: challenge.challengeId, signature: proof })
+    }));
+    this.deviceId = tokens.deviceId ?? deviceId;
+    this.acceptTokens(endpoint, tokens);
+    await this.persistOrClear(endpoint, tokens);
+    return tokens;
+  }
+
   private async refreshWith(endpoint: string, refreshToken: string, deviceId?: string): Promise<MobileSessionTokens> {
     const tokens = parseTokens(await requestJson(this.request, `${endpoint}/v1/mobile/session/refresh`, { method: "POST", body: JSON.stringify({ refreshToken, ...(deviceId ? { deviceId } : {}) }) }));
-    await this.persist(endpoint, tokens);
-    this.acceptAccess(endpoint, tokens);
+    this.acceptTokens(endpoint, tokens);
+    await this.persistOrClear(endpoint, tokens);
     return tokens;
   }
 
@@ -316,32 +694,39 @@ export class MobileApprovedSession {
     return parseIdentity(await requestJson(this.request, `${endpoint}/v1/mobile/me`, { method: "GET", headers: { authorization: `Bearer ${accessToken}` } }));
   }
 
-  private acceptAccess(endpoint: string, tokens: MobileSessionTokens): void {
+  private acceptTokens(endpoint: string, tokens: MobileSessionTokens): void {
     this.endpoint = endpoint;
     this.accessToken = tokens.accessToken;
     this.accessExpiresAt = tokens.accessExpiresAt;
+    this.refreshToken = tokens.refreshToken;
+    this.refreshExpiresAt = tokens.refreshExpiresAt;
+    this.deviceId = tokens.deviceId ?? this.deviceId;
     this.restoreRetryable = false;
   }
 
-  private retainRetryableSession(endpoint: string, deviceId?: string): void {
-    this.clearMemory();
-    this.endpoint = endpoint;
-    this.deviceId = deviceId ?? null;
-    this.restoreRetryable = true;
+  private async clearPersistedPairing(): Promise<void> {
+    if (this.storage == null) return;
+    try { await this.storage.deleteSecret(PAIRING_STORAGE_KEY); } catch { /* pairing state remains unusable without its storage adapter */ }
   }
 
   private async persist(endpoint: string, tokens: MobileSessionTokens): Promise<void> {
     if (this.storage == null) throw new Error("OS secure storage is unavailable on this mobile runtime.");
-    const value: PersistedSession = Object.freeze({ endpoint, refreshToken: tokens.refreshToken, refreshExpiresAt: tokens.refreshExpiresAt, ...(this.deviceId ? { deviceId: this.deviceId } : {}) });
+    const value: PersistedSession = Object.freeze({ endpoint, refreshToken: tokens.refreshToken, refreshExpiresAt: tokens.refreshExpiresAt, ...(this.deviceId == null ? {} : { deviceId: this.deviceId }) });
     await this.storage.setSecret(SESSION_STORAGE_KEY, encodeAscii(JSON.stringify(value)));
+  }
+
+  private async persistOrClear(endpoint: string, tokens: MobileSessionTokens): Promise<void> {
+    try { await this.persist(endpoint, tokens); }
+    catch (error) { await this.clearLocal(); throw error; }
   }
 
   private async clearLocal(): Promise<void> {
     this.clearMemory();
     if (this.storage != null) {
-      try { await this.storage.deleteSecret(SESSION_STORAGE_KEY); } catch { /* memory is already cleared; storage adapter remains fail-closed */ }
+      try { await this.storage.deleteSecret(SESSION_STORAGE_KEY); } catch { /* memory is already cleared; storage remains fail-closed */ }
+      await this.clearPersistedPairing();
     }
   }
 }
 
-export { SESSION_STORAGE_KEY };
+export { PAIRING_STORAGE_KEY, SESSION_STORAGE_KEY };

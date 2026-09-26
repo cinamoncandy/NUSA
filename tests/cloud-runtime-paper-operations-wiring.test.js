@@ -26,3 +26,30 @@ test("runtime PAPER operations remains behind the same GET-only dashboard server
   assert.match(source, /tokenVerifier:\s*requestTokenVerifier/);
   assert.doesNotMatch(source, /\/api\/paper-operations[^\n]*(POST|PUT|PATCH|DELETE)/);
 });
+
+// #1855. A soak observation read HALTED with no recorded cause, so 330 minutes of evidence could
+// not be attributed and had to be discarded. The fix is only trustworthy if the state and the
+// reasons cannot disagree, which means HALTED must be *derived from* the reason list rather than
+// re-deriving the same three conditions beside it. This is a structural assertion, not a
+// behavioural one: it pins the single-source shape, and the receipt-level behaviour is covered in
+// tests/paper-elapsed-soak.test.js.
+test("HALTED is derived from the recorded halt reasons, so state and cause cannot drift", () => {
+  const source = fs.readFileSync(runtimePath, "utf8");
+
+  assert.match(source, /const runtimeHaltReasons: PersonalPaperRuntimeHaltReason\[\] = \[\];/);
+  for (const reason of ["DASHBOARD_FAULTED", "KILL_SWITCH_ACTIVE", "AI_P0_OPEN", "AI_P0_UNVERIFIABLE"]) {
+    assert.match(source, new RegExp(`runtimeHaltReasons\\.push\\("${reason}"\\)`), reason);
+  }
+
+  // The state reads the list; it must not re-test the same inputs on its own.
+  assert.match(source, /const runtimeState = runtimeHaltReasons\.length > 0 \? "HALTED" as const/);
+  assert.doesNotMatch(
+    source,
+    /const runtimeState = dashboard\.mode === "FAULTED"/,
+    "re-deriving HALTED beside the reason list is what let the two disagree"
+  );
+
+  // The reasons ship only while halted, so a healthy observation carries no empty array to read
+  // as evidence of a halt that did not happen.
+  assert.match(source, /runtimeHaltReasons\.length > 0 \? \{ runtimeHaltReasons: Object\.freeze\(\[\.\.\.runtimeHaltReasons\]\) \} : \{\}/);
+});

@@ -22,14 +22,17 @@ test("runtime proof runs hourly away from the scheduler burst and uploads bounde
   assert.equal(workflow.includes("retention-days: 7"), true);
 });
 
-test("successful runtime proof directly dispatches Credential Preflight instead of relying on workflow_run chaining", () => {
+test("only exact-current runtime proof directly dispatches Credential Preflight", () => {
   assert.match(workflow, /permissions:\s*\n\s*contents: read\s*\n\s*actions: write/);
   assert.equal(workflow.includes("Dispatch Credential Preflight directly for fresh safety-gate re-verification"), true);
-  assert.equal(workflow.includes("does not fire"), true);
+  assert.equal(workflow.includes("single canonical post-runtime ingress"), true);
   assert.equal(workflow.includes("actions/workflows/autopilot-cloudflare-credential-preflight.yml/dispatches"), true);
   const dispatchIndex = workflow.indexOf("Dispatch Credential Preflight directly");
   assert.ok(dispatchIndex > 0);
-  assert.match(workflow.slice(dispatchIndex, dispatchIndex + 400), /if: steps\.freshness\.outputs\.current == 'true'/);
+  assert.equal(workflow.includes("proof.exactHeadVerified === true"), true);
+  assert.equal(workflow.includes("revision === sourceSha"), true);
+  assert.equal(workflow.includes("preflight_eligible="), true);
+  assert.match(workflow.slice(dispatchIndex, dispatchIndex + 500), /steps\.proof\.outputs\.preflight_eligible == 'true'/);
 });
 
 test("runtime proof distinguishes scheduler, receipt, and worker failures without exposing credentials", () => {

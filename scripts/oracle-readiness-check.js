@@ -1,6 +1,7 @@
 "use strict";
 const fs = require("node:fs");
 const http = require("node:http");
+const { spawnSync } = require("node:child_process");
 
 const envPath = process.env.NUSA_ENV_FILE || "/etc/nusa/cloud-runtime.env";
 if (!fs.existsSync(envPath)) throw new Error(`missing environment file: ${envPath}`);
@@ -15,39 +16,155 @@ if (host !== "127.0.0.1" && host.toLowerCase() !== "localhost") throw new Error(
 if (!Number.isSafeInteger(port) || port < 1024 || port > 65535) throw new Error("invalid readiness port");
 if (Buffer.byteLength(token, "utf8") < 32) throw new Error("dashboard token must be at least 32 bytes");
 
+// These are the exact owner-device bootstrap routes consumed by the mobile client. A release
+// that answers /ready but omits either route is still unusable for the first-device flow (and
+// previously caused a production 404), so readiness must fail closed before switching current.
+const REQUIRED_MOBILE_OWNER_AUTH_ROUTES = Object.freeze([
+  "/v1/mobile/session/password",
+  "/v1/mobile/session/password/change",
+]);
+
 if (process.env.NUSA_DRY_RUN === "1") {
   console.log(JSON.stringify({ status: "DRY_RUN", host, port, path: "/ready", authenticated: true }));
   process.exit(0);
 }
 
 const timeoutMs = Number(process.env.NUSA_READY_TIMEOUT_MS || 5000);
-const req = http.request({
-  host,
-  port,
-  method: "GET",
-  path: "/ready",
-  headers: { authorization: `Bearer ${token}` },
-  timeout: Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 5000
-}, (res) => {
-  let body = "";
-  res.setEncoding("utf8");
-  res.on("data", (chunk) => { body += chunk; });
-  res.on("end", () => {
-    let parsed;
-    try { parsed = JSON.parse(body); } catch { throw new Error("readiness response is not JSON"); }
-    const checks = parsed && parsed.checks;
-    const healthy = res.statusCode === 200 && parsed?.ok === true && checks && Object.values(checks).every((value) => value === true);
-    if (!healthy) {
-      console.error(JSON.stringify({ status: "FAIL", httpStatus: res.statusCode, ready: parsed?.ok === true, checks: checks ?? null }));
+const startupWaitMs = Number(process.env.NUSA_READY_STARTUP_WAIT_MS || 60_000);
+const retryDelayMs = Number(process.env.NUSA_READY_RETRY_DELAY_MS || 1_000);
+if (!Number.isSafeInteger(startupWaitMs) || startupWaitMs < 0 || startupWaitMs > 60_000) throw new Error("NUSA_READY_STARTUP_WAIT_MS must be an integer in [0, 60000]");
+if (!Number.isSafeInteger(retryDelayMs) || retryDelayMs < 1 || retryDelayMs > 5_000) throw new Error("NUSA_READY_RETRY_DELAY_MS must be an integer in [1, 5000]");
+const requestStatus = (path, headers = {}) => new Promise((resolve, reject) => {
+  const req = http.request({
+    host,
+    port,
+    method: "GET",
+    path,
+    headers,
+    timeout: Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 5000
+  }, (res) => {
+    let body = "";
+    res.setEncoding("utf8");
+    res.on("data", (chunk) => { body += chunk; });
+    res.on("end", () => resolve({ statusCode: res.statusCode ?? 0, body }));
+  });
+  req.on("timeout", () => req.destroy(new Error("readiness request timed out")));
+  req.on("error", reject);
+  req.end();
+});
+
+const pause = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+const parseReadiness = (response) => {
+  let parsed;
+  try { parsed = JSON.parse(response.body); } catch { return { healthy: false, checks: null, ready: false, httpStatus: response.statusCode }; }
+  const checks = parsed && parsed.checks;
+  const checkValues = checks != null && typeof checks === "object" && !Array.isArray(checks) ? Object.values(checks) : [];
+  return {
+    healthy: response.statusCode === 200 && parsed?.ok === true && checkValues.length > 0 && checkValues.every((value) => value === true),
+    checks: checks ?? null,
+    ready: parsed?.ok === true,
+    httpStatus: response.statusCode
+  };
+};
+
+/**
+ * A systemd restart returns after the launcher has been spawned, not after the
+ * supervised runtime has bound its local dashboard port.  Probe for a bounded
+ * startup window so a healthy-but-still-booting release is not rolled back.
+ * This only delays acceptance: a missing, malformed, or unhealthy readiness
+ * response still fails closed once the deadline expires.
+ */
+const awaitReadiness = async () => {
+  const deadline = Date.now() + startupWaitMs;
+  let attempts = 0;
+  let last = { kind: "transport", message: "readiness request was not attempted" };
+  for (;;) {
+    attempts += 1;
+    try {
+      const response = await requestStatus("/ready", { authorization: `Bearer ${token}` });
+      const parsed = parseReadiness(response);
+      if (parsed.healthy) return { ...parsed, attempts };
+      last = { kind: "response", ...parsed };
+    } catch (error) {
+      last = { kind: "transport", message: error instanceof Error ? error.message : "readiness request failed" };
+    }
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) return { healthy: false, attempts, last };
+    await pause(Math.min(retryDelayMs, remaining));
+  }
+};
+
+
+const awaitExpectedStatus = async (path, expectedStatus) => {
+  const deadline = Date.now() + startupWaitMs;
+  let attempts = 0;
+  let last = { kind: "transport", message: "route probe was not attempted" };
+  for (;;) {
+    attempts += 1;
+    try {
+      const response = await requestStatus(path);
+      if (response.statusCode === expectedStatus) return { ok: true, statusCode: response.statusCode, attempts };
+      last = { kind: "response", actualStatus: response.statusCode };
+    } catch (error) {
+      last = { kind: "transport", message: error instanceof Error ? error.message : "route probe failed" };
+    }
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) return { ok: false, attempts, last };
+    await pause(Math.min(retryDelayMs, remaining));
+  }
+};
+
+// A failed startup used to report only "ECONNREFUSED" and roll back, leaving no evidence of why
+// the runtime never listened. Emit the service journal tail so the release run itself carries the
+// cause. Secret-shaped values are redacted; a missing journalctl never changes the verdict.
+const SECRET_LINE = /(token|secret|password|authorization|bearer|api[_-]?key|private)\s*[=:]\s*\S+/gi;
+function redactJournalLine(line) {
+  return line.replace(SECRET_LINE, (match) => `${match.split(/[=:]/)[0]}=[redacted]`);
+}
+function journalTail(unit = process.env.NUSA_READINESS_JOURNAL_UNIT || "nusa", lines = 80, run = spawnSync) {
+  try {
+    const args = ["-u", unit, "-n", String(lines), "--no-pager", "-o", "cat"];
+    // Test seam only: a Node script standing in for journalctl, so the evidence path is verified on
+    // every CI platform. Production never sets it and always reads the real systemd journal.
+    const stub = process.env.NUSA_READINESS_JOURNAL_STUB;
+    const result = stub ? run(process.execPath, [stub, ...args], { encoding: "utf8", timeout: 10_000 }) : run("journalctl", args, { encoding: "utf8", timeout: 10_000 });
+    if (result.status !== 0 || typeof result.stdout !== "string") return [];
+    return result.stdout.split(/\r?\n/).filter(Boolean).map(redactJournalLine);
+  } catch {
+    return [];
+  }
+}
+
+const run = async () => {
+  const readiness = await awaitReadiness();
+  if (!readiness.healthy) {
+    console.error(JSON.stringify({ status: "FAIL", stage: "startup_readiness", attempts: readiness.attempts, last: readiness.last ?? { httpStatus: readiness.httpStatus, ready: readiness.ready, checks: readiness.checks } }));
+    for (const line of journalTail()) console.error(`[journal] ${line}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const routeChecks = [];
+  for (const path of REQUIRED_MOBILE_OWNER_AUTH_ROUTES) {
+    // GET is intentionally used as a non-mutating route-presence probe. The canonical handlers
+    // reject it with 405; 404 means this release is stale and cannot serve the mobile client.
+    // A freshly started 1 GB host can transiently stop servicing the event loop while bounded
+    // PAPER/Research startup work begins, so retry the exact route within the same bounded
+    // startup contract instead of treating one 5-second transport timeout as proof of absence.
+    const probe = await awaitExpectedStatus(path, 405);
+    if (!probe.ok) {
+      console.error(JSON.stringify({ status: "FAIL", stage: "mobile_owner_route", route: path, expectedStatus: 405, attempts: probe.attempts, last: probe.last }));
       process.exitCode = 1;
       return;
     }
-    console.log(JSON.stringify({ status: "PASS", httpStatus: res.statusCode, ready: true, checks }));
-  });
-});
-req.on("timeout", () => req.destroy(new Error("readiness request timed out")));
-req.on("error", (error) => {
+    routeChecks.push({ path, status: probe.statusCode });
+  }
+  console.log(JSON.stringify({ status: "PASS", httpStatus: readiness.httpStatus, ready: true, checks: readiness.checks, startupAttempts: readiness.attempts, mobileOwnerAuthRoutes: routeChecks }));
+};
+
+run().catch((error) => {
   console.error(JSON.stringify({ status: "FAIL", error: error instanceof Error ? error.message : "readiness request failed" }));
   process.exitCode = 1;
 });
-req.end();
+
+module.exports = { REQUIRED_MOBILE_OWNER_AUTH_ROUTES, journalTail, redactJournalLine };

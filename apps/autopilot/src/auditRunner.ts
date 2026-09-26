@@ -1,4 +1,6 @@
-import type { WorkersAiBinding } from "./codingRunner";
+import { logAiCall } from "./aiCallTelemetry";
+import { classifyWorkersAiProviderStop, type WorkersAiBinding } from "./codingRunner";
+import type { PersistentExecutionStop } from "./executionCoordinator";
 
 export type AuditVerdict = "PASS" | "PASS_WITH_NOTES" | "FAIL";
 export type AuditSafetyInvariantResult = "PASS" | "FAIL";
@@ -48,8 +50,8 @@ export interface AuditRunnerResult {
 export interface AuditRunnerEnv {
   readonly AI?: WorkersAiBinding;
   readonly NUSA_AI_AUDIT_MODEL?: string;
-  /** Token used only for authenticated, read-only GitHub evidence fetches. */
-  readonly NUSA_GITHUB_TOKEN?: string;
+  /** Per-execution GitHub App installation token used only for read-only Audit evidence fetches. */
+  readonly NUSA_AUDIT_GITHUB_TOKEN?: string;
 }
 
 interface AuditModelVerdict {
@@ -57,6 +59,7 @@ interface AuditModelVerdict {
   readonly findings: readonly AuditRunnerFinding[];
   readonly blockers: readonly string[];
   readonly safetyInvariantResult: AuditSafetyInvariantResult;
+  readonly mergeAllowed: boolean;
 }
 
 interface VerifiedPullEvidence {
@@ -92,7 +95,7 @@ const MAX_EVIDENCE_REF_CHARS = 500;
 // nondeterminism without weakening any validation: a persistently malformed response still fails
 // closed exactly as before once attempts are exhausted.
 const MAX_AUDIT_MODEL_ATTEMPTS = 3;
-const ALLOWED_MODEL_KEYS = new Set(["verdict", "findings", "blockers", "safetyInvariantResult"]);
+const ALLOWED_MODEL_KEYS = new Set(["verdict", "findings", "blockers", "safetyInvariantResult", "mergeAllowed"]);
 const ALLOWED_FINDING_KEYS = new Set(["code", "severity", "message", "evidenceRef"]);
 
 const AUDIT_FINDING_SCHEMA = Object.freeze({
@@ -107,18 +110,9 @@ const AUDIT_FINDING_SCHEMA = Object.freeze({
   required: Object.freeze(["code", "severity", "message", "evidenceRef"]),
 });
 
-const AUDIT_NOTE_FINDING_SCHEMA = Object.freeze({
-  type: "object",
-  additionalProperties: false,
-  properties: Object.freeze({
-    code: Object.freeze({ type: "string" }),
-    severity: Object.freeze({ type: "string", enum: Object.freeze(["NOTE"]) }),
-    message: Object.freeze({ type: "string" }),
-    evidenceRef: Object.freeze({ anyOf: Object.freeze([{ type: "string" }, { type: "null" }]) }),
-  }),
-  required: Object.freeze(["code", "severity", "message", "evidenceRef"]),
-});
-
+// Keep the provider-facing schema flat. Workers AI documents that complex JSON
+// schemas are not guaranteed to be met; the strict semantic validator below
+// remains authoritative for PASS/FAIL consistency and safety.
 const AUDIT_RESPONSE_FORMAT = Object.freeze({
   type: "json_schema",
   json_schema: Object.freeze({
@@ -133,32 +127,9 @@ const AUDIT_RESPONSE_FORMAT = Object.freeze({
       }),
       blockers: Object.freeze({ type: "array", maxItems: MAX_BLOCKERS, items: Object.freeze({ type: "string" }) }),
       safetyInvariantResult: Object.freeze({ type: "string", enum: Object.freeze(["PASS", "FAIL"]) }),
+      mergeAllowed: Object.freeze({ type: "boolean" }),
     }),
-    required: Object.freeze(["verdict", "findings", "blockers", "safetyInvariantResult"]),
-    anyOf: Object.freeze([
-      Object.freeze({
-        properties: Object.freeze({
-          verdict: Object.freeze({ enum: Object.freeze(["PASS"]) }),
-          findings: Object.freeze({ type: "array", maxItems: 0 }),
-          blockers: Object.freeze({ type: "array", maxItems: 0 }),
-          safetyInvariantResult: Object.freeze({ enum: Object.freeze(["PASS"]) }),
-        }),
-      }),
-      Object.freeze({
-        properties: Object.freeze({
-          verdict: Object.freeze({ enum: Object.freeze(["PASS_WITH_NOTES"]) }),
-          findings: Object.freeze({ type: "array", minItems: 1, maxItems: MAX_FINDINGS, items: AUDIT_NOTE_FINDING_SCHEMA }),
-          blockers: Object.freeze({ type: "array", maxItems: 0 }),
-          safetyInvariantResult: Object.freeze({ enum: Object.freeze(["PASS"]) }),
-        }),
-      }),
-      Object.freeze({
-        properties: Object.freeze({
-          verdict: Object.freeze({ enum: Object.freeze(["FAIL"]) }),
-          blockers: Object.freeze({ type: "array", minItems: 1, maxItems: MAX_BLOCKERS, items: Object.freeze({ type: "string" }) }),
-        }),
-      }),
-    ]),
+    required: Object.freeze(["verdict", "findings", "blockers", "safetyInvariantResult", "mergeAllowed"]),
   }),
 });
 
@@ -230,6 +201,7 @@ export function validateAuditModelVerdict(value: unknown): AuditModelVerdict {
   strictKeys(verdict, ALLOWED_MODEL_KEYS, "AUDIT_VERDICT_KEYS_INVALID");
   if (verdict.verdict !== "PASS" && verdict.verdict !== "PASS_WITH_NOTES" && verdict.verdict !== "FAIL") throw new Error("AUDIT_VERDICT_STATUS_INVALID");
   const safetyInvariantResult = normalizeAuditSafetyInvariant(verdict.safetyInvariantResult);
+  if (typeof verdict.mergeAllowed !== "boolean") throw new Error("AUDIT_VERDICT_MERGE_ALLOWED_INVALID");
   if (!Array.isArray(verdict.findings) || verdict.findings.length > MAX_FINDINGS) throw new Error("AUDIT_VERDICT_FINDINGS_INVALID");
   if (!Array.isArray(verdict.blockers) || verdict.blockers.length > MAX_BLOCKERS) throw new Error("AUDIT_VERDICT_BLOCKERS_INVALID");
   const findings = Object.freeze(verdict.findings.map(validateFinding));
@@ -240,11 +212,13 @@ export function validateAuditModelVerdict(value: unknown): AuditModelVerdict {
   if (verdict.verdict === "PASS" && findings.length > 0) throw new Error("AUDIT_VERDICT_PASS_FINDINGS_FORBIDDEN");
   if (verdict.verdict === "PASS_WITH_NOTES" && findings.length === 0) throw new Error("AUDIT_VERDICT_NOTES_REQUIRED");
   if (verdict.verdict === "FAIL" && blockers.length === 0) throw new Error("AUDIT_VERDICT_FAIL_BLOCKER_REQUIRED");
+  if (verdict.mergeAllowed && (verdict.verdict === "FAIL" || blockers.length > 0 || safetyInvariantResult !== "PASS" || findings.some((finding) => finding.severity === "BLOCKER"))) throw new Error("AUDIT_VERDICT_MERGE_ALLOWED_UNSAFE");
   return Object.freeze({
     verdict: verdict.verdict,
     findings,
     blockers,
     safetyInvariantResult,
+    mergeAllowed: verdict.mergeAllowed,
   });
 }
 
@@ -271,6 +245,39 @@ function parseAuditModelResponse(value: unknown): AuditModelVerdict {
     return validateAuditModelVerdict(parseJsonText(payload.response));
   }
   throw new Error("AUDIT_MODEL_RESPONSE_INVALID");
+}
+
+function currentDiffEvidenceRefs(diff: string): ReadonlySet<string> {
+  const refs = new Set<string>();
+  let currentFile: string | undefined;
+  let currentLine: number | undefined;
+  for (const line of diff.split("\n")) {
+    if (line.startsWith("+++ b/")) {
+      currentFile = line.slice("+++ b/".length);
+      currentLine = undefined;
+      continue;
+    }
+    const hunk = line.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+    if (hunk) {
+      currentLine = Number(hunk[1]);
+      continue;
+    }
+    if (!currentFile || currentLine === undefined || line.startsWith("\\")) continue;
+    if (line.startsWith("+")) refs.add(`${currentFile}:+${currentLine}`);
+    if (!line.startsWith("-")) currentLine += 1;
+  }
+  return refs;
+}
+
+function validateBlockerEvidenceAgainstCurrentDiff(verdict: AuditModelVerdict, diff: string): AuditModelVerdict {
+  const currentRefs = currentDiffEvidenceRefs(diff);
+  for (const finding of verdict.findings) {
+    if (finding.severity !== "BLOCKER") continue;
+    if (finding.evidenceRef === null || !currentRefs.has(finding.evidenceRef)) {
+      throw new Error("AUDIT_VERDICT_BLOCKER_EVIDENCE_NOT_CURRENT");
+    }
+  }
+  return verdict;
 }
 
 function githubHeaders(accept = "application/vnd.github+json", token: string): Record<string, string> {
@@ -375,8 +382,13 @@ function auditPrompt(request: AuditRunnerRequest, diff: string): string {
     "Evaluate the exact pull-request diff below against correctness, regressions, architecture consistency, evidence integrity, test integrity, and NUSA safety invariants.",
     "Fail closed on ambiguity, missing evidence, weakened assertions/checks, synthetic evidence presented as actual evidence, duplicate control-plane/queue/scheduler/merge engines, stale-head assumptions, or unsafe authority changes.",
     "Safety invariants: liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY; no AI self-grant; no automatic LIVE activation; no withdrawals/transfers; no mobile credential storage; PAPER/REAL separation; fail-closed; actual evidence must not be fabricated.",
-    "Return only the structured verdict requested by response_format.",
-    "Rules: PASS requires zero findings and zero blockers. PASS_WITH_NOTES requires one or more NOTE findings and zero blockers and is not automatically merge-authorizing. FAIL requires at least one blocker. Any BLOCKER finding, safety failure, test weakening, evidence integrity issue, or material uncertainty requires FAIL.",
+    'Return only JSON matching response_format. safetyInvariantResult MUST be a JSON string whose exact value is "PASS" or "FAIL"; never use a boolean, object, null, or another spelling.',
+    "The top-level JSON object MUST contain exactly these five keys: verdict, findings, blockers, safetyInvariantResult, mergeAllowed. findings and blockers MUST always be arrays; mergeAllowed MUST be a JSON boolean.",
+    "Rules: PASS requires zero findings and zero blockers and mergeAllowed=true. PASS_WITH_NOTES requires one or more NOTE findings and zero blockers; set mergeAllowed=true only when those notes are explicitly non-blocking and the exact reviewed head is safe to merge. FAIL requires at least one blocker and mergeAllowed=false. Any BLOCKER finding, safety failure, test weakening, evidence integrity issue, or material uncertainty requires FAIL and mergeAllowed=false.",
+    "For every BLOCKER, evidenceRef MUST be exactly one value from the deterministic CURRENT ADDED-LINE EVIDENCE REFS list below. Never invent or transform an evidenceRef. A `-` line is removed code, never current behavior; do not report it as a blocker. If a concern depends only on removed code, it is not a current blocker.",
+    "--- BEGIN CURRENT ADDED-LINE EVIDENCE REFS ---",
+    ...[...currentDiffEvidenceRefs(diff)].sort(),
+    "--- END CURRENT ADDED-LINE EVIDENCE REFS ---",
     `Repository: ${request.repository}`,
     `PR: #${request.prNumber}`,
     `Exact head: ${request.headSha}`,
@@ -394,8 +406,8 @@ export async function executeIndependentAudit(
   fetchImpl: FetchImpl = fetch as unknown as FetchImpl,
   now: () => number = () => Date.now(),
 ): Promise<AuditRunnerResult> {
-  const githubToken = env.NUSA_GITHUB_TOKEN?.trim();
-  if (!githubToken) throw new Error("AUDIT_GITHUB_TOKEN_NOT_CONFIGURED");
+  const githubToken = env.NUSA_AUDIT_GITHUB_TOKEN?.trim();
+  if (!githubToken) throw new Error("AUDIT_GITHUB_APP_TOKEN_NOT_PROVIDED");
   const beforeAudit = await verifyCurrentPullAndCi(request, githubToken, fetchImpl);
   const diff = await fetchPullDiff(request, beforeAudit.changedFiles, githubToken, fetchImpl);
   if (!env.AI) throw new Error("AUDIT_AI_NOT_CONFIGURED");
@@ -408,8 +420,9 @@ export async function executeIndependentAudit(
   let lastModelError: unknown;
   for (let attempt = 1; attempt <= MAX_AUDIT_MODEL_ATTEMPTS; attempt += 1) {
     const rawModelResponse = await env.AI.run(model, modelRequest);
+    logAiCall({ caller: "C2_AUDIT", model, attempt, promptChars: modelRequest.prompt.length, response: rawModelResponse });
     try {
-      modelResult = parseAuditModelResponse(rawModelResponse);
+      modelResult = validateBlockerEvidenceAgainstCurrentDiff(parseAuditModelResponse(rawModelResponse), diff);
       break;
     } catch (error) {
       lastModelError = error;
@@ -427,7 +440,7 @@ export async function executeIndependentAudit(
     `github:base/${request.baseSha}`,
     `github:actions/runs/${request.workflowRunId}`,
   ]);
-  const mergeAllowed = modelResult.verdict === "PASS" && modelResult.safetyInvariantResult === "PASS" && modelResult.blockers.length === 0;
+  const mergeAllowed = modelResult.mergeAllowed === true && modelResult.verdict !== "FAIL" && modelResult.safetyInvariantResult === "PASS" && modelResult.blockers.length === 0 && modelResult.findings.every((finding) => finding.severity === "NOTE");
   return Object.freeze({
     schemaVersion: 1,
     status: "AUDIT_COMPLETED",
@@ -447,4 +460,59 @@ export async function executeIndependentAudit(
     productionMutationAllowed: false,
     aiAuthority: "ZERO_AUTHORITY",
   });
+}
+
+export const AUDIT_PROVIDER = "workers-ai";
+
+export type ProviderGatedAuditOutcome =
+  | { readonly status: "AUDITED"; readonly result: AuditRunnerResult }
+  | { readonly status: "WAITING_PROVIDER_CAPACITY"; readonly reason: string; readonly nextRetryAt: number }
+  | { readonly status: "PROVIDER_CAPACITY_STATE_UNAVAILABLE" };
+
+export interface ProviderGatedAuditDependencies {
+  readonly readProviderWait: () => Promise<PersistentExecutionStop | null>;
+  readonly recordProviderWait: (stop: PersistentExecutionStop) => Promise<unknown>;
+  readonly runAudit: () => Promise<AuditRunnerResult>;
+  readonly now: () => number;
+}
+
+/**
+ * Independent Audit shares the one Workers AI budget with coding. It honours the same
+ * provider-keyed capacity wait before calling the provider and records a provider stop it hits,
+ * so neither caller spends calls against a budget the other already found exhausted. Audit
+ * authority is unchanged: a provider wait is never a PASS.
+ */
+export async function executeProviderGatedAudit(request: AuditRunnerRequest, deps: ProviderGatedAuditDependencies): Promise<ProviderGatedAuditOutcome> {
+  let wait: PersistentExecutionStop | null;
+  try {
+    wait = await deps.readProviderWait();
+  } catch {
+    return { status: "PROVIDER_CAPACITY_STATE_UNAVAILABLE" };
+  }
+  if (wait && deps.now() < wait.nextRetryAt) {
+    return { status: "WAITING_PROVIDER_CAPACITY", reason: wait.stopReason, nextRetryAt: wait.nextRetryAt };
+  }
+  try {
+    return { status: "AUDITED", result: await deps.runAudit() };
+  } catch (error) {
+    const stoppedAt = deps.now();
+    const providerStop = classifyWorkersAiProviderStop(error, stoppedAt);
+    if (!providerStop) throw error;
+    await deps.recordProviderWait({
+      schemaVersion: 1,
+      taskId: `audit:${request.repository}#${request.prNumber}`,
+      executionId: request.executionId,
+      provider: AUDIT_PROVIDER,
+      headSha: request.headSha,
+      stopReason: providerStop.reason,
+      stoppedAt,
+      attemptCount: 1,
+      lastFailure: providerStop.reason,
+      nextRetryAt: providerStop.nextRetryAt,
+      resumeCondition: providerStop.resumeCondition,
+      dedupeKey: request.dedupeKey,
+      evidenceRef: `audit-evidence:${request.executionId}`,
+    });
+    return { status: "WAITING_PROVIDER_CAPACITY", reason: providerStop.reason, nextRetryAt: providerStop.nextRetryAt };
+  }
 }

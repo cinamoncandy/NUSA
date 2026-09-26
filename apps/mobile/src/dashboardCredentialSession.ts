@@ -173,7 +173,7 @@ export class InMemoryDashboardCredentialSession {
       try { lastCredentialFailure = null; restored = await session.restore(endpoint); }
       catch (error) { lastCredentialFailure = describeCredentialFailure(error); return null; }
       if (restored == null) {
-        lastCredentialFailure = "저장된 보안 세션이 없거나 만료되었습니다. 연결 토큰을 다시 입력하세요.";
+        lastCredentialFailure = "저장된 보안 세션이 없거나 만료되었습니다. 설정에서 PAPER 연결 요청을 시작하세요.";
         return null;
       }
     }

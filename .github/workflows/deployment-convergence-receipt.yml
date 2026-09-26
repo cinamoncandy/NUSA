@@ -22,9 +22,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      status: ${{ steps.verify.outputs.status }}
+      convergence_status: ${{ steps.verify.outputs.convergence_status }}
+      release_status: ${{ steps.verify.outputs.release_status }}
     steps:
-      - name: Verify exact-main convergence and write receipt
+      - name: Verify exact-main runtime convergence and write receipt
         id: verify
         env:
           GH_TOKEN: ${{ github.token }}
@@ -81,14 +82,19 @@ jobs:
           if [ -n "$ANDROID_RUN_ID" ] && [ "$ANDROID_TARGET" = "$EXPECTED_SHA" ]; then android_ok=true; fi
           if [ -n "$WINDOWS_RUN_ID" ] && [ "$WINDOWS_TARGET" = "$EXPECTED_SHA" ]; then windows_ok=true; fi
 
-          STATUS=FAIL
+          CONVERGENCE_STATUS=CONVERGENCE_INCOMPLETE
           if $main_exact && $ci_ok && $deploy_ok && $promote_ok && $runtime_proof_ok && $paper_ok && $android_ok && $windows_ok; then
-            STATUS=PASS
+            CONVERGENCE_STATUS=CONVERGED
           fi
 
+          # This workflow attests runtime/distribution convergence only. It cannot
+          # prove how EXPECTED_SHA entered main and therefore cannot emit RELEASE_COMPLETE.
+          RELEASE_STATUS=RELEASE_PROVENANCE_UNKNOWN
+
           jq -n \
-            --arg schema_version "1" \
-            --arg status "$STATUS" \
+            --arg schema_version "2" \
+            --arg convergence_status "$CONVERGENCE_STATUS" \
+            --arg release_status "$RELEASE_STATUS" \
             --arg repository "$GITHUB_REPOSITORY" \
             --arg source_sha "$EXPECTED_SHA" \
             --arg observed_main_sha "$CURRENT_MAIN" \
@@ -112,7 +118,8 @@ jobs:
             --argjson windows_ok "$windows_ok" \
             '{
               schema_version: ($schema_version | tonumber),
-              status: $status,
+              convergence_status: $convergence_status,
+              release_status: $release_status,
               repository: $repository,
               source_sha: $source_sha,
               observed_main_sha: $observed_main_sha,
@@ -135,7 +142,8 @@ jobs:
             }' > artifacts/deployment-convergence/receipt.json
 
           cat artifacts/deployment-convergence/receipt.json
-          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          echo "convergence_status=$CONVERGENCE_STATUS" >> "$GITHUB_OUTPUT"
+          echo "release_status=$RELEASE_STATUS" >> "$GITHUB_OUTPUT"
 
       - name: Upload machine-readable convergence receipt
         if: always()
@@ -146,14 +154,16 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Enforce converged PASS
+      - name: Enforce runtime convergence only
         env:
-          STATUS: ${{ steps.verify.outputs.status }}
+          CONVERGENCE_STATUS: ${{ steps.verify.outputs.convergence_status }}
+          RELEASE_STATUS: ${{ steps.verify.outputs.release_status }}
         shell: bash
         run: |
           set -euo pipefail
-          test "$STATUS" = "PASS"
-          echo "Exact-main deployment CONVERGED for ${{ inputs.source_sha }}"
+          test "$CONVERGENCE_STATUS" = "CONVERGED"
+          test "$RELEASE_STATUS" = "RELEASE_PROVENANCE_UNKNOWN"
+          echo "Exact-main runtime/distribution CONVERGED for ${{ inputs.source_sha }}; Release provenance remains independently unresolved."
           echo 'liveAuthority=NONE'
           echo 'productionMutationAllowed=false'
           echo 'aiAuthority=ZERO_AUTHORITY'

@@ -61,9 +61,11 @@ function fetchSequence() {
 }
 
 test("requests JSON Schema output and accepts a structured verdict object", async () => {
+  let capturedPrompt = "";
   let capturedResponseFormat: unknown;
   const AI: WorkersAiBinding = {
     async run(_model, input) {
+      capturedPrompt = input.prompt;
       capturedResponseFormat = input.response_format;
       return {
         response: {
@@ -71,6 +73,7 @@ test("requests JSON Schema output and accepts a structured verdict object", asyn
           findings: [],
           blockers: [],
           safetyInvariantResult: "PASS",
+          mergeAllowed: true,
         },
       };
     },
@@ -78,7 +81,7 @@ test("requests JSON Schema output and accepts a structured verdict object", asyn
 
   const result = await executeIndependentAudit(
     request,
-    { AI, NUSA_GITHUB_TOKEN: "github-token" },
+    { AI, NUSA_AUDIT_GITHUB_TOKEN: "github-token" },
     fetchSequence() as never,
   );
 
@@ -90,5 +93,7 @@ test("requests JSON Schema output and accepts a structured verdict object", asyn
   const schema = format.json_schema as Record<string, unknown>;
   assert.equal(schema.type, "object");
   assert.equal(schema.additionalProperties, false);
-  assert.deepEqual(schema.required, ["verdict", "findings", "blockers", "safetyInvariantResult"]);
+  assert.deepEqual(schema.required, ["verdict", "findings", "blockers", "safetyInvariantResult", "mergeAllowed"]);
+  assert.match(capturedPrompt, /safetyInvariantResult MUST be a JSON string/);
+  assert.match(capturedPrompt, /never use a boolean, object, null/);
 });

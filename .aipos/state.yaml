@@ -1,10 +1,60 @@
 version: 1
+current_oracle_paper_startup_readiness:
+  work_order: WO-20260919-ORACLE-READINESS-STARTUP
+  status: IMPLEMENTED_LOCAL
+  branch: codex/paper-server-readiness
+  base_sha: a89ab75e3d590f1c13198a504abaaf482c26fc2d
+  finding: "The Oracle release readiness probe ran before the supervised Cloud PAPER runtime bound localhost:41731, causing a false rollback despite the process reaching listen state moments later."
+  remediation: "Bounded 30-second startup readiness retry with a one-second maximum interval; malformed, unavailable, or unhealthy readiness remains fail-closed."
+  local_validation: "Oracle release/readiness suite 20/20 PASS, including delayed bind acceptance, bounded refusal, stale mobile-route rejection, secret non-disclosure, workflow ordering, and systemd entrypoint."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_mobile_self_service_paper_upbit_readonly:
+  work_order: WO-20260910-MOBILE-SELF-SERVICE-PAPER-UPBIT-READONLY
+  status: IMPLEMENTED_LOCAL_VALIDATION_PARTIAL
+  scope: "Android device-bound PAPER session recovery/pairing and authenticated GET-only Upbit READ_ONLY mediation."
+  architecture: "Existing mobile ApprovedUserSession namespace; approved pairing exchanges directly into a device-bound rotating session with no bootstrap credential materialised or persisted in pairing rows."
+  local_validation: "Upbit relay 19/19 PASS, including real handler 405 assertions for non-GET account and order routes; mobile/source contracts 12/12 PASS; exact pairing regressions 9/9 PASS including same-device PENDING/APPROVED supersession, old exchange denial, global-cap preservation, OWNER users:manage approval, and no credential leakage; incremental repository TypeScript typecheck PASS; direct mobile lint PASS (132 files); git diff --check PASS."
+  remaining: "Run exact-head CI and independent merge/release gates; preserve configured NUSA_MOBILE_INTROSPECTION_ORIGIN on production deployment."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY
+current_bounded_investment_learning:
+  work_order: WO-ISSUE-1820-BOUNDED-INVESTMENT-LEARNING
+  status: READY_FOR_EXACT_HEAD_CI
+  branch: research/investment-learning-1820
+  base_sha: c8095fe38d2ea097fbe167819ccf19f4260a7271
+  scope: "Bounded sealed-history investment learning with distinct canonical-search guard and explicit next-cycle Strategy Research queue; no qualification, score, runtime-strategy, capital, or execution mutation."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_first_read_connection_recovery:
   work_order: WO-20260908-CONNECTION-FIRST-READ-RECOVERY
   status: IMPLEMENTED_LOCAL
   branch: codex/session-connect-recovery
   validation: "22 focused/regression tests; typecheck/lint/security/architecture/safety/AI guard PASS. CI pending."
   remaining: "Independent CI/Audit/Release and actual device verification; Upbit persistence policy handled by PR 1786."
+current_audit_dispatch_payload_limit:
+  work_order: WO-ISSUE-903-EVENT-REPLAY-HARDENING
+  status: MERGED_VERIFIED
+  base_sha: 849fca669804cbd40f8dd7b5efe6145d5afe1cae
+  exact_head: 3f2219467d48439ae8cf7b63cf43fae5b5e0dea3
+  pull_request: 1945
+  merge_commit: cabe68df11d95cd4212d09c1045c9aff7cd769b2
+  finding: "GitHub repository_dispatch enforces a ten-property client_payload limit; the fallback Audit dispatch carried an unused eleventh reason property and failed closed with HTTP 422."
+  remediation: "Emit only the ten canonical Audit consumer fields; exact CI/PR/dedupe identity and NONE/false/ZERO_AUTHORITY invariants are unchanged."
+  audit_followup: "Exact-head CI 35168377327 PASS, but independent Audit 35168788582 incorrectly classified the removed reason line as a current blocker. BLOCKER findings now require an exact current added-diff evidenceRef (path:+line); invalid model findings are retried only against the same immutable evidence and remain fail-closed after the bounded limit."
+  validation: "Typecheck PASS; build PASS; Audit runner regression PASS 23/23 including stale removed-line retry and persistent invalid-evidence fail-closed; security gate PASS; git diff --check PASS."
+  freshness: "PR #1945 Release correctly failed closed when main moved from audited base 03119c0 to 849fca66 before merge. The implementation branch was merged with 849fca66; all prior exact-head CI/Audit evidence is invalidated."
+  completion: "Exact-head CI 35188124813 PASS; PAPER runtime, READ_ONLY broker, and Restricted LIVE safety workflows PASS; canonical independent Audit/Release run 35188428151 PASS; protected main re-read as cabe68df11d95cd4212d09c1045c9aff7cd769b2."
+  next: "Completed. Select the next ready work order from current source-of-truth state; no financial authority is granted."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_ready_for_review_audit_dedupe_repair:
+  work_order: WO-ISSUE-903-EVENT-REPLAY-HARDENING
+  status: IMPLEMENTED_LOCAL
+  branch: codex/issue-1955
+  pull_request: 1956
+  base_head: d9b707a64be4dfea29d04e17eb6f95e7cd543931
+  finding: "PR_CI_SUCCEEDED Audit dispatches did not acquire the existing persistent execution identity, allowing two ready_for_review delivery IDs to create duplicate Audit chains."
+  remediation: "Use NUSA_EXECUTION_COORDINATOR for the unchanged audit:<pr>:<workflowRunId>:<exactHead> identity, suppress duplicate/replayed/concurrent deliveries, and fail closed without the coordinator."
+  local_validation: "TypeScript compile/typecheck PASS; focused Autopilot regressions PASS; minimal preflight checks PASS; git diff --check PASS."
+  next: "Local commit only on the existing PR #1956 branch; no push, Ready transition, new PR, or remote CI."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_oracle_codex_dev_runner:
   work_order: WO-20260908-ORACLE-CODEX-DEV-RUNNER
   status: MERGED_VM_CREATION_HUMAN_ENVIRONMENT_ONLY
@@ -31,24 +81,27 @@ current_research_source_commit_identity_guard:
 
 current_mobile_porcelain_cobalt:
   work_order: WO-UI-20260907-PORCELAIN-COBALT
-  status: IN_PROGRESS
+  status: COMPLETED
+  closed_by_pull_request: 1757
+  residual_gates_work_order: WO-20260924-MOBILE-DELIVERY-RESIDUAL-GATES
   branch: codex/mobile-porcelain-cobalt
   base_sha: 307b535727a209c1b9ed57b6599b579c8e97bad0
   scope: "Owner-approved Study 03 presentation with canonical market chart; no mock data or authority change."
   validation: "402/402 mobile tests; build/typecheck/lint/validate:full/security PASS. Lint has one pre-existing warning."
-  next_permitted_action: "Local validation then exact-head protected CI and existing Android stable release."
+  next_permitted_action: "None here; Android release/device gates tracked in WO-20260924-MOBILE-DELIVERY-RESIDUAL-GATES."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_product_v5_recovery:
   work_order: WO-UI-20260906-PRODUCT-V5-CI-RECOVERY
-  status: IN_PROGRESS
+  status: COMPLETED
+  closed_by_pull_request: 1744
   branch: design/mobile-product-v5-20260906
   pull_request: 1744
   base_sha: e7824d0c07dea4aa0b6a26c2f821f744b05a4e50
   failing_head: 1810e2e134d30760e75601d5c5d10400ffda64d8
   failure_classification: REPOSITORY_CONTROLLED_STRUCTURAL
   local_validation: "Focused 22/22; full isolated 952 files; typecheck, preflight, validate:full and diff check PASS."
-  exact_head_ci: PENDING
-  next_permitted_action: "Push validated head and require fresh exact-head CI before Audit, Release, or merge."
+  exact_head_ci: "MOOT_MERGED_PR_1744 (per-head result not recorded here)"
+  next_permitted_action: "None; implementation merged."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_research_horizon_slice:
   work_order: WO-ISSUE-1701-RESEARCH-HORIZON
@@ -141,13 +194,19 @@ current_upbit_bridge_credential_persistence:
   unverified: "pnpm run preflight and pnpm test could not run here (Node >= 24 required, environment provides 22.22.2). No Android device run: persistence is verified against a stubbed SecureStoragePort, not the real Keystore."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 project: nusa
-updated_at: "2026-09-07T09:05:22+09:00"
+updated_at: "2026-09-23T18:40:00+09:00"
 current_execution_target:
-  work_order: WO-0051
-  status: IN_PROGRESS
-  branch: main
-  base_sha: 57952f14485e816a7ac88e11ba5f8f3e11dba34c
-  scope: "Terminal human/environment gate for LIVE and real-money transition; automated work remains fail-closed."
+  work_order: WO-20260924-PAPER-LEDGER-PRESERVATION
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-ledger-preserve
+  scope: "Opus P0-5: a PAPER dashboard projection gap no longer deletes the durable PAPER account and canonical fill ledger."
+  authority_impact: persistence
+  prior_target: WO-20260924-RESEARCH-RECOVERY-FEED-GATE
+  prior_target_status: MERGED_PR_2265
+  prior_target_preserved: true
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+owner_decisions:
+  autonomy: "2026-09-24 owner: every non-LIVE decision is autonomous; the only owner decision is LIVE trading approval."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 phase: verification
 status: in_progress
@@ -1082,7 +1141,7 @@ issue_661_live_ready_observability:
   exact_head_remote_validation: PASS_ALL_REQUIRED_CHECKS
   local_full_isolated_suite: PASS_590_FILES_CLEAN_ISOLATED_PROFILE
   actual_paper_runtime: PASS_EXACT_HEAD_RUN_32730736119_JOB_97442165804
-  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  safety_boundary: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   protected_checks: "CI PASS; Mobile Native PASS; Actual PAPER Runtime PASS; Restricted LIVE Activation/Capability/Transport PASS; Read-only Broker PASS; Android Release Candidate SKIPPED_NOT_APPLICABLE"
   next: "PR #770 is eligible for merge under repository policy. After merge, verify main and continue the Issue #661 acceptance audit; Android promotion remains post-merge only."
 
@@ -1244,4 +1303,24 @@ latest_paper_chaos_bound_runtime_evidence_slice:
   base_commit: 1e085360dc057ed8c097d28de36d40c71cb1cc5c
   implementation_branch: codex/paper-chaos-bound-runtime-evidence
   scope: "Emit only BOUND_UNVERIFIED restart-recovery evidence from the canonical actual PAPER runtime harness; external workflow verification remains separate."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_audit_structured_output_recovery:
+  status: EXACT_HEAD_CI_PASS_PENDING_MERGED_MAIN_DEPLOYMENT_AND_FRESH_AUDIT
+  base_sha: 45e4c653e89644f176c2398a007ca26b99014bda
+  implementation_branch: codex/audit-json-output-hardening
+  implementation_head: 8748cd6cc203fd80de3ec7d3f34dbeffe6497047
+  scope: "Make the independent Audit Worker’s provider-facing JSON schema compatible with Workers AI while preserving strict local verdict validation and exact-head revalidation."
+  finding: "Fresh Audit run 35057987820 reached the existing Worker and failed closed with 409 AUDIT_VERDICT_SAFETY_INVALID after the model returned a safetyInvariantResult shape rejected by the strict validator."
+  remediation: "Use one flat required JSON Schema for provider reliability, explicitly require the safety result to be the uppercase JSON string PASS or FAIL, and retain the unchanged semantic validator, bounded retries, and exact-head evidence checks."
+  local_validation: "Targeted Audit tests 24/24 PASS; pnpm run build PASS; pnpm run validate:full PASS; pnpm run lint PASS with 4 pre-existing warnings and 0 errors; pnpm run security:gate PASS; pnpm run architecture:check PASS; pnpm test PASS across 986 isolated test files; git diff --check PASS."
+  exact_head_ci: "PR #1928 exact head 8748cd6cc203fd80de3ec7d3f34dbeffe6497047; canonical CI 35059260683 and required PAPER/read-only/Restricted LIVE workflows 35059260664, 35059260672, 35059260684, 35059260766, 35059260795, plus Cloudflare preflight 35059260699 and bridge 35059260690 all completed success."
+  follow_up_finding: "Exact-head preflight 35060300788 failed closed because its non-paginated first page contained 141 completed runs and omitted successful deploy run 35050583254; credential, Wrangler, account, and Worker safety checks were already successful."
+  follow_up_remediation: "Read all exact-main Actions-run pages with gh api --paginate --slurp and flatten workflow_runs before selecting the newest successful deploy evidence; retain bounded polling and fail-closed behavior."
+  follow_up_status: BRANCH_PREFLIGHT_PASS_PENDING_TRUSTED_MAIN_PROMOTION_AND_FRESH_AUDIT
+  follow_up_branch: codex/audit-json-output-hardening
+  follow_up_exact_head: 92eb62d62ec9a4ee438e51f562c79e5e116cc11f
+  follow_up_exact_head_ci: "Canonical CI 35061465031 and required PAPER/read-only/Restricted LIVE workflows 35061463863, 35061465021, 35061465014, 35061465038, 35061465064, 35061465020 all PASS. Protected pull_request_target preflight 35061463878 used the trusted main workflow and failed because main still has the pre-pagination selector; branch workflow_dispatch preflight 35061869720 executed the pagination fix at this exact head and PASSed credential, account, Wrangler, Free-tier, exact-main deploy, and runtime revision checks."
+  follow_up_next_permitted_action: "Promote the pagination fix through the existing protected Release path; only after the trusted main workflow contains it may the protected pull_request_target preflight be expected to PASS. Then deploy the exact merged main revision and request a fresh independent Audit."
+  next_permitted_action: "Obtain the existing owner-controlled nusa/release-authorized gate without bypassing Audit, merge through the canonical Release path, deploy the exact merged main revision through the existing Cloudflare promotion workflow, then request a fresh independent Audit."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

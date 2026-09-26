@@ -3,12 +3,17 @@ import fs from "node:fs";
 import test from "node:test";
 
 const workflow = fs.readFileSync(".github/workflows/autopilot-deterministic-audit-release.yml", "utf8");
+const auditWorkflow = workflow.split(/\r?\n  release:\r?\n/, 1)[0];
+
+test("Audit workflow exposes immutable dispatch identity as the GitHub run name", () => {
+  assert.match(workflow, /run-name:\s*\$\{\{ github\.event\.client_payload\.dedupe_key/);
+});
 
 test("deterministic Audit has no Cloudflare or AI merge dependency", () => {
-  assert.match(workflow, /Autopilot Deterministic Audit Release/);
-  assert.match(workflow, /github\.event\.client_payload\.kind == 'AUDIT_REQUEST'/);
-  assert.doesNotMatch(workflow, /workers\.dev|\/audit\/execute|Workers AI|env\.AI|id-token:\s*write/);
-  assert.match(workflow, /authority=DETERMINISTIC_AUDIT_PASS/);
+  assert.match(auditWorkflow, /Autopilot Deterministic Audit Release/);
+  assert.match(auditWorkflow, /github\.event\.client_payload\.kind == 'AUDIT_REQUEST'/);
+  assert.doesNotMatch(auditWorkflow, /workers\.dev|\/audit\/execute|Workers AI|env\.AI|id-token:\s*write/);
+  assert.match(auditWorkflow, /authority=DETERMINISTIC_AUDIT_PASS/);
 });
 
 test("deterministic Audit binds exact PR, protected main, canonical CI, and six required workflows", () => {
@@ -38,6 +43,11 @@ test("Audit waits boundedly for independent exact-head evidence convergence", ()
 test("stale Audit requests are NO_ACTION and cannot release", () => {
   assert.match(workflow, /NO_ACTION stale\/non-releasable Audit request/);
   assert.match(workflow, /current_draft/);
+  assert.match(workflow, /current_hold/);
+  assert.match(workflow, /\.labels \| type\) != "array"/);
+  assert.match(workflow, /any\(\.labels\[\]; \(\.name \| ascii_downcase\) == "hold"\)/);
+  assert.match(workflow, /current_draft" = "true"/);
+  assert.match(workflow, /current_hold" != "false"/);
   assert.match(workflow, /applicable=false/);
   assert.match(workflow, /authority=NONE/);
   assert.match(workflow, /needs\.audit\.outputs\.applicable == 'true'/);
@@ -49,26 +59,42 @@ test("Release re-verifies exact expected head and audited base before merge", ()
   assert.match(workflow, /EXPECTED_HEAD/);
   assert.match(workflow, /AUDITED_BASE/);
   assert.match(workflow, /final_draft/);
+  assert.match(workflow, /final_hold/);
+  assert.match(workflow, /test "\$final_hold" = "false"/);
+  assert.match(workflow, /release_hold/);
+  assert.match(workflow, /test "\$release_hold" = "false"/);
+  assert.ok((workflow.match(/test "\$release_hold" = "false"/g) || []).length >= 3,
+    "Release must re-check HOLD before each authority-sensitive transition");
   assert.match(workflow, /-f sha="\$EXPECTED_HEAD"/);
   assert.match(workflow, /\.merged == true/);
 });
 
-test("Release explicitly dispatches canonical main CI after a GITHUB_TOKEN merge", () => {
+test("Release reuses an exact-main CI run before dispatching a duplicate", () => {
   assert.match(workflow, /actions:\s*write/);
   assert.match(workflow, /Start canonical post-merge main CI/);
+  assert.match(workflow, /actions\/runs\?head_sha=\$MERGED_MAIN&per_page=100/);
+  assert.match(workflow, /gh api --paginate --slurp/);
+  assert.match(workflow, /\.status == "queued" or \.status == "in_progress" or \.status == "pending"/);
+  assert.match(workflow, /\.status == "completed" and \.conclusion == "success"/);
+  assert.match(workflow, /suppressing duplicate dispatch/);
   assert.match(workflow, /actions\/workflows\/ci\.yml\/dispatches/);
   assert.match(workflow, /-f ref=main/);
   assert.match(workflow, /merged_main/);
 });
 
-test("Release recovers bounded post-merge CI retries before directly dispatching Cloudflare Deploy", () => {
+test("Release recovers bounded post-merge CI and suppresses duplicate Cloudflare Deploy dispatch", () => {
   assert.match(workflow, /Recover post-merge CI retries and dispatch Cloudflare Deploy/);
-  assert.match(workflow, /does not reliably fan out through workflow_run/);
+  assert.match(workflow, /for poll in \$\(seq 1 40\)/);
   assert.match(workflow, /actions\/runs\?head_sha=\$MERGED_MAIN&per_page=100/);
   assert.match(workflow, /\.conclusion == "success"/);
   assert.match(workflow, /rerun-failed-jobs/);
   assert.match(workflow, /failed_attempt" -ge 3/);
   assert.match(workflow, /Post-merge CI SUCCESS recovered/);
+  assert.match(workflow, /actions\/workflows\/autopilot-cloudflare-deploy\.yml\/runs\?head_sha=\$MERGED_MAIN&per_page=100/);
+  assert.match(workflow, /\.status == "in_progress"/);
+  assert.match(workflow, /\.status == "completed" and \.conclusion == "success"/);
+  assert.match(workflow, /suppressing duplicate Release dispatch/);
+  assert.match(workflow, /no active\/successful exact-main Deploy; dispatching bounded fallback/);
   assert.match(workflow, /actions\/workflows\/autopilot-cloudflare-deploy\.yml\/dispatches/);
   assert.match(workflow, /inputs\[head_sha\]=\$MERGED_MAIN/);
 });
@@ -92,4 +118,37 @@ test("safety invariants remain fail-closed", () => {
   assert.match(workflow, /liveAuthority=NONE/);
   assert.match(workflow, /productionMutationAllowed=false/);
   assert.match(workflow, /aiAuthority=ZERO_AUTHORITY/);
+});
+
+
+test("already-merged convergence is non-applicable for an open PR, accepts existing dedicated authorization, and preserves missing-provenance failure", () => {
+  const convergence = fs.readFileSync(".github/workflows/autopilot-already-merged-audit-convergence.yml", "utf8");
+  assert.match(convergence, /pulls\/\$PR_NUMBER/);
+  assert.match(convergence, /if \[ "\$pr_state" = "open" \]/);
+  assert.match(convergence, /NO_ACTION Audit convergence is not applicable to an open PR/);
+  assert.match(convergence, /CONVERGED existing exact-head dedicated Release authorization/);
+  assert.match(convergence, /commits\/\$EXPECTED_HEAD\/statuses\?per_page=100/);
+  assert.match(convergence, /\.creator\.login == "nusa-release-authority\[bot\]"/);
+  assert.match(convergence, /startswith\("canonical Audit PASS; pr=" \+ \$pr \+ "; base="\)/);
+  assert.match(convergence, /RELEASE_PROVENANCE_MISSING: already-merged PRs cannot be post-facto upgraded/);
+  const noActionIndex = convergence.indexOf("NO_ACTION Audit convergence is not applicable to an open PR");
+  const convergedIndex = convergence.indexOf("CONVERGED existing exact-head dedicated Release authorization");
+  const provenanceFailureIndex = convergence.indexOf("RELEASE_PROVENANCE_MISSING: already-merged PRs cannot be post-facto upgraded");
+  assert.ok(noActionIndex >= 0 && convergedIndex > noActionIndex && provenanceFailureIndex > convergedIndex);
+  assert.match(convergence.slice(provenanceFailureIndex), /exit 1/);
+});
+
+
+test("Release serialization is classified as NO_ACTION before deterministic Audit work", () => {
+  assert.match(auditWorkflow, /issues:\s*read/);
+  assert.match(auditWorkflow, /open-issues-pages\.json/);
+  assert.match(auditWorkflow, /\^P0\(\?:\\s\|:\)/);
+  assert.match(auditWorkflow, /Refs\\s\+\#903/);
+  assert.match(auditWorkflow, /release-serialization-block\.json/);
+  assert.match(auditWorkflow, /NO_ACTION Release serialized before Audit/);
+  assert.match(auditWorkflow, /blocked_by=P0#/);
+  const serializationIndex = auditWorkflow.indexOf("NO_ACTION Release serialized before Audit");
+  const ciFetchIndex = auditWorkflow.indexOf('actions/runs/$WORKFLOW_RUN_ID');
+  assert.ok(serializationIndex >= 0 && ciFetchIndex > serializationIndex,
+    "canonical P0 serialization must short-circuit before CI/evidence Audit work");
 });

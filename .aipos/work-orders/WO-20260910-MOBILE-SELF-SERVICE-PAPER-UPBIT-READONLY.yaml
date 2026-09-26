@@ -1,0 +1,76 @@
+id: WO-20260910-MOBILE-SELF-SERVICE-PAPER-UPBIT-READONLY
+title: "Device-bound mobile PAPER pairing and Upbit READ_ONLY session mediation"
+status: CI_VALIDATION_PENDING
+owner_authentication_addendum:
+  status: IMPLEMENTED_LOCAL_VALIDATION_PARTIAL
+  scope: "Canonical OWNER password recovery plus Android hardware-backed P-256 biometric proof, using only the existing process-memory mobile rotating session."
+  user_value: "First/recovery sign-in needs one OWNER password; a registered Android phone then resumes PAPER access with one biometric confirmation."
+  safety: "PAPER_ONLY; hardware proof has no exchange, order, cancellation, transfer, withdrawal, LIVE, production-mutation, or AI authority; access and refresh credentials remain process-memory-only."
+  contracts:
+    - "Normal password sign-in infers only a unique durable OWNER and never accepts a user id over HTTP."
+    - "Password registration and change require ACTIVE OWNER authority; device registration activation is bound to the same owner actor that started it."
+    - "AndroidKeyStore P-256 private key is non-exportable, hardware-backed, and signs only BIOMETRIC_STRONG CryptoObject challenges."
+    - "Legacy pairing/bootstrap flows are retained as compatibility/recovery paths and their supersession/global-cap behavior is unchanged."
+  local_validation:
+    - "OWNER auth plus pairing focused runtime/source regressions PASS 18/18"
+    - "mobile lint PASS (133 files)"
+    - "git diff --check PASS"
+    - "full repository TypeScript compiler emitted changed owner modules but entered shared Oracle VM I/O wait before clean termination; no PASS claimed"
+    - "local Android compile unavailable because this Oracle host has no Java runtime; no PASS claimed"
+  remaining:
+    - "Run exact-head Node 24 typecheck/build, Android native build, security scan, and protected CI before merge."
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+objective: "When no in-process PAPER session exists, allow only a zero-authority, owner-approved device pairing that atomically issues the existing rotating session. Keep all mobile access, refresh, pairing request, and verification capabilities process-memory-only. Reuse the in-process session for GET-only Upbit account/order observation."
+authority:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  realTransferAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+architecture_impact:
+  acknowledged: true
+  analysis: "Pairing remains inside the existing ApprovedUserSessionService and its mobile namespace. It creates no new identity provider, execution path, mutable Upbit adapter, credential delivery path, or authority model. The Upbit relay remains loopback-only and validates a process-memory mobile access token only by GET /v1/mobile/me Cloud introspection."
+  references:
+    - .aipos/architecture.md
+    - docs/NUSA_USER_EXPERIENCE_PRINCIPLE.md
+    - .aipos/work-orders/WO-0060A-android-approved-user-session.yaml
+scope:
+  - process-memory-only rotating mobile PAPER session
+  - process-memory-only short-lived device pairing request, ACTIVE OWNER plus users:manage approval, expiry/replay/race/flood bounds
+  - direct atomic approved-pairing session issuance with no pairing-row credential storage
+  - legacy mobile credential storage cleanup without reading or restoring stored material
+  - mobile Settings tokenless PAPER connection/status flow
+  - authenticated PAPER session mediation for GET-only Upbit account/order observation
+prohibited:
+  - pairing self-authorization
+  - mobile persistence of bootstrap/access/refresh credentials, pairing request IDs, or verification codes
+  - plaintext credentials in pairing rows, UI, audit logs, SharedPreferences, AsyncStorage, SecureStore, or Android Keystore-backed storage
+  - independent Upbit credential persistence in normal mobile flow
+  - Upbit POST/PUT/PATCH/DELETE, order mutation, cancellation, transfer, withdrawal, or LIVE imports
+  - LIVE authority, production mutation, or AI authority change
+acceptance:
+  - mobile process restart restores no credential or pairing capability and requires a fresh zero-authority pairing
+  - transient refresh failures may retry only while the same process retains the in-memory refresh capability
+  - definitive 401/403 destroys in-memory session authority
+  - pairing approval requires an ACTIVE OWNER principal with users:manage and an ACTIVE target
+  - pairing exchange is device-bound, expiry-bounded, atomic, and single-use
+  - pairing DB and audit records contain hashes/lifecycle metadata only, never bootstrap/access/refresh credentials or verification codes
+  - mobile Upbit routes use the in-process PAPER session credential and relay validation is strict loopback GET introspection
+  - relay account/order routes reject all non-GET methods
+  - exact-head CI, independent deterministic Audit, and Release governance pass before merge
+validation:
+  completed:
+    - "Upbit relay contract previously PASS 19/19"
+    - "no-mobile-credential-storage regression added: source cannot call setSecret/getSecret for approved session or pairing capabilities"
+    - "legacy stored credential keys are delete-only and never restored"
+    - "same-device pairing retry source contract PASS: an atomic transaction expires prior PENDING/APPROVED rows, preserves global/per-device bounds, retains OWNER users:manage approval, and records metadata-only PAIRING_SUPERSEDED audit evidence"
+  pending:
+    - "compiled mobile pairing regressions PASS 9/9 and incremental repository TypeScript typecheck PASS on the Oracle validation checkout"
+    - "fresh exact-head CI for the current PR head"
+    - "independent exact-head Audit/Release governance"
+remaining:
+  - "Configure NUSA_MOBILE_INTROSPECTION_ORIGIN as the Cloud runtime loopback origin only after approved merge/deployment governance."
+safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY_NO_MOBILE_CREDENTIAL_STORAGE

@@ -1,0 +1,277 @@
+#!/usr/bin/env bash
+# Single privileged entry point for the Oracle PAPER release.
+#
+# Without this the release needs eleven sudoers entries, two of them wildcards -- `tar *` and
+# `rm -rf /opt/nusa/releases/*`. A wildcard in sudoers grants far more than the step needs: `tar`
+# alone can write any path on the host, and the rm pattern depends on a shell variable the caller
+# controls. Routing every privileged action through one verb lets sudoers grant exactly one
+# command, and moves argument validation to where it can actually be enforced.
+#
+# This script is installed once at a fixed path OUTSIDE the release tree. That is deliberate: a
+# privileged helper must not be replaceable by the releases it installs, or deploying a commit
+# would be enough to rewrite the thing that runs as root.
+#
+# It grants no LIVE authority. It moves a symlink and restarts a PAPER_ONLY service.
+
+set -euo pipefail
+
+readonly DEPLOY_ROOT=/opt/nusa
+readonly RELEASES="${DEPLOY_ROOT}/releases"
+readonly SERVICE=nusa.service
+readonly RESEARCH_SERVICE=nusa-research.service
+readonly RESEARCH_TIMER=nusa-research.timer
+readonly AUTOPILOT_SERVICE=nusa-autopilot.service
+readonly SERVICE_USER=nusa
+readonly SYSTEMD_UNIT_DIR=/etc/systemd/system
+readonly RUNTIME_ENV=/etc/nusa/cloud-runtime.env
+readonly PREVIOUS_RELEASE_FILE="${DEPLOY_ROOT}/.previous-release"
+readonly RELEASE_RETENTION=4
+
+die() { printf '%s\n' "nusa-release-step: $*" >&2; exit 1; }
+
+# The SHA is the only caller-supplied value that reaches a path, so it is validated here rather
+# than trusted from the workflow. Anything but a full lowercase commit SHA is refused outright.
+validate_sha() {
+  [[ "${1:-}" =~ ^[0-9a-f]{40}$ ]] || die "expected a full lowercase commit SHA, refusing"
+}
+
+# Every path is rebuilt from the validated SHA. A caller cannot pass a path at all.
+release_dir() { printf '%s/%s' "$RELEASES" "$1"; }
+
+active_release() { readlink -f "${DEPLOY_ROOT}/current" 2>/dev/null || true; }
+
+active_release_sha() {
+  local release sha
+  release="$(active_release)"
+  [ -n "$release" ] || die "active release is unavailable"
+  sha="${release##*/}"
+  validate_sha "$sha"
+  printf '%s' "$sha"
+}
+
+# Bind the runtime's self-reported source identity to the exact immutable release.
+# The environment file also contains secrets, so rewrite only the two source keys,
+# preserve ownership/mode, never print its contents, and replace it atomically.
+bind_runtime_source_identity() {
+  local sha="${1:-}"
+  validate_sha "$sha"
+  [ -f "$RUNTIME_ENV" ] || die "runtime environment file missing: $RUNTIME_ENV"
+  local tmp="${RUNTIME_ENV}.source-identity.$"
+  umask 077
+  awk -v sha="$sha" '
+    BEGIN { commit_seen=0; commit_sha_seen=0 }
+    /^NUSA_SOURCE_COMMIT=/ { print "NUSA_SOURCE_COMMIT=" sha; commit_seen=1; next }
+    /^NUSA_SOURCE_COMMIT_SHA=/ { print "NUSA_SOURCE_COMMIT_SHA=" sha; commit_sha_seen=1; next }
+    { print }
+    END {
+      if (!commit_seen) print "NUSA_SOURCE_COMMIT=" sha
+      if (!commit_sha_seen) print "NUSA_SOURCE_COMMIT_SHA=" sha
+    }
+  ' "$RUNTIME_ENV" > "$tmp" || { rm -f -- "$tmp"; die "failed to build runtime source identity"; }
+  chmod --reference="$RUNTIME_ENV" "$tmp"
+  chown --reference="$RUNTIME_ENV" "$tmp"
+  mv -f -- "$tmp" "$RUNTIME_ENV"
+}
+
+# Release scripts are read from the staged release itself, so the procedure always matches the
+# commit being deployed rather than whatever happened to be installed earlier.
+script_in() {
+  local dir="$1"
+  local name="$2"
+  local path="${dir}/scripts/${name}"
+  [ -f "$path" ] || die "missing ${name} in ${dir}"
+  printf '%s' "$path"
+}
+
+unit_in() {
+  local dir="$1"
+  local name="$2"
+  local path="${dir}/deploy/oracle/${name}"
+  [ -f "$path" ] || die "missing ${name} in ${dir}"
+  printf '%s' "$path"
+}
+
+install_units_from_release() {
+  local dir="$1"
+  local legacy_ok="${2:-false}"
+  [ -d "$dir" ] || die "release directory missing: ${dir}"
+  install -o root -g root -m 0644 "$(unit_in "$dir" nusa.service)" "${SYSTEMD_UNIT_DIR}/${SERVICE}"
+  install -o root -g root -m 0644 "$(unit_in "$dir" nusa-research.service)" "${SYSTEMD_UNIT_DIR}/${RESEARCH_SERVICE}"
+  install -o root -g root -m 0644 "$(unit_in "$dir" nusa-research.timer)" "${SYSTEMD_UNIT_DIR}/${RESEARCH_TIMER}"
+  if [ -f "${dir}/deploy/oracle/nusa-autopilot.service" ]; then
+    install -o root -g root -m 0644 "${dir}/deploy/oracle/nusa-autopilot.service" "${SYSTEMD_UNIT_DIR}/${AUTOPILOT_SERVICE}"
+  elif [ "$legacy_ok" = true ]; then
+    systemctl disable --now "${AUTOPILOT_SERVICE}" 2>/dev/null || true
+    rm -f -- "${SYSTEMD_UNIT_DIR}/${AUTOPILOT_SERVICE}"
+  else
+    die "missing nusa-autopilot.service in ${dir}"
+  fi
+  systemctl daemon-reload
+}
+
+enable_units() {
+  local legacy_ok="${1:-false}"
+  systemctl enable "${SERVICE}" "${RESEARCH_TIMER}"
+  [ "$legacy_ok" = true ] || systemctl enable "${AUTOPILOT_SERVICE}"
+}
+
+restart_units() {
+  local legacy_ok="${1:-false}"
+  systemctl restart "${SERVICE}"
+  [ "$legacy_ok" = true ] || systemctl restart "${AUTOPILOT_SERVICE}"
+  systemctl start "${RESEARCH_TIMER}"
+}
+
+rollback_and_restore() {
+  NUSA_DEPLOY_ACTION=rollback node "$(script_in "$(active_release)" atomic-deploy.js)"
+  bind_runtime_source_identity "$(active_release_sha)"
+  install_units_from_release "$(active_release)" true
+  enable_units true
+  restart_units true
+}
+
+previous_release() {
+  [ -f "$PREVIOUS_RELEASE_FILE" ] || return 0
+  local path
+  path="$(cat "$PREVIOUS_RELEASE_FILE" 2>/dev/null || true)"
+  [ -n "$path" ] || return 0
+  readlink -f "$path" 2>/dev/null || true
+}
+
+prune_releases() {
+  [ -d "$RELEASES" ] || die "release directory missing: $RELEASES"
+  local active previous dir name kept=0 removed=0
+  active="$(active_release)"
+  previous="$(previous_release)"
+
+  mapfile -t dirs < <(find "$RELEASES" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -nr | cut -d' ' -f2-)
+
+  # Validate the entire candidate set before deleting anything.
+  for dir in "${dirs[@]}"; do
+    name="${dir##*/}"
+    [[ "$name" =~ ^[0-9a-f]{40}$ ]] || die "unexpected release directory name: $name"
+    [ ! -L "$dir" ] || die "release directory must not be a symlink: $dir"
+  done
+
+  for dir in "${dirs[@]}"; do
+    [ "$dir" = "$active" ] && continue
+    [ -n "$previous" ] && [ "$dir" = "$previous" ] && continue
+    if [ "$kept" -lt "$RELEASE_RETENTION" ]; then
+      kept=$((kept + 1))
+      continue
+    fi
+    rm -rf -- "$dir"
+    removed=$((removed + 1))
+  done
+
+  printf '%s\n' "nusa-release-step: prune complete; keptRecent=$kept removed=$removed active=$active previous=${previous:-none}"
+}
+
+# A startup blocked by the fail-closed PAPER writer clock guard may recover once.  Scope the
+# journal to this activation so stale diagnostics from an older attempt cannot authorize reset.
+recover_abandoned_writer_lease_once() {
+  local dir="$1"
+  local since="$2"
+  journalctl -u "$SERVICE" --since "$since" --no-pager -o cat 2>/dev/null | grep -q 'PAPER_WRITER_CLOCK_ANOMALY' || return 1
+  printf '%s\n' "nusa-release-step: current candidate hit PAPER_WRITER_CLOCK_ANOMALY; attempting one fail-closed lease recovery" >&2
+  runuser -u "$SERVICE_USER" -- bash -c 'set -a; source "$1"; set +a; exec node "$2"' _ "$RUNTIME_ENV" "$(script_in "$dir" reset-paper-writer-lease.js)" || return 1
+  restart_units
+  node "$(script_in "$dir" oracle-readiness-check.js)"
+}
+
+verb="${1:-}"
+shift || true
+
+case "$verb" in
+  backup)
+    exec runuser -u "$SERVICE_USER" -- node "$(script_in "$(active_release)" sqlite-backup.js)"
+    ;;
+
+  preflight)
+    validate_sha "${1:-}"
+    dir="$(release_dir "$1")"
+    [ -d "$dir" ] || die "release not staged: $dir"
+    node "$(script_in "$dir" host-security-validate.js)"
+    NUSA_ORACLE_RELEASE_DIR="$dir" exec node "$(script_in "$dir" oracle-validate.js)"
+    ;;
+
+  install-units)
+    validate_sha "${1:-}"
+    dir="$(release_dir "$1")"
+    [ -d "$dir" ] || die "release not staged: $dir"
+    install_units_from_release "$dir"
+    enable_units
+    ;;
+
+  prune)
+    prune_releases
+    ;;
+
+  stage)
+    validate_sha "${1:-}"
+    source_tree="${2:-}"
+    [ -d "$source_tree" ] || die "source tree is not a directory"
+    dir="$(release_dir "$1")"
+    # A staged release is immutable once `current` points at it. Replacing the active release
+    # would mutate what the running service is executing.
+    if [ -e "$dir" ]; then
+      [ "$(readlink -f "$dir")" = "$(active_release)" ] && die "refusing to restage the active release"
+      rm -rf -- "$dir"
+    fi
+    install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0755 -- "$dir"
+    tar -cf - --exclude=.git -C "$source_tree" . | tar -xf - -C "$dir"
+    chown -R "${SERVICE_USER}:${SERVICE_USER}" -- "$dir"
+    ;;
+
+  switch)
+    validate_sha "${1:-}"
+    dir="$(release_dir "$1")"
+    NUSA_COMMIT_SHA="$1" node "$(script_in "$dir" atomic-deploy.js)"
+    bind_runtime_source_identity "$1"
+    ;;
+
+  rollback)
+    NUSA_DEPLOY_ACTION=rollback node "$(script_in "$(active_release)" atomic-deploy.js)"
+    bind_runtime_source_identity "$(active_release_sha)"
+    ;;
+
+  restart)
+    systemctl daemon-reload
+    enable_units
+    restart_units
+    ;;
+
+  activate)
+    validate_sha "${1:-}"
+    dir="$(release_dir "$1")"
+    [ -d "$dir" ] || die "release not staged: $dir"
+    NUSA_COMMIT_SHA="$1" node "$(script_in "$dir" atomic-deploy.js)"
+    activation_started="$(date --iso-8601=seconds)"
+    paper_ready=false
+    if bind_runtime_source_identity "$1" && install_units_from_release "$dir" && enable_units && restart_units; then
+      if node "$(script_in "$dir" oracle-readiness-check.js)"; then
+        paper_ready=true
+      elif recover_abandoned_writer_lease_once "$dir" "$activation_started"; then
+        paper_ready=true
+      fi
+    fi
+    if [ "$paper_ready" != true ] || ! node "$(script_in "$dir" autopilot-readiness.js)"; then
+      printf '%s\n' "nusa-release-step: activation failed for $1; restoring previous release" >&2
+      rollback_and_restore
+      node "$(script_in "$(active_release)" oracle-readiness-check.js)" || die "rollback PAPER readiness failed"
+      node "$(script_in "$(active_release)" autopilot-readiness.js)" || die "rollback Autopilot readiness failed"
+      exit 1
+    fi
+    systemctl is-active --quiet "$SERVICE" || die "PAPER service is not active after activation"
+    systemctl is-active --quiet "$AUTOPILOT_SERVICE" || die "Autopilot service is not active after activation"
+    printf '%s\n' "nusa-release-step: activation accepted for $1"
+    ;;
+
+  readiness)
+    exec node "$(script_in "$(active_release)" oracle-readiness-check.js)"
+    ;;
+
+  *)
+    die "unknown verb '${verb}'. Expected: backup|preflight|install-units|prune|stage|switch|activate|rollback|restart|readiness"
+    ;;
+esac

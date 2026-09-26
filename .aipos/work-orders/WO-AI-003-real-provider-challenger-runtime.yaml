@@ -53,7 +53,7 @@ acceptance_criteria:
   - real provider response cannot grant execution authority and only produces existing read-only projection semantics
   - provider errors never block or mutate PAPER execution
   - exact-head focused AI/provider tests, typecheck, build, lint, architecture/AIPOS, security, E2E, full isolated suite, coverage, Mobile Native when triggered, and all Restricted LIVE/read-only workflows pass
-  - `liveAuthority=NONE`, `productionMutationAllowed=false`, `realOrderAuthority=false`, and `realTransferAuthority=false` remain proven
+  - "`liveAuthority=NONE`, `productionMutationAllowed=false`, `realOrderAuthority=false`, and `realTransferAuthority=false` remain proven"
   - PR is merged only after all required checks pass
 verification:
   required_commands:
