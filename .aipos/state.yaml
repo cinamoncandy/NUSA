@@ -194,7 +194,7 @@ current_upbit_bridge_credential_persistence:
   unverified: "pnpm run preflight and pnpm test could not run here (Node >= 24 required, environment provides 22.22.2). No Android device run: persistence is verified against a stubbed SecureStoragePort, not the real Keystore."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 project: nusa
-updated_at: "2026-09-23T18:40:00+09:00"
+updated_at: "2026-09-26T23:27:32+09:00"
 current_execution_target:
   work_order: WO-20260924-PAPER-LEDGER-PRESERVATION
   status: READY_FOR_REVIEW
@@ -204,6 +204,17 @@ current_execution_target:
   prior_target: WO-20260924-RESEARCH-RECOVERY-FEED-GATE
   prior_target_status: MERGED_PR_2265
   prior_target_preserved: true
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+latest_autopilot_normalized_apply_failure:
+  work_order: WO-20260926-AUTOPILOT-NORMALIZED-APPLY-FAILURE
+  status: READY_FOR_REVIEW
+  branch: fix/autopilot-preserve-normalized-apply-failure
+  base_sha: 56fe41fc45510958da1ef54de71045dc3eb54067
+  implementation_head: 1b47bebfbbc4d76a3a492d699fec518108dc17f7
+  pull_request: 2322
+  scope: "Preserve SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED and carry exact bounded source context into the existing repair escalation; no authority or execution-path expansion."
+  validation: "Dispatch retry 32/32, coding runner 49/49, build/typecheck/targeted lint/AI zero-authority/safety invariants PASS."
+  remaining: "Exact-head protected CI passed; independent Audit/Release must be rerun after this AIPOS metadata update."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 owner_decisions:
   autonomy: "2026-09-24 owner: every non-LIVE decision is autonomous; the only owner decision is LIVE trading approval."
