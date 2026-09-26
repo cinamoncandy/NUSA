@@ -115,6 +115,16 @@ test("observation rejects secret-shaped fields and credential-like values", () =
   }
 });
 
+test("observation rejects credential-shaped values in common metadata", () => {
+  for (const override of [
+    { sourceIdentity: "Bearer abcdefghijklmnopqrstuvwxyz" },
+    { providerId: "-----BEGIN PRIVATE KEY-----" },
+    { correlationId: "Bearer abcdefghijklmnopqrstuvwxyz" },
+  ]) {
+    assert.throws(() => createJevDomainObservation(validInput(override)));
+  }
+});
+
 test("observation validates fingerprint, confidence, reason code, timestamp, and task registration", () => {
   assert.throws(
     () => createJevDomainObservation(validInput({ inputFingerprint: "not-a-hash" })),
