@@ -658,7 +658,10 @@ export async function executeCodingRunner(
   const sandboxRepairEscalation = Boolean(
     env.AI
     && request.proposalContext
-    && request.proposalFeedback?.includes("SANDBOX_PATCH_APPLY_CHECK_FAILED"),
+    && (
+      request.proposalFeedback?.includes("SANDBOX_PATCH_APPLY_CHECK_FAILED")
+      || request.proposalFeedback?.includes("SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED")
+    ),
   );
   const repairGithubToken = env.NUSA_GITHUB_TOKEN?.trim();
   if (sandboxRepairEscalation && repairGithubToken) {
