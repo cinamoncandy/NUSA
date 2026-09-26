@@ -216,6 +216,17 @@ latest_autopilot_normalized_apply_failure:
   validation: "Dispatch retry 32/32, coding runner 49/49, build/typecheck/targeted lint/AI zero-authority/safety invariants PASS."
   remaining: "Exact-head protected CI passed; independent Audit/Release must be rerun after this AIPOS metadata update."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_deterministic_coding_patches:
+  work_order: WO-20260927-AUTOPILOT-DETERMINISTIC-CODING-PATCHES
+  status: READY_FOR_REVIEW
+  branch: codex/deterministic-coding-patches
+  base_sha: ad0eed4ec49fa6fd3296e9e9c82cbd404593db99
+  implementation_head: 04df6a6fe350f8ed84b94de24342d73872cd6d2c
+  pull_request: 2323
+  scope: "Bounded structured coding edits materialized into deterministic strict-apply patches through the existing sandbox/publish path."
+  validation: "Focused coding runner 63/63, sandbox/worker 8/8, dispatch retry 32/32, build/typecheck/lint/validate:full/AI/safety/AIPOS/diff-check PASS; exact-head CI on the prior head passed before this hardening successor."
+  remaining: "Independent Audit and canonical Release must pass at this exact head; genuine coding recovery runtime evidence remains required."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 owner_decisions:
   autonomy: "2026-09-24 owner: every non-LIVE decision is autonomous; the only owner decision is LIVE trading approval."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
