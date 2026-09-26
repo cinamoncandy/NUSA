@@ -405,6 +405,13 @@ jobs:
           let recovery = 'none';
           if (result.status === 'AUDIT_COMPLETED') {
             failureClass = 'none';
+          } else if (result.error === "WAITING_PROVIDER_CAPACITY" || result.status === "WAITING_PROVIDER_CAPACITY") {
+            // Structured-code-first (ProviderGatedAuditOutcome status union in
+            // apps/autopilot/src/auditRunner.ts): a capacity wait is transient
+            // even when status is AUDIT_FAILED_CLOSED, whose "closed"
+            // substring must never decide this branch (run 36134520306).
+            failureClass = 'transient';
+            recovery = 'retry';
           } else if (/4006|daily free allocation|neurons|quota/i.test(text)) {
             failureClass = 'executor_unavailable';
           } else if (/AUDIT_(PR_NOT_OPEN|PR_HEAD_MISMATCH|PR_BASE_MISMATCH|CI_NOT_SUCCESSFUL|CI_HEAD_MISMATCH|CI_REPOSITORY_MISMATCH)|stale|closed|head moved|base moved/i.test(text)) {
