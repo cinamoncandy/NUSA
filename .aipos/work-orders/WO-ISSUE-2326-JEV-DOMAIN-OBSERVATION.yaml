@@ -1,0 +1,54 @@
+id: WO-ISSUE-2326-JEV-DOMAIN-OBSERVATION
+title: "Define canonical NUSA-wide Jev domain observation and task-type registry"
+status: BLOCKED_LOCAL_VALIDATION
+owner: nusa-ai-platform
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 0921f0514a47e3f3313645a654e258cf8f3ab485
+implementation_branch: feat/2326-jev-domain-observation-registry
+authority_impact: none
+objective: "Prevent per-domain Jev contract drift by introducing one reusable metadata-only observation envelope and task-type policy registry on top of the existing JevShadowRouter/Model Router foundation."
+canonical_owner: "AI Platform / Model Router"
+scope:
+  include:
+    - "Register the initial Jev task types across all 17 NUSA rollout domains."
+    - "Bind every task type to one canonical owner and an explicit rollout ceiling."
+    - "Start every registered task type at SHADOW with no calibration evidence."
+    - "Provide one metadata-only observation envelope with replay/correlation identity and model/provider provenance."
+    - "Reject secret-shaped decision fields and obvious bearer/private-key values."
+    - "Mechanically assert ZERO_AUTHORITY, no production mutation, no LIVE authority, and protected-action prohibitions."
+    - "Reuse existing WORKFLOW_FAILURE_CLASSIFICATION and RESEARCH_INTELLIGENCE_ATTENTION_SHADOW names without replacing their current contracts."
+  exclude:
+    - "Domain adapters or new provider transport in this increment."
+    - "Calibration promotion to CALIBRATED_ASSIST or ACTIVE_ROUTING_ADVISORY."
+    - "New scheduler, orchestrator, evidence store, governance engine, Audit engine, Release engine, or trading authority."
+acceptance:
+  - "One task-type registry covers all currently planned NUSA Jev rollout domains."
+  - "All initial policies remain SHADOW until versioned calibration evidence is introduced in a later successor."
+  - "No protected transition or canonical truth mutation can be registered as an allowed Jev action."
+  - "Common observations are replay-identifiable and contain provider/model/fallback/correlation metadata without raw secrets."
+  - "usableForRouting remains false for all currently approved task policies."
+  - "Existing #2310 and #2315 Jev contracts are referenced/reused, not duplicated or rewritten."
+  - "PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY remain unchanged."
+verification_commands:
+  - "pnpm run build"
+  - "node --test tests/jev-domain-observation.test.js"
+  - "pnpm exec tsc -p tsconfig.json --noEmit"
+  - "pnpm run lint"
+  - "pnpm run ai:architecture"
+  - "pnpm run safety:invariants"
+  - "pnpm run aipos:yaml"
+  - "pnpm run aipos:drift"
+  - "pnpm run aipos:provenance"
+  - "git diff --check"
+evidence:
+  implementation_status: IMPLEMENTED_UNVALIDATED_LOCALLY
+  local_validation: "BLOCKED: the authorized local repository host is disconnected; repository policy requires targeted tests plus pnpm run preflight before READY_FOR_REVIEW. Exact-head CI is supplementary evidence, not a substitute for this local gate."
+  external_validation: "Required: exact-head CI, independent Audit, canonical Release, merge. Domain adapters and calibration remain successor work under #2326."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Reconnect the authorized local repository host, run the listed targeted tests plus pnpm run preflight on this exact branch head, record PASS evidence, then transition to READY_FOR_REVIEW."
