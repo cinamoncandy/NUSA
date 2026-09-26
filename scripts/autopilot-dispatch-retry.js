@@ -700,6 +700,30 @@ function resetProposalRetryWorkspace() {
   if (tracked || staged) throw new Error("CODING_RUNTIME_WORKSPACE_DIRTY");
 }
 
+function applyPatchWithRecountFallback(patchPath = PATCH_PATH) {
+  let strictFailure;
+  try {
+    run("git", ["apply", "--check", patchPath], "SANDBOX_PATCH_APPLY_CHECK_FAILED");
+  } catch (error) {
+    strictFailure = error;
+  }
+  if (!strictFailure) {
+    run("git", ["apply", patchPath], "SANDBOX_PATCH_APPLY_FAILED");
+    return "strict";
+  }
+
+  try {
+    // Recount only repairs malformed unified-diff hunk line counts. Git still requires exact
+    // context and performs no fuzz/3-way merge, so scope and content authority do not widen.
+    run("git", ["apply", "--recount", "--check", patchPath], "SANDBOX_PATCH_APPLY_RECOUNT_CHECK_FAILED");
+    run("git", ["apply", "--recount", patchPath], "SANDBOX_PATCH_APPLY_RECOUNT_FAILED");
+    console.log("SANDBOX_PATCH_RECOUNT_APPLIED");
+    return "recount";
+  } catch {
+    throw strictFailure;
+  }
+}
+
 function validatePatchOnGithubRunner(request, patch) {
   const expectedPath = assertBoundedPatch(patch);
   if (run("git", ["rev-parse", "HEAD"], "GITHUB_RUNNER_HEAD_FAILED").trim().toLowerCase() !== request.headSha.toLowerCase()) {
@@ -708,8 +732,7 @@ function validatePatchOnGithubRunner(request, patch) {
   assertGithubRunnerWorkspaceClean(run("git", ["status", "--porcelain", "--untracked-files=all"], "GITHUB_RUNNER_STATUS_FAILED"));
 
   fs.writeFileSync(PATCH_PATH, `${patch.trim()}\n`);
-  run("git", ["apply", "--check", PATCH_PATH], "SANDBOX_PATCH_APPLY_CHECK_FAILED");
-  run("git", ["apply", PATCH_PATH], "SANDBOX_PATCH_APPLY_FAILED");
+  applyPatchWithRecountFallback(PATCH_PATH);
   run("git", ["diff", "--check"], "SANDBOX_PATCH_DIFF_CHECK_FAILED");
 
   const tracked = run("git", ["diff", "--name-only"], "SANDBOX_PATCH_DIFF_LIST_FAILED").split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
@@ -1124,6 +1147,7 @@ module.exports = {
   assertGithubRunnerWorkspaceClean,
   filterGithubRunnerWorkspacePaths,
   validatePatchOnGithubRunner,
+  applyPatchWithRecountFallback,
   endpointFor,
   boundedWorkerFailureEvidence,
 };
