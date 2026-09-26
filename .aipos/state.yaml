@@ -1324,3 +1324,12 @@ current_audit_structured_output_recovery:
   follow_up_next_permitted_action: "Promote the pagination fix through the existing protected Release path; only after the trusted main workflow contains it may the protected pull_request_target preflight be expected to PASS. Then deploy the exact merged main revision and request a fresh independent Audit."
   next_permitted_action: "Obtain the existing owner-controlled nusa/release-authorized gate without bypassing Audit, merge through the canonical Release path, deploy the exact merged main revision through the existing Cloudflare promotion workflow, then request a fresh independent Audit."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_comparable_evaluator_failure_slice:
+  status: IMPLEMENTED_PENDING_EXACT_HEAD_CI
+  issue: 1887
+  base_commit: 3ddc9dc5ab7f4e41da9acc7f37c263457b0add62
+  implementation_branch: codex/issue-1887-comparable-evaluator
+  work_order: .aipos/work-orders/WO-ISSUE-1887-COMPARABLE-EVALUATOR-FAILURES.yaml
+  scope: "Resolve lifecycle failure, structural-domination, and promotion-support facts from canonical hash-chain-validated Research Memory; only CURRENT canonical empirical evidence with exact evaluator semantics and independence groups may affect advisory RETIRE/PROMOTE."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
