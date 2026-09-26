@@ -15,7 +15,7 @@ const {
   filterGithubRunnerWorkspacePaths,
   boundedWorkerFailureEvidence,
   boundedProposalContext,
-  applyPatchWithRecountFallback,
+  normalizeUnifiedDiffHunkCounts,\n  applyPatchWithNormalizedHunkCounts,
   executeGithubActionsRunner,
   MAX_RETRY_DELAY_MS,
   retryHint,
@@ -599,7 +599,7 @@ test("builds a bounded exact-head retry excerpt around the rejected hunk", () =>
 });
 
 
-test("repairs only malformed unified-diff hunk counts with git apply --recount", () => {
+test("normalizes only malformed unified-diff hunk counts before strict git apply", () => {
   const previous = process.cwd();
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-recount-"));
   try {
@@ -627,7 +627,9 @@ test("repairs only malformed unified-diff hunk counts with git apply --recount",
       () => execFileSync("git", ["apply", "--check", ".nusa-autopilot.patch"], { stdio: "pipe" }),
       /Command failed/,
     );
-    assert.equal(applyPatchWithRecountFallback(".nusa-autopilot.patch"), "recount");
+    const normalized = normalizeUnifiedDiffHunkCounts(malformedCounts);
+    assert.match(normalized, /@@ -1,1 \+1,1 @@/);
+    assert.equal(applyPatchWithNormalizedHunkCounts(".nusa-autopilot.patch"), "normalized");
     assert.equal(fs.readFileSync("apps/autopilot/src/example.ts", "utf8"), "export const oldValue = false;\n");
   } finally {
     process.chdir(previous);
@@ -635,7 +637,7 @@ test("repairs only malformed unified-diff hunk counts with git apply --recount",
   }
 });
 
-test("recount fallback does not fuzz or accept mismatched source context", () => {
+test("hunk-count normalization does not fuzz or accept mismatched source context", () => {
   const previous = process.cwd();
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-recount-mismatch-"));
   try {
@@ -659,7 +661,7 @@ test("recount fallback does not fuzz or accept mismatched source context", () =>
       "",
     ].join("\n"));
     assert.throws(
-      () => applyPatchWithRecountFallback(".nusa-autopilot.patch"),
+      () => applyPatchWithNormalizedHunkCounts(".nusa-autopilot.patch"),
       /SANDBOX_PATCH_APPLY_CHECK_FAILED/,
     );
     assert.equal(fs.readFileSync("apps/autopilot/src/example.ts", "utf8"), "export const actual = true;\n");
