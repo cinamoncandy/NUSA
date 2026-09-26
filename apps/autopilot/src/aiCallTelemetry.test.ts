@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { aiCallUsage, logAiCall } from "./aiCallTelemetry";
+import { aiCallUsage, estimateWorkersAiNeurons, logAiCall } from "./aiCallTelemetry";
 
 describe("AI call telemetry", () => {
   it("reads Workers AI token usage and tolerates responses without it", () => {
@@ -16,7 +16,14 @@ describe("AI call telemetry", () => {
     assert.equal(lines.length, 1);
     assert.doesNotMatch(lines[0]!, /SECRET-BODY/);
     const event = JSON.parse(lines[0]!);
-    assert.deepEqual(event, { event: "NUSA_AI_CALL", caller: "C2_AUDIT", model: "@cf/model", attempt: 2, promptChars: 5000, promptTokens: 1500, completionTokens: 40, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+    assert.deepEqual(event, { event: "NUSA_AI_CALL", caller: "C2_AUDIT", model: "@cf/model", attempt: 2, promptChars: 5000, promptTokens: 1500, completionTokens: 40, estimatedNeurons: null, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+  });
+
+  it("estimates neurons only for models with a known rate and complete usage", () => {
+    assert.equal(estimateWorkersAiNeurons("@cf/meta/llama-3.3-70b-instruct-fp8-fast", { promptTokens: 1_000_000, completionTokens: 100_000 }), 26_668 + 20_480.5);
+    assert.equal(estimateWorkersAiNeurons("@cf/meta/llama-3.1-8b-instruct-fast", { promptTokens: 2_000, completionTokens: 500 }), 25.67);
+    assert.equal(estimateWorkersAiNeurons("@cf/unknown/model", { promptTokens: 10, completionTokens: 10 }), null);
+    assert.equal(estimateWorkersAiNeurons("@cf/meta/llama-3.1-8b-instruct-fast", { promptTokens: null, completionTokens: 10 }), null);
   });
 
   it("never throws into the call it observes", () => {

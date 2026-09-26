@@ -10,6 +10,23 @@ export interface AiCallUsage {
   readonly completionTokens: number | null;
 }
 
+/**
+ * Neurons per 1M tokens for the models production callers use (Cloudflare Workers AI pricing, as
+ * supplied by the owner 2026-09-24). A model not listed here reports estimatedNeurons: null --
+ * an unknown rate is never guessed.
+ */
+export const WORKERS_AI_NEURONS_PER_MILLION_TOKENS: Readonly<Record<string, Readonly<{ input: number; output: number }>>> = Object.freeze({
+  "@cf/meta/llama-3.3-70b-instruct-fp8-fast": Object.freeze({ input: 26_668, output: 204_805 }),
+  "@cf/meta/llama-3.1-8b-instruct-fast": Object.freeze({ input: 4_119, output: 34_868 }),
+});
+
+/** Estimated neurons for one call, or null when the model rate or either token count is unknown. */
+export function estimateWorkersAiNeurons(model: string, usage: AiCallUsage): number | null {
+  const rate = WORKERS_AI_NEURONS_PER_MILLION_TOKENS[model];
+  if (rate == null || usage.promptTokens == null || usage.completionTokens == null) return null;
+  return Math.round((usage.promptTokens * rate.input + usage.completionTokens * rate.output) / 1_000_000 * 100) / 100;
+}
+
 const count = (value: unknown): number | null => (typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null);
 
 export function aiCallUsage(response: unknown): AiCallUsage {
@@ -29,6 +46,7 @@ export function logAiCall(input: Readonly<{ caller: AiCaller; model: string; att
       promptChars: input.promptChars,
       promptTokens: usage.promptTokens,
       completionTokens: usage.completionTokens,
+      estimatedNeurons: estimateWorkersAiNeurons(input.model, usage),
       liveAuthority: "NONE",
       productionMutationAllowed: false,
       aiAuthority: "ZERO_AUTHORITY",
