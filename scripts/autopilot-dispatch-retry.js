@@ -31,6 +31,7 @@ const NO_ACTION_PROPOSAL_FAILURE_CODES = new Set([
   "CODING_PROPOSAL_UNAVAILABLE",
   "CODING_PROPOSAL_REPEATED",
   "SANDBOX_PATCH_APPLY_CHECK_FAILED",
+  "SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED",
   "SANDBOX_PATCH_FILE_COUNT_INVALID",
   "SANDBOX_PATCH_REQUIRED",
   "SANDBOX_PATCH_TOO_LARGE",
@@ -45,6 +46,7 @@ const RETRYABLE_PROPOSAL_FAILURE_CODES = new Set([
   "CODING_PROPOSAL_TOO_LARGE",
   "CODING_PROPOSAL_UNAVAILABLE",
   "SANDBOX_PATCH_APPLY_CHECK_FAILED",
+  "SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED",
   "SANDBOX_PATCH_FILE_COUNT_INVALID",
   "SANDBOX_PATCH_REQUIRED",
   "SANDBOX_PATCH_TOO_LARGE",
@@ -756,9 +758,12 @@ function applyPatchWithNormalizedHunkCounts(patchPath = PATCH_PATH) {
     run("git", ["apply", patchPath], "SANDBOX_PATCH_NORMALIZED_APPLY_FAILED");
     console.log("SANDBOX_PATCH_HUNK_COUNTS_NORMALIZED");
     return "normalized";
-  } catch {
+  } catch (error) {
     fs.writeFileSync(patchPath, originalPatch, "utf8");
-    throw strictFailure;
+    // Recounting was attempted and failed independently. Preserve that exact transition instead
+    // of collapsing it back to the original strict-apply failure so the bounded repair loop can
+    // distinguish a post-recount apply failure from the initial malformed-hunk rejection.
+    throw error;
   }
 }
 
@@ -1025,7 +1030,7 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
         now,
       }));
       if (decision === "RETRY") {
-        if (code === "SANDBOX_PATCH_APPLY_CHECK_FAILED") {
+        if (code === "SANDBOX_PATCH_APPLY_CHECK_FAILED" || code === "SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED") {
           try {
             proposalContext = proposalContextForPatch(proposal.patch);
           } catch {
