@@ -770,6 +770,64 @@ test("regenerates an apply-check rejection inside one execution and publishes th
   });
 });
 
+test("regenerates a bounded build rejection before publishing", async () => {
+  await withOidcEnvironment(async () => {
+    let proposalCalls = 0;
+    let validateCalls = 0;
+    const proposalBodies = [];
+    const result = await executeGithubActionsRunner(
+      request,
+      "https://runner.example.test/coding/execute",
+      async (url, init = {}) => {
+        const value = String(url);
+        if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+        if (value.endsWith("/coding/propose")) {
+          proposalCalls += 1;
+          proposalBodies.push(JSON.parse(init.body));
+          return response(200, { status: "PROPOSAL_READY", patch: proposalCalls === 1 ? "first-build-failure" : "second-build-safe" });
+        }
+        if (value.endsWith("/coding/publish")) {
+          return response(200, {
+            status: "EXECUTION_ACCEPTED",
+            proposalValidated: true,
+            publisher: "github-validated-patch",
+            branch: "autopilot/build-repair",
+            commitSha: "c".repeat(40),
+            pullRequestNumber: 78,
+            pullRequestUrl: "https://github.com/cinamoncandy/NUSA/pull/78",
+          });
+        }
+        throw new Error("unexpected URL " + value);
+      },
+      {
+        validatePatch(value, patch) {
+          validateCalls += 1;
+          assert.equal(value.executionId, request.executionId);
+          if (validateCalls === 1) throw new Error("SANDBOX_BUILD_FAILED:2:tsc failed");
+          assert.equal(patch, "second-build-safe");
+          return [{ path: "apps/autopilot/src/example.ts", content: "export const repaired = true;\n" }];
+        },
+        initialProposalContext() {
+          return { path: "apps/autopilot/src/example.ts", startLine: 1, content: "export const current = true;\n" };
+        },
+      },
+    );
+
+    assert.equal(result.status, "DISPATCHED");
+    assert.equal(result.proposalAttempts, 2);
+    assert.equal(result.proposalRetries, 1);
+    assert.equal(result.codeChanged, true);
+    assert.equal(proposalCalls, 2);
+    assert.equal(validateCalls, 2);
+    assert.match(proposalBodies[1].proposalFeedback, /SANDBOX_BUILD_FAILED/);
+    assert.deepEqual(proposalBodies[1].proposalContext, {
+      path: "apps/autopilot/src/example.ts",
+      startLine: 1,
+      content: "export const current = true;\n",
+    });
+  });
+});
+
 test("bounds repeated apply-check rejection at three proposal attempts", async () => {
   await withOidcEnvironment(async () => {
     let proposalCalls = 0;
