@@ -59,6 +59,7 @@ interface AuditModelVerdict {
   readonly findings: readonly AuditRunnerFinding[];
   readonly blockers: readonly string[];
   readonly safetyInvariantResult: AuditSafetyInvariantResult;
+  readonly mergeAllowed: boolean;
 }
 
 interface VerifiedPullEvidence {
@@ -94,7 +95,7 @@ const MAX_EVIDENCE_REF_CHARS = 500;
 // nondeterminism without weakening any validation: a persistently malformed response still fails
 // closed exactly as before once attempts are exhausted.
 const MAX_AUDIT_MODEL_ATTEMPTS = 3;
-const ALLOWED_MODEL_KEYS = new Set(["verdict", "findings", "blockers", "safetyInvariantResult"]);
+const ALLOWED_MODEL_KEYS = new Set(["verdict", "findings", "blockers", "safetyInvariantResult", "mergeAllowed"]);
 const ALLOWED_FINDING_KEYS = new Set(["code", "severity", "message", "evidenceRef"]);
 
 const AUDIT_FINDING_SCHEMA = Object.freeze({
@@ -126,8 +127,9 @@ const AUDIT_RESPONSE_FORMAT = Object.freeze({
       }),
       blockers: Object.freeze({ type: "array", maxItems: MAX_BLOCKERS, items: Object.freeze({ type: "string" }) }),
       safetyInvariantResult: Object.freeze({ type: "string", enum: Object.freeze(["PASS", "FAIL"]) }),
+      mergeAllowed: Object.freeze({ type: "boolean" }),
     }),
-    required: Object.freeze(["verdict", "findings", "blockers", "safetyInvariantResult"]),
+    required: Object.freeze(["verdict", "findings", "blockers", "safetyInvariantResult", "mergeAllowed"]),
   }),
 });
 
@@ -199,6 +201,7 @@ export function validateAuditModelVerdict(value: unknown): AuditModelVerdict {
   strictKeys(verdict, ALLOWED_MODEL_KEYS, "AUDIT_VERDICT_KEYS_INVALID");
   if (verdict.verdict !== "PASS" && verdict.verdict !== "PASS_WITH_NOTES" && verdict.verdict !== "FAIL") throw new Error("AUDIT_VERDICT_STATUS_INVALID");
   const safetyInvariantResult = normalizeAuditSafetyInvariant(verdict.safetyInvariantResult);
+  if (typeof verdict.mergeAllowed !== "boolean") throw new Error("AUDIT_VERDICT_MERGE_ALLOWED_INVALID");
   if (!Array.isArray(verdict.findings) || verdict.findings.length > MAX_FINDINGS) throw new Error("AUDIT_VERDICT_FINDINGS_INVALID");
   if (!Array.isArray(verdict.blockers) || verdict.blockers.length > MAX_BLOCKERS) throw new Error("AUDIT_VERDICT_BLOCKERS_INVALID");
   const findings = Object.freeze(verdict.findings.map(validateFinding));
@@ -209,11 +212,13 @@ export function validateAuditModelVerdict(value: unknown): AuditModelVerdict {
   if (verdict.verdict === "PASS" && findings.length > 0) throw new Error("AUDIT_VERDICT_PASS_FINDINGS_FORBIDDEN");
   if (verdict.verdict === "PASS_WITH_NOTES" && findings.length === 0) throw new Error("AUDIT_VERDICT_NOTES_REQUIRED");
   if (verdict.verdict === "FAIL" && blockers.length === 0) throw new Error("AUDIT_VERDICT_FAIL_BLOCKER_REQUIRED");
+  if (verdict.mergeAllowed && (verdict.verdict === "FAIL" || blockers.length > 0 || safetyInvariantResult !== "PASS" || findings.some((finding) => finding.severity === "BLOCKER"))) throw new Error("AUDIT_VERDICT_MERGE_ALLOWED_UNSAFE");
   return Object.freeze({
     verdict: verdict.verdict,
     findings,
     blockers,
     safetyInvariantResult,
+    mergeAllowed: verdict.mergeAllowed,
   });
 }
 
@@ -378,8 +383,8 @@ function auditPrompt(request: AuditRunnerRequest, diff: string): string {
     "Fail closed on ambiguity, missing evidence, weakened assertions/checks, synthetic evidence presented as actual evidence, duplicate control-plane/queue/scheduler/merge engines, stale-head assumptions, or unsafe authority changes.",
     "Safety invariants: liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY; no AI self-grant; no automatic LIVE activation; no withdrawals/transfers; no mobile credential storage; PAPER/REAL separation; fail-closed; actual evidence must not be fabricated.",
     'Return only JSON matching response_format. safetyInvariantResult MUST be a JSON string whose exact value is "PASS" or "FAIL"; never use a boolean, object, null, or another spelling.',
-    "The top-level JSON object MUST contain exactly these four keys: verdict, findings, blockers, safetyInvariantResult. findings and blockers MUST always be arrays.",
-    "Rules: PASS requires zero findings and zero blockers. PASS_WITH_NOTES requires one or more NOTE findings and zero blockers and is not automatically merge-authorizing. FAIL requires at least one blocker. Any BLOCKER finding, safety failure, test weakening, evidence integrity issue, or material uncertainty requires FAIL.",
+    "The top-level JSON object MUST contain exactly these five keys: verdict, findings, blockers, safetyInvariantResult, mergeAllowed. findings and blockers MUST always be arrays; mergeAllowed MUST be a JSON boolean.",
+    "Rules: PASS requires zero findings and zero blockers and mergeAllowed=true. PASS_WITH_NOTES requires one or more NOTE findings and zero blockers; set mergeAllowed=true only when those notes are explicitly non-blocking and the exact reviewed head is safe to merge. FAIL requires at least one blocker and mergeAllowed=false. Any BLOCKER finding, safety failure, test weakening, evidence integrity issue, or material uncertainty requires FAIL and mergeAllowed=false.",
     "For every BLOCKER, evidenceRef MUST be exactly `path/to/file:+newLine` for a current added line in this diff. A `-` line is removed code, never current behavior; do not report it as a blocker. If a concern depends only on removed code, it is not a current blocker.",
     `Repository: ${request.repository}`,
     `PR: #${request.prNumber}`,
@@ -432,7 +437,7 @@ export async function executeIndependentAudit(
     `github:base/${request.baseSha}`,
     `github:actions/runs/${request.workflowRunId}`,
   ]);
-  const mergeAllowed = modelResult.verdict === "PASS" && modelResult.safetyInvariantResult === "PASS" && modelResult.blockers.length === 0;
+  const mergeAllowed = modelResult.mergeAllowed === true && modelResult.verdict !== "FAIL" && modelResult.safetyInvariantResult === "PASS" && modelResult.blockers.length === 0 && modelResult.findings.every((finding) => finding.severity === "NOTE");
   return Object.freeze({
     schemaVersion: 1,
     status: "AUDIT_COMPLETED",
