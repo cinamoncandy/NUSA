@@ -169,7 +169,9 @@ test("Audit prompt pins finding-code and blocker-list shape to strict validation
 
 test("Audit recovery paginates and binds exact-main evidence to canonical CI", () => {
   const recovery = auditRecoveryJobSlice();
-  assert.match(recovery, /gh api --paginate --slurp/);
+  assert.match(recovery, /gh api --paginate/);
+  assert.doesNotMatch(recovery, /gh api --paginate --slurp/);
+  assert.match(recovery, /sort -n \| tail -n 1/);
   assert.match(recovery, /\.path == "\.github\/workflows\/ci\.yml"/);
   assert.match(recovery, /\.name == "CI"/);
   assert.match(recovery, /\.conclusion == "success"/);
