@@ -227,6 +227,17 @@ current_deterministic_coding_patches:
   validation: "Focused dispatch retry 33/33, build/typecheck/lint/validate/validate:full/AI/safety/AIPOS/diff-check PASS; exact-head CI, PAPER, broker-read-only, and Restricted LIVE companion checks PASS."
   remaining: "Resolve the exact-head review thread, then rerun independent Audit and canonical Release; genuine coding recovery runtime evidence remains required."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_autopilot_worker_github_credential_sync:
+  work_order: WO-20260927-AUTOPILOT-WORKER-GITHUB-CREDENTIAL-SYNC
+  status: READY_FOR_REVIEW
+  branch: codex/autopilot-worker-token-sync
+  base_sha: f35b0ad935ca469a283cae1e4658075ca9cd82a7
+  implementation_head: 17288b2c6a25a12f696e0efa183d84cf0469f663
+  pull_request: 2325
+  scope: "Synchronize the least-privilege repository GitHub credential into the canonical Cloudflare Worker deployment path for exact-head verification and publish, without exposing secret material or expanding trading authority."
+  validation: "Focused workflow contract and repository validation PASS; exact-head CI and credential preflight PASS; Audit/Release pending."
+  remaining: "Canonical Audit/Release and post-merge deployment/runtime proof; Worker dogfood must still prove exact-head verification and bounded autonomous publication."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 owner_decisions:
   autonomy: "2026-09-24 owner: every non-LIVE decision is autonomous; the only owner decision is LIVE trading approval."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
