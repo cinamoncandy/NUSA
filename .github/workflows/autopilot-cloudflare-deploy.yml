@@ -131,6 +131,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           NUSA_AUTOPILOT_RUNTIME_TOKEN: ${{ secrets.NUSA_AUTOPILOT_RUNTIME_TOKEN }}
+          NUSA_AUTOPILOT_GITHUB_TOKEN: ${{ secrets.NUSA_AUTOPILOT_GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
@@ -162,7 +163,6 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           NUSA_AUTOPILOT_RUNTIME_TOKEN: ${{ secrets.NUSA_AUTOPILOT_RUNTIME_TOKEN }}
-          NUSA_AUTOPILOT_GITHUB_TOKEN: ${{ secrets.NUSA_AUTOPILOT_GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           [ "${#NUSA_AUTOPILOT_RUNTIME_TOKEN}" -ge 32 ] || { echo '::error::Autopilot runtime secret unavailable.'; exit 1; }
