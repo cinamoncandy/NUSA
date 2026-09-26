@@ -529,6 +529,94 @@ jobs:
           name: autopilot-audit-request-${{ github.run_id }}
           path: artifacts/autopilot-audit-request
 
+  release-handoff:
+    needs: audit-request
+    if: >-
+      ${{ needs.audit-request.result == 'success' &&
+          needs.audit-request.outputs.applicable == 'true' &&
+          needs.audit-request.outputs.authority != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+      REQUESTED_HEAD: ${{ github.event.client_payload.head_sha }}
+      WORKFLOW_RUN_ID: ${{ github.event.client_payload.workflow_run_id }}
+      EXECUTION_ID: ${{ github.event.client_payload.execution_id }}
+      DEDUPE_KEY: ${{ github.event.client_payload.dedupe_key }}
+      AUDIT_AUTHORITY: ${{ needs.audit-request.outputs.authority }}
+      AUDIT_EXECUTION_RUN_ID: ${{ github.run_id }}
+    steps:
+      - name: Validate trusted Audit authority and exact release handoff identity
+        id: authority
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require('fs');
+          const fail = (message) => { console.error(message); process.exit(1); };
+          let authority;
+          try {
+            authority = JSON.parse(Buffer.from(process.env.AUDIT_AUTHORITY || '', 'base64url').toString('utf8'));
+          } catch {
+            fail('trusted Audit authority is invalid');
+          }
+          const prNumber = Number(process.env.PR_NUMBER);
+          const workflowRunId = Number(process.env.WORKFLOW_RUN_ID);
+          const auditExecutionRunId = Number(process.env.AUDIT_EXECUTION_RUN_ID);
+          if (authority.schemaVersion !== 1 || authority.status !== 'AUDIT_COMPLETED') fail('trusted Audit authority status invalid');
+          if (authority.repository !== process.env.GITHUB_REPOSITORY || authority.prNumber !== prNumber) fail('trusted Audit repository/PR identity mismatch');
+          if (authority.reviewedHeadSha !== process.env.REQUESTED_HEAD || authority.workflowRunId !== workflowRunId) fail('trusted Audit exact-head/CI identity mismatch');
+          if (authority.auditExecutionRunId !== auditExecutionRunId) fail('trusted Audit same-workflow execution identity mismatch');
+          if (!['PASS', 'PASS_WITH_NOTES'].includes(authority.verdict) || authority.mergeAllowed !== true || authority.safetyInvariantResult !== 'PASS') fail('trusted Audit does not authorize Release handoff');
+          if (authority.liveAuthority !== 'NONE' || authority.productionMutationAllowed !== false || authority.aiAuthority !== 'ZERO_AUTHORITY') fail('trusted Audit safety invariant mismatch');
+          if (!/^[0-9a-f]{40}$/i.test(authority.baseSha || '')) fail('trusted Audit base SHA invalid');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `audited_base=${authority.baseSha.toLowerCase()}\n`);
+          NODE
+
+          pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          audited_base="${{ steps.authority.outputs.audited_base }}"
+          hold="$(jq -r 'if (.labels | type) != "array" then "invalid" elif any(.labels[]; (.name | type) != "string") then "invalid" elif any(.labels[]; (.name | ascii_downcase) == "hold") then "true" else "false" end' <<<"$pr")"
+          test "$(jq -r '.state' <<<"$pr")" = "open"
+          test "$(jq -r '.draft // false' <<<"$pr")" = "false"
+          test "$hold" = "false"
+          test "$(jq -r '.head.sha' <<<"$pr")" = "$REQUESTED_HEAD"
+          test "$(jq -r '.base.ref' <<<"$pr")" = "main"
+          test "$(jq -r '.base.repo.full_name' <<<"$pr")" = "$GITHUB_REPOSITORY"
+          test "$(jq -r '.base.sha' <<<"$pr")" = "$audited_base"
+          test "$current_main" = "$audited_base"
+
+      - name: Dispatch deterministic Release successor once
+        run: |
+          set -euo pipefail
+          existing="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-deterministic-audit-release.yml/runs?event=repository_dispatch&per_page=100" --jq ".workflow_runs[] | select(.display_title == \"$DEDUPE_KEY\") | .id" | head -n 1)"
+          if [ -n "$existing" ]; then
+            echo "Deterministic Release successor already exists for $DEDUPE_KEY via run $existing; suppressing duplicate dispatch."
+            exit 0
+          fi
+          gh api --method POST "repos/$GITHUB_REPOSITORY/dispatches" --input - <<EOF
+          {
+            "event_type": "nusa_autopilot_audit",
+            "client_payload": {
+              "kind": "AUDIT_REQUEST",
+              "repository": "$GITHUB_REPOSITORY",
+              "head_sha": "$REQUESTED_HEAD",
+              "pr_number": $PR_NUMBER,
+              "workflow_run_id": $WORKFLOW_RUN_ID,
+              "execution_id": "$EXECUTION_ID",
+              "dedupe_key": "$DEDUPE_KEY",
+              "live_authority": "NONE",
+              "production_mutation_allowed": false,
+              "ai_authority": "ZERO_AUTHORITY"
+            }
+          }
+          EOF
+          echo "Dispatched deterministic Release successor for PR #$PR_NUMBER at exact head $REQUESTED_HEAD."
+
   audit-recovery:
     needs: audit-request
     if: ${{ always() && github.event.client_payload.kind == 'AUDIT_REQUEST' && needs.audit-request.result == 'failure' && needs.audit-request.outputs.recovery == 'retry' }}
