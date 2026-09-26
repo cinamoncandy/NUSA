@@ -50,8 +50,8 @@ export interface AuditRunnerResult {
 export interface AuditRunnerEnv {
   readonly AI?: WorkersAiBinding;
   readonly NUSA_AI_AUDIT_MODEL?: string;
-  /** Token used only for authenticated, read-only GitHub evidence fetches. */
-  readonly NUSA_GITHUB_TOKEN?: string;
+  /** Per-execution GitHub App installation token used only for read-only Audit evidence fetches. */
+  readonly NUSA_AUDIT_GITHUB_TOKEN?: string;
 }
 
 interface AuditModelVerdict {
@@ -398,8 +398,8 @@ export async function executeIndependentAudit(
   fetchImpl: FetchImpl = fetch as unknown as FetchImpl,
   now: () => number = () => Date.now(),
 ): Promise<AuditRunnerResult> {
-  const githubToken = env.NUSA_GITHUB_TOKEN?.trim();
-  if (!githubToken) throw new Error("AUDIT_GITHUB_TOKEN_NOT_CONFIGURED");
+  const githubToken = env.NUSA_AUDIT_GITHUB_TOKEN?.trim();
+  if (!githubToken) throw new Error("AUDIT_GITHUB_APP_TOKEN_NOT_PROVIDED");
   const beforeAudit = await verifyCurrentPullAndCi(request, githubToken, fetchImpl);
   const diff = await fetchPullDiff(request, beforeAudit.changedFiles, githubToken, fetchImpl);
   if (!env.AI) throw new Error("AUDIT_AI_NOT_CONFIGURED");

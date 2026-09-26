@@ -70,7 +70,7 @@ test("Workers AI response schema makes verdict invariants structurally expressib
 
   const result = await executeIndependentAudit(
     request,
-    { AI, NUSA_GITHUB_TOKEN: "github-token" },
+    { AI, NUSA_AUDIT_GITHUB_TOKEN: "github-token" },
     fetchSequence() as never,
   );
   assert.equal(result.verdict, "PASS");

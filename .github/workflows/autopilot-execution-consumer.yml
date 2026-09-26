@@ -334,15 +334,31 @@ jobs:
           fs.writeFileSync('artifacts/autopilot-audit-request/audit-runner-request.json', JSON.stringify(request, null, 2));
           NODE
 
+      - name: Mint bounded read-only Audit GitHub App token
+        if: ${{ steps.freshness.outputs.applicable == 'true' }}
+        id: audit-app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.NUSA_AUDIT_READ_APP_ID }}
+          private-key: ${{ secrets.NUSA_AUDIT_READ_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-actions: read
+          permission-contents: read
+          permission-pull-requests: read
+
       - name: Execute independent read-only Audit with GitHub OIDC
         if: ${{ steps.freshness.outputs.applicable == 'true' }}
         env:
           NUSA_AUDIT_RUNNER_URL: https://nusa-autopilot.desporin12.workers.dev/audit/execute
+          NUSA_AUDIT_GITHUB_TOKEN: ${{ steps.audit-app-token.outputs.token }}
         run: |
           node --input-type=module - <<'NODE'
           import fs from 'node:fs';
           const fail = (message) => { console.error(message); process.exit(1); };
           const request = JSON.parse(fs.readFileSync('artifacts/autopilot-audit-request/audit-runner-request.json', 'utf8'));
+          const auditGithubToken = process.env.NUSA_AUDIT_GITHUB_TOKEN;
+          if (!auditGithubToken) fail('bounded Audit GitHub App token missing');
           const oidcUrl = process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
           const oidcRequestToken = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
           if (!oidcUrl || !oidcRequestToken) fail('GitHub OIDC environment is unavailable');
@@ -354,7 +370,7 @@ jobs:
           if (!oidc || typeof oidc.value !== 'string' || !oidc.value) fail('OIDC token missing');
           const response = await fetch(process.env.NUSA_AUDIT_RUNNER_URL, {
             method: 'POST',
-            headers: { authorization: `Bearer ${oidc.value}`, 'content-type': 'application/json' },
+            headers: { authorization: `Bearer ${oidc.value}`, 'content-type': 'application/json', 'x-nusa-audit-github-token': auditGithubToken },
             body: JSON.stringify(request),
           });
           const result = await response.json().catch(() => null);

@@ -19,6 +19,7 @@ jobs:
     permissions:
       actions: read
       contents: read
+      issues: read
       pull-requests: read
     outputs:
       applicable: ${{ steps.audit.outputs.applicable }}
@@ -74,6 +75,31 @@ jobs:
             echo 'authority=NONE' >> "$GITHUB_OUTPUT"
             echo "audited_base=$current_main" >> "$GITHUB_OUTPUT"
             echo "NO_ACTION stale/non-releasable Audit request: state=$current_state draft=$current_draft hold=$current_hold requested_head=$REQUESTED_HEAD current_head=$current_head base=$current_base main=$current_main"
+            exit 0
+          fi
+
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues?state=open&per_page=100" > "$RUNNER_TEMP/nusa-deterministic-audit/open-issues-pages.json"
+          PR_JSON="$(cat "$RUNNER_TEMP/nusa-deterministic-audit/pr.json")" node - <<'NODE'
+          const fs = require('fs');
+          const pages = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/nusa-deterministic-audit/open-issues-pages.json`, 'utf8'));
+          const pull = JSON.parse(process.env.PR_JSON);
+          const openIssues = Array.isArray(pages) ? pages.flat() : [];
+          const critical = openIssues
+            .filter((issue) => !issue?.pull_request && issue?.state === 'open' && /^P0(?:\s|:)/i.test(String(issue?.title || '')) && /\bRefs\s+#903\b/i.test(String(issue?.body || '')))
+            .sort((a, b) => String(a?.created_at || '').localeCompare(String(b?.created_at || '')) || Number(a?.number || 0) - Number(b?.number || 0));
+          if (critical.length === 0) process.exit(0);
+          const active = critical[0];
+          const closesActive = new RegExp(`(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\\s+#${active.number}\\b`, 'i').test(String(pull.body || ''));
+          if (closesActive) process.exit(0);
+          fs.writeFileSync(`${process.env.RUNNER_TEMP}/nusa-deterministic-audit/release-serialization-block.json`, JSON.stringify({ issueNumber: Number(active.number) }));
+          NODE
+
+          if [ -f "$RUNNER_TEMP/nusa-deterministic-audit/release-serialization-block.json" ]; then
+            blocked_issue="$(jq -r '.issueNumber' "$RUNNER_TEMP/nusa-deterministic-audit/release-serialization-block.json")"
+            echo 'applicable=false' >> "$GITHUB_OUTPUT"
+            echo 'authority=NONE' >> "$GITHUB_OUTPUT"
+            echo "audited_base=$current_main" >> "$GITHUB_OUTPUT"
+            echo "NO_ACTION Release serialized before Audit: blocked_by=P0#$blocked_issue pr=$PR_NUMBER head=$REQUESTED_HEAD"
             exit 0
           fi
 

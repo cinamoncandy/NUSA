@@ -127,7 +127,7 @@ function passingModel() {
 }
 
 function auditEnv(model?: ReturnType<typeof ai>) {
-  return { AI: model, NUSA_GITHUB_TOKEN: "github-token" };
+  return { AI: model, NUSA_AUDIT_GITHUB_TOKEN: "github-token" };
 }
 
 test("validates the immutable read-only audit request contract", () => {
@@ -383,11 +383,11 @@ test("does not retry beyond the bounded attempt limit even if given more valid-e
 });
 
 test("fails closed when no independent AI audit engine is configured", async () => {
-  await assert.rejects(executeIndependentAudit(request, { NUSA_GITHUB_TOKEN: "github-token" }, fetchSequence() as never), /AUDIT_AI_NOT_CONFIGURED/);
+  await assert.rejects(executeIndependentAudit(request, { NUSA_AUDIT_GITHUB_TOKEN: "github-token" }, fetchSequence() as never), /AUDIT_AI_NOT_CONFIGURED/);
 });
 
 test("fails closed when GitHub evidence credentials are unavailable", async () => {
-  await assert.rejects(executeIndependentAudit(request, { AI: passingModel() }, fetchSequence() as never), /AUDIT_GITHUB_TOKEN_NOT_CONFIGURED/);
+  await assert.rejects(executeIndependentAudit(request, { AI: passingModel() }, fetchSequence() as never), /AUDIT_GITHUB_APP_TOKEN_NOT_PROVIDED/);
 });
 
 const QUOTA_ERROR = "4006: you have used up your daily free allocation of 10,000 neurons, please upgrade to Cloudflare's Workers Paid plan if you would like to continue usage.";
