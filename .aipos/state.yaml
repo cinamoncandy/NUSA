@@ -229,7 +229,7 @@ current_deterministic_coding_patches:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_autopilot_worker_github_credential_sync:
   work_order: WO-20260927-AUTOPILOT-WORKER-GITHUB-CREDENTIAL-SYNC
-  status: IMPLEMENTED_PENDING_EXACT_HEAD
+  status: READY_FOR_REVIEW
   branch: codex/autopilot-worker-token-sync
   base_sha: f35b0ad935ca469a283cae1e4658075ca9cd82a7
   implementation_head: 17288b2c6a25a12f696e0efa183d84cf0469f663
