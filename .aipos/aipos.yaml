@@ -3,6 +3,8 @@ project:
   id: nusa
   name: NUSA
   purpose: "Build NUSA as an AI-native runtime while preserving cross-AI project continuity."
+  ultimate_owner_objective: "Achieve long-term economic freedom through sustainable, risk-controlled growth of the OWNER's assets."
+  owner_objective_success_definition: "Increase the probability of durable long-term asset growth while controlling catastrophic-loss and ruin risk; short-term nominal return alone is not success."
 source_of_truth:
   repository: true
   conversation: false
@@ -53,6 +55,8 @@ architecture_sync:
     - architecture_references
 rules:
   - "Read .aipos before changing implementation."
+  - "Treat the OWNER's ultimate objective as long-term economic freedom through sustainable, risk-controlled asset growth; never optimize nominal return by accepting catastrophic-loss or ruin risk."
+  - "The OWNER objective grants no LIVE, real-money, transfer, withdrawal, policy, or production-mutation authority; all current mission serialization, safety boundaries, and human gates remain controlling."
   - "Treat repository state as authoritative over conversation history."
   - "Read and obey the AIPOS AI Handoff Contract before taking over active work."
   - "Validate architecture-to-AIPOS synchronization before selecting implementation work."
