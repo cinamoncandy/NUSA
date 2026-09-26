@@ -1,11 +1,12 @@
 version: 1
 current_research_jev_shadow_runtime:
   work_order: WO-ISSUE-2321-RESEARCH-JEV-SHADOW
-  status: READY_FOR_EXACT_HEAD_CI
+  status: READY_FOR_REVIEW
   branch: fix/research-jev-shadow-runtime-wiring
-  base_sha: 0921f0514a47e3f3313645a654e258cf8f3ab485
+  base_sha: 56fe41fc45510958da1ef54de71045dc3eb54067
   runtime_slice: scheduled-research-scout-jev-attention-shadow
   recovery_state: deterministic-axiom-handoff-preserved-on-provider-failure
+  remaining: exact-head-CI_then_independent-Audit_then_Release_then_merge_then_scheduled-runtime-recovery-replay-evidence
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_oracle_paper_startup_readiness:
   work_order: WO-20260919-ORACLE-READINESS-STARTUP
