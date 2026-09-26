@@ -32,6 +32,7 @@ const NO_ACTION_PROPOSAL_FAILURE_CODES = new Set([
   "CODING_PROPOSAL_REPEATED",
   "SANDBOX_PATCH_APPLY_CHECK_FAILED",
   "SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED",
+  "SANDBOX_BUILD_FAILED",
   "SANDBOX_PATCH_FILE_COUNT_INVALID",
   "SANDBOX_PATCH_REQUIRED",
   "SANDBOX_PATCH_TOO_LARGE",
@@ -47,6 +48,7 @@ const RETRYABLE_PROPOSAL_FAILURE_CODES = new Set([
   "CODING_PROPOSAL_UNAVAILABLE",
   "SANDBOX_PATCH_APPLY_CHECK_FAILED",
   "SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED",
+  "SANDBOX_BUILD_FAILED",
   "SANDBOX_PATCH_FILE_COUNT_INVALID",
   "SANDBOX_PATCH_REQUIRED",
   "SANDBOX_PATCH_TOO_LARGE",
@@ -67,7 +69,7 @@ function fixedFailureClass(status) {
 
 function proposalFailureCode(reason) {
   const text = String(reason || "");
-  const match = text.match(/^(CODING_PROPOSAL_[A-Z0-9_]+|SANDBOX_PATCH_[A-Z0-9_]+)/);
+  const match = text.match(/^(CODING_PROPOSAL_[A-Z0-9_]+|SANDBOX_(?:PATCH|BUILD)_[A-Z0-9_]+)/);
   const code = match?.[1];
   if (!code || !NO_ACTION_PROPOSAL_FAILURE_CODES.has(code)) return null;
   if (code.startsWith("CODING_PROPOSAL_")) return text === code ? code : null;
