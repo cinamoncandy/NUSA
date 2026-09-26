@@ -506,6 +506,7 @@ function codingEngineRequest(request: CodingRunnerRequest, token: string): Reque
       workflowRunId: request.workflowRunId,
       reason: request.reason,
       proposalFeedback: request.proposalFeedback ?? null,
+      proposalContext: request.proposalContext ?? null,
       executionId: request.executionId,
       dedupeKey: request.dedupeKey,
       outputContract: { patch: "unified-git-diff" },
