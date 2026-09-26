@@ -112,13 +112,13 @@ test("Audit recovery is bounded to classified transient executor failures and st
   assert.match(recovery, /Audit recovery suppressed: PR is closed or head moved/);
 });
 
-test("only clean PASS automatically authorizes Release", () => {
+test("only explicit safe PASS or PASS_WITH_NOTES authorizes Release", () => {
   const auditJob = auditJobSlice();
   assert.match(auditJob, /result\.verdict === 'PASS' && result\.mergeAllowed !== true/);
-  assert.match(auditJob, /result\.verdict === 'PASS_WITH_NOTES' && result\.mergeAllowed !== false/);
+  assert.match(auditJob, /result\.verdict === 'PASS_WITH_NOTES' && typeof result\.mergeAllowed !== 'boolean'/);
   assert.match(auditJob, /result\.verdict === 'FAIL' && result\.mergeAllowed !== false/);
-  assert.match(auditJob, /result\.verdict !== 'PASS' \|\| result\.mergeAllowed !== true \|\| result\.safetyInvariantResult !== 'PASS'/);
-  assert.match(auditRunner, /modelResult\.verdict === "PASS"/);
+  assert.match(auditJob, /!\['PASS', 'PASS_WITH_NOTES'\]\.includes\(result\.verdict\) \|\| result\.mergeAllowed !== true \|\| result\.safetyInvariantResult !== 'PASS' \|\| result\.blockers\.length !== 0/);
+  assert.match(auditRunner, /modelResult\.mergeAllowed === true/);
   assert.match(auditRunner, /AUDIT_VERDICT_NOTES_REQUIRED/);
   assert.match(auditRunner, /AUDIT_VERDICT_FAIL_BLOCKER_REQUIRED/);
 });

@@ -123,7 +123,7 @@ function aiSequence(responses: readonly unknown[]) {
 }
 
 function passingModel() {
-  return ai({ response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS" }) });
+  return ai({ response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) });
 }
 
 function auditEnv(model?: ReturnType<typeof ai>) {
@@ -257,11 +257,11 @@ test("fails closed when GitHub diff evidence does not cover every changed file",
 
 test("strict verdict schema rejects malformed, mutation-shaped, and inconsistent responses", () => {
   assert.throws(() => validateAuditModelVerdict({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", patch: "diff" }), /AUDIT_VERDICT_KEYS_INVALID/);
-  assert.throws(() => validateAuditModelVerdict({ verdict: "PASS", findings: [{ code: "NOTE", severity: "NOTE", message: "note", evidenceRef: null }], blockers: [], safetyInvariantResult: "PASS" }), /AUDIT_VERDICT_PASS_FINDINGS_FORBIDDEN/);
-  assert.throws(() => validateAuditModelVerdict({ verdict: "PASS_WITH_NOTES", findings: [], blockers: ["blocker"], safetyInvariantResult: "PASS" }), /AUDIT_VERDICT_BLOCKERS_REQUIRE_FAIL/);
-  assert.throws(() => validateAuditModelVerdict({ verdict: "PASS_WITH_NOTES", findings: [], blockers: [], safetyInvariantResult: "PASS" }), /AUDIT_VERDICT_NOTES_REQUIRED/);
-  assert.throws(() => validateAuditModelVerdict({ verdict: "PASS_WITH_NOTES", findings: [{ code: "NOTE", severity: "NOTE", message: "note", evidenceRef: null }], blockers: [], safetyInvariantResult: "FAIL" }), /AUDIT_VERDICT_SAFETY_REQUIRES_FAIL/);
-  assert.throws(() => validateAuditModelVerdict({ verdict: "FAIL", findings: [], blockers: [], safetyInvariantResult: "FAIL" }), /AUDIT_VERDICT_FAIL_BLOCKER_REQUIRED/);
+  assert.throws(() => validateAuditModelVerdict({ verdict: "PASS", findings: [{ code: "NOTE", severity: "NOTE", message: "note", evidenceRef: null }], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }), /AUDIT_VERDICT_PASS_FINDINGS_FORBIDDEN/);
+  assert.throws(() => validateAuditModelVerdict({ verdict: "PASS_WITH_NOTES", findings: [], blockers: ["blocker"], safetyInvariantResult: "PASS", mergeAllowed: true }), /AUDIT_VERDICT_BLOCKERS_REQUIRE_FAIL/);
+  assert.throws(() => validateAuditModelVerdict({ verdict: "PASS_WITH_NOTES", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }), /AUDIT_VERDICT_NOTES_REQUIRED/);
+  assert.throws(() => validateAuditModelVerdict({ verdict: "PASS_WITH_NOTES", findings: [{ code: "NOTE", severity: "NOTE", message: "note", evidenceRef: null }], blockers: [], safetyInvariantResult: "FAIL", mergeAllowed: false }), /AUDIT_VERDICT_SAFETY_REQUIRES_FAIL/);
+  assert.throws(() => validateAuditModelVerdict({ verdict: "FAIL", findings: [], blockers: [], safetyInvariantResult: "FAIL", mergeAllowed: false }), /AUDIT_VERDICT_FAIL_BLOCKER_REQUIRED/);
 });
 
 test("safety regression is preserved as FAIL and cannot become merge allowed", async () => {
@@ -271,6 +271,7 @@ test("safety regression is preserved as FAIL and cannot become merge allowed", a
       findings: [{ code: "SAFETY_REGRESSION", severity: "BLOCKER", message: "production mutation became possible", evidenceRef: "a.ts:+1" }],
       blockers: ["productionMutationAllowed invariant regressed"],
       safetyInvariantResult: "FAIL",
+      mergeAllowed: false,
     }),
   });
   const result = await executeIndependentAudit(request, auditEnv(model), fetchSequence() as never, () => 1234);
@@ -288,7 +289,7 @@ test("retries a blocker that cites removed rather than current diff evidence", a
       blockers: ["stale evidence"],
       safetyInvariantResult: "FAIL",
     }) },
-    { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS" }) },
+    { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) },
   ]);
   const result = await executeIndependentAudit(request, auditEnv(model as never), fetchSequence() as never);
   assert.equal(result.verdict, "PASS");
@@ -301,6 +302,7 @@ test("fails closed when every blocker lacks current added-line evidence", async 
     findings: [{ code: "STALE", severity: "BLOCKER", message: "removed behavior is current", evidenceRef: "a.ts:1" }],
     blockers: ["stale evidence"],
     safetyInvariantResult: "FAIL",
+    mergeAllowed: false,
   }) };
   await assert.rejects(
     executeIndependentAudit(request, auditEnv(aiSequence([invalidBlocker, invalidBlocker, invalidBlocker]) as never), fetchSequence() as never),
@@ -316,19 +318,20 @@ test("detects PR head movement after model review", async () => {
   );
 });
 
-test("returns exact-head PASS_WITH_NOTES evidence but does not auto-authorize merge", async () => {
+test("returns exact-head explicitly mergeable PASS_WITH_NOTES evidence", async () => {
   const model = ai({
     response: "```json\n" + JSON.stringify({
       verdict: "PASS_WITH_NOTES",
       findings: [{ code: "NON_BLOCKING_NOTE", severity: "NOTE", message: "reviewed exact diff", evidenceRef: "a.ts:+1" }],
       blockers: [],
       safetyInvariantResult: "PASS",
+      mergeAllowed: true,
     }) + "\n```",
   });
   const result = await executeIndependentAudit(request, auditEnv(model), fetchSequence() as never, () => 5678);
   assert.equal(result.status, "AUDIT_COMPLETED");
   assert.equal(result.verdict, "PASS_WITH_NOTES");
-  assert.equal(result.mergeAllowed, false);
+  assert.equal(result.mergeAllowed, true);
   assert.equal(result.reviewedHeadSha, HEAD);
   assert.equal(result.baseSha, BASE);
   assert.equal(result.workflowRunId, request.workflowRunId);
@@ -343,7 +346,7 @@ test("returns exact-head PASS_WITH_NOTES evidence but does not auto-authorize me
 });
 
 test("retries a malformed model response before failing, and returns the eventual valid verdict", async () => {
-  const passing = JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS" });
+  const passing = JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true });
   const model = aiSequence([{ response: "not json at all" }, { response: "{}" }, { response: passing }]);
   const result = await executeIndependentAudit(request, auditEnv(model), fetchSequence() as never, () => 1234);
   assert.equal(result.verdict, "PASS");
@@ -374,7 +377,7 @@ test("fails closed after exhausting retries when the model response stays malfor
 });
 
 test("does not retry beyond the bounded attempt limit even if given more valid-eventually responses", async () => {
-  const passing = JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS" });
+  const passing = JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true });
   // 4 malformed responses queued; only 3 attempts are made, so this must still fail closed rather
   // than retry indefinitely -- an unbounded retry loop is exactly the "duplicate control-plane
   // waiting forever" failure mode this bound exists to prevent.
