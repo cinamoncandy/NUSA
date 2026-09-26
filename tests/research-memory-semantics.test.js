@@ -6,6 +6,7 @@ import test from "node:test";
 import {
   appendResearchMemoryRelationEvent,
   appendResearchMemorySemanticEvent,
+  assessResearchProtectedOosEligibility,
   isCanonicalEmpiricalResearchMemoryEvidence,
   replayResearchMemoryOverlayEvents,
   researchMemoryArtifactDigestV1,
@@ -349,4 +350,71 @@ test("legacy artifact digest v1 is exact-content provenance, not semantic identi
   });
   assert.match(first, /^[a-f0-9]{64}$/);
   assert.notEqual(first, second);
+});
+
+const protectedExposure = (overrides = {}) => Object.freeze({
+  hypothesisId: "hypothesis-parent",
+  familyId: "family-a",
+  searchId: "search-a",
+  trialId: "trial-1",
+  candidateIds: Object.freeze(["candidate-a"]),
+  datasetId: "dataset-a",
+  datasetContentSha256: "d".repeat(64),
+  oosReuseFingerprint: "e".repeat(64),
+  purpose: "CONFIRMATORY",
+  precommittedAt: "2026-09-18T23:00:00.000Z",
+  exposedAt: "2026-09-19T00:00:00.000Z",
+  ...overrides
+});
+
+test("protected OOS exact replay is idempotent and not a fresh exposure", () => {
+  const input = evidence({
+    artifact: artifact("oos-eval-1", "f".repeat(64), "EVALUATION_LEDGER_RECORD"),
+    attribution: "MULTIPLE_TESTING",
+    protectedOosExposure: protectedExposure()
+  });
+  const once = appendResearchMemorySemanticEvent([], input);
+  const twice = appendResearchMemorySemanticEvent(once, input);
+  assert.equal(twice, once);
+  assert.deepEqual(assessResearchProtectedOosEligibility(once, {
+    hypothesisId: "hypothesis-parent",
+    lineageHypothesisIds: Object.freeze(["hypothesis-parent"]),
+    familyId: "family-a", searchId: "search-a", trialId: "trial-1", datasetId: "dataset-a",
+    datasetContentSha256: "d".repeat(64), oosReuseFingerprint: "e".repeat(64), purpose: "CONFIRMATORY"
+  }), { status: "REPLAY", reason: "EXACT_EXPOSURE_REPLAY", priorExposureCount: 1 });
+});
+
+test("descendant hypothesis cannot regain clean confirmatory eligibility on an exposed lockbox", () => {
+  const records = appendResearchMemorySemanticEvent([], evidence({
+    artifact: artifact("oos-parent", "1".repeat(64), "EVALUATION_LEDGER_RECORD"),
+    attribution: "MULTIPLE_TESTING", protectedOosExposure: protectedExposure()
+  }));
+  assert.deepEqual(assessResearchProtectedOosEligibility(records, {
+    hypothesisId: "hypothesis-child",
+    lineageHypothesisIds: Object.freeze(["hypothesis-child", "hypothesis-parent"]),
+    familyId: "family-a", searchId: "search-a", trialId: "trial-2", datasetId: "dataset-a",
+    datasetContentSha256: "d".repeat(64), oosReuseFingerprint: "e".repeat(64), purpose: "CONFIRMATORY"
+  }), { status: "HOLD", reason: "PROTECTED_OOS_ALREADY_EXPOSED", priorExposureCount: 1 });
+});
+
+test("an independently precommitted lockbox can remain confirmatory eligible", () => {
+  const records = appendResearchMemorySemanticEvent([], evidence({
+    artifact: artifact("oos-old", "2".repeat(64), "EVALUATION_LEDGER_RECORD"),
+    attribution: "MULTIPLE_TESTING", protectedOosExposure: protectedExposure()
+  }));
+  assert.deepEqual(assessResearchProtectedOosEligibility(records, {
+    hypothesisId: "hypothesis-child",
+    lineageHypothesisIds: Object.freeze(["hypothesis-child", "hypothesis-parent"]),
+    familyId: "family-a", searchId: "search-a", trialId: "trial-2", datasetId: "dataset-b",
+    datasetContentSha256: "3".repeat(64), oosReuseFingerprint: "4".repeat(64), purpose: "CONFIRMATORY"
+  }), { status: "ELIGIBLE", reason: "NEW_INDEPENDENT_LOCKBOX", priorExposureCount: 0 });
+});
+
+test("protected OOS exposure metadata fails closed unless it is canonical Research evidence", () => {
+  assert.throws(() => appendResearchMemorySemanticEvent([], evidence({
+    semanticClass: "HYPOTHESIS", evidenceOrigin: "HYPOTHESIS_PRIOR", protectedOosExposure: protectedExposure()
+  })), /protected OOS exposure requires canonical Research EVIDENCE/);
+  assert.throws(() => appendResearchMemorySemanticEvent([], evidence({
+    protectedOosExposure: protectedExposure({ exposedAt: "2026-09-18T22:00:00.000Z" })
+  })), /cannot precede precommit/);
 });

@@ -194,7 +194,7 @@ current_upbit_bridge_credential_persistence:
   unverified: "pnpm run preflight and pnpm test could not run here (Node >= 24 required, environment provides 22.22.2). No Android device run: persistence is verified against a stubbed SecureStoragePort, not the real Keystore."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 project: nusa
-updated_at: "2026-09-23T18:40:00+09:00"
+updated_at: "2026-09-26T23:27:32+09:00"
 current_execution_target:
   work_order: WO-20260924-PAPER-LEDGER-PRESERVATION
   status: READY_FOR_REVIEW
@@ -204,6 +204,17 @@ current_execution_target:
   prior_target: WO-20260924-RESEARCH-RECOVERY-FEED-GATE
   prior_target_status: MERGED_PR_2265
   prior_target_preserved: true
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+latest_autopilot_normalized_apply_failure:
+  work_order: WO-20260926-AUTOPILOT-NORMALIZED-APPLY-FAILURE
+  status: READY_FOR_REVIEW
+  branch: fix/autopilot-preserve-normalized-apply-failure
+  base_sha: 56fe41fc45510958da1ef54de71045dc3eb54067
+  implementation_head: 1b47bebfbbc4d76a3a492d699fec518108dc17f7
+  pull_request: 2322
+  scope: "Preserve SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED and carry exact bounded source context into the existing repair escalation; no authority or execution-path expansion."
+  validation: "Dispatch retry 32/32, coding runner 49/49, build/typecheck/targeted lint/AI zero-authority/safety invariants PASS."
+  remaining: "Exact-head protected CI passed; independent Audit/Release must be rerun after this AIPOS metadata update."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 owner_decisions:
   autonomy: "2026-09-24 owner: every non-LIVE decision is autonomous; the only owner decision is LIVE trading approval."
@@ -1323,4 +1334,13 @@ current_audit_structured_output_recovery:
   follow_up_exact_head_ci: "Canonical CI 35061465031 and required PAPER/read-only/Restricted LIVE workflows 35061463863, 35061465021, 35061465014, 35061465038, 35061465064, 35061465020 all PASS. Protected pull_request_target preflight 35061463878 used the trusted main workflow and failed because main still has the pre-pagination selector; branch workflow_dispatch preflight 35061869720 executed the pagination fix at this exact head and PASSed credential, account, Wrangler, Free-tier, exact-main deploy, and runtime revision checks."
   follow_up_next_permitted_action: "Promote the pagination fix through the existing protected Release path; only after the trusted main workflow contains it may the protected pull_request_target preflight be expected to PASS. Then deploy the exact merged main revision and request a fresh independent Audit."
   next_permitted_action: "Obtain the existing owner-controlled nusa/release-authorized gate without bypassing Audit, merge through the canonical Release path, deploy the exact merged main revision through the existing Cloudflare promotion workflow, then request a fresh independent Audit."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_comparable_evaluator_failure_slice:
+  status: IMPLEMENTED_PENDING_EXACT_HEAD_CI
+  issue: 1887
+  base_commit: 3ddc9dc5ab7f4e41da9acc7f37c263457b0add62
+  implementation_branch: codex/issue-1887-comparable-evaluator
+  work_order: .aipos/work-orders/WO-ISSUE-1887-COMPARABLE-EVALUATOR-FAILURES.yaml
+  scope: "Resolve lifecycle failure, structural-domination, and promotion-support facts from canonical hash-chain-validated Research Memory; only CURRENT canonical empirical evidence with exact evaluator semantics and independence groups may affect advisory RETIRE/PROMOTE."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
