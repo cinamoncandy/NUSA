@@ -700,7 +700,38 @@ function resetProposalRetryWorkspace() {
   if (tracked || staged) throw new Error("CODING_RUNTIME_WORKSPACE_DIRTY");
 }
 
-function applyPatchWithRecountFallback(patchPath = PATCH_PATH) {
+function normalizeUnifiedDiffHunkCounts(patch) {
+  const lines = String(patch).replace(/\r\n/g, "\n").split("\n");
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = lines[index].match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)$/);
+    if (!match) continue;
+    let oldCount = 0;
+    let newCount = 0;
+    for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+      const line = lines[cursor];
+      if (line.startsWith("@@ ") || line.startsWith("diff --git ") || line.startsWith("--- ") || line.startsWith("+++ ") || line === "") break;
+      if (line.startsWith("\\ No newline at end of file")) continue;
+      if (line.startsWith(" ")) {
+        oldCount += 1;
+        newCount += 1;
+        continue;
+      }
+      if (line.startsWith("-")) {
+        oldCount += 1;
+        continue;
+      }
+      if (line.startsWith("+")) {
+        newCount += 1;
+        continue;
+      }
+      break;
+    }
+    lines[index] = `@@ -${match[1]},${oldCount} +${match[2]},${newCount} @@${match[3]}`;
+  }
+  return lines.join("\n");
+}
+
+function applyPatchWithNormalizedHunkCounts(patchPath = PATCH_PATH) {
   let strictFailure;
   try {
     run("git", ["apply", "--check", patchPath], "SANDBOX_PATCH_APPLY_CHECK_FAILED");
@@ -712,14 +743,21 @@ function applyPatchWithRecountFallback(patchPath = PATCH_PATH) {
     return "strict";
   }
 
+  const originalPatch = fs.readFileSync(patchPath, "utf8");
+  const normalizedPatch = normalizeUnifiedDiffHunkCounts(originalPatch);
+  if (normalizedPatch === originalPatch) throw strictFailure;
+  fs.writeFileSync(patchPath, normalizedPatch, "utf8");
+
   try {
-    // Recount only repairs malformed unified-diff hunk line counts. Git still requires exact
-    // context and performs no fuzz/3-way merge, so scope and content authority do not widen.
-    run("git", ["apply", "--recount", "--check", patchPath], "SANDBOX_PATCH_APPLY_RECOUNT_CHECK_FAILED");
-    run("git", ["apply", "--recount", patchPath], "SANDBOX_PATCH_APPLY_RECOUNT_FAILED");
-    console.log("SANDBOX_PATCH_RECOUNT_APPLIED");
-    return "recount";
+    // Only unified-diff hunk count numerals are normalized. The repaired patch must then pass the
+    // ordinary strict apply check: exact source context is still required and no fuzz/3-way merge
+    // or alternate Git apply mode is enabled.
+    run("git", ["apply", "--check", patchPath], "SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED");
+    run("git", ["apply", patchPath], "SANDBOX_PATCH_NORMALIZED_APPLY_FAILED");
+    console.log("SANDBOX_PATCH_HUNK_COUNTS_NORMALIZED");
+    return "normalized";
   } catch {
+    fs.writeFileSync(patchPath, originalPatch, "utf8");
     throw strictFailure;
   }
 }
@@ -732,7 +770,7 @@ function validatePatchOnGithubRunner(request, patch) {
   assertGithubRunnerWorkspaceClean(run("git", ["status", "--porcelain", "--untracked-files=all"], "GITHUB_RUNNER_STATUS_FAILED"));
 
   fs.writeFileSync(PATCH_PATH, `${patch.trim()}\n`);
-  applyPatchWithRecountFallback(PATCH_PATH);
+  applyPatchWithNormalizedHunkCounts(PATCH_PATH);
   run("git", ["diff", "--check"], "SANDBOX_PATCH_DIFF_CHECK_FAILED");
 
   const tracked = run("git", ["diff", "--name-only"], "SANDBOX_PATCH_DIFF_LIST_FAILED").split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
@@ -1147,7 +1185,7 @@ module.exports = {
   assertGithubRunnerWorkspaceClean,
   filterGithubRunnerWorkspacePaths,
   validatePatchOnGithubRunner,
-  applyPatchWithRecountFallback,
+  normalizeUnifiedDiffHunkCounts,\n  applyPatchWithNormalizedHunkCounts,
   endpointFor,
   boundedWorkerFailureEvidence,
 };
