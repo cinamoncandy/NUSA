@@ -70,6 +70,11 @@
       "secrets": true,
       "environment": null
     },
+    "autopilot-cloudflare-promote.yml:verify": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
     "autopilot-cloudflare-promote.yml:promote": {
       "write": [
         "contents"
