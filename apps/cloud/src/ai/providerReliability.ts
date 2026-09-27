@@ -64,17 +64,16 @@ export interface AiProviderCircuitState {
   readonly productionMutationAllowed: false;
 }
 
-const STATUS_AUTH = new Set([400, 401, 403]);
+const STATUS_AUTH = new Set([401, 403]);
 const STATUS_RATE_LIMIT = 429;
-const STATUS_UNAVAILABLE = new Set([500, 502, 503, 504]);
 
 const CODE_TIMEOUT = /TIMEOUT|TIMED_OUT|ETIMEDOUT/i;
 const CODE_AUTH = /AUTH|UNAUTHORIZED|FORBIDDEN|INVALID[_-]?(?:KEY|TOKEN|CREDENTIAL|CONFIG)/i;
-const CODE_RATE = /RATE[_-]?LIMIT|TOO[_-]?MANY[_-]?REQUESTS|QUOTA/i;
+const CODE_RATE = /RATE[_-]?LIMIT|TOO[_-]?MANY[_-]?REQUESTS|THROTTL/i;
 const CODE_UNAVAILABLE = /UNAVAILABLE|ECONN|NETWORK|CONNECTION|UPSTREAM|5\d\d/i;
 const CODE_MALFORMED = /MALFORMED|PARSE|SCHEMA|INVALID[_-]?OUTPUT/i;
 const CODE_CONTEXT = /CONTEXT[_-]?(?:OVERFLOW|LENGTH|LIMIT)|TOO[_-]?LONG|MAX[_-]?CONTEXT/i;
-const CODE_BUDGET = /BUDGET[_-]?EXHAUST|CALL[_-]?BUDGET|TOKEN[_-]?BUDGET|DAILY[_-]?QUOTA/i;
+const CODE_BUDGET = /BUDGET[_-]?EXHAUST|CALL[_-]?BUDGET|TOKEN[_-]?BUDGET|DAILY[_-]?QUOTA|(?:QUOTA|BUDGET)[_-]?(?:EXHAUSTED|EXCEEDED)|INSUFFICIENT[_-]?QUOTA/i;
 
 function safeText(value: string | null | undefined): string {
   if (value == null) return "";
@@ -154,12 +153,12 @@ export function classifyAiProviderFailure(
     return classification("AUTH_CONFIG", false, true, true, null, "PROVIDER_AUTH_CONFIG");
   }
 
-  if (CODE_TIMEOUT.test(code) || /timed out|timeout/i.test(message)) {
+  if (status === 408 || CODE_TIMEOUT.test(code) || /timed out|timeout/i.test(message)) {
     return classification("TIMEOUT", true, true, false, retryAfterMs, "PROVIDER_TIMEOUT");
   }
 
   if (
-    (typeof status === "number" && STATUS_UNAVAILABLE.has(status))
+    (typeof status === "number" && status >= 500 && status <= 599)
     || CODE_UNAVAILABLE.test(text)
     || /temporar(?:y|ily) unavailable|fetch failed|network error/i.test(message)
   ) {
@@ -254,6 +253,8 @@ export function recordAiProviderFailure(
   validatePolicy(policy);
   validateTimestamp(now, "TIMESTAMP");
   if (now < state.updatedAt) throw new Error("AI_PROVIDER_TIME_REGRESSION");
+
+  if (state.state === "BLOCKED" || state.state === "OPEN") return state;
 
   if (!failure.circuitRelevant) {
     return Object.freeze({
@@ -360,6 +361,20 @@ export function aiAvailabilityFromProviderCircuit(
   return state.consecutiveFailures > 0 ? "DEGRADED" : "AVAILABLE";
 }
 
+const AVAILABILITY_RANK: Readonly<Record<AiAvailability, number>> = Object.freeze({
+  AVAILABLE: 0,
+  DEGRADED: 1,
+  CIRCUIT_OPEN: 2,
+  UNAVAILABLE: 3,
+});
+
+function moreRestrictiveAvailability(
+  current: AiAvailability,
+  circuit: AiAvailability,
+): AiAvailability {
+  return AVAILABILITY_RANK[current] >= AVAILABILITY_RANK[circuit] ? current : circuit;
+}
+
 export function applyProviderCircuitToRegistry(
   registry: readonly AiModelRegistryEntry[],
   states: readonly AiProviderCircuitState[],
@@ -368,12 +383,15 @@ export function applyProviderCircuitToRegistry(
   return Object.freeze(
     registry.map((entry) => {
       const state = byProvider.get(entry.providerId);
-      return state == null
-        ? entry
-        : Object.freeze({
-            ...entry,
-            availability: aiAvailabilityFromProviderCircuit(state),
-          });
+      if (state == null) return entry;
+      const availability = moreRestrictiveAvailability(
+        entry.availability,
+        aiAvailabilityFromProviderCircuit(state),
+      );
+      return Object.freeze({
+        ...entry,
+        availability,
+      });
     }),
   );
 }
