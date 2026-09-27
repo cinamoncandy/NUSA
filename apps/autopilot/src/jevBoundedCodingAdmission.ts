@@ -5,6 +5,8 @@ export type JevCodingAdmissionAction = "PROCEED_EXISTING" | "ABSTAIN_EXPENSIVE_I
 export type JevCodingAdmissionReason =
   | "DISABLED"
   | "NOT_ELIGIBLE"
+  | "REPAIR_ATTEMPT_REUSES_INITIAL_ADMISSION"
+  | "FAILURE_EVIDENCE_REQUIRED"
   | "PROVIDER_NOT_CONFIGURED"
   | "PROVIDER_UNAVAILABLE"
   | "LOW_CONFIDENCE"
@@ -25,6 +27,18 @@ export interface JevCodingAdmissionRequest {
   readonly executionId: string;
   readonly dedupeKey: string;
   readonly reason: string;
+  readonly proposalFeedback?: string;
+  readonly proposalContext?: unknown;
+}
+
+export interface JevCodingFailureEvidence {
+  readonly workflowRunId: number;
+  readonly headSha: string;
+  readonly workflowName: string | null;
+  readonly workflowEvent: string | null;
+  readonly workflowConclusion: "failure" | "cancelled" | "timed_out";
+  readonly failedJobs: readonly string[];
+  readonly failedSteps: readonly string[];
 }
 
 export interface JevCodingAdmissionDecision {
@@ -44,9 +58,13 @@ interface JevAdmissionDependencies {
 }
 
 const enabled = (value: string | undefined): boolean => value?.trim().toLowerCase() === "true";
-const ELIGIBLE_REASON = /(?:audit[-_: ]?recovery|workflow[-_: ]?failure|ci[-_: ]?failure|failure[-_: ]?repair|retry|recovery)/i;
+const CANONICAL_GHA_FAILURE = /^gha:(\d+):([0-9a-f]{40}):(failure|cancelled|timed_out)$/i;
+const LEGACY_ELIGIBLE_REASON = /(?:workflow[-_: ]?failure|ci[-_: ]?failure|failure[-_: ]?repair|retry|recovery)/i;
+const SAFE_EVIDENCE_LABEL = /^[A-Za-z0-9_.:/ ()\[\]-]{1,128}$/;
 const NON_CODE_ROOT_CAUSES = new Set<JevRootCause>(["INFRA", "AUTH", "RUNNER", "FLAKY"]);
 const MIN_ACTIVE_CONFIDENCE = 0.9;
+const MAX_FAILED_JOBS = 8;
+const MAX_FAILED_STEPS = 16;
 
 function decision(
   action: JevCodingAdmissionAction,
@@ -69,15 +87,70 @@ function decision(
   });
 }
 
+function reasonEligible(request: JevCodingAdmissionRequest): boolean {
+  const canonical = request.reason.match(CANONICAL_GHA_FAILURE);
+  if (canonical) {
+    return Number(canonical[1]) === request.workflowRunId
+      && canonical[2].toLowerCase() === request.headSha.toLowerCase();
+  }
+  return LEGACY_ELIGIBLE_REASON.test(request.reason);
+}
+
+export function isJevBoundedCodingAdmissionCandidate(
+  request: JevCodingAdmissionRequest,
+  env: JevBoundedCodingAdmissionEnv,
+): boolean {
+  return enabled(env.NUSA_JEV_SHADOW_ENABLED)
+    && enabled(env.NUSA_JEV_BOUNDED_ROUTING_ENABLED)
+    && request.proposalFeedback == null
+    && request.proposalContext == null
+    && reasonEligible(request);
+}
+
+function validateFailureEvidence(
+  evidence: JevCodingFailureEvidence | null | undefined,
+  request: JevCodingAdmissionRequest,
+): JevCodingFailureEvidence | null {
+  if (!evidence
+    || evidence.workflowRunId !== request.workflowRunId
+    || evidence.headSha.toLowerCase() !== request.headSha.toLowerCase()
+    || !["failure", "cancelled", "timed_out"].includes(evidence.workflowConclusion)) {
+    return null;
+  }
+  const failedJobs = evidence.failedJobs
+    .filter((value) => SAFE_EVIDENCE_LABEL.test(value))
+    .slice(0, MAX_FAILED_JOBS);
+  const failedSteps = evidence.failedSteps
+    .filter((value) => SAFE_EVIDENCE_LABEL.test(value))
+    .slice(0, MAX_FAILED_STEPS);
+  if (failedJobs.length === 0 && failedSteps.length === 0) return null;
+  return Object.freeze({
+    workflowRunId: evidence.workflowRunId,
+    headSha: evidence.headSha.toLowerCase(),
+    workflowName: evidence.workflowName && SAFE_EVIDENCE_LABEL.test(evidence.workflowName) ? evidence.workflowName : null,
+    workflowEvent: evidence.workflowEvent && SAFE_EVIDENCE_LABEL.test(evidence.workflowEvent) ? evidence.workflowEvent : null,
+    workflowConclusion: evidence.workflowConclusion,
+    failedJobs: Object.freeze(failedJobs),
+    failedSteps: Object.freeze(failedSteps),
+  });
+}
+
 export async function decideJevBoundedCodingAdmission(
   request: JevCodingAdmissionRequest,
   env: JevBoundedCodingAdmissionEnv,
   dependencies: JevAdmissionDependencies = {},
+  failureEvidence?: JevCodingFailureEvidence | null,
 ): Promise<JevCodingAdmissionDecision> {
   if (!enabled(env.NUSA_JEV_SHADOW_ENABLED) || !enabled(env.NUSA_JEV_BOUNDED_ROUTING_ENABLED)) {
     return decision("PROCEED_EXISTING", "DISABLED");
   }
-  if (!ELIGIBLE_REASON.test(request.reason)) return decision("PROCEED_EXISTING", "NOT_ELIGIBLE");
+  if (request.proposalFeedback != null || request.proposalContext != null) {
+    return decision("PROCEED_EXISTING", "REPAIR_ATTEMPT_REUSES_INITIAL_ADMISSION");
+  }
+  if (!reasonEligible(request)) return decision("PROCEED_EXISTING", "NOT_ELIGIBLE");
+
+  const evidence = validateFailureEvidence(failureEvidence, request);
+  if (!evidence) return decision("PROCEED_EXISTING", "FAILURE_EVIDENCE_REQUIRED");
 
   let classify = dependencies.classify;
   if (!classify) {
@@ -103,6 +176,14 @@ export async function decideJevBoundedCodingAdmission(
       executionId: request.executionId,
       dedupeKey: request.dedupeKey,
       reason: request.reason.slice(0, 512),
+      failureEvidence: Object.freeze({
+        workflowRunId: evidence.workflowRunId,
+        workflowName: evidence.workflowName,
+        workflowEvent: evidence.workflowEvent,
+        workflowConclusion: evidence.workflowConclusion,
+        failedJobs: evidence.failedJobs,
+        failedSteps: evidence.failedSteps,
+      }),
       requestedDecision: "whether-expensive-coding-inference-is-actionable",
     }));
     const routed = validateJevShadowDecision(raw);
