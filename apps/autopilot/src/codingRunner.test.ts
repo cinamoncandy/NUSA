@@ -40,6 +40,34 @@ const verifiedGithubFetch = async (url: string) => {
   });
 };
 
+const verifiedFailureGithubFetch = async (url: string) => {
+  if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+  if (url.includes("/jobs?")) {
+    return response(200, {
+      total_count: 1,
+      jobs: [{
+        run_id: request.workflowRunId,
+        name: "validation",
+        conclusion: "failure",
+        steps: [
+          { name: "Checkout", conclusion: "success" },
+          { name: "Preflight", conclusion: "failure" },
+        ],
+      }],
+    });
+  }
+  return response(200, {
+    id: request.workflowRunId,
+    name: "CI",
+    event: "pull_request",
+    head_sha: request.headSha,
+    head_branch: "feature/failing-ci",
+    status: "completed",
+    conclusion: "failure",
+    repository: { full_name: request.repository },
+  });
+};
+
 const runtimeEnv = {
   NUSA_AI_CODING_ENDPOINT: "https://coding.example.test/execute",
   NUSA_AI_CODING_TOKEN: "ai-token",
@@ -455,10 +483,14 @@ describe("coding runner", () => {
     assert.equal(calls.length, 3);
   });
 
-  it("skips Workers AI coding inference when bounded Jev admission rejects a high-confidence non-code failure", async () => {
-    const failureRequest = { ...request, reason: "audit-recovery:pr:2330:workflow-failure" };
+  it("skips Workers AI coding inference only after verified failed job/step evidence", async () => {
+    const failureRequest = {
+      ...request,
+      reason: `gha:${request.workflowRunId}:${request.headSha}:failure`,
+    };
     let workersAiCalls = 0;
     let jevCalls = 0;
+    let jevInput: Readonly<Record<string, unknown>> | null = null;
     const ai: WorkersAiBinding = {
       async run() {
         workersAiCalls += 1;
@@ -472,9 +504,10 @@ describe("coding runner", () => {
       NUSA_JEV_BOUNDED_ROUTING_ENABLED: "true",
       NUSA_JEV_API_KEY: jevTestKey(),
       NUSA_JEV_ENDPOINT: "https://jev.invalid/classify",
-    }, verifiedGithubFetch, undefined, undefined, {
-      jevAdmissionClassify: async () => {
+    }, verifiedFailureGithubFetch, undefined, undefined, {
+      jevAdmissionClassify: async (input) => {
         jevCalls += 1;
+        jevInput = input;
         return {
           rootCause: "INFRA",
           safeToAutofix: "NO",
@@ -489,6 +522,9 @@ describe("coding runner", () => {
     assert.equal(result.jevAdmissionReason, "NON_CODE_AUTOFIX_FORBIDDEN");
     assert.equal(workersAiCalls, 0);
     assert.equal(jevCalls, 1);
+    const evidence = jevInput?.failureEvidence as { failedJobs?: string[]; failedSteps?: string[] } | undefined;
+    assert.deepEqual(evidence?.failedJobs, ["validation"]);
+    assert.deepEqual(evidence?.failedSteps, ["Preflight"]);
   });
 
   it("prefers the canonical Workers AI binding over a configured legacy endpoint", async () => {
