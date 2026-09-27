@@ -7,7 +7,7 @@ issue: 2185
 parent_issue: 1997
 parent_pr: 2336
 base_branch: feat/1997-provider-reliability
-base_commit: c6594041e79e62d128d4c86551aedd8ed3ab53bf
+base_commit: a927a2624abac4627cf6b78f87e933e2b5ab74a6
 implementation_branch: feat/2185-provider-backpressure
 authority_impact: none
 objective: "Consume provider-neutral health/rate-limit truth and provide deterministic provider-local admission, coalescing, bounded retry/backoff, concurrency contraction, and gradual recovery without creating a second queue, scheduler, router, or orchestrator."

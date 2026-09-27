@@ -271,7 +271,7 @@ current_provider_backpressure:
   issue: 2185
   parent_pr: 2336
   branch: feat/2185-provider-backpressure
-  base_sha: c6594041e79e62d128d4c86551aedd8ed3ab53bf
+  base_sha: a927a2624abac4627cf6b78f87e933e2b5ab74a6
   implementation_head: 35e0ee3941d479ff44926f469ce3bf7486be4cdf
   first_broken_transition: provider_rate_limit_to_provider_local_backpressure_and_recovery
   validation: "Focused provider backpressure 10/10 PASS; parent reliability compiled in same graph; diff PASS."
