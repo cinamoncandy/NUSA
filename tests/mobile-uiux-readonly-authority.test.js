@@ -6,19 +6,17 @@ const path = require("node:path");
 const mobile = path.resolve(__dirname, "../apps/mobile");
 const read = (file) => fs.readFileSync(path.join(mobile, file), "utf8");
 
-test("UIUX-002 presents the canonical five-tab product navigation while preserving deeper routes", () => {
+test("UIUX-002 presents the canonical four-tab product navigation while preserving deeper routes", () => {
   const app = read("App.tsx");
-  assert.match(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\] as const/);
-  assert.match(app, /Home: "HOME"/);
-  assert.match(app, /Markets: "MARKETS"/);
-  assert.match(app, /Paper: "PAPER"/);
-  assert.match(app, /Portfolio: "PORTFOLIO"/);
-  assert.match(app, /AiSignal: "AI"/);
-  assert.match(app, /Markets: "공개 시장 환경"/);
-  assert.match(app, /Portfolio: "PAPER 자산과 결과"/);
-  assert.match(app, /AiSignal: "AI 판단과 근거"/);
-  assert.match(app, /type Tab = PrimaryTab \| "Order"/);
-  assert.match(app, /activeTab === "AiSignal" \? <AiView/);
+  const contract = read("src/navigationContract.ts");
+  assert.match(contract, /PRIMARY_DESTINATIONS = \["Home", "Paper", "Live", "More"\]/);
+  assert.match(app, /<PrimaryNavigation/);
+  assert.match(app, /activeTab === "Paper" \? <PaperShadowMonitorView/);
+  assert.match(app, /activeTab === "Live" \? <LiveReadinessMonitorView/);
+  assert.match(app, /activeTab === "More" \? <MoreMenuView/);
+  assert.match(app, /detailSurface === "Order" \? <OrderHistoryView/);
+  assert.doesNotMatch(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\]/);
+  assert.doesNotMatch(app, /activeTab === "AiSignal" \? <AiView/);
   assert.doesNotMatch(app, /<MoreView/);
 });
 
@@ -42,7 +40,8 @@ test("production PAPER is supervision-only while legacy PAPER execution remains 
   const app = read("App.tsx");
   const trading = read("src/tradingView.tsx");
   const legacyTrading = read("src/tradingViewLegacy.tsx");
-  assert.match(app, /<TradingView[^>]*snapshot=/s);
+  assert.match(app, /<PaperShadowMonitorView paper=\{paperLearningState\}/s);
+  assert.match(app, /<HomeView snapshot=\{snapshot\}/s);
   assert.doesNotMatch(app, /<TradingView[^>]*onSubmit=/s);
   assert.match(trading, /PaperLearningMonitorView/);
   assert.match(trading, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);

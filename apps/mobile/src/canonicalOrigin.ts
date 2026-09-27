@@ -31,3 +31,17 @@ export function getCanonicalCloudOrigin(environment: Record<string, string | und
   const result = resolveCanonicalCloudOrigin(environment, environment.NODE_ENV === "development" || environment.NODE_ENV === "test");
   return result.status === "READY" ? result.origin : null;
 }
+
+/**
+ * The PAPER endpoint actually in use: an explicitly saved endpoint, otherwise the build's canonical
+ * origin. Every path that applies persisted settings must use this, never the raw saved value.
+ * Release builds save paperEndpoint "" and rely on the canonical origin, so applying the raw value
+ * made every settings load flip the configured endpoint canonical -> none -> canonical. The flip
+ * reads as an explicit endpoint change, which destroys the encrypted session by design, so a cold
+ * start (including the first launch after an app update) deleted a still-valid PAPER session.
+ */
+export function effectivePaperEndpoint(saved: string, canonical: CanonicalOriginResult = resolveCanonicalCloudOrigin()): string {
+  const explicit = saved.trim();
+  if (explicit) return explicit;
+  return canonical.status === "READY" ? canonical.origin : "";
+}

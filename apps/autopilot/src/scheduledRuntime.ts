@@ -8,6 +8,7 @@ import {
   UNKNOWN_GITHUB_ISSUE_WORK_SUPPLY,
   deriveGithubIssueWorkSupply,
   unknownGithubIssueWorkSupply,
+  withObservedCapabilityBlockedWork,
   withObservedReadyWork,
   type GithubIssueWorkSupplySnapshot,
 } from "./githubIssueWorkSupply";
@@ -16,7 +17,6 @@ import {
   markPersistentExecutionDispatched,
   readScheduledRuntimeReceipt,
   type ExecutionCoordinatorNamespace,
-  type ScheduledRuntimeReceipt,
 } from "./executionCoordinator";
 
 export interface ScheduledRuntimeEnv {
@@ -28,7 +28,7 @@ export interface ScheduledRuntimeEnv {
 }
 
 export interface ScheduledRuntimeResult {
-  readonly status: "ABSTAINED" | "DUPLICATE_EXECUTION_SUPPRESSED" | "EXECUTION_DISPATCHED" | "EXECUTION_NOT_DISPATCHED";
+  readonly status: "ABSTAINED" | "WAITING_RATE_LIMIT" | "DUPLICATE_EXECUTION_SUPPRESSED" | "EXECUTION_DISPATCHED" | "EXECUTION_NOT_DISPATCHED";
   readonly reason: string;
   readonly headSha: string | null;
   readonly workflowRunId: number | null;
@@ -46,6 +46,7 @@ type BacklogEvidence = Readonly<{
   issues: readonly unknown[];
   openPulls: readonly unknown[];
   workSupply: GithubIssueWorkSupplySnapshot;
+  readinessEvidenceComplete: boolean;
 }>;
 
 const DEFAULT_REPOSITORY = "cinamoncandy/NUSA";
@@ -104,37 +105,75 @@ function completeSearchItems(value: JsonObject): readonly unknown[] | null {
 async function observeGithubBacklogEvidence(
   repository: string,
   token: string,
-  now: number,
   fetchImpl: typeof fetch,
 ): Promise<BacklogEvidence> {
-  let issueSearch: JsonObject;
-  try {
-    const issueQuery = encodeURIComponent(`repo:${repository} is:issue is:open`);
-    issueSearch = await githubJson(`https://api.github.com/search/issues?q=${issueQuery}&per_page=100&sort=updated&order=desc`, token, fetchImpl);
-  } catch (error) {
+  // These searches are independent. Keeping them serial made every scheduled
+  // cycle pay two GitHub round trips before it could even inspect exact-main CI.
+  // Run them concurrently while retaining the existing fail-closed partial-result
+  // behavior for either search.
+  const issueQuery = encodeURIComponent(`repo:${repository} is:issue is:open`);
+  const pullQuery = encodeURIComponent(`repo:${repository} is:pr is:open`);
+  const [issueResult, pullResult] = await Promise.allSettled([
+    githubJson(`https://api.github.com/search/issues?q=${issueQuery}&per_page=100&sort=updated&order=desc`, token, fetchImpl),
+    githubJson(`https://api.github.com/search/issues?q=${pullQuery}&per_page=100&sort=updated&order=desc`, token, fetchImpl),
+  ]);
+
+  if (issueResult.status === "rejected") {
     return Object.freeze({
       issues: Object.freeze([]),
       openPulls: Object.freeze([]),
-      workSupply: unknownGithubIssueWorkSupply(error instanceof Error ? error.message : "github-open-issue-search-failed"),
+      workSupply: unknownGithubIssueWorkSupply(issueResult.reason instanceof Error ? issueResult.reason.message : "github-open-issue-search-failed"),
+      readinessEvidenceComplete: false,
     });
   }
 
-  const rawSupply = deriveGithubIssueWorkSupply(issueSearch);
-  const issues = completeSearchItems(issueSearch);
-  if (!issues) return Object.freeze({ issues: Object.freeze([]), openPulls: Object.freeze([]), workSupply: rawSupply });
-
-  let pullSearch: JsonObject;
-  try {
-    const pullQuery = encodeURIComponent(`repo:${repository} is:pr is:open`);
-    pullSearch = await githubJson(`https://api.github.com/search/issues?q=${pullQuery}&per_page=100&sort=updated&order=desc`, token, fetchImpl);
-  } catch {
-    return Object.freeze({ issues, openPulls: Object.freeze([]), workSupply: rawSupply });
+  const rawSupply = deriveGithubIssueWorkSupply(issueResult.value);
+  const issues = completeSearchItems(issueResult.value);
+  if (!issues || pullResult.status === "rejected") {
+    return Object.freeze({ issues: issues ?? Object.freeze([]), openPulls: Object.freeze([]), workSupply: rawSupply, readinessEvidenceComplete: false });
   }
-  const openPulls = completeSearchItems(pullSearch);
-  if (!openPulls) return Object.freeze({ issues, openPulls: Object.freeze([]), workSupply: rawSupply });
 
-  const readiness = deriveGithubIssueBacklogReadiness(issues, openPulls, new Date(now));
-  return Object.freeze({ issues, openPulls, workSupply: withObservedReadyWork(rawSupply, readiness.eligibleIssueCount) });
+  const openPulls = completeSearchItems(pullResult.value);
+  if (!openPulls) return Object.freeze({ issues, openPulls: Object.freeze([]), workSupply: rawSupply, readinessEvidenceComplete: false });
+
+  return Object.freeze({ issues, openPulls, workSupply: rawSupply, readinessEvidenceComplete: true });
+}
+
+async function enrichOpenPullStaleness(
+  repository: string,
+  token: string,
+  openPulls: readonly unknown[],
+  mainSha: string,
+  fetchImpl: typeof fetch,
+): Promise<readonly unknown[]> {
+  const enriched = await Promise.all(openPulls.map(async (value) => {
+    const pull = object(value);
+    const number = positiveInteger(pull?.number);
+    if (!pull || !number) return value;
+    try {
+      const detail = await githubJson(`https://api.github.com/repos/${repository}/pulls/${number}`, token, fetchImpl);
+      const head = object(detail.head);
+      const headSha = text(head?.sha);
+      if (!headSha || !SHA40.test(headSha)) return value;
+      const comparison = await githubJson(
+        `https://api.github.com/repos/${repository}/compare/${headSha}...${mainSha}`,
+        token,
+        fetchImpl,
+      );
+      // compare/{PR_HEAD}...{MAIN}: ahead_by is how many commits MAIN has
+      // beyond the merge base. behind_by is the PR's own feature delta and
+      // must never be interpreted as staleness.
+      const mainAheadBy = Number.isSafeInteger(comparison.ahead_by) && Number(comparison.ahead_by) >= 0
+        ? Number(comparison.ahead_by)
+        : null;
+      if (mainAheadBy === null) return value;
+      return Object.freeze({ ...pull, nusa_stale_against_main: mainAheadBy > 0 });
+    } catch {
+      // Missing comparison evidence must keep the PR blocking.
+      return value;
+    }
+  }));
+  return Object.freeze(enriched);
 }
 
 function workflowCompletedAt(run: JsonObject): string | null {
@@ -151,7 +190,7 @@ function discoverWorkflowFailureOpportunityIds(candidates: readonly unknown[], n
     const run = object(candidate);
     if (!run) continue;
     const conclusion = text(run.conclusion);
-    if (conclusion !== "failure" && conclusion !== "cancelled" && conclusion !== "timed_out") continue;
+    if (conclusion !== "failure" && conclusion !== "timed_out") continue;
     if (text(run.head_branch) !== "main" || text(run.event) === "repository_dispatch") continue;
     const workflowName = text(run.name);
     const runId = positiveInteger(run.id);
@@ -169,7 +208,7 @@ function currentMainFailureRunId(candidates: readonly unknown[], mainSha: string
     const run = object(candidate);
     if (!run) continue;
     const conclusion = text(run.conclusion);
-    if (conclusion !== "failure" && conclusion !== "cancelled" && conclusion !== "timed_out") continue;
+    if (conclusion !== "failure" && conclusion !== "timed_out") continue;
     if (text(run.head_branch) !== "main" || text(run.event) === "repository_dispatch") continue;
     if (text(run.head_sha)?.toLowerCase() !== mainSha.toLowerCase()) continue;
     const runId = positiveInteger(run.id);
@@ -188,7 +227,7 @@ function hasFreshWorkflowFailureSince(candidates: readonly unknown[], observedAt
     const run = object(candidate);
     if (!run) continue;
     const conclusion = text(run.conclusion);
-    if (conclusion !== "failure" && conclusion !== "cancelled" && conclusion !== "timed_out") continue;
+    if (conclusion !== "failure" && conclusion !== "timed_out") continue;
     if (text(run.head_branch) !== "main" || text(run.event) === "repository_dispatch") continue;
     const completedAt = workflowCompletedAt(run);
     if (completedAt && Date.parse(completedAt) >= observedAt) return true;
@@ -204,6 +243,7 @@ function codingResult(
   workSupply: GithubIssueWorkSupplySnapshot,
 ): ScheduledRuntimeResult | null {
   if (coding.status === "EXECUTION_ACCEPTED") return result("EXECUTION_DISPATCHED", coding.reason, mainSha, workflowRunId, null, discoveredOpportunityIds, workSupply);
+  if (coding.status === "WAITING_RATE_LIMIT") return result("WAITING_RATE_LIMIT", coding.reason, mainSha, workflowRunId, null, discoveredOpportunityIds, workSupply);
   if (coding.status === "DUPLICATE_SUPPRESSED") return result("DUPLICATE_EXECUTION_SUPPRESSED", coding.reason, mainSha, workflowRunId, null, discoveredOpportunityIds, workSupply);
   if (coding.status === "INTERFACE_READY" || coding.status === "EXECUTION_FAILED") return result("EXECUTION_NOT_DISPATCHED", coding.reason, mainSha, workflowRunId, null, discoveredOpportunityIds, workSupply);
   return null;
@@ -219,30 +259,49 @@ export async function runScheduledAutopilot(env: ScheduledRuntimeEnv, now: numbe
   const repository = env.NUSA_GITHUB_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) return result("ABSTAINED", "repository-invalid");
 
-  const backlog = await observeGithubBacklogEvidence(repository, token, now, fetchImpl);
-  const workSupply = backlog.workSupply;
-
-  let previousReceipt: ScheduledRuntimeReceipt | null = null;
-  try { previousReceipt = await readScheduledRuntimeReceipt(coordinator); } catch { previousReceipt = null; }
+  // Backlog discovery and the previous receipt are independent reads. Starting
+  // them together removes one more full network/storage round trip from every
+  // scheduled cycle without changing any authorization or dedupe decision.
+  const [backlog, previousReceipt] = await Promise.all([
+    observeGithubBacklogEvidence(repository, token, fetchImpl),
+    readScheduledRuntimeReceipt(coordinator).catch(() => null),
+  ]);
+  let workSupply = backlog.workSupply;
 
   let mainSha: string;
   let workflowRunId: number;
   let discoveredOpportunityIds: readonly string[] = Object.freeze([]);
   try {
-    const main = await githubJson(`https://api.github.com/repos/${repository}/branches/main`, token, fetchImpl);
+    const [main, runs, canonicalRuns] = await Promise.all([
+      githubJson(`https://api.github.com/repos/${repository}/branches/main`, token, fetchImpl),
+      githubJson(`https://api.github.com/repos/${repository}/actions/runs?branch=main&status=completed&per_page=50`, token, fetchImpl),
+      // Keep canonical CI lookup independent from high-volume workflow_run/schedule noise.
+      // Scope to the canonical CI workflow itself so either push or explicit workflow_dispatch
+      // evidence for the exact main SHA remains visible without trusting unrelated workflows.
+      githubJson(`https://api.github.com/repos/${repository}/actions/workflows/ci.yml/runs?branch=main&status=completed&per_page=50`, token, fetchImpl),
+    ]);
     const commit = object(main.commit);
     const resolvedMainSha = text(commit?.sha);
     if (!resolvedMainSha || !SHA40.test(resolvedMainSha)) return result("ABSTAINED", "main-sha-invalid", null, null, null, discoveredOpportunityIds, workSupply);
     mainSha = resolvedMainSha;
 
-    const runs = await githubJson(`https://api.github.com/repos/${repository}/actions/runs?branch=main&status=completed&per_page=50`, token, fetchImpl);
+    const openPulls = await enrichOpenPullStaleness(repository, token, backlog.openPulls, mainSha, fetchImpl);
+    const readiness = deriveGithubIssueBacklogReadiness(backlog.issues, openPulls, new Date(now));
+    workSupply = backlog.readinessEvidenceComplete
+      ? withObservedCapabilityBlockedWork(
+          withObservedReadyWork(backlog.workSupply, readiness.eligibleIssueCount),
+          readiness.capabilityBlockedIssueCount,
+          readiness.capabilityBlockedCapabilities,
+        )
+      : backlog.workSupply;
+
     const candidates = Array.isArray(runs.workflow_runs) ? runs.workflow_runs : [];
     discoveredOpportunityIds = discoverWorkflowFailureOpportunityIds(candidates, now);
 
     const failedRunId = currentMainFailureRunId(candidates, mainSha, now);
     if (failedRunId) {
       try {
-        const coding = await runScheduledEvolutionCoding(env, { candidates, backlogIssues: backlog.issues, openPulls: backlog.openPulls, now, repository, mainSha, workflowRunId: failedRunId }, fetchImpl);
+        const coding = await runScheduledEvolutionCoding(env, { candidates, backlogIssues: backlog.issues, openPulls, now, repository, mainSha, workflowRunId: failedRunId }, fetchImpl);
         console.log(JSON.stringify({ event: "NUSA_SCHEDULED_EVOLVE_CODING", ...coding }));
         return codingResult(coding, mainSha, failedRunId, discoveredOpportunityIds, workSupply)
           ?? result("ABSTAINED", coding.reason, mainSha, failedRunId, null, discoveredOpportunityIds, workSupply);
@@ -251,16 +310,17 @@ export async function runScheduledAutopilot(env: ScheduledRuntimeEnv, now: numbe
       }
     }
 
-    const canonical = candidates
+    const canonicalCandidates = Array.isArray(canonicalRuns.workflow_runs) ? canonicalRuns.workflow_runs : [];
+    const canonical = canonicalCandidates
       .map(object)
       .filter((run): run is JsonObject => run !== null)
-      .find((run) => text(run.name) === "CI" && text(run.conclusion) === "success" && text(run.head_branch) === "main" && text(run.head_sha) === mainSha && text(run.event) !== "repository_dispatch");
+      .find((run) => text(run.name) === "CI" && text(run.conclusion) === "success" && text(run.head_branch) === "main" && text(run.head_sha) === mainSha);
     const resolvedRunId = positiveInteger(canonical?.id);
     if (!canonical || !resolvedRunId) return result("ABSTAINED", "exact-main-canonical-ci-not-found", mainSha, null, null, discoveredOpportunityIds, workSupply);
     workflowRunId = resolvedRunId;
 
     try {
-      const coding = await runScheduledEvolutionCoding(env, { candidates, backlogIssues: backlog.issues, openPulls: backlog.openPulls, now, repository, mainSha, workflowRunId }, fetchImpl);
+      const coding = await runScheduledEvolutionCoding(env, { candidates, backlogIssues: backlog.issues, openPulls, now, repository, mainSha, workflowRunId }, fetchImpl);
       console.log(JSON.stringify({ event: "NUSA_SCHEDULED_EVOLVE_CODING", ...coding }));
       const handled = codingResult(coding, mainSha, workflowRunId, discoveredOpportunityIds, workSupply);
       if (handled) return handled;

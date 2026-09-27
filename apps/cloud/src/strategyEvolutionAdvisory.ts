@@ -1,8 +1,20 @@
 import type { PaperOutcomeCalibrationResult } from "./paperOutcomeCalibration";
+import {
+  replayResearchMemoryOverlayEvents,
+  type ResearchMemoryOverlayEvent,
+  type ResearchMemorySemanticEvent,
+} from "../../../packages/contracts/src/researchMemorySemantics";
 
 export type EvolutionLifecycleState = "CANDIDATE" | "WATCH" | "PROMOTED" | "DEMOTED" | "QUARANTINED" | "RETIRED";
 export type EvolutionRecommendation = "PROMOTE" | "HOLD" | "DEMOTE" | "QUARANTINE" | "RETIRE";
 export type EvolutionEvidenceStatus = "VERIFIED" | "INSUFFICIENT" | "STALE" | "CONFLICTING" | "FAILED";
+export type StrategyEvolutionLifecycleFact = "FAILURE" | "STRUCTURALLY_DOMINATED" | "PROMOTION_SUPPORT";
+
+export const strategyEvolutionLifecycleSemanticIdentity = (
+  candidateId: string,
+  strategyFamilyId: string,
+  fact: StrategyEvolutionLifecycleFact,
+): string => `strategy-evolution:${candidateId}:${strategyFamilyId}:${fact}`;
 
 export interface StrategyEvolutionEvidence {
   readonly candidateId: string;
@@ -14,9 +26,14 @@ export interface StrategyEvolutionEvidence {
   readonly drawdownEvidence: EvolutionEvidenceStatus;
   readonly provenanceEvidence: EvolutionEvidenceStatus;
   readonly infrastructureEvidence: EvolutionEvidenceStatus;
-  readonly repeatedFailureCount: number;
-  readonly structurallyDominated: boolean;
-  readonly independentEvidenceCount: number;
+  /**
+   * Full canonical Research Memory overlay. Lifecycle facts are consumed only
+   * from hash-chain-valid CURRENT empirical EVIDENCE events whose semantic
+   * identity binds this candidate/family and whose evaluator semantics exactly
+   * match currentEvaluatorSemanticsId.
+   */
+  readonly lifecycleMemory: readonly ResearchMemoryOverlayEvent[];
+  readonly currentEvaluatorSemanticsId: string;
   readonly minimumIndependentEvidenceForPromotion: number;
 }
 
@@ -58,8 +75,8 @@ function validate(input: StrategyEvolutionAdvisoryInput): void {
   if (!input.advisoryId.trim() || !input.evidence.candidateId.trim() || !input.evidence.strategyFamilyId.trim() || !input.evidence.regime.trim()) {
     throw new Error("evolution advisory identity is required");
   }
-  if (!Number.isSafeInteger(input.evidence.repeatedFailureCount) || input.evidence.repeatedFailureCount < 0) throw new Error("repeatedFailureCount must be a non-negative integer");
-  if (!Number.isSafeInteger(input.evidence.independentEvidenceCount) || input.evidence.independentEvidenceCount < 0) throw new Error("independentEvidenceCount must be a non-negative integer");
+  if (!input.evidence.currentEvaluatorSemanticsId.trim()) throw new Error("currentEvaluatorSemanticsId is required");
+  if (!Array.isArray(input.evidence.lifecycleMemory)) throw new Error("lifecycleMemory must be an array");
   if (!Number.isSafeInteger(input.evidence.minimumIndependentEvidenceForPromotion) || input.evidence.minimumIndependentEvidenceForPromotion <= 0) throw new Error("minimumIndependentEvidenceForPromotion must be positive");
   const calibration = input.evidence.calibration;
   if (calibration.candidateId !== input.evidence.candidateId || calibration.strategyFamilyId !== input.evidence.strategyFamilyId || calibration.regime !== input.evidence.regime) {
@@ -68,6 +85,89 @@ function validate(input: StrategyEvolutionAdvisoryInput): void {
   if (calibration.liveAuthority !== "NONE" || calibration.productionMutationAllowed !== false || calibration.aiAuthority !== "ZERO_AUTHORITY") {
     throw new Error("calibration authority invariant failed");
   }
+}
+
+
+interface CanonicalLifecycleEvidenceSummary {
+  readonly repeatedFailureCount: number;
+  readonly structurallyDominated: boolean;
+  readonly promotionSupportCount: number;
+  readonly uncertain: boolean;
+  readonly invalidProvenance: boolean;
+}
+
+const canonicalEmpiricalOrigins = new Set(["CANONICAL_RESEARCH", "PAPER_FORWARD"]);
+const lifecycleFacts: readonly StrategyEvolutionLifecycleFact[] = Object.freeze([
+  "FAILURE",
+  "STRUCTURALLY_DOMINATED",
+  "PROMOTION_SUPPORT",
+]);
+
+function lifecycleFactFor(
+  event: ResearchMemorySemanticEvent,
+  evidence: StrategyEvolutionEvidence,
+): StrategyEvolutionLifecycleFact | undefined {
+  return lifecycleFacts.find(
+    (fact) =>
+      event.semanticIdentity ===
+      strategyEvolutionLifecycleSemanticIdentity(
+        evidence.candidateId,
+        evidence.strategyFamilyId,
+        fact,
+      ),
+  );
+}
+
+function resolveCanonicalLifecycleEvidence(
+  evidence: StrategyEvolutionEvidence,
+): CanonicalLifecycleEvidenceSummary {
+  let records: readonly ResearchMemoryOverlayEvent[];
+  try {
+    records = replayResearchMemoryOverlayEvents(evidence.lifecycleMemory);
+  } catch {
+    return freeze({
+      repeatedFailureCount: 0,
+      structurallyDominated: false,
+      promotionSupportCount: 0,
+      uncertain: true,
+      invalidProvenance: true,
+    });
+  }
+
+  const groups = new Map<StrategyEvolutionLifecycleFact, Set<string>>(
+    lifecycleFacts.map((fact) => [fact, new Set<string>()]),
+  );
+  let uncertain = false;
+
+  for (const record of records) {
+    if (record.eventKind !== "SEMANTIC") continue;
+    const fact = lifecycleFactFor(record, evidence);
+    if (fact == null) continue;
+
+    const canonicalCurrentEmpirical =
+      record.semanticClass === "EVIDENCE" &&
+      record.validity === "CURRENT" &&
+      canonicalEmpiricalOrigins.has(record.evidenceOrigin) &&
+      record.evaluatorSemanticsId === evidence.currentEvaluatorSemanticsId &&
+      record.authority === "PAPER_ONLY" &&
+      record.liveAuthority === "NONE" &&
+      record.productionMutationAllowed === false &&
+      record.aiAuthority === "ZERO_AUTHORITY";
+
+    if (!canonicalCurrentEmpirical) {
+      uncertain = true;
+      continue;
+    }
+    groups.get(fact)!.add(record.independenceGroupId);
+  }
+
+  return freeze({
+    repeatedFailureCount: groups.get("FAILURE")!.size,
+    structurallyDominated: groups.get("STRUCTURALLY_DOMINATED")!.size > 0,
+    promotionSupportCount: groups.get("PROMOTION_SUPPORT")!.size,
+    uncertain,
+    invalidProvenance: false,
+  });
 }
 
 function recommendationState(current: EvolutionLifecycleState, recommendation: EvolutionRecommendation): EvolutionLifecycleState {
@@ -89,6 +189,8 @@ const reasonText: Readonly<Record<string, string>> = Object.freeze({
   PROVENANCE_FAILURE: "provenance evidence failed",
   REGIME_DEGRADATION: "regime evidence deteriorated",
   REPEATED_INDEPENDENT_FAILURES: "repeated independent failures were recorded",
+  CANONICAL_LIFECYCLE_EVIDENCE_UNCERTAIN: "lifecycle evidence is stale, non-canonical, or not comparable to current evaluator semantics",
+  CANONICAL_LIFECYCLE_MEMORY_INVALID: "canonical lifecycle memory failed deterministic provenance or replay validation",
   RETIRED_IS_TERMINAL: "retirement is terminal",
   STRUCTURALLY_DOMINATED: "the candidate is structurally dominated",
 });
@@ -115,23 +217,25 @@ function buildLearningExplanation(
     .filter(([, status]) => status === "VERIFIED")
     .map(([name]) => name + ":VERIFIED");
   if (evidence.calibration.decision === "CALIBRATED") positiveEvidence.push("calibration:CALIBRATED");
-  if (evidence.independentEvidenceCount >= evidence.minimumIndependentEvidenceForPromotion) {
-    positiveEvidence.push("independent-evidence:" + evidence.independentEvidenceCount + "/" + evidence.minimumIndependentEvidenceForPromotion);
+  const lifecycle = resolveCanonicalLifecycleEvidence(evidence);
+  if (lifecycle.promotionSupportCount >= evidence.minimumIndependentEvidenceForPromotion) {
+    positiveEvidence.push("independent-evidence:" + lifecycle.promotionSupportCount + "/" + evidence.minimumIndependentEvidenceForPromotion);
   }
 
   const counterEvidence = statuses
     .filter(([, status]) => status === "FAILED" || status === "CONFLICTING")
     .map(([name, status]) => name + ":" + status);
   if (evidence.calibration.confidenceAction === "REDUCE") counterEvidence.push("calibration:REDUCE");
-  if (evidence.repeatedFailureCount > 0) counterEvidence.push("repeated-failures:" + evidence.repeatedFailureCount);
-  if (evidence.structurallyDominated) counterEvidence.push("structural-domination");
+  if (lifecycle.repeatedFailureCount > 0) counterEvidence.push("repeated-failures:" + lifecycle.repeatedFailureCount);
+  if (lifecycle.structurallyDominated) counterEvidence.push("structural-domination");
+  if (lifecycle.uncertain) counterEvidence.push("lifecycle-evidence:NOT_CURRENT_OR_COMPARABLE");
 
   const missingEvidence = statuses
     .filter(([, status]) => status === "INSUFFICIENT" || status === "STALE")
     .map(([name, status]) => name + ":" + status);
   if (evidence.calibration.decision !== "CALIBRATED") missingEvidence.push("calibration:CALIBRATED");
-  if (evidence.independentEvidenceCount < evidence.minimumIndependentEvidenceForPromotion) {
-    missingEvidence.push("independent-evidence:" + evidence.independentEvidenceCount + "/" + evidence.minimumIndependentEvidenceForPromotion);
+  if (lifecycle.promotionSupportCount < evidence.minimumIndependentEvidenceForPromotion) {
+    missingEvidence.push("independent-evidence:" + lifecycle.promotionSupportCount + "/" + evidence.minimumIndependentEvidenceForPromotion);
   }
 
   const positive = uniqueSorted(positiveEvidence);
@@ -167,19 +271,26 @@ export function evaluateStrategyEvolutionAdvisory(input: StrategyEvolutionAdviso
   const reasons: string[] = [];
   let recommendation: EvolutionRecommendation = "HOLD";
 
+  const lifecycle = resolveCanonicalLifecycleEvidence(evidence);
+
   if (input.currentState === "RETIRED") {
     reasons.push("RETIRED_IS_TERMINAL");
-  } else if (evidence.structurallyDominated || evidence.repeatedFailureCount >= 3) {
-    recommendation = "RETIRE";
-    if (evidence.structurallyDominated) reasons.push("STRUCTURALLY_DOMINATED");
-    if (evidence.repeatedFailureCount >= 3) reasons.push("REPEATED_INDEPENDENT_FAILURES");
-  } else if (evidence.provenanceEvidence === "FAILED" || evidence.infrastructureEvidence === "FAILED") {
+  } else if (evidence.provenanceEvidence === "FAILED" || evidence.infrastructureEvidence === "FAILED" || lifecycle.invalidProvenance) {
     recommendation = "QUARANTINE";
-    if (evidence.provenanceEvidence === "FAILED") reasons.push("PROVENANCE_FAILURE");
+    if (evidence.provenanceEvidence === "FAILED" || lifecycle.invalidProvenance) reasons.push("PROVENANCE_FAILURE");
     if (evidence.infrastructureEvidence === "FAILED") reasons.push("INFRASTRUCTURE_FAILURE");
-  } else if ([evidence.regimeEvidence, evidence.costEvidence, evidence.drawdownEvidence, evidence.provenanceEvidence, evidence.infrastructureEvidence].some((status) => uncertain.has(status))) {
+    if (lifecycle.invalidProvenance) reasons.push("CANONICAL_LIFECYCLE_MEMORY_INVALID");
+  } else if (
+    lifecycle.uncertain ||
+    [evidence.regimeEvidence, evidence.costEvidence, evidence.drawdownEvidence, evidence.provenanceEvidence, evidence.infrastructureEvidence].some((status) => uncertain.has(status))
+  ) {
     recommendation = input.currentState === "PROMOTED" ? "DEMOTE" : "HOLD";
     reasons.push("EVIDENCE_UNCERTAIN_FAIL_CLOSED");
+    if (lifecycle.uncertain) reasons.push("CANONICAL_LIFECYCLE_EVIDENCE_UNCERTAIN");
+  } else if (lifecycle.structurallyDominated || lifecycle.repeatedFailureCount >= 3) {
+    recommendation = "RETIRE";
+    if (lifecycle.structurallyDominated) reasons.push("STRUCTURALLY_DOMINATED");
+    if (lifecycle.repeatedFailureCount >= 3) reasons.push("REPEATED_INDEPENDENT_FAILURES");
   } else if (evidence.regimeEvidence === "FAILED" || evidence.costEvidence === "FAILED" || evidence.drawdownEvidence === "FAILED" || evidence.calibration.confidenceAction === "REDUCE") {
     recommendation = input.currentState === "PROMOTED" ? "DEMOTE" : "HOLD";
     if (evidence.regimeEvidence === "FAILED") reasons.push("REGIME_DEGRADATION");
@@ -189,7 +300,7 @@ export function evaluateStrategyEvolutionAdvisory(input: StrategyEvolutionAdviso
   } else if (
     evidence.calibration.decision === "CALIBRATED"
     && evidence.calibration.confidenceAction === "ALLOW_INCREASE_WITH_NEW_INDEPENDENT_EVIDENCE"
-    && evidence.independentEvidenceCount >= evidence.minimumIndependentEvidenceForPromotion
+    && lifecycle.promotionSupportCount >= evidence.minimumIndependentEvidenceForPromotion
     && input.currentState !== "PROMOTED"
     && input.currentState !== "QUARANTINED"
   ) {

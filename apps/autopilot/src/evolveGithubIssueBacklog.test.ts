@@ -33,6 +33,27 @@ test("backlog readiness counts all eligible work but dispatch signal stays bound
   assert.deepEqual(result.signals.map((signal) => signal.id), ["github-issue-1900"]);
 });
 
+test("unsupported research and general work stays visible but cannot enter CodingRunner READY", () => {
+  const result = deriveGithubIssueBacklogReadiness([
+    issue({ number: 1901, title: "P1: Research OOS robustness evidence" }),
+    issue({ number: 1902, title: "P1: Mobile UI release regression" }),
+    issue({ number: 1903, title: "P1: AUTOPILOT bounded coding fix" }),
+  ], [], NOW);
+  assert.equal(result.eligibleIssueCount, 1);
+  assert.equal(result.capabilityBlockedIssueCount, 2);
+  assert.deepEqual(result.capabilityBlockedCapabilities, { RESEARCH: 1, GENERAL: 1, UNKNOWN: 0 });
+  assert.deepEqual(result.signals.map((signal) => signal.id), ["github-issue-1903"]);
+});
+
+test("HOLD and open-PR filters dominate before capability classification", () => {
+  const result = deriveGithubIssueBacklogReadiness([
+    issue({ number: 1901, title: "P1: Research OOS robustness evidence", labels: [{ name: "HOLD" }] }),
+    issue({ number: 1902, title: "P1: Mobile UI release regression" }),
+  ], [{ title: "fix: mobile", body: "Fixes #1902" }], NOW);
+  assert.equal(result.eligibleIssueCount, 0);
+  assert.equal(result.capabilityBlockedIssueCount, 0);
+});
+
 test("backlog readiness excludes HOLD, BLOCKED_HUMAN and REWORK labels", () => {
   const blocked = [
     issue({ number: 1, labels: [{ name: "HOLD" }] }),
@@ -53,6 +74,37 @@ test("backlog readiness excludes issue referenced by any open PR", () => {
   }
 });
 
+test("verified stale linked PR permits one latest-main successor while unknown evidence still blocks", () => {
+  const stale = deriveGithubIssueBacklogReadiness(
+    [issue()],
+    [{ title: "fix: stale control plane", body: "Refs #903", nusa_stale_against_main: true }],
+    NOW,
+  );
+  assert.equal(stale.eligibleIssueCount, 1);
+  assert.deepEqual(stale.signals.map((signal) => signal.id), ["github-issue-903"]);
+
+  const unknown = deriveGithubIssueBacklogReadiness(
+    [issue()],
+    [{ title: "fix: unknown control plane", body: "Refs #903" }],
+    NOW,
+  );
+  assert.equal(unknown.eligibleIssueCount, 0);
+  assert.deepEqual(unknown.signals, []);
+});
+
+test("one fresh linked PR still blocks when another linked PR is verified stale", () => {
+  const result = deriveGithubIssueBacklogReadiness(
+    [issue()],
+    [
+      { title: "fix: stale predecessor", body: "Refs #903", nusa_stale_against_main: true },
+      { title: "fix: current successor", body: "Refs #903" },
+    ],
+    NOW,
+  );
+  assert.equal(result.eligibleIssueCount, 0);
+  assert.deepEqual(result.signals, []);
+});
+
 test("backlog readiness fails closed for PR wrappers, untrusted authors, unsafe and unrelated work", () => {
   const unsafe = [
     issue({ pull_request: { url: "https://api.github.com/pulls/1" } }),
@@ -64,4 +116,54 @@ test("backlog readiness fails closed for PR wrappers, untrusted authors, unsafe 
     issue({ body: `Autopilot work. ${SAFETY} productionMutationAllowed=true` }),
   ];
   assert.equal(deriveGithubIssueBacklogReadiness(unsafe, [], NOW).eligibleIssueCount, 0);
+});
+
+
+test("backlog preserves explicit deterministic ownership and conflict metadata", () => {
+  const result = deriveGithubIssueBacklogReadiness([
+    issue({ body: `Implement bounded Autopilot control-plane work. ${SAFETY}\ncanonicalOwner: evolve\nconflictKeys: issue:903,module:apps/autopilot/src` }),
+  ], [], NOW);
+  assert.equal(result.eligibleIssueCount, 1);
+  assert.equal(result.signals[0]?.canonicalOwner, "evolve");
+  assert.deepEqual(result.signals[0]?.conflictKeys, ["issue:903", "module:apps/autopilot/src"]);
+});
+
+test("backlog rejects malformed explicit work metadata fail closed", () => {
+  const invalid = [
+    issue({ number: 910, body: `Autopilot work. ${SAFETY}\ncanonicalOwner: bad owner\nconflictKeys: issue:910` }),
+    issue({ number: 911, body: `Autopilot work. ${SAFETY}\ncanonicalOwner: evolve\nconflictKeys: bad conflict` }),
+    issue({ number: 912, body: `Autopilot work. ${SAFETY}\ncanonicalOwner: evolve\nconflictKeys: issue:912,issue:912` }),
+  ];
+  assert.equal(deriveGithubIssueBacklogReadiness(invalid, [], NOW).eligibleIssueCount, 0);
+});
+
+test("an explicit codingTarget line reaches the selected problem, and its absence changes nothing", () => {
+  const plain = deriveGithubIssueBacklogReadiness([issue()], [], NOW).signals[0]!;
+  assert.doesNotMatch(plain.problem, /Target file:/);
+
+  const targeted = deriveGithubIssueBacklogReadiness([
+    issue({ body: `Implement bounded Autopilot control-plane work.\ncodingTarget: apps/autopilot/src/auditRunner.ts\n${SAFETY}` }),
+  ], [], NOW).signals[0]!;
+  assert.match(targeted.problem, / Target file: apps\/autopilot\/src\/auditRunner\.ts\.$/);
+  assert.equal(targeted.problem.replace(/ Target file: .*$/, ""), plain.problem, "the rest of the problem is unchanged");
+});
+
+test("a repeated or out-of-scope codingTarget makes the issue ineligible rather than reaching the runner", () => {
+  for (const target of [
+    "apps/autopilot/src/auditRunner.ts\ncodingTarget: apps/autopilot/src/codingRunner.ts",
+    "apps/autopilot/src/index.ts",
+    "apps/autopilot/src/worker.ts",
+    "apps/autopilot/src/codingRunner.test.ts",
+    "apps/autopilot/src/types.d.ts",
+    "apps/autopilot/src/broker/adapter.ts",
+    "apps/autopilot/src/../../cloud/src/runtime.ts",
+    "apps/cloud/src/runtime.ts",
+    ".github/workflows/ci.yml",
+  ]) {
+    const result = deriveGithubIssueBacklogReadiness([
+      issue({ body: `Implement bounded Autopilot control-plane work.\ncodingTarget: ${target}\n${SAFETY}` }),
+    ], [], NOW);
+    assert.equal(result.eligibleIssueCount, 0, `accepted codingTarget ${JSON.stringify(target)}`);
+    assert.deepEqual(result.signals, []);
+  }
 });

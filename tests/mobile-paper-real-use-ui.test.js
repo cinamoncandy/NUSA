@@ -34,8 +34,10 @@ test("Settings keeps Cloud PAPER setup separate from the supervision surfaces", 
 test("cold start restores the saved endpoint before the first dashboard refresh", () => {
   const app = read("apps/mobile/App.tsx");
   const settings = read("apps/mobile/src/settingsView.tsx");
-  assert.match(app, /setConfiguredPaperEndpoint\(settings\.paperEndpoint\)/);
-  assert.match(app, /setConfiguredPaperEndpoint\(""\)/);
+  // Cold start applies the effective endpoint (saved, else canonical). Applying the raw saved "" or
+  // clearing on a load failure flipped the endpoint and destroyed the PAPER session after an app update.
+  assert.match(app, /setConfiguredPaperEndpoint\(effectivePaperEndpoint\(settings\.paperEndpoint, canonical\)\)/);
+  assert.doesNotMatch(app, /setConfiguredPaperEndpoint\(""\)/);
   assert.match(settings, /setConfiguredPaperEndpoint\(next\.paperEndpoint\)/);
   assert.match(settings, /setConfiguredPaperEndpoint\(normalized\.paperEndpoint\)/);
 });
