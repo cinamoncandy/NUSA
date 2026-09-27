@@ -40,6 +40,9 @@ function safeEvidence(input: JevDomainEvidenceMetadata): JevDomainEvidenceMetada
   const output: Record<string, JevDomainEvidencePrimitive> = {};
   for (const [key, value] of entries) {
     if (!FIELD.test(key) || SENSITIVE_FIELD.test(key)) throw new Error("JEV_DOMAIN_EVIDENCE_SENSITIVE_FIELD");
+    if (value !== null && typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") {
+      throw new Error("JEV_DOMAIN_EVIDENCE_VALUE_INVALID");
+    }
     if (typeof value === "number" && !Number.isFinite(value)) throw new Error("JEV_DOMAIN_EVIDENCE_VALUE_INVALID");
     if (typeof value === "string" && (
       value.length > 512
@@ -116,6 +119,9 @@ export class JevDomainAdvisoryShadowObserver {
         traceId: request.traceId,
         ...(request.timestamp == null ? {} : { timestamp: request.timestamp }),
       });
+
+    // Validate every common envelope field before any metadata leaves the process.
+    void createFallback("PREFLIGHT");
 
     if (!this.enabled) return createFallback("DISABLED_FALLBACK");
 
