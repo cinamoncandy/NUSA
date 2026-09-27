@@ -70,7 +70,7 @@ test("watchlist header exposes feed freshness without weakening read-only contra
   assert.match(source, /watchlist-freshness/);
   assert.match(source, /StatusChip label="STALE"/);
 });
-test("watchlist UI remains read-only and is wired into the markets workspace", () => {
+test("watchlist UI remains read-only without reintroducing a primary markets workspace", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "watchlistView.tsx"), "utf8");
   assert.match(source, /시장 검색/);
   assert.match(source, /저장한 시장/);
@@ -96,8 +96,8 @@ test("watchlist UI remains read-only and is wired into the markets workspace", (
   const client = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "personalPaperOperationsClient.ts"), "utf8");
   assert.match(app, /AsyncStorage/);
   assert.match(app, /loadPersonalPaperOperations/);
-  assert.match(app, /<MarketsView/);
-  assert.match(app, /rawMarkets=\{publicMarkets\.markets === null \? null : \[\.\.\.publicMarkets\.markets\]\}/);
+  assert.doesNotMatch(app, /activeTab === "Market"/);
+  assert.doesNotMatch(app, /<MarketsView/);
   assert.doesNotMatch(app, /\/api\/(?:markets|candles|account|status)/);
   assert.match(client, /\/api\/paper-operations/);
 });

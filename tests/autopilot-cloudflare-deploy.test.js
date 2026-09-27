@@ -14,6 +14,7 @@ test("Cloudflare deployment recovers after a CI-only repair merge", () => {
   assert.match(workflow, /deploymentRevision/);
   assert.match(workflow, /CLOUDFLARE_API_TOKEN/);
   assert.match(workflow, /NUSA_AUTOPILOT_RUNTIME_TOKEN/);
+  assert.match(workflow, /NUSA_AUTOPILOT_GITHUB_TOKEN/);
   assert.match(workflow, /liveAuthority=NONE/);
   assert.match(workflow, /productionMutationAllowed=false/);
   assert.match(workflow, /AI authority=ZERO_AUTHORITY/);
@@ -37,6 +38,7 @@ test("deployment fail-closes and synchronizes the persistent runtime secret befo
   assert.ok(secretIndex > preflightIndex);
   assert.ok(deployIndex > secretIndex);
   assert.match(workflow, /secrets\.NUSA_AUTOPILOT_RUNTIME_TOKEN/);
+  assert.match(workflow, /secrets\.NUSA_AUTOPILOT_GITHUB_TOKEN/);
   assert.match(workflow, /\$\{#NUSA_AUTOPILOT_RUNTIME_TOKEN\}.*-lt 32/);
   assert.match(workflow, /wrangler@4\.127\.1 secret put NUSA_AUTOPILOT_RUNTIME_TOKEN/);
   assert.match(workflow, /printf '%s' "\$NUSA_AUTOPILOT_RUNTIME_TOKEN"/);
@@ -52,6 +54,7 @@ test("deployment authenticates read-only before attempting Cloudflare mutation",
   assert.match(workflow, /wrangler@4\.127\.1 whoami/);
   assert.match(workflow, /Cloudflare authentication\/account preflight failed/);
   assert.match(workflow, /Cloudflare token\/account\/runtime-secret preflight passed/);
+  assert.match(workflow, /NUSA_AUTOPILOT_GITHUB_TOKEN/);
 });
 
 test("daily read-only readiness guard detects broken Cloudflare credentials before deployment day", () => {

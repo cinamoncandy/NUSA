@@ -4,8 +4,8 @@ status: READY_FOR_REVIEW
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: ad0eed4ec49fa6fd3296e9e9c82cbd404593db99
-implementation_branch: codex/deterministic-coding-patches
+base_commit: c50840a4371e421b0c6ca4042d0dbd6635ffa6c0
+implementation_branch: codex/autopilot-build-retry
 authority_impact: none
 objective: "Replace fragile model-authored unified diffs with a bounded structured edit contract and deterministic runner-side patch construction."
 canonical_owner: "Existing autopilot coding runner and sandbox publish path"
@@ -16,6 +16,7 @@ scope:
     - "Construct a stable single-file unified diff and validate it with strict git apply --check."
     - "Reuse existing provider retry, sandbox, publish, audit, and release paths."
     - "Add deterministic replay and structured-contract regression coverage."
+    - "Restore the exact clean candidate workspace before retrying a sandbox build rejection."
   exclude:
     - "New queue, scheduler, worker, provider, sandbox, or execution engine."
     - "LIVE, broker, production mutation, credentials, or authority changes."
@@ -39,8 +40,8 @@ verification_commands:
   - "git diff --check"
 evidence:
   implementation_status: READY_FOR_REVIEW
-  local_validation: "Build, TypeScript compile, coding runner 63/63, sandbox/worker 8/8, dispatch retry 32/32, and diff check PASS."
-  external_validation: "Required: exact-head protected CI, independent Audit, canonical Release, and genuine coding recovery runtime evidence."
+  local_validation: "Build, TypeScript compile, coding runner 63/63, sandbox/worker 8/8, dispatch retry 33/33, and diff check PASS."
+  external_validation: "PR #2324 exact-head CI/PAPER/read-only/Restricted LIVE checks PASS; independent Audit and canonical Release are pending after review-thread resolution; genuine coding recovery runtime evidence remains required."
 safety:
   paper_only: true
   liveAuthority: NONE

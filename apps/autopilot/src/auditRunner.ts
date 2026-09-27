@@ -502,7 +502,7 @@ export async function executeProviderGatedAudit(request: AuditRunnerRequest, dep
     if (!providerStop) throw error;
     await deps.recordProviderWait({
       schemaVersion: 1,
-      taskId: `audit:${request.repository}#${request.prNumber}`,
+      taskId: `audit:${request.repository}:${request.prNumber}`,
       executionId: request.executionId,
       provider: AUDIT_PROVIDER,
       headSha: request.headSha,

@@ -32,6 +32,7 @@ const NO_ACTION_PROPOSAL_FAILURE_CODES = new Set([
   "CODING_PROPOSAL_REPEATED",
   "SANDBOX_PATCH_APPLY_CHECK_FAILED",
   "SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED",
+  "SANDBOX_BUILD_FAILED",
   "SANDBOX_PATCH_FILE_COUNT_INVALID",
   "SANDBOX_PATCH_REQUIRED",
   "SANDBOX_PATCH_TOO_LARGE",
@@ -47,6 +48,7 @@ const RETRYABLE_PROPOSAL_FAILURE_CODES = new Set([
   "CODING_PROPOSAL_UNAVAILABLE",
   "SANDBOX_PATCH_APPLY_CHECK_FAILED",
   "SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED",
+  "SANDBOX_BUILD_FAILED",
   "SANDBOX_PATCH_FILE_COUNT_INVALID",
   "SANDBOX_PATCH_REQUIRED",
   "SANDBOX_PATCH_TOO_LARGE",
@@ -67,7 +69,7 @@ function fixedFailureClass(status) {
 
 function proposalFailureCode(reason) {
   const text = String(reason || "");
-  const match = text.match(/^(CODING_PROPOSAL_[A-Z0-9_]+|SANDBOX_PATCH_[A-Z0-9_]+)/);
+  const match = text.match(/^(CODING_PROPOSAL_[A-Z0-9_]+|SANDBOX_(?:PATCH|BUILD)_[A-Z0-9_]+)/);
   const code = match?.[1];
   if (!code || !NO_ACTION_PROPOSAL_FAILURE_CODES.has(code)) return null;
   if (code.startsWith("CODING_PROPOSAL_")) return text === code ? code : null;
@@ -696,6 +698,13 @@ function assertGithubRunnerWorkspaceClean(statusOutput) {
 }
 
 function resetProposalRetryWorkspace() {
+  // validatePatchOnGithubRunner applies the candidate before running the build. Every
+  // retry starts from the exact clean head that was checked before proposal generation.
+  // Local unit tests intentionally run in the developer checkout; only the ephemeral
+  // GitHub runner is safe to restore destructively.
+  if (process.env.GITHUB_ACTIONS === "true") {
+    run("git", ["reset", "--hard", "HEAD"], "GITHUB_RUNNER_RETRY_RESTORE_FAILED");
+  }
   fs.rmSync(PATCH_PATH, { force: true });
   const tracked = run("git", ["diff", "--name-only"], "GITHUB_RUNNER_RETRY_TRACKED_STATUS_FAILED").trim();
   const staged = run("git", ["diff", "--cached", "--name-only"], "GITHUB_RUNNER_RETRY_STAGED_STATUS_FAILED").trim();
