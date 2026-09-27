@@ -1,7 +1,7 @@
 version: 1
 current_audit_recovery_pagination_fix:
   work_order: WO-20260926-AUDIT-RECOVERY-PAGINATION-FIX
-  status: BLOCKED_EXTERNAL_AUDIT_CAPACITY
+  status: BLOCKED
   branch: fix/audit-recovery-gh-pagination
   base_sha: 0921f0514a47e3f3313645a654e258cf8f3ab485
   exact_head: f0e590f4f076b9366c9163ff12137ff22780f5af
