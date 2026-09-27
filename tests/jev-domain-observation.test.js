@@ -54,6 +54,24 @@ function researchInput(overrides = {}) {
   };
 }
 
+function advisoryInput(taskType, classification, overrides = {}) {
+  return {
+    ...workflowInput(),
+    taskType,
+    decision: {
+      classification,
+      severity: 2,
+      requiredModel: "LUNA",
+      reasonCode: "SHADOW_CLASSIFIED",
+      confidence: 0.82,
+    },
+    requiredModel: "LUNA",
+    reasonCode: "SHADOW_CLASSIFIED",
+    confidence: 0.82,
+    ...overrides,
+  };
+}
+
 test("registry is unique, complete across all NUSA rollout domains, and shadow-only", () => {
   assert.doesNotThrow(() => assertJevTaskTypeRegistry());
   const taskTypes = JEV_TASK_TYPE_POLICIES.map((entry) => entry.taskType);
@@ -141,14 +159,76 @@ test("research attention observation reuses its existing validator", () => {
   assert.equal(observation.usableForRouting, false);
 });
 
-test("planned task types cannot emit observations before a decision validator exists", () => {
-  assert.equal(getJevTaskTypePolicy("RISK_EVENT_CLASSIFICATION").decisionSchema, "UNAVAILABLE");
+test("all registered advisory task types have bounded validators and emit SHADOW observations", () => {
+  const cases = [
+    ["DUPLICATE_TASK_CLASSIFICATION", "DUPLICATE"],
+    ["STALE_WIP_CLASSIFICATION", "STALE"],
+    ["TEST_SCOPE_RECOMMENDATION", "FOCUSED"],
+    ["DATA_INTEGRITY_ANOMALY_CLASSIFICATION", "ANOMALY"],
+    ["MARKET_DATA_INCIDENT_CLASSIFICATION", "GAP"],
+    ["HYPOTHESIS_DUPLICATE_CLASSIFICATION", "RELATED"],
+    ["STRATEGY_FAMILY_MATCH_CLASSIFICATION", "MATCH"],
+    ["GOVERNANCE_EVIDENCE_READINESS_CLASSIFICATION", "READY"],
+    ["RISK_EVENT_CLASSIFICATION", "STRESS"],
+    ["PAPER_EXECUTION_INCIDENT_CLASSIFICATION", "RECOVERY_REQUIRED"],
+    ["LEDGER_RECONCILIATION_INCIDENT_CLASSIFICATION", "MISMATCH"],
+    ["PERFORMANCE_EVIDENCE_READINESS_CLASSIFICATION", "STALLED"],
+    ["OBSERVABILITY_INCIDENT_CLASSIFICATION", "DEGRADED"],
+    ["RUNTIME_RECOVERY_ELIGIBILITY", "ELIGIBLE"],
+    ["SECURITY_EVENT_CLASSIFICATION", "ANOMALY"],
+    ["RELEASE_AUDIT_BLOCKER_CLASSIFICATION", "PROVIDER"],
+    ["INTEGRATION_MISMATCH_CLASSIFICATION", "SCHEMA"],
+    ["UI_REGRESSION_CLASSIFICATION", "VISUAL"],
+  ];
+  for (const [taskType, classification] of cases) {
+    const policy = getJevTaskTypePolicy(taskType);
+    assert.equal(policy.decisionSchema, "DOMAIN_ADVISORY_V1");
+    assert.ok(policy.classificationValues.includes(classification));
+    const observation = createJevDomainObservation(advisoryInput(taskType, classification));
+    assert.equal(observation.taskType, taskType);
+    assert.equal(observation.rolloutStage, "SHADOW");
+    assert.equal(observation.usableForRouting, false);
+    assert.equal(observation.decision.classification, classification);
+    assert.equal(observation.requiredModel, "LUNA");
+    assert.equal(observation.aiAuthority, "ZERO_AUTHORITY");
+  }
+});
+
+test("domain advisory validators reject classification drift, extra fields and envelope mismatch", () => {
   assert.throws(
-    () =>
-      createJevDomainObservation(
-        workflowInput({ taskType: "RISK_EVENT_CLASSIFICATION" }),
-      ),
-    /JEV_TASK_DECISION_VALIDATOR_UNAVAILABLE/,
+    () => createJevDomainObservation(advisoryInput("RISK_EVENT_CLASSIFICATION", "NOT_REAL")),
+    /JEV_DOMAIN_ADVISORY_CLASSIFICATION_INVALID/,
+  );
+  assert.throws(
+    () => createJevDomainObservation(advisoryInput("RISK_EVENT_CLASSIFICATION", "STRESS", {
+      decision: {
+        classification: "STRESS",
+        severity: 2,
+        requiredModel: "LUNA",
+        reasonCode: "SHADOW_CLASSIFIED",
+        confidence: 0.82,
+        arbitrary: true,
+      },
+    })),
+    /JEV_DOMAIN_ADVISORY_DECISION_INVALID/,
+  );
+  assert.throws(
+    () => createJevDomainObservation(advisoryInput("RISK_EVENT_CLASSIFICATION", "STRESS", {
+      requiredModel: "SOL",
+    })),
+    /JEV_DECISION_ENVELOPE_MISMATCH/,
+  );
+  assert.throws(
+    () => createJevDomainObservation(advisoryInput("RISK_EVENT_CLASSIFICATION", "STRESS", {
+      decision: {
+        classification: "STRESS",
+        severity: 0,
+        requiredModel: "LUNA",
+        reasonCode: "SHADOW_CLASSIFIED",
+        confidence: 0.82,
+      },
+    })),
+    /JEV_DOMAIN_ADVISORY_SEVERITY_INVALID/,
   );
 });
 
