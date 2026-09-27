@@ -234,17 +234,19 @@ export function recordProviderRateLimit(
   if (now < original.updatedAt) throw new Error("PROVIDER_BACKPRESSURE_TIME_REGRESSION");
   if (failure.kind !== "RATE_LIMITED") throw new Error("PROVIDER_BACKPRESSURE_RATE_LIMIT_REQUIRED");
   const requestKey = identity(rawRequestKey, REQUEST_KEY, "PROVIDER_BACKPRESSURE_REQUEST_KEY_INVALID");
-  const retryCount = original.retryCount + 1;
+  const base = normalizedState(original, now);
+  if (!base.activeRequestKeys.includes(requestKey)) return base;
+  const retryCount = base.retryCount + 1;
   const delay = retryDelay(policy, requestKey, retryCount - 1, failure.retryAfterMs);
   const blockedUntil = now + delay;
   const exhausted = retryCount > policy.maxRetries;
-  const active = removeActive(original, requestKey);
+  const active = removeActive(base, requestKey);
   return authority({
-    ...original,
+    ...base,
     ...active,
     status: exhausted ? "BLOCKED_RATE_LIMIT" as const : "WAITING_RATE_LIMIT" as const,
-    concurrencyLimit: Math.max(policy.minConcurrency, Math.floor(original.concurrencyLimit / 2)),
-    rateLimitCount: original.rateLimitCount + 1,
+    concurrencyLimit: Math.max(policy.minConcurrency, Math.floor(base.concurrencyLimit / 2)),
+    rateLimitCount: base.rateLimitCount + 1,
     retryCount,
     successStreak: 0,
     blockedUntil,
@@ -261,9 +263,10 @@ export function recordProviderCompletion(
   validateTimestamp(now);
   if (now < original.updatedAt) throw new Error("PROVIDER_BACKPRESSURE_TIME_REGRESSION");
   const requestKey = identity(rawRequestKey, REQUEST_KEY, "PROVIDER_BACKPRESSURE_REQUEST_KEY_INVALID");
+  const base = normalizedState(original, now);
   return authority({
-    ...original,
-    ...removeActive(original, requestKey),
+    ...base,
+    ...removeActive(base, requestKey),
     updatedAt: now,
   });
 }
@@ -279,7 +282,16 @@ export function recordProviderSuccess(
   if (now < original.updatedAt) throw new Error("PROVIDER_BACKPRESSURE_TIME_REGRESSION");
   const requestKey = identity(rawRequestKey, REQUEST_KEY, "PROVIDER_BACKPRESSURE_REQUEST_KEY_INVALID");
   const base = normalizedState(original, now);
+  if (!base.activeRequestKeys.includes(requestKey)) return base;
   const active = removeActive(base, requestKey);
+  if (base.blockedUntil != null && now < base.blockedUntil) {
+    return authority({
+      ...base,
+      ...active,
+      lastSuccessAt: now,
+      updatedAt: now,
+    });
+  }
   const successStreak = base.successStreak + 1;
   const expand = successStreak >= policy.recoverySuccessThreshold && base.concurrencyLimit < policy.maxConcurrency;
   return authority({

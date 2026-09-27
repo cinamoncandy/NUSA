@@ -60,8 +60,9 @@ describe("provider backpressure", () => {
   it("uses deterministic bounded exponential backoff+jitter when provider reset is absent", () => {
     const failure = classifyAiProviderFailure({ statusCode: 429 });
     const initial = createProviderBackpressureState("provider-a", policy, 0);
-    const a = recordProviderRateLimit(initial, policy, "task-1", failure, 100);
-    const b = recordProviderRateLimit(initial, policy, "task-1", failure, 100);
+    const admitted = admitProviderRequest(initial, policy, "task-1", "AVAILABLE", 10).state;
+    const a = recordProviderRateLimit(admitted, policy, "task-1", failure, 100);
+    const b = recordProviderRateLimit(admitted, policy, "task-1", failure, 100);
     assert.equal(a.blockedUntil, b.blockedUntil);
     assert.ok((a.blockedUntil ?? 0) > 1_100);
     assert.ok((a.blockedUntil ?? 0) <= 1_350);
@@ -70,32 +71,40 @@ describe("provider backpressure", () => {
   it("repeated 429 exhausts bounded retries into BLOCKED_RATE_LIMIT with a future retry", () => {
     const failure = classifyAiProviderFailure({ statusCode: 429, retryAfterMs: 500 });
     let state = createProviderBackpressureState("provider-a", policy, 0);
+    state = admitProviderRequest(state, policy, "task-1", "AVAILABLE", 10).state;
     state = recordProviderRateLimit(state, policy, "task-1", failure, 100);
     assert.equal(state.status, "WAITING_RATE_LIMIT");
-    state = recordProviderRateLimit(state, policy, "task-1", failure, 700);
+    state = admitProviderRequest(state, policy, "task-1", "AVAILABLE", 700).state;
+    state = recordProviderRateLimit(state, policy, "task-1", failure, 710);
     assert.equal(state.status, "WAITING_RATE_LIMIT");
-    state = recordProviderRateLimit(state, policy, "task-1", failure, 1_300);
+    state = admitProviderRequest(state, policy, "task-1", "AVAILABLE", 1_300).state;
+    state = recordProviderRateLimit(state, policy, "task-1", failure, 1_310);
     assert.equal(state.status, "BLOCKED_RATE_LIMIT");
     assert.equal(state.retryCount, 3);
-    assert.ok((state.blockedUntil ?? 0) > 1_300);
+    assert.ok((state.blockedUntil ?? 0) > 1_310);
   });
 
   it("successful recovery expands concurrency gradually instead of jumping to max", () => {
     const failure = classifyAiProviderFailure({ statusCode: 429, retryAfterMs: 100 });
     let state = createProviderBackpressureState("provider-a", policy, 0);
+    state = admitProviderRequest(state, policy, "task-1", "AVAILABLE", 5).state;
     state = recordProviderRateLimit(state, policy, "task-1", failure, 10);
     assert.equal(state.concurrencyLimit, 2);
 
-    const first = recordProviderSuccess(state, policy, "task-2", 200);
+    state = admitProviderRequest(state, policy, "task-2", "AVAILABLE", 200).state;
+    const first = recordProviderSuccess(state, policy, "task-2", 201);
     assert.equal(first.concurrencyLimit, 2);
     assert.equal(first.successStreak, 1);
 
-    const second = recordProviderSuccess(first, policy, "task-3", 201);
+    const secondAdmitted = admitProviderRequest(first, policy, "task-3", "AVAILABLE", 202).state;
+    const second = recordProviderSuccess(secondAdmitted, policy, "task-3", 203);
     assert.equal(second.concurrencyLimit, 3);
     assert.equal(second.successStreak, 0);
 
-    const third = recordProviderSuccess(second, policy, "task-4", 202);
-    const fourth = recordProviderSuccess(third, policy, "task-5", 203);
+    const thirdAdmitted = admitProviderRequest(second, policy, "task-4", "AVAILABLE", 204).state;
+    const third = recordProviderSuccess(thirdAdmitted, policy, "task-4", 205);
+    const fourthAdmitted = admitProviderRequest(third, policy, "task-5", "AVAILABLE", 206).state;
+    const fourth = recordProviderSuccess(fourthAdmitted, policy, "task-5", 207);
     assert.equal(fourth.concurrencyLimit, 4);
     assert.ok(fourth.concurrencyLimit < policy.maxConcurrency);
   });
@@ -115,6 +124,46 @@ describe("provider backpressure", () => {
     assert.equal(completed.activeRequestKeys.length, 0);
     assert.equal(completed.successStreak, 0);
     assert.equal(completed.lastSuccessAt, null);
+  });
+
+
+
+  it("ignores a replayed 429 completion without consuming retry budget twice", () => {
+    const failure = classifyAiProviderFailure({ statusCode: 429, retryAfterMs: 3_000 }, policy.maxBackoffMs);
+    const initial = createProviderBackpressureState("provider-a", { ...policy, maxRetries: 1 }, 0);
+    const admitted = admitProviderRequest(initial, policy, "task-1", "AVAILABLE", 1).state;
+    const once = recordProviderRateLimit(admitted, policy, "task-1", failure, 3);
+    const replay = recordProviderRateLimit(once, policy, "task-1", failure, 4);
+    assert.equal(replay.retryCount, once.retryCount);
+    assert.equal(replay.rateLimitCount, once.rateLimitCount);
+    assert.equal(replay.concurrencyLimit, once.concurrencyLimit);
+    assert.equal(replay.status, "WAITING_RATE_LIMIT");
+  });
+
+  it("keeps an active Retry-After when an older concurrent request succeeds", () => {
+    const failure = classifyAiProviderFailure({ statusCode: 429, retryAfterMs: 3_000 }, policy.maxBackoffMs);
+    let state = createProviderBackpressureState("provider-a", policy, 0);
+    state = admitProviderRequest(state, policy, "limited", "AVAILABLE", 1).state;
+    state = admitProviderRequest(state, policy, "older-success", "AVAILABLE", 2).state;
+    state = recordProviderRateLimit(state, policy, "limited", failure, 3);
+    const deadline = state.blockedUntil;
+    state = recordProviderSuccess(state, policy, "older-success", 5);
+    assert.equal(state.status, "WAITING_RATE_LIMIT");
+    assert.equal(state.blockedUntil, deadline);
+    assert.equal(state.retryCount, 1);
+    assert.equal(admitProviderRequest(state, policy, "new", "AVAILABLE", 6).decision, "WAIT_RATE_LIMIT");
+  });
+
+  it("normalizes an expired cooldown when another request completes", () => {
+    const failure = classifyAiProviderFailure({ statusCode: 429, retryAfterMs: 100 }, policy.maxBackoffMs);
+    let state = createProviderBackpressureState("provider-a", policy, 0);
+    state = admitProviderRequest(state, policy, "limited", "AVAILABLE", 1).state;
+    state = admitProviderRequest(state, policy, "other", "AVAILABLE", 2).state;
+    state = recordProviderRateLimit(state, policy, "limited", failure, 3);
+    state = recordProviderCompletion(state, "other", 200);
+    assert.equal(state.status, "READY");
+    assert.equal(state.blockedUntil, null);
+    assert.equal(state.inFlight, 0);
   });
 
   it("never exposes authority beyond ZERO_AUTHORITY", () => {
