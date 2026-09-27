@@ -465,34 +465,30 @@ describe("coding runner", () => {
         return { response: { patch } };
       },
     };
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = (async () => {
-      jevCalls += 1;
-      return new Response(JSON.stringify({
-        rootCause: "INFRA",
-        safeToAutofix: "NO",
-        severity: 2,
-        requiredModel: "HUMAN",
-        confidence: 0.97,
-      }), { status: 200, headers: { "content-type": "application/json" } });
-    }) as typeof fetch;
-    try {
-      const result = await executeCodingRunner(failureRequest, {
-        NUSA_GITHUB_TOKEN: "github-token",
-        AI: ai,
-        NUSA_JEV_SHADOW_ENABLED: "true",
-        NUSA_JEV_BOUNDED_ROUTING_ENABLED: "true",
-        NUSA_JEV_API_KEY: jevTestKey(),
-        NUSA_JEV_ENDPOINT: "https://jev.invalid/classify",
-      }, verifiedGithubFetch);
-      assert.equal(result.status, "JEV_ROUTING_ABSTAINED");
-      assert.equal(result.jevAdmissionAction, "ABSTAIN_EXPENSIVE_INFERENCE");
-      assert.equal(result.jevAdmissionReason, "NON_CODE_AUTOFIX_FORBIDDEN");
-      assert.equal(workersAiCalls, 0);
-      assert.equal(jevCalls, 1);
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
+    const result = await executeCodingRunner(failureRequest, {
+      NUSA_GITHUB_TOKEN: "github-token",
+      AI: ai,
+      NUSA_JEV_SHADOW_ENABLED: "true",
+      NUSA_JEV_BOUNDED_ROUTING_ENABLED: "true",
+      NUSA_JEV_API_KEY: jevTestKey(),
+      NUSA_JEV_ENDPOINT: "https://jev.invalid/classify",
+    }, verifiedGithubFetch, undefined, undefined, {
+      jevAdmissionClassify: async () => {
+        jevCalls += 1;
+        return {
+          rootCause: "INFRA",
+          safeToAutofix: "NO",
+          severity: 2,
+          requiredModel: "HUMAN",
+          confidence: 0.97,
+        };
+      },
+    });
+    assert.equal(result.status, "JEV_ROUTING_ABSTAINED");
+    assert.equal(result.jevAdmissionAction, "ABSTAIN_EXPENSIVE_INFERENCE");
+    assert.equal(result.jevAdmissionReason, "NON_CODE_AUTOFIX_FORBIDDEN");
+    assert.equal(workersAiCalls, 0);
+    assert.equal(jevCalls, 1);
   });
 
   it("prefers the canonical Workers AI binding over a configured legacy endpoint", async () => {
