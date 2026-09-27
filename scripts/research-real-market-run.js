@@ -584,7 +584,7 @@ async function main() {
     canonicalHypothesis: candidate.canonicalHypothesis
   }));
 
-  let costStress = runExecutionCostStress(
+  const costStress = runExecutionCostStress(
     candlesToBacktestPoints(candles),
     candidates,
     WALK_FORWARD_CONFIG,
@@ -598,10 +598,6 @@ async function main() {
       datasetSha256: manifest.contentSha256
     }
   );
-
-  // Release full per-scenario WalkForward results before later Research stages.
-  const costStressEvidence = projectExecutionCostStress(costStress);
-  costStress = null;
 
   const parameterRobustnessRequest = buildParameterRobustnessRequest({ candles, manifest, strategyFamily: definition.familyId });
   const parameterRobustness = runParameterRobustnessRequest(parameterRobustnessRequest);
@@ -629,6 +625,7 @@ async function main() {
       datasetContentSha256: manifest.contentSha256
     }
   };
+  const costStressEvidence = projectExecutionCostStress(costStress);
   const robustnessEvidence = buildResearchRunRobustnessEvidence({
     datasetId: manifest.datasetId,
     datasetContentSha256: manifest.contentSha256,

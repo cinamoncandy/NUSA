@@ -25,7 +25,8 @@ test("Home reuses canonical chart reader and renderer without sample or private 
   assert.match(home, /marketChart.state === "READY" \? <CandlePlot model=\{marketChart\}/);
   assert.match(home, /krw\(marketChart.currentPrice\)/);
   assert.doesNotMatch(home, /128420000|128,420,000|Math.random|fetch\(|WebSocket/);
-  assert.match(home, /onNavigate\("Markets"\)/);
+  assert.match(home, /onNavigate\("Paper"\)/);
+  assert.doesNotMatch(home, /onNavigate\("Markets"\)/);
   assert.match(home, /disabled=\{disconnected\}/);
   assert.match(home, /LIVE NONE · AI ZERO AUTHORITY/);
 });

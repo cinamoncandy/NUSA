@@ -91,7 +91,7 @@ class ProposalCaptureRuntime implements CodingRuntime {
   proposal?: CodingProposal;
 
   async execute(request: CodingRunnerRequest, proposal?: CodingProposal): Promise<CodingRuntimeExecutionResult> {
-    if (!proposal?.patch.trim()) throw new Error("CODING_PROPOSAL_PATCH_REQUIRED");
+    if (!proposal?.patch?.trim()) throw new Error("CODING_PROPOSAL_PATCH_REQUIRED");
     this.proposal = proposal;
     return Object.freeze({
       backend: this.name,
@@ -173,7 +173,7 @@ export async function handleCodingProposal(request: Request, env: WorkerEnv): Pr
         aiAuthority: "ZERO_AUTHORITY",
       }, 409);
     }
-    if (result.status !== "EXECUTION_ACCEPTED" || !capture.proposal?.patch.trim()) {
+    if (result.status !== "EXECUTION_ACCEPTED" || !capture.proposal?.patch?.trim()) {
       throw new Error(result.reason || "CODING_PROPOSAL_UNAVAILABLE");
     }
     return json({

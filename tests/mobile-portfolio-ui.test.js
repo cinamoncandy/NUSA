@@ -71,6 +71,7 @@ test("Portfolio screen exposes truthful verified totals without unavailable retu
   assert.doesNotMatch(source, /testID="portfolio-summary"/);
   assert.doesNotMatch(source, /MetricTile/);
   assert.match(source, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
-  assert.match(app, /activeTab === "Portfolio"/);
+  assert.match(app, /detailSurface === "Portfolio" \? <PortfolioView/);
+  assert.doesNotMatch(app, /activeTab === "Portfolio"/);
   assert.match(app, /<PortfolioView/);
 });

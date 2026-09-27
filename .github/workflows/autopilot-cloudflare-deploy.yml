@@ -131,6 +131,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           NUSA_AUTOPILOT_RUNTIME_TOKEN: ${{ secrets.NUSA_AUTOPILOT_RUNTIME_TOKEN }}
+          NUSA_AUTOPILOT_GITHUB_TOKEN: ${{ secrets.NUSA_AUTOPILOT_GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
@@ -145,12 +146,16 @@ jobs:
             echo '::error::NUSA_AUTOPILOT_RUNTIME_TOKEN is missing or shorter than 32 bytes. HUMAN_ONLY blocker.'
             exit 1
           fi
+          if [ "${#NUSA_AUTOPILOT_GITHUB_TOKEN}" -lt 32 ]; then
+            echo '::error::NUSA_AUTOPILOT_GITHUB_TOKEN is missing or shorter than 32 bytes. HUMAN_ONLY blocker.'
+            exit 1
+          fi
           if ! pnpm dlx wrangler@4.127.1 whoami --config apps/autopilot/wrangler.jsonc >/tmp/nusa-wrangler-whoami.log 2>&1; then
             cat /tmp/nusa-wrangler-whoami.log
             echo '::error::Cloudflare authentication/account preflight failed.'
             exit 1
           fi
-          echo 'Cloudflare token/account/runtime-secret preflight passed.'
+          echo 'Cloudflare token/account/runtime-secret preflight passed; GitHub-secret preflight passed.'
 
       - name: Sync persistent Autopilot runtime bearer secret
         if: steps.revision.outputs.current == 'true'
@@ -165,6 +170,20 @@ jobs:
             pnpm dlx wrangler@4.127.1 secret put NUSA_AUTOPILOT_RUNTIME_TOKEN --config apps/autopilot/wrangler.jsonc >/tmp/nusa-runtime-secret-sync.log
           grep -q 'Success' /tmp/nusa-runtime-secret-sync.log || { cat /tmp/nusa-runtime-secret-sync.log; echo '::error::Cloudflare runtime-secret synchronization failed.'; exit 1; }
           echo 'Cloudflare Autopilot runtime secret synchronized without exposing token material.'
+
+      - name: Sync Worker GitHub API credential
+        if: steps.revision.outputs.current == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          NUSA_AUTOPILOT_GITHUB_TOKEN: ${{ secrets.NUSA_AUTOPILOT_GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          [ "${#NUSA_AUTOPILOT_GITHUB_TOKEN}" -ge 32 ] || { echo '::error::Worker GitHub credential unavailable.'; exit 1; }
+          printf '%s' "$NUSA_AUTOPILOT_GITHUB_TOKEN" |
+            pnpm dlx wrangler@4.127.1 secret put NUSA_GITHUB_TOKEN --config apps/autopilot/wrangler.jsonc >/tmp/nusa-github-secret-sync.log
+          grep -q 'Success' /tmp/nusa-github-secret-sync.log || { cat /tmp/nusa-github-secret-sync.log; echo '::error::Worker GitHub credential synchronization failed.'; exit 1; }
+          echo 'Worker GitHub API credential synchronized without exposing token material.'
 
       - name: Deploy exact CI-verified revision to Cloudflare Workers Free-compatible runtime
         if: steps.revision.outputs.current == 'true'
