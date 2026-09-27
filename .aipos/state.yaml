@@ -1,12 +1,17 @@
 version: 1
 current_research_jev_shadow_runtime:
   work_order: WO-ISSUE-2321-RESEARCH-JEV-SHADOW
-  status: READY_FOR_REVIEW
+  status: BLOCKED
   branch: fix/research-jev-shadow-runtime-wiring
   base_sha: 8c77a70f1ceba5b0d7bac46d90cfe25400dd5893
+  implementation_head: cc0884a56bb583834b82525554c584c587b64f01
   runtime_slice: scheduled-research-scout-jev-attention-shadow
+  implementation_status: READY_FOR_REVIEW
+  review_threads: RESOLVED
+  validation: "Implementation head cc0884a exact-head CI 36287540143 PASS; Research Intelligence Scout advisory run 36287540175 PASS; Actual PAPER, Read-only Broker, and Restricted LIVE companion workflows PASS. Provider response is time- and byte-bounded; schedule/manual discover share one non-cancelling single-writer concurrency group."
   recovery_state: deterministic-axiom-handoff-preserved-on-provider-failure
-  remaining: exact-head-CI_then_independent-Audit_then_Release_then_merge_then_scheduled-runtime-recovery-replay-evidence
+  blocker: "Independent Audit provider is in WORKERS_AI_DAILY_QUOTA_EXHAUSTED HARD_STOP; persisted nextRetryAt is 2026-09-28T00:00:00Z (2026-09-28 09:00 KST). Do not repeatedly poll or dispatch Audit before this boundary."
+  remaining: fresh-exact-head-CI_after_metadata_then_independent-Audit_after-nextRetryAt_then_Release_then_merge_then_scheduled-runtime-recovery-replay-evidence
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_audit_recovery_pagination_fix:
   work_order: WO-20260926-AUDIT-RECOVERY-PAGINATION-FIX
