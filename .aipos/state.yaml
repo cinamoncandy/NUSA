@@ -1,13 +1,17 @@
 version: 1
 current_jev_domain_observation_contract:
   work_order: WO-ISSUE-2326-JEV-DOMAIN-OBSERVATION
-  status: READY_FOR_REVIEW
+  status: BLOCKED
   branch: feat/2326-jev-domain-observation-registry
   base_sha: 8c77a70f1ceba5b0d7bac46d90cfe25400dd5893
+  implementation_head: ca56eb2a21ae93c84031ed210a62805508d8908a
   scope: canonical-jev-domain-observation-envelope-and-task-type-registry
   rollout_ceiling: SHADOW
-  local_validation: "Original exact-head build + focused Jev tests 13/13 + preflight + diff PASS; latest-main reconciliation preserved Jev code unchanged and fresh merged-main CI build/typecheck PASS. Low-memory nusa-vcn full recompilation was resource-limited, not diagnostically failed; final exact-head CI is required."
-  remaining: exact-head-CI_then_independent-Audit_then_Release_then_merge
+  implementation_status: READY_FOR_REVIEW
+  review_threads: RESOLVED
+  validation: "Implementation head ca56eb2a exact-head CI 36287313910 PASS including validation, all coverage shards, aggregate coverage, and test; local focused TypeScript compile, runtime trust-boundary assertions, AIPOS YAML, and git diff checks PASS. Full repository tsc on the 1 GB nusa-vcn verifier was resource-limited and boundedly stopped, not diagnostically failed. This metadata-only reconciliation requires one final fresh exact-head CI."
+  blocker: "Independent Audit provider is in WORKERS_AI_DAILY_QUOTA_EXHAUSTED HARD_STOP; persisted nextRetryAt is 2026-09-28T00:00:00Z (2026-09-28 09:00 KST). Do not repeatedly poll or dispatch Audit before this boundary."
+  remaining: fresh-exact-head-CI_then_independent-Audit_after-nextRetryAt_then_Release_then_merge
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_audit_recovery_pagination_fix:
   work_order: WO-20260926-AUDIT-RECOVERY-PAGINATION-FIX
