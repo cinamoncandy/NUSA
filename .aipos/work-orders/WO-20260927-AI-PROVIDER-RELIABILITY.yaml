@@ -1,0 +1,47 @@
+id: WO-20260927-AI-PROVIDER-RELIABILITY
+title: "Provider-neutral AI reliability taxonomy and circuit recovery"
+status: WIP
+owner: nusa-ai-platform
+repository: cinamoncandy/NUSA
+issue: 1997
+base_branch: main
+base_commit: 8c77a70f1ceba5b0d7bac46d90cfe25400dd5893
+implementation_branch: feat/1997-provider-reliability
+authority_impact: none
+objective: "Complete the provider-neutral reliability gap in the canonical AI Platform without creating a second router: classify provider failures deterministically, maintain bounded provider circuit health/recovery, and project health into the existing model registry."
+scope:
+  include:
+    - "Provider-neutral taxonomy: TIMEOUT, AUTH_CONFIG, RATE_LIMITED, UNAVAILABLE, MALFORMED_OUTPUT, CONTEXT_OVERFLOW, BUDGET_EXHAUSTED, UNKNOWN."
+    - "Deterministic retryability/manual-reset/circuit relevance without exposing raw provider messages in outputs."
+    - "CLOSED/OPEN/HALF_OPEN/BLOCKED provider circuit state with bounded failure threshold, cooldown, retry-after and recovery."
+    - "Provider health projection into existing AiModelRegistryEntry.availability."
+    - "ZERO_AUTHORITY / NONE / no production mutation invariants."
+  exclude:
+    - "A second model router, scheduler, provider client, queue, governor, or orchestrator."
+    - "Autopilot provider concurrency/backpressure integration owned by #2185/#903."
+    - "Secrets, credential mutation, Audit/Release/merge authority, LIVE/trading authority."
+acceptance:
+  - "Taxonomy distinguishes timeout/auth/429/5xx/malformed/context/budget/unknown."
+  - "Only bounded transient failures are retryable."
+  - "Auth/config and budget-without-reset fail closed and require explicit reset."
+  - "Rate-limit can open immediately using bounded retry-after."
+  - "Repeated timeout/unavailable opens at threshold; recovery is OPEN -> HALF_OPEN -> CLOSED after bounded successes."
+  - "Failure during HALF_OPEN reopens."
+  - "Request-local malformed/context/unknown failures do not poison provider health."
+  - "Provider circuit health deterministically maps into canonical model registry availability."
+  - "No raw message/credential is copied into classification or circuit telemetry."
+verification_commands:
+  - "pnpm run build"
+  - "node --test dist/apps/cloud/src/ai/providerReliability.test.js"
+  - "git diff --check"
+evidence:
+  implementation_status: WIP
+  local_validation: PENDING
+  external_validation: "Required: exact-head CI, independent Audit, canonical Release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Run focused validation, fix/retest, mark READY_FOR_REVIEW, then exact-head CI."
