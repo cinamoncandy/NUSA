@@ -326,7 +326,29 @@ const CANONICAL_ISO_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const SENSITIVE_FIELD =
   /authorization|password|secret|token|apikey|api_key|privatekey|private_key|cookie|credential|recoverycode|recovery_code/i;
 const SENSITIVE_VALUE =
-  /bearer\s+[A-Za-z0-9._~+\/-]{8,}|-----BEGIN [A-Z ]*PRIVATE KEY-----/i;
+  /bearer\s+[A-Za-z0-9._~+\/-]{8,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(?:ghp_|github_pat_|xox[baprs]-)[A-Za-z0-9-]{16,}\b|\bAKIA[0-9A-Z]{16}\b|\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/i;
+
+const REQUIRED_MODELS = new Set<JevRequiredModel>([
+  "LUNA",
+  "TERRA",
+  "SOL",
+  "ASTRA",
+  "HUMAN",
+]);
+
+function validateRequiredModel(value: unknown): JevRequiredModel {
+  if (typeof value !== "string" || !REQUIRED_MODELS.has(value as JevRequiredModel)) {
+    throw new Error("JEV_REQUIRED_MODEL_INVALID");
+  }
+  return value as JevRequiredModel;
+}
+
+function validateBoolean(value: unknown, field: string): boolean {
+  if (typeof value !== "boolean") {
+    throw new Error(`JEV_${field.toUpperCase()}_INVALID`);
+  }
+  return value;
+}
 
 function boundedText(value: string, field: string, maxLength = 256): string {
   const normalized = value.trim();
@@ -439,6 +461,9 @@ export function createJevDomainObservation(
 ): JevDomainObservation {
   assertJevTaskTypeRegistry();
   const taskPolicy = getJevTaskTypePolicy(input.taskType);
+  const requiredModel = validateRequiredModel(input.requiredModel);
+  const timeoutApplied = validateBoolean(input.timeoutApplied, "timeout_applied");
+  const fallbackApplied = validateBoolean(input.fallbackApplied, "fallback_applied");
   const rolloutStage = input.rolloutStage ?? "SHADOW";
   if (!Object.prototype.hasOwnProperty.call(STAGE_RANK, rolloutStage)) {
     throw new Error("JEV_STAGE_INVALID");
@@ -460,7 +485,7 @@ export function createJevDomainObservation(
   const decision = validateTaskDecision(taskPolicy, input.decision);
   if (taskPolicy.decisionSchema === "WORKFLOW_FAILURE_V1") {
     if (
-      decision.requiredModel !== input.requiredModel ||
+      decision.requiredModel !== requiredModel ||
       decision.confidence !== input.confidence
     ) {
       throw new Error("JEV_DECISION_ENVELOPE_MISMATCH");
@@ -486,7 +511,7 @@ export function createJevDomainObservation(
     sourceIdentity: boundedText(input.sourceIdentity, "source_identity", 512),
     sourceVersion: boundedText(input.sourceVersion, "source_version", 256),
     decision,
-    requiredModel: input.requiredModel,
+    requiredModel,
     reasonCode: input.reasonCode,
     confidence: input.confidence,
     providerId: boundedText(input.providerId, "provider_id", 128),
@@ -496,8 +521,8 @@ export function createJevDomainObservation(
       "provider_model_version",
       128,
     ),
-    timeoutApplied: input.timeoutApplied,
-    fallbackApplied: input.fallbackApplied,
+    timeoutApplied,
+    fallbackApplied,
     correlationId: boundedText(input.correlationId, "correlation_id", 256),
     traceId: boundedText(input.traceId, "trace_id", 256),
     timestamp: canonicalTimestamp(input.timestamp),
