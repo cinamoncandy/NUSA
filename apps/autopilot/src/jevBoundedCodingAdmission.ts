@@ -45,6 +45,8 @@ export interface JevCodingAdmissionDecision {
   readonly action: JevCodingAdmissionAction;
   readonly reasonCode: JevCodingAdmissionReason;
   readonly rootCause: JevRootCause | null;
+  readonly safeToAutofix: "YES" | "NO" | null;
+  readonly severity: 1 | 2 | 3 | 4 | 5 | null;
   readonly requiredModel: JevRequiredModel | null;
   readonly confidence: number;
   readonly provider: "jev" | null;
@@ -73,11 +75,15 @@ function decision(
   requiredModel: JevRequiredModel | null = null,
   confidence = 0,
   provider: "jev" | null = null,
+  safeToAutofix: "YES" | "NO" | null = null,
+  severity: 1 | 2 | 3 | 4 | 5 | null = null,
 ): JevCodingAdmissionDecision {
   return Object.freeze({
     action,
     reasonCode,
     rootCause,
+    safeToAutofix,
+    severity,
     requiredModel,
     confidence,
     provider,
@@ -188,12 +194,12 @@ export async function decideJevBoundedCodingAdmission(
     }));
     const routed = validateJevShadowDecision(raw);
     if (routed.confidence < MIN_ACTIVE_CONFIDENCE) {
-      return decision("PROCEED_EXISTING", "LOW_CONFIDENCE", routed.rootCause, routed.requiredModel, routed.confidence, "jev");
+      return decision("PROCEED_EXISTING", "LOW_CONFIDENCE", routed.rootCause, routed.requiredModel, routed.confidence, "jev", routed.safeToAutofix, routed.severity);
     }
     if (routed.safeToAutofix === "NO" && NON_CODE_ROOT_CAUSES.has(routed.rootCause)) {
-      return decision("ABSTAIN_EXPENSIVE_INFERENCE", "NON_CODE_AUTOFIX_FORBIDDEN", routed.rootCause, routed.requiredModel, routed.confidence, "jev");
+      return decision("ABSTAIN_EXPENSIVE_INFERENCE", "NON_CODE_AUTOFIX_FORBIDDEN", routed.rootCause, routed.requiredModel, routed.confidence, "jev", routed.safeToAutofix, routed.severity);
     }
-    return decision("PROCEED_EXISTING", "JEV_ADMITTED", routed.rootCause, routed.requiredModel, routed.confidence, "jev");
+    return decision("PROCEED_EXISTING", "JEV_ADMITTED", routed.rootCause, routed.requiredModel, routed.confidence, "jev", routed.safeToAutofix, routed.severity);
   } catch {
     return decision("PROCEED_EXISTING", "PROVIDER_UNAVAILABLE");
   }
