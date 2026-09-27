@@ -559,6 +559,64 @@ test("canonical provider body timeout maps to TIMEOUT", async () => {
   assert.equal(result.jevAttentionShadows[0].fallbackApplied, true);
 });
 
+test("canonical provider rejects oversized declared response before buffering", async () => {
+  let textCalled = false;
+  const observer = createJevResearchAttentionShadowObserverFromEnvironment(
+    {
+      NUSA_JEV_RESEARCH_ATTENTION_SHADOW_ENABLED: "true",
+      NUSA_JEV_API_KEY: "unit-jev-credential",
+      NUSA_JEV_ENDPOINT: "https://jev.invalid/classify",
+    },
+    async () => ({
+      ok: true,
+      status: 200,
+      headers: { get(name) { return name.toLowerCase() === "content-length" ? "20000" : null; } },
+      async text() { textCalled = true; return "{}"; },
+    }),
+  );
+  assert.ok(observer);
+  const receipt = await observer.observe(record(), "HANDOFF", ENABLED);
+  assert.equal(receipt.reasonCode, "MALFORMED_RESPONSE");
+  assert.equal(receipt.fallbackApplied, true);
+  assert.equal(textCalled, false);
+});
+
+test("canonical provider caps streamed response bytes before full buffering", async () => {
+  let index = 0;
+  let cancelled = false;
+  const chunks = [new Uint8Array(10_000), new Uint8Array(10_000)];
+  const observer = createJevResearchAttentionShadowObserverFromEnvironment(
+    {
+      NUSA_JEV_RESEARCH_ATTENTION_SHADOW_ENABLED: "true",
+      NUSA_JEV_API_KEY: "unit-jev-credential",
+      NUSA_JEV_ENDPOINT: "https://jev.invalid/classify",
+    },
+    async () => ({
+      ok: true,
+      status: 200,
+      headers: { get() { return null; } },
+      body: {
+        getReader() {
+          return {
+            async read() {
+              if (index >= chunks.length) return { done: true };
+              return { done: false, value: chunks[index++] };
+            },
+            async cancel() { cancelled = true; },
+            releaseLock() {},
+          };
+        },
+      },
+      async text() { throw new Error("streaming path must not call text"); },
+    }),
+  );
+  assert.ok(observer);
+  const receipt = await observer.observe(record(), "HANDOFF", ENABLED);
+  assert.equal(receipt.reasonCode, "MALFORMED_RESPONSE");
+  assert.equal(receipt.fallbackApplied, true);
+  assert.equal(cancelled, true);
+});
+
 test("canonical provider non-2xx maps to PROVIDER_UNAVAILABLE without blocking handoff", async () => {
   const observer = createJevResearchAttentionShadowObserverFromEnvironment(
     {
@@ -675,6 +733,11 @@ test("Research Intelligence runtime wires Jev shadow only through the protected 
   assert.match(discoverJob, /path: research-intelligence-memory\.sqlite/);
   assert.match(discoverJob, /restore-keys:[\s\S]*research-intelligence-memory-/);
   assert.match(discoverJob, /--db research-intelligence-memory\.sqlite/);
+  assert.match(validateJob, /group: research-intelligence-scout-pr-\$\{\{ github\.event\.pull_request\.number \}\}/);
+  assert.match(validateJob, /cancel-in-progress: true/);
+  assert.match(discoverJob, /group: research-intelligence-scout-discover-main/);
+  assert.match(discoverJob, /cancel-in-progress: false/);
+  assert.doesNotMatch(workflow, /group: research-intelligence-scout-\$\{\{ github\.event_name \}\}/);
   assert.match(workflow, /permissions:\n  contents: read/);
   assert.doesNotMatch(workflow, /contents: write|actions: write|id-token: write/);
 });
