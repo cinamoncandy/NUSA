@@ -1,0 +1,39 @@
+id: WO-20260923-AUTOPILOT-QUOTA-EVIDENCE-ACCURACY
+title: "Report a daily-quota stop's real resume time in dispatch-retry evidence"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: c96b5318d23cfe92e856b78619610e952a720d27
+implementation_branch: claude/nusa-repository-j93sd8-quota-evidence
+objective: "The GitHub Actions consumer script's own evidence/telemetry for a WORKERS_AI_DAILY_QUOTA_EXHAUSTED stop reports the real provider resume time (up to ~24h), not the 60s local retry-loop ceiling."
+parent_work_order: WO-20260923-AUTOPILOT-DAILY-QUOTA-WAIT
+authority_impact: none
+finding: "Reading production evidence after #2238 deployed (run 35851360807, 10:53:36Z): the Worker correctly recorded a next-UTC-day provider wait (per #2238), but scripts/autopilot-dispatch-retry.js's own coding-runner-result.json reported nextRetryAt only ~1015ms later, because clampRetryDelayMs() capped every reported value at MAX_RETRY_DELAY_MS=60_000 regardless of cause. This never changed retry timing (a daily-quota stop's decision is always NO_ACTION, so the local sleep path never runs for it), but it corrupts the only available telemetry for measuring provider-wait duration and time-to-quota-exhaustion."
+scope:
+  include:
+    - "retryHint/retryTimestampMs/clampRetryDelayMs accept a maxMs ceiling"
+    - "rateLimitEvidence uses an uncapped-up-to-25h ceiling only when code is WORKERS_AI_DAILY_QUOTA_EXHAUSTED; all other codes keep the existing 60s reporting ceiling"
+  exclude:
+    - "Local retry-loop sleep timing (boundedBackoffMs, actual await sleep calls) — unchanged"
+    - "Worker-side (apps/autopilot/src/codingRunner.ts, executionCoordinator.ts) provider-wait storage — unchanged, already correct per #2238"
+    - "New scheduler/queue/state, LIVE, production mutation, credentials"
+acceptance:
+  - "A daily-quota WAITING_RATE_LIMIT payload with nextRetryAt ~13h away is reported as-is, not clamped to 60s."
+  - "A generic transient rate limit's reported nextRetryAt is still bounded to 60s."
+  - "No retry/sleep timing changes for any rate-limit class (daily-quota decision remains NO_ACTION)."
+verification_commands:
+  - "pnpm run preflight (Node >= 24)"
+  - "node --test tests/autopilot-dispatch-retry.test.js"
+evidence:
+  implementation_status: READY_FOR_REVIEW
+  mutation_verification:
+    - "reverting the daily-quota maxMs branch -> 4 failures"
+  external_validation: "REQUIRED: exact-head protected CI, independent Audit, and Release gate."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Obtain exact-head CI, independent Audit, and Release; do not merge from Development."

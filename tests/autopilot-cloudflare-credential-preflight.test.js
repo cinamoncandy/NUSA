@@ -129,3 +129,14 @@ test('blocker consumes only trusted preflight outputs and preserves pending conv
   assert.match(workflow, /deployment_status: \$\{\{ steps\.deploy\.outputs\.status \}\}/);
   assert.match(workflow, /needs\.preflight\.outputs\.deployment_status == 'ready'/);
 });
+
+
+test('secret-bearing preflight validates runtime GitHub credential read-only before Worker sync', () => {
+  assert.match(workflow, /NUSA_GITHUB_TOKEN: \$\{\{ secrets\.NUSA_AUTOPILOT_GITHUB_TOKEN \}\}/);
+  assert.match(workflow, /Validate runtime GitHub credential before Cloudflare sync/);
+  assert.match(workflow, /Authorization: Bearer \$NUSA_GITHUB_TOKEN/);
+  assert.match(workflow, /https:\/\/api\.github\.com\/repos\/\$GITHUB_REPOSITORY/);
+  assert.match(workflow, /Runtime GitHub credential rejected by GitHub API/);
+  assert.match(workflow, /BLOCKED_HUMAN/);
+  assert.doesNotMatch(workflow.slice(workflow.indexOf('Validate runtime GitHub credential before Cloudflare sync'), workflow.indexOf('Check Cloudflare API token self-verification')), /echo.*NUSA_GITHUB_TOKEN/);
+});

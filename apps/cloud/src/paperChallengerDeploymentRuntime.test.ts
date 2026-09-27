@@ -73,6 +73,36 @@ function account(updatedAt = 2_000): PaperAccountState {
   return { version: 1, updatedAt } as PaperAccountState;
 }
 
+/**
+ * Canonical Strategy Governance approval for the one candidate these fixtures deploy. It is exact on
+ * purpose: it answers only for this candidate, version, family and binding evidence and throws for
+ * anything else, so a test cannot pass against a port that authorizes everything.
+ */
+const governanceApproval = Object.freeze({
+  strategyId: "sma-crossover-strategy",
+  candidateId: "challenger-a",
+  candidateVersion: SPECIFICATION_HASH,
+  familyId: "sma-crossover",
+  lifecycle: "CHALLENGER",
+  approval: Object.freeze({
+    actorType: "HUMAN",
+    approvalReference: "owner:challenger:challenger-a",
+    approvedAt: 1,
+    decisionFingerprint: "d".repeat(64),
+  }),
+});
+
+const governanceFor = (overrides: Record<string, unknown> = {}) => ({
+  requireExecutableChallenger: (request: { candidateId: string; candidateVersion: string; familyId: string; evidenceFingerprintSha256: string }) => {
+    if (
+      request.candidateId !== governanceApproval.candidateId ||
+      request.candidateVersion !== governanceApproval.candidateVersion ||
+      request.familyId !== governanceApproval.familyId
+    ) throw new Error("PAPER_CHALLENGER_GOVERNANCE_NOT_APPROVED");
+    return { ...governanceApproval, evidenceFingerprintSha256: request.evidenceFingerprintSha256, ...overrides };
+  },
+});
+
 describe("PaperChallengerDeploymentRuntime", () => {
   it("persists exact Research lineage with the canonical PAPER binding and opens the period", () => {
     const ledger = new MemoryLedger();
@@ -89,6 +119,7 @@ describe("PaperChallengerDeploymentRuntime", () => {
         },
       },
       readCanonicalPaperAccount: () => account(),
+      governance: governanceFor(),
     });
 
     const receipt = runtime.deploy({ cycleId: `closed-learning:${"b".repeat(64)}`, decision, authority: "PAPER_RESEARCH_ONLY", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
@@ -111,6 +142,7 @@ describe("PaperChallengerDeploymentRuntime", () => {
       bindings: new PaperChallengerBindingLedger(new MemoryLedger()),
       periods: { listRealizedPeriods: () => [], openPeriodFromCanonicalAccount: () => { throw new Error("must not open"); } },
       readCanonicalPaperAccount: () => account(),
+      governance: governanceFor(),
     });
     assert.throws(() => runtime.deploy({ cycleId: `closed-learning:${"b".repeat(64)}`, decision, authority: "PAPER_RESEARCH_ONLY", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }), /artifact is unavailable/);
   });
@@ -121,6 +153,7 @@ describe("PaperChallengerDeploymentRuntime", () => {
       bindings: new PaperChallengerBindingLedger(new MemoryLedger()),
       periods: { listRealizedPeriods: () => [], openPeriodFromCanonicalAccount: () => { throw new Error("must not open"); } },
       readCanonicalPaperAccount: () => account(),
+      governance: governanceFor(),
     });
     assert.throws(() => runtime.deploy({ cycleId: `closed-learning:${"b".repeat(64)}`, decision, authority: "PAPER_RESEARCH_ONLY", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }), /decision provenance conflict/);
   });
@@ -131,6 +164,7 @@ describe("PaperChallengerDeploymentRuntime", () => {
       bindings: new PaperChallengerBindingLedger(new MemoryLedger()),
       periods: { listRealizedPeriods: () => [], openPeriodFromCanonicalAccount: () => { throw new Error("must not open"); } },
       readCanonicalPaperAccount: () => account(),
+      governance: governanceFor(),
     });
     assert.throws(() => runtime.deploy({ cycleId: `closed-learning:${"b".repeat(64)}`, decision, authority: "PAPER_RESEARCH_ONLY", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }), /strategy semantics are unavailable/);
   });
@@ -141,6 +175,7 @@ describe("PaperChallengerDeploymentRuntime", () => {
       bindings: new PaperChallengerBindingLedger(new MemoryLedger()),
       periods: { listRealizedPeriods: () => [], openPeriodFromCanonicalAccount: () => { throw new Error("must not open"); } },
       readCanonicalPaperAccount: () => account(),
+      governance: governanceFor(),
     });
     assert.throws(() => runtime.deploy({ cycleId: `closed-learning:${"b".repeat(64)}`, decision, authority: "PAPER_RESEARCH_ONLY", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }), /Research lineage is unavailable/);
   });
@@ -153,6 +188,7 @@ describe("PaperChallengerDeploymentRuntime", () => {
       bindings,
       periods: { listRealizedPeriods: () => [], openPeriodFromCanonicalAccount: (input) => Object.freeze({ ...input, schemaVersion: 1 as const, observationIds: Object.freeze([]), observations: Object.freeze([]) }) },
       readCanonicalPaperAccount: () => account(),
+      governance: governanceFor(),
     });
     runtime.deploy({ cycleId: `closed-learning:${"b".repeat(64)}`, decision, authority: "PAPER_RESEARCH_ONLY", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
     const conflicting = Object.freeze({ ...artifact, researchLineage: Object.freeze({ ...researchLineage, replayRunFingerprintSha256: "d".repeat(64) }) });
@@ -161,7 +197,92 @@ describe("PaperChallengerDeploymentRuntime", () => {
       bindings,
       periods: { listRealizedPeriods: () => [], openPeriodFromCanonicalAccount: () => { throw new Error("must not open"); } },
       readCanonicalPaperAccount: () => account(),
+      governance: governanceFor(),
     });
     assert.throws(() => replay.deploy({ cycleId: `closed-learning:${"b".repeat(64)}`, decision, authority: "PAPER_RESEARCH_ONLY", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }), /Research lineage conflict/);
+  });
+});
+
+describe("PaperChallengerDeploymentRuntime Strategy Governance gate", () => {
+  const deployWith = (governance: unknown) => {
+    const ledger = new MemoryLedger();
+    const bindings = new PaperChallengerBindingLedger(ledger);
+    const opens: unknown[] = [];
+    const runtime = new PaperChallengerDeploymentRuntime({
+      artifacts: { read: () => artifact },
+      bindings,
+      periods: {
+        listRealizedPeriods: () => Object.freeze([]),
+        openPeriodFromCanonicalAccount: (input) => {
+          opens.push(input);
+          return Object.freeze({ ...input, schemaVersion: 1 as const, observationIds: Object.freeze([]), observations: Object.freeze([]) });
+        },
+      },
+      readCanonicalPaperAccount: () => account(),
+      governance: governance as never,
+    });
+    const run = () => runtime.deploy({ cycleId: `closed-learning:${"b".repeat(64)}`, decision, authority: "PAPER_RESEARCH_ONLY", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+    return { run, opens, ledger };
+  };
+
+  const expectNoSideEffect = (governance: unknown, pattern: RegExp) => {
+    const { run, opens, ledger } = deployWith(governance);
+    assert.throws(run, pattern);
+    // The gate runs before revoke, activate and period open, so a refusal must leave no binding
+    // event and no opened period behind.
+    assert.equal(opens.length, 0, "a refused deployment must not open a PAPER period");
+    assert.equal(ledger.records.length, 0, "a refused deployment must not append a binding event");
+  };
+
+  it("refuses to deploy when no Governance port is wired at all", () => {
+    expectNoSideEffect(undefined, /PAPER_CHALLENGER_GOVERNANCE_APPROVAL_UNAVAILABLE/);
+  });
+
+  it("refuses an approval for a different candidate, version, family or evidence", () => {
+    for (const override of [
+      { candidateId: "other-candidate" },
+      { candidateVersion: "f".repeat(64) },
+      { familyId: "other-family" },
+      { evidenceFingerprintSha256: "e".repeat(64) },
+    ]) {
+      expectNoSideEffect(governanceFor(override), /PAPER_CHALLENGER_GOVERNANCE_IDENTITY_MISMATCH/);
+    }
+  });
+
+  it("refuses every lifecycle that is not a current CHALLENGER", () => {
+    for (const lifecycle of ["PAPER_ACTIVE", "PROMOTION_PENDING", "CHAMPION", "SUSPENDED", "ROLLED_BACK", "RETIRED", "REJECTED", "DRAFT"]) {
+      expectNoSideEffect(governanceFor({ lifecycle }), /PAPER_CHALLENGER_GOVERNANCE_LIFECYCLE_INVALID/);
+    }
+  });
+
+  it("refuses AI or AXIOM self-approval", () => {
+    for (const actorType of ["AI", "AXIOM", "SYSTEM", "SERVICE"]) {
+      expectNoSideEffect(governanceFor({ approval: { ...governanceApproval.approval, actorType } }), /PAPER_CHALLENGER_GOVERNANCE_APPROVAL_INVALID/);
+    }
+  });
+
+  it("refuses malformed approval provenance", () => {
+    for (const approval of [
+      { ...governanceApproval.approval, decisionFingerprint: "not-a-sha" },
+      { ...governanceApproval.approval, approvalReference: "" },
+      { ...governanceApproval.approval, approvedAt: -1 },
+      { ...governanceApproval.approval, approvedAt: 1.5 },
+    ]) {
+      expectNoSideEffect(governanceFor({ approval }), /PAPER_CHALLENGER_GOVERNANCE_APPROVAL_INVALID/);
+    }
+  });
+
+  it("refuses a port that answers with nothing", () => {
+    expectNoSideEffect({ requireExecutableChallenger: () => undefined }, /PAPER_CHALLENGER_GOVERNANCE_APPROVAL_UNAVAILABLE/);
+  });
+
+  it("lets an approved CHALLENGER through and keeps an identical replay idempotent", () => {
+    const { run, opens } = deployWith(governanceFor());
+    const first = run();
+    assert.equal(first.candidateId, "challenger-a");
+    assert.equal(opens.length, 1);
+    const second = run();
+    assert.equal(second.candidateId, "challenger-a");
+    assert.equal(opens.length, 2, "replay re-opens deterministically rather than double-binding");
   });
 });

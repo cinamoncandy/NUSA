@@ -1,0 +1,46 @@
+import type { PaperPerformanceEvidence } from "./paperPerformanceEvidence";
+
+export interface PaperPerformanceComparisonContext {
+  readonly familyId: string;
+  readonly evidence: PaperPerformanceEvidence;
+}
+
+export function assertPaperPerformanceComparable(
+  left: PaperPerformanceComparisonContext,
+  right: PaperPerformanceComparisonContext,
+): void {
+  if (!left.familyId.trim() || left.familyId !== right.familyId) throw new Error("PAPER_PERFORMANCE_FAMILY_MISMATCH");
+  const a = left.evidence;
+  const b = right.evidence;
+  if (a.evidenceKind !== "PAPER" || b.evidenceKind !== "PAPER") throw new Error("PAPER_PERFORMANCE_EVIDENCE_KIND_MISMATCH");
+  if (a.periodStartAt !== b.periodStartAt || a.periodEndAt !== b.periodEndAt) throw new Error("PAPER_PERFORMANCE_WINDOW_MISMATCH");
+  if (a.benchmarkId !== b.benchmarkId) throw new Error("PAPER_PERFORMANCE_BENCHMARK_MISMATCH");
+  if (a.calculationVersion !== b.calculationVersion) throw new Error("PAPER_PERFORMANCE_CALCULATION_MISMATCH");
+  if (a.observationCount !== b.observationCount) throw new Error("PAPER_PERFORMANCE_SAMPLE_MISMATCH");
+  if (a.authority !== "PAPER_ONLY" || b.authority !== "PAPER_ONLY" || a.liveAuthority !== "NONE" || b.liveAuthority !== "NONE" || a.aiAuthority !== "ZERO_AUTHORITY" || b.aiAuthority !== "ZERO_AUTHORITY") {
+    throw new Error("PAPER_PERFORMANCE_AUTHORITY_MISMATCH");
+  }
+}
+
+export function assertPaperPerformanceFresh(
+  evidence: PaperPerformanceEvidence,
+  now: number,
+  maxAgeMs: number,
+): void {
+  if (!Number.isSafeInteger(now) || !Number.isSafeInteger(maxAgeMs) || maxAgeMs < 0 || now < evidence.generatedAt) {
+    throw new Error("PAPER_PERFORMANCE_FRESHNESS_POLICY_INVALID");
+  }
+  if (now - evidence.generatedAt > maxAgeMs) throw new Error("PAPER_PERFORMANCE_EVIDENCE_STALE");
+}
+
+export interface PaperPerformanceLedgerSourceReadiness {
+  readonly durableCompleteJournal: boolean;
+  readonly reconciled: boolean;
+  readonly ledgerFingerprintSha256: string;
+}
+
+export function assertPaperPerformanceLedgerSourceReady(source: PaperPerformanceLedgerSourceReadiness): void {
+  if (!source.durableCompleteJournal) throw new Error("PAPER_PERFORMANCE_LEDGER_HISTORY_INCOMPLETE");
+  if (!source.reconciled) throw new Error("PAPER_PERFORMANCE_LEDGER_NOT_RECONCILED");
+  if (!/^[a-f0-9]{64}$/.test(source.ledgerFingerprintSha256)) throw new Error("PAPER_PERFORMANCE_LEDGER_FINGERPRINT_INVALID");
+}

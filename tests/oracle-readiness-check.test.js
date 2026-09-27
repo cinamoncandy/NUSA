@@ -124,7 +124,7 @@ test("Oracle readiness remains fail-closed after its bounded startup window", as
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /startup_readiness/);
     assert.match(result.stderr, /ECONNREFUSED/);
-    assert.ok(JSON.parse(result.stderr).attempts > 1);
+    assert.ok(JSON.parse(result.stderr.split("\n")[0]).attempts > 1);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -182,6 +182,107 @@ test("Oracle readiness rejects a stale release that serves health but omits a mo
     assert.match(result.stderr, /expectedStatus.*405.*actualStatus.*404/);
   } finally {
     await close(server);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+
+test("defaults Oracle startup readiness to the full bounded 60 second window", () => {
+  const source = fs.readFileSync(script, "utf8");
+  assert.match(source, /NUSA_READY_STARTUP_WAIT_MS \|\| 60_000/);
+  assert.match(source, /startupWaitMs > 60_000/);
+});
+
+
+test("Oracle readiness retries a transiently blocked mobile owner route within the bounded startup window", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-ready-route-retry-"));
+  let passwordCalls = 0;
+  const server = http.createServer((request, response) => {
+    if (request.url === "/ready") {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ ok: true, checks: { database: true, migrations: true, dashboardPersistence: true, runtimeRecovery: true } }));
+      return;
+    }
+    if (request.url === "/v1/mobile/session/password") {
+      passwordCalls += 1;
+      if (passwordCalls === 1) return;
+      response.writeHead(405);
+      response.end();
+      return;
+    }
+    if (request.url === "/v1/mobile/session/password/change") {
+      response.writeHead(405);
+      response.end();
+      return;
+    }
+    response.writeHead(404);
+    response.end();
+  });
+  const port = await listen(server);
+  const envFile = writeReadinessEnv(root, port);
+  try {
+    const result = await runReadiness(envFile, {
+      NUSA_READY_TIMEOUT_MS: "30",
+      NUSA_READY_STARTUP_WAIT_MS: "300",
+      NUSA_READY_RETRY_DELAY_MS: "20",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.ok(passwordCalls >= 2);
+    assert.deepEqual(JSON.parse(result.stdout).mobileOwnerAuthRoutes, [
+      { path: "/v1/mobile/session/password", status: 405 },
+      { path: "/v1/mobile/session/password/change", status: 405 },
+    ]);
+  } finally {
+    await close(server);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("Oracle readiness still rejects a mobile owner route that never reaches 405", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-ready-route-timeout-"));
+  const server = http.createServer((request, response) => {
+    if (request.url === "/ready") {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ ok: true, checks: { database: true, migrations: true, dashboardPersistence: true, runtimeRecovery: true } }));
+      return;
+    }
+    if (request.url === "/v1/mobile/session/password") return;
+    response.writeHead(405);
+    response.end();
+  });
+  const port = await listen(server);
+  const envFile = writeReadinessEnv(root, port);
+  try {
+    const result = await runReadiness(envFile, {
+      NUSA_READY_TIMEOUT_MS: "25",
+      NUSA_READY_STARTUP_WAIT_MS: "100",
+      NUSA_READY_RETRY_DELAY_MS: "10",
+    });
+    assert.notEqual(result.status, 0);
+    const failure = JSON.parse(result.stderr);
+    assert.equal(failure.stage, "mobile_owner_route");
+    assert.equal(failure.route, "/v1/mobile/session/password");
+    assert.ok(failure.attempts > 1);
+  } finally {
+    await close(server);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a failed startup carries the redacted service journal tail as release evidence", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-ready-journal-"));
+  const stub = path.join(root, "journalctl-stub.js");
+  const fixture = "q".repeat(24);
+  fs.writeFileSync(stub, `console.log("Error: database contains unknown migration: 024_research_intelligence_memory");\nconsole.log("NUSA_CLOUD_DASHBOARD_TOKEN=${fixture}");\n`);
+  const port = await reservePort();
+  const envFile = writeReadinessEnv(root, port);
+  try {
+    const result = await runReadiness(envFile, { NUSA_READY_STARTUP_WAIT_MS: "80", NUSA_READY_RETRY_DELAY_MS: "20", NUSA_READINESS_JOURNAL_STUB: stub });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /\[journal\] Error: database contains unknown migration/);
+    assert.match(result.stderr, /\[journal\] NUSA_CLOUD_DASHBOARD_TOKEN=\[redacted\]/);
+    assert.doesNotMatch(result.stderr, new RegExp(fixture));
+  } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });

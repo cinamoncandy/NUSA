@@ -1,0 +1,37 @@
+id: WO-20260924-PAPER-BINDING-IDENTITY-CONTINUITY
+title: "A realized PAPER window may only realize one candidate binding"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-binding-identity
+authority_impact: none
+authority_impact_note: "Adds a fail-closed identity check to canonical outcome reconciliation. No execution, risk, accounting value, LIVE or AI-authority change; receipt fields and fingerprints unchanged."
+objective: "Every realized PAPER outcome is mechanically attributable to exactly one strategy version (candidate binding)."
+finding: "P0-3 PAPER identity continuity audit (main 47f8f478). FIRST_IDENTITY_BREAK: working-order continuation -> fill -> realized period. cloudPaperExecutionBoundary.processTick continues a strategy working order after checking its binding is self-consistent, but not that it is still the active binding, so an earlier binding's order can fill inside the next challenger's window. reconcileCanonicalPaperOutcomeWindow attributes fills by candidateId only; a candidate id names parameters, not the strategy version (specificationHash incl. code SHA and cost model), and the period record stores no binding fingerprint. Same candidate id + different version was silently merged into one realized return."
+scope:
+  include:
+    - "paperCanonicalOutcomeReconciliation: CANDIDATE_BINDING_MIXED when one window contains fills from more than one bindingFingerprintSha256"
+    - "regression test in paperCanonicalOutcomeReconciliation.test.ts"
+  exclude:
+    - "Cancelling an earlier binding's working order at challenger replacement (follow-up; prevents the stall this check now surfaces)"
+acceptance:
+  - "Two fills of the same candidate id with different binding fingerprints in one window fail closed."
+  - "Existing single-binding reconciliation unchanged."
+verification_commands:
+  - "node --test dist/apps/cloud/src/paperCanonicalOutcomeReconciliation.test.js"
+  - "node --test dist/apps/cloud/src/*.test.js tests/integration-paper-*.test.js"
+  - "pnpm run validate (Node >= 24)"
+evidence:
+  implementation_status: READY_FOR_REVIEW
+  mutation_verification:
+    - "mixed-binding check disabled -> regression test fails"
+  external_validation: "REQUIRED: exact-head CI, Audit, Release."
+follow_up: "Revoke or cancel an earlier binding's open strategy working order when PaperChallengerDeploymentRuntime revokes that binding."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Exact-head CI, Audit, Release; then the follow-up working-order revocation."

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectNextEvolutionOpportunity } from "./evolveAutonomousSelector";
+import { selectNextEvolutionOpportunity, selectNonConflictingEvolutionOpportunities } from "./evolveAutonomousSelector";
 import type { EvolutionOpportunity } from "./evolveOpportunity";
 
 const opportunity = (id: string, overrides: Partial<EvolutionOpportunity> = {}): EvolutionOpportunity => ({
@@ -86,4 +86,34 @@ test("rejects malformed selector envelopes before runtime property access", () =
     ...baseInput(),
     opportunities: [null],
   } as never), /EVOLVE_OPPORTUNITY_INVALID/);
+});
+
+
+test("bounded selector excludes conflicting work and respects remaining capacity", () => {
+  const input = baseInput();
+  const result = selectNonConflictingEvolutionOpportunities({
+    ...input,
+    schedulePolicy: { ...input.schedulePolicy, maxConcurrent: 2 },
+    maxSelections: 3,
+    opportunities: [
+      opportunity("higher", { impact: 0.9, canonicalOwner: "development", conflictKeys: ["module:shared"] }),
+      opportunity("lower", { impact: 0.4, canonicalOwner: "development", conflictKeys: ["module:shared"] }),
+      opportunity("free", { canonicalOwner: "development", conflictKeys: ["module:free"] }),
+    ],
+  });
+  assert.deepEqual(result.selectedOpportunities.map((item) => item.id), ["higher", "free"]);
+  assert.deepEqual(result.authority, { liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+});
+
+test("bounded selector fails closed on missing metadata and active conflict keys", () => {
+  const input = baseInput();
+  assert.deepEqual(selectNonConflictingEvolutionOpportunities({ ...input, maxSelections: 2 }).selectedOpportunities, []);
+  const result = selectNonConflictingEvolutionOpportunities({
+    ...input,
+    schedulePolicy: { ...input.schedulePolicy, maxConcurrent: 2 },
+    maxSelections: 2,
+    activeConflictKeys: ["module:busy"],
+    opportunities: [opportunity("blocked", { canonicalOwner: "development", conflictKeys: ["module:busy"] })],
+  });
+  assert.deepEqual(result.selectedOpportunities, []);
 });

@@ -14,6 +14,7 @@ function namespace(acquired: boolean): ExecutionCoordinatorNamespace {
     get: () => ({
       async fetch(input: RequestInfo | URL) {
         const url = String(input);
+        if (url.endsWith("/execution")) return new Response(JSON.stringify({ record: null }), { status: 200, headers: { "content-type": "application/json" } });
         if (url.endsWith("/acquire")) {
           return new Response(JSON.stringify(acquired
             ? { acquired: true }
@@ -39,6 +40,19 @@ function githubFetch(dispatchStatus = 204): typeof fetch {
     const url = String(input);
     if (url.endsWith("/branches/main")) {
       return new Response(JSON.stringify({ commit: { sha: SHA } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    if (url.includes("/actions/workflows/ci.yml/runs?")) {
+      return new Response(JSON.stringify({ workflow_runs: [{
+        id: RUN_ID,
+        name: "CI",
+        conclusion: "success",
+        head_branch: "main",
+        head_sha: SHA,
+        event: "push",
+      }] }), {
         status: 200,
         headers: { "content-type": "application/json" },
       });
@@ -101,6 +115,16 @@ test("scheduled runtime discovers fresh failed main workflow evidence without di
     if (url.endsWith("/branches/main")) {
       return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200, headers: { "content-type": "application/json" } });
     }
+    if (url.includes("/actions/workflows/ci.yml/runs?")) {
+      return new Response(JSON.stringify({ workflow_runs: [{
+        id: RUN_ID,
+        name: "CI",
+        conclusion: "success",
+        head_branch: "main",
+        head_sha: SHA,
+        event: "push",
+      }] }), { status: 200, headers: { "content-type": "application/json" } });
+    }
     if (url.includes("/actions/runs?")) {
       return new Response(JSON.stringify({ workflow_runs: [
         {
@@ -149,6 +173,11 @@ test("scheduled runtime excludes stale failed workflow evidence", async () => {
     if (url.endsWith("/branches/main")) {
       return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200, headers: { "content-type": "application/json" } });
     }
+    if (url.includes("/actions/workflows/ci.yml/runs?")) {
+      return new Response(JSON.stringify({ workflow_runs: [
+        { id: RUN_ID, name: "CI", conclusion: "success", head_branch: "main", head_sha: SHA, event: "push" },
+      ] }), { status: 200, headers: { "content-type": "application/json" } });
+    }
     if (url.includes("/actions/runs?")) {
       return new Response(JSON.stringify({ workflow_runs: [
         { id: RUN_ID, name: "CI", conclusion: "success", head_branch: "main", head_sha: SHA, event: "push" },
@@ -177,11 +206,52 @@ test("scheduled runtime cannot bypass persistent dedupe", async () => {
   assert.equal(outcome.reason, "ALREADY_DISPATCHED");
 });
 
+test("scheduled runtime accepts exact-main canonical CI from workflow_dispatch despite repository workflow noise", async () => {
+  const base = githubFetch();
+  const noisyFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url.includes("/actions/workflows/ci.yml/runs?")) {
+      return new Response(JSON.stringify({ workflow_runs: [{
+        id: RUN_ID,
+        name: "CI",
+        conclusion: "success",
+        head_branch: "main",
+        head_sha: SHA,
+        event: "workflow_dispatch",
+      }] }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (url.includes("/actions/runs?")) {
+      return new Response(JSON.stringify({ workflow_runs: Array.from({ length: 50 }, (_, index) => ({
+        id: RUN_ID + 100 + index,
+        name: "Workflow Noise",
+        conclusion: "success",
+        status: "completed",
+        head_branch: "main",
+        head_sha: SHA,
+        event: "workflow_run",
+      })) }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    return base(input, init);
+  }) as typeof fetch;
+
+  const outcome = await runScheduledAutopilot({
+    NUSA_GITHUB_TOKEN: "token",
+    NUSA_EXECUTION_COORDINATOR: namespace(true),
+  }, NOW, noisyFetch);
+
+  assert.equal(outcome.status, "EXECUTION_DISPATCHED");
+  assert.equal(outcome.headSha, SHA);
+  assert.equal(outcome.workflowRunId, RUN_ID);
+});
+
 test("scheduled runtime fails closed when latest main lacks exact canonical CI evidence", async () => {
   const fetchWithoutExactCi = (async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url.endsWith("/branches/main")) {
       return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (url.includes("/actions/workflows/ci.yml/runs?")) {
+      return new Response(JSON.stringify({ workflow_runs: [{ id: RUN_ID, name: "CI", conclusion: "success", head_branch: "main", head_sha: FAILED_SHA, event: "push" }] }), { status: 200, headers: { "content-type": "application/json" } });
     }
     if (url.includes("/actions/runs?")) {
       return new Response(JSON.stringify({ workflow_runs: [{ id: RUN_ID, name: "CI", conclusion: "success", head_branch: "main", head_sha: FAILED_SHA, event: "push" }] }), { status: 200, headers: { "content-type": "application/json" } });

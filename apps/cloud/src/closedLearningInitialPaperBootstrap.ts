@@ -2,7 +2,7 @@ import type { ResearchRunReplaySnapshotReader } from "../../desktop/src/cloud/re
 import type { ClosedLearningResearchDecisionHistory } from "./closedLearningResearchDecisionHistory";
 import type { ClosedLearningResearchReplayResult, ClosedLearningResearchWorkerClient } from "./closedLearningResearchWorkerClient";
 import type { QualifiedPaperChallengerArtifactWriter } from "./qualifiedPaperChallengerArtifactStore";
-import type { PaperChallengerDeploymentAdapter, ClosedLearningPaperDeploymentReceipt } from "./closedLearningLoopCoordinator";
+import { isGovernanceApprovalUnavailable, type PaperChallengerDeploymentAdapter, type ClosedLearningPaperDeploymentReceipt } from "./closedLearningLoopCoordinator";
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import type { PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
 
@@ -10,6 +10,7 @@ export type ClosedLearningInitialPaperBootstrapStatus =
   | "WAITING_RESEARCH_SNAPSHOT"
   | "EXISTING_PAPER_STATE"
   | "RESEARCH_NOT_DEPLOYABLE"
+  | "WAITING_GOVERNANCE_APPROVAL"
   | "DEPLOYED";
 
 export interface ClosedLearningInitialPaperBootstrapResult {
@@ -106,14 +107,24 @@ export class ClosedLearningInitialPaperBootstrap {
       throw new Error("initial PAPER bootstrap persisted artifact identity drifted");
     }
     const decision = bootstrapDecision(result);
-    const deployment = this.options.deployment.deploy({
-      cycleId: `closed-learning-initial:${result.replayRunFingerprintSha256}`,
-      decision,
-      authority: "PAPER_RESEARCH_ONLY",
-      liveAuthority: "NONE",
-      productionMutationAllowed: false,
-      aiAuthority: "ZERO_AUTHORITY",
-    });
+    let deployment: ClosedLearningPaperDeploymentReceipt;
+    try {
+      deployment = this.options.deployment.deploy({
+        cycleId: `closed-learning-initial:${result.replayRunFingerprintSha256}`,
+        decision,
+        authority: "PAPER_RESEARCH_ONLY",
+        liveAuthority: "NONE",
+        productionMutationAllowed: false,
+        aiAuthority: "ZERO_AUTHORITY",
+      });
+    } catch (error) {
+      // A qualified candidate without a Governance approval is a wait, not a fault: failing here
+      // would stop the whole PAPER runtime and crash-loop it on every restart.
+      if (isGovernanceApprovalUnavailable(error)) {
+        return Object.freeze({ status: "WAITING_GOVERNANCE_APPROVAL", originalRunFingerprintSha256, reasons: Object.freeze(["PAPER_CHALLENGER_GOVERNANCE_APPROVAL_UNAVAILABLE"]) });
+      }
+      throw error;
+    }
     return Object.freeze({
       status: "DEPLOYED",
       originalRunFingerprintSha256,

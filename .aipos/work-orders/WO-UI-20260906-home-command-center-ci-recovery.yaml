@@ -1,6 +1,8 @@
 id: WO-UI-20260906-HOME-COMMAND-CENTER-CI-RECOVERY
 title: "HOME command-center exact-head CI recovery"
-status: IN_PROGRESS
+status: COMPLETED
+closed_by_pull_request: 1732
+closure_note: "Closed 2026-09-23 under WO-20260924-AIPOS-STALE-WORK-ORDER-CLOSURE after verifying PR #1732 merged into main (main commit 43a53b31). Code scope only; any physical-device acceptance remains HUMAN_ENVIRONMENT_ONLY and is not claimed here."
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -33,5 +35,5 @@ validation:
   preflight: PASS
   validate_full: PASS
   diff_check: PASS
-  exact_head_ci: PENDING
-next_permitted_action: "Push the validated branch head, require fresh exact-head protected CI, and route a green same-head result through independent Audit and Release governance."
+  exact_head_ci: "MOOT_MERGED_PR_1732 (per-head result not recorded in this order)"
+next_permitted_action: "None; implementation merged."

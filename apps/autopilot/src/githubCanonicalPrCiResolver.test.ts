@@ -57,6 +57,7 @@ describe("resolveCanonicalPrCiForReady", () => {
       headSha: HEAD,
       prNumber: 1955,
       workflowRunId: 35195500001,
+      workflowRunAttempt: 1,
       reason: "pull-request-ci-success:ready-for-review-replay",
       mutationAllowed: false,
     });

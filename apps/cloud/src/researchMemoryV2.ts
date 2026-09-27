@@ -99,3 +99,99 @@ export const validateResearchTimeline = (records: readonly ResearchMemoryRecord[
   }
   return Object.freeze([...records].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt)));
 };
+
+
+import type {
+  ResearchMemoryAttribution,
+  ResearchMemoryEvidenceOrigin,
+  ResearchMemorySemanticInput,
+  ResearchMemorySemanticClass,
+  ResearchMemoryValidity,
+} from "../../../packages/contracts/src/researchMemorySemantics";
+
+export interface ResearchMemorySemanticProjectionContext {
+  readonly evaluatorSemanticsId: string;
+  readonly semanticIdentity: string;
+  readonly independenceGroupId: string;
+  readonly validity: ResearchMemoryValidity;
+  readonly attribution: ResearchMemoryAttribution;
+  readonly evidenceOrigin: ResearchMemoryEvidenceOrigin;
+  readonly source: string;
+  readonly reason: string;
+}
+
+export interface LegacyResearchMemorySemanticProjection {
+  readonly semanticClass: ResearchMemorySemanticClass;
+  readonly validity: ResearchMemoryValidity;
+  readonly evidenceOrigin: ResearchMemoryEvidenceOrigin;
+  readonly attribution: "MIXED_UNRESOLVED";
+}
+
+const semanticClassForStage = (stage: ResearchStage): ResearchMemorySemanticClass =>
+  stage === "HYPOTHESIS"
+    ? "HYPOTHESIS"
+    : stage === "EVIDENCE"
+      ? "EVIDENCE"
+      : stage === "LESSON"
+        ? "LESSON"
+        : "OBSERVATION";
+
+/**
+ * Projection only. Exact cloud-record provenance uses the existing contentHash.
+ * Parent record IDs are not treated as artifact digests; typed relations are appended
+ * separately only after their target artifact identities have been resolved.
+ */
+export const projectResearchMemorySemanticInput = (
+  record: ResearchMemoryRecord,
+  context: ResearchMemorySemanticProjectionContext,
+): ResearchMemorySemanticInput => {
+  const semanticClass = semanticClassForStage(record.stage);
+  if (
+    semanticClass === "EVIDENCE" &&
+    context.validity === "CURRENT" &&
+    !["CANONICAL_RESEARCH", "PAPER_FORWARD"].includes(context.evidenceOrigin)
+  ) {
+    throw new Error("CURRENT EVIDENCE requires canonical empirical origin");
+  }
+
+  return Object.freeze({
+    artifact: Object.freeze({
+      artifactKind: "CLOUD_MEMORY_RECORD" as const,
+      artifactId: record.recordId,
+      artifactContentSha256: record.contentHash,
+      artifactDigestKind: "CANONICAL_EXISTING_SHA256" as const,
+    }),
+    semanticClass,
+    validity: context.validity,
+    attribution: context.attribution,
+    evidenceOrigin: context.evidenceOrigin,
+    evaluatorSemanticsId: context.evaluatorSemanticsId,
+    semanticIdentity: context.semanticIdentity,
+    independenceGroupId: context.independenceGroupId,
+    actor: record.author,
+    source: context.source,
+    reason: context.reason,
+    occurredAt: record.createdAt,
+    authority: "PAPER_ONLY" as const,
+    liveAuthority: "NONE" as const,
+    productionMutationAllowed: false as const,
+    aiAuthority: "ZERO_AUTHORITY" as const,
+  });
+};
+
+/**
+ * Legacy labels are projection hints only. They never bulk-upgrade historical rows
+ * to CURRENT empirical evidence without a canonical typed overlay event.
+ */
+export const projectLegacyResearchMemoryRecordSemantics = (
+  record: ResearchMemoryRecord,
+): LegacyResearchMemorySemanticProjection =>
+  Object.freeze({
+    semanticClass: semanticClassForStage(record.stage),
+    validity: "REVALIDATION_REQUIRED",
+    evidenceOrigin:
+      record.author === "ai-zero-authority"
+        ? "AI_ADVISORY"
+        : "UNKNOWN_UNTRUSTED",
+    attribution: "MIXED_UNRESOLVED",
+  });

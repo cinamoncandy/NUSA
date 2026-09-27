@@ -334,15 +334,31 @@ jobs:
           fs.writeFileSync('artifacts/autopilot-audit-request/audit-runner-request.json', JSON.stringify(request, null, 2));
           NODE
 
+      - name: Mint bounded read-only Audit GitHub App token
+        if: ${{ steps.freshness.outputs.applicable == 'true' }}
+        id: audit-app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.NUSA_AUDIT_READ_APP_ID }}
+          private-key: ${{ secrets.NUSA_AUDIT_READ_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-actions: read
+          permission-contents: read
+          permission-pull-requests: read
+
       - name: Execute independent read-only Audit with GitHub OIDC
         if: ${{ steps.freshness.outputs.applicable == 'true' }}
         env:
           NUSA_AUDIT_RUNNER_URL: https://nusa-autopilot.desporin12.workers.dev/audit/execute
+          NUSA_AUDIT_GITHUB_TOKEN: ${{ steps.audit-app-token.outputs.token }}
         run: |
           node --input-type=module - <<'NODE'
           import fs from 'node:fs';
           const fail = (message) => { console.error(message); process.exit(1); };
           const request = JSON.parse(fs.readFileSync('artifacts/autopilot-audit-request/audit-runner-request.json', 'utf8'));
+          const auditGithubToken = process.env.NUSA_AUDIT_GITHUB_TOKEN;
+          if (!auditGithubToken) fail('bounded Audit GitHub App token missing');
           const oidcUrl = process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
           const oidcRequestToken = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
           if (!oidcUrl || !oidcRequestToken) fail('GitHub OIDC environment is unavailable');
@@ -354,7 +370,7 @@ jobs:
           if (!oidc || typeof oidc.value !== 'string' || !oidc.value) fail('OIDC token missing');
           const response = await fetch(process.env.NUSA_AUDIT_RUNNER_URL, {
             method: 'POST',
-            headers: { authorization: `Bearer ${oidc.value}`, 'content-type': 'application/json' },
+            headers: { authorization: `Bearer ${oidc.value}`, 'content-type': 'application/json', 'x-nusa-audit-github-token': auditGithubToken },
             body: JSON.stringify(request),
           });
           const result = await response.json().catch(() => null);
@@ -367,7 +383,7 @@ jobs:
           if (result.reviewedHeadSha !== request.headSha || result.baseSha !== request.baseSha || result.workflowRunId !== request.workflowRunId) fail('Audit exact-head/base/CI evidence mismatch');
           if (result.liveAuthority !== 'NONE' || result.productionMutationAllowed !== false || result.aiAuthority !== 'ZERO_AUTHORITY') fail('Audit safety invariant response invalid');
           if (result.verdict === 'PASS' && result.mergeAllowed !== true) fail('PASS verdict must explicitly allow merge');
-          if (result.verdict === 'PASS_WITH_NOTES' && result.mergeAllowed !== false) fail('PASS_WITH_NOTES must remain non-merge-authorizing');
+          if (result.verdict === 'PASS_WITH_NOTES' && typeof result.mergeAllowed !== 'boolean') fail('PASS_WITH_NOTES must explicitly declare mergeAllowed');
           if (result.verdict === 'FAIL' && result.mergeAllowed !== false) fail('FAIL verdict cannot allow merge');
           NODE
 
@@ -389,13 +405,20 @@ jobs:
           let recovery = 'none';
           if (result.status === 'AUDIT_COMPLETED') {
             failureClass = 'none';
+          } else if (result.error === "WAITING_PROVIDER_CAPACITY" || result.status === "WAITING_PROVIDER_CAPACITY") {
+            // Structured-code-first (ProviderGatedAuditOutcome status union in
+            // apps/autopilot/src/auditRunner.ts): a capacity wait is transient
+            // even when status is AUDIT_FAILED_CLOSED, whose "closed"
+            // substring must never decide this branch (run 36134520306).
+            failureClass = 'transient';
+            recovery = 'retry';
           } else if (/4006|daily free allocation|neurons|quota/i.test(text)) {
             failureClass = 'executor_unavailable';
           } else if (/AUDIT_(PR_NOT_OPEN|PR_HEAD_MISMATCH|PR_BASE_MISMATCH|CI_NOT_SUCCESSFUL|CI_HEAD_MISMATCH|CI_REPOSITORY_MISMATCH)|stale|closed|head moved|base moved/i.test(text)) {
             failureClass = 'deterministic';
           } else if (/AUDIT_(VERDICT|MODEL_RESPONSE)|JSON_INVALID/i.test(text)) {
             failureClass = 'validation_failure';
-          } else if (/429|5\\d\\d|timeout|timed out|fetch failed|temporar|network|ECONN/i.test(text)) {
+          } else if (/WAITING_PROVIDER_CAPACITY|429|5\\d\\d|timeout|timed out|fetch failed|temporar|network|ECONN/i.test(text)) {
             failureClass = 'transient';
             recovery = 'retry';
           }
@@ -428,7 +451,7 @@ jobs:
         run: |
           node - <<'NODE'
           const result = require('./artifacts/autopilot-audit-request/audit-runner-result.json');
-          if (result.verdict !== 'PASS' || result.mergeAllowed !== true || result.safetyInvariantResult !== 'PASS') {
+          if (!['PASS', 'PASS_WITH_NOTES'].includes(result.verdict) || result.mergeAllowed !== true || result.safetyInvariantResult !== 'PASS' || result.blockers.length !== 0) {
             console.error(`Audit blocks automatic Release: ${result.verdict}`);
             process.exit(1);
           }
@@ -506,6 +529,98 @@ jobs:
           name: autopilot-audit-request-${{ github.run_id }}
           path: artifacts/autopilot-audit-request
 
+  release-handoff:
+    needs: audit-request
+    if: >-
+      ${{ needs.audit-request.result == 'success' &&
+          needs.audit-request.outputs.applicable == 'true' &&
+          needs.audit-request.outputs.authority != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+      REQUESTED_HEAD: ${{ github.event.client_payload.head_sha }}
+      WORKFLOW_RUN_ID: ${{ github.event.client_payload.workflow_run_id }}
+      EXECUTION_ID: ${{ github.event.client_payload.execution_id }}
+      DEDUPE_KEY: ${{ github.event.client_payload.dedupe_key }}
+      AUDIT_AUTHORITY: ${{ needs.audit-request.outputs.authority }}
+      AUDIT_EXECUTION_RUN_ID: ${{ github.run_id }}
+    steps:
+      - name: Validate trusted Audit authority and exact release handoff identity
+        id: authority
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require('fs');
+          const fail = (message) => { console.error(message); process.exit(1); };
+          let authority;
+          try {
+            authority = JSON.parse(Buffer.from(process.env.AUDIT_AUTHORITY || '', 'base64url').toString('utf8'));
+          } catch {
+            fail('trusted Audit authority is invalid');
+          }
+          const prNumber = Number(process.env.PR_NUMBER);
+          const workflowRunId = Number(process.env.WORKFLOW_RUN_ID);
+          const auditExecutionRunId = Number(process.env.AUDIT_EXECUTION_RUN_ID);
+          if (authority.schemaVersion !== 1 || authority.status !== 'AUDIT_COMPLETED') fail('trusted Audit authority status invalid');
+          if (authority.repository !== process.env.GITHUB_REPOSITORY || authority.prNumber !== prNumber) fail('trusted Audit repository/PR identity mismatch');
+          if (authority.reviewedHeadSha !== process.env.REQUESTED_HEAD || authority.workflowRunId !== workflowRunId) fail('trusted Audit exact-head/CI identity mismatch');
+          if (authority.auditExecutionRunId !== auditExecutionRunId) fail('trusted Audit same-workflow execution identity mismatch');
+          if (!['PASS', 'PASS_WITH_NOTES'].includes(authority.verdict) || authority.mergeAllowed !== true || authority.safetyInvariantResult !== 'PASS') fail('trusted Audit does not authorize Release handoff');
+          if (authority.liveAuthority !== 'NONE' || authority.productionMutationAllowed !== false || authority.aiAuthority !== 'ZERO_AUTHORITY') fail('trusted Audit safety invariant mismatch');
+          if (!/^[0-9a-f]{40}$/i.test(authority.baseSha || '')) fail('trusted Audit base SHA invalid');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `audited_base=${authority.baseSha.toLowerCase()}\n`);
+          NODE
+
+      - name: Re-verify exact PR head and audited base before Release handoff
+        env:
+          AUDITED_BASE: ${{ steps.authority.outputs.audited_base }}
+        run: |
+          set -euo pipefail
+          pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          hold="$(jq -r 'if (.labels | type) != "array" then "invalid" elif any(.labels[]; (.name | type) != "string") then "invalid" elif any(.labels[]; (.name | ascii_downcase) == "hold") then "true" else "false" end' <<<"$pr")"
+          test "$(jq -r '.state' <<<"$pr")" = "open"
+          test "$(jq -r '.draft // false' <<<"$pr")" = "false"
+          test "$hold" = "false"
+          test "$(jq -r '.head.sha' <<<"$pr")" = "$REQUESTED_HEAD"
+          test "$(jq -r '.base.ref' <<<"$pr")" = "main"
+          test "$(jq -r '.base.repo.full_name' <<<"$pr")" = "$GITHUB_REPOSITORY"
+          test "$(jq -r '.base.sha' <<<"$pr")" = "$AUDITED_BASE"
+          test "$current_main" = "$AUDITED_BASE"
+
+      - name: Dispatch deterministic Release successor once
+        run: |
+          set -euo pipefail
+          existing="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-deterministic-audit-release.yml/runs?event=repository_dispatch&per_page=100" --jq ".workflow_runs[] | select(.display_title == \"$DEDUPE_KEY\") | .id" | head -n 1)"
+          if [ -n "$existing" ]; then
+            echo "Deterministic Release successor already exists for $DEDUPE_KEY via run $existing; suppressing duplicate dispatch."
+            exit 0
+          fi
+          gh api --method POST "repos/$GITHUB_REPOSITORY/dispatches" --input - <<EOF
+          {
+            "event_type": "nusa_autopilot_audit",
+            "client_payload": {
+              "kind": "AUDIT_REQUEST",
+              "repository": "$GITHUB_REPOSITORY",
+              "head_sha": "$REQUESTED_HEAD",
+              "pr_number": $PR_NUMBER,
+              "workflow_run_id": $WORKFLOW_RUN_ID,
+              "execution_id": "$EXECUTION_ID",
+              "dedupe_key": "$DEDUPE_KEY",
+              "live_authority": "NONE",
+              "production_mutation_allowed": false,
+              "ai_authority": "ZERO_AUTHORITY"
+            }
+          }
+          EOF
+          echo "Dispatched deterministic Release successor for PR #$PR_NUMBER at exact head $REQUESTED_HEAD."
+
   audit-recovery:
     needs: audit-request
     if: ${{ always() && github.event.client_payload.kind == 'AUDIT_REQUEST' && needs.audit-request.result == 'failure' && needs.audit-request.outputs.recovery == 'retry' }}
@@ -531,7 +646,7 @@ jobs:
             exit 0
           fi
           current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
-          main_workflow_run_id="$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$current_main&status=completed&per_page=100" --jq '[.[].workflow_runs[] | select(.path == ".github/workflows/ci.yml" and .name == "CI" and .conclusion == "success" and .head_sha == "'"$current_main"'") | .id] | max // empty')"
+          main_workflow_run_id="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$current_main&status=completed&per_page=100" --jq '.workflow_runs[] | select(.path == ".github/workflows/ci.yml" and .name == "CI" and .conclusion == "success" and .head_sha == "'"$current_main"'") | .id' | sort -n | tail -n 1)"
           test -n "$main_workflow_run_id" || { echo 'Audit recovery suppressed: no successful CI run exists for current main.'; exit 1; }
           execution_id="audit-recovery:${PR_NUMBER}:${WORKFLOW_RUN_ID}:${main_workflow_run_id}"
           dedupe_key="audit-recovery:${PR_NUMBER}:${REQUESTED_HEAD}:${current_main}:${main_workflow_run_id}"
