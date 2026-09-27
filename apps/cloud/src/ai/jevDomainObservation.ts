@@ -78,6 +78,7 @@ export type JevForbiddenAction =
 export type JevDecisionSchema =
   | "WORKFLOW_FAILURE_V1"
   | "RESEARCH_ATTENTION_V1"
+  | "DOMAIN_ADVISORY_V1"
   | "UNAVAILABLE";
 
 export type JevDecisionPrimitive = string | number | boolean | null;
@@ -90,6 +91,7 @@ export interface JevTaskTypePolicy {
   readonly maxStage: JevRolloutStage;
   readonly calibrationEvidenceVersion: string | null;
   readonly decisionSchema: JevDecisionSchema;
+  readonly classificationValues: readonly string[] | null;
   readonly allowedActions: readonly JevAdvisoryAction[];
   readonly forbiddenActions: readonly JevForbiddenAction[];
 }
@@ -120,6 +122,14 @@ export interface JevDomainObservation {
   readonly aiAuthority: "ZERO_AUTHORITY";
   readonly productionMutationAllowed: false;
   readonly liveAuthority: "NONE";
+}
+
+export interface JevDomainAdvisoryDecision {
+  readonly classification: string;
+  readonly severity: 1 | 2 | 3 | 4 | 5;
+  readonly requiredModel: JevRequiredModel;
+  readonly reasonCode: string;
+  readonly confidence: number;
 }
 
 export interface CreateJevDomainObservationInput {
@@ -177,6 +187,7 @@ function policy(
   canonicalOwner: string,
   allowedActions: readonly JevAdvisoryAction[],
   decisionSchema: JevDecisionSchema = "UNAVAILABLE",
+  classificationValues: readonly string[] | null = null,
 ): JevTaskTypePolicy {
   return Object.freeze({
     taskType,
@@ -185,6 +196,7 @@ function policy(
     maxStage: "SHADOW" as const,
     calibrationEvidenceVersion: null,
     decisionSchema,
+    classificationValues: classificationValues == null ? null : Object.freeze([...classificationValues]),
     allowedActions: Object.freeze([...allowedActions]),
     forbiddenActions: FORBIDDEN_ACTIONS,
   });
@@ -205,114 +217,24 @@ export const JEV_TASK_TYPE_POLICIES: readonly JevTaskTypePolicy[] = Object.freez
     Object.freeze(["OBSERVE", "ESCALATE"]),
     "RESEARCH_ATTENTION_V1",
   ),
-  policy(
-    "DUPLICATE_TASK_CLASSIFICATION",
-    "CORE_EVOLVE",
-    "Core/Evolve canonical work orchestration",
-    OBSERVE_CLASSIFY_ESCALATE,
-  ),
-  policy(
-    "STALE_WIP_CLASSIFICATION",
-    "CORE_EVOLVE",
-    "Core/Evolve canonical work orchestration",
-    OBSERVE_CLASSIFY_ESCALATE,
-  ),
-  policy(
-    "TEST_SCOPE_RECOMMENDATION",
-    "AUTOPILOT_DEVELOPMENT",
-    "Development deterministic validation policy",
-    Object.freeze(["OBSERVE", "RECOMMEND_TEST_SCOPE", "RECOMMEND_ESCALATION"]),
-  ),
-  policy(
-    "DATA_INTEGRITY_ANOMALY_CLASSIFICATION",
-    "DATA_RESEARCH_INTEGRITY",
-    "Data & Research Integrity deterministic validators",
-    OBSERVE_CLASSIFY_ESCALATE,
-  ),
-  policy(
-    "MARKET_DATA_INCIDENT_CLASSIFICATION",
-    "MARKET_DATA",
-    "Market Data deterministic connectivity and freshness state",
-    OBSERVE_CLASSIFY_ESCALATE,
-  ),
-  policy(
-    "HYPOTHESIS_DUPLICATE_CLASSIFICATION",
-    "AXIOM_RESEARCH",
-    "AXIOM deterministic research/evidence lifecycle",
-    OBSERVE_CLASSIFY_ESCALATE,
-  ),
-  policy(
-    "STRATEGY_FAMILY_MATCH_CLASSIFICATION",
-    "STRATEGY_FAMILY",
-    "Strategy Family canonical registry",
-    OBSERVE_CLASSIFY_ESCALATE,
-  ),
-  policy(
-    "GOVERNANCE_EVIDENCE_READINESS_CLASSIFICATION",
-    "STRATEGY_GOVERNANCE",
-    "Strategy Governance deterministic lifecycle",
-    OBSERVE_CLASSIFY_SUMMARIZE_ESCALATE,
-  ),
-  policy(
-    "RISK_EVENT_CLASSIFICATION",
-    "PORTFOLIO_RISK",
-    "Portfolio/Risk deterministic limits and allocation advisory",
-    OBSERVE_CLASSIFY_SUMMARIZE_ESCALATE,
-  ),
-  policy(
-    "PAPER_EXECUTION_INCIDENT_CLASSIFICATION",
-    "PAPER_EXECUTION",
-    "PAPER Execution deterministic order lifecycle",
-    OBSERVE_CLASSIFY_ESCALATE,
-  ),
-  policy(
-    "LEDGER_RECONCILIATION_INCIDENT_CLASSIFICATION",
-    "PAPER_LEDGER",
-    "PAPER Ledger canonical accounting and reconciliation",
-    OBSERVE_CLASSIFY_SUMMARIZE_ESCALATE,
-  ),
-  policy(
-    "PERFORMANCE_EVIDENCE_READINESS_CLASSIFICATION",
-    "PERFORMANCE_EVIDENCE",
-    "Performance/Evidence canonical measurement layer",
-    OBSERVE_CLASSIFY_SUMMARIZE_ESCALATE,
-  ),
-  policy(
-    "OBSERVABILITY_INCIDENT_CLASSIFICATION",
-    "OBSERVABILITY_SRE",
-    "Observability/SRE deterministic health and recovery verification",
-    OBSERVE_CLASSIFY_SUMMARIZE_ESCALATE,
-  ),
-  policy(
-    "RUNTIME_RECOVERY_ELIGIBILITY",
-    "INFRASTRUCTURE_RUNTIME",
-    "Infrastructure/Runtime deterministic recovery controller",
-    OBSERVE_CLASSIFY_ESCALATE,
-  ),
-  policy(
-    "SECURITY_EVENT_CLASSIFICATION",
-    "SECURITY_IDENTITY",
-    "Security/Identity deterministic policy and incident handling",
-    OBSERVE_CLASSIFY_ESCALATE,
-  ),
-  policy(
-    "RELEASE_AUDIT_BLOCKER_CLASSIFICATION",
-    "RELEASE_AUDIT",
-    "Independent Audit and canonical Release authority",
-    OBSERVE_CLASSIFY_SUMMARIZE_ESCALATE,
-  ),
-  policy(
-    "INTEGRATION_MISMATCH_CLASSIFICATION",
-    "INTEGRATION_E2E",
-    "Integration/E2E independent acceptance verifier",
-    OBSERVE_CLASSIFY_SUMMARIZE_ESCALATE,
-  ),
-  policy(
-    "UI_REGRESSION_CLASSIFICATION",
-    "UI_MOBILE",
-    "UI/UX and Mobile deterministic product validation",
-    OBSERVE_CLASSIFY_SUMMARIZE_ESCALATE,
-  ),
+  policy("DUPLICATE_TASK_CLASSIFICATION", "CORE_EVOLVE", "Core/Evolve canonical work orchestration", OBSERVE_CLASSIFY_ESCALATE, "DOMAIN_ADVISORY_V1", ["DUPLICATE", "DISTINCT", "UNKNOWN"]),
+  policy("STALE_WIP_CLASSIFICATION", "CORE_EVOLVE", "Core/Evolve canonical work orchestration", OBSERVE_CLASSIFY_ESCALATE, "DOMAIN_ADVISORY_V1", ["STALE", "FRESH", "UNKNOWN"]),
+  policy("TEST_SCOPE_RECOMMENDATION", "AUTOPILOT_DEVELOPMENT", "Development deterministic validation policy", Object.freeze(["OBSERVE", "RECOMMEND_TEST_SCOPE", "RECOMMEND_ESCALATION"]), "DOMAIN_ADVISORY_V1", ["FOCUSED", "SUBSYSTEM", "FULL", "HUMAN_REVIEW"]),
+  policy("DATA_INTEGRITY_ANOMALY_CLASSIFICATION", "DATA_RESEARCH_INTEGRITY", "Data & Research Integrity deterministic validators", OBSERVE_CLASSIFY_ESCALATE, "DOMAIN_ADVISORY_V1", ["VALID", "ANOMALY", "STALE", "LEAKAGE_RISK", "UNKNOWN"]),
+  policy("MARKET_DATA_INCIDENT_CLASSIFICATION", "MARKET_DATA", "Market Data deterministic connectivity and freshness state", OBSERVE_CLASSIFY_ESCALATE, "DOMAIN_ADVISORY_V1", ["HEALTHY", "DISCONNECT", "STALE", "GAP", "SEQUENCE", "PROVIDER_DEGRADED", "UNKNOWN"]),
+  policy("HYPOTHESIS_DUPLICATE_CLASSIFICATION", "AXIOM_RESEARCH", "AXIOM deterministic research/evidence lifecycle", OBSERVE_CLASSIFY_ESCALATE, "DOMAIN_ADVISORY_V1", ["DUPLICATE", "RELATED", "DISTINCT", "UNKNOWN"]),
+  policy("STRATEGY_FAMILY_MATCH_CLASSIFICATION", "STRATEGY_FAMILY", "Strategy Family canonical registry", OBSERVE_CLASSIFY_ESCALATE, "DOMAIN_ADVISORY_V1", ["MATCH", "POSSIBLE_MATCH", "NO_MATCH", "UNKNOWN"]),
+  policy("GOVERNANCE_EVIDENCE_READINESS_CLASSIFICATION", "STRATEGY_GOVERNANCE", "Strategy Governance deterministic lifecycle", OBSERVE_CLASSIFY_SUMMARIZE_ESCALATE, "DOMAIN_ADVISORY_V1", ["READY", "INCOMPLETE", "STALE", "INVALID", "UNKNOWN"]),
+  policy("RISK_EVENT_CLASSIFICATION", "PORTFOLIO_RISK", "Portfolio/Risk deterministic limits and allocation advisory", OBSERVE_CLASSIFY_SUMMARIZE_ESCALATE, "DOMAIN_ADVISORY_V1", ["NORMAL", "CONCENTRATION", "CORRELATION", "DRAWDOWN", "STRESS", "UNKNOWN"]),
+  policy("PAPER_EXECUTION_INCIDENT_CLASSIFICATION", "PAPER_EXECUTION", "PAPER Execution deterministic order lifecycle", OBSERVE_CLASSIFY_ESCALATE, "DOMAIN_ADVISORY_V1", ["HEALTHY", "ORDER_STATE", "VENUE", "PROVIDER", "RECOVERY_REQUIRED", "UNKNOWN"]),
+  policy("LEDGER_RECONCILIATION_INCIDENT_CLASSIFICATION", "PAPER_LEDGER", "PAPER Ledger canonical accounting and reconciliation", OBSERVE_CLASSIFY_SUMMARIZE_ESCALATE, "DOMAIN_ADVISORY_V1", ["RECONCILED", "DUPLICATE", "OUT_OF_ORDER", "GAP", "MISMATCH", "UNKNOWN"]),
+  policy("PERFORMANCE_EVIDENCE_READINESS_CLASSIFICATION", "PERFORMANCE_EVIDENCE", "Performance/Evidence canonical measurement layer", OBSERVE_CLASSIFY_SUMMARIZE_ESCALATE, "DOMAIN_ADVISORY_V1", ["READY", "INSUFFICIENT", "STALE", "INVALID", "STALLED", "UNKNOWN"]),
+  policy("OBSERVABILITY_INCIDENT_CLASSIFICATION", "OBSERVABILITY_SRE", "Observability/SRE deterministic health and recovery verification", OBSERVE_CLASSIFY_SUMMARIZE_ESCALATE, "DOMAIN_ADVISORY_V1", ["HEALTHY", "DEGRADED", "STALE", "FAILED", "NOISE", "UNKNOWN"]),
+  policy("RUNTIME_RECOVERY_ELIGIBILITY", "INFRASTRUCTURE_RUNTIME", "Infrastructure/Runtime deterministic recovery controller", OBSERVE_CLASSIFY_ESCALATE, "DOMAIN_ADVISORY_V1", ["ELIGIBLE", "NOT_ELIGIBLE", "HUMAN_REQUIRED", "UNKNOWN"]),
+  policy("SECURITY_EVENT_CLASSIFICATION", "SECURITY_IDENTITY", "Security/Identity deterministic policy and incident handling", OBSERVE_CLASSIFY_ESCALATE, "DOMAIN_ADVISORY_V1", ["NORMAL", "ANOMALY", "CREDENTIAL_RISK", "SESSION_RISK", "HUMAN_REQUIRED", "UNKNOWN"]),
+  policy("RELEASE_AUDIT_BLOCKER_CLASSIFICATION", "RELEASE_AUDIT", "Independent Audit and canonical Release authority", OBSERVE_CLASSIFY_SUMMARIZE_ESCALATE, "DOMAIN_ADVISORY_V1", ["CLEAR", "CODE", "INFRA", "PROVIDER", "STALE_EVIDENCE", "HUMAN_REQUIRED", "UNKNOWN"]),
+  policy("INTEGRATION_MISMATCH_CLASSIFICATION", "INTEGRATION_E2E", "Integration/E2E independent acceptance verifier", OBSERVE_CLASSIFY_SUMMARIZE_ESCALATE, "DOMAIN_ADVISORY_V1", ["MATCH", "SCHEMA", "ORDERING", "PROVENANCE", "STALE_STATE", "OWNER_MISMATCH", "UNKNOWN"]),
+  policy("UI_REGRESSION_CLASSIFICATION", "UI_MOBILE", "UI/UX and Mobile deterministic product validation", OBSERVE_CLASSIFY_SUMMARIZE_ESCALATE, "DOMAIN_ADVISORY_V1", ["PASS", "VISUAL", "FUNCTIONAL", "ACCESSIBILITY", "TELEMETRY", "UNKNOWN"]),
 ]);
 
 const POLICY_BY_TASK = new Map<JevDomainTaskType, JevTaskTypePolicy>(
@@ -413,6 +335,45 @@ function canonicalTimestamp(value: string | undefined): string {
   return timestamp;
 }
 
+function validateDomainAdvisoryDecision(
+  policy: JevTaskTypePolicy,
+  value: Readonly<Record<string, unknown>>,
+): JevDomainAdvisoryDecision {
+  const keys = Object.keys(value).sort();
+  if (keys.join(",") !== "classification,confidence,reasonCode,requiredModel,severity") {
+    throw new Error("JEV_DOMAIN_ADVISORY_DECISION_INVALID");
+  }
+  if (
+    typeof value.classification !== "string"
+    || policy.classificationValues == null
+    || !policy.classificationValues.includes(value.classification)
+  ) {
+    throw new Error("JEV_DOMAIN_ADVISORY_CLASSIFICATION_INVALID");
+  }
+  if (!Number.isInteger(value.severity) || Number(value.severity) < 1 || Number(value.severity) > 5) {
+    throw new Error("JEV_DOMAIN_ADVISORY_SEVERITY_INVALID");
+  }
+  const requiredModel = validateRequiredModel(value.requiredModel);
+  if (typeof value.reasonCode !== "string" || !REASON_CODE.test(value.reasonCode)) {
+    throw new Error("JEV_DOMAIN_ADVISORY_REASON_INVALID");
+  }
+  if (
+    typeof value.confidence !== "number"
+    || !Number.isFinite(value.confidence)
+    || value.confidence < 0
+    || value.confidence > 1
+  ) {
+    throw new Error("JEV_DOMAIN_ADVISORY_CONFIDENCE_INVALID");
+  }
+  return Object.freeze({
+    classification: value.classification,
+    severity: value.severity as 1 | 2 | 3 | 4 | 5,
+    requiredModel,
+    reasonCode: value.reasonCode,
+    confidence: value.confidence,
+  });
+}
+
 function validateTaskDecision(
   policy: JevTaskTypePolicy,
   value: Readonly<Record<string, unknown>>,
@@ -422,6 +383,10 @@ function validateTaskDecision(
     validated = validateJevShadowDecision(value);
   } else if (policy.decisionSchema === "RESEARCH_ATTENTION_V1") {
     validated = validateJevResearchAttentionShadowDecision(value);
+  } else if (policy.decisionSchema === "DOMAIN_ADVISORY_V1") {
+    return safeDecision(
+      validateDomainAdvisoryDecision(policy, value) as unknown as Readonly<Record<string, unknown>>,
+    );
   } else {
     throw new Error("JEV_TASK_DECISION_VALIDATOR_UNAVAILABLE");
   }
@@ -445,6 +410,12 @@ export function assertJevTaskTypeRegistry(): void {
       (entry.calibrationEvidenceVersion == null || !entry.calibrationEvidenceVersion.trim())
     ) {
       throw new Error("JEV_CALIBRATION_EVIDENCE_REQUIRED");
+    }
+    if (
+      entry.decisionSchema === "DOMAIN_ADVISORY_V1"
+      && (entry.classificationValues == null || entry.classificationValues.length === 0)
+    ) {
+      throw new Error("JEV_DOMAIN_ADVISORY_CLASSIFICATIONS_REQUIRED");
     }
     if (
       entry.allowedActions.some((action) =>
@@ -495,6 +466,15 @@ export function createJevDomainObservation(
     if (
       decision.confidence !== input.confidence ||
       decision.reasonCode !== input.reasonCode
+    ) {
+      throw new Error("JEV_DECISION_ENVELOPE_MISMATCH");
+    }
+  }
+  if (taskPolicy.decisionSchema === "DOMAIN_ADVISORY_V1") {
+    if (
+      decision.requiredModel !== requiredModel
+      || decision.confidence !== input.confidence
+      || decision.reasonCode !== input.reasonCode
     ) {
       throw new Error("JEV_DECISION_ENVELOPE_MISMATCH");
     }
