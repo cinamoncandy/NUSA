@@ -52,6 +52,7 @@ const verifiedFailureGithubFetch = async (url: string) => {
         steps: [
           { name: "Checkout", conclusion: "success" },
           { name: "Preflight", conclusion: "failure" },
+          { name: ["gh", "p_", "12345678901234567890"].join(""), conclusion: "failure" },
         ],
       }],
     });
