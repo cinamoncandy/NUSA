@@ -68,7 +68,7 @@ const STATUS_AUTH = new Set([400, 401, 403]);
 const STATUS_RATE_LIMIT = 429;
 const STATUS_UNAVAILABLE = new Set([500, 502, 503, 504]);
 
-const CODE_TIMEOUT = /(?:^|[_:-])(?:TIMEOUT|TIMED_OUT|ETIMEDOUT)(?:$|[_:-])/i;
+const CODE_TIMEOUT = /(?:^|[\\s_:-])(?:TIMEOUT|TIMED_OUT|ETIMEDOUT)(?:$|[\\s_:-])/i;
 const CODE_AUTH = /AUTH|UNAUTHORIZED|FORBIDDEN|INVALID[_-]?(?:KEY|TOKEN|CREDENTIAL|CONFIG)/i;
 const CODE_RATE = /RATE[_-]?LIMIT|TOO[_-]?MANY[_-]?REQUESTS|QUOTA/i;
 const CODE_UNAVAILABLE = /UNAVAILABLE|ECONN|NETWORK|CONNECTION|UPSTREAM|5\d\d/i;
@@ -294,7 +294,7 @@ export function recordAiProviderFailure(
     });
   }
 
-  const wait = failure.retryAfterMs ?? policy.cooldownMs;
+  const wait = Math.min(failure.retryAfterMs ?? policy.cooldownMs, policy.maxRetryAfterMs);
   return Object.freeze({
     ...state,
     state: "OPEN" as const,
