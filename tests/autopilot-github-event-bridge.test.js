@@ -95,6 +95,83 @@ test("fails closed when an Audit request is accepted without a dispatch or appro
   await assert.rejects(() => dispatchGithubEvent({ secret: "bridge-test-secret", body, event: "workflow_run", repository: "cinamoncandy/NUSA", runId: "18", runAttempt: "1", fetchImpl: async () => new Response(JSON.stringify(safetyPayload({ execution: { kind: "AUDIT_REQUEST" }, executor: { status: "FAILED", reason: "github-executor-http-500", httpStatus: 500 } })), { status: 202 }), retryDelayMs: 0, timeoutMs: 100 }), /WEBHOOK_AUDIT_NOT_DISPATCHED:FAILED:github-executor-http-500:500/);
 });
 
+// #1876's sticky HOLD gave the executor legitimate reasons to decline an Audit request. Those are
+// the control plane working, not a delivery failure, and the bridge must not report them as one -
+// otherwise every held pull request paints main red and real delivery failures hide in the noise.
+for (const reason of ["github-executor-pr-not-open", "github-executor-pr-draft-hold-active", "github-executor-pr-hold-label-active", "github-executor-duplicate-audit-run-suppressed"]) {
+  test(`a state-based executor decline is a delivered event, not a bridge failure (${reason})`, async () => {
+    const result = await dispatchGithubEvent({
+      secret: "bridge-test-secret", body, event: "workflow_run", repository: "cinamoncandy/NUSA", runId: "19", runAttempt: "1",
+      fetchImpl: async () => new Response(JSON.stringify(safetyPayload({ execution: { kind: "AUDIT_REQUEST" }, executor: { status: "REJECTED", reason, httpStatus: 200 } })), { status: 202 }),
+      retryDelayMs: 0, timeoutMs: 100
+    });
+    assert.equal(result.status, "DELIVERED");
+    assert.equal(result.executorStatus, "REJECTED");
+    assert.equal(result.executorReason, reason);
+  });
+}
+
+// A malformed request is also REJECTED, but it is a defect rather than a state decision, so it must
+// stay loud. This is the boundary the allowlist has to hold.
+test("a malformed Audit request still fails closed even though it is also REJECTED", async () => {
+  await assert.rejects(
+    () => dispatchGithubEvent({
+      secret: "bridge-test-secret", body, event: "workflow_run", repository: "cinamoncandy/NUSA", runId: "20", runAttempt: "1",
+      fetchImpl: async () => new Response(JSON.stringify(safetyPayload({ execution: { kind: "AUDIT_REQUEST" }, executor: { status: "REJECTED", reason: "github-executor-pr-number-required", httpStatus: 200 } })), { status: 202 }),
+      retryDelayMs: 0, timeoutMs: 100
+    }),
+    /WEBHOOK_AUDIT_NOT_DISPATCHED:REJECTED:github-executor-pr-number-required/
+  );
+});
+
+// A control-plane decision that consulted no executor carries no executor evidence. #1955's Ready
+// replay returns exactly that shape when it resolves no canonical CI identity, and rejecting it as
+// malformed is how the reason stops reaching anyone: a red bridge run saying EVIDENCE_INVALID when
+// the truth was a specific, designed NOOP.
+for (const status of ["NOOP", "NO_ACTION", "DUPLICATE_EXECUTION_SUPPRESSED"]) {
+  test(`a terminal control-plane decision without executor evidence is delivered, not rejected (${status})`, async () => {
+    const result = await dispatchGithubEvent({
+      secret: "bridge-test-secret", body, event: "pull_request_target", repository: "cinamoncandy/NUSA", runId: "21", runAttempt: "1",
+      fetchImpl: async () => new Response(JSON.stringify({
+        accepted: true, status, reason: "ready-replay-unresolved-ci",
+        liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY"
+      }), { status: 202 }),
+      retryDelayMs: 0, timeoutMs: 100
+    });
+    assert.equal(result.status, "DELIVERED");
+    assert.equal(result.executorStatus, "NOOP");
+    assert.equal(result.executorReason, "ready-replay-unresolved-ci", "the control plane's reason must survive to the run log");
+  });
+}
+
+test("a response claiming execution still requires executor evidence", async () => {
+  await assert.rejects(
+    () => dispatchGithubEvent({
+      secret: "bridge-test-secret", body, event: "pull_request_target", repository: "cinamoncandy/NUSA", runId: "22", runAttempt: "1",
+      fetchImpl: async () => new Response(JSON.stringify({
+        accepted: true, status: "EXECUTION_DISPATCHED",
+        liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY"
+      }), { status: 202 }),
+      retryDelayMs: 0, timeoutMs: 100
+    }),
+    /WEBHOOK_EXECUTOR_EVIDENCE_INVALID/
+  );
+});
+
+test("a malformed control-plane reason still fails closed", async () => {
+  await assert.rejects(
+    () => dispatchGithubEvent({
+      secret: "bridge-test-secret", body, event: "pull_request_target", repository: "cinamoncandy/NUSA", runId: "23", runAttempt: "1",
+      fetchImpl: async () => new Response(JSON.stringify({
+        accepted: true, status: "NOOP", reason: "bad reason with spaces",
+        liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY"
+      }), { status: 202 }),
+      retryDelayMs: 0, timeoutMs: 100
+    }),
+    /WEBHOOK_CONTROL_PLANE_REASON_INVALID/
+  );
+});
+
 test("the primary bridge remains read-only and fallback write authority is isolated", () => {
   const normalized = workflow.replace(/\r\n/g, "\n");
   const bridgeStart = normalized.indexOf("  bridge:\n");

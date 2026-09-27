@@ -50,6 +50,7 @@ class MainApplication : Application(), ReactApplication {
       packageList =
         PackageList(this).packages.apply {
           add(NusaSecureStoragePackage())
+          add(NusaOwnerDeviceCredentialPackage())
           add(NusaNetworkDiagnosticsPackage())
           add(NusaUpbitPublicQuotationPackage())
         },

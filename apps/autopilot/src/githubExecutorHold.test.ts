@@ -62,6 +62,9 @@ test("#1876 production Audit dispatch still reaches repository dispatch when cur
   const fakeFetch = (async (url: string | URL | Request) => {
     calls.push(String(url));
     if (String(url).endsWith("/pulls/42")) return prResponse();
+    if (String(url).includes("/actions/workflows/autopilot-deterministic-audit-release.yml/runs?")) {
+      return new Response(JSON.stringify({ workflow_runs: [] }), { status: 200, headers: { "content-type": "application/json" } });
+    }
     return new Response(null, { status: 204 });
   }) as typeof fetch;
 
@@ -69,6 +72,7 @@ test("#1876 production Audit dispatch still reaches repository dispatch when cur
   assert.equal(value.status, "DISPATCHED");
   assert.deepEqual(calls, [
     "https://api.example.test/repos/cinamoncandy/NUSA/pulls/42",
+    "https://api.example.test/repos/cinamoncandy/NUSA/actions/workflows/autopilot-deterministic-audit-release.yml/runs?event=repository_dispatch&per_page=100&page=1",
     "https://api.example.test/repos/cinamoncandy/NUSA/dispatches",
   ]);
 });

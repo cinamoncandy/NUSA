@@ -9,12 +9,20 @@ import {
 import type { NusaUserAccessRepository } from "./operatorUserAccess";
 import { isUserAllowed } from "./operatorUserAccess";
 import type { MobileSessionService } from "./mobileSessionService";
+import type { OwnerDeviceCredentialService } from "./ownerCredential/ownerDeviceCredentialService";
 
 export interface MobileSessionHttpDependencies {
   readonly sessionService: MobileSessionService;
+  readonly ownerDeviceCredentialService?: OwnerDeviceCredentialService;
   readonly legacyTokenVerifier: DashboardTokenVerifier;
   readonly userAccessRepository: NusaUserAccessRepository;
 }
+
+const ownerDeviceInput = (input: Record<string, unknown> | undefined): Readonly<{ credentialId: string; deviceId: string }> | undefined => {
+  const credentialId = typeof input?.credentialId === "string" ? input.credentialId.trim() : "";
+  const deviceId = typeof input?.deviceId === "string" ? input.deviceId.trim() : "";
+  return credentialId && deviceId ? Object.freeze({ credentialId, deviceId }) : undefined;
+};
 
 export const MOBILE_ENROLLMENT_TOKEN_SHA256_ENV = "NUSA_MOBILE_ENROLLMENT_TOKEN_SHA256";
 const SHA256_HEX = /^[a-f0-9]{64}$/;
@@ -53,11 +61,80 @@ function methodOnly(request: DashboardHttpRequest, method: "GET" | "POST"): Dash
 function authorizeOwner(request: DashboardHttpRequest, dependencies: MobileSessionHttpDependencies): DashboardPrincipal | undefined {
   const token = bearer(request.headers.authorization ?? request.headers.Authorization);
   if (token == null) return undefined;
-  const principal = dependencies.legacyTokenVerifier.verify(token);
+  const principal = dependencies.sessionService.verifyAccess(token) ?? dependencies.legacyTokenVerifier.verify(token);
   if (principal == null || !principal.scopes.includes("users:manage")) return undefined;
   const actor = dependencies.userAccessRepository.get(principal.userId);
   if (actor?.role !== "OWNER" || !isUserAllowed(actor)) return undefined;
   return principal;
+}
+
+export function handleOwnerDeviceCredentialRegistrationChallengeHttp(request: DashboardHttpRequest & { readonly body?: string }, dependencies: MobileSessionHttpDependencies): DashboardHttpResponse {
+  const methodError = methodOnly(request, "POST"); if (methodError) return methodError;
+  const principal = authorizeOwner(request, dependencies);
+  if (principal == null) return dashboardJsonResponse(403, { error: "OWNER_AUTHENTICATION_REQUIRED" });
+  if (dependencies.ownerDeviceCredentialService == null) return dashboardJsonResponse(503, { error: "OWNER_DEVICE_CREDENTIAL_UNAVAILABLE" });
+  const input = jsonObject(request.body); const binding = ownerDeviceInput(input);
+  const publicKeySpki = typeof input?.publicKeySpki === "string" ? input.publicKeySpki : "";
+  if (binding == null || !publicKeySpki) return dashboardJsonResponse(400, { error: "INVALID_OWNER_DEVICE_CREDENTIAL_REGISTRATION" });
+  try {
+    return dashboardJsonResponse(201, dependencies.ownerDeviceCredentialService.startRegistration({ actorUserId: principal.userId, actorScopes: principal.scopes, ...binding, publicKeySpki }));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    return dashboardJsonResponse(message.includes("limit") ? 429 : message.includes("authority") ? 403 : 400, { error: "OWNER_DEVICE_CREDENTIAL_REGISTRATION_REJECTED" });
+  }
+}
+
+export function handleOwnerDeviceCredentialRegistrationActivateHttp(request: DashboardHttpRequest & { readonly body?: string }, dependencies: MobileSessionHttpDependencies): DashboardHttpResponse {
+  const methodError = methodOnly(request, "POST"); if (methodError) return methodError;
+  const principal = authorizeOwner(request, dependencies);
+  if (principal == null) return dashboardJsonResponse(403, { error: "OWNER_AUTHENTICATION_REQUIRED" });
+  if (dependencies.ownerDeviceCredentialService == null) return dashboardJsonResponse(503, { error: "OWNER_DEVICE_CREDENTIAL_UNAVAILABLE" });
+  const input = jsonObject(request.body); const binding = ownerDeviceInput(input);
+  const challengeId = typeof input?.challengeId === "string" ? input.challengeId : "";
+  const signature = typeof input?.signature === "string" ? input.signature : "";
+  if (binding == null || !challengeId || !signature) return dashboardJsonResponse(400, { error: "INVALID_OWNER_DEVICE_CREDENTIAL_ACTIVATION" });
+  try {
+    return dependencies.ownerDeviceCredentialService.activateRegistration({ actorUserId: principal.userId, actorScopes: principal.scopes, ...binding, challengeId, signature })
+      ? dashboardJsonResponse(201, { state: "ACTIVE" })
+      : dashboardJsonResponse(401, { error: "OWNER_DEVICE_CREDENTIAL_PROOF_REJECTED" });
+  } catch { return dashboardJsonResponse(403, { error: "OWNER_DEVICE_CREDENTIAL_ACTIVATION_REJECTED" }); }
+}
+
+export function handleOwnerDeviceCredentialAuthenticationChallengeHttp(request: DashboardHttpRequest & { readonly body?: string }, dependencies: MobileSessionHttpDependencies): DashboardHttpResponse {
+  const methodError = methodOnly(request, "POST"); if (methodError) return methodError;
+  if (dependencies.ownerDeviceCredentialService == null) return dashboardJsonResponse(503, { error: "OWNER_DEVICE_CREDENTIAL_UNAVAILABLE" });
+  const binding = ownerDeviceInput(jsonObject(request.body));
+  if (binding == null) return dashboardJsonResponse(400, { error: "INVALID_OWNER_DEVICE_CREDENTIAL_AUTHENTICATION" });
+  try {
+    const challenge = dependencies.ownerDeviceCredentialService.startAuthentication(binding);
+    return challenge == null ? dashboardJsonResponse(401, { error: "OWNER_DEVICE_CREDENTIAL_REJECTED" }) : dashboardJsonResponse(201, challenge);
+  } catch (error) {
+    return dashboardJsonResponse(error instanceof Error && error.message.includes("limit") ? 429 : 400, { error: "OWNER_DEVICE_CREDENTIAL_REJECTED" });
+  }
+}
+
+export function handleOwnerDeviceCredentialAuthenticationCompleteHttp(request: DashboardHttpRequest & { readonly body?: string }, dependencies: MobileSessionHttpDependencies): DashboardHttpResponse {
+  const methodError = methodOnly(request, "POST"); if (methodError) return methodError;
+  if (dependencies.ownerDeviceCredentialService == null) return dashboardJsonResponse(503, { error: "OWNER_DEVICE_CREDENTIAL_UNAVAILABLE" });
+  const input = jsonObject(request.body); const binding = ownerDeviceInput(input);
+  const challengeId = typeof input?.challengeId === "string" ? input.challengeId : "";
+  const signature = typeof input?.signature === "string" ? input.signature : "";
+  if (binding == null || !challengeId || !signature) return dashboardJsonResponse(400, { error: "INVALID_OWNER_DEVICE_CREDENTIAL_AUTHENTICATION" });
+  try {
+    const tokens = dependencies.ownerDeviceCredentialService.authenticate({ ...binding, challengeId, signature });
+    return tokens == null ? dashboardJsonResponse(401, { error: "OWNER_DEVICE_CREDENTIAL_PROOF_REJECTED" }) : dashboardJsonResponse(200, tokens);
+  } catch { return dashboardJsonResponse(401, { error: "OWNER_DEVICE_CREDENTIAL_PROOF_REJECTED" }); }
+}
+
+export function handleOwnerDeviceCredentialRevokeHttp(request: DashboardHttpRequest & { readonly body?: string }, dependencies: MobileSessionHttpDependencies): DashboardHttpResponse {
+  const methodError = methodOnly(request, "POST"); if (methodError) return methodError;
+  const principal = authorizeOwner(request, dependencies);
+  if (principal == null) return dashboardJsonResponse(403, { error: "OWNER_AUTHENTICATION_REQUIRED" });
+  if (dependencies.ownerDeviceCredentialService == null) return dashboardJsonResponse(503, { error: "OWNER_DEVICE_CREDENTIAL_UNAVAILABLE" });
+  const input = jsonObject(request.body);
+  const credentialId = typeof input?.credentialId === "string" ? input.credentialId : "";
+  try { return dependencies.ownerDeviceCredentialService.revoke({ actorUserId: principal.userId, actorScopes: principal.scopes, credentialId }) ? dashboardJsonResponse(200, { revoked: true }) : dashboardJsonResponse(404, { error: "OWNER_DEVICE_CREDENTIAL_NOT_FOUND" }); }
+  catch { return dashboardJsonResponse(400, { error: "OWNER_DEVICE_CREDENTIAL_REVOKE_REJECTED" }); }
 }
 
 /**
@@ -208,6 +285,42 @@ export function handleMobilePairingExchangeHttp(request: DashboardHttpRequest & 
     const tokens = dependencies.sessionService.exchangePairing(requestId, deviceId);
     return tokens == null ? dashboardJsonResponse(401, { error: "PAIRING_EXCHANGE_REJECTED" }) : dashboardJsonResponse(200, tokens);
   } catch { return dashboardJsonResponse(401, { error: "PAIRING_EXCHANGE_REJECTED" }); }
+}
+
+/** Normal password sign-in never accepts or returns an owner identity. */
+export function handleOwnerPasswordSignInHttp(request: DashboardHttpRequest & { readonly body?: string }, dependencies: MobileSessionHttpDependencies): DashboardHttpResponse {
+  const methodError = methodOnly(request, "POST"); if (methodError) return methodError;
+  const input = jsonObject(request.body);
+  const deviceId = typeof input?.deviceId === "string" ? input.deviceId.trim() : "";
+  if (deviceId.length < 8 || deviceId.length > 256 || /[\r\n]/.test(deviceId)) return dashboardJsonResponse(400, { error: "INVALID_PASSWORD_SIGN_IN_REQUEST" });
+  try {
+    const outcome = dependencies.sessionService.signInWithOwnerPassword({ password: input?.password, deviceId });
+    if (outcome.status === "AMBIGUOUS_OWNER" || outcome.status === "INVALID_OWNER") return dashboardJsonResponse(400, { error: "INVALID_PASSWORD_SIGN_IN_REQUEST" });
+    if (outcome.status === "LOCKED") {
+      const response = dashboardJsonResponse(429, { error: "PASSWORD_ATTEMPTS_THROTTLED", retryAfterMs: outcome.retryAfterMs });
+      return Object.freeze({ ...response, headers: Object.freeze({ ...response.headers, "retry-after": String(Math.ceil(outcome.retryAfterMs / 1000)) }) });
+    }
+    return outcome.status === "ISSUED" ? dashboardJsonResponse(200, outcome.tokens) : dashboardJsonResponse(401, { error: "PASSWORD_REJECTED" });
+  } catch { return dashboardJsonResponse(401, { error: "PASSWORD_REJECTED" }); }
+}
+
+/** Session alone is insufficient: the current password must verify before replacement. */
+export function handleOwnerPasswordChangeHttp(request: DashboardHttpRequest & { readonly body?: string }, dependencies: MobileSessionHttpDependencies): DashboardHttpResponse {
+  const methodError = methodOnly(request, "POST"); if (methodError) return methodError;
+  const token = bearer(request.headers.authorization ?? request.headers.Authorization);
+  const principal = token == null ? undefined : dependencies.sessionService.verifyAccess(token);
+  const actor = principal == null ? undefined : dependencies.userAccessRepository.get(principal.userId);
+  if (principal == null || actor?.role !== "OWNER" || !isUserAllowed(actor)) return dashboardJsonResponse(403, { error: "OWNER_AUTHENTICATION_REQUIRED" });
+  const input = jsonObject(request.body);
+  if (typeof input?.newPassword !== "string") return dashboardJsonResponse(400, { error: "INVALID_PASSWORD_CHANGE_REQUEST" });
+  try {
+    const outcome = dependencies.sessionService.changeOwnerPassword({ actorUserId: principal.userId, currentPassword: input?.currentPassword, newPassword: input.newPassword });
+    if (outcome.status === "LOCKED") {
+      const response = dashboardJsonResponse(429, { error: "PASSWORD_ATTEMPTS_THROTTLED", retryAfterMs: outcome.retryAfterMs });
+      return Object.freeze({ ...response, headers: Object.freeze({ ...response.headers, "retry-after": String(Math.ceil(outcome.retryAfterMs / 1000)) }) });
+    }
+    return outcome.status === "CHANGED" ? dashboardJsonResponse(200, { changed: true }) : outcome.status === "REJECTED" ? dashboardJsonResponse(401, { error: "PASSWORD_REJECTED" }) : dashboardJsonResponse(403, { error: "OWNER_AUTHENTICATION_REQUIRED" });
+  } catch { return dashboardJsonResponse(400, { error: "INVALID_PASSWORD_CHANGE_REQUEST" }); }
 }
 
 export function handleMobileSessionRefreshHttp(request: DashboardHttpRequest & { readonly body?: string }, dependencies: MobileSessionHttpDependencies): DashboardHttpResponse {

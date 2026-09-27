@@ -106,7 +106,9 @@ export class ClosedLearningRolloverScheduler {
     // A qualified cycle deploys its replacement challenger and opens the next canonical PAPER
     // period through PaperChallengerDeploymentRuntime. Non-qualified outcomes retain the same
     // immutable candidate/advisory and continue accumulating evidence in a new canonical period.
-    if (cycle.record.decision.outcome !== "QUALIFIED_FOR_LEAGUE") {
+    // So does a qualified cycle still waiting for Governance approval: without a deployment no
+    // replacement period was opened, and PAPER must not stall with no open period.
+    if (cycle.record.decision.outcome !== "QUALIFIED_FOR_LEAGUE" || cycle.record.paperDeployment == null) {
       const periodIndex = nextPeriodIndex(prepared.realizedPeriods);
       this.port.openPeriodFromCanonicalAccount({
         periodId: `closed-learning-rollover:${periodIndex}:${prepared.account.updatedAt}`,

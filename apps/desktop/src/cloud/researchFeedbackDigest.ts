@@ -33,6 +33,8 @@ export interface ResearchFeedbackPolicy {
   readonly maximumAdjustment: number;
   /** Sealed prior trials a family needs before its feedback is anything but neutral. */
   readonly minimumPriorTrials: number;
+  /** Distinct canonical searches/runs required before correlated parameter cells may influence the prior. */
+  readonly minimumDistinctSearches: number;
   /** Share of the evidence base above which one family is reported as dominating it. */
   readonly concentrationDisclosureThreshold: number;
 }
@@ -41,6 +43,8 @@ export interface ResearchFamilyFeedback {
   readonly familyId: string;
   /** Sealed trials for this family that preceded the evaluated point. */
   readonly priorTrialCount: number;
+  /** Distinct search ids, so a 9-cell grid from one run still counts as one distinct search. */
+  readonly distinctSearchCount: number;
   readonly completedCount: number;
   readonly failedCount: number;
   readonly rejectedCount: number;
@@ -61,6 +65,7 @@ export interface ResearchFeedbackDigest {
   readonly evaluatedSequence: number;
   readonly families: readonly ResearchFamilyFeedback[];
   readonly totalPriorTrials: number;
+  readonly totalDistinctSearches: number;
   readonly reasons: readonly string[];
 }
 
@@ -76,6 +81,7 @@ const GENESIS_HASH = "0".repeat(64);
 const DEFAULT_POLICY: ResearchFeedbackPolicy = Object.freeze({
   maximumAdjustment: 0.1,
   minimumPriorTrials: 5,
+  minimumDistinctSearches: 2,
   concentrationDisclosureThreshold: 0.6,
 });
 
@@ -88,6 +94,9 @@ function validatePolicy(policy: ResearchFeedbackPolicy): void {
   }
   if (!Number.isInteger(policy.minimumPriorTrials) || policy.minimumPriorTrials < 1) {
     throw new ResearchFeedbackError("INVALID_POLICY", "minimumPriorTrials must be a positive integer");
+  }
+  if (!Number.isInteger(policy.minimumDistinctSearches) || policy.minimumDistinctSearches < 2) {
+    throw new ResearchFeedbackError("INVALID_POLICY", "minimumDistinctSearches must be an integer >= 2");
   }
   if (!Number.isFinite(policy.concentrationDisclosureThreshold)
     || policy.concentrationDisclosureThreshold <= 0
@@ -105,20 +114,24 @@ function validatePolicy(policy: ResearchFeedbackPolicy): void {
  * search, and must be scored down for it.
  */
 function familyPrior(
-  completedCount: number,
-  failedCount: number,
-  rejectedCount: number,
-  abstainedCount: number,
+  priorTrialCount: number,
+  searchFailureRatios: readonly number[],
   policy: ResearchFeedbackPolicy,
 ): { readonly failureRatio: number; readonly priorAdjustment: number; readonly reasons: readonly string[] } {
-  const priorTrialCount = completedCount + failedCount + rejectedCount + abstainedCount;
+  const distinctSearchCount = searchFailureRatios.length;
   const reasons: string[] = [];
-  if (priorTrialCount < policy.minimumPriorTrials) {
-    // Too little sealed history to say anything: neutral, and say why.
-    return { failureRatio: priorTrialCount === 0 ? 0 : (failedCount + rejectedCount) / priorTrialCount, priorAdjustment: 0, reasons: sortedUnique(["INSUFFICIENT_PRIOR_HISTORY"]) };
+  // Each canonical search counts once: its parameter cells are correlated, so grid breadth alone
+  // must not be able to swing the prior. The ratio is the mean of per-search failure ratios.
+  const failureRatio = distinctSearchCount === 0
+    ? 0
+    : searchFailureRatios.reduce((sum, ratio) => sum + ratio, 0) / distinctSearchCount;
+  if (priorTrialCount < policy.minimumPriorTrials || distinctSearchCount < policy.minimumDistinctSearches) {
+    if (priorTrialCount < policy.minimumPriorTrials) reasons.push("INSUFFICIENT_PRIOR_HISTORY");
+    if (distinctSearchCount < policy.minimumDistinctSearches) reasons.push("INSUFFICIENT_DISTINCT_SEARCH_HISTORY");
+    // Parameter cells from one canonical search are correlated evidence, not independent replications.
+    return { failureRatio, priorAdjustment: 0, reasons: sortedUnique(reasons) };
   }
 
-  const failureRatio = (failedCount + rejectedCount + abstainedCount) / priorTrialCount;
   // 0.5 failure ratio is the neutral point; above it the family's own history argues against it.
   const raw = (0.5 - failureRatio) * 2 * policy.maximumAdjustment;
   const priorAdjustment = Math.max(-policy.maximumAdjustment, Math.min(policy.maximumAdjustment, raw));
@@ -154,9 +167,13 @@ export function buildResearchFeedbackDigest(
   // Strictly-earlier records only: this is what makes the feedback non-circular.
   const priorRecords = ledger.filter((record) => record.sequence < evaluatedSequence);
 
-  const byFamily = new Map<string, { completed: number; failed: number; rejected: number; abstained: number }>();
+  const byFamily = new Map<string, { completed: number; failed: number; rejected: number; abstained: number; searches: Map<string, { total: number; failed: number }> }>();
   for (const record of priorRecords) {
-    const bucket = byFamily.get(record.familyId) ?? { completed: 0, failed: 0, rejected: 0, abstained: 0 };
+    const bucket = byFamily.get(record.familyId) ?? { completed: 0, failed: 0, rejected: 0, abstained: 0, searches: new Map<string, { total: number; failed: number }>() };
+    const search = bucket.searches.get(record.search.searchId) ?? { total: 0, failed: 0 };
+    search.total += 1;
+    if (record.outcome !== "COMPLETED") search.failed += 1;
+    bucket.searches.set(record.search.searchId, search);
     if (record.outcome === "COMPLETED") bucket.completed += 1;
     else if (record.outcome === "FAILED") bucket.failed += 1;
     else if (record.outcome === "REJECTED") bucket.rejected += 1;
@@ -167,10 +184,13 @@ export function buildResearchFeedbackDigest(
   const families = [...byFamily.entries()]
     .map(([familyId, counts]) => {
       const priorTrialCount = counts.completed + counts.failed + counts.rejected + counts.abstained;
-      const { failureRatio, priorAdjustment, reasons } = familyPrior(counts.completed, counts.failed, counts.rejected, counts.abstained, policy);
+      const distinctSearchCount = counts.searches.size;
+      const searchFailureRatios = [...counts.searches.values()].map((search) => search.failed / search.total);
+      const { failureRatio, priorAdjustment, reasons } = familyPrior(priorTrialCount, searchFailureRatios, policy);
       return freeze({
         familyId,
         priorTrialCount,
+        distinctSearchCount,
         completedCount: counts.completed,
         failedCount: counts.failed,
         rejectedCount: counts.rejected,
@@ -184,7 +204,8 @@ export function buildResearchFeedbackDigest(
     .sort((left, right) => left.familyId.localeCompare(right.familyId));
 
   const totalPriorTrials = priorRecords.length;
-  const reasons: string[] = ["BOUNDED_RESEARCH_PRIOR_ONLY", "NO_PROMOTION_AUTHORITY", "SEALED_HISTORY_NOT_REWRITTEN"];
+  const totalDistinctSearches = new Set(priorRecords.map((record) => record.search.searchId)).size;
+  const reasons: string[] = ["BOUNDED_RESEARCH_PRIOR_ONLY", "NO_PROMOTION_AUTHORITY", "SEALED_HISTORY_NOT_REWRITTEN", "DISTINCT_SEARCH_PSEUDOREPLICATION_GUARD_ACTIVE"];
   if (totalPriorTrials === 0) reasons.push("NO_SEALED_PRIOR_EVIDENCE");
   // A sample dominated by one family is a selection-biased sample, and must be labeled as one.
   for (const family of families) {
@@ -201,6 +222,7 @@ export function buildResearchFeedbackDigest(
     evaluatedSequence,
     families: freeze(families),
     totalPriorTrials,
+    totalDistinctSearches,
     reasons: sortedUnique(reasons),
   });
 }

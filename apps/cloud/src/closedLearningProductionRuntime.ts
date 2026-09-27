@@ -1,3 +1,4 @@
+import { PaperChallengerPolicyApproval, paperChallengerPolicyEnabled } from "./paperChallengerPolicyApproval";
 import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
 import { FileResearchRunReplaySnapshotStore } from "../../desktop/src/cloud/researchRunReplaySnapshotStore";
 import { readCloudRuntimeConfig } from "./cloudRuntimeConfig";
@@ -21,6 +22,7 @@ import { ClosedLearningEvidenceIdentitySource } from "./closedLearningEvidenceId
 import { CLOUD_PAPER_RISK_POLICY_FINGERPRINT } from "./cloudPaperRiskPolicyIdentity";
 import { ClosedLearningRolloverScheduler, type ClosedLearningRolloverResult } from "./closedLearningRolloverScheduler";
 import { ClosedLearningInitialPaperBootstrap, type ClosedLearningInitialPaperBootstrapResult } from "./closedLearningInitialPaperBootstrap";
+import { buildPaperPerformanceFromLedger, type PaperPerformanceFromLedgerResult } from "./paperPerformanceFromLedger";
 
 export const CLOSED_LEARNING_ROLLOVER_POLL_INTERVAL_MS = 30_000;
 
@@ -42,6 +44,8 @@ export interface ClosedLearningProductionComposition {
   /** Executes one production rollover decision against the canonical pending/realized ledgers. */
   readonly runClosedLearningRollover: () => ClosedLearningRolloverResult;
   readonly runClosedLearningRolloverAsync: () => Promise<ClosedLearningRolloverResult>;
+  /** Read-only deterministic Performance Evidence from this process' canonical PAPER history. */
+  readonly readPaperPerformanceEvidence: (periodId: string) => PaperPerformanceFromLedgerResult;
 }
 
 /**
@@ -118,6 +122,9 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     bindings: challengerBindings,
     periods,
     readCanonicalPaperAccount: requireCanonicalPaperAccount,
+    // Canonical Strategy Governance approval for PAPER challengers (ADR-0018). Disabled unless
+    // NUSA_PAPER_CHALLENGER_POLICY_APPROVAL=ENABLED; disabled means qualified candidates wait.
+    governance: new PaperChallengerPolicyApproval({ artifacts, enabled: paperChallengerPolicyEnabled(env) }),
   });
   const coordinator = new ClosedLearningLoopCoordinator(cycleRepository, researchFactory, paperDeployment);
   const runClosedLearningCycle = (input: ClosedLearningEvidenceIdentity): ClosedLearningCycleResult => coordinator.run(input);
@@ -152,6 +159,20 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   });
   const runClosedLearningRollover = (): ClosedLearningRolloverResult => rollover.runOnce();
   const runClosedLearningRolloverAsync = (): Promise<ClosedLearningRolloverResult> => rollover.runOnceAsync();
+
+  const readPaperPerformanceEvidence = (periodId: string): PaperPerformanceFromLedgerResult => {
+    const normalized = periodId.trim();
+    if (!normalized) throw new Error("PAPER_PERFORMANCE_PERIOD_ID_REQUIRED");
+    if (paperRepository?.loadHistory == null) throw new Error("PAPER_PERFORMANCE_DURABLE_HISTORY_UNAVAILABLE");
+    if (paperRepository.loadFills == null) throw new Error("PAPER_PERFORMANCE_DURABLE_FILL_LEDGER_UNAVAILABLE");
+    const matches = baseHandle.listPaperRealizedPeriods().filter((period) => period.record.recordId === normalized);
+    if (matches.length !== 1) throw new Error(matches.length === 0 ? "PAPER_PERFORMANCE_PERIOD_NOT_FOUND" : "PAPER_PERFORMANCE_PERIOD_ID_CONFLICT");
+    return buildPaperPerformanceFromLedger({
+      period: matches[0]!,
+      accountHistory: paperRepository.loadHistory(),
+      durableFills: paperRepository.loadFills(),
+    });
+  };
 
   // Closed learning is serialized and asynchronous. Research/League can be CPU-heavy on the
   // Oracle host, but it must never block the Node HTTP loop that serves /health, /ready, or the
@@ -220,6 +241,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     runClosedLearningBootstrapAsync,
     runClosedLearningRollover,
     runClosedLearningRolloverAsync,
+    readPaperPerformanceEvidence,
   });
 }
 

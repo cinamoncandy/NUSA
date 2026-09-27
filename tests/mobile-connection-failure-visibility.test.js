@@ -3,35 +3,32 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const source = fs.readFileSync(path.join(__dirname, "..", "apps/mobile/src/settingsView.tsx"), "utf8");
+const read = (file) => fs.readFileSync(path.join(__dirname, "..", file), "utf8");
+const settings = read("apps/mobile/src/settingsView.tsx");
+const experience = read("apps/mobile/src/ownerConnectionExperience.tsx");
 
-// The connection summary carries the reason, but it renders several rows above the step list.
-// An operator looking at the ERROR badge on VERIFY saw only that step's static description and
-// had to know to scroll back for the cause, which is why a real failure went undiagnosed.
-test("the failing connection step shows the reason beside its own badge", () => {
-  assert.match(source, /errorDetail\?: string/, "a step can carry a failure reason");
-  assert.match(
-    source,
-    /errorDetail \? <Text[^>]*styles\.connectionError[^>]*testID="settings-connection-step-error">\{errorDetail\}<\/Text> : null/,
-    "the reason renders inside the step when present"
-  );
-  assert.match(source, /title="VERIFY"[^/]*errorDetail: connection\.reason/, "VERIFY carries the reason when the connection failed");
+test("a failed PAPER connection is projected as BLOCKED with the real reason", () => {
+  assert.match(settings, /const connectionFailed = connectionAttempted && !connecting && connection\.status !== "READY"/);
+  assert.match(settings, /connectionFailed \? "BLOCKED"/);
+  assert.match(settings, /connectionFailed \? connection\.reason/);
+  assert.match(settings, /detail=\{connection\.status === "READY" \? undefined : cloudConnectionDetail\}/);
 });
 
-test("the reason is only shown on a failed connection", () => {
-  assert.match(source, /\{\.\.\.\(connectionFailed \? \{ errorDetail: connection\.reason \} : \{\}\)\}/);
-  // A step with no reason renders nothing extra rather than an empty line.
-  assert.match(source, /errorDetail \? <Text/);
+test("Evidence Glass renders the blocked reason at the active connection surface", () => {
+  assert.match(experience, /const blocked = stage === "BLOCKED"/);
+  assert.match(experience, /borderColor:blocked\?theme\.colors\.danger:theme\.colors\.border/);
+  assert.match(experience, /\{detail\?\?/);
+  assert.match(experience, /\{blocked\?"PAPER 변경 차단":"최초 연결만 확인합니다"\}/);
 });
 
-test("the step reason is styled as a failure, not as ordinary detail", () => {
-  assert.match(source, /connectionError: \{[^}]*fontWeight: "700"/);
-  assert.match(source, /styles\.connectionError, \{ color: theme\.colors\.danger \}/);
+test("healthy and pre-connection states retain truthful connection detail", () => {
+  assert.match(settings, /connection\.status === "READY" \? `\$\{connection\.snapshot\.operations\.runtimeState\} · \$\{connection\.snapshot\.operations\.transport\}`/);
+  assert.match(settings, /소유자 인증 한 번으로 이 기기의 PAPER 보안 세션을 시작합니다/);
+  assert.match(experience, /testID="owner-connection-experience"/);
 });
 
-// The summary notice stays: it is what reports a healthy connection and the neutral
-// pre-connection state, neither of which belongs on a step badge.
-test("the connection summary notice is preserved", () => {
-  assert.match(source, /testID="settings-connection-summary"/);
-  assert.match(source, /cloudConnectionDetail/);
+test("connection failure visibility never expands LIVE or AI authority", () => {
+  assert.match(experience, /PAPER ONLY/);
+  assert.match(experience, /LIVE AUTH SEPARATE · AI ZERO AUTHORITY/);
+  assert.doesNotMatch(experience, /productionMutationAllowed:\s*true|authority:\s*"LIVE"/);
 });

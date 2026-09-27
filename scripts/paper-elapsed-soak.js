@@ -44,6 +44,15 @@ function summarizeSnapshot(snapshot, monotonicElapsedMs = null) {
     generatedAt: snapshot?.generatedAt ?? null,
     runtimeState: snapshot?.operations?.runtimeState ?? null,
     schedulerRunning: snapshot?.operations?.schedulerRunning === true,
+    // A HALTED sample is worthless as evidence if it cannot be attributed. #1855 lost 330 minutes
+    // of soak to exactly one HALTED observation whose cause the receipt did not record, so these
+    // travel with every observation rather than only the inactive ones: recording them only on a
+    // halt would leave no baseline to compare an anomalous sample against.
+    killSwitchActive: snapshot?.operations?.killSwitchActive === true,
+    accountHalted: snapshot?.operations?.accountHalted === true,
+    runtimeHaltReasons: Array.isArray(snapshot?.operations?.runtimeHaltReasons)
+      ? Object.freeze([...snapshot.operations.runtimeHaltReasons])
+      : null,
     eventCount: Number(heartbeat?.eventCount ?? 0),
     decisionCount: Number(heartbeat?.decisionCount ?? 0),
     lastHeartbeatAt: heartbeat?.lastHeartbeatAt ?? null,

@@ -45,6 +45,52 @@ test("scheduled runtime receipt round-trips through the existing execution coord
   assert.equal(evidence.summary.windowSpanMs, 0);
 });
 
+test("scheduled runtime evidence uses one current-coordinator read", async () => {
+  const records = new Map<string, unknown>();
+  const coordinator = new ExecutionCoordinator({
+    storage: {
+      async get<T>(key: string): Promise<T | undefined> { return records.get(key) as T | undefined; },
+      async put<T>(key: string, value: T): Promise<void> { records.set(key, value); },
+    },
+  });
+  let reads = 0;
+  const namespace: ExecutionCoordinatorNamespace = {
+    idFromName: (name: string) => ({ name }),
+    get: () => ({
+      fetch: (input, init) => {
+        if (new Request(input, init).method === "GET") reads += 1;
+        return coordinator.fetch(new Request(input, init));
+      },
+    }),
+  };
+  await recordScheduledRuntimeReceipt(namespace, RECEIPT);
+  reads = 0;
+  await readScheduledRuntimeEvidence(namespace);
+  assert.equal(reads, 1);
+});
+
+test("scheduled runtime evidence falls back to legacy coordinators", async () => {
+  const records = new Map<string, unknown>([["scheduled-receipt", RECEIPT]]);
+  const coordinator = new ExecutionCoordinator({
+    storage: {
+      async get<T>(key: string): Promise<T | undefined> { return records.get(key) as T | undefined; },
+      async put<T>(key: string, value: T): Promise<void> { records.set(key, value); },
+    },
+  });
+  const namespace: ExecutionCoordinatorNamespace = {
+    idFromName: (name: string) => ({ name }),
+    get: () => ({
+      fetch: (input, init) => {
+        const request = new Request(input, init);
+        if (request.url.endsWith("/scheduled-receipt-history")) return Promise.resolve(new Response(null, { status: 404 }));
+        return coordinator.fetch(request);
+      },
+    }),
+  };
+  const evidence = await readScheduledRuntimeEvidence(namespace);
+  assert.deepEqual(evidence.history, [RECEIPT]);
+});
+
 test("scheduled runtime history is deterministic, bounded, and replay-idempotent", async () => {
   const namespace = coordinatorNamespace();
   for (let index = 0; index < 125; index += 1) {

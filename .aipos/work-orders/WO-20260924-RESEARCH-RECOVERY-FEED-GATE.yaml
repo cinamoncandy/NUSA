@@ -1,0 +1,41 @@
+id: WO-20260924-RESEARCH-RECOVERY-FEED-GATE
+title: "Gate the plain researchRuntime market-data feed on recovery integrity"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-research-recovery-gate
+parent_work_order: null
+authority_impact: none
+authority_impact_note: "Fail-closed hardening only: prevents research computation from continuing on unverified/corrupted state. No LIVE, execution, risk, credential or AI-authority change; PAPER-only research feed."
+objective: "FIRST_UNSAFE_RECOVERY_BOUNDARY (Opus P0-4 queue): a corrupted or throwing research recovery result must halt the research market-data feed, not be silently discarded."
+finding: "In startCloudRuntime (apps/cloud/src/runtime.ts), the recovery call `researchAutomation?.recover?.() ?? researchRecoveryCoordinator?.recover()` had its return value fully discarded, with the comment 'Research owns its fail-closed state.' That is true only for researchAutomation, which self-halts its own RUNNING sessions inside recover() so its onMarketData naturally no-ops afterward. The plain researchRuntime path (ResearchRecoveryCoordinator, no Automation wrapper) has no such self-gate: ResearchRecoveryCoordinator.recover() is a pure computation that returns FAIL_CLOSED on any integrity violation (duplicate candidate id, champion/audit mismatch, hash mismatch, etc.) but touches no state and nothing else in the runtime consulted its result. onMarketData was still called unconditionally on every tick. No test exercised researchRuntime+researchRecoveryCoordinator together; both production entrypoints (main(), closedLearningProductionRuntime.ts) currently leave researchRuntime/researchRecoveryCoordinator undefined, so the gap was latent rather than live, but any future wiring of the plain path would have kept computing research state after known corruption."
+scope:
+  include:
+    - "startCloudRuntime tracks researchRecoveryFailClosed from the recover() call's result or a thrown error"
+    - "the market-data tick handler skips effectiveResearchRuntime.onMarketData(...) while researchRecoveryFailClosed is true"
+    - "tests/research-runtime-boundary-regression.test.js: two new cases (FAIL_CLOSED result, thrown error) plus one existing case updated to the corrected fail-closed expectation"
+  exclude:
+    - "researchAutomation's own internal self-gating: unchanged"
+    - "PAPER execution loop, risk, ledger: untouched"
+acceptance:
+  - "A FAIL_CLOSED researchRecoveryCoordinator result stops the plain researchRuntime from receiving ticks."
+  - "A recover() that throws stops the plain researchRuntime from receiving ticks the same way."
+  - "researchAutomation's existing self-gating behavior (including its own throw-safety test) is unchanged."
+verification_commands:
+  - "node --test tests/research-runtime-boundary-regression.test.js"
+  - "node --test tests/research-runtime-wiring.test.js tests/ai-cloud-runtime.test.js tests/live-readiness-source-provider.test.js tests/cloud-runtime-paper-period-wiring.test.js tests/desktop-cloud-paper-production-e2e.test.js tests/p8-private-readonly-runtime-session.test.js"
+  - "pnpm run validate (Node >= 24)"
+evidence:
+  implementation_status: READY_FOR_REVIEW
+  mutation_verification:
+    - "reverting the onMarketData gate to unconditional -> 3 failures in tests/research-runtime-boundary-regression.test.js"
+  local_validation: "research-runtime-boundary-regression 5/5 PASS; combined runtime/research/paper-period/e2e suites 31/31 PASS; pnpm run validate PASS; secret scan 0 failures."
+  external_validation: "REQUIRED: exact-head CI, Audit, Release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Exact-head CI, Audit, Release."

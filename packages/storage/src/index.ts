@@ -1,3 +1,4 @@
+export * from "./researchMemorySemantics";
 import { DatabaseSync } from "node:sqlite";
 import {
   LedgerSide, PositionScopeType, PositionStatus, type PositionLedgerEntry, type PositionSnapshot,
@@ -6,11 +7,14 @@ import {
 } from "../../contracts/src/index";
 import { runMigrations, type MigrationResult, type SqliteMigration } from "./migrationRunner";
 import { cloudPaperAccountHistoryMigration } from "./cloudPaperAccountHistoryMigration";
+import { cloudPaperFillLedgerMigration } from "./cloudPaperFillLedgerMigration";
 import { researchFactoryDecisionHistoryMigration } from "./researchFactoryDecisionHistoryRepository";
 
 export { runMigrations } from "./migrationRunner";
 export type { MigrationResult, SqliteMigration } from "./migrationRunner";
 export { SqliteResearchMemoryRepository } from "./researchMemory";
+export { SqliteResearchIntelligenceMemoryRepository } from "./researchIntelligenceMemory";
+export type { ResearchIntelligenceMemoryDatabase } from "./researchIntelligenceMemory";
 export type { HypothesisStatus, ResearchExperimentRecord, ResearchHypothesis, ResearchMemoryDatabase } from "./researchMemory";
 export { SqliteComplianceControlPlaneStore } from "./complianceControlPlaneStore";
 export type { ComplianceDatabase } from "./complianceControlPlaneStore";
@@ -472,4 +476,36 @@ CREATE INDEX IF NOT EXISTS idx_evolution_learning_ledger_recorded_at
   ON evolution_learning_ledger_events (recorded_at ASC, opportunity_id ASC);
 INSERT OR IGNORE INTO evolution_learning_ledger_meta (id, schema_version, event_count, ledger_hash)
   VALUES (1, 1, 0, '0000000000000000000000000000000000000000000000000000000000000000');
-` }, researchFactoryDecisionHistoryMigration];
+` }, researchFactoryDecisionHistoryMigration, { id: "022_research_memory_semantic_overlay", sql: `
+CREATE TABLE IF NOT EXISTS research_memory_semantic_events (
+  sequence INTEGER PRIMARY KEY,
+  event_kind TEXT NOT NULL CHECK (event_kind IN ('SEMANTIC','RELATION')),
+  identity TEXT NOT NULL UNIQUE,
+  artifact_kind TEXT NOT NULL,
+  artifact_id TEXT NOT NULL,
+  artifact_sha256 TEXT NOT NULL,
+  semantic_identity TEXT,
+  independence_group_id TEXT,
+  previous_hash TEXT NOT NULL,
+  event_json TEXT NOT NULL,
+  hash TEXT NOT NULL UNIQUE
+);
+CREATE INDEX IF NOT EXISTS idx_research_memory_semantic_artifact
+  ON research_memory_semantic_events (artifact_kind, artifact_id, artifact_sha256, sequence);
+CREATE INDEX IF NOT EXISTS idx_research_memory_semantic_identity
+  ON research_memory_semantic_events (semantic_identity, independence_group_id, sequence);
+` }, cloudPaperFillLedgerMigration, { id: "024_research_intelligence_memory", sql: `
+CREATE TABLE IF NOT EXISTS research_intelligence_records (
+  record_id TEXT PRIMARY KEY,
+  source_id TEXT NOT NULL,
+  source_type TEXT NOT NULL,
+  content_fingerprint TEXT NOT NULL,
+  hypothesis_semantic_fingerprint TEXT NOT NULL,
+  discovered_at TEXT NOT NULL,
+  payload_json TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_research_intelligence_source
+  ON research_intelligence_records (source_type, source_id, discovered_at, record_id);
+CREATE INDEX IF NOT EXISTS idx_research_intelligence_hypothesis
+  ON research_intelligence_records (hypothesis_semantic_fingerprint, discovered_at, record_id);
+` }];
