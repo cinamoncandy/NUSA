@@ -1,8 +1,24 @@
 import type { JevShadowDecision } from "./jevShadowRouter";
 
+interface JevHttpHeaders {
+  get(name: string): string | null;
+}
+
+interface JevHttpBodyReader {
+  read(): Promise<Readonly<{ done: boolean; value?: Uint8Array }>>;
+  cancel(reason?: unknown): Promise<void> | void;
+  releaseLock?(): void;
+}
+
+interface JevHttpBody {
+  getReader(): JevHttpBodyReader;
+}
+
 export interface JevHttpResponse {
   readonly ok: boolean;
   readonly status: number;
+  readonly headers?: JevHttpHeaders;
+  readonly body?: JevHttpBody | null;
   text(): Promise<string>;
 }
 export type JevFetch = (url: string, init: {
@@ -27,6 +43,58 @@ const namedError = (name: string, message: string): Error => {
   error.name = name;
   return error;
 };
+
+const MAX_RESPONSE_BYTES = 16 * 1024;
+
+function responseTooLarge(): Error {
+  return namedError("MalformedJevResponseError", "Jev provider response too large");
+}
+
+function declaredLength(response: JevHttpResponse): number | null {
+  const raw = response.headers?.get("content-length");
+  if (raw == null || raw.trim() === "") return null;
+  if (!/^\d+$/.test(raw.trim())) throw namedError("MalformedJevResponseError", "Jev provider content length invalid");
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < 0) throw namedError("MalformedJevResponseError", "Jev provider content length invalid");
+  return value;
+}
+
+async function readBoundedBody(response: JevHttpResponse, deadline: Promise<never>): Promise<string> {
+  const length = declaredLength(response);
+  if (length != null && length > MAX_RESPONSE_BYTES) throw responseTooLarge();
+
+  const body = response.body;
+  if (body?.getReader != null) {
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let total = 0;
+    let text = "";
+    try {
+      for (;;) {
+        const chunk = await Promise.race([reader.read(), deadline]);
+        if (chunk.done) break;
+        const value = chunk.value;
+        if (!(value instanceof Uint8Array)) {
+          throw namedError("MalformedJevResponseError", "Jev provider response chunk invalid");
+        }
+        total += value.byteLength;
+        if (total > MAX_RESPONSE_BYTES) {
+          await reader.cancel(responseTooLarge());
+          throw responseTooLarge();
+        }
+        text += decoder.decode(value, { stream: true });
+      }
+      text += decoder.decode();
+      return text;
+    } finally {
+      reader.releaseLock?.();
+    }
+  }
+
+  const text = await Promise.race([response.text(), deadline]);
+  if (new TextEncoder().encode(text).byteLength > MAX_RESPONSE_BYTES) throw responseTooLarge();
+  return text;
+}
 
 export class JevShadowProvider {
   #apiKey: string;
@@ -62,7 +130,7 @@ export class JevShadowProvider {
         signal: controller.signal
       }), deadline]);
       if (!response.ok) throw namedError("JevProviderUnavailableError", `Jev provider HTTP failure ${response.status}`);
-      const body = await Promise.race([response.text(), deadline]);
+      const body = await readBoundedBody(response, deadline);
       let parsed: unknown;
       try { parsed = JSON.parse(body) as unknown; }
       catch { throw namedError("MalformedJevResponseError", "Jev provider response malformed"); }
