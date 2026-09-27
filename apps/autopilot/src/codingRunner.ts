@@ -1,4 +1,5 @@
 import { logAiCall } from "./aiCallTelemetry";
+import { selectJevCodingModel } from "./jevCodingModelTier";
 import {
   decideJevBoundedCodingAdmission,
   isJevBoundedCodingAdmissionCandidate,
@@ -952,8 +953,17 @@ export async function executeCodingRunner(
   }
 
   if (!env.AI) return { status: "INTERFACE_READY", reason: "ai-coding-engine-not-configured" };
-  const configuredModel = env.NUSA_AI_CODING_MODEL?.trim();
+  const tierSelection = selectJevCodingModel(jevAdmission, env);
+  const tierConfiguredModel = tierSelection?.model?.trim();
+  const tierModel = tierConfiguredModel
+    && validWorkersAiModel(tierConfiguredModel)
+    && !UNUSABLE_CODING_WORKERS_AI_MODELS.has(tierConfiguredModel)
+    ? tierConfiguredModel
+    : null;
+  const configuredModel = tierModel ?? env.NUSA_AI_CODING_MODEL?.trim();
   // Dashboard vars can outlive provider deprecations or retain a model that cannot satisfy the current JSON-schema contract.
+  // A Jev tier can only replace the canonical model when the selected tier model is explicitly configured
+  // and already satisfies the same Workers AI model + structured-output allowlist.
   const model = !configuredModel || UNUSABLE_CODING_WORKERS_AI_MODELS.has(configuredModel)
     ? DEFAULT_WORKERS_AI_MODEL
     : configuredModel;
