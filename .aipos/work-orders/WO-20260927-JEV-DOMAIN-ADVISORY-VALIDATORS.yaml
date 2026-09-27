@@ -1,0 +1,44 @@
+id: WO-20260927-JEV-DOMAIN-ADVISORY-VALIDATORS
+title: "Jev domain advisory validator completion"
+status: WIP
+owner: nusa-ai-platform
+repository: cinamoncandy/NUSA
+parent_work_order: WO-ISSUE-2326-JEV-DOMAIN-OBSERVATION
+parent_pr: 2329
+base_branch: feat/2326-jev-domain-observation-registry
+base_commit: 42735c12fe245809e1a48203f4171674954bca1a
+implementation_branch: feat/2326-jev-domain-advisory-validators
+authority_impact: none
+objective: "Complete the registered NUSA-wide Jev SHADOW task contract by replacing UNAVAILABLE placeholder validators with one bounded DOMAIN_ADVISORY_V1 schema and task-specific classification vocabularies."
+scope:
+  include:
+    - "18 previously registered-but-unusable task types across Core/Evolve, Development, Integrity, Market Data, AXIOM, Family, Governance, Risk, PAPER Execution/Ledger, Performance, Observability, Runtime, Security, Release/Audit, Integration, UI/Mobile."
+    - "Task-specific fixed classification vocabularies."
+    - "Strict decision shape: classification, severity 1..5, requiredModel, reasonCode, confidence."
+    - "Envelope consistency between decision and observation metadata."
+  exclude:
+    - "Runtime wiring into each domain owner."
+    - "Provider transport changes."
+    - "Promotion beyond SHADOW or usableForRouting=true."
+    - "Canonical truth, risk, Ledger, execution, Audit, Release, merge, secret, or LIVE authority."
+acceptance:
+  - "Every registered task type has a deterministic validator."
+  - "Every advisory task can emit a SHADOW observation with usableForRouting=false."
+  - "Unknown classifications, arbitrary fields, invalid severity, model/reason/confidence mismatch fail closed."
+  - "Task classification vocabulary is immutable repository policy, not model-provided free text."
+  - "Existing workflow/research-specific validators remain unchanged."
+  - "All protected-action prohibitions and ZERO_AUTHORITY invariants remain mechanical."
+evidence:
+  implementation_status: WIP
+  local_validation: PENDING
+  external_validation: "BLOCKED on parent #2329 acceptance/merge; after parent merge reconverge to latest main and run fresh exact-head CI/Audit/Release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+blocker:
+  type: PARENT_DEPENDENCY
+  dependency: "PR #2329 must be accepted and merged first."
+next_permitted_action: "Complete focused stacked validation only. Do not promote any task above SHADOW."
