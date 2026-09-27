@@ -209,14 +209,28 @@ current_upbit_bridge_credential_persistence:
 project: nusa
 updated_at: "2026-09-26T23:27:32+09:00"
 current_execution_target:
-  work_order: WO-20260924-PAPER-LEDGER-PRESERVATION
+  work_order: WO-20260927-AUDIT-EXACT-HEAD-BINDING
   status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-ledger-preserve
-  scope: "Opus P0-5: a PAPER dashboard projection gap no longer deletes the durable PAPER account and canonical fill ledger."
-  authority_impact: persistence
-  prior_target: WO-20260924-RESEARCH-RECOVERY-FEED-GATE
-  prior_target_status: MERGED_PR_2265
+  branch: fix/audit-exact-head-binding
+  base_sha: e1a9f3ccb2cbc463344a18d322821ac80c82ded7
+  implementation_head: 0fe36b9d0ac482662f15c357c2a34dd3c63c803d
+  pull_request: 2343
+  scope: "Bind independent Audit diff evidence to immutable base..head commit identities and record the post-review SHA as canonical evidence; no execution or authority change."
+  authority_impact: none
+  prior_target: WO-20260924-PAPER-LEDGER-PRESERVATION
+  prior_target_status: READY_FOR_REVIEW
   prior_target_preserved: true
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_audit_exact_head_binding:
+  work_order: WO-20260927-AUDIT-EXACT-HEAD-BINDING
+  status: READY_FOR_REVIEW
+  branch: fix/audit-exact-head-binding
+  base_sha: e1a9f3ccb2cbc463344a18d322821ac80c82ded7
+  implementation_head: pending
+  pull_request: 2343
+  finding: "The Audit runner recorded an independently observed head but fetched the model diff from the mutable pull endpoint, leaving a force-push/revert race between observation and reviewed bytes."
+  remediation: "Fetch the comparison through immutable base..head commit identities, preserve changed-file bounds, and fail closed on malformed or mismatched evidence."
+  validation: "Focused independent-Audit contract tests PASS; fresh exact-head CI and Audit/Release are required after push."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 latest_autopilot_normalized_apply_failure:
   work_order: WO-20260926-AUTOPILOT-NORMALIZED-APPLY-FAILURE
@@ -1378,4 +1392,17 @@ current_comparable_evaluator_failure_slice:
   implementation_branch: codex/issue-1887-comparable-evaluator
   work_order: .aipos/work-orders/WO-ISSUE-1887-COMPARABLE-EVALUATOR-FAILURES.yaml
   scope: "Resolve lifecycle failure, structural-domination, and promotion-support facts from canonical hash-chain-validated Research Memory; only CURRENT canonical empirical evidence with exact evaluator semantics and independence groups may affect advisory RETIRE/PROMOTE."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_cloudflare_runtime_github_credential_preflight:
+  work_order: WO-20260927-PR2067-RUNTIME-GITHUB-CREDENTIAL
+  status: READY_FOR_REVIEW
+  pull_request: 2067
+  branch: fix/2029-credential-preflight-current-main
+  base_sha: 8c77a70f1ceba5b0d7bac46d90cfe25400dd5893
+  implementation_code_head: f283111a9d92b53c93e27e88e9f6df6ad3b1a6b6
+  finding: "Deployed Cloudflare scheduled receipts abstain with GITHUB_HTTP_401/headSha=null even though NUSA_AUTOPILOT_GITHUB_TOKEN is present and synced."
+  remediation: "Keep secret-bearing preflight read-only, isolate issue mutation, and require a redacted read-only GitHub exact-repository API probe before Worker secret sync."
+  validation: "Fresh exact-head CI required. Actual credential replacement remains HUMAN_ONLY because secret material is not repository code."
+  next: "Exact-head CI -> independent Audit/Release for code guard; separately rotate/authorize the runtime GitHub credential, deploy, then require a fresh scheduled Runtime Proof receipt with non-null exact head."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

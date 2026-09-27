@@ -318,6 +318,30 @@ test("detects PR head movement after model review", async () => {
   );
 });
 
+test("records the post-review observed head SHA as reviewed evidence", async () => {
+  const upperHead = HEAD.toUpperCase();
+  const model = passingModel();
+  const result = await executeIndependentAudit(
+    request,
+    auditEnv(model),
+    fetchSequence({ firstPull: pull(upperHead), secondPull: pull(upperHead) }) as never,
+    () => 4242,
+  );
+  assert.equal(result.status, "AUDIT_COMPLETED");
+  assert.equal(result.reviewedHeadSha, HEAD);
+  assert.equal(result.baseSha, BASE);
+  assert.equal(result.workflowRunId, request.workflowRunId);
+});
+
+test("rejects a retry against a moved head instead of drifting to another SHA", async () => {
+  const first = await executeIndependentAudit(request, auditEnv(passingModel()), fetchSequence() as never, () => 1111);
+  assert.equal(first.reviewedHeadSha, HEAD);
+  await assert.rejects(
+    executeIndependentAudit(request, auditEnv(passingModel()), fetchSequence({ firstPull: pull("e".repeat(40)), secondPull: pull("e".repeat(40)) }) as never, () => 2222),
+    /AUDIT_PR_HEAD_MISMATCH/,
+  );
+});
+
 test("returns exact-head explicitly mergeable PASS_WITH_NOTES evidence", async () => {
   const model = ai({
     response: "```json\n" + JSON.stringify({
