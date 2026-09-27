@@ -1,7 +1,7 @@
 version: 1
 current_jev_domain_advisory_validators:
   work_order: WO-20260927-JEV-DOMAIN-ADVISORY-VALIDATORS
-  status: READY_FOR_EXACT_HEAD_CI
+  status: VERIFYING
   implementation_status: READY_FOR_REVIEW
   parent_pr: 2329
   branch: feat/2326-jev-domain-advisory-validators
