@@ -1392,3 +1392,16 @@ current_comparable_evaluator_failure_slice:
   work_order: .aipos/work-orders/WO-ISSUE-1887-COMPARABLE-EVALUATOR-FAILURES.yaml
   scope: "Resolve lifecycle failure, structural-domination, and promotion-support facts from canonical hash-chain-validated Research Memory; only CURRENT canonical empirical evidence with exact evaluator semantics and independence groups may affect advisory RETIRE/PROMOTE."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_cloudflare_runtime_github_credential_preflight:
+  work_order: WO-20260927-PR2067-RUNTIME-GITHUB-CREDENTIAL
+  status: READY_FOR_REVIEW
+  pull_request: 2067
+  branch: fix/2029-credential-preflight-current-main
+  base_sha: 8c77a70f1ceba5b0d7bac46d90cfe25400dd5893
+  implementation_code_head: f283111a9d92b53c93e27e88e9f6df6ad3b1a6b6
+  finding: "Deployed Cloudflare scheduled receipts abstain with GITHUB_HTTP_401/headSha=null even though NUSA_AUTOPILOT_GITHUB_TOKEN is present and synced."
+  remediation: "Keep secret-bearing preflight read-only, isolate issue mutation, and require a redacted read-only GitHub exact-repository API probe before Worker secret sync."
+  validation: "Fresh exact-head CI required. Actual credential replacement remains HUMAN_ONLY because secret material is not repository code."
+  next: "Exact-head CI -> independent Audit/Release for code guard; separately rotate/authorize the runtime GitHub credential, deploy, then require a fresh scheduled Runtime Proof receipt with non-null exact head."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
