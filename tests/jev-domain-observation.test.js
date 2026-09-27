@@ -258,6 +258,44 @@ test("observation rejects credential-shaped values in every common string metada
   }
 });
 
+test("observation rejects repository-recognized credential prefixes in common metadata", () => {
+  const githubToken = ["gh", "p_", "12345678901234567890"].join("");
+  const githubPat = ["github", "_pat_", "12345678901234567890"].join("");
+  const slackToken = ["xox", "b-", "12345678901234567890"].join("");
+  const awsKey = ["AKIA", "1234567890ABCDEF"].join("");
+  const jwt = ["eyJ", "abcdefghij", ".", "abcdefghij", ".", "abcdefghij"].join("");
+  for (const value of [githubToken, githubPat, slackToken, awsKey, jwt]) {
+    assert.throws(
+      () => createJevDomainObservation(workflowInput({ sourceIdentity: value })),
+    );
+  }
+});
+
+test("observation validates requiredModel for every task schema", () => {
+  assert.throws(
+    () => createJevDomainObservation(researchInput({ requiredModel: "INVALID" })),
+    /JEV_REQUIRED_MODEL_INVALID/,
+  );
+  assert.throws(
+    () => createJevDomainObservation(workflowInput({ requiredModel: "INVALID" })),
+    /JEV_REQUIRED_MODEL_INVALID/,
+  );
+});
+
+test("observation validates timeout and fallback provenance as actual booleans", () => {
+  for (const [field, value] of [
+    ["timeoutApplied", "false"],
+    ["fallbackApplied", "false"],
+    ["timeoutApplied", 0],
+    ["fallbackApplied", null],
+  ]) {
+    assert.throws(
+      () => createJevDomainObservation(workflowInput({ [field]: value })),
+      /JEV_(TIMEOUT_APPLIED|FALLBACK_APPLIED)_INVALID/,
+    );
+  }
+});
+
 test("fingerprint has one canonical representation", () => {
   const raw = createJevDomainObservation(workflowInput({ inputFingerprint: FINGERPRINT }));
   const prefixed = createJevDomainObservation(
