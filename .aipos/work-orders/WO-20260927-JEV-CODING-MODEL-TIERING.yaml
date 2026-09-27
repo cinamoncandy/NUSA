@@ -1,0 +1,44 @@
+id: WO-20260927-JEV-CODING-MODEL-TIERING
+title: "Jev bounded coding model tier selection"
+status: BLOCKED
+owner: nusa-ai-platform
+repository: cinamoncandy/NUSA
+parent_work_order: WO-20260924-AI-CAPACITY-COST-CEILING
+parent_pr: 2331
+pull_request: 2334
+base_branch: feat/ai-capacity-jev-bounded-admission
+base_commit: d9169219009de9ef12c4cf63af073136b937be68
+implementation_branch: feat/ai-capacity-jev-model-tiering
+authority_impact: none
+objective: "Use accepted bounded Jev admission evidence only to select an explicitly configured Workers AI coding model tier while preserving the canonical coding path, safety validation, and ZERO_AUTHORITY."
+scope:
+  include:
+    - "NUSA_JEV_MODEL_TIERING_ENABLED feature gate, default false."
+    - "Explicit LUNA/TERRA/SOL/ASTRA model environment mappings."
+    - "Selection only after JEV_ADMITTED + provider=jev + safeToAutofix=YES + CODE/TEST + confidence>=0.90."
+    - "Existing Workers AI model syntax validation and unusable-model denylist remain authoritative."
+    - "Missing, invalid, unusable, HUMAN, unsafe, non-code, low-confidence, disabled, or non-Jev decisions preserve the canonical model."
+  exclude:
+    - "Positive coding authority or autonomous patch authorization."
+    - "Audit verdict, Release authorization, merge, secrets, LIVE execution, Portfolio/Risk authority."
+    - "Activation before #2329 SHADOW acceptance/calibration and #2331 bounded admission acceptance."
+acceptance:
+  - "Each configured LUNA/TERRA/SOL/ASTRA tier can be selected only from matching accepted evidence."
+  - "Repair reuse, abstain, unsafe, low-confidence, HUMAN, non-code, disabled, unconfigured, invalid, and unusable tier routes preserve canonical model selection."
+  - "Actual selected model remains visible through existing AI call telemetry."
+  - "NUSA_JEV_MODEL_TIERING_ENABLED remains false in committed runtime configuration."
+  - "PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY remain unchanged."
+evidence:
+  implementation_status: READY_FOR_REVIEW_STACKED
+  local_validation: PENDING
+  external_validation: "BLOCKED on parent #2331 acceptance/merge; after parent merge, reconverge to latest main and run fresh exact-head CI/Audit/Release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+blocker:
+  type: PARENT_DEPENDENCY
+  dependency: "PR #2331 must be accepted and merged first."
+next_permitted_action: "Complete focused stacked validation only. Do not activate tiering. After #2331 merge, reconverge #2334 onto latest main and run fresh exact-head validation."
