@@ -528,6 +528,40 @@ describe("coding runner", () => {
     assert.deepEqual(evidence?.failedSteps, ["Preflight"]);
   });
 
+  it("uses the configured Jev model tier only for a verified high-confidence autofixable code failure", async () => {
+    const failureRequest = {
+      ...request,
+      reason: `gha:${request.workflowRunId}:${request.headSha}:failure`,
+    };
+    let selectedModel = "";
+    const ai: WorkersAiBinding = {
+      async run(model) {
+        selectedModel = model;
+        return { response: { patch } };
+      },
+    };
+    const result = await executeCodingRunner(failureRequest, {
+      NUSA_GITHUB_TOKEN: "github-token",
+      AI: ai,
+      NUSA_JEV_SHADOW_ENABLED: "true",
+      NUSA_JEV_BOUNDED_ROUTING_ENABLED: "true",
+      NUSA_JEV_MODEL_TIERING_ENABLED: "true",
+      NUSA_JEV_API_KEY: jevTestKey(),
+      NUSA_JEV_ENDPOINT: "https://jev.invalid/classify",
+      NUSA_AI_CODING_MODEL_LUNA: "@cf/openai/gpt-oss-20b",
+    }, verifiedFailureGithubFetch, undefined, undefined, {
+      jevAdmissionClassify: async () => ({
+        rootCause: "CODE",
+        safeToAutofix: "YES",
+        severity: 2,
+        requiredModel: "LUNA",
+        confidence: 0.97,
+      }),
+    });
+    assert.equal(result.status, "EXECUTION_ACCEPTED");
+    assert.equal(selectedModel, "@cf/openai/gpt-oss-20b");
+  });
+
   it("prefers the canonical Workers AI binding over a configured legacy endpoint", async () => {
     let endpointCalls = 0;
     let aiCalls = 0;
