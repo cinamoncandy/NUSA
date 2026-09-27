@@ -5,7 +5,7 @@ owner: nusa-ai-platform
 repository: cinamoncandy/NUSA
 issue: 1997
 base_branch: main
-base_commit: 8c77a70f1ceba5b0d7bac46d90cfe25400dd5893
+base_commit: e1a9f3ccb2cbc463344a18d322821ac80c82ded7
 implementation_branch: feat/1997-provider-reliability
 authority_impact: none
 objective: "Complete the provider-neutral reliability gap in the canonical AI Platform without creating a second router: classify provider failures deterministically, maintain bounded provider circuit health/recovery, and project health into the existing model registry."
@@ -36,8 +36,8 @@ verification_commands:
   - "git diff --check"
 evidence:
   implementation_status: READY_FOR_REVIEW
-  implementation_head: e6ec0667ebec32d635c53b8b4980ef2506036e7f
-  local_validation: "Provider-neutral reliability tests 11/11 PASS; isolated modelRouter/providerReliability TypeScript compile PASS; AIPOS YAML parse PASS; git diff --check PASS. The implementation covers taxonomy, retryability, immediate/manual block, threshold circuit open, bounded retry-after, half-open recovery, reopen-on-probe-failure, and canonical registry availability projection."
+  implementation_head: acc7b841286b5f2178d28b5e78453d2a65ce41e5
+  local_validation: "Provider-neutral reliability tests 13/13 PASS on implementation head acc7b841; isolated modelRouter/providerReliability TypeScript compile PASS; AIPOS YAML parse PASS; git diff --check PASS. Independent review findings are resolved: HTTP 400 remains request-local, 408 is TIMEOUT, all 5xx are UNAVAILABLE, exhausted quota is BUDGET_EXHAUSTED, OPEN/BLOCKED survive late completions, and provider projection never upgrades an existing restrictive model availability."
   external_validation: "Required: fresh exact-head CI, independent Audit, canonical Release."
 safety:
   paper_only: true
