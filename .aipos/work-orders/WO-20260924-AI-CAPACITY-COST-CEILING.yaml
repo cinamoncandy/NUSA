@@ -4,7 +4,7 @@ status: READY_FOR_REVIEW
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
-implementation_branch: feat/ai-capacity-jev-bounded-admission
+implementation_branch: feat/ai-capacity-jev-model-tiering
 parent_work_order: WO-ISSUE-2238-WORKERS-AI-DAILY-QUOTA
 authority_impact: none
 authority_impact_note: "The current slice adds only a bounded negative coding-admission gate: Jev may abstain from expensive coding inference after verified failure evidence, but cannot authorize code, protected transitions, Audit, Release, merge, secrets, LIVE activity, or any canonical truth. Activation remains disabled pending #2329 SHADOW acceptance/calibration."
@@ -66,3 +66,21 @@ current_slice:
     - "Existing SHADOW Jev consumers still send mode=SHADOW; bounded admission sends mode=BOUNDED_ROUTING; /coding/propose and dispatcher surface abstention as successful NO_ACTION."
     - "PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY remain unchanged."
   next_after_this_slice: "Measure observed abstentions/call reduction before expanding bounded routing to model-tier selection. Independent Audit remains a separate authority and is not replaced by Jev."
+
+next_slice_model_tiering:
+  status: IMPLEMENTING
+  objective: "Use the already-bounded Jev admission evidence to select an explicitly configured coding model tier without granting Jev coding, merge, Audit, Release, secret, LIVE, or mutation authority."
+  contract:
+    - "Tiering remains disabled unless NUSA_JEV_MODEL_TIERING_ENABLED=true."
+    - "Selection requires JEV_ADMITTED, provider=jev, rootCause CODE/TEST, safeToAutofix=YES, confidence >= 0.90, and requiredModel in LUNA/TERRA/SOL/ASTRA."
+    - "Tier model IDs are explicit environment configuration only; missing configuration preserves the canonical model."
+    - "Configured tier models still pass the existing Workers AI model validation and unusable-model denylist; otherwise canonical fallback is used."
+    - "HUMAN, non-code root causes, low confidence, disabled routing, malformed/unavailable Jev, and repair reuse cannot lower the model."
+    - "Actual model identity remains visible through existing AI call telemetry."
+  activation:
+    default: OFF
+    prerequisite: "#2329 SHADOW acceptance/calibration and #2331 bounded admission acceptance"
+  acceptance:
+    - "A verified high-confidence autofixable CODE failure with configured LUNA tier reaches that configured Workers AI model."
+    - "Unsafe, low-confidence, HUMAN, non-code, disabled, or unconfigured routes preserve canonical model selection."
+    - "PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY remain unchanged."
