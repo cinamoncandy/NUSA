@@ -45,6 +45,7 @@ export interface Env {
   NUSA_AI_CODING_TOKEN?: string;
   NUSA_AI_CODING_MODEL?: string;
   NUSA_JEV_SHADOW_ENABLED?: string;
+  NUSA_JEV_BOUNDED_ROUTING_ENABLED?: string;
   NUSA_JEV_API_KEY?: string;
   NUSA_JEV_ENDPOINT?: string;
   NUSA_JEV_TIMEOUT_MS?: string;

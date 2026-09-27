@@ -1,4 +1,5 @@
 import { logAiCall } from "./aiCallTelemetry";
+import { decideJevBoundedCodingAdmission } from "./jevBoundedCodingAdmission";
 export interface CodingProposalContext {
   readonly path: string;
   readonly startLine: number;
@@ -32,6 +33,11 @@ export interface CodingRunnerEnv {
   NUSA_AI_CODING_ENDPOINT?: string;
   NUSA_AI_CODING_TOKEN?: string;
   NUSA_AI_CODING_MODEL?: string;
+  NUSA_JEV_SHADOW_ENABLED?: string;
+  NUSA_JEV_BOUNDED_ROUTING_ENABLED?: string;
+  NUSA_JEV_API_KEY?: string;
+  NUSA_JEV_ENDPOINT?: string;
+  NUSA_JEV_TIMEOUT_MS?: string;
   NUSA_GITHUB_REPOSITORY?: string;
   NUSA_GITHUB_TOKEN?: string;
   AI?: WorkersAiBinding;
@@ -149,6 +155,10 @@ export interface CodingRunnerResult {
   readonly resumeCondition?: string;
   readonly fallbackProvider?: "github-models";
   readonly fallbackFailureReason?: string;
+  readonly jevAdmissionAction?: "PROCEED_EXISTING" | "ABSTAIN_EXPENSIVE_INFERENCE";
+  readonly jevAdmissionReason?: string;
+  readonly jevRequiredModel?: string | null;
+  readonly jevConfidence?: number;
 }
 
 interface HttpResponse {
@@ -774,6 +784,19 @@ export async function executeCodingRunner(
   options: CodingRunnerExecutionOptions = {},
 ): Promise<CodingRunnerResult> {
   await verifyCodingRunnerRequestAgainstGitHub(request, env.NUSA_GITHUB_TOKEN, fetchImpl);
+  const jevAdmission = await decideJevBoundedCodingAdmission(request, env);
+  if (jevAdmission.action === "ABSTAIN_EXPENSIVE_INFERENCE") {
+    return {
+      status: "JEV_ROUTING_ABSTAINED",
+      reason: jevAdmission.reasonCode,
+      proposalAttempts: 0,
+      failureStage: "proposal-parse",
+      jevAdmissionAction: jevAdmission.action,
+      jevAdmissionReason: jevAdmission.reasonCode,
+      jevRequiredModel: jevAdmission.requiredModel,
+      jevConfidence: jevAdmission.confidence,
+    };
+  }
   const maxProposalAttempts = options.maxProposalAttempts ?? MAX_WORKERS_AI_PROPOSAL_ATTEMPTS;
   if (!Number.isSafeInteger(maxProposalAttempts) || maxProposalAttempts < 1 || maxProposalAttempts > MAX_WORKERS_AI_PROPOSAL_ATTEMPTS) {
     throw new Error("CODING_PROPOSAL_ATTEMPT_LIMIT_INVALID");
