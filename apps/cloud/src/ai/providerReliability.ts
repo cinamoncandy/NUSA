@@ -68,7 +68,7 @@ const STATUS_AUTH = new Set([400, 401, 403]);
 const STATUS_RATE_LIMIT = 429;
 const STATUS_UNAVAILABLE = new Set([500, 502, 503, 504]);
 
-const CODE_TIMEOUT = /(?:^|[\\s_:-])(?:TIMEOUT|TIMED_OUT|ETIMEDOUT)(?:$|[\\s_:-])/i;
+const CODE_TIMEOUT = /TIMEOUT|TIMED_OUT|ETIMEDOUT/i;
 const CODE_AUTH = /AUTH|UNAUTHORIZED|FORBIDDEN|INVALID[_-]?(?:KEY|TOKEN|CREDENTIAL|CONFIG)/i;
 const CODE_RATE = /RATE[_-]?LIMIT|TOO[_-]?MANY[_-]?REQUESTS|QUOTA/i;
 const CODE_UNAVAILABLE = /UNAVAILABLE|ECONN|NETWORK|CONNECTION|UPSTREAM|5\d\d/i;
@@ -154,7 +154,7 @@ export function classifyAiProviderFailure(
     return classification("AUTH_CONFIG", false, true, true, null, "PROVIDER_AUTH_CONFIG");
   }
 
-  if (CODE_TIMEOUT.test(text) || /timed out|timeout/i.test(message)) {
+  if (CODE_TIMEOUT.test(code) || /timed out|timeout/i.test(message)) {
     return classification("TIMEOUT", true, true, false, retryAfterMs, "PROVIDER_TIMEOUT");
   }
 
