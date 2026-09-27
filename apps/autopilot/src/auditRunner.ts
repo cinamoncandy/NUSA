@@ -366,10 +366,15 @@ async function verifyCurrentPullAndCi(request: AuditRunnerRequest, token: string
 
 async function fetchPullDiff(request: AuditRunnerRequest, expectedChangedFiles: number, token: string, fetchImpl: FetchImpl): Promise<string> {
   const repository = request.repository.split("/").map(encodeURIComponent).join("/");
-  const response = await fetchImpl(`${GITHUB_API_ORIGIN}/repos/${repository}/pulls/${request.prNumber}`, {
+  // Read the immutable base..head comparison instead of the mutable PR diff
+  // endpoint. The reviewed bytes must be bound to the observed commit IDs.
+  const response = await fetchImpl(
+    `${GITHUB_API_ORIGIN}/repos/${repository}/compare/${encodeURIComponent(request.baseSha)}...${encodeURIComponent(request.headSha)}`,
+    {
     method: "GET",
     headers: githubHeaders("application/vnd.github.v3.diff", token),
-  });
+    },
+  );
   if (response.status !== 200 || typeof response.text !== "function") throw new Error(`AUDIT_DIFF_HTTP_${response.status}`);
   const diff = await response.text();
   if (!diff.trim()) throw new Error("AUDIT_DIFF_EMPTY");

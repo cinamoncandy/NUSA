@@ -218,3 +218,8 @@ test("reviewed evidence SHA is the post-review observed head, never a request ec
   assert.doesNotMatch(auditRunner, /reviewedHeadSha: request\.headSha/);
   assert.match(auditRunner, /AUDIT_VERIFIED_HEAD_MISMATCH/);
 });
+
+test("Audit diff is fetched from immutable base and head identities", () => {
+  assert.match(auditRunner, /compare\/\$\{encodeURIComponent\(request\.baseSha\)\}\.\.\.\$\{encodeURIComponent\(request\.headSha\)\}/);
+  assert.doesNotMatch(auditRunner, /pulls\/\$\{request\.prNumber\}.*application\/vnd\.github\.v3\.diff/);
+});
