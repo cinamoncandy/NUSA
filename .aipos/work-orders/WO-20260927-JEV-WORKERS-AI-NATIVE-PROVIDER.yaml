@@ -1,6 +1,6 @@
 id: WO-20260927-JEV-WORKERS-AI-NATIVE-PROVIDER
 title: "Converge native Workers AI Jev SHADOW provider"
-status: WIP_REVIEW_CORRECTION
+status: READY_FOR_REVIEW
 owner: nusa-ai-platform
 repository: cinamoncandy/NUSA
 base_branch: main

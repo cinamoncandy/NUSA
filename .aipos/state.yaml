@@ -1,7 +1,7 @@
 version: 1
 current_jev_workers_ai_native_provider:
   work_order: WO-20260927-JEV-WORKERS-AI-NATIVE-PROVIDER
-  status: WIP_REVIEW_CORRECTION
+  status: READY_FOR_REVIEW
   pull_request: 2345
   branch: feat/jev-workers-ai-native-provider
   base_sha: 04a17e14130139168ad515417641f52c440cbab6
