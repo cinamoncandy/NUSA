@@ -1,0 +1,57 @@
+id: WO-ISSUE-2321-RESEARCH-JEV-SHADOW
+title: "Wire credential-bounded Jev attention shadow into scheduled Research Intelligence runtime"
+status: BLOCKED
+owner: nusa-ai-platform
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 8c77a70f1ceba5b0d7bac46d90cfe25400dd5893
+implementation_branch: fix/research-jev-shadow-runtime-wiring
+authority_impact: none
+objective: "Run the already-merged Research Intelligence Jev attention observer in the existing advisory scout runtime with exact-sha provenance, bounded credential transport, durable duplicate suppression, and ZERO_AUTHORITY shadow evidence."
+canonical_owner: "Existing Research Intelligence Scout plus canonical JevShadowProvider"
+scope:
+  include:
+    - "Reuse the merged Jev Research Attention shadow observer; do not create a second router/provider."
+    - "Execute secret-bearing Jev observation only on schedule or owner-dispatched main through the nusa-jev-shadow environment."
+    - "Require HTTPS before sending the Jev bearer credential."
+    - "Bound the complete Jev request including response body consumption."
+    - "Checkout the exact triggering github.sha for runtime provenance."
+    - "Persist the existing canonical SQLite Research Intelligence memory across scheduled GitHub runners so stable record fingerprints are duplicate-suppressed before Jev invocation."
+    - "Persist SHADOW receipts and metrics in the existing advisory research receipt."
+  exclude:
+    - "Active routing, filtering, admission, qualification, strategy promotion, allocation, trading, Audit, Release, merge, or secret authority."
+    - "A second research memory owner, scheduler, queue, router, provider transport, or evidence store."
+acceptance:
+  - "Pull-request validation remains secret-free."
+  - "Scheduled/main-dispatch runtime is read-only and SHADOW-only with usableForRouting=false."
+  - "Provider missing, invalid, timed out, malformed, or unavailable preserves the deterministic AXIOM handoff path."
+  - "HTTP Jev endpoints are rejected before any credential-bearing request."
+  - "Timeout remains active through response body consumption."
+  - "Exact triggering SHA is checked out and attributable in runtime evidence."
+  - "Stable Research Intelligence records restored from canonical SQLite memory are suppressed before Jev is called again."
+  - "PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY remain unchanged."
+verification_commands:
+  - "pnpm run build"
+  - "node --test tests/research-intelligence-scout.test.js tests/research-intelligence-memory.test.js tests/research-intelligence-attention-shadow.test.js"
+  - "pnpm exec tsc -p tsconfig.json --noEmit"
+  - "pnpm run lint"
+  - "pnpm run security:gate"
+  - "pnpm run ai:architecture"
+  - "pnpm run safety:invariants"
+  - "pnpm run aipos:yaml"
+  - "pnpm run aipos:drift"
+  - "pnpm run aipos:provenance"
+  - "git diff --check"
+evidence:
+  implementation_status: READY_FOR_REVIEW
+  implementation_head: cc0884a56bb583834b82525554c584c587b64f01
+  local_validation: "Fresh exact-head Research Intelligence Scout advisory workflow 36287540175 PASS, including build and focused Research Intelligence/Jev tests. Review findings for discover single-writer concurrency and response-body byte bounds are resolved."
+  external_validation: "Implementation head cc0884a exact-head CI 36287540143 PASS; Actual PAPER, Read-only Broker, and Restricted LIVE companion workflows PASS. This metadata-only reconciliation requires fresh exact-head CI. Independent Audit is externally BLOCKED by WORKERS_AI_DAILY_QUOTA_EXHAUSTED until 2026-09-28T00:00:00Z (2026-09-28 09:00 KST), then canonical Release/merge and scheduled runtime duplicate-suppression replay evidence remain required."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  usableForRouting: false
+  fail_closed: true
+next_permitted_action: "Run one fresh exact-head CI for this metadata-only reconciliation. Do not retry Audit before 2026-09-28T00:00:00Z; after the provider wait expires, request independent Audit, then canonical Release/merge and capture scheduled runtime plus duplicate-suppression recovery/replay evidence."
