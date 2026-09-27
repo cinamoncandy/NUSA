@@ -11,9 +11,13 @@ authority_impact_note: "The current slice adds only a bounded negative coding-ad
 objective: "Reduce Autopilot AI capacity/cost waste without expanding authority: retain NORMAL/CONSERVE/HARD_STOP provider truth, then use Jev only as a ZERO_AUTHORITY bounded negative admission gate for verified non-code CI failures so expensive coding inference is skipped when it is demonstrably non-actionable. Preserve deterministic coding, CI, Audit, Release, and merge authority."
 scope:
   include:
-    - "apps/autopilot/src/aiBudgetState.ts: classifyAiBudgetState(wait, now) -> NORMAL/CONSERVE/HARD_STOP, pure, additive, fails closed on any unrecognized stop reason"
-    - "apps/autopilot/src/worker.ts: independent Audit's WAITING_PROVIDER_CAPACITY response carries an additional diagnostic aiBudgetState field; no existing gate changed"
-    - "tests/ai-budget-state.test.js"
+    - "apps/autopilot/src/aiBudgetState.ts: retain NORMAL/CONSERVE/HARD_STOP provider-capacity truth from the prior accepted slice."
+    - "apps/autopilot/src/jevBoundedCodingAdmission.ts: ZERO_AUTHORITY bounded negative admission using canonical failure identity plus verified bounded failure evidence."
+    - "apps/autopilot/src/codingRunner.ts: verify exact GitHub failure evidence and preserve the existing coding path when evidence/Jev confidence is insufficient."
+    - "apps/autopilot/src/worker.ts: propagate JEV_ROUTING_ABSTAINED from /coding/propose as successful no-action metadata."
+    - "scripts/autopilot-dispatch-retry.js: consume JEV_ROUTING_ABSTAINED as deterministic NO_ACTION without patch validation/publish/retry."
+    - "apps/autopilot/wrangler.jsonc: keep NUSA_JEV_BOUNDED_ROUTING_ENABLED=false until #2329 SHADOW acceptance/calibration."
+    - "focused admission/coding-runner/worker/dispatch tests and AIPOS state evidence."
   exclude_this_slice:
     - "Workers Paid enablement: billing/plan authority remains outside repository and AI authority."
     - "Positive routing authority, automatic model-tier promotion, protected transitions, Audit verdict, Release authorization, merge, secrets, LIVE execution, or portfolio/risk authority."
@@ -33,7 +37,7 @@ verification_commands:
   - "pnpm run validate (Node >= 24)"
 evidence:
   implementation_status: READY_FOR_REVIEW
-  implementation_head: 427038d430a348ba675f1773a2595bbc3e424415
+  implementation_head: 08adc66b24719d92010301ed2b7b7416b17e4486
   current_slice_validation: "Canonical gha identity coverage added; verified GitHub failed job/step evidence is required before abstention; Jev proposal abstention is propagated as successful NO_ACTION; repair attempts make zero repeat Jev admission calls; AIPOS state/scope reconciled. Focused admission TypeScript compile/runtime PASS, dispatcher abstention test PASS, git diff --check PASS. Fresh exact-head CI is required."
   prior_slice_validation: "ai-budget-state 6/6 PASS; combined autopilot/worker/coding-runner/audit-runner/provider/execution-coordinator suite 227/227 PASS; pnpm run validate PASS; secret scan 0 failures; typecheck PASS."
   external_validation: "REQUIRED: exact-head CI, independent Audit, canonical Release."
