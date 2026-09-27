@@ -1,6 +1,6 @@
 id: WO-20260927-AI-PROVIDER-RELIABILITY
 title: "Provider-neutral AI reliability taxonomy and circuit recovery"
-status: WIP
+status: READY_FOR_REVIEW
 owner: nusa-ai-platform
 repository: cinamoncandy/NUSA
 issue: 1997
@@ -35,13 +35,14 @@ verification_commands:
   - "node --test dist/apps/cloud/src/ai/providerReliability.test.js"
   - "git diff --check"
 evidence:
-  implementation_status: WIP
-  local_validation: PENDING
-  external_validation: "Required: exact-head CI, independent Audit, canonical Release."
+  implementation_status: READY_FOR_REVIEW
+  implementation_head: e6ec0667ebec32d635c53b8b4980ef2506036e7f
+  local_validation: "Provider-neutral reliability tests 11/11 PASS; isolated modelRouter/providerReliability TypeScript compile PASS; AIPOS YAML parse PASS; git diff --check PASS. The implementation covers taxonomy, retryability, immediate/manual block, threshold circuit open, bounded retry-after, half-open recovery, reopen-on-probe-failure, and canonical registry availability projection."
+  external_validation: "Required: fresh exact-head CI, independent Audit, canonical Release."
 safety:
   paper_only: true
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
-next_permitted_action: "Run focused validation, fix/retest, mark READY_FOR_REVIEW, then exact-head CI."
+next_permitted_action: "Run fresh exact-head CI, resolve any findings, then independent Audit and canonical Release."
