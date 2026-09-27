@@ -4,7 +4,7 @@ status: READY_FOR_REVIEW
 owner: nusa-ai-platform
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: 0921f0514a47e3f3313645a654e258cf8f3ab485
+base_commit: 8c77a70f1ceba5b0d7bac46d90cfe25400dd5893
 implementation_branch: feat/2326-jev-domain-observation-registry
 authority_impact: none
 objective: "Prevent per-domain Jev contract drift by introducing one reusable metadata-only observation envelope and task-type policy registry on top of the existing JevShadowRouter/Model Router foundation."
@@ -43,7 +43,7 @@ verification_commands:
   - "git diff --check"
 evidence:
   implementation_status: READY_FOR_REVIEW
-  local_validation: "Build PASS; node --test tests/jev-domain-observation.test.js 13/13 PASS; pnpm run preflight PASS; git diff --check PASS."
+  local_validation: "Original exact-head build and focused Jev tests 13/13 PASS; latest-main merge preserved Jev implementation without code conflict; merged-main CI build/typecheck PASS. Final branch preflight/diff and fresh exact-head CI required; nusa-vcn full recompilation was resource-limited, not diagnostically failed."
   external_validation: "Required: exact-head CI, independent Audit, canonical Release, merge. Domain adapters and calibration remain successor work under #2326."
 safety:
   paper_only: true
