@@ -7,49 +7,57 @@ base_branch: main
 implementation_branch: feat/ai-capacity-jev-bounded-admission
 parent_work_order: WO-ISSUE-2238-WORKERS-AI-DAILY-QUOTA
 authority_impact: none
-authority_impact_note: "Diagnostics/classification only in this slice; no model routing, gate, or billing change. PAPER-only Autopilot engineering; no LIVE, execution, risk, credential or AI-authority change."
-objective: "Owner directive: stop Cloudflare Workers AI daily free-allocation exhaustion from idling all of Autopilot, without assuming Workers Paid is available, and without turning quota relief into an unlimited-call structure. Generalize (never delete) the #2238 quota-stop into NORMAL/CONSERVE/HARD_STOP AI budget states; classify calls by necessity tier (DETERMINISTIC/CHEAP_JUDGMENT/SIMPLE/COMPLEX/HIGH_UNCERTAINTY/AUTHORITY_REQUIRED); inventory and shadow-benchmark model routing by evidence, not assumption; record completion economics (AI cost/calls/retries per Verified Autonomous Completion); prevent duplicate AI calls on the same task; keep provider-failure classes distinct (daily quota vs rate limit vs future cost-ceiling)."
+authority_impact_note: "The current slice adds only a bounded negative coding-admission gate: Jev may abstain from expensive coding inference after verified failure evidence, but cannot authorize code, protected transitions, Audit, Release, merge, secrets, LIVE activity, or any canonical truth. Activation remains disabled pending #2329 SHADOW acceptance/calibration."
+objective: "Reduce Autopilot AI capacity/cost waste without expanding authority: retain NORMAL/CONSERVE/HARD_STOP provider truth, then use Jev only as a ZERO_AUTHORITY bounded negative admission gate for verified non-code CI failures so expensive coding inference is skipped when it is demonstrably non-actionable. Preserve deterministic coding, CI, Audit, Release, and merge authority."
 scope:
   include:
     - "apps/autopilot/src/aiBudgetState.ts: classifyAiBudgetState(wait, now) -> NORMAL/CONSERVE/HARD_STOP, pure, additive, fails closed on any unrecognized stop reason"
     - "apps/autopilot/src/worker.ts: independent Audit's WAITING_PROVIDER_CAPACITY response carries an additional diagnostic aiBudgetState field; no existing gate changed"
     - "tests/ai-budget-state.test.js"
   exclude_this_slice:
-    - "Workers Paid enablement: a billing/plan decision outside repository scope and outside AI authority; not performed by this work order. If the owner enables Workers Paid, the existing #2238 daily-reset wait remains correct for the free tier and this classifier already generalizes past it (item 14 of the owner spec: paid capacity removes the free-tier hard stop, not NUSA's own cost/retry/safety controls)."
-    - "Model routing tiers (DETERMINISTIC/CHEAP_JUDGMENT/SIMPLE/COMPLEX/HIGH_UNCERTAINTY), call-site inventory instrumentation, shadow benchmarking, failure classification before escalation, retry-evidence requirement, duplicate-inference suppression, and per-completion cost/economics telemetry: all remain from the owner's full spec, tracked here as remaining scope, to be delivered as further small reviewable slices rather than one large change."
+    - "Workers Paid enablement: billing/plan authority remains outside repository and AI authority."
+    - "Positive routing authority, automatic model-tier promotion, protected transitions, Audit verdict, Release authorization, merge, secrets, LIVE execution, or portfolio/risk authority."
+    - "Expansion beyond verified failure/recovery coding admission until #2329 SHADOW/calibration is accepted."
 acceptance:
-  - "classifyAiBudgetState returns NORMAL for no/elapsed wait, CONSERVE only for the known-soft WORKERS_AI_RATE_LIMITED reason while active, and HARD_STOP for the daily quota reason and any unrecognized reason while active (fail closed by default)."
-  - "No existing provider-capacity gate, retry, or record behavior changes; classification is additive/diagnostic only in this slice."
+  - "Provider capacity truth remains fail-closed and unchanged: NORMAL/CONSERVE/HARD_STOP still represents provider availability."
+  - "Bounded Jev admission is eligible for canonical gha:<run>:<sha>:(failure|cancelled|timed_out) evidence and does not classify ordinary feature work."
+  - "Jev cannot abstain unless GitHub-verified failed job/step metadata exists for the exact run/head; raw logs are never sent."
+  - "High-confidence non-code decisions may return JEV_ROUTING_ABSTAINED; CODE/TEST/UNKNOWN, low-confidence, malformed/unavailable Jev, or missing evidence preserve the existing coding path."
+  - "Proposal repair attempts do not repeat the same Jev admission call."
+  - "Production /coding/propose and the GitHub dispatcher treat JEV_ROUTING_ABSTAINED as successful NO_ACTION with no patch validation/publish/recovery loop."
+  - "Activation remains disabled in wrangler until #2329 SHADOW acceptance/calibration."
+  - "PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY remain unchanged."
 verification_commands:
   - "node --test tests/ai-budget-state.test.js"
   - "node --test tests/autopilot-dispatch-retry.test.js tests/ai-cloud-runtime.test.js (plus the full autopilot/worker/coding-runner/audit-runner/provider/execution-coordinator suite)"
   - "pnpm run validate (Node >= 24)"
 evidence:
-  implementation_status: READY_FOR_REVIEW_FIRST_SLICE
-  local_validation: "ai-budget-state 6/6 PASS; combined autopilot/worker/coding-runner/audit-runner/provider/execution-coordinator suite 227/227 PASS (a 3-test transient failure traced to running tests against an uncommitted/dirty git tree, not this change: tests/autopilot-dispatch-retry.test.js exercises real git apply-check flows that require a clean tree; re-ran clean, 29/29); pnpm run validate PASS; secret scan 0 failures; typecheck PASS."
-  external_validation: "REQUIRED: exact-head CI, Audit, Release."
+  implementation_status: WIP_CURRENT_SLICE
+  prior_slice_validation: "ai-budget-state 6/6 PASS; combined autopilot/worker/coding-runner/audit-runner/provider/execution-coordinator suite 227/227 PASS; pnpm run validate PASS; secret scan 0 failures; typecheck PASS."
+  current_slice_validation: "PENDING focused validation after verified-failure evidence, proposal NO_ACTION propagation, canonical gha reason, repair-call suppression, and AIPOS reconciliation."
+  external_validation: "REQUIRED: exact-head CI, independent Audit, canonical Release."
 safety:
   paper_only: true
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
-next_permitted_action: "Exact-head CI, Audit, Release for this slice; next slice picks up call-site inventory + necessity-tier classification from the excluded scope above."
+next_permitted_action: "Complete focused validation for the current Jev bounded-admission slice, resolve review findings, then fresh exact-head CI -> independent Audit -> canonical Release. Do not enable bounded routing before #2329 SHADOW acceptance/calibration."
 
 current_slice:
   name: "Jev-first bounded coding admission"
-  status: IMPLEMENTING
+  status: WIP_REVIEW_CORRECTION
   objective: "Use the existing Jev provider as a zero-authority, high-confidence negative admission gate before expensive coding inference on failure/recovery tasks. Jev may only abstain from an expensive coding call for non-code root causes; it cannot authorize code, select a protected transition, merge, release, audit, mutate secrets, or expand LIVE authority."
   scope:
     - "Reuse Jev provider transport with an explicit BOUNDED_ROUTING mode; keep SHADOW behavior unchanged for existing consumers."
-    - "Call Jev only for failure/recovery coding admissions, after exact GitHub evidence verification and duplicate/lease suppression."
+    - "Call Jev only for an initial failure/recovery coding admission after exact GitHub run/head verification and bounded failed job/step evidence extraction; raw logs are forbidden."
     - "ABSTAIN only when confidence >= 0.90, safeToAutofix=NO, and rootCause is INFRA/AUTH/RUNNER/FLAKY."
-    - "CODE/TEST/UNKNOWN, low-confidence, malformed, unavailable, disabled, or unconfigured Jev results preserve the existing coding path."
+    - "CODE/TEST/UNKNOWN, low-confidence, malformed, unavailable, disabled, unconfigured, or evidence-missing Jev paths preserve the existing coding path; proposal repair retries reuse the initial proceed decision without another Jev call."
     - "The bounded decision never generates a patch and never grants AI authority; deterministic validation/CI/Audit/Release remain authoritative."
   acceptance:
-    - "A high-confidence non-code Jev decision prevents the expensive coding inference call and returns JEV_ROUTING_ABSTAINED."
+    - "A high-confidence non-code Jev decision backed by verified failed job/step metadata prevents the expensive coding inference call and returns JEV_ROUTING_ABSTAINED."
     - "A high-confidence CODE/TEST decision preserves the existing coding path."
     - "Low confidence, provider failure, missing configuration, and non-eligible feature work preserve the existing coding path."
-    - "Existing SHADOW Jev consumers still send mode=SHADOW; bounded admission sends mode=BOUNDED_ROUTING."
+    - "Existing SHADOW Jev consumers still send mode=SHADOW; bounded admission sends mode=BOUNDED_ROUTING; /coding/propose and dispatcher surface abstention as successful NO_ACTION."
     - "PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY remain unchanged."
   next_after_this_slice: "Measure observed abstentions/call reduction before expanding bounded routing to model-tier selection. Independent Audit remains a separate authority and is not replaced by Jev."
