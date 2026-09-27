@@ -1,0 +1,55 @@
+id: WO-20260927-JEV-PAPER-LEARNING-SHADOW
+title: "Jev Continuous PAPER Learning Evaluation shadow classifier"
+status: WIP
+owner: nusa-ai-platform
+repository: cinamoncandy/NUSA
+issue: 2226
+base_branch: main
+base_commit: 8c77a70f1ceba5b0d7bac46d90cfe25400dd5893
+implementation_branch: feat/2226-jev-paper-learning-shadow
+authority_impact: none
+objective: "Consume canonical PAPER Performance/Ledger metadata after closed-learning evaluation and emit a ZERO_AUTHORITY Jev SHADOW observation for evidence readiness, stalled-learning detection, and escalation/model need without computing or replacing canonical metrics."
+canonical_sources:
+  performance: apps/cloud/src/paperPerformanceEvidence.ts
+  ledger_binding: apps/cloud/src/paperPerformanceFromLedger.ts
+  production_handoff: apps/cloud/src/closedLearningProductionRuntime.ts
+scope:
+  include:
+    - "PAPER learning readiness: NO_EVIDENCE | INSUFFICIENT | READY | STALE | INVALID."
+    - "Deterministic stalled-policy metadata and Jev shadow stalled classification."
+    - "Required model/escalation recommendation using the existing Jev provider/model-tier vocabulary."
+    - "Metadata-only evidence identity: period, candidate/strategy/family, timestamps/counts, ledger/evidence/outcome fingerprints, calculation version."
+    - "Post-evaluation runtime bridge after CLOSED_AND_EVALUATED; structured receipt logging only."
+    - "Replay-stable decision/input identities and fail-closed fallback."
+  exclude:
+    - "PnL, return, drawdown, Sharpe, Sortino, or any canonical performance calculation by Jev."
+    - "Ledger reconciliation, posting, balances, position mutation, or canonical evidence mutation."
+    - "Strategy qualification, Champion/Challenger promotion, allocation, Portfolio/Risk limits, execution, LIVE actions."
+    - "Audit verdict, Release authorization, merge, secrets, production mutation, or protected authority."
+    - "New scheduler, orchestrator, learning engine, evidence store, or control plane."
+acceptance:
+  - "Jev input excludes canonical performance metrics and raw logs/secrets."
+  - "NO_EVIDENCE, STALE, and INVALID fail closed without spending a provider call."
+  - "Disabled, low-confidence, malformed, timeout, and provider-unavailable paths preserve deterministic fallback."
+  - "All receipts are shadow=true, usableForRouting=false, authority=PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY."
+  - "Canonical closed-learning evaluation completes before the shadow bridge and never consumes the Jev result."
+  - "Evidence-read or observer failure cannot block or mutate the closed-learning cycle."
+  - "Same canonical evidence and policy produce replay-stable decisionId/inputHash."
+verification_commands:
+  - "pnpm run build"
+  - "node --test dist/apps/cloud/src/ai/jevPaperLearningEvaluationShadow.test.js"
+  - "node --test dist/apps/cloud/src/ai/jevPaperLearningEvaluationRuntime.test.js"
+  - "node scripts/validate-aipos-yaml.js"
+  - "git diff --check"
+evidence:
+  implementation_status: WIP
+  implementation_head: fd8fc36417bf4d5aad27b233721e19da788231ce
+  local_validation: PENDING
+  external_validation: "Required: exact-head CI, independent Audit, canonical Release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Run focused validation, fix/retest, mark READY_FOR_REVIEW, then exact-head CI."
