@@ -4,7 +4,7 @@ status: READY_FOR_REVIEW
 owner: nusa-ai-platform
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: 04a17e14130139168ad515417641f52c440cbab6
+base_commit: 056e8236658d5f379fa9a0a2a42e82e994110a99
 implementation_branch: feat/jev-workers-ai-native-provider
 pull_request: 2345
 authority_impact: none
