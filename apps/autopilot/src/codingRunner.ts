@@ -122,6 +122,8 @@ export class CodingRunnerEvidenceError extends Error {
 export interface CodingRunnerExecutionOptions {
   readonly maxProposalAttempts?: number;
   readonly now?: () => number;
+  /** Test/runtime adapter for the bounded Jev admission call. Production normally uses the configured Jev provider. */
+  readonly jevAdmissionClassify?: (input: Readonly<Record<string, unknown>>) => Promise<unknown>;
   /**
    * Consulted immediately before every Workers AI call, after GitHub evidence verification. Returns
    * the provider's recorded retry time when it is still inside its wait window, or null when a call
@@ -784,7 +786,11 @@ export async function executeCodingRunner(
   options: CodingRunnerExecutionOptions = {},
 ): Promise<CodingRunnerResult> {
   await verifyCodingRunnerRequestAgainstGitHub(request, env.NUSA_GITHUB_TOKEN, fetchImpl);
-  const jevAdmission = await decideJevBoundedCodingAdmission(request, env);
+  const jevAdmission = await decideJevBoundedCodingAdmission(
+    request,
+    env,
+    options.jevAdmissionClassify ? { classify: options.jevAdmissionClassify } : {},
+  );
   if (jevAdmission.action === "ABSTAIN_EXPENSIVE_INFERENCE") {
     return {
       status: "JEV_ROUTING_ABSTAINED",
