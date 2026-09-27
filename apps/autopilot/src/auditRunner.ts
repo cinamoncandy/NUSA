@@ -64,6 +64,8 @@ interface AuditModelVerdict {
 
 interface VerifiedPullEvidence {
   readonly changedFiles: number;
+  /** PR head SHA independently observed from the GitHub API (never echoed from the request). */
+  readonly observedHeadSha: string;
 }
 
 interface GithubJsonResponse {
@@ -357,15 +359,22 @@ async function verifyCurrentPullAndCi(request: AuditRunnerRequest, token: string
   if (typeof run.head_sha !== "string" || run.head_sha.toLowerCase() !== request.headSha) throw new Error("AUDIT_CI_HEAD_MISMATCH");
   if (nested(run.repository)?.full_name !== request.repository) throw new Error("AUDIT_CI_REPOSITORY_MISMATCH");
   await verifyCanonicalCiPullRequestBinding(request, repository, run, token, fetchImpl);
-  return Object.freeze({ changedFiles: Number(pull.changed_files) });
+  const observedHeadSha = String(head.sha).toLowerCase();
+  if (observedHeadSha !== request.headSha) throw new Error("AUDIT_PR_HEAD_MISMATCH");
+  return Object.freeze({ changedFiles: Number(pull.changed_files), observedHeadSha });
 }
 
 async function fetchPullDiff(request: AuditRunnerRequest, expectedChangedFiles: number, token: string, fetchImpl: FetchImpl): Promise<string> {
   const repository = request.repository.split("/").map(encodeURIComponent).join("/");
-  const response = await fetchImpl(`${GITHUB_API_ORIGIN}/repos/${repository}/pulls/${request.prNumber}`, {
+  // Read the immutable base..head comparison instead of the mutable PR diff
+  // endpoint. The reviewed bytes must be bound to the observed commit IDs.
+  const response = await fetchImpl(
+    `${GITHUB_API_ORIGIN}/repos/${repository}/compare/${encodeURIComponent(request.baseSha)}...${encodeURIComponent(request.headSha)}`,
+    {
     method: "GET",
     headers: githubHeaders("application/vnd.github.v3.diff", token),
-  });
+    },
+  );
   if (response.status !== 200 || typeof response.text !== "function") throw new Error(`AUDIT_DIFF_HTTP_${response.status}`);
   const diff = await response.text();
   if (!diff.trim()) throw new Error("AUDIT_DIFF_EMPTY");
@@ -436,6 +445,11 @@ export async function executeIndependentAudit(
   // evidence-shape change invalidates the verdict instead of attaching it to a different state.
   const afterAudit = await verifyCurrentPullAndCi(request, githubToken, fetchImpl);
   if (afterAudit.changedFiles !== beforeAudit.changedFiles) throw new Error("AUDIT_PR_CHANGED_FILES_MOVED");
+  // Exact-head binding: the SHA recorded as reviewed must be the SHA independently observed
+  // after the review, never an echo of the request. Any divergence fails closed here even if
+  // an upstream check is ever weakened.
+  if (afterAudit.observedHeadSha !== request.headSha) throw new Error("AUDIT_VERIFIED_HEAD_MISMATCH");
+  if (beforeAudit.observedHeadSha !== request.headSha) throw new Error("AUDIT_VERIFIED_HEAD_MISMATCH");
 
   const evidenceRefs = Object.freeze([
     `github:pull/${request.prNumber}@${request.headSha}`,
@@ -450,7 +464,7 @@ export async function executeIndependentAudit(
     mergeAllowed,
     repository: request.repository,
     prNumber: request.prNumber,
-    reviewedHeadSha: request.headSha,
+    reviewedHeadSha: afterAudit.observedHeadSha,
     baseSha: request.baseSha,
     workflowRunId: request.workflowRunId,
     findings: modelResult.findings,
