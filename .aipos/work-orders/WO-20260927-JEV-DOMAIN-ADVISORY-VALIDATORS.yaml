@@ -1,12 +1,12 @@
 id: WO-20260927-JEV-DOMAIN-ADVISORY-VALIDATORS
 title: "Jev domain advisory validator completion"
-status: BLOCKED
+status: READY_FOR_EXACT_HEAD_CI
 owner: nusa-ai-platform
 repository: cinamoncandy/NUSA
 parent_work_order: WO-ISSUE-2326-JEV-DOMAIN-OBSERVATION
 parent_pr: 2329
-base_branch: feat/2326-jev-domain-observation-registry
-base_commit: 42735c12fe245809e1a48203f4171674954bca1a
+base_branch: main
+base_commit: 04a17e14130139168ad515417641f52c440cbab6
 implementation_branch: feat/2326-jev-domain-advisory-validators
 authority_impact: none
 objective: "Complete the registered NUSA-wide Jev SHADOW task contract by replacing UNAVAILABLE placeholder validators with one bounded DOMAIN_ADVISORY_V1 schema and task-specific classification vocabularies."
@@ -29,17 +29,14 @@ acceptance:
   - "Existing workflow/research-specific validators remain unchanged."
   - "All protected-action prohibitions and ZERO_AUTHORITY invariants remain mechanical."
 evidence:
-  implementation_status: READY_FOR_REVIEW_STACKED
+  implementation_status: READY_FOR_REVIEW
   implementation_head: e2eae8c339edd552927712afdff97c38baa61ddc
   local_validation: "Focused jev-domain-observation registry tests 17/17 PASS across all 17 domains and all 18 generic advisory task validators; isolated TypeScript compile of registry/workflow/research validators PASS; AIPOS YAML PASS; git diff --check PASS."
-  external_validation: "BLOCKED on parent #2329 acceptance/merge; after parent merge reconverge to latest main and run fresh exact-head CI/Audit/Release."
+  external_validation: "Parent #2329 is merged in protected main 04a17e14130139168ad515417641f52c440cbab6. Branch was reconverged to that main; fresh exact-head CI/Audit/Release is the next gate."
 safety:
   paper_only: true
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
-blocker:
-  type: PARENT_DEPENDENCY
-  dependency: "PR #2329 must be accepted and merged first."
-next_permitted_action: "Complete focused stacked validation only. Do not promote any task above SHADOW."
+next_permitted_action: "Run fresh exact-head CI, then independent Audit and canonical Release. Do not promote any task above SHADOW."
