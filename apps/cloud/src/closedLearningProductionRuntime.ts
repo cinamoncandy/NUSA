@@ -23,6 +23,8 @@ import { CLOUD_PAPER_RISK_POLICY_FINGERPRINT } from "./cloudPaperRiskPolicyIdent
 import { ClosedLearningRolloverScheduler, type ClosedLearningRolloverResult } from "./closedLearningRolloverScheduler";
 import { ClosedLearningInitialPaperBootstrap, type ClosedLearningInitialPaperBootstrapResult } from "./closedLearningInitialPaperBootstrap";
 import { buildPaperPerformanceFromLedger, type PaperPerformanceFromLedgerResult } from "./paperPerformanceFromLedger";
+import { createJevPaperLearningEvaluationShadowObserverFromEnvironment } from "./ai/jevPaperLearningEvaluationShadow";
+import { observeJevPaperLearningAfterRollover } from "./ai/jevPaperLearningEvaluationRuntime";
 
 export const CLOSED_LEARNING_ROLLOVER_POLL_INTERVAL_MS = 30_000;
 
@@ -59,6 +61,7 @@ export interface ClosedLearningProductionComposition {
 export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = process.env): ClosedLearningProductionComposition {
   const config = readCloudRuntimeConfig(env);
   const closedLearningConfig = readClosedLearningProductionConfig(env, config.cloudStateDbPath);
+  const paperLearningShadowObserver = createJevPaperLearningEvaluationShadowObserverFromEnvironment(env);
   const database = new SqliteDatabase(config.cloudStateDbPath);
   const snapshots = new SqliteCloudDashboardSnapshotRepository(database);
   const learningLedger = new SqliteEvolutionLearningLedger(database);
@@ -188,7 +191,12 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     if (closedLearningTick != null) return closedLearningTick;
     const task = (async () => {
       await runClosedLearningBootstrapAsync();
-      await runClosedLearningRolloverAsync();
+      const rolloverResult = await runClosedLearningRolloverAsync();
+      await observeJevPaperLearningAfterRollover(rolloverResult, {
+        observer: paperLearningShadowObserver,
+        readPaperPerformanceEvidence,
+        env,
+      });
     })();
     closedLearningTick = task;
     task.then(
