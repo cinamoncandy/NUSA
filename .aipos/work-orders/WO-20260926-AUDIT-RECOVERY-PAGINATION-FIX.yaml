@@ -1,20 +1,21 @@
 id: WO-20260926-AUDIT-RECOVERY-PAGINATION-FIX
 title: Audit recovery pagination compatibility
-status: BLOCKED
+status: READY_FOR_REVIEW
 branch: fix/audit-recovery-gh-pagination
 base_sha: 0921f0514a47e3f3313645a654e258cf8f3ab485
-exact_head: f0e590f4f076b9366c9163ff12137ff22780f5af
+implementation_head: 30b378c2afcedb796f6f33e59bc92aee1192ec6f
 pull_request: 2328
-scope: "Repair the canonical Audit recovery GitHub API pagination command without changing Audit, Release, or authority semantics."
-finding: "gh api rejects --paginate --slurp combined with --jq in the protected-main recovery consumer."
-change: "Stream paginated workflow runs through --jq, sort numeric IDs, and select the newest successful CI run deterministically."
+scope: "Converge the canonical Audit recovery lane: compatible GitHub pagination plus lifecycle-safe provider-capacity wait persistence, without changing Audit, Release, or authority semantics."
+finding: "Audit recovery first hit unsupported gh pagination flags; later #2329 Audit run 36282589505 proved provider-capacity wait persistence also failed because taskId audit:cinamoncandy/NUSA#2329 violates the shared lifecycle ID alphabet."
+change: "Keep the supported pagination fix and emit Audit provider-wait taskId as audit:<repository>:<prNumber>; add regression coverage for the exact ID and allowed lifecycle alphabet."
 validation:
-  exact_head_ci: 36261890909
-  exact_head_status: PASS
+  implementation_head: 30b378c2afcedb796f6f33e59bc92aee1192ec6f
+  github_validation_job: 108518383625
+  github_validation_status: PASS
+  exact_head_ci: PENDING_AFTER_METADATA_RECONCILIATION
   review_threads: RESOLVED
-  independent_audit_run: 36262309906
-  independent_audit_status: BLOCKED_WAITING_PROVIDER_CAPACITY
-  bounded_failed_job_retry: FAILED_SAME_409_WAITING_PROVIDER_CAPACITY
-blocker: "External independent Audit provider capacity; repository-controlled pagination and review findings are already resolved."
-next_permitted_action: "After external provider capacity returns, rerun canonical independent Audit for the current exact head; on PASS continue canonical Release -> merge -> protected-main verification. Do not add another implementation or poll repeatedly."
+  observed_audit_failure_run: 36282589505
+  observed_failure: PROVIDER_CAPACITY_WAIT_RECORD_FAILED
+blocker: "none in repository code; independent Audit may still be externally capacity-gated, but the wait can now be persisted and classified normally."
+next_permitted_action: "Run fresh exact-head CI on the metadata-reconciled head; then independent Audit -> canonical Release -> merge -> protected-main deployment/recovery verification. No parallel Audit implementation."
 safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
