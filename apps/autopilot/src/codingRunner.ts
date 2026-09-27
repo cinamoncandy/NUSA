@@ -629,7 +629,16 @@ export async function verifyCodingRunnerRequestAgainstGitHub(
 }
 
 const SAFE_FAILURE_LABEL = /^[A-Za-z0-9_.:/ ()\[\]-]{1,128}$/;
+const SENSITIVE_FAILURE_LABEL = /bearer\s+[A-Za-z0-9._~+\/-]{8,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(?:ghp_|github_pat_|xox[baprs]-)[A-Za-z0-9-]{16,}\b|\bAKIA[0-9A-Z]{16}\b/i;
 const FAILURE_CONCLUSIONS = new Set(["failure", "cancelled", "timed_out"]);
+
+function safeFailureLabel(value: unknown): string | null {
+  return typeof value === "string"
+    && SAFE_FAILURE_LABEL.test(value)
+    && !SENSITIVE_FAILURE_LABEL.test(value)
+    ? value
+    : null;
+}
 
 async function verifiedJevCodingFailureEvidence(
   request: CodingRunnerRequest,
@@ -660,16 +669,18 @@ async function verifiedJevCodingFailureEvidence(
     const job = rawJob as Record<string, unknown>;
     if (Number.isSafeInteger(job.run_id) && job.run_id !== request.workflowRunId) continue;
     const conclusion = typeof job.conclusion === "string" ? job.conclusion : "";
-    if (FAILURE_CONCLUSIONS.has(conclusion) && typeof job.name === "string" && SAFE_FAILURE_LABEL.test(job.name)) {
-      failedJobs.push(job.name);
+    const jobName = safeFailureLabel(job.name);
+    if (FAILURE_CONCLUSIONS.has(conclusion) && jobName) {
+      failedJobs.push(jobName);
     }
     if (!Array.isArray(job.steps)) continue;
     for (const rawStep of job.steps) {
       if (!rawStep || typeof rawStep !== "object" || Array.isArray(rawStep)) continue;
       const step = rawStep as Record<string, unknown>;
       const stepConclusion = typeof step.conclusion === "string" ? step.conclusion : "";
-      if (FAILURE_CONCLUSIONS.has(stepConclusion) && typeof step.name === "string" && SAFE_FAILURE_LABEL.test(step.name)) {
-        failedSteps.push(step.name);
+      const stepName = safeFailureLabel(step.name);
+      if (FAILURE_CONCLUSIONS.has(stepConclusion) && stepName) {
+        failedSteps.push(stepName);
       }
       if (failedSteps.length >= 16) break;
     }
