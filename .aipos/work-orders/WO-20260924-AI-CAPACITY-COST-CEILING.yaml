@@ -4,7 +4,7 @@ status: IN_PROGRESS
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
-implementation_branch: claude/nusa-repository-j93sd8-ai-budget-state
+implementation_branch: feat/ai-capacity-jev-bounded-admission
 parent_work_order: WO-ISSUE-2238-WORKERS-AI-DAILY-QUOTA
 authority_impact: none
 authority_impact_note: "Diagnostics/classification only in this slice; no model routing, gate, or billing change. PAPER-only Autopilot engineering; no LIVE, execution, risk, credential or AI-authority change."
@@ -35,3 +35,21 @@ safety:
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
 next_permitted_action: "Exact-head CI, Audit, Release for this slice; next slice picks up call-site inventory + necessity-tier classification from the excluded scope above."
+
+current_slice:
+  name: "Jev-first bounded coding admission"
+  status: IMPLEMENTING
+  objective: "Use the existing Jev provider as a zero-authority, high-confidence negative admission gate before expensive coding inference on failure/recovery tasks. Jev may only abstain from an expensive coding call for non-code root causes; it cannot authorize code, select a protected transition, merge, release, audit, mutate secrets, or expand LIVE authority."
+  scope:
+    - "Reuse Jev provider transport with an explicit BOUNDED_ROUTING mode; keep SHADOW behavior unchanged for existing consumers."
+    - "Call Jev only for failure/recovery coding admissions, after exact GitHub evidence verification and duplicate/lease suppression."
+    - "ABSTAIN only when confidence >= 0.90, safeToAutofix=NO, and rootCause is INFRA/AUTH/RUNNER/FLAKY."
+    - "CODE/TEST/UNKNOWN, low-confidence, malformed, unavailable, disabled, or unconfigured Jev results preserve the existing coding path."
+    - "The bounded decision never generates a patch and never grants AI authority; deterministic validation/CI/Audit/Release remain authoritative."
+  acceptance:
+    - "A high-confidence non-code Jev decision prevents the expensive coding inference call and returns JEV_ROUTING_ABSTAINED."
+    - "A high-confidence CODE/TEST decision preserves the existing coding path."
+    - "Low confidence, provider failure, missing configuration, and non-eligible feature work preserve the existing coding path."
+    - "Existing SHADOW Jev consumers still send mode=SHADOW; bounded admission sends mode=BOUNDED_ROUTING."
+    - "PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY remain unchanged."
+  next_after_this_slice: "Measure observed abstentions/call reduction before expanding bounded routing to model-tier selection. Independent Audit remains a separate authority and is not replaced by Jev."
