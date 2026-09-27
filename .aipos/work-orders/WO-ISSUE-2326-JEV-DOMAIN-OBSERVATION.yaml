@@ -1,6 +1,6 @@
 id: WO-ISSUE-2326-JEV-DOMAIN-OBSERVATION
 title: "Define canonical NUSA-wide Jev domain observation and task-type registry"
-status: READY_FOR_REVIEW
+status: BLOCKED
 owner: nusa-ai-platform
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -43,12 +43,13 @@ verification_commands:
   - "git diff --check"
 evidence:
   implementation_status: READY_FOR_REVIEW
-  local_validation: "Original exact-head build and focused Jev tests 13/13 PASS; latest-main merge preserved Jev implementation without code conflict; merged-main CI build/typecheck PASS. Final branch preflight/diff and fresh exact-head CI required; nusa-vcn full recompilation was resource-limited, not diagnostically failed."
-  external_validation: "Required: exact-head CI, independent Audit, canonical Release, merge. Domain adapters and calibration remain successor work under #2326."
+  implementation_head: ca56eb2a21ae93c84031ed210a62805508d8908a
+  local_validation: "Local focused TypeScript compile PASS; runtime checks for credential-prefix rejection, requiredModel enum validation, and provenance boolean validation PASS; AIPOS YAML and git diff checks PASS. Full-repository tsc on the 1 GB nusa-vcn verifier was boundedly stopped for resource pressure, not a diagnostic failure."
+  external_validation: "Implementation head ca56eb2a exact-head CI 36287313910 PASS with validation, all coverage shards, aggregate coverage, and test; review threads RESOLVED. This metadata-only reconciliation requires fresh exact-head CI. Independent Audit is externally BLOCKED by WORKERS_AI_DAILY_QUOTA_EXHAUSTED until 2026-09-28T00:00:00Z (2026-09-28 09:00 KST), then canonical Release/merge remain required."
 safety:
   paper_only: true
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
-next_permitted_action: "Run exact-head CI, then independent Audit and canonical Release on this exact head; no rollout above SHADOW."
+next_permitted_action: "Run one fresh exact-head CI for this metadata-only reconciliation. Do not retry Audit before 2026-09-28T00:00:00Z; after the persisted provider wait expires, request independent Audit, then canonical Release/merge. No rollout above SHADOW."
