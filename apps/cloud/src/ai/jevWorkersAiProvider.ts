@@ -30,6 +30,8 @@ export interface JevWorkersAiReceipt {
   readonly inputFingerprint: string;
   readonly confidence: number;
   readonly reasonCode: "SUCCESS";
+  readonly promptTokens: number | null;
+  readonly completionTokens: number | null;
   readonly liveAuthority: "NONE";
   readonly productionMutationAllowed: false;
   readonly aiAuthority: "ZERO_AUTHORITY";
@@ -66,8 +68,26 @@ const namedError = (name: string, message: string): Error => {
   return error;
 };
 
+function stableJson(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    const encoded = JSON.stringify(value);
+    if (encoded === undefined) throw namedError("JevWorkersAiInputInvalid", "Jev Workers AI input invalid");
+    return encoded;
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => item === undefined ? "null" : stableJson(item)).join(",")}]`;
+  }
+  const record = value as Record<string, unknown>;
+  const entries = Object.keys(record).sort().flatMap((key) => {
+    const item = record[key];
+    if (item === undefined || typeof item === "function" || typeof item === "symbol") return [];
+    return [`${JSON.stringify(key)}:${stableJson(item)}`];
+  });
+  return `{${entries.join(",")}}`;
+}
+
 function canonicalFingerprint(input: Readonly<Record<string, unknown>>): string {
-  return createHash("sha256").update(JSON.stringify(input), "utf8").digest("hex");
+  return createHash("sha256").update(stableJson(input), "utf8").digest("hex");
 }
 
 function buildPrompt(input: Readonly<Record<string, unknown>>): string {
@@ -75,14 +95,26 @@ function buildPrompt(input: Readonly<Record<string, unknown>>): string {
     "You are Jev, a zero-authority failure classifier. Return only JSON.",
     "Classify the bounded failure evidence below into exactly: rootCause, safeToAutofix, severity, requiredModel, confidence.",
     "Never propose mutations, orders, credentials, or authority changes.",
-    `Evidence: ${JSON.stringify(input)}`,
+    `Evidence: ${stableJson(input)}`,
   ].join("\n");
 }
 
+function responseValue(value: unknown): unknown {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) return value;
+  const payload = value as Record<string, unknown>;
+  if (payload.response !== undefined) return payload.response;
+  const choices = payload.choices;
+  if (!Array.isArray(choices) || choices.length === 0) return value;
+  const first = choices[0];
+  if (first == null || typeof first !== "object" || Array.isArray(first)) return value;
+  const message = (first as Record<string, unknown>).message;
+  if (message == null || typeof message !== "object" || Array.isArray(message)) return value;
+  const record = message as Record<string, unknown>;
+  return record.parsed !== undefined ? record.parsed : record.content;
+}
+
 function parseModelResponse(value: unknown): JevShadowDecision {
-  const payload = value != null && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>).response ?? value
-    : value;
+  const payload = responseValue(value);
   if (typeof payload === "string" && payload.trim()) {
     try {
       return validateJevShadowDecision(JSON.parse(payload));
@@ -97,6 +129,35 @@ function parseModelResponse(value: unknown): JevShadowDecision {
   }
 }
 
+
+
+function tokenCount(value: unknown): number | null {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+function responseUsage(value: unknown): { readonly promptTokens: number | null; readonly completionTokens: number | null } {
+  const payload = value != null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const usage = payload.usage != null && typeof payload.usage === "object" && !Array.isArray(payload.usage)
+    ? payload.usage as Record<string, unknown>
+    : {};
+  return Object.freeze({
+    promptTokens: tokenCount(usage.prompt_tokens),
+    completionTokens: tokenCount(usage.completion_tokens),
+  });
+}
+
+function providerUnavailable(error: unknown): Error {
+  const wrapped = namedError("JevProviderUnavailableError", error instanceof Error ? error.message : "Workers AI Jev provider unavailable");
+  if (error instanceof Error) (wrapped as Error & { cause?: unknown }).cause = error;
+  if (error != null && typeof error === "object" && !Array.isArray(error)) {
+    const source = error as Record<string, unknown>;
+    const target = wrapped as Error & Record<string, unknown>;
+    for (const key of ["retryAfterMs", "retryAfter", "resetAt"] as const) {
+      if (source[key] !== undefined) target[key] = source[key];
+    }
+  }
+  return wrapped;
+}
 /**
  * Canonical Workers AI Jev provider. Same classify() shape as JevShadowProvider
  * so JevShadowRouter consumes either transport interchangeably. Uses the native
@@ -132,23 +193,27 @@ export class JevWorkersAiProvider {
     const pending = this.inFlight.get(fingerprint);
     if (pending) return pending;
     const started = this.now();
-    const task = this.runOnce(input, fingerprint, started).finally(() => {
-      if (this.inFlight.get(fingerprint) === task) this.inFlight.delete(fingerprint);
-    });
+    const providerCall = this.ai.run(this.model, { prompt: buildPrompt(input), response_format: JEV_DECISION_SCHEMA });
+    const task = this.finishWithTimeout(providerCall, fingerprint, started);
     this.inFlight.set(fingerprint, task);
+    const release = () => {
+      if (this.inFlight.get(fingerprint) === task) this.inFlight.delete(fingerprint);
+    };
+    providerCall.then(release, release);
     return task;
   }
 
-  private async runOnce(input: Readonly<Record<string, unknown>>, fingerprint: string, started: number): Promise<JevWorkersAiClassified> {
+  private async finishWithTimeout(providerCall: Promise<unknown>, fingerprint: string, started: number): Promise<JevWorkersAiClassified> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       const response = await Promise.race([
-        this.ai.run(this.model, { prompt: buildPrompt(input), response_format: JEV_DECISION_SCHEMA }),
+        providerCall,
         new Promise<never>((_, reject) => {
           timer = setTimeout(() => reject(namedError("TimeoutError", "Workers AI Jev provider timed out")), this.timeoutMs);
         }),
       ]);
       const decision = parseModelResponse(response);
+      const usage = responseUsage(response);
       return Object.freeze({
         decision,
         receipt: Object.freeze({
@@ -160,6 +225,8 @@ export class JevWorkersAiProvider {
           inputFingerprint: fingerprint,
           confidence: decision.confidence,
           reasonCode: "SUCCESS" as const,
+          promptTokens: usage.promptTokens,
+          completionTokens: usage.completionTokens,
           liveAuthority: "NONE" as const,
           productionMutationAllowed: false as const,
           aiAuthority: "ZERO_AUTHORITY" as const,
@@ -167,7 +234,7 @@ export class JevWorkersAiProvider {
       });
     } catch (error) {
       if (error instanceof Error && (error.name === "TimeoutError" || error.name === "MalformedJevResponseError")) throw error;
-      throw namedError("JevProviderUnavailableError", error instanceof Error ? error.message : "Workers AI Jev provider unavailable");
+      throw providerUnavailable(error);
     } finally {
       if (timer !== undefined) clearTimeout(timer);
     }

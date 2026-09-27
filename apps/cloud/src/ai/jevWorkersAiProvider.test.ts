@@ -14,6 +14,7 @@ function decisionResponse(overrides: Record<string, unknown> = {}) {
       confidence: 0.82,
       ...overrides,
     }),
+    usage: { prompt_tokens: 12, completion_tokens: 7 },
   };
 }
 
@@ -36,6 +37,8 @@ test("classifies through the native Workers AI binding with a typed receipt", as
   assert.equal(result.receipt.provider, "workers-ai");
   assert.equal(result.receipt.model, MODEL);
   assert.equal(result.receipt.reasonCode, "SUCCESS");
+  assert.equal(result.receipt.promptTokens, 12);
+  assert.equal(result.receipt.completionTokens, 7);
   assert.equal(result.receipt.fallbackApplied, false);
   assert.equal(result.receipt.liveAuthority, "NONE");
   assert.equal(result.receipt.productionMutationAllowed, false);
@@ -84,21 +87,73 @@ test("malformed model output fails closed instead of fabricating a decision", as
   await assert.rejects(wrongKeys.classify({ taskType: "T" }), /malformed/i);
 });
 
+test("accepts current structured chat-completion response envelopes", async () => {
+  const parsed = { rootCause: "INFRA", safeToAutofix: "NO", severity: 2, requiredModel: "LUNA", confidence: 0.91 };
+  const structured = new JevWorkersAiProvider({
+    ai: runtime({ choices: [{ message: { parsed } }], usage: { prompt_tokens: 3, completion_tokens: 2 } }),
+    model: MODEL,
+  });
+  assert.equal((await structured.classify({ taskType: "T" })).rootCause, "INFRA");
+
+  const textual = new JevWorkersAiProvider({
+    ai: runtime({ choices: [{ message: { content: JSON.stringify(parsed) } }] }),
+    model: MODEL,
+  });
+  assert.equal((await textual.classify({ taskType: "T" })).requiredModel, "LUNA");
+});
+
+test("preserves retry metadata on provider errors", async () => {
+  const rateLimit = Object.assign(new Error("429 rate limited"), { retryAfterMs: 60_000, resetAt: 123456 });
+  const provider = new JevWorkersAiProvider({ ai: runtime(rateLimit), model: MODEL });
+  await assert.rejects(provider.classify({ taskType: "T" }), (error: unknown) => {
+    const record = error as Error & { retryAfterMs?: number; resetAt?: number; cause?: unknown };
+    assert.equal(record.name, "JevProviderUnavailableError");
+    assert.equal(record.retryAfterMs, 60_000);
+    assert.equal(record.resetAt, 123456);
+    assert.equal(record.cause, rateLimit);
+    return true;
+  });
+});
+
 test("low-confidence decisions pass through unmodified; gating stays in the router", async () => {
   const provider = new JevWorkersAiProvider({ ai: runtime(decisionResponse({ confidence: 0.05 })), model: MODEL });
   const decision = await provider.classify({ taskType: "T" });
   assert.equal(decision.confidence, 0.05);
 });
 
-test("concurrent identical requests coalesce into one provider call", async () => {
+test("concurrent semantically identical requests coalesce regardless of key order", async () => {
   let calls = 0;
   const ai = { async run() { calls += 1; await new Promise((resolve) => setTimeout(resolve, 20)); return decisionResponse(); } };
   const provider = new JevWorkersAiProvider({ ai, model: MODEL });
-  const input = { taskType: "T", id: "same" };
-  const [first, second] = await Promise.all([provider.classifyDetailed(input), provider.classifyDetailed(input)]);
+  const [first, second] = await Promise.all([
+    provider.classifyDetailed({ taskType: "T", nested: { z: 1, a: 2 }, id: "same" }),
+    provider.classifyDetailed({ id: "same", nested: { a: 2, z: 1 }, taskType: "T" }),
+  ]);
   assert.equal(calls, 1);
   assert.deepEqual(first.receipt.inputFingerprint, second.receipt.inputFingerprint);
   assert.equal(first.decision.confidence, second.decision.confidence);
+});
+
+test("timed-out calls remain coalesced until the underlying binding settles", async () => {
+  let calls = 0;
+  let settle!: (value: unknown) => void;
+  const ai = {
+    run() {
+      calls += 1;
+      if (calls > 1) return Promise.resolve(decisionResponse());
+      return new Promise<unknown>((resolve) => { settle = resolve; });
+    },
+  };
+  const provider = new JevWorkersAiProvider({ ai, model: MODEL, timeoutMs: 100 });
+  const input = { taskType: "T", id: "slow" };
+  const first = provider.classify(input);
+  await assert.rejects(first, /timed out/);
+  await assert.rejects(provider.classify({ id: "slow", taskType: "T" }), /timed out/);
+  assert.equal(calls, 1);
+  settle(decisionResponse());
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal((await provider.classify(input)).rootCause, "CODE");
+  assert.equal(calls, 2);
 });
 
 test("invalid input and options fail closed", async () => {

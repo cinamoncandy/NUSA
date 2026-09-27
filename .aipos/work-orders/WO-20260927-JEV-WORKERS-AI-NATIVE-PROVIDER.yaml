@@ -1,0 +1,43 @@
+id: WO-20260927-JEV-WORKERS-AI-NATIVE-PROVIDER
+title: "Converge native Workers AI Jev SHADOW provider"
+status: WIP_REVIEW_CORRECTION
+owner: nusa-ai-platform
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 04a17e14130139168ad515417641f52c440cbab6
+implementation_branch: feat/jev-workers-ai-native-provider
+pull_request: 2345
+authority_impact: none
+objective: "Reuse the existing Cloudflare Workers AI binding as the canonical Jev provider without adding a second router, client, scheduler, orchestrator, or evidence store."
+canonical_owner: "AI Platform / Model Router"
+scope:
+  include:
+    - "Native env.AI.run transport behind the existing Jev classify contract."
+    - "Deterministic input fingerprinting and duplicate in-flight coalescing."
+    - "Bounded timeout with coalescing retained until the underlying binding settles."
+    - "Current Workers AI response envelope compatibility."
+    - "Typed provider/model/latency/token-usage/fingerprint receipt."
+    - "Provider retry metadata preservation for canonical backpressure classification."
+  exclude:
+    - "Any rollout above SHADOW before calibration acceptance."
+    - "Any Audit, Release, merge, trading, risk, ledger, secret, or infrastructure authority."
+    - "A second provider client, router, scheduler, orchestrator, or evidence store."
+acceptance:
+  - "Focused provider tests cover success, timeout, malformed output, structured envelopes, deterministic coalescing, retry metadata, usage receipt, and zero-authority invariants."
+  - "Exact-head CI passes after review corrections."
+  - "Independent Audit and canonical Release merge the exact head."
+  - "Post-merge runtime produces a real Workers AI Jev response and typed receipt while deterministic fallback remains available."
+verification_commands:
+  - "pnpm exec tsc -p apps/cloud/tsconfig.json --noEmit"
+  - "node --test apps/cloud/src/ai/jevWorkersAiProvider.test.ts"
+  - "pnpm run safety:invariants"
+  - "pnpm run ai:architecture"
+  - "pnpm run aipos:yaml"
+  - "git diff --check"
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Complete review corrections, run focused validation, then fresh exact-head CI and independent Audit. Runtime activation remains SHADOW-only."
