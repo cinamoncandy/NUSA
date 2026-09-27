@@ -1,0 +1,45 @@
+id: WO-20260927-JEV-DOMAIN-ADVISORY-OBSERVER
+title: "Reusable Jev domain advisory SHADOW observer"
+status: BLOCKED
+owner: nusa-ai-platform
+repository: cinamoncandy/NUSA
+parent_pr: 2337
+grandparent_pr: 2329
+base_branch: feat/2326-jev-domain-advisory-validators
+base_commit: 89981f22943f244b3a500b860602997e16bb4e53
+implementation_branch: feat/2326-jev-domain-advisory-observer
+authority_impact: none
+objective: "Provide one reusable fail-closed SHADOW observer adapter for every generic registered Jev domain task so domain owners do not create separate provider transports or authority paths."
+scope:
+  include:
+    - "Bounded primitive-only evidence metadata, max 32 fields."
+    - "Sensitive field/value rejection before classifier invocation."
+    - "Classifier input binds taskType/domain/canonical owner/allowed classifications and ZERO_AUTHORITY."
+    - "Valid high-confidence decision -> canonical createJevDomainObservation."
+    - "Disabled, low-confidence, malformed, timeout, provider failure -> deterministic HUMAN fallback."
+    - "UNKNOWN safe fallback for generic classifications and FULL conservative fallback for TEST_SCOPE."
+  exclude:
+    - "Network/provider transport implementation; inject existing canonical Jev provider."
+    - "Domain-specific state mutation or canonical truth."
+    - "Any rollout above SHADOW or usableForRouting=true."
+acceptance:
+  - "Common envelope metadata is validated before any classifier call."
+  - "Sensitive metadata never reaches classifier."
+  - "Provider/malformed/low-confidence failures cannot block existing domain path."
+  - "Specialized workflow/research validators are not replaced."
+  - "All output remains SHADOW, usableForRouting=false, ZERO_AUTHORITY."
+evidence:
+  implementation_status: READY_FOR_REVIEW_STACKED
+  implementation_head: bc802fd8f54b230eec714c89e4ecd35eb687af20
+  local_validation: "Reusable domain observer focused tests 8/8 PASS; relevant TypeScript dependency graph compile PASS; git diff --check PASS."
+  external_validation: "BLOCKED on parent #2337 then #2329. After parent chain merges, reconverge to latest main and run exact-head CI/Audit/Release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+blocker:
+  type: PARENT_DEPENDENCY
+  dependency: "PR #2337 must follow #2329 acceptance/merge."
+next_permitted_action: "Keep stacked-ready; after parent chain merges, reconverge and wire only canonical owner call sites."
