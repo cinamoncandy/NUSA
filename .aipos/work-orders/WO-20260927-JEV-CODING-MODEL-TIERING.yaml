@@ -30,7 +30,8 @@ acceptance:
   - "PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY remain unchanged."
 evidence:
   implementation_status: READY_FOR_REVIEW_STACKED
-  local_validation: PENDING
+  implementation_head: b04b40fde3d39a9a987d3e343f1a2d4dc88592c4
+  local_validation: "Focused tier selector runtime matrix PASS for LUNA/TERRA/SOL/ASTRA plus disabled/unsafe/low-confidence/HUMAN/non-code/unconfigured/repair/provider-fallback preservation; codingRunner TypeScript compile PASS; exact integration test confirms configured LUNA reaches the Workers AI call with ZERO_AUTHORITY telemetry; AIPOS YAML parse PASS; git diff --check PASS; committed NUSA_JEV_MODEL_TIERING_ENABLED remains false."
   external_validation: "BLOCKED on parent #2331 acceptance/merge; after parent merge, reconverge to latest main and run fresh exact-head CI/Audit/Release."
 safety:
   paper_only: true
