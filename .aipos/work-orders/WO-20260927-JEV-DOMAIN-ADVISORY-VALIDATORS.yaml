@@ -1,6 +1,6 @@
 id: WO-20260927-JEV-DOMAIN-ADVISORY-VALIDATORS
 title: "Jev domain advisory validator completion"
-status: WIP
+status: BLOCKED
 owner: nusa-ai-platform
 repository: cinamoncandy/NUSA
 parent_work_order: WO-ISSUE-2326-JEV-DOMAIN-OBSERVATION
@@ -29,8 +29,9 @@ acceptance:
   - "Existing workflow/research-specific validators remain unchanged."
   - "All protected-action prohibitions and ZERO_AUTHORITY invariants remain mechanical."
 evidence:
-  implementation_status: WIP
-  local_validation: PENDING
+  implementation_status: READY_FOR_REVIEW_STACKED
+  implementation_head: e2eae8c339edd552927712afdff97c38baa61ddc
+  local_validation: "Focused jev-domain-observation registry tests 17/17 PASS across all 17 domains and all 18 generic advisory task validators; isolated TypeScript compile of registry/workflow/research validators PASS; AIPOS YAML PASS; git diff --check PASS."
   external_validation: "BLOCKED on parent #2329 acceptance/merge; after parent merge reconverge to latest main and run fresh exact-head CI/Audit/Release."
 safety:
   paper_only: true
