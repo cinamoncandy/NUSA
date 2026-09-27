@@ -1,6 +1,6 @@
 id: WO-20260924-AI-CAPACITY-COST-CEILING
 title: "Autopilot AI capacity/cost ceiling removal (owner spec 2026-09-24)"
-status: IN_PROGRESS
+status: READY_FOR_REVIEW
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -32,9 +32,10 @@ verification_commands:
   - "node --test tests/autopilot-dispatch-retry.test.js tests/ai-cloud-runtime.test.js (plus the full autopilot/worker/coding-runner/audit-runner/provider/execution-coordinator suite)"
   - "pnpm run validate (Node >= 24)"
 evidence:
-  implementation_status: WIP_CURRENT_SLICE
+  implementation_status: READY_FOR_REVIEW
+  implementation_head: 427038d430a348ba675f1773a2595bbc3e424415
+  current_slice_validation: "Canonical gha identity coverage added; verified GitHub failed job/step evidence is required before abstention; Jev proposal abstention is propagated as successful NO_ACTION; repair attempts make zero repeat Jev admission calls; AIPOS state/scope reconciled. Focused admission TypeScript compile/runtime PASS, dispatcher abstention test PASS, git diff --check PASS. Fresh exact-head CI is required."
   prior_slice_validation: "ai-budget-state 6/6 PASS; combined autopilot/worker/coding-runner/audit-runner/provider/execution-coordinator suite 227/227 PASS; pnpm run validate PASS; secret scan 0 failures; typecheck PASS."
-  current_slice_validation: "PENDING focused validation after verified-failure evidence, proposal NO_ACTION propagation, canonical gha reason, repair-call suppression, and AIPOS reconciliation."
   external_validation: "REQUIRED: exact-head CI, independent Audit, canonical Release."
 safety:
   paper_only: true
@@ -42,11 +43,11 @@ safety:
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
-next_permitted_action: "Complete focused validation for the current Jev bounded-admission slice, resolve review findings, then fresh exact-head CI -> independent Audit -> canonical Release. Do not enable bounded routing before #2329 SHADOW acceptance/calibration."
+next_permitted_action: "Run fresh exact-head CI on this final metadata head, then independent Audit and canonical Release. Keep bounded routing disabled until #2329 SHADOW acceptance/calibration."
 
 current_slice:
   name: "Jev-first bounded coding admission"
-  status: WIP_REVIEW_CORRECTION
+  status: READY_FOR_REVIEW
   objective: "Use the existing Jev provider as a zero-authority, high-confidence negative admission gate before expensive coding inference on failure/recovery tasks. Jev may only abstain from an expensive coding call for non-code root causes; it cannot authorize code, select a protected transition, merge, release, audit, mutate secrets, or expand LIVE authority."
   scope:
     - "Reuse Jev provider transport with an explicit BOUNDED_ROUTING mode; keep SHADOW behavior unchanged for existing consumers."
