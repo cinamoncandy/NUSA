@@ -1,6 +1,6 @@
 id: WO-20260927-JEV-DOMAIN-ADVISORY-VALIDATORS
 title: "Jev domain advisory validator completion"
-status: READY_FOR_EXACT_HEAD_CI
+status: VERIFYING
 owner: nusa-ai-platform
 repository: cinamoncandy/NUSA
 parent_work_order: WO-ISSUE-2326-JEV-DOMAIN-OBSERVATION
