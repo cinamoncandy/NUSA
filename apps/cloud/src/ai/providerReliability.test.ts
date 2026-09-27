@@ -24,12 +24,18 @@ describe("provider-neutral AI reliability", () => {
   it("classifies timeout, auth/config, rate limit, unavailable, malformed, context, budget and unknown", () => {
     const cases = [
       [{ code: "ETIMEDOUT" }, "TIMEOUT", true],
+      [{ statusCode: 408 }, "TIMEOUT", true],
       [{ statusCode: 401 }, "AUTH_CONFIG", false],
+      [{ statusCode: 400 }, "UNKNOWN", false],
       [{ statusCode: 429, retryAfterMs: 2_500 }, "RATE_LIMITED", true],
       [{ statusCode: 503 }, "UNAVAILABLE", true],
+      [{ statusCode: 501 }, "UNAVAILABLE", true],
+      [{ statusCode: 599 }, "UNAVAILABLE", true],
       [{ code: "MALFORMED_OUTPUT" }, "MALFORMED_OUTPUT", false],
       [{ message: "maximum context length exceeded" }, "CONTEXT_OVERFLOW", false],
       [{ code: "DAILY_QUOTA_EXHAUSTED", retryAfterMs: 9_000 }, "BUDGET_EXHAUSTED", false],
+      [{ code: "QUOTA_EXHAUSTED" }, "BUDGET_EXHAUSTED", false],
+      [{ code: "INSUFFICIENT_QUOTA" }, "BUDGET_EXHAUSTED", false],
       [{ statusCode: 418, message: "teapot" }, "UNKNOWN", false],
     ] as const;
     for (const [signal, kind, retryable] of cases) {
@@ -95,6 +101,30 @@ describe("provider-neutral AI reliability", () => {
     assert.equal(blocked.state, "BLOCKED");
     assert.equal(blocked.nextRetryAt, null);
     assert.equal(advanceAiProviderCircuit(blocked, policy, 10_000), blocked);
+  });
+
+  it("preserves restrictive OPEN and BLOCKED states across late in-flight failures", () => {
+    const transient = classifyAiProviderFailure({ statusCode: 503 });
+    const rateLimited = classifyAiProviderFailure({ statusCode: 429, retryAfterMs: 5_000 });
+    const auth = classifyAiProviderFailure({ statusCode: 401 });
+
+    const open = recordAiProviderFailure(
+      createAiProviderCircuitState("provider-a", 100),
+      rateLimited,
+      policy,
+      200,
+    );
+    assert.equal(open.state, "OPEN");
+    assert.equal(recordAiProviderFailure(open, transient, policy, 300), open);
+
+    const blocked = recordAiProviderFailure(
+      createAiProviderCircuitState("provider-b", 100),
+      auth,
+      policy,
+      200,
+    );
+    assert.equal(blocked.state, "BLOCKED");
+    assert.equal(recordAiProviderFailure(blocked, transient, policy, 300), blocked);
   });
 
   it("context and malformed output are request-local and do not poison provider health", () => {
@@ -182,6 +212,38 @@ describe("provider-neutral AI reliability", () => {
     assert.equal(projected[0]?.availability, "CIRCUIT_OPEN");
     assert.equal(projected[1]?.availability, "AVAILABLE");
     assert.equal(registry[0]?.availability, "AVAILABLE");
+  });
+
+
+  it("never upgrades a pre-existing restrictive model availability", () => {
+    const registry: readonly AiModelRegistryEntry[] = Object.freeze([
+      Object.freeze({
+        modelId: "LUNA" as const,
+        providerId: "provider-a",
+        capabilities: Object.freeze(["classify" as const]),
+        maxContextBytes: 1_000,
+        costClass: "LOW" as const,
+        latencyClass: "LOW" as const,
+        availability: "UNAVAILABLE" as const,
+        enabled: true,
+        stability: "STABLE" as const,
+      }),
+      Object.freeze({
+        modelId: "TERRA" as const,
+        providerId: "provider-a",
+        capabilities: Object.freeze(["classify" as const]),
+        maxContextBytes: 1_000,
+        costClass: "MEDIUM" as const,
+        latencyClass: "MEDIUM" as const,
+        availability: "DEGRADED" as const,
+        enabled: true,
+        stability: "STABLE" as const,
+      }),
+    ]);
+    const healthy = createAiProviderCircuitState("provider-a", 100);
+    const projected = applyProviderCircuitToRegistry(registry, [healthy]);
+    assert.equal(projected[0]?.availability, "UNAVAILABLE");
+    assert.equal(projected[1]?.availability, "DEGRADED");
   });
 
   it("fails closed on invalid policy, provider id and timestamp regression", () => {
