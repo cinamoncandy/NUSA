@@ -271,10 +271,10 @@ current_provider_backpressure:
   issue: 2185
   parent_pr: 2336
   branch: feat/2185-provider-backpressure
-  base_sha: a927a2624abac4627cf6b78f87e933e2b5ab74a6
-  implementation_head: 35e0ee3941d479ff44926f469ce3bf7486be4cdf
+  base_sha: 0f4a114a6bd71d8d6ee0ff40f8feb4c2c98708eb
+  implementation_head: 2e1ef3bdb07670d34133a927eeb019230b9be2d9
   first_broken_transition: provider_rate_limit_to_provider_local_backpressure_and_recovery
-  validation: "Focused provider backpressure 10/10 PASS; parent reliability compiled in same graph; diff PASS."
+  validation: "Code head 2e1ef3bd focused backpressure 13/13 PASS; unwired-control-plane 3/3 PASS; AI zero-authority/safety/diff PASS. Metadata-only evidence reconciliation follows."
   blocker: parent_2336_not_accepted_or_merged
   next: parent-merge_then-latest-main-reconvergence_then-exact-head-CI-Audit-Release
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

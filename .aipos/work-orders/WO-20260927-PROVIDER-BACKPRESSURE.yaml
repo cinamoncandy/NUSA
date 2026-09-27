@@ -7,7 +7,7 @@ issue: 2185
 parent_issue: 1997
 parent_pr: 2336
 base_branch: feat/1997-provider-reliability
-base_commit: a927a2624abac4627cf6b78f87e933e2b5ab74a6
+base_commit: 0f4a114a6bd71d8d6ee0ff40f8feb4c2c98708eb
 implementation_branch: feat/2185-provider-backpressure
 authority_impact: none
 objective: "Consume provider-neutral health/rate-limit truth and provide deterministic provider-local admission, coalescing, bounded retry/backoff, concurrency contraction, and gradual recovery without creating a second queue, scheduler, router, or orchestrator."
@@ -34,8 +34,8 @@ acceptance:
   - "ZERO_AUTHORITY/NONE/no production mutation invariants are preserved."
 evidence:
   implementation_status: READY_FOR_REVIEW_STACKED
-  implementation_head: 35e0ee3941d479ff44926f469ce3bf7486be4cdf
-  local_validation: "Provider backpressure focused tests 10/10 PASS with parent providerReliability compiled in the same isolated TypeScript graph; git diff --check PASS."
+  implementation_head: 2e1ef3bdb07670d34133a927eeb019230b9be2d9
+  local_validation: "Provider backpressure focused tests 13/13 PASS including replay-idempotency, concurrent-success cooldown preservation, and expired-cooldown normalization; unwired control-plane ledger 3/3 PASS; AI zero-authority and safety invariants PASS; git diff --check PASS."
   external_validation: "BLOCKED on parent #2336 acceptance/merge; after parent merge reconverge to latest main and run fresh exact-head CI/Audit/Release."
 safety:
   paper_only: true
