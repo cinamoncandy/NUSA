@@ -421,7 +421,7 @@ describe("coding runner", () => {
   });
 
   it("accepts a failed workflow only for an explicit gha failure-repair request", async () => {
-    const failureRequest = { ...request, reason: "gha:CI:123:failure" };
+    const failureRequest = { ...request, reason: `gha:${request.workflowRunId}:${request.headSha}:failure` };
     await verifyCodingRunnerRequestAgainstGitHub(failureRequest, "github-token", async (url) => {
       if (url.includes("/commits/")) return response(200, { sha: request.headSha });
       return response(200, {
