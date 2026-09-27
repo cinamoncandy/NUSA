@@ -438,11 +438,14 @@ test("provider-gated Audit records the daily-quota stop in the shared provider w
   const outcome = await executeProviderGatedAudit(request, deps);
   assert.equal(outcome.status, "WAITING_PROVIDER_CAPACITY");
   assert.equal(recorded.length, 1);
-  const stop = recorded[0] as { provider: string; stopReason: string; nextRetryAt: number; executionId: string };
+  const stop = recorded[0] as { provider: string; stopReason: string; nextRetryAt: number; executionId: string; taskId: string };
   assert.equal(stop.provider, "workers-ai");
   assert.equal(stop.stopReason, "WORKERS_AI_DAILY_QUOTA_EXHAUSTED");
   assert.equal(stop.nextRetryAt, Date.parse("2026-09-24T00:00:00.000Z"));
   assert.equal(stop.executionId, request.executionId);
+  assert.equal(stop.taskId, `audit:${request.repository}:${request.prNumber}`);
+  assert.match(stop.taskId, /^[A-Za-z0-9_.:/-]{1,256}$/);
+  assert.equal(stop.taskId.includes("#"), false);
 });
 
 test("provider-gated Audit does not turn non-provider failures into a wait", async () => {

@@ -1,4 +1,17 @@
 version: 1
+current_audit_recovery_pagination_fix:
+  work_order: WO-20260926-AUDIT-RECOVERY-PAGINATION-FIX
+  status: READY_FOR_REVIEW
+  branch: fix/audit-recovery-gh-pagination
+  base_sha: 0921f0514a47e3f3313645a654e258cf8f3ab485
+  implementation_head: 30b378c2afcedb796f6f33e59bc92aee1192ec6f
+  pull_request: 2328
+  finding: "Audit recovery had two canonical-lane defects: unsupported gh pagination flags and an Audit provider-wait taskId containing '#' that the shared lifecycle validator rejects."
+  remediation: "Use supported paginated jq selection and emit lifecycle-safe Audit wait taskId audit:<repository>:<prNumber>; preserve exact identity, fail-closed behavior, and ZERO_AUTHORITY."
+  validation: "On implementation head 30b378c2, GitHub validation job 108518383625 PASS including preflight, typecheck, build, security, architecture, AIPOS and persistence regressions; focused provider-wait test pins lifecycle-safe taskId. Fresh full exact-head CI is required after this metadata-only reconciliation."
+  blocker: "none in repository code; external provider capacity may still make independent Audit return WAITING_PROVIDER_CAPACITY after the wait record is correctly persisted."
+  next: "Fresh exact-head CI -> independent Audit -> Release authorization -> merge -> protected-main deployment/recovery verification -> retry #2329 Audit."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_oracle_paper_startup_readiness:
   work_order: WO-20260919-ORACLE-READINESS-STARTUP
   status: IMPLEMENTED_LOCAL
