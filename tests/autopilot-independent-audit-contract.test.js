@@ -211,3 +211,15 @@ test("safe same-workflow Audit PASS dispatches the deterministic Release success
   assert.match(handoff, /"production_mutation_allowed": false/);
   assert.match(handoff, /"ai_authority": "ZERO_AUTHORITY"/);
 });
+
+test("reviewed evidence SHA is the post-review observed head, never a request echo", () => {
+  assert.match(auditRunner, /readonly observedHeadSha: string/);
+  assert.match(auditRunner, /reviewedHeadSha: afterAudit\.observedHeadSha/);
+  assert.doesNotMatch(auditRunner, /reviewedHeadSha: request\.headSha/);
+  assert.match(auditRunner, /AUDIT_VERIFIED_HEAD_MISMATCH/);
+});
+
+test("Audit diff is fetched from immutable base and head identities", () => {
+  assert.match(auditRunner, /compare\/\$\{encodeURIComponent\(request\.baseSha\)\}\.\.\.\$\{encodeURIComponent\(request\.headSha\)\}/);
+  assert.doesNotMatch(auditRunner, /pulls\/\$\{request\.prNumber\}.*application\/vnd\.github\.v3\.diff/);
+});
