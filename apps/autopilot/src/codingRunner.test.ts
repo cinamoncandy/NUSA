@@ -490,7 +490,7 @@ describe("coding runner", () => {
     };
     let workersAiCalls = 0;
     let jevCalls = 0;
-    let jevInput: Readonly<Record<string, unknown>> | null = null;
+    let observedFailureEvidence: unknown = null;
     const ai: WorkersAiBinding = {
       async run() {
         workersAiCalls += 1;
@@ -507,7 +507,7 @@ describe("coding runner", () => {
     }, verifiedFailureGithubFetch, undefined, undefined, {
       jevAdmissionClassify: async (input) => {
         jevCalls += 1;
-        jevInput = input;
+        observedFailureEvidence = input.failureEvidence;
         return {
           rootCause: "INFRA",
           safeToAutofix: "NO",
@@ -522,7 +522,7 @@ describe("coding runner", () => {
     assert.equal(result.jevAdmissionReason, "NON_CODE_AUTOFIX_FORBIDDEN");
     assert.equal(workersAiCalls, 0);
     assert.equal(jevCalls, 1);
-    const evidence = jevInput?.failureEvidence as { failedJobs?: string[]; failedSteps?: string[] } | undefined;
+    const evidence = observedFailureEvidence as { failedJobs?: string[]; failedSteps?: string[] } | null;
     assert.deepEqual(evidence?.failedJobs, ["validation"]);
     assert.deepEqual(evidence?.failedSteps, ["Preflight"]);
   });
