@@ -1,4 +1,17 @@
 version: 1
+current_jev_domain_advisory_validators:
+  work_order: WO-20260927-JEV-DOMAIN-ADVISORY-VALIDATORS
+  status: VERIFYING
+  implementation_status: READY_FOR_REVIEW
+  parent_pr: 2329
+  branch: feat/2326-jev-domain-advisory-validators
+  base_sha: 04a17e14130139168ad515417641f52c440cbab6
+  first_broken_transition: exact_head_ci_to_independent_audit
+  implementation_head: e2eae8c339edd552927712afdff97c38baa61ddc
+  validation: "Parent #2329 merged; branch reconverged to protected main. Domain validators remain SHADOW/usableForRouting=false; fresh exact-head CI required."
+  rollout_ceiling: SHADOW
+  next: fresh-exact-head-CI_then-independent-Audit_then-Release
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_jev_domain_observation_contract:
   work_order: WO-ISSUE-2326-JEV-DOMAIN-OBSERVATION
   status: BLOCKED
