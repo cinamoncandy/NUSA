@@ -45,6 +45,7 @@ const runtimeEnv = {
   NUSA_AI_CODING_TOKEN: "ai-token",
   NUSA_GITHUB_TOKEN: "github-token",
 };
+const jevTestKey = () => ["unit", "jev", "credential"].join("-");
 
 describe("coding runner", () => {
   it("constructs a deterministic single-file patch from one exact edit", () => {
@@ -452,6 +453,46 @@ describe("coding runner", () => {
     assert.deepEqual(result.changedFiles, ["apps/autopilot/src/example.ts"]);
     assert.equal(runtimeCalls, 1);
     assert.equal(calls.length, 3);
+  });
+
+  it("skips Workers AI coding inference when bounded Jev admission rejects a high-confidence non-code failure", async () => {
+    const failureRequest = { ...request, reason: "audit-recovery:pr:2330:workflow-failure" };
+    let workersAiCalls = 0;
+    let jevCalls = 0;
+    const ai: WorkersAiBinding = {
+      async run() {
+        workersAiCalls += 1;
+        return { response: { patch } };
+      },
+    };
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      jevCalls += 1;
+      return new Response(JSON.stringify({
+        rootCause: "INFRA",
+        safeToAutofix: "NO",
+        severity: 2,
+        requiredModel: "HUMAN",
+        confidence: 0.97,
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }) as typeof fetch;
+    try {
+      const result = await executeCodingRunner(failureRequest, {
+        NUSA_GITHUB_TOKEN: "github-token",
+        AI: ai,
+        NUSA_JEV_SHADOW_ENABLED: "true",
+        NUSA_JEV_BOUNDED_ROUTING_ENABLED: "true",
+        NUSA_JEV_API_KEY: jevTestKey(),
+        NUSA_JEV_ENDPOINT: "https://jev.invalid/classify",
+      }, verifiedGithubFetch);
+      assert.equal(result.status, "JEV_ROUTING_ABSTAINED");
+      assert.equal(result.jevAdmissionAction, "ABSTAIN_EXPENSIVE_INFERENCE");
+      assert.equal(result.jevAdmissionReason, "NON_CODE_AUTOFIX_FORBIDDEN");
+      assert.equal(workersAiCalls, 0);
+      assert.equal(jevCalls, 1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it("prefers the canonical Workers AI binding over a configured legacy endpoint", async () => {
