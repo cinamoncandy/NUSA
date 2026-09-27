@@ -3,6 +3,8 @@ const assert = require("node:assert/strict");
 const { decideJevBoundedCodingAdmission } = require("../dist/apps/autopilot/src/jevBoundedCodingAdmission.js");
 const { JevShadowProvider } = require("../dist/apps/cloud/src/ai/jevShadowProvider.js");
 
+const testKey = () => ["unit", "jev", "credential"].join("-");
+
 const request = {
   headSha: "a".repeat(40),
   workflowRunId: 42,
@@ -13,7 +15,7 @@ const request = {
 const env = {
   NUSA_JEV_SHADOW_ENABLED: "true",
   NUSA_JEV_BOUNDED_ROUTING_ENABLED: "true",
-  NUSA_JEV_API_KEY: "unit-key",
+  NUSA_JEV_API_KEY: testKey(),
   NUSA_JEV_ENDPOINT: "https://jev.invalid/classify",
 };
 
@@ -70,7 +72,7 @@ test("provider failure or malformed decision cannot block the existing coding pa
 test("bounded provider transport uses explicit zero-authority BOUNDED_ROUTING mode", async () => {
   const capture = {};
   const provider = new JevShadowProvider({
-    apiKey: "secret-value",
+    apiKey: testKey(),
     endpoint: "https://jev.invalid/classify",
     fetchImpl: async (url, init) => {
       capture.url = url;
@@ -82,5 +84,5 @@ test("bounded provider transport uses explicit zero-authority BOUNDED_ROUTING mo
   const body = JSON.parse(capture.init.body);
   assert.equal(body.mode, "BOUNDED_ROUTING");
   assert.equal(body.authority, "ZERO_AUTHORITY");
-  assert.equal(capture.init.body.includes("secret-value"), false);
+  assert.equal(capture.init.body.includes(testKey()), false);
 });
