@@ -1,0 +1,49 @@
+id: WO-20260927-PROVIDER-BACKPRESSURE
+title: "Provider rate-limit governor and adaptive backpressure primitive"
+status: BLOCKED
+owner: nusa-ai-platform
+repository: cinamoncandy/NUSA
+issue: 2185
+parent_issue: 1997
+parent_pr: 2336
+base_branch: feat/1997-provider-reliability
+base_commit: c6594041e79e62d128d4c86551aedd8ed3ab53bf
+implementation_branch: feat/2185-provider-backpressure
+authority_impact: none
+objective: "Consume provider-neutral health/rate-limit truth and provide deterministic provider-local admission, coalescing, bounded retry/backoff, concurrency contraction, and gradual recovery without creating a second queue, scheduler, router, or orchestrator."
+scope:
+  include:
+    - "Provider-local in-flight/concurrency state with explicit configured min/initial/max limits."
+    - "Identical in-flight logical request coalescing."
+    - "429 Retry-After handling; missing reset uses bounded exponential backoff plus deterministic jitter."
+    - "Repeated 429 exhaustion -> BLOCKED_RATE_LIMIT with future retry time."
+    - "Immediate provider-local concurrency contraction under 429 and gradual success-window recovery."
+    - "CIRCUIT_OPEN/UNAVAILABLE health blocks only the affected provider lane."
+  exclude:
+    - "Provider circuit/error taxonomy owned by #1997/#2336."
+    - "A new queue, scheduler, runtime worker, model router, provider client, or orchestration control plane."
+    - "Invented provider quotas; all concurrency limits are explicit policy/config inputs."
+    - "Secrets, prompts, Audit/Release/merge authority, LIVE/trading authority."
+acceptance:
+  - "429 burst and valid Retry-After are deterministic and bounded."
+  - "Missing Retry-After uses deterministic bounded backoff+jitter; no hot-loop retry."
+  - "Identical in-flight requests coalesce without increasing in-flight count."
+  - "Provider isolation preserves unrelated provider work."
+  - "Concurrency contracts under rate limit and recovers one step per success window."
+  - "Retry exhaustion is machine-readable BLOCKED_RATE_LIMIT with next retry."
+  - "ZERO_AUTHORITY/NONE/no production mutation invariants are preserved."
+evidence:
+  implementation_status: READY_FOR_REVIEW_STACKED
+  implementation_head: 35e0ee3941d479ff44926f469ce3bf7486be4cdf
+  local_validation: "Provider backpressure focused tests 10/10 PASS with parent providerReliability compiled in the same isolated TypeScript graph; git diff --check PASS."
+  external_validation: "BLOCKED on parent #2336 acceptance/merge; after parent merge reconverge to latest main and run fresh exact-head CI/Audit/Release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+blocker:
+  type: PARENT_DEPENDENCY
+  dependency: "PR #2336 provider-neutral reliability must be accepted and merged first."
+next_permitted_action: "Keep stacked branch ready; after #2336 merge reconverge to latest main and run exact-head validation. Do not invent or activate provider limits outside explicit policy."
