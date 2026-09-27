@@ -22,14 +22,13 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: research-intelligence-scout-${{ github.event_name }}
-  cancel-in-progress: true
-
 jobs:
   validate:
     if: ${{ github.event_name == 'pull_request' }}
     name: validate-research-intelligence
+    concurrency:
+      group: research-intelligence-scout-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -52,6 +51,9 @@ jobs:
   discover:
     if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') }}
     name: discover-public-research
+    concurrency:
+      group: research-intelligence-scout-discover-main
+      cancel-in-progress: false
     environment: nusa-jev-shadow
     runs-on: ubuntu-latest
     timeout-minutes: 15
