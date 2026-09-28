@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { deriveGithubIssueBacklogReadiness } from "./evolveGithubIssueBacklog";
+import { deriveGithubIssueBacklogReadiness, selectStalenessProbePulls } from "./evolveGithubIssueBacklog";
 
 const NOW = new Date("2026-09-17T08:00:00.000Z");
 const SAFETY = "Safety invariants: liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY. No LIVE activation or real broker mutation.";
@@ -166,4 +166,18 @@ test("a repeated or out-of-scope codingTarget makes the issue ineligible rather 
     assert.equal(result.eligibleIssueCount, 0, `accepted codingTarget ${JSON.stringify(target)}`);
     assert.deepEqual(result.signals, []);
   }
+});
+
+test("staleness probes are limited to PRs linking otherwise-eligible issues and capped", () => {
+  const linked = (n: number) => ({ title: `fix: work ${n}`, body: "Refs #903" });
+  const unrelated = { title: "feat(mobile): icon", body: "No issue link" };
+  const ineligibleLink = { title: "fix: other", body: "Refs #1" };
+  const pulls = [unrelated, ineligibleLink, ...Array.from({ length: 12 }, (_, i) => linked(i))];
+  const selected = selectStalenessProbePulls([issue()], pulls, 8);
+  assert.equal(selected.size, 8);
+  assert.ok(!selected.has(unrelated));
+  assert.ok(!selected.has(ineligibleLink));
+  assert.equal(selectStalenessProbePulls([], pulls, 8).size, 0);
+  assert.equal(selectStalenessProbePulls([issue({ labels: [{ name: "hold" }] })], pulls, 8).size, 0);
+  assert.equal(selectStalenessProbePulls([issue()], pulls, 0).size, 0);
 });
