@@ -1,4 +1,16 @@
 version: 1
+current_autopilot_coding_receipt_reconciliation:
+  work_order: WO-20260927-AUTOPILOT-CODING-RECEIPT-RECONCILIATION
+  status: IN_PROGRESS
+  branch: codex/core-autopilot-integration
+  base_sha: 3e23eccc70776d2cb932b7a819bdb92389d0e374
+  previous_verified_head: 693fbb8f1b366033f024c60a452368eda40c1b98
+  pull_request: 2330
+  first_broken_transition: "latest protected main -> fresh exact-head validation"
+  scope: "Persist and reconcile the real /coding/publish result using the existing CodingExecutionEvidence store; do not add successor dispatch here."
+  validation: "Receipt reconciliation delta was reapplied onto latest protected main while preserving current provider/Jev/Release changes; fresh exact-head CI required."
+  next: "Fresh exact-head CI -> independent Integration/E2E review -> Independent Audit -> Release; #903 remains owner of successor dispatch."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_field_structure:
   work_order: WO-UI-20260928-FIELD-STRUCTURE
   status: READY_FOR_REVIEW

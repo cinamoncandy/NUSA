@@ -44,15 +44,16 @@ class TransactionalRacyStorage {
   }
 }
 
-function codingEvidence(recordedAtMs: number) {
+function codingEvidence(recordedAtMs: number, identitySeed = recordedAtMs) {
+  const identity = identitySeed + 1;
   const decision = createCodingExecutionEvidence({
     kind: "REPOSITORY_AUTOPILOT",
     repository: "cinamoncandy/NUSA",
     headSha: "a".repeat(40),
-    workflowRunId: recordedAtMs + 1,
+    workflowRunId: identity,
     reason: "gha:CI:success",
-    executionId: `github:delivery-${recordedAtMs + 1}`,
-    dedupeKey: `ci:${recordedAtMs + 1}:${"a".repeat(40)}`,
+    executionId: `github:delivery-${identity}`,
+    dedupeKey: `ci:${identity}:${"a".repeat(40)}`,
     mutationAllowed: false,
     liveAuthority: "NONE",
     productionMutationAllowed: false,
@@ -61,7 +62,7 @@ function codingEvidence(recordedAtMs: number) {
     status: "EXECUTION_ACCEPTED",
     reason: "validated",
     backend: "cloudflare-sandbox",
-    checkpointId: `checkpoint:${recordedAtMs + 1}`,
+    checkpointId: `checkpoint:${identity}`,
     workspaceVerified: true,
     proposalValidated: true,
     changedFiles: ["apps/autopilot/src/index.ts"],
@@ -250,6 +251,10 @@ describe("persistent execution coordination", () => {
 
     assert.equal((await post(first)).status, 200);
     assert.equal((await post(first)).status, 200);
+    const replayWithFreshTimestamp = codingEvidence(101, 100);
+    const replayResponse = await post(replayWithFreshTimestamp);
+    assert.equal(replayResponse.status, 200);
+    assert.equal((await replayResponse.json() as { evidence: { evidenceId: string } }).evidence.evidenceId, first.evidenceId);
     assert.equal((await post(second)).status, 200);
     const response = await coordinator.fetch(new Request("https://execution-coordinator/coding-evidence-history"));
     assert.equal(response.status, 200);

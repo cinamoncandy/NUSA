@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { handleCodingProposal, ExecutionCoordinator, type WorkerEnv } from "./worker";
-import { readProviderCapacityWait, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { handleCodingProposal, handleCodingPublish, ExecutionCoordinator, type WorkerEnv } from "./worker";
+import { readCodingExecutionEvidence, readProviderCapacityWait, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
 const HEAD = "a".repeat(40);
 const request = {
@@ -237,5 +237,75 @@ describe("/coding/propose provider-capacity gating", () => {
       assert.equal(response.status, 409);
       assert.equal(aiCalls, 0);
     });
+  });
+});
+
+
+describe("/coding/publish receipt reconciliation", () => {
+  it("persists the real publish receipt before projecting PR_OPEN", async () => {
+    const coordinator = memoryNamespace();
+    const env = baseEnv(coordinator);
+    const original = globalThis.fetch;
+    const commitSha = "e".repeat(40);
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (url.includes("/actions/runs/")) {
+        return new Response(JSON.stringify({
+          id: request.workflowRunId,
+          head_sha: HEAD,
+          head_branch: "main",
+          repository: { full_name: request.repository },
+          event: "workflow_dispatch",
+          status: "completed",
+          conclusion: "success",
+        }), { status: 200 });
+      }
+      if (url.includes("/git/ref/heads/main")) {
+        return new Response(JSON.stringify({ object: { sha: HEAD } }), { status: 200 });
+      }
+      if (url.includes("/git/ref/heads/nusa/autopilot/")) {
+        return new Response(JSON.stringify({ message: "Not Found" }), { status: 404 });
+      }
+      if (url.includes(`/git/commits/${HEAD}`)) {
+        return new Response(JSON.stringify({ tree: { sha: "b".repeat(40) } }), { status: 200 });
+      }
+      if (url.endsWith("/git/blobs") && method === "POST") return new Response(JSON.stringify({ sha: "c".repeat(40) }), { status: 201 });
+      if (url.endsWith("/git/trees") && method === "POST") return new Response(JSON.stringify({ sha: "d".repeat(40) }), { status: 201 });
+      if (url.endsWith("/git/commits") && method === "POST") return new Response(JSON.stringify({ sha: commitSha }), { status: 201 });
+      if (url.endsWith("/git/refs") && method === "POST") return new Response(JSON.stringify({ ref: "refs/heads/test" }), { status: 201 });
+      if (url.endsWith("/pulls") && method === "POST") {
+        return new Response(JSON.stringify({ number: 77, html_url: "https://github.com/cinamoncandy/NUSA/pull/77" }), { status: 201 });
+      }
+      if (url.includes(`/commits/${HEAD}`)) return new Response(JSON.stringify({ sha: HEAD }), { status: 200 });
+      throw new Error(`unexpected fetch ${method} ${url}`);
+    }) as typeof fetch;
+
+    try {
+      const response = await handleCodingPublish(new Request("https://worker.example.test/coding/publish", {
+        method: "POST",
+        headers: { authorization: "Bearer coding-token", "content-type": "application/json" },
+        body: JSON.stringify({
+          request,
+          validatedFiles: [{ path: "apps/autopilot/src/dispatchPlanner.ts", content: "export const publishFixture = true;\n" }],
+        }),
+      }), env);
+      assert.equal(response.status, 200);
+      const body = await response.json() as {
+        executionEvidencePersisted: boolean;
+        nextCanonicalTransition: string;
+        commitSha: string;
+        pullRequestNumber: number;
+      };
+      assert.equal(body.executionEvidencePersisted, true);
+      assert.equal(body.nextCanonicalTransition, "PR_OPEN");
+      assert.equal(body.commitSha, commitSha);
+      assert.equal(body.pullRequestNumber, 77);
+      const persisted = await readCodingExecutionEvidence(coordinator);
+      assert.equal(persisted.evidence?.outcome.commitSha, commitSha);
+      assert.equal(persisted.evidence?.outcome.pullRequestNumber, 77);
+    } finally {
+      globalThis.fetch = original;
+    }
   });
 });

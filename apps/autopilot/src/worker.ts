@@ -1,5 +1,7 @@
 import baseWorker, { globalReleaseFreezeActive, handleCodingExecute, type Env as BaseEnv } from "./index";
-import { acquirePersistentExecution, ExecutionCoordinator, readPersistentControlPlaneHold, readProviderCapacityWait, recordProviderCapacityWait, releasePersistentExecution } from "./executionCoordinator";
+import { acquirePersistentExecution, ExecutionCoordinator, readPersistentControlPlaneHold, readProviderCapacityWait, recordCodingExecutionEvidence, recordProviderCapacityWait, releasePersistentExecution } from "./executionCoordinator";
+import { createCodingExecutionEvidence } from "./codingExecutionEvidence";
+import { reconcileCodingExecutionEvidence } from "./productionExecutionSpine";
 import {
   CodingRunnerEvidenceError,
   executeCodingRunner,
@@ -214,7 +216,7 @@ export async function handleCodingProposal(request: Request, env: WorkerEnv): Pr
   }
 }
 
-async function handleCodingPublish(request: Request, env: WorkerEnv): Promise<Response> {
+export async function handleCodingPublish(request: Request, env: WorkerEnv): Promise<Response> {
   const allowedRepository = env.NUSA_GITHUB_REPOSITORY?.trim() || "cinamoncandy/NUSA";
   const provided = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
   if (!await verifyCodingAuthorization(provided, env.NUSA_CODING_RUNNER_TOKEN?.trim(), allowedRepository)) {
@@ -236,15 +238,29 @@ async function handleCodingPublish(request: Request, env: WorkerEnv): Promise<Re
     });
     const publisher = new GithubValidatedPatchPublisher({ token: env.NUSA_GITHUB_TOKEN, allowedRepository });
     const published = await publisher.publish(runnerRequest, runtime);
-    return json({
-      accepted: true,
-      status: "EXECUTION_ACCEPTED",
+    if (!env.NUSA_EXECUTION_COORDINATOR) throw new Error("PERSISTENT_EXECUTION_COORDINATOR_REQUIRED");
+    const outcome = Object.freeze({
+      status: "EXECUTION_ACCEPTED" as const,
       backend: runtime.backend,
       checkpointId: runtime.checkpointId,
-      workspaceVerified: true,
-      proposalValidated: true,
+      workspaceVerified: true as const,
+      proposalValidated: true as const,
       changedFiles: runtime.changedFiles,
       ...published,
+    });
+    const evidenceDecision = createCodingExecutionEvidence(runnerRequest, outcome, Date.now());
+    if (evidenceDecision.status !== "RECORDED") throw new Error(`CODING_EVIDENCE_${evidenceDecision.reason}`);
+    const persistedEvidence = await recordCodingExecutionEvidence(env.NUSA_EXECUTION_COORDINATOR, evidenceDecision.evidence);
+    const nextCanonicalTransition = reconcileCodingExecutionEvidence(
+      { executionId: runnerRequest.executionId, dedupeKey: runnerRequest.dedupeKey, status: "CODING_DISPATCHED" },
+      persistedEvidence,
+    );
+    return json({
+      accepted: true,
+      ...outcome,
+      executionEvidence: persistedEvidence,
+      executionEvidencePersisted: true,
+      nextCanonicalTransition,
       liveAuthority: "NONE",
       productionMutationAllowed: false,
       aiAuthority: "ZERO_AUTHORITY",
