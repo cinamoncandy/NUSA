@@ -22,3 +22,12 @@ verification_commands:
   - node --test tests/mobile-intelligence-field.test.js
   - pnpm run validate
 residual: "Physical Android device visual acceptance is HUMAN_ENVIRONMENT_ONLY."
+validation:
+  local: PASS
+  typecheck: PASS
+  mobile_lint: PASS
+  mobile_and_uiux_regression: PASS_506_OF_506
+  exact_head_ci: "PASS on 47b7b2d1 and 8e6f0805 (all required jobs)"
+release_history:
+  - "Audit 36363770891 NO_ACTION stale base: main advanced to 1b058a1d during CI; branch refreshed by merge 8e6f0805."
+  - "Audit 36368357795 NO_ACTION serialized behind P0#1461; trusted main Credential Preflight 36368706034 passed and closed #1461."
