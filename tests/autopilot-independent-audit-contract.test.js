@@ -226,3 +226,27 @@ test("Audit diff is fetched from immutable base and head identities", () => {
   assert.match(auditRunner, /compare\/\$\{encodeURIComponent\(request\.baseSha\)\}\.\.\.\$\{encodeURIComponent\(request\.headSha\)\}/);
   assert.doesNotMatch(auditRunner, /pulls\/\$\{request\.prNumber\}.*application\/vnd\.github\.v3\.diff/);
 });
+
+test("Audit failure classifier retries a malformed verdict once and keeps real stale requests final", () => {
+  const { execFileSync } = require("node:child_process");
+  const os = require("node:os");
+  const path = require("node:path");
+  const auditJob = auditJobSlice();
+  const from = auditJob.indexOf("Classify Audit failure boundary");
+  const start = auditJob.indexOf("node - <<'NODE'", from) + "node - <<'NODE'".length;
+  const end = auditJob.indexOf("\n          NODE", start);
+  const script = auditJob.slice(start, end).split("\n").map((line) => line.replace(/^ {10}/, "")).join("\n");
+  const classify = (result) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "audit-classify-"));
+    fs.mkdirSync(path.join(dir, "artifacts/autopilot-audit-request"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "artifacts/autopilot-audit-request/audit-runner-result.json"), JSON.stringify(result));
+    const output = path.join(dir, "out");
+    fs.writeFileSync(output, "");
+    execFileSync(process.execPath, ["-e", script], { cwd: dir, env: { ...process.env, GITHUB_OUTPUT: output } });
+    return Object.fromEntries(fs.readFileSync(output, "utf8").trim().split("\n").map((line) => line.split("=")));
+  };
+  assert.deepEqual(classify({ error: "AUDIT_VERDICT_JSON_INVALID", status: "AUDIT_FAILED_CLOSED" }), { failure_class: "validation_failure", recovery: "retry" });
+  assert.deepEqual(classify({ error: "AUDIT_PR_HEAD_MISMATCH", status: "AUDIT_FAILED_CLOSED" }), { failure_class: "deterministic", recovery: "none" });
+  assert.deepEqual(classify({ error: "WAITING_PROVIDER_CAPACITY", status: "AUDIT_FAILED_CLOSED" }), { failure_class: "transient", recovery: "retry" });
+  assert.deepEqual(classify({ status: "AUDIT_COMPLETED" }), { failure_class: "none", recovery: "none" });
+});
