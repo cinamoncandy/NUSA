@@ -7,7 +7,7 @@ import { evaluatePreTradeRisk, type IndependentRiskLimits, type RiskIdentityStat
 import { RUNTIME_EXCHANGE_CAPABILITIES } from "./runtimeExchangeCapabilities";
 import type { PaperAccountState } from "./paperTradingExecutionLoop";
 
-const DEFAULT_ACCOUNT_ID = "paper-default";
+const ACCOUNT_ID = "paper-default";
 const MANUAL_APPROVAL_TTL_MS = 60_000;
 
 /** Same conservative PAPER envelope already used by the desktop canonical composition. */
@@ -155,8 +155,6 @@ function realizedLossState(state: PaperAccountState, now: number): Readonly<{ da
 export interface CloudPaperCanonicalRiskGatewayOptions {
   readonly database: SqliteDatabase;
   readonly initialCapital: number;
-  /** Canonical PAPER account the approvals belong to; defaults to the legacy account. */
-  readonly accountId?: string;
   readonly sourceCommitSha: string;
   readonly limits?: IndependentRiskLimits;
 }
@@ -261,7 +259,7 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
     if (!approvedBy || !strategyId) return Object.freeze({ status: "HALT", reasonCodes: Object.freeze(["APPROVAL_MISSING"]) });
     let approvalId: string | undefined;
     {
-      approvalId = `cloud-paper-${hash({ account: (this.options.accountId ?? DEFAULT_ACCOUNT_ID), commandId: input.commandId, approvedBy, strategyId, market: input.market, side: input.side, policy: this.fingerprints.riskPolicy }).slice(0, 32)}`;
+      approvalId = `cloud-paper-${hash({ account: ACCOUNT_ID, commandId: input.commandId, approvedBy, strategyId, market: input.market, side: input.side, policy: this.fingerprints.riskPolicy }).slice(0, 32)}`;
       try {
         this.canonical.saveApproval({
           approvalId,
@@ -279,7 +277,7 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
     }
 
     const canonical = this.canonical.evaluate({
-      accountId: (this.options.accountId ?? DEFAULT_ACCOUNT_ID),
+      accountId: ACCOUNT_ID,
       requestId: `${input.path}:${input.commandId}`,
       boundary: input.path,
       mode: "PAPER",
@@ -298,7 +296,7 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
       persistenceHealthy: persistent,
       maxDailyLoss: this.limits.maxDailyLoss,
       maxOpenOrders: this.limits.maxOpenOrders,
-      idempotency: { accountId: (this.options.accountId ?? DEFAULT_ACCOUNT_ID), commandId: input.commandId, signalId: input.signalId, clientOrderId: input.clientOrderId, payloadFingerprint, createdAtMs: input.now }
+      idempotency: { accountId: ACCOUNT_ID, commandId: input.commandId, signalId: input.signalId, clientOrderId: input.clientOrderId, payloadFingerprint, createdAtMs: input.now }
     });
     if (approvalId !== undefined) {
       try { this.canonical.revokeApproval(approvalId, "single-use manual approval evaluated"); } catch { return Object.freeze({ status: "HALT", reasonCodes: Object.freeze(["PERSISTENCE_UNHEALTHY"]) }); }

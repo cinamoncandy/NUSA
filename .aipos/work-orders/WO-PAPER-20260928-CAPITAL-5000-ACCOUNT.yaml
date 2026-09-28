@@ -13,7 +13,8 @@ findings:
   - "An open realized period opened under the old capital can never reconcile (ACCOUNT_IDENTITY_MISMATCH), and only one period may be open, so closed learning would block indefinitely."
   - "The host deploy wrapper is installed outside the release tree, so a repo change to it does not reach the host; the host env may pin capital explicitly."
 scope:
-  - "paperAccountIdForCapital: KRW 10,000,000 keeps 'paper-default'; any other capital uses 'paper-krw-<capital>'. Account store, writer lease, risk approvals and snapshot history are scoped by that id."
+  - "paperAccountIdForCapital: KRW 10,000,000 keeps 'paper-default'; any other capital uses 'paper-krw-<capital>'. Account store, fill ledger, account history, writer lease and snapshot history are scoped by that id."
+  - "RISK source (cloudPaperCanonicalRiskGateway.ts, blob-pinned) is intentionally unchanged: risk approvals keep the 'paper-default' tag for every account, so the consecutive-loss and daily-notional counters are shared across the switch (known, fail-closed side effect: at most an earlier HALT/REJECT)."
   - "Rollover: an open period whose account boundary capital differs from the canonical account is retired (PERIOD_REJECTED ACCOUNT_REPLACED) and the same candidate/advisory reopens on the new account."
   - "deploy/oracle/paper-account.json (initialCapitalKrw 5000) is read by the launcher and applied over the host env; malformed file fails closed. Launcher default is 5000."
   - "reset-paper-writer-lease.js resolves the same account id."
