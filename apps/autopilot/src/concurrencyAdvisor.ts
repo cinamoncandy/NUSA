@@ -20,7 +20,7 @@ export interface ConcurrencyRecommendation {
   readonly mutationAllowed: false;
 }
 
-const finite = (value: number): boolean => Number.isFinite(value);
+const finite = (value: number): boolean => Number.isFinite(value) && !Number.isNaN(value);
 const boundedRate = (value: number): boolean => finite(value) && value >= 0 && value <= 1;
 const positiveInteger = (value: number): boolean => Number.isInteger(value) && value > 0;
 const evidenceSource = (value: unknown): value is string =>
