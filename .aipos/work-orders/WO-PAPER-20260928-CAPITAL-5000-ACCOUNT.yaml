@@ -1,0 +1,40 @@
+id: WO-PAPER-20260928-CAPITAL-5000-ACCOUNT
+title: "PAPER initial capital KRW 5,000 as a new account, preserving the existing ledger"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-paper-capital-5000
+authority_impact: paper-accounting
+owner_decision: "2026-09-28: owner asked for PAPER capital KRW 5,000 and chose 'start a new account' after being told the existing KRW 10,000,000 ledger cannot be re-based."
+supersedes_pull_request: 2311
+findings:
+  - "PaperTradingExecutionLoop threw 'paper initial capital mismatch' when the configured capital differed from the restored account, so changing only the default (#2311) could stop the PAPER runtime at startup."
+  - "An open realized period opened under the old capital can never reconcile (ACCOUNT_IDENTITY_MISMATCH), and only one period may be open, so closed learning would block indefinitely."
+  - "The host deploy wrapper is installed outside the release tree, so a repo change to it does not reach the host; the host env may pin capital explicitly."
+scope:
+  - "paperAccountIdForCapital: KRW 10,000,000 keeps 'paper-default'; any other capital uses 'paper-krw-<capital>'. Account store, writer lease, risk approvals and snapshot history are scoped by that id."
+  - "Rollover: an open period whose account boundary capital differs from the canonical account is retired (PERIOD_REJECTED ACCOUNT_REPLACED) and the same candidate/advisory reopens on the new account."
+  - "deploy/oracle/paper-account.json (initialCapitalKrw 5000) is read by the launcher and applied over the host env; malformed file fails closed. Launcher default is 5000."
+  - "reset-paper-writer-lease.js resolves the same account id."
+exclusions:
+  - "No ledger, fill, history or realized period of any account is deleted or rewritten; only the never-realized open period of the replaced account is retired."
+  - "Risk limits, LIVE, credentials and broker paths are unchanged."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  rollback: "Deploying the previous release restores the KRW 10,000,000 'paper-default' account and its ledger unchanged."
+evidence:
+  tests:
+    - "apps/cloud/src/paperAccountCapitalIsolation.test.ts: separate ids; switching capital opens a fresh 5,000 account without the old mismatch crash; the legacy ledger is still readable."
+    - "apps/cloud/src/paperRealizedPeriodProducer.test.ts: retire only on a real account change; pending removed; reopen on the new account."
+    - "apps/cloud/src/closedLearningRolloverScheduler.test.ts: retire + reopen with same candidate; BLOCKED when retirement is unavailable."
+    - "tests/cloud-runtime-launcher.test.js: owner file overrides host env; malformed file fails closed."
+  unverified: "Host-side effect is observed only after the Oracle PAPER release (HUMAN/app observation of the PAPER tab)."
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - node scripts/run-tests-isolated.js
+  - node --test tests/*.test.js
+  - pnpm run validate
