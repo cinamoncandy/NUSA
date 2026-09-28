@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
-import { buttonTokens, cardTokens, fieldTokens, intelligenceFieldColors, type ButtonTone } from "./designSystem";
+import { buttonTokens, cardTokens, fieldTokens, type ButtonTone } from "./designSystem";
 import { useTheme } from "./ThemeProvider";
 
 export interface NusaButtonProps {
@@ -96,7 +96,7 @@ export function NusaTextField({ label, value, onChangeText, placeholder, secureT
 export function NusaCard({ children, testID, raised = false, neon = false }: Readonly<{ children: React.ReactNode; testID?: string; raised?: boolean; neon?: boolean }>) {
   const { theme } = useTheme();
   const tokens = cardTokens(theme);
-  return <View style={[styles.card, { backgroundColor: raised ? theme.colors.surfaceRaised : tokens.background, borderColor: neon ? theme.colors.neonBlue : (raised ? theme.colors.borderStrong : tokens.border), borderRadius: tokens.radius, padding: tokens.padding, shadowColor: neon ? theme.colors.neonBlue : tokens.shadow.color, shadowOffset: tokens.shadow.offset, shadowOpacity: neon ? 0.4 : (raised ? Math.min(tokens.shadow.opacity + 0.05, 1) : tokens.shadow.opacity), shadowRadius: neon ? 16 : (raised ? tokens.shadow.radius + 4 : tokens.shadow.radius), elevation: neon ? 3 : (raised ? tokens.shadow.elevation + 1 : tokens.shadow.elevation), borderWidth: neon ? 1.5 : 1 }]} testID={testID}>{children}</View>;
+  return <View style={[styles.card, { backgroundColor: raised ? theme.colors.surfaceRaised : tokens.background, borderColor: neon ? theme.colors.neonBlue : (raised ? theme.colors.borderStrong : tokens.border), borderRadius: tokens.radius, padding: tokens.padding, shadowColor: neon ? theme.colors.neonBlue : tokens.shadow.color, shadowOffset: tokens.shadow.offset, shadowOpacity: 0, shadowRadius: 0, elevation: 0, borderWidth: neon ? 1.5 : 1 }]} testID={testID}>{children}</View>;
 }
 
 export type StatusTone = "primary" | "success" | "warning" | "danger" | "info" | "neutral";
@@ -133,125 +133,6 @@ export function MotionReveal({ children, testID }: Readonly<{ children: React.Re
 }
 
 
-export type IntelligenceFieldState = "IDLE" | "OBSERVING" | "RECOVERING" | "READY" | "ACTIVE" | "DEGRADED" | "BLOCKED";
-
-export function IntelligenceMotionField({ active = true, evidenceCount = 0, state = active ? "ACTIVE" : "IDLE", label = "NUSA intelligence field" }: Readonly<{ active?: boolean; evidenceCount?: number; state?: IntelligenceFieldState; label?: string }>) {
-  const { theme } = useTheme();
-  const [reducedMotion, setReducedMotion] = useState<boolean | null>(null);
-  const orbit = useRef(new Animated.Value(0)).current;
-  const pulse = useRef(new Animated.Value(0)).current;
-  const scan = useRef(new Animated.Value(0)).current;
-  const depth = useRef(new Animated.Value(0.35)).current;
-  const previousFieldState = useRef<Readonly<{ active: boolean; evidenceCount: number; state: IntelligenceFieldState }> | null>(null);
-
-  useEffect(() => {
-    let mounted = true;
-    AccessibilityInfo.isReduceMotionEnabled().then((enabled) => { if (mounted) setReducedMotion(enabled); }).catch(() => { if (mounted) setReducedMotion(false); });
-    const subscription = AccessibilityInfo.addEventListener("reduceMotionChanged", setReducedMotion);
-    return () => { mounted = false; subscription.remove(); };
-  }, []);
-
-  useEffect(() => {
-    const layerTranslateY = depth.interpolate({ inputRange: [0, 1], outputRange: [7, -4] });
-  const layerScale = depth.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1.04] });
-  const farLayerTranslateY = depth.interpolate({ inputRange: [0, 1], outputRange: [-3, 5] });
-  const boundedEvidence = Math.max(0, Math.min(99, Math.round(evidenceCount)));
-    const previous = previousFieldState.current;
-    previousFieldState.current = { active, evidenceCount: boundedEvidence, state };
-
-    orbit.stopAnimation(); pulse.stopAnimation(); scan.stopAnimation(); depth.stopAnimation();
-    if (reducedMotion == null) return undefined;
-    if (reducedMotion || !active) {
-      orbit.setValue(0.2); pulse.setValue(active ? 0.55 : 0.15); scan.setValue(0.25); depth.setValue(active ? 0.55 : 0.2);
-      return undefined;
-    }
-
-    // Mounting the field is not evidence. Animate only after a real semantic state/evidence change.
-    if (previous == null || (previous.active === active && previous.evidenceCount === boundedEvidence && previous.state === state)) {
-      orbit.setValue(0.2); pulse.setValue(0.55); scan.setValue(0.25); depth.setValue(0.55);
-      return undefined;
-    }
-
-    orbit.setValue(0);
-    pulse.setValue(0.55);
-    scan.setValue(0.25);
-    depth.setValue(0.2);
-    const animation = Animated.parallel([
-      Animated.timing(orbit, { toValue: 1, duration: 420, useNativeDriver: true }),
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 240, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0.55, duration: 180, useNativeDriver: true }),
-      ]),
-      Animated.sequence([
-        Animated.timing(scan, { toValue: 1, duration: 320, useNativeDriver: true }),
-        Animated.timing(scan, { toValue: 0.25, duration: 160, useNativeDriver: true }),
-      ]),
-      Animated.sequence([
-        Animated.timing(depth, { toValue: 1, duration: 280, useNativeDriver: true }),
-        Animated.timing(depth, { toValue: 0.55, duration: 220, useNativeDriver: true }),
-      ]),
-    ]);
-    animation.start();
-    return () => animation.stop();
-  }, [active, depth, evidenceCount, orbit, pulse, reducedMotion, scan, state]);
-
-  const rotation = orbit.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
-  const coreScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.08] });
-  const coreOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] });
-  const scanX = scan.interpolate({ inputRange: [0, 1], outputRange: [-64, 64] });
-  const layerTranslateY = depth.interpolate({ inputRange: [0, 1], outputRange: [7, -4] });
-  const layerScale = depth.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1.04] });
-  const farLayerTranslateY = depth.interpolate({ inputRange: [0, 1], outputRange: [-3, 5] });
-  const boundedEvidence = Math.max(0, Math.min(99, Math.round(evidenceCount)));
-
-  return <View accessible accessibilityRole="image" accessibilityLabel={label} style={styles.intelligenceField} testID="nusa-intelligence-motion">
-    <View style={styles.intelligenceAmbientOne} />
-    <View style={styles.intelligenceAmbientTwo} />
-    <Text style={styles.intelligenceFieldKicker}>NUSA · {state} FIELD</Text>
-    <Animated.View style={[styles.intelligenceLattice, { opacity: coreOpacity, transform: [{ translateY: farLayerTranslateY }, { scale: layerScale }] }]}>
-      <View style={[styles.latticeLine, styles.latticeLineA, { backgroundColor: theme.colors.aiSignalMid }]} />
-      <View style={[styles.latticeLine, styles.latticeLineB, { backgroundColor: theme.colors.aiSignalStart }]} />
-      <View style={[styles.latticeLine, styles.latticeLineC, { backgroundColor: theme.colors.aiSignalEnd }]} />
-      <View style={[styles.latticeLine, styles.latticeLineD, { backgroundColor: theme.colors.aiSignalMid }]} />
-      <View style={[styles.latticeNode, styles.latticeNodeA, { borderColor: theme.colors.aiSignalMid }]} />
-      <View style={[styles.latticeNode, styles.latticeNodeB, { borderColor: theme.colors.aiSignalStart }]} />
-      <View style={[styles.latticeNode, styles.latticeNodeC, { borderColor: theme.colors.aiSignalEnd }]} />
-      <View style={[styles.latticeNode, styles.latticeNodeD, { borderColor: theme.colors.aiSignalMid }]} />
-    </Animated.View>
-    <Animated.View style={[styles.intelligenceGrid, { transform: [{ translateY: layerTranslateY }, { scale: layerScale }] }]} />
-    <Animated.View style={[styles.intelligenceOrbitOuter, { borderColor: theme.colors.aiSignalStart, transform: [{ rotate: rotation }] }]}><View style={[styles.intelligenceOrbitNode, { backgroundColor: theme.colors.aiSignalEnd }]} /></Animated.View>
-    <Animated.View style={[styles.intelligenceOrbitInner, { borderColor: theme.colors.aiSignalMid, transform: [{ rotate: rotation }] }]}><View style={[styles.intelligenceOrbitNodeSmall, { backgroundColor: theme.colors.aiSignalStart }]} /></Animated.View>
-    <Animated.View style={[styles.intelligenceCoreHalo, { borderColor: theme.colors.aiSignalMid, opacity: coreOpacity, transform: [{ scale: coreScale }] }]} />
-    <Animated.View style={[styles.intelligenceCore, { backgroundColor: theme.colors.aiSignalEnd, shadowColor: theme.colors.aiSignalEnd, opacity: coreOpacity, transform: [{ scale: coreScale }] }]} />
-    <Animated.View style={[styles.intelligenceScan, { backgroundColor: theme.colors.aiSignalMid, opacity: coreOpacity, transform: [{ translateX: scanX }, { rotate: "-18deg" }] }]} />
-    <View style={styles.intelligenceLegend}><Text style={styles.intelligenceLegendLabel}>EVIDENCE</Text><Text style={styles.intelligenceLegendValue}>{boundedEvidence}</Text></View>
-    <Text style={styles.intelligenceFieldFooter}>{state === "RECOVERING" ? "RESTORE · VERIFY · CONNECT" : state === "BLOCKED" || state === "DEGRADED" ? "DETECT · ISOLATE · RECOVER" : "OBSERVE · VERIFY · LEARN"}</Text>
-  </View>;
-}
-
-export function TerrainSignal({ variant = "symbolic", signalStrength = 0.6, accessibilityLabel, testID }: Readonly<{ variant?: "symbolic" | "market"; signalStrength?: number; accessibilityLabel?: string; testID?: string }>) {
-  const { theme } = useTheme();
-  const boundedStrength = Math.max(0.25, Math.min(1, signalStrength));
-  const primaryWidth = `${Math.round(58 + boundedStrength * 27)}%` as `${number}%`;
-  const secondaryWidth = `${Math.round(45 + boundedStrength * 25)}%` as `${number}%`;
-  const convergenceLeft = `${Math.round(48 + boundedStrength * 22)}%` as `${number}%`;
-  // Raised floors so the hero reads as a hero even at the lowest signal strength: the reference
-  // calls for restrained glow and low-noise surfaces, not for the centerpiece to be optional.
-  const signalOpacity = 0.55 + boundedStrength * 0.4;
-  return <View accessible accessibilityRole="image" accessibilityLabel={accessibilityLabel ?? (variant === "market" ? "실제 시장 데이터에 연결된 시그널" : "NUSA 상태 시그널")} style={styles.terrainSignal} testID={testID}>
-    <View style={[styles.terrainGridLine, styles.terrainGridLineTop, { backgroundColor: theme.colors.borderStrong, opacity: 0.5 }]} />
-    <View style={[styles.terrainGridLine, styles.terrainGridLineMid, { backgroundColor: theme.colors.borderStrong, opacity: 0.62 }]} />
-    <View style={[styles.terrainGridLine, styles.terrainGridLineLow, { backgroundColor: theme.colors.borderStrong, opacity: 0.4 }]} />
-    <View style={[styles.terrainPlane, styles.terrainPlaneFar, { width: secondaryWidth, backgroundColor: theme.colors.terrain, opacity: signalOpacity * 0.6 }]} />
-    <View style={[styles.terrainPlane, styles.terrainPlaneMid, { width: primaryWidth, backgroundColor: theme.colors.aiSignalStart, opacity: signalOpacity * 0.78 }]} />
-    <View style={[styles.terrainPlane, styles.terrainPlaneNear, { width: "72%", backgroundColor: theme.colors.aiSignalMid, opacity: signalOpacity * 0.9 }]} />
-    <View style={[styles.terrainPlane, styles.terrainPlaneGround, { width: "88%", backgroundColor: theme.colors.terrain, opacity: signalOpacity }]} />
-    <View style={[styles.terrainConvergenceBeam, { left: convergenceLeft, backgroundColor: theme.colors.aiSignalEnd, opacity: 0.35 + boundedStrength * 0.25 }]} />
-    <View style={[styles.terrainConvergenceHaloOuter, { left: convergenceLeft, borderColor: theme.colors.aiSignalMid, opacity: 0.3 + boundedStrength * 0.2 }]} />
-    <View style={[styles.terrainConvergenceHalo, { left: convergenceLeft, borderColor: theme.colors.aiSignalEnd, opacity: 0.5 + boundedStrength * 0.25 }]} />
-    <View style={[styles.terrainConvergence, { left: convergenceLeft, backgroundColor: theme.colors.aiSignalEnd, shadowColor: theme.colors.aiSignalEnd, opacity: 0.9 + boundedStrength * 0.1 }]} />
-  </View>;
-}
 
 export function WaveMark(_props: Readonly<{ compact?: boolean }>) {
   return null;
@@ -304,33 +185,6 @@ const styles = StyleSheet.create({
   dataRow: { minHeight: 36, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 14 },
   dataLabel: { flex: 1, fontSize: 13, lineHeight: 19 },
   skeleton: { opacity: 0.85 },
-  intelligenceField: { height: 210, minWidth: 220, flex: 1, overflow: "hidden", borderWidth: 1, borderColor: intelligenceFieldColors.border, borderRadius: 26, position: "relative", alignItems: "center", justifyContent: "center", backgroundColor: intelligenceFieldColors.surface },
-  intelligenceAmbientOne: { position: "absolute", width: 230, height: 230, borderRadius: 115, backgroundColor: intelligenceFieldColors.ambientPurple, opacity: 0.72, top: -86, right: -46 },
-  intelligenceAmbientTwo: { position: "absolute", width: 190, height: 190, borderRadius: 95, backgroundColor: intelligenceFieldColors.ambientTeal, opacity: 0.56, bottom: -82, left: -48 },
-  intelligenceFieldKicker: { position: "absolute", left: 16, top: 14, color: intelligenceFieldColors.textMuted, fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1.25 },
-  intelligenceFieldFooter: { position: "absolute", right: 16, bottom: 14, color: intelligenceFieldColors.textSubtle, fontSize: 7, lineHeight: 10, fontWeight: "900", letterSpacing: 1.05 },
-  intelligenceGrid: { position: "absolute", width: 170, height: 170, borderWidth: StyleSheet.hairlineWidth, borderColor: intelligenceFieldColors.grid, borderRadius: 85, opacity: 0.72 },
-  intelligenceLattice: { position: "absolute", width: 210, height: 150 },
-  latticeLine: { position: "absolute", height: 1, borderRadius: 1, opacity: 0.34 },
-  latticeLineA: { width: 118, left: 21, top: 54, transform: [{ rotate: "17deg" }] },
-  latticeLineB: { width: 106, right: 20, top: 80, transform: [{ rotate: "-23deg" }] },
-  latticeLineC: { width: 78, left: 52, bottom: 28, transform: [{ rotate: "-38deg" }] },
-  latticeLineD: { width: 88, right: 48, top: 34, transform: [{ rotate: "42deg" }] },
-  latticeNode: { position: "absolute", width: 8, height: 8, borderRadius: 4, borderWidth: 1.5, backgroundColor: intelligenceFieldColors.surface },
-  latticeNodeA: { left: 14, top: 42 },
-  latticeNodeB: { right: 9, top: 44 },
-  latticeNodeC: { left: 34, bottom: 14 },
-  latticeNodeD: { right: 34, bottom: 22 },
-  intelligenceOrbitOuter: { position: "absolute", width: 148, height: 148, borderRadius: 74, borderWidth: 1.2, opacity: 0.92 },
-  intelligenceOrbitInner: { position: "absolute", width: 94, height: 94, borderRadius: 47, borderWidth: 1, opacity: 0.86 },
-  intelligenceOrbitNode: { position: "absolute", width: 8, height: 8, borderRadius: 4, left: 13, top: 16 },
-  intelligenceOrbitNodeSmall: { position: "absolute", width: 6, height: 6, borderRadius: 3, right: 9, bottom: 14 },
-  intelligenceCoreHalo: { position: "absolute", width: 58, height: 58, borderRadius: 29, borderWidth: 1.2 },
-  intelligenceCore: { position: "absolute", width: 16, height: 16, borderRadius: 8, shadowOpacity: 0.95, shadowRadius: 22, elevation: 6 },
-  intelligenceScan: { position: "absolute", width: 128, height: 1.5, borderRadius: 1 },
-  intelligenceLegend: { position: "absolute", left: 16, bottom: 13, flexDirection: "row", alignItems: "baseline", gap: 6 },
-  intelligenceLegendLabel: { color: intelligenceFieldColors.textMuted, fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1.05 },
-  intelligenceLegendValue: { color: intelligenceFieldColors.text, fontSize: 14, lineHeight: 17, fontWeight: "900", fontVariant: ["tabular-nums"] },
   dataValue: { flexShrink: 1, textAlign: "right", fontSize: 13, lineHeight: 19, fontVariant: ["tabular-nums"] },
   dataValueEmphasis: { fontSize: 14 },
   // Issue #536's MASTER VISUAL REFERENCE names this centerpiece the visual hero of HOME, not a
@@ -340,18 +194,4 @@ const styles = StyleSheet.create({
   // changed" on device. Strokes stay thin and precise per the reference language; what changes is
   // that they are now thick and contrasted enough to actually register as a hero graphic rather
   // than disappearing into the surface behind them.
-  terrainSignal: { height: 240, width: "100%", overflow: "hidden", justifyContent: "center", position: "relative" },
-  terrainGridLine: { position: "absolute", left: "2%", right: "2%", height: 1 },
-  terrainGridLineTop: { top: "27%" },
-  terrainGridLineMid: { top: "50%" },
-  terrainGridLineLow: { top: "73%" },
-  terrainPlane: { position: "absolute", height: 2, borderRadius: 1 },
-  terrainPlaneFar: { left: "6%", top: "30%", transform: [{ rotate: "6deg" }] },
-  terrainPlaneMid: { left: "10%", top: "45%", transform: [{ rotate: "-8deg" }] },
-  terrainPlaneNear: { left: "18%", top: "61%", transform: [{ rotate: "9deg" }] },
-  terrainPlaneGround: { left: "4%", top: "77%", transform: [{ rotate: "-3deg" }] },
-  terrainConvergenceBeam: { position: "absolute", top: "24%", bottom: "16%", width: 1.5, marginLeft: -0.75 },
-  terrainConvergence: { position: "absolute", top: "48%", width: 16, height: 16, borderRadius: 8, marginLeft: -8, shadowOpacity: 0.85, shadowRadius: 18, elevation: 4 },
-  terrainConvergenceHalo: { position: "absolute", top: "40%", width: 48, height: 48, borderRadius: 24, borderWidth: 1.5, marginLeft: -24 },
-  terrainConvergenceHaloOuter: { position: "absolute", top: "33%", width: 82, height: 82, borderRadius: 41, borderWidth: 1, marginLeft: -41 },
 });

@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import { IntelligenceMotionField, NusaButton } from "./components";
+import { NusaButton } from "./components";
+import { FieldHeader } from "./fieldHeader";
+import { buildPaperFieldHeader } from "./fieldScreensModel";
 import { useTheme } from "./ThemeProvider";
 import type { PaperLearningScreenState, PaperLearningUiEvent } from "./paperLearningScreen";
 import { AuthorityRail, FactRow, IntelligenceSection, MetricStrip, ScreenLead, StateNotice, type IntelligenceTone } from "./intelligenceOs";
@@ -127,7 +129,6 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
   const learningLabel = state.latestEvidence?.outcome == null ? "WAITING" : learningOutcomeLabel[state.latestEvidence.outcome] ?? state.latestEvidence.outcome;
   const learningTone: IntelligenceTone = state.latestEvidence?.outcome === "PROMOTE" ? "success" : state.latestEvidence?.outcome === "REJECT" ? "danger" : "neutral";
   const sourceColor = sourceTone(state.dataSource) === "success" ? theme.colors.success : sourceTone(state.dataSource) === "warning" ? theme.colors.warning : theme.colors.danger;
-  const fieldState = state.status === "RUNNING" ? "ACTIVE" as const : state.status === "HALTED" || state.status === "ERROR" ? "BLOCKED" as const : state.dataSource === "UNAVAILABLE" || state.dataSource === "NOT_CONFIGURED" ? "DEGRADED" as const : "OBSERVING" as const;
 
   return <ScrollView
     contentContainerStyle={styles.content}
@@ -136,7 +137,7 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
     showsVerticalScrollIndicator={false}
     testID="paper-learning-monitor"
   >
-    <IntelligenceMotionField active={state.status === "RUNNING"} evidenceCount={state.timeline.length} state={fieldState} label={`NUSA PAPER ${fieldState.toLowerCase()} state`} />
+    <View style={styles.fieldBleed}><FieldHeader model={buildPaperFieldHeader(state)} testID="paper-field-header" /></View>
     <AuthorityRail
       detail="AUTONOMOUS PAPER · LIVE NONE · AI ZERO AUTHORITY"
       status={runtimeLabel}
@@ -273,6 +274,7 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { width: "100%", maxWidth: 1080, alignSelf: "center", paddingHorizontal: 20, paddingTop: 10, paddingBottom: 96, gap: 14 },
+  fieldBleed: { marginHorizontal: -20, marginTop: -10 },
   eyebrow: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.15 },
   sourceRow: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingHorizontal: 2 },
   sourceCopy: { flex: 1, minWidth: 0, gap: 3 },

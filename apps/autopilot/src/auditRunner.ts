@@ -214,6 +214,10 @@ export function validateAuditModelVerdict(value: unknown): AuditModelVerdict {
   if (verdict.verdict === "PASS" && findings.length > 0) throw new Error("AUDIT_VERDICT_PASS_FINDINGS_FORBIDDEN");
   if (verdict.verdict === "PASS_WITH_NOTES" && findings.length === 0) throw new Error("AUDIT_VERDICT_NOTES_REQUIRED");
   if (verdict.verdict === "FAIL" && blockers.length === 0) throw new Error("AUDIT_VERDICT_FAIL_BLOCKER_REQUIRED");
+  // A FAIL must be grounded in at least one BLOCKER finding (whose evidence is later bound to the
+  // current diff). A bare blocker string with no finding is a malformed model response -- e.g. the
+  // model echoing a prompt example code -- and is retried, then fails closed; it never becomes a verdict.
+  if (verdict.verdict === "FAIL" && !findings.some((finding) => finding.severity === "BLOCKER")) throw new Error("AUDIT_VERDICT_FAIL_BLOCKER_FINDING_REQUIRED");
   if (verdict.mergeAllowed && (verdict.verdict === "FAIL" || blockers.length > 0 || safetyInvariantResult !== "PASS" || findings.some((finding) => finding.severity === "BLOCKER"))) throw new Error("AUDIT_VERDICT_MERGE_ALLOWED_UNSAFE");
   return Object.freeze({
     verdict: verdict.verdict,
@@ -393,9 +397,9 @@ function auditPrompt(request: AuditRunnerRequest, diff: string): string {
     "Safety invariants: liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY; no AI self-grant; no automatic LIVE activation; no withdrawals/transfers; no mobile credential storage; PAPER/REAL separation; fail-closed; actual evidence must not be fabricated.",
     'Return only JSON matching response_format. safetyInvariantResult MUST be a JSON string whose exact value is "PASS" or "FAIL"; never use a boolean, object, null, or another spelling.',
     "The top-level JSON object MUST contain exactly these five keys: verdict, findings, blockers, safetyInvariantResult, mergeAllowed. findings and blockers MUST always be arrays; mergeAllowed MUST be a JSON boolean.",
-    "Each findings item code MUST be 1-80 characters and contain only uppercase A-Z, digits 0-9, underscore (_), dot (.), colon (:), or hyphen (-). Use a stable machine-readable identifier such as RELEASE_HANDOFF_MISSING; never use spaces or lowercase letters in code.",
+    "Each findings item code MUST be 1-80 characters and contain only uppercase A-Z, digits 0-9, underscore (_), dot (.), colon (:), or hyphen (-). Use a stable machine-readable identifier that names the specific defect you found in this diff; never copy an identifier from these instructions, and never use spaces or lowercase letters in code.",
     "Every BLOCKER finding MUST have at least one corresponding human-readable entry in blockers; never emit a BLOCKER finding with an empty blockers array.",
-    "Rules: PASS requires zero findings and zero blockers and mergeAllowed=true. PASS_WITH_NOTES requires one or more NOTE findings and zero blockers; set mergeAllowed=true only when those notes are explicitly non-blocking and the exact reviewed head is safe to merge. FAIL requires at least one blocker and mergeAllowed=false. Any BLOCKER finding, safety failure, test weakening, evidence integrity issue, or material uncertainty requires FAIL and mergeAllowed=false.",
+    "Rules: PASS requires zero findings and zero blockers and mergeAllowed=true. PASS_WITH_NOTES requires one or more NOTE findings and zero blockers; set mergeAllowed=true only when those notes are explicitly non-blocking and the exact reviewed head is safe to merge. FAIL requires at least one BLOCKER finding, at least one blocker, and mergeAllowed=false; never emit blockers without a BLOCKER finding. Any BLOCKER finding, safety failure, test weakening, evidence integrity issue, or material uncertainty requires FAIL and mergeAllowed=false.",
     "For every BLOCKER, evidenceRef MUST be exactly one value from the deterministic CURRENT ADDED-LINE EVIDENCE REFS list below. Never invent or transform an evidenceRef. A `-` line is removed code, never current behavior; do not report it as a blocker. If a concern depends only on removed code, it is not a current blocker.",
     "--- BEGIN CURRENT ADDED-LINE EVIDENCE REFS ---",
     ...[...currentDiffEvidenceRefs(diff)].sort(),
