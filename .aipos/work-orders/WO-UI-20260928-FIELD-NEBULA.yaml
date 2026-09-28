@@ -12,6 +12,7 @@ scope:
   - "intelligenceField.tsx: spiral-arm nebula geometry replaces fiber strands; signals ride arm spines; subsystem hub labels become a legend row."
   - "fieldPose(phase) in intelligenceFieldModel.ts: HALTED collapses the nebula to the core; LAUNCH/AUTHENTICATION/DEGRADED scatter and fade; RECOVERING partly contracts."
   - "Each semantic change turns the nebula one orbit step (fieldMotion.orbitStepDeg) and settles into the pose (fieldMotion.poseMs)."
+  - "HOME evidence row (buildHomeFieldFacts): DECISIONS / PAPER ORDERS / STAGE verbatim, em dash when unknown."
   - "fieldHeader.tsx: smaller nebula, fieldHeaderPose(model) with the same grammar, dashed seal ring on a sealed LIVE tab."
 exclusions:
   - "No continuous animation (Animated.loop stays forbidden); motion runs only on a semantic state change and never under reduced motion."

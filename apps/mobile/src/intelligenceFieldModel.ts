@@ -93,3 +93,17 @@ export function fieldPose(phase: IntelligenceFieldModel["phase"]): FieldPose {
     default: return Object.freeze({ spread: 1, presence: 1 });
   }
 }
+
+/**
+ * Evidence row under the HOME headline, in the same grammar as the tab headers. Values are the
+ * canonical counters verbatim; an unknown value is an em dash, never a guessed zero.
+ */
+export function buildHomeFieldFacts(input: IntelligenceFieldInput): readonly { readonly label: string; readonly value: string }[] {
+  const count = (value: number | null) => (value != null && Number.isFinite(value) ? Math.max(0, Math.trunc(value)).toLocaleString("en-US") : "—");
+  const stage = typeof input.pipelineStage === "string" && input.pipelineStage.trim() !== "" ? input.pipelineStage.trim().replace(/_/g, " ") : "—";
+  return Object.freeze([
+    Object.freeze({ label: "DECISIONS", value: count(input.decisionCount) }),
+    Object.freeze({ label: "PAPER ORDERS", value: count(input.paperOrderCount) }),
+    Object.freeze({ label: "STAGE", value: stage }),
+  ]);
+}

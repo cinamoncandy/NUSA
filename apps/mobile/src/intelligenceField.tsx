@@ -1,7 +1,7 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { fieldFonts } from "./fieldFonts";
 import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
-import { buildIntelligenceField, fieldPose, type FieldSubsystem, type FieldTone, type IntelligenceFieldInput } from "./intelligenceFieldModel";
+import { buildHomeFieldFacts, buildIntelligenceField, fieldPose, type FieldSubsystem, type FieldTone, type IntelligenceFieldInput } from "./intelligenceFieldModel";
 import { fieldMotion, fieldPalette } from "./designSystem";
 
 /**
@@ -223,6 +223,9 @@ export function IntelligenceField({ input }: Readonly<{ input: IntelligenceField
     </View>
     <Text style={styles.headline} testID="intelligence-field-headline">{model.headline}</Text>
     <Text style={styles.detail}>{model.detail}</Text>
+    <View style={styles.facts} testID="intelligence-field-facts">
+      {buildHomeFieldFacts(input).map((fact) => <View key={fact.label} style={styles.fact}><Text style={styles.factLabel}>{fact.label}</Text><Text style={styles.factValue} numberOfLines={1}>{fact.value}</Text></View>)}
+    </View>
   </View>;
 }
 
@@ -246,4 +249,8 @@ const styles = StyleSheet.create({
   hubState: { fontSize: 9, letterSpacing: 1, ...fieldFonts.monoMedium },
   headline: { color: fieldPalette.text, fontSize: 26, lineHeight: 34, letterSpacing: -0.3, ...fieldFonts.displayLight },
   detail: { color: fieldPalette.muted, fontSize: 13, lineHeight: 20, marginTop: 6 },
+  facts: { flexDirection: "row", marginTop: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: fieldPalette.dim, paddingTop: 10 },
+  fact: { flex: 1, gap: 2 },
+  factLabel: { color: fieldPalette.dim, fontSize: 9, letterSpacing: 1.6, ...fieldFonts.mono },
+  factValue: { color: fieldPalette.label, fontSize: 13, fontVariant: ["tabular-nums"], ...fieldFonts.mono },
 });

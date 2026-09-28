@@ -12,7 +12,7 @@ const compiled = ts.transpileModule(fs.readFileSync(sourcePath, "utf8"), {
 }).outputText;
 const moduleShim = { exports: {} };
 new Function("module", "exports", "require", compiled)(moduleShim, moduleShim.exports, require);
-const { buildIntelligenceField, fieldPose } = moduleShim.exports;
+const { buildIntelligenceField, fieldPose, buildHomeFieldFacts } = moduleShim.exports;
 
 const base = { checking: false, disconnected: false, recovering: false, haltActive: false, degraded: false, feedStale: false, readyForPaperOperations: true, decisionCount: 10, paperOrderCount: 3 };
 const field = (overrides) => buildIntelligenceField({ ...base, ...overrides });
@@ -99,4 +99,13 @@ test("field pose collapses on HALTED and scatters and fades while unverified", (
   assert.match(view, /const pose = fieldPose\(model\.phase\)/);
   assert.match(view, /transform: \[\{ rotate: orbitRotate \}, \{ scale: spread \}\]/);
   assert.match(view, /fieldMotion\.poseMs/);
+});
+
+test("HOME evidence row shows canonical counters verbatim and never guesses a zero", () => {
+  const base = { checking: false, disconnected: false, recovering: false, haltActive: false, degraded: false, feedStale: false, readyForPaperOperations: true };
+  const facts = buildHomeFieldFacts({ ...base, decisionCount: 1284, paperOrderCount: 0, pipelineStage: "OBSERVE_ONLY" });
+  assert.deepEqual(facts.map((f) => f.value), ["1,284", "0", "OBSERVE ONLY"]);
+  const unknown = buildHomeFieldFacts({ ...base, decisionCount: null, paperOrderCount: null, pipelineStage: null });
+  assert.deepEqual(unknown.map((f) => f.value), ["—", "—", "—"]);
+  assert.ok(Object.isFrozen(facts) && Object.isFrozen(facts[0]));
 });
