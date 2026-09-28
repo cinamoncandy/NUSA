@@ -14,7 +14,7 @@ const moduleShim = { exports: {} };
 new Function("module", "exports", "require", compiled)(moduleShim, moduleShim.exports, require);
 const { buildIntelligenceField } = moduleShim.exports;
 
-const base = { checking: false, disconnected: false, recovering: false, haltActive: false, feedStale: false, readyForPaperOperations: true, decisionCount: 10, paperOrderCount: 3 };
+const base = { checking: false, disconnected: false, recovering: false, haltActive: false, degraded: false, feedStale: false, readyForPaperOperations: true, decisionCount: 10, paperOrderCount: 3 };
 const field = (overrides) => buildIntelligenceField({ ...base, ...overrides });
 
 test("intelligence field phases follow fail-closed priority", () => {
@@ -29,11 +29,29 @@ test("intelligence field phases follow fail-closed priority", () => {
   assert.equal(field({}).phase, "CONNECTED");
 });
 
-test("decisions without paper orders are surfaced as AXIOM attention, never invented activity", () => {
+test("unavailable or unhealthy PAPER state fails closed instead of reading CONNECTED", () => {
+  const model = field({ degraded: true, feedStale: true });
+  assert.equal(model.phase, "DEGRADED");
+  assert.equal(model.tone, "amber");
+  assert.equal(field({ degraded: true, haltActive: true }).phase, "HALTED");
+  const home = fs.readFileSync(path.join(root, "apps/mobile/src/homeView.tsx"), "utf8");
+  assert.match(home, /degraded: readOnlyError != null \|\| \(snapshot != null && \(snapshot\.health !== "HEALTHY"/);
+  assert.match(home, /runtimeState === "HALTED"/);
+});
+
+test("a stale phone quote feed is described as local display lag, not a server decision pause", () => {
+  const model = field({ feedStale: true });
+  assert.equal(model.states.market, "QUOTE STALE");
+  assert.match(model.detail, /서버 판단과는 별개/);
+  assert.doesNotMatch(model.detail, /보류/);
+});
+
+test("decisions without paper orders use neutral no-execution wording, never an invented cause", () => {
   const model = field({ decisionCount: 533435, paperOrderCount: 0 });
   assert.equal(model.phase, "ATTENTION");
-  assert.equal(model.focus, "axiom");
-  assert.equal(model.states.axiom, "NO STRATEGY");
+  assert.equal(model.focus, "paper");
+  assert.equal(model.states.paper, "NO ORDERS");
+  assert.ok(!JSON.stringify(model).includes("NO STRATEGY"));
   assert.equal(field({ decisionCount: null, paperOrderCount: null }).phase, "CONNECTED");
   assert.equal(field({ readyForPaperOperations: false }).states.paper, "OBSERVING");
 });
@@ -46,5 +64,8 @@ test("field model is frozen and HOME wires only real state", () => {
   assert.match(home, /operations\.heartbeat\?\.decisionCount/);
   const view = fs.readFileSync(path.join(root, "apps/mobile/src/intelligenceField.tsx"), "utf8");
   assert.match(view, /isReduceMotionEnabled/);
+  assert.match(view, /useState<boolean \| null>\(null\)/);
+  assert.match(view, /reducedMotion !== false/);
+  assert.match(view, /const ParticleLayer = memo\(/);
   assert.doesNotMatch(view, /Animated\.loop/);
 });

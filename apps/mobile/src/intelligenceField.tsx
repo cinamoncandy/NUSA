@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { buildIntelligenceField, type FieldSubsystem, type FieldTone, type IntelligenceFieldInput } from "./intelligenceFieldModel";
 import { fieldPalette } from "./designSystem";
@@ -65,10 +65,15 @@ export function buildFieldGeometry(width: number, height: number): Readonly<Reco
   return out;
 }
 
+/** Particles only re-render when geometry or colour changes, not on every live ticker update. */
+const ParticleLayer = memo(function ParticleLayer({ dots, color }: Readonly<{ dots: readonly Dot[]; color: string }>) {
+  return <>{dots.map((dot, i) => <View key={i} style={{ position: "absolute", left: dot.x - dot.size / 2, top: dot.y - dot.size / 2, width: dot.size, height: dot.size, borderRadius: dot.size / 2, backgroundColor: color, opacity: dot.opacity }} />)}</>;
+});
+
 export function IntelligenceField({ input }: Readonly<{ input: IntelligenceFieldInput }>) {
   const model = buildIntelligenceField(input);
   const [width, setWidth] = useState(0);
-  const [reducedMotion, setReducedMotion] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState<boolean | null>(null);
   const geometry = useMemo(() => (width > 0 ? buildFieldGeometry(width, FIELD_HEIGHT) : null), [width]);
   const levels = useRef(Object.fromEntries(SUBSYSTEMS.map((s) => [s.id, new Animated.Value(0.12)])) as Record<FieldSubsystem, Animated.Value>).current;
   const core = useRef(new Animated.Value(model.coreLevel)).current;
@@ -76,7 +81,7 @@ export function IntelligenceField({ input }: Readonly<{ input: IntelligenceField
 
   useEffect(() => {
     let mounted = true;
-    AccessibilityInfo.isReduceMotionEnabled().then((enabled) => { if (mounted) setReducedMotion(enabled); }).catch(() => undefined);
+    AccessibilityInfo.isReduceMotionEnabled().then((enabled) => { if (mounted) setReducedMotion(enabled); }).catch(() => { if (mounted) setReducedMotion(false); });
     const subscription = AccessibilityInfo.addEventListener("reduceMotionChanged", setReducedMotion);
     return () => { mounted = false; subscription.remove(); };
   }, []);
@@ -88,7 +93,8 @@ export function IntelligenceField({ input }: Readonly<{ input: IntelligenceField
       const target = model.focus == null ? (lit ? 1 : 0.14) : s.id === model.focus ? 1 : lit ? 0.32 : 0.1;
       return { value: levels[s.id], target };
     });
-    if (reducedMotion) {
+    // Until the preference is known, or when it asks for less motion, settle without animating.
+    if (reducedMotion !== false) {
       targets.forEach(({ value, target }) => value.setValue(target));
       core.setValue(model.coreLevel);
       pulse.setValue(0);
@@ -123,13 +129,9 @@ export function IntelligenceField({ input }: Readonly<{ input: IntelligenceField
       <Text style={styles.phase}>{model.phase}</Text>
     </View>
     <View style={styles.field} onLayout={onLayout}>
-      {geometry == null ? null : SUBSYSTEMS.map((s) => {
-        const focused = model.focus === s.id;
-        const color = focused ? FOCUS_COLOR : s.color;
-        return <Animated.View key={s.id} pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: levels[s.id] }]}>
-          {geometry[s.id].map((dot, i) => <View key={i} style={{ position: "absolute", left: dot.x - dot.size / 2, top: dot.y - dot.size / 2, width: dot.size, height: dot.size, borderRadius: dot.size / 2, backgroundColor: color, opacity: dot.opacity }} />)}
-        </Animated.View>;
-      })}
+      {geometry == null ? null : SUBSYSTEMS.map((s) => <Animated.View key={s.id} pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: levels[s.id] }]}>
+        <ParticleLayer dots={geometry[s.id]} color={model.focus === s.id ? FOCUS_COLOR : s.color} />
+      </Animated.View>)}
       {width > 0 ? <>
         <Animated.View pointerEvents="none" style={[styles.pulseRing, { left: cx - 40, top: cy - 40, borderColor: toneColor, opacity: pulse, transform: [{ scale: ringScale }] }]} />
         <Animated.View pointerEvents="none" style={[styles.coreWrap, { left: cx - 36, top: cy - 36, opacity: core, transform: [{ scale: coreScale }] }]}>
