@@ -35,12 +35,16 @@ function memoryNamespace(): ExecutionCoordinatorNamespace {
   };
 }
 
-function proposalRequest(): Request {
+function proposalRequestFor(value = request): Request {
   return new Request("https://worker.example.test/coding/propose", {
     method: "POST",
     headers: { authorization: "Bearer coding-token", "content-type": "application/json" },
-    body: JSON.stringify(request),
+    body: JSON.stringify(value),
   });
+}
+
+function proposalRequest(): Request {
+  return proposalRequestFor(request);
 }
 
 async function withStubbedGithubFetch<T>(run: () => Promise<T>): Promise<T> {
@@ -68,6 +72,52 @@ async function withStubbedGithubFetch<T>(run: () => Promise<T>): Promise<T> {
   }
 }
 
+async function withStubbedFailureAndJevFetch<T>(run: () => Promise<T>): Promise<T> {
+  const original = globalThis.fetch;
+  globalThis.fetch = (async (url: string) => {
+    const value = String(url);
+    if (value.includes("/commits/")) return new Response(JSON.stringify({ sha: HEAD }), { status: 200 });
+    if (value.includes("/jobs?")) {
+      return new Response(JSON.stringify({
+        total_count: 1,
+        jobs: [{
+          run_id: request.workflowRunId,
+          name: "validation",
+          conclusion: "failure",
+          steps: [{ name: "Preflight", conclusion: "failure" }],
+        }],
+      }), { status: 200 });
+    }
+    if (value.includes("/actions/runs/")) {
+      return new Response(JSON.stringify({
+        id: request.workflowRunId,
+        name: "CI",
+        head_sha: HEAD,
+        head_branch: "feature/failure",
+        repository: { full_name: request.repository },
+        event: "pull_request",
+        status: "completed",
+        conclusion: "failure",
+      }), { status: 200 });
+    }
+    if (value === "https://jev.invalid/classify") {
+      return new Response(JSON.stringify({
+        rootCause: "INFRA",
+        safeToAutofix: "NO",
+        severity: 2,
+        requiredModel: "HUMAN",
+        confidence: 0.97,
+      }), { status: 200 });
+    }
+    throw new Error(`unexpected fetch ${value}`);
+  }) as typeof fetch;
+  try {
+    return await run();
+  } finally {
+    globalThis.fetch = original;
+  }
+}
+
 function baseEnv(coordinator: ExecutionCoordinatorNamespace): WorkerEnv {
   return {
     NUSA_GITHUB_REPOSITORY: request.repository,
@@ -76,6 +126,41 @@ function baseEnv(coordinator: ExecutionCoordinatorNamespace): WorkerEnv {
     NUSA_EXECUTION_COORDINATOR: coordinator,
   } as unknown as WorkerEnv;
 }
+
+describe("/coding/propose bounded Jev admission", () => {
+  it("returns a successful no-action abstention and spends no Workers AI coding call", async () => {
+    await withStubbedFailureAndJevFetch(async () => {
+      const coordinator = memoryNamespace();
+      let aiCalls = 0;
+      const failureRequest = {
+        ...request,
+        reason: `gha:${request.workflowRunId}:${HEAD}:failure`,
+      };
+      const env = {
+        ...baseEnv(coordinator),
+        AI: { async run() { aiCalls += 1; return { response: "{}" }; } },
+        NUSA_JEV_SHADOW_ENABLED: "true",
+        NUSA_JEV_BOUNDED_ROUTING_ENABLED: "true",
+        NUSA_JEV_API_KEY: ["unit", "jev", "credential"].join("-"),
+        NUSA_JEV_ENDPOINT: "https://jev.invalid/classify",
+      } as unknown as WorkerEnv;
+
+      const response = await handleCodingProposal(proposalRequestFor(failureRequest), env);
+      const body = await response.json() as {
+        accepted: boolean;
+        status: string;
+        reason: string;
+        aiAuthority: string;
+      };
+      assert.equal(response.status, 200);
+      assert.equal(body.accepted, true);
+      assert.equal(body.status, "JEV_ROUTING_ABSTAINED");
+      assert.equal(body.reason, "NON_CODE_AUTOFIX_FORBIDDEN");
+      assert.equal(body.aiAuthority, "ZERO_AUTHORITY");
+      assert.equal(aiCalls, 0);
+    });
+  });
+});
 
 describe("/coding/propose provider-capacity gating", () => {
   it("makes no provider call and reports the wait when the shared provider wait is active", async () => {
