@@ -6,7 +6,7 @@ current_mobile_presentation_boundary:
   depends_on_pull_request: 2351
   authority_impact: none
   design_status: field-v1-INTERIM_full-redesign-planned-see-docs-UI_ARCHITECTURE
-  remaining: open-PR-after-2351-merges_then-CI_then-Audit_then-Release-merge
+  remaining: exact-head-CI_then-Audit_then-Release-merge
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_field_structure:
   work_order: WO-UI-20260928-FIELD-STRUCTURE
