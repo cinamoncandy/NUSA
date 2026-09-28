@@ -1,0 +1,25 @@
+id: WO-UI-20260928-PAPER-TABS-ICON
+title: "Compact PAPER monitor tabs and the Intelligence Field app icon"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-paper-tabs-icon
+authority_impact: none
+objective: "Owner found the five PAPER monitor buttons obstructive and asked for a new app icon."
+scope:
+  - "PAPER cockpit: drop the LIVE_READY mode (it duplicates the primary LIVE tab) and render the remaining four read-only monitors as one thin 36px row with short labels; READ ONLY tag moves inline. Accessible names keep the canonical mode names."
+  - "App icon: Intelligence Field mark (amber diamond core, five subsystem strands on #010204) for adaptive foreground, legacy fallback, splash and PNG launcher densities; themed (monochrome) and notification icons stay white-only."
+exclusions:
+  - "No change to LIVE readiness data, routes or authority; LIVE_READY remains available in the LIVE tab. No server, risk, execution or credential changes."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - node scripts/lint-mobile.js
+  - node --test tests/*.test.js
+  - pnpm run validate
+residual: "Physical Android device visual acceptance is HUMAN_ENVIRONMENT_ONLY."
