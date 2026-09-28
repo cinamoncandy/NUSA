@@ -85,7 +85,7 @@ test("HOME rendered financial values keep stable tabular numerals in the command
 
 test("fresh or stale installs converge on the canonical master preset", () => {
   const provider = read("apps/mobile/src/ThemeProvider.tsx");
-  assert.match(provider, /CURRENT_DEFAULT_PRESET:\s*DesignPresetName\s*=\s*"master"/);
+  assert.match(provider, /CURRENT_DEFAULT_PRESET:\s*DesignPresetName\s*=\s*"field"/);
   assert.match(provider, /storedSchema !== DESIGN_PRESET_SCHEMA_VERSION/);
   assert.match(provider, /setPresetState\(CURRENT_DEFAULT_PRESET\)/);
   assert.match(provider, /AsyncStorage\.setItem\(DESIGN_PRESET_STORAGE_KEY, CURRENT_DEFAULT_PRESET\)/);

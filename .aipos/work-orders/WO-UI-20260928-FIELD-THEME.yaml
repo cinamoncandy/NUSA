@@ -1,0 +1,25 @@
+id: WO-UI-20260928-FIELD-THEME
+title: "Make the Intelligence Field language the app-wide default theme"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-field-theme
+authority_impact: none
+objective: "Owner asked to replace the remaining legacy design everywhere with the new design."
+scope:
+  - "designSystem.ts: new `field` preset (void background, hairline borders, amber primary, small radii, no shadows), identical in light and dark; field semantic colours override."
+  - "ThemeProvider: default preset `field`; schema version 3 migrates stored presets to it."
+  - "visualSystem/homeVisualProfile: field radii and density."
+exclusions:
+  - "No server, strategy, risk, execution, credential or LIVE changes; presentation only."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run typecheck
+  - node scripts/lint-mobile.js
+  - node --test tests/mobile-field-screens.test.js
+  - pnpm run validate
+residual: "Physical Android device visual acceptance is HUMAN_ENVIRONMENT_ONLY."

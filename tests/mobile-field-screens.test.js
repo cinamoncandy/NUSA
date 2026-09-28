@@ -53,3 +53,14 @@ test("PAPER, LIVE and MORE render the field visual language", () => {
   assert.match(header, /reducedMotion !== false \|\| !changed/);
   assert.doesNotMatch(header, /Animated\.loop/);
 });
+
+test("the app-wide default theme is the field preset in both modes", () => {
+  const read = (file) => fs.readFileSync(path.join(root, "apps/mobile/src", file), "utf8");
+  const provider = read("ThemeProvider.tsx");
+  assert.match(provider, /CURRENT_DEFAULT_PRESET: DesignPresetName = "field"/);
+  assert.match(provider, /DESIGN_PRESET_SCHEMA_VERSION = "3"/);
+  const design = read("designSystem.ts");
+  assert.match(design, /field:[\s\S]*?dark:[\s\S]*?background: "#010204"[\s\S]*?light:[\s\S]*?background: "#010204"/);
+  assert.match(design, /light: createTheme\("light", "field"\)/);
+  assert.match(design, /\.\.\.\(fieldPreset \? fieldSemanticColors : \{\}\)/);
+});

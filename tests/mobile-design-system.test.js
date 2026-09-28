@@ -105,7 +105,7 @@ test("React Native common intelligence components and preset-aware truthful Them
   assert.match(provider, /ThemePreference = ThemeMode \| "system"/);
   assert.match(provider, /preference === "system"/);
   assert.match(provider, /colorScheme === "light" \? "light" : "dark"/);
-  assert.match(provider, /CURRENT_DEFAULT_PRESET: DesignPresetName = "master"/);
+  assert.match(provider, /CURRENT_DEFAULT_PRESET: DesignPresetName = "field"/);
   assert.match(provider, /DESIGN_PRESET_STORAGE_KEY/);
   assert.match(provider, /DESIGN_PRESET_SCHEMA_VERSION/);
   assert.match(provider, /setPreset/);
