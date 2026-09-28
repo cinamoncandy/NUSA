@@ -1,0 +1,26 @@
+id: WO-AUTOPILOT-20260928-AUDIT-MALFORMED-RETRY
+title: "Retry an Audit whose model verdict was malformed instead of stranding the PR"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-audit-retry-malformed
+authority_impact: none
+objective: "Owner: the autopilot produces no development output. PRs whose Audit returned malformed JSON were never re-audited."
+evidence:
+  observed: "Run 36424829641 (PR #2356, 12:54 UTC): 'Audit runner rejected request: 409 AUDIT_VERDICT_JSON_INVALID' was classified auditFailureClass=deterministic recovery=none, because the stale matcher's bare 'closed' matched status AUDIT_FAILED_CLOSED before the validation_failure branch. validation_failure itself also had recovery=none."
+scope:
+  - "Classify AUDIT_VERDICT / AUDIT_MODEL_RESPONSE / JSON_INVALID before the stale matcher, with recovery=retry."
+  - "Retry stays bounded by the existing audit-recovery dedupe key (PR, head, current main, main CI run)."
+  - "Behavioural test runs the workflow's own classifier script on four results; it fails on the old workflow."
+exclusions:
+  - "Verdict gates are unchanged: only PASS/PASS_WITH_NOTES with mergeAllowed authorise Release; FAIL still blocks."
+  - "No change to Release, branch protection, LIVE, credentials or trading."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - node --test tests/autopilot-independent-audit-contract.test.js
+  - node --test tests/*.test.js
+  - pnpm run validate

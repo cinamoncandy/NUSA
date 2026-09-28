@@ -5,6 +5,12 @@ current_paper_challenger_policy_default:
   branch: claude/nusa-repository-j93sd8-challenger-default
   authority_impact: paper-governance
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-observe-PAPER-cycles
+current_autopilot_audit_malformed_retry:
+  work_order: WO-AUTOPILOT-20260928-AUDIT-MALFORMED-RETRY
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-audit-retry-malformed
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_field_structure:
   work_order: WO-UI-20260928-FIELD-STRUCTURE
