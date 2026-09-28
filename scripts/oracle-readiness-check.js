@@ -30,9 +30,9 @@ if (process.env.NUSA_DRY_RUN === "1") {
 }
 
 const timeoutMs = Number(process.env.NUSA_READY_TIMEOUT_MS || 5000);
-const startupWaitMs = Number(process.env.NUSA_READY_STARTUP_WAIT_MS || 60_000);
+const startupWaitMs = Number(process.env.NUSA_READY_STARTUP_WAIT_MS || 180_000);
 const retryDelayMs = Number(process.env.NUSA_READY_RETRY_DELAY_MS || 1_000);
-if (!Number.isSafeInteger(startupWaitMs) || startupWaitMs < 0 || startupWaitMs > 60_000) throw new Error("NUSA_READY_STARTUP_WAIT_MS must be an integer in [0, 60000]");
+if (!Number.isSafeInteger(startupWaitMs) || startupWaitMs < 0 || startupWaitMs > 300_000) throw new Error("NUSA_READY_STARTUP_WAIT_MS must be an integer in [0, 300000]");
 if (!Number.isSafeInteger(retryDelayMs) || retryDelayMs < 1 || retryDelayMs > 5_000) throw new Error("NUSA_READY_RETRY_DELAY_MS must be an integer in [1, 5000]");
 const requestStatus = (path, headers = {}) => new Promise((resolve, reject) => {
   const req = http.request({
@@ -70,7 +70,7 @@ const parseReadiness = (response) => {
 /**
  * A systemd restart returns after the launcher has been spawned, not after the
  * supervised runtime has bound its local dashboard port.  Probe for a bounded
- * startup window so a healthy-but-still-booting release is not rolled back.
+ * startup window so a healthy-but-still-booting release is not rolled back.\n * The production 1 GB Oracle host has demonstrated >60 s cold-start readiness even for the\n * known-good rollback release, so the default budget is 180 s while remaining bounded/fail-closed.
  * This only delays acceptance: a missing, malformed, or unhealthy readiness
  * response still fails closed once the deadline expires.
  */
