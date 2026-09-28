@@ -58,6 +58,7 @@ import { readCanonicalPaperTickerBenchmark } from "./paperMarketBenchmark";
 import { buildPaperObservedExecutionQuote, type PaperObservedExecutionQuote } from "./paperRuntimeExecutionCostEvidence";
 import { SqlitePaperMarketObservationRepository } from "../../../packages/storage/src/paperMarketObservationRepository";
 import { canonicalUpbitSourceFingerprint } from "../../../packages/core/src/canonicalMarketData";
+import { fetchUpbitOrderBookSnapshot, UpbitOrderBookReconciler } from "./upbitOrderBookReconciliation";
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import { buildEvolutionLearningSupervisorSnapshot } from "./evolutionLearningSupervisorProjection";
 import {
@@ -307,6 +308,8 @@ export function startCloudRuntime(
   const observations = new Map<string, IntelligenceObservation>();
   const latestTickers = new Map<string, PersonalPaperMarketProjection>();
   const latestExecutionQuotes = new Map<string, PaperObservedExecutionQuote>();
+  const orderBookReconciler = new UpbitOrderBookReconciler();
+  let marketConnectionGeneration = 0;
   const safeHydrate = (next: readonly IntelligenceObservation[]): void => { try { dashboardHydrator.hydrate(effectiveProvider, next); } catch { effectiveProvider.clear(); } };
   const marketDataClient = config.upbitPublicDataEnabled ? marketDataClientFactory(config.upbitMarkets, (ticker) => {
     heartbeat.lastHeartbeatAt = Date.now();
@@ -391,11 +394,33 @@ export function startCloudRuntime(
     heartbeat.lastHeartbeatAt = Date.now();
     marketConnectionState = state;
     heartbeat.lastError = state === "CONNECTED" ? null : `PUBLIC_MARKET_${state}`;
-    if (state !== "CONNECTED") { observations.clear(); latestTickers.clear(); latestExecutionQuotes.clear(); safeHydrate([]); }
+    marketConnectionGeneration += 1;
+    const generation = marketConnectionGeneration;
+    orderBookReconciler.reset();
+    latestExecutionQuotes.clear();
+    if (state !== "CONNECTED") { observations.clear(); latestTickers.clear(); safeHydrate([]); return; }
+    // A transport connection is not execution-grade market data. Every connection/reconnect
+    // generation must acquire a fresh public REST snapshot before any WebSocket orderbook quote
+    // can enter PAPER execution. Snapshot failure stays fail-closed; a later reconnect retries.
+    void Promise.all(config.upbitMarkets.map(async (market) => {
+      try {
+        const snapshot = await fetchUpbitOrderBookSnapshot(market);
+        if (marketConnectionState === "CONNECTED" && generation === marketConnectionGeneration) orderBookReconciler.installSnapshot(snapshot);
+      } catch {
+        if (generation === marketConnectionGeneration) heartbeat.lastError = "PUBLIC_ORDERBOOK_SNAPSHOT_UNAVAILABLE";
+      }
+    }));
   }, (orderBook) => {
     heartbeat.lastHeartbeatAt = Date.now();
     try {
-      const quote = buildPaperObservedExecutionQuote({ market: orderBook.code, observedAt: Date.now(), totalAskSize: orderBook.total_ask_size, totalBidSize: orderBook.total_bid_size, units: orderBook.orderbook_units.map((unit) => ({ askPrice: unit.ask_price, bidPrice: unit.bid_price, askSize: unit.ask_size, bidSize: unit.bid_size })) });
+      const receivedAt = Date.now();
+      const reconciled = orderBookReconciler.reconcile(orderBook, receivedAt);
+      if (reconciled == null) {
+        latestExecutionQuotes.delete(orderBook.code);
+        heartbeat.lastError = "PAPER_ORDERBOOK_UNRECONCILED";
+        return;
+      }
+      const quote = buildPaperObservedExecutionQuote({ market: orderBook.code, observedAt: receivedAt, totalAskSize: orderBook.total_ask_size, totalBidSize: orderBook.total_bid_size, units: orderBook.orderbook_units.map((unit) => ({ askPrice: unit.ask_price, bidPrice: unit.bid_price, askSize: unit.ask_size, bidSize: unit.bid_size })) });
       latestExecutionQuotes.set(quote.market, quote);
     } catch { heartbeat.lastError = "PAPER_ORDERBOOK_OBSERVATION_REJECTED"; }
   }) : undefined;
