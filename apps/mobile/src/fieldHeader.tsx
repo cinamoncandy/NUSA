@@ -1,7 +1,7 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { fieldFonts } from "./fieldFonts";
 import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
-import { buildFieldGeometry } from "./intelligenceField";
+import { buildFieldGeometry, buildStrandPaths, Signal } from "./intelligenceField";
 import { fieldPalette } from "./designSystem";
 import type { FieldSubsystem, FieldTone } from "./intelligenceFieldModel";
 import type { FieldHeaderModel } from "./fieldScreensModel";
@@ -24,6 +24,8 @@ export function FieldHeader({ model, testID }: Readonly<{ model: FieldHeaderMode
   const [reducedMotion, setReducedMotion] = useState<boolean | null>(null);
   const geometry = useMemo(() => (width > 0 ? buildFieldGeometry(width, HEIGHT) : null), [width]);
   const glow = useRef(new Animated.Value(1)).current;
+  const signal = useRef(new Animated.Value(0)).current;
+  const paths = useMemo(() => (width > 0 ? buildStrandPaths(width, HEIGHT) : null), [width]);
 
   useEffect(() => {
     let mounted = true;
@@ -38,12 +40,17 @@ export function FieldHeader({ model, testID }: Readonly<{ model: FieldHeaderMode
     const changed = previousKey.current != null && previousKey.current !== key;
     previousKey.current = key;
     // Mounting or revisiting a tab is not a state change: animate only on a later semantic change.
-    if (reducedMotion !== false || !changed) { glow.setValue(1); return undefined; }
+    if (reducedMotion !== false || !changed) { glow.setValue(1); signal.setValue(0); return undefined; }
     glow.setValue(0.25);
-    const animation = Animated.timing(glow, { toValue: 1, duration: 800, easing: Easing.out(Easing.cubic), useNativeDriver: true });
+    signal.setValue(0);
+    // Same language as HOME: one signal rides the lit strand, inward when the state is a problem.
+    const animation = Animated.parallel([
+      Animated.timing(glow, { toValue: 1, duration: 800, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(signal, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+    ]);
     animation.start();
     return () => animation.stop();
-  }, [model.tone, model.subsystem, reducedMotion, glow]);
+  }, [model.tone, model.subsystem, reducedMotion, glow, signal]);
 
   const tone = TONE[model.tone];
   const onLayout = (event: LayoutChangeEvent) => setWidth(Math.round(event.nativeEvent.layout.width));
@@ -59,6 +66,7 @@ export function FieldHeader({ model, testID }: Readonly<{ model: FieldHeaderMode
         const dots = <Dots dots={geometry[id]} color={lit ? (model.tone === "dim" ? HUE[id] : tone) : HUE[id]} faint={!lit} />;
         return lit ? <Animated.View key={id} pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: glow }]}>{dots}</Animated.View> : <View key={id} pointerEvents="none" style={StyleSheet.absoluteFill}>{dots}</View>;
       })}
+      {paths == null ? null : <Signal path={paths[model.subsystem]} progress={signal} color={tone} inward={model.tone === "amber" || model.tone === "red"} />}
       {width > 0 ? <View pointerEvents="none" style={[styles.core, { left: width / 2 - 9, top: HEIGHT / 2 - 9, borderColor: tone }]} /> : null}
     </View>
     <Text style={styles.headline} testID={`${testID}-headline`}>{model.headline}</Text>

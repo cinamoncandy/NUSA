@@ -74,3 +74,14 @@ test("field model is frozen and HOME wires only real state", () => {
   assert.match(view, /const ParticleLayer = memo\(/);
   assert.doesNotMatch(view, /Animated\.loop/);
 });
+
+test("state changes propagate as signals along strands, inward for problems, never on mount", () => {
+  const view = fs.readFileSync(path.join(root, "apps/mobile/src/intelligenceField.tsx"), "utf8");
+  assert.match(view, /export function buildStrandPaths/);
+  assert.match(view, /function Signal\(/);
+  assert.match(view, /setInward\(model\.tone === "amber" \|\| model\.tone === "red"\)/);
+  assert.match(view, /if \(reducedMotion !== false \|\| !changed\)/);
+  assert.match(view, /Animated\.stagger\(110/);
+  assert.doesNotMatch(view, /Animated\.loop/);
+  assert.doesNotMatch(view, /useNativeDriver: false/);
+});

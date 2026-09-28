@@ -13,6 +13,7 @@ scope:
   - "App-wide: legacy 800/900 font weights lightened to 500/600."
   - "TabTransition: short fade-and-lift only when the destination changes; reduced-motion aware."
   - "Typography: Sora and IBM Plex Mono bundled for Android (SIL OFL 1.1, licences included); other platforms use system fonts."
+  - "Motion: state changes propagate as travelling signals along lit strands (outward on progress, inward on amber/red problems), a focus-hub flare and a quarter-turn core; PAPER/LIVE headers share the same signal. Native-driver only, no idle loop, no animation on mount or with reduced motion."
   - "Zero-order field state shows canonical pipelineStage and heartbeat lastError verbatim; no guessed cause."
 exclusions:
   - "No server, strategy, risk, execution, credential or LIVE changes."
