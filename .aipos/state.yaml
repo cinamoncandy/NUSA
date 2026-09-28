@@ -1,4 +1,15 @@
 version: 1
+current_autopilot_scheduled_receipt_recovery:
+  work_order: WO-20260927-AUTOPILOT-SCHEDULED-RECEIPT-RECOVERY
+  pull_request: 2335
+  status: IN_PROGRESS
+  branch: fix/autopilot-scheduled-receipt-recovery
+  base_sha: 3e23eccc70776d2cb932b7a819bdb92389d0e374
+  previous_verified_head: 391497b883c7b9d31557b5356c94e9348a0cfebf
+  first_broken_transition: deployed_Autopilot_to_Runtime_Proof_to_scheduled_receipt_validation
+  validation: "Prior isolated recovery suite evidence remains historical; fresh exact-head CI is required on latest-main reconvergence."
+  remaining: exact-head-CI_then_independent-Audit_then_Release_then_merge_then_deploy_Runtime-Proof-recovery-evidence
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_field_structure:
   work_order: WO-UI-20260928-FIELD-STRUCTURE
   status: READY_FOR_REVIEW
