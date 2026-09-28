@@ -1,0 +1,31 @@
+id: WO-20260927-AUTOPILOT-SCHEDULED-RECEIPT-RECOVERY
+title: Recover malformed scheduled runtime receipt state
+status: IN_PROGRESS
+priority: P0
+canonical_owner: evolve-autopilot
+canonical_pr: 2335
+base_main: 3e23eccc70776d2cb932b7a819bdb92389d0e374
+implementation_head: 68c0853f1037fe56dfc6700d60d890b6afef040f
+first_broken_transition: "deployed Autopilot -> Runtime Proof -> scheduled receipt validation"
+root_cause: "Persisted legacy GITHUB_HTTP_401 receipt carried headSha=null; the persistence validator accepted null as structurally valid, so recovery skipped it and Runtime Proof rejected the same receipt as SCHEDULED_RECEIPT_HEAD_INVALID."
+dependency: "exact-head CI, independent Audit, Release, protected-main deploy, Runtime Proof"
+acceptance:
+  - "Legacy null-head scheduled receipts are removed deterministically before replay."
+  - "Malformed-head recovery rejects duplicate scheduledTime identities fail-closed."
+  - "All other corruption and authority drift remain fail-closed."
+  - "A fresh valid receipt can be appended after recovery."
+  - "Post-merge deploy and Runtime Proof produce canonical successful workload/recovery evidence."
+evidence:
+  local_validation: "Scheduled runtime receipt recovery isolated suite 11/11 PASS; legacy null-head removal, malformed-head recovery, duplicate scheduledTime fail-closed, append-after-recovery, authority drift, deterministic replay and AIPOS YAML all PASS; git diff --check PASS."
+  observed_deploy_run: 36295228144
+  observed_runtime_proof_run: 36295263408
+  failure: SCHEDULED_RECEIPT_HEAD_INVALID
+  review_findings_addressed:
+    - "legacy headSha=null was incorrectly bypassing recovery"
+    - "duplicate scheduledTime was not checked for discarded malformed-head entries"
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next_permitted_action: "Fresh exact-head CI on latest-main reconvergence -> independent Audit -> Release -> merge -> deploy -> Runtime Proof recovery evidence."

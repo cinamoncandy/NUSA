@@ -712,12 +712,55 @@ export class ExecutionCoordinator {
   private async readScheduledReceiptHistory(): Promise<ScheduledRuntimeReceiptHistory> {
     const stored = await this.ctx.storage.get<unknown>(SCHEDULED_RECEIPT_HISTORY_KEY);
     if (stored != null) {
-      if (!validScheduledReceiptHistory(stored)) throw new Error("SCHEDULED_RUNTIME_RECEIPT_CORRUPT");
-      return Object.freeze({ schemaVersion: 1, receipts: sortScheduledReceipts(stored.receipts) });
+      const candidate = stored && typeof stored === "object" ? stored as Partial<ScheduledRuntimeReceiptHistory> : null;
+      const hasLegacyNullHead = candidate?.schemaVersion === 1
+        && Array.isArray(candidate.receipts)
+        && candidate.receipts.some((receipt) => validScheduledReceipt(receipt) && receipt.headSha === null);
+      if (validScheduledReceiptHistory(stored) && !hasLegacyNullHead) {
+        return Object.freeze({ schemaVersion: 1, receipts: sortScheduledReceipts(stored.receipts) });
+      }
+      if (candidate?.schemaVersion !== 1 || !Array.isArray(candidate.receipts) || candidate.receipts.length > MAX_SCHEDULED_RECEIPTS) {
+        throw new Error("SCHEDULED_RUNTIME_RECEIPT_CORRUPT");
+      }
+      const receipts: ScheduledRuntimeReceipt[] = [];
+      const scheduledTimes = new Set<number>();
+      for (const rawReceipt of candidate.receipts) {
+        const scheduledTime = rawReceipt && typeof rawReceipt === "object"
+          ? (rawReceipt as Partial<ScheduledRuntimeReceipt>).scheduledTime
+          : undefined;
+        if (!validSafeTimestamp(scheduledTime) || scheduledTimes.has(scheduledTime)) {
+          throw new Error("SCHEDULED_RUNTIME_RECEIPT_CORRUPT");
+        }
+        scheduledTimes.add(scheduledTime);
+        if (validScheduledReceipt(rawReceipt)) {
+          if (rawReceipt.headSha === null) continue;
+          receipts.push(rawReceipt);
+          continue;
+        }
+        const possibleHeadOnlyCorruption = rawReceipt && typeof rawReceipt === "object"
+          ? { ...(rawReceipt as Record<string, unknown>), headSha: null }
+          : null;
+        if (!possibleHeadOnlyCorruption || !validScheduledReceipt(possibleHeadOnlyCorruption)) {
+          throw new Error("SCHEDULED_RUNTIME_RECEIPT_CORRUPT");
+        }
+      }
+      const history: ScheduledRuntimeReceiptHistory = Object.freeze({ schemaVersion: 1, receipts: sortScheduledReceipts(receipts) });
+      await this.ctx.storage.put(SCHEDULED_RECEIPT_HISTORY_KEY, history);
+      return history;
     }
     const legacy = await this.ctx.storage.get<unknown>("scheduled-receipt");
     if (legacy == null) return Object.freeze({ schemaVersion: 1, receipts: Object.freeze([]) });
-    if (!validScheduledReceipt(legacy)) throw new Error("SCHEDULED_RUNTIME_RECEIPT_CORRUPT");
+    if (!validScheduledReceipt(legacy)) {
+      const possibleHeadOnlyCorruption = legacy && typeof legacy === "object"
+        ? { ...(legacy as Record<string, unknown>), headSha: null }
+        : null;
+      if (!possibleHeadOnlyCorruption || !validScheduledReceipt(possibleHeadOnlyCorruption)) {
+        throw new Error("SCHEDULED_RUNTIME_RECEIPT_CORRUPT");
+      }
+      const history: ScheduledRuntimeReceiptHistory = Object.freeze({ schemaVersion: 1, receipts: Object.freeze([]) });
+      await this.ctx.storage.put(SCHEDULED_RECEIPT_HISTORY_KEY, history);
+      return history;
+    }
     return Object.freeze({ schemaVersion: 1, receipts: Object.freeze([legacy]) });
   }
 
