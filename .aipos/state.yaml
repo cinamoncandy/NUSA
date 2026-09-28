@@ -1,4 +1,11 @@
 version: 1
+current_paper_challenger_policy_default:
+  work_order: WO-PAPER-20260928-CHALLENGER-POLICY-DEFAULT-ON
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-challenger-default
+  authority_impact: paper-governance
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-observe-PAPER-cycles
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_field_structure:
   work_order: WO-UI-20260928-FIELD-STRUCTURE
   status: READY_FOR_REVIEW
