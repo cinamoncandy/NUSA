@@ -75,3 +75,35 @@ export function buildIntelligenceField(input: IntelligenceFieldInput): Intellige
 function freeze(model: IntelligenceFieldModel): IntelligenceFieldModel {
   return Object.freeze({ ...model, lit: Object.freeze([...model.lit]), states: Object.freeze({ ...model.states }) });
 }
+
+/**
+ * Physical pose of the particle field for a phase. `spread` scales the nebula around the core
+ * (HALTED collapses inward), `presence` fades it. Unverified phases scatter and fade so an
+ * uncertain state never looks like a healthy one.
+ */
+export interface FieldPose { readonly spread: number; readonly presence: number }
+
+export function fieldPose(phase: IntelligenceFieldModel["phase"]): FieldPose {
+  switch (phase) {
+    case "HALTED": return Object.freeze({ spread: 0.3, presence: 1 });
+    case "LAUNCH":
+    case "AUTHENTICATION":
+    case "DEGRADED": return Object.freeze({ spread: 1.12, presence: 0.45 });
+    case "RECOVERING": return Object.freeze({ spread: 0.85, presence: 0.7 });
+    default: return Object.freeze({ spread: 1, presence: 1 });
+  }
+}
+
+/**
+ * Evidence row under the HOME headline, in the same grammar as the tab headers. Values are the
+ * canonical counters verbatim; an unknown value is an em dash, never a guessed zero.
+ */
+export function buildHomeFieldFacts(input: IntelligenceFieldInput): readonly { readonly label: string; readonly value: string }[] {
+  const count = (value: number | null) => (value != null && Number.isFinite(value) ? Math.max(0, Math.trunc(value)).toLocaleString("en-US") : "—");
+  const stage = typeof input.pipelineStage === "string" && input.pipelineStage.trim() !== "" ? input.pipelineStage.trim().replace(/_/g, " ") : "—";
+  return Object.freeze([
+    Object.freeze({ label: "DECISIONS", value: count(input.decisionCount) }),
+    Object.freeze({ label: "PAPER ORDERS", value: count(input.paperOrderCount) }),
+    Object.freeze({ label: "STAGE", value: stage }),
+  ]);
+}
