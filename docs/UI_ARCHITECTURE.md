@@ -13,7 +13,7 @@ production-mutation or AI authority.
 | Screen models | `homeFieldInput.ts`, `intelligenceFieldModel.ts`, `fieldScreensModel.ts`, `homeDecisionSurface.ts`, `homeStatusRail.ts` | Pure, frozen, no React Native imports. Uncertainty must never read as healthy. Tested behaviourally. |
 | Design tokens | `designSystem.ts` (`fieldPalette`, `fieldMotion`, theme), `fieldFonts.tsx` | The only place colours, motion timing and typography are defined. |
 | Presenters | `homeView.tsx`, `paperShadowMonitorView.tsx`, `liveReadinessMonitorView.tsx`, `moreMenuView.tsx`, `tabTransition.tsx`, `intelligenceField.tsx`, `fieldHeader.tsx` | Render screen models with tokens. No derivation of safety state. |
-| Presentation boundary | `presentation.tsx` | `App.tsx` imports every screen presenter from here only. |
+| Presentation boundary | `presentation.tsx` | `App.tsx` imports every screen presenter, shared primitive and the theme provider from here only. |
 
 ## How to ship a redesign
 
