@@ -6,6 +6,11 @@ current_mobile_presentation_boundary:
   depends_on_pull_request: 2351
   authority_impact: none
   design_status: field-v1-INTERIM_full-redesign-planned-see-docs-UI_ARCHITECTURE
+current_autopilot_audit_malformed_retry:
+  work_order: WO-AUTOPILOT-20260928-AUDIT-MALFORMED-RETRY
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-audit-retry-malformed
+  authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_field_structure:
