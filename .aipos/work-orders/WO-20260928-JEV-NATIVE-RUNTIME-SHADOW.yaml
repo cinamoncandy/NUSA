@@ -4,7 +4,7 @@ status: IN_PROGRESS
 owner: nusa-ai-platform
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: 1b058a1d26e14125afb51cc2d87a49a662044130
+base_commit: bc420633ada54854d0f6fd666da937f0844cad89
 implementation_branch: feat/jev-native-runtime-shadow
 parent_pr: 2345
 authority_impact: none

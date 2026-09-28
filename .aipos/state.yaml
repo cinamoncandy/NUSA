@@ -313,12 +313,12 @@ current_execution_target:
   work_order: WO-20260928-JEV-NATIVE-RUNTIME-SHADOW
   status: WIP
   branch: feat/jev-native-runtime-shadow
-  base_sha: 1b058a1d26e14125afb51cc2d87a49a662044130
+  base_sha: bc420633ada54854d0f6fd666da937f0844cad89
   pull_request: 2348
   scope: "Wire the merged native Workers AI Jev provider into the existing Autopilot workflow-failure SHADOW runtime and capture bounded typed evidence."
   authority_impact: none
   first_broken_transition: native_provider_to_real_shadow_runtime_call
-  review_corrections: "Bounded sanitized failure evidence; JSON-schema-capable default model; provider-capacity stop guard; canonical C3_JEV AI-call telemetry; active AIPOS recovery state."
+  review_corrections: "Bounded sanitized failure evidence; JSON-schema-capable default model; provider-capacity stop guard; canonical C3_JEV AI-call telemetry; active AIPOS recovery state; latest protected main reconciled."
   validation: "Focused runtime test updated; fresh exact-head CI required after review corrections."
   dependency: "PR #2345 merged; #2338 external credential blocker is independent and does not block this lane."
   next: "Fresh exact-head CI -> resolve review findings -> READY_FOR_REVIEW -> Independent Audit -> Release -> merge -> deployed real NUSA_JEV_WORKERS_AI_SHADOW_CALL evidence."
