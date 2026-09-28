@@ -163,6 +163,9 @@ test("malformed or unsafe Audit evidence cannot advance Release", () => {
 test("Audit prompt pins finding-code and blocker-list shape to strict validation", () => {
   assert.match(auditRunner, /Each findings item code MUST be 1-80 characters/);
   assert.match(auditRunner, /Every BLOCKER finding MUST have at least one corresponding human-readable entry in blockers/);
+  assert.match(auditRunner, /never copy an identifier from these instructions/);
+  assert.doesNotMatch(auditRunner, /such as RELEASE_HANDOFF_MISSING/);
+  assert.ok(auditRunner.includes('throw new Error("AUDIT_VERDICT_FAIL_BLOCKER_FINDING_REQUIRED")'));
   assert.ok(auditRunner.includes("const FINDING_CODE = /^[A-Z0-9_.:-]{1,80}$/;"));
   assert.ok(auditRunner.includes('throw new Error("AUDIT_VERDICT_BLOCKER_LIST_REQUIRED")'));
 });
