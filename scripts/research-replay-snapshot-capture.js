@@ -35,7 +35,23 @@ function createCapture(env = process.env, dependencies = defaultDependencies()) 
 
   const wrappedBuildResearchRunLeague = (candidates, options) => {
     const run = originalBuild(candidates, options);
-    captured = Object.freeze({ candidates, options, run });
+    const provenance = run?.provenance;
+    const sourceCommitSha = typeof provenance?.sourceCommitSha === "string" ? provenance.sourceCommitSha : "";
+    const runFingerprintSha256 = typeof provenance?.runFingerprintSha256 === "string" ? provenance.runFingerprintSha256 : "";
+    if (!/^[0-9a-f]{40}$/i.test(sourceCommitSha) || !/^[0-9a-f]{64}$/i.test(runFingerprintSha256)) {
+      throw new Error("canonical Research League provenance is invalid");
+    }
+    // The returned League result can retain a very large graph (candidate reports, regime evidence,
+    // DSR/PBO, allocation, etc.). Snapshot creation only needs its immutable provenance identity.
+    // Keep the exact inputs plus the two identity strings, not the full result, until beforeExit.
+    captured = Object.freeze({
+      candidates,
+      options,
+      provenance: Object.freeze({
+        sourceCommitSha: sourceCommitSha.toLowerCase(),
+        runFingerprintSha256: runFingerprintSha256.toLowerCase()
+      })
+    });
     return run;
   };
 
@@ -48,7 +64,16 @@ function createCapture(env = process.env, dependencies = defaultDependencies()) 
     if (typeof modules.createResearchRunReplaySnapshot !== "function" || typeof modules.FileResearchRunReplaySnapshotStore !== "function") {
       throw new Error("research replay snapshot modules are unavailable");
     }
-    const snapshot = modules.createResearchRunReplaySnapshot(captured.candidates, captured.options, captured.run);
+    const current = captured;
+    captured = undefined;
+    // createResearchRunReplaySnapshot only reads provenance from the original run before performing
+    // its own deterministic replay. Supplying a provenance-only shell prevents the completed
+    // canonical League graph from being pinned across that expensive replay/save boundary.
+    const snapshot = modules.createResearchRunReplaySnapshot(
+      current.candidates,
+      current.options,
+      Object.freeze({ provenance: current.provenance })
+    );
     const store = new modules.FileResearchRunReplaySnapshotStore(snapshotPath);
     return store.save(snapshot);
   };
