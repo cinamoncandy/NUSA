@@ -12,7 +12,21 @@ import { createPaperOrderLifecycle, transitionPaperOrderLifecycle, validatePaper
 import { paperExecutionIntentCommandId, validatePaperExecutionIntent, type PaperExecutionIntent } from "./paperExecutionIntent";
 import { buildPaperOrderBookExecutionReceipt, validatePaperOrderBookExecutionReceipt, PaperOrderBookExecutionError, type PaperOrderBookExecutionReceipt } from "./paperOrderBookExecution";
 
-const ACCOUNT_ID = "paper-default";
+/** Account identity used by every PAPER deployment before per-capital accounts existed. */
+export const LEGACY_PAPER_ACCOUNT_ID = "paper-default";
+const LEGACY_PAPER_INITIAL_CAPITAL_KRW = 10_000_000;
+
+/**
+ * Canonical PAPER account identity for a configured initial capital (owner decision 2026-09-28).
+ * The original KRW 10,000,000 account keeps its historical id; any other capital opens its own
+ * account, so changing capital never rewrites, resets or deletes an existing ledger.
+ */
+export function paperAccountIdForCapital(initialCapitalKrw: number): string {
+  if (!Number.isFinite(initialCapitalKrw) || initialCapitalKrw <= 0) throw new Error("paper initial capital must be positive");
+  if (initialCapitalKrw === LEGACY_PAPER_INITIAL_CAPITAL_KRW) return LEGACY_PAPER_ACCOUNT_ID;
+  const normalized = Number.isInteger(initialCapitalKrw) ? String(initialCapitalKrw) : String(initialCapitalKrw).replace(".", "_");
+  return `paper-krw-${normalized}`;
+}
 const SCHEMA_VERSION = 1;
 const LEDGER_ROUND_SCALE = 100_000_000n;
 const round8 = (value: number): number => Number(value.toFixed(8));
@@ -161,6 +175,8 @@ export interface PaperAccountState {
 export interface PaperAccountRepository { save(state: PaperAccountState): void; loadLatest(): PaperAccountState | undefined; loadHistory?: () => readonly PaperAccountState[]; loadFills?: () => readonly PaperFillRecord[]; clear(): void; close?: () => void; }
 
 export interface PaperWriterLeaseOptions {
+  /** Canonical PAPER account this repository owns; defaults to the legacy account. */
+  readonly accountId?: string;
   readonly now?: () => number;
   readonly leaseDurationMs?: number;
   readonly heartbeatIntervalMs?: number;
@@ -180,7 +196,10 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
   private closed = false;
   private leaseLost = false;
   private lastObservedNowMs = 0;
+  private readonly accountId: string;
   public constructor(private readonly db: SqliteDatabase, options: PaperWriterLeaseOptions = {}) {
+    this.accountId = options.accountId ?? LEGACY_PAPER_ACCOUNT_ID;
+    if (!/^paper-[a-z0-9_-]{1,64}$/.test(this.accountId)) throw new Error("paper account id is invalid");
     this.ownerId = options.ownerId ?? randomUUID();
     this.now = options.now ?? Date.now;
     this.leaseDurationMs = options.leaseDurationMs ?? 30_000;
@@ -210,12 +229,12 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
         VALUES (?, ?, ?, ?, ?, 'VALID')
         ON CONFLICT(account_id) DO UPDATE SET schema_version=excluded.schema_version, updated_at=excluded.updated_at,
           state_json=excluded.state_json, checksum=excluded.checksum, status='VALID'
-      `).run(ACCOUNT_ID, SCHEMA_VERSION, state.updatedAt, stateJson, accountChecksum(state));
+      `).run(this.accountId, SCHEMA_VERSION, state.updatedAt, stateJson, accountChecksum(state));
     });
   }
   public loadLatest(): PaperAccountState | undefined {
     this.assertLeaseHeld();
-    const row = this.db.connection.prepare("SELECT * FROM cloud_paper_accounts WHERE account_id = ? AND status = 'VALID'").get(ACCOUNT_ID) as Record<string, string | number | null> | undefined;
+    const row = this.db.connection.prepare("SELECT * FROM cloud_paper_accounts WHERE account_id = ? AND status = 'VALID'").get(this.accountId) as Record<string, string | number | null> | undefined;
     if (row == null) return undefined;
     try {
       if (Number(row.schema_version) !== SCHEMA_VERSION) throw new Error("unsupported paper account schema");
@@ -225,7 +244,7 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
       this.assertFillLedgerReconcilesState(state);
       return state;
     } catch (error) {
-      this.db.connection.prepare("UPDATE cloud_paper_accounts SET status = 'CORRUPTED' WHERE account_id = ?").run(ACCOUNT_ID);
+      this.db.connection.prepare("UPDATE cloud_paper_accounts SET status = 'CORRUPTED' WHERE account_id = ?").run(this.accountId);
       throw error;
     }
   }
@@ -233,7 +252,7 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
     this.assertLeaseHeld();
     const rows = this.db.connection.prepare(
       "SELECT schema_version, updated_at, state_json, checksum FROM cloud_paper_account_history WHERE account_id = ? ORDER BY updated_at ASC"
-    ).all(ACCOUNT_ID) as Array<Record<string, string | number | null>>;
+    ).all(this.accountId) as Array<Record<string, string | number | null>>;
     return Object.freeze(rows.map((row) => {
       if (Number(row.schema_version) !== SCHEMA_VERSION) throw new Error("unsupported paper account history schema");
       const state = JSON.parse(String(row.state_json)) as PaperAccountState;
@@ -249,9 +268,9 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
   public clear(): void {
     this.db.transaction(() => {
       this.assertLeaseHeld();
-      this.db.connection.prepare("DELETE FROM cloud_paper_fill_ledger WHERE account_id = ?").run(ACCOUNT_ID);
-      this.db.connection.prepare("DELETE FROM cloud_paper_account_history WHERE account_id = ?").run(ACCOUNT_ID);
-      this.db.connection.prepare("DELETE FROM cloud_paper_accounts WHERE account_id = ?").run(ACCOUNT_ID);
+      this.db.connection.prepare("DELETE FROM cloud_paper_fill_ledger WHERE account_id = ?").run(this.accountId);
+      this.db.connection.prepare("DELETE FROM cloud_paper_account_history WHERE account_id = ?").run(this.accountId);
+      this.db.connection.prepare("DELETE FROM cloud_paper_accounts WHERE account_id = ?").run(this.accountId);
     });
   }
   private fillChecksum(fill: PaperFillRecord): string {
@@ -261,13 +280,13 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
     const ordered = [...fills].sort((left, right) => left.filledAt - right.filledAt || left.id.localeCompare(right.id));
     let sequence = Number((this.db.connection.prepare(
       "SELECT COALESCE(MAX(sequence), 0) AS sequence FROM cloud_paper_fill_ledger WHERE account_id = ?"
-    ).get(ACCOUNT_ID) as Record<string, number | bigint>).sequence);
+    ).get(this.accountId) as Record<string, number | bigint>).sequence);
     for (const fill of ordered) {
       const fillJson = JSON.stringify(fill);
       const checksum = this.fillChecksum(fill);
       const existing = this.db.connection.prepare(
         "SELECT fill_json, checksum, filled_at FROM cloud_paper_fill_ledger WHERE account_id = ? AND fill_id = ?"
-      ).get(ACCOUNT_ID, fill.id) as Record<string, string | number> | undefined;
+      ).get(this.accountId, fill.id) as Record<string, string | number> | undefined;
       if (existing != null) {
         if (String(existing.fill_json) !== fillJson || String(existing.checksum) !== checksum || Number(existing.filled_at) !== fill.filledAt) {
           throw new Error("PAPER_FILL_LEDGER_CONFLICT");
@@ -277,13 +296,13 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
       sequence += 1;
       this.db.connection.prepare(
         "INSERT INTO cloud_paper_fill_ledger(account_id,sequence,fill_id,filled_at,fill_json,checksum) VALUES(?,?,?,?,?,?)"
-      ).run(ACCOUNT_ID, sequence, fill.id, fill.filledAt, fillJson, checksum);
+      ).run(this.accountId, sequence, fill.id, fill.filledAt, fillJson, checksum);
     }
   }
   private readFillLedgerRows(): readonly PaperFillRecord[] {
     const rows = this.db.connection.prepare(
       "SELECT sequence, fill_id, filled_at, fill_json, checksum FROM cloud_paper_fill_ledger WHERE account_id = ? ORDER BY sequence ASC"
-    ).all(ACCOUNT_ID) as Array<Record<string, string | number>>;
+    ).all(this.accountId) as Array<Record<string, string | number>>;
     const ids = new Set<string>();
     return Object.freeze(rows.map((row, index) => {
       if (Number(row.sequence) !== index + 1) throw new Error("PAPER_FILL_LEDGER_SEQUENCE_GAP");
@@ -312,7 +331,7 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
   private recoverRecognizedLegacyAccounting(): void {
     const row = this.db.connection.prepare(
       "SELECT schema_version, updated_at, state_json, checksum, status FROM cloud_paper_accounts WHERE account_id = ?"
-    ).get(ACCOUNT_ID) as Record<string, string | number | null> | undefined;
+    ).get(this.accountId) as Record<string, string | number | null> | undefined;
     if (row == null || Number(row.schema_version) !== SCHEMA_VERSION) return;
     const sourceStatus = String(row.status);
     if (sourceStatus !== "VALID" && sourceStatus !== "CORRUPTED") {
@@ -320,7 +339,7 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
     }
     const ledgerCount = Number((this.db.connection.prepare(
       "SELECT COUNT(*) AS count FROM cloud_paper_fill_ledger WHERE account_id = ?"
-    ).get(ACCOUNT_ID) as Record<string, number | bigint>).count);
+    ).get(this.accountId) as Record<string, number | bigint>).count);
     if (ledgerCount !== 0) return;
 
     const sourceState = JSON.parse(String(row.state_json)) as PaperAccountState;
@@ -405,7 +424,7 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
              migrated_account_checksum, receipt_json, receipt_checksum
       FROM cloud_paper_legacy_reconciliation_receipts
       WHERE account_id = ? AND migration_version = ? AND source_checksum = ?
-    `).get(ACCOUNT_ID, LEGACY_PAPER_ACCOUNTING_MIGRATION_VERSION, sourceChecksum) as Record<string, string | number | bigint> | undefined;
+    `).get(this.accountId, LEGACY_PAPER_ACCOUNTING_MIGRATION_VERSION, sourceChecksum) as Record<string, string | number | bigint> | undefined;
     let existingReceipt: Record<string, unknown> | undefined;
     if (existingReceiptRow != null) {
       const receiptJson = String(existingReceiptRow.receipt_json);
@@ -421,7 +440,7 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
         String(existingReceiptRow.canonical_ledger_fingerprint) !== canonical.fingerprintSha256 ||
         existingReceipt.schemaVersion !== 1 ||
         existingReceipt.migrationVersion !== LEGACY_PAPER_ACCOUNTING_MIGRATION_VERSION ||
-        existingReceipt.accountId !== ACCOUNT_ID ||
+        existingReceipt.accountId !== this.accountId ||
         Number(existingReceipt.sourceUpdatedAt) !== sourceState.updatedAt ||
         existingReceipt.sourceChecksum !== sourceChecksum ||
         Number(existingReceipt.fillCount) !== fills.length ||
@@ -451,7 +470,7 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
     const receipt = Object.freeze({
       schemaVersion: 1,
       migrationVersion: LEGACY_PAPER_ACCOUNTING_MIGRATION_VERSION,
-      accountId: ACCOUNT_ID,
+      accountId: this.accountId,
       sourceUpdatedAt: sourceState.updatedAt,
       sourceChecksum,
       fillCount: fills.length,
@@ -475,7 +494,7 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
       this.assertLeaseHeld();
       const current = this.db.connection.prepare(
         "SELECT checksum, status FROM cloud_paper_accounts WHERE account_id = ?"
-      ).get(ACCOUNT_ID) as Record<string, string> | undefined;
+      ).get(this.accountId) as Record<string, string> | undefined;
       if (current == null || String(current.checksum) !== sourceChecksum) {
         throw new Error("PAPER_LEGACY_RECONCILIATION_SOURCE_MOVED");
       }
@@ -486,7 +505,7 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
         SELECT receipt_json, receipt_checksum
         FROM cloud_paper_legacy_reconciliation_receipts
         WHERE account_id = ? AND migration_version = ? AND source_checksum = ?
-      `).get(ACCOUNT_ID, LEGACY_PAPER_ACCOUNTING_MIGRATION_VERSION, sourceChecksum) as Record<string, string> | undefined;
+      `).get(this.accountId, LEGACY_PAPER_ACCOUNTING_MIGRATION_VERSION, sourceChecksum) as Record<string, string> | undefined;
       if ((transactionReceipt == null) !== (existingReceiptRow == null)
         || (transactionReceipt != null && (
           String(transactionReceipt.receipt_json) !== receiptJson
@@ -496,7 +515,7 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
       }
       const currentLedgerCount = Number((this.db.connection.prepare(
         "SELECT COUNT(*) AS count FROM cloud_paper_fill_ledger WHERE account_id = ?"
-      ).get(ACCOUNT_ID) as Record<string, number | bigint>).count);
+      ).get(this.accountId) as Record<string, number | bigint>).count);
       if (currentLedgerCount !== 0) throw new Error("PAPER_LEGACY_RECONCILIATION_LEDGER_NOT_EMPTY");
 
       this.appendFillLedgerRows(fills);
@@ -505,7 +524,7 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
         UPDATE cloud_paper_accounts
         SET schema_version = ?, updated_at = ?, state_json = ?, checksum = ?, status = 'VALID'
         WHERE account_id = ? AND checksum = ? AND status = ?
-      `).run(SCHEMA_VERSION, migratedUpdatedAt, migratedStateJson, migratedChecksum, ACCOUNT_ID, sourceChecksum, sourceStatus);
+      `).run(SCHEMA_VERSION, migratedUpdatedAt, migratedStateJson, migratedChecksum, this.accountId, sourceChecksum, sourceStatus);
       if (Number(updated.changes) !== 1) throw new Error("PAPER_LEGACY_RECONCILIATION_ACCOUNT_UPDATE_FAILED");
       this.db.connection.prepare(`
         INSERT INTO cloud_paper_legacy_reconciliation_receipts(
@@ -515,7 +534,7 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
         ) VALUES(?,?,?,?,?,?,?,?,?,?)
         ON CONFLICT(account_id, migration_version, source_checksum) DO NOTHING
       `).run(
-        ACCOUNT_ID,
+        this.accountId,
         LEGACY_PAPER_ACCOUNTING_MIGRATION_VERSION,
         sourceState.updatedAt,
         sourceChecksum,
@@ -532,7 +551,7 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
   private backfillFillLedgerFromHistory(): void {
     const account = this.db.connection.prepare(
       "SELECT 1 FROM cloud_paper_accounts WHERE account_id = ? AND status = 'VALID'"
-    ).get(ACCOUNT_ID);
+    ).get(this.accountId);
     if (account == null) return;
     const states = this.loadHistory();
     const fillsById = new Map<string, PaperFillRecord>();
@@ -552,13 +571,13 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
     if (this.closed) return;
     this.closed = true;
     if (this.heartbeat != null) clearInterval(this.heartbeat);
-    try { this.db.transaction(() => { this.db.connection.prepare("DELETE FROM cloud_paper_writer_leases WHERE account_id = ? AND owner_id = ?").run(ACCOUNT_ID, this.ownerId); }); } catch { /* DB close/recovery remains fail-closed until lease expiry. */ }
+    try { this.db.transaction(() => { this.db.connection.prepare("DELETE FROM cloud_paper_writer_leases WHERE account_id = ? AND owner_id = ?").run(this.accountId, this.ownerId); }); } catch { /* DB close/recovery remains fail-closed until lease expiry. */ }
   }
   private acquireLease(): void {
     const now = this.now();
     if (!Number.isSafeInteger(now) || now < 0) throw new Error("paper writer clock is invalid");
     this.db.transaction(() => {
-      const row = this.db.connection.prepare("SELECT owner_id, lease_until_ms, heartbeat_at_ms FROM cloud_paper_writer_leases WHERE account_id = ?").get(ACCOUNT_ID) as { owner_id?: string; lease_until_ms?: number; heartbeat_at_ms?: number } | undefined;
+      const row = this.db.connection.prepare("SELECT owner_id, lease_until_ms, heartbeat_at_ms FROM cloud_paper_writer_leases WHERE account_id = ?").get(this.accountId) as { owner_id?: string; lease_until_ms?: number; heartbeat_at_ms?: number } | undefined;
       if (row != null) {
         const heartbeatAt = Number(row.heartbeat_at_ms);
         const leaseUntil = Number(row.lease_until_ms);
@@ -570,7 +589,7 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
       this.db.connection.prepare(`
         INSERT INTO cloud_paper_writer_leases (account_id, owner_id, lease_until_ms, heartbeat_at_ms) VALUES (?, ?, ?, ?)
         ON CONFLICT(account_id) DO UPDATE SET owner_id=excluded.owner_id, lease_until_ms=excluded.lease_until_ms, heartbeat_at_ms=excluded.heartbeat_at_ms
-      `).run(ACCOUNT_ID, this.ownerId, now + this.leaseDurationMs, now);
+      `).run(this.accountId, this.ownerId, now + this.leaseDurationMs, now);
     });
     this.lastObservedNowMs = now;
   }
@@ -584,7 +603,7 @@ export class SqliteCloudPaperAccountRepository implements PaperAccountRepository
     if (!Number.isSafeInteger(now) || now < 0) { this.leaseLost = true; throw new Error("PAPER_WRITER_CLOCK_INVALID"); }
     if (now < this.lastObservedNowMs) { this.leaseLost = true; throw new Error("PAPER_WRITER_CLOCK_REGRESSION"); }
     if (now - this.lastObservedNowMs > this.maxClockAdvanceMs) { this.leaseLost = true; throw new Error("PAPER_WRITER_CLOCK_ANOMALY"); }
-    const result = this.db.connection.prepare(`UPDATE cloud_paper_writer_leases SET lease_until_ms = ?, heartbeat_at_ms = ? WHERE account_id = ? AND owner_id = ? AND lease_until_ms > ?`).run(now + this.leaseDurationMs, now, ACCOUNT_ID, this.ownerId, now);
+    const result = this.db.connection.prepare(`UPDATE cloud_paper_writer_leases SET lease_until_ms = ?, heartbeat_at_ms = ? WHERE account_id = ? AND owner_id = ? AND lease_until_ms > ?`).run(now + this.leaseDurationMs, now, this.accountId, this.ownerId, now);
     if (Number(result.changes) !== 1) { this.leaseLost = true; throw new Error("PAPER_WRITER_LEASE_LOST"); }
     this.lastObservedNowMs = now;
   }
