@@ -1,4 +1,5 @@
 import React from "react";
+import { fieldFonts } from "./fieldFonts";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { MORE_DESTINATIONS, type MoreDestination } from "./navigationContract";
 import { fieldPalette } from "./designSystem";
@@ -42,12 +43,12 @@ export function MoreMenuView({ onOpen }: Readonly<{ onOpen: (destination: MoreDe
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: fieldPalette.void },
   content: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 120 },
-  eyebrow: { color: fieldPalette.muted, fontSize: 11, letterSpacing: 2.4, fontWeight: "600" },
-  title: { color: fieldPalette.text, fontSize: 28, lineHeight: 36, fontWeight: "300", marginTop: 6, marginBottom: 18 },
+  eyebrow: { color: fieldPalette.muted, fontSize: 11, letterSpacing: 2.4, ...fieldFonts.monoMedium },
+  title: { color: fieldPalette.text, fontSize: 28, lineHeight: 36, marginTop: 6, marginBottom: 18, ...fieldFonts.displayLight },
   list: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: fieldPalette.dim },
   row: { minHeight: 56, flexDirection: "row", alignItems: "center", gap: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: fieldPalette.dim },
-  index: { color: fieldPalette.dim, fontSize: 12, width: 24, fontVariant: ["tabular-nums"] },
+  index: { color: fieldPalette.dim, fontSize: 12, width: 24, fontVariant: ["tabular-nums"], ...fieldFonts.mono },
   rowTitle: { color: fieldPalette.text, fontSize: 17, fontWeight: "400", flex: 1, minWidth: 0 },
-  hint: { color: fieldPalette.muted, fontSize: 11, letterSpacing: 0.6, flexShrink: 1, maxWidth: "40%" },
-  footer: { color: fieldPalette.dim, fontSize: 10, letterSpacing: 1, marginTop: 22 },
+  hint: { color: fieldPalette.muted, fontSize: 11, letterSpacing: 0.6, flexShrink: 1, maxWidth: "40%", ...fieldFonts.mono },
+  footer: { color: fieldPalette.dim, fontSize: 10, letterSpacing: 1, marginTop: 22, ...fieldFonts.mono },
 });

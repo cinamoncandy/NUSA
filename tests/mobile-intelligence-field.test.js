@@ -52,6 +52,11 @@ test("decisions without paper orders use neutral no-execution wording, never an 
   assert.equal(model.focus, "paper");
   assert.equal(model.states.paper, "NO ORDERS");
   assert.ok(!JSON.stringify(model).includes("NO STRATEGY"));
+  const withFacts = field({ decisionCount: 5, paperOrderCount: 0, pipelineStage: "RISK_GATE", lastError: "policy approval disabled" });
+  assert.match(withFacts.detail, /현재 단계: RISK_GATE/);
+  assert.match(withFacts.detail, /최근 오류: policy approval disabled/);
+  assert.equal(withFacts.tone, "amber");
+  assert.equal(field({ decisionCount: 5, paperOrderCount: 0, pipelineStage: "OBSERVE" }).tone, "green");
   assert.equal(field({ decisionCount: null, paperOrderCount: null }).phase, "CONNECTED");
   assert.equal(field({ readyForPaperOperations: false }).states.paper, "OBSERVING");
 });

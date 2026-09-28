@@ -1,4 +1,5 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
+import { fieldFonts } from "./fieldFonts";
 import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { buildFieldGeometry } from "./intelligenceField";
 import { fieldPalette } from "./designSystem";
@@ -71,15 +72,15 @@ export function FieldHeader({ model, testID }: Readonly<{ model: FieldHeaderMode
 const styles = StyleSheet.create({
   shell: { backgroundColor: fieldPalette.void, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: fieldPalette.dim },
   statusRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  eyebrow: { color: fieldPalette.text, fontSize: 11, letterSpacing: 2.4, fontWeight: "600", marginRight: "auto" },
+  eyebrow: { color: fieldPalette.text, fontSize: 11, letterSpacing: 2.4, marginRight: "auto", ...fieldFonts.monoMedium },
   dot: { width: 6, height: 6, borderRadius: 3 },
-  status: { fontSize: 11, letterSpacing: 2, fontWeight: "600" },
+  status: { fontSize: 11, letterSpacing: 2, ...fieldFonts.monoMedium },
   field: { height: HEIGHT, overflow: "hidden" },
   core: { position: "absolute", width: 18, height: 18, borderWidth: 1.2, transform: [{ rotate: "45deg" }] },
-  headline: { color: fieldPalette.text, fontSize: 24, lineHeight: 31, fontWeight: "300", letterSpacing: -0.3 },
+  headline: { color: fieldPalette.text, fontSize: 24, lineHeight: 31, letterSpacing: -0.3, ...fieldFonts.displayLight },
   detail: { color: fieldPalette.muted, fontSize: 13, lineHeight: 19, marginTop: 6 },
   facts: { flexDirection: "row", marginTop: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: fieldPalette.dim, paddingTop: 10 },
   fact: { flex: 1, gap: 2 },
-  factLabel: { color: fieldPalette.dim, fontSize: 9, letterSpacing: 1.6 },
-  factValue: { color: fieldPalette.label, fontSize: 13, fontWeight: "500", fontVariant: ["tabular-nums"] },
+  factLabel: { color: fieldPalette.dim, fontSize: 9, letterSpacing: 1.6, ...fieldFonts.mono },
+  factValue: { color: fieldPalette.label, fontSize: 13, fontVariant: ["tabular-nums"], ...fieldFonts.mono },
 });

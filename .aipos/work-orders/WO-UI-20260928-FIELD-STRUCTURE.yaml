@@ -1,0 +1,29 @@
+id: WO-UI-20260928-FIELD-STRUCTURE
+title: "Field structure, tab motion, typography and zero-order runtime facts"
+status: IN_PROGRESS
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-field-structure
+depends_on_pull_request: 2350
+authority_impact: none
+objective: "Owner approved all proposed UI/UX improvements after the field theme."
+scope:
+  - "HOME: remove remaining card chrome (market canvas panel, tinted learning card, pill capsule); light display weights."
+  - "App-wide: legacy 800/900 font weights lightened to 500/600."
+  - "TabTransition: short fade-and-lift only when the destination changes; reduced-motion aware."
+  - "Typography: Sora and IBM Plex Mono bundled for Android (SIL OFL 1.1, licences included); other platforms use system fonts."
+  - "Zero-order field state shows canonical pipelineStage and heartbeat lastError verbatim; no guessed cause."
+exclusions:
+  - "No server, strategy, risk, execution, credential or LIVE changes."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - node scripts/lint-mobile.js
+  - node --test tests/*.test.js
+  - pnpm run validate
+residual: "Physical Android device visual acceptance is HUMAN_ENVIRONMENT_ONLY; owner screenshots requested."

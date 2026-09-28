@@ -1,4 +1,5 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
+import { fieldFonts } from "./fieldFonts";
 import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { buildIntelligenceField, type FieldSubsystem, type FieldTone, type IntelligenceFieldInput } from "./intelligenceFieldModel";
 import { fieldPalette } from "./designSystem";
@@ -160,8 +161,8 @@ const styles = StyleSheet.create({
   shell: { backgroundColor: fieldPalette.void, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 22, marginHorizontal: -20 },
   statusRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
-  statusWord: { fontSize: 11, letterSpacing: 2, fontWeight: "600" },
-  phase: { marginLeft: "auto", fontSize: 10, letterSpacing: 2, color: fieldPalette.dim },
+  statusWord: { fontSize: 11, letterSpacing: 2, ...fieldFonts.monoMedium },
+  phase: { marginLeft: "auto", fontSize: 10, letterSpacing: 2, color: fieldPalette.dim, ...fieldFonts.mono },
   field: { height: FIELD_HEIGHT, overflow: "hidden" },
   pulseRing: { position: "absolute", width: 80, height: 80, borderRadius: 40, borderWidth: 1 },
   coreWrap: { position: "absolute", width: 72, height: 72, alignItems: "center", justifyContent: "center" },
@@ -169,8 +170,8 @@ const styles = StyleSheet.create({
   coreDiamond: { width: 30, height: 30, borderWidth: 1.2, transform: [{ rotate: "45deg" }], backgroundColor: "rgba(255,255,255,0.06)" },
   coreHeart: { position: "absolute", width: 6, height: 6, borderRadius: 3, backgroundColor: fieldPalette.heart },
   hubLabel: { position: "absolute", width: 100, alignItems: "center" },
-  hubName: { fontSize: 9, letterSpacing: 1.6 },
-  hubState: { fontSize: 10, letterSpacing: 1, marginTop: 2, fontWeight: "600" },
-  headline: { color: fieldPalette.text, fontSize: 26, lineHeight: 34, fontWeight: "300", letterSpacing: -0.3 },
+  hubName: { fontSize: 9, letterSpacing: 1.6, ...fieldFonts.mono },
+  hubState: { fontSize: 10, letterSpacing: 1, marginTop: 2, ...fieldFonts.monoMedium },
+  headline: { color: fieldPalette.text, fontSize: 26, lineHeight: 34, letterSpacing: -0.3, ...fieldFonts.displayLight },
   detail: { color: fieldPalette.muted, fontSize: 13, lineHeight: 20, marginTop: 6 },
 });

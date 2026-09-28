@@ -19,6 +19,9 @@ export interface IntelligenceFieldInput {
   readonly readyForPaperOperations: boolean;
   readonly decisionCount: number | null;
   readonly paperOrderCount: number | null;
+  /** Canonical runtime facts shown verbatim when execution is absent; never a guessed cause. */
+  readonly pipelineStage?: string | null;
+  readonly lastError?: string | null;
 }
 
 export interface IntelligenceFieldModel {
@@ -58,7 +61,10 @@ export function buildIntelligenceField(input: IntelligenceFieldInput): Intellige
   const deciding = (input.decisionCount ?? 0) > 0;
   const noOrders = input.paperOrderCount === 0;
   if (input.readyForPaperOperations && deciding && noOrders) {
-    return freeze({ phase: "ATTENTION", statusWord: "ONLINE", tone: "green", headline: "판단은 돌지만\n실행이 없습니다", detail: "판단은 기록되지만 PAPER 주문은 0건입니다. 원인은 PAPER 화면에서 확인하세요.", lit: ALL, focus: "paper", states: { governance: "ONLINE", market: "ONLINE", risk: "MONITORING", axiom: "DECIDING", paper: "NO ORDERS" }, coreLevel: 1 });
+    const stage = input.pipelineStage?.trim() || null;
+    const error = input.lastError?.trim() || null;
+    const facts = [stage ? `현재 단계: ${stage}` : null, error ? `최근 오류: ${error}` : null].filter(Boolean).join(" · ");
+    return freeze({ phase: "ATTENTION", statusWord: "ONLINE", tone: error ? "amber" : "green", headline: "판단은 돌지만\n실행이 없습니다", detail: facts ? `PAPER 주문 0건 · ${facts}` : "판단은 기록되지만 PAPER 주문은 0건입니다. 원인은 PAPER 화면에서 확인하세요.", lit: ALL, focus: "paper", states: { governance: "ONLINE", market: "ONLINE", risk: "MONITORING", axiom: "DECIDING", paper: "NO ORDERS" }, coreLevel: 1 });
   }
   return freeze({ phase: "CONNECTED", statusWord: "ONLINE", tone: "green", headline: "시스템이 정상 작동 중", detail: "모든 서브시스템이 연결됐습니다.", lit: ALL, focus: null, states: { governance: "ONLINE", market: "ONLINE", risk: "MONITORING", axiom: "ONLINE", paper: input.readyForPaperOperations ? "ACTIVE" : "OBSERVING" }, coreLevel: 1 });
 }
