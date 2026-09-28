@@ -189,3 +189,42 @@ describe("ClosedLearningRolloverScheduler", () => {
     assert.deepEqual(events, [`close:period-0:${NEXT_KST_DAY}`]);
   });
 });
+
+describe("closed-learning rollover across a replaced PAPER account (owner capital change)", () => {
+  function replacedAccountPort(retire?: (periodId: string) => PersistedPaperRealizedPeriodPlan) {
+    const calls: string[] = [];
+    const opened: unknown[] = [];
+    const newAccount = Object.freeze({ ...account(NEXT_KST_DAY), initialCapital: 5_000, cash: 5_000, equity: 5_000 });
+    const port: ClosedLearningRolloverPort = {
+      listOpenPeriods: () => [plan("WAIT")],
+      listRealizedPeriods: () => [envelope("record-0", 0)],
+      readCanonicalPaperAccount: () => newAccount,
+      closePeriodFromCanonicalAccount: () => { calls.push("close"); throw new Error("must not close across accounts"); },
+      openPeriodFromCanonicalAccount: (input) => { calls.push("open"); opened.push(input); return Object.freeze({ ...plan("WAIT", input.periodId), periodIndex: input.periodIndex, periodStartAt: input.periodStartAt }); },
+      ...(retire == null ? {} : { retireOpenPeriodForAccountChange: (periodId: string) => { calls.push(`retire:${periodId}`); return retire(periodId); } }),
+      buildEvidenceIdentity: () => { throw new Error("no evidence identity for a replaced account"); },
+      runClosedLearningCycle: () => { throw new Error("no cycle for a replaced account"); },
+    };
+    return { port, calls, opened };
+  }
+
+  it("retires the old account's open period and reopens the same candidate on the new account", () => {
+    const { port, calls, opened } = replacedAccountPort((id) => plan("WAIT", id));
+    const result = new ClosedLearningRolloverScheduler(port).runOnce();
+    assert.equal(result.status, "ACCOUNT_REPLACED_PERIOD_REOPENED");
+    assert.deepEqual(calls, ["retire:period-0", "open"]);
+    const input = opened[0] as { periodIndex: number; periodStartAt: number; candidateProvenance: readonly { candidateId: string }[]; market: string };
+    assert.equal(input.periodIndex, 1);
+    assert.equal(input.periodStartAt, NEXT_KST_DAY);
+    assert.equal(input.candidateProvenance[0]!.candidateId, "candidate-a");
+    assert.equal(input.market, "KRW-BTC");
+  });
+
+  it("stays blocked rather than guessing when the runtime cannot retire the period", () => {
+    const { port, calls } = replacedAccountPort();
+    const result = new ClosedLearningRolloverScheduler(port).runOnce();
+    assert.equal(result.status, "BLOCKED");
+    assert.equal(result.reason, "PAPER_ACCOUNT_REPLACED_RETIREMENT_UNAVAILABLE");
+    assert.deepEqual(calls, []);
+  });
+});

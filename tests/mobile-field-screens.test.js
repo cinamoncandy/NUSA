@@ -12,7 +12,7 @@ const compiled = ts.transpileModule(fs.readFileSync(sourcePath, "utf8"), {
 }).outputText;
 const shim = { exports: {} };
 new Function("module", "exports", "require", compiled)(shim, shim.exports, require);
-const { buildPaperFieldHeader, buildLiveFieldHeader } = shim.exports;
+const { buildPaperFieldHeader, buildLiveFieldHeader, fieldHeaderPose } = shim.exports;
 
 const perf = { realizedPnL: 0, unrealizedPnL: 0, fees: 0, turnover: 0, completedCycles: 12, filledCycles: 0, winRate: null, expectancy: null, maxDrawdown: 0 };
 const paper = (overrides = {}) => ({ status: "RUNNING", dataSource: "SERVER_STREAM", performance: perf, ...overrides });
@@ -82,4 +82,17 @@ test("tab changes use a state-change-only field transition and no heavy legacy w
   for (const file of fs.readdirSync(path.join(root, "apps/mobile/src")).filter((name) => name.endsWith(".tsx"))) {
     assert.doesNotMatch(fs.readFileSync(path.join(root, "apps/mobile/src", file), "utf8"), /fontWeight: "(800|900)"/, file);
   }
+});
+
+test("header pose follows the HOME grammar and never collapses a healthy tab", () => {
+  const halted = buildPaperFieldHeader(paper({ status: "HALTED" }));
+  assert.equal(fieldHeaderPose(halted).spread, 0.3);
+  const offline = buildPaperFieldHeader(paper({ dataSource: "UNAVAILABLE" }));
+  assert.ok(fieldHeaderPose(offline).presence < 0.5);
+  const unverified = buildPaperFieldHeader(paper({ dataSource: "LOCAL_FALLBACK" }));
+  assert.ok(fieldHeaderPose(unverified).presence < 0.5);
+  assert.deepEqual({ ...fieldHeaderPose(buildPaperFieldHeader(paper())) }, { spread: 1, presence: 1 });
+  assert.deepEqual({ ...fieldHeaderPose(buildLiveFieldHeader(live())) }, { spread: 1, presence: 1 });
+  const header = fs.readFileSync(path.join(root, "apps/mobile/src/fieldHeader.tsx"), "utf8");
+  assert.match(header, /const sealed = model\.eyebrow === "LIVE" && model\.statusWord === "SEALED"/);
 });
