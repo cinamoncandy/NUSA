@@ -1,11 +1,27 @@
 version: 1
+current_mobile_field_structure:
+  work_order: WO-UI-20260928-FIELD-STRUCTURE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-field-structure
+  depends_on_pull_request: 2350
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_mobile_paper_tabs_icon:
+  work_order: WO-UI-20260928-PAPER-TABS-ICON
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-paper-tabs-icon
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_audit_grounded_fail:
   work_order: WO-20260928-AUDIT-GROUNDED-FAIL
   status: READY_FOR_REVIEW
   branch: claude/nusa-repository-j93sd8-audit-grounded-fail
   authority_impact: audit-validation-tightening
   unblocks_pull_request: 2351
-  remaining: exact-head-CI_then-Audit_then-Release-merge_then-reaudit-2351
+  status_note: merged via PR 2352
+  remaining: reaudit-2351
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_field_theme:
   work_order: WO-UI-20260928-FIELD-THEME

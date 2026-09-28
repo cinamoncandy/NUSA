@@ -52,6 +52,13 @@ test("decisions without paper orders use neutral no-execution wording, never an 
   assert.equal(model.focus, "paper");
   assert.equal(model.states.paper, "NO ORDERS");
   assert.ok(!JSON.stringify(model).includes("NO STRATEGY"));
+  const withFacts = field({ decisionCount: 5, paperOrderCount: 0, pipelineStage: "RISK_GATE", lastError: "policy approval disabled" });
+  assert.match(withFacts.detail, /현재 단계: RISK_GATE/);
+  assert.match(withFacts.detail, /마지막 기록 오류: policy approval disabled/);
+  assert.equal(withFacts.tone, "green", "a latched historical error must not read as an active warning");
+  const malformed = field({ decisionCount: 5, paperOrderCount: 0, pipelineStage: 42, lastError: { bad: true } });
+  assert.doesNotMatch(malformed.detail, /현재 단계|마지막 기록 오류/);
+  assert.equal(field({ decisionCount: 5, paperOrderCount: 0, pipelineStage: "OBSERVE" }).tone, "green");
   assert.equal(field({ decisionCount: null, paperOrderCount: null }).phase, "CONNECTED");
   assert.equal(field({ readyForPaperOperations: false }).states.paper, "OBSERVING");
 });
@@ -68,4 +75,15 @@ test("field model is frozen and HOME wires only real state", () => {
   assert.match(view, /reducedMotion !== false/);
   assert.match(view, /const ParticleLayer = memo\(/);
   assert.doesNotMatch(view, /Animated\.loop/);
+});
+
+test("state changes propagate as signals along strands, inward for problems, never on mount", () => {
+  const view = fs.readFileSync(path.join(root, "apps/mobile/src/intelligenceField.tsx"), "utf8");
+  assert.match(view, /export function buildStrandPaths/);
+  assert.match(view, /function Signal\(/);
+  assert.match(view, /setInward\(model\.tone === "amber" \|\| model\.tone === "red"\)/);
+  assert.match(view, /if \(reducedMotion !== false \|\| !changed\)/);
+  assert.match(view, /Animated\.stagger\(110/);
+  assert.doesNotMatch(view, /Animated\.loop/);
+  assert.doesNotMatch(view, /useNativeDriver: false/);
 });

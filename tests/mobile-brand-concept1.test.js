@@ -26,10 +26,15 @@ test("Android launcher resources expose Concept 1, monochrome, notification, and
 
   assert.match(manifest, /android:icon="@mipmap\/ic_launcher"/);
   assert.match(manifest, /android:roundIcon="@mipmap\/ic_launcher_round"/);
-  assert.match(fallback, /M54,24L82,62H26Z/);
-  assert.match(logo, /M54,24L82,62H26Z/);
-  assert.match(splash, /M54,22L84,64H24Z/);
+  // Intelligence Field mark: amber diamond core with five subsystem strands on the field void.
+  for (const drawable of [fallback, logo, splash]) {
+    assert.match(drawable, /NUSA Intelligence Field mark/);
+    assert.match(drawable, /#FFB547/);
+    for (const hue of ["#4FC3F7", "#9B7BFF", "#3DDC97", "#7C8CFF", "#FFA94D"]) assert.ok(drawable.includes(hue), hue);
+  }
+  assert.match(fallback, /#010204/);
   assert.match(adaptive, /<monochrome android:drawable="@drawable\/ic_nusa_logo_monochrome"\s*\/>/);
-  assert.match(notification, /M12,3L20,14H4Z/);
+  assert.match(notification, /NUSA Intelligence Field mark/);
+  assert.doesNotMatch(notification, /#(?!FFFFFFFF|00000000)[0-9A-F]{6}/i, "notification icon must stay monochrome");
   assert.match(api31Theme, /windowSplashScreenAnimatedIcon/);
 });
