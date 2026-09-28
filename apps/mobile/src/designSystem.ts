@@ -234,3 +234,20 @@ export function cardTokens(theme: Theme) {
 export function designSystemSnapshot(theme: Theme): string {
   return JSON.stringify({ preset: theme.preset, mode: theme.mode, colors: theme.colors, typography: theme.typography, layout: theme.layout, spacing: theme.spacing, radii: theme.radii, icons: theme.icons, interaction: theme.interaction });
 }
+
+/** Intelligence Field palette: subsystem hues, amber focus and the near-black void. */
+export const fieldPalette = Object.freeze({
+  void: "#010204",
+  paper: "#3DDC97",
+  market: "#4FC3F7",
+  dim: "#5B6670",
+  governance: "#7C8CFF",
+  muted: "#8A96A0",
+  axiom: "#9B7BFF",
+  label: "#C9D2D8",
+  text: "#EEF3F6",
+  heart: "#F4F8FA",
+  halt: "#FF5C5C",
+  risk: "#FFA94D",
+  focus: "#FFB547",
+});

@@ -1,20 +1,21 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { buildIntelligenceField, type FieldSubsystem, type FieldTone, type IntelligenceFieldInput } from "./intelligenceFieldModel";
+import { fieldPalette } from "./designSystem";
 
 /**
  * NUSA Intelligence Field: one central core, five subsystem hubs connected by fiber strands.
  * Presentation only -- it renders buildIntelligenceField() and moves only when that state changes.
  */
 const SUBSYSTEMS: readonly { readonly id: FieldSubsystem; readonly label: string; readonly color: string; readonly angle: number }[] = [
-  { id: "market", label: "MARKET", color: "#4FC3F7", angle: -2.35 },
-  { id: "axiom", label: "AXIOM", color: "#9B7BFF", angle: -0.75 },
-  { id: "paper", label: "PAPER", color: "#3DDC97", angle: 0.25 },
-  { id: "governance", label: "GOVERNANCE", color: "#7C8CFF", angle: 1.45 },
-  { id: "risk", label: "RISK", color: "#FFA94D", angle: 2.6 },
+  { id: "market", label: "MARKET", color: fieldPalette.market, angle: -2.35 },
+  { id: "axiom", label: "AXIOM", color: fieldPalette.axiom, angle: -0.75 },
+  { id: "paper", label: "PAPER", color: fieldPalette.paper, angle: 0.25 },
+  { id: "governance", label: "GOVERNANCE", color: fieldPalette.governance, angle: 1.45 },
+  { id: "risk", label: "RISK", color: fieldPalette.risk, angle: 2.6 },
 ];
-const FOCUS_COLOR = "#FFB547";
-const TONE_COLOR: Record<FieldTone, string> = { dim: "#5B6670", amber: "#FFB547", blue: "#4FC3F7", green: "#3DDC97", red: "#FF5C5C" };
+const FOCUS_COLOR = fieldPalette.focus;
+const TONE_COLOR: Record<FieldTone, string> = { dim: fieldPalette.dim, amber: fieldPalette.focus, blue: fieldPalette.market, green: fieldPalette.paper, red: fieldPalette.halt };
 const FIELD_HEIGHT = 340;
 const DOTS_PER_STRAND = 46;
 const DOTS_PER_HUB = 22;
@@ -142,8 +143,8 @@ export function IntelligenceField({ input }: Readonly<{ input: IntelligenceField
           const focused = model.focus === s.id;
           const state = model.states[s.id];
           return <View key={s.id} pointerEvents="none" style={[styles.hubLabel, { left: Math.max(4, Math.min(width - 104, hx - 50)), top: hy + 16 }]}>
-            <Text style={[styles.hubName, { color: focused ? FOCUS_COLOR : "#8A96A0" }]}>{s.label}</Text>
-            {state == null ? null : <Text style={[styles.hubState, { color: focused ? FOCUS_COLOR : "#C9D2D8" }]}>{state}</Text>}
+            <Text style={[styles.hubName, { color: focused ? FOCUS_COLOR : fieldPalette.muted }]}>{s.label}</Text>
+            {state == null ? null : <Text style={[styles.hubState, { color: focused ? FOCUS_COLOR : fieldPalette.label }]}>{state}</Text>}
           </View>;
         })}
       </> : null}
@@ -154,20 +155,20 @@ export function IntelligenceField({ input }: Readonly<{ input: IntelligenceField
 }
 
 const styles = StyleSheet.create({
-  shell: { backgroundColor: "#010204", paddingHorizontal: 20, paddingTop: 14, paddingBottom: 22, marginHorizontal: -20 },
+  shell: { backgroundColor: fieldPalette.void, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 22, marginHorizontal: -20 },
   statusRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusWord: { fontSize: 11, letterSpacing: 2, fontWeight: "600" },
-  phase: { marginLeft: "auto", fontSize: 10, letterSpacing: 2, color: "#5B6670" },
+  phase: { marginLeft: "auto", fontSize: 10, letterSpacing: 2, color: fieldPalette.dim },
   field: { height: FIELD_HEIGHT, overflow: "hidden" },
   pulseRing: { position: "absolute", width: 80, height: 80, borderRadius: 40, borderWidth: 1 },
   coreWrap: { position: "absolute", width: 72, height: 72, alignItems: "center", justifyContent: "center" },
   coreGlow: { position: "absolute", width: 72, height: 72, borderRadius: 36, opacity: 0.16 },
   coreDiamond: { width: 30, height: 30, borderWidth: 1.2, transform: [{ rotate: "45deg" }], backgroundColor: "rgba(255,255,255,0.06)" },
-  coreHeart: { position: "absolute", width: 6, height: 6, borderRadius: 3, backgroundColor: "#F4F8FA" },
+  coreHeart: { position: "absolute", width: 6, height: 6, borderRadius: 3, backgroundColor: fieldPalette.heart },
   hubLabel: { position: "absolute", width: 100, alignItems: "center" },
   hubName: { fontSize: 9, letterSpacing: 1.6 },
   hubState: { fontSize: 10, letterSpacing: 1, marginTop: 2, fontWeight: "600" },
-  headline: { color: "#EEF3F6", fontSize: 26, lineHeight: 34, fontWeight: "300", letterSpacing: -0.3 },
-  detail: { color: "#8A96A0", fontSize: 13, lineHeight: 20, marginTop: 6 },
+  headline: { color: fieldPalette.text, fontSize: 26, lineHeight: 34, fontWeight: "300", letterSpacing: -0.3 },
+  detail: { color: fieldPalette.muted, fontSize: 13, lineHeight: 20, marginTop: 6 },
 });
