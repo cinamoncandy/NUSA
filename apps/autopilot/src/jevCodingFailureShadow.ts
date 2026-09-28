@@ -73,7 +73,7 @@ export async function observeJevCodingFailureShadow(input:{
 
   let classifier:((value:Readonly<Record<string,unknown>>)=>Promise<unknown>)|null=null;
   let modelIdentity="deterministic-fallback";
-  let nativeReceipt:JevWorkersAiReceipt|null=null;
+  const nativeReceiptBox:{value:JevWorkersAiReceipt|null}={value:null};
 
   if(shadowEnabled && input.env.AI){
     try {
@@ -98,7 +98,7 @@ export async function observeJevCodingFailureShadow(input:{
             failureReason:failureEvidence,
           }),
         }));
-        nativeReceipt=result.receipt;
+        nativeReceiptBox.value=result.receipt;
         return result.decision;
       };
       modelIdentity="workers-ai:"+workersAiModel;
@@ -122,6 +122,7 @@ export async function observeJevCodingFailureShadow(input:{
   const shadow=await router.observe(packet as unknown as Readonly<Record<string,unknown>>, {
     NUSA_JEV_SHADOW_ENABLED: shadowEnabled ? "true" : "false"
   });
+  const nativeReceipt=nativeReceiptBox.value;
   if(nativeReceipt){
     console.log(JSON.stringify({
       event:"NUSA_JEV_WORKERS_AI_SHADOW_CALL",decisionId:packet.decisionId,executionId:packet.executionId,sourceMainSha:packet.sourceMainSha,
