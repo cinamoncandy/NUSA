@@ -18,6 +18,7 @@ test("runtime mobile brand keeps the provisional symbol hidden while logo produc
 test("Android launcher resources expose Concept 1, monochrome, notification, and splash assets", () => {
   const manifest = read("apps/mobile/android/app/src/main/AndroidManifest.xml");
   const fallback = read("apps/mobile/android/app/src/main/res/mipmap-anydpi-v24/ic_launcher.xml");
+  const fallbackRound = read("apps/mobile/android/app/src/main/res/mipmap-anydpi-v24/ic_launcher_round.xml");
   const adaptive = read("apps/mobile/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml");
   const logo = read("apps/mobile/android/app/src/main/res/drawable/ic_nusa_logo.xml");
   const notification = read("apps/mobile/android/app/src/main/res/drawable/ic_nusa_notification.xml");
@@ -26,8 +27,9 @@ test("Android launcher resources expose Concept 1, monochrome, notification, and
 
   assert.match(manifest, /android:icon="@mipmap\/ic_launcher"/);
   assert.match(manifest, /android:roundIcon="@mipmap\/ic_launcher_round"/);
-  // Intelligence Field mark: amber diamond core with five subsystem strands on the field void.
-  for (const drawable of [fallback, logo, splash]) {
+  // Intelligence Field mark: amber diamond core inside an orbit of five subsystem arcs.
+  for (const drawable of [fallback, fallbackRound, logo, splash]) {
+    assert.match(drawable, /orbit of five subsystem arcs/);
     assert.match(drawable, /NUSA Intelligence Field mark/);
     assert.match(drawable, /#FFB547/);
     for (const hue of ["#4FC3F7", "#9B7BFF", "#3DDC97", "#7C8CFF", "#FFA94D"]) assert.ok(drawable.includes(hue), hue);
