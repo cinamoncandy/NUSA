@@ -1552,3 +1552,16 @@ current_research_replay_segmented_persistence:
   blocker: "None before fresh CI terminal; production recovery remains gated on independent Audit/Release and Oracle deployment."
   next: "Fresh exact-head CI -> independent Audit/Release -> merge -> Oracle exact-main deployment -> successful Research workload/restart evidence."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_pr1991_review_hardening:
+  work_order: WO-20260927-PR1991-REVIEW-HARDENING
+  status: IN_PROGRESS
+  pull_request: 1991
+  branch: fix/1892-qualification-survival-gates
+  base_sha: 3e23eccc70776d2cb932b7a819bdb92389d0e374
+  previous_verified_head: fd0ea0d345bc3574a37b292d082026cdfd4d42f9
+  finding: "Protected main advanced after the prior exact-head PASS; stale acceptance evidence cannot be reused."
+  remediation: "Reapply the frozen qualification-integrity delta onto latest protected main while preserving current research learning/runtime changes."
+  validation: "Prior focused 60/60 and exact-head CI evidence remain historical only; fresh exact-head CI is required on the reconverged head."
+  next: "Fresh exact-head CI PASS -> independent Audit -> nusa/release-authorized -> canonical merge. Do not manually rerun Audit/Release."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
