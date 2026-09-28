@@ -1,0 +1,31 @@
+id: WO-UI-20260928-FIELD-NEBULA
+title: "Apply the approved nebula field prototype to HOME and the tab headers"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-field-nebula
+depends_on_pull_request: 2354
+authority_impact: none
+objective: "Owner asked to apply the design prototype (claude.ai artifact 7oqVNqZvrwPGgQxP3yXajN): state changes read as field motion first, text second."
+scope:
+  - "intelligenceField.tsx: spiral-arm nebula geometry replaces fiber strands; signals ride arm spines; subsystem hub labels become a legend row."
+  - "fieldPose(phase) in intelligenceFieldModel.ts: HALTED collapses the nebula to the core; LAUNCH/AUTHENTICATION/DEGRADED scatter and fade; RECOVERING partly contracts."
+  - "Each semantic change turns the nebula one orbit step (fieldMotion.orbitStepDeg) and settles into the pose (fieldMotion.poseMs)."
+  - "fieldHeader.tsx: smaller nebula, fieldHeaderPose(model) with the same grammar, dashed seal ring on a sealed LIVE tab."
+exclusions:
+  - "No continuous animation (Animated.loop stays forbidden); motion runs only on a semantic state change and never under reduced motion."
+  - "No new dependency (GPU/Skia field remains a later, reviewed step)."
+  - "No server, strategy, risk, execution, credential or LIVE changes."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+evidence:
+  device_acceptance: HUMAN_ENVIRONMENT_ONLY
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - node scripts/lint-mobile.js
+  - node --test tests/*.test.js
+  - pnpm run validate

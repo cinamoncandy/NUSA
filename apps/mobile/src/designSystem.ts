@@ -239,4 +239,6 @@ export const fieldMotion = Object.freeze({
   headerGlowMs: 800,
   headerSignalMs: 900,
   tabTransitionMs: 320,
+  poseMs: 1100,
+  orbitStepDeg: 18,
 });

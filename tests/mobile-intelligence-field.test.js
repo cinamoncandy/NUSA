@@ -12,7 +12,7 @@ const compiled = ts.transpileModule(fs.readFileSync(sourcePath, "utf8"), {
 }).outputText;
 const moduleShim = { exports: {} };
 new Function("module", "exports", "require", compiled)(moduleShim, moduleShim.exports, require);
-const { buildIntelligenceField } = moduleShim.exports;
+const { buildIntelligenceField, fieldPose } = moduleShim.exports;
 
 const base = { checking: false, disconnected: false, recovering: false, haltActive: false, degraded: false, feedStale: false, readyForPaperOperations: true, decisionCount: 10, paperOrderCount: 3 };
 const field = (overrides) => buildIntelligenceField({ ...base, ...overrides });
@@ -85,4 +85,18 @@ test("state changes propagate as signals along strands, inward for problems, nev
   assert.match(view, /Animated\.stagger\(fieldMotion\.signalStaggerMs/);
   assert.doesNotMatch(view, /Animated\.loop/);
   assert.doesNotMatch(view, /useNativeDriver: false/);
+});
+
+test("field pose collapses on HALTED and scatters and fades while unverified", () => {
+  assert.deepEqual({ ...fieldPose("HALTED") }, { spread: 0.3, presence: 1 });
+  for (const phase of ["LAUNCH", "AUTHENTICATION", "DEGRADED"]) {
+    const pose = fieldPose(phase);
+    assert.ok(pose.spread > 1 && pose.presence < 0.5, phase);
+  }
+  for (const phase of ["CONNECTED", "ATTENTION"]) assert.deepEqual({ ...fieldPose(phase) }, { spread: 1, presence: 1 });
+  assert.ok(Object.isFrozen(fieldPose("RECOVERING")));
+  const view = fs.readFileSync(path.join(root, "apps/mobile/src/intelligenceField.tsx"), "utf8");
+  assert.match(view, /const pose = fieldPose\(model\.phase\)/);
+  assert.match(view, /transform: \[\{ rotate: orbitRotate \}, \{ scale: spread \}\]/);
+  assert.match(view, /fieldMotion\.poseMs/);
 });
