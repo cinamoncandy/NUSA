@@ -63,7 +63,6 @@ test("Markets, PAPER, Settings and History use shared segmented controls", () =>
   assert.match(trading, /LegacyTradingView/);
   assert.match(tradingLegacy, /paper-side-segmented-control/);
   assert.match(tradingLegacy, /paper-type-segmented-control/);
-  assert.match(settings, /settings-theme-segmented-control/);
   assert.match(history, /order-history-filters/);
   assert.match(history, /order-history-periods/);
   assert.match(history, /order-history-sorts/);

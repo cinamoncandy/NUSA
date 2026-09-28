@@ -141,7 +141,8 @@ export function createTheme(_mode: ThemeMode = "dark", presetName: DesignPresetN
       onPrimary: palette.onPrimary,
       aiSignalStart: fieldPalette.axiom,
       aiSignalMid: fieldPalette.market,
-      aiSignalEnd: fieldPalette.paper,
+      // Informational AI tone stays distinct from success green.
+      aiSignalEnd: fieldPalette.label,
       aiSignalSoft: "#0B0A14",
       terrain: fieldPalette.label,
       chartUp: fieldPalette.paper,

@@ -13,7 +13,7 @@ test("the field preset is the only design system and keeps signal colour semanti
   assert.match(source, /primary: palette\.primary/);
   assert.match(source, /aiSignalStart: fieldPalette\.axiom/);
   assert.match(source, /aiSignalMid: fieldPalette\.market/);
-  assert.match(source, /aiSignalEnd: fieldPalette\.paper/);
+  assert.match(source, /aiSignalEnd: fieldPalette\.label/);
 });
 
 test("runtime brand placeholder stays suppressed and legacy motion components are removed", () => {
