@@ -9,7 +9,7 @@ function issue(overrides: Record<string, unknown> = {}): Record<string, unknown>
   return {
     number: 903,
     title: "P1: Autonomous Development Control Plane for maximum verified merge throughput",
-    body: `Implement bounded Autopilot control-plane work. ${SAFETY}`,
+    body: `Implement bounded Autopilot control-plane work. ${SAFETY}\ncanonicalOwner: evolve\nconflictKeys: issue:903`,
     state: "open",
     author_association: "OWNER",
     labels: [],
@@ -35,8 +35,8 @@ test("backlog readiness counts all eligible work but dispatch signal stays bound
 
 test("unsupported research and general work stays visible but cannot enter CodingRunner READY", () => {
   const result = deriveGithubIssueBacklogReadiness([
-    issue({ number: 1901, title: "P1: Research OOS robustness evidence" }),
-    issue({ number: 1902, title: "P1: Mobile UI release regression" }),
+    issue({ number: 1901, title: "P1: Research OOS robustness evidence", body: SAFETY }),
+    issue({ number: 1902, title: "P1: Mobile UI release regression", body: SAFETY }),
     issue({ number: 1903, title: "P1: AUTOPILOT bounded coding fix" }),
   ], [], NOW);
   assert.equal(result.eligibleIssueCount, 1);
@@ -128,6 +128,22 @@ test("backlog preserves explicit deterministic ownership and conflict metadata",
   assert.deepEqual(result.signals[0]?.conflictKeys, ["issue:903", "module:apps/autopilot/src"]);
 });
 
+test("backlog skips a higher-priority issue without WIP metadata and selects actionable work", () => {
+  const result = deriveGithubIssueBacklogReadiness([
+    issue({ number: 910, title: "[P0][Autopilot] unclaimed work", body: `Autopilot work. ${SAFETY}` }),
+    issue({ number: 911, title: "[P1][Autopilot] claimed work", body: `Autopilot work. ${SAFETY}\ncanonicalOwner: evolve\nconflictKeys: issue:911` }),
+  ], [], NOW);
+  assert.equal(result.eligibleIssueCount, 1);
+  assert.deepEqual(result.signals.map((signal) => signal.id), ["github-issue-911"]);
+});
+
+test("adjacent bracketed P0 metadata from the canonical issue title is dispatchable", () => {
+  const result = deriveGithubIssueBacklogReadiness([
+    issue({ title: "[P0][CI] Fast CI critical-path optimization for Autopilot throughput" }),
+  ], [], NOW);
+  assert.deepEqual(result.signals.map((signal) => signal.id), ["github-issue-903"]);
+});
+
 test("backlog rejects malformed explicit work metadata fail closed", () => {
   const invalid = [
     issue({ number: 910, body: `Autopilot work. ${SAFETY}\ncanonicalOwner: bad owner\nconflictKeys: issue:910` }),
@@ -142,7 +158,7 @@ test("an explicit codingTarget line reaches the selected problem, and its absenc
   assert.doesNotMatch(plain.problem, /Target file:/);
 
   const targeted = deriveGithubIssueBacklogReadiness([
-    issue({ body: `Implement bounded Autopilot control-plane work.\ncodingTarget: apps/autopilot/src/auditRunner.ts\n${SAFETY}` }),
+    issue({ body: `Implement bounded Autopilot control-plane work.\ncodingTarget: apps/autopilot/src/auditRunner.ts\n${SAFETY}\ncanonicalOwner: evolve\nconflictKeys: issue:903` }),
   ], [], NOW).signals[0]!;
   assert.match(targeted.problem, / Target file: apps\/autopilot\/src\/auditRunner\.ts\.$/);
   assert.equal(targeted.problem.replace(/ Target file: .*$/, ""), plain.problem, "the rest of the problem is unchanged");
@@ -161,7 +177,7 @@ test("a repeated or out-of-scope codingTarget makes the issue ineligible rather 
     ".github/workflows/ci.yml",
   ]) {
     const result = deriveGithubIssueBacklogReadiness([
-      issue({ body: `Implement bounded Autopilot control-plane work.\ncodingTarget: ${target}\n${SAFETY}` }),
+      issue({ body: `Implement bounded Autopilot control-plane work.\ncodingTarget: ${target}\n${SAFETY}\ncanonicalOwner: evolve\nconflictKeys: issue:903` }),
     ], [], NOW);
     assert.equal(result.eligibleIssueCount, 0, `accepted codingTarget ${JSON.stringify(target)}`);
     assert.deepEqual(result.signals, []);
