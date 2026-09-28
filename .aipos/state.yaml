@@ -1476,3 +1476,17 @@ current_cloudflare_runtime_github_credential_preflight:
   validation: "Fresh exact-head CI required. Actual credential replacement remains HUMAN_ONLY because secret material is not repository code."
   next: "Exact-head CI -> independent Audit/Release for code guard; separately rotate/authorize the runtime GitHub credential, deploy, then require a fresh scheduled Runtime Proof receipt with non-null exact head."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_research_replay_segmented_persistence:
+  work_order: WO-ISSUE-1543-RESEARCH-REPLAY-SEGMENTED-PERSISTENCE
+  status: READY_FOR_REVIEW
+  pull_request: 1842
+  branch: fix/research-replay-segmented-persistence-1543
+  base_sha: 3596397971acd93d3da383d08344f7dfffdff77f
+  implementation_code_head: 8715a491c8942b995ed5fb68c3443baa7a83a5ea
+  finding: "Oracle nusa-research.service still reproduces V8 heap OOM/SIGABRT on 2026-09-28; the existing segmented replay persistence correction remains the single canonical successor."
+  remediation: "Preserve immutable segmented replay, canonical-history loss rejection, pre-commit downgrade guard, legacy deployment/rollback fence, and worker state-key fencing; reconverge unchanged code on latest main."
+  validation: "Prior exact-head CI passed on 8715a491c8942b995ed5fb68c3443baa7a83a5ea; that evidence is stale after protected-main drift. Fresh exact-head CI is required on the reconverged head."
+  blocker: "None before fresh CI terminal; production recovery remains gated on independent Audit/Release and Oracle deployment."
+  next: "Fresh exact-head CI -> independent Audit/Release -> merge -> Oracle exact-main deployment -> successful Research workload/restart evidence."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
