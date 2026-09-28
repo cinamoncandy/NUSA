@@ -67,7 +67,7 @@ function explicitCodingTarget(body: string): string | undefined {
 }
 
 function priorityFromTitle(title: string): 0 | 1 | null {
-  const match = title.match(/^\s*\[?P([01])\]?(?:\s*[:\]-]|\s+)/i);
+  const match = title.match(/^\s*\[?P([01])\]?(?:\s*[:\]-]|\s+|\[)/i);
   if (!match) return null;
   return match[1] === "0" ? 0 : 1;
 }
@@ -219,7 +219,7 @@ export function deriveGithubIssueBacklogReadiness(
   for (const candidate of candidates) {
     if (candidate.capability !== "AUTOPILOT_TYPESCRIPT") capabilityBlockedCapabilities[candidate.capability] += 1;
   }
-  const eligible = candidates.filter((candidate) => candidate.capability === "AUTOPILOT_TYPESCRIPT");
+  const eligible = candidates.filter((candidate) => candidate.capability === "AUTOPILOT_TYPESCRIPT" && candidate.canonicalOwner && candidate.conflictKeys?.length);
 
   const signals = eligible.slice(0, 1).map((issue) => Object.freeze({
     id: `github-issue-${issue.number}`,
