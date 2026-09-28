@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Easing, StyleSheet } from "react-native";
+import { fieldMotion } from "./designSystem";
 
 /**
  * Field-language tab transition: the new destination settles in with a short fade and lift.
@@ -22,7 +23,7 @@ export function TabTransition({ transitionKey, children }: Readonly<{ transition
     previousKey.current = transitionKey;
     if (reducedMotion !== false || !changed) { progress.setValue(1); return undefined; }
     progress.setValue(0);
-    const animation = Animated.timing(progress, { toValue: 1, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true });
+    const animation = Animated.timing(progress, { toValue: 1, duration: fieldMotion.tabTransitionMs, easing: Easing.out(Easing.cubic), useNativeDriver: true });
     animation.start();
     return () => animation.stop();
   }, [transitionKey, reducedMotion, progress]);

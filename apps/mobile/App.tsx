@@ -1,15 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { TabTransition } from "./src/tabTransition";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState, BackHandler, Pressable, StyleSheet, Text, View, type AppStateStatus } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { AuthContext, useAuth, type AuthStatus } from "./src/authContext";
 import { NusaButton, NusaCard, StatusChip, WaveMark } from "./src/components";
 import { ThemeProvider, useTheme, type ThemePreference } from "./src/ThemeProvider";
-import { HomeView, type HomeDestination } from "./src/homeView";
+// Screen presenters come only from the presentation boundary (docs/UI_ARCHITECTURE.md).
+import { HomeView, LiveReadinessMonitorView, MoreMenuView, PaperShadowMonitorView, TabTransition, type HomeDestination } from "./src/presentation";
 import { getHomeVisualProfile } from "./src/homeVisualProfile";
 import { PortfolioView } from "./src/portfolioView";
-import { LiveReadinessMonitorView } from "./src/liveReadinessMonitorView";
 import { NotificationView } from "./src/notificationView";
 import { SettingsView } from "./src/settingsView";
 import { OrderHistoryView } from "./src/orderHistoryView";
@@ -29,7 +28,6 @@ import { MobileRuntimeCoordinator, initialMobileRuntimeSnapshot, type MobileRunt
 import { resetUpbitReadOnlyState, useUpbitReadOnlyState } from "./src/upbitReadOnlyAccount";
 import { loadUpbitPublicCandles, loadUpbitPublicMarkets, UpbitPublicQuotationError, type PublicQuotationDiagnostic } from "./src/upbitPublicQuotationClient";
 import { UpbitPublicWebSocketClient } from "./src/upbitPublicWebSocketClient";
-import { PaperShadowMonitorView } from "./src/paperShadowMonitorView";
 // PaperLearningMonitorView remains the canonical PAPER monitor rendered by PaperShadowMonitorView.
 import { buildPaperLearningScreen } from "./src/paperLearningScreen";
 import { getLocalPaperLearningReadiness, recordLocalPaperPublicMarkets } from "./src/localPaperLearningProjection";
@@ -44,7 +42,6 @@ import { getOrCreateInstallationId } from "./src/installationIdentity";
 import { type MoreDestination, type PrimaryDestination } from "./src/navigationContract";
 import { PrimaryNavigation } from "./src/primaryNavigation";
 import { StrategiesView } from "./src/strategiesView";
-import { MoreMenuView } from "./src/moreMenuView";
 import { MoreDetailView, type TruthfulMoreDetail } from "./src/moreDetailView";
 
 type UtilityView = "NOTIFICATIONS" | "SETTINGS" | null;

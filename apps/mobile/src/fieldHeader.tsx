@@ -2,7 +2,7 @@ import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { fieldFonts } from "./fieldFonts";
 import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { buildFieldGeometry, buildStrandPaths, Signal } from "./intelligenceField";
-import { fieldPalette } from "./designSystem";
+import { fieldMotion, fieldPalette } from "./designSystem";
 import type { FieldSubsystem, FieldTone } from "./intelligenceFieldModel";
 import type { FieldHeaderModel } from "./fieldScreensModel";
 
@@ -45,8 +45,8 @@ export function FieldHeader({ model, testID }: Readonly<{ model: FieldHeaderMode
     signal.setValue(0);
     // Same language as HOME: one signal rides the lit strand, inward when the state is a problem.
     const animation = Animated.parallel([
-      Animated.timing(glow, { toValue: 1, duration: 800, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(signal, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      Animated.timing(glow, { toValue: 1, duration: fieldMotion.headerGlowMs, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(signal, { toValue: 1, duration: fieldMotion.headerSignalMs, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
     ]);
     animation.start();
     return () => animation.stop();

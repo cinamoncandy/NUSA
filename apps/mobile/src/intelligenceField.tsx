@@ -2,7 +2,7 @@ import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { fieldFonts } from "./fieldFonts";
 import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { buildIntelligenceField, type FieldSubsystem, type FieldTone, type IntelligenceFieldInput } from "./intelligenceFieldModel";
-import { fieldPalette } from "./designSystem";
+import { fieldMotion, fieldPalette } from "./designSystem";
 
 /**
  * NUSA Intelligence Field: one central core, five subsystem hubs connected by fiber strands.
@@ -160,17 +160,17 @@ export function IntelligenceField({ input }: Readonly<{ input: IntelligenceField
     SUBSYSTEMS.forEach((sub) => signals[sub.id].setValue(0));
     const travelling = SUBSYSTEMS.filter((sub) => model.lit.includes(sub.id));
     const animation = Animated.parallel([
-      ...targets.map(({ value, target }, i) => Animated.timing(value, { toValue: target, duration: 900, delay: i * 90, easing: Easing.out(Easing.cubic), useNativeDriver: true })),
-      Animated.timing(core, { toValue: model.coreLevel, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(turn, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
-      Animated.stagger(110, travelling.map((sub) => Animated.timing(signals[sub.id], { toValue: 1, duration: 950, easing: Easing.inOut(Easing.quad), useNativeDriver: true }))),
+      ...targets.map(({ value, target }, i) => Animated.timing(value, { toValue: target, duration: fieldMotion.settleMs, delay: i * fieldMotion.settleStaggerMs, easing: Easing.out(Easing.cubic), useNativeDriver: true })),
+      Animated.timing(core, { toValue: model.coreLevel, duration: fieldMotion.settleMs, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(turn, { toValue: 1, duration: fieldMotion.coreTurnMs, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+      Animated.stagger(fieldMotion.signalStaggerMs, travelling.map((sub) => Animated.timing(signals[sub.id], { toValue: 1, duration: fieldMotion.signalMs, easing: Easing.inOut(Easing.quad), useNativeDriver: true }))),
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 260, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 900, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: fieldMotion.pulseInMs, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: fieldMotion.pulseOutMs, easing: Easing.out(Easing.quad), useNativeDriver: true }),
       ]),
       Animated.sequence([
-        Animated.delay(700),
-        Animated.timing(flare, { toValue: 1, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.delay(fieldMotion.flareDelayMs),
+        Animated.timing(flare, { toValue: 1, duration: fieldMotion.flareMs, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
       ]),
     ]);
     turn.setValue(0);
