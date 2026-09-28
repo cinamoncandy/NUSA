@@ -2,7 +2,7 @@ import type { AutopilotDispatchPlan } from "./dispatchPlanner";
 import { executeGithubDispatch, type GithubExecutorResult } from "./githubExecutor";
 import { prepareProductionExecution } from "./productionExecutionSpine";
 import { deriveWorkflowFailureOpportunities, type WorkflowFailureEvidence } from "./evolveEvidenceOpportunitySource";
-import { deriveGithubIssueBacklogReadiness } from "./evolveGithubIssueBacklog";
+import { deriveGithubIssueBacklogReadiness, selectStalenessProbePulls } from "./evolveGithubIssueBacklog";
 import { runScheduledEvolutionCoding } from "./scheduledEvolutionCoding";
 import {
   UNKNOWN_GITHUB_ISSUE_WORK_SUPPLY,
@@ -80,6 +80,12 @@ function result(
   });
 }
 
+/**
+ * The scheduler runs every minute. Each probe costs two GitHub calls, so this cap keeps a tick
+ * well under the Workers subrequest limit and the token's hourly GitHub budget.
+ */
+const MAX_STALENESS_PROBES_PER_TICK = 8;
+
 async function githubJson(url: string, token: string, fetchImpl: typeof fetch): Promise<JsonObject> {
   const response = await fetchImpl(url, {
     headers: {
@@ -145,8 +151,10 @@ async function enrichOpenPullStaleness(
   openPulls: readonly unknown[],
   mainSha: string,
   fetchImpl: typeof fetch,
+  probe: ReadonlySet<unknown>,
 ): Promise<readonly unknown[]> {
   const enriched = await Promise.all(openPulls.map(async (value) => {
+    if (!probe.has(value)) return value;
     const pull = object(value);
     const number = positiveInteger(pull?.number);
     if (!pull || !number) return value;
@@ -285,7 +293,8 @@ export async function runScheduledAutopilot(env: ScheduledRuntimeEnv, now: numbe
     if (!resolvedMainSha || !SHA40.test(resolvedMainSha)) return result("ABSTAINED", "main-sha-invalid", null, null, null, discoveredOpportunityIds, workSupply);
     mainSha = resolvedMainSha;
 
-    const openPulls = await enrichOpenPullStaleness(repository, token, backlog.openPulls, mainSha, fetchImpl);
+    const probe = selectStalenessProbePulls(backlog.issues, backlog.openPulls, MAX_STALENESS_PROBES_PER_TICK);
+    const openPulls = await enrichOpenPullStaleness(repository, token, backlog.openPulls, mainSha, fetchImpl, probe);
     const readiness = deriveGithubIssueBacklogReadiness(backlog.issues, openPulls, new Date(now));
     workSupply = backlog.readinessEvidenceComplete
       ? withObservedCapabilityBlockedWork(
