@@ -1,6 +1,6 @@
 id: WO-UI-20260928-FIELD-STRUCTURE
 title: "Field structure, tab motion, typography and zero-order runtime facts"
-status: IN_PROGRESS
+status: READY_FOR_REVIEW
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
