@@ -60,7 +60,7 @@ test("the app-wide default theme is the field preset in both modes", () => {
   assert.match(provider, /CURRENT_DEFAULT_PRESET: DesignPresetName = "field"/);
   assert.match(provider, /DESIGN_PRESET_SCHEMA_VERSION = "3"/);
   const design = read("designSystem.ts");
-  assert.match(design, /field:[\s\S]*?dark:[\s\S]*?background: "#010204"[\s\S]*?light:[\s\S]*?background: "#010204"/);
-  assert.match(design, /light: createTheme\("light", "field"\)/);
-  assert.match(design, /\.\.\.\(fieldPreset \? fieldSemanticColors : \{\}\)/);
+  assert.match(design, /export type DesignPresetName = "field";/);
+  assert.match(design, /dark: fieldSurface,\s*light: fieldSurface,/);
+  assert.match(design, /background: "#010204"/);
 });

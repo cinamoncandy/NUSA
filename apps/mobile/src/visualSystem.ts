@@ -56,9 +56,7 @@ export function visualSystem(theme: Theme): VisualSystem {
       danger: theme.colors.danger,
     }),
     space: Object.freeze({ screenX: 20, section: 16, card: 14, compact: 8 }),
-    radius: theme.preset === "field"
-      ? Object.freeze({ card: theme.radii.lg, hero: theme.radii.xl, control: theme.radii.md, pill: 999 })
-      : Object.freeze({ card: 16, hero: 28, control: 10, pill: 999 }),
+    radius: Object.freeze({ card: theme.radii.lg, hero: theme.radii.xl, control: theme.radii.md, pill: 999 }),
     type: Object.freeze({ hero: 26, section: 22, metric: 30, body: 12, meta: 9 }),
     touchTarget: 48,
   });

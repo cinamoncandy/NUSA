@@ -6,16 +6,10 @@ const path = require("node:path");
 const root = path.join(__dirname, "..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
-test("classic and master presets remain materially distinct visual systems", () => {
+test("the field HOME profile is the only visual profile", () => {
   const profile = read("apps/mobile/src/homeVisualProfile.ts");
-  assert.match(profile, /classic:[\s\S]*?horizontalPadding:\s*20/);
-  assert.match(profile, /master:[\s\S]*?horizontalPadding:\s*14/);
-  assert.match(profile, /classic:[\s\S]*?minHeight:\s*300/);
-  assert.match(profile, /master:[\s\S]*?minHeight:\s*228/);
-  assert.match(profile, /classic:[\s\S]*?radius:\s*22/);
-  assert.match(profile, /master:[\s\S]*?radius:\s*6/);
-  assert.match(profile, /classic:[\s\S]*?balanceSize:\s*52/);
-  assert.match(profile, /master:[\s\S]*?balanceSize:\s*44/);
+  assert.match(profile, /field:[\s\S]*?horizontalPadding:\s*20/);
+  assert.doesNotMatch(profile, /classic:|master:/);
 });
 
 test("HomeView presents the approved autonomous-intelligence composition", () => {
@@ -83,10 +77,10 @@ test("HOME rendered financial values keep stable tabular numerals in the command
   assert.match(home, /\{signedMoney\(totalPnl\)\} TOTAL PNL/);
 });
 
-test("fresh or stale installs converge on the canonical master preset", () => {
+test("fresh or stale installs converge on the field preset", () => {
   const provider = read("apps/mobile/src/ThemeProvider.tsx");
   assert.match(provider, /CURRENT_DEFAULT_PRESET:\s*DesignPresetName\s*=\s*"field"/);
   assert.match(provider, /storedSchema !== DESIGN_PRESET_SCHEMA_VERSION/);
   assert.match(provider, /setPresetState\(CURRENT_DEFAULT_PRESET\)/);
-  assert.match(provider, /AsyncStorage\.setItem\(DESIGN_PRESET_STORAGE_KEY, CURRENT_DEFAULT_PRESET\)/);
+  assert.match(provider, /isDesignPresetName = \(value: string \| null\): value is DesignPresetName => value === "field"/);
 });

@@ -11,6 +11,7 @@ scope:
   - "designSystem.ts: new `field` preset (void background, hairline borders, amber primary, small radii, no shadows), identical in light and dark; field semantic colours override."
   - "ThemeProvider: default preset `field`; schema version 3 migrates stored presets to it."
   - "visualSystem/homeVisualProfile: field radii and density."
+  - "Owner follow-up: delete legacy design entirely -- remove classic/master presets, legacy IntelligenceMotionField/TerrainSignal components and their styles; stored legacy preset values migrate to field. Tests pinned to removed presets/components now assert the field design (TerrainSignal visibility test removed with its component)."
 exclusions:
   - "No server, strategy, risk, execution, credential or LIVE changes; presentation only."
 safety:

@@ -9,7 +9,8 @@ const DESIGN_PRESET_STORAGE_KEY = "nusa:design-preset";
 const DESIGN_PRESET_SCHEMA_KEY = "nusa:design-preset-schema";
 const DESIGN_PRESET_SCHEMA_VERSION = "3";
 const CURRENT_DEFAULT_PRESET: DesignPresetName = "field";
-const isDesignPresetName = (value: string | null): value is DesignPresetName => value === "classic" || value === "master" || value === "field";
+// Legacy "classic" / "master" values stored by older builds are rejected and migrate to "field".
+const isDesignPresetName = (value: string | null): value is DesignPresetName => value === "field";
 
 interface ThemeContextValue {
   readonly mode: ThemeMode;
