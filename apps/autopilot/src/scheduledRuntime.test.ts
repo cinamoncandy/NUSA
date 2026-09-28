@@ -268,3 +268,28 @@ test("scheduled runtime fails closed when latest main lacks exact canonical CI e
   assert.equal(outcome.reason, "exact-main-canonical-ci-not-found");
   assert.equal(outcome.headSha, SHA);
 });
+
+test("scheduled runtime does not probe every open PR on each tick (GitHub budget)", async () => {
+  const base = githubFetch();
+  const calls: string[] = [];
+  const pulls = Array.from({ length: 40 }, (_, i) => ({ number: 5000 + i, title: `fix: work ${i}`, body: "Refs #903", pull_request: {} }));
+  const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    calls.push(url);
+    if (url.includes("/search/issues?") && url.includes("is%3Apr")) {
+      return new Response(JSON.stringify({ total_count: pulls.length, items: pulls }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (url.includes("/search/issues?")) {
+      return new Response(JSON.stringify({ total_count: 0, items: [] }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    return base(input, init);
+  }) as typeof fetch;
+  await runScheduledAutopilot({
+    NUSA_GITHUB_TOKEN: "token",
+    NUSA_GITHUB_REPOSITORY: "cinamoncandy/NUSA",
+    NUSA_EXECUTION_COORDINATOR: namespace(true),
+  }, NOW, fetchImpl);
+  const probes = calls.filter((url) => /\/pulls\/\d+$|\/compare\//.test(url));
+  assert.equal(probes.length, 0, "no eligible issue means no PR staleness probe at all");
+  assert.ok(calls.length <= 8, `a tick with 40 open PRs must stay small, saw ${calls.length} GitHub calls`);
+});
