@@ -67,7 +67,7 @@ function explicitCodingTarget(body: string): string | undefined {
 }
 
 function priorityFromTitle(title: string): 0 | 1 | null {
-  const match = title.match(/^\s*\[?P([01])\]?(?:\s*[:\]-]|\s+)/i);
+  const match = title.match(/^\s*\[?P([01])\]?(?:\s*[:\]-]|\s+|\[)/i);
   if (!match) return null;
   return match[1] === "0" ? 0 : 1;
 }

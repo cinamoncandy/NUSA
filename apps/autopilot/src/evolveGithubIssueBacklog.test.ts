@@ -130,11 +130,18 @@ test("backlog preserves explicit deterministic ownership and conflict metadata",
 
 test("backlog skips a higher-priority issue without WIP metadata and selects actionable work", () => {
   const result = deriveGithubIssueBacklogReadiness([
-    issue({ number: 910, title: "P0: AUTOPILOT unclaimed work", body: `Autopilot work. ${SAFETY}` }),
-    issue({ number: 911, title: "P1: AUTOPILOT claimed work", body: `Autopilot work. ${SAFETY}\ncanonicalOwner: evolve\nconflictKeys: issue:911` }),
+    issue({ number: 910, title: "[P0][Autopilot] unclaimed work", body: `Autopilot work. ${SAFETY}` }),
+    issue({ number: 911, title: "[P1][Autopilot] claimed work", body: `Autopilot work. ${SAFETY}\ncanonicalOwner: evolve\nconflictKeys: issue:911` }),
   ], [], NOW);
   assert.equal(result.eligibleIssueCount, 1);
   assert.deepEqual(result.signals.map((signal) => signal.id), ["github-issue-911"]);
+});
+
+test("adjacent bracketed P0 metadata from the canonical issue title is dispatchable", () => {
+  const result = deriveGithubIssueBacklogReadiness([
+    issue({ title: "[P0][CI] Fast CI critical-path optimization for Autopilot throughput" }),
+  ], [], NOW);
+  assert.deepEqual(result.signals.map((signal) => signal.id), ["github-issue-903"]);
 });
 
 test("backlog rejects malformed explicit work metadata fail closed", () => {
