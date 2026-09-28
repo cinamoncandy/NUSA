@@ -1,4 +1,11 @@
 version: 1
+current_paper_capital_5000_account:
+  work_order: WO-PAPER-20260928-CAPITAL-5000-ACCOUNT
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-paper-capital-5000
+  authority_impact: paper-accounting
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release_then-app-observation
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_presentation_boundary:
   work_order: WO-UI-20260928-PRESENTATION-BOUNDARY
   status: READY_FOR_REVIEW
@@ -6,6 +13,23 @@ current_mobile_presentation_boundary:
   depends_on_pull_request: 2351
   authority_impact: none
   design_status: field-v1-INTERIM_full-redesign-planned-see-docs-UI_ARCHITECTURE
+current_paper_challenger_policy_default:
+  work_order: WO-PAPER-20260928-CHALLENGER-POLICY-DEFAULT-ON
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-challenger-default
+  authority_impact: paper-governance
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-observe-PAPER-cycles
+current_autopilot_scheduler_budget:
+  work_order: WO-AUTOPILOT-20260928-SCHEDULER-GITHUB-BUDGET
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-scheduler-budget
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-verify-scheduled-status-dispatches
+current_autopilot_audit_malformed_retry:
+  work_order: WO-AUTOPILOT-20260928-AUDIT-MALFORMED-RETRY
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-audit-retry-malformed
+  authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 next_ui_work:
@@ -1541,4 +1565,17 @@ current_research_replay_segmented_persistence:
   validation: "Prior exact-head CI passed on 8715a491c8942b995ed5fb68c3443baa7a83a5ea; that evidence is stale after protected-main drift. Fresh exact-head CI is required on the reconverged head."
   blocker: "None before fresh CI terminal; production recovery remains gated on independent Audit/Release and Oracle deployment."
   next: "Fresh exact-head CI -> independent Audit/Release -> merge -> Oracle exact-main deployment -> successful Research workload/restart evidence."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_pr1991_review_hardening:
+  work_order: WO-20260927-PR1991-REVIEW-HARDENING
+  status: IN_PROGRESS
+  pull_request: 1991
+  branch: fix/1892-qualification-survival-gates
+  base_sha: 3e23eccc70776d2cb932b7a819bdb92389d0e374
+  previous_verified_head: fd0ea0d345bc3574a37b292d082026cdfd4d42f9
+  finding: "Protected main advanced after the prior exact-head PASS; stale acceptance evidence cannot be reused."
+  remediation: "Reapply the frozen qualification-integrity delta onto latest protected main while preserving current research learning/runtime changes."
+  validation: "Prior focused 60/60 and exact-head CI evidence remain historical only; fresh exact-head CI is required on the reconverged head."
+  next: "Fresh exact-head CI PASS -> independent Audit -> nusa/release-authorized -> canonical merge. Do not manually rerun Audit/Release."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

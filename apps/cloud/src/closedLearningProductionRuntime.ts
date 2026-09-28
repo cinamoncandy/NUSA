@@ -1,11 +1,15 @@
 import { PaperChallengerPolicyApproval, paperChallengerPolicyEnabled } from "./paperChallengerPolicyApproval";
+import type { CommitteeVote, StrategyIdentity, StrategyValidationSummary } from "../../../packages/contracts/src/strategyGovernance";
+import { adaptPersistedPaperForwardEvidence } from "../../desktop/src/cloud/persistedPaperForwardEvidenceAdapter";
+import { buildCanonicalPaperCandidatePerformance } from "./canonicalPaperCandidatePerformance";
+import { evaluatePaperPerformanceGovernanceFeedback, type PaperPerformanceGovernanceFeedbackReceipt } from "./paperPerformanceGovernanceFeedback";
 import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
 import { FileResearchRunReplaySnapshotStore } from "../../desktop/src/cloud/researchRunReplaySnapshotStore";
 import { readCloudRuntimeConfig } from "./cloudRuntimeConfig";
 import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { SqliteCloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
 import { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
-import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, type PaperAccountState } from "./paperTradingExecutionLoop";
+import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, paperAccountIdForCapital, type PaperAccountState } from "./paperTradingExecutionLoop";
 import { createCloudAiRuntime } from "./ai/runtime";
 import { registerGracefulShutdown, startCloudRuntime, type CloudRuntimeHandle } from "./runtime";
 import { readClosedLearningProductionConfig } from "./closedLearningProductionConfig";
@@ -69,7 +73,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   // supply restart-safe candidate performance evidence without opening a second writer lease.
   const paperRepository = config.paperInitialCapitalKrw === undefined
     ? undefined
-    : new SqliteCloudPaperAccountRepository(database);
+    : new SqliteCloudPaperAccountRepository(database, { accountId: paperAccountIdForCapital(config.paperInitialCapitalKrw) });
   const paperLoop = config.paperInitialCapitalKrw === undefined || paperRepository == null
     ? undefined
     : new PaperTradingExecutionLoop({ initialCapital: config.paperInitialCapitalKrw, repository: paperRepository });
@@ -103,6 +107,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     listRealizedPeriods: () => baseHandle.listPaperRealizedPeriods(),
     openPeriodFromCanonicalAccount: (input: Parameters<CloudRuntimeHandle["openPaperRealizedPeriodFromCanonicalAccount"]>[0]) => baseHandle.openPaperRealizedPeriodFromCanonicalAccount(input),
     closePeriodFromCanonicalAccount: (input: Parameters<CloudRuntimeHandle["closePaperRealizedPeriodFromCanonicalAccount"]>[0]) => baseHandle.closePaperRealizedPeriodFromCanonicalAccount(input),
+    retireOpenPeriodForAccountChange: (periodId: string) => baseHandle.retirePaperRealizedPeriodForAccountChange(periodId),
   });
 
   const replaySnapshots = new FileResearchRunReplaySnapshotStore(closedLearningConfig.researchReplaySnapshotPath);
@@ -122,8 +127,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     bindings: challengerBindings,
     periods,
     readCanonicalPaperAccount: requireCanonicalPaperAccount,
-    // Canonical Strategy Governance approval for PAPER challengers (ADR-0018). Disabled unless
-    // NUSA_PAPER_CHALLENGER_POLICY_APPROVAL=ENABLED; disabled means qualified candidates wait.
+    // Canonical Strategy Governance approval for PAPER challengers (ADR-0018, amended): on by
+    // default on the PAPER host; NUSA_PAPER_CHALLENGER_POLICY_APPROVAL=DISABLED makes candidates wait.
     governance: new PaperChallengerPolicyApproval({ artifacts, enabled: paperChallengerPolicyEnabled(env) }),
   });
   const coordinator = new ClosedLearningLoopCoordinator(cycleRepository, researchFactory, paperDeployment);
@@ -153,6 +158,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     readCanonicalPaperAccount,
     closePeriodFromCanonicalAccount: periods.closePeriodFromCanonicalAccount,
     openPeriodFromCanonicalAccount: periods.openPeriodFromCanonicalAccount,
+    retireOpenPeriodForAccountChange: periods.retireOpenPeriodForAccountChange,
     buildEvidenceIdentity: (window) => evidenceIdentity.build(window),
     runClosedLearningCycle,
     runClosedLearningCycleAsync,
@@ -171,6 +177,33 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
       period: matches[0]!,
       accountHistory: paperRepository.loadHistory(),
       durableFills: paperRepository.loadFills(),
+    });
+  };
+
+  const evaluatePaperGovernanceFeedback = (input: Readonly<{
+    periodId: string;
+    now: number;
+    identity: StrategyIdentity;
+    validation?: StrategyValidationSummary;
+    votes: readonly CommitteeVote[];
+  }>): PaperPerformanceGovernanceFeedbackReceipt => {
+    const ledgerPerformance = readPaperPerformanceEvidence(input.periodId);
+    const adapted = adaptPersistedPaperForwardEvidence(baseHandle.listPaperRealizedPeriods());
+    const candidate = adapted.candidates.find((item) => item.candidateId === ledgerPerformance.evidence.candidateId);
+    const candidatePeriods = candidate?.periods.filter((period) => period.periodEndAt <= ledgerPerformance.evidence.periodEndAt) ?? [];
+    const paper = candidatePeriods.length === 0 ? undefined : buildCanonicalPaperCandidatePerformance({
+      candidateId: ledgerPerformance.evidence.candidateId,
+      periods: candidatePeriods,
+      account: requireCanonicalPaperAccount(),
+      executionQualityPolicy: closedLearningConfig.executionQualityPolicy,
+    });
+    return evaluatePaperPerformanceGovernanceFeedback({
+      now: input.now,
+      identity: input.identity,
+      validation: input.validation,
+      paper,
+      votes: input.votes,
+      ledgerPerformance,
     });
   };
 
@@ -242,6 +275,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     runClosedLearningRollover,
     runClosedLearningRolloverAsync,
     readPaperPerformanceEvidence,
+    evaluatePaperGovernanceFeedback,
   });
 }
 
