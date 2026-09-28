@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
   sectionDescription: { fontSize: 14, lineHeight: 21, maxWidth: 560 },
   authority: { borderWidth: 1, borderRadius: 20, padding: 16, gap: 10 },
   authorityTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" },
-  authorityTitle: { fontSize: 12, fontWeight: "800", letterSpacing: 1.2 },
+  authorityTitle: { fontSize: 12, fontWeight: "500", letterSpacing: 1.2 },
   authorityDetail: { fontSize: 13, lineHeight: 20 },
   dataRow: { minHeight: 36, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 14 },
   dataLabel: { flex: 1, fontSize: 13, lineHeight: 19 },

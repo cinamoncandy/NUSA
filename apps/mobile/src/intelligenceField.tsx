@@ -1,4 +1,5 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
+import { fieldFonts } from "./fieldFonts";
 import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { buildIntelligenceField, type FieldSubsystem, type FieldTone, type IntelligenceFieldInput } from "./intelligenceFieldModel";
 import { fieldPalette } from "./designSystem";
@@ -65,6 +66,47 @@ export function buildFieldGeometry(width: number, height: number): Readonly<Reco
   return out;
 }
 
+/** Sampled centre-line of each strand (core -> hub) that travelling signals follow. */
+export function buildStrandPaths(width: number, height: number, samples = 12): Readonly<Record<FieldSubsystem, { readonly xs: readonly number[]; readonly ys: readonly number[] }>> {
+  const cx = width / 2;
+  const cy = height / 2;
+  const ring = Math.min(width, height) * 0.38;
+  const out = {} as Record<FieldSubsystem, { xs: number[]; ys: number[] }>;
+  for (const subsystem of SUBSYSTEMS) {
+    const hx = cx + Math.cos(subsystem.angle) * ring;
+    const hy = cy + Math.sin(subsystem.angle) * ring * 0.82;
+    const bend = subsystem.angle + 0.55;
+    const qx = cx + Math.cos(bend) * ring * 0.55;
+    const qy = cy + Math.sin(bend) * ring * 0.45;
+    const xs: number[] = [];
+    const ys: number[] = [];
+    for (let i = 0; i < samples; i += 1) {
+      const t = 0.1 + (i / (samples - 1)) * 0.9;
+      const u = 1 - t;
+      xs.push(u * u * cx + 2 * u * t * qx + t * t * hx);
+      ys.push(u * u * cy + 2 * u * t * qy + t * t * hy);
+    }
+    out[subsystem.id] = { xs, ys };
+  }
+  return out;
+}
+
+/** A bright head with a short trail riding one strand; `progress` 0..1 maps along the path. */
+export function Signal({ path, progress, color, inward }: Readonly<{ path: { readonly xs: readonly number[]; readonly ys: readonly number[] }; progress: Animated.Value; color: string; inward: boolean }>) {
+  const n = path.xs.length;
+  const inputRange = path.xs.map((_, i) => i / (n - 1));
+  const xs = inward ? [...path.xs].reverse() : [...path.xs];
+  const ys = inward ? [...path.ys].reverse() : [...path.ys];
+  const opacity = progress.interpolate({ inputRange: [0, 0.08, 0.85, 1], outputRange: [0, 1, 1, 0] });
+  return <>{[0, 0.045, 0.09].map((lag, i) => {
+    const shifted = progress.interpolate({ inputRange: [0, 1], outputRange: [-lag, 1 - lag], extrapolate: "clamp" });
+    const translateX = shifted.interpolate({ inputRange, outputRange: xs, extrapolate: "clamp" });
+    const translateY = shifted.interpolate({ inputRange, outputRange: ys, extrapolate: "clamp" });
+    const size = i === 0 ? 5 : i === 1 ? 3.5 : 2.5;
+    return <Animated.View key={i} pointerEvents="none" style={{ position: "absolute", left: -size / 2, top: -size / 2, width: size, height: size, borderRadius: size / 2, backgroundColor: color, opacity: Animated.multiply(opacity, i === 0 ? 1 : i === 1 ? 0.55 : 0.3), transform: [{ translateX }, { translateY }] }} />;
+  })}</>;
+}
+
 /** Particles only re-render when geometry or colour changes, not on every live ticker update. */
 const ParticleLayer = memo(function ParticleLayer({ dots, color }: Readonly<{ dots: readonly Dot[]; color: string }>) {
   return <>{dots.map((dot, i) => <View key={i} style={{ position: "absolute", left: dot.x - dot.size / 2, top: dot.y - dot.size / 2, width: dot.size, height: dot.size, borderRadius: dot.size / 2, backgroundColor: color, opacity: dot.opacity }} />)}</>;
@@ -78,6 +120,12 @@ export function IntelligenceField({ input }: Readonly<{ input: IntelligenceField
   const levels = useRef(Object.fromEntries(SUBSYSTEMS.map((s) => [s.id, new Animated.Value(0.12)])) as Record<FieldSubsystem, Animated.Value>).current;
   const core = useRef(new Animated.Value(model.coreLevel)).current;
   const pulse = useRef(new Animated.Value(0)).current;
+  const signals = useRef(Object.fromEntries(SUBSYSTEMS.map((s) => [s.id, new Animated.Value(0)])) as Record<FieldSubsystem, Animated.Value>).current;
+  const flare = useRef(new Animated.Value(0)).current;
+  const turn = useRef(new Animated.Value(0)).current;
+  const paths = useMemo(() => (width > 0 ? buildStrandPaths(width, FIELD_HEIGHT) : null), [width]);
+  const previousKey = useRef<string | null>(null);
+  const [inward, setInward] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -93,30 +141,49 @@ export function IntelligenceField({ input }: Readonly<{ input: IntelligenceField
       const target = model.focus == null ? (lit ? 1 : 0.14) : s.id === model.focus ? 1 : lit ? 0.32 : 0.1;
       return { value: levels[s.id], target };
     });
-    // Until the preference is known, or when it asks for less motion, settle without animating.
-    if (reducedMotion !== false) {
+    const key = `${model.phase}:${model.focus ?? ""}:${litKey}:${model.tone}`;
+    const changed = previousKey.current != null && previousKey.current !== key;
+    previousKey.current = key;
+    // Mount, an unresolved preference, or reduced motion: settle without animating.
+    if (reducedMotion !== false || !changed) {
       targets.forEach(({ value, target }) => value.setValue(target));
       core.setValue(model.coreLevel);
       pulse.setValue(0);
+      flare.setValue(0);
+      SUBSYSTEMS.forEach((sub) => signals[sub.id].setValue(0));
       return undefined;
     }
-    // Motion only on a state change: settle each group, then one core pulse. No idle loop.
+    // Problems travel inward (subsystem -> core); recovery and progress propagate outward.
+    setInward(model.tone === "amber" || model.tone === "red");
     pulse.setValue(0);
+    flare.setValue(0);
+    SUBSYSTEMS.forEach((sub) => signals[sub.id].setValue(0));
+    const travelling = SUBSYSTEMS.filter((sub) => model.lit.includes(sub.id));
     const animation = Animated.parallel([
       ...targets.map(({ value, target }, i) => Animated.timing(value, { toValue: target, duration: 900, delay: i * 90, easing: Easing.out(Easing.cubic), useNativeDriver: true })),
       Animated.timing(core, { toValue: model.coreLevel, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(turn, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+      Animated.stagger(110, travelling.map((sub) => Animated.timing(signals[sub.id], { toValue: 1, duration: 950, easing: Easing.inOut(Easing.quad), useNativeDriver: true }))),
       Animated.sequence([
         Animated.timing(pulse, { toValue: 1, duration: 260, useNativeDriver: true }),
         Animated.timing(pulse, { toValue: 0, duration: 900, easing: Easing.out(Easing.quad), useNativeDriver: true }),
       ]),
+      Animated.sequence([
+        Animated.delay(700),
+        Animated.timing(flare, { toValue: 1, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      ]),
     ]);
+    turn.setValue(0);
     animation.start();
     return () => animation.stop();
-  }, [model.phase, model.focus, litKey, model.coreLevel, reducedMotion, core, levels, pulse]);
+  }, [model.phase, model.focus, litKey, model.coreLevel, model.tone, reducedMotion, core, levels, pulse, signals, flare, turn]);
 
   const toneColor = TONE_COLOR[model.tone];
   const coreScale = core.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] });
   const ringScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1.9] });
+  const coreRotate = turn.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "90deg"] });
+  const flareScale = flare.interpolate({ inputRange: [0, 1], outputRange: [0.4, 2.2] });
+  const flareOpacity = flare.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 0.9, 0] });
   const onLayout = (event: LayoutChangeEvent) => setWidth(Math.round(event.nativeEvent.layout.width));
   const cx = width / 2;
   const cy = FIELD_HEIGHT / 2;
@@ -133,10 +200,12 @@ export function IntelligenceField({ input }: Readonly<{ input: IntelligenceField
         <ParticleLayer dots={geometry[s.id]} color={model.focus === s.id ? FOCUS_COLOR : s.color} />
       </Animated.View>)}
       {width > 0 ? <>
+        {paths == null ? null : SUBSYSTEMS.filter((sub) => model.lit.includes(sub.id)).map((sub) => <Signal key={sub.id} path={paths[sub.id]} progress={signals[sub.id]} color={model.focus === sub.id ? FOCUS_COLOR : inward ? toneColor : sub.color} inward={inward} />)}
+        {model.focus == null || paths == null ? null : <Animated.View pointerEvents="none" style={[styles.flare, { left: paths[model.focus].xs[paths[model.focus].xs.length - 1] - 16, top: paths[model.focus].ys[paths[model.focus].ys.length - 1] - 16, borderColor: FOCUS_COLOR, opacity: flareOpacity, transform: [{ scale: flareScale }] }]} />}
         <Animated.View pointerEvents="none" style={[styles.pulseRing, { left: cx - 40, top: cy - 40, borderColor: toneColor, opacity: pulse, transform: [{ scale: ringScale }] }]} />
         <Animated.View pointerEvents="none" style={[styles.coreWrap, { left: cx - 36, top: cy - 36, opacity: core, transform: [{ scale: coreScale }] }]}>
           <View style={[styles.coreGlow, { backgroundColor: toneColor }]} />
-          <View style={[styles.coreDiamond, { borderColor: toneColor }]} />
+          <Animated.View style={[styles.coreDiamond, { borderColor: toneColor, transform: [{ rotate: "45deg" }, { rotate: coreRotate }] }]} />
           <View style={styles.coreHeart} />
         </Animated.View>
         {SUBSYSTEMS.map((s) => {
@@ -160,17 +229,18 @@ const styles = StyleSheet.create({
   shell: { backgroundColor: fieldPalette.void, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 22, marginHorizontal: -20 },
   statusRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
-  statusWord: { fontSize: 11, letterSpacing: 2, fontWeight: "600" },
-  phase: { marginLeft: "auto", fontSize: 10, letterSpacing: 2, color: fieldPalette.dim },
+  statusWord: { fontSize: 11, letterSpacing: 2, ...fieldFonts.monoMedium },
+  phase: { marginLeft: "auto", fontSize: 10, letterSpacing: 2, color: fieldPalette.dim, ...fieldFonts.mono },
   field: { height: FIELD_HEIGHT, overflow: "hidden" },
+  flare: { position: "absolute", width: 32, height: 32, borderRadius: 16, borderWidth: 1 },
   pulseRing: { position: "absolute", width: 80, height: 80, borderRadius: 40, borderWidth: 1 },
   coreWrap: { position: "absolute", width: 72, height: 72, alignItems: "center", justifyContent: "center" },
   coreGlow: { position: "absolute", width: 72, height: 72, borderRadius: 36, opacity: 0.16 },
-  coreDiamond: { width: 30, height: 30, borderWidth: 1.2, transform: [{ rotate: "45deg" }], backgroundColor: "rgba(255,255,255,0.06)" },
+  coreDiamond: { width: 30, height: 30, borderWidth: 1.2, backgroundColor: "rgba(255,255,255,0.06)" },
   coreHeart: { position: "absolute", width: 6, height: 6, borderRadius: 3, backgroundColor: fieldPalette.heart },
   hubLabel: { position: "absolute", width: 100, alignItems: "center" },
-  hubName: { fontSize: 9, letterSpacing: 1.6 },
-  hubState: { fontSize: 10, letterSpacing: 1, marginTop: 2, fontWeight: "600" },
-  headline: { color: fieldPalette.text, fontSize: 26, lineHeight: 34, fontWeight: "300", letterSpacing: -0.3 },
+  hubName: { fontSize: 9, letterSpacing: 1.6, ...fieldFonts.mono },
+  hubState: { fontSize: 10, letterSpacing: 1, marginTop: 2, ...fieldFonts.monoMedium },
+  headline: { color: fieldPalette.text, fontSize: 26, lineHeight: 34, letterSpacing: -0.3, ...fieldFonts.displayLight },
   detail: { color: fieldPalette.muted, fontSize: 13, lineHeight: 20, marginTop: 6 },
 });

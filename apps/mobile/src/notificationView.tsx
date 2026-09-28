@@ -24,6 +24,6 @@ export function NotificationView({ repository }: Readonly<{ repository: Settings
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({ content: { paddingHorizontal: 20, paddingTop: 20, gap: 20, paddingBottom: 40, width: "100%", maxWidth: 820, alignSelf: "center" }, emptyState: { paddingVertical: 26, gap: 10 }, emptyEyebrow: { fontSize: 10, lineHeight: 15, fontWeight: "800", letterSpacing: 1.2 }, emptyTitle: { fontSize: 27, lineHeight: 34, fontWeight: "800", letterSpacing: -0.8 }, emptyCopy: { maxWidth: 620, fontSize: 14, lineHeight: 22 }, statusRow: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 4 }, runtimeRows: { gap: 2, marginTop: 8 } });
+const styles = StyleSheet.create({ content: { paddingHorizontal: 20, paddingTop: 20, gap: 20, paddingBottom: 40, width: "100%", maxWidth: 820, alignSelf: "center" }, emptyState: { paddingVertical: 26, gap: 10 }, emptyEyebrow: { fontSize: 10, lineHeight: 15, fontWeight: "500", letterSpacing: 1.2 }, emptyTitle: { fontSize: 27, lineHeight: 34, fontWeight: "500", letterSpacing: -0.8 }, emptyCopy: { maxWidth: 620, fontSize: 14, lineHeight: 22 }, statusRow: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 4 }, runtimeRows: { gap: 2, marginTop: 8 } });
 
 export { MobileNotificationCenter };

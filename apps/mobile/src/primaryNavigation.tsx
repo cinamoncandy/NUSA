@@ -63,5 +63,5 @@ const styles = StyleSheet.create({
   item: { flex: 1, minHeight: 50, alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 2 },
   indicator: { height: 2, width: 20, borderRadius: 999 },
   label: { fontSize: 10, fontWeight: "700" },
-  activeLabel: { fontWeight: "900" },
+  activeLabel: { fontWeight: "600" },
 });
