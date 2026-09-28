@@ -319,17 +319,22 @@ current_upbit_bridge_credential_persistence:
 project: nusa
 updated_at: "2026-09-26T23:27:32+09:00"
 current_execution_target:
-  work_order: WO-20260927-AUDIT-EXACT-HEAD-BINDING
-  status: READY_FOR_REVIEW
-  branch: fix/audit-exact-head-binding
-  base_sha: e1a9f3ccb2cbc463344a18d322821ac80c82ded7
-  implementation_head: 0fe36b9d0ac482662f15c357c2a34dd3c63c803d
-  pull_request: 2343
-  scope: "Bind independent Audit diff evidence to immutable base..head commit identities and record the post-review SHA as canonical evidence; no execution or authority change."
+  work_order: WO-20260928-JEV-NATIVE-RUNTIME-SHADOW
+  status: WIP
+  branch: feat/jev-native-runtime-shadow
+  base_sha: bc420633ada54854d0f6fd666da937f0844cad89
+  pull_request: 2348
+  scope: "Wire the merged native Workers AI Jev provider into the existing Autopilot workflow-failure SHADOW runtime and capture bounded typed evidence."
   authority_impact: none
-  prior_target: WO-20260924-PAPER-LEDGER-PRESERVATION
+  first_broken_transition: native_provider_to_real_shadow_runtime_call
+  review_corrections: "Bounded sanitized failure evidence; JSON-schema-capable default model; provider-capacity stop guard; canonical C3_JEV AI-call telemetry; active AIPOS recovery state; latest protected main reconciled."
+  validation: "Focused runtime test updated; fresh exact-head CI required after review corrections."
+  dependency: "PR #2345 merged; #2338 external credential blocker is independent and does not block this lane."
+  next: "Fresh exact-head CI -> resolve review findings -> READY_FOR_REVIEW -> Independent Audit -> Release -> merge -> deployed real NUSA_JEV_WORKERS_AI_SHADOW_CALL evidence."
+  prior_target: WO-20260927-AUDIT-EXACT-HEAD-BINDING
   prior_target_status: READY_FOR_REVIEW
   prior_target_preserved: true
+  updated_at: "2026-09-28T01:50:00Z"
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_audit_exact_head_binding:
   work_order: WO-20260927-AUDIT-EXACT-HEAD-BINDING
