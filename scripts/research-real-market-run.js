@@ -416,6 +416,47 @@ function runProvenanceBoundExperiment({ id, familyId, parameters, candles, manif
   return { experiment, candidateSpecification };
 }
 
+// Keep only the evidence consumed by League/OOS projection after DSR/PBO are computed.
+// The walk-forward engine also retains train points, warmup points, equity curves, trades, and
+// candidate train scores for diagnostics; retaining those for every candidate on a 1 GB host
+// causes the production Research snapshot to exhaust V8 heap before persistence.
+function compactLeagueExperiment(experiment) {
+  const windows = experiment.walkForwardResult.windows.map((windowResult) => ({
+    window: {
+      index: windowResult.window.index,
+      trainStart: windowResult.window.trainStart,
+      trainEnd: windowResult.window.trainEnd,
+      testStart: windowResult.window.testStart,
+      testEnd: windowResult.window.testEnd,
+      testPoints: windowResult.window.testPoints,
+    },
+    selectedCandidateId: windowResult.selectedCandidateId,
+    selectionReason: windowResult.selectionReason,
+    testResult: {
+      metrics: windowResult.testResult.metrics,
+      decisions: windowResult.testResult.decisions,
+      performance: windowResult.testResult.performance,
+      equityAnalytics: windowResult.testResult.equityAnalytics,
+      benchmark: windowResult.testResult.benchmark,
+      openPosition: windowResult.testResult.openPosition,
+      finalPaperState: windowResult.testResult.finalPaperState,
+    },
+  }));
+  return {
+    manifest: experiment.manifest,
+    experimentConfig: experiment.experimentConfig,
+    generatedAt: experiment.generatedAt,
+    warnings: experiment.warnings,
+    walkForwardResult: {
+      windows,
+      combinedOutOfSampleMetrics: experiment.walkForwardResult.combinedOutOfSampleMetrics,
+      candidateSelectionCounts: experiment.walkForwardResult.candidateSelectionCounts,
+      stabilityDiagnostics: experiment.walkForwardResult.stabilityDiagnostics,
+      warnings: experiment.walkForwardResult.warnings,
+    },
+  };
+}
+
 async function fetchDayCandlePage(path) {
   const response = await fetch(`https://api.upbit.com${path}`, { signal: AbortSignal.timeout(15_000) });
   if (!response.ok) throw new Error(`Upbit request failed: HTTP ${response.status}`);
@@ -659,8 +700,12 @@ async function main() {
     if (!isResearchRunPboEvidenceUnavailable(error)) throw error;
     pboUnavailableReason = error.code;
   }
+  const compactLeagueCandidates = leagueCandidates.map((candidate) => ({
+    ...candidate,
+    experiment: compactLeagueExperiment(candidate.experiment),
+  }));
   const league = buildResearchRunLeague(
-    leagueCandidates.map((candidate) => ({
+    compactLeagueCandidates.map((candidate) => ({
       ...candidate,
       deflatedSharpe: deflatedSharpe.evidenceByCandidate.get(candidate.id),
       trialLedgerSummary: deflatedSharpe.trialLedgerSummary
