@@ -122,8 +122,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     bindings: challengerBindings,
     periods,
     readCanonicalPaperAccount: requireCanonicalPaperAccount,
-    // Canonical Strategy Governance approval for PAPER challengers (ADR-0018). Disabled unless
-    // NUSA_PAPER_CHALLENGER_POLICY_APPROVAL=ENABLED; disabled means qualified candidates wait.
+    // Canonical Strategy Governance approval for PAPER challengers (ADR-0018, amended): on by
+    // default on the PAPER host; NUSA_PAPER_CHALLENGER_POLICY_APPROVAL=DISABLED makes candidates wait.
     governance: new PaperChallengerPolicyApproval({ artifacts, enabled: paperChallengerPolicyEnabled(env) }),
   });
   const coordinator = new ClosedLearningLoopCoordinator(cycleRepository, researchFactory, paperDeployment);
