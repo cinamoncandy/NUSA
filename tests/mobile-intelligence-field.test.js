@@ -35,8 +35,8 @@ test("unavailable or unhealthy PAPER state fails closed instead of reading CONNE
   assert.equal(model.tone, "amber");
   assert.equal(field({ degraded: true, haltActive: true }).phase, "HALTED");
   const home = fs.readFileSync(path.join(root, "apps/mobile/src/homeView.tsx"), "utf8");
-  assert.match(home, /degraded: readOnlyError != null \|\| \(snapshot != null && \(snapshot\.health !== "HEALTHY"/);
-  assert.match(home, /runtimeState === "HALTED"/);
+  // Behaviour of the mapping is covered in tests/mobile-home-field-input.test.js.
+  assert.match(home, /input=\{buildHomeFieldInput\(/);
 });
 
 test("a stale phone quote feed is described as local display lag, not a server decision pause", () => {
@@ -67,8 +67,7 @@ test("field model is frozen and HOME wires only real state", () => {
   const model = field({});
   assert.ok(Object.isFrozen(model) && Object.isFrozen(model.lit) && Object.isFrozen(model.states));
   const home = fs.readFileSync(path.join(root, "apps/mobile/src/homeView.tsx"), "utf8");
-  assert.match(home, /<IntelligenceField input=/);
-  assert.match(home, /operations\.heartbeat\?\.decisionCount/);
+  assert.match(home, /<IntelligenceField input=\{buildHomeFieldInput\(/);
   const view = fs.readFileSync(path.join(root, "apps/mobile/src/intelligenceField.tsx"), "utf8");
   assert.match(view, /isReduceMotionEnabled/);
   assert.match(view, /useState<boolean \| null>\(null\)/);
@@ -83,7 +82,7 @@ test("state changes propagate as signals along strands, inward for problems, nev
   assert.match(view, /function Signal\(/);
   assert.match(view, /setInward\(model\.tone === "amber" \|\| model\.tone === "red"\)/);
   assert.match(view, /if \(reducedMotion !== false \|\| !changed\)/);
-  assert.match(view, /Animated\.stagger\(110/);
+  assert.match(view, /Animated\.stagger\(fieldMotion\.signalStaggerMs/);
   assert.doesNotMatch(view, /Animated\.loop/);
   assert.doesNotMatch(view, /useNativeDriver: false/);
 });
