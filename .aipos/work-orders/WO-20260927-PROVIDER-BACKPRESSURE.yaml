@@ -1,13 +1,13 @@
 id: WO-20260927-PROVIDER-BACKPRESSURE
 title: "Provider rate-limit governor and adaptive backpressure primitive"
-status: BLOCKED
+status: IN_PROGRESS
 owner: nusa-ai-platform
 repository: cinamoncandy/NUSA
 issue: 2185
 parent_issue: 1997
 parent_pr: 2336
-base_branch: feat/1997-provider-reliability
-base_commit: 0f4a114a6bd71d8d6ee0ff40f8feb4c2c98708eb
+base_branch: main
+base_commit: 1b058a1d26e14125afb51cc2d87a49a662044130
 implementation_branch: feat/2185-provider-backpressure
 authority_impact: none
 objective: "Consume provider-neutral health/rate-limit truth and provide deterministic provider-local admission, coalescing, bounded retry/backoff, concurrency contraction, and gradual recovery without creating a second queue, scheduler, router, or orchestrator."
@@ -33,10 +33,10 @@ acceptance:
   - "Retry exhaustion is machine-readable BLOCKED_RATE_LIMIT with next retry."
   - "ZERO_AUTHORITY/NONE/no production mutation invariants are preserved."
 evidence:
-  implementation_status: READY_FOR_REVIEW_STACKED
+  implementation_status: RECONVERGED_PENDING_EXACT_HEAD_VALIDATION
   implementation_head: 2e1ef3bdb07670d34133a927eeb019230b9be2d9
   local_validation: "Provider backpressure focused tests 13/13 PASS including replay-idempotency, concurrent-success cooldown preservation, and expired-cooldown normalization; unwired control-plane ledger 3/3 PASS; AI zero-authority and safety invariants PASS; git diff --check PASS."
-  external_validation: "BLOCKED on parent #2336 acceptance/merge; after parent merge reconverge to latest main and run fresh exact-head CI/Audit/Release."
+  external_validation: "Parent #2336 is merged at 056e8236658d5f379fa9a0a2a42e82e994110a99. This branch merged protected main at 1b058a1d26e14125afb51cc2d87a49a662044130 without history rewrite; fresh exact-head CI/Audit/Release remain required."
 safety:
   paper_only: true
   liveAuthority: NONE
@@ -44,6 +44,6 @@ safety:
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
 blocker:
-  type: PARENT_DEPENDENCY
-  dependency: "PR #2336 provider-neutral reliability must be accepted and merged first."
-next_permitted_action: "Keep stacked branch ready; after #2336 merge reconverge to latest main and run exact-head validation. Do not invent or activate provider limits outside explicit policy."
+  type: EXTERNAL_VALIDATION_PENDING
+  dependency: "Fresh exact-head preflight may require a valid read-only NUSA_GITHUB_TOKEN; HTTP 403 must remain an external credential blocker and must not be bypassed."
+next_permitted_action: "Run focused local validation, push the existing PR, and inspect fresh exact-head CI/Audit/Release. Do not invent or activate provider limits outside explicit policy."
