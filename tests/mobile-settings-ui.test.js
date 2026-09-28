@@ -42,10 +42,8 @@ test("settings UI exposes local PAPER, secure owner-device Cloud, cash allocatio
   assert.match(source, /onCloudInvestmentPercentSave/);
   assert.match(source, /onInvestmentPercentChanged/);
 
-  assert.match(source, /화면 테마/);
-  assert.match(source, /testID="settings-theme-segmented-control"/);
-  assert.match(source, /selectedKey=\{settings\.theme\}/);
-  assert.match(source, /updateTheme\(key as ThemeSetting\)/);
+  // One design language: no theme picker is offered that could claim a light UI the app never renders.
+  assert.doesNotMatch(source, /settings-theme-segmented-control|화면 테마/);
 
   assert.match(source, /testID="settings-safety"/);
   assert.match(source, /StatusChip label="PAPER ONLY"/);
@@ -58,7 +56,7 @@ test("settings UI exposes local PAPER, secure owner-device Cloud, cash allocatio
   assert.match(source, /로컬과 개인 모드 관리/);
   assert.doesNotMatch(source, /placeOrder|cancelOrder|withdraw/);
 
-  const order = ["settings-local-paper", "settings-paper-connection", "settings-capital-allocation", "settings-theme", "settings-safety", "settings-mode", "settings-operator-users"].map((testID) => source.indexOf(`testID="${testID}"`));
+  const order = ["settings-local-paper", "settings-paper-connection", "settings-capital-allocation", "settings-safety", "settings-mode", "settings-operator-users"].map((testID) => source.indexOf(`testID="${testID}"`));
   assert.ok(order.every((index) => index > -1), "every settings section testID must be present");
   assert.deepEqual(order, [...order].sort((left, right) => left - right), "settings sections must render in local-first order");
 

@@ -63,7 +63,6 @@ test("Markets, PAPER, Settings and History use shared segmented controls", () =>
   assert.match(trading, /LegacyTradingView/);
   assert.match(tradingLegacy, /paper-side-segmented-control/);
   assert.match(tradingLegacy, /paper-type-segmented-control/);
-  assert.match(settings, /settings-theme-segmented-control/);
   assert.match(history, /order-history-filters/);
   assert.match(history, /order-history-periods/);
   assert.match(history, /order-history-sorts/);
@@ -91,12 +90,12 @@ test("Notification utility is honest about unavailable runtime capability", () =
   assert.match(notifications, /가짜 알림/);
   assert.match(notifications, /READ ONLY/);
 });
-test("Intelligence field motion is evidence-driven rather than ambient", () => {
-  const source = read("src/components.tsx");
-  assert.match(source, /previousFieldState/);
-  assert.match(source, /previous\.evidenceCount === boundedEvidence/);
-  assert.match(source, /\[active, depth, evidenceCount, orbit, pulse, reducedMotion, scan, state\]/);
-  assert.doesNotMatch(source, /Animated\.loop\(/);
+test("Intelligence field motion is state-driven rather than ambient", () => {
+  const field = read("src/intelligenceField.tsx");
+  const header = read("src/fieldHeader.tsx");
+  assert.match(field, /reducedMotion !== false/);
+  assert.match(header, /reducedMotion !== false \|\| !changed/);
+  for (const source of [field, header]) assert.doesNotMatch(source, /Animated\.loop\(/);
 });
 
 test("UI v3 never introduces live execution authority", () => {

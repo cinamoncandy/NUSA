@@ -53,3 +53,33 @@ test("PAPER, LIVE and MORE render the field visual language", () => {
   assert.match(header, /reducedMotion !== false \|\| !changed/);
   assert.doesNotMatch(header, /Animated\.loop/);
 });
+
+test("the app-wide default theme is the field preset in both modes", () => {
+  const read = (file) => fs.readFileSync(path.join(root, "apps/mobile/src", file), "utf8");
+  const provider = read("ThemeProvider.tsx");
+  assert.match(provider, /CURRENT_DEFAULT_PRESET: DesignPresetName = "field"/);
+  assert.match(provider, /DESIGN_PRESET_SCHEMA_VERSION = "3"/);
+  const design = read("designSystem.ts");
+  assert.match(design, /export type DesignPresetName = "field";/);
+  assert.match(design, /dark: fieldSurface,\s*light: fieldSurface,/);
+  assert.match(design, /background: "#010204"/);
+});
+
+test("field typography is bundled with its OFL licence and only requested on Android", () => {
+  const fontsDir = path.join(root, "apps/mobile/android/app/src/main/assets/fonts");
+  for (const file of ["Sora_300Light.ttf", "Sora_400Regular.ttf", "Sora_600SemiBold.ttf", "IBMPlexMono_400Regular.ttf", "IBMPlexMono_500Medium.ttf"]) assert.ok(fs.existsSync(path.join(fontsDir, file)), file);
+  for (const licence of ["OFL-Sora.txt", "OFL-IBMPlexMono.txt"]) assert.match(fs.readFileSync(path.join(fontsDir, licence), "utf8"), /SIL Open Font License, Version 1\.1/);
+  const fonts = fs.readFileSync(path.join(root, "apps/mobile/src/fieldFonts.tsx"), "utf8");
+  assert.match(fonts, /const android = Platform\.OS === "android"/);
+});
+
+test("tab changes use a state-change-only field transition and no heavy legacy weights remain", () => {
+  const app = fs.readFileSync(path.join(root, "apps/mobile/App.tsx"), "utf8");
+  assert.match(app, /<TabTransition transitionKey=\{/);
+  const transition = fs.readFileSync(path.join(root, "apps/mobile/src/tabTransition.tsx"), "utf8");
+  assert.match(transition, /reducedMotion !== false \|\| !changed/);
+  assert.doesNotMatch(transition, /Animated\.loop/);
+  for (const file of fs.readdirSync(path.join(root, "apps/mobile/src")).filter((name) => name.endsWith(".tsx"))) {
+    assert.doesNotMatch(fs.readFileSync(path.join(root, "apps/mobile/src", file), "utf8"), /fontWeight: "(800|900)"/, file);
+  }
+});
