@@ -49,6 +49,39 @@ active_release_sha() {
   printf '%s' "$sha"
 }
 
+research_replay_snapshot_path() {
+  local snapshot state_db
+  # The root-owned runtime env is already the canonical source for these paths. Read only the two
+  # path variables and never print secret-bearing environment contents.
+  snapshot="$(set -a; source "$RUNTIME_ENV"; set +a; printf '%s' "${NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH:-}")"
+  if [ -n "$snapshot" ]; then
+    [[ "$snapshot" = /* ]] || die "Research replay snapshot path must be absolute"
+    printf '%s' "$snapshot"
+    return
+  fi
+  state_db="$(set -a; source "$RUNTIME_ENV"; set +a; printf '%s' "${NUSA_CLOUD_STATE_DB_PATH:-}")"
+  [[ "$state_db" = /* ]] || die "Cloud state path must be absolute before checking Research replay compatibility"
+  printf '%s/research-replay-snapshots.json' "$(dirname "$state_db")"
+}
+
+segmented_replay_evidence_present() {
+  local snapshot directory
+  snapshot="$(research_replay_snapshot_path)"
+  directory="${snapshot}.segments"
+  [ -d "$directory" ] || return 1
+  find "$directory" -maxdepth 1 -type f -name '*.json' -print -quit 2>/dev/null | grep -q .
+}
+
+assert_segmented_replay_compatible() {
+  local dir="${1:-}"
+  [ -d "$dir" ] || die "release directory missing while checking segmented Research replay compatibility: $dir"
+  segmented_replay_evidence_present || return 0
+  local reader="${dir}/apps/desktop/src/cloud/researchRunReplaySnapshotStore.ts"
+  [ -f "$reader" ] || die "segmented Research evidence exists but candidate release has no replay reader"
+  grep -q 'SEGMENTED_PERSISTENCE_REQUIRES_NEW_READER' "$reader" \
+    || die "segmented Research evidence exists; refusing legacy replay reader activation/rollback"
+}
+
 # Bind the runtime's self-reported source identity to the exact immutable release.
 # The environment file also contains secrets, so rewrite only the two source keys,
 # preserve ownership/mode, never print its contents, and replace it atomically.
@@ -123,6 +156,10 @@ restart_units() {
 }
 
 rollback_and_restore() {
+  local rollback_release
+  rollback_release="$(previous_release)"
+  [ -n "$rollback_release" ] || die "rollback release is unavailable"
+  assert_segmented_replay_compatible "$rollback_release"
   NUSA_DEPLOY_ACTION=rollback node "$(script_in "$(active_release)" atomic-deploy.js)"
   bind_runtime_source_identity "$(active_release_sha)"
   install_units_from_release "$(active_release)" true
@@ -191,6 +228,7 @@ case "$verb" in
     validate_sha "${1:-}"
     dir="$(release_dir "$1")"
     [ -d "$dir" ] || die "release not staged: $dir"
+    assert_segmented_replay_compatible "$dir"
     node "$(script_in "$dir" host-security-validate.js)"
     NUSA_ORACLE_RELEASE_DIR="$dir" exec node "$(script_in "$dir" oracle-validate.js)"
     ;;
@@ -199,6 +237,7 @@ case "$verb" in
     validate_sha "${1:-}"
     dir="$(release_dir "$1")"
     [ -d "$dir" ] || die "release not staged: $dir"
+    assert_segmented_replay_compatible "$dir"
     install_units_from_release "$dir"
     enable_units
     ;;
@@ -226,11 +265,15 @@ case "$verb" in
   switch)
     validate_sha "${1:-}"
     dir="$(release_dir "$1")"
+    assert_segmented_replay_compatible "$dir"
     NUSA_COMMIT_SHA="$1" node "$(script_in "$dir" atomic-deploy.js)"
     bind_runtime_source_identity "$1"
     ;;
 
   rollback)
+    rollback_release="$(previous_release)"
+    [ -n "$rollback_release" ] || die "rollback release is unavailable"
+    assert_segmented_replay_compatible "$rollback_release"
     NUSA_DEPLOY_ACTION=rollback node "$(script_in "$(active_release)" atomic-deploy.js)"
     bind_runtime_source_identity "$(active_release_sha)"
     ;;
@@ -245,6 +288,7 @@ case "$verb" in
     validate_sha "${1:-}"
     dir="$(release_dir "$1")"
     [ -d "$dir" ] || die "release not staged: $dir"
+    assert_segmented_replay_compatible "$dir"
     NUSA_COMMIT_SHA="$1" node "$(script_in "$dir" atomic-deploy.js)"
     activation_started="$(date --iso-8601=seconds)"
     paper_ready=false
