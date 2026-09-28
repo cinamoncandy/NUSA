@@ -19,6 +19,7 @@ const scenario = {
   closedTradeProfitFactor: 1.4,
   totalTradingCost: 120,
   benchmarkOutperformance: 0.03,
+  walkForwardResult: { combinedOutOfSampleMetrics: { totalOosClosedTrades: 4 } },
   warnings: []
 };
 
@@ -46,8 +47,10 @@ function stress(overrides = {}) {
 test("projects compact cost-stress evidence without leaking the full walk-forward result", () => {
   const projected = projectExecutionCostStress(stress());
   assert.equal(projected.identity.id, "stress-id");
+  assert.match(projected.identity.resultSha256, /^[0-9a-f]{64}$/);
   assert.equal(projected.baseline.totalTradingCost, 120);
   assert.equal(projected.scenarios.length, 1);
+  assert.equal(projected.baseline.totalOosClosedTrades, 4);
   assert.equal("walkForwardResult" in projected.baseline, false);
   assert.deepEqual(projected.breakEvenEstimate, { status: "NOT_FOUND", label: "BREAK_EVEN_NOT_FOUND" });
 });
@@ -55,4 +58,12 @@ test("projects compact cost-stress evidence without leaking the full walk-forwar
 test("rejects incomplete cost-stress evidence instead of emitting a partial report", () => {
   assert.throws(() => projectExecutionCostStress(stress({ baseline: undefined })), /scenario evidence is malformed/);
   assert.throws(() => projectExecutionCostStress(stress({ warnings: undefined })), /evidence is incomplete/);
+});
+
+
+test("cost-stress result digest changes when scenario outcomes change", () => {
+  const first = projectExecutionCostStress(stress());
+  const changedScenario = { ...scenario, markedTotalReturn: scenario.markedTotalReturn + 0.01 };
+  const second = projectExecutionCostStress(stress({ baseline: changedScenario, scenarios: [changedScenario] }));
+  assert.notEqual(first.identity.resultSha256, second.identity.resultSha256);
 });
