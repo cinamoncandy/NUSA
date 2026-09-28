@@ -18,7 +18,7 @@ test("an unconfigured launch supplies every input the runtime requires, includin
   // rejected as MARKET_DATA_INVALID, which is indistinguishable from a broken product.
   assert.equal(env.NUSA_CLOUD_UPBIT_PUBLIC_DATA, "true");
   // Without initial capital the PAPER execution loop is never constructed at all.
-  assert.equal(env.NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW, "10000000");
+  assert.equal(env.NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW, "5000");
   assert.ok(applied.includes("NUSA_CLOUD_UPBIT_PUBLIC_DATA"));
   assert.ok(applied.includes("NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW"));
 });
