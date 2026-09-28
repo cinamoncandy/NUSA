@@ -33,6 +33,6 @@ persistence_and_recovery_evidence:
     - "pnpm run typecheck: PASS"
     - "pnpm run validate: PASS"
     - "node scripts/aipos-work-order-index.js --check: PASS"
-    - "node --test tests/*.test.js: RESULT_TESTS"
-    - "node scripts/run-tests-isolated.js: RESULT_ISOLATED"
+    - "node --test tests/*.test.js: 4693 pass, 0 fail"
+    - "node scripts/run-tests-isolated.js: PASS 1086 isolated test files"
 residual: "Root cause of the 2026-09-28 PAPER restart loop is diagnosed from the reported code after deployment."
