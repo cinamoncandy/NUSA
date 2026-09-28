@@ -302,6 +302,55 @@ test("clamps excessive Retry-After values to the bounded retry ceiling", () => {
   assert.deepEqual(hint, { delayMs: MAX_RETRY_DELAY_MS, source: "retry-after-header" });
 });
 
+test("treats Jev proposal abstention as one successful no-action without publish or retry", async () => {
+  await withOidcEnvironment(async () => {
+    let proposalCalls = 0;
+    let publishCalls = 0;
+    let validationCalls = 0;
+    const result = await executeGithubActionsRunner(
+      request,
+      "https://runner.example.test/coding/execute",
+      async (url) => {
+        const value = String(url);
+        if (value.startsWith("https://oidc.example.test/token")) return oidcSuccess();
+        if (value.endsWith("/coding/propose")) {
+          proposalCalls += 1;
+          return response(200, {
+            accepted: true,
+            status: "JEV_ROUTING_ABSTAINED",
+            reason: "NON_CODE_AUTOFIX_FORBIDDEN",
+            jevAdmissionAction: "ABSTAIN_EXPENSIVE_INFERENCE",
+            jevRequiredModel: "HUMAN",
+            jevConfidence: 0.97,
+            aiAuthority: "ZERO_AUTHORITY",
+          });
+        }
+        if (value.endsWith("/coding/publish")) {
+          publishCalls += 1;
+          throw new Error("publish must not run after Jev abstention");
+        }
+        throw new Error("unexpected URL " + value);
+      },
+      {
+        validatePatch() {
+          validationCalls += 1;
+          throw new Error("patch validation must not run after Jev abstention");
+        },
+      },
+    );
+    assert.equal(result.status, "NO_ACTION");
+    assert.equal(result.reason, "NON_CODE_AUTOFIX_FORBIDDEN");
+    assert.equal(result.workerStatus, "JEV_ROUTING_ABSTAINED");
+    assert.equal(result.proposalAttempts, 1);
+    assert.equal(result.proposalRetries, 0);
+    assert.equal(result.codeChanged, false);
+    assert.equal(result.jevAdmissionAction, "ABSTAIN_EXPENSIVE_INFERENCE");
+    assert.equal(proposalCalls, 1);
+    assert.equal(publishCalls, 0);
+    assert.equal(validationCalls, 0);
+  });
+});
+
 test("normalizes a non-2xx worker rate-limit stop into waiting without proposal retries", async () => {
   await withOidcEnvironment(async () => {
     let proposalCalls = 0;

@@ -1,4 +1,9 @@
 import { logAiCall } from "./aiCallTelemetry";
+import {
+  decideJevBoundedCodingAdmission,
+  isJevBoundedCodingAdmissionCandidate,
+  type JevCodingFailureEvidence,
+} from "./jevBoundedCodingAdmission";
 export interface CodingProposalContext {
   readonly path: string;
   readonly startLine: number;
@@ -32,6 +37,11 @@ export interface CodingRunnerEnv {
   NUSA_AI_CODING_ENDPOINT?: string;
   NUSA_AI_CODING_TOKEN?: string;
   NUSA_AI_CODING_MODEL?: string;
+  NUSA_JEV_SHADOW_ENABLED?: string;
+  NUSA_JEV_BOUNDED_ROUTING_ENABLED?: string;
+  NUSA_JEV_API_KEY?: string;
+  NUSA_JEV_ENDPOINT?: string;
+  NUSA_JEV_TIMEOUT_MS?: string;
   NUSA_GITHUB_REPOSITORY?: string;
   NUSA_GITHUB_TOKEN?: string;
   AI?: WorkersAiBinding;
@@ -103,6 +113,15 @@ export interface CodingRunnerFailureEvidence {
   readonly headSha: string;
 }
 
+interface VerifiedCodingWorkflowEvidence {
+  readonly workflowRunId: number;
+  readonly workflowName: string | null;
+  readonly workflowEvent: string | null;
+  readonly workflowStatus: "completed";
+  readonly workflowConclusion: string;
+  readonly headSha: string;
+}
+
 export class CodingRunnerEvidenceError extends Error {
   readonly evidence: CodingRunnerFailureEvidence;
 
@@ -116,6 +135,8 @@ export class CodingRunnerEvidenceError extends Error {
 export interface CodingRunnerExecutionOptions {
   readonly maxProposalAttempts?: number;
   readonly now?: () => number;
+  /** Test/runtime adapter for the bounded Jev admission call. Production normally uses the configured Jev provider. */
+  readonly jevAdmissionClassify?: (input: Readonly<Record<string, unknown>>) => Promise<unknown>;
   /**
    * Consulted immediately before every Workers AI call, after GitHub evidence verification. Returns
    * the provider's recorded retry time when it is still inside its wait window, or null when a call
@@ -149,6 +170,10 @@ export interface CodingRunnerResult {
   readonly resumeCondition?: string;
   readonly fallbackProvider?: "github-models";
   readonly fallbackFailureReason?: string;
+  readonly jevAdmissionAction?: "PROCEED_EXISTING" | "ABSTAIN_EXPENSIVE_INFERENCE";
+  readonly jevAdmissionReason?: string;
+  readonly jevRequiredModel?: string | null;
+  readonly jevConfidence?: number;
 }
 
 interface HttpResponse {
@@ -554,7 +579,7 @@ export async function verifyCodingRunnerRequestAgainstGitHub(
   request: CodingRunnerRequest,
   githubToken: string | undefined,
   fetchImpl: FetchImpl = fetch as unknown as FetchImpl,
-): Promise<void> {
+): Promise<VerifiedCodingWorkflowEvidence> {
   const repository = request.repository.split("/").map(encodeURIComponent).join("/");
 
   const commitResponse = await githubEvidenceGet(`${GITHUB_API_ORIGIN}/repos/${repository}/commits/${request.headSha}`, githubToken, fetchImpl);
@@ -570,9 +595,17 @@ export async function verifyCodingRunnerRequestAgainstGitHub(
   if (typeof run.head_sha !== "string" || run.head_sha.toLowerCase() !== request.headSha.toLowerCase()) throw new Error("CODING_RUNNER_WORKFLOW_HEAD_MISMATCH");
   if (runRepository.full_name !== request.repository) throw new Error("CODING_RUNNER_WORKFLOW_REPOSITORY_MISMATCH");
   if (run.status !== "completed") throw new Error("CODING_RUNNER_WORKFLOW_NOT_COMPLETED");
-  const failureRepair = request.reason.includes("gha:");
+
+  const failureReason = request.reason.match(/^gha:(\d+):([0-9a-f]{40}):(failure|cancelled|timed_out)$/i);
+  const failureRepair = failureReason !== null;
+  if (failureReason
+    && (Number(failureReason[1]) !== request.workflowRunId
+      || failureReason[2].toLowerCase() !== request.headSha.toLowerCase())) {
+    throw new Error("CODING_RUNNER_FAILURE_REASON_IDENTITY_MISMATCH");
+  }
   const allowedConclusions = failureRepair ? ["failure", "cancelled", "timed_out"] : ["success"];
-  if (typeof run.conclusion !== "string" || !allowedConclusions.includes(run.conclusion)) {
+  if (typeof run.conclusion !== "string" || !allowedConclusions.includes(run.conclusion)
+    || (failureReason && run.conclusion !== failureReason[3].toLowerCase())) {
     const code = failureRepair ? "CODING_RUNNER_FAILURE_EVIDENCE_INVALID" : "CODING_RUNNER_WORKFLOW_NOT_SUCCESSFUL";
     throw new CodingRunnerEvidenceError(code, {
       code,
@@ -585,6 +618,84 @@ export async function verifyCodingRunnerRequestAgainstGitHub(
     });
   }
   if (typeof run.head_branch !== "string" || !run.head_branch.trim()) throw new Error("CODING_RUNNER_WORKFLOW_BRANCH_INVALID");
+  return Object.freeze({
+    workflowRunId: request.workflowRunId,
+    workflowName: typeof run.name === "string" ? run.name : null,
+    workflowEvent: typeof run.event === "string" ? run.event : null,
+    workflowStatus: "completed",
+    workflowConclusion: run.conclusion,
+    headSha: request.headSha.toLowerCase(),
+  });
+}
+
+const SAFE_FAILURE_LABEL = /^[A-Za-z0-9_.:/ ()\[\]-]{1,128}$/;
+const SENSITIVE_FAILURE_LABEL = /bearer\s+[A-Za-z0-9._~+\/-]{8,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(?:ghp_|github_pat_|xox[baprs]-)[A-Za-z0-9-]{16,}\b|\bAKIA[0-9A-Z]{16}\b/i;
+const FAILURE_CONCLUSIONS = new Set(["failure", "cancelled", "timed_out"]);
+
+function safeFailureLabel(value: unknown): string | null {
+  return typeof value === "string"
+    && SAFE_FAILURE_LABEL.test(value)
+    && !SENSITIVE_FAILURE_LABEL.test(value)
+    ? value
+    : null;
+}
+
+async function verifiedJevCodingFailureEvidence(
+  request: CodingRunnerRequest,
+  verified: VerifiedCodingWorkflowEvidence,
+  githubToken: string | undefined,
+  fetchImpl: FetchImpl,
+): Promise<JevCodingFailureEvidence | null> {
+  if (!FAILURE_CONCLUSIONS.has(verified.workflowConclusion)) return null;
+  const repository = request.repository.split("/").map(encodeURIComponent).join("/");
+  const jobsResponse = await githubEvidenceGet(
+    `${GITHUB_API_ORIGIN}/repos/${repository}/actions/runs/${request.workflowRunId}/jobs?per_page=100`,
+    githubToken,
+    fetchImpl,
+  );
+  if (jobsResponse.status !== 200) return null;
+  let payload: Record<string, unknown>;
+  try {
+    payload = object(await jobsResponse.json());
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(payload.jobs)) return null;
+
+  const failedJobs: string[] = [];
+  const failedSteps: string[] = [];
+  for (const rawJob of payload.jobs.slice(0, 100)) {
+    if (!rawJob || typeof rawJob !== "object" || Array.isArray(rawJob)) continue;
+    const job = rawJob as Record<string, unknown>;
+    if (Number.isSafeInteger(job.run_id) && job.run_id !== request.workflowRunId) continue;
+    const conclusion = typeof job.conclusion === "string" ? job.conclusion : "";
+    const jobName = safeFailureLabel(job.name);
+    if (FAILURE_CONCLUSIONS.has(conclusion) && jobName) {
+      failedJobs.push(jobName);
+    }
+    if (!Array.isArray(job.steps)) continue;
+    for (const rawStep of job.steps) {
+      if (!rawStep || typeof rawStep !== "object" || Array.isArray(rawStep)) continue;
+      const step = rawStep as Record<string, unknown>;
+      const stepConclusion = typeof step.conclusion === "string" ? step.conclusion : "";
+      const stepName = safeFailureLabel(step.name);
+      if (FAILURE_CONCLUSIONS.has(stepConclusion) && stepName) {
+        failedSteps.push(stepName);
+      }
+      if (failedSteps.length >= 16) break;
+    }
+    if (failedJobs.length >= 8 && failedSteps.length >= 16) break;
+  }
+  if (failedJobs.length === 0 && failedSteps.length === 0) return null;
+  return Object.freeze({
+    workflowRunId: request.workflowRunId,
+    headSha: request.headSha.toLowerCase(),
+    workflowName: verified.workflowName,
+    workflowEvent: verified.workflowEvent,
+    workflowConclusion: verified.workflowConclusion as "failure" | "cancelled" | "timed_out",
+    failedJobs: Object.freeze(failedJobs.slice(0, 8)),
+    failedSteps: Object.freeze(failedSteps.slice(0, 16)),
+  });
 }
 
 function codingEngineRequest(request: CodingRunnerRequest, token: string, structured = false): RequestInit {
@@ -773,7 +884,28 @@ export async function executeCodingRunner(
   publisher?: CodingPublisher,
   options: CodingRunnerExecutionOptions = {},
 ): Promise<CodingRunnerResult> {
-  await verifyCodingRunnerRequestAgainstGitHub(request, env.NUSA_GITHUB_TOKEN, fetchImpl);
+  const verifiedWorkflow = await verifyCodingRunnerRequestAgainstGitHub(request, env.NUSA_GITHUB_TOKEN, fetchImpl);
+  const jevFailureEvidence = isJevBoundedCodingAdmissionCandidate(request, env)
+    ? await verifiedJevCodingFailureEvidence(request, verifiedWorkflow, env.NUSA_GITHUB_TOKEN, fetchImpl)
+    : null;
+  const jevAdmission = await decideJevBoundedCodingAdmission(
+    request,
+    env,
+    options.jevAdmissionClassify ? { classify: options.jevAdmissionClassify } : {},
+    jevFailureEvidence,
+  );
+  if (jevAdmission.action === "ABSTAIN_EXPENSIVE_INFERENCE") {
+    return {
+      status: "JEV_ROUTING_ABSTAINED",
+      reason: jevAdmission.reasonCode,
+      proposalAttempts: 0,
+      failureStage: "proposal-parse",
+      jevAdmissionAction: jevAdmission.action,
+      jevAdmissionReason: jevAdmission.reasonCode,
+      jevRequiredModel: jevAdmission.requiredModel,
+      jevConfidence: jevAdmission.confidence,
+    };
+  }
   const maxProposalAttempts = options.maxProposalAttempts ?? MAX_WORKERS_AI_PROPOSAL_ATTEMPTS;
   if (!Number.isSafeInteger(maxProposalAttempts) || maxProposalAttempts < 1 || maxProposalAttempts > MAX_WORKERS_AI_PROPOSAL_ATTEMPTS) {
     throw new Error("CODING_PROPOSAL_ATTEMPT_LIMIT_INVALID");

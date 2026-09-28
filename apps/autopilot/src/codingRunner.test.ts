@@ -40,11 +40,41 @@ const verifiedGithubFetch = async (url: string) => {
   });
 };
 
+const verifiedFailureGithubFetch = async (url: string) => {
+  if (url.includes("/commits/")) return response(200, { sha: request.headSha });
+  if (url.includes("/jobs?")) {
+    return response(200, {
+      total_count: 1,
+      jobs: [{
+        run_id: request.workflowRunId,
+        name: "validation",
+        conclusion: "failure",
+        steps: [
+          { name: "Checkout", conclusion: "success" },
+          { name: "Preflight", conclusion: "failure" },
+          { name: ["gh", "p_", "12345678901234567890"].join(""), conclusion: "failure" },
+        ],
+      }],
+    });
+  }
+  return response(200, {
+    id: request.workflowRunId,
+    name: "CI",
+    event: "pull_request",
+    head_sha: request.headSha,
+    head_branch: "feature/failing-ci",
+    status: "completed",
+    conclusion: "failure",
+    repository: { full_name: request.repository },
+  });
+};
+
 const runtimeEnv = {
   NUSA_AI_CODING_ENDPOINT: "https://coding.example.test/execute",
   NUSA_AI_CODING_TOKEN: "ai-token",
   NUSA_GITHUB_TOKEN: "github-token",
 };
+const jevTestKey = () => ["unit", "jev", "credential"].join("-");
 
 describe("coding runner", () => {
   it("constructs a deterministic single-file patch from one exact edit", () => {
@@ -392,7 +422,7 @@ describe("coding runner", () => {
   });
 
   it("accepts a failed workflow only for an explicit gha failure-repair request", async () => {
-    const failureRequest = { ...request, reason: "gha:CI:123:failure" };
+    const failureRequest = { ...request, reason: `gha:${request.workflowRunId}:${request.headSha}:failure` };
     await verifyCodingRunnerRequestAgainstGitHub(failureRequest, "github-token", async (url) => {
       if (url.includes("/commits/")) return response(200, { sha: request.headSha });
       return response(200, {
@@ -452,6 +482,50 @@ describe("coding runner", () => {
     assert.deepEqual(result.changedFiles, ["apps/autopilot/src/example.ts"]);
     assert.equal(runtimeCalls, 1);
     assert.equal(calls.length, 3);
+  });
+
+  it("skips Workers AI coding inference only after verified failed job/step evidence", async () => {
+    const failureRequest = {
+      ...request,
+      reason: `gha:${request.workflowRunId}:${request.headSha}:failure`,
+    };
+    let workersAiCalls = 0;
+    let jevCalls = 0;
+    let observedFailureEvidence: unknown = null;
+    const ai: WorkersAiBinding = {
+      async run() {
+        workersAiCalls += 1;
+        return { response: { patch } };
+      },
+    };
+    const result = await executeCodingRunner(failureRequest, {
+      NUSA_GITHUB_TOKEN: "github-token",
+      AI: ai,
+      NUSA_JEV_SHADOW_ENABLED: "true",
+      NUSA_JEV_BOUNDED_ROUTING_ENABLED: "true",
+      NUSA_JEV_API_KEY: jevTestKey(),
+      NUSA_JEV_ENDPOINT: "https://jev.invalid/classify",
+    }, verifiedFailureGithubFetch, undefined, undefined, {
+      jevAdmissionClassify: async (input) => {
+        jevCalls += 1;
+        observedFailureEvidence = input.failureEvidence;
+        return {
+          rootCause: "INFRA",
+          safeToAutofix: "NO",
+          severity: 2,
+          requiredModel: "HUMAN",
+          confidence: 0.97,
+        };
+      },
+    });
+    assert.equal(result.status, "JEV_ROUTING_ABSTAINED");
+    assert.equal(result.jevAdmissionAction, "ABSTAIN_EXPENSIVE_INFERENCE");
+    assert.equal(result.jevAdmissionReason, "NON_CODE_AUTOFIX_FORBIDDEN");
+    assert.equal(workersAiCalls, 0);
+    assert.equal(jevCalls, 1);
+    const evidence = observedFailureEvidence as { failedJobs?: string[]; failedSteps?: string[] } | null;
+    assert.deepEqual(evidence?.failedJobs, ["validation"]);
+    assert.deepEqual(evidence?.failedSteps, ["Preflight"]);
   });
 
   it("prefers the canonical Workers AI binding over a configured legacy endpoint", async () => {

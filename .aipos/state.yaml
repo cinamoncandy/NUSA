@@ -1,15 +1,19 @@
 version: 1
 current_jev_workers_ai_native_provider:
   work_order: WO-20260927-JEV-WORKERS-AI-NATIVE-PROVIDER
-  status: READY_FOR_REVIEW
+  status: MERGED_VERIFIED_RUNTIME_EVIDENCE_PENDING
   pull_request: 2345
   branch: feat/jev-workers-ai-native-provider
   base_sha: 056e8236658d5f379fa9a0a2a42e82e994110a99
+  merge_commit: b631ef9a352bfd3ed6b90d27de45d5816d48b3c5
+  exact_head_ci: 36360465401
+  post_merge_main_ci: 36360851894
+  audit_release: 36360820562
   first_broken_transition: workers_ai_native_provider_review_findings_to_exact_head_acceptance
   scope: native-workers-ai-jev-shadow-provider-with-deterministic-fallback-evidence
   rollout_ceiling: SHADOW
   review_corrections: "Canonical stable input fingerprint/prompt; timeout coalescing retained until binding settles; structured response envelopes; provider retry metadata preservation; token usage in typed receipt; no secrets."
-  remaining: focused-validation_then-fresh-exact-head-CI_then-independent-Audit_then-Release-merge_then-runtime-call
+  remaining: real-native-workers-ai-shadow-call_then_typed-receipt-and-evidence_then_calibration
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_jev_domain_observation_contract:
   work_order: WO-ISSUE-2326-JEV-DOMAIN-OBSERVATION
@@ -24,6 +28,19 @@ current_jev_domain_observation_contract:
   validation: "Implementation head ca56eb2a exact-head CI 36287313910 PASS including validation, all coverage shards, aggregate coverage, and test; local focused TypeScript compile, runtime trust-boundary assertions, AIPOS YAML, and git diff checks PASS. Full repository tsc on the 1 GB nusa-vcn verifier was resource-limited and boundedly stopped, not diagnostically failed. This metadata-only reconciliation requires one final fresh exact-head CI."
   blocker: "Independent Audit provider is in WORKERS_AI_DAILY_QUOTA_EXHAUSTED HARD_STOP; persisted nextRetryAt is 2026-09-28T00:00:00Z (2026-09-28 09:00 KST). Do not repeatedly poll or dispatch Audit before this boundary."
   remaining: fresh-exact-head-CI_then_independent-Audit_after-nextRetryAt_then_Release_then_merge
+current_jev_bounded_coding_admission:
+  work_order: WO-20260924-AI-CAPACITY-COST-CEILING
+  status: READY_FOR_REVIEW
+  branch: feat/ai-capacity-jev-bounded-admission
+  base_sha: b631ef9a352bfd3ed6b90d27de45d5816d48b3c5
+  pull_request: 2331
+  rollout_mode: BOUNDED_ROUTING_DISABLED_PENDING_2329
+  first_broken_transition: verified_failure_to_expensive_coding_admission
+  scope: verified-failure-evidence_negative-admission_plus_production-no-action-propagation
+  implementation_head: 08adc66b24719d92010301ed2b7b7416b17e4486
+  correction: "Canonical gha failure reasons are eligible; Jev abstention requires exact GitHub failed job/step evidence; repair retries do not reclassify; /coding/propose and dispatcher propagate abstention as successful NO_ACTION."
+  validation: "Focused admission TypeScript compile/runtime PASS; dispatcher JEV_ROUTING_ABSTAINED->NO_ACTION test PASS; git diff --check PASS; review threads RESOLVED. Fresh exact-head CI required."
+  remaining: push-rebased-existing-PR_then_fresh-exact-head-CI_then_independent-Audit_then_Release
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_ai_provider_reliability:
   work_order: WO-20260927-AI-PROVIDER-RELIABILITY

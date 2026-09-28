@@ -173,6 +173,21 @@ export async function handleCodingProposal(request: Request, env: WorkerEnv): Pr
         aiAuthority: "ZERO_AUTHORITY",
       }, 409);
     }
+    if (result.status === "JEV_ROUTING_ABSTAINED") {
+      return json({
+        accepted: true,
+        status: "JEV_ROUTING_ABSTAINED",
+        reason: result.reason ?? "NON_CODE_AUTOFIX_FORBIDDEN",
+        jevAdmissionAction: result.jevAdmissionAction ?? "ABSTAIN_EXPENSIVE_INFERENCE",
+        jevRequiredModel: result.jevRequiredModel ?? null,
+        jevConfidence: result.jevConfidence ?? 0,
+        headSha: runnerRequest.headSha,
+        workflowRunId: runnerRequest.workflowRunId,
+        liveAuthority: "NONE",
+        productionMutationAllowed: false,
+        aiAuthority: "ZERO_AUTHORITY",
+      });
+    }
     if (result.status !== "EXECUTION_ACCEPTED" || !capture.proposal?.patch?.trim()) {
       throw new Error(result.reason || "CODING_PROPOSAL_UNAVAILABLE");
     }
