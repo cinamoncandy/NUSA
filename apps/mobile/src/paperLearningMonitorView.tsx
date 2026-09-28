@@ -184,6 +184,8 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
       <IntelligenceSection title="현재 사이클" kicker="NOW" tone="primary" style={tablet ? styles.column : undefined} testID="paper-learning-current-cycle">
         <FactRow label="MARKET" value={state.latestMarket ?? "—"} />
         <FactRow label="CYCLE" value={state.currentCycle ?? "—"} />
+        <FactRow label="FIRST BROKEN" value={state.firstBrokenTransition == null ? "NONE OBSERVED" : `${state.firstBrokenTransition.from} → ${state.firstBrokenTransition.to}`} tone={state.firstBrokenTransition == null ? "success" : "danger"} testID="paper-learning-first-broken" />
+        {state.firstBrokenTransition ? <Text style={[styles.note, { color: theme.colors.textMuted }]} testID="paper-learning-first-broken-reason">{state.firstBrokenTransition.reason}</Text> : null}
         <FactRow label="DATA" value={latestMarketEvent == null ? "NO DATA" : `${latestMarketEvent.status} · ${formatTimestamp(latestMarketEvent.occurredAt)}`} />
         <FactRow label="SIGNAL" value={state.latestSignal == null ? "—" : `${state.latestSignal.action}${state.latestSignal.confidence == null ? "" : ` · ${Math.round(state.latestSignal.confidence * 100)}%`}`} />
         <FactRow label="DECISION" value={state.latestDecision == null ? "—" : `${state.latestDecision.action} · ${formatNumber(state.latestDecision.allocation * 100, 1)}%`} />
