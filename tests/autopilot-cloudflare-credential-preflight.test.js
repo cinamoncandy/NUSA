@@ -136,7 +136,7 @@ test('secret-bearing preflight validates runtime GitHub credential read-only bef
   assert.match(workflow, /Validate runtime GitHub credential before Cloudflare sync/);
   assert.match(workflow, /Authorization: Bearer \$NUSA_GITHUB_TOKEN/);
   assert.match(workflow, /https:\/\/api\.github\.com\/repos\/\$GITHUB_REPOSITORY/);
-  assert.match(workflow, /Runtime GitHub credential rejected by GitHub API/);
+  assert.match(workflow, /Runtime GitHub credential probe failed/);\n  assert.match(workflow, /x-ratelimit-\\(limit\\|remaining\\|reset\\|used\\|resource\\)/);\n  assert.match(workflow, /GitHub message:/);
   assert.match(workflow, /BLOCKED_HUMAN/);
   assert.doesNotMatch(workflow.slice(workflow.indexOf('Validate runtime GitHub credential before Cloudflare sync'), workflow.indexOf('Check Cloudflare API token self-verification')), /echo.*NUSA_GITHUB_TOKEN/);
 });
