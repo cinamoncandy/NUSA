@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { AutopilotFailureClass } from "./executionTelemetry";
+import { logAiCall } from "./aiCallTelemetry";
 import { JevShadowProvider } from "../../cloud/src/ai/jevShadowProvider";
 import { JevWorkersAiProvider, type JevWorkersAiReceipt, type JevWorkersAiRuntime } from "../../cloud/src/ai/jevWorkersAiProvider";
 import { JevShadowRouter } from "../../cloud/src/ai/jevShadowRouter";
@@ -21,7 +22,22 @@ interface JevEnv {
   readonly AI?: JevWorkersAiRuntime;
 }
 const enabled=(value:string|undefined)=>value?.trim().toLowerCase()==="true";
-const DEFAULT_WORKERS_AI_JEV_MODEL="@cf/meta/llama-3.1-8b-instruct-fast";
+const DEFAULT_WORKERS_AI_JEV_MODEL="@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+const PROVIDER_STOP_REASONS=new Set([
+  "WORKERS_AI_DAILY_QUOTA_EXHAUSTED",
+  "WORKERS_AI_RATE_LIMITED",
+  "WAITING_PROVIDER_CAPACITY",
+  "BLOCKED_RATE_LIMIT",
+]);
+
+function boundedFailureEvidence(value:string):string {
+  return value
+    .replace(/(authorization|token|secret|password|api[-_ ]?key)\s*[:=]\s*[^\s,;]+/ig,"$1=[REDACTED]")
+    .replace(/[^\x20-\x7E]/g," ")
+    .replace(/\s+/g," ")
+    .trim()
+    .slice(0,512);
+}
 
 export async function observeJevCodingFailureShadow(input:{
   readonly runnerRequest: RunnerRequestLike;
@@ -29,11 +45,13 @@ export async function observeJevCodingFailureShadow(input:{
   readonly failureClass: AutopilotFailureClass;
   readonly env: JevEnv;
 }):Promise<JevWorkflowFailureReceipt|null>{
-  if(!input.failureReason || input.failureClass!=="deterministic") return null;
+  if(!input.failureReason || input.failureClass!=="deterministic" || PROVIDER_STOP_REASONS.has(input.failureReason)) return null;
   const request=input.runnerRequest;
+  const failureEvidence=boundedFailureEvidence(input.failureReason);
+  if(!failureEvidence) return null;
   const fingerprint=createHash("sha256").update(JSON.stringify({
     headSha:request.headSha,workflowRunId:request.workflowRunId,executionId:request.executionId,
-    dedupeKey:request.dedupeKey,failureReason:input.failureReason
+    dedupeKey:request.dedupeKey,failureReason:failureEvidence
   })).digest("hex");
   const packet=createJevWorkflowFailurePacket({
     decisionId:`jev:wf:${request.workflowRunId}:${fingerprint.slice(0,16)}`,
@@ -59,9 +77,27 @@ export async function observeJevCodingFailureShadow(input:{
 
   if(shadowEnabled && input.env.AI){
     try {
-      const provider=new JevWorkersAiProvider({ai:input.env.AI,model:workersAiModel,timeoutMs});
+      const instrumentedAi:JevWorkersAiRuntime={
+        async run(model,value){
+          try {
+            const response=await input.env.AI!.run(model,value);
+            logAiCall({caller:"C3_JEV",model,attempt:1,promptChars:value.prompt.length,response});
+            return response;
+          } catch(error) {
+            logAiCall({caller:"C3_JEV",model,attempt:1,promptChars:value.prompt.length,response:{}});
+            throw error;
+          }
+        }
+      };
+      const provider=new JevWorkersAiProvider({ai:instrumentedAi,model:workersAiModel,timeoutMs});
       classifier=async(value)=>{
-        const result=await provider.classifyDetailed(value);
+        const result=await provider.classifyDetailed(Object.freeze({
+          ...value,
+          failureEvidence:Object.freeze({
+            failureClass:input.failureClass,
+            failureReason:failureEvidence,
+          }),
+        }));
         nativeReceipt=result.receipt;
         return result.decision;
       };
@@ -71,7 +107,13 @@ export async function observeJevCodingFailureShadow(input:{
   if(!classifier && shadowEnabled && apiKey && endpoint){
     try {
       const provider=new JevShadowProvider({apiKey,endpoint,timeoutMs});
-      classifier=(value)=>provider.classify(value);
+      classifier=(value)=>provider.classify(Object.freeze({
+        ...value,
+        failureEvidence:Object.freeze({
+          failureClass:input.failureClass,
+          failureReason:failureEvidence,
+        }),
+      }));
       modelIdentity="jev-shadow";
     } catch { classifier=null; }
   }
@@ -86,6 +128,7 @@ export async function observeJevCodingFailureShadow(input:{
       provider:nativeReceipt.provider,model:nativeReceipt.model,latencyMs:nativeReceipt.latencyMs,timeoutMs:nativeReceipt.timeoutMs,
       inputFingerprint:nativeReceipt.inputFingerprint,confidence:nativeReceipt.confidence,reasonCode:nativeReceipt.reasonCode,
       promptTokens:nativeReceipt.promptTokens,completionTokens:nativeReceipt.completionTokens,fallbackApplied:shadow.fallbackApplied,
+      timestamp:new Date().toISOString(),usableForRouting:false,
       liveAuthority:"NONE",productionMutationAllowed:false,aiAuthority:"ZERO_AUTHORITY"
     }));
   }
