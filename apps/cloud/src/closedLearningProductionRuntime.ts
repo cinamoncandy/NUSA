@@ -1,4 +1,8 @@
 import { PaperChallengerPolicyApproval, paperChallengerPolicyEnabled } from "./paperChallengerPolicyApproval";
+import type { CommitteeVote, StrategyIdentity, StrategyValidationSummary } from "../../../packages/contracts/src/strategyGovernance";
+import { adaptPersistedPaperForwardEvidence } from "../../desktop/src/cloud/persistedPaperForwardEvidenceAdapter";
+import { buildCanonicalPaperCandidatePerformance } from "./canonicalPaperCandidatePerformance";
+import { evaluatePaperPerformanceGovernanceFeedback, type PaperPerformanceGovernanceFeedbackReceipt } from "./paperPerformanceGovernanceFeedback";
 import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
 import { FileResearchRunReplaySnapshotStore } from "../../desktop/src/cloud/researchRunReplaySnapshotStore";
 import { readCloudRuntimeConfig } from "./cloudRuntimeConfig";
@@ -174,6 +178,33 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     });
   };
 
+  const evaluatePaperGovernanceFeedback = (input: Readonly<{
+    periodId: string;
+    now: number;
+    identity: StrategyIdentity;
+    validation?: StrategyValidationSummary;
+    votes: readonly CommitteeVote[];
+  }>): PaperPerformanceGovernanceFeedbackReceipt => {
+    const ledgerPerformance = readPaperPerformanceEvidence(input.periodId);
+    const adapted = adaptPersistedPaperForwardEvidence(baseHandle.listPaperRealizedPeriods());
+    const candidate = adapted.candidates.find((item) => item.candidateId === ledgerPerformance.evidence.candidateId);
+    const candidatePeriods = candidate?.periods.filter((period) => period.periodEndAt <= ledgerPerformance.evidence.periodEndAt) ?? [];
+    const paper = candidatePeriods.length === 0 ? undefined : buildCanonicalPaperCandidatePerformance({
+      candidateId: ledgerPerformance.evidence.candidateId,
+      periods: candidatePeriods,
+      account: requireCanonicalPaperAccount(),
+      executionQualityPolicy: closedLearningConfig.executionQualityPolicy,
+    });
+    return evaluatePaperPerformanceGovernanceFeedback({
+      now: input.now,
+      identity: input.identity,
+      validation: input.validation,
+      paper,
+      votes: input.votes,
+      ledgerPerformance,
+    });
+  };
+
   // Closed learning is serialized and asynchronous. Research/League can be CPU-heavy on the
   // Oracle host, but it must never block the Node HTTP loop that serves /health, /ready, or the
   // monitoring UI. The async child-process boundary preserves all existing mutation ordering.
@@ -242,6 +273,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     runClosedLearningRollover,
     runClosedLearningRolloverAsync,
     readPaperPerformanceEvidence,
+    evaluatePaperGovernanceFeedback,
   });
 }
 
