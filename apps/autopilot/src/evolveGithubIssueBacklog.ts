@@ -168,6 +168,33 @@ function eligibleIssue(value: unknown, linked: ReadonlySet<number>): EligibleIss
   });
 }
 
+/**
+ * Open PRs whose staleness is worth probing: only those that reference an issue that would be
+ * eligible if unlinked. Probing every open PR cost two GitHub calls per PR on every scheduled
+ * tick, which exhausted the token's rate limit (GITHUB_HTTP_403) and stopped all coding dispatch.
+ * PRs not selected stay unprobed and therefore keep blocking their issue (fail closed).
+ */
+export function selectStalenessProbePulls(issues: readonly unknown[], openPulls: readonly unknown[], max: number): ReadonlySet<unknown> {
+  const unlinked: ReadonlySet<number> = new Set();
+  const candidates = new Set<number>();
+  for (const value of issues) {
+    const eligible = eligibleIssue(value, unlinked);
+    if (eligible) candidates.add(eligible.number);
+  }
+  const selected = new Set<unknown>();
+  if (candidates.size === 0 || max <= 0) return selected;
+  for (const value of openPulls) {
+    if (selected.size >= max) break;
+    const pull = object(value);
+    if (!pull) continue;
+    const haystack = `${text(pull.title) ?? ""}\n${text(pull.body) ?? ""}`;
+    for (const match of haystack.matchAll(/#(\d+)/g)) {
+      if (candidates.has(Number(match[1]))) { selected.add(value); break; }
+    }
+  }
+  return selected;
+}
+
 export function deriveGithubIssueBacklogReadiness(
   issues: readonly unknown[],
   openPulls: readonly unknown[],
