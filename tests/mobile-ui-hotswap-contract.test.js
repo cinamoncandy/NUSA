@@ -76,7 +76,7 @@ test("canonical HOME uses verified market and PAPER data without fabricating una
 
 test("HOME rendered financial values keep stable tabular numerals in the command-center grammar", () => {
   const home = read("apps/mobile/src/homeView.tsx");
-  for (const style of ["balanceValue", "pnlValue", "factValue", "previewValue"]) {
+  for (const style of ["capitalValue", "pnlValue", "factValue", "previewValue"]) {
     assert.match(home, new RegExp(`${style}: \\{[^}]*fontVariant: \\["tabular-nums"\\]`));
   }
   assert.match(home, /\{krw\(account\?\.equity\)\}/);
