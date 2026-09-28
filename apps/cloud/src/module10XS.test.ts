@@ -68,7 +68,7 @@ describe("10X-S canonical registry", () => {
         qualification.sourceBlobSha,
         `${definition.stage} canonical source changed without re-qualification`
       );
-      if (definition.stage === "STRATEGY") {
+      if (definition.stage === "STRATEGY" || definition.stage === "PAPER_ADAPTER") {
         assert.equal(definition.criteria.CANONICAL_ENTRYPOINT, false);
         assert.deepEqual(definition.criterionEvidence.CANONICAL_ENTRYPOINT, []);
       } else {
