@@ -1,0 +1,24 @@
+id: WO-UI-20260928-INTELLIGENCE-FIELD
+title: "Owner-approved NUSA Intelligence Field on mobile HOME"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-intelligence-field
+authority_impact: none
+objective: "Render canonical PAPER state as a central core with five subsystem fibers (market, axiom, paper, governance, risk) that moves only on state change."
+scope:
+  - "Pure model apps/mobile/src/intelligenceFieldModel.ts mapping existing snapshot facts to phase, focus and labels."
+  - "Core View/Animated renderer apps/mobile/src/intelligenceField.tsx; no new dependency; respects reduced motion; no idle loop."
+  - "HOME places the field at the top using real snapshot, kill switch, feed staleness and heartbeat counts."
+exclusions:
+  - "No server, strategy, risk, execution, credential or LIVE changes; no synthetic values."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run typecheck
+  - node --test tests/mobile-intelligence-field.test.js
+  - pnpm run validate
+residual: "Physical Android device visual acceptance is HUMAN_ENVIRONMENT_ONLY."

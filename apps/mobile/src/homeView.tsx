@@ -16,6 +16,7 @@ import { FactRow, StateNotice } from "./intelligenceOs";
 import { IntelligenceMotionField, MotionReveal } from "./components";
 import { BUILD_SOURCE_SHA } from "./generatedBuildConfig";
 import { visualSystem } from "./visualSystem";
+import { IntelligenceField } from "./intelligenceField";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
 export type HomeDestination = "Paper" | "Live" | "More";
@@ -171,6 +172,17 @@ export function HomeView({
           <Text style={[styles.statusCapsuleText, { color: systemColor }]}>{shownConnectionLabel}</Text>
         </Pressable>
       </View>
+
+      <IntelligenceField input={{
+        checking: snapshot == null && !disconnected && readOnlyError == null,
+        disconnected,
+        recovering: Boolean(recovering),
+        haltActive: snapshot?.dashboard.killSwitchActive === true,
+        feedStale: publicMarketStale,
+        readyForPaperOperations: snapshot?.readyForPaperOperations ?? false,
+        decisionCount: snapshot?.operations.heartbeat?.decisionCount ?? null,
+        paperOrderCount: snapshot?.operations.heartbeat?.paperOrderCount ?? null,
+      }} />
 
       <View style={styles.glanceRail} testID="home-status-rail">
         <Text style={[styles.glancePrimary, { color: theme.colors.textMuted }]} numberOfLines={1}>{rail.marketLine} · {rail.systemLine}</Text>
