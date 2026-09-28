@@ -157,14 +157,13 @@ function eligibleIssue(value: unknown, linked: ReadonlySet<number>): EligibleIss
   } catch {
     return null;
   }
-  if (!metadata) return null;
   return Object.freeze({
     number,
     title,
     priority,
     updatedAtMs: Number.isFinite(updatedAtMs) ? updatedAtMs : 0,
     capability: capabilityForIssue(title, body),
-    ...metadata,
+    ...(metadata ?? {}),
     ...(codingTarget === undefined ? {} : { codingTarget }),
   });
 }
@@ -220,7 +219,7 @@ export function deriveGithubIssueBacklogReadiness(
   for (const candidate of candidates) {
     if (candidate.capability !== "AUTOPILOT_TYPESCRIPT") capabilityBlockedCapabilities[candidate.capability] += 1;
   }
-  const eligible = candidates.filter((candidate) => candidate.capability === "AUTOPILOT_TYPESCRIPT");
+  const eligible = candidates.filter((candidate) => candidate.capability === "AUTOPILOT_TYPESCRIPT" && candidate.canonicalOwner && candidate.conflictKeys?.length);
 
   const signals = eligible.slice(0, 1).map((issue) => Object.freeze({
     id: `github-issue-${issue.number}`,

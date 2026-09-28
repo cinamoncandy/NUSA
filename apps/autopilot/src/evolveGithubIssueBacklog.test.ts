@@ -35,8 +35,8 @@ test("backlog readiness counts all eligible work but dispatch signal stays bound
 
 test("unsupported research and general work stays visible but cannot enter CodingRunner READY", () => {
   const result = deriveGithubIssueBacklogReadiness([
-    issue({ number: 1901, title: "P1: Research OOS robustness evidence" }),
-    issue({ number: 1902, title: "P1: Mobile UI release regression" }),
+    issue({ number: 1901, title: "P1: Research OOS robustness evidence", body: SAFETY }),
+    issue({ number: 1902, title: "P1: Mobile UI release regression", body: SAFETY }),
     issue({ number: 1903, title: "P1: AUTOPILOT bounded coding fix" }),
   ], [], NOW);
   assert.equal(result.eligibleIssueCount, 1);
