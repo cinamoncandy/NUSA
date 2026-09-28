@@ -107,6 +107,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     listRealizedPeriods: () => baseHandle.listPaperRealizedPeriods(),
     openPeriodFromCanonicalAccount: (input: Parameters<CloudRuntimeHandle["openPaperRealizedPeriodFromCanonicalAccount"]>[0]) => baseHandle.openPaperRealizedPeriodFromCanonicalAccount(input),
     closePeriodFromCanonicalAccount: (input: Parameters<CloudRuntimeHandle["closePaperRealizedPeriodFromCanonicalAccount"]>[0]) => baseHandle.closePaperRealizedPeriodFromCanonicalAccount(input),
+    retireOpenPeriodForAccountChange: (periodId: string) => baseHandle.retirePaperRealizedPeriodForAccountChange(periodId),
   });
 
   const replaySnapshots = new FileResearchRunReplaySnapshotStore(closedLearningConfig.researchReplaySnapshotPath);
@@ -157,6 +158,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     readCanonicalPaperAccount,
     closePeriodFromCanonicalAccount: periods.closePeriodFromCanonicalAccount,
     openPeriodFromCanonicalAccount: periods.openPeriodFromCanonicalAccount,
+    retireOpenPeriodForAccountChange: periods.retireOpenPeriodForAccountChange,
     buildEvidenceIdentity: (window) => evidenceIdentity.build(window),
     runClosedLearningCycle,
     runClosedLearningCycleAsync,

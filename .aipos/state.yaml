@@ -1,4 +1,11 @@
 version: 1
+current_paper_capital_5000_account:
+  work_order: WO-PAPER-20260928-CAPITAL-5000-ACCOUNT
+  status: ROLLED_BACK
+  rollback_pull_request: 2371
+  authority_impact: paper-accounting
+  remaining: reproduce-prod-crash-from-prod-like-state_then-fix_then-re-propose-capital-switch
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_presentation_boundary:
   work_order: WO-UI-20260928-PRESENTATION-BOUNDARY
   status: READY_FOR_REVIEW
