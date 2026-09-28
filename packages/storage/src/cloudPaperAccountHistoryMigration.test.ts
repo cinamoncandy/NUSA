@@ -20,7 +20,7 @@ describe("canonical PAPER account history migration", () => {
   it("is installed automatically by SqliteDatabase initialization", () => {
     const db = new SqliteDatabase(":memory:");
     try {
-      assert.equal(db.migrationResult.currentVersion, "024_research_intelligence_memory");
+      assert.equal(db.migrationResult.currentVersion, "025_cloud_paper_legacy_reconciliation_receipts");
       const triggerNames = (db.connection.prepare(`
         SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg_cloud_paper_account_history_%' ORDER BY name
       `).all() as Array<{ name: string }>).map((row) => row.name);
@@ -45,7 +45,7 @@ describe("canonical PAPER account history migration", () => {
       insertAccount(db, 777, stateJson);
 
       const result = runMigrations(db, migrations, () => new Date("2026-08-29T00:01:00.000Z"));
-      assert.deepEqual(result.applied, ["018_cloud_paper_account_history", "019_paper_public_market_observations", "020_evolution_learning_ledger", "021_research_factory_decision_history", "022_research_memory_semantic_overlay", "023_cloud_paper_fill_ledger", "024_research_intelligence_memory"]);
+      assert.deepEqual(result.applied, ["018_cloud_paper_account_history", "019_paper_public_market_observations", "020_evolution_learning_ledger", "021_research_factory_decision_history", "022_research_memory_semantic_overlay", "023_cloud_paper_fill_ledger", "024_research_intelligence_memory", "025_cloud_paper_legacy_reconciliation_receipts"]);
       const row = db.prepare("SELECT updated_at, state_json, checksum FROM cloud_paper_account_history WHERE account_id = 'paper-default'").get() as { updated_at: number; state_json: string; checksum: string };
       assert.equal(Number(row.updated_at), 777);
       assert.equal(row.state_json, stateJson);
