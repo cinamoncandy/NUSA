@@ -2,6 +2,7 @@ const { existsSync } = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
+const { readOwnerPaperAccount } = require("./start-cloud-runtime.js");
 
 /**
  * Clears an abandoned PAPER writer lease.
@@ -22,9 +23,13 @@ const { DatabaseSync } = require("node:sqlite");
 const DEFAULT_STATE_DB_PATH = path.join(os.homedir(), ".nusa", "cloud", "state.sqlite");
 const LEGACY_ACCOUNT_ID = "paper-default";
 
-/** Mirrors paperAccountIdForCapital in apps/cloud/src/paperTradingExecutionLoop.ts. */
-function resolveAccountId(env = process.env) {
-  const raw = (env.NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW || "").trim();
+/**
+ * The account the launcher will run: the owner PAPER account file wins over the host env, and a
+ * blank env means the launcher default. Mirrors paperAccountIdForCapital in
+ * apps/cloud/src/paperTradingExecutionLoop.ts.
+ */
+function resolveAccountId(env = process.env, ownerPaperAccount = readOwnerPaperAccount()) {
+  const raw = ownerPaperAccount != null ? String(ownerPaperAccount.initialCapitalKrw) : (env.NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW || "").trim();
   // Blank means the launcher default (scripts/start-cloud-runtime.js DEFAULT_PAPER_CAPITAL_KRW).
   const capital = raw ? Number(raw) : 5_000;
   if (!Number.isFinite(capital) || capital <= 0 || capital === 10_000_000) return LEGACY_ACCOUNT_ID;
@@ -58,7 +63,7 @@ async function runtimeIsResponding(endpoint, fetchFn = fetch) {
   }
 }
 
-function readLease(databasePath, openDatabase = (file) => new DatabaseSync(file), accountId = LEGACY_ACCOUNT_ID) {
+function readLease(databasePath, openDatabase = (file) => new DatabaseSync(file), accountId = resolveAccountId()) {
   if (!existsSync(databasePath)) return null;
   const db = openDatabase(databasePath);
   try {
@@ -70,7 +75,7 @@ function readLease(databasePath, openDatabase = (file) => new DatabaseSync(file)
   }
 }
 
-function deleteLease(databasePath, openDatabase = (file) => new DatabaseSync(file), accountId = LEGACY_ACCOUNT_ID) {
+function deleteLease(databasePath, openDatabase = (file) => new DatabaseSync(file), accountId = resolveAccountId()) {
   const db = openDatabase(databasePath);
   try {
     return Number(db.prepare("DELETE FROM cloud_paper_writer_leases WHERE account_id = ?").run(accountId).changes);
