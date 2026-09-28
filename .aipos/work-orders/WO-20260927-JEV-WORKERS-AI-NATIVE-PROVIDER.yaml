@@ -1,6 +1,6 @@
 id: WO-20260927-JEV-WORKERS-AI-NATIVE-PROVIDER
 title: "Converge native Workers AI Jev SHADOW provider"
-status: READY_FOR_REVIEW
+status: MERGED_VERIFIED_RUNTIME_EVIDENCE_PENDING
 owner: nusa-ai-platform
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -40,4 +40,4 @@ safety:
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
-next_permitted_action: "Complete review corrections, run focused validation, then fresh exact-head CI and independent Audit. Runtime activation remains SHADOW-only."
+next_permitted_action: "Capture one real post-merge native Workers AI SHADOW response and typed receipt, then bind it to canonical evidence before any calibration or promotion discussion. Runtime activation remains SHADOW-only."

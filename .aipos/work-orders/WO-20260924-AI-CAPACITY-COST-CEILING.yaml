@@ -4,6 +4,7 @@ status: READY_FOR_REVIEW
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
+base_commit: b631ef9a352bfd3ed6b90d27de45d5816d48b3c5
 implementation_branch: feat/ai-capacity-jev-bounded-admission
 parent_work_order: WO-ISSUE-2238-WORKERS-AI-DAILY-QUOTA
 authority_impact: none
@@ -38,7 +39,7 @@ verification_commands:
 evidence:
   implementation_status: READY_FOR_REVIEW
   implementation_head: 08adc66b24719d92010301ed2b7b7416b17e4486
-  current_slice_validation: "Canonical gha identity coverage added; verified GitHub failed job/step evidence is required before abstention; Jev proposal abstention is propagated as successful NO_ACTION; repair attempts make zero repeat Jev admission calls; AIPOS state/scope reconciled. Focused admission TypeScript compile/runtime PASS, dispatcher abstention test PASS, git diff --check PASS. Fresh exact-head CI is required."
+  current_slice_validation: "Canonical gha identity coverage added; verified GitHub failed job/step evidence is required before abstention; Jev proposal abstention is propagated as successful NO_ACTION; repair attempts make zero repeat Jev admission calls; AIPOS state/scope reconciled. Rebased without conflict onto protected main b631ef9a352bfd3ed6b90d27de45d5816d48b3c5. Focused admission/cloud/dispatcher tests 48/48 PASS after TypeScript build; pnpm run validate PASS; pnpm run validate:full PASS; git diff --check PASS. Fresh exact-head CI is required."
   prior_slice_validation: "ai-budget-state 6/6 PASS; combined autopilot/worker/coding-runner/audit-runner/provider/execution-coordinator suite 227/227 PASS; pnpm run validate PASS; secret scan 0 failures; typecheck PASS."
   external_validation: "REQUIRED: exact-head CI, independent Audit, canonical Release."
 safety:
@@ -47,7 +48,7 @@ safety:
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
-next_permitted_action: "Run fresh exact-head CI on this final metadata head, then independent Audit and canonical Release. Keep bounded routing disabled until #2329 SHADOW acceptance/calibration."
+next_permitted_action: "Push the rebased existing PR #2331 only; verify fresh exact-head CI, then request independent Audit and canonical Release. Keep bounded routing disabled until #2329 SHADOW acceptance/calibration."
 
 current_slice:
   name: "Jev-first bounded coding admission"
