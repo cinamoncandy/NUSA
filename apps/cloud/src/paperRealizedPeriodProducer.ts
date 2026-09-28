@@ -430,33 +430,6 @@ export class PaperRealizedPeriodProducer {
     return stored;
   }
 
-  /**
-   * Retires the open period when the canonical PAPER account it was opened against was replaced
-   * (a different initial capital means a different account). Its outcome can never be reconciled
-   * against the new account, and only one period may be open, so without this the learning loop
-   * would stay blocked forever. Only a period whose boundary provably differs is retired.
-   */
-  public retireOpenPeriodForAccountChange(periodId: string): PersistedPaperRealizedPeriodPlan {
-    try {
-      const current = this.openPeriods.get(periodId);
-      if (current == null) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", periodId);
-      if (current.accountBoundary == null) throw new PaperRealizedPeriodProducerError("CANONICAL_ACCOUNT_BOUNDARY_UNAVAILABLE", "PAPER period was not opened from a canonical account boundary", periodId);
-      const reader = this.options.readCanonicalPaperAccount;
-      if (reader == null) throw new PaperRealizedPeriodProducerError("CANONICAL_ACCOUNT_UNAVAILABLE", "canonical PAPER account source is unavailable", periodId);
-      let account: PaperAccountState;
-      try { account = reader(); } catch { throw new PaperRealizedPeriodProducerError("CANONICAL_ACCOUNT_UNAVAILABLE", "canonical PAPER account source could not be read", periodId); }
-      if (!Number.isFinite(account?.initialCapital) || account.initialCapital === current.accountBoundary.initialCapital) {
-        throw new PaperRealizedPeriodProducerError("ACCOUNT_NOT_CHANGED", "canonical PAPER account was not replaced", periodId);
-      }
-      const pending = this.repository.getPending(periodId);
-      if (pending == null) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", periodId);
-      this.repository.retirePending(periodId, pending.checksum);
-      this.openPeriods.delete(periodId);
-      this.emit({ type: "PERIOD_REJECTED", periodId, occurredAt: this.options.now?.() ?? Date.now(), reasonCode: "ACCOUNT_REPLACED" });
-      return current;
-    } catch (error) { throw error instanceof PaperRealizedPeriodProducerError ? error : this.reject(error, periodId); }
-  }
-
   public listRealizedPeriods(): readonly PersistedPaperPeriodEnvelope[] {
     try { return this.repository.list(); }
     catch (error) { throw this.reject(error); }

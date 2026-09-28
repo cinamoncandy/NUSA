@@ -6,7 +6,6 @@ import type { ClosedLearningCycleResult, ClosedLearningEvidenceIdentity } from "
 
 export type ClosedLearningRolloverStatus =
   | "NO_OPEN_PERIOD"
-  | "ACCOUNT_REPLACED_PERIOD_REOPENED"
   | "WAITING_FOR_CANONICAL_BOUNDARY"
   | "WAITING_FOR_KST_DAY_ROLLOVER"
   | "WAITING_FOR_REALIZED_FILL"
@@ -31,8 +30,6 @@ export interface ClosedLearningRolloverPort {
   readonly readCanonicalPaperAccount: () => PaperAccountState | undefined;
   readonly closePeriodFromCanonicalAccount: (input: { readonly periodId: string; readonly periodEndAt: number }) => PersistedPaperPeriodEnvelope;
   readonly openPeriodFromCanonicalAccount: (input: PaperRealizedPeriodOpenInput) => PersistedPaperRealizedPeriodPlan;
-  /** Retires an open period whose canonical PAPER account was replaced (different initial capital). */
-  readonly retireOpenPeriodForAccountChange?: (periodId: string) => PersistedPaperRealizedPeriodPlan;
   readonly buildEvidenceIdentity: (window: ClosedLearningEvidenceWindow) => ClosedLearningEvidenceIdentity;
   readonly runClosedLearningCycle: (identity: ClosedLearningEvidenceIdentity) => ClosedLearningCycleResult;
   readonly runClosedLearningCycleAsync?: (identity: ClosedLearningEvidenceIdentity) => Promise<ClosedLearningCycleResult>;
@@ -85,25 +82,6 @@ export class ClosedLearningRolloverScheduler {
     const account = this.port.readCanonicalPaperAccount();
     if (account == null || account.version !== 1 || !Number.isSafeInteger(account.updatedAt) || account.updatedAt < 0) {
       return Object.freeze({ status: "BLOCKED", periodId: plan.periodId, reason: "CANONICAL_PAPER_ACCOUNT_UNAVAILABLE" });
-    }
-    if (plan.accountBoundary != null && plan.accountBoundary.initialCapital !== account.initialCapital) {
-      // The owner replaced the PAPER account (different initial capital). The old period can never
-      // reconcile against the new account, so retire it and continue the same candidate/advisory
-      // in a fresh period opened from the new account.
-      if (this.port.retireOpenPeriodForAccountChange == null) {
-        return Object.freeze({ status: "BLOCKED", periodId: plan.periodId, reason: "PAPER_ACCOUNT_REPLACED_RETIREMENT_UNAVAILABLE" });
-      }
-      this.port.retireOpenPeriodForAccountChange(plan.periodId);
-      const periodIndex = nextPeriodIndex(this.port.listRealizedPeriods());
-      const reopened = this.port.openPeriodFromCanonicalAccount({
-        periodId: `closed-learning-account-replaced:${periodIndex}:${account.updatedAt}`,
-        periodIndex,
-        advisory: plan.advisory,
-        candidateProvenance: plan.candidateProvenance,
-        ...(plan.market == null ? {} : { market: plan.market }),
-        periodStartAt: account.updatedAt,
-      });
-      return Object.freeze({ status: "ACCOUNT_REPLACED_PERIOD_REOPENED", periodId: reopened.periodId, reason: `retired:${plan.periodId}` });
     }
     if (account.updatedAt <= plan.periodStartAt) {
       return Object.freeze({ status: "WAITING_FOR_CANONICAL_BOUNDARY", periodId: plan.periodId });

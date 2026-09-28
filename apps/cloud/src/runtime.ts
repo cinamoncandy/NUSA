@@ -4,7 +4,7 @@ import { readCloudRuntimeConfig, createSharedSecretTokenVerifier } from "./cloud
 import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
 import { DurableCloudDashboardStateProvider } from "./durableCloudDashboardStateProvider";
 import { SqliteCloudDashboardSnapshotRepository, type CloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
-import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, paperAccountIdForCapital, type PaperAccountRepository } from "./paperTradingExecutionLoop";
+import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, type PaperAccountRepository } from "./paperTradingExecutionLoop";
 import { CloudPaperCanonicalRiskGateway } from "./cloudPaperCanonicalRiskGateway";
 import { CloudPaperExecutionBoundary } from "./cloudPaperExecutionBoundary";
 import { SqliteP0AlertRepository } from "./p0AlertRepository";
@@ -85,7 +85,6 @@ export interface CloudRuntimeHandle extends CloudDashboardServerHandle {
   /** Canonical account-boundary path; no caller-supplied outcome metrics are accepted. */
   readonly openPaperRealizedPeriodFromCanonicalAccount: (input: PaperRealizedPeriodOpenInput) => PersistedPaperRealizedPeriodPlan;
   readonly closePaperRealizedPeriodFromCanonicalAccount: (input: PaperRealizedPeriodCanonicalCloseInput) => PersistedPaperPeriodEnvelope;
-  readonly retirePaperRealizedPeriodForAccountChange: (periodId: string) => PersistedPaperRealizedPeriodPlan;
   readonly listPaperRealizedPeriods: () => readonly PersistedPaperPeriodEnvelope[];
 }
 
@@ -199,7 +198,7 @@ export function startCloudRuntime(
   const paperMarketObservationRepository = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new SqlitePaperMarketObservationRepository(durableRepository.database())
     : undefined;
-  const effectivePaperRepository = paperAccountRepository ?? (config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository ? new SqliteCloudPaperAccountRepository(durableRepository.database(), { accountId: paperAccountIdForCapital(config.paperInitialCapitalKrw) }) : undefined);
+  const effectivePaperRepository = paperAccountRepository ?? (config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository ? new SqliteCloudPaperAccountRepository(durableRepository.database()) : undefined);
   let effectivePaperLoop: PaperTradingExecutionLoop | undefined;
   const paperRealizedPeriodProducer = durableRepository instanceof SqliteCloudDashboardSnapshotRepository
     ? new PaperRealizedPeriodProducer(new SqlitePaperRealizedPeriodRepository(durableRepository.database()), {
@@ -501,7 +500,6 @@ export function startCloudRuntime(
     closePaperRealizedPeriod: (input) => requirePaperRealizedPeriodProducer().closePeriod(input),
     openPaperRealizedPeriodFromCanonicalAccount: (input) => requirePaperRealizedPeriodProducer().openPeriodFromCanonicalAccount(input),
     closePaperRealizedPeriodFromCanonicalAccount: (input) => requirePaperRealizedPeriodProducer().closePeriodFromCanonicalAccount(input),
-    retirePaperRealizedPeriodForAccountChange: (periodId) => requirePaperRealizedPeriodProducer().retireOpenPeriodForAccountChange(periodId),
     listPaperRealizedPeriods: () => requirePaperRealizedPeriodProducer().listRealizedPeriods(),
     stop: async () => { try { clearInterval(heartbeatTimer); marketDataClient?.stop(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } }
   };

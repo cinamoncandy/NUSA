@@ -184,18 +184,6 @@ export class SqlitePersistedPaperPeriodStore {
     });
   }
 
-  /**
-   * Removes a pending (never realized) period whose checksum still matches. Used only when the
-   * canonical PAPER account it was opened against has been replaced; realized periods are never
-   * touched.
-   */
-  public retirePending(periodId: string, expectedChecksum: string): void {
-    this.db.transaction(() => {
-      const result = this.db.connection.prepare(`DELETE FROM ${PENDING_TABLE} WHERE period_id = ? AND checksum = ?`).run(periodId, expectedChecksum) as { changes?: number };
-      if (Number(result.changes ?? 0) !== 1) throw new PersistedPaperPeriodStoreError("PENDING_IDENTITY_CONFLICT", "pending PAPER period evidence is unavailable or changed", periodId);
-    });
-  }
-
   public list(): readonly PersistedPaperPeriodEnvelope[] {
     const rows = this.db.connection.prepare(`SELECT record_id, payload_json, checksum FROM ${TABLE} ORDER BY period_index ASC, period_start_at ASC, record_id ASC`).all() as Array<Record<string, unknown>>;
     return freeze(rows.map((row) => decodeEnvelope(row)));

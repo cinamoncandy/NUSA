@@ -150,29 +150,3 @@ describe("PaperRealizedPeriodProducer", () => {
     finally { state.db.close(); }
   });
 });
-
-describe("retiring an open period when the canonical PAPER account is replaced", () => {
-  function accountWith(initialCapital: number, updatedAt: number) {
-    return Object.freeze({ version: 1 as const, initialCapital, cash: initialCapital, equity: initialCapital, realizedPnL: 0, unrealizedPnL: 0, positions: Object.freeze([]), orders: Object.freeze([]), fills: Object.freeze([]), processedIdempotencyKeys: Object.freeze([]), updatedAt });
-  }
-
-  it("retires only a period whose account boundary differs, keeps realized history, and lets a new period open", () => {
-    let current = accountWith(10_000_000, BASE);
-    const events: string[] = [];
-    const state = producer({ readCanonicalPaperAccount: () => current, onLifecycleEvent: (event) => events.push(`${event.type}:${"reasonCode" in event ? event.reasonCode : ""}`) });
-    state.producer.openPeriodFromCanonicalAccount(openPeriod(0));
-    assert.equal(codeOf(() => state.producer.retireOpenPeriodForAccountChange("period-0")), "ACCOUNT_NOT_CHANGED");
-    assert.equal(state.producer.hasOpenPeriod(), true);
-
-    current = accountWith(5_000, BASE + 5_000);
-    const retired = state.producer.retireOpenPeriodForAccountChange("period-0");
-    assert.equal(retired.accountBoundary?.initialCapital, 10_000_000);
-    assert.equal(state.producer.hasOpenPeriod(), false);
-    assert.equal(state.repository.getPending("period-0"), undefined);
-    assert.ok(events.includes("PERIOD_REJECTED:ACCOUNT_REPLACED"));
-
-    const reopened = state.producer.openPeriodFromCanonicalAccount({ ...openPeriod(0, "period-new"), periodStartAt: BASE + 5_000 });
-    assert.equal(reopened.accountBoundary?.initialCapital, 5_000);
-    assert.equal(codeOf(() => state.producer.retireOpenPeriodForAccountChange("missing")), "PERIOD_NOT_OPEN");
-  });
-});
