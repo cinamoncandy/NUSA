@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
@@ -7,14 +8,15 @@ import path from "node:path";
  * it through the public `/health` `lastError` field. Without it a crash loop is invisible: every
  * restart starts with a clean in-memory heartbeat.
  *
- * Only a bare code derived from the message is kept, never free text, so nothing beyond what the
- * existing public liveness error allowlist accepts can reach `/health`. Recording is best-effort and
- * never changes the fail-closed outcome.
+ * No free text is ever kept: a message that already is a bare internal code (for example
+ * PAPER_WRITER_LEASE_LOST) is kept as is, and any other message is reduced to a SHA-256 fingerprint
+ * that operators match against the source messages offline. Recording is best-effort and never
+ * changes the fail-closed outcome.
  */
 export const RUNTIME_FAILURE_RECORD_FILE = "runtime-last-failure.json";
-export type RuntimeFailureKind = "CLOSED_LEARNING_SCHEDULER" | "UNCAUGHT_EXCEPTION" | "UNHANDLED_REJECTION";
-
-const MAX_CODE_LENGTH = 120;
+export type RuntimeFailureKind = "STARTUP" | "CLOSED_LEARNING_SCHEDULER" | "UNCAUGHT_EXCEPTION" | "UNHANDLED_REJECTION";
+const KINDS: readonly string[] = ["STARTUP", "CLOSED_LEARNING_SCHEDULER", "UNCAUGHT_EXCEPTION", "UNHANDLED_REJECTION"];
+const BARE_CODE = /^[A-Z][A-Z0-9_]{2,80}$/;
 
 export function runtimeFailureRecordPath(cloudStateDbPath: string): string | undefined {
   const normalized = cloudStateDbPath.trim();
@@ -22,19 +24,12 @@ export function runtimeFailureRecordPath(cloudStateDbPath: string): string | und
   return path.join(path.dirname(normalized), RUNTIME_FAILURE_RECORD_FILE);
 }
 
-/** Reduces an error message to an uppercase code: long hex/digit runs and path-like tokens are dropped. */
+/** A bare internal code is kept; any other message becomes MESSAGE_<first 12 hex of its SHA-256>. */
 export function runtimeFailureCode(reason: unknown): string {
-  const message = reason instanceof Error ? reason.message : typeof reason === "string" ? reason : "";
-  const code = message
-    .replace(/\S*[/\\]\S*/g, " ")
-    .replace(/\b[0-9a-f]{12,}\b/gi, " ")
-    .replace(/\d{4,}/g, " ")
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, MAX_CODE_LENGTH)
-    .replace(/_+$/, "");
-  return code || "UNKNOWN";
+  const message = (reason instanceof Error ? reason.message : typeof reason === "string" ? reason : "").trim();
+  if (!message) return "UNKNOWN";
+  if (BARE_CODE.test(message)) return message;
+  return `MESSAGE_${createHash("sha256").update(message).digest("hex").slice(0, 12).toUpperCase()}`;
 }
 
 export function recordRuntimeFailure(cloudStateDbPath: string, kind: RuntimeFailureKind, reason: unknown, now: number = Date.now()): void {
@@ -54,8 +49,8 @@ export function readPreviousRuntimeFailure(cloudStateDbPath: string): string | u
   try {
     const parsed = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
     const kind = parsed.kind;
-    if (parsed.schemaVersion !== 1 || (kind !== "CLOSED_LEARNING_SCHEDULER" && kind !== "UNCAUGHT_EXCEPTION" && kind !== "UNHANDLED_REJECTION")) return undefined;
-    const code = typeof parsed.code === "string" && /^[A-Z0-9_]{1,120}$/.test(parsed.code) ? parsed.code : "UNKNOWN";
+    if (parsed.schemaVersion !== 1 || typeof kind !== "string" || !KINDS.includes(kind)) return undefined;
+    const code = typeof parsed.code === "string" && (BARE_CODE.test(parsed.code) || /^MESSAGE_[0-9A-F]{12}$/.test(parsed.code)) ? parsed.code : "UNKNOWN";
     return `PREVIOUS_${kind}:${code}`;
   } catch {
     return undefined;

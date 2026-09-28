@@ -84,6 +84,8 @@ export interface CloudRuntimeLivenessSnapshot {
   readonly paperOrderCount: number;
   readonly paperFillCount: number;
   readonly lastError: string | null;
+  /** Why the previous runtime process stopped, when a failure record exists. */
+  readonly previousStop?: string;
 }
 
 export interface CloudReadinessSnapshot {
@@ -253,7 +255,9 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
     : typeof rawError === "string" && PUBLIC_LIVENESS_ERROR_CODE.test(rawError) ? rawError : "LIVENESS_ERROR_UNCLASSIFIED";
   const timestamps = Object.fromEntries(PUBLIC_LIVENESS_TIMESTAMPS.map((key) => [key, timestamp(key)]));
   const counters = Object.fromEntries(PUBLIC_LIVENESS_COUNTERS.map((key) => [key, counter(key)]));
-  return Object.freeze({ ...timestamps, ...counters, lastError }) as unknown as CloudRuntimeLivenessSnapshot;
+  const rawPreviousStop = source.previousStop;
+  const previousStop = typeof rawPreviousStop === "string" && PUBLIC_LIVENESS_ERROR_CODE.test(rawPreviousStop) ? rawPreviousStop : undefined;
+  return Object.freeze({ ...timestamps, ...counters, lastError, ...(previousStop === undefined ? {} : { previousStop }) }) as unknown as CloudRuntimeLivenessSnapshot;
 }
 
 export function startCloudDashboardServer(options: CloudDashboardServerOptions): CloudDashboardServerHandle {

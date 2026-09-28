@@ -282,8 +282,16 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
 }
 
 function main(): void {
-  const composition = startClosedLearningProductionRuntime(process.env);
-  registerGracefulShutdown(composition.handle, process.exit, readCloudRuntimeConfig(process.env).cloudStateDbPath);
+  const stateDbPath = process.env.NUSA_CLOUD_STATE_DB_PATH;
+  let composition: ReturnType<typeof startClosedLearningProductionRuntime>;
+  try {
+    composition = startClosedLearningProductionRuntime(process.env);
+  } catch (error) {
+    // Start-up faults happen before the fatal handlers exist; record them so the loop is visible.
+    if (stateDbPath !== undefined) recordRuntimeFailure(stateDbPath, "STARTUP", error);
+    throw error;
+  }
+  registerGracefulShutdown(composition.handle, process.exit, stateDbPath);
 }
 
 if (require.main === module) main();

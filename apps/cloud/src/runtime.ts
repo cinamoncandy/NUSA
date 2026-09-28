@@ -182,9 +182,11 @@ export function startCloudRuntime(
     decisionCount: 0,
     paperOrderCount: 0,
     paperFillCount: 0,
-    // Surfaces why the previous process stopped, so a supervisor restart loop is diagnosable.
-    lastError: env.NUSA_CLOUD_STATE_DB_PATH === undefined ? null : readPreviousRuntimeFailure(config.cloudStateDbPath) ?? null
+    lastError: null
   };
+  // Why the previous process stopped, kept apart from lastError so market start-up cannot overwrite it
+  // and a supervisor restart loop stays diagnosable from /health.
+  const previousStop = env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : readPreviousRuntimeFailure(config.cloudStateDbPath);
   const readHeartbeat = (): PersonalPaperRuntimeHeartbeat => Object.freeze({ ...heartbeat });
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken, env);
   const durableRepository = snapshotRepository ?? (env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : createSnapshotRepository(config.cloudStateDbPath));
@@ -469,7 +471,8 @@ export function startCloudRuntime(
       decisionCount: heartbeat.decisionCount,
       paperOrderCount: heartbeat.paperOrderCount,
       paperFillCount: heartbeat.paperFillCount,
-      lastError: heartbeat.lastError
+      lastError: heartbeat.lastError,
+      ...(previousStop === undefined ? {} : { previousStop })
     }),
     ...(config.host ? { host: config.host } : {}),
     tokenVerifier,
