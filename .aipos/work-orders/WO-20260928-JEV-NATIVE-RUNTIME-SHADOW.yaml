@@ -1,12 +1,15 @@
 id: WO-20260928-JEV-NATIVE-RUNTIME-SHADOW
 title: "Wire native Workers AI Jev into Autopilot SHADOW runtime"
-status: IN_PROGRESS
+status: READY_FOR_REVIEW
 owner: nusa-ai-platform
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: bc420633ada54854d0f6fd666da937f0844cad89
+base_commit: 4efd946208690bce451a9a4727d4d4123322cd83
 implementation_branch: feat/jev-native-runtime-shadow
 parent_pr: 2345
+successor_pull_request: 2355
+successor_branch: codex/jev-shadow-runtime-config
+successor_head: d9b90fa0910efd7ede01a61fc8104595a7b0b33b
 authority_impact: none
 objective: "Close #2345 post-merge acceptance by wiring the existing Autopilot workflow-failure SHADOW caller to the native Workers AI Jev provider when the AI binding is available."
 scope:
@@ -28,4 +31,4 @@ safety:
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
-next_permitted_action: "Focused validation then exact-head CI/Audit/Release. SHADOW-only."
+next_permitted_action: "Exact-head CI then independent Audit then canonical Release. SHADOW-only; capture real native receipt after exact-main deploy."

@@ -195,7 +195,10 @@ jobs:
           set -euo pipefail
           pnpm dlx wrangler@4.127.1 deploy \
             --config apps/autopilot/wrangler.jsonc \
-            --var "NUSA_DEPLOYMENT_REVISION:${HEAD_SHA}"
+            --var "NUSA_DEPLOYMENT_REVISION:${HEAD_SHA}" \
+            --var "NUSA_GLOBAL_RELEASE_FREEZE:false" \
+            --var "NUSA_JEV_SHADOW_ENABLED:true" \
+            --var "NUSA_JEV_BOUNDED_ROUTING_ENABLED:false"
 
       - name: Verify deployed Worker reports the exact-head revision and fail-closed authority
         if: steps.revision.outputs.current == 'true'
