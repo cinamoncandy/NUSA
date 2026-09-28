@@ -45,6 +45,7 @@ export interface Env {
   NUSA_AI_CODING_TOKEN?: string;
   NUSA_AI_CODING_MODEL?: string;
   NUSA_JEV_SHADOW_ENABLED?: string;
+  NUSA_JEV_BOUNDED_ROUTING_ENABLED?: string;
   NUSA_JEV_API_KEY?: string;
   NUSA_JEV_ENDPOINT?: string;
   NUSA_JEV_TIMEOUT_MS?: string;
@@ -327,7 +328,9 @@ export async function handleCodingExecute(
       await releaseCodingExecutionLease(env, runnerRequest);
     }
     const failureReason = result.reason ?? null;
-    const jevShadowReceipt = await observeJevCodingFailureShadow({ runnerRequest, failureReason, failureClass: classifyAutopilotFailure(failureReason), env });
+    const jevShadowReceipt = result.status === "JEV_ROUTING_ABSTAINED"
+      ? null
+      : await observeJevCodingFailureShadow({ runnerRequest, failureReason, failureClass: classifyAutopilotFailure(failureReason), env });
     const completedAt = Date.now();
     await persistCodingTelemetry(env, {
       executionId: runnerRequest.executionId,

@@ -882,6 +882,31 @@ async function executeGithubActionsRunner(request, runnerUrl, fetchImpl = fetch,
     let proposal;
     try {
       proposal = await authorizedJsonPost(proposalUrl, proposalRequest, fetchImpl, now);
+      if (proposal.status === "JEV_ROUTING_ABSTAINED") {
+        const reason = typeof proposal.reason === "string" && /^[A-Z0-9_:-]{1,160}$/.test(proposal.reason)
+          ? proposal.reason
+          : "NON_CODE_AUTOFIX_FORBIDDEN";
+        attempts.push(attemptRecord({
+          request,
+          attempt,
+          decision: "NO_ACTION",
+          startedAt,
+          status: 200,
+          workerStatus: "JEV_ROUTING_ABSTAINED",
+          failureClass: "deterministic",
+          reason,
+          now,
+        }));
+        return finish("NO_ACTION", reason, 200, "JEV_ROUTING_ABSTAINED", {
+          jevAdmissionAction: proposal.jevAdmissionAction === "ABSTAIN_EXPENSIVE_INFERENCE"
+            ? proposal.jevAdmissionAction
+            : "ABSTAIN_EXPENSIVE_INFERENCE",
+          jevRequiredModel: typeof proposal.jevRequiredModel === "string" ? proposal.jevRequiredModel : null,
+          jevConfidence: typeof proposal.jevConfidence === "number" && Number.isFinite(proposal.jevConfidence)
+            ? proposal.jevConfidence
+            : 0,
+        });
+      }
       if (proposal.status !== "PROPOSAL_READY" || typeof proposal.patch !== "string") {
         throw new Error("CODING_PROPOSAL_UNAVAILABLE");
       }
