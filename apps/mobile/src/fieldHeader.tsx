@@ -31,8 +31,13 @@ export function FieldHeader({ model, testID }: Readonly<{ model: FieldHeaderMode
     return () => { mounted = false; sub.remove(); };
   }, []);
 
+  const previousKey = useRef<string | null>(null);
   useEffect(() => {
-    if (reducedMotion !== false) { glow.setValue(1); return undefined; }
+    const key = `${model.tone}:${model.subsystem}`;
+    const changed = previousKey.current != null && previousKey.current !== key;
+    previousKey.current = key;
+    // Mounting or revisiting a tab is not a state change: animate only on a later semantic change.
+    if (reducedMotion !== false || !changed) { glow.setValue(1); return undefined; }
     glow.setValue(0.25);
     const animation = Animated.timing(glow, { toValue: 1, duration: 800, easing: Easing.out(Easing.cubic), useNativeDriver: true });
     animation.start();

@@ -26,7 +26,8 @@ test("PAPER header fails closed and never reads green without a verified source"
   assert.equal(buildPaperFieldHeader(paper({ status: "PAUSED" })).tone, "dim");
   const idle = buildPaperFieldHeader(paper());
   assert.match(idle.headline, /체결이 없습니다/);
-  assert.equal(idle.facts.find((f) => f.label === "FILLS").value, "0");
+  assert.equal(idle.facts.find((f) => f.label === "FILLED CYCLES").value, "0");
+  for (const source of ["PROJECTION_ABSENT", "PROJECTION_EMPTY", "LOCAL_FALLBACK"]) assert.equal(buildPaperFieldHeader(paper({ dataSource: source })).tone, "amber");
   assert.equal(buildPaperFieldHeader(paper({ performance: { ...perf, filledCycles: 3 } })).headline, "PAPER 실행 중");
 });
 
@@ -42,10 +43,13 @@ test("LIVE header is always SEALED or HALTED and never claims LIVE is active", (
 
 test("PAPER, LIVE and MORE render the field visual language", () => {
   const read = (file) => fs.readFileSync(path.join(root, "apps/mobile/src", file), "utf8");
-  assert.match(read("paperShadowMonitorView.tsx"), /<FieldHeader model=\{buildPaperFieldHeader\(paper\)\}/);
+  assert.match(read("paperLearningMonitorView.tsx"), /<FieldHeader model=\{buildPaperFieldHeader\(state\)\}/);
+  assert.doesNotMatch(read("paperLearningMonitorView.tsx"), /IntelligenceMotionField/);
+  assert.doesNotMatch(read("liveReadinessMonitorView.tsx"), /IntelligenceMotionField|LIVE 준비 상태 관측/);
+  assert.doesNotMatch(read("homeView.tsx"), /IntelligenceMotionField|intelligenceHero/);
   assert.match(read("liveReadinessMonitorView.tsx"), /<FieldHeader model=\{buildLiveFieldHeader\(snapshot, unavailableReason\)\}/);
   assert.match(read("moreMenuView.tsx"), /fieldPalette\.void/);
   const header = read("fieldHeader.tsx");
-  assert.match(header, /reducedMotion !== false/);
+  assert.match(header, /reducedMotion !== false \|\| !changed/);
   assert.doesNotMatch(header, /Animated\.loop/);
 });

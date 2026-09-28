@@ -10,7 +10,8 @@ objective: "Owner asked that the approved HOME design also apply to the other ta
 scope:
   - "fieldScreensModel.ts: pure PAPER/LIVE header projections; uncertainty is never green; LIVE is only SEALED or HALTED."
   - "fieldHeader.tsx: compact field band (one lit strand), state-change motion only, reduced-motion aware."
-  - "PAPER monitor: field header plus thin underline mode tabs; LIVE monitor: field header replaces the old motion field; MORE: numbered thin-line index."
+  - "PAPER monitor: field header inside the scroll replaces the old motion field; thin underline mode tabs. LIVE monitor: field header replaces the old motion field and duplicate title block. MORE: numbered thin-line index."
+  - "Remove duplicated legacy HOME intelligence hero (old motion field and posture card) now covered by the Intelligence Field, plus its dead styles."
 exclusions:
   - "No server, strategy, risk, execution, credential or LIVE enablement changes; no synthetic values."
 safety:

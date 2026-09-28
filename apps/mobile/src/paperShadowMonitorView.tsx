@@ -10,8 +10,6 @@ import { getConfiguredPaperEndpoint } from "./paperConnectionSession";
 import type { PaperLearningScreenState } from "./paperLearningScreen";
 import type { ShadowObservabilitySnapshot } from "../../../packages/contracts/src/shadowObservabilityReadOnly";
 import type { RealReadOnlyObservabilitySnapshot } from "../../../packages/contracts/src/realReadOnlyObservability";
-import { FieldHeader } from "./fieldHeader";
-import { buildPaperFieldHeader } from "./fieldScreensModel";
 import { fieldPalette } from "./designSystem";
 import type { LiveReadinessObservabilitySnapshot } from "../../../packages/contracts/src/liveReadinessObservability";
 
@@ -30,7 +28,6 @@ export function PaperShadowMonitorView({ paper, shadow, shadowReason, real, real
   const credentialSession = useMemo(() => new InMemoryDashboardCredentialSession(), []);
   const supervisorEndpoint = getConfiguredPaperEndpoint() ?? "";
   return <View style={styles.wrapper}>
-    {mode === "PAPER" ? <FieldHeader model={buildPaperFieldHeader(paper)} testID="paper-field-header" /> : null}
     <View style={styles.switcher} accessibilityRole="tablist" testID="paper-shadow-monitor-switcher">
       {MODES.map((item) => <Pressable key={item} accessibilityLabel={`${modeLabel(item)} read only monitor`} accessibilityRole="tab" accessibilityState={{ selected: mode === item }} onPress={() => setMode(item)} style={[styles.switch, { borderBottomColor: mode === item ? fieldPalette.focus : "transparent" }]} testID={`monitor-mode-${item.toLowerCase()}`}><Text style={[styles.switchText, { color: mode === item ? fieldPalette.text : fieldPalette.muted }]}>{modeLabel(item)}</Text></Pressable>)}
     </View>

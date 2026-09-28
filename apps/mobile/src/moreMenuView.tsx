@@ -31,8 +31,8 @@ export function MoreMenuView({ onOpen }: Readonly<{ onOpen: (destination: MoreDe
         testID={`more-${destination}`}
       >
         <Text style={styles.index}>{String(index + 1).padStart(2, "0")}</Text>
-        <Text style={styles.rowTitle}>{LABELS[destination].title}</Text>
-        <Text style={styles.hint}>{LABELS[destination].hint}</Text>
+        <Text style={styles.rowTitle} numberOfLines={2}>{LABELS[destination].title}</Text>
+        <Text style={styles.hint} numberOfLines={1}>{LABELS[destination].hint}</Text>
       </Pressable>)}
     </View>
     <Text style={styles.footer}>PAPER_ONLY · LIVE AUTHORITY NONE · AI ZERO AUTHORITY</Text>
@@ -47,7 +47,7 @@ const styles = StyleSheet.create({
   list: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: fieldPalette.dim },
   row: { minHeight: 56, flexDirection: "row", alignItems: "center", gap: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: fieldPalette.dim },
   index: { color: fieldPalette.dim, fontSize: 12, width: 24, fontVariant: ["tabular-nums"] },
-  rowTitle: { color: fieldPalette.text, fontSize: 17, fontWeight: "400", flexGrow: 1 },
-  hint: { color: fieldPalette.muted, fontSize: 11, letterSpacing: 0.6 },
+  rowTitle: { color: fieldPalette.text, fontSize: 17, fontWeight: "400", flex: 1, minWidth: 0 },
+  hint: { color: fieldPalette.muted, fontSize: 11, letterSpacing: 0.6, flexShrink: 1, maxWidth: "40%" },
   footer: { color: fieldPalette.dim, fontSize: 10, letterSpacing: 1, marginTop: 22 },
 });

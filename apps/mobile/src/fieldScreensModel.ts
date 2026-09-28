@@ -23,7 +23,7 @@ export function buildPaperFieldHeader(paper: PaperLearningScreenState): FieldHea
   const perf = paper.performance;
   const facts = Object.freeze([
     { label: "CYCLES", value: count(perf.completedCycles) },
-    { label: "FILLS", value: count(perf.filledCycles) },
+    { label: "FILLED CYCLES", value: count(perf.filledCycles) },
     { label: "SOURCE", value: paper.dataSource.replace(/_/g, " ") },
   ]);
   const base = { eyebrow: "PAPER", facts } as const;
@@ -39,10 +39,14 @@ export function buildPaperFieldHeader(paper: PaperLearningScreenState): FieldHea
   if (paper.status === "PAUSED") {
     return Object.freeze({ ...base, statusWord: "PAUSED", tone: "dim", headline: "PAPER 일시정지", detail: "새 사이클을 시작하지 않고 대기 중입니다.", subsystem: "paper" });
   }
-  if (perf.filledCycles > 0) {
-    return Object.freeze({ ...base, statusWord: "RUNNING", tone: "green", headline: "PAPER 실행 중", detail: `가상 체결 ${count(perf.filledCycles)}회가 기록되었습니다.`, subsystem: "paper" });
+  if (paper.dataSource !== "SERVER_STREAM") {
+    // Absent/empty projections and local fallback are not server-runtime evidence: never green.
+    return Object.freeze({ ...base, statusWord: "UNVERIFIED", tone: "amber", headline: "서버 실행 기록이\n확인되지 않았습니다", detail: "표시 중인 내용은 서버 실행 증거가 아닙니다.", subsystem: "governance" });
   }
-  return Object.freeze({ ...base, statusWord: "RUNNING", tone: "green", headline: "관측은 하지만\n체결이 없습니다", detail: "사이클은 진행되지만 가상 체결은 아직 0건입니다.", subsystem: "paper" });
+  if (perf.filledCycles > 0) {
+    return Object.freeze({ ...base, statusWord: "RUNNING", tone: "green", headline: "PAPER 실행 중", detail: `가상 체결이 있었던 사이클 ${count(perf.filledCycles)}개가 기록되었습니다.`, subsystem: "paper" });
+  }
+  return Object.freeze({ ...base, statusWord: "RUNNING", tone: "green", headline: "관측은 하지만\n체결이 없습니다", detail: "사이클은 진행되지만 가상 체결이 있었던 사이클은 아직 없습니다.", subsystem: "paper" });
 }
 
 export function buildLiveFieldHeader(snapshot: LiveReadinessObservabilitySnapshot | null, unavailableReason?: string): FieldHeaderModel {

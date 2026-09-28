@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useTheme } from "./ThemeProvider";
-import { intelligenceFieldColors } from "./designSystem";
 import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
 import { buildHomeDecisionSurface } from "./homeDecisionSurface";
 import { buildHomeStatusRail } from "./homeStatusRail";
@@ -13,7 +12,7 @@ import { freshestObservedAtMs, type WatchlistMarket } from "./watchlist";
 import { buildChartViewModel, type PublicCandle } from "./chartViewModel";
 import { CandlePlot } from "./chartView";
 import { FactRow, StateNotice } from "./intelligenceOs";
-import { IntelligenceMotionField, MotionReveal } from "./components";
+import { MotionReveal } from "./components";
 import { BUILD_SOURCE_SHA } from "./generatedBuildConfig";
 import { visualSystem } from "./visualSystem";
 import { IntelligenceField } from "./intelligenceField";
@@ -132,11 +131,6 @@ export function HomeView({
   });
   const aiInsightAvailable = decisionSurface.aiInsightAvailable && !disconnected && readOnlyError == null;
   const recovering = disconnected && sessionRecovering;
-  const posture = disconnected
-    ? "PAPER 서버 연결이 필요합니다."
-    : readOnlyError
-      ? "PAPER 상태를 확인하고 있습니다."
-      : decisionSurface.now || "현재 검증된 운용 상태를 확인 중입니다.";
   const why = aiInsightAvailable ? decisionSurface.why : disconnected ? "Cloud PAPER 상태가 연결되기 전에는 판단 근거를 확정하지 않습니다." : decisionSurface.why;
   const riskHigh = rail.risk === "HIGH" || rail.risk === "CRITICAL";
   const riskWarn = rail.risk === "CAUTION" || rail.risk === "ELEVATED";
@@ -150,12 +144,6 @@ export function HomeView({
   // A trusted device whose session is being recovered is not a setup problem: project it as
   // reconnecting. SETUP remains only for a configuration or trust failure that needs the owner.
   const shownConnectionLabel = recovering ? "RECOVERING" : connectionLabel;
-  const postureDisplay = recovering ? "PAPER 재연결 중" : disconnected ? "PAPER 연결 필요" : posture;
-  const intelligenceState = recovering ? "RECOVERING" as const : disconnected ? "BLOCKED" as const : readOnlyError != null || snapshot?.health === "DEGRADED" ? "DEGRADED" as const : snapshot?.readyForPaperOperations ? "ACTIVE" as const : "OBSERVING" as const;
-  const intelligenceSurface = intelligenceFieldColors.surface;
-  const intelligenceBorder = intelligenceFieldColors.heroBorder;
-  const intelligenceText = intelligenceFieldColors.text;
-  const intelligenceMuted = intelligenceFieldColors.heroMuted;
 
   return <View style={[styles.shell, { backgroundColor: theme.colors.background }]} testID="home-screen">
     <ScrollView
@@ -173,7 +161,7 @@ export function HomeView({
         </Pressable>
       </View>
 
-      <IntelligenceField input={{
+      <View testID="home-now"><IntelligenceField input={{
         checking: snapshot == null && !disconnected && readOnlyError == null,
         disconnected,
         recovering: Boolean(recovering),
@@ -183,31 +171,13 @@ export function HomeView({
         readyForPaperOperations: snapshot?.readyForPaperOperations ?? false,
         decisionCount: snapshot?.operations.heartbeat?.decisionCount ?? null,
         paperOrderCount: snapshot?.operations.heartbeat?.paperOrderCount ?? null,
-      }} />
+      }} /></View>
 
       <View style={styles.glanceRail} testID="home-status-rail">
         <Text style={[styles.glancePrimary, { color: theme.colors.textMuted }]} numberOfLines={1}>{rail.marketLine} · {rail.systemLine}</Text>
         <Text style={[styles.glanceRisk, { color: riskColor }]}>RISK {rail.riskLabel}</Text>
         <View style={styles.hiddenAcceptanceHooks}><Text style={[styles.glanceBuild, { color: theme.colors.textMuted }]} testID="home-build-source">BUILD {packagedBuildLabel} · UI INTELLIGENCE OS</Text></View>
       </View>
-
-      <MotionReveal testID="home-intelligence-reveal">
-        <View style={[styles.intelligenceHero, tablet ? styles.intelligenceHeroTablet : null, { backgroundColor: intelligenceSurface, borderColor: intelligenceBorder, borderRadius: ui.radius.hero }]} testID="home-now">
-          <View style={styles.intelligenceCopy}>
-            <View style={styles.heroTop}>
-              <View style={styles.liveIntelligenceLabel}><View style={[styles.heroStatusDot, { backgroundColor: systemColor }]} /><Text style={[styles.eyebrow, { color: theme.colors.aiSignalEnd }]}>NUSA INTELLIGENCE</Text></View>
-            </View>
-            <Text style={[styles.heroTitle, { color: intelligenceText }]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.82}>{postureDisplay}</Text>
-            <Text style={[styles.heroDetail, { color: intelligenceMuted }]} numberOfLines={3}>{why}</Text>
-            <View style={styles.intelligenceMeta}>
-              <View><Text style={[styles.metaLabel, { color: intelligenceMuted }]}>EVIDENCE</Text><Text style={[styles.metaValue, { color: intelligenceText }]}>{ai?.status === "AVAILABLE" ? String(ai.evidenceReferences.length) : "—"}</Text></View>
-              <View><Text style={[styles.metaLabel, { color: intelligenceMuted }]}>RISK</Text><Text style={[styles.metaValue, { color: riskColor }]}>{rail.riskLabel}</Text></View>
-              <View><Text style={[styles.metaLabel, { color: intelligenceMuted }]}>MODE</Text><Text style={[styles.metaValue, { color: intelligenceText }]}>PAPER</Text></View>
-            </View>
-          </View>
-          <IntelligenceMotionField active={!disconnected && readOnlyError == null} evidenceCount={ai?.status === "AVAILABLE" ? ai.evidenceReferences.length : 0} state={intelligenceState} label={`NUSA intelligence ${intelligenceState.toLowerCase()} state`} />
-        </View>
-      </MotionReveal>
 
       <MotionReveal testID="home-capital-reveal">
         <View style={[styles.capitalRail, { borderColor: ui.color.border }]} testID="account-hero-card">
@@ -322,13 +292,7 @@ const styles = StyleSheet.create({
   glancePrimary: { flex: 1, minWidth: 180, fontSize: 10, lineHeight: 15, fontWeight: "700" },
   glanceRisk: { fontSize: 10, lineHeight: 15, fontWeight: "900", letterSpacing: 0.45 },
   glanceBuild: { fontSize: 9, lineHeight: 14, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  intelligenceHero: { overflow: "hidden", borderWidth: 1, borderRadius: 28, padding: 16, gap: 16, minHeight: 280 },
-  intelligenceHeroTablet: { flexDirection: "row", alignItems: "stretch" },
-  intelligenceCopy: { flex: 1.05, minWidth: 0, gap: 10, justifyContent: "center" },
-  liveIntelligenceLabel: { flexDirection: "row", alignItems: "center", gap: 7 },
-  intelligenceMeta: { flexDirection: "row", gap: 24, flexWrap: "wrap", paddingTop: 4 },
-  metaLabel: { fontSize: 8, lineHeight: 11, fontWeight: "900", letterSpacing: 1 },
-  metaValue: { marginTop: 2, fontSize: 13, lineHeight: 17, fontWeight: "900", fontVariant: ["tabular-nums"] },
+
   capitalRail: { borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 13, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 14, flexWrap: "wrap" },
   capitalPrimary: { flex: 1, minWidth: 210, gap: 3 },
   capitalValue: { fontSize: 30, lineHeight: 36, fontWeight: "700", letterSpacing: -1.05, fontVariant: ["tabular-nums"] },
@@ -340,29 +304,17 @@ const styles = StyleSheet.create({
   canvasChart: { minHeight: 150, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 8 },
   canvasAction: { minHeight: 44, alignItems: "flex-end", justifyContent: "center" },
   loopHeader: { paddingTop: 4, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" },
-  hero: { gap: 9, padding: 16, borderWidth: StyleSheet.hairlineWidth, borderRadius: 18 },
-  heroTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  heroStatusDot: { width: 8, height: 8, borderRadius: 999 },
+
   eyebrow: { fontSize: 9, lineHeight: 13, fontWeight: "900", letterSpacing: 1.45 },
-  heroTitle: { maxWidth: 720, fontSize: 26, lineHeight: 32, fontWeight: "800", letterSpacing: -0.8 },
-  heroDetail: { maxWidth: 760, fontSize: 12, lineHeight: 19, fontWeight: "600" },
-  heroChips: { flexDirection: "row", gap: 7, flexWrap: "wrap", paddingTop: 3 },
-  chip: { minHeight: 26, borderRadius: 999, paddingHorizontal: 9, alignItems: "center", justifyContent: "center" },
-  chipLabel: { fontSize: 8, lineHeight: 12, fontWeight: "900", letterSpacing: 0.7 },
-  marketHero: { borderRadius: 18, padding: 16, borderWidth: StyleSheet.hairlineWidth, gap: 12 },
+
   marketPrice: { fontSize: 34, lineHeight: 42, fontWeight: "600", letterSpacing: -1.2, fontVariant: ["tabular-nums"] },
   marketEmpty: { minHeight: 100, paddingVertical: 32, fontSize: 13, lineHeight: 20 },
-  marketLink: { minHeight: 48, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  balanceStage: { gap: 18, padding: 20, borderRadius: 22, borderWidth: StyleSheet.hairlineWidth },
-  balanceStageTablet: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" },
-  balancePrimary: { flex: 1, minWidth: 0, gap: 5 },
-  balanceValue: { fontSize: 40, lineHeight: 48, fontWeight: "700", letterSpacing: -1.6, fontVariant: ["tabular-nums"] },
+
   pnlValue: { fontSize: 13, lineHeight: 18, fontWeight: "900", letterSpacing: 0.2, fontVariant: ["tabular-nums"] },
-  balanceFacts: { minWidth: 240, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, flexDirection: "row", gap: 20, flexWrap: "wrap" },
-  balanceFact: { minWidth: 66, gap: 3 },
+
   factLabel: { fontSize: 8, lineHeight: 12, fontWeight: "800", letterSpacing: 0.7 },
   factValue: { fontSize: 13, lineHeight: 18, fontWeight: "900", fontVariant: ["tabular-nums"] },
-  sectionHeader: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 12 },
+
   sectionTitle: { marginTop: 3, fontSize: 22, lineHeight: 27, fontWeight: "900", letterSpacing: -0.45 },
   sectionMeta: { maxWidth: 150, textAlign: "right", fontSize: 9, lineHeight: 14, fontWeight: "700" },
   commandStack: { gap: 10 },
