@@ -1,0 +1,27 @@
+id: WO-OPS-20260928-RUNTIME-RESTART-FORENSICS
+title: "Report why the supervised PAPER runtime last stopped through /health"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-runtime-forensics
+authority_impact: none
+objective: "The Oracle PAPER runtime restarts every few seconds with lastError null and no host log access, so the stop reason is invisible. Persist the last fail-closed/fatal reason beside the durable state and report it on the next start."
+scope:
+  - "apps/cloud/src/runtimeFailureRecord.ts: best-effort write of {kind, code, at} to runtime-last-failure.json beside the Cloud state DB; the code is an uppercase token derived from the message with paths, hashes and long numbers removed."
+  - "Closed-learning scheduler fail-closed stop and uncaught exception / unhandled rejection handlers record the reason; the fail-closed outcome is unchanged."
+  - "The next process initialises heartbeat.lastError to PREVIOUS_<KIND>:<CODE>, which still passes the existing public /health error-code allowlist."
+exclusions:
+  - "No change to fail-closed behaviour, trading, risk, execution, accounting, credentials or LIVE authority."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - pnpm run validate
+  - node scripts/aipos-work-order-index.js --check
+  - node --test tests/*.test.js
+  - node scripts/run-tests-isolated.js
+residual: "Root cause of the 2026-09-28 PAPER restart loop is diagnosed from the reported code after deployment."

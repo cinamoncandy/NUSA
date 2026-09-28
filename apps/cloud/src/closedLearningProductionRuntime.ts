@@ -6,6 +6,7 @@ import { evaluatePaperPerformanceGovernanceFeedback, type PaperPerformanceGovern
 import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
 import { FileResearchRunReplaySnapshotStore } from "../../desktop/src/cloud/researchRunReplaySnapshotStore";
 import { readCloudRuntimeConfig } from "./cloudRuntimeConfig";
+import { recordRuntimeFailure } from "./runtimeFailureRecord";
 import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { SqliteCloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
 import { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
@@ -252,6 +253,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   const failClosedScheduler = (error: unknown): void => {
     const detail = error instanceof Error && error.message.trim() ? error.message.trim().slice(0, 500) : "CLOSED_LEARNING_SCHEDULER_FAILED";
     console.error(`[closed-learning] scheduler failed closed: ${detail}`);
+    recordRuntimeFailure(config.cloudStateDbPath, "CLOSED_LEARNING_SCHEDULER", error);
     process.exitCode = 1;
     void handle.stop();
   };
@@ -281,7 +283,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
 
 function main(): void {
   const composition = startClosedLearningProductionRuntime(process.env);
-  registerGracefulShutdown(composition.handle);
+  registerGracefulShutdown(composition.handle, process.exit, readCloudRuntimeConfig(process.env).cloudStateDbPath);
 }
 
 if (require.main === module) main();

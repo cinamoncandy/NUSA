@@ -11,6 +11,7 @@ import { SqliteP0AlertRepository } from "./p0AlertRepository";
 import fs from "node:fs";
 import path from "node:path";
 import { createShutdownController, handleRuntimeFault, type ShutdownController } from "./cloudRuntimeShutdown";
+import { readPreviousRuntimeFailure, recordRuntimeFailure } from "./runtimeFailureRecord";
 import { startCloudDashboardServer, type CloudDashboardServerHandle, type CloudReadinessSnapshot } from "./server";
 import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { UpbitWebSocketClient, type UpbitOrderBook, type UpbitTicker, type UpbitWebSocketOptions } from "./upbitWebSocket";
@@ -181,7 +182,8 @@ export function startCloudRuntime(
     decisionCount: 0,
     paperOrderCount: 0,
     paperFillCount: 0,
-    lastError: null
+    // Surfaces why the previous process stopped, so a supervisor restart loop is diagnosable.
+    lastError: env.NUSA_CLOUD_STATE_DB_PATH === undefined ? null : readPreviousRuntimeFailure(config.cloudStateDbPath) ?? null
   };
   const readHeartbeat = (): PersonalPaperRuntimeHeartbeat => Object.freeze({ ...heartbeat });
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken, env);
@@ -507,16 +509,18 @@ export function startCloudRuntime(
   };
 }
 
-export function registerGracefulShutdown(handle: CloudDashboardServerHandle, exit: (code: number) => void = process.exit): ShutdownController {
+export function registerGracefulShutdown(handle: CloudDashboardServerHandle, exit: (code: number) => void = process.exit, cloudStateDbPath?: string): ShutdownController {
   const controller = createShutdownController({ stop: () => handle.stop(), exit });
   process.on("SIGTERM", () => controller.trigger("SIGTERM")); process.on("SIGINT", () => controller.trigger("SIGINT"));
 
   // Unrecoverable runtime faults must terminate the process so supervisors can restart
   // from a fail-closed state instead of serving potentially stale mutation paths.
   process.on("uncaughtException", (error) => {
+    if (cloudStateDbPath !== undefined) recordRuntimeFailure(cloudStateDbPath, "UNCAUGHT_EXCEPTION", error);
     handleRuntimeFault(controller, "uncaught exception", error, exit);
   });
   process.on("unhandledRejection", (reason) => {
+    if (cloudStateDbPath !== undefined) recordRuntimeFailure(cloudStateDbPath, "UNHANDLED_REJECTION", reason);
     handleRuntimeFault(controller, "unhandled rejection", reason, exit);
   });
 
