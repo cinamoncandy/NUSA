@@ -157,13 +157,14 @@ function eligibleIssue(value: unknown, linked: ReadonlySet<number>): EligibleIss
   } catch {
     return null;
   }
+  if (!metadata) return null;
   return Object.freeze({
     number,
     title,
     priority,
     updatedAtMs: Number.isFinite(updatedAtMs) ? updatedAtMs : 0,
     capability: capabilityForIssue(title, body),
-    ...(metadata ?? {}),
+    ...metadata,
     ...(codingTarget === undefined ? {} : { codingTarget }),
   });
 }
