@@ -1,6 +1,6 @@
 id: WO-20260928-JEV-NATIVE-RUNTIME-SHADOW
 title: "Wire native Workers AI Jev into Autopilot SHADOW runtime"
-status: READY_FOR_REVIEW
+status: IN_PROGRESS
 owner: nusa-ai-platform
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -23,6 +23,7 @@ scope:
     - "New router, scheduler, queue, provider client, or evidence store."
 acceptance:
   - "Focused tests prove native binding preference."
+  - "Exact-main deploy preserves the repository-configured global release-freeze value while explicitly keeping Jev bounded routing disabled."
   - "Exact-head CI, independent Audit, and canonical Release pass."
   - "Post-merge deployed runtime captures at least one real NUSA_JEV_WORKERS_AI_SHADOW_CALL receipt."
 safety:
@@ -31,4 +32,9 @@ safety:
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
+verification_commands:
+  - "node --test tests/autopilot-cloudflare-deploy.test.js"
+  - "pnpm run aipos:yaml"
+  - "pnpm run aipos:drift"
+  - "git diff --check"
 next_permitted_action: "Exact-head CI then independent Audit then canonical Release. SHADOW-only; capture real native receipt after exact-main deploy."
