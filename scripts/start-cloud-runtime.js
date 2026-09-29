@@ -80,7 +80,11 @@ function readOwnerPaperAccount(file = OWNER_PAPER_ACCOUNT_FILE) {
   if (parsed?.schemaVersion !== 1 || typeof capital !== "number" || !Number.isFinite(capital) || capital <= 0) {
     throw new Error(`owner PAPER account file is invalid: ${file}`);
   }
-  return Object.freeze({ initialCapitalKrw: capital });
+  const retired = parsed.retiredAccountIds ?? [];
+  if (!Array.isArray(retired) || retired.some((id) => typeof id !== "string" || !/^paper-[a-z0-9_-]{1,64}$/.test(id))) {
+    throw new Error(`owner PAPER account file has invalid retiredAccountIds: ${file}`);
+  }
+  return Object.freeze({ initialCapitalKrw: capital, retiredAccountIds: Object.freeze([...retired]) });
 }
 
 /** Fills in operational defaults without overriding anything the caller set explicitly. */
@@ -110,6 +114,12 @@ function buildRuntimeEnv(baseEnv, token, ownerPaperAccount = readOwnerPaperAccou
     if (env.NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW !== value) {
       env.NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW = value;
       if (!applied.includes("NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW")) applied.push("NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW");
+    }
+    // Owner-retired PAPER accounts are purged once by the runtime (paperAccountRetirement.ts).
+    const retired = (ownerPaperAccount.retiredAccountIds ?? []).join(",");
+    if (retired && env.NUSA_PAPER_RETIRED_ACCOUNT_IDS !== retired) {
+      env.NUSA_PAPER_RETIRED_ACCOUNT_IDS = retired;
+      applied.push("NUSA_PAPER_RETIRED_ACCOUNT_IDS");
     }
   }
   return { env, applied: Object.freeze(applied), stripped };
