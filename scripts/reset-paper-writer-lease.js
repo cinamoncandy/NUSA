@@ -2,7 +2,6 @@ const { existsSync } = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
-const { readOwnerPaperAccount } = require("./start-cloud-runtime.js");
 
 /**
  * Clears an abandoned PAPER writer lease.
@@ -21,20 +20,7 @@ const { readOwnerPaperAccount } = require("./start-cloud-runtime.js");
  */
 
 const DEFAULT_STATE_DB_PATH = path.join(os.homedir(), ".nusa", "cloud", "state.sqlite");
-const LEGACY_ACCOUNT_ID = "paper-default";
-
-/**
- * The account the launcher will run: the owner PAPER account file wins over the host env, and a
- * blank env means the launcher default. Mirrors paperAccountIdForCapital in
- * apps/cloud/src/paperTradingExecutionLoop.ts.
- */
-function resolveAccountId(env = process.env, ownerPaperAccount = readOwnerPaperAccount()) {
-  const raw = ownerPaperAccount != null ? String(ownerPaperAccount.initialCapitalKrw) : (env.NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW || "").trim();
-  // Blank means the launcher default (scripts/start-cloud-runtime.js DEFAULT_PAPER_CAPITAL_KRW).
-  const capital = raw ? Number(raw) : 5_000;
-  if (!Number.isFinite(capital) || capital <= 0 || capital === 10_000_000) return LEGACY_ACCOUNT_ID;
-  return `paper-krw-${Number.isInteger(capital) ? String(capital) : String(capital).replace(".", "_")}`;
-}
+const ACCOUNT_ID = "paper-default";
 
 function resolveStateDbPath(env = process.env) {
   const configured = env.NUSA_CLOUD_STATE_DB_PATH;
@@ -63,11 +49,11 @@ async function runtimeIsResponding(endpoint, fetchFn = fetch) {
   }
 }
 
-function readLease(databasePath, openDatabase = (file) => new DatabaseSync(file), accountId = resolveAccountId()) {
+function readLease(databasePath, openDatabase = (file) => new DatabaseSync(file)) {
   if (!existsSync(databasePath)) return null;
   const db = openDatabase(databasePath);
   try {
-    return db.prepare("SELECT owner_id, lease_until_ms, heartbeat_at_ms FROM cloud_paper_writer_leases WHERE account_id = ?").get(accountId) ?? null;
+    return db.prepare("SELECT owner_id, lease_until_ms, heartbeat_at_ms FROM cloud_paper_writer_leases WHERE account_id = ?").get(ACCOUNT_ID) ?? null;
   } catch {
     return null;
   } finally {
@@ -75,10 +61,10 @@ function readLease(databasePath, openDatabase = (file) => new DatabaseSync(file)
   }
 }
 
-function deleteLease(databasePath, openDatabase = (file) => new DatabaseSync(file), accountId = resolveAccountId()) {
+function deleteLease(databasePath, openDatabase = (file) => new DatabaseSync(file)) {
   const db = openDatabase(databasePath);
   try {
-    return Number(db.prepare("DELETE FROM cloud_paper_writer_leases WHERE account_id = ?").run(accountId).changes);
+    return Number(db.prepare("DELETE FROM cloud_paper_writer_leases WHERE account_id = ?").run(ACCOUNT_ID).changes);
   } finally {
     db.close();
   }
@@ -91,8 +77,7 @@ async function resetPaperWriterLease(options = {}) {
   const now = options.now ?? Date.now();
   const write = options.write ?? ((text) => process.stdout.write(`${text}\n`));
 
-  const accountId = options.accountId ?? resolveAccountId(env);
-  const lease = readLease(databasePath, options.openDatabase, accountId);
+  const lease = readLease(databasePath, options.openDatabase);
   if (lease == null) {
     write("No PAPER writer lease is held. Nothing to reset.");
     return { status: "NO_LEASE" };
@@ -110,7 +95,7 @@ async function resetPaperWriterLease(options = {}) {
     return { status: "LEASE_STILL_VALID", secondsLeft };
   }
 
-  const removed = deleteLease(databasePath, options.openDatabase, accountId);
+  const removed = deleteLease(databasePath, options.openDatabase);
   const staleSeconds = Math.round((now - Number(lease.heartbeat_at_ms)) / 1000);
   write(`Cleared an abandoned PAPER writer lease (last heartbeat ${staleSeconds}s ago). PAPER account state was not modified.`);
   return { status: "CLEARED", removed, staleSeconds };
@@ -125,4 +110,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { DEFAULT_STATE_DB_PATH, readLease, resetPaperWriterLease, resolveAccountId, resolveEndpoint, resolveStateDbPath, runtimeIsResponding };
+module.exports = { DEFAULT_STATE_DB_PATH, readLease, resetPaperWriterLease, resolveEndpoint, resolveStateDbPath, runtimeIsResponding };

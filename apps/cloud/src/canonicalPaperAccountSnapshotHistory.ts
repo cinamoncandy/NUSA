@@ -4,7 +4,7 @@ import type { PaperAccountState } from "./paperTradingExecutionLoop";
 
 const HISTORY_TABLE = "cloud_paper_account_history";
 const ACCOUNT_TABLE = "cloud_paper_accounts";
-const DEFAULT_ACCOUNT_ID = "paper-default";
+const ACCOUNT_ID = "paper-default";
 
 export interface CanonicalPaperAccountSnapshot {
   readonly accountId: string;
@@ -31,7 +31,7 @@ const freeze = <T>(value: T): Readonly<T> => Object.freeze(value);
  * recover exact period boundary snapshots instead of relying on the latest upsert alone.
  */
 export class CanonicalPaperAccountSnapshotHistory {
-  public constructor(private readonly db: SqliteDatabase, private readonly accountId: string = DEFAULT_ACCOUNT_ID) {
+  public constructor(private readonly db: SqliteDatabase) {
     this.db.connection.exec(`
       CREATE TABLE IF NOT EXISTS ${HISTORY_TABLE} (
         account_id TEXT NOT NULL,
@@ -77,7 +77,7 @@ export class CanonicalPaperAccountSnapshotHistory {
       SELECT account_id, schema_version, updated_at, state_json, checksum
       FROM ${ACCOUNT_TABLE}
       WHERE account_id = ? AND status = 'VALID'
-    `).run(this.accountId);
+    `).run(ACCOUNT_ID);
   }
 
   public list(): readonly CanonicalPaperAccountSnapshot[] {
@@ -86,7 +86,7 @@ export class CanonicalPaperAccountSnapshotHistory {
       FROM ${HISTORY_TABLE}
       WHERE account_id = ?
       ORDER BY updated_at ASC
-    `).all(this.accountId) as Array<Record<string, unknown>>;
+    `).all(ACCOUNT_ID) as Array<Record<string, unknown>>;
 
     const seen = new Set<number>();
     return freeze(rows.map((row) => {
@@ -95,7 +95,7 @@ export class CanonicalPaperAccountSnapshotHistory {
       const updatedAt = Number(row.updated_at);
       const stateJson = String(row.state_json ?? "");
       const checksum = String(row.checksum ?? "");
-      if (accountId !== this.accountId || schemaVersion !== 1 || !Number.isSafeInteger(updatedAt) || updatedAt < 0 || seen.has(updatedAt)) {
+      if (accountId !== ACCOUNT_ID || schemaVersion !== 1 || !Number.isSafeInteger(updatedAt) || updatedAt < 0 || seen.has(updatedAt)) {
         throw new CanonicalPaperAccountSnapshotHistoryError("INVALID_HISTORY_IDENTITY", "canonical PAPER account history identity is invalid");
       }
       seen.add(updatedAt);
