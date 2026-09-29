@@ -22,6 +22,16 @@ current_autopilot_runtime_provider_wait:
   validation: "Focused runtime tests 7/7, lint:scripts, AI zero-authority, safety invariants, and diff check PASS; fresh exact-head CI required."
   remaining: exact-head-CI_then-independent-Audit_then-Release-merge_then-exact-main-Oracle-PAPER-Release_then-runtime-observation
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_autopilot_capacity_efficiency:
+  work_order: WO-AUTOPILOT-20260929-CAPACITY-EFFICIENCY
+  status: READY_FOR_REVIEW
+  branch: codex/autopilot-provider-wait-cost-efficiency
+  base_sha: dab4f6a3e9b794f94e752099b6f4a2a48f9e5829
+  validation: "Build, targeted tests (scheduled 10/10, Jev SHADOW 5/5, native provider 13/13), validate:full, security:gate, typecheck, AIPOS YAML, and diff check PASS; lint:scripts PASS with 13 pre-existing warnings. Runtime neuron savings remain unmeasured while provider wait is active."
+  scope: "Skip backlog/workflow GitHub reads during a valid Workers AI wait and lower only Jev SHADOW classifier neuron consumption."
+  authority_impact: none
+  remaining: local-validation_then_exact-head-CI_then_independent-Audit_then_canonical-Release
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_paper_capital_5000_account:
   work_order: WO-PAPER-20260928-CAPITAL-5000-ACCOUNT
   status: ROLLED_BACK

@@ -15,6 +15,7 @@ import {
 import {
   acquirePersistentExecution,
   markPersistentExecutionDispatched,
+  readProviderCapacityWait,
   readScheduledRuntimeReceipt,
   type ExecutionCoordinatorNamespace,
 } from "./executionCoordinator";
@@ -266,6 +267,29 @@ export async function runScheduledAutopilot(env: ScheduledRuntimeEnv, now: numbe
 
   const repository = env.NUSA_GITHUB_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) return result("ABSTAINED", "repository-invalid");
+
+  // A persisted provider wait is a global stop for inference admission. Check it
+  // before issue/PR searches and workflow history reads so every minute spent
+  // waiting does not also spend the GitHub API budget. Read only current main to
+  // keep the wait receipt bound to a fresh head; the actual bounded probe still
+  // happens through the existing coding path after nextRetryAt.
+  let providerWait;
+  try {
+    providerWait = await readProviderCapacityWait(coordinator, "workers-ai");
+  } catch {
+    return result("ABSTAINED", "provider-capacity-state-unavailable");
+  }
+  if (providerWait && now < providerWait.nextRetryAt) {
+    try {
+      const main = await githubJson(`https://api.github.com/repos/${repository}/branches/main`, token, fetchImpl);
+      const mainCommit = object(main.commit);
+      const mainSha = text(mainCommit?.sha);
+      if (!mainSha || !SHA40.test(mainSha)) return result("ABSTAINED", "main-sha-invalid-during-provider-wait");
+      return result("WAITING_RATE_LIMIT", "waiting-provider-capacity", mainSha);
+    } catch {
+      return result("ABSTAINED", "main-sha-unavailable-during-provider-wait");
+    }
+  }
 
   // Backlog discovery and the previous receipt are independent reads. Starting
   // them together removes one more full network/storage round trip from every

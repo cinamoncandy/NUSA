@@ -1,0 +1,60 @@
+id: WO-AUTOPILOT-20260929-CAPACITY-EFFICIENCY
+title: "Reduce Autopilot provider-wait overhead and optional Jev SHADOW neuron use"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: dab4f6a3e9b794f94e752099b6f4a2a48f9e5829
+implementation_branch: codex/autopilot-provider-wait-cost-efficiency
+authority_impact: none
+objective: "Reduce non-inference requests during a canonical Workers AI provider wait and reduce the neuron cost of optional Jev SHADOW classification without bypassing quota, enabling a paid provider, or changing coding model authority."
+canonical_owners:
+  - "Autopilot scheduler / provider wait: apps/autopilot"
+  - "Jev SHADOW provider selection: AI Platform"
+scope:
+  include:
+    - "Read the canonical persisted workers-ai wait before issue/PR searches and workflow history reads."
+    - "During a valid wait, verify fresh protected-main SHA and return WAITING_RATE_LIMIT without coding dispatch or model invocation."
+    - "Use a lower-neuron model as the default for the optional zero-authority Jev SHADOW classifier only; preserve strict validation and deterministic fallback."
+    - "Record actual request-count regression proof and distinguish published per-token pricing estimate from runtime-measured usage."
+  exclude:
+    - "No provider quota bypass, paid-plan activation, credential change, new provider, or alternate token."
+    - "No change to the Autopilot code-generation model, attempt budget, active Jev routing, or SHADOW enablement configuration."
+    - "No second queue, scheduler, provider router, evidence store, or runtime authority."
+acceptance:
+  - "While nextRetryAt is in the future, scheduled runtime performs one fresh main-branch read, zero backlog searches, zero workflow-history reads, and zero coding/model dispatches."
+  - "Provider-wait state read failure remains fail-closed and triggers no GitHub requests."
+  - "Jev SHADOW uses the configured model when set and the lower-neuron default otherwise; strict output validation and provider-stop no-call behavior remain intact."
+  - "Exact-head CI, architecture, security, safety, Audit and Release gates remain unchanged."
+  - "Runtime savings are not claimed until receipt/token telemetry proves them."
+verification_commands:
+  - "pnpm run build"
+  - "node --test dist/apps/autopilot/src/scheduledRuntime.test.js"
+  - "node --test tests/autopilot-jev-coding-failure-shadow.test.js"
+  - "node --test dist/apps/cloud/src/ai/jevWorkersAiProvider.test.js"
+  - "pnpm run validate:full"
+  - "pnpm run security:gate"
+  - "pnpm run lint:scripts"
+  - "git diff --check"
+verification_results:
+  base_sha: dab4f6a3e9b794f94e752099b6f4a2a48f9e5829
+  build: "PASS (Node 24.18.0, pnpm 11.7.0; changed-test fast gate correctly deferred to canonical PR CI)"
+  scheduled_runtime_tests: "PASS 10/10, including provider-wait request suppression and fail-closed state-read failure"
+  jev_shadow_tests: "PASS 5/5, including lower-neuron default, provider-stop no-call, redaction, and zero-authority telemetry"
+  native_jev_provider_tests: "PASS 13/13"
+  validate_full: "PASS"
+  security_gate: "PASS, zero secrets and zero unmitigated findings"
+  typecheck: "PASS"
+  lint_scripts: "PASS with 13 pre-existing warnings and zero errors"
+  aipos_yaml: "PASS, 208 files parsed strictly"
+  diff_check: "PASS (Windows line-ending advisory only)"
+  runtime_cost_measurement: "NOT_YET_AVAILABLE; no live model call claimed during provider-capacity wait"
+  exact_head_ci: "PENDING"
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  quota_bypass: false
+  paid_provider_activation: false
+  paper_only: true
+next_permitted_action: "Final diff review -> exact-head CI -> independent Audit -> canonical Release. Do not enable or deploy Jev SHADOW via this work order."

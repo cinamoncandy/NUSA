@@ -22,7 +22,10 @@ interface JevEnv {
   readonly AI?: JevWorkersAiRuntime;
 }
 const enabled=(value:string|undefined)=>value?.trim().toLowerCase()==="true";
-const DEFAULT_WORKERS_AI_JEV_MODEL="@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+// Jev is a bounded SHADOW classifier, not the coding model. Prefer the lower-neuron
+// 8B model here; strict output validation and the deterministic fallback remain
+// unchanged, and production coding keeps its separately governed model choice.
+const DEFAULT_WORKERS_AI_JEV_MODEL="@cf/meta/llama-3.1-8b-instruct-fp8";
 const PROVIDER_STOP_REASONS=new Set([
   "WORKERS_AI_DAILY_QUOTA_EXHAUSTED",
   "WORKERS_AI_RATE_LIMITED",
