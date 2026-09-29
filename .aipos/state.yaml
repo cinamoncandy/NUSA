@@ -1,4 +1,13 @@
 version: 1
+current_issue_2118_ci_saturation_wip:
+  work_order: WO-ISSUE-2118-CI-SATURATION-WIP
+  issue: 2118
+  status: IMPLEMENTED_PENDING_WORKFLOW_VALIDATION
+  base_sha: 408432cf1f2860d9927fa891e2f2e510814b9723
+  scope: "Explicit measured CI saturation constrains advisory worker-pool WIP; legacy ciUtilization remains the compatibility fallback."
+  validation: "Delegated to the Autopilot publish workflow on separate hardware; no local build, typecheck, validation, or tests run on the shared 1 GB PAPER host."
+  remaining: "Workflow validation then exact-head CI evidence; current baseline and after-change p50/p95 measurement and critical-path optimization remain pending later increments."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_security_fast_uri_backport:
   work_order: WO-SECURITY-20260929-FAST-URI
   status: READY_FOR_REVIEW
