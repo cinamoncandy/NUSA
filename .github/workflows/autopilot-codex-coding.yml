@@ -1,0 +1,186 @@
+name: Autopilot Codex Coding
+
+# Autopilot development engine backed by ONE ChatGPT account (owner decision 2026-09-29).
+#
+# Workers AI (Cloudflare free quota) is exhausted daily, so the autopilot produced no code. This
+# workflow picks the next eligible owner backlog issue, lets Codex implement it on the single runner
+# labelled `nusa-codex-autopilot` (logged in to the owner's dedicated ChatGPT account, so no other
+# account's credits are used), then validates the patch on clean GitHub-hosted hardware and opens a
+# PR. Codex itself never commits, pushes or opens PRs; the PR still goes through CI, Audit and the
+# deterministic Release like every other change. PAPER only, LIVE NONE, AI ZERO_AUTHORITY.
+
+on:
+  schedule:
+    - cron: "23 */2 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: autopilot-codex-coding
+  cancel-in-progress: false
+
+jobs:
+  select:
+    name: Select next owner backlog issue
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      has_task: ${{ steps.pick.outputs.has_task }}
+      issue: ${{ steps.pick.outputs.issue }}
+      task: ${{ steps.pick.outputs.task }}
+      head_sha: ${{ steps.head.outputs.sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+          fetch-depth: 1
+          persist-credentials: false
+      - id: head
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - run: corepack enable
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - name: Build
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+          pnpm exec tsc -p tsconfig.json
+      - name: Skip while an autopilot Codex PR is still open
+        id: open
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          open="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --search 'head:autopilot/codex/' --json number --jq 'length')"
+          echo "count=$open" >> "$GITHUB_OUTPUT"
+      - name: Pick one issue
+        id: pick
+        if: steps.open.outputs.count == '0'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          NUSA_CODEX_PROMPT_FILE: codex-prompt.txt
+        run: node scripts/autopilot-codex-select.js
+      - name: Upload Codex prompt
+        if: steps.pick.outputs.has_task == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: autopilot-codex-prompt-${{ github.run_id }}
+          path: codex-prompt.txt
+          retention-days: 3
+
+  codex:
+    name: Codex implements the issue (dedicated account runner)
+    needs: select
+    if: needs.select.outputs.has_task == 'true'
+    runs-on: [self-hosted, Linux, nusa-codex-autopilot]
+    timeout-minutes: 90
+    outputs:
+      has_patch: ${{ steps.collect.outputs.has_patch }}
+      usage_limited: ${{ steps.run.outputs.usage_limited }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ needs.select.outputs.head_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: autopilot-codex-prompt-${{ github.run_id }}
+          path: ${{ runner.temp }}/prompt
+      - name: Run Codex without commit or push authority
+        id: run
+        shell: bash
+        run: |
+          set -uo pipefail
+          codex login status
+          log="${RUNNER_TEMP}/codex.log"
+          codex exec -s workspace-write -C "$GITHUB_WORKSPACE" - < "${RUNNER_TEMP}/prompt/codex-prompt.txt" 2>&1 | tee "$log"
+          rc=${PIPESTATUS[0]}
+          # A ChatGPT usage limit is a wait, not a failure: never fall back to another account.
+          if grep -qi "usage limit" "$log"; then
+            echo "usage_limited=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::ChatGPT usage limit reached for the dedicated autopilot account; waiting for the next window."
+            exit 0
+          fi
+          echo "usage_limited=false" >> "$GITHUB_OUTPUT"
+          exit "$rc"
+      - name: Collect patch
+        id: collect
+        if: steps.run.outputs.usage_limited != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/out"
+          git add -A
+          git diff --cached --binary > "${RUNNER_TEMP}/out/changes.patch"
+          cp "${RUNNER_TEMP}/codex.log" "${RUNNER_TEMP}/out/codex.log" || true
+          if [ -s "${RUNNER_TEMP}/out/changes.patch" ]; then echo "has_patch=true" >> "$GITHUB_OUTPUT"; else echo "has_patch=false" >> "$GITHUB_OUTPUT"; fi
+          git reset -q --hard
+          git clean -fdq
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: steps.collect.outputs.has_patch == 'true'
+        with:
+          name: autopilot-codex-patch-${{ github.run_id }}
+          path: ${{ runner.temp }}/out
+          retention-days: 7
+
+  publish:
+    name: Validate and open the PR
+    needs: [select, codex]
+    if: needs.codex.outputs.has_patch == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.NUSA_AUTOPILOT_GITHUB_TOKEN }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: autopilot-codex-patch-${{ github.run_id }}
+          path: ${{ runner.temp }}/out
+      - name: Apply patch to current main and enforce the path boundary
+        run: |
+          set -euo pipefail
+          git apply --3way --index "${RUNNER_TEMP}/out/changes.patch"
+          changed="$(git diff --cached --name-only)"
+          echo "$changed"
+          if echo "$changed" | grep -Eiq '^(\.github/|deploy/)|(^|/)(live|live-trading|broker|credential|credentials|secret|secrets|withdraw|transfer|production-authority)(/|$)|\.env($|\.)'; then
+            echo "::error::Codex patch touches a protected path; refusing to publish."
+            exit 1
+          fi
+      - run: corepack enable
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - name: Validate exactly like a contributor
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+          pnpm run build
+          pnpm run typecheck
+          pnpm run validate
+          node scripts/aipos-work-order-index.js --check
+          node --test tests/*.test.js
+      - name: Publish branch and PR
+        env:
+          GH_TOKEN: ${{ secrets.NUSA_AUTOPILOT_GITHUB_TOKEN }}
+          ISSUE: ${{ needs.select.outputs.issue }}
+        run: |
+          set -euo pipefail
+          git config user.name "NUSA Autopilot (Codex)"
+          git config user.email "noreply@nusa.local"
+          branch="autopilot/codex/issue-${ISSUE}-${GITHUB_RUN_ID}"
+          git checkout -b "$branch"
+          git commit -q -m "autopilot(codex): next increment for #${ISSUE}" -m "Implemented by the dedicated ChatGPT Codex account; validated by autopilot-codex-coding run ${GITHUB_RUN_ID}. PAPER only; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY."
+          git push -q origin "$branch"
+          body="Refs #${ISSUE}
+
+          Autopilot Codex engine (dedicated ChatGPT account). The workflow applied the Codex patch to current main, enforced the protected-path boundary and ran: pnpm run build, typecheck, validate, the work-order index check and node --test tests/*.test.js, all passing. Codex had no commit/push authority. Merge only through CI, Audit and the deterministic Release.
+
+          Safety: PAPER only, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY."
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --title "autopilot(codex): #${ISSUE} next increment" --body "$body"
