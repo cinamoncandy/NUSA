@@ -7,6 +7,10 @@ import {
   validateJevResearchAttentionShadowDecision,
   type JevResearchAttentionModelOutput,
 } from "./jevResearchAttentionShadow";
+import {
+  validateJevMarketMicrostructureDecision,
+  type JevMarketMicrostructureModelOutput,
+} from "./jevMarketMicrostructureShadow";
 
 export const JEV_DOMAIN_OBSERVATION_SCHEMA_VERSION = 1 as const;
 
@@ -42,6 +46,7 @@ export type JevDomainTaskType =
   | "TEST_SCOPE_RECOMMENDATION"
   | "DATA_INTEGRITY_ANOMALY_CLASSIFICATION"
   | "MARKET_DATA_INCIDENT_CLASSIFICATION"
+  | "MARKET_MICROSTRUCTURE_ADVISORY_SHADOW"
   | "HYPOTHESIS_DUPLICATE_CLASSIFICATION"
   | "STRATEGY_FAMILY_MATCH_CLASSIFICATION"
   | "GOVERNANCE_EVIDENCE_READINESS_CLASSIFICATION"
@@ -78,6 +83,7 @@ export type JevForbiddenAction =
 export type JevDecisionSchema =
   | "WORKFLOW_FAILURE_V1"
   | "RESEARCH_ATTENTION_V1"
+  | "MARKET_MICROSTRUCTURE_V1"
   | "UNAVAILABLE";
 
 export type JevDecisionPrimitive = string | number | boolean | null;
@@ -234,6 +240,13 @@ export const JEV_TASK_TYPE_POLICIES: readonly JevTaskTypePolicy[] = Object.freez
     "MARKET_DATA",
     "Market Data deterministic connectivity and freshness state",
     OBSERVE_CLASSIFY_ESCALATE,
+  ),
+  policy(
+    "MARKET_MICROSTRUCTURE_ADVISORY_SHADOW",
+    "MARKET_DATA",
+    "Market Data public orderbook evidence and Portfolio/Risk advisory boundary",
+    Object.freeze(["OBSERVE", "ESCALATE"]),
+    "MARKET_MICROSTRUCTURE_V1",
   ),
   policy(
     "HYPOTHESIS_DUPLICATE_CLASSIFICATION",
@@ -417,11 +430,13 @@ function validateTaskDecision(
   policy: JevTaskTypePolicy,
   value: Readonly<Record<string, unknown>>,
 ): JevStructuredDecision {
-  let validated: JevShadowDecision | JevResearchAttentionModelOutput;
+  let validated: JevShadowDecision | JevResearchAttentionModelOutput | JevMarketMicrostructureModelOutput;
   if (policy.decisionSchema === "WORKFLOW_FAILURE_V1") {
     validated = validateJevShadowDecision(value);
   } else if (policy.decisionSchema === "RESEARCH_ATTENTION_V1") {
     validated = validateJevResearchAttentionShadowDecision(value);
+  } else if (policy.decisionSchema === "MARKET_MICROSTRUCTURE_V1") {
+    validated = validateJevMarketMicrostructureDecision(value);
   } else {
     throw new Error("JEV_TASK_DECISION_VALIDATOR_UNAVAILABLE");
   }
@@ -491,7 +506,7 @@ export function createJevDomainObservation(
       throw new Error("JEV_DECISION_ENVELOPE_MISMATCH");
     }
   }
-  if (taskPolicy.decisionSchema === "RESEARCH_ATTENTION_V1") {
+  if (taskPolicy.decisionSchema === "RESEARCH_ATTENTION_V1" || taskPolicy.decisionSchema === "MARKET_MICROSTRUCTURE_V1") {
     if (
       decision.confidence !== input.confidence ||
       decision.reasonCode !== input.reasonCode
