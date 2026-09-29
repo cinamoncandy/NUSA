@@ -6,10 +6,11 @@ import { evaluatePaperPerformanceGovernanceFeedback, type PaperPerformanceGovern
 import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
 import { FileResearchRunReplaySnapshotStore } from "../../desktop/src/cloud/researchRunReplaySnapshotStore";
 import { readCloudRuntimeConfig } from "./cloudRuntimeConfig";
+import { recordRuntimeFailure } from "./runtimeFailureRecord";
 import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { SqliteCloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
 import { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
-import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, paperAccountIdForCapital, type PaperAccountState } from "./paperTradingExecutionLoop";
+import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, type PaperAccountState } from "./paperTradingExecutionLoop";
 import { createCloudAiRuntime } from "./ai/runtime";
 import { registerGracefulShutdown, startCloudRuntime, type CloudRuntimeHandle } from "./runtime";
 import { readClosedLearningProductionConfig } from "./closedLearningProductionConfig";
@@ -73,7 +74,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   // supply restart-safe candidate performance evidence without opening a second writer lease.
   const paperRepository = config.paperInitialCapitalKrw === undefined
     ? undefined
-    : new SqliteCloudPaperAccountRepository(database, { accountId: paperAccountIdForCapital(config.paperInitialCapitalKrw) });
+    : new SqliteCloudPaperAccountRepository(database);
   const paperLoop = config.paperInitialCapitalKrw === undefined || paperRepository == null
     ? undefined
     : new PaperTradingExecutionLoop({ initialCapital: config.paperInitialCapitalKrw, repository: paperRepository });
@@ -252,6 +253,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   const failClosedScheduler = (error: unknown): void => {
     const detail = error instanceof Error && error.message.trim() ? error.message.trim().slice(0, 500) : "CLOSED_LEARNING_SCHEDULER_FAILED";
     console.error(`[closed-learning] scheduler failed closed: ${detail}`);
+    recordRuntimeFailure(config.cloudStateDbPath, "CLOSED_LEARNING_SCHEDULER", error);
     process.exitCode = 1;
     void handle.stop();
   };
@@ -280,8 +282,16 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
 }
 
 function main(): void {
-  const composition = startClosedLearningProductionRuntime(process.env);
-  registerGracefulShutdown(composition.handle);
+  const stateDbPath = process.env.NUSA_CLOUD_STATE_DB_PATH;
+  let composition: ReturnType<typeof startClosedLearningProductionRuntime>;
+  try {
+    composition = startClosedLearningProductionRuntime(process.env);
+  } catch (error) {
+    // Start-up faults happen before the fatal handlers exist; record them so the loop is visible.
+    if (stateDbPath !== undefined) recordRuntimeFailure(stateDbPath, "STARTUP", error);
+    throw error;
+  }
+  registerGracefulShutdown(composition.handle, process.exit, stateDbPath);
 }
 
 if (require.main === module) main();

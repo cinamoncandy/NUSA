@@ -1,10 +1,45 @@
 version: 1
+current_security_fast_uri_backport:
+  work_order: WO-SECURITY-20260929-FAST-URI
+  status: READY_FOR_REVIEW
+  branch: codex/security-fast-uri-3-1-8
+  base_sha: 6de0b9e61557b58d94301ed17ecc530210c0976a
+  first_broken_transition: post_merge_security_gate_to_dependency_audit
+  finding: "Post-merge CI 36499696763 failed in the Security gate because fast-uri@3.1.6 has two unmitigated high advisories (1239943 and 1239946) through electron-builder's development dependency tree."
+  remediation: "Pin the existing fast-uri@3.1.4 override to patched v3.1.8 and keep the security gate fail-closed."
+  authority_impact: none
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  validation: "security-gate 0 unmitigated high/critical advisories; security gate tests 10/10; typecheck and validate:full PASS."
+  remaining: commit_then_exact_head_CI_then_independent_Audit_then_Release
+current_autopilot_runtime_provider_wait:
+  work_order: WO-AUTOPILOT-20260929-ORACLE-PROVIDER-WAIT
+  status: READY_FOR_REVIEW
+  branch: codex/autopilot-runtime-provider-wait
+  pull_request: 2372
+  base_sha: 4b15ff9501676cf5ff85ae958b625676ae34ad43
+  authority_impact: none
+  first_broken_transition: canonical-provider-wait-to-Oracle-runtime-health
+  validation: "Focused runtime tests 7/7, lint:scripts, AI zero-authority, safety invariants, and diff check PASS; fresh exact-head CI required."
+  remaining: exact-head-CI_then-independent-Audit_then-Release-merge_then-exact-main-Oracle-PAPER-Release_then-runtime-observation
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_autopilot_capacity_efficiency:
+  work_order: WO-AUTOPILOT-20260929-CAPACITY-EFFICIENCY
+  status: IN_PROGRESS
+  branch: codex/autopilot-provider-wait-cost-efficiency
+  pull_request: 2378
+  base_sha: ea54b66274a238b37c36b66d227003f6246b7392
+  implementation_head: 6e3ef4550658bec80fc6bc3e6e95fab03795c639
+  validation: "PR head 6e3ef455 exact-head CI run 36509934933 PASS, PAPER runtime run 36509934946 PASS, deterministic Audit run 36510322088 PASS. Canonical Release stopped before merge because GitHub returned HTTP 405: all review comments must be resolved. One unresolved Jev model/telemetry comment is being addressed; all evidence on 6e3ef455 becomes stale after the follow-up commit. Follow-up local build, Jev SHADOW 5/5, typecheck, security:gate, validate:full, lint:scripts, AIPOS YAML/drift, and diff check PASS. No native runtime call or neuron savings claimed during provider capacity wait."
+  scope: "Skip backlog/workflow GitHub reads during a valid Workers AI wait and lower only Jev SHADOW classifier neuron consumption."
+  authority_impact: none
+  remaining: local-validation_then_exact-head-CI_then_independent-Audit_then_canonical-Release
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_paper_capital_5000_account:
   work_order: WO-PAPER-20260928-CAPITAL-5000-ACCOUNT
-  status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-paper-capital-5000
+  status: ROLLED_BACK
+  rollback_pull_request: 2371
   authority_impact: paper-accounting
-  remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release_then-app-observation
+  remaining: reproduce-prod-crash-from-prod-like-state_then-fix_then-re-propose-capital-switch
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_presentation_boundary:
   work_order: WO-UI-20260928-PRESENTATION-BOUNDARY
@@ -53,6 +88,26 @@ current_mobile_paper_tabs_icon:
   branch: claude/nusa-repository-j93sd8-paper-tabs-icon
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_research_evidence_digest_convergence:
+  work_order: WO-RESEARCH-20260929-EVIDENCE-DIGEST-CONVERGENCE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-research-cost-hash
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release
+current_runtime_restart_forensics:
+  work_order: WO-OPS-20260928-RUNTIME-RESTART-FORENSICS
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-runtime-forensics
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release_then-read-health-lastError
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_paper_restart_loop_stale_snapshot:
+  work_order: WO-OPS-20260929-PAPER-RESTART-LOOP-STALE-SNAPSHOT
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-legacy-replay
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release_then-verify-health-stable
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_audit_grounded_fail:
   work_order: WO-20260928-AUDIT-GROUNDED-FAIL

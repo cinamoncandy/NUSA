@@ -1,12 +1,6 @@
 "use strict";
 
-const { createHash } = require("node:crypto");
-function canonicalize(value) {
-  if (value === null || typeof value !== "object") return value;
-  if (Array.isArray(value)) return value.map(canonicalize);
-  return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalize(value[key])]));
-}
-function canonicalHash(value) { return createHash("sha256").update(JSON.stringify(canonicalize(value)), "utf8").digest("hex"); }
+const { canonicalCostStressResultSha256 } = require("../../dist/apps/desktop/src/cloud/researchRunRobustnessEvidence.js");
 
 /**
  * Projects the existing execution-cost stress engine's evidence into the compact JSON shape
@@ -52,7 +46,7 @@ function projectExecutionCostStress(stress) {
   const baseline = projectScenario(stress.baseline);
   return {
     selectionMode: stress.selectionMode,
-    identity: { ...stress.identity, resultSha256: canonicalHash(scenarios) },
+    identity: { ...stress.identity, resultSha256: canonicalCostStressResultSha256(scenarios, stress.identity.selectionMode ?? stress.selectionMode) },
     baseline,
     scenarios,
     degradation: stress.degradation,

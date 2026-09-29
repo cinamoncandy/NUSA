@@ -344,7 +344,10 @@ export function buildResearchRunLeague(
       );
     }
     const candidateCostIds = new Set<string>();
-    for (const candidateStress of options.robustnessEvidence.candidateCostStress) {
+    // Replay snapshots captured before candidate-bound cost stress existed carry no
+    // candidateCostStress. They bind nothing here; qualification then reports
+    // COST_STRESS_CANDIDATE_BINDING_REQUIRED (UNKNOWN) instead of the replay throwing.
+    for (const candidateStress of options.robustnessEvidence.candidateCostStress ?? []) {
       if (candidateCostIds.has(candidateStress.candidateId)) {
         throw new ResearchRunLeagueBridgeError(
           "ROBUSTNESS_PROVENANCE_MISMATCH",
