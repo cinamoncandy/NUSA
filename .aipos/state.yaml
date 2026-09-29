@@ -1,4 +1,16 @@
 version: 1
+current_security_fast_uri_backport:
+  work_order: WO-SECURITY-20260929-FAST-URI
+  status: READY_FOR_REVIEW
+  branch: codex/security-fast-uri-3-1-8
+  base_sha: 6de0b9e61557b58d94301ed17ecc530210c0976a
+  first_broken_transition: post_merge_security_gate_to_dependency_audit
+  finding: "Post-merge CI 36499696763 failed in the Security gate because fast-uri@3.1.6 has two unmitigated high advisories (1239943 and 1239946) through electron-builder's development dependency tree."
+  remediation: "Pin the existing fast-uri@3.1.4 override to patched v3.1.8 and keep the security gate fail-closed."
+  authority_impact: none
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  validation: "security-gate 0 unmitigated high/critical advisories; security gate tests 10/10; typecheck and validate:full PASS."
+  remaining: commit_then_exact_head_CI_then_independent_Audit_then_Release
 current_autopilot_runtime_provider_wait:
   work_order: WO-AUTOPILOT-20260929-ORACLE-PROVIDER-WAIT
   status: READY_FOR_REVIEW
