@@ -94,8 +94,9 @@ jobs:
         id: run
         shell: bash
         run: |
-          set -uo pipefail
-          codex login status
+          # Actions runs bash with -e; turn it off so a Codex failure reaches the usage-limit check.
+          set +e -uo pipefail
+          codex login status || exit 1
           log="${RUNNER_TEMP}/codex.log"
           codex exec -s workspace-write -C "$GITHUB_WORKSPACE" - < "${RUNNER_TEMP}/prompt/codex-prompt.txt" 2>&1 | tee "$log"
           rc=${PIPESTATUS[0]}
