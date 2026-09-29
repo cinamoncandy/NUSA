@@ -8,6 +8,7 @@ import { FileResearchRunReplaySnapshotStore } from "../../desktop/src/cloud/rese
 import { readCloudRuntimeConfig } from "./cloudRuntimeConfig";
 import { recordRuntimeFailure } from "./runtimeFailureRecord";
 import { ResearchSnapshotRefresher } from "./researchSnapshotRefresher";
+import { OwnerBaselinePaperBindingProvider, ownerBaselineStrategyEnabled } from "./ownerBaselinePaperStrategy";
 import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { SqliteCloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
 import { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
@@ -69,7 +70,13 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   const snapshots = new SqliteCloudDashboardSnapshotRepository(database);
   const learningLedger = new SqliteEvolutionLearningLedger(database);
   const challengerBindings = new PaperChallengerBindingLedger(learningLedger);
-  const dashboardHydrator = new CloudRuntimeDashboardHydrator({ paperCandidateBindingProvider: challengerBindings });
+  // A qualified challenger always wins; until one exists the owner-approved PAPER baseline trades.
+  const paperCandidateBindingProvider = new OwnerBaselinePaperBindingProvider({
+    challenger: challengerBindings,
+    sourceCommitSha: env.NUSA_SOURCE_COMMIT_SHA ?? env.NUSA_SOURCE_COMMIT ?? "",
+    enabled: ownerBaselineStrategyEnabled(env),
+  });
+  const dashboardHydrator = new CloudRuntimeDashboardHydrator({ paperCandidateBindingProvider });
 
   // Own the canonical PAPER repository/loop at this composition root so the same process can
   // supply restart-safe candidate performance evidence without opening a second writer lease.
