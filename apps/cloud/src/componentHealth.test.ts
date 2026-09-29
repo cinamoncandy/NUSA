@@ -24,6 +24,8 @@ describe("evaluateComponentHealth", () => {
   it("fails closed on future or mismatched evidence", () => {
     assert.equal(evaluateComponentHealth({ componentId: "PAPER_EXECUTION", now, policy, latest: evidence("PASS", now + 1) }).state, "UNKNOWN");
     assert.equal(evaluateComponentHealth({ componentId: "MARKET_DATA", now, policy, latest: evidence("PASS") }).state, "UNKNOWN");
+    assert.equal(evaluateComponentHealth({ componentId: "PAPER_EXECUTION", now, policy, latest: { ...evidence("PASS"), signal: "INVALID" as "PASS" } }).state, "UNKNOWN");
+    assert.equal(evaluateComponentHealth({ componentId: "PAPER_EXECUTION", now, policy, latest: evidence("PASS"), previousFailure: { ...evidence("FAIL"), componentId: "OTHER" } }).state, "UNKNOWN");
   });
   it("requires evidence newer than the previous failure to verify recovery", () => {
     const failure = evidence("FAIL", now - 100, "failure");

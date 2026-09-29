@@ -1,6 +1,6 @@
 id: WO-ISSUE-2017-COMPONENT-HEALTH
 title: "Canonical PAPER process and workload health projection"
-status: REVIEW_REPAIR_PENDING_VALIDATION
+status: REVIEW_REPAIR_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
 priority: P0
 owner: observability
 repository: cinamoncandy/NUSA
@@ -26,11 +26,11 @@ acceptance:
   - unauthenticated health route strips unexpected callback fields
   - missing or malformed evidence fails closed
 validation:
-  status: PENDING_LOCAL_AND_EXACT_HEAD_CI
-  commands: "pnpm run preflight; pnpm run build; node --test dist/apps/cloud/src/componentHealth.test.js dist/apps/cloud/src/paperRuntimeHealth.test.js tests/cloud-runtime-liveness-health.test.js; pnpm run validate; pnpm run security:gate; fresh exact-head CI"
+  status: LOCAL_PASS_PENDING_EXACT_HEAD_CI
+  commands: "Preflight, TypeScript build, focused component/health-route tests 24/24, cloud dashboard/bootstrap regression 15 PASS + 2 Windows signal SKIP, validate, security gate, AIPOS drift, lint, architecture, safety invariants, and diff check passed after latest-main merge."
 safety:
   paper_only: true
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
-next: "Validate the review repair, update existing PR #2019, collect fresh exact-head CI and independent Audit/Release, then verify /health on exact-main Oracle deployment."
+next: "Update existing PR #2019, collect fresh exact-head CI and independent Audit/Release, then verify /health on exact-main Oracle deployment."

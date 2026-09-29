@@ -68,7 +68,7 @@ export function evaluateComponentHealth(input: ComponentHealthEvaluationInput): 
   const base = { componentId, evaluatedAt: input.now } as const;
   const evidence = input.latest;
   if (evidence == null) return result({ ...base, state: "UNKNOWN", reasonCode: "EVIDENCE_MISSING" });
-  if (evidence.componentId !== componentId || !evidence.provenance.trim() || !evidence.evidenceId.trim() || !validTime(evidence.observedAt) || evidence.observedAt > input.now) {
+  if (evidence.componentId !== componentId || !COMPONENT_HEALTH_SIGNALS.includes(evidence.signal) || !evidence.provenance.trim() || !evidence.evidenceId.trim() || !validTime(evidence.observedAt) || evidence.observedAt > input.now) {
     return result({ ...base, state: "UNKNOWN", reasonCode: "EVIDENCE_INVALID_TIME" });
   }
   const evidenceFields = { observedAt: evidence.observedAt, provenance: evidence.provenance, evidenceId: evidence.evidenceId } as const;
@@ -76,7 +76,10 @@ export function evaluateComponentHealth(input: ComponentHealthEvaluationInput): 
   if (evidence.signal === "FAIL") return result({ ...base, ...evidenceFields, state: "FAILED", reasonCode: "EVIDENCE_FAILED" });
   if (evidence.signal === "DEGRADED") return result({ ...base, ...evidenceFields, state: "DEGRADED", reasonCode: "EVIDENCE_DEGRADED" });
   const previousFailure = input.previousFailure;
-  if (previousFailure != null && previousFailure.componentId === componentId && validTime(previousFailure.observedAt) && evidence.observedAt <= previousFailure.observedAt) {
+  if (previousFailure != null && (previousFailure.componentId !== componentId || previousFailure.signal !== "FAIL" || !validTime(previousFailure.observedAt) || previousFailure.observedAt > input.now)) {
+    return result({ ...base, ...evidenceFields, state: "UNKNOWN", reasonCode: "EVIDENCE_INVALID_TIME" });
+  }
+  if (previousFailure != null && evidence.observedAt <= previousFailure.observedAt) {
     return result({ ...base, ...evidenceFields, state: "UNKNOWN", reasonCode: "RECOVERY_NOT_VERIFIED" });
   }
   return result({ ...base, ...evidenceFields, state: "HEALTHY", reasonCode: "EVIDENCE_HEALTHY" });
