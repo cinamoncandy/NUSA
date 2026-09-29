@@ -7,6 +7,8 @@
 #   watch  while Codex runs (called every few seconds): free memory above the floor AND, checked
 #          at most once a minute, no Oracle PAPER release. A GitHub API failure keeps running,
 #          because the memory floor still protects PAPER.
+#   reap <mark>  terminate every process whose environment carries NUSA_CODEX_RUN_MARK=<mark>,
+#          so a command that daemonized or left the process group cannot keep using the host.
 set -uo pipefail
 
 mode="${1:-}"
@@ -33,6 +35,35 @@ active_releases() {
   done
   echo "$total"
 }
+
+proc_root="${NUSA_HOST_GUARD_PROC:-/proc}"
+
+# Prints the pids whose environment carries NUSA_CODEX_RUN_MARK=<mark> (the whole Codex tree,
+# including anything that left Codex's process group).
+marked_pids() {
+  local entry pid
+  for entry in "$proc_root"/[0-9]*; do
+    pid="${entry##*/}"
+    [ "$pid" = "$$" ] && continue
+    tr '\0' '\n' < "$entry/environ" 2>/dev/null | grep -qxF "NUSA_CODEX_RUN_MARK=$1" && echo "$pid"
+  done
+}
+
+if [ "$mode" = "reap" ]; then
+  mark="${2:-}"
+  [ -n "$mark" ] || { echo "usage: $0 reap <mark>" >&2; exit 2; }
+  for signal in TERM TERM KILL KILL; do
+    pids="$(marked_pids "$mark")"
+    [ -z "$pids" ] && exit 0
+    # shellcheck disable=SC2086
+    kill "-$signal" $pids 2>/dev/null
+    sleep "${NUSA_HOST_GUARD_REAP_WAIT_SECONDS:-3}"
+  done
+  pids="$(marked_pids "$mark")"
+  [ -z "$pids" ] && exit 0
+  echo "::warning::Host guard: Codex processes still alive after reap: $pids"
+  exit 1
+fi
 
 mem="$(available_kb)"
 case "$mode" in
@@ -72,7 +103,7 @@ case "$mode" in
     exit 0
     ;;
   *)
-    echo "usage: $0 start|watch" >&2
+    echo "usage: $0 start|watch|reap <mark>" >&2
     exit 2
     ;;
 esac
