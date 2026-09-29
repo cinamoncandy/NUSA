@@ -59,7 +59,7 @@ import { handleEngineeringOperationsHttp, type EngineeringOperationsHttpDependen
 import { handleEvolutionLearningSupervisorHttp, type EvolutionLearningSupervisorHttpDependencies } from "./evolutionLearningSupervisorHttp";
 import { handleUxTelemetryEventHttp } from "./uxTelemetryHttp";
 import type { UxTelemetryStorage } from "./uxTelemetryJournal";
-import type { ComponentHealthResult } from "./componentHealth";
+import { COMPONENT_HEALTH_STATES, type ComponentHealthResult } from "./componentHealth";
 
 /**
  * Evidence that the continuous PAPER runtime is alive, not merely that the process answers HTTP.
@@ -263,6 +263,29 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
   return Object.freeze({ ...timestamps, ...counters, lastError, ...(previousStop === undefined ? {} : { previousStop }) }) as unknown as CloudRuntimeLivenessSnapshot;
 }
 
+const PUBLIC_HEALTH_REASONS = new Set(["EVIDENCE_HEALTHY", "EVIDENCE_DEGRADED", "EVIDENCE_FAILED", "EVIDENCE_STALE", "EVIDENCE_MISSING", "EVIDENCE_INVALID_TIME", "RECOVERY_NOT_VERIFIED"]);
+function publicComponentHealth(value: ComponentHealthResult, componentId: "PAPER_PROCESS" | "PAPER_WORKLOAD"): ComponentHealthResult | null {
+  if (value == null || typeof value !== "object") return null;
+  const provenance = componentId === "PAPER_PROCESS" ? "cloud-runtime-heartbeat" : "cloud-paper-market-events";
+  const evidencePrefix = componentId === "PAPER_PROCESS" ? "heartbeat" : "market-event";
+  if (value.componentId !== componentId || !COMPONENT_HEALTH_STATES.includes(value.state)
+    || !PUBLIC_HEALTH_REASONS.has(value.reasonCode) || !Number.isSafeInteger(value.evaluatedAt)
+    || value.evaluatedAt < 0 || typeof value.fingerprint !== "string" || !/^[0-9a-f]{64}$/.test(value.fingerprint)) return null;
+  if (value.observedAt !== undefined && (!Number.isSafeInteger(value.observedAt) || value.observedAt < 0 || value.observedAt > value.evaluatedAt)) return null;
+  if (value.provenance !== undefined && value.provenance !== provenance) return null;
+  if (value.evidenceId !== undefined && (typeof value.evidenceId !== "string" || !new RegExp(`^${evidencePrefix}:\\d+:\\d+(?::\\d+)?$`).test(value.evidenceId))) return null;
+  return Object.freeze({ componentId, state: value.state, reasonCode: value.reasonCode,
+    evaluatedAt: value.evaluatedAt, ...(value.observedAt === undefined ? {} : { observedAt: value.observedAt }),
+    ...(value.provenance === undefined ? {} : { provenance }),
+    ...(value.evidenceId === undefined ? {} : { evidenceId: value.evidenceId }), fingerprint: value.fingerprint });
+}
+function publicRuntimeHealth(value: ReturnType<NonNullable<CloudDashboardServerOptions["runtimeHealth"]>> | undefined): ReturnType<NonNullable<CloudDashboardServerOptions["runtimeHealth"]>> | undefined {
+  if (value == null || typeof value !== "object") return undefined;
+  const process = publicComponentHealth(value.process, "PAPER_PROCESS");
+  const workload = publicComponentHealth(value.workload, "PAPER_WORKLOAD");
+  return process === null || workload === null ? undefined : Object.freeze({ process, workload });
+}
+
 export function startCloudDashboardServer(options: CloudDashboardServerOptions): CloudDashboardServerHandle {
   if (!Number.isSafeInteger(options.port) || options.port < 1024 || options.port > 65535) throw new Error("invalid cloud dashboard server port");
   const host = options.host ?? "127.0.0.1";
@@ -420,7 +443,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
         // `runtime` appears only when a liveness source is wired, and carries the counters that
         // show whether the continuous PAPER loop is actually ticking.
         const liveness = options.runtimeLiveness?.();
-        const runtimeHealth = options.runtimeHealth?.();
+        const runtimeHealth = publicRuntimeHealth(options.runtimeHealth?.());
         respond("health", dashboardJsonResponse(200, {
           ok: true,
           observedAt: new Date().toISOString(),

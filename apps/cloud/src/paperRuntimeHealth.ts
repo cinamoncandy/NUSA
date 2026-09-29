@@ -12,7 +12,7 @@ export interface PaperRuntimeHealthProjection {
 }
 
 export function projectPaperRuntimeHealth(
-  liveness: CloudRuntimeLivenessSnapshot,
+  liveness: CloudRuntimeLivenessSnapshot & { readonly lastAcceptedMarketReceiptAt?: number | null; readonly lastFailureAt?: number | null },
   now: number,
   policy: PaperRuntimeHealthPolicy,
 ): PaperRuntimeHealthProjection {
@@ -33,15 +33,22 @@ export function projectPaperRuntimeHealth(
     componentId: "PAPER_WORKLOAD",
     now,
     policy: { staleAfterMs: policy.marketEventStaleAfterMs },
-    ...(liveness.lastMarketEventAt == null ? {} : {
+    ...(liveness.lastAcceptedMarketReceiptAt == null ? {} : {
       latest: {
         componentId: "PAPER_WORKLOAD",
         signal: liveness.lastError == null ? "PASS" as const : "DEGRADED" as const,
-        observedAt: liveness.lastMarketEventAt,
+        observedAt: liveness.lastAcceptedMarketReceiptAt,
         provenance: "cloud-paper-market-events",
-        evidenceId: `market-event:${liveness.startedAt}:${liveness.lastMarketEventAt}:${liveness.eventCount}`,
+        evidenceId: `market-event:${liveness.startedAt}:${liveness.lastAcceptedMarketReceiptAt}:${liveness.eventCount}`,
       },
     }),
+    ...(liveness.lastFailureAt == null ? {} : { previousFailure: {
+      componentId: "PAPER_WORKLOAD" as const,
+      signal: "FAIL" as const,
+      observedAt: liveness.lastFailureAt,
+      provenance: "cloud-runtime-failure",
+      evidenceId: `failure:${liveness.startedAt}:${liveness.lastFailureAt}`,
+    } }),
   });
 
   return Object.freeze({ process, workload });

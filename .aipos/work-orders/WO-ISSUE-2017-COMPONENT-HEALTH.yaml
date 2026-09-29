@@ -1,0 +1,36 @@
+id: WO-ISSUE-2017-COMPONENT-HEALTH
+title: "Canonical PAPER process and workload health projection"
+status: REVIEW_REPAIR_PENDING_VALIDATION
+priority: P0
+owner: observability
+repository: cinamoncandy/NUSA
+issue: 2017
+pull_request: 2019
+base_branch: main
+objective: "Expose deterministic process/workload health without treating HTTP liveness or pre-failure market evidence as PAPER recovery."
+architecture_impact:
+  acknowledged: true
+  analysis: "Projects existing canonical PAPER heartbeat and accepted market events through one read-only component-health evaluator; no second runtime or telemetry owner."
+scope:
+  - accepted_market_receipt_time_and_post_failure_recovery
+  - public_health_allowlist
+  - deterministic_health_tests
+prohibited:
+  - new_execution_engine
+  - order_or_broker_mutation
+  - live_authority
+acceptance:
+  - process heartbeat does not imply workload health
+  - failed workload remains unverified until a newer accepted market receipt
+  - accepted exchange clock skew does not falsely mark workload unknown
+  - unauthenticated health route strips unexpected callback fields
+  - missing or malformed evidence fails closed
+validation:
+  status: PENDING_LOCAL_AND_EXACT_HEAD_CI
+  commands: "pnpm run preflight; pnpm run build; node --test dist/apps/cloud/src/componentHealth.test.js dist/apps/cloud/src/paperRuntimeHealth.test.js tests/cloud-runtime-liveness-health.test.js; pnpm run validate; pnpm run security:gate; fresh exact-head CI"
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: "Validate the review repair, update existing PR #2019, collect fresh exact-head CI and independent Audit/Release, then verify /health on exact-main Oracle deployment."
