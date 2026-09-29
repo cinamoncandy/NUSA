@@ -33,7 +33,7 @@ test("runs the canonical Research entrypoint once and never concurrently", () =>
   assert.equal(refresher.requestIfDue(), "RUNNING");
   assert.equal(spawned.length, 1);
   assert.equal(spawned[0]!.command, "/usr/bin/node");
-  assert.deepEqual(spawned[0]!.args, ["/opt/nusa/current/scripts/run-cloud-research-snapshot.js"]);
+  assert.deepEqual(spawned[0]!.args, [path.join("/opt/nusa/current", "scripts", "run-cloud-research-snapshot.js")]);
 });
 
 test("is rate limited across restarts and records the outcome", () => {
