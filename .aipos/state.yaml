@@ -84,6 +84,13 @@ current_runtime_restart_forensics:
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release_then-read-health-lastError
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_paper_restart_loop_stale_snapshot:
+  work_order: WO-OPS-20260929-PAPER-RESTART-LOOP-STALE-SNAPSHOT
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-legacy-replay
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release_then-verify-health-stable
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_audit_grounded_fail:
   work_order: WO-20260928-AUDIT-GROUNDED-FAIL
   status: READY_FOR_REVIEW
