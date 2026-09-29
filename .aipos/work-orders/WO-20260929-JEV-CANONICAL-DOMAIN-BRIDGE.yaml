@@ -1,6 +1,6 @@
 id: WO-20260929-JEV-CANONICAL-DOMAIN-BRIDGE
 title: "Bridge validated Jev SHADOW receipts into the canonical domain envelope"
-status: IN_PROGRESS
+status: READY_FOR_REVIEW
 owner: nusa-ai-platform
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -27,9 +27,7 @@ acceptance:
   - "The unvalidated registry task types still fail closed and cannot emit observations."
 verification_commands:
   - "pnpm run build"
-  - "node --test dist/apps/cloud/src/ai/jevDomainObservationProjection.test.js"
-  - "node --test tests/autopilot-jev-coding-failure-shadow.test.js"
-  - "node --test tests/research-intelligence-attention-shadow.test.js"
+  - "node --test tests/jev-domain-observation.test.js tests/autopilot-jev-coding-failure-shadow.test.js tests/research-intelligence-attention-shadow.test.js"
   - "pnpm run validate:full"
   - "pnpm run security:gate"
   - "pnpm run typecheck"
@@ -42,4 +40,13 @@ safety:
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
   fail_closed: true
-next_permitted_action: "Implement the two existing validated adapters only, then run exact-head validation and independent Audit before any Release decision."
+verification_evidence:
+  code_commit: 7f3dd8e00d5fd9a0e4fc00c1831cae4335b1c24d
+  focused_tests: "26 passed: Autopilot capacity-stop/no-call and Research deterministic-handoff regression coverage"
+  build: PASS
+  validate_full: PASS
+  security_gate: PASS
+  typecheck: PASS
+  lint: "PASS with 13 pre-existing warnings and 0 errors"
+  full_test: "PASS 1090 isolated test files from a clean committed worktree"
+next_permitted_action: "Create a fresh PR from the exact validated head; require independent Audit and Release gate before any merge."
