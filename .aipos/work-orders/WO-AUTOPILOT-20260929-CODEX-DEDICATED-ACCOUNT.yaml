@@ -4,7 +4,7 @@ status: READY_FOR_REVIEW
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
-implementation_branch: claude/nusa-repository-j93sd8-codex-commit-first
+implementation_branch: claude/nusa-repository-j93sd8-codex-host-guard
 authority_impact: none
 owner_decision: "2026-09-29 owner: autopilot must actually develop, using ChatGPT (Codex) usage from one specific account (the one logged in on the evening of 2026-09-28), not the account the owner uses for interactive Codex work and not Cloudflare Workers AI."
 objective: "The last 120 scheduled autopilot cycles were all WAITING_RATE_LIMIT / waiting-provider-capacity: the Workers AI free quota is exhausted daily and shared with Audit, so the autopilot produced no code."
@@ -36,3 +36,5 @@ recovery_log:
   - "Run 36561557413 (after owner credit top-up): Codex produced a #2118 patch, but its output quoted the workflow's usage-limit text, so the loose grep discarded the patch. Fixed by #2390 (wait only on rc!=0 and the run's own ERROR line)."
   - "Run 36563498694: Codex produced a #2118 patch that applied and passed the path boundary, but tests/autopilot-dispatch-retry.test.js runs git reset --hard HEAD on GitHub runners and dropped the staged patch mid-suite, so publish found nothing to commit. Fix (this branch): commit the patch before validation, validate that commit, and publish only the recorded validated HEAD on a clean tree."
   - "Remaining: exact-head CI, Audit and Release merge of the commit-first fix, then one dispatch of autopilot-codex-coding that must open an autopilot/codex PR."
+  - "2026-09-29 incident: Codex run 36571141266 on nusa-codex-dev-2 overlapped Oracle PAPER release 36568651653 on the same 1 GB host; the host slowed to minutes per step, release and rollback readiness both failed and /health returned 502 from ~12:58 until the 9f433315 redeploy (~13:55 UTC). Codex run cancelled."
+  - "Owner decision (option 2): keep Codex on the shared host but PAPER wins. scripts/autopilot-codex-host-guard.sh: start needs MemAvailable >= 450 MiB and no queued/running Oracle PAPER release (API failure defers); during the run Codex is stopped and its patch discarded when MemAvailable < 200 MiB or a PAPER release starts; Codex runs under nice 19 / ionice idle."

@@ -58,3 +58,48 @@ test("the workflow pins Codex to the single dedicated-account runner and publish
   assert.match(workflow, /group: autopilot-codex-coding/);
   assert.match(workflow, /head:autopilot\/codex\//, "one open autopilot Codex PR at a time");
 });
+
+test("the host guard keeps Codex off the shared Oracle host whenever PAPER needs it", () => {
+  const { spawnSync } = require("node:child_process");
+  const os = require("node:os");
+  const path = require("node:path");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-host-guard-"));
+  const meminfo = path.join(dir, "meminfo");
+  const guard = (mode, availableKb, releases, extra = {}) => {
+    fs.writeFileSync(meminfo, `MemTotal: 1000000 kB\nMemAvailable: ${availableKb} kB\n`);
+    return spawnSync("bash", ["scripts/autopilot-codex-host-guard.sh", mode], {
+      encoding: "utf8",
+      env: { ...process.env, RUNNER_TEMP: dir, NUSA_HOST_GUARD_MEMINFO: meminfo, NUSA_HOST_GUARD_ACTIVE_RELEASES: releases, ...extra },
+    }).status;
+  };
+  assert.equal(guard("start", 600000, "0"), 0, "enough memory and no release: Codex may start");
+  assert.equal(guard("start", 300000, "0"), 1, "low memory defers the start");
+  assert.equal(guard("start", 600000, "1"), 1, "a queued or running PAPER release defers the start");
+  assert.equal(guard("watch", 300000, "0"), 0, "above the floor Codex keeps running");
+  assert.equal(guard("watch", 150000, "0"), 1, "below the floor Codex is stopped");
+  assert.equal(guard("watch", 600000, "1", { NUSA_HOST_GUARD_RELEASE_CHECK_SECONDS: "0" }), 1, "a release that starts mid-run stops Codex");
+
+  const workflow = fs.readFileSync(".github/workflows/autopilot-codex-coding.yml", "utf8");
+  assert.match(workflow, /cp scripts\/autopilot-codex-host-guard\.sh "\$guard" && chmod 0555 "\$guard"/, "the guard runs from an immutable copy outside Codex's writable tree");
+  assert.match(workflow, /bash "\$guard" start/, "Codex starts only through the host guard");
+  assert.match(workflow, /bash "\$guard" watch/, "the host guard watches the whole Codex run");
+  assert.match(workflow, /bash "\$guard" reap "\$mark"/, "the whole marked Codex tree is reaped");
+  assert.match(workflow, /env -u GUARD_GH_TOKEN -u GH_TOKEN -u GITHUB_TOKEN NUSA_CODEX_RUN_MARK=/, "Codex never receives the Actions token");
+  assert.doesNotMatch(workflow, /^\s+GH_TOKEN: \$\{\{ github\.token \}\}\n\s+run: \|\n\s+# Actions runs bash/m, "no step-wide token for the Codex step");
+  assert.match(workflow, /nice -n 19 ionice -c3 codex exec/, "Codex runs at the lowest CPU and IO priority");
+  assert.match(workflow, /host_deferred != 'true'/, "a deferred or stopped run never publishes a patch");
+});
+
+test("the host guard reaps a Codex descendant that left the process group", { skip: process.platform !== "linux" }, () => {
+  const { spawn, spawnSync } = require("node:child_process");
+  const mark = `test-mark-${process.pid}-${Date.now()}`;
+  const child = spawn("setsid", ["sleep", "300"], { env: { ...process.env, NUSA_CODEX_RUN_MARK: mark }, detached: true, stdio: "ignore" });
+  child.unref();
+  const alive = () => { try { process.kill(child.pid, 0); return true; } catch { return false; } };
+  const deadline = Date.now() + 5000;
+  while (!alive() && Date.now() < deadline) { /* wait for spawn */ }
+  const result = spawnSync("bash", ["scripts/autopilot-codex-host-guard.sh", "reap", mark], { encoding: "utf8", env: { ...process.env, NUSA_HOST_GUARD_REAP_WAIT_SECONDS: "1" } });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const after = spawnSync("bash", ["-c", `for p in /proc/[0-9]*; do tr '\\0' '\\n' < $p/environ 2>/dev/null | grep -qxF NUSA_CODEX_RUN_MARK=${mark} && echo $p; done`], { encoding: "utf8" });
+  assert.equal(after.stdout.trim(), "", "no marked process survives");
+});
