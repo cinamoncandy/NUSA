@@ -1,6 +1,7 @@
 "use strict";
 const fs = require("node:fs");
 const http = require("node:http");
+const { spawnSync } = require("node:child_process");
 
 const envPath = process.env.NUSA_ENV_FILE || "/etc/nusa/cloud-runtime.env";
 if (!fs.existsSync(envPath)) throw new Error(`missing environment file: ${envPath}`);
@@ -29,9 +30,9 @@ if (process.env.NUSA_DRY_RUN === "1") {
 }
 
 const timeoutMs = Number(process.env.NUSA_READY_TIMEOUT_MS || 5000);
-const startupWaitMs = Number(process.env.NUSA_READY_STARTUP_WAIT_MS || 30_000);
+const startupWaitMs = Number(process.env.NUSA_READY_STARTUP_WAIT_MS || 180_000);
 const retryDelayMs = Number(process.env.NUSA_READY_RETRY_DELAY_MS || 1_000);
-if (!Number.isSafeInteger(startupWaitMs) || startupWaitMs < 0 || startupWaitMs > 60_000) throw new Error("NUSA_READY_STARTUP_WAIT_MS must be an integer in [0, 60000]");
+if (!Number.isSafeInteger(startupWaitMs) || startupWaitMs < 0 || startupWaitMs > 300_000) throw new Error("NUSA_READY_STARTUP_WAIT_MS must be an integer in [0, 300000]");
 if (!Number.isSafeInteger(retryDelayMs) || retryDelayMs < 1 || retryDelayMs > 5_000) throw new Error("NUSA_READY_RETRY_DELAY_MS must be an integer in [1, 5000]");
 const requestStatus = (path, headers = {}) => new Promise((resolve, reject) => {
   const req = http.request({
@@ -69,7 +70,7 @@ const parseReadiness = (response) => {
 /**
  * A systemd restart returns after the launcher has been spawned, not after the
  * supervised runtime has bound its local dashboard port.  Probe for a bounded
- * startup window so a healthy-but-still-booting release is not rolled back.
+ * startup window so a healthy-but-still-booting release is not rolled back.\n * The production 1 GB Oracle host has demonstrated >60 s cold-start readiness even for the\n * known-good rollback release, so the default budget is 180 s while remaining bounded/fail-closed.
  * This only delays acceptance: a missing, malformed, or unhealthy readiness
  * response still fails closed once the deadline expires.
  */
@@ -93,30 +94,70 @@ const awaitReadiness = async () => {
   }
 };
 
+
+const awaitExpectedStatus = async (path, expectedStatus) => {
+  const deadline = Date.now() + startupWaitMs;
+  let attempts = 0;
+  let last = { kind: "transport", message: "route probe was not attempted" };
+  for (;;) {
+    attempts += 1;
+    try {
+      const response = await requestStatus(path);
+      if (response.statusCode === expectedStatus) return { ok: true, statusCode: response.statusCode, attempts };
+      last = { kind: "response", actualStatus: response.statusCode };
+    } catch (error) {
+      last = { kind: "transport", message: error instanceof Error ? error.message : "route probe failed" };
+    }
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) return { ok: false, attempts, last };
+    await pause(Math.min(retryDelayMs, remaining));
+  }
+};
+
+// A failed startup used to report only "ECONNREFUSED" and roll back, leaving no evidence of why
+// the runtime never listened. Emit the service journal tail so the release run itself carries the
+// cause. Secret-shaped values are redacted; a missing journalctl never changes the verdict.
+const SECRET_LINE = /(token|secret|password|authorization|bearer|api[_-]?key|private)\s*[=:]\s*\S+/gi;
+function redactJournalLine(line) {
+  return line.replace(SECRET_LINE, (match) => `${match.split(/[=:]/)[0]}=[redacted]`);
+}
+function journalTail(unit = process.env.NUSA_READINESS_JOURNAL_UNIT || "nusa", lines = 80, run = spawnSync) {
+  try {
+    const args = ["-u", unit, "-n", String(lines), "--no-pager", "-o", "cat"];
+    // Test seam only: a Node script standing in for journalctl, so the evidence path is verified on
+    // every CI platform. Production never sets it and always reads the real systemd journal.
+    const stub = process.env.NUSA_READINESS_JOURNAL_STUB;
+    const result = stub ? run(process.execPath, [stub, ...args], { encoding: "utf8", timeout: 10_000 }) : run("journalctl", args, { encoding: "utf8", timeout: 10_000 });
+    if (result.status !== 0 || typeof result.stdout !== "string") return [];
+    return result.stdout.split(/\r?\n/).filter(Boolean).map(redactJournalLine);
+  } catch {
+    return [];
+  }
+}
+
 const run = async () => {
   const readiness = await awaitReadiness();
   if (!readiness.healthy) {
     console.error(JSON.stringify({ status: "FAIL", stage: "startup_readiness", attempts: readiness.attempts, last: readiness.last ?? { httpStatus: readiness.httpStatus, ready: readiness.ready, checks: readiness.checks } }));
+    for (const line of journalTail()) console.error(`[journal] ${line}`);
     process.exitCode = 1;
     return;
   }
 
   const routeChecks = [];
   for (const path of REQUIRED_MOBILE_OWNER_AUTH_ROUTES) {
-    let probe;
-    try { probe = await requestStatus(path); } catch (error) {
-      console.error(JSON.stringify({ status: "FAIL", route: path, error: error instanceof Error ? error.message : "mobile owner route probe failed" }));
-      process.exitCode = 1;
-      return;
-    }
     // GET is intentionally used as a non-mutating route-presence probe. The canonical handlers
     // reject it with 405; 404 means this release is stale and cannot serve the mobile client.
-    routeChecks.push({ path, status: probe.statusCode });
-    if (probe.statusCode !== 405) {
-      console.error(JSON.stringify({ status: "FAIL", route: path, expectedStatus: 405, actualStatus: probe.statusCode }));
+    // A freshly started 1 GB host can transiently stop servicing the event loop while bounded
+    // PAPER/Research startup work begins, so retry the exact route within the same bounded
+    // startup contract instead of treating one 5-second transport timeout as proof of absence.
+    const probe = await awaitExpectedStatus(path, 405);
+    if (!probe.ok) {
+      console.error(JSON.stringify({ status: "FAIL", stage: "mobile_owner_route", route: path, expectedStatus: 405, attempts: probe.attempts, last: probe.last }));
       process.exitCode = 1;
       return;
     }
+    routeChecks.push({ path, status: probe.statusCode });
   }
   console.log(JSON.stringify({ status: "PASS", httpStatus: readiness.httpStatus, ready: true, checks: readiness.checks, startupAttempts: readiness.attempts, mobileOwnerAuthRoutes: routeChecks }));
 };
@@ -126,4 +167,4 @@ run().catch((error) => {
   process.exitCode = 1;
 });
 
-module.exports = { REQUIRED_MOBILE_OWNER_AUTH_ROUTES };
+module.exports = { REQUIRED_MOBILE_OWNER_AUTH_ROUTES, journalTail, redactJournalLine };

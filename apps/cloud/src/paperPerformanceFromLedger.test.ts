@@ -144,6 +144,21 @@ test("derives PAPER performance only from durable ledger and realized-period tru
   assert.equal(result.evidence.aiAuthority, "ZERO_AUTHORITY");
 });
 
+test("uses canonical durable fills when bounded account-history snapshots no longer retain the fill", () => {
+  const boundedMiddle: PaperAccountState = Object.freeze({ ...middle, fills: Object.freeze([]) });
+  const boundedEnd: PaperAccountState = Object.freeze({ ...end, fills: Object.freeze([]) });
+  const result = buildPaperPerformanceFromLedger({
+    period: period(),
+    accountHistory: [start, boundedMiddle, boundedEnd],
+    durableFills: [fill],
+  });
+  assert.equal(result.evidence.fillCount, 1);
+  assert.equal(result.evidence.feeAmount, 1);
+  assert.equal(result.evidence.finalEquity, 1_009);
+  assert.equal(result.ledgerSource.fills.length, 1);
+  assert.equal(result.ledgerSource.fills[0]?.id, fill.id);
+});
+
 test("fails closed when persisted period outcome fingerprint is not the durable account outcome", () => {
   const valid = period();
   const tampered: PersistedPaperPeriodEnvelope = Object.freeze({
@@ -151,6 +166,14 @@ test("fails closed when persisted period outcome fingerprint is not the durable 
     record: Object.freeze({ ...valid.record, canonicalOutcomeReceiptFingerprint: "e".repeat(64) }),
   });
   assert.throws(() => buildPaperPerformanceFromLedger({ period: tampered, accountHistory: [start, middle, end] }), /PAPER_PERFORMANCE_OUTCOME_RECEIPT_MISMATCH/);
+});
+
+test("fails closed when durable fill bytes disagree with a retained history fill", () => {
+  const tamperedFill: PaperFillRecord = Object.freeze({ ...fill, fee: 2 });
+  assert.throws(
+    () => buildPaperPerformanceFromLedger({ period: period(), accountHistory: [start, middle, end], durableFills: [tamperedFill] }),
+    /PAPER_LEDGER_DURABLE_HISTORY_MISMATCH/
+  );
 });
 
 test("fails closed when durable history loses a processed order identity", () => {

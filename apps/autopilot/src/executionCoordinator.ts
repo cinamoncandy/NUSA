@@ -22,22 +22,73 @@ export interface DurableObjectStubLike {
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
 }
 
+export type PersistentExecutionState = "LEASED" | "HANDED_OFF" | "DISPATCHED" | "RELEASED" | "COMPLETED" | "WAITING_RATE_LIMIT" | "BLOCKED";
+
+export interface PersistentExecutionStop {
+  schemaVersion: 1;
+  taskId: string;
+  executionId: string;
+  provider: string;
+  headSha: string;
+  stopReason: string;
+  stoppedAt: number;
+  attemptCount: number;
+  lastFailure: string;
+  nextRetryAt: number;
+  resumeCondition: string;
+  dedupeKey: string;
+  evidenceRef: string | null;
+}
+
 export interface PersistentExecutionRecord {
   dedupeKey: string;
   executionId: string;
-  state: "LEASED" | "HANDED_OFF" | "DISPATCHED" | "RELEASED" | "COMPLETED";
+  state: PersistentExecutionState;
   leaseExpiresAt: number;
   updatedAt: number;
+  taskId?: string;
+  provider?: string;
+  headSha?: string;
+  stop?: PersistentExecutionStop;
+  resumeCount?: number;
 }
 
 type ExecutionRecord = PersistentExecutionRecord;
 
-interface AcquireRequest {
+export interface PersistentExecutionAcquireRequest {
   dedupeKey: string;
   executionId: string;
   now: number;
   leaseExpiresAt: number;
+  taskId?: string;
+  provider?: string;
+  headSha?: string;
 }
+
+export interface PersistentExecutionStopRequest extends PersistentExecutionStop {
+  now: number;
+}
+
+export interface ActiveWipClaim {
+  readonly dedupeKey: string;
+  readonly executionId: string;
+  readonly canonicalOwner: string;
+  readonly conflictKeys: readonly string[];
+  readonly claimedAt: number;
+}
+interface ActiveWipState { readonly schemaVersion: 1; readonly claims: readonly ActiveWipClaim[]; }
+export interface ActiveWipAdmissionRequest extends ActiveWipClaim { readonly maxConcurrent: number; }
+export interface ActiveWipCompletionRequest {
+  readonly dedupeKey: string; readonly executionId: string; readonly workerId: string;
+  readonly startedAt: number; readonly completedAt: number;
+}
+export interface ActiveWipCompletionEvidence {
+  readonly dedupeKey: string; readonly executionId: string; readonly canonicalOwner: string;
+  readonly conflictKeys: readonly string[]; readonly workerId: string;
+  readonly queuedAt: number; readonly claimedAt: number; readonly startedAt: number; readonly completedAt: number;
+  readonly queueWaitMs: number; readonly claimToStartMs: number; readonly claimToCompleteMs: number; readonly totalMs: number;
+}
+interface ActiveWipCompletionHistory { readonly schemaVersion: 1; readonly completions: readonly ActiveWipCompletionEvidence[]; }
 
 export interface ScheduledRuntimeReceipt {
   scheduledTime: number;
@@ -115,6 +166,11 @@ const AUTOPILOT_TELEMETRY_COORDINATOR_KEY = "autopilot-execution-telemetry";
 const AUTOPILOT_TELEMETRY_HISTORY_KEY = "autopilot-execution-telemetry-v1";
 const MAX_AUTOPILOT_TELEMETRY = 120;
 const CONTROL_PLANE_HOLD_STORAGE_KEY = "control-plane-hold-v1";
+const ACTIVE_WIP_COORDINATOR_KEY = "evolve-active-wip-v1";
+const ACTIVE_WIP_STORAGE_KEY = "evolve-active-wip-v1";
+const ACTIVE_WIP_COMPLETION_HISTORY_KEY = "evolve-active-wip-completions-v1";
+const MAX_ACTIVE_WIP = 8;
+const MAX_ACTIVE_WIP_COMPLETIONS = 120;
 const CONTROL_PLANE_HOLD_COORDINATOR_PREFIX = "control-plane-hold";
 const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SHA40 = /^[0-9a-f]{40}$/i;
@@ -190,14 +246,38 @@ function holdCoordinatorKey(identity: ControlPlaneHoldIdentity): string {
   return `${CONTROL_PLANE_HOLD_COORDINATOR_PREFIX}:${identity.repository}:${identity.prNumber}:${identity.headSha.toLowerCase()}:${identity.baseSha.toLowerCase()}`;
 }
 
-function validAcquire(value: unknown): value is AcquireRequest {
+const SAFE_LIFECYCLE_ID = /^[A-Za-z0-9_.:/-]{1,256}$/;
+
+function validPersistentExecutionStop(value: unknown): value is PersistentExecutionStop {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const candidate = value as Partial<PersistentExecutionStop>;
+  return candidate.schemaVersion === 1
+    && typeof candidate.taskId === "string" && SAFE_LIFECYCLE_ID.test(candidate.taskId)
+    && typeof candidate.executionId === "string" && SAFE_LIFECYCLE_ID.test(candidate.executionId)
+    && typeof candidate.provider === "string" && SAFE_LIFECYCLE_ID.test(candidate.provider)
+    && typeof candidate.headSha === "string" && SHA40.test(candidate.headSha)
+    && typeof candidate.stopReason === "string" && SAFE_LIFECYCLE_ID.test(candidate.stopReason)
+    && validSafeTimestamp(candidate.stoppedAt)
+    && Number.isSafeInteger(candidate.attemptCount) && Number(candidate.attemptCount) >= 1 && Number(candidate.attemptCount) <= 100
+    && typeof candidate.lastFailure === "string" && SAFE_LIFECYCLE_ID.test(candidate.lastFailure)
+    && validSafeTimestamp(candidate.nextRetryAt)
+    && candidate.nextRetryAt >= candidate.stoppedAt
+    && typeof candidate.resumeCondition === "string" && SAFE_LIFECYCLE_ID.test(candidate.resumeCondition)
+    && typeof candidate.dedupeKey === "string" && SAFE_LIFECYCLE_ID.test(candidate.dedupeKey)
+    && (candidate.evidenceRef === null || (typeof candidate.evidenceRef === "string" && SAFE_LIFECYCLE_ID.test(candidate.evidenceRef)));
+}
+
+function validAcquire(value: unknown): value is PersistentExecutionAcquireRequest {
   if (!value || typeof value !== "object") return false;
-  const candidate = value as Partial<AcquireRequest>;
+  const candidate = value as Partial<PersistentExecutionAcquireRequest>;
   return validText(candidate.dedupeKey)
     && validText(candidate.executionId)
     && validSafeTimestamp(candidate.now)
     && validSafeTimestamp(candidate.leaseExpiresAt)
-    && Number(candidate.leaseExpiresAt) > Number(candidate.now);
+    && Number(candidate.leaseExpiresAt) > Number(candidate.now)
+    && (candidate.taskId === undefined || (typeof candidate.taskId === "string" && SAFE_LIFECYCLE_ID.test(candidate.taskId)))
+    && (candidate.provider === undefined || (typeof candidate.provider === "string" && SAFE_LIFECYCLE_ID.test(candidate.provider)))
+    && (candidate.headSha === undefined || (typeof candidate.headSha === "string" && SHA40.test(candidate.headSha)));
 }
 
 function validScheduledReceipt(value: unknown): value is ScheduledRuntimeReceipt {
@@ -295,18 +375,25 @@ export class ExecutionCoordinator {
     if (request.method === "GET" && url.pathname === "/execution-telemetry") return this.readExecutionTelemetry();
     if (request.method === "GET" && url.pathname === "/execution") return this.readExecution();
     if (request.method === "GET" && url.pathname === "/control-plane-hold") return this.readControlPlaneHold();
+    if (request.method === "GET" && url.pathname === "/active-wip") return this.readActiveWip();
+    if (request.method === "GET" && url.pathname === "/active-wip/completions") return this.readActiveWipCompletions();
+    if (request.method === "GET" && url.pathname === "/provider-capacity-wait") return this.readProviderCapacityWait();
     if (request.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405);
     if (url.pathname === "/acquire") return this.acquire(await request.json());
     if (url.pathname === "/handoff-or-acquire") return this.handoffOrAcquire(await request.json());
     if (url.pathname === "/dispatched") return this.markDispatched(await request.json());
     if (url.pathname === "/release") return this.release(await request.json());
     if (url.pathname === "/complete") return this.complete(await request.json());
+    if (url.pathname === "/active-wip/admit") return this.admitActiveWip(await request.json());
+    if (url.pathname === "/active-wip/complete") return this.completeActiveWip(await request.json());
     if (url.pathname === "/scheduled-receipt") return this.writeScheduledReceipt(await request.json());
     if (url.pathname === "/evolve-learning-memory") return this.writeEvolutionLearningMemory(await request.json());
     if (url.pathname === "/coding-evidence") return this.writeCodingExecutionEvidence(await request.json());
     if (url.pathname === "/execution-telemetry") return this.writeExecutionTelemetry(await request.json());
     if (url.pathname === "/control-plane-hold/apply") return this.applyControlPlaneHold(await request.json());
     if (url.pathname === "/control-plane-hold/clear") return this.clearControlPlaneHold(await request.json());
+    if (url.pathname === "/rate-limit-stop") return this.stopForRateLimit(await request.json());
+    if (url.pathname === "/provider-capacity-wait") return this.recordProviderCapacityWait(await request.json());
     return json({ error: "NOT_FOUND" }, 404);
   }
 
@@ -319,6 +406,12 @@ export class ExecutionCoordinator {
       if (current?.dedupeKey === request.dedupeKey) {
         if (current.state === "DISPATCHED") return json({ acquired: false, reason: "ALREADY_DISPATCHED", record: current }, 409);
         if (current.state === "COMPLETED") return json({ acquired: false, reason: "ALREADY_COMPLETED", record: current }, 409);
+        if (current.state === "BLOCKED") return json({ acquired: false, reason: "EXECUTION_BLOCKED", record: current }, 409);
+        if (current.state === "WAITING_RATE_LIMIT") {
+          if (!current.stop || !validPersistentExecutionStop(current.stop)) return json({ error: "EXECUTION_STOP_STATE_CORRUPT" }, 500);
+          if (current.executionId !== request.executionId) return json({ acquired: false, reason: "EXECUTION_ID_CONFLICT", record: current }, 409);
+          if (request.now < current.stop.nextRetryAt) return json({ acquired: false, reason: "WAITING_RATE_LIMIT", nextRetryAt: current.stop.nextRetryAt, record: current }, 409);
+        }
         if (current.state === "LEASED" && current.leaseExpiresAt > request.now) return json({ acquired: false, reason: "LEASE_ACTIVE", record: current }, 409);
       }
 
@@ -328,6 +421,10 @@ export class ExecutionCoordinator {
         state: "LEASED",
         leaseExpiresAt: request.leaseExpiresAt,
         updatedAt: request.now,
+        ...(request.taskId ? { taskId: request.taskId } : current?.taskId ? { taskId: current.taskId } : {}),
+        ...(request.provider ? { provider: request.provider } : current?.provider ? { provider: current.provider } : {}),
+        ...(request.headSha ? { headSha: request.headSha } : current?.headSha ? { headSha: current.headSha } : {}),
+        ...(current?.stop ? { stop: current.stop, resumeCount: (current.resumeCount ?? 0) + (current.state === "WAITING_RATE_LIMIT" ? 1 : 0) } : {}),
       });
       await storage.put("execution", record);
       return json({ acquired: true, record }, 201);
@@ -377,6 +474,12 @@ export class ExecutionCoordinator {
       if (current?.dedupeKey === request.dedupeKey) {
         if (current.state === "DISPATCHED") return json({ acquired: false, reason: "ALREADY_DISPATCHED", record: current }, 409);
         if (current.state === "COMPLETED") return json({ acquired: false, reason: "ALREADY_COMPLETED", record: current }, 409);
+        if (current.state === "BLOCKED") return json({ acquired: false, reason: "EXECUTION_BLOCKED", record: current }, 409);
+        if (current.state === "WAITING_RATE_LIMIT") {
+          if (!current.stop || !validPersistentExecutionStop(current.stop)) return json({ error: "EXECUTION_STOP_STATE_CORRUPT" }, 500);
+          if (current.executionId !== request.executionId) return json({ acquired: false, reason: "EXECUTION_ID_CONFLICT", record: current }, 409);
+          if (request.now < current.stop.nextRetryAt) return json({ acquired: false, reason: "WAITING_RATE_LIMIT", nextRetryAt: current.stop.nextRetryAt, record: current }, 409);
+        }
         if (current.executionId === request.executionId && current.state === "LEASED" && current.leaseExpiresAt > request.now) {
           const record: ExecutionRecord = Object.freeze({ ...current, state: "HANDED_OFF", updatedAt: request.now });
           await storage.put("execution", record);
@@ -392,6 +495,10 @@ export class ExecutionCoordinator {
         state: "LEASED",
         leaseExpiresAt: request.leaseExpiresAt,
         updatedAt: request.now,
+        ...(request.taskId ? { taskId: request.taskId } : current?.taskId ? { taskId: current.taskId } : {}),
+        ...(request.provider ? { provider: request.provider } : current?.provider ? { provider: current.provider } : {}),
+        ...(request.headSha ? { headSha: request.headSha } : current?.headSha ? { headSha: current.headSha } : {}),
+        ...(current?.stop ? { stop: current.stop, resumeCount: (current.resumeCount ?? 0) + (current.state === "WAITING_RATE_LIMIT" ? 1 : 0) } : {}),
       });
       await storage.put("execution", record);
       return json({ acquired: true, handoff: false, record }, 201);
@@ -411,6 +518,123 @@ export class ExecutionCoordinator {
       await storage.put("execution", record);
       return json({ completed: true, record });
     });
+  }
+
+  private async stopForRateLimit(value: unknown): Promise<Response> {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return json({ error: "EXECUTION_STOP_REQUEST_INVALID" }, 400);
+    const request = value as Partial<PersistentExecutionStopRequest>;
+    const nowValue = (value as { now?: unknown }).now;
+    const stoppedAtValue = (value as { stoppedAt?: unknown }).stoppedAt;
+    if (!validSafeTimestamp(nowValue) || !validPersistentExecutionStop(request) || !validSafeTimestamp(stoppedAtValue) || Number(nowValue) < Number(stoppedAtValue) || request.nextRetryAt === undefined || Number(request.nextRetryAt) <= Number(nowValue)) {
+      return json({ error: "EXECUTION_STOP_REQUEST_INVALID" }, 400);
+    }
+    const stopRequest = request as PersistentExecutionStopRequest;
+    if (stopRequest.dedupeKey !== stopRequest.dedupeKey.trim() || stopRequest.executionId !== stopRequest.executionId.trim()) return json({ error: "EXECUTION_STOP_REQUEST_INVALID" }, 400);
+    return this.mutateExecutionAtomically(async (storage) => {
+      const current = await storage.get<ExecutionRecord>("execution");
+      if (!current || current.dedupeKey !== stopRequest.dedupeKey || current.executionId !== stopRequest.executionId) return json({ error: "EXECUTION_LEASE_MISMATCH" }, 409);
+      if (current.state !== "LEASED" && current.state !== "HANDED_OFF") return json({ error: "EXECUTION_STOP_NOT_ACTIVE" }, 409);
+      const { now: _now, ...rawStop } = stopRequest;
+      const stop = Object.freeze({ ...rawStop, schemaVersion: 1 }) as PersistentExecutionStop;
+      const record: ExecutionRecord = Object.freeze({
+        ...current,
+        state: "WAITING_RATE_LIMIT",
+        leaseExpiresAt: stop.nextRetryAt,
+        updatedAt: stopRequest.now,
+        taskId: stop.taskId,
+        provider: stop.provider,
+        headSha: stop.headSha,
+        stop,
+      });
+      await storage.put("execution", record);
+      return json({ stopped: true, state: record.state, nextRetryAt: stop.nextRetryAt, record });
+    });
+  }
+
+  private async readProviderCapacityWait(): Promise<Response> {
+    const wait = await this.ctx.storage.get<PersistentExecutionStop>("provider-capacity-wait");
+    if (wait !== undefined && !validPersistentExecutionStop(wait)) return json({ error: "PROVIDER_CAPACITY_WAIT_CORRUPT" }, 500);
+    return json({ wait: wait ?? null });
+  }
+
+  private async recordProviderCapacityWait(value: unknown): Promise<Response> {
+    if (!validPersistentExecutionStop(value)) return json({ error: "PROVIDER_CAPACITY_WAIT_INVALID" }, 400);
+    const incoming = Object.freeze({ ...value, schemaVersion: 1 }) as PersistentExecutionStop;
+    return this.mutateExecutionAtomically(async (storage) => {
+      const current = await storage.get<PersistentExecutionStop>("provider-capacity-wait");
+      // Monotonic: a late or replayed stop can never shorten a provider wait that is already longer.
+      const kept = current && validPersistentExecutionStop(current) && current.nextRetryAt >= incoming.nextRetryAt ? current : incoming;
+      if (kept === incoming) await storage.put("provider-capacity-wait", incoming);
+      return json({ recorded: true, wait: kept });
+    });
+  }
+
+  private async admitActiveWip(value: unknown): Promise<Response> {
+    if (!value || typeof value !== "object") return json({ error: "ACTIVE_WIP_REQUEST_INVALID" }, 400);
+    const request = value as Partial<ActiveWipAdmissionRequest>;
+    const ownerOk = typeof request.canonicalOwner === "string" && /^[A-Za-z0-9_.:/-]{1,120}$/.test(request.canonicalOwner);
+    const keysOk = Array.isArray(request.conflictKeys) && request.conflictKeys.length > 0 && request.conflictKeys.length <= 32
+      && request.conflictKeys.every((key) => typeof key === "string" && /^[A-Za-z0-9_.:/-]{1,200}$/.test(key))
+      && new Set(request.conflictKeys).size === request.conflictKeys.length;
+    if (!validText(request.dedupeKey) || !validText(request.executionId) || !ownerOk || !keysOk || !validSafeTimestamp(request.claimedAt)
+      || !Number.isSafeInteger(request.maxConcurrent) || Number(request.maxConcurrent) < 1 || Number(request.maxConcurrent) > MAX_ACTIVE_WIP) return json({ error: "ACTIVE_WIP_REQUEST_INVALID" }, 400);
+    return this.mutateExecutionAtomically(async (storage) => {
+      const state = await storage.get<ActiveWipState>(ACTIVE_WIP_STORAGE_KEY) ?? { schemaVersion: 1 as const, claims: [] };
+      if (state.schemaVersion !== 1 || !Array.isArray(state.claims) || state.claims.length > MAX_ACTIVE_WIP) return json({ error: "ACTIVE_WIP_STATE_CORRUPT" }, 500);
+      const same = state.claims.find((claim) => claim.dedupeKey === request.dedupeKey);
+      if (same) return json({ admitted: false, reason: same.executionId === request.executionId ? "ALREADY_ACTIVE" : "DEDUPE_CONFLICT", claims: state.claims }, 409);
+      const sameExecution = state.claims.find((claim) => claim.executionId === request.executionId);
+      if (sameExecution) return json({ admitted: false, reason: "EXECUTION_ID_CONFLICT", claims: state.claims }, 409);
+      if (state.claims.length >= Number(request.maxConcurrent)) return json({ admitted: false, reason: "WIP_LIMIT_REACHED", claims: state.claims }, 409);
+      const occupied = new Set(state.claims.flatMap((claim) => [...claim.conflictKeys]));
+      if (request.conflictKeys!.some((key) => occupied.has(key))) return json({ admitted: false, reason: "CONFLICT_KEY_ACTIVE", claims: state.claims }, 409);
+      const claim: ActiveWipClaim = Object.freeze({ dedupeKey: request.dedupeKey!, executionId: request.executionId!, canonicalOwner: request.canonicalOwner!, conflictKeys: Object.freeze([...request.conflictKeys!]), claimedAt: Number(request.claimedAt) });
+      const next: ActiveWipState = Object.freeze({ schemaVersion: 1, claims: Object.freeze([...state.claims, claim]) });
+      await storage.put(ACTIVE_WIP_STORAGE_KEY, next);
+      return json({ admitted: true, claim, claims: next.claims }, 201);
+    });
+  }
+
+  private async completeActiveWip(value: unknown): Promise<Response> {
+    if (!value || typeof value !== "object") return json({ error: "ACTIVE_WIP_REQUEST_INVALID" }, 400);
+    const request = value as Partial<ActiveWipCompletionRequest>;
+    if (!validText(request.dedupeKey) || !validText(request.executionId) || !validText(request.workerId)
+      || !validSafeTimestamp(request.startedAt) || !validSafeTimestamp(request.completedAt)
+      || Number(request.completedAt) < Number(request.startedAt)) return json({ error: "ACTIVE_WIP_REQUEST_INVALID" }, 400);
+    return this.mutateExecutionAtomically(async (storage) => {
+      const state = await storage.get<ActiveWipState>(ACTIVE_WIP_STORAGE_KEY) ?? { schemaVersion: 1 as const, claims: [] };
+      if (state.schemaVersion !== 1 || !Array.isArray(state.claims) || state.claims.length > MAX_ACTIVE_WIP) return json({ error: "ACTIVE_WIP_STATE_CORRUPT" }, 500);
+      const claim = state.claims.find((candidate) => candidate.dedupeKey === request.dedupeKey);
+      if (!claim || claim.executionId !== request.executionId) return json({ error: "ACTIVE_WIP_IDENTITY_MISMATCH" }, 409);
+      if (Number(request.startedAt) < claim.claimedAt) return json({ error: "ACTIVE_WIP_TIMING_INVALID" }, 409);
+      const evidence: ActiveWipCompletionEvidence = Object.freeze({
+        dedupeKey: claim.dedupeKey, executionId: claim.executionId, canonicalOwner: claim.canonicalOwner,
+        conflictKeys: Object.freeze([...claim.conflictKeys]), workerId: request.workerId!.trim(),
+        queuedAt: claim.claimedAt, claimedAt: claim.claimedAt, startedAt: Number(request.startedAt), completedAt: Number(request.completedAt),
+        queueWaitMs: 0, claimToStartMs: Number(request.startedAt) - claim.claimedAt,
+        claimToCompleteMs: Number(request.completedAt) - claim.claimedAt, totalMs: Number(request.completedAt) - claim.claimedAt,
+      });
+      const history = await storage.get<ActiveWipCompletionHistory>(ACTIVE_WIP_COMPLETION_HISTORY_KEY) ?? { schemaVersion: 1 as const, completions: [] };
+      if (history.schemaVersion !== 1 || !Array.isArray(history.completions) || history.completions.length > MAX_ACTIVE_WIP_COMPLETIONS) return json({ error: "ACTIVE_WIP_COMPLETION_STATE_CORRUPT" }, 500);
+      if (history.completions.some((candidate) => candidate.dedupeKey === claim.dedupeKey)) return json({ error: "ACTIVE_WIP_COMPLETION_DUPLICATE" }, 409);
+      const completions = Object.freeze([...history.completions, evidence].slice(-MAX_ACTIVE_WIP_COMPLETIONS));
+      const claims = Object.freeze(state.claims.filter((candidate) => candidate.dedupeKey !== request.dedupeKey));
+      await storage.put(ACTIVE_WIP_COMPLETION_HISTORY_KEY, Object.freeze({ schemaVersion: 1, completions }));
+      await storage.put(ACTIVE_WIP_STORAGE_KEY, Object.freeze({ schemaVersion: 1, claims }));
+      return json({ completed: true, evidence, claims });
+    });
+  }
+
+  private async readActiveWipCompletions(): Promise<Response> {
+    const history = await this.ctx.storage.get<ActiveWipCompletionHistory>(ACTIVE_WIP_COMPLETION_HISTORY_KEY) ?? { schemaVersion: 1 as const, completions: [] };
+    if (history.schemaVersion !== 1 || !Array.isArray(history.completions) || history.completions.length > MAX_ACTIVE_WIP_COMPLETIONS) return json({ error: "ACTIVE_WIP_COMPLETION_STATE_CORRUPT" }, 500);
+    return json({ completions: history.completions, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+  }
+
+  private async readActiveWip(): Promise<Response> {
+    const state = await this.ctx.storage.get<ActiveWipState>(ACTIVE_WIP_STORAGE_KEY) ?? { schemaVersion: 1 as const, claims: [] };
+    if (state.schemaVersion !== 1 || !Array.isArray(state.claims) || state.claims.length > MAX_ACTIVE_WIP) return json({ error: "ACTIVE_WIP_STATE_CORRUPT" }, 500);
+    return json({ claims: state.claims, activeExecutions: state.claims.length, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
   }
 
   private async writeScheduledReceipt(value: unknown): Promise<Response> {
@@ -620,9 +844,16 @@ export class ExecutionCoordinator {
     const request = value as ApplyControlPlaneHoldRequest;
     const existing = await this.ctx.storage.get<unknown>(CONTROL_PLANE_HOLD_STORAGE_KEY);
     if (existing != null && !validPersistedControlPlaneHold(existing)) return json({ error: "CONTROL_PLANE_HOLD_CORRUPT" }, 500);
+    // A stored hold always carries lower-cased SHAs, so the replay comparison has to be made against
+    // the same normalised form the write below produces. Comparing the raw request instead made
+    // idempotency depend on the case GitHub happened to send: the identical delivery replayed with
+    // an upper-cased SHA compared unequal and came back as CONTROL_PLANE_HOLD_CONFLICT. That fails
+    // closed, so the HOLD was never at risk -- but index.ts states that replayed deliveries are
+    // idempotent, and they were not.
+    const normalisedHold = Object.freeze({ ...request.hold, headSha: request.hold.headSha.toLowerCase(), baseSha: request.hold.baseSha.toLowerCase() });
     if (existing) {
       if (existing.state === "CLEARED") return json({ error: "CONTROL_PLANE_HOLD_REPLAY_AFTER_CLEAR", hold: existing }, 409);
-      if (JSON.stringify(existing.hold) === JSON.stringify(request.hold)) return json({ updated: false, hold: existing });
+      if (JSON.stringify(existing.hold) === JSON.stringify(normalisedHold)) return json({ updated: false, hold: existing });
       return json({ error: "CONTROL_PLANE_HOLD_CONFLICT", hold: existing }, 409);
     }
     const record: PersistedControlPlaneHold = Object.freeze({
@@ -631,7 +862,7 @@ export class ExecutionCoordinator {
       prNumber: request.prNumber,
       headSha: request.headSha.toLowerCase(),
       baseSha: request.baseSha.toLowerCase(),
-      hold: Object.freeze({ ...request.hold, headSha: request.hold.headSha.toLowerCase(), baseSha: request.hold.baseSha.toLowerCase() }),
+      hold: normalisedHold,
       state: "ACTIVE",
       updatedAt: request.now,
     });
@@ -727,12 +958,12 @@ export interface ExecutionCoordinatorNamespace {
   get(id: DurableObjectIdLike): DurableObjectStubLike;
 }
 
-export async function acquirePersistentExecution(namespace: ExecutionCoordinatorNamespace, input: AcquireRequest): Promise<{ acquired: boolean; reason?: string }> {
+export async function acquirePersistentExecution(namespace: ExecutionCoordinatorNamespace, input: PersistentExecutionAcquireRequest): Promise<{ acquired: boolean; reason?: string; nextRetryAt?: number }> {
   const stub = namespace.get(namespace.idFromName(input.dedupeKey));
   const response = await stub.fetch("https://execution-coordinator/acquire", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) });
-  const body = await response.json() as { acquired?: boolean; reason?: string };
+  const body = await response.json() as { acquired?: boolean; reason?: string; nextRetryAt?: unknown };
   if (response.status === 201 && body.acquired === true) return { acquired: true };
-  if (response.status === 409 && body.acquired === false) return { acquired: false, reason: body.reason ?? "DUPLICATE_EXECUTION" };
+  if (response.status === 409 && body.acquired === false) return { acquired: false, reason: body.reason ?? "DUPLICATE_EXECUTION", ...(Number.isSafeInteger(body.nextRetryAt) ? { nextRetryAt: Number(body.nextRetryAt) } : {}) };
   throw new Error("PERSISTENT_EXECUTION_COORDINATION_FAILED");
 }
 
@@ -744,12 +975,12 @@ export async function readPersistentExecution(namespace: ExecutionCoordinatorNam
   return body.record ?? null;
 }
 
-export async function handoffOrAcquirePersistentExecution(namespace: ExecutionCoordinatorNamespace, input: AcquireRequest): Promise<{ acquired: boolean; reason?: string }> {
+export async function handoffOrAcquirePersistentExecution(namespace: ExecutionCoordinatorNamespace, input: PersistentExecutionAcquireRequest): Promise<{ acquired: boolean; reason?: string; nextRetryAt?: number }> {
   const stub = namespace.get(namespace.idFromName(input.dedupeKey));
   const response = await stub.fetch("https://execution-coordinator/handoff-or-acquire", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) });
-  const body = await response.json() as { acquired?: boolean; reason?: string };
+  const body = await response.json() as { acquired?: boolean; reason?: string; nextRetryAt?: unknown };
   if (response.status === 201 && body.acquired === true) return { acquired: true };
-  if (response.status === 409 && body.acquired === false) return { acquired: false, reason: body.reason ?? "DUPLICATE_EXECUTION" };
+  if (response.status === 409 && body.acquired === false) return { acquired: false, reason: body.reason ?? "DUPLICATE_EXECUTION", ...(Number.isSafeInteger(body.nextRetryAt) ? { nextRetryAt: Number(body.nextRetryAt) } : {}) };
   throw new Error("PERSISTENT_EXECUTION_HANDOFF_FAILED");
 }
 
@@ -765,10 +996,83 @@ export async function releasePersistentExecution(namespace: ExecutionCoordinator
   if (!response.ok) throw new Error("PERSISTENT_EXECUTION_RELEASE_FAILED");
 }
 
+export async function markPersistentExecutionRateLimitStopped(namespace: ExecutionCoordinatorNamespace, input: PersistentExecutionStopRequest): Promise<{ stopped: boolean; nextRetryAt?: number; reason?: string }> {
+  const stub = namespace.get(namespace.idFromName(input.dedupeKey));
+  const response = await stub.fetch("https://execution-coordinator/rate-limit-stop", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) });
+  const body = await response.json() as { stopped?: boolean; nextRetryAt?: unknown; error?: unknown };
+  if (response.status === 200 && body.stopped === true && Number.isSafeInteger(body.nextRetryAt)) return { stopped: true, nextRetryAt: Number(body.nextRetryAt) };
+  if (response.status === 409) return { stopped: false, reason: typeof body.error === "string" ? body.error : "EXECUTION_STOP_REJECTED" };
+  throw new Error("PERSISTENT_EXECUTION_RATE_LIMIT_STOP_FAILED");
+}
+
+/**
+ * A provider rate-limit is a property of the provider, not of one execution. Execution records are
+ * keyed by a dedupe key that includes the exact main SHA, so after main moves the next scheduled run
+ * looks up a new, empty record and dispatches again inside the provider's wait window. This record is
+ * keyed by provider only, so the wait survives main changes and applies to every new execution.
+ */
+function providerCapacityWaitId(provider: string): string {
+  return `provider-capacity-wait:${provider}`;
+}
+
+export async function recordProviderCapacityWait(namespace: ExecutionCoordinatorNamespace, stop: PersistentExecutionStop): Promise<PersistentExecutionStop> {
+  const stub = namespace.get(namespace.idFromName(providerCapacityWaitId(stop.provider)));
+  const response = await stub.fetch("https://execution-coordinator/provider-capacity-wait", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(stop) });
+  const body = await response.json() as { recorded?: boolean; wait?: unknown };
+  if (response.status !== 200 || body.recorded !== true || !validPersistentExecutionStop(body.wait)) throw new Error("PROVIDER_CAPACITY_WAIT_RECORD_FAILED");
+  return body.wait;
+}
+
+export async function readProviderCapacityWait(namespace: ExecutionCoordinatorNamespace, provider: string): Promise<PersistentExecutionStop | null> {
+  const stub = namespace.get(namespace.idFromName(providerCapacityWaitId(provider)));
+  const response = await stub.fetch("https://execution-coordinator/provider-capacity-wait");
+  if (!response.ok) throw new Error("PROVIDER_CAPACITY_WAIT_READ_FAILED");
+  const body = await response.json() as { wait?: unknown };
+  if (body.wait === null || body.wait === undefined) return null;
+  if (!validPersistentExecutionStop(body.wait)) throw new Error("PROVIDER_CAPACITY_WAIT_READ_FAILED");
+  return body.wait;
+}
+
 export async function completePersistentExecution(namespace: ExecutionCoordinatorNamespace, input: { dedupeKey: string; executionId: string; now: number }): Promise<void> {
   const stub = namespace.get(namespace.idFromName(input.dedupeKey));
   const response = await stub.fetch("https://execution-coordinator/complete", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) });
   if (!response.ok) throw new Error("PERSISTENT_EXECUTION_COMPLETION_FAILED");
+}
+
+export async function admitActiveWip(namespace: ExecutionCoordinatorNamespace, input: ActiveWipAdmissionRequest): Promise<{ admitted: boolean; reason?: string }> {
+  const stub = namespace.get(namespace.idFromName(ACTIVE_WIP_COORDINATOR_KEY));
+  const response = await stub.fetch("https://execution-coordinator/active-wip/admit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) });
+  const body = await response.json() as { admitted?: unknown; reason?: unknown };
+  if (response.status === 409 && body.admitted === false) return Object.freeze({ admitted: false, reason: typeof body.reason === "string" ? body.reason : "ACTIVE_WIP_REJECTED" });
+  if (!response.ok || body.admitted !== true) throw new Error("ACTIVE_WIP_ADMISSION_FAILED");
+  return Object.freeze({ admitted: true });
+}
+
+export async function completeActiveWip(namespace: ExecutionCoordinatorNamespace, input: ActiveWipCompletionRequest): Promise<ActiveWipCompletionEvidence> {
+  const stub = namespace.get(namespace.idFromName(ACTIVE_WIP_COORDINATOR_KEY));
+  const response = await stub.fetch("https://execution-coordinator/active-wip/complete", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) });
+  if (!response.ok) throw new Error("ACTIVE_WIP_COMPLETION_FAILED");
+  const body = await response.json() as { evidence?: ActiveWipCompletionEvidence };
+  if (!body.evidence || body.evidence.executionId !== input.executionId || body.evidence.dedupeKey !== input.dedupeKey) throw new Error("ACTIVE_WIP_COMPLETION_INVALID");
+  return Object.freeze(body.evidence);
+}
+
+export async function readActiveWipCompletions(namespace: ExecutionCoordinatorNamespace): Promise<readonly ActiveWipCompletionEvidence[]> {
+  const stub = namespace.get(namespace.idFromName(ACTIVE_WIP_COORDINATOR_KEY));
+  const response = await stub.fetch("https://execution-coordinator/active-wip/completions", { method: "GET" });
+  if (!response.ok) throw new Error("ACTIVE_WIP_COMPLETION_READ_FAILED");
+  const body = await response.json() as { completions?: unknown };
+  if (!Array.isArray(body.completions)) throw new Error("ACTIVE_WIP_COMPLETION_READ_INVALID");
+  return Object.freeze(body.completions as ActiveWipCompletionEvidence[]);
+}
+
+export async function readActiveWip(namespace: ExecutionCoordinatorNamespace): Promise<{ readonly claims: readonly ActiveWipClaim[]; readonly activeExecutions: number }> {
+  const stub = namespace.get(namespace.idFromName(ACTIVE_WIP_COORDINATOR_KEY));
+  const response = await stub.fetch("https://execution-coordinator/active-wip", { method: "GET" });
+  if (!response.ok) throw new Error("ACTIVE_WIP_READ_FAILED");
+  const body = await response.json() as { claims?: unknown; activeExecutions?: unknown };
+  if (!Array.isArray(body.claims) || !Number.isSafeInteger(body.activeExecutions) || Number(body.activeExecutions) !== body.claims.length) throw new Error("ACTIVE_WIP_READ_INVALID");
+  return Object.freeze({ claims: Object.freeze(body.claims as ActiveWipClaim[]), activeExecutions: Number(body.activeExecutions) });
 }
 
 export async function recordScheduledRuntimeReceipt(namespace: ExecutionCoordinatorNamespace, receipt: ScheduledRuntimeReceipt): Promise<void> {

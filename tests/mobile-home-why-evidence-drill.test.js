@@ -11,7 +11,7 @@ test("HOME AI judgment drills into verified evidence without creating a dead con
   assert.match(home, /aiThesis: ai\?\.status === "AVAILABLE" \? ai\.thesis : null/);
   assert.match(home, /aiEvidenceCount: ai\?\.status === "AVAILABLE" \? ai\.evidenceReferences\.length : 0/);
   assert.match(home, /const aiInsightAvailable = decisionSurface\.aiInsightAvailable && !disconnected && readOnlyError == null/);
-  assert.match(home, /aiInsightAvailable \? <Pressable onPress=\{\(\) => onNavigate\("AiSignal"\)\}/);
+  assert.ok(home.includes('aiInsightAvailable ? <Pressable onPress={() => onNavigate("Paper")}>'));
   assert.match(home, /testID="ai-card"/);
   assert.match(home, /DECISION BASIS/);
   assert.match(home, /\{why\}/);

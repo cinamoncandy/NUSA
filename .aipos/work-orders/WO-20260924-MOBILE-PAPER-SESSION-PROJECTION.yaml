@@ -1,0 +1,56 @@
+id: WO-20260924-MOBILE-PAPER-SESSION-PROJECTION
+title: "Project a recovering PAPER session as reconnecting, not setup-required"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: b5b818a9
+implementation_branch: claude/nusa-repository-j93sd8-paper-session-projection
+parent_work_order: WO-20260923-MOBILE-SILENT-RESTORE-STATUS-FAILURE
+authority_impact: none
+objective: "Separate Session state from Client Projection: a trusted device whose PAPER session restore is in flight or has a bounded retry armed is projected as RECOVERING, never as SETUP / 'PAPER 연결 필요'."
+structural_review:
+  root_cause: "Merged in #2240: restoreWithSilentDevice left restoreRetryable false on a transient native status failure and on a falsely-negative Keystore status with an empty bearer fallback, and scheduled retries dropped force/silent. The foreground retry never re-ran the silent attempt."
+  structural_cause: "Session state was collapsed into projection. App.tsx refresh() mapped any unverified session on a configured endpoint to NOT_CONFIGURED, which HomeView rendered as SETUP / 'PAPER 연결 필요'. Recovering and recovery-required were indistinguishable in the UI, so the stuck state read as a setup problem."
+  bad_coupling_found:
+    - "session recovering -> UI NOT_CONFIGURED/SETUP (MUST_FIX_NOW, this work order)"
+    - "native hasSilentKey/isSilentHardwareBacked swallow Keystore exceptions as 'key absent', conflating trust state with a transient hardware error (FOLLOW_UP; JS side classified retryable in #2240; native change needs Galaxy validation)"
+  no_change:
+    - "Device trust: DeviceKey is Android Keystore, non-exportable, not recreated on resume/process recreation"
+    - "Definitive boundary: only HTTP 401/403 clears local trust; network, timeout, 429 stay retryable (MobileSessionRequestError / isDefinitiveSessionRejection)"
+    - "Single-flight: restoreInFlight and silentAuthenticationInFlight coalesce concurrent restores"
+    - "Restoration hierarchy: silent DeviceKey challenge on resume, bearer restore fallback, owner recovery only after definitive rejection"
+    - "Background != logout: the AppState handler only resumes, never signs out"
+    - "Workload ownership: PAPER runs on the Oracle server runtime, not the Android process"
+  follow_up:
+    - "Native Keystore exception classification in NusaOwnerDeviceCredentialModule"
+    - "Reconnect/resync idempotency for order/fill/Ledger was not re-verified in this change"
+    - "Correlation id for one background/resume cycle across trust/session/transport telemetry"
+scope:
+  include:
+    - "paperConnectionSession.getPaperSessionState(): NOT_CONFIGURED | VERIFIED | RECOVERING | RECOVERY_REQUIRED derived from existing single-flight and retry state"
+    - "App.tsx passes sessionRecovering to HomeView; HomeView shows RECOVERING / 'PAPER 재연결 중' instead of SETUP while recovery is live"
+  exclude:
+    - "New auth system, runtime, endpoint, coordinator, foreground service or keep-alive"
+    - "Operations load result type and gating: Cloud authority still requires a verified session"
+acceptance:
+  - "Restore in flight projects RECOVERING; after success VERIFIED."
+  - "Armed bounded retry projects RECOVERING."
+  - "Only a stopped recovery projects RECOVERY_REQUIRED; no endpoint projects NOT_CONFIGURED."
+  - "HomeView renders RECOVERING, never SETUP, while recovering."
+verification_commands:
+  - "pnpm run preflight (Node >= 24)"
+  - "node --test tests/mobile-paper-session-projection-invariant.test.js"
+  - "node --test dist/apps/mobile/src/*.test.js tests/mobile-*.test.js tests/uiux-*.test.js tests/paper-connection-resume.test.js"
+evidence:
+  implementation_status: READY_FOR_REVIEW
+  mutation_verification:
+    - "getPaperSessionState ignoring the armed retry timer -> 1 failure"
+  external_validation: "REQUIRED: exact-head CI, independent Audit, Release. Galaxy physical E2E is HUMAN_ENVIRONMENT_ONLY."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Obtain exact-head CI, Audit, Release; owner verifies on Galaxy after the Android build installs."

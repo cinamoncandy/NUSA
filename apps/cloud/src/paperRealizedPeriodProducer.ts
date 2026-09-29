@@ -8,7 +8,7 @@ import {
 } from "../../../packages/storage/src/persistedPaperPeriodStore";
 import type { LeagueCapitalAllocationAdvisory } from "../../../packages/contracts/src/leagueCapitalAllocation";
 import { PaperCanonicalOutcomeReconciliationError, reconcileCanonicalPaperOutcomeWindow } from "./paperCanonicalOutcomeReconciliation";
-import type { PaperAccountState } from "./paperTradingExecutionLoop";
+import type { PaperAccountState, PaperFillRecord } from "./paperTradingExecutionLoop";
 
 export interface PaperRealizedPeriodOpenInput {
   readonly periodId: string;
@@ -74,6 +74,8 @@ export interface PaperRealizedPeriodProducerOptions {
   readonly maximumPeriods?: number;
   /** Read-only canonical PAPER account source used by the canonical close path. */
   readonly readCanonicalPaperAccount?: () => PaperAccountState;
+  /** Complete durable PAPER fill truth. Production supplies the canonical repository ledger. */
+  readonly readCanonicalPaperFills?: () => readonly PaperFillRecord[];
   /** Read-only benchmark source; absent means canonical period admission remains fail-closed. */
   readonly readCanonicalBenchmarkEvidence?: (periodStartAt: number, periodEndAt: number, market?: string) => PaperCanonicalBenchmarkEvidence | undefined;
 }
@@ -299,6 +301,18 @@ export class PaperRealizedPeriodProducer {
     return boundaryFromCanonicalAccount(this.readCanonicalAccountState(expectedAt, periodId), expectedAt, periodId);
   }
 
+  private readCanonicalPaperFills(periodId: string): readonly PaperFillRecord[] | undefined {
+    const reader = this.options.readCanonicalPaperFills;
+    if (reader == null) return undefined;
+    try {
+      const fills = reader();
+      if (!Array.isArray(fills)) throw new Error("canonical PAPER fill ledger is invalid");
+      return fills;
+    } catch {
+      throw new PaperRealizedPeriodProducerError("CANONICAL_FILL_LEDGER_UNAVAILABLE", "canonical PAPER fill ledger could not be read", periodId);
+    }
+  }
+
   public observeExecution(observation: PaperRuntimeObservation): "RECORDED" | "DUPLICATE" | "NO_ACTIVE_PERIOD" {
     const normalized = validateObservation(observation);
     if (this.openPeriods.size === 0) return "NO_ACTIVE_PERIOD";
@@ -346,9 +360,16 @@ export class PaperRealizedPeriodProducer {
       if (current.observationIds.length === 0) throw new PaperRealizedPeriodProducerError("PERIOD_OUTCOME_NOT_OBSERVED", "PAPER period cannot be realized without a runtime observation", periodId);
       if (periodEndAt <= current.periodStartAt) throw new PaperRealizedPeriodProducerError("INVALID_PERIOD_BOUNDS", "periodEndAt must be after periodStartAt", periodId);
       const endState = this.readCanonicalAccountState(periodEndAt, periodId);
+      const canonicalFills = this.readCanonicalPaperFills(periodId);
       let receipt: ReturnType<typeof reconcileCanonicalPaperOutcomeWindow>;
       try {
-        receipt = reconcileCanonicalPaperOutcomeWindow({ periodStartAt: current.periodStartAt, periodEndAt, startState: boundaryAsAccountState(current.accountBoundary), endState });
+        receipt = reconcileCanonicalPaperOutcomeWindow({
+          periodStartAt: current.periodStartAt,
+          periodEndAt,
+          startState: boundaryAsAccountState(current.accountBoundary),
+          endState,
+          ...(canonicalFills === undefined ? {} : { canonicalFills }),
+        });
       } catch (error) {
         if (error instanceof PaperCanonicalOutcomeReconciliationError) throw new PaperRealizedPeriodProducerError(error.code, error.message, periodId);
         throw error;
@@ -407,6 +428,33 @@ export class PaperRealizedPeriodProducer {
     this.openPeriods.delete(periodId);
     this.emit({ type: "PERIOD_REALIZED_PERSISTED", periodId, occurredAt: validated.record.periodEndAt });
     return stored;
+  }
+
+  /**
+   * Retires the open period when the canonical PAPER account it was opened against was replaced
+   * (a different initial capital means a different account). Its outcome can never be reconciled
+   * against the new account, and only one period may be open, so without this the learning loop
+   * would stay blocked forever. Only a period whose boundary provably differs is retired.
+   */
+  public retireOpenPeriodForAccountChange(periodId: string): PersistedPaperRealizedPeriodPlan {
+    try {
+      const current = this.openPeriods.get(periodId);
+      if (current == null) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", periodId);
+      if (current.accountBoundary == null) throw new PaperRealizedPeriodProducerError("CANONICAL_ACCOUNT_BOUNDARY_UNAVAILABLE", "PAPER period was not opened from a canonical account boundary", periodId);
+      const reader = this.options.readCanonicalPaperAccount;
+      if (reader == null) throw new PaperRealizedPeriodProducerError("CANONICAL_ACCOUNT_UNAVAILABLE", "canonical PAPER account source is unavailable", periodId);
+      let account: PaperAccountState;
+      try { account = reader(); } catch { throw new PaperRealizedPeriodProducerError("CANONICAL_ACCOUNT_UNAVAILABLE", "canonical PAPER account source could not be read", periodId); }
+      if (!Number.isFinite(account?.initialCapital) || account.initialCapital === current.accountBoundary.initialCapital) {
+        throw new PaperRealizedPeriodProducerError("ACCOUNT_NOT_CHANGED", "canonical PAPER account was not replaced", periodId);
+      }
+      const pending = this.repository.getPending(periodId);
+      if (pending == null) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", periodId);
+      this.repository.retirePending(periodId, pending.checksum);
+      this.openPeriods.delete(periodId);
+      this.emit({ type: "PERIOD_REJECTED", periodId, occurredAt: this.options.now?.() ?? Date.now(), reasonCode: "ACCOUNT_REPLACED" });
+      return current;
+    } catch (error) { throw error instanceof PaperRealizedPeriodProducerError ? error : this.reject(error, periodId); }
   }
 
   public listRealizedPeriods(): readonly PersistedPaperPeriodEnvelope[] {

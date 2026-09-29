@@ -33,10 +33,10 @@ export const MODULE_QUALIFICATION_SOURCE_BLOB_BY_STAGE_V1: Readonly<Record<Modul
   INTELLIGENCE: "c0286d1056d554e1a9be604c2b9fe1eb02a9f8d9",
   STRATEGY: "6f7395f2e37db73df42bc33d0a697020d38b8d7c",
   DECISION: "904b3e78562ca3f2350133942d2743ac49babd51",
-  RISK: "4a8533cb3ef81223f5b249b03619c50d0c28811e",
+  RISK: "62c7f32b2eea1d91e929891b0086a32c46cecce0",
   PORTFOLIO: "8da5e80589e03004c3d4147528b97da5c473c40a",
-  EXECUTION: "149bb7983f7d23dc0bfb6e595252561893ddc99b",
-  PAPER_ADAPTER: "59e1a554b9d70a95ed2f4000a348f1f32a344f97",
+  EXECUTION: "cc61f40b945138d9fb372efe93fd7a92c20f7a86",
+  PAPER_ADAPTER: "1285594b2477c30dfd87e6f22daea83aaf1d09fd",
   REVIEW: "675b11025fda5678f152f98277a2b527141c8b7c",
   MEMORY: "70bf43e419fb36b453f634505cd09bb0ca50343c"
 });
@@ -51,11 +51,13 @@ const entrypointEvidence = (stage: ModuleStage, sourceBlobSha: string): readonly
 function criteriaFor(stage: ModuleStage, sourceBlobSha: string): Readonly<Record<Level10Criterion, ModuleCriterionQualificationV1>> {
   return Object.freeze(Object.fromEntries(LEVEL_10_CRITERIA.map((criterion) => {
     if (criterion === "CANONICAL_ENTRYPOINT") {
-      if (stage === "STRATEGY") {
+      if (stage === "STRATEGY" || stage === "PAPER_ADAPTER") {
         return [criterion, Object.freeze({
           status: "UNVERIFIED" as const,
           evidenceRefs: Object.freeze([]),
-          reason: "declared canonical Strategy source differs from the actual PAPER runtime Strategy implementation; ownership must be reconciled by #1888"
+          reason: stage === "STRATEGY"
+            ? "declared canonical Strategy source differs from the actual PAPER runtime Strategy implementation; ownership must be reconciled by #1888"
+            : "PAPER_ADAPTER source identity is rebound to the implementation blob, but independent exact-source qualification evidence is still required"
         })];
       }
       return [criterion, Object.freeze({

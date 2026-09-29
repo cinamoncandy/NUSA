@@ -13,6 +13,7 @@ function namespace(): ExecutionCoordinatorNamespace {
     get: () => ({
       async fetch(input: RequestInfo | URL) {
         const url = String(input);
+        if (url.endsWith("/provider-capacity-wait")) return new Response(JSON.stringify({ wait: null }), { status: 200, headers: { "content-type": "application/json" } });
         if (url.endsWith("/execution")) return new Response(JSON.stringify({ record: null }), { status: 200, headers: { "content-type": "application/json" } });
         if (url.endsWith("/scheduled-receipt")) return new Response("not found", { status: 404 });
         if (url.endsWith("/acquire")) {
@@ -43,6 +44,18 @@ test("scheduled runtime does not route an exact-main deployment evidence wait in
         headers: { "content-type": "application/json" },
       });
     }
+    if (url.includes("/actions/workflows/ci.yml/runs?")) {
+      return new Response(JSON.stringify({ workflow_runs: [{
+        id: 5150,
+        name: "CI",
+        status: "completed",
+        conclusion: "success",
+        head_branch: "main",
+        head_sha: SHA,
+        event: "push",
+        updated_at: new Date(NOW - 20_000).toISOString(),
+      }] }), { status: 200, headers: { "content-type": "application/json" } });
+    }
     if (url.includes("/actions/runs?")) {
       return new Response(JSON.stringify({ workflow_runs: [{
         id: FAILURE_RUN_ID,
@@ -69,8 +82,13 @@ test("scheduled runtime does not route an exact-main deployment evidence wait in
     }
     if (url.endsWith(`/actions/runs/${FAILURE_RUN_ID}`)) {
       return new Response(JSON.stringify({
+        id: FAILURE_RUN_ID,
         path: ".github/workflows/autopilot-cloudflare-credential-preflight.yml",
         head_branch: "main",
+        head_sha: SHA,
+        repository: { full_name: "cinamoncandy/NUSA" },
+        status: "completed",
+        conclusion: "failure",
         event: "push",
       }), { status: 200, headers: { "content-type": "application/json" } });
     }
@@ -105,6 +123,7 @@ test("updated_at fallback is fail-closed for runs that are not completed", async
   const fetchImpl = (async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url.endsWith("/branches/main")) return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200 });
+    if (url.includes("/actions/workflows/ci.yml/runs?")) return new Response(JSON.stringify({ workflow_runs: [] }), { status: 200 });
     if (url.includes("/actions/runs?")) {
       return new Response(JSON.stringify({ workflow_runs: [{
         id: FAILURE_RUN_ID,
@@ -129,5 +148,38 @@ test("updated_at fallback is fail-closed for runs that are not completed", async
 
   assert.equal(outcome.status, "ABSTAINED");
   assert.equal(outcome.reason, "exact-main-canonical-ci-not-found");
+  assert.equal(dispatched, false);
+});
+
+
+test("cancelled exact-main workflows are not treated as autonomous failure-repair evidence", async () => {
+  let dispatched = false;
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith("/branches/main")) return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200 });
+    if (url.includes("/actions/workflows/ci.yml/runs?")) return new Response(JSON.stringify({ workflow_runs: [] }), { status: 200 });
+    if (url.includes("/actions/runs?")) return new Response(JSON.stringify({ workflow_runs: [{
+      id: FAILURE_RUN_ID,
+      name: "Android Stable Release Watchdog",
+      status: "completed",
+      conclusion: "cancelled",
+      head_branch: "main",
+      head_sha: SHA,
+      event: "workflow_run",
+      updated_at: new Date(NOW - 30_000).toISOString(),
+    }] }), { status: 200 });
+    if (url.endsWith("/dispatches")) dispatched = true;
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+
+  const outcome = await runScheduledAutopilot({
+    NUSA_GITHUB_TOKEN: "token",
+    NUSA_GITHUB_REPOSITORY: "cinamoncandy/NUSA",
+    NUSA_EXECUTION_COORDINATOR: namespace(),
+  }, NOW, fetchImpl);
+
+  assert.equal(outcome.status, "ABSTAINED");
+  assert.equal(outcome.reason, "exact-main-canonical-ci-not-found");
+  assert.deepEqual(outcome.discoveredOpportunityIds, []);
   assert.equal(dispatched, false);
 });

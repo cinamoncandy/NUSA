@@ -6,6 +6,17 @@ const source = fs.readFileSync("scripts/actual-paper-runtime-e2e.js", "utf8");
 const supervisor = fs.readFileSync("scripts/paper-runtime-supervisor.js", "utf8");
 const workflow = fs.readFileSync(".github/workflows/wo-0059-actual-paper-runtime.yml", "utf8");
 
+test("Actual PAPER E2E exercises the canonical closed-learning production root", () => {
+  assert.match(source, /const \{ PRODUCTION_RUNTIME_ENTRYPOINT \} = require\("\.\/start-cloud-runtime\.js"\);/);
+  assert.match(source, /const runtimePath = resolve\(root, PRODUCTION_RUNTIME_ENTRYPOINT\);/);
+  assert.match(source, /spawn\(process\.execPath, \[PRODUCTION_RUNTIME_ENTRYPOINT\]/);
+  assert.match(source, /args: \[PRODUCTION_RUNTIME_ENTRYPOINT\]/);
+  assert.match(source, /NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH: researchReplaySnapshotPath/);
+  assert.match(source, /NUSA_QUALIFIED_PAPER_CHALLENGER_ARTIFACT_PATH: qualifiedArtifactPath/);
+  assert.match(source, /closed_learning_production_root: true/);
+  assert.doesNotMatch(source, /dist\/apps\/cloud\/src\/runtime\.js/);
+});
+
 test("PAPER chaos restart evidence binds the last pre-crash cycle to recovery", () => {
   assert.match(source, /buildBoundPaperChaosRestartEvidence\(root, secondCycleSnapshot, supervisedRecovery\)/);
   assert.doesNotMatch(source, /buildBoundPaperChaosRestartEvidence\(root, supervisedStart, supervisedRecovery\)/);

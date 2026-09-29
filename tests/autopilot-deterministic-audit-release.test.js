@@ -69,9 +69,14 @@ test("Release re-verifies exact expected head and audited base before merge", ()
   assert.match(workflow, /\.merged == true/);
 });
 
-test("Release explicitly dispatches canonical main CI after a GITHUB_TOKEN merge", () => {
+test("Release reuses an exact-main CI run before dispatching a duplicate", () => {
   assert.match(workflow, /actions:\s*write/);
   assert.match(workflow, /Start canonical post-merge main CI/);
+  assert.match(workflow, /actions\/runs\?head_sha=\$MERGED_MAIN&per_page=100/);
+  assert.match(workflow, /gh api --paginate --slurp/);
+  assert.match(workflow, /\.status == "queued" or \.status == "in_progress" or \.status == "pending"/);
+  assert.match(workflow, /\.status == "completed" and \.conclusion == "success"/);
+  assert.match(workflow, /suppressing duplicate dispatch/);
   assert.match(workflow, /actions\/workflows\/ci\.yml\/dispatches/);
   assert.match(workflow, /-f ref=main/);
   assert.match(workflow, /merged_main/);
@@ -131,4 +136,19 @@ test("already-merged convergence is non-applicable for an open PR, accepts exist
   const provenanceFailureIndex = convergence.indexOf("RELEASE_PROVENANCE_MISSING: already-merged PRs cannot be post-facto upgraded");
   assert.ok(noActionIndex >= 0 && convergedIndex > noActionIndex && provenanceFailureIndex > convergedIndex);
   assert.match(convergence.slice(provenanceFailureIndex), /exit 1/);
+});
+
+
+test("Release serialization is classified as NO_ACTION before deterministic Audit work", () => {
+  assert.match(auditWorkflow, /issues:\s*read/);
+  assert.match(auditWorkflow, /open-issues-pages\.json/);
+  assert.match(auditWorkflow, /\^P0\(\?:\\s\|:\)/);
+  assert.match(auditWorkflow, /Refs\\s\+\#903/);
+  assert.match(auditWorkflow, /release-serialization-block\.json/);
+  assert.match(auditWorkflow, /NO_ACTION Release serialized before Audit/);
+  assert.match(auditWorkflow, /blocked_by=P0#/);
+  const serializationIndex = auditWorkflow.indexOf("NO_ACTION Release serialized before Audit");
+  const ciFetchIndex = auditWorkflow.indexOf('actions/runs/$WORKFLOW_RUN_ID');
+  assert.ok(serializationIndex >= 0 && ciFetchIndex > serializationIndex,
+    "canonical P0 serialization must short-circuit before CI/evidence Audit work");
 });

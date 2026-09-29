@@ -87,10 +87,11 @@ function identity(): ClosedLearningEvidenceIdentity {
   });
 }
 
-function cycle(outcome: "INSUFFICIENT" | "REJECTED" | "QUALIFIED_FOR_LEAGUE"): ClosedLearningCycleResult {
+function cycle(outcome: "INSUFFICIENT" | "REJECTED" | "QUALIFIED_FOR_LEAGUE", awaitingGovernance = false): ClosedLearningCycleResult {
   const qualified = outcome === "QUALIFIED_FOR_LEAGUE";
+  const deployed = qualified && !awaitingGovernance;
   return Object.freeze({
-    status: "EXECUTED",
+    status: awaitingGovernance ? "WAITING_GOVERNANCE_APPROVAL" : "EXECUTED",
     record: Object.freeze({
       cycleId: "closed-learning:cycle",
       evidenceId: "evidence-0",
@@ -102,7 +103,7 @@ function cycle(outcome: "INSUFFICIENT" | "REJECTED" | "QUALIFIED_FOR_LEAGUE"): C
         decisionReference: "research:decision-0",
         reasons: Object.freeze([]),
       }),
-      ...(qualified ? { paperDeployment: Object.freeze({ deploymentId: "deployment-0", candidateId: "candidate-b", candidateVersion: "v2", authority: "PAPER_RESEARCH_ONLY" as const, liveAuthority: "NONE" as const, productionMutationAllowed: false as const, aiAuthority: "ZERO_AUTHORITY" as const }) } : {}),
+      ...(deployed ? { paperDeployment: Object.freeze({ deploymentId: "deployment-0", candidateId: "candidate-b", candidateVersion: "v2", authority: "PAPER_RESEARCH_ONLY" as const, liveAuthority: "NONE" as const, productionMutationAllowed: false as const, aiAuthority: "ZERO_AUTHORITY" as const }) } : {}),
       recordedAt: NEXT_KST_DAY,
     }),
   });
@@ -112,6 +113,7 @@ function harness(options: {
   now: number;
   observation?: "FILLED" | "WAIT";
   outcome?: "INSUFFICIENT" | "REJECTED" | "QUALIFIED_FOR_LEAGUE";
+  awaitingGovernance?: boolean;
   closeError?: Error;
   openPeriods?: readonly PersistedPaperRealizedPeriodPlan[];
   priorRealized?: readonly PersistedPaperPeriodEnvelope[];
@@ -131,7 +133,7 @@ function harness(options: {
     },
     openPeriodFromCanonicalAccount: (input) => { events.push(`open:${input.periodId}:${input.periodStartAt}:${input.periodIndex}`); return { ...plan("FILLED", input.periodId), ...input } as PersistedPaperRealizedPeriodPlan; },
     buildEvidenceIdentity: (window) => { events.push(`identity:${window.realizedPeriods.map((item) => item.record.recordId).join(",")}`); return identity(); },
-    runClosedLearningCycle: () => { events.push("cycle"); return cycle(options.outcome ?? "INSUFFICIENT"); },
+    runClosedLearningCycle: () => { events.push("cycle"); return cycle(options.outcome ?? "INSUFFICIENT", options.awaitingGovernance === true); },
   };
   return { scheduler: new ClosedLearningRolloverScheduler(port), events };
 }
@@ -164,6 +166,13 @@ describe("ClosedLearningRolloverScheduler", () => {
     assert.deepEqual(events, [`close:period-0:${NEXT_KST_DAY}`, "identity:record-0", "cycle"]);
   });
 
+  it("keeps PAPER running on the current candidate while a qualified challenger waits for Governance approval", () => {
+    const { scheduler, events } = harness({ now: NEXT_KST_DAY, outcome: "QUALIFIED_FOR_LEAGUE", awaitingGovernance: true });
+    assert.equal(scheduler.runOnce().status, "CLOSED_AND_EVALUATED");
+    assert.deepEqual(events.slice(0, 3), [`close:period-0:${NEXT_KST_DAY}`, "identity:record-0", "cycle"]);
+    assert.equal(events[3], `open:closed-learning-rollover:1:${NEXT_KST_DAY}:${NEXT_KST_DAY}:1`, "a next period opens so PAPER never stalls with no open period");
+  });
+
   it("fails closed on multiple open canonical periods", () => {
     const { scheduler, events } = harness({ now: NEXT_KST_DAY, openPeriods: [plan("FILLED", "period-0"), { ...plan("FILLED", "period-1"), periodIndex: 1 }] });
     const result = scheduler.runOnce();
@@ -178,5 +187,44 @@ describe("ClosedLearningRolloverScheduler", () => {
     assert.equal(result.status, "BLOCKED");
     assert.match(result.reason ?? "", /MISSING_BENCHMARK_EVIDENCE/);
     assert.deepEqual(events, [`close:period-0:${NEXT_KST_DAY}`]);
+  });
+});
+
+describe("closed-learning rollover across a replaced PAPER account (owner capital change)", () => {
+  function replacedAccountPort(retire?: (periodId: string) => PersistedPaperRealizedPeriodPlan) {
+    const calls: string[] = [];
+    const opened: unknown[] = [];
+    const newAccount = Object.freeze({ ...account(NEXT_KST_DAY), initialCapital: 5_000, cash: 5_000, equity: 5_000 });
+    const port: ClosedLearningRolloverPort = {
+      listOpenPeriods: () => [plan("WAIT")],
+      listRealizedPeriods: () => [envelope("record-0", 0)],
+      readCanonicalPaperAccount: () => newAccount,
+      closePeriodFromCanonicalAccount: () => { calls.push("close"); throw new Error("must not close across accounts"); },
+      openPeriodFromCanonicalAccount: (input) => { calls.push("open"); opened.push(input); return Object.freeze({ ...plan("WAIT", input.periodId), periodIndex: input.periodIndex, periodStartAt: input.periodStartAt }); },
+      ...(retire == null ? {} : { retireOpenPeriodForAccountChange: (periodId: string) => { calls.push(`retire:${periodId}`); return retire(periodId); } }),
+      buildEvidenceIdentity: () => { throw new Error("no evidence identity for a replaced account"); },
+      runClosedLearningCycle: () => { throw new Error("no cycle for a replaced account"); },
+    };
+    return { port, calls, opened };
+  }
+
+  it("retires the old account's open period and reopens the same candidate on the new account", () => {
+    const { port, calls, opened } = replacedAccountPort((id) => plan("WAIT", id));
+    const result = new ClosedLearningRolloverScheduler(port).runOnce();
+    assert.equal(result.status, "ACCOUNT_REPLACED_PERIOD_REOPENED");
+    assert.deepEqual(calls, ["retire:period-0", "open"]);
+    const input = opened[0] as { periodIndex: number; periodStartAt: number; candidateProvenance: readonly { candidateId: string }[]; market: string };
+    assert.equal(input.periodIndex, 1);
+    assert.equal(input.periodStartAt, NEXT_KST_DAY);
+    assert.equal(input.candidateProvenance[0]!.candidateId, "candidate-a");
+    assert.equal(input.market, "KRW-BTC");
+  });
+
+  it("stays blocked rather than guessing when the runtime cannot retire the period", () => {
+    const { port, calls } = replacedAccountPort();
+    const result = new ClosedLearningRolloverScheduler(port).runOnce();
+    assert.equal(result.status, "BLOCKED");
+    assert.equal(result.reason, "PAPER_ACCOUNT_REPLACED_RETIREMENT_UNAVAILABLE");
+    assert.deepEqual(calls, []);
   });
 });

@@ -6,7 +6,9 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "vars": {
-    "NUSA_GLOBAL_RELEASE_FREEZE": "false"
+    "NUSA_GLOBAL_RELEASE_FREEZE": "false",
+    "NUSA_JEV_SHADOW_ENABLED": "true",
+    "NUSA_JEV_BOUNDED_ROUTING_ENABLED": "false"
   },
   "ai": {
     "binding": "AI"

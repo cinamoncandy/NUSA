@@ -46,6 +46,8 @@ export interface CloudPaperRiskRequest {
   readonly overallHealth: "HEALTHY" | "DEGRADED" | "CRITICAL" | "UNKNOWN";
   readonly state: PaperAccountState;
   readonly approvedBy?: string;
+  /** Exact immutable request identity supplied by the upstream canonical execution boundary. */
+  readonly payloadFingerprintSha256?: string;
 }
 
 export interface CloudPaperRiskGate {
@@ -188,6 +190,21 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
   public evaluate(input: CloudPaperRiskRequest): Readonly<{ status: "ALLOW" | "REJECT" | "HALT"; reasonCodes: readonly string[] }> {
     const persistent = databaseHealthy(this.options.database);
     const reconciled = stateHealthy(input.state);
+    const payloadFingerprint = input.payloadFingerprintSha256 ?? hash({
+      path: input.path,
+      commandId: input.commandId,
+      signalId: input.signalId,
+      clientOrderId: input.clientOrderId,
+      strategyId: input.strategyId,
+      market: input.market,
+      side: input.side,
+      quantity: input.quantity,
+      price: input.price,
+      observedAt: input.observedAt,
+    });
+    if (!/^[a-f0-9]{64}$/.test(payloadFingerprint)) {
+      return Object.freeze({ status: "HALT", reasonCodes: Object.freeze(["IDEMPOTENCY_FINGERPRINT_INVALID"]) });
+    }
     const marketAge = input.now - input.observedAt;
     const marketStatus = !Number.isSafeInteger(input.observedAt) || input.observedAt < 0 || input.observedAt > input.now
       ? "INVALID" as const
@@ -279,7 +296,7 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
       persistenceHealthy: persistent,
       maxDailyLoss: this.limits.maxDailyLoss,
       maxOpenOrders: this.limits.maxOpenOrders,
-      idempotency: { accountId: ACCOUNT_ID, commandId: input.commandId, signalId: input.signalId, clientOrderId: input.clientOrderId, payloadFingerprint: "PENDING", createdAtMs: input.now }
+      idempotency: { accountId: ACCOUNT_ID, commandId: input.commandId, signalId: input.signalId, clientOrderId: input.clientOrderId, payloadFingerprint, createdAtMs: input.now }
     });
     if (approvalId !== undefined) {
       try { this.canonical.revokeApproval(approvalId, "single-use manual approval evaluated"); } catch { return Object.freeze({ status: "HALT", reasonCodes: Object.freeze(["PERSISTENCE_UNHEALTHY"]) }); }
