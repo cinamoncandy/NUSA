@@ -22,6 +22,18 @@ current_autopilot_runtime_provider_wait:
   validation: "Focused runtime tests 7/7, lint:scripts, AI zero-authority, safety invariants, and diff check PASS; fresh exact-head CI required."
   remaining: exact-head-CI_then-independent-Audit_then-Release-merge_then-exact-main-Oracle-PAPER-Release_then-runtime-observation
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_autopilot_capacity_efficiency:
+  work_order: WO-AUTOPILOT-20260929-CAPACITY-EFFICIENCY
+  status: IN_PROGRESS
+  branch: codex/autopilot-provider-wait-cost-efficiency
+  pull_request: 2378
+  base_sha: ea54b66274a238b37c36b66d227003f6246b7392
+  implementation_head: 6e3ef4550658bec80fc6bc3e6e95fab03795c639
+  validation: "PR head 6e3ef455 exact-head CI run 36509934933 PASS, PAPER runtime run 36509934946 PASS, deterministic Audit run 36510322088 PASS. Canonical Release stopped before merge because GitHub returned HTTP 405: all review comments must be resolved. One unresolved Jev model/telemetry comment is being addressed; all evidence on 6e3ef455 becomes stale after the follow-up commit. Follow-up local build, Jev SHADOW 5/5, typecheck, security:gate, validate:full, lint:scripts, AIPOS YAML/drift, and diff check PASS. No native runtime call or neuron savings claimed during provider capacity wait."
+  scope: "Skip backlog/workflow GitHub reads during a valid Workers AI wait and lower only Jev SHADOW classifier neuron consumption."
+  authority_impact: none
+  remaining: local-validation_then_exact-head-CI_then_independent-Audit_then_canonical-Release
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_paper_capital_5000_account:
   work_order: WO-PAPER-20260928-CAPITAL-5000-ACCOUNT
   status: ROLLED_BACK
