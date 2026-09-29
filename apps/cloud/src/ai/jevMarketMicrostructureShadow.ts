@@ -99,7 +99,6 @@ const ACTIONS = new Set<JevMarketMicrostructureAction>([
   "ESCALATE",
 ]);
 const REASON_CODE = /^[A-Z0-9_]{1,64}$/;
-const SHA256 = /^[a-f0-9]{64}$/;
 const round8 = (value: number): number => Number(value.toFixed(8));
 const bounded = (value: string, maxLength: number): string => value.trim().slice(0, maxLength);
 
