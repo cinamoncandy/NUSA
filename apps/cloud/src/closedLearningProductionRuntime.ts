@@ -7,6 +7,7 @@ import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages
 import { FileResearchRunReplaySnapshotStore } from "../../desktop/src/cloud/researchRunReplaySnapshotStore";
 import { readCloudRuntimeConfig } from "./cloudRuntimeConfig";
 import { recordRuntimeFailure } from "./runtimeFailureRecord";
+import { ResearchSnapshotRefresher } from "./researchSnapshotRefresher";
 import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { SqliteCloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
 import { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
@@ -217,11 +218,20 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   let rolloverTimer: ReturnType<typeof setInterval> | undefined;
   let stopPromise: Promise<void> | undefined;
 
+  const researchRefresh = new ResearchSnapshotRefresher({
+    cloudStateDbPath: config.cloudStateDbPath,
+    env,
+    log: (line) => console.log(line),
+  });
+
   const runClosedLearningTick = (): Promise<void> => {
     if (stopping) return Promise.resolve();
     if (closedLearningTick != null) return closedLearningTick;
     const task = (async () => {
-      await runClosedLearningBootstrapAsync();
+      const bootstrap = await runClosedLearningBootstrapAsync();
+      // No replayable snapshot means no challenger and so no PAPER trading until the daily Research
+      // timer. Refresh it now through the same canonical Research entrypoint (rate limited).
+      if (bootstrap.status === "WAITING_RESEARCH_SNAPSHOT") researchRefresh.requestIfDue();
       await runClosedLearningRolloverAsync();
     })();
     closedLearningTick = task;
@@ -237,6 +247,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     stop: () => {
       if (stopPromise != null) return stopPromise;
       stopping = true;
+      researchRefresh.stop();
       if (initialTimer != null) clearTimeout(initialTimer);
       if (rolloverTimer != null) clearInterval(rolloverTimer);
       const pending = closedLearningTick;
