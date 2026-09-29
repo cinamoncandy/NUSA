@@ -30,6 +30,7 @@ current_autopilot_capacity_efficiency:
   base_sha: ea54b66274a238b37c36b66d227003f6246b7392
   implementation_head: 7308a988bb9421389b6c428a3431644eedac067f
   merge_commit: 963890b80ea79a17f8889c278463524b847af180
+  follow_up_runtime_proof: "PR #2355 follow-up deploy 36514749190 and exact-main runtime proof 36515211048 PASS on 45faa722b697b75387a05b4e8c441147903a2386; provider remains WAITING_RATE_LIMIT, with no Jev inference or neuron savings evidenced."
   validation: "PR #2378 final head 7308a988 exact-head CI 36511138656 PASS; required PAPER/read-only/Restricted LIVE workflows 36511138621, 36511138631, 36511138653, 36511138692, 36511138714 PASS. Independent Audit and canonical Release 36511552908 PASS; merged as main 963890b80ea79a17f8889c278463524b847af180. Post-merge CI 36511589685, Cloudflare deploy 36511589835, and exact-main runtime proof 36511653054 PASS. Runtime remains WAITING_RATE_LIMIT / waiting-provider-capacity; no Jev inference or runtime neuron savings was measured."
   scope: "Skip backlog/workflow GitHub reads during a valid Workers AI wait and lower only Jev SHADOW classifier neuron consumption."
   authority_impact: none
@@ -114,6 +115,10 @@ current_paper_execution_clock_skew:
   work_order: WO-PAPER-20260929-EXECUTION-CLOCK-SKEW
   status: READY_FOR_REVIEW
   branch: claude/nusa-repository-j93sd8-clock-skew
+current_research_snapshot_on_demand_refresh:
+  work_order: WO-OPS-20260929-RESEARCH-SNAPSHOT-ON-DEMAND-REFRESH
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-research-refresh
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
@@ -166,14 +171,21 @@ current_jev_workers_ai_native_provider:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_jev_shadow_runtime_config:
   work_order: WO-20260928-JEV-NATIVE-RUNTIME-SHADOW
-  status: IN_PROGRESS
+  status: WAITING_PROVIDER_CAPACITY
   pull_request: 2355
   branch: codex/jev-shadow-runtime-config
   base_sha: 7c480e962b3b50fe2a724267c168a0aa8280adfc
+  implementation_head: edcd1f97cf8f5ba9260339264b2ca6ae1127adc6
+  merge_commit: 45faa722b697b75387a05b4e8c441147903a2386
+  exact_main_ci: 36514749050
+  cloudflare_deploy: 36514749190
+  runtime_proof: 36515211048
+  runtime_proof_result: "PASS: exactHeadVerified=true; deploymentRevision=45faa722b697b75387a05b4e8c441147903a2386; liveAuthority=NONE; productionMutationAllowed=false; aiAuthority=ZERO_AUTHORITY. Scheduler remains WAITING_RATE_LIMIT/waiting-provider-capacity; no native Jev call or neuron usage recorded."
   parent_pr: 2348
   scope: repository-controlled-native-jev-shadow-runtime-config-and-deploy-var-preservation
   first_broken_transition: partial-wrangler-var-deploy-overrides-shadow-config_and_global-release-freeze-override
   safety_correction: "Removed unconditional deploy CLI override NUSA_GLOBAL_RELEASE_FREEZE:false; retain Jev SHADOW true and bounded routing false."
+  current_runtime_finding: "Exact deployed runtime proof passes on main 45faa722; provider is WAITING_RATE_LIMIT / waiting-provider-capacity and has produced no Jev call receipt or usage telemetry."
   next_permitted_action: targeted_validation_then_exact-head-CI_then_independent-Audit_then-canonical-Release_then_runtime_receipt
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_jev_domain_observation_contract:
