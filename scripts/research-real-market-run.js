@@ -18,6 +18,7 @@ const { buildResearchRunPboEvidence } = require("../dist/apps/desktop/src/cloud/
 const { buildResearchRunDsrEvidence } = require("../dist/apps/desktop/src/cloud/researchRunDsrEvidence.js");
 const { runExecutionCostStress } = require("../dist/apps/desktop/src/strategy/executionCostStress.js");
 const { projectExecutionCostStress } = require("./lib/research-cost-stress-projection.js");
+const { bindLegacySmaReferences } = require("./lib/research-reference-binding.js");
 const { runParameterRobustnessRequest } = require("./lib/parameter-robustness-runner.js");
 const { verifyParameterRobustnessResult } = require("./lib/parameter-robustness-verifier.js");
 const { buildResearchRunRobustnessEvidence, canonicalParameterRobustnessReferencesSha256 } = require("../dist/apps/desktop/src/cloud/researchRunRobustnessEvidence.js");
@@ -680,26 +681,16 @@ async function main() {
   };
   // Legacy SMA references predate family-generic candidateKey transport. Bind them deterministically
   // to the exact precommitted candidate identity before the finalizer consumes them.
-  const candidateBoundReferences = parameterRobustnessEvidence.references.map((reference) => {
-    if (reference.candidateKey != null) return reference;
-    if (
-      definition.familyId === SMA_FAMILY_ID
-      && Number.isFinite(reference.shortWindow)
-      && Number.isFinite(reference.longWindow)
-    ) {
-      const parameters = { shortPeriod: reference.shortWindow, longPeriod: reference.longWindow };
-      return {
-        ...reference,
-        familyId: definition.familyId,
-        candidateKey: candidateIdFor(definition.familyId, parameters),
-        parameters
-      };
-    }
-    return reference;
+  const candidateBoundReferences = bindLegacySmaReferences({
+    references: parameterRobustnessEvidence.references,
+    // verifyParameterRobustnessResult recomputed and confirmed this digest (status PASS above).
+    verifiedReferencesSha256: parameterRobustness.hashes.referencesSha256,
+    familyId: definition.familyId,
+    smaFamilyId: SMA_FAMILY_ID,
+    candidateIdFor
   });
-  // The raw references were just proven against their digest by the independent verifier above.
-  // Binding changes their stored form, so re-seal the declared and verified digest over the bound,
-  // normalised references the robustness finalizer recomputes; otherwise every run is rejected.
+  // bindLegacySmaReferences authenticated the bound references against the independently verified
+  // raw digest. The finalizer stores and hashes the bound, normalised form, so re-seal that digest.
   const boundReferencesSha256 = canonicalParameterRobustnessReferencesSha256(candidateBoundReferences);
   const candidateBoundParameterRobustnessEvidence = {
     ...parameterRobustnessEvidence,
