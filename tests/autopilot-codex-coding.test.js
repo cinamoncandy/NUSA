@@ -59,6 +59,12 @@ test("the workflow pins Codex to the single dedicated-account runner and publish
   assert.match(workflow, /head:autopilot\/codex\//, "one open autopilot Codex PR at a time");
 });
 
+test("the Codex prompt keeps heavy validation off the shared PAPER host", () => {
+  const prompt = buildPrompt({ issueNumber: 7, capability: "GENERAL", title: "P1: t", body: "b" });
+  assert.match(prompt, /Do NOT run pnpm install, build, typecheck, the test suite/);
+  assert.doesNotMatch(prompt, /Run the relevant local validation/);
+});
+
 test("the host guard keeps Codex off the shared Oracle host whenever PAPER needs it", () => {
   const { spawnSync } = require("node:child_process");
   const os = require("node:os");

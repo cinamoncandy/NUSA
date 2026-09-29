@@ -14,7 +14,7 @@ const CONTRACT = [
   "- Preserve PAPER-only operation, liveAuthority=NONE, productionMutationAllowed=false and aiAuthority=ZERO_AUTHORITY.",
   "- Never touch LIVE trading, broker/exchange credentials, secrets, .github/workflows or deploy/ files.",
   "- Do not commit, push, open a PR, merge, deploy or trigger CI. Leave changes uncommitted; the workflow validates and publishes them.",
-  "- Run the relevant local validation (pnpm run build, typecheck, validate and the affected tests) and report truthfully what ran.",
+  "- Do NOT run pnpm install, build, typecheck, the test suite or any other heavy command: this runner shares a 1 GB host with the PAPER runtime and a host guard stops the run (discarding your patch) when memory runs low. The workflow runs build, typecheck, validate and all tests on separate hardware after you finish. Light reads (git diff, grep, cat) are fine; report truthfully that validation is left to the workflow.",
 ].join("\n");
 
 async function github(path, token) {
