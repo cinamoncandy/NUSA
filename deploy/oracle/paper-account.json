@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "initialCapitalKrw": 10000,
+  "decidedBy": "owner",
+  "decidedAt": "2026-09-28",
+  "note": "PAPER only. Changing this value opens a separate PAPER account; existing accounts and their ledgers are never reset or deleted."
+}
