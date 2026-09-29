@@ -142,6 +142,13 @@ current_paper_retire_legacy_account:
   authority_impact: paper_persistence
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release_then-verify-retirement
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_autopilot_codex_dedicated_account:
+  work_order: WO-AUTOPILOT-20260929-CODEX-DEDICATED-ACCOUNT
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-autopilot-codex
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-owner-labels-runner-nusa-codex-autopilot-and-logs-in-dedicated-account
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_audit_grounded_fail:
   work_order: WO-20260928-AUDIT-GROUNDED-FAIL
   status: READY_FOR_REVIEW
