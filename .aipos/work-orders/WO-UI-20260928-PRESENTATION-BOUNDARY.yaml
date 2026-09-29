@@ -1,0 +1,35 @@
+id: WO-UI-20260928-PRESENTATION-BOUNDARY
+title: "Presentation boundary so a future full UI/UX redesign is a presenter swap"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-ui-boundary
+depends_on_pull_request: 2351
+authority_impact: none
+objective: "Owner: the current field design is interim; make a later, fuller UI/UX redesign easy to adopt."
+design_status:
+  current: "field-v1 (INTERIM)"
+  intended_redesign:
+    - "Screens designed first as approved canvas prototypes."
+    - "GPU particle field (e.g. React Native Skia) behind the IntelligenceField props -- new dependency, needs licence and APK-size review."
+    - "Screens restructured around core state -> summary -> evidence."
+    - "Physical-device tuning from owner screenshots (HUMAN_ENVIRONMENT_ONLY)."
+scope:
+  - "presentation.tsx: single boundary through which App.tsx imports every screen presenter (PRESENTATION id field-v1, INTERIM)."
+  - "fieldMotion tokens: all field animation timing comes from designSystem.ts."
+  - "homeFieldInput.ts: HOME field screen model extracted from the view into a pure, behaviourally tested function."
+  - "docs/UI_ARCHITECTURE.md: layers, redesign procedure, test policy and the source-pinning test migration backlog (83 files)."
+  - "Tests: presentation boundary guard; source-regex HOME field assertions migrated to screen-model behaviour tests."
+exclusions:
+  - "No visual change; no server, strategy, risk, execution, credential or LIVE changes."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - node scripts/lint-mobile.js
+  - node --test tests/*.test.js
+  - pnpm run validate

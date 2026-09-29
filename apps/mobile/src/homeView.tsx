@@ -17,6 +17,7 @@ import { MotionReveal } from "./components";
 import { BUILD_SOURCE_SHA } from "./generatedBuildConfig";
 import { visualSystem } from "./visualSystem";
 import { IntelligenceField } from "./intelligenceField";
+import { buildHomeFieldInput } from "./homeFieldInput";
 
 type Snapshot = Extract<PersonalPaperOperationsLoadResult, { status: "READY" }>["snapshot"];
 export type HomeDestination = "Paper" | "Live" | "More";
@@ -162,19 +163,7 @@ export function HomeView({
         </Pressable>
       </View>
 
-      <View testID="home-now"><IntelligenceField input={{
-        checking: snapshot == null && !disconnected && readOnlyError == null,
-        disconnected,
-        recovering: Boolean(recovering),
-        haltActive: snapshot?.dashboard.killSwitchActive === true || snapshot?.operations.runtimeState === "HALTED",
-        degraded: readOnlyError != null || (snapshot != null && (snapshot.health !== "HEALTHY" || !["READY", "RUNNING"].includes(snapshot.operations.runtimeState))),
-        feedStale: publicMarketStale,
-        readyForPaperOperations: snapshot?.readyForPaperOperations ?? false,
-        decisionCount: snapshot?.operations.heartbeat?.decisionCount ?? null,
-        paperOrderCount: snapshot?.operations.heartbeat?.paperOrderCount ?? null,
-        pipelineStage: snapshot?.operations.pipelineStage ?? null,
-        lastError: snapshot?.operations.heartbeat?.lastError ?? null,
-      }} /></View>
+      <View testID="home-now"><IntelligenceField input={buildHomeFieldInput({ snapshot, readOnlyError, notConfigured, sessionRecovering: Boolean(sessionRecovering), publicMarketStale })} /></View>
 
       <View style={styles.glanceRail} testID="home-status-rail">
         <Text style={[styles.glancePrimary, { color: theme.colors.textMuted }]} numberOfLines={1}>{rail.marketLine} · {rail.systemLine}</Text>

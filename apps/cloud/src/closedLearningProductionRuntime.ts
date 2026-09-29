@@ -1,7 +1,12 @@
 import { PaperChallengerPolicyApproval, paperChallengerPolicyEnabled } from "./paperChallengerPolicyApproval";
+import type { CommitteeVote, StrategyIdentity, StrategyValidationSummary } from "../../../packages/contracts/src/strategyGovernance";
+import { adaptPersistedPaperForwardEvidence } from "../../desktop/src/cloud/persistedPaperForwardEvidenceAdapter";
+import { buildCanonicalPaperCandidatePerformance } from "./canonicalPaperCandidatePerformance";
+import { evaluatePaperPerformanceGovernanceFeedback, type PaperPerformanceGovernanceFeedbackReceipt } from "./paperPerformanceGovernanceFeedback";
 import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
 import { FileResearchRunReplaySnapshotStore } from "../../desktop/src/cloud/researchRunReplaySnapshotStore";
 import { readCloudRuntimeConfig } from "./cloudRuntimeConfig";
+import { recordRuntimeFailure } from "./runtimeFailureRecord";
 import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { SqliteCloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
 import { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
@@ -103,6 +108,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     listRealizedPeriods: () => baseHandle.listPaperRealizedPeriods(),
     openPeriodFromCanonicalAccount: (input: Parameters<CloudRuntimeHandle["openPaperRealizedPeriodFromCanonicalAccount"]>[0]) => baseHandle.openPaperRealizedPeriodFromCanonicalAccount(input),
     closePeriodFromCanonicalAccount: (input: Parameters<CloudRuntimeHandle["closePaperRealizedPeriodFromCanonicalAccount"]>[0]) => baseHandle.closePaperRealizedPeriodFromCanonicalAccount(input),
+    retireOpenPeriodForAccountChange: (periodId: string) => baseHandle.retirePaperRealizedPeriodForAccountChange(periodId),
   });
 
   const replaySnapshots = new FileResearchRunReplaySnapshotStore(closedLearningConfig.researchReplaySnapshotPath);
@@ -122,8 +128,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     bindings: challengerBindings,
     periods,
     readCanonicalPaperAccount: requireCanonicalPaperAccount,
-    // Canonical Strategy Governance approval for PAPER challengers (ADR-0018). Disabled unless
-    // NUSA_PAPER_CHALLENGER_POLICY_APPROVAL=ENABLED; disabled means qualified candidates wait.
+    // Canonical Strategy Governance approval for PAPER challengers (ADR-0018, amended): on by
+    // default on the PAPER host; NUSA_PAPER_CHALLENGER_POLICY_APPROVAL=DISABLED makes candidates wait.
     governance: new PaperChallengerPolicyApproval({ artifacts, enabled: paperChallengerPolicyEnabled(env) }),
   });
   const coordinator = new ClosedLearningLoopCoordinator(cycleRepository, researchFactory, paperDeployment);
@@ -153,6 +159,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     readCanonicalPaperAccount,
     closePeriodFromCanonicalAccount: periods.closePeriodFromCanonicalAccount,
     openPeriodFromCanonicalAccount: periods.openPeriodFromCanonicalAccount,
+    retireOpenPeriodForAccountChange: periods.retireOpenPeriodForAccountChange,
     buildEvidenceIdentity: (window) => evidenceIdentity.build(window),
     runClosedLearningCycle,
     runClosedLearningCycleAsync,
@@ -171,6 +178,33 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
       period: matches[0]!,
       accountHistory: paperRepository.loadHistory(),
       durableFills: paperRepository.loadFills(),
+    });
+  };
+
+  const evaluatePaperGovernanceFeedback = (input: Readonly<{
+    periodId: string;
+    now: number;
+    identity: StrategyIdentity;
+    validation?: StrategyValidationSummary;
+    votes: readonly CommitteeVote[];
+  }>): PaperPerformanceGovernanceFeedbackReceipt => {
+    const ledgerPerformance = readPaperPerformanceEvidence(input.periodId);
+    const adapted = adaptPersistedPaperForwardEvidence(baseHandle.listPaperRealizedPeriods());
+    const candidate = adapted.candidates.find((item) => item.candidateId === ledgerPerformance.evidence.candidateId);
+    const candidatePeriods = candidate?.periods.filter((period) => period.periodEndAt <= ledgerPerformance.evidence.periodEndAt) ?? [];
+    const paper = candidatePeriods.length === 0 ? undefined : buildCanonicalPaperCandidatePerformance({
+      candidateId: ledgerPerformance.evidence.candidateId,
+      periods: candidatePeriods,
+      account: requireCanonicalPaperAccount(),
+      executionQualityPolicy: closedLearningConfig.executionQualityPolicy,
+    });
+    return evaluatePaperPerformanceGovernanceFeedback({
+      now: input.now,
+      identity: input.identity,
+      validation: input.validation,
+      paper,
+      votes: input.votes,
+      ledgerPerformance,
     });
   };
 
@@ -219,6 +253,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   const failClosedScheduler = (error: unknown): void => {
     const detail = error instanceof Error && error.message.trim() ? error.message.trim().slice(0, 500) : "CLOSED_LEARNING_SCHEDULER_FAILED";
     console.error(`[closed-learning] scheduler failed closed: ${detail}`);
+    recordRuntimeFailure(config.cloudStateDbPath, "CLOSED_LEARNING_SCHEDULER", error);
     process.exitCode = 1;
     void handle.stop();
   };
@@ -242,12 +277,21 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     runClosedLearningRollover,
     runClosedLearningRolloverAsync,
     readPaperPerformanceEvidence,
+    evaluatePaperGovernanceFeedback,
   });
 }
 
 function main(): void {
-  const composition = startClosedLearningProductionRuntime(process.env);
-  registerGracefulShutdown(composition.handle);
+  const stateDbPath = process.env.NUSA_CLOUD_STATE_DB_PATH;
+  let composition: ReturnType<typeof startClosedLearningProductionRuntime>;
+  try {
+    composition = startClosedLearningProductionRuntime(process.env);
+  } catch (error) {
+    // Start-up faults happen before the fatal handlers exist; record them so the loop is visible.
+    if (stateDbPath !== undefined) recordRuntimeFailure(stateDbPath, "STARTUP", error);
+    throw error;
+  }
+  registerGracefulShutdown(composition.handle, process.exit, stateDbPath);
 }
 
 if (require.main === module) main();

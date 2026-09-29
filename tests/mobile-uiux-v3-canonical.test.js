@@ -8,7 +8,7 @@ test("App shell routes the canonical four-destination PAPER/LIVE flow", () => {
   const app = read("App.tsx");
   const contract = read("src/navigationContract.ts");
   const navigation = read("src/primaryNavigation.tsx");
-  assert.match(app, /import \{ HomeView/);
+  assert.match(app, /import \{[\s\S]*?\bHomeView\b[\s\S]*?\} from "\.\/src\/presentation"/);
   assert.match(app, /<HomeView/);
   assert.match(app, /activeTab === "Paper" \? <PaperShadowMonitorView/);
   assert.match(app, /activeTab === "Live" \? <LiveReadinessMonitorView/);

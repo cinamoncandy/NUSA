@@ -76,6 +76,7 @@ function replayResult(deployable = true): ClosedLearningResearchReplayResult {
 
 function options(input: {
   readonly replay?: ClosedLearningResearchReplayResult;
+  readonly workerError?: string;
   readonly snapshots?: readonly unknown[];
   readonly hasOpen?: boolean;
   readonly hasRealized?: boolean;
@@ -103,8 +104,8 @@ function options(input: {
   const base = {
     snapshots: { latest, latestIdentityAsync, list: () => { throw new Error("bootstrap must not materialize the Research snapshot archive"); }, read: () => undefined },
     worker: {
-      replayInitialResearch: () => { events.push("worker"); return replay; },
-      replayInitialResearchAsync: async () => { events.push("worker-async"); return replay; },
+      replayInitialResearch: () => { events.push("worker"); if (input.workerError) throw new Error(input.workerError); return replay; },
+      replayInitialResearchAsync: async () => { events.push("worker-async"); if (input.workerError) throw new Error(input.workerError); return replay; },
     },
     history: { persist: () => { events.push("history"); if (input.failHistory) throw new Error("history unavailable"); return {} as never; } },
     artifacts: { save: (artifact: never) => { events.push("artifact"); return artifact; } },
@@ -132,6 +133,30 @@ describe("initial PAPER bootstrap", () => {
     assert.deepEqual(output.reasons, ["PAPER_CHALLENGER_GOVERNANCE_APPROVAL_UNAVAILABLE"]);
     assert.equal(output.deployment, undefined);
     assert.deepEqual(events, ["worker", "history", "artifact", "deploy"]);
+  });
+
+  it("waits for the next Research run instead of stopping the runtime when the snapshot no longer replays", async () => {
+    // Oracle PAPER restart loop (2026-09-28): a snapshot captured by an older Research/League
+    // release failed replay on every start and the scheduler stopped the whole runtime.
+    const stale = "Research replay worker failed closed: closed-learning research worker failed: research replay snapshot provenance drift";
+    for (const run of [(b: never) => new ClosedLearningInitialPaperBootstrap(b).runOnce(), (b: never) => new ClosedLearningInitialPaperBootstrap(b).runOnceAsync()]) {
+      const { base, events } = options({ workerError: stale });
+      const output = await run(base);
+      assert.equal(output.status, "WAITING_RESEARCH_SNAPSHOT");
+      assert.deepEqual(output.reasons, ["RESEARCH_SNAPSHOT_STALE"]);
+      assert.equal(output.deployment, undefined);
+      assert.equal(events.includes("history") || events.includes("artifact") || events.includes("deploy"), false, "nothing is persisted or deployed");
+    }
+    const { base, events } = options({ workerError: stale });
+    const bootstrap = new ClosedLearningInitialPaperBootstrap(base);
+    await bootstrap.runOnceAsync();
+    await bootstrap.runOnceAsync();
+    assert.equal(events.filter((event) => event === "worker-async").length, 1, "the same stale snapshot is not replayed on every poll");
+  });
+
+  it("still fails closed on any other Research replay fault", async () => {
+    const { base } = options({ workerError: "Research replay worker failed closed: closed-learning research worker failed: research replay snapshot checksum mismatch" });
+    await assert.rejects(() => new ClosedLearningInitialPaperBootstrap(base).runOnceAsync(), /checksum mismatch/);
   });
 
   it("still fails closed on any other deployment fault", () => {

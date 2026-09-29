@@ -221,3 +221,24 @@ export function cardTokens(theme: Theme) {
 export function designSystemSnapshot(theme: Theme): string {
   return JSON.stringify({ preset: theme.preset, mode: theme.mode, colors: theme.colors, typography: theme.typography, layout: theme.layout, spacing: theme.spacing, radii: theme.radii, icons: theme.icons, interaction: theme.interaction });
 }
+
+/**
+ * Field motion tokens. Every field animation reads its timing from here so a redesign can retune
+ * or replace motion in one place. Motion always runs only on a semantic state change.
+ */
+export const fieldMotion = Object.freeze({
+  settleMs: 900,
+  settleStaggerMs: 90,
+  coreTurnMs: 700,
+  signalMs: 950,
+  signalStaggerMs: 110,
+  pulseInMs: 260,
+  pulseOutMs: 900,
+  flareDelayMs: 700,
+  flareMs: 900,
+  headerGlowMs: 800,
+  headerSignalMs: 900,
+  tabTransitionMs: 320,
+  poseMs: 1100,
+  orbitStepDeg: 18,
+});

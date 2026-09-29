@@ -38,7 +38,11 @@ function verifyGenericParameterRobustnessResult(request, result) {
   if (byName.BASE && byName.MODERATE && (byName.MODERATE.feeRate < byName.BASE.feeRate || byName.MODERATE.slippageBps < byName.BASE.slippageBps)) errors.push("recorded costConditions.MODERATE is less stressful than BASE");
   if (byName.MODERATE && byName.SEVERE && (byName.SEVERE.feeRate < byName.MODERATE.feeRate || byName.SEVERE.slippageBps < byName.MODERATE.slippageBps)) errors.push("recorded costConditions.SEVERE is less stressful than MODERATE");
   const validCandidates = (result.candidates ?? []).filter((candidate) => candidate.status === "EVALUATED");
-  const returns = validCandidates.map((candidate) => candidate.costResults.BASE.fullSample?.totalReturn ?? candidate.costResults.BASE.oos?.compoundedReturn ?? 0).sort((a, b) => a - b);
+  const prefersOos = request.evaluation.mode !== "FULL_SAMPLE";
+  const selectedReturn = (candidate) => prefersOos
+    ? (candidate.costResults.BASE.oos?.compoundedReturn ?? 0)
+    : (candidate.costResults.BASE.fullSample?.totalReturn ?? 0);
+  const returns = validCandidates.map(selectedReturn).sort((a, b) => a - b);
   const positiveRatio = returns.length ? returns.filter((value) => value > 0).length / returns.length : 0;
   if (result.aggregate && Math.abs(positiveRatio - result.aggregate.positiveRatio) > 1e-9) errors.push(`aggregate.positiveRatio mismatch: recomputed ${positiveRatio}, result reports ${result.aggregate.positiveRatio}`);
   if (result.aggregate && returns.length && Math.abs(returns[0] - result.aggregate.worstReturn) > 1e-9) errors.push("aggregate.worstReturn mismatch");
@@ -49,6 +53,7 @@ function verifyGenericParameterRobustnessResult(request, result) {
     if (canonicalHash(request.candidateGrid) !== result.hashes.neighborhoodGridSha256) errors.push("neighborhoodGridSha256 mismatch");
     if (canonicalHash(result.candidates) !== result.hashes.candidateResultsSha256) errors.push("candidateResultsSha256 mismatch");
     if (canonicalHash(result.aggregate) !== result.hashes.aggregateResultSha256) errors.push("aggregateResultSha256 mismatch");
+    if (canonicalHash(result.references) !== result.hashes.referencesSha256) errors.push("referencesSha256 mismatch");
   } else errors.push("result.hashes is missing");
   return { status: errors.length === 0 ? "PASS" : "FAIL", errors };
 }
@@ -108,7 +113,11 @@ function verifyParameterRobustnessResult(request, result) {
   // candidates' BASE return, independently derived from each candidate's own recorded
   // costResults rather than trusting result.aggregate.
   const validCandidates = result.candidates.filter((c) => c.status === "EVALUATED");
-  const returns = validCandidates.map((c) => c.costResults.BASE.fullSample?.totalReturn ?? c.costResults.BASE.oos?.compoundedReturn ?? 0).sort((a, b) => a - b);
+  const prefersOos = request.evaluation.mode !== "FULL_SAMPLE";
+  const selectedReturn = (candidate) => prefersOos
+    ? (candidate.costResults.BASE.oos?.compoundedReturn ?? 0)
+    : (candidate.costResults.BASE.fullSample?.totalReturn ?? 0);
+  const returns = validCandidates.map(selectedReturn).sort((a, b) => a - b);
   const positiveRatio = returns.length ? returns.filter((r) => r > 0).length / returns.length : 0;
   if (result.aggregate && Math.abs(positiveRatio - result.aggregate.positiveRatio) > 1e-9) errors.push(`aggregate.positiveRatio mismatch: recomputed ${positiveRatio}, result reports ${result.aggregate.positiveRatio}`);
   if (result.aggregate && returns.length && Math.abs(returns[0] - result.aggregate.worstReturn) > 1e-9) errors.push("aggregate.worstReturn mismatch");
@@ -131,6 +140,8 @@ function verifyParameterRobustnessResult(request, result) {
     if (recomputedCandidateHash !== result.hashes.candidateResultsSha256) errors.push("candidateResultsSha256 mismatch (result.candidates may have been altered after hashing)");
     const recomputedAggregateHash = canonicalHash(result.aggregate);
     if (recomputedAggregateHash !== result.hashes.aggregateResultSha256) errors.push("aggregateResultSha256 mismatch (result.aggregate may have been altered after hashing)");
+    const recomputedReferencesHash = canonicalHash(result.references);
+    if (recomputedReferencesHash !== result.hashes.referencesSha256) errors.push("referencesSha256 mismatch (result.references may have been altered after hashing)");
   } else {
     errors.push("result.hashes is missing");
   }

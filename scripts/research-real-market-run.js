@@ -18,13 +18,15 @@ const { buildResearchRunPboEvidence } = require("../dist/apps/desktop/src/cloud/
 const { buildResearchRunDsrEvidence } = require("../dist/apps/desktop/src/cloud/researchRunDsrEvidence.js");
 const { runExecutionCostStress } = require("../dist/apps/desktop/src/strategy/executionCostStress.js");
 const { projectExecutionCostStress } = require("./lib/research-cost-stress-projection.js");
+const { bindLegacySmaReferences } = require("./lib/research-reference-binding.js");
 const { runParameterRobustnessRequest } = require("./lib/parameter-robustness-runner.js");
 const { verifyParameterRobustnessResult } = require("./lib/parameter-robustness-verifier.js");
-const { buildResearchRunRobustnessEvidence } = require("../dist/apps/desktop/src/cloud/researchRunRobustnessEvidence.js");
+const { buildResearchRunRobustnessEvidence, canonicalParameterRobustnessReferencesSha256 } = require("../dist/apps/desktop/src/cloud/researchRunRobustnessEvidence.js");
 const { buildResearchHypothesis } = require("../dist/apps/desktop/src/cloud/researchHypothesis.js");
 const { createResearchHypothesis } = require("../dist/packages/contracts/src/researchHypothesisContract.js");
 const { buildResearchRunTimeline } = require("../dist/apps/desktop/src/cloud/researchRunTimeline.js");
 const { buildResearchRunProvenancePlan } = require("../dist/apps/desktop/src/cloud/researchRunFactory.js");
+const { validateResearchCandidateSpecification } = require("../dist/apps/desktop/src/cloud/researchCandidateSpecification.js");
 const { buildInvestmentLearningEvidence, buildInvestmentResearchAttentionPlan, orderResearchFamiliesByLearning } = require("../dist/apps/desktop/src/cloud/investmentLearningEvidence.js");
 const { FileResearchInvestmentLearningLedgerStore } = require("../dist/apps/desktop/src/cloud/researchInvestmentLearningLedger.js");
 
@@ -416,6 +418,47 @@ function runProvenanceBoundExperiment({ id, familyId, parameters, candles, manif
   return { experiment, candidateSpecification };
 }
 
+// Keep only the evidence consumed by League/OOS projection after DSR/PBO are computed.
+// The walk-forward engine also retains train points, warmup points, equity curves, trades, and
+// candidate train scores for diagnostics; retaining those for every candidate on a 1 GB host
+// causes the production Research snapshot to exhaust V8 heap before persistence.
+function compactLeagueExperiment(experiment) {
+  const windows = experiment.walkForwardResult.windows.map((windowResult) => ({
+    window: {
+      index: windowResult.window.index,
+      trainStart: windowResult.window.trainStart,
+      trainEnd: windowResult.window.trainEnd,
+      testStart: windowResult.window.testStart,
+      testEnd: windowResult.window.testEnd,
+      testPoints: windowResult.window.testPoints,
+    },
+    selectedCandidateId: windowResult.selectedCandidateId,
+    selectionReason: windowResult.selectionReason,
+    testResult: {
+      metrics: windowResult.testResult.metrics,
+      decisions: windowResult.testResult.decisions,
+      performance: windowResult.testResult.performance,
+      equityAnalytics: windowResult.testResult.equityAnalytics,
+      benchmark: windowResult.testResult.benchmark,
+      openPosition: windowResult.testResult.openPosition,
+      finalPaperState: windowResult.testResult.finalPaperState,
+    },
+  }));
+  return {
+    manifest: experiment.manifest,
+    experimentConfig: experiment.experimentConfig,
+    generatedAt: experiment.generatedAt,
+    warnings: experiment.warnings,
+    walkForwardResult: {
+      windows,
+      combinedOutOfSampleMetrics: experiment.walkForwardResult.combinedOutOfSampleMetrics,
+      candidateSelectionCounts: experiment.walkForwardResult.candidateSelectionCounts,
+      stabilityDiagnostics: experiment.walkForwardResult.stabilityDiagnostics,
+      warnings: experiment.walkForwardResult.warnings,
+    },
+  };
+}
+
 async function fetchDayCandlePage(path) {
   const response = await fetch(`https://api.upbit.com${path}`, { signal: AbortSignal.timeout(15_000) });
   if (!response.ok) throw new Error(`Upbit request failed: HTTP ${response.status}`);
@@ -584,8 +627,10 @@ async function main() {
     canonicalHypothesis: candidate.canonicalHypothesis
   }));
 
+  const backtestPoints = candlesToBacktestPoints(candles);
+
   const costStress = runExecutionCostStress(
-    candlesToBacktestPoints(candles),
+    backtestPoints,
     candidates,
     WALK_FORWARD_CONFIG,
     {
@@ -617,7 +662,16 @@ async function main() {
   }
   const parameterRobustnessEvidence = {
     ...parameterRobustness,
-    verification: { status: parameterRobustnessVerification.status },
+    verification: {
+      status: parameterRobustnessVerification.status,
+      hashes: {
+        referenceParametersSha256: parameterRobustness.hashes.referenceParametersSha256,
+        neighborhoodGridSha256: parameterRobustness.hashes.neighborhoodGridSha256,
+        candidateResultsSha256: parameterRobustness.hashes.candidateResultsSha256,
+        aggregateResultSha256: parameterRobustness.hashes.aggregateResultSha256,
+        referencesSha256: parameterRobustness.hashes.referencesSha256,
+      },
+    },
     provenance: {
       sourceCommitSha,
       costModelVersion,
@@ -625,12 +679,66 @@ async function main() {
       datasetContentSha256: manifest.contentSha256
     }
   };
+  // Legacy SMA references predate family-generic candidateKey transport. Bind them deterministically
+  // to the exact precommitted candidate identity before the finalizer consumes them.
+  const candidateBoundReferences = bindLegacySmaReferences({
+    references: parameterRobustnessEvidence.references,
+    // verifyParameterRobustnessResult recomputed and confirmed this digest (status PASS above).
+    verifiedReferencesSha256: parameterRobustness.hashes.referencesSha256,
+    familyId: definition.familyId,
+    smaFamilyId: SMA_FAMILY_ID,
+    candidateIdFor
+  });
+  // bindLegacySmaReferences authenticated the bound references against the independently verified
+  // raw digest. The finalizer stores and hashes the bound, normalised form, so re-seal that digest.
+  const boundReferencesSha256 = canonicalParameterRobustnessReferencesSha256(candidateBoundReferences);
+  const candidateBoundParameterRobustnessEvidence = {
+    ...parameterRobustnessEvidence,
+    hashes: { ...parameterRobustnessEvidence.hashes, referencesSha256: boundReferencesSha256 },
+    verification: {
+      ...parameterRobustnessEvidence.verification,
+      hashes: { ...parameterRobustnessEvidence.verification.hashes, referencesSha256: boundReferencesSha256 }
+    },
+    references: candidateBoundReferences
+  };
+  const candidateCostStressEvidence = candidates.map((candidate) => {
+    const specification = candidateSpecifications.get(candidate.id);
+    if (specification == null) throw new Error(`missing candidate specification for ${candidate.id}`);
+    const specificationDecision = validateResearchCandidateSpecification(
+      specification,
+      Date.parse(timeline.generatedAt)
+    );
+    if (specificationDecision.status !== "VERIFIED") {
+      throw new Error(`invalid candidate specification for cost stress: ${candidate.id}`);
+    }
+    const candidateStress = runExecutionCostStress(
+      backtestPoints,
+      [candidate],
+      WALK_FORWARD_CONFIG,
+      {
+        scenarios: COST_STRESS_SCENARIOS,
+        baselineScenarioId: "BASE",
+        candidateSelectionMode: "FIX_BASELINE_SELECTION"
+      },
+      {
+        sourceExperimentSha: `real-run:${manifest.datasetId}:${definition.familyId}:${candidate.id}`,
+        datasetSha256: manifest.contentSha256
+      }
+    );
+    return {
+      candidateId: candidate.id,
+      familyId: definition.familyId,
+      specificationHash: specificationDecision.specificationHash,
+      costStress: projectExecutionCostStress(candidateStress)
+    };
+  });
   const costStressEvidence = projectExecutionCostStress(costStress);
   const robustnessEvidence = buildResearchRunRobustnessEvidence({
     datasetId: manifest.datasetId,
     datasetContentSha256: manifest.contentSha256,
-    parameterRobustness: parameterRobustnessEvidence,
-    costStress: costStressEvidence
+    parameterRobustness: candidateBoundParameterRobustnessEvidence,
+    costStress: costStressEvidence,
+    candidateCostStress: candidateCostStressEvidence
   });
 
   const generatedAt = timeline.generatedAt;
@@ -659,8 +767,12 @@ async function main() {
     if (!isResearchRunPboEvidenceUnavailable(error)) throw error;
     pboUnavailableReason = error.code;
   }
+  const compactLeagueCandidates = leagueCandidates.map((candidate) => ({
+    ...candidate,
+    experiment: compactLeagueExperiment(candidate.experiment),
+  }));
   const league = buildResearchRunLeague(
-    leagueCandidates.map((candidate) => ({
+    compactLeagueCandidates.map((candidate) => ({
       ...candidate,
       deflatedSharpe: deflatedSharpe.evidenceByCandidate.get(candidate.id),
       trialLedgerSummary: deflatedSharpe.trialLedgerSummary
@@ -729,7 +841,7 @@ async function main() {
       candidates: result.walkForwardResult.stabilityDiagnostics.candidates
     },
     costStress: costStressEvidence,
-    parameterRobustness: parameterRobustnessEvidence,
+    parameterRobustness: robustnessEvidence.parameterRobustness,
     outOfSample: {
       totalOosPoints: oos.totalOosPoints,
       totalOosClosedTrades: oos.totalOosClosedTrades,

@@ -1,11 +1,11 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { fieldFonts } from "./fieldFonts";
 import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
-import { buildIntelligenceField, type FieldSubsystem, type FieldTone, type IntelligenceFieldInput } from "./intelligenceFieldModel";
-import { fieldPalette } from "./designSystem";
+import { buildHomeFieldFacts, buildIntelligenceField, fieldPose, type FieldSubsystem, type FieldTone, type IntelligenceFieldInput } from "./intelligenceFieldModel";
+import { fieldMotion, fieldPalette } from "./designSystem";
 
 /**
- * NUSA Intelligence Field: one central core, five subsystem hubs connected by fiber strands.
+ * NUSA Intelligence Field: one central core inside a nebula of five subsystem arms.
  * Presentation only -- it renders buildIntelligenceField() and moves only when that state changes.
  */
 const SUBSYSTEMS: readonly { readonly id: FieldSubsystem; readonly label: string; readonly color: string; readonly angle: number }[] = [
@@ -18,8 +18,8 @@ const SUBSYSTEMS: readonly { readonly id: FieldSubsystem; readonly label: string
 const FOCUS_COLOR = fieldPalette.focus;
 const TONE_COLOR: Record<FieldTone, string> = { dim: fieldPalette.dim, amber: fieldPalette.focus, blue: fieldPalette.market, green: fieldPalette.paper, red: fieldPalette.halt };
 const FIELD_HEIGHT = 340;
-const DOTS_PER_STRAND = 46;
-const DOTS_PER_HUB = 22;
+const DOTS_PER_ARM = 84;
+const ARM_TWIST = 0.55;
 
 interface Dot { readonly x: number; readonly y: number; readonly size: number; readonly opacity: number }
 
@@ -31,60 +31,46 @@ function seeded(seed: number): () => number {
   };
 }
 
-/** Deterministic fiber geometry: quadratic strands from core to hub plus a small hub cluster. */
-export function buildFieldGeometry(width: number, height: number): Readonly<Record<FieldSubsystem, readonly Dot[]>> {
+/**
+ * Deterministic nebula geometry: each subsystem is a spiral arm of particles around the core.
+ * Circular (not squashed) so the whole field can turn and collapse around the core as one body.
+ */
+export function buildFieldGeometry(width: number, height: number, density = 1): Readonly<Record<FieldSubsystem, readonly Dot[]>> {
   const cx = width / 2;
   const cy = height / 2;
-  const ring = Math.min(width, height) * 0.38;
+  const radius = Math.min(width, height) * 0.4;
+  const count = Math.max(12, Math.round(DOTS_PER_ARM * density));
   const out = {} as Record<FieldSubsystem, Dot[]>;
   SUBSYSTEMS.forEach((subsystem, index) => {
     const random = seeded(97 + index * 131);
-    const hx = cx + Math.cos(subsystem.angle) * ring;
-    const hy = cy + Math.sin(subsystem.angle) * ring * 0.82;
-    const bend = subsystem.angle + 0.55;
-    const qx = cx + Math.cos(bend) * ring * 0.55;
-    const qy = cy + Math.sin(bend) * ring * 0.45;
     const dots: Dot[] = [];
-    for (let i = 0; i < DOTS_PER_STRAND; i += 1) {
-      const t = 0.12 + (i / DOTS_PER_STRAND) * 0.88;
-      const u = 1 - t;
-      const jitter = (random() - 0.5) * 7 * t;
-      dots.push({
-        x: u * u * cx + 2 * u * t * qx + t * t * hx + jitter,
-        y: u * u * cy + 2 * u * t * qy + t * t * hy + (random() - 0.5) * 7 * t,
-        size: random() > 0.85 ? 2.4 : 1.4,
-        opacity: 0.25 + random() * 0.55,
-      });
-    }
-    for (let i = 0; i < DOTS_PER_HUB; i += 1) {
-      const a = random() * Math.PI * 2;
-      const r = Math.sqrt(random()) * 14;
-      dots.push({ x: hx + Math.cos(a) * r, y: hy + Math.sin(a) * r, size: random() > 0.7 ? 2.6 : 1.6, opacity: 0.4 + random() * 0.6 });
+    for (let i = 0; i < count; i += 1) {
+      const t = Math.pow(random(), 0.7);
+      const angle = subsystem.angle + (random() - 0.5) * 0.9 * (1 - t * 0.4) + t * ARM_TWIST;
+      const r = radius * (0.26 + t * 0.78) + (random() - 0.5) * radius * 0.12;
+      const depth = random();
+      dots.push({ x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r, size: random() > 0.86 ? 2.2 : 1.2, opacity: 0.28 + depth * 0.6 });
     }
     out[subsystem.id] = dots;
   });
   return out;
 }
 
-/** Sampled centre-line of each strand (core -> hub) that travelling signals follow. */
+/** Sampled spine of each arm (core -> rim) that travelling signals follow. */
 export function buildStrandPaths(width: number, height: number, samples = 12): Readonly<Record<FieldSubsystem, { readonly xs: readonly number[]; readonly ys: readonly number[] }>> {
   const cx = width / 2;
   const cy = height / 2;
-  const ring = Math.min(width, height) * 0.38;
+  const radius = Math.min(width, height) * 0.4;
   const out = {} as Record<FieldSubsystem, { xs: number[]; ys: number[] }>;
   for (const subsystem of SUBSYSTEMS) {
-    const hx = cx + Math.cos(subsystem.angle) * ring;
-    const hy = cy + Math.sin(subsystem.angle) * ring * 0.82;
-    const bend = subsystem.angle + 0.55;
-    const qx = cx + Math.cos(bend) * ring * 0.55;
-    const qy = cy + Math.sin(bend) * ring * 0.45;
     const xs: number[] = [];
     const ys: number[] = [];
     for (let i = 0; i < samples; i += 1) {
-      const t = 0.1 + (i / (samples - 1)) * 0.9;
-      const u = 1 - t;
-      xs.push(u * u * cx + 2 * u * t * qx + t * t * hx);
-      ys.push(u * u * cy + 2 * u * t * qy + t * t * hy);
+      const t = i / (samples - 1);
+      const angle = subsystem.angle + t * ARM_TWIST;
+      const r = radius * (0.12 + t * 0.9);
+      xs.push(cx + Math.cos(angle) * r);
+      ys.push(cy + Math.sin(angle) * r);
     }
     out[subsystem.id] = { xs, ys };
   }
@@ -123,6 +109,11 @@ export function IntelligenceField({ input }: Readonly<{ input: IntelligenceField
   const signals = useRef(Object.fromEntries(SUBSYSTEMS.map((s) => [s.id, new Animated.Value(0)])) as Record<FieldSubsystem, Animated.Value>).current;
   const flare = useRef(new Animated.Value(0)).current;
   const turn = useRef(new Animated.Value(0)).current;
+  const pose = fieldPose(model.phase);
+  const spread = useRef(new Animated.Value(pose.spread)).current;
+  const presence = useRef(new Animated.Value(pose.presence)).current;
+  const orbit = useRef(new Animated.Value(0)).current;
+  const orbitStep = useRef(0);
   const paths = useMemo(() => (width > 0 ? buildStrandPaths(width, FIELD_HEIGHT) : null), [width]);
   const previousKey = useRef<string | null>(null);
   const [inward, setInward] = useState(false);
@@ -148,6 +139,8 @@ export function IntelligenceField({ input }: Readonly<{ input: IntelligenceField
     if (reducedMotion !== false || !changed) {
       targets.forEach(({ value, target }) => value.setValue(target));
       core.setValue(model.coreLevel);
+      spread.setValue(pose.spread);
+      presence.setValue(pose.presence);
       pulse.setValue(0);
       flare.setValue(0);
       SUBSYSTEMS.forEach((sub) => signals[sub.id].setValue(0));
@@ -159,24 +152,29 @@ export function IntelligenceField({ input }: Readonly<{ input: IntelligenceField
     flare.setValue(0);
     SUBSYSTEMS.forEach((sub) => signals[sub.id].setValue(0));
     const travelling = SUBSYSTEMS.filter((sub) => model.lit.includes(sub.id));
+    // The nebula turns one step per semantic change and settles into the new phase's pose.
+    orbitStep.current += 1;
     const animation = Animated.parallel([
-      ...targets.map(({ value, target }, i) => Animated.timing(value, { toValue: target, duration: 900, delay: i * 90, easing: Easing.out(Easing.cubic), useNativeDriver: true })),
-      Animated.timing(core, { toValue: model.coreLevel, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(turn, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
-      Animated.stagger(110, travelling.map((sub) => Animated.timing(signals[sub.id], { toValue: 1, duration: 950, easing: Easing.inOut(Easing.quad), useNativeDriver: true }))),
+      Animated.timing(orbit, { toValue: orbitStep.current, duration: fieldMotion.poseMs, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(spread, { toValue: pose.spread, duration: fieldMotion.poseMs, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(presence, { toValue: pose.presence, duration: fieldMotion.poseMs, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      ...targets.map(({ value, target }, i) => Animated.timing(value, { toValue: target, duration: fieldMotion.settleMs, delay: i * fieldMotion.settleStaggerMs, easing: Easing.out(Easing.cubic), useNativeDriver: true })),
+      Animated.timing(core, { toValue: model.coreLevel, duration: fieldMotion.settleMs, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(turn, { toValue: 1, duration: fieldMotion.coreTurnMs, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+      Animated.stagger(fieldMotion.signalStaggerMs, travelling.map((sub) => Animated.timing(signals[sub.id], { toValue: 1, duration: fieldMotion.signalMs, easing: Easing.inOut(Easing.quad), useNativeDriver: true }))),
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 260, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 900, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: fieldMotion.pulseInMs, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: fieldMotion.pulseOutMs, easing: Easing.out(Easing.quad), useNativeDriver: true }),
       ]),
       Animated.sequence([
-        Animated.delay(700),
-        Animated.timing(flare, { toValue: 1, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.delay(fieldMotion.flareDelayMs),
+        Animated.timing(flare, { toValue: 1, duration: fieldMotion.flareMs, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
       ]),
     ]);
     turn.setValue(0);
     animation.start();
     return () => animation.stop();
-  }, [model.phase, model.focus, litKey, model.coreLevel, model.tone, reducedMotion, core, levels, pulse, signals, flare, turn]);
+  }, [model.phase, model.focus, litKey, model.coreLevel, model.tone, reducedMotion, core, levels, pulse, signals, flare, turn, spread, presence, orbit, pose.spread, pose.presence]);
 
   const toneColor = TONE_COLOR[model.tone];
   const coreScale = core.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] });
@@ -187,7 +185,7 @@ export function IntelligenceField({ input }: Readonly<{ input: IntelligenceField
   const onLayout = (event: LayoutChangeEvent) => setWidth(Math.round(event.nativeEvent.layout.width));
   const cx = width / 2;
   const cy = FIELD_HEIGHT / 2;
-  const ring = Math.min(width, FIELD_HEIGHT) * 0.38;
+  const orbitRotate = orbit.interpolate({ inputRange: [0, 1], outputRange: ["0deg", `${fieldMotion.orbitStepDeg}deg`] });
 
   return <View style={styles.shell} testID="home-intelligence-field" accessibilityRole="summary" accessibilityLabel={`${model.statusWord}. ${model.headline.replace("\n", " ")}. ${model.detail}`}>
     <View style={styles.statusRow}>
@@ -196,32 +194,38 @@ export function IntelligenceField({ input }: Readonly<{ input: IntelligenceField
       <Text style={styles.phase}>{model.phase}</Text>
     </View>
     <View style={styles.field} onLayout={onLayout}>
-      {geometry == null ? null : SUBSYSTEMS.map((s) => <Animated.View key={s.id} pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: levels[s.id] }]}>
-        <ParticleLayer dots={geometry[s.id]} color={model.focus === s.id ? FOCUS_COLOR : s.color} />
-      </Animated.View>)}
       {width > 0 ? <>
-        {paths == null ? null : SUBSYSTEMS.filter((sub) => model.lit.includes(sub.id)).map((sub) => <Signal key={sub.id} path={paths[sub.id]} progress={signals[sub.id]} color={model.focus === sub.id ? FOCUS_COLOR : inward ? toneColor : sub.color} inward={inward} />)}
-        {model.focus == null || paths == null ? null : <Animated.View pointerEvents="none" style={[styles.flare, { left: paths[model.focus].xs[paths[model.focus].xs.length - 1] - 16, top: paths[model.focus].ys[paths[model.focus].ys.length - 1] - 16, borderColor: FOCUS_COLOR, opacity: flareOpacity, transform: [{ scale: flareScale }] }]} />}
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: presence, transform: [{ rotate: orbitRotate }, { scale: spread }] }]}>
+          {geometry == null ? null : SUBSYSTEMS.map((s) => <Animated.View key={s.id} style={[StyleSheet.absoluteFill, { opacity: levels[s.id] }]}>
+            <ParticleLayer dots={geometry[s.id]} color={model.focus === s.id ? FOCUS_COLOR : model.phase === "HALTED" ? TONE_COLOR.red : s.color} />
+          </Animated.View>)}
+          {paths == null ? null : SUBSYSTEMS.filter((sub) => model.lit.includes(sub.id)).map((sub) => <Signal key={sub.id} path={paths[sub.id]} progress={signals[sub.id]} color={model.focus === sub.id ? FOCUS_COLOR : inward ? toneColor : sub.color} inward={inward} />)}
+          {model.focus == null || paths == null ? null : <Animated.View style={[styles.flare, { left: paths[model.focus].xs[paths[model.focus].xs.length - 1] - 16, top: paths[model.focus].ys[paths[model.focus].ys.length - 1] - 16, borderColor: FOCUS_COLOR, opacity: flareOpacity, transform: [{ scale: flareScale }] }]} />}
+        </Animated.View>
         <Animated.View pointerEvents="none" style={[styles.pulseRing, { left: cx - 40, top: cy - 40, borderColor: toneColor, opacity: pulse, transform: [{ scale: ringScale }] }]} />
         <Animated.View pointerEvents="none" style={[styles.coreWrap, { left: cx - 36, top: cy - 36, opacity: core, transform: [{ scale: coreScale }] }]}>
           <View style={[styles.coreGlow, { backgroundColor: toneColor }]} />
           <Animated.View style={[styles.coreDiamond, { borderColor: toneColor, transform: [{ rotate: "45deg" }, { rotate: coreRotate }] }]} />
           <View style={styles.coreHeart} />
         </Animated.View>
-        {SUBSYSTEMS.map((s) => {
-          const hx = cx + Math.cos(s.angle) * ring;
-          const hy = cy + Math.sin(s.angle) * ring * 0.82;
-          const focused = model.focus === s.id;
-          const state = model.states[s.id];
-          return <View key={s.id} pointerEvents="none" style={[styles.hubLabel, { left: Math.max(4, Math.min(width - 104, hx - 50)), top: hy + 16 }]}>
-            <Text style={[styles.hubName, { color: focused ? FOCUS_COLOR : fieldPalette.muted }]}>{s.label}</Text>
-            {state == null ? null : <Text style={[styles.hubState, { color: focused ? FOCUS_COLOR : fieldPalette.label }]}>{state}</Text>}
-          </View>;
-        })}
       </> : null}
+    </View>
+    <View style={styles.legend}>
+      {SUBSYSTEMS.map((s) => {
+        const focused = model.focus === s.id;
+        const state = model.states[s.id];
+        return <View key={s.id} style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: focused ? FOCUS_COLOR : s.color, opacity: model.lit.includes(s.id) ? 1 : 0.3 }]} />
+          <Text style={[styles.hubName, { color: focused ? FOCUS_COLOR : fieldPalette.muted }]}>{s.label}</Text>
+          {state == null ? null : <Text style={[styles.hubState, { color: focused ? FOCUS_COLOR : fieldPalette.label }]}>{state}</Text>}
+        </View>;
+      })}
     </View>
     <Text style={styles.headline} testID="intelligence-field-headline">{model.headline}</Text>
     <Text style={styles.detail}>{model.detail}</Text>
+    <View style={styles.facts} testID="intelligence-field-facts">
+      {buildHomeFieldFacts(input).map((fact) => <View key={fact.label} style={styles.fact}><Text style={styles.factLabel}>{fact.label}</Text><Text style={styles.factValue} numberOfLines={1}>{fact.value}</Text></View>)}
+    </View>
   </View>;
 }
 
@@ -238,9 +242,15 @@ const styles = StyleSheet.create({
   coreGlow: { position: "absolute", width: 72, height: 72, borderRadius: 36, opacity: 0.16 },
   coreDiamond: { width: 30, height: 30, borderWidth: 1.2, backgroundColor: "rgba(255,255,255,0.06)" },
   coreHeart: { position: "absolute", width: 6, height: 6, borderRadius: 3, backgroundColor: fieldPalette.heart },
-  hubLabel: { position: "absolute", width: 100, alignItems: "center" },
-  hubName: { fontSize: 9, letterSpacing: 1.6, ...fieldFonts.mono },
-  hubState: { fontSize: 10, letterSpacing: 1, marginTop: 2, ...fieldFonts.monoMedium },
+  legend: { flexDirection: "row", flexWrap: "wrap", columnGap: 14, rowGap: 6, marginBottom: 16 },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
+  legendDot: { width: 5, height: 5, borderRadius: 2.5 },
+  hubName: { fontSize: 9, letterSpacing: 1.4, ...fieldFonts.mono },
+  hubState: { fontSize: 9, letterSpacing: 1, ...fieldFonts.monoMedium },
   headline: { color: fieldPalette.text, fontSize: 26, lineHeight: 34, letterSpacing: -0.3, ...fieldFonts.displayLight },
   detail: { color: fieldPalette.muted, fontSize: 13, lineHeight: 20, marginTop: 6 },
+  facts: { flexDirection: "row", marginTop: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: fieldPalette.dim, paddingTop: 10 },
+  fact: { flex: 1, gap: 2 },
+  factLabel: { color: fieldPalette.dim, fontSize: 9, letterSpacing: 1.6, ...fieldFonts.mono },
+  factValue: { color: fieldPalette.label, fontSize: 13, fontVariant: ["tabular-nums"], ...fieldFonts.mono },
 });

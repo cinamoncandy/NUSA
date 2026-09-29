@@ -1,4 +1,80 @@
 version: 1
+current_security_fast_uri_backport:
+  work_order: WO-SECURITY-20260929-FAST-URI
+  status: READY_FOR_REVIEW
+  branch: codex/security-fast-uri-3-1-8
+  base_sha: 6de0b9e61557b58d94301ed17ecc530210c0976a
+  first_broken_transition: post_merge_security_gate_to_dependency_audit
+  finding: "Post-merge CI 36499696763 failed in the Security gate because fast-uri@3.1.6 has two unmitigated high advisories (1239943 and 1239946) through electron-builder's development dependency tree."
+  remediation: "Pin the existing fast-uri@3.1.4 override to patched v3.1.8 and keep the security gate fail-closed."
+  authority_impact: none
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  validation: "security-gate 0 unmitigated high/critical advisories; security gate tests 10/10; typecheck and validate:full PASS."
+  remaining: commit_then_exact_head_CI_then_independent_Audit_then_Release
+current_autopilot_runtime_provider_wait:
+  work_order: WO-AUTOPILOT-20260929-ORACLE-PROVIDER-WAIT
+  status: READY_FOR_REVIEW
+  branch: codex/autopilot-runtime-provider-wait
+  pull_request: 2372
+  base_sha: 4b15ff9501676cf5ff85ae958b625676ae34ad43
+  authority_impact: none
+  first_broken_transition: canonical-provider-wait-to-Oracle-runtime-health
+  validation: "Focused runtime tests 7/7, lint:scripts, AI zero-authority, safety invariants, and diff check PASS; fresh exact-head CI required."
+  remaining: exact-head-CI_then-independent-Audit_then-Release-merge_then-exact-main-Oracle-PAPER-Release_then-runtime-observation
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_autopilot_capacity_efficiency:
+  work_order: WO-AUTOPILOT-20260929-CAPACITY-EFFICIENCY
+  status: MERGED_VERIFIED_RUNTIME_EVIDENCE_PENDING
+  branch: codex/autopilot-provider-wait-cost-efficiency
+  pull_request: 2378
+  base_sha: ea54b66274a238b37c36b66d227003f6246b7392
+  implementation_head: 7308a988bb9421389b6c428a3431644eedac067f
+  merge_commit: 963890b80ea79a17f8889c278463524b847af180
+  validation: "PR #2378 final head 7308a988 exact-head CI 36511138656 PASS; required PAPER/read-only/Restricted LIVE workflows 36511138621, 36511138631, 36511138653, 36511138692, 36511138714 PASS. Independent Audit and canonical Release 36511552908 PASS; merged as main 963890b80ea79a17f8889c278463524b847af180. Post-merge CI 36511589685, Cloudflare deploy 36511589835, and exact-main runtime proof 36511653054 PASS. Runtime remains WAITING_RATE_LIMIT / waiting-provider-capacity; no Jev inference or runtime neuron savings was measured."
+  scope: "Skip backlog/workflow GitHub reads during a valid Workers AI wait and lower only Jev SHADOW classifier neuron consumption."
+  authority_impact: none
+  remaining: local-validation_then_exact-head-CI_then_independent-Audit_then_canonical-Release
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_paper_capital_5000_account:
+  work_order: WO-PAPER-20260928-CAPITAL-5000-ACCOUNT
+  status: ROLLED_BACK
+  rollback_pull_request: 2371
+  authority_impact: paper-accounting
+  remaining: reproduce-prod-crash-from-prod-like-state_then-fix_then-re-propose-capital-switch
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_mobile_presentation_boundary:
+  work_order: WO-UI-20260928-PRESENTATION-BOUNDARY
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-ui-boundary
+  depends_on_pull_request: 2351
+  authority_impact: none
+  design_status: field-v1-INTERIM_full-redesign-planned-see-docs-UI_ARCHITECTURE
+current_paper_challenger_policy_default:
+  work_order: WO-PAPER-20260928-CHALLENGER-POLICY-DEFAULT-ON
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-challenger-default
+  authority_impact: paper-governance
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-observe-PAPER-cycles
+current_autopilot_scheduler_budget:
+  work_order: WO-AUTOPILOT-20260928-SCHEDULER-GITHUB-BUDGET
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-scheduler-budget
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-verify-scheduled-status-dispatches
+current_autopilot_audit_malformed_retry:
+  work_order: WO-AUTOPILOT-20260928-AUDIT-MALFORMED-RETRY
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-audit-retry-malformed
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+next_ui_work:
+  work_order: WO-UI-20260928-FIELD-NEBULA
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-field-nebula
+  depends_on_pull_request: 2354
+  authority_impact: none
+  remaining: open-PR-after-2354-merges_then-CI-Audit-Release
 current_mobile_field_structure:
   work_order: WO-UI-20260928-FIELD-STRUCTURE
   status: READY_FOR_REVIEW
@@ -13,6 +89,26 @@ current_mobile_paper_tabs_icon:
   branch: claude/nusa-repository-j93sd8-paper-tabs-icon
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_research_evidence_digest_convergence:
+  work_order: WO-RESEARCH-20260929-EVIDENCE-DIGEST-CONVERGENCE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-research-cost-hash
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release
+current_runtime_restart_forensics:
+  work_order: WO-OPS-20260928-RUNTIME-RESTART-FORENSICS
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-runtime-forensics
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release_then-read-health-lastError
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_paper_restart_loop_stale_snapshot:
+  work_order: WO-OPS-20260929-PAPER-RESTART-LOOP-STALE-SNAPSHOT
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-legacy-replay
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release_then-verify-health-stable
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_audit_grounded_fail:
   work_order: WO-20260928-AUDIT-GROUNDED-FAIL
@@ -1537,4 +1633,17 @@ current_research_replay_segmented_persistence:
   validation: "Prior exact-head CI passed on 8715a491c8942b995ed5fb68c3443baa7a83a5ea; that evidence is stale after protected-main drift. Fresh exact-head CI is required on the reconverged head."
   blocker: "None before fresh CI terminal; production recovery remains gated on independent Audit/Release and Oracle deployment."
   next: "Fresh exact-head CI -> independent Audit/Release -> merge -> Oracle exact-main deployment -> successful Research workload/restart evidence."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_pr1991_review_hardening:
+  work_order: WO-20260927-PR1991-REVIEW-HARDENING
+  status: IN_PROGRESS
+  pull_request: 1991
+  branch: fix/1892-qualification-survival-gates
+  base_sha: 3e23eccc70776d2cb932b7a819bdb92389d0e374
+  previous_verified_head: fd0ea0d345bc3574a37b292d082026cdfd4d42f9
+  finding: "Protected main advanced after the prior exact-head PASS; stale acceptance evidence cannot be reused."
+  remediation: "Reapply the frozen qualification-integrity delta onto latest protected main while preserving current research learning/runtime changes."
+  validation: "Prior focused 60/60 and exact-head CI evidence remain historical only; fresh exact-head CI is required on the reconverged head."
+  next: "Fresh exact-head CI PASS -> independent Audit -> nusa/release-authorized -> canonical merge. Do not manually rerun Audit/Release."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

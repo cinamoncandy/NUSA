@@ -414,10 +414,14 @@ jobs:
             recovery = 'retry';
           } else if (/4006|daily free allocation|neurons|quota/i.test(text)) {
             failureClass = 'executor_unavailable';
+          } else if (/AUDIT_(VERDICT|MODEL_RESPONSE)|JSON_INVALID/i.test(text)) {
+            // A malformed model verdict says nothing about the PR. Classify it before the stale
+            // matcher, whose bare "closed" also matches AUDIT_FAILED_CLOSED (run 36424829641), and
+            // retry once: the recovery dedupe key (PR, head, main, main CI run) bounds it.
+            failureClass = 'validation_failure';
+            recovery = 'retry';
           } else if (/AUDIT_(PR_NOT_OPEN|PR_HEAD_MISMATCH|PR_BASE_MISMATCH|CI_NOT_SUCCESSFUL|CI_HEAD_MISMATCH|CI_REPOSITORY_MISMATCH)|stale|closed|head moved|base moved/i.test(text)) {
             failureClass = 'deterministic';
-          } else if (/AUDIT_(VERDICT|MODEL_RESPONSE)|JSON_INVALID/i.test(text)) {
-            failureClass = 'validation_failure';
           } else if (/WAITING_PROVIDER_CAPACITY|429|5\\d\\d|timeout|timed out|fetch failed|temporar|network|ECONN/i.test(text)) {
             failureClass = 'transient';
             recovery = 'retry';

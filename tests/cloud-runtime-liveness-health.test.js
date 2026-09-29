@@ -133,3 +133,15 @@ test("a coded liveness error is published unchanged", async () => {
     assert.equal(body.runtime.lastError, "PUBLIC_MARKET_EVENT_REJECTED:STALE");
   }, 41888);
 });
+
+test("the previous stop reason is published only as a coded value and never as free text", async () => {
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, previousStop: "PREVIOUS_CLOSED_LEARNING_SCHEDULER:MESSAGE_0123456789AB" }) }, async (handle) => {
+    const body = JSON.parse((await request(handle.port, "/health")).body);
+    assert.equal(body.runtime.previousStop, "PREVIOUS_CLOSED_LEARNING_SCHEDULER:MESSAGE_0123456789AB");
+  }, 41889);
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, previousStop: "failed for account acct-123" }) }, async (handle) => {
+    const res = await request(handle.port, "/health");
+    assert.equal(JSON.parse(res.body).runtime.previousStop, undefined);
+    assert.doesNotMatch(res.body, /acct-123/);
+  }, 41889);
+});
