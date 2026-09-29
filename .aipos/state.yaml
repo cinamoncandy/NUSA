@@ -1,4 +1,12 @@
 version: 1
+current_jev_canonical_domain_bridge:
+  work_order: WO-20260929-JEV-CANONICAL-DOMAIN-BRIDGE
+  status: IN_PROGRESS
+  branch: codex/jev-domain-bridge
+  base_sha: d8590b3c8c54df5780dd661863d0ec740c9ed0f4
+  authority_impact: none
+  scope: "Canonical SHADOW observation projection for existing Autopilot and Research Jev receipts; unvalidated domains remain non-emitting."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_security_fast_uri_backport:
   work_order: WO-SECURITY-20260929-FAST-URI
   status: READY_FOR_REVIEW

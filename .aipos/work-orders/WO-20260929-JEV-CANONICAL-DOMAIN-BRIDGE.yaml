@@ -1,0 +1,45 @@
+id: WO-20260929-JEV-CANONICAL-DOMAIN-BRIDGE
+title: "Bridge validated Jev SHADOW receipts into the canonical domain envelope"
+status: IN_PROGRESS
+owner: nusa-ai-platform
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: d8590b3c8c54df5780dd661863d0ec740c9ed0f4
+implementation_branch: codex/jev-domain-bridge
+authority_impact: none
+objective: "Make the existing Autopilot and Research Jev SHADOW consumers emit comparable, replay-identifiable canonical observations without enabling Jev routing or widening authority."
+canonical_owners:
+  - "AI Platform / Model Router: task policy and common observation contract"
+  - "Autopilot: workflow failure SHADOW receipt"
+  - "Research Intelligence Scout: attention SHADOW receipt"
+scope:
+  include:
+    - "Project existing validated workflow-failure and research-attention receipts into JevDomainObservation."
+    - "Expose projected observations only in existing receipt/result surfaces."
+    - "Preserve deterministic fallback and no-call behavior during provider capacity waits."
+  exclude:
+    - "No provider, scheduler, queue, durable evidence store, model routing, Audit, Release, merge, PAPER mutation, or LIVE capability."
+    - "No emission from registered domains without a deterministic task validator."
+acceptance:
+  - "Autopilot and Research outputs each include canonical SHADOW observations with bounded provenance and no secrets."
+  - "All observations retain usableForRouting=false, liveAuthority=NONE, productionMutationAllowed=false, and aiAuthority=ZERO_AUTHORITY."
+  - "Fallback, malformed provider output, and capacity-stop behavior preserve the existing deterministic path."
+  - "The unvalidated registry task types still fail closed and cannot emit observations."
+verification_commands:
+  - "pnpm run build"
+  - "node --test dist/apps/cloud/src/ai/jevDomainObservationProjection.test.js"
+  - "node --test tests/autopilot-jev-coding-failure-shadow.test.js"
+  - "node --test tests/research-intelligence-attention-shadow.test.js"
+  - "pnpm run validate:full"
+  - "pnpm run security:gate"
+  - "pnpm run typecheck"
+  - "pnpm run lint"
+  - "pnpm run test"
+  - "git diff --check"
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Implement the two existing validated adapters only, then run exact-head validation and independent Audit before any Release decision."
