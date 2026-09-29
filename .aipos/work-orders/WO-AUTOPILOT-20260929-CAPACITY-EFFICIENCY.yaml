@@ -4,7 +4,7 @@ status: READY_FOR_REVIEW
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: dab4f6a3e9b794f94e752099b6f4a2a48f9e5829
+base_commit: ea54b66274a238b37c36b66d227003f6246b7392
 implementation_branch: codex/autopilot-provider-wait-cost-efficiency
 authority_impact: none
 objective: "Reduce non-inference requests during a canonical Workers AI provider wait and reduce the neuron cost of optional Jev SHADOW classification without bypassing quota, enabling a paid provider, or changing coding model authority."
@@ -51,7 +51,8 @@ verification_results:
   aipos_yaml: "PASS, 208 files parsed strictly"
   diff_check: "PASS (Windows line-ending advisory only)"
   runtime_cost_measurement: "NOT_YET_AVAILABLE; no live model call claimed during provider-capacity wait"
-  exact_head_ci: "Initial PR head b9b158d CI run 36508425701 failed coverage-core-3 because scheduledStateGate's coordinator test double lacked the new provider-wait endpoint; production fail-closed behavior was correct. Test double corrected; new exact-head CI pending after follow-up commit."
+  main_refresh: "Current main ea54b66274a238b37c36b66d227003f6246b7392 CI run 36509250397 PASS; merged into the feature branch with a non-rewriting merge commit. Main delta touched research digest files and AIPOS state; no functional Autopilot overlap."
+  exact_head_ci: "PR head 72e664896e0f2a94190515e9bb5a8336ed4b4ed4 CI run 36508865762 and required safety/PAPER workflows PASS. This head was based on prior main dab4f6a; new exact-head validation after main refresh is pending."
 safety:
   liveAuthority: NONE
   productionMutationAllowed: false
@@ -59,4 +60,4 @@ safety:
   quota_bypass: false
   paid_provider_activation: false
   paper_only: true
-next_permitted_action: "Final diff review -> exact-head CI -> independent Audit -> canonical Release. Do not enable or deploy Jev SHADOW via this work order."
+next_permitted_action: "Final diff review -> fresh exact-head CI -> independent Audit -> canonical Release. Do not enable or deploy Jev SHADOW via this work order."
