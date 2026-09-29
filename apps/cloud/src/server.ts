@@ -59,6 +59,7 @@ import { handleEngineeringOperationsHttp, type EngineeringOperationsHttpDependen
 import { handleEvolutionLearningSupervisorHttp, type EvolutionLearningSupervisorHttpDependencies } from "./evolutionLearningSupervisorHttp";
 import { handleUxTelemetryEventHttp } from "./uxTelemetryHttp";
 import type { UxTelemetryStorage } from "./uxTelemetryJournal";
+import type { ComponentHealthResult } from "./componentHealth";
 
 /**
  * Evidence that the continuous PAPER runtime is alive, not merely that the process answers HTTP.
@@ -119,6 +120,8 @@ export interface CloudDashboardServerOptions {
   readonly readiness?: () => CloudReadinessSnapshot;
   /** Continuous PAPER runtime liveness, surfaced on /health so 24-hour operation is observable. */
   readonly runtimeLiveness?: () => CloudRuntimeLivenessSnapshot;
+  /** Deterministic process/workload health; HTTP 200 alone never implies workload health. */
+  readonly runtimeHealth?: () => Readonly<{ process: ComponentHealthResult; workload: ComponentHealthResult }>;
   /** Legacy shared limiter override. New callers should inject lanes explicitly. */
   readonly rateLimiter?: BoundedHttpRateLimiter;
   /** Bounds unauthenticated traffic without consuming authenticated-user capacity. */
@@ -417,11 +420,13 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
         // `runtime` appears only when a liveness source is wired, and carries the counters that
         // show whether the continuous PAPER loop is actually ticking.
         const liveness = options.runtimeLiveness?.();
+        const runtimeHealth = options.runtimeHealth?.();
         respond("health", dashboardJsonResponse(200, {
           ok: true,
           observedAt: new Date().toISOString(),
           capabilities: { passwordSignIn: mobileSessionService?.ownerPasswordConfigured() === true },
-          ...(liveness === undefined ? {} : { runtime: publicRuntimeLiveness(liveness) })
+          ...(liveness === undefined ? {} : { runtime: publicRuntimeLiveness(liveness) }),
+          ...(runtimeHealth === undefined ? {} : { runtimeHealth })
         }));
         return;
       }
