@@ -52,7 +52,7 @@ test("the workflow pins Codex to the single dedicated-account runner and publish
   assert.match(workflow, /validated-head/, "only the validated commit is published");
   assert.match(codexJob, /set \+e -uo pipefail/, "the default bash -e must not end the step before the usage-limit check");
   const publish = workflow.slice(workflow.indexOf("  publish:"));
-  const order = ["protected path", "pnpm run build", "pnpm run typecheck", "pnpm run validate", "node --test tests/*.test.js", "gh pr create"].map((marker) => publish.indexOf(marker));
+  const order = ["protected path", "pnpm run build", "pnpm run typecheck", "pnpm run validate", "node --test tests/*.test.js", "node scripts/run-tests-isolated.js", "gh pr create"].map((marker) => publish.indexOf(marker));
   assert.ok(order.every((index) => index > 0), "every gate is present");
   assert.deepEqual([...order].sort((a, b) => a - b), order, "validation gates run before the PR is created");
   assert.match(workflow, /group: autopilot-codex-coding/);
@@ -63,6 +63,11 @@ test("the Codex prompt keeps heavy validation off the shared PAPER host", () => 
   const prompt = buildPrompt({ issueNumber: 7, capability: "GENERAL", title: "P1: t", body: "b" });
   assert.match(prompt, /Do NOT run pnpm install, build, typecheck, the test suite/);
   assert.doesNotMatch(prompt, /Run the relevant local validation/);
+  assert.match(prompt, /Exception for this delegated-validation lane/, "the AGENTS verification rule is explicitly delegated, not contradicted");
+  const workflow = fs.readFileSync(".github/workflows/autopilot-codex-coding.yml", "utf8");
+  assert.match(workflow, /for tool in pnpm npm npx yarn tsc vitest jest/, "heavy tools are technically blocked for Codex");
+  assert.match(workflow, /PATH="\$blocked:\$PATH"/, "Codex runs with the blocked tools first on PATH");
+  assert.match(workflow, /node --test is disabled on the shared PAPER host/, "node stays usable but not as the test runner");
 });
 
 test("the host guard keeps Codex off the shared Oracle host whenever PAPER needs it", () => {

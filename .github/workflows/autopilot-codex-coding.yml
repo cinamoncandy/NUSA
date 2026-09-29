@@ -118,7 +118,19 @@ jobs:
           # Every process Codex starts inherits this marker, so the guard can reap the whole tree
           # even if a command leaves the process group. The Actions token is not passed to Codex.
           mark="nusa-codex-run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          env -u GUARD_GH_TOKEN -u GH_TOKEN -u GITHUB_TOKEN NUSA_CODEX_RUN_MARK="$mark" \
+          # Delegated validation: heavy tools fail fast on this shared host (the publish job runs
+          # every gate on GitHub-hosted hardware), so a compliant Codex run cannot trip the guard.
+          blocked="${RUNNER_TEMP}/codex-blocked-bin"
+          mkdir -p "$blocked"
+          for tool in pnpm npm npx yarn tsc vitest jest; do
+            printf '#!/bin/sh\necho "%s is disabled on the shared PAPER host; the autopilot publish job runs validation." >&2\nexit 97\n' "$tool" > "$blocked/$tool"
+            chmod 0555 "$blocked/$tool"
+          done
+          # node stays usable for light scripts, but not for the test runner.
+          real_node="$(command -v node)"
+          printf '#!/bin/sh\nfor a in "$@"; do case "$a" in --test|--test=*) echo "node --test is disabled on the shared PAPER host; the autopilot publish job runs tests." >&2; exit 97;; esac; done\nexec "%s" "$@"\n' "$real_node" > "$blocked/node"
+          chmod 0555 "$blocked/node"
+          env -u GUARD_GH_TOKEN -u GH_TOKEN -u GITHUB_TOKEN NUSA_CODEX_RUN_MARK="$mark" PATH="$blocked:$PATH" \
             setsid nice -n 19 ionice -c3 codex exec -s workspace-write -C "$GITHUB_WORKSPACE" - < "${RUNNER_TEMP}/prompt/codex-prompt.txt" > "$log" 2>&1 &
           pid=$!
           deferred=false
@@ -220,6 +232,8 @@ jobs:
           pnpm run validate
           node scripts/aipos-work-order-index.js --check
           node --test tests/*.test.js
+          # Co-located TypeScript tests compiled under dist/ are only collected here.
+          node scripts/run-tests-isolated.js
       - name: Publish branch and PR
         env:
           GH_TOKEN: ${{ secrets.NUSA_AUTOPILOT_GITHUB_TOKEN }}
@@ -233,7 +247,7 @@ jobs:
           git push -q origin "HEAD:refs/heads/${branch}"
           body="Refs #${ISSUE}
 
-          Autopilot Codex engine (dedicated ChatGPT account). The workflow applied the Codex patch to current main, enforced the protected-path boundary and ran: pnpm run build, typecheck, validate, the work-order index check and node --test tests/*.test.js, all passing. Codex had no commit/push authority. Merge only through CI, Audit and the deterministic Release.
+          Autopilot Codex engine (dedicated ChatGPT account). The workflow applied the Codex patch to current main, enforced the protected-path boundary and ran: pnpm run build, typecheck, validate, the work-order index check, node --test tests/*.test.js and node scripts/run-tests-isolated.js, all passing. Codex had no commit/push authority. Merge only through CI, Audit and the deterministic Release.
 
           Safety: PAPER only, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY."
           gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --title "autopilot(codex): #${ISSUE} next increment" --body "$body"
