@@ -149,3 +149,11 @@ test("the owner PAPER account file sets initial capital over the host environmen
   assert.throws(() => readOwnerPaperAccount(bad), /owner PAPER account file is invalid/);
   assert.equal(readOwnerPaperAccount(path.join(dir, "missing.json")), null);
 });
+
+test("the owner-retired PAPER accounts reach the runtime from the committed owner decision", () => {
+  const { readOwnerPaperAccount, buildRuntimeEnv } = require("../scripts/start-cloud-runtime.js");
+  const owner = readOwnerPaperAccount();
+  assert.deepEqual([...owner.retiredAccountIds], ["paper-default"], "owner decision 2026-09-29: delete the KRW 10,000,000 ledger");
+  const { env } = buildRuntimeEnv({}, "t".repeat(64), owner);
+  assert.equal(env.NUSA_PAPER_RETIRED_ACCOUNT_IDS, "paper-default");
+});

@@ -79,7 +79,7 @@ for (const required of ["User=nusa", "Group=nusa", "NoNewPrivileges=true", "Prot
 if (/ExecStart=.*dist\/apps\/cloud\/src\/runtime\.js/.test(unit)) fail("systemd must not bypass the supervised PAPER launcher");
 
 const researchUnit = fs.readFileSync(researchServicePath, "utf8");
-for (const required of ["Type=oneshot", "User=nusa", "Group=nusa", "NoNewPrivileges=true", "ProtectSystem=strict", "ProtectHome=true", "WorkingDirectory=/opt/nusa/current", "EnvironmentFile=/etc/nusa/cloud-runtime.env", "ExecStart=/usr/bin/node /opt/nusa/current/scripts/run-cloud-research-snapshot.js", "ReadWritePaths=/var/lib/nusa /var/backups/nusa"]) {
+for (const required of ["Type=oneshot", "User=nusa", "Group=nusa", "NoNewPrivileges=true", "ProtectSystem=strict", "ProtectHome=true", "WorkingDirectory=/opt/nusa/current", "EnvironmentFile=/etc/nusa/cloud-runtime.env", "ExecStart=/usr/bin/node /opt/nusa/current/scripts/run-cloud-research-snapshot.js", "ReadWritePaths=/var/lib/nusa /var/backups/nusa", "MemoryMax=560M", "Nice=19"]) {
   if (!researchUnit.includes(required)) fail(`Research unit missing ${required}`);
 }
 if (/ExecStart=.*research-real-market-run\.js/.test(researchUnit)) fail("Research systemd must use the canonical snapshot runner");

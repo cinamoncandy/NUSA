@@ -8,6 +8,7 @@ import { FileResearchRunReplaySnapshotStore } from "../../desktop/src/cloud/rese
 import { readCloudRuntimeConfig } from "./cloudRuntimeConfig";
 import { recordRuntimeFailure } from "./runtimeFailureRecord";
 import { ResearchSnapshotRefresher } from "./researchSnapshotRefresher";
+import { retiredPaperAccountIds, retirePaperAccounts } from "./paperAccountRetirement";
 import { OwnerBaselinePaperBindingProvider, ownerBaselineStrategyEnabled } from "./ownerBaselinePaperStrategy";
 import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { SqliteCloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
@@ -67,6 +68,13 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   const config = readCloudRuntimeConfig(env);
   const closedLearningConfig = readClosedLearningProductionConfig(env, config.cloudStateDbPath);
   const database = new SqliteDatabase(config.cloudStateDbPath);
+  if (config.paperInitialCapitalKrw !== undefined) {
+    const retired = retiredPaperAccountIds(env);
+    if (retired.length > 0) {
+      const receipts = retirePaperAccounts(database, retired, paperAccountIdForCapital(config.paperInitialCapitalKrw), { stateDbPath: config.cloudStateDbPath });
+      for (const receipt of receipts) console.log(`[paper-account] retired ${receipt.accountId}: ${JSON.stringify(receipt.deletedRows)}`);
+    }
+  }
   const snapshots = new SqliteCloudDashboardSnapshotRepository(database);
   const learningLedger = new SqliteEvolutionLearningLedger(database);
   const challengerBindings = new PaperChallengerBindingLedger(learningLedger);
