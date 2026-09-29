@@ -1,6 +1,6 @@
 id: WO-AUTOPILOT-20260929-WORKFLOW-ACTIONABILITY
 title: "Bind workflow repair to exact run and preserve ready Core issue progression"
-status: READY_FOR_EXACT_HEAD_CI
+status: FINAL_LOCAL_VALIDATION
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -23,6 +23,7 @@ acceptance:
   - "Unrelated failed workflow does not override successful canonical CI and a ready Core issue."
   - "Stale/malformed run metadata fails closed."
   - "Provider wait, dedupe and active WIP protections remain effective."
+  - "Two concurrent CI failure events with different run IDs but the same workflow, main SHA and conclusion dispatch only one logical repair."
 verification_commands:
   - "pnpm run build"
   - "node --test dist/apps/autopilot/src/scheduledEvolutionCoding.test.js dist/apps/autopilot/src/scheduledRuntime.failureRouting.test.js"
@@ -33,13 +34,13 @@ verification_commands:
   - "pnpm run test"
   - "git diff --check"
 verification_results:
-  focused_tests: "PASS 20/20"
+  focused_tests: "PASS 30/30, including distinct-run same-logical-work concurrent replay suppression"
   build: PASS
   validate_full: PASS
   security_gate: "PASS; 0 secrets, 0 unmitigated findings"
   typecheck: PASS
   lint: "PASS; 13 pre-existing warnings, 0 errors"
-  full_tests: "PASS; clean-head isolated suite 1,090 files"
+  full_tests: "PASS before final replay regression; clean-head rerun required after final regression"
   exact_head_ci: PENDING
 safety:
   liveAuthority: NONE

@@ -187,6 +187,54 @@ test("concurrent same-main logical issue work dispatches once and suppresses the
   assert.equal(new Set(acquiredKeys).size, 1);
 });
 
+test("concurrent replayed CI failures with distinct run ids dispatch one logical repair", async () => {
+  const seen = new Set<string>();
+  const acquiredKeys: string[] = [];
+  let dispatches = 0;
+  const candidate = (id: number) => ({
+    id,
+    name: "CI",
+    status: "completed",
+    conclusion: "failure",
+    head_branch: "main",
+    head_sha: SHA,
+    event: "push",
+    completed_at: new Date(NOW - 1_000).toISOString(),
+  });
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    const run = url.match(/\/actions\/runs\/(34571220135|34571220472)$/);
+    if (run) return new Response(JSON.stringify({
+      id: Number(run[1]), path: ".github/workflows/ci.yml", head_branch: "main", head_sha: SHA,
+      repository: { full_name: "cinamoncandy/NUSA" }, status: "completed", conclusion: "failure", event: "push",
+    }), { status: 200, headers: { "content-type": "application/json" } });
+    if (url.match(/\/actions\/runs\/(34571220135|34571220472)\/jobs\?/)) return new Response(JSON.stringify({ jobs: [{
+      name: "validation",
+      steps: [
+        { name: "Install locked dependencies", conclusion: "success" },
+        { name: "Preflight", conclusion: "success" },
+        { name: "Build", conclusion: "success" },
+        { name: "Read-only MCP gateway regression", conclusion: "failure" },
+      ],
+    }] }), { status: 200, headers: { "content-type": "application/json" } });
+    if (url.endsWith("/branches/main")) return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200, headers: { "content-type": "application/json" } });
+    if (url.endsWith("/dispatches")) {
+      dispatches += 1;
+      return new Response(null, { status: 204 });
+    }
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+  const common = { now: NOW, repository: "cinamoncandy/NUSA", mainSha: SHA, backlogIssues: [], openPulls: [] } as const;
+  const [first, replay] = await Promise.all([
+    runScheduledEvolutionCoding({ NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace(seen, acquiredKeys) }, { ...common, candidates: [candidate(34571220135)], workflowRunId: 34571220135 }, fetchImpl),
+    runScheduledEvolutionCoding({ NUSA_GITHUB_TOKEN: "token", NUSA_EXECUTION_COORDINATOR: namespace(seen, acquiredKeys) }, { ...common, candidates: [candidate(34571220472)], workflowRunId: 34571220472 }, fetchImpl),
+  ]);
+  assert.deepEqual([first.status, replay.status].sort(), ["DUPLICATE_SUPPRESSED", "EXECUTION_ACCEPTED"]);
+  assert.equal(dispatches, 1);
+  assert.equal(new Set(acquiredKeys).size, 1);
+  assert.match(acquiredKeys[0]!, /gha:ci:/);
+});
+
 
 test("issue that gained an open PR after discovery is suppressed by the dispatch-time re-read", async () => {
   const acquiredKeys: string[] = [];
