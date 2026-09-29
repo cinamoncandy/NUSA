@@ -112,7 +112,7 @@ export interface ResearchRunRobustnessEvidence {
   readonly candidateCostStress: readonly ResearchRunCandidateCostStressEvidence[];
 }
 
-interface ParameterRobustnessResultInput {
+export interface ParameterRobustnessResultInput {
   readonly status?: unknown;
   readonly requestId?: unknown;
   readonly hashes?: {
@@ -172,7 +172,7 @@ interface ParameterRobustnessResultInput {
   };
 }
 
-interface CostStressScenarioProjectionInput {
+export interface CostStressScenarioProjectionInput {
   readonly scenario?: {
     readonly id?: unknown;
     readonly feeRate?: unknown;
@@ -313,30 +313,10 @@ function uniqueSorted(values: readonly string[], code: string): readonly string[
   return Object.freeze(sorted);
 }
 
-function parseParameterRobustness(
-  input: ParameterRobustnessResultInput,
-  datasetId: string,
-  datasetContentSha256: string,
-): ResearchRunParameterRobustnessEvidence {
-  if (input.status !== "PASS" || input.verification?.status !== "PASS") {
-    throw new ResearchRunRobustnessEvidenceError("PARAMETER_ROBUSTNESS_NOT_VERIFIED", "parameter robustness must pass independent verification");
-  }
-  const requestId = requiredText(input.requestId, "PARAMETER_ROBUSTNESS_REQUEST_ID_MISSING");
-  const requestSha256 = hash(input.hashes?.requestSha256, "PARAMETER_ROBUSTNESS_REQUEST_HASH_INVALID");
-  const resultDatasetSha256 = hash(input.dataset?.datasetContentSha256, "PARAMETER_ROBUSTNESS_DATASET_HASH_INVALID");
-  const provenanceDatasetSha256 = hash(input.provenance?.datasetContentSha256, "PARAMETER_ROBUSTNESS_PROVENANCE_HASH_INVALID");
-  if (resultDatasetSha256 !== datasetContentSha256 || provenanceDatasetSha256 !== datasetContentSha256) {
-    throw new ResearchRunRobustnessEvidenceError("PARAMETER_ROBUSTNESS_DATASET_MISMATCH", "parameter robustness is bound to a different dataset");
-  }
-  const provenanceId = requiredText(input.provenance?.datasetId, "PARAMETER_ROBUSTNESS_DATASET_ID_MISSING");
-  if (provenanceId !== datasetId) {
-    throw new ResearchRunRobustnessEvidenceError("PARAMETER_ROBUSTNESS_DATASET_ID_MISMATCH", "parameter robustness dataset id does not match the canonical run");
-  }
-  const referencesInput = input.references;
-  if (!Array.isArray(referencesInput) || referencesInput.length === 0) {
-    throw new ResearchRunRobustnessEvidenceError("PARAMETER_ROBUSTNESS_REFERENCES_MISSING", "parameter robustness references are required");
-  }
-  const references = referencesInput.map((reference): ResearchRunParameterRobustnessReference => {
+function parseParameterRobustnessReferences(
+  referencesInput: NonNullable<ParameterRobustnessResultInput["references"]>,
+): ResearchRunParameterRobustnessReference[] {
+  return referencesInput.map((reference): ResearchRunParameterRobustnessReference => {
     const source = requiredText(reference.source, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID");
     const assessment = requiredText(reference.assessment, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID");
     const referenceReturn = optionalFinite(reference.referenceReturn, "PARAMETER_ROBUSTNESS_REFERENCE_INVALID", "referenceReturn");
@@ -384,6 +364,44 @@ function parseParameterRobustness(
     || (left.candidateKey ?? "").localeCompare(right.candidateKey ?? "")
     || (left.shortWindow ?? 0) - (right.shortWindow ?? 0)
     || (left.longWindow ?? 0) - (right.longWindow ?? 0));
+}
+
+/**
+ * The references digest the verifier recomputes: references normalised and ordered exactly as they
+ * are stored. A producer that binds legacy SMA references to candidate identities after the
+ * independent verifier passed must re-seal them with this digest, or every run fails with
+ * PARAMETER_ROBUSTNESS_RESULT_HASH_MISMATCH.
+ */
+export function canonicalParameterRobustnessReferencesSha256(
+  references: NonNullable<ParameterRobustnessResultInput["references"]>,
+): string {
+  return canonicalHash(parseParameterRobustnessReferences(references));
+}
+
+function parseParameterRobustness(
+  input: ParameterRobustnessResultInput,
+  datasetId: string,
+  datasetContentSha256: string,
+): ResearchRunParameterRobustnessEvidence {
+  if (input.status !== "PASS" || input.verification?.status !== "PASS") {
+    throw new ResearchRunRobustnessEvidenceError("PARAMETER_ROBUSTNESS_NOT_VERIFIED", "parameter robustness must pass independent verification");
+  }
+  const requestId = requiredText(input.requestId, "PARAMETER_ROBUSTNESS_REQUEST_ID_MISSING");
+  const requestSha256 = hash(input.hashes?.requestSha256, "PARAMETER_ROBUSTNESS_REQUEST_HASH_INVALID");
+  const resultDatasetSha256 = hash(input.dataset?.datasetContentSha256, "PARAMETER_ROBUSTNESS_DATASET_HASH_INVALID");
+  const provenanceDatasetSha256 = hash(input.provenance?.datasetContentSha256, "PARAMETER_ROBUSTNESS_PROVENANCE_HASH_INVALID");
+  if (resultDatasetSha256 !== datasetContentSha256 || provenanceDatasetSha256 !== datasetContentSha256) {
+    throw new ResearchRunRobustnessEvidenceError("PARAMETER_ROBUSTNESS_DATASET_MISMATCH", "parameter robustness is bound to a different dataset");
+  }
+  const provenanceId = requiredText(input.provenance?.datasetId, "PARAMETER_ROBUSTNESS_DATASET_ID_MISSING");
+  if (provenanceId !== datasetId) {
+    throw new ResearchRunRobustnessEvidenceError("PARAMETER_ROBUSTNESS_DATASET_ID_MISMATCH", "parameter robustness dataset id does not match the canonical run");
+  }
+  const referencesInput = input.references;
+  if (!Array.isArray(referencesInput) || referencesInput.length === 0) {
+    throw new ResearchRunRobustnessEvidenceError("PARAMETER_ROBUSTNESS_REFERENCES_MISSING", "parameter robustness references are required");
+  }
+  const references = parseParameterRobustnessReferences(referencesInput);
   const aggregateInput = input.aggregate;
   if (aggregateInput == null || typeof aggregateInput !== "object") {
     throw new ResearchRunRobustnessEvidenceError("PARAMETER_ROBUSTNESS_AGGREGATE_MISSING", "parameter robustness aggregate is required");
@@ -510,6 +528,22 @@ function parseCostStressScenario(
       "COST_STRESS_WARNING_INVALID",
     ),
   });
+}
+
+/**
+ * The result digest the verifier recomputes: scenarios normalised exactly as parseCostStress stores
+ * them (unknown fields such as a display label dropped, absent optional metrics omitted, warnings
+ * de-duplicated and sorted, scenarios ordered by id). Producers must hash this form, not their raw
+ * projection, or every run fails with COST_STRESS_RESULT_HASH_MISMATCH.
+ */
+export function canonicalCostStressResultSha256(
+  scenarios: readonly CostStressScenarioProjectionInput[],
+  selectionMode: string,
+): string {
+  const mode = requiredText(selectionMode, "COST_STRESS_SELECTION_MODE_MISSING") as CandidateSelectionMode;
+  return canonicalHash(scenarios
+    .map((scenario) => parseCostStressScenario(scenario, mode))
+    .sort((left, right) => left.scenario.id.localeCompare(right.scenario.id)));
 }
 
 function parseCostStress(

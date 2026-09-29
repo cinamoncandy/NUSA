@@ -87,6 +87,12 @@ current_mobile_paper_tabs_icon:
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+current_research_evidence_digest_convergence:
+  work_order: WO-RESEARCH-20260929-EVIDENCE-DIGEST-CONVERGENCE
+  status: READY_FOR_REVIEW
+  branch: claude/nusa-repository-j93sd8-research-cost-hash
+  authority_impact: none
+  remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release
 current_runtime_restart_forensics:
   work_order: WO-OPS-20260928-RUNTIME-RESTART-FORENSICS
   status: READY_FOR_REVIEW

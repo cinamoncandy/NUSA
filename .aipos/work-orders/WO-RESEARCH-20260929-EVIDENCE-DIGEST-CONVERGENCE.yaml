@@ -1,0 +1,30 @@
+id: WO-RESEARCH-20260929-EVIDENCE-DIGEST-CONVERGENCE
+title: "Real-market Research runs fail on robustness evidence digests"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-research-cost-hash
+authority_impact: none
+objective: "Every scripts/run-cloud-research-snapshot.js run exits 1, so no new Research replay snapshot or challenger evidence is produced. Producers hash raw projections while the robustness finalizer recomputes digests over its normalised stored form."
+scope:
+  - "Cost stress: the projection seals resultSha256 with canonicalCostStressResultSha256, which normalises scenarios exactly as parseCostStress stores them (display label dropped, optional metrics omitted, warnings de-duplicated and sorted, ordered by id). Previously every run failed with COST_STRESS_RESULT_HASH_MISMATCH."
+  - "Parameter robustness: after the independent verifier proves the raw references, the runner binds legacy SMA references to candidate identities and re-seals referencesSha256 with canonicalParameterRobustnessReferencesSha256 over the bound, normalised references. Previously every run failed with PARAMETER_ROBUSTNESS_RESULT_HASH_MISMATCH."
+exclusions:
+  - "No change to qualification thresholds, gates, promotion, PAPER execution, risk, credentials or LIVE authority. The finalizer's checks are unchanged; only producers now emit the digest it verifies."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - pnpm run validate
+  - node scripts/aipos-work-order-index.js --check
+  - node --test tests/*.test.js
+  - node scripts/run-tests-isolated.js
+evidence:
+  - "tests/research-cost-stress-projection.test.js: the new real-runner scenario test fails on the previous projection (1 fail) and passes with the fix."
+  - "Local end-to-end: node scripts/run-cloud-research-snapshot.js on the fixed build exits 0 and writes research-replay-snapshots.json; before the fix it exited 1 with each mismatch in turn."
+  - "Local: the Cloud PAPER runtime started on that snapshot stayed up for 100s (one supervisor start, 483 decisions, lastError null)."
+residual: "The Oracle host's Research timer resumes producing snapshots only after this is released."

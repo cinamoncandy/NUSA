@@ -18,9 +18,10 @@ const { buildResearchRunPboEvidence } = require("../dist/apps/desktop/src/cloud/
 const { buildResearchRunDsrEvidence } = require("../dist/apps/desktop/src/cloud/researchRunDsrEvidence.js");
 const { runExecutionCostStress } = require("../dist/apps/desktop/src/strategy/executionCostStress.js");
 const { projectExecutionCostStress } = require("./lib/research-cost-stress-projection.js");
+const { bindLegacySmaReferences } = require("./lib/research-reference-binding.js");
 const { runParameterRobustnessRequest } = require("./lib/parameter-robustness-runner.js");
 const { verifyParameterRobustnessResult } = require("./lib/parameter-robustness-verifier.js");
-const { buildResearchRunRobustnessEvidence } = require("../dist/apps/desktop/src/cloud/researchRunRobustnessEvidence.js");
+const { buildResearchRunRobustnessEvidence, canonicalParameterRobustnessReferencesSha256 } = require("../dist/apps/desktop/src/cloud/researchRunRobustnessEvidence.js");
 const { buildResearchHypothesis } = require("../dist/apps/desktop/src/cloud/researchHypothesis.js");
 const { createResearchHypothesis } = require("../dist/packages/contracts/src/researchHypothesisContract.js");
 const { buildResearchRunTimeline } = require("../dist/apps/desktop/src/cloud/researchRunTimeline.js");
@@ -680,25 +681,25 @@ async function main() {
   };
   // Legacy SMA references predate family-generic candidateKey transport. Bind them deterministically
   // to the exact precommitted candidate identity before the finalizer consumes them.
+  const candidateBoundReferences = bindLegacySmaReferences({
+    references: parameterRobustnessEvidence.references,
+    // verifyParameterRobustnessResult recomputed and confirmed this digest (status PASS above).
+    verifiedReferencesSha256: parameterRobustness.hashes.referencesSha256,
+    familyId: definition.familyId,
+    smaFamilyId: SMA_FAMILY_ID,
+    candidateIdFor
+  });
+  // bindLegacySmaReferences authenticated the bound references against the independently verified
+  // raw digest. The finalizer stores and hashes the bound, normalised form, so re-seal that digest.
+  const boundReferencesSha256 = canonicalParameterRobustnessReferencesSha256(candidateBoundReferences);
   const candidateBoundParameterRobustnessEvidence = {
     ...parameterRobustnessEvidence,
-    references: parameterRobustnessEvidence.references.map((reference) => {
-      if (reference.candidateKey != null) return reference;
-      if (
-        definition.familyId === SMA_FAMILY_ID
-        && Number.isFinite(reference.shortWindow)
-        && Number.isFinite(reference.longWindow)
-      ) {
-        const parameters = { shortPeriod: reference.shortWindow, longPeriod: reference.longWindow };
-        return {
-          ...reference,
-          familyId: definition.familyId,
-          candidateKey: candidateIdFor(definition.familyId, parameters),
-          parameters
-        };
-      }
-      return reference;
-    })
+    hashes: { ...parameterRobustnessEvidence.hashes, referencesSha256: boundReferencesSha256 },
+    verification: {
+      ...parameterRobustnessEvidence.verification,
+      hashes: { ...parameterRobustnessEvidence.verification.hashes, referencesSha256: boundReferencesSha256 }
+    },
+    references: candidateBoundReferences
   };
   const candidateCostStressEvidence = candidates.map((candidate) => {
     const specification = candidateSpecifications.get(candidate.id);
