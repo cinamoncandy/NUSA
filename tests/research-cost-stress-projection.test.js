@@ -67,3 +67,20 @@ test("cost-stress result digest changes when scenario outcomes change", () => {
   const second = projectExecutionCostStress(stress({ baseline: changedScenario, scenarios: [changedScenario] }));
   assert.notEqual(first.identity.resultSha256, second.identity.resultSha256);
 });
+
+test("the projected result digest is the one the robustness verifier recomputes for real runner scenarios", () => {
+  const { canonicalCostStressResultSha256 } = require("../dist/apps/desktop/src/cloud/researchRunRobustnessEvidence.js");
+  // The real runner labels each scenario and emits them in grid order, not id order; the verifier
+  // drops the label and orders by id. Hashing the raw projection failed every research run with
+  // COST_STRESS_RESULT_HASH_MISMATCH.
+  const labelled = (id, fee, warnings) => ({ ...scenario, scenario: { id, label: `${id} label`, feeRate: fee, spreadBps: 5, slippageBps: 5 }, warnings });
+  const scenarios = [labelled("SEVERE", 0.002, ["b", "a", "a"]), labelled("BASE", 0.0005, []), labelled("MODERATE", 0.001, [])];
+  const projected = projectExecutionCostStress(stress({ baseline: scenarios[1], scenarios }));
+  assert.equal(
+    projected.identity.resultSha256,
+    canonicalCostStressResultSha256([...projected.scenarios].reverse(), "FIX_BASELINE_SELECTION"),
+    "digest must not depend on scenario order or display-only fields",
+  );
+  const withoutLabels = projected.scenarios.map((entry) => ({ ...entry, scenario: { ...entry.scenario, label: undefined } }));
+  assert.equal(projected.identity.resultSha256, canonicalCostStressResultSha256(withoutLabels, "FIX_BASELINE_SELECTION"));
+});
