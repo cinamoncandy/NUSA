@@ -4,7 +4,7 @@ status: READY_FOR_REVIEW
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
-implementation_branch: claude/nusa-repository-j93sd8-autopilot-codex
+implementation_branch: claude/nusa-repository-j93sd8-codex-commit-first
 authority_impact: none
 owner_decision: "2026-09-29 owner: autopilot must actually develop, using ChatGPT (Codex) usage from one specific account (the one logged in on the evening of 2026-09-28), not the account the owner uses for interactive Codex work and not Cloudflare Workers AI."
 objective: "The last 120 scheduled autopilot cycles were all WAITING_RATE_LIMIT / waiting-provider-capacity: the Workers AI free quota is exhausted daily and shared with Audit, so the autopilot produced no code."
@@ -30,3 +30,9 @@ verification_commands:
   - node scripts/run-tests-isolated.js
 evidence:
   - "tests/autopilot-codex-coding.test.js: RESEARCH/GENERAL selection by priority; unsafe/outsider/blocked/linked/LIVE issues rejected; prompt contract; runner pinned to nusa-codex-autopilot; Codex job has no push/PR/token; usage-limit wait; validation gates ordered before PR creation; single open autopilot PR."
+recovery_log:
+  - "2026-09-29 #2388 merged. Owner logged the dedicated ChatGPT account in on nusa-codex-dev-2 and labelled only that runner nusa-codex-autopilot."
+  - "Run 36559951066: dedicated account hit its ChatGPT usage limit; the step failed red because Actions bash -e ended it before the usage-limit check. Fixed by #2389 (set +e)."
+  - "Run 36561557413 (after owner credit top-up): Codex produced a #2118 patch, but its output quoted the workflow's usage-limit text, so the loose grep discarded the patch. Fixed by #2390 (wait only on rc!=0 and the run's own ERROR line)."
+  - "Run 36563498694: Codex produced a #2118 patch that applied and passed the path boundary, but tests/autopilot-dispatch-retry.test.js runs git reset --hard HEAD on GitHub runners and dropped the staged patch mid-suite, so publish found nothing to commit. Fix (this branch): commit the patch before validation, validate that commit, and publish only the recorded validated HEAD on a clean tree."
+  - "Remaining: exact-head CI, Audit and Release merge of the commit-first fix, then one dispatch of autopilot-codex-coding that must open an autopilot/codex PR."
