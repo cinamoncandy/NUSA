@@ -1,0 +1,40 @@
+id: WO-ISSUE-2118-CI-SATURATION-WIP
+title: "Issue #2118 feed measured CI saturation into worker-pool WIP advice"
+status: REVIEW_REPAIR_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+priority: P0
+owner: autopilot
+repository: cinamoncandy/NUSA
+issue: 2118
+base_branch: main
+base_commit: 408432cf1f2860d9927fa891e2f2e510814b9723
+objective: "Make verified CI saturation a direct fail-closed input to the advisory worker-pool WIP limit without changing mandatory exact-head, Audit, or Release gates."
+architecture_impact:
+  acknowledged: true
+  analysis: "Extends the existing advisory concurrency evidence contract only; it introduces no scheduler, queue, mutation path, or authority change."
+scope:
+  - explicit_bounded_ci_saturation_input
+  - decrease_wip_under_verified_ci_saturation
+  - require_ci_headroom_before_wip_expansion
+  - legacy_ci_utilization_compatibility
+prohibited:
+  - workflow_changes
+  - required_gate_reduction
+  - live_execution
+  - broker_or_production_mutation
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  mutationAllowed: false
+acceptance:
+  - verified high CI saturation recommends one-step WIP reduction
+  - verified low CI saturation is required before WIP expansion
+  - malformed CI saturation fails closed to HOLD
+  - the advisor remains non-mutating
+  - independent Audit and Release gates remain unchanged
+validation:
+  status: REVIEW_REPAIR_LOCAL_PASS
+  commands: "Autopilot publish workflow and initial PR #2399 CI passed. Review repair: local preflight, TypeScript build, 14/14 focused tests, validate, security gate, AIPOS drift, and diff check passed; fresh exact-head CI pending."
+  local_heavy_commands: NOT_RUN_PER_SHARED_HOST_GUARD
+next: "Update PR #2399 and collect fresh exact-head CI/Audit/Release evidence; baseline/after p50/p95 optimization remains a later issue increment."
