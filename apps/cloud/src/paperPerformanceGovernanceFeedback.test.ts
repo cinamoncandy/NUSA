@@ -50,7 +50,7 @@ const ledgerPerformance = Object.freeze({
 }) as unknown as PaperPerformanceFromLedgerResult;
 
 test("binds exact ledger performance identity into deterministic Governance feedback", () => {
-  const input = { now: 200, identity, validation: undefined, paper: undefined, votes: [], ledgerPerformance };
+  const input = { now: 200, identity, validation: undefined, paper: undefined, votes: [], currentDataFingerprint: "f".repeat(64), ledgerPerformance };
   const first = evaluatePaperPerformanceGovernanceFeedback(input);
   const replay = evaluatePaperPerformanceGovernanceFeedback(input);
   assert.equal(first.decision.action, "REJECT");
@@ -68,6 +68,7 @@ test("fails closed on Ledger or strategy identity drift", () => {
     validation: undefined,
     paper: undefined,
     votes: [],
+    currentDataFingerprint: "f".repeat(64),
     ledgerPerformance,
   }), /IDENTITY_MISMATCH/);
   const badLedger = { ...ledgerPerformance, ledgerSource: { ledgerFingerprintSha256: "f".repeat(64) } } as unknown as PaperPerformanceFromLedgerResult;
@@ -77,6 +78,20 @@ test("fails closed on Ledger or strategy identity drift", () => {
     validation: undefined,
     paper: undefined,
     votes: [],
+    currentDataFingerprint: "f".repeat(64),
     ledgerPerformance: badLedger,
   }), /LEDGER_IDENTITY_MISMATCH/);
+});
+
+
+test("fails closed when canonical current-data fingerprint is missing", () => {
+  assert.throws(() => evaluatePaperPerformanceGovernanceFeedback({
+    now: 200,
+    identity,
+    validation: undefined,
+    paper: undefined,
+    votes: [],
+    currentDataFingerprint: "",
+    ledgerPerformance,
+  }), /currentDataFingerprint is invalid/);
 });
