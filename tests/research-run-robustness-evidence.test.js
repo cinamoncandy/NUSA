@@ -356,3 +356,14 @@ test("tampered cost-stress grid hash or derived identity is rejected", () => {
       && error.code === "COST_STRESS_IDENTITY_MISMATCH",
   );
 });
+
+test("League replays legacy robustness evidence captured before candidate-bound cost stress", () => {
+  // Oracle PAPER restart loop (2026-09-28): replaying a snapshot captured before #1991 threw
+  // "options.robustnessEvidence.candidateCostStress is not iterable" inside the closed-learning
+  // scheduler, which stopped the runtime on every start.
+  const { candidateCostStress: _omitted, ...legacy } = buildResearchRunRobustnessEvidence(rawEvidence());
+  const candidates = [candidate("sma-5-20"), candidate("sma-8-20")];
+  const league = buildResearchRunLeague(candidates, { robustnessEvidence: legacy });
+  assert.deepEqual(league.standing, buildResearchRunLeague(candidates).standing);
+  assert.ok(league.reasons.includes("COST_STRESS_EVIDENCE_PRESENT"));
+});
