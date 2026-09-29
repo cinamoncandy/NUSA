@@ -1,6 +1,6 @@
 id: WO-ISSUE-2118-CI-SATURATION-WIP
 title: "Issue #2118 feed measured CI saturation into worker-pool WIP advice"
-status: IMPLEMENTED_PENDING_WORKFLOW_VALIDATION
+status: REVIEW_REPAIR_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
 priority: P0
 owner: autopilot
 repository: cinamoncandy/NUSA
@@ -34,7 +34,7 @@ acceptance:
   - the advisor remains non-mutating
   - independent Audit and Release gates remain unchanged
 validation:
-  status: DELEGATED_TO_AUTOPILOT_PUBLISH_WORKFLOW
-  commands: "Workflow runs build, typecheck, validate, work-order index check, tests/*.test.js, and isolated co-located tests on separate hardware."
+  status: REVIEW_REPAIR_LOCAL_PASS
+  commands: "Autopilot publish workflow and initial PR #2399 CI passed. Review repair: local preflight, TypeScript build, 14/14 focused tests, validate, security gate, AIPOS drift, and diff check passed; fresh exact-head CI pending."
   local_heavy_commands: NOT_RUN_PER_SHARED_HOST_GUARD
-next: "Publish workflow must validate this uncommitted patch on separate hardware and collect exact-head CI evidence; baseline/after p50/p95 optimization remains a later issue increment."
+next: "Update PR #2399 and collect fresh exact-head CI/Audit/Release evidence; baseline/after p50/p95 optimization remains a later issue increment."

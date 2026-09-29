@@ -163,6 +163,17 @@ test("verified CI saturation constrains worker-pool WIP independently of legacy 
   assert.equal(malformed.reason, "insufficient-or-invalid-evidence");
 });
 
+test("measured saturation reaches the production evaluation boundary and malformed input holds", () => {
+  const saturated = evaluateWorkerPoolConcurrency(window({ currentWip: 2, ciSaturation: 0.9 }));
+  assert.equal(saturated.action, "DECREASE_BY_ONE");
+  assert.equal(saturated.recommendedWip, 1);
+
+  const malformed = summariseWorkerThroughput(window({ ciSaturation: Number.NaN }));
+  assert.equal(malformed.confidence, "UNKNOWN");
+  assert.ok(malformed.unmeasured.includes("ci-saturation"));
+  assert.equal(evaluateWorkerPoolConcurrency(window({ currentWip: 2, ciSaturation: Number.NaN })).action, "HOLD");
+});
+
 test("this repository's actually measured churn does not justify raising concurrency", () => {
   // Measured from 40 consecutive ci.yml runs, 2026-09-20 08:04-11:20Z: 18% of runs cancelled and
   // 11% failed, so 29% ended without a verified result, and 11 branches ran CI two to four times.
