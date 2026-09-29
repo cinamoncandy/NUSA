@@ -74,6 +74,8 @@ test("the host guard keeps Codex off the shared Oracle host whenever PAPER needs
   };
   assert.equal(guard("start", 600000, "0"), 0, "enough memory and no release: Codex may start");
   assert.equal(guard("start", 300000, "0"), 1, "low memory defers the start");
+  assert.equal(guard("start", 400000, "0"), 0, "the owner-set 350 MiB start threshold admits a host with ~390 MiB free");
+  assert.equal(guard("start", 350000, "0"), 1, "below 350 MiB the start is still deferred");
   assert.equal(guard("start", 600000, "1"), 1, "a queued or running PAPER release defers the start");
   assert.equal(guard("watch", 300000, "0"), 0, "above the floor Codex keeps running");
   assert.equal(guard("watch", 150000, "0"), 1, "below the floor Codex is stopped");

@@ -145,9 +145,9 @@ current_paper_retire_legacy_account:
 current_autopilot_codex_dedicated_account:
   work_order: WO-AUTOPILOT-20260929-CODEX-DEDICATED-ACCOUNT
   status: READY_FOR_REVIEW
-  branch: claude/nusa-repository-j93sd8-codex-host-guard
+  branch: claude/nusa-repository-j93sd8-codex-guard-350
   authority_impact: none
-  remaining: exact-head-CI_then-Audit_then-Release-merge-of-host-guard_then-one-autopilot-codex-coding-dispatch-must-open-an-autopilot-codex-PR-without-PAPER-502
+  remaining: exact-head-CI_then-Audit_then-Release-merge-of-350MiB-start-threshold_then-one-autopilot-codex-coding-dispatch-must-open-an-autopilot-codex-PR-without-PAPER-502
 current_host_memory_research_limits:
   work_order: WO-OPS-20260929-HOST-MEMORY-RESEARCH-LIMITS
   status: READY_FOR_REVIEW

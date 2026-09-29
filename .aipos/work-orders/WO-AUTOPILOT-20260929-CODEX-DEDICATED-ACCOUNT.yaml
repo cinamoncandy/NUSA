@@ -4,7 +4,7 @@ status: READY_FOR_REVIEW
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
-implementation_branch: claude/nusa-repository-j93sd8-codex-host-guard
+implementation_branch: claude/nusa-repository-j93sd8-codex-guard-350
 authority_impact: none
 owner_decision: "2026-09-29 owner: autopilot must actually develop, using ChatGPT (Codex) usage from one specific account (the one logged in on the evening of 2026-09-28), not the account the owner uses for interactive Codex work and not Cloudflare Workers AI."
 objective: "The last 120 scheduled autopilot cycles were all WAITING_RATE_LIMIT / waiting-provider-capacity: the Workers AI free quota is exhausted daily and shared with Audit, so the autopilot produced no code."
@@ -38,3 +38,4 @@ recovery_log:
   - "Remaining: exact-head CI, Audit and Release merge of the commit-first fix, then one dispatch of autopilot-codex-coding that must open an autopilot/codex PR."
   - "2026-09-29 incident: Codex run 36571141266 on nusa-codex-dev-2 overlapped Oracle PAPER release 36568651653 on the same 1 GB host; the host slowed to minutes per step, release and rollback readiness both failed and /health returned 502 from ~12:58 until the 9f433315 redeploy (~13:55 UTC). Codex run cancelled."
   - "Owner decision (option 2): keep Codex on the shared host but PAPER wins. scripts/autopilot-codex-host-guard.sh: start needs MemAvailable >= 450 MiB and no queued/running Oracle PAPER release (API failure defers); during the run Codex is stopped and its patch discarded when MemAvailable < 200 MiB or a PAPER release starts; Codex runs under nice 19 / ionice idle."
+  - "Overnight 2026-09-29: the guard deferred every run (MemAvailable 357 MiB at 15:30, 399 MiB at 18:41 UTC) while PAPER stayed healthy. Owner decision 2026-09-30: lower the start threshold to 350 MiB; the 200 MiB in-run floor, PAPER-release deferral and nice/ionice limits are unchanged."
