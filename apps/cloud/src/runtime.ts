@@ -45,6 +45,8 @@ import { PaperLearningEventRecorder, paperLearningCycleId } from "./paperLearnin
 import { createJevMarketMicrostructureShadowObserverFromEnvironment } from "./ai/jevMarketMicrostructureShadow";
 import { buildPaperLearningReadOnlyProjection, classifyPaperLearningRuntimeStatus } from "./paperLearningReadOnlyProjection";
 import { readPaperRuntimeSupervisorProjection } from "./paperRuntimeSupervisorProjection";
+import { projectPaperRuntimeHealth } from "./paperRuntimeHealth";
+import { DEFAULT_UPBIT_TICKER_STALE_WINDOW_MS } from "./upbitTickerObservation";
 import type { ShadowObservabilitySnapshot } from "../../../packages/contracts/src/shadowObservabilityReadOnly";
 import { validateShadowObservabilitySnapshot } from "../../../packages/contracts/src/shadowObservabilityReadOnly";
 import { createDormantLiveAuthority } from "./liveReadinessGate";
@@ -501,6 +503,11 @@ export function startCloudRuntime(
       lastError: heartbeat.lastError,
       ...(previousStop === undefined ? {} : { previousStop })
     }),
+    runtimeHealth: () => projectPaperRuntimeHealth(
+      Object.freeze({ ...heartbeat }),
+      Date.now(),
+      { heartbeatStaleAfterMs: 6_000, marketEventStaleAfterMs: DEFAULT_UPBIT_TICKER_STALE_WINDOW_MS },
+    ),
     ...(config.host ? { host: config.host } : {}),
     tokenVerifier,
     ...(userAccessRepository == null ? {} : { userAccessRepository }),
