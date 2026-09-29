@@ -62,6 +62,8 @@ export interface PaperLearningScreenState {
   readonly status: "RUNNING" | "PAUSED" | "HALTED" | "ERROR";
   /** Explicit provenance of `timeline`. Never inferred from `status`. */
   readonly dataSource: PaperLearningDataSource;
+  /** Actual upstream PAPER server condition, preserved even when local read-only rows are shown. */
+  readonly serverSource: Exclude<PaperLearningDataSource, "LOCAL_FALLBACK">;
   readonly latestMarket: string | null;
   readonly latestStrategy: { readonly strategyId: string | null; readonly candidateId: string | null; readonly championId: string | null };
   readonly latestSignal: PaperLearningUiEvent["signal"] | null;
@@ -142,6 +144,7 @@ export function buildPaperLearningScreen(
     currentCycle: current?.cycleId ?? null,
     status: runtimeStatus,
     dataSource,
+    serverSource,
     latestMarket: current?.market ?? null,
     latestStrategy: freeze({ strategyId: latestIdentity?.strategyId ?? null, candidateId: latestIdentity?.candidateId ?? null, championId: latestIdentity?.championId ?? null }),
     latestSignal: timeline.find((event) => event.signal)?.signal ?? null,

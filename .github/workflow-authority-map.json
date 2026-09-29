@@ -1,5 +1,12 @@
 {
   "jobs": {
+    "android-design-acceptance.yml:exact-head-design-verdict": {
+      "write": [
+        "statuses"
+      ],
+      "secrets": false,
+      "environment": null
+    },
     "android-product-ux-acceptance.yml:touch-visual": {
       "write": [],
       "secrets": false,

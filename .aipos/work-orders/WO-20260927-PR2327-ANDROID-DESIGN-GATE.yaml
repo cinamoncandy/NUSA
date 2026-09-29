@@ -1,0 +1,56 @@
+id: WO-20260927-PR2327-ANDROID-DESIGN-GATE
+title: "PR #2327 Android UI and trusted design-gate convergence"
+status: IN_PROGRESS
+owner: app-android-uiux
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 9f433315ba573fdefe3b6e36490577bfe1e9ee90
+implementation_branch: uiux/post-2262-visual-acceptance
+pull_request: 2327
+objective: "Converge the existing Android UI PR without false-green states and harden its design evidence so visual acceptance is exact-source, trusted-main reviewed, and fail-closed."
+authority_impact: "guard_hardening_only"
+safety:
+  paper_only: true
+  live_authority: NONE
+  production_mutation_allowed: false
+  ai_authority: ZERO_AUTHORITY
+  authority_expansion: prohibited
+scope:
+  - "Korean user-facing runtime/auth/recovery/safety language and stale UI test contracts"\n  - "Actual Android renderer hierarchy: compact PAPER modes, quiet primary navigation, ribbon-based Intelligence Field, typographic MORE index"
+  - "Android Product UX exact-head checkout and screenshot/base provenance"
+  - "Design-required coverage for mobile visual resources"
+  - "Trusted-main Android Design Acceptance workflow semantics"
+  - "Fail-closed bootstrap: visual PR cannot self-bootstrap a new design authority"
+  - "Required workflow triggers for design-gate maintenance"
+out_of_scope:
+  - "new UI architecture"
+  - "new UI pull request"
+  - "LIVE activation or real-money authority"
+  - "production mutation"
+verification:
+  focused:
+    - "node --test tests/mobile-design-acceptance-gate.test.js"
+    - "node --test tests/mobile-product-v5.test.js"
+    - "node --test tests/mobile-uiux-final-residual.test.js"
+    - "node --test tests/mobile-uiux-phase1-state-architecture.test.js"
+    - "node --test tests/mobile-uiux-v3-canonical.test.js"
+    - "node --test tests/uiux-nav-chrome-closeout.test.js"
+  repository:
+    - "pnpm run validate"
+    - "fresh exact-head CI on PR #2327"
+    - "Mobile Native exact-head success"
+    - "Android Product UX Acceptance exact-head success"
+acceptance:
+  - "No stale English user-facing contract causes CI failure."
+  - "Android screenshots are built from the exact PR head and bind head/base/run identity."
+  - "Android Design Acceptance runs only from protected main and reviews the requested PR head as data."
+  - "Mobile visual resources trigger design review."
+  - "Design workflow changes trigger both Mobile Native and Android Product UX Acceptance."
+  - "Design-gate bootstrap cannot authorize the same visual PR."
+  - "AIPOS state records scope, evidence, blocker, and next canonical transition."
+  - "Galaxy physical-device acceptance remains HUMAN_ENVIRONMENT_ONLY."
+blocker:
+  code: TRUSTED_GATE_NOT_ON_MAIN
+  description: "Protected main does not yet contain android-design-acceptance.yml. PR #2327 must remain fail-closed/held until the canonical Release/design-gate owner lands the trusted gate on main and the PR is refreshed/revalidated."
+  required_external_action: "Canonical Release/design-gate owner lands the trusted Android design gate on protected main."
+next_canonical_transition: "clean latest-main reconvergence -> fresh exact-head CI/Mobile Native/Android Product UX PASS -> trusted gate present on main -> fresh trusted-main design acceptance -> Independent Audit -> release authorization -> exact-head merge -> Android release -> Galaxy physical acceptance"

@@ -20,7 +20,7 @@ test("Canonical HOME does not restore the retired Supervisor progress panel", ()
   assert.match(home, /testID="home-decision-stage"/);
   assert.match(home, /testID="home-paper-performance"/);
   assert.match(home, /testID="home-paper-learning"/);
-  assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
+  assert.match(home, /모의투자 전용 · 실거래 권한 없음 · AI 실행 권한 없음/);
 });
 
 test("Supervisor progress remains a truthful reusable read-only projection", () => {

@@ -32,7 +32,7 @@ test("Home uses the content-first command center hierarchy and keeps AI read-onl
   assert.match(source, /testID="home-now"/);
   assert.match(source, /testID="account-hero-card"/);
   assert.match(source, /PAPER EQUITY/);
-  assert.match(source, /TOTAL PNL/);
+  assert.match(source, /총 손익/);
   assert.doesNotMatch(source, />오늘</);
   assert.match(source, /DECISION BASIS/);
   assert.match(source, />NOW<\/Text>/);

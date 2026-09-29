@@ -21,7 +21,7 @@ const LABELS: Readonly<Record<MoreDestination, { readonly title: string; readonl
 export function MoreMenuView({ onOpen }: Readonly<{ onOpen: (destination: MoreDestination) => void }>) {
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="more-view">
     <Text style={styles.eyebrow}>MORE</Text>
-    <Text style={styles.title}>도구와 기록</Text>
+    <Text style={styles.title}>판단 · 자산 · 시스템</Text>
     <View style={styles.list}>
       {MORE_DESTINATIONS.map((destination, index) => <Pressable
         accessibilityRole="button"

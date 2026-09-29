@@ -11,7 +11,7 @@ test("UIUX-002 presents the canonical four-tab product navigation while preservi
   const contract = read("src/navigationContract.ts");
   assert.match(contract, /PRIMARY_DESTINATIONS = \["Home", "Paper", "Live", "More"\]/);
   assert.match(app, /<PrimaryNavigation/);
-  assert.match(app, /activeTab === "Paper" \? <PaperShadowMonitorView/);
+  assert.match(app, /activeTab === "Paper" \? <PaperLearningMonitorView/);
   assert.match(app, /activeTab === "Live" \? <LiveReadinessMonitorView/);
   assert.match(app, /activeTab === "More" \? <MoreMenuView/);
   assert.match(app, /detailSurface === "Order" \? <OrderHistoryView/);
@@ -38,6 +38,8 @@ test("mobile intelligence shell displays real AI projection and truthful scoped 
 
 test("production PAPER is supervision-only while legacy PAPER execution remains isolated and never gains LIVE authority", () => {
   const app = read("App.tsx");
+  assert.match(app, /activeTab === "Paper" \? <PaperLearningMonitorView/);
+  assert.match(app, /paperLearningOpen \? <PaperShadowMonitorView paper=\{paperLearningState\}/s);
   const trading = read("src/tradingView.tsx");
   const legacyTrading = read("src/tradingViewLegacy.tsx");
   assert.match(app, /<PaperShadowMonitorView paper=\{paperLearningState\}/s);
@@ -80,7 +82,7 @@ test("optional Cloud credential flow remains Settings-owned and never gates loca
   assert.match(settings, /label="1회용 복구 키"/);
   assert.match(settings, /6자리 코드로 복구 연결/);
   assert.doesNotMatch(experience, /bootstrap token|users:manage/);
-  assert.match(settings, /LOCAL PAPER는 연결 없이 즉시 사용할 수 있습니다/);
+  assert.match(settings, /기기 내 모의투자는 연결 없이 바로 사용할 수 있습니다/);
   assert.match(settings, /testID="settings-local-paper"/);
   assert.match(settings, /<OwnerConnectionExperience/);
   assert.match(settings, /onAuthenticateOwner=\{\(\) => \{ void requestPaperConnection\(\); \}\}/);

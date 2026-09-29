@@ -11,7 +11,7 @@ test("Issue #772 keeps public LOCAL PAPER feed independent from Cloud and privat
 
   assert.match(app, /authStatus === "CHECKING" \|\| appState !== "active"/);
   assert.match(app, /recordLocalPaperPublicMarkets\(\[ticker\]\)/);
-  assert.match(app, /getLocalPaperLearningReadiness\(\)/);
+  assert.match(app, /const paperLearningRuntimeStatus = snapshot\?\.paperLearning\?\.runtimeStatus \?\? "PAUSED"/);
   assert.match(app, /await refreshPublicMarkets\(\)\.catch\(\(\) => undefined\)/);
   assert.doesNotMatch(quotation, /Authorization/);
   assert.doesNotMatch(quotation, /credentialProvider/);

@@ -21,10 +21,13 @@ jobs:
       contents: read
       issues: read
       pull-requests: read
+      statuses: read
     outputs:
       applicable: ${{ steps.audit.outputs.applicable }}
       authority: ${{ steps.audit.outputs.authority }}
       audited_base: ${{ steps.audit.outputs.audited_base }}
+      design_required: ${{ steps.audit.outputs.design_required }}
+      design_gate_bootstrap: ${{ steps.audit.outputs.design_gate_bootstrap }}
     steps:
       - name: Validate and bind deterministic Audit authority
         id: audit
@@ -109,6 +112,34 @@ jobs:
             .status == "completed" and .conclusion == "success" and .head_sha == $head and .repository.full_name == $repo
           ' "$RUNNER_TEMP/nusa-deterministic-audit/ci.json" >/dev/null
 
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" > "$RUNNER_TEMP/nusa-deterministic-audit/pr-files-pages.json"
+          design_required="$(jq -r '
+            [.[].[]?.filename
+              | select(
+                  test("^apps/mobile/.*\\.tsx$")
+                  or test("^apps/mobile/src/(visualSystem|designSystem|navigationContract|motionSystem|mobileViewportProfile)\\.ts$")
+                  or test("^apps/mobile/(assets|android/app/src/main/res)/")
+                  or test("^apps/mobile/.*\\.(png|jpe?g|webp|svg|xml)$")
+                  or . == ".github/workflows/android-product-ux-acceptance.yml"
+                  or . == ".github/workflows/android-design-acceptance.yml"
+                )]
+            | if length > 0 then "true" else "false" end
+          ' "$RUNNER_TEMP/nusa-deterministic-audit/pr-files-pages.json")"
+          echo "design_required=$design_required" >> "$GITHUB_OUTPUT"
+
+          design_gate_bootstrap=false
+          if [ "$design_required" = "true" ]; then
+            if ! gh api "repos/$GITHUB_REPOSITORY/contents/.github/workflows/android-design-acceptance.yml?ref=$current_main" >/dev/null 2>&1; then
+              adds_design_gate="$(jq -r '[.[].[]?.filename | select(. == ".github/workflows/android-design-acceptance.yml")] | length' "$RUNNER_TEMP/nusa-deterministic-audit/pr-files-pages.json")"
+              updates_release_gate="$(jq -r '[.[].[]?.filename | select(. == ".github/workflows/autopilot-deterministic-audit-release.yml")] | length' "$RUNNER_TEMP/nusa-deterministic-audit/pr-files-pages.json")"
+              if [ "$adds_design_gate" -gt 0 ] && [ "$updates_release_gate" -gt 0 ]; then
+                gh api "repos/$GITHUB_REPOSITORY/contents/.github/workflows/android-design-acceptance.yml?ref=$REQUESTED_HEAD" >/dev/null
+                design_gate_bootstrap=true
+              fi
+            fi
+          fi
+          echo "design_gate_bootstrap=$design_gate_bootstrap" >> "$GITHUB_OUTPUT"
+
           required_workflows=(
             "CI"
             "Actual PAPER Public-Market Runtime Evidence"
@@ -117,6 +148,9 @@ jobs:
             "Restricted LIVE Transport Credential Readiness"
             "Restricted LIVE Activation Rehearsal"
           )
+          if [ "$design_required" = "true" ]; then
+            required_workflows+=("Mobile Native" "Android Product UX Acceptance")
+          fi
           required_ready=false
           for poll in $(seq 1 30); do
             gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$REQUESTED_HEAD&event=pull_request&per_page=100" > "$RUNNER_TEMP/nusa-deterministic-audit/exact-head-runs.json"
@@ -134,6 +168,32 @@ jobs:
           if [ "$required_ready" != "true" ]; then
             echo "Required exact-head workflows did not converge to success before the bounded Audit deadline." >&2
             exit 1
+          fi
+
+          if [ "$design_required" = "true" ]; then
+            if [ "$design_gate_bootstrap" = "true" ]; then
+              echo "::error::Design gate bootstrap cannot authorize a visual PR. Land the trusted design gate on protected main first, then rebase/revalidate this PR."
+              exit 1
+            else
+              statuses="$(gh api "repos/$GITHUB_REPOSITORY/commits/$REQUESTED_HEAD/statuses?per_page=100")"
+            design_status="$(jq -c '[.[] | select(.context == "nusa/design-accepted")] | sort_by(.created_at) | reverse | .[0] // empty' <<<"$statuses")"
+            test -n "$design_status"
+            jq -e '.state == "success" and (.target_url | type == "string")' <<<"$design_status" >/dev/null
+            design_target="$(jq -r '.target_url' <<<"$design_status")"
+            design_run_id="$(sed -nE 's#^.*/actions/runs/([0-9]+)$#\\1#p' <<<"$design_target")"
+            test -n "$design_run_id"
+            design_run="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$design_run_id")"
+            jq -e --arg trusted "$current_main" '
+              .name == "Android Design Acceptance"
+              and .path == ".github/workflows/android-design-acceptance.yml"
+              and .event == "workflow_dispatch"
+              and .status == "completed"
+              and .conclusion == "success"
+              and .head_branch == "main"
+              and .head_sha == $trusted
+            ' <<<"$design_run" >/dev/null
+              echo "Exact-head DESIGN_ACCEPTED verified: head=$REQUESTED_HEAD run=$design_run_id"
+            fi
           fi
 
           paper_run_id="$(jq -r --arg head "$REQUESTED_HEAD" '[.workflow_runs[] | select(.name == "Actual PAPER Public-Market Runtime Evidence" and .path == ".github/workflows/wo-0059-actual-paper-runtime.yml" and .head_sha == $head and .event == "pull_request" and .status == "completed" and .conclusion == "success")] | sort_by(.updated_at) | reverse | .[0].id // empty' "$RUNNER_TEMP/nusa-deterministic-audit/exact-head-runs.json")"
@@ -191,12 +251,15 @@ jobs:
       contents: read
       issues: read
       pull-requests: read
+      statuses: read
       id-token: write
     env:
       GH_TOKEN: ${{ github.token }}
       PR_NUMBER: ${{ github.event.client_payload.pr_number }}
       EXPECTED_HEAD: ${{ github.event.client_payload.head_sha }}
       AUDITED_BASE: ${{ needs.audit.outputs.audited_base }}
+      DESIGN_REQUIRED: ${{ needs.audit.outputs.design_required }}
+      DESIGN_GATE_BOOTSTRAP: ${{ needs.audit.outputs.design_gate_bootstrap }}
     steps:
       - name: Re-verify expected head and audited base
         run: |
@@ -211,6 +274,32 @@ jobs:
           test "$(jq -r '.base.ref' <<<"$pr")" = "main"
           test "$(jq -r '.base.sha' <<<"$pr")" = "$AUDITED_BASE"
           test "$main" = "$AUDITED_BASE"
+
+          if [ "$DESIGN_REQUIRED" = "true" ]; then
+            if [ "$DESIGN_GATE_BOOTSTRAP" = "true" ]; then
+              echo "::error::Release refuses design-gate bootstrap. Trusted android-design-acceptance.yml must already exist on audited protected main."
+              exit 1
+            else
+              statuses="$(gh api "repos/$GITHUB_REPOSITORY/commits/$EXPECTED_HEAD/statuses?per_page=100")"
+            design_status="$(jq -c '[.[] | select(.context == "nusa/design-accepted")] | sort_by(.created_at) | reverse | .[0] // empty' <<<"$statuses")"
+            test -n "$design_status"
+            jq -e '.state == "success" and (.target_url | type == "string")' <<<"$design_status" >/dev/null
+            design_target="$(jq -r '.target_url' <<<"$design_status")"
+            design_run_id="$(sed -nE 's#^.*/actions/runs/([0-9]+)$#\\1#p' <<<"$design_target")"
+            test -n "$design_run_id"
+            design_run="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$design_run_id")"
+            jq -e --arg trusted "$AUDITED_BASE" '
+              .name == "Android Design Acceptance"
+              and .path == ".github/workflows/android-design-acceptance.yml"
+              and .event == "workflow_dispatch"
+              and .status == "completed"
+              and .conclusion == "success"
+              and .head_branch == "main"
+              and .head_sha == $trusted
+            ' <<<"$design_run" >/dev/null
+              echo "Release re-verified exact-head DESIGN_ACCEPTED: $EXPECTED_HEAD"
+            fi
+          fi
 
       - name: Enforce canonical P0 Release serialization
         env:

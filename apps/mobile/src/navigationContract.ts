@@ -2,16 +2,16 @@ export const PRIMARY_DESTINATIONS = ["Home", "Paper", "Live", "More"] as const;
 export type PrimaryDestination = (typeof PRIMARY_DESTINATIONS)[number];
 
 export const primaryDestinationLabels: Readonly<Record<PrimaryDestination, string>> = Object.freeze({
-  Home: "HOME",
-  Paper: "PAPER",
-  Live: "LIVE",
-  More: "MORE",
+  Home: "홈",
+  Paper: "모의투자",
+  Live: "실거래 준비",
+  More: "더보기",
 });
 
 export const primaryDestinationDisplayLabels: Readonly<Record<PrimaryDestination, string>> = Object.freeze({
-  Home: "NUSA",
-  Paper: "PAPER",
-  Live: "LIVE",
+  Home: "홈",
+  Paper: "모의투자",
+  Live: "실거래 준비",
   More: "더보기",
 });
 

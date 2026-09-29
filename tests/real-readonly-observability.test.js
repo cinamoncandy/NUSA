@@ -276,7 +276,12 @@ test("#661: the unified cockpit renders three separate modes without collapsing 
   const cockpit = read("apps/mobile/src/paperShadowMonitorView.tsx");
   assert.match(cockpit, /\["PAPER", "SHADOW", "REAL"\]/);
   assert.match(cockpit, /testID=\{`monitor-mode-\$\{item\.toLowerCase\(\)\}`\}/);
-  assert.match(cockpit, /READ ONLY/);
+  assert.match(cockpit, /accessibilityLabel=\{`\$\{modeLabel\(item\)\} 보기 전용 상태`\}/);
+  assert.match(cockpit, /모의투자/);
+  assert.match(cockpit, /시스템 학습/);
+  assert.match(cockpit, /가상 검증/);
+  assert.match(cockpit, /실계좌 보기/);
+  assert.doesNotMatch(cockpit, /<Text style=\{styles\.readOnly\}>READ ONLY<\/Text>|flexWrap: "wrap"|minWidth: 112/);
   assert.match(cockpit, /PaperLearningMonitorView/);
   assert.match(cockpit, /ShadowObservabilityMonitorView/);
   assert.match(cockpit, /RealReadOnlyMonitorView/);
@@ -286,8 +291,8 @@ test("#661: the unified cockpit renders three separate modes without collapsing 
 
 test("#661: the REAL view is unmistakably read-only and offers no trade control", () => {
   const view = read("apps/mobile/src/realReadOnlyMonitorView.tsx");
-  assert.match(view, /REAL · READ ONLY/);
-  assert.match(view, /주문·출금·이체 기능이 없으며 PAPER 잔고와 절대 합산되지 않습니다/);
+  assert.match(view, /실계좌 · 보기 전용/);
+  assert.match(view, /주문·출금·이체 기능이 없으며 모의투자 잔고와 절대 합산되지 않습니다/);
   assert.match(view, /testID="real-readonly-monitor"/);
   for (const testId of ["real-readonly-connection", "real-readonly-account", "real-readonly-reconciliation", "real-readonly-timeline", "real-readonly-counters"]) {
     assert.ok(view.includes(`testID="${testId}"`), `${testId} card must render`);

@@ -13,7 +13,7 @@ const projection = fs.readFileSync(path.join(root, "apps/cloud/src/evolutionLear
 test("system learning is a distinct read-only supervisor mode, not PAPER learning", () => {
   assert.match(cockpit, /BASE_MODES = \["PAPER", "SHADOW", "REAL"\]/);
   assert.match(cockpit, /"SYSTEM"/);
-  assert.match(cockpit, /SYSTEM LEARNING/);
+  assert.match(cockpit, /시스템 학습/);
   assert.match(cockpit, /SystemLearningSupervisorView/);
   assert.match(cockpit, /InMemoryDashboardCredentialSession/);
 });
@@ -26,8 +26,8 @@ test("system learning presents attention, freshness and result before progressiv
   const evidenceToggle = view.indexOf('testID="system-learning-evidence-toggle"');
   const details = view.indexOf('testID="system-learning-evidence-details"');
   assert.ok(attention >= 0 && freshness > attention && result > freshness && historyToggle > result && evidenceToggle > historyToggle && details > evidenceToggle);
-  assert.match(view, /VALIDATION/);
-  assert.match(view, /REUSABLE/);
+  assert.match(view, /검증 상태/);
+  assert.match(view, /재사용 가능/);
   assert.match(view, /headHash\.slice/);
   assert.match(view, /evidenceReferences\.map/);
 });
@@ -51,7 +51,7 @@ test("system learning recent history is bounded canonical evidence with no inven
   assert.match(projection, /RECENT_LIMIT = 5/);
   assert.match(projection, /replay\.records\.slice\(-RECENT_LIMIT\)\.reverse\(\)/);
   assert.match(view, /ready\?\.recent\?\.slice\(1\)/);
-  assert.match(view, /RECENT LEARNING/);
+  assert.match(view, /최근 학습/);
   assert.match(view, /system-learning-history/);
   assert.doesNotMatch(view, /growth|trend|confidence|score|percent/i);
 });
@@ -68,7 +68,7 @@ test("system learning attention is deterministic from recorded outcome only", ()
 });
 
 test("system learning surface keeps zero-authority truth visible", () => {
-  assert.match(view, /READ ONLY · AI ZERO AUTHORITY · LIVE NONE/);
+  assert.match(view, /보기 전용 · AI 실행 권한 없음 · 실거래 권한 없음/);
   assert.match(view, /전략 승격, 주문, 자본 변경 권한을 갖지 않습니다/);
   assert.match(client, /validateEvolutionLearningSupervisorSnapshot/);
   assert.match(client, /redirect: "error"/);

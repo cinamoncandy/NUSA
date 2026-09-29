@@ -98,7 +98,7 @@ export function HomeView({
   const localAccount = localPortfolio?.account ?? null;
   const account = cloudAccount ?? localAccount;
   const accountSource = snapshot != null ? "CLOUD" : localPortfolio != null ? "LOCAL" : null;
-  const capitalLabel = accountSource === "LOCAL" ? "LOCAL PAPER CAPITAL" : accountSource === "CLOUD" ? "CLOUD PAPER CAPITAL" : "PAPER CAPITAL";
+  const capitalLabel = accountSource === "LOCAL" ? "기기 내 모의투자 자산" : accountSource === "CLOUD" ? "서버 모의투자 자산" : "모의투자 자산";
   const totalPnl = account == null ? null : (account.realizedPnl ?? account.position.realizedPnl) + account.unrealizedPnl;
   const exposure = cloudAccount != null ? cloudExposure(cloudAccount) : localAccount?.assetValue ?? null;
   const cashEnvelope = account == null ? null : createCashInvestmentEnvelope(account.cash, investmentPercent);
@@ -142,10 +142,10 @@ export function HomeView({
   const hasPosition = Boolean(position && Number(position.quantity) > 0);
   const openOrders = snapshot?.portfolio?.openOrderCount ?? null;
   const pnlColor = totalPnl == null ? theme.colors.text : totalPnl >= 0 ? theme.colors.success : theme.colors.danger;
-  const connectionLabel = disconnected ? "SETUP" : readOnlyError ? "DEGRADED" : snapshot?.readyForPaperOperations ? "ACTIVE" : "OBSERVING";
+  const connectionLabel = disconnected ? "설정 필요" : readOnlyError ? "확인 필요" : snapshot?.readyForPaperOperations ? "실행 중" : "관측 중";
   // A trusted device whose session is being recovered is not a setup problem: project it as
   // reconnecting. SETUP remains only for a configuration or trust failure that needs the owner.
-  const shownConnectionLabel = recovering ? "RECOVERING" : connectionLabel;
+  const shownConnectionLabel = recovering ? "복구 중" : connectionLabel;
 
   return <View style={[styles.shell, { backgroundColor: theme.colors.background }]} testID="home-screen">
     <ScrollView
@@ -176,7 +176,7 @@ export function HomeView({
           <View style={styles.capitalPrimary}>
             <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>{capitalLabel}</Text>
             <Text style={[styles.capitalValue, { color: theme.colors.text }]} numberOfLines={1} adjustsFontSizeToFit>{krw(account?.equity)}</Text>
-            <Text style={[styles.pnlValue, { color: pnlColor }]}>{signedMoney(totalPnl)} TOTAL PNL</Text>
+            <Text style={[styles.pnlValue, { color: pnlColor }]}>{signedMoney(totalPnl)} 총 손익</Text>
           </View>
           <View style={styles.capitalFacts}>
             <View style={styles.capitalFact}><Text style={[styles.factLabel, { color: theme.colors.textMuted }]}>현금</Text><Text style={[styles.factValue, { color: theme.colors.text }]}>{krw(account?.cash)}</Text></View>
@@ -191,7 +191,7 @@ export function HomeView({
       <MotionReveal testID="home-market-canvas-reveal">
         <View style={[styles.marketCanvas, { borderColor: ui.color.border }]} testID="home-public-market-chart">
           <View style={styles.canvasHeader}>
-            <View><Text style={[styles.eyebrow, { color: theme.colors.aiSignalMid }]}>MARKET CANVAS</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{publicMarket}</Text></View>
+            <View><Text style={[styles.eyebrow, { color: theme.colors.aiSignalMid }]}>시세 흐름</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{publicMarket}</Text></View>
             <View style={styles.canvasQuote}><Text style={[styles.marketPrice, { color: theme.colors.text }]} adjustsFontSizeToFit numberOfLines={1}>{krw(marketChart.currentPrice)}</Text><Text style={[styles.sectionMeta, { color: theme.colors.textMuted }]}>UPBIT · PUBLIC READ ONLY</Text></View>
           </View>
           <View style={[styles.canvasChart, { borderColor: theme.colors.border }]}>
@@ -202,7 +202,7 @@ export function HomeView({
       </MotionReveal>
 
       <View style={styles.loopHeader}>
-        <View><Text style={[styles.eyebrow, { color: theme.colors.aiSignalStart }]}>NUSA LOOP</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>관측하고, 검증하고, 학습합니다</Text></View>
+        <View><Text style={[styles.eyebrow, { color: theme.colors.aiSignalStart }]}>NUSA 판단 흐름</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>관측하고, 검증하고, 학습합니다</Text></View>
         <Text style={[styles.sectionMeta, { color: theme.colors.textMuted }]}>자동 실행이 아니라 검증 가능한 판단 흐름</Text>
       </View>
       <View style={[styles.commandStack, tablet ? styles.commandStackTablet : null]}>
@@ -273,25 +273,25 @@ export function HomeView({
 
 const styles = StyleSheet.create({
   shell: { flex: 1 },
-  content: { width: "100%", alignSelf: "center", paddingHorizontal: 20, paddingTop: 10, paddingBottom: 32, gap: 16 },
-  appBar: { minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  content: { width: "100%", alignSelf: "center", paddingHorizontal: 16, paddingTop: 4, paddingBottom: 28, gap: 10 },
+  appBar: { minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
   brandLockup: { flexDirection: "row", alignItems: "center", gap: 9 },
   liveDot: { width: 8, height: 8, borderRadius: 999 },
   brand: { fontSize: 15, lineHeight: 20, letterSpacing: 4, ...fieldFonts.display },
-  statusCapsule: { minHeight: 30, borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 4, alignItems: "center", justifyContent: "center" },
+  statusCapsule: { minHeight: 28, paddingHorizontal: 2, alignItems: "center", justifyContent: "center" },
   statusCapsuleText: { fontSize: 9, lineHeight: 13, fontWeight: "600", letterSpacing: 0.8 },
-  glanceRail: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: -8 },
+  glanceRail: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: -4 },
   glancePrimary: { flex: 1, minWidth: 180, fontSize: 10, lineHeight: 15, fontWeight: "700" },
   glanceRisk: { fontSize: 10, lineHeight: 15, fontWeight: "600", letterSpacing: 0.45 },
   glanceBuild: { fontSize: 9, lineHeight: 14, fontWeight: "500", fontVariant: ["tabular-nums"] },
 
-  capitalRail: { borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 13, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 14, flexWrap: "wrap" },
+  capitalRail: { borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 10, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 12, flexWrap: "wrap" },
   capitalPrimary: { flex: 1, minWidth: 210, gap: 3 },
   capitalValue: { fontSize: 30, lineHeight: 36, letterSpacing: -0.6, fontVariant: ["tabular-nums"], ...fieldFonts.displayLight },
   capitalFacts: { flexDirection: "row", alignItems: "flex-end", gap: 18, flexWrap: "wrap" },
   capitalFact: { minWidth: 64, gap: 2 },
   // Field language: no card chrome, a single hairline and whitespace.
-  marketCanvas: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 16, gap: 12 },
+  marketCanvas: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, gap: 10 },
   canvasHeader: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 14, flexWrap: "wrap" },
   canvasQuote: { alignItems: "flex-end", gap: 2, flexShrink: 1 },
   canvasChart: { minHeight: 150, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 8 },
@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
   sectionMeta: { maxWidth: 150, textAlign: "right", fontSize: 9, lineHeight: 14, fontWeight: "700" },
   commandStack: { gap: 10 },
   commandStackTablet: { flexDirection: "row", alignItems: "stretch" },
-  command: { flex: 1, minHeight: 132, borderTopWidth: StyleSheet.hairlineWidth, borderRadius: 0, paddingHorizontal: 2, paddingVertical: 16, gap: 7 },
+  command: { flex: 1, minHeight: 108, borderTopWidth: StyleSheet.hairlineWidth, borderRadius: 0, paddingHorizontal: 2, paddingVertical: 13, gap: 6 },
   commandTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   commandCode: { fontSize: 9, lineHeight: 13, fontWeight: "600", letterSpacing: 1.1 },
   commandArrow: { fontSize: 16, lineHeight: 18, fontWeight: "700" },

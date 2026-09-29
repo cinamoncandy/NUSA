@@ -62,7 +62,7 @@ test("#637: Home gives Cloud PAPER precedence and otherwise renders shared LOCAL
   assert.match(home, /testID="account-hero-card"/);
   assert.match(home, /PAPER EQUITY/);
   assert.match(home, /\{krw\(account\?\.equity\)\}/);
-  assert.match(home, /\{signedMoney\(totalPnl\)\} TOTAL PNL/);
+  assert.match(home, /\{signedMoney\(totalPnl\)\} 총 손익/);
   assert.doesNotMatch(home, /home-local-paper-note/);
 });
 
@@ -74,7 +74,7 @@ test("#637: Portfolio renders shared LOCAL PAPER only when Cloud PAPER is absent
   assert.match(portfolio, /const localPortfolio = localPaperActive \? buildLocalPortfolio\(localTradingSnapshot, localMarkPrice\) : null/);
   assert.match(portfolio, /const effectiveSnapshot = snapshot \?\? localPortfolio/);
   assert.match(portfolio, /const usingLocalPaper = snapshot === null && localPortfolio !== null/);
-  assert.match(portfolio, /status=\{model \? \(usingLocalPaper \? "LOCAL PAPER" : "PAPER READY"\)/);
+  assert.match(portfolio, /status=\{model \? \(usingLocalPaper \? "기기 내 모의투자" : "모의투자 준비됨"\)/);
   assert.match(portfolio, /testID="portfolio-supervisor-summary"/);
 });
 

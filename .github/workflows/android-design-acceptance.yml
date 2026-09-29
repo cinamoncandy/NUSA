@@ -1,0 +1,171 @@
+name: Android Design Acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "UI pull request number"
+        required: true
+        type: string
+      head_sha:
+        description: "Exact PR head SHA under visual review"
+        required: true
+        type: string
+      verdict:
+        description: "Independent visual verdict"
+        required: true
+        type: choice
+        options:
+          - ACCEPTED
+          - REJECTED
+      reference_check:
+        description: "Does the Android screenshot set look like the approved NUSA product family?"
+        required: true
+        type: choice
+        options:
+          - SAME_PRODUCT_FAMILY
+          - NOT_SAME_PRODUCT_FAMILY
+      evidence_note:
+        description: "Short visual review note"
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+  statuses: write
+
+concurrency:
+  group: android-design-acceptance-${{ inputs.pr_number }}-${{ inputs.head_sha }}
+  cancel-in-progress: false
+
+jobs:
+  exact-head-design-verdict:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Bind reviewer, PR and exact head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          EXPECTED_HEAD: ${{ inputs.head_sha }}
+          APPROVERS: ${{ vars.NUSA_DESIGN_APPROVERS }}
+          EVIDENCE_NOTE: ${{ inputs.evidence_note }}
+        run: |
+          set -euo pipefail
+          [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]
+          [[ "$EXPECTED_HEAD" =~ ^[0-9a-fA-F]{40}$ ]]
+          test "$GITHUB_REF" = "refs/heads/main"
+
+          allowed="${APPROVERS:-$GITHUB_REPOSITORY_OWNER}"
+          normalized=",${allowed// /},"
+          if [[ "$normalized" != *",$GITHUB_ACTOR,"* ]]; then
+            echo "::error::Actor $GITHUB_ACTOR is not an authorized NUSA design approver."
+            exit 1
+          fi
+          if [ "${#EVIDENCE_NOTE}" -lt 8 ]; then
+            echo "::error::Visual evidence note is too short."
+            exit 1
+          fi
+
+          pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          test "$(jq -r '.state' <<<"$pr")" = "open"
+          test "$(jq -r '.head.sha' <<<"$pr")" = "$EXPECTED_HEAD"
+          test "$(jq -r '.base.ref' <<<"$pr")" = "main"
+          test "$(jq -r '.base.repo.full_name' <<<"$pr")" = "$GITHUB_REPOSITORY"
+
+      - name: Verify exact-head Android screenshot evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_HEAD: ${{ inputs.head_sha }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          set -euo pipefail
+          pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          expected_base="$(jq -r '.base.sha' <<<"$pr")"
+          test -n "$expected_base"
+          runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$EXPECTED_HEAD&event=pull_request&per_page=100")"
+          ux_run_id="$(jq -r --arg head "$EXPECTED_HEAD" '
+            [.workflow_runs[]
+              | select(.name == "Android Product UX Acceptance"
+                and .path == ".github/workflows/android-product-ux-acceptance.yml"
+                and .head_sha == $head
+                and .status == "completed"
+                and .conclusion == "success")]
+            | sort_by(.updated_at) | reverse | .[0].id // empty
+          ' <<<"$runs")"
+          test -n "$ux_run_id"
+
+          artifacts="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ux_run_id/artifacts?per_page=100")"
+          artifact="$(jq -c --arg name "android-product-ux-$EXPECTED_HEAD" --arg head "$EXPECTED_HEAD" '
+            [.artifacts[]
+              | select(.name == $name
+                and .expired == false
+                and .workflow_run.head_sha == $head
+                and (.digest | type == "string" and test("^sha256:[a-fA-F0-9]{64}$")))]
+            | sort_by(.updated_at) | reverse | .[0] // empty
+          ' <<<"$artifacts")"
+          test -n "$artifact"
+          artifact_id="$(jq -r '.id' <<<"$artifact")"
+
+          mkdir -p "$RUNNER_TEMP/design-evidence"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id/zip" > "$RUNNER_TEMP/design-evidence.zip"
+          unzip -q "$RUNNER_TEMP/design-evidence.zip" -d "$RUNNER_TEMP/design-evidence"
+
+          evidence_root="$(dirname "$(find "$RUNNER_TEMP/design-evidence" -type f -name screenshot-manifest.json -print -quit)")"
+          test -n "$evidence_root"
+          test -s "$evidence_root/screenshots.sha256"
+          (
+            cd "$evidence_root"
+            sha256sum -c screenshots.sha256
+          )
+
+          MANIFEST="$evidence_root/screenshot-manifest.json" EXPECTED_HEAD="$EXPECTED_HEAD" EXPECTED_BASE="$expected_base" UX_RUN_ID="$ux_run_id" node - <<'NODE'
+          const fs = require("fs");
+          const manifest = JSON.parse(fs.readFileSync(process.env.MANIFEST, "utf8"));
+          const required = [
+            "01-home.png",
+            "02-paper-primary.png",
+            "03-live-readiness.png",
+            "05-more.png",
+            "07-paper-evidence-open.png",
+            "09-portfolio.png",
+            "10-settings.png",
+            "13-home-return.png",
+          ];
+          const fail = (message) => { throw new Error(message); };
+          if (manifest.schemaVersion !== 1) fail("unsupported screenshot manifest");
+          if (String(manifest.headSha || "").toLowerCase() !== process.env.EXPECTED_HEAD.toLowerCase()) fail("screenshot head mismatch");
+          if (String(manifest.baseSha || "").toLowerCase() !== process.env.EXPECTED_BASE.toLowerCase()) fail("screenshot base mismatch");
+          if (Number(manifest.workflowRunId) !== Number(process.env.UX_RUN_ID)) fail("screenshot workflow run mismatch");
+          if (manifest.requiredVisualReview !== true || manifest.automatedVerdict !== "STRUCTURAL_ONLY") fail("visual-review contract missing");
+          for (const frame of required) if (!manifest.frames.includes(frame)) fail(`missing required frame: ${frame}`);
+          NODE
+
+          echo "Exact-head Android screenshot evidence verified: run=$ux_run_id artifact=$artifact_id head=$EXPECTED_HEAD"
+
+      - name: Publish exact-head DESIGN_ACCEPTED verdict
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_HEAD: ${{ inputs.head_sha }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          VERDICT: ${{ inputs.verdict }}
+          REFERENCE_CHECK: ${{ inputs.reference_check }}
+          EVIDENCE_NOTE: ${{ inputs.evidence_note }}
+          CONTEXT: nusa/design-accepted
+        run: |
+          set -euo pipefail
+          target="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          if [ "$VERDICT" = "ACCEPTED" ] && [ "$REFERENCE_CHECK" = "SAME_PRODUCT_FAMILY" ]; then
+            state=success
+            description="DESIGN_ACCEPTED; pr=$PR_NUMBER; reviewer=$GITHUB_ACTOR"
+          else
+            state=failure
+            description="DESIGN_REJECTED; pr=$PR_NUMBER; reviewer=$GITHUB_ACTOR"
+          fi
+
+          gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$EXPECTED_HEAD"             -f state="$state"             -f context="$CONTEXT"             -f description="$description"             -f target_url="$target" >/dev/null
+
+          echo "Design verdict: $state · head=$EXPECTED_HEAD · reviewer=$GITHUB_ACTOR · note=$EVIDENCE_NOTE"
+          if [ "$state" != "success" ]; then exit 1; fi

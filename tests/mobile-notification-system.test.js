@@ -23,7 +23,7 @@ test("notification UI truthfully exposes disconnected runtime without fake event
 
   assert.match(view, /notifications-paper/);
   assert.match(view, /StatusChip label="미연결"/);
-  assert.match(view, /DataRow label="운영 모드" value="PAPER" emphasis/);
+  assert.match(view, /DataRow label="운영 모드" value="모의투자" emphasis/);
   assert.match(view, /DataRow label="권한" value="읽기 전용"/);
   assert.match(view, /DataRow label="현재 상태" value="이벤트 수집 미연결"/);
   assert.match(view, /실제 이벤트가 연결되기 전에는 알림 목록이나 동작하지 않는 알림 설정을 제공하지 않습니다/);

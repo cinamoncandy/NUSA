@@ -1698,4 +1698,18 @@ current_pr1991_review_hardening:
   remediation: "Reapply the frozen qualification-integrity delta onto latest protected main while preserving current research learning/runtime changes."
   validation: "Prior focused 60/60 and exact-head CI evidence remain historical only; fresh exact-head CI is required on the reconverged head."
   next: "Fresh exact-head CI PASS -> independent Audit -> nusa/release-authorized -> canonical merge. Do not manually rerun Audit/Release."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY\n
+
+current_uiux_pr_2327_android_visual_convergence:
+  work_order: WO-20260927-PR2327-ANDROID-DESIGN-GATE
+  status: IN_PROGRESS
+  pull_request: 2327
+  branch: uiux/post-2262-visual-acceptance
+  base_sha: 9f433315ba573fdefe3b6e36490577bfe1e9ee90
+  previous_head: b2deeb8b40948f43ac05195642b4257e91c35141
+  finding: "Previous reconvergence attached current-main ancestry while retaining an older branch tree, dropping protected-main presentation/design-system files and causing Android/CI failures."
+  remediation: "Rebuild the candidate from the latest protected-main tree and overlay only the existing PR #2327 logical delta; restore the presentation boundary, retain protected-main dependency security state, and replace the HOME orbit/particle renderer with a state-bound ribbon field."
+  validation: "Fresh exact-head CI, Mobile Native, Android Product UX, PAPER/read-only/Restricted LIVE checks are required; all evidence from b2deeb8b and earlier is stale."
+  blocker: "Trusted Android Design Acceptance authority is not yet present on protected main. Galaxy physical-device evidence remains HUMAN_ENVIRONMENT_ONLY / NOT VERIFIED."
+  next: "Clean candidate -> focused/fresh exact-head validation -> Android screenshot inspection -> trusted design acceptance -> Audit -> Release -> merge -> Android release -> Galaxy acceptance."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

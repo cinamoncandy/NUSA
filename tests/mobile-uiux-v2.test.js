@@ -14,7 +14,7 @@ test("product navigation promotes PAPER learning supervision and AI through the 
   const contract = read("src/navigationContract.ts");
   assert.match(contract, /PRIMARY_DESTINATIONS = \["Home", "Paper", "Live", "More"\]/);
   assert.match(app, /<PrimaryNavigation/);
-  assert.match(app, /activeTab === "Paper" \? <PaperShadowMonitorView/);
+  assert.match(app, /activeTab === "Paper" \? <PaperLearningMonitorView/);
   assert.match(app, /activeTab === "Live" \? <LiveReadinessMonitorView/);
   assert.doesNotMatch(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\]/);
   assert.doesNotMatch(app, /activeTab === "AiSignal" \? <AiView/);

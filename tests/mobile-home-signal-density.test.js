@@ -14,7 +14,7 @@ test("HOME keeps verified market observation substantial and tablet-aware", () =
   assert.match(home, /QUICK ACCESS/);
   assert.match(home, /testID="home-decision-stage"/);
   assert.match(home, /selectHomeMarketData\(publicMarkets, snapshot\?\.markets \?\? \[\]\)/);
-  assert.match(home, /PUBLIC READ ONLY/);
+  assert.match(home, /보기 전용/);
 });
 
 test("HOME content-first hierarchy places glanceable workspaces before progressive decision and risk detail", () => {

@@ -26,6 +26,7 @@ test("#755: an unconfigured endpoint is reported as NOT_CONFIGURED, not as absen
   resetLocalPaperLearningEventsForTest();
   const screen = buildPaperLearningScreen([], "PAUSED", "NOT_CONFIGURED");
   assert.equal(screen.dataSource, "NOT_CONFIGURED");
+  assert.equal(screen.serverSource, "NOT_CONFIGURED");
   assert.equal(screen.timeline.length, 0);
 });
 
@@ -77,10 +78,19 @@ test("#755: substituting the on-device projection is disclosed as LOCAL_FALLBACK
   }
 });
 
+test("#755: local public fallback never hides a disconnected PAPER backend", () => {
+  resetLocalPaperLearningEventsForTest();
+  recordLocalPaperPublicMarkets([{ market: "KRW-BTC", price: 100_000_000, changeRate: 0.01, volume: 10, observedAt: new Date(1_700_000_000_000).toISOString(), source: "UPBIT_PUBLIC_TICKER" }]);
+  const screen = buildPaperLearningScreen([], "PAUSED", "NOT_CONFIGURED");
+  assert.equal(screen.dataSource, "LOCAL_FALLBACK");
+  assert.equal(screen.serverSource, "NOT_CONFIGURED");
+  assert.equal(screen.status, "PAUSED");
+});
+
 test("#755: the monitor reports the observed condition instead of guessing from runtime status", () => {
   const view = read("apps/mobile/src/paperLearningMonitorView.tsx");
   // The reason must be selected by the explicit discriminant, not re-derived from state.status.
-  assert.match(view, /switch \(state\.dataSource\)/);
+  assert.match(view, /switch \(state\.serverSource\)/);
   for (const source of ["NOT_CONFIGURED", "UNAVAILABLE", "PROJECTION_ABSENT"]) {
     assert.ok(view.includes(`case "${source}":`), `${source} must have its own reported reason`);
   }
@@ -96,6 +106,8 @@ test("#755: App supplies the real upstream condition rather than a placeholder",
   assert.match(app, /operations\.status === "UNAVAILABLE"/);
   assert.match(app, /snapshot\?\.paperLearning == null/);
   assert.match(app, /buildPaperLearningScreen\(snapshot\?\.paperLearning\?\.events \?\? \[\], paperLearningRuntimeStatus, paperLearningServerSource\)/);
+  assert.match(app, /const paperLearningRuntimeStatus = snapshot\?\.paperLearning\?\.runtimeStatus \?\? "PAUSED"/);
+  assert.doesNotMatch(app, /getLocalPaperLearningReadiness\(/);
 });
 
 test("#755: no LIVE or production-mutation authority is introduced by the data-source surface", () => {

@@ -13,9 +13,9 @@ test("premium UI minimum path keeps canonical actionable Home routes and truthfu
   assert.match(home, /testID="home-decision-stage"/);
   assert.match(home, /testID="home-paper-performance"/);
   assert.match(home, /testID="home-paper-learning"/);
-  assert.match(home, /PAPER ONLY · LIVE NONE · AI ZERO AUTHORITY/);
+  assert.match(home, /모의투자 전용 · 실거래 권한 없음 · AI 실행 권한 없음/);
   assert.match(decisionSurface, /const connectionRecoveryRequired = input\.disconnected \|\| input\.readOnlyError/);
-  assert.match(decisionSurface, /const statusLabel = connectionRecoveryRequired[\s\S]*PAPER · RECOVERY REQUIRED[\s\S]*input\.accountSource === "CLOUD"[\s\S]*PAPER · \$\{[\s\S]*PAPER · LOCAL[\s\S]*PAPER · OFFLINE[\s\S]*PAPER · STANDBY/);
+  assert.match(decisionSurface, /const statusLabel = connectionRecoveryRequired[\s\S]*모의투자 · 복구 필요[\s\S]*input\.accountSource === "CLOUD"[\s\S]*모의투자 · \$\{[\s\S]*모의투자 · 기기 내[\s\S]*모의투자 · 연결 안 됨[\s\S]*모의투자 · 대기 중/);
   assert.doesNotMatch(home, /testID="home-supervisor-primary-action"/);
   assert.doesNotMatch(home, /<MetricTile label="PAPER 연결"/);
   assert.doesNotMatch(home, /primaryActions/);

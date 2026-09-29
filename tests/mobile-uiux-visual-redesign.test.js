@@ -25,10 +25,10 @@ test("Home uses the content-first command center hierarchy without weakening aut
   const decisionSurface = read("src/homeDecisionSurface.ts");
 
   assert.match(home, /testID="home-master-rail"/);
-  assert.match(home, /connectionLabel = disconnected \? "SETUP" : readOnlyError \? "DEGRADED"/);
-  assert.match(home, /"ACTIVE" : "OBSERVING"/);
+  assert.match(home, /connectionLabel = disconnected \? "설정 필요" : readOnlyError \? "확인 필요"/);
+  assert.match(home, /"실행 중" : "관측 중"/);
   assert.match(home, /PAPER EQUITY/);
-  assert.match(home, /TOTAL PNL/);
+  assert.match(home, /총 손익/);
   assert.match(home, /QUICK ACCESS/);
   assert.match(home, />MARKETS</);
   assert.match(home, />PORTFOLIO</);
@@ -36,7 +36,7 @@ test("Home uses the content-first command center hierarchy without weakening aut
   assert.match(home, /DECISION BASIS/);
   assert.match(home, />RISK</);
   assert.match(home, />RESULT</);
-  assert.match(home, /paddingBottom: 32/);
+  assert.match(home, /paddingBottom: 28/);
   assert.match(home, /commandStackTablet: \{ flexDirection: "row"/);
   assert.match(home, /testID="home-now"/);
   assert.match(home, /testID="account-hero-card"/);
@@ -83,6 +83,7 @@ test("Bottom navigation uses a restrained active rail with the four-destination 
   assert.match(contract, /PRIMARY_DESTINATIONS = \["Home", "Paper", "Live", "More"\]/);
   assert.match(nav, /backgroundColor: theme\.colors\.navSurface/);
   assert.match(nav, /backgroundColor: active \? theme\.colors\.aiSignalEnd/);
+  assert.doesNotMatch(nav, /backgroundColor: active \? theme\.colors\.primarySoft/);
   assert.match(app, /<PrimaryNavigation/);
   assert.doesNotMatch(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\]/);
   assert.doesNotMatch(app, /AiSignal: "AI 판단과 근거"/);

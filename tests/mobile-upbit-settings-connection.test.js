@@ -19,10 +19,10 @@ test("Upbit settings connection is tokenless, HTTPS-only, and refreshes the appr
 
   assert.match(panel, /settings-upbit-connection/);
   assert.doesNotMatch(panel, /settings-upbit-token|TextInput|SecureStore|AsyncStorage/);
-  assert.match(panel, /READ ONLY/);
-  assert.match(panel, /UPBIT READ ONLY/);
+  assert.match(panel, /보기 전용/);
+  assert.match(panel, /UPBIT 계좌 보기/);
   assert.doesNotMatch(panel, />UPBIT LIVE<\/Text>/);
-  assert.match(panel, /별도 토큰 없이 인증된 PAPER 보안 세션/);
+  assert.match(panel, /승인된 모의투자 기기 인증으로 자동 연결합니다/);
   assert.match(panel, /connectUpbitReadOnlyAccount/);
   assert.match(panel, /resetUpbitReadOnlyState/);
 
@@ -58,9 +58,9 @@ test("real-account monitor remains separate from PAPER and surfaces current trut
   assert.match(portfolio, /upbitSnapshot\?: UpbitReadOnlyAccountSnapshot \| null/);
   assert.match(portfolio, /upbitStatus\?: UpbitReadOnlyConnectionStatus/);
   assert.match(portfolio, /upbitError\?: string \| null/);
-  assert.match(portfolio, /REAL ACCOUNT · READ ONLY/);
+  assert.match(portfolio, /실계좌 · 보기 전용/);
   assert.match(portfolio, /testID="portfolio-upbit-read-only"/);
-  assert.match(portfolio, /REAL_READ_ONLY 잔고는 감독용 기준선이며 PAPER 성과와 절대 합산하지 않습니다/);
+  assert.match(portfolio, /실계좌 보기 전용 잔고는 확인용 기준선이며 모의투자 성과와 절대 합산하지 않습니다/);
   assert.match(portfolio, /upbitSnapshot\?\.cash\.available/);
   assert.match(portfolio, /upbitSnapshot\?\.cash\.locked/);
   assert.match(portfolio, /upbitStatus === "READY"/);

@@ -10,7 +10,7 @@ test("normal mobile Upbit read-only flow reuses PAPER session and persists no br
   const panel = read("apps/mobile/src/upbitConnectionPanel.tsx");
   assert.match(account, /mobileApprovedSession\(\)\.credentialProvider/);
   assert.doesNotMatch(account, /upbitCredentialSession|SecureStorage|AsyncStorage|setSecret|refreshToken/);
-  assert.match(panel, /별도 토큰 없이 인증된 PAPER 보안 세션을 사용해 자동 연결합니다/);
+  assert.match(panel, /승인된 모의투자 기기 인증으로 자동 연결합니다/);
   assert.doesNotMatch(panel, /NusaTextField|토큰 입력|bridge token/i);
 });
 
