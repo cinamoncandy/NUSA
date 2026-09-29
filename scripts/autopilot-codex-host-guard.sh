@@ -13,7 +13,7 @@ set -uo pipefail
 
 mode="${1:-}"
 meminfo="${NUSA_HOST_GUARD_MEMINFO:-/proc/meminfo}"
-start_min_kb="${NUSA_HOST_GUARD_START_MIN_KB:-460800}"   # 450 MiB
+start_min_kb="${NUSA_HOST_GUARD_START_MIN_KB:-358400}"   # 350 MiB (owner decision 2026-09-30; 450 MiB never cleared on this host)
 watch_min_kb="${NUSA_HOST_GUARD_WATCH_MIN_KB:-204800}"   # 200 MiB
 state_dir="${RUNNER_TEMP:-/tmp}"
 release_workflow="oracle-paper-release.yml"
